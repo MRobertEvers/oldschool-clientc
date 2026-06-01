@@ -24,17 +24,6 @@ trspk_triangles_ensure(
     struct TRSPK_Triangles* triangles,
     uint32_t tri_count);
 
-void
-trspk_triangles_set(
-    struct TRSPK_Triangles* triangles,
-    uint32_t tri_index,
-    int value);
-
-int
-trspk_triangles_get(
-    const struct TRSPK_Triangles* triangles,
-    uint32_t tri_index);
-
 static inline uint32_t
 trspk_triangles_index_from_vertex(uint32_t vertex_index)
 {

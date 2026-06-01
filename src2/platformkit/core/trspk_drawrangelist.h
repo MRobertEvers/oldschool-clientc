@@ -13,6 +13,13 @@ struct TRSPK_DrawRange
     uint32_t buffer_idx;
     uint32_t config_idx;
 
+    // Added because D3D9 and some Opengl APIs require this. DrawIndexedPrimitives, and
+    // glDrawRangeElements.
+    // It requires a start and end index to give the driver hints for vertex
+    // cache optimization
+    uint32_t min_vertex; /* min local index in [start, end) */
+    uint32_t max_vertex; /* max local index in [start, end) */
+
     uint32_t next_idx;
 };
 
@@ -26,16 +33,13 @@ struct TRSPK_DrawRangeList
 };
 
 struct TRSPK_DrawRangeList*
-trspk_drawrangelist_create(
-    uint32_t capacity);
+trspk_drawrangelist_create(uint32_t capacity);
 
 void
-trspk_drawrangelist_free(
-    struct TRSPK_DrawRangeList* list);
+trspk_drawrangelist_free(struct TRSPK_DrawRangeList* list);
 
 void
-trspk_drawrangelist_clear(
-    struct TRSPK_DrawRangeList* list);
+trspk_drawrangelist_clear(struct TRSPK_DrawRangeList* list);
 
 struct TRSPK_DrawRange*
 trspk_drawrangelist_push(
@@ -43,11 +47,12 @@ trspk_drawrangelist_push(
     uint32_t start,
     uint32_t end,
     uint32_t buffer_idx,
-    uint32_t config_idx);
+    uint32_t config_idx,
+    uint32_t min_vertex,
+    uint32_t max_vertex);
 
 struct TRSPK_DrawRange*
-trspk_drawrangelist_head(
-    const struct TRSPK_DrawRangeList* list);
+trspk_drawrangelist_head(const struct TRSPK_DrawRangeList* list);
 
 struct TRSPK_DrawRange*
 trspk_drawrangelist_next(

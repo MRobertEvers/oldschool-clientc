@@ -46,7 +46,9 @@ trspk_drawrangelist_push(
     uint32_t start,
     uint32_t end,
     uint32_t buffer_idx,
-    uint32_t config_idx)
+    uint32_t config_idx,
+    uint32_t min_vertex,
+    uint32_t max_vertex)
 {
     assert(list->count < list->capacity);
 
@@ -57,6 +59,8 @@ trspk_drawrangelist_push(
     item->end        = end;
     item->buffer_idx = buffer_idx;
     item->config_idx = config_idx;
+    item->min_vertex = min_vertex;
+    item->max_vertex = max_vertex;
     item->next_idx   = TRSPK_DRAWRANGELIST_NULL_IDX;
 
     if( list->head_idx == TRSPK_DRAWRANGELIST_NULL_IDX )

@@ -1070,16 +1070,26 @@ d3d9_ev_end_3d(
     const float clk = (float)renderer->frame_clock;
     struct ToriDraw_Context* ctx = get_context(instance);
     uint32_t last_cfg = UINT32_MAX;
-    uint32_t last_page = UINT32_MAX;
 
     const struct TRSPK_DrawRange* range = trspk_drawrangelist_head(renderer->draw_ranges);
     while( range )
     {
-        const uint32_t cfg = range->config_idx;
-        const uint32_t page_base = range->buffer_idx;
-        const bool state_changed = cfg != last_cfg || page_base != last_page;
+        const uint32_t index_count = range->end - range->start;
+        const uint32_t prim_count = index_count / 3u;
 
-        if( state_changed )
+        // 1. EARLY OUT FIRST
+        // Do not pollute state or waste cycles if there is nothing to draw.
+        if( prim_count == 0u )
+        {
+            range = trspk_drawrangelist_next(renderer->draw_ranges, range);
+            continue;
+        }
+
+        const uint32_t cfg = range->config_idx;
+
+        // 2. DECOUPLED STATE
+        // Only rebind textures if the actual texture configuration changes.
+        if( cfg != last_cfg )
         {
             if( cfg == 0u )
             {
@@ -1098,38 +1108,30 @@ d3d9_ev_end_3d(
                     d3d9_disable_texture_transform(dev);
             }
             last_cfg = cfg;
-            last_page = page_base;
         }
         else if( cfg != 0u )
         {
-            /* Same animated texture as previous range: texture stays bound;
-             * re-apply scroll only (bind path already set it on state_changed). */
+            // 3. EFFICIENT SCROLL UPDATE
+            // Configuration and page_base are decoupled, so this will now correctly
+            // execute even if the page_base changes, saving a redundant texture re-bind.
             const int tex_id = (int)cfg - 1;
             if( renderer->tex_buffers[tex_id] )
                 d3d9_apply_texture0_scroll_matrix(dev, d3d9_anim_signed_for_tex(ctx, tex_id), clk);
         }
 
-        const uint32_t index_count = range->end - range->start;
-        const uint32_t prim_count = index_count / 3u;
-        if( prim_count == 0u )
-        {
-            range = trspk_drawrangelist_next(renderer->draw_ranges, range);
-            continue;
-        }
+        // 4. SUBMIT DRAW
+        const UINT min_vertex = (UINT)range->min_vertex;
+        const UINT num_verts = (UINT)(range->max_vertex - range->min_vertex + 1u);
+        const uint32_t page_base = range->buffer_idx; // Read only when needed
 
-        uint32_t max_local = 0u;
-        {
-            const uint16_t* ib = (const uint16_t*)locked + range->start;
-            for( uint32_t k = 0; k < index_count; k++ )
-            {
-                if( (uint32_t)ib[k] > max_local )
-                    max_local = (uint32_t)ib[k];
-            }
-        }
-
-        const UINT num_verts = max_local + 1u;
         IDirect3DDevice9_DrawIndexedPrimitive(
-            dev, D3DPT_TRIANGLELIST, (INT)page_base, 0, num_verts, range->start, (UINT)prim_count);
+            dev,
+            D3DPT_TRIANGLELIST,
+            (INT)page_base,
+            min_vertex,
+            num_verts,
+            range->start,
+            (UINT)prim_count);
 
         range = trspk_drawrangelist_next(renderer->draw_ranges, range);
     }

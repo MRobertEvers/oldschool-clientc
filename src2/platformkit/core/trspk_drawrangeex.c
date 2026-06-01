@@ -8,6 +8,33 @@
 #include <string.h>
 
 static void
+extent_index_u16(
+    uint32_t* min_v,
+    uint32_t* max_v,
+    uint16_t a,
+    uint16_t b,
+    uint16_t c)
+{
+    const uint32_t ua = (uint32_t)a;
+    const uint32_t ub = (uint32_t)b;
+    const uint32_t uc = (uint32_t)c;
+
+    if( ua < *min_v )
+        *min_v = ua;
+    if( ub < *min_v )
+        *min_v = ub;
+    if( uc < *min_v )
+        *min_v = uc;
+
+    if( ua > *max_v )
+        *max_v = ua;
+    if( ub > *max_v )
+        *max_v = ub;
+    if( uc > *max_v )
+        *max_v = uc;
+}
+
+static void
 build_ranges_for_node(
     struct TRSPK_DrawRangeList* draw_ranges,
     const struct TRSPK_Triangles* triangles,
@@ -26,6 +53,10 @@ build_ranges_for_node(
 
         const uint32_t range_start = i;
 
+        uint32_t min_vertex = (uint32_t)src[i];
+        uint32_t max_vertex = min_vertex;
+        extent_index_u16(&min_vertex, &max_vertex, src[i], src[i + 1u], src[i + 2u]);
+
         i += 3u;
         while( i < count )
         {
@@ -35,11 +66,18 @@ build_ranges_for_node(
             if( trspk_triangles_encode_draw_config(cfg) != encoded_cfg )
                 break;
 
+            extent_index_u16(&min_vertex, &max_vertex, src[i], src[i + 1u], src[i + 2u]);
             i += 3u;
         }
 
         trspk_drawrangelist_push(
-            draw_ranges, node_gpu_start + range_start, node_gpu_start + i, page_base, encoded_cfg);
+            draw_ranges,
+            node_gpu_start + range_start,
+            node_gpu_start + i,
+            page_base,
+            encoded_cfg,
+            min_vertex,
+            max_vertex);
     }
 }
 
