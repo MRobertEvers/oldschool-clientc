@@ -1016,6 +1016,46 @@ d3d9_ev_model_load(
 }
 
 static void
+d3d9_ev_model_draw(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    assert(command->kind == TORIRSRC_DRAW_MODEL);
+    assert(renderer->has_3d && renderer->ibo_chain && "Invalid renderer or not in 3D mode");
+
+    struct ToriDraw_Context* ctx = get_context(instance);
+    assert(ctx && "Invalid context");
+
+    uint32_t vertex_base = 0u;
+    if( !trspk_pose_table_get(&renderer->poses, command->u.model.element_id, &vertex_base) )
+    {
+        assert(false && "Invalid element ID");
+    }
+
+    const uint32_t page_base = vertex_base & ~(TRSPK_D3D9_VBO_PAGE - 1u);
+    // Compute the base of the index, relative to the page base.
+    // When DrawIndexedPrimitives is called,
+    // you submit Page Base + (index)
+    const uint32_t local_base = vertex_base - page_base;
+
+    const int face_count = toridraw_face_order_count(ctx);
+    if( face_count <= 0 )
+    {
+        assert(false && "Invalid face count");
+    }
+
+    int* face_order = toridraw_face_order(ctx);
+    for( int i = 0; i < face_count; i++ )
+    {
+        const uint32_t face = (uint32_t)face_order[i];
+        const uint16_t b = (uint16_t)(local_base + face * 3u);
+        const uint16_t idx[3] = { b, (uint16_t)(b + 1u), (uint16_t)(b + 2u) };
+        trspk_ibochain_push16(renderer->ibo_chain, page_base, idx, 3u);
+    }
+}
+
+static void
 d3d9_ev_end_3d(
     struct LibToriPlatformSDL2_RendererD3D9* renderer,
     struct LibToriRS_Instance* instance,
@@ -1122,7 +1162,7 @@ d3d9_ev_end_3d(
         // 4. SUBMIT DRAW
         const UINT min_vertex = (UINT)range->min_vertex;
         const UINT num_verts = (UINT)(range->max_vertex - range->min_vertex + 1u);
-        const uint32_t page_base = range->buffer_idx; // Read only when needed
+        const uint32_t page_base = range->base_offset;
 
         IDirect3DDevice9_DrawIndexedPrimitive(
             dev,
@@ -1182,35 +1222,8 @@ d3d9_handle_render_command(
         break;
 
     case TORIRSRC_DRAW_MODEL:
-    {
-        if( !renderer->has_3d || !renderer->ibo_chain )
-            break;
-
-        struct ToriDraw_Context* ctx = get_context(instance);
-        if( !ctx )
-            break;
-
-        uint32_t vertex_base = 0u;
-        if( !trspk_pose_table_get(&renderer->poses, command->u.model.element_id, &vertex_base) )
-            break;
-
-        const uint32_t page_base = vertex_base & ~(TRSPK_D3D9_VBO_PAGE - 1u);
-        const uint32_t local_base = vertex_base - page_base;
-
-        const int face_count = toridraw_face_order_count(ctx);
-        if( face_count <= 0 )
-            break;
-
-        int* face_order = toridraw_face_order(ctx);
-        for( int i = 0; i < face_count; i++ )
-        {
-            const uint32_t face = (uint32_t)face_order[i];
-            const uint16_t b = (uint16_t)(local_base + face * 3u);
-            const uint16_t idx[3] = { b, (uint16_t)(b + 1u), (uint16_t)(b + 2u) };
-            trspk_ibochain_push16(renderer->ibo_chain, page_base, idx, 3u);
-        }
+        d3d9_ev_model_draw(renderer, instance, command);
         break;
-    }
 
     default:
         break;

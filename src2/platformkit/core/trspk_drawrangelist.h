@@ -10,7 +10,7 @@ struct TRSPK_DrawRange
     uint32_t start;
     uint32_t end;
 
-    uint32_t buffer_idx;
+    uint32_t base_offset;
     uint32_t config_idx;
 
     // Added because D3D9 and some Opengl APIs require this. DrawIndexedPrimitives, and

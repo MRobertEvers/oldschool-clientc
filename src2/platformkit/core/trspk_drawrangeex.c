@@ -7,7 +7,7 @@
 #include <assert.h>
 #include <string.h>
 
-static void
+static inline void
 extent_index_u16(
     uint32_t* min_v,
     uint32_t* max_v,
