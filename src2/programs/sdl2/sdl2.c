@@ -1,6 +1,7 @@
 #include "../../commands/libtorirs_command_queue.h"
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../platforms/platform_sdl2/platform_sdl2.h"
+#include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"
 #include "../../platforms/platform_x_cache.h"
 #include "../../platforms/platform_x_lua.h"
 #include "../../scripting/libtorirs_scripting.h"
@@ -11,16 +12,37 @@
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_opengl3.h"
 #endif
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+
+static bool
+has_flag(
+    int argc,
+    char* argv[],
+    char const* flag)
+{
+    for( int i = 1; i < argc; i++ )
+    {
+        if( argv[i] && strcmp(argv[i], flag) == 0 )
+            return true;
+    }
+    return false;
+}
 
 static char const*
 resolve_cache_dat_path(
     int argc,
     char* argv[])
 {
-    if( argc > 1 && argv[1] && argv[1][0] != '\0' )
-        return argv[1];
+    for( int i = 1; i < argc; i++ )
+    {
+        if( !argv[i] || argv[i][0] == '\0' )
+            continue;
+        if( argv[i][0] == '-' )
+            continue;
+        return argv[i];
+    }
 
 #ifdef CACHE_DAT_PATH
     return CACHE_DAT_PATH;
@@ -52,18 +74,23 @@ main(
 {
     printf("Hello from main!\n");
 
+    bool const use_soft3d = has_flag(argc, argv, "--soft3d");
+
     char const* cache_dat_path = resolve_cache_dat_path(argc, argv);
     if( !cache_dat_path )
     {
         printf(
             "Failed to find cache254 (expected main_file_cache.dat). "
-            "Run from a directory that contains cache254/, or pass the cache path as argv[1].\n");
+            "Run from a directory that contains cache254/, or pass the cache path as an argument.\n");
         goto error_exit;
     }
     printf("Using cache: %s\n", cache_dat_path);
+    if( use_soft3d )
+        printf("Renderer: software 3D (CPU)\n");
 
     struct LibToriPlatformX_Lua* lua = NULL;
     struct LibToriPlatformSDL2* platform = NULL;
+    struct LibToriPlatformSDL2_RendererSoft3D* renderer_soft3d = NULL;
 #if defined(_WIN32)
     struct LibToriPlatformSDL2_RendererD3D9* renderer = NULL;
 #else
@@ -106,39 +133,67 @@ main(
     const int screen_w = 800;
     const int screen_h = 600;
 
+    if( use_soft3d )
+    {
+        if( !LibToriPlatformSDL2_InitForSoft3D(platform, screen_w, screen_h) )
+        {
+            printf("Failed to init SDL2 soft3d window\n");
+            goto error_exit;
+        }
+        renderer_soft3d = LibToriPlatformSDL2_RendererSoft3D_New(screen_w, screen_h);
+        if( !renderer_soft3d )
+        {
+            printf("Failed to create soft3d renderer\n");
+            goto error_exit;
+        }
+        if( !LibToriPlatformSDL2_RendererSoft3D_Init(
+                renderer_soft3d, LibToriPlatformSDL2_GetWindow(platform)) )
+        {
+            printf("Failed to init soft3d renderer\n");
+            goto error_exit;
+        }
+    }
 #if defined(_WIN32)
-    if( !LibToriPlatformSDL2_InitForD3D9(platform, screen_w, screen_h) )
+    else if( !LibToriPlatformSDL2_InitForD3D9(platform, screen_w, screen_h) )
     {
         printf("Failed to init SDL2 D3D9 window\n");
         goto error_exit;
     }
-    renderer = LibToriPlatformSDL2_RendererD3D9_New(screen_w, screen_h);
-    if( !renderer )
+    else
     {
-        printf("Failed to create D3D9 renderer\n");
-        goto error_exit;
-    }
-    if( !LibToriPlatformSDL2_RendererD3D9_Init(renderer, LibToriPlatformSDL2_GetWindow(platform)) )
-    {
-        printf("Failed to init D3D9 renderer\n");
-        goto error_exit;
+        renderer = LibToriPlatformSDL2_RendererD3D9_New(screen_w, screen_h);
+        if( !renderer )
+        {
+            printf("Failed to create D3D9 renderer\n");
+            goto error_exit;
+        }
+        if( !LibToriPlatformSDL2_RendererD3D9_Init(
+                renderer, LibToriPlatformSDL2_GetWindow(platform)) )
+        {
+            printf("Failed to init D3D9 renderer\n");
+            goto error_exit;
+        }
     }
 #else
-    if( !LibToriPlatformSDL2_InitForOpenGL3(platform, screen_w, screen_h) )
+    else if( !LibToriPlatformSDL2_InitForOpenGL3(platform, screen_w, screen_h) )
     {
         printf("Failed to init SDL2 OpenGL window\n");
         goto error_exit;
     }
-    renderer = LibToriPlatformSDL2_RendererGL3_New(screen_w, screen_h);
-    if( !renderer )
+    else
     {
-        printf("Failed to create OpenGL3 renderer\n");
-        goto error_exit;
-    }
-    if( !LibToriPlatformSDL2_RendererGL3_Init(renderer, LibToriPlatformSDL2_GetWindow(platform)) )
-    {
-        printf("Failed to init OpenGL3 renderer\n");
-        goto error_exit;
+        renderer = LibToriPlatformSDL2_RendererGL3_New(screen_w, screen_h);
+        if( !renderer )
+        {
+            printf("Failed to create OpenGL3 renderer\n");
+            goto error_exit;
+        }
+        if( !LibToriPlatformSDL2_RendererGL3_Init(
+                renderer, LibToriPlatformSDL2_GetWindow(platform)) )
+        {
+            printf("Failed to init OpenGL3 renderer\n");
+            goto error_exit;
+        }
     }
 #endif
 
@@ -178,16 +233,22 @@ main(
         LibToriRS_IOQueueClear(LibToriRS_GetIOQueue(instance));
         LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(instance));
 
+        if( use_soft3d )
+            LibToriPlatformSDL2_RendererSoft3D_Render(renderer_soft3d, instance);
 #if defined(_WIN32)
-        LibToriPlatformSDL2_RendererD3D9_Render(renderer, instance);
+        else
+            LibToriPlatformSDL2_RendererD3D9_Render(renderer, instance);
 #else
-        LibToriPlatformSDL2_RendererGL3_Render(renderer, instance);
+        else
+            LibToriPlatformSDL2_RendererGL3_Render(renderer, instance);
 #endif
 
         SDL_Delay(1);
     }
 
 exit:
+    if( renderer_soft3d )
+        LibToriPlatformSDL2_RendererSoft3D_Free(renderer_soft3d);
     if( renderer )
     {
 #if defined(_WIN32)

@@ -439,13 +439,15 @@ LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(
     struct LibToriRS_Instance* instance,
     int model_id)
 {
-    printf("LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel\n");
-    if( !instance )
-        return;
+    printf("LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel %d\n", model_id);
+    assert(instance && "Invalid instance");
 
     struct ToriDraw_ModelHandle hnd = gamecache_model_get(instance->gamecache, model_id);
     if( hnd.kind != TORIDRAWMK_MODEL )
+    {
+        printf("Invalid model handle\n");
         return;
+    }
 
     toridraw_light_model_default(hnd, 0, 0);
 

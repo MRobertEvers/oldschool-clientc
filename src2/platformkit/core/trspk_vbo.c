@@ -136,3 +136,13 @@ trspk_vbo_free(struct TRSPK_VBO* vbo)
 
     free(vbo);
 }
+
+void
+trspk_vbo_reset(struct TRSPK_VBO* vbo)
+{
+    if( vbo == NULL )
+        return;
+
+    vbo->vertex_count = 0u;
+    trspk_vbo_set_dirty(vbo);
+}

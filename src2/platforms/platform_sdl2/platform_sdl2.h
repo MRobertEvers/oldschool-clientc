@@ -47,12 +47,6 @@ LibToriPlatformSDL2_PollEvents(
     struct LibToriPlatformSDL2* platform,
     struct LibToriRS_CommandQueue* command_queue);
 
-void
-LibToriPlatformSDL2_Render(
-    struct LibToriPlatformSDL2* platform,
-    struct LibToriRS_Instance* instance,
-    int model_id);
-
 enum LibToriRS_KeyCode
 LibToriPlatformSDL2_SDLKeyCodeToKeyCode(SDL_Keycode key_code);
 

@@ -6,6 +6,7 @@
 #include "platformkit/core/trspk_drawrangeex.h"
 #include "platformkit/core/trspk_drawrangelist.h"
 #include "platformkit/core/trspk_ibo.h"
+#include "platformkit/core/trspk_modelarena.h"
 #include "platformkit/core/trspk_pose.h"
 #include "platformkit/core/trspk_triangles.h"
 #include "platformkit/core/trspk_vbo.h"
@@ -19,6 +20,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,6 +61,8 @@ struct LibToriPlatformSDL2_RendererD3D9
 
     struct TRSPK_VBO* vbo_static_cpu;
     uint32_t gpu_ibo_capacity;
+
+    struct TRSPK_ModelArena* model_arena;
 
     /* Per global triangle: atlas/static vs animated tex_id. */
     struct TRSPK_Triangles triangles;
@@ -109,6 +113,12 @@ d3d9_atlas_map_uv(
     const float du = tile / dim;
 
     int slot = d3d9_atlas_slot(tex_id);
+
+    if( tex_id < 0 )
+    {
+        lu = 0.5f;
+        lv = 0.5f;
+    }
 
     float col = (float)(slot % TRSPK_D3D9_ATLAS_COLS);
     float row = (float)(slot / TRSPK_D3D9_ATLAS_COLS);
@@ -697,21 +707,6 @@ d3d9_release_gpu_mesh_buffers(struct LibToriPlatformSDL2_RendererD3D9* r)
     r->gpu_ibo_capacity = 0u;
 }
 
-static uint32_t
-d3d9_align_vertex_base(
-    uint32_t cur,
-    uint32_t vert_count)
-{
-    if( vert_count == 0u )
-        return cur;
-
-    const uint32_t end = cur + vert_count - 1u;
-    if( cur / TRSPK_D3D9_VBO_PAGE != end / TRSPK_D3D9_VBO_PAGE )
-        cur = ((cur + TRSPK_D3D9_VBO_PAGE - 1u) / TRSPK_D3D9_VBO_PAGE) * TRSPK_D3D9_VBO_PAGE;
-
-    return cur;
-}
-
 static void
 d3d9_clamp_local_uv(
     float* u,
@@ -907,6 +902,51 @@ d3d9_ev_begin_3d(
 }
 
 static void
+d3d9_invalidate_pose_from_slot(
+    const struct TRSPK_ModelSlot* slot,
+    void* user_data)
+{
+    struct TRSPK_PoseTable* poses = (struct TRSPK_PoseTable*)user_data;
+    trspk_pose_table_set(poses, slot->element_id, TRSPK_POSE_VERTEX_BASE_INVALID);
+}
+
+static void
+d3d9_ev_batch3d_clear(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    (void)command;
+
+    if( !renderer->model_arena )
+        return;
+
+    trspk_modelarena_visit_alive(
+        renderer->model_arena, d3d9_invalidate_pose_from_slot, &renderer->poses);
+    trspk_modelarena_clear(renderer->model_arena);
+    d3d9_release_gpu_mesh_buffers(renderer);
+}
+
+static void
+d3d9_ev_model_unload(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    assert(command->kind == TORIRSRC_MODEL_UNLOAD);
+
+    const int element_id = command->u.model_load.element_id;
+    const uint32_t slot_index = trspk_modelarena_find(renderer->model_arena, element_id);
+    if( slot_index == TRSPK_MODELSLOT_NULL_IDX )
+        return;
+
+    trspk_modelarena_unload(renderer->model_arena, slot_index);
+    trspk_pose_table_set(&renderer->poses, element_id, TRSPK_POSE_VERTEX_BASE_INVALID);
+}
+
+static void
 d3d9_ev_model_load(
     struct LibToriPlatformSDL2_RendererD3D9* renderer,
     struct LibToriRS_Instance* instance,
@@ -922,14 +962,17 @@ d3d9_ev_model_load(
     const uint32_t vert_count = (uint32_t)model->face_count * 3u;
     const uint32_t tri_count = (uint32_t)model->face_count;
 
-    uint32_t base = renderer->vbo_static_cpu->vertex_count;
-    base = d3d9_align_vertex_base(base, vert_count);
+    const uint32_t existing_slot = trspk_modelarena_find(renderer->model_arena, element_id);
+    if( existing_slot != TRSPK_MODELSLOT_NULL_IDX )
+        trspk_modelarena_unload(renderer->model_arena, existing_slot);
 
-    if( base > renderer->vbo_static_cpu->vertex_count )
-        trspk_vbo_growby(renderer->vbo_static_cpu, base - renderer->vbo_static_cpu->vertex_count);
+    const uint32_t slot_index =
+        trspk_modelarena_load(renderer->model_arena, element_id, vert_count);
+    const struct TRSPK_ModelSlot* model_slot =
+        trspk_modelarena_get(renderer->model_arena, slot_index);
+    assert(model_slot != NULL);
 
-    trspk_vbo_growby(renderer->vbo_static_cpu, vert_count);
-    trspk_triangles_ensure(&renderer->triangles, (base / 3u) + tri_count);
+    const uint32_t base = model_slot->vertex_base;
 
     for( uint32_t face_index = 0; face_index < tri_count; face_index++ )
     {
@@ -942,12 +985,40 @@ d3d9_ev_model_load(
         const uint16_t color_a_hsl16 = model->face_colors_a[face_index];
         const uint16_t color_b_hsl16 = model->face_colors_b[face_index];
         const uint16_t color_c_hsl16 = model->face_colors_c[face_index];
-        const uint8_t alpha = model->face_alphas ? model->face_alphas[face_index] : 0xFFu;
+        uint8_t alpha = model->face_alphas ? model->face_alphas[face_index] : 0xFFu;
 
         float color_a[4], color_b[4], color_c[4];
-        hsl16_to_rgba(color_a_hsl16, alpha, color_a);
-        hsl16_to_rgba(color_b_hsl16, alpha, color_b);
-        hsl16_to_rgba(color_c_hsl16, alpha, color_c);
+        if( color_c_hsl16 == TORIDRAWHSL16_HIDDEN )
+        {
+            alpha = 0u;
+            hsl16_to_rgba(color_a_hsl16, alpha, color_a);
+            color_b[0] = color_a[0];
+            color_b[1] = color_a[1];
+            color_b[2] = color_a[2];
+            color_b[3] = color_a[3];
+            color_c[0] = color_a[0];
+            color_c[1] = color_a[1];
+            color_c[2] = color_a[2];
+            color_c[3] = color_a[3];
+        }
+        else if( color_c_hsl16 == TORIDRAWHSL16_FLAT )
+        {
+            hsl16_to_rgba(color_a_hsl16, alpha, color_a);
+            color_b[0] = color_a[0];
+            color_b[1] = color_a[1];
+            color_b[2] = color_a[2];
+            color_b[3] = color_a[3];
+            color_c[0] = color_a[0];
+            color_c[1] = color_a[1];
+            color_c[2] = color_a[2];
+            color_c[3] = color_a[3];
+        }
+        else
+        {
+            hsl16_to_rgba(color_a_hsl16, alpha, color_a);
+            hsl16_to_rgba(color_b_hsl16, alpha, color_b);
+            hsl16_to_rgba(color_c_hsl16, alpha, color_c);
+        }
 
         const int tex_id = model->face_textures ? (int)model->face_textures[face_index] : -1;
         const bool is_anim = trspk_toridraw_texture_is_animated(ctx, tex_id);
@@ -1218,7 +1289,11 @@ d3d9_handle_render_command(
         break;
 
     case TORIRSRC_MODEL_UNLOAD:
-        assert(false && "MODEL_UNLOAD not implemented");
+        d3d9_ev_model_unload(renderer, instance, command);
+        break;
+
+    case TORIRSRC_BATCH3D_CLEAR:
+        d3d9_ev_batch3d_clear(renderer, instance, command);
         break;
 
     case TORIRSRC_DRAW_MODEL:
@@ -1264,6 +1339,17 @@ LibToriPlatformSDL2_RendererD3D9_New(
         return NULL;
     }
 
+    renderer->model_arena = trspk_modelarena_create(
+        renderer->vbo_static_cpu, &renderer->triangles, TRSPK_D3D9_VBO_PAGE, 64u);
+    if( !renderer->model_arena )
+    {
+        trspk_vbo_free(renderer->vbo_static_cpu);
+        trspk_ibochain_free(renderer->ibo_chain);
+        trspk_drawrangelist_free(renderer->draw_ranges);
+        free(renderer);
+        return NULL;
+    }
+
     trspk_pose_table_init(&renderer->poses);
 
     return renderer;
@@ -1279,6 +1365,12 @@ LibToriPlatformSDL2_RendererD3D9_Free(struct LibToriPlatformSDL2_RendererD3D9* r
 
     trspk_triangles_free(&renderer->triangles);
     trspk_pose_table_free(&renderer->poses);
+
+    if( renderer->model_arena )
+    {
+        trspk_modelarena_free(renderer->model_arena);
+        renderer->model_arena = NULL;
+    }
 
     if( renderer->vbo_static_cpu )
     {

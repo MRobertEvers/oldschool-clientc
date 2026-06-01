@@ -28,7 +28,8 @@ print("Textures submitted")
 
 -- Fountain 1497
 -- Oak 1571
-local model_load = 1497
+-- Small Spirit Tree 2851
+local model_load = 2851
 Game.Dat1_ModelFetchNativeInt(io_queue, model_load)
 
 Platform.LoadIO(io_queue)

@@ -49,6 +49,9 @@ trspk_vbo_ensure_capacity(
 void
 trspk_vbo_free(struct TRSPK_VBO* vbo);
 
+void
+trspk_vbo_reset(struct TRSPK_VBO* vbo);
+
 static inline bool
 trspk_vbo_is_dirty(const struct TRSPK_VBO* vbo)
 {

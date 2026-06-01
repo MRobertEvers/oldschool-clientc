@@ -599,9 +599,37 @@ handle_render_command(
                 float color_a[4];
                 float color_b[4];
                 float color_c[4];
-                hsl16_to_rgba(color_a_hsl16, alpha, color_a);
-                hsl16_to_rgba(color_b_hsl16, alpha, color_b);
-                hsl16_to_rgba(color_c_hsl16, alpha, color_c);
+                if( color_c_hsl16 == TORIDRAWHSL16_HIDDEN )
+                {
+                    alpha = 0u;
+                    hsl16_to_rgba(color_a_hsl16, alpha, color_a);
+                    color_b[0] = color_a[0];
+                    color_b[1] = color_a[1];
+                    color_b[2] = color_a[2];
+                    color_b[3] = color_a[3];
+                    color_c[0] = color_a[0];
+                    color_c[1] = color_a[1];
+                    color_c[2] = color_a[2];
+                    color_c[3] = color_a[3];
+                }
+                else if( color_c_hsl16 == TORIDRAWHSL16_FLAT )
+                {
+                    hsl16_to_rgba(color_a_hsl16, alpha, color_a);
+                    color_b[0] = color_a[0];
+                    color_b[1] = color_a[1];
+                    color_b[2] = color_a[2];
+                    color_b[3] = color_a[3];
+                    color_c[0] = color_a[0];
+                    color_c[1] = color_a[1];
+                    color_c[2] = color_a[2];
+                    color_c[3] = color_a[3];
+                }
+                else
+                {
+                    hsl16_to_rgba(color_a_hsl16, alpha, color_a);
+                    hsl16_to_rgba(color_b_hsl16, alpha, color_b);
+                    hsl16_to_rgba(color_c_hsl16, alpha, color_c);
+                }
                 struct UVFaceCoords uv_coords;
                 uv_pnm(&uv_coords, model, (uint32_t)face_index);
                 float u_a = uv_coords.u1;
