@@ -47,7 +47,6 @@ d3d9_ev_tex_load(
             TRSPK_D3D9_ATLAS_TILE,
             NULL);
 
-        renderer->atlas_dirty = true;
     }
 
 fail:
@@ -103,7 +102,7 @@ d3d9_ev_begin_3d(
     IDirect3DDevice9_SetTransform(dev, D3DTS_WORLD, &identity);
 
     /* Refresh atlas texture if needed and bind it. */
-    if( renderer->atlas_dirty && renderer->atlas_initialized )
+    if( trspk_atlas_is_dirty(&renderer->atlas) && trspk_atlas_is_initialized(&renderer->atlas) )
         d3d9_refresh_atlas_texture(renderer);
 
     if( renderer->atlas_tex )

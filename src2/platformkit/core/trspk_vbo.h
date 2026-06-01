@@ -1,6 +1,7 @@
 #ifndef TRSPK_VBO_H
 #define TRSPK_VBO_H
 
+#include "trspk_flags.h"
 #include "trspk_indices.h"
 #include "trspk_vertex.h"
 
@@ -10,11 +11,15 @@
 #include "../d3d9/d3d9_vertex.h"
 // clang-format on
 
+#include <stdbool.h>
 #include <stdint.h>
+
+#define TRSPK_VBO_FLAG_DIRTY TRSPK_FLAG(0)
 
 struct TRSPK_VBO
 {
     uint32_t vertex_count;
+    uint32_t flags;
 
     enum TRSPK_VertexFormat format;
     union
@@ -44,6 +49,24 @@ trspk_vbo_ensure_capacity(
 void
 trspk_vbo_free(struct TRSPK_VBO* vbo);
 
+static inline bool
+trspk_vbo_is_dirty(const struct TRSPK_VBO* vbo)
+{
+    return trspk_flags_test(vbo->flags, TRSPK_VBO_FLAG_DIRTY);
+}
+
+static inline void
+trspk_vbo_set_dirty(struct TRSPK_VBO* vbo)
+{
+    trspk_flags_set(&vbo->flags, TRSPK_VBO_FLAG_DIRTY);
+}
+
+static inline void
+trspk_vbo_clear_dirty(struct TRSPK_VBO* vbo)
+{
+    trspk_flags_clear(&vbo->flags, TRSPK_VBO_FLAG_DIRTY);
+}
+
 static inline void
 trspk_vbo_write_vertex_webgl1(
     struct TRSPK_VBO* vbo,
@@ -70,6 +93,7 @@ trspk_vbo_write_vertex_webgl1(
     vertex->texcoord[1] = v;
     vertex->tex_id = tex_id;
     vertex->uv_mode = 0.0f;
+    trspk_vbo_set_dirty(vbo);
 }
 
 static inline void
@@ -98,6 +122,7 @@ trspk_vbo_write_vertex_opengl3(
     vertex->texcoord[1] = v;
     vertex->tex_id = tex_id;
     vertex->uv_mode = 0.0f;
+    trspk_vbo_set_dirty(vbo);
 }
 
 /* Pack four float [0,1] RGBA components into a D3D ARGB uint32_t. */
@@ -145,6 +170,7 @@ trspk_vbo_write_vertex_d3d9(
     vertex->texcoord[1] = v;
     vertex->texdata[0] = tex_id;
     vertex->texdata[1] = 0.0f;
+    trspk_vbo_set_dirty(vbo);
 }
 
 static inline void
@@ -161,6 +187,7 @@ trspk_vbo_write_vertex_d3d9_split_xyzcolor(
     v->y = y;
     v->z = z;
     v->color = trspk_d3d9_pack_argb(color[0], color[1], color[2], color[3]);
+    trspk_vbo_set_dirty(vbo);
 }
 
 static inline void
@@ -177,6 +204,7 @@ trspk_vbo_write_vertex_d3d9_split_uv(
     vert->v = v;
     vert->tex_id = tex_id;
     vert->uv_mode = uv_mode;
+    trspk_vbo_set_dirty(vbo);
 }
 
 #endif

@@ -1,6 +1,8 @@
 #ifndef TRSPK_ATLAS_H
 #define TRSPK_ATLAS_H
 
+#include "trspk_flags.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -44,6 +46,9 @@ enum TRSPK_AtlasMode
     TRSPK_ATLAS_MODE_BINPACK = 1,
 };
 
+#define TRSPK_ATLAS_FLAG_INITIALIZED TRSPK_FLAG(0)
+#define TRSPK_ATLAS_FLAG_DIRTY TRSPK_FLAG(1)
+
 /* ------------------------------------------------------------------ */
 /* Atlas                                                               */
 /*                                                                     */
@@ -76,7 +81,45 @@ struct TRSPK_Atlas
     struct TRSPK_AtlasFreeRect* free_rects;
     uint32_t free_rects_count;
     uint32_t free_rects_cap;
+
+    uint32_t flags;
 };
+
+static inline bool
+trspk_atlas_is_initialized(const struct TRSPK_Atlas* atlas)
+{
+    return trspk_flags_test(atlas->flags, TRSPK_ATLAS_FLAG_INITIALIZED);
+}
+
+static inline void
+trspk_atlas_set_initialized(struct TRSPK_Atlas* atlas)
+{
+    trspk_flags_set(&atlas->flags, TRSPK_ATLAS_FLAG_INITIALIZED);
+}
+
+static inline void
+trspk_atlas_clear_initialized(struct TRSPK_Atlas* atlas)
+{
+    trspk_flags_clear(&atlas->flags, TRSPK_ATLAS_FLAG_INITIALIZED);
+}
+
+static inline bool
+trspk_atlas_is_dirty(const struct TRSPK_Atlas* atlas)
+{
+    return trspk_flags_test(atlas->flags, TRSPK_ATLAS_FLAG_DIRTY);
+}
+
+static inline void
+trspk_atlas_set_dirty(struct TRSPK_Atlas* atlas)
+{
+    trspk_flags_set(&atlas->flags, TRSPK_ATLAS_FLAG_DIRTY);
+}
+
+static inline void
+trspk_atlas_clear_dirty(struct TRSPK_Atlas* atlas)
+{
+    trspk_flags_clear(&atlas->flags, TRSPK_ATLAS_FLAG_DIRTY);
+}
 
 /* ------------------------------------------------------------------ */
 /* Lifetime                                                            */

@@ -3,10 +3,14 @@
 #include "graphics/uv_pnm.h"
 #include "libtorirs.h"
 #include "platformkit/core/trspk_atlas.h"
+#include "platformkit/core/trspk_drawrangeex.h"
 #include "platformkit/core/trspk_drawrangelist.h"
 #include "platformkit/core/trspk_ibo.h"
+#include "platformkit/core/trspk_pose.h"
+#include "platformkit/core/trspk_triangles.h"
 #include "platformkit/core/trspk_vbo.h"
 #include "platformkit/d3d9/d3d9_vertex.h"
+#include "platforms/trspk_toridraw.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_types.h"
@@ -36,15 +40,6 @@
 /* 16-bit index page size (models never straddle a page). */
 #define TRSPK_D3D9_VBO_PAGE 65536u
 
-#define D3D9_MODEL_REGISTRY_INIT_CAP 32u
-#define D3D9_TRI_CONFIG_INIT_CAP 4096u
-
-struct D3D9_ModelEntry
-{
-    int element_id;
-    uint32_t vertex_base;
-};
-
 struct LibToriPlatformSDL2_RendererD3D9
 {
     SDL_Window* window;
@@ -60,24 +55,18 @@ struct LibToriPlatformSDL2_RendererD3D9
 
     /* Atlas (static / non-animated textures only) */
     struct TRSPK_Atlas atlas;
-    bool atlas_initialized;
     IDirect3DTexture9* atlas_tex;
-    bool atlas_dirty;
 
     struct TRSPK_VBO* vbo_static_cpu;
-    bool vbo_dirty;
     uint32_t gpu_ibo_capacity;
 
-    /* Per global triangle: -1 = atlas/static, else animated tex_id. */
-    int* tri_config;
-    uint32_t tri_config_cap;
+    /* Per global triangle: atlas/static vs animated tex_id. */
+    struct TRSPK_Triangles triangles;
 
-    struct D3D9_ModelEntry* model_registry;
-    uint32_t model_registry_count;
-    uint32_t model_registry_cap;
+    struct TRSPK_PoseTable poses;
 
     /* Per-frame working buffers */
-    struct TRSPK_IboChain* ibo_chain;
+    struct TRSPK_IBOChain* ibo_chain;
     struct TRSPK_DrawRangeList* draw_ranges;
 
     int width;
@@ -397,6 +386,21 @@ d3d9_texture_animation_signed(
     return -speed;
 }
 
+static float
+d3d9_anim_signed_for_tex(
+    struct ToriDraw_Context* ctx,
+    int tex_id)
+{
+    if( tex_id < 0 || !ctx )
+        return 0.0f;
+
+    struct ToriDraw_Texture* td = toridraw_texturemap_get(&ctx->texture_map, tex_id);
+    if( !td )
+        return 0.0f;
+
+    return d3d9_texture_animation_signed(td->animation_direction, td->animation_speed);
+}
+
 static void
 d3d9_disable_texture_transform(IDirect3DDevice9* dev);
 
@@ -555,7 +559,7 @@ d3d9_upload_standalone_texture(
 static bool
 d3d9_ensure_atlas(struct LibToriPlatformSDL2_RendererD3D9* r)
 {
-    if( r->atlas_initialized )
+    if( trspk_atlas_is_initialized(&r->atlas) )
         return true;
     if( !trspk_atlas_init_grid(
             &r->atlas,
@@ -565,8 +569,6 @@ d3d9_ensure_atlas(struct LibToriPlatformSDL2_RendererD3D9* r)
             TRSPK_D3D9_ATLAS_TILE,
             4) )
         return false;
-
-    r->atlas_initialized = true;
 
     /* Reserve slot 0: opaque white tile (non-textured faces sample here; MODULATE
      * white × diffuse = diffuse, so vertex colour passes through unchanged). */
@@ -626,7 +628,7 @@ d3d9_decode_texture_rgba(
 static void
 d3d9_refresh_atlas_texture(struct LibToriPlatformSDL2_RendererD3D9* r)
 {
-    if( !r->atlas_initialized || !r->device )
+    if( !trspk_atlas_is_initialized(&r->atlas) || !r->device )
         return;
 
     if( r->atlas_tex )
@@ -672,11 +674,11 @@ d3d9_refresh_atlas_texture(struct LibToriPlatformSDL2_RendererD3D9* r)
     }
 
     IDirect3DTexture9_UnlockRect(r->atlas_tex, 0);
-    r->atlas_dirty = false;
+    trspk_atlas_clear_dirty(&r->atlas);
 }
 
 /* -----------------------------------------------------------------------
- * Model registry / tri_config helpers
+ * Model registry helpers
  * ----------------------------------------------------------------------- */
 
 static void
@@ -695,32 +697,6 @@ d3d9_release_gpu_mesh_buffers(struct LibToriPlatformSDL2_RendererD3D9* r)
     r->gpu_ibo_capacity = 0u;
 }
 
-static void
-d3d9_ensure_tri_config(
-    struct LibToriPlatformSDL2_RendererD3D9* r,
-    uint32_t tri_count)
-{
-    if( tri_count <= r->tri_config_cap )
-        return;
-
-    uint32_t new_cap = r->tri_config_cap ? r->tri_config_cap * 2u : D3D9_TRI_CONFIG_INIT_CAP;
-    while( new_cap < tri_count )
-        new_cap *= 2u;
-
-    int* grown = (int*)realloc(r->tri_config, new_cap * sizeof(int));
-    assert(grown != NULL);
-    if( r->tri_config_cap > 0u )
-        memset(
-            grown + r->tri_config_cap,
-            0xFF,
-            (new_cap - r->tri_config_cap) * sizeof(int));
-    else
-        memset(grown, 0xFF, new_cap * sizeof(int));
-
-    r->tri_config = grown;
-    r->tri_config_cap = new_cap;
-}
-
 static uint32_t
 d3d9_align_vertex_base(
     uint32_t cur,
@@ -734,66 +710,6 @@ d3d9_align_vertex_base(
         cur = ((cur + TRSPK_D3D9_VBO_PAGE - 1u) / TRSPK_D3D9_VBO_PAGE) * TRSPK_D3D9_VBO_PAGE;
 
     return cur;
-}
-
-static void
-d3d9_registry_set(
-    struct LibToriPlatformSDL2_RendererD3D9* r,
-    int element_id,
-    uint32_t vertex_base)
-{
-    for( uint32_t i = 0; i < r->model_registry_count; i++ )
-    {
-        if( r->model_registry[i].element_id == element_id )
-        {
-            r->model_registry[i].vertex_base = vertex_base;
-            return;
-        }
-    }
-
-    if( r->model_registry_count >= r->model_registry_cap )
-    {
-        uint32_t new_cap = r->model_registry_cap ? r->model_registry_cap * 2u
-                                                 : D3D9_MODEL_REGISTRY_INIT_CAP;
-        struct D3D9_ModelEntry* grown = (struct D3D9_ModelEntry*)realloc(
-            r->model_registry, new_cap * sizeof(struct D3D9_ModelEntry));
-        assert(grown != NULL);
-        r->model_registry = grown;
-        r->model_registry_cap = new_cap;
-    }
-
-    r->model_registry[r->model_registry_count].element_id = element_id;
-    r->model_registry[r->model_registry_count].vertex_base = vertex_base;
-    r->model_registry_count++;
-}
-
-static bool
-d3d9_registry_get(
-    struct LibToriPlatformSDL2_RendererD3D9* r,
-    int element_id,
-    uint32_t* out_vertex_base)
-{
-    for( uint32_t i = 0; i < r->model_registry_count; i++ )
-    {
-        if( r->model_registry[i].element_id == element_id )
-        {
-            *out_vertex_base = r->model_registry[i].vertex_base;
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool
-d3d9_face_texture_is_animated(
-    struct ToriDraw_Context* ctx,
-    int tex_id)
-{
-    if( tex_id < 0 || !ctx )
-        return false;
-
-    struct ToriDraw_Texture* tex = toridraw_texturemap_get(&ctx->texture_map, tex_id);
-    return tex && tex->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE;
 }
 
 static void
@@ -811,22 +727,16 @@ d3d9_clamp_local_uv(
         *v = 0.992f;
 }
 
-static uint32_t
-d3d9_encode_draw_config(int tri_cfg)
-{
-    return tri_cfg < 0 ? 0u : (uint32_t)(tri_cfg + 1);
-}
-
 static bool
 d3d9_upload_vbo_if_dirty(struct LibToriPlatformSDL2_RendererD3D9* r)
 {
-    if( !r->vbo_dirty || !r->vbo_static_cpu || !r->device )
+    if( !trspk_vbo_is_dirty(r->vbo_static_cpu) || !r->vbo_static_cpu || !r->device )
         return true;
 
     const uint32_t vert_count = r->vbo_static_cpu->vertex_count;
     if( vert_count == 0u )
     {
-        r->vbo_dirty = false;
+        trspk_vbo_clear_dirty(r->vbo_static_cpu);
         return true;
     }
 
@@ -849,7 +759,7 @@ d3d9_upload_vbo_if_dirty(struct LibToriPlatformSDL2_RendererD3D9* r)
         IDirect3DVertexBuffer9_Unlock(r->vbo_static);
     }
 
-    r->vbo_dirty = false;
+    trspk_vbo_clear_dirty(r->vbo_static_cpu);
     return true;
 }
 
@@ -932,8 +842,6 @@ d3d9_ev_tex_load(
             TRSPK_D3D9_ATLAS_TILE,
             TRSPK_D3D9_ATLAS_TILE,
             NULL);
-
-        renderer->atlas_dirty = true;
     }
 
 fail:
@@ -989,7 +897,7 @@ d3d9_ev_begin_3d(
     IDirect3DDevice9_SetTransform(dev, D3DTS_WORLD, &identity);
 
     /* Refresh atlas texture if needed and bind it. */
-    if( renderer->atlas_dirty && renderer->atlas_initialized )
+    if( trspk_atlas_is_dirty(&renderer->atlas) && trspk_atlas_is_initialized(&renderer->atlas) )
         d3d9_refresh_atlas_texture(renderer);
 
     if( renderer->atlas_tex )
@@ -1021,7 +929,7 @@ d3d9_ev_model_load(
         trspk_vbo_growby(renderer->vbo_static_cpu, base - renderer->vbo_static_cpu->vertex_count);
 
     trspk_vbo_growby(renderer->vbo_static_cpu, vert_count);
-    d3d9_ensure_tri_config(renderer, (base / 3u) + tri_count);
+    trspk_triangles_ensure(&renderer->triangles, (base / 3u) + tri_count);
 
     for( uint32_t face_index = 0; face_index < tri_count; face_index++ )
     {
@@ -1042,9 +950,12 @@ d3d9_ev_model_load(
         hsl16_to_rgba(color_c_hsl16, alpha, color_c);
 
         const int tex_id = model->face_textures ? (int)model->face_textures[face_index] : -1;
-        const bool is_anim = d3d9_face_texture_is_animated(ctx, tex_id);
+        const bool is_anim = trspk_toridraw_texture_is_animated(ctx, tex_id);
 
-        renderer->tri_config[(base / 3u) + face_index] = is_anim ? tex_id : -1;
+        trspk_triangles_set(
+            &renderer->triangles,
+            (base / 3u) + face_index,
+            trspk_triangles_make_config(tex_id, is_anim));
 
         struct UVFaceCoords uv;
         uv_pnm_face(&uv, model, face_index);
@@ -1101,8 +1012,7 @@ d3d9_ev_model_load(
             (float)tex_id);
     }
 
-    d3d9_registry_set(renderer, element_id, base);
-    renderer->vbo_dirty = true;
+    trspk_pose_table_set(&renderer->poses, element_id, base);
 }
 
 static void
@@ -1115,10 +1025,9 @@ d3d9_ev_end_3d(
     (void)instance;
 
     IDirect3DDevice9* dev = renderer->device;
-    if( !dev || !renderer->has_3d )
-        return;
+    assert(dev && renderer->has_3d && "Invalid device or not in 3D mode");
 
-    if( renderer->atlas_dirty && renderer->atlas_initialized )
+    if( trspk_atlas_is_dirty(&renderer->atlas) && trspk_atlas_is_initialized(&renderer->atlas) )
         d3d9_refresh_atlas_texture(renderer);
 
     if( !d3d9_upload_vbo_if_dirty(renderer) || !renderer->vbo_static )
@@ -1128,7 +1037,7 @@ d3d9_ev_end_3d(
         goto done;
 
     uint32_t total_indices = 0u;
-    for( struct TRSPK_IboChainNode* node = renderer->ibo_chain->head; node != NULL;
+    for( struct TRSPK_IBOChainNode* node = renderer->ibo_chain->head; node != NULL;
          node = node->next )
         total_indices += node->ibo.index_count;
 
@@ -1144,75 +1053,18 @@ d3d9_ev_end_3d(
         goto done;
 
     uint16_t* dst = (uint16_t*)locked;
-    uint32_t gpu_cursor = 0u;
 
-    trspk_drawrangelist_clear(renderer->draw_ranges);
+    uint32_t built = trspk_drawrangeex_build16(
+        renderer->draw_ranges, &renderer->triangles, renderer->ibo_chain, dst);
 
-    for( struct TRSPK_IboChainNode* node = renderer->ibo_chain->head; node != NULL;
-         node = node->next )
-    {
-        if( node->ibo.index_count == 0u )
-            continue;
-
-        const uint32_t node_gpu_start = gpu_cursor;
-        const uint32_t page_base = node->ibo.offset;
-        const uint16_t* src = node->ibo.indices.as_u16;
-        const uint32_t count = node->ibo.index_count;
-
-        memcpy(dst + gpu_cursor, src, count * sizeof(uint16_t));
-
-        uint32_t i = 0u;
-        while( i < count )
-        {
-            const uint32_t abs_vert = page_base + (uint32_t)src[i];
-            const uint32_t tri = abs_vert / 3u;
-            const int tri_cfg =
-                tri < renderer->tri_config_cap ? renderer->tri_config[tri] : -1;
-            const uint32_t encoded_cfg = d3d9_encode_draw_config(tri_cfg);
-
-            const uint32_t range_start = i;
-            uint32_t max_local_vert = (uint32_t)src[i];
-
-            i += 3u;
-            while( i < count )
-            {
-                const uint32_t abs_v = page_base + (uint32_t)src[i];
-                const uint32_t t = abs_v / 3u;
-                const int cfg = t < renderer->tri_config_cap ? renderer->tri_config[t] : -1;
-                if( d3d9_encode_draw_config(cfg) != encoded_cfg )
-                    break;
-
-                if( (uint32_t)src[i] > max_local_vert )
-                    max_local_vert = (uint32_t)src[i];
-                if( (uint32_t)src[i + 1u] > max_local_vert )
-                    max_local_vert = (uint32_t)src[i + 1u];
-                if( (uint32_t)src[i + 2u] > max_local_vert )
-                    max_local_vert = (uint32_t)src[i + 2u];
-                i += 3u;
-            }
-
-            trspk_drawrangelist_push(
-                renderer->draw_ranges,
-                node_gpu_start + range_start,
-                node_gpu_start + i,
-                page_base,
-                encoded_cfg);
-            (void)max_local_vert;
-        }
-
-        gpu_cursor += count;
-    }
+    assert(built == total_indices);
 
     IDirect3DIndexBuffer9_Unlock(renderer->ibo);
 
     d3d9_set_base_render_states(dev);
     IDirect3DDevice9_SetVertexDeclaration(dev, renderer->vertex_decl);
     IDirect3DDevice9_SetStreamSource(
-        dev,
-        0,
-        renderer->vbo_static,
-        0,
-        (UINT)sizeof(struct TRSPK_VertexD3D9));
+        dev, 0, renderer->vbo_static, 0, (UINT)sizeof(struct TRSPK_VertexD3D9));
     IDirect3DDevice9_SetIndices(dev, renderer->ibo);
 
     const float clk = (float)renderer->frame_clock;
@@ -1225,8 +1077,9 @@ d3d9_ev_end_3d(
     {
         const uint32_t cfg = range->config_idx;
         const uint32_t page_base = range->buffer_idx;
+        const bool state_changed = cfg != last_cfg || page_base != last_page;
 
-        if( cfg != last_cfg || page_base != last_page )
+        if( state_changed )
         {
             if( cfg == 0u )
             {
@@ -1239,36 +1092,21 @@ d3d9_ev_end_3d(
             {
                 const int tex_id = (int)cfg - 1;
                 IDirect3DTexture9* tex = renderer->tex_buffers[tex_id];
-                float anim_signed = 0.0f;
-                if( ctx )
-                {
-                    struct ToriDraw_Texture* td =
-                        toridraw_texturemap_get(&ctx->texture_map, tex_id);
-                    if( td )
-                        anim_signed = d3d9_texture_animation_signed(
-                            td->animation_direction, td->animation_speed);
-                }
                 if( tex )
-                    d3d9_bind_anim_texture(dev, tex, anim_signed, clk);
+                    d3d9_bind_anim_texture(dev, tex, d3d9_anim_signed_for_tex(ctx, tex_id), clk);
                 else
                     d3d9_disable_texture_transform(dev);
             }
             last_cfg = cfg;
             last_page = page_base;
         }
-
-        if( cfg != 0u )
+        else if( cfg != 0u )
         {
+            /* Same animated texture as previous range: texture stays bound;
+             * re-apply scroll only (bind path already set it on state_changed). */
             const int tex_id = (int)cfg - 1;
-            float anim_signed = 0.0f;
-            if( ctx )
-            {
-                struct ToriDraw_Texture* td = toridraw_texturemap_get(&ctx->texture_map, tex_id);
-                if( td )
-                    anim_signed = d3d9_texture_animation_signed(
-                        td->animation_direction, td->animation_speed);
-            }
-            d3d9_apply_texture0_scroll_matrix(dev, anim_signed, clk);
+            if( renderer->tex_buffers[tex_id] )
+                d3d9_apply_texture0_scroll_matrix(dev, d3d9_anim_signed_for_tex(ctx, tex_id), clk);
         }
 
         const uint32_t index_count = range->end - range->start;
@@ -1281,8 +1119,7 @@ d3d9_ev_end_3d(
 
         uint32_t max_local = 0u;
         {
-            const uint16_t* ib =
-                (const uint16_t*)locked + range->start;
+            const uint16_t* ib = (const uint16_t*)locked + range->start;
             for( uint32_t k = 0; k < index_count; k++ )
             {
                 if( (uint32_t)ib[k] > max_local )
@@ -1292,13 +1129,7 @@ d3d9_ev_end_3d(
 
         const UINT num_verts = max_local + 1u;
         IDirect3DDevice9_DrawIndexedPrimitive(
-            dev,
-            D3DPT_TRIANGLELIST,
-            (INT)page_base,
-            0,
-            num_verts,
-            range->start,
-            (UINT)prim_count);
+            dev, D3DPT_TRIANGLELIST, (INT)page_base, 0, num_verts, range->start, (UINT)prim_count);
 
         range = trspk_drawrangelist_next(renderer->draw_ranges, range);
     }
@@ -1358,7 +1189,7 @@ d3d9_handle_render_command(
             break;
 
         uint32_t vertex_base = 0u;
-        if( !d3d9_registry_get(renderer, command->u.model.element_id, &vertex_base) )
+        if( !trspk_pose_table_get(&renderer->poses, command->u.model.element_id, &vertex_base) )
             break;
 
         const uint32_t page_base = vertex_base & ~(TRSPK_D3D9_VBO_PAGE - 1u);
@@ -1404,7 +1235,7 @@ LibToriPlatformSDL2_RendererD3D9_New(
     renderer->vbo_static_cpu = trspk_vbo_create(0, TRSPK_VERTEX_FORMAT_D3D9);
     renderer->ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U16);
     renderer->draw_ranges = trspk_drawrangelist_create(TRSPK_D3D9_DRAWRANGE_CAP);
-    renderer->vbo_dirty = true;
+    trspk_vbo_set_dirty(renderer->vbo_static_cpu);
 
     if( !renderer->vbo_static_cpu || !renderer->ibo_chain || !renderer->draw_ranges )
     {
@@ -1418,6 +1249,8 @@ LibToriPlatformSDL2_RendererD3D9_New(
         return NULL;
     }
 
+    trspk_pose_table_init(&renderer->poses);
+
     return renderer;
 }
 
@@ -1429,14 +1262,8 @@ LibToriPlatformSDL2_RendererD3D9_Free(struct LibToriPlatformSDL2_RendererD3D9* r
 
     d3d9_release_gpu_mesh_buffers(renderer);
 
-    free(renderer->tri_config);
-    renderer->tri_config = NULL;
-    renderer->tri_config_cap = 0u;
-
-    free(renderer->model_registry);
-    renderer->model_registry = NULL;
-    renderer->model_registry_count = 0u;
-    renderer->model_registry_cap = 0u;
+    trspk_triangles_free(&renderer->triangles);
+    trspk_pose_table_free(&renderer->poses);
 
     if( renderer->vbo_static_cpu )
     {
@@ -1463,11 +1290,8 @@ LibToriPlatformSDL2_RendererD3D9_Free(struct LibToriPlatformSDL2_RendererD3D9* r
         IDirect3DTexture9_Release(renderer->atlas_tex);
         renderer->atlas_tex = NULL;
     }
-    if( renderer->atlas_initialized )
-    {
+    if( trspk_atlas_is_initialized(&renderer->atlas) )
         trspk_atlas_free(&renderer->atlas);
-        renderer->atlas_initialized = false;
-    }
     if( renderer->vertex_decl )
     {
         IDirect3DVertexDeclaration9_Release(renderer->vertex_decl);

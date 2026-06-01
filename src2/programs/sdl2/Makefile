@@ -57,7 +57,10 @@ COMMON_SRCS := sdl2.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2.c \
 	$(SRC2)/platformkit/core/trspk_atlas.c \
 	$(SRC2)/platformkit/core/trspk_drawrangelist.c \
+	$(SRC2)/platformkit/core/trspk_drawrangeex.c \
 	$(SRC2)/platformkit/core/trspk_ibo.c \
+	$(SRC2)/platformkit/core/trspk_triangles.c \
+	$(SRC2)/platformkit/core/trspk_pose.c \
 	$(SRC2)/platformkit/core/trspk_vbo.c \
 	$(PLAT_DIR)/trspk_toridraw.c \
 	$(TRSPK_DIR)/src/tools/trspk_batch32.c \

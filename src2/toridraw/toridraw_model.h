@@ -83,8 +83,7 @@ toridraw_texturemap_get(
     const struct ToriDraw_TextureMap* map,
     int id)
 {
-    if( !map || id < 0 || id >= 256 )
-        return NULL;
+    assert(map && id >= 0 && id < 256 && "Invalid texture ID");
     return map->textures[id];
 }
 

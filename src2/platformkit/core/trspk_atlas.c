@@ -99,6 +99,7 @@ trspk_atlas_init_grid(
     atlas->free_rects       = NULL;
     atlas->free_rects_count = 0;
     atlas->free_rects_cap   = 0;
+    trspk_atlas_set_initialized(atlas);
     return true;
 }
 
@@ -170,6 +171,7 @@ trspk_atlas_grid_insert_at(
         blit_pixels(
             atlas->pixels, tile.x, tile.y, atlas->stride,
             src_pixels, src_stride, src_w, src_h, atlas->channels);
+        trspk_atlas_set_dirty(atlas);
     }
 
     if( tile_out )
@@ -260,6 +262,7 @@ trspk_atlas_init_binpack(
     atlas->free_rects       = free_rects;
     atlas->free_rects_count = 1;
     atlas->free_rects_cap   = TRSPK_ATLAS_BINPACK_INIT_CAP;
+    trspk_atlas_set_initialized(atlas);
     return true;
 }
 
@@ -402,6 +405,7 @@ trspk_atlas_binpack_insert(
         blit_pixels(
             atlas->pixels, chosen.x, chosen.y, atlas->stride,
             src_pixels, src_stride, src_w, src_h, atlas->channels);
+        trspk_atlas_set_dirty(atlas);
     }
 
     tile_fill(tile_out, chosen.x, chosen.y, src_w, src_h, atlas->width, atlas->height);
@@ -428,4 +432,6 @@ trspk_atlas_free(struct TRSPK_Atlas* atlas)
     atlas->width            = 0;
     atlas->height           = 0;
     atlas->stride           = 0;
+    trspk_atlas_clear_initialized(atlas);
+    trspk_atlas_clear_dirty(atlas);
 }

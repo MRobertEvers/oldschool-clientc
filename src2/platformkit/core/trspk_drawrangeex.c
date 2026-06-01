@@ -1,0 +1,108 @@
+#include "trspk_drawrangeex.h"
+
+#include "trspk_drawrangelist.h"
+#include "trspk_ibo.h"
+#include "trspk_triangles.h"
+
+#include <assert.h>
+#include <string.h>
+
+static void
+build_ranges_for_node(
+    struct TRSPK_DrawRangeList* draw_ranges,
+    const struct TRSPK_Triangles* triangles,
+    uint32_t node_gpu_start,
+    uint32_t page_base,
+    const uint16_t* src,
+    uint32_t count)
+{
+    uint32_t i = 0u;
+    while( i < count )
+    {
+        const uint32_t abs_vert = page_base + (uint32_t)src[i];
+        const uint32_t tri = abs_vert / 3u;
+        const int tri_cfg = trspk_triangles_get(triangles, tri);
+        const uint32_t encoded_cfg = trspk_triangles_encode_draw_config(tri_cfg);
+
+        const uint32_t range_start = i;
+
+        i += 3u;
+        while( i < count )
+        {
+            const uint32_t abs_v = page_base + (uint32_t)src[i];
+            const uint32_t t = abs_v / 3u;
+            const int cfg = trspk_triangles_get(triangles, t);
+            if( trspk_triangles_encode_draw_config(cfg) != encoded_cfg )
+                break;
+
+            i += 3u;
+        }
+
+        trspk_drawrangelist_push(
+            draw_ranges, node_gpu_start + range_start, node_gpu_start + i, page_base, encoded_cfg);
+    }
+}
+
+uint32_t
+trspk_drawrangeex_build16(
+    struct TRSPK_DrawRangeList* draw_ranges,
+    const struct TRSPK_Triangles* triangles,
+    const struct TRSPK_IBOChain* ibo_chain,
+    uint16_t* dst)
+{
+    assert(ibo_chain->index_format == TRSPK_INDEX_FORMAT_U16);
+    trspk_drawrangelist_clear(draw_ranges);
+
+    uint32_t gpu_cursor = 0u;
+
+    for( struct TRSPK_IBOChainNode* node = ibo_chain->head; node != NULL; node = node->next )
+    {
+        if( node->ibo.index_count == 0u )
+            continue;
+
+        const uint32_t node_gpu_start = gpu_cursor;
+        const uint32_t page_base = node->ibo.offset;
+        const uint16_t* src = node->ibo.indices.as_u16;
+        const uint32_t count = node->ibo.index_count;
+
+        memcpy(dst + gpu_cursor, src, count * sizeof(uint16_t));
+
+        build_ranges_for_node(draw_ranges, triangles, node_gpu_start, page_base, src, count);
+
+        gpu_cursor += count;
+    }
+
+    return gpu_cursor;
+}
+
+uint32_t
+trspk_drawrangeex_build32(
+    struct TRSPK_DrawRangeList* draw_ranges,
+    const struct TRSPK_Triangles* triangles,
+    const struct TRSPK_IBOChain* ibo_chain,
+    uint32_t* dst)
+{
+    assert(ibo_chain->index_format == TRSPK_INDEX_FORMAT_U32);
+    trspk_drawrangelist_clear(draw_ranges);
+
+    uint32_t gpu_cursor = 0u;
+
+    for( struct TRSPK_IBOChainNode* node = ibo_chain->head; node != NULL; node = node->next )
+    {
+        if( node->ibo.index_count == 0u )
+            continue;
+
+        const uint32_t node_gpu_start = gpu_cursor;
+        const uint32_t page_base = node->ibo.offset;
+        const uint16_t* src = node->ibo.indices.as_u16;
+        const uint32_t count = node->ibo.index_count;
+
+        memcpy(dst + gpu_cursor, src, count * sizeof(uint16_t));
+
+        build_ranges_for_node(draw_ranges, triangles, node_gpu_start, page_base, src, count);
+
+        gpu_cursor += count;
+    }
+
+    return gpu_cursor;
+}

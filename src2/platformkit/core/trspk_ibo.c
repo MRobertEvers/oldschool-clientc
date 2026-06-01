@@ -80,16 +80,16 @@ trspk_ibo_grow_indices(
     }
 }
 
-static struct TRSPK_IboChainNode*
+static struct TRSPK_IBOChainNode*
 trspk_ibochain_node_create(
     enum TRSPK_IndexFormat index_format,
     uint32_t offset)
 {
-    struct TRSPK_IboChainNode* node =
-        (struct TRSPK_IboChainNode*)malloc(sizeof(struct TRSPK_IboChainNode));
+    struct TRSPK_IBOChainNode* node =
+        (struct TRSPK_IBOChainNode*)malloc(sizeof(struct TRSPK_IBOChainNode));
     assert(node != NULL);
 
-    memset(node, 0, sizeof(struct TRSPK_IboChainNode));
+    memset(node, 0, sizeof(struct TRSPK_IBOChainNode));
 
     node->capacity = TRSPK_IBOCHAIN_INITIAL_CAPACITY;
     node->ibo.offset = offset;
@@ -133,30 +133,30 @@ trspk_ibo_free(struct TRSPK_IBO* ibo)
     free(ibo);
 }
 
-struct TRSPK_IboChain*
+struct TRSPK_IBOChain*
 trspk_ibochain_create(enum TRSPK_IndexFormat index_format)
 {
-    struct TRSPK_IboChain* chain = (struct TRSPK_IboChain*)malloc(sizeof(struct TRSPK_IboChain));
+    struct TRSPK_IBOChain* chain = (struct TRSPK_IBOChain*)malloc(sizeof(struct TRSPK_IBOChain));
     assert(chain != NULL);
 
-    memset(chain, 0, sizeof(struct TRSPK_IboChain));
+    memset(chain, 0, sizeof(struct TRSPK_IBOChain));
     chain->index_format = index_format;
 
     return chain;
 }
 
 void
-trspk_ibochain_free(struct TRSPK_IboChain* chain)
+trspk_ibochain_free(struct TRSPK_IBOChain* chain)
 {
     if( chain == NULL )
     {
         return;
     }
 
-    struct TRSPK_IboChainNode* node = chain->head;
+    struct TRSPK_IBOChainNode* node = chain->head;
     while( node != NULL )
     {
-        struct TRSPK_IboChainNode* next = node->next;
+        struct TRSPK_IBOChainNode* next = node->next;
         trspk_ibo_free_indices(&node->ibo);
         free(node);
         node = next;
@@ -166,12 +166,12 @@ trspk_ibochain_free(struct TRSPK_IboChain* chain)
 }
 
 void
-trspk_ibochain_reset(struct TRSPK_IboChain* chain)
+trspk_ibochain_reset(struct TRSPK_IBOChain* chain)
 {
     if( chain == NULL || chain->head == NULL )
         return;
 
-    for( struct TRSPK_IboChainNode* node = chain->head; node != NULL; node = node->next )
+    for( struct TRSPK_IBOChainNode* node = chain->head; node != NULL; node = node->next )
         node->ibo.index_count = 0u;
 
     chain->tail = chain->head;
@@ -179,7 +179,7 @@ trspk_ibochain_reset(struct TRSPK_IboChain* chain)
 
 static void
 trspk_ibochain_ensure_tail_node(
-    struct TRSPK_IboChain* chain,
+    struct TRSPK_IBOChain* chain,
     uint32_t offset)
 {
     if( chain->tail != NULL && chain->tail->ibo.offset == offset )
@@ -187,7 +187,7 @@ trspk_ibochain_ensure_tail_node(
         return;
     }
 
-    struct TRSPK_IboChainNode* node = trspk_ibochain_node_create(chain->index_format, offset);
+    struct TRSPK_IBOChainNode* node = trspk_ibochain_node_create(chain->index_format, offset);
 
     if( chain->tail != NULL )
     {
@@ -203,7 +203,7 @@ trspk_ibochain_ensure_tail_node(
 
 static void
 trspk_ibochain_ensure_capacity(
-    struct TRSPK_IboChainNode* tail,
+    struct TRSPK_IBOChainNode* tail,
     uint32_t index_count)
 {
     const uint32_t needed = tail->ibo.index_count + index_count;
@@ -225,7 +225,7 @@ trspk_ibochain_ensure_capacity(
 
 static void
 trspk_ibochain_append_u16(
-    struct TRSPK_IboChain* chain,
+    struct TRSPK_IBOChain* chain,
     uint32_t offset,
     const uint16_t* indices,
     uint32_t index_count)
@@ -241,7 +241,7 @@ trspk_ibochain_append_u16(
 
     trspk_ibochain_ensure_tail_node(chain, offset);
 
-    struct TRSPK_IboChainNode* tail = chain->tail;
+    struct TRSPK_IBOChainNode* tail = chain->tail;
     trspk_ibochain_ensure_capacity(tail, index_count);
 
     memcpy(
@@ -253,7 +253,7 @@ trspk_ibochain_append_u16(
 
 static void
 trspk_ibochain_append_u32(
-    struct TRSPK_IboChain* chain,
+    struct TRSPK_IBOChain* chain,
     uint32_t offset,
     const uint32_t* indices,
     uint32_t index_count)
@@ -269,7 +269,7 @@ trspk_ibochain_append_u32(
 
     trspk_ibochain_ensure_tail_node(chain, offset);
 
-    struct TRSPK_IboChainNode* tail = chain->tail;
+    struct TRSPK_IBOChainNode* tail = chain->tail;
     trspk_ibochain_ensure_capacity(tail, index_count);
 
     memcpy(
@@ -281,7 +281,7 @@ trspk_ibochain_append_u32(
 
 void
 trspk_ibochain_push16(
-    struct TRSPK_IboChain* chain,
+    struct TRSPK_IBOChain* chain,
     uint32_t offset,
     const uint16_t* indices,
     uint32_t index_count)
@@ -291,7 +291,7 @@ trspk_ibochain_push16(
 
 void
 trspk_ibochain_push32(
-    struct TRSPK_IboChain* chain,
+    struct TRSPK_IBOChain* chain,
     uint32_t offset,
     const uint32_t* indices,
     uint32_t index_count)
@@ -301,7 +301,7 @@ trspk_ibochain_push32(
 
 void
 trspk_ibochain_pushs16(
-    struct TRSPK_IboChain* chain,
+    struct TRSPK_IBOChain* chain,
     uint32_t offset,
     const int16_t* indices,
     uint32_t index_count)
@@ -315,7 +315,7 @@ trspk_ibochain_pushs16(
 
 void
 trspk_ibochain_pushs32(
-    struct TRSPK_IboChain* chain,
+    struct TRSPK_IBOChain* chain,
     uint32_t offset,
     const int32_t* indices,
     uint32_t index_count)

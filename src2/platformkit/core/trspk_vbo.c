@@ -93,6 +93,7 @@ trspk_vbo_growby(
     }
 
     vbo->vertex_count = new_count;
+    trspk_vbo_set_dirty(vbo);
 }
 
 void

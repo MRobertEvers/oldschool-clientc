@@ -3,6 +3,7 @@
 #include "graphics/uv_pnm.h"
 #include "platformkit/core/trspk_vbo.h"
 #include "toridraw/toridraw_hsl16.h"
+#include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_types.h"
 
 #include <assert.h>
@@ -14,6 +15,18 @@ bool
 trspk_toridraw_has_textures(const struct ToriDraw_Model* model)
 {
     return model && model->face_textures && model->textured_face_count > 0;
+}
+
+bool
+trspk_toridraw_texture_is_animated(
+    struct ToriDraw_Context* ctx,
+    int tex_id)
+{
+    if( tex_id < 0 || !ctx )
+        return false;
+
+    struct ToriDraw_Texture* tex = toridraw_texturemap_get(&ctx->texture_map, tex_id);
+    return tex && tex->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE;
 }
 
 static void

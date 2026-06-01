@@ -20,17 +20,17 @@ struct TRSPK_IBO
     } indices;
 };
 
-struct TRSPK_IboChainNode
+struct TRSPK_IBOChainNode
 {
     struct TRSPK_IBO ibo;
     uint32_t capacity;
-    struct TRSPK_IboChainNode* next;
+    struct TRSPK_IBOChainNode* next;
 };
 
-struct TRSPK_IboChain
+struct TRSPK_IBOChain
 {
-    struct TRSPK_IboChainNode* head;
-    struct TRSPK_IboChainNode* tail;
+    struct TRSPK_IBOChainNode* head;
+    struct TRSPK_IBOChainNode* tail;
     enum TRSPK_IndexFormat index_format;
 };
 
@@ -42,39 +42,39 @@ trspk_ibo_create(
 void
 trspk_ibo_free(struct TRSPK_IBO* ibo);
 
-struct TRSPK_IboChain*
+struct TRSPK_IBOChain*
 trspk_ibochain_create(enum TRSPK_IndexFormat index_format);
 
 void
-trspk_ibochain_free(struct TRSPK_IboChain* chain);
+trspk_ibochain_free(struct TRSPK_IBOChain* chain);
 
 void
-trspk_ibochain_reset(struct TRSPK_IboChain* chain);
+trspk_ibochain_reset(struct TRSPK_IBOChain* chain);
 
 void
 trspk_ibochain_push16(
-    struct TRSPK_IboChain* chain,
+    struct TRSPK_IBOChain* chain,
     uint32_t offset,
     const uint16_t* indices,
     uint32_t index_count);
 
 void
 trspk_ibochain_push32(
-    struct TRSPK_IboChain* chain,
+    struct TRSPK_IBOChain* chain,
     uint32_t offset,
     const uint32_t* indices,
     uint32_t index_count);
 
 void
 trspk_ibochain_pushs16(
-    struct TRSPK_IboChain* chain,
+    struct TRSPK_IBOChain* chain,
     uint32_t offset,
     const int16_t* indices,
     uint32_t index_count);
 
 void
 trspk_ibochain_pushs32(
-    struct TRSPK_IboChain* chain,
+    struct TRSPK_IBOChain* chain,
     uint32_t offset,
     const int32_t* indices,
     uint32_t index_count);
