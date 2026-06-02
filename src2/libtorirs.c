@@ -315,8 +315,9 @@ LibToriRS_FrameNextCommand(
 {
     if( !instance || !command )
         return false;
-    if( instance->model_viewer )
-        return game_modelviewer_frame_next_command(instance->model_viewer, command);
+    if( instance->model_viewer &&
+        game_modelviewer_frame_next_command(instance->model_viewer, command) )
+        return true;
     return false;
 }
 

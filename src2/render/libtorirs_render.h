@@ -2,6 +2,7 @@
 #define LIBTORIRS_RENDER_H
 
 #include "toridraw/toridraw.h"
+#include "toridraw/toridraw_sprite.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -83,6 +84,31 @@ struct LibToriRS_RenderCommand_TexLoad
     struct ToriDraw_Texture* texture;
 };
 
+struct LibToriRS_RenderCommand_SpriteLoad
+{
+    int element_id;
+    struct ToriDraw_Sprite** sprites;
+    int count;
+};
+
+struct LibToriRS_RenderCommand_Sprite
+{
+    int element_id;
+    int atlas_index;
+    int x;
+    int y;
+    int w;
+    int h;
+};
+
+struct LibToriRS_RenderCommand_ClearRect
+{
+    int x;
+    int y;
+    int w;
+    int h;
+};
+
 struct LibToriRS_RenderCommand
 {
     enum LibToriRS_RenderCommandKind kind;
@@ -93,6 +119,9 @@ struct LibToriRS_RenderCommand
         struct LibToriRS_RenderCommand_ModelLoad model_load;
         struct LibToriRS_RenderCommand_Batch batch;
         struct LibToriRS_RenderCommand_TexLoad tex_load;
+        struct LibToriRS_RenderCommand_SpriteLoad sprite_load;
+        struct LibToriRS_RenderCommand_Sprite sprite;
+        struct LibToriRS_RenderCommand_ClearRect clear_rect;
     } u;
 };
 

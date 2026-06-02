@@ -89,6 +89,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/gamecache/gamecache_flotype.c \
 	$(SRC2)/gamecache/gamecache_scenery_config.c \
 	$(SRC2)/gamecache/toridraw_cachemodel.c \
+	$(SRC2)/gamecache/toridraw_cachesprite.c \
 	$(SRC2)/toridraw/toridraw_animation.c \
 	$(SRC2)/toridraw/toridraw.c \
 	$(SRC2)/toridraw/toridraw_math.c \
@@ -98,14 +99,20 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toridraw/toridraw_map.c \
 	$(SRC2)/toridraw/toridraw_vec.c \
 	$(SRC2)/toridraw/toridraw_light_model.c \
+	$(SRC2)/toridraw/toridraw_sprite.c \
 	$(SRC2)/games/model_viewer.c \
-	$(SRC_DIR)/graphics/dash.c \
+	$(SRC2)/ui/ui_scene.c \
+	$(SRC2)/ui/ui_scene_events.c \
+	$(SRC2)/ui/ui_resource_queue.c \
+	$(SRC2)/ui/ui_loader.c \
+	$(SRC_DIR)/3rd/ini/ini.c \
+	$(SRC_DIR)/osrs/revconfig/revconfig.c \
+	$(SRC_DIR)/osrs/revconfig/revconfig_load.c \
+	$(SRC_DIR)/osrs/revconfig/uitree.c \
 	$(SRC_DIR)/graphics/dashmap.c \
-	$(SRC_DIR)/graphics/dash_model.c \
 	$(SRC_DIR)/graphics/lighting.c \
 	$(SRC_DIR)/graphics/shared_tables.c \
 	$(SRC_DIR)/osrs/palette.c \
-	$(SRC_DIR)/osrs/dash_utils.c \
 	$(SRC_DIR)/osrs/texture.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c \

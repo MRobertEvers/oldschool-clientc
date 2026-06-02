@@ -39,6 +39,7 @@ str_ascii_toupper(
     char* str,
     int len);
 
+#define TRIM_CHARS_WHITESPACE " \t\r\n"
 
 void
 strncpy_trimmed(

@@ -165,6 +165,8 @@ revconfig_load_fields_from_ini_bytes(
     {
         switch( element.kind )
         {
+        case INI_ELEMENT_UNDEFINED:
+            break;
         case INI_ELEMENT_SECTION:
             push_element_from_ini_header(revconfig_buffer, element._section.name);
             break;

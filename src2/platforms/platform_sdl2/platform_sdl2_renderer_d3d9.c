@@ -12,6 +12,7 @@
 #include "platformkit/core/trspk_vbo.h"
 #include "platformkit/d3d9/d3d9_vertex.h"
 #include "platforms/trspk_toridraw.h"
+#include "toridraw/toridraw_sprite.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_types.h"
@@ -41,6 +42,28 @@
 
 /* 16-bit index page size (models never straddle a page). */
 #define TRSPK_D3D9_VBO_PAGE 65536u
+
+#define D3D9_SPRITE_ELEMENT_CAP 256
+
+struct D3D9SpriteVertex
+{
+    float x;
+    float y;
+    float z;
+    float rhw;
+    D3DCOLOR color;
+    float u;
+    float v;
+};
+
+#define D3D9_SPRITE_FVF (D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1)
+
+struct D3D9SpriteSlot
+{
+    IDirect3DTexture9* tex;
+    int crop_x;
+    int crop_y;
+};
 
 struct LibToriPlatformSDL2_RendererD3D9
 {
@@ -82,6 +105,9 @@ struct LibToriPlatformSDL2_RendererD3D9
     bool has_3d;
     bool in3d;
     double frame_clock;
+
+    struct D3D9SpriteSlot* sprite_slots[D3D9_SPRITE_ELEMENT_CAP];
+    int sprite_slot_count[D3D9_SPRITE_ELEMENT_CAP];
 };
 
 /* -----------------------------------------------------------------------
@@ -1265,6 +1291,191 @@ done:
 }
 
 static void
+d3d9_release_sprite_element(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    int element_id)
+{
+    if( element_id < 0 || element_id >= D3D9_SPRITE_ELEMENT_CAP )
+        return;
+
+    struct D3D9SpriteSlot* slots = renderer->sprite_slots[element_id];
+    const int count = renderer->sprite_slot_count[element_id];
+    if( slots )
+    {
+        for( int i = 0; i < count; i++ )
+        {
+            if( slots[i].tex )
+                IDirect3DTexture9_Release(slots[i].tex);
+        }
+        free(slots);
+        renderer->sprite_slots[element_id] = NULL;
+    }
+    renderer->sprite_slot_count[element_id] = 0;
+}
+
+static bool
+d3d9_upload_sprite_texture(
+    IDirect3DDevice9* dev,
+    struct ToriDraw_Sprite* sp,
+    IDirect3DTexture9** out_tex)
+{
+    if( !dev || !sp || !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 || !out_tex )
+        return false;
+
+    IDirect3DTexture9* tex = NULL;
+    HRESULT hr = IDirect3DDevice9_CreateTexture(
+        dev, (UINT)sp->width, (UINT)sp->height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &tex, NULL);
+    if( FAILED(hr) || !tex )
+        return false;
+
+    D3DLOCKED_RECT lr;
+    hr = IDirect3DTexture9_LockRect(tex, 0, &lr, NULL, 0);
+    if( FAILED(hr) )
+    {
+        IDirect3DTexture9_Release(tex);
+        return false;
+    }
+
+    for( int py = 0; py < sp->height; py++ )
+    {
+        uint32_t* dst = (uint32_t*)((uint8_t*)lr.pBits + (size_t)py * (size_t)lr.Pitch);
+        const uint32_t* src = &sp->pixels_argb[py * sp->width];
+        for( int px = 0; px < sp->width; px++ )
+        {
+            uint32_t pix = src[px];
+            uint8_t a_hi = (uint8_t)((pix >> 24) & 0xFFu);
+            uint32_t rgb = pix & 0x00FFFFFFu;
+            uint8_t a = (a_hi != 0) ? a_hi : (rgb != 0u ? 0xFFu : 0u);
+            dst[px] = rgb | ((uint32_t)a << 24);
+        }
+    }
+
+    IDirect3DTexture9_UnlockRect(tex, 0);
+    *out_tex = tex;
+    return true;
+}
+
+static void
+d3d9_set_sprite_render_states(IDirect3DDevice9* dev)
+{
+    IDirect3DDevice9_SetRenderState(dev, D3DRS_ZENABLE, FALSE);
+    IDirect3DDevice9_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
+    IDirect3DDevice9_SetRenderState(dev, D3DRS_ALPHABLENDENABLE, TRUE);
+    IDirect3DDevice9_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    IDirect3DDevice9_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    IDirect3DDevice9_SetRenderState(dev, D3DRS_ALPHATESTENABLE, TRUE);
+    IDirect3DDevice9_SetRenderState(dev, D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
+    IDirect3DDevice9_SetRenderState(dev, D3DRS_ALPHAREF, 1);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+    IDirect3DDevice9_SetTextureStageState(dev, 1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+    IDirect3DDevice9_SetTextureStageState(dev, 1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+    IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+    IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+    IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+    IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+    IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+}
+
+static void
+d3d9_ev_sprite_load(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    assert(command->kind == TORIRSRC_SPRITE_LOAD);
+
+    IDirect3DDevice9* dev = renderer->device;
+    if( !dev )
+        return;
+
+    const int element_id = command->u.sprite_load.element_id;
+    struct ToriDraw_Sprite** sprites = command->u.sprite_load.sprites;
+    const int count = command->u.sprite_load.count;
+    if( element_id < 0 || element_id >= D3D9_SPRITE_ELEMENT_CAP || count <= 0 || !sprites )
+        return;
+
+    d3d9_release_sprite_element(renderer, element_id);
+
+    struct D3D9SpriteSlot* slots =
+        (struct D3D9SpriteSlot*)calloc((size_t)count, sizeof(struct D3D9SpriteSlot));
+    if( !slots )
+        return;
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriDraw_Sprite* sp = sprites[i];
+        if( !sp || !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 )
+            continue;
+        slots[i].crop_x = sp->crop_x;
+        slots[i].crop_y = sp->crop_y;
+        (void)d3d9_upload_sprite_texture(dev, sp, &slots[i].tex);
+    }
+
+    renderer->sprite_slots[element_id] = slots;
+    renderer->sprite_slot_count[element_id] = count;
+}
+
+static void
+d3d9_ev_sprite_draw(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    assert(command->kind == TORIRSRC_SPRITE);
+
+    IDirect3DDevice9* dev = renderer->device;
+    if( !dev )
+        return;
+
+    const int element_id = command->u.sprite.element_id;
+    const int atlas_index = command->u.sprite.atlas_index;
+    if( element_id < 0 || element_id >= D3D9_SPRITE_ELEMENT_CAP )
+        return;
+
+    struct D3D9SpriteSlot* slots = renderer->sprite_slots[element_id];
+    const int count = renderer->sprite_slot_count[element_id];
+    if( !slots || atlas_index < 0 || atlas_index >= count || !slots[atlas_index].tex )
+        return;
+
+    const int iw = command->u.sprite.w > 0 ? command->u.sprite.w : 1;
+    const int ih = command->u.sprite.h > 0 ? command->u.sprite.h : 1;
+    const int crop_x = slots[atlas_index].crop_x;
+    const int crop_y = slots[atlas_index].crop_y;
+
+    const float x0 = (float)(command->u.sprite.x + crop_x) - 0.5f;
+    const float y0 = (float)(command->u.sprite.y + crop_y) - 0.5f;
+    const float x1 = x0 + (float)iw;
+    const float y1 = y0 + (float)ih;
+
+    D3DVIEWPORT9 vp = { 0, 0, (DWORD)renderer->width, (DWORD)renderer->height, 0.0f, 1.0f };
+    IDirect3DDevice9_SetViewport(dev, &vp);
+
+    d3d9_set_sprite_render_states(dev);
+    IDirect3DDevice9_SetTexture(dev, 0, (IDirect3DBaseTexture9*)slots[atlas_index].tex);
+    IDirect3DDevice9_SetFVF(dev, D3D9_SPRITE_FVF);
+
+    const D3DCOLOR white = D3DCOLOR_ARGB(255, 255, 255, 255);
+    struct D3D9SpriteVertex verts[6] = {
+        { x0, y0, 0.0f, 1.0f, white, 0.0f, 0.0f },
+        { x1, y0, 0.0f, 1.0f, white, 1.0f, 0.0f },
+        { x1, y1, 0.0f, 1.0f, white, 1.0f, 1.0f },
+        { x0, y0, 0.0f, 1.0f, white, 0.0f, 0.0f },
+        { x1, y1, 0.0f, 1.0f, white, 1.0f, 1.0f },
+        { x0, y1, 0.0f, 1.0f, white, 0.0f, 1.0f },
+    };
+
+    IDirect3DDevice9_DrawPrimitiveUP(
+        dev, D3DPT_TRIANGLELIST, 2, verts, (UINT)sizeof(struct D3D9SpriteVertex));
+}
+
+static void
 d3d9_handle_render_command(
     struct LibToriPlatformSDL2_RendererD3D9* renderer,
     struct LibToriRS_Instance* instance,
@@ -1288,8 +1499,18 @@ d3d9_handle_render_command(
         break;
 
     case TORIRSRC_BEGIN_2D:
+        // printf("d3d9: BEGIN_2D\n");
+        break;
     case TORIRSRC_END_2D:
+        // printf("d3d9: END_2D\n");
+        break;
     case TORIRSRC_CLEAR_RECT:
+        break;
+    case TORIRSRC_SPRITE_LOAD:
+        d3d9_ev_sprite_load(renderer, instance, command);
+        break;
+    case TORIRSRC_SPRITE:
+        d3d9_ev_sprite_draw(renderer, instance, command);
         break;
 
     case TORIRSRC_MODEL_LOAD:
@@ -1399,6 +1620,9 @@ LibToriPlatformSDL2_RendererD3D9_Free(struct LibToriPlatformSDL2_RendererD3D9* r
             renderer->tex_buffers[i] = NULL;
         }
     }
+
+    for( int i = 0; i < D3D9_SPRITE_ELEMENT_CAP; i++ )
+        d3d9_release_sprite_element(renderer, i);
 
     if( renderer->atlas_tex )
     {

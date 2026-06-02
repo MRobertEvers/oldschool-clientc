@@ -4,12 +4,15 @@
 #include "libtorirs_internal.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw.h"
+#include "toridraw/toridraw_sprite.h"
 
 #include <SDL.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define SOFT3D_SPRITE_ELEMENT_CAP 256
 
 struct LibToriPlatformSDL2_RendererSoft3D
 {
@@ -19,6 +22,9 @@ struct LibToriPlatformSDL2_RendererSoft3D
     int* pixel_buffer;
     int width;
     int height;
+
+    struct ToriDraw_Sprite** sprite_arrays[SOFT3D_SPRITE_ELEMENT_CAP];
+    int sprite_counts[SOFT3D_SPRITE_ELEMENT_CAP];
 };
 
 struct LibToriPlatformSDL2_RendererSoft3D*
@@ -144,10 +150,50 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 struct ToriDraw_Position tmp_pos = cur_3d.camera_position;
                 struct ToriDraw_ViewPort tmp_vp = cur_3d.view_port;
                 struct ToriDraw_Camera tmp_cam = cur_3d.camera;
+                tmp_vp.stride = renderer->width;
+                (void)tmp_pos;
                 toridraw_render_model3_raster(
                     draw_context, &tmp_vp, &tmp_cam, renderer->pixel_buffer, false);
             }
             break;
+        case TORIRSRC_BEGIN_2D:
+            break;
+        case TORIRSRC_END_2D:
+            break;
+        case TORIRSRC_SPRITE_LOAD:
+        {
+            const int element_id = command.u.sprite_load.element_id;
+            if( element_id < 0 || element_id >= SOFT3D_SPRITE_ELEMENT_CAP )
+                break;
+            renderer->sprite_arrays[element_id] = command.u.sprite_load.sprites;
+            renderer->sprite_counts[element_id] = command.u.sprite_load.count;
+            break;
+        }
+        case TORIRSRC_SPRITE:
+        {
+            const int element_id = command.u.sprite.element_id;
+            const int atlas_index = command.u.sprite.atlas_index;
+            if( element_id < 0 || element_id >= SOFT3D_SPRITE_ELEMENT_CAP )
+                break;
+            struct ToriDraw_Sprite** sprites = renderer->sprite_arrays[element_id];
+            const int count = renderer->sprite_counts[element_id];
+            if( !sprites || atlas_index < 0 || atlas_index >= count )
+                break;
+            struct ToriDraw_Sprite* sp = sprites[atlas_index];
+            if( !sp || !sp->pixels_argb )
+                break;
+
+            struct ToriDraw_ViewPort vp;
+            memset(&vp, 0, sizeof(vp));
+            vp.stride = renderer->width;
+            vp.clip_left = 0;
+            vp.clip_top = 0;
+            vp.clip_right = renderer->width;
+            vp.clip_bottom = renderer->height;
+            toridraw2d_blit_sprite(
+                sp, &vp, command.u.sprite.x, command.u.sprite.y, renderer->pixel_buffer);
+            break;
+        }
         default:
             break;
         }

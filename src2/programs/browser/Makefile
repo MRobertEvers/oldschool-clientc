@@ -32,6 +32,7 @@ SRC   := browser.c \
 	$(SRC2)/gamecache/gamecache_flotype.c \
 	$(SRC2)/gamecache/gamecache_scenery_config.c \
 	$(SRC2)/gamecache/toridraw_cachemodel.c \
+	$(SRC2)/gamecache/toridraw_cachesprite.c \
 	$(SRC2)/toridraw/toridraw_animation.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC2)/toridraw/toridraw.c \
@@ -42,13 +43,11 @@ SRC   := browser.c \
 	$(SRC2)/toridraw/toridraw_lighting.c \
 	$(SRC2)/toridraw/toridraw_model.c \
 	$(SRC2)/toridraw/toridraw_light_model.c \
-	$(SRC_DIR)/graphics/dash.c \
+	$(SRC2)/toridraw/toridraw_sprite.c \
 	$(SRC_DIR)/graphics/dashmap.c \
-	$(SRC_DIR)/graphics/dash_model.c \
 	$(SRC_DIR)/graphics/lighting.c \
 	$(SRC_DIR)/graphics/shared_tables.c \
 	$(SRC_DIR)/osrs/palette.c \
-	$(SRC_DIR)/osrs/dash_utils.c \
 	$(SRC_DIR)/osrs/texture.c \
 	$(PLAT_DIR)/platform_emscripten_jshost.c \
 	$(PLAT_DIR)/platform_js_capi.c \

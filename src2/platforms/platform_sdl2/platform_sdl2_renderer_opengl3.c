@@ -572,10 +572,20 @@ handle_render_command(
         renderer->in3d = false;
         break;
     case TORIRSRC_BEGIN_2D:
+        printf("gl3: BEGIN_2D\n");
         break;
     case TORIRSRC_END_2D:
+        printf("gl3: END_2D\n");
         break;
     case TORIRSRC_CLEAR_RECT:
+        break;
+    case TORIRSRC_SPRITE_LOAD:
+        printf(
+            "gl3: SPRITE_LOAD element=%d count=%d\n",
+            command->u.sprite_load.element_id,
+            command->u.sprite_load.count);
+        break;
+    case TORIRSRC_SPRITE:
         break;
     case TORIRSRC_MODEL_LOAD:
     {

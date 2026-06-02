@@ -4,18 +4,28 @@
 #include "../input/libtorirs_input.h"
 #include "../render/libtorirs_render.h"
 #include "../scripting/libtorirs_scripting.h"
+#include "../ui/ui_scene.h"
 #include "../world/world_scene.h"
+#include "osrs/revconfig/uitree.h"
 #include "toridraw/toridraw_types.h"
 
+#include <stdbool.h>
+#include <stdint.h>
+
 struct ToriDraw_Context;
+struct UILoaderState;
 
 enum GameModelViewer_FramePhase
 {
     MV_FRAME_PHASE_SCENE_EVENTS = 0,
+    MV_FRAME_PHASE_UISCENE_EVENTS,
     MV_FRAME_PHASE_TEXTURE_EVENTS,
     MV_FRAME_PHASE_BEGIN_3D,
     MV_FRAME_PHASE_MODELS,
     MV_FRAME_PHASE_END_3D,
+    MV_FRAME_PHASE_BEGIN_2D,
+    MV_FRAME_PHASE_UITREE,
+    MV_FRAME_PHASE_END_2D,
     MV_FRAME_PHASE_DONE,
 };
 
@@ -34,11 +44,21 @@ struct GameModelViewer
     struct WorldScene* world_scene;
     int current_element_id;
 
+    struct UITree* tree;
+    struct UIScene* scene;
+    struct UILoaderState* loader_state;
+
+    struct ToriDraw_ViewPort world_view_port;
+
     struct
     {
         enum GameModelViewer_FramePhase phase;
         int event_index;
         int model_index;
+        int32_t uitree_current;
+        int32_t uitree_stack[64];
+        int uitree_stack_top;
+        bool world_emitted;
     } frame;
 };
 

@@ -2,6 +2,7 @@
 #define LIBTORIRS_SCRIPTAPI_H
 
 #include "../libtorirs.h"
+#include "../ui/ui_resource_queue.h"
 #include "libtorirs_scripting.h"
 
 #include <stdbool.h>
@@ -154,5 +155,30 @@ LibToriRS_ScriptAPI_GameCache_SceneryConfigsClearAll(struct LibToriRS_Instance* 
 
 void
 LibToriRS_ScriptAPI_GameCache_AnimationsClearAll(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_UI_Init(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_UI_RevConfigFetch(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue,
+    const char* path);
+
+bool
+LibToriRS_ScriptAPI_UI_RevConfigLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
+
+bool
+LibToriRS_ScriptAPI_UI_Ready(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_UI_Process(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
+
+void
+LibToriRS_ScriptAPI_UI_Submit(struct LibToriRS_Instance* instance);
 
 #endif

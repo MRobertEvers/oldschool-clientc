@@ -23,7 +23,7 @@ enum INIReaderStateKind
 
 struct INIReader
 {
-    int offset;
+    uint32_t offset;
     enum INIReaderStateKind state;
 };
 

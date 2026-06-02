@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #define LIBTORIRS_IOQUEUE_MAX_SIZE 128
+#define LIBTORIRS_IOQUEUE_PATH_MAX 256
 
 enum LibToriRS_IOQueueItem_Status
 {
@@ -12,15 +13,24 @@ enum LibToriRS_IOQueueItem_Status
     TORIRSIO_ERROR,
 };
 
+enum LibToriRS_IOResourceKind
+{
+    TORIRSIO_KIND_CACHE = 0,
+    TORIRSIO_KIND_CONFIG_FILE,
+};
+
 struct LibToriRS_IOQueueItem
 {
+    enum LibToriRS_IOResourceKind kind;
     int table_id;
     int archive_id;
     int flags;
+    char path[LIBTORIRS_IOQUEUE_PATH_MAX];
 
     enum LibToriRS_IOQueueItem_Status status;
     int error_code;
     void* data;
+    int data_size;
 };
 
 struct LibToriRS_IOQueue
@@ -45,6 +55,11 @@ LibToriRS_IOQueuePush(
     int table_id,
     int archive_id,
     int flags);
+
+bool
+LibToriRS_IOQueuePushConfigFile(
+    struct LibToriRS_IOQueue* queue,
+    const char* path);
 
 bool
 LibToriRS_IOQueueIsEmpty(struct LibToriRS_IOQueue* queue);

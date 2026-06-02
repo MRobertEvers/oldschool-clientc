@@ -1,6 +1,6 @@
 print("Initializing Lua script")
-Game.ModelViewer_Init()
 
+Game.ModelViewer_Init()
 
 local io_queue = Platform.GetIOQueue()
 print(io_queue)
@@ -26,10 +26,36 @@ print("Textures loaded")
 Game.Dat1_SubmitTextures()
 print("Textures submitted")
 
+-- UI: cache sprite definitions, then components + layout
+Game.UI_Init()
+
+Game.UI_RevConfigFetch(io_queue, "../../revs/configs/ui_min_cache.ini")
+Platform.LoadIO(io_queue)
+if not Game.UI_RevConfigLoad(io_queue) then
+    print("cache config load failed")
+    return
+end
+print("cache config loaded")
+
+Game.UI_RevConfigFetch(io_queue, "../../revs/configs/ui_min.ini")
+Platform.LoadIO(io_queue)
+if not Game.UI_RevConfigLoad(io_queue) then
+    print("ui config load failed")
+    return
+end
+print("ui config loaded")
+
+while not Game.UI_Ready() do
+    Game.UI_Process(io_queue)
+    Platform.LoadIO(io_queue)
+end
+
+Game.UI_Submit()
+print("UI load complete")
+
 -- Fountain 1497
 -- Oak 1571
--- Small Spirit Tree 2851
-local model_load = 2851
+local model_load = 1571
 Game.Dat1_ModelFetchNativeInt(io_queue, model_load)
 
 Platform.LoadIO(io_queue)

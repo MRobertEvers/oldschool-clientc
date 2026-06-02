@@ -3,7 +3,7 @@
 
 #include "trspk_types.h"
 
-#include "graphics/dash.h"
+#include "toridraw/toridraw_hsl16.h"
 #include "graphics/uv_pnm.h"
 
 #include <math.h>
@@ -254,7 +254,7 @@ trspk_compute_projection_matrix(
 
 /**
  * Match platforms/common/pass_3d_builder/gpu_3d_cache2.h gpu3d_hsl16_to_float_rgba
- * (Dash palette via dash_hsl16_to_rgb, not generic HSL).
+ * (OS palette via toridraw_hsl16_to_rgb, not generic HSL).
  */
 static inline void
 trspk_hsl16_to_rgba(
@@ -262,7 +262,7 @@ trspk_hsl16_to_rgba(
     float rgba_out[4],
     float alpha)
 {
-    const uint32_t rgb = (uint32_t)dash_hsl16_to_rgb((int)(hsl16 & 0xFFFFu));
+    const uint32_t rgb = (uint32_t)toridraw_hsl16_to_rgb((uint16_t)(hsl16 & 0xFFFFu));
     rgba_out[0] = (float)((rgb >> 16) & 0xFFu) / 255.0f;
     rgba_out[1] = (float)((rgb >> 8) & 0xFFu) / 255.0f;
     rgba_out[2] = (float)(rgb & 0xFFu) / 255.0f;

@@ -35,11 +35,54 @@ LibToriPlatformX_LuaHost_Platform_GetIOQueue(lua_State* L)
     return 1;
 }
 
-/**
- * upvalue(1): LibToriPlatformX_Lua
- * Platform.LoadIO
- *   arg(1): io_queue: LibToriRS_IOQueue
- */
+static void*
+luahost_read_entire_file(
+    const char* path,
+    long* out_size)
+{
+    FILE* f = fopen(path, "rb");
+    if( !f )
+        return NULL;
+
+    if( fseek(f, 0, SEEK_END) != 0 )
+    {
+        fclose(f);
+        return NULL;
+    }
+
+    long file_size = ftell(f);
+    if( file_size < 0 )
+    {
+        fclose(f);
+        return NULL;
+    }
+
+    if( fseek(f, 0, SEEK_SET) != 0 )
+    {
+        fclose(f);
+        return NULL;
+    }
+
+    void* bytes = malloc((size_t)file_size);
+    if( !bytes )
+    {
+        fclose(f);
+        return NULL;
+    }
+
+    if( fread(bytes, 1, (size_t)file_size, f) != (size_t)file_size )
+    {
+        fclose(f);
+        free(bytes);
+        return NULL;
+    }
+
+    fclose(f);
+    if( out_size )
+        *out_size = file_size;
+    return bytes;
+}
+
 int
 LibToriPlatformX_LuaHost_Platform_LoadIO(lua_State* L)
 {
@@ -49,10 +92,35 @@ LibToriPlatformX_LuaHost_Platform_LoadIO(lua_State* L)
         return 0;
 
     struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+    if( !io_queue )
+        return 0;
 
     for( int i = 0; i < io_queue->count; i++ )
     {
         struct LibToriRS_IOQueueItem* io_item = &io_queue->items[i];
+        if( io_item->status != TORIRSIO_PENDING )
+            continue;
+
+        if( io_item->kind == TORIRSIO_KIND_CONFIG_FILE )
+        {
+            long size = 0;
+            void* bytes = luahost_read_entire_file(io_item->path, &size);
+            if( bytes )
+            {
+                io_item->data = bytes;
+                io_item->data_size = (int)size;
+                io_item->status = TORIRSIO_RESOLVED;
+                printf("LoadIO: config file %s (%ld bytes)\n", io_item->path, size);
+            }
+            else
+            {
+                io_item->status = TORIRSIO_ERROR;
+                io_item->error_code = -1;
+                printf("LoadIO: failed to read config file %s\n", io_item->path);
+            }
+            continue;
+        }
+
         struct CacheLib_IORequest request = {
             .table_id = io_item->table_id,
             .archive_id = io_item->archive_id,
@@ -369,6 +437,89 @@ LibToriPlatformX_LuaHost_Game_Dat1_SubmitGameCacheModelScriptInt(lua_State* L)
 
     LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(instance, model_int);
 
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_UI_Init(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua || !lua->instance )
+        return 0;
+    LibToriRS_ScriptAPI_UI_Init(lua->instance);
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_UI_RevConfigFetch(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua || !lua->instance )
+        return 0;
+
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+    const char* path = lua_tostring(L, 2);
+    LibToriRS_ScriptAPI_UI_RevConfigFetch(lua->instance, io_queue, path);
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_UI_RevConfigLoad(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua || !lua->instance )
+    {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+    bool ok = LibToriRS_ScriptAPI_UI_RevConfigLoad(lua->instance, io_queue);
+    lua_pushboolean(L, ok);
+    return 1;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_UI_Ready(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua || !lua->instance )
+    {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+    lua_pushboolean(L, LibToriRS_ScriptAPI_UI_Ready(lua->instance));
+    return 1;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_UI_Process(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua || !lua->instance )
+        return 0;
+
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+    if( !io_queue )
+        return 0;
+
+    LibToriRS_ScriptAPI_UI_Process(lua->instance, io_queue);
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_UI_Submit(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua || !lua->instance )
+        return 0;
+    LibToriRS_ScriptAPI_UI_Submit(lua->instance);
     return 0;
 }
 
@@ -932,6 +1083,14 @@ LibToriPlatformX_LuaHost_BindToPlatform(
         lua,
         "Dat1_SubmitGameCacheModelScriptInt",
         LibToriPlatformX_LuaHost_Game_Dat1_SubmitGameCacheModelScriptInt);
+    lua_bind_function_to_platform(L, lua, "UI_Init", LibToriPlatformX_LuaHost_Game_UI_Init);
+    lua_bind_function_to_platform(
+        L, lua, "UI_RevConfigFetch", LibToriPlatformX_LuaHost_Game_UI_RevConfigFetch);
+    lua_bind_function_to_platform(
+        L, lua, "UI_RevConfigLoad", LibToriPlatformX_LuaHost_Game_UI_RevConfigLoad);
+    lua_bind_function_to_platform(L, lua, "UI_Ready", LibToriPlatformX_LuaHost_Game_UI_Ready);
+    lua_bind_function_to_platform(L, lua, "UI_Process", LibToriPlatformX_LuaHost_Game_UI_Process);
+    lua_bind_function_to_platform(L, lua, "UI_Submit", LibToriPlatformX_LuaHost_Game_UI_Submit);
     lua_bind_function_to_platform(
         L, lua, "ModelViewer_Init", LibToriPlatformX_LuaHost_Game_ModelViewer_Init);
     lua_bind_function_to_platform(

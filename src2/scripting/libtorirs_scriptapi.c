@@ -2,6 +2,8 @@
 
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../libtorirs_internal.h"
+#include "../ui/ui_loader.h"
+#include "osrs/revconfig/revconfig_load.h"
 #include "buildcache/dat1_buildcache.h"
 #include "gamecache/gamecache.h"
 #include "gamecache/gamecache_flotype.h"
@@ -19,6 +21,8 @@
 #include "src/osrs/rscache/tables_dat/animframe.h"
 #include "src/osrs/rscache/tables_dat/config_textures.h"
 #include "src/osrs/rscache/tables_dat/configs_dat.h"
+#include "src/osrs/rscache/tables_dat/pix8.h"
+#include "src/osrs/rscache/tables_dat/pix32.h"
 #include "src/osrs/texture.h"
 #include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_light_model.h"
@@ -28,6 +32,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 struct Dat1MapEntry_Sequence
 {
@@ -863,4 +868,120 @@ LibToriRS_ScriptAPI_GameCache_AnimationsClearAll(struct LibToriRS_Instance* inst
         return;
 
     gamecache_animations_clear_all(instance->gamecache);
+}
+
+void
+LibToriRS_ScriptAPI_UI_Init(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_UI_Init\n");
+    if( !instance || !instance->model_viewer )
+        return;
+
+    ui_loader_reset(instance->model_viewer->loader_state);
+}
+
+void
+LibToriRS_ScriptAPI_UI_RevConfigFetch(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue,
+    const char* path)
+{
+    if( !instance || !instance->model_viewer || !io_queue || !path )
+        return;
+
+    struct GameModelViewer* mv = instance->model_viewer;
+
+    if( io_queue->count == 0 && io_queue->read_head == 0 )
+    {
+        ui_loader_revconfig_reset(mv->loader_state);
+        if( !ui_loader_revconfig(mv->loader_state) )
+            return;
+    }
+
+    LibToriRS_IOQueuePushConfigFile(io_queue, path);
+    printf("UI_RevConfigFetch: %s\n", path);
+}
+
+bool
+LibToriRS_ScriptAPI_UI_RevConfigLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    struct GameModelViewer* mv;
+
+    if( !instance || !instance->model_viewer || !io_queue )
+        return false;
+
+    mv = instance->model_viewer;
+    if( !ui_loader_revconfig(mv->loader_state) )
+        return false;
+
+    if( io_queue->read_head >= io_queue->count )
+        return false;
+
+    struct LibToriRS_IOQueueItem item = { 0 };
+    if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
+        return false;
+
+    if( item.kind != TORIRSIO_KIND_CONFIG_FILE )
+        return false;
+
+    if( item.status != TORIRSIO_RESOLVED || !item.data || item.data_size <= 0 )
+    {
+        printf("UI_RevConfigLoad: failed for %s (status=%d)\n", item.path, (int)item.status);
+        if( item.data )
+            free(item.data);
+        return false;
+    }
+
+    revconfig_load_fields_from_ini_bytes(
+        (const uint8_t*)item.data,
+        (uint32_t)item.data_size,
+        ui_loader_revconfig(mv->loader_state));
+    printf(
+        "UI_RevConfigLoad: %s (%d bytes) -> revconfig field_count=%u\n",
+        item.path,
+        item.data_size,
+        ui_loader_revconfig(mv->loader_state)->field_count);
+    free(item.data);
+
+    if( io_queue->read_head > 0 )
+    {
+        struct LibToriRS_IOQueueItem* slot = &io_queue->items[io_queue->read_head - 1];
+        slot->data = NULL;
+        slot->data_size = 0;
+    }
+    return true;
+}
+
+bool
+LibToriRS_ScriptAPI_UI_Ready(struct LibToriRS_Instance* instance)
+{
+    if( !instance || !instance->model_viewer )
+        return false;
+    return ui_loader_ready(instance->model_viewer->loader_state);
+}
+
+void
+LibToriRS_ScriptAPI_UI_Process(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    if( !instance || !instance->model_viewer || !io_queue )
+        return;
+
+    ui_loader_process(instance->model_viewer->loader_state, io_queue);
+}
+
+void
+LibToriRS_ScriptAPI_UI_Submit(struct LibToriRS_Instance* instance)
+{
+    struct GameModelViewer* mv;
+
+    if( !instance || !instance->model_viewer )
+        return;
+
+    mv = instance->model_viewer;
+    ui_loader_submit(mv->loader_state, mv->tree, mv->scene);
+    printf("UI_Submit: uitree built\n");
 }

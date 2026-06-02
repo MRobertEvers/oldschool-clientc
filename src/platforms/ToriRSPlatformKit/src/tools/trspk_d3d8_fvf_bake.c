@@ -3,7 +3,7 @@
 #include "../backends/d3d8/d3d8_vertex.h"
 
 #include "../../include/ToriRSPlatformKit/trspk_types.h"
-#include "graphics/dash.h"
+#include "toridraw/toridraw_hsl16.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -40,7 +40,7 @@ trspk_d3d8_pack_diffuse_argb(const float color[4])
 uint32_t
 trspk_d3d8_pack_diffuse_legacy_win32(uint16_t hsl16, float face_alpha)
 {
-    const int rgb = dash_hsl16_to_rgb((int)(hsl16 & 0xFFFFu));
+    const int rgb = toridraw_hsl16_to_rgb((uint16_t)(hsl16 & 0xFFFFu));
     const unsigned char rr = (unsigned char)((rgb >> 16) & 0xFF);
     const unsigned char gg = (unsigned char)((rgb >> 8) & 0xFF);
     const unsigned char bb = (unsigned char)(rgb & 0xFF);

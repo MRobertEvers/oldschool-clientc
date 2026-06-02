@@ -28,9 +28,15 @@ LibToriRS_IOQueueClear(struct LibToriRS_IOQueue* queue)
 {
     if( !queue )
         return;
-    assert(queue->read_head == queue->count);
+
+    for( int i = 0; i < queue->count; i++ )
+    {
+        struct LibToriRS_IOQueueItem* item = &queue->items[i];
+        if( item->kind == TORIRSIO_KIND_CONFIG_FILE && item->data )
+            free(item->data);
+    }
+
     memset(queue, 0, sizeof(struct LibToriRS_IOQueue));
-    queue->count = 0;
 }
 
 void
@@ -46,10 +52,32 @@ LibToriRS_IOQueuePush(
         return;
     struct LibToriRS_IOQueueItem* item = &queue->items[queue->count];
     memset(item, 0, sizeof(struct LibToriRS_IOQueueItem));
+    item->kind = TORIRSIO_KIND_CACHE;
     item->table_id = table_id;
     item->archive_id = archive_id;
     item->flags = flags;
+    item->status = TORIRSIO_PENDING;
     queue->count++;
+}
+
+bool
+LibToriRS_IOQueuePushConfigFile(
+    struct LibToriRS_IOQueue* queue,
+    const char* path)
+{
+    if( !queue || !path || path[0] == '\0' )
+        return false;
+    if( queue->count >= LIBTORIRS_IOQUEUE_MAX_SIZE )
+        return false;
+
+    struct LibToriRS_IOQueueItem* item = &queue->items[queue->count];
+    memset(item, 0, sizeof(struct LibToriRS_IOQueueItem));
+    item->kind = TORIRSIO_KIND_CONFIG_FILE;
+    strncpy(item->path, path, LIBTORIRS_IOQUEUE_PATH_MAX - 1);
+    item->path[LIBTORIRS_IOQUEUE_PATH_MAX - 1] = '\0';
+    item->status = TORIRSIO_PENDING;
+    queue->count++;
+    return true;
 }
 
 bool
