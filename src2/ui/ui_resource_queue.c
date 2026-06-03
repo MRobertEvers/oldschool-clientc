@@ -50,12 +50,15 @@ ui_resource_queue_push_sprite(
     if( !queue || !item || queue->count >= UI_RESOURCE_QUEUE_MAX_SIZE )
         return false;
 
-    queue->items[queue->count++] = *item;
-    queue->items[queue->count - 1].status = UIRES_PENDING;
-    queue->items[queue->count - 1].source_archive_index = -1;
-    queue->items[queue->count - 1].result_sprites = NULL;
-    queue->items[queue->count - 1].result_count = 0;
-    queue->items[queue->count - 1].error_code = 0;
+    struct UIResourceQueueItem* new_item = &queue->items[queue->count];
+    *new_item = *item;
+    new_item->status = UIRES_PENDING;
+    new_item->state = UIRES_STATE_NEED_ARCHIVE;
+    new_item->source_archive_index = -1;
+    new_item->result_sprites = NULL;
+    new_item->result_count = 0;
+    new_item->error_code = 0;
+    queue->count++;
     return true;
 }
 

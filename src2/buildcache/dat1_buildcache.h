@@ -20,6 +20,7 @@ struct Dat1BuildCache
 {
     struct FileListDat* fromconfigtable_config_jagfile;
     struct FileListDat* versionlist_jagfile;
+    struct FileListDat* media_2d_graphics_jagfile;
     struct ToriDraw_Map* models_hmap;
     struct ToriDraw_Map* map_terrain_hmap;
     struct ToriDraw_Map* map_scenery_hmap;
@@ -46,6 +47,14 @@ void
 dat1_buildcache_set_versionlist_jagfile(
     struct Dat1BuildCache* dat1_buildcache,
     struct FileListDat* versionlist_jagfile);
+
+void
+dat1_buildcache_set_media_2d_graphics_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct FileListDat* media_2d_graphics_jagfile);
+
+struct FileListDat*
+dat1_buildcache_get_media_2d_graphics_jagfile(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_model_add(

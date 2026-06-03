@@ -18,11 +18,22 @@ enum UIResourceQueueItem_Status
 enum UIResourceQueueItem_Kind
 {
     UIRES_KIND_SPRITE = 1,
+    UIRES_KIND_RS_COMPONENT,
+};
+
+enum UIResourceQueueItem_State
+{
+    UIRES_STATE_NEED_ARCHIVE = 0, /* resolve archive ids + dispatch IO */
+    UIRES_STATE_WAIT_ARCHIVE,     /* archive IO dispatched, awaiting filelist */
+    UIRES_STATE_DECODE,           /* archive received, ready to decode asset */
+    UIRES_STATE_DONE,             /* terminal success (mirrors status RESOLVED) */
+    UIRES_STATE_FAILED,           /* terminal failure (mirrors status ERROR) */
 };
 
 struct UIResourceQueueItem
 {
     enum UIResourceQueueItem_Kind kind;
+    enum UIResourceQueueItem_State state;
     char name[64];
     char table[64];
     char archive[64];

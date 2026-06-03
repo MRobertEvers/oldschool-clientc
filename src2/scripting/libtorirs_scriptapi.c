@@ -957,8 +957,6 @@ LibToriRS_ScriptAPI_UI_RevConfigLoad(
 bool
 LibToriRS_ScriptAPI_UI_Ready(struct LibToriRS_Instance* instance)
 {
-    if( !instance || !instance->model_viewer )
-        return false;
     return ui_loader_ready(instance->model_viewer->loader_state);
 }
 
@@ -967,19 +965,13 @@ LibToriRS_ScriptAPI_UI_Process(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue)
 {
-    if( !instance || !instance->model_viewer || !io_queue )
-        return;
-
-    ui_loader_process(instance->model_viewer->loader_state, io_queue);
+    ui_loader_process(instance->model_viewer->loader_state, io_queue, instance->dat1_buildcache);
 }
 
 void
 LibToriRS_ScriptAPI_UI_Submit(struct LibToriRS_Instance* instance)
 {
     struct GameModelViewer* mv;
-
-    if( !instance || !instance->model_viewer )
-        return;
 
     mv = instance->model_viewer;
     ui_loader_submit(mv->loader_state, mv->tree, mv->scene);

@@ -51,7 +51,7 @@ while not Game.UI_Ready() do
 end
 
 Game.UI_Submit()
-print("UI load complete")
+-- print("UI load complete")
 
 -- Fountain 1497
 -- Oak 1571

@@ -1,14 +1,14 @@
 #include "ui_loader.h"
 
+#include "../buildcache/dat1_buildcache.h"
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "gamecache/toridraw_cachesprite.h"
 #include "graphics/dashmap.h"
 #include "osrs/revconfig/uitree.h"
-#include "src/osrs/rscache/cache_dat.h"
-#include "src/osrs/rscache/filelist.h"
-#include "src/osrs/rscache/tables_dat/configs_dat.h"
-#include "src/osrs/rscache/tables_dat/pix32.h"
-#include "src/osrs/rscache/tables_dat/pix8.h"
+#include "osrs/rscache/filelist.h"
+#include "osrs/rscache/tables_dat/configs_dat.h"
+#include "osrs/rscache/tables_dat/pix32.h"
+#include "osrs/rscache/tables_dat/pix8.h"
 #include "ui_resource_queue.h"
 
 #include <assert.h>
@@ -18,6 +18,11 @@
 
 #define UI_LOADER_MAX_LAYOUT_ENTRIES 64
 #define UI_LOADER_MAX_PENDING_ARCHIVES 16
+#define UI_LOADER_MAX_WORK_ITEMS 32
+
+/* -------------------------------------------------------------------------- */
+/* Internal types                                                             */
+/* -------------------------------------------------------------------------- */
 
 struct SpriteMapEntry
 {
@@ -56,7 +61,13 @@ struct UILoaderPendingArchive
     int table_id;
     int archive_id;
     bool received;
-    struct FileListDat* filelist;
+    bool io_dispatched;
+};
+
+enum UILoaderWorkKind
+{
+    UILOADER_WORK_PROCESS_REVCONFIG = 0,
+    UILOADER_WORK_PROCESS_RESOURCE_QUEUE,
 };
 
 struct UILoaderState
@@ -74,130 +85,118 @@ struct UILoaderState
 
     struct UIResourceQueue* queue;
     struct RevConfigBuffer* revconfig;
-    enum UILoaderPhase phase;
+    enum UILoaderWorkKind work_items[UI_LOADER_MAX_WORK_ITEMS];
+    int work_head;
+    int work_count;
+    bool done;
     struct UILoaderPendingArchive pending_archives[UI_LOADER_MAX_PENDING_ARCHIVES];
     int pending_archive_count;
 };
 
+enum UILoaderItemKind
+{
+    UILOADER_ITEM_NONE = 0,
+    UILOADER_ITEM_SPRITE,
+    UILOADER_ITEM_COMPONENT,
+    UILOADER_ITEM_LAYOUT,
+};
+
+struct UILoaderBuildCtx
+{
+    enum UILoaderItemKind kind;
+    struct UIResourceQueueItem pending_sprite;
+    struct ComponentMapEntry pending_component;
+    struct LayoutItem pending_layout;
+    bool layout_has_entry;
+};
+
+/* -------------------------------------------------------------------------- */
+/* Work queue helpers                                                         */
+/* -------------------------------------------------------------------------- */
+
 static void
-ui_loader_free_pending_filelists(struct UILoaderState* state);
+ui_loader_work_clear(struct UILoaderState* state)
+{
+    state->work_head = 0;
+    state->work_count = 0;
+}
 
 static bool
-ui_loader_build(struct UILoaderState* state);
-
-struct UILoaderState*
-ui_loader_state_new(void)
+ui_loader_work_push(
+    struct UILoaderState* state,
+    enum UILoaderWorkKind kind)
 {
-    struct UILoaderState* state = calloc(1, sizeof(struct UILoaderState));
-    if( !state )
-        return NULL;
+    if( state->work_count >= UI_LOADER_MAX_WORK_ITEMS )
+        return false;
+    state->work_items[state->work_count++] = kind;
+    return true;
+}
 
-    state->sprite_map_buffer = malloc(512 * sizeof(struct SpriteMapEntry));
-    state->component_map_buffer = malloc(512 * sizeof(struct ComponentMapEntry));
-    if( !state->sprite_map_buffer || !state->component_map_buffer )
+static bool
+ui_loader_work_pop(
+    struct UILoaderState* state,
+    enum UILoaderWorkKind* out_kind)
+{
+    if( state->work_head >= state->work_count )
+        return false;
+    *out_kind = state->work_items[state->work_head++];
+    return true;
+}
+
+static bool
+ui_loader_work_empty(struct UILoaderState* state)
+{
+    return state->work_head >= state->work_count;
+}
+
+static bool
+ui_loader_work_contains(
+    struct UILoaderState* state,
+    enum UILoaderWorkKind kind)
+{
+    for( int i = state->work_head; i < state->work_count; i++ )
     {
-        ui_loader_state_free(state);
-        return NULL;
+        if( state->work_items[i] == kind )
+            return true;
     }
+    return false;
+}
 
-    struct DashMapConfig sprite_cfg = {
-        .buffer = state->sprite_map_buffer,
-        .buffer_size = 512 * sizeof(struct SpriteMapEntry),
-        .key_size = 64,
-        .entry_size = sizeof(struct SpriteMapEntry),
-    };
-    struct DashMapConfig component_cfg = {
-        .buffer = state->component_map_buffer,
-        .buffer_size = 512 * sizeof(struct ComponentMapEntry),
-        .key_size = 64,
-        .entry_size = sizeof(struct ComponentMapEntry),
-    };
+static bool
+ui_loader_item_is_terminal(const struct UIResourceQueueItem* item)
+{
+    return item->state == UIRES_STATE_DONE || item->state == UIRES_STATE_FAILED;
+}
 
-    state->sprite_map = dashmap_new(&sprite_cfg, 0);
-    state->component_map = dashmap_new(&component_cfg, 0);
-    if( !state->sprite_map || !state->component_map )
+static bool
+ui_loader_resource_queue_has_incomplete(struct UILoaderState* state)
+{
+    struct UIResourceQueue* rq = state->queue;
+    if( !rq )
+        return false;
+
+    for( int i = 0; i < rq->count; i++ )
     {
-        ui_loader_state_free(state);
-        return NULL;
+        if( !ui_loader_item_is_terminal(&rq->items[i]) )
+            return true;
     }
-
-    state->queue = ui_resource_queue_new();
-    state->revconfig = revconfig_buffer_new(4096);
-    if( !state->queue || !state->revconfig )
-    {
-        ui_loader_state_free(state);
-        return NULL;
-    }
-
-    state->phase = UI_LOADER_PHASE_BUILD;
-    return state;
+    return false;
 }
 
-void
-ui_loader_state_free(struct UILoaderState* state)
-{
-    if( !state )
-        return;
-    ui_loader_free_pending_filelists(state);
-    if( state->sprite_map )
-        dashmap_free(state->sprite_map);
-    if( state->component_map )
-        dashmap_free(state->component_map);
-    free(state->sprite_map_buffer);
-    free(state->component_map_buffer);
-    if( state->queue )
-        ui_resource_queue_free(state->queue);
-    if( state->revconfig )
-        revconfig_buffer_free(state->revconfig);
-    free(state);
-}
+/* -------------------------------------------------------------------------- */
+/* String / parse helpers                                                     */
+/* -------------------------------------------------------------------------- */
 
-void
-ui_loader_reset(struct UILoaderState* state)
-{
-    if( !state )
-        return;
-
-    ui_loader_revconfig_reset(state);
-    if( state->queue )
-        ui_resource_queue_clear(state->queue);
-    ui_loader_free_pending_filelists(state);
-    state->phase = UI_LOADER_PHASE_BUILD;
-    state->pending_archive_count = 0;
-}
-
-struct RevConfigBuffer*
-ui_loader_revconfig(struct UILoaderState* state)
-{
-    return state ? state->revconfig : NULL;
-}
-
-void
-ui_loader_revconfig_reset(struct UILoaderState* state)
-{
-    if( !state )
-        return;
-    if( state->revconfig )
-        revconfig_buffer_free(state->revconfig);
-    state->revconfig = revconfig_buffer_new(4096);
-}
-
-bool
-ui_loader_ready(struct UILoaderState* state)
-{
-    return state && state->phase == UI_LOADER_PHASE_DONE;
-}
-
-static uint32_t
+static enum UILoaderItemKind
 load_kind(const char* str)
 {
     if( strcmp(str, "sprite") == 0 )
-        return 1;
+        return UILOADER_ITEM_SPRITE;
     if( strcmp(str, "component") == 0 )
-        return 2;
+        return UILOADER_ITEM_COMPONENT;
     if( strcmp(str, "layout") == 0 )
-        return 3;
-    return 0;
+        return UILOADER_ITEM_LAYOUT;
+    return UILOADER_ITEM_NONE;
 }
 
 static enum StaticUIComponentType
@@ -229,64 +228,189 @@ parse_sprite_bracket(
     }
 }
 
+/* -------------------------------------------------------------------------- */
+/* Build phase helpers                                                        */
+/* -------------------------------------------------------------------------- */
+
 static void
-apply_layout(
+build_layout_flush(
     struct UILoaderState* state,
-    struct UITree* tree)
+    struct UILoaderBuildCtx* ctx)
 {
-    for( int i = 0; i < state->layout_entry_count; i++ )
+    if( ctx->layout_has_entry && state->layout_entry_count < UI_LOADER_MAX_LAYOUT_ENTRIES )
+        state->layout_entries[state->layout_entry_count++] = ctx->pending_layout;
+}
+
+static void
+build_begin_item(
+    struct UILoaderBuildCtx* ctx,
+    const char* type_value)
+{
+    ctx->kind = load_kind(type_value);
+    memset(&ctx->pending_sprite, 0, sizeof(ctx->pending_sprite));
+    memset(&ctx->pending_component, 0, sizeof(ctx->pending_component));
+    memset(&ctx->pending_layout, 0, sizeof(ctx->pending_layout));
+    ctx->layout_has_entry = false;
+    ctx->pending_sprite.kind = UIRES_KIND_SPRITE;
+    ctx->pending_component.sprite_id = -1;
+    ctx->pending_component.level_mask = 0xFu;
+}
+
+static void
+build_set_item_name(
+    struct UILoaderBuildCtx* ctx,
+    const char* value)
+{
+    if( ctx->kind == UILOADER_ITEM_SPRITE )
+        strncpy(ctx->pending_sprite.name, value, sizeof(ctx->pending_sprite.name) - 1);
+    else if( ctx->kind == UILOADER_ITEM_COMPONENT )
+        strncpy(ctx->pending_component.name, value, sizeof(ctx->pending_component.name) - 1);
+}
+
+static void
+build_finish_item(
+    struct UILoaderState* state,
+    struct UILoaderBuildCtx* ctx)
+{
+    struct UIResourceQueue* queue = state->queue;
+
+    if( ctx->kind == UILOADER_ITEM_SPRITE )
     {
-        struct LayoutItem* le = &state->layout_entries[i];
-        struct ComponentMapEntry* comp =
-            dashmap_search(state->component_map, le->component, DASHMAP_FIND);
-        if( !comp )
-        {
-            printf("ui_loader: layout component not found: %s\n", le->component);
-            continue;
-        }
+        ctx->pending_sprite.status = UIRES_PENDING;
+        ui_resource_queue_push_sprite(queue, &ctx->pending_sprite);
+    }
+    else if( ctx->kind == UILOADER_ITEM_COMPONENT )
+    {
+        struct ComponentMapEntry* ent =
+            dashmap_search(state->component_map, ctx->pending_component.name, DASHMAP_INSERT);
+        if( ent )
+            *ent = ctx->pending_component;
+        if( state->component_count < 128 )
+            state->components[state->component_count++] = ctx->pending_component;
+    }
+    else if( ctx->kind == UILOADER_ITEM_LAYOUT )
+        build_layout_flush(state, ctx);
 
-        int32_t idx = -1;
-        switch( comp->type )
-        {
-        case UIELEM_BUILTIN_WORLD:
-            idx = uitree_push_world(
-                tree, -1, le->x, le->y, comp->width, comp->height, comp->level_mask);
-            break;
-        case UIELEM_BUILTIN_SPRITE:
-            if( le->flags != 0 )
-            {
-                idx = uitree_push_sprite_relative(
-                    tree,
-                    -1,
-                    comp->sprite_id,
-                    comp->sprite_index,
-                    le->flags,
-                    le->top,
-                    le->right,
-                    le->bottom,
-                    le->left,
-                    comp->width,
-                    comp->height);
-            }
-            else
-            {
-                idx = uitree_push_sprite_xy(
-                    tree,
-                    -1,
-                    comp->sprite_id,
-                    comp->sprite_index,
-                    le->x,
-                    le->y,
-                    comp->width,
-                    comp->height);
-            }
-            break;
-        default:
-            break;
-        }
+    ctx->kind = UILOADER_ITEM_NONE;
+}
 
-        if( le->always_dirty && idx >= 0 )
-            tree->components[idx].always_dirty = 1;
+static void
+build_apply_cache_field(
+    struct UILoaderBuildCtx* ctx,
+    const struct RevConfigField* field)
+{
+    struct UIResourceQueueItem* sprite = &ctx->pending_sprite;
+
+    switch( field->kind )
+    {
+    case RCFIELD_CACHE_TABLE:
+        strncpy(sprite->table, field->value, sizeof(sprite->table) - 1);
+        break;
+    case RCFIELD_CACHE_ARCHIVE:
+        strncpy(sprite->archive, field->value, sizeof(sprite->archive) - 1);
+        break;
+    case RCFIELD_CACHE_CONTAINER:
+        strncpy(sprite->container, field->value, sizeof(sprite->container) - 1);
+        break;
+    case RCFIELD_CACHE_INDEX_FILENAME:
+        strncpy(sprite->index_filename, field->value, sizeof(sprite->index_filename) - 1);
+        break;
+    case RCFIELD_CACHE_DATA_FILENAME:
+        strncpy(sprite->data_filename, field->value, sizeof(sprite->data_filename) - 1);
+        break;
+    case RCFIELD_CACHE_FORMAT:
+        strncpy(sprite->format, field->value, sizeof(sprite->format) - 1);
+        break;
+    case RCFIELD_CACHE_ATLAS_INDEX:
+        sprite->atlas_index = atoi(field->value);
+        sprite->atlas_use_count = false;
+        break;
+    case RCFIELD_CACHE_ATLAS_COUNT:
+        sprite->atlas_count = atoi(field->value);
+        sprite->atlas_use_count = true;
+        break;
+    default:
+        break;
+    }
+}
+
+static void
+build_apply_component_field(
+    struct UILoaderBuildCtx* ctx,
+    const struct RevConfigField* field)
+{
+    struct ComponentMapEntry* comp = &ctx->pending_component;
+
+    switch( field->kind )
+    {
+    case RCFIELD_UICOMPONENT_TYPE:
+        comp->type = component_type_from_string(field->value);
+        break;
+    case RCFIELD_UICOMPONENT_SPRITE:
+        strncpy(comp->sprite_name, field->value, sizeof(comp->sprite_name) - 1);
+        break;
+    case RCFIELD_UICOMPONENT_WIDTH:
+        comp->width = atoi(field->value);
+        break;
+    case RCFIELD_UICOMPONENT_HEIGHT:
+        comp->height = atoi(field->value);
+        break;
+    case RCFIELD_UICOMPONENT_PAINT_LEVELS:
+        comp->level_mask = 0xFu;
+        break;
+    default:
+        break;
+    }
+}
+
+static void
+build_apply_layout_field(
+    struct UILoaderState* state,
+    struct UILoaderBuildCtx* ctx,
+    const struct RevConfigField* field)
+{
+    struct LayoutItem* layout = &ctx->pending_layout;
+
+    switch( field->kind )
+    {
+    case RCFIELD_UILAYOUT_COMPONENT:
+        build_layout_flush(state, ctx);
+        memset(layout, 0, sizeof(*layout));
+        strncpy(layout->component, field->value, sizeof(layout->component) - 1);
+        ctx->layout_has_entry = true;
+        break;
+    case RCFIELD_UILAYOUT_X:
+        layout->x = atoi(field->value);
+        break;
+    case RCFIELD_UILAYOUT_Y:
+        layout->y = atoi(field->value);
+        break;
+    case RCFIELD_UILAYOUT_TOP:
+        layout->top = atoi(field->value);
+        layout->flags |= STATIC_UI_RELATIVE_FLAG_TOP;
+        break;
+    case RCFIELD_UILAYOUT_LEFT:
+        layout->left = atoi(field->value);
+        layout->flags |= STATIC_UI_RELATIVE_FLAG_LEFT;
+        break;
+    case RCFIELD_UILAYOUT_BOTTOM:
+        layout->bottom = atoi(field->value);
+        layout->flags |= STATIC_UI_RELATIVE_FLAG_BOTTOM;
+        break;
+    case RCFIELD_UILAYOUT_RIGHT:
+        layout->right = atoi(field->value);
+        layout->flags |= STATIC_UI_RELATIVE_FLAG_RIGHT;
+        break;
+    case RCFIELD_UILAYOUT_DIRTY:
+        layout->always_dirty = 1;
+        break;
+    case RCFIELD_UILAYOUT_NULL:
+        build_layout_flush(state, ctx);
+        memset(layout, 0, sizeof(*layout));
+        ctx->layout_has_entry = false;
+        break;
+    default:
+        break;
     }
 }
 
@@ -296,168 +420,59 @@ ui_loader_build(struct UILoaderState* state)
     struct UIResourceQueue* queue;
     struct RevConfigBuffer* revconfig;
 
-    if( !state )
-        return false;
-
     queue = state->queue;
     revconfig = state->revconfig;
-    if( !queue || !revconfig )
-        return false;
 
     state->layout_entry_count = 0;
     state->component_count = 0;
 
-    uint32_t kind = 0;
-    enum
-    {
-        KIND_NONE = 0,
-        KIND_SPRITE = 1,
-        KIND_COMPONENT = 2,
-        KIND_LAYOUT = 3,
-    };
-
-    struct UIResourceQueueItem pending_sprite = { 0 };
-    struct ComponentMapEntry pending_component = { 0 };
-    struct LayoutItem pending_layout = { 0 };
-    bool layout_has_entry = false;
+    struct UILoaderBuildCtx ctx = { 0 };
 
     for( uint32_t fi = 0; fi < revconfig->field_count; fi++ )
     {
-        struct RevConfigField* field = &revconfig->fields[fi];
+        const struct RevConfigField* field = &revconfig->fields[fi];
+
         switch( field->kind )
         {
         case RCFIELD_ITEMTYPE:
-            kind = load_kind(field->value);
-            memset(&pending_sprite, 0, sizeof(pending_sprite));
-            memset(&pending_component, 0, sizeof(pending_component));
-            memset(&pending_layout, 0, sizeof(pending_layout));
-            layout_has_entry = false;
-            pending_sprite.kind = UIRES_KIND_SPRITE;
-            pending_component.sprite_id = -1;
-            pending_component.level_mask = 0xFu;
+            build_begin_item(&ctx, field->value);
             break;
-
         case RCFIELD_ITEMNAME:
-            if( kind == KIND_SPRITE )
-                strncpy(pending_sprite.name, field->value, sizeof(pending_sprite.name) - 1);
-            else if( kind == KIND_COMPONENT )
-                strncpy(pending_component.name, field->value, sizeof(pending_component.name) - 1);
+            build_set_item_name(&ctx, field->value);
             break;
-
         case RCFIELD_ITEMDONE:
-            if( kind == KIND_SPRITE )
-            {
-                pending_sprite.status = UIRES_PENDING;
-                ui_resource_queue_push_sprite(queue, &pending_sprite);
-            }
-            else if( kind == KIND_COMPONENT )
-            {
-                struct ComponentMapEntry* ent =
-                    dashmap_search(state->component_map, pending_component.name, DASHMAP_INSERT);
-                if( ent )
-                    *ent = pending_component;
-                if( state->component_count < 128 )
-                    state->components[state->component_count++] = pending_component;
-            }
-            else if( kind == KIND_LAYOUT )
-            {
-                if( layout_has_entry && state->layout_entry_count < UI_LOADER_MAX_LAYOUT_ENTRIES )
-                {
-                    state->layout_entries[state->layout_entry_count++] = pending_layout;
-                }
-            }
-            kind = KIND_NONE;
+            build_finish_item(state, &ctx);
             break;
 
         case RCFIELD_CACHE_TABLE:
-            strncpy(pending_sprite.table, field->value, sizeof(pending_sprite.table) - 1);
-            break;
         case RCFIELD_CACHE_ARCHIVE:
-            strncpy(pending_sprite.archive, field->value, sizeof(pending_sprite.archive) - 1);
-            break;
         case RCFIELD_CACHE_CONTAINER:
-            strncpy(pending_sprite.container, field->value, sizeof(pending_sprite.container) - 1);
-            break;
         case RCFIELD_CACHE_INDEX_FILENAME:
-            strncpy(
-                pending_sprite.index_filename,
-                field->value,
-                sizeof(pending_sprite.index_filename) - 1);
-            break;
         case RCFIELD_CACHE_DATA_FILENAME:
-            strncpy(
-                pending_sprite.data_filename,
-                field->value,
-                sizeof(pending_sprite.data_filename) - 1);
-            break;
         case RCFIELD_CACHE_FORMAT:
-            strncpy(pending_sprite.format, field->value, sizeof(pending_sprite.format) - 1);
-            break;
         case RCFIELD_CACHE_ATLAS_INDEX:
-            pending_sprite.atlas_index = atoi(field->value);
-            pending_sprite.atlas_use_count = false;
-            break;
         case RCFIELD_CACHE_ATLAS_COUNT:
-            pending_sprite.atlas_count = atoi(field->value);
-            pending_sprite.atlas_use_count = true;
+            build_apply_cache_field(&ctx, field);
             break;
 
         case RCFIELD_UICOMPONENT_TYPE:
-            pending_component.type = component_type_from_string(field->value);
-            break;
         case RCFIELD_UICOMPONENT_SPRITE:
-            strncpy(
-                pending_component.sprite_name,
-                field->value,
-                sizeof(pending_component.sprite_name) - 1);
-            break;
         case RCFIELD_UICOMPONENT_WIDTH:
-            pending_component.width = atoi(field->value);
-            break;
         case RCFIELD_UICOMPONENT_HEIGHT:
-            pending_component.height = atoi(field->value);
-            break;
         case RCFIELD_UICOMPONENT_PAINT_LEVELS:
-            pending_component.level_mask = 0xFu;
+            build_apply_component_field(&ctx, field);
             break;
 
         case RCFIELD_UILAYOUT_COMPONENT:
-            if( layout_has_entry && state->layout_entry_count < UI_LOADER_MAX_LAYOUT_ENTRIES )
-                state->layout_entries[state->layout_entry_count++] = pending_layout;
-            memset(&pending_layout, 0, sizeof(pending_layout));
-            strncpy(pending_layout.component, field->value, sizeof(pending_layout.component) - 1);
-            layout_has_entry = true;
-            break;
         case RCFIELD_UILAYOUT_X:
-            pending_layout.x = atoi(field->value);
-            break;
         case RCFIELD_UILAYOUT_Y:
-            pending_layout.y = atoi(field->value);
-            break;
         case RCFIELD_UILAYOUT_TOP:
-            pending_layout.top = atoi(field->value);
-            pending_layout.flags |= STATIC_UI_RELATIVE_FLAG_TOP;
-            break;
         case RCFIELD_UILAYOUT_LEFT:
-            pending_layout.left = atoi(field->value);
-            pending_layout.flags |= STATIC_UI_RELATIVE_FLAG_LEFT;
-            break;
         case RCFIELD_UILAYOUT_BOTTOM:
-            pending_layout.bottom = atoi(field->value);
-            pending_layout.flags |= STATIC_UI_RELATIVE_FLAG_BOTTOM;
-            break;
         case RCFIELD_UILAYOUT_RIGHT:
-            pending_layout.right = atoi(field->value);
-            pending_layout.flags |= STATIC_UI_RELATIVE_FLAG_RIGHT;
-            break;
         case RCFIELD_UILAYOUT_DIRTY:
-            pending_layout.always_dirty = 1;
-            break;
         case RCFIELD_UILAYOUT_NULL:
-            if( layout_has_entry && state->layout_entry_count < UI_LOADER_MAX_LAYOUT_ENTRIES )
-                state->layout_entries[state->layout_entry_count++] = pending_layout;
-            memset(&pending_layout, 0, sizeof(pending_layout));
-            layout_has_entry = false;
+            build_apply_layout_field(state, &ctx, field);
             break;
 
         default:
@@ -472,101 +487,9 @@ ui_loader_build(struct UILoaderState* state)
     return true;
 }
 
-bool
-ui_loader_submit(
-    struct UILoaderState* state,
-    struct UITree* tree,
-    struct UIScene* scene)
-{
-    struct UIResourceQueue* queue;
-
-    if( !state || !tree || !scene )
-        return false;
-
-    queue = state->queue;
-    if( !queue )
-        return false;
-
-    tree->component_count = 0;
-    tree->root_index = -1;
-
-    for( int i = 0; i < queue->count; i++ )
-    {
-        struct UIResourceQueueItem* item = &queue->items[i];
-        if( item->status != UIRES_RESOLVED || !item->result_sprites || item->result_count <= 0 )
-        {
-            printf("ui_loader_submit: skip unresolved sprite %s\n", item->name);
-            continue;
-        }
-
-        int element_id = ui_scene_element_acquire_with_sprites(
-            scene, item->result_sprites, item->result_count, false, item->name);
-        if( element_id < 0 )
-            continue;
-
-        item->result_sprites = NULL;
-        item->result_count = 0;
-
-        struct SpriteMapEntry* sm = dashmap_search(state->sprite_map, item->name, DASHMAP_INSERT);
-        if( sm )
-        {
-            strncpy(sm->name, item->name, sizeof(sm->name) - 1);
-            sm->scene_id = element_id;
-            sm->atlas_index = item->atlas_index;
-        }
-    }
-
-    for( int i = 0; i < state->component_count; i++ )
-    {
-        struct ComponentMapEntry* comp = &state->components[i];
-        if( comp->type != UIELEM_BUILTIN_SPRITE || comp->sprite_name[0] == '\0' )
-            continue;
-
-        char sprite_key[64];
-        int atlas_index = 0;
-        parse_sprite_bracket(comp->sprite_name, sprite_key, &atlas_index);
-
-        struct SpriteMapEntry* sm = dashmap_search(state->sprite_map, sprite_key, DASHMAP_FIND);
-        if( sm )
-        {
-            comp->sprite_id = sm->scene_id;
-            comp->sprite_index = atlas_index;
-
-            struct ComponentMapEntry* ent =
-                dashmap_search(state->component_map, comp->name, DASHMAP_FIND);
-            if( ent )
-            {
-                ent->sprite_id = comp->sprite_id;
-                ent->sprite_index = comp->sprite_index;
-            }
-        }
-        else
-            printf(
-                "ui_loader_submit: sprite not resolved for component %s (%s)\n",
-                comp->name,
-                sprite_key);
-    }
-
-    apply_layout(state, tree);
-    printf("ui_loader_submit: uitree has %u components\n", tree->component_count);
-    return true;
-}
-
-static void
-ui_loader_free_pending_filelists(struct UILoaderState* state)
-{
-    if( !state )
-        return;
-
-    for( int i = 0; i < state->pending_archive_count; i++ )
-    {
-        if( state->pending_archives[i].filelist )
-        {
-            filelist_dat_free(state->pending_archives[i].filelist);
-            state->pending_archives[i].filelist = NULL;
-        }
-    }
-}
+/* -------------------------------------------------------------------------- */
+/* Archive / sprite decode helpers                                            */
+/* -------------------------------------------------------------------------- */
 
 static struct ToriDraw_Sprite*
 ui_loader_decode_sprite(
@@ -674,7 +597,7 @@ ui_loader_pending_archive_index(
     state->pending_archives[idx].table_id = table_id;
     state->pending_archives[idx].archive_id = archive_id;
     state->pending_archives[idx].received = false;
-    state->pending_archives[idx].filelist = NULL;
+    state->pending_archives[idx].io_dispatched = false;
     return idx;
 }
 
@@ -693,82 +616,238 @@ ui_loader_all_pending_archives_received(struct UILoaderState* state)
 }
 
 static void
-ui_loader_fill_pending_sprite_requests(struct UILoaderState* state)
+ui_loader_decode_item(
+    struct UILoaderState* state,
+    struct UIResourceQueueItem* item,
+    struct Dat1BuildCache* buildcache)
+{
+    (void)state;
+
+    struct FileListDat* filelist = dat1_buildcache_get_media_2d_graphics_jagfile(buildcache);
+    if( !filelist )
+    {
+        item->status = UIRES_ERROR;
+        item->error_code = -4;
+        item->state = UIRES_STATE_FAILED;
+        return;
+    }
+
+    int start_atlas = item->atlas_use_count ? 0 : item->atlas_index;
+    int count = item->atlas_use_count && item->atlas_count > 0 ? item->atlas_count : 1;
+    struct ToriDraw_Sprite** sprites = calloc((size_t)count, sizeof(struct ToriDraw_Sprite*));
+    if( !sprites )
+    {
+        item->status = UIRES_ERROR;
+        item->error_code = -1;
+        item->state = UIRES_STATE_FAILED;
+        return;
+    }
+
+    int loaded = 0;
+    for( int j = 0; j < count; j++ )
+    {
+        int atlas_index = start_atlas + j;
+        sprites[j] = ui_loader_decode_sprite(filelist, item, atlas_index);
+        if( !sprites[j] )
+        {
+            sprites[j] = ui_loader_placeholder_sprite(32, 32);
+            if( sprites[j] )
+                printf(
+                    "UI_Process: decode failed for %s atlas %d, using placeholder\n",
+                    item->name,
+                    atlas_index);
+        }
+        if( sprites[j] )
+            loaded++;
+    }
+
+    if( loaded <= 0 )
+    {
+        free(sprites);
+        item->status = UIRES_ERROR;
+        item->error_code = -2;
+        item->state = UIRES_STATE_FAILED;
+        printf("UI_Process: failed to load any sprites for %s\n", item->name);
+        return;
+    }
+
+    item->result_sprites = sprites;
+    item->result_count = count;
+    item->status = UIRES_RESOLVED;
+    item->state = UIRES_STATE_DONE;
+    printf("UI_Process: resolved sprite %s (%d decoded)\n", item->name, loaded);
+}
+
+static void
+ui_loader_step_sprite(
+    struct UILoaderState* state,
+    struct UIResourceQueueItem* item,
+    struct LibToriRS_IOQueue* io_queue,
+    struct Dat1BuildCache* buildcache)
+{
+    switch( item->state )
+    {
+    case UIRES_STATE_NEED_ARCHIVE:
+    {
+        int table_id = 0;
+        int archive_id = 0;
+        if( !ui_loader_resolve_archive_ids(item->table, item->archive, &table_id, &archive_id) )
+        {
+            item->source_archive_index = -1;
+            item->status = UIRES_ERROR;
+            item->error_code = -5;
+            item->state = UIRES_STATE_FAILED;
+            printf(
+                "UI_Process: unknown archive %s/%s for sprite %s\n",
+                item->table,
+                item->archive,
+                item->name);
+            return;
+        }
+
+        int idx = ui_loader_pending_archive_index(state, table_id, archive_id);
+        if( idx < 0 )
+        {
+            item->status = UIRES_ERROR;
+            item->error_code = -6;
+            item->state = UIRES_STATE_FAILED;
+            return;
+        }
+
+        item->source_archive_index = idx;
+        struct UILoaderPendingArchive* pending = &state->pending_archives[idx];
+
+        if( dat1_buildcache_get_media_2d_graphics_jagfile(buildcache) )
+        {
+            pending->received = true;
+            item->state = UIRES_STATE_DECODE;
+            return;
+        }
+
+        if( !pending->io_dispatched )
+        {
+            LibToriRS_IOQueuePush(io_queue, pending->table_id, pending->archive_id, 0);
+            pending->io_dispatched = true;
+            printf(
+                "UI_Process: queued cache IO table=%d archive=%d\n",
+                pending->table_id,
+                pending->archive_id);
+        }
+        item->state = UIRES_STATE_WAIT_ARCHIVE;
+        return;
+    }
+
+    case UIRES_STATE_WAIT_ARCHIVE:
+        if( item->source_archive_index < 0 ||
+            item->source_archive_index >= state->pending_archive_count )
+            return;
+
+        if( !state->pending_archives[item->source_archive_index].received )
+            return;
+
+        item->state = UIRES_STATE_DECODE;
+        /* fall through */
+
+    case UIRES_STATE_DECODE:
+        ui_loader_decode_item(state, item, buildcache);
+        break;
+
+    default:
+        break;
+    }
+}
+
+static void
+ui_loader_step_rs_component(
+    struct UILoaderState* state,
+    struct UIResourceQueueItem* item,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    (void)state;
+    (void)io_queue;
+
+    /*
+     * Extension point: resolve RS component config into child resource-queue
+     * items (sprites, fonts, models), map those to archive IO, and advance
+     * through multiple NEED_ARCHIVE / WAIT_ARCHIVE / DECODE rounds.
+     */
+    if( item->state == UIRES_STATE_DONE || item->state == UIRES_STATE_FAILED )
+        return;
+
+    printf("UI_Process: RS component load not implemented for %s\n", item->name);
+    item->status = UIRES_ERROR;
+    item->error_code = -7;
+    item->state = UIRES_STATE_FAILED;
+}
+
+static void
+ui_loader_step_item(
+    struct UILoaderState* state,
+    struct UIResourceQueueItem* item,
+    struct LibToriRS_IOQueue* io_queue,
+    struct Dat1BuildCache* buildcache)
+{
+    if( ui_loader_item_is_terminal(item) )
+        return;
+
+    switch( item->kind )
+    {
+    case UIRES_KIND_SPRITE:
+        ui_loader_step_sprite(state, item, io_queue, buildcache);
+        break;
+    case UIRES_KIND_RS_COMPONENT:
+        ui_loader_step_rs_component(state, item, io_queue);
+        break;
+    default:
+        item->status = UIRES_ERROR;
+        item->error_code = -8;
+        item->state = UIRES_STATE_FAILED;
+        break;
+    }
+}
+
+static void
+ui_loader_process_revconfig(
+    struct UILoaderState* state,
+    struct LibToriRS_IOQueue* io_queue,
+    struct Dat1BuildCache* buildcache)
+{
+    struct UIResourceQueue* rq = state->queue;
+    if( !rq )
+        return;
+
+    state->pending_archive_count = 0;
+    ui_resource_queue_clear(rq);
+    ui_loader_build(state);
+
+    for( int i = 0; i < rq->count; i++ )
+        ui_loader_step_item(state, &rq->items[i], io_queue, buildcache);
+}
+
+static void
+ui_loader_process_resource_queue(
+    struct UILoaderState* state,
+    struct LibToriRS_IOQueue* io_queue,
+    struct Dat1BuildCache* buildcache)
 {
     struct UIResourceQueue* rq = state->queue;
     if( !rq )
         return;
 
     for( int i = 0; i < rq->count; i++ )
-    {
-        struct UIResourceQueueItem* item = &rq->items[i];
-        if( item->status != UIRES_PENDING )
-            continue;
-
-        if( item->source_archive_index < 0 ||
-            item->source_archive_index >= state->pending_archive_count )
-            continue;
-
-        if( !state->pending_archives[item->source_archive_index].received )
-            continue;
-
-        struct FileListDat* filelist = state->pending_archives[item->source_archive_index].filelist;
-        if( !filelist )
-            continue;
-
-        int start_atlas = item->atlas_use_count ? 0 : item->atlas_index;
-        int count = item->atlas_use_count && item->atlas_count > 0 ? item->atlas_count : 1;
-        struct ToriDraw_Sprite** sprites = calloc((size_t)count, sizeof(struct ToriDraw_Sprite*));
-        if( !sprites )
-        {
-            item->status = UIRES_ERROR;
-            item->error_code = -1;
-            continue;
-        }
-
-        int loaded = 0;
-        for( int j = 0; j < count; j++ )
-        {
-            int atlas_index = start_atlas + j;
-            sprites[j] = ui_loader_decode_sprite(filelist, item, atlas_index);
-            if( !sprites[j] )
-            {
-                sprites[j] = ui_loader_placeholder_sprite(32, 32);
-                if( sprites[j] )
-                    printf(
-                        "UI_Process: decode failed for %s atlas %d, using placeholder\n",
-                        item->name,
-                        atlas_index);
-            }
-            if( sprites[j] )
-                loaded++;
-        }
-
-        if( loaded <= 0 )
-        {
-            free(sprites);
-            item->status = UIRES_ERROR;
-            item->error_code = -2;
-            printf("UI_Process: failed to load any sprites for %s\n", item->name);
-            continue;
-        }
-
-        item->result_sprites = sprites;
-        item->result_count = count;
-        item->status = UIRES_RESOLVED;
-        printf("UI_Process: resolved sprite %s (%d decoded)\n", item->name, loaded);
-    }
+        ui_loader_step_item(state, &rq->items[i], io_queue, buildcache);
 }
 
 static void
 ui_loader_consume_resolved_cache_io(
     struct UILoaderState* state,
-    struct LibToriRS_IOQueue* io_queue)
+    struct LibToriRS_IOQueue* io_queue,
+    struct Dat1BuildCache* buildcache)
 {
-    if( !state || !io_queue )
+    if( !state || !io_queue || !buildcache )
         return;
 
-    for( int i = 0; i < io_queue->count; i++ )
+    for( int i = io_queue->read_head; i < io_queue->count; i++ )
     {
         struct LibToriRS_IOQueueItem* io_item = &io_queue->items[i];
         if( io_item->kind != TORIRSIO_KIND_CACHE )
@@ -785,8 +864,9 @@ ui_loader_consume_resolved_cache_io(
                 pending->archive_id != io_item->archive_id )
                 continue;
 
-            pending->filelist =
+            struct FileListDat* filelist =
                 filelist_dat_new_from_cache_dat_archive((struct CacheDatArchive*)io_item->data);
+            dat1_buildcache_set_media_2d_graphics_jagfile(buildcache, filelist);
             pending->received = true;
             cache_dat_archive_free((struct CacheDatArchive*)io_item->data);
             io_item->data = NULL;
@@ -794,80 +874,298 @@ ui_loader_consume_resolved_cache_io(
                 "UI_Process: received cache archive table=%d archive=%d filelist=%p\n",
                 pending->table_id,
                 pending->archive_id,
-                (void*)pending->filelist);
+                (void*)filelist);
             break;
         }
     }
 }
 
+/* -------------------------------------------------------------------------- */
+/* Work-queue process loop                                                    */
+/* -------------------------------------------------------------------------- */
+
 void
 ui_loader_process(
     struct UILoaderState* state,
-    struct LibToriRS_IOQueue* io_queue)
+    struct LibToriRS_IOQueue* io_queue,
+    struct Dat1BuildCache* buildcache)
 {
-    if( !state || !io_queue )
+    enum UILoaderWorkKind work_kind;
+
+    if( !state || !io_queue || !buildcache )
         return;
 
-    switch( state->phase )
-    {
-    case UI_LOADER_PHASE_BUILD:
-    {
-        ui_loader_free_pending_filelists(state);
-        state->pending_archive_count = 0;
-        if( state->queue )
-            ui_resource_queue_clear(state->queue);
-        ui_loader_build(state);
+    ui_loader_consume_resolved_cache_io(state, io_queue, buildcache);
+    io_queue->read_head = io_queue->count;
 
-        struct UIResourceQueue* rq = state->queue;
-        for( int i = 0; i < rq->count; i++ )
+    if( ui_loader_work_empty(state) && ui_loader_resource_queue_has_incomplete(state) )
+    {
+        if( !ui_loader_work_contains(state, UILOADER_WORK_PROCESS_RESOURCE_QUEUE) )
+            ui_loader_work_push(state, UILOADER_WORK_PROCESS_RESOURCE_QUEUE);
+    }
+
+    while( ui_loader_work_pop(state, &work_kind) )
+    {
+        switch( work_kind )
         {
-            struct UIResourceQueueItem* item = &rq->items[i];
-            int table_id = 0;
-            int archive_id = 0;
-            if( !ui_loader_resolve_archive_ids(item->table, item->archive, &table_id, &archive_id) )
+        case UILOADER_WORK_PROCESS_REVCONFIG:
+            ui_loader_process_revconfig(state, io_queue, buildcache);
+            break;
+        case UILOADER_WORK_PROCESS_RESOURCE_QUEUE:
+            ui_loader_process_resource_queue(state, io_queue, buildcache);
+            break;
+        }
+    }
+
+    state->done = ui_loader_work_empty(state) && !ui_loader_resource_queue_has_incomplete(state) &&
+                  ui_loader_all_pending_archives_received(state);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Lifecycle and accessors                                                    */
+/* -------------------------------------------------------------------------- */
+
+struct UILoaderState*
+ui_loader_state_new(void)
+{
+    struct UILoaderState* state = calloc(1, sizeof(struct UILoaderState));
+    if( !state )
+        return NULL;
+
+    state->sprite_map_buffer = malloc(512 * sizeof(struct SpriteMapEntry));
+    state->component_map_buffer = malloc(512 * sizeof(struct ComponentMapEntry));
+    if( !state->sprite_map_buffer || !state->component_map_buffer )
+    {
+        ui_loader_state_free(state);
+        return NULL;
+    }
+
+    struct DashMapConfig sprite_cfg = {
+        .buffer = state->sprite_map_buffer,
+        .buffer_size = 512 * sizeof(struct SpriteMapEntry),
+        .key_size = 64,
+        .entry_size = sizeof(struct SpriteMapEntry),
+    };
+    struct DashMapConfig component_cfg = {
+        .buffer = state->component_map_buffer,
+        .buffer_size = 512 * sizeof(struct ComponentMapEntry),
+        .key_size = 64,
+        .entry_size = sizeof(struct ComponentMapEntry),
+    };
+
+    state->sprite_map = dashmap_new(&sprite_cfg, 0);
+    state->component_map = dashmap_new(&component_cfg, 0);
+    if( !state->sprite_map || !state->component_map )
+    {
+        ui_loader_state_free(state);
+        return NULL;
+    }
+
+    state->queue = ui_resource_queue_new();
+    state->revconfig = revconfig_buffer_new(4096);
+    if( !state->queue || !state->revconfig )
+    {
+        ui_loader_state_free(state);
+        return NULL;
+    }
+
+    ui_loader_work_clear(state);
+    ui_loader_work_push(state, UILOADER_WORK_PROCESS_REVCONFIG);
+    state->done = false;
+    return state;
+}
+
+void
+ui_loader_state_free(struct UILoaderState* state)
+{
+    if( !state )
+        return;
+    if( state->sprite_map )
+        dashmap_free(state->sprite_map);
+    if( state->component_map )
+        dashmap_free(state->component_map);
+    free(state->sprite_map_buffer);
+    free(state->component_map_buffer);
+    if( state->queue )
+        ui_resource_queue_free(state->queue);
+    if( state->revconfig )
+        revconfig_buffer_free(state->revconfig);
+    free(state);
+}
+
+void
+ui_loader_reset(struct UILoaderState* state)
+{
+    if( !state )
+        return;
+
+    ui_loader_revconfig_reset(state);
+    if( state->queue )
+        ui_resource_queue_clear(state->queue);
+    state->pending_archive_count = 0;
+    ui_loader_work_clear(state);
+    ui_loader_work_push(state, UILOADER_WORK_PROCESS_REVCONFIG);
+    state->done = false;
+}
+
+struct RevConfigBuffer*
+ui_loader_revconfig(struct UILoaderState* state)
+{
+    return state ? state->revconfig : NULL;
+}
+
+void
+ui_loader_revconfig_reset(struct UILoaderState* state)
+{
+    if( !state )
+        return;
+    if( state->revconfig )
+        revconfig_buffer_free(state->revconfig);
+    state->revconfig = revconfig_buffer_new(4096);
+}
+
+bool
+ui_loader_ready(struct UILoaderState* state)
+{
+    return state && state->done;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Submit phase                                                               */
+/* -------------------------------------------------------------------------- */
+
+static void
+apply_layout(
+    struct UILoaderState* state,
+    struct UITree* tree)
+{
+    for( int i = 0; i < state->layout_entry_count; i++ )
+    {
+        struct LayoutItem* le = &state->layout_entries[i];
+        struct ComponentMapEntry* comp =
+            dashmap_search(state->component_map, le->component, DASHMAP_FIND);
+        if( !comp )
+        {
+            printf("ui_loader: layout component not found: %s\n", le->component);
+            continue;
+        }
+
+        int32_t idx = -1;
+        switch( comp->type )
+        {
+        case UIELEM_BUILTIN_WORLD:
+            idx = uitree_push_world(
+                tree, -1, le->x, le->y, comp->width, comp->height, comp->level_mask);
+            break;
+        case UIELEM_BUILTIN_SPRITE:
+            if( le->flags != 0 )
             {
-                item->source_archive_index = -1;
-                printf(
-                    "UI_Process: unknown archive %s/%s for sprite %s\n",
-                    item->table,
-                    item->archive,
-                    item->name);
-                continue;
+                idx = uitree_push_sprite_relative(
+                    tree,
+                    -1,
+                    comp->sprite_id,
+                    comp->sprite_index,
+                    le->flags,
+                    le->top,
+                    le->right,
+                    le->bottom,
+                    le->left,
+                    comp->width,
+                    comp->height);
             }
-
-            item->source_archive_index =
-                ui_loader_pending_archive_index(state, table_id, archive_id);
+            else
+            {
+                idx = uitree_push_sprite_xy(
+                    tree,
+                    -1,
+                    comp->sprite_id,
+                    comp->sprite_index,
+                    le->x,
+                    le->y,
+                    comp->width,
+                    comp->height);
+            }
+            break;
+        default:
+            break;
         }
 
-        for( int p = 0; p < state->pending_archive_count; p++ )
+        if( le->always_dirty && idx >= 0 )
+            tree->components[idx].always_dirty = 1;
+    }
+}
+
+bool
+ui_loader_submit(
+    struct UILoaderState* state,
+    struct UITree* tree,
+    struct UIScene* scene)
+{
+    struct UIResourceQueue* queue;
+
+    queue = state->queue;
+
+    tree->component_count = 0;
+    tree->root_index = -1;
+
+    for( int i = 0; i < queue->count; i++ )
+    {
+        struct UIResourceQueueItem* item = &queue->items[i];
+        if( item->status != UIRES_RESOLVED || !item->result_sprites || item->result_count <= 0 )
         {
-            struct UILoaderPendingArchive* pending = &state->pending_archives[p];
-            LibToriRS_IOQueuePush(io_queue, pending->table_id, pending->archive_id, 0);
-            printf(
-                "UI_Process: queued cache IO table=%d archive=%d\n",
-                pending->table_id,
-                pending->archive_id);
+            printf("ui_loader_submit: skip unresolved sprite %s\n", item->name);
+            continue;
         }
 
-        if( state->pending_archive_count == 0 )
-            state->phase = UI_LOADER_PHASE_DONE;
+        int element_id = ui_scene_element_acquire_with_sprites(
+            scene, item->result_sprites, item->result_count, false, item->name);
+        if( element_id < 0 )
+            continue;
+
+        item->result_sprites = NULL;
+        item->result_count = 0;
+
+        struct SpriteMapEntry* sm = dashmap_search(state->sprite_map, item->name, DASHMAP_INSERT);
+        if( sm )
+        {
+            strncpy(sm->name, item->name, sizeof(sm->name) - 1);
+            sm->scene_id = element_id;
+            sm->atlas_index = item->atlas_index;
+        }
+    }
+
+    for( int i = 0; i < state->component_count; i++ )
+    {
+        struct ComponentMapEntry* comp = &state->components[i];
+        if( comp->type != UIELEM_BUILTIN_SPRITE || comp->sprite_name[0] == '\0' )
+            continue;
+
+        char sprite_key[64];
+        int atlas_index = 0;
+        parse_sprite_bracket(comp->sprite_name, sprite_key, &atlas_index);
+
+        struct SpriteMapEntry* sm = dashmap_search(state->sprite_map, sprite_key, DASHMAP_FIND);
+        if( sm )
+        {
+            comp->sprite_id = sm->scene_id;
+            comp->sprite_index = atlas_index;
+
+            struct ComponentMapEntry* ent =
+                dashmap_search(state->component_map, comp->name, DASHMAP_FIND);
+            if( ent )
+            {
+                ent->sprite_id = comp->sprite_id;
+                ent->sprite_index = comp->sprite_index;
+            }
+        }
         else
-            state->phase = UI_LOADER_PHASE_WAIT;
+            printf(
+                "ui_loader_submit: sprite not resolved for component %s (%s)\n",
+                comp->name,
+                sprite_key);
     }
-    break;
 
-    case UI_LOADER_PHASE_WAIT:
-        ui_loader_consume_resolved_cache_io(state, io_queue);
-        ui_loader_fill_pending_sprite_requests(state);
-        if( ui_loader_all_pending_archives_received(state) )
-        {
-            ui_loader_free_pending_filelists(state);
-            state->phase = UI_LOADER_PHASE_DONE;
-        }
-        break;
-
-    case UI_LOADER_PHASE_DONE:
-    default:
-        break;
-    }
+    apply_layout(state, tree);
+    printf("ui_loader_submit: uitree has %u components\n", tree->component_count);
+    return true;
 }

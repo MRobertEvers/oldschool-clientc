@@ -115,6 +115,9 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
     if( dat1_buildcache->versionlist_jagfile )
         filelist_dat_free(dat1_buildcache->versionlist_jagfile);
 
+    if( dat1_buildcache->media_2d_graphics_jagfile )
+        filelist_dat_free(dat1_buildcache->media_2d_graphics_jagfile);
+
     if( dat1_buildcache->models_hmap )
     {
         struct ToriDraw_MapIter* iter = toridraw_map_iter_new(dat1_buildcache->models_hmap);
@@ -231,6 +234,28 @@ dat1_buildcache_set_versionlist_jagfile(
         filelist_dat_free(dat1_buildcache->versionlist_jagfile);
 
     dat1_buildcache->versionlist_jagfile = versionlist_jagfile;
+}
+
+void
+dat1_buildcache_set_media_2d_graphics_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct FileListDat* media_2d_graphics_jagfile)
+{
+    if( !dat1_buildcache )
+        return;
+
+    if( dat1_buildcache->media_2d_graphics_jagfile )
+        filelist_dat_free(dat1_buildcache->media_2d_graphics_jagfile);
+
+    dat1_buildcache->media_2d_graphics_jagfile = media_2d_graphics_jagfile;
+}
+
+struct FileListDat*
+dat1_buildcache_get_media_2d_graphics_jagfile(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache )
+        return NULL;
+    return dat1_buildcache->media_2d_graphics_jagfile;
 }
 
 void
