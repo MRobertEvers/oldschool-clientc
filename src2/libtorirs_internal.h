@@ -3,6 +3,7 @@
 
 #include "buildcache/dat1_buildcache.h"
 #include "gamecache/gamecache.h"
+#include "games/game_handle.h"
 #include "games/model_viewer.h"
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "scripting/libtorirs_scripting.h"
@@ -25,6 +26,7 @@ struct LibToriRS_Instance
     struct GameCache* gamecache;
 
     struct GameModelViewer* model_viewer;
+    struct GameHandle model_viewer_handle;
 };
 
 #endif

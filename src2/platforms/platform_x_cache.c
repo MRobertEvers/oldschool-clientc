@@ -68,21 +68,25 @@ LibToriPlatformX_CacheLoadIO(
     for( int i = 0; i < io_queue->count; i++ )
     {
         io_item = &io_queue->items[i];
-        request.table_id = io_item->table_id;
-        request.archive_id = io_item->archive_id;
-        request.flags = io_item->flags;
+        if( io_item->kind != TORIRSIO_KIND_CACHE )
+            continue;
+
+        request.table_id = io_item->u.cache.table_id;
+        request.archive_id = io_item->u.cache.archive_id;
+        request.flags = io_item->u.cache.flags;
 
         data = cachelib_platform_load_io(cache->cache, &request);
 
         if( data )
         {
             io_item->data = data;
-            io_item->status = TORIRSIO_RESOLVED;
+            io_item->error_code = 0;
+            io_item->status = TORIRSIO_STAT_DONE;
         }
         else
         {
-            io_item->status = TORIRSIO_ERROR;
             io_item->error_code = -1;
+            io_item->status = TORIRSIO_STAT_DONE;
         }
     }
 

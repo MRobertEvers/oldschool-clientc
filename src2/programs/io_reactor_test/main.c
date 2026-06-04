@@ -1,5 +1,6 @@
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../platforms/platform_x/cachelib.h"
+#include "../../platforms/platform_x/cachelib_client.h"
 #include "../../platforms/platform_x/cachelib_platform.h"
 #include "../../platforms/platform_x_io_reactor.h"
 
@@ -26,8 +27,10 @@ PT_THREAD(io_reactor_test_task)
 
     if( state->test_cache )
     {
-        LibToriRS_IOQueuePush(
-            ctx->io, state->cache_table_id, state->cache_archive_id, state->cache_flags);
+        struct CacheLib_IORequest request;
+        cachelib_dat1_model_fetch(0, &request);
+
+        LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
         PT_YIELD();
     }
 

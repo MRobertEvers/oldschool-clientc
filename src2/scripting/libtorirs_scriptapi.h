@@ -1,6 +1,7 @@
 #ifndef LIBTORIRS_SCRIPTAPI_H
 #define LIBTORIRS_SCRIPTAPI_H
 
+#include "../games/game_handle.h"
 #include "../libtorirs.h"
 #include "libtorirs_scripting.h"
 
@@ -69,6 +70,18 @@ LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(
 
 void
 LibToriRS_ScriptAPI_Game_ModelViewer_Init(struct LibToriRS_Instance* instance);
+
+struct GameHandle*
+LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_CoreTask_Dat1LoadModel(
+    struct LibToriRS_Instance* instance,
+    struct GameHandle* game,
+    int model_id);
+
+bool
+LibToriRS_ScriptAPI_RunTasks(struct LibToriRS_Instance* instance);
 
 void
 LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(
@@ -154,35 +167,5 @@ LibToriRS_ScriptAPI_GameCache_SceneryConfigsClearAll(struct LibToriRS_Instance* 
 
 void
 LibToriRS_ScriptAPI_GameCache_AnimationsClearAll(struct LibToriRS_Instance* instance);
-
-void
-LibToriRS_ScriptAPI_UI_Init(struct LibToriRS_Instance* instance);
-
-void
-LibToriRS_ScriptAPI_UI_RevConfigFetch(
-    struct LibToriRS_Instance* instance,
-    struct LibToriRS_IOQueue* io_queue,
-    const char* path);
-
-bool
-LibToriRS_ScriptAPI_UI_RevConfigLoad(
-    struct LibToriRS_Instance* instance,
-    struct LibToriRS_IOQueue* io_queue);
-
-bool
-LibToriRS_ScriptAPI_UI_Ready(struct LibToriRS_Instance* instance);
-
-void
-LibToriRS_ScriptAPI_UI_Process(
-    struct LibToriRS_Instance* instance,
-    struct LibToriRS_IOQueue* io_queue);
-
-void
-LibToriRS_ScriptAPI_UI_QueueRSComponentNativeInt(
-    struct LibToriRS_Instance* instance,
-    int component_id);
-
-void
-LibToriRS_ScriptAPI_UI_Submit(struct LibToriRS_Instance* instance);
 
 #endif

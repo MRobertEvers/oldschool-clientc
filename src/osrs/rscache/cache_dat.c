@@ -204,6 +204,8 @@ error:;
 void
 cache_dat_archive_free(struct CacheDatArchive* archive)
 {
+    if( !archive )
+        return;
     if( archive->data )
         free(archive->data);
     free(archive);

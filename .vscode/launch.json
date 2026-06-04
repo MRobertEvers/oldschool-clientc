@@ -280,7 +280,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/src2/programs/io_reactor_test/io_reactor_test",
-      "args": [],
+      "args": ["${workspaceFolder}/cache254"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/src2/programs/io_reactor_test",
       "environment": [],

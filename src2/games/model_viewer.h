@@ -1,12 +1,11 @@
 #ifndef MODEL_VIEWER_H
 #define MODEL_VIEWER_H
 
+#include "../core/tasks/core_task.h"
 #include "../input/libtorirs_input.h"
 #include "../render/libtorirs_render.h"
 #include "../scripting/libtorirs_scripting.h"
-#include "../ui/ui_scene.h"
 #include "../world/world_scene.h"
-#include "osrs/revconfig/uitree.h"
 #include "toridraw/toridraw_types.h"
 
 #include <stdbool.h>
@@ -14,19 +13,17 @@
 
 struct ToriDraw_Context;
 struct GameCache;
-struct RevConfigLoaderState;
+struct LibToriRS_IOContext;
+
+#define MV_MAX_TASKS 64
 
 enum GameModelViewer_FramePhase
 {
     MV_FRAME_PHASE_SCENE_EVENTS = 0,
-    MV_FRAME_PHASE_UISCENE_EVENTS,
     MV_FRAME_PHASE_TEXTURE_EVENTS,
     MV_FRAME_PHASE_BEGIN_3D,
     MV_FRAME_PHASE_MODELS,
     MV_FRAME_PHASE_END_3D,
-    MV_FRAME_PHASE_BEGIN_2D,
-    MV_FRAME_PHASE_UITREE,
-    MV_FRAME_PHASE_END_2D,
     MV_FRAME_PHASE_DONE,
 };
 
@@ -45,10 +42,10 @@ struct GameModelViewer
     struct WorldScene* world_scene;
     int current_element_id;
 
-    struct UITree* tree;
-    struct UIScene* scene;
-    struct RevConfigLoaderState* loader_state;
     struct GameCache* gamecache;
+
+    struct CoreTask* tasks[MV_MAX_TASKS];
+    int task_count;
 
     struct ToriDraw_ViewPort world_view_port;
 
@@ -57,14 +54,7 @@ struct GameModelViewer
         enum GameModelViewer_FramePhase phase;
         int event_index;
         int model_index;
-        int32_t uitree_current;
-        int32_t uitree_stack[64];
-        int uitree_stack_top;
         bool world_emitted;
-        int uitree_emit_sub;
-        int32_t uitree_hold_node;
-        int uitree_inv_slot;
-        struct ToriDraw_ModelHandle uitree_model;
     } frame;
 };
 
@@ -84,6 +74,16 @@ void
 game_modelviewer_set_gamecache(
     struct GameModelViewer* game_model_viewer,
     struct GameCache* gamecache);
+
+void
+game_modelviewer_task_add(
+    struct GameModelViewer* game_model_viewer,
+    struct CoreTask* task);
+
+bool
+game_modelviewer_run_tasks(
+    struct GameModelViewer* game_model_viewer,
+    struct LibToriRS_IOContext* ctx);
 
 void
 game_modelviewer_process_input(

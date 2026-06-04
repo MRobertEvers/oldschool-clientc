@@ -2,7 +2,9 @@
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../platforms/platform_sdl2/platform_sdl2.h"
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"
-#include "../../platforms/platform_x_cache.h"
+#include "../../platforms/platform_x/cachelib.h"
+#include "../../platforms/platform_x/cachelib_platform.h"
+#include "../../platforms/platform_x_io_reactor.h"
 #include "../../platforms/platform_x_lua.h"
 #include "../../scripting/libtorirs_scripting.h"
 
@@ -77,6 +79,8 @@ main(
     bool const use_soft3d = has_flag(argc, argv, "--soft3d");
 
     struct LibToriPlatformX_Lua* lua = NULL;
+    struct LibToriPlatformX_IOReactor* io_reactor = NULL;
+    struct CacheLib* cache = NULL;
     struct LibToriPlatformSDL2* platform = NULL;
     struct LibToriPlatformSDL2_RendererSoft3D* renderer_soft3d = NULL;
 #if defined(_WIN32)
@@ -114,10 +118,23 @@ main(
         goto error_exit;
     }
 
-    if( LibToriPlatformX_LuaCacheIOInit(lua, CACHE_MODE_DAT1, cache_dat_path) !=
-        LIBTORI_PLATFORM_X_LUA_OK )
+    cache = cachelib_new(CACHE_MODE_DAT1);
+    if( !cache )
+    {
+        printf("Failed to create cache\n");
+        goto error_exit;
+    }
+
+    if( cachelib_platform_init(cache, cache_dat_path) != 1 )
     {
         printf("Failed to init cache\n");
+        goto error_exit;
+    }
+
+    io_reactor = LibToriPlatformX_IOReactorNew(cache);
+    if( !io_reactor )
+    {
+        printf("Failed to create IO reactor\n");
         goto error_exit;
     }
 
@@ -224,6 +241,7 @@ main(
             int rc = LibToriPlatformX_LuaRun(lua, instance);
             while( rc == LIBTORI_PLATFORM_X_LUA_YIELDED )
             {
+                LibToriPlatformX_IOReactorProcess(io_reactor, LibToriRS_GetIOQueue(instance));
                 rc = LibToriPlatformX_LuaContinue(lua, instance);
             }
             if( rc != LIBTORI_PLATFORM_X_LUA_OK )
@@ -259,6 +277,10 @@ exit:
         LibToriPlatformSDL2_RendererGL3_Free(renderer);
 #endif
     }
+    if( io_reactor )
+        LibToriPlatformX_IOReactorFree(io_reactor);
+    if( cache )
+        cachelib_free(cache);
     if( lua )
         LibToriPlatformX_LuaFree(lua);
     if( instance )

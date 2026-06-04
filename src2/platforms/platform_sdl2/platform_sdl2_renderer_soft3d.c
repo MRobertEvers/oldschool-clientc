@@ -1,6 +1,5 @@
 #include "platform_sdl2_renderer_soft3d.h"
 
-#include "../../ui/ui_scene.h"
 #include "libtorirs.h"
 #include "libtorirs_internal.h"
 #include "osrs/rscache/tables_dat/pixfont.h"

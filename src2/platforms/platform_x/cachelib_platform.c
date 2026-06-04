@@ -17,7 +17,6 @@ cachelib_platform_init(
     char const* directory)
 {
     char xtea_path[256];
-    snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", directory);
 
     int mode = cache->mode;
 
@@ -29,6 +28,7 @@ cachelib_platform_init(
     }
     else if( mode == CACHE_MODE_DAT2 )
     {
+        snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", directory);
         int xtea_keys_count = xtea_config_load_keys(xtea_path);
         if( xtea_keys_count == -1 )
         {

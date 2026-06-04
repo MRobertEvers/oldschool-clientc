@@ -15,7 +15,7 @@ void
 LibToriRS_IOQueueClear(struct LibToriRS_IOQueue* queue);
 
 void
-LibToriRS_IOQueuePush(
+LibToriRS_IOQueuePushCache(
     struct LibToriRS_IOQueue* queue,
     int table_id,
     int archive_id,

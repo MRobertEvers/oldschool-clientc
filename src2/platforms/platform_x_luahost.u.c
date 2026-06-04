@@ -4,7 +4,6 @@
 #include "../libtorirs.h"
 #include "../scripting/libtorirs_scripting.h"
 #include "3rd/lua/lua.h"
-#include "platform_x/cachelib.h"
 #include "platform_x_lua_internal.h"
 
 #include <assert.h>
@@ -95,51 +94,7 @@ LibToriPlatformX_LuaHost_Platform_LoadIO(lua_State* L)
     if( !io_queue )
         return 0;
 
-    for( int i = 0; i < io_queue->count; i++ )
-    {
-        struct LibToriRS_IOQueueItem* io_item = &io_queue->items[i];
-        if( io_item->status != TORIRSIO_PENDING )
-            continue;
-
-        if( io_item->kind == TORIRSIO_KIND_CONFIG_FILE )
-        {
-            long size = 0;
-            void* bytes = luahost_read_entire_file(io_item->path, &size);
-            if( bytes )
-            {
-                io_item->data = bytes;
-                io_item->data_size = (int)size;
-                io_item->status = TORIRSIO_RESOLVED;
-                printf("LoadIO: config file %s (%ld bytes)\n", io_item->path, size);
-            }
-            else
-            {
-                io_item->status = TORIRSIO_ERROR;
-                io_item->error_code = -1;
-                printf("LoadIO: failed to read config file %s\n", io_item->path);
-            }
-            continue;
-        }
-
-        struct CacheLib_IORequest request = {
-            .table_id = io_item->table_id,
-            .archive_id = io_item->archive_id,
-            .flags = io_item->flags,
-        };
-        void* data = cachelib_platform_load_io(lua->cache, &request);
-        if( data )
-        {
-            io_item->data = data;
-            io_item->status = TORIRSIO_RESOLVED;
-        }
-        else
-        {
-            io_item->status = TORIRSIO_ERROR;
-            io_item->error_code = -1;
-        }
-    }
-
-    return 0;
+    return lua_yield(L, 0);
 }
 
 int
@@ -441,102 +396,6 @@ LibToriPlatformX_LuaHost_Game_Dat1_SubmitGameCacheModelScriptInt(lua_State* L)
 }
 
 int
-LibToriPlatformX_LuaHost_Game_UI_Init(lua_State* L)
-{
-    struct LibToriPlatformX_Lua* lua =
-        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !lua || !lua->instance )
-        return 0;
-    LibToriRS_ScriptAPI_UI_Init(lua->instance);
-    return 0;
-}
-
-int
-LibToriPlatformX_LuaHost_Game_UI_RevConfigFetch(lua_State* L)
-{
-    struct LibToriPlatformX_Lua* lua =
-        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !lua || !lua->instance )
-        return 0;
-
-    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
-    const char* path = lua_tostring(L, 2);
-    LibToriRS_ScriptAPI_UI_RevConfigFetch(lua->instance, io_queue, path);
-    return 0;
-}
-
-int
-LibToriPlatformX_LuaHost_Game_UI_RevConfigLoad(lua_State* L)
-{
-    struct LibToriPlatformX_Lua* lua =
-        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !lua || !lua->instance )
-    {
-        lua_pushboolean(L, 0);
-        return 1;
-    }
-
-    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
-    bool ok = LibToriRS_ScriptAPI_UI_RevConfigLoad(lua->instance, io_queue);
-    lua_pushboolean(L, ok);
-    return 1;
-}
-
-int
-LibToriPlatformX_LuaHost_Game_UI_Ready(lua_State* L)
-{
-    struct LibToriPlatformX_Lua* lua =
-        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !lua || !lua->instance )
-    {
-        lua_pushboolean(L, 0);
-        return 1;
-    }
-    lua_pushboolean(L, LibToriRS_ScriptAPI_UI_Ready(lua->instance));
-    return 1;
-}
-
-int
-LibToriPlatformX_LuaHost_Game_UI_Process(lua_State* L)
-{
-    struct LibToriPlatformX_Lua* lua =
-        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !lua || !lua->instance )
-        return 0;
-
-    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
-    if( !io_queue )
-        return 0;
-
-    LibToriRS_ScriptAPI_UI_Process(lua->instance, io_queue);
-    return 0;
-}
-
-int
-LibToriPlatformX_LuaHost_Game_UI_QueueRSComponentNativeInt(lua_State* L)
-{
-    struct LibToriPlatformX_Lua* lua =
-        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !lua || !lua->instance )
-        return 0;
-
-    int component_id = (int)lua_tointeger(L, 1);
-    LibToriRS_ScriptAPI_UI_QueueRSComponentNativeInt(lua->instance, component_id);
-    return 0;
-}
-
-int
-LibToriPlatformX_LuaHost_Game_UI_Submit(lua_State* L)
-{
-    struct LibToriPlatformX_Lua* lua =
-        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !lua || !lua->instance )
-        return 0;
-    LibToriRS_ScriptAPI_UI_Submit(lua->instance);
-    return 0;
-}
-
-int
 LibToriPlatformX_LuaHost_Game_ModelViewer_Init(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
@@ -551,6 +410,69 @@ LibToriPlatformX_LuaHost_Game_ModelViewer_Init(lua_State* L)
     LibToriRS_ScriptAPI_Game_ModelViewer_Init(instance);
 
     return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_ModelViewer_GetGameHandle(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    struct GameHandle* handle = LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(instance);
+    if( !handle )
+        return 0;
+
+    lua_pushlightuserdata(L, handle);
+    return 1;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_CoreTask_Dat1LoadModelNativeInt(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    struct GameHandle* game = (struct GameHandle*)lua_touserdata(L, 1);
+    int model_id = (int)lua_tointeger(L, 2);
+
+    LibToriRS_ScriptAPI_CoreTask_Dat1LoadModel(instance, game, model_id);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_RunTasks(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+    {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+    {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    bool all_done = LibToriRS_ScriptAPI_RunTasks(instance);
+    lua_pushboolean(L, all_done);
+    return 1;
 }
 
 int
@@ -1096,21 +1018,19 @@ LibToriPlatformX_LuaHost_BindToPlatform(
         lua,
         "Dat1_SubmitGameCacheModelScriptInt",
         LibToriPlatformX_LuaHost_Game_Dat1_SubmitGameCacheModelScriptInt);
-    lua_bind_function_to_platform(L, lua, "UI_Init", LibToriPlatformX_LuaHost_Game_UI_Init);
     lua_bind_function_to_platform(
-        L, lua, "UI_RevConfigFetch", LibToriPlatformX_LuaHost_Game_UI_RevConfigFetch);
-    lua_bind_function_to_platform(
-        L, lua, "UI_RevConfigLoad", LibToriPlatformX_LuaHost_Game_UI_RevConfigLoad);
-    lua_bind_function_to_platform(L, lua, "UI_Ready", LibToriPlatformX_LuaHost_Game_UI_Ready);
-    lua_bind_function_to_platform(L, lua, "UI_Process", LibToriPlatformX_LuaHost_Game_UI_Process);
+        L, lua, "ModelViewer_Init", LibToriPlatformX_LuaHost_Game_ModelViewer_Init);
     lua_bind_function_to_platform(
         L,
         lua,
-        "UI_QueueRSComponentNativeInt",
-        LibToriPlatformX_LuaHost_Game_UI_QueueRSComponentNativeInt);
-    lua_bind_function_to_platform(L, lua, "UI_Submit", LibToriPlatformX_LuaHost_Game_UI_Submit);
+        "ModelViewer_GetGameHandle",
+        LibToriPlatformX_LuaHost_Game_ModelViewer_GetGameHandle);
     lua_bind_function_to_platform(
-        L, lua, "ModelViewer_Init", LibToriPlatformX_LuaHost_Game_ModelViewer_Init);
+        L,
+        lua,
+        "CoreTask_Dat1LoadModelNativeInt",
+        LibToriPlatformX_LuaHost_Game_CoreTask_Dat1LoadModelNativeInt);
+    lua_bind_function_to_platform(L, lua, "RunTasks", LibToriPlatformX_LuaHost_Game_RunTasks);
     lua_bind_function_to_platform(
         L,
         lua,

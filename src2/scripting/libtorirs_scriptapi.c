@@ -1,15 +1,14 @@
 #include "libtorirs_scriptapi.h"
 
+#include "../core/tasks/core_task.h"
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../libtorirs_internal.h"
-#include "../ui/revconfig_loader.h"
 #include "buildcache/dat1_buildcache.h"
 #include "gamecache/gamecache.h"
 #include "gamecache/gamecache_flotype.h"
 #include "gamecache/gamecache_scenery_config.h"
 #include "gamecache/gamecache_sequence.h"
 #include "gamecache/toridraw_cachemodel.h"
-#include "osrs/revconfig/revconfig_load.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/rscache/cache_dat.h"
 #include "src/osrs/rscache/filelist.h"
@@ -70,13 +69,7 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
     struct CacheLib_IORequest request;
     cachelib_dat1_config_file_fetch(&request);
 
-    struct LibToriRS_IOQueueItem item = { 0 };
-    item.table_id = request.table_id;
-    item.archive_id = request.archive_id;
-    item.flags = request.flags;
-
-    if( !LibToriRS_IOQueuePopWrite(io_queue, &item) )
-        return;
+    LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
 }
 
 bool
@@ -91,13 +84,15 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(
     struct LibToriRS_IOQueueItem item = { 0 };
     if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
         return false;
-    if( item.status != TORIRSIO_RESOLVED )
+    if( item.kind != TORIRSIO_KIND_CACHE )
         return false;
-    if( item.table_id != CACHE_DAT_CONFIGS )
+    if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
         return false;
-    if( item.archive_id != CONFIG_DAT_CONFIGS )
+    if( item.u.cache.table_id != CACHE_DAT_CONFIGS )
         return false;
-    if( item.flags != 0 )
+    if( item.u.cache.archive_id != CONFIG_DAT_CONFIGS )
+        return false;
+    if( item.u.cache.flags != 0 )
         return false;
 
     struct CacheDatArchive* archive = item.data;
@@ -128,13 +123,7 @@ LibToriRS_ScriptAPI_Dat1_TexturesFetch(
     struct CacheLib_IORequest request;
     cachelib_dat1_textures_archive_fetch(&request);
 
-    struct LibToriRS_IOQueueItem item = { 0 };
-    item.table_id = request.table_id;
-    item.archive_id = request.archive_id;
-    item.flags = request.flags;
-
-    if( !LibToriRS_IOQueuePopWrite(io_queue, &item) )
-        return;
+    LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
 }
 
 bool
@@ -151,13 +140,15 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
     struct LibToriRS_IOQueueItem item = { 0 };
     if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
         return false;
-    if( item.status != TORIRSIO_RESOLVED )
+    if( item.kind != TORIRSIO_KIND_CACHE )
         return false;
-    if( item.table_id != CACHE_DAT_CONFIGS )
+    if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
         return false;
-    if( item.archive_id != CONFIG_DAT_TEXTURES )
+    if( item.u.cache.table_id != CACHE_DAT_CONFIGS )
         return false;
-    if( item.flags != 0 )
+    if( item.u.cache.archive_id != CONFIG_DAT_TEXTURES )
+        return false;
+    if( item.u.cache.flags != 0 )
         return false;
 
     struct CacheDatArchive* archive = item.data;
@@ -271,12 +262,7 @@ LibToriRS_ScriptAPI_Dat1_ModelFetch(
     struct CacheLib_IORequest request;
     cachelib_dat1_model_fetch(model_id, &request);
 
-    struct LibToriRS_IOQueueItem item = { 0 };
-    item.table_id = request.table_id;
-    item.archive_id = request.archive_id;
-    item.flags = request.flags;
-    if( !LibToriRS_IOQueuePopWrite(io_queue, &item) )
-        return;
+    LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
 }
 
 bool
@@ -291,18 +277,20 @@ LibToriRS_ScriptAPI_Dat1_ModelLoad(
     struct LibToriRS_IOQueueItem item = { 0 };
     if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
         return false;
-    if( item.status != TORIRSIO_RESOLVED )
+    if( item.kind != TORIRSIO_KIND_CACHE )
         return false;
-    if( item.table_id != CACHE_DAT_MODELS )
+    if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
         return false;
-    if( item.flags != 0 )
+    if( item.u.cache.table_id != CACHE_DAT_MODELS )
+        return false;
+    if( item.u.cache.flags != 0 )
         return false;
 
     struct CacheDatArchive* archive = item.data;
     if( !archive )
         return false;
 
-    int model_id = item.archive_id;
+    int model_id = item.u.cache.archive_id;
 
     struct CacheModel* model = model_new_from_dat_archive(archive, model_id);
     if( !model )
@@ -327,12 +315,7 @@ LibToriRS_ScriptAPI_Dat1_MapChunkTerrainFetch(
     struct CacheLib_IORequest request;
     cachelib_dat1_map_chunk_terrain_fetch(mapx, mapz, &request);
 
-    struct LibToriRS_IOQueueItem item = { 0 };
-    item.table_id = request.table_id;
-    item.archive_id = request.archive_id;
-    item.flags = request.flags;
-    if( !LibToriRS_IOQueuePopWrite(io_queue, &item) )
-        return;
+    LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
 }
 
 void
@@ -349,12 +332,7 @@ LibToriRS_ScriptAPI_Dat1_MapChunkSceneryFetch(
     struct CacheLib_IORequest request;
     cachelib_dat1_map_chunk_scenery_fetch(mapx, mapz, &request);
 
-    struct LibToriRS_IOQueueItem item = { 0 };
-    item.table_id = request.table_id;
-    item.archive_id = request.archive_id;
-    item.flags = request.flags;
-    if( !LibToriRS_IOQueuePopWrite(io_queue, &item) )
-        return;
+    LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
 }
 
 bool
@@ -367,18 +345,20 @@ LibToriRS_ScriptAPI_Dat1_MapChunkTerrainLoad(
     struct LibToriRS_IOQueueItem item = { 0 };
     if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
         return false;
-    if( item.status != TORIRSIO_RESOLVED )
+    if( item.kind != TORIRSIO_KIND_CACHE )
         return false;
-    if( item.table_id != CACHE_DAT_MAPS )
+    if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
         return false;
-    if( item.flags != CACHELIB_MAPCHUNK_TERRAIN )
+    if( item.u.cache.table_id != CACHE_DAT_MAPS )
+        return false;
+    if( item.u.cache.flags != CACHELIB_MAPCHUNK_TERRAIN )
         return false;
 
     struct CacheDatArchive* archive = item.data;
     if( !archive )
         return false;
 
-    int map_id = item.archive_id;
+    int map_id = item.u.cache.archive_id;
     int map_x = map_id >> 16;
     int map_z = map_id & 0xFFFF;
 
@@ -401,18 +381,20 @@ LibToriRS_ScriptAPI_Dat1_MapChunkSceneryLoad(
     struct LibToriRS_IOQueueItem item = { 0 };
     if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
         return false;
-    if( item.status != TORIRSIO_RESOLVED )
+    if( item.kind != TORIRSIO_KIND_CACHE )
         return false;
-    if( item.table_id != CACHE_DAT_MAPS )
+    if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
         return false;
-    if( item.flags != CACHELIB_MAPCHUNK_SCENERY )
+    if( item.u.cache.table_id != CACHE_DAT_MAPS )
+        return false;
+    if( item.u.cache.flags != CACHELIB_MAPCHUNK_SCENERY )
         return false;
 
     struct CacheDatArchive* archive = item.data;
     if( !archive )
         return false;
 
-    int map_id = item.archive_id;
+    int map_id = item.u.cache.archive_id;
     int map_x = map_id >> 16;
     int map_z = map_id & 0xFFFF;
 
@@ -437,6 +419,58 @@ LibToriRS_ScriptAPI_Game_ModelViewer_Init(struct LibToriRS_Instance* instance)
     instance->model_viewer = game_modelviewer_new(instance->script_queue);
     if( !instance->model_viewer )
         return;
+
+    instance->model_viewer->gamecache = instance->gamecache;
+
+    instance->model_viewer_handle.kind = GAME_HANDLE_KIND_MODEL_VIEWER;
+    instance->model_viewer_handle.u.model_viewer = instance->model_viewer;
+}
+
+struct GameHandle*
+LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(struct LibToriRS_Instance* instance)
+{
+    if( !instance || !instance->model_viewer )
+        return NULL;
+
+    return &instance->model_viewer_handle;
+}
+
+void
+LibToriRS_ScriptAPI_CoreTask_Dat1LoadModel(
+    struct LibToriRS_Instance* instance,
+    struct GameHandle* game,
+    int model_id)
+{
+    if( !instance || !game )
+        return;
+    if( game->kind != GAME_HANDLE_KIND_MODEL_VIEWER )
+        return;
+    if( !game->u.model_viewer )
+        return;
+
+    struct CoreTask* task = core_task_new_dat1_model_load(*game, model_id);
+    if( !task )
+        return;
+
+    game_modelviewer_task_add(game->u.model_viewer, task);
+}
+
+bool
+LibToriRS_ScriptAPI_RunTasks(struct LibToriRS_Instance* instance)
+{
+    if( !instance || !instance->io_queue )
+        return true;
+
+    struct LibToriRS_IOContext ctx = {
+        .io = instance->io_queue,
+    };
+
+    bool all_done = true;
+
+    if( instance->model_viewer )
+        all_done = game_modelviewer_run_tasks(instance->model_viewer, &ctx) && all_done;
+
+    return all_done;
 }
 
 void
@@ -530,13 +564,7 @@ LibToriRS_ScriptAPI_Dat1_VersionListFetch(
     struct CacheLib_IORequest request;
     cachelib_dat1_versionlist_fetch(&request);
 
-    struct LibToriRS_IOQueueItem item = { 0 };
-    item.table_id = request.table_id;
-    item.archive_id = request.archive_id;
-    item.flags = request.flags;
-
-    if( !LibToriRS_IOQueuePopWrite(io_queue, &item) )
-        return;
+    LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
 }
 
 bool
@@ -551,13 +579,15 @@ LibToriRS_ScriptAPI_Dat1_VersionListLoad(
     struct LibToriRS_IOQueueItem item = { 0 };
     if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
         return false;
-    if( item.status != TORIRSIO_RESOLVED )
+    if( item.kind != TORIRSIO_KIND_CACHE )
         return false;
-    if( item.table_id != CACHE_DAT_CONFIGS )
+    if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
         return false;
-    if( item.archive_id != CONFIG_DAT_VERSION_LIST )
+    if( item.u.cache.table_id != CACHE_DAT_CONFIGS )
         return false;
-    if( item.flags != 0 )
+    if( item.u.cache.archive_id != CONFIG_DAT_VERSION_LIST )
+        return false;
+    if( item.u.cache.flags != 0 )
         return false;
 
     struct CacheDatArchive* archive = item.data;
@@ -587,13 +617,7 @@ LibToriRS_ScriptAPI_Dat1_AnimationsFetch(
     struct CacheLib_IORequest request;
     cachelib_dat1_animations_fetch(archive_id, &request);
 
-    struct LibToriRS_IOQueueItem item = { 0 };
-    item.table_id = request.table_id;
-    item.archive_id = request.archive_id;
-    item.flags = request.flags;
-
-    if( !LibToriRS_IOQueuePopWrite(io_queue, &item) )
-        return;
+    LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
 }
 
 bool
@@ -608,18 +632,20 @@ LibToriRS_ScriptAPI_Dat1_AnimationsLoad(
     struct LibToriRS_IOQueueItem item = { 0 };
     if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
         return false;
-    if( item.status != TORIRSIO_RESOLVED )
+    if( item.kind != TORIRSIO_KIND_CACHE )
         return false;
-    if( item.table_id != CACHE_DAT_ANIMATIONS )
+    if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
         return false;
-    if( item.flags != 0 )
+    if( item.u.cache.table_id != CACHE_DAT_ANIMATIONS )
+        return false;
+    if( item.u.cache.flags != 0 )
         return false;
 
     struct CacheDatArchive* archive = item.data;
     if( !archive )
         return false;
 
-    int animbaseframes_id = item.archive_id;
+    int animbaseframes_id = item.u.cache.archive_id;
 
     struct CacheDatAnimBaseFrames* animbaseframes =
         cache_dat_animbaseframes_new_decode(archive->data, archive->data_size);
@@ -868,100 +894,4 @@ LibToriRS_ScriptAPI_GameCache_AnimationsClearAll(struct LibToriRS_Instance* inst
         return;
 
     gamecache_animations_clear_all(instance->gamecache);
-}
-
-void
-LibToriRS_ScriptAPI_UI_Init(struct LibToriRS_Instance* instance)
-{
-    printf("LibToriRS_ScriptAPI_UI_Init\n");
-    if( !instance || !instance->model_viewer )
-        return;
-
-    revconfig_loader_reset(instance->model_viewer->loader_state);
-    revconfig_loader_set_buildcache(
-        instance->model_viewer->loader_state, instance->dat1_buildcache);
-    revconfig_loader_set_gamecache(instance->model_viewer->loader_state, instance->gamecache);
-    revconfig_loader_set_ui_scene(
-        instance->model_viewer->loader_state, instance->model_viewer->scene);
-}
-
-void
-LibToriRS_ScriptAPI_UI_RevConfigFetch(
-    struct LibToriRS_Instance* instance,
-    struct LibToriRS_IOQueue* io_queue,
-    const char* path)
-{
-    assert(instance && io_queue && path && "Invalid arguments");
-
-    LibToriRS_IOQueuePushConfigFile(io_queue, path);
-    printf("UI_RevConfigFetch: %s\n", path);
-}
-
-bool
-LibToriRS_ScriptAPI_UI_RevConfigLoad(
-    struct LibToriRS_Instance* instance,
-    struct LibToriRS_IOQueue* io_queue)
-{
-    struct GameModelViewer* mv;
-
-    mv = instance->model_viewer;
-
-    struct LibToriRS_IOQueueItem item = { 0 };
-    if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
-        return false;
-
-    if( item.kind != TORIRSIO_KIND_CONFIG_FILE )
-        return false;
-
-    if( item.status != TORIRSIO_RESOLVED || !item.data || item.data_size <= 0 )
-    {
-        printf("UI_RevConfigLoad: failed for %s (status=%d)\n", item.path, (int)item.status);
-        if( item.data )
-            free(item.data);
-        return false;
-    }
-
-    revconfig_load_fields_from_ini_bytes(
-        (const uint8_t*)item.data,
-        (uint32_t)item.data_size,
-        revconfig_loader_revconfig(mv->loader_state));
-    printf(
-        "UI_RevConfigLoad: %s (%d bytes) -> revconfig field_count=%u\n",
-        item.path,
-        item.data_size,
-        revconfig_loader_revconfig(mv->loader_state)->field_count);
-    free(item.data);
-
-    return true;
-}
-
-bool
-LibToriRS_ScriptAPI_UI_Ready(struct LibToriRS_Instance* instance)
-{
-    return revconfig_loader_ready(instance->model_viewer->loader_state);
-}
-
-void
-LibToriRS_ScriptAPI_UI_Process(
-    struct LibToriRS_Instance* instance,
-    struct LibToriRS_IOQueue* io_queue)
-{
-    revconfig_loader_process(instance->model_viewer->loader_state, io_queue);
-}
-
-void
-LibToriRS_ScriptAPI_UI_QueueRSComponentNativeInt(
-    struct LibToriRS_Instance* instance,
-    int component_id)
-{
-    revconfig_loader_queue_rs_component(instance->model_viewer->loader_state, component_id);
-    printf("UI_QueueRSComponentNativeInt: %d\n", component_id);
-}
-
-void
-LibToriRS_ScriptAPI_UI_Submit(struct LibToriRS_Instance* instance)
-{
-    struct GameModelViewer* mv = instance->model_viewer;
-    revconfig_loader_submit(mv->loader_state, mv->tree);
-    printf("UI_Submit: uitree built\n");
 }

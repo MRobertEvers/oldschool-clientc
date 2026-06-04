@@ -50,6 +50,7 @@ LUA_SRC := $(filter-out $(SRC_DIR)/3rd/lua/lua.c $(SRC_DIR)/3rd/lua/luac.c,\
 # Common source files shared across all platforms
 # ---------------------------------------------------------------------------
 COMMON_SRCS := sdl2.c \
+	$(PLAT_DIR)/platform_x_io_reactor.c \
 	$(PLAT_DIR)/platform_x_lua.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
@@ -100,16 +101,8 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toridraw/toridraw_vec.c \
 	$(SRC2)/toridraw/toridraw_light_model.c \
 	$(SRC2)/toridraw/toridraw_sprite.c \
+	$(SRC2)/core/tasks/core_task.c \
 	$(SRC2)/games/model_viewer.c \
-	$(SRC2)/ui/ui_scene.c \
-	$(SRC2)/ui/ui_scene_events.c \
-	$(SRC2)/ui/revconfig_loader.c \
-	$(SRC2)/semantic/dat1_sprite.c \
-	$(SRC2)/semantic/dat1_interface.c \
-	$(SRC_DIR)/3rd/ini/ini.c \
-	$(SRC_DIR)/osrs/revconfig/revconfig.c \
-	$(SRC_DIR)/osrs/revconfig/revconfig_load.c \
-	$(SRC_DIR)/osrs/revconfig/uitree.c \
 	$(SRC_DIR)/graphics/dashmap.c \
 	$(SRC_DIR)/graphics/lighting.c \
 	$(SRC_DIR)/graphics/shared_tables.c \

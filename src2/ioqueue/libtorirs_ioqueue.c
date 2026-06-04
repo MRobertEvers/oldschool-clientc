@@ -49,7 +49,7 @@ LibToriRS_IOQueueClear(struct LibToriRS_IOQueue* queue)
 }
 
 void
-LibToriRS_IOQueuePush(
+LibToriRS_IOQueuePushCache(
     struct LibToriRS_IOQueue* queue,
     int table_id,
     int archive_id,
@@ -60,14 +60,14 @@ LibToriRS_IOQueuePush(
     if( queue->count >= LIBTORIRS_IOQUEUE_MAX_SIZE )
         return;
 
-    struct LibToriRS_IOQueueItem* item = &queue->items[queue->count];
-    memset(item, 0, sizeof(struct LibToriRS_IOQueueItem));
-    item->kind = TORIRSIO_KIND_CACHE;
-    item->status = TORIRSIO_STAT_YIELD;
-    item->u.cache.table_id = table_id;
-    item->u.cache.archive_id = archive_id;
-    item->u.cache.flags = flags;
-    queue->count++;
+    struct LibToriRS_IOQueueItem item = { 0 };
+    item.kind = TORIRSIO_KIND_CACHE;
+    item.status = TORIRSIO_STAT_YIELD;
+    item.u.cache.table_id = table_id;
+    item.u.cache.archive_id = archive_id;
+    item.u.cache.flags = flags;
+    if( !LibToriRS_IOQueuePopWrite(queue, &item) )
+        return;
 }
 
 bool
