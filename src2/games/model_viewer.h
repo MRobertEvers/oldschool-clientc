@@ -13,6 +13,7 @@
 #include <stdint.h>
 
 struct ToriDraw_Context;
+struct GameCache;
 struct UILoaderState;
 
 enum GameModelViewer_FramePhase
@@ -47,6 +48,7 @@ struct GameModelViewer
     struct UITree* tree;
     struct UIScene* scene;
     struct UILoaderState* loader_state;
+    struct GameCache* gamecache;
 
     struct ToriDraw_ViewPort world_view_port;
 
@@ -59,6 +61,10 @@ struct GameModelViewer
         int32_t uitree_stack[64];
         int uitree_stack_top;
         bool world_emitted;
+        int uitree_emit_sub;
+        int32_t uitree_hold_node;
+        int uitree_inv_slot;
+        struct ToriDraw_ModelHandle uitree_model;
     } frame;
 };
 
@@ -73,6 +79,11 @@ game_modelviewer_set_model(
     struct GameModelViewer* game_model_viewer,
     int model_id,
     struct ToriDraw_ModelHandle model);
+
+void
+game_modelviewer_set_gamecache(
+    struct GameModelViewer* game_model_viewer,
+    struct GameCache* gamecache);
 
 void
 game_modelviewer_process_input(

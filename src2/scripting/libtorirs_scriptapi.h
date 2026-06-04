@@ -179,6 +179,11 @@ LibToriRS_ScriptAPI_UI_Process(
     struct LibToriRS_IOQueue* io_queue);
 
 void
+LibToriRS_ScriptAPI_UI_QueueRSComponentNativeInt(
+    struct LibToriRS_Instance* instance,
+    int component_id);
+
+void
 LibToriRS_ScriptAPI_UI_Submit(struct LibToriRS_Instance* instance);
 
 #endif

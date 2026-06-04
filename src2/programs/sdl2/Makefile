@@ -130,11 +130,13 @@ COMMON_SRCS := sdl2.c \
 	$(SRC_DIR)/osrs/rscache/tables/string_utils.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/pix8.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/pix32.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/pixfont.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_versionlist_mapsquare.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_textures.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_idk.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_npc.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_obj.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/config_component.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_spotanim.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_varp.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/animframe.c \

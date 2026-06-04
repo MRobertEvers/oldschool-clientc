@@ -6,6 +6,7 @@
 #include "osrs/rscache/tables/config_sequence.h"
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables_dat/animframe.h"
+#include "osrs/rscache/tables_dat/config_component.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
 
@@ -54,6 +55,24 @@ struct MapEntry_AnimBaseFrames
     int id;
     struct CacheDatAnimBaseFrames* animbaseframes;
 };
+
+static void
+dat1_buildcache_interfaces_free(struct CacheDatConfigComponentList* interfaces)
+{
+    if( !interfaces )
+        return;
+
+    if( interfaces->components )
+    {
+        for( int i = 0; i < interfaces->components_count; i++ )
+        {
+            if( interfaces->components[i] )
+                cache_dat_config_component_free(interfaces->components[i]);
+        }
+        free(interfaces->components);
+    }
+    free(interfaces);
+}
 
 static struct ToriDraw_Map*
 dat1_buildcache_map_new(
@@ -117,6 +136,9 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
 
     if( dat1_buildcache->media_2d_graphics_jagfile )
         filelist_dat_free(dat1_buildcache->media_2d_graphics_jagfile);
+
+    if( dat1_buildcache->interfaces )
+        dat1_buildcache_interfaces_free(dat1_buildcache->interfaces);
 
     if( dat1_buildcache->models_hmap )
     {
@@ -256,6 +278,28 @@ dat1_buildcache_get_media_2d_graphics_jagfile(struct Dat1BuildCache* dat1_buildc
     if( !dat1_buildcache )
         return NULL;
     return dat1_buildcache->media_2d_graphics_jagfile;
+}
+
+void
+dat1_buildcache_set_interfaces(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct CacheDatConfigComponentList* interfaces)
+{
+    if( !dat1_buildcache )
+        return;
+
+    if( dat1_buildcache->interfaces )
+        dat1_buildcache_interfaces_free(dat1_buildcache->interfaces);
+
+    dat1_buildcache->interfaces = interfaces;
+}
+
+struct CacheDatConfigComponentList*
+dat1_buildcache_get_interfaces(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache )
+        return NULL;
+    return dat1_buildcache->interfaces;
 }
 
 void

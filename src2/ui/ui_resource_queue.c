@@ -1,5 +1,6 @@
 #include "ui_resource_queue.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -58,6 +59,27 @@ ui_resource_queue_push_sprite(
     new_item->result_sprites = NULL;
     new_item->result_count = 0;
     new_item->error_code = 0;
+    new_item->component_id = -1;
+    queue->count++;
+    return true;
+}
+
+bool
+ui_resource_queue_push_rs_component(
+    struct UIResourceQueue* queue,
+    int component_id)
+{
+    if( !queue || queue->count >= UI_RESOURCE_QUEUE_MAX_SIZE )
+        return false;
+
+    struct UIResourceQueueItem* new_item = &queue->items[queue->count];
+    memset(new_item, 0, sizeof(*new_item));
+    new_item->kind = UIRES_KIND_RS_COMPONENT;
+    new_item->status = UIRES_PENDING;
+    new_item->state = UIRES_STATE_NEED_ARCHIVE;
+    new_item->source_archive_index = -1;
+    new_item->component_id = component_id;
+    snprintf(new_item->name, sizeof(new_item->name), "rscomp:%d", component_id);
     queue->count++;
     return true;
 }

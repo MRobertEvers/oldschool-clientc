@@ -2,10 +2,15 @@
 
 #include "../buildcache/dat1_buildcache.h"
 #include "../ioqueue/libtorirs_ioqueue.h"
+#include "gamecache/gamecache.h"
+#include "gamecache/toridraw_cachemodel.h"
 #include "gamecache/toridraw_cachesprite.h"
 #include "graphics/dashmap.h"
 #include "osrs/revconfig/uitree.h"
+#include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
+#include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/configs_dat.h"
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
@@ -17,7 +22,8 @@
 #include <string.h>
 
 #define UI_LOADER_MAX_LAYOUT_ENTRIES 64
-#define UI_LOADER_MAX_PENDING_ARCHIVES 16
+#define UI_LOADER_MAX_PENDING_ARCHIVES 32
+#define UI_LOADER_MAX_PENDING_MODELS 32
 #define UI_LOADER_MAX_WORK_ITEMS 32
 
 /* -------------------------------------------------------------------------- */
@@ -64,6 +70,13 @@ struct UILoaderPendingArchive
     bool io_dispatched;
 };
 
+struct UILoaderPendingModel
+{
+    int model_id;
+    bool received;
+    bool io_dispatched;
+};
+
 enum UILoaderWorkKind
 {
     UILOADER_WORK_PROCESS_REVCONFIG = 0,
@@ -83,6 +96,10 @@ struct UILoaderState
     struct DashMap* sprite_map;
     struct DashMap* component_map;
 
+    struct Dat1BuildCache* buildcache;
+    struct GameCache* gamecache;
+    struct UIScene* ui_scene;
+
     struct UIResourceQueue* queue;
     struct RevConfigBuffer* revconfig;
     enum UILoaderWorkKind work_items[UI_LOADER_MAX_WORK_ITEMS];
@@ -91,6 +108,11 @@ struct UILoaderState
     bool done;
     struct UILoaderPendingArchive pending_archives[UI_LOADER_MAX_PENDING_ARCHIVES];
     int pending_archive_count;
+    struct UILoaderPendingModel pending_models[UI_LOADER_MAX_PENDING_MODELS];
+    int pending_model_count;
+    bool need_fonts;
+    bool fonts_received;
+    bool fonts_io_dispatched;
 };
 
 enum UILoaderItemKind
@@ -555,26 +577,507 @@ ui_loader_placeholder_sprite(
     return toridraw_sprite_new_from_argb_owned(pixels, w, h);
 }
 
-static bool
-ui_loader_resolve_archive_ids(
-    const char* table,
-    const char* archive,
-    int* out_table_id,
-    int* out_archive_id)
+static struct ToriDraw_Sprite*
+ui_loader_decode_media_sprite_ref(
+    struct FileListDat* filelist,
+    const char* sprite_ref)
 {
-    if( !table || !archive || !out_table_id || !out_archive_id )
+    char filename_buf[256];
+    int sprite_idx = 0;
+
+    if( !filelist || !sprite_ref || !sprite_ref[0] )
+        return NULL;
+
+    if( sscanf(sprite_ref, "%255[^,],%d", filename_buf, &sprite_idx) != 2 )
+    {
+        strncpy(filename_buf, sprite_ref, sizeof(filename_buf) - 1);
+        filename_buf[sizeof(filename_buf) - 1] = '\0';
+        sprite_idx = 0;
+    }
+
+    size_t len = strlen(filename_buf);
+    if( len + 5 > sizeof(filename_buf) )
+        return NULL;
+    if( len < 4 || strcmp(filename_buf + len - 4, ".dat") != 0 )
+    {
+        memcpy(filename_buf + len, ".dat", 4);
+        filename_buf[len + 4] = '\0';
+    }
+
+    int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
+    int data_file_idx = filelist_dat_find_file_by_name(filelist, filename_buf);
+    if( index_file_idx < 0 || data_file_idx < 0 )
+        return NULL;
+
+    struct CacheDatPix32* pix32 = cache_dat_pix32_new(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        sprite_idx);
+    if( pix32 )
+    {
+        struct ToriDraw_Sprite* sprite = toridraw_sprite_new_from_cache_pix32(pix32);
+        cache_dat_pix32_free(pix32);
+        if( sprite )
+            return sprite;
+    }
+
+    struct CacheDatPix8Palette* pix8_palette = cache_dat_pix8_palette_new(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        sprite_idx);
+    if( !pix8_palette )
+        return NULL;
+
+    struct ToriDraw_Sprite* sprite = toridraw_sprite_new_from_cache_pix8_palette(pix8_palette);
+    cache_dat_pix8_palette_free(pix8_palette);
+    return sprite;
+}
+
+static bool
+ui_loader_decode_interfaces_from_archive(
+    struct CacheDatArchive* archive,
+    struct CacheDatConfigComponentList** out_list)
+{
+    struct FileListDat* filelist;
+    int data_idx;
+
+    if( !archive || !out_list )
         return false;
 
-    if( strcmp(table, "configs") == 0 )
+    filelist = filelist_dat_new_from_cache_dat_archive(archive);
+    if( !filelist )
+        return false;
+
+    data_idx = filelist_dat_find_file_by_name(filelist, "data");
+    if( data_idx < 0 )
     {
-        *out_table_id = CACHE_DAT_CONFIGS;
-        if( strcmp(archive, "media") == 0 )
+        filelist_dat_free(filelist);
+        return false;
+    }
+
+    *out_list = cache_dat_config_component_list_new_decode(
+        filelist->files[data_idx], filelist->file_sizes[data_idx]);
+    filelist_dat_free(filelist);
+    return *out_list != NULL;
+}
+
+static struct CacheDatConfigComponent*
+ui_loader_get_interface_component(
+    struct CacheDatConfigComponentList* interfaces,
+    int component_id)
+{
+    if( !interfaces || component_id < 0 || component_id >= interfaces->components_count )
+        return NULL;
+    return interfaces->components[component_id];
+}
+
+static int
+ui_loader_acquire_rs_sprite(
+    struct UILoaderState* state,
+    struct UIScene* scene,
+    struct FileListDat* media,
+    const char* sprite_ref)
+{
+    struct SpriteMapEntry* sm;
+    struct ToriDraw_Sprite* sprite;
+    struct ToriDraw_Sprite** row;
+    int scene_id;
+
+    if( !state || !scene || !media || !sprite_ref || !sprite_ref[0] )
+        return -1;
+
+    sm = dashmap_search(state->sprite_map, sprite_ref, DASHMAP_FIND);
+    if( sm )
+        return sm->scene_id;
+
+    sprite = ui_loader_decode_media_sprite_ref(media, sprite_ref);
+    if( !sprite )
+        return -1;
+
+    row = malloc(sizeof(struct ToriDraw_Sprite*));
+    if( !row )
+    {
+        toridraw_sprite_free(sprite);
+        return -1;
+    }
+    row[0] = sprite;
+
+    scene_id = ui_scene_element_acquire_with_sprites(scene, row, 1, false, sprite_ref);
+    if( scene_id < 0 )
+    {
+        toridraw_sprite_free(sprite);
+        free(row);
+        return -1;
+    }
+
+    sm = dashmap_search(state->sprite_map, sprite_ref, DASHMAP_INSERT);
+    if( sm )
+    {
+        strncpy(sm->name, sprite_ref, sizeof(sm->name) - 1);
+        sm->name[sizeof(sm->name) - 1] = '\0';
+        sm->scene_id = scene_id;
+        sm->atlas_index = 0;
+    }
+
+    return scene_id;
+}
+
+static int
+ui_loader_ensure_font_id(
+    struct UIScene* scene,
+    int font_idx)
+{
+    static const char* const font_names[] = { "p11", "p12", "b12", "q8" };
+    int fidx = font_idx;
+    if( fidx < 0 || fidx > 3 )
+        fidx = 1;
+    if( !scene )
+        return -1;
+    return ui_scene_font_find_id(scene, font_names[fidx]);
+}
+
+static void
+ui_loader_bake_rs_subtree(
+    struct UILoaderState* state,
+    struct UITree* tree,
+    struct UIScene* scene,
+    struct FileListDat* media,
+    struct CacheDatConfigComponentList* interfaces,
+    int32_t parent_idx,
+    struct CacheDatConfigComponent* comp,
+    int abs_x,
+    int abs_y)
+{
+    int32_t layer_idx;
+    int sid;
+    int sid_a;
+    int fid;
+    int bg_sid[UI_INV_SLOT_OFFSET_MAX];
+    int bg_ai[UI_INV_SLOT_OFFSET_MAX];
+
+    if( !state || !tree || !scene || !media || !comp || !interfaces )
+        return;
+
+    if( comp->hide && comp->type != COMPONENT_TYPE_LAYER )
+        return;
+
+    switch( comp->type )
+    {
+    case COMPONENT_TYPE_LAYER:
+        layer_idx = uitree_push_rs_layer(
+            tree, parent_idx, comp->id, abs_x, abs_y, comp->width, comp->height);
+        if( layer_idx < 0 || !comp->children )
+            return;
+
+        for( int i = 0; i < comp->children_count; i++ )
         {
-            *out_archive_id = CONFIG_DAT_MEDIA_2D_GRAPHICS;
-            return true;
+            struct CacheDatConfigComponent* child =
+                ui_loader_get_interface_component(interfaces, comp->children[i]);
+            int cx;
+            int cy;
+
+            if( !child )
+                continue;
+
+            cx = abs_x + (comp->childX ? comp->childX[i] : 0) + child->x;
+            cy = abs_y + (comp->childY ? comp->childY[i] : 0) + child->y;
+            ui_loader_bake_rs_subtree(
+                state, tree, scene, media, interfaces, layer_idx, child, cx, cy);
+        }
+        break;
+
+    case COMPONENT_TYPE_GRAPHIC:
+        sid = ui_loader_acquire_rs_sprite(state, scene, media, comp->graphic);
+        sid_a = ui_loader_acquire_rs_sprite(state, scene, media, comp->activeGraphic);
+        if( sid < 0 && sid_a < 0 )
+            return;
+
+        uitree_push_rs_graphic(
+            tree,
+            parent_idx,
+            comp->id,
+            sid >= 0 ? sid : sid_a,
+            0,
+            sid >= 0 && sid_a >= 0 && sid_a != sid ? sid_a : -1,
+            0,
+            abs_x,
+            abs_y,
+            comp->width,
+            comp->height);
+        break;
+
+    case COMPONENT_TYPE_RECT:
+        if( comp->fill )
+        {
+            uitree_push_rs_rect(
+                tree,
+                parent_idx,
+                comp->id,
+                comp->colour,
+                comp->fill ? 1 : 0,
+                abs_x,
+                abs_y,
+                comp->width,
+                comp->height);
+        }
+        break;
+
+    case COMPONENT_TYPE_TEXT:
+        fid = ui_loader_ensure_font_id(scene, comp->font);
+        uitree_push_rs_text(
+            tree,
+            parent_idx,
+            comp->id,
+            fid,
+            comp->colour,
+            comp->center ? 1 : 0,
+            comp->shadowed ? 1 : 0,
+            comp->text,
+            abs_x,
+            abs_y,
+            comp->width,
+            comp->height);
+        break;
+
+    case COMPONENT_TYPE_INV_TEXT:
+        fid = ui_loader_ensure_font_id(scene, comp->font);
+        uitree_push_rs_text(
+            tree,
+            parent_idx,
+            comp->id,
+            fid,
+            comp->colour,
+            comp->center ? 1 : 0,
+            comp->shadowed ? 1 : 0,
+            comp->text,
+            abs_x,
+            abs_y,
+            comp->width,
+            comp->height);
+        break;
+
+    case COMPONENT_TYPE_MODEL:
+        if( comp->modelType == 1 && state->gamecache )
+        {
+            struct ToriDraw_ModelHandle hnd =
+                gamecache_model_get(state->gamecache, comp->model);
+            if( hnd.kind == TORIDRAWMK_MODEL )
+            {
+                uitree_push_rs_model(
+                    tree,
+                    parent_idx,
+                    comp->id,
+                    comp->model,
+                    comp->zoom,
+                    comp->xan,
+                    comp->yan,
+                    abs_x,
+                    abs_y,
+                    comp->width,
+                    comp->height);
+            }
+        }
+        break;
+
+    case COMPONENT_TYPE_INV:
+        for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
+        {
+            bg_sid[si] = -1;
+            bg_ai[si] = 0;
+        }
+        if( comp->invSlotGraphic )
+        {
+            for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
+            {
+                char const* gname = comp->invSlotGraphic[si];
+                if( !gname || gname[0] == '\0' )
+                    continue;
+                bg_sid[si] = ui_loader_acquire_rs_sprite(state, scene, media, gname);
+                bg_ai[si] = 0;
+            }
+        }
+        uitree_push_rs_inv(
+            tree,
+            parent_idx,
+            comp->id,
+            -1,
+            comp->width,
+            comp->height,
+            comp->marginX,
+            comp->marginY,
+            comp->invSlotOffsetX,
+            comp->invSlotOffsetY,
+            bg_sid,
+            bg_ai,
+            abs_x,
+            abs_y,
+            comp->width,
+            comp->height);
+        break;
+
+    default:
+        break;
+    }
+}
+
+static int
+ui_loader_pending_model_index(
+    struct UILoaderState* state,
+    int model_id)
+{
+    for( int i = 0; i < state->pending_model_count; i++ )
+    {
+        if( state->pending_models[i].model_id == model_id )
+            return i;
+    }
+
+    if( state->pending_model_count >= UI_LOADER_MAX_PENDING_MODELS )
+        return -1;
+
+    int idx = state->pending_model_count++;
+    state->pending_models[idx].model_id = model_id;
+    state->pending_models[idx].received = false;
+    state->pending_models[idx].io_dispatched = false;
+    return idx;
+}
+
+static void
+ui_loader_collect_rs_deps_from_component(
+    struct UILoaderState* state,
+    struct CacheDatConfigComponentList* interfaces,
+    struct CacheDatConfigComponent* comp)
+{
+    if( !state || !comp || !interfaces )
+        return;
+
+    if( comp->type == COMPONENT_TYPE_TEXT || comp->type == COMPONENT_TYPE_INV_TEXT )
+        state->need_fonts = true;
+
+    if( comp->type == COMPONENT_TYPE_MODEL && comp->modelType == 1 && comp->model > 0 )
+    {
+        if( !state->gamecache )
+            return;
+        struct ToriDraw_ModelHandle hnd = gamecache_model_get(state->gamecache, comp->model);
+        if( hnd.kind != TORIDRAWMK_MODEL )
+            ui_loader_pending_model_index(state, comp->model);
+    }
+
+    if( comp->type == COMPONENT_TYPE_LAYER && comp->children )
+    {
+        for( int i = 0; i < comp->children_count; i++ )
+        {
+            struct CacheDatConfigComponent* child =
+                ui_loader_get_interface_component(interfaces, comp->children[i]);
+            if( child )
+                ui_loader_collect_rs_deps_from_component(state, interfaces, child);
         }
     }
-    return false;
+}
+
+static bool
+ui_loader_queue_pending_models(
+    struct UILoaderState* state,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    if( !state || !io_queue )
+        return false;
+
+    for( int i = 0; i < state->pending_model_count; i++ )
+    {
+        struct UILoaderPendingModel* pending = &state->pending_models[i];
+        if( pending->received || pending->io_dispatched )
+            continue;
+
+        if( state->gamecache )
+        {
+            struct ToriDraw_ModelHandle hnd =
+                gamecache_model_get(state->gamecache, pending->model_id);
+            if( hnd.kind == TORIDRAWMK_MODEL )
+            {
+                pending->received = true;
+                continue;
+            }
+        }
+
+        LibToriRS_IOQueuePush(io_queue, CACHE_DAT_MODELS, pending->model_id, 0);
+        pending->io_dispatched = true;
+        printf(
+            "UI_Process: queued model IO id=%d\n",
+            pending->model_id);
+    }
+    return true;
+}
+
+static bool
+ui_loader_all_pending_models_received(struct UILoaderState* state)
+{
+    if( state->pending_model_count <= 0 )
+        return true;
+
+    for( int i = 0; i < state->pending_model_count; i++ )
+    {
+        if( !state->pending_models[i].received )
+            return false;
+    }
+    return true;
+}
+
+static bool
+ui_loader_fonts_ready(struct UILoaderState* state)
+{
+    if( !state || !state->need_fonts )
+        return true;
+    return state->fonts_received;
+}
+
+static void
+ui_loader_bake_rs_roots(
+    struct UILoaderState* state,
+    struct UITree* tree,
+    struct UIScene* scene)
+{
+    struct UIResourceQueue* queue;
+    struct Dat1BuildCache* buildcache;
+    struct CacheDatConfigComponentList* interfaces;
+    struct FileListDat* media;
+
+    if( !state || !tree || !scene )
+        return;
+
+    queue = state->queue;
+    buildcache = state->buildcache;
+    if( !queue || !buildcache )
+        return;
+
+    interfaces = dat1_buildcache_get_interfaces(buildcache);
+    media = dat1_buildcache_get_media_2d_graphics_jagfile(buildcache);
+    if( !interfaces || !media )
+        return;
+
+    for( int i = 0; i < queue->count; i++ )
+    {
+        struct UIResourceQueueItem* item = &queue->items[i];
+        struct CacheDatConfigComponent* root;
+
+        if( item->kind != UIRES_KIND_RS_COMPONENT || item->status != UIRES_RESOLVED )
+            continue;
+
+        root = ui_loader_get_interface_component(interfaces, item->component_id);
+        if( !root )
+        {
+            printf(
+                "ui_loader_submit: RS component %d not found in interfaces\n", item->component_id);
+            continue;
+        }
+
+        ui_loader_bake_rs_subtree(
+            state, tree, scene, media, interfaces, -1, root, root->x, root->y);
+        printf("ui_loader_submit: baked RS component %d\n", item->component_id);
+    }
 }
 
 static int
@@ -602,6 +1105,51 @@ ui_loader_pending_archive_index(
 }
 
 static bool
+ui_loader_request_config_archive(
+    struct UILoaderState* state,
+    struct LibToriRS_IOQueue* io_queue,
+    int archive_id)
+{
+    int table_id = CACHE_DAT_CONFIGS;
+    int idx = ui_loader_pending_archive_index(state, table_id, archive_id);
+    struct UILoaderPendingArchive* pending;
+
+    if( idx < 0 )
+        return false;
+
+    pending = &state->pending_archives[idx];
+    if( !pending->io_dispatched )
+    {
+        LibToriRS_IOQueuePush(io_queue, table_id, archive_id, 0);
+        pending->io_dispatched = true;
+        printf("UI_Process: queued cache IO table=%d archive=%d\n", table_id, archive_id);
+    }
+    return true;
+}
+
+static bool
+ui_loader_resolve_archive_ids(
+    const char* table,
+    const char* archive,
+    int* out_table_id,
+    int* out_archive_id)
+{
+    if( !table || !archive || !out_table_id || !out_archive_id )
+        return false;
+
+    if( strcmp(table, "configs") == 0 )
+    {
+        *out_table_id = CACHE_DAT_CONFIGS;
+        if( strcmp(archive, "media") == 0 )
+        {
+            *out_archive_id = CONFIG_DAT_MEDIA_2D_GRAPHICS;
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
 ui_loader_all_pending_archives_received(struct UILoaderState* state)
 {
     if( state->pending_archive_count <= 0 )
@@ -618,12 +1166,12 @@ ui_loader_all_pending_archives_received(struct UILoaderState* state)
 static void
 ui_loader_decode_item(
     struct UILoaderState* state,
-    struct UIResourceQueueItem* item,
-    struct Dat1BuildCache* buildcache)
+    struct UIResourceQueueItem* item)
 {
-    (void)state;
+    struct Dat1BuildCache* buildcache = state ? state->buildcache : NULL;
+    struct FileListDat* filelist;
 
-    struct FileListDat* filelist = dat1_buildcache_get_media_2d_graphics_jagfile(buildcache);
+    filelist = dat1_buildcache_get_media_2d_graphics_jagfile(buildcache);
     if( !filelist )
     {
         item->status = UIRES_ERROR;
@@ -682,9 +1230,10 @@ static void
 ui_loader_step_sprite(
     struct UILoaderState* state,
     struct UIResourceQueueItem* item,
-    struct LibToriRS_IOQueue* io_queue,
-    struct Dat1BuildCache* buildcache)
+    struct LibToriRS_IOQueue* io_queue)
 {
+    struct Dat1BuildCache* buildcache = state ? state->buildcache : NULL;
+
     switch( item->state )
     {
     case UIRES_STATE_NEED_ARCHIVE:
@@ -749,7 +1298,7 @@ ui_loader_step_sprite(
         /* fall through */
 
     case UIRES_STATE_DECODE:
-        ui_loader_decode_item(state, item, buildcache);
+        ui_loader_decode_item(state, item);
         break;
 
     default:
@@ -763,29 +1312,127 @@ ui_loader_step_rs_component(
     struct UIResourceQueueItem* item,
     struct LibToriRS_IOQueue* io_queue)
 {
-    (void)state;
-    (void)io_queue;
+    struct Dat1BuildCache* buildcache = state ? state->buildcache : NULL;
+    struct CacheDatConfigComponentList* interfaces;
+    struct CacheDatConfigComponent* comp;
 
-    /*
-     * Extension point: resolve RS component config into child resource-queue
-     * items (sprites, fonts, models), map those to archive IO, and advance
-     * through multiple NEED_ARCHIVE / WAIT_ARCHIVE / DECODE rounds.
-     */
     if( item->state == UIRES_STATE_DONE || item->state == UIRES_STATE_FAILED )
         return;
 
-    printf("UI_Process: RS component load not implemented for %s\n", item->name);
-    item->status = UIRES_ERROR;
-    item->error_code = -7;
-    item->state = UIRES_STATE_FAILED;
+    if( !buildcache )
+    {
+        item->status = UIRES_ERROR;
+        item->error_code = -9;
+        item->state = UIRES_STATE_FAILED;
+        return;
+    }
+
+    switch( item->state )
+    {
+    case UIRES_STATE_NEED_ARCHIVE:
+        if( !dat1_buildcache_get_interfaces(buildcache) )
+        {
+            if( !ui_loader_request_config_archive(state, io_queue, CONFIG_DAT_INTERFACES) )
+            {
+                item->status = UIRES_ERROR;
+                item->error_code = -6;
+                item->state = UIRES_STATE_FAILED;
+                return;
+            }
+        }
+
+        if( !dat1_buildcache_get_media_2d_graphics_jagfile(buildcache) )
+        {
+            if( !ui_loader_request_config_archive(state, io_queue, CONFIG_DAT_MEDIA_2D_GRAPHICS) )
+            {
+                item->status = UIRES_ERROR;
+                item->error_code = -6;
+                item->state = UIRES_STATE_FAILED;
+                return;
+            }
+        }
+
+        item->state = UIRES_STATE_WAIT_ARCHIVE;
+        return;
+
+    case UIRES_STATE_WAIT_ARCHIVE:
+        if( !dat1_buildcache_get_interfaces(buildcache) )
+            return;
+        if( !dat1_buildcache_get_media_2d_graphics_jagfile(buildcache) )
+            return;
+        item->state = UIRES_STATE_NEED_DEPS;
+        /* fall through */
+
+    case UIRES_STATE_NEED_DEPS:
+        interfaces = dat1_buildcache_get_interfaces(buildcache);
+        comp = ui_loader_get_interface_component(interfaces, item->component_id);
+        if( !comp )
+        {
+            item->status = UIRES_ERROR;
+            item->error_code = -7;
+            item->state = UIRES_STATE_FAILED;
+            printf("UI_Process: RS component %d not found in interfaces\n", item->component_id);
+            return;
+        }
+
+        ui_loader_collect_rs_deps_from_component(state, interfaces, comp);
+
+        if( state->need_fonts && state->ui_scene &&
+            ui_scene_font_find_id(state->ui_scene, "p11") >= 0 )
+            state->fonts_received = true;
+
+        if( state->need_fonts && !state->fonts_received && !state->fonts_io_dispatched )
+        {
+            if( !ui_loader_request_config_archive(state, io_queue, CONFIG_DAT_TITLE_AND_FONTS) )
+            {
+                item->status = UIRES_ERROR;
+                item->error_code = -6;
+                item->state = UIRES_STATE_FAILED;
+                return;
+            }
+            state->fonts_io_dispatched = true;
+        }
+
+        if( !ui_loader_queue_pending_models(state, io_queue) )
+        {
+            item->status = UIRES_ERROR;
+            item->error_code = -6;
+            item->state = UIRES_STATE_FAILED;
+            return;
+        }
+
+        if( state->pending_model_count > 0 || (state->need_fonts && !state->fonts_received) )
+        {
+            item->state = UIRES_STATE_WAIT_DEPS;
+            return;
+        }
+
+        item->status = UIRES_RESOLVED;
+        item->state = UIRES_STATE_DONE;
+        printf("UI_Process: resolved RS component %d (no extra deps)\n", item->component_id);
+        return;
+
+    case UIRES_STATE_WAIT_DEPS:
+        if( !ui_loader_all_pending_models_received(state) )
+            return;
+        if( !ui_loader_fonts_ready(state) )
+            return;
+
+        item->status = UIRES_RESOLVED;
+        item->state = UIRES_STATE_DONE;
+        printf("UI_Process: resolved RS component %d\n", item->component_id);
+        break;
+
+    default:
+        break;
+    }
 }
 
 static void
 ui_loader_step_item(
     struct UILoaderState* state,
     struct UIResourceQueueItem* item,
-    struct LibToriRS_IOQueue* io_queue,
-    struct Dat1BuildCache* buildcache)
+    struct LibToriRS_IOQueue* io_queue)
 {
     if( ui_loader_item_is_terminal(item) )
         return;
@@ -793,7 +1440,7 @@ ui_loader_step_item(
     switch( item->kind )
     {
     case UIRES_KIND_SPRITE:
-        ui_loader_step_sprite(state, item, io_queue, buildcache);
+        ui_loader_step_sprite(state, item, io_queue);
         break;
     case UIRES_KIND_RS_COMPONENT:
         ui_loader_step_rs_component(state, item, io_queue);
@@ -809,41 +1456,44 @@ ui_loader_step_item(
 static void
 ui_loader_process_revconfig(
     struct UILoaderState* state,
-    struct LibToriRS_IOQueue* io_queue,
-    struct Dat1BuildCache* buildcache)
+    struct LibToriRS_IOQueue* io_queue)
 {
     struct UIResourceQueue* rq = state->queue;
     if( !rq )
         return;
 
     state->pending_archive_count = 0;
+    state->pending_model_count = 0;
+    state->need_fonts = false;
+    state->fonts_received = false;
+    state->fonts_io_dispatched = false;
     ui_resource_queue_clear(rq);
     ui_loader_build(state);
 
     for( int i = 0; i < rq->count; i++ )
-        ui_loader_step_item(state, &rq->items[i], io_queue, buildcache);
+        ui_loader_step_item(state, &rq->items[i], io_queue);
 }
 
 static void
 ui_loader_process_resource_queue(
     struct UILoaderState* state,
-    struct LibToriRS_IOQueue* io_queue,
-    struct Dat1BuildCache* buildcache)
+    struct LibToriRS_IOQueue* io_queue)
 {
     struct UIResourceQueue* rq = state->queue;
     if( !rq )
         return;
 
     for( int i = 0; i < rq->count; i++ )
-        ui_loader_step_item(state, &rq->items[i], io_queue, buildcache);
+        ui_loader_step_item(state, &rq->items[i], io_queue);
 }
 
 static void
 ui_loader_consume_resolved_cache_io(
     struct UILoaderState* state,
-    struct LibToriRS_IOQueue* io_queue,
-    struct Dat1BuildCache* buildcache)
+    struct LibToriRS_IOQueue* io_queue)
 {
+    struct Dat1BuildCache* buildcache = state ? state->buildcache : NULL;
+
     if( !state || !io_queue || !buildcache )
         return;
 
@@ -864,17 +1514,102 @@ ui_loader_consume_resolved_cache_io(
                 pending->archive_id != io_item->archive_id )
                 continue;
 
-            struct FileListDat* filelist =
-                filelist_dat_new_from_cache_dat_archive((struct CacheDatArchive*)io_item->data);
-            dat1_buildcache_set_media_2d_graphics_jagfile(buildcache, filelist);
+            if( pending->table_id == CACHE_DAT_CONFIGS &&
+                pending->archive_id == CONFIG_DAT_MEDIA_2D_GRAPHICS )
+            {
+                struct FileListDat* filelist =
+                    filelist_dat_new_from_cache_dat_archive((struct CacheDatArchive*)io_item->data);
+                dat1_buildcache_set_media_2d_graphics_jagfile(buildcache, filelist);
+                printf("UI_Process: received media archive filelist=%p\n", (void*)filelist);
+            }
+            else if(
+                pending->table_id == CACHE_DAT_CONFIGS &&
+                pending->archive_id == CONFIG_DAT_INTERFACES )
+            {
+                struct CacheDatConfigComponentList* interfaces = NULL;
+                if( ui_loader_decode_interfaces_from_archive(
+                        (struct CacheDatArchive*)io_item->data, &interfaces) )
+                {
+                    dat1_buildcache_set_interfaces(buildcache, interfaces);
+                    printf(
+                        "UI_Process: received interfaces archive (%d components)\n",
+                        interfaces ? interfaces->components_count : 0);
+                }
+                else
+                    printf("UI_Process: failed to decode interfaces archive\n");
+            }
+            else if(
+                pending->table_id == CACHE_DAT_CONFIGS &&
+                pending->archive_id == CONFIG_DAT_TITLE_AND_FONTS )
+            {
+                struct FileListDat* filelist =
+                    filelist_dat_new_from_cache_dat_archive((struct CacheDatArchive*)io_item->data);
+                if( filelist && state->ui_scene )
+                {
+                    ui_scene_load_fonts_from_title_archive(state->ui_scene, filelist);
+                    printf("UI_Process: loaded fonts from title archive\n");
+                }
+                if( filelist )
+                    filelist_dat_free(filelist);
+                state->fonts_received = true;
+            }
+
             pending->received = true;
             cache_dat_archive_free((struct CacheDatArchive*)io_item->data);
             io_item->data = NULL;
             printf(
-                "UI_Process: received cache archive table=%d archive=%d filelist=%p\n",
+                "UI_Process: received cache archive table=%d archive=%d\n",
                 pending->table_id,
-                pending->archive_id,
-                (void*)filelist);
+                pending->archive_id);
+            break;
+        }
+
+        if( io_item->kind != TORIRSIO_KIND_CACHE )
+            continue;
+        if( io_item->status != TORIRSIO_RESOLVED || !io_item->data )
+            continue;
+        if( io_item->table_id != CACHE_DAT_MODELS )
+            continue;
+
+        for( int p = 0; p < state->pending_model_count; p++ )
+        {
+            struct UILoaderPendingModel* pending = &state->pending_models[p];
+            if( pending->received )
+                continue;
+            if( pending->model_id != io_item->archive_id )
+                continue;
+
+            if( state->gamecache && state->buildcache )
+            {
+                struct CacheModel* model =
+                    model_new_from_dat_archive((struct CacheDatArchive*)io_item->data, pending->model_id);
+                if( model )
+                {
+                    struct CacheModel* copy = model_new_copy(model);
+                    model_free(model);
+                    if( copy )
+                    {
+                        struct ToriDraw_Model* td = toridraw_model_new_from_cache_model(copy);
+                        model_free(copy);
+                        if( td )
+                        {
+                            struct ToriDraw_ModelHandle hnd = {
+                                .kind = TORIDRAWMK_MODEL,
+                                .u.model.model = td,
+                            };
+                            gamecache_model_add(state->gamecache, pending->model_id, hnd);
+                            printf(
+                                "UI_Process: loaded UI model %d into gamecache\n",
+                                pending->model_id);
+                        }
+                    }
+                }
+            }
+
+            pending->received = true;
+            cache_dat_archive_free((struct CacheDatArchive*)io_item->data);
+            io_item->data = NULL;
+            printf("UI_Process: received model archive id=%d\n", pending->model_id);
             break;
         }
     }
@@ -887,15 +1622,14 @@ ui_loader_consume_resolved_cache_io(
 void
 ui_loader_process(
     struct UILoaderState* state,
-    struct LibToriRS_IOQueue* io_queue,
-    struct Dat1BuildCache* buildcache)
+    struct LibToriRS_IOQueue* io_queue)
 {
     enum UILoaderWorkKind work_kind;
 
-    if( !state || !io_queue || !buildcache )
+    if( !state || !io_queue || !state->buildcache )
         return;
 
-    ui_loader_consume_resolved_cache_io(state, io_queue, buildcache);
+    ui_loader_consume_resolved_cache_io(state, io_queue);
     io_queue->read_head = io_queue->count;
 
     if( ui_loader_work_empty(state) && ui_loader_resource_queue_has_incomplete(state) )
@@ -909,16 +1643,17 @@ ui_loader_process(
         switch( work_kind )
         {
         case UILOADER_WORK_PROCESS_REVCONFIG:
-            ui_loader_process_revconfig(state, io_queue, buildcache);
+            ui_loader_process_revconfig(state, io_queue);
             break;
         case UILOADER_WORK_PROCESS_RESOURCE_QUEUE:
-            ui_loader_process_resource_queue(state, io_queue, buildcache);
+            ui_loader_process_resource_queue(state, io_queue);
             break;
         }
     }
 
     state->done = ui_loader_work_empty(state) && !ui_loader_resource_queue_has_incomplete(state) &&
-                  ui_loader_all_pending_archives_received(state);
+                  ui_loader_all_pending_archives_received(state) &&
+                  ui_loader_all_pending_models_received(state) && ui_loader_fonts_ready(state);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1003,6 +1738,10 @@ ui_loader_reset(struct UILoaderState* state)
     if( state->queue )
         ui_resource_queue_clear(state->queue);
     state->pending_archive_count = 0;
+    state->pending_model_count = 0;
+    state->need_fonts = false;
+    state->fonts_received = false;
+    state->fonts_io_dispatched = false;
     ui_loader_work_clear(state);
     ui_loader_work_push(state, UILOADER_WORK_PROCESS_REVCONFIG);
     state->done = false;
@@ -1028,6 +1767,56 @@ bool
 ui_loader_ready(struct UILoaderState* state)
 {
     return state && state->done;
+}
+
+void
+ui_loader_set_buildcache(
+    struct UILoaderState* state,
+    struct Dat1BuildCache* buildcache)
+{
+    if( !state )
+        return;
+    state->buildcache = buildcache;
+}
+
+void
+ui_loader_set_gamecache(
+    struct UILoaderState* state,
+    struct GameCache* gamecache)
+{
+    if( !state )
+        return;
+    state->gamecache = gamecache;
+}
+
+void
+ui_loader_set_ui_scene(
+    struct UILoaderState* state,
+    struct UIScene* scene)
+{
+    if( !state )
+        return;
+    state->ui_scene = scene;
+}
+
+void
+ui_loader_queue_rs_component(
+    struct UILoaderState* state,
+    int component_id)
+{
+    if( !state || !state->queue )
+        return;
+
+    if( !ui_resource_queue_push_rs_component(state->queue, component_id) )
+    {
+        printf("ui_loader_queue_rs_component: failed to queue component %d\n", component_id);
+        return;
+    }
+
+    state->pending_model_count = 0;
+    state->done = false;
+    if( !ui_loader_work_contains(state, UILOADER_WORK_PROCESS_RESOURCE_QUEUE) )
+        ui_loader_work_push(state, UILOADER_WORK_PROCESS_RESOURCE_QUEUE);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1111,6 +1900,8 @@ ui_loader_submit(
     for( int i = 0; i < queue->count; i++ )
     {
         struct UIResourceQueueItem* item = &queue->items[i];
+        if( item->kind != UIRES_KIND_SPRITE )
+            continue;
         if( item->status != UIRES_RESOLVED || !item->result_sprites || item->result_count <= 0 )
         {
             printf("ui_loader_submit: skip unresolved sprite %s\n", item->name);
@@ -1166,6 +1957,7 @@ ui_loader_submit(
     }
 
     apply_layout(state, tree);
+    ui_loader_bake_rs_roots(state, tree, scene);
     printf("ui_loader_submit: uitree has %u components\n", tree->component_count);
     return true;
 }

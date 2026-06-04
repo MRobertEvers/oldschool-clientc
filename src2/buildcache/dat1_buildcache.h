@@ -14,6 +14,8 @@ struct CacheConfigOverlay;
 struct CacheConfigLocation;
 struct CacheDatAnimBaseFrames;
 
+struct CacheDatConfigComponentList;
+
 #define DAT1_TEXTURE_COUNT 50
 
 struct Dat1BuildCache
@@ -21,6 +23,7 @@ struct Dat1BuildCache
     struct FileListDat* fromconfigtable_config_jagfile;
     struct FileListDat* versionlist_jagfile;
     struct FileListDat* media_2d_graphics_jagfile;
+    struct CacheDatConfigComponentList* interfaces;
     struct ToriDraw_Map* models_hmap;
     struct ToriDraw_Map* map_terrain_hmap;
     struct ToriDraw_Map* map_scenery_hmap;
@@ -55,6 +58,14 @@ dat1_buildcache_set_media_2d_graphics_jagfile(
 
 struct FileListDat*
 dat1_buildcache_get_media_2d_graphics_jagfile(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_set_interfaces(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct CacheDatConfigComponentList* interfaces);
+
+struct CacheDatConfigComponentList*
+dat1_buildcache_get_interfaces(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_model_add(

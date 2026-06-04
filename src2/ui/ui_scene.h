@@ -7,6 +7,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct CacheDatPixfont;
+struct FileListDat;
+
+#define UI_SCENE_MAX_FONTS 8
+
+struct UISceneFontEntry
+{
+    char name[16];
+    struct CacheDatPixfont* pixfont;
+};
+
 struct UISceneElement
 {
     int id;
@@ -28,6 +39,8 @@ struct UIScene
     int active_len;
     int free_len;
     struct UISceneEventQueue events;
+    struct UISceneFontEntry fonts[UI_SCENE_MAX_FONTS];
+    int font_count;
 };
 
 struct UIScene*
@@ -54,5 +67,26 @@ ui_scene_element_at(
 
 struct UISceneEventQueue*
 ui_scene_get_event_queue(struct UIScene* scene);
+
+int
+ui_scene_font_find_id(
+    struct UIScene* scene,
+    const char* name);
+
+struct CacheDatPixfont*
+ui_scene_font_get(
+    struct UIScene* scene,
+    int font_id);
+
+int
+ui_scene_font_add(
+    struct UIScene* scene,
+    const char* name,
+    struct CacheDatPixfont* pixfont);
+
+void
+ui_scene_load_fonts_from_title_archive(
+    struct UIScene* scene,
+    struct FileListDat* filelist);
 
 #endif

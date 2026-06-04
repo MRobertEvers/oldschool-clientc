@@ -3,13 +3,13 @@
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../libtorirs_internal.h"
 #include "../ui/ui_loader.h"
-#include "osrs/revconfig/revconfig_load.h"
 #include "buildcache/dat1_buildcache.h"
 #include "gamecache/gamecache.h"
 #include "gamecache/gamecache_flotype.h"
 #include "gamecache/gamecache_scenery_config.h"
 #include "gamecache/gamecache_sequence.h"
 #include "gamecache/toridraw_cachemodel.h"
+#include "osrs/revconfig/revconfig_load.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/rscache/cache_dat.h"
 #include "src/osrs/rscache/filelist.h"
@@ -21,8 +21,8 @@
 #include "src/osrs/rscache/tables_dat/animframe.h"
 #include "src/osrs/rscache/tables_dat/config_textures.h"
 #include "src/osrs/rscache/tables_dat/configs_dat.h"
-#include "src/osrs/rscache/tables_dat/pix8.h"
 #include "src/osrs/rscache/tables_dat/pix32.h"
+#include "src/osrs/rscache/tables_dat/pix8.h"
 #include "src/osrs/texture.h"
 #include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_light_model.h"
@@ -878,6 +878,10 @@ LibToriRS_ScriptAPI_UI_Init(struct LibToriRS_Instance* instance)
         return;
 
     ui_loader_reset(instance->model_viewer->loader_state);
+    ui_loader_set_buildcache(instance->model_viewer->loader_state, instance->dat1_buildcache);
+    ui_loader_set_gamecache(instance->model_viewer->loader_state, instance->gamecache);
+    ui_loader_set_ui_scene(instance->model_viewer->loader_state, instance->model_viewer->scene);
+    game_modelviewer_set_gamecache(instance->model_viewer, instance->gamecache);
 }
 
 void
@@ -935,9 +939,7 @@ LibToriRS_ScriptAPI_UI_RevConfigLoad(
     }
 
     revconfig_load_fields_from_ini_bytes(
-        (const uint8_t*)item.data,
-        (uint32_t)item.data_size,
-        ui_loader_revconfig(mv->loader_state));
+        (const uint8_t*)item.data, (uint32_t)item.data_size, ui_loader_revconfig(mv->loader_state));
     printf(
         "UI_RevConfigLoad: %s (%d bytes) -> revconfig field_count=%u\n",
         item.path,
@@ -965,7 +967,19 @@ LibToriRS_ScriptAPI_UI_Process(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue)
 {
-    ui_loader_process(instance->model_viewer->loader_state, io_queue, instance->dat1_buildcache);
+    ui_loader_process(instance->model_viewer->loader_state, io_queue);
+}
+
+void
+LibToriRS_ScriptAPI_UI_QueueRSComponentNativeInt(
+    struct LibToriRS_Instance* instance,
+    int component_id)
+{
+    if( !instance || !instance->model_viewer )
+        return;
+
+    ui_loader_queue_rs_component(instance->model_viewer->loader_state, component_id);
+    printf("UI_QueueRSComponentNativeInt: %d\n", component_id);
 }
 
 void

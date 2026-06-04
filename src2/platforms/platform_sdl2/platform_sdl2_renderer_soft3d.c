@@ -1,7 +1,9 @@
 #include "platform_sdl2_renderer_soft3d.h"
 
+#include "../../ui/ui_scene.h"
 #include "libtorirs.h"
 #include "libtorirs_internal.h"
+#include "osrs/rscache/tables_dat/pixfont.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_sprite.h"
@@ -11,6 +13,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static void
+soft3d_fill_rect(
+    int* pixels,
+    int stride,
+    int width,
+    int height,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int argb)
+{
+    if( x0 < 0 )
+        x0 = 0;
+    if( y0 < 0 )
+        y0 = 0;
+    if( x1 > width )
+        x1 = width;
+    if( y1 > height )
+        y1 = height;
+    for( int y = y0; y < y1; y++ )
+        for( int x = x0; x < x1; x++ )
+            pixels[y * stride + x] = argb;
+}
 
 #define SOFT3D_SPRITE_ELEMENT_CAP 256
 
@@ -25,6 +52,11 @@ struct LibToriPlatformSDL2_RendererSoft3D
 
     struct ToriDraw_Sprite** sprite_arrays[SOFT3D_SPRITE_ELEMENT_CAP];
     int sprite_counts[SOFT3D_SPRITE_ELEMENT_CAP];
+
+    bool ui_model_3d_active;
+    struct ToriDraw_ViewPort ui_model_vp;
+    struct ToriDraw_Camera ui_model_cam;
+    struct ToriDraw_Position ui_model_cam_pos;
 };
 
 struct LibToriPlatformSDL2_RendererSoft3D*
@@ -129,6 +161,7 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
 
     bool has_3d = false;
     struct LibToriRS_RenderCommand_Begin3D cur_3d;
+    renderer->ui_model_3d_active = false;
 
     LibToriRS_FrameBegin(instance);
     struct LibToriRS_RenderCommand command;
@@ -194,6 +227,56 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 sp, &vp, command.u.sprite.x, command.u.sprite.y, renderer->pixel_buffer);
             break;
         }
+        case TORIRSRC_FILL_RECT:
+            soft3d_fill_rect(
+                renderer->pixel_buffer,
+                renderer->width,
+                renderer->width,
+                renderer->height,
+                command.u.fill_rect.x,
+                command.u.fill_rect.y,
+                command.u.fill_rect.x + command.u.fill_rect.w,
+                command.u.fill_rect.y + command.u.fill_rect.h,
+                command.u.fill_rect.argb);
+            break;
+        case TORIRSRC_FONT:
+        {
+            struct UIScene* scene =
+                instance && instance->model_viewer ? instance->model_viewer->scene : NULL;
+            struct CacheDatPixfont* pixfont =
+                scene ? ui_scene_font_get(scene, command.u.font.font_id) : NULL;
+            if( pixfont && command.u.font.text )
+            {
+                pixfont_draw_text(
+                    pixfont,
+                    (uint8_t*)command.u.font.text,
+                    command.u.font.x,
+                    command.u.font.y,
+                    renderer->pixel_buffer,
+                    renderer->width);
+            }
+            break;
+        }
+        case TORIRSRC_UI_MODEL_BEGIN_3D:
+            renderer->ui_model_3d_active = true;
+            renderer->ui_model_vp = command.u.ui_model_3d.view_port;
+            renderer->ui_model_cam = command.u.ui_model_3d.camera;
+            renderer->ui_model_cam_pos = command.u.ui_model_3d.camera_position;
+            renderer->ui_model_vp.stride = renderer->width;
+            break;
+        case TORIRSRC_UI_MODEL_DRAW:
+            if( renderer->ui_model_3d_active && draw_context )
+            {
+                struct ToriDraw_ViewPort tmp_vp = renderer->ui_model_vp;
+                struct ToriDraw_Camera tmp_cam = renderer->ui_model_cam;
+                tmp_vp.stride = renderer->width;
+                toridraw_render_model3_raster(
+                    draw_context, &tmp_vp, &tmp_cam, renderer->pixel_buffer, false);
+            }
+            break;
+        case TORIRSRC_UI_MODEL_END_3D:
+            renderer->ui_model_3d_active = false;
+            break;
         default:
             break;
         }

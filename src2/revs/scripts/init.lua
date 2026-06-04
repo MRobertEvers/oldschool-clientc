@@ -51,7 +51,19 @@ while not Game.UI_Ready() do
 end
 
 Game.UI_Submit()
--- print("UI load complete")
+print("UI load complete")
+
+-- RS interface component (sidebar tab example: inventory panel root)
+local rs_component_id = 1497
+Game.UI_QueueRSComponentNativeInt(rs_component_id)
+
+while not Game.UI_Ready() do
+    Game.UI_Process(io_queue)
+    Platform.LoadIO(io_queue)
+end
+
+Game.UI_Submit()
+print("RS component UI submitted")
 
 -- Fountain 1497
 -- Oak 1571

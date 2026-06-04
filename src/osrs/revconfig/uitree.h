@@ -48,6 +48,7 @@ enum StaticUIComponentType
     UIELEM_RS_MODEL = 16,
     UIELEM_RS_INV = 17,
     UIELEM_RS_LAYER = 18,
+    UIELEM_RS_RECT = 19,
 };
 
 enum StaticUIElemPositionKind
@@ -134,8 +135,16 @@ struct StaticUIComponent
         } rs_graphic;
         struct
         {
-            int scene2_element_id;
+            int gamecache_model_id;
+            int zoom;
+            int xan;
+            int yan;
         } rs_model;
+        struct
+        {
+            int color;
+            int filled;
+        } rs_rect;
         struct
         {
             int inv_index;
@@ -352,11 +361,26 @@ uitree_push_rs_graphic(
     int height);
 
 int32_t
+uitree_push_rs_rect(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int color,
+    int filled,
+    int x,
+    int y,
+    int width,
+    int height);
+
+int32_t
 uitree_push_rs_model(
     struct UITree* tree,
     int32_t parent_index,
     int component_id,
-    int scene2_element_id,
+    int gamecache_model_id,
+    int zoom,
+    int xan,
+    int yan,
     int x,
     int y,
     int width,

@@ -55,8 +55,8 @@ cache_dat_pixfont_new_decode(
         return NULL;
     memset(pixfont, 0, sizeof(struct CacheDatPixfont));
 
-    struct RSBuffer databuf = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size };
-    struct RSBuffer indexbuf = { .data = (uint8_t*)(index_data), .size = (uint32_t)(index_data_size };
+    struct RSBuffer databuf = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size) };
+    struct RSBuffer indexbuf = { .data = (uint8_t*)(index_data), .size = (uint32_t)(index_data_size) };
 
     // skip cropW and cropH
     indexbuf.position = g2(&databuf) + 4;
@@ -134,7 +134,7 @@ cache_dat_pixfont_new_decode(
     pixfont->char_advance[94] = pixfont->char_advance[8];
     for( int i = 0; i < 256; i++ )
     {
-        pixfont->draw_width[i] = pixfont->char_advance[CHARCODESET[i]];
+        pixfont->draw_width[i] = pixfont->char_advance[(unsigned char)CHARCODESET[i]];
     }
 
     return pixfont;
@@ -234,7 +234,7 @@ pixfont_draw_text(
     int stride)
 {
     // Calculate length of UTF16 string (null-terminated)
-    int length = strlen(text);
+    int length = (int)strlen((const char*)text);
 
     for( int i = 0; i < length; i++ )
     {

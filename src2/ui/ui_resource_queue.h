@@ -26,6 +26,8 @@ enum UIResourceQueueItem_State
     UIRES_STATE_NEED_ARCHIVE = 0, /* resolve archive ids + dispatch IO */
     UIRES_STATE_WAIT_ARCHIVE,     /* archive IO dispatched, awaiting filelist */
     UIRES_STATE_DECODE,           /* archive received, ready to decode asset */
+    UIRES_STATE_NEED_DEPS,        /* RS: walk tree and queue model/font IO */
+    UIRES_STATE_WAIT_DEPS,        /* RS: waiting for models/fonts */
     UIRES_STATE_DONE,             /* terminal success (mirrors status RESOLVED) */
     UIRES_STATE_FAILED,           /* terminal failure (mirrors status ERROR) */
 };
@@ -44,6 +46,8 @@ struct UIResourceQueueItem
     int atlas_index;
     int atlas_count;
     bool atlas_use_count;
+    /** RS component id when kind == UIRES_KIND_RS_COMPONENT; else -1. */
+    int component_id;
     /** Index into UILoaderState::pending_archives; -1 if unresolved. */
     int source_archive_index;
 
@@ -73,6 +77,11 @@ bool
 ui_resource_queue_push_sprite(
     struct UIResourceQueue* queue,
     const struct UIResourceQueueItem* item);
+
+bool
+ui_resource_queue_push_rs_component(
+    struct UIResourceQueue* queue,
+    int component_id);
 
 struct UIResourceQueueItem*
 ui_resource_queue_find_by_name(

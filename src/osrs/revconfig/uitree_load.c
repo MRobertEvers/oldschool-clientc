@@ -948,7 +948,17 @@ push_rs_from_cache_component(
         scene2_element_set_dash_position_ptr(se, pos);
         scene2_element_set_dash_model(scene2, se, m);
         uitree_push_rs_model(
-            ui, parent_uitree_idx, comp->id, eid, abs_x, abs_y, comp->width, comp->height);
+            ui,
+            parent_uitree_idx,
+            comp->id,
+            -1,
+            comp->zoom,
+            comp->xan,
+            comp->yan,
+            abs_x,
+            abs_y,
+            comp->width,
+            comp->height);
     }
     break;
     default:

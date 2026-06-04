@@ -1,5 +1,8 @@
 #include "ui_scene.h"
 
+#include "osrs/rscache/filelist.h"
+#include "osrs/rscache/tables_dat/pixfont.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -50,11 +53,27 @@ ui_scene_new(int capacity)
     return scene;
 }
 
+static void
+ui_scene_free_fonts(struct UIScene* scene)
+{
+    if( !scene )
+        return;
+    for( int i = 0; i < scene->font_count; i++ )
+    {
+        if( scene->fonts[i].pixfont )
+            cache_dat_pixfont_free(scene->fonts[i].pixfont);
+        scene->fonts[i].pixfont = NULL;
+    }
+    scene->font_count = 0;
+}
+
 void
 ui_scene_free(struct UIScene* scene)
 {
     if( !scene )
         return;
+
+    ui_scene_free_fonts(scene);
 
     for( int i = 0; i < scene->elements_count; i++ )
     {
@@ -143,4 +162,97 @@ ui_scene_get_event_queue(struct UIScene* scene)
     if( !scene )
         return NULL;
     return &scene->events;
+}
+
+int
+ui_scene_font_find_id(
+    struct UIScene* scene,
+    const char* name)
+{
+    if( !scene || !name || !name[0] )
+        return -1;
+    for( int i = 0; i < scene->font_count; i++ )
+    {
+        if( strcmp(scene->fonts[i].name, name) == 0 )
+            return i;
+    }
+    return -1;
+}
+
+struct CacheDatPixfont*
+ui_scene_font_get(
+    struct UIScene* scene,
+    int font_id)
+{
+    if( !scene || font_id < 0 || font_id >= scene->font_count )
+        return NULL;
+    return scene->fonts[font_id].pixfont;
+}
+
+int
+ui_scene_font_add(
+    struct UIScene* scene,
+    const char* name,
+    struct CacheDatPixfont* pixfont)
+{
+    if( !scene || !name || !pixfont )
+        return -1;
+    if( scene->font_count >= UI_SCENE_MAX_FONTS )
+        return -1;
+
+    int existing = ui_scene_font_find_id(scene, name);
+    if( existing >= 0 )
+    {
+        if( scene->fonts[existing].pixfont )
+            cache_dat_pixfont_free(scene->fonts[existing].pixfont);
+        scene->fonts[existing].pixfont = pixfont;
+        return existing;
+    }
+
+    int idx = scene->font_count++;
+    strncpy(scene->fonts[idx].name, name, sizeof(scene->fonts[idx].name) - 1);
+    scene->fonts[idx].name[sizeof(scene->fonts[idx].name) - 1] = '\0';
+    scene->fonts[idx].pixfont = pixfont;
+    return idx;
+}
+
+static void
+ui_scene_load_font_file(
+    struct UIScene* scene,
+    struct FileListDat* filelist,
+    int index_file_idx,
+    const char* dat_name,
+    const char* font_name)
+{
+    int data_file_idx = filelist_dat_find_file_by_name(filelist, dat_name);
+    if( data_file_idx < 0 || index_file_idx < 0 )
+        return;
+
+    struct CacheDatPixfont* pixfont = cache_dat_pixfont_new_decode(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx]);
+    if( !pixfont )
+        return;
+
+    ui_scene_font_add(scene, font_name, pixfont);
+}
+
+void
+ui_scene_load_fonts_from_title_archive(
+    struct UIScene* scene,
+    struct FileListDat* filelist)
+{
+    if( !scene || !filelist )
+        return;
+
+    int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
+    if( index_file_idx < 0 )
+        return;
+
+    ui_scene_load_font_file(scene, filelist, index_file_idx, "b12.dat", "b12");
+    ui_scene_load_font_file(scene, filelist, index_file_idx, "p12.dat", "p12");
+    ui_scene_load_font_file(scene, filelist, index_file_idx, "p11.dat", "p11");
+    ui_scene_load_font_file(scene, filelist, index_file_idx, "q8.dat", "q8");
 }

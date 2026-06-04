@@ -1,8 +1,10 @@
 #include "model_viewer.h"
 
+#include "../gamecache/gamecache.h"
 #include "../ui/ui_loader.h"
 #include "../ui/ui_scene_events.h"
 #include "../world/world_scene_events.h"
+#include "osrs/rscache/tables_dat/pixfont.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_sprite.h"
 #include "toridraw/toridraw_model.h"
@@ -10,6 +12,15 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+enum
+{
+    MV_UITREE_SUB_NONE = 0,
+    MV_UITREE_SUB_MODEL_BEGIN = 1,
+    MV_UITREE_SUB_MODEL_DRAW = 2,
+    MV_UITREE_SUB_MODEL_END = 3,
+    MV_UITREE_SUB_INV_SLOT = 4,
+};
 
 static bool
 game_modelviewer_translate_world_scene_event(
@@ -142,40 +153,239 @@ game_modelviewer_update_world_viewport(struct GameModelViewer* mv)
 }
 
 static bool
-game_modelviewer_emit_sprite_for_node(
+game_modelviewer_emit_sprite(
+    struct GameModelViewer* mv,
+    struct StaticUIComponent* c,
+    int scene_id,
+    int atlas_index,
+    int draw_x,
+    int draw_y,
+    struct LibToriRS_RenderCommand* command)
+{
+    struct UISceneElement* el;
+    struct ToriDraw_Sprite* sp;
+    int w;
+    int h;
+
+    if( scene_id < 0 )
+        return false;
+
+    el = ui_scene_element_at(mv->scene, scene_id);
+    if( !el || !el->toridraw_sprites )
+        return false;
+
+    if( atlas_index < 0 || atlas_index >= el->toridraw_sprites_count ||
+        !el->toridraw_sprites[atlas_index] )
+        return false;
+
+    sp = el->toridraw_sprites[atlas_index];
+    w = c->position.width > 0 ? c->position.width : sp->width;
+    h = c->position.height > 0 ? c->position.height : sp->height;
+
+    command->kind = TORIRSRC_SPRITE;
+    command->u.sprite.element_id = scene_id;
+    command->u.sprite.atlas_index = atlas_index;
+    command->u.sprite.x = draw_x;
+    command->u.sprite.y = draw_y;
+    command->u.sprite.w = w;
+    command->u.sprite.h = h;
+    return true;
+}
+
+static bool
+game_modelviewer_emit_ui_model_step(
+    struct GameModelViewer* mv,
+    struct StaticUIComponent* c,
+    struct LibToriRS_RenderCommand* command)
+{
+    int vw = c->position.width > 0 ? c->position.width : 64;
+    int vh = c->position.height > 0 ? c->position.height : 64;
+    int zoom = c->u.rs_model.zoom > 0 ? c->u.rs_model.zoom : 600;
+
+    switch( mv->frame.uitree_emit_sub )
+    {
+    case MV_UITREE_SUB_MODEL_BEGIN:
+    {
+        struct ToriDraw_ViewPort vp = { 0 };
+        struct ToriDraw_Camera cam = { 0 };
+        struct ToriDraw_Position pos = { 0 };
+
+        vp.width = vw;
+        vp.height = vh;
+        vp.stride = mv->view_port ? mv->view_port->stride : vw;
+        vp.x_center = c->position.x + vw / 2;
+        vp.y_center = c->position.y + vh / 2;
+        vp.clip_left = c->position.x;
+        vp.clip_top = c->position.y;
+        vp.clip_right = c->position.x + vw;
+        vp.clip_bottom = c->position.y + vh;
+
+        cam.fov_rpi2048 = 512;
+        cam.near_plane_z = 50;
+        cam.pitch = c->u.rs_model.xan;
+        cam.yaw = c->u.rs_model.yan;
+        pos.z = -zoom;
+
+        command->kind = TORIRSRC_UI_MODEL_BEGIN_3D;
+        command->u.ui_model_3d.view_port = vp;
+        command->u.ui_model_3d.camera = cam;
+        command->u.ui_model_3d.camera_position = pos;
+        command->u.ui_model_3d.model = mv->frame.uitree_model;
+        mv->frame.uitree_emit_sub = MV_UITREE_SUB_MODEL_DRAW;
+        return true;
+    }
+    case MV_UITREE_SUB_MODEL_DRAW:
+        if( mv->context && mv->frame.uitree_model.kind == TORIDRAWMK_MODEL )
+        {
+            struct ToriDraw_Position camera_pos = { 0 };
+            int zoom_dist = c->u.rs_model.zoom > 0 ? c->u.rs_model.zoom : 600;
+            struct ToriDraw_ViewPort vp = { 0 };
+            struct ToriDraw_Camera cam = { 0 };
+
+            vp.width = vw;
+            vp.height = vh;
+            vp.stride = mv->view_port ? mv->view_port->stride : vw;
+            vp.x_center = c->position.x + vw / 2;
+            vp.y_center = c->position.y + vh / 2;
+
+            cam.fov_rpi2048 = 512;
+            cam.near_plane_z = 50;
+            cam.pitch = c->u.rs_model.xan;
+            cam.yaw = c->u.rs_model.yan;
+            camera_pos.z = -zoom_dist;
+
+            toridraw_render_model1_project(
+                mv->frame.uitree_model, mv->context, &camera_pos, &vp, &cam);
+            toridraw_render_model2_sort_faces(mv->frame.uitree_model, mv->context);
+        }
+
+        command->kind = TORIRSRC_UI_MODEL_DRAW;
+        command->u.ui_model_3d.model = mv->frame.uitree_model;
+        mv->frame.uitree_emit_sub = MV_UITREE_SUB_MODEL_END;
+        return true;
+    case MV_UITREE_SUB_MODEL_END:
+        command->kind = TORIRSRC_UI_MODEL_END_3D;
+        mv->frame.uitree_emit_sub = MV_UITREE_SUB_NONE;
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool
+game_modelviewer_emit_uitree_node(
     struct GameModelViewer* mv,
     int32_t node_index,
     struct LibToriRS_RenderCommand* command)
 {
+    struct StaticUIComponent* c;
+    int scene_id;
+    int ai;
+
     if( !mv->tree || node_index < 0 || (uint32_t)node_index >= mv->tree->component_count )
         return false;
 
-    struct StaticUIComponent* c = &mv->tree->components[node_index];
-    if( c->type != UIELEM_BUILTIN_SPRITE )
-        return false;
-    if( c->u.sprite.scene_id < 0 )
-        return false;
+    if( mv->frame.uitree_emit_sub != MV_UITREE_SUB_NONE &&
+        mv->frame.uitree_hold_node == node_index )
+        return game_modelviewer_emit_ui_model_step(mv, &mv->tree->components[node_index], command);
 
-    struct UISceneElement* el = ui_scene_element_at(mv->scene, c->u.sprite.scene_id);
-    if( !el || !el->toridraw_sprites )
+    c = &mv->tree->components[node_index];
+
+    switch( c->type )
+    {
+    case UIELEM_BUILTIN_SPRITE:
+        return game_modelviewer_emit_sprite(
+            mv,
+            c,
+            c->u.sprite.scene_id,
+            c->u.sprite.atlas_index,
+            c->position.x,
+            c->position.y,
+            command);
+    case UIELEM_RS_GRAPHIC:
+        return game_modelviewer_emit_sprite(
+            mv,
+            c,
+            c->u.rs_graphic.scene_id,
+            c->u.rs_graphic.atlas_index,
+            c->position.x,
+            c->position.y,
+            command);
+    case UIELEM_RS_RECT:
+        if( !c->u.rs_rect.filled )
+            return false;
+        command->kind = TORIRSRC_FILL_RECT;
+        command->u.fill_rect.x = c->position.x;
+        command->u.fill_rect.y = c->position.y;
+        command->u.fill_rect.w = c->position.width;
+        command->u.fill_rect.h = c->position.height;
+        command->u.fill_rect.argb = 0xFF000000 | (c->u.rs_rect.color & 0xFFFFFF);
+        return true;
+    case UIELEM_RS_TEXT:
+        if( c->u.rs_text.font_id < 0 || !c->u.rs_text.text || !c->u.rs_text.text[0] )
+            return false;
+        command->kind = TORIRSRC_FONT;
+        command->u.font.font_id = c->u.rs_text.font_id;
+        command->u.font.x = c->position.x;
+        command->u.font.y = c->position.y;
+        command->u.font.color = c->u.rs_text.color;
+        command->u.font.center = c->u.rs_text.center;
+        command->u.font.shadowed = c->u.rs_text.shadowed;
+        command->u.font.width = c->position.width;
+        command->u.font.height = c->position.height;
+        command->u.font.text = c->u.rs_text.text;
+        return true;
+    case UIELEM_RS_MODEL:
+        if( !mv->gamecache || c->u.rs_model.gamecache_model_id < 0 )
+            return false;
+        mv->frame.uitree_model =
+            gamecache_model_get(mv->gamecache, c->u.rs_model.gamecache_model_id);
+        if( mv->frame.uitree_model.kind != TORIDRAWMK_MODEL )
+            return false;
+        mv->frame.uitree_hold_node = node_index;
+        mv->frame.uitree_emit_sub = MV_UITREE_SUB_MODEL_BEGIN;
+        return game_modelviewer_emit_ui_model_step(mv, c, command);
+    case UIELEM_RS_INV:
+    {
+        int slot = mv->frame.uitree_emit_sub == MV_UITREE_SUB_INV_SLOT &&
+                           mv->frame.uitree_hold_node == node_index
+                       ? mv->frame.uitree_inv_slot
+                       : 0;
+
+        if( mv->frame.uitree_emit_sub != MV_UITREE_SUB_INV_SLOT ||
+            mv->frame.uitree_hold_node != node_index )
+        {
+            mv->frame.uitree_hold_node = node_index;
+            mv->frame.uitree_inv_slot = 0;
+            mv->frame.uitree_emit_sub = MV_UITREE_SUB_INV_SLOT;
+            slot = 0;
+        }
+
+        for( ; slot < UI_INV_SLOT_OFFSET_MAX; slot++ )
+        {
+            scene_id = c->u.rs_inv.inv_slot_bg_scene_id[slot];
+            ai = c->u.rs_inv.inv_slot_bg_atlas_index[slot];
+            if( scene_id < 0 )
+                continue;
+
+            int ox = c->position.x + c->u.rs_inv.inv_slot_offset_x[slot];
+            int oy = c->position.y + c->u.rs_inv.inv_slot_offset_y[slot];
+
+            mv->frame.uitree_inv_slot = slot + 1;
+            if( mv->frame.uitree_inv_slot >= UI_INV_SLOT_OFFSET_MAX )
+            {
+                mv->frame.uitree_emit_sub = MV_UITREE_SUB_NONE;
+                mv->frame.uitree_inv_slot = 0;
+            }
+            return game_modelviewer_emit_sprite(mv, c, scene_id, ai, ox, oy, command);
+        }
+
+        mv->frame.uitree_emit_sub = MV_UITREE_SUB_NONE;
         return false;
-
-    int ai = c->u.sprite.atlas_index;
-    if( ai < 0 || ai >= el->toridraw_sprites_count || !el->toridraw_sprites[ai] )
+    }
+    default:
         return false;
-
-    struct ToriDraw_Sprite* sp = el->toridraw_sprites[ai];
-    int w = c->position.width > 0 ? c->position.width : sp->width;
-    int h = c->position.height > 0 ? c->position.height : sp->height;
-
-    command->kind = TORIRSRC_SPRITE;
-    command->u.sprite.element_id = c->u.sprite.scene_id;
-    command->u.sprite.atlas_index = ai;
-    command->u.sprite.x = c->position.x;
-    command->u.sprite.y = c->position.y;
-    command->u.sprite.w = w;
-    command->u.sprite.h = h;
-    return true;
+    }
 }
 
 static void
@@ -360,6 +570,16 @@ game_modelviewer_next(
 }
 
 void
+game_modelviewer_set_gamecache(
+    struct GameModelViewer* mv,
+    struct GameCache* gamecache)
+{
+    if( !mv )
+        return;
+    mv->gamecache = gamecache;
+}
+
+void
 game_modelviewer_set_model(
     struct GameModelViewer* mv,
     int model_id,
@@ -492,6 +712,10 @@ game_modelviewer_frame_begin(struct GameModelViewer* mv)
     mv->frame.model_index = 0;
     mv->frame.uitree_stack_top = -1;
     mv->frame.world_emitted = false;
+    mv->frame.uitree_emit_sub = MV_UITREE_SUB_NONE;
+    mv->frame.uitree_hold_node = -1;
+    mv->frame.uitree_inv_slot = 0;
+    memset(&mv->frame.uitree_model, 0, sizeof(mv->frame.uitree_model));
 
     if( mv->tree )
     {
@@ -652,9 +876,10 @@ game_modelviewer_frame_next_command(
             while( mv->frame.uitree_current >= 0 )
             {
                 int32_t cur = mv->frame.uitree_current;
-                if( game_modelviewer_emit_sprite_for_node(mv, cur, command) )
+                if( game_modelviewer_emit_uitree_node(mv, cur, command) )
                 {
-                    game_modelviewer_advance_uitree(mv);
+                    if( mv->frame.uitree_emit_sub == MV_UITREE_SUB_NONE )
+                        game_modelviewer_advance_uitree(mv);
                     return true;
                 }
                 game_modelviewer_advance_uitree(mv);

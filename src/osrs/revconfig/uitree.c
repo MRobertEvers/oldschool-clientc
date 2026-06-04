@@ -172,6 +172,8 @@ uitree_component_type_str(enum StaticUIComponentType type)
         return "rs_inv";
     case UIELEM_RS_LAYER:
         return "rs_layer";
+    case UIELEM_RS_RECT:
+        return "rs_rect";
     }
     return "unknown";
 }
@@ -278,7 +280,10 @@ uitree_print_nodes(struct UITree const* tree)
                 c->u.rs_text.text ? c->u.rs_text.text : "(null)");
             break;
         case UIELEM_RS_MODEL:
-            printf("       rs_model scene2_element_id=%d\n", c->u.rs_model.scene2_element_id);
+            printf(
+                "       rs_model gamecache_model_id=%d zoom=%d\n",
+                c->u.rs_model.gamecache_model_id,
+                c->u.rs_model.zoom);
             break;
         case UIELEM_BUILTIN_SPRITE:
             printf(
@@ -630,11 +635,43 @@ uitree_push_rs_graphic(
 }
 
 int32_t
+uitree_push_rs_rect(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int color,
+    int filled,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_RS_RECT;
+    component->component_id = component_id;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.rs_rect.color = color;
+    component->u.rs_rect.filled = filled;
+    return idx;
+}
+
+int32_t
 uitree_push_rs_model(
     struct UITree* tree,
     int32_t parent_index,
     int component_id,
-    int scene2_element_id,
+    int gamecache_model_id,
+    int zoom,
+    int xan,
+    int yan,
     int x,
     int y,
     int width,
@@ -652,7 +689,10 @@ uitree_push_rs_model(
     component->position.y = y;
     component->position.width = width;
     component->position.height = height;
-    component->u.rs_model.scene2_element_id = scene2_element_id;
+    component->u.rs_model.gamecache_model_id = gamecache_model_id;
+    component->u.rs_model.zoom = zoom;
+    component->u.rs_model.xan = xan;
+    component->u.rs_model.yan = yan;
     return idx;
 }
 

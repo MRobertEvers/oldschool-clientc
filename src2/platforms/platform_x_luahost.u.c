@@ -513,6 +513,19 @@ LibToriPlatformX_LuaHost_Game_UI_Process(lua_State* L)
 }
 
 int
+LibToriPlatformX_LuaHost_Game_UI_QueueRSComponentNativeInt(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua || !lua->instance )
+        return 0;
+
+    int component_id = (int)lua_tointeger(L, 1);
+    LibToriRS_ScriptAPI_UI_QueueRSComponentNativeInt(lua->instance, component_id);
+    return 0;
+}
+
+int
 LibToriPlatformX_LuaHost_Game_UI_Submit(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
@@ -1090,6 +1103,11 @@ LibToriPlatformX_LuaHost_BindToPlatform(
         L, lua, "UI_RevConfigLoad", LibToriPlatformX_LuaHost_Game_UI_RevConfigLoad);
     lua_bind_function_to_platform(L, lua, "UI_Ready", LibToriPlatformX_LuaHost_Game_UI_Ready);
     lua_bind_function_to_platform(L, lua, "UI_Process", LibToriPlatformX_LuaHost_Game_UI_Process);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "UI_QueueRSComponentNativeInt",
+        LibToriPlatformX_LuaHost_Game_UI_QueueRSComponentNativeInt);
     lua_bind_function_to_platform(L, lua, "UI_Submit", LibToriPlatformX_LuaHost_Game_UI_Submit);
     lua_bind_function_to_platform(
         L, lua, "ModelViewer_Init", LibToriPlatformX_LuaHost_Game_ModelViewer_Init);

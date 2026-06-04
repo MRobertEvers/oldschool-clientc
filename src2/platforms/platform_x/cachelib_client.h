@@ -70,6 +70,22 @@ cachelib_dat1_versionlist_fetch(struct CacheLib_IORequest* out)
 }
 
 static inline void
+cachelib_dat1_interfaces_fetch(struct CacheLib_IORequest* out)
+{
+    out->table_id = CACHE_DAT_CONFIGS;
+    out->archive_id = CONFIG_DAT_INTERFACES;
+    out->flags = 0;
+}
+
+static inline void
+cachelib_dat1_media_2d_graphics_fetch(struct CacheLib_IORequest* out)
+{
+    out->table_id = CACHE_DAT_CONFIGS;
+    out->archive_id = CONFIG_DAT_MEDIA_2D_GRAPHICS;
+    out->flags = 0;
+}
+
+static inline void
 cachelib_dat1_animations_fetch(
     int archive_id,
     struct CacheLib_IORequest* out)
