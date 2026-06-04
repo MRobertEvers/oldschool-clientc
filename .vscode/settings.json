@@ -4,8 +4,12 @@
   "cpp.autocomplete": "Enabled",
   "cpp.default.browse.limitSymbolsToIncludedHeaders": true,
   "cpp.default.browse.databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db",
-  // clangd is the primary language server (MS C/C++ engine stays off on all platforms)
+  // clangd provides navigation (go-to-def); keep MS C/C++ IntelliSense off to avoid fighting it
   "C_Cpp.intelliSenseEngine": "disabled",
+  "C_Cpp.autocomplete": "disabled",
+  "C_Cpp.errorSquiggles": "disabled",
+  "clangd.enable": true,
+  "clangd.checkUpdates": false,
   "editor.formatOnSave": true,
   "editor.multiCursorModifier": "alt",
   "C_Cpp.formatting": "clangFormat",
@@ -79,7 +83,6 @@
       "--background-index",
       "--clang-tidy",
       "--header-insertion=never",
-      "--compile-commands-dir=${workspaceFolder}/build",
       "--query-driver=/usr/bin/**,/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/**,/opt/homebrew/opt/llvm/bin/**"
     ],
     "clangd.fallbackFlags": [

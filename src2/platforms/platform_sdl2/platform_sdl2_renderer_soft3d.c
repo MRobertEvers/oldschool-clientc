@@ -241,20 +241,20 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             break;
         case TORIRSRC_FONT:
         {
-            struct UIScene* scene =
-                instance && instance->model_viewer ? instance->model_viewer->scene : NULL;
-            struct CacheDatPixfont* pixfont =
-                scene ? ui_scene_font_get(scene, command.u.font.font_id) : NULL;
-            if( pixfont && command.u.font.text )
-            {
-                pixfont_draw_text(
-                    pixfont,
-                    (uint8_t*)command.u.font.text,
-                    command.u.font.x,
-                    command.u.font.y,
-                    renderer->pixel_buffer,
-                    renderer->width);
-            }
+            // struct UIScene* scene =
+            //     instance && instance->model_viewer ? instance->model_viewer->scene : NULL;
+            // struct CacheDatPixfont* pixfont =
+            //     scene ? ui_scene_font_get(scene, command.u.font.font_id) : NULL;
+            // if( pixfont && command.u.font.text )
+            // {
+            //     pixfont_draw_text(
+            //         pixfont,
+            //         (uint8_t*)command.u.font.text,
+            //         command.u.font.x,
+            //         command.u.font.y,
+            //         renderer->pixel_buffer,
+            //         renderer->width);
+            // }
             break;
         }
         case TORIRSRC_UI_MODEL_BEGIN_3D:

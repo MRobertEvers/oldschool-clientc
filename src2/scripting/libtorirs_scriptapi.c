@@ -878,10 +878,11 @@ LibToriRS_ScriptAPI_UI_Init(struct LibToriRS_Instance* instance)
         return;
 
     revconfig_loader_reset(instance->model_viewer->loader_state);
-    revconfig_loader_set_buildcache(instance->model_viewer->loader_state, instance->dat1_buildcache);
+    revconfig_loader_set_buildcache(
+        instance->model_viewer->loader_state, instance->dat1_buildcache);
     revconfig_loader_set_gamecache(instance->model_viewer->loader_state, instance->gamecache);
-    revconfig_loader_set_ui_scene(instance->model_viewer->loader_state, instance->model_viewer->scene);
-    game_modelviewer_set_gamecache(instance->model_viewer, instance->gamecache);
+    revconfig_loader_set_ui_scene(
+        instance->model_viewer->loader_state, instance->model_viewer->scene);
 }
 
 void
@@ -890,17 +891,7 @@ LibToriRS_ScriptAPI_UI_RevConfigFetch(
     struct LibToriRS_IOQueue* io_queue,
     const char* path)
 {
-    if( !instance || !instance->model_viewer || !io_queue || !path )
-        return;
-
-    struct GameModelViewer* mv = instance->model_viewer;
-
-    if( io_queue->count == 0 && io_queue->read_head == 0 )
-    {
-        revconfig_loader_revconfig_reset(mv->loader_state);
-        if( !revconfig_loader_revconfig(mv->loader_state) )
-            return;
-    }
+    assert(instance && io_queue && path && "Invalid arguments");
 
     LibToriRS_IOQueuePushConfigFile(io_queue, path);
     printf("UI_RevConfigFetch: %s\n", path);
@@ -913,15 +904,7 @@ LibToriRS_ScriptAPI_UI_RevConfigLoad(
 {
     struct GameModelViewer* mv;
 
-    if( !instance || !instance->model_viewer || !io_queue )
-        return false;
-
     mv = instance->model_viewer;
-    if( !revconfig_loader_revconfig(mv->loader_state) )
-        return false;
-
-    if( io_queue->read_head >= io_queue->count )
-        return false;
 
     struct LibToriRS_IOQueueItem item = { 0 };
     if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
@@ -939,7 +922,8 @@ LibToriRS_ScriptAPI_UI_RevConfigLoad(
     }
 
     revconfig_load_fields_from_ini_bytes(
-        (const uint8_t*)item.data, (uint32_t)item.data_size,
+        (const uint8_t*)item.data,
+        (uint32_t)item.data_size,
         revconfig_loader_revconfig(mv->loader_state));
     printf(
         "UI_RevConfigLoad: %s (%d bytes) -> revconfig field_count=%u\n",
@@ -948,12 +932,6 @@ LibToriRS_ScriptAPI_UI_RevConfigLoad(
         revconfig_loader_revconfig(mv->loader_state)->field_count);
     free(item.data);
 
-    if( io_queue->read_head > 0 )
-    {
-        struct LibToriRS_IOQueueItem* slot = &io_queue->items[io_queue->read_head - 1];
-        slot->data = NULL;
-        slot->data_size = 0;
-    }
     return true;
 }
 
@@ -976,9 +954,6 @@ LibToriRS_ScriptAPI_UI_QueueRSComponentNativeInt(
     struct LibToriRS_Instance* instance,
     int component_id)
 {
-    if( !instance || !instance->model_viewer )
-        return;
-
     revconfig_loader_queue_rs_component(instance->model_viewer->loader_state, component_id);
     printf("UI_QueueRSComponentNativeInt: %d\n", component_id);
 }

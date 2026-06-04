@@ -30,6 +30,9 @@ enum RevConfigLoadItemKind
 {
     REVCONFIG_ITEM_SPRITE = 0,
     REVCONFIG_ITEM_INTERFACE = 1,
+    REVCONFIG_ITEM_MINIMAP = 2,
+    REVCONFIG_ITEM_WORLD = 3,
+    REVCONFIG_ITEM_INV = 4,
 };
 
 struct RevConfigLoadItem
@@ -90,8 +93,6 @@ sprite_map_find(
     struct DashMap* sm,
     const char* name)
 {
-    if( !sm || !name || !name[0] )
-        return -1;
     struct Dat1_SpriteMapEntry* entry = dashmap_search(sm, name, DASHMAP_FIND);
     return entry ? entry->scene_id : -1;
 }
@@ -369,11 +370,9 @@ decode_interfaces_from_archive(
     struct CacheDatArchive* archive,
     struct CacheDatConfigComponentList** out)
 {
-    if( !archive || !out )
-        return false;
     struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
-    if( !filelist )
-        return false;
+    assert(filelist && "Failed to create filelist from archive");
+
     int data_idx = filelist_dat_find_file_by_name(filelist, "data");
     if( data_idx < 0 )
     {
@@ -437,7 +436,7 @@ revconfig_route_resolved_io(
                     filelist_dat_new_from_cache_dat_archive((struct CacheDatArchive*)io_item->data);
                 if( filelist && state->scene )
                 {
-                    ui_scene_load_fonts_from_title_archive(state->scene, filelist);
+                    // ui_scene_load_fonts_from_title_archive(state->scene, filelist);
                     printf("revconfig_loader: loaded fonts from title archive\n");
                 }
                 if( filelist )
@@ -1193,8 +1192,7 @@ revconfig_loader_queue_rs_component(
     struct RevConfigLoaderState* state,
     int component_id)
 {
-    if( !state )
-        return;
+    assert(state && component_id >= 0 && "Invalid arguments");
     struct RevConfigLoadItem* item = queue_push(state);
     if( !item )
     {
@@ -1218,9 +1216,6 @@ revconfig_loader_process(
     struct RevConfigLoaderState* state,
     struct LibToriRS_IOQueue* io_queue)
 {
-    if( !state || !io_queue || !state->buildcache )
-        return;
-
     /* First call after revconfig is loaded: build the load queue. */
     if( !state->queue_built && state->revconfig )
         revconfig_build_queue(state);

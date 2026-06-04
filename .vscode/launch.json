@@ -276,6 +276,18 @@
       "MIMode": "lldb"
     },
     {
+      "name": "(lldb) Launch ioreactor test",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/src2/programs/io_reactor_test/io_reactor_test",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/src2/programs/io_reactor_test",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "lldb"
+    },
+    {
       "name": "(lldb) Launch Asset Server",
       "type": "cppdbg",
       "request": "launch",

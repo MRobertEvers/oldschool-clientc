@@ -30,15 +30,15 @@ struct Dat1_Sprite
     char index_filename[64];
     char data_filename[64];
     char format[16];
-    int  atlas_index;
-    int  atlas_count;
+    int atlas_index;
+    int atlas_count;
     bool atlas_use_count;
 
     /* UIScene element id after successful CONVERT; -1 until then. */
     int scene_id;
 
     struct Dat1_ArchiveRequest waiting[DAT1_SPRITE_MAX_REQUESTS];
-    int                        waiting_count;
+    int waiting_count;
 };
 
 void
@@ -53,10 +53,10 @@ dat1_sprite_init(struct Dat1_Sprite* s);
  */
 void
 dat1_sprite_step(
-    struct Dat1_Sprite*    s,
+    struct Dat1_Sprite* s,
     struct Dat1BuildCache* buildcache,
-    struct UIScene*        scene,
-    struct DashMap*        sprite_map);
+    struct UIScene* scene,
+    struct DashMap* sprite_map);
 
 /**
  * Decode one sprite from the media jagfile already in buildcache.
@@ -66,6 +66,6 @@ dat1_sprite_step(
 struct ToriDraw_Sprite*
 dat1_sprite_decode_media_ref(
     struct Dat1BuildCache* buildcache,
-    const char*            sprite_ref);
+    const char* sprite_ref);
 
 #endif /* DAT1_SPRITE_H */

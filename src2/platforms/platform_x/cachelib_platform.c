@@ -1,6 +1,5 @@
 #include "cachelib_platform.h"
 
-#include "../ioqueue/libtorirs_ioqueue.h"
 #include "cachelib_client.h"
 #include "cachelib_internal.h"
 #include "src/osrs/rscache/cache.h"
