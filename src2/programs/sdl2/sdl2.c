@@ -76,18 +76,6 @@ main(
 
     bool const use_soft3d = has_flag(argc, argv, "--soft3d");
 
-    char const* cache_dat_path = resolve_cache_dat_path(argc, argv);
-    if( !cache_dat_path )
-    {
-        printf(
-            "Failed to find cache254 (expected main_file_cache.dat). "
-            "Run from a directory that contains cache254/, or pass the cache path as an argument.\n");
-        goto error_exit;
-    }
-    printf("Using cache: %s\n", cache_dat_path);
-    if( use_soft3d )
-        printf("Renderer: software 3D (CPU)\n");
-
     struct LibToriPlatformX_Lua* lua = NULL;
     struct LibToriPlatformSDL2* platform = NULL;
     struct LibToriPlatformSDL2_RendererSoft3D* renderer_soft3d = NULL;
@@ -97,8 +85,22 @@ main(
     struct LibToriPlatformSDL2_RendererGL3* renderer = NULL;
 #endif
     struct LibToriRS_CommandQueue* command_queue = NULL;
+    struct LibToriRS_Instance* instance = NULL;
 
-    struct LibToriRS_Instance* instance = LibToriRS_InstanceNew();
+    char const* cache_dat_path = resolve_cache_dat_path(argc, argv);
+    if( !cache_dat_path )
+    {
+        printf(
+            "Failed to find cache254 (expected main_file_cache.dat). "
+            "Run from a directory that contains cache254/, or pass the cache path as an "
+            "argument.\n");
+        goto error_exit;
+    }
+    printf("Using cache: %s\n", cache_dat_path);
+    if( use_soft3d )
+        printf("Renderer: software 3D (CPU)\n");
+
+    instance = LibToriRS_InstanceNew();
     if( !instance )
     {
         printf("Failed to create instance\n");

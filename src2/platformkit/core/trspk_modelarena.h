@@ -6,6 +6,7 @@
 #include "trspk_vbo.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define TRSPK_MODELSLOT_NULL_IDX UINT32_MAX

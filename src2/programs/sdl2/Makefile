@@ -103,8 +103,9 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC2)/ui/ui_scene.c \
 	$(SRC2)/ui/ui_scene_events.c \
-	$(SRC2)/ui/ui_resource_queue.c \
-	$(SRC2)/ui/ui_loader.c \
+	$(SRC2)/ui/revconfig_loader.c \
+	$(SRC2)/semantic/dat1_sprite.c \
+	$(SRC2)/semantic/dat1_interface.c \
 	$(SRC_DIR)/3rd/ini/ini.c \
 	$(SRC_DIR)/osrs/revconfig/revconfig.c \
 	$(SRC_DIR)/osrs/revconfig/revconfig_load.c \

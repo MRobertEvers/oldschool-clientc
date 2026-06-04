@@ -1,28 +1,17 @@
 # Flags must be understood by the same Clang that runs clangd (e.g. Apple Clang on
 # macOS). GCC-only options (-ftree-vectorizer-*, -fopt-info-*) break every TU and
 # can crash or restart clangd.
+#
+# Per-OS compile DB dirs are set in .vscode/settings.json ([darwin]/[win32]) via
+# clangd --compile-commands-dir. Default here matches native CMake (macOS/Linux).
 CompileFlags:
-  CompilationDatabase: build-winxp/
+  CompilationDatabase: build/
   Add:
-    # Project include roots matching the src2 Makefile (-I$(REPO_ROOT), -I$(SRC2))
+    # Fallback include roots when a TU has no compile_commands entry
     - -I.
     - -Isrc
     - -Isrc2
     - -Isrc2/scripting
-    # Vendored MinGW toolchain (used by Makefile on Windows)
-    - -Itoolchain/win32/mingw32/include
-    - -Itoolchain/win32/mingw32/include/SDL2
-    # Fallback: Downloads copy of winlibs (kept until fully migrated)
-    - -IC:/Users/mrobe/Downloads/winlibs-i686-posix-dwarf-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2/mingw32/include/SDL2
-    - -IC:/Users/mrobe/Downloads/winlibs-i686-posix-dwarf-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2/mingw32/include
-    - -march=native
-    - -D_CRT_SECURE_NO_WARNINGS
-    - -D_WINSOCK_DEPRECATED_NO_WARNINGS
-    - -D_WIN32_WINNT=0x0A00
-    - -DUNICODE
-    - -D_UNICODE
-    - -O3
-    - -ffast-math
   Remove:
     - -W*
     - -w

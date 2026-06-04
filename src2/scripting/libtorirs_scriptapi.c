@@ -2,7 +2,7 @@
 
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../libtorirs_internal.h"
-#include "../ui/ui_loader.h"
+#include "../ui/revconfig_loader.h"
 #include "buildcache/dat1_buildcache.h"
 #include "gamecache/gamecache.h"
 #include "gamecache/gamecache_flotype.h"
@@ -877,10 +877,10 @@ LibToriRS_ScriptAPI_UI_Init(struct LibToriRS_Instance* instance)
     if( !instance || !instance->model_viewer )
         return;
 
-    ui_loader_reset(instance->model_viewer->loader_state);
-    ui_loader_set_buildcache(instance->model_viewer->loader_state, instance->dat1_buildcache);
-    ui_loader_set_gamecache(instance->model_viewer->loader_state, instance->gamecache);
-    ui_loader_set_ui_scene(instance->model_viewer->loader_state, instance->model_viewer->scene);
+    revconfig_loader_reset(instance->model_viewer->loader_state);
+    revconfig_loader_set_buildcache(instance->model_viewer->loader_state, instance->dat1_buildcache);
+    revconfig_loader_set_gamecache(instance->model_viewer->loader_state, instance->gamecache);
+    revconfig_loader_set_ui_scene(instance->model_viewer->loader_state, instance->model_viewer->scene);
     game_modelviewer_set_gamecache(instance->model_viewer, instance->gamecache);
 }
 
@@ -897,8 +897,8 @@ LibToriRS_ScriptAPI_UI_RevConfigFetch(
 
     if( io_queue->count == 0 && io_queue->read_head == 0 )
     {
-        ui_loader_revconfig_reset(mv->loader_state);
-        if( !ui_loader_revconfig(mv->loader_state) )
+        revconfig_loader_revconfig_reset(mv->loader_state);
+        if( !revconfig_loader_revconfig(mv->loader_state) )
             return;
     }
 
@@ -917,7 +917,7 @@ LibToriRS_ScriptAPI_UI_RevConfigLoad(
         return false;
 
     mv = instance->model_viewer;
-    if( !ui_loader_revconfig(mv->loader_state) )
+    if( !revconfig_loader_revconfig(mv->loader_state) )
         return false;
 
     if( io_queue->read_head >= io_queue->count )
@@ -939,12 +939,13 @@ LibToriRS_ScriptAPI_UI_RevConfigLoad(
     }
 
     revconfig_load_fields_from_ini_bytes(
-        (const uint8_t*)item.data, (uint32_t)item.data_size, ui_loader_revconfig(mv->loader_state));
+        (const uint8_t*)item.data, (uint32_t)item.data_size,
+        revconfig_loader_revconfig(mv->loader_state));
     printf(
         "UI_RevConfigLoad: %s (%d bytes) -> revconfig field_count=%u\n",
         item.path,
         item.data_size,
-        ui_loader_revconfig(mv->loader_state)->field_count);
+        revconfig_loader_revconfig(mv->loader_state)->field_count);
     free(item.data);
 
     if( io_queue->read_head > 0 )
@@ -959,7 +960,7 @@ LibToriRS_ScriptAPI_UI_RevConfigLoad(
 bool
 LibToriRS_ScriptAPI_UI_Ready(struct LibToriRS_Instance* instance)
 {
-    return ui_loader_ready(instance->model_viewer->loader_state);
+    return revconfig_loader_ready(instance->model_viewer->loader_state);
 }
 
 void
@@ -967,7 +968,7 @@ LibToriRS_ScriptAPI_UI_Process(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue)
 {
-    ui_loader_process(instance->model_viewer->loader_state, io_queue);
+    revconfig_loader_process(instance->model_viewer->loader_state, io_queue);
 }
 
 void
@@ -978,16 +979,14 @@ LibToriRS_ScriptAPI_UI_QueueRSComponentNativeInt(
     if( !instance || !instance->model_viewer )
         return;
 
-    ui_loader_queue_rs_component(instance->model_viewer->loader_state, component_id);
+    revconfig_loader_queue_rs_component(instance->model_viewer->loader_state, component_id);
     printf("UI_QueueRSComponentNativeInt: %d\n", component_id);
 }
 
 void
 LibToriRS_ScriptAPI_UI_Submit(struct LibToriRS_Instance* instance)
 {
-    struct GameModelViewer* mv;
-
-    mv = instance->model_viewer;
-    ui_loader_submit(mv->loader_state, mv->tree, mv->scene);
+    struct GameModelViewer* mv = instance->model_viewer;
+    revconfig_loader_submit(mv->loader_state, mv->tree);
     printf("UI_Submit: uitree built\n");
 }

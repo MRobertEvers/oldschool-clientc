@@ -2,7 +2,6 @@
 #define LIBTORIRS_SCRIPTAPI_H
 
 #include "../libtorirs.h"
-#include "../ui/ui_resource_queue.h"
 #include "libtorirs_scripting.h"
 
 #include <stdbool.h>

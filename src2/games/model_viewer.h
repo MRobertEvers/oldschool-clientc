@@ -14,7 +14,7 @@
 
 struct ToriDraw_Context;
 struct GameCache;
-struct UILoaderState;
+struct RevConfigLoaderState;
 
 enum GameModelViewer_FramePhase
 {
@@ -47,7 +47,7 @@ struct GameModelViewer
 
     struct UITree* tree;
     struct UIScene* scene;
-    struct UILoaderState* loader_state;
+    struct RevConfigLoaderState* loader_state;
     struct GameCache* gamecache;
 
     struct ToriDraw_ViewPort world_view_port;

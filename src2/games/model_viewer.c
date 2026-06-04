@@ -1,7 +1,7 @@
 #include "model_viewer.h"
 
 #include "../gamecache/gamecache.h"
-#include "../ui/ui_loader.h"
+#include "../ui/revconfig_loader.h"
 #include "../ui/ui_scene_events.h"
 #include "../world/world_scene_events.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
@@ -495,7 +495,7 @@ game_modelviewer_new(struct LibToriRS_ScriptQueue* script_queue)
 
     mv->tree = uitree_new(256);
     mv->scene = ui_scene_new(256);
-    mv->loader_state = ui_loader_state_new();
+    mv->loader_state = revconfig_loader_state_new();
 
     if( !mv->tree || !mv->scene || !mv->loader_state )
     {
@@ -533,7 +533,7 @@ game_modelviewer_free(struct GameModelViewer* mv)
         return;
     game_modelviewer_free_textures(mv);
     if( mv->loader_state )
-        ui_loader_state_free(mv->loader_state);
+        revconfig_loader_state_free(mv->loader_state);
     if( mv->scene )
         ui_scene_free(mv->scene);
     if( mv->tree )

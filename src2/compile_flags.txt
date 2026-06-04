@@ -1,5 +1,6 @@
 -std=gnu11
 -I.
+-I..
 -I../src
 -I../src2/scripting
 -I../src/platforms/ToriRSPlatformKit/include
