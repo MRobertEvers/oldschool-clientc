@@ -455,6 +455,54 @@ LibToriRS_ScriptAPI_CoreTask_Dat1LoadModel(
     game_modelviewer_task_add(game->u.model_viewer, task);
 }
 
+void
+LibToriRS_ScriptAPI_CoreTask_RevConfigQueue(
+    struct LibToriRS_Instance* instance,
+    struct GameHandle* game,
+    const char* filename)
+{
+    (void)instance;
+
+    switch( game->kind )
+    {
+    case GAME_HANDLE_KIND_MODEL_VIEWER:
+        if( !game->u.model_viewer )
+            return;
+        game_modelviewer_revconfig_queue(game->u.model_viewer, filename);
+        break;
+    default:
+        break;
+    }
+}
+
+void
+LibToriRS_ScriptAPI_CoreTask_RevConfigLoad(
+    struct LibToriRS_Instance* instance,
+    struct GameHandle* game)
+{
+    switch( game->kind )
+    {
+    case GAME_HANDLE_KIND_MODEL_VIEWER:
+        if( !game->u.model_viewer )
+            return;
+
+        struct CoreTask* task = NULL;
+        task = core_task_new_revconfig_load(
+            *game,
+            game->u.model_viewer->revconfig_filenames[0],
+            game->u.model_viewer->revconfig_filenames[1],
+            game->u.model_viewer->revconfig_filenames[2],
+            game->u.model_viewer->revconfig_filenames[3]);
+        if( !task )
+            return;
+
+        game_modelviewer_task_add(game->u.model_viewer, task);
+        break;
+    default:
+        break;
+    }
+}
+
 bool
 LibToriRS_ScriptAPI_RunTasks(struct LibToriRS_Instance* instance)
 {

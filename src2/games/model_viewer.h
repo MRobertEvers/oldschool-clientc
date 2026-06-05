@@ -31,6 +31,9 @@ struct GameModelViewer
 {
     struct LibToriRS_ScriptQueue* script_queue;
 
+    char revconfig_filenames[4][256];
+    int revconfig_filename_count;
+
     int current_model_id;
 
     struct ToriDraw_ModelHandle model;
@@ -63,6 +66,16 @@ game_modelviewer_new(struct LibToriRS_ScriptQueue* script_queue);
 
 void
 game_modelviewer_free(struct GameModelViewer* game_model_viewer);
+
+void
+game_modelviewer_revconfig_queue(
+    struct GameModelViewer* game_model_viewer,
+    const char* filename);
+
+void
+game_modelviewer_revconfig_load(
+    struct GameModelViewer* game_model_viewer,
+    struct LibToriRS_IOContext* ctx);
 
 void
 game_modelviewer_set_model(

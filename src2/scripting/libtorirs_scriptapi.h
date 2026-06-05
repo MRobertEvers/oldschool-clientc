@@ -80,6 +80,17 @@ LibToriRS_ScriptAPI_CoreTask_Dat1LoadModel(
     struct GameHandle* game,
     int model_id);
 
+void
+LibToriRS_ScriptAPI_CoreTask_RevConfigQueue(
+    struct LibToriRS_Instance* instance,
+    struct GameHandle* game,
+    const char* filename);
+
+void
+LibToriRS_ScriptAPI_CoreTask_RevConfigLoad(
+    struct LibToriRS_Instance* instance,
+    struct GameHandle* game);
+
 bool
 LibToriRS_ScriptAPI_RunTasks(struct LibToriRS_Instance* instance);
 

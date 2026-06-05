@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define CONFIG_PATH "/Users/matthewevers/Documents/git_repos/3draster/src2/revs/configs"
+#define SCRIPT_PATH "/Users/matthewevers/Documents/git_repos/3draster/src2/revs/scripts"
+
 struct LibToriPlatformX_IOReactor
 {
     struct CacheLib* cache;
@@ -14,8 +17,7 @@ struct LibToriPlatformX_IOReactor
 struct LibToriPlatformX_IOReactor*
 LibToriPlatformX_IOReactorNew(struct CacheLib* cache)
 {
-    struct LibToriPlatformX_IOReactor* reactor =
-        malloc(sizeof(struct LibToriPlatformX_IOReactor));
+    struct LibToriPlatformX_IOReactor* reactor = malloc(sizeof(struct LibToriPlatformX_IOReactor));
     if( !reactor )
         return NULL;
 
@@ -32,7 +34,10 @@ LibToriPlatformX_IOReactorFree(struct LibToriPlatformX_IOReactor* reactor)
 }
 
 static int
-read_whole_file(const char* path, void** out_data, int* out_size)
+read_whole_file(
+    const char* path,
+    void** out_data,
+    int* out_size)
 {
     FILE* fp = fopen(path, "rb");
     if( !fp )
@@ -109,14 +114,42 @@ load_cache_item(
 }
 
 static int
-load_path_item(
+load_config_item(
     struct LibToriRS_IOQueueItem* item,
     const char* path)
 {
     void* data = NULL;
     int data_size = 0;
 
-    if( read_whole_file(path, &data, &data_size) != 0 )
+    char resolved_path[LIBTORIRS_IOQUEUE_PATH_MAX];
+    snprintf(resolved_path, sizeof(resolved_path), "%s/%s", CONFIG_PATH, path);
+
+    if( read_whole_file(resolved_path, &data, &data_size) != 0 )
+    {
+        item->error_code = -1;
+        item->status = TORIRSIO_STAT_DONE;
+        return -1;
+    }
+
+    item->data = data;
+    item->data_size = data_size;
+    item->error_code = 0;
+    item->status = TORIRSIO_STAT_DONE;
+    return 0;
+}
+
+static int
+load_script_item(
+    struct LibToriRS_IOQueueItem* item,
+    const char* path)
+{
+    void* data = NULL;
+    int data_size = 0;
+
+    char resolved_path[LIBTORIRS_IOQUEUE_PATH_MAX];
+    snprintf(resolved_path, sizeof(resolved_path), "%s/%s", SCRIPT_PATH, path);
+
+    if( read_whole_file(resolved_path, &data, &data_size) != 0 )
     {
         item->error_code = -1;
         item->status = TORIRSIO_STAT_DONE;
@@ -148,9 +181,9 @@ LibToriPlatformX_IOReactorLoadItem(
     case TORIRSIO_KIND_CACHE:
         return load_cache_item(reactor, item);
     case TORIRSIO_KIND_CONFIG_FILE:
-        return load_path_item(item, item->u.config_file.path);
+        return load_config_item(item, item->u.config_file.path);
     case TORIRSIO_KIND_SCRIPT:
-        return load_path_item(item, item->u.script.path);
+        return load_script_item(item, item->u.script.path);
     default:
         item->error_code = -1;
         item->status = TORIRSIO_STAT_DONE;

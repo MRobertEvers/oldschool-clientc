@@ -12,23 +12,23 @@
 
 static inline void
 dat1io_model_fetch(
-    struct LibToriRS_IOQueue* io,
+    struct LibToriRS_IOContext* ctx,
     int model_id)
 {
     struct CacheLib_IORequest request;
     cachelib_dat1_model_fetch(model_id, &request);
-    LibToriRS_IOQueuePushCache(io, request.table_id, request.archive_id, request.flags);
+    LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
 
 static inline struct CacheModel*
 dat1io_model_decode(
-    struct LibToriRS_IOQueue* io,
+    struct LibToriRS_IOContext* ctx,
     int model_id)
 {
     struct CacheDatArchive* archive = NULL;
     struct CacheModel* model = NULL;
     struct LibToriRS_IOQueueItem item;
-    if( !LibToriRS_IOQueuePopRead(io, &item) )
+    if( !LibToriRS_IOQueuePopRead(ctx->io, &item) )
         return NULL;
     if( item.kind != TORIRSIO_KIND_CACHE )
         return NULL;

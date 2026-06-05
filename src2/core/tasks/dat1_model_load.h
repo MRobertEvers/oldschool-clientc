@@ -14,16 +14,19 @@ PT_STATE_END(dat1_model_load_task)
 
 PT_THREAD(dat1_model_load_task)
 {
+    struct CacheModel* model = NULL;
+    struct ToriDraw_Model* td = NULL;
     PT_BEGIN();
 
-    dat1io_model_fetch(ctx->io, state->model_id);
+    dat1io_model_fetch(ctx, state->model_id);
     PT_YIELD();
 
-    struct CacheModel* model = dat1io_model_decode(ctx->io, state->model_id);
+    model = dat1io_model_decode(ctx, state->model_id);
     if( !model )
         return PT_FINISHED;
 
-    struct ToriDraw_Model* td = toridraw_model_new_from_cache_model(model);
+    td = toridraw_model_new_from_cache_model(model);
+    model_free(model);
     if( !td )
         return PT_FINISHED;
 

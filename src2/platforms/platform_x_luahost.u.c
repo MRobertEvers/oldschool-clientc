@@ -453,6 +453,35 @@ LibToriPlatformX_LuaHost_Game_CoreTask_Dat1LoadModelNativeInt(lua_State* L)
 }
 
 int
+LibToriPlatformX_LuaHost_Game_CoreTask_RevConfigLoad(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    struct GameHandle* game = (struct GameHandle*)lua_touserdata(L, 1);
+
+    const char* filenames[REVCONFIG_MAX_FILES];
+    int filename_count = 0;
+    int top = lua_gettop(L);
+    for( int i = 2; i <= top && filename_count < REVCONFIG_MAX_FILES; i++ )
+    {
+        if( !lua_isstring(L, i) )
+            continue;
+        filenames[filename_count++] = lua_tostring(L, i);
+    }
+
+    LibToriRS_ScriptAPI_CoreTask_RevConfigLoad(instance, game);
+
+    return 0;
+}
+
+int
 LibToriPlatformX_LuaHost_Game_RunTasks(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
@@ -1030,6 +1059,8 @@ LibToriPlatformX_LuaHost_BindToPlatform(
         lua,
         "CoreTask_Dat1LoadModelNativeInt",
         LibToriPlatformX_LuaHost_Game_CoreTask_Dat1LoadModelNativeInt);
+    lua_bind_function_to_platform(
+        L, lua, "CoreTask_RevConfigLoad", LibToriPlatformX_LuaHost_Game_CoreTask_RevConfigLoad);
     lua_bind_function_to_platform(L, lua, "RunTasks", LibToriPlatformX_LuaHost_Game_RunTasks);
     lua_bind_function_to_platform(
         L,

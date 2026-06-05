@@ -200,6 +200,28 @@ game_modelviewer_free(struct GameModelViewer* mv)
 }
 
 void
+game_modelviewer_revconfig_queue(
+    struct GameModelViewer* game_model_viewer,
+    const char* filename)
+{
+    if( !game_model_viewer || !filename )
+        return;
+    if( game_model_viewer->revconfig_filename_count >= REVCONFIG_MAX_FILES )
+        return;
+    strncpy(
+        game_model_viewer->revconfig_filenames[game_model_viewer->revconfig_filename_count],
+        filename,
+        sizeof(
+            game_model_viewer->revconfig_filenames[game_model_viewer->revconfig_filename_count]));
+    game_model_viewer->revconfig_filenames
+        [game_model_viewer->revconfig_filename_count]
+        [sizeof(
+             game_model_viewer->revconfig_filenames[game_model_viewer->revconfig_filename_count]) -
+         1] = '\0';
+    game_model_viewer->revconfig_filename_count++;
+}
+
+void
 game_modelviewer_next(
     struct GameModelViewer* mv,
     int step)
@@ -235,11 +257,9 @@ game_modelviewer_task_add(
     struct GameModelViewer* mv,
     struct CoreTask* task)
 {
-    if( !mv || !task )
-        return;
-    if( mv->task_count >= MV_MAX_TASKS )
-        return;
-
+    assert(mv);
+    assert(task);
+    assert(mv->task_count < MV_MAX_TASKS);
     mv->tasks[mv->task_count++] = task;
 }
 

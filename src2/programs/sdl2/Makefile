@@ -102,6 +102,9 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toridraw/toridraw_light_model.c \
 	$(SRC2)/toridraw/toridraw_sprite.c \
 	$(SRC2)/core/tasks/core_task.c \
+	$(SRC_DIR)/3rd/ini/ini.c \
+	$(SRC_DIR)/osrs/revconfig/revconfig.c \
+	$(SRC_DIR)/osrs/revconfig/revconfig_load.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC_DIR)/graphics/dashmap.c \
 	$(SRC_DIR)/graphics/lighting.c \

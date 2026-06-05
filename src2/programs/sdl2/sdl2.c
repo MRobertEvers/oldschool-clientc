@@ -6,6 +6,7 @@
 #include "../../platforms/platform_x/cachelib_platform.h"
 #include "../../platforms/platform_x_io_reactor.h"
 #include "../../platforms/platform_x_lua.h"
+#include "../../scripting/libtorirs_scriptapi.h"
 #include "../../scripting/libtorirs_scripting.h"
 
 #if defined(_WIN32)
@@ -221,6 +222,19 @@ main(
     {
         printf("Failed to create command queue\n");
         goto error_exit;
+    }
+
+    LibToriRS_ScriptAPI_Game_ModelViewer_Init(instance);
+    LibToriRS_ScriptAPI_CoreTask_RevConfigQueue(
+        instance, LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(instance), "ui_min_cache.ini");
+    LibToriRS_ScriptAPI_CoreTask_RevConfigQueue(
+        instance, LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(instance), "ui_min.ini");
+    LibToriRS_ScriptAPI_CoreTask_RevConfigLoad(
+        instance, LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(instance));
+
+    while( !LibToriRS_ScriptAPI_RunTasks(instance) )
+    {
+        LibToriPlatformX_IOReactorProcess(io_reactor, LibToriRS_GetIOQueue(instance));
     }
 
     uint64_t time = SDL_GetTicks64();
