@@ -77,6 +77,7 @@ GameCacheL_GetMode(struct GameCacheL* gamecache_l)
 
 struct Task_GameCacheL_ModelLoad
 {
+    struct pt thread;
     struct GameCacheL* gamecache_l;
     int model_id;
 
@@ -121,22 +122,31 @@ Task_GameCacheL_ModelLoad_Run(
     {
     case GAMECACHE_L_MODE_DAT1:
     {
+        PT_BEGIN(&task->thread);
         res = Task_Dat1ModelLoad_Run(task->u.task_dat1, ctx);
         if( res != PT_ENDED )
-            return res;
+        {
+            PT_YIELD(&task->thread);
+        }
         struct CacheModel* model =
             dat1_buildcache_model_get(dat1(task->gamecache_l), task->model_id);
         if( !model )
-            return PT_ENDED;
+        {
+            PT_EXIT(&task->thread);
+        }
 
         struct CacheModel* copy = model_new_copy(model);
         if( !copy )
-            return PT_ENDED;
+        {
+            PT_EXIT(&task->thread);
+        }
 
         struct ToriDraw_Model* td = toridraw_model_new_from_cache_model(copy);
         model_free(copy);
         if( !td )
-            return PT_ENDED;
+        {
+            PT_EXIT(&task->thread);
+        }
 
         struct ToriDraw_ModelHandle hnd = {
             .kind = TORIDRAWMK_MODEL,
@@ -144,7 +154,7 @@ Task_GameCacheL_ModelLoad_Run(
         };
         gamecache_model_add(gamecache(task->gamecache_l), task->model_id, hnd);
 
-        return PT_ENDED;
+        PT_END(&task->thread);
     }
     default:
         assert(0);
