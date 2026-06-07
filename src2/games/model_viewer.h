@@ -1,7 +1,6 @@
 #ifndef MODEL_VIEWER_H
 #define MODEL_VIEWER_H
 
-#include "../core/tasks/core_task.h"
 #include "../input/libtorirs_input.h"
 #include "../render/libtorirs_render.h"
 #include "../scripting/libtorirs_scripting.h"
@@ -87,16 +86,6 @@ void
 game_modelviewer_set_gamecache(
     struct GameModelViewer* game_model_viewer,
     struct GameCache* gamecache);
-
-void
-game_modelviewer_task_add(
-    struct GameModelViewer* game_model_viewer,
-    struct CoreTask* task);
-
-bool
-game_modelviewer_run_tasks(
-    struct GameModelViewer* game_model_viewer,
-    struct LibToriRS_IOContext* ctx);
 
 void
 game_modelviewer_process_input(

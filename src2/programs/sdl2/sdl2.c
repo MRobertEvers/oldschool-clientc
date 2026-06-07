@@ -1,4 +1,5 @@
 #include "../../commands/libtorirs_command_queue.h"
+#include "../../gamecache/gamecache_l.h"
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../platforms/platform_sdl2/platform_sdl2.h"
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"
@@ -224,18 +225,14 @@ main(
         goto error_exit;
     }
 
-    LibToriRS_ScriptAPI_Game_ModelViewer_Init(instance);
-    LibToriRS_ScriptAPI_CoreTask_RevConfigQueue(
-        instance, LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(instance), "ui_min_cache.ini");
-    LibToriRS_ScriptAPI_CoreTask_RevConfigQueue(
-        instance, LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(instance), "ui_min.ini");
-    LibToriRS_ScriptAPI_CoreTask_RevConfigLoad(
-        instance, LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(instance));
-
-    while( !LibToriRS_ScriptAPI_RunTasks(instance) )
-    {
-        LibToriPlatformX_IOReactorProcess(io_reactor, LibToriRS_GetIOQueue(instance));
-    }
+    // LibToriRS_ScriptAPI_Game_ModelViewer_Init(instance);
+    // LibToriRS_ScriptAPI_CoreTask_RevConfigQueue(
+    //     instance, LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(instance),
+    //     "ui_min_cache.ini");
+    // LibToriRS_ScriptAPI_CoreTask_RevConfigQueue(
+    //     instance, LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(instance), "ui_min.ini");
+    // LibToriRS_ScriptAPI_CoreTask_RevConfigLoad(
+    //     instance, LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(instance));
 
     uint64_t time = SDL_GetTicks64();
     LibToriRS_InitTime(instance, time);
@@ -249,6 +246,11 @@ main(
 
         if( !LibToriRS_IsRunning(instance) )
             break;
+
+        while( LibToriRS_TasksRun(instance) )
+        {
+            LibToriPlatformX_IOReactorProcess(io_reactor, LibToriRS_GetIOQueue(instance));
+        }
 
         while( !LibToriRS_ScriptQueueIsEmpty(LibToriRS_GetScriptQueue(instance)) )
         {

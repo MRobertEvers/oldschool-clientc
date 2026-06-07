@@ -1,10 +1,10 @@
 #ifndef CORE_DAT1_DAT1IO_H
 #define CORE_DAT1_DAT1IO_H
 
-#include "../../ioqueue/libtorirs_ioqueue.h"
-#include "../../platforms/platform_x/cachelib_client.h"
+#include "../libtorirs.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables/model.h"
+#include "platforms/platform_x/cachelib_client.h"
 
 #include <stdio.h>
 #include <stdlib.h>

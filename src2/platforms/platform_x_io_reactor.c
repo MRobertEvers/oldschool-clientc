@@ -2,6 +2,7 @@
 
 #include "platform_x/cachelib_platform.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -87,7 +88,8 @@ load_cache_item(
     struct LibToriPlatformX_IOReactor* reactor,
     struct LibToriRS_IOQueueItem* item)
 {
-    if( !reactor || !reactor->cache )
+    assert(reactor);
+    if( !reactor->cache )
     {
         item->error_code = -1;
         item->status = TORIRSIO_STAT_DONE;

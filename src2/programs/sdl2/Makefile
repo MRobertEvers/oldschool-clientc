@@ -86,9 +86,6 @@ COMMON_SRCS := sdl2.c \
 	$(SCRIPT_DIR)/libtorirs_scriptapi.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
 	$(SRC2)/gamecache/gamecache.c \
-	$(SRC2)/gamecache/gamecache_sequence.c \
-	$(SRC2)/gamecache/gamecache_flotype.c \
-	$(SRC2)/gamecache/gamecache_scenery_config.c \
 	$(SRC2)/gamecache/toridraw_cachemodel.c \
 	$(SRC2)/gamecache/toridraw_cachesprite.c \
 	$(SRC2)/toridraw/toridraw_animation.c \
@@ -101,6 +98,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toridraw/toridraw_vec.c \
 	$(SRC2)/toridraw/toridraw_light_model.c \
 	$(SRC2)/toridraw/toridraw_sprite.c \
+	$(SRC2)/gamecache/gamecache_l.c \
 	$(SRC2)/core/tasks/core_task.c \
 	$(SRC_DIR)/3rd/ini/ini.c \
 	$(SRC_DIR)/osrs/revconfig/revconfig.c \

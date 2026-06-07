@@ -29,27 +29,27 @@ print("Textures submitted")
 -- Fountain 1497
 -- Oak 1571
 local model_load = 1571
-Game.Dat1_ModelFetchNativeInt(io_queue, model_load)
+-- Game.Dat1_ModelFetchNativeInt(io_queue, model_load)
 
-Platform.LoadIO(io_queue)
+-- Platform.LoadIO(io_queue)
 
-if not Game.Dat1_ModelLoad(io_queue) then
-    print("Model load failed")
-    return
-end
-print("Model loaded")
+-- if not Game.Dat1_ModelLoad(io_queue) then
+--     print("Model load failed")
+--     return
+-- end
+-- print("Model loaded")
 
-Game.Dat1_SubmitGameCacheModelNativeInt(model_load)
-Game.Dat1_ModelCleanupNativeInt(model_load)
-print("Game cache model submitted")
+-- Game.Dat1_SubmitGameCacheModelNativeInt(model_load)
+-- Game.Dat1_ModelCleanupNativeInt(model_load)
+-- print("Game cache model submitted")
 
-Game.ModelViewer_RenderModelNativeInt(model_load)
+-- Game.ModelViewer_RenderModelNativeInt(model_load)
 
-model_load = 1497
-local game_handle = Game.ModelViewer_GetGameHandle()
-Game.CoreTask_Dat1LoadModelNativeInt(game_handle, model_load)
-while not Game.RunTasks() do
-    Platform.LoadIO(io_queue)
-end
+-- model_load = 1497
+-- local game_handle = Game.ModelViewer_GetGameHandle()
+-- Game.CoreTask_Dat1LoadModelNativeInt(game_handle, model_load)
+-- while not Game.RunTasks() do
+--     Platform.LoadIO(io_queue)
+-- end
 
 Game.ModelViewer_RenderModelNativeInt(model_load)

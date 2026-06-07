@@ -51,3 +51,9 @@ If:
   PathMatch: src2/.*\.(c|h|u\.c)$
 CompileFlags:
   CompilationDatabase: src2/
+---
+# test/gamecache/ is built via Makefile — do not infer flags from build/compile_commands.json.
+If:
+  PathMatch: test/gamecache/.*\.(c|h)$
+CompileFlags:
+  CompilationDatabase: test/gamecache/

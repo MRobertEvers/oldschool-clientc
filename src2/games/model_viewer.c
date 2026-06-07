@@ -184,10 +184,6 @@ game_modelviewer_free(struct GameModelViewer* mv)
     if( !mv )
         return;
 
-    for( int i = 0; i < mv->task_count; i++ )
-        core_task_free(mv->tasks[i]);
-    mv->task_count = 0;
-
     game_modelviewer_free_textures(mv);
     if( mv->world_scene )
         world_scene_free(mv->world_scene);
@@ -206,7 +202,7 @@ game_modelviewer_revconfig_queue(
 {
     if( !game_model_viewer || !filename )
         return;
-    if( game_model_viewer->revconfig_filename_count >= REVCONFIG_MAX_FILES )
+    if( game_model_viewer->revconfig_filename_count >= 4 )
         return;
     strncpy(
         game_model_viewer->revconfig_filenames[game_model_viewer->revconfig_filename_count],
@@ -250,45 +246,6 @@ game_modelviewer_set_gamecache(
     if( !mv )
         return;
     mv->gamecache = gamecache;
-}
-
-void
-game_modelviewer_task_add(
-    struct GameModelViewer* mv,
-    struct CoreTask* task)
-{
-    assert(mv);
-    assert(task);
-    assert(mv->task_count < MV_MAX_TASKS);
-    mv->tasks[mv->task_count++] = task;
-}
-
-bool
-game_modelviewer_run_tasks(
-    struct GameModelViewer* mv,
-    struct LibToriRS_IOContext* ctx)
-{
-    if( !mv )
-        return true;
-
-    for( int i = 0; i < mv->task_count; )
-    {
-        struct CoreTask* task = mv->tasks[i];
-        PT_Status status = core_task_step(task, ctx);
-
-        if( status == PT_FINISHED )
-        {
-            core_task_free(task);
-            mv->tasks[i] = mv->tasks[mv->task_count - 1];
-            mv->tasks[mv->task_count - 1] = NULL;
-            mv->task_count--;
-            continue;
-        }
-
-        i++;
-    }
-
-    return mv->task_count == 0;
 }
 
 void

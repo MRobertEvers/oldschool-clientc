@@ -716,8 +716,7 @@ buildcachedat_objects_clear(struct BuildCacheDat* buildcachedat)
         return;
     if( buildcachedat->obj_hmap )
         dashmap_free_entries(buildcachedat->obj_hmap, free_obj_entry);
-    buildcachedat->obj_hmap =
-        buildcachedat_create_hmap(sizeof(int), sizeof(struct ObjEntry), 64);
+    buildcachedat->obj_hmap = buildcachedat_create_hmap(sizeof(int), sizeof(struct ObjEntry), 64);
 }
 
 void
@@ -1634,13 +1633,13 @@ buildcachedat_add_spotanim(
     int spotanim_id,
     struct CacheDatConfigSpotAnim* spotanim)
 {
-    struct SpotAnimEntry* existing =
-        (struct SpotAnimEntry*)dashmap_search(buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_FIND);
+    struct SpotAnimEntry* existing = (struct SpotAnimEntry*)dashmap_search(
+        buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_FIND);
     if( existing && existing->spotanim )
         cache_dat_config_spotanim_free(existing->spotanim);
 
-    struct SpotAnimEntry* entry =
-        (struct SpotAnimEntry*)dashmap_search(buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_INSERT);
+    struct SpotAnimEntry* entry = (struct SpotAnimEntry*)dashmap_search(
+        buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_INSERT);
     assert(entry && "SpotAnim must be insertable into hmap");
     entry->id = spotanim_id;
     entry->spotanim = spotanim;
@@ -1652,8 +1651,8 @@ buildcachedat_get_spotanim(
     struct BuildCacheDat* buildcachedat,
     int spotanim_id)
 {
-    struct SpotAnimEntry* entry =
-        (struct SpotAnimEntry*)dashmap_search(buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_FIND);
+    struct SpotAnimEntry* entry = (struct SpotAnimEntry*)dashmap_search(
+        buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_FIND);
     if( !entry )
         return NULL;
     return entry->spotanim;

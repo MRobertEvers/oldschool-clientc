@@ -2,6 +2,7 @@
 
 #include "commands/libtorirs_command_queue.h"
 #include "commands/libtorirs_command_queue_internal.h"
+#include "gamecache/gamecache_l.h"
 #include "games/model_viewer.h"
 #include "input/libtorirs_input.h"
 #include "libtorirs_internal.h"
@@ -44,26 +45,44 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
-    instance->dat1_buildcache = dat1_buildcache_new();
-    if( !instance->dat1_buildcache )
-    {
-        LibToriRS_IOQueueFree(instance->io_queue);
-        LibToriRS_Input_Free(instance->input);
-        LibToriRS_ScriptQueueFree(instance->script_queue);
-        free(instance);
-        return NULL;
-    }
+    // instance->dat1_buildcache = dat1_buildcache_new();
+    // if( !instance->dat1_buildcache )
+    // {
+    //     LibToriRS_IOQueueFree(instance->io_queue);
+    //     LibToriRS_Input_Free(instance->input);
+    //     LibToriRS_ScriptQueueFree(instance->script_queue);
+    //     free(instance);
+    //     return NULL;
+    // }
 
-    instance->gamecache = gamecache_new();
-    if( !instance->gamecache )
+    // instance->gamecache = gamecache_new();
+    // if( !instance->gamecache )
+    // {
+    //     dat1_buildcache_free(instance->dat1_buildcache);
+    //     LibToriRS_IOQueueFree(instance->io_queue);
+    //     LibToriRS_Input_Free(instance->input);
+    //     LibToriRS_ScriptQueueFree(instance->script_queue);
+    //     free(instance);
+    //     return NULL;
+    // }
+
+    instance->gamecache_l = GameCacheL_New(GAMECACHE_L_MODE_DAT1);
+
+    for( int i = 0; i < LIBTORIRS_MAX_TASKS; i++ )
     {
-        dat1_buildcache_free(instance->dat1_buildcache);
-        LibToriRS_IOQueueFree(instance->io_queue);
-        LibToriRS_Input_Free(instance->input);
-        LibToriRS_ScriptQueueFree(instance->script_queue);
-        free(instance);
-        return NULL;
+        instance->tasks[i].next = i + 1;
+        instance->tasks[i].prev = i - 1;
     }
+    instance->tasks[LIBTORIRS_MAX_TASKS - 1].next = -1;
+    instance->tasks[0].prev = -1;
+
+    instance->task_free_head = 0;
+    instance->task_live_head = -1;
+
+    struct Task_GameCacheL_ModelLoad* task_model_load =
+        Task_GameCacheL_ModelLoad_New(instance->gamecache_l, 1571);
+
+    LibToriRS_TasksAdd(instance, task_model_load, Task_GameCacheL_ModelLoad_Run);
 
     instance->running = true;
 
@@ -81,10 +100,9 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
         LibToriRS_ScriptQueueFree(instance->script_queue);
     if( instance->input )
         LibToriRS_Input_Free(instance->input);
-    if( instance->dat1_buildcache )
-        dat1_buildcache_free(instance->dat1_buildcache);
-    if( instance->gamecache )
-        gamecache_free(instance->gamecache);
+    if( instance->gamecache_l )
+        GameCacheL_Free(instance->gamecache_l);
+
     if( instance->model_viewer )
         game_modelviewer_free(instance->model_viewer);
     free(instance);
@@ -346,4 +364,133 @@ LibToriRS_GetCurrentToriDrawContext(struct LibToriRS_Instance* instance)
     if( instance->model_viewer )
         return instance->model_viewer->context;
     return NULL;
+}
+
+static void
+tasks_remove(
+    struct LibToriRS_Instance* instance,
+    int task_idx)
+{
+    if( task_idx == -1 || task_idx >= LIBTORIRS_MAX_TASKS )
+        return;
+
+    struct LibToriRS_Task* task_to_remove = &instance->tasks[task_idx];
+
+    // ==========================================
+    // PHASE 1: UNLINK FROM THE LIVE LIST
+    // ==========================================
+    int prev_idx = task_to_remove->prev;
+    int next_idx = task_to_remove->next;
+
+    // 1a. Update the previous node (or the live head if this is the first node)
+    if( prev_idx != -1 )
+    {
+        instance->tasks[prev_idx].next = next_idx;
+    }
+    else if( instance->task_live_head == task_idx )
+    {
+        // If there is no previous node AND this is the head,
+        // the next node becomes the new head.
+        instance->task_live_head = next_idx;
+    }
+
+    // 1b. Update the next node
+    if( next_idx != -1 )
+    {
+        instance->tasks[next_idx].prev = prev_idx;
+    }
+
+    // ==========================================
+    // PHASE 2: PUSH ONTO THE FREE LIST
+    // ==========================================
+
+    // Clear the payload (optional, but prevents dangling pointers)
+    task_to_remove->task = NULL;
+
+    // Push to the front of the free list
+    task_to_remove->next = instance->task_free_head;
+    task_to_remove->prev = -1; // Free list doesn't strictly need prev, but it's safe to clear
+
+    instance->task_free_head = task_idx;
+}
+
+void
+LibToriRS_TasksAdd(
+    struct LibToriRS_Instance* instance,
+    void* task_state,
+    CoreTaskFunction task_function)
+{
+    if( instance->task_free_head == -1 )
+    {
+        fprintf(stderr, "No free tasks available\n");
+        assert(0);
+        return;
+    }
+
+    struct CoreTask* task = core_task_new(task_state, task_function);
+    if( !task )
+    {
+        fprintf(stderr, "Failed to create task\n");
+        assert(0);
+        return;
+    }
+
+    // 1. Get the new task
+    int task_idx = instance->task_free_head;
+    struct LibToriRS_Task* new_task = &instance->tasks[task_idx];
+
+    // 2. POP FROM FREE LIST FIRST
+    // Update the free head while new_task->next still points to the next free node
+    instance->task_free_head = new_task->next;
+
+    // 3. Setup the new task's payload
+    new_task->task = task;
+
+    // 4. PUSH TO LIVE LIST (Front)
+    new_task->next = instance->task_live_head;
+    new_task->prev = -1;
+
+    if( instance->task_live_head != -1 )
+    {
+        // Update the old live head's prev pointer
+        instance->tasks[instance->task_live_head].prev = task_idx;
+    }
+
+    // Set the new live head
+    instance->task_live_head = task_idx;
+}
+
+bool
+LibToriRS_TasksRun(struct LibToriRS_Instance* instance)
+{
+    struct LibToriRS_IOContext ctx = {
+        .io = instance->io_queue,
+    };
+
+    int task_idx = instance->task_live_head;
+    while( task_idx != -1 )
+    {
+        int current_task_idx = task_idx;
+        struct LibToriRS_Task* task = &instance->tasks[task_idx];
+        task->last_res = task->task->task(task->task->state, &ctx);
+
+        // Must be here because if we remove the task here, we will lose the next pointer
+        task_idx = task->next;
+
+        switch( task->last_res )
+        {
+        case PT_YIELDED:
+            break;
+        case PT_EXITED:
+        case PT_ENDED:
+            core_task_free(task->task);
+            task->task = NULL;
+            tasks_remove(instance, current_task_idx);
+            break;
+        default:
+            break;
+        }
+    }
+
+    return instance->task_live_head != -1;
 }
