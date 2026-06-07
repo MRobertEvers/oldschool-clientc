@@ -238,6 +238,11 @@ main(
         if( !LibToriRS_IsRunning(instance) )
             break;
 
+        while( LibToriRS_TasksRun(instance) )
+        {
+            LibToriPlatformX_IOReactorProcess(io_reactor, LibToriRS_GetIOQueue(instance));
+        }
+
         while( !LibToriRS_ScriptQueueIsEmpty(LibToriRS_GetScriptQueue(instance)) )
         {
             int rc = LibToriPlatformX_LuaRun(lua, instance);
@@ -251,11 +256,6 @@ main(
                 printf("Failed to run script\n");
                 goto error_exit;
             }
-        }
-
-        while( LibToriRS_TasksRun(instance) )
-        {
-            LibToriPlatformX_IOReactorProcess(io_reactor, LibToriRS_GetIOQueue(instance));
         }
 
         LibToriRS_IOQueueClear(LibToriRS_GetIOQueue(instance));

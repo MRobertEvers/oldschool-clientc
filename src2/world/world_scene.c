@@ -152,8 +152,6 @@ world_scene_free_element_id(
 {
     struct WorldSceneElement* element;
 
-    if( !scene )
-        return;
     if( element_id < 0 || element_id >= WORLD_SCENE_MAX_ELEMENTS )
         return;
     if( !scene->slots[element_id] )

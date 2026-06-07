@@ -451,7 +451,7 @@ LibToriPlatformX_LuaHost_Game_CoreTask_Dat1LoadModelNativeInt(lua_State* L)
 
     return 0;
 }
-
+#define REVCONFIG_MAX_FILES 4
 int
 LibToriPlatformX_LuaHost_Game_CoreTask_RevConfigLoad(lua_State* L)
 {

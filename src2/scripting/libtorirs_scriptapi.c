@@ -485,6 +485,8 @@ LibToriRS_ScriptAPI_RunTasks(struct LibToriRS_Instance* instance)
 
     bool all_done = true;
 
+    all_done = !LibToriRS_TasksRun(instance);
+
     // if( instance->model_viewer )
     //     all_done = game_modelviewer_run_tasks(instance->model_viewer, &ctx) && all_done;
 

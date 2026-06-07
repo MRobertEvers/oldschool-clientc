@@ -148,9 +148,6 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
     struct LibToriPlatformSDL2_RendererSoft3D* renderer,
     struct LibToriRS_Instance* instance)
 {
-    if( !renderer || !renderer->pixel_buffer || !renderer->texture || !renderer->renderer )
-        return;
-
     size_t const pixel_count = (size_t)renderer->width * (size_t)renderer->height;
     memset(renderer->pixel_buffer, 0, pixel_count * sizeof(int));
 

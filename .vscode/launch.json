@@ -268,7 +268,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/src2/programs/sdl2/sdl2",
-      "args": [],
+      "args": ["--soft3d"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/src2/programs/sdl2",
       "environment": [],

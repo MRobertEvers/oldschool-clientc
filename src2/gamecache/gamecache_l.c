@@ -4,7 +4,6 @@
 #include "dat1.h"
 #include "gamecache.h"
 #include "src2/buildcache/dat1_buildcache.h"
-#include "src2/gamecache/toridraw_cachemodel.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -77,7 +76,6 @@ GameCacheL_GetMode(struct GameCacheL* gamecache_l)
 
 struct Task_GameCacheL_ModelLoad
 {
-    struct pt thread;
     struct GameCacheL* gamecache_l;
     int model_id;
 
@@ -100,7 +98,7 @@ Task_GameCacheL_ModelLoad_New(
     switch( gamecache_l->mode )
     {
     case GAMECACHE_L_MODE_DAT1:
-        task->u.task_dat1 = Task_Dat1ModelLoad_New(gamecache_l->u.buildcachedat_dat1, model_id);
+        task->u.task_dat1 = Task_Dat1ModelLoad_New(gamecache_l, model_id);
         break;
     default:
         assert(0);
@@ -116,49 +114,12 @@ Task_GameCacheL_ModelLoad_Run(
 {
     struct Task_GameCacheL_ModelLoad* task = (struct Task_GameCacheL_ModelLoad*)task_state;
 
-    int res = PT_ENDED;
-
     switch( task->gamecache_l->mode )
     {
     case GAMECACHE_L_MODE_DAT1:
-    {
-        PT_BEGIN(&task->thread);
-        res = Task_Dat1ModelLoad_Run(task->u.task_dat1, ctx);
-        if( res != PT_ENDED )
-        {
-            PT_YIELD(&task->thread);
-        }
-        struct CacheModel* model =
-            dat1_buildcache_model_get(dat1(task->gamecache_l), task->model_id);
-        if( !model )
-        {
-            PT_EXIT(&task->thread);
-        }
-
-        struct CacheModel* copy = model_new_copy(model);
-        if( !copy )
-        {
-            PT_EXIT(&task->thread);
-        }
-
-        struct ToriDraw_Model* td = toridraw_model_new_from_cache_model(copy);
-        model_free(copy);
-        if( !td )
-        {
-            PT_EXIT(&task->thread);
-        }
-
-        struct ToriDraw_ModelHandle hnd = {
-            .kind = TORIDRAWMK_MODEL,
-            .u.model.model = td,
-        };
-        gamecache_model_add(gamecache(task->gamecache_l), task->model_id, hnd);
-
-        PT_END(&task->thread);
-    }
+        return Task_Dat1ModelLoad_Run(task->u.task_dat1, ctx);
     default:
         assert(0);
         return PT_ENDED;
     }
-    return PT_ENDED;
 }
