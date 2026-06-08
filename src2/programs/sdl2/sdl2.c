@@ -79,6 +79,7 @@ main(
     printf("Hello from main!\n");
 
     bool const use_soft3d = has_flag(argc, argv, "--soft3d");
+    bool const use_runescape = has_flag(argc, argv, "--runescape");
 
     struct LibToriPlatformX_Lua* lua = NULL;
     struct LibToriPlatformX_IOReactor* io_reactor = NULL;
@@ -105,6 +106,8 @@ main(
     printf("Using cache: %s\n", cache_dat_path);
     if( use_soft3d )
         printf("Renderer: software 3D (CPU)\n");
+    if( use_runescape )
+        printf("Game: runescape world\n");
 
     instance = LibToriRS_InstanceNew();
     if( !instance )
@@ -140,8 +143,9 @@ main(
         goto error_exit;
     }
 
+    char const* init_script = use_runescape ? "init_runescape.lua" : "init.lua";
     struct LibToriRS_Script* script =
-        LibToriRS_ScriptQueueEmplace(LibToriRS_GetScriptQueue(instance), "init.lua");
+        LibToriRS_ScriptQueueEmplace(LibToriRS_GetScriptQueue(instance), init_script);
     script->is_inline = false;
 
     platform = LibToriPlatformSDL2_New();

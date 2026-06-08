@@ -199,6 +199,30 @@ toridraw_calculate_vertex_normals(
     }
 }
 
+static inline void
+lighting_clamp_textured_vertex_colors(
+    hsl16_t* face_colors_a_hsl16,
+    hsl16_t* face_colors_b_hsl16,
+    hsl16_t* face_colors_c_hsl16,
+    faceint_t* face_textures,
+    int num_faces)
+{
+    if( !face_textures )
+        return;
+
+    for( int i = 0; i < num_faces; i++ )
+    {
+        if( face_textures[i] == -1 )
+            continue;
+
+        face_colors_a_hsl16[i] = (hsl16_t)(face_colors_a_hsl16[i] & 0x7F);
+        face_colors_b_hsl16[i] = (hsl16_t)(face_colors_b_hsl16[i] & 0x7F);
+        if( face_colors_c_hsl16[i] != TORIDRAWHSL16_FLAT &&
+            face_colors_c_hsl16[i] != TORIDRAWHSL16_HIDDEN )
+            face_colors_c_hsl16[i] = (hsl16_t)(face_colors_c_hsl16[i] & 0x7F);
+    }
+}
+
 void
 toridraw_apply_lighting(
     hsl16_t* face_colors_a_hsl16,
@@ -269,7 +293,7 @@ toridraw_apply_lighting(
         if( alpha == -1 )
             type = 2;
 
-        int color_flat_hsl16 = (int)face_colors_hsl16[i];
+        int color_flat_hsl16 = face_colors_hsl16 ? (int)face_colors_hsl16[i] : 0;
         int a = face_indices_a[i];
         int b = face_indices_b[i];
         int c = face_indices_c[i];
@@ -407,4 +431,11 @@ toridraw_apply_lighting(
             }
         }
     }
+
+    lighting_clamp_textured_vertex_colors(
+        face_colors_a_hsl16,
+        face_colors_b_hsl16,
+        face_colors_c_hsl16,
+        face_textures,
+        num_faces);
 }

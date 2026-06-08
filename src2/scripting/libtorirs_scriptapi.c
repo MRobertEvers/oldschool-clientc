@@ -7,6 +7,7 @@
 #include "gamecache/gamecache.h"
 #include "gamecache/gamecache_l.h"
 #include "gamecache/toridraw_cachemodel.h"
+#include "games/runescape.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/rscache/cache_dat.h"
 #include "src/osrs/rscache/filelist.h"
@@ -394,6 +395,37 @@ LibToriRS_ScriptAPI_Game_ModelViewer_Init(struct LibToriRS_Instance* instance)
 
     instance->model_viewer_handle.kind = GAME_HANDLE_KIND_MODEL_VIEWER;
     instance->model_viewer_handle.u.model_viewer = instance->model_viewer;
+    instance->active_game_kind = GAME_HANDLE_KIND_MODEL_VIEWER;
+}
+
+void
+LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Game_Runescape_Init\n");
+    if( !instance )
+        return;
+
+    instance->runescape = game_runescape_new(instance->script_queue);
+    if( !instance->runescape )
+        return;
+
+    game_runescape_set_gamecache(instance->runescape, gamecache(instance->gamecache_l));
+
+    instance->runescape_handle.kind = GAME_HANDLE_KIND_RUNESCAPE;
+    instance->runescape_handle.u.runescape = instance->runescape;
+    instance->active_game_kind = GAME_HANDLE_KIND_RUNESCAPE;
+
+    struct Task_GameCacheL_WorldRebuildNormal* task = Task_GameCacheL_WorldRebuildNormal_New(
+        instance->gamecache_l, RUNESCAPE_ZONE_CENTER_X, RUNESCAPE_ZONE_CENTER_Z);
+    LibToriRS_TasksAdd(instance, task, Task_GameCacheL_WorldRebuildNormal_Run);
+}
+
+void
+LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Game_Runescape_BuildWorld\n");
+
+    game_runescape_build_world(instance->runescape);
 }
 
 struct GameHandle*
@@ -536,16 +568,38 @@ LibToriRS_ScriptAPI_Dat1_TexturesCleanup(struct LibToriRS_Instance* instance)
     dat1_buildcache_texture_clear(dat1(instance->gamecache_l));
 }
 
+static struct ToriDraw_Context*
+scriptapi_active_toridraw_context(struct LibToriRS_Instance* instance)
+{
+    if( !instance )
+        return NULL;
+
+    switch( instance->active_game_kind )
+    {
+    case GAME_HANDLE_KIND_MODEL_VIEWER:
+        if( instance->model_viewer )
+            return instance->model_viewer->context;
+        break;
+    case GAME_HANDLE_KIND_RUNESCAPE:
+        if( instance->runescape )
+            return instance->runescape->context;
+        break;
+    default:
+        break;
+    }
+    return NULL;
+}
+
 void
 LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_Dat1_SubmitTextures\n");
     if( !instance )
         return;
-    if( !instance->model_viewer || !instance->model_viewer->context )
-        return;
 
-    struct ToriDraw_Context* context = instance->model_viewer->context;
+    struct ToriDraw_Context* context = scriptapi_active_toridraw_context(instance);
+    if( !context )
+        return;
     struct Dat1BuildCache* buildcache = dat1(instance->gamecache_l);
 
     for( int i = 0; i < buildcache->texture_count; i++ )

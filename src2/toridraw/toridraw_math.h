@@ -47,6 +47,12 @@ toridraw_add_angle(
     return (angle1 + angle2 + 2048) % 2048;
 }
 
+static inline int
+toridraw_normalize_angle(int angle_r2pi2048)
+{
+    return (angle_r2pi2048 % 2048 + 2048) % 2048;
+}
+
 static inline float
 toridraw_angle_to_radians(int angle_r2pi2048)
 {

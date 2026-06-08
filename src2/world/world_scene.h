@@ -14,8 +14,11 @@ struct WorldScene;
 struct WorldSceneElement
 {
     struct ToriDraw_ModelHandle model;
+    /** When true, WorldScene frees model.u.model on replace/remove/clear. */
+    bool owns_model;
     struct ToriDraw_Animation* animation;
     struct ToriDraw_Animation* secondary_animation;
+    struct ToriDraw_Position world_position;
 };
 
 struct WorldSceneElementHandle
@@ -76,12 +79,36 @@ world_scene_element_set_model(
     int element_id,
     struct ToriDraw_ModelHandle model);
 
+/** Transfers ownership of model.u.model to the scene (freed on replace/remove/clear). */
+void
+world_scene_element_set_model_owned(
+    struct WorldScene* scene,
+    int element_id,
+    struct ToriDraw_ModelHandle model);
+
 void
 world_scene_element_set_animation(
     struct WorldScene* scene,
     int element_id,
     struct ToriDraw_Animation* animation,
     bool primary);
+
+void
+world_scene_element_set_position(
+    struct WorldScene* scene,
+    int element_id,
+    int x,
+    int y,
+    int z,
+    int yaw);
+
+int
+world_scene_get_slot_count(struct WorldScene* scene);
+
+bool
+world_scene_element_is_live(
+    struct WorldScene* scene,
+    int element_id);
 
 struct WorldScene_EventQueue*
 world_scene_get_event_queue(struct WorldScene* scene);

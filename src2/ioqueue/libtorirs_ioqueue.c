@@ -135,9 +135,10 @@ LibToriRS_IOQueuePopRead(
     struct LibToriRS_IOQueue* queue,
     struct LibToriRS_IOQueueItem* out)
 {
-    assert(queue);
-    assert(queue->count > 0);
-    assert(queue->read_head < queue->count);
+    if( !queue || !out )
+        return false;
+    if( queue->read_head >= queue->count )
+        return false;
     memcpy(out, &queue->items[queue->read_head], sizeof(struct LibToriRS_IOQueueItem));
     queue->read_head++;
     return true;

@@ -151,9 +151,7 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
     size_t const pixel_count = (size_t)renderer->width * (size_t)renderer->height;
     memset(renderer->pixel_buffer, 0, pixel_count * sizeof(int));
 
-    struct ToriDraw_Context* draw_context = NULL;
-    if( instance && instance->model_viewer )
-        draw_context = instance->model_viewer->context;
+    struct ToriDraw_Context* draw_context = LibToriRS_GetCurrentToriDrawContext(instance);
 
     bool has_3d = false;
     struct LibToriRS_RenderCommand_Begin3D cur_3d;

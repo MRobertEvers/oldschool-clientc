@@ -47,9 +47,15 @@ dat1_buildcache_set_fromconfigtable_config_jagfile(
     struct FileListDat* fromconfigtable_config_jagfile);
 
 void
+dat1_buildcache_clear_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
+
+void
 dat1_buildcache_set_versionlist_jagfile(
     struct Dat1BuildCache* dat1_buildcache,
     struct FileListDat* versionlist_jagfile);
+
+void
+dat1_buildcache_clear_versionlist_jagfile(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_set_media_2d_graphics_jagfile(
@@ -89,11 +95,31 @@ dat1_buildcache_map_terrain_add(
     int map_id,
     struct CacheMapTerrain* terrain);
 
+struct CacheMapTerrain*
+dat1_buildcache_map_terrain_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int map_id);
+
+bool
+dat1_buildcache_map_terrain_has(
+    struct Dat1BuildCache* dat1_buildcache,
+    int map_id);
+
 void
 dat1_buildcache_map_scenery_add(
     struct Dat1BuildCache* dat1_buildcache,
     int map_id,
     struct CacheMapLocs* locs);
+
+struct CacheMapLocs*
+dat1_buildcache_map_scenery_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int map_id);
+
+bool
+dat1_buildcache_map_scenery_has(
+    struct Dat1BuildCache* dat1_buildcache,
+    int map_id);
 
 void
 dat1_buildcache_texture_set(
@@ -123,6 +149,69 @@ dat1_buildcache_animbaseframes_add(
     struct Dat1BuildCache* dat1_buildcache,
     int animbaseframes_id,
     struct CacheDatAnimBaseFrames* animbaseframes);
+
+struct CacheDatAnimBaseFrames*
+dat1_buildcache_animbaseframes_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int animbaseframes_id);
+
+bool
+dat1_buildcache_animbaseframes_has(
+    struct Dat1BuildCache* dat1_buildcache,
+    int animbaseframes_id);
+
+int
+dat1_buildcache_get_animbaseframes_count_from_versionlist_jagfile(
+    struct Dat1BuildCache* dat1_buildcache);
+
+struct CacheConfigLocation*
+dat1_buildcache_config_loc_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int loc_id);
+
+int
+dat1_buildcache_get_scenery_model_ids(
+    struct Dat1BuildCache* dat1_buildcache,
+    int loc_id,
+    int** model_ids_out);
+
+int
+dat1_buildcache_get_all_unique_scenery_model_ids(
+    struct Dat1BuildCache* dat1_buildcache,
+    int** model_ids_out);
+
+typedef void (*Dat1BuildCacheSequenceCallback)(
+    int seq_id,
+    struct CacheDatSequence* sequence,
+    void* user_data);
+
+typedef void (*Dat1BuildCacheFlotypeCallback)(
+    int flo_id,
+    struct CacheConfigOverlay* flotype,
+    void* user_data);
+
+typedef void (*Dat1BuildCacheLocationCallback)(
+    int loc_id,
+    struct CacheConfigLocation* config_loc,
+    void* user_data);
+
+void
+dat1_buildcache_foreach_sequence(
+    struct Dat1BuildCache* dat1_buildcache,
+    Dat1BuildCacheSequenceCallback callback,
+    void* user_data);
+
+void
+dat1_buildcache_foreach_flotype(
+    struct Dat1BuildCache* dat1_buildcache,
+    Dat1BuildCacheFlotypeCallback callback,
+    void* user_data);
+
+void
+dat1_buildcache_foreach_config_loc(
+    struct Dat1BuildCache* dat1_buildcache,
+    Dat1BuildCacheLocationCallback callback,
+    void* user_data);
 
 void
 dat1_buildcache_sequences_reset(struct Dat1BuildCache* dat1_buildcache);

@@ -1,5 +1,8 @@
 #include "toridraw_model.h"
 
+#include "osrs/palette.h"
+#include "toridraw_lighting.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -115,6 +118,54 @@ toridraw_model_alloc_normals(struct ToriDraw_Model* model)
 }
 
 void
+toridraw_model_alloc_merged_normals(struct ToriDraw_Model* model)
+{
+    assert(model);
+    if( model->merged_normals )
+        return;
+    model->merged_normals = toridraw_normals_new(model->vertex_count, 0);
+}
+
+void
+toridraw_model_calculate_vertex_normals(struct ToriDraw_Model* model)
+{
+    assert(model);
+    toridraw_model_alloc_normals(model);
+    struct ToriDraw_Normals* nm = model->normals;
+    assert(nm);
+
+    int vc = model->vertex_count;
+    int fc = model->face_count;
+    toridraw_calculate_vertex_normals(
+        nm->vertex_normals,
+        nm->face_normals,
+        vc,
+        model->face_indices_a,
+        model->face_indices_b,
+        model->face_indices_c,
+        model->vertices_x,
+        model->vertices_y,
+        model->vertices_z,
+        fc);
+
+    struct ToriDraw_Normals* mm = model->merged_normals;
+    if( mm && mm->vertex_normals )
+        memcpy(mm->vertex_normals, nm->vertex_normals, sizeof(struct ToriDraw_Normal) * (size_t)vc);
+}
+
+void
+toridraw_model_free_normals(struct ToriDraw_Model* model)
+{
+    assert(model);
+    if( !model->normals )
+        return;
+    toridraw_normals_free(model->normals);
+    toridraw_normals_free(model->merged_normals);
+    model->normals = NULL;
+    model->merged_normals = NULL;
+}
+
+void
 toridraw_context_set_texture(
     struct ToriDraw_Context* ctx,
     int id,
@@ -148,4 +199,27 @@ toridraw_context_set_texture(
         while( map->count > 0 && !map->textures[map->count - 1] )
             map->count--;
     }
+}
+
+int
+toridraw_texture_average_hsl16(const struct ToriDraw_Texture* texture)
+{
+    if( !texture || !texture->texels || texture->width <= 0 || texture->height <= 0 )
+        return 0;
+
+    int red = 0;
+    int green = 0;
+    int blue = 0;
+    int colour_count = texture->width * texture->height;
+    for( int i = 0; i < colour_count; i++ )
+    {
+        int pixel = texture->texels[i];
+        red += (pixel >> 16) & 0xff;
+        green += (pixel >> 8) & 0xff;
+        blue += pixel & 0xff;
+    }
+
+    int average_rgb =
+        ((red / colour_count) << 16) + ((green / colour_count) << 8) + (blue / colour_count);
+    return palette_rgb_to_hsl16(average_rgb);
 }

@@ -48,13 +48,15 @@ Task_Dat1ModelLoad_Run(
 {
     struct CacheModel* model;
     struct CacheModel* copy;
+    int decoded_model_id;
     PT_BEGIN(&task->thread);
 
     dat1io_model_fetch(ctx, task->model_id);
 
     PT_YIELD(&task->thread);
 
-    model = dat1io_model_decode(ctx, task->model_id);
+    decoded_model_id = -1;
+    model = dat1io_model_decode(ctx, &decoded_model_id);
     if( !model )
     {
         fprintf(stderr, "Failed to decode model\n");

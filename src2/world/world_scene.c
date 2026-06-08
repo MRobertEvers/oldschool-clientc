@@ -1,5 +1,7 @@
 #include "world_scene.h"
 
+#include "toridraw/toridraw_math.h"
+#include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_vec.h"
 #include "world_scene_events.h"
 
@@ -146,6 +148,18 @@ world_scene_allocate_element_id(struct WorldScene* scene)
 }
 
 static void
+world_scene_dispose_element_model(struct WorldSceneElement* element)
+{
+    if( !element || !element->owns_model )
+        return;
+    if( element->model.kind == TORIDRAWMK_MODEL && element->model.u.model.model )
+        toridraw_model_free(element->model.u.model.model);
+    element->model.kind = TORIDRAWMK_NONE;
+    element->model.u.model.model = NULL;
+    element->owns_model = false;
+}
+
+static void
 world_scene_free_element_id(
     struct WorldScene* scene,
     int element_id)
@@ -159,7 +173,10 @@ world_scene_free_element_id(
 
     element = world_scene_element_ptr(scene, element_id);
     if( element )
+    {
+        world_scene_dispose_element_model(element);
         memset(element, 0, sizeof(*element));
+    }
 
     scene->slots[element_id] = false;
     scene->free_list[scene->free_count++] = element_id;
@@ -195,6 +212,15 @@ world_scene_free(struct WorldScene* scene)
 {
     if( !scene )
         return;
+
+    for( int i = 0; i < scene->slot_count; i++ )
+    {
+        if( !scene->slots[i] )
+            continue;
+        struct WorldSceneElement* element = world_scene_element_ptr(scene, i);
+        if( element )
+            world_scene_dispose_element_model(element);
+    }
 
     if( scene->elements )
         toridraw_vec_free(scene->elements);
@@ -299,6 +325,7 @@ world_scene_remove_element(
         element && element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
         NULL);
 
+    /* world_scene_free_element_id disposes owned model after unload was emitted. */
     world_scene_free_element_id(scene, element_id);
     return 0;
 }
@@ -307,6 +334,25 @@ void
 world_scene_clear(struct WorldScene* scene)
 {
     assert(scene);
+
+    for( int i = 0; i < scene->slot_count; i++ )
+    {
+        if( !scene->slots[i] )
+            continue;
+
+        struct WorldSceneElement* element = world_scene_element_ptr(scene, i);
+        if( !element )
+            continue;
+
+        world_scene_emit(
+            scene,
+            WSE_MODEL_UNLOAD,
+            0,
+            i,
+            element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+            NULL);
+        world_scene_dispose_element_model(element);
+    }
 
     memset(scene->slots, 0, sizeof(scene->slots));
     scene->slot_count = 0;
@@ -335,11 +381,12 @@ world_scene_element_get_handle(struct WorldSceneElementHandle handle)
     return world_scene_element_ptr(handle.scene, handle.id);
 }
 
-void
-world_scene_element_set_model(
+static void
+world_scene_element_assign_model(
     struct WorldScene* scene,
     int element_id,
-    struct ToriDraw_ModelHandle model)
+    struct ToriDraw_ModelHandle model,
+    bool owned)
 {
     struct WorldSceneElement* element;
 
@@ -350,8 +397,28 @@ world_scene_element_set_model(
     element = world_scene_element_ptr(scene, element_id);
     assert(element);
 
+    world_scene_dispose_element_model(element);
     element->model = model;
+    element->owns_model = owned;
     world_scene_emit(scene, WSE_MODEL_LOAD, 0, element_id, &element->model, NULL);
+}
+
+void
+world_scene_element_set_model(
+    struct WorldScene* scene,
+    int element_id,
+    struct ToriDraw_ModelHandle model)
+{
+    world_scene_element_assign_model(scene, element_id, model, false);
+}
+
+void
+world_scene_element_set_model_owned(
+    struct WorldScene* scene,
+    int element_id,
+    struct ToriDraw_ModelHandle model)
+{
+    world_scene_element_assign_model(scene, element_id, model, true);
 }
 
 void
@@ -382,6 +449,46 @@ world_scene_element_set_animation(
         *slot = NULL;
         world_scene_emit(scene, WSE_ANIM_UNLOAD, 0, element_id, &element->model, NULL);
     }
+}
+
+void
+world_scene_element_set_position(
+    struct WorldScene* scene,
+    int element_id,
+    int x,
+    int y,
+    int z,
+    int yaw)
+{
+    struct WorldSceneElement* element;
+
+    assert(scene);
+    assert(world_scene_element_valid(scene, element_id));
+
+    element = world_scene_element_ptr(scene, element_id);
+    assert(element);
+
+    element->world_position.x = x;
+    element->world_position.y = y;
+    element->world_position.z = z;
+    element->world_position.yaw = toridraw_normalize_angle(yaw);
+    element->world_position.pitch = 0;
+    element->world_position.roll = 0;
+}
+
+int
+world_scene_get_slot_count(struct WorldScene* scene)
+{
+    assert(scene);
+    return scene->slot_count;
+}
+
+bool
+world_scene_element_is_live(
+    struct WorldScene* scene,
+    int element_id)
+{
+    return world_scene_element_valid(scene, element_id);
 }
 
 struct WorldScene_EventQueue*

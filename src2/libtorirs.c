@@ -1,9 +1,12 @@
 #include "libtorirs.h"
 
+#include "3rd/minipt.h"
 #include "commands/libtorirs_command_queue.h"
 #include "commands/libtorirs_command_queue_internal.h"
 #include "gamecache/gamecache_l.h"
 #include "games/model_viewer.h"
+#include "games/runescape.h"
+#include "toridraw/toridraw.h"
 #include "input/libtorirs_input.h"
 #include "libtorirs_internal.h"
 #include "scripting/libtorirs_scripting.h"
@@ -79,12 +82,9 @@ LibToriRS_InstanceNew(void)
     instance->task_free_head = 0;
     instance->task_live_head = -1;
 
-    struct Task_GameCacheL_ModelLoad* task_model_load =
-        Task_GameCacheL_ModelLoad_New(instance->gamecache_l, 1571);
-
-    LibToriRS_TasksAdd(instance, task_model_load, Task_GameCacheL_ModelLoad_Run);
-
     instance->running = true;
+
+    toridraw_init();
 
     return instance;
 }
@@ -105,6 +105,8 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
 
     if( instance->model_viewer )
         game_modelviewer_free(instance->model_viewer);
+    if( instance->runescape )
+        game_runescape_free(instance->runescape);
     free(instance);
 }
 
@@ -261,59 +263,45 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
         instance->running = false;
     }
 
-    if( instance->model_viewer )
+    switch( instance->active_game_kind )
     {
-        const int camera_movement_speed = 10;
-        const int camera_rotation_speed = 10;
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_A) )
+    case GAME_HANDLE_KIND_MODEL_VIEWER:
+        if( instance->model_viewer )
         {
-            game_modelviewer_move_right(instance->model_viewer, camera_movement_speed);
+            const int camera_movement_speed = 10;
+            const int camera_rotation_speed = 10;
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_A) )
+                game_modelviewer_move_right(instance->model_viewer, camera_movement_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_D) )
+                game_modelviewer_move_left(instance->model_viewer, camera_movement_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_W) )
+                game_modelviewer_move_forward(instance->model_viewer, camera_movement_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_S) )
+                game_modelviewer_move_backward(instance->model_viewer, camera_movement_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_R) )
+                game_modelviewer_move_up(instance->model_viewer, camera_movement_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
+                game_modelviewer_move_down(instance->model_viewer, camera_movement_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP) )
+                game_modelviewer_rotate_up(instance->model_viewer, camera_rotation_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN) )
+                game_modelviewer_rotate_down(instance->model_viewer, camera_rotation_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT) )
+                game_modelviewer_rotate_left(instance->model_viewer, camera_rotation_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
+                game_modelviewer_rotate_right(instance->model_viewer, camera_rotation_speed);
+            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_SPACE) )
+                game_modelviewer_next(instance->model_viewer, 1);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_BACKSPACE) )
+                game_modelviewer_next(instance->model_viewer, -1);
         }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_D) )
-        {
-            game_modelviewer_move_left(instance->model_viewer, camera_movement_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_W) )
-        {
-            game_modelviewer_move_forward(instance->model_viewer, camera_movement_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_S) )
-        {
-            game_modelviewer_move_backward(instance->model_viewer, camera_movement_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_R) )
-        {
-            game_modelviewer_move_up(instance->model_viewer, camera_movement_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
-        {
-            game_modelviewer_move_down(instance->model_viewer, camera_movement_speed);
-        }
-
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP) )
-        {
-            game_modelviewer_rotate_up(instance->model_viewer, camera_rotation_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN) )
-        {
-            game_modelviewer_rotate_down(instance->model_viewer, camera_rotation_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT) )
-        {
-            game_modelviewer_rotate_left(instance->model_viewer, camera_rotation_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
-        {
-            game_modelviewer_rotate_right(instance->model_viewer, camera_rotation_speed);
-        }
-        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_SPACE) )
-        {
-            game_modelviewer_next(instance->model_viewer, 1);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_BACKSPACE) )
-        {
-            game_modelviewer_next(instance->model_viewer, -1);
-        }
+        break;
+    case GAME_HANDLE_KIND_RUNESCAPE:
+        if( instance->runescape )
+            game_runescape_process_input(instance->runescape, input);
+        break;
+    default:
+        break;
     }
 }
 
@@ -322,8 +310,19 @@ LibToriRS_FrameBegin(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return;
-    if( instance->model_viewer )
-        game_modelviewer_frame_begin(instance->model_viewer);
+    switch( instance->active_game_kind )
+    {
+    case GAME_HANDLE_KIND_MODEL_VIEWER:
+        if( instance->model_viewer )
+            game_modelviewer_frame_begin(instance->model_viewer);
+        break;
+    case GAME_HANDLE_KIND_RUNESCAPE:
+        if( instance->runescape )
+            game_runescape_frame_begin(instance->runescape);
+        break;
+    default:
+        break;
+    }
 }
 
 bool
@@ -333,9 +332,21 @@ LibToriRS_FrameNextCommand(
 {
     if( !instance || !command )
         return false;
-    if( instance->model_viewer &&
-        game_modelviewer_frame_next_command(instance->model_viewer, command) )
-        return true;
+    switch( instance->active_game_kind )
+    {
+    case GAME_HANDLE_KIND_MODEL_VIEWER:
+        if( instance->model_viewer &&
+            game_modelviewer_frame_next_command(instance->model_viewer, command) )
+            return true;
+        break;
+    case GAME_HANDLE_KIND_RUNESCAPE:
+        if( instance->runescape &&
+            game_runescape_frame_next_command(instance->runescape, command) )
+            return true;
+        break;
+    default:
+        break;
+    }
     return false;
 }
 
@@ -344,8 +355,19 @@ LibToriRS_FrameEnd(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return;
-    if( instance->model_viewer )
-        game_modelviewer_frame_end(instance->model_viewer);
+    switch( instance->active_game_kind )
+    {
+    case GAME_HANDLE_KIND_MODEL_VIEWER:
+        if( instance->model_viewer )
+            game_modelviewer_frame_end(instance->model_viewer);
+        break;
+    case GAME_HANDLE_KIND_RUNESCAPE:
+        if( instance->runescape )
+            game_runescape_frame_end(instance->runescape);
+        break;
+    default:
+        break;
+    }
 }
 
 bool
@@ -361,8 +383,19 @@ LibToriRS_GetCurrentToriDrawContext(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return NULL;
-    if( instance->model_viewer )
-        return instance->model_viewer->context;
+    switch( instance->active_game_kind )
+    {
+    case GAME_HANDLE_KIND_MODEL_VIEWER:
+        if( instance->model_viewer )
+            return instance->model_viewer->context;
+        break;
+    case GAME_HANDLE_KIND_RUNESCAPE:
+        if( instance->runescape )
+            return instance->runescape->context;
+        break;
+    default:
+        break;
+    }
     return NULL;
 }
 

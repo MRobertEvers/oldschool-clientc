@@ -42,4 +42,20 @@ Task_GameCacheL_ModelLoad_Run(
     void* task_state,
     struct LibToriRS_IOContext* ctx);
 
+struct Task_GameCacheL_WorldRebuildNormal;
+
+struct Task_GameCacheL_WorldRebuildNormal*
+Task_GameCacheL_WorldRebuildNormal_New(
+    struct GameCacheL* gamecache_l,
+    int zonex,
+    int zonez);
+
+void
+Task_GameCacheL_WorldRebuildNormal_Free(struct Task_GameCacheL_WorldRebuildNormal* task);
+
+int
+Task_GameCacheL_WorldRebuildNormal_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx);
+
 #endif

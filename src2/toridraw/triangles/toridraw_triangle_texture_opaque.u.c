@@ -3,8 +3,8 @@
 #ifndef TORIDRAW_TRIANGLE_TEXTURE_OPAQUE_U_C
 #define TORIDRAW_TRIANGLE_TEXTURE_OPAQUE_U_C
 
-#include "graphics/dash_restrict.h"
 #include "../toridraw_types.h"
+#include "graphics/dash_restrict.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -209,14 +209,14 @@ toridraw_triangle_face_texture_blend_opaque_near_clip(
             {
                 lerp_slope = toridraw_triangle_slopei(near_plane_z, zc, za);
 
-                g_toridraw_triangle_clip_x[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
+                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
 
-                g_toridraw_triangle_clip_y[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
+                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
 
-                g_toridraw_triangle_clip_color[clipped_count] =
-                    toridraw_triangle_lerp_planei(near_plane_z, lerp_slope, colors_c[face], color_a);
+                g_toridraw_triangle_clip_color[clipped_count] = toridraw_triangle_lerp_planei(
+                    near_plane_z, lerp_slope, colors_c[face], color_a);
 
                 clipped_count++;
             }
@@ -228,14 +228,14 @@ toridraw_triangle_face_texture_blend_opaque_near_clip(
             {
                 lerp_slope = toridraw_triangle_slopei(near_plane_z, zb, za);
 
-                g_toridraw_triangle_clip_x[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
+                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
 
-                g_toridraw_triangle_clip_y[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
+                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
 
-                g_toridraw_triangle_clip_color[clipped_count] =
-                    toridraw_triangle_lerp_planei(near_plane_z, lerp_slope, colors_b[face], color_a);
+                g_toridraw_triangle_clip_color[clipped_count] = toridraw_triangle_lerp_planei(
+                    near_plane_z, lerp_slope, colors_b[face], color_a);
 
                 clipped_count++;
             }
@@ -262,14 +262,14 @@ toridraw_triangle_face_texture_blend_opaque_near_clip(
             {
                 lerp_slope = toridraw_triangle_slopei(near_plane_z, za, zb);
 
-                g_toridraw_triangle_clip_x[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
+                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
 
-                g_toridraw_triangle_clip_y[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
+                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
 
-                g_toridraw_triangle_clip_color[clipped_count] =
-                    toridraw_triangle_lerp_planei(near_plane_z, lerp_slope, colors_a[face], color_b);
+                g_toridraw_triangle_clip_color[clipped_count] = toridraw_triangle_lerp_planei(
+                    near_plane_z, lerp_slope, colors_a[face], color_b);
 
                 clipped_count++;
             }
@@ -281,14 +281,14 @@ toridraw_triangle_face_texture_blend_opaque_near_clip(
             {
                 lerp_slope = toridraw_triangle_slopei(near_plane_z, zc, zb);
 
-                g_toridraw_triangle_clip_x[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
+                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
 
-                g_toridraw_triangle_clip_y[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
+                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
 
-                g_toridraw_triangle_clip_color[clipped_count] =
-                    toridraw_triangle_lerp_planei(near_plane_z, lerp_slope, colors_c[face], color_b);
+                g_toridraw_triangle_clip_color[clipped_count] = toridraw_triangle_lerp_planei(
+                    near_plane_z, lerp_slope, colors_c[face], color_b);
 
                 clipped_count++;
             }
@@ -315,13 +315,13 @@ toridraw_triangle_face_texture_blend_opaque_near_clip(
             {
                 lerp_slope = toridraw_triangle_slopei(near_plane_z, zb, zc);
 
-                g_toridraw_triangle_clip_x[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
-                g_toridraw_triangle_clip_y[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
+                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
+                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
 
-                g_toridraw_triangle_clip_color[clipped_count] =
-                    toridraw_triangle_lerp_planei(near_plane_z, lerp_slope, colors_b[face], color_c);
+                g_toridraw_triangle_clip_color[clipped_count] = toridraw_triangle_lerp_planei(
+                    near_plane_z, lerp_slope, colors_b[face], color_c);
 
                 clipped_count++;
             }
@@ -333,13 +333,13 @@ toridraw_triangle_face_texture_blend_opaque_near_clip(
             {
                 lerp_slope = toridraw_triangle_slopei(near_plane_z, za, zc);
 
-                g_toridraw_triangle_clip_x[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
-                g_toridraw_triangle_clip_y[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
+                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
+                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
 
-                g_toridraw_triangle_clip_color[clipped_count] =
-                    toridraw_triangle_lerp_planei(near_plane_z, lerp_slope, colors_a[face], color_c);
+                g_toridraw_triangle_clip_color[clipped_count] = toridraw_triangle_lerp_planei(
+                    near_plane_z, lerp_slope, colors_a[face], color_c);
 
                 clipped_count++;
             }
@@ -381,34 +381,34 @@ toridraw_triangle_face_texture_blend_opaque_near_clip(
     xc += offset_x;
     yc += offset_y;
     toridraw_triangle_texture_blend_opaque(
-            pixel_buffer,
-            stride,
-            screen_width,
-            screen_height,
-            camera_fov,
-            xa,
-            xb,
-            xc,
-            ya,
-            yb,
-            yc,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            color_a,
-            color_b,
-            color_c,
-            texels,
-            texture_size,
-            near_plane_z,
-            offset_x,
-            offset_y);
+        pixel_buffer,
+        stride,
+        screen_width,
+        screen_height,
+        camera_fov,
+        xa,
+        xb,
+        xc,
+        ya,
+        yb,
+        yc,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
+        color_a,
+        color_b,
+        color_c,
+        texels,
+        texture_size,
+        near_plane_z,
+        offset_x,
+        offset_y);
 
     static int colors[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
 
@@ -440,34 +440,34 @@ toridraw_triangle_face_texture_blend_opaque_near_clip(
     xb += offset_x;
     yb += offset_y;
     toridraw_triangle_texture_blend_opaque(
-            pixel_buffer,
-            stride,
-            screen_width,
-            screen_height,
-            camera_fov,
-            xa,
-            xb,
-            xc,
-            ya,
-            yb,
-            yc,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            color_a,
-            color_b,
-            color_c,
-            texels,
-            texture_size,
-            near_plane_z,
-            offset_x,
-            offset_y);
+        pixel_buffer,
+        stride,
+        screen_width,
+        screen_height,
+        camera_fov,
+        xa,
+        xb,
+        xc,
+        ya,
+        yb,
+        yc,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
+        color_a,
+        color_b,
+        color_c,
+        texels,
+        texture_size,
+        near_plane_z,
+        offset_x,
+        offset_y);
 }
 
 static inline void
@@ -657,34 +657,34 @@ toridraw_triangle_face_texture_blend_opaque(
 
     // return;
     toridraw_triangle_texture_blend_opaque(
-            pixel_buffer,
-            stride,
-            screen_width,
-            screen_height,
-            camera_fov,
-            x1,
-            x2,
-            x3,
-            y1,
-            y2,
-            y3,
-            orthographic_uvorigin_x0,
-            orthographic_uend_x1,
-            orthographic_vend_x2,
-            orthographic_uvorigin_y0,
-            orthographic_uend_y1,
-            orthographic_vend_y2,
-            orthographic_uvorigin_z0,
-            orthographic_uend_z1,
-            orthographic_vend_z2,
-            shade_a,
-            shade_b,
-            shade_c,
-            texels,
-            texture_size,
-            near_plane_z,
-            offset_x,
-            offset_y);
+        pixel_buffer,
+        stride,
+        screen_width,
+        screen_height,
+        camera_fov,
+        x1,
+        x2,
+        x3,
+        y1,
+        y2,
+        y3,
+        orthographic_uvorigin_x0,
+        orthographic_uend_x1,
+        orthographic_vend_x2,
+        orthographic_uvorigin_y0,
+        orthographic_uend_y1,
+        orthographic_vend_y2,
+        orthographic_uvorigin_z0,
+        orthographic_uend_z1,
+        orthographic_vend_z2,
+        shade_a,
+        shade_b,
+        shade_c,
+        texels,
+        texture_size,
+        near_plane_z,
+        offset_x,
+        offset_y);
 
     return;
 }
@@ -754,11 +754,11 @@ toridraw_triangle_face_texture_flat_opaque_near_clip(
             {
                 lerp_slope = toridraw_triangle_slopei(near_plane_z, zc, za);
 
-                g_toridraw_triangle_clip_x[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
+                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
 
-                g_toridraw_triangle_clip_y[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
+                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
 
                 clipped_count++;
             }
@@ -770,11 +770,11 @@ toridraw_triangle_face_texture_flat_opaque_near_clip(
             {
                 lerp_slope = toridraw_triangle_slopei(near_plane_z, zb, za);
 
-                g_toridraw_triangle_clip_x[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
+                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
 
-                g_toridraw_triangle_clip_y[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
+                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
 
                 clipped_count++;
             }
@@ -799,11 +799,11 @@ toridraw_triangle_face_texture_flat_opaque_near_clip(
             {
                 lerp_slope = toridraw_triangle_slopei(near_plane_z, za, zb);
 
-                g_toridraw_triangle_clip_x[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
+                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
 
-                g_toridraw_triangle_clip_y[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
+                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
 
                 clipped_count++;
             }
@@ -815,11 +815,11 @@ toridraw_triangle_face_texture_flat_opaque_near_clip(
             {
                 lerp_slope = toridraw_triangle_slopei(near_plane_z, zc, zb);
 
-                g_toridraw_triangle_clip_x[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
+                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
 
-                g_toridraw_triangle_clip_y[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
+                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
 
                 clipped_count++;
             }
@@ -844,10 +844,10 @@ toridraw_triangle_face_texture_flat_opaque_near_clip(
             {
                 lerp_slope = toridraw_triangle_slopei(near_plane_z, zb, zc);
 
-                g_toridraw_triangle_clip_x[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
-                g_toridraw_triangle_clip_y[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
+                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
+                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
 
                 clipped_count++;
             }
@@ -859,10 +859,10 @@ toridraw_triangle_face_texture_flat_opaque_near_clip(
             {
                 lerp_slope = toridraw_triangle_slopei(near_plane_z, za, zc);
 
-                g_toridraw_triangle_clip_x[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
-                g_toridraw_triangle_clip_y[clipped_count] =
-                    toridraw_triangle_lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
+                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
+                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                    near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
 
                 clipped_count++;
             }
@@ -897,32 +897,32 @@ toridraw_triangle_face_texture_flat_opaque_near_clip(
     xc += offset_x;
     yc += offset_y;
     toridraw_triangle_texture_flat_opaque(
-            pixel_buffer,
-            stride,
-            screen_width,
-            screen_height,
-            camera_fov,
-            xa,
-            xb,
-            xc,
-            ya,
-            yb,
-            yc,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            color,
-            texels,
-            texture_size,
-            near_plane_z,
-            offset_x,
-            offset_y);
+        pixel_buffer,
+        stride,
+        screen_width,
+        screen_height,
+        camera_fov,
+        xa,
+        xb,
+        xc,
+        ya,
+        yb,
+        yc,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
+        color,
+        texels,
+        texture_size,
+        near_plane_z,
+        offset_x,
+        offset_y);
 
     assert(clipped_count <= 4);
     if( clipped_count != 4 )
@@ -951,32 +951,32 @@ toridraw_triangle_face_texture_flat_opaque_near_clip(
     xb += offset_x;
     yb += offset_y;
     toridraw_triangle_texture_flat_opaque(
-            pixel_buffer,
-            stride,
-            screen_width,
-            screen_height,
-            camera_fov,
-            xa,
-            xb,
-            xc,
-            ya,
-            yb,
-            yc,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            color,
-            texels,
-            texture_size,
-            near_plane_z,
-            offset_x,
-            offset_y);
+        pixel_buffer,
+        stride,
+        screen_width,
+        screen_height,
+        camera_fov,
+        xa,
+        xb,
+        xc,
+        ya,
+        yb,
+        yc,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
+        color,
+        texels,
+        texture_size,
+        near_plane_z,
+        offset_x,
+        offset_y);
 }
 
 static inline void
@@ -1075,32 +1075,32 @@ toridraw_triangle_face_texture_flat_opaque(
     x3 += offset_x;
     y3 += offset_y;
     toridraw_triangle_texture_flat_opaque(
-            pixel_buffer,
-            stride,
-            screen_width,
-            screen_height,
-            camera_fov,
-            x1,
-            x2,
-            x3,
-            y1,
-            y2,
-            y3,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            shade,
-            texels,
-            texture_size,
-            near_plane_z,
-            offset_x,
-            offset_y);
+        pixel_buffer,
+        stride,
+        screen_width,
+        screen_height,
+        camera_fov,
+        x1,
+        x2,
+        x3,
+        y1,
+        y2,
+        y3,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
+        shade,
+        texels,
+        texture_size,
+        near_plane_z,
+        offset_x,
+        offset_y);
 
     return;
 }

@@ -71,6 +71,12 @@ LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(
 void
 LibToriRS_ScriptAPI_Game_ModelViewer_Init(struct LibToriRS_Instance* instance);
 
+void
+LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(struct LibToriRS_Instance* instance);
+
 struct GameHandle*
 LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(struct LibToriRS_Instance* instance);
 

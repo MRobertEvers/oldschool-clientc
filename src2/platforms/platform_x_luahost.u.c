@@ -34,54 +34,6 @@ LibToriPlatformX_LuaHost_Platform_GetIOQueue(lua_State* L)
     return 1;
 }
 
-static void*
-luahost_read_entire_file(
-    const char* path,
-    long* out_size)
-{
-    FILE* f = fopen(path, "rb");
-    if( !f )
-        return NULL;
-
-    if( fseek(f, 0, SEEK_END) != 0 )
-    {
-        fclose(f);
-        return NULL;
-    }
-
-    long file_size = ftell(f);
-    if( file_size < 0 )
-    {
-        fclose(f);
-        return NULL;
-    }
-
-    if( fseek(f, 0, SEEK_SET) != 0 )
-    {
-        fclose(f);
-        return NULL;
-    }
-
-    void* bytes = malloc((size_t)file_size);
-    if( !bytes )
-    {
-        fclose(f);
-        return NULL;
-    }
-
-    if( fread(bytes, 1, (size_t)file_size, f) != (size_t)file_size )
-    {
-        fclose(f);
-        free(bytes);
-        return NULL;
-    }
-
-    fclose(f);
-    if( out_size )
-        *out_size = file_size;
-    return bytes;
-}
-
 int
 LibToriPlatformX_LuaHost_Platform_LoadIO(lua_State* L)
 {
@@ -408,6 +360,40 @@ LibToriPlatformX_LuaHost_Game_ModelViewer_Init(lua_State* L)
         return 0;
 
     LibToriRS_ScriptAPI_Game_ModelViewer_Init(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Runescape_Init(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Game_Runescape_Init(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Runescape_BuildWorld(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(instance);
 
     return 0;
 }
@@ -1049,6 +1035,10 @@ LibToriPlatformX_LuaHost_BindToPlatform(
         LibToriPlatformX_LuaHost_Game_Dat1_SubmitGameCacheModelScriptInt);
     lua_bind_function_to_platform(
         L, lua, "ModelViewer_Init", LibToriPlatformX_LuaHost_Game_ModelViewer_Init);
+    lua_bind_function_to_platform(
+        L, lua, "Runescape_Init", LibToriPlatformX_LuaHost_Game_Runescape_Init);
+    lua_bind_function_to_platform(
+        L, lua, "Runescape_BuildWorld", LibToriPlatformX_LuaHost_Game_Runescape_BuildWorld);
     lua_bind_function_to_platform(
         L,
         lua,
