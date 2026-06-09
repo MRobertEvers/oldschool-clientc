@@ -193,6 +193,33 @@ trspk_modelarena_create(
     return arena;
 }
 
+struct TRSPK_ModelArena*
+trspk_modelarena_create_chain16(
+    struct TRSPK_VBOChain16* chain,
+    struct TRSPK_Triangles* triangles,
+    uint32_t initial_slot_capacity)
+{
+    assert(chain != NULL);
+
+    struct TRSPK_ModelArena* arena = (struct TRSPK_ModelArena*)malloc(sizeof(struct TRSPK_ModelArena));
+    assert(arena != NULL);
+    memset(arena, 0, sizeof(struct TRSPK_ModelArena));
+
+    if( initial_slot_capacity == 0u )
+        initial_slot_capacity = TRSPK_MODELARENA_INIT_SLOT_CAP;
+
+    arena->slots = (struct TRSPK_ModelSlot*)calloc(
+        initial_slot_capacity, sizeof(struct TRSPK_ModelSlot));
+    assert(arena->slots != NULL);
+
+    arena->slot_capacity = initial_slot_capacity;
+    arena->free_head = TRSPK_MODELSLOT_NULL_IDX;
+    arena->vbo_chain = chain;
+    arena->tri = triangles;
+
+    return arena;
+}
+
 void
 trspk_modelarena_free(struct TRSPK_ModelArena* arena)
 {
@@ -207,35 +234,55 @@ uint32_t
 trspk_modelarena_load(
     struct TRSPK_ModelArena* arena,
     int element_id,
+    int pose_id,
     uint32_t vertex_count)
 {
     assert(arena != NULL);
     assert(element_id >= 0);
+    assert(pose_id >= 0);
     assert(vertex_count > 0u);
     assert((vertex_count % 3u) == 0u);
 
-    uint32_t base = align_vertex_base(arena->write_cursor, vertex_count, arena->page_size);
-    if( base > arena->write_cursor )
-        trspk_vbo_growby(arena->vbo, base - arena->write_cursor);
-
-    trspk_vbo_growby(arena->vbo, vertex_count);
-
     const uint32_t tri_count = vertex_count / 3u;
-    const uint32_t tri_start = base / 3u;
-    trspk_triangles_ensure(arena->tri, tri_start + tri_count);
-
     const uint32_t slot_index = alloc_slot(arena);
     struct TRSPK_ModelSlot* slot = &arena->slots[slot_index];
 
-    slot->vertex_base = base;
+    if( arena->vbo_chain != NULL )
+    {
+        struct TRSPK_VBOChain16PushResult pushed =
+            trspk_vbochain16_push(arena->vbo_chain, vertex_count);
+
+        slot->vertex_base = pushed.base_vertex;
+        slot->page = arena->vbo_chain->current_page;
+        slot->tri_start = 0u;
+    }
+    else
+    {
+        assert(arena->vbo != NULL);
+
+        uint32_t base = align_vertex_base(arena->write_cursor, vertex_count, arena->page_size);
+        if( base > arena->write_cursor )
+            trspk_vbo_growby(arena->vbo, base - arena->write_cursor);
+
+        trspk_vbo_growby(arena->vbo, vertex_count);
+
+        const uint32_t tri_start = base / 3u;
+        if( arena->tri != NULL )
+            trspk_triangles_ensure(arena->tri, tri_start + tri_count);
+
+        slot->vertex_base = base;
+        slot->page = 0u;
+        slot->tri_start = tri_start;
+
+        arena->write_cursor = base + vertex_count;
+    }
+
     slot->vertex_count = vertex_count;
-    slot->tri_start = tri_start;
     slot->tri_count = tri_count;
     slot->element_id = element_id;
+    slot->pose_id = pose_id;
     slot->flags = TRSPK_MODELSLOT_FLAG_ALIVE;
     slot->next_free = TRSPK_MODELSLOT_NULL_IDX;
-
-    arena->write_cursor = base + vertex_count;
 
     return slot_index;
 }
@@ -255,6 +302,22 @@ trspk_modelarena_unload(
     free_slot(arena, slot_index);
 }
 
+void
+trspk_modelarena_unload_element(
+    struct TRSPK_ModelArena* arena,
+    int element_id)
+{
+    assert(arena != NULL);
+    assert(element_id >= 0);
+
+    for( uint32_t i = 0u; i < arena->slot_count; ++i )
+    {
+        struct TRSPK_ModelSlot* slot = &arena->slots[i];
+        if( trspk_modelslot_is_alive(slot) && slot->element_id == element_id )
+            free_slot(arena, i);
+    }
+}
+
 const struct TRSPK_ModelSlot*
 trspk_modelarena_get(
     const struct TRSPK_ModelArena* arena,
@@ -270,14 +333,16 @@ trspk_modelarena_get(
 uint32_t
 trspk_modelarena_find(
     const struct TRSPK_ModelArena* arena,
-    int element_id)
+    int element_id,
+    int pose_id)
 {
     assert(arena != NULL);
 
     for( uint32_t i = 0u; i < arena->slot_count; ++i )
     {
         const struct TRSPK_ModelSlot* slot = &arena->slots[i];
-        if( trspk_modelslot_is_alive(slot) && slot->element_id == element_id )
+        if( trspk_modelslot_is_alive(slot) && slot->element_id == element_id &&
+            slot->pose_id == pose_id )
             return i;
     }
 
@@ -292,7 +357,11 @@ trspk_modelarena_clear(struct TRSPK_ModelArena* arena)
     arena->slot_count = 0u;
     arena->free_head = TRSPK_MODELSLOT_NULL_IDX;
     arena->write_cursor = 0u;
-    trspk_vbo_reset(arena->vbo);
+
+    if( arena->vbo_chain != NULL )
+        trspk_vbochain16_reset(arena->vbo_chain);
+    else if( arena->vbo != NULL )
+        trspk_vbo_reset(arena->vbo);
 }
 
 struct TRSPK_ModelArenaGCResult
@@ -301,6 +370,9 @@ trspk_modelarena_gc(struct TRSPK_ModelArena* arena)
     assert(arena != NULL);
 
     struct TRSPK_ModelArenaGCResult result = { 0u, false };
+
+    if( arena->vbo_chain != NULL )
+        return result;
 
     if( arena->slot_count == 0u )
         return result;
@@ -413,6 +485,7 @@ trspk_modelarena_rebuild(
         const uint32_t slot_index = trspk_modelarena_load(
             arena,
             saved[i].element_id,
+            saved[i].pose_id,
             saved[i].vertex_count);
         rebuild_fn(arena, slot_index, user_data);
     }

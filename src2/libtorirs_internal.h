@@ -28,8 +28,11 @@ struct LibToriRS_Task
 struct LibToriRS_Instance
 {
     bool running;
+    bool cpu_animation;
     uint64_t last_frame_ms;
     uint64_t input_accumulator_ms;
+    uint64_t anim_last_tick_ms;
+    uint64_t anim_accumulator_ms;
     struct LibToriRS_IOQueue* io_queue;
     struct LibToriRS_ScriptQueue* script_queue;
     struct LibToriRS_Input* input;

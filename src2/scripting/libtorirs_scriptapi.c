@@ -410,6 +410,7 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
         return;
 
     game_runescape_set_gamecache(instance->runescape, gamecache(instance->gamecache_l));
+    instance->runescape->animate_on_cpu = instance->cpu_animation;
 
     instance->runescape_handle.kind = GAME_HANDLE_KIND_RUNESCAPE;
     instance->runescape_handle.u.runescape = instance->runescape;

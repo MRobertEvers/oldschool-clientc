@@ -31,6 +31,8 @@ struct WorldScene_Event
     int batch_id;
     /* For WSE_MODEL_*, WSE_ANIM_*, WSE_BATCH_MODEL_ADD, WSE_BATCH_ANIM_ADD: element id. */
     int element_id;
+    /* Pose index within element; 0 = bind/static pose. */
+    int pose_id;
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Animation* animation;
 };

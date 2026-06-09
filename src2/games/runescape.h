@@ -46,6 +46,7 @@ struct GameRunescape
     int zone_center_x;
     int zone_center_z;
     bool world_built;
+    bool animate_on_cpu;
 
     struct
     {
@@ -76,6 +77,11 @@ void
 game_runescape_process_input(
     struct GameRunescape* game,
     struct LibToriRS_Input* input);
+
+void
+game_runescape_step_animations(
+    struct GameRunescape* game,
+    int cycles);
 
 void
 game_runescape_frame_begin(struct GameRunescape* game);

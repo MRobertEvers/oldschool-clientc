@@ -21,6 +21,11 @@
     } while(0)
 // clang-format on
 
+struct WorldScenePendingPose
+{
+    struct ToriDraw_Model* model;
+};
+
 struct WorldScene
 {
     struct WorldScene_EventQueue* event_queue;
@@ -36,6 +41,10 @@ struct WorldScene
     int current_batch_id;
     int current_batch_element_count;
     int next_batch_id;
+
+    struct WorldScenePendingPose* pending_poses;
+    int pending_pose_count;
+    int pending_pose_cap;
 };
 
 static void
@@ -44,6 +53,7 @@ world_scene_emit(
     enum WorldScene_EventKind kind,
     int batch_id,
     int element_id,
+    int pose_id,
     const struct ToriDraw_ModelHandle* model,
     struct ToriDraw_Animation* animation)
 {
@@ -56,11 +66,34 @@ world_scene_emit(
     event.kind = kind;
     event.batch_id = batch_id;
     event.element_id = element_id;
+    event.pose_id = pose_id;
     if( model )
         event.model = *model;
     event.animation = animation;
 
     worldscene_eventqueue_push(scene->event_queue, &event);
+}
+
+static void
+world_scene_retain_pending_pose(
+    struct WorldScene* scene,
+    struct ToriDraw_Model* model)
+{
+    if( !scene || !model )
+        return;
+
+    if( scene->pending_pose_count >= scene->pending_pose_cap )
+    {
+        int new_cap = scene->pending_pose_cap ? scene->pending_pose_cap * 2 : 64;
+        struct WorldScenePendingPose* grown = realloc(
+            scene->pending_poses, (size_t)new_cap * sizeof(struct WorldScenePendingPose));
+        if( !grown )
+            return;
+        scene->pending_poses = grown;
+        scene->pending_pose_cap = new_cap;
+    }
+
+    scene->pending_poses[scene->pending_pose_count++].model = model;
 }
 
 static bool
@@ -111,6 +144,7 @@ world_scene_prepare_element_slot(
         return false;
 
     memset(element, 0, sizeof(*element));
+    element->anim_seq_id = -1;
     return true;
 }
 
@@ -174,8 +208,20 @@ world_scene_free_element_id(
     element = world_scene_element_ptr(scene, element_id);
     if( element )
     {
+        if( element->anim_seq_id != -1 )
+        {
+            world_scene_emit(
+                scene,
+                WSE_ANIM_UNLOAD,
+                0,
+                element_id,
+                0,
+                element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+                NULL);
+        }
         world_scene_dispose_element_model(element);
         memset(element, 0, sizeof(*element));
+        element->anim_seq_id = -1;
     }
 
     scene->slots[element_id] = false;
@@ -222,10 +268,13 @@ world_scene_free(struct WorldScene* scene)
             world_scene_dispose_element_model(element);
     }
 
+    world_scene_free_pending_pose_copies(scene);
+
     if( scene->elements )
         toridraw_vec_free(scene->elements);
     if( scene->event_queue )
         worldscene_eventqueue_free(scene->event_queue);
+    free(scene->pending_poses);
     free(scene);
 }
 
@@ -239,7 +288,7 @@ world_scene_batch_begin(struct WorldScene* scene)
     scene->current_batch_id = scene->next_batch_id++;
     scene->current_batch_element_count = 0;
 
-    world_scene_emit(scene, WSE_BATCH_BEGIN, scene->current_batch_id, 0, NULL, NULL);
+    world_scene_emit(scene, WSE_BATCH_BEGIN, scene->current_batch_id, 0, 0, NULL, NULL);
 }
 
 struct WorldSceneBatchElementHandle
@@ -260,7 +309,7 @@ world_scene_batch_add_element(struct WorldScene* scene)
 
     scene->current_batch_element_count++;
 
-    world_scene_emit(scene, WSE_BATCH_MODEL_ADD, scene->current_batch_id, element_id, NULL, NULL);
+    world_scene_emit(scene, WSE_BATCH_MODEL_ADD, scene->current_batch_id, element_id, 0, NULL, NULL);
 
     handle.scene = scene;
     handle.batch_id = scene->current_batch_id;
@@ -274,7 +323,7 @@ world_scene_batch_end(struct WorldScene* scene)
     assert(scene);
     assert(scene->batch_building);
 
-    world_scene_emit(scene, WSE_BATCH_END, scene->current_batch_id, 0, NULL, NULL);
+    world_scene_emit(scene, WSE_BATCH_END, scene->current_batch_id, 0, 0, NULL, NULL);
 
     scene->batch_building = false;
     scene->current_batch_element_count = 0;
@@ -287,7 +336,46 @@ world_scene_batch_clear(
 {
     assert(scene);
 
-    world_scene_emit(scene, WSE_BATCH_CLEAR, batch_id, 0, NULL, NULL);
+    world_scene_emit(scene, WSE_BATCH_CLEAR, batch_id, 0, 0, NULL, NULL);
+}
+
+void
+world_scene_batch_element_add_pose(
+    struct WorldScene* scene,
+    int element_id,
+    int pose_id,
+    struct ToriDraw_ModelHandle baked)
+{
+    assert(scene);
+    assert(scene->batch_building);
+    assert(baked.kind == TORIDRAWMK_MODEL);
+    assert(world_scene_element_valid(scene, element_id));
+
+    world_scene_emit(
+        scene,
+        WSE_BATCH_ANIM_ADD,
+        scene->current_batch_id,
+        element_id,
+        pose_id,
+        &baked,
+        NULL);
+
+    if( baked.u.model.model )
+        world_scene_retain_pending_pose(scene, baked.u.model.model);
+}
+
+void
+world_scene_free_pending_pose_copies(struct WorldScene* scene)
+{
+    if( !scene )
+        return;
+
+    for( int i = 0; i < scene->pending_pose_count; i++ )
+    {
+        if( scene->pending_poses[i].model )
+            toridraw_model_free(scene->pending_poses[i].model);
+    }
+    scene->pending_pose_count = 0;
 }
 
 int
@@ -322,6 +410,7 @@ world_scene_remove_element(
         WSE_MODEL_UNLOAD,
         0,
         element_id,
+        0,
         element && element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
         NULL);
 
@@ -344,11 +433,23 @@ world_scene_clear(struct WorldScene* scene)
         if( !element )
             continue;
 
+        if( element->anim_seq_id != -1 )
+        {
+            world_scene_emit(
+                scene,
+                WSE_ANIM_UNLOAD,
+                0,
+                i,
+                0,
+                element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+                NULL);
+        }
         world_scene_emit(
             scene,
             WSE_MODEL_UNLOAD,
             0,
             i,
+            0,
             element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
             NULL);
         world_scene_dispose_element_model(element);
@@ -364,7 +465,7 @@ world_scene_clear(struct WorldScene* scene)
 
     toridraw_vec_clear(scene->elements);
 
-    world_scene_emit(scene, WSE_SCENE_RESET, 0, 0, NULL, NULL);
+    world_scene_emit(scene, WSE_SCENE_RESET, 0, 0, 0, NULL, NULL);
 }
 
 struct WorldSceneElement*
@@ -400,7 +501,22 @@ world_scene_element_assign_model(
     world_scene_dispose_element_model(element);
     element->model = model;
     element->owns_model = owned;
-    world_scene_emit(scene, WSE_MODEL_LOAD, 0, element_id, &element->model, NULL);
+
+    if( scene->batch_building )
+    {
+        world_scene_emit(
+            scene,
+            WSE_BATCH_MODEL_ADD,
+            scene->current_batch_id,
+            element_id,
+            0,
+            &element->model,
+            NULL);
+    }
+    else
+    {
+        world_scene_emit(scene, WSE_MODEL_LOAD, 0, element_id, 0, &element->model, NULL);
+    }
 }
 
 void
@@ -442,13 +558,44 @@ world_scene_element_set_animation(
     if( animation )
     {
         *slot = animation;
-        world_scene_emit(scene, WSE_ANIM_LOAD, 0, element_id, &element->model, animation);
+        world_scene_emit(scene, WSE_ANIM_LOAD, 0, element_id, 0, &element->model, animation);
     }
     else
     {
         *slot = NULL;
-        world_scene_emit(scene, WSE_ANIM_UNLOAD, 0, element_id, &element->model, NULL);
+        if( primary )
+            element->anim_seq_id = -1;
+        world_scene_emit(scene, WSE_ANIM_UNLOAD, 0, element_id, 0, &element->model, NULL);
     }
+}
+
+void
+world_scene_element_set_animation_seq(
+    struct WorldScene* scene,
+    int element_id,
+    int seq_id)
+{
+    struct WorldSceneElement* element;
+
+    assert(scene);
+    assert(world_scene_element_valid(scene, element_id));
+
+    element = world_scene_element_ptr(scene, element_id);
+    assert(element);
+
+    element->anim_seq_id = seq_id;
+    element->anim_frame = 0;
+    element->anim_cycle = 0;
+    element->animation = NULL;
+
+    if( element->owns_model && element->model.kind == TORIDRAWMK_MODEL &&
+        element->model.u.model.model )
+    {
+        toridraw_model_capture_original_vertices(element->model.u.model.model);
+    }
+
+    if( !scene->batch_building )
+        world_scene_emit(scene, WSE_ANIM_LOAD, 0, element_id, 0, &element->model, NULL);
 }
 
 void

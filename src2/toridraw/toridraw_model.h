@@ -1,6 +1,7 @@
 #ifndef TORIDRAW_MODEL_H
 #define TORIDRAW_MODEL_H
 
+#include "toridraw_animation.h"
 #include "toridraw_types.h"
 
 #include <assert.h>
@@ -34,6 +35,18 @@ toridraw_model_free_normals(struct ToriDraw_Model* model);
 
 void
 toridraw_model_free(struct ToriDraw_Model* model);
+
+void
+toridraw_model_capture_original_vertices(struct ToriDraw_Model* model);
+
+void
+toridraw_model_animate_reset(struct ToriDraw_Model* model);
+
+void
+toridraw_model_animate_frame(
+    struct ToriDraw_Model* model,
+    const struct ToriDraw_AnimBase* base,
+    const struct ToriDraw_AnimFrame* frame);
 
 static inline bool
 toridraw_model_is_lightable(const struct ToriDraw_Model* model)

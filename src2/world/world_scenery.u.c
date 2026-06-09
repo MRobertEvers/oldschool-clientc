@@ -371,9 +371,43 @@ scenery_set_animation(
 {
     if( seq_id == -1 )
         return;
-    struct ToriDraw_Animation* anim = gamecache_animation_get(world->gamecache, seq_id);
-    if( anim )
-        world_scene_element_set_animation(world->scene, element_id, anim, true);
+
+    struct GameCache_Sequence* seq = gamecache_sequence_get(world->gamecache, seq_id);
+    if( !seq || seq->frame_count <= 0 )
+        return;
+
+    world_scene_element_set_animation_seq(world->scene, element_id, seq_id);
+
+    struct WorldSceneElement* element = world_scene_element_get(world->scene, element_id);
+    if( !element || element->model.kind != TORIDRAWMK_MODEL || !element->model.u.model.model )
+        return;
+
+    struct ToriDraw_Model* source = element->model.u.model.model;
+
+    for( int frame = 0; frame < seq->frame_count; frame++ )
+    {
+        const struct ToriDraw_AnimFrame* anim_frame = NULL;
+        const struct ToriDraw_AnimBase* anim_base = NULL;
+        if( !gamecache_sequence_resolve_frame(
+                world->gamecache, seq_id, frame, &anim_frame, &anim_base, NULL) )
+            continue;
+
+        struct ToriDraw_Model* baked = toridraw_model_copy(source);
+        if( !baked )
+            continue;
+
+        toridraw_model_capture_original_vertices(baked);
+        toridraw_model_animate_reset(baked);
+        toridraw_model_animate_frame(baked, anim_base, anim_frame);
+
+        struct ToriDraw_ModelHandle hnd = {
+            .kind = TORIDRAWMK_MODEL,
+            .u.model.model = baked,
+        };
+        world_scene_batch_element_add_pose(world->scene, element_id, frame, hnd);
+    }
+
+    toridraw_model_animate_reset(source);
 }
 
 static void
@@ -865,6 +899,7 @@ scenery_add_wall_decor_diagonal_double(
 
     scenery_register_sharelight(
         world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, outside_element_id, 1, 1);
+
     scenery_register_sharelight(
         world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, inside_element_id, 1, 1);
 }
@@ -887,6 +922,7 @@ scenery_add_wall_diagonal(
     }
     scenery_element_position_init(
         world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+
     painter_add_normal_scenery(
         world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 

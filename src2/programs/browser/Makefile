@@ -54,6 +54,11 @@ SRC   := browser.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_webgl1.c \
 	$(SRC2)/platformkit/core/trspk_vbo.c \
+	$(SRC2)/platformkit/core/trspk_vbochain16.c \
+	$(SRC2)/platformkit/core/trspk_modelarena.c \
+	$(SRC2)/platformkit/core/trspk_pose.c \
+	$(SRC2)/platformkit/core/trspk_ibo.c \
+	$(SRC2)/platformkit/core/trspk_triangles.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
 	$(PLAT_DIR)/platform_x/cachelib_serialized.c \

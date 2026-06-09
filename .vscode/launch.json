@@ -268,7 +268,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/src2/programs/sdl2/sdl2",
-      "args": ["--soft3d", "--runescape"],
+      "args": ["--runescape"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/src2/programs/sdl2",
       "environment": [],

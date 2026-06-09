@@ -38,6 +38,14 @@ game_modelviewer_translate_world_scene_event(
         command->kind = TORIRSRC_BATCH3D_MODEL_ADD;
         command->u.batch.batch_id = ev->batch_id;
         command->u.batch.element_id = ev->element_id;
+        command->u.batch.pose_id = ev->pose_id;
+        command->u.batch.model = ev->model;
+        return true;
+    case WSE_BATCH_ANIM_ADD:
+        command->kind = TORIRSRC_BATCH3D_ANIM_ADD;
+        command->u.batch.batch_id = ev->batch_id;
+        command->u.batch.element_id = ev->element_id;
+        command->u.batch.pose_id = ev->pose_id;
         command->u.batch.model = ev->model;
         return true;
     case WSE_BATCH_END:

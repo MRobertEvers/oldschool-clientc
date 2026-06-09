@@ -928,15 +928,6 @@ d3d9_ev_begin_3d(
 }
 
 static void
-d3d9_invalidate_pose_from_slot(
-    const struct TRSPK_ModelSlot* slot,
-    void* user_data)
-{
-    struct TRSPK_PoseTable* poses = (struct TRSPK_PoseTable*)user_data;
-    trspk_pose_table_set(poses, slot->element_id, TRSPK_POSE_VERTEX_BASE_INVALID);
-}
-
-static void
 d3d9_ev_batch3d_clear(
     struct LibToriPlatformSDL2_RendererD3D9* renderer,
     struct LibToriRS_Instance* instance,
@@ -948,8 +939,7 @@ d3d9_ev_batch3d_clear(
     if( !renderer->model_arena )
         return;
 
-    trspk_modelarena_visit_alive(
-        renderer->model_arena, d3d9_invalidate_pose_from_slot, &renderer->poses);
+    trspk_pose_table_clear(&renderer->poses);
     trspk_modelarena_clear(renderer->model_arena);
     d3d9_release_gpu_mesh_buffers(renderer);
 }
@@ -964,36 +954,33 @@ d3d9_ev_model_unload(
     assert(command->kind == TORIRSRC_MODEL_UNLOAD);
 
     const int element_id = command->u.model_load.element_id;
-    const uint32_t slot_index = trspk_modelarena_find(renderer->model_arena, element_id);
-    if( slot_index == TRSPK_MODELSLOT_NULL_IDX )
-        return;
-
-    trspk_modelarena_unload(renderer->model_arena, slot_index);
-    trspk_pose_table_set(&renderer->poses, element_id, TRSPK_POSE_VERTEX_BASE_INVALID);
+    trspk_modelarena_unload_element(renderer->model_arena, element_id);
+    trspk_pose_table_remove_element(&renderer->poses, element_id);
 }
 
 static void
-d3d9_ev_model_load(
+d3d9_bake_into_arena(
     struct LibToriPlatformSDL2_RendererD3D9* renderer,
     struct LibToriRS_Instance* instance,
-    struct LibToriRS_RenderCommand* command)
+    int element_id,
+    int pose_id,
+    struct ToriDraw_ModelHandle model_handle)
 {
-    assert(command->kind == TORIRSRC_MODEL_LOAD);
-    struct ToriDraw_Model* model = get_model(command->u.model_load.model);
+    struct ToriDraw_Model* model = get_model(model_handle);
     if( !model || model->face_count <= 0 )
         return;
 
     struct ToriDraw_Context* ctx = get_context(instance);
-    const int element_id = command->u.model_load.element_id;
     const uint32_t vert_count = (uint32_t)model->face_count * 3u;
     const uint32_t tri_count = (uint32_t)model->face_count;
 
-    const uint32_t existing_slot = trspk_modelarena_find(renderer->model_arena, element_id);
+    const uint32_t existing_slot =
+        trspk_modelarena_find(renderer->model_arena, element_id, pose_id);
     if( existing_slot != TRSPK_MODELSLOT_NULL_IDX )
         trspk_modelarena_unload(renderer->model_arena, existing_slot);
 
     const uint32_t slot_index =
-        trspk_modelarena_load(renderer->model_arena, element_id, vert_count);
+        trspk_modelarena_load(renderer->model_arena, element_id, pose_id, vert_count);
     const struct TRSPK_ModelSlot* model_slot =
         trspk_modelarena_get(renderer->model_arena, slot_index);
     assert(model_slot != NULL);
@@ -1117,7 +1104,76 @@ d3d9_ev_model_load(
             (float)tex_id);
     }
 
-    trspk_pose_table_set(&renderer->poses, element_id, base);
+    trspk_pose_table_set(&renderer->poses, element_id, pose_id, base);
+}
+
+static void
+d3d9_ev_model_load(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    assert(command->kind == TORIRSRC_MODEL_LOAD);
+    d3d9_bake_into_arena(
+        renderer,
+        instance,
+        command->u.model_load.element_id,
+        0,
+        command->u.model_load.model);
+}
+
+static void
+d3d9_ev_batch3d_begin(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)renderer;
+    (void)instance;
+    (void)command;
+}
+
+static void
+d3d9_ev_batch3d_model_add(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    assert(command->kind == TORIRSRC_BATCH3D_MODEL_ADD);
+    d3d9_bake_into_arena(
+        renderer,
+        instance,
+        command->u.batch.element_id,
+        command->u.batch.pose_id,
+        command->u.batch.model);
+}
+
+static void
+d3d9_ev_batch3d_anim_add(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    assert(command->kind == TORIRSRC_BATCH3D_ANIM_ADD);
+    d3d9_bake_into_arena(
+        renderer,
+        instance,
+        command->u.batch.element_id,
+        command->u.batch.pose_id,
+        command->u.batch.model);
+}
+
+static void
+d3d9_ev_batch3d_end(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    (void)command;
+
+    if( renderer->vbo_static_cpu )
+        trspk_vbo_set_dirty(renderer->vbo_static_cpu);
 }
 
 static void
@@ -1132,8 +1188,10 @@ d3d9_ev_model_draw(
     struct ToriDraw_Context* ctx = get_context(instance);
     assert(ctx && "Invalid context");
 
+    const int pose_id = command->u.model.anim_frame;
     uint32_t vertex_base = 0u;
-    if( !trspk_pose_table_get(&renderer->poses, command->u.model.element_id, &vertex_base) )
+    if( !trspk_pose_table_get(
+            &renderer->poses, command->u.model.element_id, pose_id, &vertex_base) )
     {
         assert(false && "Invalid element ID");
     }
@@ -1519,6 +1577,22 @@ d3d9_handle_render_command(
 
     case TORIRSRC_MODEL_UNLOAD:
         d3d9_ev_model_unload(renderer, instance, command);
+        break;
+
+    case TORIRSRC_BATCH3D_BEGIN:
+        d3d9_ev_batch3d_begin(renderer, instance, command);
+        break;
+
+    case TORIRSRC_BATCH3D_MODEL_ADD:
+        d3d9_ev_batch3d_model_add(renderer, instance, command);
+        break;
+
+    case TORIRSRC_BATCH3D_ANIM_ADD:
+        d3d9_ev_batch3d_anim_add(renderer, instance, command);
+        break;
+
+    case TORIRSRC_BATCH3D_END:
+        d3d9_ev_batch3d_end(renderer, instance, command);
         break;
 
     case TORIRSRC_BATCH3D_CLEAR:

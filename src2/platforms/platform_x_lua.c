@@ -81,7 +81,10 @@ LibToriPlatformX_LuaRun(
 
     struct LibToriRS_Script* script = LibToriRS_ScriptQueuePop(instance->script_queue);
     if( !script )
+    {
+        fprintf(stderr, "LibToriPlatformX_LuaRun: no script to run\n");
         return LIBTORI_PLATFORM_X_LUA_ERROR;
+    }
 
     lua->L_coro = lua_newthread(lua->L);
 

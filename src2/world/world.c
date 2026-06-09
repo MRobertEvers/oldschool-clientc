@@ -317,6 +317,8 @@ world_rebuild_centerzone(
 {
     world_rebuild_centerzone_begin(world, zone_center_x, zone_center_z, scene_size);
 
+    world_scene_batch_begin(world->scene);
+
     for( int mapx = world->_chunk_sw_x; mapx <= world->_chunk_ne_x; mapx++ )
     {
         for( int mapz = world->_chunk_sw_z; mapz <= world->_chunk_ne_z; mapz++ )
@@ -328,6 +330,8 @@ world_rebuild_centerzone(
         for( int mapz = world->_chunk_sw_z; mapz <= world->_chunk_ne_z; mapz++ )
             world_rebuild_centerzone_chunk_scenery(world, mapx, mapz);
     }
+
+    world_scene_batch_end(world->scene);
 
     world_rebuild_centerzone_end(world);
 }

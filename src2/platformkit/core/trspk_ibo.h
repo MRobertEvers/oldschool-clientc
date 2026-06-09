@@ -3,6 +3,7 @@
 
 #include "trspk_indices.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct TRSPK_IBO
@@ -41,6 +42,11 @@ trspk_ibo_create(
 
 void
 trspk_ibo_free(struct TRSPK_IBO* ibo);
+
+bool
+trspk_ibo_reserve(
+    struct TRSPK_IBO* ibo,
+    uint32_t index_count);
 
 struct TRSPK_IBOChain*
 trspk_ibochain_create(enum TRSPK_IndexFormat index_format);

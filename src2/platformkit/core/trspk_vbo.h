@@ -19,6 +19,7 @@
 struct TRSPK_VBO
 {
     uint32_t vertex_count;
+    uint32_t capacity;
     uint32_t flags;
 
     enum TRSPK_VertexFormat format;

@@ -19,6 +19,10 @@ struct WorldSceneElement
     struct ToriDraw_Animation* animation;
     struct ToriDraw_Animation* secondary_animation;
     struct ToriDraw_Position world_position;
+    /** Sequence id from loc config; -1 when not animated. */
+    int anim_seq_id;
+    int anim_frame;
+    int anim_cycle;
 };
 
 struct WorldSceneElementHandle
@@ -53,6 +57,16 @@ void
 world_scene_batch_clear(
     struct WorldScene* scene,
     int batch_id);
+
+void
+world_scene_batch_element_add_pose(
+    struct WorldScene* scene,
+    int element_id,
+    int pose_id,
+    struct ToriDraw_ModelHandle baked);
+
+void
+world_scene_free_pending_pose_copies(struct WorldScene* scene);
 
 int
 world_scene_add_element(struct WorldScene* scene);
@@ -92,6 +106,12 @@ world_scene_element_set_animation(
     int element_id,
     struct ToriDraw_Animation* animation,
     bool primary);
+
+void
+world_scene_element_set_animation_seq(
+    struct WorldScene* scene,
+    int element_id,
+    int seq_id);
 
 void
 world_scene_element_set_position(

@@ -133,6 +133,31 @@ trspk_ibo_free(struct TRSPK_IBO* ibo)
     free(ibo);
 }
 
+bool
+trspk_ibo_reserve(
+    struct TRSPK_IBO* ibo,
+    uint32_t index_count)
+{
+    if( ibo == NULL )
+        return false;
+
+    if( index_count == 0u )
+        return true;
+
+    if( index_count <= ibo->index_count )
+        return true;
+
+    uint32_t new_capacity = ibo->index_count ? ibo->index_count : 1u;
+    while( new_capacity < index_count )
+        new_capacity *= 2u;
+
+    if( !trspk_ibo_grow_indices(ibo, new_capacity) )
+        return false;
+
+    ibo->index_count = new_capacity;
+    return true;
+}
+
 struct TRSPK_IBOChain*
 trspk_ibochain_create(enum TRSPK_IndexFormat index_format)
 {

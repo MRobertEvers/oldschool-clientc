@@ -542,3 +542,40 @@ gamecache_animation_has(
 {
     return gamecache_animation_get(gamecache, anim_id) != NULL;
 }
+
+bool
+gamecache_sequence_resolve_frame(
+    struct GameCache* gamecache,
+    int seq_id,
+    int frame_index,
+    const struct ToriDraw_AnimFrame** out_frame,
+    const struct ToriDraw_AnimBase** out_base,
+    int* out_delay)
+{
+    struct GameCache_Sequence* seq = gamecache_sequence_get(gamecache, seq_id);
+    if( !seq || !seq->frames || frame_index < 0 || frame_index >= seq->frame_count )
+        return false;
+
+    int const packed = seq->frames[frame_index];
+    int const archive_id = (packed >> 16) & 0xFFFF;
+    int const index = packed & 0xFFFF;
+
+    struct ToriDraw_Animation* anim = gamecache_animation_get(gamecache, archive_id);
+    if( !anim || !anim->frames || index < 0 || index >= anim->frame_count )
+        return false;
+
+    *out_frame = &anim->frames[index];
+    *out_base = anim->base;
+
+    if( out_delay )
+    {
+        int delay = seq->delay ? seq->delay[frame_index] : 0;
+        if( delay == 0 )
+            delay = anim->frames[index].delay;
+        if( delay <= 0 )
+            delay = 1;
+        *out_delay = delay;
+    }
+
+    return true;
+}

@@ -8,6 +8,8 @@
 #include <stdint.h>
 
 struct ToriDraw_Animation;
+struct ToriDraw_AnimBase;
+struct ToriDraw_AnimFrame;
 struct ToriDraw_Map;
 
 struct GameCache
@@ -146,5 +148,14 @@ bool
 gamecache_animation_has(
     struct GameCache* gamecache,
     int anim_id);
+
+bool
+gamecache_sequence_resolve_frame(
+    struct GameCache* gamecache,
+    int seq_id,
+    int frame_index,
+    const struct ToriDraw_AnimFrame** out_frame,
+    const struct ToriDraw_AnimBase** out_base,
+    int* out_delay);
 
 #endif
