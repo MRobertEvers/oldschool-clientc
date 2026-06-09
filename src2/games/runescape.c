@@ -28,6 +28,7 @@ game_runescape_translate_world_scene_event(
         command->kind = TORIRSRC_MODEL_LOAD;
         command->u.model_load.element_id = ev->element_id;
         command->u.model_load.model = ev->model;
+        command->u.model_load.world_position = ev->world_position;
         return true;
     case WSE_MODEL_UNLOAD:
         command->kind = TORIRSRC_MODEL_UNLOAD;
@@ -43,6 +44,7 @@ game_runescape_translate_world_scene_event(
         command->u.batch.element_id = ev->element_id;
         command->u.batch.pose_id = ev->pose_id;
         command->u.batch.model = ev->model;
+        command->u.batch.world_position = ev->world_position;
         return true;
     case WSE_BATCH_ANIM_ADD:
         command->kind = TORIRSRC_BATCH3D_ANIM_ADD;
@@ -50,6 +52,7 @@ game_runescape_translate_world_scene_event(
         command->u.batch.element_id = ev->element_id;
         command->u.batch.pose_id = ev->pose_id;
         command->u.batch.model = ev->model;
+        command->u.batch.world_position = ev->world_position;
         return true;
     case WSE_BATCH_END:
         command->kind = TORIRSRC_BATCH3D_END;

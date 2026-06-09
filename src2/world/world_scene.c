@@ -47,6 +47,16 @@ struct WorldScene
     int pending_pose_cap;
 };
 
+static bool
+world_scene_element_valid(
+    const struct WorldScene* scene,
+    int element_id);
+
+static struct WorldSceneElement*
+world_scene_element_ptr(
+    struct WorldScene* scene,
+    int element_id);
+
 static void
 world_scene_emit(
     struct WorldScene* scene,
@@ -70,6 +80,12 @@ world_scene_emit(
     if( model )
         event.model = *model;
     event.animation = animation;
+    if( world_scene_element_valid(scene, element_id) )
+    {
+        struct WorldSceneElement* element = world_scene_element_ptr(scene, element_id);
+        if( element )
+            event.world_position = element->world_position;
+    }
 
     worldscene_eventqueue_push(scene->event_queue, &event);
 }
@@ -323,6 +339,26 @@ world_scene_batch_end(struct WorldScene* scene)
     assert(scene);
     assert(scene->batch_building);
 
+    for( int i = 0; i < scene->slot_count; i++ )
+    {
+        struct WorldSceneElement* element;
+
+        if( !scene->slots[i] )
+            continue;
+        element = world_scene_element_ptr(scene, i);
+        if( !element || !element->pending_batch_add )
+            continue;
+        world_scene_emit(
+            scene,
+            WSE_BATCH_MODEL_ADD,
+            scene->current_batch_id,
+            i,
+            0,
+            &element->model,
+            NULL);
+        element->pending_batch_add = false;
+    }
+
     world_scene_emit(scene, WSE_BATCH_END, scene->current_batch_id, 0, 0, NULL, NULL);
 
     scene->batch_building = false;
@@ -503,20 +539,9 @@ world_scene_element_assign_model(
     element->owns_model = owned;
 
     if( scene->batch_building )
-    {
-        world_scene_emit(
-            scene,
-            WSE_BATCH_MODEL_ADD,
-            scene->current_batch_id,
-            element_id,
-            0,
-            &element->model,
-            NULL);
-    }
+        element->pending_batch_add = true;
     else
-    {
         world_scene_emit(scene, WSE_MODEL_LOAD, 0, element_id, 0, &element->model, NULL);
-    }
 }
 
 void
@@ -621,6 +646,19 @@ world_scene_element_set_position(
     element->world_position.yaw = toridraw_normalize_angle(yaw);
     element->world_position.pitch = 0;
     element->world_position.roll = 0;
+
+    if( scene->batch_building && element->pending_batch_add )
+    {
+        world_scene_emit(
+            scene,
+            WSE_BATCH_MODEL_ADD,
+            scene->current_batch_id,
+            element_id,
+            0,
+            &element->model,
+            NULL);
+        element->pending_batch_add = false;
+    }
 }
 
 int

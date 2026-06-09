@@ -5,14 +5,21 @@
 #include <stdint.h>
 
 #define TRSPK_POSE_VERTEX_BASE_INVALID UINT32_MAX
-#define TRSPK_POSE_TABLE_INITIAL_CAP 4096u
+#define TRSPK_POSE_TABLE_INITIAL_ELEMENT_CAP 64u
+#define TRSPK_POSE_TABLE_INITIAL_POSE_CAP 8u
+
+struct TRSPK_PoseElement
+{
+    uint32_t* vertex_base;
+    uint32_t pose_count;
+    uint32_t pose_cap;
+};
 
 struct TRSPK_PoseTable
 {
-    uint64_t* keys;
-    uint32_t* vertex_base;
-    uint32_t count;
-    uint32_t cap;
+    struct TRSPK_PoseElement* elements;
+    uint32_t element_count;
+    uint32_t element_cap;
 };
 
 void

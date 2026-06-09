@@ -4,57 +4,69 @@
 #include <stdlib.h>
 #include <string.h>
 
-static uint64_t
-trspk_pose_key(
-    int element_id,
-    int pose_id)
-{
-    return ((uint64_t)(uint32_t)element_id << 32) | (uint64_t)(uint32_t)pose_id;
-}
-
 static bool
-trspk_pose_table_grow(struct TRSPK_PoseTable* table)
+trspk_pose_table_grow_elements(
+    struct TRSPK_PoseTable* table,
+    uint32_t min_count)
 {
-    const uint32_t new_cap = table->cap ? table->cap * 2u : TRSPK_POSE_TABLE_INITIAL_CAP;
+    if( min_count <= table->element_count )
+        return true;
 
-    uint64_t* new_keys = (uint64_t*)realloc(table->keys, new_cap * sizeof(uint64_t));
-    uint32_t* new_base = (uint32_t*)realloc(table->vertex_base, new_cap * sizeof(uint32_t));
-    if( !new_keys || !new_base )
-    {
-        free(new_keys);
-        free(new_base);
+    uint32_t new_cap =
+        table->element_cap ? table->element_cap : TRSPK_POSE_TABLE_INITIAL_ELEMENT_CAP;
+    while( new_cap < min_count )
+        new_cap *= 2u;
+
+    struct TRSPK_PoseElement* new_elements = (struct TRSPK_PoseElement*)realloc(
+        table->elements, new_cap * sizeof(struct TRSPK_PoseElement));
+    if( !new_elements )
         return false;
-    }
 
-    table->keys = new_keys;
-    table->vertex_base = new_base;
-    table->cap = new_cap;
+    memset(
+        new_elements + table->element_cap,
+        0,
+        (new_cap - table->element_cap) * sizeof(struct TRSPK_PoseElement));
+
+    table->elements = new_elements;
+    table->element_cap = new_cap;
+    if( table->element_count < min_count )
+        table->element_count = min_count;
     return true;
 }
 
-static int
-trspk_pose_table_find_index(
-    const struct TRSPK_PoseTable* table,
-    uint64_t key)
+static bool
+trspk_pose_element_grow_poses(
+    struct TRSPK_PoseElement* element,
+    uint32_t min_cap)
 {
-    for( uint32_t i = 0u; i < table->count; ++i )
-    {
-        if( table->keys[i] == key )
-            return (int)i;
-    }
-    return -1;
+    if( min_cap <= element->pose_cap )
+        return true;
+
+    uint32_t new_cap = element->pose_cap ? element->pose_cap : TRSPK_POSE_TABLE_INITIAL_POSE_CAP;
+    while( new_cap < min_cap )
+        new_cap *= 2u;
+
+    uint32_t* new_base = (uint32_t*)realloc(element->vertex_base, new_cap * sizeof(uint32_t));
+    if( !new_base )
+        return false;
+
+    for( uint32_t i = element->pose_cap; i < new_cap; ++i )
+        new_base[i] = TRSPK_POSE_VERTEX_BASE_INVALID;
+
+    element->vertex_base = new_base;
+    element->pose_cap = new_cap;
+    return true;
 }
 
 void
 trspk_pose_table_init(struct TRSPK_PoseTable* table)
 {
     assert(table != NULL);
-    assert(table->keys == NULL);
+    assert(table->elements == NULL);
 
-    table->keys = NULL;
-    table->vertex_base = NULL;
-    table->count = 0u;
-    table->cap = 0u;
+    table->elements = NULL;
+    table->element_count = 0u;
+    table->element_cap = 0u;
 }
 
 void
@@ -63,12 +75,13 @@ trspk_pose_table_free(struct TRSPK_PoseTable* table)
     if( !table )
         return;
 
-    free(table->keys);
-    free(table->vertex_base);
-    table->keys = NULL;
-    table->vertex_base = NULL;
-    table->count = 0u;
-    table->cap = 0u;
+    for( uint32_t i = 0u; i < table->element_cap; ++i )
+        free(table->elements[i].vertex_base);
+
+    free(table->elements);
+    table->elements = NULL;
+    table->element_count = 0u;
+    table->element_cap = 0u;
 }
 
 void
@@ -77,7 +90,8 @@ trspk_pose_table_clear(struct TRSPK_PoseTable* table)
     if( !table )
         return;
 
-    table->count = 0u;
+    for( uint32_t i = 0u; i < table->element_cap; ++i )
+        table->elements[i].pose_count = 0u;
 }
 
 void
@@ -91,20 +105,24 @@ trspk_pose_table_set(
     assert(element_id >= 0);
     assert(pose_id >= 0);
 
-    const uint64_t key = trspk_pose_key(element_id, pose_id);
-    const int existing = trspk_pose_table_find_index(table, key);
-    if( existing >= 0 )
-    {
-        table->vertex_base[(uint32_t)existing] = vertex_base;
+    const uint32_t element_idx = (uint32_t)element_id;
+    const uint32_t pose_idx = (uint32_t)pose_id;
+
+    if( !trspk_pose_table_grow_elements(table, element_idx + 1u) )
         return;
+
+    struct TRSPK_PoseElement* element = &table->elements[element_idx];
+    if( !trspk_pose_element_grow_poses(element, pose_idx + 1u) )
+        return;
+
+    if( pose_idx >= element->pose_count )
+    {
+        for( uint32_t i = element->pose_count; i < pose_idx; ++i )
+            element->vertex_base[i] = TRSPK_POSE_VERTEX_BASE_INVALID;
+        element->pose_count = pose_idx + 1u;
     }
 
-    if( table->count >= table->cap && !trspk_pose_table_grow(table) )
-        return;
-
-    const uint32_t idx = table->count++;
-    table->keys[idx] = key;
-    table->vertex_base[idx] = vertex_base;
+    element->vertex_base[pose_idx] = vertex_base;
 }
 
 bool
@@ -117,14 +135,20 @@ trspk_pose_table_get(
     assert(table != NULL);
     assert(out_vertex_base != NULL);
 
-    if( element_id < 0 || pose_id < 0 || !table->keys )
+    if( element_id < 0 || pose_id < 0 || !table->elements )
         return false;
 
-    const int idx = trspk_pose_table_find_index(table, trspk_pose_key(element_id, pose_id));
-    if( idx < 0 )
+    const uint32_t element_idx = (uint32_t)element_id;
+    const uint32_t pose_idx = (uint32_t)pose_id;
+
+    if( element_idx >= table->element_count )
         return false;
 
-    const uint32_t base = table->vertex_base[(uint32_t)idx];
+    const struct TRSPK_PoseElement* element = &table->elements[element_idx];
+    if( pose_idx >= element->pose_count )
+        return false;
+
+    const uint32_t base = element->vertex_base[pose_idx];
     if( base == TRSPK_POSE_VERTEX_BASE_INVALID )
         return false;
 
@@ -137,22 +161,12 @@ trspk_pose_table_remove_element(
     struct TRSPK_PoseTable* table,
     int element_id)
 {
-    if( !table || element_id < 0 || !table->keys )
+    if( !table || element_id < 0 || !table->elements )
         return;
 
-    uint32_t write = 0u;
-    for( uint32_t i = 0u; i < table->count; ++i )
-    {
-        const int key_element_id = (int)(table->keys[i] >> 32);
-        if( key_element_id == element_id )
-            continue;
+    const uint32_t element_idx = (uint32_t)element_id;
+    if( element_idx >= table->element_count )
+        return;
 
-        if( write != i )
-        {
-            table->keys[write] = table->keys[i];
-            table->vertex_base[write] = table->vertex_base[i];
-        }
-        write++;
-    }
-    table->count = write;
+    table->elements[element_idx].pose_count = 0u;
 }

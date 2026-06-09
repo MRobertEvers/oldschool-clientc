@@ -478,8 +478,7 @@ static void
 gl3_bind_world_draw_state(struct LibToriPlatformSDL2_RendererGL3* renderer)
 {
     glUseProgram(renderer->program3d);
-    glBindBufferRange(
-        GL_UNIFORM_BUFFER, 0u, renderer->ubo, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld));
+    glBindBufferRange(GL_UNIFORM_BUFFER, 0u, renderer->ubo, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld));
     if( renderer->s_atlas >= 0 )
     {
         glUniform1i(renderer->s_atlas, 0);
@@ -677,7 +676,8 @@ gl3_bake_into_arena(
     struct LibToriRS_Instance* instance,
     int element_id,
     int pose_id,
-    struct ToriDraw_ModelHandle model_handle)
+    struct ToriDraw_ModelHandle model_handle,
+    const struct ToriDraw_Position* world_position)
 {
     struct ToriDraw_Model* model = get_model(model_handle);
     if( !model || model->face_count <= 0 )
@@ -767,12 +767,40 @@ gl3_bake_into_arena(
         struct UVFaceCoords uv;
         uv_pnm_face(&uv, model, face_index);
 
+        float wx_a, wy_a, wz_a;
+        float wx_b, wy_b, wz_b;
+        float wx_c, wy_c, wz_c;
+        trspk_toridraw_world_vertex(
+            world_position,
+            model->vertices_x[face_a],
+            model->vertices_y[face_a],
+            model->vertices_z[face_a],
+            &wx_a,
+            &wy_a,
+            &wz_a);
+        trspk_toridraw_world_vertex(
+            world_position,
+            model->vertices_x[face_b],
+            model->vertices_y[face_b],
+            model->vertices_z[face_b],
+            &wx_b,
+            &wy_b,
+            &wz_b);
+        trspk_toridraw_world_vertex(
+            world_position,
+            model->vertices_x[face_c],
+            model->vertices_y[face_c],
+            model->vertices_z[face_c],
+            &wx_c,
+            &wy_c,
+            &wz_c);
+
         gl3_write_vertex_opengl3(
             renderer->vbo_static_cpu,
             vi + 0u,
-            (float)model->vertices_x[face_a],
-            (float)model->vertices_y[face_a],
-            (float)model->vertices_z[face_a],
+            wx_a,
+            wy_a,
+            wz_a,
             color_a,
             uv.u1,
             uv.v1,
@@ -781,9 +809,9 @@ gl3_bake_into_arena(
         gl3_write_vertex_opengl3(
             renderer->vbo_static_cpu,
             vi + 1u,
-            (float)model->vertices_x[face_b],
-            (float)model->vertices_y[face_b],
-            (float)model->vertices_z[face_b],
+            wx_b,
+            wy_b,
+            wz_b,
             color_b,
             uv.u2,
             uv.v2,
@@ -792,9 +820,9 @@ gl3_bake_into_arena(
         gl3_write_vertex_opengl3(
             renderer->vbo_static_cpu,
             vi + 2u,
-            (float)model->vertices_x[face_c],
-            (float)model->vertices_y[face_c],
-            (float)model->vertices_z[face_c],
+            wx_c,
+            wy_c,
+            wz_c,
             color_c,
             uv.u3,
             uv.v3,
@@ -813,7 +841,12 @@ gl3_ev_model_load(
 {
     assert(command->kind == TORIRSRC_MODEL_LOAD);
     gl3_bake_into_arena(
-        renderer, instance, command->u.model_load.element_id, 0, command->u.model_load.model);
+        renderer,
+        instance,
+        command->u.model_load.element_id,
+        0,
+        command->u.model_load.model,
+        &command->u.model_load.world_position);
 }
 
 static void
@@ -839,7 +872,8 @@ gl3_ev_batch3d_model_add(
         instance,
         command->u.batch.element_id,
         command->u.batch.pose_id,
-        command->u.batch.model);
+        command->u.batch.model,
+        &command->u.batch.world_position);
 }
 
 static void
@@ -854,7 +888,8 @@ gl3_ev_batch3d_anim_add(
         instance,
         command->u.batch.element_id,
         command->u.batch.pose_id,
-        command->u.batch.model);
+        command->u.batch.model,
+        &command->u.batch.world_position);
 }
 
 static void
@@ -1080,8 +1115,8 @@ LibToriPlatformSDL2_RendererGL3_New(
     renderer->ibo_staging = trspk_ibo_create(TRSPK_GL3_GPU_IBO_INIT, TRSPK_INDEX_FORMAT_U32);
     renderer->draw_ranges = trspk_drawrangelist_create(TRSPK_GL3_DRAWRANGE_CAP);
 
-    if( !renderer->vbo_static_cpu || !renderer->ibo_chain || !renderer->ibo_staging
-         || !renderer->draw_ranges )
+    if( !renderer->vbo_static_cpu || !renderer->ibo_chain || !renderer->ibo_staging ||
+        !renderer->draw_ranges )
         goto fail;
 
     renderer->model_arena = trspk_modelarena_create(
@@ -1332,7 +1367,7 @@ LibToriPlatformSDL2_RendererGL3_Render(
     renderer->height = drawable_h;
 
     glViewport(0, 0, drawable_w, drawable_h);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     renderer->in3d = false;

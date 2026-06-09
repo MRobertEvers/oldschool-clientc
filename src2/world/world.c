@@ -331,7 +331,7 @@ world_rebuild_centerzone(
             world_rebuild_centerzone_chunk_scenery(world, mapx, mapz);
     }
 
-    world_scene_batch_end(world->scene);
-
     world_rebuild_centerzone_end(world);
+
+    world_scene_batch_end(world->scene);
 }

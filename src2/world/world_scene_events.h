@@ -35,6 +35,7 @@ struct WorldScene_Event
     int pose_id;
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Animation* animation;
+    struct ToriDraw_Position world_position;
 };
 
 struct WorldScene_EventQueue

@@ -81,6 +81,7 @@ struct LibToriRS_RenderCommand_ModelLoad
 {
     int element_id;
     struct ToriDraw_ModelHandle model;
+    struct ToriDraw_Position world_position;
 };
 
 struct LibToriRS_RenderCommand_Batch
@@ -89,6 +90,7 @@ struct LibToriRS_RenderCommand_Batch
     int element_id;
     int pose_id;
     struct ToriDraw_ModelHandle model;
+    struct ToriDraw_Position world_position;
 };
 
 struct LibToriRS_RenderCommand_TexLoad

@@ -964,7 +964,8 @@ d3d9_bake_into_arena(
     struct LibToriRS_Instance* instance,
     int element_id,
     int pose_id,
-    struct ToriDraw_ModelHandle model_handle)
+    struct ToriDraw_ModelHandle model_handle,
+    const struct ToriDraw_Position* world_position)
 {
     struct ToriDraw_Model* model = get_model(model_handle);
     if( !model || model->face_count <= 0 )
@@ -1072,12 +1073,40 @@ d3d9_bake_into_arena(
             d3d9_atlas_map_uv(tex_id, uv.u3, uv.v3, &u_c, &v_c);
         }
 
+        float wx_a, wy_a, wz_a;
+        float wx_b, wy_b, wz_b;
+        float wx_c, wy_c, wz_c;
+        trspk_toridraw_world_vertex(
+            world_position,
+            model->vertices_x[face_a],
+            model->vertices_y[face_a],
+            model->vertices_z[face_a],
+            &wx_a,
+            &wy_a,
+            &wz_a);
+        trspk_toridraw_world_vertex(
+            world_position,
+            model->vertices_x[face_b],
+            model->vertices_y[face_b],
+            model->vertices_z[face_b],
+            &wx_b,
+            &wy_b,
+            &wz_b);
+        trspk_toridraw_world_vertex(
+            world_position,
+            model->vertices_x[face_c],
+            model->vertices_y[face_c],
+            model->vertices_z[face_c],
+            &wx_c,
+            &wy_c,
+            &wz_c);
+
         trspk_vbo_write_vertex_d3d9(
             renderer->vbo_static_cpu,
             vi + 0u,
-            (float)model->vertices_x[face_a],
-            (float)model->vertices_y[face_a],
-            (float)model->vertices_z[face_a],
+            wx_a,
+            wy_a,
+            wz_a,
             color_a,
             u_a,
             v_a,
@@ -1085,9 +1114,9 @@ d3d9_bake_into_arena(
         trspk_vbo_write_vertex_d3d9(
             renderer->vbo_static_cpu,
             vi + 1u,
-            (float)model->vertices_x[face_b],
-            (float)model->vertices_y[face_b],
-            (float)model->vertices_z[face_b],
+            wx_b,
+            wy_b,
+            wz_b,
             color_b,
             u_b,
             v_b,
@@ -1095,9 +1124,9 @@ d3d9_bake_into_arena(
         trspk_vbo_write_vertex_d3d9(
             renderer->vbo_static_cpu,
             vi + 2u,
-            (float)model->vertices_x[face_c],
-            (float)model->vertices_y[face_c],
-            (float)model->vertices_z[face_c],
+            wx_c,
+            wy_c,
+            wz_c,
             color_c,
             u_c,
             v_c,
@@ -1119,7 +1148,8 @@ d3d9_ev_model_load(
         instance,
         command->u.model_load.element_id,
         0,
-        command->u.model_load.model);
+        command->u.model_load.model,
+        &command->u.model_load.world_position);
 }
 
 static void
@@ -1145,7 +1175,8 @@ d3d9_ev_batch3d_model_add(
         instance,
         command->u.batch.element_id,
         command->u.batch.pose_id,
-        command->u.batch.model);
+        command->u.batch.model,
+        &command->u.batch.world_position);
 }
 
 static void
@@ -1160,7 +1191,8 @@ d3d9_ev_batch3d_anim_add(
         instance,
         command->u.batch.element_id,
         command->u.batch.pose_id,
-        command->u.batch.model);
+        command->u.batch.model,
+        &command->u.batch.world_position);
 }
 
 static void

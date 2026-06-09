@@ -19,6 +19,8 @@ struct WorldSceneElement
     struct ToriDraw_Animation* animation;
     struct ToriDraw_Animation* secondary_animation;
     struct ToriDraw_Position world_position;
+    /** When true during batch build, BATCH_MODEL_ADD is deferred until set_position. */
+    bool pending_batch_add;
     /** Sequence id from loc config; -1 when not animated. */
     int anim_seq_id;
     int anim_frame;

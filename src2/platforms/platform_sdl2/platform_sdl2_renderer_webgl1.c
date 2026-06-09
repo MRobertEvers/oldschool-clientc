@@ -7,6 +7,7 @@
 #include "platformkit/core/trspk_pose.h"
 #include "platformkit/core/trspk_vbochain16.h"
 #include "platformkit/webgl1/trspk_webgl1.h"
+#include "platforms/trspk_toridraw.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw.h"
 #include <GLES2/gl2.h>
@@ -410,7 +411,8 @@ webgl1_bake_into_arena(
     struct LibToriPlatformSDL2_RendererWebGL1* renderer,
     int element_id,
     int pose_id,
-    struct ToriDraw_ModelHandle model_handle)
+    struct ToriDraw_ModelHandle model_handle,
+    const struct ToriDraw_Position* world_position)
 {
     struct ToriDraw_Model* model = get_model(model_handle);
     if( !model || model->face_count <= 0 || !renderer->model_arena || !renderer->vbo_chain )
@@ -451,12 +453,40 @@ webgl1_bake_into_arena(
         struct UVFaceCoords uv_coords;
         uv_pnm(&uv_coords, model, face_index);
 
-        trspk_vbo_write_vertex_webgl1(
-            page_vbo,
-            vi + 0u,
+        float wx_a, wy_a, wz_a;
+        float wx_b, wy_b, wz_b;
+        float wx_c, wy_c, wz_c;
+        trspk_toridraw_world_vertex(
+            world_position,
             model->vertices_x[face_a],
             model->vertices_y[face_a],
             model->vertices_z[face_a],
+            &wx_a,
+            &wy_a,
+            &wz_a);
+        trspk_toridraw_world_vertex(
+            world_position,
+            model->vertices_x[face_b],
+            model->vertices_y[face_b],
+            model->vertices_z[face_b],
+            &wx_b,
+            &wy_b,
+            &wz_b);
+        trspk_toridraw_world_vertex(
+            world_position,
+            model->vertices_x[face_c],
+            model->vertices_y[face_c],
+            model->vertices_z[face_c],
+            &wx_c,
+            &wy_c,
+            &wz_c);
+
+        trspk_vbo_write_vertex_webgl1(
+            page_vbo,
+            vi + 0u,
+            wx_a,
+            wy_a,
+            wz_a,
             color_a,
             uv_coords.u1,
             uv_coords.v1,
@@ -464,9 +494,9 @@ webgl1_bake_into_arena(
         trspk_vbo_write_vertex_webgl1(
             page_vbo,
             vi + 1u,
-            model->vertices_x[face_b],
-            model->vertices_y[face_b],
-            model->vertices_z[face_b],
+            wx_b,
+            wy_b,
+            wz_b,
             color_b,
             uv_coords.u2,
             uv_coords.v2,
@@ -474,9 +504,9 @@ webgl1_bake_into_arena(
         trspk_vbo_write_vertex_webgl1(
             page_vbo,
             vi + 2u,
-            model->vertices_x[face_c],
-            model->vertices_y[face_c],
-            model->vertices_z[face_c],
+            wx_c,
+            wy_c,
+            wz_c,
             color_c,
             uv_coords.u3,
             uv_coords.v3,
@@ -590,7 +620,11 @@ webgl1_handle_render_command(
         break;
     case TORIRSRC_MODEL_LOAD:
         webgl1_bake_into_arena(
-            renderer, command->u.model_load.element_id, 0, command->u.model_load.model);
+            renderer,
+            command->u.model_load.element_id,
+            0,
+            command->u.model_load.model,
+            &command->u.model_load.world_position);
         break;
     case TORIRSRC_MODEL_UNLOAD:
         trspk_modelarena_unload_element(renderer->model_arena, command->u.model_load.element_id);
@@ -603,14 +637,16 @@ webgl1_handle_render_command(
             renderer,
             command->u.batch.element_id,
             command->u.batch.pose_id,
-            command->u.batch.model);
+            command->u.batch.model,
+            &command->u.batch.world_position);
         break;
     case TORIRSRC_BATCH3D_ANIM_ADD:
         webgl1_bake_into_arena(
             renderer,
             command->u.batch.element_id,
             command->u.batch.pose_id,
-            command->u.batch.model);
+            command->u.batch.model,
+            &command->u.batch.world_position);
         break;
     case TORIRSRC_BATCH3D_END:
         break;
