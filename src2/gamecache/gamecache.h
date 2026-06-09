@@ -133,6 +133,11 @@ gamecache_sequence_has(
     struct GameCache* gamecache,
     int seq_id);
 
+struct ToriDraw_Animation*
+gamecache_sequence_primary_animation(
+    struct GameCache* gamecache,
+    int seq_id);
+
 void
 gamecache_animation_add(
     struct GameCache* gamecache,

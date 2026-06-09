@@ -408,6 +408,11 @@ scenery_set_animation(
     }
 
     toridraw_model_animate_reset(source);
+
+    struct ToriDraw_Animation* anim =
+        gamecache_sequence_primary_animation(world->gamecache, seq_id);
+    if( anim )
+        world_scene_element_set_animation(world->scene, element_id, anim, true);
 }
 
 static void

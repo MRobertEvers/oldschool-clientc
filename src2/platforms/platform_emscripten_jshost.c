@@ -128,7 +128,7 @@ LibToriPlatformEmscripten_JSHost_IORequestGetArchiveId(
 {
     if( !instance || !item )
         return 0;
-    return item->archive_id;
+    return item->u.cache.archive_id;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -139,7 +139,7 @@ LibToriPlatformEmscripten_JSHost_IORequestGetTableId(
 {
     if( !instance || !item )
         return 0;
-    return item->table_id;
+    return item->u.cache.table_id;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -150,7 +150,7 @@ LibToriPlatformEmscripten_JSHost_IORequestGetFlags(
 {
     if( !instance || !item )
         return 0;
-    return item->flags;
+    return item->u.cache.flags;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -235,7 +235,8 @@ LibToriPlatformEmscripten_JSHost_IOQueueItemResolve(
     if( !item )
         return;
     item->data = data_ptr;
-    item->status = TORIRSIO_RESOLVED;
+    item->error_code = 0;
+    item->status = TORIRSIO_STAT_DONE;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -246,7 +247,7 @@ LibToriPlatformEmscripten_JSHost_IOQueueItemError(
 {
     if( !item )
         return;
-    item->status = TORIRSIO_ERROR;
+    item->status = TORIRSIO_STAT_DONE;
     item->error_code = error_code;
 }
 
@@ -398,6 +399,22 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init(
 
 EMSCRIPTEN_KEEPALIVE
 void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_Init(
+    struct LibToriRS_Instance* instance)
+{
+    LibToriRS_ScriptAPI_Game_Runescape_Init(instance);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorld(
+    struct LibToriRS_Instance* instance)
+{
+    LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(instance);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelNativeInt(
     struct LibToriRS_Instance* instance,
     int model_id)
@@ -414,6 +431,32 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelScriptInt
     assert(model_id && model_id->kind == LIBTORIRS_SCRIPT_VALUE_INT);
     int model_int = model_id->u.intval.value;
     LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(instance, model_int);
+}
+
+EMSCRIPTEN_KEEPALIVE
+struct GameHandle*
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_GetGameHandle(
+    struct LibToriRS_Instance* instance)
+{
+    return LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(instance);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_CoreTask_Dat1LoadModelNativeInt(
+    struct LibToriRS_Instance* instance,
+    struct GameHandle* game,
+    int model_id)
+{
+    LibToriRS_ScriptAPI_CoreTask_Dat1LoadModel(instance, game, model_id);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool
+LibToriPlatformEmscripten_JSHost_ScriptAPI_RunTasks(
+    struct LibToriRS_Instance* instance)
+{
+    return LibToriRS_ScriptAPI_RunTasks(instance);
 }
 
 EMSCRIPTEN_KEEPALIVE

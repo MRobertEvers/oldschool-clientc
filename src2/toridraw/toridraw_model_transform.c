@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -34,6 +35,92 @@ toridraw_get_face_priority(
 {
     uint8_t byte = packed[index >> 1];
     return (index & 1) ? (int)(byte >> 4) : (int)(byte & 0x0Fu);
+}
+
+static struct ToriDraw_Bones*
+toridraw_bones_merge(
+    struct ToriDraw_Model** models,
+    const int* index_offsets,
+    int model_count,
+    bool vertex)
+{
+    int max_bones = 0;
+    for( int i = 0; i < model_count; i++ )
+    {
+        struct ToriDraw_Model* m = models[i];
+        struct ToriDraw_Bones* bones = vertex ? m->vertex_bones : m->face_bones;
+        if( bones && bones->bones_count > max_bones )
+            max_bones = bones->bones_count;
+    }
+
+    if( max_bones <= 0 )
+        return NULL;
+
+    boneint_t* group_sizes = calloc((size_t)max_bones, sizeof(boneint_t));
+    if( !group_sizes )
+        return NULL;
+
+    for( int i = 0; i < model_count; i++ )
+    {
+        struct ToriDraw_Model* m = models[i];
+        struct ToriDraw_Bones* bones = vertex ? m->vertex_bones : m->face_bones;
+        if( !bones )
+            continue;
+
+        for( int g = 0; g < bones->bones_count; g++ )
+            group_sizes[g] += bones->bones_sizes[g];
+    }
+
+    struct ToriDraw_Bones* out = calloc(1, sizeof(struct ToriDraw_Bones));
+    if( !out )
+    {
+        free(group_sizes);
+        return NULL;
+    }
+
+    out->bones_count = max_bones;
+    out->bones = calloc((size_t)max_bones, sizeof(boneint_t*));
+    out->bones_sizes = malloc((size_t)max_bones * sizeof(boneint_t));
+    if( !out->bones || !out->bones_sizes )
+    {
+        free(group_sizes);
+        toridraw_bones_free(out);
+        return NULL;
+    }
+
+    memcpy(out->bones_sizes, group_sizes, (size_t)max_bones * sizeof(boneint_t));
+
+    for( int g = 0; g < max_bones; g++ )
+    {
+        int const group_size = (int)group_sizes[g];
+        if( group_size <= 0 )
+            continue;
+
+        out->bones[g] = malloc((size_t)group_size * sizeof(boneint_t));
+        if( !out->bones[g] )
+        {
+            free(group_sizes);
+            toridraw_bones_free(out);
+            return NULL;
+        }
+
+        int write_pos = 0;
+        for( int i = 0; i < model_count; i++ )
+        {
+            struct ToriDraw_Model* m = models[i];
+            struct ToriDraw_Bones* bones = vertex ? m->vertex_bones : m->face_bones;
+            int const index_offset = index_offsets[i];
+            if( !bones || g >= bones->bones_count || !bones->bones[g] )
+                continue;
+
+            int const bone_length = (int)bones->bones_sizes[g];
+            for( int j = 0; j < bone_length; j++ )
+                out->bones[g][write_pos++] = (boneint_t)((int)bones->bones[g][j] + index_offset);
+        }
+    }
+
+    free(group_sizes);
+    return out;
 }
 
 struct ToriDraw_Model*
@@ -106,6 +193,9 @@ toridraw_model_copy(struct ToriDraw_Model* src)
         dst->face_priorities = (uint8_t*)malloc(nbytes);
         memcpy(dst->face_priorities, src->face_priorities, nbytes);
     }
+
+    dst->vertex_bones = toridraw_bones_copy(src->vertex_bones);
+    dst->face_bones = toridraw_bones_copy(src->face_bones);
 
     toridraw_model_set_bounds_cylinder(dst);
     return dst;
@@ -217,11 +307,24 @@ toridraw_model_merge(
     int face_off = 0;
     int tex_face_off = 0;
 
+    int* vertex_offsets = calloc((size_t)model_count, sizeof(int));
+    int* face_offsets = calloc((size_t)model_count, sizeof(int));
+    if( !vertex_offsets || !face_offsets )
+    {
+        free(vertex_offsets);
+        free(face_offsets);
+        toridraw_model_free(out);
+        return NULL;
+    }
+
     for( int i = 0; i < model_count; i++ )
     {
         struct ToriDraw_Model* m = models[i];
         if( !m )
             continue;
+
+        vertex_offsets[i] = vtx_off;
+        face_offsets[i] = face_off;
 
         for( int v = 0; v < m->vertex_count; v++ )
         {
@@ -276,6 +379,12 @@ toridraw_model_merge(
         face_off += m->face_count;
         tex_face_off += m->textured_face_count;
     }
+
+    out->vertex_bones = toridraw_bones_merge(models, vertex_offsets, model_count, true);
+    out->face_bones = toridraw_bones_merge(models, face_offsets, model_count, false);
+
+    free(vertex_offsets);
+    free(face_offsets);
 
     toridraw_model_set_bounds_cylinder(out);
     return out;

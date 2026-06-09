@@ -239,8 +239,7 @@ main(
 
         LibToriPlatformSDL2_PollEvents(platform, command_queue);
         LibToriRS_TickInput(instance, command_queue, time);
-        if( use_soft3d )
-            LibToriRS_TickAnimation(instance, time);
+        LibToriRS_TickAnimation(instance, time);
 
         if( !LibToriRS_IsRunning(instance) )
             break;

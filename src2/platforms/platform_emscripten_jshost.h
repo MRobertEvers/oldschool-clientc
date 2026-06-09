@@ -9,6 +9,7 @@
 struct LibToriRS_Instance;
 struct CacheDatArchive;
 struct CacheArchive;
+struct GameHandle;
 
 EMSCRIPTEN_KEEPALIVE
 char*
@@ -165,6 +166,16 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init(
 
 EMSCRIPTEN_KEEPALIVE
 void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_Init(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorld(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelNativeInt(
     struct LibToriRS_Instance* instance,
     int model_id);
@@ -174,6 +185,23 @@ void
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelScriptInt(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_ScriptValue* model_id);
+
+EMSCRIPTEN_KEEPALIVE
+struct GameHandle*
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_GetGameHandle(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_CoreTask_Dat1LoadModelNativeInt(
+    struct LibToriRS_Instance* instance,
+    struct GameHandle* game,
+    int model_id);
+
+EMSCRIPTEN_KEEPALIVE
+bool
+LibToriPlatformEmscripten_JSHost_ScriptAPI_RunTasks(
+    struct LibToriRS_Instance* instance);
 
 EMSCRIPTEN_KEEPALIVE
 void

@@ -101,13 +101,18 @@ function handleSingleArchive(req, res, url) {
   const archiveId = parseInt(parts[3]);
 
   if (isNaN(tableId) || isNaN(archiveId)) {
-    res.writeHead(400, { "Content-Type": "text/plain" });
+    res.writeHead(400, {
+      "Content-Type": "text/plain",
+      "Access-Control-Allow-Origin": "*",
+    });
     res.end("Invalid table or archive ID");
     return;
   }
 
+  const flags = parseInt(url.searchParams.get("flags") || "0", 10);
+
   try {
-    const buffer = cache.loadArchiveSerialized(tableId, archiveId);
+    const buffer = cache.loadArchiveSerialized(tableId, archiveId, flags);
     res.writeHead(200, {
       "Content-Type": "application/octet-stream",
       "Content-Length": buffer.length,
@@ -115,14 +120,17 @@ function handleSingleArchive(req, res, url) {
     });
     res.end(buffer);
     console.log(
-      `[${new Date().toISOString()}] GET /archive/${tableId}/${archiveId} - 200 (${buffer.length} bytes)`,
+      `[${new Date().toISOString()}] GET /archive/${tableId}/${archiveId}?flags=${flags} - 200 (${buffer.length} bytes)`,
     );
   } catch (error) {
     console.error(
-      `[${new Date().toISOString()}] GET /archive/${tableId}/${archiveId} - ERROR:`,
+      `[${new Date().toISOString()}] GET /archive/${tableId}/${archiveId}?flags=${flags} - ERROR:`,
       error.message,
     );
-    res.writeHead(500, { "Content-Type": "text/plain" });
+    res.writeHead(500, {
+      "Content-Type": "text/plain",
+      "Access-Control-Allow-Origin": "*",
+    });
     res.end(`Error loading archive: ${error.message}`);
   }
 }

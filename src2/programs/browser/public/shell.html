@@ -150,7 +150,13 @@
         }
       })();
 
+      const params = new URLSearchParams(window.location.search);
+      const cliArgs = [];
+      if (params.has('runescape')) cliArgs.push('--runescape');
+      if (params.has('soft3d')) cliArgs.push('--soft3d');
+
       var Module = {
+        arguments: cliArgs,
         preRun: [],
         postRun: [],
         print: (function() {

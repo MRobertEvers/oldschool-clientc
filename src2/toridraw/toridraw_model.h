@@ -21,6 +21,9 @@ toridraw_normals_free(struct ToriDraw_Normals* normals);
 void
 toridraw_bones_free(struct ToriDraw_Bones* bones);
 
+struct ToriDraw_Bones*
+toridraw_bones_copy(const struct ToriDraw_Bones* src);
+
 void
 toridraw_model_alloc_normals(struct ToriDraw_Model* model);
 

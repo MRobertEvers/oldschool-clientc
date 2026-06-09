@@ -163,12 +163,9 @@ toridraw_anim_apply_transform(
                     x = var17;
                 }
 
-                vertices_x[vertex_index] =
-                    toridraw_anim_vertexint_clamp(x + transform->origin_x);
-                vertices_y[vertex_index] =
-                    toridraw_anim_vertexint_clamp(y + transform->origin_y);
-                vertices_z[vertex_index] =
-                    toridraw_anim_vertexint_clamp(z + transform->origin_z);
+                vertices_x[vertex_index] = toridraw_anim_vertexint_clamp(x + transform->origin_x);
+                vertices_y[vertex_index] = toridraw_anim_vertexint_clamp(y + transform->origin_y);
+                vertices_z[vertex_index] = toridraw_anim_vertexint_clamp(z + transform->origin_z);
             }
         }
         break;
@@ -196,12 +193,9 @@ toridraw_anim_apply_transform(
                 x = arg_x * x / 128;
                 y = arg_y * y / 128;
                 z = arg_z * z / 128;
-                vertices_x[vertex_index] =
-                    toridraw_anim_vertexint_clamp(x + transform->origin_x);
-                vertices_y[vertex_index] =
-                    toridraw_anim_vertexint_clamp(y + transform->origin_y);
-                vertices_z[vertex_index] =
-                    toridraw_anim_vertexint_clamp(z + transform->origin_z);
+                vertices_x[vertex_index] = toridraw_anim_vertexint_clamp(x + transform->origin_x);
+                vertices_y[vertex_index] = toridraw_anim_vertexint_clamp(y + transform->origin_y);
+                vertices_z[vertex_index] = toridraw_anim_vertexint_clamp(z + transform->origin_z);
             }
         }
         break;
@@ -281,6 +275,48 @@ toridraw_bones_free(struct ToriDraw_Bones* bones)
     }
     free(bones->bones_sizes);
     free(bones);
+}
+
+struct ToriDraw_Bones*
+toridraw_bones_copy(const struct ToriDraw_Bones* src)
+{
+    if( !src || src->bones_count <= 0 || !src->bones || !src->bones_sizes )
+        return NULL;
+
+    struct ToriDraw_Bones* dst = calloc(1, sizeof(struct ToriDraw_Bones));
+    if( !dst )
+        return NULL;
+
+    dst->bones_count = src->bones_count;
+    dst->bones = calloc((size_t)src->bones_count, sizeof(boneint_t*));
+    dst->bones_sizes = malloc((size_t)src->bones_count * sizeof(boneint_t));
+    if( !dst->bones || !dst->bones_sizes )
+    {
+        toridraw_bones_free(dst);
+        return NULL;
+    }
+
+    memcpy(dst->bones_sizes, src->bones_sizes, (size_t)src->bones_count * sizeof(boneint_t));
+
+    for( int i = 0; i < src->bones_count; i++ )
+    {
+        int const bone_length = (int)src->bones_sizes[i];
+        if( bone_length <= 0 || !src->bones[i] )
+        {
+            dst->bones[i] = NULL;
+            continue;
+        }
+
+        dst->bones[i] = malloc((size_t)bone_length * sizeof(boneint_t));
+        if( !dst->bones[i] )
+        {
+            toridraw_bones_free(dst);
+            return NULL;
+        }
+        memcpy(dst->bones[i], src->bones[i], (size_t)bone_length * sizeof(boneint_t));
+    }
+
+    return dst;
 }
 
 static void
@@ -445,8 +481,7 @@ toridraw_model_capture_original_vertices(struct ToriDraw_Model* model)
     model->original_vertices_x = malloc(vc * sizeof(vertexint_t));
     model->original_vertices_y = malloc(vc * sizeof(vertexint_t));
     model->original_vertices_z = malloc(vc * sizeof(vertexint_t));
-    if( !model->original_vertices_x || !model->original_vertices_y ||
-        !model->original_vertices_z )
+    if( !model->original_vertices_x || !model->original_vertices_y || !model->original_vertices_z )
     {
         free(model->original_vertices_x);
         free(model->original_vertices_y);

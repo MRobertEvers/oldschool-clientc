@@ -6,10 +6,10 @@
 #include "gamecache/gamecache_l.h"
 #include "games/model_viewer.h"
 #include "games/runescape.h"
-#include "toridraw/toridraw.h"
 #include "input/libtorirs_input.h"
 #include "libtorirs_internal.h"
 #include "scripting/libtorirs_scripting.h"
+#include "toridraw/toridraw.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -231,9 +231,6 @@ LibToriRS_TickAnimation(
     struct LibToriRS_Instance* instance,
     uint64_t time_ms)
 {
-    if( !instance || !instance->cpu_animation )
-        return;
-
     instance->anim_accumulator_ms += time_ms - instance->anim_last_tick_ms;
     instance->anim_last_tick_ms = time_ms;
 
@@ -380,8 +377,7 @@ LibToriRS_FrameNextCommand(
             return true;
         break;
     case GAME_HANDLE_KIND_RUNESCAPE:
-        if( instance->runescape &&
-            game_runescape_frame_next_command(instance->runescape, command) )
+        if( instance->runescape && game_runescape_frame_next_command(instance->runescape, command) )
             return true;
         break;
     default:

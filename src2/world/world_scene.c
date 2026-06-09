@@ -101,8 +101,8 @@ world_scene_retain_pending_pose(
     if( scene->pending_pose_count >= scene->pending_pose_cap )
     {
         int new_cap = scene->pending_pose_cap ? scene->pending_pose_cap * 2 : 64;
-        struct WorldScenePendingPose* grown = realloc(
-            scene->pending_poses, (size_t)new_cap * sizeof(struct WorldScenePendingPose));
+        struct WorldScenePendingPose* grown =
+            realloc(scene->pending_poses, (size_t)new_cap * sizeof(struct WorldScenePendingPose));
         if( !grown )
             return;
         scene->pending_poses = grown;
@@ -325,7 +325,8 @@ world_scene_batch_add_element(struct WorldScene* scene)
 
     scene->current_batch_element_count++;
 
-    world_scene_emit(scene, WSE_BATCH_MODEL_ADD, scene->current_batch_id, element_id, 0, NULL, NULL);
+    world_scene_emit(
+        scene, WSE_BATCH_MODEL_ADD, scene->current_batch_id, element_id, 0, NULL, NULL);
 
     handle.scene = scene;
     handle.batch_id = scene->current_batch_id;
@@ -349,13 +350,7 @@ world_scene_batch_end(struct WorldScene* scene)
         if( !element || !element->pending_batch_add )
             continue;
         world_scene_emit(
-            scene,
-            WSE_BATCH_MODEL_ADD,
-            scene->current_batch_id,
-            i,
-            0,
-            &element->model,
-            NULL);
+            scene, WSE_BATCH_MODEL_ADD, scene->current_batch_id, i, 0, &element->model, NULL);
         element->pending_batch_add = false;
     }
 
@@ -388,13 +383,7 @@ world_scene_batch_element_add_pose(
     assert(world_scene_element_valid(scene, element_id));
 
     world_scene_emit(
-        scene,
-        WSE_BATCH_ANIM_ADD,
-        scene->current_batch_id,
-        element_id,
-        pose_id,
-        &baked,
-        NULL);
+        scene, WSE_BATCH_ANIM_ADD, scene->current_batch_id, element_id, pose_id, &baked, NULL);
 
     if( baked.u.model.model )
         world_scene_retain_pending_pose(scene, baked.u.model.model);

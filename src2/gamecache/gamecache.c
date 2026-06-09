@@ -543,6 +543,19 @@ gamecache_animation_has(
     return gamecache_animation_get(gamecache, anim_id) != NULL;
 }
 
+struct ToriDraw_Animation*
+gamecache_sequence_primary_animation(
+    struct GameCache* gamecache,
+    int seq_id)
+{
+    struct GameCache_Sequence* seq = gamecache_sequence_get(gamecache, seq_id);
+    if( !seq || !seq->frames || seq->frame_count <= 0 )
+        return NULL;
+
+    int const archive_id = (seq->frames[0] >> 16) & 0xFFFF;
+    return gamecache_animation_get(gamecache, archive_id);
+}
+
 bool
 gamecache_sequence_resolve_frame(
     struct GameCache* gamecache,
