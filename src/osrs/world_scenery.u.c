@@ -189,7 +189,7 @@ apply_transforms(
 }
 
 static void
-world_load_scenery_model(
+scenery_load_model(
     struct World* world,
     struct MapBuildLocEntity* entity,
     struct CacheMapLoc* map_tile,
@@ -390,7 +390,7 @@ scenery_add_wall_single(
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -466,7 +466,7 @@ scenery_add_wall_tri_corner(
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -556,7 +556,7 @@ scenery_add_wall_two_sides(
     int next_orientation = (orientation + 1) & 0x3;
     int next_rotation = (rotation + 1) & 0x3;
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -567,7 +567,7 @@ scenery_add_wall_two_sides(
         1,
         1,
         config_loc);
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -654,7 +654,7 @@ scenery_add_wall_rect_corner(
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -728,7 +728,7 @@ scenery_add_wall_decor_inside(
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -805,7 +805,7 @@ scenery_add_wall_decor_outside(
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -886,7 +886,7 @@ scenery_add_wall_decor_diagonal_outside(
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -969,7 +969,7 @@ scenery_add_wall_decor_diagonal_inside(
     int orientation = (map_tile->orientation + 2) & 0x3;
     int rotation = config_loc->seq_id != -1 ? 0 : orientation;
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -1063,7 +1063,7 @@ scenery_add_wall_decor_diagonal_double(
     int inside_rotation = config_loc->seq_id != -1 ? 0 : (outside_orientation + 2) & 0x3;
     int inside_orientation = (outside_orientation + 2) & 0x3;
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -1074,7 +1074,7 @@ scenery_add_wall_decor_diagonal_double(
         1,
         1,
         config_loc);
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -1189,7 +1189,7 @@ scenery_add_wall_diagonal(
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -1265,7 +1265,7 @@ scenery_add_normal(
         size_z = temp;
     }
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -1345,7 +1345,7 @@ scenery_add_roof(
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,
@@ -1403,7 +1403,7 @@ scenery_add_floor_decoration(
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    world_load_scenery_model(
+    scenery_load_model(
         world,
         entity,
         map_tile,

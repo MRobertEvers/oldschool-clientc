@@ -8,6 +8,8 @@
 #define GAMECACHE_MAP_TERRAIN_Z 64
 #define GAMECACHE_MAP_TERRAIN_LEVELS 4
 
+struct ToriDraw_Animation;
+
 struct GameCache_MapFloor
 {
     uint16_t overlay_id;
@@ -22,8 +24,8 @@ struct GameCache_MapTerrain
 {
     int map_x;
     int map_z;
-    struct GameCache_MapFloor tiles_xyz
-        [GAMECACHE_MAP_TERRAIN_X * GAMECACHE_MAP_TERRAIN_Z * GAMECACHE_MAP_TERRAIN_LEVELS];
+    struct GameCache_MapFloor
+        tiles_xyz[GAMECACHE_MAP_TERRAIN_X * GAMECACHE_MAP_TERRAIN_Z * GAMECACHE_MAP_TERRAIN_LEVELS];
 };
 
 struct GameCache_MapLoc
@@ -105,6 +107,8 @@ struct GameCache_Sequence
     int preanim_move;
     int postanim_move;
     int duplicate_behavior;
+    /** Sequence-ordered animation resolved at world build; owned by this sequence. */
+    struct ToriDraw_Animation* resolved;
 };
 
 void
@@ -129,12 +133,16 @@ struct GameCache_MapLocs*
 gamecache_map_locs_new_from_cache_map_locs(const void* cache_locs);
 
 struct GameCache_Flotype*
-gamecache_flotype_new_from_cache_config_overlay(const void* cache_overlay, int id);
+gamecache_flotype_new_from_cache_config_overlay(
+    const void* cache_overlay,
+    int id);
 
 struct GameCache_Location*
 gamecache_location_new_from_cache_config_location(const void* cache_loc);
 
 struct GameCache_Sequence*
-gamecache_sequence_new_from_cache_dat_sequence(const void* cache_seq, int id);
+gamecache_sequence_new_from_cache_dat_sequence(
+    const void* cache_seq,
+    int id);
 
 #endif

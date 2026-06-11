@@ -4,7 +4,7 @@
 #include "core/tasks/core_task.h"
 #include "input/libtorirs_input.h"
 #include "render/libtorirs_render.h"
-#include "world/world_scene_events.h"
+#include "toridraw/toridraw_gccontext.h"
 
 #include <stdbool.h>
 #include <stdint.h>

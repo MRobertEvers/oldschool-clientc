@@ -4,7 +4,7 @@
 #include "../input/libtorirs_input.h"
 #include "../render/libtorirs_render.h"
 #include "../scripting/libtorirs_scripting.h"
-#include "../world/world_scene.h"
+#include "toridraw/toridraw_gccontext.h"
 #include "toridraw/toridraw_types.h"
 
 #include <stdbool.h>
@@ -18,8 +18,7 @@ struct LibToriRS_IOContext;
 
 enum GameModelViewer_FramePhase
 {
-    MV_FRAME_PHASE_SCENE_EVENTS = 0,
-    MV_FRAME_PHASE_TEXTURE_EVENTS,
+    MV_FRAME_PHASE_GC_EVENTS = 0,
     MV_FRAME_PHASE_BEGIN_3D,
     MV_FRAME_PHASE_MODELS,
     MV_FRAME_PHASE_END_3D,
@@ -41,7 +40,6 @@ struct GameModelViewer
     struct ToriDraw_Camera* camera;
     struct ToriDraw_ViewPort* view_port;
 
-    struct WorldScene* world_scene;
     int current_element_id;
 
     struct GameCache* gamecache;
@@ -61,7 +59,9 @@ struct GameModelViewer
 };
 
 struct GameModelViewer*
-game_modelviewer_new(struct LibToriRS_ScriptQueue* script_queue);
+game_modelviewer_new(
+    struct LibToriRS_ScriptQueue* script_queue,
+    struct ToriDraw_Context* context);
 
 void
 game_modelviewer_free(struct GameModelViewer* game_model_viewer);

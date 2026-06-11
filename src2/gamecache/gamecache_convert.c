@@ -1,4 +1,5 @@
 #include "gamecache_types.h"
+#include "toridraw/toridraw_animation.h"
 #include "osrs/rscache/tables/config_floortype.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/config_sequence.h"
@@ -54,11 +55,33 @@ gamecache_location_free(struct GameCache_Location* loc)
     free(loc);
 }
 
+static void
+gamecache_sequence_resolved_free(struct ToriDraw_Animation* anim)
+{
+    if( !anim )
+        return;
+
+    if( anim->frames )
+    {
+        for( int i = 0; i < anim->frame_count; i++ )
+        {
+            free(anim->frames[i].groups);
+            free(anim->frames[i].x);
+            free(anim->frames[i].y);
+            free(anim->frames[i].z);
+        }
+        free(anim->frames);
+    }
+
+    free(anim);
+}
+
 void
 gamecache_sequence_free(struct GameCache_Sequence* seq)
 {
     if( !seq )
         return;
+    gamecache_sequence_resolved_free(seq->resolved);
     free(seq->frames);
     free(seq->iframes);
     free(seq->delay);

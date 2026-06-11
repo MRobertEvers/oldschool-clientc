@@ -10,6 +10,7 @@
 #include "libtorirs_internal.h"
 #include "scripting/libtorirs_scripting.h"
 #include "toridraw/toridraw.h"
+#include "toridraw/toridraw_gccontext.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,7 +74,26 @@ LibToriRS_InstanceNew(void)
     //     return NULL;
     // }
 
-    instance->gamecache_l = GameCacheL_New(GAMECACHE_L_MODE_DAT1);
+    instance->context = toridraw_context_new();
+    if( !instance->context )
+    {
+        LibToriRS_IOQueueFree(instance->io_queue);
+        LibToriRS_Input_Free(instance->input);
+        LibToriRS_ScriptQueueFree(instance->script_queue);
+        free(instance);
+        return NULL;
+    }
+
+    instance->gamecache_l = GameCacheL_New(GAMECACHE_L_MODE_DAT1, instance->context);
+    if( !instance->gamecache_l )
+    {
+        toridraw_context_free(instance->context);
+        LibToriRS_IOQueueFree(instance->io_queue);
+        LibToriRS_Input_Free(instance->input);
+        LibToriRS_ScriptQueueFree(instance->script_queue);
+        free(instance);
+        return NULL;
+    }
 
     for( int i = 0; i < LIBTORIRS_MAX_TASKS; i++ )
     {
@@ -106,6 +126,8 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
         LibToriRS_Input_Free(instance->input);
     if( instance->gamecache_l )
         GameCacheL_Free(instance->gamecache_l);
+    if( instance->context )
+        toridraw_context_free(instance->context);
 
     if( instance->model_viewer )
         game_modelviewer_free(instance->model_viewer);
@@ -419,20 +441,7 @@ LibToriRS_GetCurrentToriDrawContext(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return NULL;
-    switch( instance->active_game_kind )
-    {
-    case GAME_HANDLE_KIND_MODEL_VIEWER:
-        if( instance->model_viewer )
-            return instance->model_viewer->context;
-        break;
-    case GAME_HANDLE_KIND_RUNESCAPE:
-        if( instance->runescape )
-            return instance->runescape->context;
-        break;
-    default:
-        break;
-    }
-    return NULL;
+    return instance->context;
 }
 
 static void

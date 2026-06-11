@@ -1,17 +1,17 @@
 #include "model_viewer.h"
 
 #include "../gamecache/gamecache.h"
-#include "../world/world_scene_events.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_model.h"
+#include "toridraw/toridraw_model_transform.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
 static bool
-game_modelviewer_translate_world_scene_event(
-    const struct WorldScene_Event* ev,
+game_modelviewer_translate_gc_event(
+    const struct ToriDraw_GCEvent* ev,
     struct LibToriRS_RenderCommand* command)
 {
     if( !ev || !command )
@@ -21,21 +21,21 @@ game_modelviewer_translate_world_scene_event(
 
     switch( ev->kind )
     {
-    case WSE_MODEL_LOAD:
+    case TDGC_MODEL_LOAD:
         command->kind = TORIRSRC_MODEL_LOAD;
         command->u.model_load.element_id = ev->element_id;
         command->u.model_load.model = ev->model;
         command->u.model_load.world_position = ev->world_position;
         return true;
-    case WSE_MODEL_UNLOAD:
+    case TDGC_MODEL_UNLOAD:
         command->kind = TORIRSRC_MODEL_UNLOAD;
         command->u.model_load.element_id = ev->element_id;
         return true;
-    case WSE_BATCH_BEGIN:
+    case TDGC_BATCH_BEGIN:
         command->kind = TORIRSRC_BATCH3D_BEGIN;
         command->u.batch.batch_id = ev->batch_id;
         return true;
-    case WSE_BATCH_MODEL_ADD:
+    case TDGC_BATCH_MODEL_ADD:
         command->kind = TORIRSRC_BATCH3D_MODEL_ADD;
         command->u.batch.batch_id = ev->batch_id;
         command->u.batch.element_id = ev->element_id;
@@ -43,7 +43,7 @@ game_modelviewer_translate_world_scene_event(
         command->u.batch.model = ev->model;
         command->u.batch.world_position = ev->world_position;
         return true;
-    case WSE_BATCH_ANIM_ADD:
+    case TDGC_BATCH_ANIM_ADD:
         command->kind = TORIRSRC_BATCH3D_ANIM_ADD;
         command->u.batch.batch_id = ev->batch_id;
         command->u.batch.element_id = ev->element_id;
@@ -51,38 +51,22 @@ game_modelviewer_translate_world_scene_event(
         command->u.batch.model = ev->model;
         command->u.batch.world_position = ev->world_position;
         return true;
-    case WSE_BATCH_END:
+    case TDGC_BATCH_END:
         command->kind = TORIRSRC_BATCH3D_END;
         command->u.batch.batch_id = ev->batch_id;
         return true;
-    case WSE_BATCH_CLEAR:
+    case TDGC_BATCH_CLEAR:
         command->kind = TORIRSRC_BATCH3D_CLEAR;
         command->u.batch.batch_id = ev->batch_id;
         return true;
-    default:
-        return false;
-    }
-}
-
-static bool
-game_modelviewer_translate_toridraw_event(
-    const struct ToriDraw_Event* ev,
-    struct LibToriRS_RenderCommand* command)
-{
-    if( !ev || !command )
-        return false;
-
-    memset(command, 0, sizeof(*command));
-    command->u.tex_load.texture_id = ev->texture_id;
-
-    switch( ev->kind )
-    {
-    case TORIDRAW_EVENT_TEX_LOAD:
+    case TDGC_TEX_LOAD:
         command->kind = TORIRSRC_TEX_LOAD;
+        command->u.tex_load.texture_id = ev->texture_id;
         command->u.tex_load.texture = ev->texture;
         return true;
-    case TORIDRAW_EVENT_TEX_UNLOAD:
+    case TDGC_TEX_UNLOAD:
         command->kind = TORIRSRC_TEX_UNLOAD;
+        command->u.tex_load.texture_id = ev->texture_id;
         command->u.tex_load.texture = NULL;
         return true;
     default:
@@ -105,13 +89,16 @@ game_modelviewer_update_world_viewport(struct GameModelViewer* mv)
 }
 
 struct GameModelViewer*
-game_modelviewer_new(struct LibToriRS_ScriptQueue* script_queue)
+game_modelviewer_new(
+    struct LibToriRS_ScriptQueue* script_queue,
+    struct ToriDraw_Context* context)
 {
     struct GameModelViewer* mv = calloc(1, sizeof(struct GameModelViewer));
     if( !mv )
         return NULL;
 
     mv->script_queue = script_queue;
+    mv->context = context;
 
     struct ToriDraw_Position* camera_position = malloc(sizeof(struct ToriDraw_Position));
     if( !camera_position )
@@ -152,41 +139,16 @@ game_modelviewer_new(struct LibToriRS_ScriptQueue* script_queue)
     mv->view_port = view_port;
 
     toridraw_init();
-    mv->context = toridraw_context_new();
     if( !mv->context )
     {
         game_modelviewer_free(mv);
         return NULL;
     }
 
-    mv->world_scene = world_scene_new();
-    if( !mv->world_scene )
-    {
-        game_modelviewer_free(mv);
-        return NULL;
-    }
-
-    mv->current_element_id = WORLD_SCENE_INVALID_ELEMENT_ID;
+    mv->current_element_id = TDGC_INVALID_ELEMENT_ID;
     game_modelviewer_update_world_viewport(mv);
 
     return mv;
-}
-
-static void
-game_modelviewer_free_textures(struct GameModelViewer* mv)
-{
-    if( !mv || !mv->context )
-        return;
-
-    for( int i = 0; i < 256; i++ )
-    {
-        struct ToriDraw_Texture* texture = mv->context->texture_map.textures[i];
-        if( !texture )
-            continue;
-        toridraw_texture_free(texture);
-        mv->context->texture_map.textures[i] = NULL;
-    }
-    mv->context->texture_map.count = 0;
 }
 
 void
@@ -195,11 +157,6 @@ game_modelviewer_free(struct GameModelViewer* mv)
     if( !mv )
         return;
 
-    game_modelviewer_free_textures(mv);
-    if( mv->world_scene )
-        world_scene_free(mv->world_scene);
-    if( mv->context )
-        toridraw_context_free(mv->context);
     free(mv->camera_position);
     free(mv->camera);
     free(mv->view_port);
@@ -269,16 +226,18 @@ game_modelviewer_set_model(
 
     (void)model_id;
 
-    if( !mv || !mv->world_scene )
+    if( !mv || !mv->context )
         return;
 
-    if( mv->current_element_id != WORLD_SCENE_INVALID_ELEMENT_ID )
-        world_scene_remove_element(mv->world_scene, mv->current_element_id);
+    if( mv->current_element_id != TDGC_INVALID_ELEMENT_ID )
+        toridraw_gc_element_remove(mv->context, mv->current_element_id);
 
-    element_id = world_scene_add_element(mv->world_scene);
-    assert(element_id != WORLD_SCENE_INVALID_ELEMENT_ID);
+    element_id = toridraw_gc_element_add(mv->context);
+    assert(element_id != TDGC_INVALID_ELEMENT_ID);
 
-    world_scene_element_set_model(mv->world_scene, element_id, model);
+    struct ToriDraw_ModelHandle owned = model;
+    owned.u.model.model = toridraw_model_copy(model.u.model.model);
+    toridraw_gc_element_set_model(mv->context, element_id, owned);
     mv->current_element_id = element_id;
     mv->model = model;
 }
@@ -387,7 +346,7 @@ game_modelviewer_frame_begin(struct GameModelViewer* mv)
     if( !mv )
         return;
 
-    mv->frame.phase = MV_FRAME_PHASE_SCENE_EVENTS;
+    mv->frame.phase = MV_FRAME_PHASE_GC_EVENTS;
     mv->frame.event_index = 0;
     mv->frame.model_index = 0;
     mv->frame.world_emitted = false;
@@ -409,41 +368,22 @@ game_modelviewer_frame_next_command(
     {
         switch( mv->frame.phase )
         {
-        case MV_FRAME_PHASE_SCENE_EVENTS:
+        case MV_FRAME_PHASE_GC_EVENTS:
         {
-            struct WorldScene_EventQueue* eq = NULL;
-            if( mv->world_scene )
-                eq = world_scene_get_event_queue(mv->world_scene);
+            struct ToriDraw_GCEventQueue* eq = mv->context ? toridraw_gc_events(mv->context) : NULL;
 
             if( eq )
             {
                 while( mv->frame.event_index < eq->count )
                 {
-                    const struct WorldScene_Event* ev = &eq->events[mv->frame.event_index++];
-                    if( game_modelviewer_translate_world_scene_event(ev, command) )
+                    const struct ToriDraw_GCEvent* ev = &eq->events[mv->frame.event_index++];
+                    if( game_modelviewer_translate_gc_event(ev, command) )
                         return true;
                 }
-            }
-
-            mv->frame.phase = MV_FRAME_PHASE_TEXTURE_EVENTS;
-            mv->frame.event_index = 0;
-            continue;
-        }
-        case MV_FRAME_PHASE_TEXTURE_EVENTS:
-        {
-            if( mv->context )
-            {
-                struct ToriDraw_EventQueue* eq = &mv->context->events;
-                while( mv->frame.event_index < eq->count )
-                {
-                    const struct ToriDraw_Event* ev = &eq->events[mv->frame.event_index++];
-                    if( game_modelviewer_translate_toridraw_event(ev, command) )
-                        return true;
-                }
-                toridraw_eventqueue_clear(eq);
             }
 
             mv->frame.phase = MV_FRAME_PHASE_BEGIN_3D;
+            mv->frame.event_index = 0;
             continue;
         }
         case MV_FRAME_PHASE_BEGIN_3D:
@@ -530,15 +470,8 @@ game_modelviewer_frame_end(struct GameModelViewer* mv)
     if( !mv )
         return;
 
-    if( mv->world_scene )
-    {
-        struct WorldScene_EventQueue* eq = world_scene_get_event_queue(mv->world_scene);
-        if( eq )
-            worldscene_eventqueue_clear(eq);
-    }
-
     if( mv->context )
-        toridraw_eventqueue_clear(&mv->context->events);
+        toridraw_gc_frame_end(mv->context);
 
     mv->frame.phase = MV_FRAME_PHASE_DONE;
 }

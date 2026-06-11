@@ -120,12 +120,6 @@ toridraw_texturemap_get(
     return map->textures[id];
 }
 
-void
-toridraw_context_set_texture(
-    struct ToriDraw_Context* ctx,
-    int id,
-    struct ToriDraw_Texture* texture);
-
 int
 toridraw_texture_average_hsl16(const struct ToriDraw_Texture* texture);
 

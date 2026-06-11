@@ -434,63 +434,12 @@ toridraw_model_free_normals(struct ToriDraw_Model* model)
 }
 
 void
-toridraw_context_set_texture(
-    struct ToriDraw_Context* ctx,
-    int id,
-    struct ToriDraw_Texture* texture)
-{
-    if( !ctx || id < 0 || id >= 256 )
-        return;
-
-    struct ToriDraw_TextureMap* map = &ctx->texture_map;
-    struct ToriDraw_Texture* const old = map->textures[id];
-
-    if( old == texture )
-        return;
-
-    if( old )
-    {
-        toridraw_eventqueue_push(&ctx->events, TORIDRAW_EVENT_TEX_UNLOAD, id, NULL);
-        toridraw_texture_free(old);
-        map->textures[id] = NULL;
-    }
-
-    if( texture )
-    {
-        map->textures[id] = texture;
-        toridraw_eventqueue_push(&ctx->events, TORIDRAW_EVENT_TEX_LOAD, id, texture);
-        if( id >= map->count )
-            map->count = id + 1;
-    }
-    else if( id == map->count - 1 )
-    {
-        while( map->count > 0 && !map->textures[map->count - 1] )
-            map->count--;
-    }
-}
-
-void
 toridraw_model_capture_original_vertices(struct ToriDraw_Model* model)
 {
-    if( !model || !model->vertices_x || model->vertex_count <= 0 )
-        return;
-    if( model->original_vertices_x )
-        return;
-
     size_t const vc = (size_t)model->vertex_count;
     model->original_vertices_x = malloc(vc * sizeof(vertexint_t));
     model->original_vertices_y = malloc(vc * sizeof(vertexint_t));
     model->original_vertices_z = malloc(vc * sizeof(vertexint_t));
-    if( !model->original_vertices_x || !model->original_vertices_y || !model->original_vertices_z )
-    {
-        free(model->original_vertices_x);
-        free(model->original_vertices_y);
-        free(model->original_vertices_z);
-        model->original_vertices_x = NULL;
-        model->original_vertices_y = NULL;
-        model->original_vertices_z = NULL;
-        return;
-    }
 
     memcpy(model->original_vertices_x, model->vertices_x, vc * sizeof(vertexint_t));
     memcpy(model->original_vertices_y, model->vertices_y, vc * sizeof(vertexint_t));

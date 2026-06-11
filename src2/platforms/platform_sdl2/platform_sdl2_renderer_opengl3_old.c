@@ -13,8 +13,6 @@
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_types.h"
-#include "world/world_scene.h"
-#include "world/world_scene_events.h"
 #include <SDL_opengl.h>
 
 #include <math.h>

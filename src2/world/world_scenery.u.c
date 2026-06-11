@@ -7,10 +7,10 @@
 #include "osrs/rscache/tables/config_locs.h"
 #include "shademap.h"
 #include "sharelight_map.h"
+#include "toridraw/toridraw_gccontext.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
 #include "world.h"
-#include "world_scene.h"
 
 // clang-format off
 #include "world_contour_ground.u.c"
@@ -61,7 +61,7 @@ calculate_wall_decor_offset(
 void
 world_apply_wall_decor_offsets(struct World* world)
 {
-    if( !world || !world->decor_buildmap || !world->scene )
+    if( !world || !world->decor_buildmap || !world->context )
         return;
 
     int scene_size = world->_scene_size;
@@ -81,8 +81,8 @@ world_apply_wall_decor_offsets(struct World* world)
                     int element_id = elements->element_id[i];
                     int displacement_kind = elements->displacement_kind[i];
                     int orientation = elements->orientation[i];
-                    struct WorldSceneElement* scene_element =
-                        world_scene_element_get(world->scene, element_id);
+                    struct ToriDraw_GCElement* scene_element =
+                        toridraw_gc_element_get(world->context, element_id);
                     if( !scene_element )
                         continue;
 
@@ -245,7 +245,7 @@ apply_transforms(
 }
 
 static int
-world_load_scenery_model(
+scenery_load_model(
     struct World* world,
     struct GameCache_MapLoc* map_tile,
     struct GameCache_Location* config_loc,
@@ -256,7 +256,7 @@ world_load_scenery_model(
     int size_x,
     int size_z)
 {
-    struct ToriDraw_Model* models[10];
+    int model_ids[10];
     int models_count = 0;
 
     if( !config_loc->shapes )
@@ -265,9 +265,7 @@ world_load_scenery_model(
         for( int i = 0; i < count && models_count < 10; i++ )
         {
             int model_id = config_loc->models[0][i];
-            struct ToriDraw_ModelHandle hnd = gamecache_model_get(world->gamecache, model_id);
-            assert(hnd.kind == TORIDRAWMK_MODEL);
-            models[models_count++] = toridraw_model_copy(hnd.u.model.model);
+            model_ids[models_count++] = model_id;
         }
     }
     else
@@ -281,10 +279,8 @@ world_load_scenery_model(
             for( int j = 0; j < count_inner && models_count < 10; j++ )
             {
                 int model_id = config_loc->models[i][j];
-                struct ToriDraw_ModelHandle hnd = gamecache_model_get(world->gamecache, model_id);
-                assert(hnd.kind == TORIDRAWMK_MODEL);
 
-                models[models_count++] = toridraw_model_copy(hnd.u.model.model);
+                model_ids[models_count++] = model_id;
                 found = true;
             }
         }
@@ -295,33 +291,32 @@ world_load_scenery_model(
     if( models_count <= 0 )
         return -1;
 
+    struct ToriDraw_Model* models[10];
+    for( int i = 0; i < models_count; i++ )
+    {
+        struct ToriDraw_ModelHandle hnd = gamecache_model_get(world->gamecache, model_ids[i]);
+        assert(hnd.kind == TORIDRAWMK_MODEL);
+        models[i] = hnd.u.model.model;
+    }
+
     struct ToriDraw_Model* model = NULL;
     if( models_count > 1 )
     {
         model = toridraw_model_merge(models, models_count);
-        for( int i = 0; i < models_count; i++ )
-            toridraw_model_free(models[i]);
     }
     else
-        model = models[0];
-
-    if( !model )
-        return -1;
+        model = toridraw_model_copy(models[0]);
 
     apply_transforms(config_loc, model, rotation, true);
 
-    int element_id = world_scene_add_element(world->scene);
-    if( element_id < 0 )
-    {
-        toridraw_model_free(model);
-        return -1;
-    }
+    int element_id = toridraw_gc_element_add(world->context);
+    assert(element_id >= 0 && "world_load_scenery_model: invalid element_id");
 
     struct ToriDraw_ModelHandle hnd = {
         .kind = TORIDRAWMK_MODEL,
         .u.model.model = model,
     };
-    world_scene_element_set_model_owned(world->scene, element_id, hnd);
+    toridraw_gc_element_set_model(world->context, element_id, hnd);
 
     if( config_loc->contour_ground_type != 0 )
     {
@@ -354,8 +349,8 @@ scenery_element_position_init(
     heightmap_get_heights_sized(
         world->heightmap, scene_x, scene_z, level, size_x, size_z, &heights);
 
-    world_scene_element_set_position(
-        world->scene,
+    toridraw_gc_element_set_position(
+        world->context,
         element_id,
         scene_x * WORLD_TILE_SIZE + 64 * size_x,
         heights.height_center,
@@ -364,7 +359,7 @@ scenery_element_position_init(
 }
 
 static void
-scenery_set_animation(
+scenery_load_animation(
     struct World* world,
     int element_id,
     int seq_id)
@@ -373,24 +368,23 @@ scenery_set_animation(
         return;
 
     struct GameCache_Sequence* seq = gamecache_sequence_get(world->gamecache, seq_id);
-    if( !seq || seq->frame_count <= 0 )
-        return;
+    assert(seq && "scenery_set_animation: invalid seq_id");
 
-    world_scene_element_set_animation_seq(world->scene, element_id, seq_id);
+    toridraw_gc_element_set_animation_seq(world->context, element_id, seq_id);
 
-    struct WorldSceneElement* element = world_scene_element_get(world->scene, element_id);
-    if( !element || element->model.kind != TORIDRAWMK_MODEL || !element->model.u.model.model )
-        return;
+    struct ToriDraw_GCElement* element = toridraw_gc_element_get(world->context, element_id);
+    assert(element && "scenery_set_animation: invalid element_id");
 
     struct ToriDraw_Model* source = element->model.u.model.model;
 
-    for( int frame = 0; frame < seq->frame_count; frame++ )
+    struct ToriDraw_Animation* resolved =
+        gamecache_sequence_resolved_animation(world->gamecache, seq_id);
+    assert(resolved && "scenery_set_animation: invalid resolved animation");
+
+    for( int frame = 0; frame < resolved->frame_count; frame++ )
     {
-        const struct ToriDraw_AnimFrame* anim_frame = NULL;
-        const struct ToriDraw_AnimBase* anim_base = NULL;
-        if( !gamecache_sequence_resolve_frame(
-                world->gamecache, seq_id, frame, &anim_frame, &anim_base, NULL) )
-            continue;
+        const struct ToriDraw_AnimFrame* anim_frame = &resolved->frames[frame];
+        const struct ToriDraw_AnimBase* anim_base = resolved->base;
 
         struct ToriDraw_Model* baked = toridraw_model_copy(source);
         if( !baked )
@@ -404,15 +398,12 @@ scenery_set_animation(
             .kind = TORIDRAWMK_MODEL,
             .u.model.model = baked,
         };
-        world_scene_batch_element_add_pose(world->scene, element_id, frame, hnd);
+        toridraw_gc_batch_element_add_pose(world->context, element_id, frame, hnd);
     }
 
     toridraw_model_animate_reset(source);
 
-    struct ToriDraw_Animation* anim =
-        gamecache_sequence_primary_animation(world->gamecache, seq_id);
-    if( anim )
-        world_scene_element_set_animation(world->scene, element_id, anim, true);
+    toridraw_gc_element_set_animation(world->context, element_id, resolved, true);
 }
 
 static void
@@ -426,7 +417,7 @@ scenery_add_wall_single(
     int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
 
-    int element_id = world_load_scenery_model(
+    int element_id = scenery_load_model(
         world, map_loc, config_loc, LOC_SHAPE_WALL_SINGLE_SIDE, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
@@ -469,7 +460,7 @@ scenery_add_wall_tri_corner(
 {
     int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
-    int element_id = world_load_scenery_model(
+    int element_id = scenery_load_model(
         world, map_loc, config_loc, LOC_SHAPE_WALL_TRI_CORNER, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
@@ -515,7 +506,7 @@ scenery_add_wall_two_sides(
     int next_orientation = (orientation + 1) & 0x3;
     int next_rotation = (rotation + 1) & 0x3;
 
-    int element_id = world_load_scenery_model(
+    int element_id = scenery_load_model(
         world, map_loc, config_loc, LOC_SHAPE_WALL_TWO_SIDES, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
@@ -535,7 +526,7 @@ scenery_add_wall_two_sides(
     scenery_register_sharelight(
         world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 
-    int element_id2 = world_load_scenery_model(
+    int element_id2 = scenery_load_model(
         world,
         map_loc,
         config_loc,
@@ -578,7 +569,7 @@ scenery_add_wall_rect_corner(
 {
     int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
-    int element_id = world_load_scenery_model(
+    int element_id = scenery_load_model(
         world, map_loc, config_loc, LOC_SHAPE_WALL_RECT_CORNER, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
@@ -621,14 +612,14 @@ scenery_add_wall_decor_inside(
     int orientation = map_loc->orientation;
     int yaw = config_loc->seq_id != -1 ? 512 * orientation : 0;
 
-    int element_id = world_load_scenery_model(
+    int element_id = scenery_load_model(
         world, map_loc, config_loc, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
         fprintf(stderr, "scenery_add_wall_decor_inside: invalid element_id=%d\n", element_id);
         abort();
     }
-    scenery_set_animation(world, element_id, config_loc->seq_id);
+    scenery_load_animation(world, element_id, config_loc->seq_id);
     scenery_element_position_init(
         world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
     painter_add_wall_decor(
@@ -666,7 +657,7 @@ scenery_add_wall_decor_outside(
     int orientation = map_loc->orientation;
     int yaw = config_loc->seq_id != -1 ? 512 * orientation : 0;
 
-    int element_id = world_load_scenery_model(
+    int element_id = scenery_load_model(
         world, map_loc, config_loc, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, scene_x, scene_z, 1, 1);
 
     if( element_id < 0 )
@@ -674,7 +665,7 @@ scenery_add_wall_decor_outside(
         fprintf(stderr, "scenery_add_wall_decor_outside: invalid element_id=%d\n", element_id);
         abort();
     }
-    scenery_set_animation(world, element_id, config_loc->seq_id);
+    scenery_load_animation(world, element_id, config_loc->seq_id);
 
     scenery_element_position_init(
         world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
@@ -716,7 +707,7 @@ scenery_add_wall_decor_diagonal_outside(
     if( config_loc->seq_id != -1 )
         yaw += 512 * orientation;
 
-    int element_id = world_load_scenery_model(
+    int element_id = scenery_load_model(
         world, map_loc, config_loc, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
@@ -724,7 +715,7 @@ scenery_add_wall_decor_diagonal_outside(
             stderr, "scenery_add_wall_decor_diagonal_outside: invalid element_id=%d\n", element_id);
         abort();
     }
-    scenery_set_animation(world, element_id, config_loc->seq_id);
+    scenery_load_animation(world, element_id, config_loc->seq_id);
     scenery_element_position_init(
         world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
     painter_add_wall_decor(
@@ -764,7 +755,7 @@ scenery_add_wall_decor_diagonal_inside(
     if( config_loc->seq_id != -1 )
         yaw += 512 * orientation;
 
-    int element_id = world_load_scenery_model(
+    int element_id = scenery_load_model(
         world, map_loc, config_loc, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
@@ -773,7 +764,7 @@ scenery_add_wall_decor_diagonal_inside(
         abort();
     }
 
-    scenery_set_animation(world, element_id, config_loc->seq_id);
+    scenery_load_animation(world, element_id, config_loc->seq_id);
     scenery_element_position_init(
         world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
     painter_add_wall_decor(
@@ -819,7 +810,7 @@ scenery_add_wall_decor_diagonal_double(
         inside_yaw += 512 * inside_orientation;
     }
 
-    int outside_element_id = world_load_scenery_model(
+    int outside_element_id = scenery_load_model(
         world,
         map_loc,
         config_loc,
@@ -838,7 +829,7 @@ scenery_add_wall_decor_diagonal_double(
         abort();
     }
 
-    int inside_element_id = world_load_scenery_model(
+    int inside_element_id = scenery_load_model(
         world,
         map_loc,
         config_loc,
@@ -857,8 +848,8 @@ scenery_add_wall_decor_diagonal_double(
         abort();
     }
 
-    scenery_set_animation(world, outside_element_id, config_loc->seq_id);
-    scenery_set_animation(world, inside_element_id, config_loc->seq_id);
+    scenery_load_animation(world, outside_element_id, config_loc->seq_id);
+    scenery_load_animation(world, inside_element_id, config_loc->seq_id);
     scenery_element_position_init(
         world, outside_element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, outside_yaw);
     scenery_element_position_init(
@@ -918,7 +909,7 @@ scenery_add_wall_diagonal(
     int scene_z)
 {
     int rotation = map_loc->orientation;
-    int element_id = world_load_scenery_model(
+    int element_id = scenery_load_model(
         world, map_loc, config_loc, LOC_SHAPE_WALL_DIAGONAL, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
@@ -964,13 +955,18 @@ scenery_add_normal(
     if( config_loc->seq_id != -1 )
         yaw += 512 * orientation;
 
-    int element_id = world_load_scenery_model(
+    int element_id = scenery_load_model(
         world, map_loc, config_loc, LOC_SHAPE_SCENERY, rotation, scene_x, scene_z, size_x, size_z);
     if( element_id < 0 )
-        return;
-    scenery_set_animation(world, element_id, config_loc->seq_id);
+    {
+        fprintf(stderr, "scenery_add_normal: invalid element_id=%d\n", element_id);
+        abort();
+    }
+    scenery_load_animation(world, element_id, config_loc->seq_id);
+
     scenery_element_position_init(
         world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, yaw);
+
     painter_add_normal_scenery(
         world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id, size_x, size_z);
     int shade = size_x * size_z * 11;
@@ -995,7 +991,7 @@ scenery_add_roof(
     int scene_z)
 {
     int rotation = map_loc->orientation;
-    int element_id = world_load_scenery_model(
+    int element_id = scenery_load_model(
         world, map_loc, config_loc, map_loc->shape_select, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
@@ -1020,7 +1016,7 @@ scenery_add_floor_decoration(
     int scene_z)
 {
     int rotation = map_loc->orientation;
-    int element_id = world_load_scenery_model(
+    int element_id = scenery_load_model(
         world, map_loc, config_loc, LOC_SHAPE_FLOOR_DECORATION, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {

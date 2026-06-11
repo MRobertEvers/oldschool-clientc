@@ -1,18 +1,13 @@
 #include "gamecache.h"
 
 #include "toridraw/toridraw_animation.h"
+#include "toridraw/toridraw_gccontext.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-
-struct MapEntry_ToriModel
-{
-    int id;
-    struct ToriDraw_ModelHandle model;
-};
 
 struct MapEntry_MapTerrain
 {
@@ -42,12 +37,6 @@ struct MapEntry_Sequence
 {
     int id;
     struct GameCache_Sequence* sequence;
-};
-
-struct MapEntry_Animation
-{
-    int id;
-    struct ToriDraw_Animation* animation;
 };
 
 static struct ToriDraw_Map*
@@ -89,19 +78,18 @@ gamecache_map_reset(
 }
 
 struct GameCache*
-gamecache_new(void)
+gamecache_new(struct ToriDraw_Context* context)
 {
     struct GameCache* gamecache = calloc(1, sizeof(struct GameCache));
     if( !gamecache )
         return NULL;
 
-    gamecache->models_hmap = gamecache_map_new(sizeof(struct MapEntry_ToriModel), 1024);
+    gamecache->context = context;
     gamecache->map_terrain_hmap = gamecache_map_new(sizeof(struct MapEntry_MapTerrain), 256);
     gamecache->map_scenery_hmap = gamecache_map_new(sizeof(struct MapEntry_MapScenery), 256);
     gamecache->flotype_hmap = gamecache_map_new(sizeof(struct MapEntry_Flotype), 256);
     gamecache->config_loc_hmap = gamecache_map_new(sizeof(struct MapEntry_Location), 1024);
     gamecache->sequences_hmap = gamecache_map_new(sizeof(struct MapEntry_Sequence), 1024);
-    gamecache->animation_hmap = gamecache_map_new(sizeof(struct MapEntry_Animation), 512);
 
     return gamecache;
 }
@@ -186,40 +174,11 @@ gamecache_free_sequences(struct ToriDraw_Map* map)
     toridraw_map_iter_free(iter);
 }
 
-static void
-gamecache_free_animations(struct ToriDraw_Map* map)
-{
-    if( !map )
-        return;
-
-    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(map);
-    struct MapEntry_Animation* entry = NULL;
-    while( (entry = (struct MapEntry_Animation*)toridraw_map_iter_next(iter)) )
-    {
-        if( entry->animation )
-            toridraw_animation_free(entry->animation);
-    }
-    toridraw_map_iter_free(iter);
-}
-
 void
 gamecache_free(struct GameCache* gamecache)
 {
     if( !gamecache )
         return;
-
-    if( gamecache->models_hmap )
-    {
-        struct ToriDraw_MapIter* iter = toridraw_map_iter_new(gamecache->models_hmap);
-        struct MapEntry_ToriModel* entry = NULL;
-        while( (entry = (struct MapEntry_ToriModel*)toridraw_map_iter_next(iter)) )
-        {
-            if( entry->model.kind == TORIDRAWMK_MODEL )
-                toridraw_model_free(entry->model.u.model.model);
-        }
-        toridraw_map_iter_free(iter);
-        gamecache_map_free(gamecache->models_hmap);
-    }
 
     gamecache_free_map_terrain(gamecache->map_terrain_hmap);
     gamecache_map_free(gamecache->map_terrain_hmap);
@@ -236,9 +195,6 @@ gamecache_free(struct GameCache* gamecache)
     gamecache_free_sequences(gamecache->sequences_hmap);
     gamecache_map_free(gamecache->sequences_hmap);
 
-    gamecache_free_animations(gamecache->animation_hmap);
-    gamecache_map_free(gamecache->animation_hmap);
-
     free(gamecache);
 }
 
@@ -248,13 +204,9 @@ gamecache_model_add(
     int model_id,
     struct ToriDraw_ModelHandle model)
 {
-    struct MapEntry_ToriModel* entry = (struct MapEntry_ToriModel*)toridraw_map_search(
-        gamecache->models_hmap, &model_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
+    if( !gamecache || !gamecache->context )
         return;
-
-    entry->id = model_id;
-    entry->model = model;
+    toridraw_gc_model_add(gamecache->context, model_id, model);
 }
 
 struct ToriDraw_ModelHandle
@@ -262,14 +214,10 @@ gamecache_model_get(
     struct GameCache* gamecache,
     int model_id)
 {
-    struct MapEntry_ToriModel* entry = (struct MapEntry_ToriModel*)toridraw_map_search(
-        gamecache->models_hmap, &model_id, TORIDRAW_MAP_FIND);
-
-    struct ToriDraw_ModelHandle model = { .kind = TORIDRAWMK_NONE };
-    if( !entry )
-        return model;
-
-    return entry->model;
+    struct ToriDraw_ModelHandle none = { .kind = TORIDRAWMK_NONE };
+    if( !gamecache || !gamecache->context )
+        return none;
+    return toridraw_gc_model_get(gamecache->context, model_id);
 }
 
 bool
@@ -277,7 +225,9 @@ gamecache_model_has(
     struct GameCache* gamecache,
     int model_id)
 {
-    return gamecache_model_get(gamecache, model_id).kind == TORIDRAWMK_MODEL;
+    if( !gamecache || !gamecache->context )
+        return false;
+    return toridraw_gc_model_has(gamecache->context, model_id);
 }
 
 struct ToriDraw_ModelHandle
@@ -286,33 +236,17 @@ gamecache_model_remove(
     int model_id)
 {
     struct ToriDraw_ModelHandle none = { .kind = TORIDRAWMK_NONE };
-    if( !gamecache )
+    if( !gamecache || !gamecache->context )
         return none;
-
-    struct MapEntry_ToriModel* entry = (struct MapEntry_ToriModel*)toridraw_map_search(
-        gamecache->models_hmap, &model_id, TORIDRAW_MAP_REMOVE);
-    if( !entry )
-        return none;
-
-    return entry->model;
+    return toridraw_gc_model_remove(gamecache->context, model_id);
 }
 
 void
 gamecache_models_clear_all(struct GameCache* gamecache)
 {
-    if( !gamecache || !gamecache->models_hmap )
+    if( !gamecache || !gamecache->context )
         return;
-
-    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(gamecache->models_hmap);
-    struct MapEntry_ToriModel* entry = NULL;
-    while( (entry = (struct MapEntry_ToriModel*)toridraw_map_iter_next(iter)) )
-    {
-        if( entry->model.kind == TORIDRAWMK_MODEL )
-            toridraw_model_free(entry->model.u.model.model);
-    }
-    toridraw_map_iter_free(iter);
-
-    gamecache_map_reset(&gamecache->models_hmap, sizeof(struct MapEntry_ToriModel), 1024);
+    toridraw_gc_models_clear_all(gamecache->context);
 }
 
 void
@@ -511,16 +445,9 @@ gamecache_animation_add(
     int anim_id,
     struct ToriDraw_Animation* animation)
 {
-    struct MapEntry_Animation* entry = (struct MapEntry_Animation*)toridraw_map_search(
-        gamecache->animation_hmap, &anim_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
+    if( !gamecache || !gamecache->context )
         return;
-
-    if( entry->animation )
-        toridraw_animation_free(entry->animation);
-
-    entry->id = anim_id;
-    entry->animation = animation;
+    toridraw_gc_animation_add(gamecache->context, anim_id, animation);
 }
 
 struct ToriDraw_Animation*
@@ -528,11 +455,9 @@ gamecache_animation_get(
     struct GameCache* gamecache,
     int anim_id)
 {
-    struct MapEntry_Animation* entry = (struct MapEntry_Animation*)toridraw_map_search(
-        gamecache->animation_hmap, &anim_id, TORIDRAW_MAP_FIND);
-    if( !entry )
+    if( !gamecache || !gamecache->context )
         return NULL;
-    return entry->animation;
+    return toridraw_gc_animation_get(gamecache->context, anim_id);
 }
 
 bool
@@ -540,7 +465,9 @@ gamecache_animation_has(
     struct GameCache* gamecache,
     int anim_id)
 {
-    return gamecache_animation_get(gamecache, anim_id) != NULL;
+    if( !gamecache || !gamecache->context )
+        return false;
+    return toridraw_gc_animation_has(gamecache->context, anim_id);
 }
 
 struct ToriDraw_Animation*
@@ -556,8 +483,124 @@ gamecache_sequence_primary_animation(
     return gamecache_animation_get(gamecache, archive_id);
 }
 
-bool
-gamecache_sequence_resolve_frame(
+static void
+gamecache_sequence_resolved_free(struct ToriDraw_Animation* anim)
+{
+    if( !anim )
+        return;
+
+    if( anim->frames )
+    {
+        for( int i = 0; i < anim->frame_count; i++ )
+        {
+            free(anim->frames[i].groups);
+            free(anim->frames[i].x);
+            free(anim->frames[i].y);
+            free(anim->frames[i].z);
+        }
+        free(anim->frames);
+    }
+
+    free(anim);
+}
+
+static bool
+gamecache_sequence_resolve_frame_impl(
+    struct GameCache* gamecache,
+    int seq_id,
+    int frame_index,
+    const struct ToriDraw_AnimFrame** out_frame,
+    const struct ToriDraw_AnimBase** out_base,
+    int* out_delay);
+
+static bool
+gamecache_animframe_copy(
+    struct ToriDraw_AnimFrame* dst,
+    const struct ToriDraw_AnimFrame* src)
+{
+    memset(dst, 0, sizeof(*dst));
+    dst->id = src->id;
+    dst->length = src->length;
+    dst->delay = src->delay;
+
+    if( src->length <= 0 )
+        return true;
+
+    dst->groups = malloc((size_t)src->length * sizeof(int16_t));
+    dst->x = malloc((size_t)src->length * sizeof(int16_t));
+    dst->y = malloc((size_t)src->length * sizeof(int16_t));
+    dst->z = malloc((size_t)src->length * sizeof(int16_t));
+    if( !dst->groups || !dst->x || !dst->y || !dst->z )
+    {
+        free(dst->groups);
+        free(dst->x);
+        free(dst->y);
+        free(dst->z);
+        memset(dst, 0, sizeof(*dst));
+        return false;
+    }
+
+    memcpy(dst->groups, src->groups, (size_t)src->length * sizeof(int16_t));
+    memcpy(dst->x, src->x, (size_t)src->length * sizeof(int16_t));
+    memcpy(dst->y, src->y, (size_t)src->length * sizeof(int16_t));
+    memcpy(dst->z, src->z, (size_t)src->length * sizeof(int16_t));
+    return true;
+}
+
+struct ToriDraw_Animation*
+gamecache_sequence_resolved_animation(
+    struct GameCache* gamecache,
+    int seq_id)
+{
+    struct GameCache_Sequence* seq = gamecache_sequence_get(gamecache, seq_id);
+    if( !seq || !seq->frames || seq->frame_count <= 0 )
+        return NULL;
+
+    if( seq->resolved )
+        return seq->resolved;
+
+    struct ToriDraw_Animation* resolved = calloc(1, sizeof(struct ToriDraw_Animation));
+    if( !resolved )
+        return NULL;
+
+    resolved->frame_count = seq->frame_count;
+    resolved->frames = calloc((size_t)seq->frame_count, sizeof(struct ToriDraw_AnimFrame));
+    if( !resolved->frames )
+    {
+        free(resolved);
+        return NULL;
+    }
+
+    int const archive_id = (seq->frames[0] >> 16) & 0xFFFF;
+    struct ToriDraw_Animation* primary = gamecache_animation_get(gamecache, archive_id);
+
+    resolved->base = primary->base;
+
+    for( int i = 0; i < seq->frame_count; i++ )
+    {
+        const struct ToriDraw_AnimFrame* src_frame = NULL;
+        const struct ToriDraw_AnimBase* src_base = NULL;
+        int delay = 1;
+        if( !gamecache_sequence_resolve_frame_impl(
+                gamecache, seq_id, i, &src_frame, &src_base, &delay) )
+            continue;
+
+        struct ToriDraw_AnimFrame* dst = &resolved->frames[i];
+        if( !gamecache_animframe_copy(dst, src_frame) )
+        {
+            gamecache_sequence_resolved_free(resolved);
+            return NULL;
+        }
+        dst->delay = delay;
+        (void)src_base;
+    }
+
+    seq->resolved = resolved;
+    return resolved;
+}
+
+static bool
+gamecache_sequence_resolve_frame_impl(
     struct GameCache* gamecache,
     int seq_id,
     int frame_index,
@@ -591,4 +634,17 @@ gamecache_sequence_resolve_frame(
     }
 
     return true;
+}
+
+bool
+gamecache_sequence_resolve_frame(
+    struct GameCache* gamecache,
+    int seq_id,
+    int frame_index,
+    const struct ToriDraw_AnimFrame** out_frame,
+    const struct ToriDraw_AnimBase** out_base,
+    int* out_delay)
+{
+    return gamecache_sequence_resolve_frame_impl(
+        gamecache, seq_id, frame_index, out_frame, out_base, out_delay);
 }

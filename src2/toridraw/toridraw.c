@@ -24,24 +24,6 @@ toridraw_init(void)
     toridraw_init_hsl16();
 }
 
-struct ToriDraw_Context*
-toridraw_context_new(void)
-{
-    struct ToriDraw_Context* context = malloc(sizeof(struct ToriDraw_Context));
-    if( !context )
-        return NULL;
-    memset(context, 0, sizeof(struct ToriDraw_Context));
-    return context;
-}
-
-void
-toridraw_context_free(struct ToriDraw_Context* context)
-{
-    if( !context )
-        return;
-    free(context);
-}
-
 void
 toridraw_render_model(
     struct ToriDraw_ModelHandle hnd,

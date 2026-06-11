@@ -9,8 +9,8 @@
 #include "games/runescape.h"
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "scripting/libtorirs_scripting.h"
+#include "toridraw/toridraw_gccontext.h"
 #include "world/world.h"
-#include "world/world_scene_events.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -41,6 +41,7 @@ struct LibToriRS_Instance
     int task_free_head;
     int task_live_head;
 
+    struct ToriDraw_Context* context;
     struct GameCacheL* gamecache_l;
 
     enum GameHandleKind active_game_kind;

@@ -10,21 +10,21 @@
 struct ToriDraw_Animation;
 struct ToriDraw_AnimBase;
 struct ToriDraw_AnimFrame;
+struct ToriDraw_Context;
 struct ToriDraw_Map;
 
 struct GameCache
 {
-    struct ToriDraw_Map* models_hmap;
+    struct ToriDraw_Context* context;
     struct ToriDraw_Map* map_terrain_hmap;
     struct ToriDraw_Map* map_scenery_hmap;
     struct ToriDraw_Map* flotype_hmap;
     struct ToriDraw_Map* config_loc_hmap;
     struct ToriDraw_Map* sequences_hmap;
-    struct ToriDraw_Map* animation_hmap;
 };
 
 struct GameCache*
-gamecache_new(void);
+gamecache_new(struct ToriDraw_Context* context);
 
 void
 gamecache_free(struct GameCache* gamecache);
@@ -135,6 +135,11 @@ gamecache_sequence_has(
 
 struct ToriDraw_Animation*
 gamecache_sequence_primary_animation(
+    struct GameCache* gamecache,
+    int seq_id);
+
+struct ToriDraw_Animation*
+gamecache_sequence_resolved_animation(
     struct GameCache* gamecache,
     int seq_id);
 

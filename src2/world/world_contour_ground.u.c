@@ -24,7 +24,7 @@ world_contour_ground(struct World* world)
         if( r->element_id < 0 )
             continue;
 
-        struct WorldSceneElement* el = world_scene_element_get(world->scene, r->element_id);
+        struct ToriDraw_GCElement* el = toridraw_gc_element_get(world->context, r->element_id);
         if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
             continue;
 

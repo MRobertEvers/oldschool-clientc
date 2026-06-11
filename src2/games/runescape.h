@@ -5,7 +5,7 @@
 #include "../render/libtorirs_render.h"
 #include "../scripting/libtorirs_scripting.h"
 #include "../world/world.h"
-#include "../world/world_scene.h"
+#include "toridraw/toridraw_gccontext.h"
 #include "osrs/painters.h"
 #include "toridraw/toridraw_types.h"
 
@@ -22,8 +22,7 @@ struct ToriDraw_Context;
 
 enum GameRunescape_FramePhase
 {
-    RS_FRAME_PHASE_SCENE_EVENTS = 0,
-    RS_FRAME_PHASE_TEXTURE_EVENTS,
+    RS_FRAME_PHASE_GC_EVENTS = 0,
     RS_FRAME_PHASE_BEGIN_3D,
     RS_FRAME_PHASE_MODELS,
     RS_FRAME_PHASE_END_3D,
@@ -35,7 +34,6 @@ struct GameRunescape
     struct LibToriRS_ScriptQueue* script_queue;
     struct GameCache* gamecache;
     struct World* world;
-    struct WorldScene* world_scene;
     struct ToriDraw_Context* context;
     struct ToriDraw_Position* camera_position;
     struct ToriDraw_Camera* camera;
@@ -60,7 +58,9 @@ struct GameRunescape
 };
 
 struct GameRunescape*
-game_runescape_new(struct LibToriRS_ScriptQueue* script_queue);
+game_runescape_new(
+    struct LibToriRS_ScriptQueue* script_queue,
+    struct ToriDraw_Context* context);
 
 void
 game_runescape_free(struct GameRunescape* game);

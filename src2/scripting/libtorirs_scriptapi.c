@@ -23,6 +23,7 @@
 #include "src/osrs/rscache/tables_dat/pix8.h"
 #include "src/osrs/texture.h"
 #include "toridraw/toridraw_animation.h"
+#include "toridraw/toridraw_gccontext.h"
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
@@ -387,7 +388,7 @@ LibToriRS_ScriptAPI_Game_ModelViewer_Init(struct LibToriRS_Instance* instance)
     if( !instance )
         return;
 
-    instance->model_viewer = game_modelviewer_new(instance->script_queue);
+    instance->model_viewer = game_modelviewer_new(instance->script_queue, instance->context);
     if( !instance->model_viewer )
         return;
 
@@ -405,7 +406,7 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
     if( !instance )
         return;
 
-    instance->runescape = game_runescape_new(instance->script_queue);
+    instance->runescape = game_runescape_new(instance->script_queue, instance->context);
     if( !instance->runescape )
         return;
 
@@ -569,38 +570,13 @@ LibToriRS_ScriptAPI_Dat1_TexturesCleanup(struct LibToriRS_Instance* instance)
     dat1_buildcache_texture_clear(dat1(instance->gamecache_l));
 }
 
-static struct ToriDraw_Context*
-scriptapi_active_toridraw_context(struct LibToriRS_Instance* instance)
-{
-    if( !instance )
-        return NULL;
-
-    switch( instance->active_game_kind )
-    {
-    case GAME_HANDLE_KIND_MODEL_VIEWER:
-        if( instance->model_viewer )
-            return instance->model_viewer->context;
-        break;
-    case GAME_HANDLE_KIND_RUNESCAPE:
-        if( instance->runescape )
-            return instance->runescape->context;
-        break;
-    default:
-        break;
-    }
-    return NULL;
-}
-
 void
 LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_Dat1_SubmitTextures\n");
-    if( !instance )
+    if( !instance || !instance->context )
         return;
 
-    struct ToriDraw_Context* context = scriptapi_active_toridraw_context(instance);
-    if( !context )
-        return;
     struct Dat1BuildCache* buildcache = dat1(instance->gamecache_l);
 
     for( int i = 0; i < buildcache->texture_count; i++ )
@@ -610,7 +586,7 @@ LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance)
             continue;
 
         buildcache->textures[i] = NULL;
-        toridraw_context_set_texture(context, i, texture);
+        toridraw_gc_set_texture(instance->context, i, texture);
     }
 
     buildcache->texture_count = 0;

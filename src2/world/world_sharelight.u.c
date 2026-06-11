@@ -7,7 +7,7 @@
 #include "toridraw/toridraw_lighting.h"
 #include "toridraw/toridraw_model.h"
 #include "world.h"
-#include "world_scene.h"
+#include "toridraw/toridraw_gccontext.h"
 
 #include <assert.h>
 #include <math.h>
@@ -196,7 +196,7 @@ merge_normals(
 static void
 defaultlight_build(struct World* world)
 {
-    struct WorldSceneElement* scene_element = NULL;
+    struct ToriDraw_GCElement* scene_element = NULL;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
 
@@ -217,7 +217,7 @@ defaultlight_build(struct World* world)
                         continue;
 
                     scene_element =
-                        world_scene_element_get(world->scene, map_element->element_idx);
+                        toridraw_gc_element_get(world->context, map_element->element_idx);
                     if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                         !scene_element->model.u.model.model )
                         continue;
@@ -250,7 +250,7 @@ alloc_normals_for_column(
 {
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
-    struct WorldSceneElement* scene_element = NULL;
+    struct ToriDraw_GCElement* scene_element = NULL;
 
     for( int sz = 0; sz < world->sharelight_map->height; sz++ )
     {
@@ -264,7 +264,7 @@ alloc_normals_for_column(
             {
                 map_element = &world->sharelight_map->pool[pi].element;
                 scene_element =
-                    world_scene_element_get(world->scene, map_element->element_idx);
+                    toridraw_gc_element_get(world->context, map_element->element_idx);
                 if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                     !scene_element->model.u.model.model )
                     continue;
@@ -300,8 +300,8 @@ merge_column(
     struct SharelightMapTile* adjacent_map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
     struct SharelightMapElement* adjacent_map_element = NULL;
-    struct WorldSceneElement* scene_element = NULL;
-    struct WorldSceneElement* adjacent_scene_element = NULL;
+    struct ToriDraw_GCElement* scene_element = NULL;
+    struct ToriDraw_GCElement* adjacent_scene_element = NULL;
 
     for( int sz = 0; sz < world->sharelight_map->height; sz++ )
     {
@@ -316,7 +316,7 @@ merge_column(
             {
                 map_element = &world->sharelight_map->pool[pi].element;
                 scene_element =
-                    world_scene_element_get(world->scene, map_element->element_idx);
+                    toridraw_gc_element_get(world->context, map_element->element_idx);
                 if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                     !scene_element->model.u.model.model )
                     continue;
@@ -347,8 +347,8 @@ merge_column(
                         if( adjacent_map_element->element_idx == map_element->element_idx )
                             continue;
 
-                        adjacent_scene_element = world_scene_element_get(
-                            world->scene, adjacent_map_element->element_idx);
+                        adjacent_scene_element = toridraw_gc_element_get(
+                            world->context, adjacent_map_element->element_idx);
                         if( !adjacent_scene_element ||
                             adjacent_scene_element->model.kind != TORIDRAWMK_MODEL ||
                             !adjacent_scene_element->model.u.model.model )
@@ -407,7 +407,7 @@ apply_and_free_column(
 {
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
-    struct WorldSceneElement* scene_element = NULL;
+    struct ToriDraw_GCElement* scene_element = NULL;
 
     for( int sz = 0; sz < world->sharelight_map->height; sz++ )
     {
@@ -422,7 +422,7 @@ apply_and_free_column(
             {
                 map_element = &world->sharelight_map->pool[pi].element;
                 scene_element =
-                    world_scene_element_get(world->scene, map_element->element_idx);
+                    toridraw_gc_element_get(world->context, map_element->element_idx);
                 if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                     !scene_element->model.u.model.model )
                     continue;

@@ -14,7 +14,7 @@
 #include "toridraw/toridraw_model.h"
 #include "world.h"
 #include "world_decode_tile.h"
-#include "world_scene.h"
+#include "toridraw/toridraw_gccontext.h"
 
 // clang-format off
 #include "flag_map.u.c"
@@ -317,16 +317,16 @@ world_build_scene_terrain(struct World* world)
                     .u.model.model = td,
                 };
 
-                int element_id = world_scene_add_element(world->scene);
+                int element_id = toridraw_gc_element_add(world->context);
                 if( element_id < 0 )
                 {
                     toridraw_model_free(td);
                     continue;
                 }
 
-                world_scene_element_set_model_owned(world->scene, element_id, hnd);
-                world_scene_element_set_position(
-                    world->scene, element_id, x * WORLD_TILE_SIZE, 0, z * WORLD_TILE_SIZE, 0);
+                toridraw_gc_element_set_model(world->context, element_id, hnd);
+                toridraw_gc_element_set_position(
+                    world->context, element_id, x * WORLD_TILE_SIZE, 0, z * WORLD_TILE_SIZE, 0);
 
                 if( world->terrain_element_ids )
                 {

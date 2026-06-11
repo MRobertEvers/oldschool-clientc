@@ -130,8 +130,7 @@ toridraw_model_copy(struct ToriDraw_Model* src)
         return NULL;
 
     struct ToriDraw_Model* dst = calloc(1, sizeof(struct ToriDraw_Model));
-    if( !dst )
-        return NULL;
+    assert(dst && "toridraw_model_copy: failed to allocate destination model");
 
     dst->flags = src->flags;
     dst->vertex_count = src->vertex_count;

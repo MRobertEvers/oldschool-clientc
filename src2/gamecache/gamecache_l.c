@@ -4,6 +4,7 @@
 #include "dat1.h"
 #include "dat1_world.h"
 #include "gamecache.h"
+#include "toridraw/toridraw_gccontext.h"
 #include "src2/buildcache/dat1_buildcache.h"
 
 #include <assert.h>
@@ -23,7 +24,9 @@ struct GameCacheL
 };
 
 struct GameCacheL*
-GameCacheL_New(enum GameCacheLMode mode)
+GameCacheL_New(
+    enum GameCacheLMode mode,
+    struct ToriDraw_Context* context)
 {
     struct GameCacheL* gamecache_l = malloc(sizeof(struct GameCacheL));
     assert(gamecache_l);
@@ -31,7 +34,7 @@ GameCacheL_New(enum GameCacheLMode mode)
     memset(gamecache_l, 0, sizeof(struct GameCacheL));
     gamecache_l->mode = mode;
 
-    gamecache_l->gamecache = gamecache_new();
+    gamecache_l->gamecache = gamecache_new(context);
     assert(gamecache_l->gamecache);
 
     switch( mode )

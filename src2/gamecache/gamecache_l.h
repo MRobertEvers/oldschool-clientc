@@ -13,8 +13,12 @@ enum GameCacheLMode
     GAMECACHE_L_MODE_DAT2,
 };
 
+struct ToriDraw_Context;
+
 struct GameCacheL*
-GameCacheL_New(enum GameCacheLMode mode);
+GameCacheL_New(
+    enum GameCacheLMode mode,
+    struct ToriDraw_Context* context);
 
 void
 GameCacheL_Free(struct GameCacheL* gamecache_l);

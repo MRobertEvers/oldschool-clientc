@@ -12,7 +12,7 @@
 #include "shademap.h"
 #include "sharelight_map.h"
 #include "terrain_shapemap.h"
-#include "world_scene.h"
+#include "toridraw/toridraw_gccontext.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -28,13 +28,13 @@
 struct World*
 world_new(
     struct GameCache* gamecache,
-    struct WorldScene* scene)
+    struct ToriDraw_Context* context)
 {
     struct World* world = calloc(1, sizeof(struct World));
     if( !world )
         return NULL;
     world->gamecache = gamecache;
-    world->scene = scene;
+    world->context = context;
     return world;
 }
 
@@ -109,7 +109,7 @@ world_rebuild_centerzone_begin(
     world->load_complete = false;
     world->contour_ground_queue_count = 0;
 
-    world_scene_clear(world->scene);
+    toridraw_gc_clear_scene(world->context);
 
     if( world->heightmap )
         heightmap_free(world->heightmap);
@@ -317,7 +317,7 @@ world_rebuild_centerzone(
 {
     world_rebuild_centerzone_begin(world, zone_center_x, zone_center_z, scene_size);
 
-    world_scene_batch_begin(world->scene);
+    toridraw_gc_batch_begin(world->context);
 
     for( int mapx = world->_chunk_sw_x; mapx <= world->_chunk_ne_x; mapx++ )
     {
@@ -333,5 +333,5 @@ world_rebuild_centerzone(
 
     world_rebuild_centerzone_end(world);
 
-    world_scene_batch_end(world->scene);
+    toridraw_gc_batch_end(world->context);
 }

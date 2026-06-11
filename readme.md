@@ -652,6 +652,7 @@ sudo ../profile.d -c ./main_client > out.stacks
 sudo ../profile.d -c ./sdl2 > out.stacks
 sudo ../profile.d -c "./sdl2 --renderer=metal" > out.stacks
 
+./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/src2/programs/sdl2/out.stacks > out.folded
 ./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build_release/out.stacks > out.folded
 ./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build/out.stacks > out.folded
 ./flamegraph.pl out.folded > flamegraph.svg
@@ -1038,6 +1039,7 @@ The repository ships a vendored **32-bit (i686) MinGW-w64** toolchain under `lib
 **One-time setup:**
 
 PowerShell:
+
 ```powershell
 git lfs pull
 New-Item -ItemType Directory -Force -Path toolchain\win32 | Out-Null
@@ -1045,6 +1047,7 @@ Expand-Archive -Path lib\mingw32-win32-toolchain.zip -DestinationPath toolchain\
 ```
 
 Bash (MSYS2 or Linux):
+
 ```bash
 git lfs pull
 mkdir -p toolchain/win32
@@ -1052,11 +1055,13 @@ unzip -q lib/mingw32-win32-toolchain.zip -d toolchain/win32
 ```
 
 Sanity check — this path must exist after unpacking:
+
 ```
 toolchain/win32/mingw32/bin/gcc.exe
 ```
 
 **Example build** (from the repo root):
+
 ```bash
 cd src2/programs/sdl2
 mingw32-make

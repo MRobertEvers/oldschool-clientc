@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 struct GameCache;
-struct WorldScene;
+struct ToriDraw_Context;
 struct Heightmap;
 struct Blendmap;
 struct Overlaymap;
@@ -50,7 +50,7 @@ struct ContourGroundQueueEntry
 struct World
 {
     struct GameCache* gamecache;
-    struct WorldScene* scene;
+    struct ToriDraw_Context* context;
 
     int _base_tile_x;
     int _base_tile_z;
@@ -106,7 +106,7 @@ world_to_scene_z(
 struct World*
 world_new(
     struct GameCache* gamecache,
-    struct WorldScene* scene);
+    struct ToriDraw_Context* context);
 
 void
 world_free(struct World* world);
