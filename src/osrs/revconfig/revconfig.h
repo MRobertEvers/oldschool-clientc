@@ -72,6 +72,95 @@ struct RevConfigBuffer
     uint32_t field_capacity;
 };
 
+enum RevConfigItemKind
+{
+    RCITEM_NONE,
+    RCITEM_CACHE,
+    RCITEM_UICOMPONENT,
+    RCITEM_UILAYOUT,
+    RCITEM_INV,
+};
+
+struct RevConfigCacheItem
+{
+    char name[64];
+    char table[64];
+    char archive[64];
+    char container[64];
+    char index_filename[64];
+    char data_filename[64];
+    char format[16];
+    int atlas_index;
+    int atlas_count;
+    int crop_x;
+    int crop_y;
+    int crop_width;
+    int crop_height;
+    char transform[4][64];
+    int transform_count;
+};
+
+struct RevConfigUIComponentItem
+{
+    char name[64];
+    char type[32];
+    char sprite[64];
+    char sprite_active[64];
+    char inv[64];
+    int width;
+    int height;
+    int anchor_x;
+    int anchor_y;
+    int tabno;
+    int componentno;
+    int paint_levels;
+};
+
+struct RevConfigUILayoutItem
+{
+    char name[64];
+    char component[64];
+    int x;
+    int y;
+    int width;
+    int height;
+    int anchor_x;
+    int anchor_y;
+    int top;
+    int left;
+    int bottom;
+    int right;
+    int dirty;
+};
+
+#define REVCONFIG_INV_MAX_ITEMS 32
+
+struct RevConfigInvItem
+{
+    char name[64];
+    char items[REVCONFIG_INV_MAX_ITEMS][64];
+    int item_count;
+};
+
+struct RevConfigItem
+{
+    enum RevConfigItemKind kind;
+    union
+    {
+        struct RevConfigCacheItem cache;
+        struct RevConfigUIComponentItem uicomponent;
+        struct RevConfigUILayoutItem uilayout;
+        struct RevConfigInvItem inv;
+    } u;
+};
+
+struct RevConfigItemBuffer
+{
+    struct RevConfigItem* items;
+    uint32_t item_count;
+    uint32_t item_capacity;
+};
+
 char const*
 revconfig_field_kind_str(enum RevConfigFieldKind kind);
 
@@ -86,5 +175,19 @@ revconfig_buffer_push_field(
     struct RevConfigBuffer* buffer,
     enum RevConfigFieldKind kind,
     const char* value);
+
+struct RevConfigItemBuffer*
+revconfig_item_buffer_new(uint32_t hint);
+
+void
+revconfig_item_buffer_free(struct RevConfigItemBuffer* buffer);
+
+struct RevConfigItem*
+revconfig_item_buffer_push(struct RevConfigItemBuffer* buffer);
+
+void
+revconfig_items_build(
+    const struct RevConfigBuffer* fields,
+    struct RevConfigItemBuffer* out);
 
 #endif

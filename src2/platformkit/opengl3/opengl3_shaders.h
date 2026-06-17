@@ -4,7 +4,7 @@
 
 // clang-format off
 static const char* trspk_opengl3_vertex_shader =
-    "#version 330 core\n"
+    "#version 150 core\n"
     "\n"
     "layout(std140) uniform TRSPK_UboWorld {\n"
     "    mat4 u_modelViewMatrix;\n"
@@ -34,7 +34,7 @@ static const char* trspk_opengl3_vertex_shader =
     "\n";
 
 static const char* trspk_opengl3_fragment_shader =
-    "#version 330 core\n"
+    "#version 150 core\n"
     "\n"
     "layout(std140) uniform TRSPK_UboWorld {\n"
     "    mat4 u_modelViewMatrix;\n"

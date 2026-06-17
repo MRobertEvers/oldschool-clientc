@@ -23,18 +23,35 @@ SRC   := browser.c \
 	$(INPUT_DIR)/libtorirs_input.c \
 	$(IOQUEUE_DIR)/libtorirs_ioqueue.c \
 	$(SRC2)/render/libtorirs_render.c \
-	$(SRC2)/world/world_scene_events.c \
-	$(SRC2)/world/world_scene.c \
-	$(SRC2)/world/world_scene_platform.c \
+	$(SRC2)/toridraw/toridraw_gccontext.c \
+	$(SRC2)/world/world.c \
+	$(SRC2)/world/world_builder.c \
+	$(SRC2)/world/world_decode_tile.c \
+	$(SRC2)/world/collision_map.c \
+	$(SRC2)/world/heightmap.c \
+	$(SRC2)/world/lightmap.c \
+	$(SRC2)/world/sharelight_map.c \
+	$(SRC2)/world/shademap.c \
+	$(SRC2)/world/blendmap.c \
+	$(SRC2)/world/overlaymap.c \
+	$(SRC2)/world/decor_buildmap.c \
+	$(SRC2)/world/minimap.c \
+	$(SRC2)/world/terrain_shapemap.c \
+	$(SRC2)/world/contour_ground.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
 	$(SRC2)/gamecache/gamecache.c \
-	$(SRC2)/gamecache/gamecache_sequence.c \
-	$(SRC2)/gamecache/gamecache_flotype.c \
-	$(SRC2)/gamecache/gamecache_scenery_config.c \
-	$(SRC2)/gamecache/toridraw_cachemodel.c \
+	$(SRC2)/gamecache/gamecache_convert.c \
+	$(SRC2)/gamecache/gamecache_submit.c \
+	$(SRC2)/gamecache/gamecache_model_convert.c \
 	$(SRC2)/gamecache/toridraw_cachesprite.c \
+	$(SRC2)/toridrawx/toridrawx.c \
+	$(SRC2)/toridrawx/toridrawx_tasks.c \
+	$(SRC2)/gamecache/gamecache_l.c \
 	$(SRC2)/toridraw/toridraw_animation.c \
+	$(SRC2)/toridraw/toridraw_model_transform.c \
 	$(SRC2)/games/model_viewer.c \
+	$(SRC2)/games/runescape.c \
+	$(SRC2)/core/tasks/core_task.c \
 	$(SRC2)/toridraw/toridraw.c \
 	$(SRC2)/toridraw/toridraw_math.c \
 	$(SRC2)/toridraw/toridraw_map.c \
@@ -48,12 +65,20 @@ SRC   := browser.c \
 	$(SRC_DIR)/graphics/lighting.c \
 	$(SRC_DIR)/graphics/shared_tables.c \
 	$(SRC_DIR)/osrs/palette.c \
+	$(SRC_DIR)/osrs/painters.c \
 	$(SRC_DIR)/osrs/texture.c \
+	$(PLAT_DIR)/trspk_toridraw.c \
 	$(PLAT_DIR)/platform_emscripten_jshost.c \
 	$(PLAT_DIR)/platform_js_capi.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_webgl1.c \
+	$(SRC2)/platformkit/core/trspk_atlas.c \
 	$(SRC2)/platformkit/core/trspk_vbo.c \
+	$(SRC2)/platformkit/core/trspk_vbochain16.c \
+	$(SRC2)/platformkit/core/trspk_modelarena.c \
+	$(SRC2)/platformkit/core/trspk_pose.c \
+	$(SRC2)/platformkit/core/trspk_ibo.c \
+	$(SRC2)/platformkit/core/trspk_triangles.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
 	$(PLAT_DIR)/platform_x/cachelib_serialized.c \
@@ -99,6 +124,7 @@ EFLAGS ?= -O0 -g
 # WebGL1 renderer: GLES2 context + WebGL 1.0 API (see platform_impl2_sdl2_port_emscripten.cpp).
 EMFLAGS := $(EFLAGS) -gsource-map -Wall -Wextra -sENVIRONMENT=web -sUSE_SDL=2 \
 	-sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 -sFULL_ES2=1 \
+	-sINITIAL_MEMORY=128MB \
 	-I$(SRC2) -I$(SCRIPT_DIR) -I$(PLAT_DIR) -I$(SRC_DIR) -I$(REPO_ROOT) \
 	-sEXPORTED_RUNTIME_METHODS=['HEAPU8'] \
 	-sFORCE_FILESYSTEM=1 \

@@ -248,6 +248,16 @@ dat1_buildcache_set_fromconfigtable_config_jagfile(
 }
 
 void
+dat1_buildcache_clear_config_jagfile(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache )
+        return;
+    if( dat1_buildcache->fromconfigtable_config_jagfile )
+        filelist_dat_free(dat1_buildcache->fromconfigtable_config_jagfile);
+    dat1_buildcache->fromconfigtable_config_jagfile = NULL;
+}
+
+void
 dat1_buildcache_set_versionlist_jagfile(
     struct Dat1BuildCache* dat1_buildcache,
     struct FileListDat* versionlist_jagfile)
@@ -256,6 +266,16 @@ dat1_buildcache_set_versionlist_jagfile(
         filelist_dat_free(dat1_buildcache->versionlist_jagfile);
 
     dat1_buildcache->versionlist_jagfile = versionlist_jagfile;
+}
+
+void
+dat1_buildcache_clear_versionlist_jagfile(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache )
+        return;
+    if( dat1_buildcache->versionlist_jagfile )
+        filelist_dat_free(dat1_buildcache->versionlist_jagfile);
+    dat1_buildcache->versionlist_jagfile = NULL;
 }
 
 void
@@ -360,6 +380,26 @@ dat1_buildcache_map_terrain_add(
     entry->terrain = terrain;
 }
 
+struct CacheMapTerrain*
+dat1_buildcache_map_terrain_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int map_id)
+{
+    struct MapEntry_Terrain* entry = (struct MapEntry_Terrain*)toridraw_map_search(
+        dat1_buildcache->map_terrain_hmap, &map_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->terrain;
+}
+
+bool
+dat1_buildcache_map_terrain_has(
+    struct Dat1BuildCache* dat1_buildcache,
+    int map_id)
+{
+    return dat1_buildcache_map_terrain_get(dat1_buildcache, map_id) != NULL;
+}
+
 void
 dat1_buildcache_map_scenery_add(
     struct Dat1BuildCache* dat1_buildcache,
@@ -373,6 +413,26 @@ dat1_buildcache_map_scenery_add(
 
     entry->id = map_id;
     entry->locs = locs;
+}
+
+struct CacheMapLocs*
+dat1_buildcache_map_scenery_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int map_id)
+{
+    struct MapEntry_Scenery* entry = (struct MapEntry_Scenery*)toridraw_map_search(
+        dat1_buildcache->map_scenery_hmap, &map_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->locs;
+}
+
+bool
+dat1_buildcache_map_scenery_has(
+    struct Dat1BuildCache* dat1_buildcache,
+    int map_id)
+{
+    return dat1_buildcache_map_scenery_get(dat1_buildcache, map_id) != NULL;
 }
 
 void
@@ -503,7 +563,7 @@ dat1_buildcache_floortypes_init_from_config_jagfile(struct Dat1BuildCache* dat1_
     }
 }
 
-static struct CacheConfigLocation*
+struct CacheConfigLocation*
 dat1_buildcache_config_loc_get(
     struct Dat1BuildCache* dat1_buildcache,
     int loc_id)
@@ -716,4 +776,296 @@ dat1_buildcache_animbaseframes_cleanup(struct Dat1BuildCache* dat1_buildcache)
     }
     toridraw_map_iter_free(iter);
     dat1_buildcache_animbaseframes_reset(dat1_buildcache);
+}
+
+struct CacheDatAnimBaseFrames*
+dat1_buildcache_animbaseframes_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int animbaseframes_id)
+{
+    struct MapEntry_AnimBaseFrames* entry = (struct MapEntry_AnimBaseFrames*)toridraw_map_search(
+        dat1_buildcache->animbaseframes_hmap, &animbaseframes_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->animbaseframes;
+}
+
+bool
+dat1_buildcache_animbaseframes_has(
+    struct Dat1BuildCache* dat1_buildcache,
+    int animbaseframes_id)
+{
+    return dat1_buildcache_animbaseframes_get(dat1_buildcache, animbaseframes_id) != NULL;
+}
+
+int
+dat1_buildcache_get_animbaseframes_count_from_versionlist_jagfile(
+    struct Dat1BuildCache* dat1_buildcache)
+{
+    (void)dat1_buildcache;
+    return 264;
+}
+
+static int
+dat1_int_cmp(const void* a, const void* b)
+{
+    return *(const int*)a - *(const int*)b;
+}
+
+static int
+dat1_unique_sorted_int(
+    int* arr,
+    int count)
+{
+    if( count <= 0 )
+        return 0;
+
+    int write = 1;
+    for( int i = 1; i < count; i++ )
+    {
+        if( arr[i] != arr[write - 1] )
+            arr[write++] = arr[i];
+    }
+    return write;
+}
+
+int
+dat1_buildcache_get_scenery_model_ids(
+    struct Dat1BuildCache* dat1_buildcache,
+    int loc_id,
+    int** model_ids_out)
+{
+    struct CacheConfigLocation* config_loc = dat1_buildcache_config_loc_get(dat1_buildcache, loc_id);
+    if( !config_loc || !config_loc->models )
+    {
+        *model_ids_out = NULL;
+        return 0;
+    }
+
+    int capacity = 16;
+    int count = 0;
+    int* model_ids = malloc((size_t)capacity * sizeof(int));
+    if( !model_ids )
+    {
+        *model_ids_out = NULL;
+        return 0;
+    }
+
+    int** model_id_sets = config_loc->models;
+    int* lengths = config_loc->lengths;
+    int* shapes = config_loc->shapes;
+    int shapes_and_model_count = config_loc->shapes_and_model_count;
+
+    if( !shapes )
+    {
+        int inner = lengths[0];
+        for( int i = 0; i < inner; i++ )
+        {
+            int model_id = model_id_sets[0][i];
+            if( !model_id )
+                continue;
+            if( count >= capacity )
+            {
+                capacity *= 2;
+                int* grow = realloc(model_ids, (size_t)capacity * sizeof(int));
+                if( !grow )
+                    goto fail;
+                model_ids = grow;
+            }
+            model_ids[count++] = model_id;
+        }
+    }
+    else
+    {
+        for( int i = 0; i < shapes_and_model_count; i++ )
+        {
+            int inner = lengths[i];
+            for( int j = 0; j < inner; j++ )
+            {
+                int model_id = model_id_sets[i][j];
+                if( !model_id )
+                    continue;
+                if( count >= capacity )
+                {
+                    capacity *= 2;
+                    int* grow = realloc(model_ids, (size_t)capacity * sizeof(int));
+                    if( !grow )
+                        goto fail;
+                    model_ids = grow;
+                }
+                model_ids[count++] = model_id;
+            }
+        }
+    }
+
+    *model_ids_out = model_ids;
+    return count;
+
+fail:
+    free(model_ids);
+    *model_ids_out = NULL;
+    return 0;
+}
+
+int
+dat1_buildcache_get_all_unique_scenery_model_ids(
+    struct Dat1BuildCache* dat1_buildcache,
+    int** model_ids_out)
+{
+    *model_ids_out = NULL;
+    if( !dat1_buildcache )
+        return 0;
+
+    int loc_capacity = 512;
+    int loc_count = 0;
+    int* loc_arr = malloc((size_t)loc_capacity * sizeof(int));
+    if( !loc_arr )
+        return 0;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(dat1_buildcache->map_scenery_hmap);
+    struct MapEntry_Scenery* scenery_entry = NULL;
+    while( (scenery_entry = (struct MapEntry_Scenery*)toridraw_map_iter_next(iter)) )
+    {
+        struct CacheMapLocs* locs = scenery_entry->locs;
+        if( !locs )
+            continue;
+
+        for( int i = 0; i < locs->locs_count; i++ )
+        {
+            int loc_id = locs->locs[i].loc_id;
+            if( loc_count >= loc_capacity )
+            {
+                loc_capacity *= 2;
+                int* grow = realloc(loc_arr, (size_t)loc_capacity * sizeof(int));
+                if( !grow )
+                    goto loc_fail;
+                loc_arr = grow;
+            }
+            loc_arr[loc_count++] = loc_id;
+        }
+    }
+    toridraw_map_iter_free(iter);
+
+    if( loc_count == 0 )
+    {
+        free(loc_arr);
+        return 0;
+    }
+
+    qsort(loc_arr, (size_t)loc_count, sizeof(int), dat1_int_cmp);
+    int nunique_loc = dat1_unique_sorted_int(loc_arr, loc_count);
+
+    int model_capacity = 1024;
+    int model_count = 0;
+    int* model_arr = malloc((size_t)model_capacity * sizeof(int));
+    if( !model_arr )
+        goto loc_fail;
+
+    for( int li = 0; li < nunique_loc; li++ )
+    {
+        int* mids = NULL;
+        int nm = dat1_buildcache_get_scenery_model_ids(dat1_buildcache, loc_arr[li], &mids);
+        for( int mi = 0; mi < nm; mi++ )
+        {
+            if( model_count >= model_capacity )
+            {
+                model_capacity *= 2;
+                int* grow = realloc(model_arr, (size_t)model_capacity * sizeof(int));
+                if( !grow )
+                {
+                    free(mids);
+                    goto model_fail;
+                }
+                model_arr = grow;
+            }
+            model_arr[model_count++] = mids[mi];
+        }
+        free(mids);
+    }
+    free(loc_arr);
+
+    if( model_count == 0 )
+    {
+        free(model_arr);
+        return 0;
+    }
+
+    qsort(model_arr, (size_t)model_count, sizeof(int), dat1_int_cmp);
+    int nunique_m = dat1_unique_sorted_int(model_arr, model_count);
+    if( nunique_m < model_count )
+    {
+        int* shrink = realloc(model_arr, (size_t)nunique_m * sizeof(int));
+        if( shrink )
+            model_arr = shrink;
+    }
+
+    *model_ids_out = model_arr;
+    return nunique_m;
+
+loc_fail:
+    toridraw_map_iter_free(iter);
+    free(loc_arr);
+    return 0;
+
+model_fail:
+    free(loc_arr);
+    free(model_arr);
+    return 0;
+}
+
+void
+dat1_buildcache_foreach_sequence(
+    struct Dat1BuildCache* dat1_buildcache,
+    Dat1BuildCacheSequenceCallback callback,
+    void* user_data)
+{
+    if( !dat1_buildcache || !callback || !dat1_buildcache->sequences_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(dat1_buildcache->sequences_hmap);
+    struct MapEntry_Sequence* entry = NULL;
+    while( (entry = (struct MapEntry_Sequence*)toridraw_map_iter_next(iter)) )
+    {
+        if( entry->sequence )
+            callback(entry->id, entry->sequence, user_data);
+    }
+    toridraw_map_iter_free(iter);
+}
+
+void
+dat1_buildcache_foreach_flotype(
+    struct Dat1BuildCache* dat1_buildcache,
+    Dat1BuildCacheFlotypeCallback callback,
+    void* user_data)
+{
+    if( !dat1_buildcache || !callback || !dat1_buildcache->flotype_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(dat1_buildcache->flotype_hmap);
+    struct MapEntry_Flotype* entry = NULL;
+    while( (entry = (struct MapEntry_Flotype*)toridraw_map_iter_next(iter)) )
+    {
+        if( entry->flotype )
+            callback(entry->id, entry->flotype, user_data);
+    }
+    toridraw_map_iter_free(iter);
+}
+
+void
+dat1_buildcache_foreach_config_loc(
+    struct Dat1BuildCache* dat1_buildcache,
+    Dat1BuildCacheLocationCallback callback,
+    void* user_data)
+{
+    if( !dat1_buildcache || !callback || !dat1_buildcache->config_loc_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(dat1_buildcache->config_loc_hmap);
+    struct MapEntry_ConfigLoc* entry = NULL;
+    while( (entry = (struct MapEntry_ConfigLoc*)toridraw_map_iter_next(iter)) )
+    {
+        if( entry->config_loc )
+            callback(entry->id, entry->config_loc, user_data);
+    }
+    toridraw_map_iter_free(iter);
 }

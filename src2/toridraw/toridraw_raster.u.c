@@ -134,13 +134,13 @@ toridraw_raster_model_face(
     const int* texels = g_empty_texture_texels;
     int texture_size = 0;
     int texture_opaque = true;
-    int tex_id_row = -1;
     if( ctx->face_textures != NULL )
-        tex_id_row = ctx->face_textures[face];
+        texture_id = ctx->face_textures[face];
+    else
+        texture_id = -1;
 
-    if( tex_id_row != -1 )
+    if( texture_id != -1 )
     {
-        texture_id = tex_id_row;
         // gamma 0.8 is the default in os1
         texture = toridraw_texturemap_get(ctx->texture_map, texture_id);
         assert(texture != NULL);

@@ -1,4 +1,4 @@
-#version 330 core
+#version 150 core
 
 layout(std140) uniform TRSPK_UboWorld {
     mat4 u_modelViewMatrix;

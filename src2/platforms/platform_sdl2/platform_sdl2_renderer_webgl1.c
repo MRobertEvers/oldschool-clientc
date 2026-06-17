@@ -2,9 +2,16 @@
 
 #include "graphics/uv_pnm.h"
 #include "libtorirs.h"
+#include "platformkit/core/trspk_atlas.h"
+#include "platformkit/core/trspk_ibo.h"
+#include "platformkit/core/trspk_modelarena.h"
+#include "platformkit/core/trspk_pose.h"
+#include "platformkit/core/trspk_vbochain16.h"
 #include "platformkit/webgl1/trspk_webgl1.h"
+#include "platforms/trspk_toridraw.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw.h"
+#include "toridraw/toridraw_model.h"
 #include <GLES2/gl2.h>
 
 #include <SDL.h>
@@ -15,7 +22,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define TRSPK_EBO_SIZE 4096
+#define TRSPK_WEBGL1_GPU_IBO_INIT 4096u
+#define TRSPK_WEBGL1_ATLAS_DIM 2048u
+#define TRSPK_WEBGL1_ATLAS_TILE 128u
+#define TRSPK_WEBGL1_ENCODE_PAGE_LOCAL(page, local) (((page) << 16u) | ((local)&0xFFFFu))
+#define TRSPK_WEBGL1_BASE_PAGE(encoded) ((encoded) >> 16u)
+#define TRSPK_WEBGL1_BASE_LOCAL(encoded) ((encoded)&0xFFFFu)
 
 struct LibToriPlatformSDL2_RendererWebGL1
 {
@@ -24,11 +36,16 @@ struct LibToriPlatformSDL2_RendererWebGL1
     int width;
     int height;
 
-    struct TRSPK_VBO* vbo_cpu;
-    uint16_t ibo_16[TRSPK_EBO_SIZE];
-    uint16_t ibo_16_size;
+    struct TRSPK_VBOChain16* vbo_chain;
+    struct TRSPK_ModelArena* model_arena;
+    struct TRSPK_PoseTable poses;
+    struct TRSPK_IBOChain* ibo_chain;
+
+    GLuint* page_buffers;
+    uint32_t page_buffer_count;
 
     GLuint atlas_texture;
+    struct TRSPK_Atlas atlas;
     GLuint program3d;
     GLint a_position;
     GLint a_color;
@@ -43,7 +60,7 @@ struct LibToriPlatformSDL2_RendererWebGL1
     GLuint program2d;
 
     GLuint ebo;
-    GLuint vbo;
+    uint32_t gpu_ibo_capacity;
 
     float view[16];
     float proj[16];
@@ -58,16 +75,18 @@ webgl1_destroy_gl_resources(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
 {
     if( renderer->program3d )
         glDeleteProgram(renderer->program3d);
+    if( renderer->page_buffers && renderer->page_buffer_count > 0u )
+        glDeleteBuffers((GLsizei)renderer->page_buffer_count, renderer->page_buffers);
     if( renderer->ebo )
         glDeleteBuffers(1, &renderer->ebo);
-    if( renderer->vbo )
-        glDeleteBuffers(1, &renderer->vbo);
     if( renderer->atlas_texture )
         glDeleteTextures(1, &renderer->atlas_texture);
     renderer->program3d = 0u;
     renderer->ebo = 0u;
-    renderer->vbo = 0u;
     renderer->atlas_texture = 0u;
+    free(renderer->page_buffers);
+    renderer->page_buffers = NULL;
+    renderer->page_buffer_count = 0u;
 }
 
 static struct ToriDraw_Model*
@@ -257,7 +276,9 @@ compute_pass_matrices(
 }
 
 static void
-bind_vbo_attribs(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
+bind_vbo_attribs(
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    GLuint page_buffer)
 {
     const GLsizei stride = (GLsizei)sizeof(struct TRSPK_VertexWebGL1);
     const uintptr_t offset_position = offsetof(struct TRSPK_VertexWebGL1, position);
@@ -265,7 +286,7 @@ bind_vbo_attribs(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
     const uintptr_t offset_texcoord = offsetof(struct TRSPK_VertexWebGL1, texcoord);
     const uintptr_t offset_tex_id = offsetof(struct TRSPK_VertexWebGL1, tex_id);
     const uintptr_t offset_uv_mode = offsetof(struct TRSPK_VertexWebGL1, uv_mode);
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, page_buffer);
     if( renderer->a_position >= 0 )
     {
         glEnableVertexAttribArray((GLuint)renderer->a_position);
@@ -314,6 +335,448 @@ bind_vbo_attribs(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
 }
 
 static void
+webgl1_ensure_page_buffers(
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    uint32_t page_count)
+{
+    if( page_count <= renderer->page_buffer_count )
+        return;
+
+    GLuint* grown =
+        (GLuint*)realloc(renderer->page_buffers, page_count * sizeof(GLuint));
+    assert(grown != NULL);
+
+    for( uint32_t i = renderer->page_buffer_count; i < page_count; ++i )
+    {
+        grown[i] = 0u;
+        glGenBuffers(1, &grown[i]);
+    }
+
+    renderer->page_buffers = grown;
+    renderer->page_buffer_count = page_count;
+}
+
+static void
+webgl1_upload_pages_if_dirty(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
+{
+    if( !renderer->vbo_chain )
+        return;
+
+    const uint32_t page_count = renderer->vbo_chain->page_count;
+    if( page_count == 0u )
+        return;
+
+    webgl1_ensure_page_buffers(renderer, page_count);
+
+    for( uint32_t i = 0u; i < page_count; ++i )
+    {
+        struct TRSPK_VBO* page_vbo = renderer->vbo_chain->pages[i];
+        if( !page_vbo || !trspk_vbo_is_dirty(page_vbo) || page_vbo->vertex_count == 0u )
+            continue;
+
+        glBindBuffer(GL_ARRAY_BUFFER, renderer->page_buffers[i]);
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            page_vbo->vertex_count * sizeof(struct TRSPK_VertexWebGL1),
+            page_vbo->vertices.as_webgl1,
+            GL_STATIC_DRAW);
+        trspk_vbo_clear_dirty(page_vbo);
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+static void
+webgl1_decode_texture_rgba(
+    const struct ToriDraw_Texture* tex,
+    uint8_t* out_rgba)
+{
+    const uint32_t src_w = (uint32_t)tex->width;
+    const uint32_t src_h = (uint32_t)tex->height;
+
+    memset(out_rgba, 0, TRSPK_WEBGL1_ATLAS_TILE * TRSPK_WEBGL1_ATLAS_TILE * 4u);
+    if( src_w == 0u || src_h == 0u )
+        return;
+
+    for( uint32_t dst_row = 0; dst_row < TRSPK_WEBGL1_ATLAS_TILE; dst_row++ )
+    {
+        uint32_t src_row = (dst_row * src_h) / TRSPK_WEBGL1_ATLAS_TILE;
+        for( uint32_t dst_col = 0; dst_col < TRSPK_WEBGL1_ATLAS_TILE; dst_col++ )
+        {
+            uint32_t src_col = (dst_col * src_w) / TRSPK_WEBGL1_ATLAS_TILE;
+            int texel = tex->texels[src_row * src_w + src_col];
+            uint8_t rv = (uint8_t)((texel >> 16) & 0xFF);
+            uint8_t gv = (uint8_t)((texel >> 8) & 0xFF);
+            uint8_t bv = (uint8_t)(texel & 0xFF);
+            uint8_t av = (tex->opaque || texel != 0) ? 255u : 0u;
+            uint32_t idx = (dst_row * TRSPK_WEBGL1_ATLAS_TILE + dst_col) * 4u;
+            out_rgba[idx + 0] = rv;
+            out_rgba[idx + 1] = gv;
+            out_rgba[idx + 2] = bv;
+            out_rgba[idx + 3] = av;
+        }
+    }
+}
+
+static float
+webgl1_pack_uv_mode(
+    int animation_direction,
+    int animation_speed)
+{
+    if( animation_direction == 0 || animation_speed == 0 )
+        return 0.0f;
+
+    int enc;
+    if( animation_direction == 2 || animation_direction == 4 )
+        enc = animation_speed * 2 + 1;
+    else
+        enc = animation_speed * 2 + 257;
+
+    return (float)(2 * enc);
+}
+
+static float
+webgl1_encode_tex_id(
+    int tex_id,
+    const struct ToriDraw_Texture* tex)
+{
+    if( tex_id < 0 )
+        return TRSPK_VERTEX_WEBGL1_TEXID_INVALID;
+    if( tex && !tex->opaque )
+        return (float)(tex_id + 256);
+    return (float)tex_id;
+}
+
+static void
+webgl1_upload_atlas_texture(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
+{
+    if( !trspk_atlas_is_initialized(&renderer->atlas) || !renderer->atlas_texture )
+        return;
+    if( !renderer->atlas.pixels || renderer->atlas.width == 0u || renderer->atlas.height == 0u )
+        return;
+
+    glBindTexture(GL_TEXTURE_2D, renderer->atlas_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        (GLsizei)renderer->atlas.width,
+        (GLsizei)renderer->atlas.height,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        renderer->atlas.pixels);
+    trspk_atlas_clear_dirty(&renderer->atlas);
+}
+
+static void
+webgl1_write_vertex(
+    struct TRSPK_VBO* vbo,
+    uint32_t index,
+    float x,
+    float y,
+    float z,
+    float color[4],
+    float u,
+    float v,
+    float tex_id,
+    float uv_mode)
+{
+    trspk_vbo_write_vertex_webgl1(vbo, index, x, y, z, color, u, v, tex_id);
+    vbo->vertices.as_webgl1[index].uv_mode = uv_mode;
+}
+
+static void
+webgl1_ev_tex_load(
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    assert(command->kind == TORIRSRC_TEX_LOAD);
+
+    int tex_id = command->u.tex_load.texture_id;
+    struct ToriDraw_Texture* tex = command->u.tex_load.texture;
+    if( tex_id < 0 || tex_id >= 256 || !tex || !tex->texels )
+        return;
+
+    static uint8_t rgba_scratch[TRSPK_WEBGL1_ATLAS_TILE * TRSPK_WEBGL1_ATLAS_TILE * 4];
+    webgl1_decode_texture_rgba(tex, rgba_scratch);
+
+    trspk_atlas_grid_insert_at(
+        &renderer->atlas,
+        (uint32_t)tex_id,
+        rgba_scratch,
+        TRSPK_WEBGL1_ATLAS_TILE * 4u,
+        TRSPK_WEBGL1_ATLAS_TILE,
+        TRSPK_WEBGL1_ATLAS_TILE,
+        NULL);
+
+    if( trspk_atlas_is_dirty(&renderer->atlas) )
+        webgl1_upload_atlas_texture(renderer);
+}
+
+static bool
+webgl1_ensure_gpu_ibo(
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    uint32_t index_count)
+{
+    if( index_count == 0u )
+        return true;
+
+    if( renderer->gpu_ibo_capacity >= index_count )
+        return true;
+
+    uint32_t cap =
+        renderer->gpu_ibo_capacity ? renderer->gpu_ibo_capacity : TRSPK_WEBGL1_GPU_IBO_INIT;
+    while( cap < index_count )
+        cap *= 2u;
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
+    glBufferData(
+        GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)(cap * sizeof(uint16_t)), NULL, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    renderer->gpu_ibo_capacity = cap;
+    return true;
+}
+
+static void
+webgl1_bake_into_arena(
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    struct LibToriRS_Instance* instance,
+    int element_id,
+    int pose_id,
+    struct ToriDraw_ModelHandle model_handle,
+    const struct ToriDraw_Position* world_position)
+{
+    struct ToriDraw_Model* model = get_model(model_handle);
+    if( !model || model->face_count <= 0 || !renderer->model_arena || !renderer->vbo_chain )
+        return;
+
+    struct ToriDraw_Context* ctx = get_context(instance);
+    const uint32_t vert_count = (uint32_t)model->face_count * 3u;
+    const uint32_t tri_count = (uint32_t)model->face_count;
+
+    const uint32_t existing_slot =
+        trspk_modelarena_find(renderer->model_arena, element_id, pose_id);
+    if( existing_slot != TRSPK_MODELSLOT_NULL_IDX )
+        trspk_modelarena_unload(renderer->model_arena, existing_slot);
+
+    const uint32_t slot_index =
+        trspk_modelarena_load(renderer->model_arena, element_id, pose_id, vert_count);
+    const struct TRSPK_ModelSlot* model_slot =
+        trspk_modelarena_get(renderer->model_arena, slot_index);
+    if( !model_slot )
+        return;
+
+    struct TRSPK_VBO* page_vbo = renderer->vbo_chain->pages[model_slot->page];
+    const uint32_t base = model_slot->vertex_base;
+
+    for( uint32_t face_index = 0; face_index < tri_count; face_index++ )
+    {
+        const uint32_t vi = base + face_index * 3u;
+        const uint32_t face_a = (uint32_t)model->face_indices_a[face_index];
+        const uint32_t face_b = (uint32_t)model->face_indices_b[face_index];
+        const uint32_t face_c = (uint32_t)model->face_indices_c[face_index];
+        const uint16_t color_a_hsl16 = model->face_colors_a[face_index];
+        const uint16_t color_b_hsl16 = model->face_colors_b[face_index];
+        const uint16_t color_c_hsl16 = model->face_colors_c[face_index];
+        uint8_t alpha;
+        if( model->face_alphas )
+            alpha = 0xFFu - model->face_alphas[face_index];
+        else
+            alpha = 0xFFu;
+
+        float color_a[4], color_b[4], color_c[4];
+        if( color_c_hsl16 == TORIDRAWHSL16_HIDDEN )
+        {
+            alpha = 0u;
+            hsl16_to_rgba(color_a_hsl16, alpha, color_a);
+            color_b[0] = color_a[0];
+            color_b[1] = color_a[1];
+            color_b[2] = color_a[2];
+            color_b[3] = color_a[3];
+            color_c[0] = color_a[0];
+            color_c[1] = color_a[1];
+            color_c[2] = color_a[2];
+            color_c[3] = color_a[3];
+        }
+        else if( color_c_hsl16 == TORIDRAWHSL16_FLAT )
+        {
+            hsl16_to_rgba(color_a_hsl16, alpha, color_a);
+            color_b[0] = color_a[0];
+            color_b[1] = color_a[1];
+            color_b[2] = color_a[2];
+            color_b[3] = color_a[3];
+            color_c[0] = color_a[0];
+            color_c[1] = color_a[1];
+            color_c[2] = color_a[2];
+            color_c[3] = color_a[3];
+        }
+        else
+        {
+            hsl16_to_rgba(color_a_hsl16, alpha, color_a);
+            hsl16_to_rgba(color_b_hsl16, alpha, color_b);
+            hsl16_to_rgba(color_c_hsl16, alpha, color_c);
+        }
+
+        const int tex_id = model->face_textures ? (int)model->face_textures[face_index] : -1;
+        struct ToriDraw_Texture* tex = NULL;
+        float uv_mode = 0.0f;
+        if( tex_id >= 0 && ctx )
+        {
+            tex = toridraw_texturemap_get(&ctx->texture_map, tex_id);
+            if( tex )
+                uv_mode = webgl1_pack_uv_mode(tex->animation_direction, tex->animation_speed);
+        }
+
+        const float tex_id_encoded = webgl1_encode_tex_id(tex_id, tex);
+        struct UVFaceCoords uv_coords;
+        uv_pnm(&uv_coords, model, face_index);
+
+        float wx_a, wy_a, wz_a;
+        float wx_b, wy_b, wz_b;
+        float wx_c, wy_c, wz_c;
+        trspk_toridraw_world_vertex(
+            world_position,
+            model->vertices_x[face_a],
+            model->vertices_y[face_a],
+            model->vertices_z[face_a],
+            &wx_a,
+            &wy_a,
+            &wz_a);
+        trspk_toridraw_world_vertex(
+            world_position,
+            model->vertices_x[face_b],
+            model->vertices_y[face_b],
+            model->vertices_z[face_b],
+            &wx_b,
+            &wy_b,
+            &wz_b);
+        trspk_toridraw_world_vertex(
+            world_position,
+            model->vertices_x[face_c],
+            model->vertices_y[face_c],
+            model->vertices_z[face_c],
+            &wx_c,
+            &wy_c,
+            &wz_c);
+
+        webgl1_write_vertex(
+            page_vbo,
+            vi + 0u,
+            wx_a,
+            wy_a,
+            wz_a,
+            color_a,
+            uv_coords.u1,
+            uv_coords.v1,
+            tex_id_encoded,
+            uv_mode);
+        webgl1_write_vertex(
+            page_vbo,
+            vi + 1u,
+            wx_b,
+            wy_b,
+            wz_b,
+            color_b,
+            uv_coords.u2,
+            uv_coords.v2,
+            tex_id_encoded,
+            uv_mode);
+        webgl1_write_vertex(
+            page_vbo,
+            vi + 2u,
+            wx_c,
+            wy_c,
+            wz_c,
+            color_c,
+            uv_coords.u3,
+            uv_coords.v3,
+            tex_id_encoded,
+            uv_mode);
+    }
+
+    trspk_pose_table_set(
+        &renderer->poses,
+        element_id,
+        pose_id,
+        TRSPK_WEBGL1_ENCODE_PAGE_LOCAL(model_slot->page, model_slot->vertex_base));
+}
+
+static void
+webgl1_ev_end_3d(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
+{
+    if( !renderer->has_3d )
+        goto done;
+
+    webgl1_upload_pages_if_dirty(renderer);
+
+    if( !renderer->ibo_chain || !renderer->ibo_chain->head )
+        goto done;
+
+    uint32_t total_indices = 0u;
+    for( struct TRSPK_IBOChainNode* node = renderer->ibo_chain->head; node != NULL;
+         node = node->next )
+        total_indices += node->ibo.index_count;
+
+    if( total_indices == 0u )
+        goto done;
+
+    if( !webgl1_ensure_gpu_ibo(renderer, total_indices) )
+        goto done;
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
+    glBufferData(
+        GL_ELEMENT_ARRAY_BUFFER,
+        (GLsizeiptr)(renderer->gpu_ibo_capacity * sizeof(uint16_t)),
+        NULL,
+        GL_DYNAMIC_DRAW);
+
+    uint32_t cursor = 0u;
+    for( struct TRSPK_IBOChainNode* node = renderer->ibo_chain->head; node != NULL;
+         node = node->next )
+    {
+        const uint32_t count = node->ibo.index_count;
+        if( count == 0u )
+            continue;
+
+        const uint32_t page = node->ibo.offset;
+        if( page >= renderer->page_buffer_count || renderer->page_buffers[page] == 0u )
+            continue;
+
+        glBufferSubData(
+            GL_ELEMENT_ARRAY_BUFFER,
+            (GLintptr)(cursor * sizeof(uint16_t)),
+            (GLsizeiptr)(count * sizeof(uint16_t)),
+            node->ibo.indices.as_u16);
+
+        bind_vbo_attribs(renderer, renderer->page_buffers[page]);
+        glDrawElements(
+            GL_TRIANGLES,
+            (GLsizei)count,
+            GL_UNSIGNED_SHORT,
+            (const void*)(uintptr_t)(cursor * sizeof(uint16_t)));
+
+        cursor += count;
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+done:
+    renderer->has_3d = false;
+    renderer->in3d = false;
+    if( renderer->ibo_chain )
+        trspk_ibochain_reset(renderer->ibo_chain);
+}
+
+static void
 webgl1_handle_render_command(
     struct LibToriPlatformSDL2_RendererWebGL1* renderer,
     struct LibToriRS_Instance* instance,
@@ -340,124 +803,86 @@ webgl1_handle_render_command(
         compute_pass_matrices(
             renderer->view, renderer->proj, &renderer->cur_3d, renderer->width, renderer->height);
         upload_world_uniforms(renderer, renderer->view, renderer->proj);
+
+        if( trspk_atlas_is_dirty(&renderer->atlas) )
+            webgl1_upload_atlas_texture(renderer);
+        break;
+    case TORIRSRC_TEX_LOAD:
+        webgl1_ev_tex_load(renderer, instance, command);
         break;
     case TORIRSRC_END_3D:
-        renderer->has_3d = false;
-        renderer->in3d = false;
+        webgl1_ev_end_3d(renderer);
         break;
     case TORIRSRC_MODEL_LOAD:
-    {
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
-        struct ToriDraw_Model* model = get_model(command->u.model_load.model);
-        if( model )
-        {
-            uint32_t gpu_vertex_count = model->face_count * 3;
-            trspk_vbo_ensure_capacity(renderer->vbo_cpu, gpu_vertex_count);
-            uint32_t face_index = 0;
-            for( uint32_t i = 0; i < gpu_vertex_count; i += 3, face_index++ )
-            {
-                uint32_t face_a = model->face_indices_a[face_index];
-                uint32_t face_b = model->face_indices_b[face_index];
-                uint32_t face_c = model->face_indices_c[face_index];
-                uint16_t color_a_hsl16 = model->face_colors_a[face_index];
-                uint16_t color_b_hsl16 = model->face_colors_b[face_index];
-                uint16_t color_c_hsl16 = model->face_colors_c[face_index];
-                uint8_t alpha = model->face_alphas ? model->face_alphas[face_index] : 0xFFu;
-                float color_a[4];
-                float color_b[4];
-                float color_c[4];
-                hsl16_to_rgba(color_a_hsl16, alpha, color_a);
-                hsl16_to_rgba(color_b_hsl16, alpha, color_b);
-                hsl16_to_rgba(color_c_hsl16, alpha, color_c);
-                struct UVFaceCoords uv_coords;
-                uv_pnm(&uv_coords, model, (uint32_t)face_index);
-                float u_a = uv_coords.u1;
-                float v_a = uv_coords.v1;
-                float u_b = uv_coords.u2;
-                float v_b = uv_coords.v2;
-                float u_c = uv_coords.u3;
-                float v_c = uv_coords.v3;
-
-                trspk_vbo_write_vertex_webgl1(
-                    renderer->vbo_cpu,
-                    i + 0,
-                    model->vertices_x[face_a],
-                    model->vertices_y[face_a],
-                    model->vertices_z[face_a],
-                    color_a,
-                    u_a,
-                    v_a,
-                    TRSPK_VERTEX_WEBGL1_TEXID_INVALID);
-                trspk_vbo_write_vertex_webgl1(
-                    renderer->vbo_cpu,
-                    i + 1,
-                    model->vertices_x[face_b],
-                    model->vertices_y[face_b],
-                    model->vertices_z[face_b],
-                    color_b,
-                    u_b,
-                    v_b,
-                    TRSPK_VERTEX_WEBGL1_TEXID_INVALID);
-                trspk_vbo_write_vertex_webgl1(
-                    renderer->vbo_cpu,
-                    i + 2,
-                    model->vertices_x[face_c],
-                    model->vertices_y[face_c],
-                    model->vertices_z[face_c],
-                    color_c,
-                    u_c,
-                    v_c,
-                    TRSPK_VERTEX_WEBGL1_TEXID_INVALID);
-            }
-
-            glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-            glBufferData(
-                GL_ARRAY_BUFFER,
-                renderer->vbo_cpu->vertex_count * sizeof(struct TRSPK_VertexWebGL1),
-                renderer->vbo_cpu->vertices.as_webgl1,
-                GL_STATIC_DRAW);
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
-        }
-    }
-    break;
+        webgl1_bake_into_arena(
+            renderer,
+            instance,
+            command->u.model_load.element_id,
+            0,
+            command->u.model_load.model,
+            &command->u.model_load.world_position);
+        break;
+    case TORIRSRC_MODEL_UNLOAD:
+        trspk_modelarena_unload_element(renderer->model_arena, command->u.model_load.element_id);
+        trspk_pose_table_remove_element(&renderer->poses, command->u.model_load.element_id);
+        break;
+    case TORIRSRC_BATCH3D_BEGIN:
+        break;
+    case TORIRSRC_BATCH3D_MODEL_ADD:
+        webgl1_bake_into_arena(
+            renderer,
+            instance,
+            command->u.batch.element_id,
+            command->u.batch.pose_id,
+            command->u.batch.model,
+            &command->u.batch.world_position);
+        break;
+    case TORIRSRC_BATCH3D_ANIM_ADD:
+        webgl1_bake_into_arena(
+            renderer,
+            instance,
+            command->u.batch.element_id,
+            command->u.batch.pose_id,
+            command->u.batch.model,
+            &command->u.batch.world_position);
+        break;
+    case TORIRSRC_BATCH3D_END:
+        break;
+    case TORIRSRC_BATCH3D_CLEAR:
+        trspk_pose_table_clear(&renderer->poses);
+        if( renderer->model_arena )
+            trspk_modelarena_clear(renderer->model_arena);
+        break;
     case TORIRSRC_DRAW_MODEL:
     {
-        (void)command->u.model.model;
-        (void)command->u.model.position;
-        (void)command->u.model.element_id;
-        if( !renderer->has_3d || !renderer->vbo_cpu || renderer->vbo_cpu->vertex_count == 0u )
+        if( !renderer->has_3d || !renderer->ibo_chain )
             break;
 
         struct ToriDraw_Context* ctx = get_context(instance);
         if( !ctx )
             break;
 
-        uint32_t face_count = toridraw_face_order_count(ctx);
+        const int pose_id = command->u.model.anim_frame;
+        uint32_t encoded_base = 0u;
+        if( !trspk_pose_table_get(
+                &renderer->poses, command->u.model.element_id, pose_id, &encoded_base) )
+            break;
+
+        const uint32_t page = TRSPK_WEBGL1_BASE_PAGE(encoded_base);
+        const uint32_t local_base = TRSPK_WEBGL1_BASE_LOCAL(encoded_base);
+
+        const int face_count = toridraw_face_order_count(ctx);
         if( face_count <= 0 )
             break;
 
         int* face_order = toridraw_face_order(ctx);
-        for( uint32_t i = 0; i < face_count; i++ )
+        for( int i = 0; i < face_count; i++ )
         {
-            uint32_t face = face_order[i];
-
-            uint16_t vertex_base = (uint16_t)(face * 3);
-            renderer->ibo_16[i * 3 + 0] = vertex_base + 0;
-            renderer->ibo_16[i * 3 + 1] = vertex_base + 1;
-            renderer->ibo_16[i * 3 + 2] = vertex_base + 2;
+            const uint32_t face = (uint32_t)face_order[i];
+            const uint16_t b = (uint16_t)(local_base + face * 3u);
+            const uint16_t idx[3] = { b, (uint16_t)(b + 1u), (uint16_t)(b + 2u) };
+            trspk_ibochain_push16(renderer->ibo_chain, page, idx, 3u);
         }
-
-        renderer->ibo_16_size = face_count * 3;
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
-        glBufferData(
-            GL_ELEMENT_ARRAY_BUFFER, TRSPK_EBO_SIZE * sizeof(uint16_t), NULL, GL_DYNAMIC_DRAW);
-        glBufferSubData(
-            GL_ELEMENT_ARRAY_BUFFER, 0, renderer->ibo_16_size * sizeof(uint16_t), renderer->ibo_16);
-
-        glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-        bind_vbo_attribs(renderer);
-        glDrawElements(GL_TRIANGLES, renderer->ibo_16_size, GL_UNSIGNED_SHORT, 0);
         break;
     }
     default:
@@ -477,7 +902,32 @@ LibToriPlatformSDL2_RendererWebGL1_New(
     renderer->width = width;
     renderer->height = height;
 
-    renderer->vbo_cpu = trspk_vbo_create(0, TRSPK_VERTEX_FORMAT_WEBGL1);
+    renderer->vbo_chain = trspk_vbochain16_create(TRSPK_VERTEX_FORMAT_WEBGL1);
+    if( !renderer->vbo_chain )
+    {
+        free(renderer);
+        return NULL;
+    }
+
+    renderer->model_arena =
+        trspk_modelarena_create_chain16(renderer->vbo_chain, NULL, 64u);
+    if( !renderer->model_arena )
+    {
+        trspk_vbochain16_free(renderer->vbo_chain);
+        free(renderer);
+        return NULL;
+    }
+
+    renderer->ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U16);
+    if( !renderer->ibo_chain )
+    {
+        trspk_modelarena_free(renderer->model_arena);
+        trspk_vbochain16_free(renderer->vbo_chain);
+        free(renderer);
+        return NULL;
+    }
+
+    trspk_pose_table_init(&renderer->poses);
 
     return renderer;
 }
@@ -490,8 +940,14 @@ LibToriPlatformSDL2_RendererWebGL1_Free(struct LibToriPlatformSDL2_RendererWebGL
     if( renderer->window && renderer->gl_context )
         SDL_GL_MakeCurrent(renderer->window, renderer->gl_context);
     webgl1_destroy_gl_resources(renderer);
-    if( renderer->vbo_cpu )
-        trspk_vbo_free(renderer->vbo_cpu);
+    if( renderer->model_arena )
+        trspk_modelarena_free(renderer->model_arena);
+    trspk_pose_table_free(&renderer->poses);
+    if( renderer->ibo_chain )
+        trspk_ibochain_free(renderer->ibo_chain);
+    if( renderer->vbo_chain )
+        trspk_vbochain16_free(renderer->vbo_chain);
+    trspk_atlas_free(&renderer->atlas);
     if( renderer->gl_context )
     {
         SDL_GL_DeleteContext(renderer->gl_context);
@@ -593,19 +1049,28 @@ LibToriPlatformSDL2_RendererWebGL1_Init(
     renderer->s_atlas = glGetUniformLocation(renderer->program3d, "s_atlas");
 
     glGenBuffers(1, &renderer->ebo);
-    glGenBuffers(1, &renderer->vbo);
-
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-    glBufferData(GL_ARRAY_BUFFER, 4096 * sizeof(struct TRSPK_VertexWebGL1), NULL, GL_DYNAMIC_DRAW);
-    bind_vbo_attribs(renderer);
-
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, TRSPK_EBO_SIZE * sizeof(uint16_t), NULL, GL_DYNAMIC_DRAW);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBufferData(
+        GL_ELEMENT_ARRAY_BUFFER,
+        TRSPK_WEBGL1_GPU_IBO_INIT * sizeof(uint16_t),
+        NULL,
+        GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    renderer->gpu_ibo_capacity = TRSPK_WEBGL1_GPU_IBO_INIT;
 
     renderer->window = window;
+
+    if( !trspk_atlas_init_grid(
+            &renderer->atlas,
+            TRSPK_WEBGL1_ATLAS_DIM,
+            TRSPK_WEBGL1_ATLAS_DIM,
+            TRSPK_WEBGL1_ATLAS_TILE,
+            TRSPK_WEBGL1_ATLAS_TILE,
+            4u) )
+    {
+        fprintf(stderr, "WebGL1: trspk_atlas_init_grid failed\n");
+        goto fail_gl;
+    }
 
     glGenTextures(1, &renderer->atlas_texture);
     glBindTexture(GL_TEXTURE_2D, renderer->atlas_texture);

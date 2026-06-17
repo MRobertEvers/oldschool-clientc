@@ -67,19 +67,30 @@ struct LibToriRS_RenderCommand_Model
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Position position;
     int element_id;
+    struct ToriDraw_Animation* animation;
+    int anim_frame;
+};
+
+struct LibToriRS_RenderCommand_AnimLoad
+{
+    int element_id;
+    struct ToriDraw_Animation* animation;
 };
 
 struct LibToriRS_RenderCommand_ModelLoad
 {
     int element_id;
     struct ToriDraw_ModelHandle model;
+    struct ToriDraw_Position world_position;
 };
 
 struct LibToriRS_RenderCommand_Batch
 {
     int batch_id;
     int element_id;
+    int pose_id;
     struct ToriDraw_ModelHandle model;
+    struct ToriDraw_Position world_position;
 };
 
 struct LibToriRS_RenderCommand_TexLoad
@@ -151,6 +162,7 @@ struct LibToriRS_RenderCommand
         struct LibToriRS_RenderCommand_Begin3D begin_3d;
         struct LibToriRS_RenderCommand_Model model;
         struct LibToriRS_RenderCommand_ModelLoad model_load;
+        struct LibToriRS_RenderCommand_AnimLoad anim_load;
         struct LibToriRS_RenderCommand_Batch batch;
         struct LibToriRS_RenderCommand_TexLoad tex_load;
         struct LibToriRS_RenderCommand_SpriteLoad sprite_load;

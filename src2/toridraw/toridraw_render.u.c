@@ -58,13 +58,13 @@ toridraw_fast_cull(
     struct ProjectedVertex* projected_vertex)
 {
     assert(hnd.kind != TORIDRAWMK_NONE);
-    int model_yaw = position->yaw;
+    int model_yaw = toridraw_normalize_angle(position->yaw);
     int scene_x = position->x;
     int scene_y = position->y;
     int scene_z = position->z;
 
-    int camera_pitch = camera->pitch;
-    int camera_yaw = camera->yaw;
+    int camera_pitch = toridraw_normalize_angle(camera->pitch);
+    int camera_yaw = toridraw_normalize_angle(camera->yaw);
     int near_plane_z = camera->near_plane_z;
 
     int cull_mx = 0;

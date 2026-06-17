@@ -195,7 +195,7 @@ class LibToriPlatformJS {
       return;
     }
 
-    const ioserverUrl = "http://localhost:8080";
+    const ioserverUrl = window.location.origin;
 
     for (let i = 0; i < count; i++) {
       const item = this.host.ioQueueGetItemByIndex(i);
@@ -205,9 +205,10 @@ class LibToriPlatformJS {
 
       const tableId = this.host.ioRequestGetTableId(item);
       const archiveId = this.host.ioRequestGetArchiveId(item);
+      const flags = this.host.ioRequestGetFlags(item);
 
       try {
-        const url = `${ioserverUrl}/archive/${tableId}/${archiveId}`;
+        const url = `${ioserverUrl}/archive/${tableId}/${archiveId}?flags=${flags}`;
         const response = await fetch(url);
 
         if (!response.ok) {

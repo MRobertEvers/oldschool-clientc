@@ -1,9 +1,10 @@
 #ifndef LIBTORIRS_H
 #define LIBTORIRS_H
 
+#include "core/tasks/core_task.h"
 #include "input/libtorirs_input.h"
 #include "render/libtorirs_render.h"
-#include "world/world_scene_events.h"
+#include "toridraw/toridraw_gccontext.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -48,6 +49,11 @@ LibToriRS_TickInput(
     uint64_t time_ms);
 
 void
+LibToriRS_SetCpuAnimation(
+    struct LibToriRS_Instance* instance,
+    bool enabled);
+
+void
 LibToriRS_FrameBegin(struct LibToriRS_Instance* instance);
 
 bool
@@ -63,5 +69,14 @@ LibToriRS_IsRunning(struct LibToriRS_Instance* instance);
 
 struct ToriDraw_Context*
 LibToriRS_GetCurrentToriDrawContext(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_TasksAdd(
+    struct LibToriRS_Instance* instance,
+    void* task_state,
+    CoreTaskFunction task_function);
+
+bool
+LibToriRS_TasksRun(struct LibToriRS_Instance* instance);
 
 #endif

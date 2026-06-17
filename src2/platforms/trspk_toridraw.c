@@ -4,6 +4,7 @@
 #include "platformkit/core/trspk_vbo.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_hsl16.h"
+#include "toridraw/toridraw_math.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_types.h"
 
@@ -138,6 +139,34 @@ static inline struct ToriDraw_Model*
 get_model(struct ToriDraw_ModelHandle model_handle)
 {
     return model_handle.u.model.model;
+}
+
+void
+trspk_toridraw_world_vertex(
+    const struct ToriDraw_Position* world_position,
+    int vx,
+    int vy,
+    int vz,
+    float* out_x,
+    float* out_y,
+    float* out_z)
+{
+    if( !world_position )
+    {
+        *out_x = (float)vx;
+        *out_y = (float)vy;
+        *out_z = (float)vz;
+        return;
+    }
+
+    const int yaw = toridraw_normalize_angle(world_position->yaw);
+    const int cy = toridraw_cos(yaw);
+    const int sy = toridraw_sin(yaw);
+    const int xr = (vx * cy + vz * sy) >> 16;
+    const int zr = (vz * cy - vx * sy) >> 16;
+    *out_x = (float)(xr + world_position->x);
+    *out_y = (float)(vy + world_position->y);
+    *out_z = (float)(zr + world_position->z);
 }
 
 void

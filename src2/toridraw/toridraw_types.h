@@ -203,6 +203,52 @@ struct ToriDraw_TextureMap
     int count;
 };
 
+struct ToriDraw_Animation;
+struct ToriDraw_Map;
+struct ToriDraw_Vec;
+struct ToriDraw_GCPendingPose;
+
+#define TDGC_INVALID_BATCH_ID (-1)
+#define TDGC_INVALID_ELEMENT_ID (-1)
+#define TDGC_EVENT_QUEUE_MAX_SIZE 65536
+#define TDGC_MAX_ELEMENTS 65536
+
+enum ToriDraw_GCEventKind
+{
+    TDGC_NONE = 0,
+    TDGC_MODEL_LOAD,
+    TDGC_MODEL_UNLOAD,
+    TDGC_ANIM_LOAD,
+    TDGC_ANIM_UNLOAD,
+    TDGC_TEX_LOAD,
+    TDGC_TEX_UNLOAD,
+    TDGC_BATCH_BEGIN,
+    TDGC_BATCH_MODEL_ADD,
+    TDGC_BATCH_ANIM_ADD,
+    TDGC_BATCH_END,
+    TDGC_BATCH_CLEAR,
+    TDGC_SCENE_RESET,
+};
+
+struct ToriDraw_GCEvent
+{
+    enum ToriDraw_GCEventKind kind;
+    int batch_id;
+    int element_id;
+    int pose_id;
+    int texture_id;
+    struct ToriDraw_ModelHandle model;
+    struct ToriDraw_Animation* animation;
+    struct ToriDraw_Texture* texture;
+    struct ToriDraw_Position world_position;
+};
+
+struct ToriDraw_GCEventQueue
+{
+    struct ToriDraw_GCEvent events[TDGC_EVENT_QUEUE_MAX_SIZE];
+    int count;
+};
+
 enum ToriDraw_EventKind
 {
     TORIDRAW_EVENT_NONE = 0,
@@ -229,6 +275,25 @@ struct ToriDraw_TextureState
 {
     struct ToriDraw_TextureMap texture_map;
     struct ToriDraw_EventQueue events;
+};
+
+struct ToriDraw_GCElement
+{
+    struct ToriDraw_ModelHandle model;
+    struct ToriDraw_Animation* animation;
+    struct ToriDraw_Animation* secondary_animation;
+    struct ToriDraw_Position world_position;
+    bool pending_batch_add;
+    int anim_seq_id;
+    int anim_frame;
+    int anim_cycle;
+};
+
+struct ToriDraw_GCBatchElementHandle
+{
+    struct ToriDraw_Context* context;
+    int batch_id;
+    int id;
 };
 
 struct ToriDraw_Context
@@ -275,6 +340,30 @@ struct ToriDraw_Context
 
     int* tmp_face_order;
     int tmp_face_order_count;
+
+    faceint_t sparse_a[4096];
+    faceint_t sparse_b[4096];
+    faceint_t sparse_c[4096];
+
+    struct ToriDraw_GCEventQueue event_queue;
+    struct ToriDraw_Map* models_hmap;
+    struct ToriDraw_Map* animation_hmap;
+    struct ToriDraw_Vec* elements;
+
+    bool slots[TDGC_MAX_ELEMENTS];
+    int slot_count;
+
+    int free_list[TDGC_MAX_ELEMENTS];
+    int free_count;
+
+    bool batch_building;
+    int current_batch_id;
+    int current_batch_element_count;
+    int next_batch_id;
+
+    struct ToriDraw_GCPendingPose* pending_poses;
+    int pending_pose_count;
+    int pending_pose_cap;
 };
 
 #define TORIDRAW_CULL_VISIBLE 0

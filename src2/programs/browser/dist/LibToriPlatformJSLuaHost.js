@@ -157,6 +157,38 @@ export class LibToriPlatformJSLuaHost {
     return 0;
   }
 
+  gameRunescapeInit(L) {
+    this.emscriptenJSAPI.scriptAPIGameRunescapeInit();
+    return 0;
+  }
+
+  gameRunescapeBuildWorld(L) {
+    this.emscriptenJSAPI.scriptAPIGameRunescapeBuildWorld();
+    return 0;
+  }
+
+  gameModelViewerGetGameHandle(L) {
+    const handle = this.emscriptenJSAPI.scriptAPIGameModelViewerGetGameHandle();
+    lua.lua_pushlightuserdata(L, handle);
+    return 1;
+  }
+
+  gameCoreTaskDat1LoadModelNativeInt(L) {
+    const gameHandle = lua.lua_touserdata(L, 1);
+    const modelId = lua.lua_tointeger(L, 2);
+    this.emscriptenJSAPI.scriptAPICoreTaskDat1LoadModelNativeInt(
+      gameHandle,
+      modelId,
+    );
+    return 0;
+  }
+
+  gameRunTasks(L) {
+    const allDone = this.emscriptenJSAPI.scriptAPIRunTasks();
+    lua.lua_pushboolean(L, allDone);
+    return 1;
+  }
+
   gameModelViewerRenderModelNativeInt(L) {
     // const modelId = lua.lua_tointeger(L, 1);
     const modelId = lua.lua_tointeger(L, 1);
@@ -342,6 +374,26 @@ export function luaBindToPlatformJSLuaHost(L, platformLuaHost) {
   bindLuaFunctionToPlatform(
     "ModelViewer_Init",
     platformLuaHost.gameModelViewerInit,
+  );
+  bindLuaFunctionToPlatform(
+    "Runescape_Init",
+    platformLuaHost.gameRunescapeInit,
+  );
+  bindLuaFunctionToPlatform(
+    "Runescape_BuildWorld",
+    platformLuaHost.gameRunescapeBuildWorld,
+  );
+  bindLuaFunctionToPlatform(
+    "ModelViewer_GetGameHandle",
+    platformLuaHost.gameModelViewerGetGameHandle,
+  );
+  bindLuaFunctionToPlatform(
+    "CoreTask_Dat1LoadModelNativeInt",
+    platformLuaHost.gameCoreTaskDat1LoadModelNativeInt,
+  );
+  bindLuaFunctionToPlatform(
+    "RunTasks",
+    platformLuaHost.gameRunTasks,
   );
   bindLuaFunctionToPlatform(
     "ModelViewer_RenderModelNativeInt",

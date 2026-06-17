@@ -1,8 +1,7 @@
 #include "toridraw_cachemodel.h"
 
-#include "toridraw/toridraw_model.h"
-
 #include "osrs/rscache/tables/model.h"
+#include "toridraw/toridraw_model.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -103,7 +102,8 @@ toridraw_bones_new(
 
     for( int i = 0; i < bones->bones_count; i++ )
     {
-        bones->bones[i] = (boneint_t*)malloc(sizeof(boneint_t) * (size_t)model_bones->bones_sizes[i]);
+        bones->bones[i] =
+            (boneint_t*)malloc(sizeof(boneint_t) * (size_t)model_bones->bones_sizes[i]);
         if( !bones->bones[i] )
         {
             modelbones_free(model_bones);

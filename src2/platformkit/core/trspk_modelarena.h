@@ -4,8 +4,10 @@
 #include "trspk_flags.h"
 #include "trspk_triangles.h"
 #include "trspk_vbo.h"
+#include "trspk_vbochain16.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define TRSPK_MODELSLOT_NULL_IDX UINT32_MAX
@@ -17,7 +19,9 @@ struct TRSPK_ModelSlot
     uint32_t vertex_count;
     uint32_t tri_start;
     uint32_t tri_count;
+    uint32_t page;
     int element_id;
+    int pose_id;
     uint32_t flags;
     uint32_t next_free;
 };
@@ -33,6 +37,7 @@ struct TRSPK_ModelArena
     uint32_t page_size;
 
     struct TRSPK_VBO* vbo;
+    struct TRSPK_VBOChain16* vbo_chain;
     struct TRSPK_Triangles* tri;
 };
 
@@ -58,6 +63,12 @@ trspk_modelarena_create(
     uint32_t page_size,
     uint32_t initial_slot_capacity);
 
+struct TRSPK_ModelArena*
+trspk_modelarena_create_chain16(
+    struct TRSPK_VBOChain16* chain,
+    struct TRSPK_Triangles* triangles,
+    uint32_t initial_slot_capacity);
+
 void
 trspk_modelarena_free(struct TRSPK_ModelArena* arena);
 
@@ -65,6 +76,7 @@ uint32_t
 trspk_modelarena_load(
     struct TRSPK_ModelArena* arena,
     int element_id,
+    int pose_id,
     uint32_t vertex_count);
 
 void
@@ -80,6 +92,12 @@ trspk_modelarena_get(
 uint32_t
 trspk_modelarena_find(
     const struct TRSPK_ModelArena* arena,
+    int element_id,
+    int pose_id);
+
+void
+trspk_modelarena_unload_element(
+    struct TRSPK_ModelArena* arena,
     int element_id);
 
 void

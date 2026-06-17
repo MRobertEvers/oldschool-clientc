@@ -50,6 +50,7 @@ LUA_SRC := $(filter-out $(SRC_DIR)/3rd/lua/lua.c $(SRC_DIR)/3rd/lua/luac.c,\
 # Common source files shared across all platforms
 # ---------------------------------------------------------------------------
 COMMON_SRCS := sdl2.c \
+	$(PLAT_DIR)/platform_x_io_reactor.c \
 	$(PLAT_DIR)/platform_x_lua.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
@@ -64,6 +65,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/platformkit/core/trspk_triangles.c \
 	$(SRC2)/platformkit/core/trspk_pose.c \
 	$(SRC2)/platformkit/core/trspk_vbo.c \
+	$(SRC2)/platformkit/core/trspk_vbochain16.c \
 	$(PLAT_DIR)/trspk_toridraw.c \
 	$(TRSPK_DIR)/src/tools/trspk_batch32.c \
 	$(TRSPK_DIR)/src/tools/trspk_resource_cache.c \
@@ -79,17 +81,31 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/input/libtorirs_input.c \
 	$(SRC2)/ioqueue/libtorirs_ioqueue.c \
 	$(SRC2)/render/libtorirs_render.c \
-	$(SRC2)/world/world_scene_events.c \
-	$(SRC2)/world/world_scene.c \
-	$(SRC2)/world/world_scene_platform.c \
+	$(SRC2)/toridraw/toridraw_gccontext.c \
+	$(SRC2)/world/world.c \
+	$(SRC2)/world/world_builder.c \
+	$(SRC2)/world/world_decode_tile.c \
+	$(SRC2)/world/collision_map.c \
+	$(SRC2)/world/heightmap.c \
+	$(SRC2)/world/lightmap.c \
+	$(SRC2)/world/sharelight_map.c \
+	$(SRC2)/world/shademap.c \
+	$(SRC2)/world/blendmap.c \
+	$(SRC2)/world/overlaymap.c \
+	$(SRC2)/world/decor_buildmap.c \
+	$(SRC2)/world/minimap.c \
+	$(SRC2)/world/terrain_shapemap.c \
+	$(SRC2)/world/contour_ground.c \
+	$(SRC2)/toridraw/toridraw_model_transform.c \
 	$(SCRIPT_DIR)/libtorirs_scriptapi.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
 	$(SRC2)/gamecache/gamecache.c \
-	$(SRC2)/gamecache/gamecache_sequence.c \
-	$(SRC2)/gamecache/gamecache_flotype.c \
-	$(SRC2)/gamecache/gamecache_scenery_config.c \
-	$(SRC2)/gamecache/toridraw_cachemodel.c \
+	$(SRC2)/gamecache/gamecache_convert.c \
+	$(SRC2)/gamecache/gamecache_submit.c \
+	$(SRC2)/gamecache/gamecache_model_convert.c \
 	$(SRC2)/gamecache/toridraw_cachesprite.c \
+	$(SRC2)/toridrawx/toridrawx.c \
+	$(SRC2)/toridrawx/toridrawx_tasks.c \
 	$(SRC2)/toridraw/toridraw_animation.c \
 	$(SRC2)/toridraw/toridraw.c \
 	$(SRC2)/toridraw/toridraw_math.c \
@@ -100,19 +116,18 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toridraw/toridraw_vec.c \
 	$(SRC2)/toridraw/toridraw_light_model.c \
 	$(SRC2)/toridraw/toridraw_sprite.c \
-	$(SRC2)/games/model_viewer.c \
-	$(SRC2)/ui/ui_scene.c \
-	$(SRC2)/ui/ui_scene_events.c \
-	$(SRC2)/ui/ui_resource_queue.c \
-	$(SRC2)/ui/ui_loader.c \
+	$(SRC2)/gamecache/gamecache_l.c \
+	$(SRC2)/core/tasks/core_task.c \
 	$(SRC_DIR)/3rd/ini/ini.c \
 	$(SRC_DIR)/osrs/revconfig/revconfig.c \
 	$(SRC_DIR)/osrs/revconfig/revconfig_load.c \
-	$(SRC_DIR)/osrs/revconfig/uitree.c \
+	$(SRC2)/games/model_viewer.c \
+	$(SRC2)/games/runescape.c \
 	$(SRC_DIR)/graphics/dashmap.c \
 	$(SRC_DIR)/graphics/lighting.c \
 	$(SRC_DIR)/graphics/shared_tables.c \
 	$(SRC_DIR)/osrs/palette.c \
+	$(SRC_DIR)/osrs/painters.c \
 	$(SRC_DIR)/osrs/texture.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c \

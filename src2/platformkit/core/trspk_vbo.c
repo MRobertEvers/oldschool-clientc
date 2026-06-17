@@ -5,6 +5,42 @@
 #include <stdlib.h>
 #include <string.h>
 
+static size_t
+trspk_vbo_vertex_size(enum TRSPK_VertexFormat format)
+{
+    switch( format )
+    {
+    case TRSPK_VERTEX_FORMAT_WEBGL1:
+        return sizeof(struct TRSPK_VertexWebGL1);
+    case TRSPK_VERTEX_FORMAT_OPENGL3:
+        return sizeof(struct TRSPK_VertexOpenGl3);
+    case TRSPK_VERTEX_FORMAT_D3D9:
+        return sizeof(struct TRSPK_VertexD3D9);
+    default:
+        assert(false);
+        return 0;
+    }
+}
+
+static void
+trspk_vbo_realloc_if_needed(
+    struct TRSPK_VBO* vbo,
+    uint32_t new_count)
+{
+    if( new_count <= vbo->capacity )
+        return;
+
+    uint32_t new_capacity = vbo->capacity ? vbo->capacity * 2u : new_count;
+    if( new_capacity < new_count )
+        new_capacity = new_count;
+
+    void* grown = realloc(
+        vbo->vertices.as_webgl1, trspk_vbo_vertex_size(vbo->format) * new_capacity);
+    assert(grown != NULL);
+    vbo->vertices.as_webgl1 = (struct TRSPK_VertexWebGL1*)grown;
+    vbo->capacity = new_capacity;
+}
+
 struct TRSPK_VBO*
 trspk_vbo_create(
     uint32_t index_count_hint,
@@ -35,36 +71,20 @@ trspk_vbo_growby(
     const uint32_t old_count = vbo->vertex_count;
     const uint32_t new_count = old_count + amount;
 
+    trspk_vbo_realloc_if_needed(vbo, new_count);
+
     switch( vbo->format )
     {
     case TRSPK_VERTEX_FORMAT_WEBGL1:
-    {
-        struct TRSPK_VertexWebGL1* grown = (struct TRSPK_VertexWebGL1*)realloc(
-            vbo->vertices.as_webgl1, sizeof(struct TRSPK_VertexWebGL1) * new_count);
-        assert(grown != NULL);
-        vbo->vertices.as_webgl1 = grown;
         memset(&vbo->vertices.as_webgl1[old_count], 0, sizeof(struct TRSPK_VertexWebGL1) * amount);
         break;
-    }
     case TRSPK_VERTEX_FORMAT_OPENGL3:
-    {
-        struct TRSPK_VertexOpenGl3* grown = (struct TRSPK_VertexOpenGl3*)realloc(
-            vbo->vertices.as_opengl3, sizeof(struct TRSPK_VertexOpenGl3) * new_count);
-        assert(grown != NULL);
-        vbo->vertices.as_opengl3 = grown;
         memset(
             &vbo->vertices.as_opengl3[old_count], 0, sizeof(struct TRSPK_VertexOpenGl3) * amount);
         break;
-    }
     case TRSPK_VERTEX_FORMAT_D3D9:
-    {
-        struct TRSPK_VertexD3D9* grown = (struct TRSPK_VertexD3D9*)realloc(
-            vbo->vertices.as_d3d9, sizeof(struct TRSPK_VertexD3D9) * new_count);
-        assert(grown != NULL);
-        vbo->vertices.as_d3d9 = grown;
         memset(&vbo->vertices.as_d3d9[old_count], 0, sizeof(struct TRSPK_VertexD3D9) * amount);
         break;
-    }
     default:
         assert(false);
         return;

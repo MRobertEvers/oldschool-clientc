@@ -1,44 +1,9 @@
 #ifndef LIBTORIRS_IOQUEUE_H
 #define LIBTORIRS_IOQUEUE_H
 
+#include "libtorirs_io.h"
+
 #include <stdbool.h>
-
-#define LIBTORIRS_IOQUEUE_MAX_SIZE 128
-#define LIBTORIRS_IOQUEUE_PATH_MAX 256
-
-enum LibToriRS_IOQueueItem_Status
-{
-    TORIRSIO_PENDING = 0,
-    TORIRSIO_RESOLVED,
-    TORIRSIO_ERROR,
-};
-
-enum LibToriRS_IOResourceKind
-{
-    TORIRSIO_KIND_CACHE = 0,
-    TORIRSIO_KIND_CONFIG_FILE,
-};
-
-struct LibToriRS_IOQueueItem
-{
-    enum LibToriRS_IOResourceKind kind;
-    int table_id;
-    int archive_id;
-    int flags;
-    char path[LIBTORIRS_IOQUEUE_PATH_MAX];
-
-    enum LibToriRS_IOQueueItem_Status status;
-    int error_code;
-    void* data;
-    int data_size;
-};
-
-struct LibToriRS_IOQueue
-{
-    struct LibToriRS_IOQueueItem items[LIBTORIRS_IOQUEUE_MAX_SIZE];
-    int count;
-    int read_head;
-};
 
 struct LibToriRS_IOQueue*
 LibToriRS_IOQueueNew(void);
@@ -50,7 +15,7 @@ void
 LibToriRS_IOQueueClear(struct LibToriRS_IOQueue* queue);
 
 void
-LibToriRS_IOQueuePush(
+LibToriRS_IOQueuePushCache(
     struct LibToriRS_IOQueue* queue,
     int table_id,
     int archive_id,
@@ -58,6 +23,11 @@ LibToriRS_IOQueuePush(
 
 bool
 LibToriRS_IOQueuePushConfigFile(
+    struct LibToriRS_IOQueue* queue,
+    const char* path);
+
+bool
+LibToriRS_IOQueuePushScript(
     struct LibToriRS_IOQueue* queue,
     const char* path);
 

@@ -9,7 +9,23 @@
 #include <SDL.h>
 #include <assert.h>
 #include <emscripten.h>
+#include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
+
+static bool
+has_flag(
+    int argc,
+    char* argv[],
+    char const* flag)
+{
+    for( int i = 1; i < argc; i++ )
+    {
+        if( argv[i] && strcmp(argv[i], flag) == 0 )
+            return true;
+    }
+    return false;
+}
 
 enum BrowserMainLoopState
 {
@@ -72,8 +88,12 @@ main(
     int argc,
     char* argv[])
 {
-    (void)argc;
-    (void)argv;
+    bool const use_soft3d = has_flag(argc, argv, "--soft3d");
+    bool const use_runescape = has_flag(argc, argv, "--runescape");
+    if( use_soft3d )
+        printf("Warning: --soft3d is not supported in the browser build (WebGL1 only)\n");
+    if( use_runescape )
+        printf("Game: runescape world\n");
 
     struct LibToriRS_Instance* instance = LibToriRS_InstanceNew();
     if( !instance )
@@ -123,11 +143,12 @@ main(
         return 1;
     }
 
+    char const* init_script = use_runescape ? "init_runescape.lua" : "init.lua";
     struct LibToriRS_Script* script =
-        LibToriRS_ScriptQueueEmplace(LibToriRS_GetScriptQueue(instance), "init.lua");
+        LibToriRS_ScriptQueueEmplace(LibToriRS_GetScriptQueue(instance), init_script);
     if( !script )
     {
-        printf("Failed to queue init.lua\n");
+        printf("Failed to queue %s\n", init_script);
         return 1;
     }
     script->is_inline = false;

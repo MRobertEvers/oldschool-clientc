@@ -1,9 +1,13 @@
 #include "../../commands/libtorirs_command_queue.h"
+#include "../../gamecache/gamecache_l.h"
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../platforms/platform_sdl2/platform_sdl2.h"
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"
-#include "../../platforms/platform_x_cache.h"
+#include "../../platforms/platform_x/cachelib.h"
+#include "../../platforms/platform_x/cachelib_platform.h"
+#include "../../platforms/platform_x_io_reactor.h"
 #include "../../platforms/platform_x_lua.h"
+#include "../../scripting/libtorirs_scriptapi.h"
 #include "../../scripting/libtorirs_scripting.h"
 
 #if defined(_WIN32)
@@ -75,20 +79,11 @@ main(
     printf("Hello from main!\n");
 
     bool const use_soft3d = has_flag(argc, argv, "--soft3d");
-
-    char const* cache_dat_path = resolve_cache_dat_path(argc, argv);
-    if( !cache_dat_path )
-    {
-        printf(
-            "Failed to find cache254 (expected main_file_cache.dat). "
-            "Run from a directory that contains cache254/, or pass the cache path as an argument.\n");
-        goto error_exit;
-    }
-    printf("Using cache: %s\n", cache_dat_path);
-    if( use_soft3d )
-        printf("Renderer: software 3D (CPU)\n");
+    bool const use_runescape = has_flag(argc, argv, "--runescape");
 
     struct LibToriPlatformX_Lua* lua = NULL;
+    struct LibToriPlatformX_IOReactor* io_reactor = NULL;
+    struct CacheLib* cache = NULL;
     struct LibToriPlatformSDL2* platform = NULL;
     struct LibToriPlatformSDL2_RendererSoft3D* renderer_soft3d = NULL;
 #if defined(_WIN32)
@@ -97,8 +92,24 @@ main(
     struct LibToriPlatformSDL2_RendererGL3* renderer = NULL;
 #endif
     struct LibToriRS_CommandQueue* command_queue = NULL;
+    struct LibToriRS_Instance* instance = NULL;
 
-    struct LibToriRS_Instance* instance = LibToriRS_InstanceNew();
+    char const* cache_dat_path = resolve_cache_dat_path(argc, argv);
+    if( !cache_dat_path )
+    {
+        printf(
+            "Failed to find cache254 (expected main_file_cache.dat). "
+            "Run from a directory that contains cache254/, or pass the cache path as an "
+            "argument.\n");
+        goto error_exit;
+    }
+    printf("Using cache: %s\n", cache_dat_path);
+    if( use_soft3d )
+        printf("Renderer: software 3D (CPU)\n");
+    if( use_runescape )
+        printf("Game: runescape world\n");
+
+    instance = LibToriRS_InstanceNew();
     if( !instance )
     {
         printf("Failed to create instance\n");
@@ -112,15 +123,29 @@ main(
         goto error_exit;
     }
 
-    if( LibToriPlatformX_LuaCacheIOInit(lua, CACHE_MODE_DAT1, cache_dat_path) !=
-        LIBTORI_PLATFORM_X_LUA_OK )
+    cache = cachelib_new(CACHE_MODE_DAT1);
+    if( !cache )
+    {
+        printf("Failed to create cache\n");
+        goto error_exit;
+    }
+
+    if( cachelib_platform_init(cache, cache_dat_path) != 1 )
     {
         printf("Failed to init cache\n");
         goto error_exit;
     }
 
+    io_reactor = LibToriPlatformX_IOReactorNew(cache);
+    if( !io_reactor )
+    {
+        printf("Failed to create IO reactor\n");
+        goto error_exit;
+    }
+
+    char const* init_script = use_runescape ? "init_runescape.lua" : "init.lua";
     struct LibToriRS_Script* script =
-        LibToriRS_ScriptQueueEmplace(LibToriRS_GetScriptQueue(instance), "init.lua");
+        LibToriRS_ScriptQueueEmplace(LibToriRS_GetScriptQueue(instance), init_script);
     script->is_inline = false;
 
     platform = LibToriPlatformSDL2_New();
@@ -217,11 +242,17 @@ main(
         if( !LibToriRS_IsRunning(instance) )
             break;
 
+        while( LibToriRS_TasksRun(instance) )
+        {
+            LibToriPlatformX_IOReactorProcess(io_reactor, LibToriRS_GetIOQueue(instance));
+        }
+
         while( !LibToriRS_ScriptQueueIsEmpty(LibToriRS_GetScriptQueue(instance)) )
         {
             int rc = LibToriPlatformX_LuaRun(lua, instance);
             while( rc == LIBTORI_PLATFORM_X_LUA_YIELDED )
             {
+                LibToriPlatformX_IOReactorProcess(io_reactor, LibToriRS_GetIOQueue(instance));
                 rc = LibToriPlatformX_LuaContinue(lua, instance);
             }
             if( rc != LIBTORI_PLATFORM_X_LUA_OK )
@@ -230,6 +261,7 @@ main(
                 goto error_exit;
             }
         }
+
         LibToriRS_IOQueueClear(LibToriRS_GetIOQueue(instance));
         LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(instance));
 
@@ -257,6 +289,10 @@ exit:
         LibToriPlatformSDL2_RendererGL3_Free(renderer);
 #endif
     }
+    if( io_reactor )
+        LibToriPlatformX_IOReactorFree(io_reactor);
+    if( cache )
+        cachelib_free(cache);
     if( lua )
         LibToriPlatformX_LuaFree(lua);
     if( instance )

@@ -1,13 +1,11 @@
 #include "platform_x_lua.h"
 
+#include "../core/tasks/core_task.h"
 #include "../libtorirs_internal.h"
 #include "../scripting/libtorirs_scriptapi.h"
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
-#include "platform_x/cachelib.h"
-#include "platform_x/cachelib_platform.h"
-
 // clang-format off
 #include "platform_x_luahost.u.c"
 // clang-format on
@@ -57,32 +55,10 @@ LibToriPlatformX_LuaFree(struct LibToriPlatformX_Lua* lua)
     if( !lua )
         return;
 
-    if( lua->cache )
-        cachelib_free(lua->cache);
-
     if( lua->L )
         lua_close(lua->L);
 
     free(lua);
-}
-
-int
-LibToriPlatformX_LuaCacheIOInit(
-    struct LibToriPlatformX_Lua* lua,
-    int mode,
-    char const* directory)
-{
-    if( !lua )
-        return LIBTORI_PLATFORM_X_LUA_ERROR;
-
-    lua->cache = cachelib_new(mode);
-    if( !lua->cache )
-        return LIBTORI_PLATFORM_X_LUA_ERROR;
-
-    if( cachelib_platform_init(lua->cache, directory) != 1 )
-        return LIBTORI_PLATFORM_X_LUA_ERROR;
-
-    return LIBTORI_PLATFORM_X_LUA_OK;
 }
 
 #define LUA_SCRIPTS_DIR "../../revs/scripts"
@@ -105,7 +81,10 @@ LibToriPlatformX_LuaRun(
 
     struct LibToriRS_Script* script = LibToriRS_ScriptQueuePop(instance->script_queue);
     if( !script )
+    {
+        fprintf(stderr, "LibToriPlatformX_LuaRun: no script to run\n");
         return LIBTORI_PLATFORM_X_LUA_ERROR;
+    }
 
     lua->L_coro = lua_newthread(lua->L);
 

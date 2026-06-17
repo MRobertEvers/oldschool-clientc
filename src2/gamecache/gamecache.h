@@ -1,24 +1,10 @@
 #ifndef GAMECACHE_H
 #define GAMECACHE_H
 
-#include "toridraw/toridraw_map.h"
-#include "toridraw/toridraw_types.h"
+#include "gamecache_types.h"
 
+#include <stdbool.h>
 #include <stdint.h>
-
-struct ToriDraw_Animation;
-struct GameCache_Sequence;
-struct GameCache_Flotype;
-struct GameCache_SceneryConfig;
-
-struct GameCache
-{
-    struct ToriDraw_Map* models_hmap;
-    struct ToriDraw_Map* sequences_hmap;
-    struct ToriDraw_Map* flotype_hmap;
-    struct ToriDraw_Map* scenery_config_hmap;
-    struct ToriDraw_Map* animations_hmap;
-};
 
 struct GameCache*
 gamecache_new(void);
@@ -30,14 +16,19 @@ void
 gamecache_model_add(
     struct GameCache* gamecache,
     int model_id,
-    struct ToriDraw_ModelHandle model);
+    struct GameCache_Model* model);
 
-struct ToriDraw_ModelHandle
+struct GameCache_Model*
 gamecache_model_get(
     struct GameCache* gamecache,
     int model_id);
 
-struct ToriDraw_ModelHandle
+bool
+gamecache_model_has(
+    struct GameCache* gamecache,
+    int model_id);
+
+struct GameCache_Model*
 gamecache_model_remove(
     struct GameCache* gamecache,
     int model_id);
@@ -46,59 +37,137 @@ void
 gamecache_models_clear_all(struct GameCache* gamecache);
 
 void
-gamecache_sequence_add(
+gamecache_texture_add(
     struct GameCache* gamecache,
-    int sequence_id,
-    struct GameCache_Sequence* sequence);
+    int texture_id,
+    struct GameCache_Texture* texture);
 
-struct GameCache_Sequence*
-gamecache_sequence_get(
+struct GameCache_Texture*
+gamecache_texture_get(
     struct GameCache* gamecache,
-    int sequence_id);
+    int texture_id);
+
+bool
+gamecache_texture_has(
+    struct GameCache* gamecache,
+    int texture_id);
+
+void
+gamecache_textures_clear_all(struct GameCache* gamecache);
+
+void
+gamecache_map_terrain_add(
+    struct GameCache* gamecache,
+    int map_id,
+    struct GameCache_MapTerrain* terrain);
+
+struct GameCache_MapTerrain*
+gamecache_map_terrain_get(
+    struct GameCache* gamecache,
+    int map_id);
+
+bool
+gamecache_map_terrain_has(
+    struct GameCache* gamecache,
+    int map_id);
+
+void
+gamecache_map_scenery_add(
+    struct GameCache* gamecache,
+    int map_id,
+    struct GameCache_MapLocs* locs);
+
+struct GameCache_MapLocs*
+gamecache_map_scenery_get(
+    struct GameCache* gamecache,
+    int map_id);
+
+bool
+gamecache_map_scenery_has(
+    struct GameCache* gamecache,
+    int map_id);
 
 void
 gamecache_flotype_add(
     struct GameCache* gamecache,
-    int flotype_id,
+    int flo_id,
     struct GameCache_Flotype* flotype);
 
 struct GameCache_Flotype*
 gamecache_flotype_get(
     struct GameCache* gamecache,
-    int flotype_id);
+    int flo_id);
+
+bool
+gamecache_flotype_has(
+    struct GameCache* gamecache,
+    int flo_id);
 
 void
-gamecache_scenery_config_add(
+gamecache_location_add(
     struct GameCache* gamecache,
     int loc_id,
-    struct GameCache_SceneryConfig* config);
+    struct GameCache_Location* loc);
 
-struct GameCache_SceneryConfig*
-gamecache_scenery_config_get(
+struct GameCache_Location*
+gamecache_location_get(
+    struct GameCache* gamecache,
+    int loc_id);
+
+bool
+gamecache_location_has(
     struct GameCache* gamecache,
     int loc_id);
 
 void
+gamecache_sequence_add(
+    struct GameCache* gamecache,
+    int seq_id,
+    struct GameCache_Sequence* seq);
+
+struct GameCache_Sequence*
+gamecache_sequence_get(
+    struct GameCache* gamecache,
+    int seq_id);
+
+bool
+gamecache_sequence_has(
+    struct GameCache* gamecache,
+    int seq_id);
+
+struct GameCache_Animation*
+gamecache_sequence_primary_animation(
+    struct GameCache* gamecache,
+    int seq_id);
+
+struct GameCache_Animation*
+gamecache_sequence_resolved_animation(
+    struct GameCache* gamecache,
+    int seq_id);
+
+void
 gamecache_animation_add(
     struct GameCache* gamecache,
-    int animbaseframes_id,
-    struct ToriDraw_Animation* animation);
+    int anim_id,
+    struct GameCache_Animation* animation);
 
-struct ToriDraw_Animation*
+struct GameCache_Animation*
 gamecache_animation_get(
     struct GameCache* gamecache,
-    int animbaseframes_id);
+    int anim_id);
 
-void
-gamecache_sequences_clear_all(struct GameCache* gamecache);
+bool
+gamecache_animation_has(
+    struct GameCache* gamecache,
+    int anim_id);
 
-void
-gamecache_floortypes_clear_all(struct GameCache* gamecache);
-
-void
-gamecache_scenery_configs_clear_all(struct GameCache* gamecache);
-
-void
-gamecache_animations_clear_all(struct GameCache* gamecache);
+bool
+gamecache_sequence_resolve_frame(
+    struct GameCache* gamecache,
+    int seq_id,
+    int frame_index,
+    const struct GameCache_AnimFrame** out_frame,
+    const struct GameCache_AnimBase** out_base,
+    int* out_delay);
 
 #endif

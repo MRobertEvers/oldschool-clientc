@@ -28,7 +28,8 @@
             ],
             "defines": [],
             "cStandard": "c17",
-            "intelliSenseMode": "macos-clang-arm64"
+            "intelliSenseMode": "macos-clang-arm64",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
         },
         {
             "name": "Win32",
@@ -48,7 +49,8 @@
             "compilerPath": "${workspaceFolder}/toolchain/win32/mingw32/bin/gcc.exe",
             "cStandard": "c17",
             "cppStandard": "c++17",
-            "intelliSenseMode": "windows-gcc-x86"
+            "intelliSenseMode": "windows-gcc-x86",
+            "compileCommands": "${workspaceFolder}/build-winxp/compile_commands.json"
         },
         {
             "name": "Emscripten",

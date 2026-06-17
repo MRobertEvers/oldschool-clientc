@@ -1,12 +1,11 @@
 #include "platform_sdl2_renderer_soft3d.h"
 
-#include "../../ui/ui_scene.h"
 #include "libtorirs.h"
 #include "libtorirs_internal.h"
-#include "osrs/rscache/tables_dat/pixfont.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_sprite.h"
+#include <SDL_render.h>
 
 #include <SDL.h>
 #include <stdbool.h>
@@ -149,15 +148,10 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
     struct LibToriPlatformSDL2_RendererSoft3D* renderer,
     struct LibToriRS_Instance* instance)
 {
-    if( !renderer || !renderer->pixel_buffer || !renderer->texture || !renderer->renderer )
-        return;
-
     size_t const pixel_count = (size_t)renderer->width * (size_t)renderer->height;
     memset(renderer->pixel_buffer, 0, pixel_count * sizeof(int));
 
-    struct ToriDraw_Context* draw_context = NULL;
-    if( instance && instance->model_viewer )
-        draw_context = instance->model_viewer->context;
+    struct ToriDraw_Context* draw_context = LibToriRS_GetCurrentToriDrawContext(instance);
 
     bool has_3d = false;
     struct LibToriRS_RenderCommand_Begin3D cur_3d;
@@ -241,20 +235,6 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             break;
         case TORIRSRC_FONT:
         {
-            struct UIScene* scene =
-                instance && instance->model_viewer ? instance->model_viewer->scene : NULL;
-            struct CacheDatPixfont* pixfont =
-                scene ? ui_scene_font_get(scene, command.u.font.font_id) : NULL;
-            if( pixfont && command.u.font.text )
-            {
-                pixfont_draw_text(
-                    pixfont,
-                    (uint8_t*)command.u.font.text,
-                    command.u.font.x,
-                    command.u.font.y,
-                    renderer->pixel_buffer,
-                    renderer->width);
-            }
             break;
         }
         case TORIRSRC_UI_MODEL_BEGIN_3D:
@@ -293,8 +273,7 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
         0x0000FF00,
         0x000000FF,
         0xFF000000);
-    if( !surface )
-        return;
+    assert(surface && "SDL_CreateRGBSurfaceFrom failed");
 
     int* pix_write = NULL;
     int texture_pitch = 0;

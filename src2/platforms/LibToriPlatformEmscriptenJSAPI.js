@@ -121,6 +121,14 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init",
     );
+    this._scriptAPIGameRunescapeInit = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_Init",
+    );
+    this._scriptAPIGameRunescapeBuildWorld = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorld",
+    );
     this._scriptAPIDat1ModelFetchNativeInt = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchNativeInt",
@@ -164,6 +172,18 @@ export class LibToriPlatformEmscriptenJSAPI {
     this._scriptAPIGameModelViewerRenderModelScriptInt = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelScriptInt",
+    );
+    this._scriptAPIGameModelViewerGetGameHandle = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_GetGameHandle",
+    );
+    this._scriptAPICoreTaskDat1LoadModelNativeInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_CoreTask_Dat1LoadModelNativeInt",
+    );
+    this._scriptAPIRunTasks = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_RunTasks",
     );
     this._scriptAPIDat1ModelCleanupNativeInt = wasmExportFn(
       mod,
@@ -390,6 +410,14 @@ export class LibToriPlatformEmscriptenJSAPI {
     this._scriptAPIGameModelViewerInit(this.instancePtr);
   }
 
+  scriptAPIGameRunescapeInit() {
+    this._scriptAPIGameRunescapeInit(this.instancePtr);
+  }
+
+  scriptAPIGameRunescapeBuildWorld() {
+    this._scriptAPIGameRunescapeBuildWorld(this.instancePtr);
+  }
+
   scriptAPIGameModelViewerRenderModelNativeInt(modelId) {
     this._scriptAPIGameModelViewerRenderModelNativeInt(
       this.instancePtr,
@@ -402,6 +430,22 @@ export class LibToriPlatformEmscriptenJSAPI {
       this.instancePtr,
       modelId,
     );
+  }
+
+  scriptAPIGameModelViewerGetGameHandle() {
+    return this._scriptAPIGameModelViewerGetGameHandle(this.instancePtr);
+  }
+
+  scriptAPICoreTaskDat1LoadModelNativeInt(gameHandle, modelId) {
+    this._scriptAPICoreTaskDat1LoadModelNativeInt(
+      this.instancePtr,
+      gameHandle,
+      modelId,
+    );
+  }
+
+  scriptAPIRunTasks() {
+    return this._scriptAPIRunTasks(this.instancePtr);
   }
 
   scriptAPIDat1ModelCleanupNativeInt(modelId) {

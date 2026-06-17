@@ -1,11 +1,16 @@
 #include "libtorirs.h"
 
+#include "3rd/minipt.h"
 #include "commands/libtorirs_command_queue.h"
 #include "commands/libtorirs_command_queue_internal.h"
+#include "gamecache/gamecache_l.h"
 #include "games/model_viewer.h"
+#include "games/runescape.h"
 #include "input/libtorirs_input.h"
 #include "libtorirs_internal.h"
 #include "scripting/libtorirs_scripting.h"
+#include "toridraw/toridraw.h"
+#include "toridraw/toridraw_gccontext.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +18,10 @@
 #define LIBTORIRS_INPUT_SAMPLE_HZ 50
 #define LIBTORIRS_INPUT_SAMPLE_MS (1000 / LIBTORIRS_INPUT_SAMPLE_HZ)
 #define LIBTORIRS_INPUT_MAX_TICKS_PER_FRAME 25
+
+#define LIBTORIRS_ANIM_SAMPLE_HZ 50
+#define LIBTORIRS_ANIM_SAMPLE_MS (1000 / LIBTORIRS_ANIM_SAMPLE_HZ)
+#define LIBTORIRS_ANIM_MAX_TICKS_PER_FRAME 25
 
 struct LibToriRS_Instance*
 LibToriRS_InstanceNew(void)
@@ -44,8 +53,29 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
-    instance->dat1_buildcache = dat1_buildcache_new();
-    if( !instance->dat1_buildcache )
+    // instance->dat1_buildcache = dat1_buildcache_new();
+    // if( !instance->dat1_buildcache )
+    // {
+    //     LibToriRS_IOQueueFree(instance->io_queue);
+    //     LibToriRS_Input_Free(instance->input);
+    //     LibToriRS_ScriptQueueFree(instance->script_queue);
+    //     free(instance);
+    //     return NULL;
+    // }
+
+    // instance->gamecache = gamecache_new();
+    // if( !instance->gamecache )
+    // {
+    //     dat1_buildcache_free(instance->dat1_buildcache);
+    //     LibToriRS_IOQueueFree(instance->io_queue);
+    //     LibToriRS_Input_Free(instance->input);
+    //     LibToriRS_ScriptQueueFree(instance->script_queue);
+    //     free(instance);
+    //     return NULL;
+    // }
+
+    instance->context = toridraw_context_new(TORIDRAW_CTX_FULL);
+    if( !instance->context )
     {
         LibToriRS_IOQueueFree(instance->io_queue);
         LibToriRS_Input_Free(instance->input);
@@ -54,18 +84,43 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
-    instance->gamecache = gamecache_new();
-    if( !instance->gamecache )
+    instance->gamecache_l = GameCacheL_New(GAMECACHE_L_MODE_DAT1);
+    if( !instance->gamecache_l )
     {
-        dat1_buildcache_free(instance->dat1_buildcache);
+        toridraw_context_free(instance->context);
         LibToriRS_IOQueueFree(instance->io_queue);
         LibToriRS_Input_Free(instance->input);
         LibToriRS_ScriptQueueFree(instance->script_queue);
         free(instance);
         return NULL;
     }
+
+    instance->toridrawx = toridrawx_new(instance->gamecache_l, instance->context);
+    if( !instance->toridrawx )
+    {
+        GameCacheL_Free(instance->gamecache_l);
+        toridraw_context_free(instance->context);
+        LibToriRS_IOQueueFree(instance->io_queue);
+        LibToriRS_Input_Free(instance->input);
+        LibToriRS_ScriptQueueFree(instance->script_queue);
+        free(instance);
+        return NULL;
+    }
+
+    for( int i = 0; i < LIBTORIRS_MAX_TASKS; i++ )
+    {
+        instance->tasks[i].next = i + 1;
+        instance->tasks[i].prev = i - 1;
+    }
+    instance->tasks[LIBTORIRS_MAX_TASKS - 1].next = -1;
+    instance->tasks[0].prev = -1;
+
+    instance->task_free_head = 0;
+    instance->task_live_head = -1;
 
     instance->running = true;
+
+    toridraw_init();
 
     return instance;
 }
@@ -81,12 +136,17 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
         LibToriRS_ScriptQueueFree(instance->script_queue);
     if( instance->input )
         LibToriRS_Input_Free(instance->input);
-    if( instance->dat1_buildcache )
-        dat1_buildcache_free(instance->dat1_buildcache);
-    if( instance->gamecache )
-        gamecache_free(instance->gamecache);
+    if( instance->toridrawx )
+        toridrawx_free(instance->toridrawx);
+    if( instance->gamecache_l )
+        GameCacheL_Free(instance->gamecache_l);
+    if( instance->context )
+        toridraw_context_free(instance->context);
+
     if( instance->model_viewer )
         game_modelviewer_free(instance->model_viewer);
+    if( instance->runescape )
+        game_runescape_free(instance->runescape);
     free(instance);
 }
 
@@ -100,6 +160,8 @@ LibToriRS_InitTime(
     LibToriRS_Input_Init(instance->input, time);
     instance->last_frame_ms = time;
     instance->input_accumulator_ms = 0;
+    instance->anim_last_tick_ms = time;
+    instance->anim_accumulator_ms = 0;
 }
 
 struct LibToriRS_ScriptQueue*
@@ -243,59 +305,45 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
         instance->running = false;
     }
 
-    if( instance->model_viewer )
+    switch( instance->active_game_kind )
     {
-        const int camera_movement_speed = 10;
-        const int camera_rotation_speed = 10;
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_A) )
+    case GAME_HANDLE_KIND_MODEL_VIEWER:
+        if( instance->model_viewer )
         {
-            game_modelviewer_move_right(instance->model_viewer, camera_movement_speed);
+            const int camera_movement_speed = 10;
+            const int camera_rotation_speed = 10;
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_A) )
+                game_modelviewer_move_right(instance->model_viewer, camera_movement_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_D) )
+                game_modelviewer_move_left(instance->model_viewer, camera_movement_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_W) )
+                game_modelviewer_move_forward(instance->model_viewer, camera_movement_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_S) )
+                game_modelviewer_move_backward(instance->model_viewer, camera_movement_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_R) )
+                game_modelviewer_move_up(instance->model_viewer, camera_movement_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
+                game_modelviewer_move_down(instance->model_viewer, camera_movement_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP) )
+                game_modelviewer_rotate_up(instance->model_viewer, camera_rotation_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN) )
+                game_modelviewer_rotate_down(instance->model_viewer, camera_rotation_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT) )
+                game_modelviewer_rotate_left(instance->model_viewer, camera_rotation_speed);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
+                game_modelviewer_rotate_right(instance->model_viewer, camera_rotation_speed);
+            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_SPACE) )
+                game_modelviewer_next(instance->model_viewer, 1);
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_BACKSPACE) )
+                game_modelviewer_next(instance->model_viewer, -1);
         }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_D) )
-        {
-            game_modelviewer_move_left(instance->model_viewer, camera_movement_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_W) )
-        {
-            game_modelviewer_move_forward(instance->model_viewer, camera_movement_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_S) )
-        {
-            game_modelviewer_move_backward(instance->model_viewer, camera_movement_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_R) )
-        {
-            game_modelviewer_move_up(instance->model_viewer, camera_movement_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
-        {
-            game_modelviewer_move_down(instance->model_viewer, camera_movement_speed);
-        }
-
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP) )
-        {
-            game_modelviewer_rotate_up(instance->model_viewer, camera_rotation_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN) )
-        {
-            game_modelviewer_rotate_down(instance->model_viewer, camera_rotation_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT) )
-        {
-            game_modelviewer_rotate_left(instance->model_viewer, camera_rotation_speed);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
-        {
-            game_modelviewer_rotate_right(instance->model_viewer, camera_rotation_speed);
-        }
-        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_SPACE) )
-        {
-            game_modelviewer_next(instance->model_viewer, 1);
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_BACKSPACE) )
-        {
-            game_modelviewer_next(instance->model_viewer, -1);
-        }
+        break;
+    case GAME_HANDLE_KIND_RUNESCAPE:
+        if( instance->runescape )
+            game_runescape_process_input(instance->runescape, input);
+        break;
+    default:
+        break;
     }
 }
 
@@ -304,8 +352,19 @@ LibToriRS_FrameBegin(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return;
-    if( instance->model_viewer )
-        game_modelviewer_frame_begin(instance->model_viewer);
+    switch( instance->active_game_kind )
+    {
+    case GAME_HANDLE_KIND_MODEL_VIEWER:
+        if( instance->model_viewer )
+            game_modelviewer_frame_begin(instance->model_viewer);
+        break;
+    case GAME_HANDLE_KIND_RUNESCAPE:
+        if( instance->runescape )
+            game_runescape_frame_begin(instance->runescape);
+        break;
+    default:
+        break;
+    }
 }
 
 bool
@@ -315,9 +374,20 @@ LibToriRS_FrameNextCommand(
 {
     if( !instance || !command )
         return false;
-    if( instance->model_viewer &&
-        game_modelviewer_frame_next_command(instance->model_viewer, command) )
-        return true;
+    switch( instance->active_game_kind )
+    {
+    case GAME_HANDLE_KIND_MODEL_VIEWER:
+        if( instance->model_viewer &&
+            game_modelviewer_frame_next_command(instance->model_viewer, command) )
+            return true;
+        break;
+    case GAME_HANDLE_KIND_RUNESCAPE:
+        if( instance->runescape && game_runescape_frame_next_command(instance->runescape, command) )
+            return true;
+        break;
+    default:
+        break;
+    }
     return false;
 }
 
@@ -326,8 +396,19 @@ LibToriRS_FrameEnd(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return;
-    if( instance->model_viewer )
-        game_modelviewer_frame_end(instance->model_viewer);
+    switch( instance->active_game_kind )
+    {
+    case GAME_HANDLE_KIND_MODEL_VIEWER:
+        if( instance->model_viewer )
+            game_modelviewer_frame_end(instance->model_viewer);
+        break;
+    case GAME_HANDLE_KIND_RUNESCAPE:
+        if( instance->runescape )
+            game_runescape_frame_end(instance->runescape);
+        break;
+    default:
+        break;
+    }
 }
 
 bool
@@ -343,7 +424,134 @@ LibToriRS_GetCurrentToriDrawContext(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return NULL;
-    if( instance->model_viewer )
-        return instance->model_viewer->context;
-    return NULL;
+    return instance->context;
+}
+
+static void
+tasks_remove(
+    struct LibToriRS_Instance* instance,
+    int task_idx)
+{
+    if( task_idx == -1 || task_idx >= LIBTORIRS_MAX_TASKS )
+        return;
+
+    struct LibToriRS_Task* task_to_remove = &instance->tasks[task_idx];
+
+    // ==========================================
+    // PHASE 1: UNLINK FROM THE LIVE LIST
+    // ==========================================
+    int prev_idx = task_to_remove->prev;
+    int next_idx = task_to_remove->next;
+
+    // 1a. Update the previous node (or the live head if this is the first node)
+    if( prev_idx != -1 )
+    {
+        instance->tasks[prev_idx].next = next_idx;
+    }
+    else if( instance->task_live_head == task_idx )
+    {
+        // If there is no previous node AND this is the head,
+        // the next node becomes the new head.
+        instance->task_live_head = next_idx;
+    }
+
+    // 1b. Update the next node
+    if( next_idx != -1 )
+    {
+        instance->tasks[next_idx].prev = prev_idx;
+    }
+
+    // ==========================================
+    // PHASE 2: PUSH ONTO THE FREE LIST
+    // ==========================================
+
+    // Clear the payload (optional, but prevents dangling pointers)
+    task_to_remove->task = NULL;
+
+    // Push to the front of the free list
+    task_to_remove->next = instance->task_free_head;
+    task_to_remove->prev = -1; // Free list doesn't strictly need prev, but it's safe to clear
+
+    instance->task_free_head = task_idx;
+}
+
+void
+LibToriRS_TasksAdd(
+    struct LibToriRS_Instance* instance,
+    void* task_state,
+    CoreTaskFunction task_function)
+{
+    if( instance->task_free_head == -1 )
+    {
+        fprintf(stderr, "No free tasks available\n");
+        assert(0);
+        return;
+    }
+
+    struct CoreTask* task = core_task_new(task_state, task_function);
+    if( !task )
+    {
+        fprintf(stderr, "Failed to create task\n");
+        assert(0);
+        return;
+    }
+
+    // 1. Get the new task
+    int task_idx = instance->task_free_head;
+    struct LibToriRS_Task* new_task = &instance->tasks[task_idx];
+
+    // 2. POP FROM FREE LIST FIRST
+    // Update the free head while new_task->next still points to the next free node
+    instance->task_free_head = new_task->next;
+
+    // 3. Setup the new task's payload
+    new_task->task = task;
+
+    // 4. PUSH TO LIVE LIST (Front)
+    new_task->next = instance->task_live_head;
+    new_task->prev = -1;
+
+    if( instance->task_live_head != -1 )
+    {
+        // Update the old live head's prev pointer
+        instance->tasks[instance->task_live_head].prev = task_idx;
+    }
+
+    // Set the new live head
+    instance->task_live_head = task_idx;
+}
+
+bool
+LibToriRS_TasksRun(struct LibToriRS_Instance* instance)
+{
+    struct LibToriRS_IOContext ctx = {
+        .io = instance->io_queue,
+    };
+
+    int task_idx = instance->task_live_head;
+    while( task_idx != -1 )
+    {
+        int current_task_idx = task_idx;
+        struct LibToriRS_Task* task = &instance->tasks[task_idx];
+        task->last_res = task->task->task(task->task->state, &ctx);
+
+        // Must be here because if we remove the task here, we will lose the next pointer
+        task_idx = task->next;
+
+        switch( task->last_res )
+        {
+        case PT_YIELDED:
+            break;
+        case PT_EXITED:
+        case PT_ENDED:
+            core_task_free(task->task);
+            task->task = NULL;
+            tasks_remove(instance, current_task_idx);
+            break;
+        default:
+            break;
+        }
+    }
+
+    return instance->task_live_head != -1;
 }

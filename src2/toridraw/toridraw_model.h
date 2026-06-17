@@ -1,6 +1,7 @@
 #ifndef TORIDRAW_MODEL_H
 #define TORIDRAW_MODEL_H
 
+#include "toridraw_animation.h"
 #include "toridraw_types.h"
 
 #include <assert.h>
@@ -20,11 +21,43 @@ toridraw_normals_free(struct ToriDraw_Normals* normals);
 void
 toridraw_bones_free(struct ToriDraw_Bones* bones);
 
+struct ToriDraw_Bones*
+toridraw_bones_copy(const struct ToriDraw_Bones* src);
+
 void
 toridraw_model_alloc_normals(struct ToriDraw_Model* model);
 
 void
+toridraw_model_alloc_merged_normals(struct ToriDraw_Model* model);
+
+void
+toridraw_model_calculate_vertex_normals(struct ToriDraw_Model* model);
+
+void
+toridraw_model_free_normals(struct ToriDraw_Model* model);
+
+void
 toridraw_model_free(struct ToriDraw_Model* model);
+
+void
+toridraw_model_capture_original_vertices(struct ToriDraw_Model* model);
+
+void
+toridraw_model_animate_reset(struct ToriDraw_Model* model);
+
+void
+toridraw_model_animate_frame(
+    struct ToriDraw_Model* model,
+    const struct ToriDraw_AnimBase* base,
+    const struct ToriDraw_AnimFrame* frame);
+
+static inline bool
+toridraw_model_is_lightable(const struct ToriDraw_Model* model)
+{
+    return model && model->face_count > 0 && model->vertices_x && model->vertices_y &&
+           model->vertices_z && model->face_colors_a && model->face_colors_b &&
+           model->face_colors_c;
+}
 
 static inline struct ToriDraw_Model*
 toridraw_model_as_full(struct ToriDraw_ModelHandle hnd)
@@ -87,11 +120,8 @@ toridraw_texturemap_get(
     return map->textures[id];
 }
 
-void
-toridraw_context_set_texture(
-    struct ToriDraw_Context* ctx,
-    int id,
-    struct ToriDraw_Texture* texture);
+int
+toridraw_texture_average_hsl16(const struct ToriDraw_Texture* texture);
 
 static inline bool
 toridraw_model_has_textures(struct ToriDraw_ModelHandle hnd)

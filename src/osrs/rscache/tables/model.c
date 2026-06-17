@@ -1340,16 +1340,16 @@ decode_version2__osrs_extended(
         var24 += var10;
     }
 
-    int var31 = var24;            // face index data start
-    var24 += var21;               // face index data end
-    int var32 = var24;            // face colors start
-    var24 += var10 * 2;           // face colors end
-    int var33 = var24;            // texture indices start
-    var24 += var11 * 6;           // texture indices end
-    int var34 = var24;            // vertex X data start
-    var24 += var18;               // vertex X data end
-    int var35 = var24;            // vertex Y data start
-    var24 += var19;               // vertex Y data end
+    int var31 = var24;     // face index data start
+    var24 += var21;        // face index data end
+    int var32 = var24;     // face colors start
+    var24 += var10 * 2;    // face colors end
+    int var33 = var24;     // texture indices start
+    var24 += var11 * 6;    // texture indices end
+    int var34 = var24;     // vertex X data start
+    var24 += var18;        // vertex X data end
+    int var35 = var24;     // vertex Y data start
+    var24 += var19;        // vertex Y data end
     (void)(var24 + var20); /* vertex Z data end */
 
     // Set model properties
@@ -2421,8 +2421,8 @@ model_new_from_archive(
     struct CacheArchive* archive,
     int model_id_nullable)
 {
-    struct CacheModel* model = model_new_decode(
-        (const unsigned char*)archive->data, archive->data_size);
+    struct CacheModel* model =
+        model_new_decode((const unsigned char*)archive->data, archive->data_size);
     if( model )
         model->_id = model_id_nullable;
     return model;
@@ -2433,8 +2433,8 @@ model_new_from_dat_archive(
     struct CacheDatArchive* archive,
     int model_id_nullable)
 {
-    struct CacheModel* model = model_new_decode(
-        (const unsigned char*)archive->data, archive->data_size);
+    struct CacheModel* model =
+        model_new_decode((const unsigned char*)archive->data, archive->data_size);
     if( model )
         model->_id = model_id_nullable;
     return model;

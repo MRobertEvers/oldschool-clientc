@@ -26,47 +26,9 @@ print("Textures loaded")
 Game.Dat1_SubmitTextures()
 print("Textures submitted")
 
--- UI: cache sprite definitions, then components + layout
-Game.UI_Init()
-
-Game.UI_RevConfigFetch(io_queue, "../../revs/configs/ui_min_cache.ini")
-Platform.LoadIO(io_queue)
-if not Game.UI_RevConfigLoad(io_queue) then
-    print("cache config load failed")
-    return
-end
-print("cache config loaded")
-
-Game.UI_RevConfigFetch(io_queue, "../../revs/configs/ui_min.ini")
-Platform.LoadIO(io_queue)
-if not Game.UI_RevConfigLoad(io_queue) then
-    print("ui config load failed")
-    return
-end
-print("ui config loaded")
-
-while not Game.UI_Ready() do
-    Game.UI_Process(io_queue)
-    Platform.LoadIO(io_queue)
-end
-
-Game.UI_Submit()
-print("UI load complete")
-
--- RS interface component (sidebar tab example: inventory panel root)
-local rs_component_id = 1497
-Game.UI_QueueRSComponentNativeInt(rs_component_id)
-
-while not Game.UI_Ready() do
-    Game.UI_Process(io_queue)
-    Platform.LoadIO(io_queue)
-end
-
-Game.UI_Submit()
-print("RS component UI submitted")
-
 -- Fountain 1497
 -- Oak 1571
+-- Bellemorde Head 9424
 local model_load = 1571
 Game.Dat1_ModelFetchNativeInt(io_queue, model_load)
 
@@ -81,5 +43,14 @@ print("Model loaded")
 Game.Dat1_SubmitGameCacheModelNativeInt(model_load)
 Game.Dat1_ModelCleanupNativeInt(model_load)
 print("Game cache model submitted")
+
+Game.ModelViewer_RenderModelNativeInt(model_load)
+
+model_load = 1497
+local game_handle = Game.ModelViewer_GetGameHandle()
+Game.CoreTask_Dat1LoadModelNativeInt(game_handle, model_load)
+while not Game.RunTasks() do
+    Platform.LoadIO(io_queue)
+end
 
 Game.ModelViewer_RenderModelNativeInt(model_load)

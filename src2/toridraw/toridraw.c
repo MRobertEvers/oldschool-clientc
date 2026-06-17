@@ -1,5 +1,6 @@
 #include "toridraw.h"
 
+#include "toridraw_gccontext.h"
 #include "toridraw_types.h"
 
 #include <stdio.h>
@@ -292,6 +293,13 @@ toridraw_context_new(uint32_t flags)
         return NULL;
     }
 
+    if( !toridraw_gc_init(context) )
+    {
+        toridraw_context_free_buffers(context);
+        free(context);
+        return NULL;
+    }
+
     return context;
 }
 
@@ -300,6 +308,7 @@ toridraw_context_free(struct ToriDraw_Context* context)
 {
     if( !context )
         return;
+    toridraw_gc_shutdown(context);
     toridraw_context_free_buffers(context);
     free(context);
 }
