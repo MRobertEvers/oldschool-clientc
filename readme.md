@@ -1797,3 +1797,7 @@ python3 -m http.server -b 0.0.0.0 -d . 8000
 5. Clipping Rect Per Sprite
 6. Rotated Sprites
 7. Fonts and Text
+
+## Empty Models??
+
+Not a loading bug: cache254 contains three model files (IDs 596, 2214, 2215) that are exactly an 18-byte ob2 header with 0 vertices / 0 faces. They are intentionally empty and referenced by real loc configs (gnome glider map icons, shape 22; invisible walls on locs 83-85/2639, shapes 0 and 9). The original client tolerates 0-vertex models and just draws nothing. The crash is the engine's own invariant in src2/toridraw/toridraw_model_transform.c

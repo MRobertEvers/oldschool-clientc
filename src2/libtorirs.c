@@ -84,9 +84,21 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
-    instance->gamecache_l = GameCacheL_New(GAMECACHE_L_MODE_DAT1, instance->context);
+    instance->gamecache_l = GameCacheL_New(GAMECACHE_L_MODE_DAT1);
     if( !instance->gamecache_l )
     {
+        toridraw_context_free(instance->context);
+        LibToriRS_IOQueueFree(instance->io_queue);
+        LibToriRS_Input_Free(instance->input);
+        LibToriRS_ScriptQueueFree(instance->script_queue);
+        free(instance);
+        return NULL;
+    }
+
+    instance->toridrawx = toridrawx_new(instance->gamecache_l, instance->context);
+    if( !instance->toridrawx )
+    {
+        GameCacheL_Free(instance->gamecache_l);
         toridraw_context_free(instance->context);
         LibToriRS_IOQueueFree(instance->io_queue);
         LibToriRS_Input_Free(instance->input);
@@ -124,6 +136,8 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
         LibToriRS_ScriptQueueFree(instance->script_queue);
     if( instance->input )
         LibToriRS_Input_Free(instance->input);
+    if( instance->toridrawx )
+        toridrawx_free(instance->toridrawx);
     if( instance->gamecache_l )
         GameCacheL_Free(instance->gamecache_l);
     if( instance->context )
@@ -246,37 +260,6 @@ LibToriRS_TickInput(
         instance->input_accumulator_ms -= LIBTORIRS_INPUT_SAMPLE_MS;
         input_ticks++;
     }
-}
-
-void
-LibToriRS_TickAnimation(
-    struct LibToriRS_Instance* instance,
-    uint64_t time_ms)
-{
-    instance->anim_accumulator_ms += time_ms - instance->anim_last_tick_ms;
-    instance->anim_last_tick_ms = time_ms;
-
-    int anim_ticks = 0;
-    while( instance->anim_accumulator_ms >= LIBTORIRS_ANIM_SAMPLE_MS &&
-           anim_ticks < LIBTORIRS_ANIM_MAX_TICKS_PER_FRAME )
-    {
-        if( instance->active_game_kind == GAME_HANDLE_KIND_RUNESCAPE && instance->runescape )
-            game_runescape_step_animations(instance->runescape, 1);
-        instance->anim_accumulator_ms -= LIBTORIRS_ANIM_SAMPLE_MS;
-        anim_ticks++;
-    }
-}
-
-void
-LibToriRS_SetCpuAnimation(
-    struct LibToriRS_Instance* instance,
-    bool enabled)
-{
-    if( !instance )
-        return;
-    instance->cpu_animation = enabled;
-    if( instance->runescape )
-        instance->runescape->animate_on_cpu = enabled;
 }
 
 void

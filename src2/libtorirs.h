@@ -49,11 +49,6 @@ LibToriRS_TickInput(
     uint64_t time_ms);
 
 void
-LibToriRS_TickAnimation(
-    struct LibToriRS_Instance* instance,
-    uint64_t time_ms);
-
-void
 LibToriRS_SetCpuAnimation(
     struct LibToriRS_Instance* instance,
     bool enabled);

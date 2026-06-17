@@ -2,28 +2,17 @@
 #define WORLD_H
 
 #include "collision_map.h"
-#include "decor_buildmap.h"
-#include "gamecache/gamecache_types.h"
 #include "osrs/painters.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
-struct GameCache;
-struct ToriDraw_Context;
 struct Heightmap;
-struct Blendmap;
-struct Overlaymap;
-struct TerrainShapeMap;
-struct Lightmap;
-struct SharelightMap;
-struct Shademap2;
-struct FlagMap;
 struct Minimap;
 
-#define WORLD_MAP_TERRAIN_X GAMECACHE_MAP_TERRAIN_X
-#define WORLD_MAP_TERRAIN_Z GAMECACHE_MAP_TERRAIN_Z
-#define WORLD_MAP_TERRAIN_LEVELS GAMECACHE_MAP_TERRAIN_LEVELS
+#define WORLD_MAP_TERRAIN_X 64
+#define WORLD_MAP_TERRAIN_Z 64
+#define WORLD_MAP_TERRAIN_LEVELS 4
 
 static inline int
 world_map_tile_coord(
@@ -36,22 +25,8 @@ world_map_tile_coord(
 
 #define WORLD_MAP_TILE_COORD(x, z, level) (world_map_tile_coord(x, z, level))
 
-struct ContourGroundQueueEntry
-{
-    int element_id;
-    int loc_id;
-    int shape_select;
-    int rotation;
-    int size_x;
-    int size_z;
-    int level;
-};
-
 struct World
 {
-    struct GameCache* gamecache;
-    struct ToriDraw_Context* context;
-
     int _base_tile_x;
     int _base_tile_z;
     int _chunk_sw_x;
@@ -63,24 +38,12 @@ struct World
     int _scene_size;
 
     struct Heightmap* heightmap;
-    struct Blendmap* blendmap;
-    struct Overlaymap* overlaymap;
-    struct TerrainShapeMap* terrain_shapemap;
-    struct DecorBuildMap* decor_buildmap;
-    struct Lightmap* lightmap;
-    struct SharelightMap* sharelight_map;
-    struct Shademap2* shademap;
-    struct FlagMap* flag_map;
     struct CollisionMap* collision_maps[COLLISION_LEVELS];
     struct Minimap* minimap;
 
     struct Painter* painter;
     struct PaintersCullMap* cullmap;
     int* terrain_element_ids;
-
-    struct ContourGroundQueueEntry* contour_ground_queue;
-    int contour_ground_queue_count;
-    int contour_ground_queue_cap;
 
     bool load_complete;
 };
@@ -104,53 +67,17 @@ world_to_scene_z(
 }
 
 struct World*
-world_new(
-    struct GameCache* gamecache,
-    struct ToriDraw_Context* context);
+world_new(void);
 
 void
 world_free(struct World* world);
 
 void
-world_rebuild_centerzone(
+world_reset_scene(
     struct World* world,
     int zone_center_x,
     int zone_center_z,
     int scene_size);
-
-void
-world_rebuild_centerzone_begin(
-    struct World* world,
-    int zone_center_x,
-    int zone_center_z,
-    int scene_size);
-
-void
-world_rebuild_centerzone_chunk_terrain(
-    struct World* world,
-    int mapx,
-    int mapz);
-
-void
-world_rebuild_centerzone_chunk_scenery(
-    struct World* world,
-    int mapx,
-    int mapz);
-
-void
-world_rebuild_centerzone_chunk(
-    struct World* world,
-    int mapx,
-    int mapz);
-
-void
-world_rebuild_centerzone_end(struct World* world);
-
-void
-world_contour_ground(struct World* world);
-
-void
-world_apply_wall_decor_offsets(struct World* world);
 
 void
 world_set_painters_cullmap(

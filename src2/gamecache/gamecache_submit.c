@@ -9,8 +9,6 @@
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables_dat/animframe.h"
-#include "toridraw/toridraw_animation.h"
-#include "toridraw_cachemodel.h"
 
 struct SubmitSequenceCtx
 {
@@ -114,7 +112,8 @@ gamecache_submit_animation_from_dat1(
     if( !abf )
         return;
 
-    struct ToriDraw_Animation* anim = toridraw_animation_new_from_cache_dat_animbaseframes(abf);
+    struct GameCache_Animation* anim =
+        gamecache_animation_new_from_cache_dat_animbaseframes(abf);
     if( !anim )
         return;
 
@@ -135,16 +134,21 @@ gamecache_submit_model_from_dat1(
     if( !copy )
         return;
 
-    struct ToriDraw_Model* td = toridraw_model_new_from_cache_model(copy);
+    struct GameCache_Model* gc_model = gamecache_model_new_from_cache_model(copy);
     model_free(copy);
-    if( !td )
+    if( !gc_model )
         return;
 
-    struct ToriDraw_ModelHandle hnd = {
-        .kind = TORIDRAWMK_MODEL,
-        .u.model.model = td,
-    };
-    gamecache_model_add(gamecache, model_id, hnd);
+    gamecache_model_add(gamecache, model_id, gc_model);
+}
+
+void
+gamecache_submit_texture(
+    struct GameCache* gamecache,
+    int texture_id,
+    struct GameCache_Texture* texture)
+{
+    gamecache_texture_add(gamecache, texture_id, texture);
 }
 
 void

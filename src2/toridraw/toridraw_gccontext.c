@@ -858,15 +858,11 @@ toridraw_gc_events(struct ToriDraw_Context* gc)
 void
 toridraw_gc_frame_end(struct ToriDraw_Context* gc)
 {
-    if( !gc )
-        return;
-
     for( int i = 0; i < gc->pending_pose_count; i++ )
     {
         if( gc->pending_poses[i].model )
             toridraw_model_free(gc->pending_poses[i].model);
     }
     gc->pending_pose_count = 0;
-
     gc->event_queue.count = 0;
 }

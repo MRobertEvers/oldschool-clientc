@@ -386,12 +386,10 @@ LibToriPlatformX_LuaHost_Game_Runescape_BuildWorld(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
         (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !lua )
-        return 0;
+    assert(lua && "Lua state is NULL");
 
     struct LibToriRS_Instance* instance = lua->instance;
-    if( !instance )
-        return 0;
+    assert(instance && "Instance is NULL");
 
     LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(instance);
 
@@ -403,16 +401,13 @@ LibToriPlatformX_LuaHost_Game_ModelViewer_GetGameHandle(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
         (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !lua )
-        return 0;
+    assert(lua && "Lua state is NULL");
 
     struct LibToriRS_Instance* instance = lua->instance;
-    if( !instance )
-        return 0;
+    assert(instance && "Instance is NULL");
 
     struct GameHandle* handle = LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(instance);
-    if( !handle )
-        return 0;
+    assert(handle && "Handle is NULL");
 
     lua_pushlightuserdata(L, handle);
     return 1;
@@ -423,12 +418,10 @@ LibToriPlatformX_LuaHost_Game_CoreTask_Dat1LoadModelNativeInt(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
         (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !lua )
-        return 0;
+    assert(lua && "Lua state is NULL");
 
     struct LibToriRS_Instance* instance = lua->instance;
-    if( !instance )
-        return 0;
+    assert(instance && "Instance is NULL");
 
     struct GameHandle* game = (struct GameHandle*)lua_touserdata(L, 1);
     int model_id = (int)lua_tointeger(L, 2);
@@ -443,12 +436,10 @@ LibToriPlatformX_LuaHost_Game_CoreTask_RevConfigLoad(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
         (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !lua )
-        return 0;
+    assert(lua && "Lua state is NULL");
 
     struct LibToriRS_Instance* instance = lua->instance;
-    if( !instance )
-        return 0;
+    assert(instance && "Instance is NULL");
 
     struct GameHandle* game = (struct GameHandle*)lua_touserdata(L, 1);
 
@@ -472,18 +463,10 @@ LibToriPlatformX_LuaHost_Game_RunTasks(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
         (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !lua )
-    {
-        lua_pushboolean(L, 0);
-        return 1;
-    }
+    assert(lua && "Lua state is NULL");
 
     struct LibToriRS_Instance* instance = lua->instance;
-    if( !instance )
-    {
-        lua_pushboolean(L, 0);
-        return 1;
-    }
+    assert(instance && "Instance is NULL");
 
     bool all_done = LibToriRS_ScriptAPI_RunTasks(instance);
     lua_pushboolean(L, all_done);

@@ -3,11 +3,11 @@
 
 #include "heightmap.h"
 #include "sharelight_map.h"
+#include "toridraw/toridraw_gccontext.h"
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_lighting.h"
 #include "toridraw/toridraw_model.h"
-#include "world.h"
-#include "toridraw/toridraw_gccontext.h"
+#include "world_builder.h"
 
 #include <assert.h>
 #include <math.h>
@@ -194,30 +194,31 @@ merge_normals(
 #define ADJACENT_TILES_COUNT 48
 
 static void
-defaultlight_build(struct World* world)
+defaultlight_build(struct WorldBuilder* builder)
 {
+    struct World* world = builder->world;
     struct ToriDraw_GCElement* scene_element = NULL;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
 
-    for( int sx = 0; sx < world->sharelight_map->width; sx++ )
+    for( int sx = 0; sx < builder->sharelight_map->width; sx++ )
     {
-        for( int sz = 0; sz < world->sharelight_map->height; sz++ )
+        for( int sz = 0; sz < builder->sharelight_map->height; sz++ )
         {
             for( int slevel = 0; slevel < WORLD_MAP_TERRAIN_LEVELS; slevel++ )
             {
-                map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
+                map_tile = sharelight_map_tile_at(builder->sharelight_map, sx, sz, slevel);
                 assert(map_tile && "Sharelight map tile must be valid");
 
                 for( int32_t pi = map_tile->defaultlight_head; pi != -1;
-                     pi = world->sharelight_map->pool[pi].next )
+                     pi = builder->sharelight_map->pool[pi].next )
                 {
-                    map_element = &world->sharelight_map->pool[pi].element;
+                    map_element = &builder->sharelight_map->pool[pi].element;
                     if( map_element->element_idx == -1 )
                         continue;
 
                     scene_element =
-                        toridraw_gc_element_get(world->context, map_element->element_idx);
+                        toridraw_gc_element_get(builder->context, map_element->element_idx);
                     if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                         !scene_element->model.u.model.model )
                         continue;
@@ -231,9 +232,7 @@ defaultlight_build(struct World* world)
                         .u.model.model = dm,
                     };
                     toridraw_light_model_default(
-                        hnd,
-                        map_element->light_attenuation,
-                        map_element->light_ambient);
+                        hnd, map_element->light_attenuation, map_element->light_ambient);
                     toridraw_model_free_normals(dm);
                 }
             }
@@ -245,26 +244,26 @@ defaultlight_build(struct World* world)
 
 static void
 alloc_normals_for_column(
-    struct World* world,
+    struct WorldBuilder* builder,
     int sx)
 {
+    struct World* world = builder->world;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
     struct ToriDraw_GCElement* scene_element = NULL;
 
-    for( int sz = 0; sz < world->sharelight_map->height; sz++ )
+    for( int sz = 0; sz < builder->sharelight_map->height; sz++ )
     {
         for( int slevel = 0; slevel < WORLD_MAP_TERRAIN_LEVELS; slevel++ )
         {
-            map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
+            map_tile = sharelight_map_tile_at(builder->sharelight_map, sx, sz, slevel);
             if( !map_tile )
                 continue;
             for( int32_t pi = map_tile->sharelight_head; pi != -1;
-                 pi = world->sharelight_map->pool[pi].next )
+                 pi = builder->sharelight_map->pool[pi].next )
             {
-                map_element = &world->sharelight_map->pool[pi].element;
-                scene_element =
-                    toridraw_gc_element_get(world->context, map_element->element_idx);
+                map_element = &builder->sharelight_map->pool[pi].element;
+                scene_element = toridraw_gc_element_get(builder->context, map_element->element_idx);
                 if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                     !scene_element->model.u.model.model )
                     continue;
@@ -292,9 +291,10 @@ sharelight_should_hide_faces_for_merge(
 
 static void
 merge_column(
-    struct World* world,
+    struct WorldBuilder* builder,
     int sx)
 {
+    struct World* world = builder->world;
     struct TileCoord adjacent_tiles[ADJACENT_TILES_COUNT];
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapTile* adjacent_map_tile = NULL;
@@ -303,27 +303,26 @@ merge_column(
     struct ToriDraw_GCElement* scene_element = NULL;
     struct ToriDraw_GCElement* adjacent_scene_element = NULL;
 
-    for( int sz = 0; sz < world->sharelight_map->height; sz++ )
+    for( int sz = 0; sz < builder->sharelight_map->height; sz++ )
     {
         for( int slevel = 0; slevel < WORLD_MAP_TERRAIN_LEVELS; slevel++ )
         {
-            map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
+            map_tile = sharelight_map_tile_at(builder->sharelight_map, sx, sz, slevel);
             if( !map_tile )
                 continue;
 
             for( int32_t pi = map_tile->sharelight_head; pi != -1;
-                 pi = world->sharelight_map->pool[pi].next )
+                 pi = builder->sharelight_map->pool[pi].next )
             {
-                map_element = &world->sharelight_map->pool[pi].element;
-                scene_element =
-                    toridraw_gc_element_get(world->context, map_element->element_idx);
+                map_element = &builder->sharelight_map->pool[pi].element;
+                scene_element = toridraw_gc_element_get(builder->context, map_element->element_idx);
                 if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                     !scene_element->model.u.model.model )
                     continue;
 
                 int adjacent_tiles_count = gather_adjacent_tiles(
-                    world->sharelight_map->width,
-                    world->sharelight_map->height,
+                    builder->sharelight_map->width,
+                    builder->sharelight_map->height,
                     adjacent_tiles,
                     ADJACENT_TILES_COUNT,
                     sx,
@@ -336,19 +335,19 @@ merge_column(
                 {
                     struct TileCoord adjacent_tile_coord = adjacent_tiles[j];
                     adjacent_map_tile = sharelight_map_tile_at(
-                        world->sharelight_map,
+                        builder->sharelight_map,
                         adjacent_tile_coord.x,
                         adjacent_tile_coord.z,
                         adjacent_tile_coord.level);
                     for( int32_t kidx = adjacent_map_tile->sharelight_head; kidx != -1;
-                         kidx = world->sharelight_map->pool[kidx].next )
+                         kidx = builder->sharelight_map->pool[kidx].next )
                     {
-                        adjacent_map_element = &world->sharelight_map->pool[kidx].element;
+                        adjacent_map_element = &builder->sharelight_map->pool[kidx].element;
                         if( adjacent_map_element->element_idx == map_element->element_idx )
                             continue;
 
                         adjacent_scene_element = toridraw_gc_element_get(
-                            world->context, adjacent_map_element->element_idx);
+                            builder->context, adjacent_map_element->element_idx);
                         if( !adjacent_scene_element ||
                             adjacent_scene_element->model.kind != TORIDRAWMK_MODEL ||
                             !adjacent_scene_element->model.u.model.model )
@@ -379,8 +378,7 @@ merge_column(
                             continue;
 
                         bool hide_faces = sharelight_should_hide_faces_for_merge(
-                            slevel,
-                            adjacent_tile_coord.level);
+                            slevel, adjacent_tile_coord.level);
 
                         merge_normals(
                             dm,
@@ -402,27 +400,27 @@ merge_column(
 
 static void
 apply_and_free_column(
-    struct World* world,
+    struct WorldBuilder* builder,
     int sx)
 {
+    struct World* world = builder->world;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
     struct ToriDraw_GCElement* scene_element = NULL;
 
-    for( int sz = 0; sz < world->sharelight_map->height; sz++ )
+    for( int sz = 0; sz < builder->sharelight_map->height; sz++ )
     {
         for( int slevel = 0; slevel < WORLD_MAP_TERRAIN_LEVELS; slevel++ )
         {
-            map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
+            map_tile = sharelight_map_tile_at(builder->sharelight_map, sx, sz, slevel);
             if( !map_tile )
                 continue;
 
             for( int32_t pi = map_tile->sharelight_head; pi != -1;
-                 pi = world->sharelight_map->pool[pi].next )
+                 pi = builder->sharelight_map->pool[pi].next )
             {
-                map_element = &world->sharelight_map->pool[pi].element;
-                scene_element =
-                    toridraw_gc_element_get(world->context, map_element->element_idx);
+                map_element = &builder->sharelight_map->pool[pi].element;
+                scene_element = toridraw_gc_element_get(builder->context, map_element->element_idx);
                 if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                     !scene_element->model.u.model.model )
                     continue;
@@ -436,9 +434,9 @@ apply_and_free_column(
                 light_ambient += map_element->light_ambient;
                 light_attenuation += (map_element->light_attenuation & 0xff) * 5;
 
-                int light_magnitude = (int)sqrt(
-                    (double)(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y +
-                             lightsrc_z * lightsrc_z));
+                int light_magnitude =
+                    (int)sqrt((double)(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y +
+                                       lightsrc_z * lightsrc_z));
                 int attenuation = (light_attenuation * light_magnitude) >> 8;
 
                 struct ToriDraw_Model* dm = scene_element->model.u.model.model;
@@ -474,33 +472,33 @@ apply_and_free_column(
 }
 
 static void
-world_build_lighting(struct World* world)
+world_build_lighting(struct WorldBuilder* builder)
 {
-    if( !world->sharelight_map )
+    if( !builder->sharelight_map )
         return;
 
-    int scene_size = world->sharelight_map->width;
+    int scene_size = builder->sharelight_map->width;
 
     int initial_cols =
         scene_size < SHARELIGHT_MERGE_LOOKAHEAD + 1 ? scene_size : SHARELIGHT_MERGE_LOOKAHEAD + 1;
     for( int sx = 0; sx < initial_cols; sx++ )
-        alloc_normals_for_column(world, sx);
+        alloc_normals_for_column(builder, sx);
 
     for( int sx = 0; sx < scene_size; sx++ )
     {
         int alloc_sx = sx + SHARELIGHT_MERGE_LOOKAHEAD;
         if( alloc_sx < scene_size && alloc_sx >= initial_cols )
-            alloc_normals_for_column(world, alloc_sx);
+            alloc_normals_for_column(builder, alloc_sx);
 
-        merge_column(world, sx);
+        merge_column(builder, sx);
 
         if( sx >= 1 )
-            apply_and_free_column(world, sx - 1);
+            apply_and_free_column(builder, sx - 1);
     }
 
-    apply_and_free_column(world, scene_size - 1);
+    apply_and_free_column(builder, scene_size - 1);
 
-    defaultlight_build(world);
+    defaultlight_build(builder);
 }
 
 #endif

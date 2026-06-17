@@ -10,6 +10,7 @@
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "scripting/libtorirs_scripting.h"
 #include "toridraw/toridraw_gccontext.h"
+#include "toridrawx/toridrawx.h"
 #include "world/world.h"
 
 #include <stdbool.h>
@@ -43,6 +44,7 @@ struct LibToriRS_Instance
 
     struct ToriDraw_Context* context;
     struct GameCacheL* gamecache_l;
+    struct ToriDrawX* toridrawx;
 
     enum GameHandleKind active_game_kind;
     struct GameModelViewer* model_viewer;

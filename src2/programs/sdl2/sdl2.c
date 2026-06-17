@@ -177,7 +177,6 @@ main(
             printf("Failed to init soft3d renderer\n");
             goto error_exit;
         }
-        LibToriRS_SetCpuAnimation(instance, true);
     }
 #if defined(_WIN32)
     else if( !LibToriPlatformSDL2_InitForD3D9(platform, screen_w, screen_h) )
@@ -239,7 +238,6 @@ main(
 
         LibToriPlatformSDL2_PollEvents(platform, command_queue);
         LibToriRS_TickInput(instance, command_queue, time);
-        LibToriRS_TickAnimation(instance, time);
 
         if( !LibToriRS_IsRunning(instance) )
             break;

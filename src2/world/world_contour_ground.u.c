@@ -4,31 +4,34 @@
 #include "contour_ground.h"
 #include "gamecache/gamecache.h"
 #include "heightmap.h"
-#include "world.h"
+#include "toridraw/toridraw_model_transform.h"
+#include "world_builder.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
 void
-world_contour_ground(struct World* world)
+world_contour_ground(struct WorldBuilder* builder)
 {
-    int n = world->contour_ground_queue_count;
-    if( n <= 0 || !world->contour_ground_queue )
+    struct World* world = builder->world;
+    int n = builder->contour_ground_queue_count;
+    if( n <= 0 || !builder->contour_ground_queue )
         return;
 
     struct Heightmap* hm = world->heightmap;
 
     for( int ri = 0; ri < n; ri++ )
     {
-        struct ContourGroundQueueEntry* r = &world->contour_ground_queue[ri];
+        struct ContourGroundQueueEntry* r = &builder->contour_ground_queue[ri];
         if( r->element_id < 0 )
             continue;
 
-        struct ToriDraw_GCElement* el = toridraw_gc_element_get(world->context, r->element_id);
+        struct ToriDraw_GCElement* el = toridraw_gc_element_get(builder->context, r->element_id);
         if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
             continue;
 
-        struct GameCache_Location* config_loc = gamecache_location_get(world->gamecache, r->loc_id);
+        struct GameCache_Location* config_loc =
+            gamecache_location_get(builder->gamecache, r->loc_id);
         if( !config_loc || config_loc->contour_ground_type == 0 )
             continue;
 
@@ -107,7 +110,7 @@ world_contour_ground(struct World* world)
         toridraw_model_set_bounds_cylinder(dm);
     }
 
-    world->contour_ground_queue_count = 0;
+    builder->contour_ground_queue_count = 0;
 }
 
 #endif

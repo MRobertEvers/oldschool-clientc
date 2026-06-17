@@ -6,7 +6,7 @@
 #include "buildcache/dat1_buildcache.h"
 #include "gamecache/gamecache.h"
 #include "gamecache/gamecache_l.h"
-#include "gamecache/toridraw_cachemodel.h"
+#include "gamecache/gamecache_submit.h"
 #include "games/runescape.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/rscache/cache_dat.h"
@@ -28,6 +28,8 @@
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_types.h"
+#include "toridrawx/toridrawx.h"
+#include "world/world.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -157,17 +159,17 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
         {
             printf("cache_texture: %p\n", cache_texture);
         }
-        struct ToriDraw_Texture* toridraw_texture = texture_new_toridraw_from_texture_sprite(
-            cache_texture, animation_direction, animation_speed, false, false);
+        struct GameCache_Texture* gc_texture = gamecache_texture_new_from_cache_dat_texture(
+            cache_texture, animation_direction, animation_speed);
         cache_dat_texture_free(cache_texture);
-        if( !toridraw_texture )
+        if( !gc_texture )
         {
-            printf("texture_new_toridraw_from_texture_sprite failed for texture %d\n", i);
+            printf("gamecache_texture_new_from_cache_dat_texture failed for texture %d\n", i);
             assert(false);
             continue;
         }
 
-        dat1_buildcache_texture_set(dat1(instance->gamecache_l), i, toridraw_texture);
+        gamecache_submit_texture(gamecache(instance->gamecache_l), i, gc_texture);
     }
 
     filelist_dat_free(filelist);
@@ -200,27 +202,11 @@ LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(
     int model_id)
 {
     printf("LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel\n");
-    if( !instance )
+    if( !instance || !instance->toridrawx )
         return;
 
-    struct CacheModel* model = dat1_buildcache_model_get(dat1(instance->gamecache_l), model_id);
-    if( !model )
-        return;
-
-    struct CacheModel* copy = model_new_copy(model);
-    if( !copy )
-        return;
-
-    struct ToriDraw_Model* td = toridraw_model_new_from_cache_model(copy);
-    model_free(copy);
-    if( !td )
-        return;
-
-    struct ToriDraw_ModelHandle hnd = {
-        .kind = TORIDRAWMK_MODEL,
-        .u.model.model = td,
-    };
-    gamecache_model_add(gamecache(instance->gamecache_l), model_id, hnd);
+    toridrawx_submit_model_from_dat1(instance->toridrawx, model_id);
+    toridrawx_model(instance->toridrawx, model_id);
 }
 
 void
@@ -411,7 +397,7 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
         return;
 
     game_runescape_set_gamecache(instance->runescape, gamecache(instance->gamecache_l));
-    instance->runescape->animate_on_cpu = instance->cpu_animation;
+    game_runescape_set_toridrawx(instance->runescape, instance->toridrawx);
 
     instance->runescape_handle.kind = GAME_HANDLE_KIND_RUNESCAPE;
     instance->runescape_handle.u.runescape = instance->runescape;
@@ -535,8 +521,7 @@ LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(
     printf("LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel %d\n", model_id);
     assert(instance && "Invalid instance");
 
-    struct ToriDraw_ModelHandle hnd =
-        gamecache_model_get(gamecache(instance->gamecache_l), model_id);
+    struct ToriDraw_ModelHandle hnd = toridrawx_model(instance->toridrawx, model_id);
     if( hnd.kind != TORIDRAWMK_MODEL )
     {
         printf("Invalid model handle\n");
@@ -567,29 +552,18 @@ LibToriRS_ScriptAPI_Dat1_TexturesCleanup(struct LibToriRS_Instance* instance)
     if( !instance )
         return;
 
-    dat1_buildcache_texture_clear(dat1(instance->gamecache_l));
+    gamecache_textures_clear_all(gamecache(instance->gamecache_l));
 }
 
 void
 LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_Dat1_SubmitTextures\n");
-    if( !instance || !instance->context )
+    if( !instance || !instance->toridrawx )
         return;
 
-    struct Dat1BuildCache* buildcache = dat1(instance->gamecache_l);
-
-    for( int i = 0; i < buildcache->texture_count; i++ )
-    {
-        struct ToriDraw_Texture* texture = buildcache->textures[i];
-        if( !texture )
-            continue;
-
-        buildcache->textures[i] = NULL;
-        toridraw_gc_set_texture(instance->context, i, texture);
-    }
-
-    buildcache->texture_count = 0;
+    for( int i = 0; i < DAT1_TEXTURE_COUNT; i++ )
+        toridrawx_texture(instance->toridrawx, i);
 }
 
 void
@@ -599,6 +573,8 @@ LibToriRS_ScriptAPI_GameCache_ModelsClearAll(struct LibToriRS_Instance* instance
     if( !instance )
         return;
 
+    if( instance->context )
+        toridraw_gc_models_clear_all(instance->context);
     gamecache_models_clear_all(gamecache(instance->gamecache_l));
 }
 

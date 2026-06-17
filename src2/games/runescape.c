@@ -1,6 +1,7 @@
 #include "runescape.h"
 
 #include "../gamecache/gamecache.h"
+#include "../world/world_builder.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_math.h"
 #include "toridraw/toridraw_model.h"
@@ -120,18 +121,6 @@ game_runescape_emit_draw_element(
     rel_pos.z -= game->camera_position->z;
     rel_pos.yaw = toridraw_normalize_angle(element->world_position.yaw);
 
-    if( game->animate_on_cpu && element->animation && element->model.kind == TORIDRAWMK_MODEL )
-    {
-        struct ToriDraw_Model* model = element->model.u.model.model;
-        struct ToriDraw_Animation* anim = element->animation;
-        if( model && anim->base && element->anim_frame >= 0 &&
-            element->anim_frame < anim->frame_count )
-        {
-            toridraw_model_animate_reset(model);
-            toridraw_model_animate_frame(model, anim->base, &anim->frames[element->anim_frame]);
-        }
-    }
-
     if( game->context )
     {
         const int cull = toridraw_render_model1_project(
@@ -148,6 +137,7 @@ game_runescape_emit_draw_element(
     command->u.model.position = rel_pos;
     command->u.model.animation = element->animation;
     command->u.model.anim_frame = element->anim_frame;
+
     return true;
 }
 
@@ -199,8 +189,7 @@ game_runescape_new(
     struct ToriDraw_Context* context)
 {
     struct GameRunescape* game = calloc(1, sizeof(struct GameRunescape));
-    if( !game )
-        return NULL;
+    assert(game && "game_runescape_new: failed to allocate game");
 
     game->script_queue = script_queue;
     game->context = context;
@@ -210,11 +199,9 @@ game_runescape_new(
     game->camera_position = calloc(1, sizeof(struct ToriDraw_Position));
     game->camera = calloc(1, sizeof(struct ToriDraw_Camera));
     game->view_port = calloc(1, sizeof(struct ToriDraw_ViewPort));
-    if( !game->camera_position || !game->camera || !game->view_port )
-    {
-        game_runescape_free(game);
-        return NULL;
-    }
+    assert(game->camera_position && "game_runescape_new: failed to allocate camera position");
+    assert(game->camera && "game_runescape_new: failed to allocate camera");
+    assert(game->view_port && "game_runescape_new: failed to allocate view port");
 
     game->camera_position->z = -800;
     game->camera->fov_rpi2048 = 512;
@@ -226,25 +213,13 @@ game_runescape_new(
     game->view_port->x_center = 382;
     game->view_port->y_center = 251;
 
-    if( !game->context )
-    {
-        game_runescape_free(game);
-        return NULL;
-    }
+    assert(game->context && "game_runescape_new: failed to allocate context");
 
-    game->world = world_new(NULL, game->context);
-    if( !game->world )
-    {
-        game_runescape_free(game);
-        return NULL;
-    }
+    game->world = world_new();
+    assert(game->world && "game_runescape_new: failed to allocate world");
 
     game->painter_buffer = painter_buffer_new();
-    if( !game->painter_buffer )
-    {
-        game_runescape_free(game);
-        return NULL;
-    }
+    assert(game->painter_buffer && "game_runescape_new: failed to allocate painter buffer");
 
     return game;
 }
@@ -275,16 +250,26 @@ game_runescape_set_gamecache(
     if( !game )
         return;
     game->gamecache = gamecache;
-    if( game->world )
-        game->world->gamecache = gamecache;
+}
+
+void
+game_runescape_set_toridrawx(
+    struct GameRunescape* game,
+    struct ToriDrawX* toridrawx)
+{
+    if( !game )
+        return;
+    game->toridrawx = toridrawx;
 }
 
 void
 game_runescape_build_world(struct GameRunescape* game)
 {
-    if( !game || !game->world || game->world_built )
-        return;
-    world_rebuild_centerzone(game->world, game->zone_center_x, game->zone_center_z, 104);
+    struct WorldBuilder* builder =
+        world_builder_new(game->world, game->gamecache, game->context, game->toridrawx);
+    assert(builder && "game_runescape_build_world: failed to allocate world builder");
+    world_builder_rebuild_centerzone(builder, game->zone_center_x, game->zone_center_z, 104);
+    world_builder_free(builder);
     game->world_built = true;
 
     if( game->camera_position && game->camera )
@@ -299,64 +284,10 @@ game_runescape_build_world(struct GameRunescape* game)
 }
 
 void
-game_runescape_step_animations(
-    struct GameRunescape* game,
-    int cycles)
-{
-    if( !game || !game->context || cycles <= 0 )
-        return;
-
-    int const slot_count = toridraw_gc_element_slot_count(game->context);
-    for( int element_id = 0; element_id < slot_count; element_id++ )
-    {
-        if( !toridraw_gc_element_is_live(game->context, element_id) )
-            continue;
-
-        struct ToriDraw_GCElement* element = toridraw_gc_element_get(game->context, element_id);
-        struct ToriDraw_Animation* anim = element ? element->animation : NULL;
-        if( !element || !anim || anim->frame_count <= 0 )
-            continue;
-
-        for( int i = 0; i < cycles; i++ )
-        {
-            if( element->anim_frame >= anim->frame_count )
-            {
-                element->anim_frame = 0;
-                element->anim_cycle = 0;
-            }
-
-            element->anim_cycle++;
-
-            int delay = 1;
-            if( element->anim_frame >= 0 && element->anim_frame < anim->frame_count )
-            {
-                delay = anim->frames[element->anim_frame].delay;
-                if( delay <= 0 )
-                    delay = 1;
-            }
-
-            if( element->anim_cycle >= delay )
-            {
-                element->anim_cycle = 0;
-                element->anim_frame++;
-                if( element->anim_frame >= anim->frame_count )
-                {
-                    element->anim_frame = 0;
-                    element->anim_cycle = 0;
-                }
-            }
-        }
-    }
-}
-
-void
 game_runescape_process_input(
     struct GameRunescape* game,
     struct LibToriRS_Input* input)
 {
-    if( !game || !input )
-        return;
-
     const int move = RUNESCAPE_CAMERA_MOVEMENT_SPEED;
     const int rotate = 10;
 
@@ -385,9 +316,6 @@ game_runescape_process_input(
 void
 game_runescape_frame_begin(struct GameRunescape* game)
 {
-    if( !game )
-        return;
-
     game->frame.phase = RS_FRAME_PHASE_GC_EVENTS;
     game->frame.event_index = 0;
     game->frame.element_index = 0;
@@ -402,9 +330,6 @@ game_runescape_frame_next_command(
     struct GameRunescape* game,
     struct LibToriRS_RenderCommand* command)
 {
-    if( !game || !command )
-        return false;
-
     memset(command, 0, sizeof(*command));
 
     for( ;; )
@@ -413,7 +338,8 @@ game_runescape_frame_next_command(
         {
         case RS_FRAME_PHASE_GC_EVENTS:
         {
-            struct ToriDraw_GCEventQueue* eq = game->context ? toridraw_gc_events(game->context) : NULL;
+            struct ToriDraw_GCEventQueue* eq =
+                game->context ? toridraw_gc_events(game->context) : NULL;
             if( eq )
             {
                 while( game->frame.event_index < eq->count )
@@ -524,11 +450,7 @@ game_runescape_frame_next_command(
 void
 game_runescape_frame_end(struct GameRunescape* game)
 {
-    if( !game )
-        return;
-
-    if( game->context )
-        toridraw_gc_frame_end(game->context);
+    toridraw_gc_frame_end(game->context);
 
     game->frame.phase = RS_FRAME_PHASE_DONE;
 }

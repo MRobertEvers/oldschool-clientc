@@ -2,29 +2,12 @@
 #define GAMECACHE_H
 
 #include "gamecache_types.h"
-#include "toridraw/toridraw_types.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
-struct ToriDraw_Animation;
-struct ToriDraw_AnimBase;
-struct ToriDraw_AnimFrame;
-struct ToriDraw_Context;
-struct ToriDraw_Map;
-
-struct GameCache
-{
-    struct ToriDraw_Context* context;
-    struct ToriDraw_Map* map_terrain_hmap;
-    struct ToriDraw_Map* map_scenery_hmap;
-    struct ToriDraw_Map* flotype_hmap;
-    struct ToriDraw_Map* config_loc_hmap;
-    struct ToriDraw_Map* sequences_hmap;
-};
-
 struct GameCache*
-gamecache_new(struct ToriDraw_Context* context);
+gamecache_new(void);
 
 void
 gamecache_free(struct GameCache* gamecache);
@@ -33,9 +16,9 @@ void
 gamecache_model_add(
     struct GameCache* gamecache,
     int model_id,
-    struct ToriDraw_ModelHandle model);
+    struct GameCache_Model* model);
 
-struct ToriDraw_ModelHandle
+struct GameCache_Model*
 gamecache_model_get(
     struct GameCache* gamecache,
     int model_id);
@@ -45,13 +28,32 @@ gamecache_model_has(
     struct GameCache* gamecache,
     int model_id);
 
-struct ToriDraw_ModelHandle
+struct GameCache_Model*
 gamecache_model_remove(
     struct GameCache* gamecache,
     int model_id);
 
 void
 gamecache_models_clear_all(struct GameCache* gamecache);
+
+void
+gamecache_texture_add(
+    struct GameCache* gamecache,
+    int texture_id,
+    struct GameCache_Texture* texture);
+
+struct GameCache_Texture*
+gamecache_texture_get(
+    struct GameCache* gamecache,
+    int texture_id);
+
+bool
+gamecache_texture_has(
+    struct GameCache* gamecache,
+    int texture_id);
+
+void
+gamecache_textures_clear_all(struct GameCache* gamecache);
 
 void
 gamecache_map_terrain_add(
@@ -133,12 +135,12 @@ gamecache_sequence_has(
     struct GameCache* gamecache,
     int seq_id);
 
-struct ToriDraw_Animation*
+struct GameCache_Animation*
 gamecache_sequence_primary_animation(
     struct GameCache* gamecache,
     int seq_id);
 
-struct ToriDraw_Animation*
+struct GameCache_Animation*
 gamecache_sequence_resolved_animation(
     struct GameCache* gamecache,
     int seq_id);
@@ -147,9 +149,9 @@ void
 gamecache_animation_add(
     struct GameCache* gamecache,
     int anim_id,
-    struct ToriDraw_Animation* animation);
+    struct GameCache_Animation* animation);
 
-struct ToriDraw_Animation*
+struct GameCache_Animation*
 gamecache_animation_get(
     struct GameCache* gamecache,
     int anim_id);
@@ -164,8 +166,8 @@ gamecache_sequence_resolve_frame(
     struct GameCache* gamecache,
     int seq_id,
     int frame_index,
-    const struct ToriDraw_AnimFrame** out_frame,
-    const struct ToriDraw_AnimBase** out_base,
+    const struct GameCache_AnimFrame** out_frame,
+    const struct GameCache_AnimBase** out_base,
     int* out_delay);
 
 #endif

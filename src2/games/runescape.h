@@ -5,8 +5,8 @@
 #include "../render/libtorirs_render.h"
 #include "../scripting/libtorirs_scripting.h"
 #include "../world/world.h"
-#include "toridraw/toridraw_gccontext.h"
 #include "osrs/painters.h"
+#include "toridraw/toridraw_gccontext.h"
 #include "toridraw/toridraw_types.h"
 
 #include <stdbool.h>
@@ -14,6 +14,7 @@
 
 struct GameCache;
 struct ToriDraw_Context;
+struct ToriDrawX;
 
 /* OSRS rebuild-normal zone coords: map_chunk * 8 (zone 400 -> map chunk 50). */
 #define RUNESCAPE_MAP_CHUNK_CENTER 50
@@ -35,6 +36,7 @@ struct GameRunescape
     struct GameCache* gamecache;
     struct World* world;
     struct ToriDraw_Context* context;
+    struct ToriDrawX* toridrawx;
     struct ToriDraw_Position* camera_position;
     struct ToriDraw_Camera* camera;
     struct ToriDraw_ViewPort* view_port;
@@ -44,7 +46,6 @@ struct GameRunescape
     int zone_center_x;
     int zone_center_z;
     bool world_built;
-    bool animate_on_cpu;
 
     struct
     {
@@ -71,17 +72,17 @@ game_runescape_set_gamecache(
     struct GameCache* gamecache);
 
 void
+game_runescape_set_toridrawx(
+    struct GameRunescape* game,
+    struct ToriDrawX* toridrawx);
+
+void
 game_runescape_build_world(struct GameRunescape* game);
 
 void
 game_runescape_process_input(
     struct GameRunescape* game,
     struct LibToriRS_Input* input);
-
-void
-game_runescape_step_animations(
-    struct GameRunescape* game,
-    int cycles);
 
 void
 game_runescape_frame_begin(struct GameRunescape* game);

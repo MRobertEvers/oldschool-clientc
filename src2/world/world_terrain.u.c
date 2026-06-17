@@ -12,7 +12,7 @@
 #include "terrain_shapemap.h"
 #include "toridraw/toridraw_hsl16.h"
 #include "toridraw/toridraw_model.h"
-#include "world.h"
+#include "world_builder.h"
 #include "world_decode_tile.h"
 #include "toridraw/toridraw_gccontext.h"
 
@@ -27,7 +27,7 @@
 
 static void
 world_apply_shade(
-    struct World* world,
+    struct WorldBuilder* builder,
     int level,
     int xboundmin,
     int xboundmax,
@@ -38,7 +38,7 @@ world_apply_shade(
     int zmin,
     int zmax)
 {
-    if( !world->shademap )
+    if( !builder->shademap )
         return;
 
     assert(xboundmin <= xmin);
@@ -61,16 +61,16 @@ world_apply_shade(
             shade_south = 0;
 
             int shade = 0;
-            if( shademap2_in_bounds(world->shademap, x - 1, z, level) )
-                shade_west = shademap2_get(world->shademap, x - 1, z, level);
-            if( shademap2_in_bounds(world->shademap, x + 1, z, level) )
-                shade_east = shademap2_get(world->shademap, x + 1, z, level);
-            if( shademap2_in_bounds(world->shademap, x, z + 1, level) )
-                shade_north = shademap2_get(world->shademap, x, z + 1, level);
-            if( shademap2_in_bounds(world->shademap, x, z - 1, level) )
-                shade_south = shademap2_get(world->shademap, x, z - 1, level);
+            if( shademap2_in_bounds(builder->shademap, x - 1, z, level) )
+                shade_west = shademap2_get(builder->shademap, x - 1, z, level);
+            if( shademap2_in_bounds(builder->shademap, x + 1, z, level) )
+                shade_east = shademap2_get(builder->shademap, x + 1, z, level);
+            if( shademap2_in_bounds(builder->shademap, x, z + 1, level) )
+                shade_north = shademap2_get(builder->shademap, x, z + 1, level);
+            if( shademap2_in_bounds(builder->shademap, x, z - 1, level) )
+                shade_south = shademap2_get(builder->shademap, x, z - 1, level);
 
-            int shade_center = shademap2_get(world->shademap, x, z, level);
+            int shade_center = shademap2_get(builder->shademap, x, z, level);
 
             shade = shade_center >> 1;
             shade += shade_west >> 2;
@@ -78,24 +78,25 @@ world_apply_shade(
             shade += shade_north >> 3;
             shade += shade_south >> 2;
 
-            int light = lightmap_get(world->lightmap, x, z, level);
+            int light = lightmap_get(builder->lightmap, x, z, level);
 
             int shaded = light - shade;
             if( shaded < 0 )
                 shaded = 0;
-            lightmap_set(world->lightmap, x, z, level, (uint8_t)shaded);
+            lightmap_set(builder->lightmap, x, z, level, (uint8_t)shaded);
         }
     }
 }
 
 void
-world_rebuild_centerzone_chunk_terrain(
-    struct World* world,
+world_builder_rebuild_centerzone_chunk_terrain(
+    struct WorldBuilder* builder,
     int mapx,
     int mapz)
 {
+    struct World* world = builder->world;
     int map_id = (mapx << 16) | (mapz & 0xFFFF);
-    struct GameCache_MapTerrain* map_terrain = gamecache_map_terrain_get(world->gamecache, map_id);
+    struct GameCache_MapTerrain* map_terrain = gamecache_map_terrain_get(builder->gamecache, map_id);
     assert(map_terrain && "Map terrain must be found");
 
     int scene_size = world->_scene_size;
@@ -123,7 +124,7 @@ world_rebuild_centerzone_chunk_terrain(
                 if( offset_x >= 0 && offset_z >= 0 && offset_x < scene_size &&
                     offset_z < scene_size )
                 {
-                    flag_map_set(world->flag_map, offset_x, offset_z, level, tile->settings);
+                    flag_map_set(builder->flag_map, offset_x, offset_z, level, tile->settings);
                 }
 
                 if( !(offset_x >= 0 && offset_z >= 0 && offset_x < scene_size &&
@@ -135,11 +136,11 @@ world_rebuild_centerzone_chunk_terrain(
                 if( tile->underlay_id > 0 )
                 {
                     struct GameCache_Flotype* flotype =
-                        gamecache_flotype_get(world->gamecache, tile->underlay_id - 1);
+                        gamecache_flotype_get(builder->gamecache, tile->underlay_id - 1);
                     if( flotype )
                     {
                         blendmap_set_underlay_rgb(
-                            world->blendmap,
+                            builder->blendmap,
                             offset_x,
                             offset_z,
                             level,
@@ -153,11 +154,11 @@ world_rebuild_centerzone_chunk_terrain(
                 if( overlay_id != -1 )
                 {
                     struct GameCache_Flotype* flotype =
-                        gamecache_flotype_get(world->gamecache, overlay_id);
+                        gamecache_flotype_get(builder->gamecache, overlay_id);
                     if( flotype )
                     {
                         overlaymap_set_tile_rgb(
-                            world->overlaymap,
+                            builder->overlaymap,
                             offset_x,
                             offset_z,
                             level,
@@ -167,7 +168,7 @@ world_rebuild_centerzone_chunk_terrain(
                         {
                             int texture_avg_hsl16 = palette_rgb_to_hsl16(flotype->rgb_color);
                             overlaymap_set_tile_texture(
-                                world->overlaymap,
+                                builder->overlaymap,
                                 offset_x,
                                 offset_z,
                                 level,
@@ -178,7 +179,7 @@ world_rebuild_centerzone_chunk_terrain(
                         if( flotype->secondary_rgb_color > 0 )
                         {
                             overlaymap_set_tile_minimap(
-                                world->overlaymap,
+                                builder->overlaymap,
                                 offset_x,
                                 offset_z,
                                 level,
@@ -198,7 +199,7 @@ world_rebuild_centerzone_chunk_terrain(
                     }
 
                     terrain_shape_map_set_tile(
-                        world->terrain_shapemap, offset_x, offset_z, level, shape, rotation);
+                        builder->terrain_shapemap, offset_x, offset_z, level, shape, rotation);
                 }
             }
         }
@@ -206,40 +207,41 @@ world_rebuild_centerzone_chunk_terrain(
 }
 
 static void
-world_build_scene_terrain(struct World* world)
+world_build_scene_terrain(struct WorldBuilder* builder)
 {
+    struct World* world = builder->world;
     int scene_size = world->_scene_size;
 
-    blendmap_build(world->blendmap);
-    lightmap_build(world->lightmap, world->heightmap);
+    blendmap_build(builder->blendmap);
+    lightmap_build(builder->lightmap, world->heightmap);
 
     for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
     {
-        world_apply_shade(world, level, 0, scene_size, 0, scene_size, 0, scene_size, 0, scene_size);
+        world_apply_shade(builder, level, 0, scene_size, 0, scene_size, 0, scene_size, 0, scene_size);
 
         for( int z = 1; z < scene_size - 1; z++ )
         {
             for( int x = 1; x < scene_size - 1; x++ )
             {
                 struct TerrainShapeMapTile* shape_tile =
-                    terrain_shape_map_get_tile(world->terrain_shapemap, x, z, level);
+                    terrain_shape_map_get_tile(builder->terrain_shapemap, x, z, level);
                 if( !shape_tile || !shape_tile->active )
                     continue;
 
                 struct OverlaymapTile* overlay_tile =
-                    overlaymap_get_tile(world->overlaymap, x, z, level);
+                    overlaymap_get_tile(builder->overlaymap, x, z, level);
 
                 int height_sw = heightmap_get(world->heightmap, x, z, level);
                 int height_se = heightmap_get(world->heightmap, x + 1, z, level);
                 int height_ne = heightmap_get(world->heightmap, x + 1, z + 1, level);
                 int height_nw = heightmap_get(world->heightmap, x, z + 1, level);
 
-                int light_sw = lightmap_get(world->lightmap, x, z, level);
-                int light_se = lightmap_get(world->lightmap, x + 1, z, level);
-                int light_ne = lightmap_get(world->lightmap, x + 1, z + 1, level);
-                int light_nw = lightmap_get(world->lightmap, x, z + 1, level);
+                int light_sw = lightmap_get(builder->lightmap, x, z, level);
+                int light_se = lightmap_get(builder->lightmap, x + 1, z, level);
+                int light_ne = lightmap_get(builder->lightmap, x + 1, z + 1, level);
+                int light_nw = lightmap_get(builder->lightmap, x, z + 1, level);
 
-                int32_t underlay_hsl = blendmap_get_blended_hsl16(world->blendmap, x, z, level);
+                int32_t underlay_hsl = blendmap_get_blended_hsl16(builder->blendmap, x, z, level);
                 if( underlay_hsl == BLENDMAP_HSL16_NONE )
                     underlay_hsl = TERRAIN_UNDERLAY_HSL_NONE;
 
@@ -317,16 +319,16 @@ world_build_scene_terrain(struct World* world)
                     .u.model.model = td,
                 };
 
-                int element_id = toridraw_gc_element_add(world->context);
+                int element_id = toridraw_gc_element_add(builder->context);
                 if( element_id < 0 )
                 {
                     toridraw_model_free(td);
                     continue;
                 }
 
-                toridraw_gc_element_set_model(world->context, element_id, hnd);
+                toridraw_gc_element_set_model(builder->context, element_id, hnd);
                 toridraw_gc_element_set_position(
-                    world->context, element_id, x * WORLD_TILE_SIZE, 0, z * WORLD_TILE_SIZE, 0);
+                    builder->context, element_id, x * WORLD_TILE_SIZE, 0, z * WORLD_TILE_SIZE, 0);
 
                 if( world->terrain_element_ids )
                 {
@@ -336,23 +338,6 @@ world_build_scene_terrain(struct World* world)
             }
         }
     }
-}
-
-int
-world_terrain_element_at(
-    struct World* world,
-    int x,
-    int z,
-    int level)
-{
-    if( !world || !world->terrain_element_ids )
-        return -1;
-    if( x < 0 || z < 0 || level < 0 )
-        return -1;
-    if( x >= world->_scene_size || z >= world->_scene_size || level >= WORLD_MAP_TERRAIN_LEVELS )
-        return -1;
-    int idx = x + z * world->_scene_size + level * world->_scene_size * world->_scene_size;
-    return world->terrain_element_ids[idx];
 }
 
 #endif

@@ -1,9 +1,12 @@
 #include "gamecache_types.h"
-#include "toridraw/toridraw_animation.h"
+
 #include "osrs/rscache/tables/config_floortype.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/config_sequence.h"
 #include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/tables_dat/animframe.h"
+#include "osrs/rscache/tables_dat/config_textures.h"
+#include "osrs/texture.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -56,7 +59,47 @@ gamecache_location_free(struct GameCache_Location* loc)
 }
 
 static void
-gamecache_sequence_resolved_free(struct ToriDraw_Animation* anim)
+gamecache_animbase_free(struct GameCache_AnimBase* base)
+{
+    if( !base )
+        return;
+
+    if( base->bone_groups )
+    {
+        for( int i = 0; i < base->length; i++ )
+            free(base->bone_groups[i]);
+        free(base->bone_groups);
+    }
+    free(base->bone_group_lengths);
+    free(base->types);
+    free(base);
+}
+
+void
+gamecache_animation_free(struct GameCache_Animation* anim)
+{
+    if( !anim )
+        return;
+
+    gamecache_animbase_free(anim->base);
+
+    if( anim->frames )
+    {
+        for( int i = 0; i < anim->frame_count; i++ )
+        {
+            free(anim->frames[i].groups);
+            free(anim->frames[i].x);
+            free(anim->frames[i].y);
+            free(anim->frames[i].z);
+        }
+        free(anim->frames);
+    }
+
+    free(anim);
+}
+
+static void
+gamecache_sequence_resolved_free(struct GameCache_Animation* anim)
 {
     if( !anim )
         return;
@@ -74,6 +117,129 @@ gamecache_sequence_resolved_free(struct ToriDraw_Animation* anim)
     }
 
     free(anim);
+}
+
+void
+gamecache_texture_free(struct GameCache_Texture* texture)
+{
+    if( !texture )
+        return;
+    free(texture->texels);
+    free(texture);
+}
+
+static struct GameCache_AnimBase*
+gamecache_animbase_move_from_cache(struct CacheAnimBase* cache_base)
+{
+    if( !cache_base )
+        return NULL;
+
+    struct GameCache_AnimBase* base = malloc(sizeof(struct GameCache_AnimBase));
+    if( !base )
+        return NULL;
+
+    memset(base, 0, sizeof(struct GameCache_AnimBase));
+    base->length = cache_base->length;
+    base->types = cache_base->types;
+    base->bone_groups = cache_base->labels;
+    base->bone_group_lengths = cache_base->label_counts;
+
+    cache_base->types = NULL;
+    cache_base->labels = NULL;
+    cache_base->label_counts = NULL;
+    cache_base->length = 0;
+
+    free(cache_base);
+    return base;
+}
+
+struct GameCache_Animation*
+gamecache_animation_new_from_cache_dat_animbaseframes(const void* abf_ptr)
+{
+    struct CacheDatAnimBaseFrames* abf = (struct CacheDatAnimBaseFrames*)abf_ptr;
+    if( !abf )
+        return NULL;
+
+    struct GameCache_Animation* anim = malloc(sizeof(struct GameCache_Animation));
+    if( !anim )
+        return NULL;
+
+    memset(anim, 0, sizeof(struct GameCache_Animation));
+    anim->base = gamecache_animbase_move_from_cache(abf->base);
+    abf->base = NULL;
+
+    anim->frame_count = abf->frame_count;
+    if( abf->frame_count > 0 && abf->frames )
+    {
+        anim->frames = malloc((size_t)abf->frame_count * sizeof(struct GameCache_AnimFrame));
+        if( !anim->frames )
+        {
+            gamecache_animation_free(anim);
+            free(abf->frames);
+            free(abf);
+            return NULL;
+        }
+
+        for( int i = 0; i < abf->frame_count; i++ )
+        {
+            struct CacheAnimframe* cf = &abf->frames[i];
+            struct GameCache_AnimFrame* tf = &anim->frames[i];
+            memset(tf, 0, sizeof(struct GameCache_AnimFrame));
+
+            tf->id = cf->id;
+            tf->length = cf->length;
+            tf->groups = cf->groups;
+            tf->x = cf->x;
+            tf->y = cf->y;
+            tf->z = cf->z;
+            tf->delay = cf->delay;
+
+            cf->groups = NULL;
+            cf->x = NULL;
+            cf->y = NULL;
+            cf->z = NULL;
+            cf->length = 0;
+        }
+        free(abf->frames);
+        abf->frames = NULL;
+        abf->frame_count = 0;
+    }
+
+    free(abf);
+    return anim;
+}
+
+struct GameCache_Texture*
+gamecache_texture_new_from_cache_dat_texture(
+    const void* cache_texture_ptr,
+    int animation_direction,
+    int animation_speed)
+{
+    struct CacheDatTexture* cache_texture = (struct CacheDatTexture*)cache_texture_ptr;
+    if( !cache_texture )
+        return NULL;
+
+    struct DashTexture* dash = texture_new_from_texture_sprite(
+        cache_texture, animation_direction, animation_speed, false, false);
+    if( !dash )
+        return NULL;
+
+    struct GameCache_Texture* texture = malloc(sizeof(struct GameCache_Texture));
+    if( !texture )
+    {
+        texture_free(dash);
+        return NULL;
+    }
+
+    memset(texture, 0, sizeof(struct GameCache_Texture));
+    texture->texels = dash->texels;
+    texture->width = dash->width;
+    texture->height = dash->height;
+    texture->opaque = dash->opaque;
+    texture->animation_direction = dash->animation_direction;
+    texture->animation_speed = dash->animation_speed;
+    free(dash);
+    return texture;
 }
 
 void

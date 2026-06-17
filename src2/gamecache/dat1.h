@@ -6,7 +6,7 @@
 #include "buildcache/dat1_buildcache.h"
 #include "dat1io.h"
 #include "gamecache_l.h"
-#include "src2/gamecache/toridraw_cachemodel.h"
+#include "gamecache_submit.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -47,7 +47,6 @@ Task_Dat1ModelLoad_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct CacheModel* model;
-    struct CacheModel* copy;
     int decoded_model_id;
     PT_BEGIN(&task->thread);
 
@@ -64,16 +63,7 @@ Task_Dat1ModelLoad_Run(
     }
 
     dat1_buildcache_model_add(dat1(task->gamecache_l), task->model_id, model);
-
-    copy = model_new_copy(model);
-
-    struct ToriDraw_ModelHandle hnd = {
-        .kind = TORIDRAWMK_MODEL,
-        .u.model.model = toridraw_model_new_from_cache_model(copy),
-    };
-
-    gamecache_model_add(gamecache(task->gamecache_l), task->model_id, hnd);
-    model_free(copy);
+    gamecache_submit_model_from_dat1(gamecache(task->gamecache_l), dat1(task->gamecache_l), task->model_id);
 
     PT_END(&task->thread);
 }

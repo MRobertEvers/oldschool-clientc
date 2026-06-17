@@ -505,13 +505,18 @@ toridraw_model_translate(
 void
 toridraw_model_set_bounds_cylinder(struct ToriDraw_Model* model)
 {
-    if( !model || model->vertex_count <= 0 )
-        return;
-
+    assert(model && "toridraw_model_set_bounds_cylinder: model is NULL");
     if( !model->bounds_cylinder )
         model->bounds_cylinder = calloc(1, sizeof(struct ToriDraw_BoundsCylinder));
-    if( !model->bounds_cylinder )
+    assert(
+        model->bounds_cylinder &&
+        "toridraw_model_set_bounds_cylinder: failed to allocate bounds cylinder");
+
+    if( model->vertex_count <= 0 )
+    {
+        memset(model->bounds_cylinder, 0, sizeof(struct ToriDraw_BoundsCylinder));
         return;
+    }
 
     int min_y = INT_MAX;
     int max_y = INT_MIN;

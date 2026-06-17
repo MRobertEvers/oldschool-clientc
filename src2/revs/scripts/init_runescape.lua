@@ -26,7 +26,6 @@ print("Textures submitted")
 while not Game.RunTasks() do
     Platform.LoadIO(io_queue)
 end
-print("World rebuild task complete")
 
 Game.Runescape_BuildWorld()
 print("World built")

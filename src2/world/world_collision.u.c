@@ -6,16 +6,17 @@
 #include "gamecache/gamecache_types.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/maps.h"
-#include "world.h"
+#include "world_builder.h"
 
 static void
 world_collision_add_loc(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int level = map_loc->chunk_pos_level;
     if( level < 0 || level >= COLLISION_LEVELS )
         return;
@@ -104,15 +105,16 @@ world_collision_add_loc(
 }
 
 static void
-world_collision_apply_bridges(struct World* world)
+world_collision_apply_bridges(struct WorldBuilder* builder)
 {
+    struct World* world = builder->world;
     int scene_size = world->_scene_size;
 
     for( int x = 0; x < scene_size; x++ )
     {
         for( int z = 0; z < scene_size; z++ )
         {
-            if( (flag_map_get(world->flag_map, x, z, 1) & FLOFLAG_LINK_BELOW) == 0 )
+            if( (flag_map_get(builder->flag_map, x, z, 1) & FLOFLAG_LINK_BELOW) == 0 )
                 continue;
 
             for( int i = 0; i < COLLISION_LEVELS - 1; i++ )

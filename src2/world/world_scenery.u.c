@@ -10,7 +10,8 @@
 #include "toridraw/toridraw_gccontext.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
-#include "world.h"
+#include "toridrawx/toridrawx.h"
+#include "world_builder.h"
 
 // clang-format off
 #include "world_contour_ground.u.c"
@@ -59,9 +60,10 @@ calculate_wall_decor_offset(
 }
 
 void
-world_apply_wall_decor_offsets(struct World* world)
+world_builder_apply_wall_decor_offsets(struct WorldBuilder* builder)
 {
-    if( !world || !world->decor_buildmap || !world->context )
+    struct World* world = builder->world;
+    if( !world || !builder->decor_buildmap || !builder->context )
         return;
 
     int scene_size = world->_scene_size;
@@ -72,9 +74,9 @@ world_apply_wall_decor_offsets(struct World* world)
             for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
             {
                 int wall_width =
-                    decor_buildmap_get_wall_offset(world->decor_buildmap, sx, sz, level);
+                    decor_buildmap_get_wall_offset(builder->decor_buildmap, sx, sz, level);
                 struct DecorElementsOnWall* elements =
-                    decor_buildmap_get_elements(world->decor_buildmap, sx, sz, level);
+                    decor_buildmap_get_elements(builder->decor_buildmap, sx, sz, level);
 
                 for( int i = 0; i < elements->count; i++ )
                 {
@@ -82,7 +84,7 @@ world_apply_wall_decor_offsets(struct World* world)
                     int displacement_kind = elements->displacement_kind[i];
                     int orientation = elements->orientation[i];
                     struct ToriDraw_GCElement* scene_element =
-                        toridraw_gc_element_get(world->context, element_id);
+                        toridraw_gc_element_get(builder->context, element_id);
                     if( !scene_element )
                         continue;
 
@@ -154,7 +156,7 @@ orientation_wall_flag_diagonal(int orientation)
 
 static void
 scenery_register_sharelight(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z,
@@ -163,8 +165,9 @@ scenery_register_sharelight(
     int size_x,
     int size_z)
 {
+    struct World* world = builder->world;
     sharelight_map_push(
-        world->sharelight_map,
+        builder->sharelight_map,
         config_loc->sharelight != 0,
         scene_x,
         scene_z,
@@ -177,8 +180,8 @@ scenery_register_sharelight(
 }
 
 static void
-world_contour_ground_queue_push(
-    struct World* world,
+world_builder_contour_ground_queue_push(
+    struct WorldBuilder* builder,
     int element_id,
     int loc_id,
     int shape_select,
@@ -190,19 +193,19 @@ world_contour_ground_queue_push(
     if( element_id < 0 )
         return;
 
-    if( world->contour_ground_queue_count >= world->contour_ground_queue_cap )
+    if( builder->contour_ground_queue_count >= builder->contour_ground_queue_cap )
     {
-        int ncap = world->contour_ground_queue_cap ? world->contour_ground_queue_cap * 2 : 512;
+        int ncap = builder->contour_ground_queue_cap ? builder->contour_ground_queue_cap * 2 : 512;
         struct ContourGroundQueueEntry* next = realloc(
-            world->contour_ground_queue, (size_t)ncap * sizeof(struct ContourGroundQueueEntry));
+            builder->contour_ground_queue, (size_t)ncap * sizeof(struct ContourGroundQueueEntry));
         if( !next )
             return;
-        world->contour_ground_queue = next;
-        world->contour_ground_queue_cap = ncap;
+        builder->contour_ground_queue = next;
+        builder->contour_ground_queue_cap = ncap;
     }
 
     struct ContourGroundQueueEntry* r =
-        &world->contour_ground_queue[world->contour_ground_queue_count++];
+        &builder->contour_ground_queue[builder->contour_ground_queue_count++];
     r->element_id = element_id;
     r->loc_id = loc_id;
     r->shape_select = shape_select;
@@ -246,7 +249,7 @@ apply_transforms(
 
 static int
 scenery_load_model(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_tile,
     struct GameCache_Location* config_loc,
     int shape_select,
@@ -256,7 +259,8 @@ scenery_load_model(
     int size_x,
     int size_z)
 {
-    int model_ids[10];
+    struct World* world = builder->world;
+    int model_ids[10] = { 0 };
     int models_count = 0;
 
     if( !config_loc->shapes )
@@ -291,10 +295,10 @@ scenery_load_model(
     if( models_count <= 0 )
         return -1;
 
-    struct ToriDraw_Model* models[10];
+    struct ToriDraw_Model* models[10] = { 0 };
     for( int i = 0; i < models_count; i++ )
     {
-        struct ToriDraw_ModelHandle hnd = gamecache_model_get(world->gamecache, model_ids[i]);
+        struct ToriDraw_ModelHandle hnd = toridrawx_model(builder->toridrawx, model_ids[i]);
         assert(hnd.kind == TORIDRAWMK_MODEL);
         models[i] = hnd.u.model.model;
     }
@@ -309,19 +313,19 @@ scenery_load_model(
 
     apply_transforms(config_loc, model, rotation, true);
 
-    int element_id = toridraw_gc_element_add(world->context);
+    int element_id = toridraw_gc_element_add(builder->context);
     assert(element_id >= 0 && "world_load_scenery_model: invalid element_id");
 
     struct ToriDraw_ModelHandle hnd = {
         .kind = TORIDRAWMK_MODEL,
         .u.model.model = model,
     };
-    toridraw_gc_element_set_model(world->context, element_id, hnd);
+    toridraw_gc_element_set_model(builder->context, element_id, hnd);
 
     if( config_loc->contour_ground_type != 0 )
     {
-        world_contour_ground_queue_push(
-            world,
+        world_builder_contour_ground_queue_push(
+            builder,
             element_id,
             map_tile->loc_id,
             shape_select,
@@ -336,7 +340,7 @@ scenery_load_model(
 
 static void
 scenery_element_position_init(
-    struct World* world,
+    struct WorldBuilder* builder,
     int element_id,
     int scene_x,
     int scene_z,
@@ -345,12 +349,13 @@ scenery_element_position_init(
     int size_z,
     int yaw)
 {
+    struct World* world = builder->world;
     struct HeightmapHeights heights;
     heightmap_get_heights_sized(
         world->heightmap, scene_x, scene_z, level, size_x, size_z, &heights);
 
     toridraw_gc_element_set_position(
-        world->context,
+        builder->context,
         element_id,
         scene_x * WORLD_TILE_SIZE + 64 * size_x,
         heights.height_center,
@@ -360,25 +365,25 @@ scenery_element_position_init(
 
 static void
 scenery_load_animation(
-    struct World* world,
+    struct WorldBuilder* builder,
     int element_id,
     int seq_id)
 {
+    struct World* world = builder->world;
     if( seq_id == -1 )
         return;
 
-    struct GameCache_Sequence* seq = gamecache_sequence_get(world->gamecache, seq_id);
+    struct GameCache_Sequence* seq = gamecache_sequence_get(builder->gamecache, seq_id);
     assert(seq && "scenery_set_animation: invalid seq_id");
 
-    toridraw_gc_element_set_animation_seq(world->context, element_id, seq_id);
+    toridraw_gc_element_set_animation_seq(builder->context, element_id, seq_id);
 
-    struct ToriDraw_GCElement* element = toridraw_gc_element_get(world->context, element_id);
+    struct ToriDraw_GCElement* element = toridraw_gc_element_get(builder->context, element_id);
     assert(element && "scenery_set_animation: invalid element_id");
 
     struct ToriDraw_Model* source = element->model.u.model.model;
 
-    struct ToriDraw_Animation* resolved =
-        gamecache_sequence_resolved_animation(world->gamecache, seq_id);
+    struct ToriDraw_Animation* resolved = toridrawx_sequence_animation(builder->toridrawx, seq_id);
     assert(resolved && "scenery_set_animation: invalid resolved animation");
 
     for( int frame = 0; frame < resolved->frame_count; frame++ )
@@ -398,27 +403,28 @@ scenery_load_animation(
             .kind = TORIDRAWMK_MODEL,
             .u.model.model = baked,
         };
-        toridraw_gc_batch_element_add_pose(world->context, element_id, frame, hnd);
+        toridraw_gc_batch_element_add_pose(builder->context, element_id, frame, hnd);
     }
 
     toridraw_model_animate_reset(source);
 
-    toridraw_gc_element_set_animation(world->context, element_id, resolved, true);
+    toridraw_gc_element_set_animation(builder->context, element_id, resolved, true);
 }
 
 static void
 scenery_add_wall_single(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
 
     int element_id = scenery_load_model(
-        world, map_loc, config_loc, LOC_SHAPE_WALL_SINGLE_SIDE, rotation, scene_x, scene_z, 1, 1);
+        builder, map_loc, config_loc, LOC_SHAPE_WALL_SINGLE_SIDE, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
         fprintf(stderr, "scenery_add_wall_single: invalid element_id=%d\n", element_id);
@@ -426,7 +432,7 @@ scenery_add_wall_single(
     }
 
     scenery_element_position_init(
-        world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
 
     painter_add_wall(
         world->painter,
@@ -438,30 +444,40 @@ scenery_add_wall_single(
         ROTATION_WALL_TYPE[orientation]);
 
     decor_buildmap_set_wall_offset(
-        world->decor_buildmap, scene_x, scene_z, map_loc->chunk_pos_level, config_loc->wall_width);
+        builder->decor_buildmap,
+        scene_x,
+        scene_z,
+        map_loc->chunk_pos_level,
+        config_loc->wall_width);
 
     if( config_loc->shadowed )
     {
         shademap2_set_wall(
-            world->shademap, scene_x, scene_z, map_loc->chunk_pos_level, map_loc->orientation, 50);
+            builder->shademap,
+            scene_x,
+            scene_z,
+            map_loc->chunk_pos_level,
+            map_loc->orientation,
+            50);
     }
 
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 }
 
 static void
 scenery_add_wall_tri_corner(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
     int element_id = scenery_load_model(
-        world, map_loc, config_loc, LOC_SHAPE_WALL_TRI_CORNER, rotation, scene_x, scene_z, 1, 1);
+        builder, map_loc, config_loc, LOC_SHAPE_WALL_TRI_CORNER, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
         fprintf(stderr, "scenery_add_wall_tri_corner: invalid element_id=%d\n", element_id);
@@ -469,7 +485,7 @@ scenery_add_wall_tri_corner(
     }
 
     scenery_element_position_init(
-        world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
 
     painter_add_wall(
         world->painter,
@@ -481,40 +497,45 @@ scenery_add_wall_tri_corner(
         ROTATION_WALL_CORNER_TYPE[orientation]);
 
     decor_buildmap_set_wall_offset(
-        world->decor_buildmap, scene_x, scene_z, map_loc->chunk_pos_level, config_loc->wall_width);
+        builder->decor_buildmap,
+        scene_x,
+        scene_z,
+        map_loc->chunk_pos_level,
+        config_loc->wall_width);
 
     if( config_loc->shadowed )
     {
         shademap2_set_wall_corner(
-            world->shademap, scene_x, scene_z, map_loc->chunk_pos_level, orientation, 50);
+            builder->shademap, scene_x, scene_z, map_loc->chunk_pos_level, orientation, 50);
     }
 
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 }
 
 static void
 scenery_add_wall_two_sides(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int orientation = map_loc->orientation;
     int rotation = orientation + 4;
     int next_orientation = (orientation + 1) & 0x3;
     int next_rotation = (rotation + 1) & 0x3;
 
     int element_id = scenery_load_model(
-        world, map_loc, config_loc, LOC_SHAPE_WALL_TWO_SIDES, rotation, scene_x, scene_z, 1, 1);
+        builder, map_loc, config_loc, LOC_SHAPE_WALL_TWO_SIDES, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
         fprintf(stderr, "scenery_add_wall_two_sides: invalid element_id=%d\n", element_id);
         abort();
     }
     scenery_element_position_init(
-        world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
     painter_add_wall(
         world->painter,
         scene_x,
@@ -524,10 +545,10 @@ scenery_add_wall_two_sides(
         WALL_A,
         ROTATION_WALL_TYPE[orientation]);
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 
     int element_id2 = scenery_load_model(
-        world,
+        builder,
         map_loc,
         config_loc,
         LOC_SHAPE_WALL_TWO_SIDES,
@@ -542,7 +563,7 @@ scenery_add_wall_two_sides(
         abort();
     }
     scenery_element_position_init(
-        world, element_id2, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id2, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
     painter_add_wall(
         world->painter,
         scene_x,
@@ -553,31 +574,36 @@ scenery_add_wall_two_sides(
         ROTATION_WALL_TYPE[next_orientation]);
 
     decor_buildmap_set_wall_offset(
-        world->decor_buildmap, scene_x, scene_z, map_loc->chunk_pos_level, config_loc->wall_width);
+        builder->decor_buildmap,
+        scene_x,
+        scene_z,
+        map_loc->chunk_pos_level,
+        config_loc->wall_width);
 
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id2, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id2, 1, 1);
 }
 
 static void
 scenery_add_wall_rect_corner(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
     int element_id = scenery_load_model(
-        world, map_loc, config_loc, LOC_SHAPE_WALL_RECT_CORNER, rotation, scene_x, scene_z, 1, 1);
+        builder, map_loc, config_loc, LOC_SHAPE_WALL_RECT_CORNER, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
         fprintf(stderr, "scenery_add_wall_rect_corner: invalid element_id=%d\n", element_id);
         abort();
     }
     scenery_element_position_init(
-        world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
 
     painter_add_wall(
         world->painter,
@@ -589,39 +615,57 @@ scenery_add_wall_rect_corner(
         ROTATION_WALL_CORNER_TYPE[orientation]);
 
     decor_buildmap_set_wall_offset(
-        world->decor_buildmap, scene_x, scene_z, map_loc->chunk_pos_level, config_loc->wall_width);
+        builder->decor_buildmap,
+        scene_x,
+        scene_z,
+        map_loc->chunk_pos_level,
+        config_loc->wall_width);
 
     if( config_loc->shadowed )
     {
         shademap2_set_wall_corner(
-            world->shademap, scene_x, scene_z, map_loc->chunk_pos_level, map_loc->orientation, 50);
+            builder->shademap,
+            scene_x,
+            scene_z,
+            map_loc->chunk_pos_level,
+            map_loc->orientation,
+            50);
     }
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 }
 
 static void
 scenery_add_wall_decor_inside(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
     int yaw = config_loc->seq_id != -1 ? 512 * orientation : 0;
 
     int element_id = scenery_load_model(
-        world, map_loc, config_loc, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, scene_x, scene_z, 1, 1);
+        builder,
+        map_loc,
+        config_loc,
+        LOC_SHAPE_WALL_DECOR_INSIDE,
+        rotation,
+        scene_x,
+        scene_z,
+        1,
+        1);
     if( element_id < 0 )
     {
         fprintf(stderr, "scenery_add_wall_decor_inside: invalid element_id=%d\n", element_id);
         abort();
     }
-    scenery_load_animation(world, element_id, config_loc->seq_id);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
     scenery_element_position_init(
-        world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
     painter_add_wall_decor(
         world->painter,
         scene_x,
@@ -633,7 +677,7 @@ scenery_add_wall_decor_inside(
         0);
 
     decor_buildmap_add_element(
-        world->decor_buildmap,
+        builder->decor_buildmap,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -642,33 +686,42 @@ scenery_add_wall_decor_inside(
         DECOR_DISPLACEMENT_KIND_STRAIGHT);
 
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 }
 
 static void
 scenery_add_wall_decor_outside(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
     int yaw = config_loc->seq_id != -1 ? 512 * orientation : 0;
 
     int element_id = scenery_load_model(
-        world, map_loc, config_loc, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, scene_x, scene_z, 1, 1);
+        builder,
+        map_loc,
+        config_loc,
+        LOC_SHAPE_WALL_DECOR_INSIDE,
+        rotation,
+        scene_x,
+        scene_z,
+        1,
+        1);
 
     if( element_id < 0 )
     {
         fprintf(stderr, "scenery_add_wall_decor_outside: invalid element_id=%d\n", element_id);
         abort();
     }
-    scenery_load_animation(world, element_id, config_loc->seq_id);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
 
     scenery_element_position_init(
-        world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
 
     painter_add_wall_decor(
         world->painter,
@@ -681,7 +734,7 @@ scenery_add_wall_decor_outside(
         0);
 
     decor_buildmap_add_element(
-        world->decor_buildmap,
+        builder->decor_buildmap,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -690,17 +743,18 @@ scenery_add_wall_decor_outside(
         DECOR_DISPLACEMENT_KIND_STRAIGHT_ONWALL_OFFSET);
 
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 }
 
 static void
 scenery_add_wall_decor_diagonal_outside(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
     int yaw = WALL_DECOR_YAW_ADJUST;
@@ -708,16 +762,24 @@ scenery_add_wall_decor_diagonal_outside(
         yaw += 512 * orientation;
 
     int element_id = scenery_load_model(
-        world, map_loc, config_loc, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, scene_x, scene_z, 1, 1);
+        builder,
+        map_loc,
+        config_loc,
+        LOC_SHAPE_WALL_DECOR_INSIDE,
+        rotation,
+        scene_x,
+        scene_z,
+        1,
+        1);
     if( element_id < 0 )
     {
         fprintf(
             stderr, "scenery_add_wall_decor_diagonal_outside: invalid element_id=%d\n", element_id);
         abort();
     }
-    scenery_load_animation(world, element_id, config_loc->seq_id);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
     scenery_element_position_init(
-        world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
     painter_add_wall_decor(
         world->painter,
         scene_x,
@@ -729,7 +791,7 @@ scenery_add_wall_decor_diagonal_outside(
         THROUGHWALL);
 
     decor_buildmap_add_element(
-        world->decor_buildmap,
+        builder->decor_buildmap,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -738,17 +800,18 @@ scenery_add_wall_decor_diagonal_outside(
         DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET);
 
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 }
 
 static void
 scenery_add_wall_decor_diagonal_inside(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int orientation = (map_loc->orientation + 2) & 0x3;
     int rotation = config_loc->seq_id != -1 ? 0 : orientation;
     int yaw = WALL_DECOR_YAW_ADJUST;
@@ -756,7 +819,15 @@ scenery_add_wall_decor_diagonal_inside(
         yaw += 512 * orientation;
 
     int element_id = scenery_load_model(
-        world, map_loc, config_loc, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, scene_x, scene_z, 1, 1);
+        builder,
+        map_loc,
+        config_loc,
+        LOC_SHAPE_WALL_DECOR_INSIDE,
+        rotation,
+        scene_x,
+        scene_z,
+        1,
+        1);
     if( element_id < 0 )
     {
         fprintf(
@@ -764,9 +835,9 @@ scenery_add_wall_decor_diagonal_inside(
         abort();
     }
 
-    scenery_load_animation(world, element_id, config_loc->seq_id);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
     scenery_element_position_init(
-        world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
     painter_add_wall_decor(
         world->painter,
         scene_x,
@@ -778,7 +849,7 @@ scenery_add_wall_decor_diagonal_inside(
         THROUGHWALL);
 
     decor_buildmap_add_element(
-        world->decor_buildmap,
+        builder->decor_buildmap,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -787,17 +858,18 @@ scenery_add_wall_decor_diagonal_inside(
         DECOR_DISPLACEMENT_KIND_DIAGONAL);
 
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 }
 
 static void
 scenery_add_wall_decor_diagonal_double(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int outside_orientation = map_loc->orientation;
     int inside_orientation = (outside_orientation + 2) & 0x3;
     int outside_rotation = config_loc->seq_id != -1 ? 0 : outside_orientation;
@@ -811,7 +883,7 @@ scenery_add_wall_decor_diagonal_double(
     }
 
     int outside_element_id = scenery_load_model(
-        world,
+        builder,
         map_loc,
         config_loc,
         LOC_SHAPE_WALL_DECOR_INSIDE,
@@ -830,7 +902,7 @@ scenery_add_wall_decor_diagonal_double(
     }
 
     int inside_element_id = scenery_load_model(
-        world,
+        builder,
         map_loc,
         config_loc,
         LOC_SHAPE_WALL_DECOR_INSIDE,
@@ -848,12 +920,12 @@ scenery_add_wall_decor_diagonal_double(
         abort();
     }
 
-    scenery_load_animation(world, outside_element_id, config_loc->seq_id);
-    scenery_load_animation(world, inside_element_id, config_loc->seq_id);
+    scenery_load_animation(builder, outside_element_id, config_loc->seq_id);
+    scenery_load_animation(builder, inside_element_id, config_loc->seq_id);
     scenery_element_position_init(
-        world, outside_element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, outside_yaw);
+        builder, outside_element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, outside_yaw);
     scenery_element_position_init(
-        world, inside_element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, inside_yaw);
+        builder, inside_element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, inside_yaw);
 
     painter_add_wall_decor(
         world->painter,
@@ -876,7 +948,7 @@ scenery_add_wall_decor_diagonal_double(
         THROUGHWALL);
 
     decor_buildmap_add_element(
-        world->decor_buildmap,
+        builder->decor_buildmap,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -885,7 +957,7 @@ scenery_add_wall_decor_diagonal_double(
         DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET);
 
     decor_buildmap_add_element(
-        world->decor_buildmap,
+        builder->decor_buildmap,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -894,49 +966,55 @@ scenery_add_wall_decor_diagonal_double(
         DECOR_DISPLACEMENT_KIND_DIAGONAL);
 
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, outside_element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, outside_element_id, 1, 1);
 
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, inside_element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, inside_element_id, 1, 1);
 }
 
 static void
 scenery_add_wall_diagonal(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int rotation = map_loc->orientation;
     int element_id = scenery_load_model(
-        world, map_loc, config_loc, LOC_SHAPE_WALL_DIAGONAL, rotation, scene_x, scene_z, 1, 1);
+        builder, map_loc, config_loc, LOC_SHAPE_WALL_DIAGONAL, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
         fprintf(stderr, "scenery_add_wall_diagonal: invalid element_id=%d\n", element_id);
         abort();
     }
     scenery_element_position_init(
-        world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
 
     painter_add_normal_scenery(
         world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 
     decor_buildmap_set_wall_offset(
-        world->decor_buildmap, scene_x, scene_z, map_loc->chunk_pos_level, config_loc->wall_width);
+        builder->decor_buildmap,
+        scene_x,
+        scene_z,
+        map_loc->chunk_pos_level,
+        config_loc->wall_width);
 
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 }
 
 static void
 scenery_add_normal(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
     int size_x = config_loc->size_x;
@@ -956,16 +1034,24 @@ scenery_add_normal(
         yaw += 512 * orientation;
 
     int element_id = scenery_load_model(
-        world, map_loc, config_loc, LOC_SHAPE_SCENERY, rotation, scene_x, scene_z, size_x, size_z);
+        builder,
+        map_loc,
+        config_loc,
+        LOC_SHAPE_SCENERY,
+        rotation,
+        scene_x,
+        scene_z,
+        size_x,
+        size_z);
     if( element_id < 0 )
     {
         fprintf(stderr, "scenery_add_normal: invalid element_id=%d\n", element_id);
         abort();
     }
-    scenery_load_animation(world, element_id, config_loc->seq_id);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
 
     scenery_element_position_init(
-        world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, yaw);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, yaw);
 
     painter_add_normal_scenery(
         world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id, size_x, size_z);
@@ -975,24 +1061,32 @@ scenery_add_normal(
     if( config_loc->shadowed )
     {
         shademap2_set_sized(
-            world->shademap, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, shade);
+            builder->shademap, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, shade);
     }
 
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, size_x, size_z);
+        builder,
+        config_loc,
+        scene_x,
+        scene_z,
+        map_loc->chunk_pos_level,
+        element_id,
+        size_x,
+        size_z);
 }
 
 static void
 scenery_add_roof(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int rotation = map_loc->orientation;
     int element_id = scenery_load_model(
-        world, map_loc, config_loc, map_loc->shape_select, rotation, scene_x, scene_z, 1, 1);
+        builder, map_loc, config_loc, map_loc->shape_select, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
         fprintf(stderr, "scenery_add_roof: invalid element_id=%d\n", element_id);
@@ -1000,50 +1094,52 @@ scenery_add_roof(
     }
 
     scenery_element_position_init(
-        world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
     painter_add_normal_scenery(
         world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 }
 
 static void
 scenery_add_floor_decoration(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     int rotation = map_loc->orientation;
     int element_id = scenery_load_model(
-        world, map_loc, config_loc, LOC_SHAPE_FLOOR_DECORATION, rotation, scene_x, scene_z, 1, 1);
+        builder, map_loc, config_loc, LOC_SHAPE_FLOOR_DECORATION, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
     {
         fprintf(stderr, "scenery_add_floor_decoration: invalid element_id=%d\n", element_id);
         abort();
     }
     scenery_element_position_init(
-        world, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
 
     painter_add_ground_decor(
         world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id);
 
     scenery_register_sharelight(
-        world, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 }
 
 void
-world_minimap_add_chunk_walls(
-    struct World* world,
+world_builder_minimap_add_chunk_walls(
+    struct WorldBuilder* builder,
     int mapx,
     int mapz)
 {
+    struct World* world = builder->world;
     if( !world->minimap )
         return;
 
     int map_id = (mapx << 16) | (mapz & 0xFFFF);
-    struct GameCache_MapLocs* map_locs = gamecache_map_scenery_get(world->gamecache, map_id);
+    struct GameCache_MapLocs* map_locs = gamecache_map_scenery_get(builder->gamecache, map_id);
     if( !map_locs )
         return;
 
@@ -1059,7 +1155,7 @@ world_minimap_add_chunk_walls(
             continue;
 
         struct GameCache_Location* config_loc =
-            gamecache_location_get(world->gamecache, map_loc->loc_id);
+            gamecache_location_get(builder->gamecache, map_loc->loc_id);
         if( !config_loc )
             continue;
 
@@ -1104,47 +1200,48 @@ world_minimap_add_chunk_walls(
 
 static void
 scenery_add(
-    struct World* world,
+    struct WorldBuilder* builder,
     struct GameCache_MapLoc* map_loc,
     struct GameCache_Location* config_loc,
     int scene_x,
     int scene_z)
 {
+    struct World* world = builder->world;
     switch( map_loc->shape_select )
     {
     case LOC_SHAPE_WALL_SINGLE_SIDE:
-        scenery_add_wall_single(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_wall_single(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     case LOC_SHAPE_WALL_TRI_CORNER:
-        scenery_add_wall_tri_corner(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_wall_tri_corner(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     case LOC_SHAPE_WALL_TWO_SIDES:
-        scenery_add_wall_two_sides(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_wall_two_sides(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     case LOC_SHAPE_WALL_RECT_CORNER:
-        scenery_add_wall_rect_corner(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_wall_rect_corner(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     case LOC_SHAPE_WALL_DECOR_INSIDE:
-        scenery_add_wall_decor_inside(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_wall_decor_inside(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     case LOC_SHAPE_WALL_DECOR_OUTSIDE:
-        scenery_add_wall_decor_outside(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_wall_decor_outside(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     case LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
-        scenery_add_wall_decor_diagonal_outside(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_wall_decor_diagonal_outside(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     case LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
-        scenery_add_wall_decor_diagonal_inside(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_wall_decor_diagonal_inside(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
-        scenery_add_wall_decor_diagonal_double(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_wall_decor_diagonal_double(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     case LOC_SHAPE_WALL_DIAGONAL:
-        scenery_add_wall_diagonal(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_wall_diagonal(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     case LOC_SHAPE_SCENERY:
     case LOC_SHAPE_SCENERY_DIAGIONAL:
-        scenery_add_normal(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_normal(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     case LOC_SHAPE_ROOF_SLOPED:
     case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
@@ -1156,10 +1253,10 @@ scenery_add(
     case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
     case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
     case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
-        scenery_add_roof(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_roof(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     case LOC_SHAPE_FLOOR_DECORATION:
-        scenery_add_floor_decoration(world, map_loc, config_loc, scene_x, scene_z);
+        scenery_add_floor_decoration(builder, map_loc, config_loc, scene_x, scene_z);
         break;
     }
 }

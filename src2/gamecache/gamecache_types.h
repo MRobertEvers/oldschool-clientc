@@ -8,7 +8,93 @@
 #define GAMECACHE_MAP_TERRAIN_Z 64
 #define GAMECACHE_MAP_TERRAIN_LEVELS 4
 
-struct ToriDraw_Animation;
+typedef int16_t gc_faceint_t;
+typedef int16_t gc_vertexint_t;
+typedef uint16_t gc_hsl16_t;
+typedef uint8_t gc_alphaint_t;
+typedef uint16_t gc_boneint_t;
+
+struct GameCache_BoundsCylinder
+{
+    int center_to_top_edge;
+    int center_to_bottom_edge;
+    int min_y;
+    int max_y;
+    int radius;
+    int min_z_depth_any_rotation;
+};
+
+struct GameCache_Bones
+{
+    int bones_count;
+    gc_boneint_t** bones;
+    gc_boneint_t* bones_sizes;
+};
+
+struct GameCache_Model
+{
+    uint8_t flags;
+    int vertex_count;
+    int face_count;
+    gc_vertexint_t* vertices_x;
+    gc_vertexint_t* vertices_y;
+    gc_vertexint_t* vertices_z;
+    gc_hsl16_t* face_colors_a;
+    gc_hsl16_t* face_colors_b;
+    gc_hsl16_t* face_colors_c;
+    gc_faceint_t* face_indices_a;
+    gc_faceint_t* face_indices_b;
+    gc_faceint_t* face_indices_c;
+    gc_faceint_t* face_textures;
+    gc_alphaint_t* face_alphas;
+    int* face_infos;
+    uint8_t* face_priorities;
+    gc_hsl16_t* face_colors;
+    int textured_face_count;
+    gc_faceint_t* textured_p_coordinate;
+    gc_faceint_t* textured_m_coordinate;
+    gc_faceint_t* textured_n_coordinate;
+    gc_faceint_t* face_texture_coords;
+    struct GameCache_Bones* vertex_bones;
+    struct GameCache_Bones* face_bones;
+    struct GameCache_BoundsCylinder* bounds_cylinder;
+};
+
+struct GameCache_AnimBase
+{
+    int length;
+    uint8_t* types;
+    uint8_t** bone_groups;
+    uint16_t* bone_group_lengths;
+};
+
+struct GameCache_AnimFrame
+{
+    int id;
+    int length;
+    int16_t* groups;
+    int16_t* x;
+    int16_t* y;
+    int16_t* z;
+    int delay;
+};
+
+struct GameCache_Animation
+{
+    struct GameCache_AnimBase* base;
+    struct GameCache_AnimFrame* frames;
+    int frame_count;
+};
+
+struct GameCache_Texture
+{
+    int* texels;
+    int width;
+    int height;
+    bool opaque;
+    int animation_direction;
+    int animation_speed;
+};
 
 struct GameCache_MapFloor
 {
@@ -108,7 +194,7 @@ struct GameCache_Sequence
     int postanim_move;
     int duplicate_behavior;
     /** Sequence-ordered animation resolved at world build; owned by this sequence. */
-    struct ToriDraw_Animation* resolved;
+    struct GameCache_Animation* resolved;
 };
 
 void
@@ -125,6 +211,27 @@ gamecache_location_free(struct GameCache_Location* loc);
 
 void
 gamecache_sequence_free(struct GameCache_Sequence* seq);
+
+void
+gamecache_model_free(struct GameCache_Model* model);
+
+void
+gamecache_animation_free(struct GameCache_Animation* anim);
+
+void
+gamecache_texture_free(struct GameCache_Texture* texture);
+
+struct GameCache_Model*
+gamecache_model_new_from_cache_model(const void* cache_model);
+
+struct GameCache_Animation*
+gamecache_animation_new_from_cache_dat_animbaseframes(const void* abf);
+
+struct GameCache_Texture*
+gamecache_texture_new_from_cache_dat_texture(
+    const void* cache_texture,
+    int animation_direction,
+    int animation_speed);
 
 struct GameCache_MapTerrain*
 gamecache_map_terrain_new_from_cache_map_terrain(const void* cache_terrain);
