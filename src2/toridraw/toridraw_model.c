@@ -1,5 +1,7 @@
 #include "toridraw_model.h"
 
+#include "toridraw.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -123,7 +125,11 @@ toridraw_context_set_texture(
     if( !ctx || id < 0 || id >= 256 )
         return;
 
-    struct ToriDraw_TextureMap* map = &ctx->texture_map;
+    struct ToriDraw_TextureState* tex = toridraw_context_tex_state(ctx);
+    if( !tex )
+        return;
+
+    struct ToriDraw_TextureMap* map = &tex->texture_map;
     struct ToriDraw_Texture* const old = map->textures[id];
 
     if( old == texture )
@@ -131,7 +137,7 @@ toridraw_context_set_texture(
 
     if( old )
     {
-        toridraw_eventqueue_push(&ctx->events, TORIDRAW_EVENT_TEX_UNLOAD, id, NULL);
+        toridraw_eventqueue_push(&tex->events, TORIDRAW_EVENT_TEX_UNLOAD, id, NULL);
         toridraw_texture_free(old);
         map->textures[id] = NULL;
     }
@@ -139,7 +145,7 @@ toridraw_context_set_texture(
     if( texture )
     {
         map->textures[id] = texture;
-        toridraw_eventqueue_push(&ctx->events, TORIDRAW_EVENT_TEX_LOAD, id, texture);
+        toridraw_eventqueue_push(&tex->events, TORIDRAW_EVENT_TEX_LOAD, id, texture);
         if( id >= map->count )
             map->count = id + 1;
     }

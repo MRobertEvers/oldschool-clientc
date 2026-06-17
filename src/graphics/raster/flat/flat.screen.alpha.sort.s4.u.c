@@ -8,11 +8,11 @@
 #include <assert.h>
 #include <stdint.h>
 
-extern int g_hsl16_to_rgb_table[65536];
+#include "graphics/shared_tables.h"
 
 static inline void
 draw_scanline_flat_screen_alpha_sort_s4_clipped(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int row_off,
     int screen_width,
     int x_start,
@@ -76,7 +76,7 @@ draw_scanline_flat_screen_alpha_sort_s4_clipped(
 
 static inline void
 draw_scanline_flat_screen_alpha_sort_s4_noclip(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int row_off,
     int x_start,
     int x_end,
@@ -133,7 +133,7 @@ draw_scanline_flat_screen_alpha_sort_s4_noclip(
 
 static inline void
 raster_flat_screen_alpha_sort_s4(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,

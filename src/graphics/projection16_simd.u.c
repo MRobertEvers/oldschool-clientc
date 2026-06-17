@@ -12,10 +12,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-extern int g_tan_table[2048];
-extern int g_cos_table[2048];
-extern int g_sin_table[2048];
-
 // This was turning out slower than the scalar version, so we're disabling it for now.
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #include "projection16_simd.neon.u.c"

@@ -2,6 +2,7 @@
 
 #include "graphics/uv_pnm.h"
 #include "platformkit/core/trspk_vbo.h"
+#include "toridraw/toridraw.h"
 #include "toridraw/toridraw_hsl16.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_types.h"
@@ -25,8 +26,10 @@ trspk_toridraw_texture_is_animated(
     if( tex_id < 0 || !ctx )
         return false;
 
-    struct ToriDraw_Texture* tex = toridraw_texturemap_get(&ctx->texture_map, tex_id);
-    return tex && tex->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE;
+    struct ToriDraw_TextureState* tex = toridraw_context_tex_state(ctx);
+    struct ToriDraw_Texture* tex_obj =
+        tex ? toridraw_texturemap_get(&tex->texture_map, tex_id) : NULL;
+    return tex_obj && tex_obj->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE;
 }
 
 static void

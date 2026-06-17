@@ -7,8 +7,7 @@
 
 #include <stdint.h>
 
-extern int g_hsl16_to_rgb_table[65536];
-extern int g_reciprocal15[4096];
+#include "graphics/shared_tables.h"
 
 /* raster_linear_alpha_s4: include span/gouraud.screen.alpha.span.u.c before this file */
 

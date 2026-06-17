@@ -4,12 +4,11 @@
 #define TORIDRAW_TRIANGLE_FLAT_U_C
 
 #include "graphics/dash_restrict.h"
+#include "graphics/shared_tables.h"
 #include "../toridraw_types.h"
 
 #include <assert.h>
 #include <stdbool.h>
-
-extern int g_hsl16_to_rgb_table[65536];
 
 // clang-format off
 #include "graphics/raster/flat/flat.screen.opaque.sort.s4.u.c"
@@ -20,7 +19,7 @@ extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
 toridraw_triangle_flat(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -61,7 +60,7 @@ toridraw_triangle_flat(
  */
 static inline void
 toridraw_triangle_face_flat_near_clip(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
     faceint_t* RESTRICT face_indices_b,
@@ -258,7 +257,7 @@ toridraw_triangle_face_flat_near_clip(
 
 static inline void
 toridraw_triangle_face_flat(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
     faceint_t* RESTRICT face_indices_b,

@@ -3,6 +3,8 @@
 #include <math.h>
 #include <stdint.h>
 
+#ifndef TORIDRAW_TABLES_PRECOMPUTED
+
 //   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
 //             for hue, 3 for saturation and 7 for lightness, bitpacked and
 //             represented as a short.
@@ -14,8 +16,13 @@ int g_tan_table[2048];
 
 int g_reciprocal15[4096];
 int g_reciprocal16[4096];
+
+#ifndef TORIDRAW_DISABLE_SIMD_TABLES
 uint16_t g_reciprocal16_simd[G_RECIPROCAL16_SIMD_LEN];
 uint32_t g_reciprocal_norm30[G_RECIPROCAL_NORM_LEN];
+#endif
+
+#endif /* !TORIDRAW_TABLES_PRECOMPUTED */
 
 int
 pix3d_set_gamma(
@@ -137,6 +144,35 @@ pix3d_init_palette(
     }
 }
 
+#ifdef TORIDRAW_TABLES_PRECOMPUTED
+
+void
+init_hsl16_to_rgb_table(void)
+{
+}
+
+void
+init_sin_table(void)
+{
+}
+
+void
+init_cos_table(void)
+{
+}
+
+void
+init_tan_table(void)
+{
+}
+
+void
+init_reciprocal16(void)
+{
+}
+
+#else /* !TORIDRAW_TABLES_PRECOMPUTED */
+
 void
 init_hsl16_to_rgb_table(void)
 {
@@ -145,7 +181,7 @@ init_hsl16_to_rgb_table(void)
 }
 
 void
-init_sin_table()
+init_sin_table(void)
 {
     // 0.0030679615 = 2 * PI / 2048
     // (int)(sin((double)i * 0.0030679615) * 65536.0);
@@ -154,7 +190,7 @@ init_sin_table()
 }
 
 void
-init_cos_table()
+init_cos_table(void)
 {
     // 0.0030679615 = 2 * PI / 2048
     // (int)(cos((double)i * 0.0030679615) * 65536.0);
@@ -163,14 +199,14 @@ init_cos_table()
 }
 
 void
-init_tan_table()
+init_tan_table(void)
 {
     for( int i = 0; i < 2048; i++ )
         g_tan_table[i] = (int)(tan((double)i * 0.0030679615) * (1 << 16));
 }
 
 void
-init_reciprocal16()
+init_reciprocal16(void)
 {
     for( int i = 1; i < 4096; i++ )
         g_reciprocal16[i] = ((1 << 16) / i);
@@ -178,9 +214,13 @@ init_reciprocal16()
     for( int i = 1; i < 4096; i++ )
         g_reciprocal15[i] = ((1 << 15) / i);
 
+#ifndef TORIDRAW_DISABLE_SIMD_TABLES
     for( int i = 1; i < G_RECIPROCAL16_SIMD_LEN; i++ )
         g_reciprocal16_simd[i] = ((1 << 16) / i);
 
     for( uint32_t i = 0; i < G_RECIPROCAL_NORM_LEN; i++ )
         g_reciprocal_norm30[i] = (uint32_t)((1u << G_RECIPROCAL_NORM_BITS) / (0x8000u + i));
+#endif
 }
+
+#endif /* TORIDRAW_TABLES_PRECOMPUTED */

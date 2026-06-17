@@ -7,7 +7,7 @@
 #include <assert.h>
 #include <stdint.h>
 
-extern int g_hsl16_to_rgb_table[65536];
+#include "graphics/shared_tables.h"
 
 /**
  * Tested on Mac M4.
@@ -17,7 +17,7 @@ extern int g_hsl16_to_rgb_table[65536];
  */
 static inline void
 draw_scanline_flat_screen_opaque_branching_s4_ordered_clipped(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
     int x_start_ish16,
@@ -68,7 +68,7 @@ draw_scanline_flat_screen_opaque_branching_s4_ordered_clipped(
 
 static inline void
 draw_scanline_flat_screen_opaque_branching_s4_ordered_noclip(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     int x_start_ish16,
     int x_end_ish16,
@@ -112,7 +112,7 @@ draw_scanline_flat_screen_opaque_branching_s4_ordered_noclip(
 
 static inline void
 raster_flat_screen_opaque_branching_s4_ordered(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -318,7 +318,7 @@ raster_flat_screen_opaque_branching_s4_ordered(
 
 static inline void
 raster_flat_screen_opaque_branching_s4(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,

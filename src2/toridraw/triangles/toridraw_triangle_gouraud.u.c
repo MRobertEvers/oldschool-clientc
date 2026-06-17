@@ -4,13 +4,11 @@
 #define TORIDRAW_TRIANGLE_GOURAUD_U_C
 
 #include "graphics/dash_restrict.h"
+#include "graphics/shared_tables.h"
 #include "../toridraw_types.h"
 
 #include <assert.h>
 #include <stdbool.h>
-
-extern int g_hsl16_to_rgb_table[65536];
-extern int g_reciprocal16[4096];
 
 // clang-format off
 #include "graphics/raster/gouraud/span/gouraud.screen.alpha.span.u.c"
@@ -22,7 +20,7 @@ extern int g_reciprocal16[4096];
 
 static inline void
 toridraw_triangle_gouraud(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -77,7 +75,7 @@ toridraw_triangle_gouraud(
 
 static inline void
 toridraw_triangle_gouraud_s1(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -134,7 +132,7 @@ toridraw_triangle_gouraud_s1(
  */
 static inline void
 toridraw_triangle_face_gouraud_near_clip(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
     faceint_t* RESTRICT face_indices_b,
@@ -383,7 +381,7 @@ toridraw_triangle_face_gouraud_near_clip(
 
 static inline void
 raster_face_gouraud_near_clipf(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
     faceint_t* RESTRICT face_indices_b,
@@ -668,7 +666,7 @@ raster_face_gouraud_near_clipf(
 
 static inline void
 toridraw_triangle_face_gouraud(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
     faceint_t* RESTRICT face_indices_b,
@@ -769,7 +767,7 @@ toridraw_triangle_face_gouraud(
 
 static inline void
 toridraw_triangle_face_gouraud_near_clip_s1(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
     faceint_t* RESTRICT face_indices_b,
@@ -1027,7 +1025,7 @@ toridraw_triangle_face_gouraud_near_clip_s1(
 
 static inline void
 toridraw_triangle_face_gouraud_s1(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
     faceint_t* RESTRICT face_indices_b,
@@ -1127,7 +1125,7 @@ toridraw_triangle_face_gouraud_s1(
 
 static inline void
 toridraw_triangle_face_gouraud_smooth(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
     faceint_t* RESTRICT face_indices_b,

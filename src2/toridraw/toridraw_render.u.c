@@ -502,8 +502,8 @@ toridraw_compute_projected_face_order(
         return;
     }
 
-    memset(context->tmp_priority_depth_sum, 0, sizeof(context->tmp_priority_depth_sum));
-    memset(context->tmp_priority_face_count, 0, sizeof(context->tmp_priority_face_count));
+    memset(context->tmp_priority_depth_sum, 0, 12 * sizeof(faceint_t));
+    memset(context->tmp_priority_face_count, 0, 12 * sizeof(faceint_t));
 
     parition_faces_by_priority(
         context->tmp_priority_faces,
@@ -524,6 +524,328 @@ toridraw_compute_projected_face_order(
         context->tmp_depth_face_count,
         context->tmp_priority_faces,
         context->tmp_priority_face_count,
+        face_count,
+        face_priorities,
+        model_min_depth,
+        model_max_depth);
+}
+
+static inline int
+bucket_sort_by_average_depth_small(
+    struct ToriDraw_Context* context,
+    int model_min_depth,
+    int num_faces,
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    const faceint_t* RESTRICT face_a,
+    const faceint_t* RESTRICT face_b,
+    const faceint_t* RESTRICT face_c)
+{
+    const int depth_levels = context->depth_levels;
+    int min_d = depth_levels;
+    int max_d = 0;
+
+    memset(context->sm_depth_offset, 0, (size_t)depth_levels * sizeof(int));
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        context->sm_face_depth[f] = -1;
+
+        const uint32_t a = face_a[f];
+        const uint32_t b = face_b[f];
+        const uint32_t c = face_c[f];
+
+        const int dx1 = vx[a] - vx[b];
+        const int dy1 = vy[a] - vy[b];
+        const int dx2 = vx[c] - vx[b];
+        const int dy2 = vy[c] - vy[b];
+
+        if( (dx1 * dy2 - dy1 * dx2) > 0 )
+        {
+            int z_sum = vz[a] + vz[b] + vz[c];
+            int depth_avg = div3_fast_fixedpoint(z_sum) + model_min_depth;
+
+            if( (unsigned int)depth_avg < (unsigned int)depth_levels )
+            {
+                context->sm_face_depth[f] = (faceint_t)depth_avg;
+                context->sm_depth_offset[depth_avg]++;
+
+                if( depth_avg < min_d )
+                    min_d = depth_avg;
+                if( depth_avg > max_d )
+                    max_d = depth_avg;
+            }
+        }
+    }
+
+    if( min_d > max_d )
+        return 0;
+
+    int total = 0;
+    for( int d = 0; d < depth_levels; d++ )
+    {
+        int count = context->sm_depth_offset[d];
+        context->sm_depth_offset[d] = total;
+        total += count;
+    }
+    context->sm_depth_offset[depth_levels] = total;
+
+    memcpy(
+        context->sm_depth_cursor,
+        context->sm_depth_offset,
+        (size_t)depth_levels * sizeof(int));
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        int depth_avg = context->sm_face_depth[f];
+        if( depth_avg < 0 )
+            continue;
+
+        int write = context->sm_depth_cursor[depth_avg]++;
+        context->sm_faces_by_depth[write] = (faceint_t)f;
+    }
+
+    return (min_d) | (max_d << 16);
+}
+
+static inline void
+parition_faces_by_priority_small(
+    struct ToriDraw_Context* context,
+    int num_faces,
+    const uint8_t* face_priorities,
+    int depth_lower_bound,
+    int depth_upper_bound)
+{
+    const int depth_levels = context->depth_levels;
+    const int max_faces = context->max_faces;
+
+    if( depth_upper_bound >= depth_levels )
+        depth_upper_bound = depth_levels - 1;
+
+    memset(context->sm_prio_count, 0, sizeof(context->sm_prio_count));
+
+    for( int depth = depth_upper_bound; depth >= depth_lower_bound; depth-- )
+    {
+        int start = context->sm_depth_offset[depth];
+        int end = context->sm_depth_offset[depth + 1];
+        for( int i = start; i < end; i++ )
+        {
+            faceint_t face_idx = context->sm_faces_by_depth[i];
+            int prio = faceprio_unpack(face_priorities, face_idx);
+            int priority_face_count = context->sm_prio_count[prio]++;
+            context->sm_prio_faces[prio * max_faces + priority_face_count] = face_idx;
+        }
+    }
+    (void)num_faces;
+}
+
+static inline int
+sort_face_draw_order_small(
+    struct ToriDraw_Context* context,
+    int* face_draw_order,
+    int num_faces,
+    const uint8_t* face_priorities,
+    int depth_lower_bound,
+    int depth_upper_bound)
+{
+    const int depth_levels = context->depth_levels;
+    const int max_faces = context->max_faces;
+    faceint_t priority_depths[12] = { 0 };
+
+    if( depth_upper_bound >= depth_levels )
+        depth_upper_bound = depth_levels - 1;
+
+    int counts[12] = { 0 };
+    for( int depth = depth_upper_bound; depth >= depth_lower_bound; depth-- )
+    {
+        int start = context->sm_depth_offset[depth];
+        int end = context->sm_depth_offset[depth + 1];
+        for( int i = start; i < end; i++ )
+        {
+            faceint_t face_idx = context->sm_faces_by_depth[i];
+            int prio = faceprio_unpack(face_priorities, face_idx);
+            int face_count = counts[prio];
+
+            if( prio < 10 )
+            {
+                priority_depths[prio] += (faceint_t)depth;
+            }
+            else if( prio == 10 )
+            {
+                context->sm_flex_prio11_face_to_depth[face_count] = depth | (face_idx << 16);
+            }
+            else if( prio == 11 )
+            {
+                context->sm_flex_prio12_face_to_depth[face_count] = depth | (face_idx << 16);
+            }
+
+            counts[prio]++;
+        }
+    }
+
+    int average_depth1_2 = 0;
+    int count1_2 = counts[1] + counts[2];
+    if( count1_2 > 0 )
+        average_depth1_2 = (priority_depths[1] + priority_depths[2]) / count1_2;
+    int average_depth3_4 = 0;
+    int count3_4 = counts[3] + counts[4];
+    if( count3_4 > 0 )
+        average_depth3_4 = (priority_depths[3] + priority_depths[4]) / count3_4;
+    int average_depth6_8 = 0;
+    int count6_8 = counts[6] + counts[8];
+    if( count6_8 > 0 )
+        average_depth6_8 = (priority_depths[6] + priority_depths[8]) / count6_8;
+
+    for( int i = 0; i < counts[11]; i++ )
+    {
+        context->sm_flex_prio11_face_to_depth[counts[10] + i] =
+            context->sm_flex_prio12_face_to_depth[i];
+    }
+    counts[10] += counts[11];
+
+    int flexible_face_index = 0;
+    int order_index = 0;
+
+    while( flexible_face_index < counts[10] &&
+           (context->sm_flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth1_2 )
+    {
+        face_draw_order[order_index++] =
+            context->sm_flex_prio11_face_to_depth[flexible_face_index] >> 16;
+        flexible_face_index++;
+    }
+
+    for( int prio = 0; prio < 3; prio++ )
+    {
+        for( int i = 0; i < counts[prio]; i++ )
+        {
+            face_draw_order[order_index++] =
+                context->sm_prio_faces[prio * max_faces + i];
+        }
+    }
+
+    while( flexible_face_index < counts[10] &&
+           (context->sm_flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth3_4 )
+    {
+        face_draw_order[order_index++] =
+            context->sm_flex_prio11_face_to_depth[flexible_face_index] >> 16;
+        flexible_face_index++;
+    }
+
+    for( int prio = 3; prio < 5; prio++ )
+    {
+        for( int i = 0; i < counts[prio]; i++ )
+        {
+            face_draw_order[order_index++] =
+                context->sm_prio_faces[prio * max_faces + i];
+        }
+    }
+
+    while( flexible_face_index < counts[10] &&
+           (context->sm_flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth6_8 )
+    {
+        face_draw_order[order_index++] =
+            context->sm_flex_prio11_face_to_depth[flexible_face_index] >> 16;
+        flexible_face_index++;
+    }
+
+    for( int prio = 5; prio < 10; prio++ )
+    {
+        for( int i = 0; i < counts[prio]; i++ )
+        {
+            face_draw_order[order_index++] =
+                context->sm_prio_faces[prio * max_faces + i];
+        }
+    }
+
+    while( flexible_face_index < counts[10] )
+    {
+        face_draw_order[order_index++] =
+            context->sm_flex_prio11_face_to_depth[flexible_face_index] >> 16;
+        flexible_face_index++;
+    }
+
+    (void)num_faces;
+    return order_index;
+}
+
+static inline void
+toridraw_compute_projected_face_order_small(
+    struct ToriDraw_Context* context,
+    struct ToriDraw_ModelHandle hnd)
+{
+    faceint_t* fia = NULL;
+    faceint_t* fib = NULL;
+    faceint_t* fic = NULL;
+    uint8_t* face_priorities = NULL;
+    int face_count = 0;
+
+    switch( hnd.kind )
+    {
+    case TORIDRAWMK_MODEL:
+    {
+        struct ToriDraw_Model* m = model_as_full(hnd);
+        fia = m->face_indices_a;
+        fib = m->face_indices_b;
+        fic = m->face_indices_c;
+        face_priorities = m->face_priorities;
+        face_count = m->face_count;
+        break;
+    }
+    default:
+        assert(0);
+        break;
+    }
+
+    const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
+    int model_min_depth = bc ? bc->min_z_depth_any_rotation : 0;
+
+    int bounds = bucket_sort_by_average_depth_small(
+        context,
+        model_min_depth,
+        face_count,
+        context->screen_vertices_x,
+        context->screen_vertices_y,
+        context->screen_vertices_z,
+        fia,
+        fib,
+        fic);
+
+    model_min_depth = bounds & 0xFFFF;
+    int model_max_depth = bounds >> 16;
+
+    if( bounds == 0 )
+    {
+        context->tmp_face_order_count = 0;
+        return;
+    }
+
+    if( !face_priorities )
+    {
+        int order_index = 0;
+        for( int depth = model_max_depth;
+             depth < context->depth_levels && depth >= model_min_depth;
+             depth-- )
+        {
+            int start = context->sm_depth_offset[depth];
+            int end = context->sm_depth_offset[depth + 1];
+            for( int j = start; j < end; j++ )
+                context->tmp_face_order[order_index++] = context->sm_faces_by_depth[j];
+        }
+        context->tmp_face_order_count = order_index;
+        return;
+    }
+
+    parition_faces_by_priority_small(
+        context,
+        face_count,
+        face_priorities,
+        model_min_depth,
+        model_max_depth);
+
+    context->tmp_face_order_count = sort_face_draw_order_small(
+        context,
+        context->tmp_face_order,
         face_count,
         face_priorities,
         model_min_depth,

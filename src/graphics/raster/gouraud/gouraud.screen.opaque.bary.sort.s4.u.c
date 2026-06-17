@@ -4,7 +4,7 @@
 #include "graphics/dash_restrict.h"
 #include "graphics/raster/gouraud/gouraud_barycentric_steps.h"
 
-extern int g_hsl16_to_rgb_table[65536];
+#include "graphics/shared_tables.h"
 
 #ifndef MIN
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

@@ -479,7 +479,7 @@ game_modelviewer_new(struct LibToriRS_ScriptQueue* script_queue)
     mv->view_port = view_port;
 
     toridraw_init();
-    mv->context = toridraw_context_new();
+    mv->context = toridraw_context_new(TORIDRAW_CTX_FULL);
     if( !mv->context )
     {
         game_modelviewer_free(mv);
@@ -515,15 +515,19 @@ game_modelviewer_free_textures(struct GameModelViewer* mv)
     if( !mv || !mv->context )
         return;
 
+    struct ToriDraw_TextureState* tex = toridraw_context_tex_state(mv->context);
+    if( !tex )
+        return;
+
     for( int i = 0; i < 256; i++ )
     {
-        struct ToriDraw_Texture* texture = mv->context->texture_map.textures[i];
+        struct ToriDraw_Texture* texture = tex->texture_map.textures[i];
         if( !texture )
             continue;
         toridraw_texture_free(texture);
-        mv->context->texture_map.textures[i] = NULL;
+        tex->texture_map.textures[i] = NULL;
     }
-    mv->context->texture_map.count = 0;
+    tex->texture_map.count = 0;
 }
 
 void
@@ -783,7 +787,10 @@ game_modelviewer_frame_next_command(
         {
             if( mv->context )
             {
-                struct ToriDraw_EventQueue* eq = &mv->context->events;
+                struct ToriDraw_TextureState* tex = toridraw_context_tex_state(mv->context);
+                struct ToriDraw_EventQueue* eq = tex ? &tex->events : NULL;
+                if( eq )
+                {
                 while( mv->frame.event_index < eq->count )
                 {
                     const struct ToriDraw_Event* ev = &eq->events[mv->frame.event_index++];
@@ -791,6 +798,7 @@ game_modelviewer_frame_next_command(
                         return true;
                 }
                 toridraw_eventqueue_clear(eq);
+                }
             }
 
             mv->frame.phase = MV_FRAME_PHASE_BEGIN_3D;
@@ -916,7 +924,11 @@ game_modelviewer_frame_end(struct GameModelViewer* mv)
         uiscene_eventqueue_clear(ueq);
 
     if( mv->context )
-        toridraw_eventqueue_clear(&mv->context->events);
+    {
+        struct ToriDraw_TextureState* tex = toridraw_context_tex_state(mv->context);
+        if( tex )
+            toridraw_eventqueue_clear(&tex->events);
+    }
 
     mv->frame.phase = MV_FRAME_PHASE_DONE;
 }

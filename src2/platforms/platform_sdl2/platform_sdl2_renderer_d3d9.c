@@ -12,6 +12,7 @@
 #include "platformkit/core/trspk_vbo.h"
 #include "platformkit/d3d9/d3d9_vertex.h"
 #include "platforms/trspk_toridraw.h"
+#include "toridraw/toridraw.h"
 #include "toridraw/toridraw_sprite.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw_model.h"
@@ -430,7 +431,9 @@ d3d9_anim_signed_for_tex(
     if( tex_id < 0 || !ctx )
         return 0.0f;
 
-    struct ToriDraw_Texture* td = toridraw_texturemap_get(&ctx->texture_map, tex_id);
+    struct ToriDraw_TextureState* tex = toridraw_context_tex_state(ctx);
+    struct ToriDraw_Texture* td =
+        tex ? toridraw_texturemap_get(&tex->texture_map, tex_id) : NULL;
     if( !td )
         return 0.0f;
 

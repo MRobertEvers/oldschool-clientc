@@ -225,38 +225,56 @@ struct ToriDraw_EventQueue
     int count;
 };
 
+struct ToriDraw_TextureState
+{
+    struct ToriDraw_TextureMap texture_map;
+    struct ToriDraw_EventQueue events;
+};
+
 struct ToriDraw_Context
 {
+    uint32_t flags;
+    int max_vertices;
+    int max_faces;
+    int depth_levels;
+    int depth_stride;
+    int priority_stride;
+
     struct ToriDraw_ModelHandle active_hnd;
 
     struct ProjectedVertex projected_vertex;
     struct ToriDraw_AABB aabb;
     struct ToriDraw_AABB cylinder_fast_aabb;
 
-    struct ToriDraw_TextureMap texture_map;
-    struct ToriDraw_EventQueue events;
+    struct ToriDraw_TextureState* tex_state;
 
-    int screen_vertices_x[4096];
-    int screen_vertices_y[4096];
-    int screen_vertices_z[4096];
-    int orthographic_vertices_x[4096];
-    int orthographic_vertices_y[4096];
-    int orthographic_vertices_z[4096];
+    int* screen_vertices_x;
+    int* screen_vertices_y;
+    int* screen_vertices_z;
+    int* orthographic_vertices_x;
+    int* orthographic_vertices_y;
+    int* orthographic_vertices_z;
 
-    faceint_t tmp_depth_face_count[1500];
-    faceint_t tmp_depth_faces[1500 * 512];
-    faceint_t tmp_priority_face_count[12];
-    faceint_t tmp_priority_depth_sum[12];
-    faceint_t tmp_priority_faces[12 * 2000];
-    int tmp_flex_prio11_face_to_depth[1024];
-    int tmp_flex_prio12_face_to_depth[512];
-    // Used to be 1024, but now we need to support larger models.
-    int tmp_face_order[4096];
+    faceint_t* tmp_depth_face_count;
+    faceint_t* tmp_depth_faces;
+    faceint_t* tmp_priority_face_count;
+    faceint_t* tmp_priority_depth_sum;
+    faceint_t* tmp_priority_faces;
+    int* tmp_flex_prio11_face_to_depth;
+    int* tmp_flex_prio12_face_to_depth;
+
+    faceint_t* sm_face_depth;
+    int* sm_depth_offset;
+    int* sm_depth_cursor;
+    faceint_t* sm_faces_by_depth;
+    int sm_prio_count[13];
+    int* sm_prio_offset;
+    faceint_t* sm_prio_faces;
+    int* sm_flex_prio11_face_to_depth;
+    int* sm_flex_prio12_face_to_depth;
+
+    int* tmp_face_order;
     int tmp_face_order_count;
-
-    faceint_t sparse_a[4096];
-    faceint_t sparse_b[4096];
-    faceint_t sparse_c[4096];
 };
 
 #define TORIDRAW_CULL_VISIBLE 0

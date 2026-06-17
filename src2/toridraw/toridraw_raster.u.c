@@ -10,7 +10,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifndef TORIDRAW_PIXEL16
 static const int g_empty_texture_texels[128 * 128] = { 0 };
+#endif
 
 enum DashModelRasterFlags
 {
@@ -29,7 +31,7 @@ enum FaceType
 struct ToriDrawModelRasterContext
 {
     uint32_t bench_flag;
-    int* pixel_buffer;
+    toripixel_t* pixel_buffer;
     int* face_infos;
     faceint_t* face_indices_a;
     faceint_t* face_indices_b;
@@ -120,7 +122,6 @@ toridraw_raster_model_face(
 
     int texture_id;
     int texture_face;
-
     int alpha = ctx->face_alphas_nullable ? (ctx->face_alphas_nullable[face]) : 0xFF;
 
     // TODO: See above comments. alpha overrides colors.
@@ -129,6 +130,7 @@ toridraw_raster_model_face(
     //     return;
     // }
 
+#ifndef TORIDRAW_PIXEL16
     const int* texels = g_empty_texture_texels;
     int texture_size = 0;
     int texture_opaque = true;
@@ -153,6 +155,7 @@ toridraw_raster_model_face(
             goto textured;
     }
     else
+#endif
     {
         // Alpha is a signed byte, but for non-textured
         // faces, we treat it as unsigned.
@@ -251,6 +254,7 @@ toridraw_raster_model_face(
                 ctx->allow_near_clip);
 
             break;
+#ifndef TORIDRAW_PIXEL16
         case FACE_TYPE_TEXTURED:
         textured:;
             assert(ctx->orthographic_vertex_x_nullable != NULL);
@@ -507,6 +511,9 @@ toridraw_raster_model_face(
             }
 
             break;
+#endif /* TORIDRAW_PIXEL16 */
+        default:
+            break;
         }
     }
 }
@@ -556,7 +563,7 @@ context_from_handle(
         ctx->screen_height = view_port->height;
         ctx->stride = view_port->stride ? view_port->stride : view_port->width;
         ctx->camera_fov = camera->fov_rpi2048;
-        ctx->texture_map = &context->texture_map;
+        ctx->texture_map = &toridraw_context_tex_state(context)->texture_map;
         ctx->flags = 0;
         if( smooth )
             ctx->flags |= RASTER_FLAG_GOURAUD_SMOOTH;
@@ -576,7 +583,7 @@ toridraw_raster_with_face_indices(
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
-    int* pixel_buffer,
+    toripixel_t* pixel_buffer,
     bool smooth)
 {
     struct ToriDrawModelRasterContext ctx;
@@ -596,7 +603,7 @@ toridraw_raster(
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
-    int* pixel_buffer,
+    toripixel_t* pixel_buffer,
     bool smooth)
 {
     switch( hnd.kind )

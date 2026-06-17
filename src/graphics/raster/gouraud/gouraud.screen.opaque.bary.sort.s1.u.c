@@ -4,7 +4,7 @@
 #include "graphics/dash_restrict.h"
 #include "graphics/raster/gouraud/gouraud_barycentric_steps.h"
 
-extern int g_hsl16_to_rgb_table[65536];
+#include "graphics/shared_tables.h"
 
 #ifndef MIN
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -15,7 +15,7 @@ extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
 draw_scanline_gouraud_screen_opaque_bary_sort_s1(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
     int y,
@@ -58,7 +58,7 @@ draw_scanline_gouraud_screen_opaque_bary_sort_s1(
 
 static inline void
 raster_gouraud_screen_opaque_bary_sort_s1(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,

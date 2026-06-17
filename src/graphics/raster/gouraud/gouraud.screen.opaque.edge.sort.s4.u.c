@@ -5,8 +5,7 @@
 
 #include <stdint.h>
 
-extern int g_hsl16_to_rgb_table[65536];
-extern int g_reciprocal15[4096];
+#include "graphics/shared_tables.h"
 
 static inline void
 draw_scanline_gouraud_screen_opaque_edge_sort_s4(
