@@ -3,7 +3,7 @@
 #include "graphics/shared_tables.h"
 
 void
-toridraw_init_math(void)
+ToriDraw_InitMath(void)
 {
     init_sin_table();
     init_cos_table();

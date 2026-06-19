@@ -21,7 +21,7 @@ struct MapEntry_SequenceAnim
 struct ToriDrawX
 {
     struct GameCacheL* gamecache_l;
-    struct ToriDraw_Context* context;
+    struct ToriDraw_Scene* scene;
     struct ToriDraw_Map* sequence_anim_hmap;
 };
 
@@ -30,14 +30,14 @@ tdx_map_new(
     int entry_size,
     int capacity)
 {
-    int buffer_size = toridraw_map_buffer_size_for(entry_size, capacity);
+    int buffer_size = ToriDraw_MapBufferSizeFor(entry_size, capacity);
     struct ToriDraw_MapConfig config = {
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
         .entry_size = entry_size,
     };
-    return toridraw_map_new(&config, 0);
+    return ToriDraw_MapNew(&config, 0);
 }
 
 static void
@@ -45,8 +45,8 @@ tdx_map_free(struct ToriDraw_Map* map)
 {
     if( !map )
         return;
-    free(toridraw_map_buffer_ptr(map));
-    toridraw_map_free(map);
+    free(ToriDraw_MapBufferPtr(map));
+    ToriDraw_MapFree(map);
 }
 
 static void
@@ -55,27 +55,27 @@ tdx_free_sequence_anims(struct ToriDraw_Map* map)
     if( !map )
         return;
 
-    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(map);
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
     struct MapEntry_SequenceAnim* entry = NULL;
-    while( (entry = (struct MapEntry_SequenceAnim*)toridraw_map_iter_next(iter)) )
+    while( (entry = (struct MapEntry_SequenceAnim*)ToriDraw_MapIterNext(iter)) )
     {
         if( entry->animation )
-            toridraw_animation_free(entry->animation);
+            ToriDraw_AnimationFree(entry->animation);
     }
-    toridraw_map_iter_free(iter);
+    ToriDraw_MapIterFree(iter);
 }
 
 struct ToriDrawX*
-toridrawx_new(
+ToriDrawX_New(
     struct GameCacheL* gamecache_l,
-    struct ToriDraw_Context* context)
+    struct ToriDraw_Scene* scene)
 {
     struct ToriDrawX* tdx = calloc(1, sizeof(struct ToriDrawX));
     if( !tdx )
         return NULL;
 
     tdx->gamecache_l = gamecache_l;
-    tdx->context = context;
+    tdx->scene = scene;
     tdx->sequence_anim_hmap = tdx_map_new(sizeof(struct MapEntry_SequenceAnim), 1024);
     if( !tdx->sequence_anim_hmap )
     {
@@ -86,7 +86,7 @@ toridrawx_new(
 }
 
 void
-toridrawx_free(struct ToriDrawX* tdx)
+ToriDrawX_Free(struct ToriDrawX* tdx)
 {
     if( !tdx )
         return;
@@ -96,21 +96,21 @@ toridrawx_free(struct ToriDrawX* tdx)
 }
 
 struct GameCacheL*
-toridrawx_gamecache_l(struct ToriDrawX* tdx)
+ToriDrawX_GamecacheL(struct ToriDrawX* tdx)
 {
     return tdx ? tdx->gamecache_l : NULL;
 }
 
 struct GameCache*
-toridrawx_gamecache(struct ToriDrawX* tdx)
+ToriDrawX_Gamecache(struct ToriDrawX* tdx)
 {
     return tdx && tdx->gamecache_l ? gamecache(tdx->gamecache_l) : NULL;
 }
 
-struct ToriDraw_Context*
-toridrawx_context(struct ToriDrawX* tdx)
+struct ToriDraw_Scene*
+ToriDrawX_Scene(struct ToriDrawX* tdx)
 {
-    return tdx ? tdx->context : NULL;
+    return tdx ? tdx->scene : NULL;
 }
 
 static struct ToriDraw_Bones*
@@ -131,7 +131,7 @@ tdx_bones_new_from_gamecache(const struct GameCache_Bones* src)
     bones->bones_sizes = calloc((size_t)src->bones_count, sizeof(boneint_t));
     if( !bones->bones || !bones->bones_sizes )
     {
-        toridraw_bones_free(bones);
+        ToriDraw_BonesFree(bones);
         return NULL;
     }
 
@@ -143,7 +143,7 @@ tdx_bones_new_from_gamecache(const struct GameCache_Bones* src)
         bones->bones[i] = malloc((size_t)src->bones_sizes[i] * sizeof(boneint_t));
         if( !bones->bones[i] )
         {
-            toridraw_bones_free(bones);
+            ToriDraw_BonesFree(bones);
             return NULL;
         }
         for( int j = 0; j < src->bones_sizes[i]; j++ )
@@ -153,69 +153,41 @@ tdx_bones_new_from_gamecache(const struct GameCache_Bones* src)
 }
 
 struct ToriDraw_Model*
-toridrawx_model_new_from_gamecache(const struct GameCache_Model* src)
+ToriDrawX_ModelNewFromGamecache(const struct GameCache_Model* src)
 {
     if( !src )
         return NULL;
 
-    struct ToriDraw_Model* dst = calloc(1, sizeof(struct ToriDraw_Model));
+    struct ToriDraw_Model* dst = ToriDraw_ModelNew(src->vertex_count, src->face_count, src->flags);
     if( !dst )
         return NULL;
 
-    dst->flags = src->flags;
-    dst->vertex_count = src->vertex_count;
-    dst->face_count = src->face_count;
     dst->textured_face_count = src->textured_face_count;
 
-#define TDX_COPY_ARRAY(DST_FIELD, SRC_FIELD, COUNT, TYPE)                                          \
-    do                                                                                             \
-    {                                                                                              \
-        if( (COUNT) > 0 && (SRC_FIELD) )                                                           \
-        {                                                                                          \
-            (DST_FIELD) = (TYPE*)malloc((size_t)(COUNT) * sizeof(TYPE));                           \
-            if( !(DST_FIELD) )                                                                     \
-                goto fail;                                                                         \
-            memcpy((DST_FIELD), (SRC_FIELD), (size_t)(COUNT) * sizeof(TYPE));                      \
-        }                                                                                          \
-    } while( 0 )
-
-    TDX_COPY_ARRAY(dst->vertices_x, src->vertices_x, src->vertex_count, vertexint_t);
-    TDX_COPY_ARRAY(dst->vertices_y, src->vertices_y, src->vertex_count, vertexint_t);
-    TDX_COPY_ARRAY(dst->vertices_z, src->vertices_z, src->vertex_count, vertexint_t);
-    TDX_COPY_ARRAY(dst->face_indices_a, src->face_indices_a, src->face_count, faceint_t);
-    TDX_COPY_ARRAY(dst->face_indices_b, src->face_indices_b, src->face_count, faceint_t);
-    TDX_COPY_ARRAY(dst->face_indices_c, src->face_indices_c, src->face_count, faceint_t);
-    TDX_COPY_ARRAY(dst->face_colors_a, src->face_colors_a, src->face_count, hsl16_t);
-    TDX_COPY_ARRAY(dst->face_colors_b, src->face_colors_b, src->face_count, hsl16_t);
-    TDX_COPY_ARRAY(dst->face_colors_c, src->face_colors_c, src->face_count, hsl16_t);
-    TDX_COPY_ARRAY(dst->face_colors, src->face_colors, src->face_count, hsl16_t);
-    TDX_COPY_ARRAY(dst->face_alphas, src->face_alphas, src->face_count, alphaint_t);
-    TDX_COPY_ARRAY(dst->face_infos, src->face_infos, src->face_count, int);
-    TDX_COPY_ARRAY(dst->face_textures, src->face_textures, src->face_count, faceint_t);
-    TDX_COPY_ARRAY(
-        dst->textured_p_coordinate,
-        src->textured_p_coordinate,
-        src->textured_face_count,
-        faceint_t);
-    TDX_COPY_ARRAY(
-        dst->textured_m_coordinate,
-        src->textured_m_coordinate,
-        src->textured_face_count,
-        faceint_t);
-    TDX_COPY_ARRAY(
-        dst->textured_n_coordinate,
-        src->textured_n_coordinate,
-        src->textured_face_count,
-        faceint_t);
-    TDX_COPY_ARRAY(dst->face_texture_coords, src->face_texture_coords, src->face_count, faceint_t);
+    TORIDRAW_MODEL_COPY(dst, vertices_x, src->vertices_x, src->vertex_count);
+    TORIDRAW_MODEL_COPY(dst, vertices_y, src->vertices_y, src->vertex_count);
+    TORIDRAW_MODEL_COPY(dst, vertices_z, src->vertices_z, src->vertex_count);
+    TORIDRAW_MODEL_COPY(dst, face_indices_a, src->face_indices_a, src->face_count);
+    TORIDRAW_MODEL_COPY(dst, face_indices_b, src->face_indices_b, src->face_count);
+    TORIDRAW_MODEL_COPY(dst, face_indices_c, src->face_indices_c, src->face_count);
+    TORIDRAW_MODEL_COPY(dst, face_colors_a, src->face_colors_a, src->face_count);
+    TORIDRAW_MODEL_COPY(dst, face_colors_b, src->face_colors_b, src->face_count);
+    TORIDRAW_MODEL_COPY(dst, face_colors_c, src->face_colors_c, src->face_count);
+    TORIDRAW_MODEL_COPY(dst, face_colors, src->face_colors, src->face_count);
+    TORIDRAW_MODEL_COPY(dst, face_alphas, src->face_alphas, src->face_count);
+    TORIDRAW_MODEL_COPY(dst, face_infos, src->face_infos, src->face_count);
+    TORIDRAW_MODEL_COPY(dst, face_textures, src->face_textures, src->face_count);
+    TORIDRAW_MODEL_COPY(dst, textured_p_coordinate, src->textured_p_coordinate, src->textured_face_count);
+    TORIDRAW_MODEL_COPY(dst, textured_m_coordinate, src->textured_m_coordinate, src->textured_face_count);
+    TORIDRAW_MODEL_COPY(dst, textured_n_coordinate, src->textured_n_coordinate, src->textured_face_count);
+    TORIDRAW_MODEL_COPY(dst, face_texture_coords, src->face_texture_coords, src->face_count);
 
     if( src->face_priorities && src->face_count > 0 )
     {
         size_t nbytes = (size_t)((src->face_count + 1) / 2);
-        dst->face_priorities = malloc(nbytes);
+        dst->face_priorities = ToriDraw_BufCopy(src->face_priorities, nbytes, 1);
         if( !dst->face_priorities )
             goto fail;
-        memcpy(dst->face_priorities, src->face_priorities, nbytes);
     }
 
     dst->vertex_bones = tdx_bones_new_from_gamecache(src->vertex_bones);
@@ -223,19 +195,16 @@ toridrawx_model_new_from_gamecache(const struct GameCache_Model* src)
 
     if( src->bounds_cylinder )
     {
-        dst->bounds_cylinder = malloc(sizeof(struct ToriDraw_BoundsCylinder));
+        dst->bounds_cylinder = ToriDraw_BufCopy(src->bounds_cylinder, 1, sizeof(struct ToriDraw_BoundsCylinder));
         if( !dst->bounds_cylinder )
             goto fail;
-        memcpy(dst->bounds_cylinder, src->bounds_cylinder, sizeof(struct ToriDraw_BoundsCylinder));
     }
 
     return dst;
 
 fail:
-    toridraw_model_free(dst);
+    ToriDraw_ModelFree(dst);
     return NULL;
-
-#undef TDX_COPY_ARRAY
 }
 
 static struct ToriDraw_AnimBase*
@@ -333,7 +302,7 @@ tdx_animframe_copy(
 }
 
 struct ToriDraw_Animation*
-toridrawx_animation_new_from_gamecache(const struct GameCache_Animation* src)
+ToriDrawX_AnimationNewFromGamecache(const struct GameCache_Animation* src)
 {
     if( !src )
         return NULL;
@@ -349,14 +318,14 @@ toridrawx_animation_new_from_gamecache(const struct GameCache_Animation* src)
         dst->frames = calloc((size_t)src->frame_count, sizeof(struct ToriDraw_AnimFrame));
         if( !dst->frames )
         {
-            toridraw_animation_free(dst);
+            ToriDraw_AnimationFree(dst);
             return NULL;
         }
         for( int i = 0; i < src->frame_count; i++ )
         {
             if( !tdx_animframe_copy(&dst->frames[i], &src->frames[i]) )
             {
-                toridraw_animation_free(dst);
+                ToriDraw_AnimationFree(dst);
                 return NULL;
             }
         }
@@ -365,7 +334,7 @@ toridrawx_animation_new_from_gamecache(const struct GameCache_Animation* src)
 }
 
 struct ToriDraw_Texture*
-toridrawx_texture_new_from_gamecache(const struct GameCache_Texture* src)
+ToriDrawX_TextureNewFromGamecache(const struct GameCache_Texture* src)
 {
     if( !src || !src->texels )
         return NULL;
@@ -391,23 +360,23 @@ toridrawx_texture_new_from_gamecache(const struct GameCache_Texture* src)
 }
 
 bool
-toridrawx_model_ready(
+ToriDrawX_ModelReady(
     struct ToriDrawX* tdx,
     int model_id)
 {
     if( !tdx )
         return false;
-    if( toridraw_gc_model_has(tdx->context, model_id) )
+    if( ToriDraw_SceneModelHas(tdx->scene, model_id) )
         return true;
-    return gamecache_model_has(toridrawx_gamecache(tdx), model_id);
+    return gamecache_model_has(ToriDrawX_Gamecache(tdx), model_id);
 }
 
 bool
-toridrawx_submit_model_from_dat1(
+ToriDrawX_SubmitModelFromDat1(
     struct ToriDrawX* tdx,
     int model_id)
 {
-    struct GameCache* gc = toridrawx_gamecache(tdx);
+    struct GameCache* gc = ToriDrawX_Gamecache(tdx);
     struct Dat1BuildCache* dat1 = dat1(tdx->gamecache_l);
 
     if( gamecache_model_has(gc, model_id) )
@@ -421,7 +390,7 @@ toridrawx_submit_model_from_dat1(
 }
 
 struct ToriDraw_ModelHandle
-toridrawx_model(
+ToriDrawX_Model(
     struct ToriDrawX* tdx,
     int model_id)
 {
@@ -429,16 +398,16 @@ toridrawx_model(
     if( !tdx )
         return none;
 
-    struct ToriDraw_ModelHandle existing = toridraw_gc_model_get(tdx->context, model_id);
+    struct ToriDraw_ModelHandle existing = ToriDraw_SceneModelGet(tdx->scene, model_id);
     if( existing.kind == TORIDRAWMK_MODEL )
         return existing;
 
-    struct GameCache* gc = toridrawx_gamecache(tdx);
+    struct GameCache* gc = ToriDrawX_Gamecache(tdx);
     struct GameCache_Model* gc_model = gamecache_model_get(gc, model_id);
     if( !gc_model )
         return none;
 
-    struct ToriDraw_Model* td_model = toridrawx_model_new_from_gamecache(gc_model);
+    struct ToriDraw_Model* td_model = ToriDrawX_ModelNewFromGamecache(gc_model);
     if( !td_model )
         return none;
 
@@ -446,62 +415,62 @@ toridrawx_model(
         .kind = TORIDRAWMK_MODEL,
         .u.model.model = td_model,
     };
-    toridraw_gc_model_add(tdx->context, model_id, hnd);
+    ToriDraw_SceneModelAdd(tdx->scene, model_id, hnd);
     return hnd;
 }
 
 struct ToriDraw_Animation*
-toridrawx_animation(
+ToriDrawX_Animation(
     struct ToriDrawX* tdx,
     int anim_id)
 {
     if( !tdx )
         return NULL;
 
-    struct ToriDraw_Animation* existing = toridraw_gc_animation_get(tdx->context, anim_id);
+    struct ToriDraw_Animation* existing = ToriDraw_SceneAnimationGet(tdx->scene, anim_id);
     if( existing )
         return existing;
 
     struct GameCache_Animation* gc_anim =
-        gamecache_animation_get(toridrawx_gamecache(tdx), anim_id);
+        gamecache_animation_get(ToriDrawX_Gamecache(tdx), anim_id);
     if( !gc_anim )
         return NULL;
 
-    struct ToriDraw_Animation* td_anim = toridrawx_animation_new_from_gamecache(gc_anim);
+    struct ToriDraw_Animation* td_anim = ToriDrawX_AnimationNewFromGamecache(gc_anim);
     if( !td_anim )
         return NULL;
 
-    toridraw_gc_animation_add(tdx->context, anim_id, td_anim);
+    ToriDraw_SceneAnimationAdd(tdx->scene, anim_id, td_anim);
     return td_anim;
 }
 
 struct ToriDraw_Animation*
-toridrawx_sequence_animation(
+ToriDrawX_SequenceAnimation(
     struct ToriDrawX* tdx,
     int seq_id)
 {
     if( !tdx )
         return NULL;
 
-    struct MapEntry_SequenceAnim* entry = (struct MapEntry_SequenceAnim*)toridraw_map_search(
+    struct MapEntry_SequenceAnim* entry = (struct MapEntry_SequenceAnim*)ToriDraw_MapSearch(
         tdx->sequence_anim_hmap, &seq_id, TORIDRAW_MAP_FIND);
     if( entry && entry->animation )
         return entry->animation;
 
-    struct GameCache* gc = toridrawx_gamecache(tdx);
+    struct GameCache* gc = ToriDrawX_Gamecache(tdx);
     struct GameCache_Animation* gc_resolved = gamecache_sequence_resolved_animation(gc, seq_id);
     if( !gc_resolved )
         return NULL;
 
-    struct ToriDraw_Animation* td_resolved = toridrawx_animation_new_from_gamecache(gc_resolved);
+    struct ToriDraw_Animation* td_resolved = ToriDrawX_AnimationNewFromGamecache(gc_resolved);
     if( !td_resolved )
         return NULL;
 
-    entry = (struct MapEntry_SequenceAnim*)toridraw_map_search(
+    entry = (struct MapEntry_SequenceAnim*)ToriDraw_MapSearch(
         tdx->sequence_anim_hmap, &seq_id, TORIDRAW_MAP_INSERT);
     if( !entry )
     {
-        toridraw_animation_free(td_resolved);
+        ToriDraw_AnimationFree(td_resolved);
         return NULL;
     }
     entry->id = seq_id;
@@ -510,55 +479,55 @@ toridrawx_sequence_animation(
 }
 
 struct ToriDraw_Texture*
-toridrawx_texture(
+ToriDrawX_Texture(
     struct ToriDrawX* tdx,
     int texture_id)
 {
     if( !tdx || texture_id < 0 || texture_id >= 256 )
         return NULL;
 
-    struct ToriDraw_TextureState* tex_state = toridraw_context_tex_state(tdx->context);
+    struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(tdx->scene);
     struct ToriDraw_Texture* existing = tex_state
-        ? toridraw_texturemap_get(&tex_state->texture_map, texture_id)
+        ? ToriDraw_TextureMapGet(&tex_state->texture_map, texture_id)
         : NULL;
     if( existing )
         return existing;
 
     struct GameCache_Texture* gc_texture =
-        gamecache_texture_get(toridrawx_gamecache(tdx), texture_id);
+        gamecache_texture_get(ToriDrawX_Gamecache(tdx), texture_id);
     if( !gc_texture )
         return NULL;
 
-    struct ToriDraw_Texture* td_texture = toridrawx_texture_new_from_gamecache(gc_texture);
+    struct ToriDraw_Texture* td_texture = ToriDrawX_TextureNewFromGamecache(gc_texture);
     if( !td_texture )
         return NULL;
 
-    toridraw_gc_set_texture(tdx->context, texture_id, td_texture);
+    ToriDraw_SceneSetTexture(tdx->scene, texture_id, td_texture);
     return td_texture;
 }
 
 int
-toridrawx_element_add_model(
+ToriDrawX_ElementAddModel(
     struct ToriDrawX* tdx,
     int model_id)
 {
     if( !tdx )
         return -1;
 
-    struct ToriDraw_ModelHandle hnd = toridrawx_model(tdx, model_id);
+    struct ToriDraw_ModelHandle hnd = ToriDrawX_Model(tdx, model_id);
     if( hnd.kind != TORIDRAWMK_MODEL )
         return -1;
 
-    int element_id = toridraw_gc_element_add(tdx->context);
+    int element_id = ToriDraw_SceneElementAdd(tdx->scene);
     if( element_id < 0 )
         return -1;
 
-    toridraw_gc_element_set_model(tdx->context, element_id, hnd);
+    ToriDraw_SceneElementSetModel(tdx->scene, element_id, hnd);
     return element_id;
 }
 
 bool
-toridrawx_element_set_model_id(
+ToriDrawX_ElementSetModelId(
     struct ToriDrawX* tdx,
     int element_id,
     int model_id)
@@ -566,32 +535,32 @@ toridrawx_element_set_model_id(
     if( !tdx )
         return false;
 
-    struct ToriDraw_ModelHandle hnd = toridrawx_model(tdx, model_id);
+    struct ToriDraw_ModelHandle hnd = ToriDrawX_Model(tdx, model_id);
     if( hnd.kind != TORIDRAWMK_MODEL )
         return false;
 
-    if( !toridraw_gc_element_is_live(tdx->context, element_id) )
+    if( !ToriDraw_SceneElementIsLive(tdx->scene, element_id) )
         return false;
 
-    toridraw_gc_element_set_model(tdx->context, element_id, hnd);
+    ToriDraw_SceneElementSetModel(tdx->scene, element_id, hnd);
     return true;
 }
 
 bool
-toridrawx_element_set_sequence_id(
+ToriDrawX_ElementSetSequenceId(
     struct ToriDrawX* tdx,
     int element_id,
     int seq_id)
 {
-    if( !tdx || !toridraw_gc_element_is_live(tdx->context, element_id) )
+    if( !tdx || !ToriDraw_SceneElementIsLive(tdx->scene, element_id) )
         return false;
 
-    toridraw_gc_element_set_animation_seq(tdx->context, element_id, seq_id);
+    ToriDraw_SceneElementSetAnimationSeq(tdx->scene, element_id, seq_id);
 
-    struct ToriDraw_Animation* resolved = toridrawx_sequence_animation(tdx, seq_id);
+    struct ToriDraw_Animation* resolved = ToriDrawX_SequenceAnimation(tdx, seq_id);
     if( !resolved )
         return false;
 
-    toridraw_gc_element_set_animation(tdx->context, element_id, resolved, true);
+    ToriDraw_SceneElementSetAnimation(tdx->scene, element_id, resolved, true);
     return true;
 }

@@ -10,13 +10,13 @@
 #include <string.h>
 
 static inline size_t
-toridraw_face_priorities_byte_count(int face_count)
+ToriDraw_FacePrioritiesByteCount(int face_count)
 {
     return (size_t)((face_count + 1) / 2);
 }
 
 static inline void
-toridraw_set_face_priority(
+ToriDraw_SetFacePriority(
     uint8_t* packed,
     int index,
     int value)
@@ -30,7 +30,7 @@ toridraw_set_face_priority(
 }
 
 static void
-toridraw_calculate_bounds_cylinder(
+ToriDraw_CalculateBoundsCylinder(
     struct ToriDraw_BoundsCylinder* bounds_cylinder,
     int num_vertices,
     vertexint_t* vertex_x,
@@ -69,7 +69,7 @@ toridraw_calculate_bounds_cylinder(
 }
 
 static struct ToriDraw_Bones*
-toridraw_bones_new(
+ToriDraw_BonesNew(
     const uint8_t* bone_map,
     int bone_count)
 {
@@ -91,7 +91,7 @@ toridraw_bones_new(
     if( !bones->bones || !bones->bones_sizes )
     {
         modelbones_free(model_bones);
-        toridraw_bones_free(bones);
+        ToriDraw_BonesFree(bones);
         return NULL;
     }
     memset(bones->bones, 0, sizeof(boneint_t*) * (size_t)bones->bones_count);
@@ -107,7 +107,7 @@ toridraw_bones_new(
         if( !bones->bones[i] )
         {
             modelbones_free(model_bones);
-            toridraw_bones_free(bones);
+            ToriDraw_BonesFree(bones);
             return NULL;
         }
         for( int j = 0; j < model_bones->bones_sizes[i]; j++ )
@@ -119,7 +119,7 @@ toridraw_bones_new(
 }
 
 static void
-toridraw_model_move_from_cache_model(
+ToriDraw_ModelMoveFromCacheModel(
     struct ToriDraw_Model* td,
     struct CacheModel* model)
 {
@@ -203,10 +203,10 @@ toridraw_model_move_from_cache_model(
 
     if( model->face_priorities && fc > 0 )
     {
-        size_t nbytes = toridraw_face_priorities_byte_count(fc);
+        size_t nbytes = ToriDraw_FacePrioritiesByteCount(fc);
         td->face_priorities = (uint8_t*)calloc(nbytes, 1);
         for( int i = 0; i < fc; i++ )
-            toridraw_set_face_priority(td->face_priorities, i, model->face_priorities[i]);
+            ToriDraw_SetFacePriority(td->face_priorities, i, model->face_priorities[i]);
         free(model->face_priorities);
         model->face_priorities = NULL;
     }
@@ -280,16 +280,16 @@ toridraw_model_move_from_cache_model(
     td->merged_normals = NULL;
 
     if( model->vertex_bone_map )
-        td->vertex_bones = toridraw_bones_new(model->vertex_bone_map, model->vertex_count);
+        td->vertex_bones = ToriDraw_BonesNew(model->vertex_bone_map, model->vertex_count);
     if( model->face_bone_map )
-        td->face_bones = toridraw_bones_new(model->face_bone_map, model->face_count);
+        td->face_bones = ToriDraw_BonesNew(model->face_bone_map, model->face_count);
 
     if( td->vertex_count > 0 && td->vertices_x && td->vertices_y && td->vertices_z )
     {
         td->bounds_cylinder =
             (struct ToriDraw_BoundsCylinder*)malloc(sizeof(struct ToriDraw_BoundsCylinder));
         if( td->bounds_cylinder )
-            toridraw_calculate_bounds_cylinder(
+            ToriDraw_CalculateBoundsCylinder(
                 td->bounds_cylinder,
                 td->vertex_count,
                 td->vertices_x,
@@ -301,7 +301,7 @@ toridraw_model_move_from_cache_model(
 }
 
 struct ToriDraw_Model*
-toridraw_model_new_from_cache_model(struct CacheModel* model)
+ToriDraw_ModelNewFromCacheModel(struct CacheModel* model)
 {
     if( !model )
         return NULL;
@@ -310,6 +310,6 @@ toridraw_model_new_from_cache_model(struct CacheModel* model)
     if( !td )
         return NULL;
 
-    toridraw_model_move_from_cache_model(td, model);
+    ToriDraw_ModelMoveFromCacheModel(td, model);
     return td;
 }

@@ -4,7 +4,7 @@
 #include "toridraw_types.h"
 
 void
-toridraw_calculate_vertex_normals(
+ToriDraw_CalculateVertexNormals(
     struct ToriDraw_Normal* vertex_normals,
     struct ToriDraw_Normal* face_normals,
     int vertex_count,
@@ -17,7 +17,7 @@ toridraw_calculate_vertex_normals(
     int num_faces);
 
 void
-toridraw_apply_lighting(
+ToriDraw_ApplyLighting(
     hsl16_t* face_colors_a_hsl16,
     hsl16_t* face_colors_b_hsl16,
     hsl16_t* face_colors_c_hsl16,

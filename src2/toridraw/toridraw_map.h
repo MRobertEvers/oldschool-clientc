@@ -10,18 +10,18 @@
 #define TORIDRAW_MAP_NOMEM 1
 #define TORIDRAW_MAP_BADARG 2
 
-typedef uint64_t (*toridraw_map_hash_fn)(
+typedef uint64_t (*ToriDraw_MapHashFn)(
     const void* key,
     size_t key_size,
     void* arg);
 
-typedef int (*toridraw_map_eq_fn)(
+typedef int (*ToriDraw_MapEqFn)(
     const void* a,
     const void* b,
     size_t key_size,
     void* arg);
 
-typedef int (*toridraw_map_iterable_fn)(
+typedef int (*ToriDraw_MapIterableFn)(
     void* entry,
     void* arg);
 
@@ -41,33 +41,33 @@ struct ToriDraw_MapConfig
     size_t entry_size;
 
     size_t capacity;
-    toridraw_map_hash_fn hash_fn_nullable;
-    toridraw_map_eq_fn eq_fn_nullable;
-    toridraw_map_iterable_fn iterable_fn_nullable;
+    ToriDraw_MapHashFn hash_fn_nullable;
+    ToriDraw_MapEqFn eq_fn_nullable;
+    ToriDraw_MapIterableFn iterable_fn_nullable;
     void* arg_nullable;
 };
 
 struct ToriDraw_Map;
 
 void*
-toridraw_map_buffer_ptr(struct ToriDraw_Map* h);
+ToriDraw_MapBufferPtr(struct ToriDraw_Map* h);
 
 struct ToriDraw_Map*
-toridraw_map_new(
+ToriDraw_MapNew(
     const struct ToriDraw_MapConfig* config,
     uint32_t flags);
 
 void
-toridraw_map_free(struct ToriDraw_Map* h);
+ToriDraw_MapFree(struct ToriDraw_Map* h);
 
 void*
-toridraw_map_search(
+ToriDraw_MapSearch(
     struct ToriDraw_Map* h,
     const void* key,
     enum ToriDraw_MapAction action);
 
 int
-toridraw_map_resize(
+ToriDraw_MapResize(
     struct ToriDraw_Map* h,
     void* new_buffer,
     size_t new_buffer_size,
@@ -77,28 +77,28 @@ toridraw_map_resize(
 struct ToriDraw_MapIter;
 
 struct ToriDraw_Map*
-toridraw_map_iter_get_map(struct ToriDraw_MapIter* it);
+ToriDraw_MapIterGetMap(struct ToriDraw_MapIter* it);
 
 struct ToriDraw_MapIter*
-toridraw_map_iter_new(struct ToriDraw_Map* h);
+ToriDraw_MapIterNew(struct ToriDraw_Map* h);
 
 void
-toridraw_map_iter_free(struct ToriDraw_MapIter* it);
+ToriDraw_MapIterFree(struct ToriDraw_MapIter* it);
 
 void*
-toridraw_map_iter_next(struct ToriDraw_MapIter* it);
+ToriDraw_MapIterNext(struct ToriDraw_MapIter* it);
 
 uint32_t
-toridraw_map_count(struct ToriDraw_Map* h);
+ToriDraw_MapCount(struct ToriDraw_Map* h);
 
 uint32_t
-toridraw_map_capacity(struct ToriDraw_Map* h);
+ToriDraw_MapCapacity(struct ToriDraw_Map* h);
 
 size_t
-toridraw_map_entry_size(struct ToriDraw_Map* h);
+ToriDraw_MapEntrySize(struct ToriDraw_Map* h);
 
 size_t
-toridraw_map_buffer_size_for(
+ToriDraw_MapBufferSizeFor(
     size_t entry_size,
     size_t count);
 

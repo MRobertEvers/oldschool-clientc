@@ -6,14 +6,14 @@
 #include "../scripting/libtorirs_scripting.h"
 #include "../world/world.h"
 #include "osrs/painters.h"
-#include "toridraw/toridraw_gccontext.h"
+#include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
 struct GameCache;
-struct ToriDraw_Context;
+struct ToriDraw_Scene;
 struct ToriDrawX;
 
 /* OSRS rebuild-normal zone coords: map_chunk * 8 (zone 400 -> map chunk 50). */
@@ -35,7 +35,7 @@ struct GameRunescape
     struct LibToriRS_ScriptQueue* script_queue;
     struct GameCache* gamecache;
     struct World* world;
-    struct ToriDraw_Context* context;
+    struct ToriDraw_Scene* scene;
     struct ToriDrawX* toridrawx;
     struct ToriDraw_Position* camera_position;
     struct ToriDraw_Camera* camera;
@@ -61,7 +61,7 @@ struct GameRunescape
 struct GameRunescape*
 game_runescape_new(
     struct LibToriRS_ScriptQueue* script_queue,
-    struct ToriDraw_Context* context);
+    struct ToriDraw_Scene* scene);
 
 void
 game_runescape_free(struct GameRunescape* game);

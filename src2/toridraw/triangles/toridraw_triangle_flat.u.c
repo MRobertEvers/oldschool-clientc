@@ -18,7 +18,7 @@
 // clang-format on
 
 static inline void
-toridraw_triangle_flat(
+ToriDraw_TriangleFlat(
     toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -59,7 +59,7 @@ toridraw_triangle_flat(
  * This requires vertices to be wound counterclockwise.
  */
 static inline void
-toridraw_triangle_face_flat_near_clip(
+ToriDraw_TriangleFaceFlatNearClip(
     toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
@@ -114,11 +114,11 @@ toridraw_triangle_face_flat_near_clip(
         {
             if( zc - za >= 0 )
             {
-                lerp_slope = toridraw_triangle_slopei(near_plane_z, zc, za);
+                lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, zc, za);
 
-                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                g_toridraw_triangle_clip_x[clipped_count] = ToriDraw_TriangleLerpPlaneProjecti(
                     near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
-                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                g_toridraw_triangle_clip_y[clipped_count] = ToriDraw_TriangleLerpPlaneProjecti(
                     near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
                 clipped_count++;
             }
@@ -128,11 +128,11 @@ toridraw_triangle_face_flat_near_clip(
         {
             if( zb - za >= 0 )
             {
-                lerp_slope = toridraw_triangle_slopei(near_plane_z, zb, za);
+                lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, zb, za);
 
-                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                g_toridraw_triangle_clip_x[clipped_count] = ToriDraw_TriangleLerpPlaneProjecti(
                     near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
-                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                g_toridraw_triangle_clip_y[clipped_count] = ToriDraw_TriangleLerpPlaneProjecti(
                     near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
                 clipped_count++;
             }
@@ -154,11 +154,11 @@ toridraw_triangle_face_flat_near_clip(
         {
             if( za - zb >= 0 )
             {
-                lerp_slope = toridraw_triangle_slopei(near_plane_z, za, zb);
+                lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, za, zb);
 
-                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                g_toridraw_triangle_clip_x[clipped_count] = ToriDraw_TriangleLerpPlaneProjecti(
                     near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
-                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                g_toridraw_triangle_clip_y[clipped_count] = ToriDraw_TriangleLerpPlaneProjecti(
                     near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
                 clipped_count++;
             }
@@ -168,11 +168,11 @@ toridraw_triangle_face_flat_near_clip(
         {
             if( zc - zb >= 0 )
             {
-                lerp_slope = toridraw_triangle_slopei(near_plane_z, zc, zb);
+                lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, zc, zb);
 
-                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                g_toridraw_triangle_clip_x[clipped_count] = ToriDraw_TriangleLerpPlaneProjecti(
                     near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
-                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                g_toridraw_triangle_clip_y[clipped_count] = ToriDraw_TriangleLerpPlaneProjecti(
                     near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
                 clipped_count++;
             }
@@ -194,11 +194,11 @@ toridraw_triangle_face_flat_near_clip(
         {
             if( zb - zc >= 0 )
             {
-                lerp_slope = toridraw_triangle_slopei(near_plane_z, zb, zc);
+                lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, zb, zc);
 
-                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                g_toridraw_triangle_clip_x[clipped_count] = ToriDraw_TriangleLerpPlaneProjecti(
                     near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
-                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                g_toridraw_triangle_clip_y[clipped_count] = ToriDraw_TriangleLerpPlaneProjecti(
                     near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
                 clipped_count++;
             }
@@ -208,11 +208,11 @@ toridraw_triangle_face_flat_near_clip(
         {
             if( za - zc >= 0 )
             {
-                lerp_slope = toridraw_triangle_slopei(near_plane_z, za, zc);
+                lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, za, zc);
 
-                g_toridraw_triangle_clip_x[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                g_toridraw_triangle_clip_x[clipped_count] = ToriDraw_TriangleLerpPlaneProjecti(
                     near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
-                g_toridraw_triangle_clip_y[clipped_count] = toridraw_triangle_lerp_plane_projecti(
+                g_toridraw_triangle_clip_y[clipped_count] = ToriDraw_TriangleLerpPlaneProjecti(
                     near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
                 clipped_count++;
             }
@@ -221,7 +221,7 @@ toridraw_triangle_face_flat_near_clip(
     if( clipped_count < 3 )
         return;
 
-    int alpha = toridraw_triangle_face_alpha(face_alphas_nullable, face);
+    int alpha = ToriDraw_TriangleFaceAlpha(face_alphas_nullable, face);
 
     xa = g_toridraw_triangle_clip_x[0];
     ya = g_toridraw_triangle_clip_y[0];
@@ -239,7 +239,7 @@ toridraw_triangle_face_flat_near_clip(
     xc += offset_x;
     yc += offset_y;
 
-    toridraw_triangle_flat(
+    ToriDraw_TriangleFlat(
         pixel_buffer, stride, screen_width, screen_height, xa, xb, xc, ya, yb, yc, color, alpha);
 
     if( clipped_count != 4 )
@@ -251,12 +251,12 @@ toridraw_triangle_face_flat_near_clip(
     xb += offset_x;
     yb += offset_y;
 
-    toridraw_triangle_flat(
+    ToriDraw_TriangleFlat(
         pixel_buffer, stride, screen_width, screen_height, xa, xc, xb, ya, yc, yb, color, alpha);
 }
 
 static inline void
-toridraw_triangle_face_flat(
+ToriDraw_TriangleFaceFlat(
     toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
@@ -286,7 +286,7 @@ toridraw_triangle_face_flat(
     {
         if( !allow_near_clip || !orthographic_vertices_x )
             return;
-        toridraw_triangle_face_flat_near_clip(
+        ToriDraw_TriangleFaceFlatNearClip(
             pixel_buffer,
             face,
             face_indices_a,
@@ -321,11 +321,11 @@ toridraw_triangle_face_flat(
     y3 += offset_y;
 
     int color = colors[face];
-    int alpha = toridraw_triangle_face_alpha(face_alphas_nullable, face);
+    int alpha = ToriDraw_TriangleFaceAlpha(face_alphas_nullable, face);
 
     assert(color >= 0 && color < 65536);
 
-    toridraw_triangle_flat(
+    ToriDraw_TriangleFlat(
         pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
 }
 

@@ -4,7 +4,7 @@
 #include "toridraw_types.h"
 
 void
-toridraw_light_model_default(
+ToriDraw_LightModelDefault(
     struct ToriDraw_ModelHandle hnd,
     int model_contrast,
     int model_ambient);

@@ -64,7 +64,7 @@ sprite_decode_from_filelist(
             atlas_index);
         if( !pix8 )
             return NULL;
-        struct ToriDraw_Sprite* sprite = toridraw_sprite_new_from_cache_pix8_palette(pix8);
+        struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix8Palette(pix8);
         cache_dat_pix8_palette_free(pix8);
         return sprite;
     }
@@ -79,7 +79,7 @@ sprite_decode_from_filelist(
             atlas_index);
         if( !pix32 )
             return NULL;
-        struct ToriDraw_Sprite* sprite = toridraw_sprite_new_from_cache_pix32(pix32);
+        struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix32(pix32);
         cache_dat_pix32_free(pix32);
         return sprite;
     }
@@ -99,7 +99,7 @@ sprite_placeholder(
         return NULL;
     for( int i = 0; i < w * h; i++ )
         pixels[i] = 0xFFFF00FFu;
-    return toridraw_sprite_new_from_argb_owned(pixels, w, h);
+    return ToriDraw_SpriteNewFromArgbOwned(pixels, w, h);
 }
 
 /* ------------------------------------------------------------------ */
@@ -147,7 +147,7 @@ dat1_sprite_decode_media_ref(
         sprite_idx);
     if( pix32 )
     {
-        struct ToriDraw_Sprite* sprite = toridraw_sprite_new_from_cache_pix32(pix32);
+        struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix32(pix32);
         cache_dat_pix32_free(pix32);
         if( sprite )
             return sprite;
@@ -161,7 +161,7 @@ dat1_sprite_decode_media_ref(
         sprite_idx);
     if( !pix8 )
         return NULL;
-    struct ToriDraw_Sprite* sprite = toridraw_sprite_new_from_cache_pix8_palette(pix8);
+    struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix8Palette(pix8);
     cache_dat_pix8_palette_free(pix8);
     return sprite;
 }
@@ -272,7 +272,7 @@ dat1_sprite_step(
         {
             for( int j = 0; j < count; j++ )
                 if( sprites[j] )
-                    toridraw_sprite_free(sprites[j]);
+                    ToriDraw_SpriteFree(sprites[j]);
             free(sprites);
             s->state = DAT1_STATE_FAILED;
             return;

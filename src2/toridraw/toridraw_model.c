@@ -16,13 +16,13 @@ struct ToriDraw_AnimTransform
 };
 
 static vertexint_t
-toridraw_anim_vertexint_clamp(int v)
+ToriDraw_AnimVertexintClamp(int v)
 {
     return (vertexint_t)v;
 }
 
 static void
-toridraw_anim_apply_transform(
+ToriDraw_AnimApplyTransform(
     struct ToriDraw_AnimTransform* transform,
     int type,
     const uint8_t* bone_group,
@@ -102,11 +102,11 @@ toridraw_anim_apply_transform(
             {
                 int vertex_index = bone[j];
                 vertices_x[vertex_index] =
-                    toridraw_anim_vertexint_clamp((int)vertices_x[vertex_index] + arg_x);
+                    ToriDraw_AnimVertexintClamp((int)vertices_x[vertex_index] + arg_x);
                 vertices_y[vertex_index] =
-                    toridraw_anim_vertexint_clamp((int)vertices_y[vertex_index] + arg_y);
+                    ToriDraw_AnimVertexintClamp((int)vertices_y[vertex_index] + arg_y);
                 vertices_z[vertex_index] =
-                    toridraw_anim_vertexint_clamp((int)vertices_z[vertex_index] + arg_z);
+                    ToriDraw_AnimVertexintClamp((int)vertices_z[vertex_index] + arg_z);
             }
         }
         break;
@@ -138,8 +138,8 @@ toridraw_anim_apply_transform(
 
                 if( roll != 0 )
                 {
-                    int sin_roll = toridraw_sin(roll);
-                    int cos_roll = toridraw_cos(roll);
+                    int sin_roll = ToriDraw_Sin(roll);
+                    int cos_roll = ToriDraw_Cos(roll);
                     var17 = (sin_roll * y + cos_roll * x) >> 16;
                     y = (cos_roll * y - sin_roll * x) >> 16;
                     x = var17;
@@ -147,8 +147,8 @@ toridraw_anim_apply_transform(
 
                 if( pitch != 0 )
                 {
-                    int sin_pitch = toridraw_sin(pitch);
-                    int cos_pitch = toridraw_cos(pitch);
+                    int sin_pitch = ToriDraw_Sin(pitch);
+                    int cos_pitch = ToriDraw_Cos(pitch);
                     var17 = (cos_pitch * y - sin_pitch * z) >> 16;
                     z = (sin_pitch * y + cos_pitch * z) >> 16;
                     y = var17;
@@ -156,16 +156,16 @@ toridraw_anim_apply_transform(
 
                 if( yaw != 0 )
                 {
-                    int sin_yaw = toridraw_sin(yaw);
-                    int cos_yaw = toridraw_cos(yaw);
+                    int sin_yaw = ToriDraw_Sin(yaw);
+                    int cos_yaw = ToriDraw_Cos(yaw);
                     var17 = (sin_yaw * z + cos_yaw * x) >> 16;
                     z = (cos_yaw * z - sin_yaw * x) >> 16;
                     x = var17;
                 }
 
-                vertices_x[vertex_index] = toridraw_anim_vertexint_clamp(x + transform->origin_x);
-                vertices_y[vertex_index] = toridraw_anim_vertexint_clamp(y + transform->origin_y);
-                vertices_z[vertex_index] = toridraw_anim_vertexint_clamp(z + transform->origin_z);
+                vertices_x[vertex_index] = ToriDraw_AnimVertexintClamp(x + transform->origin_x);
+                vertices_y[vertex_index] = ToriDraw_AnimVertexintClamp(y + transform->origin_y);
+                vertices_z[vertex_index] = ToriDraw_AnimVertexintClamp(z + transform->origin_z);
             }
         }
         break;
@@ -193,9 +193,9 @@ toridraw_anim_apply_transform(
                 x = arg_x * x / 128;
                 y = arg_y * y / 128;
                 z = arg_z * z / 128;
-                vertices_x[vertex_index] = toridraw_anim_vertexint_clamp(x + transform->origin_x);
-                vertices_y[vertex_index] = toridraw_anim_vertexint_clamp(y + transform->origin_y);
-                vertices_z[vertex_index] = toridraw_anim_vertexint_clamp(z + transform->origin_z);
+                vertices_x[vertex_index] = ToriDraw_AnimVertexintClamp(x + transform->origin_x);
+                vertices_y[vertex_index] = ToriDraw_AnimVertexintClamp(y + transform->origin_y);
+                vertices_z[vertex_index] = ToriDraw_AnimVertexintClamp(z + transform->origin_z);
             }
         }
         break;
@@ -234,7 +234,7 @@ toridraw_anim_apply_transform(
 }
 
 struct ToriDraw_Normals*
-toridraw_normals_new(
+ToriDraw_NormalsNew(
     int vertex_count,
     int face_count)
 {
@@ -253,7 +253,7 @@ toridraw_normals_new(
 }
 
 void
-toridraw_normals_free(struct ToriDraw_Normals* normals)
+ToriDraw_NormalsFree(struct ToriDraw_Normals* normals)
 {
     if( !normals )
         return;
@@ -263,7 +263,7 @@ toridraw_normals_free(struct ToriDraw_Normals* normals)
 }
 
 void
-toridraw_bones_free(struct ToriDraw_Bones* bones)
+ToriDraw_BonesFree(struct ToriDraw_Bones* bones)
 {
     if( !bones )
         return;
@@ -278,7 +278,7 @@ toridraw_bones_free(struct ToriDraw_Bones* bones)
 }
 
 struct ToriDraw_Bones*
-toridraw_bones_copy(const struct ToriDraw_Bones* src)
+ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
 {
     if( !src || src->bones_count <= 0 || !src->bones || !src->bones_sizes )
         return NULL;
@@ -292,7 +292,7 @@ toridraw_bones_copy(const struct ToriDraw_Bones* src)
     dst->bones_sizes = malloc((size_t)src->bones_count * sizeof(boneint_t));
     if( !dst->bones || !dst->bones_sizes )
     {
-        toridraw_bones_free(dst);
+        ToriDraw_BonesFree(dst);
         return NULL;
     }
 
@@ -310,7 +310,7 @@ toridraw_bones_copy(const struct ToriDraw_Bones* src)
         dst->bones[i] = malloc((size_t)bone_length * sizeof(boneint_t));
         if( !dst->bones[i] )
         {
-            toridraw_bones_free(dst);
+            ToriDraw_BonesFree(dst);
             return NULL;
         }
         memcpy(dst->bones[i], src->bones[i], (size_t)bone_length * sizeof(boneint_t));
@@ -320,7 +320,7 @@ toridraw_bones_copy(const struct ToriDraw_Bones* src)
 }
 
 static void
-toridraw_model_free_arrays(struct ToriDraw_Model* m)
+ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
 {
     free(m->vertices_x);
     free(m->vertices_y);
@@ -344,24 +344,24 @@ toridraw_model_free_arrays(struct ToriDraw_Model* m)
     free(m->textured_m_coordinate);
     free(m->textured_n_coordinate);
     free(m->face_texture_coords);
-    toridraw_normals_free(m->normals);
-    toridraw_normals_free(m->merged_normals);
-    toridraw_bones_free(m->vertex_bones);
-    toridraw_bones_free(m->face_bones);
+    ToriDraw_NormalsFree(m->normals);
+    ToriDraw_NormalsFree(m->merged_normals);
+    ToriDraw_BonesFree(m->vertex_bones);
+    ToriDraw_BonesFree(m->face_bones);
     free(m->bounds_cylinder);
 }
 
 void
-toridraw_model_free(struct ToriDraw_Model* model)
+ToriDraw_ModelFree(struct ToriDraw_Model* model)
 {
     if( !model )
         return;
-    toridraw_model_free_arrays(model);
+    ToriDraw_ModelFree_arrays(model);
     free(model);
 }
 
 static int
-toridraw_model_needs_face_normals(struct ToriDraw_Model* model)
+ToriDraw_ModelNeedsFaceNormals(struct ToriDraw_Model* model)
 {
     const int* fi = model->face_infos;
     if( !fi )
@@ -376,35 +376,35 @@ toridraw_model_needs_face_normals(struct ToriDraw_Model* model)
 }
 
 void
-toridraw_model_alloc_normals(struct ToriDraw_Model* model)
+ToriDraw_ModelAllocNormals(struct ToriDraw_Model* model)
 {
     assert(model);
     if( model->normals )
         return;
-    int face_n = toridraw_model_needs_face_normals(model) ? model->face_count : 0;
-    model->normals = toridraw_normals_new(model->vertex_count, face_n);
+    int face_n = ToriDraw_ModelNeedsFaceNormals(model) ? model->face_count : 0;
+    model->normals = ToriDraw_NormalsNew(model->vertex_count, face_n);
 }
 
 void
-toridraw_model_alloc_merged_normals(struct ToriDraw_Model* model)
+ToriDraw_ModelAllocMergedNormals(struct ToriDraw_Model* model)
 {
     assert(model);
     if( model->merged_normals )
         return;
-    model->merged_normals = toridraw_normals_new(model->vertex_count, 0);
+    model->merged_normals = ToriDraw_NormalsNew(model->vertex_count, 0);
 }
 
 void
-toridraw_model_calculate_vertex_normals(struct ToriDraw_Model* model)
+ToriDraw_ModelCalculateVertexNormals(struct ToriDraw_Model* model)
 {
     assert(model);
-    toridraw_model_alloc_normals(model);
+    ToriDraw_ModelAllocNormals(model);
     struct ToriDraw_Normals* nm = model->normals;
     assert(nm);
 
     int vc = model->vertex_count;
     int fc = model->face_count;
-    toridraw_calculate_vertex_normals(
+    ToriDraw_CalculateVertexNormals(
         nm->vertex_normals,
         nm->face_normals,
         vc,
@@ -422,19 +422,19 @@ toridraw_model_calculate_vertex_normals(struct ToriDraw_Model* model)
 }
 
 void
-toridraw_model_free_normals(struct ToriDraw_Model* model)
+ToriDraw_ModelFreeNormals(struct ToriDraw_Model* model)
 {
     assert(model);
     if( !model->normals )
         return;
-    toridraw_normals_free(model->normals);
-    toridraw_normals_free(model->merged_normals);
+    ToriDraw_NormalsFree(model->normals);
+    ToriDraw_NormalsFree(model->merged_normals);
     model->normals = NULL;
     model->merged_normals = NULL;
 }
 
 void
-toridraw_model_capture_original_vertices(struct ToriDraw_Model* model)
+ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
 {
     size_t const vc = (size_t)model->vertex_count;
     model->original_vertices_x = malloc(vc * sizeof(vertexint_t));
@@ -455,7 +455,7 @@ toridraw_model_capture_original_vertices(struct ToriDraw_Model* model)
 }
 
 void
-toridraw_model_animate_reset(struct ToriDraw_Model* model)
+ToriDraw_ModelAnimateReset(struct ToriDraw_Model* model)
 {
     if( !model || !model->original_vertices_x )
         return;
@@ -473,7 +473,7 @@ toridraw_model_animate_reset(struct ToriDraw_Model* model)
 }
 
 void
-toridraw_model_animate_frame(
+ToriDraw_ModelAnimateFrame(
     struct ToriDraw_Model* model,
     const struct ToriDraw_AnimBase* base,
     const struct ToriDraw_AnimFrame* frame)
@@ -497,7 +497,7 @@ toridraw_model_animate_frame(
             base->bone_group_lengths ? (int)base->bone_group_lengths[group_index] : 0;
         int type = base->types[group_index];
 
-        toridraw_anim_apply_transform(
+        ToriDraw_AnimApplyTransform(
             &transform,
             type,
             bone_group,
@@ -510,7 +510,7 @@ toridraw_model_animate_frame(
 }
 
 int
-toridraw_texture_average_hsl16(const struct ToriDraw_Texture* texture)
+ToriDraw_TextureAverageHsl16(const struct ToriDraw_Texture* texture)
 {
     if( !texture || !texture->texels || texture->width <= 0 || texture->height <= 0 )
         return 0;

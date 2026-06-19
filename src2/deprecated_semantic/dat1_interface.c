@@ -91,7 +91,7 @@ iface_preload_sprite(
     struct ToriDraw_Sprite** row = malloc(sizeof(struct ToriDraw_Sprite*));
     if( !row )
     {
-        toridraw_sprite_free(sprite);
+        ToriDraw_SpriteFree(sprite);
         return;
     }
     row[0] = sprite;
@@ -99,7 +99,7 @@ iface_preload_sprite(
     int scene_id = ui_scene_element_acquire_with_sprites(scene, row, 1, false, sprite_ref);
     if( scene_id < 0 )
     {
-        toridraw_sprite_free(sprite);
+        ToriDraw_SpriteFree(sprite);
         free(row);
         return;
     }
@@ -290,7 +290,7 @@ reswitch:
             struct CacheModel* copy = model_new_copy(raw);
             if( !copy )
                 continue;
-            struct ToriDraw_Model* td = toridraw_model_new_from_cache_model(copy);
+            struct ToriDraw_Model* td = ToriDraw_ModelNewFromCacheModel(copy);
             model_free(copy);
             if( !td )
                 continue;

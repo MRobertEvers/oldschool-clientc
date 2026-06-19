@@ -10,7 +10,7 @@
 #include "libtorirs_internal.h"
 #include "scripting/libtorirs_scripting.h"
 #include "toridraw/toridraw.h"
-#include "toridraw/toridraw_gccontext.h"
+#include "toridraw/toridraw_scene.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -74,8 +74,8 @@ LibToriRS_InstanceNew(void)
     //     return NULL;
     // }
 
-    instance->context = toridraw_context_new(TORIDRAW_CTX_FULL);
-    if( !instance->context )
+    instance->scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL);
+    if( !instance->scene )
     {
         LibToriRS_IOQueueFree(instance->io_queue);
         LibToriRS_Input_Free(instance->input);
@@ -87,7 +87,7 @@ LibToriRS_InstanceNew(void)
     instance->gamecache_l = GameCacheL_New(GAMECACHE_L_MODE_DAT1);
     if( !instance->gamecache_l )
     {
-        toridraw_context_free(instance->context);
+        ToriDraw_SceneFree(instance->scene);
         LibToriRS_IOQueueFree(instance->io_queue);
         LibToriRS_Input_Free(instance->input);
         LibToriRS_ScriptQueueFree(instance->script_queue);
@@ -95,11 +95,11 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
-    instance->toridrawx = toridrawx_new(instance->gamecache_l, instance->context);
+    instance->toridrawx = ToriDrawX_New(instance->gamecache_l, instance->scene);
     if( !instance->toridrawx )
     {
         GameCacheL_Free(instance->gamecache_l);
-        toridraw_context_free(instance->context);
+        ToriDraw_SceneFree(instance->scene);
         LibToriRS_IOQueueFree(instance->io_queue);
         LibToriRS_Input_Free(instance->input);
         LibToriRS_ScriptQueueFree(instance->script_queue);
@@ -120,7 +120,7 @@ LibToriRS_InstanceNew(void)
 
     instance->running = true;
 
-    toridraw_init();
+    ToriDraw_Init();
 
     return instance;
 }
@@ -137,11 +137,11 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
     if( instance->input )
         LibToriRS_Input_Free(instance->input);
     if( instance->toridrawx )
-        toridrawx_free(instance->toridrawx);
+        ToriDrawX_Free(instance->toridrawx);
     if( instance->gamecache_l )
         GameCacheL_Free(instance->gamecache_l);
-    if( instance->context )
-        toridraw_context_free(instance->context);
+    if( instance->scene )
+        ToriDraw_SceneFree(instance->scene);
 
     if( instance->model_viewer )
         game_modelviewer_free(instance->model_viewer);
@@ -419,12 +419,12 @@ LibToriRS_IsRunning(struct LibToriRS_Instance* instance)
     return instance->running;
 }
 
-struct ToriDraw_Context*
-LibToriRS_GetCurrentToriDrawContext(struct LibToriRS_Instance* instance)
+struct ToriDraw_Scene*
+LibToriRS_GetCurrentToriDrawScene(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return NULL;
-    return instance->context;
+    return instance->scene;
 }
 
 static void

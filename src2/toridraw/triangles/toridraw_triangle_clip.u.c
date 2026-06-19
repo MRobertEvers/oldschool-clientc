@@ -14,7 +14,7 @@ static int g_toridraw_triangle_clip_color[10] = { 0 };
 static const int g_toridraw_triangle_reciprocol_shift = 16;
 
 static inline int
-toridraw_triangle_slopei(
+ToriDraw_TriangleSlopei(
     int near_plane_z,
     int za,
     int zb)
@@ -24,7 +24,7 @@ toridraw_triangle_slopei(
 }
 
 static inline int
-toridraw_triangle_lerp_planei(
+ToriDraw_TriangleLerpPlanei(
     int near_plane_z,
     int lerp_slope,
     int pa,
@@ -36,19 +36,19 @@ toridraw_triangle_lerp_planei(
 }
 
 static inline int
-toridraw_triangle_lerp_plane_projecti(
+ToriDraw_TriangleLerpPlaneProjecti(
     int near_plane_z,
     int lerp_slope,
     int pa,
     int pb)
 {
-    int lerp_p = toridraw_triangle_lerp_planei(near_plane_z, lerp_slope, pa, pb);
+    int lerp_p = ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, pa, pb);
 
     return SCALE_UNIT(lerp_p) / near_plane_z;
 }
 
 static inline float
-toridraw_triangle_slopef(
+ToriDraw_TriangleSlopef(
     float near_plane_z,
     float za,
     float zb)
@@ -57,7 +57,7 @@ toridraw_triangle_slopef(
 }
 
 static inline float
-toridraw_triangle_lerp_planef(
+ToriDraw_TriangleLerpPlanef(
     float near_plane_z,
     float lerp_slope,
     float pa,
@@ -67,13 +67,13 @@ toridraw_triangle_lerp_planef(
 }
 
 static inline float
-toridraw_triangle_lerp_plane_projectf(
+ToriDraw_TriangleLerpPlaneProjectf(
     float near_plane_z,
     float lerp_slope,
     float pa,
     float pb)
 {
-    float lerp_p = toridraw_triangle_lerp_planef(near_plane_z, lerp_slope, pa, pb);
+    float lerp_p = ToriDraw_TriangleLerpPlanef(near_plane_z, lerp_slope, pa, pb);
 
     return SCALE_UNIT(lerp_p) / near_plane_z;
 }

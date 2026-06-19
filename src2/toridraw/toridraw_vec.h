@@ -13,97 +13,97 @@
 struct ToriDraw_Vec;
 
 struct ToriDraw_Vec*
-toridraw_vec_new(
+ToriDraw_VecNew(
     size_t element_size,
     size_t initial_capacity);
 
 void
-toridraw_vec_free(struct ToriDraw_Vec* v);
+ToriDraw_VecFree(struct ToriDraw_Vec* v);
 
 int
-toridraw_vec_reserve(
+ToriDraw_VecReserve(
     struct ToriDraw_Vec* v,
     size_t new_capacity);
 
 int
-toridraw_vec_resize(
+ToriDraw_VecResize(
     struct ToriDraw_Vec* v,
     size_t new_size);
 
 int
-toridraw_vec_shrink_to_fit(struct ToriDraw_Vec* v);
+ToriDraw_VecShrinkToFit(struct ToriDraw_Vec* v);
 
 size_t
-toridraw_vec_size(const struct ToriDraw_Vec* v);
+ToriDraw_VecSize(const struct ToriDraw_Vec* v);
 
 size_t
-toridraw_vec_capacity(const struct ToriDraw_Vec* v);
+ToriDraw_VecCapacity(const struct ToriDraw_Vec* v);
 
 bool
-toridraw_vec_empty(const struct ToriDraw_Vec* v);
+ToriDraw_VecEmpty(const struct ToriDraw_Vec* v);
 
 void*
-toridraw_vec_get(
+ToriDraw_VecGet(
     const struct ToriDraw_Vec* v,
     size_t index);
 
 int
-toridraw_vec_set(
+ToriDraw_VecSet(
     struct ToriDraw_Vec* v,
     size_t index,
     const void* element);
 
 int
-toridraw_vec_push(
+ToriDraw_VecPush(
     struct ToriDraw_Vec* v,
     const void* element);
 
 int
-toridraw_vec_pop(
+ToriDraw_VecPop(
     struct ToriDraw_Vec* v,
     void* out_element);
 
 int
-toridraw_vec_insert(
+ToriDraw_VecInsert(
     struct ToriDraw_Vec* v,
     size_t index,
     const void* element);
 
 int
-toridraw_vec_remove(
+ToriDraw_VecRemove(
     struct ToriDraw_Vec* v,
     size_t index,
     void* out_element);
 
 void
-toridraw_vec_clear(struct ToriDraw_Vec* v);
+ToriDraw_VecClear(struct ToriDraw_Vec* v);
 
 int
-toridraw_vec_append(
+ToriDraw_VecAppend(
     struct ToriDraw_Vec* v,
     const void* elements,
     size_t count);
 
 int
-toridraw_vec_copy(
+ToriDraw_VecCopy(
     const struct ToriDraw_Vec* src,
     struct ToriDraw_Vec* dst);
 
 void*
-toridraw_vec_data(const struct ToriDraw_Vec* v);
+ToriDraw_VecData(const struct ToriDraw_Vec* v);
 
 struct ToriDraw_VecIter;
 
 struct ToriDraw_VecIter*
-toridraw_vec_iter_new(struct ToriDraw_Vec* v);
+ToriDraw_VecIterNew(struct ToriDraw_Vec* v);
 
 void
-toridraw_vec_iter_free(struct ToriDraw_VecIter* it);
+ToriDraw_VecIterFree(struct ToriDraw_VecIter* it);
 
 void*
-toridraw_vec_iter_next(struct ToriDraw_VecIter* it);
+ToriDraw_VecIterNext(struct ToriDraw_VecIter* it);
 
 void
-toridraw_vec_iter_reset(struct ToriDraw_VecIter* it);
+ToriDraw_VecIterReset(struct ToriDraw_VecIter* it);
 
 #endif

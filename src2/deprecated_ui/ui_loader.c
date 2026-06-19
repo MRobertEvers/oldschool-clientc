@@ -538,7 +538,7 @@ ui_loader_decode_sprite(
         if( !pix8_palette )
             return NULL;
 
-        struct ToriDraw_Sprite* sprite = toridraw_sprite_new_from_cache_pix8_palette(pix8_palette);
+        struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix8Palette(pix8_palette);
         cache_dat_pix8_palette_free(pix8_palette);
         return sprite;
     }
@@ -554,7 +554,7 @@ ui_loader_decode_sprite(
         if( !pix32 )
             return NULL;
 
-        struct ToriDraw_Sprite* sprite = toridraw_sprite_new_from_cache_pix32(pix32);
+        struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix32(pix32);
         cache_dat_pix32_free(pix32);
         return sprite;
     }
@@ -574,7 +574,7 @@ ui_loader_placeholder_sprite(
         return NULL;
     for( int i = 0; i < w * h; i++ )
         pixels[i] = 0xFFFF00FFu;
-    return toridraw_sprite_new_from_argb_owned(pixels, w, h);
+    return ToriDraw_SpriteNewFromArgbOwned(pixels, w, h);
 }
 
 static struct ToriDraw_Sprite*
@@ -617,7 +617,7 @@ ui_loader_decode_media_sprite_ref(
         sprite_idx);
     if( pix32 )
     {
-        struct ToriDraw_Sprite* sprite = toridraw_sprite_new_from_cache_pix32(pix32);
+        struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix32(pix32);
         cache_dat_pix32_free(pix32);
         if( sprite )
             return sprite;
@@ -632,7 +632,7 @@ ui_loader_decode_media_sprite_ref(
     if( !pix8_palette )
         return NULL;
 
-    struct ToriDraw_Sprite* sprite = toridraw_sprite_new_from_cache_pix8_palette(pix8_palette);
+    struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix8Palette(pix8_palette);
     cache_dat_pix8_palette_free(pix8_palette);
     return sprite;
 }
@@ -701,7 +701,7 @@ ui_loader_acquire_rs_sprite(
     row = malloc(sizeof(struct ToriDraw_Sprite*));
     if( !row )
     {
-        toridraw_sprite_free(sprite);
+        ToriDraw_SpriteFree(sprite);
         return -1;
     }
     row[0] = sprite;
@@ -709,7 +709,7 @@ ui_loader_acquire_rs_sprite(
     scene_id = ui_scene_element_acquire_with_sprites(scene, row, 1, false, sprite_ref);
     if( scene_id < 0 )
     {
-        toridraw_sprite_free(sprite);
+        ToriDraw_SpriteFree(sprite);
         free(row);
         return -1;
     }
@@ -1589,7 +1589,7 @@ ui_loader_consume_resolved_cache_io(
                     model_free(model);
                     if( copy )
                     {
-                        struct ToriDraw_Model* td = toridraw_model_new_from_cache_model(copy);
+                        struct ToriDraw_Model* td = ToriDraw_ModelNewFromCacheModel(copy);
                         model_free(copy);
                         if( td )
                         {

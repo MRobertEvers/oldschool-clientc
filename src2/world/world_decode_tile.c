@@ -652,7 +652,7 @@ decode_tile(
         if( !td->textured_p_coordinate || !td->textured_m_coordinate ||
             !td->textured_n_coordinate || !td->face_texture_coords )
         {
-            toridraw_model_free(td);
+            ToriDraw_ModelFree(td);
             return NULL;
         }
         td->textured_p_coordinate[0] = 0;
@@ -665,7 +665,7 @@ decode_tile(
     td->bounds_cylinder = calloc(1, sizeof(struct ToriDraw_BoundsCylinder));
     if( !td->bounds_cylinder )
     {
-        toridraw_model_free(td);
+        ToriDraw_ModelFree(td);
         return NULL;
     }
     tile_calculate_bounds_cylinder(

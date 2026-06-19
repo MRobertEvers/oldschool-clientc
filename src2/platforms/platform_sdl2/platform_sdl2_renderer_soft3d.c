@@ -151,7 +151,7 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
     size_t const pixel_count = (size_t)renderer->width * (size_t)renderer->height;
     memset(renderer->pixel_buffer, 0, pixel_count * sizeof(int));
 
-    struct ToriDraw_Context* draw_context = LibToriRS_GetCurrentToriDrawContext(instance);
+    struct ToriDraw_Scene* draw_context = LibToriRS_GetCurrentToriDrawScene(instance);
 
     bool has_3d = false;
     struct LibToriRS_RenderCommand_Begin3D cur_3d;
@@ -179,7 +179,7 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 struct ToriDraw_Camera tmp_cam = cur_3d.camera;
                 tmp_vp.stride = renderer->width;
                 (void)tmp_pos;
-                toridraw_render_model3_raster(
+                ToriDraw_RenderModel3Raster(
                     draw_context, &tmp_vp, &tmp_cam, renderer->pixel_buffer, false);
             }
             break;
@@ -217,7 +217,7 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             vp.clip_top = 0;
             vp.clip_right = renderer->width;
             vp.clip_bottom = renderer->height;
-            toridraw2d_blit_sprite(
+            ToriDraw2D_BlitSprite(
                 sp, &vp, command.u.sprite.x, command.u.sprite.y, renderer->pixel_buffer);
             break;
         }
@@ -250,7 +250,7 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 struct ToriDraw_ViewPort tmp_vp = renderer->ui_model_vp;
                 struct ToriDraw_Camera tmp_cam = renderer->ui_model_cam;
                 tmp_vp.stride = renderer->width;
-                toridraw_render_model3_raster(
+                ToriDraw_RenderModel3Raster(
                     draw_context, &tmp_vp, &tmp_cam, renderer->pixel_buffer, false);
             }
             break;

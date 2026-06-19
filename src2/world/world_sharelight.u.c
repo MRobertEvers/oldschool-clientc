@@ -3,7 +3,7 @@
 
 #include "heightmap.h"
 #include "sharelight_map.h"
-#include "toridraw/toridraw_gccontext.h"
+#include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_lighting.h"
 #include "toridraw/toridraw_model.h"
@@ -72,7 +72,7 @@ static int g_vertex_a_merge_index[10000] = { 0 };
 static int g_vertex_b_merge_index[10000] = { 0 };
 
 static int*
-toridraw_model_face_infos_ensure_zero(struct ToriDraw_Model* model)
+ToriDraw_ModelFaceInfosEnsureZero(struct ToriDraw_Model* model)
 {
     if( !model )
         return NULL;
@@ -169,7 +169,7 @@ merge_normals(
             g_vertex_a_merge_index[m_fb[face]] == g_merge_index &&
             g_vertex_a_merge_index[m_fci[face]] == g_merge_index )
         {
-            int* infos = toridraw_model_face_infos_ensure_zero(model);
+            int* infos = ToriDraw_ModelFaceInfosEnsureZero(model);
             if( infos )
                 infos[face] = 2;
         }
@@ -184,7 +184,7 @@ merge_normals(
             g_vertex_b_merge_index[o_fb[face]] == g_merge_index &&
             g_vertex_b_merge_index[o_fci[face]] == g_merge_index )
         {
-            int* infos = toridraw_model_face_infos_ensure_zero(other_model);
+            int* infos = ToriDraw_ModelFaceInfosEnsureZero(other_model);
             if( infos )
                 infos[face] = 2;
         }
@@ -197,7 +197,7 @@ static void
 defaultlight_build(struct WorldBuilder* builder)
 {
     struct World* world = builder->world;
-    struct ToriDraw_GCElement* scene_element = NULL;
+    struct ToriDraw_SceneElement* scene_element = NULL;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
 
@@ -218,22 +218,22 @@ defaultlight_build(struct WorldBuilder* builder)
                         continue;
 
                     scene_element =
-                        toridraw_gc_element_get(builder->context, map_element->element_idx);
+                        ToriDraw_SceneElementGet(builder->scene, map_element->element_idx);
                     if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                         !scene_element->model.u.model.model )
                         continue;
 
                     struct ToriDraw_Model* dm = scene_element->model.u.model.model;
-                    if( !toridraw_model_is_lightable(dm) )
+                    if( !ToriDraw_ModelIsLightable(dm) )
                         continue;
 
                     struct ToriDraw_ModelHandle hnd = {
                         .kind = TORIDRAWMK_MODEL,
                         .u.model.model = dm,
                     };
-                    toridraw_light_model_default(
+                    ToriDraw_LightModelDefault(
                         hnd, map_element->light_attenuation, map_element->light_ambient);
-                    toridraw_model_free_normals(dm);
+                    ToriDraw_ModelFreeNormals(dm);
                 }
             }
         }
@@ -250,7 +250,7 @@ alloc_normals_for_column(
     struct World* world = builder->world;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
-    struct ToriDraw_GCElement* scene_element = NULL;
+    struct ToriDraw_SceneElement* scene_element = NULL;
 
     for( int sz = 0; sz < builder->sharelight_map->height; sz++ )
     {
@@ -263,16 +263,16 @@ alloc_normals_for_column(
                  pi = builder->sharelight_map->pool[pi].next )
             {
                 map_element = &builder->sharelight_map->pool[pi].element;
-                scene_element = toridraw_gc_element_get(builder->context, map_element->element_idx);
+                scene_element = ToriDraw_SceneElementGet(builder->scene, map_element->element_idx);
                 if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                     !scene_element->model.u.model.model )
                     continue;
                 struct ToriDraw_Model* dm = scene_element->model.u.model.model;
                 if( !dm->normals )
                 {
-                    toridraw_model_alloc_normals(dm);
-                    toridraw_model_alloc_merged_normals(dm);
-                    toridraw_model_calculate_vertex_normals(dm);
+                    ToriDraw_ModelAllocNormals(dm);
+                    ToriDraw_ModelAllocMergedNormals(dm);
+                    ToriDraw_ModelCalculateVertexNormals(dm);
                 }
             }
         }
@@ -300,8 +300,8 @@ merge_column(
     struct SharelightMapTile* adjacent_map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
     struct SharelightMapElement* adjacent_map_element = NULL;
-    struct ToriDraw_GCElement* scene_element = NULL;
-    struct ToriDraw_GCElement* adjacent_scene_element = NULL;
+    struct ToriDraw_SceneElement* scene_element = NULL;
+    struct ToriDraw_SceneElement* adjacent_scene_element = NULL;
 
     for( int sz = 0; sz < builder->sharelight_map->height; sz++ )
     {
@@ -315,7 +315,7 @@ merge_column(
                  pi = builder->sharelight_map->pool[pi].next )
             {
                 map_element = &builder->sharelight_map->pool[pi].element;
-                scene_element = toridraw_gc_element_get(builder->context, map_element->element_idx);
+                scene_element = ToriDraw_SceneElementGet(builder->scene, map_element->element_idx);
                 if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                     !scene_element->model.u.model.model )
                     continue;
@@ -346,8 +346,8 @@ merge_column(
                         if( adjacent_map_element->element_idx == map_element->element_idx )
                             continue;
 
-                        adjacent_scene_element = toridraw_gc_element_get(
-                            builder->context, adjacent_map_element->element_idx);
+                        adjacent_scene_element = ToriDraw_SceneElementGet(
+                            builder->scene, adjacent_map_element->element_idx);
                         if( !adjacent_scene_element ||
                             adjacent_scene_element->model.kind != TORIDRAWMK_MODEL ||
                             !adjacent_scene_element->model.u.model.model )
@@ -373,8 +373,8 @@ merge_column(
                         struct ToriDraw_Model* adjacent_dm =
                             adjacent_scene_element->model.u.model.model;
 
-                        if( !toridraw_model_is_lightable(adjacent_dm) ||
-                            !toridraw_model_is_lightable(dm) )
+                        if( !ToriDraw_ModelIsLightable(adjacent_dm) ||
+                            !ToriDraw_ModelIsLightable(dm) )
                             continue;
 
                         bool hide_faces = sharelight_should_hide_faces_for_merge(
@@ -406,7 +406,7 @@ apply_and_free_column(
     struct World* world = builder->world;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
-    struct ToriDraw_GCElement* scene_element = NULL;
+    struct ToriDraw_SceneElement* scene_element = NULL;
 
     for( int sz = 0; sz < builder->sharelight_map->height; sz++ )
     {
@@ -420,7 +420,7 @@ apply_and_free_column(
                  pi = builder->sharelight_map->pool[pi].next )
             {
                 map_element = &builder->sharelight_map->pool[pi].element;
-                scene_element = toridraw_gc_element_get(builder->context, map_element->element_idx);
+                scene_element = ToriDraw_SceneElementGet(builder->scene, map_element->element_idx);
                 if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                     !scene_element->model.u.model.model )
                     continue;
@@ -440,9 +440,9 @@ apply_and_free_column(
                 int attenuation = (light_attenuation * light_magnitude) >> 8;
 
                 struct ToriDraw_Model* dm = scene_element->model.u.model.model;
-                if( !toridraw_model_is_lightable(dm) )
+                if( !ToriDraw_ModelIsLightable(dm) )
                     continue;
-                toridraw_apply_lighting(
+                ToriDraw_ApplyLighting(
                     dm->face_colors_a,
                     dm->face_colors_b,
                     dm->face_colors_c,
@@ -465,7 +465,7 @@ apply_and_free_column(
                     dm->vertices_y,
                     dm->vertices_z);
 
-                toridraw_model_free_normals(dm);
+                ToriDraw_ModelFreeNormals(dm);
             }
         }
     }

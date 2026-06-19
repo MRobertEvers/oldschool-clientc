@@ -4,13 +4,13 @@
 #include "../input/libtorirs_input.h"
 #include "../render/libtorirs_render.h"
 #include "../scripting/libtorirs_scripting.h"
-#include "toridraw/toridraw_gccontext.h"
+#include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
-struct ToriDraw_Context;
+struct ToriDraw_Scene;
 struct GameCache;
 struct LibToriRS_IOContext;
 
@@ -35,7 +35,7 @@ struct GameModelViewer
     int current_model_id;
 
     struct ToriDraw_ModelHandle model;
-    struct ToriDraw_Context* context;
+    struct ToriDraw_Scene* scene;
     struct ToriDraw_Position* camera_position;
     struct ToriDraw_Camera* camera;
     struct ToriDraw_ViewPort* view_port;
@@ -61,7 +61,7 @@ struct GameModelViewer
 struct GameModelViewer*
 game_modelviewer_new(
     struct LibToriRS_ScriptQueue* script_queue,
-    struct ToriDraw_Context* context);
+    struct ToriDraw_Scene* scene);
 
 void
 game_modelviewer_free(struct GameModelViewer* game_model_viewer);

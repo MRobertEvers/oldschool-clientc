@@ -218,10 +218,10 @@ get_model(struct ToriDraw_ModelHandle model_handle)
     return model_handle.u.model.model;
 }
 
-static struct ToriDraw_Context*
+static struct ToriDraw_Scene*
 get_context(struct LibToriRS_Instance* instance)
 {
-    return LibToriRS_GetCurrentToriDrawContext(instance);
+    return LibToriRS_GetCurrentToriDrawScene(instance);
 }
 
 static void
@@ -278,7 +278,7 @@ hsl16_to_rgba(
     uint8_t alpha,
     float rgba[4])
 {
-    uint32_t rgb = toridraw_hsl16_to_rgb(hsl16);
+    uint32_t rgb = ToriDraw_Hsl16ToRgb(hsl16);
     rgba[0] = (float)((rgb >> 16) & 0xFFu) / 255.0f;
     rgba[1] = (float)((rgb >> 8) & 0xFFu) / 255.0f;
     rgba[2] = (float)(rgb & 0xFFu) / 255.0f;
@@ -365,8 +365,8 @@ compute_pass_matrices(
         -(float)cam_pos->x,
         -(float)cam_pos->y,
         -(float)cam_pos->z,
-        toridraw_angle_to_radians(cam->pitch),
-        toridraw_angle_to_radians(cam->yaw));
+        ToriDraw_AngleToRadians(cam->pitch),
+        ToriDraw_AngleToRadians(cam->yaw));
     compute_projection_matrix(proj, (90.0f * (float)M_PI) / 180.0f, (float)pass_w, (float)pass_h);
 }
 
@@ -683,7 +683,7 @@ gl3_bake_into_arena(
     if( !model || model->face_count <= 0 )
         return;
 
-    struct ToriDraw_Context* ctx = get_context(instance);
+    struct ToriDraw_Scene* ctx = get_context(instance);
     const uint32_t vert_count = (uint32_t)model->face_count * 3u;
     const uint32_t tri_count = (uint32_t)model->face_count;
 
@@ -755,7 +755,7 @@ gl3_bake_into_arena(
         float uv_mode = 0.0f;
         if( tex_id >= 0 && ctx )
         {
-            tex = toridraw_texturemap_get(&ctx->texture_map, tex_id);
+            tex = ToriDraw_TextureMapGet(&ToriDraw_SceneTexState(ctx)->texture_map, tex_id);
             if( tex )
                 uv_mode = gl3_pack_uv_mode(tex->animation_direction, tex->animation_speed);
         }
@@ -915,7 +915,7 @@ gl3_ev_model_draw(
     if( !renderer->has_3d || !renderer->ibo_chain )
         return;
 
-    struct ToriDraw_Context* ctx = get_context(instance);
+    struct ToriDraw_Scene* ctx = get_context(instance);
     if( !ctx )
         return;
 
@@ -925,11 +925,11 @@ gl3_ev_model_draw(
             &renderer->poses, command->u.model.element_id, pose_id, &vertex_base) )
         return;
 
-    const int face_count = toridraw_face_order_count(ctx);
+    const int face_count = ToriDraw_FaceOrderCount(ctx);
     if( face_count <= 0 )
         return;
 
-    int* face_order = toridraw_face_order(ctx);
+    int* face_order = ToriDraw_FaceOrder(ctx);
     for( int i = 0; i < face_count; i++ )
     {
         const uint32_t face = (uint32_t)face_order[i];

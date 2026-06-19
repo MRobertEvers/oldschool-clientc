@@ -21,9 +21,9 @@ struct UISceneElement
     struct UISceneElement* next;
     struct UISceneElement* prev;
     char name[64];
-    struct ToriDraw_Sprite** toridraw_sprites;
-    int toridraw_sprites_count;
-    bool toridraw_sprites_borrowed;
+    struct ToriDraw_Sprite** ToriDraw_Sprites;
+    int ToriDraw_SpritesCount;
+    bool ToriDraw_SpritesBorrowed;
 };
 
 struct UIScene

@@ -68,7 +68,7 @@ struct ToriDrawModelRasterContext
 };
 
 static inline void
-toridraw_raster_model_face(
+ToriDraw_RasterModelFace(
     int face,
     struct ToriDrawModelRasterContext* ctx)
 {
@@ -142,7 +142,7 @@ toridraw_raster_model_face(
     if( texture_id != -1 )
     {
         // gamma 0.8 is the default in os1
-        texture = toridraw_texturemap_get(ctx->texture_map, texture_id);
+        texture = ToriDraw_TextureMapGet(ctx->texture_map, texture_id);
         assert(texture != NULL);
 
         texels = texture->texels;
@@ -176,7 +176,7 @@ toridraw_raster_model_face(
         case FACE_TYPE_GOURAUD:
             if( (ctx->flags & RASTER_FLAG_GOURAUD_SMOOTH) != 0 )
             {
-                toridraw_triangle_face_gouraud_smooth(
+                ToriDraw_TriangleFaceGouraudSmooth(
                     ctx->pixel_buffer,
                     face,
                     ctx->face_indices_a,
@@ -202,7 +202,7 @@ toridraw_raster_model_face(
             }
             else
             {
-                toridraw_triangle_face_gouraud(
+                ToriDraw_TriangleFaceGouraud(
                     ctx->pixel_buffer,
                     face,
                     ctx->face_indices_a,
@@ -231,7 +231,7 @@ toridraw_raster_model_face(
         case FACE_TYPE_FLAT:
             // Skip triangle if any vertex was clipped
 
-            toridraw_triangle_face_flat(
+            ToriDraw_TriangleFaceFlat(
                 ctx->pixel_buffer,
                 face,
                 ctx->face_indices_a,
@@ -294,7 +294,7 @@ toridraw_raster_model_face(
 
             if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
             {
-                toridraw_triangle_face_texture_blend_affine_v3(
+                ToriDraw_TriangleFaceTextureBlendAffineV3(
                     ctx->pixel_buffer,
                     ctx->stride,
                     ctx->screen_width,
@@ -326,7 +326,7 @@ toridraw_raster_model_face(
             }
             else if( texture_opaque )
             {
-                toridraw_triangle_face_texture_blend_opaque(
+                ToriDraw_TriangleFaceTextureBlendOpaque(
                     ctx->pixel_buffer,
                     ctx->stride,
                     ctx->screen_width,
@@ -357,7 +357,7 @@ toridraw_raster_model_face(
             }
             else
             {
-                toridraw_triangle_face_texture_blend_transparent(
+                ToriDraw_TriangleFaceTextureBlendTransparent(
                     ctx->pixel_buffer,
                     ctx->stride,
                     ctx->screen_width,
@@ -423,7 +423,7 @@ toridraw_raster_model_face(
 
             if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
             {
-                toridraw_triangle_face_texture_flat_affine_v3(
+                ToriDraw_TriangleFaceTextureFlatAffineV3(
                     ctx->pixel_buffer,
                     ctx->stride,
                     ctx->screen_width,
@@ -453,7 +453,7 @@ toridraw_raster_model_face(
             }
             else if( texture_opaque )
             {
-                toridraw_triangle_face_texture_flat_opaque(
+                ToriDraw_TriangleFaceTextureFlatOpaque(
                     ctx->pixel_buffer,
                     ctx->stride,
                     ctx->screen_width,
@@ -482,7 +482,7 @@ toridraw_raster_model_face(
             }
             else
             {
-                toridraw_triangle_face_texture_flat_transparent(
+                ToriDraw_TriangleFaceTextureFlatTransparent(
                     ctx->pixel_buffer,
                     ctx->stride,
                     ctx->screen_width,
@@ -520,7 +520,7 @@ toridraw_raster_model_face(
 
 static inline void
 context_from_handle(
-    struct ToriDraw_Context* context,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
@@ -538,12 +538,12 @@ context_from_handle(
         ctx->face_indices_b = m->face_indices_b;
         ctx->face_indices_c = m->face_indices_c;
         ctx->num_faces = m->face_count;
-        ctx->vertex_x = context->screen_vertices_x;
-        ctx->vertex_y = context->screen_vertices_y;
-        ctx->vertex_z = context->screen_vertices_z;
-        ctx->orthographic_vertex_x_nullable = context->orthographic_vertices_x;
-        ctx->orthographic_vertex_y_nullable = context->orthographic_vertices_y;
-        ctx->orthographic_vertex_z_nullable = context->orthographic_vertices_z;
+        ctx->vertex_x = scene->screen_vertices_x;
+        ctx->vertex_y = scene->screen_vertices_y;
+        ctx->vertex_z = scene->screen_vertices_z;
+        ctx->orthographic_vertex_x_nullable = scene->orthographic_vertices_x;
+        ctx->orthographic_vertex_y_nullable = scene->orthographic_vertices_y;
+        ctx->orthographic_vertex_z_nullable = scene->orthographic_vertices_z;
         ctx->num_vertices = m->vertex_count;
         ctx->face_textures = m->face_textures;
         ctx->face_texture_coords = m->face_texture_coords;
@@ -563,13 +563,13 @@ context_from_handle(
         ctx->screen_height = view_port->height;
         ctx->stride = view_port->stride ? view_port->stride : view_port->width;
         ctx->camera_fov = camera->fov_rpi2048;
-        ctx->texture_map = &toridraw_context_tex_state(context)->texture_map;
+        ctx->texture_map = &ToriDraw_SceneTexState(scene)->texture_map;
         ctx->flags = 0;
         if( smooth )
             ctx->flags |= RASTER_FLAG_GOURAUD_SMOOTH;
         if( false )
             ctx->flags |= RASTER_FLAG_TEXTURE_AFFINE;
-        ctx->allow_near_clip = toridraw_model_has_textures(hnd);
+        ctx->allow_near_clip = ToriDraw_ModelHasTextures(hnd);
         break;
     }
     default:
@@ -578,8 +578,8 @@ context_from_handle(
 }
 
 static inline void
-toridraw_raster_with_face_indices(
-    struct ToriDraw_Context* context,
+ToriDraw_RasterWithFaceIndices(
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
@@ -587,19 +587,19 @@ toridraw_raster_with_face_indices(
     bool smooth)
 {
     struct ToriDrawModelRasterContext ctx;
-    context_from_handle(context, hnd, view_port, camera, smooth, &ctx);
+    context_from_handle(scene, hnd, view_port, camera, smooth, &ctx);
     ctx.pixel_buffer = pixel_buffer;
 
-    for( int i = 0; i < context->tmp_face_order_count; i++ )
+    for( int i = 0; i < scene->tmp_face_order_count; i++ )
     {
-        int face = context->tmp_face_order[i];
-        toridraw_raster_model_face(face, &ctx);
+        int face = scene->tmp_face_order[i];
+        ToriDraw_RasterModelFace(face, &ctx);
     }
 }
 
 static inline void
-toridraw_raster(
-    struct ToriDraw_Context* context,
+ToriDraw_Raster(
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
@@ -610,8 +610,8 @@ toridraw_raster(
     {
     case TORIDRAWMK_MODEL:
     {
-        return toridraw_raster_with_face_indices(
-            context, hnd, view_port, camera, pixel_buffer, smooth);
+        return ToriDraw_RasterWithFaceIndices(
+            scene, hnd, view_port, camera, pixel_buffer, smooth);
     }
     default:
         assert(false && "Invalid model handle kind");

@@ -48,28 +48,28 @@ struct ToriDraw_Sprite
 };
 
 struct ToriDraw_Sprite*
-toridraw_sprite_new_from_pix8(
+ToriDraw_SpriteNewFromPix8(
     struct ToriDraw_Pix8* pix8,
     struct ToriDraw_PixPalette* palette);
 
 struct ToriDraw_Sprite*
-toridraw_sprite_new_from_pix32(struct ToriDraw_Pix32* pix32);
+ToriDraw_SpriteNewFromPix32(struct ToriDraw_Pix32* pix32);
 
 /** Takes ownership of pixels_argb (heap ARGB, row-major). */
 struct ToriDraw_Sprite*
-toridraw_sprite_new_from_argb_owned(
+ToriDraw_SpriteNewFromArgbOwned(
     uint32_t* pixels_argb,
     int width,
     int height);
 
 void
-toridraw_pix8_free(struct ToriDraw_Pix8* pix8);
+ToriDraw_Pix8Free(struct ToriDraw_Pix8* pix8);
 
 void
-toridraw_pixpalette_free(struct ToriDraw_PixPalette* palette);
+ToriDraw_PixpaletteFree(struct ToriDraw_PixPalette* palette);
 
 void
-toridraw2d_blit_sprite(
+ToriDraw2D_BlitSprite(
     struct ToriDraw_Sprite* sprite,
     struct ToriDraw_ViewPort* view_port,
     int x,
@@ -77,7 +77,7 @@ toridraw2d_blit_sprite(
     int* pixel_buffer);
 
 void
-toridraw2d_blit_sprite_subrect(
+ToriDraw2D_BlitSprite_subrect(
     struct ToriDraw_Sprite* sprite,
     struct ToriDraw_ViewPort* view_port,
     int x,
@@ -89,12 +89,12 @@ toridraw2d_blit_sprite_subrect(
     int* pixel_buffer);
 
 void
-toridraw_sprite_flip_horizontal(struct ToriDraw_Sprite* sprite);
+ToriDraw_SpriteFlipHorizontal(struct ToriDraw_Sprite* sprite);
 
 void
-toridraw_sprite_flip_vertical(struct ToriDraw_Sprite* sprite);
+ToriDraw_SpriteFlipVertical(struct ToriDraw_Sprite* sprite);
 
 void
-toridraw_sprite_free(struct ToriDraw_Sprite* sprite);
+ToriDraw_SpriteFree(struct ToriDraw_Sprite* sprite);
 
 #endif

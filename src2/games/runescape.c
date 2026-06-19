@@ -14,7 +14,7 @@
 
 static bool
 game_runescape_translate_gc_event(
-    const struct ToriDraw_GCEvent* ev,
+    const struct ToriDraw_Event* ev,
     struct LibToriRS_RenderCommand* command)
 {
     if( !ev || !command )
@@ -24,21 +24,21 @@ game_runescape_translate_gc_event(
 
     switch( ev->kind )
     {
-    case TDGC_MODEL_LOAD:
+    case TORIDRAW_EVENT_MODEL_LOAD:
         command->kind = TORIRSRC_MODEL_LOAD;
         command->u.model_load.element_id = ev->element_id;
         command->u.model_load.model = ev->model;
         command->u.model_load.world_position = ev->world_position;
         return true;
-    case TDGC_MODEL_UNLOAD:
+    case TORIDRAW_EVENT_MODEL_UNLOAD:
         command->kind = TORIRSRC_MODEL_UNLOAD;
         command->u.model_load.element_id = ev->element_id;
         return true;
-    case TDGC_BATCH_BEGIN:
+    case TORIDRAW_EVENT_BATCH_BEGIN:
         command->kind = TORIRSRC_BATCH3D_BEGIN;
         command->u.batch.batch_id = ev->batch_id;
         return true;
-    case TDGC_BATCH_MODEL_ADD:
+    case TORIDRAW_EVENT_BATCH_MODEL_ADD:
         command->kind = TORIRSRC_BATCH3D_MODEL_ADD;
         command->u.batch.batch_id = ev->batch_id;
         command->u.batch.element_id = ev->element_id;
@@ -46,7 +46,7 @@ game_runescape_translate_gc_event(
         command->u.batch.model = ev->model;
         command->u.batch.world_position = ev->world_position;
         return true;
-    case TDGC_BATCH_ANIM_ADD:
+    case TORIDRAW_EVENT_BATCH_ANIM_ADD:
         command->kind = TORIRSRC_BATCH3D_ANIM_ADD;
         command->u.batch.batch_id = ev->batch_id;
         command->u.batch.element_id = ev->element_id;
@@ -54,29 +54,29 @@ game_runescape_translate_gc_event(
         command->u.batch.model = ev->model;
         command->u.batch.world_position = ev->world_position;
         return true;
-    case TDGC_BATCH_END:
+    case TORIDRAW_EVENT_BATCH_END:
         command->kind = TORIRSRC_BATCH3D_END;
         command->u.batch.batch_id = ev->batch_id;
         return true;
-    case TDGC_BATCH_CLEAR:
+    case TORIDRAW_EVENT_BATCH_CLEAR:
         command->kind = TORIRSRC_BATCH3D_CLEAR;
         command->u.batch.batch_id = ev->batch_id;
         return true;
-    case TDGC_ANIM_LOAD:
+    case TORIDRAW_EVENT_ANIM_LOAD:
         command->kind = TORIRSRC_ANIM_LOAD;
         command->u.anim_load.element_id = ev->element_id;
         command->u.anim_load.animation = ev->animation;
         return true;
-    case TDGC_ANIM_UNLOAD:
+    case TORIDRAW_EVENT_ANIM_UNLOAD:
         command->kind = TORIRSRC_ANIM_UNLOAD;
         command->u.anim_load.element_id = ev->element_id;
         return true;
-    case TDGC_TEX_LOAD:
+    case TORIDRAW_EVENT_TEX_LOAD:
         command->kind = TORIRSRC_TEX_LOAD;
         command->u.tex_load.texture_id = ev->texture_id;
         command->u.tex_load.texture = ev->texture;
         return true;
-    case TDGC_TEX_UNLOAD:
+    case TORIDRAW_EVENT_TEX_UNLOAD:
         command->kind = TORIRSRC_TEX_UNLOAD;
         command->u.tex_load.texture_id = ev->texture_id;
         command->u.tex_load.texture = NULL;
@@ -106,28 +106,28 @@ game_runescape_emit_draw_element(
     int element_id,
     struct LibToriRS_RenderCommand* command)
 {
-    if( !toridraw_gc_element_is_live(game->context, element_id) )
+    if( !ToriDraw_SceneElementIsLive(game->scene, element_id) )
         return false;
 
-    struct ToriDraw_GCElement* element = toridraw_gc_element_get(game->context, element_id);
+    struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(game->scene, element_id);
     if( !element || element->model.kind != TORIDRAWMK_MODEL )
         return false;
-    if( !toridraw_model_get_bounds_cylinder(element->model) )
+    if( !ToriDraw_ModelGetBoundsCylinder(element->model) )
         return false;
 
     struct ToriDraw_Position rel_pos = element->world_position;
     rel_pos.x -= game->camera_position->x;
     rel_pos.y -= game->camera_position->y;
     rel_pos.z -= game->camera_position->z;
-    rel_pos.yaw = toridraw_normalize_angle(element->world_position.yaw);
+    rel_pos.yaw = ToriDraw_NormalizeAngle(element->world_position.yaw);
 
-    if( game->context )
+    if( game->scene )
     {
-        const int cull = toridraw_render_model1_project(
-            element->model, game->context, &rel_pos, &game->world_view_port, game->camera);
+        const int cull = ToriDraw_RenderModel1Project(
+            element->model, game->scene, &rel_pos, &game->world_view_port, game->camera);
         if( cull != TORIDRAW_CULL_VISIBLE )
             return false;
-        if( toridraw_render_model2_sort_faces(element->model, game->context) <= 0 )
+        if( ToriDraw_RenderModel2SortFaces(element->model, game->scene) <= 0 )
             return false;
     }
 
@@ -146,8 +146,8 @@ game_runescape_move_forward(
     struct GameRunescape* game,
     int amount)
 {
-    int direction_x = toridraw_sin(game->camera->yaw);
-    int direction_z = toridraw_cos(game->camera->yaw);
+    int direction_x = ToriDraw_Sin(game->camera->yaw);
+    int direction_z = ToriDraw_Cos(game->camera->yaw);
     game->camera_position->x -= (direction_x * amount) >> 16;
     game->camera_position->z += (direction_z * amount) >> 16;
 }
@@ -157,8 +157,8 @@ game_runescape_move_left(
     struct GameRunescape* game,
     int amount)
 {
-    int direction_x = toridraw_cos(game->camera->yaw);
-    int direction_z = toridraw_sin(game->camera->yaw);
+    int direction_x = ToriDraw_Cos(game->camera->yaw);
+    int direction_z = ToriDraw_Sin(game->camera->yaw);
     game->camera_position->x += (direction_x * amount) >> 16;
     game->camera_position->z += (direction_z * amount) >> 16;
 }
@@ -186,13 +186,13 @@ game_runescape_camera_tile(
 struct GameRunescape*
 game_runescape_new(
     struct LibToriRS_ScriptQueue* script_queue,
-    struct ToriDraw_Context* context)
+    struct ToriDraw_Scene* scene)
 {
     struct GameRunescape* game = calloc(1, sizeof(struct GameRunescape));
     assert(game && "game_runescape_new: failed to allocate game");
 
     game->script_queue = script_queue;
-    game->context = context;
+    game->scene = scene;
     game->zone_center_x = RUNESCAPE_ZONE_CENTER_X;
     game->zone_center_z = RUNESCAPE_ZONE_CENTER_Z;
 
@@ -213,7 +213,7 @@ game_runescape_new(
     game->view_port->x_center = 382;
     game->view_port->y_center = 251;
 
-    assert(game->context && "game_runescape_new: failed to allocate context");
+    assert(game->scene && "game_runescape_new: failed to allocate context");
 
     game->world = world_new();
     assert(game->world && "game_runescape_new: failed to allocate world");
@@ -266,7 +266,7 @@ void
 game_runescape_build_world(struct GameRunescape* game)
 {
     struct WorldBuilder* builder =
-        world_builder_new(game->world, game->gamecache, game->context, game->toridrawx);
+        world_builder_new(game->world, game->gamecache, game->scene, game->toridrawx);
     assert(builder && "game_runescape_build_world: failed to allocate world builder");
     world_builder_rebuild_centerzone(builder, game->zone_center_x, game->zone_center_z, 104);
     world_builder_free(builder);
@@ -304,13 +304,13 @@ game_runescape_process_input(
     if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
         game->camera_position->y += move;
     if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT) )
-        game->camera->yaw = toridraw_add_angle(game->camera->yaw, rotate);
+        game->camera->yaw = ToriDraw_AddAngle(game->camera->yaw, rotate);
     if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
-        game->camera->yaw = toridraw_add_angle(game->camera->yaw, -rotate);
+        game->camera->yaw = ToriDraw_AddAngle(game->camera->yaw, -rotate);
     if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP) )
-        game->camera->pitch = toridraw_add_angle(game->camera->pitch, rotate);
+        game->camera->pitch = ToriDraw_AddAngle(game->camera->pitch, rotate);
     if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN) )
-        game->camera->pitch = toridraw_add_angle(game->camera->pitch, -rotate);
+        game->camera->pitch = ToriDraw_AddAngle(game->camera->pitch, -rotate);
 }
 
 void
@@ -338,13 +338,13 @@ game_runescape_frame_next_command(
         {
         case RS_FRAME_PHASE_GC_EVENTS:
         {
-            struct ToriDraw_GCEventQueue* eq =
-                game->context ? toridraw_gc_events(game->context) : NULL;
+            struct ToriDraw_EventQueue* eq =
+                game->scene ? ToriDraw_SceneEvents(game->scene) : NULL;
             if( eq )
             {
                 while( game->frame.event_index < eq->count )
                 {
-                    const struct ToriDraw_GCEvent* ev = &eq->events[game->frame.event_index++];
+                    const struct ToriDraw_Event* ev = &eq->events[game->frame.event_index++];
                     if( game_runescape_translate_gc_event(ev, command) )
                         return true;
                 }
@@ -426,7 +426,7 @@ game_runescape_frame_next_command(
                 continue;
             }
 
-            int slot_count = toridraw_gc_element_slot_count(game->context);
+            int slot_count = ToriDraw_SceneElementSlotCount(game->scene);
             while( game->frame.element_index < slot_count )
             {
                 int element_id = game->frame.element_index++;
@@ -450,7 +450,7 @@ game_runescape_frame_next_command(
 void
 game_runescape_frame_end(struct GameRunescape* game)
 {
-    toridraw_gc_frame_end(game->context);
+    ToriDraw_SceneFrameEnd(game->scene);
 
     game->frame.phase = RS_FRAME_PHASE_DONE;
 }

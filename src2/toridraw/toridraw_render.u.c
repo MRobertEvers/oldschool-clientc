@@ -27,7 +27,7 @@ div3_fast_fixedpoint(int z_sum)
 }
 
 static inline int
-toridraw_aabb_cull(
+ToriDraw_AabbCull(
     struct ToriDraw_AABB* aabb,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera)
@@ -49,7 +49,7 @@ toridraw_aabb_cull(
 }
 
 static inline int
-toridraw_fast_cull(
+ToriDraw_FastCull(
     struct ToriDraw_AABB* aabb,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_ModelHandle hnd,
@@ -58,13 +58,13 @@ toridraw_fast_cull(
     struct ProjectedVertex* projected_vertex)
 {
     assert(hnd.kind != TORIDRAWMK_NONE);
-    int model_yaw = toridraw_normalize_angle(position->yaw);
+    int model_yaw = ToriDraw_NormalizeAngle(position->yaw);
     int scene_x = position->x;
     int scene_y = position->y;
     int scene_z = position->z;
 
-    int camera_pitch = toridraw_normalize_angle(camera->pitch);
-    int camera_yaw = toridraw_normalize_angle(camera->yaw);
+    int camera_pitch = ToriDraw_NormalizeAngle(camera->pitch);
+    int camera_yaw = ToriDraw_NormalizeAngle(camera->yaw);
     int near_plane_z = camera->near_plane_z;
 
     int cull_mx = 0;
@@ -138,7 +138,7 @@ toridraw_fast_cull(
 }
 
 static void
-toridraw_calculate_cylinder_aabb_8point(
+ToriDraw_CalculateCylinderAabb8point(
     struct ToriDraw_AABB* aabb,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
@@ -433,8 +433,8 @@ sort_face_draw_order(
 }
 
 static inline void
-toridraw_compute_projected_face_order(
-    struct ToriDraw_Context* context,
+ToriDraw_ComputeProjectedFaceOrder(
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd)
 {
     faceint_t* fia = NULL;
@@ -464,18 +464,18 @@ toridraw_compute_projected_face_order(
     int model_min_depth = bc ? bc->min_z_depth_any_rotation : 0;
 
     memset(
-        context->tmp_depth_face_count,
+        scene->tmp_depth_face_count,
         0,
-        (size_t)(model_min_depth * 2 + 1) * sizeof(context->tmp_depth_face_count[0]));
+        (size_t)(model_min_depth * 2 + 1) * sizeof(scene->tmp_depth_face_count[0]));
 
     int bounds = bucket_sort_by_average_depth(
-        context->tmp_depth_faces,
-        context->tmp_depth_face_count,
+        scene->tmp_depth_faces,
+        scene->tmp_depth_face_count,
         model_min_depth,
         face_count,
-        context->screen_vertices_x,
-        context->screen_vertices_y,
-        context->screen_vertices_z,
+        scene->screen_vertices_x,
+        scene->screen_vertices_y,
+        scene->screen_vertices_z,
         fia,
         fib,
         fic);
@@ -488,42 +488,42 @@ toridraw_compute_projected_face_order(
         int order_index = 0;
         for( int depth = model_max_depth; depth < 1500 && depth >= model_min_depth; depth-- )
         {
-            int bucket_count = (int)context->tmp_depth_face_count[depth];
+            int bucket_count = (int)scene->tmp_depth_face_count[depth];
             if( bucket_count == 0 )
                 continue;
 
-            faceint_t* faces = &context->tmp_depth_faces[depth << 9];
+            faceint_t* faces = &scene->tmp_depth_faces[depth << 9];
             for( int j = 0; j < bucket_count; j++ )
             {
-                context->tmp_face_order[order_index++] = faces[j];
+                scene->tmp_face_order[order_index++] = faces[j];
             }
         }
-        context->tmp_face_order_count = order_index;
+        scene->tmp_face_order_count = order_index;
         return;
     }
 
-    memset(context->tmp_priority_depth_sum, 0, 12 * sizeof(faceint_t));
-    memset(context->tmp_priority_face_count, 0, 12 * sizeof(faceint_t));
+    memset(scene->tmp_priority_depth_sum, 0, 12 * sizeof(faceint_t));
+    memset(scene->tmp_priority_face_count, 0, 12 * sizeof(faceint_t));
 
     parition_faces_by_priority(
-        context->tmp_priority_faces,
-        context->tmp_priority_face_count,
-        context->tmp_depth_faces,
-        context->tmp_depth_face_count,
+        scene->tmp_priority_faces,
+        scene->tmp_priority_face_count,
+        scene->tmp_depth_faces,
+        scene->tmp_depth_face_count,
         face_count,
         face_priorities,
         model_min_depth,
         model_max_depth);
 
-    context->tmp_face_order_count = sort_face_draw_order(
-        context->tmp_priority_depth_sum,
-        context->tmp_flex_prio11_face_to_depth,
-        context->tmp_flex_prio12_face_to_depth,
-        context->tmp_face_order,
-        context->tmp_depth_faces,
-        context->tmp_depth_face_count,
-        context->tmp_priority_faces,
-        context->tmp_priority_face_count,
+    scene->tmp_face_order_count = sort_face_draw_order(
+        scene->tmp_priority_depth_sum,
+        scene->tmp_flex_prio11_face_to_depth,
+        scene->tmp_flex_prio12_face_to_depth,
+        scene->tmp_face_order,
+        scene->tmp_depth_faces,
+        scene->tmp_depth_face_count,
+        scene->tmp_priority_faces,
+        scene->tmp_priority_face_count,
         face_count,
         face_priorities,
         model_min_depth,
@@ -532,7 +532,7 @@ toridraw_compute_projected_face_order(
 
 static inline int
 bucket_sort_by_average_depth_small(
-    struct ToriDraw_Context* context,
+    struct ToriDraw_Scene* scene,
     int model_min_depth,
     int num_faces,
     const int* RESTRICT vx,
@@ -542,15 +542,15 @@ bucket_sort_by_average_depth_small(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
-    const int depth_levels = context->depth_levels;
+    const int depth_levels = scene->depth_levels;
     int min_d = depth_levels;
     int max_d = 0;
 
-    memset(context->sm_depth_offset, 0, (size_t)depth_levels * sizeof(int));
+    memset(scene->sm_depth_offset, 0, (size_t)depth_levels * sizeof(int));
 
     for( int f = 0; f < num_faces; f++ )
     {
-        context->sm_face_depth[f] = -1;
+        scene->sm_face_depth[f] = -1;
 
         const uint32_t a = face_a[f];
         const uint32_t b = face_b[f];
@@ -568,8 +568,8 @@ bucket_sort_by_average_depth_small(
 
             if( (unsigned int)depth_avg < (unsigned int)depth_levels )
             {
-                context->sm_face_depth[f] = (faceint_t)depth_avg;
-                context->sm_depth_offset[depth_avg]++;
+                scene->sm_face_depth[f] = (faceint_t)depth_avg;
+                scene->sm_depth_offset[depth_avg]++;
 
                 if( depth_avg < min_d )
                     min_d = depth_avg;
@@ -585,25 +585,25 @@ bucket_sort_by_average_depth_small(
     int total = 0;
     for( int d = 0; d < depth_levels; d++ )
     {
-        int count = context->sm_depth_offset[d];
-        context->sm_depth_offset[d] = total;
+        int count = scene->sm_depth_offset[d];
+        scene->sm_depth_offset[d] = total;
         total += count;
     }
-    context->sm_depth_offset[depth_levels] = total;
+    scene->sm_depth_offset[depth_levels] = total;
 
     memcpy(
-        context->sm_depth_cursor,
-        context->sm_depth_offset,
+        scene->sm_depth_cursor,
+        scene->sm_depth_offset,
         (size_t)depth_levels * sizeof(int));
 
     for( int f = 0; f < num_faces; f++ )
     {
-        int depth_avg = context->sm_face_depth[f];
+        int depth_avg = scene->sm_face_depth[f];
         if( depth_avg < 0 )
             continue;
 
-        int write = context->sm_depth_cursor[depth_avg]++;
-        context->sm_faces_by_depth[write] = (faceint_t)f;
+        int write = scene->sm_depth_cursor[depth_avg]++;
+        scene->sm_faces_by_depth[write] = (faceint_t)f;
     }
 
     return (min_d) | (max_d << 16);
@@ -611,30 +611,30 @@ bucket_sort_by_average_depth_small(
 
 static inline void
 parition_faces_by_priority_small(
-    struct ToriDraw_Context* context,
+    struct ToriDraw_Scene* scene,
     int num_faces,
     const uint8_t* face_priorities,
     int depth_lower_bound,
     int depth_upper_bound)
 {
-    const int depth_levels = context->depth_levels;
-    const int max_faces = context->max_faces;
+    const int depth_levels = scene->depth_levels;
+    const int max_faces = scene->max_faces;
 
     if( depth_upper_bound >= depth_levels )
         depth_upper_bound = depth_levels - 1;
 
-    memset(context->sm_prio_count, 0, sizeof(context->sm_prio_count));
+    memset(scene->sm_prio_count, 0, sizeof(scene->sm_prio_count));
 
     for( int depth = depth_upper_bound; depth >= depth_lower_bound; depth-- )
     {
-        int start = context->sm_depth_offset[depth];
-        int end = context->sm_depth_offset[depth + 1];
+        int start = scene->sm_depth_offset[depth];
+        int end = scene->sm_depth_offset[depth + 1];
         for( int i = start; i < end; i++ )
         {
-            faceint_t face_idx = context->sm_faces_by_depth[i];
+            faceint_t face_idx = scene->sm_faces_by_depth[i];
             int prio = faceprio_unpack(face_priorities, face_idx);
-            int priority_face_count = context->sm_prio_count[prio]++;
-            context->sm_prio_faces[prio * max_faces + priority_face_count] = face_idx;
+            int priority_face_count = scene->sm_prio_count[prio]++;
+            scene->sm_prio_faces[prio * max_faces + priority_face_count] = face_idx;
         }
     }
     (void)num_faces;
@@ -642,15 +642,15 @@ parition_faces_by_priority_small(
 
 static inline int
 sort_face_draw_order_small(
-    struct ToriDraw_Context* context,
+    struct ToriDraw_Scene* scene,
     int* face_draw_order,
     int num_faces,
     const uint8_t* face_priorities,
     int depth_lower_bound,
     int depth_upper_bound)
 {
-    const int depth_levels = context->depth_levels;
-    const int max_faces = context->max_faces;
+    const int depth_levels = scene->depth_levels;
+    const int max_faces = scene->max_faces;
     faceint_t priority_depths[12] = { 0 };
 
     if( depth_upper_bound >= depth_levels )
@@ -659,11 +659,11 @@ sort_face_draw_order_small(
     int counts[12] = { 0 };
     for( int depth = depth_upper_bound; depth >= depth_lower_bound; depth-- )
     {
-        int start = context->sm_depth_offset[depth];
-        int end = context->sm_depth_offset[depth + 1];
+        int start = scene->sm_depth_offset[depth];
+        int end = scene->sm_depth_offset[depth + 1];
         for( int i = start; i < end; i++ )
         {
-            faceint_t face_idx = context->sm_faces_by_depth[i];
+            faceint_t face_idx = scene->sm_faces_by_depth[i];
             int prio = faceprio_unpack(face_priorities, face_idx);
             int face_count = counts[prio];
 
@@ -673,11 +673,11 @@ sort_face_draw_order_small(
             }
             else if( prio == 10 )
             {
-                context->sm_flex_prio11_face_to_depth[face_count] = depth | (face_idx << 16);
+                scene->sm_flex_prio11_face_to_depth[face_count] = depth | (face_idx << 16);
             }
             else if( prio == 11 )
             {
-                context->sm_flex_prio12_face_to_depth[face_count] = depth | (face_idx << 16);
+                scene->sm_flex_prio12_face_to_depth[face_count] = depth | (face_idx << 16);
             }
 
             counts[prio]++;
@@ -699,8 +699,8 @@ sort_face_draw_order_small(
 
     for( int i = 0; i < counts[11]; i++ )
     {
-        context->sm_flex_prio11_face_to_depth[counts[10] + i] =
-            context->sm_flex_prio12_face_to_depth[i];
+        scene->sm_flex_prio11_face_to_depth[counts[10] + i] =
+            scene->sm_flex_prio12_face_to_depth[i];
     }
     counts[10] += counts[11];
 
@@ -708,10 +708,10 @@ sort_face_draw_order_small(
     int order_index = 0;
 
     while( flexible_face_index < counts[10] &&
-           (context->sm_flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth1_2 )
+           (scene->sm_flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth1_2 )
     {
         face_draw_order[order_index++] =
-            context->sm_flex_prio11_face_to_depth[flexible_face_index] >> 16;
+            scene->sm_flex_prio11_face_to_depth[flexible_face_index] >> 16;
         flexible_face_index++;
     }
 
@@ -720,15 +720,15 @@ sort_face_draw_order_small(
         for( int i = 0; i < counts[prio]; i++ )
         {
             face_draw_order[order_index++] =
-                context->sm_prio_faces[prio * max_faces + i];
+                scene->sm_prio_faces[prio * max_faces + i];
         }
     }
 
     while( flexible_face_index < counts[10] &&
-           (context->sm_flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth3_4 )
+           (scene->sm_flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth3_4 )
     {
         face_draw_order[order_index++] =
-            context->sm_flex_prio11_face_to_depth[flexible_face_index] >> 16;
+            scene->sm_flex_prio11_face_to_depth[flexible_face_index] >> 16;
         flexible_face_index++;
     }
 
@@ -737,15 +737,15 @@ sort_face_draw_order_small(
         for( int i = 0; i < counts[prio]; i++ )
         {
             face_draw_order[order_index++] =
-                context->sm_prio_faces[prio * max_faces + i];
+                scene->sm_prio_faces[prio * max_faces + i];
         }
     }
 
     while( flexible_face_index < counts[10] &&
-           (context->sm_flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth6_8 )
+           (scene->sm_flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth6_8 )
     {
         face_draw_order[order_index++] =
-            context->sm_flex_prio11_face_to_depth[flexible_face_index] >> 16;
+            scene->sm_flex_prio11_face_to_depth[flexible_face_index] >> 16;
         flexible_face_index++;
     }
 
@@ -754,14 +754,14 @@ sort_face_draw_order_small(
         for( int i = 0; i < counts[prio]; i++ )
         {
             face_draw_order[order_index++] =
-                context->sm_prio_faces[prio * max_faces + i];
+                scene->sm_prio_faces[prio * max_faces + i];
         }
     }
 
     while( flexible_face_index < counts[10] )
     {
         face_draw_order[order_index++] =
-            context->sm_flex_prio11_face_to_depth[flexible_face_index] >> 16;
+            scene->sm_flex_prio11_face_to_depth[flexible_face_index] >> 16;
         flexible_face_index++;
     }
 
@@ -770,8 +770,8 @@ sort_face_draw_order_small(
 }
 
 static inline void
-toridraw_compute_projected_face_order_small(
-    struct ToriDraw_Context* context,
+ToriDraw_ComputeProjectedFaceOrderSmall(
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd)
 {
     faceint_t* fia = NULL;
@@ -801,12 +801,12 @@ toridraw_compute_projected_face_order_small(
     int model_min_depth = bc ? bc->min_z_depth_any_rotation : 0;
 
     int bounds = bucket_sort_by_average_depth_small(
-        context,
+        scene,
         model_min_depth,
         face_count,
-        context->screen_vertices_x,
-        context->screen_vertices_y,
-        context->screen_vertices_z,
+        scene->screen_vertices_x,
+        scene->screen_vertices_y,
+        scene->screen_vertices_z,
         fia,
         fib,
         fic);
@@ -816,7 +816,7 @@ toridraw_compute_projected_face_order_small(
 
     if( bounds == 0 )
     {
-        context->tmp_face_order_count = 0;
+        scene->tmp_face_order_count = 0;
         return;
     }
 
@@ -824,28 +824,28 @@ toridraw_compute_projected_face_order_small(
     {
         int order_index = 0;
         for( int depth = model_max_depth;
-             depth < context->depth_levels && depth >= model_min_depth;
+             depth < scene->depth_levels && depth >= model_min_depth;
              depth-- )
         {
-            int start = context->sm_depth_offset[depth];
-            int end = context->sm_depth_offset[depth + 1];
+            int start = scene->sm_depth_offset[depth];
+            int end = scene->sm_depth_offset[depth + 1];
             for( int j = start; j < end; j++ )
-                context->tmp_face_order[order_index++] = context->sm_faces_by_depth[j];
+                scene->tmp_face_order[order_index++] = scene->sm_faces_by_depth[j];
         }
-        context->tmp_face_order_count = order_index;
+        scene->tmp_face_order_count = order_index;
         return;
     }
 
     parition_faces_by_priority_small(
-        context,
+        scene,
         face_count,
         face_priorities,
         model_min_depth,
         model_max_depth);
 
-    context->tmp_face_order_count = sort_face_draw_order_small(
-        context,
-        context->tmp_face_order,
+    scene->tmp_face_order_count = sort_face_draw_order_small(
+        scene,
+        scene->tmp_face_order,
         face_count,
         face_priorities,
         model_min_depth,
@@ -853,8 +853,8 @@ toridraw_compute_projected_face_order_small(
 }
 
 static inline int
-toridraw_project(
-    struct ToriDraw_Context* context,
+ToriDraw_Project(
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Position* position,
     struct ToriDraw_ViewPort* view_port,
@@ -864,28 +864,28 @@ toridraw_project(
 
     int cull = TORIDRAW_CULL_VISIBLE;
 
-    cull = toridraw_fast_cull(
-        &context->cylinder_fast_aabb, view_port, hnd, position, camera, &center_projection);
+    cull = ToriDraw_FastCull(
+        &scene->cylinder_fast_aabb, view_port, hnd, position, camera, &center_projection);
     if( cull != TORIDRAW_CULL_VISIBLE )
         return cull;
 
-    context->projected_vertex = center_projection;
+    scene->projected_vertex = center_projection;
 
-    toridraw_calculate_cylinder_aabb_8point(&context->aabb, hnd, position, view_port, camera);
+    ToriDraw_CalculateCylinderAabb8point(&scene->aabb, hnd, position, view_port, camera);
 
-    cull = toridraw_aabb_cull(&context->aabb, view_port, camera);
+    cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
     if( cull != TORIDRAW_CULL_VISIBLE )
         return cull;
 
     if( model_has_textures(hnd) )
     {
         project_vertices_array_fused(
-            context->orthographic_vertices_x,
-            context->orthographic_vertices_y,
-            context->orthographic_vertices_z,
-            context->screen_vertices_x,
-            context->screen_vertices_y,
-            context->screen_vertices_z,
+            scene->orthographic_vertices_x,
+            scene->orthographic_vertices_y,
+            scene->orthographic_vertices_z,
+            scene->screen_vertices_x,
+            scene->screen_vertices_y,
+            scene->screen_vertices_z,
             model_vertices_x(hnd),
             model_vertices_y(hnd),
             model_vertices_z(hnd),
@@ -903,9 +903,9 @@ toridraw_project(
     else
     {
         project_vertices_array_fused_notex(
-            context->screen_vertices_x,
-            context->screen_vertices_y,
-            context->screen_vertices_z,
+            scene->screen_vertices_x,
+            scene->screen_vertices_y,
+            scene->screen_vertices_z,
             model_vertices_x(hnd),
             model_vertices_y(hnd),
             model_vertices_z(hnd),

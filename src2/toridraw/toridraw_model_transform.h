@@ -4,48 +4,48 @@
 #include "toridraw_types.h"
 
 struct ToriDraw_Model*
-toridraw_model_copy(struct ToriDraw_Model* src);
+ToriDraw_ModelCopy(struct ToriDraw_Model* src);
 
 struct ToriDraw_Model*
-toridraw_model_merge(
+ToriDraw_ModelMerge(
     struct ToriDraw_Model** models,
     int model_count);
 
 void
-toridraw_model_recolor(
+ToriDraw_ModelRecolor(
     struct ToriDraw_Model* model,
     int color_src,
     int color_dst);
 
 void
-toridraw_model_retexture(
+ToriDraw_ModelRetexture(
     struct ToriDraw_Model* model,
     int texture_src,
     int texture_dst);
 
 void
-toridraw_model_mirror(struct ToriDraw_Model* model);
+ToriDraw_ModelMirror(struct ToriDraw_Model* model);
 
 void
-toridraw_model_orient(
+ToriDraw_ModelOrient(
     struct ToriDraw_Model* model,
     int orientation);
 
 void
-toridraw_model_scale(
+ToriDraw_ModelScale(
     struct ToriDraw_Model* model,
     int x,
     int z,
     int height);
 
 void
-toridraw_model_translate(
+ToriDraw_ModelTranslate(
     struct ToriDraw_Model* model,
     int x,
     int y,
     int z);
 
 void
-toridraw_model_set_bounds_cylinder(struct ToriDraw_Model* model);
+ToriDraw_ModelSetBoundsCylinder(struct ToriDraw_Model* model);
 
 #endif

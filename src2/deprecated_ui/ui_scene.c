@@ -75,16 +75,16 @@ ui_scene_free(struct UIScene* scene)
     for( int i = 0; i < scene->elements_count; i++ )
     {
         struct UISceneElement* el = &scene->elements[i];
-        if( !el->toridraw_sprites || el->toridraw_sprites_borrowed )
+        if( !el->ToriDraw_Sprites || el->ToriDraw_SpritesBorrowed )
             continue;
-        for( int j = 0; j < el->toridraw_sprites_count; j++ )
+        for( int j = 0; j < el->ToriDraw_SpritesCount; j++ )
         {
-            if( el->toridraw_sprites[j] )
-                toridraw_sprite_free(el->toridraw_sprites[j]);
+            if( el->ToriDraw_Sprites[j] )
+                ToriDraw_SpriteFree(el->ToriDraw_Sprites[j]);
         }
-        free(el->toridraw_sprites);
-        el->toridraw_sprites = NULL;
-        el->toridraw_sprites_count = 0;
+        free(el->ToriDraw_Sprites);
+        el->ToriDraw_Sprites = NULL;
+        el->ToriDraw_SpritesCount = 0;
     }
 
     free(scene->elements);
@@ -128,9 +128,9 @@ ui_scene_element_acquire_with_sprites(
     if( !el )
         return -1;
 
-    el->toridraw_sprites = sprites;
-    el->toridraw_sprites_count = sprites_count;
-    el->toridraw_sprites_borrowed = borrowed;
+    el->ToriDraw_Sprites = sprites;
+    el->ToriDraw_SpritesCount = sprites_count;
+    el->ToriDraw_SpritesBorrowed = borrowed;
     if( name )
     {
         strncpy(el->name, name, sizeof(el->name) - 1);

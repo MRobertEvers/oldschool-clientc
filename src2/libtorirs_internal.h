@@ -9,7 +9,7 @@
 #include "games/runescape.h"
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "scripting/libtorirs_scripting.h"
-#include "toridraw/toridraw_gccontext.h"
+#include "toridraw/toridraw_scene.h"
 #include "toridrawx/toridrawx.h"
 #include "world/world.h"
 
@@ -42,7 +42,7 @@ struct LibToriRS_Instance
     int task_free_head;
     int task_live_head;
 
-    struct ToriDraw_Context* context;
+    struct ToriDraw_Scene* scene;
     struct GameCacheL* gamecache_l;
     struct ToriDrawX* toridrawx;
 

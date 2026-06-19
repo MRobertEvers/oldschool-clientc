@@ -9,50 +9,91 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+
+static inline void*
+ToriDraw_BufCopy(
+    const void* src,
+    size_t count,
+    size_t elem_size)
+{
+    if( !src || count == 0 )
+        return NULL;
+    void* dst = malloc(count * elem_size);
+    if( dst )
+        memcpy(dst, src, count * elem_size);
+    return dst;
+}
+
+#define TORIDRAW_MODEL_COPY(model, field, src, count)                                               \
+    ((model)->field = (typeof((model)->field))ToriDraw_BufCopy(                                     \
+        (src), (size_t)(count), sizeof(*(model)->field)))
+
+#define TORIDRAW_MODEL_MOVE(model, field, src)                                                     \
+    do                                                                                             \
+    {                                                                                              \
+        (model)->field = (src);                                                                    \
+        (src) = NULL;                                                                              \
+    } while( 0 )
+
+static inline struct ToriDraw_Model*
+ToriDraw_ModelNew(
+    int vertex_count,
+    int face_count,
+    uint8_t flags)
+{
+    struct ToriDraw_Model* model = calloc(1, sizeof(struct ToriDraw_Model));
+    if( !model )
+        return NULL;
+    model->flags = flags;
+    model->vertex_count = vertex_count;
+    model->face_count = face_count;
+    return model;
+}
 
 struct ToriDraw_Normals*
-toridraw_normals_new(
+ToriDraw_NormalsNew(
     int vertex_count,
     int face_count);
 
 void
-toridraw_normals_free(struct ToriDraw_Normals* normals);
+ToriDraw_NormalsFree(struct ToriDraw_Normals* normals);
 
 void
-toridraw_bones_free(struct ToriDraw_Bones* bones);
+ToriDraw_BonesFree(struct ToriDraw_Bones* bones);
 
 struct ToriDraw_Bones*
-toridraw_bones_copy(const struct ToriDraw_Bones* src);
+ToriDraw_BonesCopy(const struct ToriDraw_Bones* src);
 
 void
-toridraw_model_alloc_normals(struct ToriDraw_Model* model);
+ToriDraw_ModelAllocNormals(struct ToriDraw_Model* model);
 
 void
-toridraw_model_alloc_merged_normals(struct ToriDraw_Model* model);
+ToriDraw_ModelAllocMergedNormals(struct ToriDraw_Model* model);
 
 void
-toridraw_model_calculate_vertex_normals(struct ToriDraw_Model* model);
+ToriDraw_ModelCalculateVertexNormals(struct ToriDraw_Model* model);
 
 void
-toridraw_model_free_normals(struct ToriDraw_Model* model);
+ToriDraw_ModelFreeNormals(struct ToriDraw_Model* model);
 
 void
-toridraw_model_free(struct ToriDraw_Model* model);
+ToriDraw_ModelFree(struct ToriDraw_Model* model);
 
 void
-toridraw_model_capture_original_vertices(struct ToriDraw_Model* model);
+ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model);
 
 void
-toridraw_model_animate_reset(struct ToriDraw_Model* model);
+ToriDraw_ModelAnimateReset(struct ToriDraw_Model* model);
 
 void
-toridraw_model_animate_frame(
+ToriDraw_ModelAnimateFrame(
     struct ToriDraw_Model* model,
     const struct ToriDraw_AnimBase* base,
     const struct ToriDraw_AnimFrame* frame);
 
 static inline bool
-toridraw_model_is_lightable(const struct ToriDraw_Model* model)
+ToriDraw_ModelIsLightable(const struct ToriDraw_Model* model)
 {
     return model && model->face_count > 0 && model->vertices_x && model->vertices_y &&
            model->vertices_z && model->face_colors_a && model->face_colors_b &&
@@ -60,14 +101,14 @@ toridraw_model_is_lightable(const struct ToriDraw_Model* model)
 }
 
 static inline struct ToriDraw_Model*
-toridraw_model_as_full(struct ToriDraw_ModelHandle hnd)
+ToriDraw_ModelAsFull(struct ToriDraw_ModelHandle hnd)
 {
     assert(hnd.kind == TORIDRAWMK_MODEL);
     return hnd.u.model.model;
 }
 
 static inline struct ToriDraw_BoundsCylinder*
-toridraw_model_get_bounds_cylinder(struct ToriDraw_ModelHandle hnd)
+ToriDraw_ModelGetBoundsCylinder(struct ToriDraw_ModelHandle hnd)
 {
     switch( hnd.kind )
     {
@@ -79,7 +120,7 @@ toridraw_model_get_bounds_cylinder(struct ToriDraw_ModelHandle hnd)
 }
 
 static inline int
-toridraw_model_get_face_priority(
+ToriDraw_ModelGetFacePriority(
     const uint8_t* packed,
     int index)
 {
@@ -88,7 +129,7 @@ toridraw_model_get_face_priority(
 }
 
 static inline void
-toridraw_texture_free(struct ToriDraw_Texture* texture)
+ToriDraw_TextureFree(struct ToriDraw_Texture* texture)
 {
     if( !texture )
         return;
@@ -97,7 +138,7 @@ toridraw_texture_free(struct ToriDraw_Texture* texture)
 }
 
 static inline void
-toridraw_texturemap_set(
+ToriDraw_TextureMapSet(
     struct ToriDraw_TextureMap* map,
     int id,
     struct ToriDraw_Texture* texture)
@@ -105,14 +146,14 @@ toridraw_texturemap_set(
     if( !map || id < 0 || id >= 256 )
         return;
     if( map->textures[id] )
-        toridraw_texture_free(map->textures[id]);
+        ToriDraw_TextureFree(map->textures[id]);
     map->textures[id] = texture;
     if( texture && id >= map->count )
         map->count = id + 1;
 }
 
 static inline struct ToriDraw_Texture*
-toridraw_texturemap_get(
+ToriDraw_TextureMapGet(
     const struct ToriDraw_TextureMap* map,
     int id)
 {
@@ -121,10 +162,10 @@ toridraw_texturemap_get(
 }
 
 int
-toridraw_texture_average_hsl16(const struct ToriDraw_Texture* texture);
+ToriDraw_TextureAverageHsl16(const struct ToriDraw_Texture* texture);
 
 static inline bool
-toridraw_model_has_textures(struct ToriDraw_ModelHandle hnd)
+ToriDraw_ModelHasTextures(struct ToriDraw_ModelHandle hnd)
 {
     switch( hnd.kind )
     {
@@ -136,7 +177,7 @@ toridraw_model_has_textures(struct ToriDraw_ModelHandle hnd)
 }
 
 static inline int
-toridraw_model_get_face_count(struct ToriDraw_ModelHandle hnd)
+ToriDraw_ModelGetFaceCount(struct ToriDraw_ModelHandle hnd)
 {
     switch( hnd.kind )
     {
@@ -148,7 +189,7 @@ toridraw_model_get_face_count(struct ToriDraw_ModelHandle hnd)
 }
 
 static inline int
-toridraw_model_get_vertex_count(struct ToriDraw_ModelHandle hnd)
+ToriDraw_ModelGetVertexCount(struct ToriDraw_ModelHandle hnd)
 {
     switch( hnd.kind )
     {
@@ -160,7 +201,7 @@ toridraw_model_get_vertex_count(struct ToriDraw_ModelHandle hnd)
 }
 
 static inline vertexint_t*
-toridraw_model_get_vertices_x(struct ToriDraw_ModelHandle hnd)
+ToriDraw_ModelGetVerticesX(struct ToriDraw_ModelHandle hnd)
 {
     switch( hnd.kind )
     {
@@ -172,7 +213,7 @@ toridraw_model_get_vertices_x(struct ToriDraw_ModelHandle hnd)
 }
 
 static inline vertexint_t*
-toridraw_model_get_vertices_y(struct ToriDraw_ModelHandle hnd)
+ToriDraw_ModelGetVerticesY(struct ToriDraw_ModelHandle hnd)
 {
     switch( hnd.kind )
     {
@@ -184,7 +225,7 @@ toridraw_model_get_vertices_y(struct ToriDraw_ModelHandle hnd)
 }
 
 static inline vertexint_t*
-toridraw_model_get_vertices_z(struct ToriDraw_ModelHandle hnd)
+ToriDraw_ModelGetVerticesZ(struct ToriDraw_ModelHandle hnd)
 {
     switch( hnd.kind )
     {

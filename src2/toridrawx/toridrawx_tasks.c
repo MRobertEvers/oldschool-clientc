@@ -68,9 +68,9 @@ Task_ToriDrawX_ModelLoad_Run(
         PT_EXIT(&task->thread);
     }
 
-    dat1_buildcache_model_add(dat1(toridrawx_gamecache_l(task->tdx)), task->model_id, model);
-    toridrawx_submit_model_from_dat1(task->tdx, task->model_id);
-    toridrawx_model(task->tdx, task->model_id);
+    dat1_buildcache_model_add(dat1(ToriDrawX_GamecacheL(task->tdx)), task->model_id, model);
+    ToriDrawX_SubmitModelFromDat1(task->tdx, task->model_id);
+    ToriDrawX_Model(task->tdx, task->model_id);
 
     PT_END(&task->thread);
 }
@@ -168,8 +168,8 @@ Task_ToriDrawX_TexturesLoad_Run(
         if( !gc_texture )
             continue;
 
-        gamecache_submit_texture(toridrawx_gamecache(task->tdx), i, gc_texture);
-        toridrawx_texture(task->tdx, i);
+        gamecache_submit_texture(ToriDrawX_Gamecache(task->tdx), i, gc_texture);
+        ToriDrawX_Texture(task->tdx, i);
     }
 
     filelist_dat_free(filelist);
@@ -210,8 +210,8 @@ Task_ToriDrawX_AnimationsLoad_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct Task_ToriDrawX_AnimationsLoad* task = (struct Task_ToriDrawX_AnimationsLoad*)task_state;
-    struct Dat1BuildCache* dat1_bc = dat1(toridrawx_gamecache_l(task->tdx));
-    struct GameCache* gc = toridrawx_gamecache(task->tdx);
+    struct Dat1BuildCache* dat1_bc = dat1(ToriDrawX_GamecacheL(task->tdx));
+    struct GameCache* gc = ToriDrawX_Gamecache(task->tdx);
 
     PT_BEGIN(&task->thread);
 
@@ -263,7 +263,7 @@ Task_ToriDrawX_AnimationsLoad_Run(
             {
                 dat1_buildcache_animbaseframes_add(dat1_bc, anim_id, abf);
                 gamecache_submit_animation_from_dat1(gc, dat1_bc, anim_id);
-                toridrawx_animation(task->tdx, anim_id);
+                ToriDrawX_Animation(task->tdx, anim_id);
             }
         }
         LibToriRS_IOQueueClear(ctx->io);

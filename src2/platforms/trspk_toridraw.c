@@ -21,15 +21,15 @@ trspk_toridraw_has_textures(const struct ToriDraw_Model* model)
 
 bool
 trspk_toridraw_texture_is_animated(
-    struct ToriDraw_Context* ctx,
+    struct ToriDraw_Scene* ctx,
     int tex_id)
 {
     if( tex_id < 0 || !ctx )
         return false;
 
-    struct ToriDraw_TextureState* tex = toridraw_context_tex_state(ctx);
+    struct ToriDraw_TextureState* tex = ToriDraw_SceneTexState(ctx);
     struct ToriDraw_Texture* tex_obj =
-        tex ? toridraw_texturemap_get(&tex->texture_map, tex_id) : NULL;
+        tex ? ToriDraw_TextureMapGet(&tex->texture_map, tex_id) : NULL;
     return tex_obj && tex_obj->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE;
 }
 
@@ -39,7 +39,7 @@ hsl16_to_rgbaf(
     uint8_t alpha,
     float rgba[4])
 {
-    uint32_t rgb = toridraw_hsl16_to_rgb(hsl16);
+    uint32_t rgb = ToriDraw_Hsl16ToRgb(hsl16);
     rgba[0] = (float)((rgb >> 16) & 0xFFu) / 255.0f;
     rgba[1] = (float)((rgb >> 8) & 0xFFu) / 255.0f;
     rgba[2] = (float)(rgb & 0xFFu) / 255.0f;
@@ -159,9 +159,9 @@ trspk_toridraw_world_vertex(
         return;
     }
 
-    const int yaw = toridraw_normalize_angle(world_position->yaw);
-    const int cy = toridraw_cos(yaw);
-    const int sy = toridraw_sin(yaw);
+    const int yaw = ToriDraw_NormalizeAngle(world_position->yaw);
+    const int cy = ToriDraw_Cos(yaw);
+    const int sy = ToriDraw_Sin(yaw);
     const int xr = (vx * cy + vz * sy) >> 16;
     const int zr = (vz * cy - vx * sy) >> 16;
     *out_x = (float)(xr + world_position->x);

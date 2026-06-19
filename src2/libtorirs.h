@@ -4,7 +4,7 @@
 #include "core/tasks/core_task.h"
 #include "input/libtorirs_input.h"
 #include "render/libtorirs_render.h"
-#include "toridraw/toridraw_gccontext.h"
+#include "toridraw/toridraw_scene.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -67,8 +67,8 @@ LibToriRS_FrameEnd(struct LibToriRS_Instance* instance);
 bool
 LibToriRS_IsRunning(struct LibToriRS_Instance* instance);
 
-struct ToriDraw_Context*
-LibToriRS_GetCurrentToriDrawContext(struct LibToriRS_Instance* instance);
+struct ToriDraw_Scene*
+LibToriRS_GetCurrentToriDrawScene(struct LibToriRS_Instance* instance);
 
 void
 LibToriRS_TasksAdd(

@@ -3,15 +3,15 @@
 
 #include "toridraw_model.h"
 
-#define model_bounds_cylinder toridraw_model_get_bounds_cylinder
-#define model_has_textures toridraw_model_has_textures
-#define model_get_face_priority toridraw_model_get_face_priority
-#define model_vertex_count toridraw_model_get_vertex_count
-#define model_face_count toridraw_model_get_face_count
-#define model_vertices_x toridraw_model_get_vertices_x
-#define model_vertices_y toridraw_model_get_vertices_y
-#define model_vertices_z toridraw_model_get_vertices_z
-#define model_as_full toridraw_model_as_full
-#define faceprio_unpack toridraw_model_get_face_priority
+#define model_bounds_cylinder ToriDraw_ModelGetBoundsCylinder
+#define model_has_textures ToriDraw_ModelHasTextures
+#define model_get_face_priority ToriDraw_ModelGetFacePriority
+#define model_vertex_count ToriDraw_ModelGetVertexCount
+#define model_face_count ToriDraw_ModelGetFaceCount
+#define model_vertices_x ToriDraw_ModelGetVerticesX
+#define model_vertices_y ToriDraw_ModelGetVerticesY
+#define model_vertices_z ToriDraw_ModelGetVerticesZ
+#define model_as_full ToriDraw_ModelAsFull
+#define faceprio_unpack ToriDraw_ModelGetFacePriority
 
 #endif

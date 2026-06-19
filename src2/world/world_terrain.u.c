@@ -14,7 +14,7 @@
 #include "toridraw/toridraw_model.h"
 #include "world_builder.h"
 #include "world_decode_tile.h"
-#include "toridraw/toridraw_gccontext.h"
+#include "toridraw/toridraw_scene.h"
 
 // clang-format off
 #include "flag_map.u.c"
@@ -273,11 +273,11 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                 }
                 else if( overlay_hsl > 0 )
                 {
-                    minimap_foreground_rgb = toridraw_hsl16_to_rgb((uint16_t)overlay_hsl);
+                    minimap_foreground_rgb = ToriDraw_Hsl16ToRgb((uint16_t)overlay_hsl);
                 }
                 else if( overlay_hsl == TERRAIN_OVERLAY_HSL_LIGHTNESS_ONLY )
                 {
-                    minimap_foreground_rgb = toridraw_hsl16_to_rgb(overlay_tile->texture_avg_hsl16);
+                    minimap_foreground_rgb = ToriDraw_Hsl16ToRgb(overlay_tile->texture_avg_hsl16);
                 }
                 else if( overlay_hsl == TERRAIN_OVERLAY_HSL_TRANSPARENT )
                 {
@@ -285,7 +285,7 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                 }
 
                 if( underlay_hsl != TERRAIN_UNDERLAY_HSL_NONE )
-                    minimap_background_rgb = toridraw_hsl16_to_rgb((uint16_t)underlay_hsl);
+                    minimap_background_rgb = ToriDraw_Hsl16ToRgb((uint16_t)underlay_hsl);
 
                 if( level == 0 && world->minimap )
                 {
@@ -319,16 +319,16 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                     .u.model.model = td,
                 };
 
-                int element_id = toridraw_gc_element_add(builder->context);
+                int element_id = ToriDraw_SceneElementAdd(builder->scene);
                 if( element_id < 0 )
                 {
-                    toridraw_model_free(td);
+                    ToriDraw_ModelFree(td);
                     continue;
                 }
 
-                toridraw_gc_element_set_model(builder->context, element_id, hnd);
-                toridraw_gc_element_set_position(
-                    builder->context, element_id, x * WORLD_TILE_SIZE, 0, z * WORLD_TILE_SIZE, 0);
+                ToriDraw_SceneElementSetModel(builder->scene, element_id, hnd);
+                ToriDraw_SceneElementSetPosition(
+                    builder->scene, element_id, x * WORLD_TILE_SIZE, 0, z * WORLD_TILE_SIZE, 0);
 
                 if( world->terrain_element_ids )
                 {

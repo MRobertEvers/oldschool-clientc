@@ -10,13 +10,13 @@
 #include <string.h>
 
 static size_t
-toridraw_face_priorities_byte_count(int face_count)
+ToriDraw_FacePrioritiesByteCount(int face_count)
 {
     return (size_t)((face_count + 1) / 2);
 }
 
 static void
-toridraw_set_face_priority(
+ToriDraw_SetFacePriority(
     uint8_t* packed,
     int index,
     int value)
@@ -29,7 +29,7 @@ toridraw_set_face_priority(
 }
 
 static int
-toridraw_get_face_priority(
+ToriDraw_GetFacePriority(
     const uint8_t* packed,
     int index)
 {
@@ -38,7 +38,7 @@ toridraw_get_face_priority(
 }
 
 static struct ToriDraw_Bones*
-toridraw_bones_merge(
+ToriDraw_BonesMerge(
     struct ToriDraw_Model** models,
     const int* index_offsets,
     int model_count,
@@ -84,7 +84,7 @@ toridraw_bones_merge(
     if( !out->bones || !out->bones_sizes )
     {
         free(group_sizes);
-        toridraw_bones_free(out);
+        ToriDraw_BonesFree(out);
         return NULL;
     }
 
@@ -100,7 +100,7 @@ toridraw_bones_merge(
         if( !out->bones[g] )
         {
             free(group_sizes);
-            toridraw_bones_free(out);
+            ToriDraw_BonesFree(out);
             return NULL;
         }
 
@@ -124,13 +124,13 @@ toridraw_bones_merge(
 }
 
 struct ToriDraw_Model*
-toridraw_model_copy(struct ToriDraw_Model* src)
+ToriDraw_ModelCopy(struct ToriDraw_Model* src)
 {
     if( !src )
         return NULL;
 
     struct ToriDraw_Model* dst = calloc(1, sizeof(struct ToriDraw_Model));
-    assert(dst && "toridraw_model_copy: failed to allocate destination model");
+    assert(dst && "ToriDraw_ModelCopy: failed to allocate destination model");
 
     dst->flags = src->flags;
     dst->vertex_count = src->vertex_count;
@@ -188,27 +188,27 @@ toridraw_model_copy(struct ToriDraw_Model* src)
 
     if( src->face_priorities && src->face_count > 0 )
     {
-        size_t nbytes = toridraw_face_priorities_byte_count(src->face_count);
+        size_t nbytes = ToriDraw_FacePrioritiesByteCount(src->face_count);
         dst->face_priorities = (uint8_t*)malloc(nbytes);
         memcpy(dst->face_priorities, src->face_priorities, nbytes);
     }
 
-    dst->vertex_bones = toridraw_bones_copy(src->vertex_bones);
-    dst->face_bones = toridraw_bones_copy(src->face_bones);
+    dst->vertex_bones = ToriDraw_BonesCopy(src->vertex_bones);
+    dst->face_bones = ToriDraw_BonesCopy(src->face_bones);
 
-    toridraw_model_set_bounds_cylinder(dst);
+    ToriDraw_ModelSetBoundsCylinder(dst);
     return dst;
 }
 
 struct ToriDraw_Model*
-toridraw_model_merge(
+ToriDraw_ModelMerge(
     struct ToriDraw_Model** models,
     int model_count)
 {
     if( !models || model_count <= 0 )
         return NULL;
     if( model_count == 1 )
-        return toridraw_model_copy(models[0]);
+        return ToriDraw_ModelCopy(models[0]);
 
     int total_vertices = 0;
     int total_faces = 0;
@@ -287,7 +287,7 @@ toridraw_model_merge(
             out->face_infos = (int*)calloc((size_t)total_faces, sizeof(int));
         if( has_face_priorities )
             out->face_priorities =
-                (uint8_t*)calloc(toridraw_face_priorities_byte_count(total_faces), 1);
+                (uint8_t*)calloc(ToriDraw_FacePrioritiesByteCount(total_faces), 1);
         if( has_tex_coords )
             out->face_texture_coords = (faceint_t*)malloc((size_t)total_faces * sizeof(faceint_t));
     }
@@ -312,7 +312,7 @@ toridraw_model_merge(
     {
         free(vertex_offsets);
         free(face_offsets);
-        toridraw_model_free(out);
+        ToriDraw_ModelFree(out);
         return NULL;
     }
 
@@ -354,8 +354,8 @@ toridraw_model_merge(
             if( out->face_infos && m->face_infos )
                 out->face_infos[dst] = m->face_infos[f];
             if( out->face_priorities && m->face_priorities )
-                toridraw_set_face_priority(
-                    out->face_priorities, dst, toridraw_get_face_priority(m->face_priorities, f));
+                ToriDraw_SetFacePriority(
+                    out->face_priorities, dst, ToriDraw_GetFacePriority(m->face_priorities, f));
             if( out->face_texture_coords && m->face_texture_coords )
                 out->face_texture_coords[dst] = m->face_texture_coords[f];
         }
@@ -379,18 +379,18 @@ toridraw_model_merge(
         tex_face_off += m->textured_face_count;
     }
 
-    out->vertex_bones = toridraw_bones_merge(models, vertex_offsets, model_count, true);
-    out->face_bones = toridraw_bones_merge(models, face_offsets, model_count, false);
+    out->vertex_bones = ToriDraw_BonesMerge(models, vertex_offsets, model_count, true);
+    out->face_bones = ToriDraw_BonesMerge(models, face_offsets, model_count, false);
 
     free(vertex_offsets);
     free(face_offsets);
 
-    toridraw_model_set_bounds_cylinder(out);
+    ToriDraw_ModelSetBoundsCylinder(out);
     return out;
 }
 
 static void
-toridraw_model_recolor_hsl_array(
+ToriDraw_ModelRecolorHslArray(
     hsl16_t* colors,
     int count,
     int color_src,
@@ -406,21 +406,21 @@ toridraw_model_recolor_hsl_array(
 }
 
 void
-toridraw_model_recolor(
+ToriDraw_ModelRecolor(
     struct ToriDraw_Model* model,
     int color_src,
     int color_dst)
 {
     if( !model )
         return;
-    toridraw_model_recolor_hsl_array(model->face_colors, model->face_count, color_src, color_dst);
-    toridraw_model_recolor_hsl_array(model->face_colors_a, model->face_count, color_src, color_dst);
-    toridraw_model_recolor_hsl_array(model->face_colors_b, model->face_count, color_src, color_dst);
-    toridraw_model_recolor_hsl_array(model->face_colors_c, model->face_count, color_src, color_dst);
+    ToriDraw_ModelRecolorHslArray(model->face_colors, model->face_count, color_src, color_dst);
+    ToriDraw_ModelRecolorHslArray(model->face_colors_a, model->face_count, color_src, color_dst);
+    ToriDraw_ModelRecolorHslArray(model->face_colors_b, model->face_count, color_src, color_dst);
+    ToriDraw_ModelRecolorHslArray(model->face_colors_c, model->face_count, color_src, color_dst);
 }
 
 void
-toridraw_model_retexture(
+ToriDraw_ModelRetexture(
     struct ToriDraw_Model* model,
     int texture_src,
     int texture_dst)
@@ -435,7 +435,7 @@ toridraw_model_retexture(
 }
 
 void
-toridraw_model_mirror(struct ToriDraw_Model* model)
+ToriDraw_ModelMirror(struct ToriDraw_Model* model)
 {
     if( !model )
         return;
@@ -450,7 +450,7 @@ toridraw_model_mirror(struct ToriDraw_Model* model)
 }
 
 void
-toridraw_model_orient(
+ToriDraw_ModelOrient(
     struct ToriDraw_Model* model,
     int orientation)
 {
@@ -469,7 +469,7 @@ toridraw_model_orient(
 }
 
 void
-toridraw_model_scale(
+ToriDraw_ModelScale(
     struct ToriDraw_Model* model,
     int x,
     int z,
@@ -486,7 +486,7 @@ toridraw_model_scale(
 }
 
 void
-toridraw_model_translate(
+ToriDraw_ModelTranslate(
     struct ToriDraw_Model* model,
     int x,
     int y,
@@ -503,14 +503,14 @@ toridraw_model_translate(
 }
 
 void
-toridraw_model_set_bounds_cylinder(struct ToriDraw_Model* model)
+ToriDraw_ModelSetBoundsCylinder(struct ToriDraw_Model* model)
 {
-    assert(model && "toridraw_model_set_bounds_cylinder: model is NULL");
+    assert(model && "ToriDraw_ModelSetBoundsCylinder: model is NULL");
     if( !model->bounds_cylinder )
         model->bounds_cylinder = calloc(1, sizeof(struct ToriDraw_BoundsCylinder));
     assert(
         model->bounds_cylinder &&
-        "toridraw_model_set_bounds_cylinder: failed to allocate bounds cylinder");
+        "ToriDraw_ModelSetBoundsCylinder: failed to allocate bounds cylinder");
 
     if( model->vertex_count <= 0 )
     {

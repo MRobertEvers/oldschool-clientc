@@ -275,8 +275,8 @@ compute_pass_matrices(
         -(float)cam_pos->x,
         -(float)cam_pos->y,
         -(float)cam_pos->z,
-        toridraw_angle_to_radians(cam->pitch),
-        toridraw_angle_to_radians(cam->yaw));
+        ToriDraw_AngleToRadians(cam->pitch),
+        ToriDraw_AngleToRadians(cam->yaw));
     compute_projection_matrix(proj, (90.0f * (float)M_PI) / 180.0f, (float)pass_w, (float)pass_h);
     d3d9_remap_projection_z(proj);
 }
@@ -291,7 +291,7 @@ hsl16_to_rgba(
     uint8_t alpha,
     float rgba[4])
 {
-    uint32_t rgb = toridraw_hsl16_to_rgb(hsl16);
+    uint32_t rgb = ToriDraw_Hsl16ToRgb(hsl16);
     rgba[0] = (float)((rgb >> 16) & 0xFFu) / 255.0f;
     rgba[1] = (float)((rgb >> 8) & 0xFFu) / 255.0f;
     rgba[2] = (float)(rgb & 0xFFu) / 255.0f;
@@ -308,10 +308,10 @@ get_model(struct ToriDraw_ModelHandle model_handle)
     return model_handle.u.model.model;
 }
 
-static struct ToriDraw_Context*
+static struct ToriDraw_Scene*
 get_context(struct LibToriRS_Instance* instance)
 {
-    return LibToriRS_GetCurrentToriDrawContext(instance);
+    return LibToriRS_GetCurrentToriDrawScene(instance);
 }
 
 static void
@@ -425,15 +425,15 @@ d3d9_texture_animation_signed(
 
 static float
 d3d9_anim_signed_for_tex(
-    struct ToriDraw_Context* ctx,
+    struct ToriDraw_Scene* ctx,
     int tex_id)
 {
     if( tex_id < 0 || !ctx )
         return 0.0f;
 
-    struct ToriDraw_TextureState* tex = toridraw_context_tex_state(ctx);
+    struct ToriDraw_TextureState* tex = ToriDraw_SceneTexState(ctx);
     struct ToriDraw_Texture* td =
-        tex ? toridraw_texturemap_get(&tex->texture_map, tex_id) : NULL;
+        tex ? ToriDraw_TextureMapGet(&tex->texture_map, tex_id) : NULL;
     if( !td )
         return 0.0f;
 
@@ -974,7 +974,7 @@ d3d9_bake_into_arena(
     if( !model || model->face_count <= 0 )
         return;
 
-    struct ToriDraw_Context* ctx = get_context(instance);
+    struct ToriDraw_Scene* ctx = get_context(instance);
     const uint32_t vert_count = (uint32_t)model->face_count * 3u;
     const uint32_t tri_count = (uint32_t)model->face_count;
 
@@ -1220,7 +1220,7 @@ d3d9_ev_model_draw(
     assert(command->kind == TORIRSRC_DRAW_MODEL);
     assert(renderer->has_3d && renderer->ibo_chain && "Invalid renderer or not in 3D mode");
 
-    struct ToriDraw_Context* ctx = get_context(instance);
+    struct ToriDraw_Scene* ctx = get_context(instance);
     assert(ctx && "Invalid context");
 
     const int pose_id = command->u.model.anim_frame;
@@ -1237,13 +1237,13 @@ d3d9_ev_model_draw(
     // you submit Page Base + (index)
     const uint32_t local_base = vertex_base - page_base;
 
-    const int face_count = toridraw_face_order_count(ctx);
+    const int face_count = ToriDraw_FaceOrderCount(ctx);
     if( face_count <= 0 )
     {
         assert(false && "Invalid face count");
     }
 
-    int* face_order = toridraw_face_order(ctx);
+    int* face_order = ToriDraw_FaceOrder(ctx);
     for( int i = 0; i < face_count; i++ )
     {
         const uint32_t face = (uint32_t)face_order[i];
@@ -1306,7 +1306,7 @@ d3d9_ev_end_3d(
     IDirect3DDevice9_SetIndices(dev, renderer->ibo);
 
     const float clk = (float)renderer->frame_clock;
-    struct ToriDraw_Context* ctx = get_context(instance);
+    struct ToriDraw_Scene* ctx = get_context(instance);
     uint32_t last_cfg = UINT32_MAX;
 
     const struct TRSPK_DrawRange* range = trspk_drawrangelist_head(renderer->draw_ranges);

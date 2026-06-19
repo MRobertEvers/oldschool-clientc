@@ -23,7 +23,7 @@
 #include "src/osrs/rscache/tables_dat/pix8.h"
 #include "src/osrs/texture.h"
 #include "toridraw/toridraw_animation.h"
-#include "toridraw/toridraw_gccontext.h"
+#include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
@@ -205,8 +205,8 @@ LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(
     if( !instance || !instance->toridrawx )
         return;
 
-    toridrawx_submit_model_from_dat1(instance->toridrawx, model_id);
-    toridrawx_model(instance->toridrawx, model_id);
+    ToriDrawX_SubmitModelFromDat1(instance->toridrawx, model_id);
+    ToriDrawX_Model(instance->toridrawx, model_id);
 }
 
 void
@@ -374,7 +374,7 @@ LibToriRS_ScriptAPI_Game_ModelViewer_Init(struct LibToriRS_Instance* instance)
     if( !instance )
         return;
 
-    instance->model_viewer = game_modelviewer_new(instance->script_queue, instance->context);
+    instance->model_viewer = game_modelviewer_new(instance->script_queue, instance->scene);
     if( !instance->model_viewer )
         return;
 
@@ -392,7 +392,7 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
     if( !instance )
         return;
 
-    instance->runescape = game_runescape_new(instance->script_queue, instance->context);
+    instance->runescape = game_runescape_new(instance->script_queue, instance->scene);
     if( !instance->runescape )
         return;
 
@@ -521,14 +521,14 @@ LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(
     printf("LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel %d\n", model_id);
     assert(instance && "Invalid instance");
 
-    struct ToriDraw_ModelHandle hnd = toridrawx_model(instance->toridrawx, model_id);
+    struct ToriDraw_ModelHandle hnd = ToriDrawX_Model(instance->toridrawx, model_id);
     if( hnd.kind != TORIDRAWMK_MODEL )
     {
         printf("Invalid model handle\n");
         return;
     }
 
-    toridraw_light_model_default(hnd, 0, 0);
+    ToriDraw_LightModelDefault(hnd, 0, 0);
 
     game_modelviewer_set_model(instance->model_viewer, model_id, hnd);
 }
@@ -563,7 +563,7 @@ LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance)
         return;
 
     for( int i = 0; i < DAT1_TEXTURE_COUNT; i++ )
-        toridrawx_texture(instance->toridrawx, i);
+        ToriDrawX_Texture(instance->toridrawx, i);
 }
 
 void
@@ -573,8 +573,8 @@ LibToriRS_ScriptAPI_GameCache_ModelsClearAll(struct LibToriRS_Instance* instance
     if( !instance )
         return;
 
-    if( instance->context )
-        toridraw_gc_models_clear_all(instance->context);
+    if( instance->scene )
+        ToriDraw_SceneModelsClearAll(instance->scene);
     gamecache_models_clear_all(gamecache(instance->gamecache_l));
 }
 
@@ -718,10 +718,10 @@ LibToriRS_ScriptAPI_Dat1_SubmitSequences(struct LibToriRS_Instance* instance)
     // struct Dat1BuildCache* buildcache = instance->dat1_buildcache;
     // // struct GameCache* gamecache = instance->gamecache;
 
-    // struct ToriDraw_MapIter* iter = toridraw_map_iter_new(buildcache->sequences_hmap);
+    // struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(buildcache->sequences_hmap);
     // struct Dat1MapEntry_Sequence* entry = NULL;
 
-    // // while( (entry = (struct Dat1MapEntry_Sequence*)toridraw_map_iter_next(iter)) )
+    // // while( (entry = (struct Dat1MapEntry_Sequence*)ToriDraw_MapIterNext(iter)) )
     // // {
     // //     if( !entry->sequence )
     // //         continue;
@@ -734,7 +734,7 @@ LibToriRS_ScriptAPI_Dat1_SubmitSequences(struct LibToriRS_Instance* instance)
     // //     entry->sequence = NULL;
     // //     gamecache_sequence_add(gamecache, entry->id, seq);
     // // }
-    // toridraw_map_iter_free(iter);
+    // ToriDraw_MapIterFree(iter);
 
     // dat1_buildcache_sequences_reset(buildcache);
 }

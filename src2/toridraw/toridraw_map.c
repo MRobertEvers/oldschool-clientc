@@ -29,14 +29,14 @@ struct ToriDraw_Map
     size_t capacity;
     size_t size;
 
-    toridraw_map_hash_fn hash_fn;
-    toridraw_map_eq_fn eq_fn;
-    toridraw_map_iterable_fn iterable_fn;
+    ToriDraw_MapHashFn hash_fn;
+    ToriDraw_MapEqFn eq_fn;
+    ToriDraw_MapIterableFn iterable_fn;
     void* arg;
 };
 
 static inline size_t
-toridraw_map_align_up_size(
+ToriDraw_MapAlignUpSize(
     size_t x,
     size_t align)
 {
@@ -49,7 +49,7 @@ toridraw_map_align_up_size(
 }
 
 static inline unsigned char*
-toridraw_map_align_up_ptr(
+ToriDraw_MapAlignUpPtr(
     unsigned char* p,
     size_t align)
 {
@@ -59,7 +59,7 @@ toridraw_map_align_up_ptr(
 }
 
 static inline unsigned char*
-toridraw_map_slot_base_at(
+ToriDraw_MapSlotBaseAt(
     const struct ToriDraw_Map* m,
     size_t idx)
 {
@@ -67,23 +67,23 @@ toridraw_map_slot_base_at(
 }
 
 static inline ToriDraw_MapSlotHeader*
-toridraw_map_slot_header_at(
+ToriDraw_MapSlotHeaderAt(
     const struct ToriDraw_Map* m,
     size_t idx)
 {
-    return (ToriDraw_MapSlotHeader*)toridraw_map_slot_base_at(m, idx);
+    return (ToriDraw_MapSlotHeader*)ToriDraw_MapSlotBaseAt(m, idx);
 }
 
 static inline void*
-toridraw_map_slot_entry_ptr(
+ToriDraw_MapSlotEntryPtr(
     const struct ToriDraw_Map* m,
     size_t idx)
 {
-    return (void*)(toridraw_map_slot_base_at(m, idx) + m->entry_offset);
+    return (void*)(ToriDraw_MapSlotBaseAt(m, idx) + m->entry_offset);
 }
 
 static inline void*
-toridraw_map_entry_key_ptr(
+ToriDraw_MapEntryKeyPtr(
     const struct ToriDraw_Map* m,
     void* entry)
 {
@@ -92,7 +92,7 @@ toridraw_map_entry_key_ptr(
 }
 
 static uint64_t
-toridraw_map_hash_bytes(
+ToriDraw_MapHashBytes(
     const void* key,
     size_t len,
     void* arg)
@@ -111,7 +111,7 @@ toridraw_map_hash_bytes(
 }
 
 static int
-toridraw_map_eq_bytes(
+ToriDraw_MapEqBytes(
     const void* a,
     const void* b,
     size_t len,
@@ -122,25 +122,25 @@ toridraw_map_eq_bytes(
 }
 
 int
-toridraw_map_init(
+ToriDraw_MapInit(
     struct ToriDraw_Map* m,
     void* buffer,
     size_t buffer_size,
     size_t entry_size,
     size_t key_size,
     size_t capacity,
-    toridraw_map_hash_fn hash_fn,
-    toridraw_map_eq_fn eq_fn,
-    toridraw_map_iterable_fn iterable_fn,
+    ToriDraw_MapHashFn hash_fn,
+    ToriDraw_MapEqFn eq_fn,
+    ToriDraw_MapIterableFn iterable_fn,
     void* arg)
 {
     if( !m || !buffer || entry_size == 0 || key_size == 0 )
         return TORIDRAW_MAP_BADARG;
 
     if( hash_fn == NULL )
-        hash_fn = toridraw_map_hash_bytes;
+        hash_fn = ToriDraw_MapHashBytes;
     if( eq_fn == NULL )
-        eq_fn = toridraw_map_eq_bytes;
+        eq_fn = ToriDraw_MapEqBytes;
 
     if( key_size > entry_size )
         return TORIDRAW_MAP_BADARG;
@@ -151,7 +151,7 @@ toridraw_map_init(
     const size_t align = 16;
 
     unsigned char* base = (unsigned char*)buffer;
-    unsigned char* aligned = toridraw_map_align_up_ptr(base, align);
+    unsigned char* aligned = ToriDraw_MapAlignUpPtr(base, align);
 
     if( aligned > base + buffer_size )
         return TORIDRAW_MAP_NOMEM;
@@ -159,9 +159,9 @@ toridraw_map_init(
     size_t remaining = (size_t)((base + buffer_size) - aligned);
 
     size_t header_size = sizeof(ToriDraw_MapSlotHeader);
-    size_t entry_offset = toridraw_map_align_up_size(header_size, align);
+    size_t entry_offset = ToriDraw_MapAlignUpSize(header_size, align);
     size_t raw_stride = entry_offset + entry_size;
-    size_t stride = toridraw_map_align_up_size(raw_stride, align);
+    size_t stride = ToriDraw_MapAlignUpSize(raw_stride, align);
 
     size_t actual_capacity = capacity;
 
@@ -191,7 +191,7 @@ toridraw_map_init(
 
     for( size_t i = 0; i < actual_capacity; i++ )
     {
-        ToriDraw_MapSlotHeader* h = toridraw_map_slot_header_at(m, i);
+        ToriDraw_MapSlotHeader* h = ToriDraw_MapSlotHeaderAt(m, i);
         h->state = TORIDRAW_MAP_SLOT_EMPTY;
         h->hash = 0;
     }
@@ -200,13 +200,13 @@ toridraw_map_init(
 }
 
 void*
-toridraw_map_buffer_ptr(struct ToriDraw_Map* m)
+ToriDraw_MapBufferPtr(struct ToriDraw_Map* m)
 {
     return m->original_buffer;
 }
 
 struct ToriDraw_Map*
-toridraw_map_new(
+ToriDraw_MapNew(
     const struct ToriDraw_MapConfig* config,
     uint32_t flags)
 {
@@ -216,7 +216,7 @@ toridraw_map_new(
     if( !m )
         return NULL;
     memset(m, 0, sizeof(struct ToriDraw_Map));
-    status = toridraw_map_init(
+    status = ToriDraw_MapInit(
         m,
         config->buffer,
         config->buffer_size,
@@ -237,13 +237,13 @@ toridraw_map_new(
 }
 
 void
-toridraw_map_free(struct ToriDraw_Map* m)
+ToriDraw_MapFree(struct ToriDraw_Map* m)
 {
     free(m);
 }
 
 void*
-toridraw_map_search(
+ToriDraw_MapSearch(
     struct ToriDraw_Map* m,
     const void* key,
     enum ToriDraw_MapAction action)
@@ -264,7 +264,7 @@ toridraw_map_search(
 
     for( ;; )
     {
-        ToriDraw_MapSlotHeader* h = toridraw_map_slot_header_at(m, idx);
+        ToriDraw_MapSlotHeader* h = ToriDraw_MapSlotHeaderAt(m, idx);
 
         if( h->state == TORIDRAW_MAP_SLOT_EMPTY )
         {
@@ -274,12 +274,12 @@ toridraw_map_search(
             if( tomb_i >= 0 )
                 idx = (size_t)tomb_i;
 
-            ToriDraw_MapSlotHeader* hh = toridraw_map_slot_header_at(m, idx);
+            ToriDraw_MapSlotHeader* hh = ToriDraw_MapSlotHeaderAt(m, idx);
             hh->state = TORIDRAW_MAP_SLOT_FULL;
             hh->hash = hash;
 
-            void* entry = toridraw_map_slot_entry_ptr(m, idx);
-            void* ekey = toridraw_map_entry_key_ptr(m, entry);
+            void* entry = ToriDraw_MapSlotEntryPtr(m, idx);
+            void* ekey = ToriDraw_MapEntryKeyPtr(m, entry);
 
             memcpy(ekey, key, m->key_size);
             m->size++;
@@ -293,8 +293,8 @@ toridraw_map_search(
         }
         else if( h->state == TORIDRAW_MAP_SLOT_FULL && h->hash == hash )
         {
-            void* entry = toridraw_map_slot_entry_ptr(m, idx);
-            void* ekey = toridraw_map_entry_key_ptr(m, entry);
+            void* entry = ToriDraw_MapSlotEntryPtr(m, idx);
+            void* ekey = ToriDraw_MapEntryKeyPtr(m, entry);
 
             if( m->eq_fn(ekey, key, m->key_size, m->arg) )
             {
@@ -322,12 +322,12 @@ toridraw_map_search(
     if( action == TORIDRAW_MAP_INSERT && tomb_i >= 0 )
     {
         size_t t = (size_t)tomb_i;
-        ToriDraw_MapSlotHeader* hh = toridraw_map_slot_header_at(m, t);
+        ToriDraw_MapSlotHeader* hh = ToriDraw_MapSlotHeaderAt(m, t);
         hh->state = TORIDRAW_MAP_SLOT_FULL;
         hh->hash = hash;
 
-        void* entry = toridraw_map_slot_entry_ptr(m, t);
-        void* ekey = toridraw_map_entry_key_ptr((void*)m, entry);
+        void* entry = ToriDraw_MapSlotEntryPtr(m, t);
+        void* ekey = ToriDraw_MapEntryKeyPtr((void*)m, entry);
 
         memcpy(ekey, key, m->key_size);
         m->size++;
@@ -339,7 +339,7 @@ toridraw_map_search(
 }
 
 int
-toridraw_map_resize(
+ToriDraw_MapResize(
     struct ToriDraw_Map* m,
     void* new_buffer,
     size_t new_buffer_size,
@@ -354,7 +354,7 @@ toridraw_map_resize(
     size_t oldcap = old.capacity;
 
     struct ToriDraw_Map newmap;
-    int rc = toridraw_map_init(
+    int rc = ToriDraw_MapInit(
         &newmap,
         new_buffer,
         new_buffer_size,
@@ -378,7 +378,7 @@ toridraw_map_resize(
             void* old_entry = (void*)(old.entries + old.entry_offset + old.stride * i);
             void* old_key = (unsigned char*)old_entry;
 
-            void* dst = toridraw_map_search(&newmap, old_key, TORIDRAW_MAP_INSERT);
+            void* dst = ToriDraw_MapSearch(&newmap, old_key, TORIDRAW_MAP_INSERT);
             if( !dst )
             {
                 *m = old;
@@ -402,13 +402,13 @@ struct ToriDraw_MapIter
 };
 
 struct ToriDraw_Map*
-toridraw_map_iter_get_map(struct ToriDraw_MapIter* it)
+ToriDraw_MapIterGetMap(struct ToriDraw_MapIter* it)
 {
     return it->m;
 }
 
 struct ToriDraw_MapIter*
-toridraw_map_iter_new(struct ToriDraw_Map* m)
+ToriDraw_MapIterNew(struct ToriDraw_Map* m)
 {
     struct ToriDraw_MapIter* it = malloc(sizeof(struct ToriDraw_MapIter));
     if( !it )
@@ -419,13 +419,13 @@ toridraw_map_iter_new(struct ToriDraw_Map* m)
 }
 
 void
-toridraw_map_iter_free(struct ToriDraw_MapIter* it)
+ToriDraw_MapIterFree(struct ToriDraw_MapIter* it)
 {
     free(it);
 }
 
 void*
-toridraw_map_iter_next(struct ToriDraw_MapIter* it)
+ToriDraw_MapIterNext(struct ToriDraw_MapIter* it)
 {
     if( !it || !it->m || !it->m->entries )
         return NULL;
@@ -434,10 +434,10 @@ toridraw_map_iter_next(struct ToriDraw_MapIter* it)
     {
         size_t cur = it->idx;
         it->idx++;
-        ToriDraw_MapSlotHeader* h = toridraw_map_slot_header_at(it->m, cur);
+        ToriDraw_MapSlotHeader* h = ToriDraw_MapSlotHeaderAt(it->m, cur);
         if( h->state == TORIDRAW_MAP_SLOT_FULL )
         {
-            void* entry = toridraw_map_slot_entry_ptr(it->m, cur);
+            void* entry = ToriDraw_MapSlotEntryPtr(it->m, cur);
             if( !it->m->iterable_fn || it->m->iterable_fn(entry, it->m->arg) != 0 )
                 return entry;
         }
@@ -446,31 +446,31 @@ toridraw_map_iter_next(struct ToriDraw_MapIter* it)
 }
 
 uint32_t
-toridraw_map_count(struct ToriDraw_Map* h)
+ToriDraw_MapCount(struct ToriDraw_Map* h)
 {
     return (uint32_t)h->size;
 }
 
 uint32_t
-toridraw_map_capacity(struct ToriDraw_Map* h)
+ToriDraw_MapCapacity(struct ToriDraw_Map* h)
 {
     return (uint32_t)h->capacity;
 }
 
 size_t
-toridraw_map_entry_size(struct ToriDraw_Map* h)
+ToriDraw_MapEntrySize(struct ToriDraw_Map* h)
 {
     return h->entry_size;
 }
 
 size_t
-toridraw_map_buffer_size_for(
+ToriDraw_MapBufferSizeFor(
     size_t entry_size,
     size_t count)
 {
     const size_t align = 16;
     size_t header_size = sizeof(ToriDraw_MapSlotHeader);
-    size_t entry_offset = toridraw_map_align_up_size(header_size, align);
-    size_t stride = toridraw_map_align_up_size(entry_offset + entry_size, align);
+    size_t entry_offset = ToriDraw_MapAlignUpSize(header_size, align);
+    size_t stride = ToriDraw_MapAlignUpSize(entry_offset + entry_size, align);
     return count * stride + (align - 1);
 }

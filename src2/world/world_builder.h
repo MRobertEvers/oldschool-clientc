@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 struct GameCache;
-struct ToriDraw_Context;
+struct ToriDraw_Scene;
 struct ToriDrawX;
 struct Blendmap;
 struct Overlaymap;
@@ -32,7 +32,7 @@ struct WorldBuilder
 {
     struct World* world;
     struct GameCache* gamecache;
-    struct ToriDraw_Context* context;
+    struct ToriDraw_Scene* scene;
     struct ToriDrawX* toridrawx;
 
     struct Blendmap* blendmap;
@@ -52,7 +52,7 @@ struct WorldBuilder*
 world_builder_new(
     struct World* world,
     struct GameCache* gamecache,
-    struct ToriDraw_Context* context,
+    struct ToriDraw_Scene* scene,
     struct ToriDrawX* toridrawx);
 
 void

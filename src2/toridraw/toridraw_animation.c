@@ -6,7 +6,7 @@
 #include <string.h>
 
 static struct ToriDraw_AnimBase*
-toridraw_animbase_move_from_cache(struct CacheAnimBase* cache_base)
+ToriDraw_AnimbaseMoveFromCache(struct CacheAnimBase* cache_base)
 {
     if( !cache_base )
         return NULL;
@@ -31,7 +31,7 @@ toridraw_animbase_move_from_cache(struct CacheAnimBase* cache_base)
 }
 
 static void
-toridraw_animbase_free(struct ToriDraw_AnimBase* base)
+ToriDraw_AnimbaseFree(struct ToriDraw_AnimBase* base)
 {
     if( !base )
         return;
@@ -48,7 +48,7 @@ toridraw_animbase_free(struct ToriDraw_AnimBase* base)
 }
 
 struct ToriDraw_Animation*
-toridraw_animation_new_from_cache_dat_animbaseframes(struct CacheDatAnimBaseFrames* abf)
+ToriDraw_AnimationNewFromCacheDatAnimbaseframes(struct CacheDatAnimBaseFrames* abf)
 {
     if( !abf )
         return NULL;
@@ -58,7 +58,7 @@ toridraw_animation_new_from_cache_dat_animbaseframes(struct CacheDatAnimBaseFram
         return NULL;
 
     memset(anim, 0, sizeof(struct ToriDraw_Animation));
-    anim->base = toridraw_animbase_move_from_cache(abf->base);
+    anim->base = ToriDraw_AnimbaseMoveFromCache(abf->base);
     abf->base = NULL;
 
     anim->frame_count = abf->frame_count;
@@ -67,7 +67,7 @@ toridraw_animation_new_from_cache_dat_animbaseframes(struct CacheDatAnimBaseFram
         anim->frames = malloc((size_t)abf->frame_count * sizeof(struct ToriDraw_AnimFrame));
         if( !anim->frames )
         {
-            toridraw_animation_free(anim);
+            ToriDraw_AnimationFree(anim);
             free(abf->frames);
             free(abf);
             return NULL;
@@ -103,12 +103,12 @@ toridraw_animation_new_from_cache_dat_animbaseframes(struct CacheDatAnimBaseFram
 }
 
 void
-toridraw_animation_free(struct ToriDraw_Animation* anim)
+ToriDraw_AnimationFree(struct ToriDraw_Animation* anim)
 {
     if( !anim )
         return;
 
-    toridraw_animbase_free(anim->base);
+    ToriDraw_AnimbaseFree(anim->base);
 
     if( anim->frames )
     {

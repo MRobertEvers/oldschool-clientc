@@ -6,6 +6,6 @@
 struct CacheModel;
 
 struct ToriDraw_Model*
-toridraw_model_new_from_cache_model(struct CacheModel* model);
+ToriDraw_ModelNewFromCacheModel(struct CacheModel* model);
 
 #endif

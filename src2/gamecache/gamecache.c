@@ -79,14 +79,14 @@ gamecache_map_new(
     int entry_size,
     int capacity)
 {
-    int buffer_size = toridraw_map_buffer_size_for(entry_size, capacity);
+    int buffer_size = ToriDraw_MapBufferSizeFor(entry_size, capacity);
     struct ToriDraw_MapConfig config = {
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
         .entry_size = entry_size,
     };
-    return toridraw_map_new(&config, 0);
+    return ToriDraw_MapNew(&config, 0);
 }
 
 static void
@@ -95,8 +95,8 @@ gamecache_map_free(struct ToriDraw_Map* map)
     if( !map )
         return;
 
-    free(toridraw_map_buffer_ptr(map));
-    toridraw_map_free(map);
+    free(ToriDraw_MapBufferPtr(map));
+    ToriDraw_MapFree(map);
 }
 
 static void
@@ -115,17 +115,17 @@ gamecache_map_reset(
 static void
 gamecache_maybe_grow_hmap(struct ToriDraw_Map* map)
 {
-    uint32_t count = toridraw_map_count(map);
-    uint32_t capacity = toridraw_map_capacity(map);
+    uint32_t count = ToriDraw_MapCount(map);
+    uint32_t capacity = ToriDraw_MapCapacity(map);
     if( count * 4 <= capacity * 3 )
         return;
 
     size_t new_capacity = (size_t)capacity * 2;
-    size_t esize = toridraw_map_entry_size(map);
-    size_t new_buffer_size = toridraw_map_buffer_size_for(esize, new_capacity);
+    size_t esize = ToriDraw_MapEntrySize(map);
+    size_t new_buffer_size = ToriDraw_MapBufferSizeFor(esize, new_capacity);
     void* new_buffer = malloc(new_buffer_size);
     void* old_buffer = NULL;
-    int rc = toridraw_map_resize(map, new_buffer, new_buffer_size, new_capacity, &old_buffer);
+    int rc = ToriDraw_MapResize(map, new_buffer, new_buffer_size, new_capacity, &old_buffer);
     assert(rc == TORIDRAW_MAP_OK);
     (void)rc;
     free(old_buffer);
@@ -138,7 +138,7 @@ gamecache_animframe_ref_add(
     int anim_id,
     int frame_index)
 {
-    struct MapEntry_AnimframeRef* entry = (struct MapEntry_AnimframeRef*)toridraw_map_search(
+    struct MapEntry_AnimframeRef* entry = (struct MapEntry_AnimframeRef*)ToriDraw_MapSearch(
         gamecache->animframes_reftable, &frame_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
@@ -175,14 +175,14 @@ gamecache_free_models(struct ToriDraw_Map* map)
     if( !map )
         return;
 
-    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(map);
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
     struct MapEntry_Model* entry = NULL;
-    while( (entry = (struct MapEntry_Model*)toridraw_map_iter_next(iter)) )
+    while( (entry = (struct MapEntry_Model*)ToriDraw_MapIterNext(iter)) )
     {
         if( entry->model )
             gamecache_model_free(entry->model);
     }
-    toridraw_map_iter_free(iter);
+    ToriDraw_MapIterFree(iter);
 }
 
 static void
@@ -191,14 +191,14 @@ gamecache_free_animations(struct ToriDraw_Map* map)
     if( !map )
         return;
 
-    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(map);
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
     struct MapEntry_Animation* entry = NULL;
-    while( (entry = (struct MapEntry_Animation*)toridraw_map_iter_next(iter)) )
+    while( (entry = (struct MapEntry_Animation*)ToriDraw_MapIterNext(iter)) )
     {
         if( entry->animation )
             gamecache_animation_free(entry->animation);
     }
-    toridraw_map_iter_free(iter);
+    ToriDraw_MapIterFree(iter);
 }
 
 static void
@@ -207,14 +207,14 @@ gamecache_free_textures(struct ToriDraw_Map* map)
     if( !map )
         return;
 
-    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(map);
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
     struct MapEntry_Texture* entry = NULL;
-    while( (entry = (struct MapEntry_Texture*)toridraw_map_iter_next(iter)) )
+    while( (entry = (struct MapEntry_Texture*)ToriDraw_MapIterNext(iter)) )
     {
         if( entry->texture )
             gamecache_texture_free(entry->texture);
     }
-    toridraw_map_iter_free(iter);
+    ToriDraw_MapIterFree(iter);
 }
 
 static void
@@ -223,14 +223,14 @@ gamecache_free_map_terrain(struct ToriDraw_Map* map)
     if( !map )
         return;
 
-    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(map);
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
     struct MapEntry_MapTerrain* entry = NULL;
-    while( (entry = (struct MapEntry_MapTerrain*)toridraw_map_iter_next(iter)) )
+    while( (entry = (struct MapEntry_MapTerrain*)ToriDraw_MapIterNext(iter)) )
     {
         if( entry->terrain )
             gamecache_map_terrain_free(entry->terrain);
     }
-    toridraw_map_iter_free(iter);
+    ToriDraw_MapIterFree(iter);
 }
 
 static void
@@ -239,14 +239,14 @@ gamecache_free_map_scenery(struct ToriDraw_Map* map)
     if( !map )
         return;
 
-    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(map);
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
     struct MapEntry_MapScenery* entry = NULL;
-    while( (entry = (struct MapEntry_MapScenery*)toridraw_map_iter_next(iter)) )
+    while( (entry = (struct MapEntry_MapScenery*)ToriDraw_MapIterNext(iter)) )
     {
         if( entry->locs )
             gamecache_map_locs_free(entry->locs);
     }
-    toridraw_map_iter_free(iter);
+    ToriDraw_MapIterFree(iter);
 }
 
 static void
@@ -255,14 +255,14 @@ gamecache_free_flotype(struct ToriDraw_Map* map)
     if( !map )
         return;
 
-    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(map);
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
     struct MapEntry_Flotype* entry = NULL;
-    while( (entry = (struct MapEntry_Flotype*)toridraw_map_iter_next(iter)) )
+    while( (entry = (struct MapEntry_Flotype*)ToriDraw_MapIterNext(iter)) )
     {
         if( entry->flotype )
             gamecache_flotype_free(entry->flotype);
     }
-    toridraw_map_iter_free(iter);
+    ToriDraw_MapIterFree(iter);
 }
 
 static void
@@ -271,14 +271,14 @@ gamecache_free_locations(struct ToriDraw_Map* map)
     if( !map )
         return;
 
-    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(map);
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
     struct MapEntry_Location* entry = NULL;
-    while( (entry = (struct MapEntry_Location*)toridraw_map_iter_next(iter)) )
+    while( (entry = (struct MapEntry_Location*)ToriDraw_MapIterNext(iter)) )
     {
         if( entry->loc )
             gamecache_location_free(entry->loc);
     }
-    toridraw_map_iter_free(iter);
+    ToriDraw_MapIterFree(iter);
 }
 
 static void
@@ -287,14 +287,14 @@ gamecache_free_sequences(struct ToriDraw_Map* map)
     if( !map )
         return;
 
-    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(map);
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
     struct MapEntry_Sequence* entry = NULL;
-    while( (entry = (struct MapEntry_Sequence*)toridraw_map_iter_next(iter)) )
+    while( (entry = (struct MapEntry_Sequence*)ToriDraw_MapIterNext(iter)) )
     {
         if( entry->sequence )
             gamecache_sequence_free(entry->sequence);
     }
-    toridraw_map_iter_free(iter);
+    ToriDraw_MapIterFree(iter);
 }
 
 void
@@ -338,7 +338,7 @@ gamecache_model_add(
     int model_id,
     struct GameCache_Model* model)
 {
-    struct MapEntry_Model* entry = (struct MapEntry_Model*)toridraw_map_search(
+    struct MapEntry_Model* entry = (struct MapEntry_Model*)ToriDraw_MapSearch(
         gamecache->models_hmap, &model_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
@@ -355,7 +355,7 @@ gamecache_model_get(
     struct GameCache* gamecache,
     int model_id)
 {
-    struct MapEntry_Model* entry = (struct MapEntry_Model*)toridraw_map_search(
+    struct MapEntry_Model* entry = (struct MapEntry_Model*)ToriDraw_MapSearch(
         gamecache->models_hmap, &model_id, TORIDRAW_MAP_FIND);
     if( !entry )
         return NULL;
@@ -375,7 +375,7 @@ gamecache_model_remove(
     struct GameCache* gamecache,
     int model_id)
 {
-    struct MapEntry_Model* entry = (struct MapEntry_Model*)toridraw_map_search(
+    struct MapEntry_Model* entry = (struct MapEntry_Model*)ToriDraw_MapSearch(
         gamecache->models_hmap, &model_id, TORIDRAW_MAP_REMOVE);
     if( !entry )
         return NULL;
@@ -398,7 +398,7 @@ gamecache_texture_add(
     int texture_id,
     struct GameCache_Texture* texture)
 {
-    struct MapEntry_Texture* entry = (struct MapEntry_Texture*)toridraw_map_search(
+    struct MapEntry_Texture* entry = (struct MapEntry_Texture*)ToriDraw_MapSearch(
         gamecache->textures_hmap, &texture_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
@@ -415,7 +415,7 @@ gamecache_texture_get(
     struct GameCache* gamecache,
     int texture_id)
 {
-    struct MapEntry_Texture* entry = (struct MapEntry_Texture*)toridraw_map_search(
+    struct MapEntry_Texture* entry = (struct MapEntry_Texture*)ToriDraw_MapSearch(
         gamecache->textures_hmap, &texture_id, TORIDRAW_MAP_FIND);
     if( !entry )
         return NULL;
@@ -446,7 +446,7 @@ gamecache_map_terrain_add(
     int map_id,
     struct GameCache_MapTerrain* terrain)
 {
-    struct MapEntry_MapTerrain* entry = (struct MapEntry_MapTerrain*)toridraw_map_search(
+    struct MapEntry_MapTerrain* entry = (struct MapEntry_MapTerrain*)ToriDraw_MapSearch(
         gamecache->map_terrain_hmap, &map_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
@@ -463,7 +463,7 @@ gamecache_map_terrain_get(
     struct GameCache* gamecache,
     int map_id)
 {
-    struct MapEntry_MapTerrain* entry = (struct MapEntry_MapTerrain*)toridraw_map_search(
+    struct MapEntry_MapTerrain* entry = (struct MapEntry_MapTerrain*)ToriDraw_MapSearch(
         gamecache->map_terrain_hmap, &map_id, TORIDRAW_MAP_FIND);
     if( !entry )
         return NULL;
@@ -484,7 +484,7 @@ gamecache_map_scenery_add(
     int map_id,
     struct GameCache_MapLocs* locs)
 {
-    struct MapEntry_MapScenery* entry = (struct MapEntry_MapScenery*)toridraw_map_search(
+    struct MapEntry_MapScenery* entry = (struct MapEntry_MapScenery*)ToriDraw_MapSearch(
         gamecache->map_scenery_hmap, &map_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
@@ -501,7 +501,7 @@ gamecache_map_scenery_get(
     struct GameCache* gamecache,
     int map_id)
 {
-    struct MapEntry_MapScenery* entry = (struct MapEntry_MapScenery*)toridraw_map_search(
+    struct MapEntry_MapScenery* entry = (struct MapEntry_MapScenery*)ToriDraw_MapSearch(
         gamecache->map_scenery_hmap, &map_id, TORIDRAW_MAP_FIND);
     if( !entry )
         return NULL;
@@ -522,7 +522,7 @@ gamecache_flotype_add(
     int flo_id,
     struct GameCache_Flotype* flotype)
 {
-    struct MapEntry_Flotype* entry = (struct MapEntry_Flotype*)toridraw_map_search(
+    struct MapEntry_Flotype* entry = (struct MapEntry_Flotype*)ToriDraw_MapSearch(
         gamecache->flotype_hmap, &flo_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
@@ -539,7 +539,7 @@ gamecache_flotype_get(
     struct GameCache* gamecache,
     int flo_id)
 {
-    struct MapEntry_Flotype* entry = (struct MapEntry_Flotype*)toridraw_map_search(
+    struct MapEntry_Flotype* entry = (struct MapEntry_Flotype*)ToriDraw_MapSearch(
         gamecache->flotype_hmap, &flo_id, TORIDRAW_MAP_FIND);
     if( !entry )
         return NULL;
@@ -560,7 +560,7 @@ gamecache_location_add(
     int loc_id,
     struct GameCache_Location* loc)
 {
-    struct MapEntry_Location* entry = (struct MapEntry_Location*)toridraw_map_search(
+    struct MapEntry_Location* entry = (struct MapEntry_Location*)ToriDraw_MapSearch(
         gamecache->config_loc_hmap, &loc_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
@@ -577,7 +577,7 @@ gamecache_location_get(
     struct GameCache* gamecache,
     int loc_id)
 {
-    struct MapEntry_Location* entry = (struct MapEntry_Location*)toridraw_map_search(
+    struct MapEntry_Location* entry = (struct MapEntry_Location*)ToriDraw_MapSearch(
         gamecache->config_loc_hmap, &loc_id, TORIDRAW_MAP_FIND);
     if( !entry )
         return NULL;
@@ -598,7 +598,7 @@ gamecache_sequence_add(
     int seq_id,
     struct GameCache_Sequence* seq)
 {
-    struct MapEntry_Sequence* entry = (struct MapEntry_Sequence*)toridraw_map_search(
+    struct MapEntry_Sequence* entry = (struct MapEntry_Sequence*)ToriDraw_MapSearch(
         gamecache->sequences_hmap, &seq_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
@@ -615,7 +615,7 @@ gamecache_sequence_get(
     struct GameCache* gamecache,
     int seq_id)
 {
-    struct MapEntry_Sequence* entry = (struct MapEntry_Sequence*)toridraw_map_search(
+    struct MapEntry_Sequence* entry = (struct MapEntry_Sequence*)ToriDraw_MapSearch(
         gamecache->sequences_hmap, &seq_id, TORIDRAW_MAP_FIND);
     if( !entry )
         return NULL;
@@ -636,7 +636,7 @@ gamecache_animation_add(
     int anim_id,
     struct GameCache_Animation* animation)
 {
-    struct MapEntry_Animation* entry = (struct MapEntry_Animation*)toridraw_map_search(
+    struct MapEntry_Animation* entry = (struct MapEntry_Animation*)ToriDraw_MapSearch(
         gamecache->animations_hmap, &anim_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
@@ -659,7 +659,7 @@ gamecache_animation_get(
     struct GameCache* gamecache,
     int anim_id)
 {
-    struct MapEntry_Animation* entry = (struct MapEntry_Animation*)toridraw_map_search(
+    struct MapEntry_Animation* entry = (struct MapEntry_Animation*)ToriDraw_MapSearch(
         gamecache->animations_hmap, &anim_id, TORIDRAW_MAP_FIND);
     if( !entry )
         return NULL;
@@ -818,7 +818,7 @@ gamecache_sequence_resolve_frame_impl(
 
     int const frame_id = seq->frames[frame_index];
 
-    struct MapEntry_AnimframeRef* ref = (struct MapEntry_AnimframeRef*)toridraw_map_search(
+    struct MapEntry_AnimframeRef* ref = (struct MapEntry_AnimframeRef*)ToriDraw_MapSearch(
         gamecache->animframes_reftable, &frame_id, TORIDRAW_MAP_FIND);
     if( !ref )
         return false;

@@ -7,9 +7,9 @@ struct CacheDatPix32;
 struct CacheDatPix8Palette;
 
 struct ToriDraw_Sprite*
-toridraw_sprite_new_from_cache_pix32(struct CacheDatPix32* pix32);
+ToriDraw_SpriteNewFromCachePix32(struct CacheDatPix32* pix32);
 
 struct ToriDraw_Sprite*
-toridraw_sprite_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette);
+ToriDraw_SpriteNewFromCachePix8Palette(struct CacheDatPix8Palette* pix8_palette);
 
 #endif

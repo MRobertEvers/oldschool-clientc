@@ -8,7 +8,7 @@
 
 bool
 trspk_toridraw_texture_is_animated(
-    struct ToriDraw_Context* ctx,
+    struct ToriDraw_Scene* ctx,
     int tex_id);
 
 void

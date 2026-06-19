@@ -6,7 +6,7 @@
 #include <stddef.h>
 
 static inline int
-toridraw_triangle_face_alpha(
+ToriDraw_TriangleFaceAlpha(
     alphaint_t* face_alphas_nullable,
     int face)
 {

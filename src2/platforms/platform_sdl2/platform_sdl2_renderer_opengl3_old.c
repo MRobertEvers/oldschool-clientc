@@ -1077,13 +1077,13 @@ ogl3_handle_render_command(
         if( !fs->has_3d )
             break;
 
-        struct ToriDraw_Context* ctx = NULL;
+        struct ToriDraw_Scene* ctx = NULL;
         if( instance && instance->model_viewer )
-            ctx = instance->model_viewer->context;
+            ctx = instance->model_viewer->scene;
         if( !ctx )
             break;
 
-        const int sort_count = toridraw_face_order_count(ctx);
+        const int sort_count = ToriDraw_FaceOrderCount(ctx);
         if( sort_count <= 0 )
             break;
 
@@ -1100,7 +1100,7 @@ ogl3_handle_render_command(
         if( max_faces > (int)TRSPK_FACEBUFFER_MAX_FACES )
             max_faces = (int)TRSPK_FACEBUFFER_MAX_FACES;
 
-        int* face_order = toridraw_face_order(ctx);
+        int* face_order = ToriDraw_FaceOrder(ctx);
         uint32_t* out_ix = r->facebuffer.indices;
         for( int fi = 0; fi < max_faces; fi++ )
         {

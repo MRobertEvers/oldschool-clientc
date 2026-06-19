@@ -32,9 +32,9 @@ struct ToriDraw_Animation
 };
 
 struct ToriDraw_Animation*
-toridraw_animation_new_from_cache_dat_animbaseframes(struct CacheDatAnimBaseFrames* abf);
+ToriDraw_AnimationNewFromCacheDatAnimbaseframes(struct CacheDatAnimBaseFrames* abf);
 
 void
-toridraw_animation_free(struct ToriDraw_Animation* anim);
+ToriDraw_AnimationFree(struct ToriDraw_Animation* anim);
 
 #endif

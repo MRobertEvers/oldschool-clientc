@@ -2,7 +2,7 @@
 #define TORIDRAWX_H
 
 #include "gamecache/gamecache_l.h"
-#include "toridraw/toridraw_gccontext.h"
+#include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"
 
 #include <stdbool.h>
@@ -15,74 +15,74 @@ struct ToriDraw_Model;
 struct ToriDraw_Texture;
 
 struct ToriDrawX*
-toridrawx_new(
+ToriDrawX_New(
     struct GameCacheL* gamecache_l,
-    struct ToriDraw_Context* context);
+    struct ToriDraw_Scene* scene);
 
 void
-toridrawx_free(struct ToriDrawX* tdx);
+ToriDrawX_Free(struct ToriDrawX* tdx);
 
 struct GameCacheL*
-toridrawx_gamecache_l(struct ToriDrawX* tdx);
+ToriDrawX_GamecacheL(struct ToriDrawX* tdx);
 
 struct GameCache*
-toridrawx_gamecache(struct ToriDrawX* tdx);
+ToriDrawX_Gamecache(struct ToriDrawX* tdx);
 
-struct ToriDraw_Context*
-toridrawx_context(struct ToriDrawX* tdx);
+struct ToriDraw_Scene*
+ToriDrawX_Scene(struct ToriDrawX* tdx);
 
 struct ToriDraw_Model*
-toridrawx_model_new_from_gamecache(const struct GameCache_Model* src);
+ToriDrawX_ModelNewFromGamecache(const struct GameCache_Model* src);
 
 struct ToriDraw_Animation*
-toridrawx_animation_new_from_gamecache(const struct GameCache_Animation* src);
+ToriDrawX_AnimationNewFromGamecache(const struct GameCache_Animation* src);
 
 struct ToriDraw_Texture*
-toridrawx_texture_new_from_gamecache(const struct GameCache_Texture* src);
+ToriDrawX_TextureNewFromGamecache(const struct GameCache_Texture* src);
 
 struct ToriDraw_ModelHandle
-toridrawx_model(
+ToriDrawX_Model(
     struct ToriDrawX* tdx,
     int model_id);
 
 struct ToriDraw_Animation*
-toridrawx_animation(
+ToriDrawX_Animation(
     struct ToriDrawX* tdx,
     int anim_id);
 
 struct ToriDraw_Animation*
-toridrawx_sequence_animation(
+ToriDrawX_SequenceAnimation(
     struct ToriDrawX* tdx,
     int seq_id);
 
 struct ToriDraw_Texture*
-toridrawx_texture(
+ToriDrawX_Texture(
     struct ToriDrawX* tdx,
     int texture_id);
 
 bool
-toridrawx_model_ready(
+ToriDrawX_ModelReady(
     struct ToriDrawX* tdx,
     int model_id);
 
 bool
-toridrawx_submit_model_from_dat1(
+ToriDrawX_SubmitModelFromDat1(
     struct ToriDrawX* tdx,
     int model_id);
 
 int
-toridrawx_element_add_model(
+ToriDrawX_ElementAddModel(
     struct ToriDrawX* tdx,
     int model_id);
 
 bool
-toridrawx_element_set_model_id(
+ToriDrawX_ElementSetModelId(
     struct ToriDrawX* tdx,
     int element_id,
     int model_id);
 
 bool
-toridrawx_element_set_sequence_id(
+ToriDrawX_ElementSetSequenceId(
     struct ToriDrawX* tdx,
     int element_id,
     int seq_id);

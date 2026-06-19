@@ -7,7 +7,7 @@
 #include <math.h>
 
 void
-toridraw_light_model_default(
+ToriDraw_LightModelDefault(
     struct ToriDraw_ModelHandle hnd,
     int model_contrast,
     int model_ambient)
@@ -15,7 +15,7 @@ toridraw_light_model_default(
     if( hnd.kind != TORIDRAWMK_MODEL )
         return;
 
-    struct ToriDraw_Model* model = toridraw_model_as_full(hnd);
+    struct ToriDraw_Model* model = ToriDraw_ModelAsFull(hnd);
     if( !model )
         return;
 
@@ -33,11 +33,11 @@ toridraw_light_model_default(
         (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
     int attenuation = (light_attenuation * light_magnitude) >> 8;
 
-    toridraw_model_alloc_normals(model);
+    ToriDraw_ModelAllocNormals(model);
     struct ToriDraw_Normals* nm = model->normals;
     assert(nm);
 
-    toridraw_calculate_vertex_normals(
+    ToriDraw_CalculateVertexNormals(
         nm->vertex_normals,
         nm->face_normals,
         model->vertex_count,
@@ -49,7 +49,7 @@ toridraw_light_model_default(
         model->vertices_z,
         model->face_count);
 
-    toridraw_apply_lighting(
+    ToriDraw_ApplyLighting(
         model->face_colors_a,
         model->face_colors_b,
         model->face_colors_c,

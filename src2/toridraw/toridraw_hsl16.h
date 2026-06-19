@@ -7,10 +7,10 @@
 #include <stdint.h>
 
 void
-toridraw_init_hsl16(void);
+ToriDraw_InitHsl16(void);
 
 static inline int
-toridraw_hsl16_to_rgb(uint16_t hsl16)
+ToriDraw_Hsl16ToRgb(uint16_t hsl16)
 {
     (void)hsl16;
     return g_hsl16_to_rgb_table[hsl16];

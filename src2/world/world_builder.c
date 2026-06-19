@@ -14,7 +14,7 @@
 #include "shademap.h"
 #include "sharelight_map.h"
 #include "terrain_shapemap.h"
-#include "toridraw/toridraw_gccontext.h"
+#include "toridraw/toridraw_scene.h"
 #include "toridrawx/toridrawx.h"
 
 #include <assert.h>
@@ -67,14 +67,14 @@ struct WorldBuilder*
 world_builder_new(
     struct World* world,
     struct GameCache* gamecache,
-    struct ToriDraw_Context* context,
+    struct ToriDraw_Scene* scene,
     struct ToriDrawX* toridrawx)
 {
     struct WorldBuilder* builder = calloc(1, sizeof(struct WorldBuilder));
     assert(builder && "Failed to allocate world builder");
     builder->world = world;
     builder->gamecache = gamecache;
-    builder->context = context;
+    builder->scene = scene;
     builder->toridrawx = toridrawx;
     return builder;
 }
@@ -101,7 +101,7 @@ world_builder_rebuild_centerzone_begin(
     world_builder_free_transient_maps(builder);
     world_reset_scene(world, zone_center_x, zone_center_z, scene_size);
 
-    toridraw_gc_clear_scene(builder->context);
+    ToriDraw_SceneClear(builder->scene);
 
     builder->blendmap = blendmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
     builder->overlaymap = overlaymap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
@@ -266,7 +266,7 @@ world_builder_rebuild_centerzone(
 {
     world_builder_rebuild_centerzone_begin(builder, zone_center_x, zone_center_z, scene_size);
 
-    toridraw_gc_batch_begin(builder->context);
+    ToriDraw_SceneBatchBegin(builder->scene);
 
     struct World* world = builder->world;
     for( int mapx = world->_chunk_sw_x; mapx <= world->_chunk_ne_x; mapx++ )
@@ -283,5 +283,5 @@ world_builder_rebuild_centerzone(
 
     world_builder_rebuild_centerzone_end(builder);
 
-    toridraw_gc_batch_end(builder->context);
+    ToriDraw_SceneBatchEnd(builder->scene);
 }

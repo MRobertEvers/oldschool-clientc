@@ -81,7 +81,8 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/input/libtorirs_input.c \
 	$(SRC2)/ioqueue/libtorirs_ioqueue.c \
 	$(SRC2)/render/libtorirs_render.c \
-	$(SRC2)/toridraw/toridraw_gccontext.c \
+	$(SRC2)/toridraw/toridraw_scene.c \
+	$(SRC2)/toridraw/toridraw_intrusive_list.c \
 	$(SRC2)/world/world.c \
 	$(SRC2)/world/world_builder.c \
 	$(SRC2)/world/world_decode_tile.c \

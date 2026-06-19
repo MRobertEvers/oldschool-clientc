@@ -1,6 +1,5 @@
 #include "toridraw.h"
 
-#include "toridraw_gccontext.h"
 #include "toridraw_types.h"
 
 #include <stdio.h>
@@ -21,7 +20,7 @@
 #define TORIDRAW_SMALL_FLEX_PRIO11   1024
 #define TORIDRAW_SMALL_FLEX_PRIO12   512
 
-struct ToriDraw_ContextCaps
+struct ToriDraw_SceneCaps
 {
     int max_vertices;
     int max_faces;
@@ -37,10 +36,10 @@ struct ToriDraw_ContextCaps
 static void
 resolve_caps(
     uint32_t flags,
-    struct ToriDraw_ContextCaps* caps)
+    struct ToriDraw_SceneCaps* caps)
 {
-    caps->small_mode = (flags & TORIDRAW_CTX_SMALL) != 0;
-    caps->lazy_textures = (flags & TORIDRAW_CTX_LAZY_TEXTURES) != 0;
+    caps->small_mode = (flags & TORIDRAW_SCENE_SMALL) != 0;
+    caps->lazy_textures = (flags & TORIDRAW_SCENE_LAZY_TEXTURES) != 0;
 
     if( caps->small_mode )
     {
@@ -65,13 +64,13 @@ resolve_caps(
 }
 
 static size_t
-vertex_buffer_bytes(const struct ToriDraw_ContextCaps* caps)
+vertex_buffer_bytes(const struct ToriDraw_SceneCaps* caps)
 {
     return (size_t)caps->max_vertices * sizeof(int) * 6;
 }
 
 static size_t
-full_sort_buffer_bytes(const struct ToriDraw_ContextCaps* caps)
+full_sort_buffer_bytes(const struct ToriDraw_SceneCaps* caps)
 {
     size_t bytes = 0;
     bytes += (size_t)caps->depth_levels * sizeof(faceint_t);
@@ -85,7 +84,7 @@ full_sort_buffer_bytes(const struct ToriDraw_ContextCaps* caps)
 }
 
 static size_t
-small_sort_buffer_bytes(const struct ToriDraw_ContextCaps* caps)
+small_sort_buffer_bytes(const struct ToriDraw_SceneCaps* caps)
 {
     size_t bytes = 0;
     bytes += (size_t)caps->max_faces * sizeof(faceint_t);
@@ -100,9 +99,9 @@ small_sort_buffer_bytes(const struct ToriDraw_ContextCaps* caps)
 }
 
 static size_t
-toridraw_context_buffer_bytes(const struct ToriDraw_ContextCaps* caps)
+ToriDraw_SceneBufferBytes(const struct ToriDraw_SceneCaps* caps)
 {
-    size_t bytes = sizeof(struct ToriDraw_Context);
+    size_t bytes = sizeof(struct ToriDraw_Scene);
     bytes += vertex_buffer_bytes(caps);
     bytes += (size_t)caps->max_faces * sizeof(int);
     if( !caps->lazy_textures )
@@ -115,105 +114,105 @@ toridraw_context_buffer_bytes(const struct ToriDraw_ContextCaps* caps)
 }
 
 static void
-toridraw_context_free_buffers(struct ToriDraw_Context* context)
+ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
 {
-    if( !context )
+    if( !scene )
         return;
 
-    free(context->screen_vertices_x);
-    free(context->screen_vertices_y);
-    free(context->screen_vertices_z);
-    free(context->orthographic_vertices_x);
-    free(context->orthographic_vertices_y);
-    free(context->orthographic_vertices_z);
-    free(context->tmp_depth_face_count);
-    free(context->tmp_depth_faces);
-    free(context->tmp_priority_face_count);
-    free(context->tmp_priority_depth_sum);
-    free(context->tmp_priority_faces);
-    free(context->tmp_flex_prio11_face_to_depth);
-    free(context->tmp_flex_prio12_face_to_depth);
-    free(context->sm_face_depth);
-    free(context->sm_depth_offset);
-    free(context->sm_depth_cursor);
-    free(context->sm_faces_by_depth);
-    free(context->sm_prio_offset);
-    free(context->sm_prio_faces);
-    free(context->sm_flex_prio11_face_to_depth);
-    free(context->sm_flex_prio12_face_to_depth);
-    free(context->tmp_face_order);
-    free(context->tex_state);
+    free(scene->screen_vertices_x);
+    free(scene->screen_vertices_y);
+    free(scene->screen_vertices_z);
+    free(scene->orthographic_vertices_x);
+    free(scene->orthographic_vertices_y);
+    free(scene->orthographic_vertices_z);
+    free(scene->tmp_depth_face_count);
+    free(scene->tmp_depth_faces);
+    free(scene->tmp_priority_face_count);
+    free(scene->tmp_priority_depth_sum);
+    free(scene->tmp_priority_faces);
+    free(scene->tmp_flex_prio11_face_to_depth);
+    free(scene->tmp_flex_prio12_face_to_depth);
+    free(scene->sm_face_depth);
+    free(scene->sm_depth_offset);
+    free(scene->sm_depth_cursor);
+    free(scene->sm_faces_by_depth);
+    free(scene->sm_prio_offset);
+    free(scene->sm_prio_faces);
+    free(scene->sm_flex_prio11_face_to_depth);
+    free(scene->sm_flex_prio12_face_to_depth);
+    free(scene->tmp_face_order);
+    free(scene->tex_state);
 
-    memset(context, 0, sizeof(*context));
+    memset(scene, 0, sizeof(*scene));
 }
 
 static bool
-toridraw_context_alloc_buffers(
-    struct ToriDraw_Context* context,
-    const struct ToriDraw_ContextCaps* caps)
+ToriDraw_SceneAllocBuffers(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_SceneCaps* caps)
 {
-    context->max_vertices = caps->max_vertices;
-    context->max_faces = caps->max_faces;
-    context->depth_levels = caps->depth_levels;
-    context->depth_stride = caps->depth_stride;
-    context->priority_stride = caps->priority_stride;
+    scene->max_vertices = caps->max_vertices;
+    scene->max_faces = caps->max_faces;
+    scene->depth_levels = caps->depth_levels;
+    scene->depth_stride = caps->depth_stride;
+    scene->priority_stride = caps->priority_stride;
 
-    context->screen_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
-    context->screen_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
-    context->screen_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
-    context->orthographic_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
-    context->orthographic_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
-    context->orthographic_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
-    context->tmp_face_order = malloc((size_t)caps->max_faces * sizeof(int));
+    scene->screen_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
+    scene->screen_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
+    scene->screen_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
+    scene->orthographic_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
+    scene->orthographic_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
+    scene->orthographic_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
+    scene->tmp_face_order = malloc((size_t)caps->max_faces * sizeof(int));
 
-    if( !context->screen_vertices_x || !context->screen_vertices_y || !context->screen_vertices_z ||
-        !context->orthographic_vertices_x || !context->orthographic_vertices_y ||
-        !context->orthographic_vertices_z || !context->tmp_face_order )
+    if( !scene->screen_vertices_x || !scene->screen_vertices_y || !scene->screen_vertices_z ||
+        !scene->orthographic_vertices_x || !scene->orthographic_vertices_y ||
+        !scene->orthographic_vertices_z || !scene->tmp_face_order )
         return false;
 
     if( caps->small_mode )
     {
-        context->sm_face_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
-        context->sm_depth_offset = malloc((size_t)(caps->depth_levels + 1) * sizeof(int));
-        context->sm_depth_cursor = malloc((size_t)caps->depth_levels * sizeof(int));
-        context->sm_faces_by_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
-        context->sm_prio_offset = malloc(13 * sizeof(int));
-        context->sm_prio_faces = malloc((size_t)caps->max_faces * sizeof(faceint_t));
-        context->sm_flex_prio11_face_to_depth =
+        scene->sm_face_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
+        scene->sm_depth_offset = malloc((size_t)(caps->depth_levels + 1) * sizeof(int));
+        scene->sm_depth_cursor = malloc((size_t)caps->depth_levels * sizeof(int));
+        scene->sm_faces_by_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
+        scene->sm_prio_offset = malloc(13 * sizeof(int));
+        scene->sm_prio_faces = malloc((size_t)caps->max_faces * sizeof(faceint_t));
+        scene->sm_flex_prio11_face_to_depth =
             malloc((size_t)caps->flex_prio11 * sizeof(int));
-        context->sm_flex_prio12_face_to_depth =
+        scene->sm_flex_prio12_face_to_depth =
             malloc((size_t)caps->flex_prio12 * sizeof(int));
 
-        if( !context->sm_face_depth || !context->sm_depth_offset || !context->sm_depth_cursor ||
-            !context->sm_faces_by_depth || !context->sm_prio_offset || !context->sm_prio_faces ||
-            !context->sm_flex_prio11_face_to_depth || !context->sm_flex_prio12_face_to_depth )
+        if( !scene->sm_face_depth || !scene->sm_depth_offset || !scene->sm_depth_cursor ||
+            !scene->sm_faces_by_depth || !scene->sm_prio_offset || !scene->sm_prio_faces ||
+            !scene->sm_flex_prio11_face_to_depth || !scene->sm_flex_prio12_face_to_depth )
             return false;
     }
     else
     {
-        context->tmp_depth_face_count = malloc((size_t)caps->depth_levels * sizeof(faceint_t));
-        context->tmp_depth_faces = malloc(
+        scene->tmp_depth_face_count = malloc((size_t)caps->depth_levels * sizeof(faceint_t));
+        scene->tmp_depth_faces = malloc(
             (size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t));
-        context->tmp_priority_face_count = malloc(12 * sizeof(faceint_t));
-        context->tmp_priority_depth_sum = malloc(12 * sizeof(faceint_t));
-        context->tmp_priority_faces =
+        scene->tmp_priority_face_count = malloc(12 * sizeof(faceint_t));
+        scene->tmp_priority_depth_sum = malloc(12 * sizeof(faceint_t));
+        scene->tmp_priority_faces =
             malloc(12 * (size_t)caps->priority_stride * sizeof(faceint_t));
-        context->tmp_flex_prio11_face_to_depth =
+        scene->tmp_flex_prio11_face_to_depth =
             malloc((size_t)caps->flex_prio11 * sizeof(int));
-        context->tmp_flex_prio12_face_to_depth =
+        scene->tmp_flex_prio12_face_to_depth =
             malloc((size_t)caps->flex_prio12 * sizeof(int));
 
-        if( !context->tmp_depth_face_count || !context->tmp_depth_faces ||
-            !context->tmp_priority_face_count || !context->tmp_priority_depth_sum ||
-            !context->tmp_priority_faces || !context->tmp_flex_prio11_face_to_depth ||
-            !context->tmp_flex_prio12_face_to_depth )
+        if( !scene->tmp_depth_face_count || !scene->tmp_depth_faces ||
+            !scene->tmp_priority_face_count || !scene->tmp_priority_depth_sum ||
+            !scene->tmp_priority_faces || !scene->tmp_flex_prio11_face_to_depth ||
+            !scene->tmp_flex_prio12_face_to_depth )
             return false;
     }
 
     if( !caps->lazy_textures )
     {
-        context->tex_state = calloc(1, sizeof(struct ToriDraw_TextureState));
-        if( !context->tex_state )
+        scene->tex_state = calloc(1, sizeof(struct ToriDraw_TextureState));
+        if( !scene->tex_state )
             return false;
     }
 
@@ -221,36 +220,36 @@ toridraw_context_alloc_buffers(
 }
 
 struct ToriDraw_TextureState*
-toridraw_context_tex_state(struct ToriDraw_Context* context)
+ToriDraw_SceneTexState(struct ToriDraw_Scene* scene)
 {
-    if( !context )
+    if( !scene )
         return NULL;
 
-    if( !context->tex_state )
+    if( !scene->tex_state )
     {
-        context->tex_state = calloc(1, sizeof(struct ToriDraw_TextureState));
-        if( !context->tex_state )
+        scene->tex_state = calloc(1, sizeof(struct ToriDraw_TextureState));
+        if( !scene->tex_state )
             return NULL;
     }
 
-    return context->tex_state;
+    return scene->tex_state;
 }
 
 size_t
-toridraw_context_size(uint32_t flags)
+ToriDraw_SceneSize(uint32_t flags)
 {
-    struct ToriDraw_ContextCaps caps;
+    struct ToriDraw_SceneCaps caps;
     resolve_caps(flags, &caps);
-    return toridraw_context_buffer_bytes(&caps);
+    return ToriDraw_SceneBufferBytes(&caps);
 }
 
 void
-toridraw_context_print_size(uint32_t flags)
+ToriDraw_ScenePrintSize(uint32_t flags)
 {
-    struct ToriDraw_ContextCaps caps;
+    struct ToriDraw_SceneCaps caps;
     resolve_caps(flags, &caps);
 
-    size_t struct_bytes = sizeof(struct ToriDraw_Context);
+    size_t struct_bytes = sizeof(struct ToriDraw_Scene);
     size_t vertex_bytes = vertex_buffer_bytes(&caps);
     size_t order_bytes = (size_t)caps.max_faces * sizeof(int);
     size_t sort_bytes =
@@ -258,7 +257,7 @@ toridraw_context_print_size(uint32_t flags)
     size_t tex_bytes = caps.lazy_textures ? 0 : sizeof(struct ToriDraw_TextureState);
     size_t total = struct_bytes + vertex_bytes + order_bytes + sort_bytes + tex_bytes;
 
-    printf("toridraw context size (flags=0x%x%s%s):\n",
+    printf("toridraw scene size (flags=0x%x%s%s):\n",
            (unsigned)flags,
            caps.small_mode ? ", SMALL" : ", FULL",
            caps.lazy_textures ? ", LAZY_TEXTURES" : "");
@@ -274,43 +273,43 @@ toridraw_context_print_size(uint32_t flags)
     printf("  total:      %6zu bytes (%.1f KiB)\n", total, (double)total / 1024.0);
 }
 
-struct ToriDraw_Context*
-toridraw_context_new(uint32_t flags)
+struct ToriDraw_Scene*
+ToriDraw_SceneNew(uint32_t flags)
 {
-    struct ToriDraw_ContextCaps caps;
+    struct ToriDraw_SceneCaps caps;
     resolve_caps(flags, &caps);
 
-    struct ToriDraw_Context* context = calloc(1, sizeof(struct ToriDraw_Context));
-    if( !context )
+    struct ToriDraw_Scene* scene = calloc(1, sizeof(struct ToriDraw_Scene));
+    if( !scene )
         return NULL;
 
-    context->flags = flags;
+    scene->flags = flags;
 
-    if( !toridraw_context_alloc_buffers(context, &caps) )
+    if( !ToriDraw_SceneAllocBuffers(scene, &caps) )
     {
-        toridraw_context_free_buffers(context);
-        free(context);
+        ToriDraw_SceneFreeBuffers(scene);
+        free(scene);
         return NULL;
     }
 
-    if( !toridraw_gc_init(context) )
+    if( !ToriDraw_SceneGraphInit(scene) )
     {
-        toridraw_context_free_buffers(context);
-        free(context);
+        ToriDraw_SceneFreeBuffers(scene);
+        free(scene);
         return NULL;
     }
 
-    return context;
+    return scene;
 }
 
 void
-toridraw_context_free(struct ToriDraw_Context* context)
+ToriDraw_SceneFree(struct ToriDraw_Scene* scene)
 {
-    if( !context )
+    if( !scene )
         return;
-    toridraw_gc_shutdown(context);
-    toridraw_context_free_buffers(context);
-    free(context);
+    ToriDraw_SceneGraphShutdown(scene);
+    ToriDraw_SceneFreeBuffers(scene);
+    free(scene);
 }
 
 // clang-format off
@@ -328,62 +327,62 @@ toridraw_context_free(struct ToriDraw_Context* context)
 // clang-format on
 
 void
-toridraw_init(void)
+ToriDraw_Init(void)
 {
-    toridraw_init_math();
-    toridraw_init_hsl16();
+    ToriDraw_InitMath();
+    ToriDraw_InitHsl16();
 }
 
 void
-toridraw_render_model(
+ToriDraw_RenderModel(
     struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Context* context,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_Position* position,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer)
 {
-    int cull = toridraw_render_model1_project(hnd, context, position, view_port, camera);
+    int cull = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
     if( cull != TORIDRAW_CULL_VISIBLE )
         return;
 
-    toridraw_render_model2_sort_faces(hnd, context);
+    ToriDraw_RenderModel2SortFaces(hnd, scene);
 
-    toridraw_render_model3_raster(context, view_port, camera, pixel_buffer, false);
+    ToriDraw_RenderModel3Raster(scene, view_port, camera, pixel_buffer, false);
 }
 
 int
-toridraw_render_model1_project(
+ToriDraw_RenderModel1Project(
     struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Context* context,
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_Position* position,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera)
 {
-    context->active_hnd = hnd;
-    return toridraw_project(context, hnd, position, view_port, camera);
+    scene->active_hnd = hnd;
+    return ToriDraw_Project(scene, hnd, position, view_port, camera);
 }
 
 int
-toridraw_render_model2_sort_faces(
+ToriDraw_RenderModel2SortFaces(
     struct ToriDraw_ModelHandle hnd,
-    struct ToriDraw_Context* context)
+    struct ToriDraw_Scene* scene)
 {
-    if( context->flags & TORIDRAW_CTX_SMALL )
-        toridraw_compute_projected_face_order_small(context, hnd);
+    if( scene->flags & TORIDRAW_SCENE_SMALL )
+        ToriDraw_ComputeProjectedFaceOrderSmall(scene, hnd);
     else
-        toridraw_compute_projected_face_order(context, hnd);
-    return context->tmp_face_order_count;
+        ToriDraw_ComputeProjectedFaceOrder(scene, hnd);
+    return scene->tmp_face_order_count;
 }
 
 int
-toridraw_render_model3_raster(
-    struct ToriDraw_Context* context,
+ToriDraw_RenderModel3Raster(
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer,
     bool smooth)
 {
-    toridraw_raster(context, context->active_hnd, view_port, camera, pixel_buffer, smooth);
+    ToriDraw_Raster(scene, scene->active_hnd, view_port, camera, pixel_buffer, smooth);
     return TORIDRAW_CULL_VISIBLE;
 }

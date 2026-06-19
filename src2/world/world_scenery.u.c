@@ -7,7 +7,7 @@
 #include "osrs/rscache/tables/config_locs.h"
 #include "shademap.h"
 #include "sharelight_map.h"
-#include "toridraw/toridraw_gccontext.h"
+#include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
 #include "toridrawx/toridrawx.h"
@@ -63,7 +63,7 @@ void
 world_builder_apply_wall_decor_offsets(struct WorldBuilder* builder)
 {
     struct World* world = builder->world;
-    if( !world || !builder->decor_buildmap || !builder->context )
+    if( !world || !builder->decor_buildmap || !builder->scene )
         return;
 
     int scene_size = world->_scene_size;
@@ -83,8 +83,8 @@ world_builder_apply_wall_decor_offsets(struct WorldBuilder* builder)
                     int element_id = elements->element_id[i];
                     int displacement_kind = elements->displacement_kind[i];
                     int orientation = elements->orientation[i];
-                    struct ToriDraw_GCElement* scene_element =
-                        toridraw_gc_element_get(builder->context, element_id);
+                    struct ToriDraw_SceneElement* scene_element =
+                        ToriDraw_SceneElementGet(builder->scene, element_id);
                     if( !scene_element )
                         continue;
 
@@ -224,13 +224,13 @@ apply_transforms(
 {
     for( int i = 0; i < loc->recolor_count; i++ )
     {
-        toridraw_model_recolor(model, loc->recolors_from[i], loc->recolors_to[i]);
+        ToriDraw_ModelRecolor(model, loc->recolors_from[i], loc->recolors_to[i]);
         if( old_revision )
-            toridraw_model_retexture(model, loc->recolors_from[i], loc->recolors_to[i]);
+            ToriDraw_ModelRetexture(model, loc->recolors_from[i], loc->recolors_to[i]);
     }
 
     for( int i = 0; i < loc->retexture_count; i++ )
-        toridraw_model_retexture(model, loc->retextures_from[i], loc->retextures_to[i]);
+        ToriDraw_ModelRetexture(model, loc->retextures_from[i], loc->retextures_to[i]);
 
     bool mirrored = (loc->mirrored != (orientation > 3));
     bool oriented = orientation != 0;
@@ -238,13 +238,13 @@ apply_transforms(
     bool translated = loc->offset_x != 0 || loc->offset_y != 0 || loc->offset_z != 0;
 
     if( mirrored )
-        toridraw_model_mirror(model);
+        ToriDraw_ModelMirror(model);
     if( oriented )
-        toridraw_model_orient(model, orientation);
+        ToriDraw_ModelOrient(model, orientation);
     if( scaled )
-        toridraw_model_scale(model, loc->resize_x, loc->resize_z, loc->resize_height);
+        ToriDraw_ModelScale(model, loc->resize_x, loc->resize_z, loc->resize_height);
     if( translated )
-        toridraw_model_translate(model, loc->offset_x, loc->offset_y, loc->offset_z);
+        ToriDraw_ModelTranslate(model, loc->offset_x, loc->offset_y, loc->offset_z);
 }
 
 static int
@@ -298,7 +298,7 @@ scenery_load_model(
     struct ToriDraw_Model* models[10] = { 0 };
     for( int i = 0; i < models_count; i++ )
     {
-        struct ToriDraw_ModelHandle hnd = toridrawx_model(builder->toridrawx, model_ids[i]);
+        struct ToriDraw_ModelHandle hnd = ToriDrawX_Model(builder->toridrawx, model_ids[i]);
         assert(hnd.kind == TORIDRAWMK_MODEL);
         models[i] = hnd.u.model.model;
     }
@@ -306,21 +306,21 @@ scenery_load_model(
     struct ToriDraw_Model* model = NULL;
     if( models_count > 1 )
     {
-        model = toridraw_model_merge(models, models_count);
+        model = ToriDraw_ModelMerge(models, models_count);
     }
     else
-        model = toridraw_model_copy(models[0]);
+        model = ToriDraw_ModelCopy(models[0]);
 
     apply_transforms(config_loc, model, rotation, true);
 
-    int element_id = toridraw_gc_element_add(builder->context);
+    int element_id = ToriDraw_SceneElementAdd(builder->scene);
     assert(element_id >= 0 && "world_load_scenery_model: invalid element_id");
 
     struct ToriDraw_ModelHandle hnd = {
         .kind = TORIDRAWMK_MODEL,
         .u.model.model = model,
     };
-    toridraw_gc_element_set_model(builder->context, element_id, hnd);
+    ToriDraw_SceneElementSetModel(builder->scene, element_id, hnd);
 
     if( config_loc->contour_ground_type != 0 )
     {
@@ -354,8 +354,8 @@ scenery_element_position_init(
     heightmap_get_heights_sized(
         world->heightmap, scene_x, scene_z, level, size_x, size_z, &heights);
 
-    toridraw_gc_element_set_position(
-        builder->context,
+    ToriDraw_SceneElementSetPosition(
+        builder->scene,
         element_id,
         scene_x * WORLD_TILE_SIZE + 64 * size_x,
         heights.height_center,
@@ -376,14 +376,14 @@ scenery_load_animation(
     struct GameCache_Sequence* seq = gamecache_sequence_get(builder->gamecache, seq_id);
     assert(seq && "scenery_set_animation: invalid seq_id");
 
-    toridraw_gc_element_set_animation_seq(builder->context, element_id, seq_id);
+    ToriDraw_SceneElementSetAnimationSeq(builder->scene, element_id, seq_id);
 
-    struct ToriDraw_GCElement* element = toridraw_gc_element_get(builder->context, element_id);
+    struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(builder->scene, element_id);
     assert(element && "scenery_set_animation: invalid element_id");
 
     struct ToriDraw_Model* source = element->model.u.model.model;
 
-    struct ToriDraw_Animation* resolved = toridrawx_sequence_animation(builder->toridrawx, seq_id);
+    struct ToriDraw_Animation* resolved = ToriDrawX_SequenceAnimation(builder->toridrawx, seq_id);
     assert(resolved && "scenery_set_animation: invalid resolved animation");
 
     for( int frame = 0; frame < resolved->frame_count; frame++ )
@@ -391,24 +391,24 @@ scenery_load_animation(
         const struct ToriDraw_AnimFrame* anim_frame = &resolved->frames[frame];
         const struct ToriDraw_AnimBase* anim_base = resolved->base;
 
-        struct ToriDraw_Model* baked = toridraw_model_copy(source);
+        struct ToriDraw_Model* baked = ToriDraw_ModelCopy(source);
         if( !baked )
             continue;
 
-        toridraw_model_capture_original_vertices(baked);
-        toridraw_model_animate_reset(baked);
-        toridraw_model_animate_frame(baked, anim_base, anim_frame);
+        ToriDraw_ModelCaptureOriginalVertices(baked);
+        ToriDraw_ModelAnimateReset(baked);
+        ToriDraw_ModelAnimateFrame(baked, anim_base, anim_frame);
 
         struct ToriDraw_ModelHandle hnd = {
             .kind = TORIDRAWMK_MODEL,
             .u.model.model = baked,
         };
-        toridraw_gc_batch_element_add_pose(builder->context, element_id, frame, hnd);
+        ToriDraw_SceneBatchElementAddPose(builder->scene, element_id, frame, hnd);
     }
 
-    toridraw_model_animate_reset(source);
+    ToriDraw_ModelAnimateReset(source);
 
-    toridraw_gc_element_set_animation(builder->context, element_id, resolved, true);
+    ToriDraw_SceneElementSetAnimation(builder->scene, element_id, resolved, true);
 }
 
 static void

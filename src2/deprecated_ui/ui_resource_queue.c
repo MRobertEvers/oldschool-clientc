@@ -33,7 +33,7 @@ ui_resource_queue_clear(struct UIResourceQueue* queue)
             for( int j = 0; j < item->result_count; j++ )
             {
                 if( item->result_sprites[j] )
-                    toridraw_sprite_free(item->result_sprites[j]);
+                    ToriDraw_SpriteFree(item->result_sprites[j]);
             }
             free(item->result_sprites);
             item->result_sprites = NULL;

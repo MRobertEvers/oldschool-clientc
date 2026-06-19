@@ -107,7 +107,7 @@ lightness_clamped(int lightness)
 }
 
 void
-toridraw_calculate_vertex_normals(
+ToriDraw_CalculateVertexNormals(
     struct ToriDraw_Normal* vertex_normals,
     struct ToriDraw_Normal* face_normals,
     int vertex_count,
@@ -224,7 +224,7 @@ lighting_clamp_textured_vertex_colors(
 }
 
 void
-toridraw_apply_lighting(
+ToriDraw_ApplyLighting(
     hsl16_t* face_colors_a_hsl16,
     hsl16_t* face_colors_b_hsl16,
     hsl16_t* face_colors_c_hsl16,

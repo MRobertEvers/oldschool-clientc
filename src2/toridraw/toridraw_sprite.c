@@ -5,7 +5,7 @@
 #include <string.h>
 
 static uint32_t*
-toridraw_pix8_to_argb(
+ToriDraw_Pix8ToArgb(
     struct ToriDraw_Pix8* pix8,
     struct ToriDraw_PixPalette* palette)
 {
@@ -25,7 +25,7 @@ toridraw_pix8_to_argb(
 }
 
 struct ToriDraw_Sprite*
-toridraw_sprite_new_from_pix8(
+ToriDraw_SpriteNewFromPix8(
     struct ToriDraw_Pix8* pix8,
     struct ToriDraw_PixPalette* palette)
 {
@@ -35,7 +35,7 @@ toridraw_sprite_new_from_pix8(
     if( !sprite )
         return NULL;
     memset(sprite, 0, sizeof(struct ToriDraw_Sprite));
-    sprite->pixels_argb = toridraw_pix8_to_argb(pix8, palette);
+    sprite->pixels_argb = ToriDraw_Pix8ToArgb(pix8, palette);
     if( !sprite->pixels_argb )
     {
         free(sprite);
@@ -47,7 +47,7 @@ toridraw_sprite_new_from_pix8(
 }
 
 struct ToriDraw_Sprite*
-toridraw_sprite_new_from_pix32(struct ToriDraw_Pix32* pix32)
+ToriDraw_SpriteNewFromPix32(struct ToriDraw_Pix32* pix32)
 {
     if( !pix32 || !pix32->pixels )
         return NULL;
@@ -100,7 +100,7 @@ toridraw_sprite_new_from_pix32(struct ToriDraw_Pix32* pix32)
 }
 
 struct ToriDraw_Sprite*
-toridraw_sprite_new_from_argb_owned(
+ToriDraw_SpriteNewFromArgbOwned(
     uint32_t* pixels_argb,
     int width,
     int height)
@@ -120,7 +120,7 @@ toridraw_sprite_new_from_argb_owned(
 }
 
 void
-toridraw_pix8_free(struct ToriDraw_Pix8* pix8)
+ToriDraw_Pix8Free(struct ToriDraw_Pix8* pix8)
 {
     if( !pix8 )
         return;
@@ -129,7 +129,7 @@ toridraw_pix8_free(struct ToriDraw_Pix8* pix8)
 }
 
 void
-toridraw_pixpalette_free(struct ToriDraw_PixPalette* palette)
+ToriDraw_PixpaletteFree(struct ToriDraw_PixPalette* palette)
 {
     if( !palette )
         return;
@@ -138,7 +138,7 @@ toridraw_pixpalette_free(struct ToriDraw_PixPalette* palette)
 }
 
 void
-toridraw2d_blit_sprite(
+ToriDraw2D_BlitSprite(
     struct ToriDraw_Sprite* sprite,
     struct ToriDraw_ViewPort* view_port,
     int x_offset,
@@ -147,7 +147,7 @@ toridraw2d_blit_sprite(
 {
     if( !sprite || !view_port || !pixel_buffer )
         return;
-    toridraw2d_blit_sprite_subrect(
+    ToriDraw2D_BlitSprite_subrect(
         sprite,
         view_port,
         x_offset,
@@ -160,7 +160,7 @@ toridraw2d_blit_sprite(
 }
 
 void
-toridraw2d_blit_sprite_subrect(
+ToriDraw2D_BlitSprite_subrect(
     struct ToriDraw_Sprite* sprite,
     struct ToriDraw_ViewPort* view_port,
     int x_offset,
@@ -210,7 +210,7 @@ toridraw2d_blit_sprite_subrect(
 }
 
 void
-toridraw_sprite_flip_horizontal(struct ToriDraw_Sprite* sprite)
+ToriDraw_SpriteFlipHorizontal(struct ToriDraw_Sprite* sprite)
 {
     if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
         return;
@@ -229,7 +229,7 @@ toridraw_sprite_flip_horizontal(struct ToriDraw_Sprite* sprite)
 }
 
 void
-toridraw_sprite_flip_vertical(struct ToriDraw_Sprite* sprite)
+ToriDraw_SpriteFlipVertical(struct ToriDraw_Sprite* sprite)
 {
     if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
         return;
@@ -248,7 +248,7 @@ toridraw_sprite_flip_vertical(struct ToriDraw_Sprite* sprite)
 }
 
 void
-toridraw_sprite_free(struct ToriDraw_Sprite* sprite)
+ToriDraw_SpriteFree(struct ToriDraw_Sprite* sprite)
 {
     if( !sprite )
         return;

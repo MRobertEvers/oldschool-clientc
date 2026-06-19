@@ -26,7 +26,7 @@ world_contour_ground(struct WorldBuilder* builder)
         if( r->element_id < 0 )
             continue;
 
-        struct ToriDraw_GCElement* el = toridraw_gc_element_get(builder->context, r->element_id);
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(builder->scene, r->element_id);
         if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
             continue;
 
@@ -107,7 +107,7 @@ world_contour_ground(struct WorldBuilder* builder)
             }
         }
 
-        toridraw_model_set_bounds_cylinder(dm);
+        ToriDraw_ModelSetBoundsCylinder(dm);
     }
 
     builder->contour_ground_queue_count = 0;

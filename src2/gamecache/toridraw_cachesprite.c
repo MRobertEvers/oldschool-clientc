@@ -7,7 +7,7 @@
 #include <string.h>
 
 static struct ToriDraw_Pix8*
-toridraw_pix8_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
+ToriDraw_Pix8NewFromCachePix8Palette(struct CacheDatPix8Palette* pix8_palette)
 {
     if( !pix8_palette )
         return NULL;
@@ -33,7 +33,7 @@ toridraw_pix8_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palet
 }
 
 static struct ToriDraw_PixPalette*
-toridraw_pixpalette_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
+ToriDraw_PixpaletteNewFromCachePix8Palette(struct CacheDatPix8Palette* pix8_palette)
 {
     if( !pix8_palette )
         return NULL;
@@ -55,7 +55,7 @@ toridraw_pixpalette_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8
 }
 
 struct ToriDraw_Sprite*
-toridraw_sprite_new_from_cache_pix32(struct CacheDatPix32* pix32)
+ToriDraw_SpriteNewFromCachePix32(struct CacheDatPix32* pix32)
 {
     if( !pix32 )
         return NULL;
@@ -67,26 +67,26 @@ toridraw_sprite_new_from_cache_pix32(struct CacheDatPix32* pix32)
     td_pix32.crop_y = pix32->crop_y;
     td_pix32.stride_x = pix32->stride_x;
     td_pix32.stride_y = pix32->stride_y;
-    return toridraw_sprite_new_from_pix32(&td_pix32);
+    return ToriDraw_SpriteNewFromPix32(&td_pix32);
 }
 
 struct ToriDraw_Sprite*
-toridraw_sprite_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
+ToriDraw_SpriteNewFromCachePix8Palette(struct CacheDatPix8Palette* pix8_palette)
 {
     if( !pix8_palette )
         return NULL;
-    struct ToriDraw_Pix8* pix8 = toridraw_pix8_new_from_cache_pix8_palette(pix8_palette);
+    struct ToriDraw_Pix8* pix8 = ToriDraw_Pix8NewFromCachePix8Palette(pix8_palette);
     struct ToriDraw_PixPalette* palette =
-        toridraw_pixpalette_new_from_cache_pix8_palette(pix8_palette);
+        ToriDraw_PixpaletteNewFromCachePix8Palette(pix8_palette);
     if( !pix8 || !palette )
     {
-        toridraw_pix8_free(pix8);
-        toridraw_pixpalette_free(palette);
+        ToriDraw_Pix8Free(pix8);
+        ToriDraw_PixpaletteFree(palette);
         return NULL;
     }
-    struct ToriDraw_Sprite* sprite = toridraw_sprite_new_from_pix8(pix8, palette);
-    toridraw_pix8_free(pix8);
-    toridraw_pixpalette_free(palette);
+    struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromPix8(pix8, palette);
+    ToriDraw_Pix8Free(pix8);
+    ToriDraw_PixpaletteFree(palette);
     if( sprite )
     {
         sprite->crop_x = pix8_palette->crop_x;
