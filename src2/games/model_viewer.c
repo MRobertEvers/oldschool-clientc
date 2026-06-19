@@ -1,6 +1,6 @@
 #include "model_viewer.h"
 
-#include "../gamecache/gamecache.h"
+#include "../toriauxlib/core/toriauxlibcore.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
@@ -172,16 +172,12 @@ game_modelviewer_revconfig_queue(
         return;
     if( game_model_viewer->revconfig_filename_count >= 4 )
         return;
-    strncpy(
-        game_model_viewer->revconfig_filenames[game_model_viewer->revconfig_filename_count],
-        filename,
-        sizeof(
-            game_model_viewer->revconfig_filenames[game_model_viewer->revconfig_filename_count]));
-    game_model_viewer->revconfig_filenames
-        [game_model_viewer->revconfig_filename_count]
-        [sizeof(
-             game_model_viewer->revconfig_filenames[game_model_viewer->revconfig_filename_count]) -
-         1] = '\0';
+
+    int count = game_model_viewer->revconfig_filename_count;
+    int size = sizeof(game_model_viewer->revconfig_filenames[count]);
+
+    strncpy(game_model_viewer->revconfig_filenames[count], filename, size);
+    game_model_viewer->revconfig_filenames[count][size - 1] = '\0';
     game_model_viewer->revconfig_filename_count++;
 }
 
@@ -207,13 +203,13 @@ game_modelviewer_next(
 }
 
 void
-game_modelviewer_set_gamecache(
+game_modelviewer_set_core(
     struct GameModelViewer* mv,
-    struct GameCache* gamecache)
+    struct ToriAuxLibCore* core)
 {
     if( !mv )
         return;
-    mv->gamecache = gamecache;
+    mv->core = core;
 }
 
 void

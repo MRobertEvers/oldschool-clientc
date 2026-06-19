@@ -3,14 +3,14 @@
 
 #include "buildcache/dat1_buildcache.h"
 #include "core/tasks/core_task.h"
-#include "gamecache/gamecache.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "games/game_handle.h"
 #include "games/model_viewer.h"
 #include "games/runescape.h"
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "scripting/libtorirs_scripting.h"
 #include "toridraw/toridraw_scene.h"
-#include "toridrawx/toridrawx.h"
+#include "toriauxlib/toriauxlib.h"
 #include "world/world.h"
 
 #include <stdbool.h>
@@ -43,8 +43,7 @@ struct LibToriRS_Instance
     int task_live_head;
 
     struct ToriDraw_Scene* scene;
-    struct GameCacheL* gamecache_l;
-    struct ToriDrawX* toridrawx;
+    struct ToriAuxLib* toriauxlib;
 
     enum GameHandleKind active_game_kind;
     struct GameModelViewer* model_viewer;

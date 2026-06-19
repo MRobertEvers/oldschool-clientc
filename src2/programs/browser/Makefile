@@ -40,14 +40,17 @@ SRC   := browser.c \
 	$(SRC2)/world/terrain_shapemap.c \
 	$(SRC2)/world/contour_ground.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
-	$(SRC2)/gamecache/gamecache.c \
-	$(SRC2)/gamecache/gamecache_convert.c \
-	$(SRC2)/gamecache/gamecache_submit.c \
-	$(SRC2)/gamecache/gamecache_model_convert.c \
-	$(SRC2)/gamecache/toridraw_cachesprite.c \
-	$(SRC2)/toridrawx/toridrawx.c \
-	$(SRC2)/toridrawx/toridrawx_tasks.c \
-	$(SRC2)/gamecache/gamecache_l.c \
+	$(SRC2)/toriauxlib/toriauxlib.c \
+	$(SRC2)/toriauxlib/core/toriauxlibcore.c \
+	$(SRC2)/toriauxlib/core/toriauxlibcore_types.c \
+	$(SRC2)/toriauxlib/c/toriauxlibc.c \
+	$(SRC2)/toriauxlib/c/toriauxlibc_convert.c \
+	$(SRC2)/toriauxlib/c/toriauxlibc_model_convert.c \
+	$(SRC2)/toriauxlib/c/toriauxlibc_submit.c \
+	$(SRC2)/toriauxlib/td/toriauxlibtd.c \
+	$(SRC2)/toriauxlib/td/toriauxlibtd_tasks.c \
+	$(SRC2)/toriauxlib/td/toridraw_cachesprite.c \
+	$(SRC2)/toriauxlib/td/toridraw_cachemodel.c \
 	$(SRC2)/toridraw/toridraw_animation.c \
 	$(SRC2)/toridraw/toridraw_model_transform.c \
 	$(SRC2)/games/model_viewer.c \
@@ -104,6 +107,7 @@ SRC   := browser.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_idk.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_npc.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_obj.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/config_component.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_spotanim.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_varp.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/animframe.c \

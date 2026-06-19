@@ -1,7 +1,7 @@
 #ifndef WORLD_SCENERY_U_C
 #define WORLD_SCENERY_U_C
 
-#include "gamecache/gamecache.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "minimap.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/tables/config_locs.h"
@@ -10,7 +10,7 @@
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
-#include "toridrawx/toridrawx.h"
+#include "toriauxlib/toriauxlib.h"
 #include "world_builder.h"
 
 // clang-format off
@@ -157,7 +157,7 @@ orientation_wall_flag_diagonal(int orientation)
 static void
 scenery_register_sharelight(
     struct WorldBuilder* builder,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z,
     int level,
@@ -217,7 +217,7 @@ world_builder_contour_ground_queue_push(
 
 static void
 apply_transforms(
-    struct GameCache_Location* loc,
+    struct ToriAuxLibCore_Location* loc,
     struct ToriDraw_Model* model,
     int orientation,
     bool old_revision)
@@ -250,8 +250,8 @@ apply_transforms(
 static int
 scenery_load_model(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_tile,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_tile,
+    struct ToriAuxLibCore_Location* config_loc,
     int shape_select,
     int rotation,
     int scene_x,
@@ -298,7 +298,7 @@ scenery_load_model(
     struct ToriDraw_Model* models[10] = { 0 };
     for( int i = 0; i < models_count; i++ )
     {
-        struct ToriDraw_ModelHandle hnd = ToriDrawX_Model(builder->toridrawx, model_ids[i]);
+        struct ToriDraw_ModelHandle hnd = ToriAuxLibTD_Model(builder->td, model_ids[i]);
         assert(hnd.kind == TORIDRAWMK_MODEL);
         models[i] = hnd.u.model.model;
     }
@@ -373,7 +373,7 @@ scenery_load_animation(
     if( seq_id == -1 )
         return;
 
-    struct GameCache_Sequence* seq = gamecache_sequence_get(builder->gamecache, seq_id);
+    struct ToriAuxLibCore_Sequence* seq = ToriAuxLibCore_SequenceGet(builder->core, seq_id);
     assert(seq && "scenery_set_animation: invalid seq_id");
 
     ToriDraw_SceneElementSetAnimationSeq(builder->scene, element_id, seq_id);
@@ -383,7 +383,7 @@ scenery_load_animation(
 
     struct ToriDraw_Model* source = element->model.u.model.model;
 
-    struct ToriDraw_Animation* resolved = ToriDrawX_SequenceAnimation(builder->toridrawx, seq_id);
+    struct ToriDraw_Animation* resolved = ToriAuxLibTD_SequenceAnimation(builder->td, seq_id);
     assert(resolved && "scenery_set_animation: invalid resolved animation");
 
     for( int frame = 0; frame < resolved->frame_count; frame++ )
@@ -414,8 +414,8 @@ scenery_load_animation(
 static void
 scenery_add_wall_single(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -468,8 +468,8 @@ scenery_add_wall_single(
 static void
 scenery_add_wall_tri_corner(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -516,8 +516,8 @@ scenery_add_wall_tri_corner(
 static void
 scenery_add_wall_two_sides(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -587,8 +587,8 @@ scenery_add_wall_two_sides(
 static void
 scenery_add_wall_rect_corner(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -638,8 +638,8 @@ scenery_add_wall_rect_corner(
 static void
 scenery_add_wall_decor_inside(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -692,8 +692,8 @@ scenery_add_wall_decor_inside(
 static void
 scenery_add_wall_decor_outside(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -749,8 +749,8 @@ scenery_add_wall_decor_outside(
 static void
 scenery_add_wall_decor_diagonal_outside(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -806,8 +806,8 @@ scenery_add_wall_decor_diagonal_outside(
 static void
 scenery_add_wall_decor_diagonal_inside(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -864,8 +864,8 @@ scenery_add_wall_decor_diagonal_inside(
 static void
 scenery_add_wall_decor_diagonal_double(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -975,8 +975,8 @@ scenery_add_wall_decor_diagonal_double(
 static void
 scenery_add_wall_diagonal(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -1009,8 +1009,8 @@ scenery_add_wall_diagonal(
 static void
 scenery_add_normal(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -1078,8 +1078,8 @@ scenery_add_normal(
 static void
 scenery_add_roof(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -1104,8 +1104,8 @@ scenery_add_roof(
 static void
 scenery_add_floor_decoration(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {
@@ -1139,7 +1139,7 @@ world_builder_minimap_add_chunk_walls(
         return;
 
     int map_id = (mapx << 16) | (mapz & 0xFFFF);
-    struct GameCache_MapLocs* map_locs = gamecache_map_scenery_get(builder->gamecache, map_id);
+    struct ToriAuxLibCore_MapLocs* map_locs = ToriAuxLibCore_MapSceneryGet(builder->core, map_id);
     if( !map_locs )
         return;
 
@@ -1147,15 +1147,15 @@ world_builder_minimap_add_chunk_walls(
 
     for( int i = 0; i < map_locs->locs_count; i++ )
     {
-        struct GameCache_MapLoc* map_loc = &map_locs->locs[i];
+        struct ToriAuxLibCore_MapLoc* map_loc = &map_locs->locs[i];
         int offset_x = world_to_scene_x(world, mapx, map_loc->chunk_pos_x);
         int offset_z = world_to_scene_z(world, mapz, map_loc->chunk_pos_z);
 
         if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size || offset_z >= scene_size )
             continue;
 
-        struct GameCache_Location* config_loc =
-            gamecache_location_get(builder->gamecache, map_loc->loc_id);
+        struct ToriAuxLibCore_Location* config_loc =
+            ToriAuxLibCore_LocationGet(builder->core, map_loc->loc_id);
         if( !config_loc )
             continue;
 
@@ -1201,8 +1201,8 @@ world_builder_minimap_add_chunk_walls(
 static void
 scenery_add(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {

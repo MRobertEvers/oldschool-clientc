@@ -3,8 +3,6 @@
 
 #include <stdint.h>
 
-struct CacheDatAnimBaseFrames;
-
 struct ToriDraw_AnimBase
 {
     int length;
@@ -30,9 +28,6 @@ struct ToriDraw_Animation
     struct ToriDraw_AnimFrame* frames;
     int frame_count;
 };
-
-struct ToriDraw_Animation*
-ToriDraw_AnimationNewFromCacheDatAnimbaseframes(struct CacheDatAnimBaseFrames* abf);
 
 void
 ToriDraw_AnimationFree(struct ToriDraw_Animation* anim);

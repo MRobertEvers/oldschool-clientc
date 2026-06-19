@@ -1,8 +1,8 @@
 #include "dat1_interface.h"
 
 #include "../buildcache/dat1_buildcache.h"
-#include "../gamecache/gamecache.h"
-#include "../gamecache/toridraw_cachemodel.h"
+#include "toriauxlib/core/toriauxlibcore.h"
+#include "toriauxlib/td/toridraw_cachemodel.h"
 #include "../ui/ui_scene.h"
 #include "dat1_sprite.h"
 #include "graphics/dashmap.h"
@@ -202,11 +202,11 @@ void
 dat1_interface_step(
     struct Dat1_Interface* iface,
     struct Dat1BuildCache* buildcache,
-    struct GameCache* gamecache,
+    struct ToriAuxLibCore* core,
     struct UIScene* scene,
     struct DashMap* sprite_map)
 {
-    if( !iface || !buildcache || !gamecache || !scene || !sprite_map )
+    if( !iface || !buildcache || !core || !scene || !sprite_map )
         return;
 
 reswitch:
@@ -276,7 +276,7 @@ reswitch:
         {
             int model_id = iface->model_ids[i];
 
-            struct ToriDraw_ModelHandle existing = gamecache_model_get(gamecache, model_id);
+            struct ToriDraw_ModelHandle existing = ToriAuxLibCore_ModelGet(core, model_id);
             if( existing.kind == TORIDRAWMK_MODEL )
                 continue;
 
@@ -298,7 +298,7 @@ reswitch:
             struct ToriDraw_ModelHandle hnd = { 0 };
             hnd.kind = TORIDRAWMK_MODEL;
             hnd.u.model.model = td;
-            gamecache_model_add(gamecache, model_id, hnd);
+            ToriAuxLibCore_ModelAdd(core, model_id, hnd);
             printf("dat1_interface: converted model %d to gamecache\n", model_id);
         }
 

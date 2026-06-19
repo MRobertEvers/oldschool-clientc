@@ -2,9 +2,9 @@
 
 #include "../buildcache/dat1_buildcache.h"
 #include "../ioqueue/libtorirs_ioqueue.h"
-#include "gamecache/gamecache.h"
-#include "gamecache/toridraw_cachemodel.h"
-#include "gamecache/toridraw_cachesprite.h"
+#include "toriauxlib/core/toriauxlibcore.h"
+#include "toriauxlib/td/toridraw_cachemodel.h"
+#include "toriauxlib/td/toridraw_cachesprite.h"
 #include "graphics/dashmap.h"
 #include "osrs/revconfig/uitree.h"
 #include "osrs/rscache/cache_dat.h"
@@ -97,7 +97,7 @@ struct UILoaderState
     struct DashMap* component_map;
 
     struct Dat1BuildCache* buildcache;
-    struct GameCache* gamecache;
+    struct ToriAuxLibCore* gamecache;
     struct UIScene* ui_scene;
 
     struct UIResourceQueue* queue;
@@ -861,10 +861,10 @@ ui_loader_bake_rs_subtree(
         break;
 
     case COMPONENT_TYPE_MODEL:
-        if( comp->modelType == 1 && state->gamecache )
+        if( comp->modelType == 1 && state->core )
         {
             struct ToriDraw_ModelHandle hnd =
-                gamecache_model_get(state->gamecache, comp->model);
+                ToriAuxLibCore_ModelGet(state->core, comp->model);
             if( hnd.kind == TORIDRAWMK_MODEL )
             {
                 uitree_push_rs_model(
@@ -959,9 +959,9 @@ ui_loader_collect_rs_deps_from_component(
 
     if( comp->type == COMPONENT_TYPE_MODEL && comp->modelType == 1 && comp->model > 0 )
     {
-        if( !state->gamecache )
+        if( !state->core )
             return;
-        struct ToriDraw_ModelHandle hnd = gamecache_model_get(state->gamecache, comp->model);
+        struct ToriDraw_ModelHandle hnd = ToriAuxLibCore_ModelGet(state->core, comp->model);
         if( hnd.kind != TORIDRAWMK_MODEL )
             ui_loader_pending_model_index(state, comp->model);
     }
@@ -992,10 +992,10 @@ ui_loader_queue_pending_models(
         if( pending->received || pending->io_dispatched )
             continue;
 
-        if( state->gamecache )
+        if( state->core )
         {
             struct ToriDraw_ModelHandle hnd =
-                gamecache_model_get(state->gamecache, pending->model_id);
+                ToriAuxLibCore_ModelGet(state->core, pending->model_id);
             if( hnd.kind == TORIDRAWMK_MODEL )
             {
                 pending->received = true;
@@ -1579,7 +1579,7 @@ ui_loader_consume_resolved_cache_io(
             if( pending->model_id != io_item->archive_id )
                 continue;
 
-            if( state->gamecache && state->buildcache )
+            if( state->core && state->buildcache )
             {
                 struct CacheModel* model =
                     model_new_from_dat_archive((struct CacheDatArchive*)io_item->data, pending->model_id);
@@ -1597,7 +1597,7 @@ ui_loader_consume_resolved_cache_io(
                                 .kind = TORIDRAWMK_MODEL,
                                 .u.model.model = td,
                             };
-                            gamecache_model_add(state->gamecache, pending->model_id, hnd);
+                            ToriAuxLibCore_ModelAdd(state->core, pending->model_id, hnd);
                             printf(
                                 "UI_Process: loaded UI model %d into gamecache\n",
                                 pending->model_id);
@@ -1782,11 +1782,11 @@ ui_loader_set_buildcache(
 void
 ui_loader_set_gamecache(
     struct UILoaderState* state,
-    struct GameCache* gamecache)
+    struct ToriAuxLibCore* gamecache)
 {
     if( !state )
         return;
-    state->gamecache = gamecache;
+    state->core = gamecache;
 }
 
 void

@@ -4,7 +4,7 @@
 #include "collision_map.h"
 #include "decor_buildmap.h"
 #include "flag_map.h"
-#include "gamecache/gamecache.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "heightmap.h"
 #include "lightmap.h"
 #include "minimap.h"
@@ -15,7 +15,7 @@
 #include "sharelight_map.h"
 #include "terrain_shapemap.h"
 #include "toridraw/toridraw_scene.h"
-#include "toridrawx/toridrawx.h"
+#include "toriauxlib/toriauxlib.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -66,16 +66,16 @@ world_builder_free_transient_maps(struct WorldBuilder* builder)
 struct WorldBuilder*
 world_builder_new(
     struct World* world,
-    struct GameCache* gamecache,
+    struct ToriAuxLibCore* core,
     struct ToriDraw_Scene* scene,
-    struct ToriDrawX* toridrawx)
+    struct ToriAuxLibTD* td)
 {
     struct WorldBuilder* builder = calloc(1, sizeof(struct WorldBuilder));
     assert(builder && "Failed to allocate world builder");
     builder->world = world;
-    builder->gamecache = gamecache;
+    builder->core = core;
     builder->scene = scene;
-    builder->toridrawx = toridrawx;
+    builder->td = td;
     return builder;
 }
 
@@ -122,7 +122,7 @@ world_builder_rebuild_centerzone_chunk_scenery(
 {
     struct World* world = builder->world;
     int map_id = (mapx << 16) | (mapz & 0xFFFF);
-    struct GameCache_MapLocs* map_locs = gamecache_map_scenery_get(builder->gamecache, map_id);
+    struct ToriAuxLibCore_MapLocs* map_locs = ToriAuxLibCore_MapSceneryGet(builder->core, map_id);
     assert(map_locs && "Map scenery must be found");
 
     int scene_size = world->_scene_size;
@@ -131,9 +131,9 @@ world_builder_rebuild_centerzone_chunk_scenery(
 
     for( int i = 0; i < map_locs->locs_count; i++ )
     {
-        struct GameCache_MapLoc* map_loc = &map_locs->locs[i];
-        struct GameCache_Location* config_loc =
-            gamecache_location_get(builder->gamecache, map_loc->loc_id);
+        struct ToriAuxLibCore_MapLoc* map_loc = &map_locs->locs[i];
+        struct ToriAuxLibCore_Location* config_loc =
+            ToriAuxLibCore_LocationGet(builder->core, map_loc->loc_id);
         if( !config_loc )
             continue;
 

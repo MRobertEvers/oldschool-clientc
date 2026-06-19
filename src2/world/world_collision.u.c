@@ -3,7 +3,7 @@
 
 #include "collision_map.h"
 #include "flag_map.h"
-#include "gamecache/gamecache_types.h"
+#include "toriauxlib/core/toriauxlibcore_types.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/maps.h"
 #include "world_builder.h"
@@ -11,8 +11,8 @@
 static void
 world_collision_add_loc(
     struct WorldBuilder* builder,
-    struct GameCache_MapLoc* map_loc,
-    struct GameCache_Location* config_loc,
+    struct ToriAuxLibCore_MapLoc* map_loc,
+    struct ToriAuxLibCore_Location* config_loc,
     int scene_x,
     int scene_z)
 {

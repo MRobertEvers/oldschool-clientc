@@ -3,7 +3,7 @@
 #include "3rd/minipt.h"
 #include "commands/libtorirs_command_queue.h"
 #include "commands/libtorirs_command_queue_internal.h"
-#include "gamecache/gamecache_l.h"
+#include "toriauxlib/toriauxlib.h"
 #include "games/model_viewer.h"
 #include "games/runescape.h"
 #include "input/libtorirs_input.h"
@@ -63,8 +63,8 @@ LibToriRS_InstanceNew(void)
     //     return NULL;
     // }
 
-    // instance->gamecache = gamecache_new();
-    // if( !instance->gamecache )
+    // instance->core = gamecache_new();
+    // if( !instance->core )
     // {
     //     dat1_buildcache_free(instance->dat1_buildcache);
     //     LibToriRS_IOQueueFree(instance->io_queue);
@@ -84,21 +84,9 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
-    instance->gamecache_l = GameCacheL_New(GAMECACHE_L_MODE_DAT1);
-    if( !instance->gamecache_l )
+    instance->toriauxlib = ToriAuxLib_New(TORIAUXLIBC_MODE_DAT1, instance->scene);
+    if( !instance->toriauxlib )
     {
-        ToriDraw_SceneFree(instance->scene);
-        LibToriRS_IOQueueFree(instance->io_queue);
-        LibToriRS_Input_Free(instance->input);
-        LibToriRS_ScriptQueueFree(instance->script_queue);
-        free(instance);
-        return NULL;
-    }
-
-    instance->toridrawx = ToriDrawX_New(instance->gamecache_l, instance->scene);
-    if( !instance->toridrawx )
-    {
-        GameCacheL_Free(instance->gamecache_l);
         ToriDraw_SceneFree(instance->scene);
         LibToriRS_IOQueueFree(instance->io_queue);
         LibToriRS_Input_Free(instance->input);
@@ -136,10 +124,8 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
         LibToriRS_ScriptQueueFree(instance->script_queue);
     if( instance->input )
         LibToriRS_Input_Free(instance->input);
-    if( instance->toridrawx )
-        ToriDrawX_Free(instance->toridrawx);
-    if( instance->gamecache_l )
-        GameCacheL_Free(instance->gamecache_l);
+    if( instance->toriauxlib )
+        ToriAuxLib_Free(instance->toriauxlib);
     if( instance->scene )
         ToriDraw_SceneFree(instance->scene);
 

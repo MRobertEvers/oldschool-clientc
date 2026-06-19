@@ -1,5 +1,5 @@
 #include "../../commands/libtorirs_command_queue.h"
-#include "../../gamecache/gamecache_l.h"
+#include "../../toriauxlib/toriauxlib.h"
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../platforms/platform_sdl2/platform_sdl2.h"
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"

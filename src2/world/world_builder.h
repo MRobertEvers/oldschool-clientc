@@ -5,9 +5,9 @@
 
 #include <stdbool.h>
 
-struct GameCache;
+struct ToriAuxLibCore;
 struct ToriDraw_Scene;
-struct ToriDrawX;
+struct ToriAuxLibTD;
 struct Blendmap;
 struct Overlaymap;
 struct TerrainShapeMap;
@@ -31,9 +31,9 @@ struct ContourGroundQueueEntry
 struct WorldBuilder
 {
     struct World* world;
-    struct GameCache* gamecache;
+    struct ToriAuxLibCore* core;
     struct ToriDraw_Scene* scene;
-    struct ToriDrawX* toridrawx;
+    struct ToriAuxLibTD* td;
 
     struct Blendmap* blendmap;
     struct Overlaymap* overlaymap;
@@ -51,9 +51,9 @@ struct WorldBuilder
 struct WorldBuilder*
 world_builder_new(
     struct World* world,
-    struct GameCache* gamecache,
+    struct ToriAuxLibCore* core,
     struct ToriDraw_Scene* scene,
-    struct ToriDrawX* toridrawx);
+    struct ToriAuxLibTD* td);
 
 void
 world_builder_free(struct WorldBuilder* builder);

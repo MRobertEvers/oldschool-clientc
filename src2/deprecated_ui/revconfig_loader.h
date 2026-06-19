@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 struct Dat1BuildCache;
-struct GameCache;
+struct ToriAuxLibCore;
 struct LibToriRS_IOQueue;
 struct RevConfigLoaderState;
 struct UIScene;
@@ -37,7 +37,7 @@ revconfig_loader_set_buildcache(
 void
 revconfig_loader_set_gamecache(
     struct RevConfigLoaderState* state,
-    struct GameCache* gamecache);
+    struct ToriAuxLibCore* gamecache);
 
 void
 revconfig_loader_set_ui_scene(

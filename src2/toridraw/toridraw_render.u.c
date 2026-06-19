@@ -463,10 +463,14 @@ ToriDraw_ComputeProjectedFaceOrder(
     const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
     int model_min_depth = bc ? bc->min_z_depth_any_rotation : 0;
 
+    size_t clear_buckets = (size_t)(model_min_depth * 2 + 1);
+    if( clear_buckets > (size_t)scene->depth_levels )
+        clear_buckets = (size_t)scene->depth_levels;
+
     memset(
         scene->tmp_depth_face_count,
         0,
-        (size_t)(model_min_depth * 2 + 1) * sizeof(scene->tmp_depth_face_count[0]));
+        clear_buckets * sizeof(scene->tmp_depth_face_count[0]));
 
     int bounds = bucket_sort_by_average_depth(
         scene->tmp_depth_faces,

@@ -1801,3 +1801,26 @@ python3 -m http.server -b 0.0.0.0 -d . 8000
 ## Empty Models??
 
 Not a loading bug: cache254 contains three model files (IDs 596, 2214, 2215) that are exactly an 18-byte ob2 header with 0 vertices / 0 faces. They are intentionally empty and referenced by real loc configs (gnome glider map icons, shape 22; invisible walls on locs 83-85/2639, shapes 0 and 9). The original client tolerates 0-vertex models and just draws nothing. The crash is the engine's own invariant in src2/toridraw/toridraw_model_transform.c
+
+## Bellemorde
+
+have model Bellemorde Head 9424 from the RSCache, what animations work with it?
+
+Model 9424 is the chathead for Bellemorde, the slightly mangy cat from the Ratcatchers quest.
+
+Because it's a chathead model stored in the Dat1/Dat2 cache formats, it doesn't have unique, hardcoded animations tied directly to the mesh. Instead, the engine passes a global dialogue animation ID to the chatbox widget, which then applies that animation to the model's vertex groups.
+
+If you are plugging this into a custom rendering pipeline or parsing the cache, any of the standard global chathead animations (which generally run from 554 to 611) will work with it.
+
+Here are the core IDs you'll want to map for testing the dialogue loops:
+
+Animation ID Expression / Action
+554 Neutral / Listening (Idle loop)
+567 Sad / Distressed
+568 Questioning / Slightly agitated
+570 Happy talking
+571 Standard default talking
+572 Angry / Shouting
+573 Sad talking
+574 Laughing
+Since Bellemorde is a feline model, some of the more exaggerated humanoid expressions (like extreme shouting) might deform the jaw or ears slightly depending on how the original vertex weights were painted, but the standard neutral and talking loops (554 and 571) will run perfectly smoothly on the mesh.

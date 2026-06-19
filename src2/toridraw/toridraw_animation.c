@@ -1,34 +1,7 @@
 #include "toridraw_animation.h"
 
-#include "osrs/rscache/tables_dat/animframe.h"
-
 #include <stdlib.h>
 #include <string.h>
-
-static struct ToriDraw_AnimBase*
-ToriDraw_AnimbaseMoveFromCache(struct CacheAnimBase* cache_base)
-{
-    if( !cache_base )
-        return NULL;
-
-    struct ToriDraw_AnimBase* base = malloc(sizeof(struct ToriDraw_AnimBase));
-    if( !base )
-        return NULL;
-
-    memset(base, 0, sizeof(struct ToriDraw_AnimBase));
-    base->length = cache_base->length;
-    base->types = cache_base->types;
-    base->bone_groups = cache_base->labels;
-    base->bone_group_lengths = cache_base->label_counts;
-
-    cache_base->types = NULL;
-    cache_base->labels = NULL;
-    cache_base->label_counts = NULL;
-    cache_base->length = 0;
-
-    free(cache_base);
-    return base;
-}
 
 static void
 ToriDraw_AnimbaseFree(struct ToriDraw_AnimBase* base)
@@ -45,61 +18,6 @@ ToriDraw_AnimbaseFree(struct ToriDraw_AnimBase* base)
     free(base->bone_group_lengths);
     free(base->types);
     free(base);
-}
-
-struct ToriDraw_Animation*
-ToriDraw_AnimationNewFromCacheDatAnimbaseframes(struct CacheDatAnimBaseFrames* abf)
-{
-    if( !abf )
-        return NULL;
-
-    struct ToriDraw_Animation* anim = malloc(sizeof(struct ToriDraw_Animation));
-    if( !anim )
-        return NULL;
-
-    memset(anim, 0, sizeof(struct ToriDraw_Animation));
-    anim->base = ToriDraw_AnimbaseMoveFromCache(abf->base);
-    abf->base = NULL;
-
-    anim->frame_count = abf->frame_count;
-    if( abf->frame_count > 0 && abf->frames )
-    {
-        anim->frames = malloc((size_t)abf->frame_count * sizeof(struct ToriDraw_AnimFrame));
-        if( !anim->frames )
-        {
-            ToriDraw_AnimationFree(anim);
-            free(abf->frames);
-            free(abf);
-            return NULL;
-        }
-
-        for( int i = 0; i < abf->frame_count; i++ )
-        {
-            struct CacheAnimframe* cf = &abf->frames[i];
-            struct ToriDraw_AnimFrame* tf = &anim->frames[i];
-            memset(tf, 0, sizeof(struct ToriDraw_AnimFrame));
-
-            tf->id = cf->id;
-            tf->length = cf->length;
-            tf->groups = cf->groups;
-            tf->x = cf->x;
-            tf->y = cf->y;
-            tf->z = cf->z;
-            tf->delay = cf->delay;
-
-            cf->groups = NULL;
-            cf->x = NULL;
-            cf->y = NULL;
-            cf->z = NULL;
-            cf->length = 0;
-        }
-        free(abf->frames);
-        abf->frames = NULL;
-        abf->frame_count = 0;
-    }
-
-    free(abf);
-    return anim;
 }
 
 void

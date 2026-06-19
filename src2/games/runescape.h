@@ -12,9 +12,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-struct GameCache;
+struct ToriAuxLibCore;
 struct ToriDraw_Scene;
-struct ToriDrawX;
+struct ToriAuxLibTD;
 
 /* OSRS rebuild-normal zone coords: map_chunk * 8 (zone 400 -> map chunk 50). */
 #define RUNESCAPE_MAP_CHUNK_CENTER 50
@@ -33,10 +33,10 @@ enum GameRunescape_FramePhase
 struct GameRunescape
 {
     struct LibToriRS_ScriptQueue* script_queue;
-    struct GameCache* gamecache;
+    struct ToriAuxLibCore* core;
     struct World* world;
     struct ToriDraw_Scene* scene;
-    struct ToriDrawX* toridrawx;
+    struct ToriAuxLibTD* td;
     struct ToriDraw_Position* camera_position;
     struct ToriDraw_Camera* camera;
     struct ToriDraw_ViewPort* view_port;
@@ -67,14 +67,14 @@ void
 game_runescape_free(struct GameRunescape* game);
 
 void
-game_runescape_set_gamecache(
+game_runescape_set_core(
     struct GameRunescape* game,
-    struct GameCache* gamecache);
+    struct ToriAuxLibCore* core);
 
 void
-game_runescape_set_toridrawx(
+game_runescape_set_td(
     struct GameRunescape* game,
-    struct ToriDrawX* toridrawx);
+    struct ToriAuxLibTD* td);
 
 void
 game_runescape_build_world(struct GameRunescape* game);

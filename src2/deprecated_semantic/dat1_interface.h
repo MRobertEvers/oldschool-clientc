@@ -5,7 +5,7 @@
 
 struct Dat1BuildCache;
 struct DashMap;
-struct GameCache;
+struct ToriAuxLibCore;
 struct UIScene;
 
 /* ------------------------------------------------------------------
@@ -52,7 +52,7 @@ void
 dat1_interface_step(
     struct Dat1_Interface* iface,
     struct Dat1BuildCache* buildcache,
-    struct GameCache*      gamecache,
+    struct ToriAuxLibCore*      core,
     struct UIScene*        scene,
     struct DashMap*        sprite_map);
 

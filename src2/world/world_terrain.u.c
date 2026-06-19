@@ -2,7 +2,7 @@
 #define WORLD_TERRAIN_U_C
 
 #include "blendmap.h"
-#include "gamecache/gamecache.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "heightmap.h"
 #include "lightmap.h"
 #include "minimap.h"
@@ -96,7 +96,7 @@ world_builder_rebuild_centerzone_chunk_terrain(
 {
     struct World* world = builder->world;
     int map_id = (mapx << 16) | (mapz & 0xFFFF);
-    struct GameCache_MapTerrain* map_terrain = gamecache_map_terrain_get(builder->gamecache, map_id);
+    struct ToriAuxLibCore_MapTerrain* map_terrain = ToriAuxLibCore_MapTerrainGet(builder->core, map_id);
     assert(map_terrain && "Map terrain must be found");
 
     int scene_size = world->_scene_size;
@@ -113,7 +113,7 @@ world_builder_rebuild_centerzone_chunk_terrain(
             for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
             {
                 int chunk_index = WORLD_MAP_TILE_COORD(tile_x, tile_z, level);
-                struct GameCache_MapFloor* tile = &map_terrain->tiles_xyz[chunk_index];
+                struct ToriAuxLibCore_MapFloor* tile = &map_terrain->tiles_xyz[chunk_index];
 
                 if( offset_x >= 0 && offset_z >= 0 && offset_x <= scene_size &&
                     offset_z <= scene_size )
@@ -135,8 +135,8 @@ world_builder_rebuild_centerzone_chunk_terrain(
 
                 if( tile->underlay_id > 0 )
                 {
-                    struct GameCache_Flotype* flotype =
-                        gamecache_flotype_get(builder->gamecache, tile->underlay_id - 1);
+                    struct ToriAuxLibCore_Flotype* flotype =
+                        ToriAuxLibCore_FlotypeGet(builder->core, tile->underlay_id - 1);
                     if( flotype )
                     {
                         blendmap_set_underlay_rgb(
@@ -153,8 +153,8 @@ world_builder_rebuild_centerzone_chunk_terrain(
 
                 if( overlay_id != -1 )
                 {
-                    struct GameCache_Flotype* flotype =
-                        gamecache_flotype_get(builder->gamecache, overlay_id);
+                    struct ToriAuxLibCore_Flotype* flotype =
+                        ToriAuxLibCore_FlotypeGet(builder->core, overlay_id);
                     if( flotype )
                     {
                         overlaymap_set_tile_rgb(

@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 struct ToriDraw_Scene;
-struct GameCache;
+struct ToriAuxLibCore;
 struct LibToriRS_IOContext;
 
 #define MV_MAX_TASKS 64
@@ -42,7 +42,7 @@ struct GameModelViewer
 
     int current_element_id;
 
-    struct GameCache* gamecache;
+    struct ToriAuxLibCore* core;
 
     struct CoreTask* tasks[MV_MAX_TASKS];
     int task_count;
@@ -83,9 +83,9 @@ game_modelviewer_set_model(
     struct ToriDraw_ModelHandle model);
 
 void
-game_modelviewer_set_gamecache(
+game_modelviewer_set_core(
     struct GameModelViewer* game_model_viewer,
-    struct GameCache* gamecache);
+    struct ToriAuxLibCore* core);
 
 void
 game_modelviewer_process_input(

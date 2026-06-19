@@ -8,7 +8,7 @@
 #include <stdbool.h>
 
 struct Dat1BuildCache;
-struct GameCache;
+struct ToriAuxLibCore;
 struct LibToriRS_IOQueue;
 struct UILoaderState;
 
@@ -35,7 +35,7 @@ ui_loader_set_buildcache(
 void
 ui_loader_set_gamecache(
     struct UILoaderState* state,
-    struct GameCache* gamecache);
+    struct ToriAuxLibCore* gamecache);
 
 void
 ui_loader_set_ui_scene(

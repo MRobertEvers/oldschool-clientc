@@ -1,6 +1,6 @@
 #include "runescape.h"
 
-#include "../gamecache/gamecache.h"
+#include "../toriauxlib/core/toriauxlibcore.h"
 #include "../world/world_builder.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_math.h"
@@ -243,30 +243,30 @@ game_runescape_free(struct GameRunescape* game)
 }
 
 void
-game_runescape_set_gamecache(
+game_runescape_set_core(
     struct GameRunescape* game,
-    struct GameCache* gamecache)
+    struct ToriAuxLibCore* gamecache)
 {
     if( !game )
         return;
-    game->gamecache = gamecache;
+    game->core = gamecache;
 }
 
 void
-game_runescape_set_toridrawx(
+game_runescape_set_td(
     struct GameRunescape* game,
-    struct ToriDrawX* toridrawx)
+    struct ToriAuxLibTD* td)
 {
     if( !game )
         return;
-    game->toridrawx = toridrawx;
+    game->td = td;
 }
 
 void
 game_runescape_build_world(struct GameRunescape* game)
 {
     struct WorldBuilder* builder =
-        world_builder_new(game->world, game->gamecache, game->scene, game->toridrawx);
+        world_builder_new(game->world, game->core, game->scene, game->td);
     assert(builder && "game_runescape_build_world: failed to allocate world builder");
     world_builder_rebuild_centerzone(builder, game->zone_center_x, game->zone_center_z, 104);
     world_builder_free(builder);

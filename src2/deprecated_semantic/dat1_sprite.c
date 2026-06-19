@@ -2,7 +2,7 @@
 
 #include "../buildcache/dat1_buildcache.h"
 #include "../ui/ui_scene.h"
-#include "gamecache/toridraw_cachesprite.h"
+#include "toriauxlib/td/toridraw_cachesprite.h"
 #include "graphics/dashmap.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"

@@ -2,7 +2,7 @@
 #define WORLD_CONTOUR_GROUND_U_C
 
 #include "contour_ground.h"
-#include "gamecache/gamecache.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "heightmap.h"
 #include "toridraw/toridraw_model_transform.h"
 #include "world_builder.h"
@@ -30,8 +30,8 @@ world_contour_ground(struct WorldBuilder* builder)
         if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
             continue;
 
-        struct GameCache_Location* config_loc =
-            gamecache_location_get(builder->gamecache, r->loc_id);
+        struct ToriAuxLibCore_Location* config_loc =
+            ToriAuxLibCore_LocationGet(builder->core, r->loc_id);
         if( !config_loc || config_loc->contour_ground_type == 0 )
             continue;
 

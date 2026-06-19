@@ -1,9 +1,9 @@
 #include "revconfig_loader.h"
 
 #include "../buildcache/dat1_buildcache.h"
-#include "../gamecache/gamecache.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "../ioqueue/libtorirs_ioqueue.h"
-#include "gamecache/toridraw_cachemodel.h"
+#include "toriauxlib/td/toridraw_cachemodel.h"
 #include "graphics/dashmap.h"
 #include "osrs/revconfig/revconfig.h"
 #include "osrs/revconfig/uitree.h"
@@ -54,7 +54,7 @@ struct RevConfigLoaderState
     bool queue_built;
 
     struct Dat1BuildCache* buildcache;
-    struct GameCache* gamecache;
+    struct ToriAuxLibCore* gamecache;
     struct UIScene* scene;
     struct RevConfigBuffer* revconfig;
 
@@ -486,7 +486,7 @@ revconfig_step_items(struct RevConfigLoaderState* state)
             struct Dat1_Interface* iface = &item->u.interface_;
             if( iface->state != DAT1_STATE_DONE && iface->state != DAT1_STATE_FAILED )
                 dat1_interface_step(
-                    iface, state->buildcache, state->gamecache, state->scene, state->sprite_map);
+                    iface, state->buildcache, state->core, state->scene, state->sprite_map);
         }
     }
 }
@@ -562,7 +562,7 @@ bake_rs_subtree(
     struct UITree* tree,
     struct DashMap* sprite_map,
     struct UIScene* scene,
-    struct GameCache* gamecache,
+    struct ToriAuxLibCore* core,
     struct CacheDatConfigComponentList* ifaces,
     int32_t parent_idx,
     struct CacheDatConfigComponent* comp,
@@ -574,7 +574,7 @@ bake_rs_subtree(
     struct UITree* tree,
     struct DashMap* sprite_map,
     struct UIScene* scene,
-    struct GameCache* gamecache,
+    struct ToriAuxLibCore* core,
     struct CacheDatConfigComponentList* ifaces,
     int32_t parent_idx,
     struct CacheDatConfigComponent* comp,
@@ -608,7 +608,7 @@ bake_rs_subtree(
                 continue;
             int cx = abs_x + (comp->childX ? comp->childX[ci] : 0) + child->x;
             int cy = abs_y + (comp->childY ? comp->childY[ci] : 0) + child->y;
-            bake_rs_subtree(tree, sprite_map, scene, gamecache, ifaces, layer_idx, child, cx, cy);
+            bake_rs_subtree(tree, sprite_map, scene, core, ifaces, layer_idx, child, cx, cy);
         }
         return;
     }
@@ -667,7 +667,7 @@ bake_rs_subtree(
     case COMPONENT_TYPE_MODEL:
         if( comp->modelType == 1 && gamecache )
         {
-            struct ToriDraw_ModelHandle hnd = gamecache_model_get(gamecache, comp->model);
+            struct ToriDraw_ModelHandle hnd = ToriAuxLibCore_ModelGet(core, comp->model);
             if( hnd.kind == TORIDRAWMK_MODEL )
                 uitree_push_rs_model(
                     tree,
@@ -975,7 +975,7 @@ uitree_build_rs_roots(
             tree,
             state->sprite_map,
             state->scene,
-            state->gamecache,
+            state->core,
             ifaces,
             -1,
             root,
@@ -1156,10 +1156,10 @@ revconfig_loader_set_buildcache(
 void
 revconfig_loader_set_gamecache(
     struct RevConfigLoaderState* state,
-    struct GameCache* gamecache)
+    struct ToriAuxLibCore* gamecache)
 {
     if( state )
-        state->gamecache = gamecache;
+        state->core = gamecache;
 }
 
 void

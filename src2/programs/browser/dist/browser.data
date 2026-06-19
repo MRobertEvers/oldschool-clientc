@@ -28,6 +28,7 @@ print("Textures submitted")
 
 -- Fountain 1497
 -- Oak 1571
+-- Bellemorde Head 9424
 local model_load = 1571
 Game.Dat1_ModelFetchNativeInt(io_queue, model_load)
 
@@ -45,7 +46,7 @@ print("Game cache model submitted")
 
 Game.ModelViewer_RenderModelNativeInt(model_load)
 
-model_load = 1497
+model_load = 9424
 local game_handle = Game.ModelViewer_GetGameHandle()
 Game.CoreTask_Dat1LoadModelNativeInt(game_handle, model_load)
 while not Game.RunTasks() do
@@ -81,7 +82,6 @@ print("Textures submitted")
 while not Game.RunTasks() do
     Platform.LoadIO(io_queue)
 end
-print("World rebuild task complete")
 
 Game.Runescape_BuildWorld()
 print("World built")

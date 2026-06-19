@@ -1,5 +1,5 @@
 #include "graphics/tori_compat.h"
-#include "toridraw/triangles/toridraw_triangle_clip.u.c"
+#include "toridraw_triangle_clip.u.c"
 
 #ifndef TORIDRAW_TRIANGLE_TEXTURE_OPAQUE_U_C
 #define TORIDRAW_TRIANGLE_TEXTURE_OPAQUE_U_C
