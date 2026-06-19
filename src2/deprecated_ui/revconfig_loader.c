@@ -7,11 +7,11 @@
 #include "graphics/dashmap.h"
 #include "osrs/revconfig/revconfig.h"
 #include "osrs/revconfig/uitree.h"
-#include "osrs/rscache/cache_dat.h"
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/tables/model.h"
-#include "osrs/rscache/tables_dat/config_component.h"
-#include "osrs/rscache/tables_dat/configs_dat.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_configs_dat.h"
 #include "semantic/dat1_element.h"
 #include "semantic/dat1_interface.h"
 #include "semantic/dat1_sprite.h"
@@ -367,21 +367,21 @@ mark_request_resolved(
 
 static bool
 decode_interfaces_from_archive(
-    struct CacheDatArchive* archive,
-    struct CacheDatConfigComponentList** out)
+    struct RSCacheDat1Disk_Archive* archive,
+    struct RSCacheDat1A_ConfigComponentList** out)
 {
-    struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
+    struct RSCacheShared_FileListDat* filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
     assert(filelist && "Failed to create filelist from archive");
 
-    int data_idx = filelist_dat_find_file_by_name(filelist, "data");
+    int data_idx = RSCacheShared_FileListDatFindFileByName(filelist, "data");
     if( data_idx < 0 )
     {
-        filelist_dat_free(filelist);
+        RSCacheShared_FileListDatFree(filelist);
         return false;
     }
-    *out = cache_dat_config_component_list_new_decode(
+    *out = RSCacheDat1A_ConfigComponentListNewDecode(
         filelist->files[data_idx], filelist->file_sizes[data_idx]);
-    filelist_dat_free(filelist);
+    RSCacheShared_FileListDatFree(filelist);
     return *out != NULL;
 }
 
@@ -405,57 +405,57 @@ revconfig_route_resolved_io(
         int archive_id = io_item->archive_id;
         int flags = io_item->flags;
 
-        if( table_id == CACHE_DAT_CONFIGS )
+        if( table_id == RSCacheDat1Disk_Table_Configs )
         {
-            if( archive_id == CONFIG_DAT_MEDIA_2D_GRAPHICS )
+            if( archive_id == RSCacheDat1A_ConfigKind_Media2dGraphics )
             {
-                struct FileListDat* filelist =
-                    filelist_dat_new_from_cache_dat_archive((struct CacheDatArchive*)io_item->data);
+                struct RSCacheShared_FileListDat* filelist =
+                    RSCacheShared_FileListDatNewFromCacheDatArchive((struct RSCacheDat1Disk_Archive*)io_item->data);
                 dat1_buildcache_set_media_2d_graphics_jagfile(state->buildcache, filelist);
                 printf("revconfig_loader: decoded media jagfile\n");
-                cache_dat_archive_free((struct CacheDatArchive*)io_item->data);
+                RSCacheDat1Disk_ArchiveFree((struct RSCacheDat1Disk_Archive*)io_item->data);
                 io_item->data = NULL;
             }
-            else if( archive_id == CONFIG_DAT_INTERFACES )
+            else if( archive_id == RSCacheDat1A_ConfigKind_Interfaces )
             {
-                struct CacheDatConfigComponentList* ifaces = NULL;
+                struct RSCacheDat1A_ConfigComponentList* ifaces = NULL;
                 if( decode_interfaces_from_archive(
-                        (struct CacheDatArchive*)io_item->data, &ifaces) )
+                        (struct RSCacheDat1Disk_Archive*)io_item->data, &ifaces) )
                 {
                     dat1_buildcache_set_interfaces(state->buildcache, ifaces);
                     printf(
                         "revconfig_loader: decoded interfaces (%d components)\n",
                         ifaces ? ifaces->components_count : 0);
                 }
-                cache_dat_archive_free((struct CacheDatArchive*)io_item->data);
+                RSCacheDat1Disk_ArchiveFree((struct RSCacheDat1Disk_Archive*)io_item->data);
                 io_item->data = NULL;
             }
-            else if( archive_id == CONFIG_DAT_TITLE_AND_FONTS )
+            else if( archive_id == RSCacheDat1A_ConfigKind_TitleAndFonts )
             {
-                struct FileListDat* filelist =
-                    filelist_dat_new_from_cache_dat_archive((struct CacheDatArchive*)io_item->data);
+                struct RSCacheShared_FileListDat* filelist =
+                    RSCacheShared_FileListDatNewFromCacheDatArchive((struct RSCacheDat1Disk_Archive*)io_item->data);
                 if( filelist && state->scene )
                 {
                     // ui_scene_load_fonts_from_title_archive(state->scene, filelist);
                     printf("revconfig_loader: loaded fonts from title archive\n");
                 }
                 if( filelist )
-                    filelist_dat_free(filelist);
-                cache_dat_archive_free((struct CacheDatArchive*)io_item->data);
+                    RSCacheShared_FileListDatFree(filelist);
+                RSCacheDat1Disk_ArchiveFree((struct RSCacheDat1Disk_Archive*)io_item->data);
                 io_item->data = NULL;
             }
         }
-        else if( table_id == CACHE_DAT_MODELS )
+        else if( table_id == RSCacheDat1Disk_Table_Models )
         {
             /* Decode raw model into dat1_buildcache (not gamecache yet). */
-            struct CacheModel* model =
-                model_new_from_dat_archive((struct CacheDatArchive*)io_item->data, archive_id);
+            struct RSCacheDat2A_Model* model =
+                RSCacheDat2A_ModelNewFromDatArchive((struct RSCacheDat1Disk_Archive*)io_item->data, archive_id);
             if( model )
             {
                 dat1_buildcache_model_add(state->buildcache, archive_id, model);
                 printf("revconfig_loader: decoded model %d into buildcache\n", archive_id);
             }
-            cache_dat_archive_free((struct CacheDatArchive*)io_item->data);
+            RSCacheDat1Disk_ArchiveFree((struct RSCacheDat1Disk_Archive*)io_item->data);
             io_item->data = NULL;
         }
 
@@ -563,9 +563,9 @@ bake_rs_subtree(
     struct DashMap* sprite_map,
     struct UIScene* scene,
     struct ToriAuxLibCore* core,
-    struct CacheDatConfigComponentList* ifaces,
+    struct RSCacheDat1A_ConfigComponentList* ifaces,
     int32_t parent_idx,
-    struct CacheDatConfigComponent* comp,
+    struct RSCacheDat1A_ConfigComponent* comp,
     int abs_x,
     int abs_y);
 
@@ -575,9 +575,9 @@ bake_rs_subtree(
     struct DashMap* sprite_map,
     struct UIScene* scene,
     struct ToriAuxLibCore* core,
-    struct CacheDatConfigComponentList* ifaces,
+    struct RSCacheDat1A_ConfigComponentList* ifaces,
     int32_t parent_idx,
-    struct CacheDatConfigComponent* comp,
+    struct RSCacheDat1A_ConfigComponent* comp,
     int abs_x,
     int abs_y)
 {
@@ -603,7 +603,7 @@ bake_rs_subtree(
             int child_id = comp->children[ci];
             if( child_id < 0 || child_id >= ifaces->components_count )
                 continue;
-            struct CacheDatConfigComponent* child = ifaces->components[child_id];
+            struct RSCacheDat1A_ConfigComponent* child = ifaces->components[child_id];
             if( !child )
                 continue;
             int cx = abs_x + (comp->childX ? comp->childX[ci] : 0) + child->x;
@@ -951,7 +951,7 @@ static void
 uitree_build_rs_roots(
     struct UITree* tree,
     struct RevConfigLoaderState* state,
-    struct CacheDatConfigComponentList* ifaces)
+    struct RSCacheDat1A_ConfigComponentList* ifaces)
 {
     if( !ifaces )
         return;
@@ -967,7 +967,7 @@ uitree_build_rs_roots(
         int cid = iface->component_id;
         if( cid < 0 || cid >= ifaces->components_count )
             continue;
-        struct CacheDatConfigComponent* root = ifaces->components[cid];
+        struct RSCacheDat1A_ConfigComponent* root = ifaces->components[cid];
         if( !root )
             continue;
 
@@ -1072,7 +1072,7 @@ uitree_build(
     uitree_build_layouts(tree, &ctx, state->sprite_map);
 
     /* Bake RS interface roots. */
-    struct CacheDatConfigComponentList* ifaces =
+    struct RSCacheDat1A_ConfigComponentList* ifaces =
         state->buildcache ? dat1_buildcache_get_interfaces(state->buildcache) : NULL;
     uitree_build_rs_roots(tree, state, ifaces);
 

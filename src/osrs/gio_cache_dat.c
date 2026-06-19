@@ -1,13 +1,13 @@
 #include "gio_cache_dat.h"
 
 #include "filepack.h"
-#include "osrs/rscache/cache_dat.h"
-#include "osrs/rscache/xtea_config.h"
-#include "rscache/filelist.h"
-#include "rscache/tables/configs.h"
-#include "rscache/tables/maps.h"
-#include "rscache/tables_dat/animframe.h"
-#include "rscache/tables_dat/config_versionlist_mapsquare.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/shared/rscache_shared_xtea_config.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_configs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_version_list_mapsquare.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,10 +37,10 @@ filebuffer_free(struct FileBuffer* filebuffer)
     free(filebuffer);
 }
 
-struct CacheDat*
+struct RSCacheDat1Disk*
 gioqb_cache_dat_new(void)
 {
-    struct CacheDat* cache_dat = cache_dat_new_from_directory(CACHE_PATH);
+    struct RSCacheDat1Disk* cache_dat = RSCacheDat1Disk_NewFromDirectory(CACHE_PATH);
     if( !cache_dat )
     {
         printf("Failed to load cache from directory: %s\n", CACHE_PATH);
@@ -50,21 +50,21 @@ gioqb_cache_dat_new(void)
     return cache_dat;
 }
 
-struct CacheDatArchive*
-gioqb_cache_dat_texture_new_load(struct CacheDat* cache_dat)
+struct RSCacheDat1Disk_Archive*
+gioqb_cache_dat_texture_new_load(struct RSCacheDat1Disk* cache_dat)
 {
     return NULL;
 }
 
-struct CacheDatArchive*
+struct RSCacheDat1Disk_Archive*
 gioqb_cache_dat_map_terrain_new_load(
-    struct CacheDat* cache_dat,
+    struct RSCacheDat1Disk* cache_dat,
     int chunk_x,
     int chunk_z)
 {
-    int map_id = cache_map_square_id(chunk_x, chunk_z);
+    int map_id = RSCacheDat1A_MapSquareId(chunk_x, chunk_z);
 
-    struct CacheMapSquare* map_square = NULL;
+    struct RSCacheDat1A_MapSquare* map_square = NULL;
 
     for( int i = 0; i < cache_dat->map_squares->squares_count; i++ )
     {
@@ -81,38 +81,38 @@ gioqb_cache_dat_map_terrain_new_load(
         return NULL;
     }
 
-    return cache_dat_archive_new_load(cache_dat, CACHE_DAT_MAPS, map_square->terrain_archive_id);
+    return RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Maps, map_square->terrain_archive_id);
 }
 
-struct CacheDatArchive* //
+struct RSCacheDat1Disk_Archive* //
 gioqb_cache_dat_models_new_load(
-    struct CacheDat* cache_dat,
+    struct RSCacheDat1Disk* cache_dat,
     int model_id)
 {
     if( model_id == 2373 )
     {
         printf("Loading model %d\n", model_id);
     }
-    return cache_dat_archive_new_load(cache_dat, CACHE_DAT_MODELS, model_id);
+    return RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Models, model_id);
 }
 
-struct CacheDatArchive* //
+struct RSCacheDat1Disk_Archive* //
 gioqb_cache_dat_sound_new_load(
-    struct CacheDat* cache_dat,
+    struct RSCacheDat1Disk* cache_dat,
     int sound_id)
 {
-    return cache_dat_archive_new_load(cache_dat, CACHE_DAT_SOUNDS, sound_id);
+    return RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Sounds, sound_id);
 }
 
-struct CacheDatArchive*
+struct RSCacheDat1Disk_Archive*
 gioqb_cache_dat_map_scenery_new_load(
-    struct CacheDat* cache_dat,
+    struct RSCacheDat1Disk* cache_dat,
     int chunk_x,
     int chunk_z)
 {
-    int map_id = cache_map_square_id(chunk_x, chunk_z);
+    int map_id = RSCacheDat1A_MapSquareId(chunk_x, chunk_z);
 
-    struct CacheMapSquare* map_square = NULL;
+    struct RSCacheDat1A_MapSquare* map_square = NULL;
 
     for( int i = 0; i < cache_dat->map_squares->squares_count; i++ )
     {
@@ -129,14 +129,14 @@ gioqb_cache_dat_map_scenery_new_load(
         return NULL;
     }
 
-    return cache_dat_archive_new_load(cache_dat, CACHE_DAT_MAPS, map_square->loc_archive_id);
+    return RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Maps, map_square->loc_archive_id);
 }
 
-struct CacheDatArchive*
-gioqb_cache_dat_config_texture_sprites_new_load(struct CacheDat* cache_dat)
+struct RSCacheDat1Disk_Archive*
+gioqb_cache_dat_config_texture_sprites_new_load(struct RSCacheDat1Disk* cache_dat)
 {
-    struct CacheDatArchive* config_archive =
-        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_TEXTURES);
+    struct RSCacheDat1Disk_Archive* config_archive =
+        RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_Textures);
     if( !config_archive )
     {
         printf("Failed to load config textures\n");
@@ -146,11 +146,11 @@ gioqb_cache_dat_config_texture_sprites_new_load(struct CacheDat* cache_dat)
     return config_archive;
 }
 
-struct CacheDatArchive*
-gioqb_cache_dat_config_media_new_load(struct CacheDat* cache_dat)
+struct RSCacheDat1Disk_Archive*
+gioqb_cache_dat_config_media_new_load(struct RSCacheDat1Disk* cache_dat)
 {
-    struct CacheDatArchive* config_archive =
-        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_MEDIA_2D_GRAPHICS);
+    struct RSCacheDat1Disk_Archive* config_archive =
+        RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_Media2dGraphics);
     if( !config_archive )
     {
         printf("Failed to load config media\n");
@@ -160,11 +160,11 @@ gioqb_cache_dat_config_media_new_load(struct CacheDat* cache_dat)
     return config_archive;
 }
 
-struct CacheDatArchive* //
-gioqb_cache_dat_config_title_new_load(struct CacheDat* cache_dat)
+struct RSCacheDat1Disk_Archive* //
+gioqb_cache_dat_config_title_new_load(struct RSCacheDat1Disk* cache_dat)
 {
-    struct CacheDatArchive* config_archive =
-        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_TITLE_AND_FONTS);
+    struct RSCacheDat1Disk_Archive* config_archive =
+        RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_TitleAndFonts);
     if( !config_archive )
     {
         printf("Failed to load config title\n");
@@ -174,13 +174,13 @@ gioqb_cache_dat_config_title_new_load(struct CacheDat* cache_dat)
     return config_archive;
 }
 
-struct CacheDatArchive*
+struct RSCacheDat1Disk_Archive*
 gioqb_cache_dat_animbaseframes_new_load(
-    struct CacheDat* cache_dat,
+    struct RSCacheDat1Disk* cache_dat,
     int animbaseframes_id)
 {
-    struct CacheDatArchive* archive = NULL;
-    archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_ANIMATIONS, animbaseframes_id);
+    struct RSCacheDat1Disk_Archive* archive = NULL;
+    archive = RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Animations, animbaseframes_id);
     if( !archive )
     {
         // This failure is expected. The loader just asks for all the archives.
@@ -191,11 +191,11 @@ gioqb_cache_dat_animbaseframes_new_load(
     return archive;
 }
 
-struct CacheDatArchive* //
-gioqb_cache_dat_config_configs_new_load(struct CacheDat* cache_dat)
+struct RSCacheDat1Disk_Archive* //
+gioqb_cache_dat_config_configs_new_load(struct RSCacheDat1Disk* cache_dat)
 {
-    struct CacheDatArchive* config_archive =
-        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_CONFIGS);
+    struct RSCacheDat1Disk_Archive* config_archive =
+        RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_Configs);
     if( !config_archive )
     {
         printf("Failed to load config configs\n");
@@ -205,11 +205,11 @@ gioqb_cache_dat_config_configs_new_load(struct CacheDat* cache_dat)
     return config_archive;
 }
 
-struct CacheDatArchive* //
-gioqb_cache_dat_config_interfaces_new_load(struct CacheDat* cache_dat)
+struct RSCacheDat1Disk_Archive* //
+gioqb_cache_dat_config_interfaces_new_load(struct RSCacheDat1Disk* cache_dat)
 {
-    struct CacheDatArchive* config_archive =
-        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_INTERFACES);
+    struct RSCacheDat1Disk_Archive* config_archive =
+        RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_Interfaces);
     if( !config_archive )
     {
         printf("Failed to load config interfaces\n");
@@ -219,11 +219,11 @@ gioqb_cache_dat_config_interfaces_new_load(struct CacheDat* cache_dat)
     return config_archive;
 }
 
-struct CacheDatArchive* //
-gioqb_cache_dat_config_media_2d_graphics_new_load(struct CacheDat* cache_dat)
+struct RSCacheDat1Disk_Archive* //
+gioqb_cache_dat_config_media_2d_graphics_new_load(struct RSCacheDat1Disk* cache_dat)
 {
-    struct CacheDatArchive* config_archive =
-        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_MEDIA_2D_GRAPHICS);
+    struct RSCacheDat1Disk_Archive* config_archive =
+        RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_Media2dGraphics);
     if( !config_archive )
     {
         printf("Failed to load config media 2d graphics\n");
@@ -233,11 +233,11 @@ gioqb_cache_dat_config_media_2d_graphics_new_load(struct CacheDat* cache_dat)
     return config_archive;
 }
 
-struct CacheDatArchive* //
-gioqb_cache_dat_config_version_list_new_load(struct CacheDat* cache_dat)
+struct RSCacheDat1Disk_Archive* //
+gioqb_cache_dat_config_version_list_new_load(struct RSCacheDat1Disk* cache_dat)
 {
-    struct CacheDatArchive* config_archive =
-        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_VERSION_LIST);
+    struct RSCacheDat1Disk_Archive* config_archive =
+        RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_VersionList);
     if( !config_archive )
     {
         printf("Failed to load config version list\n");
@@ -247,11 +247,11 @@ gioqb_cache_dat_config_version_list_new_load(struct CacheDat* cache_dat)
     return config_archive;
 }
 
-struct CacheDatArchive*
-gioqb_cache_dat_config_textures_new_load(struct CacheDat* cache_dat)
+struct RSCacheDat1Disk_Archive*
+gioqb_cache_dat_config_textures_new_load(struct RSCacheDat1Disk* cache_dat)
 {
-    struct CacheDatArchive* config_archive =
-        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_TEXTURES);
+    struct RSCacheDat1Disk_Archive* config_archive =
+        RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_Textures);
     if( !config_archive )
     {
         printf("Failed to load config textures\n");
@@ -261,11 +261,11 @@ gioqb_cache_dat_config_textures_new_load(struct CacheDat* cache_dat)
     return config_archive;
 }
 
-struct CacheDatArchive*
-gioqb_cache_dat_config_chat_system_new_load(struct CacheDat* cache_dat)
+struct RSCacheDat1Disk_Archive*
+gioqb_cache_dat_config_chat_system_new_load(struct RSCacheDat1Disk* cache_dat)
 {
-    struct CacheDatArchive* config_archive =
-        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_CHAT_SYSTEM);
+    struct RSCacheDat1Disk_Archive* config_archive =
+        RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_ChatSystem);
     if( !config_archive )
     {
         printf("Failed to load config chat system\n");
@@ -275,11 +275,11 @@ gioqb_cache_dat_config_chat_system_new_load(struct CacheDat* cache_dat)
     return config_archive;
 }
 
-struct CacheDatArchive*
-gioqb_cache_dat_config_sound_effects_new_load(struct CacheDat* cache_dat)
+struct RSCacheDat1Disk_Archive*
+gioqb_cache_dat_config_sound_effects_new_load(struct RSCacheDat1Disk* cache_dat)
 {
-    struct CacheDatArchive* config_archive =
-        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_SOUND_EFFECTS);
+    struct RSCacheDat1Disk_Archive* config_archive =
+        RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_SoundEffects);
     if( !config_archive )
     {
         printf("Failed to load config sound effects\n");

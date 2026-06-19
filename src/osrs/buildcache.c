@@ -1,7 +1,7 @@
 #include "buildcache.h"
 
 #include "graphics/dash.h"
-#include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -12,7 +12,7 @@ struct MapTerrainEntry
     int mapxz;
     int mapx;
     int mapz;
-    struct CacheMapTerrain* map_terrain;
+    struct RSCacheDat2A_MapTerrain* map_terrain;
 };
 
 struct MapSceneryEntry
@@ -20,43 +20,43 @@ struct MapSceneryEntry
     int mapxz;
     int mapx;
     int mapz;
-    struct CacheMapLocs* locs;
+    struct RSCacheDat2A_MapLocs* locs;
 };
 
 struct ConfigOverlayEntry
 {
     int id;
-    struct CacheConfigOverlay* config_overlay;
+    struct RSCacheDat2A_ConfigOverlay* config_overlay;
 };
 
 struct ConfigUnderlayEntry
 {
     int id;
-    struct CacheConfigUnderlay* config_underlay;
+    struct RSCacheDat2A_ConfigUnderlay* config_underlay;
 };
 
 struct ConfigSequenceEntry
 {
     int id;
-    struct CacheConfigSequence* config_sequence;
+    struct RSCacheDat2A_ConfigSequence* config_sequence;
 };
 
 struct ConfigLocationEntry
 {
     int id;
-    struct CacheConfigLocation* config_location;
+    struct RSCacheDat2A_ConfigLocation* config_location;
 };
 
 struct ModelEntry
 {
     int id;
-    struct CacheModel* model;
+    struct RSCacheDat2A_Model* model;
 };
 
 struct SpritepackEntry
 {
     int id;
-    struct CacheSpritePack* spritepack;
+    struct RSCacheDat2A_SpritePack* spritepack;
 };
 
 struct TextureEntry
@@ -68,19 +68,19 @@ struct TextureEntry
 struct FrameBlobEntry
 {
     int id;
-    struct CacheFrameBlob* frame_blob;
+    struct RSCacheDat2A_FrameBlob* frame_blob;
 };
 
 struct FrameAnimEntry
 {
     int id;
-    struct CacheFrame* frame;
+    struct RSCacheDat2A_Frame* frame;
 };
 
 struct FramemapEntry
 {
     int id;
-    struct CacheFramemap* framemap;
+    struct RSCacheDat2A_Framemap* framemap;
 };
 
 struct BuildCache*
@@ -192,7 +192,7 @@ buildcache_new(void)
 }
 
 void
-buildcache_free(struct BuildCache* buildcache)
+buildRSCacheDat2Disk_Free(struct BuildCache* buildcache)
 {
     free(dashmap_buffer_ptr(buildcache->map_terrain_hmap));
     dashmap_free(buildcache->map_terrain_hmap);
@@ -226,7 +226,7 @@ buildcache_add_map_terrain(
     struct BuildCache* buildcache,
     int mapx,
     int mapz,
-    struct CacheMapTerrain* map_terrain)
+    struct RSCacheDat2A_MapTerrain* map_terrain)
 {
     int mapxz = MAPREGIONXZ(mapx, mapz);
     struct MapTerrainEntry* entry = (struct MapTerrainEntry*)dashmap_search(
@@ -238,7 +238,7 @@ buildcache_add_map_terrain(
     entry->map_terrain = map_terrain;
 }
 
-struct CacheMapTerrain*
+struct RSCacheDat2A_MapTerrain*
 buildcache_get_map_terrain(
     struct BuildCache* buildcache,
     int mapx,
@@ -257,7 +257,7 @@ buildcache_add_map_scenery(
     struct BuildCache* buildcache,
     int mapx,
     int mapz,
-    struct CacheMapLocs* locs)
+    struct RSCacheDat2A_MapLocs* locs)
 {
     int mapxz = MAPREGIONXZ(mapx, mapz);
     struct MapSceneryEntry* entry = (struct MapSceneryEntry*)dashmap_search(
@@ -269,7 +269,7 @@ buildcache_add_map_scenery(
     entry->locs = locs;
 }
 
-struct CacheMapLocs*
+struct RSCacheDat2A_MapLocs*
 buildcache_get_map_scenery(
     struct BuildCache* buildcache,
     int mapx,
@@ -289,7 +289,7 @@ buildcache_iter_new_map_scenery(struct BuildCache* buildcache)
     return dashmap_iter_new(buildcache->map_scenery_hmap);
 }
 
-struct CacheMapLocs*
+struct RSCacheDat2A_MapLocs*
 buildcache_iter_next_map_scenery(
     struct DashMapIter* iter,
     int* mapx,
@@ -315,7 +315,7 @@ buildcache_iter_new_models(struct BuildCache* buildcache)
     return dashmap_iter_new(buildcache->models_hmap);
 }
 
-struct CacheModel*
+struct RSCacheDat2A_Model*
 buildcache_iter_next_models(
     struct DashMapIter* iter,
     int* model_id)
@@ -337,7 +337,7 @@ void
 buildcache_add_config_location(
     struct BuildCache* buildcache,
     int config_location_id,
-    struct CacheConfigLocation* config_location)
+    struct RSCacheDat2A_ConfigLocation* config_location)
 {
     struct ConfigLocationEntry* entry = (struct ConfigLocationEntry*)dashmap_search(
         buildcache->config_location_hmap, &config_location_id, DASHMAP_INSERT);
@@ -346,7 +346,7 @@ buildcache_add_config_location(
     entry->config_location = config_location;
 }
 
-struct CacheConfigLocation*
+struct RSCacheDat2A_ConfigLocation*
 buildcache_get_config_location(
     struct BuildCache* buildcache,
     int config_location_id)
@@ -362,7 +362,7 @@ void
 buildcache_add_config_overlay(
     struct BuildCache* buildcache,
     int config_overlay_id,
-    struct CacheConfigOverlay* config_overlay)
+    struct RSCacheDat2A_ConfigOverlay* config_overlay)
 {
     struct ConfigOverlayEntry* entry = (struct ConfigOverlayEntry*)dashmap_search(
         buildcache->config_overlay_hmap, &config_overlay_id, DASHMAP_INSERT);
@@ -371,7 +371,7 @@ buildcache_add_config_overlay(
     entry->config_overlay = config_overlay;
 }
 
-struct CacheConfigOverlay*
+struct RSCacheDat2A_ConfigOverlay*
 buildcache_get_config_overlay(
     struct BuildCache* buildcache,
     int config_overlay_id)
@@ -389,7 +389,7 @@ buildcache_iter_new_config_overlay(struct BuildCache* buildcache)
     return dashmap_iter_new(buildcache->config_overlay_hmap);
 }
 
-struct CacheConfigOverlay*
+struct RSCacheDat2A_ConfigOverlay*
 buildcache_iter_next_config_overlay(struct DashMapIter* iter)
 {
     struct ConfigOverlayEntry* entry = (struct ConfigOverlayEntry*)dashmap_iter_next(iter);
@@ -408,7 +408,7 @@ void
 buildcache_add_config_underlay(
     struct BuildCache* buildcache,
     int config_underlay_id,
-    struct CacheConfigUnderlay* config_underlay)
+    struct RSCacheDat2A_ConfigUnderlay* config_underlay)
 {
     struct ConfigUnderlayEntry* entry = (struct ConfigUnderlayEntry*)dashmap_search(
         buildcache->config_underlay_hmap, &config_underlay_id, DASHMAP_INSERT);
@@ -417,7 +417,7 @@ buildcache_add_config_underlay(
     entry->config_underlay = config_underlay;
 }
 
-struct CacheConfigUnderlay*
+struct RSCacheDat2A_ConfigUnderlay*
 buildcache_get_config_underlay(
     struct BuildCache* buildcache,
     int config_underlay_id)
@@ -433,7 +433,7 @@ void
 buildcache_add_config_sequence(
     struct BuildCache* buildcache,
     int config_sequence_id,
-    struct CacheConfigSequence* config_sequence)
+    struct RSCacheDat2A_ConfigSequence* config_sequence)
 {
     struct ConfigSequenceEntry* entry = (struct ConfigSequenceEntry*)dashmap_search(
         buildcache->config_sequence_hmap, &config_sequence_id, DASHMAP_INSERT);
@@ -442,7 +442,7 @@ buildcache_add_config_sequence(
     entry->config_sequence = config_sequence;
 }
 
-struct CacheConfigSequence*
+struct RSCacheDat2A_ConfigSequence*
 buildcache_get_config_sequence(
     struct BuildCache* buildcache,
     int config_sequence_id)
@@ -458,7 +458,7 @@ void
 buildcache_add_model(
     struct BuildCache* buildcache,
     int model_id,
-    struct CacheModel* model)
+    struct RSCacheDat2A_Model* model)
 {
     struct ModelEntry* entry =
         (struct ModelEntry*)dashmap_search(buildcache->models_hmap, &model_id, DASHMAP_INSERT);
@@ -467,7 +467,7 @@ buildcache_add_model(
     entry->model = model;
 }
 
-struct CacheModel*
+struct RSCacheDat2A_Model*
 buildcache_get_model(
     struct BuildCache* buildcache,
     int model_id)
@@ -483,7 +483,7 @@ void
 buildcache_add_spritepack(
     struct BuildCache* buildcache,
     int spritepack_id,
-    struct CacheSpritePack* spritepack)
+    struct RSCacheDat2A_SpritePack* spritepack)
 {
     struct SpritepackEntry* entry = (struct SpritepackEntry*)dashmap_search(
         buildcache->spritepacks_hmap, &spritepack_id, DASHMAP_INSERT);
@@ -492,7 +492,7 @@ buildcache_add_spritepack(
     entry->spritepack = spritepack;
 }
 
-struct CacheSpritePack*
+struct RSCacheDat2A_SpritePack*
 buildcache_get_spritepack(
     struct BuildCache* buildcache,
     int spritepack_id)
@@ -533,7 +533,7 @@ void
 buildcache_add_frame_blob(
     struct BuildCache* buildcache,
     int frame_blob_id,
-    struct CacheFrameBlob* frame_blob)
+    struct RSCacheDat2A_FrameBlob* frame_blob)
 {
     struct FrameBlobEntry* entry = (struct FrameBlobEntry*)dashmap_search(
         buildcache->frame_blob_hmap, &frame_blob_id, DASHMAP_INSERT);
@@ -542,7 +542,7 @@ buildcache_add_frame_blob(
     entry->frame_blob = frame_blob;
 }
 
-struct CacheFrameBlob*
+struct RSCacheDat2A_FrameBlob*
 buildcache_get_frame_blob(
     struct BuildCache* buildcache,
     int frame_blob_id)
@@ -558,7 +558,7 @@ void
 buildcache_add_frame_anim(
     struct BuildCache* buildcache,
     int frame_anim_id,
-    struct CacheFrame* frame)
+    struct RSCacheDat2A_Frame* frame)
 {
     struct FrameAnimEntry* entry = (struct FrameAnimEntry*)dashmap_search(
         buildcache->frame_anim_hmap, &frame_anim_id, DASHMAP_INSERT);
@@ -567,7 +567,7 @@ buildcache_add_frame_anim(
     entry->frame = frame;
 }
 
-struct CacheFrame*
+struct RSCacheDat2A_Frame*
 buildcache_get_frame_anim(
     struct BuildCache* buildcache,
     int frame_anim_id)
@@ -583,7 +583,7 @@ void
 buildcache_add_framemap(
     struct BuildCache* buildcache,
     int framemap_id,
-    struct CacheFramemap* framemap)
+    struct RSCacheDat2A_Framemap* framemap)
 {
     struct FramemapEntry* entry = (struct FramemapEntry*)dashmap_search(
         buildcache->framemaps_hmap, &framemap_id, DASHMAP_INSERT);
@@ -592,7 +592,7 @@ buildcache_add_framemap(
     entry->framemap = framemap;
 }
 
-struct CacheFramemap*
+struct RSCacheDat2A_Framemap*
 buildcache_get_framemap(
     struct BuildCache* buildcache,
     int framemap_id)

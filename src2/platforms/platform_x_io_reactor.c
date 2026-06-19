@@ -12,11 +12,11 @@
 
 struct LibToriPlatformX_IOReactor
 {
-    struct CacheLib* cache;
+    struct RSCacheDat2DiskLib* cache;
 };
 
 struct LibToriPlatformX_IOReactor*
-LibToriPlatformX_IOReactorNew(struct CacheLib* cache)
+LibToriPlatformX_IOReactorNew(struct RSCacheDat2DiskLib* cache)
 {
     struct LibToriPlatformX_IOReactor* reactor = malloc(sizeof(struct LibToriPlatformX_IOReactor));
     if( !reactor )
@@ -96,7 +96,7 @@ load_cache_item(
         return -1;
     }
 
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     request.table_id = item->u.cache.table_id;
     request.archive_id = item->u.cache.archive_id;
     request.flags = item->u.cache.flags;

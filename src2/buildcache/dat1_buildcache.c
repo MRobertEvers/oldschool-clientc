@@ -1,12 +1,12 @@
 #include "dat1_buildcache.h"
 
-#include "osrs/rscache/rsbuf.h"
-#include "osrs/rscache/tables/config_floortype.h"
-#include "osrs/rscache/tables/config_locs.h"
-#include "osrs/rscache/tables/config_sequence.h"
-#include "osrs/rscache/tables/maps.h"
-#include "osrs/rscache/tables_dat/animframe.h"
-#include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
 
@@ -17,47 +17,47 @@
 struct MapEntry_CacheModel
 {
     int id;
-    struct CacheModel* model;
+    struct RSCacheDat2A_Model* model;
 };
 
 struct MapEntry_Terrain
 {
     int id;
-    struct CacheMapTerrain* terrain;
+    struct RSCacheDat2A_MapTerrain* terrain;
 };
 
 struct MapEntry_Scenery
 {
     int id;
-    struct CacheMapLocs* locs;
+    struct RSCacheDat2A_MapLocs* locs;
 };
 
 struct MapEntry_Sequence
 {
     int id;
-    struct CacheDatSequence* sequence;
+    struct RSCacheDat1A_ConfigSequence* sequence;
 };
 
 struct MapEntry_Flotype
 {
     int id;
-    struct CacheConfigOverlay* flotype;
+    struct RSCacheDat2A_ConfigOverlay* flotype;
 };
 
 struct MapEntry_ConfigLoc
 {
     int id;
-    struct CacheConfigLocation* config_loc;
+    struct RSCacheDat2A_ConfigLocation* config_loc;
 };
 
 struct MapEntry_AnimBaseFrames
 {
     int id;
-    struct CacheDatAnimBaseFrames* animbaseframes;
+    struct RSCacheDat1A_AnimBaseFrames* animbaseframes;
 };
 
 static void
-dat1_buildcache_interfaces_free(struct CacheDatConfigComponentList* interfaces)
+dat1_buildcache_interfaces_free(struct RSCacheDat1A_ConfigComponentList* interfaces)
 {
     if( !interfaces )
         return;
@@ -67,7 +67,7 @@ dat1_buildcache_interfaces_free(struct CacheDatConfigComponentList* interfaces)
         for( int i = 0; i < interfaces->components_count; i++ )
         {
             if( interfaces->components[i] )
-                cache_dat_config_component_free(interfaces->components[i]);
+                RSCacheDat1A_ConfigComponentFree(interfaces->components[i]);
         }
         free(interfaces->components);
     }
@@ -123,19 +123,19 @@ dat1_buildcache_new(void)
 }
 
 void
-dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
+dat1_buildRSCacheDat2Disk_Free(struct Dat1BuildCache* dat1_buildcache)
 {
     if( !dat1_buildcache )
         return;
 
     if( dat1_buildcache->fromconfigtable_config_jagfile )
-        filelist_dat_free(dat1_buildcache->fromconfigtable_config_jagfile);
+        RSCacheShared_FileListDatFree(dat1_buildcache->fromconfigtable_config_jagfile);
 
     if( dat1_buildcache->versionlist_jagfile )
-        filelist_dat_free(dat1_buildcache->versionlist_jagfile);
+        RSCacheShared_FileListDatFree(dat1_buildcache->versionlist_jagfile);
 
     if( dat1_buildcache->media_2d_graphics_jagfile )
-        filelist_dat_free(dat1_buildcache->media_2d_graphics_jagfile);
+        RSCacheShared_FileListDatFree(dat1_buildcache->media_2d_graphics_jagfile);
 
     if( dat1_buildcache->interfaces )
         dat1_buildcache_interfaces_free(dat1_buildcache->interfaces);
@@ -147,7 +147,7 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
         while( (entry = (struct MapEntry_CacheModel*)ToriDraw_MapIterNext(iter)) )
         {
             if( entry->model )
-                model_free(entry->model);
+                RSCacheDat2A_ModelFree(entry->model);
         }
         ToriDraw_MapIterFree(iter);
         dat1_buildcache_map_free(dat1_buildcache->models_hmap);
@@ -160,7 +160,7 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
         while( (entry = (struct MapEntry_Terrain*)ToriDraw_MapIterNext(iter)) )
         {
             if( entry->terrain )
-                map_terrain_free(entry->terrain);
+                RSCacheDat2A_MapTerrainFree(entry->terrain);
         }
         ToriDraw_MapIterFree(iter);
         dat1_buildcache_map_free(dat1_buildcache->map_terrain_hmap);
@@ -173,7 +173,7 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
         while( (entry = (struct MapEntry_Scenery*)ToriDraw_MapIterNext(iter)) )
         {
             if( entry->locs )
-                map_locs_free(entry->locs);
+                RSCacheDat2A_MapLocsFree(entry->locs);
         }
         ToriDraw_MapIterFree(iter);
         dat1_buildcache_map_free(dat1_buildcache->map_scenery_hmap);
@@ -186,7 +186,7 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
         while( (entry = (struct MapEntry_Sequence*)ToriDraw_MapIterNext(iter)) )
         {
             if( entry->sequence )
-                config_dat_sequence_free(entry->sequence);
+                RSCacheDat1A_ConfigSequenceFree(entry->sequence);
         }
         ToriDraw_MapIterFree(iter);
         dat1_buildcache_map_free(dat1_buildcache->sequences_hmap);
@@ -225,7 +225,7 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
         while( (entry = (struct MapEntry_AnimBaseFrames*)ToriDraw_MapIterNext(iter)) )
         {
             if( entry->animbaseframes )
-                cache_dat_animbaseframes_free(entry->animbaseframes);
+                RSCacheDat1A_AnimBaseFramesFree(entry->animbaseframes);
         }
         ToriDraw_MapIterFree(iter);
         dat1_buildcache_map_free(dat1_buildcache->animbaseframes_hmap);
@@ -239,10 +239,10 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
 void
 dat1_buildcache_set_fromconfigtable_config_jagfile(
     struct Dat1BuildCache* dat1_buildcache,
-    struct FileListDat* fromconfigtable_config_jagfile)
+    struct RSCacheShared_FileListDat* fromconfigtable_config_jagfile)
 {
     if( dat1_buildcache->fromconfigtable_config_jagfile )
-        filelist_dat_free(dat1_buildcache->fromconfigtable_config_jagfile);
+        RSCacheShared_FileListDatFree(dat1_buildcache->fromconfigtable_config_jagfile);
 
     dat1_buildcache->fromconfigtable_config_jagfile = fromconfigtable_config_jagfile;
 }
@@ -253,17 +253,17 @@ dat1_buildcache_clear_config_jagfile(struct Dat1BuildCache* dat1_buildcache)
     if( !dat1_buildcache )
         return;
     if( dat1_buildcache->fromconfigtable_config_jagfile )
-        filelist_dat_free(dat1_buildcache->fromconfigtable_config_jagfile);
+        RSCacheShared_FileListDatFree(dat1_buildcache->fromconfigtable_config_jagfile);
     dat1_buildcache->fromconfigtable_config_jagfile = NULL;
 }
 
 void
 dat1_buildcache_set_versionlist_jagfile(
     struct Dat1BuildCache* dat1_buildcache,
-    struct FileListDat* versionlist_jagfile)
+    struct RSCacheShared_FileListDat* versionlist_jagfile)
 {
     if( dat1_buildcache->versionlist_jagfile )
-        filelist_dat_free(dat1_buildcache->versionlist_jagfile);
+        RSCacheShared_FileListDatFree(dat1_buildcache->versionlist_jagfile);
 
     dat1_buildcache->versionlist_jagfile = versionlist_jagfile;
 }
@@ -274,25 +274,25 @@ dat1_buildcache_clear_versionlist_jagfile(struct Dat1BuildCache* dat1_buildcache
     if( !dat1_buildcache )
         return;
     if( dat1_buildcache->versionlist_jagfile )
-        filelist_dat_free(dat1_buildcache->versionlist_jagfile);
+        RSCacheShared_FileListDatFree(dat1_buildcache->versionlist_jagfile);
     dat1_buildcache->versionlist_jagfile = NULL;
 }
 
 void
 dat1_buildcache_set_media_2d_graphics_jagfile(
     struct Dat1BuildCache* dat1_buildcache,
-    struct FileListDat* media_2d_graphics_jagfile)
+    struct RSCacheShared_FileListDat* media_2d_graphics_jagfile)
 {
     if( !dat1_buildcache )
         return;
 
     if( dat1_buildcache->media_2d_graphics_jagfile )
-        filelist_dat_free(dat1_buildcache->media_2d_graphics_jagfile);
+        RSCacheShared_FileListDatFree(dat1_buildcache->media_2d_graphics_jagfile);
 
     dat1_buildcache->media_2d_graphics_jagfile = media_2d_graphics_jagfile;
 }
 
-struct FileListDat*
+struct RSCacheShared_FileListDat*
 dat1_buildcache_get_media_2d_graphics_jagfile(struct Dat1BuildCache* dat1_buildcache)
 {
     if( !dat1_buildcache )
@@ -303,7 +303,7 @@ dat1_buildcache_get_media_2d_graphics_jagfile(struct Dat1BuildCache* dat1_buildc
 void
 dat1_buildcache_set_interfaces(
     struct Dat1BuildCache* dat1_buildcache,
-    struct CacheDatConfigComponentList* interfaces)
+    struct RSCacheDat1A_ConfigComponentList* interfaces)
 {
     if( !dat1_buildcache )
         return;
@@ -314,7 +314,7 @@ dat1_buildcache_set_interfaces(
     dat1_buildcache->interfaces = interfaces;
 }
 
-struct CacheDatConfigComponentList*
+struct RSCacheDat1A_ConfigComponentList*
 dat1_buildcache_get_interfaces(struct Dat1BuildCache* dat1_buildcache)
 {
     if( !dat1_buildcache )
@@ -326,7 +326,7 @@ void
 dat1_buildcache_model_add(
     struct Dat1BuildCache* dat1_buildcache,
     int model_id,
-    struct CacheModel* model)
+    struct RSCacheDat2A_Model* model)
 {
     struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)ToriDraw_MapSearch(
         dat1_buildcache->models_hmap, &model_id, TORIDRAW_MAP_INSERT);
@@ -337,7 +337,7 @@ dat1_buildcache_model_add(
     entry->model = model;
 }
 
-struct CacheModel*
+struct RSCacheDat2A_Model*
 dat1_buildcache_model_get(
     struct Dat1BuildCache* dat1_buildcache,
     int model_id)
@@ -362,14 +362,14 @@ dat1_buildcache_model_remove(
     if( !entry || !entry->model )
         return;
 
-    model_free(entry->model);
+    RSCacheDat2A_ModelFree(entry->model);
 }
 
 void
 dat1_buildcache_map_terrain_add(
     struct Dat1BuildCache* dat1_buildcache,
     int map_id,
-    struct CacheMapTerrain* terrain)
+    struct RSCacheDat2A_MapTerrain* terrain)
 {
     struct MapEntry_Terrain* entry = (struct MapEntry_Terrain*)ToriDraw_MapSearch(
         dat1_buildcache->map_terrain_hmap, &map_id, TORIDRAW_MAP_INSERT);
@@ -380,7 +380,7 @@ dat1_buildcache_map_terrain_add(
     entry->terrain = terrain;
 }
 
-struct CacheMapTerrain*
+struct RSCacheDat2A_MapTerrain*
 dat1_buildcache_map_terrain_get(
     struct Dat1BuildCache* dat1_buildcache,
     int map_id)
@@ -404,7 +404,7 @@ void
 dat1_buildcache_map_scenery_add(
     struct Dat1BuildCache* dat1_buildcache,
     int map_id,
-    struct CacheMapLocs* locs)
+    struct RSCacheDat2A_MapLocs* locs)
 {
     struct MapEntry_Scenery* entry = (struct MapEntry_Scenery*)ToriDraw_MapSearch(
         dat1_buildcache->map_scenery_hmap, &map_id, TORIDRAW_MAP_INSERT);
@@ -415,7 +415,7 @@ dat1_buildcache_map_scenery_add(
     entry->locs = locs;
 }
 
-struct CacheMapLocs*
+struct RSCacheDat2A_MapLocs*
 dat1_buildcache_map_scenery_get(
     struct Dat1BuildCache* dat1_buildcache,
     int map_id)
@@ -483,13 +483,13 @@ dat1_buildcache_texture_clear(struct Dat1BuildCache* dat1_buildcache)
 void
 dat1_buildcache_sequences_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache)
 {
-    struct FileListDat* config_jagfile = dat1_buildcache->fromconfigtable_config_jagfile;
+    struct RSCacheShared_FileListDat* config_jagfile = dat1_buildcache->fromconfigtable_config_jagfile;
     assert(config_jagfile != NULL && "Config jagfile must be loaded");
 
-    int data_file_idx = filelist_dat_find_file_by_name(config_jagfile, "seq.dat");
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "seq.dat");
     assert(data_file_idx != -1 && "Data file must be found");
 
-    struct RSBuffer buffer = {
+    struct RSCacheShared_RSBuffer buffer = {
         .data = (uint8_t*)config_jagfile->files[data_file_idx],
         .size = (uint32_t)config_jagfile->file_sizes[data_file_idx],
         .position = 0,
@@ -498,10 +498,10 @@ dat1_buildcache_sequences_init_from_config_jagfile(struct Dat1BuildCache* dat1_b
     int count = g2(&buffer);
     for( int i = 0; i < count; i++ )
     {
-        struct CacheDatSequence* sequence = malloc(sizeof(struct CacheDatSequence));
-        memset(sequence, 0, sizeof(struct CacheDatSequence));
+        struct RSCacheDat1A_ConfigSequence* sequence = malloc(sizeof(struct RSCacheDat1A_ConfigSequence));
+        memset(sequence, 0, sizeof(struct RSCacheDat1A_ConfigSequence));
 
-        buffer.position += (uint32_t)config_dat_sequence_decode_inplace(
+        buffer.position += (uint32_t)RSCacheDat1A_ConfigSequenceDecodeInplace(
             sequence,
             (char*)buffer.data + buffer.position,
             (int)buffer.size - (int)buffer.position);
@@ -510,12 +510,12 @@ dat1_buildcache_sequences_init_from_config_jagfile(struct Dat1BuildCache* dat1_b
             dat1_buildcache->sequences_hmap, &i, TORIDRAW_MAP_INSERT);
         if( !entry )
         {
-            config_dat_sequence_free(sequence);
+            RSCacheDat1A_ConfigSequenceFree(sequence);
             continue;
         }
 
         if( entry->sequence )
-            config_dat_sequence_free(entry->sequence);
+            RSCacheDat1A_ConfigSequenceFree(entry->sequence);
 
         entry->id = i;
         entry->sequence = sequence;
@@ -525,13 +525,13 @@ dat1_buildcache_sequences_init_from_config_jagfile(struct Dat1BuildCache* dat1_b
 void
 dat1_buildcache_floortypes_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache)
 {
-    struct FileListDat* config_jagfile = dat1_buildcache->fromconfigtable_config_jagfile;
+    struct RSCacheShared_FileListDat* config_jagfile = dat1_buildcache->fromconfigtable_config_jagfile;
     assert(config_jagfile != NULL && "Config jagfile must be loaded");
 
-    int data_file_idx = filelist_dat_find_file_by_name(config_jagfile, "flo.dat");
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "flo.dat");
     assert(data_file_idx != -1 && "Data file must be found");
 
-    struct RSBuffer buffer = {
+    struct RSCacheShared_RSBuffer buffer = {
         .data = (uint8_t*)config_jagfile->files[data_file_idx],
         .size = (uint32_t)config_jagfile->file_sizes[data_file_idx],
         .position = 0,
@@ -540,8 +540,8 @@ dat1_buildcache_floortypes_init_from_config_jagfile(struct Dat1BuildCache* dat1_
     int count = g2(&buffer);
     for( int i = 0; i < count; i++ )
     {
-        struct CacheConfigOverlay* flotype = malloc(sizeof(struct CacheConfigOverlay));
-        memset(flotype, 0, sizeof(struct CacheConfigOverlay));
+        struct RSCacheDat2A_ConfigOverlay* flotype = malloc(sizeof(struct RSCacheDat2A_ConfigOverlay));
+        memset(flotype, 0, sizeof(struct RSCacheDat2A_ConfigOverlay));
         flotype->_id = i;
 
         buffer.position += (uint32_t)config_floortype_overlay_decode_inplace(
@@ -563,7 +563,7 @@ dat1_buildcache_floortypes_init_from_config_jagfile(struct Dat1BuildCache* dat1_
     }
 }
 
-struct CacheConfigLocation*
+struct RSCacheDat2A_ConfigLocation*
 dat1_buildcache_config_loc_get(
     struct Dat1BuildCache* dat1_buildcache,
     int loc_id)
@@ -578,16 +578,16 @@ dat1_buildcache_config_loc_get(
 void
 dat1_buildcache_init_scenery_configs_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache)
 {
-    struct FileListDat* config_jagfile = dat1_buildcache->fromconfigtable_config_jagfile;
+    struct RSCacheShared_FileListDat* config_jagfile = dat1_buildcache->fromconfigtable_config_jagfile;
     assert(config_jagfile != NULL && "Config jagfile must be loaded");
 
-    int data_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.dat");
-    int index_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.idx");
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "loc.dat");
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "loc.idx");
 
     assert(data_file_idx != -1 && "Data file must be found");
     assert(index_file_idx != -1 && "Index file must be found");
 
-    struct FileListDatIndexed* filelist_indexed = filelist_dat_indexed_new_from_decode(
+    struct RSCacheShared_FileListDatIndexed* filelist_indexed = RSCacheShared_FileListDatIndexedNewFromDecode(
         config_jagfile->files[index_file_idx],
         config_jagfile->file_sizes[index_file_idx],
         config_jagfile->files[data_file_idx],
@@ -597,21 +597,21 @@ dat1_buildcache_init_scenery_configs_from_config_jagfile(struct Dat1BuildCache* 
     struct MapEntry_Scenery* scenery_entry = NULL;
     while( (scenery_entry = (struct MapEntry_Scenery*)ToriDraw_MapIterNext(iter)) )
     {
-        struct CacheMapLocs* locs = scenery_entry->locs;
+        struct RSCacheDat2A_MapLocs* locs = scenery_entry->locs;
         if( !locs )
             continue;
 
         for( int i = 0; i < locs->locs_count; i++ )
         {
-            struct CacheMapLoc* loc = &locs->locs[i];
+            struct RSCacheDat2A_MapLoc* loc = &locs->locs[i];
             assert(loc->loc_id != -1 && "Loc id must be valid");
             assert(loc->loc_id < filelist_indexed->offset_count && "Loc id must be within range");
 
             if( dat1_buildcache_config_loc_get(dat1_buildcache, loc->loc_id) )
                 continue;
 
-            struct CacheConfigLocation* config_loc = malloc(sizeof(struct CacheConfigLocation));
-            memset(config_loc, 0, sizeof(struct CacheConfigLocation));
+            struct RSCacheDat2A_ConfigLocation* config_loc = malloc(sizeof(struct RSCacheDat2A_ConfigLocation));
+            memset(config_loc, 0, sizeof(struct RSCacheDat2A_ConfigLocation));
 
             int offset = filelist_indexed->offsets[loc->loc_id];
 
@@ -636,14 +636,14 @@ dat1_buildcache_init_scenery_configs_from_config_jagfile(struct Dat1BuildCache* 
         }
     }
     ToriDraw_MapIterFree(iter);
-    filelist_dat_indexed_free(filelist_indexed);
+    RSCacheShared_FileListDatIndexedFree(filelist_indexed);
 }
 
 void
 dat1_buildcache_animbaseframes_add(
     struct Dat1BuildCache* dat1_buildcache,
     int animbaseframes_id,
-    struct CacheDatAnimBaseFrames* animbaseframes)
+    struct RSCacheDat1A_AnimBaseFrames* animbaseframes)
 {
     struct MapEntry_AnimBaseFrames* entry = (struct MapEntry_AnimBaseFrames*)ToriDraw_MapSearch(
         dat1_buildcache->animbaseframes_hmap, &animbaseframes_id, TORIDRAW_MAP_INSERT);
@@ -651,7 +651,7 @@ dat1_buildcache_animbaseframes_add(
         return;
 
     if( entry->animbaseframes )
-        cache_dat_animbaseframes_free(entry->animbaseframes);
+        RSCacheDat1A_AnimBaseFramesFree(entry->animbaseframes);
 
     entry->id = animbaseframes_id;
     entry->animbaseframes = animbaseframes;
@@ -721,7 +721,7 @@ dat1_buildcache_sequences_cleanup(struct Dat1BuildCache* dat1_buildcache)
     while( (entry = (struct MapEntry_Sequence*)ToriDraw_MapIterNext(iter)) )
     {
         if( entry->sequence )
-            config_dat_sequence_free(entry->sequence);
+            RSCacheDat1A_ConfigSequenceFree(entry->sequence);
     }
     ToriDraw_MapIterFree(iter);
     dat1_buildcache_sequences_reset(dat1_buildcache);
@@ -772,13 +772,13 @@ dat1_buildcache_animbaseframes_cleanup(struct Dat1BuildCache* dat1_buildcache)
     while( (entry = (struct MapEntry_AnimBaseFrames*)ToriDraw_MapIterNext(iter)) )
     {
         if( entry->animbaseframes )
-            cache_dat_animbaseframes_free(entry->animbaseframes);
+            RSCacheDat1A_AnimBaseFramesFree(entry->animbaseframes);
     }
     ToriDraw_MapIterFree(iter);
     dat1_buildcache_animbaseframes_reset(dat1_buildcache);
 }
 
-struct CacheDatAnimBaseFrames*
+struct RSCacheDat1A_AnimBaseFrames*
 dat1_buildcache_animbaseframes_get(
     struct Dat1BuildCache* dat1_buildcache,
     int animbaseframes_id)
@@ -835,7 +835,7 @@ dat1_buildcache_get_scenery_model_ids(
     int loc_id,
     int** model_ids_out)
 {
-    struct CacheConfigLocation* config_loc = dat1_buildcache_config_loc_get(dat1_buildcache, loc_id);
+    struct RSCacheDat2A_ConfigLocation* config_loc = dat1_buildcache_config_loc_get(dat1_buildcache, loc_id);
     if( !config_loc || !config_loc->models )
     {
         *model_ids_out = NULL;
@@ -926,7 +926,7 @@ dat1_buildcache_get_all_unique_scenery_model_ids(
     struct MapEntry_Scenery* scenery_entry = NULL;
     while( (scenery_entry = (struct MapEntry_Scenery*)ToriDraw_MapIterNext(iter)) )
     {
-        struct CacheMapLocs* locs = scenery_entry->locs;
+        struct RSCacheDat2A_MapLocs* locs = scenery_entry->locs;
         if( !locs )
             continue;
 

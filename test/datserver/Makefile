@@ -29,35 +29,7 @@ SRCS = datserver.c \
        $(PROJECT_ROOT)/osrs/palette.c \
        $(PROJECT_ROOT)/osrs/dash_utils.c \
        $(PROJECT_ROOT)/osrs/gio_cache_dat.c \
-       $(PROJECT_ROOT)/osrs/rscache/disk.c \
-       $(PROJECT_ROOT)/osrs/rscache/cache.c \
-       $(PROJECT_ROOT)/osrs/rscache/archive.c \
-       $(PROJECT_ROOT)/osrs/rscache/archive_decompress.c \
-       $(PROJECT_ROOT)/osrs/rscache/compression.c \
-       $(PROJECT_ROOT)/osrs/rscache/xtea.c \
-       $(PROJECT_ROOT)/osrs/rscache/xtea_config.c \
-       $(PROJECT_ROOT)/osrs/rscache/reference_table.c \
-       $(PROJECT_ROOT)/osrs/rscache/rsbuf.c \
-       $(PROJECT_ROOT)/osrs/rscache/filelist.c \
-       $(PROJECT_ROOT)/osrs/rscache/cache_dat.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables/model.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables/string_utils.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables/maps.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables/config_locs.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables/config_floortype.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables/config_sequence.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables/noise.c \
-       $(PROJECT_ROOT)/osrs/rscache/tables_dat/pix8.c \
-       $(PROJECT_ROOT)/osrs/rscache/tables_dat/pix32.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_obj.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_versionlist_mapsquare.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/animframe.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_component.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_idk.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_npc.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_textures.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables/sprites.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables/textures.c \
+       $(PROJECT_ROOT)/osrs/rscache/rscache_unity.c \
 	   $(PROJECT_ROOT)/osrs/texture.c
 
 # 4. Create the Object list (Flat in build/)

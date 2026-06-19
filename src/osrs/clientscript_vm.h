@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 struct GGame;
-struct CacheDatConfigComponent;
+struct RSCacheDat1A_ConfigComponent;
 
 /**
  * Holds state for interface "client script" evaluation (varp/varbit/stat bytecode on components).
@@ -27,13 +27,13 @@ int
 clientscript_vm_if_var(
     struct ClientScriptVM* vm,
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int script_id);
 
 bool
 clientscript_vm_if_active(
     struct ClientScriptVM* vm,
     struct GGame* game,
-    struct CacheDatConfigComponent* component);
+    struct RSCacheDat1A_ConfigComponent* component);
 
 #endif

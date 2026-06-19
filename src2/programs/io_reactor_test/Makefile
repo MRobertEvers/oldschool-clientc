@@ -20,19 +20,7 @@ SRCS = main.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
 	$(PLAT_DIR)/platform_x/cachelib_serialized.c \
-	$(SRC_DIR)/osrs/rscache/cache.c \
-	$(SRC_DIR)/osrs/rscache/cache_dat.c \
-	$(SRC_DIR)/osrs/rscache/reference_table.c \
-	$(SRC_DIR)/osrs/rscache/filelist.c \
-	$(SRC_DIR)/osrs/rscache/disk.c \
-	$(SRC_DIR)/osrs/rscache/rsbuf.c \
-	$(SRC_DIR)/osrs/rscache/archive.c \
-	$(SRC_DIR)/osrs/rscache/archive_decompress.c \
-	$(SRC_DIR)/osrs/rscache/compression.c \
-	$(SRC_DIR)/osrs/rscache/xtea.c \
-	$(SRC_DIR)/osrs/rscache/xtea_config.c \
-	$(SRC_DIR)/osrs/rscache/tables/string_utils.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_versionlist_mapsquare.c
+	$(SRC_DIR)/osrs/rscache/rscache_unity.c
 
 THIRD_PARTY_SRCS = \
 	$(SRC_DIR)/3rd/bzip/bzip.c \

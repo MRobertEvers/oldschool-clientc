@@ -26,9 +26,9 @@ struct DashFramemap
 };
 
 void
-dashframe_free(struct DashFrame* frame);
+dashRSCacheDat2A_FrameFree(struct DashFrame* frame);
 
 void
-dashframemap_free(struct DashFramemap* framemap);
+dashRSCacheDat2A_FramemapFree(struct DashFramemap* framemap);
 
 #endif

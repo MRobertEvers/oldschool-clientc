@@ -5,12 +5,12 @@
 
 int
 cachelib_platform_init(
-    struct CacheLib* cache,
+    struct RSCacheDat2DiskLib* cache,
     char const* directory);
 
 void*
 cachelib_platform_load_io(
-    struct CacheLib* cache,
-    struct CacheLib_IORequest* request);
+    struct RSCacheDat2DiskLib* cache,
+    struct RSCacheDat2DiskLib_IORequest* request);
 
 #endif

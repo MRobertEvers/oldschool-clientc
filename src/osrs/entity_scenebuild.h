@@ -27,7 +27,7 @@ entity_scenebuild_obj_stack_update_tile(
     int sz);
 
 /* Get head model for interface MODEL component (chat head). model_type 2=NPC, 3=player.
- * For player, slots and colors from entity appearance. Caller must dashmodel_free result. */
+ * For player, slots and colors from entity appearance. Caller must dashRSCacheDat2A_ModelFree result. */
 struct DashModel*
 entity_scenebuild_head_model_for_component(
     struct GGame* game,

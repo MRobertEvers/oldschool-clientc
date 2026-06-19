@@ -2,19 +2,19 @@
 #define BUILD_CACHE_H
 
 #include "graphics/dash.h"
-#include "osrs/rscache/tables/config_floortype.h"
-#include "osrs/rscache/tables/config_locs.h"
-#include "osrs/rscache/tables/config_sequence.h"
-#include "osrs/rscache/tables/frame.h"
-#include "osrs/rscache/tables/framemap.h"
-#include "osrs/rscache/tables/maps.h"
-#include "osrs/rscache/tables/model.h"
-#include "osrs/rscache/tables/sprites.h"
-#include "osrs/rscache/tables/textures.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_frame.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_framemap.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_sprites.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_textures.h"
 
-typedef struct CacheSpritePack CacheSpritepack;
+typedef struct RSCacheDat2A_SpritePack CacheSpritepack;
 
-struct CacheFrameBlob; /* opaque; implemented as FileList when filelist.h included */
+struct RSCacheDat2A_FrameBlob; /* opaque; implemented as FileList when filelist.h included */
 
 struct BuildCache
 {
@@ -36,16 +36,16 @@ struct BuildCache*
 buildcache_new(void);
 
 void
-buildcache_free(struct BuildCache* buildcache);
+buildRSCacheDat2Disk_Free(struct BuildCache* buildcache);
 
 void
 buildcache_add_map_terrain(
     struct BuildCache* buildcache,
     int mapx,
     int mapz,
-    struct CacheMapTerrain* map_terrain);
+    struct RSCacheDat2A_MapTerrain* map_terrain);
 
-struct CacheMapTerrain*
+struct RSCacheDat2A_MapTerrain*
 buildcache_get_map_terrain(
     struct BuildCache* buildcache,
     int mapx,
@@ -56,9 +56,9 @@ buildcache_add_map_scenery(
     struct BuildCache* buildcache,
     int mapx,
     int mapz,
-    struct CacheMapLocs* locs);
+    struct RSCacheDat2A_MapLocs* locs);
 
-struct CacheMapLocs*
+struct RSCacheDat2A_MapLocs*
 buildcache_get_map_scenery(
     struct BuildCache* buildcache,
     int mapx,
@@ -67,7 +67,7 @@ buildcache_get_map_scenery(
 struct DashMapIter*
 buildcache_iter_new_map_scenery(struct BuildCache* buildcache);
 
-struct CacheMapLocs*
+struct RSCacheDat2A_MapLocs*
 buildcache_iter_next_map_scenery(
     struct DashMapIter* iter,
     int* mapx,
@@ -79,7 +79,7 @@ buildcache_iter_free_map_scenery(struct DashMapIter* iter);
 struct DashMapIter*
 buildcache_iter_new_models(struct BuildCache* buildcache);
 
-struct CacheModel*
+struct RSCacheDat2A_Model*
 buildcache_iter_next_models(
     struct DashMapIter* iter,
     int* model_id);
@@ -91,9 +91,9 @@ void
 buildcache_add_config_location(
     struct BuildCache* buildcache,
     int config_location_id,
-    struct CacheConfigLocation* config_location);
+    struct RSCacheDat2A_ConfigLocation* config_location);
 
-struct CacheConfigLocation*
+struct RSCacheDat2A_ConfigLocation*
 buildcache_get_config_location(
     struct BuildCache* buildcache,
     int config_location_id);
@@ -102,9 +102,9 @@ void
 buildcache_add_config_overlay(
     struct BuildCache* buildcache,
     int config_overlay_id,
-    struct CacheConfigOverlay* config_overlay);
+    struct RSCacheDat2A_ConfigOverlay* config_overlay);
 
-struct CacheConfigOverlay*
+struct RSCacheDat2A_ConfigOverlay*
 buildcache_get_config_overlay(
     struct BuildCache* buildcache,
     int config_overlay_id);
@@ -112,7 +112,7 @@ buildcache_get_config_overlay(
 struct DashMapIter*
 buildcache_iter_new_config_overlay(struct BuildCache* buildcache);
 
-struct CacheConfigOverlay*
+struct RSCacheDat2A_ConfigOverlay*
 buildcache_iter_next_config_overlay(struct DashMapIter* iter);
 
 void
@@ -122,9 +122,9 @@ void
 buildcache_add_config_underlay(
     struct BuildCache* buildcache,
     int config_underlay_id,
-    struct CacheConfigUnderlay* config_underlay);
+    struct RSCacheDat2A_ConfigUnderlay* config_underlay);
 
-struct CacheConfigUnderlay*
+struct RSCacheDat2A_ConfigUnderlay*
 buildcache_get_config_underlay(
     struct BuildCache* buildcache,
     int config_underlay_id);
@@ -133,9 +133,9 @@ void
 buildcache_add_config_sequence(
     struct BuildCache* buildcache,
     int config_sequence_id,
-    struct CacheConfigSequence* config_sequence);
+    struct RSCacheDat2A_ConfigSequence* config_sequence);
 
-struct CacheConfigSequence*
+struct RSCacheDat2A_ConfigSequence*
 buildcache_get_config_sequence(
     struct BuildCache* buildcache,
     int config_sequence_id);
@@ -144,9 +144,9 @@ void
 buildcache_add_model(
     struct BuildCache* buildcache,
     int model_id,
-    struct CacheModel* model);
+    struct RSCacheDat2A_Model* model);
 
-struct CacheModel*
+struct RSCacheDat2A_Model*
 buildcache_get_model(
     struct BuildCache* buildcache,
     int model_id);
@@ -155,9 +155,9 @@ void
 buildcache_add_spritepack(
     struct BuildCache* buildcache,
     int spritepack_id,
-    struct CacheSpritePack* spritepack);
+    struct RSCacheDat2A_SpritePack* spritepack);
 
-struct CacheSpritePack*
+struct RSCacheDat2A_SpritePack*
 buildcache_get_spritepack(
     struct BuildCache* buildcache,
     int spritepack_id);
@@ -177,9 +177,9 @@ void
 buildcache_add_frame_blob(
     struct BuildCache* buildcache,
     int frame_blob_id,
-    struct CacheFrameBlob* frame_blob);
+    struct RSCacheDat2A_FrameBlob* frame_blob);
 
-struct CacheFrameBlob*
+struct RSCacheDat2A_FrameBlob*
 buildcache_get_frame_blob(
     struct BuildCache* buildcache,
     int frame_blob_id);
@@ -188,9 +188,9 @@ void
 buildcache_add_frame_anim(
     struct BuildCache* buildcache,
     int frame_anim_id,
-    struct CacheFrame* frame);
+    struct RSCacheDat2A_Frame* frame);
 
-struct CacheFrame*
+struct RSCacheDat2A_Frame*
 buildcache_get_frame_anim(
     struct BuildCache* buildcache,
     int frame_anim_id);
@@ -199,9 +199,9 @@ void
 buildcache_add_framemap(
     struct BuildCache* buildcache,
     int framemap_id,
-    struct CacheFramemap* framemap);
+    struct RSCacheDat2A_Framemap* framemap);
 
-struct CacheFramemap*
+struct RSCacheDat2A_Framemap*
 buildcache_get_framemap(
     struct BuildCache* buildcache,
     int framemap_id);

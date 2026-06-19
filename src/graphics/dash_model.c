@@ -371,7 +371,7 @@ dashvertexarray_free(struct DashVertexArray* va)
 }
 
 void
-dashmodel_free(struct DashModel* model)
+dashRSCacheDat2A_ModelFree(struct DashModel* model)
 {
     if( !model )
         return;
@@ -2128,7 +2128,7 @@ dashmodel_alloc_merged_normals(struct DashModel* model)
 }
 
 void
-dashmodel_free_normals(struct DashModel* model)
+dashRSCacheDat2A_ModelFree_normals(struct DashModel* model)
 {
     assert(model);
     if( dashmodel__type(model) != DASHMODEL_TYPE_FULL )

@@ -31,7 +31,7 @@ Each of these tables has a corresponding entry "ReferenceTable" indexed by index
 References records of the form.
 
 ```
-struct ReferenceTableEntry
+struct RSCacheDat2Disk_ReferenceTableEntry
 {
     int index;
     int identifier;
@@ -48,13 +48,13 @@ struct ReferenceTableEntry
     } children;
 };
 
-struct ReferenceTable {
+struct RSCacheDat2Disk_ReferenceTable {
     int format;
     int version;
     int flags;
     int id_count;
     int* ids; // entries is a sparse array. ids is the list of indices that are valid.
-    struct ReferenceTableEntry* entries;
+    struct RSCacheDat2Disk_ReferenceTableEntry* entries;
     int entry_count;
 }
 ```

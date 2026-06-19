@@ -12,8 +12,8 @@
 #include "osrs/minimenu_action.h"
 #include "osrs/packetout.h"
 #include "osrs/player_stats.h"
-#include "osrs/rscache/tables_dat/config_component.h"
-#include "osrs/rscache/tables_dat/config_obj.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_obj.h"
 #include "osrs/varp_varbit_manager.h"
 
 #include <stdio.h>
@@ -51,7 +51,7 @@ interface_component_sprite_from_reftable(struct GGame* game, char const* graphic
 int
 interface_get_if_var(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int script_id)
 {
     if( !game || !game->clientscript_vm )
@@ -62,7 +62,7 @@ interface_get_if_var(
 bool
 interface_get_if_active(
     struct GGame* game,
-    struct CacheDatConfigComponent* component)
+    struct RSCacheDat1A_ConfigComponent* component)
 {
     if( !game || !game->clientscript_vm )
         return false;
@@ -203,11 +203,11 @@ blit_subsprite_clipped(
 int
 interface_get_inv_default_action(
     struct GGame* game,
-    struct CacheDatConfigComponent* child,
+    struct RSCacheDat1A_ConfigComponent* child,
     int obj_id,
     int slot)
 {
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    struct RSCacheDat1A_ConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
     int actions[INV_MENU_MAX];
     int n = 0;
 
@@ -317,7 +317,7 @@ done:
 void
 interface_draw_component(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int scroll_y,
@@ -372,7 +372,7 @@ interface_draw_component(
         int childX = component->childX[i] + x;
         int childY = component->childY[i] + y - scroll_y;
 
-        struct CacheDatConfigComponent* child =
+        struct RSCacheDat1A_ConfigComponent* child =
             buildcachedat_get_component(game->buildcachedat, child_id);
 
         if( !child )
@@ -451,7 +451,7 @@ interface_draw_component(
 void
 interface_draw_component_layer(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int scroll_y,
@@ -464,7 +464,7 @@ interface_draw_component_layer(
 static void
 find_hovered_interface_id_recursive(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int scroll_y,
@@ -482,7 +482,7 @@ find_hovered_interface_id_recursive(
         int childX = component->childX[i] + x;
         int childY = component->childY[i] + y - scroll_y;
 
-        struct CacheDatConfigComponent* child =
+        struct RSCacheDat1A_ConfigComponent* child =
             buildcachedat_get_component(game->buildcachedat, child_id);
         if( !child )
             continue;
@@ -521,7 +521,7 @@ find_hovered_interface_id_recursive(
 int
 interface_find_hovered_interface_id(
     struct GGame* game,
-    struct CacheDatConfigComponent* root,
+    struct RSCacheDat1A_ConfigComponent* root,
     int root_x,
     int root_y,
     int mouse_x,
@@ -542,7 +542,7 @@ interface_find_hovered_interface_id(
 static int
 find_scrollbar_at_recursive(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int scroll_y,
@@ -562,7 +562,7 @@ find_scrollbar_at_recursive(
             int childX = component->childX[i] + x;
             int childY = component->childY[i] + y - scroll_y;
 
-            struct CacheDatConfigComponent* child =
+            struct RSCacheDat1A_ConfigComponent* child =
                 buildcachedat_get_component(game->buildcachedat, child_id);
             if( !child )
                 continue;
@@ -618,7 +618,7 @@ find_scrollbar_at_recursive(
 int
 interface_find_scrollbar_at(
     struct GGame* game,
-    struct CacheDatConfigComponent* root,
+    struct RSCacheDat1A_ConfigComponent* root,
     int root_x,
     int root_y,
     int mouse_x,
@@ -646,7 +646,7 @@ interface_find_scrollbar_at(
  * CONTINUE) or clientCode > 0. IF_BUTTON, TOGGLE_BUTTON, SELECT_BUTTON all send IF_BUTTON p2(c).
  * CLOSE_BUTTON sends CLOSE_MODAL. PAUSE_BUTTON sends RESUME_PAUSEBUTTON p2(c). */
 static int
-is_clickable_button(struct CacheDatConfigComponent* child)
+is_clickable_button(struct RSCacheDat1A_ConfigComponent* child)
 {
     if( child->clientCode > 0 )
         return 1;
@@ -667,7 +667,7 @@ is_clickable_button(struct CacheDatConfigComponent* child)
 static int
 find_button_click_at_recursive(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int scroll_y,
@@ -691,7 +691,7 @@ find_button_click_at_recursive(
         int childX = component->childX[i] + x;
         int childY = component->childY[i] + y - scroll_y;
 
-        struct CacheDatConfigComponent* child =
+        struct RSCacheDat1A_ConfigComponent* child =
             buildcachedat_get_component(game->buildcachedat, child_id);
         if( !child )
             continue;
@@ -761,7 +761,7 @@ find_button_click_at_recursive(
 int
 interface_find_button_click_at(
     struct GGame* game,
-    struct CacheDatConfigComponent* root,
+    struct RSCacheDat1A_ConfigComponent* root,
     int root_x,
     int root_y,
     int mouse_x,
@@ -796,7 +796,7 @@ interface_apply_button_click_varp_optimistic(
     struct GGame* game,
     int component_id)
 {
-    struct CacheDatConfigComponent* com =
+    struct RSCacheDat1A_ConfigComponent* com =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !com )
         return;
@@ -954,7 +954,7 @@ interface_handle_scrollbar_click(
 void
 interface_draw_component_rect(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -1002,7 +1002,7 @@ interface_draw_component_rect(
 void
 interface_draw_component_text(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -1211,7 +1211,7 @@ interface_draw_scrollbar(
 void
 interface_draw_component_graphic(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -1239,7 +1239,7 @@ interface_draw_component_graphic(
 void
 interface_draw_component_inv(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -1364,7 +1364,7 @@ interface_draw_component_inv(
 void
 interface_draw_component_model(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -1397,7 +1397,7 @@ interface_draw_component_model(
     {
         if( component->modelType == 2 )
         {
-            struct CacheDatConfigNpc* npc =
+            struct RSCacheDat1A_ConfigNpc* npc =
                 buildcachedat_get_npc(game->buildcachedat, component->model);
             if( npc )
                 sequence_id = npc->readyanim;
@@ -1409,7 +1409,7 @@ interface_draw_component_model(
                 sequence_id = local->animation.readyanim;
         }
     }
-    struct CacheDatSequence* seq = NULL;
+    struct RSCacheDat1A_ConfigSequence* seq = NULL;
     if( sequence_id >= 0 && game->buildcachedat->sequences_hmap )
     {
         seq = buildcachedat_get_sequence(game->buildcachedat, sequence_id);
@@ -1417,7 +1417,7 @@ interface_draw_component_model(
         {
             int frame_i = (game->cycle / 5) % seq->frame_count;
             int frame_id = seq->frames[frame_i];
-            struct CacheAnimframe* animframe =
+            struct RSCacheDat1A_AnimFrame* animframe =
                 buildcachedat_get_animframe(game->buildcachedat, frame_id);
             if( animframe )
             {
@@ -1426,8 +1426,8 @@ interface_draw_component_model(
                 if( dash_frame && dash_framemap )
                 {
                     dashmodel_animate(head_model, dash_frame, dash_framemap);
-                    dashframe_free(dash_frame);
-                    dashframemap_free(dash_framemap);
+                    dashRSCacheDat2A_FrameFree(dash_frame);
+                    dashRSCacheDat2A_FramemapFree(dash_framemap);
                 }
             }
         }
@@ -1446,13 +1446,13 @@ interface_draw_component_model(
     int yan = component->yan;
     head_model_render_to_region(
         game, head_model, pixel_buffer, stride, rx, ry, region_size, region_size, zoom, xan, yan);
-    dashmodel_free(head_model);
+    dashRSCacheDat2A_ModelFree(head_model);
 }
 
 int
 interface_check_inv_click(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int mouse_x,
@@ -1535,7 +1535,7 @@ interface_handle_inv_button(
     // 347=OPHELD5
 
     // Check if this component has inventory options (iop)
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
 
     if( component )

@@ -8,7 +8,7 @@
 
 #include "osrs/gio_cache_dat.h"
 #include "osrs/lua_sidecar/lua_configfile.h"
-#include "osrs/rscache/cache_dat.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
 #include "platforms/browser2/luajs_archives.h"
 #include "platforms/browser2/luajs_configs.h"
 #include <arpa/inet.h>
@@ -546,7 +546,7 @@ parse_multi_archive_json(
 static void
 send_multipart_response(
     int fd,
-    struct CacheDat* cache_dat,
+    struct RSCacheDat1Disk* cache_dat,
     struct MultiArchiveRequest* reqs,
     int req_count)
 {
@@ -567,12 +567,12 @@ send_multipart_response(
 
     for( int i = 0; i < req_count; i++ )
     {
-        struct CacheDatArchive* archive = NULL;
+        struct RSCacheDat1Disk_Archive* archive = NULL;
         int table_id = reqs[i].table_id;
         int archive_id = reqs[i].archive_id;
         int flags = reqs[i].flags;
 
-        if( table_id == CACHE_DAT_MAPS )
+        if( table_id == RSCacheDat1Disk_Table_Maps )
         {
             int chunk_x = archive_id >> 16;
             int chunk_z = archive_id & 0xFFFF;
@@ -587,7 +587,7 @@ send_multipart_response(
         }
         else
         {
-            archive = cache_dat_archive_new_load(cache_dat, table_id, archive_id);
+            archive = RSCacheDat1Disk_ArchiveNewLoad(cache_dat, table_id, archive_id);
         }
 
         if( !archive )
@@ -596,20 +596,20 @@ send_multipart_response(
         int serialized_size = luajs_CacheDatArchive_serialized_size(archive);
         if( serialized_size <= 0 )
         {
-            cache_dat_archive_free(archive);
+            RSCacheDat1Disk_ArchiveFree(archive);
             continue;
         }
 
         void* payload = malloc((size_t)serialized_size);
         if( !payload )
         {
-            cache_dat_archive_free(archive);
+            RSCacheDat1Disk_ArchiveFree(archive);
             continue;
         }
 
         int written =
             luajs_CacheDatArchive_serialize_to_buffer(archive, payload, serialized_size);
-        cache_dat_archive_free(archive);
+        RSCacheDat1Disk_ArchiveFree(archive);
         if( written != serialized_size )
         {
             free(payload);
@@ -701,7 +701,7 @@ send_response(
 static void
 handle_client(
     int client_fd,
-    struct CacheDat* cache_dat,
+    struct RSCacheDat1Disk* cache_dat,
     char const* config_dir)
 {
     char buf[REQUEST_BUF_SIZE];
@@ -825,8 +825,8 @@ handle_client(
             return;
         }
 
-        struct CacheDatArchive* archive = NULL;
-        if( table_id == CACHE_DAT_MAPS )
+        struct RSCacheDat1Disk_Archive* archive = NULL;
+        if( table_id == RSCacheDat1Disk_Table_Maps )
         {
             int chunk_x = archive_id >> 16;
             int chunk_z = archive_id & 0xFFFF;
@@ -844,7 +844,7 @@ handle_client(
         }
         else
         {
-            archive = cache_dat_archive_new_load(cache_dat, table_id, archive_id);
+            archive = RSCacheDat1Disk_ArchiveNewLoad(cache_dat, table_id, archive_id);
         }
 
         if( !archive )
@@ -857,7 +857,7 @@ handle_client(
         int serialized_size = luajs_CacheDatArchive_serialized_size(archive);
         if( serialized_size <= 0 )
         {
-            cache_dat_archive_free(archive);
+            RSCacheDat1Disk_ArchiveFree(archive);
             send_response(client_fd, 404, NULL, 0);
             close(client_fd);
             return;
@@ -866,7 +866,7 @@ handle_client(
         void* payload = malloc((size_t)serialized_size);
         if( !payload )
         {
-            cache_dat_archive_free(archive);
+            RSCacheDat1Disk_ArchiveFree(archive);
             send_response(client_fd, 404, NULL, 0);
             close(client_fd);
             return;
@@ -874,7 +874,7 @@ handle_client(
 
         int written =
             luajs_CacheDatArchive_serialize_to_buffer(archive, payload, serialized_size);
-        cache_dat_archive_free(archive);
+        RSCacheDat1Disk_ArchiveFree(archive);
 
         if( written != serialized_size )
         {
@@ -971,7 +971,7 @@ main(
     if( argc > 3 )
         config_dir = argv[3];
 
-    struct CacheDat* cache_dat = cache_dat_new_from_directory(cache_dir);
+    struct RSCacheDat1Disk* cache_dat = RSCacheDat1Disk_NewFromDirectory(cache_dir);
     if( !cache_dat )
     {
         fprintf(stderr, "Failed to load cache from directory: %s\n", cache_dir);
@@ -983,7 +983,7 @@ main(
     int server_fd = create_server_socket(port);
     if( server_fd < 0 )
     {
-        cache_dat_free(cache_dat);
+        RSCacheDat1Disk_Free(cache_dat);
         return 1;
     }
 
@@ -1010,6 +1010,6 @@ main(
     }
 
     close(server_fd);
-    cache_dat_free(cache_dat);
+    RSCacheDat1Disk_Free(cache_dat);
     return 0;
 }

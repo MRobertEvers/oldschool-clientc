@@ -13,7 +13,7 @@
 #define YAW_STEPS 32
 
 extern int g_sin_table[2048];
-extern int g_cos_table[2048];
+extern int RSCacheDat2A_NoiseCosTable[2048];
 
 static inline int
 coord_for_grid(
@@ -132,10 +132,10 @@ test_point_in_frustrum(
 
     return projected_vertex.x >= 0 && projected_vertex.x < screen_width &&
            projected_vertex.y >= 0 && projected_vertex.y < screen_height;
-    // int px = (z * g_sin_table[yaw] + x * g_cos_table[yaw]) >> 16;
-    // int tmp = (z * g_cos_table[yaw] - x * g_sin_table[yaw]) >> 16;
-    // int pz = (y * g_sin_table[pitch] + tmp * g_cos_table[pitch]) >> 16;
-    // int py = (y * g_cos_table[pitch] - tmp * g_sin_table[pitch]) >> 16;
+    // int px = (z * g_sin_table[yaw] + x * RSCacheDat2A_NoiseCosTable[yaw]) >> 16;
+    // int tmp = (z * RSCacheDat2A_NoiseCosTable[yaw] - x * g_sin_table[yaw]) >> 16;
+    // int pz = (y * g_sin_table[pitch] + tmp * RSCacheDat2A_NoiseCosTable[pitch]) >> 16;
+    // int py = (y * RSCacheDat2A_NoiseCosTable[pitch] - tmp * g_sin_table[pitch]) >> 16;
     // if( pz < 50 || pz > 3500 )
     // {
     //     return false;

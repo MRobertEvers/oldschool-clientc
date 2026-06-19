@@ -554,10 +554,10 @@ struct DashModel*
 dashmodel_new(void);
 
 void
-dashmodel_free(struct DashModel* model);
+dashRSCacheDat2A_ModelFree(struct DashModel* model);
 
 /** Frees all heap fields of `va` and `va` itself (caller-owned geometry; not called from
- * dashmodel_free). */
+ * dashRSCacheDat2A_ModelFree). */
 void
 dashvertexarray_free(struct DashVertexArray* va);
 
@@ -841,7 +841,7 @@ void
 dashmodel_alloc_merged_normals(struct DashModel* model);
 
 void
-dashmodel_free_normals(struct DashModel* model);
+dashRSCacheDat2A_ModelFree_normals(struct DashModel* model);
 
 struct DashModelNormals* //
 dashmodel_normals_new(
@@ -1266,10 +1266,10 @@ dash2d_blit_rotated(
     int angle_r2pi2048);
 
 void
-dashframe_free(struct DashFrame* frame);
+dashRSCacheDat2A_FrameFree(struct DashFrame* frame);
 
 void
-dashframemap_free(struct DashFramemap* framemap);
+dashRSCacheDat2A_FramemapFree(struct DashFramemap* framemap);
 
 #ifdef __cplusplus
 }

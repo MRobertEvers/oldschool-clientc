@@ -1,29 +1,29 @@
 #ifndef DAT1_BUILDCACHE_H
 #define DAT1_BUILDCACHE_H
 
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/tables/maps.h"
-#include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
 
 #include <stdint.h>
 
 struct ToriDraw_Map;
 struct ToriDraw_Texture;
-struct CacheDatSequence;
-struct CacheConfigOverlay;
-struct CacheConfigLocation;
-struct CacheDatAnimBaseFrames;
+struct RSCacheDat1A_ConfigSequence;
+struct RSCacheDat2A_ConfigOverlay;
+struct RSCacheDat2A_ConfigLocation;
+struct RSCacheDat1A_AnimBaseFrames;
 
-struct CacheDatConfigComponentList;
+struct RSCacheDat1A_ConfigComponentList;
 
 #define DAT1_TEXTURE_COUNT 50
 
 struct Dat1BuildCache
 {
-    struct FileListDat* fromconfigtable_config_jagfile;
-    struct FileListDat* versionlist_jagfile;
-    struct FileListDat* media_2d_graphics_jagfile;
-    struct CacheDatConfigComponentList* interfaces;
+    struct RSCacheShared_FileListDat* fromconfigtable_config_jagfile;
+    struct RSCacheShared_FileListDat* versionlist_jagfile;
+    struct RSCacheShared_FileListDat* media_2d_graphics_jagfile;
+    struct RSCacheDat1A_ConfigComponentList* interfaces;
     struct ToriDraw_Map* models_hmap;
     struct ToriDraw_Map* map_terrain_hmap;
     struct ToriDraw_Map* map_scenery_hmap;
@@ -39,12 +39,12 @@ struct Dat1BuildCache*
 dat1_buildcache_new(void);
 
 void
-dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache);
+dat1_buildRSCacheDat2Disk_Free(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_set_fromconfigtable_config_jagfile(
     struct Dat1BuildCache* dat1_buildcache,
-    struct FileListDat* fromconfigtable_config_jagfile);
+    struct RSCacheShared_FileListDat* fromconfigtable_config_jagfile);
 
 void
 dat1_buildcache_clear_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
@@ -52,7 +52,7 @@ dat1_buildcache_clear_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
 void
 dat1_buildcache_set_versionlist_jagfile(
     struct Dat1BuildCache* dat1_buildcache,
-    struct FileListDat* versionlist_jagfile);
+    struct RSCacheShared_FileListDat* versionlist_jagfile);
 
 void
 dat1_buildcache_clear_versionlist_jagfile(struct Dat1BuildCache* dat1_buildcache);
@@ -60,26 +60,26 @@ dat1_buildcache_clear_versionlist_jagfile(struct Dat1BuildCache* dat1_buildcache
 void
 dat1_buildcache_set_media_2d_graphics_jagfile(
     struct Dat1BuildCache* dat1_buildcache,
-    struct FileListDat* media_2d_graphics_jagfile);
+    struct RSCacheShared_FileListDat* media_2d_graphics_jagfile);
 
-struct FileListDat*
+struct RSCacheShared_FileListDat*
 dat1_buildcache_get_media_2d_graphics_jagfile(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_set_interfaces(
     struct Dat1BuildCache* dat1_buildcache,
-    struct CacheDatConfigComponentList* interfaces);
+    struct RSCacheDat1A_ConfigComponentList* interfaces);
 
-struct CacheDatConfigComponentList*
+struct RSCacheDat1A_ConfigComponentList*
 dat1_buildcache_get_interfaces(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_model_add(
     struct Dat1BuildCache* dat1_buildcache,
     int model_id,
-    struct CacheModel* model);
+    struct RSCacheDat2A_Model* model);
 
-struct CacheModel*
+struct RSCacheDat2A_Model*
 dat1_buildcache_model_get(
     struct Dat1BuildCache* dat1_buildcache,
     int model_id);
@@ -93,9 +93,9 @@ void
 dat1_buildcache_map_terrain_add(
     struct Dat1BuildCache* dat1_buildcache,
     int map_id,
-    struct CacheMapTerrain* terrain);
+    struct RSCacheDat2A_MapTerrain* terrain);
 
-struct CacheMapTerrain*
+struct RSCacheDat2A_MapTerrain*
 dat1_buildcache_map_terrain_get(
     struct Dat1BuildCache* dat1_buildcache,
     int map_id);
@@ -109,9 +109,9 @@ void
 dat1_buildcache_map_scenery_add(
     struct Dat1BuildCache* dat1_buildcache,
     int map_id,
-    struct CacheMapLocs* locs);
+    struct RSCacheDat2A_MapLocs* locs);
 
-struct CacheMapLocs*
+struct RSCacheDat2A_MapLocs*
 dat1_buildcache_map_scenery_get(
     struct Dat1BuildCache* dat1_buildcache,
     int map_id);
@@ -148,9 +148,9 @@ void
 dat1_buildcache_animbaseframes_add(
     struct Dat1BuildCache* dat1_buildcache,
     int animbaseframes_id,
-    struct CacheDatAnimBaseFrames* animbaseframes);
+    struct RSCacheDat1A_AnimBaseFrames* animbaseframes);
 
-struct CacheDatAnimBaseFrames*
+struct RSCacheDat1A_AnimBaseFrames*
 dat1_buildcache_animbaseframes_get(
     struct Dat1BuildCache* dat1_buildcache,
     int animbaseframes_id);
@@ -164,7 +164,7 @@ int
 dat1_buildcache_get_animbaseframes_count_from_versionlist_jagfile(
     struct Dat1BuildCache* dat1_buildcache);
 
-struct CacheConfigLocation*
+struct RSCacheDat2A_ConfigLocation*
 dat1_buildcache_config_loc_get(
     struct Dat1BuildCache* dat1_buildcache,
     int loc_id);
@@ -182,17 +182,17 @@ dat1_buildcache_get_all_unique_scenery_model_ids(
 
 typedef void (*Dat1BuildCacheSequenceCallback)(
     int seq_id,
-    struct CacheDatSequence* sequence,
+    struct RSCacheDat1A_ConfigSequence* sequence,
     void* user_data);
 
 typedef void (*Dat1BuildCacheFlotypeCallback)(
     int flo_id,
-    struct CacheConfigOverlay* flotype,
+    struct RSCacheDat2A_ConfigOverlay* flotype,
     void* user_data);
 
 typedef void (*Dat1BuildCacheLocationCallback)(
     int loc_id,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     void* user_data);
 
 void

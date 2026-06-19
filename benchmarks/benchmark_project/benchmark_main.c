@@ -100,13 +100,13 @@
 #include "graphics/raster/texture/texture.deob2.u.c"
 
 /* Texture loading from cache */
-#include "osrs/rscache/cache_dat.h"
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/tables_dat/config_textures.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_textures.h"
 #include "osrs/texture.h"
 
 /* Config table texture archive ID */
-#define CONFIG_DAT_TEXTURES 6
+#define RSCacheDat1A_ConfigKind_Textures 6
 
 /* ---------- Configuration ---------- */
 
@@ -388,7 +388,7 @@ load_textures_from_cache(void)
     /* Load textures archive from cache_dat.
      * Table 0 = CONFIG, Archive 6 = TEXTURES. */
     {
-        struct CacheDat* cache_dat = cache_dat_new_from_directory(found_cache);
+        struct RSCacheDat1Disk* cache_dat = RSCacheDat1Disk_NewFromDirectory(found_cache);
         if( !cache_dat )
         {
             printf("[benchmark] Failed to open cache_dat; using synthetic textures.\n");
@@ -396,21 +396,21 @@ load_textures_from_cache(void)
         }
 
         /* Load the textures archive: table CONFIGS(0), archive TEXTURES(6) */
-        struct CacheDatArchive* archive =
-            cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_TEXTURES);
+        struct RSCacheDat1Disk_Archive* archive =
+            RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_Textures);
         if( !archive || !archive->data || archive->data_size <= 0 )
         {
             printf("[benchmark] Failed to load texture archive; using synthetic textures.\n");
-            cache_dat_free(cache_dat);
+            RSCacheDat1Disk_Free(cache_dat);
             goto fallback;
         }
 
-        struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
-        cache_dat_archive_free(archive);
+        struct RSCacheShared_FileListDat* filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
+        RSCacheDat1Disk_ArchiveFree(archive);
         if( !filelist )
         {
             printf("[benchmark] Failed to decode texture filelist; using synthetic textures.\n");
-            cache_dat_free(cache_dat);
+            RSCacheDat1Disk_Free(cache_dat);
             goto fallback;
         }
 
@@ -419,14 +419,14 @@ load_textures_from_cache(void)
 
         for( int tex_id = 0; tex_id < 50 && (!found_opaque || !found_trans); tex_id++ )
         {
-            struct CacheDatTexture* ct =
-                cache_dat_texture_new_from_filelist_dat(filelist, tex_id, 0);
+            struct RSCacheDat1A_ConfigTexture* ct =
+                RSCacheDat1A_ConfigTextureNewFromFilelistDat(filelist, tex_id, 0);
             if( !ct )
                 continue;
 
             struct DashTexture* dtex =
                 texture_new_from_texture_sprite(ct, 0 /* no animation */, 0, false, false);
-            cache_dat_texture_free(ct);
+            RSCacheDat1A_ConfigTextureFree(ct);
 
             if( !dtex )
                 continue;
@@ -462,8 +462,8 @@ load_textures_from_cache(void)
             texture_free(dtex);
         }
 
-        filelist_dat_free(filelist);
-        cache_dat_free(cache_dat);
+        RSCacheShared_FileListDatFree(filelist);
+        RSCacheDat1Disk_Free(cache_dat);
 
         if( found_opaque && found_trans )
         {

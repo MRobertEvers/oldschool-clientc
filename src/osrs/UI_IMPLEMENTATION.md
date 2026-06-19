@@ -94,8 +94,8 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render()
 ### Loading Components
 ```c
 // In loading phase (Lua or C)
-struct CacheDatConfigComponentList* components = 
-    cache_dat_config_component_list_new_decode(data, size);
+struct RSCacheDat1A_ConfigComponentList* components = 
+    RSCacheDat1A_ConfigComponentListNewDecode(data, size);
 
 for(int i = 0; i < components->components_count; i++) {
     buildcachedat_add_component(

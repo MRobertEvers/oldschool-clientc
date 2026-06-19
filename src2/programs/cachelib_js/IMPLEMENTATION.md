@@ -44,7 +44,7 @@ cache.free(); // Explicit cleanup
 ### Key Implementation Details
 
 1. **Proper Abstraction Layer**
-   - Uses `cachelib_platform_load_io()` with `struct CacheLib_IORequest`
+   - Uses `cachelib_platform_load_io()` with `struct RSCacheDat2DiskLib_IORequest`
    - Avoids direct calls to cache-specific functions
    - Platform layer handles mode-specific loading (DAT1 vs DAT2)
    - Consistent API regardless of cache format
@@ -57,8 +57,8 @@ cache.free(); // Explicit cleanup
 
 3. **Mode Support**
    - Handles both DAT1 (old format) and DAT2 (new format)
-   - Platform layer uses `cache_dat_archive_new_load()` for DAT1
-   - Platform layer uses `cache_archive_new_load_decrypted()` for DAT2
+   - Platform layer uses `RSCacheDat1Disk_ArchiveNewLoad()` for DAT1
+   - Platform layer uses `RSCacheDat2Disk_ArchiveNewLoadDecrypted()` for DAT2
    - Properly frees archives with correct format-specific free functions
 
 4. **Error Handling**
@@ -70,8 +70,8 @@ cache.free(); // Explicit cleanup
 5. **Fixed Cache Ownership**
    - Updated `cachelib_free()` in `src2/platforms/platform_x/cachelib.c`
    - Now properly frees backing DAT1/DAT2 caches before freeing wrapper
-   - Uses `cache_dat_free()` for DAT1 mode
-   - Uses `cache_free()` for DAT2 mode
+   - Uses `RSCacheDat1Disk_Free()` for DAT1 mode
+   - Uses `RSCacheDat2Disk_Free()` for DAT2 mode
 
 ### Build Verification
 

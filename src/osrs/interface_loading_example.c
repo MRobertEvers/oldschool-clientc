@@ -5,7 +5,7 @@
 #include "osrs/game.h"
 #include "osrs/gio_cache_dat.h"
 #include "osrs/revconfig/uiscene.h"
-#include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -47,8 +47,8 @@ buildcachedat_loader_load_interfaces(
     printf("Loading interface components...\n");
     
     // Decode the component list from cache data
-    struct CacheDatConfigComponentList* component_list =
-        cache_dat_config_component_list_new_decode(data, data_size);
+    struct RSCacheDat1A_ConfigComponentList* component_list =
+        RSCacheDat1A_ConfigComponentListNewDecode(data, data_size);
     
     if (!component_list) {
         printf("Failed to decode component list\n");
@@ -59,7 +59,7 @@ buildcachedat_loader_load_interfaces(
     
     // Register each component in the buildcachedat
     for (int i = 0; i < component_list->components_count; i++) {
-        struct CacheDatConfigComponent* component = component_list->components[i];
+        struct RSCacheDat1A_ConfigComponent* component = component_list->components[i];
         
         if (component) {
             printf("  Component %d: type=%d, layer=%d, width=%d, height=%d\n",
@@ -161,7 +161,7 @@ on_interface_loaded(
 void
 load_component_sprite_example(
     struct GGame* game,
-    struct FileListDat* filelist,
+    struct RSCacheShared_FileListDat* filelist,
     const char* sprite_name)
 {
     // Example: sprite_name might be "button,0" meaning button.dat index 0
@@ -182,16 +182,16 @@ load_component_sprite_example(
     printf("Loading sprite: %s index %d\n", filename, sprite_idx);
     
     // Find index.dat
-    int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "index.dat");
     if (index_file_idx == -1) {
         printf("Failed to find index.dat\n");
         return;
     }
     
     // Try loading as pix32 first
-    struct CacheDatPix32* pix32 = cache_dat_pix32_decode_from_archive(
-        filelist->files[filelist_dat_find_file_by_name(filelist, filename)],
-        filelist->file_sizes[filelist_dat_find_file_by_name(filelist, filename)],
+    struct RSCacheDat1A_Pix32* pix32 = cache_dat_pix32_decode_from_archive(
+        filelist->files[RSCacheShared_FileListDatFindFileByName(filelist, filename)],
+        filelist->file_sizes[RSCacheShared_FileListDatFindFileByName(filelist, filename)],
         sprite_idx);
     
     if (pix32) {
@@ -201,15 +201,15 @@ load_component_sprite_example(
             buildcachedat_add_component_sprite_ref(game->buildcachedat, sprite_name, eid);
         else
             dashsprite_free(sprite);
-        cache_dat_pix32_free(pix32);
+        RSCacheDat1A_Pix32Free(pix32);
         printf("Loaded pix32 sprite: %s\n", sprite_name);
         return;
     }
     
     // Try loading as pix8
-    struct CacheDatPix8Palette* pix8_palette = cache_dat_pix8_palette_decode_from_archive(
-        filelist->files[filelist_dat_find_file_by_name(filelist, filename)],
-        filelist->file_sizes[filelist_dat_find_file_by_name(filelist, filename)],
+    struct RSCacheDat1A_Pix8Palette* pix8_palette = cache_dat_pix8_palette_decode_from_archive(
+        filelist->files[RSCacheShared_FileListDatFindFileByName(filelist, filename)],
+        filelist->file_sizes[RSCacheShared_FileListDatFindFileByName(filelist, filename)],
         sprite_idx);
     
     if (pix8_palette) {
@@ -219,7 +219,7 @@ load_component_sprite_example(
             buildcachedat_add_component_sprite_ref(game->buildcachedat, sprite_name, eid);
         else
             dashsprite_free(sprite);
-        cache_dat_pix8_palette_free(pix8_palette);
+        RSCacheDat1A_Pix8PaletteFree(pix8_palette);
         printf("Loaded pix8 sprite: %s\n", sprite_name);
         return;
     }
@@ -267,7 +267,7 @@ init_interfaces_full_example(struct GGame* game)
  * Option 1: Single file with all components
  *   - File: interface.dat
  *   - Format: Binary with component count + component data
- *   - Decode: cache_dat_config_component_list_new_decode()
+ *   - Decode: RSCacheDat1A_ConfigComponentListNewDecode()
  * 
  * Option 2: Multiple files, one per interface
  *   - Files: interface_0.dat, interface_1.dat, etc.

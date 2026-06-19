@@ -1,8 +1,8 @@
 #include "varp_varbit_manager.h"
 
-#include "rscache/filelist.h"
-#include "rscache/rsbuf.h"
-#include "rscache/tables_dat/config_varp.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_varp.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -12,7 +12,7 @@
 static void
 decode_varbit_type(
     struct VarBitType* varbit,
-    struct RSBuffer* buffer)
+    struct RSCacheShared_RSBuffer* buffer)
 {
     memset(varbit, 0, sizeof(struct VarBitType));
     varbit->basevar = -1;
@@ -77,16 +77,16 @@ varp_varbit_free(struct VarPVarBitManager* mgr)
 bool
 varp_varbit_load_from_config_jagfile(
     struct VarPVarBitManager* mgr,
-    struct FileListDat* config_jagfile)
+    struct RSCacheShared_FileListDat* config_jagfile)
 {
     if( !mgr || !config_jagfile )
         return false;
 
-    int varp_idx = filelist_dat_find_file_by_name(config_jagfile, "varp.dat");
+    int varp_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "varp.dat");
     if( varp_idx == -1 )
         return false;
 
-    struct CacheDatConfigVarpList* list = cache_dat_config_varp_list_new_decode(
+    struct RSCacheDat1A_ConfigVarpList* list = RSCacheDat1A_ConfigVarpListNewDecode(
         config_jagfile->files[varp_idx], config_jagfile->file_sizes[varp_idx]);
     if( !list )
         return false;
@@ -95,7 +95,7 @@ varp_varbit_load_from_config_jagfile(
     mgr->varp_types = malloc((size_t)varp_count * sizeof(struct VarPType));
     if( !mgr->varp_types )
     {
-        cache_dat_config_varp_list_free(list);
+        RSCacheDat1A_ConfigVarpListFree(list);
         return false;
     }
 
@@ -104,7 +104,7 @@ varp_varbit_load_from_config_jagfile(
     {
         mgr->varp_types[i].clientcode = list->varps[i]->clientcode;
     }
-    cache_dat_config_varp_list_free(list);
+    RSCacheDat1A_ConfigVarpListFree(list);
 
     /* Allocate var arrays */
     mgr->var = calloc((size_t)varp_count, sizeof(int));

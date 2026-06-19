@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 extern int g_tan_table[2048];
-extern int g_cos_table[2048];
+extern int RSCacheDat2A_NoiseCosTable[2048];
 extern int g_sin_table[2048];
 
 // #define NEON_DISABLED

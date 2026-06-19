@@ -3,8 +3,8 @@
 #include "packetin.h"
 
 #include <stdlib.h>
-#include "rscache/bitbuffer.h"
-#include "rscache/rsbuf.h"
+#include "osrs/rscache/shared/rscache_shared_bit_buffer.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
 #include "wordpack.h"
 
 // clang-format off
@@ -18,8 +18,8 @@ gameproto_parse_lc245_2(
     int data_size,
     struct RevPacket_LC245_2* packet)
 {
-    struct RSBuffer buffer;
-    rsbuf_init(&buffer, (int8_t*)data, data_size);
+    struct RSCacheShared_RSBuffer buffer;
+    RSCacheShared_RSBufferInit(&buffer, (int8_t*)data, data_size);
 
     packet->packet_type = packet_type;
 

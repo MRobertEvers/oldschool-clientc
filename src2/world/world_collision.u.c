@@ -4,8 +4,8 @@
 #include "collision_map.h"
 #include "flag_map.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
-#include "osrs/rscache/tables/config_locs.h"
-#include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
 #include "world_builder.h"
 
 static void

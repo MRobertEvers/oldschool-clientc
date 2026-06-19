@@ -1,7 +1,7 @@
 #ifndef SHADEDMAP_H
 #define SHADEDMAP_H
 
-#include "rscache/tables/maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
 
 #include <assert.h>
 #include <stdbool.h>

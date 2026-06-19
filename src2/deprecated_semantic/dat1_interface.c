@@ -7,10 +7,10 @@
 #include "dat1_sprite.h"
 #include "graphics/dashmap.h"
 #include "osrs/revconfig/uitree.h"
-#include "osrs/rscache/cache_dat.h"
-#include "osrs/rscache/tables/model.h"
-#include "osrs/rscache/tables_dat/config_component.h"
-#include "osrs/rscache/tables_dat/configs_dat.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_configs_dat.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_types.h"
 
@@ -22,9 +22,9 @@
 /* Internal helpers                                                     */
 /* ------------------------------------------------------------------ */
 
-static struct CacheDatConfigComponent*
+static struct RSCacheDat1A_ConfigComponent*
 get_component(
-    struct CacheDatConfigComponentList* ifaces,
+    struct RSCacheDat1A_ConfigComponentList* ifaces,
     int component_id)
 {
     if( !ifaces || component_id < 0 || component_id >= ifaces->components_count )
@@ -67,7 +67,7 @@ iface_add_model_request(
     if( iface->model_count >= DAT1_INTERFACE_MAX_MODELS )
         return;
     iface->model_ids[iface->model_count++] = model_id;
-    iface_add_archive_request(iface, CACHE_DAT_MODELS, model_id, 0);
+    iface_add_archive_request(iface, RSCacheDat1Disk_Table_Models, model_id, 0);
 }
 
 /* Preload one media sprite ref into UIScene and record it in sprite_map. */
@@ -120,13 +120,13 @@ iface_preload_sprite(
 static void
 iface_collect_and_preload(
     struct Dat1_Interface* iface,
-    struct CacheDatConfigComponentList* ifaces,
+    struct RSCacheDat1A_ConfigComponentList* ifaces,
     struct Dat1BuildCache* buildcache,
     struct UIScene* scene,
     struct DashMap* sprite_map,
     int component_id)
 {
-    struct CacheDatConfigComponent* comp = get_component(ifaces, component_id);
+    struct RSCacheDat1A_ConfigComponent* comp = get_component(ifaces, component_id);
     if( !comp )
         return;
 
@@ -218,9 +218,9 @@ reswitch:
         bool has_media = (dat1_buildcache_get_media_2d_graphics_jagfile(buildcache) != NULL);
 
         if( !has_ifaces )
-            iface_add_archive_request(iface, CACHE_DAT_CONFIGS, CONFIG_DAT_INTERFACES, 0);
+            iface_add_archive_request(iface, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_Interfaces, 0);
         if( !has_media )
-            iface_add_archive_request(iface, CACHE_DAT_CONFIGS, CONFIG_DAT_MEDIA_2D_GRAPHICS, 0);
+            iface_add_archive_request(iface, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_Media2dGraphics, 0);
 
         if( has_ifaces && has_media )
         {
@@ -239,7 +239,7 @@ reswitch:
 
     case DAT1_STATE_INSPECT:
     {
-        struct CacheDatConfigComponentList* ifaces = dat1_buildcache_get_interfaces(buildcache);
+        struct RSCacheDat1A_ConfigComponentList* ifaces = dat1_buildcache_get_interfaces(buildcache);
         if( !ifaces )
         {
             iface->state = DAT1_STATE_FAILED;
@@ -252,7 +252,7 @@ reswitch:
             iface, ifaces, buildcache, scene, sprite_map, iface->component_id);
 
         if( iface->need_fonts )
-            iface_add_archive_request(iface, CACHE_DAT_CONFIGS, CONFIG_DAT_TITLE_AND_FONTS, 0);
+            iface_add_archive_request(iface, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_TitleAndFonts, 0);
 
         if( iface->waiting_count > prev_waiting )
         {
@@ -280,18 +280,18 @@ reswitch:
             if( existing.kind == TORIDRAWMK_MODEL )
                 continue;
 
-            struct CacheModel* raw = dat1_buildcache_model_get(buildcache, model_id);
+            struct RSCacheDat2A_Model* raw = dat1_buildcache_model_get(buildcache, model_id);
             if( !raw )
             {
                 printf("dat1_interface: model %d missing from buildcache\n", model_id);
                 continue;
             }
 
-            struct CacheModel* copy = model_new_copy(raw);
+            struct RSCacheDat2A_Model* copy = RSCacheDat2A_ModelNewCopy(raw);
             if( !copy )
                 continue;
             struct ToriDraw_Model* td = ToriDraw_ModelNewFromCacheModel(copy);
-            model_free(copy);
+            RSCacheDat2A_ModelFree(copy);
             if( !td )
                 continue;
 

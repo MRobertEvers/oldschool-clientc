@@ -4,11 +4,11 @@
 #include "../ui/ui_scene.h"
 #include "toriauxlib/td/toridraw_cachesprite.h"
 #include "graphics/dashmap.h"
-#include "osrs/rscache/cache_dat.h"
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/tables_dat/configs_dat.h"
-#include "osrs/rscache/tables_dat/pix32.h"
-#include "osrs/rscache/tables_dat/pix8.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_configs_dat.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix32.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix8.h"
 #include "toridraw/toridraw_sprite.h"
 
 #include <stdio.h>
@@ -30,10 +30,10 @@ sprite_resolve_archive(
         return false;
     if( strcmp(table, "configs") == 0 )
     {
-        *out_table_id = CACHE_DAT_CONFIGS;
+        *out_table_id = RSCacheDat1Disk_Table_Configs;
         if( strcmp(archive, "media") == 0 )
         {
-            *out_archive_id = CONFIG_DAT_MEDIA_2D_GRAPHICS;
+            *out_archive_id = RSCacheDat1A_ConfigKind_Media2dGraphics;
             return true;
         }
     }
@@ -42,21 +42,21 @@ sprite_resolve_archive(
 
 static struct ToriDraw_Sprite*
 sprite_decode_from_filelist(
-    struct FileListDat* filelist,
+    struct RSCacheShared_FileListDat* filelist,
     const struct Dat1_Sprite* s,
     int atlas_index)
 {
     if( !filelist || !s )
         return NULL;
 
-    int index_file_idx = filelist_dat_find_file_by_name(filelist, s->index_filename);
-    int data_file_idx = filelist_dat_find_file_by_name(filelist, s->data_filename);
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, s->index_filename);
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, s->data_filename);
     if( index_file_idx < 0 || data_file_idx < 0 )
         return NULL;
 
     if( strcmp(s->format, "pix8") == 0 )
     {
-        struct CacheDatPix8Palette* pix8 = cache_dat_pix8_palette_new(
+        struct RSCacheDat1A_Pix8Palette* pix8 = RSCacheDat1A_Pix8PaletteNew(
             filelist->files[data_file_idx],
             filelist->file_sizes[data_file_idx],
             filelist->files[index_file_idx],
@@ -65,13 +65,13 @@ sprite_decode_from_filelist(
         if( !pix8 )
             return NULL;
         struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix8Palette(pix8);
-        cache_dat_pix8_palette_free(pix8);
+        RSCacheDat1A_Pix8PaletteFree(pix8);
         return sprite;
     }
 
     if( strcmp(s->format, "pix32") == 0 )
     {
-        struct CacheDatPix32* pix32 = cache_dat_pix32_new(
+        struct RSCacheDat1A_Pix32* pix32 = RSCacheDat1A_Pix32New(
             filelist->files[data_file_idx],
             filelist->file_sizes[data_file_idx],
             filelist->files[index_file_idx],
@@ -80,7 +80,7 @@ sprite_decode_from_filelist(
         if( !pix32 )
             return NULL;
         struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix32(pix32);
-        cache_dat_pix32_free(pix32);
+        RSCacheDat1A_Pix32Free(pix32);
         return sprite;
     }
 
@@ -111,7 +111,7 @@ dat1_sprite_decode_media_ref(
     struct Dat1BuildCache* buildcache,
     const char* sprite_ref)
 {
-    struct FileListDat* filelist = dat1_buildcache_get_media_2d_graphics_jagfile(buildcache);
+    struct RSCacheShared_FileListDat* filelist = dat1_buildcache_get_media_2d_graphics_jagfile(buildcache);
     if( !filelist || !sprite_ref || !sprite_ref[0] )
         return NULL;
 
@@ -134,12 +134,12 @@ dat1_sprite_decode_media_ref(
         filename_buf[len + 4] = '\0';
     }
 
-    int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
-    int data_file_idx = filelist_dat_find_file_by_name(filelist, filename_buf);
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "index.dat");
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, filename_buf);
     if( index_file_idx < 0 || data_file_idx < 0 )
         return NULL;
 
-    struct CacheDatPix32* pix32 = cache_dat_pix32_new(
+    struct RSCacheDat1A_Pix32* pix32 = RSCacheDat1A_Pix32New(
         filelist->files[data_file_idx],
         filelist->file_sizes[data_file_idx],
         filelist->files[index_file_idx],
@@ -148,12 +148,12 @@ dat1_sprite_decode_media_ref(
     if( pix32 )
     {
         struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix32(pix32);
-        cache_dat_pix32_free(pix32);
+        RSCacheDat1A_Pix32Free(pix32);
         if( sprite )
             return sprite;
     }
 
-    struct CacheDatPix8Palette* pix8 = cache_dat_pix8_palette_new(
+    struct RSCacheDat1A_Pix8Palette* pix8 = RSCacheDat1A_Pix8PaletteNew(
         filelist->files[data_file_idx],
         filelist->file_sizes[data_file_idx],
         filelist->files[index_file_idx],
@@ -162,7 +162,7 @@ dat1_sprite_decode_media_ref(
     if( !pix8 )
         return NULL;
     struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix8Palette(pix8);
-    cache_dat_pix8_palette_free(pix8);
+    RSCacheDat1A_Pix8PaletteFree(pix8);
     return sprite;
 }
 
@@ -208,7 +208,7 @@ dat1_sprite_step(
         }
 
         /* If the media jagfile is already in buildcache, skip straight to CONVERT. */
-        if( table_id == CACHE_DAT_CONFIGS && archive_id == CONFIG_DAT_MEDIA_2D_GRAPHICS &&
+        if( table_id == RSCacheDat1Disk_Table_Configs && archive_id == RSCacheDat1A_ConfigKind_Media2dGraphics &&
             dat1_buildcache_get_media_2d_graphics_jagfile(buildcache) )
         {
             s->state = DAT1_STATE_CONVERT;
@@ -232,7 +232,7 @@ dat1_sprite_step(
 
     case DAT1_STATE_CONVERT:
     {
-        struct FileListDat* filelist = dat1_buildcache_get_media_2d_graphics_jagfile(buildcache);
+        struct RSCacheShared_FileListDat* filelist = dat1_buildcache_get_media_2d_graphics_jagfile(buildcache);
         if( !filelist )
         {
             s->state = DAT1_STATE_FAILED;

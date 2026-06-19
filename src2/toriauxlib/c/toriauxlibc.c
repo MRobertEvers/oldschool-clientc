@@ -52,7 +52,7 @@ ToriAuxLibC_Free(struct ToriAuxLibC* c)
     if( !c )
         return;
     if( c->dat1_buildcache )
-        dat1_buildcache_free(c->dat1_buildcache);
+        dat1_buildRSCacheDat2Disk_Free(c->dat1_buildcache);
     free(c);
 }
 

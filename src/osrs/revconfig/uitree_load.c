@@ -7,11 +7,11 @@
 #include "osrs/entity_scenebuild.h"
 #include "osrs/game.h"
 #include "osrs/obj_icon.h"
-#include "osrs/rscache/tables/model.h"
-#include "osrs/rscache/tables_dat/config_component.h"
-#include "osrs/rscache/tables_dat/pix32.h"
-#include "osrs/rscache/tables_dat/pix8.h"
-#include "osrs/rscache/tables_dat/pixfont.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix32.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix8.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix_font.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/scene2.h"
 #include "osrs/revconfig/uiscene.h"
@@ -215,15 +215,15 @@ struct CurrentLoad
 
 static struct DashSprite*
 load_sprite_pix8(
-    struct FileListDat* filelist,
+    struct RSCacheShared_FileListDat* filelist,
     int data_file_idx,
     int index_file_idx,
     int sprite_idx)
 {
-    struct CacheDatPix8Palette* pix8_palette = NULL;
+    struct RSCacheDat1A_Pix8Palette* pix8_palette = NULL;
     struct DashSprite* sprite = NULL;
 
-    pix8_palette = cache_dat_pix8_palette_new(
+    pix8_palette = RSCacheDat1A_Pix8PaletteNew(
         filelist->files[data_file_idx],
         filelist->file_sizes[data_file_idx],
         filelist->files[index_file_idx],
@@ -231,22 +231,22 @@ load_sprite_pix8(
         sprite_idx);
 
     sprite = dashsprite_new_from_cache_pix8_palette(pix8_palette);
-    cache_dat_pix8_palette_free(pix8_palette);
+    RSCacheDat1A_Pix8PaletteFree(pix8_palette);
 
     return sprite;
 }
 
 static struct DashSprite*
 load_sprite_pix32(
-    struct FileListDat* filelist,
+    struct RSCacheShared_FileListDat* filelist,
     int data_file_idx,
     int index_file_idx,
     int sprite_idx)
 {
-    struct CacheDatPix32* pix32 = NULL;
+    struct RSCacheDat1A_Pix32* pix32 = NULL;
     struct DashSprite* sprite = NULL;
 
-    pix32 = cache_dat_pix32_new(
+    pix32 = RSCacheDat1A_Pix32New(
         filelist->files[data_file_idx],
         filelist->file_sizes[data_file_idx],
         filelist->files[index_file_idx],
@@ -257,7 +257,7 @@ load_sprite_pix32(
         return NULL;
     }
     sprite = dashsprite_new_from_cache_pix32(pix32);
-    cache_dat_pix32_free(pix32);
+    RSCacheDat1A_Pix32Free(pix32);
     return sprite;
 }
 
@@ -303,9 +303,9 @@ load_sprite(
         buildcachedat->cfg_media_jagfile &&
         "buildcachedat must have media_filelist to load sprites");
 
-    struct FileListDat* filelist = buildcachedat->cfg_media_jagfile;
-    int index_file_idx = filelist_dat_find_file_by_name(filelist, load->index_filename);
-    int data_file_idx = filelist_dat_find_file_by_name(filelist, load->data_filename);
+    struct RSCacheShared_FileListDat* filelist = buildcachedat->cfg_media_jagfile;
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, load->index_filename);
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, load->data_filename);
     if( index_file_idx == -1 || data_file_idx == -1 )
     {
         assert(0 && "Failed to find index or data file in filelist for sprite");
@@ -739,7 +739,7 @@ push_rs_from_cache_component(
     struct Scene2* scene2,
     struct BuildCacheDat* bcd,
     int32_t parent_uitree_idx,
-    struct CacheDatConfigComponent* comp,
+    struct RSCacheDat1A_ConfigComponent* comp,
     int abs_x,
     int abs_y,
     int sidebar_inv_index)
@@ -757,7 +757,7 @@ push_rs_from_cache_component(
             return;
         for( int i = 0; i < comp->children_count; i++ )
         {
-            struct CacheDatConfigComponent* ch =
+            struct RSCacheDat1A_ConfigComponent* ch =
                 buildcachedat_get_component(bcd, comp->children[i]);
             if( !ch )
                 continue;
@@ -935,13 +935,13 @@ push_rs_from_cache_component(
         struct Scene2Element* se = scene2_element_at(scene2, eid);
         if( !se )
         {
-            dashmodel_free(m);
+            dashRSCacheDat2A_ModelFree(m);
             return;
         }
         struct DashPosition* pos = dashposition_new();
         if( !pos )
         {
-            dashmodel_free(m);
+            dashRSCacheDat2A_ModelFree(m);
             return;
         }
         memset(pos, 0, sizeof(struct DashPosition));
@@ -980,7 +980,7 @@ expand_sidebar_rs_tree(
     if( !bcd || component_no < 0 || sidebar_idx < 0 ||
         (uint32_t)sidebar_idx >= ui->component_count )
         return;
-    struct CacheDatConfigComponent* root = buildcachedat_get_component(bcd, component_no);
+    struct RSCacheDat1A_ConfigComponent* root = buildcachedat_get_component(bcd, component_no);
     if( !root )
         return;
     int sx = ui->components[sidebar_idx].position.x;

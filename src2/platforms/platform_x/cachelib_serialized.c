@@ -1,13 +1,13 @@
 #include "cachelib_serialized.h"
-#include "src/osrs/rscache/cache.h"
-#include "src/osrs/rscache/cache_dat.h"
+#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
 
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define CACHELIB_CACHE_ARCHIVE_HEADER_SIZE (6 * sizeof(int))
-#define CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE (7 * sizeof(int))
+#define CACHELIB_CACHE_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE (6 * sizeof(int))
+#define CACHELIB_CACHE_DAT_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE (7 * sizeof(int))
 
 /* Explicit little-endian encoding for 32-bit integers. */
 static void
@@ -36,16 +36,16 @@ read_int(const uint8_t* p)
 /* ========== CacheArchive serialization ========== */
 
 int
-cachelib_cache_archive_serialized_size(const struct CacheArchive* archive)
+cachelib_cache_archive_serialized_size(const struct RSCacheDat2Disk_Archive* archive)
 {
     if( !archive )
         return -1;
-    return CACHELIB_CACHE_ARCHIVE_HEADER_SIZE + (archive->data_size >= 0 ? (size_t)archive->data_size : 0);
+    return CACHELIB_CACHE_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE + (archive->data_size >= 0 ? (size_t)archive->data_size : 0);
 }
 
 int
 cachelib_cache_archive_serialize_to_buffer(
-    const struct CacheArchive* archive,
+    const struct RSCacheDat2Disk_Archive* archive,
     void* buffer,
     int size)
 {
@@ -67,36 +67,36 @@ cachelib_cache_archive_serialize_to_buffer(
     write_int(p + 20, archive->file_count);  /* file_count */
 
     if( data_size > 0 && archive->data )
-        memcpy(p + CACHELIB_CACHE_ARCHIVE_HEADER_SIZE, archive->data, (size_t)data_size);
+        memcpy(p + CACHELIB_CACHE_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE, archive->data, (size_t)data_size);
 
     return need;
 }
 
-struct CacheArchive*
+struct RSCacheDat2Disk_Archive*
 cachelib_cache_archive_deserialize(
     const void* buffer,
     int size)
 {
-    if( !buffer || size < (int)CACHELIB_CACHE_ARCHIVE_HEADER_SIZE )
+    if( !buffer || size < (int)CACHELIB_CACHE_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE )
         return NULL;
 
     const uint8_t* p = (const uint8_t*)buffer;
     int total_size = read_int(p + 0);
     int data_size = read_int(p + 4);
 
-    if( total_size < (int)CACHELIB_CACHE_ARCHIVE_HEADER_SIZE ||
-        total_size != (int)CACHELIB_CACHE_ARCHIVE_HEADER_SIZE + data_size )
+    if( total_size < (int)CACHELIB_CACHE_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE ||
+        total_size != (int)CACHELIB_CACHE_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE + data_size )
         return NULL;
     if( size < total_size )
         return NULL;
     if( data_size < 0 )
         return NULL;
 
-    struct CacheArchive* archive =
-        (struct CacheArchive*)malloc(sizeof(struct CacheArchive));
+    struct RSCacheDat2Disk_Archive* archive =
+        (struct RSCacheDat2Disk_Archive*)malloc(sizeof(struct RSCacheDat2Disk_Archive));
     if( !archive )
         return NULL;
-    memset(archive, 0, sizeof(struct CacheArchive));
+    memset(archive, 0, sizeof(struct RSCacheDat2Disk_Archive));
 
     archive->data_size = data_size;
     archive->archive_id = read_int(p + 8);
@@ -112,7 +112,7 @@ cachelib_cache_archive_deserialize(
             free(archive);
             return NULL;
         }
-        memcpy(archive->data, p + CACHELIB_CACHE_ARCHIVE_HEADER_SIZE, (size_t)data_size);
+        memcpy(archive->data, p + CACHELIB_CACHE_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE, (size_t)data_size);
     }
     else
         archive->data = NULL;
@@ -121,7 +121,7 @@ cachelib_cache_archive_deserialize(
 }
 
 void
-cachelib_cache_archive_free(struct CacheArchive* archive)
+cachelib_RSCacheDat2Disk_ArchiveFree(struct RSCacheDat2Disk_Archive* archive)
 {
     if( !archive )
         return;
@@ -133,16 +133,16 @@ cachelib_cache_archive_free(struct CacheArchive* archive)
 /* ========== CacheDatArchive serialization ========== */
 
 int
-cachelib_cache_dat_archive_serialized_size(const struct CacheDatArchive* archive)
+cachelib_cache_dat_archive_serialized_size(const struct RSCacheDat1Disk_Archive* archive)
 {
     if( !archive )
         return -1;
-    return CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE + (archive->data_size >= 0 ? (size_t)archive->data_size : 0);
+    return CACHELIB_CACHE_DAT_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE + (archive->data_size >= 0 ? (size_t)archive->data_size : 0);
 }
 
 int
 cachelib_cache_dat_archive_serialize_to_buffer(
-    const struct CacheDatArchive* archive,
+    const struct RSCacheDat1Disk_Archive* archive,
     void* buffer,
     int size)
 {
@@ -165,43 +165,43 @@ cachelib_cache_dat_archive_serialize_to_buffer(
     write_int(p + 24, (int)archive->format); /* format */
 
     if( data_size > 0 && archive->data )
-        memcpy(p + CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE, archive->data, (size_t)data_size);
+        memcpy(p + CACHELIB_CACHE_DAT_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE, archive->data, (size_t)data_size);
 
     return need;
 }
 
-struct CacheDatArchive*
+struct RSCacheDat1Disk_Archive*
 cachelib_cache_dat_archive_deserialize(
     const void* buffer,
     int size)
 {
-    if( !buffer || size < (int)CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE )
+    if( !buffer || size < (int)CACHELIB_CACHE_DAT_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE )
         return NULL;
 
     const uint8_t* p = (const uint8_t*)buffer;
     int total_size = read_int(p + 0);
     int data_size = read_int(p + 4);
 
-    if( total_size < (int)CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE ||
-        total_size != (int)CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE + data_size )
+    if( total_size < (int)CACHELIB_CACHE_DAT_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE ||
+        total_size != (int)CACHELIB_CACHE_DAT_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE + data_size )
         return NULL;
     if( size < total_size )
         return NULL;
     if( data_size < 0 )
         return NULL;
 
-    struct CacheDatArchive* archive =
-        (struct CacheDatArchive*)malloc(sizeof(struct CacheDatArchive));
+    struct RSCacheDat1Disk_Archive* archive =
+        (struct RSCacheDat1Disk_Archive*)malloc(sizeof(struct RSCacheDat1Disk_Archive));
     if( !archive )
         return NULL;
-    memset(archive, 0, sizeof(struct CacheDatArchive));
+    memset(archive, 0, sizeof(struct RSCacheDat1Disk_Archive));
 
     archive->data_size = data_size;
     archive->archive_id = read_int(p + 8);
     archive->table_id = read_int(p + 12);
     archive->revision = read_int(p + 16);
     archive->file_count = read_int(p + 20);
-    archive->format = (enum ArchiveFormat)read_int(p + 24);
+    archive->format = (enum RSCacheShared_ArchiveFormat)read_int(p + 24);
 
     if( data_size > 0 )
     {
@@ -211,7 +211,7 @@ cachelib_cache_dat_archive_deserialize(
             free(archive);
             return NULL;
         }
-        memcpy(archive->data, p + CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE, (size_t)data_size);
+        memcpy(archive->data, p + CACHELIB_CACHE_DAT_RSCACHE_SHARED_ARCHIVE_HEADER_SIZE, (size_t)data_size);
     }
     else
         archive->data = NULL;
@@ -220,7 +220,7 @@ cachelib_cache_dat_archive_deserialize(
 }
 
 void
-cachelib_cache_dat_archive_free(struct CacheDatArchive* archive)
+cachelib_RSCacheDat1Disk_ArchiveFree(struct RSCacheDat1Disk_Archive* archive)
 {
     if( !archive )
         return;

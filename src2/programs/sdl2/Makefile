@@ -39,7 +39,7 @@ CC       ?= cc
 CFLAGS   ?= -O0 -Wall -Wextra -Werror -g
 CFLAGS   += -Wno-implicit-fallthrough -Wno-unused-function -Wno-unused-variable \
 	-Wno-unused-parameter
-CPPFLAGS += -I$(SRC_DIR) -I$(SRC2) -I$(SCRIPT_DIR) -I$(REPO_ROOT) \
+CPPFLAGS += -I$(SRC2)/toridraw -I$(SRC_DIR) -I$(SRC2) -I$(SCRIPT_DIR) -I$(REPO_ROOT) \
 	-I$(TRSPK_DIR)/include -I$(TRSPK_DIR)/src
 
 # Vendored Lua — embed library, not lua/luac interpreters.
@@ -129,42 +129,13 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/games/runescape.c \
 	$(SRC_DIR)/graphics/dashmap.c \
 	$(SRC_DIR)/graphics/lighting.c \
-	$(SRC_DIR)/graphics/shared_tables.c \
+	$(SRC2)/toridraw/graphics/shared_tables.c \
 	$(SRC_DIR)/osrs/palette.c \
 	$(SRC_DIR)/osrs/painters.c \
 	$(SRC_DIR)/osrs/texture.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c \
-	$(SRC_DIR)/osrs/rscache/cache.c \
-	$(SRC_DIR)/osrs/rscache/cache_dat.c \
-	$(SRC_DIR)/osrs/rscache/xtea_config.c \
-	$(SRC_DIR)/osrs/rscache/reference_table.c \
-	$(SRC_DIR)/osrs/rscache/filelist.c \
-	$(SRC_DIR)/osrs/rscache/disk.c \
-	$(SRC_DIR)/osrs/rscache/rsbuf.c \
-	$(SRC_DIR)/osrs/rscache/archive.c \
-	$(SRC_DIR)/osrs/rscache/archive_decompress.c \
-	$(SRC_DIR)/osrs/rscache/compression.c \
-	$(SRC_DIR)/osrs/rscache/xtea.c \
-	$(SRC_DIR)/osrs/rscache/tables/string_utils.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/pix8.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/pix32.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/pixfont.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_versionlist_mapsquare.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_textures.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_idk.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_npc.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_obj.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_component.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_spotanim.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_varp.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/animframe.c \
-	$(SRC_DIR)/osrs/rscache/tables/config_sequence.c \
-	$(SRC_DIR)/osrs/rscache/tables/config_floortype.c \
-	$(SRC_DIR)/osrs/rscache/tables/config_locs.c \
-	$(SRC_DIR)/osrs/rscache/tables/maps.c \
-	$(SRC_DIR)/osrs/rscache/tables/noise.c \
-	$(SRC_DIR)/osrs/rscache/tables/model.c \
+	$(SRC_DIR)/osrs/rscache/rscache_unity.c \
 	$(PLAT_DIR)/platform_x_cache.c \
 	$(SRC2)/libtorirs.c \
 	$(LUA_SRC)
@@ -311,22 +282,6 @@ LEGACY_TABLE_WARNINGS := -Wno-unused-function -Wno-unused-variable -Wno-unused-l
 	-Wno-unused-but-set-variable -Wno-pointer-sign -Wno-parentheses
 
 $(foreach src,$(SRCS),$(eval $(call make-goal,$(src))))
-
-# Override generic rules: legacy osrs table decoders do not build cleanly under -Werror.
-$(OBJ_DIR)/config_sequence.o: $(SRC_DIR)/osrs/rscache/tables/config_sequence.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) $(LEGACY_TABLE_WARNINGS) -c $< -o $@
-
-$(OBJ_DIR)/config_floortype.o: $(SRC_DIR)/osrs/rscache/tables/config_floortype.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) $(LEGACY_TABLE_WARNINGS) -c $< -o $@
-
-$(OBJ_DIR)/config_locs.o: $(SRC_DIR)/osrs/rscache/tables/config_locs.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) $(LEGACY_TABLE_WARNINGS) -c $< -o $@
-
-$(OBJ_DIR)/maps.o: $(SRC_DIR)/osrs/rscache/tables/maps.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) $(LEGACY_TABLE_WARNINGS) -c $< -o $@
-
-$(OBJ_DIR)/noise.o: $(SRC_DIR)/osrs/rscache/tables/noise.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) $(LEGACY_TABLE_WARNINGS) -c $< -o $@
 
 $(OBJ_DIR)/trspk_vertex_buffer.o: $(TRSPK_DIR)/src/tools/trspk_vertex_buffer.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) -Wno-unused-parameter -c $< -o $@

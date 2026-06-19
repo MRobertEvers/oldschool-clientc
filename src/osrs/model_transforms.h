@@ -1,7 +1,7 @@
 #ifndef GAME_MODEL_H
 #define GAME_MODEL_H
 
-#include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
 
 enum TransformFlag
 {
@@ -14,11 +14,11 @@ enum TransformFlag
 };
 
 void
-model_transform_mirror(struct CacheModel* model);
+model_transform_mirror(struct RSCacheDat2A_Model* model);
 
 void
 model_transform_hillskew(
-    struct CacheModel* model,
+    struct RSCacheDat2A_Model* model,
     int sw_height,
     int se_height,
     int ne_height,
@@ -26,31 +26,31 @@ model_transform_hillskew(
 
 void
 model_transform_recolor(
-    struct CacheModel* model,
+    struct RSCacheDat2A_Model* model,
     int color_src,
     int color_dst);
 
 void
 model_transform_retexture(
-    struct CacheModel* model,
+    struct RSCacheDat2A_Model* model,
     int texture_src,
     int texture_dst);
 
 void
 model_transform_scale(
-    struct CacheModel* model,
+    struct RSCacheDat2A_Model* model,
     int x,
     int y,
     int z);
 
 void
 model_transform_orient(
-    struct CacheModel* model,
+    struct RSCacheDat2A_Model* model,
     int orientation);
 
 void
 model_transform_translate(
-    struct CacheModel* model,
+    struct RSCacheDat2A_Model* model,
     int x,
     int y,
     int z);

@@ -133,12 +133,12 @@ struct RevConfigUILayoutItem
     int dirty;
 };
 
-#define REVCONFIG_INV_MAX_ITEMS 32
+#define REVRSCacheDat2A_ConfigKind_Inv_MAX_ITEMS 32
 
 struct RevConfigInvItem
 {
     char name[64];
-    char items[REVCONFIG_INV_MAX_ITEMS][64];
+    char items[REVRSCacheDat2A_ConfigKind_Inv_MAX_ITEMS][64];
     int item_count;
 };
 

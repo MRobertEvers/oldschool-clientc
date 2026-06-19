@@ -1,16 +1,16 @@
 #include "configmap.h"
 
 #include "filepack.h"
-#include "rscache/filelist.h"
-#include "rscache/tables/config_floortype.h"
-#include "rscache/tables/config_idk.h"
-#include "rscache/tables/config_locs.h"
-#include "rscache/tables/config_npctype.h"
-#include "rscache/tables/config_object.h"
-#include "rscache/tables/config_sequence.h"
-#include "rscache/tables/configs.h"
-#include "rscache/tables/frame.h"
-#include "rscache/tables/textures.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_idk.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_npctype.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_object.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_configs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_frame.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_textures.h"
 
 #include <assert.h>
 #include <math.h>
@@ -48,49 +48,49 @@ iterable(
 struct ConfigUnderlayEntry
 {
     int id;
-    struct CacheConfigUnderlay underlay;
+    struct RSCacheDat2A_ConfigUnderlay underlay;
 };
 
 struct ConfigOverlayEntry
 {
     int id;
-    struct CacheConfigOverlay overlay;
+    struct RSCacheDat2A_ConfigOverlay overlay;
 };
 
 struct ConfigObjectEntry
 {
     int id;
-    struct CacheConfigObject object;
+    struct RSCacheDat2A_ConfigObject object;
 };
 
 struct ConfigSequenceEntry
 {
     int id;
-    struct CacheConfigSequence sequence;
+    struct RSCacheDat2A_ConfigSequence sequence;
 };
 
 struct ConfigNPCEntry
 {
     int id;
-    struct CacheConfigNPCType npc;
+    struct RSCacheDat2A_ConfigNpctype npc;
 };
 
 struct ConfigLocsEntry
 {
     int id;
-    struct CacheConfigLocation loc;
+    struct RSCacheDat2A_ConfigLocation loc;
 };
 
 struct ConfigTexturesEntry
 {
     int id;
-    struct CacheTexture texture;
+    struct RSCacheDat2A_Texture texture;
 };
 
 struct FrameEntry
 {
     int id;
-    struct CacheFrame frame;
+    struct RSCacheDat2A_Frame frame;
 };
 
 static size_t
@@ -98,28 +98,28 @@ configsize(
     int table_id,
     int archive_id)
 {
-    if( table_id == CACHE_CONFIGS )
+    if( table_id == RSCacheDat2Disk_Table_Configs )
     {
         switch( archive_id )
         {
-        case CONFIG_UNDERLAY:
+        case RSCacheDat2A_ConfigKind_Underlay:
             return sizeof(struct ConfigUnderlayEntry);
-        case CONFIG_OVERLAY:
+        case RSCacheDat2A_ConfigKind_Overlay:
             return sizeof(struct ConfigOverlayEntry);
-        case CONFIG_OBJECT:
+        case RSCacheDat2A_ConfigKind_Object:
             return sizeof(struct ConfigObjectEntry);
-        case CONFIG_SEQUENCE:
+        case RSCacheDat2A_ConfigKind_Sequence:
             return sizeof(struct ConfigSequenceEntry);
-        case CONFIG_NPC:
+        case RSCacheDat2A_ConfigKind_Npc:
             return sizeof(struct ConfigNPCEntry);
-        case CONFIG_LOCS:
+        case RSCacheDat2A_ConfigKind_Locs:
             return sizeof(struct ConfigLocsEntry);
         default:
             assert(false);
             return 0;
         }
     }
-    else if( table_id == CACHE_TEXTURES )
+    else if( table_id == RSCacheDat2Disk_Table_Textures )
     {
         return sizeof(struct ConfigTexturesEntry);
     }
@@ -135,30 +135,30 @@ configalign(
     int table_id,
     int archive_id)
 {
-    if( table_id == CACHE_CONFIGS )
+    if( table_id == RSCacheDat2Disk_Table_Configs )
     {
         switch( archive_id )
         {
-        case CONFIG_UNDERLAY:
-            return alignof(struct CacheConfigUnderlay);
-        case CONFIG_OVERLAY:
-            return alignof(struct CacheConfigOverlay);
-        case CONFIG_OBJECT:
-            return alignof(struct CacheConfigObject);
-        case CONFIG_SEQUENCE:
-            return alignof(struct CacheConfigSequence);
-        case CONFIG_NPC:
-            return alignof(struct CacheConfigNPCType);
-        case CONFIG_LOCS:
-            return alignof(struct CacheConfigLocation);
+        case RSCacheDat2A_ConfigKind_Underlay:
+            return alignof(struct RSCacheDat2A_ConfigUnderlay);
+        case RSCacheDat2A_ConfigKind_Overlay:
+            return alignof(struct RSCacheDat2A_ConfigOverlay);
+        case RSCacheDat2A_ConfigKind_Object:
+            return alignof(struct RSCacheDat2A_ConfigObject);
+        case RSCacheDat2A_ConfigKind_Sequence:
+            return alignof(struct RSCacheDat2A_ConfigSequence);
+        case RSCacheDat2A_ConfigKind_Npc:
+            return alignof(struct RSCacheDat2A_ConfigNpctype);
+        case RSCacheDat2A_ConfigKind_Locs:
+            return alignof(struct RSCacheDat2A_ConfigLocation);
         default:
             assert(false);
             return 0;
         }
     }
-    else if( table_id == CACHE_TEXTURES )
+    else if( table_id == RSCacheDat2Disk_Table_Textures )
     {
-        return alignof(struct CacheTexture);
+        return alignof(struct RSCacheDat2A_Texture);
     }
     else
     {
@@ -173,26 +173,26 @@ configfree(
     int archive_id,
     void* ptr)
 {
-    if( table_id == CACHE_CONFIGS )
+    if( table_id == RSCacheDat2Disk_Table_Configs )
     {
         switch( archive_id )
         {
-        case CONFIG_UNDERLAY:
+        case RSCacheDat2A_ConfigKind_Underlay:
             config_floortype_underlay_free_inplace(&((struct ConfigUnderlayEntry*)ptr)->underlay);
             break;
-        case CONFIG_OVERLAY:
+        case RSCacheDat2A_ConfigKind_Overlay:
             config_floortype_overlay_free_inplace(&((struct ConfigOverlayEntry*)ptr)->overlay);
             break;
-        case CONFIG_OBJECT:
-            // config_object_free((struct CacheConfigObject*)ptr);
+        case RSCacheDat2A_ConfigKind_Object:
+            // RSCacheDat2A_ConfigObjectFree((struct RSCacheDat2A_ConfigObject*)ptr);
             break;
-        case CONFIG_SEQUENCE:
-            config_sequence_free_inplace(&((struct ConfigSequenceEntry*)ptr)->sequence);
+        case RSCacheDat2A_ConfigKind_Sequence:
+            RSCacheDat2A_ConfigSequenceFreeInplace(&((struct ConfigSequenceEntry*)ptr)->sequence);
             break;
-        case CONFIG_NPC:
-            // config_npctype_free((struct CacheConfigNPCType*)ptr);
+        case RSCacheDat2A_ConfigKind_Npc:
+            // RSCacheDat2A_ConfigNpctypeFree((struct RSCacheDat2A_ConfigNpctype*)ptr);
             break;
-        case CONFIG_LOCS:
+        case RSCacheDat2A_ConfigKind_Locs:
             config_locs_free_inplace(&((struct ConfigLocsEntry*)ptr)->loc);
             break;
         default:
@@ -200,9 +200,9 @@ configfree(
             break;
         }
     }
-    else if( table_id == CACHE_TEXTURES )
+    else if( table_id == RSCacheDat2Disk_Table_Textures )
     {
-        texture_definition_free_inplace(&((struct ConfigTexturesEntry*)ptr)->texture);
+        RSCacheDat2A_TextureDefinitionFreeInplace(&((struct ConfigTexturesEntry*)ptr)->texture);
     }
     else
     {
@@ -220,40 +220,40 @@ configdecode(
     char* data,
     int data_size)
 {
-    if( table_id == CACHE_CONFIGS )
+    if( table_id == RSCacheDat2Disk_Table_Configs )
     {
         switch( archive_id )
         {
-        case CONFIG_UNDERLAY:
+        case RSCacheDat2A_ConfigKind_Underlay:
         {
             struct ConfigUnderlayEntry* entry = (struct ConfigUnderlayEntry*)ptr;
             entry->id = id;
             config_floortype_underlay_decode_inplace(&entry->underlay, data, data_size);
         }
         break;
-        case CONFIG_OVERLAY:
+        case RSCacheDat2A_ConfigKind_Overlay:
         {
             struct ConfigOverlayEntry* entry = (struct ConfigOverlayEntry*)ptr;
             entry->id = id;
             config_floortype_overlay_decode_inplace(&entry->overlay, data, data_size);
         }
         break;
-        case CONFIG_OBJECT:
+        case RSCacheDat2A_ConfigKind_Object:
         {
             struct ConfigObjectEntry* entry = (struct ConfigObjectEntry*)ptr;
             entry->id = id;
-            config_object_decode_inplace(&entry->object, data, data_size);
+            RSCacheDat2A_ConfigObjectDecodeInplace(&entry->object, data, data_size);
         }
         break;
-        case CONFIG_SEQUENCE:
+        case RSCacheDat2A_ConfigKind_Sequence:
         {
             struct ConfigSequenceEntry* entry = (struct ConfigSequenceEntry*)ptr;
             entry->id = id;
-            config_sequence_decode_inplace(&entry->sequence, revision, data, data_size);
+            RSCacheDat2A_ConfigSequenceDecodeInplace(&entry->sequence, revision, data, data_size);
             entry->sequence.id = id;
         }
         break;
-        case CONFIG_LOCS:
+        case RSCacheDat2A_ConfigKind_Locs:
         {
             struct ConfigLocsEntry* entry = (struct ConfigLocsEntry*)ptr;
             entry->id = id;
@@ -266,21 +266,21 @@ configdecode(
         }
         break;
 
-        case CONFIG_NPC:
+        case RSCacheDat2A_ConfigKind_Npc:
         {
             assert(false);
         }
         break;
         }
     }
-    else if( table_id == CACHE_TEXTURES )
+    else if( table_id == RSCacheDat2Disk_Table_Textures )
     {
         struct ConfigTexturesEntry* entry = (struct ConfigTexturesEntry*)ptr;
         entry->id = id;
-        texture_definition_decode_inplace(&entry->texture, data, data_size);
+        RSCacheDat2A_TextureDefinitionDecodeInplace(&entry->texture, data, data_size);
         entry->texture._id = id;
     }
-    else if( table_id == CACHE_ANIMATIONS )
+    else if( table_id == RSCacheDat2Disk_Table_Animations )
     {
         struct FrameEntry* entry = (struct FrameEntry*)ptr;
         entry->id = id;
@@ -306,43 +306,43 @@ configvalue(
         out_id = &dummy;
     }
 
-    if( table_id == CACHE_CONFIGS )
+    if( table_id == RSCacheDat2Disk_Table_Configs )
     {
         switch( archive_id )
         {
-        case CONFIG_UNDERLAY:
+        case RSCacheDat2A_ConfigKind_Underlay:
         {
             struct ConfigUnderlayEntry* entry = (struct ConfigUnderlayEntry*)ptr;
             *out_id = entry->id;
             return &entry->underlay;
         }
-        case CONFIG_OVERLAY:
+        case RSCacheDat2A_ConfigKind_Overlay:
         {
             struct ConfigOverlayEntry* entry = (struct ConfigOverlayEntry*)ptr;
             *out_id = entry->id;
             entry->overlay._id = entry->id;
             return &entry->overlay;
         }
-        case CONFIG_OBJECT:
+        case RSCacheDat2A_ConfigKind_Object:
         {
             struct ConfigObjectEntry* entry = (struct ConfigObjectEntry*)ptr;
             *out_id = entry->id;
             entry->object._id = entry->id;
             return &entry->object;
         }
-        case CONFIG_SEQUENCE:
+        case RSCacheDat2A_ConfigKind_Sequence:
         {
             struct ConfigSequenceEntry* entry = (struct ConfigSequenceEntry*)ptr;
             *out_id = entry->id;
             return &entry->sequence;
         }
-        case CONFIG_NPC:
+        case RSCacheDat2A_ConfigKind_Npc:
         {
             struct ConfigNPCEntry* entry = (struct ConfigNPCEntry*)ptr;
             *out_id = entry->id;
             return &entry->npc;
         }
-        case CONFIG_LOCS:
+        case RSCacheDat2A_ConfigKind_Locs:
         {
             struct ConfigLocsEntry* entry = (struct ConfigLocsEntry*)ptr;
             *out_id = entry->id;
@@ -354,14 +354,14 @@ configvalue(
             return NULL;
         }
     }
-    else if( table_id == CACHE_TEXTURES )
+    else if( table_id == RSCacheDat2Disk_Table_Textures )
     {
         struct ConfigTexturesEntry* entry = (struct ConfigTexturesEntry*)ptr;
         entry->texture._id = entry->id;
         *out_id = entry->id;
         return &entry->texture;
     }
-    else if( table_id == CACHE_ANIMATIONS )
+    else if( table_id == RSCacheDat2Disk_Table_Animations )
     {
         struct FrameEntry* entry = (struct FrameEntry*)ptr;
         entry->frame._id = entry->id;
@@ -404,13 +404,13 @@ configmap_new_from_filepack(
     int* ids_nullable,
     int ids_size)
 {
-    struct ArchiveReference* archive_reference = NULL;
-    struct FileList* file_list = NULL;
+    struct RSCacheDat2Disk_ArchiveReference* archive_reference = NULL;
+    struct RSCacheShared_FileList* file_list = NULL;
 
     struct DashMapConfig config = { 0 };
     struct DashMap* dashmap = NULL;
     struct MetadataEntry* metadata = NULL;
-    struct ArchiveFileReference* archive_file_references = NULL;
+    struct RSCacheDat2Disk_ArchiveFileReference* archive_file_references = NULL;
 
     struct FileMetadata file_metadata = { 0 };
     struct FilePack filepack = { .data = data, .data_size = data_size };
@@ -420,9 +420,9 @@ configmap_new_from_filepack(
     int archive_id = file_metadata.archive_id;
     int revision = file_metadata.revision;
 
-    archive_file_references = (struct ArchiveFileReference*)(file_metadata.filelist_reference_ptr_);
+    archive_file_references = (struct RSCacheDat2Disk_ArchiveFileReference*)(file_metadata.filelist_reference_ptr_);
 
-    file_list = filelist_new_from_decode(
+    file_list = RSCacheShared_FileListNewFromDecode(
         file_metadata.data_ptr_, file_metadata.data_size, file_metadata.file_count);
 
     int count = ids_nullable ? ids_size : file_list->file_count;
@@ -455,7 +455,7 @@ configmap_new_from_filepack(
             table_id, archive_id, ptr, id, revision, file_list->files[i], file_list->file_sizes[i]);
     }
 
-    filelist_free(file_list);
+    RSCacheShared_FileListFree(file_list);
 
     // Insert metadata
 

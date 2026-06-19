@@ -324,7 +324,7 @@ build_scene_terrain(struct World* world)
                 // underlay = flotype_entry->flotype;
                 // assert(underlay != NULL);
 
-                // underlay = (struct CacheConfigUnderlay*)configmap_get(
+                // underlay = (struct RSCacheDat2A_ConfigUnderlay*)configmap_get(
                 //     config_underlay_map, underlay_id - 1);
                 // assert(underlay != NULL);
 

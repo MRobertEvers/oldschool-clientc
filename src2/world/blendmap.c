@@ -100,7 +100,7 @@ blendmap_get_blended_hsl16(
 void
 blendmap_build(struct Blendmap* blendmap)
 {
-    struct CacheMapFloor* tile = NULL;
+    struct RSCacheDat2A_MapFloor* tile = NULL;
 
     struct HSL hsl;
     int size_x = blendmap->width;
@@ -142,7 +142,7 @@ blendmap_build(struct Blendmap* blendmap)
 
                         // hsl = palette_rgb_to_hsl24(flotype_entry->flotype->rgb_color);
 
-                        // struct CacheConfigUnderlay* entry = (struct
+                        // struct RSCacheDat2A_ConfigUnderlay* entry = (struct
                         // CacheConfigUnderlay*)configmap_get(
                         //     config_underlay_map, underlay_id - 1);
                         // assert(entry != NULL);
@@ -174,7 +174,7 @@ blendmap_build(struct Blendmap* blendmap)
 
                         // hsl = palette_rgb_to_hsl24(flotype_entry->flotype->rgb_color);
 
-                        // struct CacheConfigUnderlay* entry = (struct
+                        // struct RSCacheDat2A_ConfigUnderlay* entry = (struct
                         // CacheConfigUnderlay*)configmap_get(
                         //     config_underlay_map, underlay_id - 1);
                         // assert(entry != NULL);

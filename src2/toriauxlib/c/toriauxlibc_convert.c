@@ -1,19 +1,19 @@
 #include "toriauxlib/c/toriauxlibc.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
-#include "osrs/rscache/tables/config_floortype.h"
-#include "osrs/rscache/tables/config_locs.h"
-#include "osrs/rscache/tables/config_sequence.h"
-#include "osrs/rscache/tables/maps.h"
-#include "osrs/rscache/tables_dat/animframe.h"
-#include "osrs/rscache/tables_dat/config_textures.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_textures.h"
 #include "osrs/texture.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 static struct ToriAuxLibCore_AnimBase*
-toriauxlibc_animbase_move_from_cache(struct CacheAnimBase* cache_base)
+toriauxlibc_animbase_move_from_cache(struct RSCacheDat1A_AnimBase* cache_base)
 {
     if( !cache_base )
         return NULL;
@@ -40,7 +40,7 @@ toriauxlibc_animbase_move_from_cache(struct CacheAnimBase* cache_base)
 struct ToriAuxLibCore_Animation*
 ToriAuxLibC_AnimationNewFromCacheDatAnimbaseframes(const void* abf_ptr)
 {
-    struct CacheDatAnimBaseFrames* abf = (struct CacheDatAnimBaseFrames*)abf_ptr;
+    struct RSCacheDat1A_AnimBaseFrames* abf = (struct RSCacheDat1A_AnimBaseFrames*)abf_ptr;
     if( !abf )
         return NULL;
 
@@ -66,7 +66,7 @@ ToriAuxLibC_AnimationNewFromCacheDatAnimbaseframes(const void* abf_ptr)
 
         for( int i = 0; i < abf->frame_count; i++ )
         {
-            struct CacheAnimframe* cf = &abf->frames[i];
+            struct RSCacheDat1A_AnimFrame* cf = &abf->frames[i];
             struct ToriAuxLibCore_AnimFrame* tf = &anim->frames[i];
             memset(tf, 0, sizeof(struct ToriAuxLibCore_AnimFrame));
 
@@ -99,7 +99,7 @@ ToriAuxLibC_TextureNewFromCacheDatTexture(
     int animation_direction,
     int animation_speed)
 {
-    struct CacheDatTexture* cache_texture = (struct CacheDatTexture*)cache_texture_ptr;
+    struct RSCacheDat1A_ConfigTexture* cache_texture = (struct RSCacheDat1A_ConfigTexture*)cache_texture_ptr;
     if( !cache_texture )
         return NULL;
 
@@ -129,7 +129,7 @@ ToriAuxLibC_TextureNewFromCacheDatTexture(
 struct ToriAuxLibCore_MapTerrain*
 ToriAuxLibC_MapTerrainNewFromCacheMapTerrain(const void* cache_terrain_ptr)
 {
-    const struct CacheMapTerrain* src = cache_terrain_ptr;
+    const struct RSCacheDat2A_MapTerrain* src = cache_terrain_ptr;
     if( !src )
         return NULL;
 
@@ -143,7 +143,7 @@ ToriAuxLibC_MapTerrainNewFromCacheMapTerrain(const void* cache_terrain_ptr)
          i < TORIAUXLIBCORE_MAP_TERRAIN_X * TORIAUXLIBCORE_MAP_TERRAIN_Z * TORIAUXLIBCORE_MAP_TERRAIN_LEVELS;
          i++ )
     {
-        const struct CacheMapFloor* s = &src->tiles_xyz[i];
+        const struct RSCacheDat2A_MapFloor* s = &src->tiles_xyz[i];
         struct ToriAuxLibCore_MapFloor* d = &dst->tiles_xyz[i];
         d->overlay_id = s->overlay_id;
         d->underlay_id = s->underlay_id;
@@ -158,7 +158,7 @@ ToriAuxLibC_MapTerrainNewFromCacheMapTerrain(const void* cache_terrain_ptr)
 struct ToriAuxLibCore_MapLocs*
 ToriAuxLibC_MapLocsNewFromCacheMapLocs(const void* cache_locs_ptr)
 {
-    const struct CacheMapLocs* src = cache_locs_ptr;
+    const struct RSCacheDat2A_MapLocs* src = cache_locs_ptr;
     if( !src )
         return NULL;
 
@@ -197,7 +197,7 @@ ToriAuxLibC_FlotypeNewFromCacheConfigOverlay(
     const void* cache_overlay_ptr,
     int id)
 {
-    const struct CacheConfigOverlay* src = cache_overlay_ptr;
+    const struct RSCacheDat2A_ConfigOverlay* src = cache_overlay_ptr;
     if( !src )
         return NULL;
 
@@ -216,7 +216,7 @@ ToriAuxLibC_FlotypeNewFromCacheConfigOverlay(
 struct ToriAuxLibCore_Location*
 ToriAuxLibC_LocationNewFromCacheConfigLocation(const void* cache_loc_ptr)
 {
-    const struct CacheConfigLocation* src = cache_loc_ptr;
+    const struct RSCacheDat2A_ConfigLocation* src = cache_loc_ptr;
     if( !src )
         return NULL;
 
@@ -317,7 +317,7 @@ ToriAuxLibC_SequenceNewFromCacheDatSequence(
     const void* cache_seq_ptr,
     int id)
 {
-    const struct CacheDatSequence* src = cache_seq_ptr;
+    const struct RSCacheDat1A_ConfigSequence* src = cache_seq_ptr;
     if( !src )
         return NULL;
 

@@ -1453,7 +1453,7 @@ Dash owns the dash assets.
 
 struct BuildCacheDat
 {
-struct FileListDat\* config_jagfile;
+struct RSCacheShared_FileListDat\* config_jagfile;
 
 struct DashMap* models_hmap;
 struct DashMap* textures_hmap;

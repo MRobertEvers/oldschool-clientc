@@ -10,8 +10,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-struct Cache;
-struct CacheDat;
+struct RSCacheDat2Disk;
+struct RSCacheDat1Disk;
 struct GGame;
 struct GInput;
 struct LuaCSidecar;
@@ -39,8 +39,8 @@ struct Platform2_Win32
     uint32_t last_frame_time_ticks;
 
     struct LuaCSidecar* lua_sidecar;
-    struct Cache* cache;
-    struct CacheDat* cache_dat;
+    struct RSCacheDat2Disk* cache;
+    struct RSCacheDat1Disk* cache_dat;
 
     int tracked_mouse_x;
     int tracked_mouse_y;

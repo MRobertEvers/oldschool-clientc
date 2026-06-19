@@ -11,7 +11,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-struct Cache;
+struct RSCacheDat2Disk;
 struct Platform2_Emscripten_Native
 {
     struct GInput* input;

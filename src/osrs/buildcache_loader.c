@@ -4,11 +4,11 @@
 #include "osrs/buildcache.h"
 #include "osrs/cache_utils.h"
 #include "osrs/configmap.h"
-#include "osrs/rscache/tables/config_sequence.h"
-#include "osrs/rscache/tables/framemap.h"
-#include "osrs/rscache/tables/maps.h"
-#include "osrs/rscache/tables/model.h"
-#include "osrs/rscache/tables/sprites.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_framemap.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_sprites.h"
 
 void
 buildcache_loader_add_map_scenery(
@@ -18,7 +18,7 @@ buildcache_loader_add_map_scenery(
     int data_size,
     void* data)
 {
-    struct CacheMapLocs* locs = map_locs_new_from_decode(data, data_size);
+    struct RSCacheDat2A_MapLocs* locs = map_locs_new_from_decode(data, data_size);
     locs->_chunk_mapx = mapx;
     locs->_chunk_mapz = mapz;
     buildcache_add_map_scenery(buildcache, mapx, mapz, locs);
@@ -38,8 +38,8 @@ buildcache_loader_add_config_scenery(
     game->init_scenery_configmap = configmap_new_from_filepack(data, data_size, (int*)ids, ids_size);
     int id = 0;
     struct DashMapIter* iter = dashmap_iter_new(game->init_scenery_configmap);
-    struct CacheConfigLocation* config_loc = NULL;
-    while( (config_loc = (struct CacheConfigLocation*)configmap_iter_next(iter, &id)) )
+    struct RSCacheDat2A_ConfigLocation* config_loc = NULL;
+    while( (config_loc = (struct RSCacheDat2A_ConfigLocation*)configmap_iter_next(iter, &id)) )
     {
         buildcache_add_config_location(buildcache, id, config_loc);
     }
@@ -53,7 +53,7 @@ buildcache_loader_add_model(
     int data_size,
     void* data)
 {
-    struct CacheModel* model = model_new_decode(data, data_size);
+    struct RSCacheDat2A_Model* model = RSCacheDat2A_ModelNewDecode(data, data_size);
     buildcache_add_model(buildcache, model_id, model);
 }
 
@@ -65,7 +65,7 @@ buildcache_loader_add_map_terrain(
     int data_size,
     void* data)
 {
-    struct CacheMapTerrain* terrain =
+    struct RSCacheDat2A_MapTerrain* terrain =
         map_terrain_new_from_decode(data, data_size, mapx, mapz);
     buildcache_add_map_terrain(buildcache, mapx, mapz, terrain);
 }
@@ -79,8 +79,8 @@ buildcache_loader_add_config_underlay(
     struct DashMap* configmap = configmap_new_from_filepack(data, data_size, NULL, 0);
     struct DashMapIter* iter = dashmap_iter_new(configmap);
     int id = 0;
-    struct CacheConfigUnderlay* underlay = NULL;
-    while( (underlay = (struct CacheConfigUnderlay*)configmap_iter_next(iter, &id)) )
+    struct RSCacheDat2A_ConfigUnderlay* underlay = NULL;
+    while( (underlay = (struct RSCacheDat2A_ConfigUnderlay*)configmap_iter_next(iter, &id)) )
     {
         buildcache_add_config_underlay(buildcache, id, underlay);
     }
@@ -96,8 +96,8 @@ buildcache_loader_add_config_overlay(
     struct DashMap* configmap = configmap_new_from_filepack(data, data_size, NULL, 0);
     struct DashMapIter* iter = dashmap_iter_new(configmap);
     int id = 0;
-    struct CacheConfigOverlay* overlay = NULL;
-    while( (overlay = (struct CacheConfigOverlay*)configmap_iter_next(iter, &id)) )
+    struct RSCacheDat2A_ConfigOverlay* overlay = NULL;
+    while( (overlay = (struct RSCacheDat2A_ConfigOverlay*)configmap_iter_next(iter, &id)) )
     {
         buildcache_add_config_overlay(buildcache, id, overlay);
     }
@@ -127,8 +127,8 @@ buildcache_loader_add_spritepack(
     int data_size,
     void* data)
 {
-    struct CacheSpritePack* spritepack =
-        sprite_pack_new_decode(data, data_size, SPRITELOAD_FLAG_NORMALIZE);
+    struct RSCacheDat2A_SpritePack* spritepack =
+        RSCacheDat2A_SpritePackNewDecode(data, data_size, SPRITELOAD_FLAG_NORMALIZE);
     buildcache_add_spritepack(buildcache, id, spritepack);
 }
 
@@ -147,8 +147,8 @@ buildcache_loader_add_config_sequences(
         configmap_new_from_filepack(data, data_size, (int*)ids, ids_size);
     struct DashMapIter* iter = dashmap_iter_new(game->init_sequences_configmap);
     int seq_id = 0;
-    struct CacheConfigSequence* seq = NULL;
-    while( (seq = (struct CacheConfigSequence*)configmap_iter_next(iter, &seq_id)) )
+    struct RSCacheDat2A_ConfigSequence* seq = NULL;
+    while( (seq = (struct RSCacheDat2A_ConfigSequence*)configmap_iter_next(iter, &seq_id)) )
     {
         buildcache_add_config_sequence(buildcache, seq_id, seq);
     }
@@ -162,8 +162,8 @@ buildcache_loader_add_frame_blob(
     int data_size,
     void* data)
 {
-    struct CacheFrameBlob* blob =
-        (struct CacheFrameBlob*)cu_filelist_new_from_filepack(data, data_size);
+    struct RSCacheDat2A_FrameBlob* blob =
+        (struct RSCacheDat2A_FrameBlob*)cu_filelist_new_from_filepack(data, data_size);
     buildcache_add_frame_blob(buildcache, id, blob);
 }
 
@@ -174,6 +174,6 @@ buildcache_loader_add_framemap(
     int data_size,
     void* data)
 {
-    struct CacheFramemap* framemap = framemap_new_decode2(id, data, data_size);
+    struct RSCacheDat2A_Framemap* framemap = RSCacheDat2A_FramemapNewDecode2(id, data, data_size);
     buildcache_add_framemap(buildcache, id, framemap);
 }

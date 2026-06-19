@@ -6,8 +6,8 @@
 #include "model_transforms.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
-#include "osrs/rscache/tables_dat/config_obj.h"
-#include "rscache/tables/model.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_obj.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -17,10 +17,10 @@
 // Helper function to get obj model for inventory icons
 // Based on ObjType.getModel() - applies scaling, recoloring, and calculates normals
 // This is what getIcon() calls (line 403 in ObjType.ts)
-static struct CacheModel*
+static struct RSCacheDat2A_Model*
 get_obj_inv_model(
     struct GGame* game,
-    struct CacheDatConfigObj* obj)
+    struct RSCacheDat1A_ConfigObj* obj)
 {
     // For inventory icons, we use getModel() which includes scaling and normals
     if( obj->model == 0 || obj->model == -1 )
@@ -28,7 +28,7 @@ get_obj_inv_model(
         return NULL;
     }
 
-    struct CacheModel* model = buildcachedat_get_model(game->buildcachedat, obj->model);
+    struct RSCacheDat2A_Model* model = buildcachedat_get_model(game->buildcachedat, obj->model);
     if( !model )
     {
         // printf("get_obj_inv_model: Could not load model %d\n", obj->model);
@@ -57,7 +57,7 @@ obj_icon_get(
     // obj_id is already 0-indexed (caller subtracts 1 from stored value)
 
     // Get the object configuration
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    struct RSCacheDat1A_ConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
     if( !obj )
     {
         printf("obj_icon_get: Could not find obj %d in buildcachedat\n", obj_id);
@@ -84,7 +84,7 @@ obj_icon_get(
     }
 
     // Get or create the model for this object
-    struct CacheModel* model = get_obj_inv_model(game, obj);
+    struct RSCacheDat2A_Model* model = get_obj_inv_model(game, obj);
     if( !model )
     {
         printf(
@@ -134,11 +134,11 @@ obj_icon_get(
 
     // Get sin/cos tables for eyePitch rotation
     extern int g_sin_table[2048];
-    extern int g_cos_table[2048];
+    extern int RSCacheDat2A_NoiseCosTable[2048];
 
     // Calculate eye position from zoom and xan2d (matching ObjType.ts lines 442-443)
     int sinPitch = (g_sin_table[obj->xan2d] * zoom) >> 16;
-    int cosPitch = (g_cos_table[obj->xan2d] * zoom) >> 16;
+    int cosPitch = (RSCacheDat2A_NoiseCosTable[obj->xan2d] * zoom) >> 16;
 
     // Position for rendering (matching drawSimple parameters on line 445)
     struct DashPosition position = { 0 };
@@ -155,14 +155,14 @@ obj_icon_get(
     position.z = 0; // Temporary
 
     // Convert CacheModel to DashModel using the proper utility function
-    // IMPORTANT: Make a copy first! dashmodel_new_from_cache_model moves ownership
+    // IMPORTANT: Make a copy first! dashRSCacheDat2A_ModelNewFromCache_model moves ownership
     // and would invalidate the cached model. See entity_scenebuild.c:219 for reference.
-    struct CacheModel* model_copy = model_new_copy(model);
+    struct RSCacheDat2A_Model* model_copy = RSCacheDat2A_ModelNewCopy(model);
     for( int i = 0; i < obj->recol_count; i++ )
     {
         model_transform_recolor(model_copy, obj->recol_s[i], obj->recol_d[i]);
     }
-    struct DashModel* dash_model = dashmodel_new_from_cache_model(model_copy);
+    struct DashModel* dash_model = dashRSCacheDat2A_ModelNewFromCache_model(model_copy);
 
     if( !dash_model )
     {
@@ -274,7 +274,7 @@ obj_icon_get(
         }
     }
     // Clean up the dash model
-    dashmodel_free(dash_model);
+    dashRSCacheDat2A_ModelFree(dash_model);
 
     // // DEBUG: Save sprite to BMP file
     // char filename[256];
@@ -304,10 +304,10 @@ head_model_render(
         zoom = 2000;
 
     extern int g_sin_table[2048];
-    extern int g_cos_table[2048];
+    extern int RSCacheDat2A_NoiseCosTable[2048];
 
     int sinPitch = (g_sin_table[xan] * zoom) >> 16;
-    int cosPitch = (g_cos_table[xan] * zoom) >> 16;
+    int cosPitch = (RSCacheDat2A_NoiseCosTable[xan] * zoom) >> 16;
 
     struct DashViewPort view_port;
     view_port.width = width;
@@ -371,10 +371,10 @@ head_model_render_to_region(
         zoom = 2000;
 
     extern int g_sin_table[2048];
-    extern int g_cos_table[2048];
+    extern int RSCacheDat2A_NoiseCosTable[2048];
 
     int sinPitch = (g_sin_table[xan] * zoom) >> 16;
-    int cosPitch = (g_cos_table[xan] * zoom) >> 16;
+    int cosPitch = (RSCacheDat2A_NoiseCosTable[xan] * zoom) >> 16;
 
     int* dst = pixel_buffer + y * stride + x;
 

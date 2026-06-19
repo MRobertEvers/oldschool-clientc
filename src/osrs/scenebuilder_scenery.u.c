@@ -8,9 +8,9 @@
 #include "osrs/dash_utils.h"
 #include "osrs/minimap.h"
 #include "contour_ground.h"
-#include "osrs/rscache/tables/config_locs.h"
-#include "osrs/rscache/tables/maps.h"
-#include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
 #include "painters.h"
 #include "scene.h"
 
@@ -78,8 +78,8 @@ calculate_wall_decor_offset(
  */
 static void
 apply_transforms(
-    struct CacheConfigLocation* loc,
-    struct CacheModel* model,
+    struct RSCacheDat2A_ConfigLocation* loc,
+    struct RSCacheDat2A_Model* model,
     int orientation,
     int sw_height,
     int se_height,
@@ -194,7 +194,7 @@ light_model_default(
 static struct DashModel*
 load_model(
     struct SceneBuilder* scene_builder,
-    struct CacheConfigLocation* loc_config,
+    struct RSCacheDat2A_ConfigLocation* loc_config,
     int shape_select,
     int rotation,
     struct TileHeights* tile_heights)
@@ -205,11 +205,11 @@ load_model(
     int* lengths = loc_config->lengths;
     int shapes_and_model_count = loc_config->shapes_and_model_count;
 
-    struct CacheModel** models = NULL;
+    struct RSCacheDat2A_Model** models = NULL;
     int model_count = 0;
     int* model_ids = NULL;
 
-    struct CacheModel* model = NULL;
+    struct RSCacheDat2A_Model* model = NULL;
 
     if( !model_id_sets )
         return NULL;
@@ -220,8 +220,8 @@ load_model(
     {
         int count = lengths[0];
 
-        models = malloc(sizeof(struct CacheModel) * count);
-        memset(models, 0, sizeof(struct CacheModel) * count);
+        models = malloc(sizeof(struct RSCacheDat2A_Model) * count);
+        memset(models, 0, sizeof(struct RSCacheDat2A_Model) * count);
         model_ids = malloc(sizeof(int) * count);
         memset(model_ids, 0, sizeof(int) * count);
 
@@ -240,8 +240,8 @@ load_model(
     }
     else
     {
-        models = malloc(sizeof(struct CacheModel*) * shapes_and_model_count);
-        memset(models, 0, sizeof(struct CacheModel*) * shapes_and_model_count);
+        models = malloc(sizeof(struct RSCacheDat2A_Model*) * shapes_and_model_count);
+        memset(models, 0, sizeof(struct RSCacheDat2A_Model*) * shapes_and_model_count);
         model_ids = malloc(sizeof(int) * shapes_and_model_count);
         memset(model_ids, 0, sizeof(int) * shapes_and_model_count);
 
@@ -276,11 +276,11 @@ load_model(
 
     if( model_count > 1 )
     {
-        model = model_new_merge(models, model_count);
+        model = RSCacheDat2A_ModelNewMerge(models, model_count);
     }
     else
     {
-        model = model_new_copy(models[0]);
+        model = RSCacheDat2A_ModelNewCopy(models[0]);
     }
 
     // printf("face textures: ");
@@ -321,8 +321,8 @@ load_model(
         true);
 
     struct DashModel* dash_model = NULL;
-    dash_model = dashmodel_new_from_cache_model(model);
-    model_free(model);
+    dash_model = dashRSCacheDat2A_ModelNewFromCache_model(model);
+    RSCacheDat2A_ModelFree(model);
 
     light_model_default(dash_model, loc_config->contrast, loc_config->ambient);
 
@@ -337,9 +337,9 @@ load_model(
 
     // if( model->vertex_bone_map )
     //     scene_model->vertex_bones =
-    //         modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
+    //         RSCacheDat2A_ModelBonesNewDecode(model->vertex_bone_map, model->vertex_count);
     // if( model->face_bone_map )
-    //     scene_model->face_bones = modelbones_new_decode(model->face_bone_map,
+    //     scene_model->face_bones = RSCacheDat2A_ModelBonesNewDecode(model->face_bone_map,
     // model->face_count);
 
     // scene_model->sequence = NULL;
@@ -356,8 +356,8 @@ load_model(
     //     scene_model->sequence = sequence;
 
     //     assert(scene_model->frames == NULL);
-    //     scene_model->frames = malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
-    //     memset(scene_model->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
+    //     scene_model->frames = malloc(sizeof(struct RSCacheDat2A_Frame*) * sequence->frame_count);
+    //     memset(scene_model->frames, 0, sizeof(struct RSCacheDat2A_Frame*) * sequence->frame_count);
 
     //     int frame_id = sequence->frame_ids[0];
     //     int frame_archive_id = (frame_id >> 16) & 0xFFFF;
@@ -365,8 +365,8 @@ load_model(
     //     //     first 2 bytes are the sequence ID,
     //     //     the second 2 bytes are the frame archive ID
 
-    //     frame_archive = cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_archive_id);
-    //     frame_filelist = filelist_new_from_cache_archive(frame_archive);
+    //     frame_archive = RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Animations, frame_archive_id);
+    //     frame_filelist = RSCacheShared_FileListNewFromCacheArchive(frame_archive);
     //     for( int i = 0; i < sequence->frame_count; i++ )
     //     {
     //         assert(((sequence->frame_ids[i] >> 16) & 0xFFFF) == frame_archive_id);
@@ -381,23 +381,23 @@ load_model(
 
     //         char* frame_data = frame_filelist->files[frame_file_id - 1];
     //         int frame_data_size = frame_filelist->file_sizes[frame_file_id - 1];
-    //         int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
+    //         int framemap_id = RSCacheDat2A_FramemapIdFromFrameArchive(frame_data, frame_data_size);
 
     //         if( !scene_model->framemap )
     //         {
-    //             framemap = framemap_new_from_cache(cache, framemap_id);
+    //             framemap = RSCacheDat2A_FramemapNewFromCache(cache, framemap_id);
     //             scene_model->framemap = framemap;
     //         }
 
-    //         frame = frame_new_decode2(frame_id, scene_model->framemap, frame_data,
+    //         frame = RSCacheDat2A_FrameNewDecode2(frame_id, scene_model->framemap, frame_data,
     //         frame_data_size);
 
     //         scene_model->frames[scene_model->frame_count++] = frame;
     //     }
 
-    //     cache_archive_free(frame_archive);
+    //     RSCacheDat2Disk_ArchiveFree(frame_archive);
     //     frame_archive = NULL;
-    //     filelist_free(frame_filelist);
+    //     RSCacheShared_FileListFree(frame_filelist);
     //     frame_filelist = NULL;
     // }
 
@@ -409,7 +409,7 @@ load_model(
 
 static void
 load_model_animations_dat2(
-    struct CacheConfigLocation* loc_config,
+    struct RSCacheDat2A_ConfigLocation* loc_config,
     struct BuildCache* buildcache,
     struct SceneElement* element)
 {
@@ -425,7 +425,7 @@ load_model_animations_dat2(
 
     scene_animation = scene_element_animation_new(element, 10);
 
-    struct CacheConfigSequence* sequence =
+    struct RSCacheDat2A_ConfigSequence* sequence =
         buildcache_get_config_sequence(buildcache, loc_config->seq_id);
     assert(sequence);
     assert(sequence->frame_lengths);
@@ -450,12 +450,12 @@ load_model_animations_dat2(
         //     the second 2 bytes are the frame file ID
         int frame_id = sequence->frame_ids[i];
 
-        struct CacheFrame* frame = buildcache_get_frame_anim(buildcache, frame_id);
+        struct RSCacheDat2A_Frame* frame = buildcache_get_frame_anim(buildcache, frame_id);
 
         scene_element_animation_push_frame(
             element,
-            dashframe_new_from_cache_frame(frame),
-            dashframemap_new_from_cache_framemap(frame->_framemap),
+            dashRSCacheDat2A_FrameNewFromCache_frame(frame),
+            dashRSCacheDat2A_FramemapNewFromCache_framemap(frame->_framemap),
             sequence->frame_lengths[i]);
     }
 }
@@ -467,8 +467,8 @@ load_model_animations_dati(
     struct BuildCacheDat* buildcachedat)
 {
     struct SceneAnimation* scene_animation = NULL;
-    struct CacheDatSequence* sequence = NULL;
-    struct CacheAnimframe* animframe = NULL;
+    struct RSCacheDat1A_ConfigSequence* sequence = NULL;
+    struct RSCacheDat1A_AnimFrame* animframe = NULL;
 
     struct DashFrame* dash_frame = NULL;
     struct DashFramemap* dash_framemap = NULL;
@@ -507,7 +507,7 @@ load_model_animations_dati(
 
 static void
 load_model_animations_dat(
-    struct CacheConfigLocation* loc_config,
+    struct RSCacheDat2A_ConfigLocation* loc_config,
     struct BuildCacheDat* buildcachedat,
     struct SceneElement* element)
 {
@@ -519,7 +519,7 @@ load_model_animations_dat(
 static void
 scenebuilder_load_model_animations(
     struct SceneBuilder* scene_builder,
-    struct CacheConfigLocation* loc_config,
+    struct RSCacheDat2A_ConfigLocation* loc_config,
     struct SceneElement* element)
 {
     if( scene_builder->buildcache != NULL )
@@ -593,7 +593,7 @@ push_scene_action(
 static void
 init_scene_element(
     struct SceneElement* scene_element,
-    struct CacheConfigLocation* config_loc)
+    struct RSCacheDat2A_ConfigLocation* config_loc)
 {
     memset(scene_element, 0, sizeof(struct SceneElement));
     scene_element->interactable = config_loc->is_interactive;
@@ -661,8 +661,8 @@ scenery_add_wall_single(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model = NULL;
@@ -731,8 +731,8 @@ scenery_add_wall_tri_corner(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model = NULL;
@@ -788,8 +788,8 @@ scenery_add_wall_two_sides(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model_one = NULL;
@@ -891,8 +891,8 @@ scenery_add_wall_rect_corner(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model = NULL;
@@ -954,8 +954,8 @@ scenery_add_wall_decor_inside(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model = NULL;
@@ -1013,8 +1013,8 @@ scenery_add_wall_decor_outside(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model = NULL;
@@ -1081,8 +1081,8 @@ scenery_add_wall_decor_diagonal_outside(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model = NULL;
@@ -1155,8 +1155,8 @@ scenery_add_wall_decor_diagonal_inside(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model = NULL;
@@ -1224,8 +1224,8 @@ scenery_add_wall_decor_diagonal_double(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model_one = NULL;
@@ -1337,8 +1337,8 @@ scenery_add_wall_diagonal(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model = NULL;
@@ -1397,8 +1397,8 @@ scenery_add_normal(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model = NULL;
@@ -1469,8 +1469,8 @@ scenery_add_roof(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model = NULL;
@@ -1512,8 +1512,8 @@ scenery_add_floor_decoration(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
-    struct CacheMapLoc* map_loc,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct SceneScenery* scenery)
 {
     struct DashModel* dash_model = NULL;
@@ -1555,18 +1555,18 @@ scenery_add(
     struct TerrainGrid* terrain_grid,
     int mapx,
     int mapz,
-    struct CacheMapLoc* map_loc,
+    struct RSCacheDat2A_MapLoc* map_loc,
     struct SceneScenery* scenery,
     struct Scene* scene)
 {
-    struct CacheConfigLocation* config_loc = NULL;
+    struct RSCacheDat2A_ConfigLocation* config_loc = NULL;
     struct TileHeights tile_heights;
     struct TerrainGridOffsetFromSW offset;
     struct SceneSceneryTile* scenery_tile = NULL;
     int elements_pushed = 0;
 
-    // struct CacheConfigLocationEntry* config_loc_entry = NULL;
-    // config_loc_entry = (struct CacheConfigLocationEntry*)dashmap_search(
+    // struct RSCacheDat2A_ConfigLocationEntry* config_loc_entry = NULL;
+    // config_loc_entry = (struct RSCacheDat2A_ConfigLocationEntry*)dashmap_search(
     //     scene_builder->config_locs_hmap, &map_loc->loc_id, DASHMAP_FIND);
 
     // assert(config_loc_entry && "Config loc must be found in hmap");
@@ -1846,8 +1846,8 @@ build_scene_scenery(
     struct TerrainGrid* terrain_grid,
     struct Scene* scene)
 {
-    struct CacheMapLocs* map_locs = NULL;
-    struct CacheMapLoc* map_loc = NULL;
+    struct RSCacheDat2A_MapLocs* map_locs = NULL;
+    struct RSCacheDat2A_MapLoc* map_loc = NULL;
 
     for( int mapx = terrain_grid->mapx_sw; mapx <= terrain_grid->mapx_ne; mapx++ )
     {
@@ -1888,8 +1888,8 @@ build_scene_scenery(
     //  * Buffer Level 2: Nothing
     //  * Buffer Level 3: Tile := (Previous Level 0)
     //  */
-    // struct CacheMapFloor* ground = NULL;
-    // struct CacheMapFloor* bridge = NULL;
+    // struct RSCacheDat2A_MapFloor* ground = NULL;
+    // struct RSCacheDat2A_MapFloor* bridge = NULL;
     // struct PaintersTile bridge_tile_tmp = { 0 };
     // for( int x = 0; x < scene->tile_width_x; x++ )
     // {

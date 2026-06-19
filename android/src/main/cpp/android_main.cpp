@@ -45,7 +45,7 @@ extern "C" {
 // #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 extern "C" int g_sin_table[2048];
-extern "C" int g_cos_table[2048];
+extern "C" int RSCacheDat2A_NoiseCosTable[2048];
 extern "C" int g_tan_table[2048];
 extern "C" int g_hsl16_to_rgb_table[65536];
 

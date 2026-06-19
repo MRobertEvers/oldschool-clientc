@@ -8,7 +8,7 @@
 #include "isaac.h"
 #include "osrs/packetout.h"
 #include "osrs/packets/revpacket_lc245_2.h"
-#include "rscache/tables/config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -2,20 +2,20 @@
 #define TEXTURE_H
 
 #include "graphics/dash.h"
-#include "rscache/tables/textures.h"
-#include "rscache/tables_dat/config_textures.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_textures.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_textures.h"
 
 #include <stdbool.h>
 
 struct SpritePackEntry
 {
     int id;
-    struct CacheSpritePack* spritepack;
+    struct RSCacheDat2A_SpritePack* spritepack;
 };
 
 struct DashTexture*
 texture_new_from_definition(
-    struct CacheTexture* texture_definition,
+    struct RSCacheDat2A_Texture* texture_definition,
     struct DashMap* sprites_hmap);
 
 /**
@@ -25,7 +25,7 @@ texture_new_from_definition(
  */
 struct DashTexture*
 texture_new_from_texture_sprite(
-    struct CacheDatTexture* texture,
+    struct RSCacheDat1A_ConfigTexture* texture,
     int animation_direction,
     int animation_speed,
     bool upscale_to_128,
@@ -35,7 +35,7 @@ struct ToriDraw_Texture;
 
 struct ToriDraw_Texture*
 texture_new_toridraw_from_texture_sprite(
-    struct CacheDatTexture* texture,
+    struct RSCacheDat1A_ConfigTexture* texture,
     int animation_direction,
     int animation_speed,
     bool upscale_to_128,

@@ -14,7 +14,7 @@
 #include "osrs/isaac.h"
 #include "osrs/packetout.h"
 #include "osrs/painters.h"
-#include "osrs/rscache/rsbuf.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
 #include "osrs/script_queue.h"
 #include "osrs/wordpack.h"
 #include "tori_rs.h"
@@ -38,8 +38,8 @@
 //     struct BuildCacheDat* buildcachedat)
 // {
 //     // struct SceneAnimation* scene_animation = NULL;
-//     // struct CacheDatSequence* sequence = NULL;
-//     // struct CacheAnimframe* animframe = NULL;
+//     // struct RSCacheDat1A_ConfigSequence* sequence = NULL;
+//     // struct RSCacheDat1A_AnimFrame* animframe = NULL;
 
 //     // struct DashFrame* dash_frame = NULL;
 //     // struct DashFramemap* dash_framemap = NULL;
@@ -88,9 +88,9 @@
 //     struct BuildCacheDat* buildcachedat)
 // {
 //     struct SceneAnimation* scene_animation = NULL;
-//     struct CacheDatSequence* primary_seq = NULL;
-//     struct CacheDatSequence* secondary_seq = NULL;
-//     struct CacheAnimframe* animframe = NULL;
+//     struct RSCacheDat1A_ConfigSequence* primary_seq = NULL;
+//     struct RSCacheDat1A_ConfigSequence* secondary_seq = NULL;
+//     struct RSCacheDat1A_AnimFrame* animframe = NULL;
 //     struct DashFramemap* dash_framemap = NULL;
 
 //     if( primary_sequence_id == -1 || secondary_sequence_id == -1 ||

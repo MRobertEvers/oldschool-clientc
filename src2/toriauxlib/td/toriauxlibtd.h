@@ -8,7 +8,7 @@
 
 #include <stdbool.h>
 
-struct CacheDatAnimBaseFrames;
+struct RSCacheDat1A_AnimBaseFrames;
 struct ToriAuxLibCore_Animation;
 struct ToriAuxLibCore_Model;
 struct ToriAuxLibCore_Texture;
@@ -41,7 +41,7 @@ struct ToriDraw_Animation*
 ToriAuxLibTD_AnimationNewFromCore(const struct ToriAuxLibCore_Animation* src);
 
 struct ToriDraw_Animation*
-ToriAuxLibTD_AnimationNewFromCacheDatAnimbaseframes(struct CacheDatAnimBaseFrames* abf);
+ToriAuxLibTD_AnimationNewFromCacheDatAnimbaseframes(struct RSCacheDat1A_AnimBaseFrames* abf);
 
 struct ToriDraw_Texture*
 ToriAuxLibTD_TextureNewFromCore(const struct ToriAuxLibCore_Texture* src);

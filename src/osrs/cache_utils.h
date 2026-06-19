@@ -1,15 +1,15 @@
 #ifndef CACHE_UTILS_H
 #define CACHE_UTILS_H
 
-#include "rscache/cache.h"
-#include "rscache/filelist.h"
+#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
 
-struct FileList*
+struct RSCacheShared_FileList*
 cu_filelist_new_from_filepack(
     void* data,
     int data_size);
 
-struct FileListDatIndexed*
+struct RSCacheShared_FileListDatIndexed*
 cu_filelist_dat_indexed_new_from_filepack(
     void* data,
     int data_size);

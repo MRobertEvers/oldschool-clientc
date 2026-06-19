@@ -5,11 +5,11 @@
 #include "graphics/dash.h"
 #include "osrs/buildcache.h"
 #include "osrs/painters.h"
-#include "osrs/rscache/tables/config_sequence.h"
-#include "osrs/rscache/tables/frame.h"
-#include "osrs/rscache/tables/framemap.h"
-#include "osrs/rscache/tables/maps.h"
-#include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_frame.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_framemap.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
 #include "osrs/scene2.h"
 
 // clang-format off
@@ -20,7 +20,7 @@
 struct FlotypeEntry
 {
     int id;
-    struct CacheConfigOverlay* flotype;
+    struct RSCacheDat2A_ConfigOverlay* flotype;
 };
 
 struct TextureEntry
@@ -33,25 +33,25 @@ struct FrameAnimEntry
 {
     // frame_file
     int id;
-    struct CacheFrame* frame;
+    struct RSCacheDat2A_Frame* frame;
 };
 
 struct AnimframeEntry
 {
     int id;
-    struct CacheAnimframe* animframe;
+    struct RSCacheDat1A_AnimFrame* animframe;
 };
 
 struct DatSequenceEntry
 {
     int id;
-    struct CacheDatSequence* dat_sequence;
+    struct RSCacheDat1A_ConfigSequence* dat_sequence;
 };
 
 struct ModelEntry
 {
     int id;
-    struct CacheModel* model;
+    struct RSCacheDat2A_Model* model;
 };
 
 struct MapLocsEntry
@@ -59,7 +59,7 @@ struct MapLocsEntry
     int id;
     int mapx;
     int mapz;
-    struct CacheMapLocs* locs;
+    struct RSCacheDat2A_MapLocs* locs;
 };
 
 struct MapTerrainEntry
@@ -67,25 +67,25 @@ struct MapTerrainEntry
     int id;
     int mapx;
     int mapz;
-    struct CacheMapTerrain* map_terrain;
+    struct RSCacheDat2A_MapTerrain* map_terrain;
 };
 
 struct FrameEntry
 {
     int id;
-    struct CacheFrame* frame;
+    struct RSCacheDat2A_Frame* frame;
 };
 
 struct FramemapEntry
 {
     int id;
-    struct CacheFramemap* framemap;
+    struct RSCacheDat2A_Framemap* framemap;
 };
 
-struct CacheConfigLocationEntry
+struct RSCacheDat2A_ConfigLocationEntry
 {
     int id;
-    struct CacheConfigLocation* config_loc;
+    struct RSCacheDat2A_ConfigLocation* config_loc;
 };
 
 struct SceneBuilder

@@ -29,22 +29,7 @@ SRCS = static_ui_load_test.c \
        $(PROJECT_ROOT)/osrs/buildcachedat.c \
        $(PROJECT_ROOT)/osrs/palette.c \
        $(PROJECT_ROOT)/osrs/dash_utils.c \
-       $(PROJECT_ROOT)/osrs/rscache/disk.c \
-       $(PROJECT_ROOT)/osrs/rscache/cache.c \
-       $(PROJECT_ROOT)/osrs/rscache/archive.c \
-       $(PROJECT_ROOT)/osrs/rscache/archive_decompress.c \
-       $(PROJECT_ROOT)/osrs/rscache/compression.c \
-       $(PROJECT_ROOT)/osrs/rscache/xtea.c \
-       $(PROJECT_ROOT)/osrs/rscache/xtea_config.c \
-       $(PROJECT_ROOT)/osrs/rscache/reference_table.c \
-       $(PROJECT_ROOT)/osrs/rscache/rsbuf.c \
-       $(PROJECT_ROOT)/osrs/rscache/filelist.c \
-       $(PROJECT_ROOT)/osrs/rscache/cache_dat.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables/model.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables/string_utils.c \
-       $(PROJECT_ROOT)/osrs/rscache/tables_dat/pix8.c \
-       $(PROJECT_ROOT)/osrs/rscache/tables_dat/pix32.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_versionlist_mapsquare.c \
+       $(PROJECT_ROOT)/osrs/rscache/rscache_unity.c \
        revconfig.c \
        revconfig_load.c
 

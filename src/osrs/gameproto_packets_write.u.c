@@ -1,7 +1,7 @@
 #ifndef GAMEPROTO_PACKETS_WRITE_U_C
 #define GAMEPROTO_PACKETS_WRITE_U_C
 
-#include "rscache/rsbuf.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
 
 #include <assert.h>
 
@@ -15,7 +15,7 @@ gameproto_packet_write_maprebuild8_z16_x16(
 {
     assert(buffer_size > 4);
 
-    struct RSBuffer rsbuf = { .data = buffer, .size = buffer_size, .position = 0 };
+    struct RSCacheShared_RSBuffer rsbuf = { .data = buffer, .size = buffer_size, .position = 0 };
 
     p1(&rsbuf, packet_type);
     p2(&rsbuf, zonex);

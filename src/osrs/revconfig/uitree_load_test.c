@@ -24,13 +24,13 @@ main()
     revconfig_load_fields_from_ini(filename_ui, buffer);
 
     struct BuildCacheDat* buildcachedat = buildcachedat_new();
-    struct CacheDat* cache_dat = cache_dat_new_from_directory("../cache254");
+    struct RSCacheDat1Disk* cache_dat = RSCacheDat1Disk_NewFromDirectory("../cache254");
 
-    struct CacheDatArchive* archive =
-        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_MEDIA_2D_GRAPHICS);
+    struct RSCacheDat1Disk_Archive* archive =
+        RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_Media2dGraphics);
 
-    struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
-    cache_dat_archive_free(archive);
+    struct RSCacheShared_FileListDat* filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
 
     buildcachedat_set_2d_media_jagfile(buildcachedat, filelist);
 

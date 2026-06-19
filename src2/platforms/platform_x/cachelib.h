@@ -3,9 +3,9 @@
 
 #include <stdint.h>
 
-struct CacheLib;
+struct RSCacheDat2DiskLib;
 
-struct CacheLib_IORequest
+struct RSCacheDat2DiskLib_IORequest
 {
     int table_id;
     int archive_id;
@@ -15,13 +15,13 @@ struct CacheLib_IORequest
 #define CACHE_MODE_DAT1 0
 #define CACHE_MODE_DAT2 1
 
-struct CacheLib*
+struct RSCacheDat2DiskLib*
 cachelib_new(int mode);
 
 void
-cachelib_free(struct CacheLib* cache);
+cachelib_free(struct RSCacheDat2DiskLib* cache);
 
 int
-cachelib_get_mode(struct CacheLib* cache);
+cachelib_get_mode(struct RSCacheDat2DiskLib* cache);
 
 #endif

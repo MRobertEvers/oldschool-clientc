@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include <string.h>
 
-extern int g_cos_table[2048];
+extern int RSCacheDat2A_NoiseCosTable[2048];
 extern int g_sin_table[2048];
 extern int g_tan_table[2048];
 
@@ -171,7 +171,7 @@ animate(
                 if( roll != 0 )
                 {
                     int sin_roll = g_sin_table[roll];
-                    int cos_roll = g_cos_table[roll];
+                    int cos_roll = RSCacheDat2A_NoiseCosTable[roll];
                     var17 = (sin_roll * y + cos_roll * x) >> 16;
                     y = (cos_roll * y - sin_roll * x) >> 16;
                     x = var17;
@@ -180,7 +180,7 @@ animate(
                 if( pitch != 0 )
                 {
                     int sin_pitch = g_sin_table[pitch];
-                    int cos_pitch = g_cos_table[pitch];
+                    int cos_pitch = RSCacheDat2A_NoiseCosTable[pitch];
                     var17 = (cos_pitch * y - sin_pitch * z) >> 16;
                     z = (sin_pitch * y + cos_pitch * z) >> 16;
                     y = var17;
@@ -189,7 +189,7 @@ animate(
                 if( yaw != 0 )
                 {
                     int sin_yaw = g_sin_table[yaw];
-                    int cos_yaw = g_cos_table[yaw];
+                    int cos_yaw = RSCacheDat2A_NoiseCosTable[yaw];
                     var17 = (sin_yaw * z + cos_yaw * x) >> 16;
                     z = (cos_yaw * z - sin_yaw * x) >> 16;
                     x = var17;

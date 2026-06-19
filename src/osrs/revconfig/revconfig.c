@@ -1,6 +1,6 @@
 #include "revconfig.h"
 
-#include "osrs/rscache/tables/string_utils.h"
+#include "osrs/rscache/shared/rscache_shared_string_utils.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -148,7 +148,7 @@ revconfig_buffer_push_field(
 
     struct RevConfigField* field = &buffer->fields[buffer->field_count++];
     field->kind = kind;
-    strncpy_trimmed(field->value, value, sizeof(field->value), TRIM_CHARS_WHITESPACE);
+    RSCacheShared_StrncpyTrimmed(field->value, value, sizeof(field->value), TRIM_CHARS_WHITESPACE);
     return 0;
 }
 
@@ -422,7 +422,7 @@ revconfig_item_apply_field(
         revconfig_item_apply_uilayout_field(&item->u.uilayout, kind, value);
         break;
     case RCITEM_INV:
-        if( kind == RCFIELD_INV_ITEM && item->u.inv.item_count < REVCONFIG_INV_MAX_ITEMS )
+        if( kind == RCFIELD_INV_ITEM && item->u.inv.item_count < REVRSCacheDat2A_ConfigKind_Inv_MAX_ITEMS )
         {
             strncpy(
                 item->u.inv.items[item->u.inv.item_count],

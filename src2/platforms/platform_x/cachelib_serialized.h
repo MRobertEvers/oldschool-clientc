@@ -5,15 +5,15 @@
 extern "C" {
 #endif
 
-struct CacheArchive;
-struct CacheDatArchive;
+struct RSCacheDat2Disk_Archive;
+struct RSCacheDat1Disk_Archive;
 
 /**
  * Compute the size in bytes needed to serialize a CacheArchive.
  * @return Size in bytes, or -1 on error.
  */
 int
-cachelib_cache_archive_serialized_size(const struct CacheArchive* archive);
+cachelib_cache_archive_serialized_size(const struct RSCacheDat2Disk_Archive* archive);
 
 /**
  * Serialize a CacheArchive into a pre-allocated buffer.
@@ -24,18 +24,18 @@ cachelib_cache_archive_serialized_size(const struct CacheArchive* archive);
  */
 int
 cachelib_cache_archive_serialize_to_buffer(
-    const struct CacheArchive* archive,
+    const struct RSCacheDat2Disk_Archive* archive,
     void* buffer,
     int size);
 
 /**
  * Deserialize a CacheArchive from a byte buffer.
- * Caller must free the result with cachelib_cache_archive_free().
+ * Caller must free the result with cachelib_RSCacheDat2Disk_ArchiveFree().
  * @param buffer  Serialized bytes
  * @param size    Size of buffer in bytes
  * @return Newly allocated archive, or NULL on error
  */
-struct CacheArchive*
+struct RSCacheDat2Disk_Archive*
 cachelib_cache_archive_deserialize(
     const void* buffer,
     int size);
@@ -45,14 +45,14 @@ cachelib_cache_archive_deserialize(
  * Safe to call with NULL.
  */
 void
-cachelib_cache_archive_free(struct CacheArchive* archive);
+cachelib_RSCacheDat2Disk_ArchiveFree(struct RSCacheDat2Disk_Archive* archive);
 
 /**
  * Compute the size in bytes needed to serialize a CacheDatArchive.
  * @return Size in bytes, or -1 on error.
  */
 int
-cachelib_cache_dat_archive_serialized_size(const struct CacheDatArchive* archive);
+cachelib_cache_dat_archive_serialized_size(const struct RSCacheDat1Disk_Archive* archive);
 
 /**
  * Serialize a CacheDatArchive into a pre-allocated buffer.
@@ -63,18 +63,18 @@ cachelib_cache_dat_archive_serialized_size(const struct CacheDatArchive* archive
  */
 int
 cachelib_cache_dat_archive_serialize_to_buffer(
-    const struct CacheDatArchive* archive,
+    const struct RSCacheDat1Disk_Archive* archive,
     void* buffer,
     int size);
 
 /**
  * Deserialize a CacheDatArchive from a byte buffer.
- * Caller must free the result with cachelib_cache_dat_archive_free().
+ * Caller must free the result with cachelib_RSCacheDat1Disk_ArchiveFree().
  * @param buffer  Serialized bytes
  * @param size    Size of buffer in bytes
  * @return Newly allocated archive, or NULL on error
  */
-struct CacheDatArchive*
+struct RSCacheDat1Disk_Archive*
 cachelib_cache_dat_archive_deserialize(
     const void* buffer,
     int size);
@@ -84,7 +84,7 @@ cachelib_cache_dat_archive_deserialize(
  * Safe to call with NULL.
  */
 void
-cachelib_cache_dat_archive_free(struct CacheDatArchive* archive);
+cachelib_RSCacheDat1Disk_ArchiveFree(struct RSCacheDat1Disk_Archive* archive);
 
 #ifdef __cplusplus
 }

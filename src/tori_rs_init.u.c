@@ -21,9 +21,9 @@
 #include "osrs/revconfig/uitree_load.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/rsa.h"
-#include "osrs/rscache/cache_dat.h"
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/tables_dat/configs_dat.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_configs_dat.h"
 #include "osrs/scene2.h"
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
@@ -253,8 +253,8 @@ LibToriRS_GameNew(
         mem.heap_total,
         mem.heap_peak);
 
-    // struct CacheDatConfigComponentList* config_interface_list =
-    //     cache_dat_config_component_list_new_decode(file_data, file_data_size);
+    // struct RSCacheDat1A_ConfigComponentList* config_interface_list =
+    //     RSCacheDat1A_ConfigComponentListNewDecode(file_data, file_data_size);
 
     // assert(config_interface_list != NULL);
 
@@ -385,7 +385,7 @@ LibToriRS_GameFree(struct GGame* game)
     if( game->buildcachedat )
         buildcachedat_free(game->buildcachedat);
     if( game->buildcache )
-        buildcache_free(game->buildcache);
+        buildRSCacheDat2Disk_Free(game->buildcache);
 
     if( game->sys_dash )
         dash_free(game->sys_dash);
@@ -434,7 +434,7 @@ LibToriRS_GameFree(struct GGame* game)
         LibToriRS_RenderCommandBufferFree(game->uiscene_queued_commands);
     game->uiscene_queued_commands = NULL;
 
-    lua_buildcache_free_init_configmaps(game);
+    lua_buildRSCacheDat2Disk_Free_init_configmaps(game);
 
     script_queue_clear(&game->script_queue);
 

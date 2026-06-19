@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-struct FileListDat;
+struct RSCacheShared_FileListDat;
 
 /** Varp (player variable) config from varp.dat */
 struct VarPType
@@ -55,7 +55,7 @@ varp_varbit_free(struct VarPVarBitManager* mgr);
 bool
 varp_varbit_load_from_config_jagfile(
     struct VarPVarBitManager* mgr,
-    struct FileListDat* config_jagfile);
+    struct RSCacheShared_FileListDat* config_jagfile);
 
 /** Get varp value by id */
 int

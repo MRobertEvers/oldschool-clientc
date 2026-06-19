@@ -46,7 +46,7 @@ Task_Dat1ModelLoad_Run(
     struct Task_Dat1ModelLoad* task,
     struct LibToriRS_IOContext* ctx)
 {
-    struct CacheModel* model;
+    struct RSCacheDat2A_Model* model;
     int decoded_model_id;
     PT_BEGIN(&task->thread);
 

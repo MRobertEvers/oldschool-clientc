@@ -19,8 +19,8 @@ extern "C" {
 #include <stdio.h>
 #include <string.h>
 
-struct Cache;
-struct CacheDat;
+struct RSCacheDat2Disk;
+struct RSCacheDat1Disk;
 struct GGame;
 struct GInput;
 struct LuaCSidecar;
@@ -50,8 +50,8 @@ struct Platform2_SDL2
     int secret;
 
     struct LuaCSidecar* lua_sidecar;
-    struct Cache* cache;
-    struct CacheDat* cache_dat;
+    struct RSCacheDat2Disk* cache;
+    struct RSCacheDat1Disk* cache_dat;
 };
 
 struct Platform2_SDL2*

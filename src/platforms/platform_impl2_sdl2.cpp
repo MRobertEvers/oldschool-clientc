@@ -101,15 +101,15 @@ extern "C" {
 #include "osrs/lua_sidecar/luac_sidecar.h"
 #include "osrs/lua_sidecar/luac_sidecar_cachedat.h"
 #include "osrs/lua_sidecar/luac_sidecar_config.h"
-#include "osrs/rscache/cache_dat.h"
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/tables/config_locs.h"
-#include "osrs/rscache/tables/config_sequence.h"
-#include "osrs/rscache/tables_dat/config_idk.h"
-#include "osrs/rscache/tables_dat/config_obj.h"
-#include "osrs/rscache/tables_dat/config_textures.h"
-#include "osrs/rscache/tables_dat/config_versionlist_mapsquare.h"
-#include "osrs/rscache/tables_dat/configs_dat.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_idk.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_obj.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_textures.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_version_list_mapsquare.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_configs_dat.h"
 #include "osrs/scripts/lua_cache_fnnos.h"
 #include "osrs/texture.h"
 #include "tori_rs.h"
@@ -169,7 +169,7 @@ Platform2_SDL2_New(void)
         return NULL;
     }
 
-    platform->cache_dat = cache_dat_new_from_directory(CACHE_PATH);
+    platform->cache_dat = RSCacheDat1Disk_NewFromDirectory(CACHE_PATH);
 
     return platform;
 }
@@ -197,7 +197,7 @@ Platform2_SDL2_Free(struct Platform2_SDL2* platform)
     if( platform->lua_sidecar )
         LuaCSidecar_Free(platform->lua_sidecar);
     if( platform->cache_dat )
-        cache_dat_free(platform->cache_dat);
+        RSCacheDat1Disk_Free(platform->cache_dat);
     free(platform);
 }
 
@@ -355,7 +355,7 @@ on_lua_async_call(
     int command,
     struct LuaGameType* args)
 {
-    struct CacheDat* cache_dat = platform->cache_dat;
+    struct RSCacheDat1Disk* cache_dat = platform->cache_dat;
 
     switch( command )
     {

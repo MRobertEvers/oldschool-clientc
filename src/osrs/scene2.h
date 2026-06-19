@@ -90,7 +90,7 @@ struct Scene2Event
             int visual_id;
             /** `Scene2ElementCategory` at event time. */
             uint8_t element_category;
-            /** Valid until scene2_flush_deferred_array_frees (deferred dashmodel_free). */
+            /** Valid until scene2_flush_deferred_array_frees (deferred dashRSCacheDat2A_ModelFree). */
             struct DashModel* model;
             /** World placement from `scene2_element_dash_position` at load time (r2pi2048 yaw). */
             int32_t world_x;

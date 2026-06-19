@@ -109,26 +109,6 @@ set(COMMON_SOURCES
     src/osrs/buildcache_loader.c
     src/graphics/shared_tables.c
     src/graphics/lighting.c
-    src/osrs/rscache/tables/model.c
-    src/osrs/rscache/tables/maps.c
-    src/osrs/rscache/tables/config_locs.c
-    src/osrs/rscache/tables/config_floortype.c
-    src/osrs/rscache/tables/config_object.c
-    src/osrs/rscache/tables/config_sequence.c
-    src/osrs/rscache/tables/config_npctype.c
-    src/osrs/rscache/tables/noise.c
-    src/osrs/rscache/tables/framemap.c
-    src/osrs/rscache/tables/frame.c
-    src/osrs/rscache/tables/textures.c
-    src/osrs/rscache/tables/sprites.c
-    src/osrs/rscache/tables_dat/config_textures.c
-    src/osrs/rscache/tables_dat/config_idk.c
-    src/osrs/rscache/tables_dat/config_varp.c
-    src/osrs/rscache/tables_dat/config_obj.c
-    src/osrs/rscache/tables_dat/animframe.c
-    src/osrs/rscache/tables_dat/pix8.c
-    src/osrs/rscache/tables_dat/pix32.c
-    src/osrs/rscache/tables_dat/pixfont.c
     src/osrs/painters.c
     src/osrs/painters_cullmap_baked_path.c
     src/osrs/cache_utils.c
@@ -139,16 +119,12 @@ set(COMMON_SOURCES
     src/osrs/collision_map.c
     src/osrs/world_pickset.c
     src/osrs/world_options.c
-    src/osrs/rscache/filelist.c
-    src/osrs/rscache/archive.c
     src/osrs/revconfig/revconfig.c
     src/osrs/revconfig/revconfig_load.c
     src/osrs/revconfig/uitree.c
     src/osrs/revconfig/uitree_load.c
     src/osrs/rs_component_gfx.c
     src/osrs/revconfig/uiscene.c
-    src/osrs/rscache/tables_dat/config_component.c
-    src/osrs/rscache/tables_dat/config_spotanim.c
     src/osrs/interface.c
     src/osrs/interface_state.c
     src/osrs/rs_component_state.c
@@ -186,26 +162,9 @@ set(COMMON_SOURCES
     src/osrs/packets/pkt_player_info.c
     src/osrs/packets/pkt_npc_info.c
     src/osrs/packetbuffer.c
-    src/osrs/rscache/compression.c
-    src/osrs/rscache/tables/string_utils.c
-    src/osrs/rscache/tables_dat/config_versionlist_mapsquare.c
-    src/osrs/rscache/tables_dat/config_npc.c
-    src/osrs/rscache/cache.c
-    src/osrs/rscache/cache_dat.c
     src/osrs/frustrum_cullmap.c
     src/osrs/palette.c
-    src/osrs/rscache/archive_decompress.c
-    src/osrs/rscache/disk.c
-    src/osrs/rscache/reference_table.c
-    src/osrs/rscache/xtea_config.c
     src/osrs/rsa.c
-    src/osrs/rscache/rsbuf.c
-    src/osrs/rscache/tables/component.c
-    src/osrs/rscache/bitbuffer.c
-    src/osrs/rscache/xtea.c
-    src/osrs/revs/revpacket_lc245_2_query.c
-    src/osrs/entity_scenebuild.c
-    src/osrs/rscache/xtea.c
     src/osrs/revs/revpacket_lc245_2_query.c
     src/osrs/entity_scenebuild.c
     src/osrs/lua_sidecar/luac_sidecar_cachedat.c
@@ -220,11 +179,18 @@ set(COMMON_SOURCES
     src/osrs/lua_sidecar/lua_api.c
     src/osrs/lua_sidecar/lua_api_ht.c
     src/osrs/lua_sidecar/lua_platform.c
-    src/3rd/bzip/bzip.c
-    src/3rd/miniz/miniz.c
     src/3rd/tommath/mpi.c
     src/3rd/ini/ini.c
 )
+
+# --- RSCache library (unity build) ---
+add_library(rscache STATIC
+    src/osrs/rscache/rscache_unity.c
+    src/3rd/bzip/bzip.c
+    src/3rd/miniz/miniz.c
+)
+target_include_directories(rscache PUBLIC src src/osrs/rscache)
+set_target_properties(rscache PROPERTIES C_STANDARD 11)
 
 # --- Native (OSX/Windows) Target ---
 if(NOT EMSCRIPTEN)
@@ -938,6 +904,7 @@ endforeach()
 # --- Global Properties ---
 foreach(target sdl2 bench_sdl2 web_client web_client_native win32)
     if(TARGET ${target})
+        target_link_libraries(${target} rscache)
         target_include_directories(${target} PRIVATE src src/platforms src/nuklear src/platforms/ToriRSPlatformKit/include)
         set_target_properties(${target} PROPERTIES
             C_STANDARD 11

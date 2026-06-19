@@ -4,8 +4,8 @@
 #include "configmap.h"
 #include "minimap.h"
 #include "palette.h"
-#include "rscache/tables/config_floortype.h"
-#include "rscache/tables/maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
 #include "scene.h"
 
 #include <assert.h>
@@ -49,7 +49,7 @@ blend_underlays(
     struct TerrainGrid* terrain_grid,
     int level)
 {
-    struct CacheMapFloor* tile = NULL;
+    struct RSCacheDat2A_MapFloor* tile = NULL;
 
     struct HSL hsl;
     int size_x = terrain_grid_x_width(terrain_grid);
@@ -111,7 +111,7 @@ blend_underlays(
 
                     // hsl = palette_rgb_to_hsl24(flotype_entry->flotype->rgb_color);
 
-                    // struct CacheConfigUnderlay* entry = (struct
+                    // struct RSCacheDat2A_ConfigUnderlay* entry = (struct
                     // CacheConfigUnderlay*)configmap_get(
                     //     config_underlay_map, underlay_id - 1);
                     // assert(entry != NULL);
@@ -146,7 +146,7 @@ blend_underlays(
 
                     // hsl = palette_rgb_to_hsl24(flotype_entry->flotype->rgb_color);
 
-                    // struct CacheConfigUnderlay* entry = (struct
+                    // struct RSCacheDat2A_ConfigUnderlay* entry = (struct
                     // CacheConfigUnderlay*)configmap_get(
                     //     config_underlay_map, underlay_id - 1);
                     // assert(entry != NULL);
@@ -387,9 +387,9 @@ build_scene_terrain(
     struct SceneTerrain* terrain)
 {
     struct DashModel* model = NULL;
-    struct CacheConfigOverlay* overlay = NULL;
+    struct RSCacheDat2A_ConfigOverlay* overlay = NULL;
     struct TerrainTileModel* chunk_tiles = NULL;
-    struct CacheMapFloor* map = NULL;
+    struct RSCacheDat2A_MapFloor* map = NULL;
     struct SceneTerrainTile* tile = NULL;
 
     int max_z = terrain_grid_z_height(terrain_grid);
@@ -440,7 +440,7 @@ build_scene_terrain(
                     // underlay = flotype_entry->flotype;
                     // assert(underlay != NULL);
 
-                    // underlay = (struct CacheConfigUnderlay*)configmap_get(
+                    // underlay = (struct RSCacheDat2A_ConfigUnderlay*)configmap_get(
                     //     config_underlay_map, underlay_id - 1);
                     // assert(underlay != NULL);
 
@@ -492,7 +492,7 @@ build_scene_terrain(
                     // assert(overlay != NULL);
 
                     // overlay =
-                    //     (struct CacheConfigOverlay*)configmap_get(config_overlay_map,
+                    //     (struct RSCacheDat2A_ConfigOverlay*)configmap_get(config_overlay_map,
                     //     overlay_id);
 
                     overlay = scenebuilder_compat_get_flotype(scene_builder, overlay_id);

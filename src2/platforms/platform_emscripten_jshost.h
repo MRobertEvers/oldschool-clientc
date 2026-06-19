@@ -7,8 +7,8 @@
 #include <emscripten.h>
 
 struct LibToriRS_Instance;
-struct CacheDatArchive;
-struct CacheArchive;
+struct RSCacheDat1Disk_Archive;
+struct RSCacheDat2Disk_Archive;
 struct GameHandle;
 
 EMSCRIPTEN_KEEPALIVE
@@ -132,7 +132,7 @@ void*
 LibToriPlatformEmscripten_JSHost_Malloc(int size);
 
 EMSCRIPTEN_KEEPALIVE
-struct CacheDatArchive*
+struct RSCacheDat1Disk_Archive*
 LibToriPlatformEmscripten_JSHost_CacheDatArchiveNewFromBuffer(
     int table_id,
     int archive_id,
@@ -140,24 +140,24 @@ LibToriPlatformEmscripten_JSHost_CacheDatArchiveNewFromBuffer(
     int data_size);
 
 EMSCRIPTEN_KEEPALIVE
-struct CacheArchive*
+struct RSCacheDat2Disk_Archive*
 LibToriPlatformEmscripten_JSHost_CacheArchiveDeserialize(
     void* buffer,
     int size);
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_CacheArchiveFree(struct CacheArchive* archive);
+LibToriPlatformEmscripten_JSHost_CacheArchiveFree(struct RSCacheDat2Disk_Archive* archive);
 
 EMSCRIPTEN_KEEPALIVE
-struct CacheDatArchive*
+struct RSCacheDat1Disk_Archive*
 LibToriPlatformEmscripten_JSHost_CacheDatArchiveDeserialize(
     void* buffer,
     int size);
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_CacheDatArchiveFree(struct CacheDatArchive* archive);
+LibToriPlatformEmscripten_JSHost_CacheDatArchiveFree(struct RSCacheDat1Disk_Archive* archive);
 
 EMSCRIPTEN_KEEPALIVE
 void

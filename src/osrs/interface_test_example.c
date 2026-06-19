@@ -4,7 +4,7 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
 #include "osrs/revconfig/uiscene.h"
-#include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -33,8 +33,8 @@ test_uiscene_attach_sprite(struct GGame* game, struct DashSprite* sprite)
 void create_test_interface(struct GGame* game)
 {
     // Create a root layer component (ID: 1000)
-    struct CacheDatConfigComponent* root = malloc(sizeof(struct CacheDatConfigComponent));
-    memset(root, 0, sizeof(struct CacheDatConfigComponent));
+    struct RSCacheDat1A_ConfigComponent* root = malloc(sizeof(struct RSCacheDat1A_ConfigComponent));
+    memset(root, 0, sizeof(struct RSCacheDat1A_ConfigComponent));
     
     root->id = 1000;
     root->layer = -1;
@@ -74,8 +74,8 @@ void create_test_interface(struct GGame* game)
     buildcachedat_add_component(game->buildcachedat, 1000, root);
     
     // Create child 0: Background rectangle
-    struct CacheDatConfigComponent* bg_rect = malloc(sizeof(struct CacheDatConfigComponent));
-    memset(bg_rect, 0, sizeof(struct CacheDatConfigComponent));
+    struct RSCacheDat1A_ConfigComponent* bg_rect = malloc(sizeof(struct RSCacheDat1A_ConfigComponent));
+    memset(bg_rect, 0, sizeof(struct RSCacheDat1A_ConfigComponent));
     
     bg_rect->id = 1001;
     bg_rect->layer = 1000;
@@ -92,8 +92,8 @@ void create_test_interface(struct GGame* game)
     buildcachedat_add_component(game->buildcachedat, 1001, bg_rect);
     
     // Create child 1: Title text
-    struct CacheDatConfigComponent* title_text = malloc(sizeof(struct CacheDatConfigComponent));
-    memset(title_text, 0, sizeof(struct CacheDatConfigComponent));
+    struct RSCacheDat1A_ConfigComponent* title_text = malloc(sizeof(struct RSCacheDat1A_ConfigComponent));
+    memset(title_text, 0, sizeof(struct RSCacheDat1A_ConfigComponent));
     
     title_text->id = 1002;
     title_text->layer = 1000;
@@ -112,8 +112,8 @@ void create_test_interface(struct GGame* game)
     buildcachedat_add_component(game->buildcachedat, 1002, title_text);
     
     // Create child 2: Icon sprite (if you have a sprite loaded)
-    struct CacheDatConfigComponent* icon = malloc(sizeof(struct CacheDatConfigComponent));
-    memset(icon, 0, sizeof(struct CacheDatConfigComponent));
+    struct RSCacheDat1A_ConfigComponent* icon = malloc(sizeof(struct RSCacheDat1A_ConfigComponent));
+    memset(icon, 0, sizeof(struct RSCacheDat1A_ConfigComponent));
     
     icon->id = 1003;
     icon->layer = 1000;

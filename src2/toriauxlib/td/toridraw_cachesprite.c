@@ -1,13 +1,13 @@
 #include "toridraw_cachesprite.h"
 
-#include "osrs/rscache/tables_dat/pix32.h"
-#include "osrs/rscache/tables_dat/pix8.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix32.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix8.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 static struct ToriDraw_Pix8*
-ToriDraw_Pix8NewFromCachePix8Palette(struct CacheDatPix8Palette* pix8_palette)
+ToriDraw_Pix8NewFromCachePix8Palette(struct RSCacheDat1A_Pix8Palette* pix8_palette)
 {
     if( !pix8_palette )
         return NULL;
@@ -33,7 +33,7 @@ ToriDraw_Pix8NewFromCachePix8Palette(struct CacheDatPix8Palette* pix8_palette)
 }
 
 static struct ToriDraw_PixPalette*
-ToriDraw_PixpaletteNewFromCachePix8Palette(struct CacheDatPix8Palette* pix8_palette)
+ToriDraw_PixpaletteNewFromCachePix8Palette(struct RSCacheDat1A_Pix8Palette* pix8_palette)
 {
     if( !pix8_palette )
         return NULL;
@@ -55,7 +55,7 @@ ToriDraw_PixpaletteNewFromCachePix8Palette(struct CacheDatPix8Palette* pix8_pale
 }
 
 struct ToriDraw_Sprite*
-ToriDraw_SpriteNewFromCachePix32(struct CacheDatPix32* pix32)
+ToriDraw_SpriteNewFromCachePix32(struct RSCacheDat1A_Pix32* pix32)
 {
     if( !pix32 )
         return NULL;
@@ -71,7 +71,7 @@ ToriDraw_SpriteNewFromCachePix32(struct CacheDatPix32* pix32)
 }
 
 struct ToriDraw_Sprite*
-ToriDraw_SpriteNewFromCachePix8Palette(struct CacheDatPix8Palette* pix8_palette)
+ToriDraw_SpriteNewFromCachePix8Palette(struct RSCacheDat1A_Pix8Palette* pix8_palette)
 {
     if( !pix8_palette )
         return NULL;

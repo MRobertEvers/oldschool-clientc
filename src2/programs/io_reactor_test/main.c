@@ -27,7 +27,7 @@ PT_THREAD(io_reactor_test_task)
 
     if( state->test_cache )
     {
-        struct CacheLib_IORequest request;
+        struct RSCacheDat2DiskLib_IORequest request;
         cachelib_dat1_model_fetch(0, &request);
 
         LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -137,7 +137,7 @@ main(
         return 1;
     }
 
-    struct CacheLib* cache = NULL;
+    struct RSCacheDat2DiskLib* cache = NULL;
     if( test_cache )
     {
         cache = cachelib_new(cache_mode);

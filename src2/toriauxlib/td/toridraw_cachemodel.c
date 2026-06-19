@@ -1,6 +1,6 @@
 #include "toridraw_cachemodel.h"
 
-#include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
 #include "toridraw/toridraw_model.h"
 
 #include <assert.h>
@@ -78,7 +78,7 @@ ToriDraw_BonesNew(
         return NULL;
     memset(bones, 0, sizeof(struct ToriDraw_Bones));
 
-    struct ModelBones* model_bones = modelbones_new_decode(bone_map, bone_count);
+    struct RSCacheDat2A_ModelBones* model_bones = RSCacheDat2A_ModelBonesNewDecode(bone_map, bone_count);
     if( !model_bones )
     {
         free(bones);
@@ -90,7 +90,7 @@ ToriDraw_BonesNew(
     bones->bones_sizes = (boneint_t*)malloc(sizeof(boneint_t) * (size_t)bones->bones_count);
     if( !bones->bones || !bones->bones_sizes )
     {
-        modelbones_free(model_bones);
+        RSCacheDat2A_ModelBonesFree(model_bones);
         ToriDraw_BonesFree(bones);
         return NULL;
     }
@@ -106,7 +106,7 @@ ToriDraw_BonesNew(
             (boneint_t*)malloc(sizeof(boneint_t) * (size_t)model_bones->bones_sizes[i]);
         if( !bones->bones[i] )
         {
-            modelbones_free(model_bones);
+            RSCacheDat2A_ModelBonesFree(model_bones);
             ToriDraw_BonesFree(bones);
             return NULL;
         }
@@ -114,14 +114,14 @@ ToriDraw_BonesNew(
             bones->bones[i][j] = (boneint_t)model_bones->bones[i][j];
     }
 
-    modelbones_free(model_bones);
+    RSCacheDat2A_ModelBonesFree(model_bones);
     return bones;
 }
 
 static void
 ToriDraw_ModelMoveFromCacheModel(
     struct ToriDraw_Model* td,
-    struct CacheModel* model)
+    struct RSCacheDat2A_Model* model)
 {
     assert(td && model);
 
@@ -301,7 +301,7 @@ ToriDraw_ModelMoveFromCacheModel(
 }
 
 struct ToriDraw_Model*
-ToriDraw_ModelNewFromCacheModel(struct CacheModel* model)
+ToriDraw_ModelNewFromCacheModel(struct RSCacheDat2A_Model* model)
 {
     if( !model )
         return NULL;

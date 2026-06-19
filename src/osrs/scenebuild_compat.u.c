@@ -2,13 +2,13 @@
 #define SCENEBUILDER_COMPAT_U_C
 
 #include "osrs/buildcachedat.h"
-#include "osrs/rscache/tables/config_floortype.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
 #include "osrs/scene2.h"
-#include "osrs/rscache/tables/maps.h"
-#include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
 #include "scenebuilder.u.c"
 
-struct CacheMapTerrain*
+struct RSCacheDat2A_MapTerrain*
 scenebuilder_compat_get_map_terrain(
     struct SceneBuilder* scene_builder,
     int mapx,
@@ -25,7 +25,7 @@ scenebuilder_compat_get_map_terrain(
     return NULL;
 }
 
-struct CacheConfigOverlay*
+struct RSCacheDat2A_ConfigOverlay*
 scenebuilder_compat_get_flotype(
     struct SceneBuilder* scene_builder,
     int flotype_id)
@@ -48,14 +48,14 @@ scenebuilder_compat_get_underlay_rgb(
 {
     if( scene_builder->buildcachedat != NULL )
     {
-        struct CacheConfigOverlay* flotype =
+        struct RSCacheDat2A_ConfigOverlay* flotype =
             buildcachedat_get_flotype(scene_builder->buildcachedat, underlay_id - 1);
         if( flotype )
             return flotype->rgb_color;
     }
     if( scene_builder->buildcache != NULL )
     {
-        struct CacheConfigUnderlay* underlay =
+        struct RSCacheDat2A_ConfigUnderlay* underlay =
             buildcache_get_config_underlay(scene_builder->buildcache, underlay_id - 1);
         if( underlay )
             return underlay->rgb_color;
@@ -63,7 +63,7 @@ scenebuilder_compat_get_underlay_rgb(
     return -1;
 }
 
-struct CacheModel*
+struct RSCacheDat2A_Model*
 scenebuilder_compat_get_model(
     struct SceneBuilder* scene_builder,
     int model_id)
@@ -78,7 +78,7 @@ scenebuilder_compat_get_model(
     }
 }
 
-struct CacheMapLocs*
+struct RSCacheDat2A_MapLocs*
 scenebuilder_compat_get_scenery(
     struct SceneBuilder* scene_builder,
     int mapx,
@@ -111,7 +111,7 @@ scenebuilder_compat_get_texture(
     return NULL;
 }
 
-struct CacheConfigLocation*
+struct RSCacheDat2A_ConfigLocation*
 scenebuilder_compat_get_config_loc(
     struct SceneBuilder* scene_builder,
     int loc_id)

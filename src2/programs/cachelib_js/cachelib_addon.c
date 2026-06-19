@@ -2,8 +2,8 @@
 #include "platforms/platform_x/cachelib_internal.h"
 #include "platforms/platform_x/cachelib_platform.h"
 #include "platforms/platform_x/cachelib_serialized.h"
-#include "src/osrs/rscache/cache.h"
-#include "src/osrs/rscache/cache_dat.h"
+#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
 #include <node_api.h>
 
 #include <stdbool.h>
@@ -13,7 +13,7 @@
 // Native CacheLib wrapper
 typedef struct
 {
-    struct CacheLib* cache;
+    struct RSCacheDat2DiskLib* cache;
     char* directory;
     int mode;
     bool is_freed;
@@ -130,7 +130,7 @@ cachelib_constructor(
             env, directory_val, directory, directory_len + 1, &directory_len));
 
     // Create cachelib
-    struct CacheLib* cache = cachelib_new(mode);
+    struct RSCacheDat2DiskLib* cache = cachelib_new(mode);
     if( !cache )
     {
         free(directory);
@@ -208,7 +208,7 @@ cachelib_load_archive(
     }
 
     // Build IO request
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     request.table_id = table_id;
     request.archive_id = archive_id;
     request.flags = flags;
@@ -228,13 +228,13 @@ cachelib_load_archive(
 
     if( wrapper->mode == CACHE_MODE_DAT1 )
     {
-        struct CacheDatArchive* archive = (struct CacheDatArchive*)archive_ptr;
+        struct RSCacheDat1Disk_Archive* archive = (struct RSCacheDat1Disk_Archive*)archive_ptr;
         archive_data = archive->data;
         archive_data_size = archive->data_size;
     }
     else if( wrapper->mode == CACHE_MODE_DAT2 )
     {
-        struct CacheArchive* archive = (struct CacheArchive*)archive_ptr;
+        struct RSCacheDat2Disk_Archive* archive = (struct RSCacheDat2Disk_Archive*)archive_ptr;
         archive_data = archive->data;
         archive_data_size = archive->data_size;
     }
@@ -253,11 +253,11 @@ cachelib_load_archive(
     // Free the archive using the correct function for the mode
     if( wrapper->mode == CACHE_MODE_DAT1 )
     {
-        cache_dat_archive_free((struct CacheDatArchive*)archive_ptr);
+        RSCacheDat1Disk_ArchiveFree((struct RSCacheDat1Disk_Archive*)archive_ptr);
     }
     else if( wrapper->mode == CACHE_MODE_DAT2 )
     {
-        cache_archive_free((struct CacheArchive*)archive_ptr);
+        RSCacheDat2Disk_ArchiveFree((struct RSCacheDat2Disk_Archive*)archive_ptr);
     }
 
     return buffer;
@@ -302,7 +302,7 @@ cachelib_load_archive_serialized(
     }
 
     // Build IO request
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     request.table_id = table_id;
     request.archive_id = archive_id;
     request.flags = flags;
@@ -324,12 +324,12 @@ cachelib_load_archive_serialized(
 
     if( wrapper->mode == CACHE_MODE_DAT1 )
     {
-        struct CacheDatArchive* archive = (struct CacheDatArchive*)archive_ptr;
+        struct RSCacheDat1Disk_Archive* archive = (struct RSCacheDat1Disk_Archive*)archive_ptr;
         serialized_size = cachelib_cache_dat_archive_serialized_size(archive);
         
         if( serialized_size < 0 )
         {
-            cache_dat_archive_free(archive);
+            RSCacheDat1Disk_ArchiveFree(archive);
             throw_error(env, "Failed to compute serialized size");
             return NULL;
         }
@@ -337,7 +337,7 @@ cachelib_load_archive_serialized(
         temp_buffer = malloc(serialized_size);
         if( !temp_buffer )
         {
-            cache_dat_archive_free(archive);
+            RSCacheDat1Disk_ArchiveFree(archive);
             throw_error(env, "Failed to allocate serialization buffer");
             return NULL;
         }
@@ -346,23 +346,23 @@ cachelib_load_archive_serialized(
         if( written != serialized_size )
         {
             free(temp_buffer);
-            cache_dat_archive_free(archive);
+            RSCacheDat1Disk_ArchiveFree(archive);
             throw_error(env, "Failed to serialize archive");
             return NULL;
         }
 
         NAPI_CALL(env, napi_create_buffer_copy(env, serialized_size, temp_buffer, &buffer_data, &buffer));
         free(temp_buffer);
-        cache_dat_archive_free(archive);
+        RSCacheDat1Disk_ArchiveFree(archive);
     }
     else if( wrapper->mode == CACHE_MODE_DAT2 )
     {
-        struct CacheArchive* archive = (struct CacheArchive*)archive_ptr;
+        struct RSCacheDat2Disk_Archive* archive = (struct RSCacheDat2Disk_Archive*)archive_ptr;
         serialized_size = cachelib_cache_archive_serialized_size(archive);
         
         if( serialized_size < 0 )
         {
-            cache_archive_free(archive);
+            RSCacheDat2Disk_ArchiveFree(archive);
             throw_error(env, "Failed to compute serialized size");
             return NULL;
         }
@@ -370,7 +370,7 @@ cachelib_load_archive_serialized(
         temp_buffer = malloc(serialized_size);
         if( !temp_buffer )
         {
-            cache_archive_free(archive);
+            RSCacheDat2Disk_ArchiveFree(archive);
             throw_error(env, "Failed to allocate serialization buffer");
             return NULL;
         }
@@ -379,14 +379,14 @@ cachelib_load_archive_serialized(
         if( written != serialized_size )
         {
             free(temp_buffer);
-            cache_archive_free(archive);
+            RSCacheDat2Disk_ArchiveFree(archive);
             throw_error(env, "Failed to serialize archive");
             return NULL;
         }
 
         NAPI_CALL(env, napi_create_buffer_copy(env, serialized_size, temp_buffer, &buffer_data, &buffer));
         free(temp_buffer);
-        cache_archive_free(archive);
+        RSCacheDat2Disk_ArchiveFree(archive);
     }
     else
     {

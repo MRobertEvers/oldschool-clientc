@@ -31,13 +31,13 @@ project_vertices_array_avx2(
 
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
-    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
 
     int sin_model_yaw = g_sin_table[model_yaw];
-    int cos_model_yaw = g_cos_table[model_yaw];
+    int cos_model_yaw = RSCacheDat2A_NoiseCosTable[model_yaw];
 
     // Handle remaining vertices with scalar code
     int i = 0;
@@ -227,13 +227,13 @@ project_vertices_array_noyaw_avx2(
 
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
-    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
 
     int sin_model_yaw = g_sin_table[model_yaw];
-    int cos_model_yaw = g_cos_table[model_yaw];
+    int cos_model_yaw = RSCacheDat2A_NoiseCosTable[model_yaw];
 
     // Handle remaining vertices with scalar code
     int i = 0;
@@ -597,13 +597,13 @@ project_vertices_array_avx2_notex(
 
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
-    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
 
     int sin_model_yaw = g_sin_table[model_yaw];
-    int cos_model_yaw = g_cos_table[model_yaw];
+    int cos_model_yaw = RSCacheDat2A_NoiseCosTable[model_yaw];
 
     int i = 0;
     for( ; i + 8 <= num_vertices; i += 8 )
@@ -732,9 +732,9 @@ project_vertices_array_noyaw_avx2_notex(
 
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
-    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
 
     int i = 0;
@@ -973,12 +973,12 @@ project_vertices_array_fused_avx2(
     int fov_half = camera_fov >> 1;
     int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
-    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
     int sin_model_yaw = g_sin_table[model_yaw];
-    int cos_model_yaw = g_cos_table[model_yaw];
+    int cos_model_yaw = RSCacheDat2A_NoiseCosTable[model_yaw];
 
     __m256i v_near = _mm256_set1_epi32(near_plane_z);
     __m256i v_mid = _mm256_set1_epi32(model_mid_z);
@@ -1128,9 +1128,9 @@ project_vertices_array_fused_noyaw_avx2(
     int fov_half = camera_fov >> 1;
     int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
-    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
 
     __m256i v_near = _mm256_set1_epi32(near_plane_z);
@@ -1331,12 +1331,12 @@ project_vertices_array_fused_avx2_notex(
     int fov_half = camera_fov >> 1;
     int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
-    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
     int sin_model_yaw = g_sin_table[model_yaw];
-    int cos_model_yaw = g_cos_table[model_yaw];
+    int cos_model_yaw = RSCacheDat2A_NoiseCosTable[model_yaw];
 
     __m256i v_near = _mm256_set1_epi32(near_plane_z);
     __m256i v_mid = _mm256_set1_epi32(model_mid_z);
@@ -1470,9 +1470,9 @@ project_vertices_array_fused_noyaw_avx2_notex(
     int fov_half = camera_fov >> 1;
     int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
-    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
 
     __m256i v_near = _mm256_set1_epi32(near_plane_z);

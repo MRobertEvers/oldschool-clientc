@@ -1,7 +1,7 @@
 #include "pkt_npc_info.h"
 
-#include "osrs/rscache/bitbuffer.h"
-#include "osrs/rscache/rsbuf.h"
+#include "osrs/rscache/shared/rscache_shared_bit_buffer.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -174,10 +174,10 @@ pkt_npc_info_reader_read(
 {
     reader->current_op = 0;
     reader->extended_count = 0;
-    struct BitBuffer buf;
-    struct RSBuffer rsbuf;
-    rsbuf_init(&rsbuf, pkt->data, pkt->length);
-    bitbuffer_init_from_rsbuf(&buf, &rsbuf);
+    struct RSCacheShared_BitBuffer buf;
+    struct RSCacheShared_RSBuffer rsbuf;
+    RSCacheShared_RSBufferInit(&rsbuf, pkt->data, pkt->length);
+    RSCacheShared_BitBufferInitFromRsbuf(&buf, &rsbuf);
     bits(&buf);
 
     // NPC Old Vis

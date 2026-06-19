@@ -232,7 +232,7 @@ defaultlight_build(struct World* world)
                         scene2_element_dash_model(scene_element),
                         map_element->light_attenuation,
                         map_element->light_ambient);
-                    dashmodel_free_normals(scene2_element_dash_model(scene_element));
+                    dashRSCacheDat2A_ModelFree_normals(scene2_element_dash_model(scene_element));
                 }
             }
         }
@@ -496,7 +496,7 @@ apply_and_free_column(
                     dashmodel_vertices_y(dm),
                     dashmodel_vertices_z(dm));
 
-                dashmodel_free_normals(dm);
+                dashRSCacheDat2A_ModelFree_normals(dm);
             }
         }
     }

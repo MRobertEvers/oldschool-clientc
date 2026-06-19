@@ -1,7 +1,7 @@
 #ifndef GAMEPROTO_OUT_U_C
 #define GAMEPROTO_OUT_U_C
 
-#include "rscache/rsbuf.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -15,7 +15,7 @@ packetin_write_rebuild_region(
 {
     assert(data_size > 4);
 
-    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
+    struct RSCacheShared_RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
 
     p1(&buffer, PKTIN_REBUILD_REGION);
     p2(&buffer, zonex);

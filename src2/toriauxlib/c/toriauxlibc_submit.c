@@ -2,12 +2,12 @@
 
 #include "buildcache/dat1_buildcache.h"
 #include "toriauxlib/c/toriauxlibc.h"
-#include "osrs/rscache/tables/config_floortype.h"
-#include "osrs/rscache/tables/config_locs.h"
-#include "osrs/rscache/tables/config_sequence.h"
-#include "osrs/rscache/tables/maps.h"
-#include "osrs/rscache/tables/model.h"
-#include "osrs/rscache/tables_dat/animframe.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
 
 struct SubmitSequenceCtx
 {
@@ -17,7 +17,7 @@ struct SubmitSequenceCtx
 static void
 submit_sequence_cb(
     int seq_id,
-    struct CacheDatSequence* sequence,
+    struct RSCacheDat1A_ConfigSequence* sequence,
     void* user_data)
 {
     struct SubmitSequenceCtx* ctx = user_data;
@@ -36,7 +36,7 @@ struct SubmitFlotypeCtx
 static void
 submit_flotype_cb(
     int flo_id,
-    struct CacheConfigOverlay* flotype,
+    struct RSCacheDat2A_ConfigOverlay* flotype,
     void* user_data)
 {
     struct SubmitFlotypeCtx* ctx = user_data;
@@ -55,7 +55,7 @@ struct SubmitLocationCtx
 static void
 submit_location_cb(
     int loc_id,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     void* user_data)
 {
     struct SubmitLocationCtx* ctx = user_data;
@@ -71,7 +71,7 @@ ToriAuxLibC_SubmitMapTerrainFromDat1(
     struct ToriAuxLibC* c,
     int map_id)
 {
-    struct CacheMapTerrain* terrain = dat1_buildcache_map_terrain_get(dat1(c), map_id);
+    struct RSCacheDat2A_MapTerrain* terrain = dat1_buildcache_map_terrain_get(dat1(c), map_id);
     if( !terrain )
         return;
 
@@ -88,7 +88,7 @@ ToriAuxLibC_SubmitMapSceneryFromDat1(
     struct ToriAuxLibC* c,
     int map_id)
 {
-    struct CacheMapLocs* locs = dat1_buildcache_map_scenery_get(dat1(c), map_id);
+    struct RSCacheDat2A_MapLocs* locs = dat1_buildcache_map_scenery_get(dat1(c), map_id);
     if( !locs )
         return;
 
@@ -104,7 +104,7 @@ ToriAuxLibC_SubmitAnimationFromDat1(
     struct ToriAuxLibC* c,
     int anim_id)
 {
-    struct CacheDatAnimBaseFrames* abf = dat1_buildcache_animbaseframes_get(dat1(c), anim_id);
+    struct RSCacheDat1A_AnimBaseFrames* abf = dat1_buildcache_animbaseframes_get(dat1(c), anim_id);
     if( !abf )
         return;
 
@@ -121,16 +121,16 @@ ToriAuxLibC_SubmitModelFromDat1(
     struct ToriAuxLibC* c,
     int model_id)
 {
-    struct CacheModel* model = dat1_buildcache_model_get(dat1(c), model_id);
+    struct RSCacheDat2A_Model* model = dat1_buildcache_model_get(dat1(c), model_id);
     if( !model )
         return;
 
-    struct CacheModel* copy = model_new_copy(model);
+    struct RSCacheDat2A_Model* copy = RSCacheDat2A_ModelNewCopy(model);
     if( !copy )
         return;
 
     struct ToriAuxLibCore_Model* gc_model = ToriAuxLibC_ModelNewFromCacheModel(copy);
-    model_free(copy);
+    RSCacheDat2A_ModelFree(copy);
     if( !gc_model )
         return;
 

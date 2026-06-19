@@ -45,20 +45,20 @@ project_orthographic(
     assert(pitch >= 0 && pitch < 2048);
     assert(roll >= 0 && roll < 2048);
 
-    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
-    int cos_camera_roll = g_cos_table[camera_roll];
+    int cos_camera_roll = RSCacheDat2A_NoiseCosTable[camera_roll];
     int sin_camera_roll = g_sin_table[camera_roll];
 
     // Apply model rotation
     int sin_pitch = g_sin_table[pitch];
-    int cos_pitch = g_cos_table[pitch];
+    int cos_pitch = RSCacheDat2A_NoiseCosTable[pitch];
     int sin_yaw = g_sin_table[yaw];
-    int cos_yaw = g_cos_table[yaw];
+    int cos_yaw = RSCacheDat2A_NoiseCosTable[yaw];
     int sin_roll = g_sin_table[roll];
-    int cos_roll = g_cos_table[roll];
+    int cos_roll = RSCacheDat2A_NoiseCosTable[roll];
 
     // Rotate around Y-axis (yaw)
     int x_rotated = x * cos_yaw + z * sin_yaw;
@@ -244,9 +244,9 @@ project_orthographic_fast(
     int camera_pitch,
     int camera_yaw)
 {
-    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
 
     int x_rotated = x;
@@ -254,7 +254,7 @@ project_orthographic_fast(
     if( yaw != 0 )
     {
         int sin_yaw = g_sin_table[yaw];
-        int cos_yaw = g_cos_table[yaw];
+        int cos_yaw = RSCacheDat2A_NoiseCosTable[yaw];
         x_rotated = x * cos_yaw + z * sin_yaw;
         x_rotated >>= 16;
         z_rotated = z * cos_yaw - x * sin_yaw;
@@ -563,9 +563,9 @@ project_fast_notex(
     int screen_width,
     int screen_height)
 {
-    int cos_camera_pitch = g_cos_table[camera_pitch_r2pi2048];
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch_r2pi2048];
     int sin_camera_pitch = g_sin_table[camera_pitch_r2pi2048];
-    int cos_camera_yaw = g_cos_table[camera_yaw_r2pi2048];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw_r2pi2048];
     int sin_camera_yaw = g_sin_table[camera_yaw_r2pi2048];
 
     int x_rotated = x;
@@ -573,7 +573,7 @@ project_fast_notex(
     if( yaw_r2pi2048 != 0 )
     {
         int sin_yaw = g_sin_table[yaw_r2pi2048];
-        int cos_yaw = g_cos_table[yaw_r2pi2048];
+        int cos_yaw = RSCacheDat2A_NoiseCosTable[yaw_r2pi2048];
         x_rotated = x * cos_yaw + z * sin_yaw;
         x_rotated >>= 16;
         z_rotated = z * cos_yaw - x * sin_yaw;
@@ -617,19 +617,19 @@ project_notex(
     int screen_width,
     int screen_height)
 {
-    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
-    int cos_camera_roll = g_cos_table[camera_roll];
+    int cos_camera_roll = RSCacheDat2A_NoiseCosTable[camera_roll];
     int sin_camera_roll = g_sin_table[camera_roll];
 
     int sin_pitch = g_sin_table[pitch];
-    int cos_pitch = g_cos_table[pitch];
+    int cos_pitch = RSCacheDat2A_NoiseCosTable[pitch];
     int sin_yaw = g_sin_table[yaw];
-    int cos_yaw = g_cos_table[yaw];
+    int cos_yaw = RSCacheDat2A_NoiseCosTable[yaw];
     int sin_roll = g_sin_table[roll];
-    int cos_roll = g_cos_table[roll];
+    int cos_roll = RSCacheDat2A_NoiseCosTable[roll];
 
     int x_rotated = x * cos_yaw + z * sin_yaw;
     x_rotated >>= 16;
@@ -693,9 +693,9 @@ project_notex(
 // {
 //     int offset = 0;
 
-//     int cos_camera_pitch = g_cos_table[camera_pitch];
+//     int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
 //     int sin_camera_pitch = g_sin_table[camera_pitch];
-//     int cos_camera_yaw = g_cos_table[camera_yaw];
+//     int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
 //     int sin_camera_yaw = g_sin_table[camera_yaw];
 
 // #if defined(__ARM_NEON) || defined(__ARM_NEON__)
@@ -727,7 +727,7 @@ project_notex(
 //         if( yaw != 0 )
 //         {
 //             int sin_yaw = g_sin_table[yaw];
-//             int cos_yaw = g_cos_table[yaw];
+//             int cos_yaw = RSCacheDat2A_NoiseCosTable[yaw];
 //             vsin_yaw = vdupq_n_s32(sin_yaw);
 //             vcos_yaw = vdupq_n_s32(cos_yaw);
 //         }
@@ -803,7 +803,7 @@ project_notex(
 //         if( yaw != 0 )
 //         {
 //             int sin_yaw = g_sin_table[yaw];
-//             int cos_yaw = g_cos_table[yaw];
+//             int cos_yaw = RSCacheDat2A_NoiseCosTable[yaw];
 
 //             x_rotated = (x * cos_yaw + z * sin_yaw) >> 16;
 //             z_rotated = (z * cos_yaw - x * sin_yaw) >> 16;

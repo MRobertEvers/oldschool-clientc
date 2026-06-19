@@ -32,7 +32,7 @@ extern TORIDRAW_TABLE_QUAL int g_hsl16_to_rgb_table[65536];
 #endif
 
 extern TORIDRAW_TABLE_QUAL int g_sin_table[2048];
-extern TORIDRAW_TABLE_QUAL int g_cos_table[2048];
+extern TORIDRAW_TABLE_QUAL int RSCacheDat2A_NoiseCosTable[2048];
 extern TORIDRAW_TABLE_QUAL int g_tan_table[2048];
 
 extern TORIDRAW_TABLE_QUAL int g_reciprocal16[4096];

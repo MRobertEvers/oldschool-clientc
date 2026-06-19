@@ -645,7 +645,7 @@ world_rebuild_centerzone_chunk_terrain(
 
     /* ---- Heightmap + flag_map ---- */
     {
-        struct CacheMapTerrain* map_terrain =
+        struct RSCacheDat2A_MapTerrain* map_terrain =
             buildcachedat_get_map_terrain(buildcachedat, mapx, mapz);
         assert(map_terrain && "Map terrain must be found");
 
@@ -659,7 +659,7 @@ world_rebuild_centerzone_chunk_terrain(
                 for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
                 {
                     int chunk_index = MAP_TILE_COORD(tile_x, tile_z, level);
-                    struct CacheMapFloor* tile = &map_terrain->tiles_xyz[chunk_index];
+                    struct RSCacheDat2A_MapFloor* tile = &map_terrain->tiles_xyz[chunk_index];
                     int height = tile->height;
 
                     if( offset_x >= 0 && offset_z >= 0 && offset_x <= scene_size &&
@@ -692,11 +692,11 @@ world_rebuild_centerzone_chunk_terrain(
                         offset_z >= scene_size )
                         continue;
 
-                    struct CacheMapFloor* tile2 =
+                    struct RSCacheDat2A_MapFloor* tile2 =
                         &map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_z, level)];
                     if( tile2->underlay_id > 0 )
                     {
-                        struct CacheConfigOverlay* flotype =
+                        struct RSCacheDat2A_ConfigOverlay* flotype =
                             buildcachedat_get_flotype(buildcachedat, tile2->underlay_id - 1);
                         assert(flotype && "Flotype must be found");
 
@@ -721,7 +721,7 @@ world_rebuild_centerzone_chunk_terrain(
                         offset_z >= scene_size )
                         continue;
 
-                    struct CacheMapFloor* tile2 =
+                    struct RSCacheDat2A_MapFloor* tile2 =
                         &map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_z, level)];
 
                     int overlay_id = tile2->overlay_id - 1;
@@ -729,7 +729,7 @@ world_rebuild_centerzone_chunk_terrain(
 
                     if( overlay_id != -1 )
                     {
-                        struct CacheConfigOverlay* flotype =
+                        struct RSCacheDat2A_ConfigOverlay* flotype =
                             buildcachedat_get_flotype(buildcachedat, overlay_id);
                         assert(flotype && "Flotype must be found");
 
@@ -793,12 +793,12 @@ world_rebuild_centerzone_chunk_scenery(
     int scene_size = world->_scene_size;
     int offset_x;
     int offset_z;
-    struct CacheMapLoc* map_tile = NULL;
-    struct CacheConfigLocation* config_loc = NULL;
+    struct RSCacheDat2A_MapLoc* map_tile = NULL;
+    struct RSCacheDat2A_ConfigLocation* config_loc = NULL;
 
     /* ---- Collision map ---- */
     {
-        struct CacheMapLocs* map_locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
+        struct RSCacheDat2A_MapLocs* map_locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
         assert(map_locs && "Map scenery must be found");
 
         for( int i = 0; i < map_locs->locs_count; i++ )
@@ -1148,7 +1148,7 @@ world_rebuild_centerzone_end(struct World* world)
             {
                 int src = link_l1 ? (g < 3 ? g + 1 : 0) : g;
                 uint8_t st = (uint8_t)flag_map_get(world->_build_flag_map, x, z, src);
-                int draw = map_floor_vis_below_draw_level(st, src, link_l1);
+                int draw = RSCacheDat2A_MapFloorVisBelowDrawLevel(st, src, link_l1);
                 painter_tile_set_draw_level(world->painter, x, z, g, draw);
 #if WORLD_DEBUG_VIS_BELOW_DRAW
                 if( world_dbg_vis_below_samples < 200 &&
@@ -1356,8 +1356,8 @@ load_scene_animation(
     if( animation_id == -1 )
         return;
 
-    struct CacheAnimframe* animframe = NULL;
-    struct CacheDatSequence* sequence =
+    struct RSCacheDat1A_AnimFrame* animframe = NULL;
+    struct RSCacheDat1A_ConfigSequence* sequence =
         buildcachedat_get_sequence(world->buildcachedat, animation_id);
     if( !sequence )
         return;

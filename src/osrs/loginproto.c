@@ -1,7 +1,7 @@
 #include "loginproto.h"
 
 #include "jbase37.h"
-#include "rscache/rsbuf.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -9,7 +9,7 @@
 
 static int
 rsbuf_rsaenc(
-    struct RSBuffer* buffer,
+    struct RSCacheShared_RSBuffer* buffer,
     const struct rsa* rsa)
 {
     int8_t* temp = malloc(buffer->position);
@@ -122,9 +122,9 @@ loginproto_send(
 int
 loginproto_poll(struct LoginProto* loginproto)
 {
-    struct RSBuffer in;
-    struct RSBuffer out;
-    struct RSBuffer out_encrypted;
+    struct RSCacheShared_RSBuffer in;
+    struct RSCacheShared_RSBuffer out;
+    struct RSCacheShared_RSBuffer out_encrypted;
 
     if( ringbuf_used(loginproto->out) != 0 )
         return LOGINPROTO_AWAIT_SEND;
@@ -133,7 +133,7 @@ loginproto_poll(struct LoginProto* loginproto)
     {
     case LOGINPROTO_SEND_CONNECT:
     {
-        rsbuf_init(&out, loginproto->tempout, sizeof(loginproto->tempout));
+        RSCacheShared_RSBufferInit(&out, loginproto->tempout, sizeof(loginproto->tempout));
 
         uint64_t username37 = strtobase37(loginproto->username);
         int login_server = (int)((username37 >> 16) & 0x1F);
@@ -149,8 +149,8 @@ loginproto_poll(struct LoginProto* loginproto)
     }
     case LOGINPROTO_SEND_CREDENTIALS:
     {
-        rsbuf_init(&out, loginproto->tempout, sizeof(loginproto->tempout));
-        rsbuf_init(&in, loginproto->tempin, sizeof(loginproto->tempin));
+        RSCacheShared_RSBufferInit(&out, loginproto->tempout, sizeof(loginproto->tempout));
+        RSCacheShared_RSBufferInit(&in, loginproto->tempin, sizeof(loginproto->tempin));
 
         // The server sends 9 bytes that don't matter,
         // then 8 bytes for the server seed.
@@ -166,7 +166,7 @@ loginproto_poll(struct LoginProto* loginproto)
         loginproto->seed[2] = (int32_t)(server_seed >> 32);
         loginproto->seed[3] = (int32_t)(server_seed & 0xFFFFFFFF);
 
-        rsbuf_init(&out_encrypted, loginproto->tempencrypt, sizeof(loginproto->tempencrypt));
+        RSCacheShared_RSBufferInit(&out_encrypted, loginproto->tempencrypt, sizeof(loginproto->tempencrypt));
         p1(&out_encrypted, 10);
         p4(&out_encrypted, loginproto->seed[0]);
         p4(&out_encrypted, loginproto->seed[1]);
@@ -183,7 +183,7 @@ loginproto_poll(struct LoginProto* loginproto)
         }
 
         int encrypted_len = out_encrypted.position;
-        rsbuf_init(&out, loginproto->tempout, sizeof(loginproto->tempout));
+        RSCacheShared_RSBufferInit(&out, loginproto->tempout, sizeof(loginproto->tempout));
 
         // reconnect
         if( false )
@@ -218,7 +218,7 @@ loginproto_poll(struct LoginProto* loginproto)
     }
     case LOGINPROTO_LOGIN_RESPONSE:
     {
-        rsbuf_init(&in, loginproto->tempin, sizeof(loginproto->tempin));
+        RSCacheShared_RSBufferInit(&in, loginproto->tempin, sizeof(loginproto->tempin));
         if( ringbuf_used(loginproto->in) < 1 )
             return LOGINPROTO_AWAIT_RECV;
 

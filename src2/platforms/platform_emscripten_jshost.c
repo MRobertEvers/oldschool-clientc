@@ -3,9 +3,9 @@
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../scripting/libtorirs_scriptapi.h"
 #include "platform_x/cachelib_serialized.h"
-#include "src/osrs/rscache/archive.h"
-#include "src/osrs/rscache/cache.h"
-#include "src/osrs/rscache/cache_dat.h"
+#include "osrs/rscache/shared/rscache_shared_archive.h"
+#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -261,7 +261,7 @@ LibToriPlatformEmscripten_JSHost_Malloc(int size)
 }
 
 EMSCRIPTEN_KEEPALIVE
-struct CacheDatArchive*
+struct RSCacheDat1Disk_Archive*
 LibToriPlatformEmscripten_JSHost_CacheDatArchiveNewFromBuffer(
     int table_id,
     int archive_id,
@@ -271,23 +271,23 @@ LibToriPlatformEmscripten_JSHost_CacheDatArchiveNewFromBuffer(
     if( !data_ptr || data_size <= 0 )
         return NULL;
 
-    struct CacheDatArchive* archive = malloc(sizeof(struct CacheDatArchive));
+    struct RSCacheDat1Disk_Archive* archive = malloc(sizeof(struct RSCacheDat1Disk_Archive));
     if( !archive )
         return NULL;
 
-    memset(archive, 0, sizeof(struct CacheDatArchive));
+    memset(archive, 0, sizeof(struct RSCacheDat1Disk_Archive));
     archive->data = (char*)data_ptr;
     archive->data_size = data_size;
     archive->table_id = table_id;
     archive->archive_id = archive_id;
     archive->file_count = 0;
-    archive->format = ARCHIVE_FORMAT_DAT_MULTIFILE;
+    archive->format = RSCacheShared_ArchiveFormat_DatMultifile;
 
     return archive;
 }
 
 EMSCRIPTEN_KEEPALIVE
-struct CacheArchive*
+struct RSCacheDat2Disk_Archive*
 LibToriPlatformEmscripten_JSHost_CacheArchiveDeserialize(
     void* buffer,
     int size)
@@ -297,13 +297,13 @@ LibToriPlatformEmscripten_JSHost_CacheArchiveDeserialize(
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_CacheArchiveFree(struct CacheArchive* archive)
+LibToriPlatformEmscripten_JSHost_CacheArchiveFree(struct RSCacheDat2Disk_Archive* archive)
 {
-    cachelib_cache_archive_free(archive);
+    cachelib_RSCacheDat2Disk_ArchiveFree(archive);
 }
 
 EMSCRIPTEN_KEEPALIVE
-struct CacheDatArchive*
+struct RSCacheDat1Disk_Archive*
 LibToriPlatformEmscripten_JSHost_CacheDatArchiveDeserialize(
     void* buffer,
     int size)
@@ -313,9 +313,9 @@ LibToriPlatformEmscripten_JSHost_CacheDatArchiveDeserialize(
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_CacheDatArchiveFree(struct CacheDatArchive* archive)
+LibToriPlatformEmscripten_JSHost_CacheDatArchiveFree(struct RSCacheDat1Disk_Archive* archive)
 {
-    cachelib_cache_dat_archive_free(archive);
+    cachelib_RSCacheDat1Disk_ArchiveFree(archive);
 }
 
 EMSCRIPTEN_KEEPALIVE

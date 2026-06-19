@@ -500,7 +500,7 @@ scene2_element_clear_frames(struct Scene2Frames* frames)
 
     for( int i = 0; i < frames->count; i++ )
     {
-        dashframe_free(frames->frames[i]);
+        dashRSCacheDat2A_FrameFree(frames->frames[i]);
     }
     free(frames->frames);
     free(frames->lengths);
@@ -533,12 +533,12 @@ scene2_element_clear_framemap(struct Scene2Element* element)
         return;
     struct Scene2ElementFull* u = scene2__as_full(element);
     if( u->dash_framemap )
-        dashframemap_free(u->dash_framemap);
+        dashRSCacheDat2A_FramemapFree(u->dash_framemap);
     u->dash_framemap = NULL;
 }
 
 static void
-scene2__defer_model_free(
+scene2__defer_RSCacheDat2A_ModelFree(
     struct Scene2* scene2,
     struct DashModel* model)
 {
@@ -612,7 +612,7 @@ scene2_element_set_dash_model(
                     .world_yaw_r2pi2048 = 0,
                 },
             });
-        scene2__defer_model_free(scene2, old);
+        scene2__defer_RSCacheDat2A_ModelFree(scene2, old);
     }
 
     int elem_visual_id = 0;
@@ -800,7 +800,7 @@ scene2_element_set_framemap(
 {
     struct Scene2ElementFull* u = scene2__as_full(element);
     if( u->dash_framemap )
-        dashframemap_free(u->dash_framemap);
+        dashRSCacheDat2A_FramemapFree(u->dash_framemap);
     u->dash_framemap = dash_framemap;
 }
 
@@ -861,7 +861,7 @@ scene2_element_release(
                         .world_yaw_r2pi2048 = 0,
                     },
                 });
-            scene2__defer_model_free(scene2, f->dash_model);
+            scene2__defer_RSCacheDat2A_ModelFree(scene2, f->dash_model);
         }
         f->dash_model = NULL;
         f->element_id = 0;
@@ -894,14 +894,14 @@ scene2_element_release(
                         .world_yaw_r2pi2048 = 0,
                     },
                 });
-            scene2__defer_model_free(scene2, u->dash_model);
+            scene2__defer_RSCacheDat2A_ModelFree(scene2, u->dash_model);
         }
         u->dash_model = NULL;
         u->element_id = 0;
         u->visual_id = 0;
         dashposition_free(u->dash_position);
         u->dash_position = NULL;
-        dashframemap_free(u->dash_framemap);
+        dashRSCacheDat2A_FramemapFree(u->dash_framemap);
         u->dash_framemap = NULL;
         scene2_element_clear_frames(&u->primary_frames);
         scene2_element_clear_frames(&u->secondary_frames);
@@ -1304,7 +1304,7 @@ scene2_flush_deferred_array_frees(struct Scene2* scene2)
     scene2->face_arrays_deferred_free_count = 0;
 
     for( int k = 0; k < scene2->models_deferred_free_count; k++ )
-        dashmodel_free(scene2->models_deferred_free[k]);
+        dashRSCacheDat2A_ModelFree(scene2->models_deferred_free[k]);
     scene2->models_deferred_free_count = 0;
 }
 

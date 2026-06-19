@@ -4,11 +4,11 @@
 #include "buildcache/dat1_buildcache.h"
 #include "toriauxlib/c/dat1io.h"
 #include "toriauxlib/c/toriauxlibc_submit.h"
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/tables/model.h"
-#include "osrs/rscache/tables_dat/animframe.h"
-#include "osrs/rscache/tables_dat/config_textures.h"
-#include "osrs/rscache/tables_dat/configs_dat.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_textures.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_configs_dat.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "toridraw/toridraw_types.h"
 
@@ -52,7 +52,7 @@ Task_ToriAuxLibTD_ModelLoad_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct Task_ToriAuxLibTD_ModelLoad* task = (struct Task_ToriAuxLibTD_ModelLoad*)task_state;
-    struct CacheModel* model;
+    struct RSCacheDat2A_Model* model;
     int decoded_model_id;
 
     PT_BEGIN(&task->thread);
@@ -121,13 +121,13 @@ Task_ToriAuxLibTD_TexturesLoad_Run(
 {
     struct Task_ToriAuxLibTD_TexturesLoad* task = (struct Task_ToriAuxLibTD_TexturesLoad*)task_state;
     struct LibToriRS_IOQueueItem item;
-    struct CacheDatArchive* archive;
-    struct FileListDat* filelist;
+    struct RSCacheDat1Disk_Archive* archive;
+    struct RSCacheShared_FileListDat* filelist;
 
     PT_BEGIN(&task->thread);
 
     {
-        struct CacheLib_IORequest request;
+        struct RSCacheDat2DiskLib_IORequest request;
         cachelib_dat1_textures_archive_fetch(&request);
         LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
     }
@@ -138,23 +138,23 @@ Task_ToriAuxLibTD_TexturesLoad_Run(
     if( item.kind != TORIRSIO_KIND_CACHE || item.status != TORIRSIO_STAT_DONE ||
         item.error_code != 0 )
         PT_EXIT(&task->thread);
-    if( item.u.cache.table_id != CACHE_DAT_CONFIGS ||
-        item.u.cache.archive_id != CONFIG_DAT_TEXTURES )
+    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Configs ||
+        item.u.cache.archive_id != RSCacheDat1A_ConfigKind_Textures )
         PT_EXIT(&task->thread);
 
     archive = item.data;
     if( !archive )
         PT_EXIT(&task->thread);
 
-    filelist = filelist_dat_new_from_cache_dat_archive(archive);
-    cache_dat_archive_free(archive);
+    filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     if( !filelist )
         PT_EXIT(&task->thread);
 
     for( int i = 0; i < DAT1_TEXTURE_COUNT; i++ )
     {
-        struct CacheDatTexture* cache_texture =
-            cache_dat_texture_new_from_filelist_dat(filelist, i, 0);
+        struct RSCacheDat1A_ConfigTexture* cache_texture =
+            RSCacheDat1A_ConfigTextureNewFromFilelistDat(filelist, i, 0);
         if( !cache_texture )
             continue;
 
@@ -164,7 +164,7 @@ Task_ToriAuxLibTD_TexturesLoad_Run(
 
         struct ToriAuxLibCore_Texture* gc_texture = ToriAuxLibC_TextureNewFromCacheDatTexture(
             cache_texture, animation_direction, animation_speed);
-        cache_dat_texture_free(cache_texture);
+        RSCacheDat1A_ConfigTextureFree(cache_texture);
         if( !gc_texture )
             continue;
 
@@ -172,7 +172,7 @@ Task_ToriAuxLibTD_TexturesLoad_Run(
         ToriAuxLibTD_Texture(task->tdx, i);
     }
 
-    filelist_dat_free(filelist);
+    RSCacheShared_FileListDatFree(filelist);
     PT_END(&task->thread);
 }
 
@@ -220,8 +220,8 @@ Task_ToriAuxLibTD_AnimationsLoad_Run(
         PT_YIELD(&task->thread);
 
         {
-            struct FileListDat* config_jag = dat1io_config_jagfile_decode(ctx);
-            struct FileListDat* versionlist_jag = dat1io_versionlist_jagfile_decode(ctx);
+            struct RSCacheShared_FileListDat* config_jag = dat1io_config_jagfile_decode(ctx);
+            struct RSCacheShared_FileListDat* versionlist_jag = dat1io_versionlist_jagfile_decode(ctx);
             if( config_jag )
                 dat1_buildcache_set_fromconfigtable_config_jagfile(dat1_bc, config_jag);
             if( versionlist_jag )
@@ -255,7 +255,7 @@ Task_ToriAuxLibTD_AnimationsLoad_Run(
         for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
              task->pending_decodes++ )
         {
-            struct CacheDatAnimBaseFrames* abf = NULL;
+            struct RSCacheDat1A_AnimBaseFrames* abf = NULL;
             int anim_id = dat1io_animations_decode(ctx, &abf);
             if( anim_id >= 0 && abf )
             {

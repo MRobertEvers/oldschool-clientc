@@ -2,51 +2,51 @@
 #define DASH_UTILS_H
 
 #include "graphics/dash.h"
-#include "osrs/rscache/tables/frame.h"
-#include "osrs/rscache/tables/framemap.h"
-#include "osrs/rscache/tables/model.h"
-#include "osrs/rscache/tables_dat/animframe.h"
-#include "osrs/rscache/tables_dat/pix32.h"
-#include "osrs/rscache/tables_dat/pix8.h"
-#include "osrs/rscache/tables_dat/pixfont.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_frame.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_framemap.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix32.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix8.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix_font.h"
 
-struct CacheFrame;
-struct CacheFramemap;
-
-struct DashFramemap*
-dashframemap_new_from_cache_framemap(struct CacheFramemap* framemap);
-
-struct DashFrame*
-dashframe_new_from_cache_frame(struct CacheFrame* frame);
-
-struct DashFrame*
-dashframe_new_from_animframe(struct CacheAnimframe* animframe);
+struct RSCacheDat2A_Frame;
+struct RSCacheDat2A_Framemap;
 
 struct DashFramemap*
-dashframemap_new_from_animframe(struct CacheAnimframe* animframe);
+dashRSCacheDat2A_FramemapNewFromCache_framemap(struct RSCacheDat2A_Framemap* framemap);
+
+struct DashFrame*
+dashRSCacheDat2A_FrameNewFromCache_frame(struct RSCacheDat2A_Frame* frame);
+
+struct DashFrame*
+dashframe_new_from_animframe(struct RSCacheDat1A_AnimFrame* animframe);
+
+struct DashFramemap*
+dashframemap_new_from_animframe(struct RSCacheDat1A_AnimFrame* animframe);
 
 struct DashPix8*
-dashpix8_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette);
+dashpix8_new_from_cache_pix8_palette(struct RSCacheDat1A_Pix8Palette* pix8_palette);
 
 struct DashPixPalette*
-dashpixpalette_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette);
+dashpixpalette_new_from_cache_pix8_palette(struct RSCacheDat1A_Pix8Palette* pix8_palette);
 
 struct DashSprite*
-dashsprite_new_from_cache_pix32(struct CacheDatPix32* pix32);
+dashsprite_new_from_cache_pix32(struct RSCacheDat1A_Pix32* pix32);
 
 struct DashSprite*
-dashsprite_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette);
+dashsprite_new_from_cache_pix8_palette(struct RSCacheDat1A_Pix8Palette* pix8_palette);
 
 struct DashPixFont*
-dashpixfont_new_from_cache_dat_pixfont_move(struct CacheDatPixfont* pixfont);
+dashpixfont_new_from_cache_dat_pixfont_move(struct RSCacheDat1A_PixFont* pixfont);
 
 struct DashModel*
-dashmodel_new_from_cache_model(struct CacheModel* model);
+dashRSCacheDat2A_ModelNewFromCache_model(struct RSCacheDat2A_Model* model);
 
 void
 dashmodel_move_from_cache_model(
     struct DashModel* dash_model,
-    struct CacheModel* model);
+    struct RSCacheDat2A_Model* model);
 
 struct DashModelBones*
 dashmodel_bones_new(

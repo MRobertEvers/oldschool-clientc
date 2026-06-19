@@ -1,7 +1,7 @@
 #ifndef WORDPACK_H
 #define WORDPACK_H
 
-#include "rscache/rsbuf.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
 
 #include <stddef.h>
 
@@ -12,12 +12,12 @@
 
 void
 wordpack_pack(
-    struct RSBuffer* buffer,
+    struct RSCacheShared_RSBuffer* buffer,
     const char* str);
 
 char*
 wordpack_unpack(
-    struct RSBuffer* buffer,
+    struct RSCacheShared_RSBuffer* buffer,
     int length);
 
 #endif

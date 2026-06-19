@@ -64,7 +64,7 @@ init_terrain_grid(
     terrain_grid->size_z = scene_builder->size_z;
 
     int map_index = 0;
-    struct CacheMapTerrain* map_terrain = NULL;
+    struct RSCacheDat2A_MapTerrain* map_terrain = NULL;
     for( int mapz = mapz_sw; mapz <= mapz_ne; mapz++ )
     {
         for( int mapx = mapx_sw; mapx <= mapx_ne; mapx++ )
@@ -118,13 +118,13 @@ scenebuilder_apply_vis_below_draw_levels(
     {
         for( int z = 0; z < tile_width_z; z++ )
         {
-            struct CacheMapFloor* b = tile_from_sw_origin(tg, x, z, 1);
+            struct RSCacheDat2A_MapFloor* b = tile_from_sw_origin(tg, x, z, 1);
             int link_l1 = (b->settings & FLOFLAG_LINK_BELOW) != 0;
             for( int g = 0; g < painter_max_levels(painter); g++ )
             {
                 int src = link_l1 ? (g < 3 ? g + 1 : 0) : g;
-                struct CacheMapFloor* srcf = tile_from_sw_origin(tg, x, z, src);
-                int draw = map_floor_vis_below_draw_level(srcf->settings, src, link_l1);
+                struct RSCacheDat2A_MapFloor* srcf = tile_from_sw_origin(tg, x, z, src);
+                int draw = RSCacheDat2A_MapFloorVisBelowDrawLevel(srcf->settings, src, link_l1);
                 painter_tile_set_draw_level(painter, x, z, g, draw);
             }
         }
@@ -190,8 +190,8 @@ scenebuiler_build(
      * Buffer Level 2: Nothing
      * Buffer Level 3: Tile := (Previous Level 0)
      */
-    struct CacheMapFloor* ground = NULL;
-    struct CacheMapFloor* bridge = NULL;
+    struct RSCacheDat2A_MapFloor* ground = NULL;
+    struct RSCacheDat2A_MapFloor* bridge = NULL;
     struct PaintersTile bridge_tile_tmp = { 0 };
 
     for( int x = 0; x < scene->tile_width_x; x++ )

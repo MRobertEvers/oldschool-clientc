@@ -9,7 +9,7 @@
 #include "lightmap.h"
 #include "minimap.h"
 #include "osrs/painters.h"
-#include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
 #include "overlaymap.h"
 #include "shademap.h"
 #include "sharelight_map.h"
@@ -194,7 +194,7 @@ world_builder_rebuild_centerzone_end(struct WorldBuilder* builder)
                 {
                     int src = link_l1 ? (g < 3 ? g + 1 : 0) : g;
                     uint8_t st = (uint8_t)flag_map_get(builder->flag_map, x, z, src);
-                    int draw = map_floor_vis_below_draw_level(st, src, link_l1);
+                    int draw = RSCacheDat2A_MapFloorVisBelowDrawLevel(st, src, link_l1);
                     painter_tile_set_draw_level(world->painter, x, z, g, draw);
                 }
             }

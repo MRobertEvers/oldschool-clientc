@@ -1,9 +1,9 @@
 #ifndef FILEPACK_H
 #define FILEPACK_H
 
-#include "rscache/cache.h"
-#include "rscache/cache_dat.h"
-#include "rscache/filelist.h"
+#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
 
 struct FilePack
 {
@@ -13,11 +13,11 @@ struct FilePack
 
 struct FilePack*
 filepack_new(
-    struct Cache* cache,
-    struct CacheArchive* archive);
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive);
 
 struct FilePack*
-filepack_new_from_filelist_dat_indexed(struct FileListDatIndexed* filelist_indexed);
+filepack_new_from_filelist_dat_indexed(struct RSCacheShared_FileListDatIndexed* filelist_indexed);
 
 void
 filepack_free(struct FilePack* filepack);

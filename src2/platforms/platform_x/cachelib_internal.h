@@ -2,16 +2,16 @@
 #define PLATFORM_X_CACHELIB_INTERNAL_H
 
 #include "cachelib.h"
-#include "src/osrs/rscache/cache.h"
-#include "src/osrs/rscache/cache_dat.h"
+#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
 
-struct CacheLib
+struct RSCacheDat2DiskLib
 {
     int mode;
     union
     {
-        struct Cache* cache_dat2;
-        struct CacheDat* cache_dat1;
+        struct RSCacheDat2Disk* cache_dat2;
+        struct RSCacheDat1Disk* cache_dat1;
     } u;
 };
 

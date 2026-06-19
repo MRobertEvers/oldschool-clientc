@@ -3,11 +3,11 @@
 
 #include "../ioqueue/libtorirs_ioqueue.h"
 
-struct CacheLib;
+struct RSCacheDat2DiskLib;
 struct LibToriPlatformX_IOReactor;
 
 struct LibToriPlatformX_IOReactor*
-LibToriPlatformX_IOReactorNew(struct CacheLib* cache);
+LibToriPlatformX_IOReactorNew(struct RSCacheDat2DiskLib* cache);
 
 void
 LibToriPlatformX_IOReactorFree(struct LibToriPlatformX_IOReactor* reactor);

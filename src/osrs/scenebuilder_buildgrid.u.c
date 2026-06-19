@@ -1,8 +1,8 @@
 #ifndef SCENEBUILDER_BUILDGRID_U_C
 #define SCENEBUILDER_BUILDGRID_U_C
 
-#include "rscache/tables/config_locs.h"
-#include "rscache/tables/maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -47,7 +47,7 @@ struct BuildElement
     uint8_t slevel;
 
     // Debug
-    struct CacheConfigLocation* __config_loc;
+    struct RSCacheDat2A_ConfigLocation* __config_loc;
 };
 
 struct BuildTile
@@ -207,7 +207,7 @@ static void
 build_grid_set_element(
     struct BuildGrid* build_grid,
     int element_idx,
-    struct CacheConfigLocation* config_loc,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
     struct TerrainGridOffsetFromSW* offset,
     int orientation,
     int size_x,

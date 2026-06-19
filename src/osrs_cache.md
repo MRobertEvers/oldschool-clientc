@@ -167,7 +167,7 @@ When reading a multi-file archive:
 Each index file contains fixed-size records (6 bytes) with the following structure:
 
 ```c
-struct IndexRecord {
+struct RSCacheDisk_IndexRecord {
     int idx_file_id;    // The file extension (e.g., 2 := idx2)
     int record_id;      // Unique identifier for the record
     int sector;         // Starting sector in .dat2 file
@@ -180,7 +180,7 @@ struct IndexRecord {
 The reference table (idx255) contains detailed metadata about each archive:
 
 ```c
-struct ReferenceTableEntry {
+struct RSCacheDat2Disk_ReferenceTableEntry {
     int index;          // Index identifier
     int identifier;     // Additional identifier
     int crc;           // CRC32 checksum

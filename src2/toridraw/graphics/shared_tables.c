@@ -10,9 +10,13 @@
 //             represented as a short.
 int g_hsl16_to_rgb_table[65536];
 
-int g_sin_table[2048];
-int g_cos_table[2048];
-int g_tan_table[2048];
+static int g_sin_table_builtin[2048];
+static int g_cos_table_builtin[2048];
+static int g_tan_table_builtin[2048];
+
+const int* g_sin_table = g_sin_table_builtin;
+const int* RSCacheDat2A_NoiseCosTable = g_cos_table_builtin;
+const int* g_tan_table = g_tan_table_builtin;
 
 int g_reciprocal15[4096];
 int g_reciprocal16[4096];
@@ -21,6 +25,12 @@ int g_reciprocal16[4096];
 uint16_t g_reciprocal16_simd[G_RECIPROCAL16_SIMD_LEN];
 uint32_t g_reciprocal_norm30[G_RECIPROCAL_NORM_LEN];
 #endif
+
+#else /* TORIDRAW_TABLES_PRECOMPUTED */
+
+const int* g_sin_table;
+const int* RSCacheDat2A_NoiseCosTable;
+const int* g_tan_table;
 
 #endif /* !TORIDRAW_TABLES_PRECOMPUTED */
 
@@ -186,7 +196,7 @@ init_sin_table(void)
     // 0.0030679615 = 2 * PI / 2048
     // (int)(sin((double)i * 0.0030679615) * 65536.0);
     for( int i = 0; i < 2048; i++ )
-        g_sin_table[i] = (int)(sin((double)i * 0.0030679615) * (1 << 16));
+        g_sin_table_builtin[i] = (int)(sin((double)i * 0.0030679615) * (1 << 16));
 }
 
 void
@@ -195,14 +205,14 @@ init_cos_table(void)
     // 0.0030679615 = 2 * PI / 2048
     // (int)(cos((double)i * 0.0030679615) * 65536.0);
     for( int i = 0; i < 2048; i++ )
-        g_cos_table[i] = (int)(cos((double)i * 0.0030679615) * (1 << 16));
+        g_cos_table_builtin[i] = (int)(cos((double)i * 0.0030679615) * (1 << 16));
 }
 
 void
 init_tan_table(void)
 {
     for( int i = 0; i < 2048; i++ )
-        g_tan_table[i] = (int)(tan((double)i * 0.0030679615) * (1 << 16));
+        g_tan_table_builtin[i] = (int)(tan((double)i * 0.0030679615) * (1 << 16));
 }
 
 void
@@ -224,3 +234,51 @@ init_reciprocal16(void)
 }
 
 #endif /* TORIDRAW_TABLES_PRECOMPUTED */
+
+void
+ToriDraw_SetSinTable(const int* table)
+{
+#ifndef TORIDRAW_TABLES_PRECOMPUTED
+    g_sin_table = table ? table : g_sin_table_builtin;
+#else
+    g_sin_table = table;
+#endif
+}
+
+void
+ToriDraw_SetCosTable(const int* table)
+{
+#ifndef TORIDRAW_TABLES_PRECOMPUTED
+    RSCacheDat2A_NoiseCosTable = table ? table : g_cos_table_builtin;
+#else
+    RSCacheDat2A_NoiseCosTable = table;
+#endif
+}
+
+void
+ToriDraw_SetTanTable(const int* table)
+{
+#ifndef TORIDRAW_TABLES_PRECOMPUTED
+    g_tan_table = table ? table : g_tan_table_builtin;
+#else
+    g_tan_table = table;
+#endif
+}
+
+const int*
+ToriDraw_GetSinTable(void)
+{
+    return g_sin_table;
+}
+
+const int*
+ToriDraw_GetCosTable(void)
+{
+    return RSCacheDat2A_NoiseCosTable;
+}
+
+const int*
+ToriDraw_GetTanTable(void)
+{
+    return g_tan_table;
+}

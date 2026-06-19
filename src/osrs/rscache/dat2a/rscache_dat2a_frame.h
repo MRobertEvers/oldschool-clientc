@@ -1,0 +1,64 @@
+#ifndef RSCACHE_RSCACHEDAT2A_FRAME_H
+#define RSCACHE_RSCACHEDAT2A_FRAME_H
+
+#include "rscache_dat2a_framemap.h"
+
+#include <stdbool.h>
+
+/**
+ * @brief A frame is a set of parameters for how to transform each bone in each skeleton.
+ *
+ * Nah. Each animation consists of a list of frames. All those frames belong in the same frame map.
+You derive the frame map from the stand/walk animation of the monster, and then find all animations
+that contain frames which belong to that same frame map. Ultimately gives you the ability to extract
+a lot more than what Armar's provided. I personally extract these fields, although they can be
+extended even further. https://gist.github.com/555196afa946955d37d4525a162712ea
+
+Oh and this is also a more up to date version of what the OP provided, as of right now it's the
+current OSRS's cache dump.
+ */
+struct RSCacheDat2A_Frame
+{
+    int _id;
+    void* _framemap;
+    // This is the rigging for the frame.
+    int framemap_id;
+    int translator_count;
+    int* index_frame_ids;
+    int* translator_arg_x;
+    int* translator_arg_y;
+    int* translator_arg_z;
+    bool showing;
+};
+
+struct RSCacheDat2Disk;
+struct RSCacheDat2A_Frame*
+RSCacheDat2A_FrameNewFromCache(
+    struct RSCacheDat2Disk* cache,
+    int frame_id,
+    struct RSCacheDat2A_Framemap* framemap);
+
+struct RSCacheDat2A_Frame*
+RSCacheDat2A_FrameNewDecode2(
+    int frame_id,
+    struct RSCacheDat2A_Framemap* framemap,
+    char* data,
+    int data_size);
+
+/**
+ * The frame map is required to parse the frame,
+ * the framemap id is the first short stored in the frame's buffer.
+ *
+ * @param data
+ * @param data_size
+ * @return int
+ */
+int
+RSCacheDat2A_FrameFramemapIdFromFile(
+    char* data,
+    int data_size);
+
+void
+RSCacheDat2A_FrameFree(struct RSCacheDat2A_Frame* frame);
+
+#endif // FRAME_H

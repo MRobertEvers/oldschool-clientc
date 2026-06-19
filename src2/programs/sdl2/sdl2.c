@@ -83,7 +83,7 @@ main(
 
     struct LibToriPlatformX_Lua* lua = NULL;
     struct LibToriPlatformX_IOReactor* io_reactor = NULL;
-    struct CacheLib* cache = NULL;
+    struct RSCacheDat2DiskLib* cache = NULL;
     struct LibToriPlatformSDL2* platform = NULL;
     struct LibToriPlatformSDL2_RendererSoft3D* renderer_soft3d = NULL;
 #if defined(_WIN32)

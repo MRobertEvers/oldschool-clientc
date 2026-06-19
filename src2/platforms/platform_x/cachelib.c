@@ -7,20 +7,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct CacheLib*
+struct RSCacheDat2DiskLib*
 cachelib_new(int mode)
 {
-    struct CacheLib* cache = malloc(sizeof(struct CacheLib));
+    struct RSCacheDat2DiskLib* cache = malloc(sizeof(struct RSCacheDat2DiskLib));
     assert(cache);
 
-    memset(cache, 0, sizeof(struct CacheLib));
+    memset(cache, 0, sizeof(struct RSCacheDat2DiskLib));
     cache->mode = mode;
 
     return cache;
 }
 
 void
-cachelib_free(struct CacheLib* cache)
+cachelib_free(struct RSCacheDat2DiskLib* cache)
 {
     if( !cache )
         return;
@@ -28,12 +28,12 @@ cachelib_free(struct CacheLib* cache)
     // Free the backing cache based on mode
     if( cache->mode == CACHE_MODE_DAT1 && cache->u.cache_dat1 )
     {
-        cache_dat_free(cache->u.cache_dat1);
+        RSCacheDat1Disk_Free(cache->u.cache_dat1);
         cache->u.cache_dat1 = NULL;
     }
     else if( cache->mode == CACHE_MODE_DAT2 && cache->u.cache_dat2 )
     {
-        cache_free(cache->u.cache_dat2);
+        RSCacheDat2Disk_Free(cache->u.cache_dat2);
         cache->u.cache_dat2 = NULL;
     }
     
@@ -41,7 +41,7 @@ cachelib_free(struct CacheLib* cache)
 }
 
 int
-cachelib_get_mode(struct CacheLib* cache)
+cachelib_get_mode(struct RSCacheDat2DiskLib* cache)
 {
     if( !cache )
         return -1;

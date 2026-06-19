@@ -17,16 +17,16 @@
 #include "osrs/gameproto_exec.h"
 #include "osrs/minimap.h"
 #include "osrs/painters.h"
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/tables/config_floortype.h"
-#include "osrs/rscache/tables/config_locs.h"
-#include "osrs/rscache/tables/config_sequence.h"
-#include "osrs/rscache/tables/frame.h"
-#include "osrs/rscache/tables/framemap.h"
-#include "osrs/rscache/tables/maps.h"
-#include "osrs/rscache/tables/model.h"
-#include "osrs/rscache/tables/sprites.h"
-#include "osrs/rscache/tables/textures.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_frame.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_framemap.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_sprites.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_textures.h"
 #include "osrs/texture.h"
 #include "packets/pkt_npc_info.h"
 #include "packets/pkt_player_info.h"
@@ -110,7 +110,7 @@ l_buildcachedat_has_map_terrain(lua_State* L)
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
     int chunk_x = luaL_checkinteger(L, 1);
     int chunk_z = luaL_checkinteger(L, 2);
-    struct CacheMapTerrain* t = buildcachedat_get_map_terrain(buildcachedat, chunk_x, chunk_z);
+    struct RSCacheDat2A_MapTerrain* t = buildcachedat_get_map_terrain(buildcachedat, chunk_x, chunk_z);
     lua_pushboolean(L, t != NULL);
     return 1;
 }
@@ -122,7 +122,7 @@ l_buildcachedat_has_map_scenery(lua_State* L)
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
     int chunk_x = luaL_checkinteger(L, 1);
     int chunk_z = luaL_checkinteger(L, 2);
-    struct CacheMapLocs* s = buildcachedat_get_scenery(buildcachedat, chunk_x, chunk_z);
+    struct RSCacheDat2A_MapLocs* s = buildcachedat_get_scenery(buildcachedat, chunk_x, chunk_z);
     lua_pushboolean(L, s != NULL);
     return 1;
 }
@@ -133,7 +133,7 @@ l_buildcachedat_model_cache_has(lua_State* L)
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
     int model_id = luaL_checkinteger(L, 1);
-    struct CacheModel* m = buildcachedat_get_model(buildcachedat, model_id);
+    struct RSCacheDat2A_Model* m = buildcachedat_get_model(buildcachedat, model_id);
     lua_pushboolean(L, m != NULL);
     return 1;
 }
@@ -144,7 +144,7 @@ l_buildcachedat_animbaseframes_cache_has(lua_State* L)
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
     int animbaseframes_id = luaL_checkinteger(L, 1);
-    struct CacheDatAnimBaseFrames* ab =
+    struct RSCacheDat1A_AnimBaseFrames* ab =
         buildcachedat_get_animbaseframes(buildcachedat, animbaseframes_id);
     lua_pushboolean(L, ab != NULL);
     return 1;
@@ -258,7 +258,7 @@ l_buildcachedat_get_npc_model_ids(lua_State* L)
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
     int npc_id = luaL_checkinteger(L, 1);
 
-    struct CacheDatConfigNpc* npc = buildcachedat_get_npc(buildcachedat, npc_id);
+    struct RSCacheDat1A_ConfigNpc* npc = buildcachedat_get_npc(buildcachedat, npc_id);
     lua_newtable(L);
     if( !npc || !npc->models )
         return 1;
@@ -277,7 +277,7 @@ l_buildcachedat_get_idk_model_ids(lua_State* L)
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
     int idk_id = luaL_checkinteger(L, 1);
 
-    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
+    struct RSCacheDat1A_ConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
     lua_newtable(L);
     if( !idk || !idk->models )
         return 1;
@@ -296,7 +296,7 @@ l_buildcachedat_get_idk_head_model_ids(lua_State* L)
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
     int idk_id = luaL_checkinteger(L, 1);
 
-    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
+    struct RSCacheDat1A_ConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
     lua_newtable(L);
     if( !idk )
         return 1;
@@ -320,7 +320,7 @@ l_buildcachedat_get_obj_model_ids(lua_State* L)
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
     int obj_id = luaL_checkinteger(L, 1);
 
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+    struct RSCacheDat1A_ConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
     lua_newtable(L);
     if( !obj )
         return 1;
@@ -360,7 +360,7 @@ l_buildcachedat_get_obj_head_model_ids(lua_State* L)
     int obj_id = luaL_checkinteger(L, 1);
     int gender = luaL_optinteger(L, 2, 0);
 
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+    struct RSCacheDat1A_ConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
     lua_newtable(L);
     if( !obj )
         return 1;
@@ -389,7 +389,7 @@ l_buildcachedat_get_npc_head_model_ids(lua_State* L)
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
     int npc_id = luaL_checkinteger(L, 1);
 
-    struct CacheDatConfigNpc* npc = buildcachedat_get_npc(buildcachedat, npc_id);
+    struct RSCacheDat1A_ConfigNpc* npc = buildcachedat_get_npc(buildcachedat, npc_id);
     lua_newtable(L);
     if( !npc || !npc->heads )
         return 1;
@@ -411,7 +411,7 @@ l_buildcachedat_get_obj(lua_State* L)
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
     int obj_id = luaL_checkinteger(L, 1);
 
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+    struct RSCacheDat1A_ConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
     if( !obj )
     {
         lua_pushnil(L);
@@ -747,7 +747,7 @@ register_buildcachedat(
 #define LUA_BUILDCACHE_MAX_IDS 2048
 
 static void
-lua_buildcache_free_init_configmaps(struct GGame* game)
+lua_buildRSCacheDat2Disk_Free_init_configmaps(struct GGame* game)
 {
     if( game->init_scenery_configmap )
     {
@@ -783,7 +783,7 @@ l_buildcache_ensure(lua_State* L)
     // if( !game->scenebuilder )
     //     game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
 
-    lua_buildcache_free_init_configmaps(game);
+    lua_buildRSCacheDat2Disk_Free_init_configmaps(game);
     return 0;
 }
 
@@ -811,7 +811,7 @@ l_buildcache_get_scenery_ids(lua_State* L)
 
     struct DashMapIter* iter = buildcache_iter_new_map_scenery(game->buildcache);
     int mapx = 0, mapz = 0;
-    struct CacheMapLocs* locs = NULL;
+    struct RSCacheDat2A_MapLocs* locs = NULL;
     while( (locs = buildcache_iter_next_map_scenery(iter, &mapx, &mapz)) )
     {
         for( int i = 0; i < locs->locs_count; i++ )
@@ -868,12 +868,12 @@ l_buildcache_get_queued_models_and_sequences(lua_State* L)
 
     struct DashMapIter* iter = buildcache_iter_new_map_scenery(game->buildcache);
     int mapx = 0, mapz = 0;
-    struct CacheMapLocs* locs = NULL;
+    struct RSCacheDat2A_MapLocs* locs = NULL;
     while( (locs = buildcache_iter_next_map_scenery(iter, &mapx, &mapz)) )
     {
         for( int i = 0; i < locs->locs_count; i++ )
         {
-            struct CacheConfigLocation* config_loc =
+            struct RSCacheDat2A_ConfigLocation* config_loc =
                 configmap_get(game->init_scenery_configmap, locs->locs[i].loc_id);
             if( !config_loc )
                 continue;
@@ -999,7 +999,7 @@ l_buildcache_get_queued_texture_ids(lua_State* L)
     int n = 0;
     memset(ids, 0, sizeof(ids));
 
-    struct CacheConfigOverlay* config_overlay = NULL;
+    struct RSCacheDat2A_ConfigOverlay* config_overlay = NULL;
     struct DashMapIter* iter = buildcache_iter_new_config_overlay(game->buildcache);
     while( (config_overlay = buildcache_iter_next_config_overlay(iter)) )
     {
@@ -1016,7 +1016,7 @@ l_buildcache_get_queued_texture_ids(lua_State* L)
     buildcache_iter_free_config_overlay(iter);
 
     int model_id = 0;
-    struct CacheModel* model = NULL;
+    struct RSCacheDat2A_Model* model = NULL;
     iter = buildcache_iter_new_models(game->buildcache);
     while( (model = buildcache_iter_next_models(iter, &model_id)) )
     {
@@ -1039,12 +1039,12 @@ l_buildcache_get_queued_texture_ids(lua_State* L)
 
     iter = buildcache_iter_new_map_scenery(game->buildcache);
     int mapx = 0, mapz = 0;
-    struct CacheMapLocs* locs = NULL;
+    struct RSCacheDat2A_MapLocs* locs = NULL;
     while( (locs = buildcache_iter_next_map_scenery(iter, &mapx, &mapz)) )
     {
         for( int i = 0; i < locs->locs_count; i++ )
         {
-            struct CacheConfigLocation* config_loc =
+            struct RSCacheDat2A_ConfigLocation* config_loc =
                 configmap_get(game->init_scenery_configmap, locs->locs[i].loc_id);
             if( !config_loc || !config_loc->retexture_count || !config_loc->retextures_to )
                 continue;
@@ -1099,9 +1099,9 @@ l_buildcache_get_queued_spritepack_ids(lua_State* L)
     int ids[LUA_BUILDCACHE_MAX_IDS];
     int n = 0;
     memset(ids, 0, sizeof(ids));
-    struct CacheTexture* tex = NULL;
+    struct RSCacheDat2A_Texture* tex = NULL;
     struct DashMapIter* iter = dashmap_iter_new(game->init_texture_definitions_configmap);
-    while( (tex = (struct CacheTexture*)configmap_iter_next(iter, NULL)) )
+    while( (tex = (struct RSCacheDat2A_Texture*)configmap_iter_next(iter, NULL)) )
     {
         for( int i = 0; tex->sprite_ids && i < tex->sprite_ids_count && n < LUA_BUILDCACHE_MAX_IDS;
              i++ )
@@ -1140,9 +1140,9 @@ l_buildcache_build_textures(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     int id = 0;
-    struct CacheTexture* texture_definition = NULL;
+    struct RSCacheDat2A_Texture* texture_definition = NULL;
     struct DashMapIter* iter = dashmap_iter_new(game->init_texture_definitions_configmap);
-    while( (texture_definition = (struct CacheTexture*)configmap_iter_next(iter, &id)) )
+    while( (texture_definition = (struct RSCacheDat2A_Texture*)configmap_iter_next(iter, &id)) )
     {
         struct DashTexture* texture =
             texture_new_from_definition(texture_definition, game->buildcache->spritepacks_hmap);
@@ -1181,9 +1181,9 @@ l_buildcache_get_queued_frame_archive_ids(lua_State* L)
     int ids[LUA_BUILDCACHE_MAX_IDS];
     int n = 0;
     memset(ids, 0, sizeof(ids));
-    struct CacheConfigSequence* sequence = NULL;
+    struct RSCacheDat2A_ConfigSequence* sequence = NULL;
     struct DashMapIter* iter = dashmap_iter_new(game->init_sequences_configmap);
-    while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter, NULL)) )
+    while( (sequence = (struct RSCacheDat2A_ConfigSequence*)configmap_iter_next(iter, NULL)) )
     {
         for( int i = 0; sequence->frame_ids && i < sequence->frame_count; i++ )
         {
@@ -1224,25 +1224,25 @@ l_buildcache_get_queued_framemap_ids(lua_State* L)
     int ids[LUA_BUILDCACHE_MAX_IDS];
     int n = 0;
     memset(ids, 0, sizeof(ids));
-    struct CacheConfigSequence* sequence = NULL;
+    struct RSCacheDat2A_ConfigSequence* sequence = NULL;
     struct DashMapIter* iter = dashmap_iter_new(game->init_sequences_configmap);
-    while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter, NULL)) )
+    while( (sequence = (struct RSCacheDat2A_ConfigSequence*)configmap_iter_next(iter, NULL)) )
     {
         for( int i = 0; i < sequence->frame_count; i++ )
         {
             int frame_id = sequence->frame_ids[i];
             int frame_archive_id = (frame_id >> 16) & 0xFFFF;
             int frame_file_id = frame_id & 0xFFFF;
-            struct CacheFrameBlob* frame_blob =
+            struct RSCacheDat2A_FrameBlob* frame_blob =
                 buildcache_get_frame_blob(game->buildcache, frame_archive_id);
             if( !frame_blob )
                 continue;
-            struct FileList* fl = (struct FileList*)frame_blob;
+            struct RSCacheShared_FileList* fl = (struct RSCacheShared_FileList*)frame_blob;
             if( frame_file_id < 1 || frame_file_id - 1 >= fl->file_count )
                 continue;
             char* file_data = fl->files[frame_file_id - 1];
             int file_data_size = fl->file_sizes[frame_file_id - 1];
-            int framemap_id = frame_framemap_id_from_file(file_data, file_data_size);
+            int framemap_id = RSCacheDat2A_FrameFramemapIdFromFile(file_data, file_data_size);
             int j = 0;
             for( ; j < n && ids[j] != framemap_id; j++ )
                 ;
@@ -1275,32 +1275,32 @@ static int
 l_buildcache_build_frame_anims(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct CacheConfigSequence* sequence = NULL;
+    struct RSCacheDat2A_ConfigSequence* sequence = NULL;
     struct DashMapIter* iter = dashmap_iter_new(game->init_sequences_configmap);
-    while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter, NULL)) )
+    while( (sequence = (struct RSCacheDat2A_ConfigSequence*)configmap_iter_next(iter, NULL)) )
     {
         for( int i = 0; i < sequence->frame_count; i++ )
         {
             int frame_id = sequence->frame_ids[i];
             int frame_archive_id = (frame_id >> 16) & 0xFFFF;
             int frame_file_id = sequence->frame_ids[i] & 0xFFFF;
-            struct CacheFrameBlob* frame_blob =
+            struct RSCacheDat2A_FrameBlob* frame_blob =
                 buildcache_get_frame_blob(game->buildcache, frame_archive_id);
             if( !frame_blob )
                 continue;
-            struct FileList* fl = (struct FileList*)frame_blob;
+            struct RSCacheShared_FileList* fl = (struct RSCacheShared_FileList*)frame_blob;
             if( frame_file_id - 1 >= fl->file_count )
                 frame_file_id = fl->file_count;
             if( frame_file_id < 1 || frame_file_id - 1 >= fl->file_count )
                 continue;
             char* file_data = fl->files[frame_file_id - 1];
             int file_data_size = fl->file_sizes[frame_file_id - 1];
-            int framemap_id = frame_framemap_id_from_file(file_data, file_data_size);
-            struct CacheFramemap* framemap = buildcache_get_framemap(game->buildcache, framemap_id);
+            int framemap_id = RSCacheDat2A_FrameFramemapIdFromFile(file_data, file_data_size);
+            struct RSCacheDat2A_Framemap* framemap = buildcache_get_framemap(game->buildcache, framemap_id);
             if( !framemap )
                 continue;
-            struct CacheFrame* cache_frame =
-                frame_new_decode2(frame_id, framemap, file_data, file_data_size);
+            struct RSCacheDat2A_Frame* cache_frame =
+                RSCacheDat2A_FrameNewDecode2(frame_id, framemap, file_data, file_data_size);
             buildcache_add_frame_anim(game->buildcache, frame_id, cache_frame);
         }
     }

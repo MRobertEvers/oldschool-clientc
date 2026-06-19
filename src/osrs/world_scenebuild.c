@@ -13,23 +13,23 @@
 #include "osrs/_light_model_default.u.c"
 // clang-format on
 
-static struct CacheModel*
+static struct RSCacheDat2A_Model*
 obj_model(
     struct BuildCacheDat* buildcachedat,
     int obj_id)
 {
-    struct CacheModel* obj_model = buildcachedat_get_obj_model(buildcachedat, obj_id);
+    struct RSCacheDat2A_Model* obj_model = buildcachedat_get_obj_model(buildcachedat, obj_id);
     if( obj_model )
     {
         return obj_model;
     }
 
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+    struct RSCacheDat1A_ConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
     if( !obj )
     {
         return NULL;
     }
-    struct CacheModel* models[12] = { 0 };
+    struct RSCacheDat2A_Model* models[12] = { 0 };
     int model_count = 0;
 
     if( obj->manwear != -1 )
@@ -51,7 +51,7 @@ obj_model(
         model_count++;
     }
 
-    struct CacheModel* merged = model_new_merge(models, model_count);
+    struct RSCacheDat2A_Model* merged = RSCacheDat2A_ModelNewMerge(models, model_count);
     buildcachedat_add_obj_model(buildcachedat, obj_id, merged);
 
     for( int i = 0; i < obj->recol_count; i++ )
@@ -62,24 +62,24 @@ obj_model(
     return merged;
 }
 
-static struct CacheModel*
+static struct RSCacheDat2A_Model*
 idk_model(
     struct BuildCacheDat* buildcachedat,
     int idk_id)
 {
-    struct CacheModel* idk_model = buildcachedat_get_idk_model(buildcachedat, idk_id);
+    struct RSCacheDat2A_Model* idk_model = buildcachedat_get_idk_model(buildcachedat, idk_id);
     if( idk_model )
     {
         return idk_model;
     }
 
-    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
+    struct RSCacheDat1A_ConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
     if( !idk )
     {
         return NULL;
     }
 
-    struct CacheModel* models[12] = { 0 };
+    struct RSCacheDat2A_Model* models[12] = { 0 };
     int model_count = 0;
     for( int i = 0; i < idk->models_count; i++ )
     {
@@ -87,7 +87,7 @@ idk_model(
         model_count++;
     }
 
-    struct CacheModel* merged = model_new_merge(models, model_count);
+    struct RSCacheDat2A_Model* merged = RSCacheDat2A_ModelNewMerge(models, model_count);
     buildcachedat_add_idk_model(buildcachedat, idk_id, merged);
     return merged;
 }
@@ -99,18 +99,18 @@ npc_model(
     int npc_type,
     struct DashModel* dash_model)
 {
-    struct CacheDatConfigNpc* npc = NULL;
-    struct CacheModel* models[20];
-    struct CacheModel* copy = NULL;
-    struct CacheModel* merged = NULL;
+    struct RSCacheDat1A_ConfigNpc* npc = NULL;
+    struct RSCacheDat2A_Model* models[20];
+    struct RSCacheDat2A_Model* copy = NULL;
+    struct RSCacheDat2A_Model* merged = NULL;
 
     if( !buildcachedat )
         return 0;
 
-    struct CacheModel* model = buildcachedat_get_npc_model(buildcachedat, npc_type);
+    struct RSCacheDat2A_Model* model = buildcachedat_get_npc_model(buildcachedat, npc_type);
     if( model )
     {
-        dashmodel_move_from_cache_model(dash_model, model_new_copy(model));
+        dashmodel_move_from_cache_model(dash_model, RSCacheDat2A_ModelNewCopy(model));
         _light_model_default(dash_model, 0, 0);
         return 1;
     }
@@ -121,14 +121,14 @@ npc_model(
     int model_count = 0;
     for( int i = 0; i < npc->models_count; i++ )
     {
-        struct CacheModel* got_model = buildcachedat_get_model(buildcachedat, npc->models[i]);
+        struct RSCacheDat2A_Model* got_model = buildcachedat_get_model(buildcachedat, npc->models[i]);
         assert(got_model && "Model must be found");
 
         models[model_count] = got_model;
         model_count++;
     }
 
-    merged = model_new_merge(models, model_count);
+    merged = RSCacheDat2A_ModelNewMerge(models, model_count);
 
     assert(merged->vertices_x && "Merged model must have vertices");
     assert(merged->vertices_y && "Merged model must have vertices");
@@ -136,7 +136,7 @@ npc_model(
 
     buildcachedat_add_npc_model(buildcachedat, npc_type, merged);
 
-    copy = model_new_copy(merged);
+    copy = RSCacheDat2A_ModelNewCopy(merged);
 
     for( int i = 0; i < npc->recol_count; i++ )
     {
@@ -157,11 +157,11 @@ player_appearance_model(
 {
     // assert(dash_model && !dash_model->loaded && "Dash model must be provided");
     assert(dash_model && "Dash model must be provided");
-    struct CacheModel* model = NULL;
-    struct CacheModel* merged = NULL;
+    struct RSCacheDat2A_Model* model = NULL;
+    struct RSCacheDat2A_Model* merged = NULL;
     struct AppearanceOp op;
     int model_count = 0;
-    struct CacheModel* models[12];
+    struct RSCacheDat2A_Model* models[12];
     for( int i = 0; i < 12; i++ )
     {
         model = NULL;
@@ -184,7 +184,7 @@ player_appearance_model(
         }
     }
 
-    merged = model_new_merge(models, model_count);
+    merged = RSCacheDat2A_ModelNewMerge(models, model_count);
     assert(merged->vertices_x && "Merged model must have vertices");
     assert(merged->vertices_y && "Merged model must have vertices");
     assert(merged->vertices_z && "Merged model must have vertices");
@@ -224,12 +224,12 @@ world_scenebuild_npc_entity_set_npc_type(
     struct DashModel* dash_model = dashmodel_new();
     if( !npc_model(world->buildcachedat, npc_type, dash_model) )
     {
-        dashmodel_free(dash_model);
+        dashRSCacheDat2A_ModelFree(dash_model);
         return;
     }
     scene2_element_set_dash_model(world->scene2, element, dash_model);
 
-    struct CacheDatConfigNpc* npc_config = buildcachedat_get_npc(world->buildcachedat, npc_type);
+    struct RSCacheDat1A_ConfigNpc* npc_config = buildcachedat_get_npc(world->buildcachedat, npc_type);
     if( !npc_config )
         return;
     npc->size.x = npc_config->size;

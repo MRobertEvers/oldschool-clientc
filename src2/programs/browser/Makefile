@@ -67,7 +67,7 @@ SRC   := browser.c \
 	$(SRC2)/toridraw/toridraw_sprite.c \
 	$(SRC_DIR)/graphics/dashmap.c \
 	$(SRC_DIR)/graphics/lighting.c \
-	$(SRC_DIR)/graphics/shared_tables.c \
+	$(SRC2)/toridraw/graphics/shared_tables.c \
 	$(SRC_DIR)/osrs/palette.c \
 	$(SRC_DIR)/osrs/painters.c \
 	$(SRC_DIR)/osrs/texture.c \
@@ -86,37 +86,9 @@ SRC   := browser.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
 	$(PLAT_DIR)/platform_x/cachelib_serialized.c \
-	$(SRC_DIR)/osrs/rscache/cache.c \
-	$(SRC_DIR)/osrs/rscache/cache_dat.c \
-	$(SRC_DIR)/osrs/rscache/xtea_config.c \
-	$(SRC_DIR)/osrs/rscache/reference_table.c \
-	$(SRC_DIR)/osrs/rscache/filelist.c \
-	$(SRC_DIR)/osrs/rscache/disk.c \
-	$(SRC_DIR)/osrs/rscache/rsbuf.c \
-	$(SRC_DIR)/osrs/rscache/archive.c \
-	$(SRC_DIR)/osrs/rscache/archive_decompress.c \
-	$(SRC_DIR)/osrs/rscache/compression.c \
-	$(SRC_DIR)/osrs/rscache/xtea.c \
+	$(SRC_DIR)/osrs/rscache/rscache_unity.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
-	$(SRC_DIR)/3rd/miniz/miniz.c \
-	$(SRC_DIR)/osrs/rscache/tables/string_utils.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/pix8.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/pix32.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_versionlist_mapsquare.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_textures.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_idk.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_npc.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_obj.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_component.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_spotanim.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/config_varp.c \
-	$(SRC_DIR)/osrs/rscache/tables_dat/animframe.c \
-	$(SRC_DIR)/osrs/rscache/tables/config_sequence.c \
-	$(SRC_DIR)/osrs/rscache/tables/config_floortype.c \
-	$(SRC_DIR)/osrs/rscache/tables/config_locs.c \
-	$(SRC_DIR)/osrs/rscache/tables/maps.c \
-	$(SRC_DIR)/osrs/rscache/tables/noise.c \
-	$(SRC_DIR)/osrs/rscache/tables/model.c 
+	$(SRC_DIR)/3rd/miniz/miniz.c
 
 OUT   := dist/browser.js
 
@@ -130,7 +102,7 @@ EFLAGS ?= -O0 -g
 EMFLAGS := $(EFLAGS) -gsource-map -Wall -Wextra -sENVIRONMENT=web -sUSE_SDL=2 \
 	-sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 -sFULL_ES2=1 \
 	-sINITIAL_MEMORY=128MB \
-	-I$(SRC2) -I$(SCRIPT_DIR) -I$(PLAT_DIR) -I$(SRC_DIR) -I$(REPO_ROOT) \
+	-I$(SRC2)/toridraw -I$(SRC2) -I$(SCRIPT_DIR) -I$(PLAT_DIR) -I$(SRC_DIR) -I$(REPO_ROOT) \
 	-sEXPORTED_RUNTIME_METHODS=['HEAPU8'] \
 	-sFORCE_FILESYSTEM=1 \
 	--preload-file $(REVS_SCRIPTS)@/revs/scripts

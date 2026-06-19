@@ -1,11 +1,11 @@
 #ifndef TERRAIN_GRID_U_C
 #define TERRAIN_GRID_U_C
 
-#include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
 
 struct TerrainGrid
 {
-    struct CacheMapTerrain* map_terrain[196];
+    struct RSCacheDat2A_MapTerrain* map_terrain[196];
     int mapx_sw;
     int mapz_sw;
     int mapx_ne;
@@ -115,7 +115,7 @@ tile_in_bounds_from_sw(
            slevel >= 0 && slevel < MAP_TERRAIN_LEVELS;
 }
 
-// static struct CacheMapFloor*
+// static struct RSCacheDat2A_MapFloor*
 // tile_at(
 //     struct TerrainGrid* terrain_grid,
 //     int mapx,
@@ -154,7 +154,7 @@ tile_in_bounds_from_sw(
 //     return &terrain_grid->map_terrain[chunk_idx]->tiles_xyz[tile_idx];
 // }
 
-static struct CacheMapFloor*
+static struct RSCacheDat2A_MapFloor*
 tile_from_sw_origin(
     struct TerrainGrid* terrain_grid,
     int sx,

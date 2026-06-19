@@ -1,7 +1,7 @@
 #include "dash_utils.h"
 
 #include "graphics/dash_model_internal.h"
-#include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
 
 #include <assert.h>
 #include <math.h>
@@ -10,7 +10,7 @@
 #include <string.h>
 
 struct DashFramemap*
-dashframemap_new_from_cache_framemap(struct CacheFramemap* framemap)
+dashRSCacheDat2A_FramemapNewFromCache_framemap(struct RSCacheDat2A_Framemap* framemap)
 {
     struct DashFramemap* dashframemap = malloc(sizeof(struct DashFramemap));
     memset(dashframemap, 0, sizeof(struct DashFramemap));
@@ -34,7 +34,7 @@ dashframemap_new_from_cache_framemap(struct CacheFramemap* framemap)
 }
 
 struct DashFrame*
-dashframe_new_from_cache_frame(struct CacheFrame* frame)
+dashRSCacheDat2A_FrameNewFromCache_frame(struct RSCacheDat2A_Frame* frame)
 {
     struct DashFrame* dashframe = malloc(sizeof(struct DashFrame));
     memset(dashframe, 0, sizeof(struct DashFrame));
@@ -71,7 +71,7 @@ dashframe_new_from_cache_frame(struct CacheFrame* frame)
 }
 
 struct DashFrame*
-dashframe_new_from_animframe(struct CacheAnimframe* animframe)
+dashframe_new_from_animframe(struct RSCacheDat1A_AnimFrame* animframe)
 {
     struct DashFrame* dashframe = malloc(sizeof(struct DashFrame));
     memset(dashframe, 0, sizeof(struct DashFrame));
@@ -96,7 +96,7 @@ dashframe_new_from_animframe(struct CacheAnimframe* animframe)
 }
 
 struct DashFramemap*
-dashframemap_new_from_animframe(struct CacheAnimframe* animframe)
+dashframemap_new_from_animframe(struct RSCacheDat1A_AnimFrame* animframe)
 {
     struct DashFramemap* dashframemap = malloc(sizeof(struct DashFramemap));
     memset(dashframemap, 0, sizeof(struct DashFramemap));
@@ -129,7 +129,7 @@ dashframemap_new_from_animframe(struct CacheAnimframe* animframe)
 }
 
 struct DashPix8*
-dashpix8_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
+dashpix8_new_from_cache_pix8_palette(struct RSCacheDat1A_Pix8Palette* pix8_palette)
 {
     struct DashPix8* dashpix8 = malloc(sizeof(struct DashPix8));
     memset(dashpix8, 0, sizeof(struct DashPix8));
@@ -144,7 +144,7 @@ dashpix8_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
 }
 
 struct DashPixPalette*
-dashpixpalette_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
+dashpixpalette_new_from_cache_pix8_palette(struct RSCacheDat1A_Pix8Palette* pix8_palette)
 {
     struct DashPixPalette* dashpixpalette = malloc(sizeof(struct DashPixPalette));
     memset(dashpixpalette, 0, sizeof(struct DashPixPalette));
@@ -157,7 +157,7 @@ dashpixpalette_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_pale
 }
 
 struct DashSprite*
-dashsprite_new_from_cache_pix32(struct CacheDatPix32* pix32)
+dashsprite_new_from_cache_pix32(struct RSCacheDat1A_Pix32* pix32)
 {
     struct DashPix32 dashpix32 = { 0 };
     dashpix32.pixels = pix32->pixels;
@@ -172,7 +172,7 @@ dashsprite_new_from_cache_pix32(struct CacheDatPix32* pix32)
 }
 
 struct DashSprite*
-dashsprite_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
+dashsprite_new_from_cache_pix8_palette(struct RSCacheDat1A_Pix8Palette* pix8_palette)
 {
     struct DashPix8* dashpix8 = dashpix8_new_from_cache_pix8_palette(pix8_palette);
     struct DashPixPalette* dashpixpalette =
@@ -189,7 +189,7 @@ dashsprite_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
 }
 
 struct DashPixFont*
-dashpixfont_new_from_cache_dat_pixfont_move(struct CacheDatPixfont* pixfont)
+dashpixfont_new_from_cache_dat_pixfont_move(struct RSCacheDat1A_PixFont* pixfont)
 {
     struct DashPixFont* dashpixfont = malloc(sizeof(struct DashPixFont));
     memset(dashpixfont, 0, sizeof(struct DashPixFont));
@@ -222,14 +222,14 @@ dashpixfont_new_from_cache_dat_pixfont_move(struct CacheDatPixfont* pixfont)
     dashpixfont->atlas = dashfont_build_atlas(dashpixfont);
 
     // Moved out of.
-    memset(pixfont, 0x00, sizeof(struct CacheDatPixfont));
+    memset(pixfont, 0x00, sizeof(struct RSCacheDat1A_PixFont));
     return dashpixfont;
 }
 
 void
 dashmodel_move_from_cache_model(
     struct DashModel* dash_model,
-    struct CacheModel* model)
+    struct RSCacheDat2A_Model* model)
 {
     assert(dash_model && model);
     struct DashModelFull* dm = (struct DashModelFull*)(void*)dash_model;
@@ -381,7 +381,7 @@ dashmodel_move_from_cache_model(
 }
 
 struct DashModel*
-dashmodel_new_from_cache_model(struct CacheModel* model)
+dashRSCacheDat2A_ModelNewFromCache_model(struct RSCacheDat2A_Model* model)
 {
     struct DashModel* dash_model = dashmodelfull_new();
     if( !dash_model )
@@ -398,7 +398,7 @@ dashmodel_bones_new(
     struct DashModelBones* bones = (struct DashModelBones*)malloc(sizeof(struct DashModelBones));
     memset(bones, 0, sizeof(struct DashModelBones));
 
-    struct ModelBones* model_bones = modelbones_new_decode(bone_map, bone_count);
+    struct RSCacheDat2A_ModelBones* model_bones = RSCacheDat2A_ModelBonesNewDecode(bone_map, bone_count);
     assert(model_bones != NULL);
 
     bones->bones_count = model_bones->bones_count;
@@ -419,7 +419,7 @@ dashmodel_bones_new(
         }
     }
 
-    modelbones_free(model_bones);
+    RSCacheDat2A_ModelBonesFree(model_bones);
 
     return bones;
 }

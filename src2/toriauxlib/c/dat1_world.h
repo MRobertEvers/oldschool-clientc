@@ -124,7 +124,7 @@ Task_Dat1WorldRebuildNormal_Run(
     for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
          task->pending_decodes++ )
     {
-        struct CacheMapTerrain* terrain = NULL;
+        struct RSCacheDat2A_MapTerrain* terrain = NULL;
         int map_id = dat1io_map_chunk_terrain_decode(ctx, &terrain);
         if( map_id >= 0 && terrain )
         {
@@ -150,7 +150,7 @@ Task_Dat1WorldRebuildNormal_Run(
     for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
          task->pending_decodes++ )
     {
-        struct CacheMapLocs* locs = NULL;
+        struct RSCacheDat2A_MapLocs* locs = NULL;
         int map_id = dat1io_map_chunk_scenery_decode(ctx, &locs);
         if( map_id >= 0 && locs )
         {
@@ -164,8 +164,8 @@ Task_Dat1WorldRebuildNormal_Run(
     PT_YIELD(&task->thread);
 
     {
-        struct FileListDat* config_jag = dat1io_config_jagfile_decode(ctx);
-        struct FileListDat* versionlist_jag = dat1io_versionlist_jagfile_decode(ctx);
+        struct RSCacheShared_FileListDat* config_jag = dat1io_config_jagfile_decode(ctx);
+        struct RSCacheShared_FileListDat* versionlist_jag = dat1io_versionlist_jagfile_decode(ctx);
         if( config_jag )
             dat1_buildcache_set_fromconfigtable_config_jagfile(dat1_bc, config_jag);
         if( versionlist_jag )
@@ -198,7 +198,7 @@ Task_Dat1WorldRebuildNormal_Run(
         for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
              task->pending_decodes++ )
         {
-            struct CacheDatAnimBaseFrames* abf = NULL;
+            struct RSCacheDat1A_AnimBaseFrames* abf = NULL;
             int anim_id = dat1io_animations_decode(ctx, &abf);
             if( anim_id >= 0 && abf )
             {
@@ -242,7 +242,7 @@ Task_Dat1WorldRebuildNormal_Run(
         for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
              task->pending_decodes++ )
         {
-            struct CacheModel* model = NULL;
+            struct RSCacheDat2A_Model* model = NULL;
             int decoded_model_id = -1;
             model = dat1io_model_decode(ctx, &decoded_model_id);
             if( model && decoded_model_id >= 0 )

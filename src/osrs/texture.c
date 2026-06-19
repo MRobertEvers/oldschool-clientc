@@ -1,9 +1,9 @@
 
 #include "texture.h"
 
-#include "rscache/tables/sprites.h"
-#include "rscache/tables/textures.h"
-#include "rscache/tables_dat/config_textures.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_sprites.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_textures.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_textures.h"
 #include "toridraw/toridraw_types.h"
 
 #include <assert.h>
@@ -66,12 +66,12 @@ normalize_pixel_buffer(
 
 struct DashTexture*
 texture_new_from_definition(
-    struct CacheTexture* texture_definition,
+    struct RSCacheDat2A_Texture* texture_definition,
     struct DashMap* sprites_hmap)
 {
     struct SpritePackEntry* spritepack_entry = NULL;
-    struct CacheSpritePack* sprite_pack = NULL;
-    struct CacheSprite* sprite = NULL;
+    struct RSCacheDat2A_SpritePack* sprite_pack = NULL;
+    struct RSCacheDat2A_Sprite* sprite = NULL;
     if( !texture_definition || !sprites_hmap )
         return NULL;
 
@@ -82,9 +82,9 @@ texture_new_from_definition(
         return NULL;
     memset(pixels, 0, size * size * sizeof(int));
 
-    struct CacheSpritePack** sprite_packs = (struct CacheSpritePack**)malloc(
-        texture_definition->sprite_ids_count * sizeof(struct CacheSpritePack*));
-    memset(sprite_packs, 0, texture_definition->sprite_ids_count * sizeof(struct CacheSpritePack*));
+    struct RSCacheDat2A_SpritePack** sprite_packs = (struct RSCacheDat2A_SpritePack**)malloc(
+        texture_definition->sprite_ids_count * sizeof(struct RSCacheDat2A_SpritePack*));
+    memset(sprite_packs, 0, texture_definition->sprite_ids_count * sizeof(struct RSCacheDat2A_SpritePack*));
 
     // Load all sprite packs
     for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
@@ -104,7 +104,7 @@ texture_new_from_definition(
     // Process each sprite pack
     for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
     {
-        struct CacheSpritePack* sprite_pack = sprite_packs[i];
+        struct RSCacheDat2A_SpritePack* sprite_pack = sprite_packs[i];
         if( !sprite_pack || sprite_pack->count == 0 )
             continue;
 
@@ -120,7 +120,7 @@ texture_new_from_definition(
             // for( int j = 0; j < texture_definition->sprite_ids_count; j++ )
             // {
             //     if( sprite_packs[j] )
-            //         sprite_pack_free(sprite_packs[j]);
+            //         RSCacheDat2A_SpritePackFree(sprite_packs[j]);
             // }
             free(sprite_packs);
             free(pixels);
@@ -186,7 +186,7 @@ texture_new_from_definition(
     // for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
     // {
     //     if( sprite_packs[i] )
-    //         sprite_pack_free(sprite_packs[i]);
+    //         RSCacheDat2A_SpritePackFree(sprite_packs[i]);
     // }
     free(sprite_packs);
 
@@ -315,7 +315,7 @@ struct TextureDecodedSprite
 
 static struct TextureDecodedSprite
 texture_decode_from_cache_dat(
-    struct CacheDatTexture* texture,
+    struct RSCacheDat1A_ConfigTexture* texture,
     bool upscale_to_128,
     bool half_to_64)
 {
@@ -415,7 +415,7 @@ texture_decode_from_cache_dat(
 
 struct DashTexture*
 texture_new_from_texture_sprite(
-    struct CacheDatTexture* texture,
+    struct RSCacheDat1A_ConfigTexture* texture,
     int animation_direction,
     int animation_speed,
     bool upscale_to_128,
@@ -446,7 +446,7 @@ texture_new_from_texture_sprite(
 
 struct ToriDraw_Texture*
 texture_new_toridraw_from_texture_sprite(
-    struct CacheDatTexture* texture,
+    struct RSCacheDat1A_ConfigTexture* texture,
     int animation_direction,
     int animation_speed,
     bool upscale_to_128,

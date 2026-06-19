@@ -480,7 +480,7 @@ dash3d_fast_cull(
     int model_center_to_top_edge = bc->center_to_top_edge;
 
     int model_center_to_bottom_edge =
-        (bc->center_to_bottom_edge * g_cos_table[camera_pitch] >> 16) +
+        (bc->center_to_bottom_edge * RSCacheDat2A_NoiseCosTable[camera_pitch] >> 16) +
         (model_edge_radius * g_sin_table[camera_pitch] >> 16);
 
     int screen_y_min_unoffset =
@@ -4919,7 +4919,7 @@ dash2d_blit_rotated(
 }
 
 void
-dashframe_free(struct DashFrame* frame)
+dashRSCacheDat2A_FrameFree(struct DashFrame* frame)
 {
     if( !frame )
         return;
@@ -4933,7 +4933,7 @@ dashframe_free(struct DashFrame* frame)
 }
 
 void
-dashframemap_free(struct DashFramemap* framemap)
+dashRSCacheDat2A_FramemapFree(struct DashFramemap* framemap)
 {
     if( !framemap )
         return;

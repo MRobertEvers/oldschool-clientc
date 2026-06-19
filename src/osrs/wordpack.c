@@ -27,7 +27,7 @@ wordpack_char_index(char c)
 
 void
 wordpack_pack(
-    struct RSBuffer* buffer,
+    struct RSCacheShared_RSBuffer* buffer,
     const char* str)
 {
     size_t len = str ? strlen(str) : 0;
@@ -69,7 +69,7 @@ wordpack_pack(
 
 char*
 wordpack_unpack(
-    struct RSBuffer* buffer,
+    struct RSCacheShared_RSBuffer* buffer,
     int length)
 {
     char* out = malloc(101);

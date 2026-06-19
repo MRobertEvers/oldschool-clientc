@@ -2,7 +2,7 @@
 #define GAMEPROTO_PACKETS_U_C
 
 #include "packetin.h"
-#include "rscache/rsbuf.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
 
 #define SCENE_TILE_WIDTH 104
 
@@ -12,8 +12,8 @@ gameproto_packet_maprebuild8_z16_x16(
     uint8_t* data,
     int data_size)
 {
-    struct RSBuffer buffer;
-    rsbuf_init(&buffer, data, data_size);
+    struct RSCacheShared_RSBuffer buffer;
+    RSCacheShared_RSBufferInit(&buffer, data, data_size);
 
     int zonex;
     int zonez;

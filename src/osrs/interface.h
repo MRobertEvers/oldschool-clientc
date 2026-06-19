@@ -3,7 +3,7 @@
 
 #include "graphics/dash.h"
 #include "osrs/game.h"
-#include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -11,7 +11,7 @@
 void
 interface_draw_component(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int scroll_y,
@@ -21,7 +21,7 @@ interface_draw_component(
 void
 interface_draw_component_layer(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int scroll_y,
@@ -31,7 +31,7 @@ interface_draw_component_layer(
 void
 interface_draw_component_rect(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -40,7 +40,7 @@ interface_draw_component_rect(
 void
 interface_draw_component_text(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -49,7 +49,7 @@ interface_draw_component_text(
 void
 interface_draw_component_graphic(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -58,7 +58,7 @@ interface_draw_component_graphic(
 void
 interface_draw_component_inv(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -67,7 +67,7 @@ interface_draw_component_inv(
 void
 interface_draw_component_model(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -89,7 +89,7 @@ interface_draw_scrollbar(
 int
 interface_find_hovered_interface_id(
     struct GGame* game,
-    struct CacheDatConfigComponent* root,
+    struct RSCacheDat1A_ConfigComponent* root,
     int root_x,
     int root_y,
     int mouse_x,
@@ -100,7 +100,7 @@ interface_find_hovered_interface_id(
 int
 interface_find_scrollbar_at(
     struct GGame* game,
-    struct CacheDatConfigComponent* root,
+    struct RSCacheDat1A_ConfigComponent* root,
     int root_x,
     int root_y,
     int mouse_x,
@@ -139,20 +139,20 @@ interface_handle_scrollbar_click(
 int
 interface_get_if_var(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int script_id);
 
 // Return whether component passes script comparator check (Client.ts getIfActive).
 bool
 interface_get_if_active(
     struct GGame* game,
-    struct CacheDatConfigComponent* component);
+    struct RSCacheDat1A_ConfigComponent* component);
 
 // Get default (left-click) action for an inventory slot from menu logic (Client.ts order + sort)
 int
 interface_get_inv_default_action(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int obj_id,
     int slot);
 
@@ -176,7 +176,7 @@ interface_apply_button_click_varp_optimistic(
 int
 interface_find_button_click_at(
     struct GGame* game,
-    struct CacheDatConfigComponent* root,
+    struct RSCacheDat1A_ConfigComponent* root,
     int root_x,
     int root_y,
     int mouse_x,
@@ -192,7 +192,7 @@ interface_find_button_click_at(
 int
 interface_check_inv_click(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int x,
     int y,
     int mouse_x,

@@ -7,7 +7,7 @@
 
 struct Dat1BuildCache;
 struct DashMap;
-struct FileListDat;
+struct RSCacheShared_FileListDat;
 struct ToriDraw_Sprite;
 struct UIScene;
 

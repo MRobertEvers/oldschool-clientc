@@ -1,7 +1,7 @@
 #ifndef LUAJS_ARCHIVES_H
 #define LUAJS_ARCHIVES_H
 
-#include "osrs/rscache/cache_dat.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,7 +16,7 @@ extern "C" {
  * @param size    Size of buffer in bytes
  * @return  Newly allocated archive, or NULL on error
  */
-struct CacheDatArchive*
+struct RSCacheDat1Disk_Archive*
 luajs_CacheDatArchive_deserialize(
     const void* buffer,
     int size);
@@ -25,7 +25,7 @@ luajs_CacheDatArchive_deserialize(
  * Compute the size in bytes needed to serialize the archive.
  */
 int
-luajs_CacheDatArchive_serialized_size(const struct CacheDatArchive* archive);
+luajs_CacheDatArchive_serialized_size(const struct RSCacheDat1Disk_Archive* archive);
 
 /**
  * Serialize archive into a pre-allocated buffer.
@@ -38,7 +38,7 @@ luajs_CacheDatArchive_serialized_size(const struct CacheDatArchive* archive);
  */
 int
 luajs_CacheDatArchive_serialize_to_buffer(
-    const struct CacheDatArchive* archive,
+    const struct RSCacheDat1Disk_Archive* archive,
     void* buffer,
     int size);
 
@@ -47,7 +47,7 @@ luajs_CacheDatArchive_serialize_to_buffer(
  * Safe to call with NULL.
  */
 void
-luajs_CacheDatArchive_free(struct CacheDatArchive* archive);
+luajs_CacheDatArchive_free(struct RSCacheDat1Disk_Archive* archive);
 
 #ifdef __cplusplus
 }

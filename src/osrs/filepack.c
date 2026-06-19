@@ -1,19 +1,19 @@
 #include "filepack.h"
 
-#include "rscache/rsbuf.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 struct FilePack*
 filepack_new(
-    struct Cache* cache,
-    struct CacheArchive* archive)
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive)
 {
     int data_size = 0;
     int offset = 0;
     int filelist_reference_size = 0;
-    struct ArchiveReference* archive_reference = NULL;
+    struct RSCacheDat2Disk_ArchiveReference* archive_reference = NULL;
     struct FilePack* packed = malloc(sizeof(struct FilePack));
     memset(packed, 0, sizeof(struct FilePack));
 
@@ -60,7 +60,7 @@ filepack_new(
 }
 
 struct FilePack*
-filepack_new_from_filelist_dat_indexed(struct FileListDatIndexed* filelist_indexed)
+filepack_new_from_filelist_dat_indexed(struct RSCacheShared_FileListDatIndexed* filelist_indexed)
 {
     int data_size = 0;
     int offset = 0;
@@ -78,7 +78,7 @@ filepack_new_from_filelist_dat_indexed(struct FileListDatIndexed* filelist_index
     packed->data_size = data_size;
     memset(packed->data, 0, packed->data_size);
 
-    struct RSBuffer buffer = { .data = packed->data, .position = 0, .size = data_size };
+    struct RSCacheShared_RSBuffer buffer = { .data = packed->data, .position = 0, .size = data_size };
 
     int flags = 1;
     p4(&buffer, flags);

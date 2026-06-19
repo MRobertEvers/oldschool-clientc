@@ -66,7 +66,7 @@ LibToriRS_InstanceNew(void)
     // instance->core = gamecache_new();
     // if( !instance->core )
     // {
-    //     dat1_buildcache_free(instance->dat1_buildcache);
+    //     dat1_buildRSCacheDat2Disk_Free(instance->dat1_buildcache);
     //     LibToriRS_IOQueueFree(instance->io_queue);
     //     LibToriRS_Input_Free(instance->input);
     //     LibToriRS_ScriptQueueFree(instance->script_queue);

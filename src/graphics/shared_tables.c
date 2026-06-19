@@ -11,7 +11,7 @@
 int g_hsl16_to_rgb_table[65536];
 
 int g_sin_table[2048];
-int g_cos_table[2048];
+int RSCacheDat2A_NoiseCosTable[2048];
 int g_tan_table[2048];
 
 int g_reciprocal15[4096];
@@ -195,7 +195,7 @@ init_cos_table(void)
     // 0.0030679615 = 2 * PI / 2048
     // (int)(cos((double)i * 0.0030679615) * 65536.0);
     for( int i = 0; i < 2048; i++ )
-        g_cos_table[i] = (int)(cos((double)i * 0.0030679615) * (1 << 16));
+        RSCacheDat2A_NoiseCosTable[i] = (int)(cos((double)i * 0.0030679615) * (1 << 16));
 }
 
 void

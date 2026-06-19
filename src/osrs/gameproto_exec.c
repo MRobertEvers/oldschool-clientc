@@ -15,14 +15,14 @@
 #include "osrs/scene2.h"
 #include "osrs/varp_varbit_manager.h"
 #include "osrs/zone_state.h"
-#include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
 #include "packets/pkt_npc_info.h"
 #include "packets/pkt_player_info.h"
-#include "rscache/bitbuffer.h"
-#include "rscache/rsbuf.h"
-#include "rscache/tables/model.h"
-#include "rscache/tables_dat/config_component.h"
-#include "rscache/tables_dat/config_obj.h"
+#include "osrs/rscache/shared/rscache_shared_bit_buffer.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_obj.h"
 #include "world_scenebuild.h"
 
 #include <assert.h>
@@ -201,10 +201,10 @@ add_player_info(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
-    struct BitBuffer buf;
-    struct RSBuffer rsbuf;
-    rsbuf_init(&rsbuf, packet->_player_info.data, packet->_player_info.length);
-    bitbuffer_init_from_rsbuf(&buf, &rsbuf);
+    struct RSCacheShared_BitBuffer buf;
+    struct RSCacheShared_RSBuffer rsbuf;
+    RSCacheShared_RSBufferInit(&rsbuf, packet->_player_info.data, packet->_player_info.length);
+    RSCacheShared_BitBufferInitFromRsbuf(&buf, &rsbuf);
     bits(&buf);
 
     struct PktPlayerInfoOp ops[2048];
@@ -535,7 +535,7 @@ gameproto_exec_update_inv_full(
     int component_id = packet->_update_inv_full.component_id;
     int size = packet->_update_inv_full.size;
 
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
 
     if( !component )
@@ -626,7 +626,7 @@ gameproto_exec_if_setcolour(
     int component_id = packet->_if_setcolour.component_id;
     int colour15 = packet->_if_setcolour.colour;
 
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component )
         return;
@@ -645,7 +645,7 @@ gameproto_exec_if_sethide(
     int component_id = packet->_if_sethide.component_id;
     int hide_val = packet->_if_sethide.hide;
 
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component )
         return;
@@ -662,12 +662,12 @@ gameproto_exec_if_setobject(
     int obj_id = packet->_if_setobject.obj_id;
     int zoom = packet->_if_setobject.zoom;
 
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component )
         return;
 
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    struct RSCacheDat1A_ConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
     if( !obj )
         return;
 
@@ -686,7 +686,7 @@ gameproto_exec_if_setmodel(
     int component_id = packet->_if_setmodel.component_id;
     int model_id = packet->_if_setmodel.model_id;
 
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component )
         return;
@@ -703,7 +703,7 @@ gameproto_exec_if_setanim(
     int component_id = packet->_if_setanim.component_id;
     int anim_id = packet->_if_setanim.anim_id;
 
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component )
         return;
@@ -718,7 +718,7 @@ gameproto_exec_if_setplayerhead(
 {
     int component_id = packet->_if_setplayerhead.component_id;
 
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component )
         return;
@@ -743,7 +743,7 @@ gameproto_exec_if_settext(
     int component_id = packet->_if_settext.component_id;
     char* new_text = packet->_if_settext.text;
 
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component )
     {
@@ -765,7 +765,7 @@ gameproto_exec_if_setnpchead(
     int component_id = packet->_if_setnpchead.component_id;
     int npc_id = packet->_if_setnpchead.npc_id;
 
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component )
         return;
@@ -783,7 +783,7 @@ gameproto_exec_if_setposition(
     int x = packet->_if_setposition.x;
     int z = packet->_if_setposition.z;
 
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component )
         return;
@@ -803,7 +803,7 @@ gameproto_exec_if_setscrollpos(
     if( !game->iface || component_id < 0 || component_id >= MAX_IFACE_SCROLL_IDS )
         return;
 
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component )
         return;
@@ -1238,7 +1238,7 @@ gameproto_exec_update_inv_stop_transmit(
     struct RevPacket_LC245_2* packet)
 {
     int component_id = packet->_update_inv_stop_transmit.component_id;
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component )
         return;
@@ -1258,7 +1258,7 @@ gameproto_exec_update_inv_partial(
     struct RevPacket_LC245_2* packet)
 {
     int component_id = packet->_update_inv_partial.component_id;
-    struct CacheDatConfigComponent* component =
+    struct RSCacheDat1A_ConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component || !component->invSlotObjId || !component->invSlotObjCount )
         return;

@@ -3,13 +3,13 @@
 #include "osrs/gio_cache_dat.h"
 #include "osrs/lua_sidecar/lua_gametypes.h"
 #include "osrs/lua_sidecar/luac_sidecar.h"
-#include "osrs/rscache/cache_dat.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
 
 #include <assert.h>
 
 struct LuaGameType*
 LuaCSidecar_CachedatLoadArchive(
-    struct CacheDat* cache_dat,
+    struct RSCacheDat1Disk* cache_dat,
     struct LuaGameType* args)
 {
     assert(args && LuaGameType_GetVarTypeArrayCount(args) >= 3);
@@ -19,11 +19,11 @@ LuaCSidecar_CachedatLoadArchive(
     int flags = LuaGameType_GetInt(LuaGameType_GetVarTypeArrayAt(args, 2));
 
     int cache_dat_table = table_id;
-    struct CacheDatArchive* archive = NULL;
+    struct RSCacheDat1Disk_Archive* archive = NULL;
 
     switch( cache_dat_table )
     {
-    case CACHE_DAT_MAPS:
+    case RSCacheDat1Disk_Table_Maps:
     {
         int chunk_x = archive_id >> 16;
         int chunk_z = archive_id & 0xFFFF;
@@ -38,7 +38,7 @@ LuaCSidecar_CachedatLoadArchive(
     }
     break;
     default:
-        archive = cache_dat_archive_new_load(cache_dat, table_id, archive_id);
+        archive = RSCacheDat1Disk_ArchiveNewLoad(cache_dat, table_id, archive_id);
         break;
     }
 
@@ -48,7 +48,7 @@ LuaCSidecar_CachedatLoadArchive(
 
 struct LuaGameType*
 LuaCSidecar_CachedatLoadArchives(
-    struct CacheDat* cache_dat,
+    struct RSCacheDat1Disk* cache_dat,
     struct LuaGameType* args)
 {
     assert(args);
@@ -59,8 +59,8 @@ LuaCSidecar_CachedatLoadArchives(
     if( triplet_count <= 0 )
         return LuaGameType_NewUserDataArraySpread(0);
 
-    struct CacheDatArchive** archives =
-        (struct CacheDatArchive**)malloc((size_t)triplet_count * sizeof(struct CacheDatArchive*));
+    struct RSCacheDat1Disk_Archive** archives =
+        (struct RSCacheDat1Disk_Archive**)malloc((size_t)triplet_count * sizeof(struct RSCacheDat1Disk_Archive*));
     if( !archives )
         return NULL;
 
@@ -72,11 +72,11 @@ LuaCSidecar_CachedatLoadArchives(
         int flags = LuaGameType_GetInt(LuaGameType_GetVarTypeArrayAt(args, base + 2));
 
         int cache_dat_table = table_id;
-        struct CacheDatArchive* archive = NULL;
+        struct RSCacheDat1Disk_Archive* archive = NULL;
 
         switch( cache_dat_table )
         {
-        case CACHE_DAT_MAPS:
+        case RSCacheDat1Disk_Table_Maps:
         {
             int chunk_x = archive_id >> 16;
             int chunk_z = archive_id & 0xFFFF;
@@ -91,7 +91,7 @@ LuaCSidecar_CachedatLoadArchives(
         }
         break;
         default:
-            archive = cache_dat_archive_new_load(cache_dat, table_id, archive_id);
+            archive = RSCacheDat1Disk_ArchiveNewLoad(cache_dat, table_id, archive_id);
             break;
         }
 

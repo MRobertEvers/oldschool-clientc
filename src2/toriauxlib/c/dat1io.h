@@ -2,11 +2,11 @@
 #define CORE_DAT1_DAT1IO_H
 
 #include "../../libtorirs.h"
-#include "osrs/rscache/cache_dat.h"
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/tables/maps.h"
-#include "osrs/rscache/tables/model.h"
-#include "osrs/rscache/tables_dat/animframe.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
 #include "platforms/platform_x/cachelib_client.h"
 
 #include <stdio.h>
@@ -18,18 +18,18 @@ dat1io_model_fetch(
     struct LibToriRS_IOContext* ctx,
     int model_id)
 {
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     cachelib_dat1_model_fetch(model_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
 
-static inline struct CacheModel*
+static inline struct RSCacheDat2A_Model*
 dat1io_model_decode(
     struct LibToriRS_IOContext* ctx,
     int* model_id_out)
 {
-    struct CacheDatArchive* archive = NULL;
-    struct CacheModel* model = NULL;
+    struct RSCacheDat1Disk_Archive* archive = NULL;
+    struct RSCacheDat2A_Model* model = NULL;
     struct LibToriRS_IOQueueItem item;
     if( model_id_out )
         *model_id_out = -1;
@@ -51,7 +51,7 @@ dat1io_model_decode(
     if( model_id_out )
         *model_id_out = model_id;
 
-    model = model_new_from_dat_archive(archive, model_id);
+    model = RSCacheDat2A_ModelNewFromDatArchive(archive, model_id);
     if( !model )
     {
         fprintf(stderr, "Failed to decode model\n");
@@ -59,7 +59,7 @@ dat1io_model_decode(
     }
 
 cleanup:
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     item.data = NULL;
     return model;
 }
@@ -70,7 +70,7 @@ dat1io_map_chunk_terrain_fetch(
     int mapx,
     int mapz)
 {
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     cachelib_dat1_map_chunk_terrain_fetch(mapx, mapz, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -78,7 +78,7 @@ dat1io_map_chunk_terrain_fetch(
 static inline int
 dat1io_map_chunk_terrain_decode(
     struct LibToriRS_IOContext* ctx,
-    struct CacheMapTerrain** terrain_out)
+    struct RSCacheDat2A_MapTerrain** terrain_out)
 {
     struct LibToriRS_IOQueueItem item;
     *terrain_out = NULL;
@@ -87,19 +87,19 @@ dat1io_map_chunk_terrain_decode(
     if( item.kind != TORIRSIO_KIND_CACHE || item.status != TORIRSIO_STAT_DONE ||
         item.error_code != 0 )
         return -1;
-    if( item.u.cache.table_id != CACHE_DAT_MAPS || item.u.cache.flags != CACHELIB_MAPCHUNK_TERRAIN )
+    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Maps || item.u.cache.flags != CACHELIB_MAPCHUNK_TERRAIN )
         return -1;
 
-    struct CacheDatArchive* archive = item.data;
+    struct RSCacheDat1Disk_Archive* archive = item.data;
     if( !archive )
         return -1;
 
     int map_id = item.u.cache.archive_id;
     int map_x = map_id >> 16;
     int map_z = map_id & 0xFFFF;
-    *terrain_out = map_terrain_new_from_decode_flags(
+    *terrain_out = RSCacheDat2A_MapTerrainNewFromDecodeFlags(
         archive->data, archive->data_size, map_x, map_z, MAP_TERRAIN_DECODE_U8);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return map_id;
 }
 
@@ -109,7 +109,7 @@ dat1io_map_chunk_scenery_fetch(
     int mapx,
     int mapz)
 {
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     cachelib_dat1_map_chunk_scenery_fetch(mapx, mapz, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -117,7 +117,7 @@ dat1io_map_chunk_scenery_fetch(
 static inline int
 dat1io_map_chunk_scenery_decode(
     struct LibToriRS_IOContext* ctx,
-    struct CacheMapLocs** locs_out)
+    struct RSCacheDat2A_MapLocs** locs_out)
 {
     struct LibToriRS_IOQueueItem item;
     *locs_out = NULL;
@@ -126,10 +126,10 @@ dat1io_map_chunk_scenery_decode(
     if( item.kind != TORIRSIO_KIND_CACHE || item.status != TORIRSIO_STAT_DONE ||
         item.error_code != 0 )
         return -1;
-    if( item.u.cache.table_id != CACHE_DAT_MAPS || item.u.cache.flags != CACHELIB_MAPCHUNK_SCENERY )
+    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Maps || item.u.cache.flags != CACHELIB_MAPCHUNK_SCENERY )
         return -1;
 
-    struct CacheDatArchive* archive = item.data;
+    struct RSCacheDat1Disk_Archive* archive = item.data;
     if( !archive )
         return -1;
 
@@ -142,14 +142,14 @@ dat1io_map_chunk_scenery_decode(
         (*locs_out)->_chunk_mapx = map_x;
         (*locs_out)->_chunk_mapz = map_z;
     }
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return map_id;
 }
 
 static inline void
 dat1io_config_jagfile_fetch(struct LibToriRS_IOContext* ctx)
 {
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     cachelib_dat1_config_file_fetch(&request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -157,12 +157,12 @@ dat1io_config_jagfile_fetch(struct LibToriRS_IOContext* ctx)
 static inline void
 dat1io_versionlist_jagfile_fetch(struct LibToriRS_IOContext* ctx)
 {
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     cachelib_dat1_versionlist_fetch(&request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
 
-static inline struct FileListDat*
+static inline struct RSCacheShared_FileListDat*
 dat1io_config_jagfile_decode(struct LibToriRS_IOContext* ctx)
 {
     struct LibToriRS_IOQueueItem item;
@@ -171,20 +171,20 @@ dat1io_config_jagfile_decode(struct LibToriRS_IOContext* ctx)
     if( item.kind != TORIRSIO_KIND_CACHE || item.status != TORIRSIO_STAT_DONE ||
         item.error_code != 0 )
         return NULL;
-    if( item.u.cache.table_id != CACHE_DAT_CONFIGS ||
-        item.u.cache.archive_id != CONFIG_DAT_CONFIGS )
+    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Configs ||
+        item.u.cache.archive_id != RSCacheDat1A_ConfigKind_Configs )
         return NULL;
 
-    struct CacheDatArchive* archive = item.data;
+    struct RSCacheDat1Disk_Archive* archive = item.data;
     if( !archive )
         return NULL;
 
-    struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
-    cache_dat_archive_free(archive);
+    struct RSCacheShared_FileListDat* filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return filelist;
 }
 
-static inline struct FileListDat*
+static inline struct RSCacheShared_FileListDat*
 dat1io_versionlist_jagfile_decode(struct LibToriRS_IOContext* ctx)
 {
     struct LibToriRS_IOQueueItem item;
@@ -193,16 +193,16 @@ dat1io_versionlist_jagfile_decode(struct LibToriRS_IOContext* ctx)
     if( item.kind != TORIRSIO_KIND_CACHE || item.status != TORIRSIO_STAT_DONE ||
         item.error_code != 0 )
         return NULL;
-    if( item.u.cache.table_id != CACHE_DAT_CONFIGS ||
-        item.u.cache.archive_id != CONFIG_DAT_VERSION_LIST )
+    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Configs ||
+        item.u.cache.archive_id != RSCacheDat1A_ConfigKind_VersionList )
         return NULL;
 
-    struct CacheDatArchive* archive = item.data;
+    struct RSCacheDat1Disk_Archive* archive = item.data;
     if( !archive )
         return NULL;
 
-    struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
-    cache_dat_archive_free(archive);
+    struct RSCacheShared_FileListDat* filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return filelist;
 }
 
@@ -211,7 +211,7 @@ dat1io_animations_fetch(
     struct LibToriRS_IOContext* ctx,
     int anim_id)
 {
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     cachelib_dat1_animations_fetch(anim_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -219,7 +219,7 @@ dat1io_animations_fetch(
 static inline int
 dat1io_animations_decode(
     struct LibToriRS_IOContext* ctx,
-    struct CacheDatAnimBaseFrames** abf_out)
+    struct RSCacheDat1A_AnimBaseFrames** abf_out)
 {
     struct LibToriRS_IOQueueItem item;
     *abf_out = NULL;
@@ -228,16 +228,16 @@ dat1io_animations_decode(
     if( item.kind != TORIRSIO_KIND_CACHE || item.status != TORIRSIO_STAT_DONE ||
         item.error_code != 0 )
         return -1;
-    if( item.u.cache.table_id != CACHE_DAT_ANIMATIONS )
+    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Animations )
         return -1;
 
-    struct CacheDatArchive* archive = item.data;
+    struct RSCacheDat1Disk_Archive* archive = item.data;
     if( !archive )
         return -1;
 
     int anim_id = item.u.cache.archive_id;
-    *abf_out = cache_dat_animbaseframes_new_decode(archive->data, archive->data_size);
-    cache_dat_archive_free(archive);
+    *abf_out = RSCacheDat1A_AnimBaseFramesNewDecode(archive->data, archive->data_size);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return anim_id;
 }
 

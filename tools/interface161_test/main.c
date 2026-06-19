@@ -1,5 +1,5 @@
 /*
- * Load interface archive N from dat2 cache (table CACHE_INTERFACES), decode each
+ * Load interface archive N from dat2 cache (table RSCacheDat2Disk_Table_Interfaces), decode each
  * file as IF1/IF3 Component, optionally blit type-3/type-5 widgets to a BMP.
  *
  * IF3: parent-relative coords + width/height/x/y modes (RuneLite
@@ -22,11 +22,11 @@
  */
 
 #include "bmp.h"
-#include "osrs/rscache/cache.h"
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/rsbuf.h"
-#include "osrs/rscache/tables/component.h"
-#include "osrs/rscache/tables/sprites.h"
+#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_component.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_sprites.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -186,8 +186,8 @@ decode_component_from_bytes(
 {
     if( !data || size <= 0 )
         return -1;
-    struct RSBuffer buf;
-    rsbuf_init(&buf, (int8_t*)data, size);
+    struct RSCacheShared_RSBuffer buf;
+    RSCacheShared_RSBufferInit(&buf, (int8_t*)data, size);
     Component_init(out);
     out->id = (iface_id << 16) | (file_index & 0xFFFF);
     if( (unsigned char)data[0] == (unsigned char)255 )
@@ -380,7 +380,7 @@ resolve_interface_layout(
 
 static void
 draw_interface_components(
-    struct Cache* cache,
+    struct RSCacheDat2Disk* cache,
     Component* comps,
     int n,
     const int* lay_x,
@@ -412,10 +412,10 @@ draw_interface_components(
 
         if( want_sprites && comp->type == 5 && comp->graphic >= 0 )
         {
-            struct CacheSpritePack* pack = sprite_pack_new_from_cache(cache, comp->graphic);
+            struct RSCacheDat2A_SpritePack* pack = RSCacheDat2A_SpritePackNewFromCache(cache, comp->graphic);
             if( pack && pack->count > 0 && pack->palette )
             {
-                int* spr_px = sprite_get_pixels(&pack->sprites[0], pack->palette, 0);
+                int* spr_px = RSCacheDat2A_SpriteGetPixels(&pack->sprites[0], pack->palette, 0);
                 if( spr_px )
                 {
                     int ox = px + pack->sprites[0].offset_x;
@@ -429,10 +429,10 @@ draw_interface_components(
                         blit_rgba_sprite(pixels, CANVAS_W, ox, oy, spr_px, sw, sh);
                     free(spr_px);
                 }
-                sprite_pack_free(pack);
+                RSCacheDat2A_SpritePackFree(pack);
             }
             else if( pack )
-                sprite_pack_free(pack);
+                RSCacheDat2A_SpritePackFree(pack);
         }
     }
 }
@@ -443,7 +443,7 @@ draw_interface_components(
  */
 static int
 render_mounted_interface(
-    struct Cache* cache,
+    struct RSCacheDat2Disk* cache,
     int iface_id,
     int root_x,
     int root_y,
@@ -455,19 +455,19 @@ render_mounted_interface(
     if( root_w <= 0 || root_h <= 0 )
         return 0;
 
-    struct CacheArchive* arch = cache_archive_new_load(cache, CACHE_INTERFACES, iface_id);
+    struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, iface_id);
     if( !arch )
     {
-        fprintf(stderr, "mount: failed to load CACHE_INTERFACES archive %d\n", iface_id);
+        fprintf(stderr, "mount: failed to load RSCacheDat2Disk_Table_Interfaces archive %d\n", iface_id);
         return -1;
     }
 
-    cache_archive_init_metadata(cache, arch);
-    struct FileList* fl = filelist_new_from_cache_archive(arch);
+    RSCacheDat2Disk_ArchiveInitMetadata(cache, arch);
+    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
     if( !fl )
     {
         fprintf(stderr, "mount: failed to unpack interface archive %d\n", iface_id);
-        cache_archive_free(arch);
+        RSCacheDat2Disk_ArchiveFree(arch);
         return -1;
     }
 
@@ -484,8 +484,8 @@ render_mounted_interface(
         free(lay_y);
         free(lay_w);
         free(lay_h);
-        filelist_free(fl);
-        cache_archive_free(arch);
+        RSCacheShared_FileListFree(fl);
+        RSCacheDat2Disk_ArchiveFree(arch);
         return -1;
     }
 
@@ -510,8 +510,8 @@ render_mounted_interface(
     free(lay_y);
     free(lay_w);
     free(lay_h);
-    filelist_free(fl);
-    cache_archive_free(arch);
+    RSCacheShared_FileListFree(fl);
+    RSCacheDat2Disk_ArchiveFree(arch);
     return 0;
 }
 
@@ -576,37 +576,37 @@ main(
         return 1;
     }
 
-    struct Cache* cache = cache_new_from_directory(cache_dir);
+    struct RSCacheDat2Disk* cache = RSCacheDat2Disk_NewFromDirectory(cache_dir);
     if( !cache )
     {
         fprintf(stderr, "failed to open cache: %s\n", cache_dir);
         return 1;
     }
 
-    struct CacheArchive* arch = cache_archive_new_load(cache, CACHE_INTERFACES, iface);
+    struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, iface);
     if( !arch )
     {
-        fprintf(stderr, "failed to load CACHE_INTERFACES archive %d\n", iface);
-        cache_free(cache);
+        fprintf(stderr, "failed to load RSCacheDat2Disk_Table_Interfaces archive %d\n", iface);
+        RSCacheDat2Disk_Free(cache);
         return 1;
     }
 
-    cache_archive_init_metadata(cache, arch);
-    struct FileList* fl = filelist_new_from_cache_archive(arch);
+    RSCacheDat2Disk_ArchiveInitMetadata(cache, arch);
+    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
     if( !fl )
     {
         fprintf(stderr, "failed to unpack interface archive file list\n");
-        cache_archive_free(arch);
-        cache_free(cache);
+        RSCacheDat2Disk_ArchiveFree(arch);
+        RSCacheDat2Disk_Free(cache);
         return 1;
     }
 
     int* pixels = calloc((size_t)(CANVAS_W * CANVAS_H), sizeof(int));
     if( !pixels )
     {
-        filelist_free(fl);
-        cache_archive_free(arch);
-        cache_free(cache);
+        RSCacheShared_FileListFree(fl);
+        RSCacheDat2Disk_ArchiveFree(arch);
+        RSCacheDat2Disk_Free(cache);
         return 1;
     }
     fill_rect(pixels, CANVAS_W, 0, 0, CANVAS_W, CANVAS_H, 0xFF202428);
@@ -625,9 +625,9 @@ main(
         free(lay_w);
         free(lay_h);
         free(pixels);
-        filelist_free(fl);
-        cache_archive_free(arch);
-        cache_free(cache);
+        RSCacheShared_FileListFree(fl);
+        RSCacheDat2Disk_ArchiveFree(arch);
+        RSCacheDat2Disk_Free(cache);
         return 1;
     }
 
@@ -709,8 +709,8 @@ main(
     bmp_write_file(out_path, pixels, CANVAS_W, CANVAS_H);
 
     free(pixels);
-    filelist_free(fl);
-    cache_archive_free(arch);
-    cache_free(cache);
+    RSCacheShared_FileListFree(fl);
+    RSCacheDat2Disk_ArchiveFree(arch);
+    RSCacheDat2Disk_Free(cache);
     return 0;
 }

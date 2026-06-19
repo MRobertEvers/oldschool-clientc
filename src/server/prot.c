@@ -1,6 +1,6 @@
 #include "prot.h"
 
-#include "../osrs/rscache/rsbuf.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
 
 #include <assert.h>
 
@@ -10,8 +10,8 @@ prot_tile_click_encode(
     uint8_t* data,
     int data_size)
 {
-    struct RSBuffer buffer;
-    rsbuf_init(&buffer, data, data_size);
+    struct RSCacheShared_RSBuffer buffer;
+    RSCacheShared_RSBufferInit(&buffer, data, data_size);
 
     p1(&buffer, PROT_KIND_TILE_CLICK);
 
@@ -27,8 +27,8 @@ prot_tile_click_decode(
     uint8_t* data,
     int data_size)
 {
-    struct RSBuffer buffer;
-    rsbuf_init(&buffer, data, data_size);
+    struct RSCacheShared_RSBuffer buffer;
+    RSCacheShared_RSBufferInit(&buffer, data, data_size);
 
     int kind = g1(&buffer);
     assert(kind == PROT_KIND_TILE_CLICK);
@@ -45,8 +45,8 @@ prot_connect_encode(
     uint8_t* data,
     int data_size)
 {
-    struct RSBuffer buffer;
-    rsbuf_init(&buffer, data, data_size);
+    struct RSCacheShared_RSBuffer buffer;
+    RSCacheShared_RSBufferInit(&buffer, data, data_size);
 
     p1(&buffer, PROT_KIND_CONNECT);
     p2(&buffer, connect->pid);
@@ -60,8 +60,8 @@ prot_connect_decode(
     uint8_t* data,
     int data_size)
 {
-    struct RSBuffer buffer;
-    rsbuf_init(&buffer, data, data_size);
+    struct RSCacheShared_RSBuffer buffer;
+    RSCacheShared_RSBufferInit(&buffer, data, data_size);
 
     int kind = g1(&buffer);
     assert(kind == PROT_KIND_CONNECT);
@@ -77,8 +77,8 @@ client_prot_player_move_encode(
     uint8_t* data,
     int data_size)
 {
-    struct RSBuffer buffer;
-    rsbuf_init(&buffer, data, data_size);
+    struct RSCacheShared_RSBuffer buffer;
+    RSCacheShared_RSBufferInit(&buffer, data, data_size);
 
     p1(&buffer, CLIENT_PROT_PLAYER_MOVE);
 
@@ -96,8 +96,8 @@ client_prot_player_move_decode(
     uint8_t* data,
     int data_size)
 {
-    struct RSBuffer buffer;
-    rsbuf_init(&buffer, data, data_size);
+    struct RSCacheShared_RSBuffer buffer;
+    RSCacheShared_RSBufferInit(&buffer, data, data_size);
 
     int kind = g1(&buffer);
     assert(kind == CLIENT_PROT_PLAYER_MOVE);
@@ -116,8 +116,8 @@ client_prot_player_encode(
     uint8_t* data,
     int data_size)
 {
-    struct RSBuffer buffer;
-    rsbuf_init(&buffer, data, data_size);
+    struct RSCacheShared_RSBuffer buffer;
+    RSCacheShared_RSBufferInit(&buffer, data, data_size);
 
     p1(&buffer, CLIENT_PROT_PLAYER);
     p2(&buffer, player->pid);
@@ -144,8 +144,8 @@ client_prot_player_decode(
     uint8_t* data,
     int data_size)
 {
-    struct RSBuffer buffer;
-    rsbuf_init(&buffer, data, data_size);
+    struct RSCacheShared_RSBuffer buffer;
+    RSCacheShared_RSBufferInit(&buffer, data, data_size);
 
     int kind = g1(&buffer);
     assert(kind == CLIENT_PROT_PLAYER);

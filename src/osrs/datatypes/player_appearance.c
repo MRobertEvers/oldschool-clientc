@@ -1,7 +1,7 @@
 #include "player_appearance.h"
 
 #include "jbase37.h"
-#include "osrs/rscache/rsbuf.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
 
 void
 player_appearance_decode(
@@ -10,8 +10,8 @@ player_appearance_decode(
     int len)
 {
     //
-    struct RSBuffer rsbuf;
-    rsbuf_init(&rsbuf, buf, len);
+    struct RSCacheShared_RSBuffer rsbuf;
+    RSCacheShared_RSBufferInit(&rsbuf, buf, len);
     int gender = g1(&rsbuf);
     int head_icon = g1(&rsbuf);
 

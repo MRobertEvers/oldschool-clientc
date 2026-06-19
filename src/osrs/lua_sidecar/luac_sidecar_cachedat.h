@@ -2,16 +2,16 @@
 #define LUA_CACHEDAT_SIDECAR_H
 
 #include "osrs/lua_sidecar/luac_sidecar.h"
-#include "osrs/rscache/cache_dat.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
 
 struct LuaGameType*
 LuaCSidecar_CachedatLoadArchive(
-    struct CacheDat* cache_dat,
+    struct RSCacheDat1Disk* cache_dat,
     struct LuaGameType* args);
 
 struct LuaGameType*
 LuaCSidecar_CachedatLoadArchives(
-    struct CacheDat* cache_dat,
+    struct RSCacheDat1Disk* cache_dat,
     struct LuaGameType* args);
 
 #endif

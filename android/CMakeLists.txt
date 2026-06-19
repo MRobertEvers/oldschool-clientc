@@ -147,34 +147,8 @@ set(ANDROID_SOURCES
     ../src/osrs/blend_underlays.c
     ../src/osrs/scene_tile.c
     ../src/osrs/palette.c
-    ../src/osrs/cache.c
+    ../src/osrs/rscache/rscache_unity.c
     ../src/osrs/world.c
-    ../src/osrs/tables/model.c
-    ../src/osrs/archive_decompress.c
-    ../src/osrs/reference_table.c
-    ../src/osrs/scene.c
-    ../src/osrs/tables/config_npctype.c
-    ../src/osrs/tables/config_sequence.c
-    ../src/osrs/tables/config_floortype.c
-    ../src/osrs/tables/config_locs.c
-    ../src/osrs/tables/config_object.c
-    ../src/osrs/tables/config_idk.c
-    ../src/osrs/tables/framemap.c
-    ../src/osrs/tables/frame.c
-    ../src/osrs/tables/maps.c
-    ../src/osrs/filelist.c
-    ../src/graphics/render.c
-    ../src/osrs/rsbuf.c
-    ../src/graphics/reference/gouraud_deob.c
-    ../src/graphics/lighting.c
-    ../src/osrs/anim.c
-    ../src/osrs/model_transforms.c
-    ../src/osrs/xtea.c
-    ../src/osrs/archive.c
-    ../src/osrs/xtea_config.c
-    ../src/osrs/scene_cache.c
-    ../src/datastruct/ht.c
-    ../src/osrs/tables/noise.c
     ../src/nuklear/nuklear_impl.c
     ../src/platforms/common/torirs_nk_sdl_input.cpp
     ../src/platforms/common/torirs_nk_ui_bridge.cpp

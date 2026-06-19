@@ -3,9 +3,9 @@
 
 #include "toridraw/toridraw_types.h"
 
-struct CacheModel;
+struct RSCacheDat2A_Model;
 
 struct ToriDraw_Model*
-ToriDraw_ModelNewFromCacheModel(struct CacheModel* model);
+ToriDraw_ModelNewFromCacheModel(struct RSCacheDat2A_Model* model);
 
 #endif

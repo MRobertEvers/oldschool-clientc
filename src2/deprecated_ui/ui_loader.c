@@ -7,13 +7,13 @@
 #include "toriauxlib/td/toridraw_cachesprite.h"
 #include "graphics/dashmap.h"
 #include "osrs/revconfig/uitree.h"
-#include "osrs/rscache/cache_dat.h"
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/tables/model.h"
-#include "osrs/rscache/tables_dat/config_component.h"
-#include "osrs/rscache/tables_dat/configs_dat.h"
-#include "osrs/rscache/tables_dat/pix32.h"
-#include "osrs/rscache/tables_dat/pix8.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_configs_dat.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix32.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix8.h"
 #include "ui_resource_queue.h"
 
 #include <assert.h>
@@ -515,21 +515,21 @@ ui_loader_build(struct UILoaderState* state)
 
 static struct ToriDraw_Sprite*
 ui_loader_decode_sprite(
-    struct FileListDat* filelist,
+    struct RSCacheShared_FileListDat* filelist,
     const struct UIResourceQueueItem* item,
     int atlas_index)
 {
     if( !filelist || !item )
         return NULL;
 
-    int index_file_idx = filelist_dat_find_file_by_name(filelist, item->index_filename);
-    int data_file_idx = filelist_dat_find_file_by_name(filelist, item->data_filename);
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, item->index_filename);
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, item->data_filename);
     if( index_file_idx < 0 || data_file_idx < 0 )
         return NULL;
 
     if( strcmp(item->format, "pix8") == 0 )
     {
-        struct CacheDatPix8Palette* pix8_palette = cache_dat_pix8_palette_new(
+        struct RSCacheDat1A_Pix8Palette* pix8_palette = RSCacheDat1A_Pix8PaletteNew(
             filelist->files[data_file_idx],
             filelist->file_sizes[data_file_idx],
             filelist->files[index_file_idx],
@@ -539,13 +539,13 @@ ui_loader_decode_sprite(
             return NULL;
 
         struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix8Palette(pix8_palette);
-        cache_dat_pix8_palette_free(pix8_palette);
+        RSCacheDat1A_Pix8PaletteFree(pix8_palette);
         return sprite;
     }
 
     if( strcmp(item->format, "pix32") == 0 )
     {
-        struct CacheDatPix32* pix32 = cache_dat_pix32_new(
+        struct RSCacheDat1A_Pix32* pix32 = RSCacheDat1A_Pix32New(
             filelist->files[data_file_idx],
             filelist->file_sizes[data_file_idx],
             filelist->files[index_file_idx],
@@ -555,7 +555,7 @@ ui_loader_decode_sprite(
             return NULL;
 
         struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix32(pix32);
-        cache_dat_pix32_free(pix32);
+        RSCacheDat1A_Pix32Free(pix32);
         return sprite;
     }
 
@@ -579,7 +579,7 @@ ui_loader_placeholder_sprite(
 
 static struct ToriDraw_Sprite*
 ui_loader_decode_media_sprite_ref(
-    struct FileListDat* filelist,
+    struct RSCacheShared_FileListDat* filelist,
     const char* sprite_ref)
 {
     char filename_buf[256];
@@ -604,12 +604,12 @@ ui_loader_decode_media_sprite_ref(
         filename_buf[len + 4] = '\0';
     }
 
-    int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
-    int data_file_idx = filelist_dat_find_file_by_name(filelist, filename_buf);
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "index.dat");
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, filename_buf);
     if( index_file_idx < 0 || data_file_idx < 0 )
         return NULL;
 
-    struct CacheDatPix32* pix32 = cache_dat_pix32_new(
+    struct RSCacheDat1A_Pix32* pix32 = RSCacheDat1A_Pix32New(
         filelist->files[data_file_idx],
         filelist->file_sizes[data_file_idx],
         filelist->files[index_file_idx],
@@ -618,12 +618,12 @@ ui_loader_decode_media_sprite_ref(
     if( pix32 )
     {
         struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix32(pix32);
-        cache_dat_pix32_free(pix32);
+        RSCacheDat1A_Pix32Free(pix32);
         if( sprite )
             return sprite;
     }
 
-    struct CacheDatPix8Palette* pix8_palette = cache_dat_pix8_palette_new(
+    struct RSCacheDat1A_Pix8Palette* pix8_palette = RSCacheDat1A_Pix8PaletteNew(
         filelist->files[data_file_idx],
         filelist->file_sizes[data_file_idx],
         filelist->files[index_file_idx],
@@ -633,41 +633,41 @@ ui_loader_decode_media_sprite_ref(
         return NULL;
 
     struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromCachePix8Palette(pix8_palette);
-    cache_dat_pix8_palette_free(pix8_palette);
+    RSCacheDat1A_Pix8PaletteFree(pix8_palette);
     return sprite;
 }
 
 static bool
 ui_loader_decode_interfaces_from_archive(
-    struct CacheDatArchive* archive,
-    struct CacheDatConfigComponentList** out_list)
+    struct RSCacheDat1Disk_Archive* archive,
+    struct RSCacheDat1A_ConfigComponentList** out_list)
 {
-    struct FileListDat* filelist;
+    struct RSCacheShared_FileListDat* filelist;
     int data_idx;
 
     if( !archive || !out_list )
         return false;
 
-    filelist = filelist_dat_new_from_cache_dat_archive(archive);
+    filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
     if( !filelist )
         return false;
 
-    data_idx = filelist_dat_find_file_by_name(filelist, "data");
+    data_idx = RSCacheShared_FileListDatFindFileByName(filelist, "data");
     if( data_idx < 0 )
     {
-        filelist_dat_free(filelist);
+        RSCacheShared_FileListDatFree(filelist);
         return false;
     }
 
-    *out_list = cache_dat_config_component_list_new_decode(
+    *out_list = RSCacheDat1A_ConfigComponentListNewDecode(
         filelist->files[data_idx], filelist->file_sizes[data_idx]);
-    filelist_dat_free(filelist);
+    RSCacheShared_FileListDatFree(filelist);
     return *out_list != NULL;
 }
 
-static struct CacheDatConfigComponent*
+static struct RSCacheDat1A_ConfigComponent*
 ui_loader_get_interface_component(
-    struct CacheDatConfigComponentList* interfaces,
+    struct RSCacheDat1A_ConfigComponentList* interfaces,
     int component_id)
 {
     if( !interfaces || component_id < 0 || component_id >= interfaces->components_count )
@@ -679,7 +679,7 @@ static int
 ui_loader_acquire_rs_sprite(
     struct UILoaderState* state,
     struct UIScene* scene,
-    struct FileListDat* media,
+    struct RSCacheShared_FileListDat* media,
     const char* sprite_ref)
 {
     struct SpriteMapEntry* sm;
@@ -745,10 +745,10 @@ ui_loader_bake_rs_subtree(
     struct UILoaderState* state,
     struct UITree* tree,
     struct UIScene* scene,
-    struct FileListDat* media,
-    struct CacheDatConfigComponentList* interfaces,
+    struct RSCacheShared_FileListDat* media,
+    struct RSCacheDat1A_ConfigComponentList* interfaces,
     int32_t parent_idx,
-    struct CacheDatConfigComponent* comp,
+    struct RSCacheDat1A_ConfigComponent* comp,
     int abs_x,
     int abs_y)
 {
@@ -775,7 +775,7 @@ ui_loader_bake_rs_subtree(
 
         for( int i = 0; i < comp->children_count; i++ )
         {
-            struct CacheDatConfigComponent* child =
+            struct RSCacheDat1A_ConfigComponent* child =
                 ui_loader_get_interface_component(interfaces, comp->children[i]);
             int cx;
             int cy;
@@ -948,8 +948,8 @@ ui_loader_pending_model_index(
 static void
 ui_loader_collect_rs_deps_from_component(
     struct UILoaderState* state,
-    struct CacheDatConfigComponentList* interfaces,
-    struct CacheDatConfigComponent* comp)
+    struct RSCacheDat1A_ConfigComponentList* interfaces,
+    struct RSCacheDat1A_ConfigComponent* comp)
 {
     if( !state || !comp || !interfaces )
         return;
@@ -970,7 +970,7 @@ ui_loader_collect_rs_deps_from_component(
     {
         for( int i = 0; i < comp->children_count; i++ )
         {
-            struct CacheDatConfigComponent* child =
+            struct RSCacheDat1A_ConfigComponent* child =
                 ui_loader_get_interface_component(interfaces, comp->children[i]);
             if( child )
                 ui_loader_collect_rs_deps_from_component(state, interfaces, child);
@@ -1003,7 +1003,7 @@ ui_loader_queue_pending_models(
             }
         }
 
-        LibToriRS_IOQueuePush(io_queue, CACHE_DAT_MODELS, pending->model_id, 0);
+        LibToriRS_IOQueuePush(io_queue, RSCacheDat1Disk_Table_Models, pending->model_id, 0);
         pending->io_dispatched = true;
         printf(
             "UI_Process: queued model IO id=%d\n",
@@ -1042,8 +1042,8 @@ ui_loader_bake_rs_roots(
 {
     struct UIResourceQueue* queue;
     struct Dat1BuildCache* buildcache;
-    struct CacheDatConfigComponentList* interfaces;
-    struct FileListDat* media;
+    struct RSCacheDat1A_ConfigComponentList* interfaces;
+    struct RSCacheShared_FileListDat* media;
 
     if( !state || !tree || !scene )
         return;
@@ -1061,7 +1061,7 @@ ui_loader_bake_rs_roots(
     for( int i = 0; i < queue->count; i++ )
     {
         struct UIResourceQueueItem* item = &queue->items[i];
-        struct CacheDatConfigComponent* root;
+        struct RSCacheDat1A_ConfigComponent* root;
 
         if( item->kind != UIRES_KIND_RS_COMPONENT || item->status != UIRES_RESOLVED )
             continue;
@@ -1110,7 +1110,7 @@ ui_loader_request_config_archive(
     struct LibToriRS_IOQueue* io_queue,
     int archive_id)
 {
-    int table_id = CACHE_DAT_CONFIGS;
+    int table_id = RSCacheDat1Disk_Table_Configs;
     int idx = ui_loader_pending_archive_index(state, table_id, archive_id);
     struct UILoaderPendingArchive* pending;
 
@@ -1139,10 +1139,10 @@ ui_loader_resolve_archive_ids(
 
     if( strcmp(table, "configs") == 0 )
     {
-        *out_table_id = CACHE_DAT_CONFIGS;
+        *out_table_id = RSCacheDat1Disk_Table_Configs;
         if( strcmp(archive, "media") == 0 )
         {
-            *out_archive_id = CONFIG_DAT_MEDIA_2D_GRAPHICS;
+            *out_archive_id = RSCacheDat1A_ConfigKind_Media2dGraphics;
             return true;
         }
     }
@@ -1169,7 +1169,7 @@ ui_loader_decode_item(
     struct UIResourceQueueItem* item)
 {
     struct Dat1BuildCache* buildcache = state ? state->buildcache : NULL;
-    struct FileListDat* filelist;
+    struct RSCacheShared_FileListDat* filelist;
 
     filelist = dat1_buildcache_get_media_2d_graphics_jagfile(buildcache);
     if( !filelist )
@@ -1313,8 +1313,8 @@ ui_loader_step_rs_component(
     struct LibToriRS_IOQueue* io_queue)
 {
     struct Dat1BuildCache* buildcache = state ? state->buildcache : NULL;
-    struct CacheDatConfigComponentList* interfaces;
-    struct CacheDatConfigComponent* comp;
+    struct RSCacheDat1A_ConfigComponentList* interfaces;
+    struct RSCacheDat1A_ConfigComponent* comp;
 
     if( item->state == UIRES_STATE_DONE || item->state == UIRES_STATE_FAILED )
         return;
@@ -1332,7 +1332,7 @@ ui_loader_step_rs_component(
     case UIRES_STATE_NEED_ARCHIVE:
         if( !dat1_buildcache_get_interfaces(buildcache) )
         {
-            if( !ui_loader_request_config_archive(state, io_queue, CONFIG_DAT_INTERFACES) )
+            if( !ui_loader_request_config_archive(state, io_queue, RSCacheDat1A_ConfigKind_Interfaces) )
             {
                 item->status = UIRES_ERROR;
                 item->error_code = -6;
@@ -1343,7 +1343,7 @@ ui_loader_step_rs_component(
 
         if( !dat1_buildcache_get_media_2d_graphics_jagfile(buildcache) )
         {
-            if( !ui_loader_request_config_archive(state, io_queue, CONFIG_DAT_MEDIA_2D_GRAPHICS) )
+            if( !ui_loader_request_config_archive(state, io_queue, RSCacheDat1A_ConfigKind_Media2dGraphics) )
             {
                 item->status = UIRES_ERROR;
                 item->error_code = -6;
@@ -1383,7 +1383,7 @@ ui_loader_step_rs_component(
 
         if( state->need_fonts && !state->fonts_received && !state->fonts_io_dispatched )
         {
-            if( !ui_loader_request_config_archive(state, io_queue, CONFIG_DAT_TITLE_AND_FONTS) )
+            if( !ui_loader_request_config_archive(state, io_queue, RSCacheDat1A_ConfigKind_TitleAndFonts) )
             {
                 item->status = UIRES_ERROR;
                 item->error_code = -6;
@@ -1514,21 +1514,21 @@ ui_loader_consume_resolved_cache_io(
                 pending->archive_id != io_item->archive_id )
                 continue;
 
-            if( pending->table_id == CACHE_DAT_CONFIGS &&
-                pending->archive_id == CONFIG_DAT_MEDIA_2D_GRAPHICS )
+            if( pending->table_id == RSCacheDat1Disk_Table_Configs &&
+                pending->archive_id == RSCacheDat1A_ConfigKind_Media2dGraphics )
             {
-                struct FileListDat* filelist =
-                    filelist_dat_new_from_cache_dat_archive((struct CacheDatArchive*)io_item->data);
+                struct RSCacheShared_FileListDat* filelist =
+                    RSCacheShared_FileListDatNewFromCacheDatArchive((struct RSCacheDat1Disk_Archive*)io_item->data);
                 dat1_buildcache_set_media_2d_graphics_jagfile(buildcache, filelist);
                 printf("UI_Process: received media archive filelist=%p\n", (void*)filelist);
             }
             else if(
-                pending->table_id == CACHE_DAT_CONFIGS &&
-                pending->archive_id == CONFIG_DAT_INTERFACES )
+                pending->table_id == RSCacheDat1Disk_Table_Configs &&
+                pending->archive_id == RSCacheDat1A_ConfigKind_Interfaces )
             {
-                struct CacheDatConfigComponentList* interfaces = NULL;
+                struct RSCacheDat1A_ConfigComponentList* interfaces = NULL;
                 if( ui_loader_decode_interfaces_from_archive(
-                        (struct CacheDatArchive*)io_item->data, &interfaces) )
+                        (struct RSCacheDat1Disk_Archive*)io_item->data, &interfaces) )
                 {
                     dat1_buildcache_set_interfaces(buildcache, interfaces);
                     printf(
@@ -1539,23 +1539,23 @@ ui_loader_consume_resolved_cache_io(
                     printf("UI_Process: failed to decode interfaces archive\n");
             }
             else if(
-                pending->table_id == CACHE_DAT_CONFIGS &&
-                pending->archive_id == CONFIG_DAT_TITLE_AND_FONTS )
+                pending->table_id == RSCacheDat1Disk_Table_Configs &&
+                pending->archive_id == RSCacheDat1A_ConfigKind_TitleAndFonts )
             {
-                struct FileListDat* filelist =
-                    filelist_dat_new_from_cache_dat_archive((struct CacheDatArchive*)io_item->data);
+                struct RSCacheShared_FileListDat* filelist =
+                    RSCacheShared_FileListDatNewFromCacheDatArchive((struct RSCacheDat1Disk_Archive*)io_item->data);
                 if( filelist && state->ui_scene )
                 {
                     ui_scene_load_fonts_from_title_archive(state->ui_scene, filelist);
                     printf("UI_Process: loaded fonts from title archive\n");
                 }
                 if( filelist )
-                    filelist_dat_free(filelist);
+                    RSCacheShared_FileListDatFree(filelist);
                 state->fonts_received = true;
             }
 
             pending->received = true;
-            cache_dat_archive_free((struct CacheDatArchive*)io_item->data);
+            RSCacheDat1Disk_ArchiveFree((struct RSCacheDat1Disk_Archive*)io_item->data);
             io_item->data = NULL;
             printf(
                 "UI_Process: received cache archive table=%d archive=%d\n",
@@ -1568,7 +1568,7 @@ ui_loader_consume_resolved_cache_io(
             continue;
         if( io_item->status != TORIRSIO_RESOLVED || !io_item->data )
             continue;
-        if( io_item->table_id != CACHE_DAT_MODELS )
+        if( io_item->table_id != RSCacheDat1Disk_Table_Models )
             continue;
 
         for( int p = 0; p < state->pending_model_count; p++ )
@@ -1581,16 +1581,16 @@ ui_loader_consume_resolved_cache_io(
 
             if( state->core && state->buildcache )
             {
-                struct CacheModel* model =
-                    model_new_from_dat_archive((struct CacheDatArchive*)io_item->data, pending->model_id);
+                struct RSCacheDat2A_Model* model =
+                    RSCacheDat2A_ModelNewFromDatArchive((struct RSCacheDat1Disk_Archive*)io_item->data, pending->model_id);
                 if( model )
                 {
-                    struct CacheModel* copy = model_new_copy(model);
-                    model_free(model);
+                    struct RSCacheDat2A_Model* copy = RSCacheDat2A_ModelNewCopy(model);
+                    RSCacheDat2A_ModelFree(model);
                     if( copy )
                     {
                         struct ToriDraw_Model* td = ToriDraw_ModelNewFromCacheModel(copy);
-                        model_free(copy);
+                        RSCacheDat2A_ModelFree(copy);
                         if( td )
                         {
                             struct ToriDraw_ModelHandle hnd = {
@@ -1607,7 +1607,7 @@ ui_loader_consume_resolved_cache_io(
             }
 
             pending->received = true;
-            cache_dat_archive_free((struct CacheDatArchive*)io_item->data);
+            RSCacheDat1Disk_ArchiveFree((struct RSCacheDat1Disk_Archive*)io_item->data);
             io_item->data = NULL;
             printf("UI_Process: received model archive id=%d\n", pending->model_id);
             break;

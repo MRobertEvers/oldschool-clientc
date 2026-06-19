@@ -3,7 +3,7 @@
 #include "buildcache/dat1_buildcache.h"
 
 #include "toriauxlib/c/toriauxlibc_submit.h"
-#include "osrs/rscache/tables_dat/animframe.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_map.h"
@@ -310,7 +310,7 @@ tdx_animframe_copy(
 }
 
 static struct ToriDraw_AnimBase*
-tdx_animbase_move_from_cache(struct CacheAnimBase* cache_base)
+tdx_animbase_move_from_cache(struct RSCacheDat1A_AnimBase* cache_base)
 {
     if( !cache_base )
         return NULL;
@@ -335,7 +335,7 @@ tdx_animbase_move_from_cache(struct CacheAnimBase* cache_base)
 }
 
 struct ToriDraw_Animation*
-ToriAuxLibTD_AnimationNewFromCacheDatAnimbaseframes(struct CacheDatAnimBaseFrames* abf)
+ToriAuxLibTD_AnimationNewFromCacheDatAnimbaseframes(struct RSCacheDat1A_AnimBaseFrames* abf)
 {
     if( !abf )
         return NULL;
@@ -362,7 +362,7 @@ ToriAuxLibTD_AnimationNewFromCacheDatAnimbaseframes(struct CacheDatAnimBaseFrame
 
         for( int i = 0; i < abf->frame_count; i++ )
         {
-            struct CacheAnimframe* cf = &abf->frames[i];
+            struct RSCacheDat1A_AnimFrame* cf = &abf->frames[i];
             struct ToriDraw_AnimFrame* tf = &anim->frames[i];
             memset(tf, 0, sizeof(struct ToriDraw_AnimFrame));
 

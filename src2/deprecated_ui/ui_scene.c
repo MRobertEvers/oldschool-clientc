@@ -58,7 +58,7 @@ ui_scene_new(int capacity)
 //     for( int i = 0; i < scene->font_count; i++ )
 //     {
 //         if( scene->fonts[i].pixfont )
-//             cache_dat_pixfont_free(scene->fonts[i].pixfont);
+//             RSCacheDat1A_PixFontFree(scene->fonts[i].pixfont);
 //         scene->fonts[i].pixfont = NULL;
 //     }
 //     scene->font_count = 0;
@@ -176,7 +176,7 @@ ui_scene_font_find_id(
     return -1;
 }
 
-// struct CacheDatPixfont*
+// struct RSCacheDat1A_PixFont*
 // ui_scene_font_get(
 //     struct UIScene* scene,
 //     int font_id)
@@ -190,7 +190,7 @@ ui_scene_font_find_id(
 // ui_scene_font_add(
 //     struct UIScene* scene,
 //     const char* name,
-//     struct CacheDatPixfont* pixfont)
+//     struct RSCacheDat1A_PixFont* pixfont)
 // {
 //     if( !scene || !name || !pixfont )
 //         return -1;
@@ -201,7 +201,7 @@ ui_scene_font_find_id(
 //     if( existing >= 0 )
 //     {
 //         if( scene->fonts[existing].pixfont )
-//             cache_dat_pixfont_free(scene->fonts[existing].pixfont);
+//             RSCacheDat1A_PixFontFree(scene->fonts[existing].pixfont);
 //         scene->fonts[existing].pixfont = pixfont;
 //         return existing;
 //     }
@@ -216,16 +216,16 @@ ui_scene_font_find_id(
 // static void
 // ui_scene_load_font_file(
 //     struct UIScene* scene,
-//     struct FileListDat* filelist,
+//     struct RSCacheShared_FileListDat* filelist,
 //     int index_file_idx,
 //     const char* dat_name,
 //     const char* font_name)
 // {
-//     int data_file_idx = filelist_dat_find_file_by_name(filelist, dat_name);
+//     int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, dat_name);
 //     if( data_file_idx < 0 || index_file_idx < 0 )
 //         return;
 
-//     struct CacheDatPixfont* pixfont = cache_dat_pixfont_new_decode(
+//     struct RSCacheDat1A_PixFont* pixfont = RSCacheDat1A_PixFontNewDecode(
 //         filelist->files[data_file_idx],
 //         filelist->file_sizes[data_file_idx],
 //         filelist->files[index_file_idx],
@@ -239,12 +239,12 @@ ui_scene_font_find_id(
 // void
 // ui_scene_load_fonts_from_title_archive(
 //     struct UIScene* scene,
-//     struct FileListDat* filelist)
+//     struct RSCacheShared_FileListDat* filelist)
 // {
 //     if( !scene || !filelist )
 //         return;
 
-//     int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
+//     int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "index.dat");
 //     if( index_file_idx < 0 )
 //         return;
 

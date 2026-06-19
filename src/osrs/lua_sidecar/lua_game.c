@@ -6,11 +6,11 @@
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/dash_utils.h"
 #include "osrs/game.h"
-#include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
 #include "osrs/gameproto_exec.h"
 #include "osrs/gameproto_parse.h"
 #include "osrs/packets/revpacket_lc245_2.h"
-#include "osrs/rscache/cache_dat.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
 #include "osrs/heightmap.h"
 #include "osrs/world.h"
 #include "platforms/common/platform_memory.h"
@@ -148,11 +148,11 @@ LuaGame_load_interfaces(
     struct GGame* game,
     struct LuaGameType* args)
 {
-    struct CacheDatArchive* archive = (struct CacheDatArchive*)arg_userdata(args, 0);
+    struct RSCacheDat1Disk_Archive* archive = (struct RSCacheDat1Disk_Archive*)arg_userdata(args, 0);
     if( archive )
     {
         buildcachedat_loader_load_interfaces(game->buildcachedat, archive->data, archive->data_size);
-        cache_dat_archive_free(archive);
+        RSCacheDat1Disk_ArchiveFree(archive);
     }
     return LuaGameType_NewVoid();
 }
@@ -188,7 +188,7 @@ LuaGame_get_interface_model_ids(
         return LuaGameType_NewIntArray(0);
 
     int cid = 0;
-    struct CacheDatConfigComponent* c = NULL;
+    struct RSCacheDat1A_ConfigComponent* c = NULL;
     while( (c = buildcachedat_component_iter_next(it, &cid)) != NULL )
     {
         if( c->type != COMPONENT_TYPE_MODEL || c->modelType != 1 )
@@ -319,13 +319,13 @@ LuaGame_spawn_element(
     if( !game || !game->scene2 || !game->buildcachedat )
         return LuaGameType_NewVoid();
 
-    struct CacheModel* cache_model = buildcachedat_get_model(game->buildcachedat, model_id);
+    struct RSCacheDat2A_Model* cache_model = buildcachedat_get_model(game->buildcachedat, model_id);
     if( !cache_model )
         return LuaGameType_NewVoid();
 
-    struct CacheModel* model_copy = model_new_copy(cache_model);
-    struct DashModel* dash_model = dashmodel_new_from_cache_model(model_copy);
-    model_free(model_copy);
+    struct RSCacheDat2A_Model* model_copy = RSCacheDat2A_ModelNewCopy(cache_model);
+    struct DashModel* dash_model = dashRSCacheDat2A_ModelNewFromCache_model(model_copy);
+    RSCacheDat2A_ModelFree(model_copy);
     if( !dash_model )
         return LuaGameType_NewVoid();
 
@@ -333,14 +333,14 @@ LuaGame_spawn_element(
 
     if( !game->world )
     {
-        dashmodel_free(dash_model);
+        dashRSCacheDat2A_ModelFree(dash_model);
         return LuaGameType_NewVoid();
     }
 
     int projectile_id = world_projectile_create(game->world);
     if( projectile_id < 0 )
     {
-        dashmodel_free(dash_model);
+        dashRSCacheDat2A_ModelFree(dash_model);
         return LuaGameType_NewVoid();
     }
 
@@ -367,7 +367,7 @@ LuaGame_spawn_element(
 
     scene2_element_set_dash_model(game->scene2, element, dash_model);
 
-    struct CacheDatSequence* sequence = buildcachedat_get_sequence(game->buildcachedat, seq_id);
+    struct RSCacheDat1A_ConfigSequence* sequence = buildcachedat_get_sequence(game->buildcachedat, seq_id);
     if( sequence )
         world_projectile_entity_set_animation(
             game->world, projectile_id, seq_id, ANIMATION_TYPE_PRIMARY);

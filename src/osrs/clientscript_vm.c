@@ -1,7 +1,7 @@
 #include "clientscript_vm.h"
 
 #include "osrs/game.h"
-#include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
 #include "osrs/varp_varbit_manager.h"
 
 #include <stdlib.h>
@@ -27,7 +27,7 @@ int
 clientscript_vm_if_var(
     struct ClientScriptVM* vm,
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct RSCacheDat1A_ConfigComponent* component,
     int script_id)
 {
     (void)vm;
@@ -155,7 +155,7 @@ bool
 clientscript_vm_if_active(
     struct ClientScriptVM* vm,
     struct GGame* game,
-    struct CacheDatConfigComponent* component)
+    struct RSCacheDat1A_ConfigComponent* component)
 {
     (void)vm;
     if( !game || !component->scriptComparator || !component->scriptOperand )

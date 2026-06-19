@@ -3,7 +3,7 @@
 #include "graphics/dash.h"
 #include "graphics/dashmap.h"
 #include "osrs/buildcachedat.h"
-#include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -21,7 +21,7 @@ rs_component_state_seed_from_buildcachedat(
         return;
 
     int id = 0;
-    struct CacheDatConfigComponent* c = NULL;
+    struct RSCacheDat1A_ConfigComponent* c = NULL;
     while( (c = buildcachedat_component_iter_next(iter, &id)) != NULL )
     {
         if( c->type != COMPONENT_TYPE_MODEL )

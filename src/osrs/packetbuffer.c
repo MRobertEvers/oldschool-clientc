@@ -1,7 +1,7 @@
 #include "packetbuffer.h"
 
 #include "packetin.h"
-#include "rscache/rsbuf.h"
+#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -58,7 +58,7 @@ packetbuffer_read(
     assert(packetbuffer && packetbuffer->random);
     assert(data_size > 0);
 
-    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
+    struct RSCacheShared_RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
 
     int varlength = 0;
     int remaining;

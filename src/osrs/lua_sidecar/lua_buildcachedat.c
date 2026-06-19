@@ -8,9 +8,9 @@
 #include "osrs/game.h"
 #include "osrs/packets/pkt_npc_info.h"
 #include "osrs/packets/pkt_player_info.h"
-#include "osrs/rscache/cache_dat.h"
-#include "osrs/rscache/tables/config_locs.h"
-#include "osrs/rscache/tables_dat/config_spotanim.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_spotanim.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -48,12 +48,12 @@ LuaBuildCacheDat_map_scenery_cache_add(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    struct RSCacheDat1Disk_Archive* archive = arg_userdata(args, 0);
     int map_id = arg_int(args, 1);
 
     buildcachedat_loader_map_scenery_cache_add_mapid(
         buildcachedat, map_id, archive->data_size, archive->data);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -62,9 +62,9 @@ LuaBuildCacheDat_set_2d_media_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    struct RSCacheDat1Disk_Archive* archive = arg_userdata(args, 0);
     buildcachedat_loader_set_2d_media_jagfile(buildcachedat, archive->data_size, archive->data);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -73,10 +73,10 @@ LuaBuildCacheDat_set_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    struct RSCacheDat1Disk_Archive* archive = arg_userdata(args, 0);
 
     buildcachedat_loader_set_config_jagfile(buildcachedat, archive->data_size, archive->data);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -95,10 +95,10 @@ LuaBuildCacheDat_set_versionlist_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    struct RSCacheDat1Disk_Archive* archive = arg_userdata(args, 0);
 
     buildcachedat_loader_set_versionlist_jagfile(buildcachedat, archive->data_size, archive->data);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -107,12 +107,12 @@ LuaBuildCacheDat_map_terrain_cache_add(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    struct RSCacheDat1Disk_Archive* archive = arg_userdata(args, 0);
     int map_id = arg_int(args, 1);
 
     buildcachedat_loader_map_terrain_cache_add_mapid(
         buildcachedat, map_id, archive->data_size, archive->data);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -123,7 +123,7 @@ LuaBuildCacheDat_has_map_terrain(
 {
     int chunk_x = arg_int(args, 0);
     int chunk_z = arg_int(args, 1);
-    struct CacheMapTerrain* t = buildcachedat_get_map_terrain(buildcachedat, chunk_x, chunk_z);
+    struct RSCacheDat2A_MapTerrain* t = buildcachedat_get_map_terrain(buildcachedat, chunk_x, chunk_z);
     return LuaGameType_NewBool(t != NULL);
 }
 
@@ -134,7 +134,7 @@ LuaBuildCacheDat_has_map_scenery(
 {
     int chunk_x = arg_int(args, 0);
     int chunk_z = arg_int(args, 1);
-    struct CacheMapLocs* s = buildcachedat_get_scenery(buildcachedat, chunk_x, chunk_z);
+    struct RSCacheDat2A_MapLocs* s = buildcachedat_get_scenery(buildcachedat, chunk_x, chunk_z);
     return LuaGameType_NewBool(s != NULL);
 }
 
@@ -144,7 +144,7 @@ LuaBuildCacheDat_model_cache_has(
     struct LuaGameType* args)
 {
     int model_id = arg_int(args, 0);
-    struct CacheModel* m = buildcachedat_get_model(buildcachedat, model_id);
+    struct RSCacheDat2A_Model* m = buildcachedat_get_model(buildcachedat, model_id);
     return LuaGameType_NewBool(m != NULL);
 }
 
@@ -154,7 +154,7 @@ LuaBuildCacheDat_animbaseframes_cache_has(
     struct LuaGameType* args)
 {
     int animbaseframes_id = arg_int(args, 0);
-    struct CacheDatAnimBaseFrames* ab =
+    struct RSCacheDat1A_AnimBaseFrames* ab =
         buildcachedat_get_animbaseframes(buildcachedat, animbaseframes_id);
     return LuaGameType_NewBool(ab != NULL);
 }
@@ -271,7 +271,7 @@ LuaBuildCacheDat_get_npc_model_ids(
 {
     int npc_id = arg_int(args, 0);
 
-    struct CacheDatConfigNpc* npc = buildcachedat_get_npc(buildcachedat, npc_id);
+    struct RSCacheDat1A_ConfigNpc* npc = buildcachedat_get_npc(buildcachedat, npc_id);
     if( !npc || !npc->models )
         return LuaGameType_NewIntArray(0);
 
@@ -288,7 +288,7 @@ LuaBuildCacheDat_get_npc_head_model_ids(
 {
     int npc_id = arg_int(args, 0);
 
-    struct CacheDatConfigNpc* npc = buildcachedat_get_npc(buildcachedat, npc_id);
+    struct RSCacheDat1A_ConfigNpc* npc = buildcachedat_get_npc(buildcachedat, npc_id);
     if( !npc || !npc->heads )
         return LuaGameType_NewIntArray(0);
 
@@ -315,7 +315,7 @@ LuaBuildCacheDat_get_idk_model_ids(
 {
     int idk_id = arg_int(args, 0);
 
-    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
+    struct RSCacheDat1A_ConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
     if( !idk || !idk->models )
         return LuaGameType_NewIntArray(0);
 
@@ -332,7 +332,7 @@ LuaBuildCacheDat_get_idk_head_model_ids(
 {
     int idk_id = arg_int(args, 0);
 
-    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
+    struct RSCacheDat1A_ConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
     if( !idk )
         return LuaGameType_NewIntArray(0);
 
@@ -350,7 +350,7 @@ LuaBuildCacheDat_get_obj_model_ids(
 {
     int obj_id = arg_int(args, 0);
 
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+    struct RSCacheDat1A_ConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
     if( !obj )
         return LuaGameType_NewIntArray(0);
 
@@ -373,7 +373,7 @@ LuaBuildCacheDat_get_obj_head_model_ids(
 {
     int obj_id = arg_int(args, 0);
 
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+    struct RSCacheDat1A_ConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
     if( !obj )
         return LuaGameType_NewIntArray(0);
 
@@ -396,7 +396,7 @@ LuaBuildCacheDat_get_obj(
 {
     int obj_id = arg_int(args, 0);
 
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+    struct RSCacheDat1A_ConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
     if( !obj )
         return LuaGameType_NewVoid();
 
@@ -510,12 +510,12 @@ LuaBuildCacheDat_model_cache_add(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    struct RSCacheDat1Disk_Archive* archive = arg_userdata(args, 0);
     int model_id = archive->archive_id;
 
     buildcachedat_loader_model_cache_add(
         buildcachedat, model_id, archive->data_size, archive->data);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -549,11 +549,11 @@ LuaBuildCacheDat_cache_textures(
     struct GGame* game,
     struct LuaGameType* args)
 {
-    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    struct RSCacheDat1Disk_Archive* archive = arg_userdata(args, 0);
     if( game && game->scene2 )
         buildcachedat_loader_cache_textures(
             buildcachedat, game->scene2, archive->data_size, archive->data);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -583,12 +583,12 @@ LuaBuildCacheDat_animbaseframes_cache_add(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    struct RSCacheDat1Disk_Archive* archive = arg_userdata(args, 0);
     assert(archive);
     int animbaseframes_id = archive->archive_id;
     buildcachedat_loader_animbaseframes_cache_add(
         buildcachedat, animbaseframes_id, archive->data_size, archive->data);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -611,12 +611,12 @@ LuaBuildCacheDat_cache_title(
     struct GGame* game,
     struct LuaGameType* args)
 {
-    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    struct RSCacheDat1Disk_Archive* archive = arg_userdata(args, 0);
 
     if( game && game->ui_scene )
         buildcachedat_loader_cache_title(
             buildcachedat, game->ui_scene, archive->data_size, archive->data);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -883,7 +883,7 @@ LuaBuildCacheDat_get_loc_model_ids(
 {
     int loc_id = arg_int(args, 0);
 
-    struct CacheConfigLocation* loc = buildcachedat_get_config_loc(buildcachedat, loc_id);
+    struct RSCacheDat2A_ConfigLocation* loc = buildcachedat_get_config_loc(buildcachedat, loc_id);
     if( !loc )
         return LuaGameType_NewIntArray(0);
 
@@ -910,7 +910,7 @@ LuaBuildCacheDat_get_spotanim_model_id(
     struct LuaGameType* args)
 {
     int spotanim_id = arg_int(args, 0);
-    struct CacheDatConfigSpotAnim* s = buildcachedat_get_spotanim(buildcachedat, spotanim_id);
+    struct RSCacheDat1A_ConfigSpotanim* s = buildcachedat_get_spotanim(buildcachedat, spotanim_id);
     if( !s )
         return LuaGameType_NewInt(0);
     return LuaGameType_NewInt(s->model);
@@ -922,7 +922,7 @@ LuaBuildCacheDat_get_spotanim_seq_id(
     struct LuaGameType* args)
 {
     int spotanim_id = arg_int(args, 0);
-    struct CacheDatConfigSpotAnim* s = buildcachedat_get_spotanim(buildcachedat, spotanim_id);
+    struct RSCacheDat1A_ConfigSpotanim* s = buildcachedat_get_spotanim(buildcachedat, spotanim_id);
     if( !s )
         return LuaGameType_NewInt(-1);
     return LuaGameType_NewInt(s->seq_id);

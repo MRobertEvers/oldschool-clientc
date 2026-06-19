@@ -1,7 +1,7 @@
 #include "toriauxlib/c/toriauxlibc.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
-#include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -93,7 +93,7 @@ gc_bones_new(
         return NULL;
     memset(bones, 0, sizeof(struct ToriAuxLibCore_Bones));
 
-    struct ModelBones* model_bones = modelbones_new_decode(bone_map, bone_count);
+    struct RSCacheDat2A_ModelBones* model_bones = RSCacheDat2A_ModelBonesNewDecode(bone_map, bone_count);
     if( !model_bones )
     {
         free(bones);
@@ -105,7 +105,7 @@ gc_bones_new(
     bones->bones_sizes = (gc_boneint_t*)malloc(sizeof(gc_boneint_t) * (size_t)bones->bones_count);
     if( !bones->bones || !bones->bones_sizes )
     {
-        modelbones_free(model_bones);
+        RSCacheDat2A_ModelBonesFree(model_bones);
         gc_bones_free(bones);
         return NULL;
     }
@@ -120,7 +120,7 @@ gc_bones_new(
         bones->bones[i] = (gc_boneint_t*)malloc(sizeof(gc_boneint_t) * (size_t)model_bones->bones_sizes[i]);
         if( !bones->bones[i] )
         {
-            modelbones_free(model_bones);
+            RSCacheDat2A_ModelBonesFree(model_bones);
             gc_bones_free(bones);
             return NULL;
         }
@@ -128,14 +128,14 @@ gc_bones_new(
             bones->bones[i][j] = (gc_boneint_t)model_bones->bones[i][j];
     }
 
-    modelbones_free(model_bones);
+    RSCacheDat2A_ModelBonesFree(model_bones);
     return bones;
 }
 
 static void
 gc_model_move_from_cache_model(
     struct ToriAuxLibCore_Model* gc,
-    struct CacheModel* model)
+    struct RSCacheDat2A_Model* model)
 {
     assert(gc && model);
 
@@ -314,7 +314,7 @@ gc_model_move_from_cache_model(
 struct ToriAuxLibCore_Model*
 ToriAuxLibC_ModelNewFromCacheModel(const void* cache_model_ptr)
 {
-    struct CacheModel* model = (struct CacheModel*)cache_model_ptr;
+    struct RSCacheDat2A_Model* model = (struct RSCacheDat2A_Model*)cache_model_ptr;
     if( !model )
         return NULL;
 

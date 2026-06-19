@@ -9,18 +9,18 @@
 #include "toriauxlib/c/toriauxlibc_submit.h"
 #include "games/runescape.h"
 #include "platforms/platform_x/cachelib_client.h"
-#include "src/osrs/rscache/cache_dat.h"
-#include "src/osrs/rscache/filelist.h"
-#include "src/osrs/rscache/tables/config_floortype.h"
-#include "src/osrs/rscache/tables/config_locs.h"
-#include "src/osrs/rscache/tables/config_sequence.h"
-#include "src/osrs/rscache/tables/maps.h"
-#include "src/osrs/rscache/tables/model.h"
-#include "src/osrs/rscache/tables_dat/animframe.h"
-#include "src/osrs/rscache/tables_dat/config_textures.h"
-#include "src/osrs/rscache/tables_dat/configs_dat.h"
-#include "src/osrs/rscache/tables_dat/pix32.h"
-#include "src/osrs/rscache/tables_dat/pix8.h"
+#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_textures.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_configs_dat.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix32.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix8.h"
 #include "src/osrs/texture.h"
 #include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_scene.h"
@@ -44,7 +44,7 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
     if( !instance )
         return;
 
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     cachelib_dat1_config_file_fetch(&request);
 
     LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -66,26 +66,26 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(
         return false;
     if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
         return false;
-    if( item.u.cache.table_id != CACHE_DAT_CONFIGS )
+    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Configs )
         return false;
-    if( item.u.cache.archive_id != CONFIG_DAT_CONFIGS )
+    if( item.u.cache.archive_id != RSCacheDat1A_ConfigKind_Configs )
         return false;
     if( item.u.cache.flags != 0 )
         return false;
 
-    struct CacheDatArchive* archive = item.data;
+    struct RSCacheDat1Disk_Archive* archive = item.data;
     if( !archive )
         return false;
 
     printf("CacheDatArchive: %p\n", archive);
 
-    struct FileListDat* filelist_dat = filelist_dat_new_from_cache_dat_archive(archive);
+    struct RSCacheShared_FileListDat* filelist_dat = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
     if( !filelist_dat )
         return false;
 
     dat1_buildcache_set_fromconfigtable_config_jagfile(dat1(ToriAuxLib_C(instance->toriauxlib)), filelist_dat);
 
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return true;
 }
 
@@ -98,7 +98,7 @@ LibToriRS_ScriptAPI_Dat1_TexturesFetch(
     if( !instance )
         return;
 
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     cachelib_dat1_textures_archive_fetch(&request);
 
     LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -120,29 +120,29 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
         return false;
     if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
         return false;
-    if( item.u.cache.table_id != CACHE_DAT_CONFIGS )
+    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Configs )
         return false;
-    if( item.u.cache.archive_id != CONFIG_DAT_TEXTURES )
+    if( item.u.cache.archive_id != RSCacheDat1A_ConfigKind_Textures )
         return false;
     if( item.u.cache.flags != 0 )
         return false;
 
-    struct CacheDatArchive* archive = item.data;
+    struct RSCacheDat1Disk_Archive* archive = item.data;
     if( !archive )
         return false;
 
-    struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
-    cache_dat_archive_free(archive);
+    struct RSCacheShared_FileListDat* filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     if( !filelist )
         return false;
 
     for( int i = 0; i < DAT1_TEXTURE_COUNT; i++ )
     {
-        struct CacheDatTexture* cache_texture =
-            cache_dat_texture_new_from_filelist_dat(filelist, i, 0);
+        struct RSCacheDat1A_ConfigTexture* cache_texture =
+            RSCacheDat1A_ConfigTextureNewFromFilelistDat(filelist, i, 0);
         if( !cache_texture )
         {
-            printf("cache_dat_texture_new_from_filelist_dat failed for texture %d\n", i);
+            printf("RSCacheDat1A_ConfigTextureNewFromFilelistDat failed for texture %d\n", i);
             assert(false);
             continue;
         }
@@ -161,7 +161,7 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
         }
         struct ToriAuxLibCore_Texture* gc_texture = ToriAuxLibC_TextureNewFromCacheDatTexture(
             cache_texture, animation_direction, animation_speed);
-        cache_dat_texture_free(cache_texture);
+        RSCacheDat1A_ConfigTextureFree(cache_texture);
         if( !gc_texture )
         {
             printf("ToriAuxLibC_TextureNewFromCacheDatTexture failed for texture %d\n", i);
@@ -172,7 +172,7 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
         ToriAuxLibC_SubmitTexture(ToriAuxLib_C(instance->toriauxlib), i, gc_texture);
     }
 
-    filelist_dat_free(filelist);
+    RSCacheShared_FileListDatFree(filelist);
     return true;
 }
 
@@ -189,7 +189,7 @@ LibToriRS_ScriptAPI_Dat1_ModelCacheAdd(
     if( !data )
         return;
 
-    struct CacheModel* model = model_new_decode(data, data_size);
+    struct RSCacheDat2A_Model* model = RSCacheDat2A_ModelNewDecode(data, data_size);
     if( !model )
         return;
 
@@ -219,7 +219,7 @@ LibToriRS_ScriptAPI_Dat1_ModelFetch(
     if( !instance )
         return;
 
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     cachelib_dat1_model_fetch(model_id, &request);
 
     LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -239,23 +239,23 @@ LibToriRS_ScriptAPI_Dat1_ModelLoad(
         return false;
     if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
         return false;
-    if( item.u.cache.table_id != CACHE_DAT_MODELS )
+    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Models )
         return false;
     if( item.u.cache.flags != 0 )
         return false;
 
-    struct CacheDatArchive* archive = item.data;
+    struct RSCacheDat1Disk_Archive* archive = item.data;
     if( !archive )
         return false;
 
     int model_id = item.u.cache.archive_id;
 
-    struct CacheModel* model = model_new_from_dat_archive(archive, model_id);
+    struct RSCacheDat2A_Model* model = RSCacheDat2A_ModelNewFromDatArchive(archive, model_id);
     if( !model )
         return false;
 
     dat1_buildcache_model_add(dat1(ToriAuxLib_C(instance->toriauxlib)), model_id, model);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return true;
 }
 
@@ -270,7 +270,7 @@ LibToriRS_ScriptAPI_Dat1_MapChunkTerrainFetch(
     if( !instance )
         return;
 
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     cachelib_dat1_map_chunk_terrain_fetch(mapx, mapz, &request);
 
     LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -287,7 +287,7 @@ LibToriRS_ScriptAPI_Dat1_MapChunkSceneryFetch(
     if( !instance )
         return;
 
-    struct CacheLib_IORequest request;
+    struct RSCacheDat2DiskLib_IORequest request;
     cachelib_dat1_map_chunk_scenery_fetch(mapx, mapz, &request);
 
     LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -307,12 +307,12 @@ LibToriRS_ScriptAPI_Dat1_MapChunkTerrainLoad(
         return false;
     if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
         return false;
-    if( item.u.cache.table_id != CACHE_DAT_MAPS )
+    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Maps )
         return false;
     if( item.u.cache.flags != CACHELIB_MAPCHUNK_TERRAIN )
         return false;
 
-    struct CacheDatArchive* archive = item.data;
+    struct RSCacheDat1Disk_Archive* archive = item.data;
     if( !archive )
         return false;
 
@@ -320,13 +320,13 @@ LibToriRS_ScriptAPI_Dat1_MapChunkTerrainLoad(
     int map_x = map_id >> 16;
     int map_z = map_id & 0xFFFF;
 
-    struct CacheMapTerrain* terrain = map_terrain_new_from_decode_flags(
+    struct RSCacheDat2A_MapTerrain* terrain = RSCacheDat2A_MapTerrainNewFromDecodeFlags(
         archive->data, archive->data_size, map_x, map_z, MAP_TERRAIN_DECODE_U8);
     if( !terrain )
         return false;
 
     dat1_buildcache_map_terrain_add(dat1(ToriAuxLib_C(instance->toriauxlib)), map_id, terrain);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return true;
 }
 
@@ -343,12 +343,12 @@ LibToriRS_ScriptAPI_Dat1_MapChunkSceneryLoad(
         return false;
     if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
         return false;
-    if( item.u.cache.table_id != CACHE_DAT_MAPS )
+    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Maps )
         return false;
     if( item.u.cache.flags != CACHELIB_MAPCHUNK_SCENERY )
         return false;
 
-    struct CacheDatArchive* archive = item.data;
+    struct RSCacheDat1Disk_Archive* archive = item.data;
     if( !archive )
         return false;
 
@@ -356,14 +356,14 @@ LibToriRS_ScriptAPI_Dat1_MapChunkSceneryLoad(
     int map_x = map_id >> 16;
     int map_z = map_id & 0xFFFF;
 
-    struct CacheMapLocs* locs = map_locs_new_from_decode(archive->data, archive->data_size);
+    struct RSCacheDat2A_MapLocs* locs = map_locs_new_from_decode(archive->data, archive->data_size);
     locs->_chunk_mapx = map_x;
     locs->_chunk_mapz = map_z;
     if( !locs )
         return false;
 
     dat1_buildcache_map_scenery_add(dat1(ToriAuxLib_C(instance->toriauxlib)), map_id, locs);
-    cache_dat_archive_free(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
     return true;
 }
 
@@ -585,7 +585,7 @@ LibToriRS_ScriptAPI_Dat1_VersionListFetch(
 {
     printf("LibToriRS_ScriptAPI_Dat1_VersionListFetch\n");
 
-    // struct CacheLib_IORequest request;
+    // struct RSCacheDat2DiskLib_IORequest request;
     // cachelib_dat1_versionlist_fetch(&request);
 
     // LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -607,24 +607,24 @@ LibToriRS_ScriptAPI_Dat1_VersionListLoad(
     //     return false;
     // if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
     //     return false;
-    // if( item.u.cache.table_id != CACHE_DAT_CONFIGS )
+    // if( item.u.cache.table_id != RSCacheDat1Disk_Table_Configs )
     //     return false;
-    // if( item.u.cache.archive_id != CONFIG_DAT_VERSION_LIST )
+    // if( item.u.cache.archive_id != RSCacheDat1A_ConfigKind_VersionList )
     //     return false;
     // if( item.u.cache.flags != 0 )
     //     return false;
 
-    // struct CacheDatArchive* archive = item.data;
+    // struct RSCacheDat1Disk_Archive* archive = item.data;
     // if( !archive )
     //     return false;
 
-    // struct FileListDat* filelist_dat = filelist_dat_new_from_cache_dat_archive(archive);
+    // struct RSCacheShared_FileListDat* filelist_dat = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
     // if( !filelist_dat )
     //     return false;
 
     // dat1_buildcache_set_versionlist_jagfile(instance->dat1_buildcache, filelist_dat);
 
-    // cache_dat_archive_free(archive);
+    // RSCacheDat1Disk_ArchiveFree(archive);
     // return true;
     return false;
 }
@@ -637,7 +637,7 @@ LibToriRS_ScriptAPI_Dat1_AnimationsFetch(
 {
     printf("LibToriRS_ScriptAPI_Dat1_AnimationsFetch\n");
 
-    // struct CacheLib_IORequest request;
+    // struct RSCacheDat2DiskLib_IORequest request;
     // cachelib_dat1_animations_fetch(archive_id, &request);
 
     // LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -659,29 +659,29 @@ LibToriRS_ScriptAPI_Dat1_AnimationsLoad(
     //     return false;
     // if( item.status != TORIRSIO_STAT_DONE || item.error_code != 0 )
     //     return false;
-    // if( item.u.cache.table_id != CACHE_DAT_ANIMATIONS )
+    // if( item.u.cache.table_id != RSCacheDat1Disk_Table_Animations )
     //     return false;
     // if( item.u.cache.flags != 0 )
     //     return false;
 
-    // struct CacheDatArchive* archive = item.data;
+    // struct RSCacheDat1Disk_Archive* archive = item.data;
     // if( !archive )
     //     return false;
 
     // int animbaseframes_id = item.u.cache.archive_id;
 
-    // struct CacheDatAnimBaseFrames* animbaseframes =
-    //     cache_dat_animbaseframes_new_decode(archive->data, archive->data_size);
+    // struct RSCacheDat1A_AnimBaseFrames* animbaseframes =
+    //     RSCacheDat1A_AnimBaseFramesNewDecode(archive->data, archive->data_size);
     // if( !animbaseframes )
     // {
-    //     cache_dat_archive_free(archive);
+    //     RSCacheDat1Disk_ArchiveFree(archive);
     //     return false;
     // }
 
     // dat1_buildcache_animbaseframes_add(
     //     instance->dat1_buildcache, animbaseframes_id, animbaseframes);
 
-    // cache_dat_archive_free(archive);
+    // RSCacheDat1Disk_ArchiveFree(archive);
     // return true;
     return false;
 }

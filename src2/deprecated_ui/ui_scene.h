@@ -69,7 +69,7 @@ ui_scene_font_find_id(
     struct UIScene* scene,
     const char* name);
 
-struct CacheDatPixfont*
+struct RSCacheDat1A_PixFont*
 ui_scene_font_get(
     struct UIScene* scene,
     int font_id);

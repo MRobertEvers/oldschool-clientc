@@ -1,8 +1,8 @@
 #ifndef COLLISION_MAP_H
 #define COLLISION_MAP_H
 
-#include "osrs/rscache/tables/config_locs.h"
-#include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
 
 /* Match clientts/src/dash3d/CollisionConstants and CollisionFlag */
 #define COLLISION_SIZE 104

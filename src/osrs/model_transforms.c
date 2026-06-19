@@ -8,7 +8,7 @@
 #include <string.h>
 
 void
-model_transform_mirror(struct CacheModel* model)
+model_transform_mirror(struct RSCacheDat2A_Model* model)
 {
     int* vertices_z_alias = model->vertices_z;
 
@@ -30,7 +30,7 @@ model_transform_mirror(struct CacheModel* model)
 
 void
 model_transform_hillskew(
-    struct CacheModel* model,
+    struct RSCacheDat2A_Model* model,
     int sw_height,
     int se_height,
     int ne_height,
@@ -53,7 +53,7 @@ model_transform_hillskew(
 
 void
 model_transform_recolor(
-    struct CacheModel* model,
+    struct RSCacheDat2A_Model* model,
     int color_src,
     int color_dst)
 {
@@ -71,14 +71,14 @@ model_transform_recolor(
 }
 
 void
-model_transform_rotate(struct CacheModel* model)
+model_transform_rotate(struct RSCacheDat2A_Model* model)
 {
     // TODO: Implement
 }
 
 void
 model_transform_retexture(
-    struct CacheModel* model,
+    struct RSCacheDat2A_Model* model,
     int texture_src,
     int texture_dst)
 {
@@ -98,7 +98,7 @@ model_transform_retexture(
 
 void
 model_transform_scale(
-    struct CacheModel* model,
+    struct RSCacheDat2A_Model* model,
     int x,
     int z,
     int height)
@@ -117,7 +117,7 @@ model_transform_scale(
 
 void
 model_transform_orient(
-    struct CacheModel* model,
+    struct RSCacheDat2A_Model* model,
     int orientation)
 {
     orientation &= 3;
@@ -135,7 +135,7 @@ model_transform_orient(
 
 void
 model_transform_translate(
-    struct CacheModel* model,
+    struct RSCacheDat2A_Model* model,
     int x,
     int y,
     int z)

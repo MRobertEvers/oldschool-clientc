@@ -1,30 +1,30 @@
-#ifndef BUILD_CACHE_DAT_H
-#define BUILD_CACHE_DAT_H
+#ifndef BUILD_RSCACHE_DAT1DISK_H
+#define BUILD_RSCACHE_DAT1DISK_H
 
 #include "graphics/dash.h"
 
 /** Max font name length stored in BuildCacheDat (bytes; zero-padded key, no trailing NUL if 24
  * chars). */
 #define BUILDCACHEDAT_FONT_NAME_MAX 24
-#include "osrs/rscache/tables/config_floortype.h"
-#include "osrs/rscache/tables/config_locs.h"
-#include "osrs/rscache/tables/config_sequence.h"
-#include "osrs/rscache/tables/frame.h"
-#include "osrs/rscache/tables/framemap.h"
-#include "osrs/rscache/tables/maps.h"
-#include "osrs/rscache/tables/model.h"
-#include "osrs/rscache/tables/sprites.h"
-#include "osrs/rscache/tables/textures.h"
-#include "osrs/rscache/tables_dat/animframe.h"
-#include "osrs/rscache/tables_dat/config_component.h"
-#include "osrs/rscache/tables_dat/config_idk.h"
-#include "osrs/rscache/tables_dat/config_npc.h"
-#include "osrs/rscache/tables_dat/config_obj.h"
-#include "osrs/rscache/tables_dat/config_spotanim.h"
-#include "osrs/rscache/tables_dat/config_textures.h"
-#include "osrs/rscache/tables_dat/pix32.h"
-#include "osrs/rscache/tables_dat/pix8.h"
-#include "osrs/rscache/tables_dat/pixfont.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_frame.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_framemap.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_sprites.h"
+#include "osrs/rscache/dat2a/rscache_dat2a_textures.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_idk.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_npc.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_obj.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_spotanim.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_config_textures.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix32.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix8.h"
+#include "osrs/rscache/dat1a/rscache_dat1a_pix_font.h"
 
 enum BuildCacheDatEventType
 {
@@ -40,9 +40,9 @@ struct BuildCacheDatEvent
 
 struct BuildCacheDat
 {
-    struct FileListDat* cfg_config_jagfile;
-    struct FileListDat* cfg_versionlist_jagfile;
-    struct FileListDat* cfg_media_jagfile;
+    struct RSCacheShared_FileListDat* cfg_config_jagfile;
+    struct RSCacheShared_FileListDat* cfg_versionlist_jagfile;
+    struct RSCacheShared_FileListDat* cfg_media_jagfile;
 
     struct DashMap* containers_hmap;
 
@@ -175,31 +175,31 @@ buildcachedat_clear_media_jagfile(struct BuildCacheDat* buildcachedat);
 void
 buildcachedat_set_config_jagfile(
     struct BuildCacheDat* buildcachedat,
-    struct FileListDat* config_jagfile);
+    struct RSCacheShared_FileListDat* config_jagfile);
 
-struct FileListDat*
+struct RSCacheShared_FileListDat*
 buildcachedat_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 void
 buildcachedat_set_2d_media_jagfile(
     struct BuildCacheDat* buildcachedat,
-    struct FileListDat* media_jagile);
+    struct RSCacheShared_FileListDat* media_jagile);
 
 void
 buildcachedat_set_versionlist_jagfile(
     struct BuildCacheDat* buildcachedat,
-    struct FileListDat* versionlist_jagfile);
+    struct RSCacheShared_FileListDat* versionlist_jagfile);
 
-struct FileListDat*
+struct RSCacheShared_FileListDat*
 buildcachedat_versionlist_jagfile(struct BuildCacheDat* buildcachedat);
 
 void
 buildcachedat_set_named_jagfile(
     struct BuildCacheDat* buildcachedat,
     const char* name,
-    struct FileListDat* jagfile);
+    struct RSCacheShared_FileListDat* jagfile);
 
-struct FileListDat*
+struct RSCacheShared_FileListDat*
 buildcachedat_named_jagfile(
     struct BuildCacheDat* buildcachedat,
     char const* name);
@@ -230,7 +230,7 @@ struct BuildCacheDatContainer
 
     union
     {
-        struct FileListDat* _filelist;
+        struct RSCacheShared_FileListDat* _filelist;
         struct JagfilePack _jagfilepack;
         struct JagfilePackIndexed _jagfilepack_indexed;
     };
@@ -261,9 +261,9 @@ void
 buildcachedat_add_flotype(
     struct BuildCacheDat* buildcachedat,
     int flotype_id,
-    struct CacheConfigOverlay* flotype);
+    struct RSCacheDat2A_ConfigOverlay* flotype);
 
-struct CacheConfigOverlay*
+struct RSCacheDat2A_ConfigOverlay*
 buildcachedat_get_flotype(
     struct BuildCacheDat* buildcachedat,
     int flotype_id);
@@ -271,7 +271,7 @@ buildcachedat_get_flotype(
 struct DashMapIter*
 buildcachedat_iter_new_flotypes(struct BuildCacheDat* buildcachedat);
 
-struct CacheConfigOverlay*
+struct RSCacheDat2A_ConfigOverlay*
 buildcachedat_iter_next_flotype(struct DashMapIter* iter);
 
 /** Register that texture_id was loaded into Scene2 (reftable only). */
@@ -331,15 +331,15 @@ buildcachedat_add_scenery(
     struct BuildCacheDat* buildcachedat,
     int mapx,
     int mapz,
-    struct CacheMapLocs* locs);
+    struct RSCacheDat2A_MapLocs* locs);
 
-struct CacheMapLocs*
+struct RSCacheDat2A_MapLocs*
 buildcachedat_get_scenery(
     struct BuildCacheDat* buildcachedat,
     int mapx,
     int mapz);
 
-struct CacheMapLocs*
+struct RSCacheDat2A_MapLocs*
 buildcachedat_iter_next_scenery(struct DashMapIter* iter);
 
 struct DashMapIter*
@@ -349,9 +349,9 @@ void
 buildcachedat_add_model(
     struct BuildCacheDat* buildcachedat,
     int model_id,
-    struct CacheModel* model);
+    struct RSCacheDat2A_Model* model);
 
-struct CacheModel*
+struct RSCacheDat2A_Model*
 buildcachedat_get_model(
     struct BuildCacheDat* buildcachedat,
     int model_id);
@@ -360,9 +360,9 @@ void
 buildcachedat_add_idk_model(
     struct BuildCacheDat* buildcachedat,
     int idk_id,
-    struct CacheModel* model);
+    struct RSCacheDat2A_Model* model);
 
-struct CacheModel*
+struct RSCacheDat2A_Model*
 buildcachedat_get_idk_model(
     struct BuildCacheDat* buildcachedat,
     int idk_id);
@@ -371,9 +371,9 @@ void
 buildcachedat_add_obj_model(
     struct BuildCacheDat* buildcachedat,
     int obj_id,
-    struct CacheModel* model);
+    struct RSCacheDat2A_Model* model);
 
-struct CacheModel*
+struct RSCacheDat2A_Model*
 buildcachedat_get_obj_model(
     struct BuildCacheDat* buildcachedat,
     int obj_id);
@@ -382,9 +382,9 @@ void
 buildcachedat_add_npc(
     struct BuildCacheDat* buildcachedat,
     int npc_id,
-    struct CacheDatConfigNpc* npc);
+    struct RSCacheDat1A_ConfigNpc* npc);
 
-struct CacheDatConfigNpc*
+struct RSCacheDat1A_ConfigNpc*
 buildcachedat_get_npc(
     struct BuildCacheDat* buildcachedat,
     int npc_id);
@@ -392,21 +392,21 @@ buildcachedat_get_npc(
 struct DashMapIter*
 buildcachedat_iter_new_npcs(struct BuildCacheDat* buildcachedat);
 
-struct CacheDatConfigNpc*
+struct RSCacheDat1A_ConfigNpc*
 buildcachedat_iter_next_npc(struct DashMapIter* iter);
 
 void
 buildcachedat_add_npc_model(
     struct BuildCacheDat* buildcachedat,
     int npc_id,
-    struct CacheModel* model);
+    struct RSCacheDat2A_Model* model);
 
-struct CacheModel*
+struct RSCacheDat2A_Model*
 buildcachedat_get_npc_model(
     struct BuildCacheDat* buildcachedat,
     int npc_id);
 
-struct CacheModel*
+struct RSCacheDat2A_Model*
 buildcachedat_iter_next_model(struct DashMapIter* iter);
 
 struct DashMapIter*
@@ -416,12 +416,12 @@ void
 buildcachedat_add_config_loc(
     struct BuildCacheDat* buildcachedat,
     int config_loc_id,
-    struct CacheConfigLocation* config_loc);
+    struct RSCacheDat2A_ConfigLocation* config_loc);
 
-struct CacheConfigLocation*
+struct RSCacheDat2A_ConfigLocation*
 buildcachedat_iter_next_config_loc(struct DashMapIter* iter);
 
-struct CacheConfigLocation*
+struct RSCacheDat2A_ConfigLocation*
 buildcachedat_get_config_loc(
     struct BuildCacheDat* buildcachedat,
     int config_loc_id);
@@ -436,7 +436,7 @@ buildcachedat_add_animframe_ref(
     int animbaseframes_id,
     int frame_index);
 
-struct CacheAnimframe*
+struct RSCacheDat1A_AnimFrame*
 buildcachedat_get_animframe(
     struct BuildCacheDat* buildcachedat,
     int animframe_id);
@@ -445,14 +445,14 @@ void
 buildcachedat_add_animbaseframes(
     struct BuildCacheDat* buildcachedat,
     int animbaseframes_id,
-    struct CacheDatAnimBaseFrames* animbaseframes);
+    struct RSCacheDat1A_AnimBaseFrames* animbaseframes);
 
-struct CacheDatAnimBaseFrames*
+struct RSCacheDat1A_AnimBaseFrames*
 buildcachedat_get_animbaseframes(
     struct BuildCacheDat* buildcachedat,
     int animbaseframes_id);
 
-struct CacheDatAnimBaseFrames*
+struct RSCacheDat1A_AnimBaseFrames*
 buildcachedat_iter_next_animbaseframes(struct DashMapIter* iter);
 
 struct DashMapIter*
@@ -462,14 +462,14 @@ void
 buildcachedat_add_sequence(
     struct BuildCacheDat* buildcachedat,
     int sequence_id,
-    struct CacheDatSequence* sequence);
+    struct RSCacheDat1A_ConfigSequence* sequence);
 
-struct CacheDatSequence*
+struct RSCacheDat1A_ConfigSequence*
 buildcachedat_get_sequence(
     struct BuildCacheDat* buildcachedat,
     int sequence_id);
 
-struct CacheDatSequence*
+struct RSCacheDat1A_ConfigSequence*
 buildcachedat_iter_next_sequence(struct DashMapIter* iter);
 
 struct DashMapIter*
@@ -479,14 +479,14 @@ void
 buildcachedat_add_idk(
     struct BuildCacheDat* buildcachedat,
     int idk_id,
-    struct CacheDatConfigIdk* idk);
+    struct RSCacheDat1A_ConfigIdk* idk);
 
-struct CacheDatConfigIdk*
+struct RSCacheDat1A_ConfigIdk*
 buildcachedat_get_idk(
     struct BuildCacheDat* buildcachedat,
     int idk_id);
 
-struct CacheDatConfigIdk*
+struct RSCacheDat1A_ConfigIdk*
 buildcachedat_iter_next_idk(struct DashMapIter* iter);
 
 struct DashMapIter*
@@ -496,14 +496,14 @@ void
 buildcachedat_add_obj(
     struct BuildCacheDat* buildcachedat,
     int obj_id,
-    struct CacheDatConfigObj* obj);
+    struct RSCacheDat1A_ConfigObj* obj);
 
-struct CacheDatConfigObj*
+struct RSCacheDat1A_ConfigObj*
 buildcachedat_get_obj(
     struct BuildCacheDat* buildcachedat,
     int obj_id);
 
-struct CacheDatConfigObj*
+struct RSCacheDat1A_ConfigObj*
 buildcachedat_iter_next_obj(struct DashMapIter* iter);
 
 struct DashMapIter*
@@ -514,9 +514,9 @@ buildcachedat_add_map_terrain(
     struct BuildCacheDat* buildcachedat,
     int mapx,
     int mapz,
-    struct CacheMapTerrain* map_terrain);
+    struct RSCacheDat2A_MapTerrain* map_terrain);
 
-struct CacheMapTerrain*
+struct RSCacheDat2A_MapTerrain*
 buildcachedat_get_map_terrain(
     struct BuildCacheDat* buildcachedat,
     int mapx,
@@ -526,9 +526,9 @@ void
 buildcachedat_add_component(
     struct BuildCacheDat* buildcachedat,
     int component_id,
-    struct CacheDatConfigComponent* component);
+    struct RSCacheDat1A_ConfigComponent* component);
 
-struct CacheDatConfigComponent*
+struct RSCacheDat1A_ConfigComponent*
 buildcachedat_get_component(
     struct BuildCacheDat* buildcachedat,
     int component_id);
@@ -536,7 +536,7 @@ buildcachedat_get_component(
 struct DashMapIter*
 buildcachedat_component_iter_new(struct BuildCacheDat* buildcachedat);
 
-struct CacheDatConfigComponent*
+struct RSCacheDat1A_ConfigComponent*
 buildcachedat_component_iter_next(
     struct DashMapIter* iter,
     int* id_out);
@@ -558,9 +558,9 @@ void
 buildcachedat_add_spotanim(
     struct BuildCacheDat* buildcachedat,
     int spotanim_id,
-    struct CacheDatConfigSpotAnim* spotanim);
+    struct RSCacheDat1A_ConfigSpotanim* spotanim);
 
-struct CacheDatConfigSpotAnim*
+struct RSCacheDat1A_ConfigSpotanim*
 buildcachedat_get_spotanim(
     struct BuildCacheDat* buildcachedat,
     int spotanim_id);
