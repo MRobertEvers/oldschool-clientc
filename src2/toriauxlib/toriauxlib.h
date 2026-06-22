@@ -4,6 +4,8 @@
 #include "toriauxlib/c/toriauxlibc.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
+#include "toriauxlib/td/toridraw_cachemodel.h"
+#include "toriauxlib/td/toridraw_cachesprite.h"
 
 #include "toridraw/toridraw_scene.h"
 

@@ -1,10 +1,18 @@
 #ifndef TORIDRAW_H
 #define TORIDRAW_H
 
+#include "toridraw_animation.h"
 #include "toridraw_hsl16.h"
+#include "toridraw_light_model.h"
+#include "toridraw_lighting.h"
+#include "toridraw_map.h"
 #include "toridraw_math.h"
+#include "toridraw_model.h"
+#include "toridraw_model_transform.h"
 #include "toridraw_scene.h"
+#include "toridraw_sprite.h"
 #include "toridraw_types.h"
+#include "toridraw_vec.h"
 #include "graphics/shared_tables.h"
 
 #include <stdbool.h>

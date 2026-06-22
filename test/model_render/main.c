@@ -6,12 +6,9 @@
  *   model_id   default: 1234
  */
 
-#include "osrs/rscache/dat2a/dat2a_model.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
-#include "toriauxlib/td/toridraw_cachemodel.h"
+#include "osrs/rscache/rscache.h"
+#include "toriauxlib/toriauxlib.h"
 #include "toridraw/toridraw.h"
-#include "toridraw/toridraw_light_model.h"
-#include "toridraw/toridraw_model.h"
 
 #include <SDL.h>
 #include <stdio.h>
@@ -167,7 +164,7 @@ main(
     struct ToriDraw_Camera camera = {
         .fov_rpi2048 = 512,
         .near_plane_z = 50,
-        .pitch = 148,
+        .pitch = 0,
         .yaw = 0,
         .roll = 0,
     };
@@ -276,8 +273,8 @@ main(
 
         position.yaw = ToriDraw_AddAngle(position.yaw, 4);
 
-        int cull = ToriDraw_RenderModel1Project(
-            model_handle, scene, &position, &view_port, &camera);
+        int cull =
+            ToriDraw_RenderModel1Project(model_handle, scene, &position, &view_port, &camera);
         if( cull == TORIDRAW_CULL_VISIBLE )
         {
             int face_count = ToriDraw_RenderModel2SortFaces(model_handle, scene);
