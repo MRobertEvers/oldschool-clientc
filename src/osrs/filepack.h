@@ -1,9 +1,9 @@
 #ifndef FILEPACK_H
 #define FILEPACK_H
 
-#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
-#include "osrs/rscache/shared/rscache_shared_file_list.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/shared/shared_file_list.h"
 
 struct FilePack
 {

@@ -2,7 +2,7 @@
 #define GAMEPROTO_PACKETS_U_C
 
 #include "packetin.h"
-#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
+#include "osrs/rscache/shared/shared_rs_buffer.h"
 
 #define SCENE_TILE_WIDTH 104
 

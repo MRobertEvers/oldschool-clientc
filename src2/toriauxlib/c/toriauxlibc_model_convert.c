@@ -1,7 +1,7 @@
 #include "toriauxlib/c/toriauxlibc.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 
 #include <assert.h>
 #include <limits.h>

@@ -2,13 +2,13 @@
 #define DASH_UTILS_H
 
 #include "graphics/dash.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_frame.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_framemap.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_pix32.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_pix8.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_pix_font.h"
+#include "osrs/rscache/dat2a/dat2a_frame.h"
+#include "osrs/rscache/dat2a/dat2a_framemap.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
+#include "osrs/rscache/dat1a/dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/dat1a_pix32.h"
+#include "osrs/rscache/dat1a/dat1a_pix8.h"
+#include "osrs/rscache/dat1a/dat1a_pix_font.h"
 
 struct RSCacheDat2A_Frame;
 struct RSCacheDat2A_Framemap;

@@ -3,7 +3,7 @@
 #include "graphics/dash.h"
 #include "graphics/dashmap.h"
 #include "osrs/buildcachedat.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
 
 #include <stdlib.h>
 #include <string.h>

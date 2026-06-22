@@ -1,7 +1,7 @@
 #ifndef LUAJS_ARCHIVES_H
 #define LUAJS_ARCHIVES_H
 
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
 
 #ifdef __cplusplus
 extern "C" {

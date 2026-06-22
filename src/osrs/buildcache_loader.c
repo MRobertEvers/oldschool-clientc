@@ -4,11 +4,11 @@
 #include "osrs/buildcache.h"
 #include "osrs/cache_utils.h"
 #include "osrs/configmap.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_framemap.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_sprites.h"
+#include "osrs/rscache/dat2a/dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/dat2a_framemap.h"
+#include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
+#include "osrs/rscache/dat2a/dat2a_sprites.h"
 
 void
 buildcache_loader_add_map_scenery(

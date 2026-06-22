@@ -1,6 +1,6 @@
 #include "revconfig.h"
 
-#include "osrs/rscache/shared/rscache_shared_string_utils.h"
+#include "osrs/rscache/shared/shared_string_utils.h"
 
 #include <stdint.h>
 #include <stdlib.h>

@@ -1,12 +1,12 @@
 #include "toriauxlib/c/toriauxlibc.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
-#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_textures.h"
+#include "osrs/rscache/dat2a/dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat1a/dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/dat1a_config_textures.h"
 #include "osrs/texture.h"
 
 #include <stdlib.h>

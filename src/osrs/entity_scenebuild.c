@@ -10,10 +10,10 @@
 #include "osrs/model_transforms.h"
 #include "osrs/world_scenebuild.h"
 #include "osrs/zone_state.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_idk.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_npc.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_obj.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
+#include "osrs/rscache/dat1a/dat1a_config_idk.h"
+#include "osrs/rscache/dat1a/dat1a_config_npc.h"
+#include "osrs/rscache/dat1a/dat1a_config_obj.h"
 
 #include <assert.h>
 #include <stdbool.h>

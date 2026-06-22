@@ -29,7 +29,7 @@ SRCS = static_ui_load_test.c \
        $(PROJECT_ROOT)/osrs/buildcachedat.c \
        $(PROJECT_ROOT)/osrs/palette.c \
        $(PROJECT_ROOT)/osrs/dash_utils.c \
-       $(PROJECT_ROOT)/osrs/rscache/rscache_unity.c \
+       $(PROJECT_ROOT)/osrs/rscache/unity.c \
        revconfig.c \
        revconfig_load.c
 

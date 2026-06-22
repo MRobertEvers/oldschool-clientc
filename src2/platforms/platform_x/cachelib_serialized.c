@@ -1,6 +1,6 @@
 #include "cachelib_serialized.h"
-#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
 
 #include <stdint.h>
 #include <stdlib.h>

@@ -8,9 +8,9 @@
 #include "osrs/game.h"
 #include "osrs/packets/pkt_npc_info.h"
 #include "osrs/packets/pkt_player_info.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_spotanim.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
+#include "osrs/rscache/dat1a/dat1a_config_spotanim.h"
 
 #include <assert.h>
 #include <stdlib.h>

@@ -20,8 +20,8 @@
 #include "osrs/revconfig/uitree.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/rsa.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_pix_font.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/dat1a/dat1a_pix_font.h"
 #include "osrs/scene2.h"
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
@@ -169,7 +169,7 @@ struct GGame
     /* Media filelist kept after cache_media so we can load component sprites when interfaces load
      */
     struct RSCacheShared_FileListDat*
-        media_filelist; /* forward decl; include osrs/rscache/shared/rscache_shared_file_list.h when using */
+        media_filelist; /* forward decl; include osrs/rscache/shared/shared_file_list.h when using */
 
     /* Used by init_scene (BuildCache path) when driving from Lua; NULL when not in use */
     struct DashMap* init_scenery_configmap;

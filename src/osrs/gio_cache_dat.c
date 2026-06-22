@@ -1,13 +1,13 @@
 #include "gio_cache_dat.h"
 
 #include "filepack.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
-#include "osrs/rscache/shared/rscache_shared_xtea_config.h"
-#include "osrs/rscache/shared/rscache_shared_file_list.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_configs.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_version_list_mapsquare.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/shared/shared_xtea_config.h"
+#include "osrs/rscache/shared/shared_file_list.h"
+#include "osrs/rscache/dat2a/dat2a_configs.h"
+#include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat1a/dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/dat1a_version_list_mapsquare.h"
 
 #include <stdio.h>
 #include <stdlib.h>

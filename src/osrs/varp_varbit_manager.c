@@ -1,8 +1,8 @@
 #include "varp_varbit_manager.h"
 
-#include "osrs/rscache/shared/rscache_shared_file_list.h"
-#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_varp.h"
+#include "osrs/rscache/shared/shared_file_list.h"
+#include "osrs/rscache/shared/shared_rs_buffer.h"
+#include "osrs/rscache/dat1a/dat1a_config_varp.h"
 
 #include <assert.h>
 #include <stdio.h>

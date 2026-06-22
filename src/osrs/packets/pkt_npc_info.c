@@ -1,7 +1,7 @@
 #include "pkt_npc_info.h"
 
-#include "osrs/rscache/shared/rscache_shared_bit_buffer.h"
-#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
+#include "osrs/rscache/shared/shared_bit_buffer.h"
+#include "osrs/rscache/shared/shared_rs_buffer.h"
 
 #include <assert.h>
 #include <stdio.h>

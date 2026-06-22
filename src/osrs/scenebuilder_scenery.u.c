@@ -8,9 +8,9 @@
 #include "osrs/dash_utils.h"
 #include "osrs/minimap.h"
 #include "contour_ground.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 #include "painters.h"
 #include "scene.h"
 

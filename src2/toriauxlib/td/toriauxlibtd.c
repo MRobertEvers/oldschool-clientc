@@ -3,7 +3,7 @@
 #include "buildcache/dat1_buildcache.h"
 
 #include "toriauxlib/c/toriauxlibc_submit.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_map.h"

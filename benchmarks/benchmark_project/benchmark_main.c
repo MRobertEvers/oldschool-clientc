@@ -100,9 +100,9 @@
 #include "graphics/raster/texture/texture.deob2.u.c"
 
 /* Texture loading from cache */
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
-#include "osrs/rscache/shared/rscache_shared_file_list.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_textures.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/shared/shared_file_list.h"
+#include "osrs/rscache/dat1a/dat1a_config_textures.h"
 #include "osrs/texture.h"
 
 /* Config table texture archive ID */

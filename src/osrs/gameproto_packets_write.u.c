@@ -1,7 +1,7 @@
 #ifndef GAMEPROTO_PACKETS_WRITE_U_C
 #define GAMEPROTO_PACKETS_WRITE_U_C
 
-#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
+#include "osrs/rscache/shared/shared_rs_buffer.h"
 
 #include <assert.h>
 

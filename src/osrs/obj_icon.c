@@ -6,8 +6,8 @@
 #include "model_transforms.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_obj.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat1a/dat1a_config_obj.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 
 #include <math.h>
 #include <stdio.h>

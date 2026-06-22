@@ -3,7 +3,7 @@
 #include "osrs/gio_cache_dat.h"
 #include "osrs/lua_sidecar/lua_gametypes.h"
 #include "osrs/lua_sidecar/luac_sidecar.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
 
 #include <assert.h>
 

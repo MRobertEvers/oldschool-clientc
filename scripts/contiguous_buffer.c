@@ -1,7 +1,7 @@
 /* Auto-generated from contiguous_buffer.bin - do not edit */
 #include "../src/osrs/isaac.c"
 #include "../src/osrs/packetbuffer.c"
-#include "../src/osrs/rscache/rscache_unity.c"
+#include "../src/osrs/rscache/unity.c"
 
 #include <stddef.h>
 

@@ -5,7 +5,7 @@
 #include "osrs/game.h"
 #include "osrs/gio_cache_dat.h"
 #include "osrs/revconfig/uiscene.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include <stdio.h>
 #include <stdlib.h>
 

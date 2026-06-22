@@ -29,7 +29,7 @@ SRCS = datserver.c \
        $(PROJECT_ROOT)/osrs/palette.c \
        $(PROJECT_ROOT)/osrs/dash_utils.c \
        $(PROJECT_ROOT)/osrs/gio_cache_dat.c \
-       $(PROJECT_ROOT)/osrs/rscache/rscache_unity.c \
+       $(PROJECT_ROOT)/osrs/rscache/unity.c \
 	   $(PROJECT_ROOT)/osrs/texture.c
 
 # 4. Create the Object list (Flat in build/)

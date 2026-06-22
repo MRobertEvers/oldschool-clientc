@@ -8,7 +8,7 @@
 
 #include "osrs/gio_cache_dat.h"
 #include "osrs/lua_sidecar/lua_configfile.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
 #include "platforms/browser2/luajs_archives.h"
 #include "platforms/browser2/luajs_configs.h"
 #include <arpa/inet.h>

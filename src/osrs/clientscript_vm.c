@@ -1,7 +1,7 @@
 #include "clientscript_vm.h"
 
 #include "osrs/game.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/varp_varbit_manager.h"
 
 #include <stdlib.h>

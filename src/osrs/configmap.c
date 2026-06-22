@@ -1,16 +1,16 @@
 #include "configmap.h"
 
 #include "filepack.h"
-#include "osrs/rscache/shared/rscache_shared_file_list.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_idk.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_npctype.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_object.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_configs.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_frame.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_textures.h"
+#include "osrs/rscache/shared/shared_file_list.h"
+#include "osrs/rscache/dat2a/dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/dat2a_config_idk.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/dat2a_config_npctype.h"
+#include "osrs/rscache/dat2a/dat2a_config_object.h"
+#include "osrs/rscache/dat2a/dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/dat2a_configs.h"
+#include "osrs/rscache/dat2a/dat2a_frame.h"
+#include "osrs/rscache/dat2a/dat2a_textures.h"
 
 #include <assert.h>
 #include <math.h>

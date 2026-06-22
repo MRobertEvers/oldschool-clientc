@@ -1,7 +1,7 @@
 #ifndef CONFIGMAP_H
 #define CONFIGMAP_H
 
-#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "graphics/dash.h"
 
 #include <stdbool.h>

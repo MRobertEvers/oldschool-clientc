@@ -2,8 +2,8 @@
 #include "platforms/platform_x/cachelib_internal.h"
 #include "platforms/platform_x/cachelib_platform.h"
 #include "platforms/platform_x/cachelib_serialized.h"
-#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
 #include <node_api.h>
 
 #include <stdbool.h>

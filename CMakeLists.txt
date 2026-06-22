@@ -185,7 +185,7 @@ set(COMMON_SOURCES
 
 # --- RSCache library (unity build) ---
 add_library(rscache STATIC
-    src/osrs/rscache/rscache_unity.c
+    src/osrs/rscache/unity.c
     src/3rd/bzip/bzip.c
     src/3rd/miniz/miniz.c
 )

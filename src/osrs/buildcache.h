@@ -2,15 +2,15 @@
 #define BUILD_CACHE_H
 
 #include "graphics/dash.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_frame.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_framemap.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_sprites.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_textures.h"
+#include "osrs/rscache/dat2a/dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/dat2a_frame.h"
+#include "osrs/rscache/dat2a/dat2a_framemap.h"
+#include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
+#include "osrs/rscache/dat2a/dat2a_sprites.h"
+#include "osrs/rscache/dat2a/dat2a_textures.h"
 
 typedef struct RSCacheDat2A_SpritePack CacheSpritepack;
 

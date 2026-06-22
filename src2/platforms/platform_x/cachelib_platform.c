@@ -2,10 +2,10 @@
 
 #include "cachelib_client.h"
 #include "cachelib_internal.h"
-#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_version_list_mapsquare.h"
-#include "osrs/rscache/shared/rscache_shared_xtea_config.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/dat1a/dat1a_version_list_mapsquare.h"
+#include "osrs/rscache/shared/shared_xtea_config.h"
 
 #include <assert.h>
 #include <stdio.h>

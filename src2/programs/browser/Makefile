@@ -86,7 +86,7 @@ SRC   := browser.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
 	$(PLAT_DIR)/platform_x/cachelib_serialized.c \
-	$(SRC_DIR)/osrs/rscache/rscache_unity.c \
+	$(SRC_DIR)/osrs/rscache/unity.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c
 

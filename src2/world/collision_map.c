@@ -1,6 +1,6 @@
 #include "collision_map.h"
 
-#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
 
 #include <assert.h>
 #include <stdlib.h>

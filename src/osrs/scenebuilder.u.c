@@ -5,11 +5,11 @@
 #include "graphics/dash.h"
 #include "osrs/buildcache.h"
 #include "osrs/painters.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_sequence.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_frame.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_framemap.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat2a/dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/dat2a_frame.h"
+#include "osrs/rscache/dat2a/dat2a_framemap.h"
+#include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/scene2.h"
 
 // clang-format off

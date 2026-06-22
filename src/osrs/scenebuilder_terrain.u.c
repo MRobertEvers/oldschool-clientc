@@ -4,8 +4,8 @@
 #include "configmap.h"
 #include "minimap.h"
 #include "palette.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
+#include "osrs/rscache/dat2a/dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/dat2a_maps.h"
 #include "scene.h"
 
 #include <assert.h>

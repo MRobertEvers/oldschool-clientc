@@ -1,7 +1,7 @@
 #include "player_appearance.h"
 
 #include "jbase37.h"
-#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
+#include "osrs/rscache/shared/shared_rs_buffer.h"
 
 void
 player_appearance_decode(

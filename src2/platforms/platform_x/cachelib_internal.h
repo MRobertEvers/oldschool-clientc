@@ -2,8 +2,8 @@
 #define PLATFORM_X_CACHELIB_INTERNAL_H
 
 #include "cachelib.h"
-#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
 
 struct RSCacheDat2DiskLib
 {

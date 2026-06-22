@@ -1,7 +1,7 @@
 #ifndef WORDPACK_H
 #define WORDPACK_H
 
-#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
+#include "osrs/rscache/shared/shared_rs_buffer.h"
 
 #include <stddef.h>
 

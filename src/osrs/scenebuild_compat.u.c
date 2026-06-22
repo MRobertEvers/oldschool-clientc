@@ -2,10 +2,10 @@
 #define SCENEBUILDER_COMPAT_U_C
 
 #include "osrs/buildcachedat.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/dat2a_config_floortype.h"
 #include "osrs/scene2.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 #include "scenebuilder.u.c"
 
 struct RSCacheDat2A_MapTerrain*

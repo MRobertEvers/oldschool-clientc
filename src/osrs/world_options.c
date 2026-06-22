@@ -3,7 +3,7 @@
 #include "game.h"
 #include "game_entity.h"
 #include "minimenu_action.h"
-#include "osrs/rscache/shared/rscache_shared_string_utils.h"
+#include "osrs/rscache/shared/shared_string_utils.h"
 
 #include <assert.h>
 #include <string.h>

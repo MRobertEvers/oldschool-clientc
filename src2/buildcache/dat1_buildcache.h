@@ -1,9 +1,9 @@
 #ifndef DAT1_BUILDCACHE_H
 #define DAT1_BUILDCACHE_H
 
-#include "osrs/rscache/shared/rscache_shared_file_list.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_maps.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/shared/shared_file_list.h"
+#include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 
 #include <stdint.h>
 

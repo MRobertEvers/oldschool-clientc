@@ -22,11 +22,11 @@
  */
 
 #include "bmp.h"
-#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
-#include "osrs/rscache/shared/rscache_shared_file_list.h"
-#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_component.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_sprites.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/shared/shared_file_list.h"
+#include "osrs/rscache/shared/shared_rs_buffer.h"
+#include "osrs/rscache/dat2a/dat2a_component.h"
+#include "osrs/rscache/dat2a/dat2a_sprites.h"
 
 #include <stdint.h>
 #include <stdio.h>

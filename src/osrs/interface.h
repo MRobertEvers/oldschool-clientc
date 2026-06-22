@@ -3,7 +3,7 @@
 
 #include "graphics/dash.h"
 #include "osrs/game.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
 
 #include <stdbool.h>
 #include <stdint.h>

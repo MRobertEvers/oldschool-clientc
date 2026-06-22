@@ -14,7 +14,7 @@
 #include "osrs/isaac.h"
 #include "osrs/packetout.h"
 #include "osrs/painters.h"
-#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
+#include "osrs/rscache/shared/shared_rs_buffer.h"
 #include "osrs/script_queue.h"
 #include "osrs/wordpack.h"
 #include "tori_rs.h"

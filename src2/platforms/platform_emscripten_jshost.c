@@ -3,9 +3,9 @@
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../scripting/libtorirs_scriptapi.h"
 #include "platform_x/cachelib_serialized.h"
-#include "osrs/rscache/shared/rscache_shared_archive.h"
-#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/shared/shared_archive.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
 
 #include <stdint.h>
 #include <stdio.h>

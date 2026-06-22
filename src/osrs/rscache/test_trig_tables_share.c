@@ -1,4 +1,4 @@
-#include "dat2a/rscache_dat2a_noise.h"
+#include "dat2a/dat2a_noise.h"
 #include "graphics/shared_tables.h"
 #include "toridraw_math.h"
 

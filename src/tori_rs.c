@@ -5,8 +5,8 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/dash_utils.h"
 #include "osrs/packetbuffer.h"
-#include "osrs/rscache/dat2disk/rscache_dat2disk.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
 
 // clang-format off
 #include "osrs/gameproto_packets_write.u.c"

@@ -3,8 +3,8 @@
 #include "packetin.h"
 
 #include <stdlib.h>
-#include "osrs/rscache/shared/rscache_shared_bit_buffer.h"
-#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
+#include "osrs/rscache/shared/shared_bit_buffer.h"
+#include "osrs/rscache/shared/shared_rs_buffer.h"
 #include "wordpack.h"
 
 // clang-format off

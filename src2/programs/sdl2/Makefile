@@ -135,7 +135,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC_DIR)/osrs/texture.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c \
-	$(SRC_DIR)/osrs/rscache/rscache_unity.c \
+	$(SRC_DIR)/osrs/rscache/unity.c \
 	$(PLAT_DIR)/platform_x_cache.c \
 	$(SRC2)/libtorirs.c \
 	$(LUA_SRC)

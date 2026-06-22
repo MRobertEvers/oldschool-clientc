@@ -15,7 +15,7 @@
  * platform_impl2_win32.h), or MinGW links C++-mangled refs to C symbols from .c files. */
 extern "C" {
 #include "graphics/dash.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
 }
 
 #include "platform_impl2_win32.h"
@@ -38,7 +38,7 @@ extern "C" {
 #include "osrs/lua_sidecar/luac_sidecar.h"
 #include "osrs/lua_sidecar/luac_sidecar_cachedat.h"
 #include "osrs/lua_sidecar/luac_sidecar_config.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
 #include "osrs/scripts/lua_cache_fnnos.h"
 #include "tori_rs.h"
 }

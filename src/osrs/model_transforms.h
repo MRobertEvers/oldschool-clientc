@@ -1,7 +1,7 @@
 #ifndef GAME_MODEL_H
 #define GAME_MODEL_H
 
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 
 enum TransformFlag
 {

@@ -1,6 +1,6 @@
 #include "toridraw_cachemodel.h"
 
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 #include "toridraw/toridraw_model.h"
 
 #include <assert.h>

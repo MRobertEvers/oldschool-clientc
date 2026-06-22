@@ -1,8 +1,8 @@
 #ifndef GIO_RSCACHE_DAT1DISK_H
 #define GIO_RSCACHE_DAT1DISK_H
 
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 
 struct FileBuffer
 {

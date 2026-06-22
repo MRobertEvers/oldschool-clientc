@@ -147,7 +147,7 @@ set(ANDROID_SOURCES
     ../src/osrs/blend_underlays.c
     ../src/osrs/scene_tile.c
     ../src/osrs/palette.c
-    ../src/osrs/rscache/rscache_unity.c
+    ../src/osrs/rscache/unity.c
     ../src/osrs/world.c
     ../src/nuklear/nuklear_impl.c
     ../src/platforms/common/torirs_nk_sdl_input.cpp

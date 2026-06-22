@@ -1,7 +1,7 @@
 #include "cache_utils.h"
 
 #include "filepack.h"
-#include "osrs/rscache/shared/rscache_shared_rs_buffer.h"
+#include "osrs/rscache/shared/shared_rs_buffer.h"
 
 #include <assert.h>
 #include <stdlib.h>

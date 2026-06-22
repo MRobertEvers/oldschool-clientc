@@ -2,8 +2,8 @@
 #define TEXTURE_H
 
 #include "graphics/dash.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_textures.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_textures.h"
+#include "osrs/rscache/dat2a/dat2a_textures.h"
+#include "osrs/rscache/dat1a/dat1a_config_textures.h"
 
 #include <stdbool.h>
 

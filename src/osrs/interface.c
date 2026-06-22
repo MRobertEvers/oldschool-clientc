@@ -12,8 +12,8 @@
 #include "osrs/minimenu_action.h"
 #include "osrs/packetout.h"
 #include "osrs/player_stats.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_component.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_config_obj.h"
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
+#include "osrs/rscache/dat1a/dat1a_config_obj.h"
 #include "osrs/varp_varbit_manager.h"
 
 #include <stdio.h>

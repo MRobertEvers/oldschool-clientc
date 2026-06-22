@@ -4,7 +4,7 @@
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "minimap.h"
 #include "osrs/painters.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
 #include "shademap.h"
 #include "sharelight_map.h"
 #include "toridraw/toridraw_scene.h"

@@ -1,7 +1,7 @@
 #include "toridraw_cachesprite.h"
 
-#include "osrs/rscache/dat1a/rscache_dat1a_pix32.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_pix8.h"
+#include "osrs/rscache/dat1a/dat1a_pix32.h"
+#include "osrs/rscache/dat1a/dat1a_pix8.h"
 
 #include <stdlib.h>
 #include <string.h>

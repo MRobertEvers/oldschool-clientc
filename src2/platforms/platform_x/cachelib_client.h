@@ -2,8 +2,8 @@
 #define PLATFORM_X_CACHELIB_CLIENT_H
 
 #include "cachelib.h"
-#include "osrs/rscache/dat1disk/rscache_dat1disk.h"
-#include "osrs/rscache/dat1a/rscache_dat1a_configs_dat.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/dat1a/dat1a_configs_dat.h"
 
 static inline void
 cachelib_dat1_config_file_fetch(struct RSCacheDat2DiskLib_IORequest* out)

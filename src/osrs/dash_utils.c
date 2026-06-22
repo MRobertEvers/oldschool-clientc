@@ -1,7 +1,7 @@
 #include "dash_utils.h"
 
 #include "graphics/dash_model_internal.h"
-#include "osrs/rscache/dat2a/rscache_dat2a_model.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 
 #include <assert.h>
 #include <math.h>
