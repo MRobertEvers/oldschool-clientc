@@ -2,6 +2,7 @@
 #define WORLD_BUILDER_H
 
 #include "world.h"
+#include "contour_ground_queue.h"
 
 #include <stdbool.h>
 
@@ -16,17 +17,6 @@ struct Lightmap;
 struct SharelightMap;
 struct Shademap2;
 struct FlagMap;
-
-struct ContourGroundQueueEntry
-{
-    int element_id;
-    int loc_id;
-    int shape_select;
-    int rotation;
-    int size_x;
-    int size_z;
-    int level;
-};
 
 struct WorldBuilder
 {
@@ -43,9 +33,7 @@ struct WorldBuilder
     struct SharelightMap* sharelight_map;
     struct Shademap2* shademap;
     struct FlagMap* flag_map;
-    struct ContourGroundQueueEntry* contour_ground_queue;
-    int contour_ground_queue_count;
-    int contour_ground_queue_cap;
+    struct ContourGroundQueue contour_ground_queue;
 };
 
 struct WorldBuilder*

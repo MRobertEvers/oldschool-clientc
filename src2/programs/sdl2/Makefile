@@ -32,6 +32,14 @@ else
   HOST_OS := Linux
 endif
 
+# AddressSanitizer: default-on on Linux, default-off on macOS (dyld deadlocks in
+# AsanInitFromRtl before main with Apple's dynamic ASan runtime).
+ifeq ($(HOST_OS),Linux)
+  ENABLE_ASAN ?= 1
+else
+  ENABLE_ASAN ?= 0
+endif
+
 # ---------------------------------------------------------------------------
 # Common compiler / flags
 # ---------------------------------------------------------------------------
@@ -50,6 +58,7 @@ LUA_SRC := $(filter-out $(SRC_DIR)/3rd/lua/lua.c $(SRC_DIR)/3rd/lua/luac.c,\
 # Common source files shared across all platforms
 # ---------------------------------------------------------------------------
 COMMON_SRCS := sdl2.c \
+	$(PLAT_DIR)/asan_compat.c \
 	$(PLAT_DIR)/platform_x_io_reactor.c \
 	$(PLAT_DIR)/platform_x_lua.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
@@ -145,12 +154,11 @@ COMMON_SRCS := sdl2.c \
 #   Renderer: OpenGL3 (core 3.2)
 #   GL loader: opengl3_sdlgl (SDL_GL_GetProcAddress)
 #   GL link:   -framework OpenGL
-#   ASan:      enabled
+#   ASan:      opt-in on macOS (make ENABLE_ASAN=1); see ENABLE_ASAN block below
 # ---------------------------------------------------------------------------
 ifeq ($(HOST_OS),MacOS)
 
-CFLAGS   += -fsanitize=address -fno-omit-frame-pointer
-LDFLAGS  += -fsanitize=address
+CC       := clang
 
 RENDERER_SRCS := \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_opengl3.c \
@@ -176,12 +184,9 @@ endif # MacOS
 # ===== Linux =====
 #   Renderer: OpenGL3 (core 3.3)
 #   GL link:  -lGL
-#   ASan:     enabled
+#   ASan:     enabled by default (make ENABLE_ASAN=0 to disable)
 # ---------------------------------------------------------------------------
 ifeq ($(HOST_OS),Linux)
-
-CFLAGS   += -fsanitize=address -fno-omit-frame-pointer
-LDFLAGS  += -fsanitize=address
 
 RENDERER_SRCS := \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_opengl3.c \
@@ -244,6 +249,32 @@ POSTLINK := cp -f $(TOOLCHAIN_WIN32)/bin/SDL2.dll $(TOOLCHAIN_WIN32)/bin/libwinp
 endif # Windows
 
 # ---------------------------------------------------------------------------
+# AddressSanitizer (optional on macOS, default-on on Linux)
+# ---------------------------------------------------------------------------
+ifeq ($(ENABLE_ASAN),1)
+  CFLAGS  += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
+  LDFLAGS += -fsanitize=address
+  ifeq ($(HOST_OS),MacOS)
+    # clang must drive the final link; static SDL2 avoids dylib malloc before ASan.
+    CC := clang
+    SDL_LIBS := $(shell sdl2-config --static-libs 2>/dev/null)
+    ifeq ($(strip $(SDL_LIBS)),)
+      SDL_LIBS := $(shell pkg-config --libs --static sdl2 2>/dev/null)
+    endif
+    ifeq ($(strip $(SDL_LIBS)),)
+      SDL_LIBS := -L/opt/homebrew/lib -Wl,-force_load,/opt/homebrew/lib/libSDL2.a \
+        -framework CoreAudio -framework AudioToolbox -framework CoreVideo \
+        -framework Cocoa -framework Carbon -framework IOKit -framework QuartzCore \
+        -framework Metal -lobjc
+    endif
+    # macOS 26+: interpose dyld_shared_cache_iterate_text before ASan init (LLVM #182943).
+    ASAN_DYLD_SHIM := asan_dyld_shim.dylib
+  endif
+endif
+
+ASAN_DYLD_SHIM ?=
+
+# ---------------------------------------------------------------------------
 # ===== Emscripten =====
 #   The WebGL1 / browser build is produced by a *separate* Makefile:
 #       src2/programs/browser/Makefile
@@ -262,15 +293,18 @@ OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o)))
 # Post-link step: copy runtime DLLs next to the exe on Windows; no-op elsewhere.
 POSTLINK ?=
 
-.PHONY: all clean
+.PHONY: all clean asan
 
 all: $(OBJ_DIR) $(PROG)$(EXE)
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
-$(PROG)$(EXE): $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(SDL_LIBS) $(GFX_LIBS) -lm
+asan_dyld_shim.dylib: $(PLAT_DIR)/asan_dyld_shim.c
+	$(CC) -dynamiclib -o $@ $< -DTORIRS_ENABLE_ASAN=1
+
+$(PROG)$(EXE): $(OBJS) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(SDL_LIBS) $(GFX_LIBS) -lm $(ASAN_DYLD_SHIM)
 	$(POSTLINK)
 
 define make-goal
@@ -302,5 +336,8 @@ endef
 $(foreach src,$(LUA_SRC),$(eval $(call make-lua-goal,$(src))))
 
 clean:
-	rm -f $(PROG) $(PROG).exe
+	rm -f $(PROG) $(PROG).exe asan_dyld_shim.dylib
 	rm -rf $(OBJ_DIR)
+
+asan:
+	$(MAKE) ENABLE_ASAN=1 clean all

@@ -2,8 +2,8 @@
 #define WORLD_CONTOUR_GROUND_U_C
 
 #include "contour_ground.h"
-#include "toriauxlib/core/toriauxlibcore.h"
 #include "heightmap.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "toridraw/toridraw_model_transform.h"
 #include "world_builder.h"
 
@@ -14,15 +14,15 @@ void
 world_contour_ground(struct WorldBuilder* builder)
 {
     struct World* world = builder->world;
-    int n = builder->contour_ground_queue_count;
-    if( n <= 0 || !builder->contour_ground_queue )
+    int n = contour_ground_q_count(&builder->contour_ground_queue);
+    if( n <= 0 )
         return;
 
     struct Heightmap* hm = world->heightmap;
 
     for( int ri = 0; ri < n; ri++ )
     {
-        struct ContourGroundQueueEntry* r = &builder->contour_ground_queue[ri];
+        struct ContourGroundQueueEntry* r = contour_ground_q_at(&builder->contour_ground_queue, ri);
         if( r->element_id < 0 )
             continue;
 
@@ -110,7 +110,7 @@ world_contour_ground(struct WorldBuilder* builder)
         ToriDraw_ModelSetBoundsCylinder(dm);
     }
 
-    builder->contour_ground_queue_count = 0;
+    contour_ground_q_clear(&builder->contour_ground_queue);
 }
 
 #endif

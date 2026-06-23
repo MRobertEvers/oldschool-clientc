@@ -120,14 +120,25 @@ RSCacheDat1A_AnimBaseFramesNewDecode(
     char* data,
     int data_size)
 {
-    struct RSCacheDat1A_AnimBaseFrames* animbaseframes = malloc(sizeof(struct RSCacheDat1A_AnimBaseFrames));
+    struct RSCacheDat1A_AnimBaseFrames* animbaseframes =
+        malloc(sizeof(struct RSCacheDat1A_AnimBaseFrames));
     memset(animbaseframes, 0, sizeof(struct RSCacheDat1A_AnimBaseFrames));
 
-    struct RSCacheShared_RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
-    struct RSCacheShared_RSBuffer head_buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
-    struct RSCacheShared_RSBuffer tran1_buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
-    struct RSCacheShared_RSBuffer tran2_buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
-    struct RSCacheShared_RSBuffer del_buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
+    struct RSCacheShared_RSBuffer buffer = { .data = (uint8_t*)(data),
+                                             .size = (uint32_t)(data_size),
+                                             .position = 0 };
+    struct RSCacheShared_RSBuffer head_buffer = { .data = (uint8_t*)(data),
+                                                  .size = (uint32_t)(data_size),
+                                                  .position = 0 };
+    struct RSCacheShared_RSBuffer tran1_buffer = { .data = (uint8_t*)(data),
+                                                   .size = (uint32_t)(data_size),
+                                                   .position = 0 };
+    struct RSCacheShared_RSBuffer tran2_buffer = { .data = (uint8_t*)(data),
+                                                   .size = (uint32_t)(data_size),
+                                                   .position = 0 };
+    struct RSCacheShared_RSBuffer del_buffer = { .data = (uint8_t*)(data),
+                                                 .size = (uint32_t)(data_size),
+                                                 .position = 0 };
 
     buffer.position = data_size - 8;
 
@@ -198,45 +209,45 @@ RSCacheDat1A_AnimBaseFramesNewDecode(
                         }
                     }
                 }
-            }
 
-            labels[current] = j;
+                labels[current] = j;
 
-            int default_value = 0;
-            if( animframe->base->types[labels[current]] == 3 )
-            {
-                default_value = 128;
-            }
+                int default_value = 0;
+                if( animframe->base->types[labels[current]] == 3 )
+                {
+                    default_value = 128;
+                }
 
-            if( (flags & 1) == 0 )
-            {
-                x[current] = default_value;
-            }
-            else
-            {
-                x[current] = gshortsmart(&tran2_buffer);
-            }
+                if( (flags & 1) == 0 )
+                {
+                    x[current] = default_value;
+                }
+                else
+                {
+                    x[current] = gshortsmart(&tran2_buffer);
+                }
 
-            if( (flags & 2) == 0 )
-            {
-                y[current] = default_value;
-            }
-            else
-            {
-                y[current] = gshortsmart(&tran2_buffer);
-            }
+                if( (flags & 2) == 0 )
+                {
+                    y[current] = default_value;
+                }
+                else
+                {
+                    y[current] = gshortsmart(&tran2_buffer);
+                }
 
-            if( (flags & 4) == 0 )
-            {
-                z[current] = default_value;
-            }
-            else
-            {
-                z[current] = gshortsmart(&tran2_buffer);
-            }
+                if( (flags & 4) == 0 )
+                {
+                    z[current] = default_value;
+                }
+                else
+                {
+                    z[current] = gshortsmart(&tran2_buffer);
+                }
 
-            last_group = j;
-            current++;
+                last_group = j;
+                current++;
+            }
         }
 
         animframe->length = current;
@@ -287,7 +298,9 @@ RSCacheDat1A_AnimBaseNewDecode(
     struct RSCacheDat1A_AnimBase* animbase = malloc(sizeof(struct RSCacheDat1A_AnimBase));
     memset(animbase, 0, sizeof(struct RSCacheDat1A_AnimBase));
 
-    struct RSCacheShared_RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
+    struct RSCacheShared_RSBuffer buffer = { .data = (uint8_t*)(data),
+                                             .size = (uint32_t)(data_size),
+                                             .position = 0 };
 
     int length = g1(&buffer);
     animbase->length = length;

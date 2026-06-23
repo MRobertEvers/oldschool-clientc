@@ -265,7 +265,7 @@
     },
     {
       "name": "(lldb) Launch sdl2",
-      "type": "cppdbg",
+      "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/src2/programs/sdl2/sdl2",
       "args": ["--runescape", "--soft3d"],

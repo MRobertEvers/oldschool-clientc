@@ -338,8 +338,7 @@ game_runescape_frame_next_command(
         {
         case RS_FRAME_PHASE_GC_EVENTS:
         {
-            struct ToriDraw_EventQueue* eq =
-                game->scene ? ToriDraw_SceneEvents(game->scene) : NULL;
+            struct ToriDraw_EventQueue* eq = game->scene ? ToriDraw_SceneEvents(game->scene) : NULL;
             if( eq )
             {
                 while( game->frame.event_index < eq->count )

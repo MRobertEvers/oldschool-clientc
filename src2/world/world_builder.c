@@ -2,9 +2,9 @@
 
 #include "blendmap.h"
 #include "collision_map.h"
+#include "contour_ground_queue.u.c"
 #include "decor_buildmap.h"
 #include "flag_map.h"
-#include "toriauxlib/core/toriauxlibcore.h"
 #include "heightmap.h"
 #include "lightmap.h"
 #include "minimap.h"
@@ -14,8 +14,9 @@
 #include "shademap.h"
 #include "sharelight_map.h"
 #include "terrain_shapemap.h"
-#include "toridraw/toridraw_scene.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/toriauxlib.h"
+#include "toridraw/toridraw_scene.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -49,7 +50,7 @@ world_builder_free_transient_maps(struct WorldBuilder* builder)
         shademap2_free(builder->shademap);
     if( builder->flag_map )
         flag_map_free(builder->flag_map);
-    free(builder->contour_ground_queue);
+    contour_ground_q_free(&builder->contour_ground_queue);
     builder->blendmap = NULL;
     builder->overlaymap = NULL;
     builder->terrain_shapemap = NULL;
@@ -58,9 +59,6 @@ world_builder_free_transient_maps(struct WorldBuilder* builder)
     builder->sharelight_map = NULL;
     builder->shademap = NULL;
     builder->flag_map = NULL;
-    builder->contour_ground_queue = NULL;
-    builder->contour_ground_queue_count = 0;
-    builder->contour_ground_queue_cap = 0;
 }
 
 struct WorldBuilder*
@@ -114,6 +112,16 @@ world_builder_rebuild_centerzone_begin(
     builder->flag_map = flag_map_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
 }
 
+static inline bool
+scene_in_bounds(
+    struct WorldBuilder* builder,
+    int scene_x,
+    int scene_z)
+{
+    int scene_size = builder->world->_scene_size;
+    return scene_x >= 0 && scene_x < scene_size && scene_z >= 0 && scene_z < scene_size;
+}
+
 void
 world_builder_rebuild_centerzone_chunk_scenery(
     struct WorldBuilder* builder,
@@ -140,7 +148,7 @@ world_builder_rebuild_centerzone_chunk_scenery(
         int scene_x = world_to_scene_x(world, mapx, map_loc->chunk_pos_x);
         int scene_z = world_to_scene_z(world, mapz, map_loc->chunk_pos_z);
 
-        if( scene_x < 0 || scene_z < 0 || scene_x >= scene_size || scene_z >= scene_size )
+        if( !scene_in_bounds(builder, scene_x, scene_z) )
             continue;
 
         world_collision_add_loc(builder, map_loc, config_loc, scene_x, scene_z);

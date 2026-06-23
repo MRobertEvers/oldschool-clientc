@@ -36,8 +36,6 @@
 #define PCULL_Y_GRANULARITY 1
 #endif
 
-extern int g_sin_table[2048];
-
 struct PaintersCullMap
 {
     uint8_t* visibility;

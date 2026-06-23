@@ -180,42 +180,6 @@ scenery_register_sharelight(
 }
 
 static void
-world_builder_contour_ground_queue_push(
-    struct WorldBuilder* builder,
-    int element_id,
-    int loc_id,
-    int shape_select,
-    int rotation,
-    int size_x,
-    int size_z,
-    int level)
-{
-    if( element_id < 0 )
-        return;
-
-    if( builder->contour_ground_queue_count >= builder->contour_ground_queue_cap )
-    {
-        int ncap = builder->contour_ground_queue_cap ? builder->contour_ground_queue_cap * 2 : 512;
-        struct ContourGroundQueueEntry* next = realloc(
-            builder->contour_ground_queue, (size_t)ncap * sizeof(struct ContourGroundQueueEntry));
-        if( !next )
-            return;
-        builder->contour_ground_queue = next;
-        builder->contour_ground_queue_cap = ncap;
-    }
-
-    struct ContourGroundQueueEntry* r =
-        &builder->contour_ground_queue[builder->contour_ground_queue_count++];
-    r->element_id = element_id;
-    r->loc_id = loc_id;
-    r->shape_select = shape_select;
-    r->rotation = rotation;
-    r->size_x = size_x;
-    r->size_z = size_z;
-    r->level = level;
-}
-
-static void
 apply_transforms(
     struct ToriAuxLibCore_Location* loc,
     struct ToriDraw_Model* model,
@@ -324,8 +288,8 @@ scenery_load_model(
 
     if( config_loc->contour_ground_type != 0 )
     {
-        world_builder_contour_ground_queue_push(
-            builder,
+        contour_ground_q_push(
+            &builder->contour_ground_queue,
             element_id,
             map_tile->loc_id,
             shape_select,
