@@ -174,11 +174,18 @@ void
 trspk_ibochain_free(struct TRSPK_IBOChain* chain)
 {
     if( chain == NULL )
-    {
         return;
-    }
 
     struct TRSPK_IBOChainNode* node = chain->head;
+    while( node != NULL )
+    {
+        struct TRSPK_IBOChainNode* next = node->next;
+        trspk_ibo_free_indices(&node->ibo);
+        free(node);
+        node = next;
+    }
+
+    node = chain->free_head;
     while( node != NULL )
     {
         struct TRSPK_IBOChainNode* next = node->next;
@@ -196,10 +203,27 @@ trspk_ibochain_reset(struct TRSPK_IBOChain* chain)
     if( chain == NULL || chain->head == NULL )
         return;
 
-    for( struct TRSPK_IBOChainNode* node = chain->head; node != NULL; node = node->next )
-        node->ibo.index_count = 0u;
+    /* Splice the entire live list onto the free pool in O(1). */
+    chain->tail->next = chain->free_head;
+    chain->free_head = chain->head;
+    chain->head = NULL;
+    chain->tail = NULL;
+}
 
-    chain->tail = chain->head;
+static struct TRSPK_IBOChainNode*
+trspk_ibochain_acquire_node(struct TRSPK_IBOChain* chain, uint32_t offset)
+{
+    if( chain->free_head != NULL )
+    {
+        struct TRSPK_IBOChainNode* node = chain->free_head;
+        chain->free_head = node->next;
+        node->ibo.offset = offset;
+        node->ibo.index_count = 0u;
+        node->next = NULL;
+        return node;
+    }
+
+    return trspk_ibochain_node_create(chain->index_format, offset);
 }
 
 static void
@@ -208,20 +232,14 @@ trspk_ibochain_ensure_tail_node(
     uint32_t offset)
 {
     if( chain->tail != NULL && chain->tail->ibo.offset == offset )
-    {
         return;
-    }
 
-    struct TRSPK_IBOChainNode* node = trspk_ibochain_node_create(chain->index_format, offset);
+    struct TRSPK_IBOChainNode* node = trspk_ibochain_acquire_node(chain, offset);
 
     if( chain->tail != NULL )
-    {
         chain->tail->next = node;
-    }
     else
-    {
         chain->head = node;
-    }
 
     chain->tail = node;
 }
