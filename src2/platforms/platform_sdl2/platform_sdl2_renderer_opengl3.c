@@ -607,9 +607,6 @@ gl3_ev_tex_load(
         TRSPK_GL3_ATLAS_TILE,
         TRSPK_GL3_ATLAS_TILE,
         NULL);
-
-    if( trspk_atlas_is_dirty(&renderer->atlas) )
-        gl3_upload_atlas_texture(renderer);
 }
 
 static void
@@ -974,6 +971,18 @@ gl3_ev_model_draw(
 
     const int anim_index = command->u.model.anim_index;
     const int pose_id = command->u.model.anim_frame;
+    if( command->u.model.dynamic )
+    {
+        gl3_bake_into_arena(
+            renderer,
+            instance,
+            command->u.model.element_id,
+            anim_index,
+            pose_id,
+            command->u.model.model,
+            &command->u.model.world_position);
+    }
+
     uint32_t vertex_base = 0u;
     if( !trspk_pose_table_get(
             &renderer->poses, command->u.model.element_id, anim_index, pose_id, &vertex_base) )

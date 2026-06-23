@@ -179,6 +179,7 @@ world_projectile_spawn(
         .vel_x = vel_x,
         .vel_z = vel_z,
         .yaw = yaw,
+        .has_dst = false,
     };
     return idx;
 }
@@ -228,7 +229,65 @@ world_projectile_despawn(
 {
     if( !world || idx < 0 || idx >= world->projectile_count )
         return;
-    world->projectiles[idx].alive = false;
+
+    struct WorldProjectile* p = &world->projectiles[idx];
+    if( !p->alive )
+        return;
+
+    p->alive = false;
+
+    if( p->element_id >= 0 && world->event_count < WORLD_MAX_EVENTS )
+    {
+        world->events[world->event_count++] = (struct WorldEvent){
+            .kind = WORLD_EVENT_ENTITY_REMOVED,
+            .element_id = p->element_id,
+        };
+    }
+}
+
+void
+world_projectile_set_destination(
+    struct World* world,
+    int idx,
+    int dst_x,
+    int dst_z)
+{
+    if( !world || idx < 0 || idx >= world->projectile_count )
+        return;
+
+    struct WorldProjectile* p = &world->projectiles[idx];
+    if( !p->alive )
+        return;
+
+    p->dst_x = dst_x;
+    p->dst_z = dst_z;
+    p->has_dst = true;
+}
+
+int
+world_events_count(struct World* world)
+{
+    if( !world )
+        return 0;
+    return world->event_count;
+}
+
+const struct WorldEvent*
+world_events_peek(
+    struct World* world,
+    int i)
+{
+    if( !world || i < 0 || i >= world->event_count )
+        return NULL;
+    return &world->events[i];
+}
+
+void
+world_events_clear(struct World* world)
+{
+    if( !world )
+        return;
+    world->event_count = 0;
 }
 
 void

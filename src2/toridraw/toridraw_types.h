@@ -263,6 +263,7 @@ struct ToriDraw_SceneElement
     struct ToriDraw_Animation* animation;
     struct ToriDraw_Animation* secondary_animation;
     struct ToriDraw_Position world_position;
+    bool dynamic;
     bool pending_batch_add;
     int anim_seq_id;
     int anim_frame;

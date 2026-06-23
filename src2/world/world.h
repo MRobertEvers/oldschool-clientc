@@ -11,6 +11,7 @@ struct Heightmap;
 struct Minimap;
 
 #define WORLD_MAX_PROJECTILES 256
+#define WORLD_MAX_EVENTS 256
 
 #define WORLD_MAP_TERRAIN_X 64
 #define WORLD_MAP_TERRAIN_Z 64
@@ -27,6 +28,17 @@ world_map_tile_coord(
 
 #define WORLD_MAP_TILE_COORD(x, z, level) (world_map_tile_coord(x, z, level))
 
+enum WorldEventKind
+{
+    WORLD_EVENT_ENTITY_REMOVED = 0,
+};
+
+struct WorldEvent
+{
+    enum WorldEventKind kind;
+    int element_id;
+};
+
 struct WorldProjectile
 {
     bool alive;
@@ -37,6 +49,9 @@ struct WorldProjectile
     int vel_x;
     int vel_z;
     int yaw;
+    int dst_x;
+    int dst_z;
+    bool has_dst;
 };
 
 struct World
@@ -61,6 +76,9 @@ struct World
 
     struct WorldProjectile projectiles[WORLD_MAX_PROJECTILES];
     int projectile_count;
+
+    struct WorldEvent events[WORLD_MAX_EVENTS];
+    int event_count;
 
     bool load_complete;
 };
@@ -123,6 +141,24 @@ void
 world_projectile_despawn(
     struct World* world,
     int idx);
+
+void
+world_projectile_set_destination(
+    struct World* world,
+    int idx,
+    int dst_x,
+    int dst_z);
+
+int
+world_events_count(struct World* world);
+
+const struct WorldEvent*
+world_events_peek(
+    struct World* world,
+    int i);
+
+void
+world_events_clear(struct World* world);
 
 void
 world_cycle(

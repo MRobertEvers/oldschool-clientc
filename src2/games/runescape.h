@@ -15,11 +15,15 @@
 struct ToriAuxLibCore;
 struct ToriDraw_Scene;
 struct ToriAuxLibTD;
+struct LibToriRS_IOContext;
 
 /* OSRS rebuild-normal zone coords: map_chunk * 8 (zone 400 -> map chunk 50). */
 #define RUNESCAPE_MAP_CHUNK_CENTER 50
 #define RUNESCAPE_ZONE_CENTER_X (RUNESCAPE_MAP_CHUNK_CENTER * 8)
 #define RUNESCAPE_ZONE_CENTER_Z (RUNESCAPE_MAP_CHUNK_CENTER * 8)
+
+#define RUNESCAPE_PROJECTILE_MODEL_ID 3081
+#define RUNESCAPE_PROJECTILE_SEQ_ID 659
 
 enum GameRunescape_FramePhase
 {
@@ -96,6 +100,9 @@ void
 game_runescape_frame_end(struct GameRunescape* game);
 
 int
+game_runescape_camera_terrain_level(const struct GameRunescape* game);
+
+int
 game_runescape_spawn_projectile(
     struct GameRunescape* game,
     int model_id,
@@ -108,5 +115,25 @@ game_runescape_spawn_projectile(
     int vel_x,
     int vel_z,
     int yaw);
+
+struct ToriRunescape_Task_AddProjectile;
+
+struct ToriRunescape_Task_AddProjectile*
+ToriRunescape_Task_AddProjectile_New(
+    struct GameRunescape* game,
+    int model_id,
+    int seq_id,
+    int spawn_sx,
+    int spawn_sz,
+    int level,
+    int dst_tiles_east);
+
+void
+ToriRunescape_Task_AddProjectile_Free(struct ToriRunescape_Task_AddProjectile* task);
+
+int
+ToriRunescape_Task_AddProjectile_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx);
 
 #endif

@@ -32,8 +32,8 @@ struct TRSPK_IBOChain
 {
     struct TRSPK_IBOChainNode* head;
     struct TRSPK_IBOChainNode* tail;
-    struct TRSPK_IBOChainNode* free_head;
     enum TRSPK_IndexFormat index_format;
+    struct TRSPK_IBOChainNode* free_head;
 };
 
 struct TRSPK_IBO*

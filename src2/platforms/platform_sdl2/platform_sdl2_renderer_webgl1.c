@@ -30,6 +30,13 @@
 #define TRSPK_WEBGL1_BASE_PAGE(encoded) ((encoded) >> 16u)
 #define TRSPK_WEBGL1_BASE_LOCAL(encoded) ((encoded)&0xFFFFu)
 
+struct WebGL1DrawRecord
+{
+    uint32_t page;
+    uint32_t draw_offset;
+    uint32_t count;
+};
+
 struct LibToriPlatformSDL2_RendererWebGL1
 {
     SDL_Window* window;
@@ -62,6 +69,13 @@ struct LibToriPlatformSDL2_RendererWebGL1
 
     GLuint ebo;
     uint32_t gpu_ibo_capacity;
+
+    uint16_t* ibo_staging;
+    uint32_t ibo_staging_capacity;
+
+    struct WebGL1DrawRecord* draw_records;
+    uint32_t draw_record_capacity;
+    uint32_t draw_record_count;
 
     float view[16];
     float proj[16];
@@ -516,9 +530,67 @@ webgl1_ev_tex_load(
         TRSPK_WEBGL1_ATLAS_TILE,
         TRSPK_WEBGL1_ATLAS_TILE,
         NULL);
+}
 
-    if( trspk_atlas_is_dirty(&renderer->atlas) )
-        webgl1_upload_atlas_texture(renderer);
+static bool
+webgl1_ensure_ibo_staging(
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    uint32_t index_count)
+{
+    if( index_count <= renderer->ibo_staging_capacity )
+        return true;
+
+    uint32_t cap = renderer->ibo_staging_capacity ? renderer->ibo_staging_capacity
+                                                  : TRSPK_WEBGL1_GPU_IBO_INIT;
+    while( cap < index_count )
+        cap *= 2u;
+
+    uint16_t* grown = (uint16_t*)realloc(renderer->ibo_staging, cap * sizeof(uint16_t));
+    if( !grown )
+        return false;
+
+    renderer->ibo_staging = grown;
+    renderer->ibo_staging_capacity = cap;
+    return true;
+}
+
+static bool
+webgl1_ensure_draw_records(
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    uint32_t record_count)
+{
+    if( record_count <= renderer->draw_record_capacity )
+        return true;
+
+    uint32_t cap = renderer->draw_record_capacity ? renderer->draw_record_capacity : 64u;
+    while( cap < record_count )
+        cap *= 2u;
+
+    struct WebGL1DrawRecord* grown = (struct WebGL1DrawRecord*)realloc(
+        renderer->draw_records, cap * sizeof(struct WebGL1DrawRecord));
+    if( !grown )
+        return false;
+
+    renderer->draw_records = grown;
+    renderer->draw_record_capacity = cap;
+    return true;
+}
+
+static bool
+webgl1_push_draw_record(
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    uint32_t page,
+    uint32_t draw_offset,
+    uint32_t count)
+{
+    if( !webgl1_ensure_draw_records(renderer, renderer->draw_record_count + 1u) )
+        return false;
+
+    struct WebGL1DrawRecord* rec = &renderer->draw_records[renderer->draw_record_count++];
+    rec->page = page;
+    rec->draw_offset = draw_offset;
+    rec->count = count;
+    return true;
 }
 
 static bool
@@ -733,12 +805,10 @@ webgl1_ev_end_3d(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
     if( !webgl1_ensure_gpu_ibo(renderer, total_indices) )
         goto done;
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
-    glBufferData(
-        GL_ELEMENT_ARRAY_BUFFER,
-        (GLsizeiptr)(renderer->gpu_ibo_capacity * sizeof(uint16_t)),
-        NULL,
-        GL_DYNAMIC_DRAW);
+    if( !webgl1_ensure_ibo_staging(renderer, total_indices) )
+        goto done;
+
+    renderer->draw_record_count = 0u;
 
     uint32_t cursor = 0u;
     for( struct TRSPK_IBOChainNode* node = renderer->ibo_chain->head; node != NULL;
@@ -752,20 +822,42 @@ webgl1_ev_end_3d(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
         if( page >= renderer->page_buffer_count || renderer->page_buffers[page] == 0u )
             continue;
 
-        glBufferSubData(
-            GL_ELEMENT_ARRAY_BUFFER,
-            (GLintptr)(cursor * sizeof(uint16_t)),
-            (GLsizeiptr)(count * sizeof(uint16_t)),
-            node->ibo.indices.as_u16);
+        memcpy(
+            renderer->ibo_staging + cursor,
+            node->ibo.indices.as_u16,
+            count * sizeof(uint16_t));
 
-        bind_vbo_attribs(renderer, renderer->page_buffers[page]);
-        glDrawElements(
-            GL_TRIANGLES,
-            (GLsizei)count,
-            GL_UNSIGNED_SHORT,
-            (const void*)(uintptr_t)(cursor * sizeof(uint16_t)));
+        if( !webgl1_push_draw_record(renderer, page, cursor, count) )
+            goto done;
 
         cursor += count;
+    }
+
+    const uint32_t used_indices = cursor;
+    if( used_indices == 0u )
+        goto done;
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
+    glBufferData(
+        GL_ELEMENT_ARRAY_BUFFER,
+        (GLsizeiptr)(renderer->gpu_ibo_capacity * sizeof(uint16_t)),
+        NULL,
+        GL_DYNAMIC_DRAW);
+    glBufferSubData(
+        GL_ELEMENT_ARRAY_BUFFER,
+        0,
+        (GLsizeiptr)(used_indices * sizeof(uint16_t)),
+        renderer->ibo_staging);
+
+    for( uint32_t i = 0u; i < renderer->draw_record_count; ++i )
+    {
+        const struct WebGL1DrawRecord* rec = &renderer->draw_records[i];
+        bind_vbo_attribs(renderer, renderer->page_buffers[rec->page]);
+        glDrawElements(
+            GL_TRIANGLES,
+            (GLsizei)rec->count,
+            GL_UNSIGNED_SHORT,
+            (const void*)(uintptr_t)(rec->draw_offset * sizeof(uint16_t)));
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -906,6 +998,17 @@ webgl1_handle_render_command(
             break;
 
         const int pose_id = command->u.model.anim_frame;
+        if( command->u.model.dynamic )
+        {
+            webgl1_bake_into_arena(
+                renderer,
+                instance,
+                command->u.model.element_id,
+                pose_id,
+                command->u.model.model,
+                &command->u.model.world_position);
+        }
+
         uint32_t encoded_base = 0u;
         if( !trspk_pose_table_get(
                 &renderer->poses, command->u.model.element_id, 0, pose_id, &encoded_base) )
@@ -991,6 +1094,8 @@ LibToriPlatformSDL2_RendererWebGL1_Free(struct LibToriPlatformSDL2_RendererWebGL
     if( renderer->vbo_chain )
         trspk_vbochain16_free(renderer->vbo_chain);
     trspk_atlas_free(&renderer->atlas);
+    free(renderer->ibo_staging);
+    free(renderer->draw_records);
     if( renderer->gl_context )
     {
         SDL_GL_DeleteContext(renderer->gl_context);

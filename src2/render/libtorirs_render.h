@@ -66,10 +66,12 @@ struct LibToriRS_RenderCommand_Model
 {
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Position position;
+    struct ToriDraw_Position world_position;
     int element_id;
     struct ToriDraw_Animation* animation;
     int anim_index;
     int anim_frame;
+    bool dynamic;
 };
 
 struct LibToriRS_RenderCommand_AnimLoad

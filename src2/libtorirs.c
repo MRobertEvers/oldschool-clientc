@@ -328,7 +328,29 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
         break;
     case GAME_HANDLE_KIND_RUNESCAPE:
         if( instance->runescape )
+        {
             game_runescape_process_input(instance->runescape, input);
+            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_SPACE) )
+            {
+                struct GameRunescape* game = instance->runescape;
+                int const sx = game->camera_position->x / 128;
+                int const sz = game->camera_position->z / 128;
+                int const level = game_runescape_camera_terrain_level(game);
+                struct ToriRunescape_Task_AddProjectile* task = ToriRunescape_Task_AddProjectile_New(
+                    game,
+                    RUNESCAPE_PROJECTILE_MODEL_ID,
+                    RUNESCAPE_PROJECTILE_SEQ_ID,
+                    sx,
+                    sz,
+                    level,
+                    5);
+                if( task )
+                {
+                    LibToriRS_TasksAdd(
+                        instance, task, ToriRunescape_Task_AddProjectile_Run);
+                }
+            }
+        }
         break;
     default:
         break;
