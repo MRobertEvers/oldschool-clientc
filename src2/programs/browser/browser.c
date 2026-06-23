@@ -3,6 +3,7 @@
 #include "../../libtorirs.h"
 #include "../../platforms/platform_js_capi.h"
 #include "../../platforms/platform_sdl2/platform_sdl2.h"
+#include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_webgl1.h"
 #include "../../scripting/libtorirs_scripting.h"
 
@@ -36,7 +37,9 @@ enum BrowserMainLoopState
 static struct LibToriRS_Instance* g_instance;
 static struct LibToriPlatformSDL2* g_platform;
 static struct LibToriPlatformSDL2_RendererWebGL1* g_renderer;
+static struct LibToriPlatformSDL2_RendererSoft3D* g_renderer_soft3d;
 static struct LibToriRS_CommandQueue* g_command_queue;
+static bool g_use_soft3d;
 static enum BrowserMainLoopState g_state = BROWSER_MAIN_LOOP_STATE_FRAME;
 
 EMSCRIPTEN_KEEPALIVE
@@ -74,7 +77,10 @@ browser_main_loop(void)
         LibToriRS_IOQueueClear(LibToriRS_GetIOQueue(g_instance));
         LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(g_instance));
 
-        LibToriPlatformSDL2_RendererWebGL1_Render(g_renderer, g_instance);
+        if( g_use_soft3d )
+            LibToriPlatformSDL2_RendererSoft3D_Render(g_renderer_soft3d, g_instance, NULL);
+        else
+            LibToriPlatformSDL2_RendererWebGL1_Render(g_renderer, g_instance);
 
         break;
     }
@@ -91,7 +97,7 @@ main(
     bool const use_soft3d = has_flag(argc, argv, "--soft3d");
     bool const use_runescape = has_flag(argc, argv, "--runescape");
     if( use_soft3d )
-        printf("Warning: --soft3d is not supported in the browser build (WebGL1 only)\n");
+        printf("Renderer: software 3D (CPU)\n");
     if( use_runescape )
         printf("Game: runescape world\n");
 
@@ -111,29 +117,50 @@ main(
 
     const int screen_w = 800;
     const int screen_h = 600;
-    // if( !LibToriPlatformSDL2_InitForSoft3D(platform, screen_w, screen_h) )
-    // {
-    //     printf("Failed to init SDL2 window\n");
-    //     return 1;
-    // }
-    if( !LibToriPlatformSDL2_InitForWebGL1(platform, screen_w, screen_h) )
-    {
-        printf("Failed to init SDL2 window\n");
-        return 1;
-    }
 
-    struct LibToriPlatformSDL2_RendererWebGL1* renderer_webgl1 =
-        LibToriPlatformSDL2_RendererWebGL1_New(screen_w, screen_h);
-    if( !renderer_webgl1 )
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer_webgl1 = NULL;
+    struct LibToriPlatformSDL2_RendererSoft3D* renderer_soft3d = NULL;
+
+    if( use_soft3d )
     {
-        printf("Failed to create WebGL1 renderer\n");
-        return 1;
+        if( !LibToriPlatformSDL2_InitForSoft3D(platform, screen_w, screen_h) )
+        {
+            printf("Failed to init SDL2 soft3d window\n");
+            return 1;
+        }
+        renderer_soft3d = LibToriPlatformSDL2_RendererSoft3D_New(screen_w, screen_h);
+        if( !renderer_soft3d )
+        {
+            printf("Failed to create soft3d renderer\n");
+            return 1;
+        }
+        if( !LibToriPlatformSDL2_RendererSoft3D_Init(
+                renderer_soft3d, LibToriPlatformSDL2_GetWindow(platform)) )
+        {
+            printf("Failed to init soft3d renderer\n");
+            return 1;
+        }
     }
-    if( !LibToriPlatformSDL2_RendererWebGL1_Init(
-            renderer_webgl1, LibToriPlatformSDL2_GetWindow(platform)) )
+    else
     {
-        printf("Failed to init WebGL1 renderer\n");
-        return 1;
+        if( !LibToriPlatformSDL2_InitForWebGL1(platform, screen_w, screen_h) )
+        {
+            printf("Failed to init SDL2 window\n");
+            return 1;
+        }
+
+        renderer_webgl1 = LibToriPlatformSDL2_RendererWebGL1_New(screen_w, screen_h);
+        if( !renderer_webgl1 )
+        {
+            printf("Failed to create WebGL1 renderer\n");
+            return 1;
+        }
+        if( !LibToriPlatformSDL2_RendererWebGL1_Init(
+                renderer_webgl1, LibToriPlatformSDL2_GetWindow(platform)) )
+        {
+            printf("Failed to init WebGL1 renderer\n");
+            return 1;
+        }
     }
 
     struct LibToriRS_CommandQueue* command_queue = LibToriRS_CommandQueue_New();
@@ -161,6 +188,8 @@ main(
     g_instance = instance;
     g_platform = platform;
     g_renderer = renderer_webgl1;
+    g_renderer_soft3d = renderer_soft3d;
+    g_use_soft3d = use_soft3d;
     g_command_queue = command_queue;
 
     emscripten_set_main_loop(browser_main_loop, 0, 0);

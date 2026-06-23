@@ -95,4 +95,18 @@ game_runescape_frame_next_command(
 void
 game_runescape_frame_end(struct GameRunescape* game);
 
+int
+game_runescape_spawn_projectile(
+    struct GameRunescape* game,
+    int model_id,
+    int seq_id,
+    int sx,
+    int sz,
+    int level,
+    int sub_x,
+    int sub_z,
+    int vel_x,
+    int vel_z,
+    int yaw);
+
 #endif

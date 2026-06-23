@@ -10,6 +10,8 @@
 struct Heightmap;
 struct Minimap;
 
+#define WORLD_MAX_PROJECTILES 256
+
 #define WORLD_MAP_TERRAIN_X 64
 #define WORLD_MAP_TERRAIN_Z 64
 #define WORLD_MAP_TERRAIN_LEVELS 4
@@ -24,6 +26,18 @@ world_map_tile_coord(
 }
 
 #define WORLD_MAP_TILE_COORD(x, z, level) (world_map_tile_coord(x, z, level))
+
+struct WorldProjectile
+{
+    bool alive;
+    int element_id;
+    int level;
+    int pos_x;
+    int pos_z;
+    int vel_x;
+    int vel_z;
+    int yaw;
+};
 
 struct World
 {
@@ -44,6 +58,9 @@ struct World
     struct Painter* painter;
     struct PaintersCullMap* cullmap;
     int* terrain_element_ids;
+
+    struct WorldProjectile projectiles[WORLD_MAX_PROJECTILES];
+    int projectile_count;
 
     bool load_complete;
 };
@@ -90,5 +107,26 @@ world_terrain_element_at(
     int x,
     int z,
     int level);
+
+int
+world_projectile_spawn(
+    struct World* world,
+    int element_id,
+    int level,
+    int pos_x,
+    int pos_z,
+    int vel_x,
+    int vel_z,
+    int yaw);
+
+void
+world_projectile_despawn(
+    struct World* world,
+    int idx);
+
+void
+world_cycle(
+    struct World* world,
+    int cycles_elapsed);
 
 #endif

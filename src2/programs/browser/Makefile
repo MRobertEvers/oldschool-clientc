@@ -75,6 +75,7 @@ SRC   := browser.c \
 	$(PLAT_DIR)/platform_emscripten_jshost.c \
 	$(PLAT_DIR)/platform_js_capi.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2.c \
+	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_soft3d.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_webgl1.c \
 	$(SRC2)/platformkit/core/trspk_atlas.c \
 	$(SRC2)/platformkit/core/trspk_vbo.c \

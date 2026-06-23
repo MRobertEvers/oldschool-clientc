@@ -1,0 +1,17 @@
+Initializing RuneScape world (Lua)
+LibToriRS_ScriptAPI_Game_Runescape_Init
+LibToriRS_ScriptAPI_Dat1_ConfigFileFetch
+LibToriRS_ScriptAPI_Dat1_ConfigFileLoad
+CacheDatArchive: 0xc54c24ec0
+Config file loaded
+LibToriRS_ScriptAPI_Dat1_TexturesFetch
+LibToriRS_ScriptAPI_Dat1_TexturesLoad
+cache_texture: 0xc55105530
+Textures loaded
+LibToriRS_ScriptAPI_Dat1_SubmitTextures
+Textures submitted
+LibToriRS_ScriptAPI_Game_Runescape_BuildWorld
+World built
+LibToriRS_ScriptAPI_Dat1_ModelFetch
+LibToriRS_ScriptAPI_Dat1_ModelLoad
+LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel

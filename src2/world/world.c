@@ -138,3 +138,144 @@ world_terrain_element_at(
     int idx = x + z * world->_scene_size + level * world->_scene_size * world->_scene_size;
     return world->terrain_element_ids[idx];
 }
+
+int
+world_projectile_spawn(
+    struct World* world,
+    int element_id,
+    int level,
+    int pos_x,
+    int pos_z,
+    int vel_x,
+    int vel_z,
+    int yaw)
+{
+    if( !world || element_id < 0 )
+        return -1;
+
+    int idx = -1;
+    for( int i = 0; i < world->projectile_count; i++ )
+    {
+        if( !world->projectiles[i].alive )
+        {
+            idx = i;
+            break;
+        }
+    }
+
+    if( idx < 0 )
+    {
+        if( world->projectile_count >= WORLD_MAX_PROJECTILES )
+            return -1;
+        idx = world->projectile_count++;
+    }
+
+    world->projectiles[idx] = (struct WorldProjectile){
+        .alive = true,
+        .element_id = element_id,
+        .level = level,
+        .pos_x = pos_x,
+        .pos_z = pos_z,
+        .vel_x = vel_x,
+        .vel_z = vel_z,
+        .yaw = yaw,
+    };
+    return idx;
+}
+
+#define WORLD_PROJECTILE_PAINTER_PADDING 60
+
+struct WorldPainterFootprint
+{
+    int sx;
+    int sz;
+    int size_x;
+    int size_z;
+};
+
+static void
+world_projectile_painter_footprint(
+    int pos_x,
+    int pos_z,
+    int draw_padding,
+    int scene_size,
+    struct WorldPainterFootprint* out)
+{
+    int x0 = (pos_x - draw_padding) / 128;
+    int z0 = (pos_z - draw_padding) / 128;
+    int x1 = (pos_x + draw_padding) / 128;
+    int z1 = (pos_z + draw_padding) / 128;
+
+    if( x0 < 0 )
+        x0 = 0;
+    if( z0 < 0 )
+        z0 = 0;
+    if( x1 >= scene_size )
+        x1 = scene_size - 1;
+    if( z1 >= scene_size )
+        z1 = scene_size - 1;
+
+    out->sx = x0;
+    out->sz = z0;
+    out->size_x = x1 - x0 + 1;
+    out->size_z = z1 - z0 + 1;
+}
+
+void
+world_projectile_despawn(
+    struct World* world,
+    int idx)
+{
+    if( !world || idx < 0 || idx >= world->projectile_count )
+        return;
+    world->projectiles[idx].alive = false;
+}
+
+void
+world_cycle(
+    struct World* world,
+    int cycles_elapsed)
+{
+    if( !world || !world->painter || !world->load_complete )
+        return;
+
+    painter_reset_to_static(world->painter);
+
+    for( int i = 0; i < world->projectile_count; i++ )
+    {
+        struct WorldProjectile* p = &world->projectiles[i];
+        if( !p->alive )
+            continue;
+
+        if( cycles_elapsed > 0 )
+        {
+            p->pos_x += p->vel_x * cycles_elapsed;
+            p->pos_z += p->vel_z * cycles_elapsed;
+        }
+
+        int grid_x = p->pos_x >> 7;
+        int grid_z = p->pos_z >> 7;
+        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size || grid_z >= world->_scene_size )
+        {
+            world_projectile_despawn(world, i);
+            continue;
+        }
+
+        struct WorldPainterFootprint footprint;
+        world_projectile_painter_footprint(
+            p->pos_x,
+            p->pos_z,
+            WORLD_PROJECTILE_PAINTER_PADDING,
+            world->_scene_size,
+            &footprint);
+
+        painter_add_normal_scenery(
+            world->painter,
+            footprint.sx,
+            footprint.sz,
+            p->level,
+            p->element_id,
+            footprint.size_x,
+            footprint.size_z);
+    }
+}

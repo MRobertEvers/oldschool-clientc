@@ -1,10 +1,14 @@
 #include "runescape.h"
 
 #include "../toriauxlib/core/toriauxlibcore.h"
+#include "../toriauxlib/td/toriauxlibtd.h"
+#include "../world/heightmap.h"
 #include "../world/world_builder.h"
 #include "toridraw/toridraw.h"
+#include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_math.h"
 #include "toridraw/toridraw_model.h"
+#include "toridraw/toridraw_model_transform.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -321,6 +325,28 @@ game_runescape_process_input(
 }
 
 static void
+game_runescape_sync_projectiles_to_scene(struct GameRunescape* game)
+{
+    struct World* world = game->world;
+    if( !world || !game->scene || !world->load_complete )
+        return;
+
+    for( int i = 0; i < world->projectile_count; i++ )
+    {
+        struct WorldProjectile* p = &world->projectiles[i];
+        if( !p->alive || p->element_id < 0 )
+            continue;
+
+        int pos_y = 0;
+        if( world->heightmap )
+            pos_y = heightmap_get_interpolated(world->heightmap, p->pos_x, p->pos_z, p->level);
+
+        ToriDraw_SceneElementSetPosition(
+            game->scene, p->element_id, p->pos_x, pos_y, p->pos_z, p->yaw);
+    }
+}
+
+static void
 game_runescape_tick_animations(struct GameRunescape* game)
 {
     if( !game->scene )
@@ -332,8 +358,7 @@ game_runescape_tick_animations(struct GameRunescape* game)
         if( !ToriDraw_SceneElementIsLive(game->scene, element_id) )
             continue;
 
-        struct ToriDraw_SceneElement* element =
-            ToriDraw_SceneElementGet(game->scene, element_id);
+        struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(game->scene, element_id);
         if( !element || element->anim_seq_id == -1 || !element->animation )
             continue;
 
@@ -352,7 +377,9 @@ game_runescape_tick_animations(struct GameRunescape* game)
 }
 
 void
-game_runescape_frame_begin(struct GameRunescape* game, int cycles_elapsed)
+game_runescape_frame_begin(
+    struct GameRunescape* game,
+    int cycles_elapsed)
 {
     game->frame.phase = RS_FRAME_PHASE_GC_EVENTS;
     game->frame.event_index = 0;
@@ -362,6 +389,9 @@ game_runescape_frame_begin(struct GameRunescape* game, int cycles_elapsed)
     game->frame.painter_paint_done = false;
     for( int i = 0; i < cycles_elapsed; i++ )
         game_runescape_tick_animations(game);
+    if( game->world )
+        world_cycle(game->world, cycles_elapsed);
+    game_runescape_sync_projectiles_to_scene(game);
     game_runescape_update_world_viewport(game);
 }
 
@@ -492,4 +522,69 @@ game_runescape_frame_end(struct GameRunescape* game)
     ToriDraw_SceneFrameEnd(game->scene);
 
     game->frame.phase = RS_FRAME_PHASE_DONE;
+}
+
+int
+game_runescape_spawn_projectile(
+    struct GameRunescape* game,
+    int model_id,
+    int seq_id,
+    int sx,
+    int sz,
+    int level,
+    int sub_x,
+    int sub_z,
+    int vel_x,
+    int vel_z,
+    int yaw)
+{
+    if( !game || !game->world || !game->scene || !game->td )
+        return -1;
+
+    struct ToriDraw_ModelHandle cached = ToriAuxLibTD_Model(game->td, model_id);
+    if( cached.kind != TORIDRAWMK_MODEL || !cached.u.model.model )
+        return -1;
+    if( !ToriDraw_ModelGetBoundsCylinder(cached) )
+        return -1;
+
+    struct ToriDraw_Model* model = ToriDraw_ModelCopy(cached.u.model.model);
+    if( !model )
+        return -1;
+
+    struct ToriDraw_ModelHandle hnd = {
+        .kind = TORIDRAWMK_MODEL,
+        .u.model.model = model,
+    };
+
+    if( ToriDraw_ModelIsLightable(model) )
+    {
+        ToriDraw_LightModelDefault(hnd, 0, 0);
+        ToriDraw_ModelFreeNormals(model);
+    }
+
+    int element_id = ToriDraw_SceneElementAdd(game->scene);
+    if( element_id < 0 )
+        return -1;
+
+    ToriDraw_SceneElementSetModel(game->scene, element_id, hnd);
+
+    if( seq_id != -1 )
+    {
+        ToriDraw_SceneElementSetAnimationSeq(game->scene, element_id, seq_id);
+        struct ToriDraw_Animation* anim = ToriAuxLibTD_SequenceAnimation(game->td, seq_id);
+        ToriDraw_SceneElementSetAnimation(game->scene, element_id, anim, true);
+    }
+
+    int pos_x = sx * 128 + sub_x;
+    int pos_z = sz * 128 + sub_z;
+    int projectile_idx = world_projectile_spawn(
+        game->world, element_id, level, pos_x, pos_z, vel_x, vel_z, yaw);
+    if( projectile_idx < 0 )
+        return -1;
+
+    int pos_y = 0;
+    if( game->world->heightmap )
+        pos_y = heightmap_get_interpolated(game->world->heightmap, pos_x, pos_z, level);
+    ToriDraw_SceneElementSetPosition(game->scene, element_id, pos_x, pos_y, pos_z, yaw);
+    return projectile_idx;
 }

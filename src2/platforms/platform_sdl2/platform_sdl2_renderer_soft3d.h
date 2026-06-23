@@ -7,6 +7,13 @@
 struct LibToriPlatformSDL2_RendererSoft3D;
 struct LibToriRS_Instance;
 
+struct LibToriPlatformSDL2_RendererSoft3D_Stats
+{
+    int track_element_id;
+    int draw_model_count;
+    bool track_element_drawn;
+};
+
 struct LibToriPlatformSDL2_RendererSoft3D*
 LibToriPlatformSDL2_RendererSoft3D_New(
     int width,
@@ -23,6 +30,7 @@ LibToriPlatformSDL2_RendererSoft3D_Init(
 void
 LibToriPlatformSDL2_RendererSoft3D_Render(
     struct LibToriPlatformSDL2_RendererSoft3D* renderer,
-    struct LibToriRS_Instance* instance);
+    struct LibToriRS_Instance* instance,
+    struct LibToriPlatformSDL2_RendererSoft3D_Stats* stats);
 
 #endif

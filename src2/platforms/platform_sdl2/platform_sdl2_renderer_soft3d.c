@@ -146,8 +146,19 @@ LibToriPlatformSDL2_RendererSoft3D_Init(
 void
 LibToriPlatformSDL2_RendererSoft3D_Render(
     struct LibToriPlatformSDL2_RendererSoft3D* renderer,
-    struct LibToriRS_Instance* instance)
+    struct LibToriRS_Instance* instance,
+    struct LibToriPlatformSDL2_RendererSoft3D_Stats* stats)
 {
+    int track_element_id = -1;
+    int draw_model_count = 0;
+    bool track_element_drawn = false;
+    if( stats )
+    {
+        track_element_id = stats->track_element_id;
+        stats->draw_model_count = 0;
+        stats->track_element_drawn = false;
+    }
+
     size_t const pixel_count = (size_t)renderer->width * (size_t)renderer->height;
     memset(renderer->pixel_buffer, 0, pixel_count * sizeof(int));
 
@@ -174,6 +185,10 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             if( !draw_context || !has_3d )
                 break;
             {
+                draw_model_count++;
+                if( track_element_id >= 0 &&
+                    command.u.model.element_id == track_element_id )
+                    track_element_drawn = true;
                 struct ToriDraw_Position tmp_pos = cur_3d.camera_position;
                 struct ToriDraw_ViewPort tmp_vp = cur_3d.view_port;
                 struct ToriDraw_Camera tmp_cam = cur_3d.camera;
@@ -262,6 +277,12 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
         }
     }
     LibToriRS_FrameEnd(instance);
+
+    if( stats )
+    {
+        stats->draw_model_count = draw_model_count;
+        stats->track_element_drawn = track_element_drawn;
+    }
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         renderer->pixel_buffer,

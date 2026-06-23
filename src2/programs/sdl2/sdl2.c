@@ -266,7 +266,7 @@ main(
         LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(instance));
 
         if( use_soft3d )
-            LibToriPlatformSDL2_RendererSoft3D_Render(renderer_soft3d, instance);
+            LibToriPlatformSDL2_RendererSoft3D_Render(renderer_soft3d, instance, NULL);
 #if defined(_WIN32)
         else
             LibToriPlatformSDL2_RendererD3D9_Render(renderer, instance);

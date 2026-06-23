@@ -1,0 +1,1 @@
+FAIL: render pipeline never emitted DRAW_MODEL for projectile element
