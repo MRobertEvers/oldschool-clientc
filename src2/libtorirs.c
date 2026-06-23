@@ -228,7 +228,9 @@ LibToriRS_TickInput(
         return;
 
     instance->input_accumulator_ms += time_ms - instance->last_frame_ms;
+    instance->anim_accumulator_ms += time_ms - instance->anim_last_tick_ms;
     instance->last_frame_ms = time_ms;
+    instance->anim_last_tick_ms = time_ms;
 
     if( LibToriRS_CommandQueue_IsQuit(command_queue) )
     {
@@ -338,15 +340,24 @@ LibToriRS_FrameBegin(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return;
+
+    int cycles_elapsed = 0;
+    while( instance->anim_accumulator_ms >= LIBTORIRS_ANIM_SAMPLE_MS &&
+           cycles_elapsed < LIBTORIRS_ANIM_MAX_TICKS_PER_FRAME )
+    {
+        instance->anim_accumulator_ms -= LIBTORIRS_ANIM_SAMPLE_MS;
+        cycles_elapsed++;
+    }
+
     switch( instance->active_game_kind )
     {
     case GAME_HANDLE_KIND_MODEL_VIEWER:
         if( instance->model_viewer )
-            game_modelviewer_frame_begin(instance->model_viewer);
+            game_modelviewer_frame_begin(instance->model_viewer, cycles_elapsed);
         break;
     case GAME_HANDLE_KIND_RUNESCAPE:
         if( instance->runescape )
-            game_runescape_frame_begin(instance->runescape);
+            game_runescape_frame_begin(instance->runescape, cycles_elapsed);
         break;
     default:
         break;

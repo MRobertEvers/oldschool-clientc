@@ -155,6 +155,11 @@ dat1_buildcache_animbaseframes_get(
     struct Dat1BuildCache* dat1_buildcache,
     int animbaseframes_id);
 
+struct RSCacheDat1A_AnimBaseFrames*
+dat1_buildcache_animbaseframes_take(
+    struct Dat1BuildCache* dat1_buildcache,
+    int animbaseframes_id);
+
 bool
 dat1_buildcache_animbaseframes_has(
     struct Dat1BuildCache* dat1_buildcache,

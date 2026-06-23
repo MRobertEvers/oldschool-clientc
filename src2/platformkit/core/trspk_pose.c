@@ -35,26 +35,26 @@ trspk_pose_table_grow_elements(
 }
 
 static bool
-trspk_pose_element_grow_poses(
-    struct TRSPK_PoseElement* element,
+trspk_pose_track_grow_poses(
+    struct TRSPK_PoseTrack* track,
     uint32_t min_cap)
 {
-    if( min_cap <= element->pose_cap )
+    if( min_cap <= track->pose_cap )
         return true;
 
-    uint32_t new_cap = element->pose_cap ? element->pose_cap : TRSPK_POSE_TABLE_INITIAL_POSE_CAP;
+    uint32_t new_cap = track->pose_cap ? track->pose_cap : TRSPK_POSE_TABLE_INITIAL_POSE_CAP;
     while( new_cap < min_cap )
         new_cap *= 2u;
 
-    uint32_t* new_base = (uint32_t*)realloc(element->vertex_base, new_cap * sizeof(uint32_t));
+    uint32_t* new_base = (uint32_t*)realloc(track->vertex_base, new_cap * sizeof(uint32_t));
     if( !new_base )
         return false;
 
-    for( uint32_t i = element->pose_cap; i < new_cap; ++i )
+    for( uint32_t i = track->pose_cap; i < new_cap; ++i )
         new_base[i] = TRSPK_POSE_VERTEX_BASE_INVALID;
 
-    element->vertex_base = new_base;
-    element->pose_cap = new_cap;
+    track->vertex_base = new_base;
+    track->pose_cap = new_cap;
     return true;
 }
 
@@ -76,7 +76,10 @@ trspk_pose_table_free(struct TRSPK_PoseTable* table)
         return;
 
     for( uint32_t i = 0u; i < table->element_cap; ++i )
-        free(table->elements[i].vertex_base);
+    {
+        for( int t = 0; t < TRSPK_POSE_TRACK_COUNT; ++t )
+            free(table->elements[i].tracks[t].vertex_base);
+    }
 
     free(table->elements);
     table->elements = NULL;
@@ -91,18 +94,23 @@ trspk_pose_table_clear(struct TRSPK_PoseTable* table)
         return;
 
     for( uint32_t i = 0u; i < table->element_cap; ++i )
-        table->elements[i].pose_count = 0u;
+    {
+        for( int t = 0; t < TRSPK_POSE_TRACK_COUNT; ++t )
+            table->elements[i].tracks[t].pose_count = 0u;
+    }
 }
 
 void
 trspk_pose_table_set(
     struct TRSPK_PoseTable* table,
     int element_id,
+    int anim_index,
     int pose_id,
     uint32_t vertex_base)
 {
     assert(table != NULL);
     assert(element_id >= 0);
+    assert(anim_index >= 0 && anim_index < TRSPK_POSE_TRACK_COUNT);
     assert(pose_id >= 0);
 
     const uint32_t element_idx = (uint32_t)element_id;
@@ -111,31 +119,33 @@ trspk_pose_table_set(
     if( !trspk_pose_table_grow_elements(table, element_idx + 1u) )
         return;
 
-    struct TRSPK_PoseElement* element = &table->elements[element_idx];
-    if( !trspk_pose_element_grow_poses(element, pose_idx + 1u) )
+    struct TRSPK_PoseTrack* track = &table->elements[element_idx].tracks[anim_index];
+    if( !trspk_pose_track_grow_poses(track, pose_idx + 1u) )
         return;
 
-    if( pose_idx >= element->pose_count )
+    if( pose_idx >= track->pose_count )
     {
-        for( uint32_t i = element->pose_count; i < pose_idx; ++i )
-            element->vertex_base[i] = TRSPK_POSE_VERTEX_BASE_INVALID;
-        element->pose_count = pose_idx + 1u;
+        for( uint32_t i = track->pose_count; i < pose_idx; ++i )
+            track->vertex_base[i] = TRSPK_POSE_VERTEX_BASE_INVALID;
+        track->pose_count = pose_idx + 1u;
     }
 
-    element->vertex_base[pose_idx] = vertex_base;
+    track->vertex_base[pose_idx] = vertex_base;
 }
 
 bool
 trspk_pose_table_get(
     const struct TRSPK_PoseTable* table,
     int element_id,
+    int anim_index,
     int pose_id,
     uint32_t* out_vertex_base)
 {
     assert(table != NULL);
     assert(out_vertex_base != NULL);
 
-    if( element_id < 0 || pose_id < 0 || !table->elements )
+    if( element_id < 0 || anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT ||
+        pose_id < 0 || !table->elements )
         return false;
 
     const uint32_t element_idx = (uint32_t)element_id;
@@ -144,11 +154,11 @@ trspk_pose_table_get(
     if( element_idx >= table->element_count )
         return false;
 
-    const struct TRSPK_PoseElement* element = &table->elements[element_idx];
-    if( pose_idx >= element->pose_count )
+    const struct TRSPK_PoseTrack* track = &table->elements[element_idx].tracks[anim_index];
+    if( pose_idx >= track->pose_count )
         return false;
 
-    const uint32_t base = element->vertex_base[pose_idx];
+    const uint32_t base = track->vertex_base[pose_idx];
     if( base == TRSPK_POSE_VERTEX_BASE_INVALID )
         return false;
 
@@ -168,5 +178,6 @@ trspk_pose_table_remove_element(
     if( element_idx >= table->element_count )
         return;
 
-    table->elements[element_idx].pose_count = 0u;
+    for( int t = 0; t < TRSPK_POSE_TRACK_COUNT; ++t )
+        table->elements[element_idx].tracks[t].pose_count = 0u;
 }

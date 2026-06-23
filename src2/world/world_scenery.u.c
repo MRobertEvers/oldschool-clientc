@@ -333,44 +333,13 @@ scenery_load_animation(
     int element_id,
     int seq_id)
 {
-    struct World* world = builder->world;
     if( seq_id == -1 )
         return;
 
-    struct ToriAuxLibCore_Sequence* seq = ToriAuxLibCore_SequenceGet(builder->core, seq_id);
-    assert(seq && "scenery_set_animation: invalid seq_id");
-
     ToriDraw_SceneElementSetAnimationSeq(builder->scene, element_id, seq_id);
-
-    struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(builder->scene, element_id);
-    assert(element && "scenery_set_animation: invalid element_id");
-
-    struct ToriDraw_Model* source = element->model.u.model.model;
 
     struct ToriDraw_Animation* resolved = ToriAuxLibTD_SequenceAnimation(builder->td, seq_id);
     assert(resolved && "scenery_set_animation: invalid resolved animation");
-
-    for( int frame = 0; frame < resolved->frame_count; frame++ )
-    {
-        const struct ToriDraw_AnimFrame* anim_frame = &resolved->frames[frame];
-        const struct ToriDraw_AnimBase* anim_base = resolved->base;
-
-        struct ToriDraw_Model* baked = ToriDraw_ModelCopy(source);
-        if( !baked )
-            continue;
-
-        ToriDraw_ModelCaptureOriginalVertices(baked);
-        ToriDraw_ModelAnimateReset(baked);
-        ToriDraw_ModelAnimateFrame(baked, anim_base, anim_frame);
-
-        struct ToriDraw_ModelHandle hnd = {
-            .kind = TORIDRAWMK_MODEL,
-            .u.model.model = baked,
-        };
-        ToriDraw_SceneBatchElementAddPose(builder->scene, element_id, frame, hnd);
-    }
-
-    ToriDraw_ModelAnimateReset(source);
 
     ToriDraw_SceneElementSetAnimation(builder->scene, element_id, resolved, true);
 }
@@ -627,9 +596,9 @@ scenery_add_wall_decor_inside(
         fprintf(stderr, "scenery_add_wall_decor_inside: invalid element_id=%d\n", element_id);
         abort();
     }
-    scenery_load_animation(builder, element_id, config_loc->seq_id);
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
     painter_add_wall_decor(
         world->painter,
         scene_x,
@@ -682,10 +651,9 @@ scenery_add_wall_decor_outside(
         fprintf(stderr, "scenery_add_wall_decor_outside: invalid element_id=%d\n", element_id);
         abort();
     }
-    scenery_load_animation(builder, element_id, config_loc->seq_id);
-
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
 
     painter_add_wall_decor(
         world->painter,
@@ -741,9 +709,9 @@ scenery_add_wall_decor_diagonal_outside(
             stderr, "scenery_add_wall_decor_diagonal_outside: invalid element_id=%d\n", element_id);
         abort();
     }
-    scenery_load_animation(builder, element_id, config_loc->seq_id);
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
     painter_add_wall_decor(
         world->painter,
         scene_x,
@@ -799,9 +767,9 @@ scenery_add_wall_decor_diagonal_inside(
         abort();
     }
 
-    scenery_load_animation(builder, element_id, config_loc->seq_id);
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
     painter_add_wall_decor(
         world->painter,
         scene_x,
@@ -884,12 +852,12 @@ scenery_add_wall_decor_diagonal_double(
         abort();
     }
 
-    scenery_load_animation(builder, outside_element_id, config_loc->seq_id);
-    scenery_load_animation(builder, inside_element_id, config_loc->seq_id);
     scenery_element_position_init(
         builder, outside_element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, outside_yaw);
     scenery_element_position_init(
         builder, inside_element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, inside_yaw);
+    scenery_load_animation(builder, outside_element_id, config_loc->seq_id);
+    scenery_load_animation(builder, inside_element_id, config_loc->seq_id);
 
     painter_add_wall_decor(
         world->painter,
@@ -1012,10 +980,9 @@ scenery_add_normal(
         fprintf(stderr, "scenery_add_normal: invalid element_id=%d\n", element_id);
         abort();
     }
-    scenery_load_animation(builder, element_id, config_loc->seq_id);
-
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, yaw);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
 
     painter_add_normal_scenery(
         world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id, size_x, size_z);

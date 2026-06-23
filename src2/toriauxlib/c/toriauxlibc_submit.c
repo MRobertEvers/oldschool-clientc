@@ -104,7 +104,7 @@ ToriAuxLibC_SubmitAnimationFromDat1(
     struct ToriAuxLibC* c,
     int anim_id)
 {
-    struct RSCacheDat1A_AnimBaseFrames* abf = dat1_buildcache_animbaseframes_get(dat1(c), anim_id);
+    struct RSCacheDat1A_AnimBaseFrames* abf = dat1_buildcache_animbaseframes_take(dat1(c), anim_id);
     if( !abf )
         return;
 

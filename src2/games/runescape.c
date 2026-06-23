@@ -51,6 +51,7 @@ game_runescape_translate_gc_event(
         command->u.batch.batch_id = ev->batch_id;
         command->u.batch.element_id = ev->element_id;
         command->u.batch.pose_id = ev->pose_id;
+        command->u.batch.anim_index = ev->anim_index;
         command->u.batch.model = ev->model;
         command->u.batch.world_position = ev->world_position;
         return true;
@@ -66,6 +67,8 @@ game_runescape_translate_gc_event(
         command->kind = TORIRSRC_ANIM_LOAD;
         command->u.anim_load.element_id = ev->element_id;
         command->u.anim_load.animation = ev->animation;
+        command->u.anim_load.model = ev->model;
+        command->u.anim_load.world_position = ev->world_position;
         return true;
     case TORIDRAW_EVENT_ANIM_UNLOAD:
         command->kind = TORIRSRC_ANIM_UNLOAD;
@@ -121,6 +124,9 @@ game_runescape_emit_draw_element(
     rel_pos.z -= game->camera_position->z;
     rel_pos.yaw = ToriDraw_NormalizeAngle(element->world_position.yaw);
 
+    if( element->anim_seq_id != -1 && element->animation )
+        ToriDraw_SceneElementApplyAnimation(game->scene, element_id, true, element->anim_frame);
+
     if( game->scene )
     {
         const int cull = ToriDraw_RenderModel1Project(
@@ -136,6 +142,7 @@ game_runescape_emit_draw_element(
     command->u.model.element_id = element_id;
     command->u.model.position = rel_pos;
     command->u.model.animation = element->animation;
+    command->u.model.anim_index = 0;
     command->u.model.anim_frame = element->anim_frame;
 
     return true;
@@ -313,8 +320,39 @@ game_runescape_process_input(
         game->camera->pitch = ToriDraw_AddAngle(game->camera->pitch, -rotate);
 }
 
+static void
+game_runescape_tick_animations(struct GameRunescape* game)
+{
+    if( !game->scene )
+        return;
+
+    int slot_count = ToriDraw_SceneElementSlotCount(game->scene);
+    for( int element_id = 0; element_id < slot_count; element_id++ )
+    {
+        if( !ToriDraw_SceneElementIsLive(game->scene, element_id) )
+            continue;
+
+        struct ToriDraw_SceneElement* element =
+            ToriDraw_SceneElementGet(game->scene, element_id);
+        if( !element || element->anim_seq_id == -1 || !element->animation )
+            continue;
+
+        const struct ToriDraw_Animation* anim = element->animation;
+        if( anim->frame_count <= 0 || !anim->frames )
+            continue;
+
+        element->anim_cycle++;
+        const int delay = anim->frames[element->anim_frame].delay;
+        if( element->anim_cycle >= delay )
+        {
+            element->anim_frame = (element->anim_frame + 1) % anim->frame_count;
+            element->anim_cycle = 0;
+        }
+    }
+}
+
 void
-game_runescape_frame_begin(struct GameRunescape* game)
+game_runescape_frame_begin(struct GameRunescape* game, int cycles_elapsed)
 {
     game->frame.phase = RS_FRAME_PHASE_GC_EVENTS;
     game->frame.event_index = 0;
@@ -322,6 +360,8 @@ game_runescape_frame_begin(struct GameRunescape* game)
     game->frame.painter_command_index = 0;
     game->frame.world_emitted = false;
     game->frame.painter_paint_done = false;
+    for( int i = 0; i < cycles_elapsed; i++ )
+        game_runescape_tick_animations(game);
     game_runescape_update_world_viewport(game);
 }
 

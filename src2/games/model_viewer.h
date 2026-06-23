@@ -148,7 +148,7 @@ game_modelviewer_next(
     int step);
 
 void
-game_modelviewer_frame_begin(struct GameModelViewer* game_model_viewer);
+game_modelviewer_frame_begin(struct GameModelViewer* game_model_viewer, int cycles_elapsed);
 
 bool
 game_modelviewer_frame_next_command(

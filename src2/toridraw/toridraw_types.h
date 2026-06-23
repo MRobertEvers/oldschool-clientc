@@ -237,6 +237,7 @@ struct ToriDraw_Event
     int batch_id;
     int element_id;
     int pose_id;
+    int anim_index;
     int texture_id;
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Animation* animation;

@@ -126,6 +126,13 @@ ToriDraw_SceneElementSetAnimationSeq(
     int seq_id);
 
 void
+ToriDraw_SceneElementApplyAnimation(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    bool primary,
+    int frame);
+
+void
 ToriDraw_SceneElementSetPosition(
     struct ToriDraw_Scene* scene,
     int element_id,
@@ -154,6 +161,7 @@ void
 ToriDraw_SceneBatchElementAddPose(
     struct ToriDraw_Scene* scene,
     int element_id,
+    int anim_index,
     int pose_id,
     struct ToriDraw_ModelHandle baked);
 

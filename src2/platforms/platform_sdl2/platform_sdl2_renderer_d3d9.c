@@ -1136,7 +1136,7 @@ d3d9_bake_into_arena(
             (float)tex_id);
     }
 
-    trspk_pose_table_set(&renderer->poses, element_id, pose_id, base);
+    trspk_pose_table_set(&renderer->poses, element_id, 0, pose_id, base);
 }
 
 static void
@@ -1226,7 +1226,7 @@ d3d9_ev_model_draw(
     const int pose_id = command->u.model.anim_frame;
     uint32_t vertex_base = 0u;
     if( !trspk_pose_table_get(
-            &renderer->poses, command->u.model.element_id, pose_id, &vertex_base) )
+            &renderer->poses, command->u.model.element_id, 0, pose_id, &vertex_base) )
     {
         assert(false && "Invalid element ID");
     }

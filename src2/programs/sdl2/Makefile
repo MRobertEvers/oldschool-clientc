@@ -293,12 +293,20 @@ OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o)))
 # Post-link step: copy runtime DLLs next to the exe on Windows; no-op elsewhere.
 POSTLINK ?=
 
+# clean + all in one invocation must not run in parallel (-j deletes OBJ_DIR mid-build).
+ifneq ($(filter clean,$(MAKECMDGOALS)),)
+ifneq ($(filter all,$(MAKECMDGOALS)),)
+.NOTPARALLEL:
+endif
+endif
+
 .PHONY: all clean asan
 
-all: $(OBJ_DIR) $(PROG)$(EXE)
+all: $(OBJ_DIR)/.stamp $(PROG)$(EXE)
 
-$(OBJ_DIR):
+$(OBJ_DIR)/.stamp:
 	mkdir -p $(OBJ_DIR)
+	touch $@
 
 asan_dyld_shim.dylib: $(PLAT_DIR)/asan_dyld_shim.c
 	$(CC) -dynamiclib -o $@ $< -DTORIRS_ENABLE_ASAN=1
@@ -308,7 +316,7 @@ $(PROG)$(EXE): $(OBJS) $(ASAN_DYLD_SHIM)
 	$(POSTLINK)
 
 define make-goal
-$(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
+$(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)/.stamp
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) -c $(1) -o $$@
 endef
 
@@ -317,20 +325,20 @@ LEGACY_TABLE_WARNINGS := -Wno-unused-function -Wno-unused-variable -Wno-unused-l
 
 $(foreach src,$(SRCS),$(eval $(call make-goal,$(src))))
 
-$(OBJ_DIR)/trspk_vertex_buffer.o: $(TRSPK_DIR)/src/tools/trspk_vertex_buffer.c
+$(OBJ_DIR)/trspk_vertex_buffer.o: $(TRSPK_DIR)/src/tools/trspk_vertex_buffer.c | $(OBJ_DIR)/.stamp
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) -Wno-unused-parameter -c $< -o $@
 
 # 3rd-party vendored libraries: compile with all warnings suppressed.
 THIRD_PARTY_CFLAGS := $(filter-out -Wall -Wextra -Werror,$(CFLAGS)) -w
 
-$(OBJ_DIR)/bzip.o: $(SRC_DIR)/3rd/bzip/bzip.c
+$(OBJ_DIR)/bzip.o: $(SRC_DIR)/3rd/bzip/bzip.c | $(OBJ_DIR)/.stamp
 	$(CC) $(CPPFLAGS) $(THIRD_PARTY_CFLAGS) $(SDL_CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/miniz.o: $(SRC_DIR)/3rd/miniz/miniz.c
+$(OBJ_DIR)/miniz.o: $(SRC_DIR)/3rd/miniz/miniz.c | $(OBJ_DIR)/.stamp
 	$(CC) $(CPPFLAGS) $(THIRD_PARTY_CFLAGS) $(SDL_CFLAGS) -c $< -o $@
 
 define make-lua-goal
-$(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
+$(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)/.stamp
 	$(CC) $(CPPFLAGS) $(THIRD_PARTY_CFLAGS) $(SDL_CFLAGS) -c $(1) -o $$@
 endef
 $(foreach src,$(LUA_SRC),$(eval $(call make-lua-goal,$(src))))
@@ -340,4 +348,5 @@ clean:
 	rm -rf $(OBJ_DIR)
 
 asan:
-	$(MAKE) ENABLE_ASAN=1 clean all
+	$(MAKE) ENABLE_ASAN=1 clean
+	$(MAKE) ENABLE_ASAN=1 all

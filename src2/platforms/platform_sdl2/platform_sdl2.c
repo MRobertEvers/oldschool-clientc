@@ -214,6 +214,8 @@ LibToriPlatformSDL2_PollEvents(
             LibToriRS_CommandQueue_PushQuitEvent(command_queue);
             break;
         case SDL_KEYDOWN:
+            if( event.key.repeat )
+                break;
             LibToriRS_CommandQueue_PushKeyEvent(
                 command_queue,
                 LibToriPlatformSDL2_SDLKeyCodeToKeyCode(event.key.keysym.sym),

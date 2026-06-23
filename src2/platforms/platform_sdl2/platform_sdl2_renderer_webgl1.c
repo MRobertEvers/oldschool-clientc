@@ -705,6 +705,7 @@ webgl1_bake_into_arena(
     trspk_pose_table_set(
         &renderer->poses,
         element_id,
+        0,
         pose_id,
         TRSPK_WEBGL1_ENCODE_PAGE_LOCAL(model_slot->page, model_slot->vertex_base));
 }
@@ -865,7 +866,7 @@ webgl1_handle_render_command(
         const int pose_id = command->u.model.anim_frame;
         uint32_t encoded_base = 0u;
         if( !trspk_pose_table_get(
-                &renderer->poses, command->u.model.element_id, pose_id, &encoded_base) )
+                &renderer->poses, command->u.model.element_id, 0, pose_id, &encoded_base) )
             break;
 
         const uint32_t page = TRSPK_WEBGL1_BASE_PAGE(encoded_base);

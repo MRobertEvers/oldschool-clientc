@@ -16,6 +16,7 @@
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_model.h"
+#include "toridraw/toridraw_model_transform.h"
 #include "toridraw/toridraw_types.h"
 
 #include <SDL.h>
@@ -670,11 +671,16 @@ gl3_ev_model_unload(
     trspk_pose_table_remove_element(&renderer->poses, element_id);
 }
 
+/* Stride used to encode (anim_index, frame) into the model arena's flat pose_id.
+   Must exceed the maximum number of frames any animation can have. */
+#define GL3_POSE_ARENA_TRACK_STRIDE 4096
+
 static void
 gl3_bake_into_arena(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     struct LibToriRS_Instance* instance,
     int element_id,
+    int anim_index,
     int pose_id,
     struct ToriDraw_ModelHandle model_handle,
     const struct ToriDraw_Position* world_position)
@@ -687,13 +693,16 @@ gl3_bake_into_arena(
     const uint32_t vert_count = (uint32_t)model->face_count * 3u;
     const uint32_t tri_count = (uint32_t)model->face_count;
 
+    /* Encode (anim_index, pose_id/frame) into a flat key for the model arena. */
+    const int arena_pose_id = anim_index * GL3_POSE_ARENA_TRACK_STRIDE + pose_id;
+
     const uint32_t existing_slot =
-        trspk_modelarena_find(renderer->model_arena, element_id, pose_id);
+        trspk_modelarena_find(renderer->model_arena, element_id, arena_pose_id);
     if( existing_slot != TRSPK_MODELSLOT_NULL_IDX )
         trspk_modelarena_unload(renderer->model_arena, existing_slot);
 
     const uint32_t slot_index =
-        trspk_modelarena_load(renderer->model_arena, element_id, pose_id, vert_count);
+        trspk_modelarena_load(renderer->model_arena, element_id, arena_pose_id, vert_count);
     const struct TRSPK_ModelSlot* model_slot =
         trspk_modelarena_get(renderer->model_arena, slot_index);
     assert(model_slot != NULL);
@@ -830,7 +839,48 @@ gl3_bake_into_arena(
             uv_mode);
     }
 
-    trspk_pose_table_set(&renderer->poses, element_id, pose_id, base);
+    trspk_pose_table_set(&renderer->poses, element_id, anim_index, pose_id, base);
+}
+
+static void
+gl3_ev_anim_load(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    assert(command->kind == TORIRSRC_ANIM_LOAD);
+
+    const int element_id = command->u.anim_load.element_id;
+    struct ToriDraw_Animation* animation = command->u.anim_load.animation;
+    const struct ToriDraw_ModelHandle* base_handle = &command->u.anim_load.model;
+    const struct ToriDraw_Position* world_position = &command->u.anim_load.world_position;
+
+    if( !animation || !animation->base || !animation->frames || animation->frame_count <= 0 )
+        return;
+    if( base_handle->kind != TORIDRAWMK_MODEL || !base_handle->u.model.model )
+        return;
+
+    struct ToriDraw_Model* source = base_handle->u.model.model;
+
+    for( int frame = 0; frame < animation->frame_count; frame++ )
+    {
+        struct ToriDraw_Model* baked = ToriDraw_ModelCopy(source);
+        if( !baked )
+            continue;
+
+        ToriDraw_ModelCaptureOriginalVertices(baked);
+        ToriDraw_ModelAnimateReset(baked);
+        ToriDraw_ModelAnimateFrame(baked, animation->base, &animation->frames[frame]);
+
+        struct ToriDraw_ModelHandle baked_handle = {
+            .kind = TORIDRAWMK_MODEL,
+            .u.model.model = baked,
+        };
+        gl3_bake_into_arena(
+            renderer, instance, element_id, 0, frame, baked_handle, world_position);
+
+        ToriDraw_ModelFree(baked);
+    }
 }
 
 static void
@@ -844,6 +894,7 @@ gl3_ev_model_load(
         renderer,
         instance,
         command->u.model_load.element_id,
+        0,
         0,
         command->u.model_load.model,
         &command->u.model_load.world_position);
@@ -871,6 +922,7 @@ gl3_ev_batch3d_model_add(
         renderer,
         instance,
         command->u.batch.element_id,
+        0,
         command->u.batch.pose_id,
         command->u.batch.model,
         &command->u.batch.world_position);
@@ -887,6 +939,7 @@ gl3_ev_batch3d_anim_add(
         renderer,
         instance,
         command->u.batch.element_id,
+        command->u.batch.anim_index,
         command->u.batch.pose_id,
         command->u.batch.model,
         &command->u.batch.world_position);
@@ -919,10 +972,11 @@ gl3_ev_model_draw(
     if( !ctx )
         return;
 
+    const int anim_index = command->u.model.anim_index;
     const int pose_id = command->u.model.anim_frame;
     uint32_t vertex_base = 0u;
     if( !trspk_pose_table_get(
-            &renderer->poses, command->u.model.element_id, pose_id, &vertex_base) )
+            &renderer->poses, command->u.model.element_id, anim_index, pose_id, &vertex_base) )
         return;
 
     const int face_count = ToriDraw_FaceOrderCount(ctx);
@@ -1053,6 +1107,13 @@ handle_render_command(
         break;
 
     case TORIRSRC_SPRITE:
+        break;
+
+    case TORIRSRC_ANIM_LOAD:
+        gl3_ev_anim_load(renderer, instance, command);
+        break;
+
+    case TORIRSRC_ANIM_UNLOAD:
         break;
 
     case TORIRSRC_MODEL_LOAD:

@@ -68,6 +68,7 @@ struct LibToriRS_RenderCommand_Model
     struct ToriDraw_Position position;
     int element_id;
     struct ToriDraw_Animation* animation;
+    int anim_index;
     int anim_frame;
 };
 
@@ -75,6 +76,8 @@ struct LibToriRS_RenderCommand_AnimLoad
 {
     int element_id;
     struct ToriDraw_Animation* animation;
+    struct ToriDraw_ModelHandle model;
+    struct ToriDraw_Position world_position;
 };
 
 struct LibToriRS_RenderCommand_ModelLoad
@@ -89,6 +92,7 @@ struct LibToriRS_RenderCommand_Batch
     int batch_id;
     int element_id;
     int pose_id;
+    int anim_index;
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Position world_position;
 };

@@ -718,6 +718,39 @@ ToriDraw_SceneElementSetAnimationSeq(
 }
 
 void
+ToriDraw_SceneElementApplyAnimation(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    bool primary,
+    int frame)
+{
+    struct ToriDraw_SceneElement* element;
+    struct ToriDraw_Animation* animation;
+    struct ToriDraw_Model* model;
+
+    assert(scene);
+    assert(td_scene_element_valid(scene, element_id));
+
+    element = td_scene_element_ptr(scene, element_id);
+    assert(element);
+
+    animation = primary ? element->animation : element->secondary_animation;
+    if( !animation || !animation->base || !animation->frames || animation->frame_count <= 0 )
+        return;
+    if( frame < 0 || frame >= animation->frame_count )
+        return;
+    if( element->model.kind != TORIDRAWMK_MODEL )
+        return;
+
+    model = element->model.u.model.model;
+    if( !model )
+        return;
+
+    ToriDraw_ModelAnimateReset(model);
+    ToriDraw_ModelAnimateFrame(model, animation->base, &animation->frames[frame]);
+}
+
+void
 ToriDraw_SceneElementSetPosition(
     struct ToriDraw_Scene* scene,
     int element_id,
@@ -842,9 +875,12 @@ void
 ToriDraw_SceneBatchElementAddPose(
     struct ToriDraw_Scene* scene,
     int element_id,
+    int anim_index,
     int pose_id,
     struct ToriDraw_ModelHandle baked)
 {
+    struct ToriDraw_Event* event;
+
     assert(scene);
     assert(scene->batch_building);
     assert(baked.kind == TORIDRAWMK_MODEL);
@@ -860,6 +896,13 @@ ToriDraw_SceneBatchElementAddPose(
         &baked,
         NULL,
         NULL);
+
+    /* Back-patch anim_index onto the event we just pushed. */
+    if( scene->event_queue.count > 0 )
+    {
+        event = &scene->event_queue.events[scene->event_queue.count - 1];
+        event->anim_index = anim_index;
+    }
 
     if( baked.u.model.model )
         td_scene_retain_pending_pose(scene, baked.u.model.model);

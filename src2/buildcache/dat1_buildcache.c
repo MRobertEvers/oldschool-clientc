@@ -790,12 +790,27 @@ dat1_buildcache_animbaseframes_get(
     return entry->animbaseframes;
 }
 
+struct RSCacheDat1A_AnimBaseFrames*
+dat1_buildcache_animbaseframes_take(
+    struct Dat1BuildCache* dat1_buildcache,
+    int animbaseframes_id)
+{
+    struct MapEntry_AnimBaseFrames* entry = (struct MapEntry_AnimBaseFrames*)ToriDraw_MapSearch(
+        dat1_buildcache->animbaseframes_hmap, &animbaseframes_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    struct RSCacheDat1A_AnimBaseFrames* abf = entry->animbaseframes;
+    entry->animbaseframes = NULL;
+    return abf;
+}
+
 bool
 dat1_buildcache_animbaseframes_has(
     struct Dat1BuildCache* dat1_buildcache,
     int animbaseframes_id)
 {
-    return dat1_buildcache_animbaseframes_get(dat1_buildcache, animbaseframes_id) != NULL;
+    return ToriDraw_MapSearch(
+               dat1_buildcache->animbaseframes_hmap, &animbaseframes_id, TORIDRAW_MAP_FIND) != NULL;
 }
 
 int

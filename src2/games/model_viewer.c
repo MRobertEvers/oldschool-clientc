@@ -337,8 +337,9 @@ game_modelviewer_rotate_down(
 }
 
 void
-game_modelviewer_frame_begin(struct GameModelViewer* mv)
+game_modelviewer_frame_begin(struct GameModelViewer* mv, int cycles_elapsed)
 {
+    (void)cycles_elapsed;
     if( !mv )
         return;
 

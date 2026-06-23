@@ -85,7 +85,7 @@ game_runescape_process_input(
     struct LibToriRS_Input* input);
 
 void
-game_runescape_frame_begin(struct GameRunescape* game);
+game_runescape_frame_begin(struct GameRunescape* game, int cycles_elapsed);
 
 bool
 game_runescape_frame_next_command(
