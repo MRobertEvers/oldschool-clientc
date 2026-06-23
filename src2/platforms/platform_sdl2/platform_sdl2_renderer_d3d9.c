@@ -16,6 +16,7 @@
 #include "toridraw/toridraw_sprite.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw_model.h"
+#include "toridraw/toridraw_model_transform.h"
 #include "toridraw/toridraw_types.h"
 
 #include <SDL.h>
@@ -1156,6 +1157,42 @@ d3d9_ev_model_load(
 }
 
 static void
+d3d9_ev_anim_load(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    assert(command->kind == TORIRSRC_ANIM_LOAD);
+
+    const int element_id = command->u.anim_load.element_id;
+    struct ToriDraw_Animation* animation = command->u.anim_load.animation;
+    const struct ToriDraw_ModelHandle* base_handle = &command->u.anim_load.model;
+    const struct ToriDraw_Position* world_position = &command->u.anim_load.world_position;
+
+    if( !animation || !animation->base || !animation->frames || animation->frame_count <= 0 )
+        return;
+    if( base_handle->kind != TORIDRAWMK_MODEL || !base_handle->u.model.model )
+        return;
+
+    struct ToriDraw_Model* source = base_handle->u.model.model;
+    for( int frame = 0; frame < animation->frame_count; frame++ )
+    {
+        struct ToriDraw_Model* baked = ToriDraw_ModelCopy(source);
+        if( !baked )
+            continue;
+        ToriDraw_ModelCaptureOriginalVertices(baked);
+        ToriDraw_ModelAnimateReset(baked);
+        ToriDraw_ModelAnimateFrame(baked, animation->base, &animation->frames[frame]);
+        struct ToriDraw_ModelHandle baked_handle = {
+            .kind = TORIDRAWMK_MODEL,
+            .u.model.model = baked,
+        };
+        d3d9_bake_into_arena(renderer, instance, element_id, frame, baked_handle, world_position);
+        ToriDraw_ModelFree(baked);
+    }
+}
+
+static void
 d3d9_ev_batch3d_begin(
     struct LibToriPlatformSDL2_RendererD3D9* renderer,
     struct LibToriRS_Instance* instance,
@@ -1608,6 +1645,13 @@ d3d9_handle_render_command(
 
     case TORIRSRC_MODEL_LOAD:
         d3d9_ev_model_load(renderer, instance, command);
+        break;
+
+    case TORIRSRC_ANIM_LOAD:
+        d3d9_ev_anim_load(renderer, instance, command);
+        break;
+
+    case TORIRSRC_ANIM_UNLOAD:
         break;
 
     case TORIRSRC_MODEL_UNLOAD:
