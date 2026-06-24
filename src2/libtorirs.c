@@ -333,9 +333,21 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
             if( LibToriRS_Input_IsKeyDown(input, TORIRSK_SPACE) )
             {
                 struct GameRunescape* game = instance->runescape;
-                int const sx = game->camera_position->x / 128;
-                int const sz = game->camera_position->z / 128;
-                int const level = game_runescape_camera_terrain_level(game);
+                int sx;
+                int sz;
+                int level;
+                if( game->last_tile_valid )
+                {
+                    sx = game->last_tile_sx;
+                    sz = game->last_tile_sz;
+                    level = game->last_tile_level;
+                }
+                else
+                {
+                    sx = game->camera_position->x / 128;
+                    sz = game->camera_position->z / 128;
+                    level = game_runescape_camera_terrain_level(game);
+                }
                 struct ToriRunescape_Task_AddProjectile* task = ToriRunescape_Task_AddProjectile_New(
                     game,
                     RUNESCAPE_PROJECTILE_MODEL_ID,
@@ -573,5 +585,13 @@ LibToriRS_TasksRun(struct LibToriRS_Instance* instance)
         }
     }
 
+    return instance->task_live_head != -1;
+}
+
+bool
+LibToriRS_TasksHasLive(struct LibToriRS_Instance* instance)
+{
+    if( !instance )
+        return false;
     return instance->task_live_head != -1;
 }

@@ -978,3 +978,91 @@ ToriDraw_Project(
 
     return TORIDRAW_CULL_VISIBLE;
 }
+
+static inline bool
+toridraw_triangle_contains_point(
+    int x1,
+    int y1,
+    int x2,
+    int y2,
+    int x3,
+    int y3,
+    int x,
+    int y)
+{
+    int denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
+    if( denominator != 0 )
+    {
+        float a = ((y2 - y3) * (x - x3) + (x3 - x2) * (y - y3)) / (float)denominator;
+        float b = ((y3 - y1) * (x - x3) + (x1 - x3) * (y - y3)) / (float)denominator;
+        float c = 1 - a - b;
+        return (a >= 0 && b >= 0 && c >= 0);
+    }
+    return false;
+}
+
+static inline bool
+ToriDraw_ProjectedModelContainsAabb(
+    struct ToriDraw_Scene* scene,
+    int screen_x,
+    int screen_y)
+{
+    struct ToriDraw_AABB* aabb = &scene->aabb;
+    return screen_x >= aabb->min_screen_x && screen_x <= aabb->max_screen_x &&
+           screen_y >= aabb->min_screen_y && screen_y <= aabb->max_screen_y;
+}
+
+bool
+ToriDraw_ProjectedModelContainsPoint(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_ViewPort* view_port,
+    int screen_x,
+    int screen_y)
+{
+    if( !ToriDraw_ProjectedModelContainsAabb(scene, screen_x, screen_y) )
+        return false;
+
+    int adjusted_screen_x = screen_x - view_port->x_center;
+    int adjusted_screen_y = screen_y - view_port->y_center;
+
+    faceint_t* fia = NULL;
+    faceint_t* fib = NULL;
+    faceint_t* fic = NULL;
+    int face_count = 0;
+
+    switch( hnd.kind )
+    {
+    case TORIDRAWMK_MODEL:
+    {
+        struct ToriDraw_Model* m = model_as_full(hnd);
+        fia = m->face_indices_a;
+        fib = m->face_indices_b;
+        fic = m->face_indices_c;
+        face_count = m->face_count;
+        break;
+    }
+    default:
+        return false;
+    }
+
+    for( int i = 0; i < face_count; i++ )
+    {
+        int face_a = fia[i];
+        int face_b = fib[i];
+        int face_c = fic[i];
+
+        int x1 = scene->screen_vertices_x[face_a];
+        int y1 = scene->screen_vertices_y[face_a];
+        int x2 = scene->screen_vertices_x[face_b];
+        int y2 = scene->screen_vertices_y[face_b];
+        int x3 = scene->screen_vertices_x[face_c];
+        int y3 = scene->screen_vertices_y[face_c];
+
+        if( toridraw_triangle_contains_point(
+                x1, y1, x2, y2, x3, y3, adjusted_screen_x, adjusted_screen_y) )
+            return true;
+    }
+
+    return false;
+}

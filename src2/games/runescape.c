@@ -135,6 +135,10 @@ static bool
 game_runescape_emit_draw_element(
     struct GameRunescape* game,
     int element_id,
+    enum WorldPickType pick_type,
+    int tile_x,
+    int tile_z,
+    int tile_level,
     struct LibToriRS_RenderCommand* command)
 {
     if( !ToriDraw_SceneElementIsLive(game->scene, element_id) )
@@ -162,6 +166,25 @@ game_runescape_emit_draw_element(
             element->model, game->scene, &rel_pos, &game->world_view_port, game->camera);
         if( cull != TORIDRAW_CULL_VISIBLE )
             return false;
+
+        if( game->mouse_in_viewport &&
+            ToriDraw_ProjectedModelContainsPoint(
+                game->scene,
+                element->model,
+                &game->world_view_port,
+                game->mouse_x,
+                game->mouse_y) )
+        {
+            world_pickset_add(&game->pickset, element_id, pick_type);
+            if( pick_type == WORLD_PICK_TERRAIN )
+            {
+                game->last_tile_sx = tile_x;
+                game->last_tile_sz = tile_z;
+                game->last_tile_level = tile_level;
+                game->last_tile_valid = true;
+            }
+        }
+
         if( ToriDraw_RenderModel2SortFaces(element->model, game->scene) <= 0 )
             return false;
     }
@@ -326,6 +349,14 @@ game_runescape_process_input(
     struct GameRunescape* game,
     struct LibToriRS_Input* input)
 {
+    int const vw = game->view_port ? game->view_port->width : game->world_view_port.width;
+    int const vh = game->view_port ? game->view_port->height : game->world_view_port.height;
+
+    game->mouse_x = input->curr.mouse_x;
+    game->mouse_y = input->curr.mouse_y;
+    game->mouse_in_viewport =
+        game->mouse_x >= 0 && game->mouse_x < vw && game->mouse_y >= 0 && game->mouse_y < vh;
+
     const int move = RUNESCAPE_CAMERA_MOVEMENT_SPEED;
     const int rotate = 10;
 
@@ -377,10 +408,11 @@ game_runescape_sync_projectiles_to_scene(struct GameRunescape* game)
     if( !world || !game->scene || !world->load_complete )
         return;
 
-    for( int i = 0; i < world->projectile_count; i++ )
+    struct World_EntityPool* pool = &world->entities.projectile;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
     {
-        struct WorldProjectile* p = &world->projectiles[i];
-        if( !p->alive || p->element_id < 0 || !p->launched )
+        struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, i);
+        if( !p || p->element_id < 0 || !p->launched )
             continue;
 
         ToriDraw_SceneElementSetPositionPitchYaw(
@@ -435,6 +467,7 @@ game_runescape_frame_begin(
     game->frame.painter_command_index = 0;
     game->frame.world_emitted = false;
     game->frame.painter_paint_done = false;
+    world_pickset_reset(&game->pickset);
     for( int i = 0; i < cycles_elapsed; i++ )
         game_runescape_tick_animations(game);
     if( game->world )
@@ -517,18 +550,29 @@ game_runescape_frame_next_command(
                     const struct PaintersElementCommand* cmd =
                         &game->painter_buffer->commands[game->frame.painter_command_index++];
                     int element_id = -1;
+                    enum WorldPickType pick_type = WORLD_PICK_SCENERY;
+                    int tile_x = -1;
+                    int tile_z = -1;
+                    int tile_level = -1;
 
                     switch( cmd->_bf_kind )
                     {
                     case PNTR_CMD_ELEMENT:
                         element_id = (int)cmd->_entity._bf_entity;
+                        if( ToriDraw_SceneElementIsLive(game->scene, element_id) )
+                        {
+                            struct ToriDraw_SceneElement* element =
+                                ToriDraw_SceneElementGet(game->scene, element_id);
+                            pick_type = (element && element->dynamic) ? WORLD_PICK_PROJECTILE
+                                                                        : WORLD_PICK_SCENERY;
+                        }
                         break;
                     case PNTR_CMD_TERRAIN:
-                        element_id = world_terrain_element_at(
-                            world,
-                            (int)cmd->_terrain._bf_terrain_x,
-                            (int)cmd->_terrain._bf_terrain_z,
-                            (int)cmd->_terrain._bf_terrain_y);
+                        tile_x = (int)cmd->_terrain._bf_terrain_x;
+                        tile_z = (int)cmd->_terrain._bf_terrain_z;
+                        tile_level = (int)cmd->_terrain._bf_terrain_y;
+                        element_id = world_terrain_element_at(world, tile_x, tile_z, tile_level);
+                        pick_type = WORLD_PICK_TERRAIN;
                         break;
                     default:
                         break;
@@ -536,7 +580,8 @@ game_runescape_frame_next_command(
 
                     if( element_id < 0 )
                         continue;
-                    if( game_runescape_emit_draw_element(game, element_id, command) )
+                    if( game_runescape_emit_draw_element(
+                            game, element_id, pick_type, tile_x, tile_z, tile_level, command) )
                         return true;
                 }
 
@@ -548,7 +593,16 @@ game_runescape_frame_next_command(
             while( game->frame.element_index < slot_count )
             {
                 int element_id = game->frame.element_index++;
-                if( game_runescape_emit_draw_element(game, element_id, command) )
+                enum WorldPickType pick_type = WORLD_PICK_SCENERY;
+                if( ToriDraw_SceneElementIsLive(game->scene, element_id) )
+                {
+                    struct ToriDraw_SceneElement* element =
+                        ToriDraw_SceneElementGet(game->scene, element_id);
+                    if( element && element->dynamic )
+                        pick_type = WORLD_PICK_PROJECTILE;
+                }
+                if( game_runescape_emit_draw_element(
+                        game, element_id, pick_type, -1, -1, -1, command) )
                     return true;
             }
 

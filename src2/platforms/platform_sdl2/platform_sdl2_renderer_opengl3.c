@@ -43,6 +43,17 @@ typedef struct TRSPK_UboWorld
 #define TRSPK_GL3_GPU_IBO_INIT 4096u
 #define TRSPK_GL3_GPU_VBO_INIT 4096u
 
+struct GL3ModelGroup
+{
+    struct TRSPK_VBO* vbo_cpu;
+    GLuint vbo_gpu;
+    uint32_t gpu_capacity;
+    struct TRSPK_ModelArena* arena;
+    struct TRSPK_Triangles triangles;
+    GLuint vao;
+    bool reset_each_frame;
+};
+
 struct LibToriPlatformSDL2_RendererGL3
 {
     SDL_Window* window;
@@ -53,19 +64,15 @@ struct LibToriPlatformSDL2_RendererGL3
     struct TRSPK_Atlas atlas;
     GLuint atlas_texture;
 
-    struct TRSPK_VBO* vbo_static_cpu;
-    uint32_t gpu_vbo_capacity;
+    struct GL3ModelGroup groups[TRSPK_VBO_GROUP_COUNT];
     uint32_t gpu_ibo_capacity;
 
-    struct TRSPK_ModelArena* model_arena;
-    struct TRSPK_Triangles triangles;
     struct TRSPK_PoseTable poses;
 
     struct TRSPK_IBOChain* ibo_chain;
     struct TRSPK_IBO* ibo_staging;
     struct TRSPK_DrawRangeList* draw_ranges;
 
-    GLuint program3d_vao;
     GLuint program3d;
     GLint a_position;
     GLint a_color;
@@ -78,7 +85,6 @@ struct LibToriPlatformSDL2_RendererGL3
 
     GLuint ubo;
     GLuint ebo;
-    GLuint vbo;
 
     float view[16];
     float proj[16];
@@ -93,7 +99,9 @@ struct LibToriPlatformSDL2_RendererGL3
  * ----------------------------------------------------------------------- */
 
 static void
-bind_vbo_attribs(struct LibToriPlatformSDL2_RendererGL3* renderer)
+bind_vbo_attribs(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    GLuint vbo_gpu)
 {
     const GLsizei stride = (GLsizei)sizeof(struct TRSPK_VertexOpenGl3);
     const uintptr_t offset_position = offsetof(struct TRSPK_VertexOpenGl3, position);
@@ -101,7 +109,7 @@ bind_vbo_attribs(struct LibToriPlatformSDL2_RendererGL3* renderer)
     const uintptr_t offset_texcoord = offsetof(struct TRSPK_VertexOpenGl3, texcoord);
     const uintptr_t offset_tex_id = offsetof(struct TRSPK_VertexOpenGl3, tex_id);
     const uintptr_t offset_uv_mode = offsetof(struct TRSPK_VertexOpenGl3, uv_mode);
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_gpu);
     if( renderer->a_position >= 0 )
     {
         glEnableVertexAttribArray((GLuint)renderer->a_position);
@@ -199,17 +207,22 @@ gl3_destroy_gl_resources(struct LibToriPlatformSDL2_RendererGL3* renderer)
         glDeleteBuffers(1, &renderer->ubo);
     if( renderer->ebo )
         glDeleteBuffers(1, &renderer->ebo);
-    if( renderer->vbo )
-        glDeleteBuffers(1, &renderer->vbo);
-    if( renderer->program3d_vao )
-        glDeleteVertexArrays(1, &renderer->program3d_vao);
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        struct GL3ModelGroup* g = &renderer->groups[gi];
+        if( g->vao )
+            glDeleteVertexArrays(1, &g->vao);
+        if( g->vbo_gpu )
+            glDeleteBuffers(1, &g->vbo_gpu);
+        g->vao = 0u;
+        g->vbo_gpu = 0u;
+        g->gpu_capacity = 0u;
+    }
     if( renderer->atlas_texture )
         glDeleteTextures(1, &renderer->atlas_texture);
     renderer->program3d = 0u;
     renderer->ubo = 0u;
     renderer->ebo = 0u;
-    renderer->vbo = 0u;
-    renderer->program3d_vao = 0u;
     renderer->atlas_texture = 0u;
 }
 
@@ -495,45 +508,54 @@ gl3_bind_world_draw_state(struct LibToriPlatformSDL2_RendererGL3* renderer)
 static void
 gl3_release_gpu_mesh_buffers(struct LibToriPlatformSDL2_RendererGL3* renderer)
 {
-    renderer->gpu_vbo_capacity = 0u;
+    renderer->groups[TRSPK_VBO_GROUP_STATIC].gpu_capacity = 0u;
     renderer->gpu_ibo_capacity = 0u;
 }
 
-static bool
-gl3_upload_vbo_if_dirty(struct LibToriPlatformSDL2_RendererGL3* renderer)
+static void
+gl3_reset_model_group(struct GL3ModelGroup* g)
 {
-    if( !trspk_vbo_is_dirty(renderer->vbo_static_cpu) || !renderer->vbo_static_cpu )
+    if( g->arena )
+        trspk_modelarena_clear(g->arena);
+}
+
+static bool
+gl3_upload_group(struct GL3ModelGroup* g)
+{
+    if( !g->vbo_cpu || g->vbo_gpu == 0u )
         return true;
 
-    const uint32_t vert_count = renderer->vbo_static_cpu->vertex_count;
+    const uint32_t vert_count = g->vbo_cpu->vertex_count;
     if( vert_count == 0u )
     {
-        trspk_vbo_clear_dirty(renderer->vbo_static_cpu);
+        trspk_vbo_clear_dirty(g->vbo_cpu);
         return true;
     }
 
+    if( !g->reset_each_frame && !trspk_vbo_is_dirty(g->vbo_cpu) )
+        return true;
+
     const GLsizeiptr byte_size = (GLsizeiptr)(vert_count * sizeof(struct TRSPK_VertexOpenGl3));
-    if( vert_count > renderer->gpu_vbo_capacity )
+    if( vert_count > g->gpu_capacity )
     {
-        uint32_t cap =
-            renderer->gpu_vbo_capacity ? renderer->gpu_vbo_capacity : TRSPK_GL3_GPU_VBO_INIT;
+        uint32_t cap = g->gpu_capacity ? g->gpu_capacity : TRSPK_GL3_GPU_VBO_INIT;
         while( cap < vert_count )
             cap *= 2u;
-        renderer->gpu_vbo_capacity = cap;
+        g->gpu_capacity = cap;
 
-        glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
         glBufferData(
             GL_ARRAY_BUFFER,
             (GLsizeiptr)(cap * sizeof(struct TRSPK_VertexOpenGl3)),
             NULL,
-            GL_STATIC_DRAW);
+            GL_DYNAMIC_DRAW);
     }
 
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, byte_size, renderer->vbo_static_cpu->vertices.as_opengl3);
+    glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, byte_size, g->vbo_cpu->vertices.as_opengl3);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    trspk_vbo_clear_dirty(renderer->vbo_static_cpu);
+    trspk_vbo_clear_dirty(g->vbo_cpu);
     return true;
 }
 
@@ -635,6 +657,12 @@ gl3_ev_begin_3d(
 
     if( trspk_atlas_is_dirty(&renderer->atlas) )
         gl3_upload_atlas_texture(renderer);
+
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        if( renderer->groups[gi].reset_each_frame )
+            gl3_reset_model_group(&renderer->groups[gi]);
+    }
 }
 
 static void
@@ -646,11 +674,11 @@ gl3_ev_batch3d_clear(
     (void)instance;
     (void)command;
 
-    if( !renderer->model_arena )
+    if( !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena )
         return;
 
     trspk_pose_table_clear(&renderer->poses);
-    trspk_modelarena_clear(renderer->model_arena);
+    gl3_reset_model_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
     gl3_release_gpu_mesh_buffers(renderer);
 }
 
@@ -664,7 +692,8 @@ gl3_ev_model_unload(
     assert(command->kind == TORIRSRC_MODEL_UNLOAD);
 
     const int element_id = command->u.model_load.element_id;
-    trspk_modelarena_unload_element(renderer->model_arena, element_id);
+    trspk_modelarena_unload_element(
+        renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
     trspk_pose_table_remove_element(&renderer->poses, element_id);
 }
 
@@ -672,37 +701,45 @@ gl3_ev_model_unload(
    Must exceed the maximum number of frames any animation can have. */
 #define GL3_POSE_ARENA_TRACK_STRIDE 4096
 
-static void
+static uint32_t
 gl3_bake_into_arena(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct GL3ModelGroup* g,
     struct LibToriRS_Instance* instance,
     int element_id,
     int anim_index,
     int pose_id,
     struct ToriDraw_ModelHandle model_handle,
-    const struct ToriDraw_Position* world_position)
+    const struct ToriDraw_Position* world_position,
+    bool update_pose_table)
 {
     struct ToriDraw_Model* model = get_model(model_handle);
-    if( !model || model->face_count <= 0 )
-        return;
+    if( !model || model->face_count <= 0 || !g->arena || !g->vbo_cpu )
+        return UINT32_MAX;
 
     struct ToriDraw_Scene* ctx = get_context(instance);
     const uint32_t vert_count = (uint32_t)model->face_count * 3u;
     const uint32_t tri_count = (uint32_t)model->face_count;
 
-    /* Encode (anim_index, pose_id/frame) into a flat key for the model arena. */
     const int arena_pose_id = anim_index * GL3_POSE_ARENA_TRACK_STRIDE + pose_id;
 
-    const uint32_t existing_slot =
-        trspk_modelarena_find(renderer->model_arena, element_id, arena_pose_id);
-    if( existing_slot != TRSPK_MODELSLOT_NULL_IDX )
-        trspk_modelarena_unload(renderer->model_arena, existing_slot);
+    uint32_t slot_index = TRSPK_MODELSLOT_NULL_IDX;
 
-    const uint32_t slot_index =
-        trspk_modelarena_load(renderer->model_arena, element_id, arena_pose_id, vert_count);
-    const struct TRSPK_ModelSlot* model_slot =
-        trspk_modelarena_get(renderer->model_arena, slot_index);
-    assert(model_slot != NULL);
+    if( update_pose_table )
+    {
+        const uint32_t existing_slot = trspk_modelarena_find(g->arena, element_id, arena_pose_id);
+        if( existing_slot != TRSPK_MODELSLOT_NULL_IDX )
+            trspk_modelarena_unload(g->arena, existing_slot);
+        slot_index = trspk_modelarena_load(g->arena, element_id, arena_pose_id, vert_count);
+    }
+    else
+    {
+        slot_index = trspk_modelarena_load(g->arena, element_id, arena_pose_id, vert_count);
+    }
+
+    const struct TRSPK_ModelSlot* model_slot = trspk_modelarena_get(g->arena, slot_index);
+    if( !model_slot )
+        return UINT32_MAX;
 
     const uint32_t base = model_slot->vertex_base;
 
@@ -768,7 +805,7 @@ gl3_bake_into_arena(
 
         const float tex_id_encoded = gl3_encode_tex_id(tex_id, tex);
 
-        trspk_triangles_set(&renderer->triangles, (base / 3u) + face_index, TRSPK_TRIANGLES_ATLAS);
+        trspk_triangles_set(&g->triangles, (base / 3u) + face_index, TRSPK_TRIANGLES_ATLAS);
 
         struct UVFaceCoords uv;
         uv_pnm_face(&uv, model, face_index);
@@ -802,7 +839,7 @@ gl3_bake_into_arena(
             &wz_c);
 
         gl3_write_vertex_opengl3(
-            renderer->vbo_static_cpu,
+            g->vbo_cpu,
             vi + 0u,
             wx_a,
             wy_a,
@@ -813,7 +850,7 @@ gl3_bake_into_arena(
             tex_id_encoded,
             uv_mode);
         gl3_write_vertex_opengl3(
-            renderer->vbo_static_cpu,
+            g->vbo_cpu,
             vi + 1u,
             wx_b,
             wy_b,
@@ -824,7 +861,7 @@ gl3_bake_into_arena(
             tex_id_encoded,
             uv_mode);
         gl3_write_vertex_opengl3(
-            renderer->vbo_static_cpu,
+            g->vbo_cpu,
             vi + 2u,
             wx_c,
             wy_c,
@@ -836,7 +873,10 @@ gl3_bake_into_arena(
             uv_mode);
     }
 
-    trspk_pose_table_set(&renderer->poses, element_id, anim_index, pose_id, base);
+    if( update_pose_table )
+        trspk_pose_table_set(&renderer->poses, element_id, anim_index, pose_id, base);
+
+    return base;
 }
 
 static void
@@ -874,7 +914,15 @@ gl3_ev_anim_load(
             .u.model.model = baked,
         };
         gl3_bake_into_arena(
-            renderer, instance, element_id, 0, frame, baked_handle, world_position);
+            renderer,
+            &renderer->groups[TRSPK_VBO_GROUP_STATIC],
+            instance,
+            element_id,
+            0,
+            frame,
+            baked_handle,
+            world_position,
+            true);
 
         ToriDraw_ModelFree(baked);
     }
@@ -889,12 +937,14 @@ gl3_ev_model_load(
     assert(command->kind == TORIRSRC_MODEL_LOAD);
     gl3_bake_into_arena(
         renderer,
+        &renderer->groups[TRSPK_VBO_GROUP_STATIC],
         instance,
         command->u.model_load.element_id,
         0,
         0,
         command->u.model_load.model,
-        &command->u.model_load.world_position);
+        &command->u.model_load.world_position,
+        true);
 }
 
 static void
@@ -917,12 +967,14 @@ gl3_ev_batch3d_model_add(
     assert(command->kind == TORIRSRC_BATCH3D_MODEL_ADD);
     gl3_bake_into_arena(
         renderer,
+        &renderer->groups[TRSPK_VBO_GROUP_STATIC],
         instance,
         command->u.batch.element_id,
         0,
         command->u.batch.pose_id,
         command->u.batch.model,
-        &command->u.batch.world_position);
+        &command->u.batch.world_position,
+        true);
 }
 
 static void
@@ -934,12 +986,14 @@ gl3_ev_batch3d_anim_add(
     assert(command->kind == TORIRSRC_BATCH3D_ANIM_ADD);
     gl3_bake_into_arena(
         renderer,
+        &renderer->groups[TRSPK_VBO_GROUP_STATIC],
         instance,
         command->u.batch.element_id,
         command->u.batch.anim_index,
         command->u.batch.pose_id,
         command->u.batch.model,
-        &command->u.batch.world_position);
+        &command->u.batch.world_position,
+        true);
 }
 
 static void
@@ -951,8 +1005,8 @@ gl3_ev_batch3d_end(
     (void)instance;
     (void)command;
 
-    if( renderer->vbo_static_cpu )
-        trspk_vbo_set_dirty(renderer->vbo_static_cpu);
+    if( renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu )
+        trspk_vbo_set_dirty(renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu);
 }
 
 static void
@@ -971,22 +1025,31 @@ gl3_ev_model_draw(
 
     const int anim_index = command->u.model.anim_index;
     const int pose_id = command->u.model.anim_frame;
+    uint32_t group = TRSPK_VBO_GROUP_STATIC;
+    uint32_t vertex_base = 0u;
+
     if( command->u.model.dynamic )
     {
-        gl3_bake_into_arena(
+        vertex_base = gl3_bake_into_arena(
             renderer,
+            &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC],
             instance,
             command->u.model.element_id,
             anim_index,
             pose_id,
             command->u.model.model,
-            &command->u.model.world_position);
+            &command->u.model.world_position,
+            false);
+        if( vertex_base == UINT32_MAX )
+            return;
+        group = TRSPK_VBO_GROUP_DYNAMIC;
     }
-
-    uint32_t vertex_base = 0u;
-    if( !trspk_pose_table_get(
-            &renderer->poses, command->u.model.element_id, anim_index, pose_id, &vertex_base) )
-        return;
+    else
+    {
+        if( !trspk_pose_table_get(
+                &renderer->poses, command->u.model.element_id, anim_index, pose_id, &vertex_base) )
+            return;
+    }
 
     const int face_count = ToriDraw_FaceOrderCount(ctx);
     if( face_count <= 0 )
@@ -998,7 +1061,7 @@ gl3_ev_model_draw(
         const uint32_t face = (uint32_t)face_order[i];
         const uint32_t b = vertex_base + face * 3u;
         const uint32_t idx[3] = { b, b + 1u, b + 2u };
-        trspk_ibochain_push32(renderer->ibo_chain, 0u, idx, 3u);
+        trspk_ibochain_push32(renderer->ibo_chain, group, 0u, idx, 3u);
     }
 }
 
@@ -1017,8 +1080,11 @@ gl3_ev_end_3d(
     if( trspk_atlas_is_dirty(&renderer->atlas) )
         gl3_upload_atlas_texture(renderer);
 
-    if( !gl3_upload_vbo_if_dirty(renderer) )
-        goto done;
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        if( !gl3_upload_group(&renderer->groups[gi]) )
+            goto done;
+    }
 
     if( !renderer->ibo_chain || !renderer->ibo_chain->head )
         goto done;
@@ -1041,8 +1107,13 @@ gl3_ev_end_3d(
 
     uint32_t* staging = renderer->ibo_staging->indices.as_u32;
 
+    const struct TRSPK_Triangles* triangles_by_group[TRSPK_VBO_GROUP_COUNT] = {
+        &renderer->groups[TRSPK_VBO_GROUP_STATIC].triangles,
+        &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].triangles,
+    };
+
     const uint32_t built = trspk_drawrangeex_build32(
-        renderer->draw_ranges, &renderer->triangles, renderer->ibo_chain, staging);
+        renderer->draw_ranges, triangles_by_group, renderer->ibo_chain, staging);
 
     assert(built == total_indices);
     (void)built;
@@ -1051,8 +1122,7 @@ gl3_ev_end_3d(
     glBufferSubData(
         GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr)(total_indices * sizeof(uint32_t)), staging);
 
-    glBindVertexArray(renderer->program3d_vao);
-
+    GLuint bound_vao = 0u;
     const struct TRSPK_DrawRange* range = trspk_drawrangelist_head(renderer->draw_ranges);
     while( range )
     {
@@ -1061,6 +1131,13 @@ gl3_ev_end_3d(
 
         if( prim_count > 0u )
         {
+            const GLuint group_vao = renderer->groups[range->group].vao;
+            if( group_vao != bound_vao )
+            {
+                glBindVertexArray(group_vao);
+                bound_vao = group_vao;
+            }
+
             glDrawElements(
                 GL_TRIANGLES,
                 (GLsizei)index_count,
@@ -1180,19 +1257,27 @@ LibToriPlatformSDL2_RendererGL3_New(
     renderer->width = width;
     renderer->height = height;
 
-    renderer->vbo_static_cpu = trspk_vbo_create(0, TRSPK_VERTEX_FORMAT_OPENGL3);
     renderer->ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U32);
     renderer->ibo_staging = trspk_ibo_create(TRSPK_GL3_GPU_IBO_INIT, TRSPK_INDEX_FORMAT_U32);
     renderer->draw_ranges = trspk_drawrangelist_create(TRSPK_GL3_DRAWRANGE_CAP);
 
-    if( !renderer->vbo_static_cpu || !renderer->ibo_chain || !renderer->ibo_staging ||
-        !renderer->draw_ranges )
+    if( !renderer->ibo_chain || !renderer->ibo_staging || !renderer->draw_ranges )
         goto fail;
 
-    renderer->model_arena = trspk_modelarena_create(
-        renderer->vbo_static_cpu, &renderer->triangles, TRSPK_GL3_VBO_PAGE, 64u);
-    if( !renderer->model_arena )
-        goto fail;
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        struct GL3ModelGroup* g = &renderer->groups[gi];
+        g->vbo_cpu = trspk_vbo_create(0, TRSPK_VERTEX_FORMAT_OPENGL3);
+        if( !g->vbo_cpu )
+            goto fail;
+
+        g->arena = trspk_modelarena_create(g->vbo_cpu, &g->triangles, TRSPK_GL3_VBO_PAGE, 64u);
+        if( !g->arena )
+            goto fail;
+
+        g->reset_each_frame = (gi == TRSPK_VBO_GROUP_DYNAMIC);
+        trspk_vbo_set_dirty(g->vbo_cpu);
+    }
 
     trspk_pose_table_init(&renderer->poses);
 
@@ -1205,20 +1290,25 @@ LibToriPlatformSDL2_RendererGL3_New(
             4u) )
         goto fail;
 
-    trspk_vbo_set_dirty(renderer->vbo_static_cpu);
+    trspk_vbo_set_dirty(renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu);
     return renderer;
 
 fail:
-    if( renderer->vbo_static_cpu )
-        trspk_vbo_free(renderer->vbo_static_cpu);
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        struct GL3ModelGroup* g = &renderer->groups[gi];
+        if( g->arena )
+            trspk_modelarena_free(g->arena);
+        if( g->vbo_cpu )
+            trspk_vbo_free(g->vbo_cpu);
+        trspk_triangles_free(&g->triangles);
+    }
     if( renderer->ibo_chain )
         trspk_ibochain_free(renderer->ibo_chain);
     if( renderer->ibo_staging )
         trspk_ibo_free(renderer->ibo_staging);
     if( renderer->draw_ranges )
         trspk_drawrangelist_free(renderer->draw_ranges);
-    if( renderer->model_arena )
-        trspk_modelarena_free(renderer->model_arena);
     trspk_pose_table_free(&renderer->poses);
     if( trspk_atlas_is_initialized(&renderer->atlas) )
         trspk_atlas_free(&renderer->atlas);
@@ -1238,20 +1328,23 @@ LibToriPlatformSDL2_RendererGL3_Free(struct LibToriPlatformSDL2_RendererGL3* ren
     gl3_destroy_gl_resources(renderer);
     gl3_release_gpu_mesh_buffers(renderer);
 
-    trspk_triangles_free(&renderer->triangles);
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        struct GL3ModelGroup* g = &renderer->groups[gi];
+        trspk_triangles_free(&g->triangles);
+        if( g->arena )
+        {
+            trspk_modelarena_free(g->arena);
+            g->arena = NULL;
+        }
+        if( g->vbo_cpu )
+        {
+            trspk_vbo_free(g->vbo_cpu);
+            g->vbo_cpu = NULL;
+        }
+    }
+
     trspk_pose_table_free(&renderer->poses);
-
-    if( renderer->model_arena )
-    {
-        trspk_modelarena_free(renderer->model_arena);
-        renderer->model_arena = NULL;
-    }
-
-    if( renderer->vbo_static_cpu )
-    {
-        trspk_vbo_free(renderer->vbo_static_cpu);
-        renderer->vbo_static_cpu = NULL;
-    }
 
     if( renderer->ibo_chain )
     {
@@ -1366,25 +1459,31 @@ LibToriPlatformSDL2_RendererGL3_Init(
     renderer->s_atlas = glGetUniformLocation(renderer->program3d, "s_atlas");
 
     glGenBuffers(1, &renderer->ebo);
-    glGenBuffers(1, &renderer->vbo);
 
-    glGenVertexArrays(1, &renderer->program3d_vao);
-    glBindVertexArray(renderer->program3d_vao);
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-    glBufferData(
-        GL_ARRAY_BUFFER,
-        TRSPK_GL3_GPU_VBO_INIT * sizeof(struct TRSPK_VertexOpenGl3),
-        NULL,
-        GL_STATIC_DRAW);
-    bind_vbo_attribs(renderer);
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        struct GL3ModelGroup* g = &renderer->groups[gi];
+        glGenBuffers(1, &g->vbo_gpu);
+        glGenVertexArrays(1, &g->vao);
+        glBindVertexArray(g->vao);
+        glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            TRSPK_GL3_GPU_VBO_INIT * sizeof(struct TRSPK_VertexOpenGl3),
+            NULL,
+            GL_DYNAMIC_DRAW);
+        bind_vbo_attribs(renderer, g->vbo_gpu);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
+        glBindVertexArray(0);
+        g->gpu_capacity = TRSPK_GL3_GPU_VBO_INIT;
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
     glBufferData(
         GL_ELEMENT_ARRAY_BUFFER, TRSPK_GL3_GPU_IBO_INIT * sizeof(uint32_t), NULL, GL_DYNAMIC_DRAW);
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    renderer->gpu_vbo_capacity = TRSPK_GL3_GPU_VBO_INIT;
     renderer->gpu_ibo_capacity = TRSPK_GL3_GPU_IBO_INIT;
 
     glGenTextures(1, &renderer->atlas_texture);

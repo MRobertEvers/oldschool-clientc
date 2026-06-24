@@ -56,4 +56,12 @@ ToriDraw_RenderModel3Raster(
     toripixel_t* pixel_buffer,
     bool smooth);
 
+bool
+ToriDraw_ProjectedModelContainsPoint(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_ViewPort* view_port,
+    int screen_x,
+    int screen_y);
+
 #endif

@@ -3,6 +3,7 @@
 
 #include "collision_map.h"
 #include "osrs/painters.h"
+#include "world_entity.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -10,7 +11,6 @@
 struct Heightmap;
 struct Minimap;
 
-#define WORLD_MAX_PROJECTILES 256
 #define WORLD_MAX_EVENTS 256
 
 #define WORLD_MAP_TERRAIN_X 64
@@ -39,40 +39,6 @@ struct WorldEvent
     int element_id;
 };
 
-struct WorldProjectile
-{
-    bool alive;
-    int element_id;
-    int level;
-    int dst_level;
-
-    /* Immutable params (world units / ticks). */
-    int src_x;
-    int src_z;
-    int h1;
-    int end_height;
-    int t1;
-    int t2;
-    int angle;
-    int startpos;
-    int dst_x;
-    int dst_z;
-
-    /* Dynamic state. */
-    int cycle;
-    bool launched;
-    double x;
-    double y;
-    double z;
-    double vx;
-    double vy;
-    double vz;
-    double velocity;
-    double ay;
-    int yaw;
-    int pitch;
-};
-
 struct World
 {
     int _base_tile_x;
@@ -93,8 +59,7 @@ struct World
     struct PaintersCullMap* cullmap;
     int* terrain_element_ids;
 
-    struct WorldProjectile projectiles[WORLD_MAX_PROJECTILES];
-    int projectile_count;
+    struct World_EntityList entities;
 
     struct WorldEvent events[WORLD_MAX_EVENTS];
     int event_count;

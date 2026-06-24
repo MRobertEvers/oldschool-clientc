@@ -79,4 +79,7 @@ LibToriRS_TasksAdd(
 bool
 LibToriRS_TasksRun(struct LibToriRS_Instance* instance);
 
+bool
+LibToriRS_TasksHasLive(struct LibToriRS_Instance* instance);
+
 #endif

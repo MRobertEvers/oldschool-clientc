@@ -160,13 +160,28 @@ trspk_toridraw_world_vertex(
     }
 
     const int yaw = ToriDraw_NormalizeAngle(world_position->yaw);
+    const int pitch = ToriDraw_NormalizeAngle(world_position->pitch);
+    const int roll = ToriDraw_NormalizeAngle(world_position->roll);
+
     const int cy = ToriDraw_Cos(yaw);
     const int sy = ToriDraw_Sin(yaw);
+    const int cp = ToriDraw_Cos(pitch);
+    const int sp = ToriDraw_Sin(pitch);
+    const int cr = ToriDraw_Cos(roll);
+    const int sr = ToriDraw_Sin(roll);
+
     const int xr = (vx * cy + vz * sy) >> 16;
     const int zr = (vz * cy - vx * sy) >> 16;
-    *out_x = (float)(xr + world_position->x);
-    *out_y = (float)(vy + world_position->y);
-    *out_z = (float)(zr + world_position->z);
+
+    const int yr = (vy * cp - zr * sp) >> 16;
+    const int zr2 = (vy * sp + zr * cp) >> 16;
+
+    const int xf = (xr * cr + yr * sr) >> 16;
+    const int yf = (yr * cr - xr * sr) >> 16;
+
+    *out_x = (float)(xf + world_position->x);
+    *out_y = (float)(yf + world_position->y);
+    *out_z = (float)(zr2 + world_position->z);
 }
 
 void

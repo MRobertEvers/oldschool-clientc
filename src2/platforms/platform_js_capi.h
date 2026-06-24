@@ -12,6 +12,10 @@ LibToriPlatformJS_CAPI_EmscriptenHost_LuaMainLoop(void);
 
 EMSCRIPTEN_KEEPALIVE
 void
+LibToriPlatformJS_CAPI_EmscriptenHost_TasksMainLoop(void);
+
+EMSCRIPTEN_KEEPALIVE
+void
 LibToriPlatformJS_CAPI_InitializeEmscriptenHost(struct LibToriRS_Instance* instance_ptr);
 
 #endif

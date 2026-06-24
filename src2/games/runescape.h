@@ -5,6 +5,7 @@
 #include "../render/libtorirs_render.h"
 #include "../scripting/libtorirs_scripting.h"
 #include "../world/world.h"
+#include "../world/world_pickset.h"
 #include "osrs/painters.h"
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"
@@ -59,6 +60,15 @@ struct GameRunescape
     int zone_center_x;
     int zone_center_z;
     bool world_built;
+
+    int mouse_x;
+    int mouse_y;
+    bool mouse_in_viewport;
+    struct WorldPickSet pickset;
+    int last_tile_sx;
+    int last_tile_sz;
+    int last_tile_level;
+    bool last_tile_valid;
 
     struct
     {

@@ -80,6 +80,24 @@ class LibToriPlatformJS {
     }
   }
 
+  async EmscriptenHost_TasksMainLoop() {
+    if (this.inMainLoop) {
+      throw new Error("Already in main loop");
+    }
+    this.inMainLoop = true;
+
+    try {
+      let allDone = this.host.scriptAPIRunTasks();
+      while (!allDone) {
+        await this.handleIOQueue();
+        allDone = this.host.scriptAPIRunTasks();
+      }
+    } finally {
+      this.inMainLoop = false;
+      this.host.browserMainUnlock();
+    }
+  }
+
   loadInlineScriptSource(source) {
     const loadRc = lauxlib.luaL_loadstring(this.L_coro, to_luastring(source));
     if (loadRc !== lua.LUA_OK) {

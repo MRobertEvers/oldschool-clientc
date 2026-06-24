@@ -6,6 +6,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define TRSPK_VBO_GROUP_STATIC 0u
+#define TRSPK_VBO_GROUP_DYNAMIC 1u
+#define TRSPK_VBO_GROUP_COUNT 2u
+
 struct TRSPK_IBO
 {
     uint32_t index_count;
@@ -25,6 +29,7 @@ struct TRSPK_IBOChainNode
 {
     struct TRSPK_IBO ibo;
     uint32_t capacity;
+    uint32_t group;
     struct TRSPK_IBOChainNode* next;
 };
 
@@ -61,6 +66,7 @@ trspk_ibochain_reset(struct TRSPK_IBOChain* chain);
 void
 trspk_ibochain_push16(
     struct TRSPK_IBOChain* chain,
+    uint32_t group,
     uint32_t offset,
     const uint16_t* indices,
     uint32_t index_count);
@@ -68,6 +74,7 @@ trspk_ibochain_push16(
 void
 trspk_ibochain_push32(
     struct TRSPK_IBOChain* chain,
+    uint32_t group,
     uint32_t offset,
     const uint32_t* indices,
     uint32_t index_count);
@@ -75,6 +82,7 @@ trspk_ibochain_push32(
 void
 trspk_ibochain_pushs16(
     struct TRSPK_IBOChain* chain,
+    uint32_t group,
     uint32_t offset,
     const int16_t* indices,
     uint32_t index_count);
@@ -82,6 +90,7 @@ trspk_ibochain_pushs16(
 void
 trspk_ibochain_pushs32(
     struct TRSPK_IBOChain* chain,
+    uint32_t group,
     uint32_t offset,
     const int32_t* indices,
     uint32_t index_count);

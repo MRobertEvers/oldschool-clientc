@@ -46,6 +46,8 @@ SRCS := main.c \
 	$(SRC2)/toridraw/toridraw_scene.c \
 	$(SRC2)/toridraw/toridraw_intrusive_list.c \
 	$(SRC2)/world/world.c \
+	$(SRC2)/world/world_entity.c \
+	$(SRC2)/world/world_pickset.c \
 	$(SRC2)/world/world_builder.c \
 	$(SRC2)/world/world_decode_tile.c \
 	$(SRC2)/world/collision_map.c \

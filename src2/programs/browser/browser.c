@@ -31,6 +31,7 @@ has_flag(
 enum BrowserMainLoopState
 {
     BROWSER_MAIN_LOOP_STATE_FRAME,
+    BROWSER_MAIN_LOOP_STATE_WAITING_FOR_TASKS,
     BROWSER_MAIN_LOOP_STATE_WAITING_FOR_LUA
 };
 
@@ -46,7 +47,9 @@ EMSCRIPTEN_KEEPALIVE
 void
 LibToriPlatformEmscripten_JSHost_BrowserMainUnlock(void)
 {
-    assert(g_state == BROWSER_MAIN_LOOP_STATE_WAITING_FOR_LUA);
+    assert(
+        g_state == BROWSER_MAIN_LOOP_STATE_WAITING_FOR_LUA ||
+        g_state == BROWSER_MAIN_LOOP_STATE_WAITING_FOR_TASKS);
     g_state = BROWSER_MAIN_LOOP_STATE_FRAME;
 }
 
@@ -68,6 +71,13 @@ browser_main_loop(void)
             return;
         }
 
+        if( LibToriRS_TasksHasLive(g_instance) )
+        {
+            g_state = BROWSER_MAIN_LOOP_STATE_WAITING_FOR_TASKS;
+            LibToriPlatformJS_CAPI_EmscriptenHost_TasksMainLoop();
+            return;
+        }
+
         if( !LibToriRS_ScriptQueueIsEmpty(LibToriRS_GetScriptQueue(g_instance)) )
         {
             g_state = BROWSER_MAIN_LOOP_STATE_WAITING_FOR_LUA;
@@ -84,6 +94,8 @@ browser_main_loop(void)
 
         break;
     }
+    case BROWSER_MAIN_LOOP_STATE_WAITING_FOR_TASKS:
+        break;
     case BROWSER_MAIN_LOOP_STATE_WAITING_FOR_LUA:
         break;
     }

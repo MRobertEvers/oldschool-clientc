@@ -14,6 +14,7 @@ world_new(void)
 {
     struct World* world = calloc(1, sizeof(struct World));
     assert(world && "Failed to allocate world");
+    World_EntityListInit(&world->entities);
     return world;
 }
 
@@ -36,6 +37,7 @@ world_free(struct World* world)
     if( world->painter )
         painter_free(world->painter);
     free(world->terrain_element_ids);
+    World_EntityListFree(&world->entities);
     free(world);
 }
 
@@ -146,7 +148,7 @@ world_terrain_element_at(
 static int
 world_projectile_dst_y(
     struct World* world,
-    const struct WorldProjectile* p)
+    const struct WorldEntity_Projectile* p)
 {
     if( !world || !world->heightmap )
         return 0;
@@ -156,7 +158,7 @@ world_projectile_dst_y(
 
 static void
 world_projectile_settarget(
-    struct WorldProjectile* p,
+    struct WorldEntity_Projectile* p,
     struct World* world,
     int cycle)
 {
@@ -192,7 +194,7 @@ world_projectile_settarget(
 
 static void
 world_projectile_move(
-    struct WorldProjectile* p,
+    struct WorldEntity_Projectile* p,
     int delta)
 {
     if( delta <= 0 )
@@ -226,28 +228,20 @@ world_projectile_spawn(
     int angle,
     int startpos)
 {
+    struct World_EntityPool* pool;
+    struct WorldEntity_Projectile* p;
+    int idx;
+
     if( !world || element_id < 0 )
         return -1;
 
-    int idx = -1;
-    for( int i = 0; i < world->projectile_count; i++ )
-    {
-        if( !world->projectiles[i].alive )
-        {
-            idx = i;
-            break;
-        }
-    }
-
+    pool = &world->entities.projectile;
+    idx = World_EntityPoolAlloc(pool);
     if( idx < 0 )
-    {
-        if( world->projectile_count >= WORLD_MAX_PROJECTILES )
-            return -1;
-        idx = world->projectile_count++;
-    }
+        return -1;
 
-    world->projectiles[idx] = (struct WorldProjectile){
-        .alive = true,
+    p = World_EntityPoolGet(pool, idx);
+    *p = (struct WorldEntity_Projectile){
         .element_id = element_id,
         .level = level,
         .dst_level = level,
@@ -265,7 +259,7 @@ world_projectile_spawn(
         .launched = false,
     };
 
-    world_projectile_settarget(&world->projectiles[idx], world, t1);
+    world_projectile_settarget(p, world, t1);
     return idx;
 }
 
@@ -312,14 +306,19 @@ world_projectile_despawn(
     struct World* world,
     int idx)
 {
-    if( !world || idx < 0 || idx >= world->projectile_count )
+    struct World_EntityPool* pool;
+    struct WorldEntity_Projectile* p;
+
+    if( !world )
         return;
 
-    struct WorldProjectile* p = &world->projectiles[idx];
-    if( !p->alive )
+    pool = &world->entities.projectile;
+    if( !World_EntityPoolIsActive(pool, idx) )
         return;
 
-    p->alive = false;
+    p = World_EntityPoolGet(pool, idx);
+    if( !p )
+        return;
 
     if( p->element_id >= 0 && world->event_count < WORLD_MAX_EVENTS )
     {
@@ -328,6 +327,8 @@ world_projectile_despawn(
             .element_id = p->element_id,
         };
     }
+
+    World_EntityPoolRelease(pool, idx);
 }
 
 int
@@ -366,11 +367,11 @@ world_cycle(
 
     painter_reset_to_static(world->painter);
 
-    for( int i = 0; i < world->projectile_count; i++ )
+    struct World_EntityPool* pool = &world->entities.projectile;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; )
     {
-        struct WorldProjectile* p = &world->projectiles[i];
-        if( !p->alive )
-            continue;
+        int next = World_EntityPoolNext(pool, i);
+        struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, i);
 
         if( cycles_elapsed > 0 )
             p->cycle += cycles_elapsed;
@@ -378,11 +379,15 @@ world_cycle(
         if( p->cycle > p->t2 )
         {
             world_projectile_despawn(world, i);
+            i = next;
             continue;
         }
 
         if( p->cycle < p->t1 )
+        {
+            i = next;
             continue;
+        }
 
         if( cycles_elapsed > 0 )
         {
@@ -397,6 +402,7 @@ world_cycle(
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size || grid_z >= world->_scene_size )
         {
             world_projectile_despawn(world, i);
+            i = next;
             continue;
         }
 
@@ -416,5 +422,7 @@ world_cycle(
             p->element_id,
             footprint.size_x,
             footprint.size_z);
+
+        i = next;
     }
 }

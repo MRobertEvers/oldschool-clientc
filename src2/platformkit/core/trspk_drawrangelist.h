@@ -12,6 +12,7 @@ struct TRSPK_DrawRange
 
     uint32_t base_offset;
     uint32_t config_idx;
+    uint32_t group;
 
     // Added because D3D9 and some Opengl APIs require this. DrawIndexedPrimitives, and
     // glDrawRangeElements.
@@ -46,8 +47,9 @@ trspk_drawrangelist_push(
     struct TRSPK_DrawRangeList* list,
     uint32_t start,
     uint32_t end,
-    uint32_t buffer_idx,
+    uint32_t base_offset,
     uint32_t config_idx,
+    uint32_t group,
     uint32_t min_vertex,
     uint32_t max_vertex);
 

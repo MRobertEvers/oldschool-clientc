@@ -83,6 +83,7 @@ trspk_ibo_grow_indices(
 static struct TRSPK_IBOChainNode*
 trspk_ibochain_node_create(
     enum TRSPK_IndexFormat index_format,
+    uint32_t group,
     uint32_t offset)
 {
     struct TRSPK_IBOChainNode* node =
@@ -92,6 +93,7 @@ trspk_ibochain_node_create(
     memset(node, 0, sizeof(struct TRSPK_IBOChainNode));
 
     node->capacity = TRSPK_IBOCHAIN_INITIAL_CAPACITY;
+    node->group = group;
     node->ibo.offset = offset;
     node->ibo.index_format = index_format;
     node->ibo.index_count = 0;
@@ -211,30 +213,35 @@ trspk_ibochain_reset(struct TRSPK_IBOChain* chain)
 }
 
 static struct TRSPK_IBOChainNode*
-trspk_ibochain_acquire_node(struct TRSPK_IBOChain* chain, uint32_t offset)
+trspk_ibochain_acquire_node(
+    struct TRSPK_IBOChain* chain,
+    uint32_t group,
+    uint32_t offset)
 {
     if( chain->free_head != NULL )
     {
         struct TRSPK_IBOChainNode* node = chain->free_head;
         chain->free_head = node->next;
+        node->group = group;
         node->ibo.offset = offset;
         node->ibo.index_count = 0u;
         node->next = NULL;
         return node;
     }
 
-    return trspk_ibochain_node_create(chain->index_format, offset);
+    return trspk_ibochain_node_create(chain->index_format, group, offset);
 }
 
 static void
 trspk_ibochain_ensure_tail_node(
     struct TRSPK_IBOChain* chain,
+    uint32_t group,
     uint32_t offset)
 {
-    if( chain->tail != NULL && chain->tail->ibo.offset == offset )
+    if( chain->tail != NULL && chain->tail->group == group && chain->tail->ibo.offset == offset )
         return;
 
-    struct TRSPK_IBOChainNode* node = trspk_ibochain_acquire_node(chain, offset);
+    struct TRSPK_IBOChainNode* node = trspk_ibochain_acquire_node(chain, group, offset);
 
     if( chain->tail != NULL )
         chain->tail->next = node;
@@ -269,6 +276,7 @@ trspk_ibochain_ensure_capacity(
 static void
 trspk_ibochain_append_u16(
     struct TRSPK_IBOChain* chain,
+    uint32_t group,
     uint32_t offset,
     const uint16_t* indices,
     uint32_t index_count)
@@ -282,7 +290,7 @@ trspk_ibochain_append_u16(
         return;
     }
 
-    trspk_ibochain_ensure_tail_node(chain, offset);
+    trspk_ibochain_ensure_tail_node(chain, group, offset);
 
     struct TRSPK_IBOChainNode* tail = chain->tail;
     trspk_ibochain_ensure_capacity(tail, index_count);
@@ -297,6 +305,7 @@ trspk_ibochain_append_u16(
 static void
 trspk_ibochain_append_u32(
     struct TRSPK_IBOChain* chain,
+    uint32_t group,
     uint32_t offset,
     const uint32_t* indices,
     uint32_t index_count)
@@ -310,7 +319,7 @@ trspk_ibochain_append_u32(
         return;
     }
 
-    trspk_ibochain_ensure_tail_node(chain, offset);
+    trspk_ibochain_ensure_tail_node(chain, group, offset);
 
     struct TRSPK_IBOChainNode* tail = chain->tail;
     trspk_ibochain_ensure_capacity(tail, index_count);
@@ -325,32 +334,36 @@ trspk_ibochain_append_u32(
 void
 trspk_ibochain_push16(
     struct TRSPK_IBOChain* chain,
+    uint32_t group,
     uint32_t offset,
     const uint16_t* indices,
     uint32_t index_count)
 {
-    trspk_ibochain_append_u16(chain, offset, indices, index_count);
+    trspk_ibochain_append_u16(chain, group, offset, indices, index_count);
 }
 
 void
 trspk_ibochain_push32(
     struct TRSPK_IBOChain* chain,
+    uint32_t group,
     uint32_t offset,
     const uint32_t* indices,
     uint32_t index_count)
 {
-    trspk_ibochain_append_u32(chain, offset, indices, index_count);
+    trspk_ibochain_append_u32(chain, group, offset, indices, index_count);
 }
 
 void
 trspk_ibochain_pushs16(
     struct TRSPK_IBOChain* chain,
+    uint32_t group,
     uint32_t offset,
     const int16_t* indices,
     uint32_t index_count)
 {
     trspk_ibochain_append_u16(
         chain,
+        group,
         offset,
         (const uint16_t*)indices,
         index_count);
@@ -359,12 +372,14 @@ trspk_ibochain_pushs16(
 void
 trspk_ibochain_pushs32(
     struct TRSPK_IBOChain* chain,
+    uint32_t group,
     uint32_t offset,
     const int32_t* indices,
     uint32_t index_count)
 {
     trspk_ibochain_append_u32(
         chain,
+        group,
         offset,
         (const uint32_t*)indices,
         index_count);

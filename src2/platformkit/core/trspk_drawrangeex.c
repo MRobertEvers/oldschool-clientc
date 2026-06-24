@@ -61,11 +61,15 @@ static void
 build_ranges_for_node(
     struct TRSPK_DrawRangeList* draw_ranges,
     const struct TRSPK_Triangles* triangles,
+    uint32_t group,
     uint32_t node_gpu_start,
     uint32_t page_base,
     const uint16_t* src,
     uint32_t count)
 {
+    if( triangles == NULL )
+        return;
+
     uint32_t i = 0u;
     while( i < count )
     {
@@ -99,6 +103,7 @@ build_ranges_for_node(
             node_gpu_start + i,
             page_base,
             encoded_cfg,
+            group,
             min_vertex,
             max_vertex);
     }
@@ -108,11 +113,15 @@ static void
 build_ranges_for_node_u32(
     struct TRSPK_DrawRangeList* draw_ranges,
     const struct TRSPK_Triangles* triangles,
+    uint32_t group,
     uint32_t node_gpu_start,
     uint32_t page_base,
     const uint32_t* src,
     uint32_t count)
 {
+    if( triangles == NULL )
+        return;
+
     uint32_t i = 0u;
     while( i < count )
     {
@@ -146,6 +155,7 @@ build_ranges_for_node_u32(
             node_gpu_start + i,
             page_base,
             encoded_cfg,
+            group,
             min_vertex,
             max_vertex);
     }
@@ -154,7 +164,7 @@ build_ranges_for_node_u32(
 uint32_t
 trspk_drawrangeex_build16(
     struct TRSPK_DrawRangeList* draw_ranges,
-    const struct TRSPK_Triangles* triangles,
+    const struct TRSPK_Triangles* const triangles_by_group[TRSPK_VBO_GROUP_COUNT],
     const struct TRSPK_IBOChain* ibo_chain,
     uint16_t* dst)
 {
@@ -168,14 +178,24 @@ trspk_drawrangeex_build16(
         if( node->ibo.index_count == 0u )
             continue;
 
+        assert(node->group < TRSPK_VBO_GROUP_COUNT);
+
         const uint32_t node_gpu_start = gpu_cursor;
         const uint32_t page_base = node->ibo.offset;
         const uint16_t* src = node->ibo.indices.as_u16;
         const uint32_t count = node->ibo.index_count;
+        const struct TRSPK_Triangles* triangles = triangles_by_group[node->group];
 
         memcpy(dst + gpu_cursor, src, count * sizeof(uint16_t));
 
-        build_ranges_for_node(draw_ranges, triangles, node_gpu_start, page_base, src, count);
+        build_ranges_for_node(
+            draw_ranges,
+            triangles,
+            node->group,
+            node_gpu_start,
+            page_base,
+            src,
+            count);
 
         gpu_cursor += count;
     }
@@ -186,7 +206,7 @@ trspk_drawrangeex_build16(
 uint32_t
 trspk_drawrangeex_build32(
     struct TRSPK_DrawRangeList* draw_ranges,
-    const struct TRSPK_Triangles* triangles,
+    const struct TRSPK_Triangles* const triangles_by_group[TRSPK_VBO_GROUP_COUNT],
     const struct TRSPK_IBOChain* ibo_chain,
     uint32_t* dst)
 {
@@ -200,14 +220,24 @@ trspk_drawrangeex_build32(
         if( node->ibo.index_count == 0u )
             continue;
 
+        assert(node->group < TRSPK_VBO_GROUP_COUNT);
+
         const uint32_t node_gpu_start = gpu_cursor;
         const uint32_t page_base = node->ibo.offset;
         const uint32_t* src = node->ibo.indices.as_u32;
         const uint32_t count = node->ibo.index_count;
+        const struct TRSPK_Triangles* triangles = triangles_by_group[node->group];
 
         memcpy(dst + gpu_cursor, src, count * sizeof(uint32_t));
 
-        build_ranges_for_node_u32(draw_ranges, triangles, node_gpu_start, page_base, src, count);
+        build_ranges_for_node_u32(
+            draw_ranges,
+            triangles,
+            node->group,
+            node_gpu_start,
+            page_base,
+            src,
+            count);
 
         gpu_cursor += count;
     }

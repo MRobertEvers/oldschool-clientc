@@ -67,13 +67,23 @@ struct D3D9SpriteSlot
     int crop_y;
 };
 
+struct D3D9ModelGroup
+{
+    struct TRSPK_VBO* vbo_cpu;
+    IDirect3DVertexBuffer9* vbo_gpu;
+    uint32_t gpu_capacity;
+    struct TRSPK_ModelArena* arena;
+    struct TRSPK_Triangles triangles;
+    bool reset_each_frame;
+};
+
 struct LibToriPlatformSDL2_RendererD3D9
 {
     SDL_Window* window;
     IDirect3D9* d3d;
     IDirect3DDevice9* device;
 
-    IDirect3DVertexBuffer9* vbo_static;
+    struct D3D9ModelGroup groups[TRSPK_VBO_GROUP_COUNT];
     IDirect3DIndexBuffer9* ibo;
     IDirect3DVertexDeclaration9* vertex_decl;
 
@@ -84,13 +94,7 @@ struct LibToriPlatformSDL2_RendererD3D9
     struct TRSPK_Atlas atlas;
     IDirect3DTexture9* atlas_tex;
 
-    struct TRSPK_VBO* vbo_static_cpu;
     uint32_t gpu_ibo_capacity;
-
-    struct TRSPK_ModelArena* model_arena;
-
-    /* Per global triangle: atlas/static vs animated tex_id. */
-    struct TRSPK_Triangles triangles;
 
     struct TRSPK_PoseTable poses;
 
@@ -724,10 +728,12 @@ d3d9_refresh_atlas_texture(struct LibToriPlatformSDL2_RendererD3D9* r)
 static void
 d3d9_release_gpu_mesh_buffers(struct LibToriPlatformSDL2_RendererD3D9* r)
 {
-    if( r->vbo_static )
+    struct D3D9ModelGroup* g = &r->groups[TRSPK_VBO_GROUP_STATIC];
+    if( g->vbo_gpu )
     {
-        IDirect3DVertexBuffer9_Release(r->vbo_static);
-        r->vbo_static = NULL;
+        IDirect3DVertexBuffer9_Release(g->vbo_gpu);
+        g->vbo_gpu = NULL;
+        g->gpu_capacity = 0u;
     }
     if( r->ibo )
     {
@@ -735,6 +741,70 @@ d3d9_release_gpu_mesh_buffers(struct LibToriPlatformSDL2_RendererD3D9* r)
         r->ibo = NULL;
     }
     r->gpu_ibo_capacity = 0u;
+}
+
+static void
+d3d9_reset_model_group(struct D3D9ModelGroup* g)
+{
+    if( g->arena )
+        trspk_modelarena_clear(g->arena);
+}
+
+static bool
+d3d9_upload_group(
+    struct LibToriPlatformSDL2_RendererD3D9* r,
+    struct D3D9ModelGroup* g)
+{
+    if( !g->vbo_cpu || !r->device )
+        return true;
+
+    const uint32_t vert_count = g->vbo_cpu->vertex_count;
+    if( vert_count == 0u )
+    {
+        trspk_vbo_clear_dirty(g->vbo_cpu);
+        return true;
+    }
+
+    if( !g->reset_each_frame && !trspk_vbo_is_dirty(g->vbo_cpu) )
+        return true;
+
+    const UINT sz = (UINT)(vert_count * sizeof(struct TRSPK_VertexD3D9));
+
+    if( vert_count > g->gpu_capacity || g->vbo_gpu == NULL )
+    {
+        if( g->vbo_gpu )
+        {
+            IDirect3DVertexBuffer9_Release(g->vbo_gpu);
+            g->vbo_gpu = NULL;
+        }
+
+        uint32_t cap = g->gpu_capacity ? g->gpu_capacity : 4096u;
+        while( cap < vert_count )
+            cap *= 2u;
+
+        HRESULT hr = IDirect3DDevice9_CreateVertexBuffer(
+            r->device,
+            (UINT)(cap * sizeof(struct TRSPK_VertexD3D9)),
+            D3DUSAGE_WRITEONLY,
+            0,
+            D3DPOOL_MANAGED,
+            &g->vbo_gpu,
+            NULL);
+        if( FAILED(hr) )
+            return false;
+        g->gpu_capacity = cap;
+    }
+
+    void* locked = NULL;
+    const DWORD lock_flags = g->reset_each_frame ? D3DLOCK_DISCARD : 0;
+    if( SUCCEEDED(IDirect3DVertexBuffer9_Lock(g->vbo_gpu, 0, sz, &locked, lock_flags)) )
+    {
+        memcpy(locked, g->vbo_cpu->vertices.as_d3d9, sz);
+        IDirect3DVertexBuffer9_Unlock(g->vbo_gpu);
+    }
+
+    trspk_vbo_clear_dirty(g->vbo_cpu);
+    return g->vbo_gpu != NULL;
 }
 
 static void
@@ -750,42 +820,6 @@ d3d9_clamp_local_uv(
         *v = 0.008f;
     if( *v > 0.992f )
         *v = 0.992f;
-}
-
-static bool
-d3d9_upload_vbo_if_dirty(struct LibToriPlatformSDL2_RendererD3D9* r)
-{
-    if( !trspk_vbo_is_dirty(r->vbo_static_cpu) || !r->vbo_static_cpu || !r->device )
-        return true;
-
-    const uint32_t vert_count = r->vbo_static_cpu->vertex_count;
-    if( vert_count == 0u )
-    {
-        trspk_vbo_clear_dirty(r->vbo_static_cpu);
-        return true;
-    }
-
-    if( r->vbo_static )
-    {
-        IDirect3DVertexBuffer9_Release(r->vbo_static);
-        r->vbo_static = NULL;
-    }
-
-    const UINT sz = (UINT)(vert_count * sizeof(struct TRSPK_VertexD3D9));
-    HRESULT hr = IDirect3DDevice9_CreateVertexBuffer(
-        r->device, sz, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &r->vbo_static, NULL);
-    if( FAILED(hr) )
-        return false;
-
-    void* locked = NULL;
-    if( SUCCEEDED(IDirect3DVertexBuffer9_Lock(r->vbo_static, 0, sz, &locked, 0)) )
-    {
-        memcpy(locked, r->vbo_static_cpu->vertices.as_d3d9, sz);
-        IDirect3DVertexBuffer9_Unlock(r->vbo_static);
-    }
-
-    trspk_vbo_clear_dirty(r->vbo_static_cpu);
-    return true;
 }
 
 static bool
@@ -929,6 +963,12 @@ d3d9_ev_begin_3d(
         d3d9_bind_atlas_texture(dev, renderer->atlas_tex);
     else
         d3d9_set_no_texture_stages(dev);
+
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        if( renderer->groups[gi].reset_each_frame )
+            d3d9_reset_model_group(&renderer->groups[gi]);
+    }
 }
 
 static void
@@ -940,11 +980,11 @@ d3d9_ev_batch3d_clear(
     (void)instance;
     (void)command;
 
-    if( !renderer->model_arena )
+    if( !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena )
         return;
 
     trspk_pose_table_clear(&renderer->poses);
-    trspk_modelarena_clear(renderer->model_arena);
+    d3d9_reset_model_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
     d3d9_release_gpu_mesh_buffers(renderer);
 }
 
@@ -958,37 +998,47 @@ d3d9_ev_model_unload(
     assert(command->kind == TORIRSRC_MODEL_UNLOAD);
 
     const int element_id = command->u.model_load.element_id;
-    trspk_modelarena_unload_element(renderer->model_arena, element_id);
+    trspk_modelarena_unload_element(
+        renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
     trspk_pose_table_remove_element(&renderer->poses, element_id);
 }
 
-static void
+static uint32_t
 d3d9_bake_into_arena(
     struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct D3D9ModelGroup* g,
     struct LibToriRS_Instance* instance,
     int element_id,
     int pose_id,
     struct ToriDraw_ModelHandle model_handle,
-    const struct ToriDraw_Position* world_position)
+    const struct ToriDraw_Position* world_position,
+    bool update_pose_table)
 {
     struct ToriDraw_Model* model = get_model(model_handle);
-    if( !model || model->face_count <= 0 )
-        return;
+    if( !model || model->face_count <= 0 || !g->arena || !g->vbo_cpu )
+        return UINT32_MAX;
 
     struct ToriDraw_Scene* ctx = get_context(instance);
     const uint32_t vert_count = (uint32_t)model->face_count * 3u;
     const uint32_t tri_count = (uint32_t)model->face_count;
 
-    const uint32_t existing_slot =
-        trspk_modelarena_find(renderer->model_arena, element_id, pose_id);
-    if( existing_slot != TRSPK_MODELSLOT_NULL_IDX )
-        trspk_modelarena_unload(renderer->model_arena, existing_slot);
+    uint32_t slot_index = TRSPK_MODELSLOT_NULL_IDX;
 
-    const uint32_t slot_index =
-        trspk_modelarena_load(renderer->model_arena, element_id, pose_id, vert_count);
-    const struct TRSPK_ModelSlot* model_slot =
-        trspk_modelarena_get(renderer->model_arena, slot_index);
-    assert(model_slot != NULL);
+    if( update_pose_table )
+    {
+        const uint32_t existing_slot = trspk_modelarena_find(g->arena, element_id, pose_id);
+        if( existing_slot != TRSPK_MODELSLOT_NULL_IDX )
+            trspk_modelarena_unload(g->arena, existing_slot);
+        slot_index = trspk_modelarena_load(g->arena, element_id, pose_id, vert_count);
+    }
+    else
+    {
+        slot_index = trspk_modelarena_load(g->arena, element_id, pose_id, vert_count);
+    }
+
+    const struct TRSPK_ModelSlot* model_slot = trspk_modelarena_get(g->arena, slot_index);
+    if( !model_slot )
+        return UINT32_MAX;
 
     const uint32_t base = model_slot->vertex_base;
 
@@ -1050,7 +1100,7 @@ d3d9_bake_into_arena(
         const bool is_anim = trspk_toridraw_texture_is_animated(ctx, tex_id);
 
         trspk_triangles_set(
-            &renderer->triangles,
+            &g->triangles,
             (base / 3u) + face_index,
             trspk_triangles_make_config(tex_id, is_anim));
 
@@ -1106,7 +1156,7 @@ d3d9_bake_into_arena(
             &wz_c);
 
         trspk_vbo_write_vertex_d3d9(
-            renderer->vbo_static_cpu,
+            g->vbo_cpu,
             vi + 0u,
             wx_a,
             wy_a,
@@ -1116,7 +1166,7 @@ d3d9_bake_into_arena(
             v_a,
             (float)tex_id);
         trspk_vbo_write_vertex_d3d9(
-            renderer->vbo_static_cpu,
+            g->vbo_cpu,
             vi + 1u,
             wx_b,
             wy_b,
@@ -1126,7 +1176,7 @@ d3d9_bake_into_arena(
             v_b,
             (float)tex_id);
         trspk_vbo_write_vertex_d3d9(
-            renderer->vbo_static_cpu,
+            g->vbo_cpu,
             vi + 2u,
             wx_c,
             wy_c,
@@ -1137,7 +1187,10 @@ d3d9_bake_into_arena(
             (float)tex_id);
     }
 
-    trspk_pose_table_set(&renderer->poses, element_id, 0, pose_id, base);
+    if( update_pose_table )
+        trspk_pose_table_set(&renderer->poses, element_id, 0, pose_id, base);
+
+    return base;
 }
 
 static void
@@ -1149,11 +1202,13 @@ d3d9_ev_model_load(
     assert(command->kind == TORIRSRC_MODEL_LOAD);
     d3d9_bake_into_arena(
         renderer,
+        &renderer->groups[TRSPK_VBO_GROUP_STATIC],
         instance,
         command->u.model_load.element_id,
         0,
         command->u.model_load.model,
-        &command->u.model_load.world_position);
+        &command->u.model_load.world_position,
+        true);
 }
 
 static void
@@ -1187,7 +1242,15 @@ d3d9_ev_anim_load(
             .kind = TORIDRAWMK_MODEL,
             .u.model.model = baked,
         };
-        d3d9_bake_into_arena(renderer, instance, element_id, frame, baked_handle, world_position);
+        d3d9_bake_into_arena(
+            renderer,
+            &renderer->groups[TRSPK_VBO_GROUP_STATIC],
+            instance,
+            element_id,
+            frame,
+            baked_handle,
+            world_position,
+            true);
         ToriDraw_ModelFree(baked);
     }
 }
@@ -1212,11 +1275,13 @@ d3d9_ev_batch3d_model_add(
     assert(command->kind == TORIRSRC_BATCH3D_MODEL_ADD);
     d3d9_bake_into_arena(
         renderer,
+        &renderer->groups[TRSPK_VBO_GROUP_STATIC],
         instance,
         command->u.batch.element_id,
         command->u.batch.pose_id,
         command->u.batch.model,
-        &command->u.batch.world_position);
+        &command->u.batch.world_position,
+        true);
 }
 
 static void
@@ -1228,11 +1293,13 @@ d3d9_ev_batch3d_anim_add(
     assert(command->kind == TORIRSRC_BATCH3D_ANIM_ADD);
     d3d9_bake_into_arena(
         renderer,
+        &renderer->groups[TRSPK_VBO_GROUP_STATIC],
         instance,
         command->u.batch.element_id,
         command->u.batch.pose_id,
         command->u.batch.model,
-        &command->u.batch.world_position);
+        &command->u.batch.world_position,
+        true);
 }
 
 static void
@@ -1244,8 +1311,8 @@ d3d9_ev_batch3d_end(
     (void)instance;
     (void)command;
 
-    if( renderer->vbo_static_cpu )
-        trspk_vbo_set_dirty(renderer->vbo_static_cpu);
+    if( renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu )
+        trspk_vbo_set_dirty(renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu);
 }
 
 static void
@@ -1261,23 +1328,42 @@ d3d9_ev_model_draw(
     assert(ctx && "Invalid context");
 
     const int pose_id = command->u.model.anim_frame;
+    uint32_t group = TRSPK_VBO_GROUP_STATIC;
     uint32_t vertex_base = 0u;
-    if( !trspk_pose_table_get(
-            &renderer->poses, command->u.model.element_id, 0, pose_id, &vertex_base) )
+
+    if( command->u.model.dynamic )
     {
-        assert(false && "Invalid element ID");
+        vertex_base = d3d9_bake_into_arena(
+            renderer,
+            &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC],
+            instance,
+            command->u.model.element_id,
+            pose_id,
+            command->u.model.model,
+            &command->u.model.world_position,
+            false);
+        if( vertex_base == UINT32_MAX )
+            return;
+        group = TRSPK_VBO_GROUP_DYNAMIC;
+    }
+    else
+    {
+        if( !trspk_pose_table_get(
+                &renderer->poses, command->u.model.element_id, 0, pose_id, &vertex_base) )
+        {
+            assert(false && "Invalid element ID");
+            return;
+        }
     }
 
     const uint32_t page_base = vertex_base & ~(TRSPK_D3D9_VBO_PAGE - 1u);
-    // Compute the base of the index, relative to the page base.
-    // When DrawIndexedPrimitives is called,
-    // you submit Page Base + (index)
     const uint32_t local_base = vertex_base - page_base;
 
     const int face_count = ToriDraw_FaceOrderCount(ctx);
     if( face_count <= 0 )
     {
         assert(false && "Invalid face count");
+        return;
     }
 
     int* face_order = ToriDraw_FaceOrder(ctx);
@@ -1286,7 +1372,7 @@ d3d9_ev_model_draw(
         const uint32_t face = (uint32_t)face_order[i];
         const uint16_t b = (uint16_t)(local_base + face * 3u);
         const uint16_t idx[3] = { b, (uint16_t)(b + 1u), (uint16_t)(b + 2u) };
-        trspk_ibochain_push16(renderer->ibo_chain, page_base, idx, 3u);
+        trspk_ibochain_push16(renderer->ibo_chain, group, page_base, idx, 3u);
     }
 }
 
@@ -1305,8 +1391,11 @@ d3d9_ev_end_3d(
     if( trspk_atlas_is_dirty(&renderer->atlas) && trspk_atlas_is_initialized(&renderer->atlas) )
         d3d9_refresh_atlas_texture(renderer);
 
-    if( !d3d9_upload_vbo_if_dirty(renderer) || !renderer->vbo_static )
-        goto done;
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        if( !d3d9_upload_group(renderer, &renderer->groups[gi]) )
+            goto done;
+    }
 
     if( !renderer->ibo_chain || !renderer->ibo_chain->head )
         goto done;
@@ -1329,8 +1418,13 @@ d3d9_ev_end_3d(
 
     uint16_t* dst = (uint16_t*)locked;
 
+    const struct TRSPK_Triangles* triangles_by_group[TRSPK_VBO_GROUP_COUNT] = {
+        &renderer->groups[TRSPK_VBO_GROUP_STATIC].triangles,
+        &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].triangles,
+    };
+
     uint32_t built = trspk_drawrangeex_build16(
-        renderer->draw_ranges, &renderer->triangles, renderer->ibo_chain, dst);
+        renderer->draw_ranges, triangles_by_group, renderer->ibo_chain, dst);
 
     assert(built == total_indices);
 
@@ -1338,13 +1432,12 @@ d3d9_ev_end_3d(
 
     d3d9_set_base_render_states(dev);
     IDirect3DDevice9_SetVertexDeclaration(dev, renderer->vertex_decl);
-    IDirect3DDevice9_SetStreamSource(
-        dev, 0, renderer->vbo_static, 0, (UINT)sizeof(struct TRSPK_VertexD3D9));
     IDirect3DDevice9_SetIndices(dev, renderer->ibo);
 
     const float clk = (float)renderer->frame_clock;
     struct ToriDraw_Scene* ctx = get_context(instance);
     uint32_t last_cfg = UINT32_MAX;
+    uint32_t last_group = UINT32_MAX;
 
     const struct TRSPK_DrawRange* range = trspk_drawrangelist_head(renderer->draw_ranges);
     while( range )
@@ -1352,12 +1445,23 @@ d3d9_ev_end_3d(
         const uint32_t index_count = range->end - range->start;
         const uint32_t prim_count = index_count / 3u;
 
-        // 1. EARLY OUT FIRST
-        // Do not pollute state or waste cycles if there is nothing to draw.
         if( prim_count == 0u )
         {
             range = trspk_drawrangelist_next(renderer->draw_ranges, range);
             continue;
+        }
+
+        if( range->group != last_group )
+        {
+            IDirect3DVertexBuffer9* group_vb = renderer->groups[range->group].vbo_gpu;
+            if( !group_vb )
+            {
+                range = trspk_drawrangelist_next(renderer->draw_ranges, range);
+                continue;
+            }
+            IDirect3DDevice9_SetStreamSource(
+                dev, 0, group_vb, 0, (UINT)sizeof(struct TRSPK_VertexD3D9));
+            last_group = range->group;
         }
 
         const uint32_t cfg = range->config_idx;
@@ -1704,15 +1808,11 @@ LibToriPlatformSDL2_RendererD3D9_New(
 
     renderer->width = width;
     renderer->height = height;
-    renderer->vbo_static_cpu = trspk_vbo_create(0, TRSPK_VERTEX_FORMAT_D3D9);
     renderer->ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U16);
     renderer->draw_ranges = trspk_drawrangelist_create(TRSPK_D3D9_DRAWRANGE_CAP);
-    trspk_vbo_set_dirty(renderer->vbo_static_cpu);
 
-    if( !renderer->vbo_static_cpu || !renderer->ibo_chain || !renderer->draw_ranges )
+    if( !renderer->ibo_chain || !renderer->draw_ranges )
     {
-        if( renderer->vbo_static_cpu )
-            trspk_vbo_free(renderer->vbo_static_cpu);
         if( renderer->ibo_chain )
             trspk_ibochain_free(renderer->ibo_chain);
         if( renderer->draw_ranges )
@@ -1721,20 +1821,42 @@ LibToriPlatformSDL2_RendererD3D9_New(
         return NULL;
     }
 
-    renderer->model_arena = trspk_modelarena_create(
-        renderer->vbo_static_cpu, &renderer->triangles, TRSPK_D3D9_VBO_PAGE, 64u);
-    if( !renderer->model_arena )
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
     {
-        trspk_vbo_free(renderer->vbo_static_cpu);
-        trspk_ibochain_free(renderer->ibo_chain);
-        trspk_drawrangelist_free(renderer->draw_ranges);
-        free(renderer);
-        return NULL;
+        struct D3D9ModelGroup* g = &renderer->groups[gi];
+        g->vbo_cpu = trspk_vbo_create(0, TRSPK_VERTEX_FORMAT_D3D9);
+        if( !g->vbo_cpu )
+            goto fail;
+
+        g->arena = trspk_modelarena_create(g->vbo_cpu, &g->triangles, TRSPK_D3D9_VBO_PAGE, 64u);
+        if( !g->arena )
+            goto fail;
+
+        g->reset_each_frame = (gi == TRSPK_VBO_GROUP_DYNAMIC);
+        trspk_vbo_set_dirty(g->vbo_cpu);
     }
 
     trspk_pose_table_init(&renderer->poses);
 
     return renderer;
+
+fail:
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        struct D3D9ModelGroup* g = &renderer->groups[gi];
+        if( g->arena )
+            trspk_modelarena_free(g->arena);
+        if( g->vbo_cpu )
+            trspk_vbo_free(g->vbo_cpu);
+        trspk_triangles_free(&g->triangles);
+    }
+    trspk_pose_table_free(&renderer->poses);
+    if( renderer->ibo_chain )
+        trspk_ibochain_free(renderer->ibo_chain);
+    if( renderer->draw_ranges )
+        trspk_drawrangelist_free(renderer->draw_ranges);
+    free(renderer);
+    return NULL;
 }
 
 void
@@ -1745,20 +1867,29 @@ LibToriPlatformSDL2_RendererD3D9_Free(struct LibToriPlatformSDL2_RendererD3D9* r
 
     d3d9_release_gpu_mesh_buffers(renderer);
 
-    trspk_triangles_free(&renderer->triangles);
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        struct D3D9ModelGroup* g = &renderer->groups[gi];
+        if( g->vbo_gpu )
+        {
+            IDirect3DVertexBuffer9_Release(g->vbo_gpu);
+            g->vbo_gpu = NULL;
+        }
+        trspk_triangles_free(&g->triangles);
+        if( g->arena )
+        {
+            trspk_modelarena_free(g->arena);
+            g->arena = NULL;
+        }
+        if( g->vbo_cpu )
+        {
+            trspk_vbo_free(g->vbo_cpu);
+            g->vbo_cpu = NULL;
+        }
+    }
+
     trspk_pose_table_free(&renderer->poses);
 
-    if( renderer->model_arena )
-    {
-        trspk_modelarena_free(renderer->model_arena);
-        renderer->model_arena = NULL;
-    }
-
-    if( renderer->vbo_static_cpu )
-    {
-        trspk_vbo_free(renderer->vbo_static_cpu);
-        renderer->vbo_static_cpu = NULL;
-    }
     if( renderer->ibo_chain )
     {
         trspk_ibochain_free(renderer->ibo_chain);

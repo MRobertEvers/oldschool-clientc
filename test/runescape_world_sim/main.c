@@ -267,7 +267,10 @@ test_projectile_movement_and_painter(
     if( projectile_idx < 0 )
         FAIL("game_runescape_spawn_projectile failed");
 
-    struct WorldProjectile* projectile = &game->world->projectiles[projectile_idx];
+    struct World_EntityPool* pool = &game->world->entities.projectile;
+    struct WorldEntity_Projectile* projectile = World_EntityPoolGet(pool, projectile_idx);
+    if( !projectile || !World_EntityPoolIsActive(pool, projectile_idx) )
+        FAIL("projectile pool slot missing after spawn");
     int const element_id = projectile->element_id;
     int const start_pos_x = (int)projectile->x;
     int const start_grid_x = start_pos_x >> 7;
@@ -393,7 +396,7 @@ test_projectile_movement_and_painter(
             &ignored_draws,
             &ignored_drawn,
             false);
-        if( !projectile->alive )
+        if( !World_EntityPoolIsActive(pool, projectile_idx) )
             despawned = true;
     }
 

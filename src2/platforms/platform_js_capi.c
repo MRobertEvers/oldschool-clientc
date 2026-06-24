@@ -14,6 +14,17 @@ EM_JS(
 
 EM_JS(
     void,
+    LibToriPlatformJS_CAPI_ASM_EmscriptenHost_TasksMainLoop,
+    (void),
+    {
+        if( typeof window.LibToriPlatformJS.EmscriptenHost_TasksMainLoop === "function" )
+        {
+            window.LibToriPlatformJS.EmscriptenHost_TasksMainLoop();
+        }
+    });
+
+EM_JS(
+    void,
     LibToriPlatformJS_CAPI_ASM_InitializeEmscriptenHost,
     (void* instance_ptr),
     {
@@ -26,6 +37,13 @@ void
 LibToriPlatformJS_CAPI_EmscriptenHost_LuaMainLoop(void)
 {
     LibToriPlatformJS_CAPI_ASM_EmscriptenHost_LuaMainLoop();
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformJS_CAPI_EmscriptenHost_TasksMainLoop(void)
+{
+    LibToriPlatformJS_CAPI_ASM_EmscriptenHost_TasksMainLoop();
 }
 
 void

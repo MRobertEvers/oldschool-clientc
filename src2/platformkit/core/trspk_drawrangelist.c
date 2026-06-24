@@ -44,6 +44,7 @@ trspk_drawrangelist_push(
     uint32_t end,
     uint32_t base_offset,
     uint32_t config_idx,
+    uint32_t group,
     uint32_t min_vertex,
     uint32_t max_vertex)
 {
@@ -56,6 +57,7 @@ trspk_drawrangelist_push(
     item->end = end;
     item->base_offset = base_offset;
     item->config_idx = config_idx;
+    item->group = group;
     item->min_vertex = min_vertex;
     item->max_vertex = max_vertex;
     item->next_idx = TRSPK_DRAWRANGELIST_NULL_IDX;

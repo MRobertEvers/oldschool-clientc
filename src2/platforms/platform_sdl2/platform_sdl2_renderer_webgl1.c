@@ -32,9 +32,20 @@
 
 struct WebGL1DrawRecord
 {
+    uint32_t group;
     uint32_t page;
     uint32_t draw_offset;
     uint32_t count;
+};
+
+struct WebGL1ModelGroup
+{
+    struct TRSPK_VBOChain16* chain;
+    struct TRSPK_ModelArena* arena;
+    GLuint* page_buffers;
+    uint32_t* page_buffer_caps;
+    uint32_t page_buffer_count;
+    bool reset_each_frame;
 };
 
 struct LibToriPlatformSDL2_RendererWebGL1
@@ -44,13 +55,9 @@ struct LibToriPlatformSDL2_RendererWebGL1
     int width;
     int height;
 
-    struct TRSPK_VBOChain16* vbo_chain;
-    struct TRSPK_ModelArena* model_arena;
+    struct WebGL1ModelGroup groups[TRSPK_VBO_GROUP_COUNT];
     struct TRSPK_PoseTable poses;
     struct TRSPK_IBOChain* ibo_chain;
-
-    GLuint* page_buffers;
-    uint32_t page_buffer_count;
 
     GLuint atlas_texture;
     struct TRSPK_Atlas atlas;
@@ -86,12 +93,24 @@ struct LibToriPlatformSDL2_RendererWebGL1
 };
 
 static void
+webgl1_free_group_gl_resources(struct WebGL1ModelGroup* g)
+{
+    if( g->page_buffers && g->page_buffer_count > 0u )
+        glDeleteBuffers((GLsizei)g->page_buffer_count, g->page_buffers);
+    free(g->page_buffers);
+    free(g->page_buffer_caps);
+    g->page_buffers = NULL;
+    g->page_buffer_caps = NULL;
+    g->page_buffer_count = 0u;
+}
+
+static void
 webgl1_destroy_gl_resources(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
 {
     if( renderer->program3d )
         glDeleteProgram(renderer->program3d);
-    if( renderer->page_buffers && renderer->page_buffer_count > 0u )
-        glDeleteBuffers((GLsizei)renderer->page_buffer_count, renderer->page_buffers);
+    for( uint32_t i = 0u; i < TRSPK_VBO_GROUP_COUNT; ++i )
+        webgl1_free_group_gl_resources(&renderer->groups[i]);
     if( renderer->ebo )
         glDeleteBuffers(1, &renderer->ebo);
     if( renderer->atlas_texture )
@@ -99,9 +118,6 @@ webgl1_destroy_gl_resources(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
     renderer->program3d = 0u;
     renderer->ebo = 0u;
     renderer->atlas_texture = 0u;
-    free(renderer->page_buffers);
-    renderer->page_buffers = NULL;
-    renderer->page_buffer_count = 0u;
 }
 
 static struct ToriDraw_Model*
@@ -351,54 +367,72 @@ bind_vbo_attribs(
 
 static void
 webgl1_ensure_page_buffers(
-    struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    struct WebGL1ModelGroup* g,
     uint32_t page_count)
 {
-    if( page_count <= renderer->page_buffer_count )
+    if( page_count <= g->page_buffer_count )
         return;
 
-    GLuint* grown =
-        (GLuint*)realloc(renderer->page_buffers, page_count * sizeof(GLuint));
-    assert(grown != NULL);
+    GLuint* grown_bufs = (GLuint*)realloc(g->page_buffers, page_count * sizeof(GLuint));
+    uint32_t* grown_caps = (uint32_t*)realloc(g->page_buffer_caps, page_count * sizeof(uint32_t));
+    assert(grown_bufs != NULL && grown_caps != NULL);
 
-    for( uint32_t i = renderer->page_buffer_count; i < page_count; ++i )
+    for( uint32_t i = g->page_buffer_count; i < page_count; ++i )
     {
-        grown[i] = 0u;
-        glGenBuffers(1, &grown[i]);
+        grown_bufs[i] = 0u;
+        grown_caps[i] = 0u;
+        glGenBuffers(1, &grown_bufs[i]);
     }
 
-    renderer->page_buffers = grown;
-    renderer->page_buffer_count = page_count;
+    g->page_buffers = grown_bufs;
+    g->page_buffer_caps = grown_caps;
+    g->page_buffer_count = page_count;
 }
 
 static void
-webgl1_upload_pages_if_dirty(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
+webgl1_upload_group_pages(struct WebGL1ModelGroup* g)
 {
-    if( !renderer->vbo_chain )
+    if( !g->chain )
         return;
 
-    const uint32_t page_count = renderer->vbo_chain->page_count;
+    const uint32_t page_count = g->chain->page_count;
     if( page_count == 0u )
         return;
 
-    webgl1_ensure_page_buffers(renderer, page_count);
+    webgl1_ensure_page_buffers(g, page_count);
 
     for( uint32_t i = 0u; i < page_count; ++i )
     {
-        struct TRSPK_VBO* page_vbo = renderer->vbo_chain->pages[i];
-        if( !page_vbo || !trspk_vbo_is_dirty(page_vbo) || page_vbo->vertex_count == 0u )
+        struct TRSPK_VBO* page_vbo = g->chain->pages[i];
+        if( !page_vbo || page_vbo->vertex_count == 0u )
+            continue;
+        if( !g->reset_each_frame && !trspk_vbo_is_dirty(page_vbo) )
             continue;
 
-        glBindBuffer(GL_ARRAY_BUFFER, renderer->page_buffers[i]);
-        glBufferData(
-            GL_ARRAY_BUFFER,
-            page_vbo->vertex_count * sizeof(struct TRSPK_VertexWebGL1),
-            page_vbo->vertices.as_webgl1,
-            GL_STATIC_DRAW);
+        const uint32_t vert_count = page_vbo->vertex_count;
+        const GLsizeiptr byte_size =
+            (GLsizeiptr)(vert_count * sizeof(struct TRSPK_VertexWebGL1));
+
+        glBindBuffer(GL_ARRAY_BUFFER, g->page_buffers[i]);
+        if( vert_count > g->page_buffer_caps[i] )
+        {
+            glBufferData(GL_ARRAY_BUFFER, byte_size, NULL, GL_DYNAMIC_DRAW);
+            g->page_buffer_caps[i] = vert_count;
+        }
+        glBufferSubData(GL_ARRAY_BUFFER, 0, byte_size, page_vbo->vertices.as_webgl1);
         trspk_vbo_clear_dirty(page_vbo);
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+static void
+webgl1_reset_model_group(struct WebGL1ModelGroup* g)
+{
+    if( g->arena )
+        trspk_modelarena_clear(g->arena);
+    if( g->chain )
+        trspk_vbochain16_reset(g->chain);
 }
 
 static void
@@ -579,6 +613,7 @@ webgl1_ensure_draw_records(
 static bool
 webgl1_push_draw_record(
     struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    uint32_t group,
     uint32_t page,
     uint32_t draw_offset,
     uint32_t count)
@@ -587,6 +622,7 @@ webgl1_push_draw_record(
         return false;
 
     struct WebGL1DrawRecord* rec = &renderer->draw_records[renderer->draw_record_count++];
+    rec->group = group;
     rec->page = page;
     rec->draw_offset = draw_offset;
     rec->count = count;
@@ -618,36 +654,44 @@ webgl1_ensure_gpu_ibo(
     return true;
 }
 
-static void
+static const struct TRSPK_ModelSlot*
 webgl1_bake_into_arena(
     struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    struct WebGL1ModelGroup* g,
     struct LibToriRS_Instance* instance,
     int element_id,
     int pose_id,
     struct ToriDraw_ModelHandle model_handle,
-    const struct ToriDraw_Position* world_position)
+    const struct ToriDraw_Position* world_position,
+    bool update_pose_table)
 {
     struct ToriDraw_Model* model = get_model(model_handle);
-    if( !model || model->face_count <= 0 || !renderer->model_arena || !renderer->vbo_chain )
-        return;
+    if( !model || model->face_count <= 0 || !g->arena || !g->chain )
+        return NULL;
 
     struct ToriDraw_Scene* ctx = get_context(instance);
     const uint32_t vert_count = (uint32_t)model->face_count * 3u;
     const uint32_t tri_count = (uint32_t)model->face_count;
 
-    const uint32_t existing_slot =
-        trspk_modelarena_find(renderer->model_arena, element_id, pose_id);
-    if( existing_slot != TRSPK_MODELSLOT_NULL_IDX )
-        trspk_modelarena_unload(renderer->model_arena, existing_slot);
+    uint32_t slot_index = TRSPK_MODELSLOT_NULL_IDX;
 
-    const uint32_t slot_index =
-        trspk_modelarena_load(renderer->model_arena, element_id, pose_id, vert_count);
-    const struct TRSPK_ModelSlot* model_slot =
-        trspk_modelarena_get(renderer->model_arena, slot_index);
+    if( update_pose_table )
+    {
+        const uint32_t existing_slot = trspk_modelarena_find(g->arena, element_id, pose_id);
+        if( existing_slot != TRSPK_MODELSLOT_NULL_IDX )
+            trspk_modelarena_unload(g->arena, existing_slot);
+        slot_index = trspk_modelarena_load(g->arena, element_id, pose_id, vert_count);
+    }
+    else
+    {
+        slot_index = trspk_modelarena_load(g->arena, element_id, pose_id, vert_count);
+    }
+
+    const struct TRSPK_ModelSlot* model_slot = trspk_modelarena_get(g->arena, slot_index);
     if( !model_slot )
-        return;
+        return NULL;
 
-    struct TRSPK_VBO* page_vbo = renderer->vbo_chain->pages[model_slot->page];
+    struct TRSPK_VBO* page_vbo = g->chain->pages[model_slot->page];
     const uint32_t base = model_slot->vertex_base;
 
     for( uint32_t face_index = 0; face_index < tri_count; face_index++ )
@@ -775,12 +819,17 @@ webgl1_bake_into_arena(
             uv_mode);
     }
 
-    trspk_pose_table_set(
-        &renderer->poses,
-        element_id,
-        0,
-        pose_id,
-        TRSPK_WEBGL1_ENCODE_PAGE_LOCAL(model_slot->page, model_slot->vertex_base));
+    if( update_pose_table )
+    {
+        trspk_pose_table_set(
+            &renderer->poses,
+            element_id,
+            0,
+            pose_id,
+            TRSPK_WEBGL1_ENCODE_PAGE_LOCAL(model_slot->page, model_slot->vertex_base));
+    }
+
+    return model_slot;
 }
 
 static void
@@ -789,7 +838,8 @@ webgl1_ev_end_3d(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
     if( !renderer->has_3d )
         goto done;
 
-    webgl1_upload_pages_if_dirty(renderer);
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+        webgl1_upload_group_pages(&renderer->groups[gi]);
 
     if( !renderer->ibo_chain || !renderer->ibo_chain->head )
         goto done;
@@ -819,7 +869,12 @@ webgl1_ev_end_3d(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
             continue;
 
         const uint32_t page = node->ibo.offset;
-        if( page >= renderer->page_buffer_count || renderer->page_buffers[page] == 0u )
+        const uint32_t group = node->group;
+        if( group >= TRSPK_VBO_GROUP_COUNT )
+            continue;
+
+        struct WebGL1ModelGroup* mg = &renderer->groups[group];
+        if( page >= mg->page_buffer_count || mg->page_buffers[page] == 0u )
             continue;
 
         memcpy(
@@ -827,7 +882,7 @@ webgl1_ev_end_3d(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
             node->ibo.indices.as_u16,
             count * sizeof(uint16_t));
 
-        if( !webgl1_push_draw_record(renderer, page, cursor, count) )
+        if( !webgl1_push_draw_record(renderer, group, page, cursor, count) )
             goto done;
 
         cursor += count;
@@ -852,7 +907,10 @@ webgl1_ev_end_3d(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
     for( uint32_t i = 0u; i < renderer->draw_record_count; ++i )
     {
         const struct WebGL1DrawRecord* rec = &renderer->draw_records[i];
-        bind_vbo_attribs(renderer, renderer->page_buffers[rec->page]);
+        struct WebGL1ModelGroup* mg = &renderer->groups[rec->group];
+        if( rec->page >= mg->page_buffer_count )
+            continue;
+        bind_vbo_attribs(renderer, mg->page_buffers[rec->page]);
         glDrawElements(
             GL_TRIANGLES,
             (GLsizei)rec->count,
@@ -901,7 +959,15 @@ webgl1_ev_anim_load(
             .kind = TORIDRAWMK_MODEL,
             .u.model.model = baked,
         };
-        webgl1_bake_into_arena(renderer, instance, element_id, frame, baked_handle, world_position);
+        webgl1_bake_into_arena(
+            renderer,
+            &renderer->groups[TRSPK_VBO_GROUP_STATIC],
+            instance,
+            element_id,
+            frame,
+            baked_handle,
+            world_position,
+            true);
         ToriDraw_ModelFree(baked);
     }
 }
@@ -936,6 +1002,12 @@ webgl1_handle_render_command(
 
         if( trspk_atlas_is_dirty(&renderer->atlas) )
             webgl1_upload_atlas_texture(renderer);
+
+        for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+        {
+            if( renderer->groups[gi].reset_each_frame )
+                webgl1_reset_model_group(&renderer->groups[gi]);
+        }
         break;
     case TORIRSRC_TEX_LOAD:
         webgl1_ev_tex_load(renderer, instance, command);
@@ -951,14 +1023,17 @@ webgl1_handle_render_command(
     case TORIRSRC_MODEL_LOAD:
         webgl1_bake_into_arena(
             renderer,
+            &renderer->groups[TRSPK_VBO_GROUP_STATIC],
             instance,
             command->u.model_load.element_id,
             0,
             command->u.model_load.model,
-            &command->u.model_load.world_position);
+            &command->u.model_load.world_position,
+            true);
         break;
     case TORIRSRC_MODEL_UNLOAD:
-        trspk_modelarena_unload_element(renderer->model_arena, command->u.model_load.element_id);
+        trspk_modelarena_unload_element(
+            renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, command->u.model_load.element_id);
         trspk_pose_table_remove_element(&renderer->poses, command->u.model_load.element_id);
         break;
     case TORIRSRC_BATCH3D_BEGIN:
@@ -966,27 +1041,30 @@ webgl1_handle_render_command(
     case TORIRSRC_BATCH3D_MODEL_ADD:
         webgl1_bake_into_arena(
             renderer,
+            &renderer->groups[TRSPK_VBO_GROUP_STATIC],
             instance,
             command->u.batch.element_id,
             command->u.batch.pose_id,
             command->u.batch.model,
-            &command->u.batch.world_position);
+            &command->u.batch.world_position,
+            true);
         break;
     case TORIRSRC_BATCH3D_ANIM_ADD:
         webgl1_bake_into_arena(
             renderer,
+            &renderer->groups[TRSPK_VBO_GROUP_STATIC],
             instance,
             command->u.batch.element_id,
             command->u.batch.pose_id,
             command->u.batch.model,
-            &command->u.batch.world_position);
+            &command->u.batch.world_position,
+            true);
         break;
     case TORIRSRC_BATCH3D_END:
         break;
     case TORIRSRC_BATCH3D_CLEAR:
         trspk_pose_table_clear(&renderer->poses);
-        if( renderer->model_arena )
-            trspk_modelarena_clear(renderer->model_arena);
+        webgl1_reset_model_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
         break;
     case TORIRSRC_DRAW_MODEL:
     {
@@ -998,24 +1076,38 @@ webgl1_handle_render_command(
             break;
 
         const int pose_id = command->u.model.anim_frame;
+        uint32_t group = TRSPK_VBO_GROUP_STATIC;
+        uint32_t page = 0u;
+        uint32_t local_base = 0u;
+
         if( command->u.model.dynamic )
         {
-            webgl1_bake_into_arena(
+            const struct TRSPK_ModelSlot* slot = webgl1_bake_into_arena(
                 renderer,
+                &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC],
                 instance,
                 command->u.model.element_id,
                 pose_id,
                 command->u.model.model,
-                &command->u.model.world_position);
+                &command->u.model.world_position,
+                false);
+            if( !slot )
+                break;
+
+            group = TRSPK_VBO_GROUP_DYNAMIC;
+            page = slot->page;
+            local_base = slot->vertex_base;
         }
+        else
+        {
+            uint32_t encoded_base = 0u;
+            if( !trspk_pose_table_get(
+                    &renderer->poses, command->u.model.element_id, 0, pose_id, &encoded_base) )
+                break;
 
-        uint32_t encoded_base = 0u;
-        if( !trspk_pose_table_get(
-                &renderer->poses, command->u.model.element_id, 0, pose_id, &encoded_base) )
-            break;
-
-        const uint32_t page = TRSPK_WEBGL1_BASE_PAGE(encoded_base);
-        const uint32_t local_base = TRSPK_WEBGL1_BASE_LOCAL(encoded_base);
+            page = TRSPK_WEBGL1_BASE_PAGE(encoded_base);
+            local_base = TRSPK_WEBGL1_BASE_LOCAL(encoded_base);
+        }
 
         const int face_count = ToriDraw_FaceOrderCount(ctx);
         if( face_count <= 0 )
@@ -1027,7 +1119,7 @@ webgl1_handle_render_command(
             const uint32_t face = (uint32_t)face_order[i];
             const uint16_t b = (uint16_t)(local_base + face * 3u);
             const uint16_t idx[3] = { b, (uint16_t)(b + 1u), (uint16_t)(b + 2u) };
-            trspk_ibochain_push16(renderer->ibo_chain, page, idx, 3u);
+            trspk_ibochain_push16(renderer->ibo_chain, group, page, idx, 3u);
         }
         break;
     }
@@ -1048,34 +1140,40 @@ LibToriPlatformSDL2_RendererWebGL1_New(
     renderer->width = width;
     renderer->height = height;
 
-    renderer->vbo_chain = trspk_vbochain16_create(TRSPK_VERTEX_FORMAT_WEBGL1);
-    if( !renderer->vbo_chain )
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
     {
-        free(renderer);
-        return NULL;
-    }
+        struct WebGL1ModelGroup* g = &renderer->groups[gi];
+        g->chain = trspk_vbochain16_create(TRSPK_VERTEX_FORMAT_WEBGL1);
+        if( !g->chain )
+            goto fail;
 
-    renderer->model_arena =
-        trspk_modelarena_create_chain16(renderer->vbo_chain, NULL, 64u);
-    if( !renderer->model_arena )
-    {
-        trspk_vbochain16_free(renderer->vbo_chain);
-        free(renderer);
-        return NULL;
+        g->arena = trspk_modelarena_create_chain16(g->chain, NULL, 64u);
+        if( !g->arena )
+            goto fail;
+
+        g->reset_each_frame = (gi == TRSPK_VBO_GROUP_DYNAMIC);
     }
 
     renderer->ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U16);
     if( !renderer->ibo_chain )
-    {
-        trspk_modelarena_free(renderer->model_arena);
-        trspk_vbochain16_free(renderer->vbo_chain);
-        free(renderer);
-        return NULL;
-    }
+        goto fail;
 
     trspk_pose_table_init(&renderer->poses);
 
     return renderer;
+
+fail:
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        if( renderer->groups[gi].arena )
+            trspk_modelarena_free(renderer->groups[gi].arena);
+        if( renderer->groups[gi].chain )
+            trspk_vbochain16_free(renderer->groups[gi].chain);
+    }
+    if( renderer->ibo_chain )
+        trspk_ibochain_free(renderer->ibo_chain);
+    free(renderer);
+    return NULL;
 }
 
 void
@@ -1086,13 +1184,16 @@ LibToriPlatformSDL2_RendererWebGL1_Free(struct LibToriPlatformSDL2_RendererWebGL
     if( renderer->window && renderer->gl_context )
         SDL_GL_MakeCurrent(renderer->window, renderer->gl_context);
     webgl1_destroy_gl_resources(renderer);
-    if( renderer->model_arena )
-        trspk_modelarena_free(renderer->model_arena);
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        if( renderer->groups[gi].arena )
+            trspk_modelarena_free(renderer->groups[gi].arena);
+        if( renderer->groups[gi].chain )
+            trspk_vbochain16_free(renderer->groups[gi].chain);
+    }
     trspk_pose_table_free(&renderer->poses);
     if( renderer->ibo_chain )
         trspk_ibochain_free(renderer->ibo_chain);
-    if( renderer->vbo_chain )
-        trspk_vbochain16_free(renderer->vbo_chain);
     trspk_atlas_free(&renderer->atlas);
     free(renderer->ibo_staging);
     free(renderer->draw_records);
