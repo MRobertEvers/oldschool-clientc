@@ -268,7 +268,7 @@
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/src2/programs/sdl2/sdl2",
-      "args": ["--runescape", "--soft3d"],
+      "args": ["--runescape"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/src2/programs/sdl2",
       "environment": [],
