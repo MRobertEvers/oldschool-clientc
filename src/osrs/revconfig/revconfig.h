@@ -43,6 +43,12 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_COMPONENTNO,
     RCFIELD_UICOMPONENT_INV,
     RCFIELD_UICOMPONENT_PAINT_LEVELS,
+    RCFIELD_UICOMPONENT_COLOR,
+    RCFIELD_UICOMPONENT_FILLED,
+    RCFIELD_UICOMPONENT_FONT,
+    RCFIELD_UICOMPONENT_CENTER,
+    RCFIELD_UICOMPONENT_SHADOWED,
+    RCFIELD_UICOMPONENT_TEXT,
     RCFIELD_INV_ITEM,
     RCFIELD_UILAYOUT_COMPONENT,
     RCFIELD_UILAYOUT_X,
@@ -113,7 +119,13 @@ struct RevConfigUIComponentItem
     int anchor_y;
     int tabno;
     int componentno;
-    int paint_levels;
+    char paint_levels[64];
+    int color;
+    int filled;
+    int font;
+    int center;
+    int shadowed;
+    char text[256];
 };
 
 struct RevConfigUILayoutItem

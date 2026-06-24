@@ -42,6 +42,7 @@ struct LibToriRS_IOQueueItem
 {
     enum LibToriRS_IOKind kind;
     enum LibToriRS_IOStat status;
+    int run_id;
 
     int error_code;
     void* data;
@@ -59,6 +60,7 @@ struct LibToriRS_IOQueue
     struct LibToriRS_IOQueueItem items[LIBTORIRS_IOQUEUE_MAX_SIZE];
     int count;
     int read_head;
+    int run_counter;
 };
 
 struct LibToriRS_IOContext

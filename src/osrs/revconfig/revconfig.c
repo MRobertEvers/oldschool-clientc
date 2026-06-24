@@ -67,6 +67,18 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_INV";
     case RCFIELD_UICOMPONENT_PAINT_LEVELS:
         return "RCFIELD_UICOMPONENT_PAINT_LEVELS";
+    case RCFIELD_UICOMPONENT_COLOR:
+        return "RCFIELD_UICOMPONENT_COLOR";
+    case RCFIELD_UICOMPONENT_FILLED:
+        return "RCFIELD_UICOMPONENT_FILLED";
+    case RCFIELD_UICOMPONENT_FONT:
+        return "RCFIELD_UICOMPONENT_FONT";
+    case RCFIELD_UICOMPONENT_CENTER:
+        return "RCFIELD_UICOMPONENT_CENTER";
+    case RCFIELD_UICOMPONENT_SHADOWED:
+        return "RCFIELD_UICOMPONENT_SHADOWED";
+    case RCFIELD_UICOMPONENT_TEXT:
+        return "RCFIELD_UICOMPONENT_TEXT";
     case RCFIELD_INV_ITEM:
         return "RCFIELD_INV_ITEM";
     case RCFIELD_UILAYOUT_COMPONENT:
@@ -345,7 +357,27 @@ revconfig_item_apply_uicomponent_field(
         strncpy(comp->inv, value, sizeof(comp->inv) - 1);
         break;
     case RCFIELD_UICOMPONENT_PAINT_LEVELS:
-        comp->paint_levels = 1;
+        strncpy(comp->paint_levels, value, sizeof(comp->paint_levels) - 1);
+        comp->paint_levels[sizeof(comp->paint_levels) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_COLOR:
+        comp->color = atoi(value);
+        break;
+    case RCFIELD_UICOMPONENT_FILLED:
+        comp->filled = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
+        break;
+    case RCFIELD_UICOMPONENT_FONT:
+        comp->font = atoi(value);
+        break;
+    case RCFIELD_UICOMPONENT_CENTER:
+        comp->center = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
+        break;
+    case RCFIELD_UICOMPONENT_SHADOWED:
+        comp->shadowed = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
+        break;
+    case RCFIELD_UICOMPONENT_TEXT:
+        strncpy(comp->text, value, sizeof(comp->text) - 1);
+        comp->text[sizeof(comp->text) - 1] = '\0';
         break;
     default:
         break;

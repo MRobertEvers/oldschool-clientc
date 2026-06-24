@@ -3,6 +3,7 @@
 
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_sprite.h"
+#include "toridraw/toridraw_font.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -120,6 +121,20 @@ struct LibToriRS_RenderCommand_Sprite
     int y;
     int w;
     int h;
+    int scissor_x;
+    int scissor_y;
+    int scissor_w;
+    int scissor_h;
+    int rotation;
+    int mask_element_id;
+    int mask_atlas_index;
+    int alpha;
+};
+
+struct LibToriRS_RenderCommand_FontLoad
+{
+    int font_id;
+    struct ToriDraw_Font* font;
 };
 
 struct LibToriRS_RenderCommand_ClearRect
@@ -172,6 +187,7 @@ struct LibToriRS_RenderCommand
         struct LibToriRS_RenderCommand_Batch batch;
         struct LibToriRS_RenderCommand_TexLoad tex_load;
         struct LibToriRS_RenderCommand_SpriteLoad sprite_load;
+        struct LibToriRS_RenderCommand_FontLoad font_load;
         struct LibToriRS_RenderCommand_Sprite sprite;
         struct LibToriRS_RenderCommand_ClearRect clear_rect;
         struct LibToriRS_RenderCommand_FillRect fill_rect;

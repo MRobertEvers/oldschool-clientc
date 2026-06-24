@@ -22,6 +22,12 @@
 
 #define RUNESCAPE_CAMERA_MOVEMENT_SPEED 70
 
+enum RsPhaseResult
+{
+    RS_PHASE_YIELD,
+    RS_PHASE_ADVANCE,
+};
+
 static int
 clamp_terrain_level(int level)
 {
@@ -112,6 +118,25 @@ game_runescape_translate_gc_event(
         command->u.tex_load.texture_id = ev->texture_id;
         command->u.tex_load.texture = NULL;
         return true;
+    case TORIDRAW_EVENT_SPRITE_LOAD:
+        command->kind = TORIRSRC_SPRITE_LOAD;
+        command->u.sprite_load.element_id = ev->element_id;
+        command->u.sprite_load.sprites = ev->sprites;
+        command->u.sprite_load.count = ev->sprite_count;
+        return true;
+    case TORIDRAW_EVENT_SPRITE_UNLOAD:
+        command->kind = TORIRSRC_SPRITE_UNLOAD;
+        command->u.sprite_load.element_id = ev->element_id;
+        return true;
+    case TORIDRAW_EVENT_FONT_LOAD:
+        command->kind = TORIRSRC_FONT_LOAD;
+        command->u.font_load.font_id = ev->texture_id;
+        command->u.font_load.font = ev->font;
+        return true;
+    case TORIDRAW_EVENT_FONT_UNLOAD:
+        command->kind = TORIRSRC_FONT_UNLOAD;
+        command->u.font_load.font_id = ev->texture_id;
+        return true;
     default:
         return false;
     }
@@ -141,14 +166,11 @@ game_runescape_emit_draw_element(
     int tile_level,
     struct LibToriRS_RenderCommand* command)
 {
-    if( !ToriDraw_SceneElementIsLive(game->scene, element_id) )
-        return false;
+    assert(ToriDraw_SceneElementIsLive(game->scene, element_id));
 
     struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(game->scene, element_id);
-    if( !element || element->model.kind != TORIDRAWMK_MODEL )
-        return false;
-    if( !ToriDraw_ModelGetBoundsCylinder(element->model) )
-        return false;
+    assert(!(!element || element->model.kind != TORIDRAWMK_MODEL));
+    assert(ToriDraw_ModelGetBoundsCylinder(element->model));
 
     struct ToriDraw_Position rel_pos = element->world_position;
     rel_pos.x -= game->camera_position->x;
@@ -169,11 +191,7 @@ game_runescape_emit_draw_element(
 
         if( game->mouse_in_viewport &&
             ToriDraw_ProjectedModelContainsPoint(
-                game->scene,
-                element->model,
-                &game->world_view_port,
-                game->mouse_x,
-                game->mouse_y) )
+                game->scene, element->model, &game->world_view_port, game->mouse_x, game->mouse_y) )
         {
             world_pickset_add(&game->pickset, element_id, pick_type);
             if( pick_type == WORLD_PICK_TERRAIN )
@@ -282,6 +300,9 @@ game_runescape_new(
     game->painter_buffer = painter_buffer_new();
     assert(game->painter_buffer && "game_runescape_new: failed to allocate painter buffer");
 
+    game->ui_tree = uitree_new(64);
+    assert(game->ui_tree && "game_runescape_new: failed to allocate ui tree");
+
     return game;
 }
 
@@ -297,6 +318,8 @@ game_runescape_free(struct GameRunescape* game)
     }
     if( game->world )
         world_free(game->world);
+    if( game->ui_tree )
+        uitree_free(game->ui_tree);
     free(game->camera_position);
     free(game->camera);
     free(game->view_port);
@@ -321,6 +344,26 @@ game_runescape_set_td(
     if( !game )
         return;
     game->td = td;
+}
+
+void
+game_runescape_set_ui_tree(
+    struct GameRunescape* game,
+    struct UITree* ui_tree)
+{
+    if( !game )
+        return;
+    game->ui_tree = ui_tree;
+}
+
+void
+game_runescape_set_ui_tree_ready(
+    struct GameRunescape* game,
+    bool ready)
+{
+    if( !game )
+        return;
+    game->ui_tree_ready = ready;
 }
 
 void
@@ -409,20 +452,15 @@ game_runescape_sync_projectiles_to_scene(struct GameRunescape* game)
         return;
 
     struct World_EntityPool* pool = &world->entities.projectile;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, i);
         if( !p || p->element_id < 0 || !p->launched )
             continue;
 
         ToriDraw_SceneElementSetPositionPitchYaw(
-            game->scene,
-            p->element_id,
-            (int)p->x,
-            (int)p->y,
-            (int)p->z,
-            p->pitch,
-            p->yaw);
+            game->scene, p->element_id, (int)p->x, (int)p->y, (int)p->z, p->pitch, p->yaw);
     }
 }
 
@@ -456,6 +494,323 @@ game_runescape_tick_animations(struct GameRunescape* game)
     }
 }
 
+static void
+game_runescape_ui_advance(
+    struct GameRunescape* game,
+    int32_t stepped_index)
+{
+    struct UITree* tree = game->ui_tree;
+    struct StaticUIComponent* c = &tree->components[stepped_index];
+
+    if( c->first_child >= 0 )
+    {
+        if( game->frame.ui_stack_top + 1 < RUNESCAPE_UI_TRAVERSAL_STACK_MAX )
+        {
+            game->frame.ui_stack[++game->frame.ui_stack_top] =
+                (struct GameRunescape_UITraversalFrame){ .parent_index = stepped_index };
+            game->frame.ui_current = c->first_child;
+            return;
+        }
+    }
+
+    if( c->next_sibling >= 0 )
+    {
+        game->frame.ui_current = c->next_sibling;
+        return;
+    }
+
+    while( game->frame.ui_stack_top >= 0 )
+    {
+        struct GameRunescape_UITraversalFrame frame =
+            game->frame.ui_stack[game->frame.ui_stack_top--];
+        struct StaticUIComponent* parent = &tree->components[frame.parent_index];
+        if( parent->next_sibling >= 0 )
+        {
+            game->frame.ui_current = parent->next_sibling;
+            return;
+        }
+    }
+    game->frame.ui_current = -1;
+}
+
+static bool
+game_runescape_emit_ui_component(
+    struct GameRunescape* game,
+    struct StaticUIComponent* component,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)game;
+    if( !component || !command )
+        return false;
+
+    switch( component->type )
+    {
+    case UIELEM_BUILTIN_SPRITE:
+    case UIELEM_BUILTIN_COMPASS:
+    case UIELEM_RS_GRAPHIC:
+    {
+        int scene_id = component->u.sprite.scene_id;
+        int atlas_index = component->u.sprite.atlas_index;
+        if( component->type == UIELEM_RS_GRAPHIC )
+        {
+            scene_id = component->u.rs_graphic.scene_id;
+            atlas_index = component->u.rs_graphic.atlas_index;
+        }
+        if( scene_id < 0 )
+            return false;
+        command->kind = TORIRSRC_SPRITE;
+        command->u.sprite.element_id = scene_id;
+        command->u.sprite.atlas_index = atlas_index;
+        command->u.sprite.x = component->position.x;
+        command->u.sprite.y = component->position.y;
+        command->u.sprite.w = component->position.width;
+        command->u.sprite.h = component->position.height;
+        command->u.sprite.alpha = 255;
+        return true;
+    }
+    case UIELEM_BUILTIN_REDSTONE_TAB:
+    {
+        int scene_id = component->u.redstone_tab.scene_id;
+        int atlas_index = component->u.redstone_tab.atlas_index;
+        if( scene_id < 0 )
+            return false;
+        command->kind = TORIRSRC_SPRITE;
+        command->u.sprite.element_id = scene_id;
+        command->u.sprite.atlas_index = atlas_index;
+        command->u.sprite.x = component->position.x;
+        command->u.sprite.y = component->position.y;
+        command->u.sprite.w = component->position.width;
+        command->u.sprite.h = component->position.height;
+        command->u.sprite.alpha = 255;
+        return true;
+    }
+    case UIELEM_RS_TEXT:
+        if( !component->u.rs_text.text )
+            return false;
+        command->kind = TORIRSRC_FONT;
+        command->u.font.font_id = component->u.rs_text.font_id;
+        command->u.font.x = component->position.x;
+        command->u.font.y = component->position.y;
+        command->u.font.color = component->u.rs_text.color;
+        command->u.font.center = component->u.rs_text.center;
+        command->u.font.shadowed = component->u.rs_text.shadowed;
+        command->u.font.width = component->position.width;
+        command->u.font.height = component->position.height;
+        command->u.font.text = component->u.rs_text.text;
+        return true;
+    default:
+        return false;
+    }
+}
+
+static enum RsPhaseResult
+rs_phase_gc_events(
+    struct GameRunescape* game,
+    struct LibToriRS_RenderCommand* command)
+{
+    struct ToriDraw_EventQueue* eq = game->scene ? ToriDraw_SceneEvents(game->scene) : NULL;
+    if( eq )
+    {
+        while( game->frame.event_index < eq->count )
+        {
+            const struct ToriDraw_Event* ev = &eq->events[game->frame.event_index++];
+            if( game_runescape_translate_gc_event(ev, command) )
+                return RS_PHASE_YIELD;
+        }
+    }
+    game->frame.phase = RS_FRAME_PHASE_BEGIN_3D;
+    game->frame.event_index = 0;
+    return RS_PHASE_ADVANCE;
+}
+
+static enum RsPhaseResult
+rs_phase_begin_3d(
+    struct GameRunescape* game,
+    struct LibToriRS_RenderCommand* command)
+{
+    if( game->frame.world_emitted )
+    {
+        game->frame.phase = RS_FRAME_PHASE_END_3D;
+        return RS_PHASE_ADVANCE;
+    }
+
+    command->kind = TORIRSRC_BEGIN_3D;
+    command->u.begin_3d.view_port = game->world_view_port;
+    command->u.begin_3d.camera = *game->camera;
+    command->u.begin_3d.camera_position.x = -game->camera_position->x;
+    command->u.begin_3d.camera_position.y = -game->camera_position->y;
+    command->u.begin_3d.camera_position.z = -game->camera_position->z;
+    game->frame.world_emitted = true;
+    game->frame.phase = RS_FRAME_PHASE_MODELS;
+    game->frame.element_index = 0;
+    game->frame.painter_command_index = 0;
+    game->frame.painter_paint_done = false;
+    return RS_PHASE_YIELD;
+}
+
+static bool
+rs_resolve_painter_command(
+    struct GameRunescape* game,
+    struct World* world,
+    const struct PaintersElementCommand* cmd,
+    int* element_id,
+    enum WorldPickType* pick_type,
+    int* tile_x,
+    int* tile_z,
+    int* tile_level)
+{
+    *element_id = -1;
+    *pick_type = WORLD_PICK_SCENERY;
+    *tile_x = -1;
+    *tile_z = -1;
+    *tile_level = -1;
+
+    switch( cmd->_bf_kind )
+    {
+    case PNTR_CMD_ELEMENT:
+        *element_id = (int)cmd->_entity._bf_entity;
+        if( ToriDraw_SceneElementIsLive(game->scene, *element_id) )
+        {
+            struct ToriDraw_SceneElement* element =
+                ToriDraw_SceneElementGet(game->scene, *element_id);
+            *pick_type = (element && element->dynamic) ? WORLD_PICK_PROJECTILE : WORLD_PICK_SCENERY;
+        }
+        break;
+    case PNTR_CMD_TERRAIN:
+        *tile_x = (int)cmd->_terrain._bf_terrain_x;
+        *tile_z = (int)cmd->_terrain._bf_terrain_z;
+        *tile_level = (int)cmd->_terrain._bf_terrain_y;
+        *element_id = world_terrain_element_at(world, *tile_x, *tile_z, *tile_level);
+        *pick_type = WORLD_PICK_TERRAIN;
+        break;
+    default:
+        break;
+    }
+
+    return *element_id >= 0;
+}
+
+static enum RsPhaseResult
+rs_phase_models(
+    struct GameRunescape* game,
+    struct LibToriRS_RenderCommand* command)
+{
+    struct World* world = game->world;
+    if( world && world->load_complete && world->painter && game->painter_buffer &&
+        !game->frame.painter_paint_done )
+    {
+        painter_set_camera_angles(world->painter, game->camera->pitch, game->camera->yaw);
+        painter_set_level_mask(world->painter, 0xF);
+        int camera_sx;
+        int camera_sz;
+        int camera_slevel;
+        game_runescape_camera_tile(game, &camera_sx, &camera_sz, &camera_slevel);
+        painter_paint_bucket(
+            world->painter, game->painter_buffer, camera_sx, camera_sz, camera_slevel);
+        game->frame.painter_paint_done = true;
+    }
+
+    if( world && world->load_complete && world->painter && game->painter_buffer &&
+        game->frame.painter_paint_done )
+    {
+        while( game->frame.painter_command_index < game->painter_buffer->command_count )
+        {
+            const struct PaintersElementCommand* cmd =
+                &game->painter_buffer->commands[game->frame.painter_command_index++];
+            int element_id;
+            enum WorldPickType pick_type;
+            int tile_x;
+            int tile_z;
+            int tile_level;
+
+            if( !rs_resolve_painter_command(
+                    game, world, cmd, &element_id, &pick_type, &tile_x, &tile_z, &tile_level) )
+                continue;
+            if( game_runescape_emit_draw_element(
+                    game, element_id, pick_type, tile_x, tile_z, tile_level, command) )
+                return RS_PHASE_YIELD;
+        }
+
+        game->frame.phase = RS_FRAME_PHASE_END_3D;
+        return RS_PHASE_ADVANCE;
+    }
+
+    int slot_count = ToriDraw_SceneElementSlotCount(game->scene);
+    while( game->frame.element_index < slot_count )
+    {
+        int element_id = game->frame.element_index++;
+        enum WorldPickType pick_type = WORLD_PICK_SCENERY;
+        if( ToriDraw_SceneElementIsLive(game->scene, element_id) )
+        {
+            struct ToriDraw_SceneElement* element =
+                ToriDraw_SceneElementGet(game->scene, element_id);
+            if( element && element->dynamic )
+                pick_type = WORLD_PICK_PROJECTILE;
+        }
+        if( game_runescape_emit_draw_element(game, element_id, pick_type, -1, -1, -1, command) )
+            return RS_PHASE_YIELD;
+    }
+
+    game->frame.phase = RS_FRAME_PHASE_END_3D;
+    return RS_PHASE_ADVANCE;
+}
+
+static enum RsPhaseResult
+rs_phase_end_3d(
+    struct GameRunescape* game,
+    struct LibToriRS_RenderCommand* command)
+{
+    command->kind = TORIRSRC_END_3D;
+    game->frame.phase = game->ui_tree_ready ? RS_FRAME_PHASE_UI_2D_BEGIN : RS_FRAME_PHASE_DONE;
+    return RS_PHASE_YIELD;
+}
+
+static enum RsPhaseResult
+rs_phase_ui_begin(
+    struct GameRunescape* game,
+    struct LibToriRS_RenderCommand* command)
+{
+    command->kind = TORIRSRC_BEGIN_2D;
+    game->frame.ui_2d_begun = true;
+    game->frame.ui_current =
+        game->ui_tree && game->ui_tree->root_index >= 0 ? game->ui_tree->root_index : -1;
+    game->frame.ui_stack_top = -1;
+    game->frame.phase = RS_FRAME_PHASE_UI_2D;
+    return RS_PHASE_YIELD;
+}
+
+static enum RsPhaseResult
+rs_phase_ui_step(
+    struct GameRunescape* game,
+    struct LibToriRS_RenderCommand* command)
+{
+    if( !game->ui_tree || game->frame.ui_current < 0 )
+    {
+        game->frame.phase = RS_FRAME_PHASE_UI_2D_END;
+        return RS_PHASE_ADVANCE;
+    }
+
+    struct StaticUIComponent* component = &game->ui_tree->components[game->frame.ui_current];
+    if( component->is_dirty && game_runescape_emit_ui_component(game, component, command) )
+    {
+        int32_t cur = game->frame.ui_current;
+        game_runescape_ui_advance(game, cur);
+        return RS_PHASE_YIELD;
+    }
+    game_runescape_ui_advance(game, game->frame.ui_current);
+    return RS_PHASE_ADVANCE;
+}
+
+static enum RsPhaseResult
+rs_phase_ui_end(
+    struct GameRunescape* game,
+    struct LibToriRS_RenderCommand* command)
+{
+    command->kind = TORIRSRC_END_2D;
+    game->frame.phase = RS_FRAME_PHASE_DONE;
+    return RS_PHASE_YIELD;
+}
+
 void
 game_runescape_frame_begin(
     struct GameRunescape* game,
@@ -467,6 +822,9 @@ game_runescape_frame_begin(
     game->frame.painter_command_index = 0;
     game->frame.world_emitted = false;
     game->frame.painter_paint_done = false;
+    game->frame.ui_2d_begun = false;
+    game->frame.ui_current = -1;
+    game->frame.ui_stack_top = -1;
     world_pickset_reset(&game->pickset);
     for( int i = 0; i < cycles_elapsed; i++ )
         game_runescape_tick_animations(game);
@@ -475,6 +833,11 @@ game_runescape_frame_begin(
     game_runescape_drain_world_events(game);
     game_runescape_sync_projectiles_to_scene(game);
     game_runescape_update_world_viewport(game);
+    if( game->ui_tree && game->ui_tree->component_count > 0 )
+    {
+        uitree_mark_all_dirty(game->ui_tree);
+        game->ui_tree_ready = true;
+    }
 }
 
 bool
@@ -486,136 +849,35 @@ game_runescape_frame_next_command(
 
     for( ;; )
     {
+        enum RsPhaseResult r;
         switch( game->frame.phase )
         {
         case RS_FRAME_PHASE_GC_EVENTS:
-        {
-            struct ToriDraw_EventQueue* eq = game->scene ? ToriDraw_SceneEvents(game->scene) : NULL;
-            if( eq )
-            {
-                while( game->frame.event_index < eq->count )
-                {
-                    const struct ToriDraw_Event* ev = &eq->events[game->frame.event_index++];
-                    if( game_runescape_translate_gc_event(ev, command) )
-                        return true;
-                }
-            }
-            game->frame.phase = RS_FRAME_PHASE_BEGIN_3D;
-            game->frame.event_index = 0;
-            continue;
-        }
+            r = rs_phase_gc_events(game, command);
+            break;
         case RS_FRAME_PHASE_BEGIN_3D:
-        {
-            if( game->frame.world_emitted )
-            {
-                game->frame.phase = RS_FRAME_PHASE_END_3D;
-                continue;
-            }
-
-            command->kind = TORIRSRC_BEGIN_3D;
-            command->u.begin_3d.view_port = game->world_view_port;
-            command->u.begin_3d.camera = *game->camera;
-            command->u.begin_3d.camera_position.x = -game->camera_position->x;
-            command->u.begin_3d.camera_position.y = -game->camera_position->y;
-            command->u.begin_3d.camera_position.z = -game->camera_position->z;
-            game->frame.world_emitted = true;
-            game->frame.phase = RS_FRAME_PHASE_MODELS;
-            game->frame.element_index = 0;
-            game->frame.painter_command_index = 0;
-            game->frame.painter_paint_done = false;
-            return true;
-        }
+            r = rs_phase_begin_3d(game, command);
+            break;
         case RS_FRAME_PHASE_MODELS:
-        {
-            struct World* world = game->world;
-            if( world && world->load_complete && world->painter && game->painter_buffer &&
-                !game->frame.painter_paint_done )
-            {
-                painter_set_camera_angles(world->painter, game->camera->pitch, game->camera->yaw);
-                painter_set_level_mask(world->painter, 0xF);
-                int camera_sx;
-                int camera_sz;
-                int camera_slevel;
-                game_runescape_camera_tile(game, &camera_sx, &camera_sz, &camera_slevel);
-                painter_paint_bucket(
-                    world->painter, game->painter_buffer, camera_sx, camera_sz, camera_slevel);
-                game->frame.painter_paint_done = true;
-            }
-
-            if( world && world->load_complete && world->painter && game->painter_buffer &&
-                game->frame.painter_paint_done )
-            {
-                while( game->frame.painter_command_index < game->painter_buffer->command_count )
-                {
-                    const struct PaintersElementCommand* cmd =
-                        &game->painter_buffer->commands[game->frame.painter_command_index++];
-                    int element_id = -1;
-                    enum WorldPickType pick_type = WORLD_PICK_SCENERY;
-                    int tile_x = -1;
-                    int tile_z = -1;
-                    int tile_level = -1;
-
-                    switch( cmd->_bf_kind )
-                    {
-                    case PNTR_CMD_ELEMENT:
-                        element_id = (int)cmd->_entity._bf_entity;
-                        if( ToriDraw_SceneElementIsLive(game->scene, element_id) )
-                        {
-                            struct ToriDraw_SceneElement* element =
-                                ToriDraw_SceneElementGet(game->scene, element_id);
-                            pick_type = (element && element->dynamic) ? WORLD_PICK_PROJECTILE
-                                                                        : WORLD_PICK_SCENERY;
-                        }
-                        break;
-                    case PNTR_CMD_TERRAIN:
-                        tile_x = (int)cmd->_terrain._bf_terrain_x;
-                        tile_z = (int)cmd->_terrain._bf_terrain_z;
-                        tile_level = (int)cmd->_terrain._bf_terrain_y;
-                        element_id = world_terrain_element_at(world, tile_x, tile_z, tile_level);
-                        pick_type = WORLD_PICK_TERRAIN;
-                        break;
-                    default:
-                        break;
-                    }
-
-                    if( element_id < 0 )
-                        continue;
-                    if( game_runescape_emit_draw_element(
-                            game, element_id, pick_type, tile_x, tile_z, tile_level, command) )
-                        return true;
-                }
-
-                game->frame.phase = RS_FRAME_PHASE_END_3D;
-                continue;
-            }
-
-            int slot_count = ToriDraw_SceneElementSlotCount(game->scene);
-            while( game->frame.element_index < slot_count )
-            {
-                int element_id = game->frame.element_index++;
-                enum WorldPickType pick_type = WORLD_PICK_SCENERY;
-                if( ToriDraw_SceneElementIsLive(game->scene, element_id) )
-                {
-                    struct ToriDraw_SceneElement* element =
-                        ToriDraw_SceneElementGet(game->scene, element_id);
-                    if( element && element->dynamic )
-                        pick_type = WORLD_PICK_PROJECTILE;
-                }
-                if( game_runescape_emit_draw_element(
-                        game, element_id, pick_type, -1, -1, -1, command) )
-                    return true;
-            }
-
-            game->frame.phase = RS_FRAME_PHASE_END_3D;
-            continue;
-        }
+            r = rs_phase_models(game, command);
+            break;
         case RS_FRAME_PHASE_END_3D:
-            command->kind = TORIRSRC_END_3D;
-            game->frame.phase = RS_FRAME_PHASE_DONE;
-            return true;
+            r = rs_phase_end_3d(game, command);
+            break;
+        case RS_FRAME_PHASE_UI_2D_BEGIN:
+            r = rs_phase_ui_begin(game, command);
+            break;
+        case RS_FRAME_PHASE_UI_2D:
+            r = rs_phase_ui_step(game, command);
+            break;
+        case RS_FRAME_PHASE_UI_2D_END:
+            r = rs_phase_ui_end(game, command);
+            break;
         default:
             return false;
         }
+        if( r == RS_PHASE_YIELD )
+            return true;
     }
 }
 
@@ -652,8 +914,7 @@ game_runescape_spawn_projectile(
 
     int const range_x = dst_sx - src_sx;
     int const range_z = dst_sz - src_sz;
-    int const range =
-        abs(range_x) > abs(range_z) ? abs(range_x) : abs(range_z);
+    int const range = abs(range_x) > abs(range_z) ? abs(range_x) : abs(range_z);
     int const flight = length + range * step;
     int const t1 = delay;
     int const t2 = delay + flight;
@@ -666,7 +927,7 @@ game_runescape_spawn_projectile(
     int h1 = 0;
     if( game->world->heightmap )
         h1 = heightmap_get_interpolated(game->world->heightmap, src_x, src_z, level) -
-            startheight * 4;
+             startheight * 4;
 
     struct ToriDraw_ModelHandle cached = ToriAuxLibTD_Model(game->td, model_id);
     if( cached.kind != TORIDRAWMK_MODEL || !cached.u.model.model )

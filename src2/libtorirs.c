@@ -538,6 +538,7 @@ LibToriRS_TasksAdd(
 
     // 3. Setup the new task's payload
     new_task->task = task;
+    new_task->wait_run = -1;
 
     // 4. PUSH TO LIVE LIST (Front)
     new_task->next = instance->task_live_head;
@@ -556,33 +557,37 @@ LibToriRS_TasksAdd(
 bool
 LibToriRS_TasksRun(struct LibToriRS_Instance* instance)
 {
+    if( !instance || instance->task_live_head == -1 )
+        return false;
+
     struct LibToriRS_IOContext ctx = {
         .io = instance->io_queue,
     };
 
     int task_idx = instance->task_live_head;
-    while( task_idx != -1 )
+    struct LibToriRS_Task* task = &instance->tasks[task_idx];
+
+    if( task->wait_run >= 0 &&
+        !LibToriRS_IOQueueRunComplete(instance->io_queue, task->wait_run) )
+        return true;
+
+    int run = LibToriRS_IOQueueBeginRun(instance->io_queue);
+    task->last_res = task->task->task(task->task->state, &ctx);
+
+    switch( task->last_res )
     {
-        int current_task_idx = task_idx;
-        struct LibToriRS_Task* task = &instance->tasks[task_idx];
-        task->last_res = task->task->task(task->task->state, &ctx);
-
-        // Must be here because if we remove the task here, we will lose the next pointer
-        task_idx = task->next;
-
-        switch( task->last_res )
-        {
-        case PT_YIELDED:
-            break;
-        case PT_EXITED:
-        case PT_ENDED:
-            core_task_free(task->task);
-            task->task = NULL;
-            tasks_remove(instance, current_task_idx);
-            break;
-        default:
-            break;
-        }
+    case PT_YIELDED:
+        task->wait_run = run;
+        break;
+    case PT_EXITED:
+    case PT_ENDED:
+        core_task_free(task->task);
+        task->task = NULL;
+        task->wait_run = -1;
+        tasks_remove(instance, task_idx);
+        break;
+    default:
+        break;
     }
 
     return instance->task_live_head != -1;

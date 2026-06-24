@@ -1,5 +1,8 @@
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
+#include "toridraw/toridraw_font.h"
+#include "toridraw/toridraw_sprite.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -168,5 +171,21 @@ ToriAuxLibCore_SequenceFree(struct ToriAuxLibCore_Sequence* seq)
     free(seq->iframes);
     free(seq->delay);
     free(seq);
+}
+
+void
+ToriAuxLibCore_SpriteFree(struct ToriAuxLibCore_Sprite* sprite)
+{
+    if( !sprite )
+        return;
+    free(sprite);
+}
+
+void
+ToriAuxLibCore_FontFree(struct ToriAuxLibCore_Font* font)
+{
+    if( !font )
+        return;
+    free(font);
 }
 

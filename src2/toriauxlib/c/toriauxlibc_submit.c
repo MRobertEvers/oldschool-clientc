@@ -166,3 +166,25 @@ ToriAuxLibC_SubmitAllLocationsFromDat1(struct ToriAuxLibC* c)
     struct SubmitLocationCtx ctx = { .c = c };
     dat1_buildcache_foreach_config_loc(dat1(c), submit_location_cb, &ctx);
 }
+
+void
+ToriAuxLibC_SubmitSpriteFromDat1(
+    struct ToriAuxLibC* c,
+    int sprite_id,
+    struct ToriAuxLibCore_Sprite* sprite)
+{
+    if( !c || !sprite )
+        return;
+    ToriAuxLibCore_SpriteAdd(ToriAuxLibC_Core(c), sprite_id, sprite);
+}
+
+void
+ToriAuxLibC_SubmitFontFromDat1(
+    struct ToriAuxLibC* c,
+    int font_id,
+    struct ToriAuxLibCore_Font* font)
+{
+    if( !c || !font )
+        return;
+    ToriAuxLibCore_FontAdd(ToriAuxLibC_Core(c), font_id, font);
+}

@@ -11,10 +11,12 @@
 #include "platformkit/core/trspk_pose.h"
 #include "platformkit/core/trspk_triangles.h"
 #include "platformkit/core/trspk_vbo.h"
+#include "platformkit/opengl3/opengl3_2d_shaders.h"
 #include "platformkit/opengl3/opengl3_sdlgl.h"
 #include "platformkit/opengl3/trspk_opengl3.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw.h"
+#include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
 #include "toridraw/toridraw_types.h"
@@ -42,6 +44,33 @@ typedef struct TRSPK_UboWorld
 #define TRSPK_GL3_VBO_PAGE (1u << 28)
 #define TRSPK_GL3_GPU_IBO_INIT 4096u
 #define TRSPK_GL3_GPU_VBO_INIT 4096u
+#define TRSPK_GL3_SPRITE_CAP 256
+#define TRSPK_GL3_FONT_CAP 8
+#define TRSPK_GL3_2D_ATLAS_DIM 2048u
+
+struct GL3SpriteSlot
+{
+    struct ToriDraw_Sprite** sprites;
+    int count;
+    float* uvs;
+};
+
+struct GL3FontSlot
+{
+    struct ToriDraw_Font* font;
+    GLuint texture;
+    int atlas_w;
+    int atlas_h;
+    float glyph_uv[TORIDRAW_FONT_GLYPH_COUNT * 4];
+    bool baked;
+};
+
+struct GL3Vertex2D
+{
+    float position[2];
+    float texcoord[2];
+    float color[4];
+};
 
 struct GL3ModelGroup
 {
@@ -60,6 +89,10 @@ struct LibToriPlatformSDL2_RendererGL3
     SDL_GLContext gl_context;
     int width;
     int height;
+    int lb_x;
+    int lb_y;
+    int lb_w;
+    int lb_h;
 
     struct TRSPK_Atlas atlas;
     GLuint atlas_texture;
@@ -92,6 +125,18 @@ struct LibToriPlatformSDL2_RendererGL3
     bool has_3d;
     bool in3d;
     double frame_clock;
+
+    struct TRSPK_Atlas sprite_atlas;
+    GLuint sprite_atlas_texture;
+    struct GL3SpriteSlot sprite_slots[TRSPK_GL3_SPRITE_CAP];
+    struct GL3FontSlot font_slots[TRSPK_GL3_FONT_CAP];
+    GLuint quad_vao;
+    GLuint quad_vbo;
+    GLint u2d_projection;
+    GLint u2d_texture;
+    GLint u2d_text_mode;
+    bool in2d;
+    float proj2d[16];
 };
 
 /* -----------------------------------------------------------------------
@@ -220,10 +265,447 @@ gl3_destroy_gl_resources(struct LibToriPlatformSDL2_RendererGL3* renderer)
     }
     if( renderer->atlas_texture )
         glDeleteTextures(1, &renderer->atlas_texture);
+    if( renderer->program2d )
+        glDeleteProgram(renderer->program2d);
+    if( renderer->sprite_atlas_texture )
+        glDeleteTextures(1, &renderer->sprite_atlas_texture);
+    if( renderer->quad_vao )
+        glDeleteVertexArrays(1, &renderer->quad_vao);
+    if( renderer->quad_vbo )
+        glDeleteBuffers(1, &renderer->quad_vbo);
+    for( int i = 0; i < TRSPK_GL3_FONT_CAP; i++ )
+    {
+        if( renderer->font_slots[i].texture )
+            glDeleteTextures(1, &renderer->font_slots[i].texture);
+    }
     renderer->program3d = 0u;
+    renderer->program2d = 0u;
     renderer->ubo = 0u;
     renderer->ebo = 0u;
     renderer->atlas_texture = 0u;
+    renderer->sprite_atlas_texture = 0u;
+}
+
+static void
+gl3_make_ortho2d(
+    float* m,
+    float left,
+    float right,
+    float bottom,
+    float top)
+{
+    memset(m, 0, 16 * sizeof(float));
+    m[0] = 2.0f / (right - left);
+    m[5] = 2.0f / (top - bottom);
+    m[10] = -1.0f;
+    m[12] = -(right + left) / (right - left);
+    m[13] = -(top + bottom) / (top - bottom);
+    m[15] = 1.0f;
+}
+
+static void
+gl3_upload_sprite_atlas(struct LibToriPlatformSDL2_RendererGL3* renderer)
+{
+    if( !trspk_atlas_is_initialized(&renderer->sprite_atlas) )
+        return;
+    if( !renderer->sprite_atlas_texture )
+        glGenTextures(1, &renderer->sprite_atlas_texture);
+    glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA8,
+        (GLsizei)renderer->sprite_atlas.width,
+        (GLsizei)renderer->sprite_atlas.height,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        renderer->sprite_atlas.pixels);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+static void
+gl3_draw_textured_quad(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    float x0,
+    float y0,
+    float x1,
+    float y1,
+    float u0,
+    float v0,
+    float u1,
+    float v1,
+    float const rgba[4])
+{
+    struct GL3Vertex2D verts[6] = {
+        { { x0, y0 }, { u0, v0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { x1, y0 }, { u1, v0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { x1, y1 }, { u1, v1 }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { x0, y0 }, { u0, v0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { x1, y1 }, { u1, v1 }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { x0, y1 }, { u0, v1 }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+    };
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->quad_vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+static void
+gl3_bake_font_atlas(struct GL3FontSlot* slot)
+{
+    struct ToriDraw_Font* font = slot->font;
+    if( !font || slot->baked )
+        return;
+
+    int max_w = 0;
+    int total_h = 0;
+    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+    {
+        if( font->glyph_width[i] > max_w )
+            max_w = font->glyph_width[i];
+        total_h += font->glyph_height[i];
+    }
+    if( max_w <= 0 || total_h <= 0 )
+        return;
+
+    int atlas_w = max_w;
+    int atlas_h = total_h;
+    uint8_t* pixels = calloc((size_t)atlas_w * (size_t)atlas_h, 1);
+    if( !pixels )
+        return;
+
+    int y = 0;
+    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+    {
+        int gw = font->glyph_width[i];
+        int gh = font->glyph_height[i];
+        uint8_t const* src = font->glyph_alpha[i];
+        if( src && gw > 0 && gh > 0 )
+        {
+            for( int row = 0; row < gh; row++ )
+            {
+                for( int col = 0; col < gw; col++ )
+                    pixels[(y + row) * atlas_w + col] = src[col + row * gw];
+            }
+        }
+        float u0 = 0.0f;
+        float v0 = (float)y / (float)atlas_h;
+        float u1 = (float)gw / (float)atlas_w;
+        float v1 = (float)(y + gh) / (float)atlas_h;
+        slot->glyph_uv[i * 4 + 0] = u0;
+        slot->glyph_uv[i * 4 + 1] = v0;
+        slot->glyph_uv[i * 4 + 2] = u1;
+        slot->glyph_uv[i * 4 + 3] = v1;
+        y += gh;
+    }
+
+    if( slot->texture )
+        glDeleteTextures(1, &slot->texture);
+    glGenTextures(1, &slot->texture);
+    glBindTexture(GL_TEXTURE_2D, slot->texture);
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_R8,
+        atlas_w,
+        atlas_h,
+        0,
+        GL_RED,
+        GL_UNSIGNED_BYTE,
+        pixels);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    slot->atlas_w = atlas_w;
+    slot->atlas_h = atlas_h;
+    slot->baked = true;
+    free(pixels);
+}
+
+static void
+gl3_color_from_rgb(
+    int color,
+    float alpha,
+    float rgba[4])
+{
+    rgba[0] = (float)((color >> 16) & 0xFF) / 255.0f;
+    rgba[1] = (float)((color >> 8) & 0xFF) / 255.0f;
+    rgba[2] = (float)(color & 0xFF) / 255.0f;
+    rgba[3] = alpha;
+}
+
+static void
+gl3_draw_font_glyphs(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct GL3FontSlot* slot,
+    struct ToriDraw_Font* font,
+    char const* text,
+    int x,
+    int y,
+    float const rgba[4])
+{
+    if( !text || !slot->baked )
+        return;
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, slot->texture);
+    glUniform1i(renderer->u2d_texture, 0);
+    if( renderer->u2d_text_mode >= 0 )
+        glUniform1i(renderer->u2d_text_mode, 1);
+
+    int cx = x;
+    for( char const* p = text; *p; ++p )
+    {
+        int gi = (unsigned char)font->charcodeset[(unsigned char)*p];
+        int gw = font->glyph_width[gi];
+        int gh = font->glyph_height[gi];
+        float gx = (float)(cx + font->offset_x[gi]);
+        float gy = (float)(y + font->offset_y[gi]);
+        float u0 = slot->glyph_uv[gi * 4 + 0];
+        float v0 = slot->glyph_uv[gi * 4 + 1];
+        float u1 = slot->glyph_uv[gi * 4 + 2];
+        float v1 = slot->glyph_uv[gi * 4 + 3];
+        gl3_draw_textured_quad(renderer, gx, gy, gx + (float)gw, gy + (float)gh, u0, v0, u1, v1, rgba);
+        cx += font->advance[gi];
+    }
+
+    glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
+    glUniform1i(renderer->u2d_texture, 0);
+    if( renderer->u2d_text_mode >= 0 )
+        glUniform1i(renderer->u2d_text_mode, 0);
+}
+
+static void
+gl3_ev_begin_2d(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    (void)command;
+    renderer->in2d = true;
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(renderer->program2d);
+    glViewport(renderer->lb_x, renderer->lb_y, renderer->lb_w, renderer->lb_h);
+    gl3_make_ortho2d(renderer->proj2d, 0.0f, (float)renderer->width, (float)renderer->height, 0.0f);
+    glUniformMatrix4fv(renderer->u2d_projection, 1, GL_FALSE, renderer->proj2d);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
+    glUniform1i(renderer->u2d_texture, 0);
+    if( renderer->u2d_text_mode >= 0 )
+        glUniform1i(renderer->u2d_text_mode, 0);
+    glBindVertexArray(renderer->quad_vao);
+}
+
+static void
+gl3_ev_end_2d(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    (void)command;
+    glBindVertexArray(0);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_STENCIL_TEST);
+    renderer->in2d = false;
+}
+
+static void
+gl3_ev_sprite_load(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    const int element_id = command->u.sprite_load.element_id;
+    if( element_id < 0 || element_id >= TRSPK_GL3_SPRITE_CAP )
+        return;
+
+    struct GL3SpriteSlot* slot = &renderer->sprite_slots[element_id];
+    slot->sprites = command->u.sprite_load.sprites;
+    slot->count = command->u.sprite_load.count;
+    free(slot->uvs);
+    slot->uvs = calloc((size_t)slot->count * 4u, sizeof(float));
+    if( !slot->uvs )
+        return;
+
+    for( int i = 0; i < slot->count; i++ )
+    {
+        struct ToriDraw_Sprite* sp = slot->sprites[i];
+        if( !sp || !sp->pixels_argb )
+            continue;
+        uint32_t* rgba = malloc((size_t)sp->width * (size_t)sp->height * sizeof(uint32_t));
+        if( !rgba )
+            continue;
+        for( int p = 0; p < sp->width * sp->height; p++ )
+        {
+            uint32_t pix = sp->pixels_argb[p];
+            uint8_t a_hi = (uint8_t)((pix >> 24) & 0xFFu);
+            uint32_t rgb = pix & 0x00FFFFFFu;
+            uint8_t a = (a_hi != 0) ? a_hi : (rgb != 0u ? 0xFFu : 0u);
+            uint8_t r = (uint8_t)((pix >> 16) & 0xFFu);
+            uint8_t g = (uint8_t)((pix >> 8) & 0xFFu);
+            uint8_t b = (uint8_t)(pix & 0xFFu);
+            rgba[p] = (uint32_t)r | ((uint32_t)g << 8) | ((uint32_t)b << 16) | ((uint32_t)a << 24);
+        }
+        struct TRSPK_AtlasTile tile;
+        if( !trspk_atlas_binpack_insert(
+                &renderer->sprite_atlas,
+                (const uint8_t*)rgba,
+                (uint32_t)sp->width * 4u,
+                (uint32_t)sp->width,
+                (uint32_t)sp->height,
+                &tile) )
+        {
+            free(rgba);
+            continue;
+        }
+        free(rgba);
+        slot->uvs[i * 4 + 0] = tile.u_start;
+        slot->uvs[i * 4 + 1] = tile.v_start;
+        slot->uvs[i * 4 + 2] = tile.u_end;
+        slot->uvs[i * 4 + 3] = tile.v_end;
+    }
+    gl3_upload_sprite_atlas(renderer);
+}
+
+static void
+gl3_ev_sprite(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    if( !renderer->in2d )
+        return;
+    const int element_id = command->u.sprite.element_id;
+    const int atlas_index = command->u.sprite.atlas_index;
+    if( element_id < 0 || element_id >= TRSPK_GL3_SPRITE_CAP )
+        return;
+    struct GL3SpriteSlot* slot = &renderer->sprite_slots[element_id];
+    if( !slot->sprites || atlas_index < 0 || atlas_index >= slot->count || !slot->uvs )
+        return;
+    struct ToriDraw_Sprite* sp = slot->sprites[atlas_index];
+    if( !sp )
+        return;
+
+    if( command->u.sprite.scissor_w > 0 && command->u.sprite.scissor_h > 0 )
+    {
+        glEnable(GL_SCISSOR_TEST);
+        int sy = renderer->height - command->u.sprite.scissor_y - command->u.sprite.scissor_h;
+        glScissor(
+            command->u.sprite.scissor_x, sy, command->u.sprite.scissor_w, command->u.sprite.scissor_h);
+    }
+    else
+        glDisable(GL_SCISSOR_TEST);
+
+    float u0 = slot->uvs[atlas_index * 4 + 0];
+    float v0 = slot->uvs[atlas_index * 4 + 1];
+    float u1 = slot->uvs[atlas_index * 4 + 2];
+    float v1 = slot->uvs[atlas_index * 4 + 3];
+    float alpha = command->u.sprite.alpha > 0 ? (float)command->u.sprite.alpha / 255.0f : 1.0f;
+    int w = command->u.sprite.w > 0 ? command->u.sprite.w : sp->width;
+    int h = command->u.sprite.h > 0 ? command->u.sprite.h : sp->height;
+    float x0 = (float)command->u.sprite.x;
+    float y0 = (float)command->u.sprite.y;
+    float x1 = (float)(command->u.sprite.x + w);
+    float y1 = (float)(command->u.sprite.y + h);
+    float rgba[4] = { 1.0f, 1.0f, 1.0f, alpha };
+
+    const int mask_element_id = command->u.sprite.mask_element_id;
+    const int mask_atlas_index = command->u.sprite.mask_atlas_index;
+    bool use_stencil = false;
+    if( mask_element_id >= 0 && mask_element_id < TRSPK_GL3_SPRITE_CAP )
+    {
+        struct GL3SpriteSlot* mask_slot = &renderer->sprite_slots[mask_element_id];
+        if( mask_slot->sprites && mask_atlas_index >= 0 && mask_atlas_index < mask_slot->count &&
+            mask_slot->uvs && mask_slot->sprites[mask_atlas_index] )
+        {
+            use_stencil = true;
+            glEnable(GL_STENCIL_TEST);
+            glClear(GL_STENCIL_BUFFER_BIT);
+            glStencilFunc(GL_ALWAYS, 1, 0xFF);
+            glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+            glStencilMask(0xFF);
+            glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+            float mu0 = mask_slot->uvs[mask_atlas_index * 4 + 0];
+            float mv0 = mask_slot->uvs[mask_atlas_index * 4 + 1];
+            float mu1 = mask_slot->uvs[mask_atlas_index * 4 + 2];
+            float mv1 = mask_slot->uvs[mask_atlas_index * 4 + 3];
+            float mask_rgba[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+            gl3_draw_textured_quad(renderer, x0, y0, x1, y1, mu0, mv0, mu1, mv1, mask_rgba);
+
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            glStencilMask(0x00);
+            glStencilFunc(GL_EQUAL, 1, 0xFF);
+        }
+    }
+
+    gl3_draw_textured_quad(renderer, x0, y0, x1, y1, u0, v0, u1, v1, rgba);
+
+    if( use_stencil )
+        glDisable(GL_STENCIL_TEST);
+}
+
+static void
+gl3_ev_font_load(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    const int font_id = command->u.font_load.font_id;
+    if( font_id < 0 || font_id >= TRSPK_GL3_FONT_CAP )
+        return;
+    struct GL3FontSlot* slot = &renderer->font_slots[font_id];
+    slot->font = command->u.font_load.font;
+    slot->baked = false;
+    gl3_bake_font_atlas(slot);
+}
+
+static void
+gl3_ev_font(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    if( !renderer->in2d )
+        return;
+    const int font_id = command->u.font.font_id;
+    if( font_id < 0 || font_id >= TRSPK_GL3_FONT_CAP )
+        return;
+    struct GL3FontSlot* slot = &renderer->font_slots[font_id];
+    struct ToriDraw_Font* font = slot->font;
+    if( !font || !command->u.font.text )
+        return;
+    if( !slot->baked )
+        gl3_bake_font_atlas(slot);
+    if( !slot->baked )
+        return;
+
+    int x = command->u.font.x;
+    int y = command->u.font.y;
+    if( command->u.font.center )
+        x -= ToriDraw2D_MeasureString(font, command->u.font.text) / 2;
+
+    float shadow_rgba[4];
+    gl3_color_from_rgb(0, 1.0f, shadow_rgba);
+    if( command->u.font.shadowed )
+        gl3_draw_font_glyphs(renderer, slot, font, command->u.font.text, x + 1, y + 1, shadow_rgba);
+
+    float text_rgba[4];
+    gl3_color_from_rgb(command->u.font.color, 1.0f, text_rgba);
+    gl3_draw_font_glyphs(renderer, slot, font, command->u.font.text, x, y, text_rgba);
 }
 
 static struct ToriDraw_Model*
@@ -648,7 +1130,15 @@ gl3_ev_begin_3d(
         const struct ToriDraw_ViewPort* vp = &renderer->cur_3d.view_port;
         const int vp_w = vp->width > 0 ? vp->width : renderer->width;
         const int vp_h = vp->height > 0 ? vp->height : renderer->height;
-        glViewport(0, 0, vp_w, vp_h);
+        const float sx = (float)renderer->lb_w / (float)renderer->width;
+        const float sy = (float)renderer->lb_h / (float)renderer->height;
+        const int wx = vp->x_center - vp_w / 2;
+        const int wy = vp->y_center - vp_h / 2;
+        const int gl_x = renderer->lb_x + (int)(wx * sx);
+        const int gl_w = (int)(vp_w * sx);
+        const int gl_h = (int)(vp_h * sy);
+        const int gl_y = renderer->lb_y + (int)((renderer->height - (wy + vp_h)) * sy);
+        glViewport(gl_x, gl_y, gl_w, gl_h);
     }
 
     compute_pass_matrices(
@@ -1181,18 +1671,30 @@ handle_render_command(
         break;
 
     case TORIRSRC_BEGIN_2D:
+        gl3_ev_begin_2d(renderer, instance, command);
         break;
 
     case TORIRSRC_END_2D:
+        gl3_ev_end_2d(renderer, instance, command);
         break;
 
     case TORIRSRC_CLEAR_RECT:
         break;
 
     case TORIRSRC_SPRITE_LOAD:
+        gl3_ev_sprite_load(renderer, instance, command);
         break;
 
     case TORIRSRC_SPRITE:
+        gl3_ev_sprite(renderer, instance, command);
+        break;
+
+    case TORIRSRC_FONT_LOAD:
+        gl3_ev_font_load(renderer, instance, command);
+        break;
+
+    case TORIRSRC_FONT:
+        gl3_ev_font(renderer, instance, command);
         break;
 
     case TORIRSRC_ANIM_LOAD:
@@ -1281,12 +1783,19 @@ LibToriPlatformSDL2_RendererGL3_New(
 
     trspk_pose_table_init(&renderer->poses);
 
-    if( !trspk_atlas_init_grid(
+    if( !    trspk_atlas_init_grid(
             &renderer->atlas,
             TRSPK_GL3_ATLAS_DIM,
             TRSPK_GL3_ATLAS_DIM,
             TRSPK_GL3_ATLAS_TILE,
             TRSPK_GL3_ATLAS_TILE,
+            4u) )
+        goto fail;
+
+    if( !trspk_atlas_init_binpack(
+            &renderer->sprite_atlas,
+            TRSPK_GL3_2D_ATLAS_DIM,
+            TRSPK_GL3_2D_ATLAS_DIM,
             4u) )
         goto fail;
 
@@ -1505,6 +2014,40 @@ LibToriPlatformSDL2_RendererGL3_Init(
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    {
+        GLuint vs2d = gl3_compile_shader(GL_VERTEX_SHADER, trspk_opengl3_2d_vertex_shader);
+        GLuint fs2d = gl3_compile_shader(GL_FRAGMENT_SHADER, trspk_opengl3_2d_fragment_shader);
+        if( vs2d && fs2d )
+        {
+            renderer->program2d = glCreateProgram();
+            glAttachShader(renderer->program2d, vs2d);
+            glAttachShader(renderer->program2d, fs2d);
+            glBindAttribLocation(renderer->program2d, 0, "a_position");
+            glBindAttribLocation(renderer->program2d, 1, "a_texcoord");
+            glBindAttribLocation(renderer->program2d, 2, "a_color");
+            glLinkProgram(renderer->program2d);
+            renderer->u2d_projection = glGetUniformLocation(renderer->program2d, "u_projection");
+            renderer->u2d_texture = glGetUniformLocation(renderer->program2d, "u_texture");
+            renderer->u2d_text_mode = glGetUniformLocation(renderer->program2d, "u_text_mode");
+            glDeleteShader(vs2d);
+            glDeleteShader(fs2d);
+        }
+        glGenVertexArrays(1, &renderer->quad_vao);
+        glGenBuffers(1, &renderer->quad_vbo);
+        glBindVertexArray(renderer->quad_vao);
+        glBindBuffer(GL_ARRAY_BUFFER, renderer->quad_vbo);
+        glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(struct GL3Vertex2D), NULL, GL_DYNAMIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(struct GL3Vertex2D), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(
+            1, 2, GL_FLOAT, GL_FALSE, sizeof(struct GL3Vertex2D), (void*)(2 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(
+            2, 4, GL_FLOAT, GL_FALSE, sizeof(struct GL3Vertex2D), (void*)(4 * sizeof(float)));
+        glBindVertexArray(0);
+    }
+
     renderer->window = window;
     return true;
 
@@ -1532,12 +2075,30 @@ LibToriPlatformSDL2_RendererGL3_Render(
     int drawable_w = renderer->width;
     int drawable_h = renderer->height;
     SDL_GL_GetDrawableSize(renderer->window, &drawable_w, &drawable_h);
-    renderer->width = drawable_w;
-    renderer->height = drawable_h;
+
+    {
+        const float src_aspect = (float)renderer->width / (float)renderer->height;
+        const float win_aspect = (float)drawable_w / (float)drawable_h;
+
+        if( src_aspect > win_aspect )
+        {
+            renderer->lb_w = drawable_w;
+            renderer->lb_h = (int)((float)drawable_w / src_aspect);
+            renderer->lb_x = 0;
+            renderer->lb_y = (drawable_h - renderer->lb_h) / 2;
+        }
+        else
+        {
+            renderer->lb_h = drawable_h;
+            renderer->lb_w = (int)((float)drawable_h * src_aspect);
+            renderer->lb_y = 0;
+            renderer->lb_x = (drawable_w - renderer->lb_w) / 2;
+        }
+    }
 
     glViewport(0, 0, drawable_w, drawable_h);
-    glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     renderer->in3d = false;
     renderer->has_3d = false;

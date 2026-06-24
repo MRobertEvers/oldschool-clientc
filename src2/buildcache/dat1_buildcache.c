@@ -137,6 +137,9 @@ dat1_buildRSCacheDat2Disk_Free(struct Dat1BuildCache* dat1_buildcache)
     if( dat1_buildcache->media_2d_graphics_jagfile )
         RSCacheShared_FileListDatFree(dat1_buildcache->media_2d_graphics_jagfile);
 
+    if( dat1_buildcache->title_fonts_jagfile )
+        RSCacheShared_FileListDatFree(dat1_buildcache->title_fonts_jagfile);
+
     if( dat1_buildcache->interfaces )
         dat1_buildcache_interfaces_free(dat1_buildcache->interfaces);
 
@@ -298,6 +301,28 @@ dat1_buildcache_get_media_2d_graphics_jagfile(struct Dat1BuildCache* dat1_buildc
     if( !dat1_buildcache )
         return NULL;
     return dat1_buildcache->media_2d_graphics_jagfile;
+}
+
+void
+dat1_buildcache_set_title_fonts_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct RSCacheShared_FileListDat* title_fonts_jagfile)
+{
+    if( !dat1_buildcache )
+        return;
+
+    if( dat1_buildcache->title_fonts_jagfile )
+        RSCacheShared_FileListDatFree(dat1_buildcache->title_fonts_jagfile);
+
+    dat1_buildcache->title_fonts_jagfile = title_fonts_jagfile;
+}
+
+struct RSCacheShared_FileListDat*
+dat1_buildcache_get_title_fonts_jagfile(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache )
+        return NULL;
+    return dat1_buildcache->title_fonts_jagfile;
 }
 
 void

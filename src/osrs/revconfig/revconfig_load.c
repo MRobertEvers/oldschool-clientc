@@ -51,6 +51,17 @@ push_field_from_ini_kv(
     const char* key,
     const char* value)
 {
+    if( key[0] == '\0' )
+    {
+        /* Bare '=' line: record separator within a multi-entry layout section. */
+        if( strcmp(s_ini_item_type, "layout") == 0 )
+        {
+            push_field(vec, RCFIELD_ITEMDONE, "");
+            push_field(vec, RCFIELD_ITEMTYPE, "layout");
+        }
+        return;
+    }
+
     uint8_t kind = RCFIELD_NONE;
     /* Section type comes from [type:name] header (e.g. component, layout, inv, sprite). */
     if( strcmp(key, "sprite") == 0 && strcmp(s_ini_item_type, "component") == 0 )
@@ -99,6 +110,18 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_INV;
     else if( strcmp(key, "paint_levels") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_PAINT_LEVELS;
+    else if( strcmp(key, "color") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_COLOR;
+    else if( strcmp(key, "filled") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_FILLED;
+    else if( strcmp(key, "font") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_FONT;
+    else if( strcmp(key, "center") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CENTER;
+    else if( strcmp(key, "shadowed") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_SHADOWED;
+    else if( strcmp(key, "text") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TEXT;
     else if( strcmp(key, "item") == 0 && strcmp(s_ini_item_type, "inv") == 0 )
         kind = RCFIELD_INV_ITEM;
     else if( strcmp(key, "sprite_active") == 0 && strcmp(s_ini_item_type, "component") == 0 )

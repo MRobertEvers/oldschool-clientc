@@ -241,4 +241,77 @@ dat1io_animations_decode(
     return anim_id;
 }
 
+static inline struct RSCacheShared_FileListDat*
+dat1io_jagfile_decode_kind(
+    struct LibToriRS_IOContext* ctx,
+    int expected_archive_id)
+{
+    struct LibToriRS_IOQueueItem item;
+    if( !LibToriRS_IOQueuePopRead(ctx->io, &item) )
+        return NULL;
+    if( item.kind != TORIRSIO_KIND_CACHE || item.status != TORIRSIO_STAT_DONE ||
+        item.error_code != 0 )
+        return NULL;
+    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Configs ||
+        item.u.cache.archive_id != expected_archive_id )
+        return NULL;
+
+    struct RSCacheDat1Disk_Archive* archive = item.data;
+    if( !archive )
+        return NULL;
+
+    struct RSCacheShared_FileListDat* filelist =
+        RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
+    RSCacheDat1Disk_ArchiveFree(archive);
+    return filelist;
+}
+
+static inline void
+dat1io_config_archive_fetch(
+    struct LibToriRS_IOContext* ctx,
+    int archive_id)
+{
+    struct RSCacheDat2DiskLib_IORequest request;
+    request.table_id = RSCacheDat1Disk_Table_Configs;
+    request.archive_id = archive_id;
+    request.flags = 0;
+    LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
+}
+
+static inline void
+dat1io_media_jagfile_fetch(struct LibToriRS_IOContext* ctx)
+{
+    dat1io_config_archive_fetch(ctx, RSCacheDat1A_ConfigKind_Media2dGraphics);
+}
+
+static inline struct RSCacheShared_FileListDat*
+dat1io_media_jagfile_decode(struct LibToriRS_IOContext* ctx)
+{
+    return dat1io_jagfile_decode_kind(ctx, RSCacheDat1A_ConfigKind_Media2dGraphics);
+}
+
+static inline void
+dat1io_title_fonts_jagfile_fetch(struct LibToriRS_IOContext* ctx)
+{
+    dat1io_config_archive_fetch(ctx, RSCacheDat1A_ConfigKind_TitleAndFonts);
+}
+
+static inline struct RSCacheShared_FileListDat*
+dat1io_title_fonts_jagfile_decode(struct LibToriRS_IOContext* ctx)
+{
+    return dat1io_jagfile_decode_kind(ctx, RSCacheDat1A_ConfigKind_TitleAndFonts);
+}
+
+static inline void
+dat1io_interfaces_jagfile_fetch(struct LibToriRS_IOContext* ctx)
+{
+    dat1io_config_archive_fetch(ctx, RSCacheDat1A_ConfigKind_Interfaces);
+}
+
+static inline struct RSCacheShared_FileListDat*
+dat1io_interfaces_jagfile_decode(struct LibToriRS_IOContext* ctx)
+{
+    return dat1io_jagfile_decode_kind(ctx, RSCacheDat1A_ConfigKind_Interfaces);
+}
+
 #endif

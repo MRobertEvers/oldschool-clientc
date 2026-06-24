@@ -89,6 +89,28 @@ ToriDraw2D_BlitSprite_subrect(
     int* pixel_buffer);
 
 void
+ToriDraw2D_BlitSpriteRotated(
+    struct ToriDraw_Sprite* sprite,
+    struct ToriDraw_ViewPort* view_port,
+    int x,
+    int y,
+    int anchor_x,
+    int anchor_y,
+    int width,
+    int height,
+    int rotation_r2pi2048,
+    int* pixel_buffer);
+
+void
+ToriDraw2D_BlitSpriteMasked(
+    struct ToriDraw_Sprite* sprite,
+    struct ToriDraw_Sprite* mask_sprite,
+    struct ToriDraw_ViewPort* view_port,
+    int x,
+    int y,
+    int* pixel_buffer);
+
+void
 ToriDraw_SpriteFlipHorizontal(struct ToriDraw_Sprite* sprite);
 
 void

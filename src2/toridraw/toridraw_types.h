@@ -208,6 +208,8 @@ struct ToriDraw_Animation;
 struct ToriDraw_Map;
 struct ToriDraw_Vec;
 struct ToriDraw_ScenePendingPose;
+struct ToriDraw_Sprite;
+struct ToriDraw_Font;
 
 #define TORIDRAW_SCENE_INVALID_BATCH_ID (-1)
 #define TORIDRAW_SCENE_INVALID_ELEMENT_ID (-1)
@@ -223,6 +225,10 @@ enum ToriDraw_EventKind
     TORIDRAW_EVENT_ANIM_UNLOAD,
     TORIDRAW_EVENT_TEX_LOAD,
     TORIDRAW_EVENT_TEX_UNLOAD,
+    TORIDRAW_EVENT_SPRITE_LOAD,
+    TORIDRAW_EVENT_SPRITE_UNLOAD,
+    TORIDRAW_EVENT_FONT_LOAD,
+    TORIDRAW_EVENT_FONT_UNLOAD,
     TORIDRAW_EVENT_BATCH_BEGIN,
     TORIDRAW_EVENT_BATCH_MODEL_ADD,
     TORIDRAW_EVENT_BATCH_ANIM_ADD,
@@ -242,6 +248,9 @@ struct ToriDraw_Event
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Animation* animation;
     struct ToriDraw_Texture* texture;
+    struct ToriDraw_Sprite** sprites;
+    int sprite_count;
+    struct ToriDraw_Font* font;
     struct ToriDraw_Position world_position;
 };
 
@@ -329,6 +338,8 @@ struct ToriDraw_Scene
     struct ToriDraw_EventQueue event_queue;
     struct ToriDraw_Map* models_hmap;
     struct ToriDraw_Map* animation_hmap;
+    struct ToriDraw_Map* sprites_hmap;
+    struct ToriDraw_Map* fonts_hmap;
     struct ToriDraw_IntrusiveList elements;
 
     bool batch_building;

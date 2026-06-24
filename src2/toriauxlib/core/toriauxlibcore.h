@@ -56,6 +56,44 @@ void
 ToriAuxLibCore_TexturesClearAll(struct ToriAuxLibCore* gamecache);
 
 void
+ToriAuxLibCore_SpriteAdd(
+    struct ToriAuxLibCore* gamecache,
+    int sprite_id,
+    struct ToriAuxLibCore_Sprite* sprite);
+
+struct ToriAuxLibCore_Sprite*
+ToriAuxLibCore_SpriteGet(
+    struct ToriAuxLibCore* gamecache,
+    int sprite_id);
+
+bool
+ToriAuxLibCore_SpriteHas(
+    struct ToriAuxLibCore* gamecache,
+    int sprite_id);
+
+void
+ToriAuxLibCore_SpritesClearAll(struct ToriAuxLibCore* gamecache);
+
+void
+ToriAuxLibCore_FontAdd(
+    struct ToriAuxLibCore* gamecache,
+    int font_id,
+    struct ToriAuxLibCore_Font* font);
+
+struct ToriAuxLibCore_Font*
+ToriAuxLibCore_FontGet(
+    struct ToriAuxLibCore* gamecache,
+    int font_id);
+
+bool
+ToriAuxLibCore_FontHas(
+    struct ToriAuxLibCore* gamecache,
+    int font_id);
+
+void
+ToriAuxLibCore_FontsClearAll(struct ToriAuxLibCore* gamecache);
+
+void
 ToriAuxLibCore_MapTerrainAdd(
     struct ToriAuxLibCore* gamecache,
     int map_id,

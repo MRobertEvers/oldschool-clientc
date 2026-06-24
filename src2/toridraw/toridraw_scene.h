@@ -80,6 +80,44 @@ ToriDraw_SceneSetTexture(
     int id,
     struct ToriDraw_Texture* texture);
 
+/* Asset registry: sprites */
+
+void
+ToriDraw_SceneSpriteAdd(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    struct ToriDraw_Sprite** sprites,
+    int count);
+
+struct ToriDraw_Sprite**
+ToriDraw_SceneSpriteGet(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int* out_count);
+
+bool
+ToriDraw_SceneSpriteHas(
+    struct ToriDraw_Scene* scene,
+    int element_id);
+
+/* Asset registry: fonts */
+
+void
+ToriDraw_SceneFontAdd(
+    struct ToriDraw_Scene* scene,
+    int font_id,
+    struct ToriDraw_Font* font);
+
+struct ToriDraw_Font*
+ToriDraw_SceneFontGet(
+    struct ToriDraw_Scene* scene,
+    int font_id);
+
+bool
+ToriDraw_SceneFontHas(
+    struct ToriDraw_Scene* scene,
+    int font_id);
+
 /* Scene elements */
 
 void

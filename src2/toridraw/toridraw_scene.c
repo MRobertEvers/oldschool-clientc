@@ -1,9 +1,11 @@
 #include "toridraw_scene.h"
 
 #include "toridraw_animation.h"
+#include "toridraw_font.h"
 #include "toridraw_map.h"
 #include "toridraw_math.h"
 #include "toridraw_model.h"
+#include "toridraw_sprite.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -29,6 +31,19 @@ struct MapEntry_Animation
 {
     int id;
     struct ToriDraw_Animation* animation;
+};
+
+struct MapEntry_Sprite
+{
+    int id;
+    struct ToriDraw_Sprite** sprites;
+    int count;
+};
+
+struct MapEntry_Font
+{
+    int id;
+    struct ToriDraw_Font* font;
 };
 
 struct ToriDraw_ScenePendingPose
@@ -120,6 +135,46 @@ td_scene_emit(
             event.world_position = element->world_position;
     }
 
+    scene->event_queue.events[scene->event_queue.count++] = event;
+}
+
+static void
+td_scene_emit_sprite(
+    struct ToriDraw_Scene* scene,
+    enum ToriDraw_EventKind kind,
+    int element_id,
+    struct ToriDraw_Sprite** sprites,
+    int count)
+{
+    struct ToriDraw_Event event;
+
+    if( !scene || scene->event_queue.count >= TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE )
+        return;
+
+    memset(&event, 0, sizeof(event));
+    event.kind = kind;
+    event.element_id = element_id;
+    event.sprites = sprites;
+    event.sprite_count = count;
+    scene->event_queue.events[scene->event_queue.count++] = event;
+}
+
+static void
+td_scene_emit_font(
+    struct ToriDraw_Scene* scene,
+    enum ToriDraw_EventKind kind,
+    int font_id,
+    struct ToriDraw_Font* font)
+{
+    struct ToriDraw_Event event;
+
+    if( !scene || scene->event_queue.count >= TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE )
+        return;
+
+    memset(&event, 0, sizeof(event));
+    event.kind = kind;
+    event.texture_id = font_id;
+    event.font = font;
     scene->event_queue.events[scene->event_queue.count++] = event;
 }
 
@@ -333,9 +388,11 @@ ToriDraw_SceneGraphInit(struct ToriDraw_Scene* scene)
 
     scene->models_hmap = td_scene_map_new(sizeof(struct MapEntry_ToriModel), 1024);
     scene->animation_hmap = td_scene_map_new(sizeof(struct MapEntry_Animation), 512);
+    scene->sprites_hmap = td_scene_map_new(sizeof(struct MapEntry_Sprite), 256);
+    scene->fonts_hmap = td_scene_map_new(sizeof(struct MapEntry_Font), 16);
     ToriDraw_IntrusiveListInit(&scene->elements);
 
-    if( !scene->models_hmap || !scene->animation_hmap )
+    if( !scene->models_hmap || !scene->animation_hmap || !scene->sprites_hmap || !scene->fonts_hmap )
     {
         ToriDraw_SceneGraphShutdown(scene);
         return false;
@@ -365,12 +422,149 @@ ToriDraw_SceneGraphShutdown(struct ToriDraw_Scene* scene)
     td_scene_free_animations_map(scene->animation_hmap);
     td_scene_map_free(scene->animation_hmap);
 
+    if( scene->sprites_hmap )
+    {
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(scene->sprites_hmap);
+        struct MapEntry_Sprite* entry = NULL;
+        while( (entry = (struct MapEntry_Sprite*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->sprites )
+            {
+                for( int i = 0; i < entry->count; i++ )
+                    ToriDraw_SpriteFree(entry->sprites[i]);
+                free(entry->sprites);
+            }
+        }
+        ToriDraw_MapIterFree(iter);
+        td_scene_map_free(scene->sprites_hmap);
+    }
+
+    if( scene->fonts_hmap )
+    {
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(scene->fonts_hmap);
+        struct MapEntry_Font* entry = NULL;
+        while( (entry = (struct MapEntry_Font*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->font )
+                ToriDraw_FontFree(entry->font);
+        }
+        ToriDraw_MapIterFree(iter);
+        td_scene_map_free(scene->fonts_hmap);
+    }
+
     if( scene->tex_state )
         td_scene_free_textures(&scene->tex_state->texture_map);
 
     scene->models_hmap = NULL;
     scene->animation_hmap = NULL;
+    scene->sprites_hmap = NULL;
+    scene->fonts_hmap = NULL;
     scene->pending_poses = NULL;
+}
+
+void
+ToriDraw_SceneSpriteAdd(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    struct ToriDraw_Sprite** sprites,
+    int count)
+{
+    if( !scene || element_id < 0 || !sprites || count <= 0 )
+        return;
+
+    struct MapEntry_Sprite* entry = (struct MapEntry_Sprite*)ToriDraw_MapSearch(
+        scene->sprites_hmap, &element_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->sprites )
+    {
+        td_scene_emit_sprite(scene, TORIDRAW_EVENT_SPRITE_UNLOAD, element_id, entry->sprites, entry->count);
+        for( int i = 0; i < entry->count; i++ )
+            ToriDraw_SpriteFree(entry->sprites[i]);
+        free(entry->sprites);
+    }
+
+    entry->id = element_id;
+    entry->sprites = sprites;
+    entry->count = count;
+    td_scene_emit_sprite(scene, TORIDRAW_EVENT_SPRITE_LOAD, element_id, sprites, count);
+}
+
+struct ToriDraw_Sprite**
+ToriDraw_SceneSpriteGet(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int* out_count)
+{
+    if( out_count )
+        *out_count = 0;
+    if( !scene )
+        return NULL;
+
+    struct MapEntry_Sprite* entry = (struct MapEntry_Sprite*)ToriDraw_MapSearch(
+        scene->sprites_hmap, &element_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    if( out_count )
+        *out_count = entry->count;
+    return entry->sprites;
+}
+
+bool
+ToriDraw_SceneSpriteHas(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    return ToriDraw_SceneSpriteGet(scene, element_id, NULL) != NULL;
+}
+
+void
+ToriDraw_SceneFontAdd(
+    struct ToriDraw_Scene* scene,
+    int font_id,
+    struct ToriDraw_Font* font)
+{
+    if( !scene || font_id < 0 || !font )
+        return;
+
+    struct MapEntry_Font* entry = (struct MapEntry_Font*)ToriDraw_MapSearch(
+        scene->fonts_hmap, &font_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->font )
+    {
+        td_scene_emit_font(scene, TORIDRAW_EVENT_FONT_UNLOAD, font_id, entry->font);
+        ToriDraw_FontFree(entry->font);
+    }
+
+    entry->id = font_id;
+    entry->font = font;
+    td_scene_emit_font(scene, TORIDRAW_EVENT_FONT_LOAD, font_id, font);
+}
+
+struct ToriDraw_Font*
+ToriDraw_SceneFontGet(
+    struct ToriDraw_Scene* scene,
+    int font_id)
+{
+    if( !scene )
+        return NULL;
+
+    struct MapEntry_Font* entry = (struct MapEntry_Font*)ToriDraw_MapSearch(
+        scene->fonts_hmap, &font_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->font;
+}
+
+bool
+ToriDraw_SceneFontHas(
+    struct ToriDraw_Scene* scene,
+    int font_id)
+{
+    return ToriDraw_SceneFontGet(scene, font_id) != NULL;
 }
 
 void

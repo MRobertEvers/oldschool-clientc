@@ -7,6 +7,7 @@
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/toriauxlib.h"
 #include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/revconfig_ui_load.h"
 #include "games/runescape.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "osrs/rscache/dat1disk/dat1disk.h"
@@ -406,6 +407,10 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
     struct Task_ToriAuxLibC_WorldRebuildNormal* task = Task_ToriAuxLibC_WorldRebuildNormal_New(
         ToriAuxLib_C(instance->toriauxlib), RUNESCAPE_ZONE_CENTER_X, RUNESCAPE_ZONE_CENTER_Z);
     LibToriRS_TasksAdd(instance, task, Task_ToriAuxLibC_WorldRebuildNormal_Run);
+
+    struct Task_RevConfigUILoad* ui_task = Task_RevConfigUILoad_New(
+        ToriAuxLib_C(instance->toriauxlib), instance->scene, instance->runescape->ui_tree);
+    LibToriRS_TasksAdd(instance, ui_task, Task_RevConfigUILoad_Run);
 }
 
 void

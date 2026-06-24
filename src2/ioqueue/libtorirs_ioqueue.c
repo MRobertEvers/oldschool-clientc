@@ -45,7 +45,37 @@ LibToriRS_IOQueueClear(struct LibToriRS_IOQueue* queue)
     for( int i = 0; i < queue->count; i++ )
         ioqueue_item_free_data(&queue->items[i]);
 
+    int run_counter = queue->run_counter;
     memset(queue, 0, sizeof(struct LibToriRS_IOQueue));
+    queue->run_counter = run_counter;
+}
+
+int
+LibToriRS_IOQueueBeginRun(struct LibToriRS_IOQueue* queue)
+{
+    if( !queue )
+        return 0;
+    return ++queue->run_counter;
+}
+
+bool
+LibToriRS_IOQueueRunComplete(
+    struct LibToriRS_IOQueue* queue,
+    int run_id)
+{
+    if( !queue || run_id <= 0 )
+        return true;
+
+    for( int i = 0; i < queue->count; i++ )
+    {
+        struct LibToriRS_IOQueueItem const* item = &queue->items[i];
+        if( item->run_id != run_id )
+            continue;
+        if( item->status != TORIRSIO_STAT_DONE )
+            return false;
+    }
+
+    return true;
 }
 
 void
@@ -84,6 +114,7 @@ LibToriRS_IOQueuePushConfigFile(
     memset(item, 0, sizeof(struct LibToriRS_IOQueueItem));
     item->kind = TORIRSIO_KIND_CONFIG_FILE;
     item->status = TORIRSIO_STAT_YIELD;
+    item->run_id = queue->run_counter;
     strncpy(item->u.config_file.path, path, LIBTORIRS_IOQUEUE_PATH_MAX - 1);
     item->u.config_file.path[LIBTORIRS_IOQUEUE_PATH_MAX - 1] = '\0';
     queue->count++;
@@ -104,6 +135,7 @@ LibToriRS_IOQueuePushScript(
     memset(item, 0, sizeof(struct LibToriRS_IOQueueItem));
     item->kind = TORIRSIO_KIND_SCRIPT;
     item->status = TORIRSIO_STAT_YIELD;
+    item->run_id = queue->run_counter;
     strncpy(item->u.script.path, path, LIBTORIRS_IOQUEUE_PATH_MAX - 1);
     item->u.script.path[LIBTORIRS_IOQUEUE_PATH_MAX - 1] = '\0';
     queue->count++;
@@ -125,7 +157,9 @@ LibToriRS_IOQueuePopWrite(
 {
     assert(queue);
     assert(queue->count < LIBTORIRS_IOQUEUE_MAX_SIZE);
-    memcpy(&queue->items[queue->count], in, sizeof(struct LibToriRS_IOQueueItem));
+    struct LibToriRS_IOQueueItem* item = &queue->items[queue->count];
+    memcpy(item, in, sizeof(struct LibToriRS_IOQueueItem));
+    item->run_id = queue->run_counter;
     queue->count++;
     return true;
 }
@@ -139,7 +173,14 @@ LibToriRS_IOQueuePopRead(
         return false;
     if( queue->read_head >= queue->count )
         return false;
-    memcpy(out, &queue->items[queue->read_head], sizeof(struct LibToriRS_IOQueueItem));
+
+    struct LibToriRS_IOQueueItem* slot = &queue->items[queue->read_head];
+    memcpy(out, slot, sizeof(struct LibToriRS_IOQueueItem));
+    if( slot->kind == TORIRSIO_KIND_CONFIG_FILE || slot->kind == TORIRSIO_KIND_SCRIPT )
+    {
+        slot->data = NULL;
+        slot->data_size = 0;
+    }
     queue->read_head++;
     return true;
 }

@@ -7,6 +7,7 @@
 #include "../world/world.h"
 #include "../world/world_pickset.h"
 #include "osrs/painters.h"
+#include "osrs/revconfig/uitree.h"
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"
 
@@ -41,7 +42,17 @@ enum GameRunescape_FramePhase
     RS_FRAME_PHASE_BEGIN_3D,
     RS_FRAME_PHASE_MODELS,
     RS_FRAME_PHASE_END_3D,
+    RS_FRAME_PHASE_UI_2D_BEGIN,
+    RS_FRAME_PHASE_UI_2D,
+    RS_FRAME_PHASE_UI_2D_END,
     RS_FRAME_PHASE_DONE,
+};
+
+#define RUNESCAPE_UI_TRAVERSAL_STACK_MAX 64
+
+struct GameRunescape_UITraversalFrame
+{
+    int32_t parent_index;
 };
 
 struct GameRunescape
@@ -56,6 +67,8 @@ struct GameRunescape
     struct ToriDraw_ViewPort* view_port;
     struct ToriDraw_ViewPort world_view_port;
     struct PaintersBuffer* painter_buffer;
+    struct UITree* ui_tree;
+    bool ui_tree_ready;
 
     int zone_center_x;
     int zone_center_z;
@@ -78,6 +91,10 @@ struct GameRunescape
         int painter_command_index;
         bool world_emitted;
         bool painter_paint_done;
+        bool ui_2d_begun;
+        int32_t ui_current;
+        struct GameRunescape_UITraversalFrame ui_stack[RUNESCAPE_UI_TRAVERSAL_STACK_MAX];
+        int ui_stack_top;
     } frame;
 };
 
@@ -98,6 +115,16 @@ void
 game_runescape_set_td(
     struct GameRunescape* game,
     struct ToriAuxLibTD* td);
+
+void
+game_runescape_set_ui_tree(
+    struct GameRunescape* game,
+    struct UITree* ui_tree);
+
+void
+game_runescape_set_ui_tree_ready(
+    struct GameRunescape* game,
+    bool ready);
 
 void
 game_runescape_build_world(struct GameRunescape* game);

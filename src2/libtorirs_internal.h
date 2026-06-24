@@ -22,6 +22,7 @@ struct LibToriRS_Task
 {
     struct CoreTask* task;
     int last_res;
+    int wait_run;
     int next;
     int prev;
 };

@@ -14,6 +14,14 @@ LibToriRS_IOQueueFree(struct LibToriRS_IOQueue* queue);
 void
 LibToriRS_IOQueueClear(struct LibToriRS_IOQueue* queue);
 
+int
+LibToriRS_IOQueueBeginRun(struct LibToriRS_IOQueue* queue);
+
+bool
+LibToriRS_IOQueueRunComplete(
+    struct LibToriRS_IOQueue* queue,
+    int run_id);
+
 void
 LibToriRS_IOQueuePushCache(
     struct LibToriRS_IOQueue* queue,

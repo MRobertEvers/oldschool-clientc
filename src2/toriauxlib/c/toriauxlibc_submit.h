@@ -40,4 +40,16 @@ ToriAuxLibC_SubmitAllFlotypesFromDat1(struct ToriAuxLibC* c);
 void
 ToriAuxLibC_SubmitAllLocationsFromDat1(struct ToriAuxLibC* c);
 
+void
+ToriAuxLibC_SubmitSpriteFromDat1(
+    struct ToriAuxLibC* c,
+    int sprite_id,
+    struct ToriAuxLibCore_Sprite* sprite);
+
+void
+ToriAuxLibC_SubmitFontFromDat1(
+    struct ToriAuxLibC* c,
+    int font_id,
+    struct ToriAuxLibCore_Font* font);
+
 #endif

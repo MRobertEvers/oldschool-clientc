@@ -4,6 +4,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct ToriDraw_Sprite;
+struct ToriDraw_Font;
+
 #define TORIAUXLIBCORE_MAP_TERRAIN_X 64
 #define TORIAUXLIBCORE_MAP_TERRAIN_Z 64
 #define TORIAUXLIBCORE_MAP_TERRAIN_LEVELS 4
@@ -197,6 +200,19 @@ struct ToriAuxLibCore_Sequence
     struct ToriAuxLibCore_Animation* resolved;
 };
 
+struct ToriAuxLibCore_Sprite
+{
+    char name[64];
+    struct ToriDraw_Sprite** sprites;
+    int count;
+};
+
+struct ToriAuxLibCore_Font
+{
+    char name[16];
+    struct ToriDraw_Font* font;
+};
+
 void
 ToriAuxLibCore_MapTerrainFree(struct ToriAuxLibCore_MapTerrain* terrain);
 
@@ -220,5 +236,11 @@ ToriAuxLibCore_AnimationFree(struct ToriAuxLibCore_Animation* anim);
 
 void
 ToriAuxLibCore_TextureFree(struct ToriAuxLibCore_Texture* texture);
+
+void
+ToriAuxLibCore_SpriteFree(struct ToriAuxLibCore_Sprite* sprite);
+
+void
+ToriAuxLibCore_FontFree(struct ToriAuxLibCore_Font* font);
 
 #endif

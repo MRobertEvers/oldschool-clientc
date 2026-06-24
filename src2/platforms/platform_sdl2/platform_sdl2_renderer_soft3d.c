@@ -5,6 +5,7 @@
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_sprite.h"
+#include "toridraw/toridraw_font.h"
 #include <SDL_render.h>
 
 #include <SDL.h>
@@ -39,6 +40,7 @@ soft3d_fill_rect(
 }
 
 #define SOFT3D_SPRITE_ELEMENT_CAP 256
+#define SOFT3D_FONT_CAP 8
 
 struct LibToriPlatformSDL2_RendererSoft3D
 {
@@ -52,6 +54,9 @@ struct LibToriPlatformSDL2_RendererSoft3D
     struct ToriDraw_Sprite** sprite_arrays[SOFT3D_SPRITE_ELEMENT_CAP];
     int sprite_counts[SOFT3D_SPRITE_ELEMENT_CAP];
 
+    struct ToriDraw_Font* fonts[SOFT3D_FONT_CAP];
+
+    struct ToriDraw_ViewPort iface_view_port;
     bool ui_model_3d_active;
     struct ToriDraw_ViewPort ui_model_vp;
     struct ToriDraw_Camera ui_model_cam;
@@ -199,6 +204,12 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             }
             break;
         case TORIRSRC_BEGIN_2D:
+            memset(&renderer->iface_view_port, 0, sizeof(renderer->iface_view_port));
+            renderer->iface_view_port.stride = renderer->width;
+            renderer->iface_view_port.clip_left = 0;
+            renderer->iface_view_port.clip_top = 0;
+            renderer->iface_view_port.clip_right = renderer->width;
+            renderer->iface_view_port.clip_bottom = renderer->height;
             break;
         case TORIRSRC_END_2D:
             break;
@@ -209,6 +220,14 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 break;
             renderer->sprite_arrays[element_id] = command.u.sprite_load.sprites;
             renderer->sprite_counts[element_id] = command.u.sprite_load.count;
+            break;
+        }
+        case TORIRSRC_FONT_LOAD:
+        {
+            const int font_id = command.u.font_load.font_id;
+            if( font_id < 0 || font_id >= SOFT3D_FONT_CAP )
+                break;
+            renderer->fonts[font_id] = command.u.font_load.font;
             break;
         }
         case TORIRSRC_SPRITE:
@@ -225,15 +244,54 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             if( !sp || !sp->pixels_argb )
                 break;
 
-            struct ToriDraw_ViewPort vp;
-            memset(&vp, 0, sizeof(vp));
-            vp.stride = renderer->width;
-            vp.clip_left = 0;
-            vp.clip_top = 0;
-            vp.clip_right = renderer->width;
-            vp.clip_bottom = renderer->height;
-            ToriDraw2D_BlitSprite(
-                sp, &vp, command.u.sprite.x, command.u.sprite.y, renderer->pixel_buffer);
+            struct ToriDraw_ViewPort vp = renderer->iface_view_port;
+            if( command.u.sprite.scissor_w > 0 && command.u.sprite.scissor_h > 0 )
+            {
+                vp.clip_left = command.u.sprite.scissor_x;
+                vp.clip_top = command.u.sprite.scissor_y;
+                vp.clip_right = command.u.sprite.scissor_x + command.u.sprite.scissor_w;
+                vp.clip_bottom = command.u.sprite.scissor_y + command.u.sprite.scissor_h;
+            }
+
+            if( command.u.sprite.mask_element_id >= 0 &&
+                command.u.sprite.mask_element_id < SOFT3D_SPRITE_ELEMENT_CAP )
+            {
+                struct ToriDraw_Sprite** mask_sprites =
+                    renderer->sprite_arrays[command.u.sprite.mask_element_id];
+                int mask_count = renderer->sprite_counts[command.u.sprite.mask_element_id];
+                int mask_idx = command.u.sprite.mask_atlas_index;
+                if( mask_sprites && mask_idx >= 0 && mask_idx < mask_count && mask_sprites[mask_idx] )
+                {
+                    ToriDraw2D_BlitSpriteMasked(
+                        sp,
+                        mask_sprites[mask_idx],
+                        &vp,
+                        command.u.sprite.x,
+                        command.u.sprite.y,
+                        renderer->pixel_buffer);
+                    break;
+                }
+            }
+
+            if( command.u.sprite.rotation != 0 )
+            {
+                ToriDraw2D_BlitSpriteRotated(
+                    sp,
+                    &vp,
+                    command.u.sprite.x,
+                    command.u.sprite.y,
+                    command.u.sprite.w / 2,
+                    command.u.sprite.h / 2,
+                    command.u.sprite.w,
+                    command.u.sprite.h,
+                    command.u.sprite.rotation,
+                    renderer->pixel_buffer);
+            }
+            else
+            {
+                ToriDraw2D_BlitSprite(
+                    sp, &vp, command.u.sprite.x, command.u.sprite.y, renderer->pixel_buffer);
+            }
             break;
         }
         case TORIRSRC_FILL_RECT:
@@ -250,6 +308,22 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             break;
         case TORIRSRC_FONT:
         {
+            const int font_id = command.u.font.font_id;
+            if( font_id < 0 || font_id >= SOFT3D_FONT_CAP )
+                break;
+            struct ToriDraw_Font* font = renderer->fonts[font_id];
+            if( !font || !command.u.font.text )
+                break;
+            ToriDraw2D_DrawString(
+                font,
+                &renderer->iface_view_port,
+                command.u.font.x,
+                command.u.font.y,
+                command.u.font.text,
+                command.u.font.color,
+                command.u.font.center != 0,
+                command.u.font.shadowed != 0,
+                renderer->pixel_buffer);
             break;
         }
         case TORIRSRC_UI_MODEL_BEGIN_3D:

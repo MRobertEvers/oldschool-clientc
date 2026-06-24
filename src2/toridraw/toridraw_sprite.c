@@ -1,5 +1,7 @@
 #include "toridraw_sprite.h"
 
+#include "toridraw_math.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -205,6 +207,128 @@ ToriDraw2D_BlitSprite_subrect(
                 continue;
 
             pixel_buffer[pixel_buffer_index] = (int)pixel;
+        }
+    }
+}
+
+void
+ToriDraw2D_BlitSpriteRotated(
+    struct ToriDraw_Sprite* sprite,
+    struct ToriDraw_ViewPort* view_port,
+    int x,
+    int y,
+    int anchor_x,
+    int anchor_y,
+    int width,
+    int height,
+    int rotation_r2pi2048,
+    int* pixel_buffer)
+{
+    if( !sprite || !sprite->pixels_argb || !view_port || !pixel_buffer )
+        return;
+    if( width <= 0 )
+        width = sprite->width;
+    if( height <= 0 )
+        height = sprite->height;
+
+    int cl = view_port->clip_left;
+    int ct = view_port->clip_top;
+    int cr = view_port->clip_right;
+    int cb = view_port->clip_bottom;
+    int stride = view_port->stride;
+    int sw = sprite->width;
+
+    rotation_r2pi2048 = ToriDraw_NormalizeAngle(rotation_r2pi2048);
+    int sin = ToriDraw_Sin(rotation_r2pi2048);
+    int cos = ToriDraw_Cos(rotation_r2pi2048);
+    int sin_zoom = (sin * 1) >> 8;
+    int cos_zoom = (cos * 1) >> 8;
+
+    int center_x = (-width / 2);
+    int center_y = (-height / 2);
+    int left_x = (anchor_x << 16) + center_y * sin_zoom + center_x * cos_zoom;
+    int left_y = (anchor_y << 16) + (center_y * cos_zoom - center_x * sin_zoom);
+    int left_off = x + y * stride;
+
+    for( int i = 0; i < height; i++ )
+    {
+        int dst_off = i * stride;
+        int dst_x = left_off + dst_off;
+        int src_x = left_x + cos_zoom * dst_off;
+        int src_y = left_y - sin_zoom * dst_off;
+
+        for( int j = 0; j < width; j++ )
+        {
+            int sx = src_x >> 16;
+            int sy = src_y >> 16;
+            if( sx >= 0 && sy >= 0 && sx < sprite->width && sy < sprite->height )
+            {
+                int dst_px = dst_x % stride;
+                int dst_py = dst_x / stride;
+                if( dst_px >= cl && dst_px < cr && dst_py >= ct && dst_py < cb )
+                {
+                    uint32_t pixel = sprite->pixels_argb[sx + sy * sw];
+                    if( pixel != 0 )
+                        pixel_buffer[dst_x] = (int)pixel;
+                }
+            }
+            src_x += cos_zoom;
+            src_y -= sin_zoom;
+            dst_x++;
+        }
+
+        left_x += sin_zoom;
+        left_y += cos_zoom;
+        left_off += stride;
+    }
+}
+
+void
+ToriDraw2D_BlitSpriteMasked(
+    struct ToriDraw_Sprite* sprite,
+    struct ToriDraw_Sprite* mask_sprite,
+    struct ToriDraw_ViewPort* view_port,
+    int x,
+    int y,
+    int* pixel_buffer)
+{
+    if( !sprite || !sprite->pixels_argb || !mask_sprite || !mask_sprite->pixels_argb || !view_port ||
+        !pixel_buffer )
+        return;
+
+    x += sprite->crop_x;
+    y += sprite->crop_y;
+
+    int cl = view_port->clip_left;
+    int ct = view_port->clip_top;
+    int cr = view_port->clip_right;
+    int cb = view_port->clip_bottom;
+    int stride = view_port->stride;
+    int sw = sprite->width;
+    int mw = mask_sprite->width;
+    int mh = mask_sprite->height;
+    int draw_w = sprite->crop_width > 0 ? sprite->crop_width : sprite->width;
+    int draw_h = sprite->crop_height > 0 ? sprite->crop_height : sprite->height;
+
+    for( int row = 0; row < draw_h; row++ )
+    {
+        int dst_y = y + row;
+        if( dst_y < ct || dst_y >= cb )
+            continue;
+        for( int col = 0; col < draw_w; col++ )
+        {
+            int dst_x = x + col;
+            if( dst_x < cl || dst_x >= cr )
+                continue;
+            if( col >= mw || row >= mh )
+                continue;
+            uint32_t mask_px = mask_sprite->pixels_argb[col + row * mw];
+            if( mask_px == 0 )
+                continue;
+            uint32_t pixel = sprite->pixels_argb[col + row * sw];
+            if( pixel == 0 )
+                continue;
+            pixel_buffer[dst_y * stride + dst_x] = (int)pixel;
         }
     }
 }

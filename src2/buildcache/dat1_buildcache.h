@@ -23,6 +23,7 @@ struct Dat1BuildCache
     struct RSCacheShared_FileListDat* fromconfigtable_config_jagfile;
     struct RSCacheShared_FileListDat* versionlist_jagfile;
     struct RSCacheShared_FileListDat* media_2d_graphics_jagfile;
+    struct RSCacheShared_FileListDat* title_fonts_jagfile;
     struct RSCacheDat1A_ConfigComponentList* interfaces;
     struct ToriDraw_Map* models_hmap;
     struct ToriDraw_Map* map_terrain_hmap;
@@ -62,8 +63,16 @@ dat1_buildcache_set_media_2d_graphics_jagfile(
     struct Dat1BuildCache* dat1_buildcache,
     struct RSCacheShared_FileListDat* media_2d_graphics_jagfile);
 
+void
+dat1_buildcache_set_title_fonts_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct RSCacheShared_FileListDat* title_fonts_jagfile);
+
 struct RSCacheShared_FileListDat*
 dat1_buildcache_get_media_2d_graphics_jagfile(struct Dat1BuildCache* dat1_buildcache);
+
+struct RSCacheShared_FileListDat*
+dat1_buildcache_get_title_fonts_jagfile(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_set_interfaces(
