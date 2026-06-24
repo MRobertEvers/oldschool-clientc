@@ -21,7 +21,6 @@
 #include <string.h>
 
 #define RUNESCAPE_CAMERA_MOVEMENT_SPEED 70
-#define RUNESCAPE_PROJECTILE_VEL_EAST 1
 
 static int
 clamp_terrain_level(int level)
@@ -151,6 +150,7 @@ game_runescape_emit_draw_element(
     rel_pos.x -= game->camera_position->x;
     rel_pos.y -= game->camera_position->y;
     rel_pos.z -= game->camera_position->z;
+    rel_pos.pitch = ToriDraw_NormalizeAngle(element->world_position.pitch);
     rel_pos.yaw = ToriDraw_NormalizeAngle(element->world_position.yaw);
 
     if( element->anim_seq_id != -1 && element->animation )
@@ -352,23 +352,6 @@ game_runescape_process_input(
 }
 
 static void
-game_runescape_check_projectiles(struct GameRunescape* game)
-{
-    struct World* world = game->world;
-    if( !world )
-        return;
-
-    for( int i = 0; i < world->projectile_count; i++ )
-    {
-        struct WorldProjectile* p = &world->projectiles[i];
-        if( !p->alive || !p->has_dst )
-            continue;
-        if( p->pos_x >= p->dst_x )
-            world_projectile_despawn(world, i);
-    }
-}
-
-static void
 game_runescape_drain_world_events(struct GameRunescape* game)
 {
     struct World* world = game->world;
@@ -397,15 +380,17 @@ game_runescape_sync_projectiles_to_scene(struct GameRunescape* game)
     for( int i = 0; i < world->projectile_count; i++ )
     {
         struct WorldProjectile* p = &world->projectiles[i];
-        if( !p->alive || p->element_id < 0 )
+        if( !p->alive || p->element_id < 0 || !p->launched )
             continue;
 
-        int pos_y = 0;
-        if( world->heightmap )
-            pos_y = heightmap_get_interpolated(world->heightmap, p->pos_x, p->pos_z, p->level);
-
-        ToriDraw_SceneElementSetPosition(
-            game->scene, p->element_id, p->pos_x, pos_y, p->pos_z, p->yaw);
+        ToriDraw_SceneElementSetPositionPitchYaw(
+            game->scene,
+            p->element_id,
+            (int)p->x,
+            (int)p->y,
+            (int)p->z,
+            p->pitch,
+            p->yaw);
     }
 }
 
@@ -454,7 +439,6 @@ game_runescape_frame_begin(
         game_runescape_tick_animations(game);
     if( game->world )
         world_cycle(game->world, cycles_elapsed);
-    game_runescape_check_projectiles(game);
     game_runescape_drain_world_events(game);
     game_runescape_sync_projectiles_to_scene(game);
     game_runescape_update_world_viewport(game);
@@ -594,19 +578,41 @@ game_runescape_spawn_projectile(
     struct GameRunescape* game,
     int model_id,
     int seq_id,
-    int sx,
-    int sz,
+    int src_sx,
+    int src_sz,
+    int dst_sx,
+    int dst_sz,
     int level,
-    int sub_x,
-    int sub_z,
-    int vel_x,
-    int vel_z,
-    int yaw)
+    int startheight,
+    int endheight,
+    int delay,
+    int angle,
+    int length,
+    int offset,
+    int step)
 {
     if( !game || !game->world || !game->scene || !game->td )
         return -1;
 
     level = clamp_terrain_level(level);
+
+    int const range_x = dst_sx - src_sx;
+    int const range_z = dst_sz - src_sz;
+    int const range =
+        abs(range_x) > abs(range_z) ? abs(range_x) : abs(range_z);
+    int const flight = length + range * step;
+    int const t1 = delay;
+    int const t2 = delay + flight;
+
+    int const src_x = src_sx * 128 + 64;
+    int const src_z = src_sz * 128 + 64;
+    int const dst_x = dst_sx * 128 + 64;
+    int const dst_z = dst_sz * 128 + 64;
+
+    int h1 = 0;
+    if( game->world->heightmap )
+        h1 = heightmap_get_interpolated(game->world->heightmap, src_x, src_z, level) -
+            startheight * 4;
 
     struct ToriDraw_ModelHandle cached = ToriAuxLibTD_Model(game->td, model_id);
     if( cached.kind != TORIDRAWMK_MODEL || !cached.u.model.model )
@@ -642,17 +648,22 @@ game_runescape_spawn_projectile(
         ToriDraw_SceneElementSetAnimation(game->scene, element_id, anim, true);
     }
 
-    int pos_x = sx * 128 + sub_x;
-    int pos_z = sz * 128 + sub_z;
     int projectile_idx = world_projectile_spawn(
-        game->world, element_id, level, pos_x, pos_z, vel_x, vel_z, yaw);
+        game->world,
+        element_id,
+        level,
+        src_x,
+        src_z,
+        dst_x,
+        dst_z,
+        h1,
+        endheight * 4,
+        t1,
+        t2,
+        angle,
+        offset);
     if( projectile_idx < 0 )
         return -1;
-
-    int pos_y = 0;
-    if( game->world->heightmap )
-        pos_y = heightmap_get_interpolated(game->world->heightmap, pos_x, pos_z, level);
-    ToriDraw_SceneElementSetPosition(game->scene, element_id, pos_x, pos_y, pos_z, yaw);
 
     struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(game->scene, element_id);
     if( element )
@@ -667,10 +678,11 @@ struct ToriRunescape_Task_AddProjectile
     struct GameRunescape* game;
     int model_id;
     int seq_id;
-    int spawn_sx;
-    int spawn_sz;
+    int src_sx;
+    int src_sz;
+    int dst_sx;
+    int dst_sz;
     int level;
-    int dst_tiles_east;
 };
 
 struct ToriRunescape_Task_AddProjectile*
@@ -678,10 +690,11 @@ ToriRunescape_Task_AddProjectile_New(
     struct GameRunescape* game,
     int model_id,
     int seq_id,
-    int spawn_sx,
-    int spawn_sz,
-    int level,
-    int dst_tiles_east)
+    int src_sx,
+    int src_sz,
+    int dst_sx,
+    int dst_sz,
+    int level)
 {
     struct ToriRunescape_Task_AddProjectile* task =
         calloc(1, sizeof(struct ToriRunescape_Task_AddProjectile));
@@ -691,10 +704,11 @@ ToriRunescape_Task_AddProjectile_New(
     task->game = game;
     task->model_id = model_id;
     task->seq_id = seq_id;
-    task->spawn_sx = spawn_sx;
-    task->spawn_sz = spawn_sz;
+    task->src_sx = src_sx;
+    task->src_sz = src_sz;
+    task->dst_sx = dst_sx;
+    task->dst_sz = dst_sz;
     task->level = level;
-    task->dst_tiles_east = dst_tiles_east;
     return task;
 }
 
@@ -709,7 +723,8 @@ ToriRunescape_Task_AddProjectile_Run(
     void* task_state,
     struct LibToriRS_IOContext* ctx)
 {
-    struct ToriRunescape_Task_AddProjectile* task = (struct ToriRunescape_Task_AddProjectile*)task_state;
+    struct ToriRunescape_Task_AddProjectile* task =
+        (struct ToriRunescape_Task_AddProjectile*)task_state;
     struct ToriAuxLibTD* td = NULL;
     struct RSCacheDat2A_Model* model;
     int decoded_model_id;
@@ -753,26 +768,21 @@ ToriRunescape_Task_AddProjectile_Run(
         task->game,
         task->model_id,
         task->seq_id,
-        task->spawn_sx,
-        task->spawn_sz,
+        task->src_sx,
+        task->src_sz,
+        task->dst_sx,
+        task->dst_sz,
         task->level,
-        64,
-        64,
-        RUNESCAPE_PROJECTILE_VEL_EAST,
-        0,
-        0);
-    if( idx >= 0 )
-    {
-        int const spawn_pos_x = task->spawn_sx * 128 + 64;
-        int const spawn_pos_z = task->spawn_sz * 128 + 64;
-        world_projectile_set_destination(
-            task->game->world,
-            idx,
-            spawn_pos_x + task->dst_tiles_east * 128,
-            spawn_pos_z);
-    }
+        RUNESCAPE_PROJECTILE_STARTHEIGHT,
+        RUNESCAPE_PROJECTILE_ENDHEIGHT,
+        RUNESCAPE_PROJECTILE_DELAY,
+        RUNESCAPE_PROJECTILE_ANGLE,
+        RUNESCAPE_PROJECTILE_LENGTH,
+        RUNESCAPE_PROJECTILE_OFFSET,
+        RUNESCAPE_PROJECTILE_STEP);
+    (void)idx;
 
     ToriRunescape_Task_AddProjectile_Free(task);
-    }
-    return PT_ENDED;
+}
+return PT_ENDED;
 }

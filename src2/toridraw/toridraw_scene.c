@@ -791,6 +791,47 @@ ToriDraw_SceneElementSetPosition(
 }
 
 void
+ToriDraw_SceneElementSetPositionPitchYaw(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int x,
+    int y,
+    int z,
+    int pitch,
+    int yaw)
+{
+    struct ToriDraw_SceneElement* element;
+
+    assert(scene);
+    assert(td_scene_element_valid(scene, element_id));
+
+    element = td_scene_element_ptr(scene, element_id);
+    assert(element);
+
+    element->world_position.x = x;
+    element->world_position.y = y;
+    element->world_position.z = z;
+    element->world_position.pitch = ToriDraw_NormalizeAngle(pitch);
+    element->world_position.yaw = ToriDraw_NormalizeAngle(yaw);
+    element->world_position.roll = 0;
+
+    if( scene->batch_building && element->pending_batch_add )
+    {
+        td_scene_emit(
+            scene,
+            TORIDRAW_EVENT_BATCH_MODEL_ADD,
+            scene->current_batch_id,
+            element_id,
+            0,
+            0,
+            &element->model,
+            NULL,
+            NULL);
+        element->pending_batch_add = false;
+    }
+}
+
+void
 ToriDraw_SceneBatchBegin(struct ToriDraw_Scene* scene)
 {
     assert(scene);

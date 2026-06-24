@@ -274,4 +274,147 @@ project_vertices_array6_fused_notex(
         camera_yaw,
         camera_roll);
 }
+
+static inline void
+project_vertices_array_pitchyaw_fused(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    int num_vertices,
+    int model_pitch,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    for( int i = 0; i < num_vertices; i++ )
+    {
+        struct ProjectedVertex projected_vertex;
+        project_orthographic_fast_pitchyaw(
+            &projected_vertex,
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            model_pitch,
+            model_yaw,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_pitch,
+            camera_yaw);
+
+        int x = projected_vertex.x;
+        int y = projected_vertex.y;
+        int z = projected_vertex.z;
+
+        x *= cot_fov_half_ish15;
+        y *= cot_fov_half_ish15;
+        x >>= 6;
+        y >>= 6;
+
+        int screen_x = x;
+        int screen_y = y;
+
+        orthographic_vertices_x[i] = projected_vertex.x;
+        orthographic_vertices_y[i] = projected_vertex.y;
+        orthographic_vertices_z[i] = projected_vertex.z;
+
+        screen_vertices_z[i] = z - model_mid_z;
+        if( z < near_plane_z )
+        {
+            screen_vertices_x[i] = -5000;
+            screen_vertices_y[i] = screen_y;
+        }
+        else
+        {
+            screen_vertices_x[i] = screen_x / z;
+            if( screen_vertices_x[i] == -5000 )
+                screen_vertices_x[i] = -5001;
+            screen_vertices_y[i] = screen_y / z;
+        }
+    }
+}
+
+static inline void
+project_vertices_array_pitchyaw_fused_notex(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    int num_vertices,
+    int model_pitch,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    for( int i = 0; i < num_vertices; i++ )
+    {
+        struct ProjectedVertex projected_vertex;
+        project_orthographic_fast_pitchyaw(
+            &projected_vertex,
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            model_pitch,
+            model_yaw,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_pitch,
+            camera_yaw);
+
+        int x = projected_vertex.x;
+        int y = projected_vertex.y;
+        int z = projected_vertex.z;
+
+        x *= cot_fov_half_ish15;
+        y *= cot_fov_half_ish15;
+        x >>= 6;
+        y >>= 6;
+
+        int screen_x = x;
+        int screen_y = y;
+
+        screen_vertices_z[i] = z - model_mid_z;
+        if( z < near_plane_z )
+        {
+            screen_vertices_x[i] = -5000;
+            screen_vertices_y[i] = screen_y;
+        }
+        else
+        {
+            screen_vertices_x[i] = screen_x / z;
+            if( screen_vertices_x[i] == -5000 )
+                screen_vertices_x[i] = -5001;
+            screen_vertices_y[i] = screen_y / z;
+        }
+    }
+}
 #endif

@@ -342,8 +342,9 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                     RUNESCAPE_PROJECTILE_SEQ_ID,
                     sx,
                     sz,
-                    level,
-                    5);
+                    sx + 5,
+                    sz,
+                    level);
                 if( task )
                 {
                     LibToriRS_TasksAdd(

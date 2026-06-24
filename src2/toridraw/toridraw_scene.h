@@ -141,6 +141,16 @@ ToriDraw_SceneElementSetPosition(
     int z,
     int yaw);
 
+void
+ToriDraw_SceneElementSetPositionPitchYaw(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int x,
+    int y,
+    int z,
+    int pitch,
+    int yaw);
+
 /* Batch building */
 
 void

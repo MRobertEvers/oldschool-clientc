@@ -284,6 +284,69 @@ project_orthographic_fast(
     projected_vertex->z = z_final_scene;
 }
 
+static inline void
+project_orthographic_fast_pitchyaw(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int pitch,
+    int yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
+
+    int x_rotated = x;
+    int y_rotated = y;
+    int z_rotated = z;
+
+    if( pitch != 0 )
+    {
+        int sin_pitch = g_sin_table[pitch];
+        int cos_pitch = RSCacheDat2A_NoiseCosTable[pitch];
+        y_rotated = y * cos_pitch - z * sin_pitch;
+        y_rotated >>= 16;
+        z_rotated = y * sin_pitch + z * cos_pitch;
+        z_rotated >>= 16;
+    }
+
+    if( yaw != 0 )
+    {
+        int sin_yaw = g_sin_table[yaw];
+        int cos_yaw = RSCacheDat2A_NoiseCosTable[yaw];
+        int x_yaw = x_rotated * cos_yaw + z_rotated * sin_yaw;
+        x_yaw >>= 16;
+        z_rotated = z_rotated * cos_yaw - x_rotated * sin_yaw;
+        z_rotated >>= 16;
+        x_rotated = x_yaw;
+    }
+
+    x_rotated += scene_x;
+    y_rotated += scene_y;
+    z_rotated += scene_z;
+
+    int x_scene = x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw;
+    x_scene >>= 16;
+    int z_scene = z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw;
+    z_scene >>= 16;
+
+    int y_scene = y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch;
+    y_scene >>= 16;
+    int z_final_scene = y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch;
+    z_final_scene >>= 16;
+
+    projected_vertex->x = x_scene;
+    projected_vertex->y = y_scene;
+    projected_vertex->z = z_final_scene;
+}
+
 static inline int
 project_scale_unit(
     int p,

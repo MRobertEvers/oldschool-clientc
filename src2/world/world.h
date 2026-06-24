@@ -44,14 +44,33 @@ struct WorldProjectile
     bool alive;
     int element_id;
     int level;
-    int pos_x;
-    int pos_z;
-    int vel_x;
-    int vel_z;
-    int yaw;
+    int dst_level;
+
+    /* Immutable params (world units / ticks). */
+    int src_x;
+    int src_z;
+    int h1;
+    int end_height;
+    int t1;
+    int t2;
+    int angle;
+    int startpos;
     int dst_x;
     int dst_z;
-    bool has_dst;
+
+    /* Dynamic state. */
+    int cycle;
+    bool launched;
+    double x;
+    double y;
+    double z;
+    double vx;
+    double vy;
+    double vz;
+    double velocity;
+    double ay;
+    int yaw;
+    int pitch;
 };
 
 struct World
@@ -131,23 +150,21 @@ world_projectile_spawn(
     struct World* world,
     int element_id,
     int level,
-    int pos_x,
-    int pos_z,
-    int vel_x,
-    int vel_z,
-    int yaw);
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int h1,
+    int end_height,
+    int t1,
+    int t2,
+    int angle,
+    int startpos);
 
 void
 world_projectile_despawn(
     struct World* world,
     int idx);
-
-void
-world_projectile_set_destination(
-    struct World* world,
-    int idx,
-    int dst_x,
-    int dst_z);
 
 int
 world_events_count(struct World* world);

@@ -881,7 +881,58 @@ ToriDraw_Project(
     if( cull != TORIDRAW_CULL_VISIBLE )
         return cull;
 
-    if( model_has_textures(hnd) )
+    int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
+    int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
+
+    if( model_pitch != 0 )
+    {
+        if( model_has_textures(hnd) )
+        {
+            project_vertices_array_pitchyaw_fused(
+                scene->orthographic_vertices_x,
+                scene->orthographic_vertices_y,
+                scene->orthographic_vertices_z,
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw);
+        }
+        else
+        {
+            project_vertices_array_pitchyaw_fused_notex(
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw);
+        }
+    }
+    else if( model_has_textures(hnd) )
     {
         project_vertices_array_fused(
             scene->orthographic_vertices_x,

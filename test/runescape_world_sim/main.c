@@ -35,7 +35,6 @@ enum
     PROJECTILE_MODEL_ID = 3081,
     PROJECTILE_SEQ_ID = 659,
     TICK_MS = 20,
-    PROJECTILE_VEL_X = 1,
 };
 
 static bool
@@ -243,11 +242,11 @@ test_projectile_movement_and_painter(
     int const camera_sz = game->camera_position->z / 128;
     int const spawn_sx = camera_sx + 2;
     int const spawn_sz = camera_sz + 2;
-    int const spawn_sub_x = 64;
-    int const spawn_sub_z = 64;
+    int const dst_sx = camera_sx + 7;
+    int const dst_sz = camera_sz + 2;
     int const level = 0;
-    int const vel_x = PROJECTILE_VEL_X;
     int const seq_id = PROJECTILE_SEQ_ID;
+    int const test_delay = 0;
 
     int projectile_idx = game_runescape_spawn_projectile(
         game,
@@ -255,29 +254,29 @@ test_projectile_movement_and_painter(
         seq_id,
         spawn_sx,
         spawn_sz,
+        dst_sx,
+        dst_sz,
         level,
-        spawn_sub_x,
-        spawn_sub_z,
-        vel_x,
-        0,
-        0);
+        RUNESCAPE_PROJECTILE_STARTHEIGHT,
+        RUNESCAPE_PROJECTILE_ENDHEIGHT,
+        test_delay,
+        RUNESCAPE_PROJECTILE_ANGLE,
+        RUNESCAPE_PROJECTILE_LENGTH,
+        RUNESCAPE_PROJECTILE_OFFSET,
+        RUNESCAPE_PROJECTILE_STEP);
     if( projectile_idx < 0 )
         FAIL("game_runescape_spawn_projectile failed");
 
     struct WorldProjectile* projectile = &game->world->projectiles[projectile_idx];
     int const element_id = projectile->element_id;
-    int const start_pos_x = projectile->pos_x;
+    int const start_pos_x = (int)projectile->x;
     int const start_grid_x = start_pos_x >> 7;
-    int const start_sub_x = start_pos_x & 127;
 
-    if( start_grid_x != spawn_sx || start_sub_x != spawn_sub_x )
+    if( start_grid_x != spawn_sx )
         FAIL(
-            "projectile spawn position mismatch (grid %d,%d sub %d; expected grid %d sub %d)",
+            "projectile spawn grid mismatch (grid %d; expected %d)",
             start_grid_x,
-            projectile->pos_z >> 7,
-            start_sub_x,
-            spawn_sx,
-            spawn_sub_x);
+            spawn_sx);
 
     struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(game->scene, element_id);
     if( !element )
@@ -295,8 +294,11 @@ test_projectile_movement_and_painter(
 
     bool projectile_drawn = false;
     int draw_model_count = 0;
+    int max_y = (int)projectile->y;
+    int min_y = (int)projectile->y;
+    bool saw_pitch = false;
 
-    for( int frame = 0; frame < 30; frame++ )
+    for( int frame = 0; frame < 60; frame++ )
     {
         time_ms += TICK_MS;
         LibToriRS_TickInput(instance, command_queue, time_ms);
@@ -317,19 +319,29 @@ test_projectile_movement_and_painter(
         if( frame_projectile_drawn )
             projectile_drawn = true;
 
-        int expected_pos_x = start_pos_x + vel_x * (frame + 1);
-        if( projectile->pos_x != expected_pos_x )
-            FAIL(
-                "projectile pos_x mismatch at frame %d (got %d, expected %d)",
-                frame,
-                projectile->pos_x,
-                expected_pos_x);
+        if( !projectile->launched )
+            continue;
 
-        int grid_x = projectile->pos_x >> 7;
-        int sub_x = projectile->pos_x & 127;
-        if( grid_x != (expected_pos_x >> 7) || sub_x != (expected_pos_x & 127) )
-            FAIL("grid/sub-pixel mismatch at frame %d", frame);
+        int const pos_y = (int)projectile->y;
+        if( pos_y > max_y )
+            max_y = pos_y;
+        if( pos_y < min_y )
+            min_y = pos_y;
+        if( projectile->pitch != 0 )
+            saw_pitch = true;
+
+        if( (int)projectile->x <= start_pos_x )
+            FAIL("projectile did not move east along arc at frame %d", frame);
     }
+
+    if( !projectile->launched )
+        FAIL("projectile never launched");
+
+    if( max_y == min_y )
+        FAIL("projectile Y did not change (no arc)");
+
+    if( !saw_pitch )
+        FAIL("projectile pitch never updated from velocity");
 
     if( !projectile_drawn )
         FAIL("render pipeline never emitted DRAW_MODEL for projectile element");
@@ -365,8 +377,6 @@ test_projectile_movement_and_painter(
         element->anim_frame == start_anim_frame )
         FAIL("projectile animation frame did not advance");
 
-    int const exit_vel_x = 64;
-    projectile->vel_x = exit_vel_x;
     bool despawned = false;
     for( int i = 0; i < 200 && !despawned; i++ )
     {
@@ -388,7 +398,7 @@ test_projectile_movement_and_painter(
     }
 
     if( !despawned )
-        FAIL("projectile did not despawn after leaving scene bounds");
+        FAIL("projectile did not despawn after reaching t2");
 
     return 0;
 }
@@ -494,14 +504,18 @@ main(
             game,
             PROJECTILE_MODEL_ID,
             PROJECTILE_SEQ_ID,
-            camera_sx + 2,
-            camera_sz + 2,
+            camera_sx,
+            camera_sz,
+            camera_sx + 5,
+            camera_sz,
             0,
-            64,
-            64,
-            PROJECTILE_VEL_X,
-            0,
-            0);
+            RUNESCAPE_PROJECTILE_STARTHEIGHT,
+            RUNESCAPE_PROJECTILE_ENDHEIGHT,
+            RUNESCAPE_PROJECTILE_DELAY,
+            RUNESCAPE_PROJECTILE_ANGLE,
+            RUNESCAPE_PROJECTILE_LENGTH,
+            RUNESCAPE_PROJECTILE_OFFSET,
+            RUNESCAPE_PROJECTILE_STEP);
 
         printf("Interactive mode: WASD move, arrows rotate, close window to exit\n");
         fflush(stdout);

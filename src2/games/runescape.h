@@ -25,6 +25,15 @@ struct LibToriRS_IOContext;
 #define RUNESCAPE_PROJECTILE_MODEL_ID 3081
 #define RUNESCAPE_PROJECTILE_SEQ_ID 659
 
+/* Magic / Fire Strike preset from docs/projectiles.md */
+#define RUNESCAPE_PROJECTILE_STARTHEIGHT 43
+#define RUNESCAPE_PROJECTILE_ENDHEIGHT 31
+#define RUNESCAPE_PROJECTILE_DELAY 51
+#define RUNESCAPE_PROJECTILE_ANGLE 16
+#define RUNESCAPE_PROJECTILE_LENGTH -5
+#define RUNESCAPE_PROJECTILE_OFFSET 64
+#define RUNESCAPE_PROJECTILE_STEP 10
+
 enum GameRunescape_FramePhase
 {
     RS_FRAME_PHASE_GC_EVENTS = 0,
@@ -107,14 +116,18 @@ game_runescape_spawn_projectile(
     struct GameRunescape* game,
     int model_id,
     int seq_id,
-    int sx,
-    int sz,
+    int src_sx,
+    int src_sz,
+    int dst_sx,
+    int dst_sz,
     int level,
-    int sub_x,
-    int sub_z,
-    int vel_x,
-    int vel_z,
-    int yaw);
+    int startheight,
+    int endheight,
+    int delay,
+    int angle,
+    int length,
+    int offset,
+    int step);
 
 struct ToriRunescape_Task_AddProjectile;
 
@@ -123,10 +136,11 @@ ToriRunescape_Task_AddProjectile_New(
     struct GameRunescape* game,
     int model_id,
     int seq_id,
-    int spawn_sx,
-    int spawn_sz,
-    int level,
-    int dst_tiles_east);
+    int src_sx,
+    int src_sz,
+    int dst_sx,
+    int dst_sz,
+    int level);
 
 void
 ToriRunescape_Task_AddProjectile_Free(struct ToriRunescape_Task_AddProjectile* task);

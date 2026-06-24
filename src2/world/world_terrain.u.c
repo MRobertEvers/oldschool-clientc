@@ -2,7 +2,6 @@
 #define WORLD_TERRAIN_U_C
 
 #include "blendmap.h"
-#include "toriauxlib/core/toriauxlibcore.h"
 #include "heightmap.h"
 #include "lightmap.h"
 #include "minimap.h"
@@ -10,11 +9,12 @@
 #include "overlaymap.h"
 #include "shademap.h"
 #include "terrain_shapemap.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "toridraw/toridraw_hsl16.h"
 #include "toridraw/toridraw_model.h"
+#include "toridraw/toridraw_scene.h"
 #include "world_builder.h"
 #include "world_decode_tile.h"
-#include "toridraw/toridraw_scene.h"
 
 // clang-format off
 #include "flag_map.u.c"
@@ -96,7 +96,8 @@ world_builder_rebuild_centerzone_chunk_terrain(
 {
     struct World* world = builder->world;
     int map_id = (mapx << 16) | (mapz & 0xFFFF);
-    struct ToriAuxLibCore_MapTerrain* map_terrain = ToriAuxLibCore_MapTerrainGet(builder->core, map_id);
+    struct ToriAuxLibCore_MapTerrain* map_terrain =
+        ToriAuxLibCore_MapTerrainGet(builder->core, map_id);
     assert(map_terrain && "Map terrain must be found");
 
     int scene_size = world->_scene_size;
@@ -217,7 +218,8 @@ world_build_scene_terrain(struct WorldBuilder* builder)
 
     for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
     {
-        world_apply_shade(builder, level, 0, scene_size, 0, scene_size, 0, scene_size, 0, scene_size);
+        world_apply_shade(
+            builder, level, 0, scene_size, 0, scene_size, 0, scene_size, 0, scene_size);
 
         for( int z = 1; z < scene_size - 1; z++ )
         {

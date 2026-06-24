@@ -5,6 +5,7 @@
 #include "minimap.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -139,16 +140,91 @@ world_terrain_element_at(
     return world->terrain_element_ids[idx];
 }
 
+#define WORLD_PROJECTILE_ANGLE_TO_RAD 0.02454369
+#define WORLD_PROJECTILE_ANGLE_TO_RPI2048 325.949
+
+static int
+world_projectile_dst_y(
+    struct World* world,
+    const struct WorldProjectile* p)
+{
+    if( !world || !world->heightmap )
+        return 0;
+    return heightmap_get_interpolated(world->heightmap, p->dst_x, p->dst_z, p->dst_level) -
+        p->end_height;
+}
+
+static void
+world_projectile_settarget(
+    struct WorldProjectile* p,
+    struct World* world,
+    int cycle)
+{
+    int const dst_y = world_projectile_dst_y(world, p);
+    double const dst_x = (double)p->dst_x;
+    double const dst_z = (double)p->dst_z;
+    double const dst_y_d = (double)dst_y;
+
+    double dx = dst_x - (double)p->src_x;
+    double dz = dst_z - (double)p->src_z;
+    double d = sqrt(dx * dx + dz * dz);
+    if( d < 1.0 )
+        d = 1.0;
+
+    if( !p->launched )
+    {
+        p->x = (double)p->src_x + (dx * (double)p->startpos) / d;
+        p->z = (double)p->src_z + (dz * (double)p->startpos) / d;
+        p->y = (double)p->h1;
+    }
+
+    double const dt = (double)(p->t2 + 1 - cycle);
+    if( dt <= 0.0 )
+        return;
+
+    p->vx = (dst_x - p->x) / dt;
+    p->vz = (dst_z - p->z) / dt;
+    p->velocity = sqrt(p->vx * p->vx + p->vz * p->vz);
+    if( !p->launched )
+        p->vy = -p->velocity * tan((double)p->angle * WORLD_PROJECTILE_ANGLE_TO_RAD);
+    p->ay = ((dst_y_d - p->y - p->vy * dt) * 2.0) / (dt * dt);
+}
+
+static void
+world_projectile_move(
+    struct WorldProjectile* p,
+    int delta)
+{
+    if( delta <= 0 )
+        return;
+
+    p->launched = true;
+
+    double const delta_d = (double)delta;
+    p->x += p->vx * delta_d;
+    p->z += p->vz * delta_d;
+    p->y += p->vy * delta_d + p->ay * 0.5 * delta_d * delta_d;
+    p->vy += p->ay * delta_d;
+
+    p->yaw = ((int)(atan2(p->vx, p->vz) * WORLD_PROJECTILE_ANGLE_TO_RPI2048 + 1024.0)) & 0x7ff;
+    p->pitch = ((int)(atan2(p->vy, p->velocity) * WORLD_PROJECTILE_ANGLE_TO_RPI2048)) & 0x7ff;
+}
+
 int
 world_projectile_spawn(
     struct World* world,
     int element_id,
     int level,
-    int pos_x,
-    int pos_z,
-    int vel_x,
-    int vel_z,
-    int yaw)
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int h1,
+    int end_height,
+    int t1,
+    int t2,
+    int angle,
+    int startpos)
 {
     if( !world || element_id < 0 )
         return -1;
@@ -174,13 +250,22 @@ world_projectile_spawn(
         .alive = true,
         .element_id = element_id,
         .level = level,
-        .pos_x = pos_x,
-        .pos_z = pos_z,
-        .vel_x = vel_x,
-        .vel_z = vel_z,
-        .yaw = yaw,
-        .has_dst = false,
+        .dst_level = level,
+        .src_x = src_x,
+        .src_z = src_z,
+        .h1 = h1,
+        .end_height = end_height,
+        .t1 = t1,
+        .t2 = t2,
+        .angle = angle,
+        .startpos = startpos,
+        .dst_x = dst_x,
+        .dst_z = dst_z,
+        .cycle = 0,
+        .launched = false,
     };
+
+    world_projectile_settarget(&world->projectiles[idx], world, t1);
     return idx;
 }
 
@@ -245,25 +330,6 @@ world_projectile_despawn(
     }
 }
 
-void
-world_projectile_set_destination(
-    struct World* world,
-    int idx,
-    int dst_x,
-    int dst_z)
-{
-    if( !world || idx < 0 || idx >= world->projectile_count )
-        return;
-
-    struct WorldProjectile* p = &world->projectiles[idx];
-    if( !p->alive )
-        return;
-
-    p->dst_x = dst_x;
-    p->dst_z = dst_z;
-    p->has_dst = true;
-}
-
 int
 world_events_count(struct World* world)
 {
@@ -307,13 +373,27 @@ world_cycle(
             continue;
 
         if( cycles_elapsed > 0 )
+            p->cycle += cycles_elapsed;
+
+        if( p->cycle > p->t2 )
         {
-            p->pos_x += p->vel_x * cycles_elapsed;
-            p->pos_z += p->vel_z * cycles_elapsed;
+            world_projectile_despawn(world, i);
+            continue;
         }
 
-        int grid_x = p->pos_x >> 7;
-        int grid_z = p->pos_z >> 7;
+        if( p->cycle < p->t1 )
+            continue;
+
+        if( cycles_elapsed > 0 )
+        {
+            world_projectile_settarget(p, world, p->cycle);
+            world_projectile_move(p, cycles_elapsed);
+        }
+
+        int pos_x = (int)p->x;
+        int pos_z = (int)p->z;
+        int grid_x = pos_x >> 7;
+        int grid_z = pos_z >> 7;
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size || grid_z >= world->_scene_size )
         {
             world_projectile_despawn(world, i);
@@ -322,8 +402,8 @@ world_cycle(
 
         struct WorldPainterFootprint footprint;
         world_projectile_painter_footprint(
-            p->pos_x,
-            p->pos_z,
+            pos_x,
+            pos_z,
             WORLD_PROJECTILE_PAINTER_PADDING,
             world->_scene_size,
             &footprint);
