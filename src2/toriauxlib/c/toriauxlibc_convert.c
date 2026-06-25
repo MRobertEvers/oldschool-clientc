@@ -285,6 +285,9 @@ ToriAuxLibC_LocationNewFromCacheConfigLocation(const void* cache_loc_ptr)
     dst->recolor_count = src->recolor_count;
     dst->retexture_count = src->retexture_count;
     dst->map_scene_id = src->map_scene_id;
+    dst->transform_varbit = src->transform_varbit;
+    dst->transform_varp = src->transform_varp;
+    dst->transform_count = src->transform_count;
 
     if( src->shapes && src->shapes_and_model_count > 0 )
     {
@@ -338,6 +341,14 @@ ToriAuxLibC_LocationNewFromCacheConfigLocation(const void* cache_loc_ptr)
         memcpy(
             dst->retextures_from, src->retextures_from, (size_t)src->retexture_count * sizeof(int));
         memcpy(dst->retextures_to, src->retextures_to, (size_t)src->retexture_count * sizeof(int));
+    }
+
+    if( src->transform_count > 0 && src->transforms )
+    {
+        dst->transforms = malloc((size_t)src->transform_count * sizeof(int));
+        if( !dst->transforms )
+            goto fail;
+        memcpy(dst->transforms, src->transforms, (size_t)src->transform_count * sizeof(int));
     }
 
     return dst;

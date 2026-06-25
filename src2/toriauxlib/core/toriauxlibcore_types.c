@@ -50,6 +50,7 @@ ToriAuxLibCore_LocationFree(struct ToriAuxLibCore_Location* loc)
     free(loc->recolors_to);
     free(loc->retextures_from);
     free(loc->retextures_to);
+    free(loc->transforms);
     free(loc);
 }
 

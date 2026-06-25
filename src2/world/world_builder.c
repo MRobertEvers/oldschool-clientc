@@ -66,7 +66,8 @@ world_builder_new(
     struct World* world,
     struct ToriAuxLibCore* core,
     struct ToriDraw_Scene* scene,
-    struct ToriAuxLibTD* td)
+    struct ToriAuxLibTD* td,
+    struct VarPVarBitManager* varp_varbit)
 {
     struct WorldBuilder* builder = calloc(1, sizeof(struct WorldBuilder));
     assert(builder && "Failed to allocate world builder");
@@ -74,6 +75,7 @@ world_builder_new(
     builder->core = core;
     builder->scene = scene;
     builder->td = td;
+    builder->varp_varbit = varp_varbit;
     return builder;
 }
 
@@ -142,6 +144,10 @@ world_builder_rebuild_centerzone_chunk_scenery(
         struct ToriAuxLibCore_MapLoc* map_loc = &map_locs->locs[i];
         struct ToriAuxLibCore_Location* config_loc =
             ToriAuxLibCore_LocationGet(builder->core, map_loc->loc_id);
+        if( !config_loc )
+            continue;
+
+        config_loc = world_builder_resolve_loc(builder, config_loc);
         if( !config_loc )
             continue;
 

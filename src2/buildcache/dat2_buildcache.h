@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct VarPVarBitManager;
 struct ToriDraw_Map;
 struct RSCacheDat2Disk;
 struct RSCacheDat2Disk_Archive;
@@ -97,7 +98,8 @@ void
 dat2_buildcache_scenery_configs_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
     struct RSCacheDat2Disk* cache,
-    struct RSCacheDat2Disk_Archive* archive);
+    struct RSCacheDat2Disk_Archive* archive,
+    struct VarPVarBitManager* varp_mgr);
 
 struct RSCacheDat2A_ConfigLocation*
 dat2_buildcache_config_loc_get(

@@ -472,7 +472,7 @@ void
 game_runescape_build_world(struct GameRunescape* game)
 {
     struct WorldBuilder* builder =
-        world_builder_new(game->world, game->core, game->scene, game->td);
+        world_builder_new(game->world, game->core, game->scene, game->td, ToriAuxLibVM_VarPVarBit(game->vm));
     assert(builder && "game_runescape_build_world: failed to allocate world builder");
     world_builder_rebuild_centerzone(builder, game->zone_center_x, game->zone_center_z, 104);
     world_builder_free(builder);

@@ -244,3 +244,28 @@ varp_varbit_apply_sync(struct VarPVarBitManager* mgr)
         }
     }
 }
+
+int
+varp_varbit_resolve_transform(
+    const struct VarPVarBitManager* mgr,
+    const int* transforms,
+    int transform_count,
+    int transform_varbit,
+    int transform_varp)
+{
+    int transform_index = -1;
+
+    if( !transforms || transform_count <= 0 )
+        return -1;
+
+    if( transform_varbit != -1 )
+        transform_index = varp_varbit_get_varbit(mgr, transform_varbit);
+    else if( transform_varp != -1 )
+        transform_index = varp_varbit_get_varp(mgr, transform_varp);
+
+    if( transform_index >= 0 && transform_index < transform_count - 1 &&
+        transforms[transform_index] != -1 )
+        return transforms[transform_index];
+
+    return transforms[transform_count - 1];
+}

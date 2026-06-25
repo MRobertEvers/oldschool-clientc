@@ -4,6 +4,7 @@
 #include "minimap.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
+#include "osrs/varp_varbit_manager.h"
 #include "shademap.h"
 #include "sharelight_map.h"
 #include "toriauxlib/core/toriauxlibcore.h"
@@ -40,6 +41,28 @@ static const int ROTATION_WALL_CORNER_TYPE[] = {
     WALL_CORNER_SOUTHEAST,
     WALL_CORNER_SOUTHWEST,
 };
+
+static struct ToriAuxLibCore_Location*
+world_builder_resolve_loc(
+    struct WorldBuilder* builder,
+    struct ToriAuxLibCore_Location* base_loc)
+{
+    int resolved_id;
+
+    if( !base_loc || base_loc->transform_count <= 0 || !base_loc->transforms )
+        return base_loc;
+
+    resolved_id = varp_varbit_resolve_transform(
+        builder->varp_varbit,
+        base_loc->transforms,
+        base_loc->transform_count,
+        base_loc->transform_varbit,
+        base_loc->transform_varp);
+    if( resolved_id < 0 )
+        return NULL;
+
+    return ToriAuxLibCore_LocationGet(builder->core, resolved_id);
+}
 
 static void
 calculate_wall_decor_offset(
@@ -1098,6 +1121,10 @@ world_builder_minimap_add_chunk_walls(
 
         struct ToriAuxLibCore_Location* config_loc =
             ToriAuxLibCore_LocationGet(builder->core, map_loc->loc_id);
+        if( !config_loc )
+            continue;
+
+        config_loc = world_builder_resolve_loc(builder, config_loc);
         if( !config_loc )
             continue;
 

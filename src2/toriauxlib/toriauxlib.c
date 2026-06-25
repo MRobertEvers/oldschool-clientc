@@ -35,6 +35,8 @@ ToriAuxLib_New(
     if( !tal->vm )
         goto fail;
 
+    ToriAuxLibC_SetVarPVarBit(tal->c, ToriAuxLibVM_VarPVarBit(tal->vm));
+
     return tal;
 
 fail:

@@ -180,7 +180,8 @@ Task_Dat2WorldRebuildNormal_Run(
         if( sequence_archive && cache_disk )
             dat2_buildcache_sequences_init_from_archive(dat2_bc, cache_disk, sequence_archive);
         if( locs_archive && cache_disk )
-            dat2_buildcache_scenery_configs_init_from_archive(dat2_bc, cache_disk, locs_archive);
+            dat2_buildcache_scenery_configs_init_from_archive(
+                dat2_bc, cache_disk, locs_archive, ToriAuxLibC_VarPVarBit(task->c));
 
         if( underlay_archive )
             RSCacheDat2Disk_ArchiveFree(underlay_archive);

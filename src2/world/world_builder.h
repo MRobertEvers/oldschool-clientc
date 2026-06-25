@@ -9,6 +9,7 @@
 struct ToriAuxLibCore;
 struct ToriDraw_Scene;
 struct ToriAuxLibTD;
+struct VarPVarBitManager;
 struct Blendmap;
 struct Overlaymap;
 struct TerrainShapeMap;
@@ -24,6 +25,7 @@ struct WorldBuilder
     struct ToriAuxLibCore* core;
     struct ToriDraw_Scene* scene;
     struct ToriAuxLibTD* td;
+    struct VarPVarBitManager* varp_varbit;
 
     struct Blendmap* blendmap;
     struct Overlaymap* overlaymap;
@@ -41,7 +43,8 @@ world_builder_new(
     struct World* world,
     struct ToriAuxLibCore* core,
     struct ToriDraw_Scene* scene,
-    struct ToriAuxLibTD* td);
+    struct ToriAuxLibTD* td,
+    struct VarPVarBitManager* varp_varbit);
 
 void
 world_builder_free(struct WorldBuilder* builder);

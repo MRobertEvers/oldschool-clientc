@@ -19,6 +19,7 @@ struct ToriAuxLibC
     struct Dat1BuildCache* dat1_buildcache;
     struct Dat2BuildCache* dat2_buildcache;
     struct RSCacheDat2Disk* dat2_disk;
+    struct VarPVarBitManager* varp_varbit;
 };
 
 struct ToriAuxLibC*
@@ -111,6 +112,22 @@ enum ToriAuxLibCMode
 ToriAuxLibC_Mode(struct ToriAuxLibC* c)
 {
     return c->mode;
+}
+
+void
+ToriAuxLibC_SetVarPVarBit(
+    struct ToriAuxLibC* c,
+    struct VarPVarBitManager* varp_varbit)
+{
+    if( !c )
+        return;
+    c->varp_varbit = varp_varbit;
+}
+
+struct VarPVarBitManager*
+ToriAuxLibC_VarPVarBit(struct ToriAuxLibC* c)
+{
+    return c ? c->varp_varbit : NULL;
 }
 
 struct Task_ToriAuxLibC_ModelLoad

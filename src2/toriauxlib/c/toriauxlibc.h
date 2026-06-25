@@ -8,6 +8,7 @@
 #include "toriauxlib/core/toriauxlibcore.h"
 
 struct ToriAuxLibC;
+struct VarPVarBitManager;
 
 enum ToriAuxLibCMode
 {
@@ -44,6 +45,14 @@ ToriAuxLibC_Core(struct ToriAuxLibC* c);
 
 enum ToriAuxLibCMode
 ToriAuxLibC_Mode(struct ToriAuxLibC* c);
+
+void
+ToriAuxLibC_SetVarPVarBit(
+    struct ToriAuxLibC* c,
+    struct VarPVarBitManager* varp_varbit);
+
+struct VarPVarBitManager*
+ToriAuxLibC_VarPVarBit(struct ToriAuxLibC* c);
 
 struct ToriAuxLibCore_Model*
 ToriAuxLibC_ModelNewFromCacheModel(const void* cache_model);

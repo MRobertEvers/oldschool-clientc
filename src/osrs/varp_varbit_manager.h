@@ -97,4 +97,14 @@ varp_varbit_set_client_var_callback(
     VarPVarBitClientVarFn fn,
     void* userdata);
 
+/** Resolve a loc transform target id from transforms[] using varbit/varp state.
+ * Returns -1 when the loc should be hidden. Requires transform_count > 0. */
+int
+varp_varbit_resolve_transform(
+    const struct VarPVarBitManager* mgr,
+    const int* transforms,
+    int transform_count,
+    int transform_varbit,
+    int transform_varp);
+
 #endif /* VARP_VARBIT_MANAGER_H */

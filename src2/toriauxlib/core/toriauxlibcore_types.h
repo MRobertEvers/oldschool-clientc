@@ -178,6 +178,10 @@ struct ToriAuxLibCore_Location
     int* retextures_to;
     int retexture_count;
     int map_scene_id;
+    int transform_varbit;
+    int transform_varp;
+    int* transforms;
+    int transform_count;
 };
 
 struct ToriAuxLibCore_Sequence

@@ -6,6 +6,7 @@
 #include "osrs/rscache/dat2a/dat2a_maps.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "osrs/rscache/shared/shared_file_list.h"
+#include "osrs/varp_varbit_manager.h"
 #include "toridraw/toridraw_map.h"
 
 #include <assert.h>
@@ -534,7 +535,8 @@ void
 dat2_buildcache_scenery_configs_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
     struct RSCacheDat2Disk* cache,
-    struct RSCacheDat2Disk_Archive* archive)
+    struct RSCacheDat2Disk_Archive* archive,
+    struct VarPVarBitManager* varp_mgr)
 {
     struct RSCacheDat2Disk_ArchiveReference* archive_ref;
     struct RSCacheShared_FileList* filelist;
@@ -580,6 +582,66 @@ dat2_buildcache_scenery_configs_init_from_archive(
 
     dat2_buildcache_locs_init_from_filelist(
         dat2_buildcache, filelist, archive_ref, loc_arr, loc_count);
+
+    for( ;; )
+    {
+        int target_capacity = 64;
+        int target_count = 0;
+        int* target_arr = malloc((size_t)target_capacity * sizeof(int));
+        struct ToriDraw_MapIter* loc_iter;
+        struct MapEntry_ConfigLoc* loc_entry;
+
+        if( !target_arr )
+            break;
+
+        loc_iter = ToriDraw_MapIterNew(dat2_buildcache->config_loc_hmap);
+        while( (loc_entry = (struct MapEntry_ConfigLoc*)ToriDraw_MapIterNext(loc_iter)) )
+        {
+            struct RSCacheDat2A_ConfigLocation* config_loc = loc_entry->config_loc;
+            int transform_id;
+
+            if( !config_loc || config_loc->transform_count <= 0 || !config_loc->transforms )
+                continue;
+
+            transform_id = varp_varbit_resolve_transform(
+                varp_mgr,
+                config_loc->transforms,
+                config_loc->transform_count,
+                config_loc->transform_varbit,
+                config_loc->transform_varp);
+            if( transform_id < 0 )
+                continue;
+            if( dat2_buildcache_config_loc_get(dat2_buildcache, transform_id) )
+                continue;
+
+            if( target_count >= target_capacity )
+            {
+                target_capacity *= 2;
+                int* grow = realloc(target_arr, (size_t)target_capacity * sizeof(int));
+                if( !grow )
+                {
+                    free(target_arr);
+                    ToriDraw_MapIterFree(loc_iter);
+                    goto after_transforms;
+                }
+                target_arr = grow;
+            }
+            target_arr[target_count++] = transform_id;
+        }
+        ToriDraw_MapIterFree(loc_iter);
+
+        if( target_count == 0 )
+        {
+            free(target_arr);
+            break;
+        }
+
+        dat2_buildcache_locs_init_from_filelist(
+            dat2_buildcache, filelist, archive_ref, target_arr, target_count);
+        free(target_arr);
+    }
+
+after_transforms:
     RSCacheShared_FileListFree(filelist);
 
 cleanup:
@@ -708,55 +770,18 @@ dat2_buildcache_get_all_unique_scenery_model_ids(
     if( !dat2_buildcache )
         return 0;
 
-    int loc_capacity = 512;
-    int loc_count = 0;
-    int* loc_arr = malloc((size_t)loc_capacity * sizeof(int));
-    if( !loc_arr )
-        return 0;
-
-    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->map_scenery_hmap);
-    struct MapEntry_Scenery* scenery_entry = NULL;
-    while( (scenery_entry = (struct MapEntry_Scenery*)ToriDraw_MapIterNext(iter)) )
-    {
-        struct RSCacheDat2A_MapLocs* locs = scenery_entry->locs;
-        if( !locs )
-            continue;
-
-        for( int i = 0; i < locs->locs_count; i++ )
-        {
-            int loc_id = locs->locs[i].loc_id;
-            if( loc_count >= loc_capacity )
-            {
-                loc_capacity *= 2;
-                int* grow = realloc(loc_arr, (size_t)loc_capacity * sizeof(int));
-                if( !grow )
-                    goto loc_fail;
-                loc_arr = grow;
-            }
-            loc_arr[loc_count++] = loc_id;
-        }
-    }
-    ToriDraw_MapIterFree(iter);
-
-    if( loc_count == 0 )
-    {
-        free(loc_arr);
-        return 0;
-    }
-
-    qsort(loc_arr, (size_t)loc_count, sizeof(int), dat2_int_cmp);
-    int nunique_loc = dat2_unique_sorted_int(loc_arr, loc_count);
-
     int model_capacity = 1024;
     int model_count = 0;
     int* model_arr = malloc((size_t)model_capacity * sizeof(int));
     if( !model_arr )
-        goto loc_fail;
+        return 0;
 
-    for( int li = 0; li < nunique_loc; li++ )
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->config_loc_hmap);
+    struct MapEntry_ConfigLoc* loc_entry = NULL;
+    while( (loc_entry = (struct MapEntry_ConfigLoc*)ToriDraw_MapIterNext(iter)) )
     {
         int* mids = NULL;
-        int nm = dat2_buildcache_get_scenery_model_ids(dat2_buildcache, loc_arr[li], &mids);
+        int nm = dat2_buildcache_get_scenery_model_ids(dat2_buildcache, loc_entry->id, &mids);
         for( int mi = 0; mi < nm; mi++ )
         {
             if( model_count >= model_capacity )
@@ -766,7 +791,9 @@ dat2_buildcache_get_all_unique_scenery_model_ids(
                 if( !grow )
                 {
                     free(mids);
-                    goto model_fail;
+                    ToriDraw_MapIterFree(iter);
+                    free(model_arr);
+                    return 0;
                 }
                 model_arr = grow;
             }
@@ -774,7 +801,7 @@ dat2_buildcache_get_all_unique_scenery_model_ids(
         }
         free(mids);
     }
-    free(loc_arr);
+    ToriDraw_MapIterFree(iter);
 
     if( model_count == 0 )
     {
@@ -793,16 +820,6 @@ dat2_buildcache_get_all_unique_scenery_model_ids(
 
     *model_ids_out = model_arr;
     return nunique_m;
-
-loc_fail:
-    ToriDraw_MapIterFree(iter);
-    free(loc_arr);
-    return 0;
-
-model_fail:
-    free(loc_arr);
-    free(model_arr);
-    return 0;
 }
 
 void
