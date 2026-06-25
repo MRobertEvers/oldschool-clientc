@@ -82,4 +82,14 @@ ToriAuxLibC_SubmitAllUnderlaysFromDat2(struct ToriAuxLibC* c);
 void
 ToriAuxLibC_SubmitAllLocationsFromDat2(struct ToriAuxLibC* c);
 
+void
+ToriAuxLibC_SubmitAnimationFromDat2(
+    struct ToriAuxLibC* c,
+    int archive_id);
+
+void
+ToriAuxLibC_SubmitSkeletalFromDat2(
+    struct ToriAuxLibC* c,
+    int anim_maya_id);
+
 #endif

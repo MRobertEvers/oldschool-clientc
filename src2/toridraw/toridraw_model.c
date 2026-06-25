@@ -1,6 +1,7 @@
 #include "toridraw_model.h"
 
 #include "osrs/palette.h"
+#include "toridraw_animation.h"
 #include "toridraw_lighting.h"
 #include "toridraw_math.h"
 
@@ -349,6 +350,20 @@ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
     ToriDraw_BonesFree(m->vertex_bones);
     ToriDraw_BonesFree(m->face_bones);
     free(m->bounds_cylinder);
+
+    if( m->animaya_groups )
+    {
+        for( int i = 0; i < m->animaya_vertex_count; i++ )
+            free(m->animaya_groups[i]);
+        free(m->animaya_groups);
+    }
+    if( m->animaya_scales )
+    {
+        for( int i = 0; i < m->animaya_vertex_count; i++ )
+            free(m->animaya_scales[i]);
+        free(m->animaya_scales);
+    }
+    free(m->animaya_group_counts);
 }
 
 void
@@ -530,4 +545,78 @@ ToriDraw_TextureAverageHsl16(const struct ToriDraw_Texture* texture)
     int average_rgb =
         ((red / colour_count) << 16) + ((green / colour_count) << 8) + (blue / colour_count);
     return palette_rgb_to_hsl16(average_rgb);
+}
+
+void
+ToriDraw_ModelAnimateSkeletal(
+    struct ToriDraw_Model* model,
+    const struct ToriDraw_SkeletalAnim* skeletal,
+    int frame_index)
+{
+    if( !model || !skeletal || frame_index < 0 || frame_index >= skeletal->frame_count )
+        return;
+    if( !model->original_vertices_x || !model->original_vertices_y ||
+        !model->original_vertices_z )
+        return;
+    if( !model->animaya_group_counts || !model->animaya_groups || !model->animaya_scales )
+        return;
+    if( !skeletal->matrices )
+        return;
+
+    /* Pointer to the 4x4 skinning matrices for this frame:
+     *   frame_matrices[(bone) * 16 .. +15] is the column-major mat4 for that bone */
+    const float* frame_matrices =
+        &skeletal->matrices[(size_t)frame_index * (size_t)skeletal->bone_count * 16];
+
+    int vc = model->animaya_vertex_count;
+    if( vc <= 0 )
+        vc = model->vertex_count;
+
+    for( int vi = 0; vi < vc && vi < model->vertex_count; vi++ )
+    {
+        int cnt = model->animaya_group_counts[vi];
+        if( cnt <= 0 )
+        {
+            model->vertices_x[vi] = model->original_vertices_x[vi];
+            model->vertices_y[vi] = model->original_vertices_y[vi];
+            model->vertices_z[vi] = model->original_vertices_z[vi];
+            continue;
+        }
+
+        float ox = (float)model->original_vertices_x[vi];
+        float oy = (float)model->original_vertices_y[vi];
+        float oz = (float)model->original_vertices_z[vi];
+
+        float bx = 0.0f, by = 0.0f, bz = 0.0f;
+        float total_weight = 0.0f;
+
+        for( int j = 0; j < cnt; j++ )
+        {
+            int bone   = model->animaya_groups[vi] ? (int)model->animaya_groups[vi][j] : 0;
+            int weight = model->animaya_scales[vi]  ? (int)model->animaya_scales[vi][j]  : 0;
+            if( bone < 0 || bone >= skeletal->bone_count || weight == 0 )
+                continue;
+
+            /* Column-major mat4 multiply: out = M * [ox, oy, oz, 1] */
+            const float* M = &frame_matrices[bone * 16];
+            float w = (float)weight;
+            bx += w * (M[0]*ox + M[4]*oy + M[8]*oz  + M[12]);
+            by += w * (M[1]*ox + M[5]*oy + M[9]*oz  + M[13]);
+            bz += w * (M[2]*ox + M[6]*oy + M[10]*oz + M[14]);
+            total_weight += w;
+        }
+
+        if( total_weight > 0.0f )
+        {
+            model->vertices_x[vi] = (vertexint_t)(bx / total_weight);
+            model->vertices_y[vi] = (vertexint_t)(by / total_weight);
+            model->vertices_z[vi] = (vertexint_t)(bz / total_weight);
+        }
+        else
+        {
+            model->vertices_x[vi] = (vertexint_t)ox;
+            model->vertices_y[vi] = (vertexint_t)oy;
+            model->vertices_z[vi] = (vertexint_t)oz;
+        }
+    }
 }

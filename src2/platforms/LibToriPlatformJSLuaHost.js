@@ -153,6 +153,11 @@ export class LibToriPlatformJSLuaHost {
     return 1;
   }
 
+  gameDat2SubmitTextures(L) {
+    this.emscriptenJSAPI.scriptAPIDat2SubmitTextures();
+    return 0;
+  }
+
   gameGetCacheMode(L) {
     lua.lua_pushstring(L, to_luastring(this.emscriptenJSAPI.scriptAPIGetCacheMode()));
     return 1;
@@ -433,6 +438,10 @@ export function luaBindToPlatformJSLuaHost(L, platformLuaHost) {
   bindLuaFunctionToPlatform(
     "Dat2_TexturesLoad",
     platformLuaHost.gameDat2TexturesLoad,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat2_SubmitTextures",
+    platformLuaHost.gameDat2SubmitTextures,
   );
   bindLuaFunctionToPlatform(
     "GetCacheMode",

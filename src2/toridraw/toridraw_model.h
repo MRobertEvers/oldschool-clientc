@@ -92,6 +92,14 @@ ToriDraw_ModelAnimateFrame(
     const struct ToriDraw_AnimBase* base,
     const struct ToriDraw_AnimFrame* frame);
 
+struct ToriDraw_SkeletalAnim;
+
+void
+ToriDraw_ModelAnimateSkeletal(
+    struct ToriDraw_Model* model,
+    const struct ToriDraw_SkeletalAnim* skeletal,
+    int frame_index);
+
 static inline bool
 ToriDraw_ModelIsLightable(const struct ToriDraw_Model* model)
 {

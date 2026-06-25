@@ -21,6 +21,7 @@ struct ToriAuxLibCore
     struct ToriDraw_Map* sprites_hmap;
     struct ToriDraw_Map* fonts_hmap;
     struct ToriDraw_Map* components_hmap;
+    struct ToriDraw_Map* skeletal_hmap;
 };
 
 struct MapEntry_AnimframeRef
@@ -28,6 +29,12 @@ struct MapEntry_AnimframeRef
     int frame_id;
     int anim_id;
     int frame_index;
+};
+
+struct MapEntry_SkeletalAnim
+{
+    int id;
+    struct ToriAuxLibCore_SkeletalAnim* skeletal;
 };
 
 struct MapEntry_Model
@@ -178,19 +185,20 @@ ToriAuxLibCore_New(void)
     if( !gamecache )
         return NULL;
 
-    gamecache->models_hmap = gamecache_map_new(sizeof(struct MapEntry_Model), 1024);
-    gamecache->animations_hmap = gamecache_map_new(sizeof(struct MapEntry_Animation), 512);
-    gamecache->textures_hmap = gamecache_map_new(sizeof(struct MapEntry_Texture), 64);
+    gamecache->models_hmap = gamecache_map_new(sizeof(struct MapEntry_Model), 4096);
+    gamecache->animations_hmap = gamecache_map_new(sizeof(struct MapEntry_Animation), 2048);
+    gamecache->textures_hmap = gamecache_map_new(sizeof(struct MapEntry_Texture), 512);
     gamecache->map_terrain_hmap = gamecache_map_new(sizeof(struct MapEntry_MapTerrain), 256);
     gamecache->map_scenery_hmap = gamecache_map_new(sizeof(struct MapEntry_MapScenery), 256);
-    gamecache->flotype_hmap = gamecache_map_new(sizeof(struct MapEntry_Flotype), 256);
-    gamecache->underlay_hmap = gamecache_map_new(sizeof(struct MapEntry_Flotype), 256);
-    gamecache->config_loc_hmap = gamecache_map_new(sizeof(struct MapEntry_Location), 1024);
-    gamecache->sequences_hmap = gamecache_map_new(sizeof(struct MapEntry_Sequence), 1024);
-    gamecache->animframes_reftable = gamecache_map_new(sizeof(struct MapEntry_AnimframeRef), 4096);
+    gamecache->flotype_hmap = gamecache_map_new(sizeof(struct MapEntry_Flotype), 512);
+    gamecache->underlay_hmap = gamecache_map_new(sizeof(struct MapEntry_Flotype), 512);
+    gamecache->config_loc_hmap = gamecache_map_new(sizeof(struct MapEntry_Location), 4096);
+    gamecache->sequences_hmap = gamecache_map_new(sizeof(struct MapEntry_Sequence), 32768);
+    gamecache->animframes_reftable = gamecache_map_new(sizeof(struct MapEntry_AnimframeRef), 16384);
     gamecache->sprites_hmap = gamecache_map_new(sizeof(struct MapEntry_Sprite), 256);
     gamecache->fonts_hmap = gamecache_map_new(sizeof(struct MapEntry_Font), 16);
     gamecache->components_hmap = gamecache_map_new(sizeof(struct MapEntry_Component), 1024);
+    gamecache->skeletal_hmap = gamecache_map_new(sizeof(struct MapEntry_SkeletalAnim), 2048);
 
     return gamecache;
 }
@@ -414,6 +422,19 @@ ToriAuxLibCore_Free(struct ToriAuxLibCore* gamecache)
 
     ToriAuxLibCore_Free_components(gamecache->components_hmap);
     gamecache_map_free(gamecache->components_hmap);
+
+    if( gamecache->skeletal_hmap )
+    {
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(gamecache->skeletal_hmap);
+        struct MapEntry_SkeletalAnim* entry = NULL;
+        while( (entry = (struct MapEntry_SkeletalAnim*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->skeletal )
+                ToriAuxLibCore_SkeletalAnimFree(entry->skeletal);
+        }
+        ToriDraw_MapIterFree(iter);
+        gamecache_map_free(gamecache->skeletal_hmap);
+    }
 
     free(gamecache);
 }
@@ -1125,4 +1146,44 @@ ToriAuxLibCore_SequenceResolveFrame(
 {
     return ToriAuxLibCore_SequenceResolveFrame_impl(
         gamecache, seq_id, frame_index, out_frame, out_base, out_delay);
+}
+
+void
+ToriAuxLibCore_SkeletalAnimAdd(
+    struct ToriAuxLibCore* gamecache,
+    int anim_maya_id,
+    struct ToriAuxLibCore_SkeletalAnim* skeletal)
+{
+    if( !gamecache || !skeletal )
+        return;
+    struct MapEntry_SkeletalAnim* entry = (struct MapEntry_SkeletalAnim*)ToriDraw_MapSearch(
+        gamecache->skeletal_hmap, &anim_maya_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+    if( entry->skeletal )
+        ToriAuxLibCore_SkeletalAnimFree(entry->skeletal);
+    entry->id = anim_maya_id;
+    entry->skeletal = skeletal;
+}
+
+struct ToriAuxLibCore_SkeletalAnim*
+ToriAuxLibCore_SkeletalAnimGet(
+    struct ToriAuxLibCore* gamecache,
+    int anim_maya_id)
+{
+    if( !gamecache )
+        return NULL;
+    struct MapEntry_SkeletalAnim* entry = (struct MapEntry_SkeletalAnim*)ToriDraw_MapSearch(
+        gamecache->skeletal_hmap, &anim_maya_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->skeletal;
+}
+
+bool
+ToriAuxLibCore_SkeletalAnimHas(
+    struct ToriAuxLibCore* gamecache,
+    int anim_maya_id)
+{
+    return ToriAuxLibCore_SkeletalAnimGet(gamecache, anim_maya_id) != NULL;
 }

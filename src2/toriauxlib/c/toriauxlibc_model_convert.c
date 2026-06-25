@@ -295,6 +295,43 @@ gc_model_move_from_cache_model(
     if( model->face_bone_map )
         gc->face_bones = gc_bones_new(model->face_bone_map, model->face_count);
 
+    /* Copy animaya skin if present */
+    if( model->animaya_vertex_count > 0 && model->animaya_group_counts &&
+        model->animaya_groups && model->animaya_scales )
+    {
+        int vc = model->animaya_vertex_count;
+        struct ToriAuxLibCore_AnimayaSkin* skin =
+            calloc(1, sizeof(struct ToriAuxLibCore_AnimayaSkin));
+        if( skin )
+        {
+            skin->vertex_count  = vc;
+            skin->group_counts  = malloc((size_t)vc);
+            skin->groups        = calloc((size_t)vc, sizeof(uint8_t*));
+            skin->scales        = calloc((size_t)vc, sizeof(uint8_t*));
+            if( skin->group_counts && skin->groups && skin->scales )
+            {
+                memcpy(skin->group_counts, model->animaya_group_counts, (size_t)vc);
+                for( int i = 0; i < vc; i++ )
+                {
+                    int cnt = skin->group_counts[i];
+                    if( cnt <= 0 )
+                        continue;
+                    skin->groups[i] = malloc((size_t)cnt);
+                    skin->scales[i] = malloc((size_t)cnt);
+                    if( skin->groups[i] && model->animaya_groups[i] )
+                        memcpy(skin->groups[i], model->animaya_groups[i], (size_t)cnt);
+                    if( skin->scales[i] && model->animaya_scales[i] )
+                        memcpy(skin->scales[i], model->animaya_scales[i], (size_t)cnt);
+                }
+                gc->animaya_skin = skin;
+            }
+            else
+            {
+                ToriAuxLibCore_AnimayaSkinFree(skin);
+            }
+        }
+    }
+
     if( gc->vertex_count > 0 && gc->vertices_x && gc->vertices_y && gc->vertices_z )
     {
         gc->bounds_cylinder =

@@ -42,3 +42,12 @@ ToriDraw_AnimationFree(struct ToriDraw_Animation* anim)
 
     free(anim);
 }
+
+void
+ToriDraw_SkeletalAnimFree(struct ToriDraw_SkeletalAnim* skeletal)
+{
+    if( !skeletal )
+        return;
+    free(skeletal->matrices);
+    free(skeletal);
+}

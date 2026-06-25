@@ -243,4 +243,22 @@ ToriAuxLibCore_SequenceResolveFrame(
     const struct ToriAuxLibCore_AnimBase** out_base,
     int* out_delay);
 
+/* Skeletal Animaya animations */
+
+void
+ToriAuxLibCore_SkeletalAnimAdd(
+    struct ToriAuxLibCore* gamecache,
+    int anim_maya_id,
+    struct ToriAuxLibCore_SkeletalAnim* skeletal);
+
+struct ToriAuxLibCore_SkeletalAnim*
+ToriAuxLibCore_SkeletalAnimGet(
+    struct ToriAuxLibCore* gamecache,
+    int anim_maya_id);
+
+bool
+ToriAuxLibCore_SkeletalAnimHas(
+    struct ToriAuxLibCore* gamecache,
+    int anim_maya_id);
+
 #endif

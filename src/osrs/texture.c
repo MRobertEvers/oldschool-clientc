@@ -64,20 +64,29 @@ normalize_pixel_buffer(
     return normalized_pixels;
 }
 
-struct DashTexture*
-texture_new_from_definition_packs(
+struct TextureDecodedSprite
+{
+    int* texels;
+    int width;
+    int height;
+    bool opaque;
+};
+
+static struct TextureDecodedSprite
+texture_decode_from_definition_packs(
     struct RSCacheDat2A_Texture* texture_definition,
     struct RSCacheDat2A_SpritePack** packs)
 {
+    struct TextureDecodedSprite decoded = { 0 };
     struct RSCacheDat2A_Sprite* sprite = NULL;
     if( !texture_definition || !packs )
-        return NULL;
+        return decoded;
 
     bool opaque = texture_definition->opaque;
     int size = 128;
     int* pixels = (int*)malloc(size * size * sizeof(int));
     if( !pixels )
-        return NULL;
+        return decoded;
     memset(pixels, 0, size * size * sizeof(int));
 
     for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
@@ -95,7 +104,7 @@ texture_new_from_definition_packs(
         if( !adjusted_palette )
         {
             free(pixels);
-            return NULL;
+            return decoded;
         }
 
         for( int pi = 0; pi < palette_length; pi++ )
@@ -146,22 +155,68 @@ texture_new_from_definition_packs(
         free(adjusted_palette);
     }
 
+    decoded.texels = pixels;
+    decoded.width = size;
+    decoded.height = size;
+    decoded.opaque = opaque;
+    return decoded;
+}
+
+struct DashTexture*
+texture_new_from_definition_packs(
+    struct RSCacheDat2A_Texture* texture_definition,
+    struct RSCacheDat2A_SpritePack** packs)
+{
+    struct TextureDecodedSprite decoded =
+        texture_decode_from_definition_packs(texture_definition, packs);
+    if( !decoded.texels )
+        return NULL;
+
     struct DashTexture* texture = (struct DashTexture*)malloc(sizeof(struct DashTexture));
     if( !texture )
     {
-        free(pixels);
+        free(decoded.texels);
         return NULL;
     }
     memset(texture, 0, sizeof(struct DashTexture));
 
-    texture->texels = pixels;
-    texture->width = size;
-    texture->height = size;
-    texture->opaque = opaque;
+    texture->texels = decoded.texels;
+    texture->width = decoded.width;
+    texture->height = decoded.height;
+    texture->opaque = decoded.opaque;
     texture->animation_direction = texture_definition->animation_direction;
     texture->animation_speed = texture_definition->animation_speed;
 
     return texture;
+}
+
+struct ToriDraw_Texture*
+texture_new_toridraw_from_definition_packs(
+    struct RSCacheDat2A_Texture* texture_definition,
+    struct RSCacheDat2A_SpritePack** packs)
+{
+    struct TextureDecodedSprite decoded =
+        texture_decode_from_definition_packs(texture_definition, packs);
+    if( !decoded.texels )
+        return NULL;
+
+    struct ToriDraw_Texture* toridraw_texture =
+        (struct ToriDraw_Texture*)malloc(sizeof(struct ToriDraw_Texture));
+    if( !toridraw_texture )
+    {
+        free(decoded.texels);
+        return NULL;
+    }
+    memset(toridraw_texture, 0, sizeof(struct ToriDraw_Texture));
+
+    toridraw_texture->texels = decoded.texels;
+    toridraw_texture->width = decoded.width;
+    toridraw_texture->height = decoded.height;
+    toridraw_texture->opaque = decoded.opaque;
+    toridraw_texture->animation_direction = texture_definition->animation_direction;
+    toridraw_texture->animation_speed = texture_definition->animation_speed;
+
+    return toridraw_texture;
 }
 
 struct DashTexture*
@@ -295,13 +350,6 @@ texture_new_from_definition(
 // }
 
 // return pixels;
-struct TextureDecodedSprite
-{
-    int* texels;
-    int width;
-    int height;
-    bool opaque;
-};
 
 static struct TextureDecodedSprite
 texture_decode_from_cache_dat(

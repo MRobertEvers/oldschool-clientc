@@ -48,6 +48,11 @@ texture_new_toridraw_from_texture_sprite(
     bool upscale_to_128,
     bool half_to_64);
 
+struct ToriDraw_Texture*
+texture_new_toridraw_from_definition_packs(
+    struct RSCacheDat2A_Texture* texture_definition,
+    struct RSCacheDat2A_SpritePack** packs);
+
 void
 texture_free(struct DashTexture* texture);
 #endif

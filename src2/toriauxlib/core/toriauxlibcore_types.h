@@ -61,6 +61,7 @@ struct ToriAuxLibCore_Model
     struct ToriAuxLibCore_Bones* vertex_bones;
     struct ToriAuxLibCore_Bones* face_bones;
     struct ToriAuxLibCore_BoundsCylinder* bounds_cylinder;
+    struct ToriAuxLibCore_AnimayaSkin* animaya_skin; /* NULL when model has no skeletal skin */
 };
 
 struct ToriAuxLibCore_AnimBase
@@ -97,6 +98,7 @@ struct ToriAuxLibCore_Texture
     bool opaque;
     int animation_direction;
     int animation_speed;
+    int average_hsl;
 };
 
 struct ToriAuxLibCore_MapFloor
@@ -202,6 +204,35 @@ struct ToriAuxLibCore_Sequence
     int duplicate_behavior;
     /** Sequence-ordered animation resolved at world build; owned by this sequence. */
     struct ToriAuxLibCore_Animation* resolved;
+    /** Animaya (skeletal) animation id, or -1 if classic frame/framemap. */
+    int anim_maya_id;
+};
+
+/**
+ * Neutral representation of a baked Animaya skeletal animation.
+ *
+ * matrices is a flat array of column-major 4x4 float skinning matrices:
+ *   matrices[(frame * bone_count + bone) * 16 .. +15]
+ *
+ * This is the final skinning matrix: animModelMatrix * invertedModelMatrix(poseId).
+ * To skin a vertex: multiply its original position by the weighted sum of the
+ * bone matrices for its influences (animaya groups/scales).
+ */
+struct ToriAuxLibCore_SkeletalAnim
+{
+    int    id;
+    int    bone_count;
+    int    frame_count;
+    float* matrices; /* [frame_count * bone_count * 16] */
+};
+
+/** Per-vertex animaya skin data attached to a model. */
+struct ToriAuxLibCore_AnimayaSkin
+{
+    int      vertex_count;
+    uint8_t* group_counts;  /* [vertex_count] */
+    uint8_t** groups;       /* [vertex_count][group_count] bone indices  */
+    uint8_t** scales;       /* [vertex_count][group_count] bone weights  */
 };
 
 struct ToriAuxLibCore_Sprite
@@ -253,6 +284,12 @@ ToriAuxLibCore_ModelFree(struct ToriAuxLibCore_Model* model);
 
 void
 ToriAuxLibCore_AnimationFree(struct ToriAuxLibCore_Animation* anim);
+
+void
+ToriAuxLibCore_SkeletalAnimFree(struct ToriAuxLibCore_SkeletalAnim* skeletal);
+
+void
+ToriAuxLibCore_AnimayaSkinFree(struct ToriAuxLibCore_AnimayaSkin* skin);
 
 void
 ToriAuxLibCore_TextureFree(struct ToriAuxLibCore_Texture* texture);

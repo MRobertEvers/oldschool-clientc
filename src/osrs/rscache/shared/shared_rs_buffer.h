@@ -56,6 +56,13 @@ RSCacheShared_RSBufferP4(
 int64_t
 RSCacheShared_RSBufferG8(struct RSCacheShared_RSBuffer* buffer);
 
+/**
+ * Read a big-endian IEEE 754 single-precision float.
+ * Equivalent to Java's DataInputStream.readFloat / ByteBuffer.readFloat.
+ */
+float
+RSCacheShared_RSBufferReadFloat(struct RSCacheShared_RSBuffer* buffer);
+
 int
 RSCacheShared_RSBufferReadUsmart(struct RSCacheShared_RSBuffer* buffer);
 int
@@ -129,6 +136,7 @@ RSCacheShared_RSBufferReadShortSmartAt(
 #define g4(buffer) RSCacheShared_RSBufferG4(buffer)
 #define p4(buffer, value) RSCacheShared_RSBufferP4(buffer, value)
 #define g8(buffer) RSCacheShared_RSBufferG8(buffer)
+#define gf(buffer) RSCacheShared_RSBufferReadFloat(buffer)
 #define gusmart(buffer) RSCacheShared_RSBufferReadUsmart(buffer)
 #define gbigsmart(buffer) RSCacheShared_RSBufferReadBigSmart(buffer)
 #define gushortsmart(buffer) RSCacheShared_RSBufferReadUnsignedShortSmart(buffer)

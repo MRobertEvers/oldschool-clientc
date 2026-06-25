@@ -12,6 +12,7 @@
 #include "3rd/minipt.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "toridraw/toridraw.h"
+#include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_math.h"
 #include "toridraw/toridraw_model.h"
@@ -729,19 +730,43 @@ game_runescape_tick_animations(struct GameRunescape* game)
             continue;
 
         struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(game->scene, element_id);
-        if( !element || element->anim_seq_id == -1 || !element->animation )
+        if( !element || element->anim_seq_id == -1 )
             continue;
 
-        const struct ToriDraw_Animation* anim = element->animation;
-        if( anim->frame_count <= 0 || !anim->frames )
-            continue;
-
-        element->anim_cycle++;
-        const int delay = anim->frames[element->anim_frame].delay;
-        if( element->anim_cycle >= delay )
+        if( element->is_skeletal )
         {
-            element->anim_frame = (element->anim_frame + 1) % anim->frame_count;
-            element->anim_cycle = 0;
+            /* Skeletal animation: advance by frame_count ticks per cycle */
+            const struct ToriDraw_SkeletalAnim* skeletal = element->skeletal_animation;
+            if( !skeletal || skeletal->frame_count <= 0 )
+                continue;
+
+            element->anim_cycle++;
+            if( element->anim_cycle >= 1 )
+            {
+                element->anim_frame = (element->anim_frame + 1) % skeletal->frame_count;
+                element->anim_cycle = 0;
+            }
+
+            ToriDraw_SceneElementApplyAnimation(game->scene, element_id, true, element->anim_frame);
+        }
+        else
+        {
+            if( !element->animation )
+                continue;
+
+            const struct ToriDraw_Animation* anim = element->animation;
+            if( anim->frame_count <= 0 || !anim->frames )
+                continue;
+
+            element->anim_cycle++;
+            const int delay = anim->frames[element->anim_frame].delay;
+            if( element->anim_cycle >= delay )
+            {
+                element->anim_frame = (element->anim_frame + 1) % anim->frame_count;
+                element->anim_cycle = 0;
+            }
+
+            ToriDraw_SceneElementApplyAnimation(game->scene, element_id, true, element->anim_frame);
         }
     }
 }
@@ -1336,11 +1361,7 @@ game_runescape_spawn_projectile(
     ToriDraw_SceneElementSetModel(game->scene, element_id, hnd);
 
     if( seq_id != -1 )
-    {
-        ToriDraw_SceneElementSetAnimationSeq(game->scene, element_id, seq_id);
-        struct ToriDraw_Animation* anim = ToriAuxLibTD_SequenceAnimation(game->td, seq_id);
-        ToriDraw_SceneElementSetAnimation(game->scene, element_id, anim, true);
-    }
+        ToriAuxLibTD_ElementSetSequenceId(game->td, element_id, seq_id);
 
     int projectile_idx = world_projectile_spawn(
         game->world,

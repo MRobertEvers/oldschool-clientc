@@ -1,19 +1,55 @@
 #include "toriauxlib/c/toriauxlibc.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
+#include "buildcache/dat2_buildcache.h"
+#include "osrs/rscache/dat2a/dat2a_animaya.h"
 #include "osrs/rscache/dat2a/dat2a_config_floortype.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/dat2a_frame.h"
+#include "osrs/rscache/dat2a/dat2a_framemap.h"
 #include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat2a/dat2a_sprites.h"
 #include "osrs/rscache/dat2a/dat2a_textures.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/dat1a/dat1a_config_textures.h"
+#include "osrs/palette.h"
 #include "osrs/texture.h"
+#include "toridraw/toridraw_model.h"
 
 #include <stdlib.h>
 #include <string.h>
+
+static struct ToriAuxLibCore_Texture*
+toriauxlibc_texture_new_from_toridraw(const struct ToriDraw_Texture* src)
+{
+    if( !src || !src->texels || src->width <= 0 || src->height <= 0 )
+        return NULL;
+
+    struct ToriAuxLibCore_Texture* texture = malloc(sizeof(struct ToriAuxLibCore_Texture));
+    if( !texture )
+        return NULL;
+
+    size_t pixel_count = (size_t)src->width * (size_t)src->height;
+    int* texels = malloc(pixel_count * sizeof(int));
+    if( !texels )
+    {
+        free(texture);
+        return NULL;
+    }
+    memcpy(texels, src->texels, pixel_count * sizeof(int));
+
+    memset(texture, 0, sizeof(struct ToriAuxLibCore_Texture));
+    texture->texels = texels;
+    texture->width = src->width;
+    texture->height = src->height;
+    texture->opaque = src->opaque;
+    texture->animation_direction = src->animation_direction;
+    texture->animation_speed = src->animation_speed;
+    return texture;
+}
 
 static struct ToriAuxLibCore_AnimBase*
 toriauxlibc_animbase_move_from_cache(struct RSCacheDat1A_AnimBase* cache_base)
@@ -106,26 +142,13 @@ ToriAuxLibC_TextureNewFromCacheDatTexture(
     if( !cache_texture )
         return NULL;
 
-    struct DashTexture* dash = texture_new_from_texture_sprite(
+    struct ToriDraw_Texture* td_texture = texture_new_toridraw_from_texture_sprite(
         cache_texture, animation_direction, animation_speed, false, false);
-    if( !dash )
+    if( !td_texture )
         return NULL;
 
-    struct ToriAuxLibCore_Texture* texture = malloc(sizeof(struct ToriAuxLibCore_Texture));
-    if( !texture )
-    {
-        texture_free(dash);
-        return NULL;
-    }
-
-    memset(texture, 0, sizeof(struct ToriAuxLibCore_Texture));
-    texture->texels = dash->texels;
-    texture->width = dash->width;
-    texture->height = dash->height;
-    texture->opaque = dash->opaque;
-    texture->animation_direction = dash->animation_direction;
-    texture->animation_speed = dash->animation_speed;
-    free(dash);
+    struct ToriAuxLibCore_Texture* texture = toriauxlibc_texture_new_from_toridraw(td_texture);
+    ToriDraw_TextureFree(td_texture);
     return texture;
 }
 
@@ -139,25 +162,39 @@ ToriAuxLibC_TextureNewFromDat2Definition(
     if( !def )
         return NULL;
 
-    struct DashTexture* dash = texture_new_from_definition_packs(def, packs);
-    if( !dash )
+    struct ToriDraw_Texture* td_texture =
+        texture_new_toridraw_from_definition_packs(def, packs);
+    if( !td_texture )
         return NULL;
 
-    struct ToriAuxLibCore_Texture* texture = malloc(sizeof(struct ToriAuxLibCore_Texture));
+    struct ToriAuxLibCore_Texture* texture = toriauxlibc_texture_new_from_toridraw(td_texture);
     if( !texture )
     {
-        texture_free(dash);
+        ToriDraw_TextureFree(td_texture);
         return NULL;
     }
 
-    memset(texture, 0, sizeof(struct ToriAuxLibCore_Texture));
-    texture->texels = dash->texels;
-    texture->width = dash->width;
-    texture->height = dash->height;
-    texture->opaque = dash->opaque;
     texture->animation_direction = animation_direction;
     texture->animation_speed = animation_speed;
-    free(dash);
+    texture->average_hsl = def->average_hsl;
+    if( texture->average_hsl == 0 && texture->texels && texture->width > 0 && texture->height > 0 )
+    {
+        int red = 0;
+        int green = 0;
+        int blue = 0;
+        int colour_count = texture->width * texture->height;
+        for( int i = 0; i < colour_count; i++ )
+        {
+            red += (texture->texels[i] >> 16) & 0xff;
+            green += (texture->texels[i] >> 8) & 0xff;
+            blue += texture->texels[i] & 0xff;
+        }
+        int average_rgb = ((red / colour_count) << 16) + ((green / colour_count) << 8) +
+                          ((blue / colour_count) | 0);
+        texture->average_hsl = palette_rgb_to_hsl16(average_rgb);
+    }
+
+    ToriDraw_TextureFree(td_texture);
     return texture;
 }
 
@@ -458,6 +495,7 @@ ToriAuxLibC_SequenceNewFromCacheDat2Sequence(
     dst->maxloops = src->max_loops;
     dst->preanim_move = src->precedence_animating;
     dst->postanim_move = src->reply_mode;
+    dst->anim_maya_id = src->anim_maya_id;
 
     if( src->frame_count > 0 )
     {
@@ -577,4 +615,121 @@ ToriAuxLibC_ComponentNewFromCacheComponent(const void* cache_component_ptr)
 fail:
     ToriAuxLibCore_ComponentFree(dst);
     return NULL;
+}
+
+struct ToriAuxLibCore_Animation*
+ToriAuxLibC_AnimationNewFromDat2FramesArchive(
+    const struct Dat2BuildCache_FramesArchive* fa,
+    int archive_id)
+{
+    if( !fa || !fa->framemap || fa->frame_count <= 0 )
+        return NULL;
+
+    struct ToriAuxLibCore_Animation* anim = calloc(1, sizeof(struct ToriAuxLibCore_Animation));
+    if( !anim )
+        return NULL;
+
+    /* Base: copy framemap types and bone_groups */
+    struct ToriAuxLibCore_AnimBase* base = calloc(1, sizeof(struct ToriAuxLibCore_AnimBase));
+    if( !base )
+        goto fail;
+    anim->base = base;
+
+    const struct RSCacheDat2A_Framemap* fm = fa->framemap;
+    base->length = fm->length;
+    if( fm->length > 0 )
+    {
+        base->types = malloc((size_t)fm->length);
+        base->bone_group_lengths = malloc((size_t)fm->length * sizeof(uint16_t));
+        base->bone_groups = calloc((size_t)fm->length, sizeof(uint8_t*));
+        if( !base->types || !base->bone_group_lengths || !base->bone_groups )
+            goto fail;
+
+        for( int i = 0; i < fm->length; i++ )
+        {
+            base->types[i] = (uint8_t)fm->types[i];
+            int glen = fm->bone_groups_lengths[i];
+            base->bone_group_lengths[i] = (uint16_t)glen;
+            if( glen > 0 && fm->bone_groups[i] )
+            {
+                base->bone_groups[i] = malloc((size_t)glen);
+                if( !base->bone_groups[i] )
+                    goto fail;
+                for( int j = 0; j < glen; j++ )
+                    base->bone_groups[i][j] = (uint8_t)fm->bone_groups[i][j];
+            }
+        }
+    }
+
+    /* Frames */
+    anim->frame_count = fa->frame_count;
+    anim->frames = calloc((size_t)fa->frame_count, sizeof(struct ToriAuxLibCore_AnimFrame));
+    if( !anim->frames )
+        goto fail;
+
+    for( int i = 0; i < fa->frame_count; i++ )
+    {
+        const struct RSCacheDat2A_Frame* src = fa->frames[i];
+        struct ToriAuxLibCore_AnimFrame* dst = &anim->frames[i];
+
+        if( !src )
+        {
+            dst->id = (archive_id << 16) | i;
+            continue;
+        }
+
+        dst->id = src->_id;
+        dst->length = src->translator_count;
+
+        if( src->translator_count > 0 )
+        {
+            dst->groups = malloc((size_t)src->translator_count * sizeof(int16_t));
+            dst->x      = malloc((size_t)src->translator_count * sizeof(int16_t));
+            dst->y      = malloc((size_t)src->translator_count * sizeof(int16_t));
+            dst->z      = malloc((size_t)src->translator_count * sizeof(int16_t));
+            if( !dst->groups || !dst->x || !dst->y || !dst->z )
+                goto fail;
+
+            for( int j = 0; j < src->translator_count; j++ )
+            {
+                dst->groups[j] = (int16_t)src->index_frame_ids[j];
+                dst->x[j]      = (int16_t)src->translator_arg_x[j];
+                dst->y[j]      = (int16_t)src->translator_arg_y[j];
+                dst->z[j]      = (int16_t)src->translator_arg_z[j];
+            }
+        }
+    }
+
+    return anim;
+
+fail:
+    ToriAuxLibCore_AnimationFree(anim);
+    return NULL;
+}
+
+struct ToriAuxLibCore_SkeletalAnim*
+ToriAuxLibC_SkeletalAnimNewFromBakedPalette(
+    int    anim_id,
+    float* palette,
+    int    frame_count,
+    int    bone_count)
+{
+    if( !palette || frame_count <= 0 || bone_count <= 0 )
+    {
+        free(palette);
+        return NULL;
+    }
+
+    struct ToriAuxLibCore_SkeletalAnim* dst = calloc(1, sizeof(struct ToriAuxLibCore_SkeletalAnim));
+    if( !dst )
+    {
+        free(palette);
+        return NULL;
+    }
+
+    dst->id          = anim_id;
+    dst->bone_count  = bone_count;
+    dst->frame_count = frame_count;
+    dst->matrices    = palette; /* ownership transferred */
+    return dst;
 }

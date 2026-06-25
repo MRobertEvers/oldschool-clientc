@@ -112,6 +112,15 @@ RSCacheShared_RSBufferG8(struct RSCacheShared_RSBuffer* buffer)
     return (high << 32) | low;
 }
 
+float
+RSCacheShared_RSBufferReadFloat(struct RSCacheShared_RSBuffer* buffer)
+{
+    uint32_t bits = (uint32_t)RSCacheShared_RSBufferG4(buffer);
+    float f;
+    memcpy(&f, &bits, sizeof(f));
+    return f;
+}
+
 int
 RSCacheShared_RSBufferG1At(
     const uint8_t* data,

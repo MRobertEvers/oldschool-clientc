@@ -106,6 +106,12 @@ struct ToriDraw_Model
     struct ToriDraw_Bones* vertex_bones;
     struct ToriDraw_Bones* face_bones;
     struct ToriDraw_BoundsCylinder* bounds_cylinder;
+
+    /* Animaya per-vertex skin (NULL if no skeletal rigging) */
+    int      animaya_vertex_count;
+    uint8_t* animaya_group_counts; /* [animaya_vertex_count] */
+    uint8_t** animaya_groups;      /* [animaya_vertex_count][count] bone indices */
+    uint8_t** animaya_scales;      /* [animaya_vertex_count][count] weights 0-255 */
 };
 
 struct ToriDraw_ModelGround
@@ -265,15 +271,19 @@ struct ToriDraw_TextureState
     struct ToriDraw_TextureMap texture_map;
 };
 
+struct ToriDraw_SkeletalAnim;
+
 struct ToriDraw_SceneElement
 {
     int scene_id;
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Animation* animation;
     struct ToriDraw_Animation* secondary_animation;
+    struct ToriDraw_SkeletalAnim* skeletal_animation;
     struct ToriDraw_Position world_position;
     bool dynamic;
     bool pending_batch_add;
+    bool is_skeletal; /* true: use skeletal_animation; false: use animation */
     int anim_seq_id;
     int anim_frame;
     int anim_cycle;

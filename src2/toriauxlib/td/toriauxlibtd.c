@@ -3,12 +3,14 @@
 #include "buildcache/dat1_buildcache.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -18,12 +20,19 @@ struct MapEntry_SequenceAnim
     struct ToriDraw_Animation* animation;
 };
 
+struct MapEntry_SkeletalAnimTD
+{
+    int id;
+    struct ToriDraw_SkeletalAnim* skeletal;
+};
+
 struct ToriAuxLibTD
 {
     struct ToriAuxLibCore* core;
     struct ToriAuxLibC* c;
     struct ToriDraw_Scene* scene;
     struct ToriDraw_Map* sequence_anim_hmap;
+    struct ToriDraw_Map* skeletal_anim_hmap;
 };
 
 static struct ToriDraw_Map*
@@ -80,7 +89,8 @@ ToriAuxLibTD_New(
     td->c = c;
     td->scene = scene;
     td->sequence_anim_hmap = tdx_map_new(sizeof(struct MapEntry_SequenceAnim), 1024);
-    if( !td->sequence_anim_hmap )
+    td->skeletal_anim_hmap = tdx_map_new(sizeof(struct MapEntry_SkeletalAnimTD), 256);
+    if( !td->sequence_anim_hmap || !td->skeletal_anim_hmap )
     {
         free(td);
         return NULL;
@@ -95,6 +105,20 @@ ToriAuxLibTD_Free(struct ToriAuxLibTD* td)
         return;
     tdx_free_sequence_anims(td->sequence_anim_hmap);
     tdx_map_free(td->sequence_anim_hmap);
+
+    if( td->skeletal_anim_hmap )
+    {
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(td->skeletal_anim_hmap);
+        struct MapEntry_SkeletalAnimTD* entry = NULL;
+        while( (entry = (struct MapEntry_SkeletalAnimTD*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->skeletal )
+                ToriDraw_SkeletalAnimFree(entry->skeletal);
+        }
+        ToriDraw_MapIterFree(iter);
+        tdx_map_free(td->skeletal_anim_hmap);
+    }
+
     free(td);
 }
 
@@ -639,10 +663,114 @@ ToriAuxLibTD_ElementSetSequenceId(
 
     ToriDraw_SceneElementSetAnimationSeq(td->scene, element_id, seq_id);
 
+    /* Check if this sequence is Maya-driven */
+    struct ToriAuxLibCore_Sequence* seq =
+        ToriAuxLibCore_SequenceGet(ToriAuxLibTD_Core(td), seq_id);
+    if( !seq )
+    {
+        fprintf(stderr,
+                "ToriAuxLibTD_ElementSetSequenceId: seq %d not found in core\n",
+                seq_id);
+        return false;
+    }
+
+    if( seq->anim_maya_id >= 0 && seq->frame_count == 0 )
+    {
+        struct ToriDraw_SkeletalAnim* skeletal =
+            ToriAuxLibTD_SkeletalAnimation(td, seq->anim_maya_id);
+        if( skeletal )
+        {
+            struct ToriDraw_SceneElement* el =
+                ToriDraw_SceneElementGet(td->scene, element_id);
+            if( el )
+            {
+                el->skeletal_animation = skeletal;
+                el->is_skeletal = true;
+            }
+            return true;
+        }
+        fprintf(stderr,
+                "ToriAuxLibTD_ElementSetSequenceId: seq %d is skeletal "
+                "(anim_maya_id=%d) but skeletal anim not found\n",
+                seq_id, seq->anim_maya_id);
+        return false;
+    }
+
     struct ToriDraw_Animation* resolved = ToriAuxLibTD_SequenceAnimation(td, seq_id);
     if( !resolved )
+    {
+        fprintf(stderr,
+                "ToriAuxLibTD_ElementSetSequenceId: seq %d classic resolve failed "
+                "(frame_count=%d)\n",
+                seq_id, seq->frame_count);
         return false;
+    }
+
+    struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(td->scene, element_id);
+    if( el )
+        el->is_skeletal = false;
 
     ToriDraw_SceneElementSetAnimation(td->scene, element_id, resolved, true);
     return true;
+}
+
+static struct ToriDraw_SkeletalAnim*
+tdx_skeletal_new_from_core(const struct ToriAuxLibCore_SkeletalAnim* src)
+{
+    if( !src || !src->matrices || src->frame_count <= 0 || src->bone_count <= 0 )
+        return NULL;
+
+    struct ToriDraw_SkeletalAnim* dst = calloc(1, sizeof(struct ToriDraw_SkeletalAnim));
+    if( !dst )
+        return NULL;
+
+    dst->id          = src->id;
+    dst->bone_count  = src->bone_count;
+    dst->frame_count = src->frame_count;
+
+    size_t total = (size_t)src->frame_count * (size_t)src->bone_count * 16;
+    dst->matrices = malloc(total * sizeof(float));
+    if( !dst->matrices )
+    {
+        ToriDraw_SkeletalAnimFree(dst);
+        return NULL;
+    }
+    memcpy(dst->matrices, src->matrices, total * sizeof(float));
+
+    return dst;
+}
+
+struct ToriDraw_SkeletalAnim*
+ToriAuxLibTD_SkeletalAnimation(
+    struct ToriAuxLibTD* td,
+    int anim_maya_id)
+{
+    if( !td || anim_maya_id < 0 )
+        return NULL;
+
+    struct MapEntry_SkeletalAnimTD* entry =
+        (struct MapEntry_SkeletalAnimTD*)ToriDraw_MapSearch(
+            td->skeletal_anim_hmap, &anim_maya_id, TORIDRAW_MAP_FIND);
+    if( entry && entry->skeletal )
+        return entry->skeletal;
+
+    struct ToriAuxLibCore_SkeletalAnim* gc_skeletal =
+        ToriAuxLibCore_SkeletalAnimGet(ToriAuxLibTD_Core(td), anim_maya_id);
+    if( !gc_skeletal )
+        return NULL;
+
+    struct ToriDraw_SkeletalAnim* td_skeletal = tdx_skeletal_new_from_core(gc_skeletal);
+    if( !td_skeletal )
+        return NULL;
+
+    entry = (struct MapEntry_SkeletalAnimTD*)ToriDraw_MapSearch(
+        td->skeletal_anim_hmap, &anim_maya_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+    {
+        ToriDraw_SkeletalAnimFree(td_skeletal);
+        return NULL;
+    }
+    entry->id = anim_maya_id;
+    entry->skeletal = td_skeletal;
+    return td_skeletal;
 }

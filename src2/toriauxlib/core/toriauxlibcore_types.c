@@ -72,6 +72,36 @@ toriauxlibcore_animbase_free(struct ToriAuxLibCore_AnimBase* base)
 }
 
 void
+ToriAuxLibCore_AnimayaSkinFree(struct ToriAuxLibCore_AnimayaSkin* skin)
+{
+    if( !skin )
+        return;
+    if( skin->groups )
+    {
+        for( int i = 0; i < skin->vertex_count; i++ )
+            free(skin->groups[i]);
+        free(skin->groups);
+    }
+    if( skin->scales )
+    {
+        for( int i = 0; i < skin->vertex_count; i++ )
+            free(skin->scales[i]);
+        free(skin->scales);
+    }
+    free(skin->group_counts);
+    free(skin);
+}
+
+void
+ToriAuxLibCore_SkeletalAnimFree(struct ToriAuxLibCore_SkeletalAnim* skeletal)
+{
+    if( !skeletal )
+        return;
+    free(skeletal->matrices);
+    free(skeletal);
+}
+
+void
 ToriAuxLibCore_AnimationFree(struct ToriAuxLibCore_Animation* anim)
 {
     if( !anim )
@@ -136,6 +166,7 @@ ToriAuxLibCore_ModelFree(struct ToriAuxLibCore_Model* model)
     toriauxlibcore_bones_free(model->vertex_bones);
     toriauxlibcore_bones_free(model->face_bones);
     free(model->bounds_cylinder);
+    ToriAuxLibCore_AnimayaSkinFree(model->animaya_skin);
     free(model);
 }
 

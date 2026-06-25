@@ -919,7 +919,6 @@ ToriDraw_SceneElementApplyAnimation(
     int frame)
 {
     struct ToriDraw_SceneElement* element;
-    struct ToriDraw_Animation* animation;
     struct ToriDraw_Model* model;
 
     assert(scene);
@@ -928,20 +927,31 @@ ToriDraw_SceneElementApplyAnimation(
     element = td_scene_element_ptr(scene, element_id);
     assert(element);
 
-    animation = primary ? element->animation : element->secondary_animation;
-    if( !animation || !animation->base || !animation->frames || animation->frame_count <= 0 )
-        return;
-    if( frame < 0 || frame >= animation->frame_count )
-        return;
     if( element->model.kind != TORIDRAWMK_MODEL )
         return;
-
     model = element->model.u.model.model;
     if( !model )
         return;
 
-    ToriDraw_ModelAnimateReset(model);
-    ToriDraw_ModelAnimateFrame(model, animation->base, &animation->frames[frame]);
+    if( element->is_skeletal )
+    {
+        struct ToriDraw_SkeletalAnim* skeletal = element->skeletal_animation;
+        if( !skeletal || frame < 0 || frame >= skeletal->frame_count )
+            return;
+        ToriDraw_ModelAnimateSkeletal(model, skeletal, frame);
+    }
+    else
+    {
+        struct ToriDraw_Animation* animation =
+            primary ? element->animation : element->secondary_animation;
+        if( !animation || !animation->base || !animation->frames ||
+            animation->frame_count <= 0 )
+            return;
+        if( frame < 0 || frame >= animation->frame_count )
+            return;
+        ToriDraw_ModelAnimateReset(model);
+        ToriDraw_ModelAnimateFrame(model, animation->base, &animation->frames[frame]);
+    }
 }
 
 void

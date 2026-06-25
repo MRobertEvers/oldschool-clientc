@@ -632,6 +632,23 @@ LibToriPlatformX_LuaHost_Game_Dat1_SubmitTextures(lua_State* L)
 }
 
 int
+LibToriPlatformX_LuaHost_Game_Dat2_SubmitTextures(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Dat2_SubmitTextures(instance);
+
+    return 0;
+}
+
+int
 LibToriPlatformX_LuaHost_Game_GameCache_ModelsClearAll(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
@@ -1108,6 +1125,8 @@ LibToriPlatformX_LuaHost_BindToPlatform(
         L, lua, "Dat1_SubmitTextures", LibToriPlatformX_LuaHost_Game_Dat1_SubmitTextures);
     lua_bind_function_to_platform(
         L, lua, "Dat2_TexturesLoad", LibToriPlatformX_LuaHost_Game_Dat2_TexturesLoad);
+    lua_bind_function_to_platform(
+        L, lua, "Dat2_SubmitTextures", LibToriPlatformX_LuaHost_Game_Dat2_SubmitTextures);
     lua_bind_function_to_platform(
         L, lua, "GetCacheMode", LibToriPlatformX_LuaHost_Game_GetCacheMode);
     lua_bind_function_to_platform(

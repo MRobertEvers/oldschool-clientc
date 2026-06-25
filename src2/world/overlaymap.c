@@ -9,6 +9,7 @@ init_tile(struct OverlaymapTile* tile)
 {
     tile->minimap_rgb_color = -1;
     tile->rgb_color = -1;
+    tile->secondary_rgb_color = -1;
     tile->texture_id = -1;
     tile->texture_avg_hsl16 = -1;
 }

@@ -108,6 +108,25 @@ ToriAuxLibC_UnderlayNewFromCacheConfigUnderlay(
 struct ToriAuxLibCore_Component*
 ToriAuxLibC_ComponentNewFromCacheComponent(const void* cache_component);
 
+struct Dat2BuildCache_FramesArchive;
+struct ToriAuxLibCore_Animation*
+ToriAuxLibC_AnimationNewFromDat2FramesArchive(
+    const struct Dat2BuildCache_FramesArchive* fa,
+    int archive_id);
+
+struct RSCacheDat2A_AnimMaya;
+/**
+ * Build a ToriAuxLibCore_SkeletalAnim from a pre-baked matrix palette.
+ * palette must be a heap-allocated [frame_count * bone_count * 16] float array;
+ * ownership is transferred (freed by ToriAuxLibCore_SkeletalAnimFree).
+ */
+struct ToriAuxLibCore_SkeletalAnim*
+ToriAuxLibC_SkeletalAnimNewFromBakedPalette(
+    int   anim_id,
+    float* palette,
+    int    frame_count,
+    int    bone_count);
+
 struct Task_ToriAuxLibC_ModelLoad;
 
 struct Task_ToriAuxLibC_ModelLoad*

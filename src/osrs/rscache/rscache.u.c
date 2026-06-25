@@ -62,6 +62,8 @@
 #include "dat2a/dat2a_config_npctype.c"
 #include "dat2a/dat2a_config_idk.c"
 #include "dat2a/dat2a_config_sequence.c"
+#include "dat2a/dat2a_animaya.c"
+#include "dat2a/dat2a_skeletalbase.c"
 
 // clang-format on
 

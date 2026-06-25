@@ -1364,7 +1364,10 @@ decode_version2__osrs_extended(
     // Allocate animaya groups if needed
     if( var17 == 1 )
     {
-        // Note: This field is not in our struct, so we'll skip it
+        def->animaya_vertex_count = var9;
+        def->animaya_group_counts = calloc((size_t)var9, sizeof(uint8_t));
+        def->animaya_groups       = calloc((size_t)var9, sizeof(uint8_t*));
+        def->animaya_scales       = calloc((size_t)var9, sizeof(uint8_t*));
     }
 
     // Allocate face colors
@@ -1423,11 +1426,21 @@ decode_version2__osrs_extended(
         for( int i = 0; i < var9; ++i )
         {
             var41 = RSCacheShared_RSBufferG1At(var1, &var8_offset);
-            // Skip animaya groups and scales as they're not in our struct
+            if( def->animaya_group_counts )
+                def->animaya_group_counts[i] = (uint8_t)var41;
+            if( var41 > 0 && def->animaya_groups && def->animaya_scales )
+            {
+                def->animaya_groups[i] = malloc((size_t)var41);
+                def->animaya_scales[i] = malloc((size_t)var41);
+            }
             for( int j = 0; j < var41; ++j )
             {
-                RSCacheShared_RSBufferG1At(var1, &var8_offset); // animaya group
-                RSCacheShared_RSBufferG1At(var1, &var8_offset); // animaya scale
+                uint8_t grp   = (uint8_t)RSCacheShared_RSBufferG1At(var1, &var8_offset);
+                uint8_t scale = (uint8_t)RSCacheShared_RSBufferG1At(var1, &var8_offset);
+                if( def->animaya_groups && def->animaya_groups[i] )
+                    def->animaya_groups[i][j] = grp;
+                if( def->animaya_scales && def->animaya_scales[i] )
+                    def->animaya_scales[i][j] = scale;
             }
         }
     }
@@ -2126,7 +2139,10 @@ decode_version3__osrs_material(
     // Allocate animaya groups if needed
     if( var18 == 1 )
     {
-        // Note: This field is not in our struct, so we'll skip it
+        def->animaya_vertex_count = vertexCount;
+        def->animaya_group_counts = calloc((size_t)vertexCount, sizeof(uint8_t));
+        def->animaya_groups       = calloc((size_t)vertexCount, sizeof(uint8_t*));
+        def->animaya_scales       = calloc((size_t)vertexCount, sizeof(uint8_t*));
     }
 
     // Allocate face colors
@@ -2194,11 +2210,21 @@ decode_version3__osrs_material(
         for( var51 = 0; var51 < vertexCount; ++var51 )
         {
             var52 = RSCacheShared_RSBufferG1At(var1, &var6_offset);
-            // Note: We don't have animaya groups in our struct, so we'll skip the data
+            if( def->animaya_group_counts )
+                def->animaya_group_counts[var51] = (uint8_t)var52;
+            if( var52 > 0 && def->animaya_groups && def->animaya_scales )
+            {
+                def->animaya_groups[var51] = malloc((size_t)var52);
+                def->animaya_scales[var51] = malloc((size_t)var52);
+            }
             for( var53 = 0; var53 < var52; ++var53 )
             {
-                RSCacheShared_RSBufferG1At(var1, &var6_offset); // animayaGroups
-                RSCacheShared_RSBufferG1At(var1, &var6_offset); // animayaScales
+                uint8_t grp   = (uint8_t)RSCacheShared_RSBufferG1At(var1, &var6_offset);
+                uint8_t scale = (uint8_t)RSCacheShared_RSBufferG1At(var1, &var6_offset);
+                if( def->animaya_groups && def->animaya_groups[var51] )
+                    def->animaya_groups[var51][var53] = grp;
+                if( def->animaya_scales && def->animaya_scales[var51] )
+                    def->animaya_scales[var51][var53] = scale;
             }
         }
     }
@@ -3007,5 +3033,20 @@ RSCacheDat2A_ModelFree(struct RSCacheDat2A_Model* model)
         free(model->textureRenderTypes);
     if( model->face_textures )
         free(model->face_textures);
+
+    if( model->animaya_groups )
+    {
+        for( int i = 0; i < model->animaya_vertex_count; i++ )
+            free(model->animaya_groups[i]);
+        free(model->animaya_groups);
+    }
+    if( model->animaya_scales )
+    {
+        for( int i = 0; i < model->animaya_vertex_count; i++ )
+            free(model->animaya_scales[i]);
+        free(model->animaya_scales);
+    }
+    free(model->animaya_group_counts);
+
     free(model);
 }

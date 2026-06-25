@@ -10,6 +10,7 @@
 #include "shademap.h"
 #include "terrain_shapemap.h"
 #include "toriauxlib/core/toriauxlibcore.h"
+#include "toriauxlib/td/toriauxlibtd.h"
 #include "toridraw/toridraw_hsl16.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_scene.h"
@@ -134,13 +135,18 @@ world_builder_rebuild_centerzone_chunk_terrain(
                     continue;
                 }
 
+                int overlay_id = tile->overlay_id - 1;
+                int underlay_id = tile->underlay_id - 1;
+                struct ToriAuxLibCore_Flotype* overlay_flotype = NULL;
+
+                if( overlay_id != -1 )
+                    overlay_flotype = ToriAuxLibCore_FlotypeGet(builder->core, overlay_id);
+
                 if( tile->underlay_id > 0 )
                 {
                     int underlay_lookup_id = tile->underlay_id - 1;
                     struct ToriAuxLibCore_Flotype* underlay =
                         ToriAuxLibCore_UnderlayGet(builder->core, underlay_lookup_id);
-                    if( !underlay )
-                        underlay = ToriAuxLibCore_FlotypeGet(builder->core, underlay_lookup_id);
                     if( underlay )
                     {
                         blendmap_set_underlay_rgb(
@@ -152,43 +158,44 @@ world_builder_rebuild_centerzone_chunk_terrain(
                     }
                 }
 
-                int overlay_id = tile->overlay_id - 1;
-                int underlay_id = tile->underlay_id - 1;
-
-                if( overlay_id != -1 )
+                if( overlay_flotype )
                 {
-                    struct ToriAuxLibCore_Flotype* flotype =
-                        ToriAuxLibCore_FlotypeGet(builder->core, overlay_id);
-                    if( flotype )
+                    overlaymap_set_tile_rgb(
+                        builder->overlaymap,
+                        offset_x,
+                        offset_z,
+                        level,
+                        (uint32_t)overlay_flotype->rgb_color);
                     {
-                        overlaymap_set_tile_rgb(
+                        struct OverlaymapTile* omap_tile =
+                            overlaymap_get_tile(builder->overlaymap, offset_x, offset_z, level);
+                        omap_tile->secondary_rgb_color = overlay_flotype->secondary_rgb_color;
+                    }
+
+                    if( overlay_flotype->texture != -1 )
+                    {
+                        int texture_avg_hsl16 = palette_rgb_to_hsl16(overlay_flotype->rgb_color);
+                        struct ToriAuxLibCore_Texture* gc_texture = ToriAuxLibCore_TextureGet(
+                            builder->core, overlay_flotype->texture);
+                        if( gc_texture && gc_texture->average_hsl != 0 )
+                            texture_avg_hsl16 = gc_texture->average_hsl;
+                        overlaymap_set_tile_texture(
                             builder->overlaymap,
                             offset_x,
                             offset_z,
                             level,
-                            (uint32_t)flotype->rgb_color);
+                            (uint8_t)overlay_flotype->texture,
+                            (uint16_t)texture_avg_hsl16);
+                    }
 
-                        if( flotype->texture != -1 )
-                        {
-                            int texture_avg_hsl16 = palette_rgb_to_hsl16(flotype->rgb_color);
-                            overlaymap_set_tile_texture(
-                                builder->overlaymap,
-                                offset_x,
-                                offset_z,
-                                level,
-                                (uint8_t)flotype->texture,
-                                (uint16_t)texture_avg_hsl16);
-                        }
-
-                        if( flotype->secondary_rgb_color > 0 )
-                        {
-                            overlaymap_set_tile_minimap(
-                                builder->overlaymap,
-                                offset_x,
-                                offset_z,
-                                level,
-                                (uint32_t)flotype->secondary_rgb_color);
-                        }
+                    if( overlay_flotype->secondary_rgb_color > 0 )
+                    {
+                        overlaymap_set_tile_minimap(
+                            builder->overlaymap,
+                            offset_x,
+                            offset_z,
+                            level,
+                            (uint32_t)overlay_flotype->secondary_rgb_color);
                     }
                 }
 
@@ -255,16 +262,28 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                 if( overlay_tile->texture_id != -1 )
                 {
                     texture_id = overlay_tile->texture_id;
-                    overlay_hsl = TERRAIN_OVERLAY_HSL_LIGHTNESS_ONLY;
+                    if( ToriAuxLibTD_Texture(builder->td, texture_id) )
+                    {
+                        overlay_hsl = TERRAIN_OVERLAY_HSL_LIGHTNESS_ONLY;
+                    }
+                    else
+                    {
+                        texture_id = -1;
+                        overlay_hsl = terrain_adjust_lightness(
+                            (int)overlay_tile->texture_avg_hsl16, 96);
+                    }
                 }
-                else if( overlay_tile->rgb_color == 0xFF00FF )
+                else if( (overlay_tile->rgb_color & 0xFFFFFFu) == 0xFF00FFu )
                 {
                     overlay_hsl = TERRAIN_OVERLAY_HSL_TRANSPARENT;
                     texture_id = -1;
                 }
                 else
                 {
-                    int hsl = palette_rgb_to_hsl16(overlay_tile->rgb_color);
+                    int from_rgb = overlay_tile->secondary_rgb_color != -1
+                                       ? overlay_tile->secondary_rgb_color
+                                       : (int)overlay_tile->rgb_color;
+                    int hsl = palette_rgb_to_hsl16(from_rgb);
                     overlay_hsl = terrain_adjust_lightness(hsl, 96);
                     texture_id = -1;
                 }

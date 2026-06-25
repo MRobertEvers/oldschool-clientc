@@ -134,6 +134,15 @@ struct RSCacheDat2A_Model
     unsigned char* textureRenderTypes;
 
     int rotated;
+
+    /* Animaya (skeletal) per-vertex skin data.  Set only when the model was
+     * decoded with hasAnimayaGroups == 1.  animaya_group_counts[i] is the
+     * number of bone influences on vertex i; animaya_groups[i][j] and
+     * animaya_scales[i][j] give bone index and weight for influence j. */
+    int      animaya_vertex_count;
+    uint8_t* animaya_group_counts; /* [animaya_vertex_count] */
+    uint8_t** animaya_groups;      /* [animaya_vertex_count][group_count] */
+    uint8_t** animaya_scales;      /* [animaya_vertex_count][group_count] */
 };
 
 struct RSCacheDat2A_ModelBones

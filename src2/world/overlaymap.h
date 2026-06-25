@@ -9,6 +9,7 @@ struct OverlaymapTile
     bool active;
     uint32_t minimap_rgb_color;
     uint32_t rgb_color;
+    int32_t secondary_rgb_color;
     int16_t texture_id;
     uint16_t texture_avg_hsl16;
 };

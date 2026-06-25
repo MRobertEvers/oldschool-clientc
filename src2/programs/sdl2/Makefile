@@ -127,6 +127,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toriauxlib/vm/toriauxlibvm.c \
 	$(SRC_DIR)/osrs/varp_varbit_manager.c \
 	$(SRC2)/toridraw/toridraw_animation.c \
+	$(SRC2)/toridraw/toridraw_mat4.c \
 	$(SRC2)/toridraw/toridraw.c \
 	$(SRC2)/toridraw/toridraw_math.c \
 	$(SRC2)/toridraw/toridraw_hsl16.c \

@@ -32,4 +32,21 @@ struct ToriDraw_Animation
 void
 ToriDraw_AnimationFree(struct ToriDraw_Animation* anim);
 
+/**
+ * A baked skeletal (Animaya) animation.
+ *
+ * matrices[(frame * bone_count + bone) * 16 .. +15] is the column-major 4x4
+ * float skinning matrix for that bone at that frame.
+ */
+struct ToriDraw_SkeletalAnim
+{
+    int    id;
+    int    bone_count;
+    int    frame_count;
+    float* matrices; /* [frame_count * bone_count * 16] */
+};
+
+void
+ToriDraw_SkeletalAnimFree(struct ToriDraw_SkeletalAnim* skeletal);
+
 #endif

@@ -369,13 +369,16 @@ scenery_load_animation(
     if( seq_id == -1 )
         return;
 
-    ToriDraw_SceneElementSetAnimationSeq(builder->scene, element_id, seq_id);
-
-    struct ToriDraw_Animation* resolved = ToriAuxLibTD_SequenceAnimation(builder->td, seq_id);
-    if( !resolved )
-        return;
-
-    ToriDraw_SceneElementSetAnimation(builder->scene, element_id, resolved, true);
+    bool loaded = ToriAuxLibTD_ElementSetSequenceId(builder->td, element_id, seq_id);
+    if( !loaded )
+        fprintf(
+            stderr,
+            "scenery_load_animation: animation specified but failed to load "
+            "(seq_id=%d element_id=%d)\n",
+            seq_id,
+            element_id);
+    assert(loaded && "scenery animation specified but failed to load");
+    (void)loaded;
 }
 
 static void
@@ -1085,6 +1088,7 @@ scenery_add_floor_decoration(
     }
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
 
     painter_add_ground_decor(
         world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id);

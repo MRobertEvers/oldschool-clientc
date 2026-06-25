@@ -10,6 +10,8 @@ if Game.GetCacheMode() == "dat2" then
         return
     end
     print("Dat2 textures loaded")
+    Game.Dat2_SubmitTextures()
+    print("Dat2 textures submitted")
 else
     Game.Dat1_ConfigFileFetch(io_queue)
     Platform.LoadIO(io_queue)

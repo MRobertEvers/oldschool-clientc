@@ -202,6 +202,8 @@ LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
     if( !archive )
         return false;
 
+    RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
+
     struct RSCacheShared_FileList* filelist =
         RSCacheShared_FileListNewFromCacheArchive(archive);
     if( !filelist )
@@ -220,10 +222,14 @@ LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
     }
 
     struct RSCacheDat2Disk_ArchiveReference* reference = &textures_table->archives[0];
-    int count = filelist->file_count;
-    if( reference->children.count < count )
-        count = reference->children.count;
+    int count = reference->children.count;
+    if( filelist->file_count < count )
+        count = filelist->file_count;
 
+    printf("Dat2 textures: file_count=%d, children.count=%d, effective count=%d\n",
+           filelist->file_count, reference->children.count, count);
+
+    int loaded_count = 0;
     for( int i = 0; i < count; i++ )
     {
         int texture_id = reference->children.files[i].id;
@@ -283,11 +289,38 @@ LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
         }
 
         ToriAuxLibC_SubmitTexture(c, texture_id, gc_texture);
+        loaded_count++;
     }
+
+    printf("Dat2 textures: loaded %d textures into core\n", loaded_count);
 
     RSCacheShared_FileListFree(filelist);
     RSCacheDat2Disk_ArchiveFree(archive);
     return true;
+}
+
+void
+LibToriRS_ScriptAPI_Dat2_SubmitTextures(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Dat2_SubmitTextures\n");
+    if( !instance || !instance->toriauxlib )
+        return;
+
+    struct ToriAuxLibTD* td = ToriAuxLib_TD(instance->toriauxlib);
+    struct ToriAuxLibCore* core = ToriAuxLib_Core(instance->toriauxlib);
+    if( !td || !core )
+        return;
+
+    int submitted_count = 0;
+    for( int i = 0; i < 256; i++ )
+    {
+        if( ToriAuxLibCore_TextureHas(core, i) )
+        {
+            if( ToriAuxLibTD_Texture(td, i) )
+                submitted_count++;
+        }
+    }
+    printf("Dat2 textures: submitted %d textures to scene\n", submitted_count);
 }
 
 const char*

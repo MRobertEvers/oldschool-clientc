@@ -524,6 +524,14 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat2_TexturesLoad(
 }
 
 EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat2_SubmitTextures(
+    struct LibToriRS_Instance* instance)
+{
+    LibToriRS_ScriptAPI_Dat2_SubmitTextures(instance);
+}
+
+EMSCRIPTEN_KEEPALIVE
 const char*
 LibToriPlatformEmscripten_JSHost_ScriptAPI_GetCacheMode(
     struct LibToriRS_Instance* instance)

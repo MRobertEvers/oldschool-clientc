@@ -5,8 +5,12 @@
 #include "../../libtorirs.h"
 #include "3rd/minipt.h"
 #include "buildcache/dat2_buildcache.h"
+#include "osrs/rscache/dat2a/dat2a_animaya.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
+#include "toridraw/toridraw_map.h"
 #include "toriauxlib/c/dat2io.h"
 #include "toriauxlib/c/toriauxlibc.h"
 #include "toriauxlib/c/toriauxlibc_submit.h"
@@ -197,6 +201,141 @@ Task_Dat2WorldRebuildNormal_Run(
     ToriAuxLibC_SubmitAllFlotypesFromDat2(task->c);
     ToriAuxLibC_SubmitAllSequencesFromDat2(task->c);
     ToriAuxLibC_SubmitAllLocationsFromDat2(task->c);
+
+    /* Load classic frame/framemap archives and skeletal anims referenced by
+     * visible scene locs only — do NOT walk every sequence in the cache. */
+    {
+        int* seq_ids = NULL;
+        int seq_capacity = 256;
+        int seq_count = 0;
+        seq_ids = malloc((size_t)seq_capacity * sizeof(int));
+
+        int* archive_ids = NULL;
+        int archive_capacity = 128;
+        int archive_count = 0;
+        archive_ids = malloc((size_t)archive_capacity * sizeof(int));
+
+        if( seq_ids && archive_ids )
+        {
+            /* --- Phase 1: collect deduped seq ids from visible loc configs --- */
+            struct ToriDraw_MapIter* loc_iter =
+                ToriDraw_MapIterNew(dat2_bc->config_loc_hmap);
+            void* loc_entry_v = NULL;
+            while( (loc_entry_v = ToriDraw_MapIterNext(loc_iter)) )
+            {
+                struct _LocEntry {
+                    int id;
+                    struct RSCacheDat2A_ConfigLocation* config_loc;
+                };
+                struct _LocEntry* le = loc_entry_v;
+                if( !le->config_loc )
+                    continue;
+
+                /* Inline helper: add sid to seq_ids if not already present */
+#define COLLECT_SEQ(sid)                                                    \
+    do {                                                                    \
+        int _s = (sid);                                                     \
+        if( _s < 0 ) break;                                                 \
+        bool _found = false;                                                \
+        for( int _k = 0; _k < seq_count; _k++ )                           \
+            if( seq_ids[_k] == _s ) { _found = true; break; }             \
+        if( !_found ) {                                                     \
+            if( seq_count >= seq_capacity ) {                               \
+                seq_capacity *= 2;                                          \
+                int* _g = realloc(seq_ids, (size_t)seq_capacity * sizeof(int)); \
+                if( _g ) seq_ids = _g; else break;                         \
+            }                                                               \
+            seq_ids[seq_count++] = _s;                                     \
+        }                                                                   \
+    } while(0)
+
+                COLLECT_SEQ(le->config_loc->seq_id);
+                for( int ri = 0; ri < le->config_loc->random_seq_id_count; ri++ )
+                    COLLECT_SEQ(le->config_loc->random_seq_ids[ri]);
+
+#undef COLLECT_SEQ
+            }
+            ToriDraw_MapIterFree(loc_iter);
+
+            /* --- Phase 2: for each wanted seq, collect archive ids + skeletal --- */
+            struct _SeqEntry { int id; struct RSCacheDat2A_ConfigSequence* seq; };
+
+            for( int si = 0; si < seq_count; si++ )
+            {
+                int seq_id = seq_ids[si];
+                struct _SeqEntry* se = (struct _SeqEntry*)ToriDraw_MapSearch(
+                    dat2_bc->sequences_hmap, &seq_id, TORIDRAW_MAP_FIND);
+                if( !se || !se->seq )
+                    continue;
+
+                /* Collect unique idx0 archive ids */
+                for( int fi = 0; fi < se->seq->frame_count; fi++ )
+                {
+                    int aid = (se->seq->frame_ids[fi] >> 16) & 0xFFFF;
+                    if( aid < 0 )
+                        continue;
+                    bool found = false;
+                    for( int k = 0; k < archive_count; k++ )
+                        if( archive_ids[k] == aid ) { found = true; break; }
+                    if( !found )
+                    {
+                        if( archive_count >= archive_capacity )
+                        {
+                            archive_capacity *= 2;
+                            int* grow = realloc(archive_ids,
+                                                (size_t)archive_capacity * sizeof(int));
+                            if( grow )
+                                archive_ids = grow;
+                            else
+                                break;
+                        }
+                        archive_ids[archive_count++] = aid;
+                    }
+                }
+
+                /* Load skeletal anim if present */
+                int maya_id = se->seq->anim_maya_id;
+                if( maya_id >= 0 && !dat2_buildcache_skeletal_has(dat2_bc, maya_id) )
+                {
+                    struct RSCacheDat2A_AnimMaya* maya =
+                        RSCacheDat2A_AnimMayaNewFromCache(cache_disk, maya_id);
+                    if( maya )
+                        dat2_buildcache_skeletal_add(dat2_bc, maya_id, maya);
+                }
+            }
+            free(seq_ids);
+            seq_ids = NULL;
+
+            /* --- Phase 3: load and submit each unique idx0 archive --- */
+            for( int ai = 0; ai < archive_count; ai++ )
+            {
+                int aid = archive_ids[ai];
+                if( !dat2_buildcache_frames_has(dat2_bc, aid) )
+                    dat2_buildcache_frames_init_from_archive(dat2_bc, cache_disk, aid);
+                ToriAuxLibC_SubmitAnimationFromDat2(task->c, aid);
+            }
+            free(archive_ids);
+            archive_ids = NULL;
+
+            /* --- Phase 4: submit all loaded skeletal animations --- */
+            {
+                struct ToriDraw_MapIter* sk_iter =
+                    ToriDraw_MapIterNew(dat2_bc->skeletal_hmap);
+                void* sk_entry_v = NULL;
+                while( (sk_entry_v = ToriDraw_MapIterNext(sk_iter)) )
+                {
+                    struct _SkEntry { int id; struct RSCacheDat2A_AnimMaya* maya; };
+                    struct _SkEntry* ske = sk_entry_v;
+                    ToriAuxLibC_SubmitSkeletalFromDat2(task->c, ske->id);
+                }
+                ToriDraw_MapIterFree(sk_iter);
+            }
+        }
+
+        free(seq_ids);
+        free(archive_ids);
+    }
+
     LibToriRS_IOQueueClear(ctx->io);
 
     task->model_count = dat2_buildcache_get_all_unique_scenery_model_ids(dat2_bc, &task->model_ids);

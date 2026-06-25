@@ -1,15 +1,20 @@
 #include "toriauxlibc_submit.h"
 
+#include <stdio.h>
+
 #include "buildcache/dat1_buildcache.h"
 #include "buildcache/dat2_buildcache.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
+#include "osrs/rscache/dat2a/dat2a_animaya.h"
 #include "osrs/rscache/dat2a/dat2a_config_floortype.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2a/dat2a_maps.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
+#include "osrs/rscache/dat2a/dat2a_skeletalbase.h"
 #include "toriauxlib/c/toriauxlibc.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 
 struct SubmitSequenceCtx
 {
@@ -248,6 +253,20 @@ submit_dat2_sequence_cb(
 }
 
 static void
+submit_dat2_flotype_cb(
+    int flo_id,
+    struct RSCacheDat2A_ConfigOverlay* flotype,
+    void* user_data)
+{
+    struct SubmitFlotypeCtx* ctx = user_data;
+    struct ToriAuxLibCore_Flotype* neutral =
+        ToriAuxLibC_FlotypeNewFromCacheConfigOverlay(flotype, flo_id);
+    if( !neutral )
+        return;
+    ToriAuxLibCore_FlotypeAdd(ToriAuxLibC_Core(ctx->c), flo_id, neutral);
+}
+
+static void
 submit_dat2_underlay_cb(
     int underlay_id,
     struct RSCacheDat2A_ConfigUnderlay* underlay,
@@ -326,7 +345,7 @@ void
 ToriAuxLibC_SubmitAllFlotypesFromDat2(struct ToriAuxLibC* c)
 {
     struct SubmitFlotypeCtx ctx = { .c = c };
-    dat2_buildcache_foreach_flotype(dat2(c), submit_flotype_cb, &ctx);
+    dat2_buildcache_foreach_flotype(dat2(c), submit_dat2_flotype_cb, &ctx);
 }
 
 void
@@ -341,4 +360,93 @@ ToriAuxLibC_SubmitAllLocationsFromDat2(struct ToriAuxLibC* c)
 {
     struct SubmitLocationCtx ctx = { .c = c };
     dat2_buildcache_foreach_config_loc(dat2(c), submit_location_cb, &ctx);
+}
+
+void
+ToriAuxLibC_SubmitAnimationFromDat2(
+    struct ToriAuxLibC* c,
+    int archive_id)
+{
+    if( !c || archive_id < 0 )
+        return;
+
+    struct Dat2BuildCache_FramesArchive* fa =
+        dat2_buildcache_frames_take(dat2(c), archive_id);
+    if( !fa )
+        return;
+
+    struct ToriAuxLibCore_Animation* anim =
+        ToriAuxLibC_AnimationNewFromDat2FramesArchive(fa, archive_id);
+    Dat2BuildCache_FramesArchiveFree(fa);
+
+    if( !anim )
+        return;
+
+    ToriAuxLibCore_AnimationAdd(ToriAuxLibC_Core(c), archive_id, anim);
+}
+
+void
+ToriAuxLibC_SubmitSkeletalFromDat2(
+    struct ToriAuxLibC* c,
+    int anim_maya_id)
+{
+    if( !c || anim_maya_id < 0 )
+        return;
+
+    struct RSCacheDat2A_AnimMaya* maya =
+        dat2_buildcache_skeletal_take(dat2(c), anim_maya_id);
+    if( !maya )
+    {
+        fprintf(stderr,
+                "ToriAuxLibC_SubmitSkeletalFromDat2: anim_maya_id=%d not in "
+                "buildcache (load failed earlier)\n",
+                anim_maya_id);
+        return;
+    }
+
+    /* Load the bind-pose SkeletalBase from idx1 using base_id */
+    struct RSCacheDat2A_SkeletalBase* skelbase =
+        RSCacheDat2A_SkeletalBaseNewFromCache(ToriAuxLibC_Dat2Disk(c), maya->base_id);
+
+    if( !skelbase )
+    {
+        fprintf(stderr,
+                "ToriAuxLibC_SubmitSkeletalFromDat2: SkeletalBase load failed "
+                "(anim_maya_id=%d base_id=%d)\n",
+                anim_maya_id, maya->base_id);
+        RSCacheDat2A_AnimMayaFree(maya);
+        return;
+    }
+
+    /* Bake per-frame per-bone skinning matrix palette */
+    int frame_count = 0, bone_count = 0;
+    float* palette = RSCacheDat2A_SkeletalBaseBakePalette(
+        maya, skelbase, &frame_count, &bone_count);
+
+    RSCacheDat2A_SkeletalBaseFree(skelbase);
+    RSCacheDat2A_AnimMayaFree(maya);
+
+    if( !palette )
+    {
+        fprintf(stderr,
+                "ToriAuxLibC_SubmitSkeletalFromDat2: BakePalette failed "
+                "(anim_maya_id=%d)\n",
+                anim_maya_id);
+        return;
+    }
+
+    struct ToriAuxLibCore_SkeletalAnim* skeletal =
+        ToriAuxLibC_SkeletalAnimNewFromBakedPalette(
+            anim_maya_id, palette, frame_count, bone_count);
+
+    if( !skeletal )
+    {
+        fprintf(stderr,
+                "ToriAuxLibC_SubmitSkeletalFromDat2: SkeletalAnimNew failed "
+                "(anim_maya_id=%d frame_count=%d bone_count=%d)\n",
+                anim_maya_id, frame_count, bone_count);
+        return;
+    }
+
+    ToriAuxLibCore_SkeletalAnimAdd(ToriAuxLibC_Core(c), anim_maya_id, skeletal);
 }

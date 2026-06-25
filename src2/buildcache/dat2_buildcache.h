@@ -1,6 +1,8 @@
 #ifndef DAT2_BUILDCACHE_H
 #define DAT2_BUILDCACHE_H
 
+#include "osrs/rscache/dat2a/dat2a_frame.h"
+#include "osrs/rscache/dat2a/dat2a_framemap.h"
 #include "osrs/rscache/dat2a/dat2a_maps.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 
@@ -15,6 +17,21 @@ struct RSCacheDat2A_ConfigOverlay;
 struct RSCacheDat2A_ConfigUnderlay;
 struct RSCacheDat2A_ConfigLocation;
 struct RSCacheDat2A_ConfigSequence;
+struct RSCacheDat2A_AnimMaya;
+
+/**
+ * Decoded frames from one idx0 animation archive.
+ * All frames share one framemap (owned by this struct).
+ */
+struct Dat2BuildCache_FramesArchive
+{
+    struct RSCacheDat2A_Framemap* framemap;
+    struct RSCacheDat2A_Frame**   frames;
+    int                           frame_count;
+};
+
+void
+Dat2BuildCache_FramesArchiveFree(struct Dat2BuildCache_FramesArchive* fa);
 
 struct Dat2BuildCache
 {
@@ -25,6 +42,8 @@ struct Dat2BuildCache
     struct ToriDraw_Map* flotype_hmap;
     struct ToriDraw_Map* underlay_hmap;
     struct ToriDraw_Map* config_loc_hmap;
+    struct ToriDraw_Map* frames_hmap;     /* archive_id -> Dat2BuildCache_FramesArchive* */
+    struct ToriDraw_Map* skeletal_hmap;   /* anim_maya_id -> RSCacheDat2A_AnimMaya*      */
 };
 
 struct Dat2BuildCache*
@@ -100,6 +119,52 @@ dat2_buildcache_scenery_configs_init_from_archive(
     struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
     struct VarPVarBitManager* varp_mgr);
+
+/* Classic frame/framemap (idx0 + idx1) */
+
+void
+dat2_buildcache_frames_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk* cache,
+    int archive_id);
+
+struct Dat2BuildCache_FramesArchive*
+dat2_buildcache_frames_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int archive_id);
+
+struct Dat2BuildCache_FramesArchive*
+dat2_buildcache_frames_take(
+    struct Dat2BuildCache* dat2_buildcache,
+    int archive_id);
+
+bool
+dat2_buildcache_frames_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int archive_id);
+
+/* Skeletal Animaya (idx22) */
+
+void
+dat2_buildcache_skeletal_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int anim_maya_id,
+    struct RSCacheDat2A_AnimMaya* maya);
+
+struct RSCacheDat2A_AnimMaya*
+dat2_buildcache_skeletal_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int anim_maya_id);
+
+struct RSCacheDat2A_AnimMaya*
+dat2_buildcache_skeletal_take(
+    struct Dat2BuildCache* dat2_buildcache,
+    int anim_maya_id);
+
+bool
+dat2_buildcache_skeletal_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int anim_maya_id);
 
 struct RSCacheDat2A_ConfigLocation*
 dat2_buildcache_config_loc_get(

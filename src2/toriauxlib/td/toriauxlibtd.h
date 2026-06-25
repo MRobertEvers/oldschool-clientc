@@ -93,4 +93,9 @@ ToriAuxLibTD_ElementSetSequenceId(
     int element_id,
     int seq_id);
 
+struct ToriDraw_SkeletalAnim*
+ToriAuxLibTD_SkeletalAnimation(
+    struct ToriAuxLibTD* td,
+    int anim_maya_id);
+
 #endif

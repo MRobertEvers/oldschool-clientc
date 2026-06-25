@@ -31,6 +31,9 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
 bool
 LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance);
 
+void
+LibToriRS_ScriptAPI_Dat2_SubmitTextures(struct LibToriRS_Instance* instance);
+
 const char*
 LibToriRS_ScriptAPI_GetCacheMode(struct LibToriRS_Instance* instance);
 

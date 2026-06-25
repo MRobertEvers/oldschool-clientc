@@ -1,5 +1,6 @@
 #include "toridraw_map.h"
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -249,10 +250,16 @@ ToriDraw_MapSearch(
     enum ToriDraw_MapAction action)
 {
     if( !m || !m->entries || !key )
+    {
+        assert(action != TORIDRAW_MAP_INSERT && "ToriDraw_Map insert: null map, entries, or key");
         return NULL;
+    }
 
     if( m->capacity == 0 )
+    {
+        assert(action != TORIDRAW_MAP_INSERT && "ToriDraw_Map insert: map has zero capacity");
         return NULL;
+    }
 
     uint64_t hash = m->hash_fn(key, m->key_size, m->arg);
     if( hash == 0 )
@@ -335,6 +342,7 @@ ToriDraw_MapSearch(
         return entry;
     }
 
+    assert(action != TORIDRAW_MAP_INSERT && "ToriDraw_Map insert: map is full, increase initial capacity");
     return NULL;
 }
 
