@@ -147,9 +147,15 @@ world_builder_rebuild_centerzone_chunk_scenery(
         if( !config_loc )
             continue;
 
+        int base_seq_id = config_loc->seq_id;
+
         config_loc = world_builder_resolve_loc(builder, config_loc);
         if( !config_loc )
             continue;
+
+        struct ToriAuxLibCore_Location resolved_loc = *config_loc;
+        resolved_loc.seq_id = base_seq_id;
+        config_loc = &resolved_loc;
 
         int scene_x = world_to_scene_x(world, mapx, map_loc->chunk_pos_x);
         int scene_z = world_to_scene_z(world, mapz, map_loc->chunk_pos_z);
