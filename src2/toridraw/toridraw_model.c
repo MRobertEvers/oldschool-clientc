@@ -620,3 +620,83 @@ ToriDraw_ModelAnimateSkeletal(
         }
     }
 }
+
+void
+ToriDraw_TextureAnimate(
+    struct ToriDraw_Texture* tex,
+    int cycles,
+    int* scratch)
+{
+    if( !tex || !tex->texels || !scratch || cycles <= 0 )
+        return;
+    if( tex->animation_direction == TORIDRAW_TEXANIM_DIRECTION_NONE || tex->animation_speed == 0 )
+        return;
+
+    int const pixel_count = tex->width * tex->height;
+    if( pixel_count <= 0 )
+        return;
+
+    int const dim = (pixel_count == 4096) ? 64 : 128;
+    int const mask = pixel_count - 1;
+
+    if( tex->animation_direction == TORIDRAW_TEXANIM_DIRECTION_V_DOWN ||
+        tex->animation_direction == TORIDRAW_TEXANIM_DIRECTION_V_UP )
+    {
+        int shift = cycles * dim * tex->animation_speed;
+        if( tex->animation_direction == TORIDRAW_TEXANIM_DIRECTION_V_DOWN )
+            shift = -shift;
+
+        for( int i = 0; i < pixel_count; i++ )
+            scratch[i] = tex->texels[(shift + i) & mask];
+
+        memcpy(tex->texels, scratch, (size_t)pixel_count * sizeof(int));
+        return;
+    }
+
+    if( tex->animation_direction == TORIDRAW_TEXANIM_DIRECTION_U_DOWN ||
+        tex->animation_direction == TORIDRAW_TEXANIM_DIRECTION_U_UP )
+    {
+        int const row_mask = dim - 1;
+        int shift = tex->animation_speed * cycles;
+        if( tex->animation_direction == TORIDRAW_TEXANIM_DIRECTION_U_DOWN )
+            shift = -shift;
+
+        for( int row = 0; row < pixel_count; row += dim )
+        {
+            for( int col = 0; col < dim; col++ )
+            {
+                int const dst = row + col;
+                int const src = ((shift + col) & row_mask) + row;
+                scratch[dst] = tex->texels[src];
+            }
+        }
+
+        memcpy(tex->texels, scratch, (size_t)pixel_count * sizeof(int));
+    }
+}
+
+void
+ToriDraw_TextureMapAnimate(
+    struct ToriDraw_TextureMap* map,
+    int cycles)
+{
+    if( !map || cycles <= 0 )
+        return;
+
+    static int scratch[128 * 128];
+
+    for( int i = 0; i < map->count; i++ )
+    {
+        struct ToriDraw_Texture* tex = map->textures[i];
+        if( !tex || !tex->texels )
+            continue;
+        if( tex->animation_direction == TORIDRAW_TEXANIM_DIRECTION_NONE || tex->animation_speed == 0 )
+            continue;
+
+        int const pixel_count = tex->width * tex->height;
+        if( pixel_count <= 0 || pixel_count > (int)(sizeof(scratch) / sizeof(scratch[0])) )
+            continue;
+
+        ToriDraw_TextureAnimate(tex, cycles, scratch);
+    }
+}

@@ -10,6 +10,7 @@
 #include "../world/minimap.h"
 #include "../world/world_builder.h"
 #include "3rd/minipt.h"
+#include "osrs/painters.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_animation.h"
@@ -454,7 +455,8 @@ game_runescape_rebuild_world_map(struct GameRunescape* game)
         return;
     }
 
-    struct ToriDraw_Sprite** sprites_array = (struct ToriDraw_Sprite**)malloc(sizeof(*sprites_array));
+    struct ToriDraw_Sprite** sprites_array =
+        (struct ToriDraw_Sprite**)malloc(sizeof(*sprites_array));
     if( !sprites_array )
     {
         ToriDraw_SpriteFree(sp);
@@ -472,8 +474,8 @@ game_runescape_rebuild_world_map(struct GameRunescape* game)
 void
 game_runescape_build_world(struct GameRunescape* game)
 {
-    struct WorldBuilder* builder =
-        world_builder_new(game->world, game->core, game->scene, game->td, ToriAuxLibVM_VarPVarBit(game->vm));
+    struct WorldBuilder* builder = world_builder_new(
+        game->world, game->core, game->scene, game->td, ToriAuxLibVM_VarPVarBit(game->vm));
     assert(builder && "game_runescape_build_world: failed to allocate world builder");
     world_builder_rebuild_centerzone(builder, game->zone_center_x, game->zone_center_z, 104);
     world_builder_free(builder);
@@ -898,19 +900,18 @@ game_runescape_emit_ui_component(
             component->position.width,
             component->position.height);
         command->u.sprite.rotated = 1;
-        command->u.sprite.rotation =
-            game->camera ? ToriDraw_NormalizeAngle(game->camera->yaw) : 0;
+        command->u.sprite.rotation = game->camera ? ToriDraw_NormalizeAngle(game->camera->yaw) : 0;
         command->u.sprite.dst_anchor_x = component->position.anchor_x;
         command->u.sprite.dst_anchor_y = component->position.anchor_y;
         {
             int sprite_count = 0;
             struct ToriDraw_Sprite** sprites =
                 game->scene ? ToriDraw_SceneSpriteGet(game->scene, scene_id, &sprite_count) : NULL;
-            struct ToriDraw_Sprite* sp =
-                (sprites && atlas_index >= 0 && atlas_index < sprite_count) ? sprites[atlas_index]
-                                                                            : NULL;
-            int sw = sp ? (sp->crop_width > 0 ? sp->crop_width : sp->width)
-                        : component->position.width;
+            struct ToriDraw_Sprite* sp = (sprites && atlas_index >= 0 && atlas_index < sprite_count)
+                                             ? sprites[atlas_index]
+                                             : NULL;
+            int sw =
+                sp ? (sp->crop_width > 0 ? sp->crop_width : sp->width) : component->position.width;
             int sh = sp ? (sp->crop_height > 0 ? sp->crop_height : sp->height)
                         : component->position.height;
             command->u.sprite.src_anchor_x = sw >> 1;
@@ -952,8 +953,7 @@ game_runescape_emit_ui_component(
             component->position.width,
             component->position.height);
         command->u.sprite.rotated = 1;
-        command->u.sprite.rotation =
-            game->camera ? ToriDraw_NormalizeAngle(game->camera->yaw) : 0;
+        command->u.sprite.rotation = game->camera ? ToriDraw_NormalizeAngle(game->camera->yaw) : 0;
         command->u.sprite.dst_anchor_x = component->position.anchor_x;
         command->u.sprite.dst_anchor_y = component->position.anchor_y;
         if( game->camera_position && game->world_map_w > 0 && game->world_map_h > 0 )
@@ -1103,8 +1103,10 @@ rs_phase_models(
         int camera_sz;
         int camera_slevel;
         game_runescape_camera_tile(game, &camera_sx, &camera_sz, &camera_slevel);
-        painter_paint_bucket(
+        painter_paint_world3d(
             world->painter, game->painter_buffer, camera_sx, camera_sz, camera_slevel);
+        // painter_paint_bucket(
+        //     world->painter, game->painter_buffer, camera_sx, camera_sz, camera_slevel);
         game->frame.painter_paint_done = true;
     }
 
@@ -1235,6 +1237,12 @@ game_runescape_frame_begin(
     world_pickset_reset(&game->pickset);
     for( int i = 0; i < cycles_elapsed; i++ )
         game_runescape_tick_animations(game);
+    if( game->scene )
+    {
+        struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(game->scene);
+        if( tex_state )
+            ToriDraw_TextureMapAnimate(&tex_state->texture_map, cycles_elapsed);
+    }
     if( game->world )
         world_cycle(game->world, cycles_elapsed);
     game_runescape_drain_world_events(game);

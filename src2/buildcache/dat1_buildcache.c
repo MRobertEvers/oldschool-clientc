@@ -106,18 +106,18 @@ dat1_buildcache_new(void)
     memset(dat1_buildcache, 0, sizeof(struct Dat1BuildCache));
 
     dat1_buildcache->models_hmap =
-        dat1_buildcache_map_new(sizeof(struct MapEntry_CacheModel), 1024);
+        dat1_buildcache_map_new(sizeof(struct MapEntry_CacheModel), 4096);
     dat1_buildcache->map_terrain_hmap =
         dat1_buildcache_map_new(sizeof(struct MapEntry_Terrain), 256);
     dat1_buildcache->map_scenery_hmap =
         dat1_buildcache_map_new(sizeof(struct MapEntry_Scenery), 256);
     dat1_buildcache->sequences_hmap =
-        dat1_buildcache_map_new(sizeof(struct MapEntry_Sequence), 1024);
-    dat1_buildcache->flotype_hmap = dat1_buildcache_map_new(sizeof(struct MapEntry_Flotype), 256);
+        dat1_buildcache_map_new(sizeof(struct MapEntry_Sequence), 32768);
+    dat1_buildcache->flotype_hmap = dat1_buildcache_map_new(sizeof(struct MapEntry_Flotype), 512);
     dat1_buildcache->config_loc_hmap =
-        dat1_buildcache_map_new(sizeof(struct MapEntry_ConfigLoc), 1024);
+        dat1_buildcache_map_new(sizeof(struct MapEntry_ConfigLoc), 4096);
     dat1_buildcache->animbaseframes_hmap =
-        dat1_buildcache_map_new(sizeof(struct MapEntry_AnimBaseFrames), 512);
+        dat1_buildcache_map_new(sizeof(struct MapEntry_AnimBaseFrames), 2048);
 
     return dat1_buildcache;
 }
@@ -702,7 +702,7 @@ dat1_buildcache_sequences_reset(struct Dat1BuildCache* dat1_buildcache)
         return;
 
     dat1_buildcache_map_reset(
-        &dat1_buildcache->sequences_hmap, sizeof(struct MapEntry_Sequence), 1024);
+        &dat1_buildcache->sequences_hmap, sizeof(struct MapEntry_Sequence), 32768);
 }
 
 void
@@ -712,7 +712,7 @@ dat1_buildcache_floortypes_reset(struct Dat1BuildCache* dat1_buildcache)
         return;
 
     dat1_buildcache_map_reset(
-        &dat1_buildcache->flotype_hmap, sizeof(struct MapEntry_Flotype), 256);
+        &dat1_buildcache->flotype_hmap, sizeof(struct MapEntry_Flotype), 512);
 }
 
 void
@@ -722,7 +722,7 @@ dat1_buildcache_scenery_configs_reset(struct Dat1BuildCache* dat1_buildcache)
         return;
 
     dat1_buildcache_map_reset(
-        &dat1_buildcache->config_loc_hmap, sizeof(struct MapEntry_ConfigLoc), 1024);
+        &dat1_buildcache->config_loc_hmap, sizeof(struct MapEntry_ConfigLoc), 4096);
 }
 
 void
@@ -732,7 +732,7 @@ dat1_buildcache_animbaseframes_reset(struct Dat1BuildCache* dat1_buildcache)
         return;
 
     dat1_buildcache_map_reset(
-        &dat1_buildcache->animbaseframes_hmap, sizeof(struct MapEntry_AnimBaseFrames), 512);
+        &dat1_buildcache->animbaseframes_hmap, sizeof(struct MapEntry_AnimBaseFrames), 2048);
 }
 
 void

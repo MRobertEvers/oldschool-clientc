@@ -3,10 +3,10 @@
 
 #include "heightmap.h"
 #include "sharelight_map.h"
-#include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_lighting.h"
 #include "toridraw/toridraw_model.h"
+#include "toridraw/toridraw_scene.h"
 #include "world_builder.h"
 
 #include <assert.h>
@@ -191,7 +191,7 @@ merge_normals(
     }
 }
 
-#define ADJACENT_TILES_COUNT 48
+#define ADJACENT_TILES_COUNT 96
 
 static void
 defaultlight_build(struct WorldBuilder* builder)

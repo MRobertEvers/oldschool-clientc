@@ -250,11 +250,7 @@ scenery_load_model(
     int model_ids[10] = { 0 };
     int models_count = 0;
 
-    // In old dat caches, the shape_select matched the loctype.
-    // if( !shapes || shapes[0] == 10 || shapes[0] == 11 )
-    // For old caches
-    // if( !shapes )
-    if( !config_loc->shapes || config_loc->shapes[0] == 10 || config_loc->shapes[0] == 11 )
+    if( !config_loc->shapes )
     {
         int count = config_loc->lengths ? config_loc->lengths[0] : 0;
         for( int i = 0; i < count && models_count < 10; i++ )

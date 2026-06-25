@@ -371,6 +371,7 @@ LibToriRS_FrameBegin(struct LibToriRS_Instance* instance)
         instance->anim_accumulator_ms -= LIBTORIRS_ANIM_SAMPLE_MS;
         cycles_elapsed++;
     }
+    instance->anim_cycle_count += (uint64_t)cycles_elapsed;
 
     switch( instance->active_game_kind )
     {
@@ -385,6 +386,14 @@ LibToriRS_FrameBegin(struct LibToriRS_Instance* instance)
     default:
         break;
     }
+}
+
+uint64_t
+LibToriRS_GetAnimationClock(struct LibToriRS_Instance* instance)
+{
+    if( !instance )
+        return 0;
+    return instance->anim_cycle_count;
 }
 
 bool

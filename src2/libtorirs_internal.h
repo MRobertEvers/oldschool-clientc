@@ -35,6 +35,7 @@ struct LibToriRS_Instance
     uint64_t input_accumulator_ms;
     uint64_t anim_last_tick_ms;
     uint64_t anim_accumulator_ms;
+    uint64_t anim_cycle_count;
     struct LibToriRS_IOQueue* io_queue;
     struct LibToriRS_ScriptQueue* script_queue;
     struct LibToriRS_Input* input;

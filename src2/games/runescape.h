@@ -20,10 +20,9 @@ struct ToriDraw_Scene;
 struct ToriAuxLibTD;
 struct LibToriRS_IOContext;
 
-/* OSRS rebuild-normal zone coords: map_chunk * 8 (zone 400 -> map chunk 50). */
-#define RUNESCAPE_MAP_CHUNK_CENTER 50
-#define RUNESCAPE_ZONE_CENTER_X (RUNESCAPE_MAP_CHUNK_CENTER * 8)
-#define RUNESCAPE_ZONE_CENTER_Z (RUNESCAPE_MAP_CHUNK_CENTER * 8)
+/* OSRS rebuild-normal zone coords (zonex, zonez). */
+#define RUNESCAPE_ZONE_CENTER_X 313
+#define RUNESCAPE_ZONE_CENTER_Z 437
 
 #define RUNESCAPE_PROJECTILE_MODEL_ID 3081
 #define RUNESCAPE_PROJECTILE_SEQ_ID 659

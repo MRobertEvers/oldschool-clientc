@@ -2043,9 +2043,9 @@ LibToriPlatformSDL2_RendererD3D9_Render(
 
     renderer->in3d = false;
     renderer->has_3d = false;
-    renderer->frame_clock += 1.0 / 50.0;
 
     LibToriRS_FrameBegin(instance);
+    renderer->frame_clock = (double)LibToriRS_GetAnimationClock(instance);
     struct LibToriRS_RenderCommand command;
     while( LibToriRS_FrameNextCommand(instance, &command) )
         d3d9_handle_render_command(renderer, instance, &command);

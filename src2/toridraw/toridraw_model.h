@@ -172,6 +172,17 @@ ToriDraw_TextureMapGet(
 int
 ToriDraw_TextureAverageHsl16(const struct ToriDraw_Texture* texture);
 
+void
+ToriDraw_TextureAnimate(
+    struct ToriDraw_Texture* tex,
+    int cycles,
+    int* scratch);
+
+void
+ToriDraw_TextureMapAnimate(
+    struct ToriDraw_TextureMap* map,
+    int cycles);
+
 static inline bool
 ToriDraw_ModelHasTextures(struct ToriDraw_ModelHandle hnd)
 {

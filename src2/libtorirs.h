@@ -60,6 +60,9 @@ LibToriRS_SetCpuAnimation(
 void
 LibToriRS_FrameBegin(struct LibToriRS_Instance* instance);
 
+uint64_t
+LibToriRS_GetAnimationClock(struct LibToriRS_Instance* instance);
+
 bool
 LibToriRS_FrameNextCommand(
     struct LibToriRS_Instance* instance,

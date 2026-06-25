@@ -1366,9 +1366,9 @@ LibToriPlatformSDL2_RendererWebGL1_Render(
 
     renderer->in3d = false;
     renderer->has_3d = false;
-    renderer->frame_clock += 1.0 / 50.0;
 
     LibToriRS_FrameBegin(instance);
+    renderer->frame_clock = (double)LibToriRS_GetAnimationClock(instance);
     struct LibToriRS_RenderCommand command;
     while( LibToriRS_FrameNextCommand(instance, &command) )
         webgl1_handle_render_command(renderer, instance, &command);
