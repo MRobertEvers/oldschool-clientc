@@ -203,4 +203,11 @@ minimap_render_dynamic(
     int ne_z,
     struct MinimapRenderCommandBuffer* command_buffer);
 
+/** Returns a malloc'd (width*4 x height*4) ARGB buffer of the whole map; caller owns. */
+uint32_t*
+minimap_bake_argb(
+    struct Minimap* minimap,
+    int* out_width,
+    int* out_height);
+
 #endif

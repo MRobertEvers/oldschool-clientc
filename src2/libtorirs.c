@@ -3,12 +3,12 @@
 #include "3rd/minipt.h"
 #include "commands/libtorirs_command_queue.h"
 #include "commands/libtorirs_command_queue_internal.h"
-#include "toriauxlib/toriauxlib.h"
 #include "games/model_viewer.h"
 #include "games/runescape.h"
 #include "input/libtorirs_input.h"
 #include "libtorirs_internal.h"
 #include "scripting/libtorirs_scripting.h"
+#include "toriauxlib/toriauxlib.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_scene.h"
 
@@ -26,6 +26,15 @@
 struct LibToriRS_Instance*
 LibToriRS_InstanceNew(void)
 {
+    return LibToriRS_InstanceNewWithCacheMode(TORIAUXLIBC_MODE_DAT1);
+}
+
+struct LibToriRS_Instance*
+LibToriRS_InstanceNewWithCacheMode(int cache_mode)
+{
+    enum ToriAuxLibCMode mode = TORIAUXLIBC_MODE_DAT1;
+    if( cache_mode == TORIAUXLIBC_MODE_DAT2 )
+        mode = TORIAUXLIBC_MODE_DAT2;
     struct LibToriRS_Instance* instance = calloc(1, sizeof(struct LibToriRS_Instance));
     if( !instance )
         return NULL;
@@ -53,27 +62,6 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
-    // instance->dat1_buildcache = dat1_buildcache_new();
-    // if( !instance->dat1_buildcache )
-    // {
-    //     LibToriRS_IOQueueFree(instance->io_queue);
-    //     LibToriRS_Input_Free(instance->input);
-    //     LibToriRS_ScriptQueueFree(instance->script_queue);
-    //     free(instance);
-    //     return NULL;
-    // }
-
-    // instance->core = gamecache_new();
-    // if( !instance->core )
-    // {
-    //     dat1_buildRSCacheDat2Disk_Free(instance->dat1_buildcache);
-    //     LibToriRS_IOQueueFree(instance->io_queue);
-    //     LibToriRS_Input_Free(instance->input);
-    //     LibToriRS_ScriptQueueFree(instance->script_queue);
-    //     free(instance);
-    //     return NULL;
-    // }
-
     instance->scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL);
     if( !instance->scene )
     {
@@ -84,7 +72,7 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
-    instance->toriauxlib = ToriAuxLib_New(TORIAUXLIBC_MODE_DAT1, instance->scene);
+    instance->toriauxlib = ToriAuxLib_New(mode, instance->scene);
     if( !instance->toriauxlib )
     {
         ToriDraw_SceneFree(instance->scene);
@@ -348,19 +336,19 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                     sz = game->camera_position->z / 128;
                     level = game_runescape_camera_terrain_level(game);
                 }
-                struct ToriRunescape_Task_AddProjectile* task = ToriRunescape_Task_AddProjectile_New(
-                    game,
-                    RUNESCAPE_PROJECTILE_MODEL_ID,
-                    RUNESCAPE_PROJECTILE_SEQ_ID,
-                    sx,
-                    sz,
-                    sx + 5,
-                    sz,
-                    level);
+                struct ToriRunescape_Task_AddProjectile* task =
+                    ToriRunescape_Task_AddProjectile_New(
+                        game,
+                        RUNESCAPE_PROJECTILE_MODEL_ID,
+                        RUNESCAPE_PROJECTILE_SEQ_ID,
+                        sx,
+                        sz,
+                        sx + 5,
+                        sz,
+                        level);
                 if( task )
                 {
-                    LibToriRS_TasksAdd(
-                        instance, task, ToriRunescape_Task_AddProjectile_Run);
+                    LibToriRS_TasksAdd(instance, task, ToriRunescape_Task_AddProjectile_Run);
                 }
             }
         }
@@ -457,6 +445,14 @@ LibToriRS_GetCurrentToriDrawScene(struct LibToriRS_Instance* instance)
     if( !instance )
         return NULL;
     return instance->scene;
+}
+
+struct ToriAuxLib*
+LibToriRS_GetToriAuxLib(struct LibToriRS_Instance* instance)
+{
+    if( !instance )
+        return NULL;
+    return instance->toriauxlib;
 }
 
 static void
@@ -567,8 +563,7 @@ LibToriRS_TasksRun(struct LibToriRS_Instance* instance)
     int task_idx = instance->task_live_head;
     struct LibToriRS_Task* task = &instance->tasks[task_idx];
 
-    if( task->wait_run >= 0 &&
-        !LibToriRS_IOQueueRunComplete(instance->io_queue, task->wait_run) )
+    if( task->wait_run >= 0 && !LibToriRS_IOQueueRunComplete(instance->io_queue, task->wait_run) )
         return true;
 
     int run = LibToriRS_IOQueueBeginRun(instance->io_queue);

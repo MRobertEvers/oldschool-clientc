@@ -212,6 +212,79 @@ ToriDraw2D_BlitSprite_subrect(
 }
 
 void
+ToriDraw2D_BlitSpriteRotatedEx(
+    struct ToriDraw_Sprite* sprite,
+    struct ToriDraw_ViewPort* view_port,
+    int dst_x,
+    int dst_y,
+    int dst_w,
+    int dst_h,
+    int dst_anchor_x,
+    int dst_anchor_y,
+    int src_anchor_x,
+    int src_anchor_y,
+    int rotation_r2pi2048,
+    int* pixel_buffer)
+{
+    if( !sprite || !sprite->pixels_argb || !view_port || !pixel_buffer || dst_w <= 0 || dst_h <= 0 )
+        return;
+
+    int src_crop_x = sprite->crop_x;
+    int src_crop_y = sprite->crop_y;
+    int src_width = sprite->crop_width > 0 ? sprite->crop_width : sprite->width;
+    int src_height = sprite->crop_height > 0 ? sprite->crop_height : sprite->height;
+    int src_stride = sprite->width;
+    int dst_stride = view_port->stride;
+    int dst_buffer_height = view_port->clip_bottom;
+
+    rotation_r2pi2048 = ToriDraw_NormalizeAngle(rotation_r2pi2048);
+    int sin = ToriDraw_Sin(rotation_r2pi2048);
+    int cos = ToriDraw_Cos(rotation_r2pi2048);
+
+    int min_x = dst_x;
+    int min_y = dst_y;
+    int max_x = dst_x + dst_w;
+    int max_y = dst_y + dst_h;
+
+    if( min_x < view_port->clip_left )
+        min_x = view_port->clip_left;
+    if( max_x > view_port->clip_right )
+        max_x = view_port->clip_right;
+    if( min_x >= max_x )
+        return;
+    if( min_y < view_port->clip_top )
+        min_y = view_port->clip_top;
+    if( max_y > view_port->clip_bottom )
+        max_y = view_port->clip_bottom;
+    if( min_y >= max_y )
+        return;
+
+    for( int dst_y_abs = min_y; dst_y_abs < max_y; dst_y_abs++ )
+    {
+        for( int dst_x_abs = min_x; dst_x_abs < max_x; dst_x_abs++ )
+        {
+            int rel_x = dst_x_abs - dst_x - dst_anchor_x;
+            int rel_y = dst_y_abs - dst_y - dst_anchor_y;
+
+            int src_rel_x = ((rel_x * cos + rel_y * sin) >> 16);
+            int src_rel_y = ((-rel_x * sin + rel_y * cos) >> 16);
+
+            int sx = src_anchor_x + src_rel_x;
+            int sy = src_anchor_y + src_rel_y;
+
+            if( sx >= 0 && sx < src_width && sy >= 0 && sy < src_height )
+            {
+                int bx = src_crop_x + sx;
+                int by = src_crop_y + sy;
+                uint32_t src_pixel = sprite->pixels_argb[by * src_stride + bx];
+                if( src_pixel != 0 )
+                    pixel_buffer[dst_y_abs * dst_stride + dst_x_abs] = (int)src_pixel;
+            }
+        }
+    }
+}
+
+void
 ToriDraw2D_BlitSpriteRotated(
     struct ToriDraw_Sprite* sprite,
     struct ToriDraw_ViewPort* view_port,

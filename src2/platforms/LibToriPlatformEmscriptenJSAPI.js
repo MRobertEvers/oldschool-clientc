@@ -201,6 +201,14 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures",
     );
+    this._scriptAPIDat2TexturesLoad = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat2_TexturesLoad",
+    );
+    this._scriptAPIGetCacheMode = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_GetCacheMode",
+    );
     this._scriptAPIGameCacheModelsClearAll = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_ModelsClearAll",
@@ -462,6 +470,14 @@ export class LibToriPlatformEmscriptenJSAPI {
 
   scriptAPIDat1SubmitTextures() {
     this._scriptAPIDat1SubmitTextures(this.instancePtr);
+  }
+
+  scriptAPIDat2TexturesLoad() {
+    return !!this._scriptAPIDat2TexturesLoad(this.instancePtr);
+  }
+
+  scriptAPIGetCacheMode() {
+    return this._scriptAPIGetCacheMode(this.instancePtr);
   }
 
   scriptAPIGameCacheModelsClearAll() {

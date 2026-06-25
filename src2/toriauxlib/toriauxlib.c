@@ -7,6 +7,7 @@ struct ToriAuxLib
     struct ToriAuxLibCore* core;
     struct ToriAuxLibC* c;
     struct ToriAuxLibTD* td;
+    struct ToriAuxLibVM* vm;
 };
 
 struct ToriAuxLib*
@@ -30,6 +31,10 @@ ToriAuxLib_New(
     if( !tal->td )
         goto fail;
 
+    tal->vm = ToriAuxLibVM_New();
+    if( !tal->vm )
+        goto fail;
+
     return tal;
 
 fail:
@@ -44,6 +49,8 @@ ToriAuxLib_Free(struct ToriAuxLib* tal)
         return;
     if( tal->td )
         ToriAuxLibTD_Free(tal->td);
+    if( tal->vm )
+        ToriAuxLibVM_Free(tal->vm);
     if( tal->c )
         ToriAuxLibC_Free(tal->c);
     if( tal->core )
@@ -67,4 +74,10 @@ struct ToriAuxLibTD*
 ToriAuxLib_TD(struct ToriAuxLib* tal)
 {
     return tal ? tal->td : NULL;
+}
+
+struct ToriAuxLibVM*
+ToriAuxLib_VM(struct ToriAuxLib* tal)
+{
+    return tal ? tal->vm : NULL;
 }

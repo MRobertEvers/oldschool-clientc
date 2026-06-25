@@ -296,9 +296,7 @@ trspk_ibochain_append_u16(
     trspk_ibochain_ensure_capacity(tail, index_count);
 
     memcpy(
-        tail->ibo.indices.as_u16 + tail->ibo.index_count,
-        indices,
-        sizeof(uint16_t) * index_count);
+        tail->ibo.indices.as_u16 + tail->ibo.index_count, indices, sizeof(uint16_t) * index_count);
     tail->ibo.index_count += index_count;
 }
 
@@ -325,9 +323,7 @@ trspk_ibochain_append_u32(
     trspk_ibochain_ensure_capacity(tail, index_count);
 
     memcpy(
-        tail->ibo.indices.as_u32 + tail->ibo.index_count,
-        indices,
-        sizeof(uint32_t) * index_count);
+        tail->ibo.indices.as_u32 + tail->ibo.index_count, indices, sizeof(uint32_t) * index_count);
     tail->ibo.index_count += index_count;
 }
 
@@ -361,12 +357,7 @@ trspk_ibochain_pushs16(
     const int16_t* indices,
     uint32_t index_count)
 {
-    trspk_ibochain_append_u16(
-        chain,
-        group,
-        offset,
-        (const uint16_t*)indices,
-        index_count);
+    trspk_ibochain_append_u16(chain, group, offset, (const uint16_t*)indices, index_count);
 }
 
 void
@@ -377,10 +368,5 @@ trspk_ibochain_pushs32(
     const int32_t* indices,
     uint32_t index_count)
 {
-    trspk_ibochain_append_u32(
-        chain,
-        group,
-        offset,
-        (const uint32_t*)indices,
-        index_count);
+    trspk_ibochain_append_u32(chain, group, offset, (const uint32_t*)indices, index_count);
 }

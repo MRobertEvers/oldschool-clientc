@@ -80,6 +80,38 @@ revconfig_ui_build_init(struct RevConfigUIBuildState* state)
 }
 
 void
+revconfig_ui_build_set_core(
+    struct RevConfigUIBuildState* state,
+    struct ToriAuxLibCore* core)
+{
+    if( !state )
+        return;
+    state->core = core;
+}
+
+static void
+revconfig_ui_build_behavior_from_component(
+    struct StaticUIBehavior* out,
+    struct ToriAuxLibCore_Component const* comp)
+{
+    if( !out || !comp )
+        return;
+
+    memset(out, 0, sizeof(*out));
+    out->hide = comp->hide;
+    out->button_type = comp->button_type;
+    out->client_code = comp->client_code;
+    out->over_color = comp->over_color;
+    out->active_color = comp->active_color;
+    out->active_over_color = comp->active_over_color;
+    out->scripts_count = comp->scripts_count;
+    out->scripts = comp->scripts;
+    out->scripts_lengths = comp->scripts_lengths;
+    out->script_comparator = comp->script_comparator;
+    out->script_operand = comp->script_operand;
+}
+
+void
 revconfig_ui_build_collect_items(
     struct RevConfigUIBuildState* state,
     struct RevConfigItemBuffer const* items)
@@ -343,6 +375,18 @@ revconfig_ui_build_node(
 
     if( idx >= 0 && le->dirty )
         tree->components[idx].always_dirty = 1;
+
+    if( idx >= 0 && component_id >= 0 && state->core )
+    {
+        struct ToriAuxLibCore_Component* gc_comp =
+            ToriAuxLibCore_ComponentGet(state->core, component_id);
+        if( gc_comp )
+        {
+            struct StaticUIBehavior behavior;
+            revconfig_ui_build_behavior_from_component(&behavior, gc_comp);
+            uitree_set_behavior(tree, idx, &behavior);
+        }
+    }
 
     return idx;
 }

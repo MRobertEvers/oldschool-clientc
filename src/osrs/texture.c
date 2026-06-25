@@ -65,46 +65,24 @@ normalize_pixel_buffer(
 }
 
 struct DashTexture*
-texture_new_from_definition(
+texture_new_from_definition_packs(
     struct RSCacheDat2A_Texture* texture_definition,
-    struct DashMap* sprites_hmap)
+    struct RSCacheDat2A_SpritePack** packs)
 {
-    struct SpritePackEntry* spritepack_entry = NULL;
-    struct RSCacheDat2A_SpritePack* sprite_pack = NULL;
     struct RSCacheDat2A_Sprite* sprite = NULL;
-    if( !texture_definition || !sprites_hmap )
+    if( !texture_definition || !packs )
         return NULL;
 
     bool opaque = texture_definition->opaque;
-    int size = 128; // Default texture size
+    int size = 128;
     int* pixels = (int*)malloc(size * size * sizeof(int));
     if( !pixels )
         return NULL;
     memset(pixels, 0, size * size * sizeof(int));
 
-    struct RSCacheDat2A_SpritePack** sprite_packs = (struct RSCacheDat2A_SpritePack**)malloc(
-        texture_definition->sprite_ids_count * sizeof(struct RSCacheDat2A_SpritePack*));
-    memset(sprite_packs, 0, texture_definition->sprite_ids_count * sizeof(struct RSCacheDat2A_SpritePack*));
-
-    // Load all sprite packs
     for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
     {
-        int sprite_id = texture_definition->sprite_ids[i];
-        spritepack_entry =
-            (struct SpritePackEntry*)dashmap_search(sprites_hmap, &sprite_id, DASHMAP_FIND);
-        assert(spritepack_entry && "Spritepack must be inserted into hmap");
-        sprite_pack = spritepack_entry->spritepack;
-        assert(sprite_pack && "Texture SpritePacks must be loaded prior to texture creation");
-        if( !sprite_pack )
-            continue;
-
-        sprite_packs[i] = sprite_pack;
-    }
-
-    // Process each sprite pack
-    for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
-    {
-        struct RSCacheDat2A_SpritePack* sprite_pack = sprite_packs[i];
+        struct RSCacheDat2A_SpritePack* sprite_pack = packs[i];
         if( !sprite_pack || sprite_pack->count == 0 )
             continue;
 
@@ -116,25 +94,15 @@ texture_new_from_definition(
         int* adjusted_palette = (int*)malloc(palette_length * sizeof(int));
         if( !adjusted_palette )
         {
-            // Clean up and return NULL
-            // for( int j = 0; j < texture_definition->sprite_ids_count; j++ )
-            // {
-            //     if( sprite_packs[j] )
-            //         RSCacheDat2A_SpritePackFree(sprite_packs[j]);
-            // }
-            free(sprite_packs);
             free(pixels);
             return NULL;
         }
 
-        // Adjust palette with gamma
         for( int pi = 0; pi < palette_length; pi++ )
         {
             int alpha = 0xff;
             if( (palette[pi] & 0xf8f8ff) == 0 )
-            {
                 alpha = 0;
-            }
             adjusted_palette[pi] = (alpha << 24) | gamma_blend(palette[pi], 0.8f);
         }
 
@@ -142,17 +110,13 @@ texture_new_from_definition(
         {
             int palette_index = palette_pixels[pixel_index];
             if( (adjusted_palette[palette_index] & 0xf8f8ff) == 0 )
-            {
                 opaque = false;
-            }
         }
 
-        // Determine sprite type index
         int index = 0;
         if( i > 0 && texture_definition->sprite_types )
             index = texture_definition->sprite_types[i - 1];
 
-        // Combine sprite into texture
         if( index == 0 )
         {
             if( size == sprite->width )
@@ -182,22 +146,13 @@ texture_new_from_definition(
         free(adjusted_palette);
     }
 
-    // Clean up sprite packs
-    // for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
-    // {
-    //     if( sprite_packs[i] )
-    //         RSCacheDat2A_SpritePackFree(sprite_packs[i]);
-    // }
-    free(sprite_packs);
-
-    // Create texture structure
     struct DashTexture* texture = (struct DashTexture*)malloc(sizeof(struct DashTexture));
-    memset(texture, 0, sizeof(struct DashTexture));
     if( !texture )
     {
         free(pixels);
         return NULL;
     }
+    memset(texture, 0, sizeof(struct DashTexture));
 
     texture->texels = pixels;
     texture->width = size;
@@ -206,6 +161,41 @@ texture_new_from_definition(
     texture->animation_direction = texture_definition->animation_direction;
     texture->animation_speed = texture_definition->animation_speed;
 
+    return texture;
+}
+
+struct DashTexture*
+texture_new_from_definition(
+    struct RSCacheDat2A_Texture* texture_definition,
+    struct DashMap* sprites_hmap)
+{
+    struct SpritePackEntry* spritepack_entry = NULL;
+    struct RSCacheDat2A_SpritePack* sprite_pack = NULL;
+    if( !texture_definition || !sprites_hmap )
+        return NULL;
+
+    struct RSCacheDat2A_SpritePack** sprite_packs = (struct RSCacheDat2A_SpritePack**)malloc(
+        texture_definition->sprite_ids_count * sizeof(struct RSCacheDat2A_SpritePack*));
+    if( !sprite_packs )
+        return NULL;
+    memset(sprite_packs, 0, texture_definition->sprite_ids_count * sizeof(struct RSCacheDat2A_SpritePack*));
+
+    for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
+    {
+        int sprite_id = texture_definition->sprite_ids[i];
+        spritepack_entry =
+            (struct SpritePackEntry*)dashmap_search(sprites_hmap, &sprite_id, DASHMAP_FIND);
+        assert(spritepack_entry && "Spritepack must be inserted into hmap");
+        sprite_pack = spritepack_entry->spritepack;
+        assert(sprite_pack && "Texture SpritePacks must be loaded prior to texture creation");
+        if( !sprite_pack )
+            continue;
+
+        sprite_packs[i] = sprite_pack;
+    }
+
+    struct DashTexture* texture = texture_new_from_definition_packs(texture_definition, sprite_packs);
+    free(sprite_packs);
     return texture;
 }
 // @ObfuscatedName("kb.a([II[B[IIIIIII)V")

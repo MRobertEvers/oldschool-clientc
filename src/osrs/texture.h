@@ -13,6 +13,13 @@ struct SpritePackEntry
     struct RSCacheDat2A_SpritePack* spritepack;
 };
 
+struct RSCacheDat2A_SpritePack;
+
+struct DashTexture*
+texture_new_from_definition_packs(
+    struct RSCacheDat2A_Texture* texture_definition,
+    struct RSCacheDat2A_SpritePack** packs);
+
 struct DashTexture*
 texture_new_from_definition(
     struct RSCacheDat2A_Texture* texture_definition,

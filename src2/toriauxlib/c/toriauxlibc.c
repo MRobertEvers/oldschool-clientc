@@ -1,9 +1,12 @@
 #include "toriauxlibc.h"
 
 #include "3rd/minipt.h"
+#include "buildcache/dat1_buildcache.h"
+#include "buildcache/dat2_buildcache.h"
 #include "dat1.h"
 #include "dat1_world.h"
-#include "buildcache/dat1_buildcache.h"
+#include "dat2.h"
+#include "dat2_world.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -14,6 +17,8 @@ struct ToriAuxLibC
     struct ToriAuxLibCore* core;
     enum ToriAuxLibCMode mode;
     struct Dat1BuildCache* dat1_buildcache;
+    struct Dat2BuildCache* dat2_buildcache;
+    struct RSCacheDat2Disk* dat2_disk;
 };
 
 struct ToriAuxLibC*
@@ -38,6 +43,14 @@ ToriAuxLibC_New(
             return NULL;
         }
         break;
+    case TORIAUXLIBC_MODE_DAT2:
+        c->dat2_buildcache = dat2_buildcache_new();
+        if( !c->dat2_buildcache )
+        {
+            free(c);
+            return NULL;
+        }
+        break;
     default:
         free(c);
         return NULL;
@@ -53,6 +66,8 @@ ToriAuxLibC_Free(struct ToriAuxLibC* c)
         return;
     if( c->dat1_buildcache )
         dat1_buildRSCacheDat2Disk_Free(c->dat1_buildcache);
+    if( c->dat2_buildcache )
+        dat2_buildcache_free(c->dat2_buildcache);
     free(c);
 }
 
@@ -61,6 +76,29 @@ ToriAuxLibC_Dat1BuildCache(struct ToriAuxLibC* c)
 {
     assert(c->mode == TORIAUXLIBC_MODE_DAT1);
     return c->dat1_buildcache;
+}
+
+struct Dat2BuildCache*
+ToriAuxLibC_Dat2BuildCache(struct ToriAuxLibC* c)
+{
+    assert(c->mode == TORIAUXLIBC_MODE_DAT2);
+    return c->dat2_buildcache;
+}
+
+void
+ToriAuxLibC_SetDat2Disk(
+    struct ToriAuxLibC* c,
+    struct RSCacheDat2Disk* disk)
+{
+    if( !c )
+        return;
+    c->dat2_disk = disk;
+}
+
+struct RSCacheDat2Disk*
+ToriAuxLibC_Dat2Disk(struct ToriAuxLibC* c)
+{
+    return c ? c->dat2_disk : NULL;
 }
 
 struct ToriAuxLibCore*
@@ -80,6 +118,7 @@ struct Task_ToriAuxLibC_ModelLoad
     struct ToriAuxLibC* c;
     int model_id;
     struct Task_Dat1ModelLoad* task_dat1;
+    struct Task_Dat2ModelLoad* task_dat2;
 };
 
 struct Task_ToriAuxLibC_ModelLoad*
@@ -94,7 +133,9 @@ Task_ToriAuxLibC_ModelLoad_New(
     task->model_id = model_id;
     if( c->mode == TORIAUXLIBC_MODE_DAT1 )
         task->task_dat1 = Task_Dat1ModelLoad_New(c, model_id);
-  else
+    else if( c->mode == TORIAUXLIBC_MODE_DAT2 )
+        task->task_dat2 = Task_Dat2ModelLoad_New(c, model_id);
+    else
     {
         free(task);
         return NULL;
@@ -110,6 +151,8 @@ Task_ToriAuxLibC_ModelLoad_Run(
     struct Task_ToriAuxLibC_ModelLoad* task = (struct Task_ToriAuxLibC_ModelLoad*)task_state;
     if( task->c->mode == TORIAUXLIBC_MODE_DAT1 )
         return Task_Dat1ModelLoad_Run(task->task_dat1, ctx);
+    if( task->c->mode == TORIAUXLIBC_MODE_DAT2 )
+        return Task_Dat2ModelLoad_Run(task->task_dat2, ctx);
     return PT_ENDED;
 }
 
@@ -117,6 +160,7 @@ struct Task_ToriAuxLibC_WorldRebuildNormal
 {
     struct ToriAuxLibC* c;
     struct Task_Dat1WorldRebuildNormal* task_dat1;
+    struct Task_Dat2WorldRebuildNormal* task_dat2;
 };
 
 struct Task_ToriAuxLibC_WorldRebuildNormal*
@@ -132,6 +176,8 @@ Task_ToriAuxLibC_WorldRebuildNormal_New(
     task->c = c;
     if( c->mode == TORIAUXLIBC_MODE_DAT1 )
         task->task_dat1 = Task_Dat1WorldRebuildNormal_New(c, zonex, zonez);
+    else if( c->mode == TORIAUXLIBC_MODE_DAT2 )
+        task->task_dat2 = Task_Dat2WorldRebuildNormal_New(c, zonex, zonez);
     else
     {
         free(task);
@@ -147,6 +193,8 @@ Task_ToriAuxLibC_WorldRebuildNormal_Free(struct Task_ToriAuxLibC_WorldRebuildNor
         return;
     if( task->c->mode == TORIAUXLIBC_MODE_DAT1 && task->task_dat1 )
         Task_Dat1WorldRebuildNormal_Free(task->task_dat1);
+    if( task->c->mode == TORIAUXLIBC_MODE_DAT2 && task->task_dat2 )
+        Task_Dat2WorldRebuildNormal_Free(task->task_dat2);
     free(task);
 }
 
@@ -159,5 +207,7 @@ Task_ToriAuxLibC_WorldRebuildNormal_Run(
         (struct Task_ToriAuxLibC_WorldRebuildNormal*)task_state;
     if( task->c->mode == TORIAUXLIBC_MODE_DAT1 )
         return Task_Dat1WorldRebuildNormal_Run(task->task_dat1, ctx);
+    if( task->c->mode == TORIAUXLIBC_MODE_DAT2 )
+        return Task_Dat2WorldRebuildNormal_Run(task->task_dat2, ctx);
     return PT_ENDED;
 }

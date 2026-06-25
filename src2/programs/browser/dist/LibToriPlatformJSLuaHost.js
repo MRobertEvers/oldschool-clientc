@@ -147,6 +147,17 @@ export class LibToriPlatformJSLuaHost {
     return 0;
   }
 
+  gameDat2TexturesLoad(L) {
+    const ok = this.emscriptenJSAPI.scriptAPIDat2TexturesLoad();
+    lua.lua_pushboolean(L, ok);
+    return 1;
+  }
+
+  gameGetCacheMode(L) {
+    lua.lua_pushstring(L, to_luastring(this.emscriptenJSAPI.scriptAPIGetCacheMode()));
+    return 1;
+  }
+
   gameGameCacheModelsClearAll(L) {
     this.emscriptenJSAPI.scriptAPIGameCacheModelsClearAll();
     return 0;
@@ -418,6 +429,14 @@ export function luaBindToPlatformJSLuaHost(L, platformLuaHost) {
   bindLuaFunctionToPlatform(
     "Dat1_SubmitTextures",
     platformLuaHost.gameDat1SubmitTextures,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat2_TexturesLoad",
+    platformLuaHost.gameDat2TexturesLoad,
+  );
+  bindLuaFunctionToPlatform(
+    "GetCacheMode",
+    platformLuaHost.gameGetCacheMode,
   );
   bindLuaFunctionToPlatform(
     "Dat1_MapChunkTerrainFetch",

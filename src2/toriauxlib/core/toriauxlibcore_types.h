@@ -213,6 +213,22 @@ struct ToriAuxLibCore_Font
     struct ToriDraw_Font* font;
 };
 
+struct ToriAuxLibCore_Component
+{
+    int id;
+    uint8_t hide;
+    int button_type;
+    int client_code;
+    int over_color;
+    int active_color;
+    int active_over_color;
+    int scripts_count;
+    int** scripts;
+    int* scripts_lengths;
+    int* script_comparator;
+    int* script_operand;
+};
+
 void
 ToriAuxLibCore_MapTerrainFree(struct ToriAuxLibCore_MapTerrain* terrain);
 
@@ -242,5 +258,8 @@ ToriAuxLibCore_SpriteFree(struct ToriAuxLibCore_Sprite* sprite);
 
 void
 ToriAuxLibCore_FontFree(struct ToriAuxLibCore_Font* font);
+
+void
+ToriAuxLibCore_ComponentFree(struct ToriAuxLibCore_Component* component);
 
 #endif

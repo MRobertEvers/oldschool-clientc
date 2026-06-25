@@ -2,7 +2,7 @@
 #define DAT1_BUILDCACHE_UI_H
 
 #include "buildcache/dat1_buildcache.h"
-#include "osrs/revconfig/revconfig.h"
+#include "revconfig/revconfig.h"
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_sprite.h"
 

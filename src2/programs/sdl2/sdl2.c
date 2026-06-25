@@ -1,5 +1,4 @@
 #include "../../commands/libtorirs_command_queue.h"
-#include "../../toriauxlib/toriauxlib.h"
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../platforms/platform_sdl2/platform_sdl2.h"
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"
@@ -9,6 +8,8 @@
 #include "../../platforms/platform_x_lua.h"
 #include "../../scripting/libtorirs_scriptapi.h"
 #include "../../scripting/libtorirs_scripting.h"
+#include "../../toriauxlib/c/toriauxlibc.h"
+#include "../../toriauxlib/toriauxlib.h"
 
 #if defined(_WIN32)
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_d3d9.h"
@@ -37,7 +38,8 @@ has_flag(
 static char const*
 resolve_cache_dat_path(
     int argc,
-    char* argv[])
+    char* argv[],
+    bool use_dat2)
 {
     for( int i = 1; i < argc; i++ )
     {
@@ -51,15 +53,21 @@ resolve_cache_dat_path(
 #ifdef CACHE_DAT_PATH
     return CACHE_DAT_PATH;
 #else
-    static char const* const candidates[] = {
+    static char const* const dat1_candidates[] = {
         "cache254",          "../cache254",          "../../cache254",
         "../../../cache254", "../../../../cache254", NULL,
     };
+    static char const* const dat2_candidates[] = {
+        "cache",          "../cache",          "../../cache",
+        "../../../cache", "../../../../cache", NULL,
+    };
+    char const* const* candidates = use_dat2 ? dat2_candidates : dat1_candidates;
+    char const* cache_file = use_dat2 ? "main_file_cache.dat2" : "main_file_cache.dat";
 
     char dat_path[512];
     for( int i = 0; candidates[i]; i++ )
     {
-        snprintf(dat_path, sizeof(dat_path), "%s/main_file_cache.dat", candidates[i]);
+        snprintf(dat_path, sizeof(dat_path), "%s/%s", candidates[i], cache_file);
         FILE* f = fopen(dat_path, "rb");
         if( f )
         {
@@ -80,6 +88,9 @@ main(
 
     bool const use_soft3d = has_flag(argc, argv, "--soft3d");
     bool const use_runescape = has_flag(argc, argv, "--runescape");
+    bool const use_dat2 = has_flag(argc, argv, "--dat2");
+    int const cache_mode = use_dat2 ? CACHE_MODE_DAT2 : CACHE_MODE_DAT1;
+    enum ToriAuxLibCMode toriauxlib_mode = use_dat2 ? TORIAUXLIBC_MODE_DAT2 : TORIAUXLIBC_MODE_DAT1;
 
     struct LibToriPlatformX_Lua* lua = NULL;
     struct LibToriPlatformX_IOReactor* io_reactor = NULL;
@@ -94,22 +105,23 @@ main(
     struct LibToriRS_CommandQueue* command_queue = NULL;
     struct LibToriRS_Instance* instance = NULL;
 
-    char const* cache_dat_path = resolve_cache_dat_path(argc, argv);
+    char const* cache_dat_path = resolve_cache_dat_path(argc, argv, use_dat2);
     if( !cache_dat_path )
     {
         printf(
-            "Failed to find cache254 (expected main_file_cache.dat). "
-            "Run from a directory that contains cache254/, or pass the cache path as an "
-            "argument.\n");
+            "Failed to find cache directory (expected main_file_cache.%s). "
+            "Run from a directory that contains the cache/, or pass the cache path as an "
+            "argument.\n",
+            use_dat2 ? "dat2" : "dat");
         goto error_exit;
     }
-    printf("Using cache: %s\n", cache_dat_path);
+    printf("Using cache: %s (%s)\n", cache_dat_path, use_dat2 ? "dat2" : "dat1");
     if( use_soft3d )
         printf("Renderer: software 3D (CPU)\n");
     if( use_runescape )
         printf("Game: runescape world\n");
 
-    instance = LibToriRS_InstanceNew();
+    instance = LibToriRS_InstanceNewWithCacheMode((int)toriauxlib_mode);
     if( !instance )
     {
         printf("Failed to create instance\n");
@@ -123,7 +135,7 @@ main(
         goto error_exit;
     }
 
-    cache = cachelib_new(CACHE_MODE_DAT1);
+    cache = cachelib_new(cache_mode);
     if( !cache )
     {
         printf("Failed to create cache\n");
@@ -134,6 +146,13 @@ main(
     {
         printf("Failed to init cache\n");
         goto error_exit;
+    }
+
+    if( use_dat2 )
+    {
+        struct RSCacheDat2Disk* dat2_disk = cachelib_dat2_disk(cache);
+        if( dat2_disk )
+            ToriAuxLibC_SetDat2Disk(ToriAuxLib_C(LibToriRS_GetToriAuxLib(instance)), dat2_disk);
     }
 
     io_reactor = LibToriPlatformX_IOReactorNew(cache);

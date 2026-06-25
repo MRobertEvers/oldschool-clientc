@@ -94,6 +94,25 @@ void
 ToriAuxLibCore_FontsClearAll(struct ToriAuxLibCore* gamecache);
 
 void
+ToriAuxLibCore_ComponentAdd(
+    struct ToriAuxLibCore* gamecache,
+    int component_id,
+    struct ToriAuxLibCore_Component* component);
+
+struct ToriAuxLibCore_Component*
+ToriAuxLibCore_ComponentGet(
+    struct ToriAuxLibCore* gamecache,
+    int component_id);
+
+bool
+ToriAuxLibCore_ComponentHas(
+    struct ToriAuxLibCore* gamecache,
+    int component_id);
+
+void
+ToriAuxLibCore_ComponentsClearAll(struct ToriAuxLibCore* gamecache);
+
+void
 ToriAuxLibCore_MapTerrainAdd(
     struct ToriAuxLibCore* gamecache,
     int map_id,
@@ -140,6 +159,22 @@ bool
 ToriAuxLibCore_FlotypeHas(
     struct ToriAuxLibCore* gamecache,
     int flo_id);
+
+void
+ToriAuxLibCore_UnderlayAdd(
+    struct ToriAuxLibCore* gamecache,
+    int underlay_id,
+    struct ToriAuxLibCore_Flotype* underlay);
+
+struct ToriAuxLibCore_Flotype*
+ToriAuxLibCore_UnderlayGet(
+    struct ToriAuxLibCore* gamecache,
+    int underlay_id);
+
+bool
+ToriAuxLibCore_UnderlayHas(
+    struct ToriAuxLibCore* gamecache,
+    int underlay_id);
 
 void
 ToriAuxLibCore_LocationAdd(

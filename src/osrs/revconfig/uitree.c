@@ -200,6 +200,16 @@ uitree_free(struct UITree* tree)
         struct StaticUIComponent* c = &tree->components[i];
         if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text )
             free((void*)c->u.rs_text.text);
+        struct StaticUIBehavior* b = &c->behavior;
+        if( b->scripts )
+        {
+            for( int s = 0; s < b->scripts_count; s++ )
+                free(b->scripts[s]);
+            free(b->scripts);
+        }
+        free(b->scripts_lengths);
+        free(b->script_comparator);
+        free(b->script_operand);
     }
     free(tree->components);
     free(tree);
@@ -212,6 +222,118 @@ uitree_mark_all_dirty(struct UITree* tree)
         return;
     for( uint32_t i = 0; i < tree->component_count; i++ )
         tree->components[i].is_dirty = 1;
+}
+
+static int
+uitree_script_length_from_opcode0(int const* script)
+{
+    if( !script )
+        return 0;
+    int pc = 0;
+    for( ;; )
+    {
+        int opcode = script[pc++];
+        if( opcode == 0 )
+            return pc;
+        if( opcode == 1 || opcode == 2 || opcode == 3 || opcode == 6 )
+            pc += 1;
+        else if( opcode == 4 || opcode == 10 )
+            pc += 2;
+        else if( opcode == 5 || opcode == 7 || opcode == 13 || opcode == 14 || opcode == 20 )
+            pc += 1;
+        else if( opcode == 15 || opcode == 16 || opcode == 17 )
+            continue;
+        else
+            pc += 1;
+    }
+}
+
+void
+uitree_set_behavior(
+    struct UITree* tree,
+    int32_t idx,
+    struct StaticUIBehavior const* src)
+{
+    if( !tree || idx < 0 || (uint32_t)idx >= tree->component_count || !src )
+        return;
+
+    struct StaticUIComponent* c = &tree->components[idx];
+    struct StaticUIBehavior* dst = &c->behavior;
+
+    if( dst->scripts )
+    {
+        for( int s = 0; s < dst->scripts_count; s++ )
+            free(dst->scripts[s]);
+        free(dst->scripts);
+    }
+    free(dst->scripts_lengths);
+    free(dst->script_comparator);
+    free(dst->script_operand);
+    memset(dst, 0, sizeof(*dst));
+
+    dst->hide = src->hide;
+    dst->button_type = src->button_type;
+    dst->client_code = src->client_code;
+    dst->over_color = src->over_color;
+    dst->active_color = src->active_color;
+    dst->active_over_color = src->active_over_color;
+    dst->scripts_count = src->scripts_count;
+
+    if( src->scripts_count <= 0 || !src->scripts )
+        return;
+
+    dst->scripts = calloc((size_t)src->scripts_count, sizeof(int*));
+    dst->scripts_lengths = calloc((size_t)src->scripts_count, sizeof(int));
+    if( !dst->scripts || !dst->scripts_lengths )
+        goto fail;
+
+    for( int i = 0; i < src->scripts_count; i++ )
+    {
+        if( !src->scripts[i] )
+            continue;
+        int len = src->scripts_lengths && src->scripts_lengths[i] > 0
+                      ? src->scripts_lengths[i]
+                      : uitree_script_length_from_opcode0(src->scripts[i]);
+        if( len <= 0 )
+            continue;
+        dst->scripts[i] = malloc((size_t)len * sizeof(int));
+        if( !dst->scripts[i] )
+            goto fail;
+        memcpy(dst->scripts[i], src->scripts[i], (size_t)len * sizeof(int));
+        dst->scripts_lengths[i] = len;
+    }
+
+    if( src->script_comparator && src->scripts_count > 0 )
+    {
+        dst->script_comparator = malloc((size_t)src->scripts_count * sizeof(int));
+        if( !dst->script_comparator )
+            goto fail;
+        memcpy(
+            dst->script_comparator,
+            src->script_comparator,
+            (size_t)src->scripts_count * sizeof(int));
+    }
+
+    if( src->script_operand && src->scripts_count > 0 )
+    {
+        dst->script_operand = malloc((size_t)src->scripts_count * sizeof(int));
+        if( !dst->script_operand )
+            goto fail;
+        memcpy(dst->script_operand, src->script_operand, (size_t)src->scripts_count * sizeof(int));
+    }
+    return;
+
+fail:
+    if( dst->scripts )
+    {
+        for( int s = 0; s < dst->scripts_count; s++ )
+            free(dst->scripts[s]);
+        free(dst->scripts);
+    }
+    free(dst->scripts_lengths);
+    free(dst->script_comparator);
+    free(dst->script_operand);
+    memset(dst, 0, sizeof(*dst));
 }
 
 void

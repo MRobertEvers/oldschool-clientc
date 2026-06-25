@@ -24,4 +24,10 @@ cachelib_free(struct RSCacheDat2DiskLib* cache);
 int
 cachelib_get_mode(struct RSCacheDat2DiskLib* cache);
 
+struct RSCacheDat2Disk*
+cachelib_dat2_disk(struct RSCacheDat2DiskLib* cache);
+
+struct RSCacheDat1Disk*
+cachelib_dat1_disk(struct RSCacheDat2DiskLib* cache);
+
 #endif

@@ -480,7 +480,7 @@ decode_loc(
             int var3 = -1;
             if( opcode == 92 )
             {
-                var3 = RSCacheShared_RSBufferReadBigSmart(&buffer);
+                var3 = LOC_READ_MODEL_ID(&buffer, flags);
                 if( var3 == 65535 )
                 {
                     var3 = -1;
@@ -493,7 +493,7 @@ decode_loc(
 
             for( int i = 0; i <= count; i++ )
             {
-                int transform = RSCacheShared_RSBufferReadBigSmart(&buffer);
+                int transform = LOC_READ_MODEL_ID(&buffer, flags);
                 if( transform == 65535 )
                 {
                     transform = -1;
@@ -539,8 +539,7 @@ decode_loc(
             break;
         }
         case 82:
-            // TODO: Check cache info for map_function_id
-            RSCacheShared_RSBufferG2(&buffer);
+            loc->map_function_id = RSCacheShared_RSBufferG2(&buffer);
             break;
         case 88:
         case 90:
@@ -630,7 +629,7 @@ decode_loc(
                 loc->random_seq_delays = malloc(count * sizeof(int));
                 for( int i = 0; i < count; i++ )
                 {
-                    loc->random_seq_ids[i] = RSCacheShared_RSBufferReadBigSmart(&buffer);
+                    loc->random_seq_ids[i] = LOC_READ_MODEL_ID(&buffer, flags);
                     loc->random_seq_delays[i] = RSCacheShared_RSBufferG1(&buffer);
                 }
             }

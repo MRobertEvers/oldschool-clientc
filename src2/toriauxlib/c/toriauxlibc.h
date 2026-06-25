@@ -3,6 +3,8 @@
 
 #include "../../libtorirs.h"
 #include "buildcache/dat1_buildcache.h"
+#include "buildcache/dat2_buildcache.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
 struct ToriAuxLibC;
@@ -25,6 +27,18 @@ struct Dat1BuildCache*
 ToriAuxLibC_Dat1BuildCache(struct ToriAuxLibC* c);
 #define dat1(c) ((struct Dat1BuildCache*)ToriAuxLibC_Dat1BuildCache(c))
 
+struct Dat2BuildCache*
+ToriAuxLibC_Dat2BuildCache(struct ToriAuxLibC* c);
+#define dat2(c) ((struct Dat2BuildCache*)ToriAuxLibC_Dat2BuildCache(c))
+
+void
+ToriAuxLibC_SetDat2Disk(
+    struct ToriAuxLibC* c,
+    struct RSCacheDat2Disk* disk);
+
+struct RSCacheDat2Disk*
+ToriAuxLibC_Dat2Disk(struct ToriAuxLibC* c);
+
 struct ToriAuxLibCore*
 ToriAuxLibC_Core(struct ToriAuxLibC* c);
 
@@ -40,6 +54,16 @@ ToriAuxLibC_AnimationNewFromCacheDatAnimbaseframes(const void* abf);
 struct ToriAuxLibCore_Texture*
 ToriAuxLibC_TextureNewFromCacheDatTexture(
     const void* cache_texture,
+    int animation_direction,
+    int animation_speed);
+
+struct RSCacheDat2A_Texture;
+struct RSCacheDat2A_SpritePack;
+
+struct ToriAuxLibCore_Texture*
+ToriAuxLibC_TextureNewFromDat2Definition(
+    struct RSCacheDat2A_Texture* def,
+    struct RSCacheDat2A_SpritePack** packs,
     int animation_direction,
     int animation_speed);
 
@@ -61,6 +85,19 @@ struct ToriAuxLibCore_Sequence*
 ToriAuxLibC_SequenceNewFromCacheDatSequence(
     const void* cache_seq,
     int id);
+
+struct ToriAuxLibCore_Sequence*
+ToriAuxLibC_SequenceNewFromCacheDat2Sequence(
+    const void* cache_seq,
+    int id);
+
+struct ToriAuxLibCore_Flotype*
+ToriAuxLibC_UnderlayNewFromCacheConfigUnderlay(
+    const void* cache_underlay,
+    int id);
+
+struct ToriAuxLibCore_Component*
+ToriAuxLibC_ComponentNewFromCacheComponent(const void* cache_component);
 
 struct Task_ToriAuxLibC_ModelLoad;
 

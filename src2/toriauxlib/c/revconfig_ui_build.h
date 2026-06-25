@@ -1,8 +1,9 @@
 #ifndef REVCONFIG_UI_BUILD_H
 #define REVCONFIG_UI_BUILD_H
 
-#include "osrs/revconfig/revconfig.h"
-#include "osrs/revconfig/uitree.h"
+#include "revconfig/revconfig.h"
+#include "ui/uitree.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -28,7 +29,14 @@ struct RevConfigUIBuildState
 
     struct RevConfigUILayoutItem layout_entries[128];
     int layout_entry_count;
+
+    struct ToriAuxLibCore* core;
 };
+
+void
+revconfig_ui_build_set_core(
+    struct RevConfigUIBuildState* state,
+    struct ToriAuxLibCore* core);
 
 void
 revconfig_ui_build_init(struct RevConfigUIBuildState* state);

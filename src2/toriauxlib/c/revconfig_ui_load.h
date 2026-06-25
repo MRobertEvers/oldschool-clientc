@@ -6,9 +6,11 @@
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
 #include "buildcache/dat1_buildcache_ui.h"
-#include "osrs/revconfig/revconfig.h"
-#include "osrs/revconfig/revconfig_load.h"
-#include "osrs/revconfig/uitree.h"
+#include "revconfig/revconfig.h"
+#include "revconfig/revconfig_load.h"
+#include "ui/uitree.h"
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
+#include "osrs/rscache/shared/shared_file_list.h"
 #include "revconfig_ui_build.h"
 #include "toriauxlib/c/dat1io.h"
 #include "toriauxlib/c/toriauxlibc.h"
@@ -296,9 +298,11 @@ Task_RevConfigUILoad_Run(
     revconfig_items_build(task->cache_fields, task->items);
     revconfig_items_build(task->ui_fields, task->items);
     revconfig_ui_build_collect_items(&task->build, task->items);
+    revconfig_ui_build_set_core(&task->build, ToriAuxLibC_Core(task->c));
 
     dat1io_media_jagfile_fetch(ctx);
     dat1io_title_fonts_jagfile_fetch(ctx);
+    dat1io_interfaces_jagfile_fetch(ctx);
     PT_YIELD(&task->thread);
 
     {
@@ -308,6 +312,24 @@ Task_RevConfigUILoad_Run(
         struct RSCacheShared_FileListDat* title = dat1io_title_fonts_jagfile_decode(ctx);
         if( title )
             dat1_buildcache_set_title_fonts_jagfile(bc, title);
+        struct RSCacheShared_FileListDat* interfaces_filelist = dat1io_interfaces_jagfile_decode(ctx);
+        if( interfaces_filelist )
+        {
+            int data_idx = RSCacheShared_FileListDatFindFileByName(interfaces_filelist, "data");
+            if( data_idx >= 0 )
+            {
+                struct RSCacheDat1A_ConfigComponentList* interfaces =
+                    RSCacheDat1A_ConfigComponentListNewDecode(
+                        interfaces_filelist->files[data_idx],
+                        interfaces_filelist->file_sizes[data_idx]);
+                if( interfaces )
+                {
+                    dat1_buildcache_set_interfaces(bc, interfaces);
+                    ToriAuxLibC_SubmitAllComponentsFromDat1(task->c);
+                }
+            }
+            RSCacheShared_FileListDatFree(interfaces_filelist);
+        }
     }
     LibToriRS_IOQueueClear(ctx->io);
 

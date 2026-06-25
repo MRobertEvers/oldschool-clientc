@@ -74,6 +74,21 @@ struct StaticUIElemPosition
     int height;
 };
 
+struct StaticUIBehavior
+{
+    int scripts_count;
+    int** scripts;           /* CS1 bytecode arrays; heap-owned, freed in uitree_free */
+    int* scripts_lengths;    /* per-script length; 0 = scan until opcode 0 */
+    int* script_comparator;  /* per-script comparator opcode */
+    int* script_operand;     /* per-script operand */
+    uint8_t hide;            /* static hide flag from cache LAYER/component */
+    int button_type;         /* 0=none; OK/TOGGLE/SELECT/CLOSE/CONTINUE */
+    int client_code;
+    int over_color;          /* hover color for rect/text; 0 = none */
+    int active_color;
+    int active_over_color;
+};
+
 struct StaticUIComponent
 {
     enum StaticUIComponentType type;
@@ -86,6 +101,7 @@ struct StaticUIComponent
     int32_t next_sibling; /* -1 = last sibling */
     int component_id;     /* CacheDatConfigComponent id for RS nodes; -1 for builtins */
 
+    struct StaticUIBehavior behavior;
     struct StaticUIElemPosition position;
     union
     {
@@ -188,6 +204,13 @@ uitree_free(struct UITree* tree);
 /** Mark every component dirty for the upcoming frame traversal. */
 void
 uitree_mark_all_dirty(struct UITree* tree);
+
+/** Deep-copies script arrays from src into tree->components[idx].behavior. */
+void
+uitree_set_behavior(
+    struct UITree* tree,
+    int32_t idx,
+    struct StaticUIBehavior const* src);
 
 /** Log every node (index, type, tree links, layout, component_id). */
 void

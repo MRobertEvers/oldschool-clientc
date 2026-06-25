@@ -136,16 +136,19 @@ world_builder_rebuild_centerzone_chunk_terrain(
 
                 if( tile->underlay_id > 0 )
                 {
-                    struct ToriAuxLibCore_Flotype* flotype =
-                        ToriAuxLibCore_FlotypeGet(builder->core, tile->underlay_id - 1);
-                    if( flotype )
+                    int underlay_lookup_id = tile->underlay_id - 1;
+                    struct ToriAuxLibCore_Flotype* underlay =
+                        ToriAuxLibCore_UnderlayGet(builder->core, underlay_lookup_id);
+                    if( !underlay )
+                        underlay = ToriAuxLibCore_FlotypeGet(builder->core, underlay_lookup_id);
+                    if( underlay )
                     {
                         blendmap_set_underlay_rgb(
                             builder->blendmap,
                             offset_x,
                             offset_z,
                             level,
-                            (uint32_t)flotype->rgb_color);
+                            (uint32_t)underlay->rgb_color);
                     }
                 }
 

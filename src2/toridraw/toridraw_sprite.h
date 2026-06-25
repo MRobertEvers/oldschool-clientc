@@ -101,6 +101,24 @@ ToriDraw2D_BlitSpriteRotated(
     int rotation_r2pi2048,
     int* pixel_buffer);
 
+/** Inverse-map blit: for each destination pixel, sample source with rotation.
+ *  Destination bbox is (dst_x, dst_y, dst_w, dst_h) with pivot (dst_anchor_x, dst_anchor_y).
+ *  Source pivot is (src_anchor_x, src_anchor_y) within the sprite sub-rectangle. */
+void
+ToriDraw2D_BlitSpriteRotatedEx(
+    struct ToriDraw_Sprite* sprite,
+    struct ToriDraw_ViewPort* view_port,
+    int dst_x,
+    int dst_y,
+    int dst_w,
+    int dst_h,
+    int dst_anchor_x,
+    int dst_anchor_y,
+    int src_anchor_x,
+    int src_anchor_y,
+    int rotation_r2pi2048,
+    int* pixel_buffer);
+
 void
 ToriDraw2D_BlitSpriteMasked(
     struct ToriDraw_Sprite* sprite,

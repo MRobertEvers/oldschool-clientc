@@ -5,7 +5,9 @@
 #include "../toriauxlib/c/toriauxlibc.h"
 #include "../toriauxlib/core/toriauxlibcore.h"
 #include "../toriauxlib/td/toriauxlibtd.h"
+#include "../toriauxlib/vm/toriauxlibvm.h"
 #include "../world/heightmap.h"
+#include "../world/minimap.h"
 #include "../world/world_builder.h"
 #include "3rd/minipt.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
@@ -14,6 +16,7 @@
 #include "toridraw/toridraw_math.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
+#include "toridraw/toridraw_sprite.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -154,6 +157,37 @@ game_runescape_update_world_viewport(struct GameRunescape* game)
     game->world_view_port.stride = stride;
     game->world_view_port.x_center = vw / 2;
     game->world_view_port.y_center = vh / 2;
+    game->world_view_port.clip_left = 0;
+    game->world_view_port.clip_top = 0;
+    game->world_view_port.clip_right = vw;
+    game->world_view_port.clip_bottom = vh;
+
+    if( game->ui_tree )
+    {
+        for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
+        {
+            struct StaticUIComponent* world = &game->ui_tree->components[i];
+            if( world->type != UIELEM_BUILTIN_WORLD )
+                continue;
+
+            int wx = world->position.x;
+            int wy = world->position.y;
+            int ww = world->position.width;
+            int wh = world->position.height;
+            if( ww <= 0 || wh <= 0 )
+                break;
+
+            game->world_view_port.width = ww;
+            game->world_view_port.height = wh;
+            game->world_view_port.x_center = wx + ww / 2;
+            game->world_view_port.y_center = wy + wh / 2;
+            game->world_view_port.clip_left = wx;
+            game->world_view_port.clip_top = wy;
+            game->world_view_port.clip_right = wx + ww;
+            game->world_view_port.clip_bottom = wy + wh;
+            break;
+        }
+    }
 }
 
 static bool
@@ -303,6 +337,10 @@ game_runescape_new(
     game->ui_tree = uitree_new(64);
     assert(game->ui_tree && "game_runescape_new: failed to allocate ui tree");
 
+    game->world_map_scene_id = -1;
+    game->world_map_w = 0;
+    game->world_map_h = 0;
+
     return game;
 }
 
@@ -347,6 +385,32 @@ game_runescape_set_td(
 }
 
 void
+game_runescape_set_vm(
+    struct GameRunescape* game,
+    struct ToriAuxLibVM* vm)
+{
+    if( !game )
+        return;
+    game->vm = vm;
+}
+
+static void
+game_runescape_attach_world_map_to_ui_tree(struct GameRunescape* game)
+{
+    if( !game || game->world_map_scene_id < 0 || !game->ui_tree )
+        return;
+
+    for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
+    {
+        if( game->ui_tree->components[i].type == UIELEM_BUILTIN_MINIMAP )
+        {
+            game->ui_tree->components[i].u.minimap.scene_id = game->world_map_scene_id;
+            break;
+        }
+    }
+}
+
+void
 game_runescape_set_ui_tree(
     struct GameRunescape* game,
     struct UITree* ui_tree)
@@ -354,6 +418,7 @@ game_runescape_set_ui_tree(
     if( !game )
         return;
     game->ui_tree = ui_tree;
+    game_runescape_attach_world_map_to_ui_tree(game);
 }
 
 void
@@ -364,6 +429,43 @@ game_runescape_set_ui_tree_ready(
     if( !game )
         return;
     game->ui_tree_ready = ready;
+    if( ready )
+        game_runescape_attach_world_map_to_ui_tree(game);
+}
+
+void
+game_runescape_rebuild_world_map(struct GameRunescape* game)
+{
+    if( !game || !game->world || !game->world->minimap || !game->scene )
+        return;
+
+    struct Minimap* mm = game->world->minimap;
+    int pw = 0;
+    int ph = 0;
+    uint32_t* argb = minimap_bake_argb(mm, &pw, &ph);
+    if( !argb )
+        return;
+
+    struct ToriDraw_Sprite* sp = ToriDraw_SpriteNewFromArgbOwned(argb, pw, ph);
+    if( !sp )
+    {
+        free(argb);
+        return;
+    }
+
+    struct ToriDraw_Sprite** sprites_array = (struct ToriDraw_Sprite**)malloc(sizeof(*sprites_array));
+    if( !sprites_array )
+    {
+        ToriDraw_SpriteFree(sp);
+        return;
+    }
+    sprites_array[0] = sp;
+
+    ToriDraw_SceneSpriteAdd(game->scene, RUNESCAPE_WORLD_MAP_SCENE_ID, sprites_array, 1);
+    game->world_map_scene_id = RUNESCAPE_WORLD_MAP_SCENE_ID;
+    game->world_map_w = pw;
+    game->world_map_h = ph;
+    game_runescape_attach_world_map_to_ui_tree(game);
 }
 
 void
@@ -385,6 +487,143 @@ game_runescape_build_world(struct GameRunescape* game)
         game->camera->pitch = 450;
         game->camera->yaw = 0;
     }
+
+    game_runescape_rebuild_world_map(game);
+}
+
+static bool
+game_runescape_point_in_component(
+    struct StaticUIComponent const* c,
+    int px,
+    int py)
+{
+    if( !c || c->position.kind != UIPOS_XY )
+        return false;
+    int x = c->position.x;
+    int y = c->position.y;
+    int w = c->position.width;
+    int h = c->position.height;
+    if( w <= 0 || h <= 0 )
+        return false;
+    return px >= x && px < x + w && py >= y && py < y + h;
+}
+
+static bool
+game_runescape_ui_node_visible(
+    struct GameRunescape* game,
+    struct StaticUIComponent const* c,
+    int32_t node_index)
+{
+    if( !c )
+        return false;
+    if( !c->behavior.hide )
+        return true;
+    return game->ui_hovered_node == node_index;
+}
+
+static int32_t
+game_runescape_ui_hit_test_recursive(
+    struct GameRunescape* game,
+    struct UITree* tree,
+    int32_t node_index,
+    int px,
+    int py)
+{
+    if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return -1;
+
+    struct StaticUIComponent* c = &tree->components[node_index];
+
+    int32_t hit = -1;
+    if( game_runescape_point_in_component(c, px, py) )
+        hit = node_index;
+
+    for( int32_t child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
+    {
+        int32_t child_hit = game_runescape_ui_hit_test_recursive(game, tree, child, px, py);
+        if( child_hit >= 0 )
+            hit = child_hit;
+    }
+
+    return hit;
+}
+
+int32_t
+game_runescape_ui_hit_test(
+    struct GameRunescape* game,
+    int px,
+    int py)
+{
+    if( !game || !game->ui_tree || game->ui_tree->root_index < 0 )
+        return -1;
+
+    int32_t hit = -1;
+    for( int32_t root = game->ui_tree->root_index; root >= 0;
+         root = game->ui_tree->components[root].next_sibling )
+    {
+        int32_t root_hit = game_runescape_ui_hit_test_recursive(game, game->ui_tree, root, px, py);
+        if( root_hit >= 0 )
+            hit = root_hit;
+    }
+
+    return hit;
+}
+
+static char const*
+game_runescape_expand_ui_text(
+    struct GameRunescape* game,
+    struct StaticUIComponent* component)
+{
+    char const* src = component->u.rs_text.text;
+    if( !src || !game || !game->vm )
+        return src;
+
+    char* dst = game->ui_text_scratch;
+    size_t dst_cap = sizeof(game->ui_text_scratch);
+    size_t di = 0;
+
+    for( size_t i = 0; src[i] != '\0' && di + 1 < dst_cap; i++ )
+    {
+        if( src[i] == '%' && src[i + 1] >= '1' && src[i + 1] <= '5' )
+        {
+            int script_idx = src[i + 1] - '1';
+            int val = ToriAuxLibVM_EvalScript(game->vm, component, script_idx);
+            char num[16];
+            int n = snprintf(num, sizeof(num), "%d", val);
+            if( n < 0 )
+                n = 0;
+            for( int j = 0; j < n && di + 1 < dst_cap; j++ )
+                dst[di++] = num[j];
+            i++;
+            continue;
+        }
+        dst[di++] = src[i];
+    }
+    dst[di] = '\0';
+    return dst;
+}
+
+static int
+game_runescape_ui_rect_color(
+    struct GameRunescape* game,
+    struct StaticUIComponent* component)
+{
+    int color = component->u.rs_rect.color;
+    bool hovered = game && game->ui_hovered_node >= 0 &&
+                   &game->ui_tree->components[game->ui_hovered_node] == component;
+    bool active = game && game->vm && component->behavior.script_comparator &&
+                  ToriAuxLibVM_IsActive(game->vm, component);
+
+    if( active )
+        color = component->behavior.active_color ? component->behavior.active_color : color;
+    if( hovered )
+    {
+        if( active && component->behavior.active_over_color != 0 )
+            color = component->behavior.active_over_color;
+        else if( !active && component->behavior.over_color != 0 )
+            color = component->behavior.over_color;
+    }
+    return color;
 }
 
 void
@@ -399,6 +638,19 @@ game_runescape_process_input(
     game->mouse_y = input->curr.mouse_y;
     game->mouse_in_viewport =
         game->mouse_x >= 0 && game->mouse_x < vw && game->mouse_y >= 0 && game->mouse_y < vh;
+
+    if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) && game->ui_tree && game->ui_tree_ready &&
+        game->vm )
+    {
+        int32_t clicked = game_runescape_ui_hit_test(
+            game, input->last_click_x[TORIRSM_LEFT], input->last_click_y[TORIRSM_LEFT]);
+        if( clicked >= 0 )
+        {
+            struct StaticUIComponent* hovered = &game->ui_tree->components[clicked];
+            if( hovered->behavior.button_type != 0 || hovered->behavior.client_code > 0 )
+                ToriAuxLibVM_ApplyButtonClickOptimistic(game->vm, hovered);
+        }
+    }
 
     const int move = RUNESCAPE_CAMERA_MOVEMENT_SPEED;
     const int rotate = 10;
@@ -502,7 +754,7 @@ game_runescape_ui_advance(
     struct UITree* tree = game->ui_tree;
     struct StaticUIComponent* c = &tree->components[stepped_index];
 
-    if( c->first_child >= 0 )
+    if( c->first_child >= 0 && game_runescape_ui_node_visible(game, c, stepped_index) )
     {
         if( game->frame.ui_stack_top + 1 < RUNESCAPE_UI_TRAVERSAL_STACK_MAX )
         {
@@ -533,20 +785,49 @@ game_runescape_ui_advance(
     game->frame.ui_current = -1;
 }
 
+static void
+game_runescape_emit_sprite_command(
+    struct LibToriRS_RenderCommand* command,
+    int scene_id,
+    int atlas_index,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    command->kind = TORIRSRC_SPRITE;
+    command->u.sprite.element_id = scene_id;
+    command->u.sprite.atlas_index = atlas_index;
+    command->u.sprite.x = x;
+    command->u.sprite.y = y;
+    command->u.sprite.w = w;
+    command->u.sprite.h = h;
+    command->u.sprite.alpha = 255;
+    command->u.sprite.rotated = 0;
+    command->u.sprite.rotation = 0;
+    command->u.sprite.dst_anchor_x = 0;
+    command->u.sprite.dst_anchor_y = 0;
+    command->u.sprite.src_anchor_x = 0;
+    command->u.sprite.src_anchor_y = 0;
+    command->u.sprite.scissor_x = 0;
+    command->u.sprite.scissor_y = 0;
+    command->u.sprite.scissor_w = 0;
+    command->u.sprite.scissor_h = 0;
+    command->u.sprite.mask_element_id = -1;
+    command->u.sprite.mask_atlas_index = 0;
+}
+
 static bool
 game_runescape_emit_ui_component(
     struct GameRunescape* game,
     struct StaticUIComponent* component,
     struct LibToriRS_RenderCommand* command)
 {
-    (void)game;
-    if( !component || !command )
-        return false;
+    assert(!(!component || !command));
 
     switch( component->type )
     {
     case UIELEM_BUILTIN_SPRITE:
-    case UIELEM_BUILTIN_COMPASS:
     case UIELEM_RS_GRAPHIC:
     {
         int scene_id = component->u.sprite.scene_id;
@@ -555,17 +836,65 @@ game_runescape_emit_ui_component(
         {
             scene_id = component->u.rs_graphic.scene_id;
             atlas_index = component->u.rs_graphic.atlas_index;
+            if( game->vm && component->behavior.scripts_count > 0 &&
+                ToriAuxLibVM_IsActive(game->vm, component) )
+            {
+                if( component->u.rs_graphic.scene_id_active >= 0 )
+                {
+                    scene_id = component->u.rs_graphic.scene_id_active;
+                    atlas_index = component->u.rs_graphic.atlas_index_active;
+                }
+            }
         }
         if( scene_id < 0 )
             return false;
-        command->kind = TORIRSRC_SPRITE;
-        command->u.sprite.element_id = scene_id;
-        command->u.sprite.atlas_index = atlas_index;
-        command->u.sprite.x = component->position.x;
-        command->u.sprite.y = component->position.y;
-        command->u.sprite.w = component->position.width;
-        command->u.sprite.h = component->position.height;
-        command->u.sprite.alpha = 255;
+        game_runescape_emit_sprite_command(
+            command,
+            scene_id,
+            atlas_index,
+            component->position.x,
+            component->position.y,
+            component->position.width,
+            component->position.height);
+        return true;
+    }
+    case UIELEM_BUILTIN_COMPASS:
+    {
+        int scene_id = component->u.sprite.scene_id;
+        int atlas_index = component->u.sprite.atlas_index;
+        if( scene_id < 0 )
+            return false;
+        game_runescape_emit_sprite_command(
+            command,
+            scene_id,
+            atlas_index,
+            component->position.x,
+            component->position.y,
+            component->position.width,
+            component->position.height);
+        command->u.sprite.rotated = 1;
+        command->u.sprite.rotation =
+            game->camera ? ToriDraw_NormalizeAngle(game->camera->yaw) : 0;
+        command->u.sprite.dst_anchor_x = component->position.anchor_x;
+        command->u.sprite.dst_anchor_y = component->position.anchor_y;
+        {
+            int sprite_count = 0;
+            struct ToriDraw_Sprite** sprites =
+                game->scene ? ToriDraw_SceneSpriteGet(game->scene, scene_id, &sprite_count) : NULL;
+            struct ToriDraw_Sprite* sp =
+                (sprites && atlas_index >= 0 && atlas_index < sprite_count) ? sprites[atlas_index]
+                                                                            : NULL;
+            int sw = sp ? (sp->crop_width > 0 ? sp->crop_width : sp->width)
+                        : component->position.width;
+            int sh = sp ? (sp->crop_height > 0 ? sp->crop_height : sp->height)
+                        : component->position.height;
+            command->u.sprite.src_anchor_x = sw >> 1;
+            command->u.sprite.src_anchor_y = sh >> 1;
+        }
+        command->u.sprite.scissor_x = component->position.x;
+        command->u.sprite.scissor_y = component->position.y;
+        command->u.sprite.scissor_w = component->position.width;
+        command->u.sprite.scissor_h = component->position.height;
         return true;
     }
     case UIELEM_BUILTIN_REDSTONE_TAB:
@@ -574,14 +903,45 @@ game_runescape_emit_ui_component(
         int atlas_index = component->u.redstone_tab.atlas_index;
         if( scene_id < 0 )
             return false;
-        command->kind = TORIRSRC_SPRITE;
-        command->u.sprite.element_id = scene_id;
-        command->u.sprite.atlas_index = atlas_index;
-        command->u.sprite.x = component->position.x;
-        command->u.sprite.y = component->position.y;
-        command->u.sprite.w = component->position.width;
-        command->u.sprite.h = component->position.height;
-        command->u.sprite.alpha = 255;
+        game_runescape_emit_sprite_command(
+            command,
+            scene_id,
+            atlas_index,
+            component->position.x,
+            component->position.y,
+            component->position.width,
+            component->position.height);
+        return true;
+    }
+    case UIELEM_BUILTIN_MINIMAP:
+    {
+        int scene_id = component->u.minimap.scene_id;
+        if( scene_id < 0 )
+            return false;
+        game_runescape_emit_sprite_command(
+            command,
+            scene_id,
+            0,
+            component->position.x,
+            component->position.y,
+            component->position.width,
+            component->position.height);
+        command->u.sprite.rotated = 1;
+        command->u.sprite.rotation =
+            game->camera ? ToriDraw_NormalizeAngle(game->camera->yaw) : 0;
+        command->u.sprite.dst_anchor_x = component->position.anchor_x;
+        command->u.sprite.dst_anchor_y = component->position.anchor_y;
+        if( game->camera_position && game->world_map_w > 0 && game->world_map_h > 0 )
+        {
+            int camera_tile_x = game->camera_position->x / 128;
+            int camera_tile_z = game->camera_position->z / 128;
+            command->u.sprite.src_anchor_x = camera_tile_x * 4;
+            command->u.sprite.src_anchor_y = game->world_map_h - camera_tile_z * 4;
+        }
+        command->u.sprite.scissor_x = component->position.x;
+        command->u.sprite.scissor_y = component->position.y;
+        command->u.sprite.scissor_w = component->position.width;
+        command->u.sprite.scissor_h = component->position.height;
         return true;
     }
     case UIELEM_RS_TEXT:
@@ -596,8 +956,21 @@ game_runescape_emit_ui_component(
         command->u.font.shadowed = component->u.rs_text.shadowed;
         command->u.font.width = component->position.width;
         command->u.font.height = component->position.height;
-        command->u.font.text = component->u.rs_text.text;
+        command->u.font.text = game_runescape_expand_ui_text(game, component);
         return true;
+    case UIELEM_RS_RECT:
+    {
+        int color = game_runescape_ui_rect_color(game, component);
+        if( color == 0 && !component->u.rs_rect.filled )
+            return false;
+        command->kind = TORIRSRC_FILL_RECT;
+        command->u.fill_rect.x = component->position.x;
+        command->u.fill_rect.y = component->position.y;
+        command->u.fill_rect.w = component->position.width;
+        command->u.fill_rect.h = component->position.height;
+        command->u.fill_rect.argb = color;
+        return true;
+    }
     default:
         return false;
     }
@@ -791,6 +1164,12 @@ rs_phase_ui_step(
     }
 
     struct StaticUIComponent* component = &game->ui_tree->components[game->frame.ui_current];
+    if( !game_runescape_ui_node_visible(game, component, game->frame.ui_current) )
+    {
+        game_runescape_ui_advance(game, game->frame.ui_current);
+        return RS_PHASE_ADVANCE;
+    }
+
     if( component->is_dirty && game_runescape_emit_ui_component(game, component, command) )
     {
         int32_t cur = game->frame.ui_current;
@@ -825,6 +1204,9 @@ game_runescape_frame_begin(
     game->frame.ui_2d_begun = false;
     game->frame.ui_current = -1;
     game->frame.ui_stack_top = -1;
+    game->ui_hovered_node = -1;
+    if( game->ui_tree && game->ui_tree_ready )
+        game->ui_hovered_node = game_runescape_ui_hit_test(game, game->mouse_x, game->mouse_y);
     world_pickset_reset(&game->pickset);
     for( int i = 0; i < cycles_elapsed; i++ )
         game_runescape_tick_animations(game);
@@ -930,8 +1312,6 @@ game_runescape_spawn_projectile(
              startheight * 4;
 
     struct ToriDraw_ModelHandle cached = ToriAuxLibTD_Model(game->td, model_id);
-    if( cached.kind != TORIDRAWMK_MODEL || !cached.u.model.model )
-        return -1;
     if( !ToriDraw_ModelGetBoundsCylinder(cached) )
         return -1;
 
@@ -951,8 +1331,7 @@ game_runescape_spawn_projectile(
     }
 
     int element_id = ToriDraw_SceneElementAdd(game->scene);
-    if( element_id < 0 )
-        return -1;
+    assert(element_id >= 0);
 
     ToriDraw_SceneElementSetModel(game->scene, element_id, hnd);
 
@@ -977,12 +1356,11 @@ game_runescape_spawn_projectile(
         t2,
         angle,
         offset);
-    if( projectile_idx < 0 )
-        return -1;
+    assert(projectile_idx >= 0);
 
     struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(game->scene, element_id);
-    if( element )
-        element->dynamic = true;
+    assert(element);
+    element->dynamic = true;
 
     return projectile_idx;
 }
@@ -1048,11 +1426,7 @@ ToriRunescape_Task_AddProjectile_Run(
     PT_BEGIN(&task->thread);
 
     td = task->game ? task->game->td : NULL;
-    if( !task->game || !td || !task->game->world )
-    {
-        ToriRunescape_Task_AddProjectile_Free(task);
-        return PT_EXITED;
-    }
+    assert(!(!task->game || !td || !task->game->world));
 
     if( !ToriAuxLibTD_ModelReady(td, task->model_id) )
     {

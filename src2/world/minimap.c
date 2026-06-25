@@ -341,3 +341,289 @@ minimap_loc_type(
     assert(idx >= 0 && idx < minimap->locs_count);
     return minimap->locs[idx].type;
 }
+
+static int g_minimap_tile_rotation_map[4][16] = {
+    { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15 },
+    { 12, 8,  4,  0,  13, 9,  5,  1,  14, 10, 6,  2,  15, 11, 7,  3  },
+    { 15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4,  3,  2,  1,  0  },
+    { 3,  7,  11, 15, 2,  6,  10, 14, 1,  5,  9,  13, 0,  4,  8,  12 },
+};
+
+static int g_minimap_tile_mask[16][16] = {
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+    { 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1 },
+    { 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
+    { 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+    { 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
+    { 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0 },
+    { 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1 },
+    { 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1 },
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1 }
+};
+
+static void
+minimap_fill_tile(
+    uint32_t* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int background_rgb,
+    int foreground_rgb,
+    int angle,
+    int shape,
+    int clip_width,
+    int clip_height)
+{
+    assert(shape >= 0 && shape < 16);
+    assert(angle >= 0 && angle < 4);
+
+    if( x + 3 < 0 || x >= clip_width || y + 3 < 0 || y >= clip_height )
+        return;
+
+    int* mask = g_minimap_tile_mask[shape];
+    int* rotation = g_minimap_tile_rotation_map[angle];
+
+    int offset = x + y * stride;
+    if( foreground_rgb == 0 )
+    {
+        if( background_rgb != 0 )
+        {
+            for( int i = 0; i < 4; i++ )
+            {
+                int current_y = y + i;
+                if( current_y >= 0 && current_y < clip_height )
+                {
+                    if( x >= 0 && x < clip_width )
+                        pixel_buffer[offset] = (uint32_t)background_rgb;
+                    if( x + 1 >= 0 && x + 1 < clip_width )
+                        pixel_buffer[offset + 1] = (uint32_t)background_rgb;
+                    if( x + 2 >= 0 && x + 2 < clip_width )
+                        pixel_buffer[offset + 2] = (uint32_t)background_rgb;
+                    if( x + 3 >= 0 && x + 3 < clip_width )
+                        pixel_buffer[offset + 3] = (uint32_t)background_rgb;
+                }
+                offset += stride;
+            }
+        }
+        return;
+    }
+
+    int shape_vertex_index = 0;
+    if( background_rgb != 0 )
+    {
+        for( int i = 0; i < 4; i++ )
+        {
+            int current_y = y + i;
+            if( current_y >= 0 && current_y < clip_height )
+            {
+                int color0 =
+                    mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+                int color1 =
+                    mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+                int color2 =
+                    mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+                int color3 =
+                    mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+
+                if( x >= 0 && x < clip_width )
+                    pixel_buffer[offset] = (uint32_t)color0;
+                if( x + 1 >= 0 && x + 1 < clip_width )
+                    pixel_buffer[offset + 1] = (uint32_t)color1;
+                if( x + 2 >= 0 && x + 2 < clip_width )
+                    pixel_buffer[offset + 2] = (uint32_t)color2;
+                if( x + 3 >= 0 && x + 3 < clip_width )
+                    pixel_buffer[offset + 3] = (uint32_t)color3;
+            }
+            else
+            {
+                shape_vertex_index += 4;
+            }
+            offset += stride;
+        }
+        return;
+    }
+
+    for( int i = 0; i < 4; i++ )
+    {
+        int current_y = y + i;
+        if( current_y >= 0 && current_y < clip_height )
+        {
+            if( mask[rotation[shape_vertex_index++]] != 0 )
+            {
+                if( x >= 0 && x < clip_width )
+                    pixel_buffer[offset] = (uint32_t)foreground_rgb;
+            }
+            if( mask[rotation[shape_vertex_index++]] != 0 )
+            {
+                if( x + 1 >= 0 && x + 1 < clip_width )
+                    pixel_buffer[offset + 1] = (uint32_t)foreground_rgb;
+            }
+            if( mask[rotation[shape_vertex_index++]] != 0 )
+            {
+                if( x + 2 >= 0 && x + 2 < clip_width )
+                    pixel_buffer[offset + 2] = (uint32_t)foreground_rgb;
+            }
+            if( mask[rotation[shape_vertex_index++]] != 0 )
+            {
+                if( x + 3 >= 0 && x + 3 < clip_width )
+                    pixel_buffer[offset + 3] = (uint32_t)foreground_rgb;
+            }
+        }
+        else
+        {
+            shape_vertex_index += 4;
+        }
+        offset += stride;
+    }
+}
+
+static void
+minimap_draw_wall(
+    uint32_t* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int wall,
+    int clip_width,
+    int clip_height)
+{
+    if( x + 3 < 0 || x >= clip_width || y + 3 < 0 || y >= clip_height )
+        return;
+
+    uint32_t rgb = 0xFFFFFFFFu;
+    int offset = y * stride + x;
+
+    if( wall & MINIMAP_WALL_WEST )
+    {
+        for( int p = 0; p < 4; p++ )
+        {
+            int current_y = y + p;
+            if( current_y >= 0 && current_y < clip_height && x >= 0 && x < clip_width )
+                pixel_buffer[offset + p * stride] = rgb;
+        }
+    }
+
+    if( wall & MINIMAP_WALL_NORTH )
+    {
+        for( int p = 0; p < 4; p++ )
+        {
+            int current_x = x + p;
+            if( current_x >= 0 && current_x < clip_width && y >= 0 && y < clip_height )
+                pixel_buffer[offset + p] = rgb;
+        }
+    }
+
+    if( wall & MINIMAP_WALL_EAST )
+    {
+        for( int p = 0; p < 4; p++ )
+        {
+            int current_y = y + p;
+            int current_x = x + 3;
+            if( current_y >= 0 && current_y < clip_height && current_x >= 0 &&
+                current_x < clip_width )
+                pixel_buffer[offset + 3 + p * stride] = rgb;
+        }
+    }
+
+    if( wall & MINIMAP_WALL_SOUTH )
+    {
+        for( int p = 0; p < 4; p++ )
+        {
+            int current_x = x + p;
+            int current_y = y + 3;
+            if( current_x >= 0 && current_x < clip_width && current_y >= 0 &&
+                current_y < clip_height )
+                pixel_buffer[offset + p + 3 * stride] = rgb;
+        }
+    }
+
+    if( wall & MINIMAP_WALL_NORTHEAST_SOUTHWEST )
+    {
+        for( int p = 0; p < 4; p++ )
+        {
+            int current_x = x + (3 - p);
+            int current_y = y + p;
+            if( current_x >= 0 && current_x < clip_width && current_y >= 0 &&
+                current_y < clip_height )
+                pixel_buffer[offset + p * stride + (3 - p)] = rgb;
+        }
+    }
+
+    if( wall & MINIMAP_WALL_NORTHWEST_SOUTHEAST )
+    {
+        for( int p = 0; p < 4; p++ )
+        {
+            int current_x = x + p;
+            int current_y = y + p;
+            if( current_x >= 0 && current_x < clip_width && current_y >= 0 &&
+                current_y < clip_height )
+                pixel_buffer[offset + p * stride + p] = rgb;
+        }
+    }
+}
+
+uint32_t*
+minimap_bake_argb(
+    struct Minimap* minimap,
+    int* out_width,
+    int* out_height)
+{
+    if( !minimap || !out_width || !out_height )
+        return NULL;
+
+    const int pw = minimap->width * 4;
+    const int ph = minimap->height * 4;
+    uint32_t* pixels = (uint32_t*)malloc((size_t)pw * (size_t)ph * sizeof(uint32_t));
+    if( !pixels )
+        return NULL;
+
+    const uint32_t black_argb = 0xFF000000u;
+    for( int y = 0; y < ph; y++ )
+    {
+        uint32_t* row = pixels + y * pw;
+        for( int x = 0; x < pw; x++ )
+            row[x] = black_argb;
+    }
+
+    const int ne_z = minimap->height;
+    for( int sx = 0; sx < minimap->width; sx++ )
+    {
+        for( int sz = 0; sz < minimap->height; sz++ )
+        {
+            int shape = minimap_tile_shape(minimap, sx, sz);
+            int angle = minimap_tile_rotation(minimap, sx, sz);
+            int rgb_background = minimap_tile_rgb(minimap, sx, sz, MINIMAP_BACKGROUND);
+            int rgb_foreground = minimap_tile_rgb(minimap, sx, sz, MINIMAP_FOREGROUND);
+            if( rgb_foreground == 0 && rgb_background == 0 )
+                continue;
+
+            int tile_x = sx * 4;
+            int tile_y = (ne_z - sz) * 4;
+            minimap_fill_tile(
+                pixels,
+                pw,
+                tile_x,
+                tile_y,
+                rgb_background,
+                rgb_foreground,
+                angle,
+                shape,
+                pw,
+                ph);
+
+            int wall = minimap_tile_wall(minimap, sx, sz);
+            if( wall != 0 )
+            {
+                minimap_draw_wall(pixels, pw, tile_x, tile_y, wall, pw, ph);
+            }
+        }
+    }
+
+    *out_width = pw;
+    *out_height = ph;
+    return pixels;
+}

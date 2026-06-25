@@ -1824,3 +1824,5 @@ Animation ID Expression / Action
 573 Sad talking
 574 Laughing
 Since Bellemorde is a feline model, some of the more exaggerated humanoid expressions (like extreme shouting) might deform the jaw or ears slightly depending on how the original vertex weights were painted, but the standard neutral and talking loops (554 and 571) will run perfectly smoothly on the mesh.
+
+./sdl2 --runescape --dat2 /Users/matthewevers/Documents/git_repos/3draster/cache

@@ -1,16 +1,16 @@
 #ifndef WORLD_SCENERY_U_C
 #define WORLD_SCENERY_U_C
 
-#include "toriauxlib/core/toriauxlibcore.h"
 #include "minimap.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
 #include "shademap.h"
 #include "sharelight_map.h"
-#include "toridraw/toridraw_scene.h"
+#include "toriauxlib/core/toriauxlibcore.h"
+#include "toriauxlib/toriauxlib.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
-#include "toriauxlib/toriauxlib.h"
+#include "toridraw/toridraw_scene.h"
 #include "world_builder.h"
 
 // clang-format off
@@ -227,7 +227,11 @@ scenery_load_model(
     int model_ids[10] = { 0 };
     int models_count = 0;
 
-    if( !config_loc->shapes )
+    // In old dat caches, the shape_select matched the loctype.
+    // if( !shapes || shapes[0] == 10 || shapes[0] == 11 )
+    // For old caches
+    // if( !shapes )
+    if( !config_loc->shapes || config_loc->shapes[0] == 10 || config_loc->shapes[0] == 11 )
     {
         int count = config_loc->lengths ? config_loc->lengths[0] : 0;
         for( int i = 0; i < count && models_count < 10; i++ )
@@ -253,11 +257,17 @@ scenery_load_model(
             }
         }
         if( !found )
-            return -1;
+        {
+            fprintf(stderr, "scenery_load_model: no models (shape_select=%d)\n", shape_select);
+            abort();
+        }
     }
 
     if( models_count <= 0 )
-        return -1;
+    {
+        fprintf(stderr, "scenery_load_model: no models (shape_select=%d)\n", shape_select);
+        abort();
+    }
 
     struct ToriDraw_Model* models[10] = { 0 };
     for( int i = 0; i < models_count; i++ )
@@ -339,7 +349,8 @@ scenery_load_animation(
     ToriDraw_SceneElementSetAnimationSeq(builder->scene, element_id, seq_id);
 
     struct ToriDraw_Animation* resolved = ToriAuxLibTD_SequenceAnimation(builder->td, seq_id);
-    assert(resolved && "scenery_set_animation: invalid resolved animation");
+    if( !resolved )
+        return;
 
     ToriDraw_SceneElementSetAnimation(builder->scene, element_id, resolved, true);
 }

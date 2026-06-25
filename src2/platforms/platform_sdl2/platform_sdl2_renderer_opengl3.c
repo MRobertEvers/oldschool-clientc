@@ -19,6 +19,7 @@
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
+#include "toridraw/toridraw_math.h"
 #include "toridraw/toridraw_types.h"
 
 #include <SDL.h>
@@ -135,6 +136,8 @@ struct LibToriPlatformSDL2_RendererGL3
     GLint u2d_projection;
     GLint u2d_texture;
     GLint u2d_text_mode;
+    GLint u2d_uv_clamp;
+    GLint u2d_uv_bounds;
     bool in2d;
     float proj2d[16];
 };
@@ -353,6 +356,134 @@ gl3_draw_textured_quad(
 }
 
 static void
+gl3_draw_textured_quad_uv4(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    float const pos[4][2],
+    float const uv[4][2],
+    float const rgba[4])
+{
+    struct GL3Vertex2D verts[6] = {
+        { { pos[0][0], pos[0][1] }, { uv[0][0], uv[0][1] }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { pos[1][0], pos[1][1] }, { uv[1][0], uv[1][1] }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { pos[2][0], pos[2][1] }, { uv[2][0], uv[2][1] }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { pos[0][0], pos[0][1] }, { uv[0][0], uv[0][1] }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { pos[2][0], pos[2][1] }, { uv[2][0], uv[2][1] }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { pos[3][0], pos[3][1] }, { uv[3][0], uv[3][1] }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+    };
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->quad_vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+static void
+gl3_sprite_local_to_screen(
+    int dst_x,
+    int dst_y,
+    int local_x,
+    int local_y,
+    float* out_x,
+    float* out_y)
+{
+    *out_x = (float)(dst_x + local_x);
+    *out_y = (float)(dst_y + local_y);
+}
+
+static void
+gl3_sprite_local_to_uv(
+    int local_x,
+    int local_y,
+    int dst_anchor_x,
+    int dst_anchor_y,
+    int src_anchor_x,
+    int src_anchor_y,
+    int src_w,
+    int src_h,
+    int rotation_r2pi2048,
+    float u0,
+    float v0,
+    float u1,
+    float v1,
+    float* out_u,
+    float* out_v)
+{
+    const int ang = ToriDraw_NormalizeAngle(rotation_r2pi2048);
+    const int cos = ToriDraw_Cos(ang);
+    const int sin = ToriDraw_Sin(ang);
+    const int rel_x = local_x - dst_anchor_x;
+    const int rel_y = local_y - dst_anchor_y;
+    const int src_rel_x = ((rel_x * cos + rel_y * sin) >> 16);
+    const int src_rel_y = ((-rel_x * sin + rel_y * cos) >> 16);
+    const float src_x = (float)(src_anchor_x + src_rel_x);
+    const float src_y = (float)(src_anchor_y + src_rel_y);
+    const float du = u1 - u0;
+    const float dv = v1 - v0;
+    *out_u = u0 + (src_w > 0 ? (src_x / (float)src_w) * du : 0.0f);
+    *out_v = v0 + (src_h > 0 ? (src_y / (float)src_h) * dv : 0.0f);
+}
+
+static void
+gl3_draw_sprite_rotated(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_RenderCommand* command,
+    struct ToriDraw_Sprite* sp,
+    float u0,
+    float v0,
+    float u1,
+    float v1,
+    float const rgba[4])
+{
+    const int dst_x = command->u.sprite.x;
+    const int dst_y = command->u.sprite.y;
+    const int dst_w = command->u.sprite.w > 0 ? command->u.sprite.w : sp->width;
+    const int dst_h = command->u.sprite.h > 0 ? command->u.sprite.h : sp->height;
+    const int dst_anchor_x = command->u.sprite.dst_anchor_x;
+    const int dst_anchor_y = command->u.sprite.dst_anchor_y;
+    const int src_anchor_x = command->u.sprite.src_anchor_x;
+    const int src_anchor_y = command->u.sprite.src_anchor_y;
+    const int src_w = sp->crop_width > 0 ? sp->crop_width : sp->width;
+    const int src_h = sp->crop_height > 0 ? sp->crop_height : sp->height;
+    const int rotation = command->u.sprite.rotation;
+
+    const int local_corners[4][2] = {
+        { 0, 0 },
+        { dst_w, 0 },
+        { dst_w, dst_h },
+        { 0, dst_h },
+    };
+    float pos[4][2];
+    float uv[4][2];
+    for( int i = 0; i < 4; i++ )
+    {
+        gl3_sprite_local_to_screen(
+            dst_x, dst_y, local_corners[i][0], local_corners[i][1], &pos[i][0], &pos[i][1]);
+        gl3_sprite_local_to_uv(
+            local_corners[i][0],
+            local_corners[i][1],
+            dst_anchor_x,
+            dst_anchor_y,
+            src_anchor_x,
+            src_anchor_y,
+            src_w,
+            src_h,
+            rotation,
+            u0,
+            v0,
+            u1,
+            v1,
+            &uv[i][0],
+            &uv[i][1]);
+    }
+
+    if( renderer->u2d_uv_clamp >= 0 )
+        glUniform1i(renderer->u2d_uv_clamp, 1);
+    if( renderer->u2d_uv_bounds >= 0 )
+        glUniform4f(renderer->u2d_uv_bounds, u0, v0, u1, v1);
+    gl3_draw_textured_quad_uv4(renderer, pos, uv, rgba);
+    if( renderer->u2d_uv_clamp >= 0 )
+        glUniform1i(renderer->u2d_uv_clamp, 0);
+}
+
+static void
 gl3_bake_font_atlas(struct GL3FontSlot* slot)
 {
     struct ToriDraw_Font* font = slot->font;
@@ -501,6 +632,8 @@ gl3_ev_begin_2d(
     glUniform1i(renderer->u2d_texture, 0);
     if( renderer->u2d_text_mode >= 0 )
         glUniform1i(renderer->u2d_text_mode, 0);
+    if( renderer->u2d_uv_clamp >= 0 )
+        glUniform1i(renderer->u2d_uv_clamp, 0);
     glBindVertexArray(renderer->quad_vao);
 }
 
@@ -619,6 +752,7 @@ gl3_ev_sprite(
     float x1 = (float)(command->u.sprite.x + w);
     float y1 = (float)(command->u.sprite.y + h);
     float rgba[4] = { 1.0f, 1.0f, 1.0f, alpha };
+    const bool rotated = command->u.sprite.rotated != 0;
 
     const int mask_element_id = command->u.sprite.mask_element_id;
     const int mask_atlas_index = command->u.sprite.mask_atlas_index;
@@ -650,7 +784,10 @@ gl3_ev_sprite(
         }
     }
 
-    gl3_draw_textured_quad(renderer, x0, y0, x1, y1, u0, v0, u1, v1, rgba);
+    if( rotated )
+        gl3_draw_sprite_rotated(renderer, command, sp, u0, v0, u1, v1, rgba);
+    else
+        gl3_draw_textured_quad(renderer, x0, y0, x1, y1, u0, v0, u1, v1, rgba);
 
     if( use_stencil )
         glDisable(GL_STENCIL_TEST);
@@ -2029,6 +2166,8 @@ LibToriPlatformSDL2_RendererGL3_Init(
             renderer->u2d_projection = glGetUniformLocation(renderer->program2d, "u_projection");
             renderer->u2d_texture = glGetUniformLocation(renderer->program2d, "u_texture");
             renderer->u2d_text_mode = glGetUniformLocation(renderer->program2d, "u_text_mode");
+            renderer->u2d_uv_clamp = glGetUniformLocation(renderer->program2d, "u_uv_clamp");
+            renderer->u2d_uv_bounds = glGetUniformLocation(renderer->program2d, "u_uv_bounds");
             glDeleteShader(vs2d);
             glDeleteShader(fs2d);
         }

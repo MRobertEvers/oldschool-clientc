@@ -111,6 +111,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toridraw/toridraw_model_transform.c \
 	$(SCRIPT_DIR)/libtorirs_scriptapi.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
+	$(SRC2)/buildcache/dat2_buildcache.c \
 	$(SRC2)/toriauxlib/toriauxlib.c \
 	$(SRC2)/toriauxlib/core/toriauxlibcore.c \
 	$(SRC2)/toriauxlib/core/toriauxlibcore_types.c \
@@ -122,6 +123,9 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toriauxlib/td/toriauxlibtd_tasks.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachemodel.c \
+	$(SRC2)/vm/csvm.c \
+	$(SRC2)/toriauxlib/vm/toriauxlibvm.c \
+	$(SRC_DIR)/osrs/varp_varbit_manager.c \
 	$(SRC2)/toridraw/toridraw_animation.c \
 	$(SRC2)/toridraw/toridraw.c \
 	$(SRC2)/toridraw/toridraw_math.c \
@@ -135,11 +139,14 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toridraw/toridraw_font.c \
 	$(SRC2)/buildcache/dat1_buildcache_ui.c \
 	$(SRC2)/toriauxlib/c/revconfig_ui_build.c \
-	$(SRC_DIR)/osrs/revconfig/uitree.c \
+	$(SRC2)/ui/uitree.c \
+	$(SRC2)/ui/ui_input.c \
+	$(SRC2)/ui/ui_behavior.c \
+	$(SRC2)/ui/ui_input_adapter.c \
 	$(SRC2)/core/tasks/core_task.c \
-	$(SRC_DIR)/3rd/ini/ini.c \
-	$(SRC_DIR)/osrs/revconfig/revconfig.c \
-	$(SRC_DIR)/osrs/revconfig/revconfig_load.c \
+	$(SRC2)/3rd/ini/ini.c \
+	$(SRC2)/revconfig/revconfig.c \
+	$(SRC2)/revconfig/revconfig_load.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC2)/games/runescape.c \
 	$(SRC_DIR)/graphics/dashmap.c \

@@ -4,6 +4,8 @@
 #include "cachelib.h"
 #include "osrs/rscache/dat1disk/dat1disk.h"
 #include "osrs/rscache/dat1a/dat1a_configs_dat.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/dat2a/dat2a_configs.h"
 
 static inline void
 cachelib_dat1_config_file_fetch(struct RSCacheDat2DiskLib_IORequest* out)
@@ -92,6 +94,56 @@ cachelib_dat1_animations_fetch(
 {
     out->table_id = RSCacheDat1Disk_Table_Animations;
     out->archive_id = archive_id;
+    out->flags = 0;
+}
+
+static inline void
+cachelib_dat2_model_fetch(
+    int model_id,
+    struct RSCacheDat2DiskLib_IORequest* out)
+{
+    out->table_id = RSCacheDat2Disk_Table_Models;
+    out->archive_id = model_id;
+    out->flags = 0;
+}
+
+static inline void
+cachelib_dat2_map_chunk_terrain_fetch(
+    int mapx,
+    int mapz,
+    struct RSCacheDat2DiskLib_IORequest* out)
+{
+    out->table_id = RSCacheDat2Disk_Table_Maps;
+    out->archive_id = CACHELIB_MAPCHUNK_ID(mapx, mapz);
+    out->flags = CACHELIB_MAPCHUNK_TERRAIN;
+}
+
+static inline void
+cachelib_dat2_map_chunk_scenery_fetch(
+    int mapx,
+    int mapz,
+    struct RSCacheDat2DiskLib_IORequest* out)
+{
+    out->table_id = RSCacheDat2Disk_Table_Maps;
+    out->archive_id = CACHELIB_MAPCHUNK_ID(mapx, mapz);
+    out->flags = CACHELIB_MAPCHUNK_SCENERY;
+}
+
+static inline void
+cachelib_dat2_config_group_fetch(
+    int config_kind,
+    struct RSCacheDat2DiskLib_IORequest* out)
+{
+    out->table_id = RSCacheDat2Disk_Table_Configs;
+    out->archive_id = config_kind;
+    out->flags = 0;
+}
+
+static inline void
+cachelib_dat2_textures_archive_fetch(struct RSCacheDat2DiskLib_IORequest* out)
+{
+    out->table_id = RSCacheDat2Disk_Table_Textures;
+    out->archive_id = 0;
     out->flags = 0;
 }
 

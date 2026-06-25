@@ -189,3 +189,21 @@ ToriAuxLibCore_FontFree(struct ToriAuxLibCore_Font* font)
     free(font);
 }
 
+void
+ToriAuxLibCore_ComponentFree(struct ToriAuxLibCore_Component* component)
+{
+    if( !component )
+        return;
+
+    if( component->scripts )
+    {
+        for( int i = 0; i < component->scripts_count; i++ )
+            free(component->scripts[i]);
+        free(component->scripts);
+    }
+    free(component->scripts_lengths);
+    free(component->script_comparator);
+    free(component->script_operand);
+    free(component);
+}
+

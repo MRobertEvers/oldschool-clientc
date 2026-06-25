@@ -102,6 +102,7 @@ struct RSCacheDat2A_ConfigLocation
     // Animation
     int seq_id;
 
+    // Lighting
     int ambient;
     int contrast;
 
@@ -116,6 +117,7 @@ struct RSCacheDat2A_ConfigLocation
     int* retextures_to;
     int retexture_count;
 
+    // Map function id is the sprite that appears on the world map.
     int map_function_id;
     int mirrored;
     int shadowed;
@@ -139,6 +141,9 @@ struct RSCacheDat2A_ConfigLocation
 
     int transform_varbit;
     int transform_varp;
+    // These are the ids of other locs.
+    // The transform varbit or transform varp are required to know which of these
+    // locs to use in place of this loc.
     int* transforms;
     int transform_count;
 
@@ -175,6 +180,11 @@ config_locs_free_inplace(struct RSCacheDat2A_ConfigLocation* loc);
 
 #define CONFIG_LOC_DECODE_DAT2 0
 #define CONFIG_LOC_DECODE_DAT 1
+#define CONFIG_LOC_DECODE_LARGE_MODEL_IDS 2
+
+#define LOC_READ_MODEL_ID(buf, flags)                                                              \
+    ((flags) & CONFIG_LOC_DECODE_LARGE_MODEL_IDS ? RSCacheShared_RSBufferReadBigSmart(buf)         \
+                                                 : RSCacheShared_RSBufferG2(buf))
 
 void
 config_locs_decode_inplace(

@@ -153,7 +153,7 @@ world_projectile_dst_y(
     if( !world || !world->heightmap )
         return 0;
     return heightmap_get_interpolated(world->heightmap, p->dst_x, p->dst_z, p->dst_level) -
-        p->end_height;
+           p->end_height;
 }
 
 static void
@@ -232,13 +232,11 @@ world_projectile_spawn(
     struct WorldEntity_Projectile* p;
     int idx;
 
-    if( !world || element_id < 0 )
-        return -1;
+    assert(!(!world || element_id < 0));
 
     pool = &world->entities.projectile;
     idx = World_EntityPoolAlloc(pool);
-    if( idx < 0 )
-        return -1;
+    assert(idx >= 0);
 
     p = World_EntityPoolGet(pool, idx);
     *p = (struct WorldEntity_Projectile){
@@ -399,7 +397,8 @@ world_cycle(
         int pos_z = (int)p->z;
         int grid_x = pos_x >> 7;
         int grid_z = pos_z >> 7;
-        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size || grid_z >= world->_scene_size )
+        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
+            grid_z >= world->_scene_size )
         {
             world_projectile_despawn(world, i);
             i = next;
@@ -408,11 +407,7 @@ world_cycle(
 
         struct WorldPainterFootprint footprint;
         world_projectile_painter_footprint(
-            pos_x,
-            pos_z,
-            WORLD_PROJECTILE_PAINTER_PADDING,
-            world->_scene_size,
-            &footprint);
+            pos_x, pos_z, WORLD_PROJECTILE_PAINTER_PADDING, world->_scene_size, &footprint);
 
         painter_add_normal_scenery(
             world->painter,

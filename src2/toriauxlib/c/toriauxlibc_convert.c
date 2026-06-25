@@ -5,7 +5,10 @@
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat2a/dat2a_sprites.h"
+#include "osrs/rscache/dat2a/dat2a_textures.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/dat1a/dat1a_config_textures.h"
 #include "osrs/texture.h"
 
@@ -122,6 +125,38 @@ ToriAuxLibC_TextureNewFromCacheDatTexture(
     texture->opaque = dash->opaque;
     texture->animation_direction = dash->animation_direction;
     texture->animation_speed = dash->animation_speed;
+    free(dash);
+    return texture;
+}
+
+struct ToriAuxLibCore_Texture*
+ToriAuxLibC_TextureNewFromDat2Definition(
+    struct RSCacheDat2A_Texture* def,
+    struct RSCacheDat2A_SpritePack** packs,
+    int animation_direction,
+    int animation_speed)
+{
+    if( !def )
+        return NULL;
+
+    struct DashTexture* dash = texture_new_from_definition_packs(def, packs);
+    if( !dash )
+        return NULL;
+
+    struct ToriAuxLibCore_Texture* texture = malloc(sizeof(struct ToriAuxLibCore_Texture));
+    if( !texture )
+    {
+        texture_free(dash);
+        return NULL;
+    }
+
+    memset(texture, 0, sizeof(struct ToriAuxLibCore_Texture));
+    texture->texels = dash->texels;
+    texture->width = dash->width;
+    texture->height = dash->height;
+    texture->opaque = dash->opaque;
+    texture->animation_direction = animation_direction;
+    texture->animation_speed = animation_speed;
     free(dash);
     return texture;
 }
@@ -365,5 +400,170 @@ ToriAuxLibC_SequenceNewFromCacheDatSequence(
 
 fail:
     ToriAuxLibCore_SequenceFree(dst);
+    return NULL;
+}
+
+struct ToriAuxLibCore_Flotype*
+ToriAuxLibC_UnderlayNewFromCacheConfigUnderlay(
+    const void* cache_underlay_ptr,
+    int id)
+{
+    const struct RSCacheDat2A_ConfigUnderlay* src = cache_underlay_ptr;
+    if( !src )
+        return NULL;
+
+    struct ToriAuxLibCore_Flotype* dst = malloc(sizeof(struct ToriAuxLibCore_Flotype));
+    if( !dst )
+        return NULL;
+
+    dst->id = id;
+    dst->rgb_color = src->rgb_color;
+    dst->texture = -1;
+    dst->secondary_rgb_color = 0;
+    dst->hide_underlay = false;
+    return dst;
+}
+
+struct ToriAuxLibCore_Sequence*
+ToriAuxLibC_SequenceNewFromCacheDat2Sequence(
+    const void* cache_seq_ptr,
+    int id)
+{
+    const struct RSCacheDat2A_ConfigSequence* src = cache_seq_ptr;
+    if( !src )
+        return NULL;
+
+    struct ToriAuxLibCore_Sequence* dst = calloc(1, sizeof(struct ToriAuxLibCore_Sequence));
+    if( !dst )
+        return NULL;
+
+    dst->id = id;
+    dst->frame_count = src->frame_count;
+    dst->loops = src->max_loops;
+    dst->stretches = src->stretches;
+    dst->priority = src->priority;
+    dst->replaceheldleft = src->left_hand_item;
+    dst->replaceheldright = src->right_hand_item;
+    dst->maxloops = src->max_loops;
+    dst->preanim_move = src->precedence_animating;
+    dst->postanim_move = src->reply_mode;
+
+    if( src->frame_count > 0 )
+    {
+        if( src->frame_ids )
+        {
+            dst->frames = malloc((size_t)src->frame_count * sizeof(int));
+            if( !dst->frames )
+                goto fail;
+            memcpy(dst->frames, src->frame_ids, (size_t)src->frame_count * sizeof(int));
+        }
+        if( src->frame_lengths )
+        {
+            dst->delay = malloc((size_t)src->frame_count * sizeof(int));
+            if( !dst->delay )
+                goto fail;
+            memcpy(dst->delay, src->frame_lengths, (size_t)src->frame_count * sizeof(int));
+        }
+    }
+    return dst;
+
+fail:
+    ToriAuxLibCore_SequenceFree(dst);
+    return NULL;
+}
+
+static int
+toriauxlibc_component_script_length_from_opcode0(int const* script)
+{
+    if( !script )
+        return 0;
+    int pc = 0;
+    for( ;; )
+    {
+        int opcode = script[pc++];
+        if( opcode == 0 )
+            return pc;
+        if( opcode == 1 || opcode == 2 || opcode == 3 || opcode == 6 )
+            pc += 1;
+        else if( opcode == 4 || opcode == 10 )
+            pc += 2;
+        else if( opcode == 5 || opcode == 7 || opcode == 13 || opcode == 14 || opcode == 20 )
+            pc += 1;
+        else if( opcode == 15 || opcode == 16 || opcode == 17 )
+            continue;
+        else
+            pc += 1;
+    }
+}
+
+struct ToriAuxLibCore_Component*
+ToriAuxLibC_ComponentNewFromCacheComponent(const void* cache_component_ptr)
+{
+    const struct RSCacheDat1A_ConfigComponent* src = cache_component_ptr;
+    if( !src )
+        return NULL;
+
+    struct ToriAuxLibCore_Component* dst = calloc(1, sizeof(struct ToriAuxLibCore_Component));
+    if( !dst )
+        return NULL;
+
+    dst->id = src->id;
+    dst->hide = src->hide ? 1 : 0;
+    dst->button_type = src->buttonType;
+    dst->client_code = src->clientCode;
+    dst->over_color = src->overColour;
+    dst->active_color = src->activeColour;
+    dst->active_over_color = src->activeOverColour;
+    dst->scripts_count = src->scripts_count;
+
+    if( src->scripts_count > 0 && src->scripts )
+    {
+        dst->scripts = calloc((size_t)src->scripts_count, sizeof(int*));
+        dst->scripts_lengths = calloc((size_t)src->scripts_count, sizeof(int));
+        if( !dst->scripts || !dst->scripts_lengths )
+            goto fail;
+
+        for( int i = 0; i < src->scripts_count; i++ )
+        {
+            if( !src->scripts[i] )
+                continue;
+
+            int len = (src->scripts_lengths && src->scripts_lengths[i] > 0)
+                          ? src->scripts_lengths[i]
+                          : toriauxlibc_component_script_length_from_opcode0(src->scripts[i]);
+            if( len <= 0 )
+                continue;
+
+            dst->scripts[i] = malloc((size_t)len * sizeof(int));
+            if( !dst->scripts[i] )
+                goto fail;
+            memcpy(dst->scripts[i], src->scripts[i], (size_t)len * sizeof(int));
+            dst->scripts_lengths[i] = len;
+        }
+    }
+
+    if( src->scriptComparator && src->scripts_count > 0 )
+    {
+        dst->script_comparator = malloc((size_t)src->scripts_count * sizeof(int));
+        if( !dst->script_comparator )
+            goto fail;
+        memcpy(
+            dst->script_comparator,
+            src->scriptComparator,
+            (size_t)src->scripts_count * sizeof(int));
+    }
+
+    if( src->scriptOperand && src->scripts_count > 0 )
+    {
+        dst->script_operand = malloc((size_t)src->scripts_count * sizeof(int));
+        if( !dst->script_operand )
+            goto fail;
+        memcpy(dst->script_operand, src->scriptOperand, (size_t)src->scripts_count * sizeof(int));
+    }
+
+    return dst;
+
+fail:
+    ToriAuxLibCore_ComponentFree(dst);
     return NULL;
 }

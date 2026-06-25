@@ -6,7 +6,7 @@
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "toriauxlib/td/toridraw_cachemodel.h"
 #include "toriauxlib/td/toridraw_cachesprite.h"
-
+#include "toriauxlib/vm/toriauxlibvm.h"
 #include "toridraw/toridraw_scene.h"
 
 struct ToriAuxLib;
@@ -27,5 +27,8 @@ ToriAuxLib_C(struct ToriAuxLib* tal);
 
 struct ToriAuxLibTD*
 ToriAuxLib_TD(struct ToriAuxLib* tal);
+
+struct ToriAuxLibVM*
+ToriAuxLib_VM(struct ToriAuxLib* tal);
 
 #endif

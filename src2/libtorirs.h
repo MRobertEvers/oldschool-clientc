@@ -12,9 +12,13 @@
 struct LibToriRS_ScriptQueue;
 struct LibToriRS_Instance;
 struct LibToriRS_CommandQueue;
+struct ToriAuxLib;
 
 struct LibToriRS_Instance*
 LibToriRS_InstanceNew(void);
+
+struct LibToriRS_Instance*
+LibToriRS_InstanceNewWithCacheMode(int cache_mode);
 
 void
 LibToriRS_InstanceFree(struct LibToriRS_Instance* instance);
@@ -69,6 +73,9 @@ LibToriRS_IsRunning(struct LibToriRS_Instance* instance);
 
 struct ToriDraw_Scene*
 LibToriRS_GetCurrentToriDrawScene(struct LibToriRS_Instance* instance);
+
+struct ToriAuxLib*
+LibToriRS_GetToriAuxLib(struct LibToriRS_Instance* instance);
 
 void
 LibToriRS_TasksAdd(

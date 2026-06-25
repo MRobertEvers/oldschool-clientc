@@ -125,7 +125,12 @@ struct LibToriRS_RenderCommand_Sprite
     int scissor_y;
     int scissor_w;
     int scissor_h;
+    int rotated;
     int rotation;
+    int dst_anchor_x;
+    int dst_anchor_y;
+    int src_anchor_x;
+    int src_anchor_y;
     int mask_element_id;
     int mask_atlas_index;
     int alpha;

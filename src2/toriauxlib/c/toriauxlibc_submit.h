@@ -52,4 +52,34 @@ ToriAuxLibC_SubmitFontFromDat1(
     int font_id,
     struct ToriAuxLibCore_Font* font);
 
+void
+ToriAuxLibC_SubmitAllComponentsFromDat1(struct ToriAuxLibC* c);
+
+void
+ToriAuxLibC_SubmitMapTerrainFromDat2(
+    struct ToriAuxLibC* c,
+    int map_id);
+
+void
+ToriAuxLibC_SubmitMapSceneryFromDat2(
+    struct ToriAuxLibC* c,
+    int map_id);
+
+void
+ToriAuxLibC_SubmitModelFromDat2(
+    struct ToriAuxLibC* c,
+    int model_id);
+
+void
+ToriAuxLibC_SubmitAllSequencesFromDat2(struct ToriAuxLibC* c);
+
+void
+ToriAuxLibC_SubmitAllFlotypesFromDat2(struct ToriAuxLibC* c);
+
+void
+ToriAuxLibC_SubmitAllUnderlaysFromDat2(struct ToriAuxLibC* c);
+
+void
+ToriAuxLibC_SubmitAllLocationsFromDat2(struct ToriAuxLibC* c);
+
 #endif

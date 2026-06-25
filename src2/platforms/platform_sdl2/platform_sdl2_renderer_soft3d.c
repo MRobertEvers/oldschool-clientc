@@ -197,10 +197,12 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 struct ToriDraw_Position tmp_pos = cur_3d.camera_position;
                 struct ToriDraw_ViewPort tmp_vp = cur_3d.view_port;
                 struct ToriDraw_Camera tmp_cam = cur_3d.camera;
+                int wx = tmp_vp.x_center - tmp_vp.width / 2;
+                int wy = tmp_vp.y_center - tmp_vp.height / 2;
                 tmp_vp.stride = renderer->width;
+                int* base = renderer->pixel_buffer + wy * tmp_vp.stride + wx;
                 (void)tmp_pos;
-                ToriDraw_RenderModel3Raster(
-                    draw_context, &tmp_vp, &tmp_cam, renderer->pixel_buffer, false);
+                ToriDraw_RenderModel3Raster(draw_context, &tmp_vp, &tmp_cam, base, false);
             }
             break;
         case TORIRSRC_BEGIN_2D:
@@ -273,7 +275,23 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 }
             }
 
-            if( command.u.sprite.rotation != 0 )
+            if( command.u.sprite.rotated )
+            {
+                ToriDraw2D_BlitSpriteRotatedEx(
+                    sp,
+                    &vp,
+                    command.u.sprite.x,
+                    command.u.sprite.y,
+                    command.u.sprite.w,
+                    command.u.sprite.h,
+                    command.u.sprite.dst_anchor_x,
+                    command.u.sprite.dst_anchor_y,
+                    command.u.sprite.src_anchor_x,
+                    command.u.sprite.src_anchor_y,
+                    command.u.sprite.rotation,
+                    renderer->pixel_buffer);
+            }
+            else if( command.u.sprite.rotation != 0 )
             {
                 ToriDraw2D_BlitSpriteRotated(
                     sp,

@@ -14,11 +14,13 @@ struct ToriAuxLibCore
     struct ToriDraw_Map* map_terrain_hmap;
     struct ToriDraw_Map* map_scenery_hmap;
     struct ToriDraw_Map* flotype_hmap;
+    struct ToriDraw_Map* underlay_hmap;
     struct ToriDraw_Map* config_loc_hmap;
     struct ToriDraw_Map* sequences_hmap;
     struct ToriDraw_Map* animframes_reftable;
     struct ToriDraw_Map* sprites_hmap;
     struct ToriDraw_Map* fonts_hmap;
+    struct ToriDraw_Map* components_hmap;
 };
 
 struct MapEntry_AnimframeRef
@@ -86,6 +88,12 @@ struct MapEntry_Font
 {
     int id;
     struct ToriAuxLibCore_Font* font;
+};
+
+struct MapEntry_Component
+{
+    int id;
+    struct ToriAuxLibCore_Component* component;
 };
 
 static struct ToriDraw_Map*
@@ -176,11 +184,13 @@ ToriAuxLibCore_New(void)
     gamecache->map_terrain_hmap = gamecache_map_new(sizeof(struct MapEntry_MapTerrain), 256);
     gamecache->map_scenery_hmap = gamecache_map_new(sizeof(struct MapEntry_MapScenery), 256);
     gamecache->flotype_hmap = gamecache_map_new(sizeof(struct MapEntry_Flotype), 256);
+    gamecache->underlay_hmap = gamecache_map_new(sizeof(struct MapEntry_Flotype), 256);
     gamecache->config_loc_hmap = gamecache_map_new(sizeof(struct MapEntry_Location), 1024);
     gamecache->sequences_hmap = gamecache_map_new(sizeof(struct MapEntry_Sequence), 1024);
     gamecache->animframes_reftable = gamecache_map_new(sizeof(struct MapEntry_AnimframeRef), 4096);
     gamecache->sprites_hmap = gamecache_map_new(sizeof(struct MapEntry_Sprite), 256);
     gamecache->fonts_hmap = gamecache_map_new(sizeof(struct MapEntry_Font), 16);
+    gamecache->components_hmap = gamecache_map_new(sizeof(struct MapEntry_Component), 1024);
 
     return gamecache;
 }
@@ -345,6 +355,22 @@ ToriAuxLibCore_Free_fonts(struct ToriDraw_Map* map)
     ToriDraw_MapIterFree(iter);
 }
 
+static void
+ToriAuxLibCore_Free_components(struct ToriDraw_Map* map)
+{
+    if( !map )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
+    struct MapEntry_Component* entry = NULL;
+    while( (entry = (struct MapEntry_Component*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->component )
+            ToriAuxLibCore_ComponentFree(entry->component);
+    }
+    ToriDraw_MapIterFree(iter);
+}
+
 void
 ToriAuxLibCore_Free(struct ToriAuxLibCore* gamecache)
 {
@@ -369,6 +395,9 @@ ToriAuxLibCore_Free(struct ToriAuxLibCore* gamecache)
     ToriAuxLibCore_Free_flotype(gamecache->flotype_hmap);
     gamecache_map_free(gamecache->flotype_hmap);
 
+    ToriAuxLibCore_Free_flotype(gamecache->underlay_hmap);
+    gamecache_map_free(gamecache->underlay_hmap);
+
     ToriAuxLibCore_Free_locations(gamecache->config_loc_hmap);
     gamecache_map_free(gamecache->config_loc_hmap);
 
@@ -382,6 +411,9 @@ ToriAuxLibCore_Free(struct ToriAuxLibCore* gamecache)
 
     ToriAuxLibCore_Free_fonts(gamecache->fonts_hmap);
     gamecache_map_free(gamecache->fonts_hmap);
+
+    ToriAuxLibCore_Free_components(gamecache->components_hmap);
+    gamecache_map_free(gamecache->components_hmap);
 
     free(gamecache);
 }
@@ -593,6 +625,55 @@ ToriAuxLibCore_FontsClearAll(struct ToriAuxLibCore* gamecache)
 }
 
 void
+ToriAuxLibCore_ComponentAdd(
+    struct ToriAuxLibCore* gamecache,
+    int component_id,
+    struct ToriAuxLibCore_Component* component)
+{
+    struct MapEntry_Component* entry = (struct MapEntry_Component*)ToriDraw_MapSearch(
+        gamecache->components_hmap, &component_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->component )
+        ToriAuxLibCore_ComponentFree(entry->component);
+
+    entry->id = component_id;
+    entry->component = component;
+    gamecache_maybe_grow_hmap(gamecache->components_hmap);
+}
+
+struct ToriAuxLibCore_Component*
+ToriAuxLibCore_ComponentGet(
+    struct ToriAuxLibCore* gamecache,
+    int component_id)
+{
+    struct MapEntry_Component* entry = (struct MapEntry_Component*)ToriDraw_MapSearch(
+        gamecache->components_hmap, &component_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->component;
+}
+
+bool
+ToriAuxLibCore_ComponentHas(
+    struct ToriAuxLibCore* gamecache,
+    int component_id)
+{
+    return ToriAuxLibCore_ComponentGet(gamecache, component_id) != NULL;
+}
+
+void
+ToriAuxLibCore_ComponentsClearAll(struct ToriAuxLibCore* gamecache)
+{
+    if( !gamecache || !gamecache->components_hmap )
+        return;
+
+    ToriAuxLibCore_Free_components(gamecache->components_hmap);
+    gamecache_map_reset(&gamecache->components_hmap, sizeof(struct MapEntry_Component), 1024);
+}
+
+void
 ToriAuxLibCore_MapTerrainAdd(
     struct ToriAuxLibCore* gamecache,
     int map_id,
@@ -704,6 +785,44 @@ ToriAuxLibCore_FlotypeHas(
     int flo_id)
 {
     return ToriAuxLibCore_FlotypeGet(gamecache, flo_id) != NULL;
+}
+
+void
+ToriAuxLibCore_UnderlayAdd(
+    struct ToriAuxLibCore* gamecache,
+    int underlay_id,
+    struct ToriAuxLibCore_Flotype* underlay)
+{
+    struct MapEntry_Flotype* entry = (struct MapEntry_Flotype*)ToriDraw_MapSearch(
+        gamecache->underlay_hmap, &underlay_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->flotype )
+        ToriAuxLibCore_FlotypeFree(entry->flotype);
+
+    entry->id = underlay_id;
+    entry->flotype = underlay;
+}
+
+struct ToriAuxLibCore_Flotype*
+ToriAuxLibCore_UnderlayGet(
+    struct ToriAuxLibCore* gamecache,
+    int underlay_id)
+{
+    struct MapEntry_Flotype* entry = (struct MapEntry_Flotype*)ToriDraw_MapSearch(
+        gamecache->underlay_hmap, &underlay_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->flotype;
+}
+
+bool
+ToriAuxLibCore_UnderlayHas(
+    struct ToriAuxLibCore* gamecache,
+    int underlay_id)
+{
+    return ToriAuxLibCore_UnderlayGet(gamecache, underlay_id) != NULL;
 }
 
 void

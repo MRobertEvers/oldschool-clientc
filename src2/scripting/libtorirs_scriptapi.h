@@ -28,6 +28,12 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue);
 
+bool
+LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance);
+
+const char*
+LibToriRS_ScriptAPI_GetCacheMode(struct LibToriRS_Instance* instance);
+
 void
 LibToriRS_ScriptAPI_Dat1_ModelFetch(
     struct LibToriRS_Instance* instance,
