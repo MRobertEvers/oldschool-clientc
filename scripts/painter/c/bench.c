@@ -10,6 +10,18 @@
 #define BENCH_ITERS 100
 #endif
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+static double
+now_seconds(void)
+{
+    LARGE_INTEGER freq, cnt;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&cnt);
+    return (double)cnt.QuadPart / (double)freq.QuadPart;
+}
+#else
 static double
 now_seconds(void)
 {
@@ -18,6 +30,7 @@ now_seconds(void)
         return 0.0;
     return (double)ts.tv_sec + 1e-9 * (double)ts.tv_nsec;
 }
+#endif
 
 static const PainterScenerySpec k_heap_default_scenery[] = {
     { 1, 1, 3, 2, 0 },

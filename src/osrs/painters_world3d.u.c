@@ -17,20 +17,10 @@ struct W3dPaint
     uint8_t draw_primaries;
 };
 
-struct W3dSeed
-{
-    uint8_t phase;
-    int32_t tile_idx;
-};
-
 struct PainterW3dCtx
 {
     struct W3dPaint* paints;
     int sentinel_idx;
-    struct W3dSeed* seeds;
-    int seeds_cap;
-    uint8_t* seed_seen;
-    int seed_seen_nbytes;
 };
 
 #define W3(P) ((struct PainterW3dCtx*)(P)->w3d_ctx)
@@ -44,18 +34,9 @@ w3d_ctx_init(struct Painter* painter)
         return -1;
     w->paints = malloc((size_t)(tile_count + 1) * sizeof(struct W3dPaint));
     w->sentinel_idx = tile_count;
-    int seed_cap = 8 * painter->levels * (painter->width + 4) * (painter->height + 4) + 2048;
-    if( seed_cap < 8192 )
-        seed_cap = 8192;
-    w->seeds = malloc((size_t)seed_cap * sizeof(struct W3dSeed));
-    w->seeds_cap = seed_cap;
-    w->seed_seen_nbytes = (painter->width * painter->height + 7) / 8 + 1;
-    w->seed_seen = calloc((size_t)w->seed_seen_nbytes, 1);
-    if( !w->paints || !w->seeds || !w->seed_seen )
+    if( !w->paints )
     {
         free(w->paints);
-        free(w->seeds);
-        free(w->seed_seen);
         free(w);
         return -1;
     }
@@ -70,8 +51,6 @@ w3d_ctx_free(struct Painter* painter)
     if( !w )
         return;
     free(w->paints);
-    free(w->seeds);
-    free(w->seed_seen);
     free(w);
     painter->w3d_ctx = NULL;
 }
@@ -131,89 +110,6 @@ w3d_link_init_sentinel(struct Painter* p)
     int s = W3(p)->sentinel_idx;
     W3(p)->paints[s].ll_prev = s;
     W3(p)->paints[s].ll_next = s;
-}
-
-static void
-w3d_emit_seed(
-    struct Painter* p,
-    uint8_t phase,
-    int sx,
-    int sz,
-    int slevel,
-    int* seeds_len)
-{
-    if( sx < 0 || sz < 0 || sx >= p->width || sz >= p->height )
-        return;
-    int b = sz * p->width + sx;
-    int bi = b / 8;
-    int bb = 1 << (b % 8);
-    if( (W3(p)->seed_seen[bi] & (uint8_t)bb) != 0 )
-        return;
-    W3(p)->seed_seen[bi] |= (uint8_t)bb;
-    assert(*seeds_len < W3(p)->seeds_cap);
-    W3(p)->seeds[*seeds_len].phase = phase;
-    W3(p)->seeds[*seeds_len].tile_idx = painter_coord_idx(p, sx, sz, slevel);
-    (*seeds_len)++;
-}
-
-static void
-w3d_build_seeds(
-    struct Painter* p,
-    int eye_ix,
-    int eye_iz,
-    int min_draw_x,
-    int max_draw_x,
-    int min_draw_z,
-    int max_draw_z,
-    int radius,
-    int* out_len)
-{
-    *out_len = 0;
-    int gs_w = p->width;
-    int gs_h = p->height;
-    int L = p->levels;
-    int R = radius;
-    if( R < 1 )
-        R = 1;
-
-    for( int phase = 1; phase <= 2; phase++ )
-    {
-        for( int level = 0; level < L; level++ )
-        {
-            for( int dx = -R; dx <= 0; dx++ )
-            {
-                int right_x = eye_ix + dx;
-                int left_x = eye_ix - dx;
-                if( right_x < min_draw_x && left_x >= max_draw_x )
-                    continue;
-
-                for( int dz = -R; dz <= 0; dz++ )
-                {
-                    int fwd_z = eye_iz + dz;
-                    int bwd_z = eye_iz - dz;
-
-                    memset(W3(p)->seed_seen, 0, (size_t)W3(p)->seed_seen_nbytes);
-
-                    if( right_x >= min_draw_x )
-                    {
-                        if( fwd_z >= min_draw_z )
-                            w3d_emit_seed(p, (uint8_t)phase, right_x, fwd_z, level, out_len);
-                        if( bwd_z < max_draw_z )
-                            w3d_emit_seed(p, (uint8_t)phase, right_x, bwd_z, level, out_len);
-                    }
-                    if( left_x < max_draw_x )
-                    {
-                        if( fwd_z >= min_draw_z )
-                            w3d_emit_seed(p, (uint8_t)phase, left_x, fwd_z, level, out_len);
-                        if( bwd_z < max_draw_z )
-                            w3d_emit_seed(p, (uint8_t)phase, left_x, bwd_z, level, out_len);
-                    }
-                }
-            }
-        }
-    }
-    (void)gs_h;
-    (void)gs_w;
 }
 
 static void
@@ -421,7 +317,7 @@ painter_paint_world3d(
     (void)camera_slevel;
     if( !painter->w3d_ctx && w3d_ctx_init(painter) != 0 )
         return -1;
-    if( !W3(painter)->paints || !W3(painter)->seeds || !W3(painter)->seed_seen )
+    if( !W3(painter)->paints )
         return -1;
 
     struct PaintersTile* tile = NULL;
@@ -515,19 +411,18 @@ painter_paint_world3d(
         }
     }
 
-    int seeds_len = 0;
-    w3d_build_seeds(
-        painter,
+    struct PainterSeedGen seed_gen;
+    seed_gen_init(
+        &seed_gen,
         eye_ix,
         eye_iz,
         min_draw_x,
         max_draw_x,
         min_draw_z,
         max_draw_z,
-        radius,
-        &seeds_len);
+        painter->levels,
+        radius);
 
-    int seed_idx = 0;
     int check_adjacent = 1;
 
     for( ;; )
@@ -537,13 +432,14 @@ painter_paint_world3d(
             if( tiles_remaining == 0 )
                 break;
             int seeded = 0;
-            while( seed_idx < seeds_len )
+            int sx, sz, level, phase;
+            while( seed_gen_next(&seed_gen, &sx, &sz, &level, &phase) )
             {
-                struct W3dSeed* sd = &W3(painter)->seeds[seed_idx++];
-                if( W3(painter)->paints[sd->tile_idx].draw_front )
+                int tidx = painter_coord_idx(painter, sx, sz, level);
+                if( W3(painter)->paints[tidx].draw_front )
                 {
-                    w3d_link_push(painter, sd->tile_idx);
-                    check_adjacent = (sd->phase == 1);
+                    w3d_link_push(painter, tidx);
+                    check_adjacent = (phase == 1);
                     seeded = 1;
                     break;
                 }
@@ -562,60 +458,8 @@ painter_paint_world3d(
         tile = &painter->tiles[tile_idx];
         int tile_sx = tile->sx;
         int tile_sz = tile->sz;
-        int tile_slevel = painters_tile_get_slevel(tile);
         int grid_level = painters_tile_get_grid_level(tile);
         tile_paint = &painter->tile_paints[tile_idx];
-
-        {
-            uint16_t tile_flags = painters_tile_get_flags(tile);
-            if( tile_excluded_by_bridge_or_draw_mask(tile_flags, tile_slevel, draw_mask) )
-            {
-                wp->draw_front = 0;
-                wp->draw_back = 0;
-                wp->draw_primaries = 0;
-                continue;
-            }
-        }
-
-        if( !painter_cullmap_tile_visible(
-                painter, tile_paint, tile_sx, tile_sz, camera_sx, camera_sz) )
-        {
-            tile_paint->step = PAINT_STEP_DONE;
-            wp->draw_front = 0;
-            wp->draw_back = 0;
-            wp->draw_primaries = 0;
-            if( grid_level < painter->levels - 1 )
-            {
-                int other_idx = step_idx_up(painter, tile_idx);
-                if( W3(painter)->paints[other_idx].draw_back )
-                    w3d_link_push(painter, other_idx);
-            }
-            if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
-            {
-                int other_idx = step_idx_east(painter, tile_idx);
-                if( W3(painter)->paints[other_idx].draw_back )
-                    w3d_link_push(painter, other_idx);
-            }
-            if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
-            {
-                int other_idx = step_idx_west(painter, tile_idx);
-                if( W3(painter)->paints[other_idx].draw_back )
-                    w3d_link_push(painter, other_idx);
-            }
-            if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
-            {
-                int other_idx = step_idx_north(painter, tile_idx);
-                if( W3(painter)->paints[other_idx].draw_back )
-                    w3d_link_push(painter, other_idx);
-            }
-            if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
-            {
-                int other_idx = step_idx_south(painter, tile_idx);
-                if( W3(painter)->paints[other_idx].draw_back )
-                    w3d_link_push(painter, other_idx);
-            }
-            continue;
-        }
 
         if( wp->draw_front )
         {

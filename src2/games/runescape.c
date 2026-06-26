@@ -1103,10 +1103,10 @@ rs_phase_models(
         int camera_sz;
         int camera_slevel;
         game_runescape_camera_tile(game, &camera_sx, &camera_sz, &camera_slevel);
-        // painter_paint_world3d(
-        //     world->painter, game->painter_buffer, camera_sx, camera_sz, camera_slevel);
-        painter_paint_bucket(
+        painter_paint_world3d(
             world->painter, game->painter_buffer, camera_sx, camera_sz, camera_slevel);
+        // painter_paint_bucket(
+        //     world->painter, game->painter_buffer, camera_sx, camera_sz, camera_slevel);
         game->frame.painter_paint_done = true;
     }
 

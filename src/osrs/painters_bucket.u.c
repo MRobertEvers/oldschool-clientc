@@ -13,12 +13,6 @@
 /* Manhattan distance from camera to any tile in a 128-wide grid is in [0, 2*127]. */
 #define BUCKET_DIST_RANGE (2 * 128 + 1)
 
-struct BucketSeed
-{
-    uint8_t phase;
-    int32_t tile_idx;
-};
-
 struct PainterBucketCtx
 {
     int* bucket_next; /* [tile_capacity]; intrusive list per bucket, -1 = end */
@@ -27,10 +21,6 @@ struct PainterBucketCtx
     int bucket_heads[BUCKET_DIST_RANGE];
     int bucket_max;
     int n_in_queue;   /* live count of tiles currently in the bucket queue */
-    struct BucketSeed* seeds;
-    int seeds_cap;
-    uint8_t* seed_seen;
-    int seed_seen_nbytes;
 };
 
 #define BM(P) ((struct PainterBucketCtx*)(P)->bucket_ctx)
@@ -89,90 +79,6 @@ bucket_push_tile(
     w->in_heap[ti] = 1;
 }
 
-static void
-bucket_emit_seed(
-    struct Painter* painter,
-    struct PainterBucketCtx* w,
-    uint8_t phase,
-    int sx,
-    int sz,
-    int slevel,
-    int* seeds_len)
-{
-    if( sx < 0 || sz < 0 || sx >= painter->width || sz >= painter->height )
-        return;
-    int b = sz * painter->width + sx;
-    int bi = b / 8;
-    int bb = 1 << (b % 8);
-    if( (w->seed_seen[bi] & (uint8_t)bb) != 0 )
-        return;
-    w->seed_seen[bi] |= (uint8_t)bb;
-    assert(*seeds_len < w->seeds_cap);
-    w->seeds[*seeds_len].phase = phase;
-    w->seeds[*seeds_len].tile_idx = painter_coord_idx(painter, sx, sz, slevel);
-    (*seeds_len)++;
-}
-
-static void
-bucket_build_seeds(
-    struct Painter* painter,
-    struct PainterBucketCtx* w,
-    int eye_ix,
-    int eye_iz,
-    int min_draw_x,
-    int max_draw_x,
-    int min_draw_z,
-    int max_draw_z,
-    int radius,
-    int* out_len)
-{
-    *out_len = 0;
-    int L = painter->levels;
-    int R = radius;
-    if( R < 1 )
-        R = 1;
-
-    for( int phase = 1; phase <= 2; phase++ )
-    {
-        for( int level = 0; level < L; level++ )
-        {
-            for( int dx = -R; dx <= 0; dx++ )
-            {
-                int right_x = eye_ix + dx;
-                int left_x = eye_ix - dx;
-                if( right_x < min_draw_x && left_x >= max_draw_x )
-                    continue;
-
-                for( int dz = -R; dz <= 0; dz++ )
-                {
-                    int fwd_z = eye_iz + dz;
-                    int bwd_z = eye_iz - dz;
-
-                    memset(w->seed_seen, 0, (size_t)w->seed_seen_nbytes);
-
-                    if( right_x >= min_draw_x )
-                    {
-                        if( fwd_z >= min_draw_z )
-                            bucket_emit_seed(
-                                painter, w, (uint8_t)phase, right_x, fwd_z, level, out_len);
-                        if( bwd_z < max_draw_z )
-                            bucket_emit_seed(
-                                painter, w, (uint8_t)phase, right_x, bwd_z, level, out_len);
-                    }
-                    if( left_x < max_draw_x )
-                    {
-                        if( fwd_z >= min_draw_z )
-                            bucket_emit_seed(
-                                painter, w, (uint8_t)phase, left_x, fwd_z, level, out_len);
-                        if( bwd_z < max_draw_z )
-                            bucket_emit_seed(
-                                painter, w, (uint8_t)phase, left_x, bwd_z, level, out_len);
-                    }
-                }
-            }
-        }
-    }
-}
 
 static int
 bucket_queue_empty(struct PainterBucketCtx* w)
@@ -190,20 +96,11 @@ bucket_ctx_init(struct Painter* painter)
     w->bucket_next = (int*)malloc((size_t)painter->tile_capacity * sizeof(int));
     w->dist = (int*)malloc((size_t)painter->tile_capacity * sizeof(int));
     w->in_heap = (uint8_t*)malloc((size_t)painter->tile_capacity);
-    int seed_cap = 8 * painter->levels * (painter->width + 4) * (painter->height + 4) + 2048;
-    if( seed_cap < 8192 )
-        seed_cap = 8192;
-    w->seeds = (struct BucketSeed*)malloc((size_t)seed_cap * sizeof(struct BucketSeed));
-    w->seeds_cap = seed_cap;
-    w->seed_seen_nbytes = (painter->width * painter->height + 7) / 8 + 1;
-    w->seed_seen = (uint8_t*)calloc((size_t)w->seed_seen_nbytes, 1);
-    if( !w->bucket_next || !w->dist || !w->in_heap || !w->seeds || !w->seed_seen )
+    if( !w->bucket_next || !w->dist || !w->in_heap )
     {
         free(w->bucket_next);
         free(w->dist);
         free(w->in_heap);
-        free(w->seeds);
-        free(w->seed_seen);
         free(w);
         return -1;
     }
@@ -220,13 +117,9 @@ bucket_ctx_free(struct Painter* painter)
     free(w->bucket_next);
     free(w->dist);
     free(w->in_heap);
-    free(w->seeds);
-    free(w->seed_seen);
     free(w);
     painter->bucket_ctx = NULL;
 }
-
-#include "painters_bucket_simd.u.c"
 
 int
 painter_paint_bucket(
@@ -283,39 +176,24 @@ painter_paint_bucket(
 
     painter_cullmap_refresh_camera_key(painter);
 
-    painter_clear_tile_paints_region(
-        painter, min_draw_x, max_draw_x, min_draw_z, max_draw_z, max_level);
-
-    for( int s = min_level; s < max_level; s++ )
-    {
-        for( int z = min_draw_z; z < max_draw_z; z++ )
-        {
-            int base = painter_coord_idx(painter, min_draw_x, z, s);
-            memset(&w->in_heap[base], 0, (size_t)(max_draw_x - min_draw_x) * sizeof(uint8_t));
-        }
-    }
-
-    bucket_fill_distances(
-        w,
-        painter,
-        camera_sx,
-        camera_sz,
-        min_draw_x,
-        max_draw_x,
-        min_draw_z,
-        max_draw_z,
-        min_level,
-        max_level);
-
+    /* Single combined pass: reset tile_paints + in_heap + dist, classify, and count.
+     * Replaces the five separate O(R^2*L) loops that were here before. */
     struct TileIter tile_iter;
     tile_iter_init(
         &tile_iter, painter, min_draw_x, max_draw_x, min_draw_z, max_draw_z, min_level, max_level);
+    int tiles_remaining = 0;
     for( int ti, x, z; (ti = tile_iter_next(&tile_iter, &x, &z)) >= 0; )
     {
         struct PaintersTile* t = &painter->tiles[ti];
-        int tile_slevel = painters_tile_get_slevel(t);
-
         tile_paint = tile_paint_at_idx(painter, ti);
+
+        tile_paint->step           = PAINT_STEP_READY;
+        tile_paint->queue_count    = 0;
+        tile_paint->near_wall_flags = 0;
+        w->in_heap[ti]             = 0;
+        w->dist[ti]                = abs(x - camera_sx) + abs(z - camera_sz);
+
+        int tile_slevel = painters_tile_get_slevel(t);
         if( tile_excluded_by_bridge_or_draw_mask(
                 painters_tile_get_flags(t), tile_slevel, draw_mask) )
         {
@@ -327,28 +205,16 @@ painter_paint_bucket(
         }
         else
         {
-            tile_paint->step = PAINT_STEP_READY;
+            tiles_remaining++;
         }
     }
 
     bucket_reset(w);
 
-    /* Count ready tiles; do NOT bulk-push them all. The seed list drives the cascade
-     * lazily, avoiding O(tiles) queue fill and reducing duplicate dependency retries. */
-    int tiles_remaining = 0;
-    tile_iter_init(
-        &tile_iter, painter, min_draw_x, max_draw_x, min_draw_z, max_draw_z, min_level, max_level);
-    for( int ti; (ti = tile_iter_next(&tile_iter, NULL, NULL)) >= 0; )
-    {
-        tile_paint = tile_paint_at_idx(painter, ti);
-        if( tile_paint->step == PAINT_STEP_READY )
-            tiles_remaining++;
-    }
-
-    /* Seed list is built on first queue drain; preallocate but defer the work. */
-    int seeds_len = 0;
-    int seed_idx = 0;
-    int seeds_built = 0;
+    /* Incremental seed generator — initialized lazily on the first queue drain so frames
+     * where the cascade covers all tiles pay zero seed-iteration cost. */
+    struct PainterSeedGen seed_gen;
+    int seed_gen_initialized = 0;
     int check_adjacent = 1;
 
     for( ;; )
@@ -357,32 +223,30 @@ painter_paint_bucket(
         {
             if( tiles_remaining == 0 )
                 break;
-            /* Build the perimeter seed list on first drain (deferred to avoid paying the
-             * O(R^2*levels) memset cost when the cascade already covers all tiles). */
-            if( !seeds_built )
+            if( !seed_gen_initialized )
             {
-                bucket_build_seeds(
-                    painter,
-                    w,
+                seed_gen_init(
+                    &seed_gen,
                     camera_sx,
                     camera_sz,
                     min_draw_x,
                     max_draw_x,
                     min_draw_z,
                     max_draw_z,
-                    radius,
-                    &seeds_len);
-                seeds_built = 1;
+                    painter->levels,
+                    radius);
+                seed_gen_initialized = 1;
             }
             int seeded = 0;
-            while( seed_idx < seeds_len )
+            int sx, sz, level, phase;
+            while( seed_gen_next(&seed_gen, &sx, &sz, &level, &phase) )
             {
-                struct BucketSeed* sd = &w->seeds[seed_idx++];
-                tile_paint = tile_paint_at_idx(painter, sd->tile_idx);
+                int tidx = painter_coord_idx(painter, sx, sz, level);
+                tile_paint = tile_paint_at_idx(painter, tidx);
                 if( tile_paint->step == PAINT_STEP_READY )
                 {
-                    bucket_push_tile(w, sd->tile_idx);
-                    check_adjacent = (sd->phase == 1);
+                    bucket_push_tile(w, tidx);
+                    check_adjacent = (phase == 1);
                     seeded = 1;
                     break;
                 }
@@ -397,75 +261,14 @@ painter_paint_bucket(
 
         tile = &painter->tiles[e_tile];
         w->in_heap[e_tile] = 0;
-        
-        tile_paint = tile_paint_at_idx(painter, e_tile);
-        int tile_sx = tile->sx;
-        int tile_sz = tile->sz;
-        int grid_level = painters_tile_get_grid_level(tile);
-        int tile_slevel = painters_tile_get_slevel(tile);
 
+        tile_paint = tile_paint_at_idx(painter, e_tile);
         if( tile_paint->step == PAINT_STEP_DONE )
             continue;
 
-        if( tile_excluded_by_bridge_or_draw_mask(
-                painters_tile_get_flags(tile), tile_slevel, draw_mask) )
-        {
-            tile_paint->step = PAINT_STEP_DONE;
-            if( tiles_remaining > 0 )
-                tiles_remaining--;
-            continue;
-        }
-
-        if( !painter_cullmap_tile_visible(
-                painter, tile_paint, tile_sx, tile_sz, camera_sx, camera_sz) )
-        {
-            tile_paint->step = PAINT_STEP_DONE;
-            if( tiles_remaining > 0 )
-                tiles_remaining--;
-            if( grid_level < painter->levels - 1 )
-            {
-                int nidx = step_idx_up(painter, e_tile);
-                other_paint = tile_paint_at_idx(painter, nidx);
-                if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, nidx);
-            }
-
-            if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
-            {
-                int nidx = step_idx_east(painter, e_tile);
-                other_paint = tile_paint_at_idx(painter, nidx);
-                if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, nidx);
-            }
-
-            if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
-            {
-                int nidx = step_idx_west(painter, e_tile);
-                other_paint = tile_paint_at_idx(painter, nidx);
-                if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, nidx);
-            }
-            if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
-            {
-                int nidx = step_idx_north(painter, e_tile);
-                other_paint = tile_paint_at_idx(painter, nidx);
-                if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, nidx);
-            }
-            if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
-            {
-                int nidx = step_idx_south(painter, e_tile);
-                other_paint = tile_paint_at_idx(painter, nidx);
-                if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, nidx);
-            }
-            continue;
-        }
-
-        assert(tile_sx >= min_draw_x);
-        assert(tile_sx < max_draw_x);
-        assert(tile_sz >= min_draw_z);
-        assert(tile_sz < max_draw_z);
+        int tile_sx = tile->sx;
+        int tile_sz = tile->sz;
+        int grid_level = painters_tile_get_grid_level(tile);
 
         if( tile_paint->step == PAINT_STEP_READY )
         {
@@ -676,7 +479,6 @@ painter_paint_bucket(
             element = &painter->elements[si];
             assert(element->kind == PNTRELEM_SCENERY);
 
-            int el_slevel = (int)element->slevel;
             int min_tile_x = (int)element->sx;
             int min_tile_z = (int)element->sz;
             int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
@@ -697,6 +499,11 @@ painter_paint_bucket(
                 continue;
             }
 
+            /* Use the current tile's grid_level for the footprint readiness check, matching
+             * world3d's approach. This avoids a circular dependency when bridge level-shifting
+             * places elements (with their original el_slevel) into a lower grid_level tile's
+             * scenery_head: checking at el_slevel would stall on tiles that wait on the current
+             * tile to be DONE, creating a deadlock. */
             int all_base = 1;
             for( int ox = min_tile_x; ox <= max_tile_x; ox++ )
             {
@@ -707,7 +514,7 @@ painter_paint_bucket(
                         all_base = 0;
                         break;
                     }
-                    struct TilePaint* u = tile_paint_at(painter, ox, oz, el_slevel);
+                    struct TilePaint* u = tile_paint_at(painter, ox, oz, grid_level);
                     if( u->step < PAINT_STEP_GROUND )
                     {
                         all_base = 0;
@@ -733,7 +540,6 @@ painter_paint_bucket(
             assert(element->kind == PNTRELEM_SCENERY);
             push_command_entity(buffer, element->_scenery.entity);
 
-            int el_slevel = (int)element->slevel;
             int min_tile_x = (int)element->sx;
             int min_tile_z = (int)element->sz;
             int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
@@ -756,7 +562,8 @@ painter_paint_bucket(
                     {
                         if( ox < 0 || oz < 0 || ox >= painter->width || oz >= painter->height )
                             continue;
-                        bucket_push_tile(w, painter_coord_idx(painter, ox, oz, el_slevel));
+                        /* Push at grid_level, consistent with the readiness check above. */
+                        bucket_push_tile(w, painter_coord_idx(painter, ox, oz, grid_level));
                         some_drawn = 1;
                     }
                 }

@@ -91,7 +91,9 @@ tile on top. This maintains the ground→scenery→surface ordering across bridg
   - `draw_primaries` — scenery attached to this tile not yet emitted.
 - A doubly-linked circular list with sentinel (the "active list"), storing tiles whose
   `draw_back` is still set. Tiles are pushed to the tail and popped from the head.
-- A `seeds[]` array and a `seed_seen` bitset used for perimeter re-seeding.
+
+The perimeter seed state is held in a `PainterSeedGen` local on the stack (shared
+implementation in `src/osrs/painters.c`, used by both painters).
 - `tiles_remaining` — count of tiles with `draw_back` still set.
 
 ### Per-frame setup
@@ -100,20 +102,20 @@ tile on top. This maintains the ground→scenery→surface ordering across bridg
 2. Classify every tile: if visible and not excluded, set `draw_front = draw_back = 1` and
    `draw_primaries = 1` if the tile has scenery; otherwise mark `PAINT_STEP_DONE`.
 3. Count `tiles_remaining` from all tiles with `draw_back = 1`.
-4. Call `w3d_build_seeds` to build an ordered list of candidate start tiles covering the
-   perimeter of the draw rect at every distance from the camera, in two phases.
+4. Initialise a `PainterSeedGen` covering the perimeter at every distance from the camera,
+   in two phases. The generator is lazy — candidates are yielded on demand, not materialised.
 
-### Perimeter seed list (`w3d_build_seeds`)
+### Perimeter seed generator
 
-The seed list is the key to the algorithm's completeness. It enumerates pairs of tiles
-symmetrically around the camera eye at every Manhattan distance out to `radius`, for every
-level, in two phases:
+The `PainterSeedGen` is the key to the algorithm's completeness. It enumerates pairs of
+tiles symmetrically around the camera eye at every Manhattan distance out to `radius`, for
+every level, in two phases:
 
 - **Phase 1** — full adjacency checks apply (the normal case).
 - **Phase 2** — adjacency checks are skipped, forcing any still-unstarted tile to proceed
   unconditionally. This breaks deadlocks caused by circular span dependencies.
 
-The seed list is consumed only when the active list drains while `tiles_remaining > 0`,
+The generator is advanced only when the active list drains while `tiles_remaining > 0`,
 restarting the traversal wave from a fresh perimeter point.
 
 ### Main loop
@@ -127,11 +129,7 @@ for (;;):
 
   tile = pop from active list
   if !tile->draw_back: continue          // already completed by a previous wave
-
-  if cullmap-culled or excluded:
-    clear draw_front/draw_back/draw_primaries
-    push inward neighbours (up, east, west, north, south) that still have draw_back
-    continue
+                                         // (excluded/culled tiles never enter the active list)
 
   // Ground pass
   if tile->draw_front:
@@ -180,21 +178,25 @@ is permanently stranded.
 
 `PainterBucketCtx` holds:
 
-- `dist[]` — precomputed Manhattan distance from the camera to every tile.
+- `dist[]` — Manhattan distance from the camera to every tile (filled during per-frame setup).
 - `bucket_heads[BUCKET_DIST_RANGE]` — array of singly-linked lists, one per distance value
   (range `[0, 2*127]`). Supports O(1) push and amortised O(1) pop-farthest.
 - `in_heap[]` — prevents duplicate insertions.
 - `bucket_max` — highest occupied distance bucket, used by `bucket_pop` to scan downward.
-- `seeds[]` / `seed_seen` — same perimeter seed list as world3d (added in the bug fix).
+- `n_in_queue` — live count of tiles in the queue (O(1) empty test).
+
+The perimeter seed state is held in a `PainterSeedGen` local on the stack (see below).
 
 ### Per-frame setup
 
-1. Clear the `tile_paints` region and `in_heap` for the draw rect.
-2. Compute Manhattan distances.
-3. Classify every tile: `PAINT_STEP_READY`, or `PAINT_STEP_DONE` if excluded or
-   cullmap-culled.
-4. Push all `READY` tiles into the bucket queue and count `tiles_remaining`.
-5. Build the perimeter seed list via `bucket_build_seeds` (same logic as `w3d_build_seeds`).
+A single O(R²·L) loop handles all five initialisation tasks in one pass:
+- zero `tile_paints` fields (`step`, `queue_count`, `near_wall_flags`),
+- zero `in_heap`,
+- compute Manhattan distance into `dist[]`,
+- classify each tile (`PAINT_STEP_READY` or `PAINT_STEP_DONE`),
+- accumulate `tiles_remaining`.
+
+The perimeter seed generator is initialised lazily on the first queue drain.
 
 ### Main loop
 
@@ -208,14 +210,7 @@ for (;;):
   tile = bucket_pop()          // farthest distance first, LIFO within a bucket
   in_heap[tile] = 0
 
-  if DONE: continue
-  if excluded by bridge/draw-mask:
-    DONE, tiles_remaining--
-    continue
-  if cullmap-culled:
-    DONE, tiles_remaining--
-    push inward neighbours that are not DONE
-    continue
+  if DONE: continue            // safety check (excluded/culled already DONE from setup)
 
   // READY → GROUND pass
   if READY:
@@ -362,13 +357,14 @@ Three changes were made to `src/osrs/painters_bucket.u.c`:
 
 ### 1. Perimeter re-seeding
 
-Added `BucketSeed` struct, `seed_seen` bitset, `seeds[]` buffer, `bucket_build_seeds`, and
-`bucket_emit_seed` — a direct port of the world3d equivalents. The per-frame loop now:
+Added a `PainterSeedGen` incremental generator that enumerates perimeter candidate tiles in
+the same order as the original `w3d_build_seeds` nested loop, using coordinate-based
+de-duplication instead of a bitset. The per-frame loop now:
 
 ```c
 if (bucket_queue_empty(w)) {
     if (tiles_remaining == 0) break;
-    // advance seed_idx until a READY tile is found; push it
+    // call seed_gen_next() until a READY tile is found; push it
     // set check_adjacent = (phase == 1)
     if (!seeded) break;
 }
@@ -478,19 +474,45 @@ The `bench` subcommand runs both painters on byte-identical scenes (same `fill_c
 world3d: 25948 ns/iter  |  bucket: 26993 ns/iter  |  ratio: 1.040  |  slower: 134/200 seeds
 ```
 
-**Three targeted fixes applied to `painters_bucket.u.c`**:
+**Round 1 — three targeted fixes to `painters_bucket.u.c`** (see earlier commits):
 
-1. Removed the O(tiles) bulk initial push. Tiles are now seeded lazily from the perimeter
-   seed list (matching world3d), so the queue starts empty and fills only via cascade.
-2. Deferred `bucket_build_seeds` to the first queue drain with `tiles_remaining > 0`,
-   avoiding the O(R^2 * levels) `memset` cost on frames where the cascade covers everything.
-3. Replaced the linear `bucket_queue_empty` scan with an O(1) `n_in_queue` live-count
-   maintained in `bucket_push` / `bucket_pop`.
+1. Removed the O(tiles) bulk initial push; seeds drive the cascade lazily.
+2. Deferred seed-list building to the first queue drain (`seeds_built` flag), avoiding the
+   O(R²·L) `memset` on frames where the cascade covers everything.
+3. Replaced the linear `bucket_queue_empty` scan with an O(1) `n_in_queue` live-count.
 
-**After performance optimizations** (500 seeds x 500 iters):
+**After round-1 optimizations** (500 seeds x 500 iters):
 ```
 world3d: 35913 ns/iter  |  bucket: 35959 ns/iter  |  ratio: 1.001  |  slower: 184/500 seeds
 ```
 
-Bucket is now within measurement noise of world3d across all tested configurations (grid
-sizes 11-51, levels 1-4, both nocull and runtime-baked cullmap modes).
+**Round 2 — traversal-efficiency refactor (Phases 1–3)**:
+
+Applied to both painters simultaneously:
+
+1. **Incremental seed generator** (`PainterSeedGen` in `src/osrs/painters.c`) — replaces the
+   materialized `seeds[]` array and the per-`(dx,dz)` `seed_seen` `memset` with a stateful
+   generator that yields the next candidate on demand. Eliminates `O(2·L·(R+1)²)` full-buffer
+   `memset` calls per paint call and drops the `seeds[]`/`seed_seen` heap allocations from
+   both context structs.
+
+2. **Dead in-loop re-checks removed** — the `tile_excluded_by_bridge_or_draw_mask` and
+   `painter_cullmap_tile_visible` checks inside the main loop were provably dead: the up-front
+   classification already sets excluded/culled tiles to `PAINT_STEP_DONE`/`draw_back=0`, and
+   the `if (DONE) continue` / `if (!draw_back) continue` short-circuits fire first. Removed
+   both blocks plus the associated culled-tile neighbour-push branch.
+
+3. **Single-pass bucket init** — merged the five separate O(R²·L) initialisation passes
+   (clear tile_paints, zero in_heap, fill distances, classify tiles, count tiles_remaining)
+   into one combined tile_iter loop, dropping the SIMD `bucket_fill_distances` call and the
+   `painter_clear_tile_paints_region` call for bucket. Bucket init is now 2 O(R²·L) passes
+   (one combined loop + `bucket_reset`) vs world3d's 3 passes.
+
+**After round-2 optimizations** (500 seeds x 500 iters):
+```
+world3d: 23524 ns/iter  |  bucket: 23064 ns/iter  |  ratio: 0.980  |  slower: 126/500 seeds
+```
+
+Both painters are ~35% faster than after round 1. Bucket is now 2% *faster* than world3d on
+average (126/500 seeds slower), across grid sizes 11–51, levels 1–4, nocull and runtime-baked
+cullmap modes.
