@@ -6,6 +6,75 @@
 
 ---
 
+## `grid_level`, `slevel`, and `terrain_level`
+
+Each painter tile (`struct PaintersTile`) packs three independent level fields into a single `uint16_t packed_meta`, plus a flags field. Understanding all three is necessary to follow the bridge bug.
+
+### `grid_level` — array slot index
+
+`grid_level` is the tile's fixed position in the vertical stack of tiles at a given `(x, z)` column. The painter allocates `width × height × levels` tiles in a flat array; `painter_coord_idx(painter, x, z, level)` computes the index as `x + z*width + level*width*height`. `grid_level` is what that `level` argument resolves to after the tile is in place.
+
+**Rules:**
+- Set once at `init_painter_tile` to equal the allocation slot index.
+- `painter_tile_copyto` updates it to the destination slot (`dest_slevel` parameter).
+- Used by `step_idx_up`, `step_idx_down`, and `painter_coord_idx` for neighbor traversal.
+- Never changes after world build completes.
+
+### `slevel` (draw level) — mask visibility
+
+`slevel` is the level index that is checked against `draw_mask` at draw time:
+
+```c
+// tile_excluded_by_bridge_or_draw_mask
+return (draw_mask & (1u << tile_slevel)) == 0;
+```
+
+A tile is skipped entirely if its `slevel` bit is not set in `draw_mask`. The UI typically sets `draw_mask = (1 << current_floor) - 1 | (1 << current_floor)` so the player sees their floor and everything below it.
+
+**Rules:**
+- Initialized to `grid_level` at `init_painter_tile`.
+- Overwritten by `painter_tile_set_draw_level` (called by the world builder after all tile shifts) using `RSCacheDat2A_MapFloorVisBelowDrawLevel`:
+  ```c
+  // from dat2a_maps.h
+  if( (settings & FLOFLAG_VIS_BELOW) != 0 )  return 0;       // force visible at level 0
+  if( cache_level > 0 && column_has_link_below_l1 )           // bridge column: draw one level lower
+      return cache_level - 1;
+  return cache_level;                                          // normal: draw level == cache level
+  ```
+- A tile on `grid_level=1` with `FLOFLAG_VIS_BELOW` gets `slevel=0`, making it visible even when `draw_mask=0x1`.
+- On a bridge column (`FLOFLAG_LINK_BELOW` on cache level 1), every grid slot's `slevel` is computed from the *source* cache level that was shifted into it, not from the slot index. See the shift table below.
+- `painter_tile_copyto` does **not** copy or reset `slevel`; it is always assigned explicitly afterwards by `painter_tile_set_draw_level`.
+
+### `terrain_level` — mesh index for the renderer
+
+`terrain_level` is the cache level whose terrain mesh the renderer should draw for this tile. It does not affect traversal order or visibility; it is only passed to `push_command_terrain`.
+
+**Rules:**
+- Initialized to `grid_level` at `init_painter_tile`.
+- `painter_tile_copyto` does **not** reset it — the destination tile keeps the *source* tile's `terrain_level`. This is intentional: after a bridge shift, the terrain geometry for a slot stays indexed by the cache level that provided it, even though the slot index is now different.
+- The bridge underpass tile (placed at slot 3 via a direct struct copy, not `copyto`) keeps `terrain_level=0` from the original ground content.
+
+### All three fields across a bridge column
+
+For a column where cache level 1 has `FLOFLAG_LINK_BELOW` (and no `FLOFLAG_VIS_BELOW` on any level):
+
+| grid slot | content after shift | `grid_level` | `terrain_level` | `slevel` |
+|-----------|---------------------|:---:|:---:|:---:|
+| 0 | cache level 1 | 0 | **1** | **0** |
+| 1 | cache level 2 | 1 | **2** | **1** |
+| 2 | cache level 3 | 2 | **3** | **2** |
+| 3 (BRIDGE) | cache level 0 (underpass) | 3 | 0 | 3 |
+
+The `slevel` column shows that with `draw_mask=0x1` (level 0 only) only slot 0 is drawn — which is the correct view of the bridge surface from below. With `draw_mask=0xF` all four slots are drawn.
+
+The `terrain_level` column explains the debug output that identified the bug: the terrain command emitted for slot 0 carries `terrain_level=1` (not 0), which matched the observed `terrain(56, 15, lev=1)` preceding the missing entities in the world3d buffer.
+
+### `element->slevel` — the bug's critical mismatch
+
+Scenery elements (`painter_add_normal_scenery`) store `element->slevel = slevel` at the time of addition. Elements are added during world scene-build using the original cache level (0, 1, 2, 3). The bridge shift then moves those elements into different grid slots via `clone_scenery_chain`, but **does not update `element->slevel`**. After the shift, slot-0's `scenery_head` contains elements with `element->slevel=1` (from cache level 1), while the slot itself has `grid_level=0`. This mismatch is what caused the deadlock described in the bug section below.
+
+---
+
 ## Background: the bridge level shift
 
 The world builder has a "LinkBelow" bridge mode for tiles that are visually above a lower-level walkway (e.g., the second floor of a building overhanging the ground). For each such column `(x, z)` the builder does a **downward shift** of the painter tile stack before the game starts drawing:
