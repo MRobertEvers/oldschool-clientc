@@ -21,7 +21,8 @@ RSCacheShared_RSBufferInit(
 int
 RSCacheShared_RSBufferG1(struct RSCacheShared_RSBuffer* buffer)
 {
-    assert(buffer->position < buffer->size);
+    if( buffer->position >= buffer->size )
+        return 0;
     return buffer->data[buffer->position++] & 0xff;
 }
 
@@ -39,17 +40,20 @@ RSCacheShared_RSBufferP1(
 int8_t
 RSCacheShared_RSBufferG1b(struct RSCacheShared_RSBuffer* buffer)
 {
-    assert(buffer->position < buffer->size);
+    if( buffer->position >= buffer->size )
+        return 0;
     return buffer->data[buffer->position++];
 }
 
 int
 RSCacheShared_RSBufferG2(struct RSCacheShared_RSBuffer* buffer)
 {
+    if( buffer->position + 2u > buffer->size )
+        return 0;
+    int value = (buffer->data[buffer->position] & 0xff) << 8 |
+                (buffer->data[buffer->position + 1] & 0xff);
     buffer->position += 2;
-    assert(buffer->position - 2 < buffer->size);
-    return (buffer->data[buffer->position - 2] & 0xff) << 8 |
-           (buffer->data[buffer->position - 1] & 0xff);
+    return value;
 }
 
 void
@@ -65,9 +69,11 @@ RSCacheShared_RSBufferP2(
 int
 RSCacheShared_RSBufferG2b(struct RSCacheShared_RSBuffer* buffer)
 {
+    if( buffer->position + 2u > buffer->size )
+        return 0;
+    int value = (buffer->data[buffer->position] & 0xff) << 8 |
+                (buffer->data[buffer->position + 1] & 0xff);
     buffer->position += 2;
-    int value = (buffer->data[buffer->position - 2] & 0xff) << 8 |
-                (buffer->data[buffer->position - 1] & 0xff);
 
     if( value > 32767 )
         value -= 65536;
@@ -77,20 +83,26 @@ RSCacheShared_RSBufferG2b(struct RSCacheShared_RSBuffer* buffer)
 int
 RSCacheShared_RSBufferG3(struct RSCacheShared_RSBuffer* buffer)
 {
+    if( buffer->position + 3u > buffer->size )
+        return 0;
+    int value = (buffer->data[buffer->position] & 0xff) << 16 |
+                (buffer->data[buffer->position + 1] & 0xff) << 8 |
+                (buffer->data[buffer->position + 2] & 0xff);
     buffer->position += 3;
-    return (buffer->data[buffer->position - 3] & 0xff) << 16 |
-           (buffer->data[buffer->position - 2] & 0xff) << 8 |
-           (buffer->data[buffer->position - 1] & 0xff);
+    return value;
 }
 
 int
 RSCacheShared_RSBufferG4(struct RSCacheShared_RSBuffer* buffer)
 {
+    if( buffer->position + 4u > buffer->size )
+        return 0;
+    int value = (buffer->data[buffer->position] & 0xff) << 24 |
+                (buffer->data[buffer->position + 1] & 0xff) << 16 |
+                (buffer->data[buffer->position + 2] & 0xff) << 8 |
+                (buffer->data[buffer->position + 3] & 0xff);
     buffer->position += 4;
-    return (buffer->data[buffer->position - 4] & 0xff) << 24 |
-           (buffer->data[buffer->position - 3] & 0xff) << 16 |
-           (buffer->data[buffer->position - 2] & 0xff) << 8 |
-           (buffer->data[buffer->position - 1] & 0xff);
+    return value;
 }
 
 void

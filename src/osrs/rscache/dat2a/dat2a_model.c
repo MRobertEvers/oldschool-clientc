@@ -2448,21 +2448,20 @@ RSCacheDat2A_ModelNewDecode(
         if( lastByte == 0xFD && secondLastByte == 0xFF )
         { // -3, -1
             model = decode_version3__osrs_material(inputData, inputLength);
-            assert(model != NULL);
-
-            model->_model_type = 3;
+            if( model )
+                model->_model_type = 3;
         }
         else if( lastByte == 0xFE && secondLastByte == 0xFF )
         { // -2, -1
             model = decode_version2__osrs_extended(inputData, inputLength);
-            assert(model != NULL);
-            model->_model_type = 2;
+            if( model )
+                model->_model_type = 2;
         }
         else if( lastByte == 0xFF && secondLastByte == 0xFF )
         { // -1, -1
             model = decode_ob3(inputData, inputLength);
-            assert(model != NULL);
-            model->_model_type = 1;
+            if( model )
+                model->_model_type = 1;
         }
     }
 
@@ -2470,10 +2469,12 @@ RSCacheDat2A_ModelNewDecode(
     {
         // Used by many early 2004scape models.
         model = decode_ob2(inputData, inputLength);
-        model->_model_type = 0;
+        if( model )
+            model->_model_type = 0;
     }
 
-    assert(model != NULL);
+    if( !model )
+        return NULL;
 
     // This is a hack. I'm not sure where this is done in the deob,
     // but it appears that if a model has face bone map, but no face alphas,

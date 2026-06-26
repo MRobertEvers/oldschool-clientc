@@ -25,12 +25,22 @@ BENCH_ITERS ?= 100
 CPPFLAGS += -I$(SRC_DIR) -I$(SRC_DIR)/osrs -I$(SRC_DIR)/graphics
 
 SOURCES = bench.c painter_common.c painter_bucket.c painter_world3d.c
-FUZZ_SOURCES = fuzz_real.c $(SRC_DIR)/osrs/painters.c $(SRC_DIR)/graphics/shared_tables.c
+
+REAL_COMMON = \
+	painter_fuzz_scene.c \
+	painter_fuzz_diff.c \
+	painter_bench_real.c \
+	$(SRC_DIR)/osrs/painters.c \
+	$(SRC_DIR)/graphics/shared_tables.c
+
+FUZZ_SOURCES = fuzz_real.c $(REAL_COMMON)
+REAL_BENCH_SOURCES = bench_real.c $(REAL_COMMON)
 
 # ---------------------------------------------------------------------------
 # Host build (unchanged)
 # ---------------------------------------------------------------------------
-.PHONY: all clean run fuzz fuzz_real bench_real fuzz_cache fuzz_cache_run winxp win64 windows
+.PHONY: all clean run fuzz fuzz_real bench_real bench_real_cache \
+	bench_real_run bench_real_cache_run fuzz_cache fuzz_cache_run winxp win64 windows
 
 all: bench_painter
 
@@ -40,18 +50,17 @@ bench_painter: $(SOURCES) painter_common.h Makefile
 fuzz_real: $(FUZZ_SOURCES) Makefile
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(FUZZ_SOURCES) $(LDFLAGS) -o $@
 
+bench_real: $(REAL_BENCH_SOURCES) Makefile
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(REAL_BENCH_SOURCES) $(LDFLAGS) -o $@
+
 run: all
 	./bench_painter
 
 fuzz: fuzz_real
 	./fuzz_real
 
-# Same-seed performance benchmark against the real painters.
-# Usage: make bench_real && ./fuzz_real 1 200 bench 200
-bench_real: fuzz_real
-
 clean:
-	rm -f bench_painter fuzz_real fuzz_cache
+	rm -f bench_painter bench_real bench_real_cache fuzz_real fuzz_cache
 	rm -rf dist
 
 # ---------------------------------------------------------------------------
@@ -60,6 +69,9 @@ clean:
 #   make fuzz_cache_run       -- build + run superset check
 #   make fuzz_cache_run CACHE_DIR=/path/to/cache  -- explicit cache dir
 #   make fuzz_cache_run CACHE_BENCH=bench         -- also benchmark
+#
+# Cache loads skip dat2 texture decode (painter-only); world maps/models
+# are fetched via the world-rebuild task instead.
 # ---------------------------------------------------------------------------
 
 CACHE_DIR ?= $(REPO_ROOT)/cache
@@ -68,7 +80,6 @@ LUA_SRC := $(filter-out $(SRC_DIR)/3rd/lua/lua.c $(SRC_DIR)/3rd/lua/luac.c,\
 	$(wildcard $(SRC_DIR)/3rd/lua/*.c))
 
 CACHE_SRCS := \
-	fuzz_real.c \
 	$(PLAT_DIR)/asan_compat.c \
 	$(PLAT_DIR)/platform_x_io_reactor.c \
 	$(PLAT_DIR)/platform_x_lua.c \
@@ -158,11 +169,31 @@ CACHE_CPPFLAGS := \
 CACHE_CFLAGS := -O2 -Wall -Wextra -Wno-unused-parameter \
 	-Wno-implicit-fallthrough -Wno-unused-function -Wno-unused-variable
 
+CACHE_LDLIBS := -lm
+ifeq ($(OS),Windows_NT)
+CACHE_LDLIBS += -lws2_32
+endif
+
 THIRD_PARTY_OBJS_WARN := -w
 
-fuzz_cache: $(CACHE_SRCS) Makefile
+CACHE_SRCS_NPAINTERS := $(filter-out $(SRC_DIR)/osrs/painters.c,$(CACHE_SRCS))
+
+# Cache builds use toridraw shared_tables (via CACHE_CPPFLAGS -I order), not src/graphics.
+REAL_COMMON_NSHARED := $(filter-out $(SRC_DIR)/graphics/shared_tables.c,$(REAL_COMMON))
+
+bench_real_cache: bench_real.c $(REAL_COMMON_NSHARED) $(CACHE_SRCS_NPAINTERS) Makefile
 	$(CC) $(CACHE_CFLAGS) $(CACHE_CPPFLAGS) -DFUZZ_WITH_CACHE \
-		$(CACHE_SRCS) -lm -o $@
+		bench_real.c $(REAL_COMMON_NSHARED) $(CACHE_SRCS_NPAINTERS) $(CACHE_LDLIBS) -o bench_real_cache
+
+bench_real_run: bench_real
+	./bench_real 1 200 200
+
+bench_real_cache_run: bench_real_cache
+	./bench_real_cache cache $(CACHE_DIR) 200
+
+fuzz_cache: fuzz_real.c $(REAL_COMMON_NSHARED) $(CACHE_SRCS_NPAINTERS) Makefile
+	$(CC) $(CACHE_CFLAGS) $(CACHE_CPPFLAGS) -DFUZZ_WITH_CACHE \
+		fuzz_real.c $(REAL_COMMON_NSHARED) $(CACHE_SRCS_NPAINTERS) $(CACHE_LDLIBS) -o $@
 
 CACHE_BENCH ?=
 
@@ -199,7 +230,7 @@ WIN64_LDFLAGS := -static -lm
 # ---------------------------------------------------------------------------
 # Windows XP target  (dist/winxp/)
 # ---------------------------------------------------------------------------
-winxp: dist/winxp/fuzz_real.exe dist/winxp/bench_painter.exe
+winxp: dist/winxp/fuzz_real.exe dist/winxp/bench_painter.exe dist/winxp/bench_real.exe
 
 dist/winxp/fuzz_real.exe: $(FUZZ_SOURCES) Makefile | dist/winxp
 	$(WINXP_CC) $(WINXP_CFLAGS) $(BASE_CPPFLAGS) $(FUZZ_SOURCES) $(WINXP_LDFLAGS) -o $@
@@ -207,16 +238,22 @@ dist/winxp/fuzz_real.exe: $(FUZZ_SOURCES) Makefile | dist/winxp
 dist/winxp/bench_painter.exe: $(SOURCES) painter_common.h Makefile | dist/winxp
 	$(WINXP_CC) $(WINXP_CFLAGS) -DBENCH_ITERS=$(BENCH_ITERS) $(SOURCES) $(WINXP_LDFLAGS) -o $@
 
+dist/winxp/bench_real.exe: $(REAL_BENCH_SOURCES) Makefile | dist/winxp
+	$(WINXP_CC) $(WINXP_CFLAGS) $(BASE_CPPFLAGS) $(REAL_BENCH_SOURCES) $(WINXP_LDFLAGS) -o $@
+
 # ---------------------------------------------------------------------------
 # Modern 64-bit Windows target  (dist/win64/)
 # ---------------------------------------------------------------------------
-win64: dist/win64/fuzz_real.exe dist/win64/bench_painter.exe
+win64: dist/win64/fuzz_real.exe dist/win64/bench_painter.exe dist/win64/bench_real.exe
 
 dist/win64/fuzz_real.exe: $(FUZZ_SOURCES) Makefile | dist/win64
 	$(WIN64_CC) $(WIN64_CFLAGS) $(BASE_CPPFLAGS) $(FUZZ_SOURCES) $(WIN64_LDFLAGS) -o $@
 
 dist/win64/bench_painter.exe: $(SOURCES) painter_common.h Makefile | dist/win64
 	$(WIN64_CC) $(WIN64_CFLAGS) -DBENCH_ITERS=$(BENCH_ITERS) $(SOURCES) $(WIN64_LDFLAGS) -o $@
+
+dist/win64/bench_real.exe: $(REAL_BENCH_SOURCES) Makefile | dist/win64
+	$(WIN64_CC) $(WIN64_CFLAGS) $(BASE_CPPFLAGS) $(REAL_BENCH_SOURCES) $(WIN64_LDFLAGS) -o $@
 
 # Convenience: build both Windows variants
 windows: winxp win64

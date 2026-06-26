@@ -382,7 +382,7 @@ RSCacheDat2A_MapTerrainNewFromDecodeFlags( //
                         tile->overlay_id = read_decode(&buffer, flags == MAP_TERRAIN_DECODE_U16);
                         tile->attr_opcode = attribute;
                         tile->shape = (attribute - 2) / 4;
-                        tile->rotation = attribute - 2 & 3;
+                        tile->rotation = (attribute - 2) & 3;
                     }
                     else if( attribute <= 81 )
                     {

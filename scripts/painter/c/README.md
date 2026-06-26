@@ -41,6 +41,39 @@ Exercises the local stub implementations (`painter_bucket.c`, `painter_world3d.c
 ./bench_painter
 ```
 
+### `bench_real` — real-engine scene benchmark
+
+Benchmarks `painter_paint_world3d` vs `painter_paint_bucket` on scenes built with the real painter API (seeded procedural scenes) and, with the cache build, on a loaded dat2 centerzone world.
+
+**Light build (seeded scenes only):**
+
+```sh
+make bench_real
+./bench_real [start] [count] [iters]    # defaults: 1, 500, 200
+```
+
+**Heavy build (seeded + dat2 cache world):**
+
+```sh
+make bench_real_cache
+./bench_real_cache [start] [count] [iters]           # seeded
+./bench_real_cache cache [dir] [iters]               # dat2 world (dir auto-detected if omitted)
+```
+
+**Common invocations:**
+
+```sh
+# 500 seeds x 200 iters, aggregate ratio
+./bench_real 1 500 200
+
+# Dat2 centerzone: 48 camera sweeps x 200 iters
+./bench_real_cache cache ../../../cache 200
+```
+
+Cache-world loads skip dat2 texture decode (not needed for painter traversal); map/scenery data comes from the world-rebuild task instead.
+
+The same seeded benchmark is still available via `fuzz_real ... bench` (shared harness). `fuzz_real` remains the tool for correctness fuzzing and shrinking.
+
 ---
 
 ## Host build (macOS / Linux)
@@ -49,12 +82,13 @@ Exercises the local stub implementations (`painter_bucket.c`, `painter_world3d.c
 cd scripts/painter/c
 make           # builds bench_painter
 make fuzz_real # builds fuzz_real
+make bench_real # builds bench_real (real engine, seeded scenes)
 ```
 
 Both binaries land in the current directory. The host build uses the system compiler (`cc`) with `-O3`.
 
 ```sh
-make clean     # removes bench_painter, fuzz_real, and dist/
+make clean     # removes bench_painter, bench_real, bench_real_cache, fuzz_real, and dist/
 ```
 
 ---
@@ -65,8 +99,8 @@ The Makefile adds three targets that cross-compile static `.exe` files — no DL
 
 | Target | Executable | Architecture | Minimum Windows |
 |--------|-----------|--------------|-----------------|
-| `winxp` | `dist/winxp/fuzz_real.exe`, `dist/winxp/bench_painter.exe` | 32-bit (i686) Pentium 4 / SSE2 | Windows XP SP3 |
-| `win64` | `dist/win64/fuzz_real.exe`, `dist/win64/bench_painter.exe` | 64-bit (x86_64) | Windows Vista+ |
+| `winxp` | `dist/winxp/fuzz_real.exe`, `dist/winxp/bench_painter.exe`, `dist/winxp/bench_real.exe` | 32-bit (i686) Pentium 4 / SSE2 | Windows XP SP3 |
+| `win64` | `dist/win64/fuzz_real.exe`, `dist/win64/bench_painter.exe`, `dist/win64/bench_real.exe` | 64-bit (x86_64) | Windows Vista+ |
 | `windows` | both of the above | — | — |
 
 ### Prerequisites
@@ -124,9 +158,11 @@ dist/
   winxp/
     fuzz_real.exe
     bench_painter.exe
+    bench_real.exe
   win64/
     fuzz_real.exe
     bench_painter.exe
+    bench_real.exe
 ```
 
 Both directories are independent — you can copy either to the target machine without the other.
@@ -148,6 +184,7 @@ fuzz_real.exe 135 1 shrink
 fuzz_real.exe 1 500 bench 500
 
 bench_painter.exe
+bench_real.exe 1 500 200
 ```
 
 The CLI is identical to the host build.

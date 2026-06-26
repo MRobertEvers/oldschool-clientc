@@ -81,6 +81,7 @@ dat2_buildcache_map_new(
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
         .entry_size = entry_size,
+        .capacity = (size_t)capacity,
     };
     return ToriDraw_MapNew(&config, 0);
 }
@@ -120,15 +121,15 @@ dat2_buildcache_new(void)
     if( !dat2_buildcache )
         return NULL;
 
-    dat2_buildcache->models_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_CacheModel), 4096);
-    dat2_buildcache->map_terrain_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Terrain), 256);
-    dat2_buildcache->map_scenery_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Scenery), 256);
-    dat2_buildcache->sequences_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Sequence), 32768);
-    dat2_buildcache->flotype_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Flotype), 512);
-    dat2_buildcache->underlay_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Underlay), 512);
-    dat2_buildcache->config_loc_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_ConfigLoc), 4096);
-    dat2_buildcache->frames_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_FramesArchive), 2048);
-    dat2_buildcache->skeletal_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Skeletal), 2048);
+    dat2_buildcache->models_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_CacheModel), 8192);
+    dat2_buildcache->map_terrain_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Terrain), 512);
+    dat2_buildcache->map_scenery_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Scenery), 512);
+    dat2_buildcache->sequences_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Sequence), 65536);
+    dat2_buildcache->flotype_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Flotype), 8192);
+    dat2_buildcache->underlay_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Underlay), 4096);
+    dat2_buildcache->config_loc_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_ConfigLoc), 8192);
+    dat2_buildcache->frames_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_FramesArchive), 4096);
+    dat2_buildcache->skeletal_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Skeletal), 4096);
 
     return dat2_buildcache;
 }
@@ -455,6 +456,28 @@ dat2_buildcache_overlays_init_from_filelist(
     }
 }
 
+static bool
+dat2_buildcache_sequence_insert(
+    struct Dat2BuildCache* dat2_buildcache,
+    int id,
+    struct RSCacheDat2A_ConfigSequence* sequence)
+{
+    struct MapEntry_Sequence* entry = (struct MapEntry_Sequence*)ToriDraw_MapSearch(
+        dat2_buildcache->sequences_hmap, &id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+    {
+        RSCacheDat2A_ConfigSequenceFree(sequence);
+        return false;
+    }
+
+    if( entry->sequence )
+        RSCacheDat2A_ConfigSequenceFree(entry->sequence);
+
+    entry->id = id;
+    entry->sequence = sequence;
+    return true;
+}
+
 static void
 dat2_buildcache_sequences_init_from_filelist(
     struct Dat2BuildCache* dat2_buildcache,
@@ -473,20 +496,55 @@ dat2_buildcache_sequences_init_from_filelist(
             sequence, revision, filelist->files[i], filelist->file_sizes[i]);
         sequence->id = id;
 
-        struct MapEntry_Sequence* entry = (struct MapEntry_Sequence*)ToriDraw_MapSearch(
-            dat2_buildcache->sequences_hmap, &id, TORIDRAW_MAP_INSERT);
-        if( !entry )
-        {
-            RSCacheDat2A_ConfigSequenceFree(sequence);
+        if( !dat2_buildcache_sequence_insert(dat2_buildcache, id, sequence) )
             continue;
-        }
-
-        if( entry->sequence )
-            RSCacheDat2A_ConfigSequenceFree(entry->sequence);
-
-        entry->id = id;
-        entry->sequence = sequence;
     }
+}
+
+bool
+dat2_buildcache_sequence_load_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive,
+    int seq_id)
+{
+    struct RSCacheDat2Disk_ArchiveReference* archive_ref;
+    struct RSCacheShared_FileList* filelist;
+
+    if( ToriDraw_MapSearch(dat2_buildcache->sequences_hmap, &seq_id, TORIDRAW_MAP_FIND) )
+        return true;
+    if( !archive || !cache )
+        return false;
+
+    archive_ref = dat2_buildcache_archive_reference(cache, archive);
+    if( !archive_ref )
+        return false;
+
+    filelist = RSCacheShared_FileListNewFromCacheArchive(archive);
+    if( !filelist )
+        return false;
+
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = archive_ref->children.files[i].id;
+        if( id != seq_id )
+            continue;
+
+        struct RSCacheDat2A_ConfigSequence* sequence =
+            calloc(1, sizeof(struct RSCacheDat2A_ConfigSequence));
+        if( !sequence )
+            break;
+
+        RSCacheDat2A_ConfigSequenceDecodeInplace(
+            sequence, archive->revision, filelist->files[i], filelist->file_sizes[i]);
+        sequence->id = id;
+        dat2_buildcache_sequence_insert(dat2_buildcache, id, sequence);
+        break;
+    }
+
+    RSCacheShared_FileListFree(filelist);
+    return ToriDraw_MapSearch(dat2_buildcache->sequences_hmap, &seq_id, TORIDRAW_MAP_FIND) !=
+           NULL;
 }
 
 static void

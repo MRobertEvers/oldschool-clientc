@@ -103,6 +103,7 @@ Task_Dat2WorldRebuildNormal_Run(
 {
     struct Dat2BuildCache* dat2_bc = dat2(task->c);
     struct RSCacheDat2Disk* cache_disk = ToriAuxLibC_Dat2Disk(task->c);
+    struct RSCacheDat2Disk_Archive* sequence_archive = NULL;
 
     PT_BEGIN(&task->thread);
 
@@ -172,8 +173,7 @@ Task_Dat2WorldRebuildNormal_Run(
             dat2io_config_group_decode(ctx, RSCacheDat2A_ConfigKind_Underlay);
         struct RSCacheDat2Disk_Archive* overlay_archive =
             dat2io_config_group_decode(ctx, RSCacheDat2A_ConfigKind_Overlay);
-        struct RSCacheDat2Disk_Archive* sequence_archive =
-            dat2io_config_group_decode(ctx, RSCacheDat2A_ConfigKind_Sequence);
+        sequence_archive = dat2io_config_group_decode(ctx, RSCacheDat2A_ConfigKind_Sequence);
         struct RSCacheDat2Disk_Archive* locs_archive =
             dat2io_config_group_decode(ctx, RSCacheDat2A_ConfigKind_Locs);
 
@@ -181,8 +181,6 @@ Task_Dat2WorldRebuildNormal_Run(
             dat2_buildcache_underlays_init_from_archive(dat2_bc, cache_disk, underlay_archive);
         if( overlay_archive && cache_disk )
             dat2_buildcache_overlays_init_from_archive(dat2_bc, cache_disk, overlay_archive);
-        if( sequence_archive && cache_disk )
-            dat2_buildcache_sequences_init_from_archive(dat2_bc, cache_disk, sequence_archive);
         if( locs_archive && cache_disk )
             dat2_buildcache_scenery_configs_init_from_archive(
                 dat2_bc, cache_disk, locs_archive, ToriAuxLibC_VarPVarBit(task->c));
@@ -191,15 +189,12 @@ Task_Dat2WorldRebuildNormal_Run(
             RSCacheDat2Disk_ArchiveFree(underlay_archive);
         if( overlay_archive )
             RSCacheDat2Disk_ArchiveFree(overlay_archive);
-        if( sequence_archive )
-            RSCacheDat2Disk_ArchiveFree(sequence_archive);
         if( locs_archive )
             RSCacheDat2Disk_ArchiveFree(locs_archive);
     }
 
     ToriAuxLibC_SubmitAllUnderlaysFromDat2(task->c);
     ToriAuxLibC_SubmitAllFlotypesFromDat2(task->c);
-    ToriAuxLibC_SubmitAllSequencesFromDat2(task->c);
     ToriAuxLibC_SubmitAllLocationsFromDat2(task->c);
 
     /* Load classic frame/framemap archives and skeletal anims referenced by
@@ -263,6 +258,10 @@ Task_Dat2WorldRebuildNormal_Run(
             for( int si = 0; si < seq_count; si++ )
             {
                 int seq_id = seq_ids[si];
+                if( sequence_archive && cache_disk )
+                    dat2_buildcache_sequence_load_from_archive(
+                        dat2_bc, cache_disk, sequence_archive, seq_id);
+
                 struct _SeqEntry* se = (struct _SeqEntry*)ToriDraw_MapSearch(
                     dat2_bc->sequences_hmap, &seq_id, TORIDRAW_MAP_FIND);
                 if( !se || !se->seq )
@@ -330,6 +329,14 @@ Task_Dat2WorldRebuildNormal_Run(
                 }
                 ToriDraw_MapIterFree(sk_iter);
             }
+        }
+
+        ToriAuxLibC_SubmitAllSequencesFromDat2(task->c);
+
+        if( sequence_archive )
+        {
+            RSCacheDat2Disk_ArchiveFree(sequence_archive);
+            sequence_archive = NULL;
         }
 
         free(seq_ids);

@@ -254,7 +254,7 @@ RENDERER_SRCS := \
 SDL_CFLAGS := -I$(TOOLCHAIN_WIN32)/include/SDL2 -Dmain=SDL_main
 SDL_LIBS   := -L$(TOOLCHAIN_WIN32)/lib -lmingw32 -lSDL2main -lSDL2
 
-GFX_LIBS := -ld3d9 -lgdi32
+GFX_LIBS := -ld3d9 -lgdi32 -lws2_32
 EXE      := .exe
 
 # Copy the matching 32-bit runtime DLLs next to the exe (fixes 0xc000007b).

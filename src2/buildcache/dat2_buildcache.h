@@ -113,6 +113,14 @@ dat2_buildcache_sequences_init_from_archive(
     struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive);
 
+/* Load a single sequence config by id from an already-decoded sequences archive. */
+bool
+dat2_buildcache_sequence_load_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive,
+    int seq_id);
+
 void
 dat2_buildcache_scenery_configs_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
