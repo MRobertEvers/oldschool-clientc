@@ -338,9 +338,6 @@ Task_Dat2WorldRebuildNormal_Run(
             RSCacheDat2Disk_ArchiveFree(sequence_archive);
             sequence_archive = NULL;
         }
-
-        free(seq_ids);
-        free(archive_ids);
     }
 
     LibToriRS_IOQueueClear(ctx->io);

@@ -66,11 +66,13 @@ make bench_real_cache
 # 500 seeds x 200 iters, aggregate ratio
 ./bench_real 1 500 200
 
-# Dat2 centerzone: 48 camera sweeps x 200 iters
+# Dat2 centerzone: 72 camera sweeps (3×3 positions × 4 yaws × 2 pitches × 2 level masks) × 200 iters
 ./bench_real_cache cache ../../../cache 200
 ```
 
-Cache-world loads skip dat2 texture decode (not needed for painter traversal); map/scenery data comes from the world-rebuild task instead.
+Cache-world loads skip dat2 texture decode (not needed for painter traversal); map/scenery data comes from the world-rebuild task instead. Sequences referenced by loaded locs are fetched on demand (the full sequence archive is not bulk-decoded).
+
+An incomplete cache may print `Failed to resolve dat2 map archive m*_*.` for missing neighbor chunks; the centerzone bench still runs. A usable cache needs `xteas.json` and map data for zone center (313, 437).
 
 The same seeded benchmark is still available via `fuzz_real ... bench` (shared harness). `fuzz_real` remains the tool for correctness fuzzing and shrinking.
 

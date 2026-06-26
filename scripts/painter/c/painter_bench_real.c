@@ -244,6 +244,7 @@ painter_fuzz_cache_scene(const char* cache_dir, int do_bench, int bench_iters, i
 
     int total = 0;
     int failures = 0;
+    int bench_sweeps = 0;
 
     double total_ns_w3d = 0.0;
     double total_ns_bkt = 0.0;
@@ -298,6 +299,7 @@ painter_fuzz_cache_scene(const char* cache_dir, int do_bench, int bench_iters, i
             double ns_bkt = (t2 - t1) * 1e9 / bench_iters;
             total_ns_w3d += ns_w3d;
             total_ns_bkt += ns_bkt;
+            bench_sweeps++;
 
             printf(
                 "  bench sx=%d sz=%d yaw=%4d pitch=%4d mask=0x%x  "
@@ -357,7 +359,7 @@ painter_fuzz_cache_scene(const char* cache_dir, int do_bench, int bench_iters, i
             }
             fflush(stdout);
         }
-        else
+        else if( !diff_check )
         {
             total++;
         }
@@ -372,16 +374,16 @@ painter_fuzz_cache_scene(const char* cache_dir, int do_bench, int bench_iters, i
     {
         printf("\n--- cache scene: %d/%d PASS ---\n", total - failures, total);
     }
-    if( do_bench )
+    if( do_bench && bench_sweeps > 0 )
     {
         printf(
             "--- bench aggregate over %d sweeps ---\n"
             "  world3d mean: %.1f ns/iter\n"
             "  bucket  mean: %.1f ns/iter\n"
             "  mean ratio bucket/world3d: %.3f\n",
-            total,
-            total_ns_w3d / total,
-            total_ns_bkt / total,
+            bench_sweeps,
+            total_ns_w3d / bench_sweeps,
+            total_ns_bkt / bench_sweeps,
             total_ns_bkt / (total_ns_w3d > 0.0 ? total_ns_w3d : 1.0));
     }
 
