@@ -138,7 +138,7 @@ painter_w3d_emit_ground_pass(
             buffer,
             bridge_underpass_tile->sx,
             bridge_underpass_tile->sz,
-            painters_tile_get_terrain_level(bridge_underpass_tile));
+            painters_tile_get_mesh_level(bridge_underpass_tile));
 
         if( bridge_underpass_tile->wall_a != -1 )
         {
@@ -163,7 +163,7 @@ painter_w3d_emit_ground_pass(
         }
     }
 
-    push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_terrain_level(tile));
+    push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_mesh_level(tile));
 
     if( tile->wall_a != -1 )
     {
@@ -395,7 +395,7 @@ painter_paint_world3d(
                 {
                     uint16_t tile_flags = painters_tile_get_flags(tile);
                     if( tile_excluded_by_bridge_or_draw_mask(
-                            tile_flags, painters_tile_get_slevel(tile), draw_mask) )
+                            tile_flags, painters_tile_get_visible_gte_level(tile), draw_mask) )
                         continue;
                 }
                 if( !painter_cullmap_tile_visible(painter, tile_paint, x, z, camera_sx, camera_sz) )
@@ -458,14 +458,14 @@ painter_paint_world3d(
         tile = &painter->tiles[tile_idx];
         int tile_sx = tile->sx;
         int tile_sz = tile->sz;
-        int grid_level = painters_tile_get_grid_level(tile);
+        int paintgrid_level = painters_tile_get_paintgrid_level(tile);
         tile_paint = &painter->tile_paints[tile_idx];
 
         if( wp->draw_front )
         {
             if( check_adjacent )
             {
-                if( grid_level > 0 )
+                if( paintgrid_level > 0 )
                 {
                     int below_idx = step_idx_down(painter, tile_idx);
                     if( W3(painter)->paints[below_idx].draw_back )
@@ -589,7 +589,7 @@ painter_paint_world3d(
                 {
                     for( int lz = fp_min_z; lz <= fp_max_z; lz++ )
                     {
-                        int oidx = painter_coord_idx(painter, lx, lz, grid_level);
+                        int oidx = painter_coord_idx(painter, lx, lz, paintgrid_level);
                         if( W3(painter)->paints[oidx].draw_front )
                         {
                             wp->draw_primaries = 1;
@@ -679,7 +679,7 @@ painter_paint_world3d(
                     {
                         for( int lz = occ_min_z; lz <= occ_max_z; lz++ )
                         {
-                            int occ = painter_coord_idx(painter, lx, lz, grid_level);
+                            int occ = painter_coord_idx(painter, lx, lz, paintgrid_level);
                             if( occ != tile_idx && W3(painter)->paints[occ].draw_back )
                                 w3d_link_push(painter, occ);
                         }
@@ -725,7 +725,7 @@ painter_paint_world3d(
         painter_w3d_emit_near_wall_pass(painter, buffer, tile, camera_sx, camera_sz, tile_paint);
         tile_paint->step = PAINT_STEP_DONE;
 
-        if( grid_level < painter->levels - 1 )
+        if( paintgrid_level < painter->levels - 1 )
         {
             int above = step_idx_up(painter, tile_idx);
             if( W3(painter)->paints[above].draw_back )

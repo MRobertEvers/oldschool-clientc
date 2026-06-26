@@ -6,33 +6,31 @@
 
 ---
 
-## `grid_level`, `slevel`, and `terrain_level`
+## `paintgrid_level`, `visible_gte_level`, and `mesh_level`
 
 Each painter tile (`struct PaintersTile`) packs three independent level fields into a single `uint16_t packed_meta`, plus a flags field. Understanding all three is necessary to follow the bridge bug.
 
-### `grid_level` — array slot index
+### `paintgrid_level` — level within the painter tile grid
 
-`grid_level` is the tile's fixed position in the vertical stack of tiles at a given `(x, z)` column. The painter allocates `width × height × levels` tiles in a flat array; `painter_coord_idx(painter, x, z, level)` computes the index as `x + z*width + level*width*height`. `grid_level` is what that `level` argument resolves to after the tile is in place.
+`paintgrid_level` is the tile's level (0–3) within the painter's vertical tile grid at a given `(x, z)` column. The painter allocates `width × height × levels` tiles in a flat array; `painter_coord_idx(painter, x, z, level)` computes the index as `x + z*width + level*width*height`. `paintgrid_level` is what that `level` argument resolves to after the tile is in place.
 
 **Rules:**
-- Set once at `init_painter_tile` to equal the allocation slot index.
-- `painter_tile_copyto` updates it to the destination slot (`dest_slevel` parameter).
-- Used by `step_idx_up`, `step_idx_down`, and `painter_coord_idx` for neighbor traversal.
-- Never changes after world build completes.
+- Set at `init_painter_tile` to equal the allocation slot index.
+- `painter_tile_copyto` updates it to the destination level (`dest_slevel` parameter).
+- Used by `step_idx_up`, `step_idx_down`, and `painter_coord_idx` for neighbour traversal.
+- On bridge columns, rewritten during push-down; on normal columns equals the allocation slot after build.
 
-### `slevel` (draw level) — mask visibility
+### `visible_gte_level` — visible at draw levels ≥ this value
 
-`slevel` is the level index that is checked against `draw_mask` at draw time:
+`visible_gte_level` is the level bit tested against `draw_mask` at draw time. The tile is drawn when the UI's current view floor is **greater than or equal** to this value (cumulative masks set bits for levels `0..current_floor`):
 
 ```c
 // tile_excluded_by_bridge_or_draw_mask
-return (draw_mask & (1u << tile_slevel)) == 0;
+return (draw_mask & (1u << tile_visible_gte_level)) == 0;
 ```
 
-A tile is skipped entirely if its `slevel` bit is not set in `draw_mask`. The UI typically sets `draw_mask = (1 << current_floor) - 1 | (1 << current_floor)` so the player sees their floor and everything below it.
-
 **Rules:**
-- Initialized to `grid_level` at `init_painter_tile`.
+- Initialized to the allocation level at `init_painter_tile`.
 - Overwritten by `painter_tile_set_draw_level` (called by the world builder after all tile shifts) using `RSCacheDat2A_MapFloorVisBelowDrawLevel`:
   ```c
   // from dat2a_maps.h
@@ -41,37 +39,37 @@ A tile is skipped entirely if its `slevel` bit is not set in `draw_mask`. The UI
       return cache_level - 1;
   return cache_level;                                          // normal: draw level == cache level
   ```
-- A tile on `grid_level=1` with `FLOFLAG_VIS_BELOW` gets `slevel=0`, making it visible even when `draw_mask=0x1`.
-- On a bridge column (`FLOFLAG_LINK_BELOW` on cache level 1), every grid slot's `slevel` is computed from the *source* cache level that was shifted into it, not from the slot index. See the shift table below.
-- `painter_tile_copyto` does **not** copy or reset `slevel`; it is always assigned explicitly afterwards by `painter_tile_set_draw_level`.
+- A tile on `paintgrid_level=1` with `FLOFLAG_VIS_BELOW` gets `visible_gte_level=0`, making it visible even when `draw_mask=0x1`.
+- On a bridge column (`FLOFLAG_LINK_BELOW` on cache level 1), every grid slot's `visible_gte_level` is computed from the *source* cache level that was shifted into it, not from the slot index. See the shift table below.
+- `painter_tile_copyto` does **not** copy or reset `visible_gte_level`; it is always assigned explicitly afterwards by `painter_tile_set_draw_level`.
 
-### `terrain_level` — mesh index for the renderer
+### `mesh_level` — mesh index for the renderer
 
-`terrain_level` is the cache level whose terrain mesh the renderer should draw for this tile. It does not affect traversal order or visibility; it is only passed to `push_command_terrain`.
+`mesh_level` is the cache level whose terrain mesh the renderer should draw for this tile. It does not affect traversal order or visibility; it is only passed to `push_command_terrain`.
 
 **Rules:**
-- Initialized to `grid_level` at `init_painter_tile`.
-- `painter_tile_copyto` does **not** reset it — the destination tile keeps the *source* tile's `terrain_level`. This is intentional: after a bridge shift, the terrain geometry for a slot stays indexed by the cache level that provided it, even though the slot index is now different.
-- The bridge underpass tile (placed at slot 3 via a direct struct copy, not `copyto`) keeps `terrain_level=0` from the original ground content.
+- Initialized to the allocation level at `init_painter_tile`.
+- `painter_tile_copyto` does **not** reset it — the destination tile keeps the *source* tile's `mesh_level`. This is intentional: after a bridge shift, the terrain geometry for a slot stays indexed by the cache level that provided it, even though `paintgrid_level` is now different.
+- The bridge underpass tile (placed at slot 3 via a direct struct copy, not `copyto`) keeps `mesh_level=0` from the original ground content.
 
 ### All three fields across a bridge column
 
 For a column where cache level 1 has `FLOFLAG_LINK_BELOW` (and no `FLOFLAG_VIS_BELOW` on any level):
 
-| grid slot | content after shift | `grid_level` | `terrain_level` | `slevel` |
+| grid slot | content after shift | `paintgrid_level` | `mesh_level` | `visible_gte_level` |
 |-----------|---------------------|:---:|:---:|:---:|
 | 0 | cache level 1 | 0 | **1** | **0** |
 | 1 | cache level 2 | 1 | **2** | **1** |
 | 2 | cache level 3 | 2 | **3** | **2** |
 | 3 (BRIDGE) | cache level 0 (underpass) | 3 | 0 | 3 |
 
-The `slevel` column shows that with `draw_mask=0x1` (level 0 only) only slot 0 is drawn — which is the correct view of the bridge surface from below. With `draw_mask=0xF` all four slots are drawn.
+The `visible_gte_level` column shows that with `draw_mask=0x1` (level 0 only) only slot 0 is drawn — which is the correct view of the bridge surface from below. With `draw_mask=0xF` all four slots are drawn.
 
-The `terrain_level` column explains the debug output that identified the bug: the terrain command emitted for slot 0 carries `terrain_level=1` (not 0), which matched the observed `terrain(56, 15, lev=1)` preceding the missing entities in the world3d buffer.
+The `mesh_level` column explains the debug output that identified the bug: the terrain command emitted for slot 0 carries `mesh_level=1` (not 0), which matched the observed `terrain(56, 15, lev=1)` preceding the missing entities in the world3d buffer.
 
-### `element->slevel` — the bug's critical mismatch
+### `element->source_level` — the bug's critical mismatch
 
-Scenery elements (`painter_add_normal_scenery`) store `element->slevel = slevel` at the time of addition. Elements are added during world scene-build using the original cache level (0, 1, 2, 3). The bridge shift then moves those elements into different grid slots via `clone_scenery_chain`, but **does not update `element->slevel`**. After the shift, slot-0's `scenery_head` contains elements with `element->slevel=1` (from cache level 1), while the slot itself has `grid_level=0`. This mismatch is what caused the deadlock described in the bug section below.
+Scenery elements (`painter_add_normal_scenery`) store `element->source_level` at the time of addition. Elements are added during world scene-build using the original cache level (0, 1, 2, 3). The bridge shift then moves those elements into different grid slots via `clone_scenery_chain`, but **does not update `element->source_level`**. After the shift, slot-0's `scenery_head` contains elements with `element->source_level=1` (from cache level 1), while the slot itself has `paintgrid_level=0`. This mismatch is what caused the deadlock described in the bug section below.
 
 ---
 
@@ -98,9 +96,9 @@ for( int level = 0; level < max_levels - 1; level++ )
 painter_tile_set_bridge(painter, x, z, 0, x, z, 3);       // link surface → underpass
 ```
 
-`painter_tile_copyto` sets `grid_level = dest_slot` but deliberately **leaves `terrain_level` from the source** (so `push_command_terrain` still references the correct mesh). Crucially, it also calls `clone_scenery_chain`, so the slot-0 tile's `scenery_head` now contains the scenery elements that were originally placed at level 1.
+`painter_tile_copyto` sets `paintgrid_level = dest_slot` but deliberately **leaves `mesh_level` from the source** (so `push_command_terrain` still references the correct mesh). Crucially, it also calls `clone_scenery_chain`, so the slot-0 tile's `scenery_head` now contains the scenery elements that were originally placed at level 1.
 
-Those scenery elements were added to the painter with `painter_add_normal_scenery(..., slevel=1, ...)`, so their `element->slevel` field is **still 1**, even though they now live inside a tile whose `grid_level = 0`.
+Those scenery elements were added to the painter with `painter_add_normal_scenery(..., slevel=1, ...)`, so their `element->source_level` field is **still 1**, even though they now live inside a tile whose `paintgrid_level = 0`.
 
 ---
 
@@ -110,9 +108,9 @@ When the bucket painter processes a tile it checks whether each scenery element'
 
 ```c
 // painters_bucket.u.c  (before fix)
-int el_slevel = (int)element->slevel;          // 1, from when element was added
+int el_source_level = (int)element->source_level;  // 1, from when element was added
 ...
-struct TilePaint* u = tile_paint_at(painter, ox, oz, el_slevel);  // looks at slot 1
+struct TilePaint* u = tile_paint_at(painter, ox, oz, el_source_level);  // looks at slot 1
 if( u->step < PAINT_STEP_GROUND )
 {
     all_base = 0;   // not ready — defer
@@ -122,14 +120,14 @@ if( u->step < PAINT_STEP_GROUND )
 
 For a bridge column with `level_mask = 0xF`:
 
-| tile | grid_level | step after init |
+| tile | paintgrid_level | step after init |
 |------|-----------|-----------------|
-| slot 0 (`slevel=0`) | 0 | `READY` |
-| slot 1 (`slevel=1`) | 1 | `READY` |
-| slot 2 (`slevel=2`) | 2 | `READY` |
-| slot 3 (`slevel=3`, BRIDGE flag) | 3 | `DONE` (bridge tiles are excluded) |
+| slot 0 (`visible_gte_level=0`) | 0 | `READY` |
+| slot 1 (`visible_gte_level=1`) | 1 | `READY` |
+| slot 2 (`visible_gte_level=2`) | 2 | `READY` |
+| slot 3 (`visible_gte_level=3`, BRIDGE flag) | 3 | `DONE` (bridge tiles are excluded) |
 
-When the bucket processes the slot-0 tile and encounters the shifted element (`el_slevel=1`), it checks footprint tiles at **level 1**. Those slot-1 tiles are still `READY` (not yet processed). So `all_base = 0` and the element is deferred.
+When the bucket processes the slot-0 tile and encounters the shifted element (`source_level=1`), it checks footprint tiles at **level 1**. Those slot-1 tiles are still `READY` (not yet processed). So `all_base = 0` and the element is deferred.
 
 But slot-1 will not be processed until slot-0 is `DONE` (the bucket requires the tile below to be done before processing a higher level). And slot-0 cannot reach `DONE` because its deferred scenery elements — waiting on slot-1 — are never re-triggered: they live in slot-0's `scenery_head`, not slot-1's. **The result is a deadlock: the element is never drawn.**
 
@@ -139,21 +137,21 @@ With `level_mask = 0x1` (level-0 only) the bug does not manifest because all upp
 
 ## The fix
 
-Use the **current tile's `grid_level`** for the footprint readiness check, exactly as `painter_paint_world3d` does:
+Use the **current tile's `paintgrid_level`** for the footprint readiness check, exactly as `painter_paint_world3d` does:
 
 ```c
 // painters_world3d.u.c  (reference)
-int grid_level = painters_tile_get_grid_level(tile);
+int paintgrid_level = painters_tile_get_paintgrid_level(tile);
 ...
-int oidx = painter_coord_idx(painter, lx, lz, grid_level);
+int oidx = painter_coord_idx(painter, lx, lz, paintgrid_level);
 if( W3(painter)->paints[oidx].draw_front )   // pending at the current slot level?
     blocked = 1;
 ```
 
 ```c
 // painters_bucket.u.c  (after fix)
-// grid_level is already available from the tile-processing preamble.
-struct TilePaint* u = tile_paint_at(painter, ox, oz, grid_level);  // not el_slevel
+// paintgrid_level is already available from the tile-processing preamble.
+struct TilePaint* u = tile_paint_at(painter, ox, oz, paintgrid_level);  // not source_level
 if( u->step < PAINT_STEP_GROUND )
 {
     all_base = 0;
@@ -165,13 +163,13 @@ The same change was made to the post-draw push:
 
 ```c
 // before
-bucket_push_tile(w, painter_coord_idx(painter, ox, oz, el_slevel));
+bucket_push_tile(w, painter_coord_idx(painter, ox, oz, element->source_level));
 
 // after
-bucket_push_tile(w, painter_coord_idx(painter, ox, oz, grid_level));
+bucket_push_tile(w, painter_coord_idx(painter, ox, oz, paintgrid_level));
 ```
 
-For non-bridge columns `element->slevel == grid_level`, so the fix is a no-op. For bridge columns the correct slot-0 tiles are now checked and pushed, breaking the deadlock.
+For non-bridge columns `element->source_level == paintgrid_level`, so the fix is a no-op. For bridge columns the correct slot-0 tiles are now checked and pushed, breaking the deadlock.
 
 ---
 

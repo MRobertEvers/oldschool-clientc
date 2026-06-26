@@ -286,8 +286,8 @@ painter_paint_distancemetric(
 
         int tile_sx = tile->sx;
         int tile_sz = tile->sz;
-        int tile_slevel = painters_tile_get_slevel(tile);
-        int grid_level = painters_tile_get_grid_level(tile);
+        int tile_visible_gte_level = painters_tile_get_visible_gte_level(tile);
+        int paintgrid_level = painters_tile_get_paintgrid_level(tile);
 
         tile_paint = tile_paint_at_idx(painter, tile_idx);
         assert(tile_paint->queue_count > 0);
@@ -315,7 +315,7 @@ painter_paint_distancemetric(
 
         {
             uint16_t tile_flags = painters_tile_get_flags(tile);
-            if( tile_excluded_by_bridge_or_draw_mask(tile_flags, tile_slevel, draw_mask) )
+            if( tile_excluded_by_bridge_or_draw_mask(tile_flags, tile_visible_gte_level, draw_mask) )
             {
                 tile_paint->step = PAINT_STEP_DONE;
                 continue;
@@ -327,7 +327,7 @@ painter_paint_distancemetric(
         {
             tile_paint->step = PAINT_STEP_DONE;
             /* Same inward neighbor pushes as end of PAINT_STEP_LOCS (propagation). */
-            if( grid_level < painter->levels - 1 )
+            if( paintgrid_level < painter->levels - 1 )
             {
                 int other_idx = step_idx_up(painter, tile_idx);
                 other_paint = tile_paint_at_idx(painter, other_idx);
@@ -376,7 +376,7 @@ painter_paint_distancemetric(
 
         if( tile_paint->step == PAINT_STEP_READY )
         {
-            if( grid_level > 0 )
+            if( paintgrid_level > 0 )
             {
                 other_paint = tile_paint_at_idx(painter, step_idx_down(painter, tile_idx));
 
@@ -460,14 +460,14 @@ painter_paint_distancemetric(
                 //     painter,
                 //     bridge_underpass_tile->sx,
                 //     bridge_underpass_tile->sz,
-                //     bridge_underpass_tile->packed_meta grid_level);
+                //     bridge_underpass_tile->packed_meta paintgrid_level);
                 // other_paint->step = PAINT_STEP_DONE;
                 // The bridge floor is always stored on level 3.
                 push_command_terrain(
                     buffer,
                     bridge_underpass_tile->sx,
                     bridge_underpass_tile->sz,
-                    painters_tile_get_terrain_level(bridge_underpass_tile));
+                    painters_tile_get_mesh_level(bridge_underpass_tile));
 
                 if( bridge_underpass_tile->wall_a != -1 )
                 {
@@ -492,7 +492,7 @@ painter_paint_distancemetric(
                 }
             }
 
-            push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_terrain_level(tile));
+            push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_mesh_level(tile));
 
             if( tile->wall_a != -1 )
             {
@@ -651,7 +651,7 @@ painter_paint_distancemetric(
                     {
                         other_paint = tile_paint_at_idx(
                             painter,
-                            painter_coord_idx(painter, other_tile_x, other_tile_z, grid_level));
+                            painter_coord_idx(painter, other_tile_x, other_tile_z, paintgrid_level));
 
                         if( other_paint->step <= PAINT_STEP_GROUND )
                         {
@@ -742,7 +742,7 @@ painter_paint_distancemetric(
                          other_tile_z += step_z )
                     {
                         int other_idx =
-                            painter_coord_idx(painter, other_tile_x, other_tile_z, grid_level);
+                            painter_coord_idx(painter, other_tile_x, other_tile_z, paintgrid_level);
                         other_paint = tile_paint_at_idx(painter, other_idx);
 
                         painter_push_queue_dist(painter, other_idx);
@@ -762,7 +762,7 @@ painter_paint_distancemetric(
                 goto done;
             }
 
-            if( grid_level < painter->levels - 1 )
+            if( paintgrid_level < painter->levels - 1 )
             {
                 int other_idx = step_idx_up(painter, tile_idx);
                 other_paint = tile_paint_at_idx(painter, other_idx);

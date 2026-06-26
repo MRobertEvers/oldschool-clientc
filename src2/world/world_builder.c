@@ -200,7 +200,7 @@ world_builder_rebuild_centerzone_end(struct WorldBuilder* builder)
                     painter_tile_copyto(world->painter, x, z, level + 1, x, z, level);
 
                 *painter_tile_at(world->painter, x, z, 3) = bridge_tile_tmp;
-                painters_tile_set_grid_level(painter_tile_at(world->painter, x, z, 3), 3);
+                painters_tile_set_paintgrid_level(painter_tile_at(world->painter, x, z, 3), 3);
                 painter_tile_set_bridge(world->painter, x, z, 0, x, z, 3);
             }
         }

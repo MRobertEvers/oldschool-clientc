@@ -315,7 +315,7 @@ sharelight_should_hide_faces_for_merge(
     struct PaintersTile* lo_tile = painter_tile_at(world->painter, lo_sx, lo_sz, lo_l);
     struct PaintersTile* hi_tile = painter_tile_at(world->painter, hi_sx, hi_sz, hi_l);
     return lo_tile != NULL && hi_tile != NULL &&
-           painters_tile_get_slevel(lo_tile) == painters_tile_get_slevel(hi_tile);
+           painters_tile_get_visible_gte_level(lo_tile) == painters_tile_get_visible_gte_level(hi_tile);
 }
 
 static void

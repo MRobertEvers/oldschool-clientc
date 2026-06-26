@@ -89,83 +89,88 @@ struct PaintersTile
 
     /*
      * packed_meta layout (uint16_t):
-     *   bits 0-2:   draw level (slevel), 0-7
-     *   bits 3-5:   grid level (grid_level), 0-7
-     *   bits 6-8:   terrain level (terrain_level), 0-7
+     *   bits 0-2:   visible_gte_level, 0-7
+     *   bits 3-5:   paintgrid_level, 0-7
+     *   bits 6-8:   mesh_level, 0-7
      *   bits 9-15:  PaintersTileFlags
      *
-     * grid_level: The fixed position of this tile in the vertical grid stack (0 = ground,
-     *   1 = first floor, etc.). Set once at init and never changes. Used for array indexing
-     *   (painter_coord_idx, step_idx_up/down) and vertical neighbor stepping.
+     * visible_gte_level:
+     *   The tile is drawn when the UI's current view floor is >= this value. Literally the bit
+     *   tested in tile_excluded_by_bridge_or_draw_mask: (draw_mask & (1 << visible_gte_level)).
+     *   The "visible at or above" semantics come from the UI building cumulative draw_mask bits
+     *   (levels 0..current_floor). VisBelow (FLOFLAG_VIS_BELOW) can lower this below
+     *   paintgrid_level so a tile physically at paintgrid_level=2 is revealed when viewing level 1.
+     *   Set at init to the allocation level; overwritten after world build by
+     *   painter_tile_set_draw_level / RSCacheDat2A_MapFloorVisBelowDrawLevel. Not changed by
+     *   painter_tile_copyto.
      *
-     * terrain_level: The cache level whose terrain mesh belongs to this tile — the level index
-     *   passed to push_command_terrain and used by the renderer (e.g. world_tile_entity_at(x, z,
-     *   terrain_level)). World terrain entities stay indexed by original cache level and are not
-     *   shifted when bridge push-down (LinkBelow) moves painter tiles between grid slots (e.g.
-     *   cache 1 content into grid 0, old grid 0 into grid 3). So grid_level (current slot) can
-     *   diverge from the slot that holds the geometry. terrain_level is set to match grid_level
-     *   at init; painter_tile_copyto intentionally does not reset it so copies retain the
-     *   source's terrain index. On non-bridge columns, terrain_level always equals grid_level.
+     * paintgrid_level:
+     *   The tile's level (0-3) within the painter's tile grid at (sx, sz). Used for array
+     *   indexing (painter_coord_idx, step_idx_up/down) and vertical neighbour stepping during the
+     *   paint wavefront. Reset to the destination level by painter_tile_copyto during bridge
+     *   push-down; on non-bridge columns equals the allocation slot and never changes after build.
      *
-     * draw level (slevel): The visibility level this tile participates in, checked against the
-     *   UI draw_mask to decide whether the tile is drawn or skipped. Normally equals grid_level,
-     *   but VisBelow (0x08 floor flag) lowers it so upper-floor tiles become visible when only
-     *   lower levels are enabled in draw_mask — e.g. a tile on grid_level=1 can have slevel=0.
+     * mesh_level:
+     *   Which original cache level's terrain mesh this tile renders — passed to push_command_terrain
+     *   and used by the renderer (world_tile_entity_at(x, z, mesh_level)). Provenance of geometry,
+     *   not current grid position: painter_tile_copyto deliberately does not reset it so shifted
+     *   tiles keep the source cache index. On non-bridge columns mesh_level equals paintgrid_level.
      */
     uint16_t packed_meta;
 };
 
-#define PAINTERS_TILE_META_SLEVEL_MASK 0x7u
-#define PAINTERS_TILE_META_GRID_LEVEL_SHIFT 3
-#define PAINTERS_TILE_META_GRID_LEVEL_MASK (0x7u << PAINTERS_TILE_META_GRID_LEVEL_SHIFT)
-#define PAINTERS_TILE_META_TERRAIN_LEVEL_SHIFT 6
-#define PAINTERS_TILE_META_TERRAIN_LEVEL_MASK (0x7u << PAINTERS_TILE_META_TERRAIN_LEVEL_SHIFT)
+#define PAINTERS_TILE_META_VISIBLE_GTE_LEVEL_MASK 0x7u
+#define PAINTERS_TILE_META_PAINTGRID_LEVEL_SHIFT 3
+#define PAINTERS_TILE_META_PAINTGRID_LEVEL_MASK (0x7u << PAINTERS_TILE_META_PAINTGRID_LEVEL_SHIFT)
+#define PAINTERS_TILE_META_MESH_LEVEL_SHIFT 6
+#define PAINTERS_TILE_META_MESH_LEVEL_MASK (0x7u << PAINTERS_TILE_META_MESH_LEVEL_SHIFT)
 #define PAINTERS_TILE_META_FLAGS_SHIFT 9
 
 static inline uint8_t
-painters_tile_get_slevel(const struct PaintersTile* t)
+painters_tile_get_visible_gte_level(const struct PaintersTile* t)
 {
-    return (uint8_t)(t->packed_meta & PAINTERS_TILE_META_SLEVEL_MASK);
+    return (uint8_t)(t->packed_meta & PAINTERS_TILE_META_VISIBLE_GTE_LEVEL_MASK);
 }
 
 static inline void
-painters_tile_set_slevel(
+painters_tile_set_visible_gte_level(
     struct PaintersTile* t,
     uint8_t v)
 {
-    t->packed_meta = (uint16_t)((t->packed_meta & ~PAINTERS_TILE_META_SLEVEL_MASK) | (v & 7u));
+    t->packed_meta = (uint16_t)((t->packed_meta & ~PAINTERS_TILE_META_VISIBLE_GTE_LEVEL_MASK) |
+                                (v & 7u));
 }
 
 static inline uint8_t
-painters_tile_get_grid_level(const struct PaintersTile* t)
+painters_tile_get_paintgrid_level(const struct PaintersTile* t)
 {
-    return (uint8_t)((t->packed_meta & PAINTERS_TILE_META_GRID_LEVEL_MASK) >>
-                     PAINTERS_TILE_META_GRID_LEVEL_SHIFT);
+    return (uint8_t)((t->packed_meta & PAINTERS_TILE_META_PAINTGRID_LEVEL_MASK) >>
+                     PAINTERS_TILE_META_PAINTGRID_LEVEL_SHIFT);
 }
 
 static inline void
-painters_tile_set_grid_level(
+painters_tile_set_paintgrid_level(
     struct PaintersTile* t,
     uint8_t v)
 {
-    t->packed_meta = (uint16_t)((t->packed_meta & ~PAINTERS_TILE_META_GRID_LEVEL_MASK) |
-                                ((uint16_t)(v & 7u) << PAINTERS_TILE_META_GRID_LEVEL_SHIFT));
+    t->packed_meta = (uint16_t)((t->packed_meta & ~PAINTERS_TILE_META_PAINTGRID_LEVEL_MASK) |
+                                ((uint16_t)(v & 7u) << PAINTERS_TILE_META_PAINTGRID_LEVEL_SHIFT));
 }
 
 static inline uint8_t
-painters_tile_get_terrain_level(const struct PaintersTile* t)
+painters_tile_get_mesh_level(const struct PaintersTile* t)
 {
-    return (uint8_t)((t->packed_meta & PAINTERS_TILE_META_TERRAIN_LEVEL_MASK) >>
-                     PAINTERS_TILE_META_TERRAIN_LEVEL_SHIFT);
+    return (uint8_t)((t->packed_meta & PAINTERS_TILE_META_MESH_LEVEL_MASK) >>
+                     PAINTERS_TILE_META_MESH_LEVEL_SHIFT);
 }
 
 static inline void
-painters_tile_set_terrain_level(
+painters_tile_set_mesh_level(
     struct PaintersTile* t,
     uint8_t v)
 {
-    t->packed_meta = (uint16_t)((t->packed_meta & ~PAINTERS_TILE_META_TERRAIN_LEVEL_MASK) |
-                                ((uint16_t)(v & 7u) << PAINTERS_TILE_META_TERRAIN_LEVEL_SHIFT));
+    t->packed_meta = (uint16_t)((t->packed_meta & ~PAINTERS_TILE_META_MESH_LEVEL_MASK) |
+                                ((uint16_t)(v & 7u) << PAINTERS_TILE_META_MESH_LEVEL_SHIFT));
 }
 
 static inline uint16_t
@@ -276,7 +281,13 @@ struct PaintersElement
     // same tile.
     uint16_t sx;
     uint16_t sz;
-    uint8_t slevel;
+    /*
+     * source_level: cache level this element was placed at (painter_add_* slevel argument).
+     * Fixed at add time; not updated when bridge push-down moves the element into another tile's
+     * scenery_head via clone_scenery_chain. Can diverge from the host tile's paintgrid_level after
+     * a bridge shift — painters must use paintgrid_level for footprint readiness, not source_level.
+     */
+    uint8_t source_level;
 
     union
     {

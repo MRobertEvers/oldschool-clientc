@@ -84,10 +84,10 @@ struct RSCacheDat2A_MapLocs
  * Build-time use in 3draster:
  *   - Collision: FLOFLAG_BLOCK.
  *   - Bridge push-down: FLOFLAG_LINK_BELOW on cache level 1 (same column).
- *   - Painter draw level (slevel in packed_meta): RSCacheDat2A_MapFloorVisBelowDrawLevel() from the
+ *   - Painter draw level (visible_gte_level in packed_meta): RSCacheDat2A_MapFloorVisBelowDrawLevel() from the
  *     cache floor that *contributed* content to each painter grid slot after push-down.
  *
- * The painter does not read these flags at draw time; only pre-computed slevel matters.
+ * The painter does not read these flags at draw time; only pre-computed visible_gte_level matters.
  */
 enum RSCacheDat2A_FloorFlags
 {

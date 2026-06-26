@@ -26,9 +26,9 @@ init_painter_tile(
 {
     tile->sx = (uint16_t)sx;
     tile->sz = (uint16_t)sz;
-    painters_tile_set_slevel(tile, (uint8_t)slevel);
-    painters_tile_set_grid_level(tile, (uint8_t)slevel);
-    painters_tile_set_terrain_level(tile, (uint8_t)slevel);
+    painters_tile_set_visible_gte_level(tile, (uint8_t)slevel);
+    painters_tile_set_paintgrid_level(tile, (uint8_t)slevel);
+    painters_tile_set_mesh_level(tile, (uint8_t)slevel);
     painters_tile_set_flags(tile, 0);
     tile->spans = 0;
     tile->scenery_head = -1;
@@ -667,9 +667,9 @@ painter_tile_copyto(
 
     *dest_tile = *tile;
     dest_tile->scenery_head = clone_scenery_chain(painter, tile->scenery_head);
-    /* grid_level follows the destination slot; terrain_level stays from the source (bridge
+    /* paintgrid_level follows the destination slot; mesh_level stays from the source (bridge
      * push-down) so push_command_terrain still indexes the correct world terrain mesh. */
-    painters_tile_set_grid_level(dest_tile, (uint8_t)dest_slevel);
+    painters_tile_set_paintgrid_level(dest_tile, (uint8_t)dest_slevel);
     dest_tile->sx = (uint16_t)dest_sx;
     dest_tile->sz = (uint16_t)dest_sz;
 }
@@ -685,7 +685,7 @@ painter_tile_set_draw_level(
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     assert(draw_level >= 0);
     assert(draw_level < painter->levels);
-    painters_tile_set_slevel(tile, (uint8_t)draw_level);
+    painters_tile_set_visible_gte_level(tile, (uint8_t)draw_level);
 }
 
 void
@@ -699,7 +699,7 @@ painter_tile_set_grid_level(
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     assert(grid_level >= 0);
     assert(grid_level < painter->levels);
-    painters_tile_set_grid_level(tile, (uint8_t)grid_level);
+    painters_tile_set_paintgrid_level(tile, (uint8_t)grid_level);
 }
 
 static inline struct TilePaint*
@@ -806,7 +806,7 @@ painter_add_normal_scenery(
         .kind = PNTRELEM_SCENERY,
         .sx = sx,
         .sz = sz,
-        .slevel = slevel,
+        .source_level = slevel,
         ._scenery = { .entity = entity, .size_x = size_x, .size_z = size_z },
     };
     return element;
@@ -838,7 +838,7 @@ painter_reset_to_static(struct Painter* painter)
                     painter,
                     painter->elements[i].sx + x,
                     painter->elements[i].sz + z,
-                    painter->elements[i].slevel);
+                    painter->elements[i].source_level);
                 tile_remove_scenery_element(painter, tile, i);
             }
         }
@@ -881,7 +881,7 @@ painter_add_wall(
         .kind = kind,
         .sx = sx,
         .sz = sz,
-        .slevel = slevel,
+        .source_level = slevel,
         ._wall = { .entity = entity, .side = side },
     };
 
@@ -920,7 +920,7 @@ painter_add_wall_decor(
         .kind = PNTRELEM_WALL_DECOR,
         .sx = sx,
         .sz = sz,
-        .slevel = slevel,
+        .source_level = slevel,
         ._wall_decor = { //
             .entity = entity, //
             ._bf_side = side,
@@ -948,7 +948,7 @@ painter_add_ground_decor(
         .kind = PNTRELEM_GROUND_DECOR,
         .sx = sx,
         .sz = sz,
-        .slevel = slevel,
+        .source_level = slevel,
         ._ground_decor = { .entity = entity },
     };
     return element;
@@ -988,7 +988,7 @@ painter_add_ground_object(
         .kind = PNTRELEM_GROUND_OBJECT,
         .sx = sx,
         .sz = sz,
-        .slevel = slevel,
+        .source_level = slevel,
         ._ground_object = { .entity = entity },
     };
     return element;

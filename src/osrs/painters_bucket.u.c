@@ -145,7 +145,7 @@ painter_paint_bucket(
     int radius = 25;
 
     uint8_t draw_mask = painter->level_mask ? painter->level_mask : 0xFu;
-    /* Iterate all grid stack levels; per-tile draw_mask uses packed slevel (VisBelow). */
+    /* Iterate all grid stack levels; per-tile draw_mask uses packed visible_gte_level (VisBelow). */
     int min_level = 0;
     int max_level = painter->levels;
 
@@ -193,9 +193,9 @@ painter_paint_bucket(
         w->in_heap[ti]             = 0;
         w->dist[ti]                = abs(x - camera_sx) + abs(z - camera_sz);
 
-        int tile_slevel = painters_tile_get_slevel(t);
+        int tile_visible_gte_level = painters_tile_get_visible_gte_level(t);
         if( tile_excluded_by_bridge_or_draw_mask(
-                painters_tile_get_flags(t), tile_slevel, draw_mask) )
+                painters_tile_get_flags(t), tile_visible_gte_level, draw_mask) )
         {
             tile_paint->step = PAINT_STEP_DONE;
         }
@@ -268,13 +268,13 @@ painter_paint_bucket(
 
         int tile_sx = tile->sx;
         int tile_sz = tile->sz;
-        int grid_level = painters_tile_get_grid_level(tile);
+        int paintgrid_level = painters_tile_get_paintgrid_level(tile);
 
         if( tile_paint->step == PAINT_STEP_READY )
         {
             if( check_adjacent )
             {
-                if( grid_level > 0 )
+                if( paintgrid_level > 0 )
                 {
                     other_paint = tile_paint_at_idx(painter, step_idx_down(painter, e_tile));
                     if( other_paint->step != PAINT_STEP_DONE )
@@ -330,7 +330,7 @@ painter_paint_bucket(
                     buffer,
                     bridge_underpass_tile->sx,
                     bridge_underpass_tile->sz,
-                    painters_tile_get_terrain_level(bridge_underpass_tile));
+                    painters_tile_get_mesh_level(bridge_underpass_tile));
 
                 if( bridge_underpass_tile->wall_a != -1 )
                 {
@@ -355,7 +355,7 @@ painter_paint_bucket(
                 }
             }
 
-            push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_terrain_level(tile));
+            push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_mesh_level(tile));
 
             if( tile->wall_a != -1 )
             {
@@ -499,11 +499,11 @@ painter_paint_bucket(
                 continue;
             }
 
-            /* Use the current tile's grid_level for the footprint readiness check, matching
+            /* Use the current tile's paintgrid_level for the footprint readiness check, matching
              * world3d's approach. This avoids a circular dependency when bridge level-shifting
-             * places elements (with their original el_slevel) into a lower grid_level tile's
-             * scenery_head: checking at el_slevel would stall on tiles that wait on the current
-             * tile to be DONE, creating a deadlock. */
+             * places elements (with their original source_level) into a lower paintgrid_level
+             * tile's scenery_head: checking at source_level would stall on tiles that wait on the
+             * current tile to be DONE, creating a deadlock. */
             int all_base = 1;
             for( int ox = min_tile_x; ox <= max_tile_x; ox++ )
             {
@@ -514,7 +514,7 @@ painter_paint_bucket(
                         all_base = 0;
                         break;
                     }
-                    struct TilePaint* u = tile_paint_at(painter, ox, oz, grid_level);
+                    struct TilePaint* u = tile_paint_at(painter, ox, oz, paintgrid_level);
                     if( u->step < PAINT_STEP_GROUND )
                     {
                         all_base = 0;
@@ -562,8 +562,8 @@ painter_paint_bucket(
                     {
                         if( ox < 0 || oz < 0 || ox >= painter->width || oz >= painter->height )
                             continue;
-                        /* Push at grid_level, consistent with the readiness check above. */
-                        bucket_push_tile(w, painter_coord_idx(painter, ox, oz, grid_level));
+                        /* Push at paintgrid_level, consistent with the readiness check above. */
+                        bucket_push_tile(w, painter_coord_idx(painter, ox, oz, paintgrid_level));
                         some_drawn = 1;
                     }
                 }
@@ -639,7 +639,7 @@ painter_paint_bucket(
         tile_paint->step = PAINT_STEP_DONE;
         tiles_remaining--;
 
-        if( grid_level < painter->levels - 1 )
+        if( paintgrid_level < painter->levels - 1 )
         {
             int nidx = step_idx_up(painter, e_tile);
             other_paint = tile_paint_at_idx(painter, nidx);
