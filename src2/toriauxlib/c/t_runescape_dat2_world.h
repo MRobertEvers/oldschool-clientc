@@ -1,5 +1,5 @@
-#ifndef TORIAUXLIBC_DAT2_WORLD_H
-#define TORIAUXLIBC_DAT2_WORLD_H
+#ifndef TORIAUXLIBC_T_RUNESCAPE_DAT2_WORLD_H
+#define TORIAUXLIBC_T_RUNESCAPE_DAT2_WORLD_H
 
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
@@ -10,10 +10,10 @@
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
-#include "toridraw/toridraw_map.h"
 #include "toriauxlib/c/dat2io.h"
 #include "toriauxlib/c/toriauxlibc.h"
 #include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toridraw/toridraw_map.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -36,8 +36,7 @@ struct Task_Dat2WorldRebuildNormal
     int chunks_z[TASK_DAT2_WORLD_MAX_CHUNKS];
     int chunk_index;
 
-    int pending_fetches;
-    int pending_decodes;
+    struct LibToriRS_IOBatch io_batch;
 
     int* model_ids;
     int model_count;
@@ -101,16 +100,19 @@ Task_Dat2WorldRebuildNormal_Run(
     struct Task_Dat2WorldRebuildNormal* task,
     struct LibToriRS_IOContext* ctx)
 {
+    struct RSCacheDat2Disk_Archive* underlay_archive;
+    struct RSCacheDat2Disk_Archive* overlay_archive;
+    struct RSCacheDat2Disk_Archive* sequence_archive;
+    struct RSCacheDat2Disk_Archive* locs_archive;
     struct Dat2BuildCache* dat2_bc = dat2(task->c);
     struct RSCacheDat2Disk* cache_disk = ToriAuxLibC_Dat2Disk(task->c);
-    struct RSCacheDat2Disk_Archive* sequence_archive = NULL;
 
     PT_BEGIN(&task->thread);
 
     LibToriRS_IOQueueClear(ctx->io);
     task_dat2_world_compute_chunks(task);
 
-    task->pending_fetches = 0;
+    LibToriRS_IOBatchReset(&task->io_batch);
     for( task->chunk_index = 0; task->chunk_index < task->chunk_count; task->chunk_index++ )
     {
         int mapx = task->chunks_x[task->chunk_index];
@@ -118,17 +120,16 @@ Task_Dat2WorldRebuildNormal_Run(
         int map_id = (mapx << 16) | (mapz & 0xFFFF);
         if( !dat2_buildcache_map_terrain_has(dat2_bc, map_id) )
         {
-            dat2io_map_chunk_terrain_fetch(ctx, mapx, mapz);
-            task->pending_fetches++;
+            int slot = LibToriRS_IOBatchAdd(&task->io_batch, 0);
+            IO_REQUEST(ctx, slot, TAPIDat2_FetchMapChunkTerrain(ctx, mapx, mapz));
         }
     }
     PT_YIELD(&task->thread);
 
-    for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
-         task->pending_decodes++ )
+    for( int i = 0; i < LibToriRS_IOBatchCount(&task->io_batch); i++ )
     {
         struct RSCacheDat2A_MapTerrain* terrain = NULL;
-        int map_id = dat2io_map_chunk_terrain_decode(ctx, &terrain);
+        int map_id = TAPIDat2_DecodeMapChunkTerrain(ctx, i, &terrain);
         if( map_id >= 0 && terrain )
         {
             dat2_buildcache_map_terrain_add(dat2_bc, map_id, terrain);
@@ -136,7 +137,7 @@ Task_Dat2WorldRebuildNormal_Run(
         }
     }
 
-    task->pending_fetches = 0;
+    LibToriRS_IOBatchReset(&task->io_batch);
     for( task->chunk_index = 0; task->chunk_index < task->chunk_count; task->chunk_index++ )
     {
         int mapx = task->chunks_x[task->chunk_index];
@@ -144,17 +145,16 @@ Task_Dat2WorldRebuildNormal_Run(
         int map_id = (mapx << 16) | (mapz & 0xFFFF);
         if( !dat2_buildcache_map_scenery_has(dat2_bc, map_id) )
         {
-            dat2io_map_chunk_scenery_fetch(ctx, mapx, mapz);
-            task->pending_fetches++;
+            int slot = LibToriRS_IOBatchAdd(&task->io_batch, 0);
+            IO_REQUEST(ctx, slot, TAPIDat2_FetchMapChunkScenery(ctx, mapx, mapz));
         }
     }
     PT_YIELD(&task->thread);
 
-    for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
-         task->pending_decodes++ )
+    for( int i = 0; i < LibToriRS_IOBatchCount(&task->io_batch); i++ )
     {
         struct RSCacheDat2A_MapLocs* locs = NULL;
-        int map_id = dat2io_map_chunk_scenery_decode(ctx, &locs);
+        int map_id = TAPIDat2_DecodeMapChunkScenery(ctx, i, &locs);
         if( map_id >= 0 && locs )
         {
             dat2_buildcache_map_scenery_add(dat2_bc, map_id, locs);
@@ -162,36 +162,29 @@ Task_Dat2WorldRebuildNormal_Run(
         }
     }
 
-    dat2io_config_group_fetch(ctx, RSCacheDat2A_ConfigKind_Underlay);
-    dat2io_config_group_fetch(ctx, RSCacheDat2A_ConfigKind_Overlay);
-    dat2io_config_group_fetch(ctx, RSCacheDat2A_ConfigKind_Sequence);
-    dat2io_config_group_fetch(ctx, RSCacheDat2A_ConfigKind_Locs);
+    IO_REQUEST(ctx, 0, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Underlay));
+    IO_REQUEST(ctx, 1, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Overlay));
+    IO_REQUEST(ctx, 2, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Sequence));
+    IO_REQUEST(ctx, 3, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Locs));
     PT_YIELD(&task->thread);
 
-    {
-        struct RSCacheDat2Disk_Archive* underlay_archive =
-            dat2io_config_group_decode(ctx, RSCacheDat2A_ConfigKind_Underlay);
-        struct RSCacheDat2Disk_Archive* overlay_archive =
-            dat2io_config_group_decode(ctx, RSCacheDat2A_ConfigKind_Overlay);
-        sequence_archive = dat2io_config_group_decode(ctx, RSCacheDat2A_ConfigKind_Sequence);
-        struct RSCacheDat2Disk_Archive* locs_archive =
-            dat2io_config_group_decode(ctx, RSCacheDat2A_ConfigKind_Locs);
+    underlay_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Underlay);
+    assert(underlay_archive);
+    overlay_archive = TAPIDat2_DecodeConfigGroup(ctx, 1, RSCacheDat2A_ConfigKind_Overlay);
+    assert(overlay_archive);
+    sequence_archive = TAPIDat2_DecodeConfigGroup(ctx, 2, RSCacheDat2A_ConfigKind_Sequence);
+    assert(sequence_archive);
+    locs_archive = TAPIDat2_DecodeConfigGroup(ctx, 3, RSCacheDat2A_ConfigKind_Locs);
+    assert(locs_archive);
 
-        if( underlay_archive && cache_disk )
-            dat2_buildcache_underlays_init_from_archive(dat2_bc, cache_disk, underlay_archive);
-        if( overlay_archive && cache_disk )
-            dat2_buildcache_overlays_init_from_archive(dat2_bc, cache_disk, overlay_archive);
-        if( locs_archive && cache_disk )
-            dat2_buildcache_scenery_configs_init_from_archive(
-                dat2_bc, cache_disk, locs_archive, ToriAuxLibC_VarPVarBit(task->c));
+    dat2_buildcache_underlays_init_from_archive(dat2_bc, cache_disk, underlay_archive);
+    dat2_buildcache_overlays_init_from_archive(dat2_bc, cache_disk, overlay_archive);
+    dat2_buildcache_scenery_configs_init_from_archive(
+        dat2_bc, cache_disk, locs_archive, ToriAuxLibC_VarPVarBit(task->c));
 
-        if( underlay_archive )
-            RSCacheDat2Disk_ArchiveFree(underlay_archive);
-        if( overlay_archive )
-            RSCacheDat2Disk_ArchiveFree(overlay_archive);
-        if( locs_archive )
-            RSCacheDat2Disk_ArchiveFree(locs_archive);
-    }
+    RSCacheDat2Disk_ArchiveFree(underlay_archive);
+    RSCacheDat2Disk_ArchiveFree(overlay_archive);
+    RSCacheDat2Disk_ArchiveFree(locs_archive);
 
     ToriAuxLibC_SubmitAllUnderlaysFromDat2(task->c);
     ToriAuxLibC_SubmitAllFlotypesFromDat2(task->c);
@@ -213,12 +206,12 @@ Task_Dat2WorldRebuildNormal_Run(
         if( seq_ids && archive_ids )
         {
             /* --- Phase 1: collect deduped seq ids from visible loc configs --- */
-            struct ToriDraw_MapIter* loc_iter =
-                ToriDraw_MapIterNew(dat2_bc->config_loc_hmap);
+            struct ToriDraw_MapIter* loc_iter = ToriDraw_MapIterNew(dat2_bc->config_loc_hmap);
             void* loc_entry_v = NULL;
             while( (loc_entry_v = ToriDraw_MapIterNext(loc_iter)) )
             {
-                struct _LocEntry {
+                struct _LocEntry
+                {
                     int id;
                     struct RSCacheDat2A_ConfigLocation* config_loc;
                 };
@@ -227,22 +220,33 @@ Task_Dat2WorldRebuildNormal_Run(
                     continue;
 
                 /* Inline helper: add sid to seq_ids if not already present */
-#define COLLECT_SEQ(sid)                                                    \
-    do {                                                                    \
-        int _s = (sid);                                                     \
-        if( _s < 0 ) break;                                                 \
-        bool _found = false;                                                \
-        for( int _k = 0; _k < seq_count; _k++ )                           \
-            if( seq_ids[_k] == _s ) { _found = true; break; }             \
-        if( !_found ) {                                                     \
-            if( seq_count >= seq_capacity ) {                               \
-                seq_capacity *= 2;                                          \
-                int* _g = realloc(seq_ids, (size_t)seq_capacity * sizeof(int)); \
-                if( _g ) seq_ids = _g; else break;                         \
-            }                                                               \
-            seq_ids[seq_count++] = _s;                                     \
-        }                                                                   \
-    } while(0)
+#define COLLECT_SEQ(sid)                                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        int _s = (sid);                                                                            \
+        if( _s < 0 )                                                                               \
+            break;                                                                                 \
+        bool _found = false;                                                                       \
+        for( int _k = 0; _k < seq_count; _k++ )                                                    \
+            if( seq_ids[_k] == _s )                                                                \
+            {                                                                                      \
+                _found = true;                                                                     \
+                break;                                                                             \
+            }                                                                                      \
+        if( !_found )                                                                              \
+        {                                                                                          \
+            if( seq_count >= seq_capacity )                                                        \
+            {                                                                                      \
+                seq_capacity *= 2;                                                                 \
+                int* _g = realloc(seq_ids, (size_t)seq_capacity * sizeof(int));                    \
+                if( _g )                                                                           \
+                    seq_ids = _g;                                                                  \
+                else                                                                               \
+                    break;                                                                         \
+            }                                                                                      \
+            seq_ids[seq_count++] = _s;                                                             \
+        }                                                                                          \
+    } while( 0 )
 
                 COLLECT_SEQ(le->config_loc->seq_id);
                 for( int ri = 0; ri < le->config_loc->random_seq_id_count; ri++ )
@@ -253,7 +257,11 @@ Task_Dat2WorldRebuildNormal_Run(
             ToriDraw_MapIterFree(loc_iter);
 
             /* --- Phase 2: for each wanted seq, collect archive ids + skeletal --- */
-            struct _SeqEntry { int id; struct RSCacheDat2A_ConfigSequence* seq; };
+            struct _SeqEntry
+            {
+                int id;
+                struct RSCacheDat2A_ConfigSequence* seq;
+            };
 
             for( int si = 0; si < seq_count; si++ )
             {
@@ -275,14 +283,18 @@ Task_Dat2WorldRebuildNormal_Run(
                         continue;
                     bool found = false;
                     for( int k = 0; k < archive_count; k++ )
-                        if( archive_ids[k] == aid ) { found = true; break; }
+                        if( archive_ids[k] == aid )
+                        {
+                            found = true;
+                            break;
+                        }
                     if( !found )
                     {
                         if( archive_count >= archive_capacity )
                         {
                             archive_capacity *= 2;
-                            int* grow = realloc(archive_ids,
-                                                (size_t)archive_capacity * sizeof(int));
+                            int* grow =
+                                realloc(archive_ids, (size_t)archive_capacity * sizeof(int));
                             if( grow )
                                 archive_ids = grow;
                             else
@@ -318,12 +330,15 @@ Task_Dat2WorldRebuildNormal_Run(
 
             /* --- Phase 4: submit all loaded skeletal animations --- */
             {
-                struct ToriDraw_MapIter* sk_iter =
-                    ToriDraw_MapIterNew(dat2_bc->skeletal_hmap);
+                struct ToriDraw_MapIter* sk_iter = ToriDraw_MapIterNew(dat2_bc->skeletal_hmap);
                 void* sk_entry_v = NULL;
                 while( (sk_entry_v = ToriDraw_MapIterNext(sk_iter)) )
                 {
-                    struct _SkEntry { int id; struct RSCacheDat2A_AnimMaya* maya; };
+                    struct _SkEntry
+                    {
+                        int id;
+                        struct RSCacheDat2A_AnimMaya* maya;
+                    };
                     struct _SkEntry* ske = sk_entry_v;
                     ToriAuxLibC_SubmitSkeletalFromDat2(task->c, ske->id);
                 }
@@ -345,7 +360,7 @@ Task_Dat2WorldRebuildNormal_Run(
     task->model_count = dat2_buildcache_get_all_unique_scenery_model_ids(dat2_bc, &task->model_ids);
     for( task->model_index = 0; task->model_index < task->model_count; )
     {
-        task->pending_fetches = 0;
+        LibToriRS_IOBatchReset(&task->io_batch);
         int batch_end = task->model_index + TASK_DAT2_WORLD_IO_BATCH;
         if( batch_end > task->model_count )
             batch_end = task->model_count;
@@ -355,26 +370,24 @@ Task_Dat2WorldRebuildNormal_Run(
             int model_id = task->model_ids[task->model_index];
             if( !dat2_buildcache_model_get(dat2_bc, model_id) )
             {
-                dat2io_model_fetch(ctx, model_id);
-                task->pending_fetches++;
+                int slot = LibToriRS_IOBatchAdd(&task->io_batch, model_id);
+                IO_REQUEST(ctx, slot, TAPIDat2_FetchModel(ctx, model_id));
             }
         }
 
-        if( task->pending_fetches == 0 )
+        if( LibToriRS_IOBatchEmpty(&task->io_batch) )
             continue;
 
         PT_YIELD(&task->thread);
 
-        for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
-             task->pending_decodes++ )
+        for( int i = 0; i < LibToriRS_IOBatchCount(&task->io_batch); i++ )
         {
-            struct RSCacheDat2A_Model* model = NULL;
-            int decoded_model_id = -1;
-            model = dat2io_model_decode(ctx, &decoded_model_id);
-            if( model && decoded_model_id >= 0 )
+            struct RSCacheDat2A_Model* model = TAPIDat2_DecodeModel(ctx, i);
+            if( model )
             {
-                dat2_buildcache_model_add(dat2_bc, decoded_model_id, model);
-                ToriAuxLibC_SubmitModelFromDat2(task->c, decoded_model_id);
+                int model_id = LibToriRS_IOBatchUser(&task->io_batch, i);
+                dat2_buildcache_model_add(dat2_bc, model_id, model);
+                ToriAuxLibC_SubmitModelFromDat2(task->c, model_id);
             }
         }
         LibToriRS_IOQueueClear(ctx->io);

@@ -1,6 +1,7 @@
-#ifndef TORIAUXLIBC_DAT1_H
-#define TORIAUXLIBC_DAT1_H
+#ifndef TORIAUXLIBC_T_DAT1_MODELVIEWER_MODEL_H
+#define TORIAUXLIBC_T_DAT1_MODELVIEWER_MODEL_H
 
+#include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
@@ -47,15 +48,13 @@ Task_Dat1ModelLoad_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct RSCacheDat2A_Model* model;
-    int decoded_model_id;
     PT_BEGIN(&task->thread);
 
-    dat1io_model_fetch(ctx, task->model_id);
+    IO_REQUEST(ctx, 0, TAPIDat1_FetchModel(ctx, task->model_id));
 
     PT_YIELD(&task->thread);
 
-    decoded_model_id = -1;
-    model = dat1io_model_decode(ctx, &decoded_model_id);
+    model = TAPIDat1_DecodeModel(ctx, 0);
     if( !model )
     {
         fprintf(stderr, "Failed to decode model\n");

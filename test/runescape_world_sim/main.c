@@ -248,8 +248,11 @@ test_projectile_movement_and_painter(
     int const seq_id = PROJECTILE_SEQ_ID;
     int const test_delay = 0;
 
-    int projectile_idx = game_runescape_spawn_projectile(
+    int const entity_id = RS_ENTITY_ID(RS_ENTITY_KIND_PROJECTILE, 0);
+
+    int spawn_result = GameRunescape_WorldEntityAddProjectile(
         game,
+        entity_id,
         projectile_model_id,
         seq_id,
         spawn_sx,
@@ -264,14 +267,28 @@ test_projectile_movement_and_painter(
         RUNESCAPE_PROJECTILE_LENGTH,
         RUNESCAPE_PROJECTILE_OFFSET,
         RUNESCAPE_PROJECTILE_STEP);
-    if( projectile_idx < 0 )
-        FAIL("game_runescape_spawn_projectile failed");
+    if( spawn_result != entity_id )
+        FAIL("GameRunescape_WorldEntityAddProjectile failed");
+
+    int projectile_idx = -1;
+    int element_id = -1;
+    for( int i = 0; i < game->entity_registry_count; i++ )
+    {
+        if( game->entity_registry[i].entity_id == entity_id )
+        {
+            projectile_idx = game->entity_registry[i].world_index;
+            element_id = game->entity_registry[i].element_id;
+            break;
+        }
+    }
+    if( projectile_idx < 0 || element_id < 0 )
+        FAIL("projectile entity registry entry missing after spawn");
 
     struct World_EntityPool* pool = &game->world->entities.projectile;
     struct WorldEntity_Projectile* projectile = World_EntityPoolGet(pool, projectile_idx);
     if( !projectile || !World_EntityPoolIsActive(pool, projectile_idx) )
         FAIL("projectile pool slot missing after spawn");
-    int const element_id = projectile->element_id;
+
     int const start_pos_x = (int)projectile->x;
     int const start_grid_x = start_pos_x >> 7;
 
@@ -503,8 +520,11 @@ main(
         struct GameRunescape* game = instance->runescape;
         int const camera_sx = game->camera_position->x / 128;
         int const camera_sz = game->camera_position->z / 128;
-        (void)game_runescape_spawn_projectile(
+        int const interactive_entity_id =
+            RS_ENTITY_ID(RS_ENTITY_KIND_PROJECTILE, game->next_projectile_entity_index++);
+        (void)GameRunescape_WorldEntityAddProjectile(
             game,
+            interactive_entity_id,
             PROJECTILE_MODEL_ID,
             PROJECTILE_SEQ_ID,
             camera_sx,

@@ -1,15 +1,16 @@
 #include "toriauxlib/td/toriauxlibtd_tasks.h"
 
+#include "../../ioqueue/libtorirs_ioqueue.h"
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
-#include "toriauxlib/c/dat1io.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
-#include "osrs/rscache/shared/shared_file_list.h"
-#include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "osrs/rscache/dat1a/dat1a_config_textures.h"
 #include "osrs/rscache/dat1a/dat1a_configs_dat.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
+#include "osrs/rscache/shared/shared_file_list.h"
 #include "platforms/platform_x/cachelib_client.h"
+#include "toriauxlib/c/dat1io.h"
+#include "toriauxlib/c/toriauxlibc_submit.h"
 #include "toridraw/toridraw_types.h"
 
 #include <assert.h>
@@ -31,7 +32,8 @@ Task_ToriAuxLibTD_ModelLoad_New(
     struct ToriAuxLibTD* tdx,
     int model_id)
 {
-    struct Task_ToriAuxLibTD_ModelLoad* task = calloc(1, sizeof(struct Task_ToriAuxLibTD_ModelLoad));
+    struct Task_ToriAuxLibTD_ModelLoad* task =
+        calloc(1, sizeof(struct Task_ToriAuxLibTD_ModelLoad));
     if( !task )
         return NULL;
     PT_INIT(&task->thread);
@@ -53,15 +55,13 @@ Task_ToriAuxLibTD_ModelLoad_Run(
 {
     struct Task_ToriAuxLibTD_ModelLoad* task = (struct Task_ToriAuxLibTD_ModelLoad*)task_state;
     struct RSCacheDat2A_Model* model;
-    int decoded_model_id;
 
     PT_BEGIN(&task->thread);
 
-    dat1io_model_fetch(ctx, task->model_id);
+    IO_REQUEST(ctx, 0, TAPIDat1_FetchModel(ctx, task->model_id));
     PT_YIELD(&task->thread);
 
-    decoded_model_id = -1;
-    model = dat1io_model_decode(ctx, &decoded_model_id);
+    model = TAPIDat1_DecodeModel(ctx, 0);
     if( !model )
     {
         fprintf(stderr, "Task_ToriAuxLibTD_ModelLoad: failed to decode model %d\n", task->model_id);
@@ -119,7 +119,8 @@ Task_ToriAuxLibTD_TexturesLoad_Run(
     void* task_state,
     struct LibToriRS_IOContext* ctx)
 {
-    struct Task_ToriAuxLibTD_TexturesLoad* task = (struct Task_ToriAuxLibTD_TexturesLoad*)task_state;
+    struct Task_ToriAuxLibTD_TexturesLoad* task =
+        (struct Task_ToriAuxLibTD_TexturesLoad*)task_state;
     struct LibToriRS_IOQueueItem item;
     struct RSCacheDat1Disk_Archive* archive;
     struct RSCacheShared_FileListDat* filelist;
@@ -182,8 +183,7 @@ struct Task_ToriAuxLibTD_AnimationsLoad
     struct ToriAuxLibTD* tdx;
     int anim_count;
     int anim_index;
-    int pending_fetches;
-    int pending_decodes;
+    struct LibToriRS_IOBatch io_batch;
 };
 
 struct Task_ToriAuxLibTD_AnimationsLoad*
@@ -209,19 +209,21 @@ Task_ToriAuxLibTD_AnimationsLoad_Run(
     void* task_state,
     struct LibToriRS_IOContext* ctx)
 {
-    struct Task_ToriAuxLibTD_AnimationsLoad* task = (struct Task_ToriAuxLibTD_AnimationsLoad*)task_state;
+    struct Task_ToriAuxLibTD_AnimationsLoad* task =
+        (struct Task_ToriAuxLibTD_AnimationsLoad*)task_state;
     struct Dat1BuildCache* dat1_bc = dat1(ToriAuxLibTD_C(task->tdx));
     PT_BEGIN(&task->thread);
 
     if( !dat1_bc->fromconfigtable_config_jagfile || !dat1_bc->versionlist_jagfile )
     {
-        dat1io_config_jagfile_fetch(ctx);
-        dat1io_versionlist_jagfile_fetch(ctx);
+        IO_REQUEST(ctx, 0, TAPIDat1_FetchConfigJagfile(ctx));
+        IO_REQUEST(ctx, 1, TAPIDat1_FetchVersionlistJagfile(ctx));
         PT_YIELD(&task->thread);
 
         {
-            struct RSCacheShared_FileListDat* config_jag = dat1io_config_jagfile_decode(ctx);
-            struct RSCacheShared_FileListDat* versionlist_jag = dat1io_versionlist_jagfile_decode(ctx);
+            struct RSCacheShared_FileListDat* config_jag = TAPIDat1_DecodeConfigJagfile(ctx, 0);
+            struct RSCacheShared_FileListDat* versionlist_jag =
+                TAPIDat1_DecodeVersionlistJagfile(ctx, 1);
             if( config_jag )
                 dat1_buildcache_set_fromconfigtable_config_jagfile(dat1_bc, config_jag);
             if( versionlist_jag )
@@ -233,7 +235,7 @@ Task_ToriAuxLibTD_AnimationsLoad_Run(
     task->anim_count = dat1_buildcache_get_animbaseframes_count_from_versionlist_jagfile(dat1_bc);
     for( task->anim_index = 0; task->anim_index < task->anim_count; )
     {
-        task->pending_fetches = 0;
+        LibToriRS_IOBatchReset(&task->io_batch);
         int batch_end = task->anim_index + TDX_ANIM_IO_BATCH;
         if( batch_end > task->anim_count )
             batch_end = task->anim_count;
@@ -242,21 +244,20 @@ Task_ToriAuxLibTD_AnimationsLoad_Run(
         {
             if( !dat1_buildcache_animbaseframes_has(dat1_bc, task->anim_index) )
             {
-                dat1io_animations_fetch(ctx, task->anim_index);
-                task->pending_fetches++;
+                int slot = LibToriRS_IOBatchAdd(&task->io_batch, 0);
+                IO_REQUEST(ctx, slot, TAPIDat1_FetchAnimations(ctx, task->anim_index));
             }
         }
 
-        if( task->pending_fetches == 0 )
+        if( LibToriRS_IOBatchEmpty(&task->io_batch) )
             continue;
 
         PT_YIELD(&task->thread);
 
-        for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
-             task->pending_decodes++ )
+        for( int i = 0; i < LibToriRS_IOBatchCount(&task->io_batch); i++ )
         {
             struct RSCacheDat1A_AnimBaseFrames* abf = NULL;
-            int anim_id = dat1io_animations_decode(ctx, &abf);
+            int anim_id = TAPIDat1_DecodeAnimations(ctx, i, &abf);
             if( anim_id >= 0 && abf )
             {
                 dat1_buildcache_animbaseframes_add(dat1_bc, anim_id, abf);

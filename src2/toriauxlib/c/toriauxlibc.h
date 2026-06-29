@@ -139,6 +139,9 @@ Task_ToriAuxLibC_ModelLoad_Run(
     void* task_state,
     struct LibToriRS_IOContext* ctx);
 
+void
+Task_ToriAuxLibC_ModelLoad_Free(struct Task_ToriAuxLibC_ModelLoad* task);
+
 struct Task_ToriAuxLibC_WorldRebuildNormal;
 
 struct Task_ToriAuxLibC_WorldRebuildNormal*

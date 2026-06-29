@@ -28,6 +28,38 @@ ToriAuxLibCore_ModelHas(
     struct ToriAuxLibCore* gamecache,
     int model_id);
 
+void
+ToriAuxLibCore_IdkModelAdd(
+    struct ToriAuxLibCore* gamecache,
+    int idk_id,
+    struct ToriAuxLibCore_Model* model);
+
+struct ToriAuxLibCore_Model*
+ToriAuxLibCore_IdkModelGet(
+    struct ToriAuxLibCore* gamecache,
+    int idk_id);
+
+bool
+ToriAuxLibCore_IdkModelHas(
+    struct ToriAuxLibCore* gamecache,
+    int idk_id);
+
+void
+ToriAuxLibCore_ObjModelAdd(
+    struct ToriAuxLibCore* gamecache,
+    int obj_id,
+    struct ToriAuxLibCore_Model* model);
+
+struct ToriAuxLibCore_Model*
+ToriAuxLibCore_ObjModelGet(
+    struct ToriAuxLibCore* gamecache,
+    int obj_id);
+
+bool
+ToriAuxLibCore_ObjModelHas(
+    struct ToriAuxLibCore* gamecache,
+    int obj_id);
+
 struct ToriAuxLibCore_Model*
 ToriAuxLibCore_ModelRemove(
     struct ToriAuxLibCore* gamecache,

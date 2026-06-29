@@ -11,6 +11,7 @@ LibToriRS_IOQueueNew(void)
     if( !queue )
         return NULL;
     memset(queue, 0, sizeof(struct LibToriRS_IOQueue));
+    queue->current_slot = -1;
     return queue;
 }
 
@@ -48,6 +49,7 @@ LibToriRS_IOQueueClear(struct LibToriRS_IOQueue* queue)
     int run_counter = queue->run_counter;
     memset(queue, 0, sizeof(struct LibToriRS_IOQueue));
     queue->run_counter = run_counter;
+    queue->current_slot = -1;
 }
 
 int
@@ -115,6 +117,7 @@ LibToriRS_IOQueuePushConfigFile(
     item->kind = TORIRSIO_KIND_CONFIG_FILE;
     item->status = TORIRSIO_STAT_YIELD;
     item->run_id = queue->run_counter;
+    item->slot_id = queue->current_slot;
     strncpy(item->u.config_file.path, path, LIBTORIRS_IOQUEUE_PATH_MAX - 1);
     item->u.config_file.path[LIBTORIRS_IOQUEUE_PATH_MAX - 1] = '\0';
     queue->count++;
@@ -136,6 +139,7 @@ LibToriRS_IOQueuePushScript(
     item->kind = TORIRSIO_KIND_SCRIPT;
     item->status = TORIRSIO_STAT_YIELD;
     item->run_id = queue->run_counter;
+    item->slot_id = queue->current_slot;
     strncpy(item->u.script.path, path, LIBTORIRS_IOQUEUE_PATH_MAX - 1);
     item->u.script.path[LIBTORIRS_IOQUEUE_PATH_MAX - 1] = '\0';
     queue->count++;
@@ -160,6 +164,7 @@ LibToriRS_IOQueuePopWrite(
     struct LibToriRS_IOQueueItem* item = &queue->items[queue->count];
     memcpy(item, in, sizeof(struct LibToriRS_IOQueueItem));
     item->run_id = queue->run_counter;
+    item->slot_id = queue->current_slot;
     queue->count++;
     return true;
 }
@@ -194,4 +199,28 @@ LibToriRS_IOQueuePopReadPtr(struct LibToriRS_IOQueue* queue)
     struct LibToriRS_IOQueueItem* request = &queue->items[queue->read_head];
     queue->read_head++;
     return request;
+}
+
+struct LibToriRS_IOQueueItem*
+LibToriRS_IOQueueFindBySlot(
+    struct LibToriRS_IOQueue* queue,
+    int slot_id)
+{
+    if( !queue || slot_id < 0 )
+        return NULL;
+
+    for( int i = 0; i < queue->count; i++ )
+    {
+        struct LibToriRS_IOQueueItem* item = &queue->items[i];
+        if( item->slot_id != slot_id )
+            continue;
+        if( item->consumed )
+            continue;
+        if( item->status != TORIRSIO_STAT_DONE )
+            return NULL;
+        item->consumed = true;
+        return item;
+    }
+
+    return NULL;
 }

@@ -6,6 +6,8 @@
 #include "buildcache/dat2_buildcache.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
+#include "osrs/rscache/dat1a/dat1a_config_idk.h"
+#include "osrs/rscache/dat1a/dat1a_config_obj.h"
 #include "osrs/rscache/dat2a/dat2a_animaya.h"
 #include "osrs/rscache/dat2a/dat2a_config_floortype.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
@@ -158,6 +160,103 @@ ToriAuxLibC_SubmitModelFromDat1(
         return;
 
     ToriAuxLibCore_ModelAdd(ToriAuxLibC_Core(c), model_id, gc_model);
+}
+
+static void
+submit_recolor_raw(
+    struct RSCacheDat2A_Model* model,
+    int color_src,
+    int color_dst)
+{
+    if( !model || !model->face_colors )
+        return;
+
+    for( int f = 0; f < model->face_count; f++ )
+    {
+        if( model->face_colors[f] == (uint16_t)color_src )
+            model->face_colors[f] = (uint16_t)color_dst;
+    }
+}
+
+void
+ToriAuxLibC_SubmitIdkModelFromDat1(
+    struct ToriAuxLibC* c,
+    int idk_id)
+{
+    struct RSCacheDat1A_ConfigIdk* idk = dat1_buildcache_idk_get(dat1(c), idk_id);
+    if( !idk || !idk->models || idk->models_count <= 0 )
+        return;
+
+    struct RSCacheDat2A_Model* raw_models[12] = { 0 };
+    int model_count = 0;
+    for( int i = 0; i < idk->models_count && model_count < 12; i++ )
+    {
+        struct RSCacheDat2A_Model* raw = dat1_buildcache_model_get(dat1(c), idk->models[i]);
+        if( !raw )
+            continue;
+        raw_models[model_count++] = raw;
+    }
+    if( model_count == 0 )
+        return;
+
+    struct RSCacheDat2A_Model* merged = RSCacheDat2A_ModelNewMerge(raw_models, model_count);
+    if( !merged )
+        return;
+
+    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibC_ModelNewFromCacheModel(merged);
+    RSCacheDat2A_ModelFree(merged);
+    if( !gc_model )
+        return;
+
+    ToriAuxLibCore_IdkModelAdd(ToriAuxLibC_Core(c), idk_id, gc_model);
+}
+
+void
+ToriAuxLibC_SubmitObjModelFromDat1(
+    struct ToriAuxLibC* c,
+    int obj_id)
+{
+    struct RSCacheDat1A_ConfigObj* obj = dat1_buildcache_obj_get(dat1(c), obj_id);
+    if( !obj )
+        return;
+
+    struct RSCacheDat2A_Model* raw_models[12] = { 0 };
+    int model_count = 0;
+
+    if( obj->manwear != -1 )
+    {
+        struct RSCacheDat2A_Model* raw = dat1_buildcache_model_get(dat1(c), obj->manwear);
+        if( raw )
+            raw_models[model_count++] = raw;
+    }
+    if( obj->manwear2 != -1 )
+    {
+        struct RSCacheDat2A_Model* raw = dat1_buildcache_model_get(dat1(c), obj->manwear2);
+        if( raw )
+            raw_models[model_count++] = raw;
+    }
+    if( obj->manwear3 != -1 )
+    {
+        struct RSCacheDat2A_Model* raw = dat1_buildcache_model_get(dat1(c), obj->manwear3);
+        if( raw )
+            raw_models[model_count++] = raw;
+    }
+    if( model_count == 0 )
+        return;
+
+    struct RSCacheDat2A_Model* merged = RSCacheDat2A_ModelNewMerge(raw_models, model_count);
+    if( !merged )
+        return;
+
+    for( int i = 0; i < obj->recol_count; i++ )
+        submit_recolor_raw(merged, obj->recol_s[i], obj->recol_d[i]);
+
+    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibC_ModelNewFromCacheModel(merged);
+    RSCacheDat2A_ModelFree(merged);
+    if( !gc_model )
+        return;
+
+    ToriAuxLibCore_ObjModelAdd(ToriAuxLibC_Core(c), obj_id, gc_model);
 }
 
 void

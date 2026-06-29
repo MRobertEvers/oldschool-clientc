@@ -213,6 +213,65 @@ world_projectile_move(
 }
 
 int
+world_player_spawn(
+    struct World* world,
+    int element_id,
+    int level,
+    int scene_x,
+    int scene_z)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_Player* player;
+    int idx;
+
+    assert(!(!world || element_id < 0));
+
+    pool = &world->entities.player;
+    idx = World_EntityPoolAlloc(pool);
+    assert(idx >= 0);
+
+    player = World_EntityPoolGet(pool, idx);
+    *player = (struct WorldEntity_Player){
+        .element_id = element_id,
+        .level = level,
+        .x = scene_x * 128 + 64,
+        .z = scene_z * 128 + 64,
+        .yaw = 0,
+    };
+    return idx;
+}
+
+void
+world_player_despawn(
+    struct World* world,
+    int idx)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_Player* player;
+
+    if( !world )
+        return;
+
+    pool = &world->entities.player;
+    if( !World_EntityPoolIsActive(pool, idx) )
+        return;
+
+    player = World_EntityPoolGet(pool, idx);
+    if( !player )
+        return;
+
+    if( player->element_id >= 0 && world->event_count < WORLD_MAX_EVENTS )
+    {
+        world->events[world->event_count++] = (struct WorldEvent){
+            .kind = WORLD_EVENT_ENTITY_REMOVED,
+            .element_id = player->element_id,
+        };
+    }
+
+    World_EntityPoolRelease(pool, idx);
+}
+
+int
 world_projectile_spawn(
     struct World* world,
     int element_id,
@@ -330,6 +389,74 @@ world_projectile_despawn(
 }
 
 int
+world_spotanim_spawn(
+    struct World* world,
+    int element_id,
+    int level,
+    int scene_x,
+    int scene_z,
+    int y,
+    int orientation,
+    int idle_delay,
+    int lifetime)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_Spotanim* s;
+    int idx;
+
+    assert(!(!world || element_id < 0));
+
+    pool = &world->entities.spotanim;
+    idx = World_EntityPoolAlloc(pool);
+    assert(idx >= 0);
+
+    s = World_EntityPoolGet(pool, idx);
+    *s = (struct WorldEntity_Spotanim){
+        .element_id = element_id,
+        .level = level,
+        .scene_x = scene_x,
+        .scene_z = scene_z,
+        .y = y,
+        .orientation = orientation,
+        .idle_cycles = idle_delay,
+        .active_cycle = 0,
+        .lifetime = lifetime,
+        .active = false,
+    };
+    return idx;
+}
+
+void
+world_spotanim_despawn(
+    struct World* world,
+    int idx)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_Spotanim* s;
+
+    if( !world )
+        return;
+
+    pool = &world->entities.spotanim;
+    if( !World_EntityPoolIsActive(pool, idx) )
+        return;
+
+    s = World_EntityPoolGet(pool, idx);
+    if( !s )
+        return;
+
+    if( s->element_id >= 0 && world->event_count < WORLD_MAX_EVENTS )
+    {
+        world->events[world->event_count++] = (struct WorldEvent){
+            .kind = WORLD_EVENT_ENTITY_REMOVED,
+            .element_id = s->element_id,
+        };
+    }
+
+    World_EntityPoolRelease(pool, idx);
+}
+
+int
 world_events_count(struct World* world)
 {
     if( !world )
@@ -364,6 +491,30 @@ world_cycle(
         return;
 
     painter_reset_to_static(world->painter);
+
+    struct World_EntityPool* player_pool = &world->entities.player;
+    for( int pi = World_EntityPoolHead(player_pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(player_pool, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(player_pool, pi);
+        if( !player || player->element_id < 0 )
+            continue;
+
+        int grid_x = player->x >> 7;
+        int grid_z = player->z >> 7;
+        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
+            grid_z >= world->_scene_size )
+            continue;
+
+        painter_add_normal_scenery(
+            world->painter,
+            grid_x,
+            grid_z,
+            player->level,
+            player->element_id,
+            1,
+            1);
+    }
 
     struct World_EntityPool* pool = &world->entities.projectile;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; )
@@ -419,5 +570,58 @@ world_cycle(
             footprint.size_z);
 
         i = next;
+    }
+
+    struct World_EntityPool* spotanim_pool = &world->entities.spotanim;
+    for( int si = World_EntityPoolHead(spotanim_pool); si != WORLD_ENTITY_NIL; )
+    {
+        int next = World_EntityPoolNext(spotanim_pool, si);
+        struct WorldEntity_Spotanim* s = World_EntityPoolGet(spotanim_pool, si);
+
+        if( !s->active )
+        {
+            if( cycles_elapsed > 0 )
+            {
+                s->idle_cycles -= cycles_elapsed;
+                if( s->idle_cycles <= 0 )
+                    s->active = true;
+            }
+            if( !s->active )
+            {
+                si = next;
+                continue;
+            }
+        }
+
+        if( cycles_elapsed > 0 )
+            s->active_cycle += cycles_elapsed;
+
+        if( s->active_cycle >= s->lifetime )
+        {
+            world_spotanim_despawn(world, si);
+            si = next;
+            continue;
+        }
+
+        int grid_x = s->scene_x >> 7;
+        int grid_z = s->scene_z >> 7;
+        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
+            grid_z >= world->_scene_size )
+        {
+            world_spotanim_despawn(world, si);
+            si = next;
+            continue;
+        }
+
+        painter_add_normal_scenery(
+            world->painter,
+            grid_x,
+            grid_z,
+            s->level,
+            s->element_id,
+            1,
+            1);
+
+        si = next;
     }
 }

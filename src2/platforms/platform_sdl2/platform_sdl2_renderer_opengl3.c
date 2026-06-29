@@ -536,16 +536,22 @@ gl3_bake_font_atlas(struct GL3FontSlot* slot)
         glDeleteTextures(1, &slot->texture);
     glGenTextures(1, &slot->texture);
     glBindTexture(GL_TEXTURE_2D, slot->texture);
-    glTexImage2D(
-        GL_TEXTURE_2D,
-        0,
-        GL_R8,
-        atlas_w,
-        atlas_h,
-        0,
-        GL_RED,
-        GL_UNSIGNED_BYTE,
-        pixels);
+    {
+        GLint unpack_align = 0;
+        glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpack_align);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            GL_R8,
+            atlas_w,
+            atlas_h,
+            0,
+            GL_RED,
+            GL_UNSIGNED_BYTE,
+            pixels);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, unpack_align);
+    }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);

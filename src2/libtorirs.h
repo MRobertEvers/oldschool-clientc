@@ -80,11 +80,13 @@ LibToriRS_GetCurrentToriDrawScene(struct LibToriRS_Instance* instance);
 struct ToriAuxLib*
 LibToriRS_GetToriAuxLib(struct LibToriRS_Instance* instance);
 
+/* Caller must pass a destroy callback that frees task_state (may be NULL). */
 void
 LibToriRS_TasksAdd(
     struct LibToriRS_Instance* instance,
     void* task_state,
-    CoreTaskFunction task_function);
+    CoreTaskFunction task_function,
+    CoreTaskDestructor destroy);
 
 bool
 LibToriRS_TasksRun(struct LibToriRS_Instance* instance);

@@ -4,16 +4,17 @@
  *   ./bench_real [start] [count] [iters]          seeded scenes (default build)
  *   ./bench_real cache [dir] [iters]              dat2 world (FUZZ_WITH_CACHE build)
  */
-#include "painter_bench_real.h"
-
 #include "graphics/shared_tables.h"
+#include "painter_bench_real.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 int
-main(int argc, char** argv)
+main(
+    int argc,
+    char** argv)
 {
     init_sin_table();
     init_cos_table();
@@ -37,9 +38,7 @@ main(int argc, char** argv)
 #else
     if( argc >= 2 && strcmp(argv[1], "cache") == 0 )
     {
-        fprintf(
-            stderr,
-            "cache bench requires bench_real_cache build (make bench_real_cache)\n");
+        fprintf(stderr, "cache bench requires bench_real_cache build (make bench_real_cache)\n");
         return 1;
     }
 #endif

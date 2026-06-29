@@ -4,42 +4,52 @@
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../libtorirs_internal.h"
 #include "buildcache/dat1_buildcache.h"
-#include "toriauxlib/core/toriauxlibcore.h"
-#include "toriauxlib/toriauxlib.h"
-#include "toriauxlib/c/toriauxlibc.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
-#include "toriauxlib/c/revconfig_ui_load.h"
 #include "games/runescape.h"
-#include "platforms/platform_x/cachelib_client.h"
-#include "osrs/rscache/dat1disk/dat1disk.h"
-#include "osrs/rscache/shared/shared_file_list.h"
-#include "osrs/rscache/dat2a/dat2a_config_floortype.h"
-#include "osrs/rscache/dat2a/dat2a_config_locs.h"
-#include "osrs/rscache/dat2a/dat2a_config_sequence.h"
-#include "osrs/rscache/dat2a/dat2a_maps.h"
-#include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "osrs/rscache/dat1a/dat1a_config_textures.h"
 #include "osrs/rscache/dat1a/dat1a_configs_dat.h"
 #include "osrs/rscache/dat1a/dat1a_pix32.h"
 #include "osrs/rscache/dat1a/dat1a_pix8.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/dat2a/dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat2a/dat2a_sprites.h"
 #include "osrs/rscache/dat2a/dat2a_textures.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "osrs/rscache/shared/shared_file_list.h"
+#include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/texture.h"
+#include "toriauxlib/c/revconfig_ui_load.h"
+#include "toriauxlib/c/toriauxlibc.h"
+#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/core/toriauxlibcore.h"
+#include "toriauxlib/toriauxlib.h"
 #include "toridraw/toridraw_animation.h"
-#include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
+#include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"
-#include "toriauxlib/toriauxlib.h"
 #include "world/world.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static void
+world_rebuild_normal_task_destroy(void* state)
+{
+    Task_ToriAuxLibC_WorldRebuildNormal_Free(state);
+}
+
+static void
+revconfig_ui_load_task_destroy(void* state)
+{
+    Task_RevConfigUILoad_Free(state);
+}
 
 void
 LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
@@ -85,11 +95,13 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(
 
     printf("CacheDatArchive: %p\n", archive);
 
-    struct RSCacheShared_FileListDat* filelist_dat = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
+    struct RSCacheShared_FileListDat* filelist_dat =
+        RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
     if( !filelist_dat )
         return false;
 
-    dat1_buildcache_set_fromconfigtable_config_jagfile(dat1(ToriAuxLib_C(instance->toriauxlib)), filelist_dat);
+    dat1_buildcache_set_fromconfigtable_config_jagfile(
+        dat1(ToriAuxLib_C(instance->toriauxlib)), filelist_dat);
 
     RSCacheDat1Disk_ArchiveFree(archive);
     return true;
@@ -137,7 +149,8 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
     if( !archive )
         return false;
 
-    struct RSCacheShared_FileListDat* filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
+    struct RSCacheShared_FileListDat* filelist =
+        RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
     RSCacheDat1Disk_ArchiveFree(archive);
     if( !filelist )
         return false;
@@ -204,8 +217,7 @@ LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
 
     RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
 
-    struct RSCacheShared_FileList* filelist =
-        RSCacheShared_FileListNewFromCacheArchive(archive);
+    struct RSCacheShared_FileList* filelist = RSCacheShared_FileListNewFromCacheArchive(archive);
     if( !filelist )
     {
         RSCacheDat2Disk_ArchiveFree(archive);
@@ -226,8 +238,11 @@ LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
     if( filelist->file_count < count )
         count = filelist->file_count;
 
-    printf("Dat2 textures: file_count=%d, children.count=%d, effective count=%d\n",
-           filelist->file_count, reference->children.count, count);
+    printf(
+        "Dat2 textures: file_count=%d, children.count=%d, effective count=%d\n",
+        filelist->file_count,
+        reference->children.count,
+        count);
 
     int loaded_count = 0;
     for( int i = 0; i < count; i++ )
@@ -265,10 +280,7 @@ LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
         }
 
         struct ToriAuxLibCore_Texture* gc_texture = ToriAuxLibC_TextureNewFromDat2Definition(
-            def,
-            packs,
-            def->animation_direction,
-            def->animation_speed);
+            def, packs, def->animation_direction, def->animation_speed);
 
         if( packs )
         {
@@ -551,13 +563,13 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
     if( !instance )
         return;
 
-    instance->runescape = game_runescape_new(instance->script_queue, instance->scene);
+    instance->runescape = GameRunescape_New(instance->script_queue, instance->scene);
     if( !instance->runescape )
         return;
 
-    game_runescape_set_core(instance->runescape, ToriAuxLib_Core(instance->toriauxlib));
-    game_runescape_set_td(instance->runescape, ToriAuxLib_TD(instance->toriauxlib));
-    game_runescape_set_vm(instance->runescape, ToriAuxLib_VM(instance->toriauxlib));
+    GameRunescape_SetCore(instance->runescape, ToriAuxLib_Core(instance->toriauxlib));
+    GameRunescape_SetTD(instance->runescape, ToriAuxLib_TD(instance->toriauxlib));
+    GameRunescape_SetVM(instance->runescape, ToriAuxLib_VM(instance->toriauxlib));
 
     instance->runescape_handle.kind = GAME_HANDLE_KIND_RUNESCAPE;
     instance->runescape_handle.u.runescape = instance->runescape;
@@ -565,13 +577,15 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
 
     struct Task_ToriAuxLibC_WorldRebuildNormal* task = Task_ToriAuxLibC_WorldRebuildNormal_New(
         ToriAuxLib_C(instance->toriauxlib), RUNESCAPE_ZONE_CENTER_X, RUNESCAPE_ZONE_CENTER_Z);
-    LibToriRS_TasksAdd(instance, task, Task_ToriAuxLibC_WorldRebuildNormal_Run);
+    LibToriRS_TasksAdd(
+        instance, task, Task_ToriAuxLibC_WorldRebuildNormal_Run, world_rebuild_normal_task_destroy);
 
     if( ToriAuxLibC_Mode(ToriAuxLib_C(instance->toriauxlib)) == TORIAUXLIBC_MODE_DAT1 )
     {
         struct Task_RevConfigUILoad* ui_task = Task_RevConfigUILoad_New(
             ToriAuxLib_C(instance->toriauxlib), instance->scene, instance->runescape->ui_tree);
-        LibToriRS_TasksAdd(instance, ui_task, Task_RevConfigUILoad_Run);
+        LibToriRS_TasksAdd(
+            instance, ui_task, Task_RevConfigUILoad_Run, revconfig_ui_load_task_destroy);
     }
 }
 
@@ -580,7 +594,7 @@ LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(struct LibToriRS_Instance* instanc
 {
     printf("LibToriRS_ScriptAPI_Game_Runescape_BuildWorld\n");
 
-    game_runescape_build_world(instance->runescape);
+    GameRunescape_BuildWorld(instance->runescape);
 }
 
 struct GameHandle*
@@ -688,7 +702,8 @@ LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(
     printf("LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel %d\n", model_id);
     assert(instance && "Invalid instance");
 
-    struct ToriDraw_ModelHandle hnd = ToriAuxLibTD_Model(ToriAuxLib_TD(instance->toriauxlib), model_id);
+    struct ToriDraw_ModelHandle hnd =
+        ToriAuxLibTD_Model(ToriAuxLib_TD(instance->toriauxlib), model_id);
     if( hnd.kind != TORIDRAWMK_MODEL )
     {
         printf("Invalid model handle\n");
@@ -785,8 +800,8 @@ LibToriRS_ScriptAPI_Dat1_VersionListLoad(
     // if( !archive )
     //     return false;
 
-    // struct RSCacheShared_FileListDat* filelist_dat = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
-    // if( !filelist_dat )
+    // struct RSCacheShared_FileListDat* filelist_dat =
+    // RSCacheShared_FileListDatNewFromCacheDatArchive(archive); if( !filelist_dat )
     //     return false;
 
     // dat1_buildcache_set_versionlist_jagfile(instance->dat1_buildcache, filelist_dat);

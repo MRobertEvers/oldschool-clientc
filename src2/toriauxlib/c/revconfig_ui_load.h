@@ -1,6 +1,7 @@
 #ifndef REVCONFIG_UI_LOAD_H
 #define REVCONFIG_UI_LOAD_H
 
+#include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../core/configio.h"
 #include "../../libtorirs.h"
 #include "3rd/minipt.h"
@@ -300,19 +301,19 @@ Task_RevConfigUILoad_Run(
     revconfig_ui_build_collect_items(&task->build, task->items);
     revconfig_ui_build_set_core(&task->build, ToriAuxLibC_Core(task->c));
 
-    dat1io_media_jagfile_fetch(ctx);
-    dat1io_title_fonts_jagfile_fetch(ctx);
-    dat1io_interfaces_jagfile_fetch(ctx);
+    IO_REQUEST(ctx, 0, TAPIDat1_FetchMediaJagfile(ctx));
+    IO_REQUEST(ctx, 1, TAPIDat1_FetchTitleFontsJagfile(ctx));
+    IO_REQUEST(ctx, 2, TAPIDat1_FetchInterfacesJagfile(ctx));
     PT_YIELD(&task->thread);
 
     {
-        struct RSCacheShared_FileListDat* media = dat1io_media_jagfile_decode(ctx);
+        struct RSCacheShared_FileListDat* media = TAPIDat1_DecodeMediaJagfile(ctx, 0);
         if( media )
             dat1_buildcache_set_media_2d_graphics_jagfile(bc, media);
-        struct RSCacheShared_FileListDat* title = dat1io_title_fonts_jagfile_decode(ctx);
+        struct RSCacheShared_FileListDat* title = TAPIDat1_DecodeTitleFontsJagfile(ctx, 1);
         if( title )
             dat1_buildcache_set_title_fonts_jagfile(bc, title);
-        struct RSCacheShared_FileListDat* interfaces_filelist = dat1io_interfaces_jagfile_decode(ctx);
+        struct RSCacheShared_FileListDat* interfaces_filelist = TAPIDat1_DecodeInterfacesJagfile(ctx, 2);
         if( interfaces_filelist )
         {
             int data_idx = RSCacheShared_FileListDatFindFileByName(interfaces_filelist, "data");

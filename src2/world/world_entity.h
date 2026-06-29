@@ -46,6 +46,15 @@ struct WorldEntity_Scenery
     int orientation;
 };
 
+struct WorldEntity_Player
+{
+    int element_id;
+    int level;
+    int x;
+    int z;
+    int yaw;
+};
+
 struct WorldEntity_Projectile
 {
     int element_id;
@@ -79,11 +88,27 @@ struct WorldEntity_Projectile
     int pitch;
 };
 
+struct WorldEntity_Spotanim
+{
+    int element_id;
+    int level;
+    int scene_x;
+    int scene_z;
+    int y;
+    int orientation;
+    int idle_cycles;
+    int active_cycle;
+    int lifetime;
+    bool active;
+};
+
 struct World_EntityList
 {
     struct World_EntityPool terrain;
     struct World_EntityPool scenery;
+    struct World_EntityPool player;
     struct World_EntityPool projectile;
+    struct World_EntityPool spotanim;
 };
 
 void

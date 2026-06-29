@@ -11,6 +11,12 @@ ToriDraw_ModelMerge(
     struct ToriDraw_Model** models,
     int model_count);
 
+/** Merge models without computing bounds; caller lights and bounds the result. */
+struct ToriDraw_Model*
+ToriDraw_ModelNewMerge(
+    struct ToriDraw_Model** models,
+    int model_count);
+
 void
 ToriDraw_ModelRecolor(
     struct ToriDraw_Model* model,

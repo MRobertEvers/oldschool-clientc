@@ -1,8 +1,11 @@
 #include "runescape.h"
 
 #include "../buildcache/dat1_buildcache.h"
+#include "../ioqueue/libtorirs_io.h"
+#include "../ioqueue/libtorirs_ioqueue.h"
 #include "../toriauxlib/c/dat1io.h"
 #include "../toriauxlib/c/toriauxlibc.h"
+#include "../toriauxlib/c/toriauxlibc_submit.h"
 #include "../toriauxlib/core/toriauxlibcore.h"
 #include "../toriauxlib/td/toriauxlibtd.h"
 #include "../toriauxlib/vm/toriauxlibvm.h"
@@ -11,10 +14,13 @@
 #include "../world/world_builder.h"
 #include "3rd/minipt.h"
 #include "osrs/painters.h"
+#include "osrs/rscache/dat1a/dat1a_config_idk.h"
+#include "osrs/rscache/dat1a/dat1a_config_obj.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_light_model.h"
+#include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_math.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
@@ -26,6 +32,20 @@
 #include <string.h>
 
 #define RUNESCAPE_CAMERA_MOVEMENT_SPEED 70
+#define TASK_PLAYER_IO_BATCH 64
+
+/* 0x100 = IDK slot, 0x200 = equipped obj model (src/server/server.c). */
+const int RUNESCAPE_EXAMPLE_PLAYER_APPEARANCE[12] = {
+    0,          0, 0,          0x200 + 1333, /* Rune scimitar */
+    0x100 + 18, 0, 0x100 + 26, 0x100 + 36,   0x100 + 0, 0x100 + 33, 0x100 + 42, 0x100 + 10,
+};
+
+enum RsAppearanceKind
+{
+    RS_APPEARANCE_KIND_NONE = 0,
+    RS_APPEARANCE_KIND_IDK = 1,
+    RS_APPEARANCE_KIND_OBJ = 2,
+};
 
 enum RsPhaseResult
 {
@@ -44,7 +64,7 @@ clamp_terrain_level(int level)
 }
 
 int
-game_runescape_camera_terrain_level(const struct GameRunescape* game)
+GameRunescape_CameraTerrainLevel(const struct GameRunescape* game)
 {
     if( !game || !game->camera_position )
         return 0;
@@ -52,7 +72,7 @@ game_runescape_camera_terrain_level(const struct GameRunescape* game)
 }
 
 static bool
-game_runescape_translate_gc_event(
+GameRunescape_TranslateGCEvent(
     const struct ToriDraw_Event* ev,
     struct LibToriRS_RenderCommand* command)
 {
@@ -148,7 +168,7 @@ game_runescape_translate_gc_event(
 }
 
 static void
-game_runescape_update_world_viewport(struct GameRunescape* game)
+GameRunescape_UpdateWorldViewport(struct GameRunescape* game)
 {
     int vw = game->view_port ? game->view_port->width : 800;
     int vh = game->view_port ? game->view_port->height : 600;
@@ -193,7 +213,7 @@ game_runescape_update_world_viewport(struct GameRunescape* game)
 }
 
 static bool
-game_runescape_emit_draw_element(
+GameRunescape_EmitDrawElement(
     struct GameRunescape* game,
     int element_id,
     enum WorldPickType pick_type,
@@ -257,7 +277,7 @@ game_runescape_emit_draw_element(
 }
 
 static void
-game_runescape_move_forward(
+GameRunescape_MoveForward(
     struct GameRunescape* game,
     int amount)
 {
@@ -268,7 +288,7 @@ game_runescape_move_forward(
 }
 
 static void
-game_runescape_move_left(
+GameRunescape_MoveLeft(
     struct GameRunescape* game,
     int amount)
 {
@@ -279,15 +299,15 @@ game_runescape_move_left(
 }
 
 static void
-game_runescape_move_right(
+GameRunescape_MoveRight(
     struct GameRunescape* game,
     int amount)
 {
-    game_runescape_move_left(game, -amount);
+    GameRunescape_MoveLeft(game, -amount);
 }
 
 static void
-game_runescape_camera_tile(
+GameRunescape_CameraTile(
     const struct GameRunescape* game,
     int* out_sx,
     int* out_sz,
@@ -299,12 +319,12 @@ game_runescape_camera_tile(
 }
 
 struct GameRunescape*
-game_runescape_new(
+GameRunescape_New(
     struct LibToriRS_ScriptQueue* script_queue,
     struct ToriDraw_Scene* scene)
 {
     struct GameRunescape* game = calloc(1, sizeof(struct GameRunescape));
-    assert(game && "game_runescape_new: failed to allocate game");
+    assert(game && "GameRunescape_New: failed to allocate game");
 
     game->script_queue = script_queue;
     game->scene = scene;
@@ -314,9 +334,9 @@ game_runescape_new(
     game->camera_position = calloc(1, sizeof(struct ToriDraw_Position));
     game->camera = calloc(1, sizeof(struct ToriDraw_Camera));
     game->view_port = calloc(1, sizeof(struct ToriDraw_ViewPort));
-    assert(game->camera_position && "game_runescape_new: failed to allocate camera position");
-    assert(game->camera && "game_runescape_new: failed to allocate camera");
-    assert(game->view_port && "game_runescape_new: failed to allocate view port");
+    assert(game->camera_position && "GameRunescape_New: failed to allocate camera position");
+    assert(game->camera && "GameRunescape_New: failed to allocate camera");
+    assert(game->view_port && "GameRunescape_New: failed to allocate view port");
 
     game->camera_position->z = -800;
     game->camera->fov_rpi2048 = 512;
@@ -328,26 +348,29 @@ game_runescape_new(
     game->view_port->x_center = 382;
     game->view_port->y_center = 251;
 
-    assert(game->scene && "game_runescape_new: failed to allocate context");
+    assert(game->scene && "GameRunescape_New: failed to allocate context");
 
     game->world = world_new();
-    assert(game->world && "game_runescape_new: failed to allocate world");
+    assert(game->world && "GameRunescape_New: failed to allocate world");
 
     game->painter_buffer = painter_buffer_new();
-    assert(game->painter_buffer && "game_runescape_new: failed to allocate painter buffer");
+    assert(game->painter_buffer && "GameRunescape_New: failed to allocate painter buffer");
 
     game->ui_tree = uitree_new(64);
-    assert(game->ui_tree && "game_runescape_new: failed to allocate ui tree");
+    assert(game->ui_tree && "GameRunescape_New: failed to allocate ui tree");
 
     game->world_map_scene_id = -1;
     game->world_map_w = 0;
     game->world_map_h = 0;
+    game->entity_registry_cap = RUNESCAPE_ENTITY_REGISTRY_INITIAL_CAP;
+    game->entity_registry =
+        calloc((size_t)game->entity_registry_cap, sizeof(struct GameRunescape_EntityRecord));
 
     return game;
 }
 
 void
-game_runescape_free(struct GameRunescape* game)
+GameRunescape_Free(struct GameRunescape* game)
 {
     if( !game )
         return;
@@ -360,6 +383,7 @@ game_runescape_free(struct GameRunescape* game)
         world_free(game->world);
     if( game->ui_tree )
         uitree_free(game->ui_tree);
+    free(game->entity_registry);
     free(game->camera_position);
     free(game->camera);
     free(game->view_port);
@@ -367,7 +391,7 @@ game_runescape_free(struct GameRunescape* game)
 }
 
 void
-game_runescape_set_core(
+GameRunescape_SetCore(
     struct GameRunescape* game,
     struct ToriAuxLibCore* gamecache)
 {
@@ -377,7 +401,7 @@ game_runescape_set_core(
 }
 
 void
-game_runescape_set_td(
+GameRunescape_SetTD(
     struct GameRunescape* game,
     struct ToriAuxLibTD* td)
 {
@@ -387,7 +411,7 @@ game_runescape_set_td(
 }
 
 void
-game_runescape_set_vm(
+GameRunescape_SetVM(
     struct GameRunescape* game,
     struct ToriAuxLibVM* vm)
 {
@@ -397,7 +421,7 @@ game_runescape_set_vm(
 }
 
 static void
-game_runescape_attach_world_map_to_ui_tree(struct GameRunescape* game)
+GameRunescape_AttachWorldMapToUITree(struct GameRunescape* game)
 {
     if( !game || game->world_map_scene_id < 0 || !game->ui_tree )
         return;
@@ -413,18 +437,18 @@ game_runescape_attach_world_map_to_ui_tree(struct GameRunescape* game)
 }
 
 void
-game_runescape_set_ui_tree(
+GameRunescape_SetUITree(
     struct GameRunescape* game,
     struct UITree* ui_tree)
 {
     if( !game )
         return;
     game->ui_tree = ui_tree;
-    game_runescape_attach_world_map_to_ui_tree(game);
+    GameRunescape_AttachWorldMapToUITree(game);
 }
 
 void
-game_runescape_set_ui_tree_ready(
+GameRunescape_SetUITreeReady(
     struct GameRunescape* game,
     bool ready)
 {
@@ -432,11 +456,11 @@ game_runescape_set_ui_tree_ready(
         return;
     game->ui_tree_ready = ready;
     if( ready )
-        game_runescape_attach_world_map_to_ui_tree(game);
+        GameRunescape_AttachWorldMapToUITree(game);
 }
 
 void
-game_runescape_rebuild_world_map(struct GameRunescape* game)
+GameRunescape_RebuildWorldMap(struct GameRunescape* game)
 {
     if( !game || !game->world || !game->world->minimap || !game->scene )
         return;
@@ -468,15 +492,15 @@ game_runescape_rebuild_world_map(struct GameRunescape* game)
     game->world_map_scene_id = RUNESCAPE_WORLD_MAP_SCENE_ID;
     game->world_map_w = pw;
     game->world_map_h = ph;
-    game_runescape_attach_world_map_to_ui_tree(game);
+    GameRunescape_AttachWorldMapToUITree(game);
 }
 
 void
-game_runescape_build_world(struct GameRunescape* game)
+GameRunescape_BuildWorld(struct GameRunescape* game)
 {
     struct WorldBuilder* builder = world_builder_new(
         game->world, game->core, game->scene, game->td, ToriAuxLibVM_VarPVarBit(game->vm));
-    assert(builder && "game_runescape_build_world: failed to allocate world builder");
+    assert(builder && "GameRunescape_BuildWorld: failed to allocate world builder");
     world_builder_rebuild_centerzone(builder, game->zone_center_x, game->zone_center_z, 104);
     world_builder_free(builder);
     game->world_built = true;
@@ -491,11 +515,11 @@ game_runescape_build_world(struct GameRunescape* game)
         game->camera->yaw = 0;
     }
 
-    game_runescape_rebuild_world_map(game);
+    GameRunescape_RebuildWorldMap(game);
 }
 
 static bool
-game_runescape_point_in_component(
+GameRunescape_PointInComponent(
     struct StaticUIComponent const* c,
     int px,
     int py)
@@ -512,7 +536,7 @@ game_runescape_point_in_component(
 }
 
 static bool
-game_runescape_ui_node_visible(
+GameRunescape_UINodeVisible(
     struct GameRunescape* game,
     struct StaticUIComponent const* c,
     int32_t node_index)
@@ -525,7 +549,7 @@ game_runescape_ui_node_visible(
 }
 
 static int32_t
-game_runescape_ui_hit_test_recursive(
+GameRunescape_UIHitTestRecursive(
     struct GameRunescape* game,
     struct UITree* tree,
     int32_t node_index,
@@ -538,12 +562,12 @@ game_runescape_ui_hit_test_recursive(
     struct StaticUIComponent* c = &tree->components[node_index];
 
     int32_t hit = -1;
-    if( game_runescape_point_in_component(c, px, py) )
+    if( GameRunescape_PointInComponent(c, px, py) )
         hit = node_index;
 
     for( int32_t child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
     {
-        int32_t child_hit = game_runescape_ui_hit_test_recursive(game, tree, child, px, py);
+        int32_t child_hit = GameRunescape_UIHitTestRecursive(game, tree, child, px, py);
         if( child_hit >= 0 )
             hit = child_hit;
     }
@@ -552,7 +576,7 @@ game_runescape_ui_hit_test_recursive(
 }
 
 int32_t
-game_runescape_ui_hit_test(
+GameRunescape_UIHitTest(
     struct GameRunescape* game,
     int px,
     int py)
@@ -564,7 +588,7 @@ game_runescape_ui_hit_test(
     for( int32_t root = game->ui_tree->root_index; root >= 0;
          root = game->ui_tree->components[root].next_sibling )
     {
-        int32_t root_hit = game_runescape_ui_hit_test_recursive(game, game->ui_tree, root, px, py);
+        int32_t root_hit = GameRunescape_UIHitTestRecursive(game, game->ui_tree, root, px, py);
         if( root_hit >= 0 )
             hit = root_hit;
     }
@@ -573,7 +597,7 @@ game_runescape_ui_hit_test(
 }
 
 static char const*
-game_runescape_expand_ui_text(
+GameRunescape_ExpandUIText(
     struct GameRunescape* game,
     struct StaticUIComponent* component)
 {
@@ -607,7 +631,7 @@ game_runescape_expand_ui_text(
 }
 
 static int
-game_runescape_ui_rect_color(
+GameRunescape_UIRectColor(
     struct GameRunescape* game,
     struct StaticUIComponent* component)
 {
@@ -630,7 +654,7 @@ game_runescape_ui_rect_color(
 }
 
 void
-game_runescape_process_input(
+GameRunescape_ProcessInput(
     struct GameRunescape* game,
     struct LibToriRS_Input* input)
 {
@@ -645,7 +669,7 @@ game_runescape_process_input(
     if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) && game->ui_tree && game->ui_tree_ready &&
         game->vm )
     {
-        int32_t clicked = game_runescape_ui_hit_test(
+        int32_t clicked = GameRunescape_UIHitTest(
             game, input->last_click_x[TORIRSM_LEFT], input->last_click_y[TORIRSM_LEFT]);
         if( clicked >= 0 )
         {
@@ -659,13 +683,13 @@ game_runescape_process_input(
     const int rotate = 10;
 
     if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_W) )
-        game_runescape_move_forward(game, move);
+        GameRunescape_MoveForward(game, move);
     if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_S) )
-        game_runescape_move_forward(game, -move);
+        GameRunescape_MoveForward(game, -move);
     if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_A) )
-        game_runescape_move_right(game, move);
+        GameRunescape_MoveRight(game, move);
     if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_D) )
-        game_runescape_move_left(game, move);
+        GameRunescape_MoveLeft(game, move);
     if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_R) )
         game->camera_position->y -= move;
     if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
@@ -681,7 +705,7 @@ game_runescape_process_input(
 }
 
 static void
-game_runescape_drain_world_events(struct GameRunescape* game)
+GameRunescape_DrainWorldEvents(struct GameRunescape* game)
 {
     struct World* world = game->world;
     if( !world || !game->scene )
@@ -700,7 +724,7 @@ game_runescape_drain_world_events(struct GameRunescape* game)
 }
 
 static void
-game_runescape_sync_projectiles_to_scene(struct GameRunescape* game)
+GameRunescape_SyncProjectilesToScene(struct GameRunescape* game)
 {
     struct World* world = game->world;
     if( !world || !game->scene || !world->load_complete )
@@ -720,7 +744,7 @@ game_runescape_sync_projectiles_to_scene(struct GameRunescape* game)
 }
 
 static void
-game_runescape_tick_animations(struct GameRunescape* game)
+GameRunescape_TickAnimations(struct GameRunescape* game)
 {
     if( !game->scene )
         return;
@@ -774,14 +798,14 @@ game_runescape_tick_animations(struct GameRunescape* game)
 }
 
 static void
-game_runescape_ui_advance(
+GameRunescape_UIAdvance(
     struct GameRunescape* game,
     int32_t stepped_index)
 {
     struct UITree* tree = game->ui_tree;
     struct StaticUIComponent* c = &tree->components[stepped_index];
 
-    if( c->first_child >= 0 && game_runescape_ui_node_visible(game, c, stepped_index) )
+    if( c->first_child >= 0 && GameRunescape_UINodeVisible(game, c, stepped_index) )
     {
         if( game->frame.ui_stack_top + 1 < RUNESCAPE_UI_TRAVERSAL_STACK_MAX )
         {
@@ -813,7 +837,7 @@ game_runescape_ui_advance(
 }
 
 static void
-game_runescape_emit_sprite_command(
+GameRunescape_EmitSpriteCommand(
     struct LibToriRS_RenderCommand* command,
     int scene_id,
     int atlas_index,
@@ -845,7 +869,7 @@ game_runescape_emit_sprite_command(
 }
 
 static bool
-game_runescape_emit_ui_component(
+GameRunescape_EmitUIComponent(
     struct GameRunescape* game,
     struct StaticUIComponent* component,
     struct LibToriRS_RenderCommand* command)
@@ -875,7 +899,7 @@ game_runescape_emit_ui_component(
         }
         if( scene_id < 0 )
             return false;
-        game_runescape_emit_sprite_command(
+        GameRunescape_EmitSpriteCommand(
             command,
             scene_id,
             atlas_index,
@@ -891,7 +915,7 @@ game_runescape_emit_ui_component(
         int atlas_index = component->u.sprite.atlas_index;
         if( scene_id < 0 )
             return false;
-        game_runescape_emit_sprite_command(
+        GameRunescape_EmitSpriteCommand(
             command,
             scene_id,
             atlas_index,
@@ -929,7 +953,7 @@ game_runescape_emit_ui_component(
         int atlas_index = component->u.redstone_tab.atlas_index;
         if( scene_id < 0 )
             return false;
-        game_runescape_emit_sprite_command(
+        GameRunescape_EmitSpriteCommand(
             command,
             scene_id,
             atlas_index,
@@ -944,7 +968,7 @@ game_runescape_emit_ui_component(
         int scene_id = component->u.minimap.scene_id;
         if( scene_id < 0 )
             return false;
-        game_runescape_emit_sprite_command(
+        GameRunescape_EmitSpriteCommand(
             command,
             scene_id,
             0,
@@ -981,11 +1005,11 @@ game_runescape_emit_ui_component(
         command->u.font.shadowed = component->u.rs_text.shadowed;
         command->u.font.width = component->position.width;
         command->u.font.height = component->position.height;
-        command->u.font.text = game_runescape_expand_ui_text(game, component);
+        command->u.font.text = GameRunescape_ExpandUIText(game, component);
         return true;
     case UIELEM_RS_RECT:
     {
-        int color = game_runescape_ui_rect_color(game, component);
+        int color = GameRunescape_UIRectColor(game, component);
         if( color == 0 && !component->u.rs_rect.filled )
             return false;
         command->kind = TORIRSRC_FILL_RECT;
@@ -1012,7 +1036,7 @@ rs_phase_gc_events(
         while( game->frame.event_index < eq->count )
         {
             const struct ToriDraw_Event* ev = &eq->events[game->frame.event_index++];
-            if( game_runescape_translate_gc_event(ev, command) )
+            if( GameRunescape_TranslateGCEvent(ev, command) )
                 return RS_PHASE_YIELD;
         }
     }
@@ -1102,7 +1126,7 @@ rs_phase_models(
         int camera_sx;
         int camera_sz;
         int camera_slevel;
-        game_runescape_camera_tile(game, &camera_sx, &camera_sz, &camera_slevel);
+        GameRunescape_CameraTile(game, &camera_sx, &camera_sz, &camera_slevel);
         // painter_paint_world3d(
         //     world->painter, game->painter_buffer, camera_sx, camera_sz, camera_slevel);
         painter_paint_bucket(
@@ -1126,7 +1150,7 @@ rs_phase_models(
             if( !rs_resolve_painter_command(
                     game, world, cmd, &element_id, &pick_type, &tile_x, &tile_z, &tile_level) )
                 continue;
-            if( game_runescape_emit_draw_element(
+            if( GameRunescape_EmitDrawElement(
                     game, element_id, pick_type, tile_x, tile_z, tile_level, command) )
                 return RS_PHASE_YIELD;
         }
@@ -1147,7 +1171,7 @@ rs_phase_models(
             if( element && element->dynamic )
                 pick_type = WORLD_PICK_PROJECTILE;
         }
-        if( game_runescape_emit_draw_element(game, element_id, pick_type, -1, -1, -1, command) )
+        if( GameRunescape_EmitDrawElement(game, element_id, pick_type, -1, -1, -1, command) )
             return RS_PHASE_YIELD;
     }
 
@@ -1191,19 +1215,19 @@ rs_phase_ui_step(
     }
 
     struct StaticUIComponent* component = &game->ui_tree->components[game->frame.ui_current];
-    if( !game_runescape_ui_node_visible(game, component, game->frame.ui_current) )
+    if( !GameRunescape_UINodeVisible(game, component, game->frame.ui_current) )
     {
-        game_runescape_ui_advance(game, game->frame.ui_current);
+        GameRunescape_UIAdvance(game, game->frame.ui_current);
         return RS_PHASE_ADVANCE;
     }
 
-    if( component->is_dirty && game_runescape_emit_ui_component(game, component, command) )
+    if( component->is_dirty && GameRunescape_EmitUIComponent(game, component, command) )
     {
         int32_t cur = game->frame.ui_current;
-        game_runescape_ui_advance(game, cur);
+        GameRunescape_UIAdvance(game, cur);
         return RS_PHASE_YIELD;
     }
-    game_runescape_ui_advance(game, game->frame.ui_current);
+    GameRunescape_UIAdvance(game, game->frame.ui_current);
     return RS_PHASE_ADVANCE;
 }
 
@@ -1218,7 +1242,7 @@ rs_phase_ui_end(
 }
 
 void
-game_runescape_frame_begin(
+GameRunescape_FrameBegin(
     struct GameRunescape* game,
     int cycles_elapsed)
 {
@@ -1233,10 +1257,10 @@ game_runescape_frame_begin(
     game->frame.ui_stack_top = -1;
     game->ui_hovered_node = -1;
     if( game->ui_tree && game->ui_tree_ready )
-        game->ui_hovered_node = game_runescape_ui_hit_test(game, game->mouse_x, game->mouse_y);
+        game->ui_hovered_node = GameRunescape_UIHitTest(game, game->mouse_x, game->mouse_y);
     world_pickset_reset(&game->pickset);
     for( int i = 0; i < cycles_elapsed; i++ )
-        game_runescape_tick_animations(game);
+        GameRunescape_TickAnimations(game);
     if( game->scene )
     {
         struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(game->scene);
@@ -1245,9 +1269,9 @@ game_runescape_frame_begin(
     }
     if( game->world )
         world_cycle(game->world, cycles_elapsed);
-    game_runescape_drain_world_events(game);
-    game_runescape_sync_projectiles_to_scene(game);
-    game_runescape_update_world_viewport(game);
+    GameRunescape_DrainWorldEvents(game);
+    GameRunescape_SyncProjectilesToScene(game);
+    GameRunescape_UpdateWorldViewport(game);
     if( game->ui_tree && game->ui_tree->component_count > 0 )
     {
         uitree_mark_all_dirty(game->ui_tree);
@@ -1256,7 +1280,7 @@ game_runescape_frame_begin(
 }
 
 bool
-game_runescape_frame_next_command(
+GameRunescape_FrameNextCommand(
     struct GameRunescape* game,
     struct LibToriRS_RenderCommand* command)
 {
@@ -1297,18 +1321,374 @@ game_runescape_frame_next_command(
 }
 
 void
-game_runescape_frame_end(struct GameRunescape* game)
+GameRunescape_FrameEnd(struct GameRunescape* game)
 {
     ToriDraw_SceneFrameEnd(game->scene);
 
     game->frame.phase = RS_FRAME_PHASE_DONE;
 }
 
-int
-game_runescape_spawn_projectile(
+static struct GameRunescape_EntityRecord*
+GameRunescape_EntityFind(
     struct GameRunescape* game,
-    int model_id,
-    int seq_id,
+    int entity_id)
+{
+    if( !game || !game->entity_registry )
+        return NULL;
+
+    for( int i = 0; i < game->entity_registry_count; i++ )
+    {
+        if( game->entity_registry[i].entity_id == entity_id )
+            return &game->entity_registry[i];
+    }
+    return NULL;
+}
+
+static bool
+GameRunescape_EntityRegister(
+    struct GameRunescape* game,
+    int entity_id,
+    int element_id,
+    int world_index)
+{
+    struct GameRunescape_EntityRecord* existing;
+
+    if( !game )
+        return false;
+
+    existing = GameRunescape_EntityFind(game, entity_id);
+    if( existing )
+    {
+        existing->element_id = element_id;
+        existing->world_index = world_index;
+        return true;
+    }
+
+    if( game->entity_registry_count >= game->entity_registry_cap )
+    {
+        int new_cap = game->entity_registry_cap ? game->entity_registry_cap * 2
+                                                : RUNESCAPE_ENTITY_REGISTRY_INITIAL_CAP;
+        struct GameRunescape_EntityRecord* grown =
+            realloc(game->entity_registry, (size_t)new_cap * sizeof(*grown));
+        if( !grown )
+            return false;
+        game->entity_registry = grown;
+        game->entity_registry_cap = new_cap;
+    }
+
+    game->entity_registry[game->entity_registry_count++] = (struct GameRunescape_EntityRecord){
+        .entity_id = entity_id,
+        .element_id = element_id,
+        .world_index = world_index,
+    };
+    return true;
+}
+
+static struct ToriDraw_ModelHandle
+GameRunescape_BuildSceneModelFromCache(
+    struct GameRunescape* game,
+    int model_id);
+
+static void
+runescape_appearance_decode_slot(
+    uint16_t appearance,
+    enum RsAppearanceKind* kind_out,
+    int* id_out)
+{
+    if( kind_out )
+        *kind_out = RS_APPEARANCE_KIND_NONE;
+    if( id_out )
+        *id_out = 0;
+
+    if( appearance >= 0x100 && appearance < 0x200 )
+    {
+        if( kind_out )
+            *kind_out = RS_APPEARANCE_KIND_IDK;
+        if( id_out )
+            *id_out = (int)appearance - 0x100;
+    }
+    else if( appearance >= 0x200 )
+    {
+        if( kind_out )
+            *kind_out = RS_APPEARANCE_KIND_OBJ;
+        if( id_out )
+            *id_out = (int)appearance - 0x200;
+    }
+}
+
+static bool
+runescape_model_id_list_add(
+    int* model_ids,
+    int* count,
+    int capacity,
+    int model_id)
+{
+    int i;
+
+    if( model_id < 0 )
+        return false;
+
+    for( i = 0; i < *count; i++ )
+    {
+        if( model_ids[i] == model_id )
+            return true;
+    }
+
+    if( *count >= capacity )
+        return false;
+
+    model_ids[(*count)++] = model_id;
+    return true;
+}
+
+static int
+runescape_collect_appearance_model_ids(
+    struct Dat1BuildCache* dat1_bc,
+    const int appearance[12],
+    int* model_ids,
+    int capacity)
+{
+    int count = 0;
+    int slot;
+
+    if( !dat1_bc || !appearance || !model_ids || capacity <= 0 )
+        return 0;
+
+    for( slot = 0; slot < 12; slot++ )
+    {
+        enum RsAppearanceKind kind = RS_APPEARANCE_KIND_NONE;
+        int config_id = 0;
+        int i;
+
+        runescape_appearance_decode_slot((uint16_t)appearance[slot], &kind, &config_id);
+        if( kind == RS_APPEARANCE_KIND_IDK )
+        {
+            struct RSCacheDat1A_ConfigIdk* idk = dat1_buildcache_idk_get(dat1_bc, config_id);
+            if( !idk || !idk->models )
+                continue;
+            for( i = 0; i < idk->models_count; i++ )
+                runescape_model_id_list_add(model_ids, &count, capacity, idk->models[i]);
+        }
+        else if( kind == RS_APPEARANCE_KIND_OBJ )
+        {
+            struct RSCacheDat1A_ConfigObj* obj = dat1_buildcache_obj_get(dat1_bc, config_id);
+            if( !obj )
+                continue;
+            runescape_model_id_list_add(model_ids, &count, capacity, obj->manwear);
+            runescape_model_id_list_add(model_ids, &count, capacity, obj->manwear2);
+            runescape_model_id_list_add(model_ids, &count, capacity, obj->manwear3);
+        }
+    }
+
+    return count;
+}
+
+static struct ToriDraw_ModelHandle
+GameRunescape_BuildPlayerBodyFromAppearance(
+    struct GameRunescape* game,
+    const int appearance[12])
+{
+    struct ToriAuxLibC* c;
+    struct ToriAuxLibCore* core;
+    struct ToriDraw_Model* pieces[12];
+    int piece_count = 0;
+    struct ToriDraw_Model* body;
+    struct ToriDraw_ModelHandle hnd;
+    int slot;
+
+    if( !game || !game->td || !appearance )
+        return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
+
+    c = ToriAuxLibTD_C(game->td);
+    core = ToriAuxLibTD_Core(game->td);
+    if( !c || !core )
+        return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
+
+    for( slot = 0; slot < 12; slot++ )
+    {
+        enum RsAppearanceKind kind = RS_APPEARANCE_KIND_NONE;
+        int config_id = 0;
+        struct ToriAuxLibCore_Model* core_piece = NULL;
+        struct ToriDraw_Model* td_piece;
+
+        runescape_appearance_decode_slot((uint16_t)appearance[slot], &kind, &config_id);
+        if( kind == RS_APPEARANCE_KIND_IDK )
+        {
+            if( !ToriAuxLibCore_IdkModelHas(core, config_id) )
+                ToriAuxLibC_SubmitIdkModelFromDat1(c, config_id);
+            core_piece = ToriAuxLibCore_IdkModelGet(core, config_id);
+        }
+        else if( kind == RS_APPEARANCE_KIND_OBJ )
+        {
+            if( !ToriAuxLibCore_ObjModelHas(core, config_id) )
+                ToriAuxLibC_SubmitObjModelFromDat1(c, config_id);
+            core_piece = ToriAuxLibCore_ObjModelGet(core, config_id);
+        }
+
+        if( !core_piece )
+            continue;
+
+        td_piece = ToriAuxLibTD_ModelNewFromCore(core_piece);
+        if( td_piece )
+            pieces[piece_count++] = td_piece;
+    }
+
+    if( piece_count == 0 )
+        return GameRunescape_BuildSceneModelFromCache(game, RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID);
+
+    body = ToriDraw_ModelNewMerge(pieces, piece_count);
+    for( slot = 0; slot < piece_count; slot++ )
+        ToriDraw_ModelFree(pieces[slot]);
+
+    if( !body )
+        return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
+
+    ToriDraw_ModelSetBoundsCylinder(body);
+    hnd = (struct ToriDraw_ModelHandle){
+        .kind = TORIDRAWMK_MODEL,
+        .u.model.model = body,
+    };
+    if( ToriDraw_ModelIsLightable(body) )
+    {
+        ToriDraw_LightModelDefault(hnd, 0, 0);
+        ToriDraw_ModelFreeNormals(body);
+    }
+    return hnd;
+}
+
+static struct ToriDraw_ModelHandle
+GameRunescape_BuildSceneModelFromCache(
+    struct GameRunescape* game,
+    int model_id)
+{
+    struct ToriDraw_ModelHandle cached;
+    struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle hnd;
+
+    cached = ToriAuxLibTD_Model(game->td, model_id);
+    if( !ToriDraw_ModelGetBoundsCylinder(cached) )
+        return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
+
+    model = ToriDraw_ModelCopy(cached.u.model.model);
+    if( !model )
+        return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
+
+    hnd = (struct ToriDraw_ModelHandle){
+        .kind = TORIDRAWMK_MODEL,
+        .u.model.model = model,
+    };
+
+    if( ToriDraw_ModelIsLightable(model) )
+    {
+        ToriDraw_LightModelDefault(hnd, 0, 0);
+        ToriDraw_ModelFreeNormals(model);
+    }
+
+    return hnd;
+}
+
+static bool
+GameRunescape_ApplyEntityAnimation(
+    struct GameRunescape* game,
+    int element_id,
+    int anim_id,
+    int primary_secondary)
+{
+    struct ToriDraw_Animation* resolved;
+
+    if( !game || !game->td || !game->scene )
+        return false;
+    if( !ToriDraw_SceneElementIsLive(game->scene, element_id) )
+        return false;
+
+    if( primary_secondary == 0 )
+        return ToriAuxLibTD_ElementSetSequenceId(game->td, element_id, anim_id);
+
+    resolved = ToriAuxLibTD_SequenceAnimation(game->td, anim_id);
+    if( !resolved )
+        return false;
+
+    ToriDraw_SceneElementSetAnimation(game->scene, element_id, resolved, false);
+    return true;
+}
+
+int
+GameRunescape_WorldEntityAddPlayer(
+    struct GameRunescape* game,
+    int entity_id,
+    const int appearance[12],
+    int x,
+    int z,
+    int level)
+{
+    struct ToriDraw_ModelHandle hnd;
+    int element_id;
+    int player_idx;
+    int world_y;
+
+    if( !game || !game->world || !game->scene || !game->td )
+        return -1;
+    if( RS_ENTITY_KIND_OF(entity_id) != RS_ENTITY_KIND_PLAYER )
+        return -1;
+
+    level = clamp_terrain_level(level);
+
+    hnd = GameRunescape_BuildPlayerBodyFromAppearance(game, appearance);
+    if( hnd.kind != TORIDRAWMK_MODEL )
+        return -1;
+
+    element_id = ToriDraw_SceneElementAdd(game->scene);
+    if( element_id < 0 )
+        return -1;
+
+    ToriDraw_SceneElementSetModel(game->scene, element_id, hnd);
+
+    world_y = 0;
+    if( game->world->heightmap )
+    {
+        int const wx = x * 128 + 64;
+        int const wz = z * 128 + 64;
+        world_y = heightmap_get_interpolated(game->world->heightmap, wx, wz, level);
+    }
+
+    ToriDraw_SceneElementSetPosition(
+        game->scene, element_id, x * 128 + 64, world_y, z * 128 + 64, 0);
+
+    player_idx = world_player_spawn(game->world, element_id, level, x, z);
+    if( player_idx < 0 )
+        return -1;
+
+    if( !GameRunescape_EntityRegister(game, entity_id, element_id, player_idx) )
+        return -1;
+
+    return entity_id;
+}
+
+bool
+GameRunescape_WorldEntityAnimate(
+    struct GameRunescape* game,
+    int entity_id,
+    int anim_id,
+    int primary_secondary)
+{
+    struct GameRunescape_EntityRecord* record;
+
+    if( !game || RS_ENTITY_KIND_OF(entity_id) == RS_ENTITY_KIND_NONE )
+        return false;
+
+    record = GameRunescape_EntityFind(game, entity_id);
+    if( !record || record->element_id < 0 )
+        return false;
+
+    return GameRunescape_ApplyEntityAnimation(game, record->element_id, anim_id, primary_secondary);
+}
+
+int
+GameRunescape_WorldEntityAddProjectile(
+    struct GameRunescape* game,
+    int entity_id,
+    int projectile_id,
+    int anim_id,
     int src_sx,
     int src_sz,
     int dst_sx,
@@ -1322,7 +1702,13 @@ game_runescape_spawn_projectile(
     int offset,
     int step)
 {
+    struct ToriDraw_ModelHandle hnd;
+    int element_id;
+    int projectile_idx;
+
     if( !game || !game->world || !game->scene || !game->td )
+        return -1;
+    if( RS_ENTITY_KIND_OF(entity_id) != RS_ENTITY_KIND_PROJECTILE )
         return -1;
 
     level = clamp_terrain_level(level);
@@ -1344,34 +1730,20 @@ game_runescape_spawn_projectile(
         h1 = heightmap_get_interpolated(game->world->heightmap, src_x, src_z, level) -
              startheight * 4;
 
-    struct ToriDraw_ModelHandle cached = ToriAuxLibTD_Model(game->td, model_id);
-    if( !ToriDraw_ModelGetBoundsCylinder(cached) )
+    hnd = GameRunescape_BuildSceneModelFromCache(game, projectile_id);
+    if( hnd.kind != TORIDRAWMK_MODEL )
         return -1;
 
-    struct ToriDraw_Model* model = ToriDraw_ModelCopy(cached.u.model.model);
-    if( !model )
+    element_id = ToriDraw_SceneElementAdd(game->scene);
+    if( element_id < 0 )
         return -1;
-
-    struct ToriDraw_ModelHandle hnd = {
-        .kind = TORIDRAWMK_MODEL,
-        .u.model.model = model,
-    };
-
-    if( ToriDraw_ModelIsLightable(model) )
-    {
-        ToriDraw_LightModelDefault(hnd, 0, 0);
-        ToriDraw_ModelFreeNormals(model);
-    }
-
-    int element_id = ToriDraw_SceneElementAdd(game->scene);
-    assert(element_id >= 0);
 
     ToriDraw_SceneElementSetModel(game->scene, element_id, hnd);
 
-    if( seq_id != -1 )
-        ToriAuxLibTD_ElementSetSequenceId(game->td, element_id, seq_id);
+    if( anim_id != -1 )
+        ToriAuxLibTD_ElementSetSequenceId(game->td, element_id, anim_id);
 
-    int projectile_idx = world_projectile_spawn(
+    projectile_idx = world_projectile_spawn(
         game->world,
         element_id,
         level,
@@ -1385,122 +1757,372 @@ game_runescape_spawn_projectile(
         t2,
         angle,
         offset);
-    assert(projectile_idx >= 0);
+    if( projectile_idx < 0 )
+        return -1;
 
     struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(game->scene, element_id);
-    assert(element);
-    element->dynamic = true;
+    if( element )
+        element->dynamic = true;
 
-    return projectile_idx;
+    if( !GameRunescape_EntityRegister(game, entity_id, element_id, projectile_idx) )
+        return -1;
+
+    return entity_id;
 }
 
-struct ToriRunescape_Task_AddProjectile
+struct Task_GameRunescape_WorldEntityAddPlayer
 {
     struct pt thread;
     struct GameRunescape* game;
-    int model_id;
-    int seq_id;
-    int src_sx;
-    int src_sz;
-    int dst_sx;
-    int dst_sz;
+    int entity_id;
+    int appearance[12];
+    int x;
+    int z;
     int level;
+    struct LibToriRS_IOBatch io_batch;
+    int model_ids[256];
+    int model_count;
+    int model_index;
 };
 
-struct ToriRunescape_Task_AddProjectile*
-ToriRunescape_Task_AddProjectile_New(
+struct Task_GameRunescape_WorldEntityAddPlayer*
+Task_GameRunescape_WorldEntityAddPlayer_New(
     struct GameRunescape* game,
-    int model_id,
-    int seq_id,
-    int src_sx,
-    int src_sz,
-    int dst_sx,
-    int dst_sz,
+    int entity_id,
+    const int appearance[12],
+    int x,
+    int z,
     int level)
 {
-    struct ToriRunescape_Task_AddProjectile* task =
-        calloc(1, sizeof(struct ToriRunescape_Task_AddProjectile));
+    struct Task_GameRunescape_WorldEntityAddPlayer* task =
+        calloc(1, sizeof(struct Task_GameRunescape_WorldEntityAddPlayer));
     if( !task )
         return NULL;
     PT_INIT(&task->thread);
     task->game = game;
-    task->model_id = model_id;
-    task->seq_id = seq_id;
-    task->src_sx = src_sx;
-    task->src_sz = src_sz;
-    task->dst_sx = dst_sx;
-    task->dst_sz = dst_sz;
+    task->entity_id = entity_id;
+    if( appearance )
+        memcpy(task->appearance, appearance, sizeof(task->appearance));
+    task->x = x;
+    task->z = z;
     task->level = level;
     return task;
 }
 
 void
-ToriRunescape_Task_AddProjectile_Free(struct ToriRunescape_Task_AddProjectile* task)
+Task_GameRunescape_WorldEntityAddPlayer_Free(struct Task_GameRunescape_WorldEntityAddPlayer* task)
 {
     free(task);
 }
 
 int
-ToriRunescape_Task_AddProjectile_Run(
+Task_GameRunescape_WorldEntityAddPlayer_Run(
     void* task_state,
     struct LibToriRS_IOContext* ctx)
 {
-    struct ToriRunescape_Task_AddProjectile* task =
-        (struct ToriRunescape_Task_AddProjectile*)task_state;
-    struct ToriAuxLibTD* td = NULL;
-    struct RSCacheDat2A_Model* model;
-    int decoded_model_id;
-    int idx;
+    struct Task_GameRunescape_WorldEntityAddPlayer* task =
+        (struct Task_GameRunescape_WorldEntityAddPlayer*)task_state;
+    struct Dat1BuildCache* dat1_bc = NULL;
+    int result;
+    dat1_bc = dat1(ToriAuxLibTD_C(task->game->td));
 
     PT_BEGIN(&task->thread);
 
-    td = task->game ? task->game->td : NULL;
-    assert(!(!task->game || !td || !task->game->world));
+    assert(!(!task->game || !task->game->td || !task->game->world));
 
-    if( !ToriAuxLibTD_ModelReady(td, task->model_id) )
+    if( ToriDraw_MapCount(dat1_bc->idk_hmap) == 0 )
     {
-        dat1io_model_fetch(ctx, task->model_id);
+        IO_REQUEST(ctx, 0, TAPIDat1_FetchConfigJagfile(ctx));
         PT_YIELD(&task->thread);
 
-        td = task->game->td;
-        decoded_model_id = -1;
-        model = dat1io_model_decode(ctx, &decoded_model_id);
-        if( !model )
         {
-            fprintf(
-                stderr,
-                "ToriRunescape_Task_AddProjectile: failed to decode model %d\n",
-                task->model_id);
-            ToriRunescape_Task_AddProjectile_Free(task);
-            return PT_EXITED;
+            struct RSCacheShared_FileListDat* config_jag = TAPIDat1_DecodeConfigJagfile(ctx, 0);
+            if( config_jag )
+                dat1_buildcache_set_fromconfigtable_config_jagfile(dat1_bc, config_jag);
         }
+        LibToriRS_IOQueueClear(ctx->io);
 
-        dat1_buildcache_model_add(dat1(ToriAuxLibTD_C(td)), task->model_id, model);
-        ToriAuxLibTD_SubmitModelFromDat1(td, task->model_id);
-        ToriAuxLibTD_Model(td, task->model_id);
+        if( dat1_bc->fromconfigtable_config_jagfile )
+        {
+            dat1_buildcache_idks_init_from_config_jagfile(dat1_bc);
+            dat1_buildcache_objs_init_from_config_jagfile(dat1_bc);
+        }
     }
 
-    (void)ToriAuxLibTD_SequenceAnimation(td, task->seq_id);
+    task->model_count =
+        runescape_collect_appearance_model_ids(dat1_bc, task->appearance, task->model_ids, 256);
 
-    idx = game_runescape_spawn_projectile(
+    for( task->model_index = 0; task->model_index < task->model_count; )
+    {
+        LibToriRS_IOBatchReset(&task->io_batch);
+        int batch_end = task->model_index + TASK_PLAYER_IO_BATCH;
+        if( batch_end > task->model_count )
+            batch_end = task->model_count;
+
+        for( ; task->model_index < batch_end; task->model_index++ )
+        {
+            int model_id = task->model_ids[task->model_index];
+            if( !dat1_buildcache_model_get(dat1_bc, model_id) )
+            {
+                int slot = LibToriRS_IOBatchAdd(&task->io_batch, model_id);
+                IO_REQUEST(ctx, slot, TAPIDat1_FetchModel(ctx, model_id));
+            }
+        }
+
+        if( LibToriRS_IOBatchEmpty(&task->io_batch) )
+            continue;
+
+        PT_YIELD(&task->thread);
+
+        for( int i = 0; i < LibToriRS_IOBatchCount(&task->io_batch); i++ )
+        {
+            struct RSCacheDat2A_Model* model = TAPIDat1_DecodeModel(ctx, i);
+            if( model )
+            {
+                int model_id = LibToriRS_IOBatchUser(&task->io_batch, i);
+                dat1_buildcache_model_add(dat1_bc, model_id, model);
+            }
+        }
+        LibToriRS_IOQueueClear(ctx->io);
+    }
+
+    if( !ToriAuxLibTD_ModelReady(task->game->td, RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID) )
+    {
+        struct RSCacheDat2A_Model* model;
+        IO_REQUEST(ctx, 0, TAPIDat1_FetchModel(ctx, RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID));
+        PT_YIELD(&task->thread);
+
+        model = TAPIDat1_DecodeModel(ctx, 0);
+        if( model )
+        {
+            dat1_buildcache_model_add(dat1_bc, RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID, model);
+            ToriAuxLibTD_SubmitModelFromDat1(task->game->td, RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID);
+            (void)ToriAuxLibTD_Model(task->game->td, RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID);
+        }
+        LibToriRS_IOQueueClear(ctx->io);
+    }
+
+    result = GameRunescape_WorldEntityAddPlayer(
+        task->game, task->entity_id, task->appearance, task->x, task->z, task->level);
+    (void)result;
+
+    PT_END(&task->thread);
+}
+
+struct Task_GameRunescape_WorldEntityAnimate
+{
+    struct pt thread;
+    struct GameRunescape* game;
+    int entity_id;
+    int anim_id;
+    int primary_secondary;
+};
+
+struct Task_GameRunescape_WorldEntityAnimate*
+Task_GameRunescape_WorldEntityAnimate_New(
+    struct GameRunescape* game,
+    int entity_id,
+    int anim_id,
+    int primary_secondary)
+{
+    struct Task_GameRunescape_WorldEntityAnimate* task =
+        calloc(1, sizeof(struct Task_GameRunescape_WorldEntityAnimate));
+    if( !task )
+        return NULL;
+    PT_INIT(&task->thread);
+    task->game = game;
+    task->entity_id = entity_id;
+    task->anim_id = anim_id;
+    task->primary_secondary = primary_secondary;
+    return task;
+}
+
+void
+Task_GameRunescape_WorldEntityAnimate_Free(struct Task_GameRunescape_WorldEntityAnimate* task)
+{
+    free(task);
+}
+
+int
+Task_GameRunescape_WorldEntityAnimate_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx)
+{
+    struct Task_GameRunescape_WorldEntityAnimate* task =
+        (struct Task_GameRunescape_WorldEntityAnimate*)task_state;
+    struct ToriAuxLibCore_Sequence* seq;
+    bool ok;
+
+    PT_BEGIN(&task->thread);
+
+    assert(!(!task->game || !task->game->td));
+
+    seq = ToriAuxLibCore_SequenceGet(ToriAuxLibTD_Core(task->game->td), task->anim_id);
+    if( !seq )
+    {
+        IO_REQUEST(ctx, 0, TAPIDat1_FetchConfigJagfile(ctx));
+        PT_YIELD(&task->thread);
+
+        if( !TAPIDat1_DecodeConfigJagfile(ctx, 0) )
+        {
+            PT_EXIT(&task->thread);
+        }
+
+        dat1_buildcache_sequences_init_from_config_jagfile(dat1(ToriAuxLibTD_C(task->game->td)));
+        ToriAuxLibC_SubmitAllSequencesFromDat1(ToriAuxLibTD_C(task->game->td));
+    }
+
+    (void)ToriAuxLibTD_SequenceAnimation(task->game->td, task->anim_id);
+
+    ok = GameRunescape_WorldEntityAnimate(
+        task->game, task->entity_id, task->anim_id, task->primary_secondary);
+    (void)ok;
+
+    PT_END(&task->thread);
+}
+
+struct Task_GameRunescape_WorldEntityAddProjectile
+{
+    struct pt thread;
+    struct GameRunescape* game;
+    int entity_id;
+    int projectile_id;
+    int anim_id;
+    int src_sx;
+    int src_sz;
+    int dst_sx;
+    int dst_sz;
+    int level;
+    int startheight;
+    int endheight;
+    int delay;
+    int angle;
+    int length;
+    int offset;
+    int step;
+};
+
+struct Task_GameRunescape_WorldEntityAddProjectile*
+Task_GameRunescape_WorldEntityAddProjectile_New(
+    struct GameRunescape* game,
+    int entity_id,
+    int projectile_id,
+    int anim_id,
+    int src_sx,
+    int src_sz,
+    int dst_sx,
+    int dst_sz,
+    int level,
+    int startheight,
+    int endheight,
+    int delay,
+    int angle,
+    int length,
+    int offset,
+    int step)
+{
+    struct Task_GameRunescape_WorldEntityAddProjectile* task =
+        calloc(1, sizeof(struct Task_GameRunescape_WorldEntityAddProjectile));
+    if( !task )
+        return NULL;
+    PT_INIT(&task->thread);
+    task->game = game;
+    task->entity_id = entity_id;
+    task->projectile_id = projectile_id;
+    task->anim_id = anim_id;
+    task->src_sx = src_sx;
+    task->src_sz = src_sz;
+    task->dst_sx = dst_sx;
+    task->dst_sz = dst_sz;
+    task->level = level;
+    task->startheight = startheight;
+    task->endheight = endheight;
+    task->delay = delay;
+    task->angle = angle;
+    task->length = length;
+    task->offset = offset;
+    task->step = step;
+    return task;
+}
+
+void
+Task_GameRunescape_WorldEntityAddProjectile_Free(
+    struct Task_GameRunescape_WorldEntityAddProjectile* task)
+{
+    free(task);
+}
+
+int
+Task_GameRunescape_WorldEntityAddProjectile_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx)
+{
+    struct Task_GameRunescape_WorldEntityAddProjectile* task =
+        (struct Task_GameRunescape_WorldEntityAddProjectile*)task_state;
+    struct ToriAuxLibCore_Sequence* seq;
+    int result;
+
+    PT_BEGIN(&task->thread);
+
+    assert(!(!task->game || !task->game->td || !task->game->world));
+
+    if( !ToriAuxLibTD_ModelReady(task->game->td, task->projectile_id) )
+    {
+        struct RSCacheDat2A_Model* model;
+        IO_REQUEST(ctx, 0, TAPIDat1_FetchModel(ctx, task->projectile_id));
+        PT_YIELD(&task->thread);
+
+        model = TAPIDat1_DecodeModel(ctx, 0);
+        if( !model )
+        {
+            PT_EXIT(&task->thread);
+        }
+
+        dat1_buildcache_model_add(dat1(ToriAuxLibTD_C(task->game->td)), task->projectile_id, model);
+        ToriAuxLibTD_SubmitModelFromDat1(task->game->td, task->projectile_id);
+        (void)ToriAuxLibTD_Model(task->game->td, task->projectile_id);
+    }
+
+    if( task->anim_id != -1 )
+    {
+        seq = ToriAuxLibCore_SequenceGet(ToriAuxLibTD_Core(task->game->td), task->anim_id);
+        if( !seq )
+        {
+            IO_REQUEST(ctx, 0, TAPIDat1_FetchConfigJagfile(ctx));
+            PT_YIELD(&task->thread);
+
+            if( !TAPIDat1_DecodeConfigJagfile(ctx, 0) )
+            {
+                PT_EXIT(&task->thread);
+            }
+
+            dat1_buildcache_sequences_init_from_config_jagfile(
+                dat1(ToriAuxLibTD_C(task->game->td)));
+            ToriAuxLibC_SubmitAllSequencesFromDat1(ToriAuxLibTD_C(task->game->td));
+        }
+    }
+
+    if( task->anim_id != -1 )
+        (void)ToriAuxLibTD_SequenceAnimation(task->game->td, task->anim_id);
+
+    result = GameRunescape_WorldEntityAddProjectile(
         task->game,
-        task->model_id,
-        task->seq_id,
+        task->entity_id,
+        task->projectile_id,
+        task->anim_id,
         task->src_sx,
         task->src_sz,
         task->dst_sx,
         task->dst_sz,
         task->level,
-        RUNESCAPE_PROJECTILE_STARTHEIGHT,
-        RUNESCAPE_PROJECTILE_ENDHEIGHT,
-        RUNESCAPE_PROJECTILE_DELAY,
-        RUNESCAPE_PROJECTILE_ANGLE,
-        RUNESCAPE_PROJECTILE_LENGTH,
-        RUNESCAPE_PROJECTILE_OFFSET,
-        RUNESCAPE_PROJECTILE_STEP);
-    (void)idx;
+        task->startheight,
+        task->endheight,
+        task->delay,
+        task->angle,
+        task->length,
+        task->offset,
+        task->step);
+    (void)result;
 
-    ToriRunescape_Task_AddProjectile_Free(task);
-}
-return PT_ENDED;
+    PT_END(&task->thread);
 }

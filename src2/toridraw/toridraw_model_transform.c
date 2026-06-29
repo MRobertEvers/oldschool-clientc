@@ -48,7 +48,10 @@ ToriDraw_BonesMerge(
     for( int i = 0; i < model_count; i++ )
     {
         struct ToriDraw_Model* m = models[i];
-        struct ToriDraw_Bones* bones = vertex ? m->vertex_bones : m->face_bones;
+        assert(m && "ToriDraw_BonesMerge: model is NULL");
+        struct ToriDraw_Bones* bones;
+        bones = vertex ? m->vertex_bones : m->face_bones;
+        assert(bones && "ToriDraw_BonesMerge: bones are NULL");
         if( bones && bones->bones_count > max_bones )
             max_bones = bones->bones_count;
     }
@@ -56,19 +59,22 @@ ToriDraw_BonesMerge(
     if( max_bones <= 0 )
         return NULL;
 
-    boneint_t* group_sizes = calloc((size_t)max_bones, sizeof(boneint_t));
+    int* group_sizes = calloc((size_t)max_bones, sizeof(int));
     if( !group_sizes )
         return NULL;
 
     for( int i = 0; i < model_count; i++ )
     {
         struct ToriDraw_Model* m = models[i];
-        struct ToriDraw_Bones* bones = vertex ? m->vertex_bones : m->face_bones;
+        struct ToriDraw_Bones* bones;
+        if( !m )
+            continue;
+        bones = vertex ? m->vertex_bones : m->face_bones;
         if( !bones )
             continue;
 
         for( int g = 0; g < bones->bones_count; g++ )
-            group_sizes[g] += bones->bones_sizes[g];
+            group_sizes[g] += (int)bones->bones_sizes[g];
     }
 
     struct ToriDraw_Bones* out = calloc(1, sizeof(struct ToriDraw_Bones));
@@ -88,11 +94,12 @@ ToriDraw_BonesMerge(
         return NULL;
     }
 
-    memcpy(out->bones_sizes, group_sizes, (size_t)max_bones * sizeof(boneint_t));
-
     for( int g = 0; g < max_bones; g++ )
     {
-        int const group_size = (int)group_sizes[g];
+        int group_size = group_sizes[g];
+        if( group_size > (int)UINT16_MAX )
+            group_size = (int)UINT16_MAX;
+        out->bones_sizes[g] = group_size <= 0 ? 0 : (boneint_t)group_size;
         if( group_size <= 0 )
             continue;
 
@@ -108,14 +115,22 @@ ToriDraw_BonesMerge(
         for( int i = 0; i < model_count; i++ )
         {
             struct ToriDraw_Model* m = models[i];
-            struct ToriDraw_Bones* bones = vertex ? m->vertex_bones : m->face_bones;
-            int const index_offset = index_offsets[i];
+            struct ToriDraw_Bones* bones;
+            int index_offset;
+            if( !m )
+                continue;
+            bones = vertex ? m->vertex_bones : m->face_bones;
+            index_offset = index_offsets[i];
             if( !bones || g >= bones->bones_count || !bones->bones[g] )
                 continue;
 
             int const bone_length = (int)bones->bones_sizes[g];
             for( int j = 0; j < bone_length; j++ )
+            {
+                if( write_pos >= group_size )
+                    break;
                 out->bones[g][write_pos++] = (boneint_t)((int)bones->bones[g][j] + index_offset);
+            }
         }
     }
 
@@ -202,6 +217,17 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
 
 struct ToriDraw_Model*
 ToriDraw_ModelMerge(
+    struct ToriDraw_Model** models,
+    int model_count)
+{
+    struct ToriDraw_Model* out = ToriDraw_ModelNewMerge(models, model_count);
+    if( out )
+        ToriDraw_ModelSetBoundsCylinder(out);
+    return out;
+}
+
+struct ToriDraw_Model*
+ToriDraw_ModelNewMerge(
     struct ToriDraw_Model** models,
     int model_count)
 {
@@ -385,7 +411,6 @@ ToriDraw_ModelMerge(
     free(vertex_offsets);
     free(face_offsets);
 
-    ToriDraw_ModelSetBoundsCylinder(out);
     return out;
 }
 

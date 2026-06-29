@@ -1,9 +1,9 @@
 #ifndef DAT1_BUILDCACHE_H
 #define DAT1_BUILDCACHE_H
 
-#include "osrs/rscache/shared/shared_file_list.h"
 #include "osrs/rscache/dat2a/dat2a_maps.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
+#include "osrs/rscache/shared/shared_file_list.h"
 
 #include <stdint.h>
 
@@ -15,6 +15,8 @@ struct RSCacheDat2A_ConfigLocation;
 struct RSCacheDat1A_AnimBaseFrames;
 
 struct RSCacheDat1A_ConfigComponentList;
+struct RSCacheDat1A_ConfigIdk;
+struct RSCacheDat1A_ConfigObj;
 
 #define DAT1_TEXTURE_COUNT 50
 
@@ -32,6 +34,8 @@ struct Dat1BuildCache
     struct ToriDraw_Map* flotype_hmap;
     struct ToriDraw_Map* config_loc_hmap;
     struct ToriDraw_Map* animbaseframes_hmap;
+    struct ToriDraw_Map* idk_hmap;
+    struct ToriDraw_Map* obj_hmap;
     struct ToriDraw_Texture* textures[DAT1_TEXTURE_COUNT];
     int texture_count;
 };
@@ -145,6 +149,34 @@ void
 dat1_buildcache_texture_clear(struct Dat1BuildCache* dat1_buildcache);
 
 void
+dat1_buildcache_idk_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int idk_id,
+    struct RSCacheDat1A_ConfigIdk* idk);
+
+struct RSCacheDat1A_ConfigIdk*
+dat1_buildcache_idk_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int idk_id);
+
+void
+dat1_buildcache_obj_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int obj_id,
+    struct RSCacheDat1A_ConfigObj* obj);
+
+struct RSCacheDat1A_ConfigObj*
+dat1_buildcache_obj_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int obj_id);
+
+void
+dat1_buildcache_idks_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_objs_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
+
+void
 dat1_buildcache_sequences_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
 
 void
@@ -240,6 +272,12 @@ void
 dat1_buildcache_animbaseframes_reset(struct Dat1BuildCache* dat1_buildcache);
 
 void
+dat1_buildcache_idks_reset(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_objs_reset(struct Dat1BuildCache* dat1_buildcache);
+
+void
 dat1_buildcache_sequences_cleanup(struct Dat1BuildCache* dat1_buildcache);
 
 void
@@ -250,5 +288,11 @@ dat1_buildcache_scenery_configs_cleanup(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_animbaseframes_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_idks_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_objs_cleanup(struct Dat1BuildCache* dat1_buildcache);
 
 #endif

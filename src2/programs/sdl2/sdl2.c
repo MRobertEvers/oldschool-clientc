@@ -58,8 +58,7 @@ resolve_cache_dat_path(
         "../../../cache254", "../../../../cache254", NULL,
     };
     static char const* const dat2_candidates[] = {
-        "cache",          "../cache",          "../../cache",
-        "../../../cache", "../../../../cache", NULL,
+        "cache", "../cache", "../../cache", "../../../cache", "../../../../cache", NULL,
     };
     char const* const* candidates = use_dat2 ? dat2_candidates : dat1_candidates;
     char const* cache_file = use_dat2 ? "main_file_cache.dat2" : "main_file_cache.dat";

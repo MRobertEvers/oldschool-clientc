@@ -23,6 +23,18 @@
 #define LIBTORIRS_ANIM_SAMPLE_MS (1000 / LIBTORIRS_ANIM_SAMPLE_HZ)
 #define LIBTORIRS_ANIM_MAX_TICKS_PER_FRAME 25
 
+static void
+projectile_task_destroy(void* state)
+{
+    Task_GameRunescape_WorldEntityAddProjectile_Free(state);
+}
+
+static void
+player_task_destroy(void* state)
+{
+    Task_GameRunescape_WorldEntityAddPlayer_Free(state);
+}
+
 struct LibToriRS_Instance*
 LibToriRS_InstanceNew(void)
 {
@@ -120,7 +132,7 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
     if( instance->model_viewer )
         game_modelviewer_free(instance->model_viewer);
     if( instance->runescape )
-        game_runescape_free(instance->runescape);
+        GameRunescape_Free(instance->runescape);
     free(instance);
 }
 
@@ -317,7 +329,7 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
     case GAME_HANDLE_KIND_RUNESCAPE:
         if( instance->runescape )
         {
-            game_runescape_process_input(instance->runescape, input);
+            GameRunescape_ProcessInput(instance->runescape, input);
             if( LibToriRS_Input_IsKeyDown(input, TORIRSK_SPACE) )
             {
                 struct GameRunescape* game = instance->runescape;
@@ -334,21 +346,72 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                 {
                     sx = game->camera_position->x / 128;
                     sz = game->camera_position->z / 128;
-                    level = game_runescape_camera_terrain_level(game);
+                    level = GameRunescape_CameraTerrainLevel(game);
                 }
-                struct ToriRunescape_Task_AddProjectile* task =
-                    ToriRunescape_Task_AddProjectile_New(
+                int const entity_id = RS_ENTITY_ID(
+                    RS_ENTITY_KIND_PROJECTILE, game->next_projectile_entity_index++);
+                struct Task_GameRunescape_WorldEntityAddProjectile* task =
+                    Task_GameRunescape_WorldEntityAddProjectile_New(
                         game,
+                        entity_id,
                         RUNESCAPE_PROJECTILE_MODEL_ID,
                         RUNESCAPE_PROJECTILE_SEQ_ID,
                         sx,
                         sz,
                         sx + 5,
                         sz,
+                        level,
+                        RUNESCAPE_PROJECTILE_STARTHEIGHT,
+                        RUNESCAPE_PROJECTILE_ENDHEIGHT,
+                        RUNESCAPE_PROJECTILE_DELAY,
+                        RUNESCAPE_PROJECTILE_ANGLE,
+                        RUNESCAPE_PROJECTILE_LENGTH,
+                        RUNESCAPE_PROJECTILE_OFFSET,
+                        RUNESCAPE_PROJECTILE_STEP);
+                if( task )
+                {
+                    LibToriRS_TasksAdd(
+                        instance,
+                        task,
+                        Task_GameRunescape_WorldEntityAddProjectile_Run,
+                        projectile_task_destroy);
+                }
+            }
+            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_P) )
+            {
+                struct GameRunescape* game = instance->runescape;
+                int sx;
+                int sz;
+                int level;
+                if( game->last_tile_valid )
+                {
+                    sx = game->last_tile_sx;
+                    sz = game->last_tile_sz;
+                    level = game->last_tile_level;
+                }
+                else
+                {
+                    sx = game->camera_position->x / 128;
+                    sz = game->camera_position->z / 128;
+                    level = GameRunescape_CameraTerrainLevel(game);
+                }
+                int const entity_id = RS_ENTITY_ID(
+                    RS_ENTITY_KIND_PLAYER, game->next_player_entity_index++);
+                struct Task_GameRunescape_WorldEntityAddPlayer* task =
+                    Task_GameRunescape_WorldEntityAddPlayer_New(
+                        game,
+                        entity_id,
+                        RUNESCAPE_EXAMPLE_PLAYER_APPEARANCE,
+                        sx,
+                        sz,
                         level);
                 if( task )
                 {
-                    LibToriRS_TasksAdd(instance, task, ToriRunescape_Task_AddProjectile_Run);
+                    LibToriRS_TasksAdd(
+                        instance,
+                        task,
+                        Task_GameRunescape_WorldEntityAddPlayer_Run,
+                        player_task_destroy);
                 }
             }
         }
@@ -381,7 +444,7 @@ LibToriRS_FrameBegin(struct LibToriRS_Instance* instance)
         break;
     case GAME_HANDLE_KIND_RUNESCAPE:
         if( instance->runescape )
-            game_runescape_frame_begin(instance->runescape, cycles_elapsed);
+            GameRunescape_FrameBegin(instance->runescape, cycles_elapsed);
         break;
     default:
         break;
@@ -391,8 +454,6 @@ LibToriRS_FrameBegin(struct LibToriRS_Instance* instance)
 uint64_t
 LibToriRS_GetAnimationClock(struct LibToriRS_Instance* instance)
 {
-    if( !instance )
-        return 0;
     return instance->anim_cycle_count;
 }
 
@@ -401,8 +462,6 @@ LibToriRS_FrameNextCommand(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_RenderCommand* command)
 {
-    if( !instance || !command )
-        return false;
     switch( instance->active_game_kind )
     {
     case GAME_HANDLE_KIND_MODEL_VIEWER:
@@ -411,7 +470,7 @@ LibToriRS_FrameNextCommand(
             return true;
         break;
     case GAME_HANDLE_KIND_RUNESCAPE:
-        if( instance->runescape && game_runescape_frame_next_command(instance->runescape, command) )
+        if( instance->runescape && GameRunescape_FrameNextCommand(instance->runescape, command) )
             return true;
         break;
     default:
@@ -433,7 +492,7 @@ LibToriRS_FrameEnd(struct LibToriRS_Instance* instance)
         break;
     case GAME_HANDLE_KIND_RUNESCAPE:
         if( instance->runescape )
-            game_runescape_frame_end(instance->runescape);
+            GameRunescape_FrameEnd(instance->runescape);
         break;
     default:
         break;
@@ -516,7 +575,8 @@ void
 LibToriRS_TasksAdd(
     struct LibToriRS_Instance* instance,
     void* task_state,
-    CoreTaskFunction task_function)
+    CoreTaskFunction task_function,
+    CoreTaskDestructor destroy)
 {
     if( instance->task_free_head == -1 )
     {
@@ -525,7 +585,7 @@ LibToriRS_TasksAdd(
         return;
     }
 
-    struct CoreTask* task = core_task_new(task_state, task_function);
+    struct CoreTask* task = core_task_new(task_state, task_function, destroy);
     if( !task )
     {
         fprintf(stderr, "Failed to create task\n");

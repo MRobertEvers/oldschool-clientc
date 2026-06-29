@@ -3,10 +3,10 @@
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
 #include "buildcache/dat2_buildcache.h"
-#include "dat1.h"
-#include "dat1_world.h"
-#include "dat2.h"
-#include "dat2_world.h"
+#include "t_dat1_modelviewer_model.h"
+#include "t_dat2_modelviewer_model.h"
+#include "t_runescape_dat1_world.h"
+#include "t_runescape_dat2_world.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -158,6 +158,18 @@ Task_ToriAuxLibC_ModelLoad_New(
         return NULL;
     }
     return task;
+}
+
+void
+Task_ToriAuxLibC_ModelLoad_Free(struct Task_ToriAuxLibC_ModelLoad* task)
+{
+    if( !task )
+        return;
+    if( task->c->mode == TORIAUXLIBC_MODE_DAT1 && task->task_dat1 )
+        Task_Dat1ModelLoad_Free(task->task_dat1);
+    if( task->c->mode == TORIAUXLIBC_MODE_DAT2 && task->task_dat2 )
+        Task_Dat2ModelLoad_Free(task->task_dat2);
+    free(task);
 }
 
 int

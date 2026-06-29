@@ -26,6 +26,16 @@ ToriAuxLibC_SubmitModelFromDat1(
     int model_id);
 
 void
+ToriAuxLibC_SubmitIdkModelFromDat1(
+    struct ToriAuxLibC* c,
+    int idk_id);
+
+void
+ToriAuxLibC_SubmitObjModelFromDat1(
+    struct ToriAuxLibC* c,
+    int obj_id);
+
+void
 ToriAuxLibC_SubmitTexture(
     struct ToriAuxLibC* c,
     int texture_id,

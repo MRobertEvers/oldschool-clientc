@@ -7,10 +7,10 @@
 #include "../world/world.h"
 #include "../world/world_pickset.h"
 #include "osrs/painters.h"
-#include "ui/uitree.h"
 #include "toriauxlib/vm/toriauxlibvm.h"
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"
+#include "ui/uitree.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -27,6 +27,12 @@ struct LibToriRS_IOContext;
 #define RUNESCAPE_PROJECTILE_MODEL_ID 3081
 #define RUNESCAPE_PROJECTILE_SEQ_ID 659
 
+/* Fallback player body model when appearance resolves to no pieces. */
+#define RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID 230
+
+/* Example player outfit from src/server/server.c (rune scimitar + IDK gear). */
+extern const int RUNESCAPE_EXAMPLE_PLAYER_APPEARANCE[12];
+
 /* Magic / Fire Strike preset from docs/projectiles.md */
 #define RUNESCAPE_PROJECTILE_STARTHEIGHT 43
 #define RUNESCAPE_PROJECTILE_ENDHEIGHT 31
@@ -36,8 +42,25 @@ struct LibToriRS_IOContext;
 #define RUNESCAPE_PROJECTILE_OFFSET 64
 #define RUNESCAPE_PROJECTILE_STEP 10
 
-/** Reserved ToriDraw sprite element id for the baked world-map minimap (revconfig ids start at 1). */
+/** Reserved ToriDraw sprite element id for the baked world-map minimap (revconfig ids start at 1).
+ */
 #define RUNESCAPE_WORLD_MAP_SCENE_ID 0
+
+enum GameRunescape_EntityKind
+{
+    RS_ENTITY_KIND_NONE = 0,
+    RS_ENTITY_KIND_PLAYER = 1,
+    RS_ENTITY_KIND_PROJECTILE = 2,
+    RS_ENTITY_KIND_NPC = 3,
+};
+
+#define RS_ENTITY_KIND_SHIFT 28
+#define RS_ENTITY_KIND_MASK  0xF
+#define RS_ENTITY_INDEX_MASK ((1 << RS_ENTITY_KIND_SHIFT) - 1)
+#define RS_ENTITY_ID(kind, index) \
+    (((int)(kind) << RS_ENTITY_KIND_SHIFT) | ((index) & RS_ENTITY_INDEX_MASK))
+#define RS_ENTITY_KIND_OF(id)  (((id) >> RS_ENTITY_KIND_SHIFT) & RS_ENTITY_KIND_MASK)
+#define RS_ENTITY_INDEX_OF(id) ((id) & RS_ENTITY_INDEX_MASK)
 
 enum GameRunescape_FramePhase
 {
@@ -53,10 +76,18 @@ enum GameRunescape_FramePhase
 
 #define RUNESCAPE_UI_TRAVERSAL_STACK_MAX 64
 #define RUNESCAPE_UI_TEXT_SCRATCH_MAX 512
+#define RUNESCAPE_ENTITY_REGISTRY_INITIAL_CAP 32
 
 struct GameRunescape_UITraversalFrame
 {
     int32_t parent_index;
+};
+
+struct GameRunescape_EntityRecord
+{
+    int entity_id;
+    int element_id;
+    int world_index;
 };
 
 struct GameRunescape
@@ -93,6 +124,12 @@ struct GameRunescape
     int last_tile_level;
     bool last_tile_valid;
 
+    struct GameRunescape_EntityRecord* entity_registry;
+    int entity_registry_count;
+    int entity_registry_cap;
+    int next_projectile_entity_index;
+    int next_player_entity_index;
+
     struct
     {
         enum GameRunescape_FramePhase phase;
@@ -109,76 +146,93 @@ struct GameRunescape
 };
 
 struct GameRunescape*
-game_runescape_new(
+GameRunescape_New(
     struct LibToriRS_ScriptQueue* script_queue,
     struct ToriDraw_Scene* scene);
 
 void
-game_runescape_free(struct GameRunescape* game);
+GameRunescape_Free(struct GameRunescape* game);
 
 void
-game_runescape_set_core(
+GameRunescape_SetCore(
     struct GameRunescape* game,
     struct ToriAuxLibCore* core);
 
 void
-game_runescape_set_td(
+GameRunescape_SetTD(
     struct GameRunescape* game,
     struct ToriAuxLibTD* td);
 
 void
-game_runescape_set_vm(
+GameRunescape_SetVM(
     struct GameRunescape* game,
     struct ToriAuxLibVM* vm);
 
 void
-game_runescape_set_ui_tree(
+GameRunescape_SetUITree(
     struct GameRunescape* game,
     struct UITree* ui_tree);
 
 void
-game_runescape_set_ui_tree_ready(
+GameRunescape_SetUITreeReady(
     struct GameRunescape* game,
     bool ready);
 
 void
-game_runescape_build_world(struct GameRunescape* game);
+GameRunescape_BuildWorld(struct GameRunescape* game);
 
 void
-game_runescape_rebuild_world_map(struct GameRunescape* game);
+GameRunescape_RebuildWorldMap(struct GameRunescape* game);
 
 void
-game_runescape_process_input(
+GameRunescape_ProcessInput(
     struct GameRunescape* game,
     struct LibToriRS_Input* input);
 
 int32_t
-game_runescape_ui_hit_test(
+GameRunescape_UIHitTest(
     struct GameRunescape* game,
     int px,
     int py);
 
 void
-game_runescape_frame_begin(
+GameRunescape_FrameBegin(
     struct GameRunescape* game,
     int cycles_elapsed);
 
 bool
-game_runescape_frame_next_command(
+GameRunescape_FrameNextCommand(
     struct GameRunescape* game,
     struct LibToriRS_RenderCommand* command);
 
 void
-game_runescape_frame_end(struct GameRunescape* game);
+GameRunescape_FrameEnd(struct GameRunescape* game);
 
 int
-game_runescape_camera_terrain_level(const struct GameRunescape* game);
+GameRunescape_CameraTerrainLevel(const struct GameRunescape* game);
 
 int
-game_runescape_spawn_projectile(
+GameRunescape_WorldEntityAddPlayer(
     struct GameRunescape* game,
-    int model_id,
-    int seq_id,
+    int entity_id,
+    const int appearance[12],
+    int x,
+    int z,
+    int level);
+
+bool
+GameRunescape_WorldEntityAnimate(
+    struct GameRunescape* game,
+    int entity_id,
+    int anim_id,
+    int primary_secondary);
+
+int
+GameRunescape_WorldEntityAddProjectile(
+    struct GameRunescape* game,
+    int entity_id,
+    int projectile_id,
+    int anim_id,
     int src_sx,
     int src_sz,
     int dst_sx,
@@ -192,24 +246,69 @@ game_runescape_spawn_projectile(
     int offset,
     int step);
 
-struct ToriRunescape_Task_AddProjectile;
+struct Task_GameRunescape_WorldEntityAddPlayer;
 
-struct ToriRunescape_Task_AddProjectile*
-ToriRunescape_Task_AddProjectile_New(
+struct Task_GameRunescape_WorldEntityAddPlayer*
+Task_GameRunescape_WorldEntityAddPlayer_New(
     struct GameRunescape* game,
-    int model_id,
-    int seq_id,
+    int entity_id,
+    const int appearance[12],
+    int x,
+    int z,
+    int level);
+
+void
+Task_GameRunescape_WorldEntityAddPlayer_Free(struct Task_GameRunescape_WorldEntityAddPlayer* task);
+
+int
+Task_GameRunescape_WorldEntityAddPlayer_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx);
+
+struct Task_GameRunescape_WorldEntityAnimate;
+
+struct Task_GameRunescape_WorldEntityAnimate*
+Task_GameRunescape_WorldEntityAnimate_New(
+    struct GameRunescape* game,
+    int entity_id,
+    int anim_id,
+    int primary_secondary);
+
+void
+Task_GameRunescape_WorldEntityAnimate_Free(struct Task_GameRunescape_WorldEntityAnimate* task);
+
+int
+Task_GameRunescape_WorldEntityAnimate_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx);
+
+struct Task_GameRunescape_WorldEntityAddProjectile;
+
+struct Task_GameRunescape_WorldEntityAddProjectile*
+Task_GameRunescape_WorldEntityAddProjectile_New(
+    struct GameRunescape* game,
+    int entity_id,
+    int projectile_id,
+    int anim_id,
     int src_sx,
     int src_sz,
     int dst_sx,
     int dst_sz,
-    int level);
+    int level,
+    int startheight,
+    int endheight,
+    int delay,
+    int angle,
+    int length,
+    int offset,
+    int step);
 
 void
-ToriRunescape_Task_AddProjectile_Free(struct ToriRunescape_Task_AddProjectile* task);
+Task_GameRunescape_WorldEntityAddProjectile_Free(
+    struct Task_GameRunescape_WorldEntityAddProjectile* task);
 
 int
-ToriRunescape_Task_AddProjectile_Run(
+Task_GameRunescape_WorldEntityAddProjectile_Run(
     void* task_state,
     struct LibToriRS_IOContext* ctx);
 

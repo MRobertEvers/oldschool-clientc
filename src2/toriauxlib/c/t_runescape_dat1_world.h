@@ -1,5 +1,5 @@
-#ifndef TORIAUXLIBC_DAT1_WORLD_H
-#define TORIAUXLIBC_DAT1_WORLD_H
+#ifndef TORIAUXLIBC_T_RUNESCAPE_DAT1_WORLD_H
+#define TORIAUXLIBC_T_RUNESCAPE_DAT1_WORLD_H
 
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
@@ -30,8 +30,7 @@ struct Task_Dat1WorldRebuildNormal
     int chunks_z[TASK_WORLD_MAX_CHUNKS];
     int chunk_index;
 
-    int pending_fetches;
-    int pending_decodes;
+    struct LibToriRS_IOBatch io_batch;
 
     int anim_count;
     int anim_index;
@@ -104,10 +103,10 @@ Task_Dat1WorldRebuildNormal_Run(
 
     dat1_buildcache_clear_config_jagfile(dat1_bc);
     dat1_buildcache_clear_versionlist_jagfile(dat1_bc);
-    LibToriRS_IOQueueClear(ctx->io);
+
     task_world_compute_chunks(task);
 
-    task->pending_fetches = 0;
+    LibToriRS_IOBatchReset(&task->io_batch);
     for( task->chunk_index = 0; task->chunk_index < task->chunk_count; task->chunk_index++ )
     {
         int mapx = task->chunks_x[task->chunk_index];
@@ -115,17 +114,16 @@ Task_Dat1WorldRebuildNormal_Run(
         int map_id = (mapx << 16) | (mapz & 0xFFFF);
         if( !dat1_buildcache_map_terrain_has(dat1_bc, map_id) )
         {
-            dat1io_map_chunk_terrain_fetch(ctx, mapx, mapz);
-            task->pending_fetches++;
+            int slot = LibToriRS_IOBatchAdd(&task->io_batch, 0);
+            IO_REQUEST(ctx, slot, TAPIDat1_FetchMapChunkTerrain(ctx, mapx, mapz));
         }
     }
     PT_YIELD(&task->thread);
 
-    for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
-         task->pending_decodes++ )
+    for( int i = 0; i < LibToriRS_IOBatchCount(&task->io_batch); i++ )
     {
         struct RSCacheDat2A_MapTerrain* terrain = NULL;
-        int map_id = dat1io_map_chunk_terrain_decode(ctx, &terrain);
+        int map_id = TAPIDat1_DecodeMapChunkTerrain(ctx, i, &terrain);
         if( map_id >= 0 && terrain )
         {
             dat1_buildcache_map_terrain_add(dat1_bc, map_id, terrain);
@@ -133,7 +131,7 @@ Task_Dat1WorldRebuildNormal_Run(
         }
     }
 
-    task->pending_fetches = 0;
+    LibToriRS_IOBatchReset(&task->io_batch);
     for( task->chunk_index = 0; task->chunk_index < task->chunk_count; task->chunk_index++ )
     {
         int mapx = task->chunks_x[task->chunk_index];
@@ -141,17 +139,16 @@ Task_Dat1WorldRebuildNormal_Run(
         int map_id = (mapx << 16) | (mapz & 0xFFFF);
         if( !dat1_buildcache_map_scenery_has(dat1_bc, map_id) )
         {
-            dat1io_map_chunk_scenery_fetch(ctx, mapx, mapz);
-            task->pending_fetches++;
+            int slot = LibToriRS_IOBatchAdd(&task->io_batch, 0);
+            IO_REQUEST(ctx, slot, TAPIDat1_FetchMapChunkScenery(ctx, mapx, mapz));
         }
     }
     PT_YIELD(&task->thread);
 
-    for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
-         task->pending_decodes++ )
+    for( int i = 0; i < LibToriRS_IOBatchCount(&task->io_batch); i++ )
     {
         struct RSCacheDat2A_MapLocs* locs = NULL;
-        int map_id = dat1io_map_chunk_scenery_decode(ctx, &locs);
+        int map_id = TAPIDat1_DecodeMapChunkScenery(ctx, i, &locs);
         if( map_id >= 0 && locs )
         {
             dat1_buildcache_map_scenery_add(dat1_bc, map_id, locs);
@@ -159,13 +156,14 @@ Task_Dat1WorldRebuildNormal_Run(
         }
     }
 
-    dat1io_config_jagfile_fetch(ctx);
-    dat1io_versionlist_jagfile_fetch(ctx);
+    IO_REQUEST(ctx, 0, TAPIDat1_FetchConfigJagfile(ctx));
+    IO_REQUEST(ctx, 1, TAPIDat1_FetchVersionlistJagfile(ctx));
     PT_YIELD(&task->thread);
 
     {
-        struct RSCacheShared_FileListDat* config_jag = dat1io_config_jagfile_decode(ctx);
-        struct RSCacheShared_FileListDat* versionlist_jag = dat1io_versionlist_jagfile_decode(ctx);
+        struct RSCacheShared_FileListDat* config_jag = TAPIDat1_DecodeConfigJagfile(ctx, 0);
+        struct RSCacheShared_FileListDat* versionlist_jag =
+            TAPIDat1_DecodeVersionlistJagfile(ctx, 1);
         if( config_jag )
             dat1_buildcache_set_fromconfigtable_config_jagfile(dat1_bc, config_jag);
         if( versionlist_jag )
@@ -176,7 +174,7 @@ Task_Dat1WorldRebuildNormal_Run(
     task->anim_count = dat1_buildcache_get_animbaseframes_count_from_versionlist_jagfile(dat1_bc);
     for( task->anim_index = 0; task->anim_index < task->anim_count; )
     {
-        task->pending_fetches = 0;
+        LibToriRS_IOBatchReset(&task->io_batch);
         int batch_end = task->anim_index + TASK_WORLD_IO_BATCH;
         if( batch_end > task->anim_count )
             batch_end = task->anim_count;
@@ -185,21 +183,20 @@ Task_Dat1WorldRebuildNormal_Run(
         {
             if( !dat1_buildcache_animbaseframes_has(dat1_bc, task->anim_index) )
             {
-                dat1io_animations_fetch(ctx, task->anim_index);
-                task->pending_fetches++;
+                int slot = LibToriRS_IOBatchAdd(&task->io_batch, 0);
+                IO_REQUEST(ctx, slot, TAPIDat1_FetchAnimations(ctx, task->anim_index));
             }
         }
 
-        if( task->pending_fetches == 0 )
+        if( LibToriRS_IOBatchEmpty(&task->io_batch) )
             continue;
 
         PT_YIELD(&task->thread);
 
-        for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
-             task->pending_decodes++ )
+        for( int i = 0; i < LibToriRS_IOBatchCount(&task->io_batch); i++ )
         {
             struct RSCacheDat1A_AnimBaseFrames* abf = NULL;
-            int anim_id = dat1io_animations_decode(ctx, &abf);
+            int anim_id = TAPIDat1_DecodeAnimations(ctx, i, &abf);
             if( anim_id >= 0 && abf )
             {
                 dat1_buildcache_animbaseframes_add(dat1_bc, anim_id, abf);
@@ -219,7 +216,7 @@ Task_Dat1WorldRebuildNormal_Run(
     task->model_count = dat1_buildcache_get_all_unique_scenery_model_ids(dat1_bc, &task->model_ids);
     for( task->model_index = 0; task->model_index < task->model_count; )
     {
-        task->pending_fetches = 0;
+        LibToriRS_IOBatchReset(&task->io_batch);
         int batch_end = task->model_index + TASK_WORLD_IO_BATCH;
         if( batch_end > task->model_count )
             batch_end = task->model_count;
@@ -229,26 +226,24 @@ Task_Dat1WorldRebuildNormal_Run(
             int model_id = task->model_ids[task->model_index];
             if( !dat1_buildcache_model_get(dat1_bc, model_id) )
             {
-                dat1io_model_fetch(ctx, model_id);
-                task->pending_fetches++;
+                int slot = LibToriRS_IOBatchAdd(&task->io_batch, model_id);
+                IO_REQUEST(ctx, slot, TAPIDat1_FetchModel(ctx, model_id));
             }
         }
 
-        if( task->pending_fetches == 0 )
+        if( LibToriRS_IOBatchEmpty(&task->io_batch) )
             continue;
 
         PT_YIELD(&task->thread);
 
-        for( task->pending_decodes = 0; task->pending_decodes < task->pending_fetches;
-             task->pending_decodes++ )
+        for( int i = 0; i < LibToriRS_IOBatchCount(&task->io_batch); i++ )
         {
-            struct RSCacheDat2A_Model* model = NULL;
-            int decoded_model_id = -1;
-            model = dat1io_model_decode(ctx, &decoded_model_id);
-            if( model && decoded_model_id >= 0 )
+            struct RSCacheDat2A_Model* model = TAPIDat1_DecodeModel(ctx, i);
+            if( model )
             {
-                dat1_buildcache_model_add(dat1_bc, decoded_model_id, model);
-                ToriAuxLibC_SubmitModelFromDat1(task->c, decoded_model_id);
+                int model_id = LibToriRS_IOBatchUser(&task->io_batch, i);
+                dat1_buildcache_model_add(dat1_bc, model_id, model);
+                ToriAuxLibC_SubmitModelFromDat1(task->c, model_id);
             }
         }
         LibToriRS_IOQueueClear(ctx->io);

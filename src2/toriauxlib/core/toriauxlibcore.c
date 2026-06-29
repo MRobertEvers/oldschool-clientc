@@ -22,6 +22,8 @@ struct ToriAuxLibCore
     struct ToriDraw_Map* fonts_hmap;
     struct ToriDraw_Map* components_hmap;
     struct ToriDraw_Map* skeletal_hmap;
+    struct ToriDraw_Map* idk_models_hmap;
+    struct ToriDraw_Map* obj_models_hmap;
 };
 
 struct MapEntry_AnimframeRef
@@ -101,6 +103,18 @@ struct MapEntry_Component
 {
     int id;
     struct ToriAuxLibCore_Component* component;
+};
+
+struct MapEntry_IdkModel
+{
+    int id;
+    struct ToriAuxLibCore_Model* model;
+};
+
+struct MapEntry_ObjModel
+{
+    int id;
+    struct ToriAuxLibCore_Model* model;
 };
 
 static struct ToriDraw_Map*
@@ -199,6 +213,8 @@ ToriAuxLibCore_New(void)
     gamecache->fonts_hmap = gamecache_map_new(sizeof(struct MapEntry_Font), 16);
     gamecache->components_hmap = gamecache_map_new(sizeof(struct MapEntry_Component), 1024);
     gamecache->skeletal_hmap = gamecache_map_new(sizeof(struct MapEntry_SkeletalAnim), 2048);
+    gamecache->idk_models_hmap = gamecache_map_new(sizeof(struct MapEntry_IdkModel), 512);
+    gamecache->obj_models_hmap = gamecache_map_new(sizeof(struct MapEntry_ObjModel), 4096);
 
     return gamecache;
 }
@@ -388,6 +404,12 @@ ToriAuxLibCore_Free(struct ToriAuxLibCore* gamecache)
     ToriAuxLibCore_Free_models(gamecache->models_hmap);
     gamecache_map_free(gamecache->models_hmap);
 
+    ToriAuxLibCore_Free_models(gamecache->idk_models_hmap);
+    gamecache_map_free(gamecache->idk_models_hmap);
+
+    ToriAuxLibCore_Free_models(gamecache->obj_models_hmap);
+    gamecache_map_free(gamecache->obj_models_hmap);
+
     ToriAuxLibCore_Free_animations(gamecache->animations_hmap);
     gamecache_map_free(gamecache->animations_hmap);
 
@@ -475,6 +497,82 @@ ToriAuxLibCore_ModelHas(
     int model_id)
 {
     return ToriAuxLibCore_ModelGet(gamecache, model_id) != NULL;
+}
+
+void
+ToriAuxLibCore_IdkModelAdd(
+    struct ToriAuxLibCore* gamecache,
+    int idk_id,
+    struct ToriAuxLibCore_Model* model)
+{
+    struct MapEntry_IdkModel* entry = (struct MapEntry_IdkModel*)ToriDraw_MapSearch(
+        gamecache->idk_models_hmap, &idk_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->model )
+        ToriAuxLibCore_ModelFree(entry->model);
+
+    entry->id = idk_id;
+    entry->model = model;
+}
+
+struct ToriAuxLibCore_Model*
+ToriAuxLibCore_IdkModelGet(
+    struct ToriAuxLibCore* gamecache,
+    int idk_id)
+{
+    struct MapEntry_IdkModel* entry = (struct MapEntry_IdkModel*)ToriDraw_MapSearch(
+        gamecache->idk_models_hmap, &idk_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->model;
+}
+
+bool
+ToriAuxLibCore_IdkModelHas(
+    struct ToriAuxLibCore* gamecache,
+    int idk_id)
+{
+    return ToriAuxLibCore_IdkModelGet(gamecache, idk_id) != NULL;
+}
+
+void
+ToriAuxLibCore_ObjModelAdd(
+    struct ToriAuxLibCore* gamecache,
+    int obj_id,
+    struct ToriAuxLibCore_Model* model)
+{
+    struct MapEntry_ObjModel* entry = (struct MapEntry_ObjModel*)ToriDraw_MapSearch(
+        gamecache->obj_models_hmap, &obj_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->model )
+        ToriAuxLibCore_ModelFree(entry->model);
+
+    entry->id = obj_id;
+    entry->model = model;
+}
+
+struct ToriAuxLibCore_Model*
+ToriAuxLibCore_ObjModelGet(
+    struct ToriAuxLibCore* gamecache,
+    int obj_id)
+{
+    struct MapEntry_ObjModel* entry = (struct MapEntry_ObjModel*)ToriDraw_MapSearch(
+        gamecache->obj_models_hmap, &obj_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->model;
+}
+
+bool
+ToriAuxLibCore_ObjModelHas(
+    struct ToriAuxLibCore* gamecache,
+    int obj_id)
+{
+    return ToriAuxLibCore_ObjModelGet(gamecache, obj_id) != NULL;
 }
 
 struct ToriAuxLibCore_Model*

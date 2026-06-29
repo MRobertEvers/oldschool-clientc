@@ -111,6 +111,19 @@ world_terrain_element_at(
     int level);
 
 int
+world_player_spawn(
+    struct World* world,
+    int element_id,
+    int level,
+    int scene_x,
+    int scene_z);
+
+void
+world_player_despawn(
+    struct World* world,
+    int idx);
+
+int
 world_projectile_spawn(
     struct World* world,
     int element_id,
@@ -128,6 +141,23 @@ world_projectile_spawn(
 
 void
 world_projectile_despawn(
+    struct World* world,
+    int idx);
+
+int
+world_spotanim_spawn(
+    struct World* world,
+    int element_id,
+    int level,
+    int scene_x,
+    int scene_z,
+    int y,
+    int orientation,
+    int idle_delay,
+    int lifetime);
+
+void
+world_spotanim_despawn(
     struct World* world,
     int idx);
 

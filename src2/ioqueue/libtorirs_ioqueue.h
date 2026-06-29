@@ -55,4 +55,9 @@ LibToriRS_IOQueuePopRead(
 struct LibToriRS_IOQueueItem*
 LibToriRS_IOQueuePopReadPtr(struct LibToriRS_IOQueue* queue);
 
+struct LibToriRS_IOQueueItem*
+LibToriRS_IOQueueFindBySlot(
+    struct LibToriRS_IOQueue* queue,
+    int slot_id);
+
 #endif
