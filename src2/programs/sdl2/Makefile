@@ -6,6 +6,7 @@ SRC2      := $(REPO_ROOT)/src2
 PLAT_DIR  := $(SRC2)/platforms
 SCRIPT_DIR := $(SRC2)/scripting
 TRSPK_DIR := $(SRC_DIR)/platforms/ToriRSPlatformKit
+LVGL_DIR  := $(SRC2)/3rd/lvgl
 
 OBJ_DIR := sdl2_build
 PROG    := sdl2
@@ -181,6 +182,10 @@ RENDERER_SRCS := \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_opengl3.c \
 	$(SRC2)/platformkit/opengl3/opengl3_sdlgl.c
 
+LVGL_SRCS := $(shell find $(LVGL_DIR)/src -name '*.c')
+CPPFLAGS += -DTORIRS_ENABLE_LVGL_HUD=1 -DLV_CONF_INCLUDE_SIMPLE -I$(SRC2)/3rd -I$(LVGL_DIR)
+COMMON_SRCS += $(PLAT_DIR)/platform_sdl2/platform_sdl2_lvgl_hud.c $(LVGL_SRCS)
+
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2 2>/dev/null)
 SDL_LIBS   := $(shell pkg-config --libs   sdl2 2>/dev/null)
 ifeq ($(strip $(SDL_LIBS)),)
@@ -208,6 +213,10 @@ ifeq ($(HOST_OS),Linux)
 RENDERER_SRCS := \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_opengl3.c \
 	$(SRC2)/platformkit/opengl3/opengl3_sdlgl.c
+
+LVGL_SRCS := $(shell find $(LVGL_DIR)/src -name '*.c')
+CPPFLAGS += -DTORIRS_ENABLE_LVGL_HUD=1 -DLV_CONF_INCLUDE_SIMPLE -I$(SRC2)/3rd -I$(LVGL_DIR)
+COMMON_SRCS += $(PLAT_DIR)/platform_sdl2/platform_sdl2_lvgl_hud.c $(LVGL_SRCS)
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2 2>/dev/null)
 SDL_LIBS   := $(shell pkg-config --libs   sdl2 2>/dev/null)
@@ -359,6 +368,12 @@ $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)/.stamp
 	$(CC) $(CPPFLAGS) $(THIRD_PARTY_CFLAGS) $(SDL_CFLAGS) -c $(1) -o $$@
 endef
 $(foreach src,$(LUA_SRC),$(eval $(call make-lua-goal,$(src))))
+
+define make-lvgl-goal
+$(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)/.stamp
+	$(CC) $(CPPFLAGS) $(THIRD_PARTY_CFLAGS) $(SDL_CFLAGS) -c $(1) -o $$@
+endef
+$(foreach src,$(LVGL_SRCS),$(eval $(call make-lvgl-goal,$(src))))
 
 clean:
 	rm -f $(PROG) $(PROG).exe asan_dyld_shim.dylib

@@ -84,6 +84,24 @@ LibToriPlatformEmscripten_JSHost_IORequestGetFlags(
     struct LibToriRS_IOQueueItem* item);
 
 EMSCRIPTEN_KEEPALIVE
+int
+LibToriPlatformEmscripten_JSHost_IORequestGetKind(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueueItem* item);
+
+EMSCRIPTEN_KEEPALIVE
+int
+LibToriPlatformEmscripten_JSHost_IORequestGetStatus(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueueItem* item);
+
+EMSCRIPTEN_KEEPALIVE
+const char*
+LibToriPlatformEmscripten_JSHost_IORequestGetPath(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueueItem* item);
+
+EMSCRIPTEN_KEEPALIVE
 bool
 LibToriPlatformEmscripten_JSHost_ScriptQueueIsEmpty(struct LibToriRS_Instance* instance);
 
@@ -126,6 +144,19 @@ void
 LibToriPlatformEmscripten_JSHost_IOQueueItemResolve(
     struct LibToriRS_IOQueueItem* item,
     void* data_ptr);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_IOQueueItemResolveWithSize(
+    struct LibToriRS_IOQueueItem* item,
+    void* data_ptr,
+    int data_size);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_IOQueueItemError(
+    struct LibToriRS_IOQueueItem* item,
+    int error_code);
 
 EMSCRIPTEN_KEEPALIVE
 void*

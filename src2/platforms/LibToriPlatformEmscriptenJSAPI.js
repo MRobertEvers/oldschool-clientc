@@ -1,4 +1,5 @@
 import {
+  fromWasmCString,
   fromWASMStringToJSString,
   wasmExportFn,
 } from "./libplatformjs_utils.js";
@@ -70,6 +71,18 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_IORequestGetFlags",
     );
+    this._ioRequestGetKind = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_IORequestGetKind",
+    );
+    this._ioRequestGetStatus = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_IORequestGetStatus",
+    );
+    this._ioRequestGetPath = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_IORequestGetPath",
+    );
 
     this._scriptQueueIsEmpty = wasmExportFn(
       mod,
@@ -102,6 +115,10 @@ export class LibToriPlatformEmscriptenJSAPI {
     this._ioQueueItemResolve = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_IOQueueItemResolve",
+    );
+    this._ioQueueItemResolveWithSize = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_IOQueueItemResolveWithSize",
     );
     this._ioQueueItemError = wasmExportFn(
       mod,
@@ -360,6 +377,18 @@ export class LibToriPlatformEmscriptenJSAPI {
     return this._ioRequestGetFlags(this.instancePtr, item);
   }
 
+  ioRequestGetKind(item) {
+    return this._ioRequestGetKind(this.instancePtr, item);
+  }
+
+  ioRequestGetStatus(item) {
+    return this._ioRequestGetStatus(this.instancePtr, item);
+  }
+
+  ioRequestGetPath(item) {
+    return this._ioRequestGetPath(this.instancePtr, item);
+  }
+
   scriptQueueIsEmpty() {
     return this._scriptQueueIsEmpty(this.instancePtr) !== 0;
   }
@@ -510,7 +539,8 @@ export class LibToriPlatformEmscriptenJSAPI {
   }
 
   scriptAPIGetCacheMode() {
-    return this._scriptAPIGetCacheMode(this.instancePtr);
+    const ptr = this._scriptAPIGetCacheMode(this.instancePtr);
+    return fromWasmCString(this.wasmModule, ptr) ?? "dat1";
   }
 
   scriptAPIGameCacheModelsClearAll() {
@@ -607,6 +637,10 @@ export class LibToriPlatformEmscriptenJSAPI {
 
   ioQueueItemResolve(item, dataPtr) {
     this._ioQueueItemResolve(item, dataPtr);
+  }
+
+  ioQueueItemResolveWithSize(item, dataPtr, dataSize) {
+    this._ioQueueItemResolveWithSize(item, dataPtr, dataSize);
   }
 
   ioQueueItemError(item, errorCode) {

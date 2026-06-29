@@ -1,5 +1,9 @@
 #include "platform_sdl2_renderer_soft3d.h"
 
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+#include "platform_sdl2_lvgl_hud.h"
+#endif
+
 #include "libtorirs.h"
 #include "libtorirs_internal.h"
 #include "render/libtorirs_render.h"
@@ -61,6 +65,9 @@ struct LibToriPlatformSDL2_RendererSoft3D
     struct ToriDraw_ViewPort ui_model_vp;
     struct ToriDraw_Camera ui_model_cam;
     struct ToriDraw_Position ui_model_cam_pos;
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    struct LibToriHud* hud;
+#endif
 };
 
 struct LibToriPlatformSDL2_RendererSoft3D*
@@ -98,6 +105,13 @@ LibToriPlatformSDL2_RendererSoft3D_Free(struct LibToriPlatformSDL2_RendererSoft3
         SDL_DestroyRenderer(renderer->renderer);
         renderer->renderer = NULL;
     }
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    if( renderer->hud )
+    {
+        LibToriHud_Free(renderer->hud);
+        renderer->hud = NULL;
+    }
+#endif
     free(renderer);
 }
 
@@ -144,6 +158,10 @@ LibToriPlatformSDL2_RendererSoft3D_Init(
         renderer->renderer = NULL;
         return false;
     }
+
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    renderer->hud = LibToriHud_New();
+#endif
 
     return true;
 }
@@ -369,6 +387,19 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
         }
     }
     LibToriRS_FrameEnd(instance);
+
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    if( renderer->hud )
+    {
+        LibToriHud_Update(renderer->hud, instance);
+        LibToriHud_CompositeOverARGB8888(
+            renderer->hud,
+            (uint32_t*)renderer->pixel_buffer,
+            renderer->width,
+            renderer->width,
+            renderer->height);
+    }
+#endif
 
     if( stats )
     {

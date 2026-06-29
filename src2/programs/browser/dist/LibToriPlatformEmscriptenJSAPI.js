@@ -1,4 +1,5 @@
 import {
+  fromWasmCString,
   fromWASMStringToJSString,
   wasmExportFn,
 } from "./libplatformjs_utils.js";
@@ -70,6 +71,18 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_IORequestGetFlags",
     );
+    this._ioRequestGetKind = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_IORequestGetKind",
+    );
+    this._ioRequestGetStatus = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_IORequestGetStatus",
+    );
+    this._ioRequestGetPath = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_IORequestGetPath",
+    );
 
     this._scriptQueueIsEmpty = wasmExportFn(
       mod,
@@ -103,6 +116,10 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_IOQueueItemResolve",
     );
+    this._ioQueueItemResolveWithSize = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_IOQueueItemResolveWithSize",
+    );
     this._ioQueueItemError = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_IOQueueItemError",
@@ -128,6 +145,14 @@ export class LibToriPlatformEmscriptenJSAPI {
     this._scriptAPIGameRunescapeBuildWorld = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorld",
+    );
+    this._scriptAPIGameRunescapeBuildWorldCenterzoneNativeInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorldCenterzoneNativeInt",
+    );
+    this._scriptAPIGameRunescapeBuildWorldChunkListNativeInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorldChunkListNativeInt",
     );
     this._scriptAPIDat1ModelFetchNativeInt = wasmExportFn(
       mod,
@@ -204,6 +229,10 @@ export class LibToriPlatformEmscriptenJSAPI {
     this._scriptAPIDat2TexturesLoad = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat2_TexturesLoad",
+    );
+    this._scriptAPIDat2SubmitTextures = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat2_SubmitTextures",
     );
     this._scriptAPIGetCacheMode = wasmExportFn(
       mod,
@@ -348,6 +377,18 @@ export class LibToriPlatformEmscriptenJSAPI {
     return this._ioRequestGetFlags(this.instancePtr, item);
   }
 
+  ioRequestGetKind(item) {
+    return this._ioRequestGetKind(this.instancePtr, item);
+  }
+
+  ioRequestGetStatus(item) {
+    return this._ioRequestGetStatus(this.instancePtr, item);
+  }
+
+  ioRequestGetPath(item) {
+    return this._ioRequestGetPath(this.instancePtr, item);
+  }
+
   scriptQueueIsEmpty() {
     return this._scriptQueueIsEmpty(this.instancePtr) !== 0;
   }
@@ -426,6 +467,23 @@ export class LibToriPlatformEmscriptenJSAPI {
     this._scriptAPIGameRunescapeBuildWorld(this.instancePtr);
   }
 
+  scriptAPIGameRunescapeBuildWorldCenterzoneNativeInt(centerX, centerZ, sceneSize) {
+    this._scriptAPIGameRunescapeBuildWorldCenterzoneNativeInt(
+      this.instancePtr,
+      centerX,
+      centerZ,
+      sceneSize,
+    );
+  }
+
+  scriptAPIGameRunescapeBuildWorldChunkListNativeInt(chunksPtr, count) {
+    this._scriptAPIGameRunescapeBuildWorldChunkListNativeInt(
+      this.instancePtr,
+      chunksPtr,
+      count,
+    );
+  }
+
   scriptAPIGameModelViewerRenderModelNativeInt(modelId) {
     this._scriptAPIGameModelViewerRenderModelNativeInt(
       this.instancePtr,
@@ -476,8 +534,13 @@ export class LibToriPlatformEmscriptenJSAPI {
     return !!this._scriptAPIDat2TexturesLoad(this.instancePtr);
   }
 
+  scriptAPIDat2SubmitTextures() {
+    this._scriptAPIDat2SubmitTextures(this.instancePtr);
+  }
+
   scriptAPIGetCacheMode() {
-    return this._scriptAPIGetCacheMode(this.instancePtr);
+    const ptr = this._scriptAPIGetCacheMode(this.instancePtr);
+    return fromWasmCString(this.wasmModule, ptr) ?? "dat1";
   }
 
   scriptAPIGameCacheModelsClearAll() {
@@ -574,6 +637,10 @@ export class LibToriPlatformEmscriptenJSAPI {
 
   ioQueueItemResolve(item, dataPtr) {
     this._ioQueueItemResolve(item, dataPtr);
+  }
+
+  ioQueueItemResolveWithSize(item, dataPtr, dataSize) {
+    this._ioQueueItemResolveWithSize(item, dataPtr, dataSize);
   }
 
   ioQueueItemError(item, errorCode) {

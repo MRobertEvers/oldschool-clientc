@@ -1,5 +1,9 @@
 #include "platform_sdl2_renderer_opengl3.h"
 
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+#include "platform_sdl2_lvgl_hud.h"
+#endif
+
 #include "../trspk_toridraw.h"
 #include "graphics/uv_pnm.h"
 #include "libtorirs.h"
@@ -141,6 +145,10 @@ struct LibToriPlatformSDL2_RendererGL3
     GLint u2d_uv_bounds;
     bool in2d;
     float proj2d[16];
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    struct LibToriHud* hud;
+    GLuint hud_texture;
+#endif
 };
 
 /* -----------------------------------------------------------------------
@@ -277,6 +285,11 @@ gl3_destroy_gl_resources(struct LibToriPlatformSDL2_RendererGL3* renderer)
         glDeleteVertexArrays(1, &renderer->quad_vao);
     if( renderer->quad_vbo )
         glDeleteBuffers(1, &renderer->quad_vbo);
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    if( renderer->hud_texture )
+        glDeleteTextures(1, &renderer->hud_texture);
+    renderer->hud_texture = 0u;
+#endif
     for( int i = 0; i < TRSPK_GL3_FONT_CAP; i++ )
     {
         if( renderer->font_slots[i].texture )
@@ -387,6 +400,68 @@ gl3_draw_textured_quad_uv4(
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
+
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+static void
+gl3_composite_hud(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance)
+{
+    if( !renderer->hud || !renderer->hud_texture )
+        return;
+
+    LibToriHud_Update(renderer->hud, instance);
+
+    int hud_w = 0;
+    int hud_h = 0;
+    int hud_pitch = 0;
+    uint8_t const* pixels =
+        LibToriHud_PixelsBGRA(renderer->hud, &hud_w, &hud_h, &hud_pitch);
+    if( !pixels || hud_w <= 0 || hud_h <= 0 )
+        return;
+
+    glBindTexture(GL_TEXTURE_2D, renderer->hud_texture);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, hud_pitch / 4);
+    glTexSubImage2D(
+        GL_TEXTURE_2D, 0, 0, 0, hud_w, hud_h, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(renderer->program2d);
+    glViewport(renderer->lb_x, renderer->lb_y, renderer->lb_w, renderer->lb_h);
+    gl3_make_ortho2d(
+        renderer->proj2d,
+        0.0f,
+        (float)renderer->width,
+        (float)renderer->height,
+        0.0f);
+    glUniformMatrix4fv(renderer->u2d_projection, 1, GL_FALSE, renderer->proj2d);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, renderer->hud_texture);
+    glUniform1i(renderer->u2d_texture, 0);
+    if( renderer->u2d_text_mode >= 0 )
+        glUniform1i(renderer->u2d_text_mode, 0);
+    if( renderer->u2d_uv_clamp >= 0 )
+        glUniform1i(renderer->u2d_uv_clamp, 0);
+    glBindVertexArray(renderer->quad_vao);
+
+    float const white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    gl3_draw_textured_quad(
+        renderer,
+        (float)LIBTORI_HUD_PANEL_X,
+        (float)LIBTORI_HUD_PANEL_Y,
+        (float)(LIBTORI_HUD_PANEL_X + hud_w),
+        (float)(LIBTORI_HUD_PANEL_Y + hud_h),
+        0.0f,
+        0.0f,
+        1.0f,
+        1.0f,
+        white);
+    glBindVertexArray(0);
+}
+#endif
 
 static void
 gl3_sprite_local_to_screen(
@@ -2122,6 +2197,14 @@ LibToriPlatformSDL2_RendererGL3_Free(struct LibToriPlatformSDL2_RendererGL3* ren
     if( trspk_atlas_is_initialized(&renderer->atlas) )
         trspk_atlas_free(&renderer->atlas);
 
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    if( renderer->hud )
+    {
+        LibToriHud_Free(renderer->hud);
+        renderer->hud = NULL;
+    }
+#endif
+
     if( renderer->gl_context )
     {
         SDL_GL_DeleteContext(renderer->gl_context);
@@ -2297,6 +2380,31 @@ LibToriPlatformSDL2_RendererGL3_Init(
     }
 
     renderer->window = window;
+
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    renderer->hud = LibToriHud_New();
+    if( renderer->hud )
+    {
+        glGenTextures(1, &renderer->hud_texture);
+        glBindTexture(GL_TEXTURE_2D, renderer->hud_texture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            GL_RGBA,
+            LIBTORI_HUD_PANEL_W,
+            LIBTORI_HUD_PANEL_H,
+            0,
+            GL_BGRA,
+            GL_UNSIGNED_BYTE,
+            NULL);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+#endif
+
     return true;
 
 fail_gl:
@@ -2357,6 +2465,10 @@ LibToriPlatformSDL2_RendererGL3_Render(
     while( LibToriRS_FrameNextCommand(instance, &command) )
         handle_render_command(renderer, instance, &command);
     LibToriRS_FrameEnd(instance);
+
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    gl3_composite_hud(renderer, instance);
+#endif
 
     SDL_GL_SwapWindow(renderer->window);
 }

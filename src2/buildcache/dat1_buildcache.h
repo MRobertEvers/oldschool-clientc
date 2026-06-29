@@ -197,6 +197,11 @@ dat1_buildcache_objs_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildc
 void
 dat1_buildcache_npcs_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
 
+struct RSCacheDat1A_ConfigNpc*
+dat1_buildcache_npc_load_from_config_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id);
+
 void
 dat1_buildcache_sequences_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
 

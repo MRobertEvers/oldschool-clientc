@@ -153,6 +153,11 @@ export class LibToriPlatformJSLuaHost {
     return 1;
   }
 
+  gameDat2SubmitTextures(L) {
+    this.emscriptenJSAPI.scriptAPIDat2SubmitTextures();
+    return 0;
+  }
+
   gameGetCacheMode(L) {
     lua.lua_pushstring(L, to_luastring(this.emscriptenJSAPI.scriptAPIGetCacheMode()));
     return 1;
@@ -175,6 +180,62 @@ export class LibToriPlatformJSLuaHost {
 
   gameRunescapeBuildWorld(L) {
     this.emscriptenJSAPI.scriptAPIGameRunescapeBuildWorld();
+    return 0;
+  }
+
+  gameRunescapeBuildWorldCenterzone(L) {
+    const centerX = lua.lua_tointeger(L, 1);
+    const centerZ = lua.lua_tointeger(L, 2);
+    const sceneSize = lua.lua_tointeger(L, 3);
+    this.emscriptenJSAPI.scriptAPIGameRunescapeBuildWorldCenterzoneNativeInt(
+      centerX,
+      centerZ,
+      sceneSize,
+    );
+    return 0;
+  }
+
+  gameRunescapeBuildWorldChunkList(L) {
+    if (!lua.lua_istable(L, 1)) {
+      lua.lua_pushstring(
+        L,
+        to_luastring("Runescape_BuildWorldChunkList expects a table"),
+      );
+      return lua.lua_error(L);
+    }
+
+    const len = lua.lua_rawlen(L, 1);
+    if (len <= 0 || len % 2 !== 0) {
+      lua.lua_pushstring(
+        L,
+        to_luastring(
+          "Runescape_BuildWorldChunkList table length must be a positive even count",
+        ),
+      );
+      return lua.lua_error(L);
+    }
+
+    const count = len / 2;
+    const ptr = this.emscriptenJSAPI.malloc(len * 4);
+    if (!ptr) {
+      lua.lua_pushstring(
+        L,
+        to_luastring("Runescape_BuildWorldChunkList failed to allocate chunk list"),
+      );
+      return lua.lua_error(L);
+    }
+
+    const heap = this.wasmModule.HEAP32;
+    for (let i = 0; i < len; i++) {
+      lua.lua_geti(L, 1, i + 1);
+      heap[(ptr >> 2) + i] = lua.lua_tointeger(L, -1);
+      lua.lua_pop(L, 1);
+    }
+
+    this.emscriptenJSAPI.scriptAPIGameRunescapeBuildWorldChunkListNativeInt(
+      ptr,
+      count,
+    );
     return 0;
   }
 
@@ -395,6 +456,14 @@ export function luaBindToPlatformJSLuaHost(L, platformLuaHost) {
     platformLuaHost.gameRunescapeBuildWorld,
   );
   bindLuaFunctionToPlatform(
+    "Runescape_BuildWorldCenterzone",
+    platformLuaHost.gameRunescapeBuildWorldCenterzone,
+  );
+  bindLuaFunctionToPlatform(
+    "Runescape_BuildWorldChunkList",
+    platformLuaHost.gameRunescapeBuildWorldChunkList,
+  );
+  bindLuaFunctionToPlatform(
     "ModelViewer_GetGameHandle",
     platformLuaHost.gameModelViewerGetGameHandle,
   );
@@ -433,6 +502,10 @@ export function luaBindToPlatformJSLuaHost(L, platformLuaHost) {
   bindLuaFunctionToPlatform(
     "Dat2_TexturesLoad",
     platformLuaHost.gameDat2TexturesLoad,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat2_SubmitTextures",
+    platformLuaHost.gameDat2SubmitTextures,
   );
   bindLuaFunctionToPlatform(
     "GetCacheMode",

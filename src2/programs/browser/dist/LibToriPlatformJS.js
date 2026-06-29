@@ -1,4 +1,4 @@
-import { fromLuaStringToJSString } from "./libplatformjs_utils.js";
+import { fromLuaStringToJSString, fromWasmCString } from "./libplatformjs_utils.js";
 import { LibToriPlatformEmscriptenJSAPI } from "./LibToriPlatformEmscriptenJSAPI.js";
 import {
   LibToriPlatformJSLuaHost,
@@ -12,6 +12,11 @@ const LIBTORI_PLATFORM_EMSCRIPTEN_LUA_ERROR = -1;
 const LIBTORI_PLATFORM_EMSCRIPTEN_LUA_YIELDED = 1;
 
 const LUA_SCRIPTS_PREFIX = "/revs/scripts/";
+
+const TORIRSIO_KIND_CACHE = 0;
+const TORIRSIO_KIND_CONFIG_FILE = 1;
+const TORIRSIO_KIND_SCRIPT = 2;
+const TORIRSIO_STAT_DONE = 1;
 
 class LibToriPlatformJS {
   constructor(wasmModule, instancePtr) {
@@ -221,46 +226,116 @@ class LibToriPlatformJS {
         continue;
       }
 
-      const tableId = this.host.ioRequestGetTableId(item);
-      const archiveId = this.host.ioRequestGetArchiveId(item);
-      const flags = this.host.ioRequestGetFlags(item);
+      if (this.host.ioRequestGetStatus(item) === TORIRSIO_STAT_DONE) {
+        continue;
+      }
+
+      const kind = this.host.ioRequestGetKind(item);
 
       try {
-        const url = `${ioserverUrl}/archive/${tableId}/${archiveId}?flags=${flags}`;
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch archive ${tableId}/${archiveId}: ${response.status}`,
-          );
+        if (kind === TORIRSIO_KIND_CACHE) {
+          await this.handleIOQueueCacheItem(item, ioserverUrl);
+        } else if (kind === TORIRSIO_KIND_CONFIG_FILE) {
+          await this.handleIOQueueConfigFileItem(item, ioserverUrl);
+        } else if (kind === TORIRSIO_KIND_SCRIPT) {
+          await this.handleIOQueueScriptItem(item, ioserverUrl);
+        } else {
+          throw new Error(`Unknown IO queue item kind: ${kind}`);
         }
-
-        const arrayBuffer = await response.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-
-        const dataPtr = this.host.malloc(bytes.length);
-        if (!dataPtr) {
-          throw new Error("Failed to allocate WASM memory for archive data");
-        }
-
-        const heap = this.wasmModule.HEAPU8;
-        heap.set(bytes, dataPtr);
-
-        const archivePtr = this.host.cacheDatArchiveDeserialize(
-          dataPtr,
-          bytes.length,
-        );
-
-        if (!archivePtr) {
-          throw new Error("Failed to deserialize CacheDatArchive from buffer");
-        }
-
-        this.host.ioQueueItemResolve(item, archivePtr);
       } catch (error) {
-        console.error(`Error loading archive ${tableId}/${archiveId}:`, error);
+        console.error(`Error loading IO item kind ${kind}:`, error);
         this.host.ioQueueItemError(item, 1);
       }
     }
+  }
+
+  async handleIOQueueCacheItem(item, ioserverUrl) {
+    const tableId = this.host.ioRequestGetTableId(item);
+    const archiveId = this.host.ioRequestGetArchiveId(item);
+    const flags = this.host.ioRequestGetFlags(item);
+
+    const url = `${ioserverUrl}/archive/${tableId}/${archiveId}?flags=${flags}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch archive ${tableId}/${archiveId}: ${response.status}`,
+      );
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+
+    const dataPtr = this.host.malloc(bytes.length);
+    if (!dataPtr) {
+      throw new Error("Failed to allocate WASM memory for archive data");
+    }
+
+    const heap = this.wasmModule.HEAPU8;
+    heap.set(bytes, dataPtr);
+
+    const archivePtr = this.host.cacheDatArchiveDeserialize(
+      dataPtr,
+      bytes.length,
+    );
+
+    if (!archivePtr) {
+      throw new Error("Failed to deserialize CacheDatArchive from buffer");
+    }
+
+    this.host.ioQueueItemResolve(item, archivePtr);
+  }
+
+  async handleIOQueueConfigFileItem(item, ioserverUrl) {
+    const pathPtr = this.host.ioRequestGetPath(item);
+    const relPath = fromWasmCString(this.wasmModule, pathPtr);
+    if (!relPath) {
+      throw new Error("Config file path is empty");
+    }
+
+    const url = `${ioserverUrl}/config/${relPath}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch config ${relPath}: ${response.status}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+
+    const dataPtr = this.host.malloc(bytes.length);
+    if (!dataPtr) {
+      throw new Error("Failed to allocate WASM memory for config data");
+    }
+
+    this.wasmModule.HEAPU8.set(bytes, dataPtr);
+    this.host.ioQueueItemResolveWithSize(item, dataPtr, bytes.length);
+  }
+
+  async handleIOQueueScriptItem(item, ioserverUrl) {
+    const pathPtr = this.host.ioRequestGetPath(item);
+    const relPath = fromWasmCString(this.wasmModule, pathPtr);
+    if (!relPath) {
+      throw new Error("Script path is empty");
+    }
+
+    const url = `${ioserverUrl}/revs/scripts/${relPath}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch script ${relPath}: ${response.status}`);
+    }
+
+    const text = await response.text();
+    const bytes = new TextEncoder().encode(text);
+
+    const dataPtr = this.host.malloc(bytes.length);
+    if (!dataPtr) {
+      throw new Error("Failed to allocate WASM memory for script data");
+    }
+
+    this.wasmModule.HEAPU8.set(bytes, dataPtr);
+    this.host.ioQueueItemResolveWithSize(item, dataPtr, bytes.length);
   }
 }
 

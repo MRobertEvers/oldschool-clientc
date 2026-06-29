@@ -48,10 +48,14 @@ function parseConfig() {
 
   const config = {
     cacheDir: args.cache || process.env.CACHE_DIR || null,
-    cacheMode: parseCacheMode(args.mode || process.env.CACHE_MODE || "dat2"),
+    cacheMode: parseCacheMode(args.mode || process.env.CACHE_MODE || "dat1"),
     port: parseInt(args.port || process.env.PORT || "8080"),
     host: args.host || process.env.HOST || "0.0.0.0",
     scriptsDir: path.resolve(__dirname, "../../revs/scripts"),
+    configDir:
+      args.config ||
+      process.env.CONFIG_DIR ||
+      path.resolve(__dirname, "../../../src/osrs/revconfig/configs"),
     staticDir:
       args.static ||
       process.env.STATIC_DIR ||
@@ -77,6 +81,7 @@ console.log(
   `Cache mode: ${config.cacheMode === CACHE_MODE_DAT1 ? "DAT1" : "DAT2"}`,
 );
 console.log(`Scripts directory: ${config.scriptsDir}`);
+console.log(`Config directory: ${config.configDir}`);
 if (config.staticDir) {
   console.log(`Static files directory: ${config.staticDir}`);
 }
@@ -265,6 +270,59 @@ function handleLuaScript(req, res, url) {
   });
 }
 
+// Handle revconfig INI request: GET /config/:path
+function handleConfigFile(req, res, url) {
+  const configRelPath = url.pathname.replace(/^\/config\//, "");
+
+  const normalized = path.normalize(configRelPath);
+  if (
+    normalized.includes("..") ||
+    normalized.startsWith("/") ||
+    !normalized.endsWith(".ini")
+  ) {
+    res.writeHead(400, { "Content-Type": "text/plain" });
+    res.end("Invalid config path");
+    console.error(
+      `[${new Date().toISOString()}] GET ${url.pathname} - 400 (invalid config path)`,
+    );
+    return;
+  }
+
+  const configPath = path.join(config.configDir, normalized);
+  const resolvedPath = path.resolve(configPath);
+  const resolvedConfigDir = path.resolve(config.configDir);
+
+  if (!resolvedPath.startsWith(resolvedConfigDir)) {
+    res.writeHead(403, { "Content-Type": "text/plain" });
+    res.end("Forbidden");
+    console.error(
+      `[${new Date().toISOString()}] GET ${url.pathname} - 403 (path traversal attempt)`,
+    );
+    return;
+  }
+
+  fs.readFile(configPath, (err, data) => {
+    if (err) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Config not found");
+      console.error(
+        `[${new Date().toISOString()}] GET /config/${normalized} - 404`,
+      );
+      return;
+    }
+
+    res.writeHead(200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Length": data.length,
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end(data);
+    console.log(
+      `[${new Date().toISOString()}] GET /config/${normalized} - 200 (${data.length} bytes)`,
+    );
+  });
+}
+
 // Handle CORS preflight requests
 function handleOptions(req, res) {
   res.writeHead(200, {
@@ -321,8 +379,6 @@ function handleStaticFile(req, res, url) {
   // Verify the resolved path is within staticDir
   const resolvedPath = path.resolve(filepath);
   const resolvedStaticDir = path.resolve(config.staticDir);
-
-  console.log("resolvedPath: ", resolvedPath);
 
   if (!resolvedPath.startsWith(resolvedStaticDir)) {
     res.writeHead(403, { "Content-Type": "text/plain" });
@@ -406,6 +462,8 @@ function handleRequest(req, res) {
       url.pathname.startsWith("/revs/scripts/")
     ) {
       handleLuaScript(req, res, url);
+    } else if (req.method === "GET" && url.pathname.startsWith("/config/")) {
+      handleConfigFile(req, res, url);
     } else if (req.method === "GET" && url.pathname === "/") {
       // Root endpoint - show help if no static dir, otherwise serve static files
       if (!config.staticDir) {
@@ -415,6 +473,7 @@ function handleRequest(req, res) {
 Available endpoints:
   GET  /archive/:tableId/:archiveId  - Load single archive
   POST /archives                     - Load multiple archives (JSON body, multipart response)
+  GET  /config/:path.ini             - Load revconfig INI file
   GET  /scripts/:filename.lua        - Load Lua script
 
 Server running on ${config.host}:${config.port}

@@ -1,5 +1,10 @@
 #include "platform_sdl2_renderer_webgl1.h"
 
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+#include "platform_sdl2_lvgl_hud.h"
+#include "platformkit/webgl1/webgl1_hud_shaders.h"
+#endif
+
 #include "graphics/uv_pnm.h"
 #include "libtorirs.h"
 #include "platformkit/core/trspk_atlas.h"
@@ -74,6 +79,17 @@ struct LibToriPlatformSDL2_RendererWebGL1
 
     GLuint program2d;
 
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    struct LibToriHud* hud;
+    GLuint hud_texture;
+    GLuint hud_vbo;
+    GLint u_hud_projection;
+    GLint u_hud_texture;
+    float hud_proj[16];
+    uint8_t* hud_upload_buf;
+    size_t hud_upload_buf_size;
+#endif
+
     GLuint ebo;
     uint32_t gpu_ibo_capacity;
 
@@ -109,6 +125,19 @@ webgl1_destroy_gl_resources(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
 {
     if( renderer->program3d )
         glDeleteProgram(renderer->program3d);
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    if( renderer->program2d )
+        glDeleteProgram(renderer->program2d);
+    if( renderer->hud_texture )
+        glDeleteTextures(1, &renderer->hud_texture);
+    if( renderer->hud_vbo )
+        glDeleteBuffers(1, &renderer->hud_vbo);
+    if( renderer->hud )
+        LibToriHud_Free(renderer->hud);
+    free(renderer->hud_upload_buf);
+    renderer->hud_upload_buf = NULL;
+    renderer->hud_upload_buf_size = 0;
+#endif
     for( uint32_t i = 0u; i < TRSPK_VBO_GROUP_COUNT; ++i )
         webgl1_free_group_gl_resources(&renderer->groups[i]);
     if( renderer->ebo )
@@ -116,9 +145,279 @@ webgl1_destroy_gl_resources(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
     if( renderer->atlas_texture )
         glDeleteTextures(1, &renderer->atlas_texture);
     renderer->program3d = 0u;
+    renderer->program2d = 0u;
     renderer->ebo = 0u;
     renderer->atlas_texture = 0u;
 }
+
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+
+struct WebGL1HudVertex
+{
+    float position[2];
+    float texcoord[2];
+    float color[4];
+};
+
+static void
+webgl1_make_ortho2d(
+    float* m,
+    float left,
+    float right,
+    float bottom,
+    float top)
+{
+    memset(m, 0, 16 * sizeof(float));
+    m[0] = 2.0f / (right - left);
+    m[5] = 2.0f / (top - bottom);
+    m[10] = -1.0f;
+    m[12] = -(right + left) / (right - left);
+    m[13] = -(top + bottom) / (top - bottom);
+    m[15] = 1.0f;
+}
+
+static GLuint
+webgl1_compile_shader(
+    GLenum type,
+    char const* source)
+{
+    GLuint shader = glCreateShader(type);
+    if( shader == 0u )
+        return 0u;
+    glShaderSource(shader, 1, &source, NULL);
+    glCompileShader(shader);
+    GLint ok = 0;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
+    if( !ok )
+    {
+        char buf[512];
+        glGetShaderInfoLog(shader, (GLsizei)sizeof(buf), NULL, buf);
+        fprintf(stderr, "WebGL1 HUD: shader compile failed: %s\n", buf);
+        glDeleteShader(shader);
+        return 0u;
+    }
+    return shader;
+}
+
+static bool
+webgl1_init_hud_gl(struct LibToriPlatformSDL2_RendererWebGL1* renderer)
+{
+    renderer->hud = LibToriHud_New();
+    if( !renderer->hud )
+        return false;
+
+    GLuint vs = webgl1_compile_shader(GL_VERTEX_SHADER, trspk_webgl1_hud_vertex_shader);
+    GLuint fs = webgl1_compile_shader(GL_FRAGMENT_SHADER, trspk_webgl1_hud_fragment_shader);
+    if( !vs || !fs )
+    {
+        if( vs )
+            glDeleteShader(vs);
+        if( fs )
+            glDeleteShader(fs);
+        return false;
+    }
+
+    renderer->program2d = glCreateProgram();
+    if( renderer->program2d == 0u )
+    {
+        glDeleteShader(vs);
+        glDeleteShader(fs);
+        return false;
+    }
+
+    glAttachShader(renderer->program2d, vs);
+    glAttachShader(renderer->program2d, fs);
+    glBindAttribLocation(renderer->program2d, 0, "a_position");
+    glBindAttribLocation(renderer->program2d, 1, "a_texcoord");
+    glBindAttribLocation(renderer->program2d, 2, "a_color");
+    glLinkProgram(renderer->program2d);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+
+    GLint link_ok = 0;
+    glGetProgramiv(renderer->program2d, GL_LINK_STATUS, &link_ok);
+    if( !link_ok )
+    {
+        char buf[512];
+        glGetProgramInfoLog(renderer->program2d, (GLsizei)sizeof(buf), NULL, buf);
+        fprintf(stderr, "WebGL1 HUD: program link failed: %s\n", buf);
+        return false;
+    }
+
+    renderer->u_hud_projection = glGetUniformLocation(renderer->program2d, "u_projection");
+    renderer->u_hud_texture = glGetUniformLocation(renderer->program2d, "u_texture");
+
+    glGenTextures(1, &renderer->hud_texture);
+    glBindTexture(GL_TEXTURE_2D, renderer->hud_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        LIBTORI_HUD_PANEL_W,
+        LIBTORI_HUD_PANEL_H,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        NULL);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glGenBuffers(1, &renderer->hud_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->hud_vbo);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        6 * (GLsizeiptr)sizeof(struct WebGL1HudVertex),
+        NULL,
+        GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    renderer->hud_upload_buf_size =
+        (size_t)LIBTORI_HUD_PANEL_W * (size_t)LIBTORI_HUD_PANEL_H * 4u;
+    renderer->hud_upload_buf = (uint8_t*)malloc(renderer->hud_upload_buf_size);
+    return renderer->hud_upload_buf != NULL;
+}
+
+static void
+webgl1_upload_hud_texture_bgra(
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    uint8_t const* src,
+    int hud_w,
+    int hud_h,
+    int hud_pitch)
+{
+    if( !renderer->hud_upload_buf || hud_w <= 0 || hud_h <= 0 || !src )
+        return;
+
+    size_t const tight_row = (size_t)hud_w * 4u;
+    size_t const needed = tight_row * (size_t)hud_h;
+    if( needed > renderer->hud_upload_buf_size )
+        return;
+
+    uint8_t* dst = renderer->hud_upload_buf;
+    for( int y = 0; y < hud_h; y++ )
+    {
+        uint8_t const* src_row = src + (size_t)y * (size_t)hud_pitch;
+        uint8_t* dst_row = dst + (size_t)y * tight_row;
+        for( int x = 0; x < hud_w; x++ )
+        {
+            uint8_t const b = src_row[x * 4 + 0];
+            uint8_t const g = src_row[x * 4 + 1];
+            uint8_t const r = src_row[x * 4 + 2];
+            uint8_t const a = src_row[x * 4 + 3];
+            dst_row[x * 4 + 0] = r;
+            dst_row[x * 4 + 1] = g;
+            dst_row[x * 4 + 2] = b;
+            dst_row[x * 4 + 3] = a;
+        }
+    }
+
+    glBindTexture(GL_TEXTURE_2D, renderer->hud_texture);
+    glTexSubImage2D(
+        GL_TEXTURE_2D,
+        0,
+        0,
+        0,
+        hud_w,
+        hud_h,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        dst);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+static void
+webgl1_draw_hud_quad(
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    float x0,
+    float y0,
+    float x1,
+    float y1)
+{
+    float const white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    struct WebGL1HudVertex verts[6] = {
+        { { x0, y0 }, { 0.0f, 0.0f }, { white[0], white[1], white[2], white[3] } },
+        { { x1, y0 }, { 1.0f, 0.0f }, { white[0], white[1], white[2], white[3] } },
+        { { x1, y1 }, { 1.0f, 1.0f }, { white[0], white[1], white[2], white[3] } },
+        { { x0, y0 }, { 0.0f, 0.0f }, { white[0], white[1], white[2], white[3] } },
+        { { x1, y1 }, { 1.0f, 1.0f }, { white[0], white[1], white[2], white[3] } },
+        { { x0, y1 }, { 0.0f, 1.0f }, { white[0], white[1], white[2], white[3] } },
+    };
+
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->hud_vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(
+        0, 2, GL_FLOAT, GL_FALSE, (GLsizei)sizeof(struct WebGL1HudVertex), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(
+        1,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        (GLsizei)sizeof(struct WebGL1HudVertex),
+        (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(
+        2,
+        4,
+        GL_FLOAT,
+        GL_FALSE,
+        (GLsizei)sizeof(struct WebGL1HudVertex),
+        (void*)(4 * sizeof(float)));
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+    glDisableVertexAttribArray(2);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+static void
+webgl1_composite_hud(
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer,
+    struct LibToriRS_Instance* instance)
+{
+    if( !renderer->hud || !renderer->hud_texture || !renderer->program2d )
+        return;
+
+    LibToriHud_Update(renderer->hud, instance);
+
+    int hud_w = 0;
+    int hud_h = 0;
+    int hud_pitch = 0;
+    uint8_t const* pixels =
+        LibToriHud_PixelsBGRA(renderer->hud, &hud_w, &hud_h, &hud_pitch);
+    if( !pixels || hud_w <= 0 || hud_h <= 0 )
+        return;
+
+    webgl1_upload_hud_texture_bgra(renderer, pixels, hud_w, hud_h, hud_pitch);
+
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(renderer->program2d);
+    glViewport(0, 0, renderer->width, renderer->height);
+    webgl1_make_ortho2d(
+        renderer->hud_proj,
+        0.0f,
+        (float)renderer->width,
+        (float)renderer->height,
+        0.0f);
+    glUniformMatrix4fv(renderer->u_hud_projection, 1, GL_FALSE, renderer->hud_proj);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, renderer->hud_texture);
+    glUniform1i(renderer->u_hud_texture, 0);
+    webgl1_draw_hud_quad(
+        renderer,
+        (float)LIBTORI_HUD_PANEL_X,
+        (float)LIBTORI_HUD_PANEL_Y,
+        (float)(LIBTORI_HUD_PANEL_X + hud_w),
+        (float)(LIBTORI_HUD_PANEL_Y + hud_h));
+}
+
+#endif
 
 static struct ToriDraw_Model*
 get_model(struct ToriDraw_ModelHandle model_handle)
@@ -1330,6 +1629,11 @@ LibToriPlatformSDL2_RendererWebGL1_Init(
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    if( !webgl1_init_hud_gl(renderer) )
+        fprintf(stderr, "WebGL1: HUD init failed (continuing without HUD)\n");
+#endif
+
     return true;
 
 fail_gl:
@@ -1373,6 +1677,10 @@ LibToriPlatformSDL2_RendererWebGL1_Render(
     while( LibToriRS_FrameNextCommand(instance, &command) )
         webgl1_handle_render_command(renderer, instance, &command);
     LibToriRS_FrameEnd(instance);
+
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    webgl1_composite_hud(renderer, instance);
+#endif
 
     SDL_GL_SwapWindow(renderer->window);
 }

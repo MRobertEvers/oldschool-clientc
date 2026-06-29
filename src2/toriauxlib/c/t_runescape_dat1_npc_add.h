@@ -82,7 +82,7 @@ Task_Dat1NpcAdd_Run(
 
     if( !dat1_buildcache_npc_get(dat1_bc, task->npc_id) )
     {
-        if( ToriDraw_MapCount(dat1_bc->idk_hmap) == 0 )
+        if( !dat1_bc->fromconfigtable_config_jagfile )
         {
             IO_REQUEST(ctx, 0, TAPIDat1_FetchConfigJagfile(ctx));
             PT_YIELD(&task->thread);
@@ -96,7 +96,7 @@ Task_Dat1NpcAdd_Run(
         }
 
         if( dat1_bc->fromconfigtable_config_jagfile )
-            dat1_buildcache_npcs_init_from_config_jagfile(dat1_bc);
+            dat1_buildcache_npc_load_from_config_jagfile(dat1_bc, task->npc_id);
     }
 
     npc = dat1_buildcache_npc_get(dat1_bc, task->npc_id);

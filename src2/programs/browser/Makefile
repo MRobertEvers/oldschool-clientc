@@ -14,6 +14,8 @@ PLAT_DIR := $(SRC2)/platforms
 CMD_DIR := $(SRC2)/commands
 INPUT_DIR := $(SRC2)/input
 IOQUEUE_DIR := $(SRC2)/ioqueue
+LVGL_DIR := $(SRC2)/3rd/lvgl
+LVGL_OBJ_DIR := browser_build/lvgl
 
 SRC   := browser.c \
 	$(SRC2)/libtorirs.c \
@@ -94,6 +96,7 @@ SRC   := browser.c \
 	$(PLAT_DIR)/platform_emscripten_jshost.c \
 	$(PLAT_DIR)/platform_js_capi.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2.c \
+	$(PLAT_DIR)/platform_sdl2/platform_sdl2_lvgl_hud.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_soft3d.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_webgl1.c \
 	$(SRC2)/platformkit/core/trspk_atlas.c \
@@ -110,6 +113,9 @@ SRC   := browser.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c
 
+LVGL_SRCS := $(shell find $(LVGL_DIR)/src -name '*.c')
+LVGL_OBJS := $(patsubst $(LVGL_DIR)/%.c,$(LVGL_OBJ_DIR)/%.o,$(LVGL_SRCS))
+
 OUT   := dist/browser.js
 
 PUBLIC_JS := $(wildcard public/*.js)
@@ -122,7 +128,9 @@ EFLAGS ?= -O0 -g
 EMFLAGS := $(EFLAGS) -gsource-map -Wall -Wextra -sENVIRONMENT=web -sUSE_SDL=2 \
 	-sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 -sFULL_ES2=1 \
 	-sINITIAL_MEMORY=128MB \
-	-I$(SRC2)/toridraw -I$(SRC2) -I$(SCRIPT_DIR) -I$(PLAT_DIR) -I$(SRC_DIR) -I$(REPO_ROOT) \
+	-DTORIRS_ENABLE_LVGL_HUD=1 -DLV_CONF_INCLUDE_SIMPLE \
+	-I$(SRC2)/toridraw -I$(SRC2) -I$(SRC2)/3rd -I$(LVGL_DIR) \
+	-I$(SCRIPT_DIR) -I$(PLAT_DIR) -I$(SRC_DIR) -I$(REPO_ROOT) \
 	-sEXPORTED_RUNTIME_METHODS=['HEAPU8'] \
 	-sFORCE_FILESYSTEM=1 \
 	--preload-file $(REVS_SCRIPTS)@/revs/scripts
@@ -131,7 +139,11 @@ EMFLAGS := $(EFLAGS) -gsource-map -Wall -Wextra -sENVIRONMENT=web -sUSE_SDL=2 \
 
 all: $(OUT) dist/index.html
 
-$(OUT): $(SRC)
+$(LVGL_OBJ_DIR)/%.o: $(LVGL_DIR)/%.c
+	@mkdir -p $(dir $@)
+	$(EMCC) $(EMFLAGS) -w -c $< -o $@
+
+$(OUT): $(SRC) $(LVGL_OBJS)
 	@command -v $(EMCC) >/dev/null 2>&1 || { \
 		echo ""; \
 		echo "  ERROR: $(EMCC) not found. Install Emscripten SDK:"; \
@@ -140,7 +152,7 @@ $(OUT): $(SRC)
 		exit 1; \
 	}
 	@mkdir -p dist
-	$(EMCC) $(EMFLAGS) $(SRC) -o $(OUT)
+	$(EMCC) $(EMFLAGS) $(SRC) $(LVGL_OBJS) -o $(OUT)
 
 dist/index.html: public/shell.html $(PUBLIC_JS) $(PLAT_JS) $(OUT)
 	@mkdir -p dist
@@ -149,4 +161,4 @@ dist/index.html: public/shell.html $(PUBLIC_JS) $(PLAT_JS) $(OUT)
 	cp public/shell.html dist/index.html
 
 clean:
-	rm -rf dist
+	rm -rf dist browser_build

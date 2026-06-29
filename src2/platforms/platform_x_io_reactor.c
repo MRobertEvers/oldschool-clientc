@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CONFIG_PATH "/Users/matthewevers/Documents/git_repos/3draster/src2/revs/configs"
+#define CONFIG_PATH "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/configs"
 #define SCRIPT_PATH "/Users/matthewevers/Documents/git_repos/3draster/src2/revs/scripts"
 
 struct LibToriPlatformX_IOReactor

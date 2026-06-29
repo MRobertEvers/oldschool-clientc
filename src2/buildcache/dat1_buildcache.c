@@ -143,7 +143,7 @@ dat1_buildcache_new(void)
         dat1_buildcache_map_new(sizeof(struct MapEntry_AnimBaseFrames), 2048);
     dat1_buildcache->idk_hmap = dat1_buildcache_map_new(sizeof(struct MapEntry_ConfigIdk), 512);
     dat1_buildcache->obj_hmap = dat1_buildcache_map_new(sizeof(struct MapEntry_ConfigObj), 4096);
-    dat1_buildcache->npc_hmap = dat1_buildcache_map_new(sizeof(struct MapEntry_ConfigNpc), 4096);
+    dat1_buildcache->npc_hmap = dat1_buildcache_map_new(sizeof(struct MapEntry_ConfigNpc), 8192);
 
     return dat1_buildcache;
 }
@@ -713,6 +713,51 @@ dat1_buildcache_objs_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildc
     RSCacheShared_FileListDatIndexedFree(filelist_indexed);
 }
 
+struct RSCacheDat1A_ConfigNpc*
+dat1_buildcache_npc_load_from_config_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id)
+{
+    struct RSCacheShared_FileListDat* config_jagfile =
+        dat1_buildcache->fromconfigtable_config_jagfile;
+    if( !config_jagfile || npc_id < 0 )
+        return NULL;
+
+    struct RSCacheDat1A_ConfigNpc* existing = dat1_buildcache_npc_get(dat1_buildcache, npc_id);
+    if( existing )
+        return existing;
+
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "npc.dat");
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "npc.idx");
+    if( data_file_idx == -1 || index_file_idx == -1 )
+        return NULL;
+
+    struct RSCacheShared_FileListDatIndexed* filelist_indexed =
+        RSCacheShared_FileListDatIndexedNewFromDecode(
+            config_jagfile->files[index_file_idx],
+            config_jagfile->file_sizes[index_file_idx],
+            config_jagfile->files[data_file_idx],
+            config_jagfile->file_sizes[data_file_idx]);
+    if( !filelist_indexed || npc_id >= filelist_indexed->offset_count )
+    {
+        RSCacheShared_FileListDatIndexedFree(filelist_indexed);
+        return NULL;
+    }
+
+    struct RSCacheShared_RSBuffer buffer;
+    RSCacheShared_RSBufferInit(
+        &buffer,
+        (uint8_t*)(filelist_indexed->data + filelist_indexed->offsets[npc_id]),
+        (uint32_t)(filelist_indexed->data_size - filelist_indexed->offsets[npc_id]));
+
+    struct RSCacheDat1A_ConfigNpc* npc = RSCacheDat1A_ConfigNpcDecodeOne(&buffer);
+    if( npc )
+        dat1_buildcache_npc_add(dat1_buildcache, npc_id, npc);
+
+    RSCacheShared_FileListDatIndexedFree(filelist_indexed);
+    return npc;
+}
+
 void
 dat1_buildcache_npcs_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache)
 {
@@ -725,29 +770,30 @@ dat1_buildcache_npcs_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildc
     assert(data_file_idx != -1 && "npc.dat must be found");
     assert(index_file_idx != -1 && "npc.idx must be found");
 
-    struct RSCacheDat1A_ConfigNpcList* npc_list = RSCacheDat1A_ConfigNpcListNewDecode(
-        config_jagfile->files[index_file_idx],
-        config_jagfile->file_sizes[index_file_idx],
-        config_jagfile->files[data_file_idx],
-        config_jagfile->file_sizes[data_file_idx]);
-    if( !npc_list )
+    struct RSCacheShared_FileListDatIndexed* filelist_indexed =
+        RSCacheShared_FileListDatIndexedNewFromDecode(
+            config_jagfile->files[index_file_idx],
+            config_jagfile->file_sizes[index_file_idx],
+            config_jagfile->files[data_file_idx],
+            config_jagfile->file_sizes[data_file_idx]);
+    if( !filelist_indexed )
         return;
 
-    for( int i = 0; i < npc_list->npcs_count; i++ )
+    for( int i = 0; i < filelist_indexed->offset_count; i++ )
     {
-        if( dat1_buildcache_npc_get(dat1_buildcache, i) )
+        struct RSCacheShared_RSBuffer buffer;
+        RSCacheShared_RSBufferInit(
+            &buffer,
+            (uint8_t*)(filelist_indexed->data + filelist_indexed->offsets[i]),
+            (uint32_t)(filelist_indexed->data_size - filelist_indexed->offsets[i]));
+
+        struct RSCacheDat1A_ConfigNpc* npc = RSCacheDat1A_ConfigNpcDecodeOne(&buffer);
+        if( !npc )
             continue;
-        dat1_buildcache_npc_add(dat1_buildcache, i, npc_list->npcs[i]);
-        npc_list->npcs[i] = NULL;
+        dat1_buildcache_npc_add(dat1_buildcache, i, npc);
     }
 
-    if( npc_list->npcs )
-    {
-        for( int i = 0; i < npc_list->npcs_count; i++ )
-            RSCacheDat1A_ConfigNpcFree(npc_list->npcs[i]);
-        free(npc_list->npcs);
-    }
-    free(npc_list);
+    RSCacheShared_FileListDatIndexedFree(filelist_indexed);
 }
 
 void
@@ -999,7 +1045,7 @@ void
 dat1_buildcache_npcs_reset(struct Dat1BuildCache* dat1_buildcache)
 {
     assert(dat1_buildcache != NULL && "dat1_buildcache must be non-null");
-    dat1_buildcache_map_reset(&dat1_buildcache->npc_hmap, sizeof(struct MapEntry_ConfigNpc), 4096);
+    dat1_buildcache_map_reset(&dat1_buildcache->npc_hmap, sizeof(struct MapEntry_ConfigNpc), 8192);
 }
 
 void

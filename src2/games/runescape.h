@@ -22,11 +22,11 @@ struct LibToriRS_IOContext;
 
 /* OSRS rebuild-normal zone coords (zonex, zonez). */
 // Waterfall
-// #define RUNESCAPE_ZONE_CENTER_X 313
-// #define RUNESCAPE_ZONE_CENTER_Z 437
+#define RUNESCAPE_ZONE_CENTER_X 313
+#define RUNESCAPE_ZONE_CENTER_Z 437
 // Inferno
-#define RUNESCAPE_ZONE_CENTER_X 280
-#define RUNESCAPE_ZONE_CENTER_Z 664
+// #define RUNESCAPE_ZONE_CENTER_X 280
+// #define RUNESCAPE_ZONE_CENTER_Z 664
 
 #define RUNESCAPE_PROJECTILE_MODEL_ID 3081
 #define RUNESCAPE_PROJECTILE_SEQ_ID 659

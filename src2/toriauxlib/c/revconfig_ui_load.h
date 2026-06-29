@@ -24,8 +24,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define REVCONFIG_UI_CACHE_INI "../../../src/osrs/revconfig/configs/rev_245_2/rev_245_2_cache.ini"
-#define REVCONFIG_UI_UI_INI "../../../src/osrs/revconfig/configs/rev_245_2/rev_245_2_ui.ini"
+#define REVCONFIG_UI_CACHE_INI "rev_245_2/rev_245_2_cache.ini"
+#define REVCONFIG_UI_UI_INI "rev_245_2/rev_245_2_ui.ini"
 
 #define REVCONFIG_UI_FONT_COUNT 4
 

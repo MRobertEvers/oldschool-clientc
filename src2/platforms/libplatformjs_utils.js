@@ -1,3 +1,13 @@
+export function fromWasmCString(wasm, ptr) {
+  if (!ptr) return null;
+  const heap = wasm.HEAPU8;
+  const memory = heap?.buffer ?? wasm.memory?.buffer;
+  let end = ptr;
+  while (heap[end] !== 0) end++;
+  if (end === ptr) return "";
+  return new TextDecoder().decode(new Uint8Array(memory, ptr, end - ptr));
+}
+
 export function fromWASMStringToJSString(wasm, strPtr, strLen) {
   const heap = wasm.HEAPU8;
   const memory = heap?.buffer ?? wasm.memory?.buffer;
