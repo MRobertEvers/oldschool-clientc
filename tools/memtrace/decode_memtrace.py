@@ -3,6 +3,7 @@
 Decode torirs memtrace.bin → events.jsonl + meta.json
 
 Usage:
+  python3 decode_memtrace.py memtrace.bin
   python3 decode_memtrace.py memtrace.bin -o out_dir
   python3 decode_memtrace.py memtrace.bin --exe path/to/sdl2
 """
@@ -266,17 +267,22 @@ def decode(path: Path, out_dir: Path, exe: Optional[Path], max_events: Optional[
     print(f"wrote {out_dir / 'meta.json'}")
 
 
+def default_out_dir() -> Path:
+    return Path(__file__).resolve().parent / "bins" / "decoded"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Decode torirs memtrace.bin")
     ap.add_argument("input", type=Path, help="memtrace.bin path")
-    ap.add_argument("-o", "--out", type=Path, default=Path("memtrace_out"))
+    ap.add_argument("-o", "--out", type=Path, default=None, help="output dir (default: bins/decoded)")
     ap.add_argument("--exe", type=Path, default=None, help="binary for addr2line (linux)")
     ap.add_argument("--max-events", type=int, default=None)
     args = ap.parse_args()
     if not args.input.is_file():
         print(f"not found: {args.input}", file=sys.stderr)
         return 1
-    decode(args.input, args.out, args.exe, args.max_events)
+    out_dir = args.out if args.out is not None else default_out_dir()
+    decode(args.input, out_dir, args.exe, args.max_events)
     return 0
 
 

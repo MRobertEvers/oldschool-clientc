@@ -375,4 +375,16 @@ dat2_buildcache_underlays_cleanup(struct Dat2BuildCache* dat2_buildcache);
 void
 dat2_buildcache_scenery_configs_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
+void
+dat2_buildcache_models_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_frames_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_skeletal_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache);
+
 #endif

@@ -147,6 +147,23 @@ revconfig_ui_build_collect_items(
     }
 }
 
+void
+revconfig_ui_build_mark_needed_components(
+    struct RevConfigUIBuildState const* state,
+    bool* needed,
+    int needed_count)
+{
+    if( !state || !needed || needed_count <= 0 )
+        return;
+
+    for( int i = 0; i < state->component_count; i++ )
+    {
+        int componentno = state->components[i].componentno;
+        if( componentno >= 0 && componentno < needed_count )
+            needed[componentno] = true;
+    }
+}
+
 static void
 parse_sprite_ref_name(char const* sprite_name, char* out_name, size_t out_name_size)
 {

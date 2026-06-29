@@ -40,11 +40,11 @@ In the viewer:
 Put the file somewhere Cursor can see it, for example:
 
 ```bash
-mkdir -p traces
-mv ~/Downloads/memtrace.db traces/my_scenario.db
+mkdir -p tools/memtrace/bins
+mv ~/Downloads/memtrace.db tools/memtrace/bins/my_scenario.db
 ```
 
-For a one-off analysis you can keep the name `memtrace.db` in the repo root or under `traces/`. Add `traces/*.db` to `.gitignore` if you do not want to commit traces.
+Generated traces and exports live under `tools/memtrace/bins/` (gitignored).
 
 ---
 
@@ -55,7 +55,7 @@ For a one-off analysis you can keep the name `memtrace.db` in the repo root or u
 1. Open [ai_analysis_prompt.md](ai_analysis_prompt.md).
 2. Copy the **Prompt** section (everything under `## Prompt`).
 3. Start a **new Agent** chat in Cursor.
-4. Attach the database: `@traces/my_scenario.db` or drag `memtrace.db` into the chat.
+4. Attach the database: `@tools/memtrace/bins/my_scenario.db` or drag `memtrace.db` into the chat.
 5. Paste the prompt. Fill in the **Scenario** line (what you did during capture).
 6. Send.
 
@@ -66,7 +66,7 @@ The template tells the agent which SQL to run, how to filter instrumentation fra
 If you already know the problem area:
 
 ```text
-Analyze @traces/my_scenario.db (memtrace SQLite export).
+Analyze @tools/memtrace/bins/my_scenario.db (memtrace SQLite export).
 Find the top memory inefficiencies and likely leaks. Run sqlite3 queries,
 map stacks to files in this repo, and give a ranked report with evidence.
 Use tools/memtrace/ai_analysis_prompt.md for schema and report format.
@@ -77,7 +77,7 @@ Scenario: <what you did during capture>
 
 For a large trace or unclear scope:
 
-1. Ask in **Plan** mode: “Read @traces/my_scenario.db meta and top 10 live sites; propose an analysis plan.”
+1. Ask in **Plan** mode: “Read @tools/memtrace/bins/my_scenario.db meta and top 10 live sites; propose an analysis plan.”
 2. Switch to **Agent** with [ai_analysis_prompt.md](ai_analysis_prompt.md) to execute.
 
 ---
@@ -97,8 +97,8 @@ For a large trace or unclear scope:
 Example local check before involving the agent:
 
 ```bash
-sqlite3 traces/my_scenario.db "SELECT key, value FROM meta ORDER BY key;"
-sqlite3 traces/my_scenario.db "SELECT live_bytes, alloc_count, substr(frames,1,120) FROM v_sites_by_live LIMIT 10;"
+sqlite3 tools/memtrace/bins/my_scenario.db "SELECT key, value FROM meta ORDER BY key;"
+sqlite3 tools/memtrace/bins/my_scenario.db "SELECT live_bytes, alloc_count, substr(frames,1,120) FROM v_sites_by_live LIMIT 10;"
 ```
 
 ---

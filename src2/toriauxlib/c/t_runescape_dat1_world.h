@@ -262,9 +262,7 @@ Task_Dat1WorldRebuildCore_Run(
         LibToriRS_IOQueueClear(ctx->io);
     }
 
-    dat1_buildcache_animbaseframes_cleanup(dat1_bc);
-    dat1_buildcache_clear_config_jagfile(dat1_bc);
-    dat1_buildcache_clear_versionlist_jagfile(dat1_bc);
+    ToriAuxLibCache_PruneBuildCaches(core->c);
 
     PT_END(&core->thread);
 }

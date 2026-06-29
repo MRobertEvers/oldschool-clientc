@@ -6,6 +6,10 @@
 struct ToriDraw_Model*
 ToriDraw_ModelCopy(struct ToriDraw_Model* src);
 
+/** Move all geometry from src into a new model; src arrays are NULL (free shell with ToriDraw_ModelFree). */
+struct ToriDraw_Model*
+ToriDraw_ModelSteal(struct ToriDraw_Model* src);
+
 struct ToriDraw_Model*
 ToriDraw_ModelMerge(
     struct ToriDraw_Model** models,

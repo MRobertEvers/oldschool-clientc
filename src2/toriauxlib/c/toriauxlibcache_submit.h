@@ -76,6 +76,12 @@ void
 ToriAuxLibCache_SubmitAllComponentsFromDat1(struct ToriAuxLibCache* c);
 
 void
+ToriAuxLibCache_SubmitComponentsFromDat1(
+    struct ToriAuxLibCache* c,
+    const bool* needed,
+    int needed_count);
+
+void
 ToriAuxLibCache_SubmitMapTerrainFromDat2(
     struct ToriAuxLibCache* c,
     int map_id);

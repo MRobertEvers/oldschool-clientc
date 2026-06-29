@@ -184,6 +184,18 @@ ToriAuxLibCache_MemBudgetExceeded(
     return ToriAuxLibCache_BytesTotal(c) > budget_bytes;
 }
 
+void
+ToriAuxLibCache_PruneBuildCaches(struct ToriAuxLibCache* c)
+{
+    if( !c )
+        return;
+
+    if( c->mode == TORIAUXLIBCACHE_MODE_DAT1 && c->dat1_buildcache )
+        dat1_buildcache_prune(c->dat1_buildcache);
+    else if( c->mode == TORIAUXLIBCACHE_MODE_DAT2 && c->dat2_buildcache )
+        dat2_buildcache_prune(c->dat2_buildcache);
+}
+
 struct Task_ToriAuxLibCache_ModelLoad
 {
     struct ToriAuxLibCache* c;

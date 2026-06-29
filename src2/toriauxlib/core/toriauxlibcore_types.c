@@ -365,33 +365,64 @@ ToriAuxLibCore_ModelSizeOf(const struct ToriAuxLibCore_Model* model)
 }
 
 void
-ToriAuxLibCore_ModelFree(struct ToriAuxLibCore_Model* model)
+ToriAuxLibCore_ModelReleaseArrays(struct ToriAuxLibCore_Model* model)
 {
     if( !model )
         return;
 
     free(model->vertices_x);
+    model->vertices_x = NULL;
     free(model->vertices_y);
+    model->vertices_y = NULL;
     free(model->vertices_z);
+    model->vertices_z = NULL;
     free(model->face_colors_a);
+    model->face_colors_a = NULL;
     free(model->face_colors_b);
+    model->face_colors_b = NULL;
     free(model->face_colors_c);
+    model->face_colors_c = NULL;
     free(model->face_indices_a);
+    model->face_indices_a = NULL;
     free(model->face_indices_b);
+    model->face_indices_b = NULL;
     free(model->face_indices_c);
+    model->face_indices_c = NULL;
     free(model->face_textures);
+    model->face_textures = NULL;
     free(model->face_alphas);
+    model->face_alphas = NULL;
     free(model->face_infos);
+    model->face_infos = NULL;
     free(model->face_priorities);
+    model->face_priorities = NULL;
     free(model->face_colors);
+    model->face_colors = NULL;
     free(model->textured_p_coordinate);
+    model->textured_p_coordinate = NULL;
     free(model->textured_m_coordinate);
+    model->textured_m_coordinate = NULL;
     free(model->textured_n_coordinate);
+    model->textured_n_coordinate = NULL;
     free(model->face_texture_coords);
+    model->face_texture_coords = NULL;
     toriauxlibcore_bones_free(model->vertex_bones);
+    model->vertex_bones = NULL;
     toriauxlibcore_bones_free(model->face_bones);
+    model->face_bones = NULL;
     free(model->bounds_cylinder);
+    model->bounds_cylinder = NULL;
     ToriAuxLibCore_AnimayaSkinFree(model->animaya_skin);
+    model->animaya_skin = NULL;
+}
+
+void
+ToriAuxLibCore_ModelFree(struct ToriAuxLibCore_Model* model)
+{
+    if( !model )
+        return;
+
+    ToriAuxLibCore_ModelReleaseArrays(model);
     free(model);
 }
 

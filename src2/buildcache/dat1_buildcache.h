@@ -333,4 +333,10 @@ dat1_buildcache_objs_cleanup(struct Dat1BuildCache* dat1_buildcache);
 void
 dat1_buildcache_npcs_cleanup(struct Dat1BuildCache* dat1_buildcache);
 
+void
+dat1_buildcache_models_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_prune(struct Dat1BuildCache* dat1_buildcache);
+
 #endif

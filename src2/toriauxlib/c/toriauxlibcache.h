@@ -76,6 +76,9 @@ ToriAuxLibCache_MemBudgetExceeded(
     struct ToriAuxLibCache* c,
     size_t budget_bytes);
 
+void
+ToriAuxLibCache_PruneBuildCaches(struct ToriAuxLibCache* c);
+
 struct ToriAuxLibCore_Model*
 ToriAuxLibCache_ModelNewFromCacheModel(const void* cache_model);
 

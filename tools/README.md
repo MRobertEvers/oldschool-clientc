@@ -23,9 +23,9 @@ python3 -m http.server -d src2/programs/browser/dist 8080
 
 ```bash
 make -C src2/programs/sdl2 MEMTRACE=1
-./sdl2    # memtrace.bin written on exit
-python3 tools/memtrace/decode_memtrace.py memtrace.bin -o memtrace_out
-# Load memtrace_out/events.jsonl in viewer.html
+TORIRS_MEMTRACE_OUT=../../tools/memtrace/bins/memtrace.bin ./sdl2
+python3 tools/memtrace/decode_memtrace.py tools/memtrace/bins/memtrace.bin
+# Load bins/decoded/events.jsonl in viewer.html
 ```
 
 ---

@@ -179,6 +179,111 @@ tdx_bones_new_from_core(const struct ToriAuxLibCore_Bones* src)
     return bones;
 }
 
+static struct ToriDraw_Bones*
+tdx_bones_steal_from_core(struct ToriAuxLibCore_Bones* src)
+{
+    if( !src )
+        return NULL;
+
+    struct ToriDraw_Bones* bones = calloc(1, sizeof(struct ToriDraw_Bones));
+    if( !bones )
+        return NULL;
+
+    bones->bones_count = src->bones_count;
+    bones->bones = (boneint_t**)src->bones;
+    bones->bones_sizes = (boneint_t*)src->bones_sizes;
+    src->bones = NULL;
+    src->bones_sizes = NULL;
+    src->bones_count = 0;
+    return bones;
+}
+
+struct ToriDraw_Model*
+ToriAuxLibTD_ModelStealFromCore(struct ToriAuxLibCore_Model* src)
+{
+    if( !src )
+        return NULL;
+
+    struct ToriDraw_Model* dst = calloc(1, sizeof(struct ToriDraw_Model));
+    if( !dst )
+        return NULL;
+
+    dst->flags = src->flags;
+    dst->vertex_count = src->vertex_count;
+    dst->face_count = src->face_count;
+    dst->textured_face_count = src->textured_face_count;
+
+#define GC_STEAL(field) TORIDRAW_MODEL_MOVE(dst, field, src->field)
+
+    GC_STEAL(vertices_x);
+    GC_STEAL(vertices_y);
+    GC_STEAL(vertices_z);
+    GC_STEAL(face_indices_a);
+    GC_STEAL(face_indices_b);
+    GC_STEAL(face_indices_c);
+    GC_STEAL(face_colors_a);
+    GC_STEAL(face_colors_b);
+    GC_STEAL(face_colors_c);
+    GC_STEAL(face_colors);
+    GC_STEAL(face_alphas);
+    GC_STEAL(face_infos);
+    GC_STEAL(face_priorities);
+    GC_STEAL(face_textures);
+    GC_STEAL(face_texture_coords);
+    GC_STEAL(textured_p_coordinate);
+    GC_STEAL(textured_m_coordinate);
+    GC_STEAL(textured_n_coordinate);
+
+#undef GC_STEAL
+
+    dst->vertex_bones = tdx_bones_steal_from_core(src->vertex_bones);
+    dst->face_bones = tdx_bones_steal_from_core(src->face_bones);
+
+    if( src->bounds_cylinder )
+    {
+        dst->bounds_cylinder =
+            (struct ToriDraw_BoundsCylinder*)src->bounds_cylinder;
+        src->bounds_cylinder = NULL;
+    }
+
+    if( src->animaya_skin && src->animaya_skin->vertex_count > 0 )
+    {
+        struct ToriAuxLibCore_AnimayaSkin* skin = src->animaya_skin;
+        dst->animaya_vertex_count = skin->vertex_count;
+        dst->animaya_group_counts = skin->group_counts;
+        dst->animaya_groups = skin->groups;
+        dst->animaya_scales = skin->scales;
+        skin->vertex_count = 0;
+        skin->group_counts = NULL;
+        skin->groups = NULL;
+        skin->scales = NULL;
+        free(skin);
+        src->animaya_skin = NULL;
+    }
+
+    ToriAuxLibCore_ModelReleaseArrays(src);
+    return dst;
+}
+
+struct ToriDraw_Model*
+ToriAuxLibTD_ModelNewInstanceFromCore(
+    struct ToriAuxLibTD* td,
+    int model_id)
+{
+    if( !td )
+        return NULL;
+
+    if( !ToriAuxLibTD_ModelReady(td, model_id) &&
+        !ToriAuxLibTD_SubmitModelFromDat1(td, model_id) )
+        return NULL;
+
+    struct ToriAuxLibCore_Model* core_model = ToriAuxLibCore_ModelGet(td->core, model_id);
+    if( !core_model )
+        return NULL;
+
+    return ToriAuxLibTD_ModelNewFromCore(core_model);
+}
+
 struct ToriDraw_Model*
 ToriAuxLibTD_ModelNewFromCore(const struct ToriAuxLibCore_Model* src)
 {

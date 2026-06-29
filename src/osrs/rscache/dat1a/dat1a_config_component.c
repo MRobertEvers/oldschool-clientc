@@ -64,325 +64,487 @@ init_component(struct RSCacheDat1A_ConfigComponent* component)
     component->childX = NULL;
     component->childY = NULL;
     component->iop = NULL;
-    component->text = NULL;
-    component->activeText = NULL;
-    component->draggable = false;
-    component->interactable = false;
-    component->usable = false;
-    component->swappable = false;
-    component->fill = false;
-    component->center = false;
 }
 
-static struct RSCacheDat1A_ConfigComponent*
-decode_component(
+static void
+discard_string(char* s)
+{
+    free(s);
+}
+
+static int
+read_component_id(
     struct RSCacheShared_RSBuffer* inb,
     int* layer_inout)
 {
-    struct RSCacheDat1A_ConfigComponent* component = malloc(sizeof(struct RSCacheDat1A_ConfigComponent));
-    init_component(component);
-
     int id = g2(inb);
     if( id == 65535 )
     {
         *layer_inout = g2(inb);
         id = g2(inb);
     }
+    return id;
+}
 
-    component->id = id;
-    component->layer = *layer_inout;
-    component->type = g1(inb);
-    component->buttonType = g1(inb);
-    component->clientCode = g2(inb);
-    component->width = g2(inb);
-    component->height = g2(inb);
-    component->alpha = g1(inb);
+static void
+read_component_body(
+    struct RSCacheShared_RSBuffer* inb,
+    struct RSCacheDat1A_ConfigComponent* component,
+    int id,
+    int layer)
+{
+    const bool store = component != NULL;
 
-    component->overlayer = g1(inb);
-    if( component->overlayer == 0 )
+    if( store )
     {
-        component->overlayer = -1;
+        component->id = id;
+        component->layer = layer;
+    }
+
+    int type = g1(inb);
+    int buttonType = g1(inb);
+    int clientCode = g2(inb);
+    int width = g2(inb);
+    int height = g2(inb);
+    int alpha = g1(inb);
+
+    if( store )
+    {
+        component->type = type;
+        component->buttonType = buttonType;
+        component->clientCode = clientCode;
+        component->width = width;
+        component->height = height;
+        component->alpha = alpha;
+    }
+
+    int overlayer = g1(inb);
+    if( overlayer == 0 )
+    {
+        overlayer = -1;
     }
     else
     {
-        component->overlayer = ((component->overlayer - 1) << 8) + g1(inb);
+        overlayer = ((overlayer - 1) << 8) + g1(inb);
     }
+    if( store )
+        component->overlayer = overlayer;
 
     int comparatorCount = g1(inb);
     if( comparatorCount > 0 )
     {
-        component->scriptComparator = malloc(comparatorCount * sizeof(int));
-        memset(component->scriptComparator, 0, comparatorCount * sizeof(int));
-        component->scriptOperand = malloc(comparatorCount * sizeof(int));
-        memset(component->scriptOperand, 0, comparatorCount * sizeof(int));
+        if( store )
+        {
+            component->scriptComparator = malloc(comparatorCount * sizeof(int));
+            memset(component->scriptComparator, 0, comparatorCount * sizeof(int));
+            component->scriptOperand = malloc(comparatorCount * sizeof(int));
+            memset(component->scriptOperand, 0, comparatorCount * sizeof(int));
+        }
 
         for( int i = 0; i < comparatorCount; i++ )
         {
-            component->scriptComparator[i] = g1(inb);
-            component->scriptOperand[i] = g2(inb);
+            int cmp = g1(inb);
+            int op = g2(inb);
+            if( store )
+            {
+                component->scriptComparator[i] = cmp;
+                component->scriptOperand[i] = op;
+            }
         }
     }
 
     int scriptCount = g1(inb);
     if( scriptCount > 0 )
     {
-        component->scripts_count = scriptCount;
-        component->scripts = malloc(scriptCount * sizeof(int*));
-        memset(component->scripts, 0, scriptCount * sizeof(int*));
-
-        component->scripts_lengths = malloc(scriptCount * sizeof(int));
-        memset(component->scripts_lengths, 0, scriptCount * sizeof(int));
+        if( store )
+        {
+            component->scripts_count = scriptCount;
+            component->scripts = malloc(scriptCount * sizeof(int*));
+            memset(component->scripts, 0, scriptCount * sizeof(int*));
+            component->scripts_lengths = malloc(scriptCount * sizeof(int));
+            memset(component->scripts_lengths, 0, scriptCount * sizeof(int));
+        }
 
         for( int i = 0; i < scriptCount; i++ )
         {
             int opcodeCount = g2(inb);
-
-            component->scripts_lengths[i] = opcodeCount;
-            component->scripts[i] = malloc(opcodeCount * sizeof(int));
-            memset(component->scripts[i], 0, opcodeCount * sizeof(int));
+            if( store )
+            {
+                component->scripts_lengths[i] = opcodeCount;
+                component->scripts[i] = malloc(opcodeCount * sizeof(int));
+                memset(component->scripts[i], 0, opcodeCount * sizeof(int));
+            }
 
             for( int j = 0; j < opcodeCount; j++ )
             {
-                component->scripts[i][j] = g2(inb);
+                int opcode = g2(inb);
+                if( store )
+                    component->scripts[i][j] = opcode;
             }
         }
     }
 
-    if( component->type == COMPONENT_TYPE_LAYER )
+    if( type == COMPONENT_TYPE_LAYER )
     {
-        component->scroll = g2(inb);
-        component->hide = g1(inb) == 1;
-
+        int scroll = g2(inb);
+        bool hide = g1(inb) == 1;
         int childCount = g2(inb);
-        component->children_count = childCount;
-        component->children = malloc(childCount * sizeof(int));
-        memset(component->children, 0, childCount * sizeof(int));
-        component->childX = malloc(childCount * sizeof(int));
-        memset(component->childX, 0, childCount * sizeof(int));
-        component->childY = malloc(childCount * sizeof(int));
-        memset(component->childY, 0, childCount * sizeof(int));
+
+        if( store )
+        {
+            component->scroll = scroll;
+            component->hide = hide;
+            component->children_count = childCount;
+            component->children = malloc(childCount * sizeof(int));
+            memset(component->children, 0, childCount * sizeof(int));
+            component->childX = malloc(childCount * sizeof(int));
+            memset(component->childX, 0, childCount * sizeof(int));
+            component->childY = malloc(childCount * sizeof(int));
+            memset(component->childY, 0, childCount * sizeof(int));
+        }
 
         for( int i = 0; i < childCount; i++ )
         {
-            component->children[i] = g2(inb);
-            component->childX[i] = g2b(inb);
-            component->childY[i] = g2b(inb);
+            int child = g2(inb);
+            int child_x = g2b(inb);
+            int child_y = g2b(inb);
+            if( store )
+            {
+                component->children[i] = child;
+                component->childX[i] = child_x;
+                component->childY[i] = child_y;
+            }
         }
     }
 
-    if( component->type == COMPONENT_TYPE_UNUSED )
+    if( type == COMPONENT_TYPE_UNUSED )
     {
         inb->position += 3;
     }
 
-    if( component->type == COMPONENT_TYPE_INV )
+    if( type == COMPONENT_TYPE_INV )
     {
-        component->invSlotObjId = malloc(component->width * component->height * sizeof(int));
-        memset(component->invSlotObjId, 0, component->width * component->height * sizeof(int));
-        component->invSlotObjCount = malloc(component->width * component->height * sizeof(int));
-        memset(component->invSlotObjCount, 0, component->width * component->height * sizeof(int));
+        if( store )
+        {
+            component->invSlotObjId = malloc(width * height * sizeof(int));
+            memset(component->invSlotObjId, 0, width * height * sizeof(int));
+            component->invSlotObjCount = malloc(width * height * sizeof(int));
+            memset(component->invSlotObjCount, 0, width * height * sizeof(int));
+        }
 
-        component->draggable = g1(inb) == 1;
-        component->interactable = g1(inb) == 1;
-        component->usable = g1(inb) == 1;
-        component->swappable = g1(inb) == 1;
-        component->marginX = g1(inb);
-        component->marginY = g1(inb);
+        bool draggable = g1(inb) == 1;
+        bool interactable = g1(inb) == 1;
+        bool usable = g1(inb) == 1;
+        bool swappable = g1(inb) == 1;
+        int marginX = g1(inb);
+        int marginY = g1(inb);
 
-        component->invSlotOffsetX = malloc(20 * sizeof(int));
-        memset(component->invSlotOffsetX, 0, 20 * sizeof(int));
-        component->invSlotOffsetY = malloc(20 * sizeof(int));
-        memset(component->invSlotOffsetY, 0, 20 * sizeof(int));
-        component->invSlotGraphic = malloc(20 * sizeof(char*));
-        memset(component->invSlotGraphic, 0, 20 * sizeof(char*));
+        if( store )
+        {
+            component->draggable = draggable;
+            component->interactable = interactable;
+            component->usable = usable;
+            component->swappable = swappable;
+            component->marginX = marginX;
+            component->marginY = marginY;
+            component->invSlotOffsetX = malloc(20 * sizeof(int));
+            memset(component->invSlotOffsetX, 0, 20 * sizeof(int));
+            component->invSlotOffsetY = malloc(20 * sizeof(int));
+            memset(component->invSlotOffsetY, 0, 20 * sizeof(int));
+            component->invSlotGraphic = malloc(20 * sizeof(char*));
+            memset(component->invSlotGraphic, 0, 20 * sizeof(char*));
+        }
 
         for( int i = 0; i < 20; i++ )
         {
             if( g1(inb) == 1 )
             {
-                component->invSlotOffsetX[i] = g2b(inb);
-                component->invSlotOffsetY[i] = g2b(inb);
-
+                int off_x = g2b(inb);
+                int off_y = g2b(inb);
                 char* graphic = gstringnewline(inb);
-                component->invSlotGraphic[i] = graphic;
-                if( component->invSlotGraphic[i] != NULL &&
-                    strlen(component->invSlotGraphic[i]) == 0 )
+                if( store )
                 {
-                    free(component->invSlotGraphic[i]);
-                    component->invSlotGraphic[i] = NULL;
+                    component->invSlotOffsetX[i] = off_x;
+                    component->invSlotOffsetY[i] = off_y;
+                    component->invSlotGraphic[i] = graphic;
+                    if( component->invSlotGraphic[i] != NULL &&
+                        strlen(component->invSlotGraphic[i]) == 0 )
+                    {
+                        free(component->invSlotGraphic[i]);
+                        component->invSlotGraphic[i] = NULL;
+                    }
+                }
+                else
+                {
+                    discard_string(graphic);
                 }
             }
         }
 
-        component->iop = malloc(5 * sizeof(char*));
-        memset(component->iop, 0, 5 * sizeof(char*));
+        if( store )
+        {
+            component->iop = malloc(5 * sizeof(char*));
+            memset(component->iop, 0, 5 * sizeof(char*));
+        }
+
         for( int i = 0; i < 5; i++ )
         {
             char* iop = gstringnewline(inb);
-            component->iop[i] = iop;
-            if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
+            if( store )
             {
-                free(component->iop[i]);
-                component->iop[i] = NULL;
+                component->iop[i] = iop;
+                if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
+                {
+                    free(component->iop[i]);
+                    component->iop[i] = NULL;
+                }
+            }
+            else
+            {
+                discard_string(iop);
             }
         }
     }
 
-    if( component->type == COMPONENT_TYPE_RECT )
+    if( type == COMPONENT_TYPE_RECT )
     {
-        component->fill = g1(inb) == 1;
+        bool fill = g1(inb) == 1;
+        if( store )
+            component->fill = fill;
     }
 
-    if( component->type == COMPONENT_TYPE_TEXT || component->type == COMPONENT_TYPE_UNUSED )
+    if( type == COMPONENT_TYPE_TEXT || type == COMPONENT_TYPE_UNUSED )
     {
-        component->center = g1(inb) == 1;
+        bool center = g1(inb) == 1;
         int font = g1(inb);
-        component->font = font;
-        component->shadowed = g1(inb) == 1;
+        bool shadowed = g1(inb) == 1;
+        if( store )
+        {
+            component->center = center;
+            component->font = font;
+            component->shadowed = shadowed;
+        }
     }
 
-    if( component->type == COMPONENT_TYPE_TEXT )
+    if( type == COMPONENT_TYPE_TEXT )
     {
-        component->text = gstringnewline(inb);
-        component->activeText = gstringnewline(inb);
+        char* text = gstringnewline(inb);
+        char* activeText = gstringnewline(inb);
+        if( store )
+        {
+            component->text = text;
+            component->activeText = activeText;
+        }
+        else
+        {
+            discard_string(text);
+            discard_string(activeText);
+        }
     }
 
-    if( component->type == COMPONENT_TYPE_UNUSED || component->type == COMPONENT_TYPE_RECT ||
-        component->type == COMPONENT_TYPE_TEXT )
+    if( type == COMPONENT_TYPE_UNUSED || type == COMPONENT_TYPE_RECT || type == COMPONENT_TYPE_TEXT )
     {
-        component->colour = g4(inb);
+        int colour = g4(inb);
+        if( store )
+            component->colour = colour;
     }
 
-    if( component->type == COMPONENT_TYPE_RECT || component->type == COMPONENT_TYPE_TEXT )
+    if( type == COMPONENT_TYPE_RECT || type == COMPONENT_TYPE_TEXT )
     {
-        component->activeColour = g4(inb);
-        component->overColour = g4(inb);
-        component->activeOverColour = g4(inb);
+        int activeColour = g4(inb);
+        int overColour = g4(inb);
+        int activeOverColour = g4(inb);
+        if( store )
+        {
+            component->activeColour = activeColour;
+            component->overColour = overColour;
+            component->activeOverColour = activeOverColour;
+        }
     }
 
-    if( component->type == COMPONENT_TYPE_GRAPHIC )
+    if( type == COMPONENT_TYPE_GRAPHIC )
     {
         char* graphic = gstringnewline(inb);
-        component->graphic = graphic;
-
         char* activeGraphic = gstringnewline(inb);
-        component->activeGraphic = activeGraphic;
+        if( store )
+        {
+            component->graphic = graphic;
+            component->activeGraphic = activeGraphic;
+        }
+        else
+        {
+            discard_string(graphic);
+            discard_string(activeGraphic);
+        }
     }
 
-    if( component->type == COMPONENT_TYPE_MODEL )
+    if( type == COMPONENT_TYPE_MODEL )
     {
         int model = g1(inb);
+        int modelType = 0;
+        int modelId = 0;
         if( model != 0 )
         {
-            component->modelType = 1;
-            component->model = ((model - 1) << 8) + g1(inb);
+            modelType = 1;
+            modelId = ((model - 1) << 8) + g1(inb);
         }
 
         int activeModel = g1(inb);
+        int activeModelType = 0;
+        int activeModelId = 0;
         if( activeModel != 0 )
         {
-            component->activeModelType = 1;
-            component->activeModel = ((activeModel - 1) << 8) + g1(inb);
+            activeModelType = 1;
+            activeModelId = ((activeModel - 1) << 8) + g1(inb);
         }
 
-        component->anim = g1(inb);
-        if( component->anim == 0 )
+        int anim = g1(inb);
+        if( anim == 0 )
         {
-            component->anim = -1;
+            anim = -1;
         }
         else
         {
-            component->anim = ((component->anim - 1) << 8) + g1(inb);
+            anim = ((anim - 1) << 8) + g1(inb);
         }
 
-        component->activeAnim = g1(inb);
-        if( component->activeAnim == 0 )
+        int activeAnim = g1(inb);
+        if( activeAnim == 0 )
         {
-            component->activeAnim = -1;
+            activeAnim = -1;
         }
         else
         {
-            component->activeAnim = ((component->activeAnim - 1) << 8) + g1(inb);
+            activeAnim = ((activeAnim - 1) << 8) + g1(inb);
         }
 
-        component->zoom = g2(inb);
-        component->xan = g2(inb);
-        component->yan = g2(inb);
+        int zoom = g2(inb);
+        int xan = g2(inb);
+        int yan = g2(inb);
+
+        if( store )
+        {
+            component->modelType = modelType;
+            component->model = modelId;
+            component->activeModelType = activeModelType;
+            component->activeModel = activeModelId;
+            component->anim = anim;
+            component->activeAnim = activeAnim;
+            component->zoom = zoom;
+            component->xan = xan;
+            component->yan = yan;
+        }
     }
 
-    if( component->type == COMPONENT_TYPE_INV_TEXT )
+    if( type == COMPONENT_TYPE_INV_TEXT )
     {
-        component->invSlotObjId = malloc(component->width * component->height * sizeof(int));
-        memset(component->invSlotObjId, 0, component->width * component->height * sizeof(int));
-        component->invSlotObjCount = malloc(component->width * component->height * sizeof(int));
-        memset(component->invSlotObjCount, 0, component->width * component->height * sizeof(int));
+        if( store )
+        {
+            component->invSlotObjId = malloc(width * height * sizeof(int));
+            memset(component->invSlotObjId, 0, width * height * sizeof(int));
+            component->invSlotObjCount = malloc(width * height * sizeof(int));
+            memset(component->invSlotObjCount, 0, width * height * sizeof(int));
+        }
 
-        component->center = g1(inb) == 1;
-        component->font = g1(inb);
+        bool center = g1(inb) == 1;
+        int font = g1(inb);
+        bool shadowed = g1(inb) == 1;
+        int colour = g4(inb);
+        int marginX = g2b(inb);
+        int marginY = g2b(inb);
+        bool interactable = g1(inb) == 1;
 
-        component->shadowed = g1(inb) == 1;
-        component->colour = g4(inb);
-        component->marginX = g2b(inb);
-        component->marginY = g2b(inb);
-        component->interactable = g1(inb) == 1;
+        if( store )
+        {
+            component->center = center;
+            component->font = font;
+            component->shadowed = shadowed;
+            component->colour = colour;
+            component->marginX = marginX;
+            component->marginY = marginY;
+            component->interactable = interactable;
+            component->iop = malloc(5 * sizeof(char*));
+            memset(component->iop, 0, 5 * sizeof(char*));
+        }
 
-        component->iop = malloc(5 * sizeof(char*));
-        memset(component->iop, 0, 5 * sizeof(char*));
         for( int i = 0; i < 5; i++ )
         {
-            component->iop[i] = gstringnewline(inb);
-            if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
+            char* iop = gstringnewline(inb);
+            if( store )
             {
-                free(component->iop[i]);
-                component->iop[i] = NULL;
+                component->iop[i] = iop;
+                if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
+                {
+                    free(component->iop[i]);
+                    component->iop[i] = NULL;
+                }
+            }
+            else
+            {
+                discard_string(iop);
             }
         }
     }
 
-    if( component->buttonType == COMPONENT_BUTTON_TYPE_TARGET ||
-        component->type == COMPONENT_TYPE_INV )
+    if( buttonType == COMPONENT_BUTTON_TYPE_TARGET || type == COMPONENT_TYPE_INV )
     {
-        component->targetVerb = gstringnewline(inb);
-        component->targetText = gstringnewline(inb);
-        component->targetMask = g2(inb);
-    }
-
-    if( component->buttonType == COMPONENT_BUTTON_TYPE_OK ||
-        component->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE ||
-        component->buttonType == COMPONENT_BUTTON_TYPE_SELECT ||
-        component->buttonType == COMPONENT_BUTTON_TYPE_CONTINUE )
-    {
-        component->option = gstringnewline(inb);
-
-        if( component->option != NULL && strlen(component->option) == 0 )
+        char* targetVerb = gstringnewline(inb);
+        char* targetText = gstringnewline(inb);
+        int targetMask = g2(inb);
+        if( store )
         {
-            free((void*)component->option);
-            if( component->buttonType == COMPONENT_BUTTON_TYPE_OK )
-            {
-                component->option = strdup("Ok");
-            }
-            else if( component->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE )
-            {
-                component->option = strdup("Select");
-            }
-            else if( component->buttonType == COMPONENT_BUTTON_TYPE_SELECT )
-            {
-                component->option = strdup("Select");
-            }
-            else if( component->buttonType == COMPONENT_BUTTON_TYPE_CONTINUE )
-            {
-                component->option = strdup("Continue");
-            }
+            component->targetVerb = targetVerb;
+            component->targetText = targetText;
+            component->targetMask = targetMask;
+        }
+        else
+        {
+            discard_string(targetVerb);
+            discard_string(targetText);
         }
     }
 
-    return component;
+    if( buttonType == COMPONENT_BUTTON_TYPE_OK || buttonType == COMPONENT_BUTTON_TYPE_TOGGLE ||
+        buttonType == COMPONENT_BUTTON_TYPE_SELECT || buttonType == COMPONENT_BUTTON_TYPE_CONTINUE )
+    {
+        char* option = gstringnewline(inb);
+        if( store )
+        {
+            component->option = option;
+            if( component->option != NULL && strlen(component->option) == 0 )
+            {
+                free((void*)component->option);
+                if( buttonType == COMPONENT_BUTTON_TYPE_OK )
+                {
+                    component->option = strdup("Ok");
+                }
+                else if( buttonType == COMPONENT_BUTTON_TYPE_TOGGLE )
+                {
+                    component->option = strdup("Select");
+                }
+                else if( buttonType == COMPONENT_BUTTON_TYPE_SELECT )
+                {
+                    component->option = strdup("Select");
+                }
+                else if( buttonType == COMPONENT_BUTTON_TYPE_CONTINUE )
+                {
+                    component->option = strdup("Continue");
+                }
+            }
+        }
+        else
+        {
+            discard_string(option);
+        }
+    }
 }
 
-struct RSCacheDat1A_ConfigComponentList*
-RSCacheDat1A_ConfigComponentListNewDecode(
+static struct RSCacheDat1A_ConfigComponentList*
+config_component_list_new_decode_impl(
     void* data,
-    int size)
+    int size,
+    bool* needed,
+    int needed_count)
 {
     struct RSCacheShared_RSBuffer buffer;
     RSCacheShared_RSBufferInit(&buffer, data, size);
@@ -402,21 +564,72 @@ RSCacheDat1A_ConfigComponentListNewDecode(
     int layer = -1;
     while( buffer.position < buffer.size )
     {
-        struct RSCacheDat1A_ConfigComponent* comp = decode_component(&buffer, &layer);
-        if( comp == NULL )
+        int id = read_component_id(&buffer, &layer);
+        bool want = !needed;
+        if( needed )
+            want = id >= 0 && id < needed_count && needed[id];
+
+        struct RSCacheDat1A_ConfigComponent* comp = NULL;
+        if( want )
         {
-            assert(false && "Failed to decode component");
-            return NULL;
+            comp = malloc(sizeof(struct RSCacheDat1A_ConfigComponent));
+            init_component(comp);
+            read_component_body(&buffer, comp, id, layer);
+        }
+        else
+        {
+            read_component_body(&buffer, NULL, id, layer);
         }
 
-        // Store component at its ID index
-        if( comp->id >= 0 && comp->id < component_count )
+        if( comp )
         {
-            component_list->components[comp->id] = comp;
+            if( comp->id >= 0 && comp->id < component_count )
+                component_list->components[comp->id] = comp;
+
+            if( needed && comp->type == COMPONENT_TYPE_LAYER && comp->children )
+            {
+                for( int i = 0; i < comp->children_count; i++ )
+                {
+                    int child = comp->children[i];
+                    if( child >= 0 && child < needed_count )
+                        needed[child] = true;
+                }
+            }
         }
     }
 
     return component_list;
+}
+
+struct RSCacheDat1A_ConfigComponentList*
+RSCacheDat1A_ConfigComponentListNewDecode(
+    void* data,
+    int size)
+{
+    return config_component_list_new_decode_impl(data, size, NULL, 0);
+}
+
+struct RSCacheDat1A_ConfigComponentList*
+RSCacheDat1A_ConfigComponentListNewDecodeFiltered(
+    void* data,
+    int size,
+    bool* needed,
+    int needed_count)
+{
+    return config_component_list_new_decode_impl(data, size, needed, needed_count);
+}
+
+int
+RSCacheDat1A_ConfigComponentListPeekCount(
+    void* data,
+    int size)
+{
+    if( !data || size < 2 )
+        return 0;
+
+    struct RSCacheShared_RSBuffer buffer;
+    RSCacheShared_RSBufferInit(&buffer, data, size);
+    return g2(&buffer);
 }
 
 void

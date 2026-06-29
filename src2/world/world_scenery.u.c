@@ -291,18 +291,19 @@ scenery_load_model(
     struct ToriDraw_Model* models[10] = { 0 };
     for( int i = 0; i < models_count; i++ )
     {
-        struct ToriDraw_ModelHandle hnd = ToriAuxLibTD_Model(builder->td, model_ids[i]);
-        assert(hnd.kind == TORIDRAWMK_MODEL);
-        models[i] = hnd.u.model.model;
+        models[i] = ToriAuxLibTD_ModelNewInstanceFromCore(builder->td, model_ids[i]);
+        assert(models[i] && "scenery_load_model: failed to load model instance");
     }
 
     struct ToriDraw_Model* model = NULL;
     if( models_count > 1 )
     {
         model = ToriDraw_ModelMerge(models, models_count);
+        for( int i = 0; i < models_count; i++ )
+            ToriDraw_ModelFree(models[i]);
     }
     else
-        model = ToriDraw_ModelCopy(models[0]);
+        model = models[0];
 
     apply_transforms(config_loc, model, rotation, true);
 

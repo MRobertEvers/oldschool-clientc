@@ -123,6 +123,20 @@
           <input type="range" id="timeSlider" min="0" max="1000" value="1000" style="flex:1" />
           <span id="timeReadout" style="color:#9aa3b2;font-size:12px"></span>
         </div>
+        <div class="controls" id="liveAtTableControls" hidden>
+          <label>Show
+            <select id="liveAtPageSize">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="250">250</option>
+              <option value="0">All</option>
+            </select>
+          </label>
+          <button class="btn" id="liveAtPrev" type="button">Prev</button>
+          <span id="liveAtPageInfo" style="font-size:12px;color:var(--muted)"></span>
+          <button class="btn" id="liveAtNext" type="button">Next</button>
+        </div>
         <div id="liveAt" class="empty">Move the slider or click the timeline to inspect live allocations.</div>
       </details>
     </section>
@@ -521,13 +535,11 @@ function liveAtTime(tNs) {
 
   const sites = [...bySite.entries()]
     .map(([sid, s]) => ({ sid, bytes: s.bytes, count: s.count }))
-    .sort((a, b) => b.bytes - a.bytes)
-    .slice(0, 30);
+    .sort((a, b) => b.bytes - a.bytes);
 
   const pointers = [...liveMap.entries()]
     .map(([p, v]) => ({ ptr: '0x' + p.toString(16), bytes: v.size, sid: v.sid }))
-    .sort((a, b) => b.bytes - a.bytes)
-    .slice(0, 50);
+    .sort((a, b) => b.bytes - a.bytes);
 
   return { tNs, totalBytes, totalCount: liveMap.size, sites, pointers };
 }
@@ -812,6 +824,8 @@ self.onmessage = async (ev) => {
       exportSqliteBusy: false,
       leaksPage: 0,
       leaksPageSize: 50,
+      liveAtPage: 0,
+      liveAtPageSize: 50,
     };
 
     const TIMELINE_PAD = { l: 48, r: 12, t: 12, b: 28 };
@@ -1213,23 +1227,54 @@ self.onmessage = async (ev) => {
 
     function renderLiveAt() {
       const el = document.getElementById('liveAt');
+      const controls = document.getElementById('liveAtTableControls');
       const data = state.liveAt;
       if (!data || !state.timeline) {
+        controls.hidden = true;
         el.className = 'empty';
         el.textContent = 'Move the slider or click the timeline to inspect live allocations.';
         return;
       }
       const sites = data.sites || [];
       if (!sites.length) {
+        controls.hidden = true;
         el.className = 'empty';
         el.textContent = `No live allocations at ${fmtTimeNs(data.tNs)}.`;
         return;
       }
+
+      const total = sites.length;
+      const pageSize = state.liveAtPageSize > 0 ? state.liveAtPageSize : total;
+      const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1;
+      if (state.liveAtPage >= pageCount) state.liveAtPage = pageCount - 1;
+      if (state.liveAtPage < 0) state.liveAtPage = 0;
+
+      const start = state.liveAtPage * pageSize;
+      const page = sites.slice(start, start + pageSize);
+      const paged = pageSize < total;
+
+      controls.hidden = false;
+      document.getElementById('liveAtPageSize').value = String(state.liveAtPageSize);
+      document.getElementById('liveAtPrev').disabled = !paged || state.liveAtPage <= 0;
+      document.getElementById('liveAtNext').disabled = !paged || state.liveAtPage >= pageCount - 1;
+      const pageInfo = document.getElementById('liveAtPageInfo');
+      if (paged) {
+        pageInfo.textContent = `Page ${state.liveAtPage + 1} of ${pageCount} · rows ${start + 1}–${start + page.length} of ${total}`;
+      } else {
+        pageInfo.textContent = `${total} row${total === 1 ? '' : 's'}`;
+      }
+
+      let running = 0;
+      for (let i = 0; i < start; i++) running += sites[i].bytes;
+
       el.className = '';
-      el.innerHTML = `<p style="color:#9aa3b2;font-size:12px;margin:0 0 8px">At ${fmtTimeNs(data.tNs)}: <strong style="color:#e6e8ef">${data.totalCount.toLocaleString()}</strong> pointers, <strong style="color:#e6e8ef">${fmtBytes(data.totalBytes)}</strong> live.</p>` +
-        `<table><thead><tr><th>Bytes</th><th>Count</th><th>Allocated at</th></tr></thead><tbody>` +
-        sites.map(s => `<tr><td>${fmtBytes(s.bytes)}</td><td>${s.count}</td>${stackCellHtml(s.sid)}</tr>`).join('') +
-        '</tbody></table>';
+      el.innerHTML = `<p style="color:#9aa3b2;font-size:12px;margin:0 0 8px">At ${fmtTimeNs(data.tNs)}: <strong style="color:#e6e8ef">${data.totalCount.toLocaleString()}</strong> pointers, <strong style="color:#e6e8ef">${fmtBytes(data.totalBytes)}</strong> live across <strong style="color:#e6e8ef">${total.toLocaleString()}</strong> sites.</p>` +
+        `<div class="table-wrap"><table><thead><tr><th>#</th><th>Bytes</th><th>Count</th><th>Running sum</th><th>Allocated at</th></tr></thead><tbody>` +
+        page.map((s, i) => {
+          running += s.bytes;
+          return `<tr><td>${start + i + 1}</td><td>${fmtBytes(s.bytes)}</td><td>${s.count}</td><td>${fmtBytes(running)}</td>${stackCellHtml(s.sid)}</tr>`;
+        }).join('') +
+        '</tbody></table></div>';
     }
 
     function freedStackCell(freeSid) {
@@ -1309,6 +1354,7 @@ self.onmessage = async (ev) => {
       if (!state.timeline) return;
       const r = Math.max(0, Math.min(1, ratio));
       state.selectedRatio = r;
+      state.liveAtPage = 0;
       const { tMin, tMax } = state.timeline;
       const tNs = tMin + r * (tMax - tMin);
       const slider = document.getElementById('timeSlider');
@@ -1367,6 +1413,7 @@ self.onmessage = async (ev) => {
       state.ratioA = 0.05;
       state.ratioB = 1;
       state.leaksPage = 0;
+      state.liveAtPage = 0;
       document.getElementById('diffSliderA').value = '50';
       document.getElementById('diffSliderB').value = '1000';
       renderAll();
@@ -1490,6 +1537,24 @@ self.onmessage = async (ev) => {
     document.getElementById('leaksNext').addEventListener('click', () => {
       state.leaksPage += 1;
       renderLeaks();
+    });
+
+    document.getElementById('liveAtPageSize').addEventListener('change', (ev) => {
+      state.liveAtPageSize = Number(ev.target.value);
+      state.liveAtPage = 0;
+      renderLiveAt();
+    });
+
+    document.getElementById('liveAtPrev').addEventListener('click', () => {
+      if (state.liveAtPage > 0) {
+        state.liveAtPage -= 1;
+        renderLiveAt();
+      }
+    });
+
+    document.getElementById('liveAtNext').addEventListener('click', () => {
+      state.liveAtPage += 1;
+      renderLiveAt();
     });
 
     document.getElementById('timeSlider').addEventListener('input', (ev) => {

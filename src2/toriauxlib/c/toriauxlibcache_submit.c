@@ -397,6 +397,15 @@ ToriAuxLibCache_SubmitFontFromDat1(
 void
 ToriAuxLibCache_SubmitAllComponentsFromDat1(struct ToriAuxLibCache* c)
 {
+    ToriAuxLibCache_SubmitComponentsFromDat1(c, NULL, 0);
+}
+
+void
+ToriAuxLibCache_SubmitComponentsFromDat1(
+    struct ToriAuxLibCache* c,
+    const bool* needed,
+    int needed_count)
+{
     if( !c )
         return;
 
@@ -407,6 +416,12 @@ ToriAuxLibCache_SubmitAllComponentsFromDat1(struct ToriAuxLibCache* c)
     struct ToriAuxLibCore* core = ToriAuxLibCache_Core(c);
     for( int i = 0; i < interfaces->components_count; i++ )
     {
+        if( needed )
+        {
+            if( i >= needed_count || !needed[i] )
+                continue;
+        }
+
         struct RSCacheDat1A_ConfigComponent* comp = interfaces->components[i];
         if( !comp )
             continue;

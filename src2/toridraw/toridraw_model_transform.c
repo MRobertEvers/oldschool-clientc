@@ -137,6 +137,68 @@ ToriDraw_BonesMerge(
     return out;
 }
 
+static void
+ToriDraw_ModelMoveArrays(
+    struct ToriDraw_Model* dst,
+    struct ToriDraw_Model* src)
+{
+    dst->flags = src->flags;
+    dst->vertex_count = src->vertex_count;
+    dst->face_count = src->face_count;
+    dst->textured_face_count = src->textured_face_count;
+
+#define MODEL_MOVE(field) TORIDRAW_MODEL_MOVE(dst, field, src->field)
+
+    MODEL_MOVE(vertices_x);
+    MODEL_MOVE(vertices_y);
+    MODEL_MOVE(vertices_z);
+    MODEL_MOVE(face_indices_a);
+    MODEL_MOVE(face_indices_b);
+    MODEL_MOVE(face_indices_c);
+    MODEL_MOVE(face_colors_a);
+    MODEL_MOVE(face_colors_b);
+    MODEL_MOVE(face_colors_c);
+    MODEL_MOVE(face_colors);
+    MODEL_MOVE(face_textures);
+    MODEL_MOVE(face_alphas);
+    MODEL_MOVE(face_infos);
+    MODEL_MOVE(face_priorities);
+    MODEL_MOVE(face_texture_coords);
+    MODEL_MOVE(textured_p_coordinate);
+    MODEL_MOVE(textured_m_coordinate);
+    MODEL_MOVE(textured_n_coordinate);
+    MODEL_MOVE(original_vertices_x);
+    MODEL_MOVE(original_vertices_y);
+    MODEL_MOVE(original_vertices_z);
+    MODEL_MOVE(normals);
+    MODEL_MOVE(merged_normals);
+    MODEL_MOVE(vertex_bones);
+    MODEL_MOVE(face_bones);
+    MODEL_MOVE(bounds_cylinder);
+    MODEL_MOVE(animaya_group_counts);
+    MODEL_MOVE(animaya_groups);
+    MODEL_MOVE(animaya_scales);
+
+#undef MODEL_MOVE
+
+    dst->animaya_vertex_count = src->animaya_vertex_count;
+    src->animaya_vertex_count = 0;
+}
+
+struct ToriDraw_Model*
+ToriDraw_ModelSteal(struct ToriDraw_Model* src)
+{
+    if( !src )
+        return NULL;
+
+    struct ToriDraw_Model* dst = calloc(1, sizeof(struct ToriDraw_Model));
+    if( !dst )
+        return NULL;
+
+    ToriDraw_ModelMoveArrays(dst, src);
+    return dst;
+}
+
 struct ToriDraw_Model*
 ToriDraw_ModelCopy(struct ToriDraw_Model* src)
 {

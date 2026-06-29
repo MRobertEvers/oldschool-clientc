@@ -354,11 +354,7 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                 ToriDraw_SceneElementSetPosition(
                     builder->scene, element_id, x * WORLD_TILE_SIZE, 0, z * WORLD_TILE_SIZE, 0);
 
-                if( world->terrain_element_ids )
-                {
-                    int idx = x + z * scene_size + level * scene_size * scene_size;
-                    world->terrain_element_ids[idx] = element_id;
-                }
+                world_terrain_set(world, element_id, x, z, level);
             }
         }
     }

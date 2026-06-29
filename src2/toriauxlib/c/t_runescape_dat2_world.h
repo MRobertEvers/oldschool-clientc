@@ -344,6 +344,8 @@ Task_Dat2WorldRebuildCore_Run(
         LibToriRS_IOQueueClear(ctx->io);
     }
 
+    ToriAuxLibCache_PruneBuildCaches(core->c);
+
     PT_END(&core->thread);
 }
 

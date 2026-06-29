@@ -40,3 +40,10 @@ lib/python*
 
 # Generated painters cullmap blobs (see tools/gen_painters_cullmap)
 src/osrs/revconfig/configs/cullmaps/*.bin
+
+# Browser (Emscripten) intermediate build output
+src2/programs/browser/browser_build/
+
+# Memtrace tooling dependencies and generated traces
+tools/memtrace/node_modules/
+tools/memtrace/bins/

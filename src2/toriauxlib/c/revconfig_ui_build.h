@@ -46,6 +46,12 @@ revconfig_ui_build_collect_items(
     struct RevConfigUIBuildState* state,
     struct RevConfigItemBuffer const* items);
 
+void
+revconfig_ui_build_mark_needed_components(
+    struct RevConfigUIBuildState const* state,
+    bool* needed,
+    int needed_count);
+
 struct RevConfigUISpriteRef const*
 revconfig_ui_build_find_ref(
     struct RevConfigUIBuildState const* state,

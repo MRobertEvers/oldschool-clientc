@@ -1,0 +1,16 @@
+{
+  "name": "memtrace",
+  "version": "1.0.0",
+  "description": "Memtrace records every heap allocation and free with call stacks, sizes, and running live-heap totals. Traces are written to a compact binary file (`memtrace.bin` by default) and can be explored in a self-contained HTML viewer.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "playwright": "^1.61.1"
+  }
+}

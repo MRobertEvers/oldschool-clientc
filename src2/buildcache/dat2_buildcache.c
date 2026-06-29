@@ -92,6 +92,8 @@ struct MapEntry_ConfigNpctype
     struct RSCacheDat2A_ConfigNpctype* npc;
 };
 
+#define DAT2_BUILDCACHE_PRUNE_CAPACITY 64
+
 static void
 dat2_buildcache_mem_track_add(
     struct Dat2BuildCache* cache,
@@ -1967,4 +1969,134 @@ dat2_buildcache_scenery_configs_cleanup(struct Dat2BuildCache* dat2_buildcache)
         sizeof(struct MapEntry_ConfigLoc),
         8192);
     dat2_buildcache->asset_bytes[DAT2_BUILDCACHE_KIND_CONFIG_LOC] = 0;
+}
+
+void
+dat2_buildcache_models_cleanup(struct Dat2BuildCache* dat2_buildcache)
+{
+    if( !dat2_buildcache || !dat2_buildcache->models_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->models_hmap);
+    struct MapEntry_CacheModel* entry = NULL;
+    while( (entry = (struct MapEntry_CacheModel*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->model )
+        {
+            dat2_buildcache_mem_track_sub(
+                dat2_buildcache,
+                DAT2_BUILDCACHE_KIND_MODEL,
+                RSCacheDat2A_ModelSizeOf(entry->model));
+            RSCacheDat2A_ModelFree(entry->model);
+        }
+    }
+    ToriDraw_MapIterFree(iter);
+    dat2_buildcache_map_reset(
+        dat2_buildcache,
+        &dat2_buildcache->models_hmap,
+        sizeof(struct MapEntry_CacheModel),
+        8192);
+    dat2_buildcache->asset_bytes[DAT2_BUILDCACHE_KIND_MODEL] = 0;
+}
+
+void
+dat2_buildcache_frames_cleanup(struct Dat2BuildCache* dat2_buildcache)
+{
+    if( !dat2_buildcache || !dat2_buildcache->frames_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->frames_hmap);
+    struct MapEntry_FramesArchive* entry = NULL;
+    while( (entry = (struct MapEntry_FramesArchive*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->archive )
+        {
+            dat2_buildcache_mem_track_sub(
+                dat2_buildcache,
+                DAT2_BUILDCACHE_KIND_FRAMES,
+                Dat2BuildCache_FramesArchiveSizeOf(entry->archive));
+            Dat2BuildCache_FramesArchiveFree(entry->archive);
+        }
+    }
+    ToriDraw_MapIterFree(iter);
+    dat2_buildcache_map_reset(
+        dat2_buildcache,
+        &dat2_buildcache->frames_hmap,
+        sizeof(struct MapEntry_FramesArchive),
+        4096);
+    dat2_buildcache->asset_bytes[DAT2_BUILDCACHE_KIND_FRAMES] = 0;
+}
+
+void
+dat2_buildcache_skeletal_cleanup(struct Dat2BuildCache* dat2_buildcache)
+{
+    if( !dat2_buildcache || !dat2_buildcache->skeletal_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->skeletal_hmap);
+    struct MapEntry_Skeletal* entry = NULL;
+    while( (entry = (struct MapEntry_Skeletal*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->maya )
+        {
+            dat2_buildcache_mem_track_sub(
+                dat2_buildcache,
+                DAT2_BUILDCACHE_KIND_SKELETAL,
+                RSCacheDat2A_AnimMayaSizeOf(entry->maya));
+            RSCacheDat2A_AnimMayaFree(entry->maya);
+        }
+    }
+    ToriDraw_MapIterFree(iter);
+    dat2_buildcache_map_reset(
+        dat2_buildcache,
+        &dat2_buildcache->skeletal_hmap,
+        sizeof(struct MapEntry_Skeletal),
+        4096);
+    dat2_buildcache->asset_bytes[DAT2_BUILDCACHE_KIND_SKELETAL] = 0;
+}
+
+static void
+dat2_buildcache_map_prune(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct ToriDraw_Map** map_out,
+    int entry_size)
+{
+    dat2_buildcache_map_reset(
+        dat2_buildcache, map_out, entry_size, DAT2_BUILDCACHE_PRUNE_CAPACITY);
+}
+
+void
+dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache)
+{
+    if( !dat2_buildcache )
+        return;
+
+    dat2_buildcache_map_terrain_cleanup(dat2_buildcache);
+    dat2_buildcache_map_scenery_cleanup(dat2_buildcache);
+    dat2_buildcache_models_cleanup(dat2_buildcache);
+    dat2_buildcache_sequences_cleanup(dat2_buildcache);
+    dat2_buildcache_flotypes_cleanup(dat2_buildcache);
+    dat2_buildcache_underlays_cleanup(dat2_buildcache);
+    dat2_buildcache_scenery_configs_cleanup(dat2_buildcache);
+    dat2_buildcache_frames_cleanup(dat2_buildcache);
+    dat2_buildcache_skeletal_cleanup(dat2_buildcache);
+
+    dat2_buildcache_map_prune(
+        dat2_buildcache, &dat2_buildcache->models_hmap, sizeof(struct MapEntry_CacheModel));
+    dat2_buildcache_map_prune(
+        dat2_buildcache, &dat2_buildcache->map_terrain_hmap, sizeof(struct MapEntry_Terrain));
+    dat2_buildcache_map_prune(
+        dat2_buildcache, &dat2_buildcache->map_scenery_hmap, sizeof(struct MapEntry_Scenery));
+    dat2_buildcache_map_prune(
+        dat2_buildcache, &dat2_buildcache->sequences_hmap, sizeof(struct MapEntry_Sequence));
+    dat2_buildcache_map_prune(
+        dat2_buildcache, &dat2_buildcache->flotype_hmap, sizeof(struct MapEntry_Flotype));
+    dat2_buildcache_map_prune(
+        dat2_buildcache, &dat2_buildcache->underlay_hmap, sizeof(struct MapEntry_Underlay));
+    dat2_buildcache_map_prune(
+        dat2_buildcache, &dat2_buildcache->config_loc_hmap, sizeof(struct MapEntry_ConfigLoc));
+    dat2_buildcache_map_prune(
+        dat2_buildcache, &dat2_buildcache->frames_hmap, sizeof(struct MapEntry_FramesArchive));
+    dat2_buildcache_map_prune(
+        dat2_buildcache, &dat2_buildcache->skeletal_hmap, sizeof(struct MapEntry_Skeletal));
 }

@@ -35,6 +35,7 @@
 #include "toridraw/toridraw_types.h"
 #include "world/world.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -563,9 +564,8 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
     if( !instance )
         return;
 
+    assert(instance->scene);
     instance->runescape = GameRunescape_New(instance->script_queue, instance->scene);
-    if( !instance->runescape )
-        return;
 
     GameRunescape_SetCore(instance->runescape, ToriAuxLib_Core(instance->toriauxlib));
     GameRunescape_SetTD(instance->runescape, ToriAuxLib_TD(instance->toriauxlib));
@@ -602,6 +602,7 @@ LibToriRS_ScriptAPI_Game_Runescape_BuildWorldCenterzone(
 {
     printf("LibToriRS_ScriptAPI_Game_Runescape_BuildWorldCenterzone\n");
 
+    assert(instance && instance->runescape);
     GameRunescape_BuildWorldCenterzone(instance->runescape, center_x, center_z, scene_size);
 }
 
@@ -610,6 +611,7 @@ LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(struct LibToriRS_Instance* instanc
 {
     printf("LibToriRS_ScriptAPI_Game_Runescape_BuildWorld\n");
 
+    assert(instance && instance->runescape);
     GameRunescape_BuildWorldCenterzone(
         instance->runescape, RUNESCAPE_ZONE_CENTER_X, RUNESCAPE_ZONE_CENTER_Z, 104);
 }
@@ -622,6 +624,7 @@ LibToriRS_ScriptAPI_Game_Runescape_BuildWorldChunkList(
 {
     printf("LibToriRS_ScriptAPI_Game_Runescape_BuildWorldChunkList\n");
 
+    assert(instance && instance->runescape);
     GameRunescape_BuildWorldChunkList(instance->runescape, chunks_xz, count);
 }
 

@@ -475,6 +475,36 @@ GameRunescape_RebuildWorldMap(struct GameRunescape* game)
     GameRunescape_AttachWorldMapToUITree(game);
 }
 
+static void
+game_runescape_clear_gamecache_map_chunks_except(
+    struct ToriAuxLibCore* core,
+    struct World* world)
+{
+    if( !core || !world )
+        return;
+
+    int const width = world->_chunk_ne_x - world->_chunk_sw_x + 1;
+    int const height = world->_chunk_ne_z - world->_chunk_sw_z + 1;
+    if( width <= 0 || height <= 0 )
+        return;
+
+    int const count = width * height;
+    int* map_ids = malloc((size_t)count * sizeof(int));
+    if( !map_ids )
+        return;
+
+    int idx = 0;
+    for( int mapx = world->_chunk_sw_x; mapx <= world->_chunk_ne_x; mapx++ )
+    {
+        for( int mapz = world->_chunk_sw_z; mapz <= world->_chunk_ne_z; mapz++ )
+            map_ids[idx++] = (mapx << 16) | (mapz & 0xFFFF);
+    }
+
+    ToriAuxLibCore_MapTerrainClearExcept(core, map_ids, count);
+    ToriAuxLibCore_MapSceneryClearExcept(core, map_ids, count);
+    free(map_ids);
+}
+
 void
 GameRunescape_BuildWorldCenterzone(
     struct GameRunescape* game,
@@ -482,11 +512,17 @@ GameRunescape_BuildWorldCenterzone(
     int center_z,
     int scene_size)
 {
+    assert(game && game->world && game->scene);
+
     struct WorldBuilder* builder = world_builder_new(
         game->world, game->core, game->scene, game->td, ToriAuxLibVM_VarPVarBit(game->vm));
     assert(builder && "GameRunescape_BuildWorld: failed to allocate world builder");
     world_builder_rebuild_centerzone(builder, center_x, center_z, scene_size);
     world_builder_free(builder);
+    if( game->core )
+        game_runescape_clear_gamecache_map_chunks_except(game->core, game->world);
+    if( game->td )
+        ToriAuxLibCache_PruneBuildCaches(ToriAuxLibTD_C(game->td));
     game->world_built = true;
 
     if( game->camera_position && game->camera )
@@ -508,11 +544,17 @@ GameRunescape_BuildWorldChunkList(
     int* chunks_xz,
     int count)
 {
+    assert(game && game->world && game->scene);
+
     struct WorldBuilder* builder = world_builder_new(
         game->world, game->core, game->scene, game->td, ToriAuxLibVM_VarPVarBit(game->vm));
     assert(builder && "GameRunescape_BuildWorldChunkList: failed to allocate world builder");
     world_builder_rebuild_chunklist(builder, chunks_xz, count);
     world_builder_free(builder);
+    if( game->core )
+        game_runescape_clear_gamecache_map_chunks_except(game->core, game->world);
+    if( game->td )
+        ToriAuxLibCache_PruneBuildCaches(ToriAuxLibTD_C(game->td));
     game->world_built = true;
 
     if( game->camera_position && game->camera )
@@ -1461,13 +1503,8 @@ runescape_preload_idle_animations(
     struct WorldEntityFacet_IdleAnimations const* idle)
 {
     int const anims[] = {
-        idle->readyanim,
-        idle->walkanim,
-        idle->turnanim,
-        idle->runanim,
-        idle->walkanim_b,
-        idle->walkanim_r,
-        idle->walkanim_l,
+        idle->readyanim,  idle->walkanim,   idle->turnanim,   idle->runanim,
+        idle->walkanim_b, idle->walkanim_r, idle->walkanim_l,
     };
 
     for( int i = 0; i < (int)(sizeof(anims) / sizeof(anims[0])); i++ )
@@ -1719,7 +1756,8 @@ GameRunescape_WorldEntityAddNPC(
     if( idle_animations.readyanim != -1 )
         ToriAuxLibTD_ElementSetSequenceId(game->td, element_id, idle_animations.readyanim);
 
-    npc_idx = world_npc_spawn(game->world, element_id, npc_id, level, x, z, npc_size, idle_animations);
+    npc_idx =
+        world_npc_spawn(game->world, element_id, npc_id, level, x, z, npc_size, idle_animations);
     if( npc_idx < 0 )
         return -1;
 

@@ -79,6 +79,8 @@ struct MapEntry_ConfigNpc
     struct RSCacheDat1A_ConfigNpc* npc;
 };
 
+#define DAT1_BUILDCACHE_PRUNE_CAPACITY 64
+
 static void
 dat1_buildcache_interfaces_free(struct RSCacheDat1A_ConfigComponentList* interfaces)
 {
@@ -1220,6 +1222,58 @@ dat1_buildcache_npcs_cleanup(struct Dat1BuildCache* dat1_buildcache)
     }
     ToriDraw_MapIterFree(iter);
     dat1_buildcache_npcs_reset(dat1_buildcache);
+}
+
+void
+dat1_buildcache_models_cleanup(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache || !dat1_buildcache->models_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->models_hmap);
+    struct MapEntry_CacheModel* entry = NULL;
+    while( (entry = (struct MapEntry_CacheModel*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->model )
+            RSCacheDat2A_ModelFree(entry->model);
+    }
+    ToriDraw_MapIterFree(iter);
+    dat1_buildcache_map_reset(
+        &dat1_buildcache->models_hmap, sizeof(struct MapEntry_CacheModel), 4096);
+}
+
+static void
+dat1_buildcache_map_prune(
+    struct ToriDraw_Map** map_out,
+    int entry_size)
+{
+    dat1_buildcache_map_reset(map_out, entry_size, DAT1_BUILDCACHE_PRUNE_CAPACITY);
+}
+
+void
+dat1_buildcache_prune(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache )
+        return;
+
+    dat1_buildcache_map_terrain_cleanup(dat1_buildcache);
+    dat1_buildcache_map_scenery_cleanup(dat1_buildcache);
+    dat1_buildcache_models_cleanup(dat1_buildcache);
+    dat1_buildcache_sequences_cleanup(dat1_buildcache);
+    dat1_buildcache_floortypes_cleanup(dat1_buildcache);
+    dat1_buildcache_scenery_configs_cleanup(dat1_buildcache);
+    dat1_buildcache_animbaseframes_cleanup(dat1_buildcache);
+    dat1_buildcache_clear_config_jagfile(dat1_buildcache);
+    dat1_buildcache_clear_versionlist_jagfile(dat1_buildcache);
+
+    dat1_buildcache_map_prune(&dat1_buildcache->models_hmap, sizeof(struct MapEntry_CacheModel));
+    dat1_buildcache_map_prune(&dat1_buildcache->map_terrain_hmap, sizeof(struct MapEntry_Terrain));
+    dat1_buildcache_map_prune(&dat1_buildcache->map_scenery_hmap, sizeof(struct MapEntry_Scenery));
+    dat1_buildcache_map_prune(&dat1_buildcache->sequences_hmap, sizeof(struct MapEntry_Sequence));
+    dat1_buildcache_map_prune(&dat1_buildcache->flotype_hmap, sizeof(struct MapEntry_Flotype));
+    dat1_buildcache_map_prune(&dat1_buildcache->config_loc_hmap, sizeof(struct MapEntry_ConfigLoc));
+    dat1_buildcache_map_prune(
+        &dat1_buildcache->animbaseframes_hmap, sizeof(struct MapEntry_AnimBaseFrames));
 }
 
 struct RSCacheDat1A_AnimBaseFrames*

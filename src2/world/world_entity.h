@@ -268,6 +268,19 @@ World_EntityPoolRelease(
     struct World_EntityPool* pool,
     int index);
 
+bool
+World_EntityPoolEnsureSlot(
+    struct World_EntityPool* pool,
+    int index);
+
+bool
+World_EntityPoolReserve(
+    struct World_EntityPool* pool,
+    int slot_count);
+
+void
+World_EntityPoolReset(struct World_EntityPool* pool);
+
 void*
 World_EntityPoolGet(
     const struct World_EntityPool* pool,

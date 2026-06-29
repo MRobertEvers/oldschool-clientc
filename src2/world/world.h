@@ -57,7 +57,6 @@ struct World
 
     struct Painter* painter;
     struct PaintersCullMap* cullmap;
-    int* terrain_element_ids;
 
     struct World_EntityList entities;
 
@@ -108,6 +107,27 @@ void
 world_set_painters_cullmap(
     struct World* world,
     struct PaintersCullMap* cm);
+
+static inline int
+world_terrain_tile_idx(
+    struct World* world,
+    int x,
+    int z,
+    int level)
+{
+    return x + z * world->_scene_size + level * world->_scene_size * world->_scene_size;
+}
+
+void
+world_terrain_set(
+    struct World* world,
+    int element_id,
+    int x,
+    int z,
+    int level);
+
+void
+world_terrain_reset(struct World* world);
 
 int
 world_terrain_element_at(

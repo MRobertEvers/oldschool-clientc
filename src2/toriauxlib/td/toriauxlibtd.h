@@ -37,6 +37,19 @@ ToriAuxLibTD_Scene(struct ToriAuxLibTD* td);
 struct ToriDraw_Model*
 ToriAuxLibTD_ModelNewFromCore(const struct ToriAuxLibCore_Model* src);
 
+/** Copy core geometry into a new TD model without inserting into the scene cache. */
+struct ToriDraw_Model*
+ToriAuxLibTD_ModelNewInstanceFromCore(
+    struct ToriAuxLibTD* td,
+    int model_id);
+
+/**
+ * Move compatible arrays from an exclusively-owned core model into a new TD model.
+ * Leaves src hollow (free shell with ToriAuxLibCore_ModelFree).
+ */
+struct ToriDraw_Model*
+ToriAuxLibTD_ModelStealFromCore(struct ToriAuxLibCore_Model* src);
+
 struct ToriDraw_Animation*
 ToriAuxLibTD_AnimationNewFromCore(const struct ToriAuxLibCore_Animation* src);
 

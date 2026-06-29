@@ -319,15 +319,40 @@ Task_RevConfigUILoad_Run(
             int data_idx = RSCacheShared_FileListDatFindFileByName(interfaces_filelist, "data");
             if( data_idx >= 0 )
             {
-                struct RSCacheDat1A_ConfigComponentList* interfaces =
-                    RSCacheDat1A_ConfigComponentListNewDecode(
-                        interfaces_filelist->files[data_idx],
-                        interfaces_filelist->file_sizes[data_idx]);
+                void* iface_data = interfaces_filelist->files[data_idx];
+                int iface_size = interfaces_filelist->file_sizes[data_idx];
+                int component_count =
+                    RSCacheDat1A_ConfigComponentListPeekCount(iface_data, iface_size);
+                bool* needed = NULL;
+                if( component_count > 0 )
+                {
+                    needed = calloc((size_t)component_count, sizeof(bool));
+                    if( needed )
+                        revconfig_ui_build_mark_needed_components(
+                            &task->build, needed, component_count);
+                }
+
+                struct RSCacheDat1A_ConfigComponentList* interfaces = NULL;
+                if( needed && component_count > 0 )
+                {
+                    interfaces = RSCacheDat1A_ConfigComponentListNewDecodeFiltered(
+                        iface_data, iface_size, needed, component_count);
+                }
+                else
+                {
+                    interfaces = RSCacheDat1A_ConfigComponentListNewDecode(iface_data, iface_size);
+                }
+
                 if( interfaces )
                 {
                     dat1_buildcache_set_interfaces(bc, interfaces);
-                    ToriAuxLibCache_SubmitAllComponentsFromDat1(task->c);
+                    if( needed )
+                        ToriAuxLibCache_SubmitComponentsFromDat1(
+                            task->c, needed, component_count);
+                    else
+                        ToriAuxLibCache_SubmitAllComponentsFromDat1(task->c);
                 }
+                free(needed);
             }
             RSCacheShared_FileListDatFree(interfaces_filelist);
         }
@@ -351,6 +376,7 @@ Task_RevConfigUILoad_Run(
 
     if( task->tree )
         uitree_mark_all_dirty(task->tree);
+    dat1_buildcache_set_interfaces(bc, NULL);
     task->ui_ready = true;
 
     PT_END(&task->thread);

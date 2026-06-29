@@ -133,6 +133,48 @@ gc_bones_new(
     return bones;
 }
 
+static gc_vertexint_t*
+gc_steal_vertices_int32(
+    int* src,
+    int count)
+{
+    if( !src || count <= 0 )
+        return NULL;
+
+    gc_vertexint_t* dst = (gc_vertexint_t*)malloc((size_t)count * sizeof(gc_vertexint_t));
+    if( !dst )
+    {
+        free(src);
+        return NULL;
+    }
+
+    for( int i = 0; i < count; i++ )
+        dst[i] = (gc_vertexint_t)src[i];
+    free(src);
+    return dst;
+}
+
+static gc_faceint_t*
+gc_steal_face_indices_int32(
+    int* src,
+    int count)
+{
+    if( !src || count <= 0 )
+        return NULL;
+
+    gc_faceint_t* dst = (gc_faceint_t*)malloc((size_t)count * sizeof(gc_faceint_t));
+    if( !dst )
+    {
+        free(src);
+        return NULL;
+    }
+
+    for( int i = 0; i < count; i++ )
+        dst[i] = (gc_faceint_t)src[i];
+    free(src);
+    return dst;
+}
+
 static void
 gc_model_move_from_cache_model(
     struct ToriAuxLibCore_Model* gc,
@@ -144,18 +186,9 @@ gc_model_move_from_cache_model(
     {
         int count = model->vertex_count;
         gc->vertex_count = count;
-        gc->vertices_x = (gc_vertexint_t*)malloc((size_t)count * sizeof(gc_vertexint_t));
-        gc->vertices_y = (gc_vertexint_t*)malloc((size_t)count * sizeof(gc_vertexint_t));
-        gc->vertices_z = (gc_vertexint_t*)malloc((size_t)count * sizeof(gc_vertexint_t));
-        for( int i = 0; i < count; i++ )
-        {
-            gc->vertices_x[i] = (gc_vertexint_t)model->vertices_x[i];
-            gc->vertices_y[i] = (gc_vertexint_t)model->vertices_y[i];
-            gc->vertices_z[i] = (gc_vertexint_t)model->vertices_z[i];
-        }
-        free(model->vertices_x);
-        free(model->vertices_y);
-        free(model->vertices_z);
+        gc->vertices_x = gc_steal_vertices_int32(model->vertices_x, count);
+        gc->vertices_y = gc_steal_vertices_int32(model->vertices_y, count);
+        gc->vertices_z = gc_steal_vertices_int32(model->vertices_z, count);
         model->vertices_x = NULL;
         model->vertices_y = NULL;
         model->vertices_z = NULL;
@@ -166,18 +199,9 @@ gc_model_move_from_cache_model(
     {
         int count = model->face_count;
         gc->face_count = count;
-        gc->face_indices_a = (gc_faceint_t*)malloc((size_t)count * sizeof(gc_faceint_t));
-        gc->face_indices_b = (gc_faceint_t*)malloc((size_t)count * sizeof(gc_faceint_t));
-        gc->face_indices_c = (gc_faceint_t*)malloc((size_t)count * sizeof(gc_faceint_t));
-        for( int i = 0; i < count; i++ )
-        {
-            gc->face_indices_a[i] = (gc_faceint_t)model->face_indices_a[i];
-            gc->face_indices_b[i] = (gc_faceint_t)model->face_indices_b[i];
-            gc->face_indices_c[i] = (gc_faceint_t)model->face_indices_c[i];
-        }
-        free(model->face_indices_a);
-        free(model->face_indices_b);
-        free(model->face_indices_c);
+        gc->face_indices_a = gc_steal_face_indices_int32(model->face_indices_a, count);
+        gc->face_indices_b = gc_steal_face_indices_int32(model->face_indices_b, count);
+        gc->face_indices_c = gc_steal_face_indices_int32(model->face_indices_c, count);
         model->face_indices_a = NULL;
         model->face_indices_b = NULL;
         model->face_indices_c = NULL;
@@ -186,9 +210,7 @@ gc_model_move_from_cache_model(
     int fc = model->face_count;
     if( model->face_colors && fc > 0 )
     {
-        gc->face_colors = (gc_hsl16_t*)malloc((size_t)fc * sizeof(gc_hsl16_t));
-        memcpy(gc->face_colors, model->face_colors, (size_t)fc * sizeof(gc_hsl16_t));
-        free(model->face_colors);
+        gc->face_colors = (gc_hsl16_t*)model->face_colors;
         model->face_colors = NULL;
     }
 
@@ -201,17 +223,18 @@ gc_model_move_from_cache_model(
 
     if( model->face_alphas && fc > 0 )
     {
-        gc->face_alphas = (gc_alphaint_t*)malloc((size_t)fc * sizeof(gc_alphaint_t));
-        memcpy(gc->face_alphas, model->face_alphas, (size_t)fc * sizeof(gc_alphaint_t));
-        free(model->face_alphas);
+        gc->face_alphas = model->face_alphas;
         model->face_alphas = NULL;
     }
 
     if( model->face_infos && fc > 0 )
     {
         gc->face_infos = (int*)malloc((size_t)fc * sizeof(int));
-        for( int i = 0; i < fc; i++ )
-            gc->face_infos[i] = model->face_infos[i];
+        if( gc->face_infos )
+        {
+            for( int i = 0; i < fc; i++ )
+                gc->face_infos[i] = (int)model->face_infos[i];
+        }
         free(model->face_infos);
         model->face_infos = NULL;
     }
@@ -220,71 +243,39 @@ gc_model_move_from_cache_model(
     {
         size_t nbytes = gc_face_priorities_byte_count(fc);
         gc->face_priorities = (uint8_t*)calloc(nbytes, 1);
-        for( int i = 0; i < fc; i++ )
-            gc_set_face_priority(gc->face_priorities, i, model->face_priorities[i]);
+        if( gc->face_priorities )
+        {
+            for( int i = 0; i < fc; i++ )
+                gc_set_face_priority(gc->face_priorities, i, model->face_priorities[i]);
+        }
         free(model->face_priorities);
         model->face_priorities = NULL;
     }
 
     int tfc = model->textured_face_count;
     const bool had_per_face_tex_coords = (fc > 0 && model->face_texture_coords != NULL);
-    gc_faceint_t* tp = NULL;
-    gc_faceint_t* tm = NULL;
-    gc_faceint_t* tn = NULL;
     if( tfc > 0 && model->textured_p_coordinate && model->textured_m_coordinate &&
         model->textured_n_coordinate )
     {
-        tp = (gc_faceint_t*)malloc((size_t)tfc * sizeof(gc_faceint_t));
-        tm = (gc_faceint_t*)malloc((size_t)tfc * sizeof(gc_faceint_t));
-        tn = (gc_faceint_t*)malloc((size_t)tfc * sizeof(gc_faceint_t));
-        for( int i = 0; i < tfc; i++ )
-        {
-            tp[i] = (gc_faceint_t)model->textured_p_coordinate[i];
-            tm[i] = (gc_faceint_t)model->textured_m_coordinate[i];
-            tn[i] = (gc_faceint_t)model->textured_n_coordinate[i];
-        }
-        free(model->textured_p_coordinate);
-        free(model->textured_m_coordinate);
-        free(model->textured_n_coordinate);
+        gc->textured_p_coordinate = (gc_faceint_t*)model->textured_p_coordinate;
+        gc->textured_m_coordinate = (gc_faceint_t*)model->textured_m_coordinate;
+        gc->textured_n_coordinate = (gc_faceint_t*)model->textured_n_coordinate;
         model->textured_p_coordinate = NULL;
         model->textured_m_coordinate = NULL;
         model->textured_n_coordinate = NULL;
     }
 
-    gc_faceint_t* ftc_arr = NULL;
     if( fc > 0 && model->face_texture_coords )
     {
-        ftc_arr = (gc_faceint_t*)malloc((size_t)fc * sizeof(gc_faceint_t));
-        for( int i = 0; i < fc; i++ )
-            ftc_arr[i] = (gc_faceint_t)model->face_texture_coords[i];
-        free(model->face_texture_coords);
+        gc->face_texture_coords = (gc_faceint_t*)model->face_texture_coords;
         model->face_texture_coords = NULL;
     }
 
     gc->textured_face_count = tfc;
-    if( tfc > 0 && tp && tm && tn )
-    {
-        gc->textured_p_coordinate = tp;
-        gc->textured_m_coordinate = tm;
-        gc->textured_n_coordinate = tn;
-        tp = tm = tn = NULL;
-    }
-    if( fc > 0 && ftc_arr )
-    {
-        gc->face_texture_coords = ftc_arr;
-        ftc_arr = NULL;
-    }
-
-    free(tp);
-    free(tm);
-    free(tn);
-    free(ftc_arr);
 
     if( fc > 0 && model->face_textures )
     {
-        gc->face_textures = (gc_faceint_t*)malloc((size_t)fc * sizeof(gc_faceint_t));
-        memcpy(gc->face_textures, model->face_textures, (size_t)fc * sizeof(gc_faceint_t));
-        free(model->face_textures);
+        gc->face_textures = (gc_faceint_t*)model->face_textures;
         model->face_textures = NULL;
     }
 

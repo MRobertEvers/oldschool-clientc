@@ -138,6 +138,94 @@ World_EntityPoolRelease(
     pool->active_count--;
 }
 
+bool
+World_EntityPoolEnsureSlot(
+    struct World_EntityPool* pool,
+    int index)
+{
+    if( !pool || pool->element_size <= 0 || index < 0 )
+        return false;
+
+    while( index >= pool->capacity )
+    {
+        if( !world_entity_pool_grow(pool) )
+            return false;
+    }
+
+    if( index >= pool->count )
+        pool->count = index + 1;
+
+    if( pool->nodes[index].active )
+        return true;
+
+    pool->nodes[index].active = true;
+    pool->nodes[index].prev = pool->tail;
+    pool->nodes[index].next = WORLD_ENTITY_NIL;
+
+    if( pool->tail != WORLD_ENTITY_NIL )
+        pool->nodes[pool->tail].next = index;
+    else
+        pool->head = index;
+    pool->tail = index;
+    pool->active_count++;
+
+    memset(World_EntityPoolGet(pool, index), 0, (size_t)pool->element_size);
+    return true;
+}
+
+bool
+World_EntityPoolReserve(
+    struct World_EntityPool* pool,
+    int slot_count)
+{
+    if( !pool || pool->element_size <= 0 || slot_count <= 0 )
+        return true;
+
+    int const last = slot_count - 1;
+    while( last >= pool->capacity )
+    {
+        if( !world_entity_pool_grow(pool) )
+            return false;
+    }
+
+    if( slot_count > pool->count )
+    {
+        memset(
+            (char*)pool->items + (size_t)pool->count * (size_t)pool->element_size,
+            0,
+            (size_t)(slot_count - pool->count) * (size_t)pool->element_size);
+        for( int i = pool->count; i < slot_count; i++ )
+        {
+            pool->nodes[i].prev = WORLD_ENTITY_NIL;
+            pool->nodes[i].next = WORLD_ENTITY_NIL;
+            pool->nodes[i].active = false;
+        }
+        pool->count = slot_count;
+    }
+
+    return true;
+}
+
+void
+World_EntityPoolReset(struct World_EntityPool* pool)
+{
+    if( !pool )
+        return;
+
+    for( int i = 0; i < pool->count; i++ )
+    {
+        pool->nodes[i].active = false;
+        pool->nodes[i].prev = WORLD_ENTITY_NIL;
+        pool->nodes[i].next = WORLD_ENTITY_NIL;
+    }
+
+    pool->head = WORLD_ENTITY_NIL;
+    pool->tail = WORLD_ENTITY_NIL;
+    pool->free_head = WORLD_ENTITY_NIL;
+    pool->active_count = 0;
+    pool->count = 0;
+}
+
 void
 World_EntityListInit(struct World_EntityList* list)
 {

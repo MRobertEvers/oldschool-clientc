@@ -164,6 +164,18 @@ RSCacheDat1A_ConfigComponentListNewDecode(
     void* data,
     int size);
 
+struct RSCacheDat1A_ConfigComponentList*
+RSCacheDat1A_ConfigComponentListNewDecodeFiltered(
+    void* data,
+    int size,
+    bool* needed,
+    int needed_count);
+
+int
+RSCacheDat1A_ConfigComponentListPeekCount(
+    void* data,
+    int size);
+
 void
 RSCacheDat1A_ConfigComponentFree(struct RSCacheDat1A_ConfigComponent* component);
 

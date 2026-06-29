@@ -304,6 +304,10 @@ ToriAuxLibCore_SequenceFree(struct ToriAuxLibCore_Sequence* seq);
 void
 ToriAuxLibCore_ModelFree(struct ToriAuxLibCore_Model* model);
 
+/** Free all owned arrays on model; leaves an empty shell (counts/flags unchanged). */
+void
+ToriAuxLibCore_ModelReleaseArrays(struct ToriAuxLibCore_Model* model);
+
 void
 ToriAuxLibCore_AnimationFree(struct ToriAuxLibCore_Animation* anim);
 

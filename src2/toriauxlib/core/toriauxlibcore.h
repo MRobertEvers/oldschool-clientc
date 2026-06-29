@@ -198,6 +198,18 @@ ToriAuxLibCore_MapSceneryHas(
     int map_id);
 
 void
+ToriAuxLibCore_MapTerrainClearExcept(
+    struct ToriAuxLibCore* gamecache,
+    const int* keep_map_ids,
+    int keep_count);
+
+void
+ToriAuxLibCore_MapSceneryClearExcept(
+    struct ToriAuxLibCore* gamecache,
+    const int* keep_map_ids,
+    int keep_count);
+
+void
 ToriAuxLibCore_FlotypeAdd(
     struct ToriAuxLibCore* gamecache,
     int flo_id,

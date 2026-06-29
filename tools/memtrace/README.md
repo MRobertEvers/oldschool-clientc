@@ -78,7 +78,7 @@ Open http://localhost:8080/ — the **Memtrace** button appears in the header af
 make -C src2/programs/sdl2 MEMTRACE=1
 ```
 
-Run the binary as usual. On exit (or flush), `memtrace.bin` is written to the current directory (or `TORIRS_MEMTRACE_OUT`).
+Run the binary as usual. On exit (or flush), `memtrace.bin` is written to the current directory (or `TORIRS_MEMTRACE_OUT`). For local tooling, copy or set output under `tools/memtrace/bins/`.
 
 ### Smoke test
 
@@ -86,7 +86,7 @@ Run the binary as usual. On exit (or flush), `memtrace.bin` is written to the cu
 # macOS
 cc -DTORIRS_MEMTRACE=1 -I../../src2 -I../.. \
   ../../src2/platforms/torirs_memtrace.c memtrace_smoke.c -ldl -o memtrace_smoke
-./memtrace_smoke   # writes memtrace.bin
+./memtrace_smoke   # writes memtrace.bin (use TORIRS_MEMTRACE_OUT=bins/memtrace.bin to keep output in bins/)
 ```
 
 See [`memtrace_smoke.c`](memtrace_smoke.c) for the Linux `--wrap` link line.
@@ -171,16 +171,16 @@ Metric/kind toggles and the instrumentation filter re-render instantly on the ma
 Native `.bin` files contain raw PCs. Symbolize offline:
 
 ```bash
-python3 tools/memtrace/decode_memtrace.py memtrace.bin -o memtrace_out
+python3 tools/memtrace/decode_memtrace.py tools/memtrace/bins/memtrace.bin
 
 # Linux: pass the binary for addr2line
-python3 tools/memtrace/decode_memtrace.py memtrace.bin --exe path/to/sdl2 -o memtrace_out
+python3 tools/memtrace/decode_memtrace.py tools/memtrace/bins/memtrace.bin --exe path/to/sdl2
 ```
 
-Outputs:
+Outputs (default `tools/memtrace/bins/decoded/`):
 
-- `memtrace_out/events.jsonl` — one JSON object per allocation event
-- `memtrace_out/meta.json` — event count, peak live, still-live summary, module list
+- `bins/decoded/events.jsonl` — one JSON object per allocation event
+- `bins/decoded/meta.json` — event count, peak live, still-live summary, module list
 
 Load `events.jsonl` (and optionally `meta.json`) into the viewer.
 
@@ -229,7 +229,11 @@ Heavy work stays in the worker so large traces do not hang the UI.
 | File | Purpose |
 |------|---------|
 | [`viewer.html`](viewer.html) | Self-contained viewer (inline Web Worker + IndexedDB) |
-| [`decode_memtrace.py`](decode_memtrace.py) | Native binary → JSONL + meta |
+| [`decode_memtrace.py`](decode_memtrace.py) | Native binary → JSONL + meta (default output: `bins/decoded/`) |
+| [`export_sqlite.py`](export_sqlite.py) | Binary → SQLite (default output: `bins/<stem>.db`) |
+| [`boot_metrics.py`](boot_metrics.py) | Boot trace summary metrics (default input: `bins/boot_memtrace.bin`) |
+| [`capture_boot_trace.mjs`](capture_boot_trace.mjs) | Capture WASM boot trace via Playwright (default output: `bins/boot_memtrace.bin`) |
 | [`memtrace_smoke.c`](memtrace_smoke.c) | Minimal alloc/free smoke test |
+| [`bins/`](bins/) | Generated traces and exports (gitignored) |
 | [`AI_ANALYSIS.md`](AI_ANALYSIS.md) | How to analyze traces with Cursor Agent |
 | [`ai_analysis_prompt.md`](ai_analysis_prompt.md) | Copy-paste prompt for memory inefficiency analysis |

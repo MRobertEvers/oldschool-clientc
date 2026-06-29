@@ -36,7 +36,6 @@ world_free(struct World* world)
         painters_cullmap_free(world->cullmap);
     if( world->painter )
         painter_free(world->painter);
-    free(world->terrain_element_ids);
     World_EntityListFree(&world->entities);
     free(world);
 }
@@ -60,8 +59,7 @@ world_reset_scene_alloc(
         painter_free(world->painter);
         world->painter = NULL;
     }
-    free(world->terrain_element_ids);
-    world->terrain_element_ids = NULL;
+    world_terrain_reset(world);
     for( int i = 0; i < COLLISION_LEVELS; i++ )
     {
         if( world->collision_maps[i] )
@@ -86,9 +84,41 @@ world_reset_scene_alloc(
         painter_set_cullmap(world->painter, world->cullmap);
 
     int terrain_tile_count = scene_size * scene_size * WORLD_MAP_TERRAIN_LEVELS;
-    world->terrain_element_ids = malloc((size_t)terrain_tile_count * sizeof(int));
-    if( world->terrain_element_ids )
-        memset(world->terrain_element_ids, 0xFF, (size_t)terrain_tile_count * sizeof(int));
+    World_EntityPoolReserve(&world->entities.terrain, terrain_tile_count);
+}
+
+void
+world_terrain_reset(struct World* world)
+{
+    if( !world )
+        return;
+    World_EntityPoolReset(&world->entities.terrain);
+}
+
+void
+world_terrain_set(
+    struct World* world,
+    int element_id,
+    int x,
+    int z,
+    int level)
+{
+    if( !world )
+        return;
+
+    int idx = world_terrain_tile_idx(world, x, z, level);
+    struct World_EntityPool* pool = &world->entities.terrain;
+    if( !World_EntityPoolEnsureSlot(pool, idx) )
+        return;
+
+    struct WorldEntity_Terrain* terrain = World_EntityPoolGet(pool, idx);
+    if( !terrain )
+        return;
+
+    terrain->element_id = element_id;
+    terrain->level = level;
+    terrain->x = x;
+    terrain->z = z;
 }
 
 void
@@ -187,14 +217,22 @@ world_terrain_element_at(
     int z,
     int level)
 {
-    if( !world || !world->terrain_element_ids )
+    if( !world )
         return -1;
     if( x < 0 || z < 0 || level < 0 )
         return -1;
     if( x >= world->_scene_size || z >= world->_scene_size || level >= WORLD_MAP_TERRAIN_LEVELS )
         return -1;
-    int idx = x + z * world->_scene_size + level * world->_scene_size * world->_scene_size;
-    return world->terrain_element_ids[idx];
+
+    int idx = world_terrain_tile_idx(world, x, z, level);
+    struct World_EntityPool* pool = &world->entities.terrain;
+    if( idx < 0 || idx >= pool->count || !World_EntityPoolIsActive(pool, idx) )
+        return -1;
+
+    struct WorldEntity_Terrain* terrain = World_EntityPoolGet(pool, idx);
+    if( !terrain )
+        return -1;
+    return terrain->element_id;
 }
 
 #define WORLD_PROJECTILE_ANGLE_TO_RAD 0.02454369
