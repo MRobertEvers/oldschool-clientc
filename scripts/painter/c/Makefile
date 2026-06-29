@@ -94,6 +94,9 @@ CACHE_SRCS := \
 	$(SRC2)/render/libtorirs_render.c \
 	$(SRC2)/core/tasks/core_task.c \
 	$(SRC2)/games/runescape.c \
+	$(SRC2)/runescape/appearance.c \
+	$(SRC2)/runescape/player_body.c \
+	$(SRC_DIR)/osrs/datatypes/appearances.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC2)/world/world.c \
 	$(SRC2)/world/world_entity.c \

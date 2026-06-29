@@ -1,6 +1,8 @@
 #include "runescape.h"
 
 #include "../buildcache/dat1_buildcache.h"
+#include "../runescape/appearance.h"
+#include "../runescape/player_body.h"
 #include "../ioqueue/libtorirs_io.h"
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../toriauxlib/c/dat1io.h"
@@ -14,8 +16,6 @@
 #include "../world/world_builder.h"
 #include "3rd/minipt.h"
 #include "osrs/painters.h"
-#include "osrs/rscache/dat1a/dat1a_config_idk.h"
-#include "osrs/rscache/dat1a/dat1a_config_obj.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_animation.h"
@@ -33,19 +33,6 @@
 
 #define RUNESCAPE_CAMERA_MOVEMENT_SPEED 70
 #define TASK_PLAYER_IO_BATCH 64
-
-/* 0x100 = IDK slot, 0x200 = equipped obj model (src/server/server.c). */
-const int RUNESCAPE_EXAMPLE_PLAYER_APPEARANCE[12] = {
-    0,          0, 0,          0x200 + 1333, /* Rune scimitar */
-    0x100 + 18, 0, 0x100 + 26, 0x100 + 36,   0x100 + 0, 0x100 + 33, 0x100 + 42, 0x100 + 10,
-};
-
-enum RsAppearanceKind
-{
-    RS_APPEARANCE_KIND_NONE = 0,
-    RS_APPEARANCE_KIND_IDK = 1,
-    RS_APPEARANCE_KIND_OBJ = 2,
-};
 
 enum RsPhaseResult
 {
@@ -1389,173 +1376,6 @@ GameRunescape_BuildSceneModelFromCache(
     struct GameRunescape* game,
     int model_id);
 
-static void
-runescape_appearance_decode_slot(
-    uint16_t appearance,
-    enum RsAppearanceKind* kind_out,
-    int* id_out)
-{
-    if( kind_out )
-        *kind_out = RS_APPEARANCE_KIND_NONE;
-    if( id_out )
-        *id_out = 0;
-
-    if( appearance >= 0x100 && appearance < 0x200 )
-    {
-        if( kind_out )
-            *kind_out = RS_APPEARANCE_KIND_IDK;
-        if( id_out )
-            *id_out = (int)appearance - 0x100;
-    }
-    else if( appearance >= 0x200 )
-    {
-        if( kind_out )
-            *kind_out = RS_APPEARANCE_KIND_OBJ;
-        if( id_out )
-            *id_out = (int)appearance - 0x200;
-    }
-}
-
-static bool
-runescape_model_id_list_add(
-    int* model_ids,
-    int* count,
-    int capacity,
-    int model_id)
-{
-    int i;
-
-    if( model_id < 0 )
-        return false;
-
-    for( i = 0; i < *count; i++ )
-    {
-        if( model_ids[i] == model_id )
-            return true;
-    }
-
-    if( *count >= capacity )
-        return false;
-
-    model_ids[(*count)++] = model_id;
-    return true;
-}
-
-static int
-runescape_collect_appearance_model_ids(
-    struct Dat1BuildCache* dat1_bc,
-    const int appearance[12],
-    int* model_ids,
-    int capacity)
-{
-    int count = 0;
-    int slot;
-
-    if( !dat1_bc || !appearance || !model_ids || capacity <= 0 )
-        return 0;
-
-    for( slot = 0; slot < 12; slot++ )
-    {
-        enum RsAppearanceKind kind = RS_APPEARANCE_KIND_NONE;
-        int config_id = 0;
-        int i;
-
-        runescape_appearance_decode_slot((uint16_t)appearance[slot], &kind, &config_id);
-        if( kind == RS_APPEARANCE_KIND_IDK )
-        {
-            struct RSCacheDat1A_ConfigIdk* idk = dat1_buildcache_idk_get(dat1_bc, config_id);
-            if( !idk || !idk->models )
-                continue;
-            for( i = 0; i < idk->models_count; i++ )
-                runescape_model_id_list_add(model_ids, &count, capacity, idk->models[i]);
-        }
-        else if( kind == RS_APPEARANCE_KIND_OBJ )
-        {
-            struct RSCacheDat1A_ConfigObj* obj = dat1_buildcache_obj_get(dat1_bc, config_id);
-            if( !obj )
-                continue;
-            runescape_model_id_list_add(model_ids, &count, capacity, obj->manwear);
-            runescape_model_id_list_add(model_ids, &count, capacity, obj->manwear2);
-            runescape_model_id_list_add(model_ids, &count, capacity, obj->manwear3);
-        }
-    }
-
-    return count;
-}
-
-static struct ToriDraw_ModelHandle
-GameRunescape_BuildPlayerBodyFromAppearance(
-    struct GameRunescape* game,
-    const int appearance[12])
-{
-    struct ToriAuxLibC* c;
-    struct ToriAuxLibCore* core;
-    struct ToriDraw_Model* pieces[12];
-    int piece_count = 0;
-    struct ToriDraw_Model* body;
-    struct ToriDraw_ModelHandle hnd;
-    int slot;
-
-    if( !game || !game->td || !appearance )
-        return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
-
-    c = ToriAuxLibTD_C(game->td);
-    core = ToriAuxLibTD_Core(game->td);
-    if( !c || !core )
-        return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
-
-    for( slot = 0; slot < 12; slot++ )
-    {
-        enum RsAppearanceKind kind = RS_APPEARANCE_KIND_NONE;
-        int config_id = 0;
-        struct ToriAuxLibCore_Model* core_piece = NULL;
-        struct ToriDraw_Model* td_piece;
-
-        runescape_appearance_decode_slot((uint16_t)appearance[slot], &kind, &config_id);
-        if( kind == RS_APPEARANCE_KIND_IDK )
-        {
-            if( !ToriAuxLibCore_IdkModelHas(core, config_id) )
-                ToriAuxLibC_SubmitIdkModelFromDat1(c, config_id);
-            core_piece = ToriAuxLibCore_IdkModelGet(core, config_id);
-        }
-        else if( kind == RS_APPEARANCE_KIND_OBJ )
-        {
-            if( !ToriAuxLibCore_ObjModelHas(core, config_id) )
-                ToriAuxLibC_SubmitObjModelFromDat1(c, config_id);
-            core_piece = ToriAuxLibCore_ObjModelGet(core, config_id);
-        }
-
-        if( !core_piece )
-            continue;
-
-        td_piece = ToriAuxLibTD_ModelNewFromCore(core_piece);
-        if( td_piece )
-            pieces[piece_count++] = td_piece;
-    }
-
-    if( piece_count == 0 )
-        return GameRunescape_BuildSceneModelFromCache(game, RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID);
-
-    body = ToriDraw_ModelNewMerge(pieces, piece_count);
-    for( slot = 0; slot < piece_count; slot++ )
-        ToriDraw_ModelFree(pieces[slot]);
-
-    if( !body )
-        return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
-
-    ToriDraw_ModelSetBoundsCylinder(body);
-    hnd = (struct ToriDraw_ModelHandle){
-        .kind = TORIDRAWMK_MODEL,
-        .u.model.model = body,
-    };
-    if( ToriDraw_ModelIsLightable(body) )
-    {
-        ToriDraw_LightModelDefault(hnd, 0, 0);
-        ToriDraw_ModelFreeNormals(body);
-    }
-    return hnd;
-}
-
 static struct ToriDraw_ModelHandle
 GameRunescape_BuildSceneModelFromCache(
     struct GameRunescape* game,
@@ -1633,7 +1453,7 @@ GameRunescape_WorldEntityAddPlayer(
 
     level = clamp_terrain_level(level);
 
-    hnd = GameRunescape_BuildPlayerBodyFromAppearance(game, appearance);
+    hnd = runescape_player_body_build(game, appearance);
     if( hnd.kind != TORIDRAWMK_MODEL )
         return -1;
 
@@ -1850,7 +1670,7 @@ Task_GameRunescape_WorldEntityAddPlayer_Run(
     }
 
     task->model_count =
-        runescape_collect_appearance_model_ids(dat1_bc, task->appearance, task->model_ids, 256);
+        runescape_appearance_collect_model_ids(dat1_bc, task->appearance, task->model_ids, 256);
 
     for( task->model_index = 0; task->model_index < task->model_count; )
     {

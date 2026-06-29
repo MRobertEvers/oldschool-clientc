@@ -30,8 +30,7 @@ struct LibToriRS_IOContext;
 /* Fallback player body model when appearance resolves to no pieces. */
 #define RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID 230
 
-/* Example player outfit from src/server/server.c (rune scimitar + IDK gear). */
-extern const int RUNESCAPE_EXAMPLE_PLAYER_APPEARANCE[12];
+#include "../runescape/appearance.h"
 
 /* Magic / Fire Strike preset from docs/projectiles.md */
 #define RUNESCAPE_PROJECTILE_STARTHEIGHT 43

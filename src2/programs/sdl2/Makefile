@@ -150,6 +150,9 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/revconfig/revconfig_load.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC2)/games/runescape.c \
+	$(SRC2)/runescape/appearance.c \
+	$(SRC2)/runescape/player_body.c \
+	$(SRC_DIR)/osrs/datatypes/appearances.c \
 	$(SRC_DIR)/graphics/dashmap.c \
 	$(SRC_DIR)/graphics/lighting.c \
 	$(SRC2)/toridraw/graphics/shared_tables.c \
