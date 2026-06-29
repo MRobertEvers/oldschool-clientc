@@ -109,6 +109,11 @@ dat2_buildcache_model_get(
     int model_id);
 
 void
+dat2_buildcache_model_remove(
+    struct Dat2BuildCache* dat2_buildcache,
+    int model_id);
+
+void
 dat2_buildcache_map_terrain_add(
     struct Dat2BuildCache* dat2_buildcache,
     int map_id,
@@ -351,5 +356,23 @@ dat2_buildcache_foreach_skeletal(
     struct Dat2BuildCache* dat2_buildcache,
     Dat2BuildCacheSkeletalCallback callback,
     void* user_data);
+
+void
+dat2_buildcache_map_terrain_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_map_scenery_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_sequences_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_flotypes_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_underlays_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_scenery_configs_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
 #endif

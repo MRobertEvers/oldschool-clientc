@@ -137,6 +137,7 @@ Task_Dat1WorldRebuildCore_Run(
             ToriAuxLibCache_SubmitMapTerrainFromDat1(core->c, map_id);
         }
     }
+    dat1_buildcache_map_terrain_cleanup(dat1_bc);
 
     LibToriRS_IOBatchReset(&core->io_batch);
     for( core->chunk_index = 0; core->chunk_index < core->chunk_count; core->chunk_index++ )
@@ -219,8 +220,12 @@ Task_Dat1WorldRebuildCore_Run(
     ToriAuxLibCache_SubmitAllSequencesFromDat1(core->c);
     ToriAuxLibCache_SubmitAllFlotypesFromDat1(core->c);
     ToriAuxLibCache_SubmitAllLocationsFromDat1(core->c);
+    dat1_buildcache_sequences_cleanup(dat1_bc);
+    dat1_buildcache_floortypes_cleanup(dat1_bc);
 
     core->model_count = dat1_buildcache_get_all_unique_scenery_model_ids(dat1_bc, &core->model_ids);
+    dat1_buildcache_map_scenery_cleanup(dat1_bc);
+    dat1_buildcache_scenery_configs_cleanup(dat1_bc);
     for( core->model_index = 0; core->model_index < core->model_count; )
     {
         LibToriRS_IOBatchReset(&core->io_batch);
@@ -251,10 +256,15 @@ Task_Dat1WorldRebuildCore_Run(
                 int model_id = LibToriRS_IOBatchUser(&core->io_batch, i);
                 dat1_buildcache_model_add(dat1_bc, model_id, model);
                 ToriAuxLibCache_SubmitModelFromDat1(core->c, model_id);
+                dat1_buildcache_model_remove(dat1_bc, model_id);
             }
         }
         LibToriRS_IOQueueClear(ctx->io);
     }
+
+    dat1_buildcache_animbaseframes_cleanup(dat1_bc);
+    dat1_buildcache_clear_config_jagfile(dat1_bc);
+    dat1_buildcache_clear_versionlist_jagfile(dat1_bc);
 
     PT_END(&core->thread);
 }

@@ -144,6 +144,7 @@ Task_Dat2WorldRebuildCore_Run(
             ToriAuxLibCache_SubmitMapTerrainFromDat2(core->c, map_id);
         }
     }
+    dat2_buildcache_map_terrain_cleanup(dat2_bc);
 
     LibToriRS_IOBatchReset(&core->io_batch);
     for( core->chunk_index = 0; core->chunk_index < core->chunk_count; core->chunk_index++ )
@@ -194,9 +195,13 @@ Task_Dat2WorldRebuildCore_Run(
     RSCacheDat2Disk_ArchiveFree(overlay_archive);
     RSCacheDat2Disk_ArchiveFree(locs_archive);
 
+    dat2_buildcache_map_scenery_cleanup(dat2_bc);
+
     ToriAuxLibCache_SubmitAllUnderlaysFromDat2(core->c);
     ToriAuxLibCache_SubmitAllFlotypesFromDat2(core->c);
     ToriAuxLibCache_SubmitAllLocationsFromDat2(core->c);
+    dat2_buildcache_underlays_cleanup(dat2_bc);
+    dat2_buildcache_flotypes_cleanup(dat2_bc);
 
     /* Load classic frame/framemap archives and skeletal anims referenced by
      * visible scene locs only — do NOT walk every sequence in the cache. */
@@ -290,6 +295,7 @@ Task_Dat2WorldRebuildCore_Run(
             free(seq_ids);
 
         ToriAuxLibCache_SubmitAllSequencesFromDat2(core->c);
+        dat2_buildcache_sequences_cleanup(dat2_bc);
 
         if( sequence_archive )
         {
@@ -301,6 +307,7 @@ Task_Dat2WorldRebuildCore_Run(
     LibToriRS_IOQueueClear(ctx->io);
 
     core->model_count = dat2_buildcache_get_all_unique_scenery_model_ids(dat2_bc, &core->model_ids);
+    dat2_buildcache_scenery_configs_cleanup(dat2_bc);
     for( core->model_index = 0; core->model_index < core->model_count; )
     {
         LibToriRS_IOBatchReset(&core->io_batch);
@@ -331,6 +338,7 @@ Task_Dat2WorldRebuildCore_Run(
                 int model_id = LibToriRS_IOBatchUser(&core->io_batch, i);
                 dat2_buildcache_model_add(dat2_bc, model_id, model);
                 ToriAuxLibCache_SubmitModelFromDat2(core->c, model_id);
+                dat2_buildcache_model_remove(dat2_bc, model_id);
             }
         }
         LibToriRS_IOQueueClear(ctx->io);

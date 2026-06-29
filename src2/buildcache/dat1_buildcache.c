@@ -994,6 +994,22 @@ dat1_buildcache_map_reset(
 }
 
 void
+dat1_buildcache_map_terrain_reset(struct Dat1BuildCache* dat1_buildcache)
+{
+    assert(dat1_buildcache != NULL && "dat1_buildcache must be non-null");
+    dat1_buildcache_map_reset(
+        &dat1_buildcache->map_terrain_hmap, sizeof(struct MapEntry_Terrain), 256);
+}
+
+void
+dat1_buildcache_map_scenery_reset(struct Dat1BuildCache* dat1_buildcache)
+{
+    assert(dat1_buildcache != NULL && "dat1_buildcache must be non-null");
+    dat1_buildcache_map_reset(
+        &dat1_buildcache->map_scenery_hmap, sizeof(struct MapEntry_Scenery), 256);
+}
+
+void
 dat1_buildcache_sequences_reset(struct Dat1BuildCache* dat1_buildcache)
 {
     assert(dat1_buildcache != NULL && "dat1_buildcache must be non-null");
@@ -1046,6 +1062,40 @@ dat1_buildcache_npcs_reset(struct Dat1BuildCache* dat1_buildcache)
 {
     assert(dat1_buildcache != NULL && "dat1_buildcache must be non-null");
     dat1_buildcache_map_reset(&dat1_buildcache->npc_hmap, sizeof(struct MapEntry_ConfigNpc), 8192);
+}
+
+void
+dat1_buildcache_map_terrain_cleanup(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache || !dat1_buildcache->map_terrain_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->map_terrain_hmap);
+    struct MapEntry_Terrain* entry = NULL;
+    while( (entry = (struct MapEntry_Terrain*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->terrain )
+            RSCacheDat2A_MapTerrainFree(entry->terrain);
+    }
+    ToriDraw_MapIterFree(iter);
+    dat1_buildcache_map_terrain_reset(dat1_buildcache);
+}
+
+void
+dat1_buildcache_map_scenery_cleanup(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache || !dat1_buildcache->map_scenery_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->map_scenery_hmap);
+    struct MapEntry_Scenery* entry = NULL;
+    while( (entry = (struct MapEntry_Scenery*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->locs )
+            RSCacheDat2A_MapLocsFree(entry->locs);
+    }
+    ToriDraw_MapIterFree(iter);
+    dat1_buildcache_map_scenery_reset(dat1_buildcache);
 }
 
 void

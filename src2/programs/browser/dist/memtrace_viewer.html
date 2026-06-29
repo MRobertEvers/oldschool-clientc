@@ -53,12 +53,35 @@
       min-height: 280px;
     }
     .panel h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+    .panel.collapsible-panel { min-height: auto; }
+    .panel.collapsible-panel > details > summary {
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0 0 8px;
+      list-style: none;
+      user-select: none;
+    }
+    .panel.collapsible-panel > details > summary::-webkit-details-marker { display: none; }
+    .panel.collapsible-panel > details > summary::before {
+      content: '▸ ';
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .panel.collapsible-panel > details[open] > summary::before { content: '▾ '; }
+    .panel.collapsible-panel > details > summary:hover { color: var(--accent); }
     .full { grid-column: 1 / -1; }
     canvas { width: 100%; height: 260px; display: block; background: #12151e; border-radius: 8px; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .table-wrap { overflow-x: auto; max-width: 100%; }
     th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
     th { color: var(--muted); font-weight: 500; }
-    .stack { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; color: #c6d0e0; }
+    .stack { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; color: #c6d0e0; }
+    .stack-cell { cursor: pointer; }
+    .stack-cell:hover { background: #222836; }
+    .stack-cell .more { color: #5b9cff; }
+    .delta-pos { color: #4ade80; }
+    .delta-neg { color: #f87171; }
     .controls { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
     label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
     .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
@@ -82,6 +105,8 @@
     <label class="btn">Load events.jsonl<input id="eventsFile" type="file" accept=".jsonl,.json" hidden /></label>
     <label class="btn">Load memtrace.bin<input id="binFile" type="file" accept=".bin" hidden /></label>
     <label class="btn">Load meta.json<input id="metaFile" type="file" accept=".json" hidden /></label>
+    <button class="btn" id="downloadTraceBtn" type="button" disabled>Download trace</button>
+    <button class="btn" id="exportSqliteBtn" type="button" disabled>Export SQLite</button>
     <button class="btn" id="clearCacheBtn" type="button">Clear cached trace</button>
     <span id="statusLine"></span>
     <div class="stats" id="stats"></div>
@@ -90,6 +115,30 @@
     <section class="panel full">
       <h2>Live heap over time</h2>
       <canvas id="timeline" height="260"></canvas>
+    </section>
+    <section class="panel full collapsible-panel">
+      <details id="liveAtDetails" open>
+        <summary>Live allocations at a point in time</summary>
+        <div class="controls">
+          <input type="range" id="timeSlider" min="0" max="1000" value="1000" style="flex:1" />
+          <span id="timeReadout" style="color:#9aa3b2;font-size:12px"></span>
+        </div>
+        <div id="liveAt" class="empty">Move the slider or click the timeline to inspect live allocations.</div>
+      </details>
+    </section>
+    <section class="panel full collapsible-panel">
+      <details id="diffDetails" open>
+        <summary>Diff two points in time</summary>
+        <div class="controls">
+          <label style="flex:1">A <input type="range" id="diffSliderA" min="0" max="1000" value="50" style="flex:1" /></label>
+          <span id="diffReadoutA" style="color:#22d3ee;font-size:12px"></span>
+        </div>
+        <div class="controls">
+          <label style="flex:1">B <input type="range" id="diffSliderB" min="0" max="1000" value="1000" style="flex:1" /></label>
+          <span id="diffReadoutB" style="color:#f472b6;font-size:12px"></span>
+        </div>
+        <div id="diff" class="empty">Set A and B to compare live allocations between two times.</div>
+      </details>
     </section>
     <section class="panel">
       <h2>Allocation flamegraph</h2>
@@ -117,14 +166,6 @@
     <section class="panel full">
       <h2>Still live at end of trace</h2>
       <div id="leaks" class="empty">Load a trace for leak summary.</div>
-    </section>
-    <section class="panel full">
-      <h2>Live allocations at a point in time</h2>
-      <div class="controls">
-        <input type="range" id="timeSlider" min="0" max="1000" value="1000" style="flex:1" />
-        <span id="timeReadout" style="color:#9aa3b2;font-size:12px"></span>
-      </div>
-      <div id="liveAt" class="empty">Move the slider or click the timeline to inspect live allocations.</div>
     </section>
   </main>
   <div id="tooltip"></div>
@@ -434,11 +475,10 @@ function aggregate(decoded) {
   };
 }
 
-function liveAtTime(tNs) {
+function liveMapAtTime(tNs) {
   const d = gDecoded;
-  if (!d) return { tNs, totalBytes: 0, totalCount: 0, sites: [], pointers: [] };
-
   const liveMap = new Map();
+  if (!d) return liveMap;
   for (let i = 0; i < d.eventCount; i++) {
     if (d.t[i] > tNs) break;
     const p = d.ptr[i];
@@ -446,7 +486,10 @@ function liveAtTime(tNs) {
     if (d.kind[i] === 4) liveMap.delete(p);
     else liveMap.set(p, { sid: d.stackId[i], size: d.sizeUsable[i] });
   }
+  return liveMap;
+}
 
+function aggregateLiveMap(liveMap) {
   const bySite = new Map();
   let totalBytes = 0;
   for (const v of liveMap.values()) {
@@ -456,6 +499,12 @@ function liveAtTime(tNs) {
     s.count += 1;
     bySite.set(v.sid, s);
   }
+  return { bySite, totalBytes };
+}
+
+function liveAtTime(tNs) {
+  const liveMap = liveMapAtTime(tNs);
+  const { bySite, totalBytes } = aggregateLiveMap(liveMap);
 
   const sites = [...bySite.entries()]
     .map(([sid, s]) => ({ sid, bytes: s.bytes, count: s.count }))
@@ -470,11 +519,242 @@ function liveAtTime(tNs) {
   return { tNs, totalBytes, totalCount: liveMap.size, sites, pointers };
 }
 
-self.onmessage = (ev) => {
+function diffTimes(tA, tB) {
+  const a = liveMapAtTime(tA);
+  const b = liveMapAtTime(tB);
+
+  const siteIds = new Set();
+  for (const v of a.values()) siteIds.add(v.sid);
+  for (const v of b.values()) siteIds.add(v.sid);
+
+  const bySite = new Map();
+  for (const sid of siteIds) {
+    let bytesA = 0, bytesB = 0, countA = 0, countB = 0;
+    for (const v of a.values()) {
+      if (v.sid === sid) { bytesA += v.size; countA += 1; }
+    }
+    for (const v of b.values()) {
+      if (v.sid === sid) { bytesB += v.size; countB += 1; }
+    }
+    const deltaBytes = bytesB - bytesA;
+    const deltaCount = countB - countA;
+    if (deltaBytes !== 0 || deltaCount !== 0) {
+      bySite.set(sid, { sid, bytesA, bytesB, countA, countB, deltaBytes, deltaCount });
+    }
+  }
+
+  const sites = [...bySite.values()]
+    .sort((x, y) => Math.abs(y.deltaBytes) - Math.abs(x.deltaBytes))
+    .slice(0, 50);
+
+  const added = [];
+  for (const [p, v] of b.entries()) {
+    if (!a.has(p)) added.push({ ptr: '0x' + p.toString(16), bytes: v.size, sid: v.sid });
+  }
+  added.sort((x, y) => y.bytes - x.bytes);
+  const addedTotal = added.length;
+  added.length = Math.min(added.length, 50);
+
+  const d = gDecoded;
+  const freeSite = new Map();
+  if (d) {
+    const cur = new Set(a.keys());
+    for (let i = 0; i < d.eventCount; i++) {
+      const tt = d.t[i];
+      if (tt <= tA) continue;
+      if (tt > tB) break;
+      const p = d.ptr[i];
+      if (!p) continue;
+      if (d.kind[i] === 4) {
+        if (cur.has(p)) {
+          freeSite.set(p, d.stackId[i]);
+          cur.delete(p);
+        }
+      } else {
+        cur.add(p);
+        freeSite.delete(p);
+      }
+    }
+  }
+
+  const freed = [];
+  for (const [p, v] of a.entries()) {
+    if (!b.has(p)) {
+      const fs = freeSite.get(p);
+      freed.push({
+        ptr: '0x' + p.toString(16),
+        bytes: v.size,
+        sid: v.sid,
+        freeSid: fs == null ? -1 : fs,
+      });
+    }
+  }
+  freed.sort((x, y) => y.bytes - x.bytes);
+  const freedTotal = freed.length;
+  freed.length = Math.min(freed.length, 50);
+
+  let totalA = 0, totalB = 0;
+  for (const v of a.values()) totalA += v.size;
+  for (const v of b.values()) totalB += v.size;
+
+    return {
+    tA, tB,
+    totalA, totalB,
+    totalCountA: a.size,
+    totalCountB: b.size,
+    addedTotal,
+    freedTotal,
+    sites, added, freed,
+  };
+}
+
+const SQLJS_BASE = 'https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/';
+let gSqlPromise = null;
+
+function loadSqlJs() {
+  if (!gSqlPromise) {
+    importScripts(SQLJS_BASE + 'sql-wasm.js');
+    gSqlPromise = initSqlJs({ locateFile: (f) => SQLJS_BASE + f });
+  }
+  return gSqlPromise;
+}
+
+async function exportSqlite() {
+  const d = gDecoded;
+  if (!d) throw new Error('No trace loaded');
+
+  const SQL = await loadSqlJs();
+  const db = new SQL.Database();
+  const agg = aggregate(d);
+
+  db.run('CREATE TABLE meta(key TEXT PRIMARY KEY, value)');
+  db.run('CREATE TABLE stacks(sid INTEGER PRIMARY KEY, depth INTEGER, frames TEXT)');
+  db.run('CREATE TABLE frames(sid INTEGER, idx INTEGER, frame TEXT, PRIMARY KEY(sid, idx))');
+  db.run(`CREATE TABLE events(
+    seq INTEGER PRIMARY KEY, t_ns REAL, kind_id INTEGER, kind TEXT,
+    ptr TEXT, size REAL, live_bytes REAL, stack_id INTEGER)`);
+  db.run(`CREATE TABLE sites(
+    sid INTEGER PRIMARY KEY, alloc_bytes REAL, alloc_count INTEGER,
+    free_count INTEGER, live_bytes REAL)`);
+  db.run('CREATE TABLE live_pointers(ptr TEXT PRIMARY KEY, size REAL, stack_id INTEGER)');
+
+  const platformName = d.platform === 2 ? 'wasm' : d.platform === 1 ? 'macos' : 'linux';
+  const tMin = d.eventCount > 0 ? d.t[0] : 0;
+  const tMax = d.eventCount > 0 ? d.t[d.eventCount - 1] : 0;
+  let stillLiveBytes = 0;
+  for (const v of d.ptrLive.values()) stillLiveBytes += v.size;
+
+  const metaIns = db.prepare('INSERT INTO meta(key, value) VALUES (?, ?)');
+  const metaRows = [
+    ['platform', platformName],
+    ['version', String(d.version)],
+    ['event_count', String(d.eventCount)],
+    ['peak_live_bytes', String(d.peakLive)],
+    ['still_live_count', String(d.ptrLive.size)],
+    ['still_live_bytes', String(stillLiveBytes)],
+    ['t_min_ns', String(tMin)],
+    ['t_max_ns', String(tMax)],
+    ['duration_ns', String(tMax - tMin)],
+    ['instrumentation_prefixes', 'torirs_memtrace_|torirs_hook_|__wrap_|real_malloc|real_calloc|real_realloc|real_reallocf|real_free|real_posix_memalign|real_strdup'],
+    ['sqljs_version', '1.10.3'],
+    ['exported_at', new Date().toISOString()],
+  ];
+  for (const [k, v] of metaRows) metaIns.run([k, v]);
+  metaIns.free();
+
+  db.run('BEGIN');
+
+  const stackIns = db.prepare('INSERT INTO stacks(sid, depth, frames) VALUES (?, ?, ?)');
+  const frameIns = db.prepare('INSERT INTO frames(sid, idx, frame) VALUES (?, ?, ?)');
+  for (let sid = 0; sid < d.stackFrames.length; sid++) {
+    const frames = d.stackFrames[sid] || [];
+    if (!frames.length && sid === 0) continue;
+    stackIns.run([sid, frames.length, frames.join('\n')]);
+    for (let idx = 0; idx < frames.length; idx++) {
+      frameIns.run([sid, idx, frames[idx]]);
+    }
+  }
+  stackIns.free();
+  frameIns.free();
+
+  const eventIns = db.prepare(
+    'INSERT INTO events(seq, t_ns, kind_id, kind, ptr, size, live_bytes, stack_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+  );
+  for (let i = 0; i < d.eventCount; i++) {
+    const k = d.kind[i];
+    const p = d.ptr[i];
+    eventIns.run([
+      i,
+      d.t[i],
+      k,
+      KIND_NAMES[k] || '',
+      p ? '0x' + p.toString(16) : '',
+      d.sizeUsable[i],
+      d.live[i],
+      d.stackId[i],
+    ]);
+  }
+  eventIns.free();
+
+  const siteIns = db.prepare(
+    'INSERT INTO sites(sid, alloc_bytes, alloc_count, free_count, live_bytes) VALUES (?, ?, ?, ?, ?)',
+  );
+  for (const row of agg.perStack) {
+    let allocBytes = 0;
+    let allocCount = 0;
+    for (const kid of KIND_ALLOC) {
+      allocBytes += row.bytes[kid] || 0;
+      allocCount += row.count[kid] || 0;
+    }
+    siteIns.run([row.id, allocBytes, allocCount, row.count[4] || 0, row.live]);
+  }
+  siteIns.free();
+
+  const liveIns = db.prepare('INSERT INTO live_pointers(ptr, size, stack_id) VALUES (?, ?, ?)');
+  for (const [p, v] of d.ptrLive.entries()) {
+    liveIns.run(['0x' + p.toString(16), v.size, v.sid]);
+  }
+  liveIns.free();
+
+  db.run('COMMIT');
+
+  db.run('CREATE INDEX idx_events_stack_id ON events(stack_id)');
+  db.run('CREATE INDEX idx_events_kind_id ON events(kind_id)');
+  db.run('CREATE INDEX idx_events_t_ns ON events(t_ns)');
+  db.run('CREATE INDEX idx_frames_frame ON frames(frame)');
+  db.run('CREATE INDEX idx_live_pointers_stack_id ON live_pointers(stack_id)');
+  db.run('CREATE INDEX idx_sites_live_bytes ON sites(live_bytes)');
+
+  db.run(`CREATE VIEW v_leaks AS
+    SELECT lp.ptr, lp.size, lp.stack_id, s.frames
+    FROM live_pointers lp
+    LEFT JOIN stacks s ON s.sid = lp.stack_id
+    ORDER BY lp.size DESC`);
+  db.run(`CREATE VIEW v_sites_by_live AS
+    SELECT st.sid, st.alloc_bytes, st.alloc_count, st.free_count, st.live_bytes, s.frames
+    FROM sites st
+    LEFT JOIN stacks s ON s.sid = st.sid
+    ORDER BY st.live_bytes DESC`);
+
+  const bytes = db.export();
+  db.close();
+  return bytes;
+}
+
+self.onmessage = async (ev) => {
   try {
     const msg = ev.data;
     if (msg.type === 'live-at') {
       self.postMessage({ type: 'live-at', ...liveAtTime(msg.tNs) });
+      return;
+    }
+    if (msg.type === 'diff') {
+      self.postMessage({ type: 'diff', ...diffTimes(msg.tA, msg.tB) });
+      return;
+    }
+    if (msg.type === 'export-sqlite') {
+      const bytes = await exportSqlite();
+      self.postMessage({ type: 'sqlite', bytes }, [bytes.buffer]);
       return;
     }
 
@@ -510,8 +790,13 @@ self.onmessage = (ev) => {
       kindFilter: 'all',
       hideInstrumentation: true,
       selectedRatio: 1,
+      ratioA: 0.05,
+      ratioB: 1,
       liveAt: null,
+      diff: null,
       busy: false,
+      traceSource: null,
+      exportSqliteBusy: false,
     };
 
     const TIMELINE_PAD = { l: 48, r: 12, t: 12, b: 28 };
@@ -528,11 +813,52 @@ self.onmessage = (ev) => {
       statusLine.textContent = text || '';
     }
 
+    function updateDownloadBtn() {
+      document.getElementById('downloadTraceBtn').disabled = !state.traceSource;
+    }
+
+    function updateExportSqliteBtn() {
+      const btn = document.getElementById('exportSqliteBtn');
+      btn.disabled = !state.timeline || state.exportSqliteBusy;
+    }
+
+    function downloadSqlite(bytes) {
+      const blob = new Blob([bytes], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'memtrace.db';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function setTraceSource(filename, blob) {
+      state.traceSource = { filename, blob };
+      updateDownloadBtn();
+    }
+
+    function downloadTrace() {
+      const src = state.traceSource;
+      if (!src) return;
+      const url = URL.createObjectURL(src.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = src.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
     function fmtBytes(n) {
       if (n >= 1e9) return (n / 1e9).toFixed(2) + ' GB';
       if (n >= 1e6) return (n / 1e6).toFixed(2) + ' MB';
       if (n >= 1e3) return (n / 1e3).toFixed(1) + ' KB';
       return n + ' B';
+    }
+
+    function fmtDelta(n) {
+      if (n === 0) return '0 B';
+      const sign = n > 0 ? '+' : '-';
+      return sign + fmtBytes(Math.abs(n));
     }
 
     function fmtTimeNs(tNs) {
@@ -543,10 +869,6 @@ self.onmessage = (ev) => {
       return (tNs / 1e3).toFixed(1) + ' µs';
     }
 
-    function stackFramesDisplay(sid, limit = 4) {
-      const frames = stripInstrumentation(state.stacks[sid] || []).slice(0, limit);
-      return frames.length ? frames.join('\n') : '(no stack)';
-    }
 
     function openIdb() {
       return new Promise((resolve, reject) => {
@@ -610,16 +932,56 @@ self.onmessage = (ev) => {
       return kindId > 0 ? (row.bytes[kindId] || 0) : 0;
     }
 
-    const INSTRUMENTATION_RE = /torirs_memtrace_|torirs_hook_|__wrap_/;
+    const INSTRUMENTATION_RE = /torirs_memtrace_|torirs_hook_|__wrap_|real_malloc|real_calloc|real_realloc|real_reallocf|real_free|real_posix_memalign|real_strdup/;
     function stripInstrumentation(frames) {
       if (!state.hideInstrumentation) return frames;
       const out = frames.filter((f) => !INSTRUMENTATION_RE.test(f));
       return out.length ? out : frames;
     }
 
+    function stackFramesForSid(sid) {
+      return stripInstrumentation(state.stacks[sid] || []);
+    }
+
+    function stackCellCollapsedHtml(frames, cellKey) {
+      if (!frames.length) return `<td class="stack">(no stack)</td>`;
+      const head = frames.slice(0, 4).join('\n');
+      const more = frames.length > 4
+        ? `\n<span class="more">… +${frames.length - 4} more (click to expand)</span>`
+        : '';
+      return `<td class="stack stack-cell" data-cell-key="${cellKey}" data-expanded="0">${head}${more}</td>`;
+    }
+
+    function stackCellHtml(sid) {
+      return stackCellCollapsedHtml(stackFramesForSid(sid), 's' + sid);
+    }
+
+    function framesForCellKey(key) {
+      if (key.startsWith('s')) return stackFramesForSid(Number(key.slice(1)));
+      return [];
+    }
+
+    function toggleStackCell(cell) {
+      const key = cell.dataset.cellKey;
+      const expanded = cell.dataset.expanded === '1';
+      const frames = framesForCellKey(key);
+      if (expanded) {
+        cell.dataset.expanded = '0';
+        const head = frames.slice(0, 4).join('\n');
+        const more = frames.length > 4
+          ? `\n<span class="more">… +${frames.length - 4} more (click to expand)</span>`
+          : '';
+        cell.innerHTML = head + more;
+      } else {
+        cell.dataset.expanded = '1';
+        cell.textContent = frames.join('\n');
+      }
+    }
+
     function buildFlameRows() {
       return state.perStack
         .map((row) => ({
+          id: row.id,
           stack: stripInstrumentation(state.stacks[row.id] || []),
           value: stackMetric(row, state.metric, state.kindFilter),
         }))
@@ -723,6 +1085,22 @@ self.onmessage = (ev) => {
         ctx.lineTo(mx, pad.t + plotH);
         ctx.stroke();
       }
+
+      function drawTimeMarker(ratio, color, label) {
+        if (ratio == null) return;
+        const mx = pad.l + ratio * plotW;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(mx, pad.t);
+        ctx.lineTo(mx, pad.t + plotH);
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText(label, mx + 3, pad.t + 12);
+      }
+      drawTimeMarker(state.ratioA, '#22d3ee', 'A');
+      drawTimeMarker(state.ratioB, '#f472b6', 'B');
     }
 
     function drawFlame() {
@@ -767,7 +1145,7 @@ self.onmessage = (ev) => {
       if (!rows.length) { el.className = 'empty'; el.textContent = 'No data.'; return; }
       el.className = '';
       el.innerHTML = `<table><thead><tr><th>#</th><th>${state.metric}</th><th>Stack (leaf first)</th></tr></thead><tbody>` +
-        rows.map((r, i) => `<tr><td>${i + 1}</td><td>${state.metric === 'count' ? r.value : fmtBytes(r.value)}</td><td class="stack">${(r.stack || []).slice(0, 6).join('\n')}</td></tr>`).join('') +
+        rows.map((r, i) => `<tr><td>${i + 1}</td><td>${state.metric === 'count' ? r.value : fmtBytes(r.value)}</td>${stackCellHtml(r.id)}</tr>`).join('') +
         '</tbody></table>';
     }
 
@@ -782,8 +1160,12 @@ self.onmessage = (ev) => {
         return;
       }
       el.className = '';
-      el.innerHTML = `<table><thead><tr><th>Pointer</th><th>Bytes</th><th>Allocated at</th></tr></thead><tbody>` +
-        leaks.map(l => `<tr><td class="stack">${l.ptr}</td><td>${fmtBytes(l.bytes)}</td><td class="stack">${stackFramesDisplay(l.sid)}</td></tr>`).join('') +
+      let running = 0;
+      el.innerHTML = `<table><thead><tr><th>Pointer</th><th>Bytes</th><th>Running sum</th><th>Allocated at</th></tr></thead><tbody>` +
+        leaks.map(l => {
+          running += l.bytes;
+          return `<tr><td class="stack">${l.ptr}</td><td>${fmtBytes(l.bytes)}</td><td>${fmtBytes(running)}</td>${stackCellHtml(l.sid)}</tr>`;
+        }).join('') +
         `</tbody></table><p style="color:#9aa3b2;font-size:12px;margin-top:8px">Still live: ${state.meta.still_live_count} pointers, ${fmtBytes(state.meta.still_live_bytes || 0)} total.</p>`;
     }
 
@@ -804,8 +1186,69 @@ self.onmessage = (ev) => {
       el.className = '';
       el.innerHTML = `<p style="color:#9aa3b2;font-size:12px;margin:0 0 8px">At ${fmtTimeNs(data.tNs)}: <strong style="color:#e6e8ef">${data.totalCount.toLocaleString()}</strong> pointers, <strong style="color:#e6e8ef">${fmtBytes(data.totalBytes)}</strong> live.</p>` +
         `<table><thead><tr><th>Bytes</th><th>Count</th><th>Allocated at</th></tr></thead><tbody>` +
-        sites.map(s => `<tr><td>${fmtBytes(s.bytes)}</td><td>${s.count}</td><td class="stack">${stackFramesDisplay(s.sid)}</td></tr>`).join('') +
+        sites.map(s => `<tr><td>${fmtBytes(s.bytes)}</td><td>${s.count}</td>${stackCellHtml(s.sid)}</tr>`).join('') +
         '</tbody></table>';
+    }
+
+    function freedStackCell(freeSid) {
+      return freeSid >= 0 ? stackCellHtml(freeSid) : '<td class="stack">(not seen in window)</td>';
+    }
+
+    function renderDiff() {
+      const el = document.getElementById('diff');
+      const data = state.diff;
+      if (!data || !state.timeline) {
+        el.className = 'empty';
+        el.textContent = 'Set A and B to compare live allocations between two times.';
+        return;
+      }
+      const deltaBytes = data.totalB - data.totalA;
+      const deltaCount = data.totalCountB - data.totalCountA;
+      const deltaBytesCls = deltaBytes >= 0 ? 'delta-pos' : 'delta-neg';
+      const deltaCountCls = deltaCount >= 0 ? 'delta-pos' : 'delta-neg';
+
+      let html = `<p style="color:#9aa3b2;font-size:12px;margin:0 0 8px">` +
+        `A ${fmtTimeNs(data.tA)}: <strong style="color:#e6e8ef">${fmtBytes(data.totalA)}</strong> (${data.totalCountA.toLocaleString()} ptrs) → ` +
+        `B ${fmtTimeNs(data.tB)}: <strong style="color:#e6e8ef">${fmtBytes(data.totalB)}</strong> (${data.totalCountB.toLocaleString()} ptrs), ` +
+        `Δ <strong class="${deltaBytesCls}">${fmtDelta(deltaBytes)}</strong> / ` +
+        `<strong class="${deltaCountCls}">${deltaCount >= 0 ? '+' : ''}${deltaCount.toLocaleString()}</strong> ptrs</p>`;
+
+      const sites = data.sites || [];
+      if (sites.length) {
+        html += `<div class="table-wrap"><table><thead><tr><th>Δ Bytes</th><th>Bytes A</th><th>Bytes B</th><th>Δ Count</th><th>Allocated at</th></tr></thead><tbody>` +
+          sites.map(s => {
+            const cls = s.deltaBytes >= 0 ? 'delta-pos' : 'delta-neg';
+            const countCls = s.deltaCount >= 0 ? 'delta-pos' : 'delta-neg';
+            return `<tr><td class="${cls}">${fmtDelta(s.deltaBytes)}</td><td>${fmtBytes(s.bytesA)}</td><td>${fmtBytes(s.bytesB)}</td>` +
+              `<td class="${countCls}">${s.deltaCount >= 0 ? '+' : ''}${s.deltaCount}</td>${stackCellHtml(s.sid)}</tr>`;
+          }).join('') +
+          '</tbody></table></div>';
+      } else {
+        html += `<p style="color:#9aa3b2;font-size:12px">No per-site changes between A and B.</p>`;
+      }
+
+      const added = data.added || [];
+      const freed = data.freed || [];
+      const freedTotal = data.freedTotal || 0;
+      if (added.length) {
+        html += `<h3 style="font-size:13px;margin:16px 0 8px">Newly allocated (in B, not A)${data.addedTotal > added.length ? ` — top ${added.length} of ${data.addedTotal}` : ''}</h3>` +
+          `<div class="table-wrap"><table><thead><tr><th>Pointer</th><th>Bytes</th><th>Allocated at</th></tr></thead><tbody>` +
+          added.map(p => `<tr><td class="stack">${p.ptr}</td><td>${fmtBytes(p.bytes)}</td>${stackCellHtml(p.sid)}</tr>`).join('') +
+          '</tbody></table></div>';
+      }
+      if (freed.length || freedTotal > 0 || data.totalCountA > data.totalCountB) {
+        html += `<h3 style="font-size:13px;margin:16px 0 8px">Freed (in A, not B)${freedTotal > freed.length ? ` — top ${freed.length} of ${freedTotal}` : ''}</h3>`;
+        if (freed.length) {
+          html += `<div class="table-wrap"><table><thead><tr><th>Pointer</th><th>Bytes</th><th>Allocated at</th><th>Freed at</th></tr></thead><tbody>` +
+            freed.map(p => `<tr><td class="stack">${p.ptr}</td><td>${fmtBytes(p.bytes)}</td>${stackCellHtml(p.sid)}${freedStackCell(p.freeSid)}</tr>`).join('') +
+            '</tbody></table></div>';
+        } else {
+          html += `<p style="color:#9aa3b2;font-size:12px">No individual freed pointers in this A→B window. Move <strong style="color:#22d3ee">A</strong> later (or <strong style="color:#f472b6">B</strong> earlier) to capture frees between two instants.</p>`;
+        }
+      }
+
+      el.className = '';
+      el.innerHTML = html;
     }
 
     function updateTimeReadout(tNs) {
@@ -833,6 +1276,32 @@ self.onmessage = (ev) => {
       worker.postMessage({ type: 'live-at', tNs });
     }
 
+    function updateDiffReadouts(tA, tB) {
+      if (!state.timeline) {
+        document.getElementById('diffReadoutA').textContent = '';
+        document.getElementById('diffReadoutB').textContent = '';
+        return;
+      }
+      const { tMin, tMax } = state.timeline;
+      const span = tMax - tMin;
+      const pctA = span > 0 ? ((tA - tMin) / span * 100).toFixed(1) : '0.0';
+      const pctB = span > 0 ? ((tB - tMin) / span * 100).toFixed(1) : '100.0';
+      document.getElementById('diffReadoutA').textContent = `${fmtTimeNs(tA)} (${pctA}%)`;
+      document.getElementById('diffReadoutB').textContent = `${fmtTimeNs(tB)} (${pctB}%)`;
+    }
+
+    function requestDiff() {
+      if (!state.timeline) return;
+      const { tMin, tMax } = state.timeline;
+      const tA = tMin + state.ratioA * (tMax - tMin);
+      const tB = tMin + state.ratioB * (tMax - tMin);
+      document.getElementById('diffSliderA').value = String(Math.round(state.ratioA * 1000));
+      document.getElementById('diffSliderB').value = String(Math.round(state.ratioB * 1000));
+      updateDiffReadouts(tA, tB);
+      drawTimeline();
+      worker.postMessage({ type: 'diff', tA, tB });
+    }
+
     function renderAll() {
       updateStats();
       drawTimeline();
@@ -840,7 +1309,9 @@ self.onmessage = (ev) => {
       renderTopSites();
       renderLeaks();
       renderLiveAt();
+      renderDiff();
       setStatus('');
+      updateExportSqliteBtn();
     }
 
     function applyDecoded(msg) {
@@ -849,9 +1320,15 @@ self.onmessage = (ev) => {
       state.perStack = msg.perStack;
       state.stacks = msg.stacks;
       state.liveAt = null;
+      state.diff = null;
       state.selectedRatio = 1;
+      state.ratioA = 0.05;
+      state.ratioB = 1;
+      document.getElementById('diffSliderA').value = '50';
+      document.getElementById('diffSliderB').value = '1000';
       renderAll();
       requestLiveAt(1);
+      requestDiff();
     }
 
     function decodeInWorker(payload) {
@@ -860,7 +1337,8 @@ self.onmessage = (ev) => {
       worker.postMessage(payload);
     }
 
-    async function ingestBytes(buffer, { cache = true, ackOpener = false } = {}) {
+    async function ingestBytes(buffer, { cache = true, ackOpener = false, filename = 'memtrace.bin' } = {}) {
+      setTraceSource(filename, new Blob([buffer], { type: 'application/octet-stream' }));
       if (cache) {
         try {
           const copy = buffer.slice(0);
@@ -887,9 +1365,23 @@ self.onmessage = (ev) => {
         renderLiveAt();
         return;
       }
+      if (msg.type === 'diff') {
+        state.diff = msg;
+        renderDiff();
+        return;
+      }
+      if (msg.type === 'sqlite') {
+        state.exportSqliteBusy = false;
+        downloadSqlite(msg.bytes);
+        setStatus('');
+        updateExportSqliteBtn();
+        return;
+      }
       if (msg.type === 'error') {
         state.busy = false;
+        state.exportSqliteBusy = false;
         setStatus('');
+        updateExportSqliteBtn();
         alert(msg.message || 'Decode failed');
       }
     };
@@ -897,13 +1389,15 @@ self.onmessage = (ev) => {
     document.getElementById('eventsFile').addEventListener('change', async (ev) => {
       const file = ev.target.files[0];
       if (!file) return;
-      decodeInWorker({ type: 'decode-jsonl', text: await file.text() });
+      const text = await file.text();
+      setTraceSource(file.name, new Blob([text], { type: 'application/x-ndjson' }));
+      decodeInWorker({ type: 'decode-jsonl', text });
     });
 
     document.getElementById('binFile').addEventListener('change', async (ev) => {
       const file = ev.target.files[0];
       if (!file) return;
-      await ingestBytes(await file.arrayBuffer(), { cache: true });
+      await ingestBytes(await file.arrayBuffer(), { cache: true, filename: file.name });
     });
 
     document.getElementById('metaFile').addEventListener('change', async (ev) => {
@@ -934,10 +1428,51 @@ self.onmessage = (ev) => {
       renderTopSites();
       renderLeaks();
       renderLiveAt();
+      renderDiff();
     });
 
     document.getElementById('timeSlider').addEventListener('input', (ev) => {
       requestLiveAt(Number(ev.target.value) / 1000);
+    });
+
+    function setupCollapsibleDetails(el, storageKey) {
+      try {
+        const saved = sessionStorage.getItem(storageKey);
+        if (saved === '0') el.open = false;
+      } catch (_) { /* ignore */ }
+      el.addEventListener('toggle', () => {
+        try {
+          sessionStorage.setItem(storageKey, el.open ? '1' : '0');
+        } catch (_) { /* ignore */ }
+      });
+    }
+
+    setupCollapsibleDetails(document.getElementById('liveAtDetails'), 'memtrace-viewer-liveAt-open');
+    setupCollapsibleDetails(document.getElementById('diffDetails'), 'memtrace-viewer-diff-open');
+
+    document.getElementById('diffSliderA').addEventListener('input', (ev) => {
+      state.ratioA = Number(ev.target.value) / 1000;
+      requestDiff();
+    });
+
+    document.getElementById('diffSliderB').addEventListener('input', (ev) => {
+      state.ratioB = Number(ev.target.value) / 1000;
+      requestDiff();
+    });
+
+    document.querySelector('main').addEventListener('click', (ev) => {
+      const cell = ev.target.closest('.stack-cell');
+      if (cell) toggleStackCell(cell);
+    });
+
+    document.getElementById('downloadTraceBtn').addEventListener('click', downloadTrace);
+
+    document.getElementById('exportSqliteBtn').addEventListener('click', () => {
+      if (!state.timeline || state.exportSqliteBusy) return;
+      state.exportSqliteBusy = true;
+      setStatus('Building SQLite…');
+      updateExportSqliteBtn();
+      worker.postMessage({ type: 'export-sqlite' });
     });
 
     document.getElementById('clearCacheBtn').addEventListener('click', async () => {
@@ -979,7 +1514,10 @@ self.onmessage = (ev) => {
       if (data.type === 'memtrace-bytes' && data.buffer) {
         await ingestBytes(data.buffer, { cache: true, ackOpener: true });
       } else if (data.type === 'memtrace-data') {
-        decodeInWorker({ type: 'decode-events', events: data.events || [], meta: data.meta || null });
+        const events = data.events || [];
+        const text = events.map((e) => JSON.stringify(e)).join('\n') + (events.length ? '\n' : '');
+        setTraceSource('events.jsonl', new Blob([text], { type: 'application/x-ndjson' }));
+        decodeInWorker({ type: 'decode-events', events, meta: data.meta || null });
         if (window.opener) {
           window.opener.postMessage({ type: 'memtrace-acked' }, window.location.origin);
         }
@@ -1003,6 +1541,8 @@ self.onmessage = (ev) => {
     }
 
     boot();
+    updateDownloadBtn();
+    updateExportSqliteBtn();
   </script>
 </body>
 </html>

@@ -307,6 +307,12 @@ void
 dat1_buildcache_npcs_reset(struct Dat1BuildCache* dat1_buildcache);
 
 void
+dat1_buildcache_map_terrain_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_map_scenery_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+void
 dat1_buildcache_sequences_cleanup(struct Dat1BuildCache* dat1_buildcache);
 
 void

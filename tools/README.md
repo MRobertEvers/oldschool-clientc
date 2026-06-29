@@ -4,6 +4,32 @@ Scripts and small subprojects used during development and content generation. **
 
 ---
 
+## `memtrace/` — heap allocation tracing
+
+Records malloc/calloc/realloc/free with call stacks to `memtrace.bin`, with a browser viewer for WASM traces and a Python decoder for native symbolization.
+
+**Full documentation:** [`memtrace/README.md`](memtrace/README.md)  
+**Cursor AI analysis:** [`memtrace/AI_ANALYSIS.md`](memtrace/AI_ANALYSIS.md) · prompt template [`memtrace/ai_analysis_prompt.md`](memtrace/ai_analysis_prompt.md)
+
+**Quick start (browser):**
+
+```bash
+make -C src2/programs/browser MEMTRACE=1 clean all
+python3 -m http.server -d src2/programs/browser/dist 8080
+# Open http://localhost:8080/ → click Memtrace
+```
+
+**Quick start (native):**
+
+```bash
+make -C src2/programs/sdl2 MEMTRACE=1
+./sdl2    # memtrace.bin written on exit
+python3 tools/memtrace/decode_memtrace.py memtrace.bin -o memtrace_out
+# Load memtrace_out/events.jsonl in viewer.html
+```
+
+---
+
 ## Python scripts
 
 ### `gen_lua_api_ht.py`
