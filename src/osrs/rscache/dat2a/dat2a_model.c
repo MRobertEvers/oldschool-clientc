@@ -2701,7 +2701,31 @@ copy_vertex(
         model->vertices_y[new_vertex_count] = vert_y;
         model->vertices_z[new_vertex_count] = vert_z;
 
-        // TODO: Vertex skins
+        // Vertex skins (animaya)
+        if( model->animaya_group_counts && other->animaya_group_counts &&
+            other->animaya_groups && other->animaya_scales )
+        {
+            int cnt = (int)other->animaya_group_counts[vertex_index];
+            model->animaya_group_counts[new_vertex_count] = (uint8_t)cnt;
+            if( cnt > 0 )
+            {
+                model->animaya_groups[new_vertex_count] = (uint8_t*)malloc((size_t)cnt);
+                model->animaya_scales[new_vertex_count] = (uint8_t*)malloc((size_t)cnt);
+                if( model->animaya_groups[new_vertex_count] &&
+                    other->animaya_groups[vertex_index] )
+                    memcpy(
+                        model->animaya_groups[new_vertex_count],
+                        other->animaya_groups[vertex_index],
+                        (size_t)cnt);
+                if( model->animaya_scales[new_vertex_count] &&
+                    other->animaya_scales[vertex_index] )
+                    memcpy(
+                        model->animaya_scales[new_vertex_count],
+                        other->animaya_scales[vertex_index],
+                        (size_t)cnt);
+            }
+        }
+
         if( model->vertex_bone_map && other->vertex_bone_map )
         {
             model->vertex_bone_map[new_vertex_count] = other->vertex_bone_map[vertex_index];
@@ -2740,6 +2764,7 @@ RSCacheDat2A_ModelNewMerge(
     bool has_face_render_textures = false;
     bool has_vertex_bones = false;
     bool has_face_bones = false;
+    bool has_animaya = false;
 
     for( int i = 0; i < model_count; i++ )
     {
@@ -2770,6 +2795,10 @@ RSCacheDat2A_ModelNewMerge(
 
         if( models[i]->face_bone_map )
             has_face_bones = true;
+
+        if( models[i]->animaya_group_counts && models[i]->animaya_groups &&
+            models[i]->animaya_scales )
+            has_animaya = true;
     }
 
     int* vertices_x = (int*)malloc(vertex_count * sizeof(int));
@@ -2849,6 +2878,16 @@ RSCacheDat2A_ModelNewMerge(
         memset(face_bone_map, 0, (size_t)face_count * sizeof(uint8_t));
     }
 
+    uint8_t* animaya_group_counts = NULL;
+    uint8_t** animaya_groups = NULL;
+    uint8_t** animaya_scales = NULL;
+    if( has_animaya )
+    {
+        animaya_group_counts = (uint8_t*)calloc((size_t)vertex_count, sizeof(uint8_t));
+        animaya_groups = (uint8_t**)calloc((size_t)vertex_count, sizeof(uint8_t*));
+        animaya_scales = (uint8_t**)calloc((size_t)vertex_count, sizeof(uint8_t*));
+    }
+
     int16_t* face_textures = NULL;
     int16_t* face_texture_coords = NULL;
     if( has_face_render_textures )
@@ -2896,6 +2935,14 @@ RSCacheDat2A_ModelNewMerge(
 
     model->vertex_bone_map = vertex_bone_map;
     model->face_bone_map = face_bone_map;
+
+    if( has_animaya )
+    {
+        model->animaya_vertex_count = vertex_count;
+        model->animaya_group_counts = animaya_group_counts;
+        model->animaya_groups       = animaya_groups;
+        model->animaya_scales       = animaya_scales;
+    }
 
     for( int i = 0; i < model_count; i++ )
     {

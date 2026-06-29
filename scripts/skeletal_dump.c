@@ -420,31 +420,20 @@ main(int argc, char** argv)
         int bone_first = 1;
         if( palette && bone_count > 0 )
         {
-            for( int vi = 0; vi < merged.vertex_count; vi++ )
+            for( int bone = 0; bone < bone_count; bone++ )
             {
-                int cnt = merged.animaya_group_counts
-                    ? (int)merged.animaya_group_counts[vi]
-                    : 0;
-                for( int j = 0; j < cnt; j++ )
+                if( !bone_first )
+                    fprintf(fp, ",\n");
+                bone_first = 0;
+                const float* M = &palette[bone * 16];
+                fprintf(fp, "    \"%d\": [", bone);
+                for( int k = 0; k < 16; k++ )
                 {
-                    int bone = merged.animaya_groups[vi]
-                        ? (int)merged.animaya_groups[vi][j]
-                        : -1;
-                    if( bone < 0 || bone >= bone_count )
-                        continue;
-                    if( !bone_first )
-                        fprintf(fp, ",\n");
-                    bone_first = 0;
-                    const float* M = &palette[bone * 16];
-                    fprintf(fp, "    \"%d\": [", bone);
-                    for( int k = 0; k < 16; k++ )
-                    {
-                        if( k > 0 )
-                            fputc(',', fp);
-                        fprintf(fp, "%g", (double)M[k]);
-                    }
-                    fprintf(fp, "]");
+                    if( k > 0 )
+                        fputc(',', fp);
+                    fprintf(fp, "%g", (double)M[k]);
                 }
+                fprintf(fp, "]");
             }
         }
         fprintf(fp, "\n  },\n");

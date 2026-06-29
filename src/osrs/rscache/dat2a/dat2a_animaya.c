@@ -721,8 +721,8 @@ RSCacheDat2A_AnimMayaNewDecode(
     {
         /* u8 transformType */
         int transform_type = g1(&buf);
-        /* smart2 boneIndex */
-        int bone_index = RSCacheShared_RSBufferReadUnsignedIntSmartShortCompat(&buf);
+        /* smart2 boneIndex (SkeletalSeq.ts readSmart2) */
+        int bone_index = RSCacheShared_RSBufferReadShortSmart(&buf);
         /* u8 curveType */
         int curve_type = g1(&buf);
 
