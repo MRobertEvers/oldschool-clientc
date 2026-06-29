@@ -140,7 +140,7 @@ endif
 # WebGL1 renderer: GLES2 context + WebGL 1.0 API (see platform_impl2_sdl2_port_emscripten.cpp).
 EMFLAGS := $(EFLAGS) -gsource-map -Wall -Wextra -sENVIRONMENT=web -sUSE_SDL=2 \
 	-sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 -sFULL_ES2=1 \
-	-sINITIAL_MEMORY=128MB \
+	-sINITIAL_MEMORY=256MB \
 	-DTORIRS_ENABLE_LVGL_HUD=1 -DLV_CONF_INCLUDE_SIMPLE \
 	-I$(SRC2)/toridraw -I$(SRC2) -I$(SRC2)/3rd -I$(LVGL_DIR) \
 	-I$(SCRIPT_DIR) -I$(PLAT_DIR) -I$(SRC_DIR) -I$(REPO_ROOT) \

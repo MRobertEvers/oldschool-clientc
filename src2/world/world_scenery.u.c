@@ -401,10 +401,7 @@ scenery_add_wall_single(
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, LOC_SHAPE_WALL_SINGLE_SIDE, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
-    {
-        fprintf(stderr, "scenery_add_wall_single: invalid element_id=%d\n", element_id);
-        abort();
-    }
+        return;
 
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
@@ -454,10 +451,7 @@ scenery_add_wall_tri_corner(
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, LOC_SHAPE_WALL_TRI_CORNER, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
-    {
-        fprintf(stderr, "scenery_add_wall_tri_corner: invalid element_id=%d\n", element_id);
-        abort();
-    }
+        return;
 
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
@@ -505,10 +499,7 @@ scenery_add_wall_two_sides(
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, LOC_SHAPE_WALL_TWO_SIDES, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
-    {
-        fprintf(stderr, "scenery_add_wall_two_sides: invalid element_id=%d\n", element_id);
-        abort();
-    }
+        return;
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
     painter_add_wall(
@@ -533,10 +524,7 @@ scenery_add_wall_two_sides(
         1,
         1);
     if( element_id2 < 0 )
-    {
-        fprintf(stderr, "scenery_add_wall_two_sides: invalid element_id2=%d\n", element_id2);
-        abort();
-    }
+        return;
     scenery_element_position_init(
         builder, element_id2, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
     painter_add_wall(
@@ -573,10 +561,7 @@ scenery_add_wall_rect_corner(
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, LOC_SHAPE_WALL_RECT_CORNER, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
-    {
-        fprintf(stderr, "scenery_add_wall_rect_corner: invalid element_id=%d\n", element_id);
-        abort();
-    }
+        return;
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
 
@@ -634,10 +619,7 @@ scenery_add_wall_decor_inside(
         1,
         1);
     if( element_id < 0 )
-    {
-        fprintf(stderr, "scenery_add_wall_decor_inside: invalid element_id=%d\n", element_id);
-        abort();
-    }
+        return;
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
     scenery_load_animation(builder, element_id, config_loc->seq_id);
@@ -689,10 +671,7 @@ scenery_add_wall_decor_outside(
         1);
 
     if( element_id < 0 )
-    {
-        fprintf(stderr, "scenery_add_wall_decor_outside: invalid element_id=%d\n", element_id);
-        abort();
-    }
+        return;
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
     scenery_load_animation(builder, element_id, config_loc->seq_id);
@@ -746,11 +725,7 @@ scenery_add_wall_decor_diagonal_outside(
         1,
         1);
     if( element_id < 0 )
-    {
-        fprintf(
-            stderr, "scenery_add_wall_decor_diagonal_outside: invalid element_id=%d\n", element_id);
-        abort();
-    }
+        return;
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
     scenery_load_animation(builder, element_id, config_loc->seq_id);
@@ -803,11 +778,7 @@ scenery_add_wall_decor_diagonal_inside(
         1,
         1);
     if( element_id < 0 )
-    {
-        fprintf(
-            stderr, "scenery_add_wall_decor_diagonal_inside: invalid element_id=%d\n", element_id);
-        abort();
-    }
+        return;
 
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
@@ -867,13 +838,7 @@ scenery_add_wall_decor_diagonal_double(
         1,
         1);
     if( outside_element_id < 0 )
-    {
-        fprintf(
-            stderr,
-            "scenery_add_wall_decor_diagonal_double: invalid element_id=%d\n",
-            outside_element_id);
-        abort();
-    }
+        return;
 
     int inside_element_id = scenery_load_model(
         builder,
@@ -886,13 +851,7 @@ scenery_add_wall_decor_diagonal_double(
         1,
         1);
     if( inside_element_id < 0 )
-    {
-        fprintf(
-            stderr,
-            "scenery_add_wall_decor_diagonal_double: invalid element_id=%d\n",
-            inside_element_id);
-        abort();
-    }
+        return;
 
     scenery_element_position_init(
         builder, outside_element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, outside_yaw);
@@ -959,10 +918,7 @@ scenery_add_wall_diagonal(
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, LOC_SHAPE_WALL_DIAGONAL, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
-    {
-        fprintf(stderr, "scenery_add_wall_diagonal: invalid element_id=%d\n", element_id);
-        abort();
-    }
+        return;
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
 
@@ -1018,10 +974,7 @@ scenery_add_normal(
         size_x,
         size_z);
     if( element_id < 0 )
-    {
-        fprintf(stderr, "scenery_add_normal: invalid element_id=%d\n", element_id);
-        abort();
-    }
+        return;
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, yaw);
     scenery_load_animation(builder, element_id, config_loc->seq_id);
@@ -1061,10 +1014,7 @@ scenery_add_roof(
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, map_loc->shape_select, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
-    {
-        fprintf(stderr, "scenery_add_roof: invalid element_id=%d\n", element_id);
-        abort();
-    }
+        return;
 
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
@@ -1087,10 +1037,7 @@ scenery_add_floor_decoration(
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, LOC_SHAPE_FLOOR_DECORATION, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
-    {
-        fprintf(stderr, "scenery_add_floor_decoration: invalid element_id=%d\n", element_id);
-        abort();
-    }
+        return;
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
     scenery_load_animation(builder, element_id, config_loc->seq_id);
