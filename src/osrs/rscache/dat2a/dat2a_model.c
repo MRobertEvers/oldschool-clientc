@@ -2644,6 +2644,32 @@ RSCacheDat2A_ModelNewCopy(struct RSCacheDat2A_Model* model)
 
     copy->rotated = model->rotated;
 
+    if( model->animaya_vertex_count > 0 && model->animaya_group_counts &&
+        model->animaya_groups && model->animaya_scales )
+    {
+        int vc = model->animaya_vertex_count;
+        copy->animaya_vertex_count = vc;
+        copy->animaya_group_counts = (uint8_t*)malloc((size_t)vc * sizeof(uint8_t));
+        copy->animaya_groups = (uint8_t**)calloc((size_t)vc, sizeof(uint8_t*));
+        copy->animaya_scales = (uint8_t**)calloc((size_t)vc, sizeof(uint8_t*));
+        if( copy->animaya_group_counts && copy->animaya_groups && copy->animaya_scales )
+        {
+            memcpy(copy->animaya_group_counts, model->animaya_group_counts, (size_t)vc);
+            for( int i = 0; i < vc; i++ )
+            {
+                int cnt = (int)model->animaya_group_counts[i];
+                if( cnt <= 0 )
+                    continue;
+                copy->animaya_groups[i] = (uint8_t*)malloc((size_t)cnt);
+                copy->animaya_scales[i] = (uint8_t*)malloc((size_t)cnt);
+                if( copy->animaya_groups[i] && model->animaya_groups[i] )
+                    memcpy(copy->animaya_groups[i], model->animaya_groups[i], (size_t)cnt);
+                if( copy->animaya_scales[i] && model->animaya_scales[i] )
+                    memcpy(copy->animaya_scales[i], model->animaya_scales[i], (size_t)cnt);
+            }
+        }
+    }
+
     return copy;
 }
 

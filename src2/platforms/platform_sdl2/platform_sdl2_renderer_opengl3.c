@@ -17,9 +17,9 @@
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_font.h"
+#include "toridraw/toridraw_math.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
-#include "toridraw/toridraw_math.h"
 #include "toridraw/toridraw_types.h"
 
 #include <SDL.h>
@@ -363,12 +363,24 @@ gl3_draw_textured_quad_uv4(
     float const rgba[4])
 {
     struct GL3Vertex2D verts[6] = {
-        { { pos[0][0], pos[0][1] }, { uv[0][0], uv[0][1] }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
-        { { pos[1][0], pos[1][1] }, { uv[1][0], uv[1][1] }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
-        { { pos[2][0], pos[2][1] }, { uv[2][0], uv[2][1] }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
-        { { pos[0][0], pos[0][1] }, { uv[0][0], uv[0][1] }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
-        { { pos[2][0], pos[2][1] }, { uv[2][0], uv[2][1] }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
-        { { pos[3][0], pos[3][1] }, { uv[3][0], uv[3][1] }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { pos[0][0], pos[0][1] },
+         { uv[0][0], uv[0][1] },
+         { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { pos[1][0], pos[1][1] },
+         { uv[1][0], uv[1][1] },
+         { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { pos[2][0], pos[2][1] },
+         { uv[2][0], uv[2][1] },
+         { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { pos[0][0], pos[0][1] },
+         { uv[0][0], uv[0][1] },
+         { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { pos[2][0], pos[2][1] },
+         { uv[2][0], uv[2][1] },
+         { rgba[0], rgba[1], rgba[2], rgba[3] } },
+        { { pos[3][0], pos[3][1] },
+         { uv[3][0], uv[3][1] },
+         { rgba[0], rgba[1], rgba[2], rgba[3] } },
     };
     glBindBuffer(GL_ARRAY_BUFFER, renderer->quad_vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
@@ -445,10 +457,10 @@ gl3_draw_sprite_rotated(
     const int rotation = command->u.sprite.rotation;
 
     const int local_corners[4][2] = {
-        { 0, 0 },
-        { dst_w, 0 },
+        { 0,     0     },
+        { dst_w, 0     },
         { dst_w, dst_h },
-        { 0, dst_h },
+        { 0,     dst_h },
     };
     float pos[4][2];
     float uv[4][2];
@@ -541,15 +553,7 @@ gl3_bake_font_atlas(struct GL3FontSlot* slot)
         glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpack_align);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         glTexImage2D(
-            GL_TEXTURE_2D,
-            0,
-            GL_R8,
-            atlas_w,
-            atlas_h,
-            0,
-            GL_RED,
-            GL_UNSIGNED_BYTE,
-            pixels);
+            GL_TEXTURE_2D, 0, GL_R8, atlas_w, atlas_h, 0, GL_RED, GL_UNSIGNED_BYTE, pixels);
         glPixelStorei(GL_UNPACK_ALIGNMENT, unpack_align);
     }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -607,7 +611,8 @@ gl3_draw_font_glyphs(
         float v0 = slot->glyph_uv[gi * 4 + 1];
         float u1 = slot->glyph_uv[gi * 4 + 2];
         float v1 = slot->glyph_uv[gi * 4 + 3];
-        gl3_draw_textured_quad(renderer, gx, gy, gx + (float)gw, gy + (float)gh, u0, v0, u1, v1, rgba);
+        gl3_draw_textured_quad(
+            renderer, gx, gy, gx + (float)gw, gy + (float)gh, u0, v0, u1, v1, rgba);
         cx += font->advance[gi];
     }
 
@@ -741,7 +746,10 @@ gl3_ev_sprite(
         glEnable(GL_SCISSOR_TEST);
         int sy = renderer->height - command->u.sprite.scissor_y - command->u.sprite.scissor_h;
         glScissor(
-            command->u.sprite.scissor_x, sy, command->u.sprite.scissor_w, command->u.sprite.scissor_h);
+            command->u.sprite.scissor_x,
+            sy,
+            command->u.sprite.scissor_w,
+            command->u.sprite.scissor_h);
     }
     else
         glDisable(GL_SCISSOR_TEST);
@@ -1325,8 +1333,7 @@ gl3_ev_model_unload(
     assert(command->kind == TORIRSRC_MODEL_UNLOAD);
 
     const int element_id = command->u.model_load.element_id;
-    trspk_modelarena_unload_element(
-        renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
+    trspk_modelarena_unload_element(renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
     trspk_pose_table_remove_element(&renderer->poses, element_id);
 }
 
@@ -1347,9 +1354,9 @@ gl3_bake_into_arena(
     bool update_pose_table)
 {
     struct ToriDraw_Model* model = get_model(model_handle);
-    if( !model || model->face_count <= 0 || !g->arena || !g->vbo_cpu )
+    assert(model && g->arena && g->vbo_cpu);
+    if( model->face_count <= 0 )
         return UINT32_MAX;
-
     struct ToriDraw_Scene* ctx = get_context(instance);
     const uint32_t vert_count = (uint32_t)model->face_count * 3u;
     const uint32_t tri_count = (uint32_t)model->face_count;
@@ -1472,38 +1479,11 @@ gl3_bake_into_arena(
             &wz_c);
 
         gl3_write_vertex_opengl3(
-            g->vbo_cpu,
-            vi + 0u,
-            wx_a,
-            wy_a,
-            wz_a,
-            color_a,
-            uv.u1,
-            uv.v1,
-            tex_id_encoded,
-            uv_mode);
+            g->vbo_cpu, vi + 0u, wx_a, wy_a, wz_a, color_a, uv.u1, uv.v1, tex_id_encoded, uv_mode);
         gl3_write_vertex_opengl3(
-            g->vbo_cpu,
-            vi + 1u,
-            wx_b,
-            wy_b,
-            wz_b,
-            color_b,
-            uv.u2,
-            uv.v2,
-            tex_id_encoded,
-            uv_mode);
+            g->vbo_cpu, vi + 1u, wx_b, wy_b, wz_b, color_b, uv.u2, uv.v2, tex_id_encoded, uv_mode);
         gl3_write_vertex_opengl3(
-            g->vbo_cpu,
-            vi + 2u,
-            wx_c,
-            wy_c,
-            wz_c,
-            color_c,
-            uv.u3,
-            uv.v3,
-            tex_id_encoded,
-            uv_mode);
+            g->vbo_cpu, vi + 2u, wx_c, wy_c, wz_c, color_c, uv.u3, uv.v3, tex_id_encoded, uv_mode);
     }
 
     if( update_pose_table )
@@ -1525,18 +1505,14 @@ gl3_ev_anim_load(
     const struct ToriDraw_ModelHandle* base_handle = &command->u.anim_load.model;
     const struct ToriDraw_Position* world_position = &command->u.anim_load.world_position;
 
-    if( !animation || !animation->base || !animation->frames || animation->frame_count <= 0 )
-        return;
-    if( base_handle->kind != TORIDRAWMK_MODEL || !base_handle->u.model.model )
-        return;
+    assert(base_handle->kind == TORIDRAWMK_MODEL && base_handle->u.model.model);
 
     struct ToriDraw_Model* source = base_handle->u.model.model;
 
     for( int frame = 0; frame < animation->frame_count; frame++ )
     {
         struct ToriDraw_Model* baked = ToriDraw_ModelCopy(source);
-        if( !baked )
-            continue;
+        assert(baked);
 
         ToriDraw_ModelCaptureOriginalVertices(baked);
         ToriDraw_ModelAnimateReset(baked);
@@ -1926,7 +1902,7 @@ LibToriPlatformSDL2_RendererGL3_New(
 
     trspk_pose_table_init(&renderer->poses);
 
-    if( !    trspk_atlas_init_grid(
+    if( !trspk_atlas_init_grid(
             &renderer->atlas,
             TRSPK_GL3_ATLAS_DIM,
             TRSPK_GL3_ATLAS_DIM,
@@ -1936,10 +1912,7 @@ LibToriPlatformSDL2_RendererGL3_New(
         goto fail;
 
     if( !trspk_atlas_init_binpack(
-            &renderer->sprite_atlas,
-            TRSPK_GL3_2D_ATLAS_DIM,
-            TRSPK_GL3_2D_ATLAS_DIM,
-            4u) )
+            &renderer->sprite_atlas, TRSPK_GL3_2D_ATLAS_DIM, TRSPK_GL3_2D_ATLAS_DIM, 4u) )
         goto fail;
 
     trspk_vbo_set_dirty(renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu);

@@ -99,6 +99,12 @@ world_reset_scene(
     int scene_size);
 
 void
+world_reset_scene_chunklist(
+    struct World* world,
+    const int* chunks_xz,
+    int count);
+
+void
 world_set_painters_cullmap(
     struct World* world,
     struct PaintersCullMap* cm);
@@ -116,10 +122,27 @@ world_player_spawn(
     int element_id,
     int level,
     int scene_x,
-    int scene_z);
+    int scene_z,
+    struct WorldEntityFacet_Animation animation);
 
 void
 world_player_despawn(
+    struct World* world,
+    int idx);
+
+int
+world_npc_spawn(
+    struct World* world,
+    int element_id,
+    int npc_id,
+    int level,
+    int scene_x,
+    int scene_z,
+    int size,
+    struct WorldEntityFacet_Animation animation);
+
+void
+world_npc_despawn(
     struct World* world,
     int idx);
 

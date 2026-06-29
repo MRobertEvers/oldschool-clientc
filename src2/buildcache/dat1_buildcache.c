@@ -3,6 +3,7 @@
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/dat1a/dat1a_config_idk.h"
+#include "osrs/rscache/dat1a/dat1a_config_npc.h"
 #include "osrs/rscache/dat1a/dat1a_config_obj.h"
 #include "osrs/rscache/dat2a/dat2a_config_floortype.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
@@ -70,6 +71,12 @@ struct MapEntry_ConfigObj
     struct RSCacheDat1A_ConfigObj* obj;
 };
 
+struct MapEntry_ConfigNpc
+{
+    int id;
+    struct RSCacheDat1A_ConfigNpc* npc;
+};
+
 static void
 dat1_buildcache_interfaces_free(struct RSCacheDat1A_ConfigComponentList* interfaces)
 {
@@ -134,6 +141,7 @@ dat1_buildcache_new(void)
         dat1_buildcache_map_new(sizeof(struct MapEntry_AnimBaseFrames), 2048);
     dat1_buildcache->idk_hmap = dat1_buildcache_map_new(sizeof(struct MapEntry_ConfigIdk), 512);
     dat1_buildcache->obj_hmap = dat1_buildcache_map_new(sizeof(struct MapEntry_ConfigObj), 4096);
+    dat1_buildcache->npc_hmap = dat1_buildcache_map_new(sizeof(struct MapEntry_ConfigNpc), 4096);
 
     return dat1_buildcache;
 }
@@ -274,6 +282,19 @@ dat1_buildRSCacheDat2Disk_Free(struct Dat1BuildCache* dat1_buildcache)
         }
         ToriDraw_MapIterFree(iter);
         dat1_buildcache_map_free(dat1_buildcache->obj_hmap);
+    }
+
+    if( dat1_buildcache->npc_hmap )
+    {
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->npc_hmap);
+        struct MapEntry_ConfigNpc* entry = NULL;
+        while( (entry = (struct MapEntry_ConfigNpc*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->npc )
+                RSCacheDat1A_ConfigNpcFree(entry->npc);
+        }
+        ToriDraw_MapIterFree(iter);
+        dat1_buildcache_map_free(dat1_buildcache->npc_hmap);
     }
 
     dat1_buildcache_texture_clear(dat1_buildcache);
@@ -609,6 +630,36 @@ dat1_buildcache_obj_get(
 }
 
 void
+dat1_buildcache_npc_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id,
+    struct RSCacheDat1A_ConfigNpc* npc)
+{
+    struct MapEntry_ConfigNpc* entry = (struct MapEntry_ConfigNpc*)ToriDraw_MapSearch(
+        dat1_buildcache->npc_hmap, &npc_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->npc )
+        RSCacheDat1A_ConfigNpcFree(entry->npc);
+
+    entry->id = npc_id;
+    entry->npc = npc;
+}
+
+struct RSCacheDat1A_ConfigNpc*
+dat1_buildcache_npc_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id)
+{
+    struct MapEntry_ConfigNpc* entry = (struct MapEntry_ConfigNpc*)ToriDraw_MapSearch(
+        dat1_buildcache->npc_hmap, &npc_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->npc;
+}
+
+void
 dat1_buildcache_idks_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache)
 {
     struct RSCacheShared_FileListDat* config_jagfile =
@@ -658,6 +709,43 @@ dat1_buildcache_objs_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildc
     }
 
     RSCacheShared_FileListDatIndexedFree(filelist_indexed);
+}
+
+void
+dat1_buildcache_npcs_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache)
+{
+    struct RSCacheShared_FileListDat* config_jagfile =
+        dat1_buildcache->fromconfigtable_config_jagfile;
+    assert(config_jagfile != NULL && "Config jagfile must be loaded");
+
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "npc.dat");
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "npc.idx");
+    assert(data_file_idx != -1 && "npc.dat must be found");
+    assert(index_file_idx != -1 && "npc.idx must be found");
+
+    struct RSCacheDat1A_ConfigNpcList* npc_list = RSCacheDat1A_ConfigNpcListNewDecode(
+        config_jagfile->files[index_file_idx],
+        config_jagfile->file_sizes[index_file_idx],
+        config_jagfile->files[data_file_idx],
+        config_jagfile->file_sizes[data_file_idx]);
+    if( !npc_list )
+        return;
+
+    for( int i = 0; i < npc_list->npcs_count; i++ )
+    {
+        if( dat1_buildcache_npc_get(dat1_buildcache, i) )
+            continue;
+        dat1_buildcache_npc_add(dat1_buildcache, i, npc_list->npcs[i]);
+        npc_list->npcs[i] = NULL;
+    }
+
+    if( npc_list->npcs )
+    {
+        for( int i = 0; i < npc_list->npcs_count; i++ )
+            RSCacheDat1A_ConfigNpcFree(npc_list->npcs[i]);
+        free(npc_list->npcs);
+    }
+    free(npc_list);
 }
 
 void
@@ -906,6 +994,13 @@ dat1_buildcache_objs_reset(struct Dat1BuildCache* dat1_buildcache)
 }
 
 void
+dat1_buildcache_npcs_reset(struct Dat1BuildCache* dat1_buildcache)
+{
+    assert(dat1_buildcache != NULL && "dat1_buildcache must be non-null");
+    dat1_buildcache_map_reset(&dat1_buildcache->npc_hmap, sizeof(struct MapEntry_ConfigNpc), 4096);
+}
+
+void
 dat1_buildcache_sequences_cleanup(struct Dat1BuildCache* dat1_buildcache)
 {
     if( !dat1_buildcache || !dat1_buildcache->sequences_hmap )
@@ -1010,6 +1105,23 @@ dat1_buildcache_objs_cleanup(struct Dat1BuildCache* dat1_buildcache)
     }
     ToriDraw_MapIterFree(iter);
     dat1_buildcache_objs_reset(dat1_buildcache);
+}
+
+void
+dat1_buildcache_npcs_cleanup(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache || !dat1_buildcache->npc_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->npc_hmap);
+    struct MapEntry_ConfigNpc* entry = NULL;
+    while( (entry = (struct MapEntry_ConfigNpc*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->npc )
+            RSCacheDat1A_ConfigNpcFree(entry->npc);
+    }
+    ToriDraw_MapIterFree(iter);
+    dat1_buildcache_npcs_reset(dat1_buildcache);
 }
 
 struct RSCacheDat1A_AnimBaseFrames*

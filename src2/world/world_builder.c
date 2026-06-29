@@ -305,3 +305,58 @@ world_builder_rebuild_centerzone(
 
     ToriDraw_SceneBatchEnd(builder->scene);
 }
+
+void
+world_builder_rebuild_chunklist_begin(
+    struct WorldBuilder* builder,
+    const int* chunks_xz,
+    int count)
+{
+    struct World* world = builder->world;
+    assert(world && "world_builder_rebuild_chunklist_begin: world is NULL");
+
+    world_builder_free_transient_maps(builder);
+    world_reset_scene_chunklist(world, chunks_xz, count);
+
+    ToriDraw_SceneClear(builder->scene);
+
+    int scene_size = world->_scene_size;
+    builder->blendmap = blendmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
+    builder->overlaymap = overlaymap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
+    builder->terrain_shapemap =
+        terrain_shape_map_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
+    builder->decor_buildmap = decor_buildmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
+    builder->lightmap = lightmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
+    builder->sharelight_map = sharelight_map_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
+    builder->shademap = shademap2_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
+    builder->flag_map = flag_map_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
+}
+
+void
+world_builder_rebuild_chunklist(
+    struct WorldBuilder* builder,
+    const int* chunks_xz,
+    int count)
+{
+    world_builder_rebuild_chunklist_begin(builder, chunks_xz, count);
+
+    ToriDraw_SceneBatchBegin(builder->scene);
+
+    for( int i = 0; i < count; i++ )
+    {
+        int mapx = chunks_xz[i * 2];
+        int mapz = chunks_xz[i * 2 + 1];
+        world_builder_rebuild_centerzone_chunk_terrain(builder, mapx, mapz);
+    }
+
+    for( int i = 0; i < count; i++ )
+    {
+        int mapx = chunks_xz[i * 2];
+        int mapz = chunks_xz[i * 2 + 1];
+        world_builder_rebuild_centerzone_chunk_scenery(builder, mapx, mapz);
+    }
+
+    world_builder_rebuild_centerzone_end(builder);
+
+    ToriDraw_SceneBatchEnd(builder->scene);
+}

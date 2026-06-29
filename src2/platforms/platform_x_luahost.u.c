@@ -7,6 +7,7 @@
 #include "platform_x_lua_internal.h"
 
 #include <assert.h>
+#include <stdlib.h>
 
 int
 LibToriPlatformX_LuaHost_Print(lua_State* L)
@@ -382,7 +383,7 @@ LibToriPlatformX_LuaHost_Game_Runescape_Init(lua_State* L)
 }
 
 int
-LibToriPlatformX_LuaHost_Game_Runescape_BuildWorld(lua_State* L)
+LibToriPlatformX_LuaHost_Game_Runescape_BuildWorldCenterzone(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
         (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
@@ -391,7 +392,57 @@ LibToriPlatformX_LuaHost_Game_Runescape_BuildWorld(lua_State* L)
     struct LibToriRS_Instance* instance = lua->instance;
     assert(instance && "Instance is NULL");
 
-    LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(instance);
+    int center_x = lua_tointeger(L, 1);
+    int center_z = lua_tointeger(L, 2);
+    int scene_size = lua_tointeger(L, 3);
+
+    LibToriRS_ScriptAPI_Game_Runescape_BuildWorldCenterzone(
+        instance, center_x, center_z, scene_size);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Runescape_BuildWorldChunkList(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    assert(lua && "Lua state is NULL");
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    assert(instance && "Instance is NULL");
+
+    if( !lua_istable(L, 1) )
+    {
+        lua_pushstring(L, "Runescape_BuildWorldChunkList expects a table");
+        return lua_error(L);
+    }
+
+    lua_Integer len = lua_rawlen(L, 1);
+    if( len <= 0 || (len % 2) != 0 )
+    {
+        lua_pushstring(
+            L, "Runescape_BuildWorldChunkList table length must be a positive even count");
+        return lua_error(L);
+    }
+
+    int count = (int)(len / 2);
+    int* chunks_xz = malloc((size_t)len * sizeof(int));
+    if( !chunks_xz )
+    {
+        lua_pushstring(L, "Runescape_BuildWorldChunkList failed to allocate chunk list");
+        return lua_error(L);
+    }
+
+    for( lua_Integer i = 1; i <= len; i++ )
+    {
+        lua_geti(L, 1, i);
+        chunks_xz[i - 1] = (int)lua_tointeger(L, -1);
+        lua_pop(L, 1);
+    }
+
+    LibToriRS_ScriptAPI_Game_Runescape_BuildWorldChunkList(instance, chunks_xz, count);
+    free(chunks_xz);
 
     return 0;
 }
@@ -1084,8 +1135,17 @@ LibToriPlatformX_LuaHost_BindToPlatform(
         L, lua, "ModelViewer_Init", LibToriPlatformX_LuaHost_Game_ModelViewer_Init);
     lua_bind_function_to_platform(
         L, lua, "Runescape_Init", LibToriPlatformX_LuaHost_Game_Runescape_Init);
+
     lua_bind_function_to_platform(
-        L, lua, "Runescape_BuildWorld", LibToriPlatformX_LuaHost_Game_Runescape_BuildWorld);
+        L,
+        lua,
+        "Runescape_BuildWorldCenterzone",
+        LibToriPlatformX_LuaHost_Game_Runescape_BuildWorldCenterzone);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "Runescape_BuildWorldChunkList",
+        LibToriPlatformX_LuaHost_Game_Runescape_BuildWorldChunkList);
     lua_bind_function_to_platform(
         L,
         lua,

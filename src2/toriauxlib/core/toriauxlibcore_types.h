@@ -206,6 +206,9 @@ struct ToriAuxLibCore_Sequence
     struct ToriAuxLibCore_Animation* resolved;
     /** Animaya (skeletal) animation id, or -1 if classic frame/framemap. */
     int anim_maya_id;
+    /** Skeletal playback range from seq config (animMayaStart/End); duration = end - start. */
+    int anim_maya_start;
+    int anim_maya_end;
 };
 
 /**

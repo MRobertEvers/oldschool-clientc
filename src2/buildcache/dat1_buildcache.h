@@ -17,6 +17,7 @@ struct RSCacheDat1A_AnimBaseFrames;
 struct RSCacheDat1A_ConfigComponentList;
 struct RSCacheDat1A_ConfigIdk;
 struct RSCacheDat1A_ConfigObj;
+struct RSCacheDat1A_ConfigNpc;
 
 #define DAT1_TEXTURE_COUNT 50
 
@@ -36,6 +37,7 @@ struct Dat1BuildCache
     struct ToriDraw_Map* animbaseframes_hmap;
     struct ToriDraw_Map* idk_hmap;
     struct ToriDraw_Map* obj_hmap;
+    struct ToriDraw_Map* npc_hmap;
     struct ToriDraw_Texture* textures[DAT1_TEXTURE_COUNT];
     int texture_count;
 };
@@ -171,10 +173,24 @@ dat1_buildcache_obj_get(
     int obj_id);
 
 void
+dat1_buildcache_npc_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id,
+    struct RSCacheDat1A_ConfigNpc* npc);
+
+struct RSCacheDat1A_ConfigNpc*
+dat1_buildcache_npc_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id);
+
+void
 dat1_buildcache_idks_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_objs_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_npcs_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_sequences_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
@@ -278,6 +294,9 @@ void
 dat1_buildcache_objs_reset(struct Dat1BuildCache* dat1_buildcache);
 
 void
+dat1_buildcache_npcs_reset(struct Dat1BuildCache* dat1_buildcache);
+
+void
 dat1_buildcache_sequences_cleanup(struct Dat1BuildCache* dat1_buildcache);
 
 void
@@ -294,5 +313,8 @@ dat1_buildcache_idks_cleanup(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_objs_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_npcs_cleanup(struct Dat1BuildCache* dat1_buildcache);
 
 #endif

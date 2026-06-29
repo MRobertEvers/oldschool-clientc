@@ -176,6 +176,21 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorld(
 
 EMSCRIPTEN_KEEPALIVE
 void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorldCenterzoneNativeInt(
+    struct LibToriRS_Instance* instance,
+    int center_x,
+    int center_z,
+    int scene_size);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorldChunkListNativeInt(
+    struct LibToriRS_Instance* instance,
+    int* chunks_xz,
+    int count);
+
+EMSCRIPTEN_KEEPALIVE
+void
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelNativeInt(
     struct LibToriRS_Instance* instance,
     int model_id);

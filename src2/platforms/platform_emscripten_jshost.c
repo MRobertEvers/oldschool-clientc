@@ -2,10 +2,10 @@
 
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../scripting/libtorirs_scriptapi.h"
-#include "platform_x/cachelib_serialized.h"
-#include "osrs/rscache/shared/shared_archive.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/shared/shared_archive.h"
+#include "platform_x/cachelib_serialized.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -399,8 +399,7 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init(
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_Init(
-    struct LibToriRS_Instance* instance)
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
 {
     LibToriRS_ScriptAPI_Game_Runescape_Init(instance);
 }
@@ -411,6 +410,39 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorld(
     struct LibToriRS_Instance* instance)
 {
     LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(instance);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorldCenterzoneNativeInt(
+    struct LibToriRS_Instance* instance,
+    int center_x,
+    int center_z,
+    int scene_size)
+{
+    LibToriRS_ScriptAPI_Game_Runescape_BuildWorldCenterzone(
+        instance, center_x, center_z, scene_size);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorldCenterzoneScriptInt(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_ScriptValue* center_x,
+    struct LibToriRS_ScriptValue* center_z,
+    struct LibToriRS_ScriptValue* scene_size)
+{
+    LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(instance);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorldChunkListNativeInt(
+    struct LibToriRS_Instance* instance,
+    int* chunks_xz,
+    int count)
+{
+    LibToriRS_ScriptAPI_Game_Runescape_BuildWorldChunkList(instance, chunks_xz, count);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -453,8 +485,7 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_CoreTask_Dat1LoadModelNativeInt(
 
 EMSCRIPTEN_KEEPALIVE
 bool
-LibToriPlatformEmscripten_JSHost_ScriptAPI_RunTasks(
-    struct LibToriRS_Instance* instance)
+LibToriPlatformEmscripten_JSHost_ScriptAPI_RunTasks(struct LibToriRS_Instance* instance)
 {
     return LibToriRS_ScriptAPI_RunTasks(instance);
 }
@@ -501,40 +532,35 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupScriptInt(
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesCleanup(
-    struct LibToriRS_Instance* instance)
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesCleanup(struct LibToriRS_Instance* instance)
 {
     LibToriRS_ScriptAPI_Dat1_TexturesCleanup(instance);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures(
-    struct LibToriRS_Instance* instance)
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance)
 {
     LibToriRS_ScriptAPI_Dat1_SubmitTextures(instance);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat2_TexturesLoad(
-    struct LibToriRS_Instance* instance)
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
 {
     return LibToriRS_ScriptAPI_Dat2_TexturesLoad(instance);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat2_SubmitTextures(
-    struct LibToriRS_Instance* instance)
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat2_SubmitTextures(struct LibToriRS_Instance* instance)
 {
     LibToriRS_ScriptAPI_Dat2_SubmitTextures(instance);
 }
 
 EMSCRIPTEN_KEEPALIVE
 const char*
-LibToriPlatformEmscripten_JSHost_ScriptAPI_GetCacheMode(
-    struct LibToriRS_Instance* instance)
+LibToriPlatformEmscripten_JSHost_ScriptAPI_GetCacheMode(struct LibToriRS_Instance* instance)
 {
     return LibToriRS_ScriptAPI_GetCacheMode(instance);
 }
@@ -610,8 +636,7 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagf
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSequences(
-    struct LibToriRS_Instance* instance)
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSequences(struct LibToriRS_Instance* instance)
 {
     LibToriRS_ScriptAPI_Dat1_SubmitSequences(instance);
 }

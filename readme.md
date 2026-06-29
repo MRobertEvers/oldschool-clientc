@@ -1440,10 +1440,6 @@ Then
     }
 ```
 
-# Contour Ground
-
-TODO: Need to rework contour ground.
-
 # Managing State
 
 Need to maintain loaded assets.
@@ -1469,6 +1465,13 @@ Inferno region
 
 Region ID: 9043
 (regionX = 35, regionY = 83)
+x zone = 280
+z zone = 664
+
+Waterfall Region
+/_ OSRS rebuild-normal zone coords (zonex, zonez). _/
+#define RUNESCAPE_ZONE_CENTER_X 313
+#define RUNESCAPE_ZONE_CENTER_Z 437
 
 Instances -> Load region chunk, server has instance area for you.
 

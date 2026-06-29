@@ -284,6 +284,7 @@ struct ToriDraw_SceneElement
     bool dynamic;
     bool pending_batch_add;
     bool is_skeletal; /* true: use skeletal_animation; false: use animation */
+    int skeletal_play_frames; /* playback length from seq anim_maya_end-start; -1 = palette size */
     int anim_seq_id;
     int anim_frame;
     int anim_cycle;

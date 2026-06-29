@@ -2,7 +2,6 @@
 
 #include "painter_fuzz_diff.h"
 #include "painter_fuzz_scene.h"
-
 #include "painters.h"
 
 #include <stdio.h>
@@ -11,16 +10,16 @@
 #include <time.h>
 
 #ifdef FUZZ_WITH_CACHE
+#include "../../src2/games/runescape.h"
 #include "../../src2/libtorirs.h"
 #include "../../src2/libtorirs_internal.h"
-#include "../../src2/scripting/libtorirs_scriptapi.h"
 #include "../../src2/platforms/platform_x/cachelib.h"
 #include "../../src2/platforms/platform_x/cachelib_platform.h"
 #include "../../src2/platforms/platform_x_io_reactor.h"
+#include "../../src2/scripting/libtorirs_scriptapi.h"
 #include "../../src2/toriauxlib/c/toriauxlibc.h"
 #include "../../src2/toriauxlib/toriauxlib.h"
 #include "../../src2/world/world.h"
-#include "../../src2/games/runescape.h"
 #endif /* FUZZ_WITH_CACHE */
 
 #ifdef _WIN32
@@ -46,7 +45,10 @@ now_seconds(void)
 #endif
 
 int
-painter_bench_seeded(uint32_t start, uint32_t count, int iters)
+painter_bench_seeded(
+    uint32_t start,
+    uint32_t count,
+    int iters)
 {
     double total_ns_w3d = 0.0;
     double total_ns_bkt = 0.0;
@@ -55,7 +57,14 @@ painter_bench_seeded(uint32_t start, uint32_t count, int iters)
 
     printf(
         "%-8s %5s %4s %4s %6s %11s %11s %7s\n",
-        "seed", "grid", "lvl", "cull", "cam", "w3d_ns/it", "bkt_ns/it", "ratio");
+        "seed",
+        "grid",
+        "lvl",
+        "cull",
+        "cam",
+        "w3d_ns/it",
+        "bkt_ns/it",
+        "ratio");
 
     for( uint32_t i = 0; i < count; i++ )
     {
@@ -86,15 +95,13 @@ painter_bench_seeded(uint32_t start, uint32_t count, int iters)
 
         double t0 = now_seconds();
         for( int it = 0; it < iters; it++ )
-            painter_paint_world3d(
-                painter, buf_w, cfg.camera_sx, cfg.camera_sz, cfg.camera_slevel);
+            painter_paint_world3d(painter, buf_w, cfg.camera_sx, cfg.camera_sz, cfg.camera_slevel);
         double t1 = now_seconds();
         double ns_w3d = (t1 - t0) * 1e9 / (double)iters;
 
         t0 = now_seconds();
         for( int it = 0; it < iters; it++ )
-            painter_paint_bucket(
-                painter, buf_b, cfg.camera_sx, cfg.camera_sz, cfg.camera_slevel);
+            painter_paint_bucket(painter, buf_b, cfg.camera_sx, cfg.camera_sz, cfg.camera_slevel);
         t1 = now_seconds();
         double ns_bkt = (t1 - t0) * 1e9 / (double)iters;
 
@@ -176,7 +183,11 @@ painter_bench_find_cache_dir(void)
 }
 
 int
-painter_fuzz_cache_scene(const char* cache_dir, int do_bench, int bench_iters, int diff_check)
+painter_fuzz_cache_scene(
+    const char* cache_dir,
+    int do_bench,
+    int bench_iters,
+    int diff_check)
 {
     printf("Loading dat2 cache from: %s\n", cache_dir);
     fflush(stdout);
@@ -198,8 +209,7 @@ painter_fuzz_cache_scene(const char* cache_dir, int do_bench, int bench_iters, i
 
     struct RSCacheDat2Disk* disk = cachelib_dat2_disk(cache);
     if( disk )
-        ToriAuxLibC_SetDat2Disk(
-            ToriAuxLib_C(LibToriRS_GetToriAuxLib(inst)), disk);
+        ToriAuxLibC_SetDat2Disk(ToriAuxLib_C(LibToriRS_GetToriAuxLib(inst)), disk);
 
     struct LibToriPlatformX_IOReactor* rx = LibToriPlatformX_IOReactorNew(cache);
     if( !rx )
@@ -216,7 +226,10 @@ painter_fuzz_cache_scene(const char* cache_dir, int do_bench, int bench_iters, i
     while( !LibToriRS_ScriptAPI_RunTasks(inst) )
         LibToriPlatformX_IOReactorProcess(rx, LibToriRS_GetIOQueue(inst));
 
-    LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(inst);
+#define RUNESCAPE_ZONE_CENTER_X 337
+#define RUNESCAPE_ZONE_CENTER_Z 437
+    LibToriRS_ScriptAPI_Game_Runescape_BuildWorldCenterzone(
+        inst, RUNESCAPE_ZONE_CENTER_X, RUNESCAPE_ZONE_CENTER_Z, 104);
 
     struct GameRunescape* game = inst->runescape;
     if( !game || !game->world || !game->world->load_complete || !game->world->painter )
@@ -258,112 +271,112 @@ painter_fuzz_cache_scene(const char* cache_dir, int do_bench, int bench_iters, i
     }
 
     for( int si = 0; si < 3; si++ )
-    for( int sz_i = 0; sz_i < 3; sz_i++ )
-    for( int yi = 0; yi < 4; yi++ )
-    for( int pi = 0; pi < 2; pi++ )
-    for( int mi = 0; mi < 2; mi++ )
-    {
-        int sx = SX[si];
-        int sz = SZ[sz_i];
-        int yaw = YAWS[yi];
-        int pitch = PITCHES[pi];
-        uint8_t mask = MASKS[mi];
-        int slevel = (mask & 0x2) ? 1 : 0;
+        for( int sz_i = 0; sz_i < 3; sz_i++ )
+            for( int yi = 0; yi < 4; yi++ )
+                for( int pi = 0; pi < 2; pi++ )
+                    for( int mi = 0; mi < 2; mi++ )
+                    {
+                        int sx = SX[si];
+                        int sz = SZ[sz_i];
+                        int yaw = YAWS[yi];
+                        int pitch = PITCHES[pi];
+                        uint8_t mask = MASKS[mi];
+                        int slevel = (mask & 0x2) ? 1 : 0;
 
-        painter_set_camera_angles(painter, pitch, yaw);
-        painter_set_level_mask(painter, mask);
+                        painter_set_camera_angles(painter, pitch, yaw);
+                        painter_set_level_mask(painter, mask);
 
-        buf_w->command_count = 0;
-        buf_b->command_count = 0;
+                        buf_w->command_count = 0;
+                        buf_b->command_count = 0;
 
-        if( do_bench )
-        {
-            painter_paint_world3d(painter, buf_w, sx, sz, slevel);
-            painter_paint_bucket(painter, buf_b, sx, sz, slevel);
+                        if( do_bench )
+                        {
+                            painter_paint_world3d(painter, buf_w, sx, sz, slevel);
+                            painter_paint_bucket(painter, buf_b, sx, sz, slevel);
 
-            double t0 = now_seconds();
-            for( int it = 0; it < bench_iters; it++ )
-            {
-                buf_w->command_count = 0;
-                painter_paint_world3d(painter, buf_w, sx, sz, slevel);
-            }
-            double t1 = now_seconds();
-            for( int it = 0; it < bench_iters; it++ )
-            {
-                buf_b->command_count = 0;
-                painter_paint_bucket(painter, buf_b, sx, sz, slevel);
-            }
-            double t2 = now_seconds();
+                            double t0 = now_seconds();
+                            for( int it = 0; it < bench_iters; it++ )
+                            {
+                                buf_w->command_count = 0;
+                                painter_paint_world3d(painter, buf_w, sx, sz, slevel);
+                            }
+                            double t1 = now_seconds();
+                            for( int it = 0; it < bench_iters; it++ )
+                            {
+                                buf_b->command_count = 0;
+                                painter_paint_bucket(painter, buf_b, sx, sz, slevel);
+                            }
+                            double t2 = now_seconds();
 
-            double ns_w3d = (t1 - t0) * 1e9 / bench_iters;
-            double ns_bkt = (t2 - t1) * 1e9 / bench_iters;
-            total_ns_w3d += ns_w3d;
-            total_ns_bkt += ns_bkt;
-            bench_sweeps++;
+                            double ns_w3d = (t1 - t0) * 1e9 / bench_iters;
+                            double ns_bkt = (t2 - t1) * 1e9 / bench_iters;
+                            total_ns_w3d += ns_w3d;
+                            total_ns_bkt += ns_bkt;
+                            bench_sweeps++;
 
-            printf(
-                "  bench sx=%d sz=%d yaw=%4d pitch=%4d mask=0x%x  "
-                "w3d=%.0f ns  bkt=%.0f ns  ratio=%.3f\n",
-                sx,
-                sz,
-                yaw,
-                pitch,
-                (unsigned)mask,
-                ns_w3d,
-                ns_bkt,
-                ns_bkt / (ns_w3d > 0.0 ? ns_w3d : 1.0));
-        }
-        else
-        {
-            painter_paint_world3d(painter, buf_w, sx, sz, slevel);
-            painter_paint_bucket(painter, buf_b, sx, sz, slevel);
-        }
+                            printf(
+                                "  bench sx=%d sz=%d yaw=%4d pitch=%4d mask=0x%x  "
+                                "w3d=%.0f ns  bkt=%.0f ns  ratio=%.3f\n",
+                                sx,
+                                sz,
+                                yaw,
+                                pitch,
+                                (unsigned)mask,
+                                ns_w3d,
+                                ns_bkt,
+                                ns_bkt / (ns_w3d > 0.0 ? ns_w3d : 1.0));
+                        }
+                        else
+                        {
+                            painter_paint_world3d(painter, buf_w, sx, sz, slevel);
+                            painter_paint_bucket(painter, buf_b, sx, sz, slevel);
+                        }
 
-        if( diff_check )
-        {
-            PainterFuzzDrawnSet ref, got;
-            painter_fuzz_drawn_from_buffer(&ref, buf_w);
-            painter_fuzz_drawn_from_buffer(&got, buf_b);
+                        if( diff_check )
+                        {
+                            PainterFuzzDrawnSet ref, got;
+                            painter_fuzz_drawn_from_buffer(&ref, buf_w);
+                            painter_fuzz_drawn_from_buffer(&got, buf_b);
 
-            int mt = 0, me = 0;
-            int fail = painter_fuzz_compare_superset(&ref, &got, &mt, &me);
-            total++;
+                            int mt = 0, me = 0;
+                            int fail = painter_fuzz_compare_superset(&ref, &got, &mt, &me);
+                            total++;
 
-            if( fail )
-            {
-                printf(
-                    "FAIL  sx=%d sz=%d yaw=%4d pitch=%4d mask=0x%x "
-                    "missing terrain=%d elements=%d\n",
-                    sx,
-                    sz,
-                    yaw,
-                    pitch,
-                    (unsigned)mask,
-                    mt,
-                    me);
-                painter_fuzz_print_drawn_miss(&ref, &got, 8);
-                failures++;
-            }
-            else
-            {
-                printf(
-                    "PASS  sx=%d sz=%d yaw=%4d pitch=%4d mask=0x%x "
-                    "terrain=%d elements=%d\n",
-                    sx,
-                    sz,
-                    yaw,
-                    pitch,
-                    (unsigned)mask,
-                    ref.terrain_n,
-                    ref.element_n);
-            }
-            fflush(stdout);
-        }
-        else if( !diff_check )
-        {
-            total++;
-        }
-    }
+                            if( fail )
+                            {
+                                printf(
+                                    "FAIL  sx=%d sz=%d yaw=%4d pitch=%4d mask=0x%x "
+                                    "missing terrain=%d elements=%d\n",
+                                    sx,
+                                    sz,
+                                    yaw,
+                                    pitch,
+                                    (unsigned)mask,
+                                    mt,
+                                    me);
+                                painter_fuzz_print_drawn_miss(&ref, &got, 8);
+                                failures++;
+                            }
+                            else
+                            {
+                                printf(
+                                    "PASS  sx=%d sz=%d yaw=%4d pitch=%4d mask=0x%x "
+                                    "terrain=%d elements=%d\n",
+                                    sx,
+                                    sz,
+                                    yaw,
+                                    pitch,
+                                    (unsigned)mask,
+                                    ref.terrain_n,
+                                    ref.element_n);
+                            }
+                            fflush(stdout);
+                        }
+                        else if( !diff_check )
+                        {
+                            total++;
+                        }
+                    }
 
     free(buf_w->commands);
     free(buf_w);
@@ -399,7 +412,9 @@ painter_fuzz_cache_scene(const char* cache_dir, int do_bench, int bench_iters, i
 }
 
 int
-painter_bench_cache(const char* cache_dir, int iters)
+painter_bench_cache(
+    const char* cache_dir,
+    int iters)
 {
     return painter_fuzz_cache_scene(cache_dir, 1, iters, 0);
 }

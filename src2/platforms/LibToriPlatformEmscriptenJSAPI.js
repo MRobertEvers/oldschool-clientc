@@ -129,6 +129,14 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorld",
     );
+    this._scriptAPIGameRunescapeBuildWorldCenterzoneNativeInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorldCenterzoneNativeInt",
+    );
+    this._scriptAPIGameRunescapeBuildWorldChunkListNativeInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_Runescape_BuildWorldChunkListNativeInt",
+    );
     this._scriptAPIDat1ModelFetchNativeInt = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchNativeInt",
@@ -428,6 +436,23 @@ export class LibToriPlatformEmscriptenJSAPI {
 
   scriptAPIGameRunescapeBuildWorld() {
     this._scriptAPIGameRunescapeBuildWorld(this.instancePtr);
+  }
+
+  scriptAPIGameRunescapeBuildWorldCenterzoneNativeInt(centerX, centerZ, sceneSize) {
+    this._scriptAPIGameRunescapeBuildWorldCenterzoneNativeInt(
+      this.instancePtr,
+      centerX,
+      centerZ,
+      sceneSize,
+    );
+  }
+
+  scriptAPIGameRunescapeBuildWorldChunkListNativeInt(chunksPtr, count) {
+    this._scriptAPIGameRunescapeBuildWorldChunkListNativeInt(
+      this.instancePtr,
+      chunksPtr,
+      count,
+    );
   }
 
   scriptAPIGameModelViewerRenderModelNativeInt(modelId) {

@@ -1,6 +1,7 @@
 #include "dat2a_animaya.h"
 
 #include "../dat2disk/dat2disk.h"
+#include "../shared/shared_file_list.h"
 #include "../shared/shared_rs_buffer.h"
 
 #include <assert.h>
@@ -778,14 +779,47 @@ RSCacheDat2A_AnimMayaNewFromCache(
     struct RSCacheDat2Disk* cache,
     int anim_maya_id)
 {
-    struct RSCacheDat2Disk_Archive* archive =
-        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Animayas, anim_maya_id);
+    struct RSCacheDat2A_AnimMaya* maya = NULL;
+    struct RSCacheDat2Disk_Archive* archive = NULL;
+    struct RSCacheShared_FileList* filelist = NULL;
+
+    if( !cache )
+        return NULL;
+
+    int archive_id = anim_maya_id >> 16;
+    int file_id = anim_maya_id & 0xFFFF;
+
+    archive = RSCacheDat2Disk_ArchiveNewLoad(
+        cache, RSCacheDat2Disk_Table_Animayas, archive_id);
     if( !archive )
         return NULL;
 
-    struct RSCacheDat2A_AnimMaya* maya =
-        RSCacheDat2A_AnimMayaNewDecode(anim_maya_id, archive->data, archive->data_size);
+    RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
 
+    struct RSCacheDat2Disk_ReferenceTable* table =
+        cache->tables[RSCacheDat2Disk_Table_Animayas];
+    struct RSCacheDat2Disk_ArchiveReference* archive_ref = NULL;
+    if( table && archive_id >= 0 && archive_id < table->archive_count )
+        archive_ref = &table->archives[archive_id];
+
+    filelist = RSCacheShared_FileListNewFromCacheArchive(archive);
     RSCacheDat2Disk_ArchiveFree(archive);
+    archive = NULL;
+
+    if( !filelist )
+        return NULL;
+
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = archive_ref ? archive_ref->children.files[i].id : i;
+        if( id != file_id )
+            continue;
+
+        maya = RSCacheDat2A_AnimMayaNewDecode(
+            anim_maya_id, filelist->files[i], filelist->file_sizes[i]);
+        break;
+    }
+
+    RSCacheShared_FileListFree(filelist);
     return maya;
 }

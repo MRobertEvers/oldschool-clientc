@@ -18,6 +18,9 @@ struct RSCacheDat2A_ConfigUnderlay;
 struct RSCacheDat2A_ConfigLocation;
 struct RSCacheDat2A_ConfigSequence;
 struct RSCacheDat2A_AnimMaya;
+struct RSCacheDat2A_ConfigIdk;
+struct RSCacheDat2A_ConfigObject;
+struct RSCacheDat2A_ConfigNpctype;
 
 /**
  * Decoded frames from one idx0 animation archive.
@@ -44,6 +47,9 @@ struct Dat2BuildCache
     struct ToriDraw_Map* config_loc_hmap;
     struct ToriDraw_Map* frames_hmap;     /* archive_id -> Dat2BuildCache_FramesArchive* */
     struct ToriDraw_Map* skeletal_hmap;   /* anim_maya_id -> RSCacheDat2A_AnimMaya*      */
+    struct ToriDraw_Map* identkit_hmap;
+    struct ToriDraw_Map* object_hmap;
+    struct ToriDraw_Map* npctype_hmap;
 };
 
 struct Dat2BuildCache*
@@ -121,12 +127,74 @@ dat2_buildcache_sequence_load_from_archive(
     struct RSCacheDat2Disk_Archive* archive,
     int seq_id);
 
+struct RSCacheDat2A_ConfigSequence*
+dat2_buildcache_sequence_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int seq_id);
+
 void
 dat2_buildcache_scenery_configs_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
     struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
     struct VarPVarBitManager* varp_mgr);
+
+void
+dat2_buildcache_identkit_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int idk_id,
+    struct RSCacheDat2A_ConfigIdk* idk);
+
+struct RSCacheDat2A_ConfigIdk*
+dat2_buildcache_identkit_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int idk_id);
+
+void
+dat2_buildcache_object_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int obj_id,
+    struct RSCacheDat2A_ConfigObject* object);
+
+struct RSCacheDat2A_ConfigObject*
+dat2_buildcache_object_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int obj_id);
+
+void
+dat2_buildcache_npctype_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int npc_id,
+    struct RSCacheDat2A_ConfigNpctype* npc);
+
+struct RSCacheDat2A_ConfigNpctype*
+dat2_buildcache_npctype_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int npc_id);
+
+void
+dat2_buildcache_identkits_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* wanted_ids,
+    int wanted_count);
+
+void
+dat2_buildcache_objects_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* wanted_ids,
+    int wanted_count);
+
+void
+dat2_buildcache_npctypes_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* wanted_ids,
+    int wanted_count);
 
 /* Classic frame/framemap (idx0 + idx1) */
 
@@ -210,6 +278,11 @@ typedef void (*Dat2BuildCacheLocationCallback)(
     struct RSCacheDat2A_ConfigLocation* config_loc,
     void* user_data);
 
+typedef void (*Dat2BuildCacheSkeletalCallback)(
+    int anim_maya_id,
+    struct RSCacheDat2A_AnimMaya* maya,
+    void* user_data);
+
 void
 dat2_buildcache_foreach_sequence(
     struct Dat2BuildCache* dat2_buildcache,
@@ -232,6 +305,12 @@ void
 dat2_buildcache_foreach_config_loc(
     struct Dat2BuildCache* dat2_buildcache,
     Dat2BuildCacheLocationCallback callback,
+    void* user_data);
+
+void
+dat2_buildcache_foreach_skeletal(
+    struct Dat2BuildCache* dat2_buildcache,
+    Dat2BuildCacheSkeletalCallback callback,
     void* user_data);
 
 #endif

@@ -36,6 +36,16 @@ ToriAuxLibC_SubmitObjModelFromDat1(
     int obj_id);
 
 void
+ToriAuxLibC_SubmitIdkModelFromDat2(
+    struct ToriAuxLibC* c,
+    int idk_id);
+
+void
+ToriAuxLibC_SubmitObjModelFromDat2(
+    struct ToriAuxLibC* c,
+    int obj_id);
+
+void
 ToriAuxLibC_SubmitTexture(
     struct ToriAuxLibC* c,
     int texture_id,
@@ -82,6 +92,11 @@ ToriAuxLibC_SubmitModelFromDat2(
 
 void
 ToriAuxLibC_SubmitAllSequencesFromDat2(struct ToriAuxLibC* c);
+
+void
+ToriAuxLibC_SubmitSequenceFromDat2(
+    struct ToriAuxLibC* c,
+    int seq_id);
 
 void
 ToriAuxLibC_SubmitAllFlotypesFromDat2(struct ToriAuxLibC* c);

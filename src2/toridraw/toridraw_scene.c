@@ -189,8 +189,8 @@ td_scene_retain_pending_pose(
     if( scene->pending_pose_count >= scene->pending_pose_cap )
     {
         int new_cap = scene->pending_pose_cap ? scene->pending_pose_cap * 2 : 64;
-        struct ToriDraw_ScenePendingPose* grown =
-            realloc(scene->pending_poses, (size_t)new_cap * sizeof(struct ToriDraw_ScenePendingPose));
+        struct ToriDraw_ScenePendingPose* grown = realloc(
+            scene->pending_poses, (size_t)new_cap * sizeof(struct ToriDraw_ScenePendingPose));
         if( !grown )
             return;
         scene->pending_poses = grown;
@@ -392,7 +392,8 @@ ToriDraw_SceneGraphInit(struct ToriDraw_Scene* scene)
     scene->fonts_hmap = td_scene_map_new(sizeof(struct MapEntry_Font), 16);
     ToriDraw_IntrusiveListInit(&scene->elements);
 
-    if( !scene->models_hmap || !scene->animation_hmap || !scene->sprites_hmap || !scene->fonts_hmap )
+    if( !scene->models_hmap || !scene->animation_hmap || !scene->sprites_hmap ||
+        !scene->fonts_hmap )
     {
         ToriDraw_SceneGraphShutdown(scene);
         return false;
@@ -479,7 +480,8 @@ ToriDraw_SceneSpriteAdd(
 
     if( entry->sprites )
     {
-        td_scene_emit_sprite(scene, TORIDRAW_EVENT_SPRITE_UNLOAD, element_id, entry->sprites, entry->count);
+        td_scene_emit_sprite(
+            scene, TORIDRAW_EVENT_SPRITE_UNLOAD, element_id, entry->sprites, entry->count);
         for( int i = 0; i < entry->count; i++ )
             ToriDraw_SpriteFree(entry->sprites[i]);
         free(entry->sprites);
@@ -528,8 +530,8 @@ ToriDraw_SceneFontAdd(
     if( !scene || font_id < 0 || !font )
         return;
 
-    struct MapEntry_Font* entry = (struct MapEntry_Font*)ToriDraw_MapSearch(
-        scene->fonts_hmap, &font_id, TORIDRAW_MAP_INSERT);
+    struct MapEntry_Font* entry =
+        (struct MapEntry_Font*)ToriDraw_MapSearch(scene->fonts_hmap, &font_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
 
@@ -552,8 +554,8 @@ ToriDraw_SceneFontGet(
     if( !scene )
         return NULL;
 
-    struct MapEntry_Font* entry = (struct MapEntry_Font*)ToriDraw_MapSearch(
-        scene->fonts_hmap, &font_id, TORIDRAW_MAP_FIND);
+    struct MapEntry_Font* entry =
+        (struct MapEntry_Font*)ToriDraw_MapSearch(scene->fonts_hmap, &font_id, TORIDRAW_MAP_FIND);
     if( !entry )
         return NULL;
     return entry->font;
@@ -842,7 +844,8 @@ td_scene_element_assign_model(
     if( scene->batch_building )
         element->pending_batch_add = true;
     else
-        td_scene_emit(scene, TORIDRAW_EVENT_MODEL_LOAD, 0, element_id, 0, 0, &element->model, NULL, NULL);
+        td_scene_emit(
+            scene, TORIDRAW_EVENT_MODEL_LOAD, 0, element_id, 0, 0, &element->model, NULL, NULL);
 }
 
 void
@@ -875,8 +878,19 @@ ToriDraw_SceneElementSetAnimation(
     if( animation )
     {
         *slot = animation;
-        td_scene_emit(
-            scene, TORIDRAW_EVENT_ANIM_LOAD, 0, element_id, 0, 0, &element->model, animation, NULL);
+        if( !element->dynamic )
+        {
+            td_scene_emit(
+                scene,
+                TORIDRAW_EVENT_ANIM_LOAD,
+                0,
+                element_id,
+                0,
+                0,
+                &element->model,
+                animation,
+                NULL);
+        }
     }
     else
     {
@@ -906,9 +920,16 @@ ToriDraw_SceneElementSetAnimationSeq(
     element->anim_frame = 0;
     element->anim_cycle = 0;
     element->animation = NULL;
+    element->is_skeletal = false;
+    element->skeletal_animation = NULL;
+    element->skeletal_play_frames = 0;
 
     if( element->model.kind == TORIDRAWMK_MODEL )
-        ToriDraw_ModelCaptureOriginalVertices(element->model.u.model.model);
+    {
+        struct ToriDraw_Model* model = element->model.u.model.model;
+        ToriDraw_ModelAnimateReset(model);
+        ToriDraw_ModelCaptureOriginalVertices(model);
+    }
 }
 
 void
@@ -936,19 +957,13 @@ ToriDraw_SceneElementApplyAnimation(
     if( element->is_skeletal )
     {
         struct ToriDraw_SkeletalAnim* skeletal = element->skeletal_animation;
-        if( !skeletal || frame < 0 || frame >= skeletal->frame_count )
-            return;
         ToriDraw_ModelAnimateSkeletal(model, skeletal, frame);
     }
     else
     {
         struct ToriDraw_Animation* animation =
             primary ? element->animation : element->secondary_animation;
-        if( !animation || !animation->base || !animation->frames ||
-            animation->frame_count <= 0 )
-            return;
-        if( frame < 0 || frame >= animation->frame_count )
-            return;
+        assert(animation && animation->base && animation->frames && animation->frame_count > 0);
         ToriDraw_ModelAnimateReset(model);
         ToriDraw_ModelAnimateFrame(model, animation->base, &animation->frames[frame]);
     }
@@ -1045,7 +1060,8 @@ ToriDraw_SceneBatchBegin(struct ToriDraw_Scene* scene)
     scene->current_batch_id = scene->next_batch_id++;
     scene->current_batch_element_count = 0;
 
-    td_scene_emit(scene, TORIDRAW_EVENT_BATCH_BEGIN, scene->current_batch_id, 0, 0, 0, NULL, NULL, NULL);
+    td_scene_emit(
+        scene, TORIDRAW_EVENT_BATCH_BEGIN, scene->current_batch_id, 0, 0, 0, NULL, NULL, NULL);
 }
 
 struct ToriDraw_SceneBatchElementHandle
@@ -1067,7 +1083,15 @@ ToriDraw_SceneBatchAddElement(struct ToriDraw_Scene* scene)
     scene->current_batch_element_count++;
 
     td_scene_emit(
-        scene, TORIDRAW_EVENT_BATCH_MODEL_ADD, scene->current_batch_id, element_id, 0, 0, NULL, NULL, NULL);
+        scene,
+        TORIDRAW_EVENT_BATCH_MODEL_ADD,
+        scene->current_batch_id,
+        element_id,
+        0,
+        0,
+        NULL,
+        NULL,
+        NULL);
 
     handle.scene = scene;
     handle.batch_id = scene->current_batch_id;
@@ -1101,7 +1125,8 @@ ToriDraw_SceneBatchEnd(struct ToriDraw_Scene* scene)
         element->pending_batch_add = false;
     }
 
-    td_scene_emit(scene, TORIDRAW_EVENT_BATCH_END, scene->current_batch_id, 0, 0, 0, NULL, NULL, NULL);
+    td_scene_emit(
+        scene, TORIDRAW_EVENT_BATCH_END, scene->current_batch_id, 0, 0, 0, NULL, NULL, NULL);
 
     scene->batch_building = false;
     scene->current_batch_element_count = 0;

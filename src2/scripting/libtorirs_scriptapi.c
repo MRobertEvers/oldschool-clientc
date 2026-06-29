@@ -40,9 +40,9 @@
 #include <string.h>
 
 static void
-world_rebuild_normal_task_destroy(void* state)
+world_rebuild_normal_centerzone_task_destroy(void* state)
 {
-    Task_ToriAuxLibC_WorldRebuildNormal_Free(state);
+    Task_ToriAuxLibC_WorldRebuildNormalCenterzone_Free(state);
 }
 
 static void
@@ -575,10 +575,14 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
     instance->runescape_handle.u.runescape = instance->runescape;
     instance->active_game_kind = GAME_HANDLE_KIND_RUNESCAPE;
 
-    struct Task_ToriAuxLibC_WorldRebuildNormal* task = Task_ToriAuxLibC_WorldRebuildNormal_New(
-        ToriAuxLib_C(instance->toriauxlib), RUNESCAPE_ZONE_CENTER_X, RUNESCAPE_ZONE_CENTER_Z);
+    struct Task_ToriAuxLibC_WorldRebuildNormalCenterzone* task =
+        Task_ToriAuxLibC_WorldRebuildNormalCenterzone_New(
+            ToriAuxLib_C(instance->toriauxlib), RUNESCAPE_ZONE_CENTER_X, RUNESCAPE_ZONE_CENTER_Z);
     LibToriRS_TasksAdd(
-        instance, task, Task_ToriAuxLibC_WorldRebuildNormal_Run, world_rebuild_normal_task_destroy);
+        instance,
+        task,
+        Task_ToriAuxLibC_WorldRebuildNormalCenterzone_Run,
+        world_rebuild_normal_centerzone_task_destroy);
 
     if( ToriAuxLibC_Mode(ToriAuxLib_C(instance->toriauxlib)) == TORIAUXLIBC_MODE_DAT1 )
     {
@@ -590,11 +594,35 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
 }
 
 void
+LibToriRS_ScriptAPI_Game_Runescape_BuildWorldCenterzone(
+    struct LibToriRS_Instance* instance,
+    int center_x,
+    int center_z,
+    int scene_size)
+{
+    printf("LibToriRS_ScriptAPI_Game_Runescape_BuildWorldCenterzone\n");
+
+    GameRunescape_BuildWorldCenterzone(instance->runescape, center_x, center_z, scene_size);
+}
+
+void
 LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_Game_Runescape_BuildWorld\n");
 
-    GameRunescape_BuildWorld(instance->runescape);
+    GameRunescape_BuildWorldCenterzone(
+        instance->runescape, RUNESCAPE_ZONE_CENTER_X, RUNESCAPE_ZONE_CENTER_Z, 104);
+}
+
+void
+LibToriRS_ScriptAPI_Game_Runescape_BuildWorldChunkList(
+    struct LibToriRS_Instance* instance,
+    int* chunks_xz,
+    int count)
+{
+    printf("LibToriRS_ScriptAPI_Game_Runescape_BuildWorldChunkList\n");
+
+    GameRunescape_BuildWorldChunkList(instance->runescape, chunks_xz, count);
 }
 
 struct GameHandle*

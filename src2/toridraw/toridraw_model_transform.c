@@ -51,7 +51,6 @@ ToriDraw_BonesMerge(
         assert(m && "ToriDraw_BonesMerge: model is NULL");
         struct ToriDraw_Bones* bones;
         bones = vertex ? m->vertex_bones : m->face_bones;
-        assert(bones && "ToriDraw_BonesMerge: bones are NULL");
         if( bones && bones->bones_count > max_bones )
             max_bones = bones->bones_count;
     }
@@ -211,6 +210,42 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
     dst->vertex_bones = ToriDraw_BonesCopy(src->vertex_bones);
     dst->face_bones = ToriDraw_BonesCopy(src->face_bones);
 
+    if( src->animaya_vertex_count > 0 && src->animaya_group_counts &&
+        src->animaya_groups && src->animaya_scales )
+    {
+        int vc = src->animaya_vertex_count;
+        dst->animaya_vertex_count = vc;
+        dst->animaya_group_counts = (uint8_t*)malloc((size_t)vc);
+        dst->animaya_groups = (uint8_t**)calloc((size_t)vc, sizeof(uint8_t*));
+        dst->animaya_scales = (uint8_t**)calloc((size_t)vc, sizeof(uint8_t*));
+        if( !dst->animaya_group_counts || !dst->animaya_groups || !dst->animaya_scales )
+        {
+            ToriDraw_ModelFree(dst);
+            return NULL;
+        }
+
+        memcpy(dst->animaya_group_counts, src->animaya_group_counts, (size_t)vc);
+        for( int i = 0; i < vc; i++ )
+        {
+            int cnt = (int)dst->animaya_group_counts[i];
+            if( cnt <= 0 )
+                continue;
+
+            dst->animaya_groups[i] = (uint8_t*)malloc((size_t)cnt);
+            dst->animaya_scales[i] = (uint8_t*)malloc((size_t)cnt);
+            if( !dst->animaya_groups[i] || !dst->animaya_scales[i] )
+            {
+                ToriDraw_ModelFree(dst);
+                return NULL;
+            }
+
+            if( src->animaya_groups[i] )
+                memcpy(dst->animaya_groups[i], src->animaya_groups[i], (size_t)cnt);
+            if( src->animaya_scales[i] )
+                memcpy(dst->animaya_scales[i], src->animaya_scales[i], (size_t)cnt);
+        }
+    }
+
     ToriDraw_ModelSetBoundsCylinder(dst);
     return dst;
 }
@@ -246,6 +281,7 @@ ToriDraw_ModelNewMerge(
     bool has_face_priorities = false;
     bool has_tex_coords = false;
     bool has_textured_coords = false;
+    bool has_animaya = false;
 
     for( int i = 0; i < model_count; i++ )
     {
@@ -269,6 +305,8 @@ ToriDraw_ModelNewMerge(
             has_tex_coords = true;
         if( m->textured_p_coordinate )
             has_textured_coords = true;
+        if( m->animaya_group_counts && m->animaya_groups && m->animaya_scales )
+            has_animaya = true;
     }
 
     struct ToriDraw_Model* out = calloc(1, sizeof(struct ToriDraw_Model));
@@ -284,6 +322,19 @@ ToriDraw_ModelNewMerge(
         out->vertices_x = (vertexint_t*)malloc((size_t)total_vertices * sizeof(vertexint_t));
         out->vertices_y = (vertexint_t*)malloc((size_t)total_vertices * sizeof(vertexint_t));
         out->vertices_z = (vertexint_t*)malloc((size_t)total_vertices * sizeof(vertexint_t));
+    }
+
+    if( total_vertices > 0 && has_animaya )
+    {
+        out->animaya_vertex_count = total_vertices;
+        out->animaya_group_counts = (uint8_t*)calloc((size_t)total_vertices, sizeof(uint8_t));
+        out->animaya_groups = (uint8_t**)calloc((size_t)total_vertices, sizeof(uint8_t*));
+        out->animaya_scales = (uint8_t**)calloc((size_t)total_vertices, sizeof(uint8_t*));
+        if( !out->animaya_group_counts || !out->animaya_groups || !out->animaya_scales )
+        {
+            ToriDraw_ModelFree(out);
+            return NULL;
+        }
     }
 
     if( total_faces > 0 )
@@ -353,9 +404,38 @@ ToriDraw_ModelNewMerge(
 
         for( int v = 0; v < m->vertex_count; v++ )
         {
-            out->vertices_x[vtx_off + v] = m->vertices_x[v];
-            out->vertices_y[vtx_off + v] = m->vertices_y[v];
-            out->vertices_z[vtx_off + v] = m->vertices_z[v];
+            int dst_v = vtx_off + v;
+            out->vertices_x[dst_v] = m->vertices_x[v];
+            out->vertices_y[dst_v] = m->vertices_y[v];
+            out->vertices_z[dst_v] = m->vertices_z[v];
+
+            if( out->animaya_group_counts && m->animaya_group_counts )
+            {
+                int cnt = (int)m->animaya_group_counts[v];
+                out->animaya_group_counts[dst_v] = (uint8_t)cnt;
+                if( cnt > 0 && m->animaya_groups && m->animaya_scales )
+                {
+                    out->animaya_groups[dst_v] = (uint8_t*)malloc((size_t)cnt);
+                    out->animaya_scales[dst_v] = (uint8_t*)malloc((size_t)cnt);
+                    if( !out->animaya_groups[dst_v] || !out->animaya_scales[dst_v] )
+                    {
+                        free(vertex_offsets);
+                        free(face_offsets);
+                        ToriDraw_ModelFree(out);
+                        return NULL;
+                    }
+                    if( m->animaya_groups[v] )
+                        memcpy(
+                            out->animaya_groups[dst_v],
+                            m->animaya_groups[v],
+                            (size_t)cnt);
+                    if( m->animaya_scales[v] )
+                        memcpy(
+                            out->animaya_scales[dst_v],
+                            m->animaya_scales[v],
+                            (size_t)cnt);
+                }
+            }
         }
 
         for( int f = 0; f < m->face_count; f++ )

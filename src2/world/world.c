@@ -41,23 +41,11 @@ world_free(struct World* world)
     free(world);
 }
 
-void
-world_reset_scene(
+static void
+world_reset_scene_alloc(
     struct World* world,
-    int zone_center_x,
-    int zone_center_z,
     int scene_size)
 {
-    int zone_padding = scene_size / (2 * 8);
-    int zone_sw_x = zone_center_x - zone_padding;
-    int zone_sw_z = zone_center_z - zone_padding;
-    int zone_ne_x = zone_center_x + zone_padding;
-    int zone_ne_z = zone_center_z + zone_padding;
-    int world_sw_x = zone_sw_x * 8;
-    int world_sw_z = zone_sw_z * 8;
-
-    world->load_complete = false;
-
     if( world->heightmap )
         heightmap_free(world->heightmap);
     if( world->minimap )
@@ -81,14 +69,6 @@ world_reset_scene(
         world->collision_maps[i] = NULL;
     }
 
-    world->_offset_x = world_sw_x % 64;
-    world->_offset_z = world_sw_z % 64;
-    world->_base_tile_x = zone_sw_x * 8;
-    world->_base_tile_z = zone_sw_z * 8;
-    world->_chunk_sw_x = zone_sw_x / 8;
-    world->_chunk_sw_z = zone_sw_z / 8;
-    world->_chunk_ne_x = zone_ne_x / 8;
-    world->_chunk_ne_z = zone_ne_z / 8;
     world->_scene_size = scene_size;
 
     world->heightmap = heightmap_new(scene_size + 1, scene_size + 1, WORLD_MAP_TERRAIN_LEVELS);
@@ -109,6 +89,81 @@ world_reset_scene(
     world->terrain_element_ids = malloc((size_t)terrain_tile_count * sizeof(int));
     if( world->terrain_element_ids )
         memset(world->terrain_element_ids, 0xFF, (size_t)terrain_tile_count * sizeof(int));
+}
+
+void
+world_reset_scene(
+    struct World* world,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size)
+{
+    int zone_padding = scene_size / (2 * 8);
+    int zone_sw_x = zone_center_x - zone_padding;
+    int zone_sw_z = zone_center_z - zone_padding;
+    int zone_ne_x = zone_center_x + zone_padding;
+    int zone_ne_z = zone_center_z + zone_padding;
+    int world_sw_x = zone_sw_x * 8;
+    int world_sw_z = zone_sw_z * 8;
+
+    world->load_complete = false;
+
+    world->_offset_x = world_sw_x % 64;
+    world->_offset_z = world_sw_z % 64;
+    world->_base_tile_x = zone_sw_x * 8;
+    world->_base_tile_z = zone_sw_z * 8;
+    world->_chunk_sw_x = zone_sw_x / 8;
+    world->_chunk_sw_z = zone_sw_z / 8;
+    world->_chunk_ne_x = zone_ne_x / 8;
+    world->_chunk_ne_z = zone_ne_z / 8;
+
+    world_reset_scene_alloc(world, scene_size);
+}
+
+void
+world_reset_scene_chunklist(
+    struct World* world,
+    const int* chunks_xz,
+    int count)
+{
+    assert(world && chunks_xz && count > 0);
+
+    int min_x = chunks_xz[0];
+    int min_z = chunks_xz[1];
+    int max_x = min_x;
+    int max_z = min_z;
+
+    for( int i = 1; i < count; i++ )
+    {
+        int mapx = chunks_xz[i * 2];
+        int mapz = chunks_xz[i * 2 + 1];
+        if( mapx < min_x )
+            min_x = mapx;
+        if( mapx > max_x )
+            max_x = mapx;
+        if( mapz < min_z )
+            min_z = mapz;
+        if( mapz > max_z )
+            max_z = mapz;
+    }
+
+    int span_x = max_x - min_x + 1;
+    int span_z = max_z - min_z + 1;
+    int span = span_x > span_z ? span_x : span_z;
+    int scene_size = span * WORLD_MAP_TERRAIN_X;
+
+    world->load_complete = false;
+
+    world->_offset_x = 0;
+    world->_offset_z = 0;
+    world->_base_tile_x = min_x * WORLD_MAP_TERRAIN_X;
+    world->_base_tile_z = min_z * WORLD_MAP_TERRAIN_Z;
+    world->_chunk_sw_x = min_x;
+    world->_chunk_sw_z = min_z;
+    world->_chunk_ne_x = max_x;
+    world->_chunk_ne_z = max_z;
+
+    world_reset_scene_alloc(world, scene_size);
 }
 
 void
@@ -218,7 +273,8 @@ world_player_spawn(
     int element_id,
     int level,
     int scene_x,
-    int scene_z)
+    int scene_z,
+    struct WorldEntityFacet_Animation animation)
 {
     struct World_EntityPool* pool;
     struct WorldEntity_Player* player;
@@ -237,6 +293,7 @@ world_player_spawn(
         .x = scene_x * 128 + 64,
         .z = scene_z * 128 + 64,
         .yaw = 0,
+        .animation = animation,
     };
     return idx;
 }
@@ -249,8 +306,7 @@ world_player_despawn(
     struct World_EntityPool* pool;
     struct WorldEntity_Player* player;
 
-    if( !world )
-        return;
+    assert(world);
 
     pool = &world->entities.player;
     if( !World_EntityPoolIsActive(pool, idx) )
@@ -265,6 +321,70 @@ world_player_despawn(
         world->events[world->event_count++] = (struct WorldEvent){
             .kind = WORLD_EVENT_ENTITY_REMOVED,
             .element_id = player->element_id,
+        };
+    }
+
+    World_EntityPoolRelease(pool, idx);
+}
+
+int
+world_npc_spawn(
+    struct World* world,
+    int element_id,
+    int npc_id,
+    int level,
+    int scene_x,
+    int scene_z,
+    int size,
+    struct WorldEntityFacet_Animation animation)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_NPC* npc;
+    int idx;
+
+    assert(!(!world || element_id < 0));
+
+    pool = &world->entities.npc;
+    idx = World_EntityPoolAlloc(pool);
+    assert(idx >= 0);
+
+    npc = World_EntityPoolGet(pool, idx);
+    *npc = (struct WorldEntity_NPC){
+        .element_id = element_id,
+        .level = level,
+        .x = scene_x * 128 + 64,
+        .z = scene_z * 128 + 64,
+        .yaw = 0,
+        .npc_id = npc_id,
+        .size = size,
+        .animation = animation,
+    };
+    return idx;
+}
+
+void
+world_npc_despawn(
+    struct World* world,
+    int idx)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_NPC* npc;
+
+    assert(world);
+
+    pool = &world->entities.npc;
+    if( !World_EntityPoolIsActive(pool, idx) )
+        return;
+
+    npc = World_EntityPoolGet(pool, idx);
+    if( !npc )
+        return;
+
+    if( npc->element_id >= 0 && world->event_count < WORLD_MAX_EVENTS )
+    {
+        world->events[world->event_count++] = (struct WorldEvent){
+            .kind = WORLD_EVENT_ENTITY_REMOVED,
+            .element_id = npc->element_id,
         };
     }
 
@@ -507,13 +627,31 @@ world_cycle(
             continue;
 
         painter_add_normal_scenery(
+            world->painter, grid_x, grid_z, player->level, player->element_id, 1, 1);
+    }
+
+    struct World_EntityPool* npc_pool = &world->entities.npc;
+    for( int ni = World_EntityPoolHead(npc_pool); ni != WORLD_ENTITY_NIL;
+         ni = World_EntityPoolNext(npc_pool, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(npc_pool, ni);
+        if( !npc || npc->element_id < 0 )
+            continue;
+
+        int grid_x = npc->x >> 7;
+        int grid_z = npc->z >> 7;
+        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
+            grid_z >= world->_scene_size )
+            continue;
+
+        painter_add_normal_scenery(
             world->painter,
             grid_x,
             grid_z,
-            player->level,
-            player->element_id,
-            1,
-            1);
+            npc->level,
+            npc->element_id,
+            npc->size,
+            npc->size);
     }
 
     struct World_EntityPool* pool = &world->entities.projectile;
@@ -613,14 +751,7 @@ world_cycle(
             continue;
         }
 
-        painter_add_normal_scenery(
-            world->painter,
-            grid_x,
-            grid_z,
-            s->level,
-            s->element_id,
-            1,
-            1);
+        painter_add_normal_scenery(world->painter, grid_x, grid_z, s->level, s->element_id, 1, 1);
 
         si = next;
     }

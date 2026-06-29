@@ -27,6 +27,17 @@ struct World_EntityPool
     int free_head;
 };
 
+struct WorldEntityFacet_Animation
+{
+    int readyanim;
+    int walkanim;
+    int turnanim;
+    int runanim;
+    int walkanim_b;
+    int walkanim_r;
+    int walkanim_l;
+};
+
 struct WorldEntity_Terrain
 {
     int element_id;
@@ -53,6 +64,19 @@ struct WorldEntity_Player
     int x;
     int z;
     int yaw;
+    struct WorldEntityFacet_Animation animation;
+};
+
+struct WorldEntity_NPC
+{
+    int element_id;
+    int level;
+    int x;
+    int z;
+    int yaw;
+    int npc_id;
+    int size;
+    struct WorldEntityFacet_Animation animation;
 };
 
 struct WorldEntity_Projectile
@@ -107,6 +131,7 @@ struct World_EntityList
     struct World_EntityPool terrain;
     struct World_EntityPool scenery;
     struct World_EntityPool player;
+    struct World_EntityPool npc;
     struct World_EntityPool projectile;
     struct World_EntityPool spotanim;
 };

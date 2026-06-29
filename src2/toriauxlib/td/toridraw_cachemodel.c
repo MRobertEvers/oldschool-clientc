@@ -284,6 +284,19 @@ ToriDraw_ModelMoveFromCacheModel(
     if( model->face_bone_map )
         td->face_bones = ToriDraw_BonesNew(model->face_bone_map, model->face_count);
 
+    if( model->animaya_vertex_count > 0 && model->animaya_group_counts &&
+        model->animaya_groups && model->animaya_scales )
+    {
+        td->animaya_vertex_count = model->animaya_vertex_count;
+        td->animaya_group_counts = model->animaya_group_counts;
+        td->animaya_groups = model->animaya_groups;
+        td->animaya_scales = model->animaya_scales;
+        model->animaya_vertex_count = 0;
+        model->animaya_group_counts = NULL;
+        model->animaya_groups = NULL;
+        model->animaya_scales = NULL;
+    }
+
     if( td->vertex_count > 0 && td->vertices_x && td->vertices_y && td->vertices_z )
     {
         td->bounds_cylinder =

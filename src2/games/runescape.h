@@ -21,14 +21,15 @@ struct ToriAuxLibTD;
 struct LibToriRS_IOContext;
 
 /* OSRS rebuild-normal zone coords (zonex, zonez). */
-#define RUNESCAPE_ZONE_CENTER_X 313
-#define RUNESCAPE_ZONE_CENTER_Z 437
+// Waterfall
+// #define RUNESCAPE_ZONE_CENTER_X 313
+// #define RUNESCAPE_ZONE_CENTER_Z 437
+// Inferno
+#define RUNESCAPE_ZONE_CENTER_X 280
+#define RUNESCAPE_ZONE_CENTER_Z 664
 
 #define RUNESCAPE_PROJECTILE_MODEL_ID 3081
 #define RUNESCAPE_PROJECTILE_SEQ_ID 659
-
-/* Fallback player body model when appearance resolves to no pieces. */
-#define RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID 230
 
 #include "../runescape/appearance.h"
 
@@ -40,6 +41,12 @@ struct LibToriRS_IOContext;
 #define RUNESCAPE_PROJECTILE_LENGTH -5
 #define RUNESCAPE_PROJECTILE_OFFSET 64
 #define RUNESCAPE_PROJECTILE_STEP 10
+
+#define RUNESCAPE_EXAMPLE_NPC_ID_DAT1 12
+// Zuk 7706
+// Whisperer 12204
+// #define RUNESCAPE_EXAMPLE_NPC_ID_DAT2 7706
+#define RUNESCAPE_EXAMPLE_NPC_ID_DAT2 12204
 
 /** Reserved ToriDraw sprite element id for the baked world-map minimap (revconfig ids start at 1).
  */
@@ -54,11 +61,11 @@ enum GameRunescape_EntityKind
 };
 
 #define RS_ENTITY_KIND_SHIFT 28
-#define RS_ENTITY_KIND_MASK  0xF
+#define RS_ENTITY_KIND_MASK 0xF
 #define RS_ENTITY_INDEX_MASK ((1 << RS_ENTITY_KIND_SHIFT) - 1)
-#define RS_ENTITY_ID(kind, index) \
+#define RS_ENTITY_ID(kind, index)                                                                  \
     (((int)(kind) << RS_ENTITY_KIND_SHIFT) | ((index) & RS_ENTITY_INDEX_MASK))
-#define RS_ENTITY_KIND_OF(id)  (((id) >> RS_ENTITY_KIND_SHIFT) & RS_ENTITY_KIND_MASK)
+#define RS_ENTITY_KIND_OF(id) (((id) >> RS_ENTITY_KIND_SHIFT) & RS_ENTITY_KIND_MASK)
 #define RS_ENTITY_INDEX_OF(id) ((id) & RS_ENTITY_INDEX_MASK)
 
 enum GameRunescape_FramePhase
@@ -128,6 +135,7 @@ struct GameRunescape
     int entity_registry_cap;
     int next_projectile_entity_index;
     int next_player_entity_index;
+    int next_npc_entity_index;
 
     struct
     {
@@ -178,7 +186,17 @@ GameRunescape_SetUITreeReady(
     bool ready);
 
 void
-GameRunescape_BuildWorld(struct GameRunescape* game);
+GameRunescape_BuildWorldCenterzone(
+    struct GameRunescape* game,
+    int centerzone_x,
+    int centerzone_z,
+    int scene_size);
+
+void
+GameRunescape_BuildWorldChunkList(
+    struct GameRunescape* game,
+    int* chunks_xz,
+    int count);
 
 void
 GameRunescape_RebuildWorldMap(struct GameRunescape* game);
@@ -215,6 +233,22 @@ GameRunescape_WorldEntityAddPlayer(
     struct GameRunescape* game,
     int entity_id,
     const int appearance[12],
+    int x,
+    int z,
+    int level,
+    int readyanim,
+    int walkanim,
+    int turnanim,
+    int runanim,
+    int walkanim_b,
+    int walkanim_r,
+    int walkanim_l);
+
+int
+GameRunescape_WorldEntityAddNPC(
+    struct GameRunescape* game,
+    int entity_id,
+    int npc_id,
     int x,
     int z,
     int level);
@@ -254,13 +288,39 @@ Task_GameRunescape_WorldEntityAddPlayer_New(
     const int appearance[12],
     int x,
     int z,
-    int level);
+    int level,
+    int readyanim,
+    int walkanim,
+    int turnanim,
+    int runanim,
+    int walkanim_b,
+    int walkanim_r,
+    int walkanim_l);
 
 void
 Task_GameRunescape_WorldEntityAddPlayer_Free(struct Task_GameRunescape_WorldEntityAddPlayer* task);
 
 int
 Task_GameRunescape_WorldEntityAddPlayer_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx);
+
+struct Task_GameRunescape_WorldEntityAddNPC;
+
+struct Task_GameRunescape_WorldEntityAddNPC*
+Task_GameRunescape_WorldEntityAddNPC_New(
+    struct GameRunescape* game,
+    int entity_id,
+    int npc_id,
+    int x,
+    int z,
+    int level);
+
+void
+Task_GameRunescape_WorldEntityAddNPC_Free(struct Task_GameRunescape_WorldEntityAddNPC* task);
+
+int
+Task_GameRunescape_WorldEntityAddNPC_Run(
     void* task_state,
     struct LibToriRS_IOContext* ctx);
 

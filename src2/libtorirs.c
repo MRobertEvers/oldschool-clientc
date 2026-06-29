@@ -35,6 +35,12 @@ player_task_destroy(void* state)
     Task_GameRunescape_WorldEntityAddPlayer_Free(state);
 }
 
+static void
+npc_task_destroy(void* state)
+{
+    Task_GameRunescape_WorldEntityAddNPC_Free(state);
+}
+
 struct LibToriRS_Instance*
 LibToriRS_InstanceNew(void)
 {
@@ -404,7 +410,14 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                         RUNESCAPE_EXAMPLE_PLAYER_APPEARANCE,
                         sx,
                         sz,
-                        level);
+                        level,
+                        RUNESCAPE_EXAMPLE_PLAYER_READYANIM,
+                        RUNESCAPE_EXAMPLE_PLAYER_WALKANIM,
+                        RUNESCAPE_EXAMPLE_PLAYER_TURNANIM,
+                        RUNESCAPE_EXAMPLE_PLAYER_RUNANIM,
+                        RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_B,
+                        RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_R,
+                        RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_L);
                 if( task )
                 {
                     LibToriRS_TasksAdd(
@@ -412,6 +425,43 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                         task,
                         Task_GameRunescape_WorldEntityAddPlayer_Run,
                         player_task_destroy);
+                }
+            }
+            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_N) )
+            {
+                struct GameRunescape* game = instance->runescape;
+                int sx;
+                int sz;
+                int level;
+                int npc_id;
+                if( game->last_tile_valid )
+                {
+                    sx = game->last_tile_sx;
+                    sz = game->last_tile_sz;
+                    level = game->last_tile_level;
+                }
+                else
+                {
+                    sx = game->camera_position->x / 128;
+                    sz = game->camera_position->z / 128;
+                    level = GameRunescape_CameraTerrainLevel(game);
+                }
+                npc_id = ToriAuxLibC_Mode(ToriAuxLib_C(instance->toriauxlib)) ==
+                                 TORIAUXLIBC_MODE_DAT1
+                             ? RUNESCAPE_EXAMPLE_NPC_ID_DAT1
+                             : RUNESCAPE_EXAMPLE_NPC_ID_DAT2;
+                int const entity_id =
+                    RS_ENTITY_ID(RS_ENTITY_KIND_NPC, game->next_npc_entity_index++);
+                struct Task_GameRunescape_WorldEntityAddNPC* task =
+                    Task_GameRunescape_WorldEntityAddNPC_New(
+                        game, entity_id, npc_id, sx, sz, level);
+                if( task )
+                {
+                    LibToriRS_TasksAdd(
+                        instance,
+                        task,
+                        Task_GameRunescape_WorldEntityAddNPC_Run,
+                        npc_task_destroy);
                 }
             }
         }

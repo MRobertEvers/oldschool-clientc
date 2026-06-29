@@ -223,6 +223,37 @@ ToriAuxLibTD_ModelNewFromCore(const struct ToriAuxLibCore_Model* src)
     dst->vertex_bones = tdx_bones_new_from_core(src->vertex_bones);
     dst->face_bones = tdx_bones_new_from_core(src->face_bones);
 
+    if( src->animaya_skin && src->animaya_skin->vertex_count > 0 )
+    {
+        const struct ToriAuxLibCore_AnimayaSkin* skin = src->animaya_skin;
+        int vc = skin->vertex_count;
+
+        dst->animaya_vertex_count = vc;
+        dst->animaya_group_counts = malloc((size_t)vc);
+        dst->animaya_groups = calloc((size_t)vc, sizeof(uint8_t*));
+        dst->animaya_scales = calloc((size_t)vc, sizeof(uint8_t*));
+        if( !dst->animaya_group_counts || !dst->animaya_groups || !dst->animaya_scales )
+            goto fail;
+
+        memcpy(dst->animaya_group_counts, skin->group_counts, (size_t)vc);
+        for( int i = 0; i < vc; i++ )
+        {
+            int cnt = (int)dst->animaya_group_counts[i];
+            if( cnt <= 0 )
+                continue;
+
+            dst->animaya_groups[i] = malloc((size_t)cnt);
+            dst->animaya_scales[i] = malloc((size_t)cnt);
+            if( !dst->animaya_groups[i] || !dst->animaya_scales[i] )
+                goto fail;
+
+            if( skin->groups && skin->groups[i] )
+                memcpy(dst->animaya_groups[i], skin->groups[i], (size_t)cnt);
+            if( skin->scales && skin->scales[i] )
+                memcpy(dst->animaya_scales[i], skin->scales[i], (size_t)cnt);
+        }
+    }
+
     if( src->bounds_cylinder )
     {
         dst->bounds_cylinder =
@@ -686,7 +717,12 @@ ToriAuxLibTD_ElementSetSequenceId(
             {
                 el->skeletal_animation = skeletal;
                 el->is_skeletal = true;
+                if( seq->anim_maya_end > seq->anim_maya_start )
+                    el->skeletal_play_frames = seq->anim_maya_end - seq->anim_maya_start;
+                else
+                    el->skeletal_play_frames = skeletal->frame_count;
             }
+            ToriDraw_SceneElementApplyAnimation(td->scene, element_id, true, 0);
             return true;
         }
         fprintf(stderr,
@@ -708,7 +744,10 @@ ToriAuxLibTD_ElementSetSequenceId(
 
     struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(td->scene, element_id);
     if( el )
+    {
         el->is_skeletal = false;
+        el->skeletal_play_frames = 0;
+    }
 
     ToriDraw_SceneElementSetAnimation(td->scene, element_id, resolved, true);
     return true;

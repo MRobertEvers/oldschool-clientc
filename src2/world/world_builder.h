@@ -84,4 +84,16 @@ world_builder_rebuild_centerzone_chunk(
 void
 world_builder_rebuild_centerzone_end(struct WorldBuilder* builder);
 
+void
+world_builder_rebuild_chunklist(
+    struct WorldBuilder* builder,
+    const int* chunks_xz,
+    int count);
+
+void
+world_builder_rebuild_chunklist_begin(
+    struct WorldBuilder* builder,
+    const int* chunks_xz,
+    int count);
+
 #endif

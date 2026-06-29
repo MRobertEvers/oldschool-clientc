@@ -6,6 +6,7 @@
 #include "toridraw_math.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -493,10 +494,8 @@ ToriDraw_ModelAnimateFrame(
     const struct ToriDraw_AnimBase* base,
     const struct ToriDraw_AnimFrame* frame)
 {
-    if( !model || !base || !frame || frame->length <= 0 )
-        return;
-    if( !frame->groups || !frame->x || !frame->y || !frame->z )
-        return;
+    assert(model && base && frame && frame->length > 0);
+    assert(frame->groups && frame->x && frame->y && frame->z);
 
     struct ToriDraw_AnimTransform transform = { 0 };
     for( int i = 0; i < frame->length; i++ )
@@ -547,21 +546,27 @@ ToriDraw_TextureAverageHsl16(const struct ToriDraw_Texture* texture)
     return palette_rgb_to_hsl16(average_rgb);
 }
 
+static int
+tori_skeletal_matrix_is_finite(const float* M)
+{
+    for( int k = 0; k < 16; k++ )
+    {
+        if( !isfinite(M[k]) )
+            return 0;
+    }
+    return 1;
+}
+
 void
 ToriDraw_ModelAnimateSkeletal(
     struct ToriDraw_Model* model,
     const struct ToriDraw_SkeletalAnim* skeletal,
     int frame_index)
 {
-    if( !model || !skeletal || frame_index < 0 || frame_index >= skeletal->frame_count )
-        return;
-    if( !model->original_vertices_x || !model->original_vertices_y ||
-        !model->original_vertices_z )
-        return;
-    if( !model->animaya_group_counts || !model->animaya_groups || !model->animaya_scales )
-        return;
-    if( !skeletal->matrices )
-        return;
+    assert(model && skeletal && frame_index >= 0 && frame_index < skeletal->frame_count);
+    assert(model->original_vertices_x && model->original_vertices_y && model->original_vertices_z);
+    assert(model->animaya_group_counts && model->animaya_groups && model->animaya_scales);
+    assert(skeletal->matrices);
 
     /* Pointer to the 4x4 skinning matrices for this frame:
      *   frame_matrices[(bone) * 16 .. +15] is the column-major mat4 for that bone */
@@ -583,40 +588,44 @@ ToriDraw_ModelAnimateSkeletal(
             continue;
         }
 
+        /* RS model space is Y-down; skeletal matrices are Y-up (rs-map-viewer transformVertex). */
         float ox = (float)model->original_vertices_x[vi];
-        float oy = (float)model->original_vertices_y[vi];
-        float oz = (float)model->original_vertices_z[vi];
+        float oy = -(float)model->original_vertices_y[vi];
+        float oz = -(float)model->original_vertices_z[vi];
 
         float bx = 0.0f, by = 0.0f, bz = 0.0f;
-        float total_weight = 0.0f;
+        int contributed = 0;
 
         for( int j = 0; j < cnt; j++ )
         {
-            int bone   = model->animaya_groups[vi] ? (int)model->animaya_groups[vi][j] : 0;
-            int weight = model->animaya_scales[vi]  ? (int)model->animaya_scales[vi][j]  : 0;
-            if( bone < 0 || bone >= skeletal->bone_count || weight == 0 )
+            int bone = model->animaya_groups[vi] ? (int)model->animaya_groups[vi][j] : 0;
+            int scale = model->animaya_scales[vi] ? (int)model->animaya_scales[vi][j] : 0;
+            if( bone < 0 || bone >= skeletal->bone_count || scale == 0 )
                 continue;
 
-            /* Column-major mat4 multiply: out = M * [ox, oy, oz, 1] */
+            /* Column-major mat4 multiply: out = (scale/255) * M * [ox, oy, oz, 1] */
             const float* M = &frame_matrices[bone * 16];
-            float w = (float)weight;
-            bx += w * (M[0]*ox + M[4]*oy + M[8]*oz  + M[12]);
-            by += w * (M[1]*ox + M[5]*oy + M[9]*oz  + M[13]);
-            bz += w * (M[2]*ox + M[6]*oy + M[10]*oz + M[14]);
-            total_weight += w;
+            if( !tori_skeletal_matrix_is_finite(M) )
+                continue;
+
+            float w = (float)scale / 255.0f;
+            bx += w * (M[0] * ox + M[4] * oy + M[8] * oz + M[12]);
+            by += w * (M[1] * ox + M[5] * oy + M[9] * oz + M[13]);
+            bz += w * (M[2] * ox + M[6] * oy + M[10] * oz + M[14]);
+            contributed = 1;
         }
 
-        if( total_weight > 0.0f )
+        if( contributed )
         {
-            model->vertices_x[vi] = (vertexint_t)(bx / total_weight);
-            model->vertices_y[vi] = (vertexint_t)(by / total_weight);
-            model->vertices_z[vi] = (vertexint_t)(bz / total_weight);
+            model->vertices_x[vi] = (vertexint_t)lroundf(bx);
+            model->vertices_y[vi] = (vertexint_t)-lroundf(by);
+            model->vertices_z[vi] = (vertexint_t)-lroundf(bz);
         }
         else
         {
-            model->vertices_x[vi] = (vertexint_t)ox;
-            model->vertices_y[vi] = (vertexint_t)oy;
-            model->vertices_z[vi] = (vertexint_t)oz;
+            model->vertices_x[vi] = model->original_vertices_x[vi];
+            model->vertices_y[vi] = model->original_vertices_y[vi];
+            model->vertices_z[vi] = model->original_vertices_z[vi];
         }
     }
 }
@@ -690,7 +699,8 @@ ToriDraw_TextureMapAnimate(
         struct ToriDraw_Texture* tex = map->textures[i];
         if( !tex || !tex->texels )
             continue;
-        if( tex->animation_direction == TORIDRAW_TEXANIM_DIRECTION_NONE || tex->animation_speed == 0 )
+        if( tex->animation_direction == TORIDRAW_TEXANIM_DIRECTION_NONE ||
+            tex->animation_speed == 0 )
             continue;
 
         int const pixel_count = tex->width * tex->height;

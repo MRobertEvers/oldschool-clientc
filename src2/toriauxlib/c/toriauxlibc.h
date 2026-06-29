@@ -142,19 +142,105 @@ Task_ToriAuxLibC_ModelLoad_Run(
 void
 Task_ToriAuxLibC_ModelLoad_Free(struct Task_ToriAuxLibC_ModelLoad* task);
 
-struct Task_ToriAuxLibC_WorldRebuildNormal;
+struct Task_ToriAuxLibC_WorldRebuildNormalCenterzone;
 
-struct Task_ToriAuxLibC_WorldRebuildNormal*
-Task_ToriAuxLibC_WorldRebuildNormal_New(
+struct Task_ToriAuxLibC_WorldRebuildNormalCenterzone*
+Task_ToriAuxLibC_WorldRebuildNormalCenterzone_New(
     struct ToriAuxLibC* c,
     int zonex,
     int zonez);
 
 void
-Task_ToriAuxLibC_WorldRebuildNormal_Free(struct Task_ToriAuxLibC_WorldRebuildNormal* task);
+Task_ToriAuxLibC_WorldRebuildNormalCenterzone_Free(
+    struct Task_ToriAuxLibC_WorldRebuildNormalCenterzone* task);
 
 int
-Task_ToriAuxLibC_WorldRebuildNormal_Run(
+Task_ToriAuxLibC_WorldRebuildNormalCenterzone_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx);
+
+struct Task_ToriAuxLibC_WorldRebuildChunkList;
+
+struct Task_ToriAuxLibC_WorldRebuildChunkList*
+Task_ToriAuxLibC_WorldRebuildChunkList_New(
+    struct ToriAuxLibC* c,
+    const int* chunks_x,
+    const int* chunks_z,
+    int count);
+
+void
+Task_ToriAuxLibC_WorldRebuildChunkList_Free(struct Task_ToriAuxLibC_WorldRebuildChunkList* task);
+
+int
+Task_ToriAuxLibC_WorldRebuildChunkList_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx);
+
+struct Task_ToriAuxLibC_PlayerAdd;
+
+struct Task_ToriAuxLibC_PlayerAdd*
+Task_ToriAuxLibC_PlayerAdd_New(
+    struct ToriAuxLibC* c,
+    const int appearance[12],
+    int readyanim,
+    int walkanim,
+    int turnanim,
+    int runanim,
+    int walkanim_b,
+    int walkanim_r,
+    int walkanim_l);
+
+void
+Task_ToriAuxLibC_PlayerAdd_Free(struct Task_ToriAuxLibC_PlayerAdd* task);
+
+int
+Task_ToriAuxLibC_PlayerAdd_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx);
+
+struct Task_ToriAuxLibC_NpcAdd;
+
+struct Task_ToriAuxLibC_NpcAdd*
+Task_ToriAuxLibC_NpcAdd_New(
+    struct ToriAuxLibC* c,
+    int npc_id);
+
+void
+Task_ToriAuxLibC_NpcAdd_Free(struct Task_ToriAuxLibC_NpcAdd* task);
+
+int
+Task_ToriAuxLibC_NpcAdd_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx);
+
+struct Task_ToriAuxLibC_ProjectileAdd;
+
+struct Task_ToriAuxLibC_ProjectileAdd*
+Task_ToriAuxLibC_ProjectileAdd_New(
+    struct ToriAuxLibC* c,
+    int model_id,
+    int anim_id);
+
+void
+Task_ToriAuxLibC_ProjectileAdd_Free(struct Task_ToriAuxLibC_ProjectileAdd* task);
+
+int
+Task_ToriAuxLibC_ProjectileAdd_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx);
+
+struct Task_ToriAuxLibC_Animate;
+
+struct Task_ToriAuxLibC_Animate*
+Task_ToriAuxLibC_Animate_New(
+    struct ToriAuxLibC* c,
+    int anim_id);
+
+void
+Task_ToriAuxLibC_Animate_Free(struct Task_ToriAuxLibC_Animate* task);
+
+int
+Task_ToriAuxLibC_Animate_Run(
     void* task_state,
     struct LibToriRS_IOContext* ctx);
 

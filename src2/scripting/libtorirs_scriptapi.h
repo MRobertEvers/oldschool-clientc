@@ -86,6 +86,19 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance);
 void
 LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(struct LibToriRS_Instance* instance);
 
+void
+LibToriRS_ScriptAPI_Game_Runescape_BuildWorldCenterzone(
+    struct LibToriRS_Instance* instance,
+    int center_x,
+    int center_z,
+    int scene_size);
+
+void
+LibToriRS_ScriptAPI_Game_Runescape_BuildWorldChunkList(
+    struct LibToriRS_Instance* instance,
+    int* chunks_xz,
+    int count);
+
 struct GameHandle*
 LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(struct LibToriRS_Instance* instance);
 

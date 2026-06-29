@@ -496,6 +496,8 @@ ToriAuxLibC_SequenceNewFromCacheDat2Sequence(
     dst->preanim_move = src->precedence_animating;
     dst->postanim_move = src->reply_mode;
     dst->anim_maya_id = src->anim_maya_id;
+    dst->anim_maya_start = src->anim_maya_start;
+    dst->anim_maya_end = src->anim_maya_end;
 
     if( src->frame_count > 0 )
     {

@@ -2,7 +2,10 @@
 
 #include "osrs/rscache/dat2a/dat2a_animaya.h"
 #include "osrs/rscache/dat2a/dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/dat2a_config_idk.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/dat2a_config_npctype.h"
+#include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2a/dat2a_frame.h"
 #include "osrs/rscache/dat2a/dat2a_framemap.h"
@@ -70,6 +73,24 @@ struct MapEntry_Skeletal
     struct RSCacheDat2A_AnimMaya* maya;
 };
 
+struct MapEntry_ConfigIdentkit
+{
+    int id;
+    struct RSCacheDat2A_ConfigIdk* idk;
+};
+
+struct MapEntry_ConfigObject
+{
+    int id;
+    struct RSCacheDat2A_ConfigObject* object;
+};
+
+struct MapEntry_ConfigNpctype
+{
+    int id;
+    struct RSCacheDat2A_ConfigNpctype* npc;
+};
+
 static struct ToriDraw_Map*
 dat2_buildcache_map_new(
     int entry_size,
@@ -121,15 +142,29 @@ dat2_buildcache_new(void)
     if( !dat2_buildcache )
         return NULL;
 
-    dat2_buildcache->models_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_CacheModel), 8192);
-    dat2_buildcache->map_terrain_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Terrain), 512);
-    dat2_buildcache->map_scenery_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Scenery), 512);
-    dat2_buildcache->sequences_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Sequence), 65536);
+    dat2_buildcache->models_hmap =
+        dat2_buildcache_map_new(sizeof(struct MapEntry_CacheModel), 8192);
+    dat2_buildcache->map_terrain_hmap =
+        dat2_buildcache_map_new(sizeof(struct MapEntry_Terrain), 512);
+    dat2_buildcache->map_scenery_hmap =
+        dat2_buildcache_map_new(sizeof(struct MapEntry_Scenery), 512);
+    dat2_buildcache->sequences_hmap =
+        dat2_buildcache_map_new(sizeof(struct MapEntry_Sequence), 65536);
     dat2_buildcache->flotype_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Flotype), 8192);
-    dat2_buildcache->underlay_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Underlay), 4096);
-    dat2_buildcache->config_loc_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_ConfigLoc), 8192);
-    dat2_buildcache->frames_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_FramesArchive), 4096);
-    dat2_buildcache->skeletal_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Skeletal), 4096);
+    dat2_buildcache->underlay_hmap =
+        dat2_buildcache_map_new(sizeof(struct MapEntry_Underlay), 4096);
+    dat2_buildcache->config_loc_hmap =
+        dat2_buildcache_map_new(sizeof(struct MapEntry_ConfigLoc), 8192);
+    dat2_buildcache->frames_hmap =
+        dat2_buildcache_map_new(sizeof(struct MapEntry_FramesArchive), 4096);
+    dat2_buildcache->skeletal_hmap =
+        dat2_buildcache_map_new(sizeof(struct MapEntry_Skeletal), 4096);
+    dat2_buildcache->identkit_hmap =
+        dat2_buildcache_map_new(sizeof(struct MapEntry_ConfigIdentkit), 512);
+    dat2_buildcache->object_hmap =
+        dat2_buildcache_map_new(sizeof(struct MapEntry_ConfigObject), 8192);
+    dat2_buildcache->npctype_hmap =
+        dat2_buildcache_map_new(sizeof(struct MapEntry_ConfigNpctype), 8192);
 
     return dat2_buildcache;
 }
@@ -257,6 +292,45 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache_map_free(dat2_buildcache->skeletal_hmap);
     }
 
+    if( dat2_buildcache->identkit_hmap )
+    {
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->identkit_hmap);
+        struct MapEntry_ConfigIdentkit* entry = NULL;
+        while( (entry = (struct MapEntry_ConfigIdentkit*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->idk )
+                RSCacheDat2A_ConfigIdkFree(entry->idk);
+        }
+        ToriDraw_MapIterFree(iter);
+        dat2_buildcache_map_free(dat2_buildcache->identkit_hmap);
+    }
+
+    if( dat2_buildcache->object_hmap )
+    {
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->object_hmap);
+        struct MapEntry_ConfigObject* entry = NULL;
+        while( (entry = (struct MapEntry_ConfigObject*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->object )
+                RSCacheDat2A_ConfigObjectFree(entry->object);
+        }
+        ToriDraw_MapIterFree(iter);
+        dat2_buildcache_map_free(dat2_buildcache->object_hmap);
+    }
+
+    if( dat2_buildcache->npctype_hmap )
+    {
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->npctype_hmap);
+        struct MapEntry_ConfigNpctype* entry = NULL;
+        while( (entry = (struct MapEntry_ConfigNpctype*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->npc )
+                RSCacheDat2A_ConfigNpctypeFree(entry->npc);
+        }
+        ToriDraw_MapIterFree(iter);
+        dat2_buildcache_map_free(dat2_buildcache->npctype_hmap);
+    }
+
     free(dat2_buildcache);
 }
 
@@ -374,8 +448,8 @@ dat2_buildcache_map_scenery_has(
 }
 
 static bool
-dat2_loc_id_wanted(
-    int loc_id,
+dat2_id_wanted(
+    int id,
     const int* wanted_ids,
     int wanted_count)
 {
@@ -384,7 +458,7 @@ dat2_loc_id_wanted(
 
     for( int i = 0; i < wanted_count; i++ )
     {
-        if( wanted_ids[i] == loc_id )
+        if( wanted_ids[i] == id )
             return true;
     }
     return false;
@@ -399,7 +473,8 @@ dat2_buildcache_underlays_init_from_filelist(
     for( int i = 0; i < filelist->file_count; i++ )
     {
         int id = archive_ref->children.files[i].id;
-        struct RSCacheDat2A_ConfigUnderlay* underlay = malloc(sizeof(struct RSCacheDat2A_ConfigUnderlay));
+        struct RSCacheDat2A_ConfigUnderlay* underlay =
+            malloc(sizeof(struct RSCacheDat2A_ConfigUnderlay));
         if( !underlay )
             continue;
 
@@ -432,13 +507,15 @@ dat2_buildcache_overlays_init_from_filelist(
     for( int i = 0; i < filelist->file_count; i++ )
     {
         int id = archive_ref->children.files[i].id;
-        struct RSCacheDat2A_ConfigOverlay* flotype = malloc(sizeof(struct RSCacheDat2A_ConfigOverlay));
+        struct RSCacheDat2A_ConfigOverlay* flotype =
+            malloc(sizeof(struct RSCacheDat2A_ConfigOverlay));
         if( !flotype )
             continue;
 
         memset(flotype, 0, sizeof(struct RSCacheDat2A_ConfigOverlay));
         flotype->_id = id;
-        config_floortype_overlay_decode_inplace(flotype, filelist->files[i], filelist->file_sizes[i]);
+        config_floortype_overlay_decode_inplace(
+            flotype, filelist->files[i], filelist->file_sizes[i]);
 
         struct MapEntry_Flotype* entry = (struct MapEntry_Flotype*)ToriDraw_MapSearch(
             dat2_buildcache->flotype_hmap, &id, TORIDRAW_MAP_INSERT);
@@ -488,7 +565,8 @@ dat2_buildcache_sequences_init_from_filelist(
     for( int i = 0; i < filelist->file_count; i++ )
     {
         int id = archive_ref->children.files[i].id;
-        struct RSCacheDat2A_ConfigSequence* sequence = calloc(1, sizeof(struct RSCacheDat2A_ConfigSequence));
+        struct RSCacheDat2A_ConfigSequence* sequence =
+            calloc(1, sizeof(struct RSCacheDat2A_ConfigSequence));
         if( !sequence )
             continue;
 
@@ -543,8 +621,19 @@ dat2_buildcache_sequence_load_from_archive(
     }
 
     RSCacheShared_FileListFree(filelist);
-    return ToriDraw_MapSearch(dat2_buildcache->sequences_hmap, &seq_id, TORIDRAW_MAP_FIND) !=
-           NULL;
+    return ToriDraw_MapSearch(dat2_buildcache->sequences_hmap, &seq_id, TORIDRAW_MAP_FIND) != NULL;
+}
+
+struct RSCacheDat2A_ConfigSequence*
+dat2_buildcache_sequence_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int seq_id)
+{
+    struct MapEntry_Sequence* entry = (struct MapEntry_Sequence*)ToriDraw_MapSearch(
+        dat2_buildcache->sequences_hmap, &seq_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->sequence;
 }
 
 static void
@@ -558,12 +647,13 @@ dat2_buildcache_locs_init_from_filelist(
     for( int i = 0; i < filelist->file_count; i++ )
     {
         int id = archive_ref->children.files[i].id;
-        if( !dat2_loc_id_wanted(id, wanted_loc_ids, wanted_loc_count) )
+        if( !dat2_id_wanted(id, wanted_loc_ids, wanted_loc_count) )
             continue;
         if( dat2_buildcache_config_loc_get(dat2_buildcache, id) )
             continue;
 
-        struct RSCacheDat2A_ConfigLocation* config_loc = calloc(1, sizeof(struct RSCacheDat2A_ConfigLocation));
+        struct RSCacheDat2A_ConfigLocation* config_loc =
+            calloc(1, sizeof(struct RSCacheDat2A_ConfigLocation));
         if( !config_loc )
             continue;
 
@@ -645,6 +735,247 @@ dat2_buildcache_sequences_init_from_archive(
 
     dat2_buildcache_sequences_init_from_filelist(
         dat2_buildcache, filelist, archive_ref, archive->revision);
+    RSCacheShared_FileListFree(filelist);
+}
+
+void
+dat2_buildcache_identkit_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int idk_id,
+    struct RSCacheDat2A_ConfigIdk* idk)
+{
+    struct MapEntry_ConfigIdentkit* entry = (struct MapEntry_ConfigIdentkit*)ToriDraw_MapSearch(
+        dat2_buildcache->identkit_hmap, &idk_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->idk )
+        RSCacheDat2A_ConfigIdkFree(entry->idk);
+
+    entry->id = idk_id;
+    entry->idk = idk;
+}
+
+struct RSCacheDat2A_ConfigIdk*
+dat2_buildcache_identkit_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int idk_id)
+{
+    struct MapEntry_ConfigIdentkit* entry = (struct MapEntry_ConfigIdentkit*)ToriDraw_MapSearch(
+        dat2_buildcache->identkit_hmap, &idk_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->idk;
+}
+
+void
+dat2_buildcache_object_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int obj_id,
+    struct RSCacheDat2A_ConfigObject* object)
+{
+    struct MapEntry_ConfigObject* entry = (struct MapEntry_ConfigObject*)ToriDraw_MapSearch(
+        dat2_buildcache->object_hmap, &obj_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->object )
+        RSCacheDat2A_ConfigObjectFree(entry->object);
+
+    entry->id = obj_id;
+    entry->object = object;
+}
+
+struct RSCacheDat2A_ConfigObject*
+dat2_buildcache_object_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int obj_id)
+{
+    struct MapEntry_ConfigObject* entry = (struct MapEntry_ConfigObject*)ToriDraw_MapSearch(
+        dat2_buildcache->object_hmap, &obj_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->object;
+}
+
+void
+dat2_buildcache_npctype_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int npc_id,
+    struct RSCacheDat2A_ConfigNpctype* npc)
+{
+    struct MapEntry_ConfigNpctype* entry = (struct MapEntry_ConfigNpctype*)ToriDraw_MapSearch(
+        dat2_buildcache->npctype_hmap, &npc_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->npc )
+        RSCacheDat2A_ConfigNpctypeFree(entry->npc);
+
+    entry->id = npc_id;
+    entry->npc = npc;
+}
+
+struct RSCacheDat2A_ConfigNpctype*
+dat2_buildcache_npctype_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int npc_id)
+{
+    struct MapEntry_ConfigNpctype* entry = (struct MapEntry_ConfigNpctype*)ToriDraw_MapSearch(
+        dat2_buildcache->npctype_hmap, &npc_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->npc;
+}
+
+static void
+dat2_buildcache_identkits_init_from_filelist(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheShared_FileList* filelist,
+    struct RSCacheDat2Disk_ArchiveReference* archive_ref,
+    const int* wanted_ids,
+    int wanted_count)
+{
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = archive_ref->children.files[i].id;
+        if( !dat2_id_wanted(id, wanted_ids, wanted_count) )
+            continue;
+        if( dat2_buildcache_identkit_get(dat2_buildcache, id) )
+            continue;
+
+        struct RSCacheDat2A_ConfigIdk* idk = calloc(1, sizeof(struct RSCacheDat2A_ConfigIdk));
+        if( !idk )
+            continue;
+
+        RSCacheDat2A_ConfigIdkDecodeInplace(idk, filelist->files[i], filelist->file_sizes[i]);
+        idk->_id = id;
+        dat2_buildcache_identkit_add(dat2_buildcache, id, idk);
+    }
+}
+
+static void
+dat2_buildcache_objects_init_from_filelist(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheShared_FileList* filelist,
+    struct RSCacheDat2Disk_ArchiveReference* archive_ref,
+    const int* wanted_ids,
+    int wanted_count)
+{
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = archive_ref->children.files[i].id;
+        if( !dat2_id_wanted(id, wanted_ids, wanted_count) )
+            continue;
+        if( dat2_buildcache_object_get(dat2_buildcache, id) )
+            continue;
+
+        struct RSCacheDat2A_ConfigObject* object =
+            calloc(1, sizeof(struct RSCacheDat2A_ConfigObject));
+        if( !object )
+            continue;
+
+        RSCacheDat2A_ConfigObjectDecodeInplace(object, filelist->files[i], filelist->file_sizes[i]);
+        object->_id = id;
+        dat2_buildcache_object_add(dat2_buildcache, id, object);
+    }
+}
+
+static void
+dat2_buildcache_npctypes_init_from_filelist(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheShared_FileList* filelist,
+    struct RSCacheDat2Disk_ArchiveReference* archive_ref,
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* wanted_ids,
+    int wanted_count)
+{
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = archive_ref->children.files[i].id;
+        if( !dat2_id_wanted(id, wanted_ids, wanted_count) )
+            continue;
+        if( dat2_buildcache_npctype_get(dat2_buildcache, id) )
+            continue;
+
+        struct RSCacheDat2A_ConfigNpctype* npc = RSCacheDat2A_ConfigNpctypeNewDecode(
+            archive->revision, filelist->files[i], filelist->file_sizes[i]);
+        if( !npc )
+            continue;
+
+        dat2_buildcache_npctype_add(dat2_buildcache, id, npc);
+    }
+}
+
+void
+dat2_buildcache_identkits_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* wanted_ids,
+    int wanted_count)
+{
+    struct RSCacheDat2Disk_ArchiveReference* archive_ref;
+    struct RSCacheShared_FileList* filelist;
+
+    archive_ref = dat2_buildcache_archive_reference(cache, archive);
+    if( !archive_ref )
+        return;
+
+    filelist = RSCacheShared_FileListNewFromCacheArchive(archive);
+    if( !filelist )
+        return;
+
+    dat2_buildcache_identkits_init_from_filelist(
+        dat2_buildcache, filelist, archive_ref, wanted_ids, wanted_count);
+    RSCacheShared_FileListFree(filelist);
+}
+
+void
+dat2_buildcache_objects_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* wanted_ids,
+    int wanted_count)
+{
+    struct RSCacheDat2Disk_ArchiveReference* archive_ref;
+    struct RSCacheShared_FileList* filelist;
+
+    archive_ref = dat2_buildcache_archive_reference(cache, archive);
+    if( !archive_ref )
+        return;
+
+    filelist = RSCacheShared_FileListNewFromCacheArchive(archive);
+    if( !filelist )
+        return;
+
+    dat2_buildcache_objects_init_from_filelist(
+        dat2_buildcache, filelist, archive_ref, wanted_ids, wanted_count);
+    RSCacheShared_FileListFree(filelist);
+}
+
+void
+dat2_buildcache_npctypes_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* wanted_ids,
+    int wanted_count)
+{
+    struct RSCacheDat2Disk_ArchiveReference* archive_ref;
+    struct RSCacheShared_FileList* filelist;
+
+    archive_ref = dat2_buildcache_archive_reference(cache, archive);
+    if( !archive_ref )
+        return;
+
+    filelist = RSCacheShared_FileListNewFromCacheArchive(archive);
+    if( !filelist )
+        return;
+
+    dat2_buildcache_npctypes_init_from_filelist(
+        dat2_buildcache, filelist, archive_ref, archive, wanted_ids, wanted_count);
     RSCacheShared_FileListFree(filelist);
 }
 
@@ -778,7 +1109,9 @@ dat2_buildcache_config_loc_get(
 }
 
 static int
-dat2_int_cmp(const void* a, const void* b)
+dat2_int_cmp(
+    const void* a,
+    const void* b)
 {
     return *(const int*)a - *(const int*)b;
 }
@@ -806,7 +1139,8 @@ dat2_buildcache_get_scenery_model_ids(
     int loc_id,
     int** model_ids_out)
 {
-    struct RSCacheDat2A_ConfigLocation* config_loc = dat2_buildcache_config_loc_get(dat2_buildcache, loc_id);
+    struct RSCacheDat2A_ConfigLocation* config_loc =
+        dat2_buildcache_config_loc_get(dat2_buildcache, loc_id);
     if( !config_loc || !config_loc->models )
     {
         *model_ids_out = NULL;
@@ -1015,6 +1349,25 @@ dat2_buildcache_foreach_config_loc(
     ToriDraw_MapIterFree(iter);
 }
 
+void
+dat2_buildcache_foreach_skeletal(
+    struct Dat2BuildCache* dat2_buildcache,
+    Dat2BuildCacheSkeletalCallback callback,
+    void* user_data)
+{
+    if( !dat2_buildcache || !callback || !dat2_buildcache->skeletal_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->skeletal_hmap);
+    struct MapEntry_Skeletal* entry = NULL;
+    while( (entry = (struct MapEntry_Skeletal*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->maya )
+            callback(entry->id, entry->maya, user_data);
+    }
+    ToriDraw_MapIterFree(iter);
+}
+
 /* ---- Classic frame/framemap (idx0 + idx1) ---- */
 
 void
@@ -1040,7 +1393,8 @@ dat2_buildcache_frames_init_from_archive(
     if( table && archive_id >= 0 && archive_id < table->archive_count )
         archive_ref = &table->archives[archive_id];
 
-    struct RSCacheShared_FileList* filelist = RSCacheShared_FileListNewFromCacheArchive(idx0_archive);
+    struct RSCacheShared_FileList* filelist =
+        RSCacheShared_FileListNewFromCacheArchive(idx0_archive);
     RSCacheDat2Disk_ArchiveFree(idx0_archive);
 
     if( !filelist || filelist->file_count <= 0 )

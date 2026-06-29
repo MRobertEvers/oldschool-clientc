@@ -37,5 +37,10 @@ while not Game.RunTasks() do
     Platform.LoadIO(io_queue)
 end
 
-Game.Runescape_BuildWorld()
+if Game.GetCacheMode() == "dat2" then
+    print("Building world chunk list")
+    Game.Runescape_BuildWorldChunkList({ 35, 83 }, 1)
+else
+    Game.Runescape_BuildWorldCenterzone(313, 437, 104)
+end
 print("World built")

@@ -5,6 +5,8 @@
 #include "../shared/shared_rs_buffer.h"
 
 #include <math.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -86,7 +88,7 @@ mat4_get_rotation_xyz(SkeletalVec3 out, const SkeletalMat4 m)
      *     else:        out[1] = -atan2(m[1], m[0])
      *     out[2] = 0
      */
-    out[0] = -asinf(m[6]);
+    out[0] = -asinf(fmaxf(-1.0f, fminf(1.0f, m[6])));
     float cosX = cosf(out[0]);
     if( fabsf(cosX) > 0.005f )
     {
@@ -316,7 +318,7 @@ RSCacheDat2A_SkeletalBaseNewFromCache(
     for( int bi = 0; bi < bone_count; bi++ )
     {
         int pid = base->bones[bi].parent_id;
-        if( pid >= 0 && pid < bone_count )
+        if( pid >= 0 && pid < bone_count && pid != bi )
             base->bones[bi].parent = &base->bones[pid];
         else
             base->bones[bi].parent = NULL;
@@ -460,12 +462,16 @@ build_anim_matrix(
 /* Recursive animModelMatrix: parent.animModelMatrix * animMatrix */
 static void
 compute_anim_model_matrix(
-    SkeletalMat4* anim_model_matrices, /* working array [bone_count] */
+    SkeletalMat4* anim_model_matrices,
+    uint8_t* done,
     const struct RSCacheDat2A_AnimMaya* maya,
-    struct RSCacheDat2A_SkeletalBase*   base,
+    struct RSCacheDat2A_SkeletalBase* base,
     int bone_index,
     int t)
 {
+    if( done[bone_index] )
+        return;
+
     struct RSCacheDat2A_SkeletalBone* bone = &base->bones[bone_index];
     SkeletalMat4 anim_matrix;
     build_anim_matrix(anim_matrix, maya, base, bone_index, t);
@@ -477,12 +483,11 @@ compute_anim_model_matrix(
     else
     {
         int pi = (int)(bone->parent - base->bones);
-        /* Ensure parent is computed first — bones are ordered parent-before-child
-         * in the cache (standard in skeletal data), so this is safe. */
-        mat4_mul(anim_model_matrices[bone_index],
-                 anim_model_matrices[pi],
-                 anim_matrix);
+        compute_anim_model_matrix(anim_model_matrices, done, maya, base, pi, t);
+        mat4_mul(anim_model_matrices[bone_index], anim_model_matrices[pi], anim_matrix);
     }
+
+    done[bone_index] = 1;
 }
 
 float*
@@ -494,8 +499,8 @@ RSCacheDat2A_SkeletalBaseBakePalette(
 {
     if( !maya || !base || base->bone_count <= 0 ) return NULL;
 
-    /* Determine tick range from all bone curves */
-    int min_tick = 0, max_tick = 0;
+    /* Animation frame f maps to curve tick f (rs-map-viewer SkeletalSeq.updateAnimMatrix). */
+    int max_tick = 0;
     int found = 0;
     for( int b = 0; b < maya->bone_curve_count && b < base->bone_count; b++ )
     {
@@ -505,16 +510,13 @@ RSCacheDat2A_SkeletalBaseBakePalette(
         {
             const struct RSCacheDat2A_Curve* c = bc->curves[s];
             if( !c || !c->values ) continue;
-            if( !found ) { min_tick = c->start_tick; max_tick = c->end_tick; found = 1; }
-            else
-            {
-                if( c->start_tick < min_tick ) min_tick = c->start_tick;
-                if( c->end_tick   > max_tick ) max_tick = c->end_tick;
-            }
+            if( !found ) { max_tick = c->end_tick; found = 1; }
+            else if( c->end_tick > max_tick )
+                max_tick = c->end_tick;
         }
     }
 
-    int frame_count = found ? (max_tick - min_tick + 1) : 1;
+    int frame_count = found ? (max_tick + 1) : 1;
     int bone_count  = base->bone_count;
 
     float* palette = malloc((size_t)frame_count * (size_t)bone_count * 16 * sizeof(float));
@@ -524,13 +526,17 @@ RSCacheDat2A_SkeletalBaseBakePalette(
         malloc((size_t)bone_count * sizeof(SkeletalMat4));
     if( !anim_model_matrices ) { free(palette); return NULL; }
 
+    uint8_t* done = malloc((size_t)bone_count);
+    if( !done ) { free(anim_model_matrices); free(palette); return NULL; }
+
     for( int f = 0; f < frame_count; f++ )
     {
-        int t = min_tick + f;
+        int t = f;
 
-        /* Compute animModelMatrix for all bones (parents first = bone order) */
+        memset(done, 0, (size_t)bone_count);
+
         for( int b = 0; b < bone_count; b++ )
-            compute_anim_model_matrix(anim_model_matrices, maya, base, b, t);
+            compute_anim_model_matrix(anim_model_matrices, done, maya, base, b, t);
 
         /* finalMatrix = animModelMatrix * invertedModelMatrix(poseId) */
         for( int b = 0; b < bone_count; b++ )
@@ -544,7 +550,9 @@ RSCacheDat2A_SkeletalBaseBakePalette(
         }
     }
 
+    free(done);
     free(anim_model_matrices);
+
     *frame_count_out = frame_count;
     *bone_count_out  = bone_count;
     return palette;
