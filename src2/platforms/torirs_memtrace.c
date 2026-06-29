@@ -25,6 +25,11 @@
 #include <dlfcn.h>
 #include <emscripten.h>
 #include <malloc.h>
+
+extern void* __real_malloc(size_t size);
+extern void* __real_calloc(size_t nmemb, size_t size);
+extern void* __real_realloc(void* ptr, size_t size);
+extern void __real_free(void* ptr);
 #elif defined(__APPLE__)
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
@@ -156,15 +161,10 @@ torirs_memtrace_resolve_real(void)
         (torirs_real_posix_memalign_fn)dlsym(RTLD_NEXT, "posix_memalign");
     g_real_strdup = (torirs_real_strdup_fn)dlsym(RTLD_NEXT, "strdup");
 #elif defined(__EMSCRIPTEN__)
-    g_real_malloc = (torirs_real_malloc_fn)dlsym(RTLD_DEFAULT, "__real_malloc");
-    g_real_calloc = (torirs_real_calloc_fn)dlsym(RTLD_DEFAULT, "__real_calloc");
-    g_real_realloc = (torirs_real_realloc_fn)dlsym(RTLD_DEFAULT, "__real_realloc");
-    g_real_free = (torirs_real_free_fn)dlsym(RTLD_DEFAULT, "__real_free");
-    g_real_reallocf =
-        (torirs_real_reallocf_fn)dlsym(RTLD_DEFAULT, "__real_reallocf");
-    g_real_posix_memalign = (torirs_real_posix_memalign_fn)dlsym(
-        RTLD_DEFAULT, "__real_posix_memalign");
-    g_real_strdup = (torirs_real_strdup_fn)dlsym(RTLD_DEFAULT, "__real_strdup");
+    g_real_malloc = __real_malloc;
+    g_real_calloc = __real_calloc;
+    g_real_realloc = __real_realloc;
+    g_real_free = __real_free;
 #else
     g_real_malloc = (torirs_real_malloc_fn)dlsym(RTLD_DEFAULT, "__real_malloc");
     g_real_calloc = (torirs_real_calloc_fn)dlsym(RTLD_DEFAULT, "__real_calloc");
@@ -1010,11 +1010,13 @@ LibToriPlatformEmscripten_JSHost_MemtracePath(void)
 }
 #endif
 
-/* Force a constructor so module map is collected before heavy allocation. */
+/* Init on first hooked allocation; avoid a global constructor on Emscripten. */
+#if !defined(__EMSCRIPTEN__)
 __attribute__((constructor)) static void
 torirs_memtrace_ctor(void)
 {
     torirs_memtrace_init_once();
 }
+#endif
 
 #endif /* TORIRS_MEMTRACE */
