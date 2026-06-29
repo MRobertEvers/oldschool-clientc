@@ -1,4 +1,8 @@
-import { fromLuaStringToJSString, fromWasmCString } from "./libplatformjs_utils.js";
+import {
+  fromLuaStringToJSString,
+  fromWasmCString,
+  openMemtraceViewer,
+} from "./libplatformjs_utils.js";
 import { LibToriPlatformEmscriptenJSAPI } from "./LibToriPlatformEmscriptenJSAPI.js";
 import {
   LibToriPlatformJSLuaHost,
@@ -336,6 +340,11 @@ class LibToriPlatformJS {
 
     this.wasmModule.HEAPU8.set(bytes, dataPtr);
     this.host.ioQueueItemResolveWithSize(item, dataPtr, bytes.length);
+  }
+
+  /** Flush memtrace and open the heap visualization in a new browser tab. */
+  openMemtraceViewer() {
+    openMemtraceViewer(this.wasmModule);
   }
 }
 

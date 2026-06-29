@@ -1,0 +1,246 @@
+{
+  "source": "memtrace.bin",
+  "platform": "macos",
+  "version": 1,
+  "event_count": 6,
+  "peak_live_bytes": 400,
+  "modules": [
+    {
+      "base": "0x104698000",
+      "size": 0,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/tools/memtrace/memtrace_smoke"
+    },
+    {
+      "base": "0x190a78000",
+      "size": 0,
+      "path": "/usr/lib/libSystem.B.dylib"
+    },
+    {
+      "base": "0x190a72000",
+      "size": 0,
+      "path": "/usr/lib/system/libcache.dylib"
+    },
+    {
+      "base": "0x190a2d000",
+      "size": 0,
+      "path": "/usr/lib/system/libcommonCrypto.dylib"
+    },
+    {
+      "base": "0x190a58000",
+      "size": 0,
+      "path": "/usr/lib/system/libcompiler_rt.dylib"
+    },
+    {
+      "base": "0x190a4d000",
+      "size": 0,
+      "path": "/usr/lib/system/libcopyfile.dylib"
+    },
+    {
+      "base": "0x18096d000",
+      "size": 0,
+      "path": "/usr/lib/system/libcorecrypto.dylib"
+    },
+    {
+      "base": "0x180a6d000",
+      "size": 0,
+      "path": "/usr/lib/system/libdispatch.dylib"
+    },
+    {
+      "base": "0x180817000",
+      "size": 0,
+      "path": "/usr/lib/system/libdyld.dylib"
+    },
+    {
+      "base": "0x190a68000",
+      "size": 0,
+      "path": "/usr/lib/system/libkeymgr.dylib"
+    },
+    {
+      "base": "0x190a10000",
+      "size": 0,
+      "path": "/usr/lib/system/libmacho.dylib"
+    },
+    {
+      "base": "0x18fca7000",
+      "size": 0,
+      "path": "/usr/lib/system/libquarantine.dylib"
+    },
+    {
+      "base": "0x190a65000",
+      "size": 0,
+      "path": "/usr/lib/system/libremovefile.dylib"
+    },
+    {
+      "base": "0x1873d5000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_asl.dylib"
+    },
+    {
+      "base": "0x1808f3000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_blocks.dylib"
+    },
+    {
+      "base": "0x180ab8000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_c.dylib"
+    },
+    {
+      "base": "0x190a5c000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_collections.dylib"
+    },
+    {
+      "base": "0x18e648000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_configuration.dylib"
+    },
+    {
+      "base": "0x18d237000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_containermanager.dylib"
+    },
+    {
+      "base": "0x190446000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_coreservices.dylib"
+    },
+    {
+      "base": "0x184c00000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_darwin.dylib"
+    },
+    {
+      "base": "0x2858cc000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_darwindirectory.dylib"
+    },
+    {
+      "base": "0x190a69000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_dnssd.dylib"
+    },
+    {
+      "base": "0x2858d0000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_eligibility.dylib"
+    },
+    {
+      "base": "0x180ab5000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_featureflags.dylib"
+    },
+    {
+      "base": "0x180c39000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_info.dylib"
+    },
+    {
+      "base": "0x1909d1000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_m.dylib"
+    },
+    {
+      "base": "0x180a1c000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_malloc.dylib"
+    },
+    {
+      "base": "0x187338000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_networkextension.dylib"
+    },
+    {
+      "base": "0x18506b000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_notify.dylib"
+    },
+    {
+      "base": "0x18e64d000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_sandbox.dylib"
+    },
+    {
+      "base": "0x2858da000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_sanitizers.dylib"
+    },
+    {
+      "base": "0x190a61000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_secinit.dylib"
+    },
+    {
+      "base": "0x180be5000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_kernel.dylib"
+    },
+    {
+      "base": "0x180c30000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_platform.dylib"
+    },
+    {
+      "base": "0x180c23000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_pthread.dylib"
+    },
+    {
+      "base": "0x188f93000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_symptoms.dylib"
+    },
+    {
+      "base": "0x18094c000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_trace.dylib"
+    },
+    {
+      "base": "0x2858e2000",
+      "size": 0,
+      "path": "/usr/lib/system/libsystem_trial.dylib"
+    },
+    {
+      "base": "0x190a3b000",
+      "size": 0,
+      "path": "/usr/lib/system/libunwind.dylib"
+    },
+    {
+      "base": "0x1808f7000",
+      "size": 0,
+      "path": "/usr/lib/system/libxpc.dylib"
+    },
+    {
+      "base": "0x1807c4000",
+      "size": 0,
+      "path": "/usr/lib/libobjc.A.dylib"
+    },
+    {
+      "base": "0x180bca000",
+      "size": 0,
+      "path": "/usr/lib/libc++abi.dylib"
+    },
+    {
+      "base": "0x283caf000",
+      "size": 0,
+      "path": "/usr/lib/libRosetta.dylib"
+    },
+    {
+      "base": "0x180b39000",
+      "size": 0,
+      "path": "/usr/lib/libc++.1.dylib"
+    }
+  ],
+  "still_live_count": 2,
+  "still_live_bytes": 144,
+  "top_leaks": [
+    {
+      "ptr": "0x1050760c0",
+      "bytes": 128
+    },
+    {
+      "ptr": "0x105075830",
+      "bytes": 16
+    }
+  ]
+}

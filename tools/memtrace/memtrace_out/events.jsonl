@@ -1,0 +1,6 @@
+{"t":172827729853625,"thread":8268717696,"kind":"malloc","req":128,"usable":128,"ptr":"0x1050760c0","old_ptr":null,"live":128,"heap":0,"stack":["main (in memtrace_smoke) (memtrace_smoke.c:16)","0x18086be00"]}
+{"t":172827729858250,"thread":8268717696,"kind":"calloc","req":128,"usable":128,"ptr":"0x105076140","old_ptr":null,"live":256,"heap":0,"stack":["main (in memtrace_smoke) (memtrace_smoke.c:17)","0x18086be00"]}
+{"t":172827729858458,"thread":8268717696,"kind":"strdup","req":15,"usable":16,"ptr":"0x105075830","old_ptr":null,"live":272,"heap":0,"stack":["main (in memtrace_smoke) (memtrace_smoke.c:18)","0x18086be00"]}
+{"t":172827729858750,"thread":8268717696,"kind":"realloc","req":256,"usable":256,"ptr":"0x1050761c0","old_ptr":"0x1050760c0","live":400,"heap":0,"stack":["main (in memtrace_smoke) (memtrace_smoke.c:19)","0x18086be00"]}
+{"t":172827729858833,"thread":8268717696,"kind":"free","req":0,"usable":256,"ptr":"0x1050761c0","old_ptr":null,"live":400,"heap":0,"stack":["main (in memtrace_smoke) (memtrace_smoke.c:23)","0x18086be00"]}
+{"t":172827729858958,"thread":8268717696,"kind":"free","req":0,"usable":128,"ptr":"0x105076140","old_ptr":null,"live":144,"heap":0,"stack":["main (in memtrace_smoke) (memtrace_smoke.c:24)","0x18086be00"]}

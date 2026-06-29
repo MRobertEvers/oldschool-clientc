@@ -123,6 +123,7 @@
 
     <div class="shell-controls">
       <button type="button" id="btn-fill-viewport">Fill viewport</button>
+      <button type="button" id="btn-memtrace" hidden>Memtrace</button>
     </div>
 
     <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
@@ -148,6 +149,37 @@
             btn.textContent = full ? 'Default canvas size' : 'Fill viewport';
           });
         }
+      })();
+
+      (function () {
+        var btn = document.getElementById('btn-memtrace');
+        if (!btn) return;
+        function tryShowMemtraceButton() {
+          if (window.LibToriPlatformJS && typeof window.LibToriPlatformJS.openMemtraceViewer === 'function') {
+            btn.hidden = false;
+            return true;
+          }
+          return false;
+        }
+        if (!tryShowMemtraceButton()) {
+          var tries = 0;
+          var timer = setInterval(function () {
+            if (tryShowMemtraceButton() || ++tries > 200) {
+              clearInterval(timer);
+            }
+          }, 100);
+        }
+        btn.addEventListener('click', function () {
+          try {
+            if (!window.LibToriPlatformJS || typeof window.LibToriPlatformJS.openMemtraceViewer !== 'function') {
+              alert('Memtrace is not available. Rebuild with make MEMTRACE=1.');
+              return;
+            }
+            window.LibToriPlatformJS.openMemtraceViewer();
+          } catch (e) {
+            alert(e && e.message ? e.message : String(e));
+          }
+        });
       })();
 
       const params = new URLSearchParams(window.location.search);

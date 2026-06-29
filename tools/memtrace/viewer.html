@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TorIRS Memtrace Viewer</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #1a1d27;
+      --text: #e6e8ef;
+      --muted: #9aa3b2;
+      --accent: #5b9cff;
+      --alloc: #4ade80;
+      --free: #f87171;
+      --border: #2a3142;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    h1 { font-size: 18px; margin: 0; font-weight: 600; }
+    .btn, input[type=file] {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .btn:hover { border-color: var(--accent); }
+    .stats { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+    .stats strong { color: var(--text); }
+    main { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      min-height: 280px;
+    }
+    .panel h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+    .full { grid-column: 1 / -1; }
+    canvas { width: 100%; height: 260px; display: block; background: #12151e; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; }
+    .stack { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; color: #c6d0e0; }
+    .controls { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
+    #tooltip {
+      position: fixed;
+      pointer-events: none;
+      background: #000c;
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      max-width: 480px;
+      display: none;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TorIRS Memtrace Viewer</h1>
+    <label class="btn">Load events.jsonl<input id="eventsFile" type="file" accept=".jsonl,.json" hidden /></label>
+    <label class="btn">Load meta.json<input id="metaFile" type="file" accept=".json" hidden /></label>
+    <button class="btn" id="demoBtn" type="button">Load demo folder</button>
+    <div class="stats" id="stats"></div>
+  </header>
+  <main>
+    <section class="panel full">
+      <h2>Live heap over time</h2>
+      <canvas id="timeline" height="260"></canvas>
+    </section>
+    <section class="panel">
+      <h2>Allocation flamegraph</h2>
+      <div class="controls">
+        <label><input type="radio" name="metric" value="bytes" checked /> Bytes</label>
+        <label><input type="radio" name="metric" value="count" /> Count</label>
+        <label><input type="radio" name="metric" value="live" /> Still live</label>
+        <label>Kind
+          <select id="kindFilter">
+            <option value="all">all alloc kinds</option>
+            <option value="malloc">malloc</option>
+            <option value="calloc">calloc</option>
+            <option value="realloc">realloc</option>
+            <option value="free">free</option>
+          </select>
+        </label>
+      </div>
+      <canvas id="flame" height="320"></canvas>
+    </section>
+    <section class="panel">
+      <h2>Top allocation sites</h2>
+      <div id="topSites" class="empty">Load a trace to see top sites.</div>
+    </section>
+    <section class="panel full">
+      <h2>Still live at end of trace</h2>
+      <div id="leaks" class="empty">Load meta.json for leak summary.</div>
+    </section>
+  </main>
+  <div id="tooltip"></div>
+
+  <script>
+    const state = { events: [], meta: null, live: new Map(), metric: 'bytes', kindFilter: 'all' };
+
+    const KIND_ALLOC = new Set(['malloc', 'calloc', 'realloc', 'posix_memalign', 'strdup']);
+
+    function fmtBytes(n) {
+      if (n >= 1e9) return (n / 1e9).toFixed(2) + ' GB';
+      if (n >= 1e6) return (n / 1e6).toFixed(2) + ' MB';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + ' KB';
+      return n + ' B';
+    }
+
+    function stackKey(stack) {
+      return (stack || []).join(' | ');
+    }
+
+  function parseJsonl(text) {
+      return text.split(/\n/).filter(Boolean).map((line) => JSON.parse(line));
+    }
+
+    function updateStats() {
+      const el = document.getElementById('stats');
+      if (!state.events.length) { el.innerHTML = ''; return; }
+      const first = state.events[0];
+      const last = state.events[state.events.length - 1];
+      const peak = state.meta?.peak_live_bytes ?? Math.max(...state.events.map(e => e.live || 0));
+      el.innerHTML = `
+        <span>Events: <strong>${state.events.length.toLocaleString()}</strong></span>
+        <span>Duration: <strong>${((last.t - first.t) / 1e6).toFixed(1)} ms</strong></span>
+        <span>Peak live: <strong>${fmtBytes(peak)}</strong></span>
+        <span>Platform: <strong>${state.meta?.platform ?? '?'}</strong></span>
+      `;
+    }
+
+    function rebuildLive() {
+      state.live.clear();
+      for (const e of state.events) {
+        const ptr = e.ptr;
+        if (!ptr) continue;
+        if (KIND_ALLOC.has(e.kind)) state.live.set(ptr, e.usable || e.req || 0);
+        else if (e.kind === 'free') state.live.delete(ptr);
+      }
+    }
+
+    function drawTimeline() {
+      const canvas = document.getElementById('timeline');
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      if (!state.events.length) return;
+
+      const t0 = state.events[0].t;
+      const t1 = state.events[state.events.length - 1].t;
+      const maxLive = Math.max(1, ...state.events.map(e => e.live || 0));
+      const pad = { l: 48, r: 12, t: 12, b: 28 };
+      const plotW = w - pad.l - pad.r;
+      const plotH = h - pad.t - pad.b;
+
+      ctx.strokeStyle = '#2a3142';
+      ctx.beginPath();
+      ctx.moveTo(pad.l, pad.t);
+      ctx.lineTo(pad.l, pad.t + plotH);
+      ctx.lineTo(pad.l + plotW, pad.t + plotH);
+      ctx.stroke();
+
+      ctx.fillStyle = '#9aa3b2';
+      ctx.font = '11px sans-serif';
+      ctx.fillText(fmtBytes(maxLive), 4, pad.t + 10);
+      ctx.fillText('0', 24, pad.t + plotH);
+
+      ctx.strokeStyle = '#5b9cff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      state.events.forEach((e, i) => {
+        const x = pad.l + (t1 === t0 ? 0 : ((e.t - t0) / (t1 - t0)) * plotW);
+        const y = pad.t + plotH - (e.live / maxLive) * plotH;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // alloc/free markers (subsample)
+      const step = Math.max(1, Math.floor(state.events.length / 2000));
+      for (let i = 0; i < state.events.length; i += step) {
+        const e = state.events[i];
+        const x = pad.l + (t1 === t0 ? 0 : ((e.t - t0) / (t1 - t0)) * plotW);
+        const y = pad.t + plotH - (e.live / maxLive) * plotH;
+        ctx.fillStyle = KIND_ALLOC.has(e.kind) ? '#4ade80' : (e.kind === 'free' ? '#f87171' : '#9aa3b2');
+        ctx.fillRect(x, y - 1, 2, 2);
+      }
+    }
+
+    function buildAgg() {
+      const agg = new Map();
+      const liveAtEnd = new Map();
+      for (const e of state.events) {
+        const ptr = e.ptr;
+        if (ptr) {
+          if (KIND_ALLOC.has(e.kind)) liveAtEnd.set(ptr, e.usable || e.req || 0);
+          else if (e.kind === 'free') liveAtEnd.delete(ptr);
+        }
+        if (state.kindFilter !== 'all' && e.kind !== state.kindFilter) continue;
+        if (state.kindFilter === 'all' && e.kind === 'free' && state.metric !== 'count') continue;
+        const key = stackKey(e.stack);
+        if (!key) continue;
+        let node = agg.get(key);
+        if (!node) {
+          node = { stack: e.stack, bytes: 0, count: 0, live: 0 };
+          agg.set(key, node);
+        }
+        const sz = e.usable || e.req || 0;
+        if (KIND_ALLOC.has(e.kind)) {
+          node.bytes += sz;
+          node.count += 1;
+        } else if (e.kind === 'free' && state.metric === 'count') {
+          node.count += 1;
+        }
+      }
+      for (const [key, node] of agg) {
+        node.live = 0;
+        for (const e of state.events) {
+          if (stackKey(e.stack) !== key) continue;
+          if (!KIND_ALLOC.has(e.kind) || !e.ptr) continue;
+          if (liveAtEnd.has(e.ptr)) node.live += liveAtEnd.get(e.ptr);
+        }
+      }
+      return [...agg.values()].sort((a, b) => (b[state.metric] || 0) - (a[state.metric] || 0));
+    }
+
+    function buildFlameTree(rows) {
+      const root = { name: 'all', value: 0, children: new Map() };
+      for (const row of rows) {
+        const metricVal = row[state.metric] || 0;
+        if (metricVal <= 0) continue;
+        let node = root;
+        node.value += metricVal;
+        const frames = [...(row.stack || [])].reverse();
+        if (!frames.length) frames.push('(unknown)');
+        for (const frame of frames) {
+          if (!node.children.has(frame)) node.children.set(frame, { name: frame, value: 0, children: new Map() });
+          node = node.children.get(frame);
+          node.value += metricVal;
+        }
+      }
+      return root;
+    }
+
+    function flattenFlame(node, depth, x, width, out) {
+      out.push({ name: node.name, depth, x, width, value: node.value });
+      const children = [...node.children.values()].sort((a, b) => b.value - a.value);
+      let cx = x;
+      const total = children.reduce((s, c) => s + c.value, 0) || 1;
+      for (const ch of children) {
+        const cw = width * (ch.value / total);
+        flattenFlame(ch, depth + 1, cx, cw, out);
+        cx += cw;
+      }
+    }
+
+    function drawFlame() {
+      const canvas = document.getElementById('flame');
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      const rows = buildAgg().slice(0, 500);
+      const tree = buildFlameTree(rows);
+      const rects = [];
+      flattenFlame(tree, 0, 0, w, rects);
+      const rowH = Math.max(16, Math.min(24, h / (Math.max(...rects.map(r => r.depth)) + 2)));
+
+      const palette = ['#355c9f', '#3d7a5f', '#8b5a2b', '#7a3d6f', '#2f6f7a', '#6f5a2f'];
+      rects.forEach((r, i) => {
+        if (r.width < 1) return;
+        const y = r.depth * rowH + 4;
+        ctx.fillStyle = palette[r.depth % palette.length];
+        ctx.fillRect(r.x + 1, y, Math.max(0, r.width - 2), rowH - 2);
+        if (r.width > 50) {
+          ctx.fillStyle = '#fff';
+          ctx.font = '11px sans-serif';
+          const label = r.name.length > Math.floor(r.width / 6) ? r.name.slice(0, Math.floor(r.width / 6)) + '…' : r.name;
+          ctx.fillText(label, r.x + 4, y + 12);
+        }
+        r._y = y; r._h = rowH - 2;
+      });
+      canvas._flameRects = rects;
+    }
+
+    function renderTopSites() {
+      const el = document.getElementById('topSites');
+      const rows = buildAgg().slice(0, 20);
+      if (!rows.length) { el.className = 'empty'; el.textContent = 'No data.'; return; }
+      el.className = '';
+      el.innerHTML = `<table><thead><tr><th>#</th><th>${state.metric}</th><th>Stack (leaf first)</th></tr></thead><tbody>` +
+        rows.map((r, i) => `<tr><td>${i + 1}</td><td>${state.metric === 'count' ? r.count : fmtBytes(r[state.metric])}</td><td class="stack">${(r.stack || []).slice(0, 6).join('\n')}</td></tr>`).join('') +
+        '</tbody></table>';
+    }
+
+    function renderLeaks() {
+      const el = document.getElementById('leaks');
+      const leaks = state.meta?.top_leaks || [];
+      if (!leaks.length) {
+        el.className = 'empty';
+        el.textContent = state.meta ? `No leaked pointers reported (${state.meta.still_live_count || 0} still live, ${fmtBytes(state.meta.still_live_bytes || 0)}).` : 'Load meta.json for leak summary.';
+        return;
+      }
+      el.className = '';
+      el.innerHTML = `<table><thead><tr><th>Pointer</th><th>Bytes</th></tr></thead><tbody>` +
+        leaks.map(l => `<tr><td class="stack">${l.ptr}</td><td>${fmtBytes(l.bytes)}</td></tr>`).join('') +
+        `</tbody></table><p style="color:#9aa3b2;font-size:12px;margin-top:8px">Still live: ${state.meta.still_live_count} pointers, ${fmtBytes(state.meta.still_live_bytes || 0)} total.</p>`;
+    }
+
+    function renderAll() {
+      rebuildLive();
+      updateStats();
+      drawTimeline();
+      drawFlame();
+      renderTopSites();
+      renderLeaks();
+    }
+
+    document.getElementById('eventsFile').addEventListener('change', async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      state.events = parseJsonl(await file.text());
+      renderAll();
+    });
+
+    document.getElementById('metaFile').addEventListener('change', async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      state.meta = JSON.parse(await file.text());
+      renderAll();
+    });
+
+    document.querySelectorAll('input[name=metric]').forEach((el) => {
+      el.addEventListener('change', () => {
+        state.metric = document.querySelector('input[name=metric]:checked').value;
+        drawFlame();
+        renderTopSites();
+      });
+    });
+
+    document.getElementById('kindFilter').addEventListener('change', (ev) => {
+      state.kindFilter = ev.target.value;
+      drawFlame();
+      renderTopSites();
+    });
+
+    document.getElementById('demoBtn').addEventListener('click', async () => {
+      try {
+        const [evText, metaText] = await Promise.all([
+          fetch('memtrace_out/events.jsonl').then(r => r.text()),
+          fetch('memtrace_out/meta.json').then(r => r.text()),
+        ]);
+        state.events = parseJsonl(evText);
+        state.meta = JSON.parse(metaText);
+        renderAll();
+      } catch (e) {
+        alert('Place decoded output in memtrace_out/ next to this HTML, or use file pickers.');
+      }
+    });
+
+    const tooltip = document.getElementById('tooltip');
+    document.getElementById('flame').addEventListener('mousemove', (ev) => {
+      const canvas = ev.target;
+      const rects = canvas._flameRects || [];
+      const rect = canvas.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      const y = ev.clientY - rect.top;
+      const hit = rects.find(r => x >= r.x && x <= r.x + r.width && y >= r._y && y <= r._y + r._h);
+      if (!hit) { tooltip.style.display = 'none'; return; }
+      tooltip.style.display = 'block';
+      tooltip.style.left = (ev.clientX + 12) + 'px';
+      tooltip.style.top = (ev.clientY + 12) + 'px';
+      tooltip.innerHTML = `<strong>${hit.name}</strong><br/>${state.metric}: ${state.metric === 'count' ? hit.value : fmtBytes(hit.value)}`;
+    });
+    document.getElementById('flame').addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+    window.addEventListener('resize', () => { drawTimeline(); drawFlame(); });
+
+    function applyMemtraceData(data) {
+      if (!data || data.type !== 'memtrace-data') return;
+      state.events = data.events || [];
+      state.meta = data.meta || null;
+      renderAll();
+    }
+
+    window.addEventListener('message', (ev) => {
+      applyMemtraceData(ev.data);
+    });
+
+    if (window.opener) {
+      window.opener.postMessage({ type: 'memtrace-ready' }, window.location.origin);
+    }
+  </script>
+</body>
+</html>

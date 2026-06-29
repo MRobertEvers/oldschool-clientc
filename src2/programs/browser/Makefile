@@ -124,6 +124,7 @@ REVS_SCRIPTS := $(SRC2)/revs/scripts
 
 # Release build: make EFLAGS='-O2'
 EFLAGS ?= -O0 -g
+MEMTRACE ?= 0
 # WebGL1 renderer: GLES2 context + WebGL 1.0 API (see platform_impl2_sdl2_port_emscripten.cpp).
 EMFLAGS := $(EFLAGS) -gsource-map -Wall -Wextra -sENVIRONMENT=web -sUSE_SDL=2 \
 	-sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 -sFULL_ES2=1 \
@@ -134,6 +135,17 @@ EMFLAGS := $(EFLAGS) -gsource-map -Wall -Wextra -sENVIRONMENT=web -sUSE_SDL=2 \
 	-sEXPORTED_RUNTIME_METHODS=['HEAPU8'] \
 	-sFORCE_FILESYSTEM=1 \
 	--preload-file $(REVS_SCRIPTS)@/revs/scripts
+
+ifeq ($(MEMTRACE),1)
+SRC += $(PLAT_DIR)/torirs_memtrace.c
+EMFLAGS += -DTORIRS_MEMTRACE=1 \
+	-fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free \
+	-Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free \
+	-Wl,--wrap=reallocf -Wl,--wrap=posix_memalign -Wl,--wrap=strdup \
+	-sEXPORTED_RUNTIME_METHODS=['HEAPU8','FS']
+endif
+
+MEMTRACE_VIEWER := ../../../tools/memtrace/viewer.html
 
 .PHONY: all clean
 
@@ -159,6 +171,9 @@ dist/index.html: public/shell.html $(PUBLIC_JS) $(PLAT_JS) $(OUT)
 	@if [ -n "$(PUBLIC_JS)" ]; then cp $(PUBLIC_JS) dist/; fi
 	@if [ -n "$(PLAT_JS)" ]; then cp $(PLAT_JS) dist/; fi
 	cp public/shell.html dist/index.html
+ifeq ($(MEMTRACE),1)
+	cp $(MEMTRACE_VIEWER) dist/memtrace_viewer.html
+endif
 
 clean:
 	rm -rf dist browser_build

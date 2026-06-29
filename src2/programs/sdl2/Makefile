@@ -35,6 +35,12 @@ endif
 
 # AddressSanitizer: default-on on Linux, default-off on macOS (dyld deadlocks in
 # AsanInitFromRtl before main with Apple's dynamic ASan runtime).
+# MEMTRACE and ASan both hook malloc — mutually exclusive.
+MEMTRACE ?= 0
+ifeq ($(MEMTRACE),1)
+  ENABLE_ASAN := 0
+endif
+
 ifeq ($(HOST_OS),Linux)
   ENABLE_ASAN ?= 1
 else
@@ -299,6 +305,20 @@ ifeq ($(ENABLE_ASAN),1)
 endif
 
 ASAN_DYLD_SHIM ?=
+
+# ---------------------------------------------------------------------------
+# Malloc instrumentation (opt-in: make MEMTRACE=1)
+# ---------------------------------------------------------------------------
+ifeq ($(MEMTRACE),1)
+  COMMON_SRCS += $(PLAT_DIR)/torirs_memtrace.c
+  CPPFLAGS += -DTORIRS_MEMTRACE=1
+  CFLAGS += -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+  LDFLAGS += -ldl
+  ifneq ($(HOST_OS),MacOS)
+    LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free \
+      -Wl,--wrap=reallocf -Wl,--wrap=posix_memalign -Wl,--wrap=strdup
+  endif
+endif
 
 # ---------------------------------------------------------------------------
 # ===== Emscripten =====
