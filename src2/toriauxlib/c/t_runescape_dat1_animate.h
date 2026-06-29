@@ -1,13 +1,13 @@
-#ifndef TORIAUXLIBC_T_RUNESCAPE_DAT1_ANIMATE_H
-#define TORIAUXLIBC_T_RUNESCAPE_DAT1_ANIMATE_H
+#ifndef TORIAUXLIBCACHE_T_RUNESCAPE_DAT1_ANIMATE_H
+#define TORIAUXLIBCACHE_T_RUNESCAPE_DAT1_ANIMATE_H
 
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
 #include "toriauxlib/c/dat1io.h"
-#include "toriauxlib/c/toriauxlibc.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
 #include <assert.h>
@@ -16,13 +16,13 @@
 struct Task_Dat1Animate
 {
     struct pt thread;
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
     int anim_id;
 };
 
 struct Task_Dat1Animate*
 Task_Dat1Animate_New(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     int anim_id)
 {
     struct Task_Dat1Animate* task = calloc(1, sizeof(struct Task_Dat1Animate));
@@ -46,7 +46,7 @@ Task_Dat1Animate_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct Dat1BuildCache* dat1_bc = dat1(task->c);
-    struct ToriAuxLibCore* core = ToriAuxLibC_Core(task->c);
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
 
     PT_BEGIN(&task->thread);
 
@@ -61,7 +61,7 @@ Task_Dat1Animate_Run(
             PT_EXIT(&task->thread);
 
         dat1_buildcache_sequences_init_from_config_jagfile(dat1_bc);
-        ToriAuxLibC_SubmitAllSequencesFromDat1(task->c);
+        ToriAuxLibCache_SubmitAllSequencesFromDat1(task->c);
         LibToriRS_IOQueueClear(ctx->io);
     }
 

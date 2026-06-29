@@ -1,5 +1,5 @@
-#ifndef TORIAUXLIBC_T_RUNESCAPE_DAT2_NPC_ADD_H
-#define TORIAUXLIBC_T_RUNESCAPE_DAT2_NPC_ADD_H
+#ifndef TORIAUXLIBCACHE_T_RUNESCAPE_DAT2_NPC_ADD_H
+#define TORIAUXLIBCACHE_T_RUNESCAPE_DAT2_NPC_ADD_H
 
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
@@ -10,8 +10,8 @@
 #include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "toriauxlib/c/dat2io.h"
-#include "toriauxlib/c/toriauxlibc.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/c/t_runescape_dat2_anim_load.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
@@ -25,7 +25,7 @@
 struct Task_Dat2NpcAdd
 {
     struct pt thread;
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
     int npc_id;
     struct LibToriRS_IOBatch io_batch;
     int model_ids[256];
@@ -36,11 +36,11 @@ struct Task_Dat2NpcAdd
 
 static bool
 task_dat2_npc_sequence_missing(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     const int* anims,
     int count)
 {
-    struct ToriAuxLibCore* core = ToriAuxLibC_Core(c);
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(c);
 
     for( int i = 0; i < count; i++ )
     {
@@ -53,7 +53,7 @@ task_dat2_npc_sequence_missing(
 
 struct Task_Dat2NpcAdd*
 Task_Dat2NpcAdd_New(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     int npc_id)
 {
     struct Task_Dat2NpcAdd* task = calloc(1, sizeof(struct Task_Dat2NpcAdd));
@@ -77,8 +77,8 @@ Task_Dat2NpcAdd_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct Dat2BuildCache* dat2_bc = dat2(task->c);
-    struct RSCacheDat2Disk* cache_disk = ToriAuxLibC_Dat2Disk(task->c);
-    struct ToriAuxLibCore* core = ToriAuxLibC_Core(task->c);
+    struct RSCacheDat2Disk* cache_disk = ToriAuxLibCache_Dat2Disk(task->c);
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
     struct RSCacheDat2Disk_Archive* npc_archive = NULL;
     struct RSCacheDat2Disk_Archive* sequence_archive = NULL;
     struct RSCacheDat2A_ConfigNpctype* npc;
@@ -156,7 +156,7 @@ Task_Dat2NpcAdd_Run(
     }
 
     for( int i = 0; i < task->model_count; i++ )
-        ToriAuxLibC_SubmitModelFromDat2(task->c, task->model_ids[i]);
+        ToriAuxLibCache_SubmitModelFromDat2(task->c, task->model_ids[i]);
 
     if( task_dat2_npc_sequence_missing(task->c, task->npc_anims, 7) )
     {
@@ -198,7 +198,7 @@ Task_Dat2NpcAdd_Run(
             dat2_anim_archive_set_free(&aset);
         }
 
-        ToriAuxLibC_SubmitAllSequencesFromDat2(task->c);
+        ToriAuxLibCache_SubmitAllSequencesFromDat2(task->c);
         RSCacheDat2Disk_ArchiveFree(sequence_archive);
         LibToriRS_IOQueueClear(ctx->io);
     }

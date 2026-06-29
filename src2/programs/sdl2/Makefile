@@ -115,10 +115,10 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toriauxlib/toriauxlib.c \
 	$(SRC2)/toriauxlib/core/toriauxlibcore.c \
 	$(SRC2)/toriauxlib/core/toriauxlibcore_types.c \
-	$(SRC2)/toriauxlib/c/toriauxlibc.c \
-	$(SRC2)/toriauxlib/c/toriauxlibc_convert.c \
-	$(SRC2)/toriauxlib/c/toriauxlibc_model_convert.c \
-	$(SRC2)/toriauxlib/c/toriauxlibc_submit.c \
+	$(SRC2)/toriauxlib/c/toriauxlibcache.c \
+	$(SRC2)/toriauxlib/c/toriauxlibcache_convert.c \
+	$(SRC2)/toriauxlib/c/toriauxlibcache_model_convert.c \
+	$(SRC2)/toriauxlib/c/toriauxlibcache_submit.c \
 	$(SRC2)/toriauxlib/td/toriauxlibtd.c \
 	$(SRC2)/toriauxlib/td/toriauxlibtd_tasks.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachesprite.c \

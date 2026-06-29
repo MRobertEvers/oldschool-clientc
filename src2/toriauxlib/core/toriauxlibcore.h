@@ -4,7 +4,16 @@
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+
+struct ToriAuxLibCore_MemReport
+{
+    size_t asset_bytes[TORIAUXLIBCORE_KIND_COUNT];
+    size_t asset_bytes_total;
+    size_t map_buffer_bytes;
+    size_t bytes_total;
+};
 
 struct ToriAuxLibCore*
 ToriAuxLibCore_New(void);
@@ -143,6 +152,18 @@ ToriAuxLibCore_ComponentHas(
 
 void
 ToriAuxLibCore_ComponentsClearAll(struct ToriAuxLibCore* gamecache);
+
+void
+ToriAuxLibCore_SequencesClearAll(struct ToriAuxLibCore* gamecache);
+
+void
+ToriAuxLibCore_AnimationsClearAll(struct ToriAuxLibCore* gamecache);
+
+void
+ToriAuxLibCore_LocationsClearAll(struct ToriAuxLibCore* gamecache);
+
+void
+ToriAuxLibCore_FlotypesClearAll(struct ToriAuxLibCore* gamecache);
 
 void
 ToriAuxLibCore_MapTerrainAdd(
@@ -292,5 +313,13 @@ bool
 ToriAuxLibCore_SkeletalAnimHas(
     struct ToriAuxLibCore* gamecache,
     int anim_maya_id);
+
+void
+ToriAuxLibCore_MemBytes(
+    struct ToriAuxLibCore* gamecache,
+    struct ToriAuxLibCore_MemReport* out);
+
+size_t
+ToriAuxLibCore_BytesTotal(struct ToriAuxLibCore* gamecache);
 
 #endif

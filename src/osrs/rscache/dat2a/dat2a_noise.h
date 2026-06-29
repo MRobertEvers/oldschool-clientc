@@ -9,6 +9,7 @@ RSCacheDat2A_NoisePerlinNoise(
 
 void
 RSCacheDat2A_NoiseSetCosTable(const int* table);
+
 const int*
 RSCacheDat2A_NoiseGetCosTable(void);
 

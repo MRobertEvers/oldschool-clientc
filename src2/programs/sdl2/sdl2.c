@@ -8,7 +8,7 @@
 #include "../../platforms/platform_x_lua.h"
 #include "../../scripting/libtorirs_scriptapi.h"
 #include "../../scripting/libtorirs_scripting.h"
-#include "../../toriauxlib/c/toriauxlibc.h"
+#include "../../toriauxlib/c/toriauxlibcache.h"
 #include "../../toriauxlib/toriauxlib.h"
 
 #if defined(_WIN32)
@@ -89,7 +89,7 @@ main(
     bool const use_runescape = has_flag(argc, argv, "--runescape");
     bool const use_dat2 = has_flag(argc, argv, "--dat2");
     int const cache_mode = use_dat2 ? CACHE_MODE_DAT2 : CACHE_MODE_DAT1;
-    enum ToriAuxLibCMode toriauxlib_mode = use_dat2 ? TORIAUXLIBC_MODE_DAT2 : TORIAUXLIBC_MODE_DAT1;
+    enum ToriAuxLibCacheMode toriauxlib_mode = use_dat2 ? TORIAUXLIBCACHE_MODE_DAT2 : TORIAUXLIBCACHE_MODE_DAT1;
 
     struct LibToriPlatformX_Lua* lua = NULL;
     struct LibToriPlatformX_IOReactor* io_reactor = NULL;
@@ -151,7 +151,7 @@ main(
     {
         struct RSCacheDat2Disk* dat2_disk = cachelib_dat2_disk(cache);
         if( dat2_disk )
-            ToriAuxLibC_SetDat2Disk(ToriAuxLib_C(LibToriRS_GetToriAuxLib(instance)), dat2_disk);
+            ToriAuxLibCache_SetDat2Disk(ToriAuxLib_C(LibToriRS_GetToriAuxLib(instance)), dat2_disk);
     }
 
     io_reactor = LibToriPlatformX_IOReactorNew(cache);

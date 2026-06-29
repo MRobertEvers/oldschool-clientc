@@ -5,6 +5,8 @@
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/shared/shared_file_list.h"
 
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 struct ToriDraw_Map;
@@ -47,6 +49,9 @@ dat1_buildcache_new(void);
 
 void
 dat1_buildRSCacheDat2Disk_Free(struct Dat1BuildCache* dat1_buildcache);
+
+size_t
+dat1_buildcache_bytes_total(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_set_fromconfigtable_config_jagfile(

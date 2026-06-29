@@ -10,6 +10,7 @@
 #include "osrs/rscache/dat2a/dat2a_frame.h"
 #include "osrs/rscache/dat2a/dat2a_framemap.h"
 #include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat2a/dat2a_mem.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "osrs/varp_varbit_manager.h"
@@ -91,8 +92,39 @@ struct MapEntry_ConfigNpctype
     struct RSCacheDat2A_ConfigNpctype* npc;
 };
 
+static void
+dat2_buildcache_mem_track_add(
+    struct Dat2BuildCache* cache,
+    enum Dat2BuildCache_Kind kind,
+    size_t bytes)
+{
+    if( !cache || kind >= DAT2_BUILDCACHE_KIND_COUNT )
+        return;
+    cache->asset_bytes[kind] += bytes;
+}
+
+static void
+dat2_buildcache_mem_track_sub(
+    struct Dat2BuildCache* cache,
+    enum Dat2BuildCache_Kind kind,
+    size_t bytes)
+{
+    if( !cache || kind >= DAT2_BUILDCACHE_KIND_COUNT )
+        return;
+    cache->asset_bytes[kind] -= bytes;
+}
+
+static size_t
+dat2_buildcache_map_buffer_size(struct ToriDraw_Map* map)
+{
+    if( !map )
+        return 0;
+    return ToriDraw_MapBufferSizeFor(ToriDraw_MapEntrySize(map), ToriDraw_MapCapacity(map));
+}
+
 static struct ToriDraw_Map*
 dat2_buildcache_map_new(
+    struct Dat2BuildCache* cache,
     int entry_size,
     int capacity)
 {
@@ -104,15 +136,22 @@ dat2_buildcache_map_new(
         .entry_size = entry_size,
         .capacity = (size_t)capacity,
     };
-    return ToriDraw_MapNew(&config, 0);
+    struct ToriDraw_Map* map = ToriDraw_MapNew(&config, 0);
+    if( cache && map )
+        cache->map_buffer_bytes += (size_t)buffer_size;
+    return map;
 }
 
 static void
-dat2_buildcache_map_free(struct ToriDraw_Map* map)
+dat2_buildcache_map_free(
+    struct Dat2BuildCache* cache,
+    struct ToriDraw_Map* map)
 {
     if( !map )
         return;
 
+    if( cache )
+        cache->map_buffer_bytes -= dat2_buildcache_map_buffer_size(map);
     free(ToriDraw_MapBufferPtr(map));
     ToriDraw_MapFree(map);
 }
@@ -143,28 +182,29 @@ dat2_buildcache_new(void)
         return NULL;
 
     dat2_buildcache->models_hmap =
-        dat2_buildcache_map_new(sizeof(struct MapEntry_CacheModel), 8192);
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_CacheModel), 8192);
     dat2_buildcache->map_terrain_hmap =
-        dat2_buildcache_map_new(sizeof(struct MapEntry_Terrain), 512);
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_Terrain), 512);
     dat2_buildcache->map_scenery_hmap =
-        dat2_buildcache_map_new(sizeof(struct MapEntry_Scenery), 512);
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_Scenery), 512);
     dat2_buildcache->sequences_hmap =
-        dat2_buildcache_map_new(sizeof(struct MapEntry_Sequence), 65536);
-    dat2_buildcache->flotype_hmap = dat2_buildcache_map_new(sizeof(struct MapEntry_Flotype), 8192);
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_Sequence), 65536);
+    dat2_buildcache->flotype_hmap =
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_Flotype), 8192);
     dat2_buildcache->underlay_hmap =
-        dat2_buildcache_map_new(sizeof(struct MapEntry_Underlay), 4096);
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_Underlay), 4096);
     dat2_buildcache->config_loc_hmap =
-        dat2_buildcache_map_new(sizeof(struct MapEntry_ConfigLoc), 8192);
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_ConfigLoc), 8192);
     dat2_buildcache->frames_hmap =
-        dat2_buildcache_map_new(sizeof(struct MapEntry_FramesArchive), 4096);
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_FramesArchive), 4096);
     dat2_buildcache->skeletal_hmap =
-        dat2_buildcache_map_new(sizeof(struct MapEntry_Skeletal), 4096);
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_Skeletal), 4096);
     dat2_buildcache->identkit_hmap =
-        dat2_buildcache_map_new(sizeof(struct MapEntry_ConfigIdentkit), 512);
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_ConfigIdentkit), 512);
     dat2_buildcache->object_hmap =
-        dat2_buildcache_map_new(sizeof(struct MapEntry_ConfigObject), 8192);
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_ConfigObject), 8192);
     dat2_buildcache->npctype_hmap =
-        dat2_buildcache_map_new(sizeof(struct MapEntry_ConfigNpctype), 8192);
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_ConfigNpctype), 8192);
 
     return dat2_buildcache;
 }
@@ -185,7 +225,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
                 RSCacheDat2A_ModelFree(entry->model);
         }
         ToriDraw_MapIterFree(iter);
-        dat2_buildcache_map_free(dat2_buildcache->models_hmap);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->models_hmap);
     }
 
     if( dat2_buildcache->map_terrain_hmap )
@@ -198,7 +238,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
                 RSCacheDat2A_MapTerrainFree(entry->terrain);
         }
         ToriDraw_MapIterFree(iter);
-        dat2_buildcache_map_free(dat2_buildcache->map_terrain_hmap);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->map_terrain_hmap);
     }
 
     if( dat2_buildcache->map_scenery_hmap )
@@ -211,7 +251,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
                 RSCacheDat2A_MapLocsFree(entry->locs);
         }
         ToriDraw_MapIterFree(iter);
-        dat2_buildcache_map_free(dat2_buildcache->map_scenery_hmap);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->map_scenery_hmap);
     }
 
     if( dat2_buildcache->sequences_hmap )
@@ -224,7 +264,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
                 RSCacheDat2A_ConfigSequenceFree(entry->sequence);
         }
         ToriDraw_MapIterFree(iter);
-        dat2_buildcache_map_free(dat2_buildcache->sequences_hmap);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->sequences_hmap);
     }
 
     if( dat2_buildcache->flotype_hmap )
@@ -237,7 +277,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
                 config_floortype_overlay_free(entry->flotype);
         }
         ToriDraw_MapIterFree(iter);
-        dat2_buildcache_map_free(dat2_buildcache->flotype_hmap);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->flotype_hmap);
     }
 
     if( dat2_buildcache->underlay_hmap )
@@ -250,7 +290,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
                 config_floortype_underlay_free(entry->underlay);
         }
         ToriDraw_MapIterFree(iter);
-        dat2_buildcache_map_free(dat2_buildcache->underlay_hmap);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->underlay_hmap);
     }
 
     if( dat2_buildcache->config_loc_hmap )
@@ -263,7 +303,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
                 config_locs_free(entry->config_loc);
         }
         ToriDraw_MapIterFree(iter);
-        dat2_buildcache_map_free(dat2_buildcache->config_loc_hmap);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->config_loc_hmap);
     }
 
     if( dat2_buildcache->frames_hmap )
@@ -276,7 +316,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
                 Dat2BuildCache_FramesArchiveFree(entry->archive);
         }
         ToriDraw_MapIterFree(iter);
-        dat2_buildcache_map_free(dat2_buildcache->frames_hmap);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->frames_hmap);
     }
 
     if( dat2_buildcache->skeletal_hmap )
@@ -289,7 +329,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
                 RSCacheDat2A_AnimMayaFree(entry->maya);
         }
         ToriDraw_MapIterFree(iter);
-        dat2_buildcache_map_free(dat2_buildcache->skeletal_hmap);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->skeletal_hmap);
     }
 
     if( dat2_buildcache->identkit_hmap )
@@ -302,7 +342,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
                 RSCacheDat2A_ConfigIdkFree(entry->idk);
         }
         ToriDraw_MapIterFree(iter);
-        dat2_buildcache_map_free(dat2_buildcache->identkit_hmap);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->identkit_hmap);
     }
 
     if( dat2_buildcache->object_hmap )
@@ -315,7 +355,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
                 RSCacheDat2A_ConfigObjectFree(entry->object);
         }
         ToriDraw_MapIterFree(iter);
-        dat2_buildcache_map_free(dat2_buildcache->object_hmap);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->object_hmap);
     }
 
     if( dat2_buildcache->npctype_hmap )
@@ -328,9 +368,11 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
                 RSCacheDat2A_ConfigNpctypeFree(entry->npc);
         }
         ToriDraw_MapIterFree(iter);
-        dat2_buildcache_map_free(dat2_buildcache->npctype_hmap);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->npctype_hmap);
     }
 
+    memset(dat2_buildcache->asset_bytes, 0, sizeof(dat2_buildcache->asset_bytes));
+    dat2_buildcache->map_buffer_bytes = 0;
     free(dat2_buildcache);
 }
 
@@ -350,6 +392,23 @@ Dat2BuildCache_FramesArchiveFree(struct Dat2BuildCache_FramesArchive* fa)
     free(fa);
 }
 
+size_t
+Dat2BuildCache_FramesArchiveSizeOf(const struct Dat2BuildCache_FramesArchive* fa)
+{
+    if( !fa )
+        return 0;
+
+    size_t bytes = sizeof(*fa);
+    bytes += RSCacheDat2A_FramemapSizeOf(fa->framemap);
+    if( fa->frames )
+    {
+        bytes += (size_t)fa->frame_count * sizeof(*fa->frames);
+        for( int i = 0; i < fa->frame_count; i++ )
+            bytes += RSCacheDat2A_FrameSizeOf(fa->frames[i]);
+    }
+    return bytes;
+}
+
 void
 dat2_buildcache_model_add(
     struct Dat2BuildCache* dat2_buildcache,
@@ -361,8 +420,19 @@ dat2_buildcache_model_add(
     if( !entry )
         return;
 
+    if( entry->model )
+    {
+        dat2_buildcache_mem_track_sub(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_MODEL,
+            RSCacheDat2A_ModelSizeOf(entry->model));
+        RSCacheDat2A_ModelFree(entry->model);
+    }
+
     entry->id = model_id;
     entry->model = model;
+    dat2_buildcache_mem_track_add(
+        dat2_buildcache, DAT2_BUILDCACHE_KIND_MODEL, RSCacheDat2A_ModelSizeOf(model));
 }
 
 struct RSCacheDat2A_Model*
@@ -388,8 +458,21 @@ dat2_buildcache_map_terrain_add(
     if( !entry )
         return;
 
+    if( entry->terrain )
+    {
+        dat2_buildcache_mem_track_sub(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_MAP_TERRAIN,
+            RSCacheDat2A_MapTerrainSizeOf(entry->terrain));
+        RSCacheDat2A_MapTerrainFree(entry->terrain);
+    }
+
     entry->id = map_id;
     entry->terrain = terrain;
+    dat2_buildcache_mem_track_add(
+        dat2_buildcache,
+        DAT2_BUILDCACHE_KIND_MAP_TERRAIN,
+        RSCacheDat2A_MapTerrainSizeOf(terrain));
 }
 
 struct RSCacheDat2A_MapTerrain*
@@ -423,8 +506,21 @@ dat2_buildcache_map_scenery_add(
     if( !entry )
         return;
 
+    if( entry->locs )
+    {
+        dat2_buildcache_mem_track_sub(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_MAP_SCENERY,
+            RSCacheDat2A_MapLocsSizeOf(entry->locs));
+        RSCacheDat2A_MapLocsFree(entry->locs);
+    }
+
     entry->id = map_id;
     entry->locs = locs;
+    dat2_buildcache_mem_track_add(
+        dat2_buildcache,
+        DAT2_BUILDCACHE_KIND_MAP_SCENERY,
+        RSCacheDat2A_MapLocsSizeOf(locs));
 }
 
 struct RSCacheDat2A_MapLocs*
@@ -491,10 +587,20 @@ dat2_buildcache_underlays_init_from_filelist(
         }
 
         if( entry->underlay )
+        {
+            dat2_buildcache_mem_track_sub(
+                dat2_buildcache,
+                DAT2_BUILDCACHE_KIND_UNDERLAY,
+                RSCacheDat2A_ConfigUnderlaySizeOf(entry->underlay));
             config_floortype_underlay_free(entry->underlay);
+        }
 
         entry->id = id;
         entry->underlay = underlay;
+        dat2_buildcache_mem_track_add(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_UNDERLAY,
+            RSCacheDat2A_ConfigUnderlaySizeOf(underlay));
     }
 }
 
@@ -526,10 +632,20 @@ dat2_buildcache_overlays_init_from_filelist(
         }
 
         if( entry->flotype )
+        {
+            dat2_buildcache_mem_track_sub(
+                dat2_buildcache,
+                DAT2_BUILDCACHE_KIND_FLOTYPE,
+                RSCacheDat2A_ConfigOverlaySizeOf(entry->flotype));
             config_floortype_overlay_free(entry->flotype);
+        }
 
         entry->id = id;
         entry->flotype = flotype;
+        dat2_buildcache_mem_track_add(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_FLOTYPE,
+            RSCacheDat2A_ConfigOverlaySizeOf(flotype));
     }
 }
 
@@ -548,10 +664,20 @@ dat2_buildcache_sequence_insert(
     }
 
     if( entry->sequence )
+    {
+        dat2_buildcache_mem_track_sub(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_SEQUENCE,
+            RSCacheDat2A_ConfigSequenceSizeOf(entry->sequence));
         RSCacheDat2A_ConfigSequenceFree(entry->sequence);
+    }
 
     entry->id = id;
     entry->sequence = sequence;
+    dat2_buildcache_mem_track_add(
+        dat2_buildcache,
+        DAT2_BUILDCACHE_KIND_SEQUENCE,
+        RSCacheDat2A_ConfigSequenceSizeOf(sequence));
     return true;
 }
 
@@ -669,8 +795,21 @@ dat2_buildcache_locs_init_from_filelist(
             continue;
         }
 
+        if( entry->config_loc )
+        {
+            dat2_buildcache_mem_track_sub(
+                dat2_buildcache,
+                DAT2_BUILDCACHE_KIND_CONFIG_LOC,
+                RSCacheDat2A_ConfigLocationSizeOf(entry->config_loc));
+            config_locs_free(entry->config_loc);
+        }
+
         entry->id = id;
         entry->config_loc = config_loc;
+        dat2_buildcache_mem_track_add(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_CONFIG_LOC,
+            RSCacheDat2A_ConfigLocationSizeOf(config_loc));
     }
 }
 
@@ -750,10 +889,18 @@ dat2_buildcache_identkit_add(
         return;
 
     if( entry->idk )
+    {
+        dat2_buildcache_mem_track_sub(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_IDENTKIT,
+            RSCacheDat2A_ConfigIdkSizeOf(entry->idk));
         RSCacheDat2A_ConfigIdkFree(entry->idk);
+    }
 
     entry->id = idk_id;
     entry->idk = idk;
+    dat2_buildcache_mem_track_add(
+        dat2_buildcache, DAT2_BUILDCACHE_KIND_IDENTKIT, RSCacheDat2A_ConfigIdkSizeOf(idk));
 }
 
 struct RSCacheDat2A_ConfigIdk*
@@ -780,10 +927,18 @@ dat2_buildcache_object_add(
         return;
 
     if( entry->object )
+    {
+        dat2_buildcache_mem_track_sub(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_OBJECT,
+            RSCacheDat2A_ConfigObjectSizeOf(entry->object));
         RSCacheDat2A_ConfigObjectFree(entry->object);
+    }
 
     entry->id = obj_id;
     entry->object = object;
+    dat2_buildcache_mem_track_add(
+        dat2_buildcache, DAT2_BUILDCACHE_KIND_OBJECT, RSCacheDat2A_ConfigObjectSizeOf(object));
 }
 
 struct RSCacheDat2A_ConfigObject*
@@ -810,10 +965,18 @@ dat2_buildcache_npctype_add(
         return;
 
     if( entry->npc )
+    {
+        dat2_buildcache_mem_track_sub(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_NPCTYPE,
+            RSCacheDat2A_ConfigNpctypeSizeOf(entry->npc));
         RSCacheDat2A_ConfigNpctypeFree(entry->npc);
+    }
 
     entry->id = npc_id;
     entry->npc = npc;
+    dat2_buildcache_mem_track_add(
+        dat2_buildcache, DAT2_BUILDCACHE_KIND_NPCTYPE, RSCacheDat2A_ConfigNpctypeSizeOf(npc));
 }
 
 struct RSCacheDat2A_ConfigNpctype*
@@ -1457,8 +1620,18 @@ dat2_buildcache_frames_init_from_archive(
         Dat2BuildCache_FramesArchiveFree(fa);
         return;
     }
+    if( entry->archive )
+    {
+        dat2_buildcache_mem_track_sub(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_FRAMES,
+            Dat2BuildCache_FramesArchiveSizeOf(entry->archive));
+        Dat2BuildCache_FramesArchiveFree(entry->archive);
+    }
     entry->id = archive_id;
     entry->archive = fa;
+    dat2_buildcache_mem_track_add(
+        dat2_buildcache, DAT2_BUILDCACHE_KIND_FRAMES, Dat2BuildCache_FramesArchiveSizeOf(fa));
 }
 
 struct Dat2BuildCache_FramesArchive*
@@ -1483,6 +1656,11 @@ dat2_buildcache_frames_take(
     if( !entry )
         return NULL;
     struct Dat2BuildCache_FramesArchive* fa = entry->archive;
+    if( fa )
+        dat2_buildcache_mem_track_sub(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_FRAMES,
+            Dat2BuildCache_FramesArchiveSizeOf(fa));
     entry->archive = NULL;
     return fa;
 }
@@ -1510,9 +1688,17 @@ dat2_buildcache_skeletal_add(
     if( !entry )
         return;
     if( entry->maya )
+    {
+        dat2_buildcache_mem_track_sub(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_SKELETAL,
+            RSCacheDat2A_AnimMayaSizeOf(entry->maya));
         RSCacheDat2A_AnimMayaFree(entry->maya);
+    }
     entry->id = anim_maya_id;
     entry->maya = maya;
+    dat2_buildcache_mem_track_add(
+        dat2_buildcache, DAT2_BUILDCACHE_KIND_SKELETAL, RSCacheDat2A_AnimMayaSizeOf(maya));
 }
 
 struct RSCacheDat2A_AnimMaya*
@@ -1537,6 +1723,11 @@ dat2_buildcache_skeletal_take(
     if( !entry )
         return NULL;
     struct RSCacheDat2A_AnimMaya* maya = entry->maya;
+    if( maya )
+        dat2_buildcache_mem_track_sub(
+            dat2_buildcache,
+            DAT2_BUILDCACHE_KIND_SKELETAL,
+            RSCacheDat2A_AnimMayaSizeOf(maya));
     entry->maya = NULL;
     return maya;
 }
@@ -1547,4 +1738,31 @@ dat2_buildcache_skeletal_has(
     int anim_maya_id)
 {
     return dat2_buildcache_skeletal_get(dat2_buildcache, anim_maya_id) != NULL;
+}
+
+void
+dat2_buildcache_mem_bytes(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct Dat2BuildCache_MemReport* out)
+{
+    if( !out )
+        return;
+    memset(out, 0, sizeof(*out));
+    if( !dat2_buildcache )
+        return;
+
+    out->map_buffer_bytes = dat2_buildcache->map_buffer_bytes;
+    for( int i = 0; i < DAT2_BUILDCACHE_KIND_COUNT; i++ )
+        out->asset_bytes[i] = dat2_buildcache->asset_bytes[i];
+    for( int i = 0; i < DAT2_BUILDCACHE_KIND_COUNT; i++ )
+        out->asset_bytes_total += dat2_buildcache->asset_bytes[i];
+    out->bytes_total = out->asset_bytes_total + out->map_buffer_bytes;
+}
+
+size_t
+dat2_buildcache_bytes_total(struct Dat2BuildCache* dat2_buildcache)
+{
+    struct Dat2BuildCache_MemReport report;
+    dat2_buildcache_mem_bytes(dat2_buildcache, &report);
+    return report.bytes_total;
 }

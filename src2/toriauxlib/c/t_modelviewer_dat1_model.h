@@ -1,13 +1,13 @@
-#ifndef TORIAUXLIBC_T_DAT1_MODELVIEWER_MODEL_H
-#define TORIAUXLIBC_T_DAT1_MODELVIEWER_MODEL_H
+#ifndef TORIAUXLIBCACHE_T_DAT1_MODELVIEWER_MODEL_H
+#define TORIAUXLIBCACHE_T_DAT1_MODELVIEWER_MODEL_H
 
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
 #include "toriauxlib/c/dat1io.h"
-#include "toriauxlib/c/toriauxlibc.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -16,13 +16,13 @@
 struct Task_Dat1ModelLoad
 {
     struct pt thread;
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
     int model_id;
 };
 
 struct Task_Dat1ModelLoad*
 Task_Dat1ModelLoad_New(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     int model_id)
 {
     struct Task_Dat1ModelLoad* task = malloc(sizeof(struct Task_Dat1ModelLoad));
@@ -62,7 +62,7 @@ Task_Dat1ModelLoad_Run(
     }
 
     dat1_buildcache_model_add(dat1(task->c), task->model_id, model);
-    ToriAuxLibC_SubmitModelFromDat1(task->c, task->model_id);
+    ToriAuxLibCache_SubmitModelFromDat1(task->c, task->model_id);
 
     PT_END(&task->thread);
 }

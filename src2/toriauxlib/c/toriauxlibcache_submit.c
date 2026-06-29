@@ -1,4 +1,4 @@
-#include "toriauxlibc_submit.h"
+#include "toriauxlibcache_submit.h"
 
 #include <stdio.h>
 
@@ -17,12 +17,12 @@
 #include "osrs/rscache/dat2a/dat2a_maps.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat2a/dat2a_skeletalbase.h"
-#include "toriauxlib/c/toriauxlibc.h"
+#include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
 struct SubmitSequenceCtx
 {
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
 };
 
 static void
@@ -33,15 +33,15 @@ submit_sequence_cb(
 {
     struct SubmitSequenceCtx* ctx = user_data;
     struct ToriAuxLibCore_Sequence* neutral =
-        ToriAuxLibC_SequenceNewFromCacheDatSequence(sequence, seq_id);
+        ToriAuxLibCache_SequenceNewFromCacheDatSequence(sequence, seq_id);
     if( !neutral )
         return;
-    ToriAuxLibCore_SequenceAdd(ToriAuxLibC_Core(ctx->c), seq_id, neutral);
+    ToriAuxLibCore_SequenceAdd(ToriAuxLibCache_Core(ctx->c), seq_id, neutral);
 }
 
 struct SubmitFlotypeCtx
 {
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
 };
 
 static struct ToriAuxLibCore_Flotype*
@@ -65,19 +65,19 @@ submit_flotype_cb(
 {
     struct SubmitFlotypeCtx* ctx = user_data;
     struct ToriAuxLibCore_Flotype* neutral =
-        ToriAuxLibC_FlotypeNewFromCacheConfigOverlay(flotype, flo_id);
+        ToriAuxLibCache_FlotypeNewFromCacheConfigOverlay(flotype, flo_id);
     struct ToriAuxLibCore_Flotype* underlay_copy;
     if( !neutral )
         return;
-    ToriAuxLibCore_FlotypeAdd(ToriAuxLibC_Core(ctx->c), flo_id, neutral);
+    ToriAuxLibCore_FlotypeAdd(ToriAuxLibCache_Core(ctx->c), flo_id, neutral);
     underlay_copy = submit_flotype_copy(neutral);
     if( underlay_copy )
-        ToriAuxLibCore_UnderlayAdd(ToriAuxLibC_Core(ctx->c), flo_id, underlay_copy);
+        ToriAuxLibCore_UnderlayAdd(ToriAuxLibCache_Core(ctx->c), flo_id, underlay_copy);
 }
 
 struct SubmitLocationCtx
 {
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
 };
 
 static void
@@ -88,15 +88,15 @@ submit_location_cb(
 {
     struct SubmitLocationCtx* ctx = user_data;
     struct ToriAuxLibCore_Location* neutral =
-        ToriAuxLibC_LocationNewFromCacheConfigLocation(config_loc);
+        ToriAuxLibCache_LocationNewFromCacheConfigLocation(config_loc);
     if( !neutral )
         return;
-    ToriAuxLibCore_LocationAdd(ToriAuxLibC_Core(ctx->c), loc_id, neutral);
+    ToriAuxLibCore_LocationAdd(ToriAuxLibCache_Core(ctx->c), loc_id, neutral);
 }
 
 void
-ToriAuxLibC_SubmitMapTerrainFromDat1(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitMapTerrainFromDat1(
+    struct ToriAuxLibCache* c,
     int map_id)
 {
     struct RSCacheDat2A_MapTerrain* terrain = dat1_buildcache_map_terrain_get(dat1(c), map_id);
@@ -104,48 +104,48 @@ ToriAuxLibC_SubmitMapTerrainFromDat1(
         return;
 
     struct ToriAuxLibCore_MapTerrain* neutral =
-        ToriAuxLibC_MapTerrainNewFromCacheMapTerrain(terrain);
+        ToriAuxLibCache_MapTerrainNewFromCacheMapTerrain(terrain);
     if( !neutral )
         return;
 
-    ToriAuxLibCore_MapTerrainAdd(ToriAuxLibC_Core(c), map_id, neutral);
+    ToriAuxLibCore_MapTerrainAdd(ToriAuxLibCache_Core(c), map_id, neutral);
 }
 
 void
-ToriAuxLibC_SubmitMapSceneryFromDat1(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitMapSceneryFromDat1(
+    struct ToriAuxLibCache* c,
     int map_id)
 {
     struct RSCacheDat2A_MapLocs* locs = dat1_buildcache_map_scenery_get(dat1(c), map_id);
     if( !locs )
         return;
 
-    struct ToriAuxLibCore_MapLocs* neutral = ToriAuxLibC_MapLocsNewFromCacheMapLocs(locs);
+    struct ToriAuxLibCore_MapLocs* neutral = ToriAuxLibCache_MapLocsNewFromCacheMapLocs(locs);
     if( !neutral )
         return;
 
-    ToriAuxLibCore_MapSceneryAdd(ToriAuxLibC_Core(c), map_id, neutral);
+    ToriAuxLibCore_MapSceneryAdd(ToriAuxLibCache_Core(c), map_id, neutral);
 }
 
 void
-ToriAuxLibC_SubmitAnimationFromDat1(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitAnimationFromDat1(
+    struct ToriAuxLibCache* c,
     int anim_id)
 {
     struct RSCacheDat1A_AnimBaseFrames* abf = dat1_buildcache_animbaseframes_take(dat1(c), anim_id);
     if( !abf )
         return;
 
-    struct ToriAuxLibCore_Animation* anim = ToriAuxLibC_AnimationNewFromCacheDatAnimbaseframes(abf);
+    struct ToriAuxLibCore_Animation* anim = ToriAuxLibCache_AnimationNewFromCacheDatAnimbaseframes(abf);
     if( !anim )
         return;
 
-    ToriAuxLibCore_AnimationAdd(ToriAuxLibC_Core(c), anim_id, anim);
+    ToriAuxLibCore_AnimationAdd(ToriAuxLibCache_Core(c), anim_id, anim);
 }
 
 void
-ToriAuxLibC_SubmitModelFromDat1(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitModelFromDat1(
+    struct ToriAuxLibCache* c,
     int model_id)
 {
     struct RSCacheDat2A_Model* model = dat1_buildcache_model_get(dat1(c), model_id);
@@ -156,12 +156,12 @@ ToriAuxLibC_SubmitModelFromDat1(
     if( !copy )
         return;
 
-    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibC_ModelNewFromCacheModel(copy);
+    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibCache_ModelNewFromCacheModel(copy);
     RSCacheDat2A_ModelFree(copy);
     if( !gc_model )
         return;
 
-    ToriAuxLibCore_ModelAdd(ToriAuxLibC_Core(c), model_id, gc_model);
+    ToriAuxLibCore_ModelAdd(ToriAuxLibCache_Core(c), model_id, gc_model);
 }
 
 static void
@@ -181,8 +181,8 @@ submit_recolor_raw(
 }
 
 void
-ToriAuxLibC_SubmitIdkModelFromDat1(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitIdkModelFromDat1(
+    struct ToriAuxLibCache* c,
     int idk_id)
 {
     struct RSCacheDat1A_ConfigIdk* idk = dat1_buildcache_idk_get(dat1(c), idk_id);
@@ -205,17 +205,17 @@ ToriAuxLibC_SubmitIdkModelFromDat1(
     if( !merged )
         return;
 
-    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibC_ModelNewFromCacheModel(merged);
+    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibCache_ModelNewFromCacheModel(merged);
     RSCacheDat2A_ModelFree(merged);
     if( !gc_model )
         return;
 
-    ToriAuxLibCore_IdkModelAdd(ToriAuxLibC_Core(c), idk_id, gc_model);
+    ToriAuxLibCore_IdkModelAdd(ToriAuxLibCache_Core(c), idk_id, gc_model);
 }
 
 void
-ToriAuxLibC_SubmitObjModelFromDat1(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitObjModelFromDat1(
+    struct ToriAuxLibCache* c,
     int obj_id)
 {
     struct RSCacheDat1A_ConfigObj* obj = dat1_buildcache_obj_get(dat1(c), obj_id);
@@ -253,17 +253,17 @@ ToriAuxLibC_SubmitObjModelFromDat1(
     for( int i = 0; i < obj->recol_count; i++ )
         submit_recolor_raw(merged, obj->recol_s[i], obj->recol_d[i]);
 
-    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibC_ModelNewFromCacheModel(merged);
+    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibCache_ModelNewFromCacheModel(merged);
     RSCacheDat2A_ModelFree(merged);
     if( !gc_model )
         return;
 
-    ToriAuxLibCore_ObjModelAdd(ToriAuxLibC_Core(c), obj_id, gc_model);
+    ToriAuxLibCore_ObjModelAdd(ToriAuxLibCache_Core(c), obj_id, gc_model);
 }
 
 void
-ToriAuxLibC_SubmitIdkModelFromDat2(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitIdkModelFromDat2(
+    struct ToriAuxLibCache* c,
     int idk_id)
 {
     struct RSCacheDat2A_ConfigIdk* idk = dat2_buildcache_identkit_get(dat2(c), idk_id);
@@ -286,17 +286,17 @@ ToriAuxLibC_SubmitIdkModelFromDat2(
     if( !merged )
         return;
 
-    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibC_ModelNewFromCacheModel(merged);
+    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibCache_ModelNewFromCacheModel(merged);
     RSCacheDat2A_ModelFree(merged);
     if( !gc_model )
         return;
 
-    ToriAuxLibCore_IdkModelAdd(ToriAuxLibC_Core(c), idk_id, gc_model);
+    ToriAuxLibCore_IdkModelAdd(ToriAuxLibCache_Core(c), idk_id, gc_model);
 }
 
 void
-ToriAuxLibC_SubmitObjModelFromDat2(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitObjModelFromDat2(
+    struct ToriAuxLibCache* c,
     int obj_id)
 {
     struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(dat2(c), obj_id);
@@ -334,68 +334,68 @@ ToriAuxLibC_SubmitObjModelFromDat2(
     for( int i = 0; i < obj->recolor_count; i++ )
         submit_recolor_raw(merged, obj->recolors_from[i], obj->recolors_to[i]);
 
-    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibC_ModelNewFromCacheModel(merged);
+    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibCache_ModelNewFromCacheModel(merged);
     RSCacheDat2A_ModelFree(merged);
     if( !gc_model )
         return;
 
-    ToriAuxLibCore_ObjModelAdd(ToriAuxLibC_Core(c), obj_id, gc_model);
+    ToriAuxLibCore_ObjModelAdd(ToriAuxLibCache_Core(c), obj_id, gc_model);
 }
 
 void
-ToriAuxLibC_SubmitTexture(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitTexture(
+    struct ToriAuxLibCache* c,
     int texture_id,
     struct ToriAuxLibCore_Texture* texture)
 {
-    ToriAuxLibCore_TextureAdd(ToriAuxLibC_Core(c), texture_id, texture);
+    ToriAuxLibCore_TextureAdd(ToriAuxLibCache_Core(c), texture_id, texture);
 }
 
 void
-ToriAuxLibC_SubmitAllSequencesFromDat1(struct ToriAuxLibC* c)
+ToriAuxLibCache_SubmitAllSequencesFromDat1(struct ToriAuxLibCache* c)
 {
     struct SubmitSequenceCtx ctx = { .c = c };
     dat1_buildcache_foreach_sequence(dat1(c), submit_sequence_cb, &ctx);
 }
 
 void
-ToriAuxLibC_SubmitAllFlotypesFromDat1(struct ToriAuxLibC* c)
+ToriAuxLibCache_SubmitAllFlotypesFromDat1(struct ToriAuxLibCache* c)
 {
     struct SubmitFlotypeCtx ctx = { .c = c };
     dat1_buildcache_foreach_flotype(dat1(c), submit_flotype_cb, &ctx);
 }
 
 void
-ToriAuxLibC_SubmitAllLocationsFromDat1(struct ToriAuxLibC* c)
+ToriAuxLibCache_SubmitAllLocationsFromDat1(struct ToriAuxLibCache* c)
 {
     struct SubmitLocationCtx ctx = { .c = c };
     dat1_buildcache_foreach_config_loc(dat1(c), submit_location_cb, &ctx);
 }
 
 void
-ToriAuxLibC_SubmitSpriteFromDat1(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitSpriteFromDat1(
+    struct ToriAuxLibCache* c,
     int sprite_id,
     struct ToriAuxLibCore_Sprite* sprite)
 {
     if( !c || !sprite )
         return;
-    ToriAuxLibCore_SpriteAdd(ToriAuxLibC_Core(c), sprite_id, sprite);
+    ToriAuxLibCore_SpriteAdd(ToriAuxLibCache_Core(c), sprite_id, sprite);
 }
 
 void
-ToriAuxLibC_SubmitFontFromDat1(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitFontFromDat1(
+    struct ToriAuxLibCache* c,
     int font_id,
     struct ToriAuxLibCore_Font* font)
 {
     if( !c || !font )
         return;
-    ToriAuxLibCore_FontAdd(ToriAuxLibC_Core(c), font_id, font);
+    ToriAuxLibCore_FontAdd(ToriAuxLibCache_Core(c), font_id, font);
 }
 
 void
-ToriAuxLibC_SubmitAllComponentsFromDat1(struct ToriAuxLibC* c)
+ToriAuxLibCache_SubmitAllComponentsFromDat1(struct ToriAuxLibCache* c)
 {
     if( !c )
         return;
@@ -404,14 +404,14 @@ ToriAuxLibC_SubmitAllComponentsFromDat1(struct ToriAuxLibC* c)
     if( !interfaces || !interfaces->components )
         return;
 
-    struct ToriAuxLibCore* core = ToriAuxLibC_Core(c);
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(c);
     for( int i = 0; i < interfaces->components_count; i++ )
     {
         struct RSCacheDat1A_ConfigComponent* comp = interfaces->components[i];
         if( !comp )
             continue;
 
-        struct ToriAuxLibCore_Component* neutral = ToriAuxLibC_ComponentNewFromCacheComponent(comp);
+        struct ToriAuxLibCore_Component* neutral = ToriAuxLibCache_ComponentNewFromCacheComponent(comp);
         if( !neutral )
             continue;
 
@@ -428,10 +428,10 @@ submit_dat2_sequence_cb(
 {
     struct SubmitSequenceCtx* ctx = user_data;
     struct ToriAuxLibCore_Sequence* neutral =
-        ToriAuxLibC_SequenceNewFromCacheDat2Sequence(sequence, seq_id);
+        ToriAuxLibCache_SequenceNewFromCacheDat2Sequence(sequence, seq_id);
     if( !neutral )
         return;
-    ToriAuxLibCore_SequenceAdd(ToriAuxLibC_Core(ctx->c), seq_id, neutral);
+    ToriAuxLibCore_SequenceAdd(ToriAuxLibCache_Core(ctx->c), seq_id, neutral);
 }
 
 static void
@@ -442,10 +442,10 @@ submit_dat2_flotype_cb(
 {
     struct SubmitFlotypeCtx* ctx = user_data;
     struct ToriAuxLibCore_Flotype* neutral =
-        ToriAuxLibC_FlotypeNewFromCacheConfigOverlay(flotype, flo_id);
+        ToriAuxLibCache_FlotypeNewFromCacheConfigOverlay(flotype, flo_id);
     if( !neutral )
         return;
-    ToriAuxLibCore_FlotypeAdd(ToriAuxLibC_Core(ctx->c), flo_id, neutral);
+    ToriAuxLibCore_FlotypeAdd(ToriAuxLibCache_Core(ctx->c), flo_id, neutral);
 }
 
 static void
@@ -456,15 +456,15 @@ submit_dat2_underlay_cb(
 {
     struct SubmitFlotypeCtx* ctx = user_data;
     struct ToriAuxLibCore_Flotype* neutral =
-        ToriAuxLibC_UnderlayNewFromCacheConfigUnderlay(underlay, underlay_id);
+        ToriAuxLibCache_UnderlayNewFromCacheConfigUnderlay(underlay, underlay_id);
     if( !neutral )
         return;
-    ToriAuxLibCore_UnderlayAdd(ToriAuxLibC_Core(ctx->c), underlay_id, neutral);
+    ToriAuxLibCore_UnderlayAdd(ToriAuxLibCache_Core(ctx->c), underlay_id, neutral);
 }
 
 void
-ToriAuxLibC_SubmitMapTerrainFromDat2(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitMapTerrainFromDat2(
+    struct ToriAuxLibCache* c,
     int map_id)
 {
     struct RSCacheDat2A_MapTerrain* terrain = dat2_buildcache_map_terrain_get(dat2(c), map_id);
@@ -472,32 +472,32 @@ ToriAuxLibC_SubmitMapTerrainFromDat2(
         return;
 
     struct ToriAuxLibCore_MapTerrain* neutral =
-        ToriAuxLibC_MapTerrainNewFromCacheMapTerrain(terrain);
+        ToriAuxLibCache_MapTerrainNewFromCacheMapTerrain(terrain);
     if( !neutral )
         return;
 
-    ToriAuxLibCore_MapTerrainAdd(ToriAuxLibC_Core(c), map_id, neutral);
+    ToriAuxLibCore_MapTerrainAdd(ToriAuxLibCache_Core(c), map_id, neutral);
 }
 
 void
-ToriAuxLibC_SubmitMapSceneryFromDat2(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitMapSceneryFromDat2(
+    struct ToriAuxLibCache* c,
     int map_id)
 {
     struct RSCacheDat2A_MapLocs* locs = dat2_buildcache_map_scenery_get(dat2(c), map_id);
     if( !locs )
         return;
 
-    struct ToriAuxLibCore_MapLocs* neutral = ToriAuxLibC_MapLocsNewFromCacheMapLocs(locs);
+    struct ToriAuxLibCore_MapLocs* neutral = ToriAuxLibCache_MapLocsNewFromCacheMapLocs(locs);
     if( !neutral )
         return;
 
-    ToriAuxLibCore_MapSceneryAdd(ToriAuxLibC_Core(c), map_id, neutral);
+    ToriAuxLibCore_MapSceneryAdd(ToriAuxLibCache_Core(c), map_id, neutral);
 }
 
 void
-ToriAuxLibC_SubmitModelFromDat2(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitModelFromDat2(
+    struct ToriAuxLibCache* c,
     int model_id)
 {
     struct RSCacheDat2A_Model* model = dat2_buildcache_model_get(dat2(c), model_id);
@@ -508,24 +508,24 @@ ToriAuxLibC_SubmitModelFromDat2(
     if( !copy )
         return;
 
-    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibC_ModelNewFromCacheModel(copy);
+    struct ToriAuxLibCore_Model* gc_model = ToriAuxLibCache_ModelNewFromCacheModel(copy);
     RSCacheDat2A_ModelFree(copy);
     if( !gc_model )
         return;
 
-    ToriAuxLibCore_ModelAdd(ToriAuxLibC_Core(c), model_id, gc_model);
+    ToriAuxLibCore_ModelAdd(ToriAuxLibCache_Core(c), model_id, gc_model);
 }
 
 void
-ToriAuxLibC_SubmitAllSequencesFromDat2(struct ToriAuxLibC* c)
+ToriAuxLibCache_SubmitAllSequencesFromDat2(struct ToriAuxLibCache* c)
 {
     struct SubmitSequenceCtx ctx = { .c = c };
     dat2_buildcache_foreach_sequence(dat2(c), submit_dat2_sequence_cb, &ctx);
 }
 
 void
-ToriAuxLibC_SubmitSequenceFromDat2(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitSequenceFromDat2(
+    struct ToriAuxLibCache* c,
     int seq_id)
 {
     struct RSCacheDat2A_ConfigSequence* sequence = dat2_buildcache_sequence_get(dat2(c), seq_id);
@@ -533,37 +533,37 @@ ToriAuxLibC_SubmitSequenceFromDat2(
         return;
 
     struct ToriAuxLibCore_Sequence* neutral =
-        ToriAuxLibC_SequenceNewFromCacheDat2Sequence(sequence, seq_id);
+        ToriAuxLibCache_SequenceNewFromCacheDat2Sequence(sequence, seq_id);
     if( !neutral )
         return;
 
-    ToriAuxLibCore_SequenceAdd(ToriAuxLibC_Core(c), seq_id, neutral);
+    ToriAuxLibCore_SequenceAdd(ToriAuxLibCache_Core(c), seq_id, neutral);
 }
 
 void
-ToriAuxLibC_SubmitAllFlotypesFromDat2(struct ToriAuxLibC* c)
+ToriAuxLibCache_SubmitAllFlotypesFromDat2(struct ToriAuxLibCache* c)
 {
     struct SubmitFlotypeCtx ctx = { .c = c };
     dat2_buildcache_foreach_flotype(dat2(c), submit_dat2_flotype_cb, &ctx);
 }
 
 void
-ToriAuxLibC_SubmitAllUnderlaysFromDat2(struct ToriAuxLibC* c)
+ToriAuxLibCache_SubmitAllUnderlaysFromDat2(struct ToriAuxLibCache* c)
 {
     struct SubmitFlotypeCtx ctx = { .c = c };
     dat2_buildcache_foreach_underlay(dat2(c), submit_dat2_underlay_cb, &ctx);
 }
 
 void
-ToriAuxLibC_SubmitAllLocationsFromDat2(struct ToriAuxLibC* c)
+ToriAuxLibCache_SubmitAllLocationsFromDat2(struct ToriAuxLibCache* c)
 {
     struct SubmitLocationCtx ctx = { .c = c };
     dat2_buildcache_foreach_config_loc(dat2(c), submit_location_cb, &ctx);
 }
 
 void
-ToriAuxLibC_SubmitAnimationFromDat2(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitAnimationFromDat2(
+    struct ToriAuxLibCache* c,
     int archive_id)
 {
     if( !c || archive_id < 0 )
@@ -575,18 +575,18 @@ ToriAuxLibC_SubmitAnimationFromDat2(
         return;
 
     struct ToriAuxLibCore_Animation* anim =
-        ToriAuxLibC_AnimationNewFromDat2FramesArchive(fa, archive_id);
+        ToriAuxLibCache_AnimationNewFromDat2FramesArchive(fa, archive_id);
     Dat2BuildCache_FramesArchiveFree(fa);
 
     if( !anim )
         return;
 
-    ToriAuxLibCore_AnimationAdd(ToriAuxLibC_Core(c), archive_id, anim);
+    ToriAuxLibCore_AnimationAdd(ToriAuxLibCache_Core(c), archive_id, anim);
 }
 
 void
-ToriAuxLibC_SubmitSkeletalFromDat2(
-    struct ToriAuxLibC* c,
+ToriAuxLibCache_SubmitSkeletalFromDat2(
+    struct ToriAuxLibCache* c,
     int anim_maya_id)
 {
     if( !c || anim_maya_id < 0 )
@@ -597,7 +597,7 @@ ToriAuxLibC_SubmitSkeletalFromDat2(
     if( !maya )
     {
         fprintf(stderr,
-                "ToriAuxLibC_SubmitSkeletalFromDat2: anim_maya_id=%d not in "
+                "ToriAuxLibCache_SubmitSkeletalFromDat2: anim_maya_id=%d not in "
                 "buildcache (load failed earlier)\n",
                 anim_maya_id);
         return;
@@ -605,12 +605,12 @@ ToriAuxLibC_SubmitSkeletalFromDat2(
 
     /* Load the bind-pose SkeletalBase from idx1 using base_id */
     struct RSCacheDat2A_SkeletalBase* skelbase =
-        RSCacheDat2A_SkeletalBaseNewFromCache(ToriAuxLibC_Dat2Disk(c), maya->base_id);
+        RSCacheDat2A_SkeletalBaseNewFromCache(ToriAuxLibCache_Dat2Disk(c), maya->base_id);
 
     if( !skelbase )
     {
         fprintf(stderr,
-                "ToriAuxLibC_SubmitSkeletalFromDat2: SkeletalBase load failed "
+                "ToriAuxLibCache_SubmitSkeletalFromDat2: SkeletalBase load failed "
                 "(anim_maya_id=%d base_id=%d)\n",
                 anim_maya_id, maya->base_id);
         RSCacheDat2A_AnimMayaFree(maya);
@@ -628,24 +628,24 @@ ToriAuxLibC_SubmitSkeletalFromDat2(
     if( !palette )
     {
         fprintf(stderr,
-                "ToriAuxLibC_SubmitSkeletalFromDat2: BakePalette failed "
+                "ToriAuxLibCache_SubmitSkeletalFromDat2: BakePalette failed "
                 "(anim_maya_id=%d)\n",
                 anim_maya_id);
         return;
     }
 
     struct ToriAuxLibCore_SkeletalAnim* skeletal =
-        ToriAuxLibC_SkeletalAnimNewFromBakedPalette(
+        ToriAuxLibCache_SkeletalAnimNewFromBakedPalette(
             anim_maya_id, palette, frame_count, bone_count);
 
     if( !skeletal )
     {
         fprintf(stderr,
-                "ToriAuxLibC_SubmitSkeletalFromDat2: SkeletalAnimNew failed "
+                "ToriAuxLibCache_SubmitSkeletalFromDat2: SkeletalAnimNew failed "
                 "(anim_maya_id=%d frame_count=%d bone_count=%d)\n",
                 anim_maya_id, frame_count, bone_count);
         return;
     }
 
-    ToriAuxLibCore_SkeletalAnimAdd(ToriAuxLibC_Core(c), anim_maya_id, skeletal);
+    ToriAuxLibCore_SkeletalAnimAdd(ToriAuxLibCache_Core(c), anim_maya_id, skeletal);
 }

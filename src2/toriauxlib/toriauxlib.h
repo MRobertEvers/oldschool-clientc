@@ -1,7 +1,7 @@
 #ifndef TORIAUXLIB_H
 #define TORIAUXLIB_H
 
-#include "toriauxlib/c/toriauxlibc.h"
+#include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "toriauxlib/td/toridraw_cachemodel.h"
@@ -13,7 +13,7 @@ struct ToriAuxLib;
 
 struct ToriAuxLib*
 ToriAuxLib_New(
-    enum ToriAuxLibCMode mode,
+    enum ToriAuxLibCacheMode mode,
     struct ToriDraw_Scene* scene);
 
 void
@@ -22,7 +22,7 @@ ToriAuxLib_Free(struct ToriAuxLib* tal);
 struct ToriAuxLibCore*
 ToriAuxLib_Core(struct ToriAuxLib* tal);
 
-struct ToriAuxLibC*
+struct ToriAuxLibCache*
 ToriAuxLib_C(struct ToriAuxLib* tal);
 
 struct ToriAuxLibTD*

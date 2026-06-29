@@ -1,5 +1,5 @@
-#ifndef TORIAUXLIBC_T_RUNESCAPE_DAT2_WORLD_H
-#define TORIAUXLIBC_T_RUNESCAPE_DAT2_WORLD_H
+#ifndef TORIAUXLIBCACHE_T_RUNESCAPE_DAT2_WORLD_H
+#define TORIAUXLIBCACHE_T_RUNESCAPE_DAT2_WORLD_H
 
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
@@ -10,8 +10,8 @@
 #include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "toriauxlib/c/dat2io.h"
-#include "toriauxlib/c/toriauxlibc.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/c/t_runescape_dat2_anim_load.h"
 #include "toridraw/toridraw_map.h"
 
@@ -27,7 +27,7 @@
 struct Task_Dat2WorldRebuildCore
 {
     struct pt thread;
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
 
     int chunk_count;
     int chunks_x[TASK_DAT2_WORLD_MAX_CHUNKS];
@@ -44,7 +44,7 @@ struct Task_Dat2WorldRebuildCore
 static void
 Task_Dat2WorldRebuildCore_Init(
     struct Task_Dat2WorldRebuildCore* core,
-    struct ToriAuxLibC* c)
+    struct ToriAuxLibCache* c)
 {
     PT_INIT(&core->thread);
     core->c = c;
@@ -114,7 +114,7 @@ Task_Dat2WorldRebuildCore_Run(
     struct RSCacheDat2Disk_Archive* sequence_archive;
     struct RSCacheDat2Disk_Archive* locs_archive;
     struct Dat2BuildCache* dat2_bc = dat2(core->c);
-    struct RSCacheDat2Disk* cache_disk = ToriAuxLibC_Dat2Disk(core->c);
+    struct RSCacheDat2Disk* cache_disk = ToriAuxLibCache_Dat2Disk(core->c);
 
     PT_BEGIN(&core->thread);
 
@@ -141,7 +141,7 @@ Task_Dat2WorldRebuildCore_Run(
         if( map_id >= 0 && terrain )
         {
             dat2_buildcache_map_terrain_add(dat2_bc, map_id, terrain);
-            ToriAuxLibC_SubmitMapTerrainFromDat2(core->c, map_id);
+            ToriAuxLibCache_SubmitMapTerrainFromDat2(core->c, map_id);
         }
     }
 
@@ -166,7 +166,7 @@ Task_Dat2WorldRebuildCore_Run(
         if( map_id >= 0 && locs )
         {
             dat2_buildcache_map_scenery_add(dat2_bc, map_id, locs);
-            ToriAuxLibC_SubmitMapSceneryFromDat2(core->c, map_id);
+            ToriAuxLibCache_SubmitMapSceneryFromDat2(core->c, map_id);
         }
     }
 
@@ -188,15 +188,15 @@ Task_Dat2WorldRebuildCore_Run(
     dat2_buildcache_underlays_init_from_archive(dat2_bc, cache_disk, underlay_archive);
     dat2_buildcache_overlays_init_from_archive(dat2_bc, cache_disk, overlay_archive);
     dat2_buildcache_scenery_configs_init_from_archive(
-        dat2_bc, cache_disk, locs_archive, ToriAuxLibC_VarPVarBit(core->c));
+        dat2_bc, cache_disk, locs_archive, ToriAuxLibCache_VarPVarBit(core->c));
 
     RSCacheDat2Disk_ArchiveFree(underlay_archive);
     RSCacheDat2Disk_ArchiveFree(overlay_archive);
     RSCacheDat2Disk_ArchiveFree(locs_archive);
 
-    ToriAuxLibC_SubmitAllUnderlaysFromDat2(core->c);
-    ToriAuxLibC_SubmitAllFlotypesFromDat2(core->c);
-    ToriAuxLibC_SubmitAllLocationsFromDat2(core->c);
+    ToriAuxLibCache_SubmitAllUnderlaysFromDat2(core->c);
+    ToriAuxLibCache_SubmitAllFlotypesFromDat2(core->c);
+    ToriAuxLibCache_SubmitAllLocationsFromDat2(core->c);
 
     /* Load classic frame/framemap archives and skeletal anims referenced by
      * visible scene locs only — do NOT walk every sequence in the cache. */
@@ -289,7 +289,7 @@ Task_Dat2WorldRebuildCore_Run(
         else
             free(seq_ids);
 
-        ToriAuxLibC_SubmitAllSequencesFromDat2(core->c);
+        ToriAuxLibCache_SubmitAllSequencesFromDat2(core->c);
 
         if( sequence_archive )
         {
@@ -330,7 +330,7 @@ Task_Dat2WorldRebuildCore_Run(
             {
                 int model_id = LibToriRS_IOBatchUser(&core->io_batch, i);
                 dat2_buildcache_model_add(dat2_bc, model_id, model);
-                ToriAuxLibC_SubmitModelFromDat2(core->c, model_id);
+                ToriAuxLibCache_SubmitModelFromDat2(core->c, model_id);
             }
         }
         LibToriRS_IOQueueClear(ctx->io);
@@ -348,7 +348,7 @@ struct Task_Dat2WorldRebuildNormalCenterzone
 
 struct Task_Dat2WorldRebuildNormalCenterzone*
 Task_Dat2WorldRebuildNormalCenterzone_New(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     int zonex,
     int zonez)
 {
@@ -386,7 +386,7 @@ struct Task_Dat2WorldRebuildChunkList
 
 struct Task_Dat2WorldRebuildChunkList*
 Task_Dat2WorldRebuildChunkList_New(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     const int* chunks_x,
     const int* chunks_z,
     int count)

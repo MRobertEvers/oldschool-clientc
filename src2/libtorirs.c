@@ -44,15 +44,15 @@ npc_task_destroy(void* state)
 struct LibToriRS_Instance*
 LibToriRS_InstanceNew(void)
 {
-    return LibToriRS_InstanceNewWithCacheMode(TORIAUXLIBC_MODE_DAT1);
+    return LibToriRS_InstanceNewWithCacheMode(TORIAUXLIBCACHE_MODE_DAT1);
 }
 
 struct LibToriRS_Instance*
 LibToriRS_InstanceNewWithCacheMode(int cache_mode)
 {
-    enum ToriAuxLibCMode mode = TORIAUXLIBC_MODE_DAT1;
-    if( cache_mode == TORIAUXLIBC_MODE_DAT2 )
-        mode = TORIAUXLIBC_MODE_DAT2;
+    enum ToriAuxLibCacheMode mode = TORIAUXLIBCACHE_MODE_DAT1;
+    if( cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
+        mode = TORIAUXLIBCACHE_MODE_DAT2;
     struct LibToriRS_Instance* instance = calloc(1, sizeof(struct LibToriRS_Instance));
     if( !instance )
         return NULL;
@@ -446,8 +446,8 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                     sz = game->camera_position->z / 128;
                     level = GameRunescape_CameraTerrainLevel(game);
                 }
-                npc_id = ToriAuxLibC_Mode(ToriAuxLib_C(instance->toriauxlib)) ==
-                                 TORIAUXLIBC_MODE_DAT1
+                npc_id = ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) ==
+                                 TORIAUXLIBCACHE_MODE_DAT1
                              ? RUNESCAPE_EXAMPLE_NPC_ID_DAT1
                              : RUNESCAPE_EXAMPLE_NPC_ID_DAT2;
                 int const entity_id =

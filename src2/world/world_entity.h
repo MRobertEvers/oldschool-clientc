@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define WORLD_ENTITY_NIL (-1)
 
@@ -27,7 +28,7 @@ struct World_EntityPool
     int free_head;
 };
 
-struct WorldEntityFacet_Animation
+struct WorldEntityFacet_IdleAnimations
 {
     int readyanim;
     int walkanim;
@@ -36,6 +37,119 @@ struct WorldEntityFacet_Animation
     int walkanim_b;
     int walkanim_r;
     int walkanim_l;
+};
+
+struct WorldEntityFacet_Animation
+{
+    uint16_t anim_id;
+    uint8_t frame;
+    uint8_t cycle;
+    uint8_t delay;
+    uint8_t loop;
+};
+
+struct WorldEntityFacet_Name
+{
+    char name[32];
+};
+
+struct WorldEntityFacet_Description
+{
+    char description[64];
+};
+
+struct WorldEntityFacet_Action
+{
+    uint16_t code;
+    char name[32];
+};
+
+struct WorldEntityFacet_Actions
+{
+    struct WorldEntityFacet_Action* actions;
+    uint8_t action_count;
+};
+
+#define FACING_GRID_COORDS 0
+#define FACING_ENTITY_ID 1
+struct WorldEntityFacet_Facing
+{
+    int mode;
+    union
+    {
+        struct
+        {
+            uint16_t x;
+            uint16_t z;
+        } grid_coords;
+
+        int entity_id;
+
+    } u;
+};
+
+#define WORLD_ENTITY_DAMAGE_SLOTS 4
+struct WorldEntityFacet_Combat
+{
+    uint8_t damage_values[WORLD_ENTITY_DAMAGE_SLOTS];
+    uint8_t damage_types[WORLD_ENTITY_DAMAGE_SLOTS];
+    uint8_t damage_cycles[WORLD_ENTITY_DAMAGE_SLOTS];
+    int combat_cycle;
+    int health;
+    int total_health;
+};
+
+/**
+ * Tile route queue for player/NPC movement (mirrors legacy EntityPathing).
+ *
+ * route[0] holds the entity's authoritative tile; new steps are prepended at 0
+ * and older waypoints shift toward higher indices. route_length is the number
+ * of queued tiles (0 = idle). Each tick the draw position moves toward
+ * route[route_length - 1]; when it arrives, route_length is decremented.
+ *
+ * route_run[i] is 1 for a run step, 0 for walk. Queue depth is capped at 9.
+ * Coordinates are world tiles; draw position uses 128 sub-tile units per tile.
+ *
+ * Populated by server packets (walk/run direction, delta XZ jumps) and consumed
+ * by the world cycle movement update. On map rebuild, all route slots are
+ * shifted by the base-tile delta. See src/osrs/game_entity.c and
+ * src/osrs/world_cycle.u.c.
+ */
+struct WorldEntityFacet_Pathing
+{
+    uint8_t route_length;
+    uint8_t route_x[10];
+    uint8_t route_z[10];
+    uint8_t route_run[10];
+};
+
+// Bit-packed tile coords.
+// 9 bits for x, 9 bits for z, 4 bits for level.
+struct WorldEntityFacet_GridPosition
+{
+    int x : 9;
+    int z : 9;
+    int level : 4;
+};
+
+// Sub pixel position.
+struct WorldEntityFacet_DrawPosition
+{
+    uint32_t x;
+    uint32_t z;
+    uint32_t y;
+};
+
+struct WorldEntityFacet_OrientationPYR
+{
+    uint16_t pitch;
+    uint16_t yaw;
+    uint16_t roll;
+};
+
+struct WorldEntityFacet_OrientationY
+{
+    uint16_t yaw;
 };
 
 struct WorldEntity_Terrain
@@ -64,6 +178,7 @@ struct WorldEntity_Player
     int x;
     int z;
     int yaw;
+    struct WorldEntityFacet_IdleAnimations idle_animations;
     struct WorldEntityFacet_Animation animation;
 };
 
@@ -76,6 +191,7 @@ struct WorldEntity_NPC
     int yaw;
     int npc_id;
     int size;
+    struct WorldEntityFacet_IdleAnimations idle_animations;
     struct WorldEntityFacet_Animation animation;
 };
 

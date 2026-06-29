@@ -40,9 +40,9 @@ struct RSCacheDat2A_SkeletalBone
     int parent_id; /* -1 = root */
 
     int pose_count;
-    SkeletalMat4* local_matrices;            /* [pose_count] */
-    SkeletalMat4* model_matrices;            /* [pose_count], lazy-computed */
-    SkeletalMat4* inverted_model_matrices;   /* [pose_count], lazy-computed */
+    SkeletalMat4* local_matrices;          /* [pose_count] */
+    SkeletalMat4* model_matrices;          /* [pose_count], lazy-computed */
+    SkeletalMat4* inverted_model_matrices; /* [pose_count], lazy-computed */
 
     SkeletalVec3* rotations;    /* [pose_count] euler xyz (radians) */
     SkeletalVec3* translations; /* [pose_count] */
@@ -111,8 +111,8 @@ struct RSCacheDat2A_AnimMaya;
 float*
 RSCacheDat2A_SkeletalBaseBakePalette(
     const struct RSCacheDat2A_AnimMaya* maya,
-    struct RSCacheDat2A_SkeletalBase*   base,
-    int*                                frame_count_out,
-    int*                                bone_count_out);
+    struct RSCacheDat2A_SkeletalBase* base,
+    int* frame_count_out,
+    int* bone_count_out);
 
 #endif /* RSCACHE_RSCACHEDAT2A_SKELETALBASE_H */

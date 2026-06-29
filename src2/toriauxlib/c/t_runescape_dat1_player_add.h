@@ -1,5 +1,5 @@
-#ifndef TORIAUXLIBC_T_RUNESCAPE_DAT1_PLAYER_ADD_H
-#define TORIAUXLIBC_T_RUNESCAPE_DAT1_PLAYER_ADD_H
+#ifndef TORIAUXLIBCACHE_T_RUNESCAPE_DAT1_PLAYER_ADD_H
+#define TORIAUXLIBCACHE_T_RUNESCAPE_DAT1_PLAYER_ADD_H
 
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
@@ -7,8 +7,8 @@
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
 #include "toriauxlib/c/dat1io.h"
-#include "toriauxlib/c/toriauxlibc.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toridraw/toridraw_map.h"
 
@@ -21,7 +21,7 @@
 struct Task_Dat1PlayerAdd
 {
     struct pt thread;
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
     int appearance[RUNESCAPE_APPEARANCE_SLOT_COUNT];
     int readyanim;
     int walkanim;
@@ -38,7 +38,7 @@ struct Task_Dat1PlayerAdd
 
 static bool
 task_dat1_player_sequence_missing(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     int readyanim,
     int walkanim,
     int turnanim,
@@ -50,7 +50,7 @@ task_dat1_player_sequence_missing(
     int const anims[] = {
         readyanim, walkanim, turnanim, runanim, walkanim_b, walkanim_r, walkanim_l
     };
-    struct ToriAuxLibCore* core = ToriAuxLibC_Core(c);
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(c);
 
     for( int i = 0; i < (int)(sizeof(anims) / sizeof(anims[0])); i++ )
     {
@@ -63,7 +63,7 @@ task_dat1_player_sequence_missing(
 
 struct Task_Dat1PlayerAdd*
 Task_Dat1PlayerAdd_New(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     const int appearance[RUNESCAPE_APPEARANCE_SLOT_COUNT],
     int readyanim,
     int walkanim,
@@ -102,7 +102,7 @@ Task_Dat1PlayerAdd_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct Dat1BuildCache* dat1_bc = dat1(task->c);
-    struct ToriAuxLibCore* core = ToriAuxLibC_Core(task->c);
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
 
     PT_BEGIN(&task->thread);
 
@@ -174,7 +174,7 @@ Task_Dat1PlayerAdd_Run(
         if( model )
         {
             dat1_buildcache_model_add(dat1_bc, RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID, model);
-            ToriAuxLibC_SubmitModelFromDat1(task->c, RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID);
+            ToriAuxLibCache_SubmitModelFromDat1(task->c, RUNESCAPE_PLAYER_PLACEHOLDER_MODEL_ID);
         }
         LibToriRS_IOQueueClear(ctx->io);
     }
@@ -198,7 +198,7 @@ Task_Dat1PlayerAdd_Run(
         }
 
         dat1_buildcache_sequences_init_from_config_jagfile(dat1_bc);
-        ToriAuxLibC_SubmitAllSequencesFromDat1(task->c);
+        ToriAuxLibCache_SubmitAllSequencesFromDat1(task->c);
         LibToriRS_IOQueueClear(ctx->io);
     }
 

@@ -123,7 +123,7 @@ world_player_spawn(
     int level,
     int scene_x,
     int scene_z,
-    struct WorldEntityFacet_Animation animation);
+    struct WorldEntityFacet_IdleAnimations idle_animations);
 
 void
 world_player_despawn(
@@ -139,7 +139,7 @@ world_npc_spawn(
     int scene_x,
     int scene_z,
     int size,
-    struct WorldEntityFacet_Animation animation);
+    struct WorldEntityFacet_IdleAnimations idle_animations);
 
 void
 world_npc_despawn(

@@ -2,6 +2,7 @@
 #define TORIAUXLIBCORE_TYPES_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 struct ToriDraw_Sprite;
@@ -10,6 +11,24 @@ struct ToriDraw_Font;
 #define TORIAUXLIBCORE_MAP_TERRAIN_X 64
 #define TORIAUXLIBCORE_MAP_TERRAIN_Z 64
 #define TORIAUXLIBCORE_MAP_TERRAIN_LEVELS 4
+
+enum ToriAuxLibCore_Kind
+{
+    TORIAUXLIBCORE_KIND_MODEL,
+    TORIAUXLIBCORE_KIND_ANIMATION,
+    TORIAUXLIBCORE_KIND_TEXTURE,
+    TORIAUXLIBCORE_KIND_MAP_TERRAIN,
+    TORIAUXLIBCORE_KIND_MAP_SCENERY,
+    TORIAUXLIBCORE_KIND_FLOTYPE,
+    TORIAUXLIBCORE_KIND_UNDERLAY,
+    TORIAUXLIBCORE_KIND_LOCATION,
+    TORIAUXLIBCORE_KIND_SEQUENCE,
+    TORIAUXLIBCORE_KIND_SKELETAL,
+    TORIAUXLIBCORE_KIND_SPRITE,
+    TORIAUXLIBCORE_KIND_FONT,
+    TORIAUXLIBCORE_KIND_COMPONENT,
+    TORIAUXLIBCORE_KIND_COUNT,
+};
 
 typedef int16_t gc_faceint_t;
 typedef int16_t gc_vertexint_t;
@@ -305,5 +324,44 @@ ToriAuxLibCore_FontFree(struct ToriAuxLibCore_Font* font);
 
 void
 ToriAuxLibCore_ComponentFree(struct ToriAuxLibCore_Component* component);
+
+size_t
+ToriAuxLibCore_MapTerrainSizeOf(const struct ToriAuxLibCore_MapTerrain* terrain);
+
+size_t
+ToriAuxLibCore_MapLocsSizeOf(const struct ToriAuxLibCore_MapLocs* locs);
+
+size_t
+ToriAuxLibCore_FlotypeSizeOf(const struct ToriAuxLibCore_Flotype* flotype);
+
+size_t
+ToriAuxLibCore_LocationSizeOf(const struct ToriAuxLibCore_Location* loc);
+
+size_t
+ToriAuxLibCore_SequenceSizeOf(const struct ToriAuxLibCore_Sequence* seq);
+
+size_t
+ToriAuxLibCore_ModelSizeOf(const struct ToriAuxLibCore_Model* model);
+
+size_t
+ToriAuxLibCore_AnimationSizeOf(const struct ToriAuxLibCore_Animation* anim);
+
+size_t
+ToriAuxLibCore_SkeletalAnimSizeOf(const struct ToriAuxLibCore_SkeletalAnim* skeletal);
+
+size_t
+ToriAuxLibCore_AnimayaSkinSizeOf(const struct ToriAuxLibCore_AnimayaSkin* skin);
+
+size_t
+ToriAuxLibCore_TextureSizeOf(const struct ToriAuxLibCore_Texture* texture);
+
+size_t
+ToriAuxLibCore_SpriteSizeOf(const struct ToriAuxLibCore_Sprite* sprite);
+
+size_t
+ToriAuxLibCore_FontSizeOf(const struct ToriAuxLibCore_Font* font);
+
+size_t
+ToriAuxLibCore_ComponentSizeOf(const struct ToriAuxLibCore_Component* component);
 
 #endif

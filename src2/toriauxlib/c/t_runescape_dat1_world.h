@@ -1,13 +1,13 @@
-#ifndef TORIAUXLIBC_T_RUNESCAPE_DAT1_WORLD_H
-#define TORIAUXLIBC_T_RUNESCAPE_DAT1_WORLD_H
+#ifndef TORIAUXLIBCACHE_T_RUNESCAPE_DAT1_WORLD_H
+#define TORIAUXLIBCACHE_T_RUNESCAPE_DAT1_WORLD_H
 
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
 #include "toriauxlib/c/dat1io.h"
-#include "toriauxlib/c/toriauxlibc.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -21,7 +21,7 @@
 struct Task_Dat1WorldRebuildCore
 {
     struct pt thread;
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
 
     int chunk_count;
     int chunks_x[TASK_WORLD_MAX_CHUNKS];
@@ -41,7 +41,7 @@ struct Task_Dat1WorldRebuildCore
 static void
 Task_Dat1WorldRebuildCore_Init(
     struct Task_Dat1WorldRebuildCore* core,
-    struct ToriAuxLibC* c)
+    struct ToriAuxLibCache* c)
 {
     PT_INIT(&core->thread);
     core->c = c;
@@ -134,7 +134,7 @@ Task_Dat1WorldRebuildCore_Run(
         if( map_id >= 0 && terrain )
         {
             dat1_buildcache_map_terrain_add(dat1_bc, map_id, terrain);
-            ToriAuxLibC_SubmitMapTerrainFromDat1(core->c, map_id);
+            ToriAuxLibCache_SubmitMapTerrainFromDat1(core->c, map_id);
         }
     }
 
@@ -159,7 +159,7 @@ Task_Dat1WorldRebuildCore_Run(
         if( map_id >= 0 && locs )
         {
             dat1_buildcache_map_scenery_add(dat1_bc, map_id, locs);
-            ToriAuxLibC_SubmitMapSceneryFromDat1(core->c, map_id);
+            ToriAuxLibCache_SubmitMapSceneryFromDat1(core->c, map_id);
         }
     }
 
@@ -207,7 +207,7 @@ Task_Dat1WorldRebuildCore_Run(
             if( anim_id >= 0 && abf )
             {
                 dat1_buildcache_animbaseframes_add(dat1_bc, anim_id, abf);
-                ToriAuxLibC_SubmitAnimationFromDat1(core->c, anim_id);
+                ToriAuxLibCache_SubmitAnimationFromDat1(core->c, anim_id);
             }
         }
         LibToriRS_IOQueueClear(ctx->io);
@@ -216,9 +216,9 @@ Task_Dat1WorldRebuildCore_Run(
     dat1_buildcache_sequences_init_from_config_jagfile(dat1_bc);
     dat1_buildcache_floortypes_init_from_config_jagfile(dat1_bc);
     dat1_buildcache_init_scenery_configs_from_config_jagfile(dat1_bc);
-    ToriAuxLibC_SubmitAllSequencesFromDat1(core->c);
-    ToriAuxLibC_SubmitAllFlotypesFromDat1(core->c);
-    ToriAuxLibC_SubmitAllLocationsFromDat1(core->c);
+    ToriAuxLibCache_SubmitAllSequencesFromDat1(core->c);
+    ToriAuxLibCache_SubmitAllFlotypesFromDat1(core->c);
+    ToriAuxLibCache_SubmitAllLocationsFromDat1(core->c);
 
     core->model_count = dat1_buildcache_get_all_unique_scenery_model_ids(dat1_bc, &core->model_ids);
     for( core->model_index = 0; core->model_index < core->model_count; )
@@ -250,7 +250,7 @@ Task_Dat1WorldRebuildCore_Run(
             {
                 int model_id = LibToriRS_IOBatchUser(&core->io_batch, i);
                 dat1_buildcache_model_add(dat1_bc, model_id, model);
-                ToriAuxLibC_SubmitModelFromDat1(core->c, model_id);
+                ToriAuxLibCache_SubmitModelFromDat1(core->c, model_id);
             }
         }
         LibToriRS_IOQueueClear(ctx->io);
@@ -268,7 +268,7 @@ struct Task_Dat1WorldRebuildNormalCenterzone
 
 struct Task_Dat1WorldRebuildNormalCenterzone*
 Task_Dat1WorldRebuildNormalCenterzone_New(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     int zonex,
     int zonez)
 {
@@ -306,7 +306,7 @@ struct Task_Dat1WorldRebuildChunkList
 
 struct Task_Dat1WorldRebuildChunkList*
 Task_Dat1WorldRebuildChunkList_New(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     const int* chunks_x,
     const int* chunks_z,
     int count)

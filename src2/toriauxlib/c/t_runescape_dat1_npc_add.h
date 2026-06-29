@@ -1,5 +1,5 @@
-#ifndef TORIAUXLIBC_T_RUNESCAPE_DAT1_NPC_ADD_H
-#define TORIAUXLIBC_T_RUNESCAPE_DAT1_NPC_ADD_H
+#ifndef TORIAUXLIBCACHE_T_RUNESCAPE_DAT1_NPC_ADD_H
+#define TORIAUXLIBCACHE_T_RUNESCAPE_DAT1_NPC_ADD_H
 
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
@@ -7,8 +7,8 @@
 #include "buildcache/dat1_buildcache.h"
 #include "osrs/rscache/dat1a/dat1a_config_npc.h"
 #include "toriauxlib/c/dat1io.h"
-#include "toriauxlib/c/toriauxlibc.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toridraw/toridraw_map.h"
 
@@ -21,7 +21,7 @@
 struct Task_Dat1NpcAdd
 {
     struct pt thread;
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
     int npc_id;
     struct LibToriRS_IOBatch io_batch;
     int model_ids[256];
@@ -32,11 +32,11 @@ struct Task_Dat1NpcAdd
 
 static bool
 task_dat1_npc_sequence_missing(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     const int* anims,
     int count)
 {
-    struct ToriAuxLibCore* core = ToriAuxLibC_Core(c);
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(c);
 
     for( int i = 0; i < count; i++ )
     {
@@ -49,7 +49,7 @@ task_dat1_npc_sequence_missing(
 
 struct Task_Dat1NpcAdd*
 Task_Dat1NpcAdd_New(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     int npc_id)
 {
     struct Task_Dat1NpcAdd* task = calloc(1, sizeof(struct Task_Dat1NpcAdd));
@@ -73,7 +73,7 @@ Task_Dat1NpcAdd_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct Dat1BuildCache* dat1_bc = dat1(task->c);
-    struct ToriAuxLibCore* core = ToriAuxLibC_Core(task->c);
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
     struct RSCacheDat1A_ConfigNpc* npc;
 
     PT_BEGIN(&task->thread);
@@ -150,7 +150,7 @@ Task_Dat1NpcAdd_Run(
     }
 
     for( int i = 0; i < task->model_count; i++ )
-        ToriAuxLibC_SubmitModelFromDat1(task->c, task->model_ids[i]);
+        ToriAuxLibCache_SubmitModelFromDat1(task->c, task->model_ids[i]);
 
     if( task_dat1_npc_sequence_missing(task->c, task->npc_anims, 7) )
     {
@@ -161,7 +161,7 @@ Task_Dat1NpcAdd_Run(
             PT_EXIT(&task->thread);
 
         dat1_buildcache_sequences_init_from_config_jagfile(dat1_bc);
-        ToriAuxLibC_SubmitAllSequencesFromDat1(task->c);
+        ToriAuxLibCache_SubmitAllSequencesFromDat1(task->c);
         LibToriRS_IOQueueClear(ctx->io);
     }
 

@@ -139,10 +139,10 @@ struct RSCacheDat2A_Model
      * decoded with hasAnimayaGroups == 1.  animaya_group_counts[i] is the
      * number of bone influences on vertex i; animaya_groups[i][j] and
      * animaya_scales[i][j] give bone index and weight for influence j. */
-    int      animaya_vertex_count;
-    uint8_t* animaya_group_counts; /* [animaya_vertex_count] */
-    uint8_t** animaya_groups;      /* [animaya_vertex_count][group_count] */
-    uint8_t** animaya_scales;      /* [animaya_vertex_count][group_count] */
+    int animaya_vertex_count;
+    uint8_t* animaya_group_counts;
+    uint8_t** animaya_groups;
+    uint8_t** animaya_scales;
 };
 
 struct RSCacheDat2A_ModelBones

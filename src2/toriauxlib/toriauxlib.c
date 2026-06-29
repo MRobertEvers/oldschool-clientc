@@ -5,14 +5,14 @@
 struct ToriAuxLib
 {
     struct ToriAuxLibCore* core;
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
     struct ToriAuxLibTD* td;
     struct ToriAuxLibVM* vm;
 };
 
 struct ToriAuxLib*
 ToriAuxLib_New(
-    enum ToriAuxLibCMode mode,
+    enum ToriAuxLibCacheMode mode,
     struct ToriDraw_Scene* scene)
 {
     struct ToriAuxLib* tal = calloc(1, sizeof(struct ToriAuxLib));
@@ -23,7 +23,7 @@ ToriAuxLib_New(
     if( !tal->core )
         goto fail;
 
-    tal->c = ToriAuxLibC_New(mode, tal->core);
+    tal->c = ToriAuxLibCache_New(mode, tal->core);
     if( !tal->c )
         goto fail;
 
@@ -35,7 +35,7 @@ ToriAuxLib_New(
     if( !tal->vm )
         goto fail;
 
-    ToriAuxLibC_SetVarPVarBit(tal->c, ToriAuxLibVM_VarPVarBit(tal->vm));
+    ToriAuxLibCache_SetVarPVarBit(tal->c, ToriAuxLibVM_VarPVarBit(tal->vm));
 
     return tal;
 
@@ -54,7 +54,7 @@ ToriAuxLib_Free(struct ToriAuxLib* tal)
     if( tal->vm )
         ToriAuxLibVM_Free(tal->vm);
     if( tal->c )
-        ToriAuxLibC_Free(tal->c);
+        ToriAuxLibCache_Free(tal->c);
     if( tal->core )
         ToriAuxLibCore_Free(tal->core);
     free(tal);
@@ -66,7 +66,7 @@ ToriAuxLib_Core(struct ToriAuxLib* tal)
     return tal ? tal->core : NULL;
 }
 
-struct ToriAuxLibC*
+struct ToriAuxLibCache*
 ToriAuxLib_C(struct ToriAuxLib* tal)
 {
     return tal ? tal->c : NULL;

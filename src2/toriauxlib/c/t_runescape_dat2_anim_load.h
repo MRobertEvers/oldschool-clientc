@@ -1,11 +1,11 @@
-#ifndef TORIAUXLIBC_T_RUNESCAPE_DAT2_ANIM_LOAD_H
-#define TORIAUXLIBC_T_RUNESCAPE_DAT2_ANIM_LOAD_H
+#ifndef TORIAUXLIBCACHE_T_RUNESCAPE_DAT2_ANIM_LOAD_H
+#define TORIAUXLIBCACHE_T_RUNESCAPE_DAT2_ANIM_LOAD_H
 
 #include "buildcache/dat2_buildcache.h"
 #include "osrs/rscache/dat2a/dat2a_animaya.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -98,7 +98,7 @@ dat2_anim_cache_sequence_skeletal(
 
 static void
 dat2_anim_submit_archive_set(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     struct Dat2BuildCache* dat2_bc,
     struct RSCacheDat2Disk* cache_disk,
     const struct Dat2AnimArchiveSet* set)
@@ -111,13 +111,13 @@ dat2_anim_submit_archive_set(
         int aid = set->ids[i];
         if( !dat2_buildcache_frames_has(dat2_bc, aid) )
             dat2_buildcache_frames_init_from_archive(dat2_bc, cache_disk, aid);
-        ToriAuxLibC_SubmitAnimationFromDat2(c, aid);
+        ToriAuxLibCache_SubmitAnimationFromDat2(c, aid);
     }
 }
 
 struct Dat2AnimSubmitSkeletalCtx
 {
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
 };
 
 static void
@@ -128,12 +128,12 @@ dat2_anim_submit_skeletal_cb(
 {
     (void)maya;
     struct Dat2AnimSubmitSkeletalCtx* ctx = user_data;
-    ToriAuxLibC_SubmitSkeletalFromDat2(ctx->c, anim_maya_id);
+    ToriAuxLibCache_SubmitSkeletalFromDat2(ctx->c, anim_maya_id);
 }
 
 static void
 dat2_anim_submit_all_skeletal(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     struct Dat2BuildCache* dat2_bc)
 {
     struct Dat2AnimSubmitSkeletalCtx ctx = { .c = c };
@@ -142,7 +142,7 @@ dat2_anim_submit_all_skeletal(
 
 static void
 dat2_anim_submit_sequence_skeletal(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     struct Dat2BuildCache* dat2_bc,
     const struct RSCacheDat2A_ConfigSequence* seq)
 {
@@ -151,7 +151,7 @@ dat2_anim_submit_sequence_skeletal(
 
     int maya_id = seq->anim_maya_id;
     if( maya_id >= 0 && dat2_buildcache_skeletal_has(dat2_bc, maya_id) )
-        ToriAuxLibC_SubmitSkeletalFromDat2(c, maya_id);
+        ToriAuxLibCache_SubmitSkeletalFromDat2(c, maya_id);
 }
 
 #endif

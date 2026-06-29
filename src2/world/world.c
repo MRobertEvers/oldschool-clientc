@@ -274,7 +274,7 @@ world_player_spawn(
     int level,
     int scene_x,
     int scene_z,
-    struct WorldEntityFacet_Animation animation)
+    struct WorldEntityFacet_IdleAnimations idle_animations)
 {
     struct World_EntityPool* pool;
     struct WorldEntity_Player* player;
@@ -293,7 +293,8 @@ world_player_spawn(
         .x = scene_x * 128 + 64,
         .z = scene_z * 128 + 64,
         .yaw = 0,
-        .animation = animation,
+        .idle_animations = idle_animations,
+        .animation = { 0 },
     };
     return idx;
 }
@@ -336,7 +337,7 @@ world_npc_spawn(
     int scene_x,
     int scene_z,
     int size,
-    struct WorldEntityFacet_Animation animation)
+    struct WorldEntityFacet_IdleAnimations idle_animations)
 {
     struct World_EntityPool* pool;
     struct WorldEntity_NPC* npc;
@@ -357,7 +358,8 @@ world_npc_spawn(
         .yaw = 0,
         .npc_id = npc_id,
         .size = size,
-        .animation = animation,
+        .idle_animations = idle_animations,
+        .animation = { 0 },
     };
     return idx;
 }

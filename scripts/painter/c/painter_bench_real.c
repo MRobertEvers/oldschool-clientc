@@ -17,7 +17,7 @@
 #include "../../src2/platforms/platform_x/cachelib_platform.h"
 #include "../../src2/platforms/platform_x_io_reactor.h"
 #include "../../src2/scripting/libtorirs_scriptapi.h"
-#include "../../src2/toriauxlib/c/toriauxlibc.h"
+#include "../../src2/toriauxlib/c/toriauxlibcache.h"
 #include "../../src2/toriauxlib/toriauxlib.h"
 #include "../../src2/world/world.h"
 #endif /* FUZZ_WITH_CACHE */
@@ -193,7 +193,7 @@ painter_fuzz_cache_scene(
     fflush(stdout);
 
     struct LibToriRS_Instance* inst =
-        LibToriRS_InstanceNewWithCacheMode((int)TORIAUXLIBC_MODE_DAT2);
+        LibToriRS_InstanceNewWithCacheMode((int)TORIAUXLIBCACHE_MODE_DAT2);
     if( !inst )
     {
         fprintf(stderr, "cache: LibToriRS_InstanceNewWithCacheMode failed\n");
@@ -209,7 +209,7 @@ painter_fuzz_cache_scene(
 
     struct RSCacheDat2Disk* disk = cachelib_dat2_disk(cache);
     if( disk )
-        ToriAuxLibC_SetDat2Disk(ToriAuxLib_C(LibToriRS_GetToriAuxLib(inst)), disk);
+        ToriAuxLibCache_SetDat2Disk(ToriAuxLib_C(LibToriRS_GetToriAuxLib(inst)), disk);
 
     struct LibToriPlatformX_IOReactor* rx = LibToriPlatformX_IOReactorNew(cache);
     if( !rx )

@@ -1,7 +1,6 @@
-#include "toriauxlib/c/toriauxlibc.h"
-#include "toriauxlib/core/toriauxlibcore_types.h"
-
 #include "osrs/rscache/dat2a/dat2a_model.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/core/toriauxlibcore_types.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -88,12 +87,13 @@ gc_bones_new(
     const uint8_t* bone_map,
     int bone_count)
 {
-    struct ToriAuxLibCore_Bones* bones = (struct ToriAuxLibCore_Bones*)malloc(sizeof(struct ToriAuxLibCore_Bones));
-    if( !bones )
-        return NULL;
+    struct ToriAuxLibCore_Bones* bones =
+        (struct ToriAuxLibCore_Bones*)malloc(sizeof(struct ToriAuxLibCore_Bones));
+    assert(bones);
     memset(bones, 0, sizeof(struct ToriAuxLibCore_Bones));
 
-    struct RSCacheDat2A_ModelBones* model_bones = RSCacheDat2A_ModelBonesNewDecode(bone_map, bone_count);
+    struct RSCacheDat2A_ModelBones* model_bones =
+        RSCacheDat2A_ModelBonesNewDecode(bone_map, bone_count);
     if( !model_bones )
     {
         free(bones);
@@ -117,7 +117,8 @@ gc_bones_new(
 
     for( int i = 0; i < bones->bones_count; i++ )
     {
-        bones->bones[i] = (gc_boneint_t*)malloc(sizeof(gc_boneint_t) * (size_t)model_bones->bones_sizes[i]);
+        bones->bones[i] =
+            (gc_boneint_t*)malloc(sizeof(gc_boneint_t) * (size_t)model_bones->bones_sizes[i]);
         if( !bones->bones[i] )
         {
             RSCacheDat2A_ModelBonesFree(model_bones);
@@ -296,18 +297,18 @@ gc_model_move_from_cache_model(
         gc->face_bones = gc_bones_new(model->face_bone_map, model->face_count);
 
     /* Copy animaya skin if present */
-    if( model->animaya_vertex_count > 0 && model->animaya_group_counts &&
-        model->animaya_groups && model->animaya_scales )
+    if( model->animaya_vertex_count > 0 && model->animaya_group_counts && model->animaya_groups &&
+        model->animaya_scales )
     {
         int vc = model->animaya_vertex_count;
         struct ToriAuxLibCore_AnimayaSkin* skin =
             calloc(1, sizeof(struct ToriAuxLibCore_AnimayaSkin));
         if( skin )
         {
-            skin->vertex_count  = vc;
-            skin->group_counts  = malloc((size_t)vc);
-            skin->groups        = calloc((size_t)vc, sizeof(uint8_t*));
-            skin->scales        = calloc((size_t)vc, sizeof(uint8_t*));
+            skin->vertex_count = vc;
+            skin->group_counts = malloc((size_t)vc);
+            skin->groups = calloc((size_t)vc, sizeof(uint8_t*));
+            skin->scales = calloc((size_t)vc, sizeof(uint8_t*));
             if( skin->group_counts && skin->groups && skin->scales )
             {
                 memcpy(skin->group_counts, model->animaya_group_counts, (size_t)vc);
@@ -334,8 +335,8 @@ gc_model_move_from_cache_model(
 
     if( gc->vertex_count > 0 && gc->vertices_x && gc->vertices_y && gc->vertices_z )
     {
-        gc->bounds_cylinder =
-            (struct ToriAuxLibCore_BoundsCylinder*)malloc(sizeof(struct ToriAuxLibCore_BoundsCylinder));
+        gc->bounds_cylinder = (struct ToriAuxLibCore_BoundsCylinder*)malloc(
+            sizeof(struct ToriAuxLibCore_BoundsCylinder));
         if( gc->bounds_cylinder )
             gc_calculate_bounds_cylinder(
                 gc->bounds_cylinder,
@@ -349,15 +350,14 @@ gc_model_move_from_cache_model(
 }
 
 struct ToriAuxLibCore_Model*
-ToriAuxLibC_ModelNewFromCacheModel(const void* cache_model_ptr)
+ToriAuxLibCache_ModelNewFromCacheModel(const void* cache_model_ptr)
 {
     struct RSCacheDat2A_Model* model = (struct RSCacheDat2A_Model*)cache_model_ptr;
-    if( !model )
-        return NULL;
+    assert(model);
 
-    struct ToriAuxLibCore_Model* gc = (struct ToriAuxLibCore_Model*)calloc(1, sizeof(struct ToriAuxLibCore_Model));
-    if( !gc )
-        return NULL;
+    struct ToriAuxLibCore_Model* gc =
+        (struct ToriAuxLibCore_Model*)calloc(1, sizeof(struct ToriAuxLibCore_Model));
+    assert(gc);
 
     gc_model_move_from_cache_model(gc, model);
     return gc;

@@ -23,8 +23,8 @@
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/texture.h"
 #include "toriauxlib/c/revconfig_ui_load.h"
-#include "toriauxlib/c/toriauxlibc.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/toriauxlib.h"
 #include "toridraw/toridraw_animation.h"
@@ -42,7 +42,7 @@
 static void
 world_rebuild_normal_centerzone_task_destroy(void* state)
 {
-    Task_ToriAuxLibC_WorldRebuildNormalCenterzone_Free(state);
+    Task_ToriAuxLibCache_WorldRebuildNormalCenterzone_Free(state);
 }
 
 static void
@@ -178,17 +178,17 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
         {
             printf("cache_texture: %p\n", cache_texture);
         }
-        struct ToriAuxLibCore_Texture* gc_texture = ToriAuxLibC_TextureNewFromCacheDatTexture(
+        struct ToriAuxLibCore_Texture* gc_texture = ToriAuxLibCache_TextureNewFromCacheDatTexture(
             cache_texture, animation_direction, animation_speed);
         RSCacheDat1A_ConfigTextureFree(cache_texture);
         if( !gc_texture )
         {
-            printf("ToriAuxLibC_TextureNewFromCacheDatTexture failed for texture %d\n", i);
+            printf("ToriAuxLibCache_TextureNewFromCacheDatTexture failed for texture %d\n", i);
             assert(false);
             continue;
         }
 
-        ToriAuxLibC_SubmitTexture(ToriAuxLib_C(instance->toriauxlib), i, gc_texture);
+        ToriAuxLibCache_SubmitTexture(ToriAuxLib_C(instance->toriauxlib), i, gc_texture);
     }
 
     RSCacheShared_FileListDatFree(filelist);
@@ -202,11 +202,11 @@ LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
     if( !instance )
         return false;
 
-    struct ToriAuxLibC* c = ToriAuxLib_C(instance->toriauxlib);
-    if( !c || ToriAuxLibC_Mode(c) != TORIAUXLIBC_MODE_DAT2 )
+    struct ToriAuxLibCache* c = ToriAuxLib_C(instance->toriauxlib);
+    if( !c || ToriAuxLibCache_Mode(c) != TORIAUXLIBCACHE_MODE_DAT2 )
         return false;
 
-    struct RSCacheDat2Disk* cache = ToriAuxLibC_Dat2Disk(c);
+    struct RSCacheDat2Disk* cache = ToriAuxLibCache_Dat2Disk(c);
     if( !cache )
         return false;
 
@@ -279,7 +279,7 @@ LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
             }
         }
 
-        struct ToriAuxLibCore_Texture* gc_texture = ToriAuxLibC_TextureNewFromDat2Definition(
+        struct ToriAuxLibCore_Texture* gc_texture = ToriAuxLibCache_TextureNewFromDat2Definition(
             def, packs, def->animation_direction, def->animation_speed);
 
         if( packs )
@@ -300,7 +300,7 @@ LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
             continue;
         }
 
-        ToriAuxLibC_SubmitTexture(c, texture_id, gc_texture);
+        ToriAuxLibCache_SubmitTexture(c, texture_id, gc_texture);
         loaded_count++;
     }
 
@@ -341,7 +341,7 @@ LibToriRS_ScriptAPI_GetCacheMode(struct LibToriRS_Instance* instance)
     if( !instance || !instance->toriauxlib )
         return "dat1";
 
-    if( ToriAuxLibC_Mode(ToriAuxLib_C(instance->toriauxlib)) == TORIAUXLIBC_MODE_DAT2 )
+    if( ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) == TORIAUXLIBCACHE_MODE_DAT2 )
         return "dat2";
 
     return "dat1";
@@ -575,16 +575,16 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
     instance->runescape_handle.u.runescape = instance->runescape;
     instance->active_game_kind = GAME_HANDLE_KIND_RUNESCAPE;
 
-    struct Task_ToriAuxLibC_WorldRebuildNormalCenterzone* task =
-        Task_ToriAuxLibC_WorldRebuildNormalCenterzone_New(
+    struct Task_ToriAuxLibCache_WorldRebuildNormalCenterzone* task =
+        Task_ToriAuxLibCache_WorldRebuildNormalCenterzone_New(
             ToriAuxLib_C(instance->toriauxlib), RUNESCAPE_ZONE_CENTER_X, RUNESCAPE_ZONE_CENTER_Z);
     LibToriRS_TasksAdd(
         instance,
         task,
-        Task_ToriAuxLibC_WorldRebuildNormalCenterzone_Run,
+        Task_ToriAuxLibCache_WorldRebuildNormalCenterzone_Run,
         world_rebuild_normal_centerzone_task_destroy);
 
-    if( ToriAuxLibC_Mode(ToriAuxLib_C(instance->toriauxlib)) == TORIAUXLIBC_MODE_DAT1 )
+    if( ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) == TORIAUXLIBCACHE_MODE_DAT1 )
     {
         struct Task_RevConfigUILoad* ui_task = Task_RevConfigUILoad_New(
             ToriAuxLib_C(instance->toriauxlib), instance->scene, instance->runescape->ui_tree);
@@ -994,23 +994,49 @@ LibToriRS_ScriptAPI_Dat1_AnimationsCleanup(struct LibToriRS_Instance* instance)
 void
 LibToriRS_ScriptAPI_GameCache_SequencesClearAll(struct LibToriRS_Instance* instance)
 {
-    printf("LibToriRS_ScriptAPI_GameCache_SequencesClearAll\n");
+    if( !instance || !instance->toriauxlib )
+        return;
+    ToriAuxLibCore_SequencesClearAll(ToriAuxLib_Core(instance->toriauxlib));
 }
 
 void
 LibToriRS_ScriptAPI_GameCache_FloortypesClearAll(struct LibToriRS_Instance* instance)
 {
-    printf("LibToriRS_ScriptAPI_GameCache_FloortypesClearAll\n");
+    if( !instance || !instance->toriauxlib )
+        return;
+    ToriAuxLibCore_FlotypesClearAll(ToriAuxLib_Core(instance->toriauxlib));
 }
 
 void
 LibToriRS_ScriptAPI_GameCache_SceneryConfigsClearAll(struct LibToriRS_Instance* instance)
 {
-    printf("LibToriRS_ScriptAPI_GameCache_SceneryConfigsClearAll\n");
+    if( !instance || !instance->toriauxlib )
+        return;
+    ToriAuxLibCore_LocationsClearAll(ToriAuxLib_Core(instance->toriauxlib));
 }
 
 void
 LibToriRS_ScriptAPI_GameCache_AnimationsClearAll(struct LibToriRS_Instance* instance)
 {
-    printf("LibToriRS_ScriptAPI_GameCache_AnimationsClearAll\n");
+    if( !instance || !instance->toriauxlib )
+        return;
+    ToriAuxLibCore_AnimationsClearAll(ToriAuxLib_Core(instance->toriauxlib));
+}
+
+void
+LibToriRS_ScriptAPI_GameCache_MemReport(struct LibToriRS_Instance* instance)
+{
+    if( !instance || !instance->toriauxlib )
+        return;
+
+    struct ToriAuxLibCache_MemReport report;
+    ToriAuxLibCache_MemReport(ToriAuxLib_C(instance->toriauxlib), &report);
+    printf(
+        "GameCache_MemReport: l1=%zu l2=%zu total=%zu (l2_map=%zu l2_models=%zu l2_textures=%zu)\n",
+        report.l1_bytes,
+        report.l2_bytes,
+        report.total_bytes,
+        report.l2_core.map_buffer_bytes,
+        report.l2_core.asset_bytes[TORIAUXLIBCORE_KIND_MODEL],
+        report.l2_core.asset_bytes[TORIAUXLIBCORE_KIND_TEXTURE]);
 }

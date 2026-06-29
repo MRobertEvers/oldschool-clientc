@@ -207,4 +207,7 @@ LibToriRS_ScriptAPI_GameCache_SceneryConfigsClearAll(struct LibToriRS_Instance* 
 void
 LibToriRS_ScriptAPI_GameCache_AnimationsClearAll(struct LibToriRS_Instance* instance);
 
+void
+LibToriRS_ScriptAPI_GameCache_MemReport(struct LibToriRS_Instance* instance);
+
 #endif

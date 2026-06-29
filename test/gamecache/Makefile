@@ -15,6 +15,11 @@ CFLAGS = -std=c11 -Wall -Wextra -g \
 
 LDFLAGS = -lm -Wl,-dead_strip
 
+ifeq ($(ENABLE_ASAN),1)
+CFLAGS += -fsanitize=address -fno-omit-frame-pointer
+LDFLAGS += -fsanitize=address
+endif
+
 SRCS = main.c \
 	$(TORIAUXLIB_DIR)/core/toriauxlibcore.c \
 	$(TORIAUXLIB_DIR)/core/toriauxlibcore_types.c \

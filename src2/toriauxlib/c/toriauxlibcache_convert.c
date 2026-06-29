@@ -1,4 +1,4 @@
-#include "toriauxlib/c/toriauxlibc.h"
+#include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
 #include "buildcache/dat2_buildcache.h"
@@ -23,7 +23,7 @@
 #include <string.h>
 
 static struct ToriAuxLibCore_Texture*
-toriauxlibc_texture_new_from_toridraw(const struct ToriDraw_Texture* src)
+toriauxlibcache_texture_new_from_toridraw(const struct ToriDraw_Texture* src)
 {
     if( !src || !src->texels || src->width <= 0 || src->height <= 0 )
         return NULL;
@@ -52,7 +52,7 @@ toriauxlibc_texture_new_from_toridraw(const struct ToriDraw_Texture* src)
 }
 
 static struct ToriAuxLibCore_AnimBase*
-toriauxlibc_animbase_move_from_cache(struct RSCacheDat1A_AnimBase* cache_base)
+toriauxlibcache_animbase_move_from_cache(struct RSCacheDat1A_AnimBase* cache_base)
 {
     if( !cache_base )
         return NULL;
@@ -77,7 +77,7 @@ toriauxlibc_animbase_move_from_cache(struct RSCacheDat1A_AnimBase* cache_base)
 }
 
 struct ToriAuxLibCore_Animation*
-ToriAuxLibC_AnimationNewFromCacheDatAnimbaseframes(const void* abf_ptr)
+ToriAuxLibCache_AnimationNewFromCacheDatAnimbaseframes(const void* abf_ptr)
 {
     struct RSCacheDat1A_AnimBaseFrames* abf = (struct RSCacheDat1A_AnimBaseFrames*)abf_ptr;
     if( !abf )
@@ -88,7 +88,7 @@ ToriAuxLibC_AnimationNewFromCacheDatAnimbaseframes(const void* abf_ptr)
         return NULL;
 
     memset(anim, 0, sizeof(struct ToriAuxLibCore_Animation));
-    anim->base = toriauxlibc_animbase_move_from_cache(abf->base);
+    anim->base = toriauxlibcache_animbase_move_from_cache(abf->base);
     abf->base = NULL;
 
     anim->frame_count = abf->frame_count;
@@ -133,7 +133,7 @@ ToriAuxLibC_AnimationNewFromCacheDatAnimbaseframes(const void* abf_ptr)
 }
 
 struct ToriAuxLibCore_Texture*
-ToriAuxLibC_TextureNewFromCacheDatTexture(
+ToriAuxLibCache_TextureNewFromCacheDatTexture(
     const void* cache_texture_ptr,
     int animation_direction,
     int animation_speed)
@@ -147,13 +147,13 @@ ToriAuxLibC_TextureNewFromCacheDatTexture(
     if( !td_texture )
         return NULL;
 
-    struct ToriAuxLibCore_Texture* texture = toriauxlibc_texture_new_from_toridraw(td_texture);
+    struct ToriAuxLibCore_Texture* texture = toriauxlibcache_texture_new_from_toridraw(td_texture);
     ToriDraw_TextureFree(td_texture);
     return texture;
 }
 
 struct ToriAuxLibCore_Texture*
-ToriAuxLibC_TextureNewFromDat2Definition(
+ToriAuxLibCache_TextureNewFromDat2Definition(
     struct RSCacheDat2A_Texture* def,
     struct RSCacheDat2A_SpritePack** packs,
     int animation_direction,
@@ -167,7 +167,7 @@ ToriAuxLibC_TextureNewFromDat2Definition(
     if( !td_texture )
         return NULL;
 
-    struct ToriAuxLibCore_Texture* texture = toriauxlibc_texture_new_from_toridraw(td_texture);
+    struct ToriAuxLibCore_Texture* texture = toriauxlibcache_texture_new_from_toridraw(td_texture);
     if( !texture )
     {
         ToriDraw_TextureFree(td_texture);
@@ -199,7 +199,7 @@ ToriAuxLibC_TextureNewFromDat2Definition(
 }
 
 struct ToriAuxLibCore_MapTerrain*
-ToriAuxLibC_MapTerrainNewFromCacheMapTerrain(const void* cache_terrain_ptr)
+ToriAuxLibCache_MapTerrainNewFromCacheMapTerrain(const void* cache_terrain_ptr)
 {
     const struct RSCacheDat2A_MapTerrain* src = cache_terrain_ptr;
     if( !src )
@@ -228,7 +228,7 @@ ToriAuxLibC_MapTerrainNewFromCacheMapTerrain(const void* cache_terrain_ptr)
 }
 
 struct ToriAuxLibCore_MapLocs*
-ToriAuxLibC_MapLocsNewFromCacheMapLocs(const void* cache_locs_ptr)
+ToriAuxLibCache_MapLocsNewFromCacheMapLocs(const void* cache_locs_ptr)
 {
     const struct RSCacheDat2A_MapLocs* src = cache_locs_ptr;
     if( !src )
@@ -265,7 +265,7 @@ ToriAuxLibC_MapLocsNewFromCacheMapLocs(const void* cache_locs_ptr)
 }
 
 struct ToriAuxLibCore_Flotype*
-ToriAuxLibC_FlotypeNewFromCacheConfigOverlay(
+ToriAuxLibCache_FlotypeNewFromCacheConfigOverlay(
     const void* cache_overlay_ptr,
     int id)
 {
@@ -286,7 +286,7 @@ ToriAuxLibC_FlotypeNewFromCacheConfigOverlay(
 }
 
 struct ToriAuxLibCore_Location*
-ToriAuxLibC_LocationNewFromCacheConfigLocation(const void* cache_loc_ptr)
+ToriAuxLibCache_LocationNewFromCacheConfigLocation(const void* cache_loc_ptr)
 {
     const struct RSCacheDat2A_ConfigLocation* src = cache_loc_ptr;
     if( !src )
@@ -396,7 +396,7 @@ fail:
 }
 
 struct ToriAuxLibCore_Sequence*
-ToriAuxLibC_SequenceNewFromCacheDatSequence(
+ToriAuxLibCache_SequenceNewFromCacheDatSequence(
     const void* cache_seq_ptr,
     int id)
 {
@@ -452,7 +452,7 @@ fail:
 }
 
 struct ToriAuxLibCore_Flotype*
-ToriAuxLibC_UnderlayNewFromCacheConfigUnderlay(
+ToriAuxLibCache_UnderlayNewFromCacheConfigUnderlay(
     const void* cache_underlay_ptr,
     int id)
 {
@@ -473,7 +473,7 @@ ToriAuxLibC_UnderlayNewFromCacheConfigUnderlay(
 }
 
 struct ToriAuxLibCore_Sequence*
-ToriAuxLibC_SequenceNewFromCacheDat2Sequence(
+ToriAuxLibCache_SequenceNewFromCacheDat2Sequence(
     const void* cache_seq_ptr,
     int id)
 {
@@ -524,7 +524,7 @@ fail:
 }
 
 static int
-toriauxlibc_component_script_length_from_opcode0(int const* script)
+toriauxlibcache_component_script_length_from_opcode0(int const* script)
 {
     if( !script )
         return 0;
@@ -548,7 +548,7 @@ toriauxlibc_component_script_length_from_opcode0(int const* script)
 }
 
 struct ToriAuxLibCore_Component*
-ToriAuxLibC_ComponentNewFromCacheComponent(const void* cache_component_ptr)
+ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
 {
     const struct RSCacheDat1A_ConfigComponent* src = cache_component_ptr;
     if( !src )
@@ -581,7 +581,7 @@ ToriAuxLibC_ComponentNewFromCacheComponent(const void* cache_component_ptr)
 
             int len = (src->scripts_lengths && src->scripts_lengths[i] > 0)
                           ? src->scripts_lengths[i]
-                          : toriauxlibc_component_script_length_from_opcode0(src->scripts[i]);
+                          : toriauxlibcache_component_script_length_from_opcode0(src->scripts[i]);
             if( len <= 0 )
                 continue;
 
@@ -620,7 +620,7 @@ fail:
 }
 
 struct ToriAuxLibCore_Animation*
-ToriAuxLibC_AnimationNewFromDat2FramesArchive(
+ToriAuxLibCache_AnimationNewFromDat2FramesArchive(
     const struct Dat2BuildCache_FramesArchive* fa,
     int archive_id)
 {
@@ -710,7 +710,7 @@ fail:
 }
 
 struct ToriAuxLibCore_SkeletalAnim*
-ToriAuxLibC_SkeletalAnimNewFromBakedPalette(
+ToriAuxLibCache_SkeletalAnimNewFromBakedPalette(
     int    anim_id,
     float* palette,
     int    frame_count,

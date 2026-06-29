@@ -14,8 +14,8 @@
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "revconfig_ui_build.h"
 #include "toriauxlib/c/dat1io.h"
-#include "toriauxlib/c/toriauxlibc.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toridraw/toridraw_scene.h"
 
@@ -46,7 +46,7 @@ struct RevConfigUIWorkItem
 struct Task_RevConfigUILoad
 {
     struct pt thread;
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
     struct ToriDraw_Scene* scene;
 
     struct RevConfigBuffer* cache_fields;
@@ -64,7 +64,7 @@ struct Task_RevConfigUILoad
 
 struct Task_RevConfigUILoad*
 Task_RevConfigUILoad_New(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     struct ToriDraw_Scene* scene,
     struct UITree* tree)
 {
@@ -163,7 +163,7 @@ revconfig_ui_ensure_sprite_loaded(
     if( !ref )
         return false;
 
-    struct ToriAuxLibCore* core = ToriAuxLibC_Core(task->c);
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
     struct Dat1BuildCache* bc = dat1(task->c);
     if( ToriAuxLibCore_SpriteHas(core, ref->element_id) )
         return true;
@@ -187,7 +187,7 @@ revconfig_ui_ensure_sprite_loaded(
     strncpy(gc_sprite->name, ref->name, sizeof(gc_sprite->name) - 1);
     gc_sprite->sprites = sprites;
     gc_sprite->count = count;
-    ToriAuxLibC_SubmitSpriteFromDat1(task->c, ref->element_id, gc_sprite);
+    ToriAuxLibCache_SubmitSpriteFromDat1(task->c, ref->element_id, gc_sprite);
     ToriDraw_SceneSpriteAdd(task->scene, ref->element_id, sprites, count);
     return true;
 }
@@ -212,7 +212,7 @@ revconfig_ui_process_work_item(
     struct Task_RevConfigUILoad* task,
     struct RevConfigUIWorkItem const* item)
 {
-    struct ToriAuxLibCore* core = ToriAuxLibC_Core(task->c);
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
     struct Dat1BuildCache* bc = dat1(task->c);
 
     if( item->kind == REVCONFIG_UIWORK_FONT )
@@ -232,7 +232,7 @@ revconfig_ui_process_work_item(
         }
         strncpy(gc_font->name, item->font_name, sizeof(gc_font->name) - 1);
         gc_font->font = font;
-        ToriAuxLibC_SubmitFontFromDat1(task->c, item->font_id, gc_font);
+        ToriAuxLibCache_SubmitFontFromDat1(task->c, item->font_id, gc_font);
         ToriDraw_SceneFontAdd(task->scene, item->font_id, font);
         return true;
     }
@@ -299,7 +299,7 @@ Task_RevConfigUILoad_Run(
     revconfig_items_build(task->cache_fields, task->items);
     revconfig_items_build(task->ui_fields, task->items);
     revconfig_ui_build_collect_items(&task->build, task->items);
-    revconfig_ui_build_set_core(&task->build, ToriAuxLibC_Core(task->c));
+    revconfig_ui_build_set_core(&task->build, ToriAuxLibCache_Core(task->c));
 
     IO_REQUEST(ctx, 0, TAPIDat1_FetchMediaJagfile(ctx));
     IO_REQUEST(ctx, 1, TAPIDat1_FetchTitleFontsJagfile(ctx));
@@ -326,7 +326,7 @@ Task_RevConfigUILoad_Run(
                 if( interfaces )
                 {
                     dat1_buildcache_set_interfaces(bc, interfaces);
-                    ToriAuxLibC_SubmitAllComponentsFromDat1(task->c);
+                    ToriAuxLibCache_SubmitAllComponentsFromDat1(task->c);
                 }
             }
             RSCacheShared_FileListDatFree(interfaces_filelist);

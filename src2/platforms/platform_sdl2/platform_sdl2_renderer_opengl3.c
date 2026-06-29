@@ -26,6 +26,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1141,8 +1142,40 @@ gl3_bind_world_draw_state(struct LibToriPlatformSDL2_RendererGL3* renderer)
 static void
 gl3_release_gpu_mesh_buffers(struct LibToriPlatformSDL2_RendererGL3* renderer)
 {
-    renderer->groups[TRSPK_VBO_GROUP_STATIC].gpu_capacity = 0u;
-    renderer->gpu_ibo_capacity = 0u;
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        struct GL3ModelGroup* g = &renderer->groups[gi];
+        if( g->vbo_gpu )
+        {
+            glDeleteBuffers(1, &g->vbo_gpu);
+            glGenBuffers(1, &g->vbo_gpu);
+            glBindVertexArray(g->vao);
+            glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
+            glBufferData(
+                GL_ARRAY_BUFFER,
+                TRSPK_GL3_GPU_VBO_INIT * sizeof(struct TRSPK_VertexOpenGl3),
+                NULL,
+                GL_DYNAMIC_DRAW);
+            bind_vbo_attribs(renderer, g->vbo_gpu);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
+            glBindVertexArray(0);
+            g->gpu_capacity = TRSPK_GL3_GPU_VBO_INIT;
+        }
+    }
+
+    if( renderer->ebo )
+    {
+        glDeleteBuffers(1, &renderer->ebo);
+        glGenBuffers(1, &renderer->ebo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
+        glBufferData(
+            GL_ELEMENT_ARRAY_BUFFER,
+            TRSPK_GL3_GPU_IBO_INIT * sizeof(uint32_t),
+            NULL,
+            GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        renderer->gpu_ibo_capacity = TRSPK_GL3_GPU_IBO_INIT;
+    }
 }
 
 static void
@@ -1238,6 +1271,12 @@ gl3_write_vertex_opengl3(
  * ----------------------------------------------------------------------- */
 
 static void
+gl3_ev_model_unload(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command);
+
+static void
 gl3_ev_tex_load(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     struct LibToriRS_Instance* instance,
@@ -1262,6 +1301,86 @@ gl3_ev_tex_load(
         TRSPK_GL3_ATLAS_TILE,
         TRSPK_GL3_ATLAS_TILE,
         NULL);
+}
+
+static void
+gl3_ev_tex_unload(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    assert(command->kind == TORIRSRC_TEX_UNLOAD);
+
+    const int tex_id = command->u.tex_load.texture_id;
+    if( tex_id < 0 || tex_id >= 256 || !renderer->atlas.pixels )
+        return;
+
+    struct TRSPK_AtlasTile tile;
+    if( !trspk_atlas_grid_tile_for_slot(&renderer->atlas, (uint32_t)tex_id, &tile) )
+        return;
+
+    const size_t row_bytes = (size_t)tile.w * renderer->atlas.channels;
+    for( uint32_t row = 0; row < tile.h; row++ )
+    {
+        uint8_t* dst = renderer->atlas.pixels
+            + (size_t)(tile.y + row) * renderer->atlas.stride + (size_t)tile.x * renderer->atlas.channels;
+        memset(dst, 0, row_bytes);
+    }
+    trspk_atlas_set_dirty(&renderer->atlas);
+}
+
+static void
+gl3_ev_sprite_unload(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    const int element_id = command->u.sprite_load.element_id;
+    if( element_id < 0 || element_id >= TRSPK_GL3_SPRITE_CAP )
+        return;
+
+    struct GL3SpriteSlot* slot = &renderer->sprite_slots[element_id];
+    free(slot->uvs);
+    slot->uvs = NULL;
+    slot->sprites = NULL;
+    slot->count = 0;
+}
+
+static void
+gl3_ev_font_unload(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    const int font_id = command->u.font_load.font_id;
+    if( font_id < 0 || font_id >= TRSPK_GL3_FONT_CAP )
+        return;
+
+    struct GL3FontSlot* slot = &renderer->font_slots[font_id];
+    if( slot->texture )
+    {
+        glDeleteTextures(1, &slot->texture);
+        slot->texture = 0;
+    }
+    slot->font = NULL;
+    slot->baked = false;
+    slot->atlas_w = 0;
+    slot->atlas_h = 0;
+    memset(slot->glyph_uv, 0, sizeof(slot->glyph_uv));
+}
+
+static void
+gl3_ev_anim_unload(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    assert(command->kind == TORIRSRC_ANIM_UNLOAD);
+    gl3_ev_model_unload(renderer, instance, command);
 }
 
 static void
@@ -1330,7 +1449,8 @@ gl3_ev_model_unload(
     struct LibToriRS_RenderCommand* command)
 {
     (void)instance;
-    assert(command->kind == TORIRSRC_MODEL_UNLOAD);
+    assert(
+        command->kind == TORIRSRC_MODEL_UNLOAD || command->kind == TORIRSRC_ANIM_UNLOAD);
 
     const int element_id = command->u.model_load.element_id;
     trspk_modelarena_unload_element(renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
@@ -1779,6 +1899,7 @@ handle_render_command(
         break;
 
     case TORIRSRC_TEX_UNLOAD:
+        gl3_ev_tex_unload(renderer, instance, command);
         break;
 
     case TORIRSRC_BEGIN_3D:
@@ -1804,12 +1925,20 @@ handle_render_command(
         gl3_ev_sprite_load(renderer, instance, command);
         break;
 
+    case TORIRSRC_SPRITE_UNLOAD:
+        gl3_ev_sprite_unload(renderer, instance, command);
+        break;
+
     case TORIRSRC_SPRITE:
         gl3_ev_sprite(renderer, instance, command);
         break;
 
     case TORIRSRC_FONT_LOAD:
         gl3_ev_font_load(renderer, instance, command);
+        break;
+
+    case TORIRSRC_FONT_UNLOAD:
+        gl3_ev_font_unload(renderer, instance, command);
         break;
 
     case TORIRSRC_FONT:
@@ -1821,6 +1950,7 @@ handle_render_command(
         break;
 
     case TORIRSRC_ANIM_UNLOAD:
+        gl3_ev_anim_unload(renderer, instance, command);
         break;
 
     case TORIRSRC_MODEL_LOAD:
@@ -2229,4 +2359,85 @@ LibToriPlatformSDL2_RendererGL3_Render(
     LibToriRS_FrameEnd(instance);
 
     SDL_GL_SwapWindow(renderer->window);
+}
+
+struct GL3MemStatsCountCtx
+{
+    uint32_t alive_model_slots;
+};
+
+static void
+gl3_memstats_count_alive_slot(
+    const struct TRSPK_ModelSlot* slot,
+    void* user_data)
+{
+    (void)slot;
+    struct GL3MemStatsCountCtx* ctx = (struct GL3MemStatsCountCtx*)user_data;
+    ctx->alive_model_slots++;
+}
+
+void
+LibToriPlatformSDL2_RendererGL3_MemStats(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriPlatformSDL2_RendererGL3_MemStats* out)
+{
+    if( !renderer || !out )
+        return;
+
+    memset(out, 0, sizeof(*out));
+
+    struct GL3MemStatsCountCtx count_ctx = { 0u };
+    if( renderer->groups[TRSPK_VBO_GROUP_STATIC].arena )
+    {
+        trspk_modelarena_visit_alive(
+            renderer->groups[TRSPK_VBO_GROUP_STATIC].arena,
+            gl3_memstats_count_alive_slot,
+            &count_ctx);
+    }
+    if( renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].arena )
+    {
+        trspk_modelarena_visit_alive(
+            renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].arena,
+            gl3_memstats_count_alive_slot,
+            &count_ctx);
+    }
+    out->alive_model_slots = count_ctx.alive_model_slots;
+    out->pose_element_count = renderer->poses.element_count;
+
+    const size_t vert_bytes = sizeof(struct TRSPK_VertexOpenGl3);
+    for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
+    {
+        struct GL3ModelGroup* g = &renderer->groups[gi];
+        size_t cpu_bytes = 0u;
+        if( g->arena && g->arena->vbo )
+            cpu_bytes = (size_t)g->arena->write_cursor * vert_bytes;
+        else if( g->vbo_cpu )
+            cpu_bytes = (size_t)g->vbo_cpu->capacity * vert_bytes;
+
+        const size_t gpu_bytes = (size_t)g->gpu_capacity * vert_bytes;
+        if( gi == TRSPK_VBO_GROUP_STATIC )
+        {
+            out->cpu_vbo_static_bytes = cpu_bytes;
+            out->gpu_vbo_static_bytes = gpu_bytes;
+        }
+        else
+        {
+            out->cpu_vbo_dynamic_bytes = cpu_bytes;
+            out->gpu_vbo_dynamic_bytes = gpu_bytes;
+        }
+    }
+
+    out->gpu_ibo_bytes = (size_t)renderer->gpu_ibo_capacity * sizeof(uint32_t);
+
+    for( int i = 0; i < TRSPK_GL3_FONT_CAP; ++i )
+    {
+        if( renderer->font_slots[i].font || renderer->font_slots[i].texture )
+            out->font_slots_live++;
+    }
+
+    for( int i = 0; i < TRSPK_GL3_SPRITE_CAP; ++i )
+    {
+        if( renderer->sprite_slots[i].sprites || renderer->sprite_slots[i].uvs )
+            out->sprite_slots_live++;
+    }
 }

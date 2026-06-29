@@ -1,7 +1,7 @@
 #ifndef TORIAUXLIBTD_H
 #define TORIAUXLIBTD_H
 
-#include "toriauxlib/c/toriauxlibc.h"
+#include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"
@@ -19,7 +19,7 @@ struct ToriDraw_Texture;
 struct ToriAuxLibTD*
 ToriAuxLibTD_New(
     struct ToriAuxLibCore* core,
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     struct ToriDraw_Scene* scene);
 
 void
@@ -28,7 +28,7 @@ ToriAuxLibTD_Free(struct ToriAuxLibTD* td);
 struct ToriAuxLibCore*
 ToriAuxLibTD_Core(struct ToriAuxLibTD* td);
 
-struct ToriAuxLibC*
+struct ToriAuxLibCache*
 ToriAuxLibTD_C(struct ToriAuxLibTD* td);
 
 struct ToriDraw_Scene*

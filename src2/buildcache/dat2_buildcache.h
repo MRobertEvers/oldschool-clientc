@@ -7,7 +7,33 @@
 #include "osrs/rscache/dat2a/dat2a_model.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+
+enum Dat2BuildCache_Kind
+{
+    DAT2_BUILDCACHE_KIND_MODEL,
+    DAT2_BUILDCACHE_KIND_MAP_TERRAIN,
+    DAT2_BUILDCACHE_KIND_MAP_SCENERY,
+    DAT2_BUILDCACHE_KIND_SEQUENCE,
+    DAT2_BUILDCACHE_KIND_FLOTYPE,
+    DAT2_BUILDCACHE_KIND_UNDERLAY,
+    DAT2_BUILDCACHE_KIND_CONFIG_LOC,
+    DAT2_BUILDCACHE_KIND_FRAMES,
+    DAT2_BUILDCACHE_KIND_SKELETAL,
+    DAT2_BUILDCACHE_KIND_IDENTKIT,
+    DAT2_BUILDCACHE_KIND_OBJECT,
+    DAT2_BUILDCACHE_KIND_NPCTYPE,
+    DAT2_BUILDCACHE_KIND_COUNT,
+};
+
+struct Dat2BuildCache_MemReport
+{
+    size_t asset_bytes[DAT2_BUILDCACHE_KIND_COUNT];
+    size_t asset_bytes_total;
+    size_t map_buffer_bytes;
+    size_t bytes_total;
+};
 
 struct VarPVarBitManager;
 struct ToriDraw_Map;
@@ -50,6 +76,8 @@ struct Dat2BuildCache
     struct ToriDraw_Map* identkit_hmap;
     struct ToriDraw_Map* object_hmap;
     struct ToriDraw_Map* npctype_hmap;
+    size_t asset_bytes[DAT2_BUILDCACHE_KIND_COUNT];
+    size_t map_buffer_bytes;
 };
 
 struct Dat2BuildCache*
@@ -57,6 +85,17 @@ dat2_buildcache_new(void);
 
 void
 dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_mem_bytes(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct Dat2BuildCache_MemReport* out);
+
+size_t
+dat2_buildcache_bytes_total(struct Dat2BuildCache* dat2_buildcache);
+
+size_t
+Dat2BuildCache_FramesArchiveSizeOf(const struct Dat2BuildCache_FramesArchive* fa);
 
 void
 dat2_buildcache_model_add(

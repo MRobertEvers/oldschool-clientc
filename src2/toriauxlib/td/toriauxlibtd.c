@@ -2,7 +2,7 @@
 
 #include "buildcache/dat1_buildcache.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_animation.h"
@@ -29,7 +29,7 @@ struct MapEntry_SkeletalAnimTD
 struct ToriAuxLibTD
 {
     struct ToriAuxLibCore* core;
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
     struct ToriDraw_Scene* scene;
     struct ToriDraw_Map* sequence_anim_hmap;
     struct ToriDraw_Map* skeletal_anim_hmap;
@@ -78,7 +78,7 @@ tdx_free_sequence_anims(struct ToriDraw_Map* map)
 struct ToriAuxLibTD*
 ToriAuxLibTD_New(
     struct ToriAuxLibCore* core,
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     struct ToriDraw_Scene* scene)
 {
     struct ToriAuxLibTD* td = calloc(1, sizeof(struct ToriAuxLibTD));
@@ -122,7 +122,7 @@ ToriAuxLibTD_Free(struct ToriAuxLibTD* td)
     free(td);
 }
 
-struct ToriAuxLibC*
+struct ToriAuxLibCache*
 ToriAuxLibTD_C(struct ToriAuxLibTD* td)
 {
     return td ? td->c : NULL;
@@ -524,7 +524,7 @@ ToriAuxLibTD_SubmitModelFromDat1(
     if( !dat1_buildcache_model_get(dat1(td->c), model_id) )
         return false;
 
-    ToriAuxLibC_SubmitModelFromDat1(td->c, model_id);
+    ToriAuxLibCache_SubmitModelFromDat1(td->c, model_id);
     return ToriAuxLibCore_ModelHas(td->core, model_id);
 }
 

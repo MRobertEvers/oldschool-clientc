@@ -3,8 +3,8 @@
 #include "../buildcache/dat1_buildcache.h"
 #include "../buildcache/dat2_buildcache.h"
 #include "../games/runescape.h"
-#include "../toriauxlib/c/toriauxlibc.h"
-#include "../toriauxlib/c/toriauxlibc_submit.h"
+#include "../toriauxlib/c/toriauxlibcache.h"
+#include "../toriauxlib/c/toriauxlibcache_submit.h"
 #include "../toriauxlib/core/toriauxlibcore.h"
 #include "../toriauxlib/td/toriauxlibtd.h"
 #include "osrs/datatypes/appearances.h"
@@ -60,13 +60,13 @@ scene_model_copy_unlit(
     return ToriDraw_ModelCopy(cached.u.model.model);
 }
 
-struct WorldEntityFacet_Animation
+struct WorldEntityFacet_IdleAnimations
 runescape_npc_animation_from_config(
     struct GameRunescape* game,
     int npc_id)
 {
-    struct ToriAuxLibC* c;
-    struct WorldEntityFacet_Animation animation = {
+    struct ToriAuxLibCache* c;
+    struct WorldEntityFacet_IdleAnimations animation = {
         .readyanim = -1,
         .walkanim = -1,
         .turnanim = -1,
@@ -83,7 +83,7 @@ runescape_npc_animation_from_config(
     if( !c )
         return animation;
 
-    if( ToriAuxLibC_Mode(c) == TORIAUXLIBC_MODE_DAT1 )
+    if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT1 )
     {
         struct RSCacheDat1A_ConfigNpc* npc = dat1_buildcache_npc_get(dat1(c), npc_id);
         if( !npc )
@@ -117,7 +117,7 @@ runescape_npc_size_from_config(
     struct GameRunescape* game,
     int npc_id)
 {
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
 
     if( !game || !game->td )
         return 1;
@@ -126,7 +126,7 @@ runescape_npc_size_from_config(
     if( !c )
         return 1;
 
-    if( ToriAuxLibC_Mode(c) == TORIAUXLIBC_MODE_DAT1 )
+    if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT1 )
     {
         struct RSCacheDat1A_ConfigNpc* npc = dat1_buildcache_npc_get(dat1(c), npc_id);
         if( !npc )
@@ -147,7 +147,7 @@ runescape_npc_body_build(
     struct GameRunescape* game,
     int npc_id)
 {
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
     struct ToriDraw_Model* pieces[64];
     int piece_count = 0;
     struct ToriDraw_Model* body;
@@ -161,7 +161,7 @@ runescape_npc_body_build(
     if( !c )
         return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
 
-    if( ToriAuxLibC_Mode(c) == TORIAUXLIBC_MODE_DAT1 )
+    if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT1 )
     {
         struct RSCacheDat1A_ConfigNpc* npc = dat1_buildcache_npc_get(dat1(c), npc_id);
         if( !npc || npc->models_count <= 0 )
@@ -246,7 +246,7 @@ runescape_player_body_build(
     struct GameRunescape* game,
     const int appearance[RUNESCAPE_APPEARANCE_SLOT_COUNT])
 {
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
     struct ToriAuxLibCore* core;
     struct ToriDraw_Model* pieces[RUNESCAPE_APPEARANCE_SLOT_COUNT];
     int piece_count = 0;
@@ -275,29 +275,29 @@ runescape_player_body_build(
         appearances_decode(&op, slots, slot);
         if( op.kind == APPEARANCE_KIND_IDK )
         {
-            if( ToriAuxLibC_Mode(c) == TORIAUXLIBC_MODE_DAT1 )
+            if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT1 )
             {
                 if( !ToriAuxLibCore_IdkModelHas(core, (int)op.id) )
-                    ToriAuxLibC_SubmitIdkModelFromDat1(c, (int)op.id);
+                    ToriAuxLibCache_SubmitIdkModelFromDat1(c, (int)op.id);
             }
             else
             {
                 if( !ToriAuxLibCore_IdkModelHas(core, (int)op.id) )
-                    ToriAuxLibC_SubmitIdkModelFromDat2(c, (int)op.id);
+                    ToriAuxLibCache_SubmitIdkModelFromDat2(c, (int)op.id);
             }
             core_piece = ToriAuxLibCore_IdkModelGet(core, (int)op.id);
         }
         else if( op.kind == APPEARANCE_KIND_OBJ )
         {
-            if( ToriAuxLibC_Mode(c) == TORIAUXLIBC_MODE_DAT1 )
+            if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT1 )
             {
                 if( !ToriAuxLibCore_ObjModelHas(core, (int)op.id) )
-                    ToriAuxLibC_SubmitObjModelFromDat1(c, (int)op.id);
+                    ToriAuxLibCache_SubmitObjModelFromDat1(c, (int)op.id);
             }
             else
             {
                 if( !ToriAuxLibCore_ObjModelHas(core, (int)op.id) )
-                    ToriAuxLibC_SubmitObjModelFromDat2(c, (int)op.id);
+                    ToriAuxLibCache_SubmitObjModelFromDat2(c, (int)op.id);
             }
             core_piece = ToriAuxLibCore_ObjModelGet(core, (int)op.id);
         }

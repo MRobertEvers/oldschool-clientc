@@ -10,7 +10,7 @@
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "toriauxlib/c/dat1io.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toridraw/toridraw_types.h"
 
 #include <assert.h>
@@ -163,13 +163,13 @@ Task_ToriAuxLibTD_TexturesLoad_Run(
         int animation_speed;
         tdx_texture_anim_params(i, &animation_direction, &animation_speed);
 
-        struct ToriAuxLibCore_Texture* gc_texture = ToriAuxLibC_TextureNewFromCacheDatTexture(
+        struct ToriAuxLibCore_Texture* gc_texture = ToriAuxLibCache_TextureNewFromCacheDatTexture(
             cache_texture, animation_direction, animation_speed);
         RSCacheDat1A_ConfigTextureFree(cache_texture);
         if( !gc_texture )
             continue;
 
-        ToriAuxLibC_SubmitTexture(ToriAuxLibTD_C(task->tdx), i, gc_texture);
+        ToriAuxLibCache_SubmitTexture(ToriAuxLibTD_C(task->tdx), i, gc_texture);
         ToriAuxLibTD_Texture(task->tdx, i);
     }
 
@@ -261,7 +261,7 @@ Task_ToriAuxLibTD_AnimationsLoad_Run(
             if( anim_id >= 0 && abf )
             {
                 dat1_buildcache_animbaseframes_add(dat1_bc, anim_id, abf);
-                ToriAuxLibC_SubmitAnimationFromDat1(ToriAuxLibTD_C(task->tdx), anim_id);
+                ToriAuxLibCache_SubmitAnimationFromDat1(ToriAuxLibTD_C(task->tdx), anim_id);
                 ToriAuxLibTD_Animation(task->tdx, anim_id);
             }
         }
@@ -269,7 +269,7 @@ Task_ToriAuxLibTD_AnimationsLoad_Run(
     }
 
     dat1_buildcache_sequences_init_from_config_jagfile(dat1_bc);
-    ToriAuxLibC_SubmitAllSequencesFromDat1(ToriAuxLibTD_C(task->tdx));
+    ToriAuxLibCache_SubmitAllSequencesFromDat1(ToriAuxLibTD_C(task->tdx));
 
     PT_END(&task->thread);
 }

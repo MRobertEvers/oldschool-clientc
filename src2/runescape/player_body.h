@@ -17,7 +17,7 @@ runescape_npc_body_build(
     struct GameRunescape* game,
     int npc_id);
 
-struct WorldEntityFacet_Animation
+struct WorldEntityFacet_IdleAnimations
 runescape_npc_animation_from_config(
     struct GameRunescape* game,
     int npc_id);

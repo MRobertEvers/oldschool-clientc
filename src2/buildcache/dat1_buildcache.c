@@ -1,5 +1,7 @@
 #include "dat1_buildcache.h"
 
+#include "osrs/rscache/dat2a/dat2a_mem.h"
+
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/dat1a/dat1a_config_idk.h"
@@ -1432,4 +1434,61 @@ dat1_buildcache_foreach_config_loc(
             callback(entry->id, entry->config_loc, user_data);
     }
     ToriDraw_MapIterFree(iter);
+}
+
+static size_t
+dat1_buildcache_map_buffer_size(struct ToriDraw_Map* map)
+{
+    if( !map )
+        return 0;
+    return ToriDraw_MapBufferSizeFor(ToriDraw_MapEntrySize(map), ToriDraw_MapCapacity(map));
+}
+
+size_t
+dat1_buildcache_bytes_total(struct Dat1BuildCache* dat1_buildcache)
+{
+    size_t bytes = 0;
+    if( !dat1_buildcache )
+        return 0;
+
+    if( dat1_buildcache->models_hmap )
+    {
+        bytes += dat1_buildcache_map_buffer_size(dat1_buildcache->models_hmap);
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->models_hmap);
+        struct MapEntry_CacheModel* entry = NULL;
+        while( (entry = (struct MapEntry_CacheModel*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->model )
+                bytes += RSCacheDat2A_ModelSizeOf(entry->model);
+        }
+        ToriDraw_MapIterFree(iter);
+    }
+
+    if( dat1_buildcache->map_terrain_hmap )
+    {
+        bytes += dat1_buildcache_map_buffer_size(dat1_buildcache->map_terrain_hmap);
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->map_terrain_hmap);
+        struct MapEntry_Terrain* entry = NULL;
+        while( (entry = (struct MapEntry_Terrain*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->terrain )
+                bytes += RSCacheDat2A_MapTerrainSizeOf(entry->terrain);
+        }
+        ToriDraw_MapIterFree(iter);
+    }
+
+    if( dat1_buildcache->map_scenery_hmap )
+    {
+        bytes += dat1_buildcache_map_buffer_size(dat1_buildcache->map_scenery_hmap);
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->map_scenery_hmap);
+        struct MapEntry_Scenery* entry = NULL;
+        while( (entry = (struct MapEntry_Scenery*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->locs )
+                bytes += RSCacheDat2A_MapLocsSizeOf(entry->locs);
+        }
+        ToriDraw_MapIterFree(iter);
+    }
+
+    return bytes;
 }

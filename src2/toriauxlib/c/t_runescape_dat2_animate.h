@@ -1,5 +1,5 @@
-#ifndef TORIAUXLIBC_T_RUNESCAPE_DAT2_ANIMATE_H
-#define TORIAUXLIBC_T_RUNESCAPE_DAT2_ANIMATE_H
+#ifndef TORIAUXLIBCACHE_T_RUNESCAPE_DAT2_ANIMATE_H
+#define TORIAUXLIBCACHE_T_RUNESCAPE_DAT2_ANIMATE_H
 
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
@@ -9,8 +9,8 @@
 #include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "toriauxlib/c/dat2io.h"
-#include "toriauxlib/c/toriauxlibc.h"
-#include "toriauxlib/c/toriauxlibc_submit.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/c/t_runescape_dat2_anim_load.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
@@ -20,13 +20,13 @@
 struct Task_Dat2Animate
 {
     struct pt thread;
-    struct ToriAuxLibC* c;
+    struct ToriAuxLibCache* c;
     int anim_id;
 };
 
 struct Task_Dat2Animate*
 Task_Dat2Animate_New(
-    struct ToriAuxLibC* c,
+    struct ToriAuxLibCache* c,
     int anim_id)
 {
     struct Task_Dat2Animate* task = calloc(1, sizeof(struct Task_Dat2Animate));
@@ -50,8 +50,8 @@ Task_Dat2Animate_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct Dat2BuildCache* dat2_bc = dat2(task->c);
-    struct RSCacheDat2Disk* cache_disk = ToriAuxLibC_Dat2Disk(task->c);
-    struct ToriAuxLibCore* core = ToriAuxLibC_Core(task->c);
+    struct RSCacheDat2Disk* cache_disk = ToriAuxLibCache_Dat2Disk(task->c);
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
     struct RSCacheDat2Disk_Archive* sequence_archive = NULL;
     int seq_id = task->anim_id;
 
@@ -90,7 +90,7 @@ Task_Dat2Animate_Run(
             }
 
             dat2_anim_submit_sequence_skeletal(task->c, dat2_bc, seq);
-            ToriAuxLibC_SubmitSequenceFromDat2(task->c, seq_id);
+            ToriAuxLibCache_SubmitSequenceFromDat2(task->c, seq_id);
         }
 
         RSCacheDat2Disk_ArchiveFree(sequence_archive);
