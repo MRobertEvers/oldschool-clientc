@@ -133,6 +133,7 @@ struct WorldEntityFacet_GridPosition
 };
 
 // Sub pixel position.
+// Copied to the ToriDraw_Scene prior to rendering
 struct WorldEntityFacet_DrawPosition
 {
     uint32_t x;
@@ -155,29 +156,24 @@ struct WorldEntityFacet_OrientationY
 struct WorldEntity_Terrain
 {
     int element_id;
-    int level;
-    int x;
-    int z;
+    struct WorldEntityFacet_GridPosition grid_position;
 };
 
 struct WorldEntity_Scenery
 {
     int element_id;
-    int level;
-    int scene_x;
-    int scene_z;
+    struct WorldEntityFacet_GridPosition grid_position;
     int size_x;
     int size_z;
-    int orientation;
+    struct WorldEntityFacet_OrientationY orientation;
 };
 
 struct WorldEntity_Player
 {
     int element_id;
-    int level;
-    int x;
-    int z;
-    int yaw;
+    struct WorldEntityFacet_GridPosition grid_position;
+    struct WorldEntityFacet_DrawPosition draw_position;
+    struct WorldEntityFacet_OrientationY orientation;
     struct WorldEntityFacet_IdleAnimations idle_animations;
     struct WorldEntityFacet_Animation animation;
 };
@@ -185,10 +181,9 @@ struct WorldEntity_Player
 struct WorldEntity_NPC
 {
     int element_id;
-    int level;
-    int x;
-    int z;
-    int yaw;
+    struct WorldEntityFacet_GridPosition grid_position;
+    struct WorldEntityFacet_DrawPosition draw_position;
+    struct WorldEntityFacet_OrientationY orientation;
     int npc_id;
     int size;
     struct WorldEntityFacet_IdleAnimations idle_animations;
@@ -224,18 +219,15 @@ struct WorldEntity_Projectile
     double vz;
     double velocity;
     double ay;
-    int yaw;
-    int pitch;
+    struct WorldEntityFacet_OrientationPYR orientation;
 };
 
 struct WorldEntity_Spotanim
 {
     int element_id;
     int level;
-    int scene_x;
-    int scene_z;
-    int y;
-    int orientation;
+    struct WorldEntityFacet_DrawPosition draw_position;
+    struct WorldEntityFacet_OrientationY orientation;
     int idle_cycles;
     int active_cycle;
     int lifetime;

@@ -116,9 +116,9 @@ world_terrain_set(
         return;
 
     terrain->element_id = element_id;
-    terrain->level = level;
-    terrain->x = x;
-    terrain->z = z;
+    terrain->grid_position.level = level;
+    terrain->grid_position.x = x;
+    terrain->grid_position.z = z;
 }
 
 void
@@ -301,8 +301,8 @@ world_projectile_move(
     p->y += p->vy * delta_d + p->ay * 0.5 * delta_d * delta_d;
     p->vy += p->ay * delta_d;
 
-    p->yaw = ((int)(atan2(p->vx, p->vz) * WORLD_PROJECTILE_ANGLE_TO_RPI2048 + 1024.0)) & 0x7ff;
-    p->pitch = ((int)(atan2(p->vy, p->velocity) * WORLD_PROJECTILE_ANGLE_TO_RPI2048)) & 0x7ff;
+    p->orientation.yaw = ((int)(atan2(p->vx, p->vz) * WORLD_PROJECTILE_ANGLE_TO_RPI2048 + 1024.0)) & 0x7ff;
+    p->orientation.pitch = ((int)(atan2(p->vy, p->velocity) * WORLD_PROJECTILE_ANGLE_TO_RPI2048)) & 0x7ff;
 }
 
 int
@@ -327,10 +327,9 @@ world_player_spawn(
     player = World_EntityPoolGet(pool, idx);
     *player = (struct WorldEntity_Player){
         .element_id = element_id,
-        .level = level,
-        .x = scene_x * 128 + 64,
-        .z = scene_z * 128 + 64,
-        .yaw = 0,
+        .grid_position = { .x = scene_x, .z = scene_z, .level = level },
+        .draw_position = { .x = (uint32_t)(scene_x * 128 + 64), .z = (uint32_t)(scene_z * 128 + 64) },
+        .orientation = { .yaw = 0 },
         .idle_animations = idle_animations,
         .animation = { 0 },
     };
@@ -390,10 +389,9 @@ world_npc_spawn(
     npc = World_EntityPoolGet(pool, idx);
     *npc = (struct WorldEntity_NPC){
         .element_id = element_id,
-        .level = level,
-        .x = scene_x * 128 + 64,
-        .z = scene_z * 128 + 64,
-        .yaw = 0,
+        .grid_position = { .x = scene_x, .z = scene_z, .level = level },
+        .draw_position = { .x = (uint32_t)(scene_x * 128 + 64), .z = (uint32_t)(scene_z * 128 + 64) },
+        .orientation = { .yaw = 0 },
         .npc_id = npc_id,
         .size = size,
         .idle_animations = idle_animations,
@@ -574,10 +572,8 @@ world_spotanim_spawn(
     *s = (struct WorldEntity_Spotanim){
         .element_id = element_id,
         .level = level,
-        .scene_x = scene_x,
-        .scene_z = scene_z,
-        .y = y,
-        .orientation = orientation,
+        .draw_position = { .x = (uint32_t)scene_x, .z = (uint32_t)scene_z, .y = (uint32_t)y },
+        .orientation = { .yaw = (uint16_t)orientation },
         .idle_cycles = idle_delay,
         .active_cycle = 0,
         .lifetime = lifetime,
@@ -660,14 +656,14 @@ world_cycle(
         if( !player || player->element_id < 0 )
             continue;
 
-        int grid_x = player->x >> 7;
-        int grid_z = player->z >> 7;
+        int grid_x = player->grid_position.x;
+        int grid_z = player->grid_position.z;
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
 
         painter_add_normal_scenery(
-            world->painter, grid_x, grid_z, player->level, player->element_id, 1, 1);
+            world->painter, grid_x, grid_z, player->grid_position.level, player->element_id, 1, 1);
     }
 
     struct World_EntityPool* npc_pool = &world->entities.npc;
@@ -678,8 +674,8 @@ world_cycle(
         if( !npc || npc->element_id < 0 )
             continue;
 
-        int grid_x = npc->x >> 7;
-        int grid_z = npc->z >> 7;
+        int grid_x = npc->grid_position.x;
+        int grid_z = npc->grid_position.z;
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
@@ -688,7 +684,7 @@ world_cycle(
             world->painter,
             grid_x,
             grid_z,
-            npc->level,
+            npc->grid_position.level,
             npc->element_id,
             npc->size,
             npc->size);
@@ -781,8 +777,8 @@ world_cycle(
             continue;
         }
 
-        int grid_x = s->scene_x >> 7;
-        int grid_z = s->scene_z >> 7;
+        int grid_x = (int)(s->draw_position.x >> 7);
+        int grid_z = (int)(s->draw_position.z >> 7);
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
         {

@@ -8,6 +8,7 @@
 #include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
+#include "toridraw/toridraw_model_transform.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -366,6 +367,8 @@ ToriAuxLibTD_ModelNewFromCore(const struct ToriAuxLibCore_Model* src)
         if( !dst->bounds_cylinder )
             goto fail;
     }
+    else if( dst->vertex_count > 0 && dst->vertices_x && dst->vertices_y && dst->vertices_z )
+        ToriDraw_ModelSetBoundsCylinder(dst);
 
     return dst;
 

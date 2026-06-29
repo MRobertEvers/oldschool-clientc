@@ -1829,3 +1829,110 @@ Animation ID Expression / Action
 Since Bellemorde is a feline model, some of the more exaggerated humanoid expressions (like extreme shouting) might deform the jaw or ears slightly depending on how the original vertex weights were painted, but the standard neutral and talking loops (554 and 571) will run perfectly smoothly on the mesh.
 
 ./sdl2 --runescape --dat2 /Users/matthewevers/Documents/git_repos/3draster/cache
+
+## LostCity Memory Stats
+
+On Tutorial Island after idling for a long time.
+=== Client Memory Stats ===
+client.js:20626 [client] camShake: 80 B
+client.js:20626 [client] chatArrays: 2.1 KB
+client.js:20626 [client] collisionMaps: 169.0 KB
+client.js:20626 [client] designArrays: 48 B
+client.js:20626 [client] drawArea: 0 B
+client.js:20626 [client] entityArrays: 83.9 KB
+client.js:20626 [client] flameBuffers: 1.0 KB
+client.js:20626 [client] groundh: 172.3 KB
+client.js:20626 [client] mapBuildGroundData: 300.1 KB
+client.js:20626 [client] mapBuildIndex: 36 B
+client.js:20626 [client] mapBuildLocationData: 19.7 KB
+client.js:20626 [client] mapl: 42.3 KB
+client.js:20626 [client] menuArrays: 15.6 KB
+client.js:20626 [client] messageArrays: 800 B
+client.js:20626 [client] packets: 14.6 KB
+client.js:20626 [client] playerAppearancePackets: 49 B
+client.js:20626 [client] routeFinding: 115.8 KB
+client.js:20626 [client] textureBuffer: 16.0 KB
+client.js:20626 [client] tileLastOccupiedCycle: 42.3 KB
+client.js:20626 [client] uiScanlines: 4.1 KB
+client.js:20626 [client] waveArrays: 600 B
+client.js:20626 [graphics] pix2dPixels: 668.0 KB
+client.js:20626 [graphics] pix3dActiveTexels: 2.50 MB
+client.js:20626 [graphics] pix3dAverageTextureRgb: 200 B
+client.js:20626 [graphics] pix3dTables: 283.5 KB
+client.js:20626 [graphics] pix3dTexelPool: 2.50 MB
+client.js:20626 [graphics] pix3dTexPal: 2.7 KB
+client.js:20626 [graphics] pix3dTextures: 730.7 KB
+client.js:20626 [world] mergeIndices: 78.1 KB
+client.js:20626 [world] occlusionCycle: 172.3 KB
+client.js:20626 [models] ifTypeModelCache: 18.3 KB
+client.js:20626 [models] ifTypeSpriteCache: 0 B
+client.js:20626 [models] locTypeMc1: 22.6 KB
+client.js:20626 [models] locTypeMc2: 149.7 KB
+client.js:20626 [models] modelMeta: 3.76 MB
+client.js:20626 [models] modelStaticBuffers: 3.17 MB
+client.js:20626 [models] npcTypeModelCache: 73.4 KB
+client.js:20626 [models] objTypeModelCache: 0 B
+client.js:20626 [models] objTypeSpriteCache: 0 B
+client.js:20626 [models] playerModelCache: 18.3 KB
+client.js:20626 [models] spotAnimModelCache: 0 B
+client.js:20626 [io] onDemand: 64.0 KB
+client.js:20626 [io] packetCache: 0 B
+client.js:20626 [sound] tone: 1.09 MB
+client.js:20626 [sound] waveBytes: 430.7 KB
+client.js:20626 [browser] jsHeapTotal: 67.38 MB
+client.js:20626 [browser] jsHeapUsed: 64.58 MB
+client.js:20632 TOTAL (tracked buffers): 16.65 MB
+client.js:20636 [browser] JS heap used: 64.58 MB / 67.38 MB
+
+### Low Memory
+
+=== Client Memory Stats ===
+client.js:20626 [client] camShake: 80 B
+client.js:20626 [client] chatArrays: 2.1 KB
+client.js:20626 [client] collisionMaps: 169.0 KB
+client.js:20626 [client] designArrays: 48 B
+client.js:20626 [client] drawArea: 0 B
+client.js:20626 [client] entityArrays: 83.9 KB
+client.js:20626 [client] flameBuffers: 1.0 KB
+client.js:20626 [client] groundh: 172.3 KB
+client.js:20626 [client] mapBuildGroundData: 300.1 KB
+client.js:20626 [client] mapBuildIndex: 36 B
+client.js:20626 [client] mapBuildLocationData: 19.7 KB
+client.js:20626 [client] mapl: 42.3 KB
+client.js:20626 [client] menuArrays: 15.6 KB
+client.js:20626 [client] messageArrays: 800 B
+client.js:20626 [client] packets: 14.6 KB
+client.js:20626 [client] playerAppearancePackets: 49 B
+client.js:20626 [client] routeFinding: 115.8 KB
+client.js:20626 [client] textureBuffer: 16.0 KB
+client.js:20626 [client] tileLastOccupiedCycle: 42.3 KB
+client.js:20626 [client] uiScanlines: 4.1 KB
+client.js:20626 [client] waveArrays: 600 B
+client.js:20626 [graphics] pix2dPixels: 668.0 KB
+client.js:20626 [graphics] pix3dActiveTexels: 576.0 KB
+client.js:20626 [graphics] pix3dAverageTextureRgb: 200 B
+client.js:20626 [graphics] pix3dTables: 283.5 KB
+client.js:20626 [graphics] pix3dTexelPool: 704.0 KB
+client.js:20626 [graphics] pix3dTexPal: 2.7 KB
+client.js:20626 [graphics] pix3dTextures: 202.7 KB
+client.js:20626 [world] mergeIndices: 78.1 KB
+client.js:20626 [world] occlusionCycle: 172.3 KB
+client.js:20626 [models] ifTypeModelCache: 18.3 KB
+client.js:20626 [models] ifTypeSpriteCache: 0 B
+client.js:20626 [models] locTypeMc1: 22.6 KB
+client.js:20626 [models] locTypeMc2: 137.9 KB
+client.js:20626 [models] modelMeta: 573.2 KB
+client.js:20626 [models] modelStaticBuffers: 3.17 MB
+client.js:20626 [models] npcTypeModelCache: 44.6 KB
+client.js:20626 [models] objTypeModelCache: 0 B
+client.js:20626 [models] objTypeSpriteCache: 0 B
+client.js:20626 [models] playerModelCache: 18.3 KB
+client.js:20626 [models] spotAnimModelCache: 0 B
+client.js:20626 [io] onDemand: 64.0 KB
+client.js:20626 [io] packetCache: 0 B
+client.js:20626 [sound] tone: 0 B
+client.js:20626 [sound] waveBytes: 430.7 KB
+client.js:20626 [browser] jsHeapTotal: 56.44 MB
+client.js:20626 [browser] jsHeapUsed: 51.63 MB
+client.js:20632 TOTAL (tracked buffers): 8.05 MB
+client.js:20636 [browser] JS heap used: 51.63 MB / 56.44 MB

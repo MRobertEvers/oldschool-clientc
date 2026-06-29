@@ -307,6 +307,14 @@ scenery_load_model(
 
     apply_transforms(config_loc, model, rotation, true);
 
+    if( model->vertex_count <= 0 || model->face_count <= 0 )
+    {
+        ToriDraw_ModelFree(model);
+        return -1;
+    }
+
+    ToriDraw_ModelSetBoundsCylinder(model);
+
     int element_id = ToriDraw_SceneElementAdd(builder->scene);
     assert(element_id >= 0 && "world_load_scenery_model: invalid element_id");
 

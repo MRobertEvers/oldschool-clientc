@@ -347,7 +347,7 @@ test_projectile_movement_and_painter(
             max_y = pos_y;
         if( pos_y < min_y )
             min_y = pos_y;
-        if( projectile->pitch != 0 )
+        if( projectile->orientation.pitch != 0 )
             saw_pitch = true;
 
         if( (int)projectile->x <= start_pos_x )

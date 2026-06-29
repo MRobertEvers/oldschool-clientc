@@ -481,6 +481,7 @@ dat2_buildcache_model_remove(
         DAT2_BUILDCACHE_KIND_MODEL,
         RSCacheDat2A_ModelSizeOf(entry->model));
     RSCacheDat2A_ModelFree(entry->model);
+    entry->model = NULL;
 }
 
 void

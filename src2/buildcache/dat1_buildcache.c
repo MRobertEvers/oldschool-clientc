@@ -456,6 +456,7 @@ dat1_buildcache_model_remove(
         return;
 
     RSCacheDat2A_ModelFree(entry->model);
+    entry->model = NULL;
 }
 
 void

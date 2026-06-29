@@ -207,7 +207,8 @@ GameRunescape_EmitDrawElement(
 
     struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(game->scene, element_id);
     assert(!(!element || element->model.kind != TORIDRAWMK_MODEL));
-    assert(ToriDraw_ModelGetBoundsCylinder(element->model));
+    if( !ToriDraw_ModelGetBoundsCylinder(element->model) )
+        return false;
 
     struct ToriDraw_Position rel_pos = element->world_position;
     rel_pos.x -= game->camera_position->x;
@@ -791,7 +792,13 @@ GameRunescape_SyncProjectilesToScene(struct GameRunescape* game)
             continue;
 
         ToriDraw_SceneElementSetPositionPitchYaw(
-            game->scene, p->element_id, (int)p->x, (int)p->y, (int)p->z, p->pitch, p->yaw);
+            game->scene,
+            p->element_id,
+            (int)p->x,
+            (int)p->y,
+            (int)p->z,
+            p->orientation.pitch,
+            p->orientation.yaw);
     }
 }
 
