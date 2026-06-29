@@ -165,6 +165,20 @@
     </section>
     <section class="panel full">
       <h2>Still live at end of trace</h2>
+      <div class="controls" id="leaksControls" hidden>
+        <label>Show
+          <select id="leaksPageSize">
+            <option value="25">25</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="250">250</option>
+            <option value="0">All</option>
+          </select>
+        </label>
+        <button class="btn" id="leaksPrev" type="button">Prev</button>
+        <span id="leaksPageInfo" style="font-size:12px;color:var(--muted)"></span>
+        <button class="btn" id="leaksNext" type="button">Next</button>
+      </div>
       <div id="leaks" class="empty">Load a trace for leak summary.</div>
     </section>
   </main>
@@ -431,7 +445,6 @@ function aggregate(decoded) {
     topLeaks.push({ ptr: '0x' + p.toString(16), bytes: v.size, sid: v.sid });
   }
   topLeaks.sort((a, b) => b.bytes - a.bytes);
-  topLeaks.length = Math.min(topLeaks.length, 64);
 
   const bucketCount = Math.min(TIMELINE_BUCKETS, Math.max(1, eventCount));
   const xRatio = new Float32Array(bucketCount);
@@ -797,6 +810,8 @@ self.onmessage = async (ev) => {
       busy: false,
       traceSource: null,
       exportSqliteBusy: false,
+      leaksPage: 0,
+      leaksPageSize: 50,
     };
 
     const TIMELINE_PAD = { l: 48, r: 12, t: 12, b: 28 };
@@ -1151,22 +1166,49 @@ self.onmessage = async (ev) => {
 
     function renderLeaks() {
       const el = document.getElementById('leaks');
+      const controls = document.getElementById('leaksControls');
       const leaks = state.meta?.top_leaks || [];
       if (!leaks.length) {
+        controls.hidden = true;
         el.className = 'empty';
         el.textContent = state.meta
           ? `No leaked pointers reported (${state.meta.still_live_count || 0} still live, ${fmtBytes(state.meta.still_live_bytes || 0)}).`
           : 'Load a trace for leak summary.';
         return;
       }
-      el.className = '';
+
+      const total = leaks.length;
+      const pageSize = state.leaksPageSize > 0 ? state.leaksPageSize : total;
+      const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1;
+      if (state.leaksPage >= pageCount) state.leaksPage = pageCount - 1;
+      if (state.leaksPage < 0) state.leaksPage = 0;
+
+      const start = state.leaksPage * pageSize;
+      const page = leaks.slice(start, start + pageSize);
+      const paged = pageSize < total;
+
+      controls.hidden = false;
+      document.getElementById('leaksPageSize').value = String(state.leaksPageSize);
+      document.getElementById('leaksPrev').disabled = !paged || state.leaksPage <= 0;
+      document.getElementById('leaksNext').disabled = !paged || state.leaksPage >= pageCount - 1;
+      const pageInfo = document.getElementById('leaksPageInfo');
+      if (paged) {
+        pageInfo.textContent = `Page ${state.leaksPage + 1} of ${pageCount} · rows ${start + 1}–${start + page.length} of ${total}`;
+      } else {
+        pageInfo.textContent = `${total} row${total === 1 ? '' : 's'}`;
+      }
+
       let running = 0;
-      el.innerHTML = `<table><thead><tr><th>Pointer</th><th>Bytes</th><th>Running sum</th><th>Allocated at</th></tr></thead><tbody>` +
-        leaks.map(l => {
+      for (let i = 0; i < start; i++) running += leaks[i].bytes;
+
+      el.className = '';
+      el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>#</th><th>Pointer</th><th>Bytes</th><th>Running sum</th><th>Allocated at</th></tr></thead><tbody>` +
+        page.map((l, i) => {
           running += l.bytes;
-          return `<tr><td class="stack">${l.ptr}</td><td>${fmtBytes(l.bytes)}</td><td>${fmtBytes(running)}</td>${stackCellHtml(l.sid)}</tr>`;
+          return `<tr><td>${start + i + 1}</td><td class="stack">${l.ptr}</td><td>${fmtBytes(l.bytes)}</td><td>${fmtBytes(running)}</td>${stackCellHtml(l.sid)}</tr>`;
         }).join('') +
-        `</tbody></table><p style="color:#9aa3b2;font-size:12px;margin-top:8px">Still live: ${state.meta.still_live_count} pointers, ${fmtBytes(state.meta.still_live_bytes || 0)} total.</p>`;
+        `</tbody></table></div>` +
+        `<p style="color:#9aa3b2;font-size:12px;margin-top:8px">Still live: ${state.meta.still_live_count} pointers, ${fmtBytes(state.meta.still_live_bytes || 0)} total.</p>`;
     }
 
     function renderLiveAt() {
@@ -1324,6 +1366,7 @@ self.onmessage = async (ev) => {
       state.selectedRatio = 1;
       state.ratioA = 0.05;
       state.ratioB = 1;
+      state.leaksPage = 0;
       document.getElementById('diffSliderA').value = '50';
       document.getElementById('diffSliderB').value = '1000';
       renderAll();
@@ -1429,6 +1472,24 @@ self.onmessage = async (ev) => {
       renderLeaks();
       renderLiveAt();
       renderDiff();
+    });
+
+    document.getElementById('leaksPageSize').addEventListener('change', (ev) => {
+      state.leaksPageSize = Number(ev.target.value);
+      state.leaksPage = 0;
+      renderLeaks();
+    });
+
+    document.getElementById('leaksPrev').addEventListener('click', () => {
+      if (state.leaksPage > 0) {
+        state.leaksPage -= 1;
+        renderLeaks();
+      }
+    });
+
+    document.getElementById('leaksNext').addEventListener('click', () => {
+      state.leaksPage += 1;
+      renderLeaks();
     });
 
     document.getElementById('timeSlider').addEventListener('input', (ev) => {
