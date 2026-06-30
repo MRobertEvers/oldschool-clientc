@@ -10,10 +10,10 @@
 #include "toriauxlib/vm/toriauxlibvm.h"
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"
+#include "ui/ui_input.h"
 #include "ui/uitree.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
-#include "ui/ui_input.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -101,7 +101,6 @@ struct GameRunescape_EntityRecord
 
 struct GameRunescape
 {
-    struct LibToriRS_ScriptQueue* script_queue;
     struct ToriAuxLibCore* core;
     struct World* world;
     struct ToriDraw_Scene* scene;

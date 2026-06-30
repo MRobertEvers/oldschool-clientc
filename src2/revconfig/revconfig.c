@@ -224,14 +224,16 @@ revconfig_item_buffer_push(struct RevConfigItemBuffer* buffer)
 }
 
 static void
-revconfig_item_set_name(struct RevConfigItem* item, const char* value)
+revconfig_item_set_name(
+    struct RevConfigItem* item,
+    const char* value)
 {
     if( !item || !value )
         return;
 
     switch( item->kind )
     {
-    case RCITEM_CACHE:
+    case RCITEM_CACHE_SPRITE:
         strncpy(item->u.cache.name, value, sizeof(item->u.cache.name) - 1);
         break;
     case RCITEM_UICOMPONENT:
@@ -249,13 +251,15 @@ revconfig_item_set_name(struct RevConfigItem* item, const char* value)
 }
 
 static void
-revconfig_item_begin(struct RevConfigItem* item, const char* type_value)
+revconfig_item_begin(
+    struct RevConfigItem* item,
+    const char* type_value)
 {
     memset(item, 0, sizeof(*item));
 
     if( strcmp(type_value, "sprite") == 0 )
     {
-        item->kind = RCITEM_CACHE;
+        item->kind = RCITEM_CACHE_SPRITE;
         item->u.cache.archive_id = -1;
     }
     else if( strcmp(type_value, "component") == 0 )
@@ -470,7 +474,7 @@ revconfig_item_apply_field(
 
     switch( item->kind )
     {
-    case RCITEM_CACHE:
+    case RCITEM_CACHE_SPRITE:
         revconfig_item_apply_cache_field(&item->u.cache, kind, value);
         break;
     case RCITEM_UICOMPONENT:
@@ -480,7 +484,8 @@ revconfig_item_apply_field(
         revconfig_item_apply_uilayout_field(&item->u.uilayout, kind, value);
         break;
     case RCITEM_INV:
-        if( kind == RCFIELD_INV_ITEM && item->u.inv.item_count < REVRSCacheDat2A_ConfigKind_Inv_MAX_ITEMS )
+        if( kind == RCFIELD_INV_ITEM &&
+            item->u.inv.item_count < REVRSCacheDat2A_ConfigKind_Inv_MAX_ITEMS )
         {
             strncpy(
                 item->u.inv.items[item->u.inv.item_count],

@@ -1,10 +1,10 @@
 #include "3rd/minipt.h"
 #include "core/tapi/tapi_config.h"
-#include "toriauxlib/core/tasks/core_task.h"
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "platforms/platform_x_io_reactor.h"
 #include "revconfig/revconfig.h"
 #include "revconfig/revconfig_load.h"
+#include "toriauxlib/core/tasks/core_task.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -83,6 +83,14 @@ Task_RevConfigIniLoad_Run(
     revconfig_items_build(task->cache_fields, task->items);
     revconfig_items_build(task->ui_fields, task->items);
 
+    for( int i = 0; i < task->items->item_count; i++ )
+    {
+        struct RevConfigItem const* item = &task->items->items[i];
+        if( item->kind == RCITEM_CACHE_SPRITE )
+        {
+        }
+    }
+
     task->ok = true;
     PT_END(&task->thread);
 }
@@ -158,7 +166,7 @@ find_cache_item(
     for( uint32_t i = 0; i < items->item_count; i++ )
     {
         struct RevConfigItem const* item = &items->items[i];
-        if( item->kind == RCITEM_CACHE && strcmp(item->u.cache.name, name) == 0 )
+        if( item->kind == RCITEM_CACHE_SPRITE && strcmp(item->u.cache.name, name) == 0 )
             return true;
     }
     return false;
@@ -188,7 +196,7 @@ find_cache_item_with_archive_id(struct RevConfigItemBuffer const* items)
     for( uint32_t i = 0; i < items->item_count; i++ )
     {
         struct RevConfigItem const* item = &items->items[i];
-        if( item->kind == RCITEM_CACHE && item->u.cache.archive_id >= 0 )
+        if( item->kind == RCITEM_CACHE_SPRITE && item->u.cache.archive_id >= 0 )
             return true;
     }
     return false;

@@ -86,7 +86,7 @@ struct RevConfigBuffer
 enum RevConfigItemKind
 {
     RCITEM_NONE,
-    RCITEM_CACHE,
+    RCITEM_CACHE_SPRITE,
     RCITEM_UICOMPONENT,
     RCITEM_UILAYOUT,
     RCITEM_INV,

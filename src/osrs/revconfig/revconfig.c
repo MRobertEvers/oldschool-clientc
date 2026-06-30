@@ -230,7 +230,7 @@ revconfig_item_set_name(
 
     switch( item->kind )
     {
-    case RCITEM_CACHE:
+    case RCITEM_CACHE_SPRITE:
         strncpy(item->u.cache.name, value, sizeof(item->u.cache.name) - 1);
         break;
     case RCITEM_UICOMPONENT:
@@ -256,7 +256,7 @@ revconfig_item_begin(
 
     if( strcmp(type_value, "sprite") == 0 )
     {
-        item->kind = RCITEM_CACHE;
+        item->kind = RCITEM_CACHE_SPRITE;
         item->u.cache.archive_id = -1;
     }
     else if( strcmp(type_value, "component") == 0 )
@@ -457,7 +457,7 @@ revconfig_item_apply_field(
 
     switch( item->kind )
     {
-    case RCITEM_CACHE:
+    case RCITEM_CACHE_SPRITE:
         revconfig_item_apply_cache_field(&item->u.cache, kind, value);
         break;
     case RCITEM_UICOMPONENT:

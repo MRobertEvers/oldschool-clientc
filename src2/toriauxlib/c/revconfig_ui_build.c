@@ -240,7 +240,7 @@ revconfig_ui_build_collect_items(
         struct RevConfigItem const* item = &items->items[i];
         switch( item->kind )
         {
-        case RCITEM_CACHE:
+        case RCITEM_CACHE_SPRITE:
             if( state->sprite_ref_count < REVCONFIG_UI_MAX_SPRITE_REFS )
             {
                 struct RevConfigUISpriteRef* ref = &state->sprite_refs[state->sprite_ref_count++];
