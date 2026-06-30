@@ -340,7 +340,24 @@ gl3_upload_sprite_atlas(struct LibToriPlatformSDL2_RendererGL3* renderer)
         renderer->sprite_atlas.pixels);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+static void
+gl3_sprite_uv_clamp_set(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    bool enable,
+    float u0,
+    float v0,
+    float u1,
+    float v1)
+{
+    if( renderer->u2d_uv_clamp >= 0 )
+        glUniform1i(renderer->u2d_uv_clamp, enable ? 1 : 0);
+    if( enable && renderer->u2d_uv_bounds >= 0 )
+        glUniform4f(renderer->u2d_uv_bounds, u0, v0, u1, v1);
 }
 
 static void
@@ -887,7 +904,9 @@ gl3_ev_sprite(
             float mu1 = mask_slot->uvs[mask_atlas_index * 4 + 2];
             float mv1 = mask_slot->uvs[mask_atlas_index * 4 + 3];
             float mask_rgba[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+            gl3_sprite_uv_clamp_set(renderer, true, mu0, mv0, mu1, mv1);
             gl3_draw_textured_quad(renderer, x0, y0, x1, y1, mu0, mv0, mu1, mv1, mask_rgba);
+            gl3_sprite_uv_clamp_set(renderer, false, 0.0f, 0.0f, 0.0f, 0.0f);
 
             glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
             glStencilMask(0x00);
@@ -896,9 +915,16 @@ gl3_ev_sprite(
     }
 
     if( rotated )
+    {
+        gl3_sprite_uv_clamp_set(renderer, false, 0.0f, 0.0f, 0.0f, 0.0f);
         gl3_draw_sprite_rotated(renderer, command, sp, u0, v0, u1, v1, rgba);
+    }
     else
+    {
+        gl3_sprite_uv_clamp_set(renderer, true, u0, v0, u1, v1);
         gl3_draw_textured_quad(renderer, x0, y0, x1, y1, u0, v0, u1, v1, rgba);
+        gl3_sprite_uv_clamp_set(renderer, false, 0.0f, 0.0f, 0.0f, 0.0f);
+    }
 
     if( use_stencil )
         glDisable(GL_STENCIL_TEST);
