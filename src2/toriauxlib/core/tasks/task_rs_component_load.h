@@ -11,7 +11,7 @@ struct InstanceRevConfigContext;
 struct ToriDraw_Scene;
 struct LibToriRS_IOContext;
 
-#define RS_COMPONENT_STACK_MAX 256
+#define RS_COMPONENT_STACK_MAX 1024
 #define TASK_RS_COMPONENT_PREFETCH_BATCH 64
 
 struct RSComponentLoadCallbacks

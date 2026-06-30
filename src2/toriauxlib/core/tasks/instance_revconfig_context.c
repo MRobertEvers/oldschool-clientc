@@ -146,6 +146,12 @@ instance_revconfig_bake_rs_component(
     return uitree_push(ctx->tree, parent_idx, &spec);
 }
 
+static int
+instance_revconfig_rs_file_index(int component_id)
+{
+    return component_id & 0xFFFF;
+}
+
 void
 instance_revconfig_bake_rs_subtree(
     struct InstanceRevConfigContext* ctx,
@@ -162,8 +168,8 @@ instance_revconfig_bake_rs_subtree(
     if( comp->inv[0] != '\0' && ctx->inv_pool )
         inv_index = uitree_inv_pool_find_by_name(ctx->inv_pool, comp->inv);
 
-    int id_to_uitree[1024];
-    for( int i = 0; i < 1024; i++ )
+    int id_to_uitree[INSTANCE_RC_RS_FILE_INDEX_MAX];
+    for( int i = 0; i < INSTANCE_RC_RS_FILE_INDEX_MAX; i++ )
         id_to_uitree[i] = -1;
 
     for( int i = 0; i < subtree->item_count; i++ )
@@ -177,15 +183,20 @@ instance_revconfig_bake_rs_subtree(
         int32_t parent_idx = owner_uitree_index;
         if( info->parent_id >= 0 )
         {
-            if( info->parent_id >= 1024 || id_to_uitree[info->parent_id] < 0 )
+            int parent_file = instance_revconfig_rs_file_index(info->parent_id);
+            if( parent_file < 0 || parent_file >= INSTANCE_RC_RS_FILE_INDEX_MAX ||
+                id_to_uitree[parent_file] < 0 )
                 continue;
-            parent_idx = id_to_uitree[info->parent_id];
+            parent_idx = id_to_uitree[parent_file];
         }
 
         int32_t idx = instance_revconfig_bake_rs_component(ctx, parent_idx, info, inv_index);
-        assert(idx >= 0);
-        assert(info->id >= 0 && info->id < 1024);
-        id_to_uitree[info->id] = idx;
+        if( idx < 0 )
+            continue;
+
+        int file_idx = instance_revconfig_rs_file_index(info->id);
+        if( file_idx >= 0 && file_idx < INSTANCE_RC_RS_FILE_INDEX_MAX )
+            id_to_uitree[file_idx] = idx;
     }
 }
 

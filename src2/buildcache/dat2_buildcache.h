@@ -453,6 +453,11 @@ dat2_buildcache_dynamic_sprite_get(
     struct Dat2BuildCache* dat2_buildcache,
     int sprite_id);
 
+struct ToriAuxLibCore_Sprite*
+dat2_buildcache_dynamic_sprite_release(
+    struct Dat2BuildCache* dat2_buildcache,
+    int sprite_id);
+
 bool
 dat2_buildcache_dynamic_sprite_has(
     struct Dat2BuildCache* dat2_buildcache,

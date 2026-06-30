@@ -1080,8 +1080,8 @@ GameRunescape_EmitUIComponent(
         GameRunescape_EmitSpriteCommand(command, scene_id, 0, bx, by, bw, bh);
         command->u.sprite.rotated = 1;
         command->u.sprite.rotation = uitree_component_sprite_rotation(component, &game->ui_host);
-        command->u.sprite.dst_anchor_x = bw >> 1;
-        command->u.sprite.dst_anchor_y = bh >> 1;
+        command->u.sprite.dst_anchor_x = component->position.anchor_x;
+        command->u.sprite.dst_anchor_y = component->position.anchor_y;
         if( game->ui_host.get_minimap_anchor )
         {
             game->ui_host.get_minimap_anchor(
@@ -1089,6 +1089,8 @@ GameRunescape_EmitUIComponent(
                 &command->u.sprite.src_anchor_x,
                 &command->u.sprite.src_anchor_y);
         }
+        command->u.sprite.x = bx + (bw >> 1) - command->u.sprite.dst_anchor_x;
+        command->u.sprite.y = by + (bh >> 1) - command->u.sprite.dst_anchor_y;
         command->u.sprite.scissor_x = bx;
         command->u.sprite.scissor_y = by;
         command->u.sprite.scissor_w = bw;

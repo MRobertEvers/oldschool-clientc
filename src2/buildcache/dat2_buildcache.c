@@ -2251,6 +2251,24 @@ dat2_buildcache_dynamic_sprite_get(
     return entry ? entry->sprite : NULL;
 }
 
+struct ToriAuxLibCore_Sprite*
+dat2_buildcache_dynamic_sprite_release(
+    struct Dat2BuildCache* dat2_buildcache,
+    int sprite_id)
+{
+    if( !dat2_buildcache || sprite_id < 0 )
+        return NULL;
+
+    struct MapEntry_DynamicSprite* entry = (struct MapEntry_DynamicSprite*)ToriDraw_MapSearch(
+        dat2_buildcache->dynamic_sprites_hmap, &sprite_id, TORIDRAW_MAP_FIND);
+    if( !entry || !entry->sprite )
+        return NULL;
+
+    struct ToriAuxLibCore_Sprite* sprite = entry->sprite;
+    entry->sprite = NULL;
+    return sprite;
+}
+
 bool
 dat2_buildcache_dynamic_sprite_has(
     struct Dat2BuildCache* dat2_buildcache,

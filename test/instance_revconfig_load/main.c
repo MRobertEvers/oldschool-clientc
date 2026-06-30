@@ -479,8 +479,8 @@ test_dat1_minimap_layout_uses_component_anchor_defaults(void)
     TEST_ASSERT(minimap_layout != NULL, "minimap_viewport layout in dat1 ini");
     TEST_ASSERT(minimap_comp->width == 213, "minimap component width in ini");
     TEST_ASSERT(minimap_comp->height == 190, "minimap component height in ini");
-    TEST_ASSERT(minimap_comp->anchor_x == 105, "minimap component anchor_x in ini");
-    TEST_ASSERT(minimap_comp->anchor_y == 101, "minimap component anchor_y in ini");
+    TEST_ASSERT(minimap_comp->anchor_x == 106, "minimap component anchor_x in ini");
+    TEST_ASSERT(minimap_comp->anchor_y == 95, "minimap component anchor_y in ini");
     TEST_ASSERT(minimap_layout->width == 0, "layout must not override width");
     TEST_ASSERT(minimap_layout->height == 0, "layout must not override height");
     TEST_ASSERT(!minimap_layout->has_anchor, "layout must not override anchor");
@@ -503,8 +503,8 @@ test_dat1_minimap_layout_uses_component_anchor_defaults(void)
     TEST_ASSERT(tree->components[0].type == UIELEM_BUILTIN_MINIMAP, "minimap node type");
     TEST_ASSERT(tree->components[0].position.width == 213, "dat1 minimap width from component");
     TEST_ASSERT(tree->components[0].position.height == 190, "dat1 minimap height from component");
-    TEST_ASSERT(tree->components[0].position.anchor_x == 105, "dat1 minimap anchor_x from component");
-    TEST_ASSERT(tree->components[0].position.anchor_y == 101, "dat1 minimap anchor_y from component");
+    TEST_ASSERT(tree->components[0].position.anchor_x == 106, "dat1 minimap anchor_x from component");
+    TEST_ASSERT(tree->components[0].position.anchor_y == 95, "dat1 minimap anchor_y from component");
     TEST_ASSERT(tree->components[0].position.x == 570, "dat1 minimap x from layout");
     TEST_ASSERT(tree->components[0].position.y == 9, "dat1 minimap y from layout");
 

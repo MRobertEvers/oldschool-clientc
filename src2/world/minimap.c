@@ -647,8 +647,8 @@ minimap_compute_camera_src_anchor(
         map_tile_h <= 0 )
         return;
 
-    int const camera_tile_x = camera_world_x / 128;
-    int const camera_tile_z = camera_world_z / 128;
-    *out_src_anchor_x = camera_tile_x * (sprite_w / map_tile_w);
-    *out_src_anchor_y = sprite_h - camera_tile_z * (sprite_h / map_tile_h);
+    int const px_per_tile_x = sprite_w / map_tile_w;
+    int const px_per_tile_z = sprite_h / map_tile_h;
+    *out_src_anchor_x = (camera_world_x * px_per_tile_x) / 128;
+    *out_src_anchor_y = sprite_h - (camera_world_z * px_per_tile_z) / 128;
 }

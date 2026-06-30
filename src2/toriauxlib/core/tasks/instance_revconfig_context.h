@@ -16,7 +16,9 @@
 #define INSTANCE_RC_MAX_WORK_ITEMS 512
 #define INSTANCE_RC_COMPONENT_STACK_MAX RS_COMPONENT_STACK_MAX
 #define INSTANCE_RC_MAX_RS_SUBTREES 32
-#define INSTANCE_RC_MAX_RS_SUBTREE_ITEMS 512
+#define INSTANCE_RC_MAX_RS_SUBTREE_ITEMS 1024
+/** Max per-interface file index when remapping dat2 packed component ids during bake. */
+#define INSTANCE_RC_RS_FILE_INDEX_MAX 1024
 
 struct InstanceRevConfigRSSubtree
 {
