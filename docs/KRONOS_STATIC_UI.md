@@ -104,7 +104,7 @@ Sources: `WidgetID.java`, `Constants.GAME_FIXED_SIZE`, `Client.getViewportWidget
 | Group | Role |
 |-------|------|
 | 160 | Minimap orbs (HP, prayer, run, spec, world map) |
-| 162 | Chatbox (filter buttons, messages, input) — mount via `chat_region` `componentno=162` at `(0,0)`; fixed shell 548 only provides `chatback` parchment chrome |
+| 162 | Chatbox — mount filter buttons via `chat_region` `componentno=10616833` (`(162<<16)|1`, `WidgetID.Chatbox.BUTTONS`) at `(0,0)`; full iface 162 includes script-driven modal/message layers that must not be baked for static HUD |
 | 593, 320, 399, 149, 387, 541, 218, 7, 429, 182, 216, 239 | Sidebar panel content |
 
 ## Revconfig mapping

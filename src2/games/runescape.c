@@ -1062,10 +1062,6 @@ GameRunescape_EmitUIComponent(
         int sh = sp ? (sp->crop_height > 0 ? sp->crop_height : sp->height) : bh;
         command->u.sprite.src_anchor_x = sw >> 1;
         command->u.sprite.src_anchor_y = sh >> 1;
-        command->u.sprite.w = sw;
-        command->u.sprite.h = sh;
-        command->u.sprite.x = bx + (bw >> 1) - command->u.sprite.dst_anchor_x;
-        command->u.sprite.y = by + (bh >> 1) - command->u.sprite.dst_anchor_y;
         command->u.sprite.scissor_x = bx;
         command->u.sprite.scissor_y = by;
         command->u.sprite.scissor_w = bw;
@@ -1089,8 +1085,6 @@ GameRunescape_EmitUIComponent(
                 &command->u.sprite.src_anchor_x,
                 &command->u.sprite.src_anchor_y);
         }
-        command->u.sprite.x = bx + (bw >> 1) - command->u.sprite.dst_anchor_x;
-        command->u.sprite.y = by + (bh >> 1) - command->u.sprite.dst_anchor_y;
         command->u.sprite.scissor_x = bx;
         command->u.sprite.scissor_y = by;
         command->u.sprite.scissor_w = bw;

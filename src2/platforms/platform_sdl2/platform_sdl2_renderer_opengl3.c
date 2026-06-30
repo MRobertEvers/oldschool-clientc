@@ -464,19 +464,6 @@ gl3_composite_hud(
 #endif
 
 static void
-gl3_sprite_local_to_screen(
-    int dst_x,
-    int dst_y,
-    int local_x,
-    int local_y,
-    float* out_x,
-    float* out_y)
-{
-    *out_x = (float)(dst_x + local_x);
-    *out_y = (float)(dst_y + local_y);
-}
-
-static void
 gl3_apply_logical_scissor(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     int logical_x,
@@ -496,39 +483,6 @@ gl3_apply_logical_scissor(
 }
 
 static void
-gl3_sprite_local_to_uv(
-    int local_x,
-    int local_y,
-    int dst_anchor_x,
-    int dst_anchor_y,
-    int src_anchor_x,
-    int src_anchor_y,
-    int src_w,
-    int src_h,
-    int rotation_r2pi2048,
-    float u0,
-    float v0,
-    float u1,
-    float v1,
-    float* out_u,
-    float* out_v)
-{
-    const int ang = ToriDraw_NormalizeAngle(rotation_r2pi2048);
-    const int cos = ToriDraw_Cos(ang);
-    const int sin = ToriDraw_Sin(ang);
-    const int rel_x = local_x - dst_anchor_x;
-    const int rel_y = local_y - dst_anchor_y;
-    const int src_rel_x = ((rel_x * cos + rel_y * sin) >> 16);
-    const int src_rel_y = ((-rel_x * sin + rel_y * cos) >> 16);
-    const float src_x = (float)(src_anchor_x + src_rel_x);
-    const float src_y = (float)(src_anchor_y + src_rel_y);
-    const float du = u1 - u0;
-    const float dv = v1 - v0;
-    *out_u = u0 + (src_w > 0 ? (src_x / (float)src_w) * du : 0.0f);
-    *out_v = v0 + (src_h > 0 ? (src_y / (float)src_h) * dv : 0.0f);
-}
-
-static void
 gl3_draw_sprite_rotated(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     struct LibToriRS_RenderCommand* command,
@@ -539,55 +493,44 @@ gl3_draw_sprite_rotated(
     float v1,
     float const rgba[4])
 {
-    const int dst_x = command->u.sprite.x;
-    const int dst_y = command->u.sprite.y;
-    const int dst_w = command->u.sprite.w > 0 ? command->u.sprite.w : sp->width;
-    const int dst_h = command->u.sprite.h > 0 ? command->u.sprite.h : sp->height;
+    const int dst_bb_x = command->u.sprite.x;
+    const int dst_bb_y = command->u.sprite.y;
+    const int dst_bb_w = command->u.sprite.w > 0 ? command->u.sprite.w : sp->width;
+    const int dst_bb_h = command->u.sprite.h > 0 ? command->u.sprite.h : sp->height;
+    if( dst_bb_w <= 0 || dst_bb_h <= 0 )
+        return;
+
     const int dst_anchor_x = command->u.sprite.dst_anchor_x;
     const int dst_anchor_y = command->u.sprite.dst_anchor_y;
-    const int src_anchor_x = command->u.sprite.src_anchor_x;
-    const int src_anchor_y = command->u.sprite.src_anchor_y;
-    const int src_w = sp->crop_width > 0 ? sp->crop_width : sp->width;
-    const int src_h = sp->crop_height > 0 ? sp->crop_height : sp->height;
-    const int rotation = command->u.sprite.rotation;
+    const int ang = ToriDraw_NormalizeAngle(command->u.sprite.rotation);
+    const float pivot_x = (float)dst_bb_x + (float)dst_anchor_x;
+    const float pivot_y = (float)dst_bb_y + (float)dst_anchor_y;
+    const float ca = (float)ToriDraw_Cos(ang) / 65536.0f;
+    const float sa = (float)ToriDraw_Sin(ang) / 65536.0f;
 
-    const int local_corners[4][2] = {
-        { 0,     0     },
-        { dst_w, 0     },
-        { dst_w, dst_h },
-        { 0,     dst_h },
+    const int corners[4][2] = {
+        { 0,        0        },
+        { dst_bb_w, 0        },
+        { dst_bb_w, dst_bb_h },
+        { 0,        dst_bb_h },
     };
     float pos[4][2];
-    float uv[4][2];
-    for( int i = 0; i < 4; i++ )
+    for( int k = 0; k < 4; k++ )
     {
-        gl3_sprite_local_to_screen(
-            dst_x, dst_y, local_corners[i][0], local_corners[i][1], &pos[i][0], &pos[i][1]);
-        gl3_sprite_local_to_uv(
-            local_corners[i][0],
-            local_corners[i][1],
-            dst_anchor_x,
-            dst_anchor_y,
-            src_anchor_x,
-            src_anchor_y,
-            src_w,
-            src_h,
-            rotation,
-            u0,
-            v0,
-            u1,
-            v1,
-            &uv[i][0],
-            &uv[i][1]);
+        const float Lx = (float)(corners[k][0] - dst_anchor_x);
+        const float Ly = (float)(corners[k][1] - dst_anchor_y);
+        pos[k][0] = pivot_x + ca * Lx - sa * Ly;
+        pos[k][1] = pivot_y + sa * Lx + ca * Ly;
     }
 
-    if( renderer->u2d_uv_clamp >= 0 )
-        glUniform1i(renderer->u2d_uv_clamp, 1);
-    if( renderer->u2d_uv_bounds >= 0 )
-        glUniform4f(renderer->u2d_uv_bounds, u0, v0, u1, v1);
+    const float uv[4][2] = {
+        { u0, v0 },
+        { u1, v0 },
+        { u1, v1 },
+        { u0, v1 },
+    };
+
     gl3_draw_textured_quad_uv4(renderer, pos, uv, rgba);
-    if( renderer->u2d_uv_clamp >= 0 )
-        glUniform1i(renderer->u2d_uv_clamp, 0);
 }
 
 static void
@@ -795,13 +738,34 @@ gl3_ev_sprite_load(
             uint8_t b = (uint8_t)(pix & 0xFFu);
             rgba[p] = (uint32_t)r | ((uint32_t)g << 8) | ((uint32_t)b << 16) | ((uint32_t)a << 24);
         }
+
+        int crop_x = sp->crop_x;
+        int crop_y = sp->crop_y;
+        int crop_w = sp->crop_width > 0 ? sp->crop_width : sp->width;
+        int crop_h = sp->crop_height > 0 ? sp->crop_height : sp->height;
+        if( crop_x < 0 )
+            crop_x = 0;
+        if( crop_y < 0 )
+            crop_y = 0;
+        if( crop_x + crop_w > sp->width )
+            crop_w = sp->width - crop_x;
+        if( crop_y + crop_h > sp->height )
+            crop_h = sp->height - crop_y;
+        if( crop_w <= 0 || crop_h <= 0 )
+        {
+            free(rgba);
+            continue;
+        }
+
+        const uint8_t* crop_pixels =
+            (const uint8_t*)rgba + ((size_t)crop_y * (size_t)sp->width + (size_t)crop_x) * 4u;
         struct TRSPK_AtlasTile tile;
         if( !trspk_atlas_binpack_insert(
                 &renderer->sprite_atlas,
-                (const uint8_t*)rgba,
+                crop_pixels,
                 (uint32_t)sp->width * 4u,
-                (uint32_t)sp->width,
-                (uint32_t)sp->height,
+                (uint32_t)crop_w,
+                (uint32_t)crop_h,
                 &tile) )
         {
             free(rgba);

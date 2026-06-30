@@ -40,6 +40,8 @@ STONE_SPRITE = [
 
 IFACE = {"fixed": 548, "resizable_box": 161, "resizable_bottom": 164}
 CHAT_IFACE = 162
+# WidgetID.Chatbox.BUTTONS (child 1): filter strip only, not full iface 162 overlay.
+CHAT_BUTTONS_ROOT = (CHAT_IFACE << 16) | 1
 CHAT_ROOT = (765, 503)
 ROOT = {"fixed": (765, 503), "resizable_box": (800, 600), "resizable_bottom": (800, 600)}
 
@@ -139,7 +141,7 @@ def emit_components() -> str:
         "anchor_x=105", "anchor_y=101", "",
         "[component:compass]", "type=compass", "sprite=compass", "w=34", "h=34",
         "anchor_x=16", "anchor_y=16", "",
-        "[component:chat_region]", "type=chat", f"componentno={CHAT_IFACE}",
+        "[component:chat_region]", "type=chat", f"componentno={CHAT_BUTTONS_ROOT}",
         f"w={CHAT_ROOT[0]}", f"h={CHAT_ROOT[1]}", "",
     ]
     for sprite in (
