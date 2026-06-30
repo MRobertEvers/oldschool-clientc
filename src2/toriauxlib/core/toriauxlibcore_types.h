@@ -370,6 +370,9 @@ void
 ToriAuxLibCore_ModelReleaseArrays(struct ToriAuxLibCore_Model* model);
 
 void
+ToriAuxLibCore_ModelAssertPnmTextureInvariant(struct ToriAuxLibCore_Model const* model);
+
+void
 ToriAuxLibCore_AnimationFree(struct ToriAuxLibCore_Animation* anim);
 
 void

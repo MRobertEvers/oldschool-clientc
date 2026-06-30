@@ -309,6 +309,7 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
     }
 
     ToriDraw_ModelSetBoundsCylinder(dst);
+    ToriDraw_ModelAssertPnmTextureInvariant(dst);
     return dst;
 }
 
@@ -553,6 +554,7 @@ ToriDraw_ModelNewMerge(
     free(vertex_offsets);
     free(face_offsets);
 
+    ToriDraw_ModelAssertPnmTextureInvariant(out);
     return out;
 }
 

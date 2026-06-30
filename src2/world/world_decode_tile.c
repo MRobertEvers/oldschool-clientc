@@ -673,6 +673,7 @@ decode_tile(
 
     free(valid_faces);
 
+    ToriDraw_ModelAssertPnmTextureInvariant(td);
     return td;
 }
 

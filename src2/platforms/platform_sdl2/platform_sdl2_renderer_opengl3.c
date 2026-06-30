@@ -1610,6 +1610,7 @@ gl3_bake_into_arena(
 {
     struct ToriDraw_Model* model = get_model(model_handle);
     assert(model && g->arena && g->vbo_cpu);
+    ToriDraw_ModelAssertPnmTextureInvariant(model);
     if( model->face_count <= 0 )
         return UINT32_MAX;
     struct ToriDraw_Scene* ctx = get_context(instance);

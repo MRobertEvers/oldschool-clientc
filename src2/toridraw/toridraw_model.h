@@ -81,6 +81,9 @@ void
 ToriDraw_ModelFree(struct ToriDraw_Model* model);
 
 void
+ToriDraw_ModelAssertPnmTextureInvariant(struct ToriDraw_Model const* model);
+
+void
 ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model);
 
 void

@@ -376,6 +376,36 @@ ToriDraw_ModelFree(struct ToriDraw_Model* model)
     free(model);
 }
 
+void
+ToriDraw_ModelAssertPnmTextureInvariant(struct ToriDraw_Model const* model)
+{
+    assert(model);
+
+    if( !model->face_texture_coords || model->face_count <= 0 )
+        return;
+
+    for( int i = 0; i < model->face_count; i++ )
+    {
+        const int texture_face = model->face_texture_coords[i];
+        if( texture_face == -1 )
+            continue;
+
+        assert(model->textured_face_count > 0);
+        assert(model->textured_p_coordinate != NULL);
+        assert(model->textured_m_coordinate != NULL);
+        assert(model->textured_n_coordinate != NULL);
+        assert(texture_face >= 0);
+        assert(texture_face < model->textured_face_count);
+
+        const int p = model->textured_p_coordinate[texture_face];
+        const int m = model->textured_m_coordinate[texture_face];
+        const int n = model->textured_n_coordinate[texture_face];
+        assert(p >= 0 && p < model->vertex_count);
+        assert(m >= 0 && m < model->vertex_count);
+        assert(n >= 0 && n < model->vertex_count);
+    }
+}
+
 static int
 ToriDraw_ModelNeedsFaceNormals(struct ToriDraw_Model* model)
 {

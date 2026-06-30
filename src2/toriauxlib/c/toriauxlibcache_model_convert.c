@@ -1,6 +1,7 @@
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
+#include "toridraw/toridraw_types.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -267,7 +268,12 @@ gc_model_move_from_cache_model(
 
     if( fc > 0 && model->face_texture_coords )
     {
-        gc->face_texture_coords = (gc_faceint_t*)model->face_texture_coords;
+        gc->face_texture_coords = (gc_faceint_t*)malloc((size_t)fc * sizeof(gc_faceint_t));
+        assert(gc->face_texture_coords);
+        for( int i = 0; i < fc; i++ )
+            gc->face_texture_coords[i] = (gc_faceint_t)ToriDraw_NormalizeFaceTextureCoord(
+                model->face_texture_coords[i], tfc);
+        free(model->face_texture_coords);
         model->face_texture_coords = NULL;
     }
 
@@ -338,6 +344,7 @@ gc_model_move_from_cache_model(
     }
 
     gc->flags |= 0x01u;
+    ToriAuxLibCore_ModelAssertPnmTextureInvariant(gc);
 }
 
 struct ToriAuxLibCore_Model*

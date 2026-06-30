@@ -371,6 +371,7 @@ ToriAuxLibTD_ModelNewFromCore(const struct ToriAuxLibCore_Model* src)
     else if( dst->vertex_count > 0 && dst->vertices_x && dst->vertices_y && dst->vertices_z )
         ToriDraw_ModelSetBoundsCylinder(dst);
 
+    ToriDraw_ModelAssertPnmTextureInvariant(dst);
     return dst;
 
 fail:

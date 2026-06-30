@@ -241,7 +241,8 @@ ToriDraw_ModelMoveFromCacheModel(
     {
         ftc_arr = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
         for( int i = 0; i < fc; i++ )
-            ftc_arr[i] = (faceint_t)model->face_texture_coords[i];
+            ftc_arr[i] = ToriDraw_NormalizeFaceTextureCoord(
+                (int)model->face_texture_coords[i], tfc);
         free(model->face_texture_coords);
         model->face_texture_coords = NULL;
     }
@@ -311,6 +312,7 @@ ToriDraw_ModelMoveFromCacheModel(
     }
 
     td->flags |= 0x01u;
+    ToriDraw_ModelAssertPnmTextureInvariant(td);
 }
 
 struct ToriDraw_Model*

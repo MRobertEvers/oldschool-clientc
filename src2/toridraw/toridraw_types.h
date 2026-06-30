@@ -13,6 +13,18 @@ typedef uint16_t hsl16_t;
 typedef uint8_t alphaint_t;
 typedef uint16_t boneint_t;
 
+/** Map dat2 raw per-face texture coord to renderer form (-1 = none, else PNM index). */
+static inline faceint_t
+ToriDraw_NormalizeFaceTextureCoord(int raw, int textured_face_count)
+{
+    int const idx = raw & 255;
+    if( idx == 255 )
+        return -1;
+    if( textured_face_count <= 0 || idx >= textured_face_count )
+        return -1;
+    return (faceint_t)idx;
+}
+
 /** Sentinels for channel C in lit face colors; lightness=127 is never produced by lighting. */
 #define TORIDRAWHSL16_HIDDEN ((hsl16_t)0xFFFF)
 #define TORIDRAWHSL16_FLAT ((hsl16_t)0xFF7F)
