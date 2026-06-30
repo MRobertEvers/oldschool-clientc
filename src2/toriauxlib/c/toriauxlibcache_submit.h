@@ -4,6 +4,7 @@
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
 struct ToriAuxLibCache;
+struct Dat2BuildCache_InterfaceArchive;
 
 void
 ToriAuxLibCache_SubmitMapTerrainFromDat1(
@@ -61,25 +62,30 @@ void
 ToriAuxLibCache_SubmitAllLocationsFromDat1(struct ToriAuxLibCache* c);
 
 void
-ToriAuxLibCache_SubmitSpriteFromDat1(
+ToriAuxLibCache_SubmitSprite(
     struct ToriAuxLibCache* c,
     int sprite_id,
     struct ToriAuxLibCore_Sprite* sprite);
 
 void
-ToriAuxLibCache_SubmitFontFromDat1(
+ToriAuxLibCache_SubmitFont(
     struct ToriAuxLibCache* c,
     int font_id,
     struct ToriAuxLibCore_Font* font);
 
 void
+ToriAuxLibCache_SubmitComponent(
+    struct ToriAuxLibCache* c,
+    int component_id,
+    struct ToriAuxLibCore_Component* component);
+
+void
 ToriAuxLibCache_SubmitAllComponentsFromDat1(struct ToriAuxLibCache* c);
 
 void
-ToriAuxLibCache_SubmitComponentsFromDat1(
+ToriAuxLibCache_SubmitComponentsFromDat2(
     struct ToriAuxLibCache* c,
-    const bool* needed,
-    int needed_count);
+    struct Dat2BuildCache_InterfaceArchive* archive);
 
 void
 ToriAuxLibCache_SubmitMapTerrainFromDat2(

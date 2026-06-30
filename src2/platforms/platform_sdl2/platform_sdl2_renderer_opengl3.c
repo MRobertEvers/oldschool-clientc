@@ -477,6 +477,25 @@ gl3_sprite_local_to_screen(
 }
 
 static void
+gl3_apply_logical_scissor(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    int logical_x,
+    int logical_y,
+    int logical_w,
+    int logical_h)
+{
+    const float sx = (float)renderer->lb_w / (float)renderer->width;
+    const float sy = (float)renderer->lb_h / (float)renderer->height;
+    const int gl_x = renderer->lb_x + (int)(logical_x * sx);
+    const int gl_w = (int)(logical_w * sx);
+    const int gl_h = (int)(logical_h * sy);
+    const int logical_bottom = renderer->height - logical_y - logical_h;
+    const int gl_y = renderer->lb_y + (int)(logical_bottom * sy);
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(gl_x, gl_y, gl_w, gl_h);
+}
+
+static void
 gl3_sprite_local_to_uv(
     int local_x,
     int local_y,
@@ -818,15 +837,12 @@ gl3_ev_sprite(
         return;
 
     if( command->u.sprite.scissor_w > 0 && command->u.sprite.scissor_h > 0 )
-    {
-        glEnable(GL_SCISSOR_TEST);
-        int sy = renderer->height - command->u.sprite.scissor_y - command->u.sprite.scissor_h;
-        glScissor(
+        gl3_apply_logical_scissor(
+            renderer,
             command->u.sprite.scissor_x,
-            sy,
+            command->u.sprite.scissor_y,
             command->u.sprite.scissor_w,
             command->u.sprite.scissor_h);
-    }
     else
         glDisable(GL_SCISSOR_TEST);
 

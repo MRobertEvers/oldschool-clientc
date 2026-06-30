@@ -8,7 +8,8 @@
 #include "task_rs_component_load.h"
 #include "task_rs_inv_load.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
-#include "toridraw/toridraw_scene.h"
+#include "toriauxlib/td/toriauxlibtd.h"
+#include "games/runescape.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -24,15 +25,30 @@ struct RCUIComponentLoadUser
 static void
 on_rc_uicomponent_rs_loaded(
     void* user,
-    struct RSComponentInfo const* info)
+    int component_id)
 {
     struct RCUIComponentLoadUser* load_user = user;
-    assert(load_user && load_user->ctx && info);
+    assert(load_user && load_user->ctx && component_id >= 0);
 
     struct InstanceRevConfigRSSubtree* subtree =
         instance_revconfig_rs_subtree_get_or_create(load_user->ctx, load_user->owner_component);
     assert(subtree);
-    instance_revconfig_rs_subtree_append(subtree, info);
+    instance_revconfig_rs_subtree_append(subtree, component_id);
+}
+
+static void
+instance_revconfig_register_core_sprite(
+    struct InstanceRevConfigContext* ctx,
+    int element_id,
+    struct ToriAuxLibCore_Sprite* sprite,
+    char const* lookup_name)
+{
+    if( !ctx || !ctx->cache || !sprite || !lookup_name || !ctx->game || !ctx->game->td )
+        return;
+
+    ToriAuxLibCache_SubmitSprite(ctx->cache, element_id, sprite);
+    ToriAuxLibTD_Sprite(ctx->game->td, element_id);
+    ui_sprite_lookup_add(&ctx->sprite_lookup, lookup_name, element_id, sprite->frame_count);
 }
 
 static bool
@@ -43,6 +59,8 @@ revconfig_uicomponent_needs_rs_load(struct RevConfigUIComponentItem const* item)
         return false;
 
     if( strcmp(item->type, "sidebar") == 0 )
+        return true;
+    if( strcmp(item->type, "chat") == 0 )
         return true;
     if( strcmp(item->type, "rs_layer") == 0 )
         return true;
@@ -66,12 +84,12 @@ Task_InstanceOnRCCacheSprite_Init(
     struct ToriAuxLibCache* cache,
     struct RevConfigCacheItem const* item)
 {
+    assert(item);
     memset(task, 0, sizeof(*task));
     PT_INIT(&task->thread);
     task->rc_ctx = rc_ctx;
     task->cache = cache;
-    if( item )
-        task->item = *item;
+    task->item = *item;
 }
 
 int
@@ -108,23 +126,16 @@ Task_InstanceOnRCCacheSprite_Run(
         }
         else
         {
-            int count = 0;
-            struct ToriDraw_Sprite** sprites =
-                dat1_buildcache_sprite_decode(task->rc_ctx->dat1_bc, &task->item, &count);
-            if( sprites && count > 0 && task->rc_ctx->scene )
+            struct ToriAuxLibCore_Sprite* sprite =
+                dat1_buildcache_sprite_decode(task->rc_ctx->dat1_bc, &task->item);
+            if( sprite && sprite->frame_count > 0 && task->rc_ctx->game )
             {
-                struct ToriAuxLibCore_Sprite* gc_sprite =
-                    calloc(1, sizeof(struct ToriAuxLibCore_Sprite));
-                if( gc_sprite )
-                {
-                    strncpy(gc_sprite->name, task->item.name, sizeof(gc_sprite->name) - 1);
-                    gc_sprite->sprites = sprites;
-                    gc_sprite->count = count;
-                    ToriAuxLibCache_SubmitSpriteFromDat1(task->cache, task->element_id, gc_sprite);
-                }
-                ToriDraw_SceneSpriteAdd(task->rc_ctx->scene, task->element_id, sprites, count);
-                ui_sprite_lookup_add(
-                    &task->rc_ctx->sprite_lookup, task->item.name, task->element_id, count);
+                instance_revconfig_register_core_sprite(
+                    task->rc_ctx, task->element_id, sprite, task->item.name);
+            }
+            else
+            {
+                ToriAuxLibCore_SpriteFree(sprite);
             }
         }
     }
@@ -143,23 +154,16 @@ Task_InstanceOnRCCacheSprite_Run(
         if( !sprite_archive )
             PT_EXIT(&task->thread);
 
-        int count = 0;
-        struct ToriDraw_Sprite** sprites =
-            dat2_buildcache_sprite_decode_from_archive(sprite_archive, &task->item, &count);
-        if( sprites && count > 0 && task->rc_ctx->scene )
+        struct ToriAuxLibCore_Sprite* sprite =
+            dat2_buildcache_sprite_decode_from_archive(sprite_archive, &task->item);
+        if( sprite && sprite->frame_count > 0 && task->rc_ctx->game )
         {
-            struct ToriAuxLibCore_Sprite* gc_sprite =
-                calloc(1, sizeof(struct ToriAuxLibCore_Sprite));
-            if( gc_sprite )
-            {
-                strncpy(gc_sprite->name, task->item.name, sizeof(gc_sprite->name) - 1);
-                gc_sprite->sprites = sprites;
-                gc_sprite->count = count;
-                ToriAuxLibCache_SubmitSpriteFromDat1(task->cache, task->element_id, gc_sprite);
-            }
-            ToriDraw_SceneSpriteAdd(task->rc_ctx->scene, task->element_id, sprites, count);
-            ui_sprite_lookup_add(
-                &task->rc_ctx->sprite_lookup, task->item.name, task->element_id, count);
+            instance_revconfig_register_core_sprite(
+                task->rc_ctx, task->element_id, sprite, task->item.name);
+        }
+        else
+        {
+            ToriAuxLibCore_SpriteFree(sprite);
         }
         (void)core;
     }

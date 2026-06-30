@@ -68,6 +68,16 @@ enum RSCacheDat2Disk_Table
 bool
 RSCacheDat2Disk_IsValidTableId(int table_id);
 
+/**
+ * Table id of the special reference table archives (see comment above).
+ * Reference table N (archive_id=N, table_id=RSCACHEDAT2DISK_REFERENCE_TABLE_ID)
+ * holds the RSCacheDat2Disk_ReferenceTable metadata for table N. It is fetched
+ * through the exact same archive-load path as any other table/archive pair, so
+ * callers without a live RSCacheDat2Disk handle (e.g. an IO queue consumer) can
+ * request it like any other cache archive.
+ */
+#define RSCACHEDAT2DISK_REFERENCE_TABLE_ID 255
+
 enum RSCacheDat2Disk_Mode
 {
     RSCacheDat2Disk_Mode_LocalOnly = 0,
@@ -135,6 +145,10 @@ RSCacheDat2Disk_ArchiveNewLoadUninitializedMetadata(
 void
 RSCacheDat2Disk_ArchiveInitMetadata(
     struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive);
+void
+RSCacheDat2Disk_ArchiveInitMetadataFromTable(
+    struct RSCacheDat2Disk_ReferenceTable* table,
     struct RSCacheDat2Disk_Archive* archive);
 void
 RSCacheDat2Disk_ArchiveFree(struct RSCacheDat2Disk_Archive* archive);

@@ -66,12 +66,12 @@ The existing `struct UITree` (`ui/uitree.h`) is unchanged:
 Build phases:
 
 1. **Item handlers** populate `InstanceRevConfigContext`: sprite lookup, component list, layout list, inv pool, and RS subtrees (`rs_subtrees[]`).
-2. **`Task_InstanceOnRCUIComponent`** (for types with `componentno >= 0`, e.g. `sidebar`) `TASK_AWAIT`s `Task_RSComponentLoad` inline during the item loop. The loader walks the interfaces jagfile with an explicit stack and appends each `RSComponentInfo` to `rs_subtrees[]` keyed by component name. No `uitree_push` happens here.
+2. **`Task_InstanceOnRCUIComponent`** (for types with `componentno >= 0`, e.g. `sidebar`) `TASK_AWAIT`s `Task_RSComponentLoad` inline during the item loop. The loader walks the interfaces archive with an explicit stack, syncs each node into `ToriAuxLibCore_Component` (layout via `ToriAuxLibCore_ComponentApplyWalkLayout`), and appends each component id to `rs_subtrees[]` keyed by component name. No `uitree_push` happens here.
 3. **`instance_revconfig_build_tree`** topologically instantiates layout entries (parent links by layout `name`/`parent`), then bakes buffered RS subtrees into the tree once parent `UITree` indices and the inv pool are known.
 
 ## RS subtrees
 
-An **RS subtree** is a buffered, flattened copy of a Runescape interface component tree from the cache `interfaces` jagfile. It bridges the gap between raw `RSCacheDat1A_ConfigComponent` records and `UITree` nodes.
+An **RS subtree** is an ordered list of RS component ids from a cache interface walk. Layout/visual/script fields live in `ToriAuxLibCore_Component` (GameCache Core); the subtree only records visit order and ids for bake-time parent linking.
 
 RevConfig describes *where* a component sits in the layout (`*_ui.ini`); the cache describes *what* is inside a sidebar panel or other RS-backed widget (`componentno` → interfaces archive). The subtree machinery keeps those two concerns separate.
 
@@ -87,22 +87,22 @@ RevConfig [component:sidebar]          Layout [layout:inv_tab] c=sidebar
        │                                          │
        ▼                                          ▼
 Task_RSComponentLoad walks               instance_revconfig_bake_rs_subtree
-  interfaces jagfile                       → RSComponentInfo[] → uitree_push children
+  interfaces archive                       → component_ids[] → uitree_push children
        │                                          under idx 42
        ▼
 on_component callback
-  → rs_subtrees["sidebar"].items[]
+  → rs_subtrees["sidebar"].component_ids[]
 ```
 
 ### Data structures
 
 | Struct | Role |
 |--------|------|
-| `RSComponentInfo` | Cache-neutral snapshot of one RS component (type, id, parent_id, geometry, sprite refs, text, inv grid, etc.) |
-| `InstanceRevConfigRSSubtree` | Named buffer: `owner_component` + `items[]` |
+| `ToriAuxLibCore_Component` | Owned Core record: type, layout (parent_id, rel_x/y, geometry), sprite refs, text, inv grid, scripts |
+| `InstanceRevConfigRSSubtree` | Named buffer: `owner_component` + `component_ids[]` (visit order) |
 | `InstanceRevConfigContext.rs_subtrees[]` | Up to 32 subtrees, keyed by RevConfig component name |
 
-`RSComponentInfo.parent_id` is the RS component id of the parent **layer** in the cache tree (`-1` for the walk root). During bake, this is remapped to a `UITree` index via `id_to_uitree[]`.
+`ToriAuxLibCore_Component.parent_id` is the RS component id of the parent **layer** in the cache tree (`-1` for the walk root). During bake, this is remapped to a `UITree` index via `id_to_uitree[]`.
 
 ### Which RevConfig components get an RS subtree?
 
@@ -111,7 +111,7 @@ on_component callback
 1. `componentno >= 0` in the INI (links to an interfaces archive entry)
 2. `type` is one of: `sidebar`, `rs_layer`, `rs_graphic`, `rs_text`, `rs_rect`, `rs_model`, `rs_inv`
 
-The callback `on_rc_uicomponent_rs_loaded` appends each emitted `RSComponentInfo` into `rs_subtrees[owner_component]`, where `owner_component` is the RevConfig component name (e.g. `"sidebar"`).
+The callback `on_rc_uicomponent_rs_loaded` appends each visited component id into `rs_subtrees[owner_component]`, where `owner_component` is the RevConfig component name (e.g. `"sidebar"`).
 
 ### Capture: `Task_RSComponentLoad` (Dat1)
 
@@ -119,21 +119,21 @@ The callback `on_rc_uicomponent_rs_loaded` appends each emitted `RSComponentInfo
 2. **Resolve panel roots** — `instance_revconfig_resolve_panel_roots` may redirect a `componentno` (e.g. sidebar tab 149) to the actual layer root inside the archive (inventory panels often point at a wrapper layer, not the visible root).
 3. **Stack-based DFS** — an explicit work stack (`stack[]`, `stack_x/y[]`, `stack_parent_id[]`) walks the component tree without recursion (required for protothread yields). Children are pushed in reverse order so pop order matches original child order.
 4. **Per component**:
-   - Decode dynamic sprites (`dat1_acquire_dynamic_sprite`) for `graphic` / `activeGraphic` refs not already in `sprite_lookup`
-   - Fill `RSComponentInfo` via `dat1_fill_info` (maps `COMPONENT_TYPE_*` → `RS_COMPONENT_*`)
-   - Invoke `callbacks.on_component` → subtree append
+   - Decode dynamic sprites via Core pipeline (`dat*_acquire_dynamic_sprite` → `ToriAuxLibCache_SubmitSprite` → `ToriAuxLibTD_Sprite`)
+   - Ensure Core component exists (`ToriAuxLibCache_SubmitComponent` / bulk submit) and apply walk layout (`ToriAuxLibCore_ComponentApplyWalkLayout`)
+   - Invoke `callbacks.on_component(component_id)` → subtree append
    - If layer: push children with accumulated relative x/y
 
-`RSComponentInfo` types and their bake targets:
+`ToriAuxLibCore_ComponentType` values and their bake targets:
 
-| `RSComponentInfoType` | `UINodeSpec` type | Notes |
+| `ToriAuxLibCore_ComponentType` | `UINodeSpec` type | Notes |
 |------------------------|-------------------|-------|
-| `RS_COMPONENT_LAYER` | `UIELEM_RS_LAYER` | Container; children attach via `parent_id` remap |
-| `RS_COMPONENT_GRAPHIC` | `UIELEM_RS_GRAPHIC` | Sprite refs resolved through `sprite_lookup` |
-| `RS_COMPONENT_RECT` | `UIELEM_RS_RECT` | Color + filled flag |
-| `RS_COMPONENT_TEXT` / `RS_COMPONENT_INV_TEXT` | `UIELEM_RS_TEXT` | Font, color, center, shadow |
-| `RS_COMPONENT_MODEL` | `UIELEM_RS_MODEL` | `gamecache_model_id` from cache |
-| `RS_COMPONENT_INV` | `UIELEM_RS_INV` | Grid cols/rows/margins; `inv_index` from owner's `inv=` field |
+| `TORIAUXLIBCORE_COMPONENT_LAYER` | `UIELEM_RS_LAYER` | Container; children attach via `parent_id` remap |
+| `TORIAUXLIBCORE_COMPONENT_GRAPHIC` | `UIELEM_RS_GRAPHIC` | Sprite refs resolved through `sprite_lookup` |
+| `TORIAUXLIBCORE_COMPONENT_RECT` | `UIELEM_RS_RECT` | Color + filled flag |
+| `TORIAUXLIBCORE_COMPONENT_TEXT` / `TORIAUXLIBCORE_COMPONENT_INV_TEXT` | `UIELEM_RS_TEXT` | Font, color, center, shadow |
+| `TORIAUXLIBCORE_COMPONENT_MODEL` | `UIELEM_RS_MODEL` | `gamecache_model_id` from cache |
+| `TORIAUXLIBCORE_COMPONENT_INV` | `UIELEM_RS_INV` | Grid cols/rows/margins; `inv_index` from owner's `inv=` field |
 
 ### `instance_revconfig_build_layout_node`: owner node vs RS expansion
 
@@ -151,7 +151,7 @@ The callback `on_rc_uicomponent_rs_loaded` appends each emitted `RSComponentInfo
 | `rs_graphic`, `rs_text`, `rs_rect`, `rs_model`, `rs_inv`, `rs_line` | RS types (no `componentno`) | static RevConfig fields only |
 | `chat` | `UIELEM_BUILTIN_CHAT` | no extra payload |
 
-The `switch` does **not** walk the interfaces archive. Cache-backed RS widgets (including nested `RS_COMPONENT_LAYER` nodes) always arrive through the bake path below when `componentno >= 0`.
+The `switch` does **not** walk the interfaces archive. Cache-backed RS widgets (including nested `TORIAUXLIBCORE_COMPONENT_LAYER` nodes) always arrive through the bake path below when `componentno >= 0`.
 
 #### Job 2 — expand the buffered subtree (after `uitree_push`)
 
@@ -172,49 +172,49 @@ instance_revconfig_build_tree
         ├── uitree_push → owner idx  (one node)
         └── if componentno >= 0:
               instance_revconfig_bake_rs_subtree(ctx, comp, idx)
-                    └── for each RSComponentInfo in rs_subtrees[comp->name]:
-                          instance_revconfig_bake_rs_info(ctx, parent_idx, info, inv_index)
+                    └── for each component_id in rs_subtrees[comp->name]:
+                          instance_revconfig_bake_rs_component(ctx, parent_idx, ToriAuxLibCore_ComponentGet(...), inv_index)
                                 └── uitree_push → RS_LAYER | RS_GRAPHIC | RS_INV | …
 ```
 
 #### Where `UIELEM_RS_LAYER` is created
 
-RS layers are pushed inside **`instance_revconfig_bake_rs_info`**, not in `build_layout_node`:
+RS layers are pushed inside **`instance_revconfig_bake_rs_component`**, not in `build_layout_node`:
 
 ```c
-case RS_COMPONENT_LAYER:
+case TORIAUXLIBCORE_COMPONENT_LAYER:
     spec.type = UIELEM_RS_LAYER;
     break;
 // …
 return uitree_push(ctx->tree, parent_idx, &spec);
 ```
 
-Each buffered `RSComponentInfo` with `type == RS_COMPONENT_LAYER` becomes one `UIELEM_RS_LAYER` child. Deeper cache nodes attach under that layer via `parent_id` remapping in `instance_revconfig_bake_rs_subtree`.
+Each Core component with `type == TORIAUXLIBCORE_COMPONENT_LAYER` becomes one `UIELEM_RS_LAYER` child. Deeper cache nodes attach under that layer via `parent_id` remapping in `instance_revconfig_bake_rs_subtree`.
 
 #### Parent linking during bake
 
-`instance_revconfig_bake_rs_subtree` keeps `id_to_uitree[1024]` while walking `subtree->items[]` in capture order:
+`instance_revconfig_bake_rs_subtree` keeps `id_to_uitree[1024]` while walking `subtree->component_ids[]` in capture order:
 
 1. Look up `rs_subtrees[]` by `comp->name` (must match the name used during capture in `on_rc_uicomponent_rs_loaded`).
-2. Resolve `inv_index` from `comp->inv` once; all `RS_COMPONENT_INV` nodes in the subtree share it.
-3. For each `RSComponentInfo`:
+2. Resolve `inv_index` from `comp->inv` once; all `TORIAUXLIBCORE_COMPONENT_INV` nodes in the subtree share it.
+3. For each component id: load `ToriAuxLibCore_ComponentGet(ctx->core, id)`; use `parent_id` from Core:
    - `parent_id == -1` → parent UITree index is the **owner** (`idx` from step 1 above).
    - else → parent is `id_to_uitree[parent_id]` (the RS component id of a layer baked earlier in this walk). Skip if the parent is not yet in the map.
-4. Call `instance_revconfig_bake_rs_info` → `uitree_push` under that parent.
-5. Store `id_to_uitree[info->id] = new_idx` so children of this RS layer can link correctly.
+4. Call `instance_revconfig_bake_rs_component` → `uitree_push` under that parent.
+5. Store `id_to_uitree[component->id] = new_idx` so children of this RS layer can link correctly.
 
-RS coordinates (`rel_x`, `rel_y`) in `RSComponentInfo` are relative to the parent RS layer. The owner's screen position comes solely from the `RevConfigUILayoutItem` (`x`, `y`, anchors, etc.) applied in `build_layout_node`.
+RS coordinates (`rel_x`, `rel_y`) in `ToriAuxLibCore_Component` are relative to the parent RS layer. The owner's screen position comes solely from the `RevConfigUILayoutItem` (`x`, `y`, anchors, etc.) applied in `build_layout_node`.
 
 #### Who does what (summary)
 
 | Function | When | Creates |
 |----------|------|---------|
-| `Task_RSComponentLoad` | Item loop | `rs_subtrees[name].items[]` (`RSComponentInfo` buffer only; no UITree) |
+| `Task_RSComponentLoad` | Item loop | `rs_subtrees[name].component_ids[]` (ids only; fields in Core) |
 | `instance_revconfig_build_layout_node` | Build tree | **One** owner node per layout entry (`sidebar`, `sprite`, …) |
-| `instance_revconfig_bake_rs_subtree` | End of `build_layout_node` if `componentno >= 0` | Walks buffer; remaps `parent_id` → UITree index |
-| `instance_revconfig_bake_rs_info` | Per buffered item | **Each** RS child: `UIELEM_RS_LAYER`, `UIELEM_RS_GRAPHIC`, `UIELEM_RS_INV`, … |
+| `instance_revconfig_bake_rs_subtree` | End of `build_layout_node` if `componentno >= 0` | Walks id buffer; remaps `parent_id` → UITree index |
+| `instance_revconfig_bake_rs_component` | Per buffered id | **Each** RS child: `UIELEM_RS_LAYER`, `UIELEM_RS_GRAPHIC`, `UIELEM_RS_INV`, … |
 
-`instance_revconfig_build_layout_node`, `instance_revconfig_bake_rs_subtree`, and `instance_revconfig_bake_rs_info` are **cache-mode agnostic** — they only read `RSComponentInfo` and `RevConfigUIComponentItem`. Dat1 vs Dat2 differences are confined to `Task_RSComponentLoad_Run` (capture phase).
+`instance_revconfig_build_layout_node`, `instance_revconfig_bake_rs_subtree`, and `instance_revconfig_bake_rs_component` are **cache-mode agnostic** — they read `ToriAuxLibCore_Component` and `RevConfigUIComponentItem`. Dat1 vs Dat2 differences are confined to `Task_RSComponentLoad_Run` (capture phase).
 
 ### Bake: `instance_revconfig_bake_rs_subtree`
 
@@ -229,12 +229,12 @@ if( comp->componentno >= 0 )
 Bake steps (same as parent-linking above, condensed):
 
 1. Look up `rs_subtrees[]` by `comp->name`
-2. Resolve `inv_index` from `comp->inv` via `uitree_inv_pool_find_by_name` (shared by all `RS_COMPONENT_INV` nodes in the subtree)
-3. Walk `subtree->items[]` in emission order, remapping `parent_id` through `id_to_uitree[]`
-4. `instance_revconfig_bake_rs_info` converts each `RSComponentInfo` to a `UINodeSpec`, copies RS script behavior from `ToriAuxLibCore_ComponentGet`, and calls `uitree_push`
-5. Record `id_to_uitree[info->id] = idx` for child linking
+2. Resolve `inv_index` from `comp->inv` via `uitree_inv_pool_find_by_name` (shared by all `TORIAUXLIBCORE_COMPONENT_INV` nodes in the subtree)
+3. Walk `subtree->component_ids[]` in emission order, remapping `parent_id` through `id_to_uitree[]`
+4. `instance_revconfig_bake_rs_component` converts each `ToriAuxLibCore_Component` to a `UINodeSpec` and calls `uitree_push`
+5. Record `id_to_uitree[component->id] = idx` for child linking
 
-RS coordinates in `RSComponentInfo` (`rel_x`, `rel_y`) are relative to the parent RS layer; the owner node's layout position comes from the `RevConfigUILayoutItem`.
+RS coordinates in `ToriAuxLibCore_Component` (`rel_x`, `rel_y`) are relative to the parent RS layer; the owner node's layout position comes from the `RevConfigUILayoutItem`.
 
 ### Example flow (sidebar)
 
@@ -261,7 +261,7 @@ parent=fixed_shell
 |---|------|------|
 | RS subtree capture | Full stack walk of `RSCacheDat1A_ConfigComponentList` | Full stack walk of `Dat2BuildCache_InterfaceArchive` (cached per iface id) |
 | Interfaces source | Single `data` blob, child ID lists | One component per archive file, `layer` parent links |
-| Dynamic sprites | `dat1_acquire_dynamic_sprite` from media jagfile | `dat2_acquire_dynamic_sprite` via `dat2_buildcache_sprite_decode_id`, lookup key `spr:<id>` |
+| Dynamic sprites | Core pipeline: `dat1_buildcache_sprite_decode_ref` → `SubmitSprite` → `ToriAuxLibTD_Sprite` | Prefetch to `ToriAuxLibCore_Sprite` in dat2 buildcache; register via same Core → TD path; lookup key `spr:<id>` |
 | Root resolution | `panel_root_id[]` may remap sidebar `componentno` | `componentno` is iface archive id (or packed id); root is file 0 / packed `(iface<<16)|0` |
 
 ## RevConfig symbol resolution
@@ -290,7 +290,7 @@ Cache-type switching lives in the leaf tasks: `Task_InstanceOnRCCacheSprite_Run`
 |------|------|
 | `task_instance_revconfig_load.c` | Top-level unified load task (cache-mode agnostic) |
 | `task_instance_on_rc.c` | Per-item handlers (`Task_InstanceOnRC*`) |
-| `task_rs_component_load.c` | Non-recursive RS component walk; emits `RSComponentInfo` via callbacks |
+| `task_rs_component_load.c` | Non-recursive RS component walk; syncs Core components and emits component ids via callbacks |
 | `task_rs_inv_load.c` | Inv pool population |
 | `instance_revconfig_context.c` | Shared state, layout tree build, RS subtree bake |
 | `core_task_await.h` | `TASK_AWAIT` macro |
@@ -298,7 +298,7 @@ Cache-type switching lives in the leaf tasks: `Task_InstanceOnRCCacheSprite_Run`
 
 ## Extending
 
-**New component type:** add a branch in `Task_InstanceOnRCUIComponent` (for RS-backed types with `componentno >= 0`, `TASK_AWAIT` `Task_RSComponentLoad` inline) and, if the owner needs RevConfig-specific `UINodeSpec` fields, add a `case` in `instance_revconfig_build_layout_node`'s `switch`. RS children from the cache are added in `instance_revconfig_bake_rs_info`, not in `build_layout_node`.
+**New component type:** add a branch in `Task_InstanceOnRCUIComponent` (for RS-backed types with `componentno >= 0`, `TASK_AWAIT` `Task_RSComponentLoad` inline) and, if the owner needs RevConfig-specific `UINodeSpec` fields, add a `case` in `instance_revconfig_build_layout_node`'s `switch`. RS children from the cache are added in `instance_revconfig_bake_rs_component`, not in `build_layout_node`.
 
 **New RevConfig item kind:** add `RCITEM_*` in `revconfig.h`, parse in `revconfig_load.c`, add handler + dispatch branch in `Task_InstanceRevConfigLoad_Run`.
 

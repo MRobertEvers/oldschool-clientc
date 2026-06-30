@@ -3,26 +3,26 @@
 
 #include "buildcache/dat1_buildcache.h"
 #include "revconfig/revconfig.h"
-#include "toridraw/toridraw_font.h"
-#include "toridraw/toridraw_sprite.h"
+#include "toriauxlib/core/toriauxlibcore_types.h"
 
-struct ToriDraw_Sprite**
+struct ToriDraw_Scene;
+
+struct ToriAuxLibCore_Sprite*
 dat1_buildcache_sprite_decode(
     struct Dat1BuildCache* buildcache,
-    struct RevConfigCacheItem const* item,
-    int* out_count);
+    struct RevConfigCacheItem const* item);
 
-struct ToriDraw_Sprite*
+struct ToriAuxLibCore_Sprite*
 dat1_buildcache_sprite_decode_ref(
     struct Dat1BuildCache* buildcache,
     char const* sprite_ref);
 
-struct ToriDraw_Font*
+struct ToriAuxLibCore_Font*
 dat1_buildcache_font_decode(
     struct Dat1BuildCache* buildcache,
     char const* font_name);
 
-struct ToriDraw_Sprite*
+struct ToriAuxLibCore_Sprite*
 dat1_buildcache_obj_icon_sprite(
     struct Dat1BuildCache* buildcache,
     struct ToriDraw_Scene* scene,

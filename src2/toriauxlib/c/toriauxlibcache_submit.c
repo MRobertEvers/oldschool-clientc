@@ -4,6 +4,7 @@
 
 #include "buildcache/dat1_buildcache.h"
 #include "buildcache/dat2_buildcache.h"
+#include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/dat1a/dat1a_config_idk.h"
@@ -373,7 +374,7 @@ ToriAuxLibCache_SubmitAllLocationsFromDat1(struct ToriAuxLibCache* c)
 }
 
 void
-ToriAuxLibCache_SubmitSpriteFromDat1(
+ToriAuxLibCache_SubmitSprite(
     struct ToriAuxLibCache* c,
     int sprite_id,
     struct ToriAuxLibCore_Sprite* sprite)
@@ -384,7 +385,7 @@ ToriAuxLibCache_SubmitSpriteFromDat1(
 }
 
 void
-ToriAuxLibCache_SubmitFontFromDat1(
+ToriAuxLibCache_SubmitFont(
     struct ToriAuxLibCache* c,
     int font_id,
     struct ToriAuxLibCore_Font* font)
@@ -395,9 +396,39 @@ ToriAuxLibCache_SubmitFontFromDat1(
 }
 
 void
-ToriAuxLibCache_SubmitAllComponentsFromDat1(struct ToriAuxLibCache* c)
+ToriAuxLibCache_SubmitComponent(
+    struct ToriAuxLibCache* c,
+    int component_id,
+    struct ToriAuxLibCore_Component* component)
 {
-    ToriAuxLibCache_SubmitComponentsFromDat1(c, NULL, 0);
+    if( !c || !component )
+        return;
+    ToriAuxLibCore_ComponentAdd(ToriAuxLibCache_Core(c), component_id, component);
+}
+
+void
+ToriAuxLibCache_SubmitComponentsFromDat2(
+    struct ToriAuxLibCache* c,
+    struct Dat2BuildCache_InterfaceArchive* archive)
+{
+    if( !c || !archive || !archive->components )
+        return;
+
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(c);
+    for( int i = 0; i < archive->component_count; i++ )
+    {
+        Component* comp = archive->components[i];
+        if( !comp )
+            continue;
+
+        struct ToriAuxLibCore_Component* neutral =
+            ToriAuxLibCache_ComponentNewFromCacheDat2Component(comp);
+        if( !neutral )
+            continue;
+
+        int component_id = comp->id >= 0 ? comp->id : i;
+        ToriAuxLibCore_ComponentAdd(core, component_id, neutral);
+    }
 }
 
 void
@@ -433,6 +464,12 @@ ToriAuxLibCache_SubmitComponentsFromDat1(
         int component_id = comp->id >= 0 ? comp->id : i;
         ToriAuxLibCore_ComponentAdd(core, component_id, neutral);
     }
+}
+
+void
+ToriAuxLibCache_SubmitAllComponentsFromDat1(struct ToriAuxLibCache* c)
+{
+    ToriAuxLibCache_SubmitComponentsFromDat1(c, NULL, 0);
 }
 
 static void

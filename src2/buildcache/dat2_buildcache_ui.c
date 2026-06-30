@@ -1,214 +1,36 @@
 #include "dat2_buildcache_ui.h"
 
-#include "osrs/rscache/dat2a/dat2a_sprites.h"
+#include "toriauxlib/c/toriauxlibcache_font_convert.h"
+#include "toriauxlib/c/toriauxlibcache_sprite_convert.h"
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "osrs/rscache/shared/shared_rs_buffer.h"
-#include "toridraw/toridraw_sprite.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-static struct ToriDraw_Sprite*
-sprite_decode_from_pack_frame(
-    struct RSCacheDat2A_SpritePack const* pack,
-    int frame_index)
-{
-    if( !pack || frame_index < 0 || frame_index >= pack->count )
-        return NULL;
-
-    struct RSCacheDat2A_Sprite* def = &pack->sprites[frame_index];
-    int* px = RSCacheDat2A_SpriteGetPixels(def, pack->palette, 0);
-    if( !px )
-        return NULL;
-
-    struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromArgbOwned(
-        (uint32_t*)px,
-        def->crop_width > 0 ? def->crop_width : def->width,
-        def->crop_height > 0 ? def->crop_height : def->height);
-    if( !sprite )
-        return NULL;
-
-    sprite->crop_x = def->offset_x;
-    sprite->crop_y = def->offset_y;
-    sprite->crop_width = sprite->width;
-    sprite->crop_height = sprite->height;
-    return sprite;
-}
-
-static void
-sprite_apply_transforms(
-    struct ToriDraw_Sprite* sprite,
-    struct RevConfigCacheItem const* item)
-{
-    if( !sprite || !item )
-        return;
-    for( int i = 0; i < item->transform_count; i++ )
-    {
-        if( strcmp(item->transform[i], "flip_h") == 0 )
-            ToriDraw_SpriteFlipHorizontal(sprite);
-        else if( strcmp(item->transform[i], "flip_v") == 0 )
-            ToriDraw_SpriteFlipVertical(sprite);
-    }
-}
-
-static void
-sprite_apply_crop(
-    struct ToriDraw_Sprite* sprite,
-    struct RevConfigCacheItem const* item)
-{
-    if( !sprite || !item )
-        return;
-    if( item->crop_width > 0 && item->crop_height > 0 )
-    {
-        sprite->crop_x = item->crop_x;
-        sprite->crop_y = item->crop_y;
-        sprite->crop_width = item->crop_width;
-        sprite->crop_height = item->crop_height;
-    }
-}
-
-static struct ToriDraw_Sprite**
-sprite_decode_pack_frames(
-    struct RSCacheDat2A_SpritePack* pack,
-    struct RevConfigCacheItem const* item,
-    int start,
-    int count,
-    int* out_count)
-{
-    if( out_count )
-        *out_count = 0;
-    if( !pack || count <= 0 )
-        return NULL;
-
-    struct ToriDraw_Sprite** sprites = calloc((size_t)count, sizeof(struct ToriDraw_Sprite*));
-    if( !sprites )
-        return NULL;
-
-    int loaded = 0;
-    for( int j = 0; j < count; j++ )
-    {
-        int frame_index = start + j;
-        if( frame_index < 0 || frame_index >= pack->count )
-            continue;
-
-        sprites[j] = sprite_decode_from_pack_frame(pack, frame_index);
-        if( sprites[j] )
-        {
-            sprite_apply_transforms(sprites[j], item);
-            sprite_apply_crop(sprites[j], item);
-            loaded++;
-        }
-    }
-
-    if( loaded <= 0 )
-    {
-        free(sprites);
-        return NULL;
-    }
-
-    if( out_count )
-        *out_count = count;
-    return sprites;
-}
-
-struct ToriDraw_Sprite**
+struct ToriAuxLibCore_Sprite*
 dat2_buildcache_sprite_decode_from_archive(
     struct RSCacheDat2Disk_Archive* archive,
-    struct RevConfigCacheItem const* item,
-    int* out_count)
+    struct RevConfigCacheItem const* item)
 {
-    if( out_count )
-        *out_count = 0;
-    if( !archive || !item || item->archive_id < 0 )
-    {
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return NULL;
-    }
-
-    struct RSCacheDat2A_SpritePack* pack = RSCacheDat2A_SpritePackNewDecode(
-        (const unsigned char*)archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
-    RSCacheDat2Disk_ArchiveFree(archive);
-    if( !pack || pack->count <= 0 )
-    {
-        if( pack )
-            RSCacheDat2A_SpritePackFree(pack);
-        return NULL;
-    }
-
-    int start = item->atlas_count > 0 ? 0 : item->atlas_index;
-    int count = item->atlas_count > 0 ? item->atlas_count : 1;
-
-    struct ToriDraw_Sprite** sprites =
-        sprite_decode_pack_frames(pack, item, start, count, out_count);
-    RSCacheDat2A_SpritePackFree(pack);
-    return sprites;
+    return ToriAuxLibCache_SpriteNewFromDat2Archive(archive, item);
 }
 
-struct ToriDraw_Sprite**
+struct ToriAuxLibCore_Sprite*
 dat2_buildcache_sprite_decode_id_from_archive(
     struct RSCacheDat2Disk_Archive* archive,
-    int sprite_id,
-    int* out_count)
+    int sprite_id)
 {
-    if( out_count )
-        *out_count = 0;
-    if( !archive || sprite_id < 0 )
-    {
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return NULL;
-    }
-
-    struct RSCacheDat2A_SpritePack* pack = RSCacheDat2A_SpritePackNewDecode(
-        (const unsigned char*)archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
-    RSCacheDat2Disk_ArchiveFree(archive);
-    if( !pack || pack->count <= 0 )
-    {
-        if( pack )
-            RSCacheDat2A_SpritePackFree(pack);
-        return NULL;
-    }
-
-    struct RevConfigCacheItem item = { 0 };
-    item.archive_id = sprite_id;
-    item.atlas_count = pack->count;
-
-    struct ToriDraw_Sprite** sprites =
-        sprite_decode_pack_frames(pack, &item, 0, pack->count, out_count);
-    RSCacheDat2A_SpritePackFree(pack);
-    return sprites;
+    return ToriAuxLibCache_SpriteNewFromDat2ArchiveId(archive, sprite_id);
 }
 
-struct ToriDraw_Font*
+struct ToriAuxLibCore_Font*
 dat2_buildcache_font_decode_from_archive(
     struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
     int font_id)
 {
-    if( !cache || !archive || font_id < 0 )
-    {
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return NULL;
-    }
-
-    RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(archive);
-    RSCacheDat2Disk_ArchiveFree(archive);
-    if( !fl || fl->file_count <= 0 )
-    {
-        RSCacheShared_FileListFree(fl);
-        return NULL;
-    }
-
-    void* data = fl->files[0];
-    int data_size = fl->file_sizes[0];
-    void* index_data = fl->file_count > 1 ? fl->files[1] : NULL;
-    int index_size = fl->file_count > 1 ? fl->file_sizes[1] : 0;
-
-    struct ToriDraw_Font* font =
-        ToriDraw_FontNewFromRSBytes(data, data_size, index_data, index_size);
-
-    RSCacheShared_FileListFree(fl);
-    return font;
+    return ToriAuxLibCache_FontNewFromDat2Archive(cache, archive, font_id);
 }
 
 static Component*
@@ -272,17 +94,17 @@ dat2_buildcache_component_decode_iface_file_from_archive(
 
 struct Dat2BuildCache_InterfaceArchive*
 dat2_buildcache_component_decode_iface_archive_from_archive(
-    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_ReferenceTable* reference_table,
     struct RSCacheDat2Disk_Archive* archive,
     int iface_id)
 {
-    if( !cache || !archive )
+    if( !reference_table || !archive )
     {
         RSCacheDat2Disk_ArchiveFree(archive);
         return NULL;
     }
 
-    RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
+    RSCacheDat2Disk_ArchiveInitMetadataFromTable(reference_table, archive);
     struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(archive);
     RSCacheDat2Disk_ArchiveFree(archive);
     if( !fl || fl->file_count <= 0 )

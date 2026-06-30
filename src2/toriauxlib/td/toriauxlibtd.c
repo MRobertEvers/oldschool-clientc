@@ -8,7 +8,8 @@
 #include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
-#include "toridraw/toridraw_model_transform.h"
+#include "toridraw/toridraw_font.h"
+#include "toridraw/toridraw_sprite.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -920,4 +921,136 @@ ToriAuxLibTD_SkeletalAnimation(
     entry->id = anim_maya_id;
     entry->skeletal = td_skeletal;
     return td_skeletal;
+}
+
+struct ToriDraw_Sprite*
+ToriAuxLibTD_SpriteFrameNewFromCore(const struct ToriAuxLibCore_SpriteFrame* src)
+{
+    if( !src || !src->pixels_argb || src->width <= 0 || src->height <= 0 )
+        return NULL;
+
+    size_t pixel_count = (size_t)src->width * (size_t)src->height;
+    uint32_t* pixels = malloc(pixel_count * sizeof(uint32_t));
+    if( !pixels )
+        return NULL;
+    memcpy(pixels, src->pixels_argb, pixel_count * sizeof(uint32_t));
+
+    struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromArgbOwned(pixels, src->width, src->height);
+    if( !sprite )
+        return NULL;
+
+    sprite->crop_x = src->crop_x;
+    sprite->crop_y = src->crop_y;
+    sprite->crop_width = src->crop_width > 0 ? src->crop_width : src->width;
+    sprite->crop_height = src->crop_height > 0 ? src->crop_height : src->height;
+    return sprite;
+}
+
+struct ToriDraw_Sprite**
+ToriAuxLibTD_SpritePackNewFromCore(const struct ToriAuxLibCore_Sprite* src)
+{
+    if( !src || src->frame_count <= 0 || !src->frames )
+        return NULL;
+
+    struct ToriDraw_Sprite** sprites = calloc((size_t)src->frame_count, sizeof(struct ToriDraw_Sprite*));
+    if( !sprites )
+        return NULL;
+
+    int loaded = 0;
+    for( int i = 0; i < src->frame_count; i++ )
+    {
+        sprites[i] = ToriAuxLibTD_SpriteFrameNewFromCore(&src->frames[i]);
+        if( sprites[i] )
+            loaded++;
+    }
+
+    if( loaded <= 0 )
+    {
+        free(sprites);
+        return NULL;
+    }
+    return sprites;
+}
+
+struct ToriDraw_Font*
+ToriAuxLibTD_FontNewFromCore(const struct ToriAuxLibCore_Font* src)
+{
+    if( !src )
+        return NULL;
+
+    struct ToriDraw_Font* font = calloc(1, sizeof(struct ToriDraw_Font));
+    if( !font )
+        return NULL;
+
+    for( int i = 0; i < TORIAUXLIBCORE_FONT_GLYPH_COUNT; i++ )
+    {
+        font->glyph_width[i] = src->glyph_width[i];
+        font->glyph_height[i] = src->glyph_height[i];
+        font->offset_x[i] = src->offset_x[i];
+        font->offset_y[i] = src->offset_y[i];
+        font->advance[i] = src->advance[i];
+        if( src->glyph_alpha[i] && src->glyph_width[i] > 0 && src->glyph_height[i] > 0 )
+        {
+            size_t len = (size_t)src->glyph_width[i] * (size_t)src->glyph_height[i];
+            font->glyph_alpha[i] = malloc(len);
+            if( !font->glyph_alpha[i] )
+                goto fail;
+            memcpy(font->glyph_alpha[i], src->glyph_alpha[i], len);
+        }
+    }
+    font->advance[TORIDRAW_FONT_GLYPH_COUNT] = src->advance[TORIAUXLIBCORE_FONT_GLYPH_COUNT];
+    memcpy(font->draw_width, src->draw_width, sizeof(font->draw_width));
+    font->line_height = src->line_height;
+    memcpy(font->charcodeset, src->charcodeset, sizeof(font->charcodeset));
+    return font;
+
+fail:
+    ToriDraw_FontFree(font);
+    return NULL;
+}
+
+bool
+ToriAuxLibTD_Sprite(
+    struct ToriAuxLibTD* td,
+    int element_id)
+{
+    if( !td || element_id < 0 )
+        return false;
+
+    if( ToriDraw_SceneSpriteHas(td->scene, element_id) )
+        return true;
+
+    struct ToriAuxLibCore_Sprite* core_sprite = ToriAuxLibCore_SpriteGet(td->core, element_id);
+    if( !core_sprite )
+        return false;
+
+    struct ToriDraw_Sprite** sprites = ToriAuxLibTD_SpritePackNewFromCore(core_sprite);
+    if( !sprites )
+        return false;
+
+    ToriDraw_SceneSpriteAdd(td->scene, element_id, sprites, core_sprite->frame_count);
+    return true;
+}
+
+bool
+ToriAuxLibTD_Font(
+    struct ToriAuxLibTD* td,
+    int font_id)
+{
+    if( !td || font_id < 0 )
+        return false;
+
+    if( ToriDraw_SceneFontHas(td->scene, font_id) )
+        return true;
+
+    struct ToriAuxLibCore_Font* core_font = ToriAuxLibCore_FontGet(td->core, font_id);
+    if( !core_font )
+        return false;
+
+    struct ToriDraw_Font* font = ToriAuxLibTD_FontNewFromCore(core_font);
+    if( !font )
+        return false;
+
+    ToriDraw_SceneFontAdd(td->scene, font_id, font);
+    return true;
 }

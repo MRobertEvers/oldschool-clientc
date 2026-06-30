@@ -5,22 +5,19 @@
 #include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "revconfig/revconfig.h"
-#include "toridraw/toridraw_font.h"
-#include "toridraw/toridraw_sprite.h"
+#include "toriauxlib/core/toriauxlibcore_types.h"
 
-struct ToriDraw_Sprite**
+struct ToriAuxLibCore_Sprite*
 dat2_buildcache_sprite_decode_from_archive(
     struct RSCacheDat2Disk_Archive* archive,
-    struct RevConfigCacheItem const* item,
-    int* out_count);
+    struct RevConfigCacheItem const* item);
 
-struct ToriDraw_Sprite**
+struct ToriAuxLibCore_Sprite*
 dat2_buildcache_sprite_decode_id_from_archive(
     struct RSCacheDat2Disk_Archive* archive,
-    int sprite_id,
-    int* out_count);
+    int sprite_id);
 
-struct ToriDraw_Font*
+struct ToriAuxLibCore_Font*
 dat2_buildcache_font_decode_from_archive(
     struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
@@ -36,7 +33,7 @@ dat2_buildcache_component_decode_iface_file_from_archive(
 
 struct Dat2BuildCache_InterfaceArchive*
 dat2_buildcache_component_decode_iface_archive_from_archive(
-    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_ReferenceTable* reference_table,
     struct RSCacheDat2Disk_Archive* archive,
     int iface_id);
 

@@ -133,6 +133,9 @@ ToriAuxLibCache_UnderlayNewFromCacheConfigUnderlay(
 struct ToriAuxLibCore_Component*
 ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component);
 
+struct ToriAuxLibCore_Component*
+ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component);
+
 struct Dat2BuildCache_FramesArchive;
 struct ToriAuxLibCore_Animation*
 ToriAuxLibCache_AnimationNewFromDat2FramesArchive(

@@ -102,7 +102,9 @@ enum RevConfigItemKind
  *
  * Dat1 decode uses index_filename, data_filename, and format (media jagfile).
  * Dat2 decode requires archive_id (sprites table). table/archive/container are
- * documentary in src2; see dat1_buildcache_sprite_decode / dat2_buildcache_sprite_decode.
+ * documentary in src2; see ToriAuxLibCache_SpriteNewFromDat1RevConfigItem /
+ * ToriAuxLibCache_SpriteNewFromDat2Archive and dat1_buildcache_sprite_decode /
+ * dat2_buildcache_sprite_decode_from_archive.
  */
 struct RevConfigCacheItem
 {
@@ -232,8 +234,8 @@ struct RevConfigUIComponentItem
 
     /*
      * INI: anchor_x= / anchor_y= on the component section.
-     * Parsed and stored; the src2 revconfig load path uses layout-entry anchors
-     * (RevConfigUILayoutItem) for uitree position instead. Retained for legacy loaders.
+     * Default draw pivot when the layout entry omits anchor_x=/anchor_y= (same
+     * precedence model as w=/h=).
      */
     int anchor_x;
     int anchor_y;

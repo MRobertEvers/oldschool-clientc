@@ -7,62 +7,19 @@
 
 #include <stdbool.h>
 
-#define TASK_RS_COMPONENT_PREFETCH_BATCH 64
-
 struct InstanceRevConfigContext;
 struct ToriDraw_Scene;
 struct LibToriRS_IOContext;
 
-#define RS_COMPONENT_INFO_TEXT_MAX 256
-#define RS_COMPONENT_INFO_SPRITE_MAX 128
-
-enum RSComponentInfoType
-{
-    RS_COMPONENT_LAYER = 0,
-    RS_COMPONENT_INV,
-    RS_COMPONENT_RECT,
-    RS_COMPONENT_TEXT,
-    RS_COMPONENT_GRAPHIC,
-    RS_COMPONENT_MODEL,
-    RS_COMPONENT_INV_TEXT,
-};
-
 #define RS_COMPONENT_STACK_MAX 256
-
-struct RSComponentInfo
-{
-    enum RSComponentInfoType type;
-    int id;
-    int parent_id; /* RS component id of parent layer; -1 for tree root */
-    int rel_x;
-    int rel_y;
-    int width;
-    int height;
-    char sprite_ref[RS_COMPONENT_INFO_SPRITE_MAX];
-    char sprite_active_ref[RS_COMPONENT_INFO_SPRITE_MAX];
-    int model_id;
-    int color;
-    int filled;
-    int font_id;
-    int center;
-    int shadowed;
-    char text[RS_COMPONENT_INFO_TEXT_MAX];
-    int inv_cols;
-    int inv_rows;
-    int margin_x;
-    int margin_y;
-    int child_count;
-    int child_ids[32];
-    int child_x[32];
-    int child_y[32];
-};
+#define TASK_RS_COMPONENT_PREFETCH_BATCH 64
 
 struct RSComponentLoadCallbacks
 {
     void* user;
     void (*on_component)(
         void* user,
-        struct RSComponentInfo const* info);
+        int component_id);
 };
 
 struct Task_RSComponentLoad
@@ -75,7 +32,6 @@ struct Task_RSComponentLoad
     int root_component_id;
     struct RSComponentLoadCallbacks callbacks;
 
-    /* explicit work stack (dat1: component ids + parent ids) */
     int stack[RS_COMPONENT_STACK_MAX];
     int stack_x[RS_COMPONENT_STACK_MAX];
     int stack_y[RS_COMPONENT_STACK_MAX];

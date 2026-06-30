@@ -111,4 +111,23 @@ ToriAuxLibTD_SkeletalAnimation(
     struct ToriAuxLibTD* td,
     int anim_maya_id);
 
+struct ToriDraw_Sprite*
+ToriAuxLibTD_SpriteFrameNewFromCore(const struct ToriAuxLibCore_SpriteFrame* src);
+
+struct ToriDraw_Sprite**
+ToriAuxLibTD_SpritePackNewFromCore(const struct ToriAuxLibCore_Sprite* src);
+
+struct ToriDraw_Font*
+ToriAuxLibTD_FontNewFromCore(const struct ToriAuxLibCore_Font* src);
+
+bool
+ToriAuxLibTD_Sprite(
+    struct ToriAuxLibTD* td,
+    int element_id);
+
+bool
+ToriAuxLibTD_Font(
+    struct ToriAuxLibTD* td,
+    int font_id);
+
 #endif

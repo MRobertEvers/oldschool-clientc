@@ -48,45 +48,40 @@ instance_revconfig_rs_subtree_get_or_create(
 bool
 instance_revconfig_rs_subtree_append(
     struct InstanceRevConfigRSSubtree* subtree,
-    struct RSComponentInfo const* info)
+    int component_id)
 {
-    assert(subtree && info && subtree->item_count < INSTANCE_RC_MAX_RS_SUBTREE_ITEMS);
-    subtree->items[subtree->item_count++] = *info;
-
+    assert(subtree && component_id >= 0 && subtree->item_count < INSTANCE_RC_MAX_RS_SUBTREE_ITEMS);
+    subtree->component_ids[subtree->item_count++] = component_id;
     return true;
 }
 
 static int32_t
-instance_revconfig_bake_rs_info(
+instance_revconfig_bake_rs_component(
     struct InstanceRevConfigContext* ctx,
     int32_t parent_idx,
-    struct RSComponentInfo const* info,
+    struct ToriAuxLibCore_Component const* info,
     int inv_index)
 {
     assert(ctx && ctx->tree && info);
 
     struct StaticUIBehavior behavior;
     struct StaticUIBehavior* behavior_ptr = NULL;
-    if( ctx->core && info->id >= 0 )
+    memset(&behavior, 0, sizeof(behavior));
+    behavior.hide = info->hide;
+    behavior.button_type = info->button_type;
+    behavior.client_code = info->client_code;
+    if( info->scripts_count > 0 )
     {
-        struct ToriAuxLibCore_Component* gc = ToriAuxLibCore_ComponentGet(ctx->core, info->id);
-        if( gc )
-        {
-            memset(&behavior, 0, sizeof(behavior));
-            behavior.hide = 0;
-            behavior.button_type = gc->button_type;
-            behavior.client_code = gc->client_code;
-            behavior.over_color = gc->over_color;
-            behavior.active_color = gc->active_color;
-            behavior.active_over_color = gc->active_over_color;
-            behavior.scripts_count = gc->scripts_count;
-            behavior.scripts = gc->scripts;
-            behavior.scripts_lengths = gc->scripts_lengths;
-            behavior.script_comparator = gc->script_comparator;
-            behavior.script_operand = gc->script_operand;
-            behavior_ptr = &behavior;
-        }
+        behavior.over_color = info->over_color;
+        behavior.active_color = info->active_color;
+        behavior.active_over_color = info->active_over_color;
+        behavior.scripts_count = info->scripts_count;
+        behavior.scripts = info->scripts;
+        behavior.scripts_lengths = info->scripts_lengths;
+        behavior.script_comparator = info->script_comparator;
+        behavior.script_operand = info->script_operand;
     }
+    behavior_ptr = &behavior;
 
     struct UINodeSpec spec = { 0 };
     spec.component_id = info->id;
@@ -98,10 +93,10 @@ instance_revconfig_bake_rs_info(
 
     switch( info->type )
     {
-    case RS_COMPONENT_LAYER:
+    case TORIAUXLIBCORE_COMPONENT_LAYER:
         spec.type = UIELEM_RS_LAYER;
         break;
-    case RS_COMPONENT_GRAPHIC:
+    case TORIAUXLIBCORE_COMPONENT_GRAPHIC:
     {
         int atlas = 0;
         int atlas_a = 0;
@@ -117,13 +112,13 @@ instance_revconfig_bake_rs_info(
         spec.u.rs_graphic.atlas_index_active = sid_a >= 0 ? atlas_a : 0;
         break;
     }
-    case RS_COMPONENT_RECT:
+    case TORIAUXLIBCORE_COMPONENT_RECT:
         spec.type = UIELEM_RS_RECT;
         spec.u.rs_rect.color = info->color;
         spec.u.rs_rect.filled = info->filled;
         break;
-    case RS_COMPONENT_TEXT:
-    case RS_COMPONENT_INV_TEXT:
+    case TORIAUXLIBCORE_COMPONENT_TEXT:
+    case TORIAUXLIBCORE_COMPONENT_INV_TEXT:
         spec.type = UIELEM_RS_TEXT;
         spec.u.rs_text.font_id = info->font_id >= 0 && info->font_id <= 3 ? info->font_id : 1;
         spec.u.rs_text.color = info->color;
@@ -131,12 +126,12 @@ instance_revconfig_bake_rs_info(
         spec.u.rs_text.shadowed = info->shadowed;
         spec.u.rs_text.text = info->text[0] != '\0' ? info->text : NULL;
         break;
-    case RS_COMPONENT_MODEL:
+    case TORIAUXLIBCORE_COMPONENT_MODEL:
         spec.type = UIELEM_RS_MODEL;
         spec.u.rs_model.gamecache_model_id = info->model_id;
         spec.u.rs_model.zoom = 100;
         break;
-    case RS_COMPONENT_INV:
+    case TORIAUXLIBCORE_COMPONENT_INV:
         spec.type = UIELEM_RS_INV;
         spec.u.rs_inv.inv_index = inv_index;
         spec.u.rs_inv.cols = info->inv_cols;
@@ -173,7 +168,12 @@ instance_revconfig_bake_rs_subtree(
 
     for( int i = 0; i < subtree->item_count; i++ )
     {
-        struct RSComponentInfo const* info = &subtree->items[i];
+        int component_id = subtree->component_ids[i];
+        struct ToriAuxLibCore_Component* info =
+            ctx->core ? ToriAuxLibCore_ComponentGet(ctx->core, component_id) : NULL;
+        if( !info )
+            continue;
+
         int32_t parent_idx = owner_uitree_index;
         if( info->parent_id >= 0 )
         {
@@ -182,7 +182,7 @@ instance_revconfig_bake_rs_subtree(
             parent_idx = id_to_uitree[info->parent_id];
         }
 
-        int32_t idx = instance_revconfig_bake_rs_info(ctx, parent_idx, info, inv_index);
+        int32_t idx = instance_revconfig_bake_rs_component(ctx, parent_idx, info, inv_index);
         assert(idx >= 0);
         assert(info->id >= 0 && info->id < 1024);
         id_to_uitree[info->id] = idx;
@@ -319,9 +319,8 @@ parse_paint_levels_mask(char const* str)
 static void
 apply_layout_position(
     struct RevConfigUILayoutItem const* le,
-    struct StaticUIElemPosition* pos,
-    int comp_w,
-    int comp_h)
+    struct RevConfigUIComponentItem const* comp,
+    struct StaticUIElemPosition* pos)
 {
     if( le->left || le->right || le->top || le->bottom )
     {
@@ -339,21 +338,26 @@ apply_layout_position(
         pos->right = le->right;
         pos->top = le->top;
         pos->bottom = le->bottom;
-        pos->width = le->width > 0 ? le->width : comp_w;
-        pos->height = le->height > 0 ? le->height : comp_h;
+        pos->width = le->width > 0 ? le->width : comp->width;
+        pos->height = le->height > 0 ? le->height : comp->height;
     }
     else
     {
         pos->kind = UIPOS_XY;
         pos->x = le->x;
         pos->y = le->y;
-        pos->width = le->width > 0 ? le->width : comp_w;
-        pos->height = le->height > 0 ? le->height : comp_h;
+        pos->width = le->width > 0 ? le->width : comp->width;
+        pos->height = le->height > 0 ? le->height : comp->height;
     }
     if( le->has_anchor )
     {
         pos->anchor_x = le->anchor_x;
         pos->anchor_y = le->anchor_y;
+    }
+    else
+    {
+        pos->anchor_x = comp->anchor_x;
+        pos->anchor_y = comp->anchor_y;
     }
 }
 
@@ -429,14 +433,12 @@ instance_revconfig_build_layout_node(
 
     enum StaticUIComponentType static_type = component_type_from_string(comp->type);
     int const component_id = component_id_from_item(comp);
-    int w = layout->width > 0 ? layout->width : comp->width;
-    int h = layout->height > 0 ? layout->height : comp->height;
 
     struct UINodeSpec spec;
     memset(&spec, 0, sizeof(spec));
     spec.type = static_type;
     spec.component_id = component_id;
-    apply_layout_position(layout, &spec.position, w, h);
+    apply_layout_position(layout, comp, &spec.position);
     spec.has_position = 1;
     if( layout->dirty )
         spec.always_dirty = 1;
@@ -448,6 +450,7 @@ instance_revconfig_build_layout_node(
         spec.u.sprite.atlas_index = atlas_index;
         break;
     case UIELEM_BUILTIN_MINIMAP:
+        spec.always_dirty = 1;
         spec.u.minimap.scene_id = sprite_id;
         break;
     case UIELEM_BUILTIN_CHAT:

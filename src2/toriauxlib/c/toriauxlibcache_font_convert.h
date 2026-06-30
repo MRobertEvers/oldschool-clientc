@@ -1,0 +1,32 @@
+#ifndef TORIAUXLIBCACHE_FONT_CONVERT_H
+#define TORIAUXLIBCACHE_FONT_CONVERT_H
+
+#include "toriauxlib/core/toriauxlibcore_types.h"
+
+struct RSCacheDat2Disk;
+struct RSCacheDat2Disk_Archive;
+struct RSCacheShared_FileListDat;
+struct ToriDraw_Font;
+
+struct ToriAuxLibCore_Font*
+ToriAuxLibCache_FontNewFromToriDrawByMove(struct ToriDraw_Font* font);
+
+struct ToriAuxLibCore_Font*
+ToriAuxLibCache_FontNewFromRSBytesByMove(
+    void* data,
+    int data_size,
+    void* index_data,
+    int index_data_size);
+
+struct ToriAuxLibCore_Font*
+ToriAuxLibCache_FontNewFromDat1Jagfile(
+    struct RSCacheShared_FileListDat* filelist,
+    char const* font_name);
+
+struct ToriAuxLibCore_Font*
+ToriAuxLibCache_FontNewFromDat2Archive(
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive,
+    int font_id);
+
+#endif

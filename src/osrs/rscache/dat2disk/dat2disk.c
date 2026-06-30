@@ -430,6 +430,20 @@ RSCacheDat2Disk_ArchiveNewLoad(
 }
 
 void
+RSCacheDat2Disk_ArchiveInitMetadataFromTable(
+    struct RSCacheDat2Disk_ReferenceTable* table,
+    struct RSCacheDat2Disk_Archive* archive)
+{
+    if( !table || !archive )
+        return;
+
+    assert(archive->archive_id < table->archive_count);
+    struct RSCacheDat2Disk_ArchiveReference* archive_reference = &table->archives[archive->archive_id];
+    archive->revision = archive_reference->version;
+    archive->file_count = archive_reference->children.count;
+}
+
+void
 RSCacheDat2Disk_ArchiveInitMetadata(
     struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive)
@@ -441,10 +455,7 @@ RSCacheDat2Disk_ArchiveInitMetadata(
         return;
     }
 
-    assert(archive->archive_id < table->archive_count);
-    struct RSCacheDat2Disk_ArchiveReference* archive_reference = &table->archives[archive->archive_id];
-    archive->revision = archive_reference->version;
-    archive->file_count = archive_reference->children.count;
+    RSCacheDat2Disk_ArchiveInitMetadataFromTable(table, archive);
 }
 
 struct RSCacheDat2Disk_Archive*

@@ -2,7 +2,7 @@
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
 #include "buildcache/dat2_buildcache.h"
-#include "osrs/rscache/dat2a/dat2a_animaya.h"
+#include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat2a/dat2a_config_floortype.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
@@ -547,6 +547,97 @@ toriauxlibcache_component_script_length_from_opcode0(int const* script)
     }
 }
 
+static enum ToriAuxLibCore_ComponentType
+toriauxlibcache_component_type_from_raw(int type)
+{
+    switch( type )
+    {
+    case COMPONENT_TYPE_LAYER:
+        return TORIAUXLIBCORE_COMPONENT_LAYER;
+    case COMPONENT_TYPE_INV:
+        return TORIAUXLIBCORE_COMPONENT_INV;
+    case COMPONENT_TYPE_RECT:
+        return TORIAUXLIBCORE_COMPONENT_RECT;
+    case COMPONENT_TYPE_TEXT:
+        return TORIAUXLIBCORE_COMPONENT_TEXT;
+    case COMPONENT_TYPE_GRAPHIC:
+        return TORIAUXLIBCORE_COMPONENT_GRAPHIC;
+    case COMPONENT_TYPE_MODEL:
+        return TORIAUXLIBCORE_COMPONENT_MODEL;
+    case COMPONENT_TYPE_INV_TEXT:
+        return TORIAUXLIBCORE_COMPONENT_INV_TEXT;
+    default:
+        return TORIAUXLIBCORE_COMPONENT_LAYER;
+    }
+}
+
+static void
+toriauxlibcache_dat2_sprite_ref_from_id(
+    int sprite_id,
+    char* out,
+    size_t out_size)
+{
+    if( !out || out_size == 0 )
+        return;
+    if( sprite_id < 0 )
+    {
+        out[0] = '\0';
+        return;
+    }
+    snprintf(out, out_size, "spr:%d", sprite_id);
+}
+
+static void
+toriauxlibcache_component_copy_scripts(
+    struct ToriAuxLibCore_Component* dst,
+    int scripts_count,
+    int** scripts,
+    int* scripts_lengths,
+    int* script_comparator,
+    int* script_operand)
+{
+    dst->scripts_count = scripts_count;
+    if( scripts_count <= 0 || !scripts )
+        return;
+
+    dst->scripts = calloc((size_t)scripts_count, sizeof(int*));
+    dst->scripts_lengths = calloc((size_t)scripts_count, sizeof(int));
+    if( !dst->scripts || !dst->scripts_lengths )
+        return;
+
+    for( int i = 0; i < scripts_count; i++ )
+    {
+        if( !scripts[i] )
+            continue;
+
+        int len = (scripts_lengths && scripts_lengths[i] > 0)
+                      ? scripts_lengths[i]
+                      : toriauxlibcache_component_script_length_from_opcode0(scripts[i]);
+        if( len <= 0 )
+            continue;
+
+        dst->scripts[i] = malloc((size_t)len * sizeof(int));
+        if( !dst->scripts[i] )
+            continue;
+        memcpy(dst->scripts[i], scripts[i], (size_t)len * sizeof(int));
+        dst->scripts_lengths[i] = len;
+    }
+
+    if( script_comparator )
+    {
+        dst->script_comparator = malloc((size_t)scripts_count * sizeof(int));
+        if( dst->script_comparator )
+            memcpy(dst->script_comparator, script_comparator, (size_t)scripts_count * sizeof(int));
+    }
+
+    if( script_operand )
+    {
+        dst->script_operand = malloc((size_t)scripts_count * sizeof(int));
+        if( dst->script_operand )
+            memcpy(dst->script_operand, script_operand, (size_t)scripts_count * sizeof(int));
+    }
+}
+
 struct ToriAuxLibCore_Component*
 ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
 {
@@ -559,64 +650,86 @@ ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
         return NULL;
 
     dst->id = src->id;
+    dst->type = toriauxlibcache_component_type_from_raw(src->type);
+    dst->width = src->width;
+    dst->height = src->height;
+    dst->model_id = src->model;
+    dst->color = src->colour;
+    dst->filled = src->fill ? 1 : 0;
+    dst->font_id = src->font;
+    dst->center = src->center ? 1 : 0;
+    dst->shadowed = src->shadowed ? 1 : 0;
+    dst->inv_cols = src->width;
+    dst->inv_rows = src->height;
+    dst->margin_x = src->marginX;
+    dst->margin_y = src->marginY;
     dst->hide = src->hide ? 1 : 0;
     dst->button_type = src->buttonType;
     dst->client_code = src->clientCode;
     dst->over_color = src->overColour;
     dst->active_color = src->activeColour;
     dst->active_over_color = src->activeOverColour;
-    dst->scripts_count = src->scripts_count;
+    dst->parent_id = -1;
 
-    if( src->scripts_count > 0 && src->scripts )
-    {
-        dst->scripts = calloc((size_t)src->scripts_count, sizeof(int*));
-        dst->scripts_lengths = calloc((size_t)src->scripts_count, sizeof(int));
-        if( !dst->scripts || !dst->scripts_lengths )
-            goto fail;
+    if( src->graphic )
+        strncpy(dst->sprite_ref, src->graphic, sizeof(dst->sprite_ref) - 1);
+    if( src->activeGraphic )
+        strncpy(dst->sprite_active_ref, src->activeGraphic, sizeof(dst->sprite_active_ref) - 1);
+    if( src->text )
+        strncpy(dst->text, src->text, sizeof(dst->text) - 1);
 
-        for( int i = 0; i < src->scripts_count; i++ )
-        {
-            if( !src->scripts[i] )
-                continue;
-
-            int len = (src->scripts_lengths && src->scripts_lengths[i] > 0)
-                          ? src->scripts_lengths[i]
-                          : toriauxlibcache_component_script_length_from_opcode0(src->scripts[i]);
-            if( len <= 0 )
-                continue;
-
-            dst->scripts[i] = malloc((size_t)len * sizeof(int));
-            if( !dst->scripts[i] )
-                goto fail;
-            memcpy(dst->scripts[i], src->scripts[i], (size_t)len * sizeof(int));
-            dst->scripts_lengths[i] = len;
-        }
-    }
-
-    if( src->scriptComparator && src->scripts_count > 0 )
-    {
-        dst->script_comparator = malloc((size_t)src->scripts_count * sizeof(int));
-        if( !dst->script_comparator )
-            goto fail;
-        memcpy(
-            dst->script_comparator,
-            src->scriptComparator,
-            (size_t)src->scripts_count * sizeof(int));
-    }
-
-    if( src->scriptOperand && src->scripts_count > 0 )
-    {
-        dst->script_operand = malloc((size_t)src->scripts_count * sizeof(int));
-        if( !dst->script_operand )
-            goto fail;
-        memcpy(dst->script_operand, src->scriptOperand, (size_t)src->scripts_count * sizeof(int));
-    }
+    toriauxlibcache_component_copy_scripts(
+        dst,
+        src->scripts_count,
+        src->scripts,
+        src->scripts_lengths,
+        src->scriptComparator,
+        src->scriptOperand);
 
     return dst;
+}
 
-fail:
-    ToriAuxLibCore_ComponentFree(dst);
-    return NULL;
+struct ToriAuxLibCore_Component*
+ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_ptr)
+{
+    const Component* src = cache_component_ptr;
+    if( !src )
+        return NULL;
+
+    struct ToriAuxLibCore_Component* dst = calloc(1, sizeof(struct ToriAuxLibCore_Component));
+    if( !dst )
+        return NULL;
+
+    dst->id = src->id;
+    dst->type = toriauxlibcache_component_type_from_raw(src->type);
+    dst->width = src->baseWidth;
+    dst->height = src->baseHeight;
+    dst->model_id = src->modelId;
+    dst->color = src->color;
+    dst->filled = src->fill ? 1 : 0;
+    dst->font_id = src->textFont;
+    dst->center = src->textHorizontalAlignment != 0 ? 1 : 0;
+    dst->shadowed = src->textShadow ? 1 : 0;
+    dst->inv_cols = src->baseWidth;
+    dst->inv_rows = src->baseHeight;
+    dst->margin_x = src->marginX;
+    dst->margin_y = src->marginY;
+    dst->hide = src->hidden ? 1 : 0;
+    dst->button_type = src->buttonType;
+    dst->client_code = src->clientCode;
+    dst->over_color = src->overColour;
+    dst->active_color = src->activeColour;
+    dst->active_over_color = src->activeOverColour;
+    dst->parent_id = -1;
+
+    toriauxlibcache_dat2_sprite_ref_from_id(src->graphic, dst->sprite_ref, sizeof(dst->sprite_ref));
+    toriauxlibcache_dat2_sprite_ref_from_id(
+        src->activeGraphic, dst->sprite_active_ref, sizeof(dst->sprite_active_ref));
+
+    if( src->text )
+        strncpy(dst->text, src->text, sizeof(dst->text) - 1);
+
+    return dst;
 }
 
 struct ToriAuxLibCore_Animation*

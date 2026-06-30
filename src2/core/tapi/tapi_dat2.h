@@ -253,4 +253,40 @@ TAPIDat2_DecodeFontArchive(
     return item->data;
 }
 
+static inline void
+TAPIDat2_FetchReferenceTable(
+    struct LibToriRS_IOContext* ctx,
+    int table_id)
+{
+    LibToriRS_IOQueuePushCache(
+        ctx->io, RSCACHEDAT2DISK_REFERENCE_TABLE_ID, table_id, 0);
+}
+
+static inline struct RSCacheDat2Disk_ReferenceTable*
+TAPIDat2_DecodeReferenceTable(
+    struct LibToriRS_IOContext* ctx,
+    int slot_id,
+    int expected_table_id)
+{
+    struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
+    if( !item )
+        return NULL;
+    if( item->kind != TORIRSIO_KIND_CACHE || item->status != TORIRSIO_STAT_DONE ||
+        item->error_code != 0 )
+        return NULL;
+    if( item->u.cache.table_id != RSCACHEDAT2DISK_REFERENCE_TABLE_ID ||
+        item->u.cache.archive_id != expected_table_id )
+        return NULL;
+
+    struct RSCacheDat2Disk_Archive* archive = item->data;
+    if( !archive )
+        return NULL;
+
+    struct RSCacheDat2Disk_ReferenceTable* table =
+        RSCacheDat2Disk_ReferenceTableNewDecode(archive->data, archive->data_size);
+    RSCacheDat2Disk_ArchiveFree(archive);
+    item->data = NULL;
+    return table;
+}
+
 #endif

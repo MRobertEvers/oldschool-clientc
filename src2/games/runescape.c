@@ -96,12 +96,23 @@ rs_ui_host_get_minimap_anchor(
         return;
     *out_src_anchor_x = 0;
     *out_src_anchor_y = 0;
-    if( !game || !game->camera_position || game->world_map_w <= 0 || game->world_map_h <= 0 )
+    if( !game || !game->camera_position || !game->world || !game->world->minimap ||
+        game->world_map_w <= 0 || game->world_map_h <= 0 )
         return;
-    int camera_tile_x = game->camera_position->x / 128;
-    int camera_tile_z = game->camera_position->z / 128;
-    *out_src_anchor_x = camera_tile_x * 4 + 48;
-    *out_src_anchor_y = game->world_map_h - camera_tile_z * 4 + 48;
+
+    struct Minimap* mm = game->world->minimap;
+    if( mm->width <= 0 || mm->height <= 0 )
+        return;
+
+    minimap_compute_camera_src_anchor(
+        game->camera_position->x,
+        game->camera_position->z,
+        game->world_map_w,
+        game->world_map_h,
+        mm->width,
+        mm->height,
+        out_src_anchor_x,
+        out_src_anchor_y);
 }
 
 static int
@@ -1031,12 +1042,9 @@ GameRunescape_EmitUIComponent(
         return true;
     }
     case UIELEM_BUILTIN_COMPASS:
-    case UIELEM_BUILTIN_MINIMAP:
     {
-        int scene_id = component->type == UIELEM_BUILTIN_COMPASS ? component->u.sprite.scene_id
-                                                                 : component->u.minimap.scene_id;
-        int atlas_index =
-            component->type == UIELEM_BUILTIN_COMPASS ? component->u.sprite.atlas_index : 0;
+        int scene_id = component->u.sprite.scene_id;
+        int atlas_index = component->u.sprite.atlas_index;
         if( scene_id < 0 )
             return false;
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, bx, by, bw, bh);
@@ -1044,20 +1052,37 @@ GameRunescape_EmitUIComponent(
         command->u.sprite.rotation = uitree_component_sprite_rotation(component, &game->ui_host);
         command->u.sprite.dst_anchor_x = component->position.anchor_x;
         command->u.sprite.dst_anchor_y = component->position.anchor_y;
-        if( component->type == UIELEM_BUILTIN_COMPASS )
-        {
-            int sprite_count = 0;
-            struct ToriDraw_Sprite** sprites =
-                game->scene ? ToriDraw_SceneSpriteGet(game->scene, scene_id, &sprite_count) : NULL;
-            struct ToriDraw_Sprite* sp = (sprites && atlas_index >= 0 && atlas_index < sprite_count)
-                                             ? sprites[atlas_index]
-                                             : NULL;
-            int sw = sp ? (sp->crop_width > 0 ? sp->crop_width : sp->width) : bw;
-            int sh = sp ? (sp->crop_height > 0 ? sp->crop_height : sp->height) : bh;
-            command->u.sprite.src_anchor_x = sw >> 1;
-            command->u.sprite.src_anchor_y = sh >> 1;
-        }
-        else if( game->ui_host.get_minimap_anchor )
+        int sprite_count = 0;
+        struct ToriDraw_Sprite** sprites =
+            game->scene ? ToriDraw_SceneSpriteGet(game->scene, scene_id, &sprite_count) : NULL;
+        struct ToriDraw_Sprite* sp = (sprites && atlas_index >= 0 && atlas_index < sprite_count)
+                                         ? sprites[atlas_index]
+                                         : NULL;
+        int sw = sp ? (sp->crop_width > 0 ? sp->crop_width : sp->width) : bw;
+        int sh = sp ? (sp->crop_height > 0 ? sp->crop_height : sp->height) : bh;
+        command->u.sprite.src_anchor_x = sw >> 1;
+        command->u.sprite.src_anchor_y = sh >> 1;
+        command->u.sprite.w = sw;
+        command->u.sprite.h = sh;
+        command->u.sprite.x = bx + (bw >> 1) - command->u.sprite.dst_anchor_x;
+        command->u.sprite.y = by + (bh >> 1) - command->u.sprite.dst_anchor_y;
+        command->u.sprite.scissor_x = bx;
+        command->u.sprite.scissor_y = by;
+        command->u.sprite.scissor_w = bw;
+        command->u.sprite.scissor_h = bh;
+        return true;
+    }
+    case UIELEM_BUILTIN_MINIMAP:
+    {
+        int scene_id = component->u.minimap.scene_id;
+        if( scene_id < 0 )
+            return false;
+        GameRunescape_EmitSpriteCommand(command, scene_id, 0, bx, by, bw, bh);
+        command->u.sprite.rotated = 1;
+        command->u.sprite.rotation = uitree_component_sprite_rotation(component, &game->ui_host);
+        command->u.sprite.dst_anchor_x = bw >> 1;
+        command->u.sprite.dst_anchor_y = bh >> 1;
+        if( game->ui_host.get_minimap_anchor )
         {
             game->ui_host.get_minimap_anchor(
                 game->ui_host.user,

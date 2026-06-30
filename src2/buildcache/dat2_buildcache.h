@@ -6,10 +6,13 @@
 #include "osrs/rscache/dat2a/dat2a_framemap.h"
 #include "osrs/rscache/dat2a/dat2a_maps.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+struct ToriAuxLibCore_Sprite;
 
 enum Dat2BuildCache_Kind
 {
@@ -92,6 +95,7 @@ struct Dat2BuildCache
     struct ToriDraw_Map* npctype_hmap;
     struct ToriDraw_Map* interfaces_hmap;
     struct ToriDraw_Map* dynamic_sprites_hmap;
+    struct RSCacheDat2Disk_ReferenceTable* reference_tables[RSCacheDat2Disk_Table_Count];
     size_t asset_bytes[DAT2_BUILDCACHE_KIND_COUNT];
     size_t map_buffer_bytes;
 };
@@ -420,17 +424,34 @@ void
 dat2_buildcache_interfaces_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
 void
+dat2_buildcache_reference_table_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int table_id,
+    struct RSCacheDat2Disk_ReferenceTable* table);
+
+struct RSCacheDat2Disk_ReferenceTable*
+dat2_buildcache_reference_table_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int table_id);
+
+bool
+dat2_buildcache_reference_table_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int table_id);
+
+void
+dat2_buildcache_reference_tables_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
 dat2_buildcache_dynamic_sprite_add(
     struct Dat2BuildCache* dat2_buildcache,
     int sprite_id,
-    struct ToriDraw_Sprite** sprites,
-    int count);
+    struct ToriAuxLibCore_Sprite* sprite);
 
-struct ToriDraw_Sprite**
+struct ToriAuxLibCore_Sprite*
 dat2_buildcache_dynamic_sprite_get(
     struct Dat2BuildCache* dat2_buildcache,
-    int sprite_id,
-    int* out_count);
+    int sprite_id);
 
 bool
 dat2_buildcache_dynamic_sprite_has(

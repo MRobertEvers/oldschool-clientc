@@ -65,6 +65,22 @@ ToriAuxLibTD_Free(struct ToriAuxLibTD* td)
     (void)td;
 }
 
+bool
+ToriAuxLibTD_Sprite(struct ToriAuxLibTD* td, int element_id)
+{
+    (void)td;
+    (void)element_id;
+    return false;
+}
+
+bool
+ToriAuxLibTD_Font(struct ToriAuxLibTD* td, int font_id)
+{
+    (void)td;
+    (void)font_id;
+    return false;
+}
+
 struct ToriAuxLibVM*
 ToriAuxLibVM_New(void)
 {

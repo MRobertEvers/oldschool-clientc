@@ -210,4 +210,16 @@ minimap_bake_argb(
     int* out_width,
     int* out_height);
 
+/** Map-texture pivot for the camera position (matches minimap_bake_argb tile layout). */
+void
+minimap_compute_camera_src_anchor(
+    int camera_world_x,
+    int camera_world_z,
+    int sprite_w,
+    int sprite_h,
+    int map_tile_w,
+    int map_tile_h,
+    int* out_src_anchor_x,
+    int* out_src_anchor_y);
+
 #endif

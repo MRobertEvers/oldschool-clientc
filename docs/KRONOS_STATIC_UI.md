@@ -20,7 +20,7 @@ Sources: `WidgetID.java`, `Constants.GAME_FIXED_SIZE`, `Client.getViewportWidget
 | Minimap | MINIMAP (1338) | `minimap` | 3, draw 8 | 17–28 |
 | Compass | COMPASS (1339) | `compass` | in minimap frame | sprite 169 |
 | Sidebar host | container | `sidebar` | 65 | 161:65 / 164:71 |
-| Chat | group 162 | `chat` | separate overlay | separate overlay |
+| Chat | group 162 | `chat` | separate overlay at `(0,0)` | separate overlay at `(0,0)` |
 | Minimap orbs | group 160 | (future) | on minimap | on minimap |
 
 ## 14-tab sidebar (`InterfaceTab` 0–13)
@@ -104,7 +104,7 @@ Sources: `WidgetID.java`, `Constants.GAME_FIXED_SIZE`, `Client.getViewportWidget
 | Group | Role |
 |-------|------|
 | 160 | Minimap orbs (HP, prayer, run, spec, world map) |
-| 162 | Chatbox |
+| 162 | Chatbox (filter buttons, messages, input) — mount via `chat_region` `componentno=162` at `(0,0)`; fixed shell 548 only provides `chatback` parchment chrome |
 | 593, 320, 399, 149, 387, 541, 218, 7, 429, 182, 216, 239 | Sidebar panel content |
 
 ## Revconfig mapping

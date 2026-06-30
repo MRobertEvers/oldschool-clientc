@@ -31,6 +31,8 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_convert.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_model_convert.c \
+	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_sprite_convert.c \
+	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_font_convert.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_submit.c \
 	$(SRC2_DIR)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2_DIR)/buildcache/dat1_buildcache.c \
@@ -55,6 +57,7 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/commands/libtorirs_command_queue.c \
 	$(SRC2_DIR)/revconfig/revconfig.c \
 	$(SRC2_DIR)/revconfig/revconfig_load.c \
+	$(SRC2_DIR)/world/minimap.c \
 	$(SRC2_DIR)/3rd/ini/ini.c \
 	$(SRC_DIR)/osrs/rscache/unity.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \

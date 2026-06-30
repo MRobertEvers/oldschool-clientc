@@ -4,7 +4,6 @@
 #include "3rd/minipt.h"
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "revconfig/revconfig.h"
-#include "task_rs_component_load.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "ui/ui_sprite_lookup.h"
 #include "ui/uitree.h"
@@ -22,7 +21,7 @@
 struct InstanceRevConfigRSSubtree
 {
     char owner_component[64];
-    struct RSComponentInfo items[INSTANCE_RC_MAX_RS_SUBTREE_ITEMS];
+    int component_ids[INSTANCE_RC_MAX_RS_SUBTREE_ITEMS];
     int item_count;
 };
 
@@ -96,7 +95,7 @@ instance_revconfig_rs_subtree_get_or_create(
 bool
 instance_revconfig_rs_subtree_append(
     struct InstanceRevConfigRSSubtree* subtree,
-    struct RSComponentInfo const* info);
+    int component_id);
 
 void
 instance_revconfig_bake_rs_subtree(

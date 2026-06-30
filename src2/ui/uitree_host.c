@@ -167,6 +167,9 @@ uitree_component_should_emit(
     if( component->type == UIELEM_BUILTIN_SIDEBAR )
         return false;
 
+    if( component->type == UIELEM_BUILTIN_CHAT )
+        return false;
+
     if( component->type == UIELEM_RS_LAYER )
         return false;
 

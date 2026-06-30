@@ -5,9 +5,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-struct ToriDraw_Sprite;
-struct ToriDraw_Font;
-
 #define TORIAUXLIBCORE_MAP_TERRAIN_X 64
 #define TORIAUXLIBCORE_MAP_TERRAIN_Z 64
 #define TORIAUXLIBCORE_MAP_TERRAIN_LEVELS 4
@@ -134,8 +131,9 @@ struct ToriAuxLibCore_MapTerrain
 {
     int map_x;
     int map_z;
-    struct ToriAuxLibCore_MapFloor
-        tiles_xyz[TORIAUXLIBCORE_MAP_TERRAIN_X * TORIAUXLIBCORE_MAP_TERRAIN_Z * TORIAUXLIBCORE_MAP_TERRAIN_LEVELS];
+    struct ToriAuxLibCore_MapFloor tiles_xyz
+        [TORIAUXLIBCORE_MAP_TERRAIN_X * TORIAUXLIBCORE_MAP_TERRAIN_Z *
+         TORIAUXLIBCORE_MAP_TERRAIN_LEVELS];
 };
 
 struct ToriAuxLibCore_MapLoc
@@ -242,37 +240,90 @@ struct ToriAuxLibCore_Sequence
  */
 struct ToriAuxLibCore_SkeletalAnim
 {
-    int    id;
-    int    bone_count;
-    int    frame_count;
+    int id;
+    int bone_count;
+    int frame_count;
     float* matrices; /* [frame_count * bone_count * 16] */
 };
 
 /** Per-vertex animaya skin data attached to a model. */
 struct ToriAuxLibCore_AnimayaSkin
 {
-    int      vertex_count;
-    uint8_t* group_counts;  /* [vertex_count] */
-    uint8_t** groups;       /* [vertex_count][group_count] bone indices  */
-    uint8_t** scales;       /* [vertex_count][group_count] bone weights  */
+    int vertex_count;
+    uint8_t* group_counts; /* [vertex_count] */
+    uint8_t** groups;      /* [vertex_count][group_count] bone indices  */
+    uint8_t** scales;      /* [vertex_count][group_count] bone weights  */
+};
+
+#define TORIAUXLIBCORE_SPRITE_REF_MAX 128
+#define TORIAUXLIBCORE_COMPONENT_TEXT_MAX 256
+#define TORIAUXLIBCORE_FONT_GLYPH_COUNT 94
+
+struct ToriAuxLibCore_SpriteFrame
+{
+    uint32_t* pixels_argb;
+    int width;
+    int height;
+    int crop_x;
+    int crop_y;
+    int crop_width;
+    int crop_height;
 };
 
 struct ToriAuxLibCore_Sprite
 {
     char name[64];
-    struct ToriDraw_Sprite** sprites;
-    int count;
+    struct ToriAuxLibCore_SpriteFrame* frames;
+    int frame_count;
 };
 
 struct ToriAuxLibCore_Font
 {
     char name[16];
-    struct ToriDraw_Font* font;
+    uint8_t* glyph_alpha[TORIAUXLIBCORE_FONT_GLYPH_COUNT];
+    int glyph_width[TORIAUXLIBCORE_FONT_GLYPH_COUNT];
+    int glyph_height[TORIAUXLIBCORE_FONT_GLYPH_COUNT];
+    int offset_x[TORIAUXLIBCORE_FONT_GLYPH_COUNT];
+    int offset_y[TORIAUXLIBCORE_FONT_GLYPH_COUNT];
+    int advance[TORIAUXLIBCORE_FONT_GLYPH_COUNT + 1];
+    int draw_width[256];
+    int line_height;
+    char charcodeset[256];
+};
+
+enum ToriAuxLibCore_ComponentType
+{
+    TORIAUXLIBCORE_COMPONENT_LAYER = 0,
+    TORIAUXLIBCORE_COMPONENT_INV,
+    TORIAUXLIBCORE_COMPONENT_RECT,
+    TORIAUXLIBCORE_COMPONENT_TEXT,
+    TORIAUXLIBCORE_COMPONENT_GRAPHIC,
+    TORIAUXLIBCORE_COMPONENT_MODEL,
+    TORIAUXLIBCORE_COMPONENT_INV_TEXT,
 };
 
 struct ToriAuxLibCore_Component
 {
     int id;
+    enum ToriAuxLibCore_ComponentType type;
+    int parent_id;
+    int rel_x;
+    int rel_y;
+    int width;
+    int height;
+    char sprite_ref[TORIAUXLIBCORE_SPRITE_REF_MAX];
+    char sprite_active_ref[TORIAUXLIBCORE_SPRITE_REF_MAX];
+    int model_id;
+    int color;
+    int filled;
+    int font_id;
+    int center;
+    int shadowed;
+    char text[TORIAUXLIBCORE_COMPONENT_TEXT_MAX];
+    int inv_cols;
+    int inv_rows;
+    int margin_x;
+    int margin_y;
     uint8_t hide;
     int button_type;
     int client_code;
@@ -285,6 +336,16 @@ struct ToriAuxLibCore_Component
     int* script_comparator;
     int* script_operand;
 };
+
+void
+ToriAuxLibCore_SpriteFrameFree(struct ToriAuxLibCore_SpriteFrame* frame);
+
+void
+ToriAuxLibCore_ComponentApplyWalkLayout(
+    struct ToriAuxLibCore_Component* component,
+    int parent_id,
+    int rel_x,
+    int rel_y);
 
 void
 ToriAuxLibCore_MapTerrainFree(struct ToriAuxLibCore_MapTerrain* terrain);

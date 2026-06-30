@@ -500,11 +500,38 @@ ToriAuxLibCore_SequenceFree(struct ToriAuxLibCore_Sequence* seq)
 }
 
 size_t
+ToriAuxLibCore_SpriteFrameSizeOf(const struct ToriAuxLibCore_SpriteFrame* frame)
+{
+    if( !frame )
+        return 0;
+    size_t bytes = sizeof(*frame);
+    if( frame->pixels_argb && frame->width > 0 && frame->height > 0 )
+        bytes += (size_t)frame->width * (size_t)frame->height * sizeof(uint32_t);
+    return bytes;
+}
+
+void
+ToriAuxLibCore_SpriteFrameFree(struct ToriAuxLibCore_SpriteFrame* frame)
+{
+    if( !frame )
+        return;
+    free(frame->pixels_argb);
+    free(frame);
+}
+
+size_t
 ToriAuxLibCore_SpriteSizeOf(const struct ToriAuxLibCore_Sprite* sprite)
 {
     if( !sprite )
         return 0;
-    return sizeof(*sprite);
+    size_t bytes = sizeof(*sprite);
+    if( sprite->frames )
+    {
+        bytes += (size_t)sprite->frame_count * sizeof(*sprite->frames);
+        for( int i = 0; i < sprite->frame_count; i++ )
+            bytes += ToriAuxLibCore_SpriteFrameSizeOf(&sprite->frames[i]);
+    }
+    return bytes;
 }
 
 void
@@ -512,6 +539,12 @@ ToriAuxLibCore_SpriteFree(struct ToriAuxLibCore_Sprite* sprite)
 {
     if( !sprite )
         return;
+    if( sprite->frames )
+    {
+        for( int i = 0; i < sprite->frame_count; i++ )
+            free(sprite->frames[i].pixels_argb);
+        free(sprite->frames);
+    }
     free(sprite);
 }
 
@@ -520,7 +553,13 @@ ToriAuxLibCore_FontSizeOf(const struct ToriAuxLibCore_Font* font)
 {
     if( !font )
         return 0;
-    return sizeof(*font);
+    size_t bytes = sizeof(*font);
+    for( int i = 0; i < TORIAUXLIBCORE_FONT_GLYPH_COUNT; i++ )
+    {
+        if( font->glyph_alpha[i] && font->glyph_width[i] > 0 && font->glyph_height[i] > 0 )
+            bytes += (size_t)font->glyph_width[i] * (size_t)font->glyph_height[i];
+    }
+    return bytes;
 }
 
 void
@@ -528,7 +567,23 @@ ToriAuxLibCore_FontFree(struct ToriAuxLibCore_Font* font)
 {
     if( !font )
         return;
+    for( int i = 0; i < TORIAUXLIBCORE_FONT_GLYPH_COUNT; i++ )
+        free(font->glyph_alpha[i]);
     free(font);
+}
+
+void
+ToriAuxLibCore_ComponentApplyWalkLayout(
+    struct ToriAuxLibCore_Component* component,
+    int parent_id,
+    int rel_x,
+    int rel_y)
+{
+    if( !component )
+        return;
+    component->parent_id = parent_id;
+    component->rel_x = rel_x;
+    component->rel_y = rel_y;
 }
 
 size_t

@@ -136,6 +136,8 @@ CACHE_SRCS := \
 	$(SRC2)/toriauxlib/c/toriauxlibcache.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_model_convert.c \
+	$(SRC2)/toriauxlib/c/toriauxlibcache_sprite_convert.c \
+	$(SRC2)/toriauxlib/c/toriauxlibcache_font_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_submit.c \
 	$(SRC2)/toriauxlib/td/toriauxlibtd.c \
 	$(SRC2)/toriauxlib/core/tasks/task_toriauxlibtd.c \

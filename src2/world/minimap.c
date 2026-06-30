@@ -627,3 +627,28 @@ minimap_bake_argb(
     *out_height = ph;
     return pixels;
 }
+
+void
+minimap_compute_camera_src_anchor(
+    int camera_world_x,
+    int camera_world_z,
+    int sprite_w,
+    int sprite_h,
+    int map_tile_w,
+    int map_tile_h,
+    int* out_src_anchor_x,
+    int* out_src_anchor_y)
+{
+    if( out_src_anchor_x )
+        *out_src_anchor_x = 0;
+    if( out_src_anchor_y )
+        *out_src_anchor_y = 0;
+    if( !out_src_anchor_x || !out_src_anchor_y || sprite_w <= 0 || sprite_h <= 0 || map_tile_w <= 0 ||
+        map_tile_h <= 0 )
+        return;
+
+    int const camera_tile_x = camera_world_x / 128;
+    int const camera_tile_z = camera_world_z / 128;
+    *out_src_anchor_x = camera_tile_x * (sprite_w / map_tile_w);
+    *out_src_anchor_y = sprite_h - camera_tile_z * (sprite_h / map_tile_h);
+}
