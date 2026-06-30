@@ -513,16 +513,16 @@ gl3_sprite_local_to_uv(
     const int ang = ToriDraw_NormalizeAngle(rotation_r2pi2048);
     const int cos = ToriDraw_Cos(ang);
     const int sin = ToriDraw_Sin(ang);
-    const int rel_x = local_x - dst_anchor_x;
-    const int rel_y = local_y - dst_anchor_y;
-    const int src_rel_x = ((rel_x * cos + rel_y * sin) >> 16);
-    const int src_rel_y = ((-rel_x * sin + rel_y * cos) >> 16);
+    const float rel_x = (float)local_x - 0.5f - (float)dst_anchor_x;
+    const float rel_y = (float)local_y - 0.5f - (float)dst_anchor_y;
+    const int src_rel_x = (int)(rel_x * (float)cos + rel_y * (float)sin) >> 16;
+    const int src_rel_y = (int)(-rel_x * (float)sin + rel_y * (float)cos) >> 16;
     const float src_x = (float)(src_anchor_x + src_rel_x);
     const float src_y = (float)(src_anchor_y + src_rel_y);
     const float du = u1 - u0;
     const float dv = v1 - v0;
-    *out_u = u0 + (crop_w > 0 ? (src_x / (float)crop_w) * du : 0.0f);
-    *out_v = v0 + (crop_h > 0 ? (src_y / (float)crop_h) * dv : 0.0f);
+    *out_u = u0 + (crop_w > 0 ? ((src_x + 0.5f) / (float)crop_w) * du : 0.0f);
+    *out_v = v0 + (crop_h > 0 ? ((src_y + 0.5f) / (float)crop_h) * dv : 0.0f);
 }
 
 static void
@@ -882,8 +882,8 @@ gl3_ev_sprite(
     float y1;
     if( rotated )
     {
-        x0 = (float)command->u.sprite.x;
-        y0 = (float)command->u.sprite.y;
+        x0 = (float)command->u.sprite.x - 0.5f;
+        y0 = (float)command->u.sprite.y - 0.5f;
         x1 = x0 + (float)(command->u.sprite.w > 0 ? command->u.sprite.w : 1);
         y1 = y0 + (float)(command->u.sprite.h > 0 ? command->u.sprite.h : 1);
     }
