@@ -1,6 +1,7 @@
 #include "dat2_buildcache.h"
 
 #include "osrs/rscache/dat2a/dat2a_animaya.h"
+#include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat2a/dat2a_config_floortype.h"
 #include "osrs/rscache/dat2a/dat2a_config_idk.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
@@ -90,6 +91,12 @@ struct MapEntry_ConfigNpctype
 {
     int id;
     struct RSCacheDat2A_ConfigNpctype* npc;
+};
+
+struct MapEntry_InterfaceArchive
+{
+    int id;
+    struct Dat2BuildCache_InterfaceArchive* archive;
 };
 
 #define DAT2_BUILDCACHE_PRUNE_CAPACITY 64
@@ -221,6 +228,8 @@ dat2_buildcache_new(void)
         dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_ConfigObject), 8192);
     dat2_buildcache->npctype_hmap =
         dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_ConfigNpctype), 8192);
+    dat2_buildcache->interfaces_hmap =
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_InterfaceArchive), 512);
 
     return dat2_buildcache;
 }
@@ -387,6 +396,19 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->npctype_hmap);
     }
 
+    if( dat2_buildcache->interfaces_hmap )
+    {
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->interfaces_hmap);
+        struct MapEntry_InterfaceArchive* entry = NULL;
+        while( (entry = (struct MapEntry_InterfaceArchive*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->archive )
+                Dat2BuildCache_InterfaceArchiveFree(entry->archive);
+        }
+        ToriDraw_MapIterFree(iter);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->interfaces_hmap);
+    }
+
     memset(dat2_buildcache->asset_bytes, 0, sizeof(dat2_buildcache->asset_bytes));
     dat2_buildcache->map_buffer_bytes = 0;
     free(dat2_buildcache);
@@ -423,6 +445,27 @@ Dat2BuildCache_FramesArchiveSizeOf(const struct Dat2BuildCache_FramesArchive* fa
             bytes += RSCacheDat2A_FrameSizeOf(fa->frames[i]);
     }
     return bytes;
+}
+
+void
+Dat2BuildCache_InterfaceArchiveFree(struct Dat2BuildCache_InterfaceArchive* archive)
+{
+    if( !archive )
+        return;
+
+    if( archive->components )
+    {
+        for( int i = 0; i < archive->component_count; i++ )
+        {
+            if( archive->components[i] )
+            {
+                Component_free(archive->components[i]);
+                free(archive->components[i]);
+            }
+        }
+        free(archive->components);
+    }
+    free(archive);
 }
 
 void
@@ -2029,6 +2072,68 @@ dat2_buildcache_skeletal_cleanup(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache->asset_bytes[DAT2_BUILDCACHE_KIND_SKELETAL] = 0;
 }
 
+void
+dat2_buildcache_interface_archive_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int iface_id,
+    struct Dat2BuildCache_InterfaceArchive* archive)
+{
+    if( !dat2_buildcache || !archive )
+        return;
+
+    struct MapEntry_InterfaceArchive* entry = (struct MapEntry_InterfaceArchive*)ToriDraw_MapSearch(
+        dat2_buildcache->interfaces_hmap, &iface_id, TORIDRAW_MAP_INSERT);
+    assert(entry && "Interface archive must be inserted into hmap");
+    if( entry->archive )
+        Dat2BuildCache_InterfaceArchiveFree(entry->archive);
+    entry->id = iface_id;
+    entry->archive = archive;
+}
+
+struct Dat2BuildCache_InterfaceArchive*
+dat2_buildcache_interface_archive_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int iface_id)
+{
+    if( !dat2_buildcache )
+        return NULL;
+
+    struct MapEntry_InterfaceArchive* entry = (struct MapEntry_InterfaceArchive*)ToriDraw_MapSearch(
+        dat2_buildcache->interfaces_hmap, &iface_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->archive;
+}
+
+bool
+dat2_buildcache_interface_archive_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int iface_id)
+{
+    return dat2_buildcache_interface_archive_get(dat2_buildcache, iface_id) != NULL;
+}
+
+void
+dat2_buildcache_interfaces_cleanup(struct Dat2BuildCache* dat2_buildcache)
+{
+    if( !dat2_buildcache || !dat2_buildcache->interfaces_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->interfaces_hmap);
+    struct MapEntry_InterfaceArchive* entry = NULL;
+    while( (entry = (struct MapEntry_InterfaceArchive*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->archive )
+            Dat2BuildCache_InterfaceArchiveFree(entry->archive);
+    }
+    ToriDraw_MapIterFree(iter);
+    dat2_buildcache_map_reset(
+        dat2_buildcache,
+        &dat2_buildcache->interfaces_hmap,
+        sizeof(struct MapEntry_InterfaceArchive),
+        512);
+}
+
 static void
 dat2_buildcache_map_prune(
     struct Dat2BuildCache* dat2_buildcache,
@@ -2054,6 +2159,7 @@ dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_scenery_configs_cleanup(dat2_buildcache);
     dat2_buildcache_frames_cleanup(dat2_buildcache);
     dat2_buildcache_skeletal_cleanup(dat2_buildcache);
+    dat2_buildcache_interfaces_cleanup(dat2_buildcache);
 
     dat2_buildcache_map_prune(
         dat2_buildcache, &dat2_buildcache->models_hmap, sizeof(struct MapEntry_CacheModel));
@@ -2073,4 +2179,8 @@ dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache, &dat2_buildcache->frames_hmap, sizeof(struct MapEntry_FramesArchive));
     dat2_buildcache_map_prune(
         dat2_buildcache, &dat2_buildcache->skeletal_hmap, sizeof(struct MapEntry_Skeletal));
+    dat2_buildcache_map_prune(
+        dat2_buildcache,
+        &dat2_buildcache->interfaces_hmap,
+        sizeof(struct MapEntry_InterfaceArchive));
 }

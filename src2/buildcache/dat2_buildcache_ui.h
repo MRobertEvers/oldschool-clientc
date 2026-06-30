@@ -42,4 +42,9 @@ dat2_buildcache_component_decode_iface_file(
     int file_index,
     int* out_size);
 
+struct Dat2BuildCache_InterfaceArchive*
+dat2_buildcache_component_decode_iface_archive(
+    struct Dat2BuildCache* buildcache,
+    int iface_id);
+
 #endif

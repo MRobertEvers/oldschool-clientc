@@ -135,23 +135,102 @@ The callback `on_rc_uicomponent_rs_loaded` appends each emitted `RSComponentInfo
 | `RS_COMPONENT_MODEL` | `UIELEM_RS_MODEL` | `gamecache_model_id` from cache |
 | `RS_COMPONENT_INV` | `UIELEM_RS_INV` | Grid cols/rows/margins; `inv_index` from owner's `inv=` field |
 
-### Bake: `instance_revconfig_bake_rs_subtree`
+### `instance_revconfig_build_layout_node`: owner node vs RS expansion
 
-Called from `instance_revconfig_build_node` immediately after `uitree_push` when the RevConfig component has `componentno >= 0`:
+`instance_revconfig_build_tree` calls `instance_revconfig_build_layout_node` once per layout entry. That function has **two distinct jobs** — only the second one creates RS layers and other cache-backed children.
+
+#### Job 1 — push the RevConfig owner node (the `switch`)
+
+`instance_revconfig_build_layout_node` (`instance_revconfig_context.c`) resolves the layout's `c=` name to a `RevConfigUIComponentItem`, builds one `UINodeSpec`, and calls `uitree_push` **once**. The `switch (ty)` only fills **RevConfig-level** payload for that single owner:
+
+| Owner `type` | `UINodeSpec` | What the `switch` sets |
+|--------------|--------------|------------------------|
+| `sidebar` | `UIELEM_BUILTIN_SIDEBAR` | `tabno`, `componentno`, `inv_index` |
+| `compass`, `sprite`, tabs, … | builtin types | sprites, tabno, world mask, etc. |
+| `rs_layer` | `UIELEM_RS_LAYER` | layout shell only (`reserved = 0`); no archive walk |
+| `rs_graphic`, `rs_text`, `rs_rect`, `rs_model`, `rs_inv`, `rs_line` | RS types (no `componentno`) | static RevConfig fields only |
+| `chat` | `UIELEM_BUILTIN_CHAT` | no extra payload |
+
+The `switch` does **not** walk the interfaces archive. Cache-backed RS widgets (including nested `RS_COMPONENT_LAYER` nodes) always arrive through the bake path below when `componentno >= 0`.
+
+#### Job 2 — expand the buffered subtree (after `uitree_push`)
+
+Immediately after the owner push:
 
 ```c
 int32_t idx = uitree_push(ctx->tree, parent_index, &spec);
-if( idx >= 0 && comp->componentno >= 0 )
+if( comp->componentno >= 0 )
     instance_revconfig_bake_rs_subtree(ctx, comp, idx);
 ```
 
-Bake steps:
+When `componentno >= 0`, the owner node (e.g. `UIELEM_BUILTIN_SIDEBAR` at layout position) is only a **shell**. All RS widgets from the cache are expanded as **children** under `idx` by `instance_revconfig_bake_rs_subtree`.
+
+```
+instance_revconfig_build_tree
+  └── instance_revconfig_build_layout_node(le, parent_index)
+        ├── [switch] fill UINodeSpec for RevConfig owner (sidebar, sprite, …)
+        ├── uitree_push → owner idx  (one node)
+        └── if componentno >= 0:
+              instance_revconfig_bake_rs_subtree(ctx, comp, idx)
+                    └── for each RSComponentInfo in rs_subtrees[comp->name]:
+                          instance_revconfig_bake_rs_info(ctx, parent_idx, info, inv_index)
+                                └── uitree_push → RS_LAYER | RS_GRAPHIC | RS_INV | …
+```
+
+#### Where `UIELEM_RS_LAYER` is created
+
+RS layers are pushed inside **`instance_revconfig_bake_rs_info`**, not in `build_layout_node`:
+
+```c
+case RS_COMPONENT_LAYER:
+    spec.type = UIELEM_RS_LAYER;
+    break;
+// …
+return uitree_push(ctx->tree, parent_idx, &spec);
+```
+
+Each buffered `RSComponentInfo` with `type == RS_COMPONENT_LAYER` becomes one `UIELEM_RS_LAYER` child. Deeper cache nodes attach under that layer via `parent_id` remapping in `instance_revconfig_bake_rs_subtree`.
+
+#### Parent linking during bake
+
+`instance_revconfig_bake_rs_subtree` keeps `id_to_uitree[1024]` while walking `subtree->items[]` in capture order:
+
+1. Look up `rs_subtrees[]` by `comp->name` (must match the name used during capture in `on_rc_uicomponent_rs_loaded`).
+2. Resolve `inv_index` from `comp->inv` once; all `RS_COMPONENT_INV` nodes in the subtree share it.
+3. For each `RSComponentInfo`:
+   - `parent_id == -1` → parent UITree index is the **owner** (`idx` from step 1 above).
+   - else → parent is `id_to_uitree[parent_id]` (the RS component id of a layer baked earlier in this walk). Skip if the parent is not yet in the map.
+4. Call `instance_revconfig_bake_rs_info` → `uitree_push` under that parent.
+5. Store `id_to_uitree[info->id] = new_idx` so children of this RS layer can link correctly.
+
+RS coordinates (`rel_x`, `rel_y`) in `RSComponentInfo` are relative to the parent RS layer. The owner's screen position comes solely from the `RevConfigUILayoutItem` (`x`, `y`, anchors, etc.) applied in `build_layout_node`.
+
+#### Who does what (summary)
+
+| Function | When | Creates |
+|----------|------|---------|
+| `Task_RSComponentLoad` | Item loop | `rs_subtrees[name].items[]` (`RSComponentInfo` buffer only; no UITree) |
+| `instance_revconfig_build_layout_node` | Build tree | **One** owner node per layout entry (`sidebar`, `sprite`, …) |
+| `instance_revconfig_bake_rs_subtree` | End of `build_layout_node` if `componentno >= 0` | Walks buffer; remaps `parent_id` → UITree index |
+| `instance_revconfig_bake_rs_info` | Per buffered item | **Each** RS child: `UIELEM_RS_LAYER`, `UIELEM_RS_GRAPHIC`, `UIELEM_RS_INV`, … |
+
+`instance_revconfig_build_layout_node`, `instance_revconfig_bake_rs_subtree`, and `instance_revconfig_bake_rs_info` are **cache-mode agnostic** — they only read `RSComponentInfo` and `RevConfigUIComponentItem`. Dat1 vs Dat2 differences are confined to `Task_RSComponentLoad_Run` (capture phase).
+
+### Bake: `instance_revconfig_bake_rs_subtree`
+
+Called from `instance_revconfig_build_layout_node` immediately after `uitree_push` when the RevConfig component has `componentno >= 0`:
+
+```c
+int32_t idx = uitree_push(ctx->tree, parent_index, &spec);
+if( comp->componentno >= 0 )
+    instance_revconfig_bake_rs_subtree(ctx, comp, idx);
+```
+
+Bake steps (same as parent-linking above, condensed):
 
 1. Look up `rs_subtrees[]` by `comp->name`
 2. Resolve `inv_index` from `comp->inv` via `uitree_inv_pool_find_by_name` (shared by all `RS_COMPONENT_INV` nodes in the subtree)
-3. Walk `subtree->items[]` in emission order:
-   - `parent_id == -1` → parent is the owner node (`owner_uitree_index`)
-   - else → parent is `id_to_uitree[parent_id]` (skip if parent not yet baked)
+3. Walk `subtree->items[]` in emission order, remapping `parent_id` through `id_to_uitree[]`
 4. `instance_revconfig_bake_rs_info` converts each `RSComponentInfo` to a `UINodeSpec`, copies RS script behavior from `ToriAuxLibCore_ComponentGet`, and calls `uitree_push`
 5. Record `id_to_uitree[info->id] = idx` for child linking
 
@@ -174,15 +253,16 @@ parent=fixed_shell
 
 1. Item loop: `Task_InstanceOnRCUIComponent` buffers the component, runs `Task_RSComponentLoad(149)`, subtree `"sidebar"` fills with layer/graphic/inv nodes from interfaces archive.
 2. Item loop: `Task_InstanceOnRCInv` populates the `"inventory"` inv pool entry.
-3. Build tree: layout `inv_tab` resolves `sidebar` → `uitree_push` `UIELEM_BUILTIN_SIDEBAR` → `instance_revconfig_bake_rs_subtree` expands the buffered RS children under that node, wiring the inv grid to the pool index for `"inventory"`.
+3. Build tree: layout `inv_tab` resolves `sidebar` → `instance_revconfig_build_layout_node` → `uitree_push` `UIELEM_BUILTIN_SIDEBAR` (owner only) → `instance_revconfig_bake_rs_subtree` walks `rs_subtrees["sidebar"]` and pushes `UIELEM_RS_LAYER`, `UIELEM_RS_GRAPHIC`, `UIELEM_RS_INV`, … as children under that sidebar node, wiring the inv grid to the pool index for `"inventory"`.
 
 ### Dat1 vs Dat2
 
 | | Dat1 | Dat2 |
 |---|------|------|
-| RS subtree capture | Full stack walk of `RSCacheDat1A_ConfigComponentList` | Skeleton: emits root layer only (full archive walk is follow-up) |
+| RS subtree capture | Full stack walk of `RSCacheDat1A_ConfigComponentList` | Full stack walk of `Dat2BuildCache_InterfaceArchive` (cached per iface id) |
 | Interfaces source | Single `data` blob, child ID lists | One component per archive file, `layer` parent links |
-| Dynamic sprites | `dat1_acquire_dynamic_sprite` from media jagfile | Not yet implemented in subtree path |
+| Dynamic sprites | `dat1_acquire_dynamic_sprite` from media jagfile | `dat2_acquire_dynamic_sprite` via `dat2_buildcache_sprite_decode_id`, lookup key `spr:<id>` |
+| Root resolution | `panel_root_id[]` may remap sidebar `componentno` | `componentno` is iface archive id (or packed id); root is file 0 / packed `(iface<<16)|0` |
 
 ## RevConfig symbol resolution
 
@@ -200,7 +280,7 @@ parent=fixed_shell
 | Cache mode | `TORIAUXLIBCACHE_MODE_DAT1` | `TORIAUXLIBCACHE_MODE_DAT2` |
 | Interfaces | Single `data` blob, child ID lists | One component per archive file, `layer` parent links |
 | Sprite load | Media jagfile by filename | Sprites table by `archive_id` |
-| RS expansion | Full `Task_RSComponentLoad` work loop | Skeleton switch (follow-up) |
+| RS expansion | Full `Task_RSComponentLoad` stack walk | Full `Task_RSComponentLoad` stack walk (`dat2_buildcache_component_decode_iface_archive`) |
 
 Cache-type switching lives in the leaf tasks: `Task_InstanceOnRCCacheSprite_Run`, `Task_RSComponentLoad_Run`, and `Task_RSInvLoad_Run`. `Task_InstanceRevConfigLoad_Run` only dispatches items and runs the cache-agnostic build/finalize steps (`instance_revconfig_build_tree`, `instance_revconfig_context_release_build_state`).
 
@@ -218,7 +298,7 @@ Cache-type switching lives in the leaf tasks: `Task_InstanceOnRCCacheSprite_Run`
 
 ## Extending
 
-**New component type:** add a branch in `Task_InstanceOnRCUIComponent` (for RS-backed types with `componentno >= 0`, `TASK_AWAIT` `Task_RSComponentLoad` inline) and map the type string in `instance_revconfig_build_node` (`instance_revconfig_context.c`).
+**New component type:** add a branch in `Task_InstanceOnRCUIComponent` (for RS-backed types with `componentno >= 0`, `TASK_AWAIT` `Task_RSComponentLoad` inline) and, if the owner needs RevConfig-specific `UINodeSpec` fields, add a `case` in `instance_revconfig_build_layout_node`'s `switch`. RS children from the cache are added in `instance_revconfig_bake_rs_info`, not in `build_layout_node`.
 
 **New RevConfig item kind:** add `RCITEM_*` in `revconfig.h`, parse in `revconfig_load.c`, add handler + dispatch branch in `Task_InstanceRevConfigLoad_Run`.
 

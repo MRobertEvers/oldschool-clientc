@@ -2,9 +2,11 @@
 
 #include "buildcache/dat1_buildcache.h"
 #include "buildcache/dat1_buildcache_ui.h"
+#include "buildcache/dat2_buildcache_ui.h"
 #include "core/tapi/tapi_dat1.h"
 #include "instance_revconfig_context.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
+#include "osrs/rscache/dat2a/dat2a_component.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
@@ -32,8 +34,30 @@ dat1_get_component(
     return NULL;
 }
 
+static Component*
+dat2_get_component(
+    struct Dat2BuildCache_InterfaceArchive* archive,
+    int component_id)
+{
+    if( !archive || component_id < 0 )
+        return NULL;
+
+    int file_index = component_id & 0xFFFF;
+    if( file_index >= 0 && file_index < archive->component_count && archive->components[file_index] &&
+        archive->components[file_index]->id == component_id )
+        return archive->components[file_index];
+
+    for( int i = 0; i < archive->component_count; i++ )
+    {
+        Component* c = archive->components[i];
+        if( c && c->id == component_id )
+            return c;
+    }
+    return NULL;
+}
+
 static enum RSComponentInfoType
-dat1_type_to_info(int type)
+rs_component_type_from_raw(int type)
 {
     switch( type )
     {
@@ -65,7 +89,7 @@ dat1_fill_info(
     int parent_id)
 {
     memset(info, 0, sizeof(*info));
-    info->type = dat1_type_to_info(comp->type);
+    info->type = rs_component_type_from_raw(comp->type);
     info->id = comp->id;
     info->parent_id = parent_id;
     info->rel_x = rel_x;
@@ -106,12 +130,60 @@ dat1_fill_info(
     }
 }
 
+static void
+dat2_sprite_ref_from_id(int sprite_id, char* out, size_t out_size)
+{
+    if( !out || out_size == 0 )
+        return;
+    if( sprite_id < 0 )
+    {
+        out[0] = '\0';
+        return;
+    }
+    snprintf(out, out_size, "spr:%d", sprite_id);
+}
+
+static void
+dat2_fill_info(
+    struct RSComponentInfo* info,
+    Component* comp,
+    int rel_x,
+    int rel_y,
+    int parent_id)
+{
+    memset(info, 0, sizeof(*info));
+    info->type = rs_component_type_from_raw(comp->type);
+    info->id = comp->id;
+    info->parent_id = parent_id;
+    info->rel_x = rel_x;
+    info->rel_y = rel_y;
+    info->width = comp->baseWidth;
+    info->height = comp->baseHeight;
+
+    dat2_sprite_ref_from_id(comp->graphic, info->sprite_ref, sizeof(info->sprite_ref));
+    dat2_sprite_ref_from_id(comp->activeGraphic, info->sprite_active_ref, sizeof(info->sprite_active_ref));
+
+    info->model_id = comp->modelId;
+    info->color = comp->color;
+    info->filled = comp->fill ? 1 : 0;
+    info->font_id = comp->textFont;
+    info->center = comp->textHorizontalAlignment != 0 ? 1 : 0;
+    info->shadowed = comp->textShadow ? 1 : 0;
+    if( comp->text )
+        strncpy(info->text, comp->text, sizeof(info->text) - 1);
+    info->inv_cols = comp->baseWidth;
+    info->inv_rows = comp->baseHeight;
+    info->margin_x = comp->marginX;
+    info->margin_y = comp->marginY;
+}
+
 static int
 dat1_acquire_dynamic_sprite(
     struct InstanceRevConfigContext* ctx,
     char const* sprite_ref)
 {
-    assert(ctx && sprite_ref && sprite_ref[0] != '\0' && ctx->scene && ctx->dat1_bc);
+    if( !ctx || !sprite_ref || !sprite_ref[0] || !ctx->scene || !ctx->dat1_bc )
+        return -1;
 
     int atlas = 0;
     int existing = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, sprite_ref, &atlas);
@@ -172,6 +244,49 @@ dat1_acquire_dynamic_sprite(
     return element_id;
 }
 
+static int
+dat2_acquire_dynamic_sprite(
+    struct InstanceRevConfigContext* ctx,
+    int sprite_id)
+{
+    if( !ctx || sprite_id < 0 || !ctx->scene || !ctx->dat2_bc )
+        return -1;
+
+    char ref[64];
+    dat2_sprite_ref_from_id(sprite_id, ref, sizeof(ref));
+    if( ref[0] == '\0' )
+        return -1;
+
+    int atlas = 0;
+    int existing = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, ref, &atlas);
+    if( existing >= 0 )
+        return existing;
+
+    int count = 0;
+    struct ToriDraw_Sprite** sprites =
+        dat2_buildcache_sprite_decode_id(ctx->dat2_bc, sprite_id, &count);
+    if( !sprites || count <= 0 )
+        return -1;
+
+    int element_id = ctx->next_element_id++;
+    ToriDraw_SceneSpriteAdd(ctx->scene, element_id, sprites, count);
+
+    if( ctx->cache )
+    {
+        struct ToriAuxLibCore_Sprite* gc_sprite = calloc(1, sizeof(struct ToriAuxLibCore_Sprite));
+        if( gc_sprite )
+        {
+            strncpy(gc_sprite->name, ref, sizeof(gc_sprite->name) - 1);
+            gc_sprite->sprites = sprites;
+            gc_sprite->count = count;
+            ToriAuxLibCache_SubmitSpriteFromDat1(ctx->cache, element_id, gc_sprite);
+        }
+    }
+
+    ui_sprite_lookup_add(&ctx->sprite_lookup, ref, element_id, count);
+    return element_id;
+}
+
 struct Task_RSComponentLoad*
 Task_RSComponentLoad_New(
     enum ToriAuxLibCacheMode cache_mode,
@@ -202,7 +317,7 @@ Task_RSComponentLoad_Free(struct Task_RSComponentLoad* task)
 }
 
 static void
-dat1_stack_push(
+rs_stack_push(
     struct Task_RSComponentLoad* task,
     int id,
     int x,
@@ -219,7 +334,7 @@ dat1_stack_push(
 }
 
 static bool
-dat1_stack_pop(
+rs_stack_pop(
     struct Task_RSComponentLoad* task,
     int* out_id,
     int* out_x,
@@ -240,12 +355,129 @@ dat1_stack_pop(
     return true;
 }
 
+static bool
+dat2_resolve_iface_and_root(
+    int root_component_id,
+    int* out_iface_id,
+    int* out_root_id)
+{
+    if( !out_iface_id || !out_root_id || root_component_id < 0 )
+        return false;
+
+    if( (root_component_id & 0xFFFF0000) != 0 )
+    {
+        *out_iface_id = root_component_id >> 16;
+        *out_root_id = root_component_id;
+        return true;
+    }
+
+    *out_iface_id = root_component_id;
+    *out_root_id = (root_component_id << 16) | 0;
+    return true;
+}
+
+static void
+rs_component_acquire_dynamic_sprites(
+    enum ToriAuxLibCacheMode cache_mode,
+    struct InstanceRevConfigContext* ctx,
+    void* comp)
+{
+    if( !ctx || !comp )
+        return;
+
+    if( cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+    {
+        struct RSCacheDat1A_ConfigComponent* dat1_comp = comp;
+        if( dat1_comp->graphic && dat1_comp->graphic[0] != '\0' )
+            dat1_acquire_dynamic_sprite(ctx, dat1_comp->graphic);
+        if( dat1_comp->activeGraphic && dat1_comp->activeGraphic[0] != '\0' )
+            dat1_acquire_dynamic_sprite(ctx, dat1_comp->activeGraphic);
+        return;
+    }
+
+    Component* dat2_comp = comp;
+    if( dat2_comp->graphic >= 0 )
+        dat2_acquire_dynamic_sprite(ctx, dat2_comp->graphic);
+    if( dat2_comp->activeGraphic >= 0 )
+        dat2_acquire_dynamic_sprite(ctx, dat2_comp->activeGraphic);
+}
+
+static void
+rs_component_fill_info(
+    enum ToriAuxLibCacheMode cache_mode,
+    void* comp,
+    int rel_x,
+    int rel_y,
+    int parent_id,
+    struct RSComponentInfo* info)
+{
+    if( cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+        dat1_fill_info(info, comp, rel_x, rel_y, parent_id);
+    else
+        dat2_fill_info(info, comp, rel_x, rel_y, parent_id);
+}
+
+static void
+rs_component_push_children(
+    struct Task_RSComponentLoad* task,
+    void* ifaces,
+    void* comp,
+    int rel_x,
+    int rel_y)
+{
+    if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+    {
+        struct RSCacheDat1A_ConfigComponentList* dat1_ifaces = ifaces;
+        struct RSCacheDat1A_ConfigComponent* dat1_comp = comp;
+        if( dat1_comp->type != COMPONENT_TYPE_LAYER || !dat1_comp->children )
+            return;
+
+        for( int i = dat1_comp->children_count - 1; i >= 0; i-- )
+        {
+            struct RSCacheDat1A_ConfigComponent* child =
+                dat1_get_component(dat1_ifaces, dat1_comp->children[i]);
+            if( !child )
+                continue;
+            int cx = (dat1_comp->childX ? dat1_comp->childX[i] : 0) + child->x + rel_x;
+            int cy = (dat1_comp->childY ? dat1_comp->childY[i] : 0) + child->y + rel_y;
+            rs_stack_push(task, dat1_comp->children[i], cx, cy, dat1_comp->id);
+        }
+        return;
+    }
+
+    struct Dat2BuildCache_InterfaceArchive* dat2_ifaces = ifaces;
+    Component* dat2_comp = comp;
+    if( dat2_comp->type != COMPONENT_TYPE_LAYER )
+        return;
+
+    for( int i = dat2_ifaces->component_count - 1; i >= 0; i-- )
+    {
+        Component* child = dat2_ifaces->components[i];
+        if( !child || child->layer != dat2_comp->id )
+            continue;
+        int cx = child->baseX + rel_x;
+        int cy = child->baseY + rel_y;
+        rs_stack_push(task, child->id, cx, cy, dat2_comp->id);
+    }
+}
+
+static void*
+rs_component_get(
+    enum ToriAuxLibCacheMode cache_mode,
+    void* ifaces,
+    int component_id)
+{
+    if( cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+        return dat1_get_component(ifaces, component_id);
+    return dat2_get_component(ifaces, component_id);
+}
+
 int
-Task_RSComponentLoad_Run(
-    void* task_state,
-    struct LibToriRS_IOContext* ctx)
+Task_RSComponentLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
 {
     struct Task_RSComponentLoad* task = task_state;
+    void* walk_ifaces = NULL;
+    int walk_root_id = -1;
 
     PT_BEGIN(&task->thread);
 
@@ -260,7 +492,8 @@ Task_RSComponentLoad_Run(
                 TAPIDat1_DecodeInterfacesJagfile(ctx, 0);
             if( interfaces_filelist )
             {
-                int data_idx = RSCacheShared_FileListDatFindFileByName(interfaces_filelist, "data");
+                int data_idx =
+                    RSCacheShared_FileListDatFindFileByName(interfaces_filelist, "data");
                 if( data_idx >= 0 )
                 {
                     void* iface_data = interfaces_filelist->files[data_idx];
@@ -283,21 +516,63 @@ Task_RSComponentLoad_Run(
 
         instance_revconfig_resolve_panel_roots(task->rc_ctx);
 
-        struct RSCacheDat1A_ConfigComponentList* ifaces =
-            dat1_buildcache_get_interfaces(dat1(task->cache));
-        if( !ifaces )
+        walk_ifaces = dat1_buildcache_get_interfaces(dat1(task->cache));
+        if( !walk_ifaces )
             PT_EXIT(&task->thread);
 
-        int root_id = task->root_component_id;
-        if( task->rc_ctx && root_id >= 0 && root_id < 1024 &&
-            task->rc_ctx->panel_root_id[root_id] >= 0 )
-            root_id = task->rc_ctx->panel_root_id[root_id];
+        walk_root_id = task->root_component_id;
+        if( task->rc_ctx && walk_root_id >= 0 && walk_root_id < 1024 &&
+            task->rc_ctx->panel_root_id[walk_root_id] >= 0 )
+            walk_root_id = task->rc_ctx->panel_root_id[walk_root_id];
+    }
+    else if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
+    {
+        if( !task->rc_ctx || !task->rc_ctx->dat2_bc )
+            PT_EXIT(&task->thread);
 
-        struct RSCacheDat1A_ConfigComponent* root = dat1_get_component(ifaces, root_id);
+        int iface_id = 0;
+        if( !dat2_resolve_iface_and_root(task->root_component_id, &iface_id, &walk_root_id) )
+            PT_EXIT(&task->thread);
+
+        struct Dat2BuildCache_InterfaceArchive* iface_archive =
+            dat2_buildcache_interface_archive_get(task->rc_ctx->dat2_bc, iface_id);
+        if( !iface_archive )
+        {
+            iface_archive =
+                dat2_buildcache_component_decode_iface_archive(task->rc_ctx->dat2_bc, iface_id);
+            if( !iface_archive )
+                PT_EXIT(&task->thread);
+            dat2_buildcache_interface_archive_add(task->rc_ctx->dat2_bc, iface_id, iface_archive);
+        }
+
+        walk_ifaces = iface_archive;
+    }
+    else
+    {
+        PT_EXIT(&task->thread);
+    }
+
+    {
+        void* root = rs_component_get(task->cache_mode, walk_ifaces, walk_root_id);
         if( !root )
             PT_EXIT(&task->thread);
 
-        dat1_stack_push(task, root_id, root->x, root->y, -1);
+        int root_x = 0;
+        int root_y = 0;
+        if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+        {
+            struct RSCacheDat1A_ConfigComponent* dat1_root = root;
+            root_x = dat1_root->x;
+            root_y = dat1_root->y;
+        }
+        else
+        {
+            Component* dat2_root = root;
+            root_x = dat2_root->baseX;
+            root_y = dat2_root->baseY;
+        }
+
+        rs_stack_push(task, walk_root_id, root_x, root_y, -1);
 
         while( task->stack_count > 0 )
         {
@@ -305,51 +580,22 @@ Task_RSComponentLoad_Run(
             int rel_x = 0;
             int rel_y = 0;
             int parent_id = -1;
-            if( !dat1_stack_pop(task, &comp_id, &rel_x, &rel_y, &parent_id) )
+            if( !rs_stack_pop(task, &comp_id, &rel_x, &rel_y, &parent_id) )
                 break;
 
-            struct RSCacheDat1A_ConfigComponent* comp = dat1_get_component(ifaces, comp_id);
+            void* comp = rs_component_get(task->cache_mode, walk_ifaces, comp_id);
             if( !comp )
                 continue;
 
-            if( comp->graphic && comp->graphic[0] != '\0' )
-                dat1_acquire_dynamic_sprite(task->rc_ctx, comp->graphic);
-            if( comp->activeGraphic && comp->activeGraphic[0] != '\0' )
-                dat1_acquire_dynamic_sprite(task->rc_ctx, comp->activeGraphic);
+            rs_component_acquire_dynamic_sprites(task->cache_mode, task->rc_ctx, comp);
 
             struct RSComponentInfo info;
-            dat1_fill_info(&info, comp, rel_x, rel_y, parent_id);
+            rs_component_fill_info(task->cache_mode, comp, rel_x, rel_y, parent_id, &info);
 
             if( task->callbacks.on_component )
                 task->callbacks.on_component(task->callbacks.user, &info);
 
-            if( comp->type == COMPONENT_TYPE_LAYER && comp->children )
-            {
-                for( int i = comp->children_count - 1; i >= 0; i-- )
-                {
-                    struct RSCacheDat1A_ConfigComponent* child =
-                        dat1_get_component(ifaces, comp->children[i]);
-                    if( !child )
-                        continue;
-                    int cx = (comp->childX ? comp->childX[i] : 0) + child->x + rel_x;
-                    int cy = (comp->childY ? comp->childY[i] : 0) + child->y + rel_y;
-                    dat1_stack_push(task, comp->children[i], cx, cy, comp->id);
-                }
-            }
-        }
-    }
-    else if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
-    {
-        /* Dat2: minimal skeleton — work-loop switch present; full iface archive walk is follow-up.
-         */
-        if( task->callbacks.on_component && task->root_component_id >= 0 )
-        {
-            struct RSComponentInfo info;
-            memset(&info, 0, sizeof(info));
-            info.id = task->root_component_id;
-            info.parent_id = -1;
-            info.type = RS_COMPONENT_LAYER;
-            task->callbacks.on_component(task->callbacks.user, &info);
+            rs_component_push_children(task, walk_ifaces, comp, rel_x, rel_y);
         }
     }
 

@@ -223,6 +223,30 @@ dat2_buildcache_font_decode_id(
     return font;
 }
 
+static Component*
+component_decode_from_bytes(
+    int packed_id,
+    char* data,
+    int size)
+{
+    if( !data || size <= 0 )
+        return NULL;
+
+    Component* comp = calloc(1, sizeof(Component));
+    if( !comp )
+        return NULL;
+
+    struct RSCacheShared_RSBuffer buf;
+    RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, size);
+    Component_init(comp);
+    comp->id = packed_id;
+    if( (unsigned char)data[0] == (unsigned char)255 )
+        Component_decodeIf3(comp, &buf);
+    else
+        Component_decodeIf1(comp, &buf);
+    return comp;
+}
+
 Component*
 dat2_buildcache_component_decode_iface_file(
     struct Dat2BuildCache* buildcache,
@@ -250,22 +274,8 @@ dat2_buildcache_component_decode_iface_file(
 
     char* data = fl->files[file_index];
     int size = fl->file_sizes[file_index];
-    Component* comp = calloc(1, sizeof(Component));
-    if( !comp )
-    {
-        RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
-        return NULL;
-    }
-
-    struct RSCacheShared_RSBuffer buf;
-    RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, size);
-    Component_init(comp);
-    comp->id = (iface_id << 16) | (file_index & 0xFFFF);
-    if( (unsigned char)data[0] == (unsigned char)255 )
-        Component_decodeIf3(comp, &buf);
-    else
-        Component_decodeIf1(comp, &buf);
+    int packed_id = (iface_id << 16) | (file_index & 0xFFFF);
+    Component* comp = component_decode_from_bytes(packed_id, data, size);
 
     if( out_size )
         *out_size = size;
@@ -273,4 +283,58 @@ dat2_buildcache_component_decode_iface_file(
     RSCacheShared_FileListFree(fl);
     RSCacheDat2Disk_ArchiveFree(arch);
     return comp;
+}
+
+struct Dat2BuildCache_InterfaceArchive*
+dat2_buildcache_component_decode_iface_archive(
+    struct Dat2BuildCache* buildcache,
+    int iface_id)
+{
+    struct RSCacheDat2Disk* disk = dat2_buildcache_ui_disk(buildcache);
+    if( !disk )
+        return NULL;
+
+    struct RSCacheDat2Disk_Archive* arch =
+        RSCacheDat2Disk_ArchiveNewLoad(disk, RSCacheDat2Disk_Table_Interfaces, iface_id);
+    if( !arch )
+        return NULL;
+
+    RSCacheDat2Disk_ArchiveInitMetadata(disk, arch);
+    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
+    if( !fl || fl->file_count <= 0 )
+    {
+        RSCacheShared_FileListFree(fl);
+        RSCacheDat2Disk_ArchiveFree(arch);
+        return NULL;
+    }
+
+    struct Dat2BuildCache_InterfaceArchive* iface_archive =
+        calloc(1, sizeof(struct Dat2BuildCache_InterfaceArchive));
+    if( !iface_archive )
+    {
+        RSCacheShared_FileListFree(fl);
+        RSCacheDat2Disk_ArchiveFree(arch);
+        return NULL;
+    }
+
+    iface_archive->component_count = fl->file_count;
+    iface_archive->components = calloc((size_t)fl->file_count, sizeof(Component*));
+    if( !iface_archive->components )
+    {
+        free(iface_archive);
+        RSCacheShared_FileListFree(fl);
+        RSCacheDat2Disk_ArchiveFree(arch);
+        return NULL;
+    }
+
+    for( int i = 0; i < fl->file_count; i++ )
+    {
+        int packed_id = (iface_id << 16) | (i & 0xFFFF);
+        iface_archive->components[i] =
+            component_decode_from_bytes(packed_id, fl->files[i], fl->file_sizes[i]);
+    }
+
+    RSCacheShared_FileListFree(fl);
+    RSCacheDat2Disk_ArchiveFree(arch);
+    return iface_archive;
 }

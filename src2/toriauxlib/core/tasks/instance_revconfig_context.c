@@ -1,6 +1,7 @@
 #include "instance_revconfig_context.h"
 
 #include "buildcache/dat1_buildcache.h"
+#include "buildcache/dat2_buildcache.h"
 #include "games/runescape.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "toriauxlib/core/toriauxlibcore.h"
@@ -50,6 +51,8 @@ instance_revconfig_rs_subtree_append(
 {
     assert(subtree && info && subtree->item_count < INSTANCE_RC_MAX_RS_SUBTREE_ITEMS);
     subtree->items[subtree->item_count++] = *info;
+
+    return true;
 }
 
 static int32_t
@@ -179,16 +182,20 @@ instance_revconfig_bake_rs_subtree(
         }
 
         int32_t idx = instance_revconfig_bake_rs_info(ctx, parent_idx, info, inv_index);
-        if( idx >= 0 && info->id >= 0 && info->id < 1024 )
-            id_to_uitree[info->id] = idx;
+        assert(idx >= 0);
+        assert(info->id >= 0 && info->id < 1024);
+        id_to_uitree[info->id] = idx;
     }
 }
 
 void
 instance_revconfig_context_release_build_state(struct InstanceRevConfigContext* ctx)
 {
-    assert(ctx && ctx->dat1_bc);
-    dat1_buildcache_set_interfaces(ctx->dat1_bc, NULL);
+    assert(ctx);
+    if( ctx->dat1_bc )
+        dat1_buildcache_set_interfaces(ctx->dat1_bc, NULL);
+    if( ctx->dat2_bc )
+        dat2_buildcache_interfaces_cleanup(ctx->dat2_bc);
 }
 
 void
@@ -236,8 +243,7 @@ instance_revconfig_layout_parent_index(
 static enum StaticUIComponentType
 component_type_from_string(char const* type)
 {
-    if( !type )
-        return UIELEM_BUILTIN_SPRITE;
+    assert(type);
     if( strcmp(type, "compass") == 0 )
         return UIELEM_BUILTIN_COMPASS;
     if( strcmp(type, "minimap") == 0 )
@@ -274,7 +280,8 @@ component_type_from_string(char const* type)
 static uint8_t
 parse_paint_levels_mask(char const* str)
 {
-    if( !str || str[0] == '\0' )
+    assert(str);
+    if( str[0] == '\0' )
         return 0xFu;
     unsigned m = 0u;
     char const* p = str;
@@ -349,7 +356,8 @@ apply_layout_position(
 static int
 component_id_from_item(struct RevConfigUIComponentItem const* comp)
 {
-    if( !comp )
+    assert(comp);
+    if( comp->componentno < 0 )
         return -1;
     if( comp->componentno >= 0 )
         return comp->componentno;
@@ -393,50 +401,52 @@ instance_revconfig_resolve_panel_roots(struct InstanceRevConfigContext* ctx)
 }
 
 static int32_t
-instance_revconfig_build_node(
+instance_revconfig_build_layout_node(
     struct InstanceRevConfigContext* ctx,
-    struct RevConfigUILayoutItem const* le,
+    struct RevConfigUILayoutItem const* layout,
     int32_t parent_index)
 {
-    if( !ctx || !ctx->tree || !le || le->component[0] == '\0' )
-        return -1;
-
+    assert(ctx && ctx->tree && layout && layout->component[0] != '\0');
     struct RevConfigUIComponentItem const* comp =
-        instance_revconfig_find_component(ctx, le->component);
-    if( !comp )
-        return -1;
+        instance_revconfig_find_component(ctx, layout->component);
+    assert(comp);
 
     int sprite_id = -1;
     int atlas_index = 0;
     int sprite_active_id = -1;
     int atlas_active_index = 0;
+
     if( comp->sprite[0] != '\0' )
         sprite_id = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, comp->sprite, &atlas_index);
+
     if( comp->sprite_active[0] != '\0' )
         sprite_active_id = ui_sprite_lookup_resolve_ref(
             &ctx->sprite_lookup, comp->sprite_active, &atlas_active_index);
 
-    enum StaticUIComponentType ty = component_type_from_string(comp->type);
+    enum StaticUIComponentType static_type = component_type_from_string(comp->type);
     int const component_id = component_id_from_item(comp);
-    int w = le->width > 0 ? le->width : comp->width;
-    int h = le->height > 0 ? le->height : comp->height;
+    int w = layout->width > 0 ? layout->width : comp->width;
+    int h = layout->height > 0 ? layout->height : comp->height;
 
     struct UINodeSpec spec;
     memset(&spec, 0, sizeof(spec));
-    spec.type = ty;
+    spec.type = static_type;
     spec.component_id = component_id;
-    apply_layout_position(le, &spec.position, w, h);
+    apply_layout_position(layout, &spec.position, w, h);
     spec.has_position = 1;
-    if( le->dirty )
+    if( layout->dirty )
         spec.always_dirty = 1;
 
-    switch( ty )
+    switch( static_type )
     {
     case UIELEM_BUILTIN_COMPASS:
         spec.u.sprite.scene_id = sprite_id;
         spec.u.sprite.atlas_index = atlas_index;
         break;
     case UIELEM_BUILTIN_MINIMAP:
+        spec.u.minimap.scene_id = sprite_id;
+        break;
+    case UIELEM_BUILTIN_CHAT:
         break;
     case UIELEM_BUILTIN_WORLD:
         spec.u.world.level_mask = parse_paint_levels_mask(comp->paint_levels);
@@ -485,25 +495,52 @@ instance_revconfig_build_node(
         spec.u.rs_rect.color = comp->color;
         spec.u.rs_rect.filled = comp->filled ? 1 : 0;
         break;
+    case UIELEM_RS_LAYER:
+        spec.u.rs_layer.reserved = 0;
+        break;
+    case UIELEM_RS_MODEL:
+        spec.u.rs_model.gamecache_model_id = component_id >= 0 ? component_id : 0;
+        spec.u.rs_model.zoom = 100;
+        spec.u.rs_model.xan = 0;
+        spec.u.rs_model.yan = 0;
+        break;
+    case UIELEM_RS_INV:
+    {
+        int inv_index = -1;
+        if( comp->inv[0] != '\0' && ctx->inv_pool )
+            inv_index = uitree_inv_pool_find_by_name(ctx->inv_pool, comp->inv);
+        spec.u.rs_inv.inv_index = inv_index;
+        spec.u.rs_inv.cols = comp->width > 0 ? comp->width : 4;
+        spec.u.rs_inv.rows = comp->height > 0 ? comp->height : 7;
+        spec.u.rs_inv.margin_x = 0;
+        spec.u.rs_inv.margin_y = 0;
+        break;
+    }
+    case UIELEM_RS_LINE:
+        spec.u.rs_line.color = comp->color;
+        spec.u.rs_line.line_width = 1;
+        spec.u.rs_line.horizontal = comp->filled ? 1 : 0;
+        break;
     case UIELEM_BUILTIN_SPRITE:
-    default:
-        spec.type = UIELEM_BUILTIN_SPRITE;
         spec.u.sprite.scene_id = sprite_id;
         spec.u.sprite.atlas_index = atlas_index;
+        break;
+    default:
         break;
     }
 
     int32_t idx = uitree_push(ctx->tree, parent_index, &spec);
-    if( idx >= 0 && comp->componentno >= 0 )
+    assert(idx >= 0);
+    if( comp->componentno >= 0 )
         instance_revconfig_bake_rs_subtree(ctx, comp, idx);
+
     return idx;
 }
 
 bool
 instance_revconfig_build_tree(struct InstanceRevConfigContext* ctx)
 {
-    if( !ctx || !ctx->tree || ctx->layout_count <= 0 )
-        return false;
+    assert(ctx && ctx->tree);
 
     for( int i = 0; i < ctx->layout_count; i++ )
         ctx->layout_node_index[i] = -1;
@@ -544,9 +581,8 @@ instance_revconfig_build_tree(struct InstanceRevConfigContext* ctx)
             if( le->parent[0] != '\0' && parent_index < 0 )
                 continue;
 
-            int32_t idx = instance_revconfig_build_node(ctx, le, parent_index);
-            if( idx < 0 )
-                continue;
+            int32_t idx = instance_revconfig_build_layout_node(ctx, le, parent_index);
+            assert(idx >= 0);
 
             ctx->layout_node_index[i] = idx;
             built++;
@@ -555,6 +591,8 @@ instance_revconfig_build_tree(struct InstanceRevConfigContext* ctx)
     }
 
     uitree_layout_resolve(ctx->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+
     uitree_mark_all_dirty(ctx->tree);
-    return ctx->tree->component_count > 0;
+
+    return true;
 }

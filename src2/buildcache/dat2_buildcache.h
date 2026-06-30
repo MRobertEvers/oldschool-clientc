@@ -1,6 +1,7 @@
 #ifndef DAT2_BUILDCACHE_H
 #define DAT2_BUILDCACHE_H
 
+#include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat2a/dat2a_frame.h"
 #include "osrs/rscache/dat2a/dat2a_framemap.h"
 #include "osrs/rscache/dat2a/dat2a_maps.h"
@@ -62,6 +63,18 @@ struct Dat2BuildCache_FramesArchive
 void
 Dat2BuildCache_FramesArchiveFree(struct Dat2BuildCache_FramesArchive* fa);
 
+/**
+ * All decoded widgets from one interfaces archive (idx=iface_id).
+ */
+struct Dat2BuildCache_InterfaceArchive
+{
+    Component** components;
+    int component_count;
+};
+
+void
+Dat2BuildCache_InterfaceArchiveFree(struct Dat2BuildCache_InterfaceArchive* archive);
+
 struct Dat2BuildCache
 {
     struct ToriDraw_Map* models_hmap;
@@ -76,6 +89,7 @@ struct Dat2BuildCache
     struct ToriDraw_Map* identkit_hmap;
     struct ToriDraw_Map* object_hmap;
     struct ToriDraw_Map* npctype_hmap;
+    struct ToriDraw_Map* interfaces_hmap;
     size_t asset_bytes[DAT2_BUILDCACHE_KIND_COUNT];
     size_t map_buffer_bytes;
 
@@ -385,6 +399,25 @@ dat2_buildcache_frames_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
 void
 dat2_buildcache_skeletal_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_interface_archive_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int iface_id,
+    struct Dat2BuildCache_InterfaceArchive* archive);
+
+struct Dat2BuildCache_InterfaceArchive*
+dat2_buildcache_interface_archive_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int iface_id);
+
+bool
+dat2_buildcache_interface_archive_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int iface_id);
+
+void
+dat2_buildcache_interfaces_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
 void
 dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache);

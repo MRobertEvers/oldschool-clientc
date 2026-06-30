@@ -79,10 +79,6 @@ struct Task_RSComponentLoad
     int stack_y[RS_COMPONENT_STACK_MAX];
     int stack_parent_id[RS_COMPONENT_STACK_MAX];
     int stack_count;
-
-    /* dat2 work stack */
-    int dat2_iface_id;
-    int dat2_file_index;
 };
 
 struct Task_RSComponentLoad*
