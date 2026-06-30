@@ -37,7 +37,9 @@ on_rc_uicomponent_rs_loaded(
 static bool
 revconfig_uicomponent_needs_rs_load(struct RevConfigUIComponentItem const* item)
 {
-    assert(item && item->componentno >= 0);
+    assert(item);
+    if( item->componentno < 0 )
+        return false;
 
     if( strcmp(item->type, "sidebar") == 0 )
         return true;

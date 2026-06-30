@@ -31,12 +31,13 @@ instance_revconfig_rs_subtree_get_or_create(
     struct InstanceRevConfigContext* ctx,
     char const* owner_component)
 {
-    struct InstanceRevConfigRSSubtree* existing =
-        instance_revconfig_rs_subtree_find(ctx, owner_component);
-    assert(existing);
     assert(
         ctx && owner_component && owner_component[0] != '\0' &&
         ctx->rs_subtree_count < INSTANCE_RC_MAX_RS_SUBTREES);
+    struct InstanceRevConfigRSSubtree* existing =
+        instance_revconfig_rs_subtree_find(ctx, owner_component);
+    if( existing )
+        return existing;
 
     struct InstanceRevConfigRSSubtree* subtree = &ctx->rs_subtrees[ctx->rs_subtree_count++];
     memset(subtree, 0, sizeof(*subtree));
@@ -231,7 +232,10 @@ instance_revconfig_layout_parent_index(
     struct InstanceRevConfigContext const* ctx,
     char const* parent_name)
 {
-    assert(ctx && parent_name && parent_name[0] != '\0');
+    assert(ctx && parent_name);
+    if( parent_name[0] == '\0' )
+        return -1;
+
     for( int i = 0; i < ctx->layout_count; i++ )
     {
         if( strcmp(ctx->layouts[i].name, parent_name) == 0 )

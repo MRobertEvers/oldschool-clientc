@@ -101,6 +101,7 @@ struct GameRunescape_EntityRecord
 
 struct GameRunescape
 {
+    struct LibToriRS_ScriptQueue* script_queue;
     struct ToriAuxLibCore* core;
     struct World* world;
     struct ToriDraw_Scene* scene;

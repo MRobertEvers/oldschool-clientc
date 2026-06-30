@@ -30,14 +30,19 @@
 #define RUNESCAPE_CAMERA_MOVEMENT_SPEED 70
 
 static bool
-rs_ui_host_is_active(void* user, struct StaticUIComponent const* component)
+rs_ui_host_is_active(
+    void* user,
+    struct StaticUIComponent const* component)
 {
     struct GameRunescape* game = user;
-    return game && game->vm && ToriAuxLibVM_IsActive(game->vm, (struct StaticUIComponent*)component);
+    return game && game->vm &&
+           ToriAuxLibVM_IsActive(game->vm, (struct StaticUIComponent*)component);
 }
 
 static void
-rs_ui_host_apply_button_click(void* user, struct StaticUIComponent const* component)
+rs_ui_host_apply_button_click(
+    void* user,
+    struct StaticUIComponent const* component)
 {
     struct GameRunescape* game = user;
     if( game && game->vm )
@@ -64,7 +69,9 @@ rs_ui_host_get_selected_tab(void* user)
 }
 
 static void
-rs_ui_host_set_selected_tab(void* user, int tabno)
+rs_ui_host_set_selected_tab(
+    void* user,
+    int tabno)
 {
     struct GameRunescape* game = user;
     if( game )
@@ -79,7 +86,10 @@ rs_ui_host_get_camera_yaw(void* user)
 }
 
 static void
-rs_ui_host_get_minimap_anchor(void* user, int* out_src_anchor_x, int* out_src_anchor_y)
+rs_ui_host_get_minimap_anchor(
+    void* user,
+    int* out_src_anchor_x,
+    int* out_src_anchor_y)
 {
     struct GameRunescape* game = user;
     if( !out_src_anchor_x || !out_src_anchor_y )
@@ -95,7 +105,10 @@ rs_ui_host_get_minimap_anchor(void* user, int* out_src_anchor_x, int* out_src_an
 }
 
 static int
-rs_ui_host_get_world_map_size(void* user, int* out_w, int* out_h)
+rs_ui_host_get_world_map_size(
+    void* user,
+    int* out_w,
+    int* out_h)
 {
     struct GameRunescape* game = user;
     if( out_w )
@@ -106,21 +119,27 @@ rs_ui_host_get_world_map_size(void* user, int* out_w, int* out_h)
 }
 
 static bool
-rs_ui_host_scene_sprite_has(void* user, int scene_id)
+rs_ui_host_scene_sprite_has(
+    void* user,
+    int scene_id)
 {
     struct GameRunescape* game = user;
     return game && game->scene && ToriDraw_SceneSpriteHas(game->scene, scene_id);
 }
 
 static bool
-rs_ui_host_scene_font_has(void* user, int font_id)
+rs_ui_host_scene_font_has(
+    void* user,
+    int font_id)
 {
     struct GameRunescape* game = user;
     return game && game->scene && ToriDraw_SceneFontHas(game->scene, font_id);
 }
 
 static bool
-rs_ui_host_scene_model_has(void* user, int model_id)
+rs_ui_host_scene_model_has(
+    void* user,
+    int model_id)
 {
     struct GameRunescape* game = user;
     return game && game->scene && ToriDraw_SceneModelHas(game->scene, model_id);
@@ -721,8 +740,7 @@ GameRunescape_UINodeVisible(
     struct StaticUIComponent const* c,
     int32_t node_index)
 {
-    return uitree_component_visible_host(
-        c, node_index, game->ui_hovered_node, &game->ui_host);
+    return uitree_component_visible_host(c, node_index, game->ui_hovered_node, &game->ui_host);
 }
 
 int32_t
@@ -743,11 +761,7 @@ GameRunescape_UIRectColor(
     int32_t node_index)
 {
     return uitree_component_rect_color_host(
-        component,
-        node_index,
-        game->ui_hovered_node,
-        &game->ui_host,
-        component->u.rs_rect.color);
+        component, node_index, game->ui_hovered_node, &game->ui_host, component->u.rs_rect.color);
 }
 
 void
@@ -1019,10 +1033,10 @@ GameRunescape_EmitUIComponent(
     case UIELEM_BUILTIN_COMPASS:
     case UIELEM_BUILTIN_MINIMAP:
     {
-        int scene_id = component->type == UIELEM_BUILTIN_COMPASS
-                           ? component->u.sprite.scene_id
-                           : component->u.minimap.scene_id;
-        int atlas_index = component->type == UIELEM_BUILTIN_COMPASS ? component->u.sprite.atlas_index : 0;
+        int scene_id = component->type == UIELEM_BUILTIN_COMPASS ? component->u.sprite.scene_id
+                                                                 : component->u.minimap.scene_id;
+        int atlas_index =
+            component->type == UIELEM_BUILTIN_COMPASS ? component->u.sprite.atlas_index : 0;
         if( scene_id < 0 )
             return false;
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, bx, by, bw, bh);
@@ -1134,7 +1148,8 @@ GameRunescape_EmitUIComponent(
         int margin_x = component->u.rs_inv.margin_x;
         int margin_y = component->u.rs_inv.margin_y;
         int const total_slots = cols * rows;
-        int slot_limit = total_slots < UI_INV_SLOT_OFFSET_MAX ? total_slots : UI_INV_SLOT_OFFSET_MAX;
+        int slot_limit =
+            total_slots < UI_INV_SLOT_OFFSET_MAX ? total_slots : UI_INV_SLOT_OFFSET_MAX;
         int slot = game->frame.ui_inv_slot;
 
         if( slot >= slot_limit )
@@ -1403,14 +1418,14 @@ rs_phase_ui_step(
         return RS_PHASE_ADVANCE;
     }
 
-    if( component->is_dirty && GameRunescape_EmitUIComponent(game, component, game->frame.ui_current, command) )
+    if( component->is_dirty &&
+        GameRunescape_EmitUIComponent(game, component, game->frame.ui_current, command) )
     {
         int32_t cur = game->frame.ui_current;
-        bool const inv_more =
-            component->type == UIELEM_RS_INV && game->frame.ui_inv_slot > 0 &&
-            game->frame.ui_inv_slot <
-                (component->u.rs_inv.cols > 0 ? component->u.rs_inv.cols : 4) *
-                (component->u.rs_inv.rows > 0 ? component->u.rs_inv.rows : 7);
+        bool const inv_more = component->type == UIELEM_RS_INV && game->frame.ui_inv_slot > 0 &&
+                              game->frame.ui_inv_slot <
+                                  (component->u.rs_inv.cols > 0 ? component->u.rs_inv.cols : 4) *
+                                      (component->u.rs_inv.rows > 0 ? component->u.rs_inv.rows : 7);
         if( !inv_more )
             GameRunescape_UIAdvance(game, cur);
         return RS_PHASE_YIELD;
@@ -1478,8 +1493,7 @@ GameRunescape_FrameBegin(
     GameRunescape_UpdateWorldViewport(game);
     if( game->ui_tree && game->ui_tree->component_count > 0 )
     {
-        uitree_layout_resolve(
-            game->ui_tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        uitree_layout_resolve(game->ui_tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         uitree_mark_all_dirty(game->ui_tree);
         if( !game->ui_tree_ready && !game->ui_sprites_synced )
             GameRunescape_SyncUISpritesFromScene(game);

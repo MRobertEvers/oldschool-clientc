@@ -115,25 +115,113 @@ struct RevConfigCacheItem
     int archive_id;
 };
 
+/*
+ * Static UI widget definition from a [component:name] revconfig INI section.
+ * Referenced by layout entries via RevConfigUILayoutItem.component (c=).
+ *
+ * Not every field applies to every type= value; see instance_revconfig_build_layout_node
+ * (owner UINodeSpec) and Task_InstanceOnRCUIComponent (RS subtree capture when
+ * componentno >= 0).
+ */
 struct RevConfigUIComponentItem
 {
+    /* [component:<name>] — unique key; layout c= and rs_subtrees[] lookup by this string. */
     char name[64];
+
+    /*
+     * INI: type=
+     * Widget kind; mapped by component_type_from_string() to StaticUIComponentType.
+     * Builtin: compass, minimap, world, sidebar, chat, sprite, redstone_tab, tab_icon.
+     * RS (static owner or RS-load trigger): rs_layer, rs_graphic, rs_text, rs_rect,
+     * rs_model, rs_inv, rs_line.
+     */
     char type[32];
+
+    /*
+     * INI: sprite=
+     * Name of a [sprite:…] cache entry. Resolved through ui_sprite_lookup for
+     * compass, minimap, sprite, redstone_tab, tab_icon, rs_graphic.
+     */
     char sprite[64];
+
+    /*
+     * INI: sprite_active=
+     * Alternate sprite for pressed/hover state (redstone_tab, rs_graphic).
+     */
     char sprite_active[64];
+
+    /*
+     * INI: inv=
+     * Name of an [inv:…] section. Resolves to uitree inv-pool index for sidebar
+     * owners and static rs_inv; also passed into RS subtree bake so RS_COMPONENT_INV
+     * children share the same inventory grid.
+     */
     char inv[64];
+
+    /*
+     * INI: w=
+     * Default width when the layout entry omits w=. For type=rs_inv: grid column count
+     * (default 4). Also used by instance_revconfig_resolve_panel_roots (Dat1).
+     */
     int width;
+
+    /*
+     * INI: h=
+     * Default height when the layout entry omits h=. For type=rs_inv: grid row count
+     * (default 7).
+     */
     int height;
+
+    /*
+     * INI: anchor_x= / anchor_y= on the component section.
+     * Parsed and stored; the src2 revconfig load path uses layout-entry anchors
+     * (RevConfigUILayoutItem) for uitree position instead. Retained for legacy loaders.
+     */
     int anchor_x;
     int anchor_y;
+
+    /*
+     * INI: tabno=
+     * Tab index for sidebar, redstone_tab, and tab_icon owners.
+     */
     int tabno;
+
+    /*
+     * INI: componentno=  (default -1 when section opens)
+     * Interfaces-archive component id. When >= 0 and type is RS-backed, triggers
+     * Task_RSComponentLoad during revconfig ingest; subtree is baked under the owner
+     * in instance_revconfig_build_layout_node. Also copied to UINodeSpec.component_id
+     * and sidebar.componentno.
+     */
     int componentno;
+
+    /*
+     * INI: paint_levels=
+     * Comma-separated scene level indices for type=world (e.g. "0,1,2,3").
+     * Empty string means all levels (0xF mask).
+     */
     char paint_levels[64];
+
+    /* INI: color= — RGB/text/line colour for rs_text, rs_rect, rs_line. */
     int color;
+
+    /*
+     * INI: filled= (true/1 or false/0)
+     * type=rs_rect: filled rectangle. type=rs_line: treated as horizontal flag in
+     * the layout builder (no dedicated INI key yet).
+     */
     int filled;
+
+    /* INI: font= — RS font id 0–3 for type=rs_text (clamped to 1 if out of range). */
     int font;
+
+    /* INI: center= — horizontally centred text for type=rs_text. */
     int center;
+
+    /* INI: shadowed= — text shadow for type=rs_text. */
     int shadowed;
+
+    /* INI: text= — literal string for static type=rs_text owners (not cache-backed). */
     char text[256];
 };
 
