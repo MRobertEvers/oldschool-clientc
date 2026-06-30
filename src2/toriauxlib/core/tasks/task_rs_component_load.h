@@ -7,6 +7,8 @@
 
 #include <stdbool.h>
 
+#define TASK_RS_COMPONENT_PREFETCH_BATCH 64
+
 struct InstanceRevConfigContext;
 struct ToriDraw_Scene;
 struct LibToriRS_IOContext;
@@ -79,6 +81,11 @@ struct Task_RSComponentLoad
     int stack_y[RS_COMPONENT_STACK_MAX];
     int stack_parent_id[RS_COMPONENT_STACK_MAX];
     int stack_count;
+
+    struct LibToriRS_IOBatch io_batch;
+    int* needed_sprite_ids;
+    int needed_sprite_count;
+    int prefetch_chunk_index;
 };
 
 struct Task_RSComponentLoad*

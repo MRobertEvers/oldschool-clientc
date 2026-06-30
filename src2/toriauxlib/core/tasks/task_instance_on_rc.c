@@ -3,6 +3,7 @@
 #include "buildcache/dat1_buildcache_ui.h"
 #include "buildcache/dat2_buildcache_ui.h"
 #include "core/tapi/tapi_dat1.h"
+#include "core/tapi/tapi_dat2.h"
 #include "core_task_await.h"
 #include "task_rs_component_load.h"
 #include "task_rs_inv_load.h"
@@ -134,9 +135,17 @@ Task_InstanceOnRCCacheSprite_Run(
         if( task->item.archive_id < 0 )
             PT_EXIT(&task->thread);
 
+        IO_REQUEST(ctx, 0, TAPIDat2_FetchSprite(ctx, task->item.archive_id));
+        PT_YIELD(&task->thread);
+
+        struct RSCacheDat2Disk_Archive* sprite_archive =
+            TAPIDat2_DecodeSpriteArchive(ctx, 0, task->item.archive_id);
+        if( !sprite_archive )
+            PT_EXIT(&task->thread);
+
         int count = 0;
         struct ToriDraw_Sprite** sprites =
-            dat2_buildcache_sprite_decode(task->rc_ctx->dat2_bc, &task->item, &count);
+            dat2_buildcache_sprite_decode_from_archive(sprite_archive, &task->item, &count);
         if( sprites && count > 0 && task->rc_ctx->scene )
         {
             struct ToriAuxLibCore_Sprite* gc_sprite =

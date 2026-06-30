@@ -485,7 +485,7 @@ revconfig_item_apply_field(
         break;
     case RCITEM_INV:
         if( kind == RCFIELD_INV_ITEM &&
-            item->u.inv.item_count < REVRSCacheDat2A_ConfigKind_Inv_MAX_ITEMS )
+            item->u.inv.item_count < REVCONFIG_INV_MAX_ITEMS )
         {
             strncpy(
                 item->u.inv.items[item->u.inv.item_count],

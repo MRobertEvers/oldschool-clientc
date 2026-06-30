@@ -95,23 +95,81 @@ enum RevConfigItemKind
     RCITEM_INV,
 };
 
+/*
+ * Cache sprite binding from a [sprite:name] revconfig INI section (*_cache.ini).
+ * Loaded by Task_InstanceOnRCCacheSprite; registered in ui_sprite_lookup by name.
+ * Referenced from UI components via RevConfigUIComponentItem.sprite.
+ *
+ * Dat1 decode uses index_filename, data_filename, and format (media jagfile).
+ * Dat2 decode requires archive_id (sprites table). table/archive/container are
+ * documentary in src2; see dat1_buildcache_sprite_decode / dat2_buildcache_sprite_decode.
+ */
 struct RevConfigCacheItem
 {
+    /* [sprite:<name>] — unique key; component sprite= and ui_sprite_lookup lookup. */
     char name[64];
+
+    /*
+     * INI: table=
+     * Cache table name (e.g. configs for Dat1, sprites for Dat2). Parsed and stored;
+     * not used by src2 decode (legacy IO loaders resolved table+archive to ids).
+     */
     char table[64];
+
+    /*
+     * INI: archive=
+     * Dat1 jagfile archive within configs (typically media). Metadata only in src2.
+     */
     char archive[64];
+
+    /*
+     * INI: container=
+     * Container type (typically jagfile); implies paired index + filename. Metadata only in src2.
+     */
     char container[64];
+
+    /* INI: index= — Dat1: sprite index file inside the jagfile (usually index.dat). */
     char index_filename[64];
+
+    /* INI: filename= — Dat1: pixel data file inside the jagfile (e.g. invback.dat). */
     char data_filename[64];
+
+    /* INI: format= — Dat1: pix8 (indexed) or pix32 (ARGB). Ignored by Dat2 decode. */
     char format[16];
+
+    /*
+     * INI: atlas_index=
+     * Frame index when atlas_count is 0. Ignored when atlas_count > 0 (decode starts at 0).
+     */
     int atlas_index;
+
+    /*
+     * INI: atlas_count=
+     * When > 0, load this many consecutive frames (0 .. count-1) as a multi-frame scene
+     * element (e.g. mapscene, sideicons). When 0, load one frame at atlas_index.
+     */
     int atlas_count;
+
+    /* INI: crop_x= / crop_y= / crop_width= / crop_height= — sub-rect after decode; both dims must
+     * be > 0. */
     int crop_x;
     int crop_y;
     int crop_width;
     int crop_height;
+
+    /*
+     * INI: transform1= … transform4=
+     * Post-decode transforms applied in order (up to 4). Supported: flip_h, flip_v.
+     */
     char transform[4][64];
+
+    /* Number of entries in transform[]; set when transformN= keys are parsed. */
     int transform_count;
+
+    /*
+     * INI: archive_id=  (default -1 when section opens)
+     * Dat2 sprites-table archive id; required for Dat2 load. Unused by Dat1 jagfile decode.
+     */
     int archive_id;
 };
 
@@ -225,32 +283,75 @@ struct RevConfigUIComponentItem
     char text[256];
 };
 
+/*
+ * UI placement from a [layout:group] revconfig INI section (*_ui.ini).
+ * One section may contain multiple entries separated by bare '=' lines.
+ * Consumed by instance_revconfig_build_tree → UINodeSpec.position on the UITree.
+ * Widget behaviour comes from RevConfigUIComponentItem referenced by component (c=).
+ */
 struct RevConfigUILayoutItem
 {
+    /*
+     * INI: n= / name=
+     * Layout-entry id for parent linking (parent/p= references this, not component name).
+     */
     char name[64];
+
+    /*
+     * INI: [layout:<group>] section header (and re-applied on each '=' separator).
+     * Filtered at build time against InstanceRevConfigContext.layout_group (default "fixed").
+     */
     char layout_group[32];
+
+    /* INI: c= — required; name of a [component:…] section. */
     char component[64];
+
+    /*
+     * INI: p= / parent=
+     * Parent layout entry name; empty = UITree root. Resolved via layout_node_index[].
+     */
     char parent[64];
+
+    /* INI: x= / y= — absolute offset from parent origin; used when no edge insets are set. */
     int x;
     int y;
+
+    /*
+     * INI: w= / h=
+     * Size override; when <= 0, falls back to linked component width/height.
+     */
     int width;
     int height;
+
+    /*
+     * INI: anchor_x= / anchor_y=
+     * Draw pivot inside the layout rect (sprite dst anchor); not used for box placement.
+     */
     int anchor_x;
     int anchor_y;
+
+    /* Set when either anchor key is parsed; anchors copied to position only if true. */
     uint8_t has_anchor;
+
+    /*
+     * INI: top= / left= / bottom= / right=
+     * Edge insets for UIPOS_RELATIVE. If any is non-zero, x/y are ignored for placement.
+     */
     int top;
     int left;
     int bottom;
     int right;
+
+    /* INI: dirty — presence flag; maps to UINodeSpec.always_dirty (redraw every frame). */
     int dirty;
 };
 
-#define REVRSCacheDat2A_ConfigKind_Inv_MAX_ITEMS 32
+#define REVCONFIG_INV_MAX_ITEMS 32
 
 struct RevConfigInvItem
 {
     char name[64];
-    char items[REVRSCacheDat2A_ConfigKind_Inv_MAX_ITEMS][64];
+    char items[REVCONFIG_INV_MAX_ITEMS][64];
     int item_count;
 };
 

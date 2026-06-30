@@ -4,6 +4,7 @@
 #include "buildcache/dat1_buildcache_ui.h"
 #include "buildcache/dat2_buildcache_ui.h"
 #include "core/tapi/tapi_dat1.h"
+#include "core/tapi/tapi_dat2.h"
 #include "instance_revconfig_context.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/dat2a/dat2a_component.h"
@@ -43,8 +44,8 @@ dat2_get_component(
         return NULL;
 
     int file_index = component_id & 0xFFFF;
-    if( file_index >= 0 && file_index < archive->component_count && archive->components[file_index] &&
-        archive->components[file_index]->id == component_id )
+    if( file_index >= 0 && file_index < archive->component_count &&
+        archive->components[file_index] && archive->components[file_index]->id == component_id )
         return archive->components[file_index];
 
     for( int i = 0; i < archive->component_count; i++ )
@@ -131,7 +132,10 @@ dat1_fill_info(
 }
 
 static void
-dat2_sprite_ref_from_id(int sprite_id, char* out, size_t out_size)
+dat2_sprite_ref_from_id(
+    int sprite_id,
+    char* out,
+    size_t out_size)
 {
     if( !out || out_size == 0 )
         return;
@@ -161,7 +165,8 @@ dat2_fill_info(
     info->height = comp->baseHeight;
 
     dat2_sprite_ref_from_id(comp->graphic, info->sprite_ref, sizeof(info->sprite_ref));
-    dat2_sprite_ref_from_id(comp->activeGraphic, info->sprite_active_ref, sizeof(info->sprite_active_ref));
+    dat2_sprite_ref_from_id(
+        comp->activeGraphic, info->sprite_active_ref, sizeof(info->sprite_active_ref));
 
     info->model_id = comp->modelId;
     info->color = comp->color;
@@ -264,7 +269,7 @@ dat2_acquire_dynamic_sprite(
 
     int count = 0;
     struct ToriDraw_Sprite** sprites =
-        dat2_buildcache_sprite_decode_id(ctx->dat2_bc, sprite_id, &count);
+        dat2_buildcache_dynamic_sprite_get(ctx->dat2_bc, sprite_id, &count);
     if( !sprites || count <= 0 )
         return -1;
 
@@ -313,7 +318,59 @@ Task_RSComponentLoad_New(
 void
 Task_RSComponentLoad_Free(struct Task_RSComponentLoad* task)
 {
+    if( !task )
+        return;
+    free(task->needed_sprite_ids);
     free(task);
+}
+
+static bool
+dat2_needed_sprite_append(
+    struct Task_RSComponentLoad* task,
+    int sprite_id)
+{
+    if( sprite_id < 0 )
+        return true;
+    if( !task->rc_ctx || !task->rc_ctx->dat2_bc )
+        return false;
+    if( dat2_buildcache_dynamic_sprite_has(task->rc_ctx->dat2_bc, sprite_id) )
+        return true;
+
+    for( int i = 0; i < task->needed_sprite_count; i++ )
+    {
+        if( task->needed_sprite_ids[i] == sprite_id )
+            return true;
+    }
+
+    int new_count = task->needed_sprite_count + 1;
+    int* grown = realloc(task->needed_sprite_ids, (size_t)new_count * sizeof(int));
+    if( !grown )
+        return false;
+    task->needed_sprite_ids = grown;
+    task->needed_sprite_ids[task->needed_sprite_count] = sprite_id;
+    task->needed_sprite_count = new_count;
+    return true;
+}
+
+static void
+dat2_collect_needed_sprites_from_archive(
+    struct Task_RSComponentLoad* task,
+    struct Dat2BuildCache_InterfaceArchive* archive)
+{
+    task->needed_sprite_count = 0;
+    free(task->needed_sprite_ids);
+    task->needed_sprite_ids = NULL;
+    if( !archive )
+        return;
+
+    for( int i = 0; i < archive->component_count; i++ )
+    {
+        Component* comp = archive->components[i];
+        if( !comp )
+            continue;
+        dat2_needed_sprite_append(task, comp->graphic);
+        dat2_needed_sprite_append(task, comp->activeGraphic);
+    }
 }
 
 static void
@@ -473,11 +530,18 @@ rs_component_get(
 }
 
 int
-Task_RSComponentLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
+Task_RSComponentLoad_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx)
 {
     struct Task_RSComponentLoad* task = task_state;
     void* walk_ifaces = NULL;
     int walk_root_id = -1;
+    int iface_id = 0;
+    int batch_end = 0;
+    struct Dat2BuildCache_InterfaceArchive* iface_archive = NULL;
+    struct RSCacheDat2Disk* cache_disk = NULL;
+    struct RSCacheDat2Disk_Archive* iface_disk_archive = NULL;
 
     PT_BEGIN(&task->thread);
 
@@ -492,8 +556,7 @@ Task_RSComponentLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
                 TAPIDat1_DecodeInterfacesJagfile(ctx, 0);
             if( interfaces_filelist )
             {
-                int data_idx =
-                    RSCacheShared_FileListDatFindFileByName(interfaces_filelist, "data");
+                int data_idx = RSCacheShared_FileListDatFindFileByName(interfaces_filelist, "data");
                 if( data_idx >= 0 )
                 {
                     void* iface_data = interfaces_filelist->files[data_idx];
@@ -530,19 +593,67 @@ Task_RSComponentLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
         if( !task->rc_ctx || !task->rc_ctx->dat2_bc )
             PT_EXIT(&task->thread);
 
-        int iface_id = 0;
+        iface_id = 0;
         if( !dat2_resolve_iface_and_root(task->root_component_id, &iface_id, &walk_root_id) )
             PT_EXIT(&task->thread);
 
-        struct Dat2BuildCache_InterfaceArchive* iface_archive =
-            dat2_buildcache_interface_archive_get(task->rc_ctx->dat2_bc, iface_id);
+        iface_archive = dat2_buildcache_interface_archive_get(task->rc_ctx->dat2_bc, iface_id);
         if( !iface_archive )
         {
-            iface_archive =
-                dat2_buildcache_component_decode_iface_archive(task->rc_ctx->dat2_bc, iface_id);
+            IO_REQUEST(ctx, 0, TAPIDat2_FetchInterface(ctx, iface_id));
+            PT_YIELD(&task->thread);
+
+            cache_disk = ToriAuxLibCache_Dat2Disk(task->cache);
+            iface_disk_archive = TAPIDat2_DecodeInterfaceArchive(ctx, 0, iface_id);
+            if( !iface_disk_archive )
+                PT_EXIT(&task->thread);
+
+            iface_archive = dat2_buildcache_component_decode_iface_archive_from_archive(
+                cache_disk, iface_disk_archive, iface_id);
             if( !iface_archive )
                 PT_EXIT(&task->thread);
             dat2_buildcache_interface_archive_add(task->rc_ctx->dat2_bc, iface_id, iface_archive);
+        }
+
+        dat2_collect_needed_sprites_from_archive(task, iface_archive);
+        task->prefetch_chunk_index = 0;
+        while( task->prefetch_chunk_index < task->needed_sprite_count )
+        {
+            batch_end = task->prefetch_chunk_index + TASK_RS_COMPONENT_PREFETCH_BATCH;
+            if( batch_end > task->needed_sprite_count )
+                batch_end = task->needed_sprite_count;
+
+            LibToriRS_IOBatchReset(&task->io_batch);
+            for( int i = task->prefetch_chunk_index; i < batch_end; i++ )
+            {
+                int sprite_id = task->needed_sprite_ids[i];
+                int slot = LibToriRS_IOBatchAdd(&task->io_batch, sprite_id);
+                IO_REQUEST(ctx, slot, TAPIDat2_FetchSprite(ctx, sprite_id));
+            }
+            PT_YIELD(&task->thread);
+
+            for( int i = 0; i < LibToriRS_IOBatchCount(&task->io_batch); i++ )
+            {
+                int sprite_id = LibToriRS_IOBatchUser(&task->io_batch, i);
+                struct RSCacheDat2Disk_Archive* sprite_archive =
+                    TAPIDat2_DecodeSpriteArchive(ctx, i, sprite_id);
+                if( !sprite_archive )
+                    continue;
+
+                int count = 0;
+                struct ToriDraw_Sprite** sprites = dat2_buildcache_sprite_decode_id_from_archive(
+                    sprite_archive, sprite_id, &count);
+                if( sprites && count > 0 )
+                {
+                    dat2_buildcache_dynamic_sprite_add(
+                        task->rc_ctx->dat2_bc, sprite_id, sprites, count);
+                }
+                else if( sprites )
+                {
+                    free(sprites);
+                }
+            }
+            task->prefetch_chunk_index = batch_end;
         }
 
         walk_ifaces = iface_archive;
@@ -552,51 +663,49 @@ Task_RSComponentLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
         PT_EXIT(&task->thread);
     }
 
+    void* root = rs_component_get(task->cache_mode, walk_ifaces, walk_root_id);
+    if( !root )
+        PT_EXIT(&task->thread);
+
+    int root_x = 0;
+    int root_y = 0;
+    if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
     {
-        void* root = rs_component_get(task->cache_mode, walk_ifaces, walk_root_id);
-        if( !root )
-            PT_EXIT(&task->thread);
+        struct RSCacheDat1A_ConfigComponent* dat1_root = root;
+        root_x = dat1_root->x;
+        root_y = dat1_root->y;
+    }
+    else if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
+    {
+        Component* dat2_root = root;
+        root_x = dat2_root->baseX;
+        root_y = dat2_root->baseY;
+    }
 
-        int root_x = 0;
-        int root_y = 0;
-        if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
-        {
-            struct RSCacheDat1A_ConfigComponent* dat1_root = root;
-            root_x = dat1_root->x;
-            root_y = dat1_root->y;
-        }
-        else
-        {
-            Component* dat2_root = root;
-            root_x = dat2_root->baseX;
-            root_y = dat2_root->baseY;
-        }
+    rs_stack_push(task, walk_root_id, root_x, root_y, -1);
 
-        rs_stack_push(task, walk_root_id, root_x, root_y, -1);
+    while( task->stack_count > 0 )
+    {
+        int comp_id = 0;
+        int rel_x = 0;
+        int rel_y = 0;
+        int parent_id = -1;
+        if( !rs_stack_pop(task, &comp_id, &rel_x, &rel_y, &parent_id) )
+            break;
 
-        while( task->stack_count > 0 )
-        {
-            int comp_id = 0;
-            int rel_x = 0;
-            int rel_y = 0;
-            int parent_id = -1;
-            if( !rs_stack_pop(task, &comp_id, &rel_x, &rel_y, &parent_id) )
-                break;
+        void* comp = rs_component_get(task->cache_mode, walk_ifaces, comp_id);
+        if( !comp )
+            continue;
 
-            void* comp = rs_component_get(task->cache_mode, walk_ifaces, comp_id);
-            if( !comp )
-                continue;
+        rs_component_acquire_dynamic_sprites(task->cache_mode, task->rc_ctx, comp);
 
-            rs_component_acquire_dynamic_sprites(task->cache_mode, task->rc_ctx, comp);
+        struct RSComponentInfo info;
+        rs_component_fill_info(task->cache_mode, comp, rel_x, rel_y, parent_id, &info);
 
-            struct RSComponentInfo info;
-            rs_component_fill_info(task->cache_mode, comp, rel_x, rel_y, parent_id, &info);
+        if( task->callbacks.on_component )
+            task->callbacks.on_component(task->callbacks.user, &info);
 
-            if( task->callbacks.on_component )
-                task->callbacks.on_component(task->callbacks.user, &info);
-
-            rs_component_push_children(task, walk_ifaces, comp, rel_x, rel_y);
-        }
+        rs_component_push_children(task, walk_ifaces, comp, rel_x, rel_y);
     }
 
     PT_END(&task->thread);

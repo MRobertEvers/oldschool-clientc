@@ -16,6 +16,7 @@
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "osrs/varp_varbit_manager.h"
 #include "toridraw/toridraw_map.h"
+#include "toridraw/toridraw_sprite.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -99,7 +100,17 @@ struct MapEntry_InterfaceArchive
     struct Dat2BuildCache_InterfaceArchive* archive;
 };
 
+struct MapEntry_DynamicSprite
+{
+    int id;
+    struct ToriDraw_Sprite** sprites;
+    int count;
+};
+
 #define DAT2_BUILDCACHE_PRUNE_CAPACITY 64
+
+static void
+dat2_buildcache_dynamic_sprite_free_entry(struct MapEntry_DynamicSprite* entry);
 
 static void
 dat2_buildcache_mem_track_add(
@@ -230,6 +241,8 @@ dat2_buildcache_new(void)
         dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_ConfigNpctype), 8192);
     dat2_buildcache->interfaces_hmap =
         dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_InterfaceArchive), 512);
+    dat2_buildcache->dynamic_sprites_hmap =
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_DynamicSprite), 4096);
 
     return dat2_buildcache;
 }
@@ -407,6 +420,16 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
         }
         ToriDraw_MapIterFree(iter);
         dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->interfaces_hmap);
+    }
+
+    if( dat2_buildcache->dynamic_sprites_hmap )
+    {
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->dynamic_sprites_hmap);
+        struct MapEntry_DynamicSprite* entry = NULL;
+        while( (entry = (struct MapEntry_DynamicSprite*)ToriDraw_MapIterNext(iter)) )
+            dat2_buildcache_dynamic_sprite_free_entry(entry);
+        ToriDraw_MapIterFree(iter);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->dynamic_sprites_hmap);
     }
 
     memset(dat2_buildcache->asset_bytes, 0, sizeof(dat2_buildcache->asset_bytes));
@@ -2135,6 +2158,89 @@ dat2_buildcache_interfaces_cleanup(struct Dat2BuildCache* dat2_buildcache)
 }
 
 static void
+dat2_buildcache_dynamic_sprite_free_entry(struct MapEntry_DynamicSprite* entry)
+{
+    if( !entry || !entry->sprites )
+        return;
+
+    for( int i = 0; i < entry->count; i++ )
+    {
+        if( entry->sprites[i] )
+            ToriDraw_SpriteFree(entry->sprites[i]);
+    }
+    free(entry->sprites);
+    entry->sprites = NULL;
+    entry->count = 0;
+}
+
+void
+dat2_buildcache_dynamic_sprite_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int sprite_id,
+    struct ToriDraw_Sprite** sprites,
+    int count)
+{
+    if( !dat2_buildcache || !sprites || count <= 0 )
+        return;
+
+    struct MapEntry_DynamicSprite* entry = (struct MapEntry_DynamicSprite*)ToriDraw_MapSearch(
+        dat2_buildcache->dynamic_sprites_hmap, &sprite_id, TORIDRAW_MAP_INSERT);
+    assert(entry && "Dynamic sprite must be inserted into hmap");
+    if( entry->sprites )
+        dat2_buildcache_dynamic_sprite_free_entry(entry);
+    entry->id = sprite_id;
+    entry->sprites = sprites;
+    entry->count = count;
+}
+
+struct ToriDraw_Sprite**
+dat2_buildcache_dynamic_sprite_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int sprite_id,
+    int* out_count)
+{
+    if( out_count )
+        *out_count = 0;
+    if( !dat2_buildcache )
+        return NULL;
+
+    struct MapEntry_DynamicSprite* entry = (struct MapEntry_DynamicSprite*)ToriDraw_MapSearch(
+        dat2_buildcache->dynamic_sprites_hmap, &sprite_id, TORIDRAW_MAP_FIND);
+    if( !entry || !entry->sprites || entry->count <= 0 )
+        return NULL;
+
+    if( out_count )
+        *out_count = entry->count;
+    return entry->sprites;
+}
+
+bool
+dat2_buildcache_dynamic_sprite_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int sprite_id)
+{
+    return dat2_buildcache_dynamic_sprite_get(dat2_buildcache, sprite_id, NULL) != NULL;
+}
+
+void
+dat2_buildcache_dynamic_sprites_cleanup(struct Dat2BuildCache* dat2_buildcache)
+{
+    if( !dat2_buildcache || !dat2_buildcache->dynamic_sprites_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->dynamic_sprites_hmap);
+    struct MapEntry_DynamicSprite* entry = NULL;
+    while( (entry = (struct MapEntry_DynamicSprite*)ToriDraw_MapIterNext(iter)) )
+        dat2_buildcache_dynamic_sprite_free_entry(entry);
+    ToriDraw_MapIterFree(iter);
+    dat2_buildcache_map_reset(
+        dat2_buildcache,
+        &dat2_buildcache->dynamic_sprites_hmap,
+        sizeof(struct MapEntry_DynamicSprite),
+        4096);
+}
+
+static void
 dat2_buildcache_map_prune(
     struct Dat2BuildCache* dat2_buildcache,
     struct ToriDraw_Map** map_out,
@@ -2160,6 +2266,7 @@ dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_frames_cleanup(dat2_buildcache);
     dat2_buildcache_skeletal_cleanup(dat2_buildcache);
     dat2_buildcache_interfaces_cleanup(dat2_buildcache);
+    dat2_buildcache_dynamic_sprites_cleanup(dat2_buildcache);
 
     dat2_buildcache_map_prune(
         dat2_buildcache, &dat2_buildcache->models_hmap, sizeof(struct MapEntry_CacheModel));
@@ -2183,4 +2290,8 @@ dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache,
         &dat2_buildcache->interfaces_hmap,
         sizeof(struct MapEntry_InterfaceArchive));
+    dat2_buildcache_map_prune(
+        dat2_buildcache,
+        &dat2_buildcache->dynamic_sprites_hmap,
+        sizeof(struct MapEntry_DynamicSprite));
 }

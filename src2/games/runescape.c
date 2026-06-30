@@ -1481,8 +1481,6 @@ GameRunescape_FrameBegin(
         struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(game->scene);
         if( tex_state )
             ToriDraw_TextureMapAnimate(&tex_state->texture_map, cycles_elapsed);
-        if( game->ui_tree && game->ui_tree->component_count > 0 )
-            ToriDraw_SceneSpritesReemitLoads(game->scene);
     }
     if( game->world )
         world_cycle(game->world, cycles_elapsed);

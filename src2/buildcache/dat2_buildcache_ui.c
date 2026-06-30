@@ -8,22 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-void
-dat2_buildcache_ui_set_disk(
-    struct Dat2BuildCache* buildcache,
-    struct RSCacheDat2Disk* disk)
-{
-    if( !buildcache )
-        return;
-    buildcache->ui_disk = disk;
-}
-
-struct RSCacheDat2Disk*
-dat2_buildcache_ui_disk(struct Dat2BuildCache* buildcache)
-{
-    return buildcache ? buildcache->ui_disk : NULL;
-}
-
 static struct ToriDraw_Sprite*
 sprite_decode_from_pack_frame(
     struct RSCacheDat2A_SpritePack const* pack,
@@ -128,19 +112,22 @@ sprite_decode_pack_frames(
 }
 
 struct ToriDraw_Sprite**
-dat2_buildcache_sprite_decode(
-    struct Dat2BuildCache* buildcache,
+dat2_buildcache_sprite_decode_from_archive(
+    struct RSCacheDat2Disk_Archive* archive,
     struct RevConfigCacheItem const* item,
     int* out_count)
 {
     if( out_count )
         *out_count = 0;
-    struct RSCacheDat2Disk* disk = dat2_buildcache_ui_disk(buildcache);
-    if( !disk || !item || item->archive_id < 0 )
+    if( !archive || !item || item->archive_id < 0 )
+    {
+        RSCacheDat2Disk_ArchiveFree(archive);
         return NULL;
+    }
 
-    struct RSCacheDat2A_SpritePack* pack =
-        RSCacheDat2A_SpritePackNewFromCache(disk, item->archive_id);
+    struct RSCacheDat2A_SpritePack* pack = RSCacheDat2A_SpritePackNewDecode(
+        (const unsigned char*)archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
+    RSCacheDat2Disk_ArchiveFree(archive);
     if( !pack || pack->count <= 0 )
     {
         if( pack )
@@ -158,18 +145,22 @@ dat2_buildcache_sprite_decode(
 }
 
 struct ToriDraw_Sprite**
-dat2_buildcache_sprite_decode_id(
-    struct Dat2BuildCache* buildcache,
+dat2_buildcache_sprite_decode_id_from_archive(
+    struct RSCacheDat2Disk_Archive* archive,
     int sprite_id,
     int* out_count)
 {
     if( out_count )
         *out_count = 0;
-    struct RSCacheDat2Disk* disk = dat2_buildcache_ui_disk(buildcache);
-    if( !disk || sprite_id < 0 )
+    if( !archive || sprite_id < 0 )
+    {
+        RSCacheDat2Disk_ArchiveFree(archive);
         return NULL;
+    }
 
-    struct RSCacheDat2A_SpritePack* pack = RSCacheDat2A_SpritePackNewFromCache(disk, sprite_id);
+    struct RSCacheDat2A_SpritePack* pack = RSCacheDat2A_SpritePackNewDecode(
+        (const unsigned char*)archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
+    RSCacheDat2Disk_ArchiveFree(archive);
     if( !pack || pack->count <= 0 )
     {
         if( pack )
@@ -188,25 +179,23 @@ dat2_buildcache_sprite_decode_id(
 }
 
 struct ToriDraw_Font*
-dat2_buildcache_font_decode_id(
-    struct Dat2BuildCache* buildcache,
+dat2_buildcache_font_decode_from_archive(
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive,
     int font_id)
 {
-    struct RSCacheDat2Disk* disk = dat2_buildcache_ui_disk(buildcache);
-    if( !disk || font_id < 0 )
+    if( !cache || !archive || font_id < 0 )
+    {
+        RSCacheDat2Disk_ArchiveFree(archive);
         return NULL;
+    }
 
-    struct RSCacheDat2Disk_Archive* arch =
-        RSCacheDat2Disk_ArchiveNewLoad(disk, RSCacheDat2Disk_Table_Fonts, font_id);
-    if( !arch )
-        return NULL;
-
-    RSCacheDat2Disk_ArchiveInitMetadata(disk, arch);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
+    RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
+    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(archive);
+    RSCacheDat2Disk_ArchiveFree(archive);
     if( !fl || fl->file_count <= 0 )
     {
         RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
         return NULL;
     }
 
@@ -219,7 +208,6 @@ dat2_buildcache_font_decode_id(
         ToriDraw_FontNewFromRSBytes(data, data_size, index_data, index_size);
 
     RSCacheShared_FileListFree(fl);
-    RSCacheDat2Disk_ArchiveFree(arch);
     return font;
 }
 
@@ -248,27 +236,25 @@ component_decode_from_bytes(
 }
 
 Component*
-dat2_buildcache_component_decode_iface_file(
-    struct Dat2BuildCache* buildcache,
+dat2_buildcache_component_decode_iface_file_from_archive(
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive,
     int iface_id,
     int file_index,
     int* out_size)
 {
-    struct RSCacheDat2Disk* disk = dat2_buildcache_ui_disk(buildcache);
-    if( !disk )
+    if( !cache || !archive )
+    {
+        RSCacheDat2Disk_ArchiveFree(archive);
         return NULL;
+    }
 
-    struct RSCacheDat2Disk_Archive* arch =
-        RSCacheDat2Disk_ArchiveNewLoad(disk, RSCacheDat2Disk_Table_Interfaces, iface_id);
-    if( !arch )
-        return NULL;
-
-    RSCacheDat2Disk_ArchiveInitMetadata(disk, arch);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
+    RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
+    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(archive);
+    RSCacheDat2Disk_ArchiveFree(archive);
     if( !fl || file_index < 0 || file_index >= fl->file_count )
     {
         RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
         return NULL;
     }
 
@@ -281,30 +267,27 @@ dat2_buildcache_component_decode_iface_file(
         *out_size = size;
 
     RSCacheShared_FileListFree(fl);
-    RSCacheDat2Disk_ArchiveFree(arch);
     return comp;
 }
 
 struct Dat2BuildCache_InterfaceArchive*
-dat2_buildcache_component_decode_iface_archive(
-    struct Dat2BuildCache* buildcache,
+dat2_buildcache_component_decode_iface_archive_from_archive(
+    struct RSCacheDat2Disk* cache,
+    struct RSCacheDat2Disk_Archive* archive,
     int iface_id)
 {
-    struct RSCacheDat2Disk* disk = dat2_buildcache_ui_disk(buildcache);
-    if( !disk )
+    if( !cache || !archive )
+    {
+        RSCacheDat2Disk_ArchiveFree(archive);
         return NULL;
+    }
 
-    struct RSCacheDat2Disk_Archive* arch =
-        RSCacheDat2Disk_ArchiveNewLoad(disk, RSCacheDat2Disk_Table_Interfaces, iface_id);
-    if( !arch )
-        return NULL;
-
-    RSCacheDat2Disk_ArchiveInitMetadata(disk, arch);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
+    RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
+    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(archive);
+    RSCacheDat2Disk_ArchiveFree(archive);
     if( !fl || fl->file_count <= 0 )
     {
         RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
         return NULL;
     }
 
@@ -313,7 +296,6 @@ dat2_buildcache_component_decode_iface_archive(
     if( !iface_archive )
     {
         RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
         return NULL;
     }
 
@@ -323,7 +305,6 @@ dat2_buildcache_component_decode_iface_archive(
     {
         free(iface_archive);
         RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
         return NULL;
     }
 
@@ -335,6 +316,5 @@ dat2_buildcache_component_decode_iface_archive(
     }
 
     RSCacheShared_FileListFree(fl);
-    RSCacheDat2Disk_ArchiveFree(arch);
     return iface_archive;
 }

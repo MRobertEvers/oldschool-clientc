@@ -38,6 +38,7 @@ struct Dat2BuildCache_MemReport
 
 struct VarPVarBitManager;
 struct ToriDraw_Map;
+struct ToriDraw_Sprite;
 struct RSCacheDat2Disk;
 struct RSCacheDat2Disk_Archive;
 struct RSCacheDat2A_ConfigOverlay;
@@ -90,10 +91,9 @@ struct Dat2BuildCache
     struct ToriDraw_Map* object_hmap;
     struct ToriDraw_Map* npctype_hmap;
     struct ToriDraw_Map* interfaces_hmap;
+    struct ToriDraw_Map* dynamic_sprites_hmap;
     size_t asset_bytes[DAT2_BUILDCACHE_KIND_COUNT];
     size_t map_buffer_bytes;
-
-    struct RSCacheDat2Disk* ui_disk;
 };
 
 struct Dat2BuildCache*
@@ -418,6 +418,27 @@ dat2_buildcache_interface_archive_has(
 
 void
 dat2_buildcache_interfaces_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_dynamic_sprite_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int sprite_id,
+    struct ToriDraw_Sprite** sprites,
+    int count);
+
+struct ToriDraw_Sprite**
+dat2_buildcache_dynamic_sprite_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int sprite_id,
+    int* out_count);
+
+bool
+dat2_buildcache_dynamic_sprite_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int sprite_id);
+
+void
+dat2_buildcache_dynamic_sprites_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
 void
 dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache);
