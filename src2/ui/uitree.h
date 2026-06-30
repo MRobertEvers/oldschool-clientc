@@ -49,6 +49,7 @@ enum StaticUIComponentType
     UIELEM_RS_INV = 17,
     UIELEM_RS_LAYER = 18,
     UIELEM_RS_RECT = 19,
+    UIELEM_RS_LINE = 20,
 };
 
 enum StaticUIElemPositionKind
@@ -72,6 +73,13 @@ struct StaticUIElemPosition
     int bottom;
     int width;
     int height;
+
+    /** Resolved absolute bounds (set by uitree_layout_resolve). */
+    int abs_x;
+    int abs_y;
+    int abs_w;
+    int abs_h;
+    uint8_t layout_resolved;
 };
 
 struct StaticUIBehavior
@@ -178,6 +186,18 @@ struct StaticUIComponent
         {
             int reserved;
         } rs_layer;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int tabno;
+        } tab_icon;
+        struct
+        {
+            int color;
+            int line_width;
+            int horizontal;
+        } rs_line;
 
     } u;
 };
@@ -423,6 +443,31 @@ uitree_push_rs_inv(
     int const* inv_slot_offset_y,
     int const* inv_slot_bg_scene_id,
     int const* inv_slot_bg_atlas_index,
+    int x,
+    int y,
+    int width,
+    int height);
+
+int32_t
+uitree_push_tab_icon(
+    struct UITree* tree,
+    int32_t parent_index,
+    int tabno,
+    int scene_id,
+    int atlas_index,
+    int x,
+    int y,
+    int width,
+    int height);
+
+int32_t
+uitree_push_rs_line(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int color,
+    int line_width,
+    int horizontal,
     int x,
     int y,
     int width,

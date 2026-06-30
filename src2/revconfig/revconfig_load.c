@@ -10,6 +10,7 @@
 
 /* Current [type:name] header `type` for keyval dispatch (component, layout, inv, sprite, …). */
 static char s_ini_item_type[64];
+static char s_ini_layout_group[32];
 
 static int
 push_field(
@@ -42,7 +43,14 @@ push_element_from_ini_header(
     s_ini_item_type[sizeof(s_ini_item_type) - 1] = '\0';
 
     push_field(revconfig_buffer, RCFIELD_ITEMTYPE, item_type);
-    push_field(revconfig_buffer, RCFIELD_ITEMNAME, item_name);
+    if( strcmp(item_type, "layout") == 0 )
+    {
+        strncpy(s_ini_layout_group, item_name, sizeof(s_ini_layout_group) - 1);
+        s_ini_layout_group[sizeof(s_ini_layout_group) - 1] = '\0';
+        push_field(revconfig_buffer, RCFIELD_UILAYOUT_GROUP, item_name);
+    }
+    else
+        push_field(revconfig_buffer, RCFIELD_ITEMNAME, item_name);
 }
 
 static void
@@ -58,6 +66,8 @@ push_field_from_ini_kv(
         {
             push_field(vec, RCFIELD_ITEMDONE, "");
             push_field(vec, RCFIELD_ITEMTYPE, "layout");
+            if( s_ini_layout_group[0] != '\0' )
+                push_field(vec, RCFIELD_UILAYOUT_GROUP, s_ini_layout_group);
         }
         return;
     }
@@ -136,8 +146,16 @@ push_field_from_ini_kv(
         kind = RCFIELD_UILAYOUT_BOTTOM;
     else if( strcmp(key, "dirty") == 0 && strcmp(s_ini_item_type, "layout") == 0 )
         kind = RCFIELD_UILAYOUT_DIRTY;
+    else if( (strcmp(key, "p") == 0 || strcmp(key, "parent") == 0) &&
+             strcmp(s_ini_item_type, "layout") == 0 )
+        kind = RCFIELD_UILAYOUT_PARENT;
+    else if( (strcmp(key, "n") == 0 || strcmp(key, "name") == 0) &&
+             strcmp(s_ini_item_type, "layout") == 0 )
+        kind = RCFIELD_UILAYOUT_NAME;
     else if( strcmp(key, "table") == 0 )
         kind = RCFIELD_CACHE_TABLE;
+    else if( strcmp(key, "archive_id") == 0 )
+        kind = RCFIELD_CACHE_ARCHIVE_ID;
     else if( strcmp(key, "archive") == 0 )
         kind = RCFIELD_CACHE_ARCHIVE;
     else if( strcmp(key, "container") == 0 )

@@ -22,4 +22,11 @@ dat1_buildcache_font_decode(
     struct Dat1BuildCache* buildcache,
     char const* font_name);
 
+struct ToriDraw_Sprite*
+dat1_buildcache_obj_icon_sprite(
+    struct Dat1BuildCache* buildcache,
+    struct ToriDraw_Scene* scene,
+    int obj_id,
+    int count);
+
 #endif

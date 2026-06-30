@@ -23,6 +23,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CACHE_TABLE";
     case RCFIELD_CACHE_ARCHIVE:
         return "RCFIELD_CACHE_ARCHIVE";
+    case RCFIELD_CACHE_ARCHIVE_ID:
+        return "RCFIELD_CACHE_ARCHIVE_ID";
     case RCFIELD_CACHE_CONTAINER:
         return "RCFIELD_CACHE_CONTAINER";
     case RCFIELD_CACHE_INDEX_FILENAME:
@@ -105,6 +107,10 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UILAYOUT_RIGHT";
     case RCFIELD_UILAYOUT_DIRTY:
         return "RCFIELD_UILAYOUT_DIRTY";
+    case RCFIELD_UILAYOUT_PARENT:
+        return "RCFIELD_UILAYOUT_PARENT";
+    case RCFIELD_UILAYOUT_NAME:
+        return "RCFIELD_UILAYOUT_NAME";
     default:
         return "UNKNOWN";
     }
@@ -248,9 +254,15 @@ revconfig_item_begin(struct RevConfigItem* item, const char* type_value)
     memset(item, 0, sizeof(*item));
 
     if( strcmp(type_value, "sprite") == 0 )
+    {
         item->kind = RCITEM_CACHE;
+        item->u.cache.archive_id = -1;
+    }
     else if( strcmp(type_value, "component") == 0 )
+    {
         item->kind = RCITEM_UICOMPONENT;
+        item->u.uicomponent.componentno = -1;
+    }
     else if( strcmp(type_value, "layout") == 0 )
         item->kind = RCITEM_UILAYOUT;
     else if( strcmp(type_value, "inv") == 0 )
@@ -272,6 +284,9 @@ revconfig_item_apply_cache_field(
         break;
     case RCFIELD_CACHE_ARCHIVE:
         strncpy(cache->archive, value, sizeof(cache->archive) - 1);
+        break;
+    case RCFIELD_CACHE_ARCHIVE_ID:
+        cache->archive_id = atoi(value);
         break;
     case RCFIELD_CACHE_CONTAINER:
         strncpy(cache->container, value, sizeof(cache->container) - 1);
@@ -409,9 +424,11 @@ revconfig_item_apply_uilayout_field(
         break;
     case RCFIELD_UILAYOUT_ANCHOR_X:
         layout->anchor_x = atoi(value);
+        layout->has_anchor = 1;
         break;
     case RCFIELD_UILAYOUT_ANCHOR_Y:
         layout->anchor_y = atoi(value);
+        layout->has_anchor = 1;
         break;
     case RCFIELD_UILAYOUT_TOP:
         layout->top = atoi(value);
@@ -427,6 +444,15 @@ revconfig_item_apply_uilayout_field(
         break;
     case RCFIELD_UILAYOUT_DIRTY:
         layout->dirty = 1;
+        break;
+    case RCFIELD_UILAYOUT_PARENT:
+        strncpy(layout->parent, value, sizeof(layout->parent) - 1);
+        break;
+    case RCFIELD_UILAYOUT_NAME:
+        strncpy(layout->name, value, sizeof(layout->name) - 1);
+        break;
+    case RCFIELD_UILAYOUT_GROUP:
+        strncpy(layout->layout_group, value, sizeof(layout->layout_group) - 1);
         break;
     default:
         break;

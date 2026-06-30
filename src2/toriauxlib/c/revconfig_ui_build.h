@@ -10,6 +10,14 @@
 
 #define REVCONFIG_UI_MAX_SPRITE_REFS 256
 #define REVCONFIG_UI_MAX_WORK_ITEMS 512
+#define REVCONFIG_UI_DYNAMIC_SPRITE_MAX 512
+#define REVCONFIG_UI_MAX_INV_ENTRIES 16
+
+struct RevConfigUIDynamicSprite
+{
+    char name[128];
+    int element_id;
+};
 
 struct RevConfigUISpriteRef
 {
@@ -27,11 +35,42 @@ struct RevConfigUIBuildState
     struct RevConfigUIComponentItem components[128];
     int component_count;
 
-    struct RevConfigUILayoutItem layout_entries[128];
+    struct RevConfigUILayoutItem layout_entries[192];
     int layout_entry_count;
+    int32_t layout_node_index[192];
 
     struct ToriAuxLibCore* core;
+    struct ToriAuxLibCache* cache;
+    struct Dat1BuildCache* bc;
+    struct ToriDraw_Scene* scene;
+    struct UIInventoryPool* inv_pool;
+
+    struct RevConfigInvItem inv_entries[REVCONFIG_UI_MAX_INV_ENTRIES];
+    int inv_entry_count;
+
+    struct RevConfigUIDynamicSprite dynamic_sprites[REVCONFIG_UI_DYNAMIC_SPRITE_MAX];
+    int dynamic_sprite_count;
+
+    /** Maps Kronos panel iface id -> root LAYER component id in merged interfaces decode. */
+    int panel_root_id[1024];
 };
+
+struct Dat1BuildCache;
+struct ToriAuxLibCache;
+struct ToriDraw_Scene;
+
+void
+revconfig_ui_build_set_expand_context(
+    struct RevConfigUIBuildState* state,
+    struct ToriAuxLibCache* cache,
+    struct Dat1BuildCache* bc,
+    struct ToriDraw_Scene* scene,
+    struct UIInventoryPool* inv_pool);
+
+void
+revconfig_ui_build_populate_inv_pool(
+    struct RevConfigUIBuildState* state,
+    struct RevConfigItemBuffer const* items);
 
 void
 revconfig_ui_build_set_core(
@@ -65,13 +104,15 @@ revconfig_ui_build_lookup_sprite_id(
 
 int32_t
 revconfig_ui_build_node(
-    struct RevConfigUIBuildState const* state,
+    struct RevConfigUIBuildState* state,
     struct UITree* tree,
-    struct RevConfigUILayoutItem const* le);
+    struct RevConfigUILayoutItem const* le,
+    int32_t parent_index);
 
 bool
 revconfig_ui_build_tree(
-    struct RevConfigUIBuildState const* state,
-    struct UITree* tree);
+    struct RevConfigUIBuildState* state,
+    struct UITree* tree,
+    char const* active_layout_group);
 
 #endif

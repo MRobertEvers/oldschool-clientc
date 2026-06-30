@@ -257,7 +257,18 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             if( element_id < 0 || element_id >= SOFT3D_SPRITE_ELEMENT_CAP )
                 break;
             struct ToriDraw_Sprite** sprites = renderer->sprite_arrays[element_id];
-            const int count = renderer->sprite_counts[element_id];
+            int count = renderer->sprite_counts[element_id];
+            if( draw_context )
+            {
+                int scene_count = 0;
+                struct ToriDraw_Sprite** scene_sprites =
+                    ToriDraw_SceneSpriteGet(draw_context, element_id, &scene_count);
+                if( scene_sprites && scene_count > 0 )
+                {
+                    sprites = scene_sprites;
+                    count = scene_count;
+                }
+            }
             if( !sprites || atlas_index < 0 || atlas_index >= count )
                 break;
             struct ToriDraw_Sprite* sp = sprites[atlas_index];

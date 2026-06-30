@@ -138,6 +138,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_UILAYOUT_DIRTY;
     else if( strcmp(key, "table") == 0 )
         kind = RCFIELD_CACHE_TABLE;
+    else if( strcmp(key, "archive_id") == 0 )
+        kind = RCFIELD_CACHE_ARCHIVE_ID;
     else if( strcmp(key, "archive") == 0 )
         kind = RCFIELD_CACHE_ARCHIVE;
     else if( strcmp(key, "container") == 0 )

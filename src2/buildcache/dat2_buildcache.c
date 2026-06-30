@@ -433,8 +433,7 @@ dat2_buildcache_model_add(
 {
     struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)ToriDraw_MapSearch(
         dat2_buildcache->models_hmap, &model_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Model must be inserted into hmap");
 
     if( entry->model )
     {
@@ -492,8 +491,7 @@ dat2_buildcache_map_terrain_add(
 {
     struct MapEntry_Terrain* entry = (struct MapEntry_Terrain*)ToriDraw_MapSearch(
         dat2_buildcache->map_terrain_hmap, &map_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Terrain must be inserted into hmap");
 
     if( entry->terrain )
     {
@@ -540,8 +538,7 @@ dat2_buildcache_map_scenery_add(
 {
     struct MapEntry_Scenery* entry = (struct MapEntry_Scenery*)ToriDraw_MapSearch(
         dat2_buildcache->map_scenery_hmap, &map_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Scenery must be inserted into hmap");
 
     if( entry->locs )
     {
@@ -617,11 +614,7 @@ dat2_buildcache_underlays_init_from_filelist(
 
         struct MapEntry_Underlay* entry = (struct MapEntry_Underlay*)ToriDraw_MapSearch(
             dat2_buildcache->underlay_hmap, &id, TORIDRAW_MAP_INSERT);
-        if( !entry )
-        {
-            config_floortype_underlay_free(underlay);
-            continue;
-        }
+        assert(entry && "Underlay must be inserted into hmap");
 
         if( entry->underlay )
         {
@@ -662,11 +655,7 @@ dat2_buildcache_overlays_init_from_filelist(
 
         struct MapEntry_Flotype* entry = (struct MapEntry_Flotype*)ToriDraw_MapSearch(
             dat2_buildcache->flotype_hmap, &id, TORIDRAW_MAP_INSERT);
-        if( !entry )
-        {
-            config_floortype_overlay_free(flotype);
-            continue;
-        }
+        assert(entry && "Flotype must be inserted into hmap");
 
         if( entry->flotype )
         {
@@ -694,11 +683,7 @@ dat2_buildcache_sequence_insert(
 {
     struct MapEntry_Sequence* entry = (struct MapEntry_Sequence*)ToriDraw_MapSearch(
         dat2_buildcache->sequences_hmap, &id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-    {
-        RSCacheDat2A_ConfigSequenceFree(sequence);
-        return false;
-    }
+    assert(entry && "Sequence must be inserted into hmap");
 
     if( entry->sequence )
     {
@@ -826,11 +811,7 @@ dat2_buildcache_locs_init_from_filelist(
 
         struct MapEntry_ConfigLoc* entry = (struct MapEntry_ConfigLoc*)ToriDraw_MapSearch(
             dat2_buildcache->config_loc_hmap, &id, TORIDRAW_MAP_INSERT);
-        if( !entry )
-        {
-            config_locs_free(config_loc);
-            continue;
-        }
+        assert(entry && "Loc must be inserted into hmap");
 
         if( entry->config_loc )
         {
@@ -922,8 +903,7 @@ dat2_buildcache_identkit_add(
 {
     struct MapEntry_ConfigIdentkit* entry = (struct MapEntry_ConfigIdentkit*)ToriDraw_MapSearch(
         dat2_buildcache->identkit_hmap, &idk_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Identkit must be inserted into hmap");
 
     if( entry->idk )
     {
@@ -960,8 +940,7 @@ dat2_buildcache_object_add(
 {
     struct MapEntry_ConfigObject* entry = (struct MapEntry_ConfigObject*)ToriDraw_MapSearch(
         dat2_buildcache->object_hmap, &obj_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Object must be inserted into hmap");
 
     if( entry->object )
     {
@@ -998,8 +977,7 @@ dat2_buildcache_npctype_add(
 {
     struct MapEntry_ConfigNpctype* entry = (struct MapEntry_ConfigNpctype*)ToriDraw_MapSearch(
         dat2_buildcache->npctype_hmap, &npc_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Npctype must be inserted into hmap");
 
     if( entry->npc )
     {
@@ -1652,11 +1630,7 @@ dat2_buildcache_frames_init_from_archive(
 
     struct MapEntry_FramesArchive* entry = (struct MapEntry_FramesArchive*)ToriDraw_MapSearch(
         dat2_buildcache->frames_hmap, &archive_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-    {
-        Dat2BuildCache_FramesArchiveFree(fa);
-        return;
-    }
+    assert(entry && "Frames archive must be inserted into hmap");
     if( entry->archive )
     {
         dat2_buildcache_mem_track_sub(
@@ -1722,8 +1696,7 @@ dat2_buildcache_skeletal_add(
         return;
     struct MapEntry_Skeletal* entry = (struct MapEntry_Skeletal*)ToriDraw_MapSearch(
         dat2_buildcache->skeletal_hmap, &anim_maya_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Skeletal anim must be inserted into hmap");
     if( entry->maya )
     {
         dat2_buildcache_mem_track_sub(

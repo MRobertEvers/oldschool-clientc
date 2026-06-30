@@ -11,6 +11,9 @@
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"
 #include "ui/uitree.h"
+#include "ui/uitree_host.h"
+#include "ui/uitree_layout.h"
+#include "ui/ui_input.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -110,6 +113,11 @@ struct GameRunescape
     struct PaintersBuffer* painter_buffer;
     struct UITree* ui_tree;
     bool ui_tree_ready;
+    bool ui_sprites_synced;
+    struct UIInventoryPool* ui_inv_pool;
+    struct UITreeHost ui_host;
+    struct UIInputState ui_input;
+    int selected_tab;
     struct ToriAuxLibVM* vm;
     int32_t ui_hovered_node;
     char ui_text_scratch[RUNESCAPE_UI_TEXT_SCRATCH_MAX];
@@ -147,6 +155,7 @@ struct GameRunescape
         bool painter_paint_done;
         bool ui_2d_begun;
         int32_t ui_current;
+        int ui_inv_slot;
         struct GameRunescape_UITraversalFrame ui_stack[RUNESCAPE_UI_TRAVERSAL_STACK_MAX];
         int ui_stack_top;
     } frame;
@@ -179,6 +188,14 @@ void
 GameRunescape_SetUITree(
     struct GameRunescape* game,
     struct UITree* ui_tree);
+
+void
+GameRunescape_SetUIInvPool(
+    struct GameRunescape* game,
+    struct UIInventoryPool* pool);
+
+void
+GameRunescape_SyncUISpritesFromScene(struct GameRunescape* game);
 
 void
 GameRunescape_SetUITreeReady(

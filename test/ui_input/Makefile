@@ -15,6 +15,8 @@ LDFLAGS = -Wl,-dead_strip
 
 SRCS = main.c \
 	$(SRC2_DIR)/ui/uitree.c \
+	$(SRC2_DIR)/ui/uitree_layout.c \
+	$(SRC2_DIR)/ui/uitree_host.c \
 	$(SRC2_DIR)/ui/ui_input.c \
 	$(SRC2_DIR)/ui/ui_behavior.c \
 	$(SRC2_DIR)/vm/csvm.c \

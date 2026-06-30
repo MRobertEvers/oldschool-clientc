@@ -3,15 +3,19 @@
 
 #include <stdint.h>
 
+// Dat1 sprite cache section example:
 // table=configs
 // archive=media
 // container=jagfile
-// # jagfile = requires 'index' and 'filename'
 // index=index.dat
 // filename=invback.dat
-// # Format = load_sprite_pix8(filelist, "invback.dat", index_file_idx, 0);
 // format=pix8
-// pix8_atlas_index=0
+// atlas_index=0
+//
+// Dat2 sprite cache section example:
+// table=sprites
+// archive_id=297
+// atlas_index=0
 
 enum RevConfigFieldKind
 {
@@ -21,6 +25,7 @@ enum RevConfigFieldKind
     RCFIELD_ITEMDONE,
     RCFIELD_CACHE_TABLE,
     RCFIELD_CACHE_ARCHIVE,
+    RCFIELD_CACHE_ARCHIVE_ID,
     RCFIELD_CACHE_CONTAINER,
     RCFIELD_CACHE_INDEX_FILENAME,
     RCFIELD_CACHE_DATA_FILENAME,
@@ -104,6 +109,7 @@ struct RevConfigCacheItem
     int crop_height;
     char transform[4][64];
     int transform_count;
+    int archive_id;
 };
 
 struct RevConfigUIComponentItem

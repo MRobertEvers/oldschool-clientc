@@ -47,3 +47,6 @@ src2/programs/browser/browser_build/
 # Memtrace tooling dependencies and generated traces
 tools/memtrace/node_modules/
 tools/memtrace/bins/
+
+# ui_tree test BMP output
+test/ui_tree/output/

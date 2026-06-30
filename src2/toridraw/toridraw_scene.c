@@ -1186,6 +1186,25 @@ ToriDraw_SceneEvents(struct ToriDraw_Scene* scene)
 }
 
 void
+ToriDraw_SceneSpritesReemitLoads(struct ToriDraw_Scene* scene)
+{
+    if( !scene || !scene->sprites_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(scene->sprites_hmap);
+    struct MapEntry_Sprite* entry = NULL;
+    while( (entry = (struct MapEntry_Sprite*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->sprites && entry->count > 0 )
+        {
+            td_scene_emit_sprite(
+                scene, TORIDRAW_EVENT_SPRITE_LOAD, entry->id, entry->sprites, entry->count);
+        }
+    }
+    ToriDraw_MapIterFree(iter);
+}
+
+void
 ToriDraw_SceneFrameEnd(struct ToriDraw_Scene* scene)
 {
     for( int i = 0; i < scene->pending_pose_count; i++ )

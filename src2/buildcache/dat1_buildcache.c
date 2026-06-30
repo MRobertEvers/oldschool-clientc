@@ -423,8 +423,7 @@ dat1_buildcache_model_add(
 {
     struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)ToriDraw_MapSearch(
         dat1_buildcache->models_hmap, &model_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Model must be inserted into hmap");
 
     entry->id = model_id;
     entry->model = model;
@@ -467,8 +466,7 @@ dat1_buildcache_map_terrain_add(
 {
     struct MapEntry_Terrain* entry = (struct MapEntry_Terrain*)ToriDraw_MapSearch(
         dat1_buildcache->map_terrain_hmap, &map_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Terrain must be inserted into hmap");
 
     entry->id = map_id;
     entry->terrain = terrain;
@@ -502,8 +500,7 @@ dat1_buildcache_map_scenery_add(
 {
     struct MapEntry_Scenery* entry = (struct MapEntry_Scenery*)ToriDraw_MapSearch(
         dat1_buildcache->map_scenery_hmap, &map_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Scenery must be inserted into hmap");
 
     entry->id = map_id;
     entry->locs = locs;
@@ -582,8 +579,7 @@ dat1_buildcache_idk_add(
 {
     struct MapEntry_ConfigIdk* entry = (struct MapEntry_ConfigIdk*)ToriDraw_MapSearch(
         dat1_buildcache->idk_hmap, &idk_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Idk must be inserted into hmap");
 
     if( entry->idk )
         RSCacheDat1A_ConfigIdkFree(entry->idk);
@@ -612,8 +608,7 @@ dat1_buildcache_obj_add(
 {
     struct MapEntry_ConfigObj* entry = (struct MapEntry_ConfigObj*)ToriDraw_MapSearch(
         dat1_buildcache->obj_hmap, &obj_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Obj must be inserted into hmap");
 
     if( entry->obj )
         RSCacheDat1A_ConfigObjFree(entry->obj);
@@ -642,8 +637,7 @@ dat1_buildcache_npc_add(
 {
     struct MapEntry_ConfigNpc* entry = (struct MapEntry_ConfigNpc*)ToriDraw_MapSearch(
         dat1_buildcache->npc_hmap, &npc_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "Npc must be inserted into hmap");
 
     if( entry->npc )
         RSCacheDat1A_ConfigNpcFree(entry->npc);
@@ -829,11 +823,7 @@ dat1_buildcache_sequences_init_from_config_jagfile(struct Dat1BuildCache* dat1_b
 
         struct MapEntry_Sequence* entry = (struct MapEntry_Sequence*)ToriDraw_MapSearch(
             dat1_buildcache->sequences_hmap, &i, TORIDRAW_MAP_INSERT);
-        if( !entry )
-        {
-            RSCacheDat1A_ConfigSequenceFree(sequence);
-            continue;
-        }
+        assert(entry && "Sequence must be inserted into hmap");
 
         if( entry->sequence )
             RSCacheDat1A_ConfigSequenceFree(entry->sequence);
@@ -872,11 +862,7 @@ dat1_buildcache_floortypes_init_from_config_jagfile(struct Dat1BuildCache* dat1_
 
         struct MapEntry_Flotype* entry = (struct MapEntry_Flotype*)ToriDraw_MapSearch(
             dat1_buildcache->flotype_hmap, &i, TORIDRAW_MAP_INSERT);
-        if( !entry )
-        {
-            config_floortype_overlay_free(flotype);
-            continue;
-        }
+        assert(entry && "Flotype must be inserted into hmap");
 
         if( entry->flotype )
             config_floortype_overlay_free(entry->flotype);
@@ -951,11 +937,7 @@ dat1_buildcache_init_scenery_configs_from_config_jagfile(struct Dat1BuildCache* 
 
             struct MapEntry_ConfigLoc* entry = (struct MapEntry_ConfigLoc*)ToriDraw_MapSearch(
                 dat1_buildcache->config_loc_hmap, &loc->loc_id, TORIDRAW_MAP_INSERT);
-            if( !entry )
-            {
-                config_locs_free(config_loc);
-                continue;
-            }
+            assert(entry && "Loc must be inserted into hmap");
 
             entry->id = loc->loc_id;
             entry->config_loc = config_loc;
@@ -973,8 +955,7 @@ dat1_buildcache_animbaseframes_add(
 {
     struct MapEntry_AnimBaseFrames* entry = (struct MapEntry_AnimBaseFrames*)ToriDraw_MapSearch(
         dat1_buildcache->animbaseframes_hmap, &animbaseframes_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
-        return;
+    assert(entry && "AnimBaseFrames must be inserted into hmap");
 
     if( entry->animbaseframes )
         RSCacheDat1A_AnimBaseFramesFree(entry->animbaseframes);

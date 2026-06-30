@@ -22,7 +22,7 @@
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/texture.h"
-#include "toriauxlib/c/revconfig_ui_load.h"
+#include "toriauxlib/c/t_ui_load.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
@@ -47,9 +47,9 @@ world_rebuild_normal_centerzone_task_destroy(void* state)
 }
 
 static void
-revconfig_ui_load_task_destroy(void* state)
+ui_load_task_destroy(void* state)
 {
-    Task_RevConfigUILoad_Free(state);
+    Task_ToriAuxLibCache_UILoad_Free(state);
 }
 
 void
@@ -584,12 +584,14 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
         Task_ToriAuxLibCache_WorldRebuildNormalCenterzone_Run,
         world_rebuild_normal_centerzone_task_destroy);
 
-    if( ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) == TORIAUXLIBCACHE_MODE_DAT1 )
     {
-        struct Task_RevConfigUILoad* ui_task = Task_RevConfigUILoad_New(
-            ToriAuxLib_C(instance->toriauxlib), instance->scene, instance->runescape->ui_tree);
+        struct Task_ToriAuxLibCache_UILoad* ui_task = Task_ToriAuxLibCache_UILoad_New(
+            ToriAuxLib_C(instance->toriauxlib),
+            instance->scene,
+            instance->runescape->ui_tree,
+            instance->runescape);
         LibToriRS_TasksAdd(
-            instance, ui_task, Task_RevConfigUILoad_Run, revconfig_ui_load_task_destroy);
+            instance, ui_task, Task_ToriAuxLibCache_UILoad_Run, ui_load_task_destroy);
     }
 }
 

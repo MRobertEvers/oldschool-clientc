@@ -78,6 +78,8 @@ struct Dat2BuildCache
     struct ToriDraw_Map* npctype_hmap;
     size_t asset_bytes[DAT2_BUILDCACHE_KIND_COUNT];
     size_t map_buffer_bytes;
+
+    struct RSCacheDat2Disk* ui_disk;
 };
 
 struct Dat2BuildCache*

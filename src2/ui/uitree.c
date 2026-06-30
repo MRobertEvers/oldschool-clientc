@@ -73,6 +73,7 @@ push_element(
     component->first_child = -1;
     component->next_sibling = -1;
     component->component_id = -1;
+    component->is_dirty = 1;
 
     link_under_parent(tree, parent_index, idx);
     tree->generation++;
@@ -174,6 +175,8 @@ uitree_component_type_str(enum StaticUIComponentType type)
         return "rs_layer";
     case UIELEM_RS_RECT:
         return "rs_rect";
+    case UIELEM_RS_LINE:
+        return "rs_line";
     }
     return "unknown";
 }
@@ -884,6 +887,67 @@ uitree_push_rs_inv(
             component->u.rs_inv.inv_slot_bg_atlas_index[i] = 0;
         }
     }
+    return idx;
+}
+
+int32_t
+uitree_push_tab_icon(
+    struct UITree* tree,
+    int32_t parent_index,
+    int tabno,
+    int scene_id,
+    int atlas_index,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_BUILTIN_TAB_ICONS;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.tab_icon.scene_id = scene_id;
+    component->u.tab_icon.atlas_index = atlas_index;
+    component->u.tab_icon.tabno = tabno;
+    component->is_dirty = 1;
+    return idx;
+}
+
+int32_t
+uitree_push_rs_line(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int color,
+    int line_width,
+    int horizontal,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_RS_LINE;
+    component->component_id = component_id;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.rs_line.color = color;
+    component->u.rs_line.line_width = line_width > 0 ? line_width : 1;
+    component->u.rs_line.horizontal = horizontal ? 1 : 0;
     return idx;
 }
 

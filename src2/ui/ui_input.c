@@ -1,4 +1,5 @@
 #include "ui_input.h"
+#include "uitree_layout.h"
 
 bool
 uitree_point_in_component(
@@ -6,12 +7,14 @@ uitree_point_in_component(
     int px,
     int py)
 {
-    if( !position || position->kind != UIPOS_XY )
+    if( !position )
         return false;
-    int x = position->x;
-    int y = position->y;
-    int w = position->width;
-    int h = position->height;
+
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+    uitree_layout_get_bounds(position, &x, &y, &w, &h);
     if( w <= 0 || h <= 0 )
         return false;
     return px >= x && px < x + w && py >= y && py < y + h;

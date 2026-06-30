@@ -23,6 +23,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CACHE_TABLE";
     case RCFIELD_CACHE_ARCHIVE:
         return "RCFIELD_CACHE_ARCHIVE";
+    case RCFIELD_CACHE_ARCHIVE_ID:
+        return "RCFIELD_CACHE_ARCHIVE_ID";
     case RCFIELD_CACHE_CONTAINER:
         return "RCFIELD_CACHE_CONTAINER";
     case RCFIELD_CACHE_INDEX_FILENAME:
@@ -248,7 +250,10 @@ revconfig_item_begin(struct RevConfigItem* item, const char* type_value)
     memset(item, 0, sizeof(*item));
 
     if( strcmp(type_value, "sprite") == 0 )
+    {
         item->kind = RCITEM_CACHE;
+        item->u.cache.archive_id = -1;
+    }
     else if( strcmp(type_value, "component") == 0 )
         item->kind = RCITEM_UICOMPONENT;
     else if( strcmp(type_value, "layout") == 0 )
@@ -272,6 +277,9 @@ revconfig_item_apply_cache_field(
         break;
     case RCFIELD_CACHE_ARCHIVE:
         strncpy(cache->archive, value, sizeof(cache->archive) - 1);
+        break;
+    case RCFIELD_CACHE_ARCHIVE_ID:
+        cache->archive_id = atoi(value);
         break;
     case RCFIELD_CACHE_CONTAINER:
         strncpy(cache->container, value, sizeof(cache->container) - 1);

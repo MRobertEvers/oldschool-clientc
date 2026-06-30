@@ -147,4 +147,34 @@ cachelib_dat2_textures_archive_fetch(struct RSCacheDat2DiskLib_IORequest* out)
     out->flags = 0;
 }
 
+static inline void
+cachelib_dat2_sprite_fetch(
+    int sprite_id,
+    struct RSCacheDat2DiskLib_IORequest* out)
+{
+    out->table_id = RSCacheDat2Disk_Table_Sprites;
+    out->archive_id = sprite_id;
+    out->flags = 0;
+}
+
+static inline void
+cachelib_dat2_font_fetch(
+    int font_id,
+    struct RSCacheDat2DiskLib_IORequest* out)
+{
+    out->table_id = RSCacheDat2Disk_Table_Fonts;
+    out->archive_id = font_id;
+    out->flags = 0;
+}
+
+static inline void
+cachelib_dat2_interface_fetch(
+    int iface_id,
+    struct RSCacheDat2DiskLib_IORequest* out)
+{
+    out->table_id = RSCacheDat2Disk_Table_Interfaces;
+    out->archive_id = iface_id;
+    out->flags = 0;
+}
+
 #endif

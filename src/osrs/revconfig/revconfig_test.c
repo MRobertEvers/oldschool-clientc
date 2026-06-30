@@ -7,7 +7,7 @@ int
 main()
 {
     const char* filename = "../src/osrs/revconfig/"
-                           "configs/rev_254_2/rev_245_2_cache.ini";
+                           "configs/rev_254_2/rev_245_2_dat1_cache.ini";
 
     struct RevConfigBuffer* buffer = revconfig_buffer_new(16);
     uint32_t field_count = 0;

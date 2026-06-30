@@ -13,9 +13,9 @@ int
 main()
 {
     const char* filename_cache = "../src/osrs/revconfig/"
-                                 "configs/rev_245_2/rev_245_2_cache.ini";
+                                 "configs/rev_245_2/rev_245_2_dat1_cache.ini";
     char const* filename_ui = "../src/osrs/revconfig/"
-                              "configs/rev_245_2/rev_245_2_ui.ini";
+                              "configs/rev_245_2/rev_245_2_dat1_ui.ini";
 
     struct RevConfigBuffer* buffer = revconfig_buffer_new(16);
     uint32_t field_count = 0;

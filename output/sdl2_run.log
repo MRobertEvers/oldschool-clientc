@@ -1,0 +1,46 @@
+Hello from main!
+Using cache: ../../../cache254 (dat1)
+Renderer: software 3D (CPU)
+Game: runescape world
+Initializing RuneScape world (Lua)
+LibToriRS_ScriptAPI_Game_Runescape_Init
+LibToriRS_ScriptAPI_Dat1_ConfigFileFetch
+LibToriRS_ScriptAPI_Dat1_ConfigFileLoad
+CacheDatArchive: 0x9778830a0
+Config file loaded
+LibToriRS_ScriptAPI_Dat1_TexturesFetch
+LibToriRS_ScriptAPI_Dat1_TexturesLoad
+cache_texture: 0x978000a80
+Textures loaded
+LibToriRS_ScriptAPI_Dat1_SubmitTextures
+Textures submitted
+dat1 ui: tree nodes=70 rs_nodes=12
+dat1 ui: sideicons element_id=16 atlas_count=13 scene_sprites=13
+dat1 ui: sideicons[0] size=20x19
+dat1 ui: tab_icon tabno=0 scene_id=16 atlas=0 size=20x19
+dat1 ui: tab_icon tabno=1 scene_id=16 atlas=1 size=25x24
+dat1 ui: tab_icon tabno=2 scene_id=16 atlas=2 size=22x23
+dat1 ui: tab_icon tabno=3 scene_id=16 atlas=3 size=30x29
+dat1 ui: tab_icon tabno=4 scene_id=16 atlas=4 size=25x28
+dat1 ui: tab_icon tabno=5 scene_id=16 atlas=5 size=24x27
+dat1 ui: tab_icon tabno=6 scene_id=16 atlas=6 size=24x24
+dat1 ui: tab_icon tabno=7 scene_id=16 atlas=7 size=24x23
+dat1 ui: tab_icon tabno=8 scene_id=16 atlas=8 size=24x23
+dat1 ui: tab_icon tabno=9 scene_id=16 atlas=9 size=27x24
+dat1 ui: tab_icon tabno=10 scene_id=16 atlas=10 size=26x27
+dat1 ui: tab_icon tabno=11 scene_id=16 atlas=11 size=19x24
+dat1 ui: tab_icon tabno=12 scene_id=16 atlas=12 size=20x25
+LibToriRS_ScriptAPI_Game_Runescape_BuildWorldCenterzone
+World built
+LibToriRS_Input_IsClick(button=1) at (644,157)
+LibToriRS_Input_IsClick(button=1) at (642,166)
+LibToriRS_Input_IsClick(button=1) at (620,191)
+LibToriRS_Input_IsClick(button=1) at (590,192)
+LibToriRS_Input_IsClick(button=1) at (564,192)
+LibToriRS_Input_IsClick(button=1) at (571,192)
+LibToriRS_Input_IsClick(button=1) at (590,192)
+LibToriRS_Input_IsClick(button=1) at (726,199)
+LibToriRS_Input_IsClick(button=1) at (713,189)
+LibToriRS_Input_IsClick(button=1) at (683,190)
+LibToriRS_Input_IsClick(button=1) at (727,466)
+LibToriRS_Input_IsClick(button=1) at (716,476)

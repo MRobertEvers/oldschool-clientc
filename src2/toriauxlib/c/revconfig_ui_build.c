@@ -1,4 +1,7 @@
 #include "revconfig_ui_build.h"
+#include "revconfig_ui_expand.h"
+#include "ui/uitree_layout.h"
+#include "toridraw/toridraw_sprite.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,8 +26,14 @@ component_type_from_string(char const* type)
         return UIELEM_BUILTIN_SPRITE;
     if( strcmp(type, "redstone_tab") == 0 )
         return UIELEM_BUILTIN_REDSTONE_TAB;
-    if( strcmp(type, "builtin_tab_icons") == 0 )
+    if( strcmp(type, "builtin_tab_icons") == 0 || strcmp(type, "tab_icon") == 0 )
         return UIELEM_BUILTIN_TAB_ICONS;
+    if( strcmp(type, "rs_model") == 0 )
+        return UIELEM_RS_MODEL;
+    if( strcmp(type, "rs_inv") == 0 )
+        return UIELEM_RS_INV;
+    if( strcmp(type, "rs_line") == 0 )
+        return UIELEM_RS_LINE;
     if( strcmp(type, "rs_graphic") == 0 )
         return UIELEM_RS_GRAPHIC;
     if( strcmp(type, "rs_layer") == 0 )
@@ -77,6 +86,110 @@ revconfig_ui_build_init(struct RevConfigUIBuildState* state)
         return;
     memset(state, 0, sizeof(*state));
     state->next_element_id = 1;
+    for( int i = 0; i < (int)(sizeof(state->panel_root_id) / sizeof(state->panel_root_id[0])); i++ )
+        state->panel_root_id[i] = -1;
+    for( int i = 0; i < 128; i++ )
+        state->layout_node_index[i] = -1;
+}
+
+static int32_t
+layout_parent_index(
+    struct RevConfigUIBuildState const* state,
+    char const* parent_name)
+{
+    if( !state || !parent_name || parent_name[0] == '\0' )
+        return -1;
+
+    for( int i = 0; i < state->layout_entry_count; i++ )
+    {
+        if( strcmp(state->layout_entries[i].name, parent_name) == 0 )
+            return state->layout_node_index[i];
+    }
+    return -1;
+}
+
+static void
+apply_layout_position(
+    struct RevConfigUILayoutItem const* le,
+    struct StaticUIElemPosition* pos,
+    int comp_w,
+    int comp_h)
+{
+    if( le->left || le->right || le->top || le->bottom )
+    {
+        pos->kind = UIPOS_RELATIVE;
+        pos->relative_flags = 0;
+        if( le->left )
+            pos->relative_flags |= STATIC_UI_RELATIVE_FLAG_LEFT;
+        if( le->right )
+            pos->relative_flags |= STATIC_UI_RELATIVE_FLAG_RIGHT;
+        if( le->top )
+            pos->relative_flags |= STATIC_UI_RELATIVE_FLAG_TOP;
+        if( le->bottom )
+            pos->relative_flags |= STATIC_UI_RELATIVE_FLAG_BOTTOM;
+        pos->left = le->left;
+        pos->right = le->right;
+        pos->top = le->top;
+        pos->bottom = le->bottom;
+        pos->width = le->width > 0 ? le->width : comp_w;
+        pos->height = le->height > 0 ? le->height : comp_h;
+    }
+    else
+    {
+        pos->kind = UIPOS_XY;
+        pos->x = le->x;
+        pos->y = le->y;
+        pos->width = le->width > 0 ? le->width : comp_w;
+        pos->height = le->height > 0 ? le->height : comp_h;
+    }
+    if( le->has_anchor )
+    {
+        pos->anchor_x = le->anchor_x;
+        pos->anchor_y = le->anchor_y;
+    }
+}
+
+void
+revconfig_ui_build_set_expand_context(
+    struct RevConfigUIBuildState* state,
+    struct ToriAuxLibCache* cache,
+    struct Dat1BuildCache* bc,
+    struct ToriDraw_Scene* scene,
+    struct UIInventoryPool* inv_pool)
+{
+    if( !state )
+        return;
+    state->cache = cache;
+    state->bc = bc;
+    state->scene = scene;
+    state->inv_pool = inv_pool;
+}
+
+void
+revconfig_ui_build_populate_inv_pool(
+    struct RevConfigUIBuildState* state,
+    struct RevConfigItemBuffer const* items)
+{
+    if( !state || !state->inv_pool || !items )
+        return;
+
+    for( uint32_t i = 0; i < items->item_count; i++ )
+    {
+        struct RevConfigItem const* item = &items->items[i];
+        if( item->kind != RCITEM_INV )
+            continue;
+
+        struct UIInventory inv = { 0 };
+        strncpy(inv.name, item->u.inv.name, sizeof(inv.name) - 1);
+        for( int j = 0; j < item->u.inv.item_count && inv.item_count < UI_INVENTORY_MAX_ITEMS; j++ )
+        {
+            inv.items[inv.item_count].obj_id = atoi(item->u.inv.items[j]);
+            inv.items[inv.item_count].scene_id = -1;
+            inv.items[inv.item_count].atlas_index = 0;
+            inv.item_count++;
+        }
+        uitree_inv_pool_append(state->inv_pool, &inv);
+    }
 }
 
 void
@@ -138,8 +251,12 @@ revconfig_ui_build_collect_items(
                 state->components[state->component_count++] = item->u.uicomponent;
             break;
         case RCITEM_UILAYOUT:
-            if( state->layout_entry_count < 128 )
+            if( state->layout_entry_count < 192 )
                 state->layout_entries[state->layout_entry_count++] = item->u.uilayout;
+            break;
+        case RCITEM_INV:
+            if( state->inv_entry_count < REVCONFIG_UI_MAX_INV_ENTRIES )
+                state->inv_entries[state->inv_entry_count++] = item->u.inv;
             break;
         default:
             break;
@@ -244,11 +361,78 @@ component_id_from_item(struct RevConfigUIComponentItem const* comp)
     return comp && comp->componentno >= 0 ? comp->componentno : -1;
 }
 
+static bool
+component_type_needs_behavior(enum StaticUIComponentType ty)
+{
+    switch( ty )
+    {
+    case UIELEM_RS_GRAPHIC:
+    case UIELEM_RS_LAYER:
+    case UIELEM_RS_TEXT:
+    case UIELEM_RS_RECT:
+    case UIELEM_RS_MODEL:
+    case UIELEM_RS_INV:
+    case UIELEM_RS_LINE:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static void
+revconfig_ui_build_infer_sprite_dims(
+    struct RevConfigUIBuildState const* state,
+    enum StaticUIComponentType ty,
+    int scene_id,
+    int atlas_index,
+    int scene_active_id,
+    int atlas_active_index,
+    int* w,
+    int* h)
+{
+    if( !state || !w || !h )
+        return;
+    if( *w > 0 && *h > 0 )
+        return;
+
+    if( ty != UIELEM_BUILTIN_TAB_ICONS && ty != UIELEM_BUILTIN_REDSTONE_TAB &&
+        ty != UIELEM_BUILTIN_SPRITE )
+        return;
+
+    int lookup_id = scene_id;
+    int lookup_atlas = atlas_index;
+    if( ty == UIELEM_BUILTIN_REDSTONE_TAB && scene_active_id >= 0 )
+    {
+        lookup_id = scene_active_id;
+        lookup_atlas = atlas_active_index;
+    }
+    if( lookup_id < 0 || !state->core )
+        return;
+
+    struct ToriAuxLibCore_Sprite* gc_sprite = ToriAuxLibCore_SpriteGet(state->core, lookup_id);
+    if( !gc_sprite || !gc_sprite->sprites )
+        return;
+    if( lookup_atlas < 0 || lookup_atlas >= gc_sprite->count )
+        return;
+
+    struct ToriDraw_Sprite* sp = gc_sprite->sprites[lookup_atlas];
+    if( !sp )
+        return;
+
+    int const sw = sp->crop_width > 0 ? sp->crop_width : sp->width;
+    int const sh = sp->crop_height > 0 ? sp->crop_height : sp->height;
+    if( *w <= 0 )
+        *w = sw;
+    if( *h <= 0 )
+        *h = sh;
+}
+
 int32_t
 revconfig_ui_build_node(
-    struct RevConfigUIBuildState const* state,
+    struct RevConfigUIBuildState* state,
     struct UITree* tree,
-    struct RevConfigUILayoutItem const* le)
+    struct RevConfigUILayoutItem const* le,
+    int32_t parent_index)
 {
     if( !state || !tree || !le || le->component[0] == '\0' )
         return -1;
@@ -270,47 +454,45 @@ revconfig_ui_build_node(
     enum StaticUIComponentType ty = component_type_from_string(comp->type);
     int32_t idx = -1;
     int const component_id = component_id_from_item(comp);
+    int w = le->width > 0 ? le->width : comp->width;
+    int h = le->height > 0 ? le->height : comp->height;
+
+    revconfig_ui_build_infer_sprite_dims(
+        state, ty, sprite_id, atlas_index, sprite_active_id, atlas_active_index, &w, &h);
 
     switch( ty )
     {
     case UIELEM_BUILTIN_COMPASS:
         idx = uitree_push_compass(
             tree,
-            -1,
+            parent_index,
             sprite_id,
             atlas_index,
             le->x,
             le->y,
-            comp->width,
-            comp->height,
+            w,
+            h,
             comp->anchor_x,
             comp->anchor_y);
         break;
     case UIELEM_BUILTIN_MINIMAP:
         idx = uitree_push_minimap(
-            tree,
-            -1,
-            le->x,
-            le->y,
-            comp->width,
-            comp->height,
-            comp->anchor_x,
-            comp->anchor_y);
+            tree, parent_index, le->x, le->y, w, h, comp->anchor_x, comp->anchor_y);
         break;
     case UIELEM_BUILTIN_WORLD:
         idx = uitree_push_world(
             tree,
-            -1,
+            parent_index,
             le->x,
             le->y,
-            comp->width,
-            comp->height,
+            w,
+            h,
             parse_paint_levels_mask(comp->paint_levels));
         break;
     case UIELEM_BUILTIN_REDSTONE_TAB:
         idx = uitree_push_redstone_tab(
             tree,
-            -1,
+            parent_index,
             comp->tabno,
             sprite_id,
             atlas_index,
@@ -318,25 +500,37 @@ revconfig_ui_build_node(
             atlas_active_index,
             le->x,
             le->y,
-            comp->width,
-            comp->height);
+            w,
+            h);
+        break;
+    case UIELEM_BUILTIN_TAB_ICONS:
+        idx = uitree_push_tab_icon(
+            tree, parent_index, comp->tabno, sprite_id, atlas_index, le->x, le->y, w, h);
         break;
     case UIELEM_BUILTIN_SIDEBAR:
+    {
+        int inv_index = -1;
+        if( comp->inv[0] != '\0' && state->inv_pool )
+            inv_index = uitree_inv_pool_find_by_name(state->inv_pool, comp->inv);
         idx = uitree_push_builtin_sidebar(
             tree,
-            -1,
+            parent_index,
             comp->tabno,
             comp->componentno,
-            -1,
+            inv_index,
             le->x,
             le->y,
-            comp->width,
-            comp->height);
-        break;
+            w,
+            h);
+        if( idx >= 0 && comp->componentno >= 0 && state->bc && state->scene )
+            revconfig_ui_expand_sidebar(
+                state, tree, idx, comp->componentno, inv_index, le->x, le->y);
+    }
+    break;
     case UIELEM_RS_GRAPHIC:
         idx = uitree_push_rs_graphic(
             tree,
-            -1,
+            parent_index,
             component_id,
             sprite_id,
             atlas_index,
@@ -344,12 +538,11 @@ revconfig_ui_build_node(
             atlas_active_index,
             le->x,
             le->y,
-            comp->width,
-            comp->height);
+            w,
+            h);
         break;
     case UIELEM_RS_LAYER:
-        idx = uitree_push_rs_layer(
-            tree, -1, component_id, le->x, le->y, comp->width, comp->height);
+        idx = uitree_push_rs_layer(tree, parent_index, component_id, le->x, le->y, w, h);
         break;
     case UIELEM_RS_TEXT:
     {
@@ -358,7 +551,7 @@ revconfig_ui_build_node(
             font_id = 1;
         idx = uitree_push_rs_text(
             tree,
-            -1,
+            parent_index,
             component_id,
             font_id,
             comp->color,
@@ -367,33 +560,73 @@ revconfig_ui_build_node(
             comp->text[0] != '\0' ? comp->text : NULL,
             le->x,
             le->y,
-            comp->width,
-            comp->height);
+            w,
+            h);
     }
     break;
     case UIELEM_RS_RECT:
         idx = uitree_push_rs_rect(
             tree,
-            -1,
+            parent_index,
             component_id,
             comp->color,
             comp->filled ? 1 : 0,
             le->x,
             le->y,
-            comp->width,
-            comp->height);
+            w,
+            h);
+        break;
+    case UIELEM_RS_MODEL:
+        idx = uitree_push_rs_model(
+            tree, parent_index, component_id, component_id, 100, 0, 0, le->x, le->y, w, h);
+        break;
+    case UIELEM_RS_INV:
+        idx = uitree_push_rs_inv(
+            tree,
+            parent_index,
+            component_id,
+            -1,
+            4,
+            7,
+            0,
+            0,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            le->x,
+            le->y,
+            w,
+            h);
+        break;
+    case UIELEM_RS_LINE:
+        idx = uitree_push_rs_line(
+            tree,
+            parent_index,
+            component_id,
+            comp->color,
+            1,
+            1,
+            le->x,
+            le->y,
+            w,
+            h);
         break;
     case UIELEM_BUILTIN_SPRITE:
     default:
         idx = uitree_push_sprite_xy(
-            tree, -1, sprite_id, atlas_index, le->x, le->y, comp->width, comp->height);
+            tree, parent_index, sprite_id, atlas_index, le->x, le->y, w, h);
         break;
     }
 
-    if( idx >= 0 && le->dirty )
-        tree->components[idx].always_dirty = 1;
+    if( idx >= 0 )
+    {
+        apply_layout_position(le, &tree->components[idx].position, w, h);
+        if( le->dirty )
+            tree->components[idx].always_dirty = 1;
+    }
 
-    if( idx >= 0 && component_id >= 0 && state->core )
+    if( idx >= 0 && component_id >= 0 && state->core && component_type_needs_behavior(ty) )
     {
         struct ToriAuxLibCore_Component* gc_comp =
             ToriAuxLibCore_ComponentGet(state->core, component_id);
@@ -410,15 +643,62 @@ revconfig_ui_build_node(
 
 bool
 revconfig_ui_build_tree(
-    struct RevConfigUIBuildState const* state,
-    struct UITree* tree)
+    struct RevConfigUIBuildState* state,
+    struct UITree* tree,
+    char const* active_layout_group)
 {
     if( !state || !tree || state->layout_entry_count <= 0 )
         return false;
 
     for( int i = 0; i < state->layout_entry_count; i++ )
-        revconfig_ui_build_node(state, tree, &state->layout_entries[i]);
+        state->layout_node_index[i] = -1;
 
+    bool progress = true;
+    int built = 0;
+    int guard = 0;
+    int active_count = 0;
+    for( int i = 0; i < state->layout_entry_count; i++ )
+    {
+        struct RevConfigUILayoutItem const* le = &state->layout_entries[i];
+        if( active_layout_group && active_layout_group[0] != '\0' &&
+            le->layout_group[0] != '\0' &&
+            strcmp(le->layout_group, active_layout_group) != 0 )
+            continue;
+        active_count++;
+    }
+    if( active_count <= 0 )
+        return false;
+
+    while( built < active_count && progress && guard < active_count * 4 )
+    {
+        progress = false;
+        guard++;
+
+        for( int i = 0; i < state->layout_entry_count; i++ )
+        {
+            struct RevConfigUILayoutItem const* le = &state->layout_entries[i];
+            if( active_layout_group && active_layout_group[0] != '\0' &&
+                le->layout_group[0] != '\0' &&
+                strcmp(le->layout_group, active_layout_group) != 0 )
+                continue;
+
+            if( state->layout_node_index[i] >= 0 )
+                continue;
+            int32_t parent_index = layout_parent_index(state, le->parent);
+            if( le->parent[0] != '\0' && parent_index < 0 )
+                continue;
+
+            int32_t idx = revconfig_ui_build_node(state, tree, le, parent_index);
+            if( idx < 0 )
+                continue;
+
+            state->layout_node_index[i] = idx;
+            built++;
+            progress = true;
+        }
+    }
+
+    uitree_layout_resolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     uitree_mark_all_dirty(tree);
     return tree->component_count > 0;
 }

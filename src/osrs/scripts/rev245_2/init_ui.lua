@@ -53,8 +53,8 @@ local function init_ui()
 
     -- Step 1: Parse INI config files (stores RevConfigBuffer on game).
     local ui_archives = CacheDat.load_config_files({
-        "rev_245_2/rev_245_2_ui.ini",
-        "rev_245_2/rev_245_2_cache.ini",
+        "rev_245_2/rev_245_2_dat1_ui.ini",
+        "rev_245_2/rev_245_2_dat1_cache.ini",
     })
     local ui_config = ui_archives[1]
     local ui_cache_config = ui_archives[2]
