@@ -2,7 +2,7 @@
 #define REVCONFIG_UI_LOAD_H
 
 /* Legacy include: forwards to Task_ToriAuxLibCache_UILoad facade. */
-#include "t_ui_load.h"
+#include "toriauxlib/core/tasks/task_ui_load.h"
 
 typedef struct Task_ToriAuxLibCache_UILoad Task_RevConfigUILoad;
 

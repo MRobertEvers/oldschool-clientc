@@ -2,7 +2,7 @@
 #define LIBTORIRS_INTERNAL_H
 
 #include "buildcache/dat1_buildcache.h"
-#include "core/tasks/core_task.h"
+#include "toriauxlib/core/tasks/core_task.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "games/game_handle.h"
 #include "games/model_viewer.h"

@@ -1,6 +1,6 @@
 #include "platform_x_lua.h"
 
-#include "../core/tasks/core_task.h"
+#include "toriauxlib/core/tasks/core_task.h"
 #include "../libtorirs_internal.h"
 #include "../scripting/libtorirs_scriptapi.h"
 #include "3rd/lua/lauxlib.h"

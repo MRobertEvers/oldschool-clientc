@@ -1,7 +1,8 @@
 #include "revconfig_ui_build.h"
+
 #include "revconfig_ui_expand.h"
-#include "ui/uitree_layout.h"
 #include "toridraw/toridraw_sprite.h"
+#include "ui/uitree_layout.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,7 +89,9 @@ revconfig_ui_build_init(struct RevConfigUIBuildState* state)
     state->next_element_id = 1;
     for( int i = 0; i < (int)(sizeof(state->panel_root_id) / sizeof(state->panel_root_id[0])); i++ )
         state->panel_root_id[i] = -1;
-    for( int i = 0; i < 128; i++ )
+    for( int i = 0;
+         i < (int)(sizeof(state->layout_node_index) / sizeof(state->layout_node_index[0]));
+         i++ )
         state->layout_node_index[i] = -1;
 }
 
@@ -282,7 +285,10 @@ revconfig_ui_build_mark_needed_components(
 }
 
 static void
-parse_sprite_ref_name(char const* sprite_name, char* out_name, size_t out_name_size)
+parse_sprite_ref_name(
+    char const* sprite_name,
+    char* out_name,
+    size_t out_name_size)
 {
     if( !out_name || out_name_size == 0 )
         return;
@@ -452,7 +458,6 @@ revconfig_ui_build_node(
             revconfig_ui_build_lookup_sprite_id(state, comp->sprite_active, &atlas_active_index);
 
     enum StaticUIComponentType ty = component_type_from_string(comp->type);
-    int32_t idx = -1;
     int const component_id = component_id_from_item(comp);
     int w = le->width > 0 ? le->width : comp->width;
     int h = le->height > 0 ? le->height : comp->height;
@@ -460,182 +465,126 @@ revconfig_ui_build_node(
     revconfig_ui_build_infer_sprite_dims(
         state, ty, sprite_id, atlas_index, sprite_active_id, atlas_active_index, &w, &h);
 
+    struct UINodeSpec spec;
+    memset(&spec, 0, sizeof(spec));
+    spec.type = ty;
+    spec.component_id = component_id;
+    apply_layout_position(le, &spec.position, w, h);
+    spec.has_position = 1;
+    if( le->dirty )
+        spec.always_dirty = 1;
+
+    if( ty == UIELEM_BUILTIN_COMPASS || ty == UIELEM_BUILTIN_MINIMAP )
+    {
+        if( !le->has_anchor )
+        {
+            spec.position.anchor_x = comp->anchor_x;
+            spec.position.anchor_y = comp->anchor_y;
+        }
+    }
+
     switch( ty )
     {
     case UIELEM_BUILTIN_COMPASS:
-        idx = uitree_push_compass(
-            tree,
-            parent_index,
-            sprite_id,
-            atlas_index,
-            le->x,
-            le->y,
-            w,
-            h,
-            comp->anchor_x,
-            comp->anchor_y);
+        spec.u.sprite.scene_id = sprite_id;
+        spec.u.sprite.atlas_index = atlas_index;
         break;
     case UIELEM_BUILTIN_MINIMAP:
-        idx = uitree_push_minimap(
-            tree, parent_index, le->x, le->y, w, h, comp->anchor_x, comp->anchor_y);
         break;
     case UIELEM_BUILTIN_WORLD:
-        idx = uitree_push_world(
-            tree,
-            parent_index,
-            le->x,
-            le->y,
-            w,
-            h,
-            parse_paint_levels_mask(comp->paint_levels));
+        spec.u.world.level_mask = parse_paint_levels_mask(comp->paint_levels);
         break;
     case UIELEM_BUILTIN_REDSTONE_TAB:
-        idx = uitree_push_redstone_tab(
-            tree,
-            parent_index,
-            comp->tabno,
-            sprite_id,
-            atlas_index,
-            sprite_active_id,
-            atlas_active_index,
-            le->x,
-            le->y,
-            w,
-            h);
+        spec.u.redstone_tab.tabno = comp->tabno;
+        spec.u.redstone_tab.scene_id = sprite_id;
+        spec.u.redstone_tab.atlas_index = atlas_index;
+        spec.u.redstone_tab.scene_id_active = sprite_active_id;
+        spec.u.redstone_tab.atlas_index_active = atlas_active_index;
         break;
     case UIELEM_BUILTIN_TAB_ICONS:
-        idx = uitree_push_tab_icon(
-            tree, parent_index, comp->tabno, sprite_id, atlas_index, le->x, le->y, w, h);
+        spec.u.tab_icon.tabno = comp->tabno;
+        spec.u.tab_icon.scene_id = sprite_id;
+        spec.u.tab_icon.atlas_index = atlas_index;
         break;
     case UIELEM_BUILTIN_SIDEBAR:
     {
         int inv_index = -1;
         if( comp->inv[0] != '\0' && state->inv_pool )
             inv_index = uitree_inv_pool_find_by_name(state->inv_pool, comp->inv);
-        idx = uitree_push_builtin_sidebar(
-            tree,
-            parent_index,
-            comp->tabno,
-            comp->componentno,
-            inv_index,
-            le->x,
-            le->y,
-            w,
-            h);
-        if( idx >= 0 && comp->componentno >= 0 && state->bc && state->scene )
-            revconfig_ui_expand_sidebar(
-                state, tree, idx, comp->componentno, inv_index, le->x, le->y);
+        spec.u.sidebar.tabno = comp->tabno;
+        spec.u.sidebar.componentno = comp->componentno;
+        spec.u.sidebar.inv_index = inv_index;
+        break;
     }
-    break;
     case UIELEM_RS_GRAPHIC:
-        idx = uitree_push_rs_graphic(
-            tree,
-            parent_index,
-            component_id,
-            sprite_id,
-            atlas_index,
-            sprite_active_id,
-            atlas_active_index,
-            le->x,
-            le->y,
-            w,
-            h);
+        spec.u.rs_graphic.scene_id = sprite_id;
+        spec.u.rs_graphic.atlas_index = atlas_index;
+        spec.u.rs_graphic.scene_id_active = sprite_active_id;
+        spec.u.rs_graphic.atlas_index_active = atlas_active_index;
         break;
     case UIELEM_RS_LAYER:
-        idx = uitree_push_rs_layer(tree, parent_index, component_id, le->x, le->y, w, h);
         break;
     case UIELEM_RS_TEXT:
     {
         int font_id = comp->font;
         if( font_id < 0 || font_id > 3 )
             font_id = 1;
-        idx = uitree_push_rs_text(
-            tree,
-            parent_index,
-            component_id,
-            font_id,
-            comp->color,
-            comp->center ? 1 : 0,
-            comp->shadowed ? 1 : 0,
-            comp->text[0] != '\0' ? comp->text : NULL,
-            le->x,
-            le->y,
-            w,
-            h);
+        spec.u.rs_text.font_id = font_id;
+        spec.u.rs_text.color = comp->color;
+        spec.u.rs_text.center = comp->center ? 1 : 0;
+        spec.u.rs_text.shadowed = comp->shadowed ? 1 : 0;
+        spec.u.rs_text.text = comp->text[0] != '\0' ? comp->text : NULL;
+        break;
     }
-    break;
     case UIELEM_RS_RECT:
-        idx = uitree_push_rs_rect(
-            tree,
-            parent_index,
-            component_id,
-            comp->color,
-            comp->filled ? 1 : 0,
-            le->x,
-            le->y,
-            w,
-            h);
+        spec.u.rs_rect.color = comp->color;
+        spec.u.rs_rect.filled = comp->filled ? 1 : 0;
         break;
     case UIELEM_RS_MODEL:
-        idx = uitree_push_rs_model(
-            tree, parent_index, component_id, component_id, 100, 0, 0, le->x, le->y, w, h);
+        spec.u.rs_model.gamecache_model_id = component_id;
+        spec.u.rs_model.zoom = 100;
+        spec.u.rs_model.xan = 0;
+        spec.u.rs_model.yan = 0;
         break;
     case UIELEM_RS_INV:
-        idx = uitree_push_rs_inv(
-            tree,
-            parent_index,
-            component_id,
-            -1,
-            4,
-            7,
-            0,
-            0,
-            NULL,
-            NULL,
-            NULL,
-            NULL,
-            le->x,
-            le->y,
-            w,
-            h);
+        spec.u.rs_inv.inv_index = -1;
+        spec.u.rs_inv.cols = 4;
+        spec.u.rs_inv.rows = 7;
+        spec.u.rs_inv.margin_x = 0;
+        spec.u.rs_inv.margin_y = 0;
         break;
     case UIELEM_RS_LINE:
-        idx = uitree_push_rs_line(
-            tree,
-            parent_index,
-            component_id,
-            comp->color,
-            1,
-            1,
-            le->x,
-            le->y,
-            w,
-            h);
+        spec.u.rs_line.color = comp->color;
+        spec.u.rs_line.line_width = 1;
+        spec.u.rs_line.horizontal = 1;
         break;
     case UIELEM_BUILTIN_SPRITE:
     default:
-        idx = uitree_push_sprite_xy(
-            tree, parent_index, sprite_id, atlas_index, le->x, le->y, w, h);
+        spec.type = UIELEM_BUILTIN_SPRITE;
+        spec.u.sprite.scene_id = sprite_id;
+        spec.u.sprite.atlas_index = atlas_index;
         break;
     }
 
-    if( idx >= 0 )
-    {
-        apply_layout_position(le, &tree->components[idx].position, w, h);
-        if( le->dirty )
-            tree->components[idx].always_dirty = 1;
-    }
-
-    if( idx >= 0 && component_id >= 0 && state->core && component_type_needs_behavior(ty) )
+    struct StaticUIBehavior behavior;
+    if( component_id >= 0 && state->core && component_type_needs_behavior(ty) )
     {
         struct ToriAuxLibCore_Component* gc_comp =
             ToriAuxLibCore_ComponentGet(state->core, component_id);
         if( gc_comp )
         {
-            struct StaticUIBehavior behavior;
             revconfig_ui_build_behavior_from_component(&behavior, gc_comp);
-            uitree_set_behavior(tree, idx, &behavior);
+            spec.behavior = &behavior;
         }
+    }
+
+    int32_t idx = uitree_push(tree, parent_index, &spec);
+
+    if( idx >= 0 && ty == UIELEM_BUILTIN_SIDEBAR && comp->componentno >= 0 && state->bc &&
+        state->scene )
+    {
+        int inv_index = spec.u.sidebar.inv_index;
+        revconfig_ui_expand_sidebar(state, tree, idx, comp->componentno, inv_index, le->x, le->y);
     }
 
     return idx;
@@ -660,8 +609,7 @@ revconfig_ui_build_tree(
     for( int i = 0; i < state->layout_entry_count; i++ )
     {
         struct RevConfigUILayoutItem const* le = &state->layout_entries[i];
-        if( active_layout_group && active_layout_group[0] != '\0' &&
-            le->layout_group[0] != '\0' &&
+        if( active_layout_group && active_layout_group[0] != '\0' && le->layout_group[0] != '\0' &&
             strcmp(le->layout_group, active_layout_group) != 0 )
             continue;
         active_count++;
@@ -678,8 +626,7 @@ revconfig_ui_build_tree(
         {
             struct RevConfigUILayoutItem const* le = &state->layout_entries[i];
             if( active_layout_group && active_layout_group[0] != '\0' &&
-                le->layout_group[0] != '\0' &&
-                strcmp(le->layout_group, active_layout_group) != 0 )
+                le->layout_group[0] != '\0' && strcmp(le->layout_group, active_layout_group) != 0 )
                 continue;
 
             if( state->layout_node_index[i] >= 0 )

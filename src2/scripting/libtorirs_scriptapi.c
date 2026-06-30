@@ -1,6 +1,6 @@
 #include "libtorirs_scriptapi.h"
 
-#include "../core/tasks/core_task.h"
+#include "toriauxlib/core/tasks/core_task.h"
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../libtorirs_internal.h"
 #include "buildcache/dat1_buildcache.h"
@@ -22,7 +22,7 @@
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/texture.h"
-#include "toriauxlib/c/t_ui_load.h"
+#include "toriauxlib/core/tasks/task_ui_load.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"

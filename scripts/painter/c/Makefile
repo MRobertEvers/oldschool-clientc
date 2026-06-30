@@ -92,7 +92,7 @@ CACHE_SRCS := \
 	$(SRC2)/input/libtorirs_input.c \
 	$(SRC2)/ioqueue/libtorirs_ioqueue.c \
 	$(SRC2)/render/libtorirs_render.c \
-	$(SRC2)/core/tasks/core_task.c \
+	$(SRC2)/toriauxlib/core/tasks/core_task.c \
 	$(SRC2)/games/runescape.c \
 	$(SRC2)/runescape/appearance.c \
 	$(SRC2)/runescape/player_body.c \
@@ -138,7 +138,7 @@ CACHE_SRCS := \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_model_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_submit.c \
 	$(SRC2)/toriauxlib/td/toriauxlibtd.c \
-	$(SRC2)/toriauxlib/td/toriauxlibtd_tasks.c \
+	$(SRC2)/toriauxlib/core/tasks/task_toriauxlibtd.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachemodel.c \
 	$(SRC2)/toriauxlib/vm/toriauxlibvm.c \

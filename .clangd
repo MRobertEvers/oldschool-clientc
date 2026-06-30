@@ -17,6 +17,10 @@ CompileFlags:
     - -w
     - /W3
     - /W4
+    # ASAN flags in build/compile_commands.json crash Apple clangd during AST build.
+    - -fsanitize=*
+    - -fno-sanitize=*
+    - -fno-omit-frame-pointer
 
 Diagnostics:
   ClangTidy:
@@ -57,3 +61,9 @@ If:
   PathMatch: test/gamecache/.*\.(c|h)$
 CompileFlags:
   CompilationDatabase: test/gamecache/
+---
+# Other test/* targets are Makefile-built — use test/compile_flags.txt, not build/.
+If:
+  PathMatch: test/(revconfig_load|ui_tree|ui_input|trspk_leak|model_render|datserver|trspk_batch16)/.*\.(c|h)$
+CompileFlags:
+  CompilationDatabase: test/

@@ -2,6 +2,7 @@
 
 #include "osrs/rscache/shared/shared_string_utils.h"
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -220,7 +221,9 @@ revconfig_item_buffer_push(struct RevConfigItemBuffer* buffer)
 }
 
 static void
-revconfig_item_set_name(struct RevConfigItem* item, const char* value)
+revconfig_item_set_name(
+    struct RevConfigItem* item,
+    const char* value)
 {
     if( !item || !value )
         return;
@@ -245,7 +248,9 @@ revconfig_item_set_name(struct RevConfigItem* item, const char* value)
 }
 
 static void
-revconfig_item_begin(struct RevConfigItem* item, const char* type_value)
+revconfig_item_begin(
+    struct RevConfigItem* item,
+    const char* type_value)
 {
     memset(item, 0, sizeof(*item));
 
@@ -462,7 +467,8 @@ revconfig_item_apply_field(
         revconfig_item_apply_uilayout_field(&item->u.uilayout, kind, value);
         break;
     case RCITEM_INV:
-        if( kind == RCFIELD_INV_ITEM && item->u.inv.item_count < REVRSCacheDat2A_ConfigKind_Inv_MAX_ITEMS )
+        if( kind == RCFIELD_INV_ITEM &&
+            item->u.inv.item_count < REVRSCacheDat2A_ConfigKind_Inv_MAX_ITEMS )
         {
             strncpy(
                 item->u.inv.items[item->u.inv.item_count],
@@ -497,8 +503,7 @@ revconfig_items_build(
     const struct RevConfigBuffer* fields,
     struct RevConfigItemBuffer* out)
 {
-    if( !fields || !out )
-        return;
+    assert(fields && out);
 
     struct RevConfigItem pending = { 0 };
 

@@ -82,14 +82,14 @@ sidenav_fixture_build(struct SidenavFixture* fixture)
         return false;
     }
 
-    fixture->root_index = uitree_push_rs_layer(
-        fixture->tree,
-        -1,
-        -1,
-        0,
-        0,
-        SIDENAV_CANVAS_W,
-        SIDENAV_CANVAS_H);
+    struct UINodeSpec root_spec = { 0 };
+    root_spec.type = UIELEM_RS_LAYER;
+    root_spec.component_id = -1;
+    root_spec.x = 0;
+    root_spec.y = 0;
+    root_spec.width = SIDENAV_CANVAS_W;
+    root_spec.height = SIDENAV_CANVAS_H;
+    fixture->root_index = uitree_push(fixture->tree, -1, &root_spec);
     if( fixture->root_index < 0 )
     {
         sidenav_fixture_free(fixture);
@@ -104,29 +104,29 @@ sidenav_fixture_build(struct SidenavFixture* fixture)
         int const rx = redstone_x_for_tab(slot->tabno);
         int const ry = redstone_y_for_tab(slot->tabno);
 
-        slot->redstone_index = uitree_push_redstone_tab(
-            fixture->tree,
-            fixture->root_index,
-            slot->tabno,
-            -1,
-            0,
-            TEST_SCENE_REDSTONE,
-            slot->redstone_atlas,
-            rx,
-            ry,
-            SIDENAV_ICON_W,
-            SIDENAV_ICON_H);
+        struct UINodeSpec redstone_spec = { 0 };
+        redstone_spec.type = UIELEM_BUILTIN_REDSTONE_TAB;
+        redstone_spec.x = rx;
+        redstone_spec.y = ry;
+        redstone_spec.width = SIDENAV_ICON_W;
+        redstone_spec.height = SIDENAV_ICON_H;
+        redstone_spec.u.redstone_tab.tabno = slot->tabno;
+        redstone_spec.u.redstone_tab.scene_id = -1;
+        redstone_spec.u.redstone_tab.atlas_index = 0;
+        redstone_spec.u.redstone_tab.scene_id_active = TEST_SCENE_REDSTONE;
+        redstone_spec.u.redstone_tab.atlas_index_active = slot->redstone_atlas;
+        slot->redstone_index = uitree_push(fixture->tree, fixture->root_index, &redstone_spec);
 
-        slot->icon_index = uitree_push_tab_icon(
-            fixture->tree,
-            fixture->root_index,
-            slot->tabno,
-            TEST_SCENE_SIDEICONS,
-            slot->tabno,
-            slot->x,
-            slot->y,
-            SIDENAV_ICON_W,
-            SIDENAV_ICON_H);
+        struct UINodeSpec icon_spec = { 0 };
+        icon_spec.type = UIELEM_BUILTIN_TAB_ICONS;
+        icon_spec.x = slot->x;
+        icon_spec.y = slot->y;
+        icon_spec.width = SIDENAV_ICON_W;
+        icon_spec.height = SIDENAV_ICON_H;
+        icon_spec.u.tab_icon.tabno = slot->tabno;
+        icon_spec.u.tab_icon.scene_id = TEST_SCENE_SIDEICONS;
+        icon_spec.u.tab_icon.atlas_index = slot->tabno;
+        slot->icon_index = uitree_push(fixture->tree, fixture->root_index, &icon_spec);
     }
 
     fixture->equipment_icon_index = fixture->tabs[4].icon_index;

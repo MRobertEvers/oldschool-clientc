@@ -1,0 +1,6 @@
+-std=c11
+-I.
+-I../src
+-I../src2
+-I../src2/core
+-I../src2/platforms

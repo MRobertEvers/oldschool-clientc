@@ -1,24 +1,24 @@
 #include "sidenav_fixture.h"
-#include "ui_tree_draw.h"
+#include "ui/ui_input.h"
 #include "ui/uitree.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
-#include "ui/ui_input.h"
+#include "ui_tree_draw.h"
+#include <sys/stat.h>
 
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
-#define TEST_ASSERT(cond, msg) \
-    do \
-    { \
-        if( !(cond) ) \
-        { \
-            fprintf(stderr, "FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__); \
-            return 1; \
-        } \
+#define TEST_ASSERT(cond, msg)                                                                     \
+    do                                                                                             \
+    {                                                                                              \
+        if( !(cond) )                                                                              \
+        {                                                                                          \
+            fprintf(stderr, "FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                        \
+            return 1;                                                                              \
+        }                                                                                          \
     } while( 0 )
 
 #define OUTPUT_DIR "output"
@@ -54,12 +54,8 @@ ensure_output_dir(void)
 
 static int
 click_tab(
-    struct UITree* tree,
-    struct UITreeHost* host,
-    struct UIInputState* state,
-    struct SidenavTabSlot const* slot,
-    int32_t expected_index,
-    int expected_tabno)
+    struct UITree* tree, struct UITreeHost* host, struct UIInputState* state,
+    struct SidenavTabSlot const* slot, int32_t expected_index, int expected_tabno)
 {
     int const cx = sidenav_fixture_click_center_x(slot);
     int const cy = sidenav_fixture_click_center_y(slot);
@@ -77,10 +73,7 @@ click_tab(
 
 static int
 render_and_write(
-    struct SidenavFixture* fixture,
-    struct UITreeHost* host,
-    int* pixels,
-    char const* filename)
+    struct SidenavFixture* fixture, struct UITreeHost* host, int* pixels, char const* filename)
 {
     uitree_layout_resolve(fixture->tree, 0, 0, SIDENAV_CANVAS_W, SIDENAV_CANVAS_H);
 
@@ -102,9 +95,7 @@ render_and_write(
 }
 
 static int
-assert_redstone_active(
-    int* pixels,
-    int tabno)
+assert_redstone_active(int* pixels, int tabno)
 {
     int const x = sidenav_fixture_redstone_sample_x(tabno);
     int const y = sidenav_fixture_redstone_sample_y(tabno);
@@ -119,8 +110,25 @@ test_layout_nested(void)
     struct UITree* tree = uitree_new(8);
     TEST_ASSERT(tree != NULL, "tree alloc");
 
-    int32_t root = uitree_push_rs_layer(tree, -1, -1, 0, 0, 200, 200);
-    int32_t child = uitree_push_rs_rect(tree, root, 1, 0xFF0000, 1, 10, 10, 50, 50);
+    struct UINodeSpec root_spec = { 0 };
+    root_spec.type = UIELEM_RS_LAYER;
+    root_spec.component_id = -1;
+    root_spec.x = 0;
+    root_spec.y = 0;
+    root_spec.width = 200;
+    root_spec.height = 200;
+    int32_t root = uitree_push(tree, -1, &root_spec);
+
+    struct UINodeSpec child_spec = { 0 };
+    child_spec.type = UIELEM_RS_RECT;
+    child_spec.component_id = 1;
+    child_spec.x = 10;
+    child_spec.y = 10;
+    child_spec.width = 50;
+    child_spec.height = 50;
+    child_spec.u.rs_rect.color = 0xFF0000;
+    child_spec.u.rs_rect.filled = 1;
+    int32_t child = uitree_push(tree, root, &child_spec);
 
     uitree_layout_resolve(tree, 0, 0, 200, 200);
 
@@ -140,7 +148,16 @@ static int
 test_sidebar_tab_click(void)
 {
     struct UITree* tree = uitree_new(4);
-    int32_t tab = uitree_push_tab_icon(tree, -1, 5, -1, 0, 100, 100, 32, 32);
+    struct UINodeSpec tab_spec = { 0 };
+    tab_spec.type = UIELEM_BUILTIN_TAB_ICONS;
+    tab_spec.x = 100;
+    tab_spec.y = 100;
+    tab_spec.width = 32;
+    tab_spec.height = 32;
+    tab_spec.u.tab_icon.tabno = 5;
+    tab_spec.u.tab_icon.scene_id = -1;
+    tab_spec.u.tab_icon.atlas_index = 0;
+    int32_t tab = uitree_push(tree, -1, &tab_spec);
     uitree_layout_resolve(tree, 0, 0, 765, 503);
 
     struct UITreeHost host = { 0 };
@@ -178,12 +195,12 @@ test_sidenav_interactive(void)
     TEST_ASSERT(pixels != NULL, "pixel buffer alloc");
 
     render_and_write(&fixture, &host, pixels, "00_initial_tab3.bmp");
-    int const inv_active_sample =
-        pixels[sidenav_fixture_redstone_sample_y(3) * SIDENAV_CANVAS_W +
-               sidenav_fixture_redstone_sample_x(3)];
-    int const equip_baseline =
-        pixels[sidenav_fixture_redstone_sample_y(4) * SIDENAV_CANVAS_W +
-               sidenav_fixture_redstone_sample_x(4)];
+    int const inv_active_sample = pixels
+        [sidenav_fixture_redstone_sample_y(3) * SIDENAV_CANVAS_W +
+         sidenav_fixture_redstone_sample_x(3)];
+    int const equip_baseline = pixels
+        [sidenav_fixture_redstone_sample_y(4) * SIDENAV_CANVAS_W +
+         sidenav_fixture_redstone_sample_x(4)];
     if( assert_redstone_active(pixels, 3) != 0 )
         goto fail;
 
@@ -193,19 +210,20 @@ test_sidenav_interactive(void)
     struct SidenavTabSlot const* inventory = sidenav_fixture_find_tab(&fixture, 3);
     TEST_ASSERT(equipment && prayer && inventory, "fixture tab lookup");
 
-    if( click_tab(
-            fixture.tree, &host, &input, equipment, fixture.equipment_icon_index, 4) != 0 )
+    if( click_tab(fixture.tree, &host, &input, equipment, fixture.equipment_icon_index, 4) != 0 )
         goto fail;
     render_and_write(&fixture, &host, pixels, "01_click_equipment_tab4.bmp");
     if( assert_redstone_active(pixels, 4) != 0 )
         goto fail;
     TEST_ASSERT(
-        pixels[sidenav_fixture_redstone_sample_y(3) * SIDENAV_CANVAS_W +
-               sidenav_fixture_redstone_sample_x(3)] != inv_active_sample,
+        pixels
+                [sidenav_fixture_redstone_sample_y(3) * SIDENAV_CANVAS_W +
+                 sidenav_fixture_redstone_sample_x(3)] != inv_active_sample,
         "inventory redstone highlight cleared");
     TEST_ASSERT(
-        pixels[sidenav_fixture_redstone_sample_y(4) * SIDENAV_CANVAS_W +
-               sidenav_fixture_redstone_sample_x(4)] != equip_baseline,
+        pixels
+                [sidenav_fixture_redstone_sample_y(4) * SIDENAV_CANVAS_W +
+                 sidenav_fixture_redstone_sample_x(4)] != equip_baseline,
         "equipment redstone highlight appeared");
 
     if( click_tab(fixture.tree, &host, &input, prayer, fixture.prayer_icon_index, 5) != 0 )
@@ -214,8 +232,7 @@ test_sidenav_interactive(void)
     if( assert_redstone_active(pixels, 5) != 0 )
         goto fail;
 
-    if( click_tab(
-            fixture.tree, &host, &input, inventory, fixture.inventory_icon_index, 3) != 0 )
+    if( click_tab(fixture.tree, &host, &input, inventory, fixture.inventory_icon_index, 3) != 0 )
         goto fail;
     render_and_write(&fixture, &host, pixels, "03_click_inventory_tab3.bmp");
     if( assert_redstone_active(pixels, 3) != 0 )

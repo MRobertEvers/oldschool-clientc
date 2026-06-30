@@ -34,8 +34,27 @@ test_hit_test_basic(void)
     struct UITree* tree = uitree_new(8);
     TEST_ASSERT(tree != NULL, "tree alloc");
 
-    int32_t parent = uitree_push_rs_rect(tree, -1, 1, 0xFF0000, 1, 0, 0, 100, 100);
-    int32_t child = uitree_push_rs_rect(tree, parent, 2, 0x00FF00, 1, 10, 10, 40, 40);
+    struct UINodeSpec parent_spec = { 0 };
+    parent_spec.type = UIELEM_RS_RECT;
+    parent_spec.component_id = 1;
+    parent_spec.x = 0;
+    parent_spec.y = 0;
+    parent_spec.width = 100;
+    parent_spec.height = 100;
+    parent_spec.u.rs_rect.color = 0xFF0000;
+    parent_spec.u.rs_rect.filled = 1;
+    int32_t parent = uitree_push(tree, -1, &parent_spec);
+
+    struct UINodeSpec child_spec = { 0 };
+    child_spec.type = UIELEM_RS_RECT;
+    child_spec.component_id = 2;
+    child_spec.x = 10;
+    child_spec.y = 10;
+    child_spec.width = 40;
+    child_spec.height = 40;
+    child_spec.u.rs_rect.color = 0x00FF00;
+    child_spec.u.rs_rect.filled = 1;
+    int32_t child = uitree_push(tree, parent, &child_spec);
 
     TEST_ASSERT(parent == 0, "parent index");
     TEST_ASSERT(child == 1, "child index");
@@ -52,8 +71,25 @@ static int
 test_input_hover_and_click(void)
 {
     struct UITree* tree = uitree_new(4);
-    uitree_push_rs_rect(tree, -1, 1, 0, 1, 0, 0, 50, 50);
-    uitree_push_rs_rect(tree, -1, 2, 0, 1, 60, 0, 50, 50);
+    struct UINodeSpec rect0 = { 0 };
+    rect0.type = UIELEM_RS_RECT;
+    rect0.component_id = 1;
+    rect0.x = 0;
+    rect0.y = 0;
+    rect0.width = 50;
+    rect0.height = 50;
+    rect0.u.rs_rect.filled = 1;
+    uitree_push(tree, -1, &rect0);
+
+    struct UINodeSpec rect1 = { 0 };
+    rect1.type = UIELEM_RS_RECT;
+    rect1.component_id = 2;
+    rect1.x = 60;
+    rect1.y = 0;
+    rect1.width = 50;
+    rect1.height = 50;
+    rect1.u.rs_rect.filled = 1;
+    uitree_push(tree, -1, &rect1);
 
     struct UIInputState state = { .hovered = -1, .pressed = -1 };
     struct UIInputResult result;
@@ -90,8 +126,27 @@ static int
 test_behavior_visibility_and_color(void)
 {
     struct UITree* tree = uitree_new(2);
-    int32_t hidden = uitree_push_rs_rect(tree, -1, 1, 0x111111, 1, 0, 0, 20, 20);
-    int32_t button = uitree_push_rs_rect(tree, -1, 2, 0x222222, 1, 30, 0, 20, 20);
+    struct UINodeSpec hidden_spec = { 0 };
+    hidden_spec.type = UIELEM_RS_RECT;
+    hidden_spec.component_id = 1;
+    hidden_spec.x = 0;
+    hidden_spec.y = 0;
+    hidden_spec.width = 20;
+    hidden_spec.height = 20;
+    hidden_spec.u.rs_rect.color = 0x111111;
+    hidden_spec.u.rs_rect.filled = 1;
+    int32_t hidden = uitree_push(tree, -1, &hidden_spec);
+
+    struct UINodeSpec button_spec = { 0 };
+    button_spec.type = UIELEM_RS_RECT;
+    button_spec.component_id = 2;
+    button_spec.x = 30;
+    button_spec.y = 0;
+    button_spec.width = 20;
+    button_spec.height = 20;
+    button_spec.u.rs_rect.color = 0x222222;
+    button_spec.u.rs_rect.filled = 1;
+    int32_t button = uitree_push(tree, -1, &button_spec);
 
     tree->components[hidden].behavior.hide = 1;
     tree->components[button].behavior.over_color = 0xAAAAAA;
@@ -138,7 +193,15 @@ static int
 test_behavior_button_toggle(void)
 {
     struct UITree* tree = uitree_new(2);
-    int32_t button = uitree_push_rs_rect(tree, -1, 1, 0, 1, 0, 0, 40, 40);
+    struct UINodeSpec toggle_spec = { 0 };
+    toggle_spec.type = UIELEM_RS_RECT;
+    toggle_spec.component_id = 1;
+    toggle_spec.x = 0;
+    toggle_spec.y = 0;
+    toggle_spec.width = 40;
+    toggle_spec.height = 40;
+    toggle_spec.u.rs_rect.filled = 1;
+    int32_t button = uitree_push(tree, -1, &toggle_spec);
 
     int toggle_script[] = { 5, 0, 0 };
     int operand[] = { 0 };

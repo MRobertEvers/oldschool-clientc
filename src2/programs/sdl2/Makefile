@@ -127,7 +127,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_model_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_submit.c \
 	$(SRC2)/toriauxlib/td/toriauxlibtd.c \
-	$(SRC2)/toriauxlib/td/toriauxlibtd_tasks.c \
+	$(SRC2)/toriauxlib/core/tasks/task_toriauxlibtd.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachemodel.c \
 	$(SRC2)/vm/csvm.c \
@@ -149,16 +149,16 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/buildcache/dat2_buildcache_ui.c \
 	$(SRC2)/toriauxlib/c/revconfig_ui_build.c \
 	$(SRC2)/toriauxlib/c/revconfig_ui_expand.c \
-	$(SRC2)/toriauxlib/c/t_ui_dat1_load.c \
-	$(SRC2)/toriauxlib/c/t_ui_dat2_load.c \
-	$(SRC2)/toriauxlib/c/t_ui_load.c \
+	$(SRC2)/toriauxlib/core/tasks/task_ui_dat1_load.c \
+	$(SRC2)/toriauxlib/core/tasks/task_ui_dat2_load.c \
+	$(SRC2)/toriauxlib/core/tasks/task_ui_load.c \
 	$(SRC2)/ui/uitree.c \
 	$(SRC2)/ui/uitree_layout.c \
 	$(SRC2)/ui/uitree_host.c \
 	$(SRC2)/ui/ui_input.c \
 	$(SRC2)/ui/ui_behavior.c \
 	$(SRC2)/ui/ui_input_adapter.c \
-	$(SRC2)/core/tasks/core_task.c \
+	$(SRC2)/toriauxlib/core/tasks/core_task.c \
 	$(SRC2)/3rd/ini/ini.c \
 	$(SRC2)/revconfig/revconfig.c \
 	$(SRC2)/revconfig/revconfig_load.c \

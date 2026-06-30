@@ -1,7 +1,7 @@
 #ifndef LIBTORIRS_H
 #define LIBTORIRS_H
 
-#include "core/tasks/core_task.h"
+#include "toriauxlib/core/tasks/core_task.h"
 #include "input/libtorirs_input.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw_scene.h"

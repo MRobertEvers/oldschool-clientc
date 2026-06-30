@@ -12,6 +12,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct UIBakeContext
+{
+    struct RevConfigUIBuildState* state;
+    struct UITree* tree;
+    struct RSCacheDat1A_ConfigComponentList* interfaces;
+    int sidebar_inv_index;
+};
+
 static struct RSCacheDat1A_ConfigComponent*
 expand_get_iface_component(
     struct RSCacheDat1A_ConfigComponentList* interfaces,
@@ -32,36 +40,34 @@ expand_get_iface_component(
     return NULL;
 }
 
-static void
-expand_apply_behavior(
-    struct RevConfigUIBuildState* state,
-    struct UITree* tree,
-    int32_t idx,
-    int component_id)
+static bool
+expand_fill_behavior(
+    struct UIBakeContext const* ctx,
+    int component_id,
+    struct StaticUIBehavior* out)
 {
-    if( !state || !tree || idx < 0 || component_id < 0 || !state->core )
-        return;
+    if( !ctx || !ctx->state || !out || component_id < 0 || !ctx->state->core )
+        return false;
 
     struct ToriAuxLibCore_Component* gc_comp =
-        ToriAuxLibCore_ComponentGet(state->core, component_id);
+        ToriAuxLibCore_ComponentGet(ctx->state->core, component_id);
     if( !gc_comp )
-        return;
+        return false;
 
-    struct StaticUIBehavior behavior;
-    memset(&behavior, 0, sizeof(behavior));
+    memset(out, 0, sizeof(*out));
     /* Sidebar bake: do not copy interface hide; tab visibility is via sidebar parent. */
-    behavior.hide = 0;
-    behavior.button_type = gc_comp->button_type;
-    behavior.client_code = gc_comp->client_code;
-    behavior.over_color = gc_comp->over_color;
-    behavior.active_color = gc_comp->active_color;
-    behavior.active_over_color = gc_comp->active_over_color;
-    behavior.scripts_count = gc_comp->scripts_count;
-    behavior.scripts = gc_comp->scripts;
-    behavior.scripts_lengths = gc_comp->scripts_lengths;
-    behavior.script_comparator = gc_comp->script_comparator;
-    behavior.script_operand = gc_comp->script_operand;
-    uitree_set_behavior(tree, idx, &behavior);
+    out->hide = 0;
+    out->button_type = gc_comp->button_type;
+    out->client_code = gc_comp->client_code;
+    out->over_color = gc_comp->over_color;
+    out->active_color = gc_comp->active_color;
+    out->active_over_color = gc_comp->active_over_color;
+    out->scripts_count = gc_comp->scripts_count;
+    out->scripts = gc_comp->scripts;
+    out->scripts_lengths = gc_comp->scripts_lengths;
+    out->script_comparator = gc_comp->script_comparator;
+    out->script_operand = gc_comp->script_operand;
+    return true;
 }
 
 static int
@@ -152,141 +158,143 @@ expand_resolve_sidebar_root(
 
 static void
 expand_bake_rs_subtree(
-    struct RevConfigUIBuildState* state,
-    struct UITree* tree,
-    struct RSCacheDat1A_ConfigComponentList* interfaces,
+    struct UIBakeContext const* ctx,
     int32_t parent_idx,
     struct RSCacheDat1A_ConfigComponent* comp,
     int rel_x,
-    int rel_y,
-    int sidebar_inv_index)
+    int rel_y)
 {
-    int32_t layer_idx;
-    int sid;
-    int sid_a;
-    int fid;
-    int bg_sid[UI_INV_SLOT_OFFSET_MAX];
-    int bg_ai[UI_INV_SLOT_OFFSET_MAX];
-    int32_t idx;
-
-    if( !state || !tree || !interfaces || !comp )
+    if( !ctx || !ctx->tree || !ctx->interfaces || !comp )
         return;
+
+    struct StaticUIBehavior behavior;
+    struct StaticUIBehavior* behavior_ptr = NULL;
+    if( expand_fill_behavior(ctx, comp->id, &behavior) )
+        behavior_ptr = &behavior;
 
     switch( comp->type )
     {
     case COMPONENT_TYPE_LAYER:
-        layer_idx = uitree_push_rs_layer(
-            tree, parent_idx, comp->id, rel_x, rel_y, comp->width, comp->height);
-        if( layer_idx < 0 )
-            return;
-        expand_apply_behavior(state, tree, layer_idx, comp->id);
-        if( !comp->children )
+    {
+        struct UINodeSpec spec = { 0 };
+        spec.type = UIELEM_RS_LAYER;
+        spec.component_id = comp->id;
+        spec.x = rel_x;
+        spec.y = rel_y;
+        spec.width = comp->width;
+        spec.height = comp->height;
+        spec.behavior = behavior_ptr;
+
+        int32_t layer_idx = uitree_push(ctx->tree, parent_idx, &spec);
+        if( layer_idx < 0 || !comp->children )
             return;
 
         for( int i = 0; i < comp->children_count; i++ )
         {
             struct RSCacheDat1A_ConfigComponent* child =
-                expand_get_iface_component(interfaces, comp->children[i]);
-            int cx;
-            int cy;
-
+                expand_get_iface_component(ctx->interfaces, comp->children[i]);
             if( !child )
                 continue;
 
-            cx = (comp->childX ? comp->childX[i] : 0) + child->x;
-            cy = (comp->childY ? comp->childY[i] : 0) + child->y;
-            expand_bake_rs_subtree(
-                state, tree, interfaces, layer_idx, child, cx, cy, sidebar_inv_index);
+            int cx = (comp->childX ? comp->childX[i] : 0) + child->x;
+            int cy = (comp->childY ? comp->childY[i] : 0) + child->y;
+            expand_bake_rs_subtree(ctx, layer_idx, child, cx, cy);
         }
         break;
+    }
 
     case COMPONENT_TYPE_GRAPHIC:
-        sid = expand_acquire_sprite(state, comp->graphic);
-        sid_a = expand_acquire_sprite(state, comp->activeGraphic);
+    {
+        int sid = expand_acquire_sprite(ctx->state, comp->graphic);
+        int sid_a = expand_acquire_sprite(ctx->state, comp->activeGraphic);
         if( sid < 0 && sid_a < 0 )
             return;
 
-        idx = uitree_push_rs_graphic(
-            tree,
-            parent_idx,
-            comp->id,
-            sid >= 0 ? sid : sid_a,
-            0,
-            sid >= 0 && sid_a >= 0 && sid_a != sid ? sid_a : -1,
-            0,
-            rel_x,
-            rel_y,
-            comp->width,
-            comp->height);
-        if( idx >= 0 )
-            expand_apply_behavior(state, tree, idx, comp->id);
+        struct UINodeSpec spec = { 0 };
+        spec.type = UIELEM_RS_GRAPHIC;
+        spec.component_id = comp->id;
+        spec.x = rel_x;
+        spec.y = rel_y;
+        spec.width = comp->width;
+        spec.height = comp->height;
+        spec.u.rs_graphic.scene_id = sid >= 0 ? sid : sid_a;
+        spec.u.rs_graphic.atlas_index = 0;
+        spec.u.rs_graphic.scene_id_active = sid >= 0 && sid_a >= 0 && sid_a != sid ? sid_a : -1;
+        spec.u.rs_graphic.atlas_index_active = 0;
+        spec.behavior = behavior_ptr;
+        uitree_push(ctx->tree, parent_idx, &spec);
         break;
+    }
 
     case COMPONENT_TYPE_RECT:
         if( comp->fill )
         {
-            idx = uitree_push_rs_rect(
-                tree,
-                parent_idx,
-                comp->id,
-                comp->colour,
-                comp->fill ? 1 : 0,
-                rel_x,
-                rel_y,
-                comp->width,
-                comp->height);
-            if( idx >= 0 )
-                expand_apply_behavior(state, tree, idx, comp->id);
+            struct UINodeSpec spec = { 0 };
+            spec.type = UIELEM_RS_RECT;
+            spec.component_id = comp->id;
+            spec.x = rel_x;
+            spec.y = rel_y;
+            spec.width = comp->width;
+            spec.height = comp->height;
+            spec.u.rs_rect.color = comp->colour;
+            spec.u.rs_rect.filled = comp->fill ? 1 : 0;
+            spec.behavior = behavior_ptr;
+            uitree_push(ctx->tree, parent_idx, &spec);
         }
         break;
 
     case COMPONENT_TYPE_TEXT:
     case COMPONENT_TYPE_INV_TEXT:
-        fid = comp->font;
+    {
+        int fid = comp->font;
         if( fid < 0 || fid > 3 )
             fid = 1;
-        idx = uitree_push_rs_text(
-            tree,
-            parent_idx,
-            comp->id,
-            fid,
-            comp->colour,
-            comp->center ? 1 : 0,
-            comp->shadowed ? 1 : 0,
-            comp->text,
-            rel_x,
-            rel_y,
-            comp->width,
-            comp->height);
-        if( idx >= 0 )
-            expand_apply_behavior(state, tree, idx, comp->id);
+
+        struct UINodeSpec spec = { 0 };
+        spec.type = UIELEM_RS_TEXT;
+        spec.component_id = comp->id;
+        spec.x = rel_x;
+        spec.y = rel_y;
+        spec.width = comp->width;
+        spec.height = comp->height;
+        spec.u.rs_text.font_id = fid;
+        spec.u.rs_text.color = comp->colour;
+        spec.u.rs_text.center = comp->center ? 1 : 0;
+        spec.u.rs_text.shadowed = comp->shadowed ? 1 : 0;
+        spec.u.rs_text.text = comp->text;
+        spec.behavior = behavior_ptr;
+        uitree_push(ctx->tree, parent_idx, &spec);
         break;
+    }
 
     case COMPONENT_TYPE_MODEL:
-        if( comp->modelType == 1 && state->core )
+        if( comp->modelType == 1 && ctx->state && ctx->state->core )
         {
-            struct ToriAuxLibCore_Model* model = ToriAuxLibCore_ModelGet(state->core, comp->model);
+            struct ToriAuxLibCore_Model* model =
+                ToriAuxLibCore_ModelGet(ctx->state->core, comp->model);
             if( model )
             {
-                idx = uitree_push_rs_model(
-                    tree,
-                    parent_idx,
-                    comp->id,
-                    comp->model,
-                    comp->zoom,
-                    comp->xan,
-                    comp->yan,
-                    rel_x,
-                    rel_y,
-                    comp->width,
-                    comp->height);
-                if( idx >= 0 )
-                    expand_apply_behavior(state, tree, idx, comp->id);
+                struct UINodeSpec spec = { 0 };
+                spec.type = UIELEM_RS_MODEL;
+                spec.component_id = comp->id;
+                spec.x = rel_x;
+                spec.y = rel_y;
+                spec.width = comp->width;
+                spec.height = comp->height;
+                spec.u.rs_model.gamecache_model_id = comp->model;
+                spec.u.rs_model.zoom = comp->zoom;
+                spec.u.rs_model.xan = comp->xan;
+                spec.u.rs_model.yan = comp->yan;
+                spec.behavior = behavior_ptr;
+                uitree_push(ctx->tree, parent_idx, &spec);
             }
         }
         break;
 
     case COMPONENT_TYPE_INV:
+    {
+        int bg_sid[UI_INV_SLOT_OFFSET_MAX];
+        int bg_ai[UI_INV_SLOT_OFFSET_MAX];
         for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
         {
             bg_sid[si] = -1;
@@ -299,36 +307,36 @@ expand_bake_rs_subtree(
                 char const* gname = comp->invSlotGraphic[si];
                 if( !gname || gname[0] == '\0' )
                     continue;
-                bg_sid[si] = expand_acquire_sprite(state, gname);
+                bg_sid[si] = expand_acquire_sprite(ctx->state, gname);
                 bg_ai[si] = 0;
             }
         }
-        {
-            int const cols = comp->width > 0 ? comp->width : 4;
-            int const rows = comp->height > 0 ? comp->height : 7;
-            int const pix_w = cols > 0 ? cols * 32 + (cols - 1) * comp->marginX : 4 * 32;
-            int const pix_h = rows > 0 ? rows * 32 + (rows - 1) * comp->marginY : 7 * 32;
-            idx = uitree_push_rs_inv(
-                tree,
-                parent_idx,
-                comp->id,
-                sidebar_inv_index,
-                comp->width,
-                comp->height,
-                comp->marginX,
-                comp->marginY,
-                comp->invSlotOffsetX,
-                comp->invSlotOffsetY,
-                bg_sid,
-                bg_ai,
-                rel_x,
-                rel_y,
-                pix_w,
-                pix_h);
-        }
-        if( idx >= 0 )
-            expand_apply_behavior(state, tree, idx, comp->id);
+
+        int const cols = comp->width > 0 ? comp->width : 4;
+        int const rows = comp->height > 0 ? comp->height : 7;
+        int const pix_w = cols > 0 ? cols * 32 + (cols - 1) * comp->marginX : 4 * 32;
+        int const pix_h = rows > 0 ? rows * 32 + (rows - 1) * comp->marginY : 7 * 32;
+
+        struct UINodeSpec spec = { 0 };
+        spec.type = UIELEM_RS_INV;
+        spec.component_id = comp->id;
+        spec.x = rel_x;
+        spec.y = rel_y;
+        spec.width = pix_w;
+        spec.height = pix_h;
+        spec.u.rs_inv.inv_index = ctx->sidebar_inv_index;
+        spec.u.rs_inv.cols = comp->width;
+        spec.u.rs_inv.rows = comp->height;
+        spec.u.rs_inv.margin_x = comp->marginX;
+        spec.u.rs_inv.margin_y = comp->marginY;
+        spec.u.rs_inv.inv_slot_offset_x = comp->invSlotOffsetX;
+        spec.u.rs_inv.inv_slot_offset_y = comp->invSlotOffsetY;
+        spec.u.rs_inv.inv_slot_bg_scene_id = bg_sid;
+        spec.u.rs_inv.inv_slot_bg_atlas_index = bg_ai;
+        spec.behavior = behavior_ptr;
+        uitree_push(ctx->tree, parent_idx, &spec);
         break;
+    }
 
     default:
         break;
@@ -417,5 +425,12 @@ revconfig_ui_expand_sidebar(
 
     (void)sidebar_x;
     (void)sidebar_y;
-    expand_bake_rs_subtree(state, tree, interfaces, sidebar_idx, root, root->x, root->y, inv_index);
+
+    struct UIBakeContext ctx = {
+        .state = state,
+        .tree = tree,
+        .interfaces = interfaces,
+        .sidebar_inv_index = inv_index,
+    };
+    expand_bake_rs_subtree(&ctx, sidebar_idx, root, root->x, root->y);
 }

@@ -208,8 +208,115 @@ struct UITree
     uint32_t component_count;
     uint32_t component_capacity;
     int32_t root_index; /* first root in root sibling chain; -1 if empty */
-    /** Incremented on every `uitree_push_*` / node add; used to invalidate UI dirty caches. */
+    /** Incremented on every `uitree_push` / node add; used to invalidate UI dirty caches. */
     uint32_t generation;
+};
+
+/** Descriptor for creating a single UITree node via uitree_push(). */
+struct UINodeSpec
+{
+    enum StaticUIComponentType type;
+    int component_id;
+
+    int x;
+    int y;
+    int width;
+    int height;
+    int anchor_x;
+    int anchor_y;
+
+    uint8_t always_dirty;
+    /** When set, position is copied verbatim (XY or RELATIVE). */
+    uint8_t has_position;
+    struct StaticUIElemPosition position;
+    /** When non-NULL, deep-copied into the new node's behavior. */
+    struct StaticUIBehavior const* behavior;
+
+    union
+    {
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+        } sprite;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int scene_id_active;
+            int atlas_index_active;
+            int tabno;
+        } redstone_tab;
+        struct
+        {
+            int scene_id;
+        } minimap;
+        struct
+        {
+            uint8_t level_mask;
+        } world;
+        struct
+        {
+            int tabno;
+            int componentno;
+            int inv_index;
+        } sidebar;
+        struct
+        {
+            int font_id;
+            int color;
+            int center;
+            int shadowed;
+            char const* text;
+        } rs_text;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int scene_id_active;
+            int atlas_index_active;
+        } rs_graphic;
+        struct
+        {
+            int gamecache_model_id;
+            int zoom;
+            int xan;
+            int yan;
+        } rs_model;
+        struct
+        {
+            int color;
+            int filled;
+        } rs_rect;
+        struct
+        {
+            int inv_index;
+            int cols;
+            int rows;
+            int margin_x;
+            int margin_y;
+            int const* inv_slot_offset_x;
+            int const* inv_slot_offset_y;
+            int const* inv_slot_bg_scene_id;
+            int const* inv_slot_bg_atlas_index;
+        } rs_inv;
+        struct
+        {
+            int reserved;
+        } rs_layer;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int tabno;
+        } tab_icon;
+        struct
+        {
+            int color;
+            int line_width;
+            int horizontal;
+        } rs_line;
+    } u;
 };
 
 char const*
@@ -259,102 +366,12 @@ uitree_inv_pool_append(
 #define STATIC_UI_RELATIVE_FLAG_RIGHT 4
 #define STATIC_UI_RELATIVE_FLAG_BOTTOM 8
 
+/** Create a node from spec. rs_text.text is strdup'd. Returns new index or -1. */
 int32_t
-uitree_push_sprite_xy(
+uitree_push(
     struct UITree* tree,
     int32_t parent_index,
-    int sprite_id,
-    int atlas_index,
-    int x,
-    int y,
-    int width,
-    int height);
-
-int32_t
-uitree_push_sprite_relative(
-    struct UITree* tree,
-    int32_t parent_index,
-    int sprite_id,
-    int atlas_index,
-    int flags,
-    int top,
-    int right,
-    int bottom,
-    int left,
-    int width,
-    int height);
-
-int32_t
-uitree_push_world(
-    struct UITree* tree,
-    int32_t parent_index,
-    int x,
-    int y,
-    int width,
-    int height,
-    uint8_t level_mask);
-
-int32_t
-uitree_push_compass(
-    struct UITree* tree,
-    int32_t parent_index,
-    int sprite_id,
-    int atlas_index,
-    int x,
-    int y,
-    int width,
-    int height,
-    int anchor_x,
-    int anchor_y);
-
-int32_t
-uitree_push_minimap(
-    struct UITree* tree,
-    int32_t parent_index,
-    int x,
-    int y,
-    int width,
-    int height,
-    int anchor_x,
-    int anchor_y);
-
-int32_t
-uitree_push_redstone_tab(
-    struct UITree* tree,
-    int32_t parent_index,
-    int tabno,
-    int sprite_id,
-    int atlas_index,
-    int sprite_active_id,
-    int atlas_active_index,
-    int x,
-    int y,
-    int width,
-    int height);
-
-int32_t
-uitree_push_builtin_sidebar(
-    struct UITree* tree,
-    int32_t parent_index,
-    int tabno,
-    int componentno,
-    int inv_index,
-    int x,
-    int y,
-    int width,
-    int height);
-
-int32_t
-uitree_push_sidebar_component(
-    struct UITree* tree,
-    int32_t parent_index,
-    int tabno,
-    int componentno,
-    int inv_index,
-    int x,
-    int y,
-    int width,
-    int height);
+    struct UINodeSpec const* spec);
 
 /** Detach RS children from a sidebar node (first_child = -1). Orphaned indices remain in the
  * dense array until a full uitree_free; safe for bounded IF_SETTAB updates. */
@@ -362,115 +379,5 @@ void
 uitree_clear_sidebar_children(
     struct UITree* tree,
     int32_t sidebar_idx);
-
-int32_t
-uitree_push_rs_layer(
-    struct UITree* tree,
-    int32_t parent_index,
-    int component_id,
-    int x,
-    int y,
-    int width,
-    int height);
-
-/** `text` is copied (strdup); safe after buildcachedat component cache is cleared. */
-int32_t
-uitree_push_rs_text(
-    struct UITree* tree,
-    int32_t parent_index,
-    int component_id,
-    int font_id,
-    int color,
-    int center,
-    int shadowed,
-    char const* text,
-    int x,
-    int y,
-    int width,
-    int height);
-
-int32_t
-uitree_push_rs_graphic(
-    struct UITree* tree,
-    int32_t parent_index,
-    int component_id,
-    int scene_id,
-    int atlas_index,
-    int scene_id_active,
-    int atlas_index_active,
-    int x,
-    int y,
-    int width,
-    int height);
-
-int32_t
-uitree_push_rs_rect(
-    struct UITree* tree,
-    int32_t parent_index,
-    int component_id,
-    int color,
-    int filled,
-    int x,
-    int y,
-    int width,
-    int height);
-
-int32_t
-uitree_push_rs_model(
-    struct UITree* tree,
-    int32_t parent_index,
-    int component_id,
-    int gamecache_model_id,
-    int zoom,
-    int xan,
-    int yan,
-    int x,
-    int y,
-    int width,
-    int height);
-
-int32_t
-uitree_push_rs_inv(
-    struct UITree* tree,
-    int32_t parent_index,
-    int component_id,
-    int inv_index,
-    int cols,
-    int rows,
-    int margin_x,
-    int margin_y,
-    int const* inv_slot_offset_x,
-    int const* inv_slot_offset_y,
-    int const* inv_slot_bg_scene_id,
-    int const* inv_slot_bg_atlas_index,
-    int x,
-    int y,
-    int width,
-    int height);
-
-int32_t
-uitree_push_tab_icon(
-    struct UITree* tree,
-    int32_t parent_index,
-    int tabno,
-    int scene_id,
-    int atlas_index,
-    int x,
-    int y,
-    int width,
-    int height);
-
-int32_t
-uitree_push_rs_line(
-    struct UITree* tree,
-    int32_t parent_index,
-    int component_id,
-    int color,
-    int line_width,
-    int horizontal,
-    int x,
-    int y,
-    int width,
-    int height);
 
 #endif
