@@ -87,7 +87,12 @@ SRCS := main.c \
 	$(SRC2)/toridraw/toridraw_sprite.c \
 	$(SRC2)/toridraw/toridraw_font.c \
 	$(SRC2)/buildcache/dat1_buildcache_ui.c \
-	$(SRC2)/toriauxlib/c/revconfig_ui_build.c \
+	$(SRC2)/ui/ui_sprite_lookup.c \
+	$(SRC2)/toriauxlib/core/tasks/instance_revconfig_context.c \
+	$(SRC2)/toriauxlib/core/tasks/task_rs_component_load.c \
+	$(SRC2)/toriauxlib/core/tasks/task_rs_inv_load.c \
+	$(SRC2)/toriauxlib/core/tasks/task_instance_on_rc.c \
+	$(SRC2)/toriauxlib/core/tasks/task_instance_revconfig_load.c \
 	$(SRC_DIR)/osrs/revconfig/uitree.c \
 	$(SRC2)/toriauxlib/core/tasks/core_task.c \
 	$(SRC_DIR)/3rd/ini/ini.c \

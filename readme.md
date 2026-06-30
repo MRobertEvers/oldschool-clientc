@@ -1936,3 +1936,47 @@ client.js:20626 [browser] jsHeapTotal: 56.44 MB
 client.js:20626 [browser] jsHeapUsed: 51.63 MB
 client.js:20632 TOTAL (tracked buffers): 8.05 MB
 client.js:20636 [browser] JS heap used: 51.63 MB / 56.44 MB
+
+# UI Plan
+
+[ini parser]
+=> [revconfig buffer: revconfig ui/revconfig cache]
+=> [ui tree],[anything else]
+
+The revconfig loader outputs more than just a UI tree.
+
+The RevConfig loading actually can apply to ALL parts of the LibToriRS_Instance.
+
+Remove all the RevConfig, and ui loading tasks.
+
+Remove revconfig_ui_build and revconfig_ui_expand. They are FAR to complicated.
+
+Unify the revconfig loading into a single Task_InstanceRevConfigLoad.
+
+At the top level of the instance, it should load all the specified config files into a single item buffer.
+
+Then it should loop on the item buffer to handle each item. The switch case should be single function branches.
+
+Implement TASK_AWAIT macro.
+
+For example, there should be Task_InstanceOnRCCacheSprite
+Task_InstanceOnRCUIComponent
+Task_InstanceOnRCUILayout
+Task_InstanceOnRCInv
+
+Likewise, in the Task_InstanceOnRCUIComponent
+there should be a clear switch and handler for each type of component. Each component should load into a buffer. That buffer will later be used to build the UITree.
+For RS Components specifically.
+
+Create a Task_RSComponentLoad, that task uses callbacks when the component is loaded, and the callbacks are called for each component if there are multiple (e.g. RSLayer), Task_InstanceOnRCUIComponent gives that task callbacks that will build the UITree. Task_RSComponentLoad should also accept a cache type as an argument.
+
+Task_RSComponentLoad switches on the Cache type (Dat1 or Dat2).
+
+For both Dat1 and Dat2, there should not be a recursive load. Inside that task, it should be a Work Loop with an explicit stack.
+
+When an RSComponent is seen, and it needs to load assets, it should queue that asset in the work loop, the task queues the IO needed to load it, then the task yields. On return it decodes, then returns to the work loop.
+
+Likewise, for Task_InstanceOnRCInv
+there should be a Task_RSInvLoad that is structured similarly to Task_RSComponentLoad
+
+For Task_InstanceOnRCCacheSprite, it should load the sprite information into a named lookup.

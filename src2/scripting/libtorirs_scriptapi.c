@@ -22,7 +22,7 @@
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/texture.h"
-#include "toriauxlib/core/tasks/task_ui_load.h"
+#include "toriauxlib/core/tasks/task_instance_revconfig_load.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
@@ -49,8 +49,13 @@ world_rebuild_normal_centerzone_task_destroy(void* state)
 static void
 ui_load_task_destroy(void* state)
 {
-    Task_ToriAuxLibCache_UILoad_Free(state);
+    Task_InstanceRevConfigLoad_Free(state);
 }
+
+#define UI_DAT1_CACHE_INI "rev_245_2/rev_245_2_dat1_cache.ini"
+#define UI_DAT1_UI_INI "rev_245_2/rev_245_2_dat1_ui.ini"
+#define UI_DAT2_CACHE_INI "rev_245_2/rev_kronos_ui_cache.ini"
+#define UI_DAT2_UI_INI "rev_245_2/rev_kronos_ui.ini"
 
 void
 LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
@@ -585,13 +590,30 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
         world_rebuild_normal_centerzone_task_destroy);
 
     {
-        struct Task_ToriAuxLibCache_UILoad* ui_task = Task_ToriAuxLibCache_UILoad_New(
+        char const* config_files[2];
+        char const* layout_group = "fixed";
+        if( ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) ==
+            TORIAUXLIBCACHE_MODE_DAT2 )
+        {
+            config_files[0] = UI_DAT2_CACHE_INI;
+            config_files[1] = UI_DAT2_UI_INI;
+        }
+        else
+        {
+            config_files[0] = UI_DAT1_CACHE_INI;
+            config_files[1] = UI_DAT1_UI_INI;
+        }
+
+        struct Task_InstanceRevConfigLoad* ui_task = Task_InstanceRevConfigLoad_New(
             ToriAuxLib_C(instance->toriauxlib),
             instance->scene,
             instance->runescape->ui_tree,
-            instance->runescape);
+            instance->runescape,
+            config_files,
+            2,
+            layout_group);
         LibToriRS_TasksAdd(
-            instance, ui_task, Task_ToriAuxLibCache_UILoad_Run, ui_load_task_destroy);
+            instance, ui_task, Task_InstanceRevConfigLoad_Run, ui_load_task_destroy);
     }
 }
 

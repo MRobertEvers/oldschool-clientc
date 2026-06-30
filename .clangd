@@ -31,8 +31,9 @@ Diagnostics:
     Remove:
       - readability-magic-numbers
       - readability-uppercase-literal-suffix
+      - readability-braces-around-statements
   UnusedIncludes: Strict
-  MissingIncludes: Strict
+  MissingIncludes: None
 
 Index:
   Background: Build
