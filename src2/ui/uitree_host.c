@@ -3,14 +3,15 @@
 #include "ui_behavior.h"
 #include "uitree_layout.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
 void
 uitree_host_init(struct UITreeHost* host)
 {
-    if( host )
-        memset(host, 0, sizeof(*host));
+    assert(host);
+    memset(host, 0, sizeof(*host));
 }
 
 bool
@@ -20,20 +21,19 @@ uitree_component_visible_host(
     int32_t hovered_component,
     struct UITreeHost const* host)
 {
-    if( !component )
-        return false;
+    assert(component);
 
     if( component->type == UIELEM_BUILTIN_REDSTONE_TAB )
     {
-        if( !host || !host->get_selected_tab )
-            return false;
+        assert(host);
+        assert(host->get_selected_tab);
         return host->get_selected_tab(host->user) == component->u.redstone_tab.tabno;
     }
 
     if( component->type == UIELEM_BUILTIN_SIDEBAR )
     {
-        if( !host || !host->get_selected_tab )
-            return true;
+        assert(host);
+        assert(host->get_selected_tab);
         return host->get_selected_tab(host->user) == component->u.sidebar.tabno;
     }
 
@@ -45,8 +45,7 @@ uitree_component_is_clickable_host(
     struct StaticUIComponent const* component,
     struct UITreeHost const* host)
 {
-    if( !component )
-        return false;
+    assert(component);
 
     switch( component->type )
     {
@@ -69,8 +68,9 @@ uitree_component_rect_color_host(
     struct UITreeHost const* host,
     int base_color)
 {
+    assert(host);
     struct UITreeBehaviorHost behavior_host = { 0 };
-    if( host && host->is_active )
+    if( host->is_active )
     {
         /* Legacy CSVM path unused when host provides is_active; rect color uses behavior fields. */
         (void)behavior_host;
@@ -85,8 +85,9 @@ uitree_behavior_handle_click_host(
     struct UITree const* tree,
     int32_t clicked_index)
 {
-    if( !host || !tree || clicked_index < 0 ||
-        (uint32_t)clicked_index >= tree->component_count )
+    assert(host);
+    assert(tree);
+    if( clicked_index < 0 || (uint32_t)clicked_index >= tree->component_count )
         return;
 
     struct StaticUIComponent const* component = &tree->components[clicked_index];
@@ -116,10 +117,14 @@ uitree_expand_text_host(
     char* scratch,
     size_t scratch_size)
 {
-    if( !component || component->type != UIELEM_RS_TEXT || !component->u.rs_text.text )
-        return component && component->type == UIELEM_RS_TEXT ? component->u.rs_text.text : "";
+    assert(host);
+    assert(component);
+    assert(scratch);
+    assert(scratch_size > 0);
+    if( component->type != UIELEM_RS_TEXT || !component->u.rs_text.text )
+        return component->u.rs_text.text;
 
-    if( !host || !host->eval_text_placeholder || !scratch || scratch_size < 2 )
+    if( !host->eval_text_placeholder )
         return component->u.rs_text.text;
 
     char const* src = component->u.rs_text.text;
@@ -151,13 +156,12 @@ uitree_component_should_emit(
     struct StaticUIComponent const* component,
     struct UITreeHost const* host)
 {
-    if( !component )
-        return false;
+    assert(component);
+    assert(host);
 
     if( component->type == UIELEM_BUILTIN_REDSTONE_TAB )
     {
-        if( !host || !host->get_selected_tab )
-            return false;
+        assert(host->get_selected_tab);
         return host->get_selected_tab(host->user) == component->u.redstone_tab.tabno;
     }
 
@@ -181,8 +185,8 @@ uitree_component_sprite_rotation(
     struct StaticUIComponent const* component,
     struct UITreeHost const* host)
 {
-    if( !component || !host || !host->get_camera_yaw )
-        return 0;
+    assert(component);
+    assert(host);
 
     if( component->type == UIELEM_BUILTIN_COMPASS || component->type == UIELEM_BUILTIN_MINIMAP )
         return host->get_camera_yaw(host->user);

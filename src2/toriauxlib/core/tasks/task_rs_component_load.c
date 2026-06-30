@@ -541,14 +541,19 @@ rs_component_walk_dat1(
         if( !rs_stack_pop(task, &comp_id, &rel_x, &rel_y, &parent_id) )
             break;
 
-        struct RSCacheDat1A_ConfigComponent* comp =
-            dat1_get_component(ifaces, comp_id);
+        struct RSCacheDat1A_ConfigComponent* comp = dat1_get_component(ifaces, comp_id);
         if( !comp )
             continue;
 
         rs_component_acquire_dynamic_sprites(task->cache_mode, task->rc_ctx, comp);
         rs_component_sync_to_core(
-            task->cache, task->cache_mode, comp, rel_x, rel_y, comp->width, comp->height,
+            task->cache,
+            task->cache_mode,
+            comp,
+            rel_x,
+            rel_y,
+            comp->width,
+            comp->height,
             parent_id);
 
         if( task->callbacks.on_component )
@@ -583,7 +588,8 @@ rs_component_walk_dat2(
         int rel_y = 0;
         int width = 0;
         int height = 0;
-        dat2_component_parent_relative_layout(comp, parent_w, parent_h, &rel_x, &rel_y, &width, &height);
+        dat2_component_parent_relative_layout(
+            comp, parent_w, parent_h, &rel_x, &rel_y, &width, &height);
 
         rs_component_acquire_dynamic_sprites(task->cache_mode, task->rc_ctx, comp);
         rs_component_sync_to_core(

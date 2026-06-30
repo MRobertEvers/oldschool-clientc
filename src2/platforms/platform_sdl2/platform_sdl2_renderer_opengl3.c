@@ -432,15 +432,13 @@ gl3_composite_hud(
     int hud_w = 0;
     int hud_h = 0;
     int hud_pitch = 0;
-    uint8_t const* pixels =
-        LibToriHud_PixelsBGRA(renderer->hud, &hud_w, &hud_h, &hud_pitch);
+    uint8_t const* pixels = LibToriHud_PixelsBGRA(renderer->hud, &hud_w, &hud_h, &hud_pitch);
     if( !pixels || hud_w <= 0 || hud_h <= 0 )
         return;
 
     glBindTexture(GL_TEXTURE_2D, renderer->hud_texture);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, hud_pitch / 4);
-    glTexSubImage2D(
-        GL_TEXTURE_2D, 0, 0, 0, hud_w, hud_h, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, hud_w, hud_h, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
     glDisable(GL_DEPTH_TEST);
@@ -448,12 +446,7 @@ gl3_composite_hud(
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(renderer->program2d);
     glViewport(renderer->lb_x, renderer->lb_y, renderer->lb_w, renderer->lb_h);
-    gl3_make_ortho2d(
-        renderer->proj2d,
-        0.0f,
-        (float)renderer->width,
-        (float)renderer->height,
-        0.0f);
+    gl3_make_ortho2d(renderer->proj2d, 0.0f, (float)renderer->width, (float)renderer->height, 0.0f);
     glUniformMatrix4fv(renderer->u2d_projection, 1, GL_FALSE, renderer->proj2d);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, renderer->hud_texture);
@@ -797,33 +790,42 @@ gl3_ev_sprite_load(
             rgba[p] = (uint32_t)r | ((uint32_t)g << 8) | ((uint32_t)b << 16) | ((uint32_t)a << 24);
         }
 
-        int crop_x = sp->crop_x;
-        int crop_y = sp->crop_y;
-        int crop_w = sp->crop_width > 0 ? sp->crop_width : sp->width;
-        int crop_h = sp->crop_height > 0 ? sp->crop_height : sp->height;
-        if( crop_x < 0 )
-            crop_x = 0;
-        if( crop_y < 0 )
-            crop_y = 0;
-        if( crop_x + crop_w > sp->width )
-            crop_w = sp->width - crop_x;
-        if( crop_y + crop_h > sp->height )
-            crop_h = sp->height - crop_y;
-        if( crop_w <= 0 || crop_h <= 0 )
+        int upload_x = 0;
+        int upload_y = 0;
+        int upload_w = sp->width;
+        int upload_h = sp->height;
+        const bool content_embedded =
+            sp->crop_width > 0 && (sp->crop_width < sp->width || sp->crop_height < sp->height);
+        if( content_embedded )
+        {
+            upload_x = sp->crop_x;
+            upload_y = sp->crop_y;
+            upload_w = sp->crop_width;
+            upload_h = sp->crop_height;
+            if( upload_x < 0 )
+                upload_x = 0;
+            if( upload_y < 0 )
+                upload_y = 0;
+            if( upload_x + upload_w > sp->width )
+                upload_w = sp->width - upload_x;
+            if( upload_y + upload_h > sp->height )
+                upload_h = sp->height - upload_y;
+        }
+        if( upload_w <= 0 || upload_h <= 0 )
         {
             free(rgba);
             continue;
         }
 
         const uint8_t* crop_pixels =
-            (const uint8_t*)rgba + ((size_t)crop_y * (size_t)sp->width + (size_t)crop_x) * 4u;
+            (const uint8_t*)rgba + ((size_t)upload_y * (size_t)sp->width + (size_t)upload_x) * 4u;
         struct TRSPK_AtlasTile tile;
         if( !trspk_atlas_binpack_insert(
                 &renderer->sprite_atlas,
                 crop_pixels,
                 (uint32_t)sp->width * 4u,
-                (uint32_t)crop_w,
-                (uint32_t)crop_h,
+                (uint32_t)upload_w,
+                (uint32_t)upload_h,
                 &tile) )
         {
             free(rgba);
@@ -873,14 +875,26 @@ gl3_ev_sprite(
     float u1 = slot->uvs[atlas_index * 4 + 2];
     float v1 = slot->uvs[atlas_index * 4 + 3];
     float alpha = command->u.sprite.alpha > 0 ? (float)command->u.sprite.alpha / 255.0f : 1.0f;
-    int w = command->u.sprite.w > 0 ? command->u.sprite.w : sp->width;
-    int h = command->u.sprite.h > 0 ? command->u.sprite.h : sp->height;
-    float x0 = (float)command->u.sprite.x;
-    float y0 = (float)command->u.sprite.y;
-    float x1 = (float)(command->u.sprite.x + w);
-    float y1 = (float)(command->u.sprite.y + h);
-    float rgba[4] = { 1.0f, 1.0f, 1.0f, alpha };
     const bool rotated = command->u.sprite.rotated != 0;
+    float x0;
+    float y0;
+    float x1;
+    float y1;
+    if( rotated )
+    {
+        x0 = (float)command->u.sprite.x;
+        y0 = (float)command->u.sprite.y;
+        x1 = x0 + (float)(command->u.sprite.w > 0 ? command->u.sprite.w : 1);
+        y1 = y0 + (float)(command->u.sprite.h > 0 ? command->u.sprite.h : 1);
+    }
+    else
+    {
+        x0 = (float)(command->u.sprite.x + sp->crop_x);
+        y0 = (float)(command->u.sprite.y + sp->crop_y);
+        x1 = x0 + (float)sp->width;
+        y1 = y0 + (float)sp->height;
+    }
+    float rgba[4] = { 1.0f, 1.0f, 1.0f, alpha };
 
     const int mask_element_id = command->u.sprite.mask_element_id;
     const int mask_atlas_index = command->u.sprite.mask_atlas_index;
@@ -1445,8 +1459,8 @@ gl3_ev_tex_unload(
     const size_t row_bytes = (size_t)tile.w * renderer->atlas.channels;
     for( uint32_t row = 0; row < tile.h; row++ )
     {
-        uint8_t* dst = renderer->atlas.pixels
-            + (size_t)(tile.y + row) * renderer->atlas.stride + (size_t)tile.x * renderer->atlas.channels;
+        uint8_t* dst = renderer->atlas.pixels + (size_t)(tile.y + row) * renderer->atlas.stride +
+                       (size_t)tile.x * renderer->atlas.channels;
         memset(dst, 0, row_bytes);
     }
     trspk_atlas_set_dirty(&renderer->atlas);
@@ -1571,8 +1585,7 @@ gl3_ev_model_unload(
     struct LibToriRS_RenderCommand* command)
 {
     (void)instance;
-    assert(
-        command->kind == TORIRSRC_MODEL_UNLOAD || command->kind == TORIRSRC_ANIM_UNLOAD);
+    assert(command->kind == TORIRSRC_MODEL_UNLOAD || command->kind == TORIRSRC_ANIM_UNLOAD);
 
     const int element_id = command->u.model_load.element_id;
     trspk_modelarena_unload_element(renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
