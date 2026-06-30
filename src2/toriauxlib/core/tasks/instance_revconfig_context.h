@@ -6,6 +6,7 @@
 #include "revconfig/revconfig.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "ui/ui_sprite_lookup.h"
+#include "ui/ui_font_lookup.h"
 #include "ui/uitree.h"
 
 #include <stdbool.h>
@@ -43,6 +44,7 @@ struct InstanceRevConfigContext
     struct GameRunescape* game;
 
     struct UISpriteLookup sprite_lookup;
+    struct UIFontLookup font_lookup;
     int next_element_id;
 
     struct RevConfigUIComponentItem components[INSTANCE_RC_MAX_COMPONENTS];
@@ -62,6 +64,7 @@ struct InstanceRevConfigContext
 
     int panel_root_id[1024];
     bool jagfiles_ready;
+    bool title_fonts_ready;
     char const* layout_group;
 };
 

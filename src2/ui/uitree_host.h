@@ -35,6 +35,18 @@ struct UITreeHost
         int* out_src_anchor_y);
     int (*get_world_map_size)(void* user, int* out_w, int* out_h);
 
+    bool (*get_cross_active)(void* user);
+    void (*get_cross_position)(void* user, int* out_x, int* out_y);
+    int (*get_cross_atlas_frame)(void* user);
+    bool (*get_minimenu_visible)(void* user);
+    void (*get_minimenu_layout)(
+        void* user,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
+    int (*get_minimenu_hovered_option)(void* user);
+
     /* Scene assets (existence only; lookup by id) */
     bool (*scene_sprite_has)(void* user, int scene_id);
     bool (*scene_font_has)(void* user, int font_id);

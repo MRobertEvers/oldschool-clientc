@@ -73,6 +73,7 @@ world_reset_scene_alloc(
     for( int i = 0; i < COLLISION_LEVELS; i++ )
         world->collision_maps[i] = collision_map_new(scene_size, scene_size);
     world->minimap = minimap_new(scene_size, scene_size);
+    world->scenery_pick_count = 0;
 
     world->painter = painter_new(
         scene_size,
@@ -791,4 +792,27 @@ world_cycle(
 
         si = next;
     }
+}
+
+void
+world_clear_scenery_picks(struct World* world)
+{
+    if( world )
+        world->scenery_pick_count = 0;
+}
+
+void
+world_register_scenery_pick(
+    struct World* world,
+    int element_id,
+    int loc_id)
+{
+    if( !world || element_id < 0 || loc_id < 0 )
+        return;
+    if( world->scenery_pick_count >= WORLD_SCENERY_PICK_MAX )
+        return;
+
+    struct WorldSceneryPick* pick = &world->scenery_picks[world->scenery_pick_count++];
+    pick->element_id = element_id;
+    pick->loc_id = loc_id;
 }

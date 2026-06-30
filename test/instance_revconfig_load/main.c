@@ -644,6 +644,22 @@ uitree_component_parent_is(
     return tree->components[child_idx].parent == parent_idx;
 }
 
+static bool
+find_cache_font_item(
+    struct RevConfigItemBuffer const* items,
+    char const* name)
+{
+    if( !items || !name )
+        return false;
+    for( uint32_t i = 0; i < items->item_count; i++ )
+    {
+        struct RevConfigItem const* item = &items->items[i];
+        if( item->kind == RCITEM_CACHE_FONT && strcmp(item->u.font.name, name) == 0 )
+            return true;
+    }
+    return false;
+}
+
 static uint32_t
 count_items_of_kind(
     struct RevConfigItemBuffer const* items,
@@ -753,6 +769,9 @@ run_pipeline_test(
                 uitree_has_type(tree, UIELEM_BUILTIN_COMPASS) ||
                     uitree_has_type(tree, UIELEM_BUILTIN_MINIMAP),
                 "expected builtin UI node");
+            TEST_ASSERT(uitree_has_type(tree, UIELEM_BUILTIN_CROSS), "cross component missing");
+            TEST_ASSERT(uitree_has_type(tree, UIELEM_BUILTIN_MINIMENU), "minimenu component missing");
+            TEST_ASSERT(find_cache_font_item(load_task->items, "b12"), "b12 font item missing");
             TEST_ASSERT(
                 uitree_component_parent_is(
                     tree, &load_task->rc_ctx, "redstone_tab_quests", "fixed_shell"),

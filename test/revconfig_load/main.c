@@ -173,6 +173,22 @@ find_cache_item(
 }
 
 static bool
+find_cache_font_item(
+    struct RevConfigItemBuffer const* items,
+    char const* name)
+{
+    if( !items || !name )
+        return false;
+    for( uint32_t i = 0; i < items->item_count; i++ )
+    {
+        struct RevConfigItem const* item = &items->items[i];
+        if( item->kind == RCITEM_CACHE_FONT && strcmp(item->u.font.name, name) == 0 )
+            return true;
+    }
+    return false;
+}
+
+static bool
 find_uicomponent(
     struct RevConfigItemBuffer const* items,
     char const* name)
@@ -254,12 +270,20 @@ run_ini_pair_test(
             find_cache_item(load_task.items, "sideicons"), "dat1: sideicons cache item missing");
         TEST_ASSERT(
             find_uicomponent(load_task.items, "compass"), "dat1: compass component missing");
+        TEST_ASSERT(find_cache_font_item(load_task.items, "b12"), "dat1: b12 font cache item missing");
+        TEST_ASSERT(find_cache_item(load_task.items, "cross"), "dat1: cross sprite cache item missing");
+        TEST_ASSERT(find_uicomponent(load_task.items, "cross"), "dat1: cross component missing");
+        TEST_ASSERT(find_uicomponent(load_task.items, "minimenu"), "dat1: minimenu component missing");
     }
     else
     {
         TEST_ASSERT(
             find_cache_item_with_archive_id(load_task.items),
             "dat2: no cache item with archive_id");
+        TEST_ASSERT(find_cache_font_item(load_task.items, "b12"), "dat2: b12 font cache item missing");
+        TEST_ASSERT(find_cache_item(load_task.items, "cross"), "dat2: cross sprite cache item missing");
+        TEST_ASSERT(find_uicomponent(load_task.items, "cross"), "dat2: cross component missing");
+        TEST_ASSERT(find_uicomponent(load_task.items, "minimenu"), "dat2: minimenu component missing");
     }
 
     fprintf(

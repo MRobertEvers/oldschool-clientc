@@ -149,6 +149,10 @@ uitree_component_type_str(enum StaticUIComponentType type)
     {
     case UIELEM_BUILTIN_COMPASS:
         return "compass";
+    case UIELEM_BUILTIN_CROSS:
+        return "cross";
+    case UIELEM_BUILTIN_MINIMENU:
+        return "minimenu";
     case UIELEM_BUILTIN_MINIMAP:
         return "minimap";
     case UIELEM_BUILTIN_WORLD:
@@ -481,8 +485,13 @@ uitree_push(
     {
     case UIELEM_BUILTIN_SPRITE:
     case UIELEM_BUILTIN_COMPASS:
+    case UIELEM_BUILTIN_CROSS:
         component->u.sprite.scene_id = spec->u.sprite.scene_id;
         component->u.sprite.atlas_index = spec->u.sprite.atlas_index;
+        break;
+
+    case UIELEM_BUILTIN_MINIMENU:
+        component->u.minimenu.font_id = spec->u.minimenu.font_id;
         break;
 
     case UIELEM_BUILTIN_REDSTONE_TAB:

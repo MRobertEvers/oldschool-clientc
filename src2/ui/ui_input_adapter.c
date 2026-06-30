@@ -92,16 +92,33 @@ ui_input_adapter_init_behavior_host(
     struct UITreeBehaviorHost* host,
     struct ToriAuxLibVM* vm)
 {
+    ui_input_adapter_init_behavior_host_ex(host, vm, NULL);
+}
+
+void
+ui_input_adapter_init_behavior_host_ex(
+    struct UITreeBehaviorHost* host,
+    struct ToriAuxLibVM* vm,
+    struct CS2VM* cs2vm)
+{
     if( !host )
         return;
 
     memset(host, 0, sizeof(*host));
-    if( !vm )
+    if( !vm && !cs2vm )
         return;
 
-    host->csvm = ToriAuxLibVM_CSVM(vm);
-    host->varp_varbit = ToriAuxLibVM_VarPVarBit(vm);
-    host->csvm_state.get_varp = ui_adapter_get_varp;
-    host->csvm_state.get_varbit = ui_adapter_get_varbit;
-    host->csvm_state.ud = vm;
+    if( vm )
+    {
+        host->csvm = ToriAuxLibVM_CSVM(vm);
+        host->varp_varbit = ToriAuxLibVM_VarPVarBit(vm);
+        host->csvm_state.get_varp = ui_adapter_get_varp;
+        host->csvm_state.get_varbit = ui_adapter_get_varbit;
+        host->csvm_state.ud = vm;
+        host->cs2vm_state.get_varp = ui_adapter_get_varp;
+        host->cs2vm_state.get_varbit = ui_adapter_get_varbit;
+        host->cs2vm_state.ud = vm;
+    }
+
+    host->cs2vm = cs2vm;
 }

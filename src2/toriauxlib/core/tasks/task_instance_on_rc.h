@@ -14,6 +14,15 @@ struct Task_InstanceOnRCCacheSprite
     int element_id;
 };
 
+struct Task_InstanceOnRCCacheFont
+{
+    struct pt thread;
+    struct InstanceRevConfigContext* rc_ctx;
+    struct ToriAuxLibCache* cache;
+    struct RevConfigFontItem item;
+    int font_id;
+};
+
 struct Task_InstanceOnRCUIComponent
 {
     struct pt thread;
@@ -48,6 +57,16 @@ Task_InstanceOnRCCacheSprite_Init(
 
 int
 Task_InstanceOnRCCacheSprite_Run(void* task_state, struct LibToriRS_IOContext* ctx);
+
+void
+Task_InstanceOnRCCacheFont_Init(
+    struct Task_InstanceOnRCCacheFont* task,
+    struct InstanceRevConfigContext* rc_ctx,
+    struct ToriAuxLibCache* cache,
+    struct RevConfigFontItem const* item);
+
+int
+Task_InstanceOnRCCacheFont_Run(void* task_state, struct LibToriRS_IOContext* ctx);
 
 void
 Task_InstanceOnRCUIComponent_Init(

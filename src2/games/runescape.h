@@ -11,6 +11,8 @@
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"
 #include "ui/ui_input.h"
+#include "ui/interaction_state.h"
+#include "ui/ui_minimenu.h"
 #include "ui/uitree.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
@@ -22,6 +24,12 @@ struct ToriAuxLibCore;
 struct ToriDraw_Scene;
 struct ToriAuxLibTD;
 struct LibToriRS_IOContext;
+struct CS2VM;
+
+/** Click cross overlay (walk/interact cursor). */
+#define RUNESCAPE_CROSS_MODE_OFF 0
+#define RUNESCAPE_CROSS_MODE_WALK 1
+#define RUNESCAPE_CROSS_MODE_INTERACT 2
 
 /* OSRS rebuild-normal zone coords (zonex, zonez). */
 // Waterfall
@@ -119,8 +127,22 @@ struct GameRunescape
     struct UIInputState ui_input;
     int selected_tab;
     struct ToriAuxLibVM* vm;
+    struct CS2VM* cs2vm;
     int32_t ui_hovered_node;
+    int32_t ui_minimenu_node;
     char ui_text_scratch[RUNESCAPE_UI_TEXT_SCRATCH_MAX];
+
+    struct InteractionState interaction;
+    struct UIMinimenuState minimenu;
+    struct InteractionState click_target;
+
+    int cross_x;
+    int cross_y;
+    int cross_mode;
+    int cross_cycle;
+
+    int selected_inv_index;
+    int selected_inv_slot;
 
     int zone_center_x;
     int zone_center_z;
@@ -156,6 +178,7 @@ struct GameRunescape
         bool ui_2d_begun;
         int32_t ui_current;
         int ui_inv_slot;
+        int ui_minimenu_step;
         struct GameRunescape_UITraversalFrame ui_stack[RUNESCAPE_UI_TRAVERSAL_STACK_MAX];
         int ui_stack_top;
     } frame;

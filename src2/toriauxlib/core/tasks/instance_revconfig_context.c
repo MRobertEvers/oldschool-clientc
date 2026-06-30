@@ -216,6 +216,7 @@ instance_revconfig_context_init(struct InstanceRevConfigContext* ctx)
     assert(ctx);
     memset(ctx, 0, sizeof(*ctx));
     ui_sprite_lookup_init(&ctx->sprite_lookup);
+    ui_font_lookup_init(&ctx->font_lookup);
     ctx->next_element_id = 1;
     ctx->layout_group = "fixed";
     for( int i = 0; i < 1024; i++ )
@@ -261,6 +262,10 @@ component_type_from_string(char const* type)
     assert(type);
     if( strcmp(type, "compass") == 0 )
         return UIELEM_BUILTIN_COMPASS;
+    if( strcmp(type, "cross") == 0 )
+        return UIELEM_BUILTIN_CROSS;
+    if( strcmp(type, "minimenu") == 0 )
+        return UIELEM_BUILTIN_MINIMENU;
     if( strcmp(type, "minimap") == 0 )
         return UIELEM_BUILTIN_MINIMAP;
     if( strcmp(type, "world") == 0 )
@@ -459,6 +464,22 @@ instance_revconfig_build_layout_node(
     case UIELEM_BUILTIN_COMPASS:
         spec.u.sprite.scene_id = sprite_id;
         spec.u.sprite.atlas_index = atlas_index;
+        break;
+    case UIELEM_BUILTIN_CROSS:
+        spec.always_dirty = 1;
+        spec.u.sprite.scene_id = sprite_id;
+        spec.u.sprite.atlas_index = 0;
+        break;
+    case UIELEM_BUILTIN_MINIMENU:
+        spec.always_dirty = 1;
+        if( comp->has_font_ref && comp->font_ref[0] )
+        {
+            int font_id = ui_font_lookup_find(&ctx->font_lookup, comp->font_ref);
+            if( font_id >= 0 )
+                spec.u.minimenu.font_id = font_id;
+        }
+        else if( comp->font >= 0 && comp->font <= 3 )
+            spec.u.minimenu.font_id = comp->font;
         break;
     case UIELEM_BUILTIN_MINIMAP:
         spec.always_dirty = 1;

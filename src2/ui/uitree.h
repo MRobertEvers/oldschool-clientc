@@ -42,6 +42,8 @@ enum StaticUIComponentType
     UIELEM_BUILTIN_SPRITE = 7,
     UIELEM_BUILTIN_REDSTONE_TAB = 8,
     UIELEM_BUILTIN_TAB_ICONS = 9,
+    UIELEM_BUILTIN_CROSS = 10,
+    UIELEM_BUILTIN_MINIMENU = 11,
     //
     UIELEM_RS_TEXT = 14,
     UIELEM_RS_GRAPHIC = 15,
@@ -90,6 +92,7 @@ struct StaticUIBehavior
     int* script_comparator;  /* per-script comparator opcode */
     int* script_operand;     /* per-script operand */
     uint8_t hide;            /* static hide flag from cache LAYER/component */
+    uint8_t script_kind;     /* 0 = CS1, 1 = CS2 */
     int button_type;         /* 0=none; OK/TOGGLE/SELECT/CLOSE/CONTINUE */
     int client_code;
     int over_color;          /* hover color for rect/text; 0 = none */
@@ -192,6 +195,10 @@ struct StaticUIComponent
             int atlas_index;
             int tabno;
         } tab_icon;
+        struct
+        {
+            int font_id;
+        } minimenu;
         struct
         {
             int color;
@@ -310,6 +317,10 @@ struct UINodeSpec
             int atlas_index;
             int tabno;
         } tab_icon;
+        struct
+        {
+            int font_id;
+        } minimenu;
         struct
         {
             int color;

@@ -8,12 +8,16 @@ enum WorldPickType
     WORLD_PICK_TERRAIN = 0,
     WORLD_PICK_SCENERY,
     WORLD_PICK_PROJECTILE,
+    WORLD_PICK_NPC,
 };
 
 struct WorldPicked
 {
     int element_id;
     enum WorldPickType type;
+    int tile_x;
+    int tile_z;
+    int tile_level;
 };
 
 #define WORLD_PICKSET_MAX 256
@@ -31,6 +35,9 @@ void
 world_pickset_add(
     struct WorldPickSet* pickset,
     int element_id,
-    enum WorldPickType type);
+    enum WorldPickType type,
+    int tile_x,
+    int tile_z,
+    int tile_level);
 
 #endif

@@ -40,6 +40,7 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/buildcache/dat1_buildcache_ui.c \
 	$(SRC2_DIR)/buildcache/dat2_buildcache_ui.c \
 	$(SRC2_DIR)/ui/ui_sprite_lookup.c \
+	$(SRC2_DIR)/ui/ui_font_lookup.c \
 	$(SRC2_DIR)/ui/uitree.c \
 	$(SRC2_DIR)/ui/uitree_layout.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/instance_revconfig_context.c \

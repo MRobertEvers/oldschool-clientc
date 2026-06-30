@@ -41,10 +41,22 @@ uitree_behavior_is_active(
         if( !behavior->scripts || !behavior->scripts[i] )
             return false;
 
-        int value = csvm_eval(host->csvm, behavior->scripts[i], &host->csvm_state);
+        int value = 0;
+        if( behavior->script_kind == CS2VM_SCRIPT_KIND_CS2 && host->cs2vm )
+            value = cs2vm_eval(host->cs2vm, behavior->scripts[i], &host->cs2vm_state);
+        else if( host->csvm )
+            value = csvm_eval(host->csvm, behavior->scripts[i], &host->csvm_state);
+        else
+            return false;
+
         int operand = behavior->script_operand[i];
         int comp = behavior->script_comparator[i];
-        if( !csvm_compare(comp, value, operand) )
+        if( behavior->script_kind == CS2VM_SCRIPT_KIND_CS2 )
+        {
+            if( !cs2vm_compare(comp, value, operand) )
+                return false;
+        }
+        else if( !csvm_compare(comp, value, operand) )
             return false;
     }
     return true;

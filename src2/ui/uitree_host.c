@@ -37,6 +37,16 @@ uitree_component_visible_host(
         return host->get_selected_tab(host->user) == component->u.sidebar.tabno;
     }
 
+    if( component->type == UIELEM_BUILTIN_CROSS )
+    {
+        return host && host->get_cross_active && host->get_cross_active(host->user);
+    }
+
+    if( component->type == UIELEM_BUILTIN_MINIMENU )
+    {
+        return host && host->get_minimenu_visible && host->get_minimenu_visible(host->user);
+    }
+
     return uitree_component_visible(component, component_index, hovered_component);
 }
 
@@ -173,6 +183,16 @@ uitree_component_should_emit(
 
     if( component->type == UIELEM_BUILTIN_CHAT )
         return false;
+
+    if( component->type == UIELEM_BUILTIN_CROSS )
+    {
+        return host->get_cross_active && host->get_cross_active(host->user);
+    }
+
+    if( component->type == UIELEM_BUILTIN_MINIMENU )
+    {
+        return host->get_minimenu_visible && host->get_minimenu_visible(host->user);
+    }
 
     if( component->type == UIELEM_RS_LAYER )
         return false;

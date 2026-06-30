@@ -47,6 +47,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CACHE_CROP_WIDTH";
     case RCFIELD_CACHE_CROP_HEIGHT:
         return "RCFIELD_CACHE_CROP_HEIGHT";
+    case RCFIELD_CACHE_FONT_NAME:
+        return "RCFIELD_CACHE_FONT_NAME";
     case RCFIELD_UICOMPONENT_TYPE:
         return "RCFIELD_UICOMPONENT_TYPE";
     case RCFIELD_UICOMPONENT_SPRITE:
@@ -236,6 +238,9 @@ revconfig_item_set_name(
     case RCITEM_CACHE_SPRITE:
         strncpy(item->u.cache.name, value, sizeof(item->u.cache.name) - 1);
         break;
+    case RCITEM_CACHE_FONT:
+        strncpy(item->u.font.name, value, sizeof(item->u.font.name) - 1);
+        break;
     case RCITEM_UICOMPONENT:
         strncpy(item->u.uicomponent.name, value, sizeof(item->u.uicomponent.name) - 1);
         break;
@@ -261,6 +266,11 @@ revconfig_item_begin(
     {
         item->kind = RCITEM_CACHE_SPRITE;
         item->u.cache.archive_id = -1;
+    }
+    else if( strcmp(type_value, "font") == 0 )
+    {
+        item->kind = RCITEM_CACHE_FONT;
+        item->u.font.archive_id = -1;
     }
     else if( strcmp(type_value, "component") == 0 )
     {
@@ -338,6 +348,44 @@ revconfig_item_apply_cache_field(
 }
 
 static void
+revconfig_item_apply_font_field(
+    struct RevConfigFontItem* font,
+    enum RevConfigFieldKind kind,
+    const char* value)
+{
+    switch( kind )
+    {
+    case RCFIELD_CACHE_TABLE:
+        strncpy(font->table, value, sizeof(font->table) - 1);
+        break;
+    case RCFIELD_CACHE_ARCHIVE:
+        strncpy(font->archive, value, sizeof(font->archive) - 1);
+        break;
+    case RCFIELD_CACHE_ARCHIVE_ID:
+        font->archive_id = atoi(value);
+        break;
+    case RCFIELD_CACHE_FONT_NAME:
+        strncpy(font->font_name, value, sizeof(font->font_name) - 1);
+        break;
+    default:
+        break;
+    }
+}
+
+static int
+revconfig_font_field_is_numeric(const char* value)
+{
+    if( !value || value[0] == '\0' )
+        return 0;
+    for( const char* p = value; *p; p++ )
+    {
+        if( *p < '0' || *p > '9' )
+            return 0;
+    }
+    return 1;
+}
+
+static void
 revconfig_item_apply_uicomponent_field(
     struct RevConfigUIComponentItem* comp,
     enum RevConfigFieldKind kind,
@@ -386,7 +434,18 @@ revconfig_item_apply_uicomponent_field(
         comp->filled = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
         break;
     case RCFIELD_UICOMPONENT_FONT:
-        comp->font = atoi(value);
+        if( revconfig_font_field_is_numeric(value) )
+        {
+            comp->font = atoi(value);
+            comp->has_font_ref = 0;
+            comp->font_ref[0] = '\0';
+        }
+        else
+        {
+            strncpy(comp->font_ref, value, sizeof(comp->font_ref) - 1);
+            comp->font_ref[sizeof(comp->font_ref) - 1] = '\0';
+            comp->has_font_ref = 1;
+        }
         break;
     case RCFIELD_UICOMPONENT_CENTER:
         comp->center = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
@@ -476,6 +535,9 @@ revconfig_item_apply_field(
     {
     case RCITEM_CACHE_SPRITE:
         revconfig_item_apply_cache_field(&item->u.cache, kind, value);
+        break;
+    case RCITEM_CACHE_FONT:
+        revconfig_item_apply_font_field(&item->u.font, kind, value);
         break;
     case RCITEM_UICOMPONENT:
         revconfig_item_apply_uicomponent_field(&item->u.uicomponent, kind, value);

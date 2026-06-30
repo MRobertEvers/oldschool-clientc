@@ -35,6 +35,7 @@ struct Task_InstanceRevConfigLoad
     union
     {
         struct Task_InstanceOnRCCacheSprite on_cache_sprite;
+        struct Task_InstanceOnRCCacheFont on_cache_font;
         struct Task_InstanceOnRCUIComponent on_uicomponent;
         struct Task_InstanceOnRCUILayout on_uilayout;
         struct Task_InstanceOnRCInv on_inv;

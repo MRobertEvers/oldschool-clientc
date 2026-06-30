@@ -178,6 +178,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_CACHE_CROP_WIDTH;
     else if( strcmp(key, "crop_height") == 0 )
         kind = RCFIELD_CACHE_CROP_HEIGHT;
+    else if( strcmp(key, "font_name") == 0 )
+        kind = RCFIELD_CACHE_FONT_NAME;
     else if(
         strcmp(key, "transform1") == 0 || strcmp(key, "transform2") == 0 ||
         strcmp(key, "transform3") == 0 || strcmp(key, "transform4") == 0 )

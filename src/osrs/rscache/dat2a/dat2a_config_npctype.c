@@ -21,14 +21,16 @@ RSCacheDat2A_ConfigNpctypeNewDecode(
     char* data,
     int data_size)
 {
-    struct RSCacheDat2A_ConfigNpctype* npc = malloc(sizeof(struct RSCacheDat2A_ConfigNpctype));
+    struct RSCacheDat2A_ConfigNpctype* npc = calloc(1, sizeof(struct RSCacheDat2A_ConfigNpctype));
     if( !npc )
     {
         printf("RSCacheDat2A_ConfigNpctypeNewDecode: Failed to allocate memory for NPCType\n");
         return NULL;
     }
 
-    struct RSCacheShared_RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
+    struct RSCacheShared_RSBuffer buffer = { .data = (uint8_t*)(data),
+                                             .size = (uint32_t)(data_size),
+                                             .position = 0 };
 
     decode_npc_type(npc, revision, &buffer);
 

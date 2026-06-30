@@ -37,6 +37,7 @@ enum RevConfigFieldKind
     RCFIELD_CACHE_CROP_Y,
     RCFIELD_CACHE_CROP_WIDTH,
     RCFIELD_CACHE_CROP_HEIGHT,
+    RCFIELD_CACHE_FONT_NAME,
     RCFIELD_UICOMPONENT_TYPE,
     RCFIELD_UICOMPONENT_SPRITE,
     RCFIELD_UICOMPONENT_WIDTH,
@@ -90,6 +91,7 @@ enum RevConfigItemKind
 {
     RCITEM_NONE,
     RCITEM_CACHE_SPRITE,
+    RCITEM_CACHE_FONT,
     RCITEM_UICOMPONENT,
     RCITEM_UILAYOUT,
     RCITEM_INV,
@@ -172,6 +174,22 @@ struct RevConfigCacheItem
      * INI: archive_id=  (default -1 when section opens)
      * Dat2 sprites-table archive id; required for Dat2 load. Unused by Dat1 jagfile decode.
      */
+    int archive_id;
+};
+
+/*
+ * Cache font binding from a [font:name] revconfig INI section (*_cache.ini).
+ * Dat1: font_name= (e.g. b12) loads from title jagfile via dat1_buildcache_font_decode.
+ * Dat2: archive_id= loads from Fonts table via TAPIDat2_FetchFont.
+ */
+struct RevConfigFontItem
+{
+    char name[64];
+    char table[64];
+    char archive[64];
+    /** Dat1 jagfile font stem without .dat (e.g. b12, p11). */
+    char font_name[64];
+    /** Dat2 Fonts table archive id. */
     int archive_id;
 };
 
@@ -272,8 +290,11 @@ struct RevConfigUIComponentItem
      */
     int filled;
 
-    /* INI: font= — RS font id 0–3 for type=rs_text (clamped to 1 if out of range). */
+    /* INI: font= — RS font id 0–3 for type=rs_text, or symbolic [font:…] name for minimenu. */
     int font;
+    /** When font= is non-numeric, resolved via ui_font_lookup. */
+    char font_ref[64];
+    uint8_t has_font_ref;
 
     /* INI: center= — horizontally centred text for type=rs_text. */
     int center;
@@ -363,6 +384,7 @@ struct RevConfigItem
     union
     {
         struct RevConfigCacheItem cache;
+        struct RevConfigFontItem font;
         struct RevConfigUIComponentItem uicomponent;
         struct RevConfigUILayoutItem uilayout;
         struct RevConfigInvItem inv;

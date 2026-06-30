@@ -12,6 +12,13 @@ struct Heightmap;
 struct Minimap;
 
 #define WORLD_MAX_EVENTS 256
+#define WORLD_SCENERY_PICK_MAX 4096
+
+struct WorldSceneryPick
+{
+    int element_id;
+    int loc_id;
+};
 
 #define WORLD_MAP_TERRAIN_X 64
 #define WORLD_MAP_TERRAIN_Z 64
@@ -62,6 +69,9 @@ struct World
 
     struct WorldEvent events[WORLD_MAX_EVENTS];
     int event_count;
+
+    struct WorldSceneryPick scenery_picks[WORLD_SCENERY_PICK_MAX];
+    int scenery_pick_count;
 
     bool load_complete;
 };
@@ -219,5 +229,14 @@ void
 world_cycle(
     struct World* world,
     int cycles_elapsed);
+
+void
+world_clear_scenery_picks(struct World* world);
+
+void
+world_register_scenery_pick(
+    struct World* world,
+    int element_id,
+    int loc_id);
 
 #endif

@@ -2,6 +2,7 @@
 #define UI_BEHAVIOR_H
 
 #include "ui_input.h"
+#include "vm/cs2vm.h"
 #include "vm/csvm.h"
 
 #include <stdbool.h>
@@ -13,6 +14,8 @@ struct UITreeBehaviorHost
 {
     struct CSVM* csvm;
     struct CSVM_State csvm_state;
+    struct CS2VM* cs2vm;
+    struct CS2VM_State cs2vm_state;
     struct VarPVarBitManager* varp_varbit;
 };
 

@@ -129,6 +129,12 @@ Task_InstanceRevConfigLoad_Run(
             task->sub_run = Task_InstanceOnRCCacheSprite_Run;
             task->sub_state = &task->handler.on_cache_sprite;
             break;
+        case RCITEM_CACHE_FONT:
+            Task_InstanceOnRCCacheFont_Init(
+                &task->handler.on_cache_font, &task->rc_ctx, task->cache, &it->u.font);
+            task->sub_run = Task_InstanceOnRCCacheFont_Run;
+            task->sub_state = &task->handler.on_cache_font;
+            break;
         case RCITEM_UICOMPONENT:
             Task_InstanceOnRCUIComponent_Init(
                 &task->handler.on_uicomponent, &task->rc_ctx, task->cache, &it->u.uicomponent);
