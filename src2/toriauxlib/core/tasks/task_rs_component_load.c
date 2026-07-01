@@ -761,9 +761,21 @@ Task_RSComponentLoad_Run(
 
         walk_root_id_before_remap = task->root_component_id;
         walk_root_id = task->root_component_id;
-        if( task->rc_ctx && walk_root_id >= 0 && walk_root_id < 1024 &&
-            task->rc_ctx->panel_root_id[walk_root_id] >= 0 )
-            walk_root_id = task->rc_ctx->panel_root_id[walk_root_id];
+        if( task->rc_ctx && walk_root_id >= 0 && walk_root_id < 1024 )
+        {
+            int mapped = task->rc_ctx->panel_root_id[walk_root_id];
+            if( mapped == INSTANCE_RC_PANEL_ROOT_INVALID )
+                PT_EXIT(&task->thread);
+            if( mapped >= 0 )
+                walk_root_id = mapped;
+            else
+            {
+                int resolved = instance_revconfig_resolve_walk_root_id(walk_ifaces, walk_root_id);
+                if( resolved < 0 )
+                    PT_EXIT(&task->thread);
+                walk_root_id = resolved;
+            }
+        }
     }
     else if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
     {

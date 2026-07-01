@@ -118,6 +118,17 @@ ToriDraw_SceneFontHas(
     struct ToriDraw_Scene* scene,
     int font_id);
 
+void
+ToriDraw_SceneCacheFontSet(
+    struct ToriDraw_Scene* scene,
+    int cache_font_id,
+    struct ToriDraw_Font* font);
+
+struct ToriDraw_Font*
+ToriDraw_SceneCacheFontGet(
+    struct ToriDraw_Scene* scene,
+    int cache_font_id);
+
 /* Scene elements */
 
 void

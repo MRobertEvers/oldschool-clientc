@@ -188,6 +188,22 @@ find_cache_font_item(
     return false;
 }
 
+static struct RevConfigFontItem const*
+get_cache_font_item(
+    struct RevConfigItemBuffer const* items,
+    char const* name)
+{
+    if( !items || !name )
+        return NULL;
+    for( uint32_t i = 0; i < items->item_count; i++ )
+    {
+        struct RevConfigItem const* item = &items->items[i];
+        if( item->kind == RCITEM_CACHE_FONT && strcmp(item->u.font.name, name) == 0 )
+            return &item->u.font;
+    }
+    return NULL;
+}
+
 static bool
 find_uicomponent(
     struct RevConfigItemBuffer const* items,
@@ -271,6 +287,16 @@ run_ini_pair_test(
         TEST_ASSERT(
             find_uicomponent(load_task.items, "compass"), "dat1: compass component missing");
         TEST_ASSERT(find_cache_font_item(load_task.items, "b12"), "dat1: b12 font cache item missing");
+        {
+            struct RevConfigFontItem const* p11 = get_cache_font_item(load_task.items, "p11");
+            struct RevConfigFontItem const* p12 = get_cache_font_item(load_task.items, "p12");
+            struct RevConfigFontItem const* b12 = get_cache_font_item(load_task.items, "b12");
+            struct RevConfigFontItem const* q8 = get_cache_font_item(load_task.items, "q8");
+            TEST_ASSERT(p11 && p11->cache_font_id == 0, "dat1: p11 cache_font_id");
+            TEST_ASSERT(p12 && p12->cache_font_id == 1, "dat1: p12 cache_font_id");
+            TEST_ASSERT(b12 && b12->cache_font_id == 2, "dat1: b12 cache_font_id");
+            TEST_ASSERT(q8 && q8->cache_font_id == 3, "dat1: q8 cache_font_id");
+        }
         TEST_ASSERT(find_cache_item(load_task.items, "cross"), "dat1: cross sprite cache item missing");
         TEST_ASSERT(find_uicomponent(load_task.items, "cross"), "dat1: cross component missing");
         TEST_ASSERT(find_uicomponent(load_task.items, "minimenu"), "dat1: minimenu component missing");
@@ -281,6 +307,11 @@ run_ini_pair_test(
             find_cache_item_with_archive_id(load_task.items),
             "dat2: no cache item with archive_id");
         TEST_ASSERT(find_cache_font_item(load_task.items, "b12"), "dat2: b12 font cache item missing");
+        {
+            struct RevConfigFontItem const* b12 = get_cache_font_item(load_task.items, "b12");
+            TEST_ASSERT(b12 && b12->cache_font_id == 2, "dat2: b12 cache_font_id");
+            TEST_ASSERT(b12 && b12->archive_id == 496, "dat2: b12 archive_id");
+        }
         TEST_ASSERT(find_cache_item(load_task.items, "cross"), "dat2: cross sprite cache item missing");
         TEST_ASSERT(find_uicomponent(load_task.items, "cross"), "dat2: cross component missing");
         TEST_ASSERT(find_uicomponent(load_task.items, "minimenu"), "dat2: minimenu component missing");

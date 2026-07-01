@@ -162,10 +162,13 @@ struct WorldEntity_Terrain
 struct WorldEntity_Scenery
 {
     int element_id;
+    int loc_id;
     struct WorldEntityFacet_GridPosition grid_position;
     int size_x;
     int size_z;
     struct WorldEntityFacet_OrientationY orientation;
+    char name[32];
+    struct WorldEntityFacet_Action actions[5];
 };
 
 struct WorldEntity_Player
@@ -186,6 +189,9 @@ struct WorldEntity_NPC
     struct WorldEntityFacet_OrientationY orientation;
     int npc_id;
     int size;
+    int combat_level;
+    char name[32];
+    struct WorldEntityFacet_Action actions[5];
     struct WorldEntityFacet_IdleAnimations idle_animations;
     struct WorldEntityFacet_Animation animation;
 };

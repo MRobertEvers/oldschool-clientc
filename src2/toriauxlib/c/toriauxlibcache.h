@@ -115,6 +115,12 @@ ToriAuxLibCache_FlotypeNewFromCacheConfigOverlay(
 struct ToriAuxLibCore_Location*
 ToriAuxLibCache_LocationNewFromCacheConfigLocation(const void* cache_loc);
 
+struct ToriAuxLibCore_Npctype*
+ToriAuxLibCache_NpctypeNewFromDat1ConfigNpc(const void* cache_npc, int npc_id);
+
+struct ToriAuxLibCore_Npctype*
+ToriAuxLibCache_NpctypeNewFromDat2ConfigNpctype(const void* cache_npc, int npc_id);
+
 struct ToriAuxLibCore_Sequence*
 ToriAuxLibCache_SequenceNewFromCacheDatSequence(
     const void* cache_seq,

@@ -252,6 +252,12 @@ GameRunescape_UIHitTest(
     int px,
     int py);
 
+bool
+GameRunescape_MinimenuPrepareShow(
+    struct GameRunescape* game,
+    struct UIMinimenuLayout* out_layout,
+    int* out_content_width);
+
 void
 GameRunescape_FrameBegin(
     struct GameRunescape* game,

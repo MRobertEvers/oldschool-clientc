@@ -669,6 +669,46 @@ gl3_color_from_rgb(
     rgba[3] = alpha;
 }
 
+struct GL3FontGlyphCtx
+{
+    struct LibToriPlatformSDL2_RendererGL3* renderer;
+    struct GL3FontSlot* slot;
+    float alpha;
+    bool shadow;
+};
+
+static void
+gl3_font_glyph_callback(
+    void* ctx,
+    struct ToriDraw_Font* font,
+    int gi,
+    int x,
+    int y,
+    int color_rgb)
+{
+    (void)font;
+    struct GL3FontGlyphCtx* gctx = (struct GL3FontGlyphCtx*)ctx;
+    struct LibToriPlatformSDL2_RendererGL3* renderer = gctx->renderer;
+    struct GL3FontSlot* slot = gctx->slot;
+
+    int const gw = slot->font->glyph_width[gi];
+    int const gh = slot->font->glyph_height[gi];
+    if( gw <= 0 || gh <= 0 )
+        return;
+
+    float const gx = (float)x;
+    float const gy = (float)y;
+    float const u0 = slot->glyph_uv[gi * 4 + 0];
+    float const v0 = slot->glyph_uv[gi * 4 + 1];
+    float const u1 = slot->glyph_uv[gi * 4 + 2];
+    float const v1 = slot->glyph_uv[gi * 4 + 3];
+
+    int const rgb = gctx->shadow ? 0 : color_rgb;
+    float rgba[4];
+    gl3_color_from_rgb(rgb, gctx->alpha, rgba);
+    gl3_draw_textured_quad(renderer, gx, gy, gx + (float)gw, gy + (float)gh, u0, v0, u1, v1, rgba);
+}
+
 static void
 gl3_draw_font_glyphs(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
@@ -677,9 +717,11 @@ gl3_draw_font_glyphs(
     char const* text,
     int x,
     int y,
-    float const rgba[4])
+    int default_color_rgb,
+    float alpha,
+    bool shadow)
 {
-    if( !text || !slot->baked )
+    if( !text || !slot->baked || !font )
         return;
 
     glActiveTexture(GL_TEXTURE0);
@@ -688,22 +730,13 @@ gl3_draw_font_glyphs(
     if( renderer->u2d_text_mode >= 0 )
         glUniform1i(renderer->u2d_text_mode, 1);
 
-    int cx = x;
-    for( char const* p = text; *p; ++p )
-    {
-        int gi = (unsigned char)font->charcodeset[(unsigned char)*p];
-        int gw = font->glyph_width[gi];
-        int gh = font->glyph_height[gi];
-        float gx = (float)(cx + font->offset_x[gi]);
-        float gy = (float)(y + font->offset_y[gi]);
-        float u0 = slot->glyph_uv[gi * 4 + 0];
-        float v0 = slot->glyph_uv[gi * 4 + 1];
-        float u1 = slot->glyph_uv[gi * 4 + 2];
-        float v1 = slot->glyph_uv[gi * 4 + 3];
-        gl3_draw_textured_quad(
-            renderer, gx, gy, gx + (float)gw, gy + (float)gh, u0, v0, u1, v1, rgba);
-        cx += font->advance[gi];
-    }
+    struct GL3FontGlyphCtx ctx = {
+        .renderer = renderer,
+        .slot = slot,
+        .alpha = alpha,
+        .shadow = shadow,
+    };
+    ToriDraw_FontVisitGlyphs(font, text, x, y, default_color_rgb, gl3_font_glyph_callback, &ctx);
 
     glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
     glUniform1i(renderer->u2d_texture, 0);
@@ -986,14 +1019,20 @@ gl3_ev_font(
     if( command->u.font.center )
         x -= ToriDraw2D_MeasureString(font, command->u.font.text) / 2;
 
-    float shadow_rgba[4];
-    gl3_color_from_rgb(0, 1.0f, shadow_rgba);
     if( command->u.font.shadowed )
-        gl3_draw_font_glyphs(renderer, slot, font, command->u.font.text, x + 1, y + 1, shadow_rgba);
+        gl3_draw_font_glyphs(
+            renderer,
+            slot,
+            font,
+            command->u.font.text,
+            x + 1,
+            y + 1,
+            command->u.font.color,
+            1.0f,
+            true);
 
-    float text_rgba[4];
-    gl3_color_from_rgb(command->u.font.color, 1.0f, text_rgba);
-    gl3_draw_font_glyphs(renderer, slot, font, command->u.font.text, x, y, text_rgba);
+    gl3_draw_font_glyphs(
+        renderer, slot, font, command->u.font.text, x, y, command->u.font.color, 1.0f, false);
 }
 
 static struct ToriDraw_Model*

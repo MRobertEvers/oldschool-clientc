@@ -14,6 +14,9 @@ ToriDraw_FontCharsetTable(void);
 void
 ToriDraw_FontInitCharcodeset(struct ToriDraw_Font* font);
 
+void
+ToriDraw_FontFinishDrawWidths(struct ToriDraw_Font* font);
+
 struct ToriDraw_Font
 {
     uint8_t* glyph_alpha[TORIDRAW_FONT_GLYPH_COUNT];
@@ -39,6 +42,27 @@ ToriDraw_FontFree(struct ToriDraw_Font* font);
 
 bool
 ToriDraw_FontValidate(struct ToriDraw_Font* font);
+
+int
+ToriDraw_FontEvaluateColorTag(char const tag[3]);
+
+typedef void (*ToriDraw_FontGlyphCallback)(
+    void* ctx,
+    struct ToriDraw_Font* font,
+    int gi,
+    int x,
+    int y,
+    int color_rgb);
+
+void
+ToriDraw_FontVisitGlyphs(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int x,
+    int y,
+    int default_color_rgb,
+    ToriDraw_FontGlyphCallback callback,
+    void* ctx);
 
 int
 ToriDraw2D_MeasureString(

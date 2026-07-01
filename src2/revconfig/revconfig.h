@@ -38,6 +38,7 @@ enum RevConfigFieldKind
     RCFIELD_CACHE_CROP_WIDTH,
     RCFIELD_CACHE_CROP_HEIGHT,
     RCFIELD_CACHE_FONT_NAME,
+    RCFIELD_CACHE_FONT_ID,
     RCFIELD_UICOMPONENT_TYPE,
     RCFIELD_UICOMPONENT_SPRITE,
     RCFIELD_UICOMPONENT_WIDTH,
@@ -179,18 +180,55 @@ struct RevConfigCacheItem
 
 /*
  * Cache font binding from a [font:name] revconfig INI section (*_cache.ini).
+ *
+ * Why cache_font_id exists:
+ * RS interface TEXT widgets in the cache do not store font file names or runtime scene
+ * IDs. Dat1 components store a single-byte font slot (0–3). Dat2 components store
+ * textFont as a fonts-table archive_id. Revconfig loads fonts by symbolic name
+ * ([font:b12]); cache_font_id pins the decoded font into ToriDraw_Scene at that
+ * fixed slot so UI/render code can use scene.cache_fonts[id]. archive_id bridges
+ * dat2 cache textFont values to the loaded font at bake time.
+ *
+ * Standard OSRS convention (configurable per revision via INI):
+ *   0 = p11, 1 = p12, 2 = b12, 3 = q8
+ *
  * Dat1: font_name= (e.g. b12) loads from title jagfile via dat1_buildcache_font_decode.
  * Dat2: archive_id= loads from Fonts table via TAPIDat2_FetchFont.
  */
 struct RevConfigFontItem
 {
+    /* [font:<name>] — unique key; ui_font_lookup and component font= reference this. */
     char name[64];
+
+    /*
+     * INI: table=
+     * Cache table name (e.g. fonts for Dat2). Metadata; Dat1 decode uses title jagfile.
+     */
     char table[64];
+
+    /* INI: archive= — Dat1 jagfile archive within configs; metadata only in src2. */
     char archive[64];
-    /** Dat1 jagfile font stem without .dat (e.g. b12, p11). */
+
+    /*
+     * INI: font_name=
+     * Dat1 jagfile font stem without .dat (e.g. b12, p11). Defaults to section name.
+     */
     char font_name[64];
-    /** Dat2 Fonts table archive id. */
+
+    /*
+     * INI: archive_id=  (default -1 when section opens)
+     * Dat2 fonts-table archive id; required for Dat2 load. Also used to resolve dat2
+     * interface textFont values at RS subtree bake time.
+     */
     int archive_id;
+
+    /*
+     * INI: cache_font_id=  (default -1 when section opens)
+     * Fixed ToriDraw_Scene slot 0–3 for always-resident cache fonts. RS dat1 TEXT
+     * components carry this slot on COMPONENT_TYPE_TEXT; dat2 uses archive_id to
+     * resolve to the same slot at bake time.
+     */
+    int cache_font_id;
 };
 
 /*

@@ -801,6 +801,99 @@ world_clear_scenery_picks(struct World* world)
         world->scenery_pick_count = 0;
 }
 
+static void
+world_entity_copy_menu_actions(
+    struct WorldEntityFacet_Action dest[5],
+    char const src[5][32])
+{
+    for( int i = 0; i < 5; i++ )
+    {
+        dest[i].code = (uint16_t)i;
+        dest[i].name[0] = '\0';
+        if( src && src[i][0] != '\0' )
+        {
+            strncpy(dest[i].name, src[i], sizeof(dest[i].name) - 1);
+            dest[i].name[sizeof(dest[i].name) - 1] = '\0';
+        }
+    }
+}
+
+int
+world_scenery_register(
+    struct World* world,
+    int element_id,
+    int loc_id,
+    int scene_x,
+    int scene_z,
+    int level,
+    int size_x,
+    int size_z,
+    char const* name,
+    char const actions[5][32])
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_Scenery* scenery;
+    int idx;
+
+    if( !world || element_id < 0 || loc_id < 0 )
+        return -1;
+
+    pool = &world->entities.scenery;
+    idx = World_EntityPoolAlloc(pool);
+    if( idx < 0 )
+        return -1;
+
+    scenery = World_EntityPoolGet(pool, idx);
+    *scenery = (struct WorldEntity_Scenery){
+        .element_id = element_id,
+        .loc_id = loc_id,
+        .grid_position = { .x = scene_x, .z = scene_z, .level = level },
+        .size_x = size_x,
+        .size_z = size_z,
+        .orientation = { .yaw = 0 },
+    };
+    if( name )
+    {
+        strncpy(scenery->name, name, sizeof(scenery->name) - 1);
+        scenery->name[sizeof(scenery->name) - 1] = '\0';
+    }
+    world_entity_copy_menu_actions(scenery->actions, actions);
+
+    if( world->scenery_pick_count < WORLD_SCENERY_PICK_MAX )
+    {
+        struct WorldSceneryPick* pick = &world->scenery_picks[world->scenery_pick_count++];
+        pick->element_id = element_id;
+        pick->loc_id = loc_id;
+        pick->scenery_index = idx;
+    }
+
+    return idx;
+}
+
+struct WorldEntity_Scenery*
+world_scenery_get_by_element_id(
+    struct World* world,
+    int element_id)
+{
+    struct World_EntityPool* pool;
+    int idx;
+
+    if( !world || element_id < 0 )
+        return NULL;
+
+    pool = &world->entities.scenery;
+    for( idx = World_EntityPoolHead(pool); idx >= 0; idx = World_EntityPoolNext(pool, idx) )
+    {
+        if( !World_EntityPoolIsActive(pool, idx) )
+            continue;
+        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, idx);
+        if( scenery && scenery->element_id == element_id )
+            return scenery;
+    }
+
+    return NULL;
+}
+
 void
 world_register_scenery_pick(
     struct World* world,
@@ -815,4 +908,5 @@ world_register_scenery_pick(
     struct WorldSceneryPick* pick = &world->scenery_picks[world->scenery_pick_count++];
     pick->element_id = element_id;
     pick->loc_id = loc_id;
+    pick->scenery_index = -1;
 }

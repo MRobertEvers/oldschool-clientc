@@ -9,7 +9,7 @@ REPO_ROOT := $(abspath $(TEST_DIR)/../..)
 SRC_DIR   := $(REPO_ROOT)/src
 SRC2_DIR  := $(REPO_ROOT)/src2
 
-CFLAGS = -std=c11 -Wall -Wextra -g \
+CFLAGS = -std=c11 -Wall -Wextra -g -MMD -MP \
 	-I$(TEST_DIR) -I$(SRC_DIR) -I$(SRC_DIR)/graphics -I$(SRC2_DIR) -I$(SRC2_DIR)/core \
 	-I$(SRC2_DIR)/toridraw -I$(SRC2_DIR)/platforms \
 	-I$(SRC2_DIR)/toriauxlib/core/tasks -I$(REPO_ROOT)
@@ -66,7 +66,10 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/commands/libtorirs_command_queue.c \
 	$(SRC2_DIR)/revconfig/revconfig.c \
 	$(SRC2_DIR)/revconfig/revconfig_load.c \
+	$(SRC_DIR)/osrs/varp_varbit_manager.c \
 	$(SRC2_DIR)/world/minimap.c \
+	$(SRC2_DIR)/world/world.c \
+	$(SRC2_DIR)/world/world_entity.c \
 	$(SRC2_DIR)/world/world_pickset.c \
 	$(SRC2_DIR)/3rd/ini/ini.c \
 	$(SRC_DIR)/osrs/rscache/unity.c \
@@ -75,6 +78,8 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC_DIR)/osrs/palette.c
 
 OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o)))
+
+-include $(OBJS:.o=.d)
 
 .PHONY: all clean run check
 
@@ -88,7 +93,7 @@ $(TARGET): $(OBJS)
 
 define make-goal
 $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
-	$(CC) $(CFLAGS) -c $(1) -o $$@
+	$(CC) $(CFLAGS) -c $(1) -o $(OBJ_DIR)/$(notdir $(1:.c=.o)) -MF $(OBJ_DIR)/$(notdir $(1:.c=.d))
 endef
 
 $(foreach src,$(SRCS),$(eval $(call make-goal,$(src))))

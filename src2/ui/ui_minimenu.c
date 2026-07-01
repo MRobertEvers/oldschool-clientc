@@ -1,7 +1,95 @@
 #include "ui_minimenu.h"
 
+#include "toridraw/toridraw_font.h"
+
 #include <stdio.h>
 #include <string.h>
+
+struct UIMinimenuLayout
+ui_minimenu_layout_from_line_height(int line_height)
+{
+    int const h =
+        line_height > 0 ? line_height : UI_MINIMENU_DEFAULT_LINE_HEIGHT;
+
+    struct UIMinimenuLayout layout;
+    layout.line_height = h;
+    layout.row_stride = h + 1;
+    layout.header_text_y = h;
+    layout.header_bar_h = h + 2;
+    layout.separator_y = h + 4;
+    layout.option_base_y = 2 * h + 3;
+    layout.chrome_h = h + 7;
+    layout.hover_above = h - 1;
+    layout.hover_below = 3;
+    layout.width_pad = 8;
+    layout.click_y_bias = h - 3;
+    layout.border_inset = h + 5;
+    return layout;
+}
+
+bool
+ui_minimenu_prepare_show(
+    struct UIMinimenuState const* menu,
+    struct ToriDraw_Font* font,
+    struct UIMinimenuLayout* out_layout,
+    int* out_content_width)
+{
+    if( !menu || !out_layout || !out_content_width || menu->option_count <= 0 )
+        return false;
+
+    *out_layout = ui_minimenu_layout_from_line_height(font ? font->line_height : 0);
+
+    int max_w = 0;
+    if( font )
+    {
+        max_w = ToriDraw2D_MeasureString(font, "Choose Option");
+        for( int i = 0; i < menu->option_count; i++ )
+        {
+            int const w = ToriDraw2D_MeasureString(font, menu->options[i].text);
+            if( w > max_w )
+                max_w = w;
+        }
+    }
+    else
+    {
+        size_t header_len = strlen("Choose Option");
+        if( header_len > (size_t)max_w )
+            max_w = (int)header_len;
+        for( int i = 0; i < menu->option_count; i++ )
+        {
+            size_t const len = strlen(menu->options[i].text);
+            if( len > (size_t)max_w )
+                max_w = (int)len;
+        }
+        max_w *= 6;
+    }
+
+    *out_content_width = max_w + out_layout->width_pad;
+    return true;
+}
+
+int
+ui_minimenu_height(
+    struct UIMinimenuLayout const* layout,
+    int option_count)
+{
+    if( !layout || option_count < 0 )
+        return 0;
+    return option_count * layout->row_stride + layout->chrome_h;
+}
+
+int
+ui_minimenu_option_y(
+    struct UIMinimenuState const* menu,
+    int option_index)
+{
+    if( !menu || option_index < 0 || option_index >= menu->option_count )
+        return menu ? menu->y : 0;
+
+    int const row =
+        (menu->option_count - 1 - option_index) * menu->layout.row_stride;
+    return menu->y + row + menu->layout.option_base_y;
+}
 
 void
 ui_minimenu_reset(struct UIMinimenuState* menu)
@@ -63,6 +151,8 @@ ui_minimenu_add_option(
 void
 ui_minimenu_show_at(
     struct UIMinimenuState* menu,
+    struct UIMinimenuLayout layout,
+    int content_width,
     int click_x,
     int click_y,
     int viewport_w,
@@ -71,17 +161,10 @@ ui_minimenu_show_at(
     if( !menu || menu->option_count <= 0 )
         return;
 
-    int width = 120;
-    for( int i = 0; i < menu->option_count; i++ )
-    {
-        int approx = (int)strlen(menu->options[i].text) * 6 + 12;
-        if( approx > width )
-            width = approx;
-    }
-
-    int height = menu->option_count * 15 + 21;
+    int width = content_width > 0 ? content_width : 120;
+    int height = ui_minimenu_height(&layout, menu->option_count);
     int x = click_x - (width / 2);
-    int y = click_y - 11;
+    int y = click_y - layout.click_y_bias;
 
     if( x + width > viewport_w )
         x = viewport_w - width;
@@ -92,6 +175,7 @@ ui_minimenu_show_at(
     if( y < 0 )
         y = 0;
 
+    menu->layout = layout;
     menu->visible = true;
     menu->x = x;
     menu->y = y;
@@ -111,10 +195,10 @@ ui_minimenu_hit_option(
 
     for( int i = 0; i < menu->option_count; i++ )
     {
-        int row_top = menu->y + 19 + i * 15;
-        int row_bot = row_top + 15;
-        if( click_x > menu->x && click_x < menu->x + menu->width && click_y > row_top &&
-            click_y < row_bot )
+        int const option_y = ui_minimenu_option_y(menu, i);
+        if( click_x > menu->x && click_x < menu->x + menu->width &&
+            click_y > option_y - menu->layout.hover_above &&
+            click_y < option_y + menu->layout.hover_below )
             return i;
     }
 

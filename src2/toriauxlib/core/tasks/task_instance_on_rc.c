@@ -259,7 +259,9 @@ instance_revconfig_register_core_font(
     struct InstanceRevConfigContext* ctx,
     int font_id,
     struct ToriAuxLibCore_Font* font,
-    char const* lookup_name)
+    char const* lookup_name,
+    int cache_font_id,
+    int cache_archive_id)
 {
     assert(ctx && ctx->cache && font && lookup_name);
     assert(ctx->td && "revconfig font load requires ToriAuxLibTD");
@@ -277,7 +279,11 @@ instance_revconfig_register_core_font(
     assert(scene_font && "revconfig font missing from scene after ToriAuxLibTD_Font");
     assert(ToriDraw_FontValidate(scene_font));
 
-    ui_font_lookup_add(&ctx->font_lookup, lookup_name, font_id);
+    if( cache_font_id >= 0 && cache_font_id < TORIDRAW_CACHE_FONT_SLOT_COUNT )
+        ToriDraw_SceneCacheFontSet(ctx->scene, cache_font_id, scene_font);
+
+    ui_font_lookup_add(
+        &ctx->font_lookup, lookup_name, font_id, cache_font_id, cache_archive_id);
 }
 
 static bool
@@ -452,20 +458,52 @@ Task_InstanceOnRCCacheFont_Run(
             task->rc_ctx->title_fonts_ready = true;
         }
 
-        task->font_id = task->rc_ctx->next_element_id++;
-        char const* font_stem = task->item.font_name[0] != '\0' ? task->item.font_name : task->item.name;
         struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->cache);
-        assert(!ToriAuxLibCore_FontHas(core, task->font_id) && "font_id collision in revconfig load");
+        if( task->item.cache_font_id >= 0 &&
+            task->item.cache_font_id < TORIDRAW_CACHE_FONT_SLOT_COUNT )
+        {
+            task->font_id = task->item.cache_font_id;
+            assert(
+                !ToriAuxLibCore_FontHas(core, task->font_id) &&
+                "cache_font_id collision in revconfig load");
+        }
+        else
+        {
+            task->font_id = task->rc_ctx->next_element_id++;
+            assert(
+                !ToriAuxLibCore_FontHas(core, task->font_id) &&
+                "font_id collision in revconfig load");
+        }
+
+        char const* font_stem =
+            task->item.font_name[0] != '\0' ? task->item.font_name : task->item.name;
 
         struct ToriAuxLibCore_Font* font =
             dat1_buildcache_font_decode(task->rc_ctx->dat1_bc, font_stem);
         assert(font && "failed to decode revconfig font (check title_fonts jagfile / font stem)");
         instance_revconfig_register_core_font(
-            task->rc_ctx, task->font_id, font, task->item.name);
+            task->rc_ctx,
+            task->font_id,
+            font,
+            task->item.name,
+            task->item.cache_font_id,
+            -1);
     }
     else if( ToriAuxLibCache_Mode(task->cache) == TORIAUXLIBCACHE_MODE_DAT2 )
     {
-        task->font_id = task->rc_ctx->next_element_id++;
+        if( task->item.cache_font_id >= 0 &&
+            task->item.cache_font_id < TORIDRAW_CACHE_FONT_SLOT_COUNT )
+        {
+            task->font_id = task->item.cache_font_id;
+            struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->cache);
+            assert(
+                !ToriAuxLibCore_FontHas(core, task->font_id) &&
+                "cache_font_id collision in revconfig load");
+        }
+        else
+        {
+            task->font_id = task->rc_ctx->next_element_id++;
+        }
         if( task->item.archive_id < 0 )
             PT_EXIT(&task->thread);
 
@@ -482,7 +520,12 @@ Task_InstanceOnRCCacheFont_Run(
             disk, font_archive, task->item.archive_id);
         assert(font && "failed to decode revconfig dat2 font");
         instance_revconfig_register_core_font(
-            task->rc_ctx, task->font_id, font, task->item.name);
+            task->rc_ctx,
+            task->font_id,
+            font,
+            task->item.name,
+            task->item.cache_font_id,
+            task->item.archive_id);
     }
 
     PT_END(&task->thread);
@@ -551,11 +594,19 @@ Task_InstanceOnRCUIComponent_Run(
         {
             struct InstanceRevConfigRSSubtree* subtree =
                 instance_revconfig_rs_subtree_find(task->rc_ctx, task->item.name);
-            assert(
-                subtree && subtree->item_count > 0 &&
-                "RS component load produced empty rs_subtree");
+            bool const panel_invalid =
+                ToriAuxLibCache_Mode(task->cache) == TORIAUXLIBCACHE_MODE_DAT1 &&
+                task->item.componentno < 1024 &&
+                task->rc_ctx->panel_root_id[task->item.componentno] ==
+                    INSTANCE_RC_PANEL_ROOT_INVALID;
+            if( !panel_invalid )
+            {
+                assert(
+                    subtree && subtree->item_count > 0 &&
+                    "RS component load produced empty rs_subtree");
+            }
 
-            if( strcmp(task->item.type, "sidebar") == 0 && task->item.inv[0] != '\0' )
+            if( strcmp(task->item.type, "sidebar") == 0 && task->item.inv[0] != '\0' && !panel_invalid )
             {
                 bool found_inv = false;
                 struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->cache);

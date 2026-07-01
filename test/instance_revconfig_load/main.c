@@ -2,6 +2,8 @@
 #include "core_task_await.h"
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "platforms/platform_x_io_reactor.h"
+#include "platforms/platform_x/cachelib.h"
+#include "platforms/platform_x/cachelib_platform.h"
 #include "revconfig/revconfig.h"
 #include "revconfig/revconfig_load.h"
 #include "toriauxlib/core/tasks/core_task.h"
@@ -10,16 +12,23 @@
 #include "toriauxlib/toriauxlib.h"
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_scene.h"
+#include "osrs/colors.h"
 #include "games/runescape.h"
 #include "ui/minimenu_pickset.h"
 #include "ui/ui_click.h"
 #include "ui/ui_font_lookup.h"
+#include "ui/ui_minimenu.h"
 #include "ui/ui_input.h"
 #include "ui/ui_sprite_lookup.h"
 #include "ui/uitree.h"
 #include "ui/uitree_host.h"
 #include "world/minimap.h"
+#include "world/world.h"
 #include "world/world_pickset.h"
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
+#include "osrs/rscache/dat1a/dat1a_configs_dat.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/shared/shared_file_list.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -93,6 +102,38 @@ AwaitParentTask_Run(
 }
 
 static int
+test_minimenu_layout_derivation(void)
+{
+    struct UIMinimenuLayout const layout = ui_minimenu_layout_from_line_height(14);
+    TEST_ASSERT(layout.line_height == 14, "b12 line_height");
+    TEST_ASSERT(layout.row_stride == 15, "b12 row_stride");
+    TEST_ASSERT(layout.header_text_y == 14, "b12 header_text_y");
+    TEST_ASSERT(layout.header_bar_h == 16, "b12 header_bar_h");
+    TEST_ASSERT(layout.separator_y == 18, "b12 separator_y");
+    TEST_ASSERT(layout.option_base_y == 31, "b12 option_base_y");
+    TEST_ASSERT(layout.chrome_h == 21, "b12 chrome_h");
+    TEST_ASSERT(layout.hover_above == 13, "b12 hover_above");
+    TEST_ASSERT(layout.hover_below == 3, "b12 hover_below");
+    TEST_ASSERT(layout.click_y_bias == 11, "b12 click_y_bias");
+    TEST_ASSERT(layout.border_inset == 19, "b12 border_inset");
+    TEST_ASSERT(ui_minimenu_height(&layout, 1) == 36, "single-option height");
+    TEST_ASSERT(ui_minimenu_height(&layout, 2) == 51, "two-option height");
+
+    struct UIMinimenuState menu = { 0 };
+    menu.y = 100;
+    menu.option_count = 2;
+    menu.layout = layout;
+    TEST_ASSERT(ui_minimenu_option_y(&menu, 1) == 131, "single option anchor (index 1)");
+    TEST_ASSERT(ui_minimenu_option_y(&menu, 0) == 146, "top option anchor (index 0)");
+
+    struct UIMinimenuLayout const fallback = ui_minimenu_layout_from_line_height(0);
+    TEST_ASSERT(fallback.line_height == UI_MINIMENU_DEFAULT_LINE_HEIGHT, "zero H fallback");
+
+    fprintf(stderr, "ok: minimenu layout derived from line_height\n");
+    return 0;
+}
+
+static int
 run_protothread_to_completion(
     int (*run_fn)(
         void*,
@@ -156,6 +197,9 @@ test_task_await(void)
 }
 
 /* --- full pipeline --- */
+
+static char const*
+pipeline_cache_directory(void);
 
 static bool
 pipeline_cache_assets_available(void)
@@ -691,6 +735,24 @@ find_cache_font_item(
     return false;
 }
 
+static bool
+uitree_rs_text_scene_fonts_valid(
+    struct UITree const* tree,
+    struct ToriDraw_Scene* scene)
+{
+    if( !tree || !scene )
+        return false;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* c = &tree->components[i];
+        if( c->type != UIELEM_RS_TEXT )
+            continue;
+        if( c->u.rs_text.font_id < 0 || !ToriDraw_SceneFontHas(scene, c->u.rs_text.font_id) )
+            return false;
+    }
+    return true;
+}
+
 static uint32_t
 count_items_of_kind(
     struct RevConfigItemBuffer const* items,
@@ -904,6 +966,21 @@ assert_minimenu_options(
         return 1;
     }
 
+    if( menu.option_count < 1 || strcmp(menu.options[0].text, "Cancel") != 0 )
+    {
+        fprintf(stderr, "FAIL: %s expected Cancel at index 0\n", label);
+        return 1;
+    }
+
+    if( include_walk )
+    {
+        if( menu.option_count < 2 || strcmp(menu.options[1].text, "Walk here") != 0 )
+        {
+            fprintf(stderr, "FAIL: %s expected Walk here at index 1\n", label);
+            return 1;
+        }
+    }
+
     for( int i = 0; i < required_count; i++ )
     {
         if( !minimenu_has_option_text(&menu, required_options[i]) )
@@ -919,6 +996,59 @@ assert_minimenu_options(
     }
 
     return 0;
+}
+
+static struct World g_test_minimenu_world;
+static struct GameRunescape_EntityRecord g_test_entity_registry[1];
+
+static void
+test_minimenu_seed_world(struct GameRunescape* game)
+{
+    struct WorldEntity_NPC* npc;
+    struct WorldEntity_Scenery* scenery;
+    int npc_idx;
+    int scenery_idx;
+    int npc_entity_id;
+
+    memset(&g_test_minimenu_world, 0, sizeof(g_test_minimenu_world));
+    World_EntityListInit(&g_test_minimenu_world.entities);
+
+    npc_idx = World_EntityPoolAlloc(&g_test_minimenu_world.entities.npc);
+    npc = World_EntityPoolGet(&g_test_minimenu_world.entities.npc, npc_idx);
+    memset(npc, 0, sizeof(*npc));
+    strncpy(npc->name, "Goblin", sizeof(npc->name) - 1);
+    strncpy(npc->actions[0].name, "Attack", sizeof(npc->actions[0].name) - 1);
+    npc->actions[0].code = 0;
+    strncpy(npc->actions[2].name, "Talk-to", sizeof(npc->actions[2].name) - 1);
+    npc->actions[2].code = 2;
+    npc->combat_level = 2;
+
+    scenery_idx = World_EntityPoolAlloc(&g_test_minimenu_world.entities.scenery);
+    scenery = World_EntityPoolGet(&g_test_minimenu_world.entities.scenery, scenery_idx);
+    memset(scenery, 0, sizeof(*scenery));
+    scenery->element_id = 100;
+    strncpy(scenery->name, "Door", sizeof(scenery->name) - 1);
+    strncpy(scenery->actions[0].name, "Use", sizeof(scenery->actions[0].name) - 1);
+    scenery->actions[0].code = 0;
+
+    npc_entity_id = RS_ENTITY_ID(RS_ENTITY_KIND_NPC, npc_idx);
+    g_test_entity_registry[0] = (struct GameRunescape_EntityRecord){
+        .entity_id = npc_entity_id,
+        .element_id = 10,
+        .world_index = npc_idx,
+    };
+
+    game->world = &g_test_minimenu_world;
+    game->entity_registry = g_test_entity_registry;
+    game->entity_registry_count = 1;
+    game->entity_registry_cap = 1;
+
+    g_test_minimenu_world.scenery_picks[0] = (struct WorldSceneryPick){
+        .element_id = 100,
+        .loc_id = 200,
+        .scenery_index = scenery_idx,
+    };
+    g_test_minimenu_world.scenery_pick_count = 1;
 }
 
 struct MouseLocationCase
@@ -980,6 +1110,9 @@ test_mouse_hit_test_on_built_tree(void)
 
     struct GameRunescape game;
     memset(&game, 0, sizeof(game));
+    test_minimenu_seed_world(&game);
+
+    int const test_npc_entity_id = g_test_entity_registry[0].entity_id;
 
     struct UITreeHost host;
     uitree_host_init(&host);
@@ -1082,27 +1215,38 @@ test_mouse_hit_test_on_built_tree(void)
 
     struct MinimenuPickSet npc_picks;
     minimenu_pickset_reset(&npc_picks);
-    minimenu_pickset_add(&npc_picks, MINIMENU_PICK_NPC, 42, 0, 0, 0);
+    minimenu_pickset_add(&npc_picks, MINIMENU_PICK_NPC, test_npc_entity_id, 0, 0, 0);
     {
-        char const* required[] = { "Attack", "Talk-to", "Walk here", "Cancel" };
-        if( assert_minimenu_options(&game, &npc_picks, true, 4, required, 4, "npc pickset") != 0 )
-            return 1;
+        struct UIMinimenuState menu;
+        ui_click_build_minimenu_from_pickset(&game, &npc_picks, true, &menu);
+        TEST_ASSERT(menu.option_count >= 4, "npc minimenu option count");
+        TEST_ASSERT(strcmp(menu.options[0].text, "Cancel") == 0, "npc cancel index");
+        TEST_ASSERT(strcmp(menu.options[1].text, "Walk here") == 0, "npc walk index");
+        TEST_ASSERT(
+            strstr(menu.options[2].text, "Talk-to") != NULL, "npc talk-to option present");
+        TEST_ASSERT(strstr(menu.options[3].text, "Attack") != NULL, "npc attack option present");
     }
 
     struct MinimenuPickSet scenery_picks;
     minimenu_pickset_reset(&scenery_picks);
     minimenu_pickset_add(&scenery_picks, MINIMENU_PICK_SCENERY, 100, 200, 0, 0);
     {
-        char const* required[] = { "Use", "Walk here", "Cancel" };
-        if( assert_minimenu_options(&game, &scenery_picks, true, 4, required, 3, "scenery pickset") != 0 )
-            return 1;
+        struct UIMinimenuState menu;
+        ui_click_build_minimenu_from_pickset(&game, &scenery_picks, true, &menu);
+        TEST_ASSERT(menu.option_count >= 4, "scenery minimenu option count");
+        TEST_ASSERT(strcmp(menu.options[0].text, "Cancel") == 0, "scenery cancel index");
+        TEST_ASSERT(
+            strstr(menu.options[1].text, "Examine") != NULL, "scenery examine after priority sort");
+        TEST_ASSERT(strcmp(menu.options[2].text, "Walk here") == 0, "scenery walk after sort");
+        TEST_ASSERT(strstr(menu.options[3].text, "Use") != NULL, "scenery use after sort");
     }
 
     struct MinimenuPickSet empty_picks;
     minimenu_pickset_reset(&empty_picks);
     {
-        char const* required[] = { "Walk here", "Cancel" };
-        if( assert_minimenu_options(&game, &empty_picks, true, 2, required, 2, "empty world pickset") != 0 )
+        char const* required[] = { "Walk here" };
+        if( assert_minimenu_options(&game, &empty_picks, true, 2, required, 1, "empty world pickset") !=
+            0 )
             return 1;
     }
 
@@ -1122,8 +1266,16 @@ run_pipeline_test(
     char const* ui_ini,
     bool expect_compass)
 {
+    char const* cache_dir = pipeline_cache_directory();
+    TEST_ASSERT(cache_dir != NULL, "pipeline cache directory");
+
+    int cache_mode = mode == TORIAUXLIBCACHE_MODE_DAT1 ? CACHE_MODE_DAT1 : CACHE_MODE_DAT2;
+    struct RSCacheDat2DiskLib* cache = cachelib_new(cache_mode);
+    TEST_ASSERT(cache != NULL, "cachelib_new");
+    TEST_ASSERT(cachelib_platform_init(cache, cache_dir) == 1, "cachelib_platform_init");
+
     struct LibToriRS_IOQueue* io = LibToriRS_IOQueueNew();
-    struct LibToriPlatformX_IOReactor* reactor = LibToriPlatformX_IOReactorNew(NULL);
+    struct LibToriPlatformX_IOReactor* reactor = LibToriPlatformX_IOReactorNew(cache);
     TEST_ASSERT(io && reactor, "io/reactor alloc");
 
     struct ToriDraw_Scene* scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL);
@@ -1217,11 +1369,27 @@ run_pipeline_test(
             TEST_ASSERT(find_cache_font_item(load_task->items, "b12"), "b12 font item missing");
             {
                 int const b12_id = ui_font_lookup_find(&load_task->rc_ctx.font_lookup, "b12");
-                TEST_ASSERT(b12_id >= 0, "b12 font lookup missing");
+                TEST_ASSERT(b12_id == 2, "b12 scene font id should be cache_font_id 2");
                 TEST_ASSERT(
                     ToriDraw_SceneFontHas(scene, b12_id),
                     "b12 font not in scene after revconfig load");
+                TEST_ASSERT(
+                    ToriDraw_SceneCacheFontGet(scene, 2) != NULL,
+                    "b12 cache font slot 2 not populated");
+                TEST_ASSERT(
+                    ui_font_lookup_find_by_cache_font_id(&load_task->rc_ctx.font_lookup, 2) ==
+                        b12_id,
+                    "b12 cache_font_id 2 resolves to scene font");
+                for( int slot = 0; slot < 4; slot++ )
+                {
+                    TEST_ASSERT(
+                        ToriDraw_SceneCacheFontGet(scene, slot) != NULL,
+                        "cache font slot missing after revconfig load");
+                }
             }
+            TEST_ASSERT(
+                uitree_rs_text_scene_fonts_valid(tree, scene),
+                "baked rs_text nodes use valid scene font ids");
             TEST_ASSERT(
                 uitree_component_parent_is(
                     tree, &load_task->rc_ctx, "redstone_tab_quests", "fixed_shell"),
@@ -1288,6 +1456,7 @@ run_pipeline_test(
     ToriDraw_SceneFree(scene);
     LibToriPlatformX_IOReactorFree(reactor);
     LibToriRS_IOQueueFree(io);
+    cachelib_free(cache);
     return 0;
 }
 
@@ -1390,6 +1559,143 @@ test_sidebar_tab_inv_binding(void)
 }
 
 static int
+test_hitbox_only_graphic_bake(void)
+{
+    struct ToriAuxLibCore* core = ToriAuxLibCore_New();
+    TEST_ASSERT(core != NULL, "ToriAuxLibCore_New");
+
+    struct UITree* tree = uitree_new(8);
+    TEST_ASSERT(tree != NULL, "uitree_new");
+
+    struct InstanceRevConfigContext ctx;
+    instance_revconfig_context_init(&ctx);
+    ctx.core = core;
+    ctx.tree = tree;
+
+    struct RevConfigUIComponentItem owner_comp;
+    memset(&owner_comp, 0, sizeof(owner_comp));
+    strncpy(owner_comp.name, "test_owner", sizeof(owner_comp.name) - 1);
+    strncpy(owner_comp.type, "sidebar", sizeof(owner_comp.type) - 1);
+    owner_comp.componentno = -1;
+
+    struct UINodeSpec owner_spec;
+    memset(&owner_spec, 0, sizeof(owner_spec));
+    owner_spec.type = UIELEM_BUILTIN_SIDEBAR;
+    int32_t owner_idx = uitree_push(tree, -1, &owner_spec);
+    TEST_ASSERT(owner_idx >= 0, "owner push");
+
+    struct ToriAuxLibCore_Component* graphic = calloc(1, sizeof(*graphic));
+    TEST_ASSERT(graphic != NULL, "graphic alloc");
+    graphic->id = 130;
+    graphic->type = TORIAUXLIBCORE_COMPONENT_GRAPHIC;
+    graphic->parent_id = -1;
+    graphic->width = 40;
+    graphic->height = 120;
+    graphic->graphic_hitbox_only = 1;
+    graphic->button_type = 5;
+    ToriAuxLibCore_ComponentAdd(core, 130, graphic);
+
+    struct InstanceRevConfigRSSubtree* subtree =
+        instance_revconfig_rs_subtree_get_or_create(&ctx, owner_comp.name);
+    instance_revconfig_rs_subtree_append(subtree, 130);
+
+    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, owner_idx);
+
+    bool found = false;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        if( tree->components[i].type != UIELEM_RS_GRAPHIC )
+            continue;
+        found = true;
+        TEST_ASSERT(tree->components[i].component_id == 130, "graphic component id");
+        TEST_ASSERT(
+            tree->components[i].u.rs_graphic.graphic_hitbox_only == 1,
+            "graphic_hitbox_only set");
+        TEST_ASSERT(tree->components[i].u.rs_graphic.scene_id < 0, "no scene sprite");
+        TEST_ASSERT(tree->components[i].position.width == 40, "hitbox width");
+        TEST_ASSERT(tree->components[i].position.height == 120, "hitbox height");
+    }
+    TEST_ASSERT(found, "hitbox-only RS_GRAPHIC baked");
+
+    instance_revconfig_context_release_build_state(&ctx);
+    uitree_free(tree);
+    ToriAuxLibCore_Free(core);
+    fprintf(stderr, "ok: hitbox-only graphic bake\n");
+    return 0;
+}
+
+static char const*
+pipeline_cache_directory(void)
+{
+    static char const* const candidates[] = {
+        "../../cache254",
+        "../../../cache254",
+        "../cache254",
+        "cache254",
+        "../../src2/programs/sdl2/../../../cache254",
+        NULL,
+    };
+
+    for( int i = 0; candidates[i]; i++ )
+    {
+        char path[512];
+        snprintf(path, sizeof(path), "%s/main_file_cache.dat", candidates[i]);
+        FILE* f = fopen(path, "rb");
+        if( f )
+        {
+            fclose(f);
+            return candidates[i];
+        }
+    }
+    return NULL;
+}
+
+static int
+test_dat1_walk_root_resolution(void)
+{
+    char const* cache_dir = pipeline_cache_directory();
+    if( !cache_dir )
+    {
+        fprintf(stderr, "skip: dat1 walk root resolution (cache not found)\n");
+        return 0;
+    }
+
+    struct RSCacheDat1Disk* disk = RSCacheDat1Disk_NewFromDirectory(cache_dir);
+    TEST_ASSERT(disk != NULL, "RSCacheDat1Disk_NewFromDirectory");
+
+    struct RSCacheDat1Disk_Archive* arc =
+        RSCacheDat1Disk_ArchiveNewLoad(disk, 0, RSCacheDat1A_ConfigKind_Interfaces);
+    TEST_ASSERT(arc != NULL, "interfaces archive load");
+
+    struct RSCacheShared_FileListDat* fl = RSCacheShared_FileListDatNewFromCacheDatArchive(arc);
+    TEST_ASSERT(fl != NULL, "interfaces filelist");
+
+    int data_idx = RSCacheShared_FileListDatFindFileByName(fl, "data");
+    TEST_ASSERT(data_idx >= 0, "interfaces data file");
+
+    struct RSCacheDat1A_ConfigComponentList* list = RSCacheDat1A_ConfigComponentListNewDecode(
+        fl->files[data_idx], fl->file_sizes[data_idx]);
+    TEST_ASSERT(list != NULL, "interfaces decode");
+
+    TEST_ASSERT(
+        instance_revconfig_resolve_walk_root_id(list, 7) < 0,
+        "componentno 7 must not resolve to global shell");
+    TEST_ASSERT(
+        instance_revconfig_resolve_walk_root_id(list, 593) == 569,
+        "componentno 593 resolves to combat panel layer");
+    TEST_ASSERT(
+        instance_revconfig_resolve_walk_root_id(list, 3213) == 3213,
+        "componentno 3213 resolves to inventory layer root");
+
+    RSCacheShared_FileListDatFree(fl);
+    RSCacheDat1Disk_ArchiveFree(arc);
+    RSCacheDat1Disk_Free(disk);
+
+    fprintf(stderr, "ok: dat1 walk root resolution\n");
+    return 0;
+}
+
+static int
 test_ui_click_world_viewport(void)
 {
     void* data = NULL;
@@ -1465,6 +1771,95 @@ test_ui_click_world_viewport(void)
 }
 
 static int
+test_toridraw_font_color_tag(void)
+{
+    TEST_ASSERT(ToriDraw_FontEvaluateColorTag("cya") == CYAN, "cya tag");
+    TEST_ASSERT(ToriDraw_FontEvaluateColorTag("yel") == YELLOW, "yel tag");
+    TEST_ASSERT(ToriDraw_FontEvaluateColorTag("lre") == LIGHTRED, "lre tag");
+    TEST_ASSERT(ToriDraw_FontEvaluateColorTag("zzz") == -1, "unknown tag");
+
+    fprintf(stderr, "ok: toridraw font color tag\n");
+    return 0;
+}
+
+static void
+test_font_setup_measure(struct ToriDraw_Font* font)
+{
+    static uint8_t glyph_pixel = 255;
+
+    memset(font, 0, sizeof(*font));
+    ToriDraw_FontInitCharcodeset(font);
+    font->charcodeset['A'] = 0;
+    font->charcodeset['B'] = 0;
+    font->glyph_alpha[0] = &glyph_pixel;
+    font->glyph_width[0] = 1;
+    font->glyph_height[0] = 1;
+    font->line_height = 1;
+    font->offset_x[0] = 0;
+    font->offset_y[0] = 0;
+    font->advance[0] = 4;
+    font->advance[8] = 6;
+    ToriDraw_FontFinishDrawWidths(font);
+}
+
+static int
+test_toridraw_font_measure_tagged(void)
+{
+    struct ToriDraw_Font font;
+    test_font_setup_measure(&font);
+
+    int const spaced = ToriDraw2D_MeasureString(&font, "A @cya@ B");
+    int const piped = ToriDraw2D_MeasureString(&font, "A|@cya@|B");
+    TEST_ASSERT(spaced == piped, "pipe and space measure equally");
+    TEST_ASSERT(spaced == 4 + 6 + 6 + 4, "tagged measure skips color codes");
+
+    fprintf(stderr, "ok: toridraw font measure tagged\n");
+    return 0;
+}
+
+static int
+test_toridraw_font_color_tag_draw(void)
+{
+    struct ToriDraw_Font font;
+    static uint8_t glyph_pixel = 255;
+
+    memset(&font, 0, sizeof(font));
+    ToriDraw_FontInitCharcodeset(&font);
+    font.charcodeset['A'] = 0;
+    font.glyph_alpha[0] = &glyph_pixel;
+    font.glyph_width[0] = 1;
+    font.glyph_height[0] = 1;
+    font.line_height = 1;
+    font.offset_x[0] = 0;
+    font.offset_y[0] = 0;
+    font.advance[0] = 2;
+    font.advance[8] = 2;
+    ToriDraw_FontFinishDrawWidths(&font);
+
+    int pixels[64];
+    memset(pixels, 0, sizeof(pixels));
+
+    struct ToriDraw_ViewPort vp = {
+        .clip_left = 0,
+        .clip_top = 0,
+        .clip_right = 32,
+        .clip_bottom = 8,
+        .stride = 32,
+    };
+
+    ToriDraw2D_DrawString(&font, &vp, 0, font.line_height, "A@cya@A", WHITE, false, false, pixels);
+
+    int const row = 0;
+    int const first = pixels[row * vp.stride + 0];
+    int const second = pixels[row * vp.stride + 2];
+    TEST_ASSERT(first == (int)(0xFF000000u | (uint32_t)WHITE), "first glyph default color");
+    TEST_ASSERT(second == (int)(0xFF000000u | (uint32_t)CYAN), "second glyph cyan after tag");
+
+    fprintf(stderr, "ok: toridraw font color tag draw\n");
+    return 0;
+}
+
+static int
 test_toridraw_font_opaque_alpha(void)
 {
     struct ToriDraw_Font font;
@@ -1496,7 +1891,7 @@ test_toridraw_font_opaque_alpha(void)
 
     ToriDraw2D_DrawString(&font, &vp, 2, 2, "A", 0xffffff, false, false, pixels);
 
-    int const written = pixels[2 * vp.stride + 2];
+    int const written = pixels[1 * vp.stride + 2];
     TEST_ASSERT(written != 0, "glyph pixel written");
     TEST_ASSERT((written & 0xFF000000u) == 0xFF000000u, "glyph pixel opaque alpha");
 
@@ -1563,6 +1958,21 @@ main(void)
     if( test_task_await() != 0 )
         return 1;
 
+    if( test_minimenu_layout_derivation() != 0 )
+        return 1;
+
+    if( test_toridraw_font_color_tag() != 0 )
+        return 1;
+
+    if( test_toridraw_font_measure_tagged() != 0 )
+        return 1;
+
+    if( test_toridraw_font_color_tag_draw() != 0 )
+        return 1;
+
+    if( test_toridraw_font_opaque_alpha() != 0 )
+        return 1;
+
     if( !chdir_to_config_root() )
     {
         fprintf(stderr, "skip: config INI files not found (run from repo with rev configs)\n");
@@ -1596,13 +2006,13 @@ main(void)
     if( test_sidebar_tab_inv_binding() != 0 )
         return 1;
 
+    if( test_hitbox_only_graphic_bake() != 0 )
+        return 1;
+
+    if( test_dat1_walk_root_resolution() != 0 )
+        return 1;
+
     if( test_ui_click_world_viewport() != 0 )
-        return 1;
-
-    if( test_toridraw_font_opaque_alpha() != 0 )
-        return 1;
-
-    if( test_ui_click_right_outside_viewport() != 0 )
         return 1;
 
     if( pipeline_cache_assets_available() )
@@ -1618,6 +2028,9 @@ main(void)
             "skip: full revconfig load pipeline requires game cache assets "
             "(main_file_cache.dat not found)\n");
     }
+
+    if( test_ui_click_right_outside_viewport() != 0 )
+        return 1;
 
     printf("All instance_revconfig_load tests passed.\n");
     return 0;

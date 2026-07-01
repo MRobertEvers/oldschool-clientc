@@ -19,6 +19,7 @@ enum ToriAuxLibCore_Kind
     TORIAUXLIBCORE_KIND_FLOTYPE,
     TORIAUXLIBCORE_KIND_UNDERLAY,
     TORIAUXLIBCORE_KIND_LOCATION,
+    TORIAUXLIBCORE_KIND_NPCTYPE,
     TORIAUXLIBCORE_KIND_SEQUENCE,
     TORIAUXLIBCORE_KIND_SKELETAL,
     TORIAUXLIBCORE_KIND_SPRITE,
@@ -163,9 +164,15 @@ struct ToriAuxLibCore_Flotype
     bool hide_underlay;
 };
 
+#define TORIAUXLIBCORE_MENU_ACTION_SLOTS 5
+#define TORIAUXLIBCORE_NAME_MAX 32
+#define TORIAUXLIBCORE_MENU_ACTION_LEN 32
+
 struct ToriAuxLibCore_Location
 {
     int id;
+    char name[TORIAUXLIBCORE_NAME_MAX];
+    char actions[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN];
     int* shapes;
     int** models;
     int* lengths;
@@ -201,6 +208,15 @@ struct ToriAuxLibCore_Location
     int transform_varp;
     int* transforms;
     int transform_count;
+};
+
+struct ToriAuxLibCore_Npctype
+{
+    int id;
+    char name[TORIAUXLIBCORE_NAME_MAX];
+    char actions[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN];
+    int combat_level;
+    int size;
 };
 
 struct ToriAuxLibCore_Sequence
@@ -335,6 +351,8 @@ struct ToriAuxLibCore_Component
     int* scripts_lengths;
     int* script_comparator;
     int* script_operand;
+    /** GRAPHIC with no sprite refs: draw nothing, keep layout hitbox. */
+    uint8_t graphic_hitbox_only;
 };
 
 void
@@ -358,6 +376,9 @@ ToriAuxLibCore_FlotypeFree(struct ToriAuxLibCore_Flotype* flotype);
 
 void
 ToriAuxLibCore_LocationFree(struct ToriAuxLibCore_Location* loc);
+
+void
+ToriAuxLibCore_NpctypeFree(struct ToriAuxLibCore_Npctype* npctype);
 
 void
 ToriAuxLibCore_SequenceFree(struct ToriAuxLibCore_Sequence* seq);
@@ -404,6 +425,9 @@ ToriAuxLibCore_FlotypeSizeOf(const struct ToriAuxLibCore_Flotype* flotype);
 
 size_t
 ToriAuxLibCore_LocationSizeOf(const struct ToriAuxLibCore_Location* loc);
+
+size_t
+ToriAuxLibCore_NpctypeSizeOf(const struct ToriAuxLibCore_Npctype* npctype);
 
 size_t
 ToriAuxLibCore_SequenceSizeOf(const struct ToriAuxLibCore_Sequence* seq);

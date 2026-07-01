@@ -1,5 +1,7 @@
 #include "games/runescape.h"
+#include "osrs/varp_varbit_manager.h"
 #include "toridraw/toridraw.h"
+#include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
@@ -9,6 +11,7 @@
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "toriauxlib/vm/toriauxlibvm.h"
 #include "ui/ui_input.h"
+#include "ui/ui_minimenu.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -118,21 +121,51 @@ GameRunescape_UIHitTest(
     return uitree_hit_test_interactive(game->ui_tree, &game->ui_host, px, py);
 }
 
+bool
+GameRunescape_MinimenuPrepareShow(
+    struct GameRunescape* game,
+    struct UIMinimenuLayout* out_layout,
+    int* out_content_width)
+{
+    if( !game )
+        return false;
+
+    int font_id = -1;
+    if( game->ui_tree && game->ui_minimenu_node >= 0 )
+        font_id = game->ui_tree->components[game->ui_minimenu_node].u.minimenu.font_id;
+
+    struct ToriDraw_Font* font =
+        game->scene && font_id >= 0 ? ToriDraw_SceneFontGet(game->scene, font_id) : NULL;
+    return ui_minimenu_prepare_show(
+        &game->minimenu, font, out_layout, out_content_width);
+}
+
+struct ToriAuxLibVM
+{
+    struct VarPVarBitManager varp_varbit;
+};
+
 struct ToriAuxLibVM*
 ToriAuxLibVM_New(void)
 {
-    return NULL;
+    struct ToriAuxLibVM* vm = calloc(1, sizeof(*vm));
+    if( !vm )
+        return NULL;
+    varp_varbit_init(&vm->varp_varbit);
+    return vm;
 }
 
 void
 ToriAuxLibVM_Free(struct ToriAuxLibVM* vm)
 {
-    (void)vm;
+    if( !vm )
+        return;
+    varp_varbit_free(&vm->varp_varbit);
+    free(vm);
 }
 
 struct VarPVarBitManager*
 ToriAuxLibVM_VarPVarBit(struct ToriAuxLibVM* vm)
 {
-    (void)vm;
-    return NULL;
+    return vm ? &vm->varp_varbit : NULL;
 }

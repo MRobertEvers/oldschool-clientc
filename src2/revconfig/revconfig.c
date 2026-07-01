@@ -49,6 +49,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CACHE_CROP_HEIGHT";
     case RCFIELD_CACHE_FONT_NAME:
         return "RCFIELD_CACHE_FONT_NAME";
+    case RCFIELD_CACHE_FONT_ID:
+        return "RCFIELD_CACHE_FONT_ID";
     case RCFIELD_UICOMPONENT_TYPE:
         return "RCFIELD_UICOMPONENT_TYPE";
     case RCFIELD_UICOMPONENT_SPRITE:
@@ -271,6 +273,7 @@ revconfig_item_begin(
     {
         item->kind = RCITEM_CACHE_FONT;
         item->u.font.archive_id = -1;
+        item->u.font.cache_font_id = -1;
     }
     else if( strcmp(type_value, "component") == 0 )
     {
@@ -366,6 +369,9 @@ revconfig_item_apply_font_field(
         break;
     case RCFIELD_CACHE_FONT_NAME:
         strncpy(font->font_name, value, sizeof(font->font_name) - 1);
+        break;
+    case RCFIELD_CACHE_FONT_ID:
+        font->cache_font_id = atoi(value);
         break;
     default:
         break;

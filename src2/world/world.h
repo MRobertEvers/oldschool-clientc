@@ -18,6 +18,7 @@ struct WorldSceneryPick
 {
     int element_id;
     int loc_id;
+    int scenery_index;
 };
 
 #define WORLD_MAP_TERRAIN_X 64
@@ -232,6 +233,24 @@ world_cycle(
 
 void
 world_clear_scenery_picks(struct World* world);
+
+int
+world_scenery_register(
+    struct World* world,
+    int element_id,
+    int loc_id,
+    int scene_x,
+    int scene_z,
+    int level,
+    int size_x,
+    int size_z,
+    char const* name,
+    char const actions[5][32]);
+
+struct WorldEntity_Scenery*
+world_scenery_get_by_element_id(
+    struct World* world,
+    int element_id);
 
 void
 world_register_scenery_pick(

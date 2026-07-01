@@ -1,10 +1,14 @@
 #include "toridraw_font.h"
 
+#include "osrs/colors.h"
 #include "osrs/rscache/shared/shared_rs_buffer.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define TORIDRAW_FONT_ADVANCE_ONLY_GLYPH TORIDRAW_FONT_GLYPH_COUNT
+#define TORIDRAW_FONT_CHARSET_COUNT (TORIDRAW_FONT_GLYPH_COUNT + 1)
 
 const uint16_t TORIDRAW_FONT_CHARSET[] = {
     'A', 'B',  'C', 'D', 'E',  'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
@@ -14,12 +18,12 @@ const uint16_t TORIDRAW_FONT_CHARSET[] = {
     '0', '1',  '2', '3', '4',  '5', '6', '7', '8', '9', '!', '"', 0x00A3,
     '$', '%',  '^', '&', '*',  '(', ')', '-', '_', '=', '+', '[', '{',
     ']', '}',  ';', ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/',
-    '?', '\\', ' '
+    '?', '\\', '|', ' '
 };
 
 _Static_assert(
-    sizeof(TORIDRAW_FONT_CHARSET) / sizeof(TORIDRAW_FONT_CHARSET[0]) == TORIDRAW_FONT_GLYPH_COUNT,
-    "TORIDRAW_FONT_CHARSET must have exactly TORIDRAW_FONT_GLYPH_COUNT entries");
+    sizeof(TORIDRAW_FONT_CHARSET) / sizeof(TORIDRAW_FONT_CHARSET[0]) == TORIDRAW_FONT_CHARSET_COUNT,
+    "TORIDRAW_FONT_CHARSET must have exactly TORIDRAW_FONT_GLYPH_COUNT glyph entries plus space");
 
 uint16_t const*
 ToriDraw_FontCharsetTable(void)
@@ -30,7 +34,7 @@ ToriDraw_FontCharsetTable(void)
 static int
 font_index_of_char(uint8_t c)
 {
-    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+    for( int i = 0; i < TORIDRAW_FONT_CHARSET_COUNT; i++ )
     {
         if( (TORIDRAW_FONT_CHARSET[i] & 0xFF) == c )
             return i;
@@ -44,12 +48,98 @@ font_init_charcodeset(struct ToriDraw_Font* font)
     for( int i = 0; i < 256; i++ )
     {
         int c = font_index_of_char((uint8_t)i);
-        if( c == -1 )
-            c = font_index_of_char(' ');
-        if( c < 0 || c >= TORIDRAW_FONT_GLYPH_COUNT )
-            c = TORIDRAW_FONT_GLYPH_COUNT - 1;
+        if( c == -1 || c >= TORIDRAW_FONT_ADVANCE_ONLY_GLYPH )
+            c = TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
         font->charcodeset[i] = (char)c;
     }
+    font->charcodeset[(unsigned char)' '] = (char)TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
+}
+
+static void
+font_finish_draw_widths(struct ToriDraw_Font* font)
+{
+    int const fallback = font->advance[8] > 0 ? font->advance[8] : 4;
+
+    if( font->advance[93] < 4 )
+        font->advance[93] = fallback;
+    if( font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH] <= 0 )
+        font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH] = fallback;
+
+    for( int i = 0; i < 256; i++ )
+        font->draw_width[i] = font->advance[(unsigned char)font->charcodeset[i]];
+
+    font->draw_width[(unsigned char)' '] = font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH];
+    font->draw_width[(unsigned char)'|'] = font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH];
+}
+
+void
+ToriDraw_FontFinishDrawWidths(struct ToriDraw_Font* font)
+{
+    font_finish_draw_widths(font);
+}
+
+int
+ToriDraw_FontEvaluateColorTag(char const tag[3])
+{
+    if( !tag )
+        return -1;
+    if( tag[0] == 'c' && tag[1] == 'y' && tag[2] == 'a' )
+        return CYAN;
+    if( tag[0] == 'w' && tag[1] == 'h' && tag[2] == 'i' )
+        return WHITE;
+    if( tag[0] == 'y' && tag[1] == 'e' && tag[2] == 'l' )
+        return YELLOW;
+    if( tag[0] == 'r' && tag[1] == 'e' && tag[2] == 'd' )
+        return RED;
+    if( tag[0] == 'g' && tag[1] == 'r' && tag[2] == 'e' )
+        return GREEN;
+    if( tag[0] == 'b' && tag[1] == 'l' && tag[2] == 'u' )
+        return BLUE;
+    if( tag[0] == 'm' && tag[1] == 'a' && tag[2] == 'g' )
+        return MAGENTA;
+    if( tag[0] == 'b' && tag[1] == 'l' && tag[2] == 'a' )
+        return BLACK;
+    if( tag[0] == 'l' && tag[1] == 'r' && tag[2] == 'e' )
+        return LIGHTRED;
+    if( tag[0] == 'd' && tag[1] == 'r' && tag[2] == 'e' )
+        return DARKRED;
+    if( tag[0] == 'd' && tag[1] == 'b' && tag[2] == 'l' )
+        return DARKBLUE;
+    if( tag[0] == 'o' && tag[1] == 'r' && tag[2] == '1' )
+        return ORANGE1;
+    if( tag[0] == 'o' && tag[1] == 'r' && tag[2] == '2' )
+        return ORANGE2;
+    if( tag[0] == 'o' && tag[1] == 'r' && tag[2] == '3' )
+        return ORANGE3;
+    if( tag[0] == 'g' && tag[1] == 'r' && tag[2] == '1' )
+        return GREEN1;
+    if( tag[0] == 'g' && tag[1] == 'r' && tag[2] == '2' )
+        return GREEN2;
+    if( tag[0] == 'g' && tag[1] == 'r' && tag[2] == '3' )
+        return GREEN3;
+    return -1;
+}
+
+static int
+font_space_advance(struct ToriDraw_Font const* font)
+{
+    int const adv = font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH];
+    return adv > 0 ? adv : 4;
+}
+
+static bool
+font_is_rs_space_char(unsigned char ch)
+{
+    return ch == ' ' || ch == '|';
+}
+
+static int
+font_glyph_advance(
+    struct ToriDraw_Font const* font,
+    int gi)
+{
+    int adv = font->advance[gi];
+    return adv > 0 ? adv : 4;
 }
 
 void
@@ -156,9 +246,7 @@ ToriDraw_FontNewFromRSBytes(
 
     if( font->advance[93] < 4 )
         font->advance[93] = font->advance[8];
-    font->advance[94] = font->advance[8];
-    for( int i = 0; i < 256; i++ )
-        font->draw_width[i] = font->advance[(unsigned char)font->charcodeset[i]];
+    ToriDraw_FontFinishDrawWidths(font);
 
     if( !ToriDraw_FontValidate(font) )
         goto fail;
@@ -191,7 +279,7 @@ ToriDraw_FontValidate(struct ToriDraw_Font* font)
     for( int i = 0; i < 256; i++ )
     {
         int const gi = (unsigned char)font->charcodeset[i];
-        if( gi >= TORIDRAW_FONT_GLYPH_COUNT )
+        if( gi > TORIDRAW_FONT_ADVANCE_ONLY_GLYPH )
             return false;
     }
 
@@ -217,16 +305,19 @@ font_glyph_index(
     struct ToriDraw_Font const* font,
     unsigned char ch)
 {
+    if( font_is_rs_space_char(ch) )
+        return TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
+
     int gi = (unsigned char)font->charcodeset[ch];
-    if( gi >= 0 && gi < TORIDRAW_FONT_GLYPH_COUNT )
+    if( gi >= 0 && gi <= TORIDRAW_FONT_ADVANCE_ONLY_GLYPH )
         return gi;
 
     gi = (unsigned char)font->charcodeset[(unsigned char)' '];
-    if( gi >= 0 && gi < TORIDRAW_FONT_GLYPH_COUNT )
+    if( gi >= 0 && gi <= TORIDRAW_FONT_ADVANCE_ONLY_GLYPH )
         return gi;
 
     assert(!"invalid font charcodeset");
-    return 93;
+    return TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
 }
 
 static bool
@@ -255,9 +346,110 @@ ToriDraw2D_MeasureString(
         return 0;
 
     int width = 0;
-    for( char const* p = text; *p; ++p )
-        width += font->draw_width[(unsigned char)*p];
+    int const len = (int)strlen(text);
+    int const space_adv = font_space_advance(font);
+
+    for( int i = 0; i < len; i++ )
+    {
+        if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
+        {
+            i += 4;
+            continue;
+        }
+        if( font_is_rs_space_char((unsigned char)text[i]) )
+        {
+            width += space_adv;
+            continue;
+        }
+        int const gi = font_glyph_index(font, (unsigned char)text[i]);
+        width += font_glyph_advance(font, gi);
+    }
     return width;
+}
+
+static int
+font_draw_glyph_pixels(
+    struct ToriDraw_Font const* font,
+    int gi,
+    int gx,
+    int gy,
+    int color,
+    int cl,
+    int ct,
+    int cr,
+    int cb,
+    int stride,
+    int* pixel_buffer)
+{
+    if( !font_glyph_drawable(font, gi) )
+        return 0;
+
+    int pixels_written = 0;
+    int const gw = font->glyph_width[gi];
+    int const gh = font->glyph_height[gi];
+
+    for( int row = 0; row < gh; row++ )
+    {
+        int const dst_y = gy + row;
+        if( dst_y < ct || dst_y >= cb )
+            continue;
+        for( int col = 0; col < gw; col++ )
+        {
+            int const dst_x = gx + col;
+            if( dst_x < cl || dst_x >= cr )
+                continue;
+            uint8_t const a = font->glyph_alpha[gi][col + row * gw];
+            if( a == 0 )
+                continue;
+            pixel_buffer[dst_y * stride + dst_x] = color;
+            pixels_written++;
+        }
+    }
+    return pixels_written;
+}
+
+void
+ToriDraw_FontVisitGlyphs(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int x,
+    int y,
+    int default_color_rgb,
+    ToriDraw_FontGlyphCallback callback,
+    void* ctx)
+{
+    if( !font || !text || !callback )
+        return;
+
+    int const len = (int)strlen(text);
+    int color = default_color_rgb;
+    int const space_adv = font_space_advance(font);
+
+    for( int i = 0; i < len; i++ )
+    {
+        if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
+        {
+            int const tagged = ToriDraw_FontEvaluateColorTag(&text[i + 1]);
+            if( tagged >= 0 )
+                color = tagged;
+            i += 4;
+            continue;
+        }
+        if( font_is_rs_space_char((unsigned char)text[i]) )
+        {
+            x += space_adv;
+            continue;
+        }
+
+        int const gi = font_glyph_index(font, (unsigned char)text[i]);
+        if( font_glyph_drawable(font, gi) )
+        {
+            int const gx = x + font->offset_x[gi];
+            int const gy = y + font->offset_y[gi];
+            callback(ctx, font, gi, gx, gy, color);
+        }
+        x += font_glyph_advance(font, gi);
+    }
 }
 
 static void
@@ -342,61 +534,76 @@ ToriDraw2D_DrawString(
     if( center )
         x -= ToriDraw2D_MeasureString(font, text) / 2;
 
-    int const opaque_color = (int)(0xFF000000u | (uint32_t)color);
+    y -= font->line_height;
+
     int const shadow_color = (int)0xFF000000u;
+    int const space_adv = font_space_advance(font);
+    int len = (int)strlen(text);
 
     if( shadowed )
     {
         int sx = x;
         int sy = y;
-        for( char const* p = text; *p; ++p )
+        for( int i = 0; i < len; i++ )
         {
-            int const gi = font_glyph_index(font, (unsigned char)*p);
-            if( !font_glyph_drawable(font, gi) )
+            if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
             {
-                sx += font->advance[gi];
+                i += 4;
                 continue;
             }
-            int const gw = font->glyph_width[gi];
-            int const gh = font->glyph_height[gi];
-            int off = sx + font->offset_x[gi] + (sy + font->offset_y[gi] + 1) * stride;
-            font_draw_mask(
-                gw, gh, font->glyph_alpha[gi], 0, 0, pixel_buffer, off, stride, shadow_color);
-            sx += font->advance[gi];
+            if( font_is_rs_space_char((unsigned char)text[i]) )
+            {
+                sx += space_adv;
+                continue;
+            }
+            int const gi = font_glyph_index(font, (unsigned char)text[i]);
+            pixels_written += font_draw_glyph_pixels(
+                font,
+                gi,
+                sx + font->offset_x[gi] + 1,
+                sy + font->offset_y[gi] + 1,
+                shadow_color,
+                cl,
+                ct,
+                cr,
+                cb,
+                stride,
+                pixel_buffer);
+            sx += font_glyph_advance(font, gi);
         }
     }
 
-    for( char const* p = text; *p; ++p )
+    int current_color = color;
+    for( int i = 0; i < len; i++ )
     {
-        int const gi = font_glyph_index(font, (unsigned char)*p);
-        if( !font_glyph_drawable(font, gi) )
+        if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
         {
-            x += font->advance[gi];
+            int const tagged = ToriDraw_FontEvaluateColorTag(&text[i + 1]);
+            if( tagged >= 0 )
+                current_color = tagged;
+            i += 4;
             continue;
         }
-        int const gw = font->glyph_width[gi];
-        int const gh = font->glyph_height[gi];
-        int gx = x + font->offset_x[gi];
-        int gy = y + font->offset_y[gi];
-
-        for( int row = 0; row < gh; row++ )
+        if( font_is_rs_space_char((unsigned char)text[i]) )
         {
-            int dst_y = gy + row;
-            if( dst_y < ct || dst_y >= cb )
-                continue;
-            for( int col = 0; col < gw; col++ )
-            {
-                int dst_x = gx + col;
-                if( dst_x < cl || dst_x >= cr )
-                    continue;
-                uint8_t a = font->glyph_alpha[gi][col + row * gw];
-                if( a == 0 )
-                    continue;
-                pixel_buffer[dst_y * stride + dst_x] = opaque_color;
-                pixels_written++;
-            }
+            x += space_adv;
+            continue;
         }
-        x += font->advance[gi];
+        int const gi = font_glyph_index(font, (unsigned char)text[i]);
+        int const opaque_color = (int)(0xFF000000u | (uint32_t)current_color);
+        pixels_written += font_draw_glyph_pixels(
+            font,
+            gi,
+            x + font->offset_x[gi],
+            y + font->offset_y[gi],
+            opaque_color,
+            cl,
+            ct,
+            cr,
+            cb,
+            stride,
+            pixel_buffer);
+        x += font_glyph_advance(font, gi);
     }
     return pixels_written;
 }

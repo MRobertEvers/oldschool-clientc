@@ -163,6 +163,22 @@ void
 ToriAuxLibCore_LocationsClearAll(struct ToriAuxLibCore* gamecache);
 
 void
+ToriAuxLibCore_NpctypeAdd(
+    struct ToriAuxLibCore* gamecache,
+    int npc_id,
+    struct ToriAuxLibCore_Npctype* npctype);
+
+struct ToriAuxLibCore_Npctype*
+ToriAuxLibCore_NpctypeGet(
+    struct ToriAuxLibCore* gamecache,
+    int npc_id);
+
+bool
+ToriAuxLibCore_NpctypeHas(
+    struct ToriAuxLibCore* gamecache,
+    int npc_id);
+
+void
 ToriAuxLibCore_FlotypesClearAll(struct ToriAuxLibCore* gamecache);
 
 void

@@ -460,6 +460,7 @@ ToriDraw_SceneGraphShutdown(struct ToriDraw_Scene* scene)
     scene->animation_hmap = NULL;
     scene->sprites_hmap = NULL;
     scene->fonts_hmap = NULL;
+    memset(scene->cache_fonts, 0, sizeof(scene->cache_fonts));
     scene->pending_poses = NULL;
 }
 
@@ -567,6 +568,27 @@ ToriDraw_SceneFontHas(
     int font_id)
 {
     return ToriDraw_SceneFontGet(scene, font_id) != NULL;
+}
+
+void
+ToriDraw_SceneCacheFontSet(
+    struct ToriDraw_Scene* scene,
+    int cache_font_id,
+    struct ToriDraw_Font* font)
+{
+    if( !scene || cache_font_id < 0 || cache_font_id >= TORIDRAW_CACHE_FONT_SLOT_COUNT )
+        return;
+    scene->cache_fonts[cache_font_id] = font;
+}
+
+struct ToriDraw_Font*
+ToriDraw_SceneCacheFontGet(
+    struct ToriDraw_Scene* scene,
+    int cache_font_id)
+{
+    if( !scene || cache_font_id < 0 || cache_font_id >= TORIDRAW_CACHE_FONT_SLOT_COUNT )
+        return NULL;
+    return scene->cache_fonts[cache_font_id];
 }
 
 void

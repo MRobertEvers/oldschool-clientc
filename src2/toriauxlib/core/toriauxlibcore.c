@@ -16,6 +16,7 @@ struct ToriAuxLibCore
     struct ToriDraw_Map* flotype_hmap;
     struct ToriDraw_Map* underlay_hmap;
     struct ToriDraw_Map* config_loc_hmap;
+    struct ToriDraw_Map* npctype_hmap;
     struct ToriDraw_Map* sequences_hmap;
     struct ToriDraw_Map* animframes_reftable;
     struct ToriDraw_Map* sprites_hmap;
@@ -113,6 +114,12 @@ struct MapEntry_Location
     struct ToriAuxLibCore_Location* loc;
 };
 
+struct MapEntry_Npctype
+{
+    int id;
+    struct ToriAuxLibCore_Npctype* npctype;
+};
+
 struct MapEntry_Sequence
 {
     int id;
@@ -205,6 +212,7 @@ enum
     GAMECACHE_CAP_MAP_SCENERY = 64,
     GAMECACHE_CAP_FLOTYPE = 64,
     GAMECACHE_CAP_LOCATION = 256,
+    GAMECACHE_CAP_NPCTYPE = 256,
     GAMECACHE_CAP_SEQUENCE = 256,
     GAMECACHE_CAP_ANIMFRAME_REF = 512,
     GAMECACHE_CAP_SPRITE = 64,
@@ -448,6 +456,28 @@ ToriAuxLibCore_Free_locations(
 }
 
 static void
+ToriAuxLibCore_Free_npctypes(
+    struct ToriAuxLibCore* gamecache,
+    struct ToriDraw_Map* map)
+{
+    if( !map )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
+    struct MapEntry_Npctype* entry = NULL;
+    while( (entry = (struct MapEntry_Npctype*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->npctype )
+        {
+            gamecache_mem_track_sub(
+                gamecache, TORIAUXLIBCORE_KIND_NPCTYPE, ToriAuxLibCore_NpctypeSizeOf(entry->npctype));
+            ToriAuxLibCore_NpctypeFree(entry->npctype);
+        }
+    }
+    ToriDraw_MapIterFree(iter);
+}
+
+static void
 ToriAuxLibCore_Free_sequences(
     struct ToriAuxLibCore* gamecache,
     struct ToriDraw_Map* map)
@@ -598,6 +628,9 @@ ToriAuxLibCore_Free(struct ToriAuxLibCore* gamecache)
 
     ToriAuxLibCore_Free_locations(gamecache, gamecache->config_loc_hmap);
     gamecache_map_free(gamecache, gamecache->config_loc_hmap);
+
+    ToriAuxLibCore_Free_npctypes(gamecache, gamecache->npctype_hmap);
+    gamecache_map_free(gamecache, gamecache->npctype_hmap);
 
     ToriAuxLibCore_Free_sequences(gamecache, gamecache->sequences_hmap);
     gamecache_map_free(gamecache, gamecache->sequences_hmap);
@@ -1517,6 +1550,62 @@ ToriAuxLibCore_LocationHas(
     int loc_id)
 {
     return ToriAuxLibCore_LocationGet(gamecache, loc_id) != NULL;
+}
+
+void
+ToriAuxLibCore_NpctypeAdd(
+    struct ToriAuxLibCore* gamecache,
+    int npc_id,
+    struct ToriAuxLibCore_Npctype* npctype)
+{
+    struct ToriDraw_Map* map = gamecache_map_ptr(
+        gamecache,
+        &gamecache->npctype_hmap,
+        sizeof(struct MapEntry_Npctype),
+        GAMECACHE_CAP_NPCTYPE);
+    if( !map )
+        return;
+
+    struct MapEntry_Npctype* entry =
+        (struct MapEntry_Npctype*)ToriDraw_MapSearch(map, &npc_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->npctype )
+    {
+        gamecache_mem_track_sub(
+            gamecache, TORIAUXLIBCORE_KIND_NPCTYPE, ToriAuxLibCore_NpctypeSizeOf(entry->npctype));
+        ToriAuxLibCore_NpctypeFree(entry->npctype);
+    }
+
+    entry->id = npc_id;
+    entry->npctype = npctype;
+    gamecache_mem_track_add(
+        gamecache, TORIAUXLIBCORE_KIND_NPCTYPE, ToriAuxLibCore_NpctypeSizeOf(npctype));
+    gamecache_maybe_grow_hmap(gamecache, map);
+}
+
+struct ToriAuxLibCore_Npctype*
+ToriAuxLibCore_NpctypeGet(
+    struct ToriAuxLibCore* gamecache,
+    int npc_id)
+{
+    if( !gamecache || !gamecache->npctype_hmap )
+        return NULL;
+
+    struct MapEntry_Npctype* entry = (struct MapEntry_Npctype*)ToriDraw_MapSearch(
+        gamecache->npctype_hmap, &npc_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->npctype;
+}
+
+bool
+ToriAuxLibCore_NpctypeHas(
+    struct ToriAuxLibCore* gamecache,
+    int npc_id)
+{
+    return ToriAuxLibCore_NpctypeGet(gamecache, npc_id) != NULL;
 }
 
 void

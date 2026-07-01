@@ -135,6 +135,25 @@ The callback `on_rc_uicomponent_rs_loaded` appends each visited component id int
 | `TORIAUXLIBCORE_COMPONENT_MODEL` | `UIELEM_RS_MODEL` | `gamecache_model_id` from cache |
 | `TORIAUXLIBCORE_COMPONENT_INV` | `UIELEM_RS_INV` | Grid cols/rows/margins; `inv_index` from owner's `inv=` field |
 
+### Fonts (`[font:name]` in `*_cache.ini`)
+
+RS interface TEXT widgets store a **cache font reference**, not a revconfig name or runtime scene ID:
+
+- **Dat1** — single-byte slot `0–3` on `COMPONENT_TYPE_TEXT`
+- **Dat2** — `textFont` fonts-table `archive_id`
+
+Revconfig loads fonts by symbolic name (`[font:b12]`) and pins always-resident fonts into fixed `ToriDraw_Scene` slots via `cache_font_id`. Each `[font:…]` section can declare:
+
+| INI key | Purpose |
+|---------|---------|
+| `font_name=` | Dat1 jagfile stem (`b12` → `b12.dat` in title fonts) |
+| `archive_id=` | Dat2 fonts-table id; also used to resolve dat2 `textFont` at bake |
+| `cache_font_id=` | Fixed scene slot 0–3; font is always loaded into `ToriDraw_Scene.cache_fonts[id]` |
+
+Standard OSRS convention: `0=p11`, `1=p12`, `2=b12`, `3=q8` (override per revision in INI).
+
+At bake time, `instance_revconfig_resolve_rs_text_font_id` resolves cache values through `UIFontLookup` (`ui_font_lookup_find_by_cache_font_id`, `ui_font_lookup_find_by_archive_id`, then name fallback). See `RevConfigFontItem` in [`revconfig.h`](../../../revconfig/revconfig.h).
+
 ### `instance_revconfig_build_layout_node`: owner node vs RS expansion
 
 `instance_revconfig_build_tree` calls `instance_revconfig_build_layout_node` once per layout entry. That function has **two distinct jobs** — only the second one creates RS layers and other cache-backed children.

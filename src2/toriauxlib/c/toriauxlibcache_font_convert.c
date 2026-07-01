@@ -55,9 +55,6 @@ font_new_from_dat2_metrics_and_sprite_pack(
         font->advance[gi] = metrics[cp] & 0xFF;
         if( font->advance[gi] <= 0 )
             font->advance[gi] = gw > 0 ? gw + 2 : 4;
-
-        if( gh > font->line_height )
-            font->line_height = gh;
     }
 
     if( font->line_height <= 0 )
@@ -69,8 +66,7 @@ font_new_from_dat2_metrics_and_sprite_pack(
         }
     }
 
-    for( int i = 0; i < 256; i++ )
-        font->draw_width[i] = font->advance[(unsigned char)font->charcodeset[i]];
+    ToriDraw_FontFinishDrawWidths(font);
 
     if( !ToriDraw_FontValidate(font) )
         goto fail;

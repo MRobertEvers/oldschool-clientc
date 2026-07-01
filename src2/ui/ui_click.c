@@ -2,18 +2,28 @@
 
 #include "games/runescape.h"
 #include "input/libtorirs_input.h"
+#include "osrs/minimenu_action.h"
 #include "osrs/rscache/dat1a/dat1a_config_obj.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_scene.h"
 #include "ui/minimenu_pickset.h"
 #include "ui/uitree_host.h"
+#include "ui/ui_minimenu.h"
 #include "ui/uitree_layout.h"
 #include "buildcache/dat1_buildcache.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/td/toriauxlibtd.h"
+#include "world/world.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
+
+#if defined(_WIN32)
+#define strcasecmp _stricmp
+#else
+#include <strings.h>
+#endif
 
 void
 uitree_inv_hit_test_slot(
@@ -143,6 +153,211 @@ minimenu_pickset_first_terrain(struct MinimenuPickSet const* picks)
     return NULL;
 }
 
+static int
+ui_click_player_combat_level(struct GameRunescape const* game)
+{
+    (void)game;
+    /* Until local player combat level is tracked in src2, never promote Attack. */
+    return INT32_MAX;
+}
+
+static struct WorldEntity_NPC*
+ui_click_npc_for_entity(
+    struct GameRunescape* game,
+    int entity_id)
+{
+    int world_index;
+
+    if( !game || !game->world || RS_ENTITY_KIND_OF(entity_id) != RS_ENTITY_KIND_NPC )
+        return NULL;
+    if( !game->entity_registry )
+        return NULL;
+
+    for( int i = 0; i < game->entity_registry_count; i++ )
+    {
+        if( game->entity_registry[i].entity_id != entity_id )
+            continue;
+        world_index = game->entity_registry[i].world_index;
+        if( !World_EntityPoolIsActive(&game->world->entities.npc, world_index) )
+            return NULL;
+        return World_EntityPoolGet(&game->world->entities.npc, world_index);
+    }
+
+    return NULL;
+}
+
+static void
+ui_minimenu_sort_priority_actions(struct UIMinimenuState* menu)
+{
+    if( !menu || menu->option_count < 2 )
+        return;
+
+    bool sorted = false;
+    while( !sorted )
+    {
+        sorted = true;
+        for( int i = 0; i < menu->option_count - 1; i++ )
+        {
+            if( menu->options[i].action < 1000 && menu->options[i + 1].action > 1000 )
+            {
+                struct UIMinimenuOption tmp = menu->options[i];
+                menu->options[i] = menu->options[i + 1];
+                menu->options[i + 1] = tmp;
+                sorted = false;
+            }
+        }
+    }
+}
+
+static void
+ui_click_add_npc_options(
+    struct GameRunescape* game,
+    struct MinimenuPick const* pick,
+    struct UIMinimenuState* menu)
+{
+    struct WorldEntity_NPC* npc;
+    char text[UI_MINIMENU_OPTION_LEN];
+    char tooltip[64];
+    int player_level;
+
+    if( !game || !pick || !menu )
+        return;
+
+    npc = ui_click_npc_for_entity(game, pick->id);
+    if( !npc )
+        return;
+
+    player_level = ui_click_player_combat_level(game);
+    snprintf(tooltip, sizeof(tooltip), "%s", npc->name[0] ? npc->name : "NPC");
+    if( npc->combat_level > 0 )
+    {
+        snprintf(
+            tooltip,
+            sizeof(tooltip),
+            "%s (level-%d)",
+            npc->name[0] ? npc->name : "NPC",
+            npc->combat_level);
+    }
+
+    for( int i = 4; i >= 0; i-- )
+    {
+        if( npc->actions[i].name[0] == '\0' )
+            continue;
+        if( strcasecmp(npc->actions[i].name, "attack") == 0 )
+            continue;
+
+        snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
+        ui_minimenu_add_option_with_pick(
+            menu,
+            text,
+            (enum MinimenuAction)(MINIMENU_ACTION_OPNPC1 + i),
+            i,
+            pick->kind,
+            pick->id,
+            pick->secondary_id,
+            pick->tertiary_id,
+            pick->quaternary_id);
+    }
+
+    for( int i = 4; i >= 0; i-- )
+    {
+        if( npc->actions[i].name[0] == '\0' )
+            continue;
+        if( strcasecmp(npc->actions[i].name, "attack") != 0 )
+            continue;
+
+        int const priority = player_level < npc->combat_level ? MINIMENU_ACTION_PRIORITY : 0;
+        snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
+        ui_minimenu_add_option_with_pick(
+            menu,
+            text,
+            (enum MinimenuAction)minimenu_action_priority(
+                (enum MinimenuAction)(MINIMENU_ACTION_OPNPC1 + i), priority),
+            i,
+            pick->kind,
+            pick->id,
+            pick->secondary_id,
+            pick->tertiary_id,
+            pick->quaternary_id);
+    }
+}
+
+static void
+ui_click_add_scenery_options(
+    struct GameRunescape* game,
+    struct MinimenuPick const* pick,
+    struct UIMinimenuState* menu)
+{
+    struct WorldEntity_Scenery* scenery;
+    char text[UI_MINIMENU_OPTION_LEN];
+
+    if( !game || !pick || !menu || !game->world )
+        return;
+
+    scenery = world_scenery_get_by_element_id(game->world, pick->id);
+    if( !scenery )
+        return;
+
+    for( int i = 4; i >= 0; i-- )
+    {
+        if( scenery->actions[i].name[0] == '\0' )
+            continue;
+
+        snprintf(
+            text,
+            sizeof(text),
+            "%s @cya@ %s",
+            scenery->actions[i].name,
+            scenery->name[0] ? scenery->name : "Scenery");
+        ui_minimenu_add_option_with_pick(
+            menu,
+            text,
+            (enum MinimenuAction)(MINIMENU_ACTION_OPLOC1 + i),
+            i,
+            pick->kind,
+            pick->id,
+            pick->secondary_id,
+            pick->tertiary_id,
+            pick->quaternary_id);
+    }
+
+    snprintf(
+        text,
+        sizeof(text),
+        "Examine @cya@ %s",
+        scenery->name[0] ? scenery->name : "Scenery");
+    ui_minimenu_add_option_with_pick(
+        menu,
+        text,
+        MINIMENU_ACTION_OPLOC6,
+        0,
+        pick->kind,
+        pick->id,
+        pick->secondary_id,
+        pick->tertiary_id,
+        pick->quaternary_id);
+}
+
+static void
+ui_click_add_inv_option(
+    struct UIMinimenuState* menu,
+    struct MinimenuPick const* pick,
+    char const* text,
+    enum MinimenuAction action,
+    int action_index)
+{
+    ui_minimenu_add_option_with_pick(
+        menu,
+        text,
+        action,
+        action_index,
+        pick->kind,
+        pick->id,
+        pick->secondary_id,
+        pick->tertiary_id,
+        pick->quaternary_id);
+}
+
 static void
 ui_click_add_pick_options(
     struct GameRunescape* game,
@@ -155,64 +370,58 @@ ui_click_add_pick_options(
     switch( pick->kind )
     {
     case MINIMENU_PICK_NPC:
-        ui_minimenu_add_option_with_pick(
-            menu, "Attack", MINIMENU_ACTION_OPNPC1, 0, pick->kind, pick->id, 0, 0, 0);
-        ui_minimenu_add_option_with_pick(
-            menu, "Talk-to", MINIMENU_ACTION_OPNPC3, 0, pick->kind, pick->id, 0, 0, 0);
+        ui_click_add_npc_options(game, pick, menu);
         break;
     case MINIMENU_PICK_SCENERY:
-    {
-        char examine[96];
-        snprintf(examine, sizeof(examine), "Examine -> loc %d", pick->secondary_id);
-        ui_minimenu_add_option_with_pick(
-            menu, "Use", MINIMENU_ACTION_OPLOC1, 0, pick->kind, pick->id, pick->secondary_id, 0, 0);
-        ui_minimenu_add_option_with_pick(
-            menu, examine, MINIMENU_ACTION_OPLOC6, 0, pick->kind, pick->id, pick->secondary_id, 0, 0);
+        ui_click_add_scenery_options(game, pick, menu);
         break;
-    }
     case MINIMENU_PICK_INV_SLOT:
     {
         int obj_id = pick->tertiary_id;
-        if( obj_id > 0 )
+        if( obj_id <= 0 )
+            break;
+
+        struct Dat1BuildCache* bc = game->td ? dat1(ToriAuxLibTD_C(game->td)) : NULL;
+        if( !bc )
+            break;
+
+        struct RSCacheDat1A_ConfigObj* obj = dat1_buildcache_obj_get(bc, obj_id);
+        if( !obj )
+            break;
+
+        char text[UI_MINIMENU_OPTION_LEN];
+        char const* obj_name = obj->name ? obj->name : "item";
+
+        for( int op = 4; op >= 3; op-- )
         {
-            struct Dat1BuildCache* bc =
-                game->td ? dat1(ToriAuxLibTD_C(game->td)) : NULL;
-            if( bc )
+            if( obj->iop[op] && obj->iop[op][0] != '\0' )
             {
-                struct RSCacheDat1A_ConfigObj* obj = dat1_buildcache_obj_get(bc, obj_id);
-                if( obj )
-                {
-                    for( int i = 0; i < 5; i++ )
-                    {
-                        if( obj->iop[i] && obj->iop[i][0] != '\0' )
-                        {
-                            ui_minimenu_add_option_with_pick(
-                                menu,
-                                obj->iop[i],
-                                MINIMENU_ACTION_OPHELD1 + i,
-                                i,
-                                pick->kind,
-                                pick->id,
-                                pick->secondary_id,
-                                pick->tertiary_id,
-                                pick->quaternary_id);
-                        }
-                    }
-                }
+                snprintf(text, sizeof(text), "%s", obj->iop[op]);
+                ui_click_add_inv_option(
+                    menu, pick, text, (enum MinimenuAction)(MINIMENU_ACTION_OPHELD1 + op), op);
+            }
+            else if( op == 4 )
+            {
+                snprintf(text, sizeof(text), "Drop @lre@ %s", obj_name);
+                ui_click_add_inv_option(menu, pick, text, MINIMENU_ACTION_OPHELD5, 4);
             }
         }
-        char examine[96];
-        snprintf(examine, sizeof(examine), "Examine -> %d", obj_id);
-        ui_minimenu_add_option_with_pick(
-            menu,
-            examine,
-            MINIMENU_ACTION_OPHELD6,
-            0,
-            pick->kind,
-            pick->id,
-            pick->secondary_id,
-            pick->tertiary_id,
-            pick->quaternary_id);
+
+        snprintf(text, sizeof(text), "Use");
+        ui_click_add_inv_option(menu, pick, text, MINIMENU_ACTION_OPHELDT_START, 0);
+
+        for( int op = 2; op >= 0; op-- )
+        {
+            if( obj->iop[op] && obj->iop[op][0] != '\0' )
+            {
+                snprintf(text, sizeof(text), "%s", obj->iop[op]);
+                ui_click_add_inv_option(
+                    menu, pick, text, (enum MinimenuAction)(MINIMENU_ACTION_OPHELD1 + op), op);
+            }
+        }
+
+        snprintf(text, sizeof(text), "Examine @cya@ %s", obj_name);
+        ui_click_add_inv_option(menu, pick, text, MINIMENU_ACTION_OPHELD6, 0);
         break;
     }
     case MINIMENU_PICK_TERRAIN:
@@ -236,8 +445,7 @@ ui_click_build_minimenu_from_pickset(
     if( !picks )
         return;
 
-    for( int i = 0; i < picks->count; i++ )
-        ui_click_add_pick_options(game, &picks->items[i], menu);
+    ui_minimenu_add_option(menu, "Cancel", MINIMENU_ACTION_CANCEL, -1);
 
     if( include_walk )
     {
@@ -261,7 +469,10 @@ ui_click_build_minimenu_from_pickset(
         }
     }
 
-    ui_minimenu_add_option(menu, "Cancel", MINIMENU_ACTION_CANCEL, -1);
+    for( int i = 0; i < picks->count; i++ )
+        ui_click_add_pick_options(game, &picks->items[i], menu);
+
+    ui_minimenu_sort_priority_actions(menu);
 }
 
 void
@@ -460,6 +671,27 @@ ui_click_handle_left(
     }
 }
 
+static void
+ui_click_show_minimenu_at(
+    struct GameRunescape* game,
+    int click_x,
+    int click_y)
+{
+    struct UIMinimenuLayout layout;
+    int content_width = 0;
+    if( !GameRunescape_MinimenuPrepareShow(game, &layout, &content_width) )
+        layout = ui_minimenu_layout_from_line_height(UI_MINIMENU_DEFAULT_LINE_HEIGHT);
+
+    ui_minimenu_show_at(
+        &game->minimenu,
+        layout,
+        content_width,
+        click_x,
+        click_y,
+        game->view_port ? game->view_port->width : 765,
+        game->view_port ? game->view_port->height : 503);
+}
+
 void
 ui_click_handle_right(
     struct GameRunescape* game,
@@ -477,12 +709,7 @@ ui_click_handle_right(
     if( game_try_inv_click(game, click_x, click_y, true, &picks) )
     {
         ui_click_build_minimenu_from_pickset(game, &picks, false, &game->minimenu);
-        ui_minimenu_show_at(
-            &game->minimenu,
-            click_x,
-            click_y,
-            game->view_port ? game->view_port->width : 765,
-            game->view_port ? game->view_port->height : 503);
+        ui_click_show_minimenu_at(game, click_x, click_y);
         return;
     }
 
@@ -503,10 +730,5 @@ ui_click_handle_right(
 
     ui_click_build_minimenu_from_pickset(
         game, &picks, game->mouse_in_viewport, &game->minimenu);
-    ui_minimenu_show_at(
-        &game->minimenu,
-        click_x,
-        click_y,
-        game->view_port ? game->view_port->width : 765,
-        game->view_port ? game->view_port->height : 503);
+    ui_click_show_minimenu_at(game, click_x, click_y);
 }

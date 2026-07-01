@@ -20,6 +20,10 @@
 #define INSTANCE_RC_MAX_RS_SUBTREE_ITEMS 1024
 /** Max per-interface file index when remapping dat2 packed component ids during bake. */
 #define INSTANCE_RC_RS_FILE_INDEX_MAX 1024
+/** panel_root_id[]: not yet resolved for this componentno. */
+#define INSTANCE_RC_PANEL_ROOT_UNSET (-1)
+/** panel_root_id[]: resolved, but not a valid sidebar panel (e.g. global shell layer 0). */
+#define INSTANCE_RC_PANEL_ROOT_INVALID (-2)
 
 struct InstanceRevConfigRSSubtree
 {
@@ -34,6 +38,7 @@ struct ToriDraw_Scene;
 struct ToriAuxLibCore;
 struct ToriAuxLibTD;
 struct GameRunescape;
+struct RSCacheDat1A_ConfigComponentList;
 
 struct InstanceRevConfigContext
 {
@@ -89,6 +94,11 @@ instance_revconfig_build_tree(struct InstanceRevConfigContext* ctx);
 
 void
 instance_revconfig_resolve_panel_roots(struct InstanceRevConfigContext* ctx);
+
+int
+instance_revconfig_resolve_walk_root_id(
+    struct RSCacheDat1A_ConfigComponentList* ifaces,
+    int componentno);
 
 struct InstanceRevConfigRSSubtree*
 instance_revconfig_rs_subtree_find(

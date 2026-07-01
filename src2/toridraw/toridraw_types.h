@@ -309,6 +309,8 @@ struct ToriDraw_SceneBatchElementHandle
     int id;
 };
 
+#define TORIDRAW_CACHE_FONT_SLOT_COUNT 4
+
 struct ToriDraw_Scene
 {
     uint32_t flags;
@@ -363,6 +365,8 @@ struct ToriDraw_Scene
     struct ToriDraw_Map* animation_hmap;
     struct ToriDraw_Map* sprites_hmap;
     struct ToriDraw_Map* fonts_hmap;
+    /** Always-resident cache fonts indexed by revconfig cache_font_id 0–3. */
+    struct ToriDraw_Font* cache_fonts[TORIDRAW_CACHE_FONT_SLOT_COUNT];
     struct ToriDraw_IntrusiveList elements;
 
     bool batch_building;

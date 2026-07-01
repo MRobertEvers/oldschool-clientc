@@ -13,6 +13,8 @@
 #include "osrs/rscache/dat2a/dat2a_sprites.h"
 #include "osrs/rscache/dat2a/dat2a_textures.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/dat1a_config_npc.h"
+#include "osrs/rscache/dat2a/dat2a_config_npctype.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/dat1a/dat1a_config_textures.h"
 #include "osrs/palette.h"
@@ -21,6 +23,53 @@
 
 #include <stdlib.h>
 #include <string.h>
+
+static void
+toriauxlibcache_copy_menu_actions(
+    char actions[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN],
+    char* const* src_actions,
+    int src_count)
+{
+    for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
+        actions[i][0] = '\0';
+
+    if( !src_actions || src_count <= 0 )
+        return;
+
+    int const limit =
+        src_count < TORIAUXLIBCORE_MENU_ACTION_SLOTS ? src_count : TORIAUXLIBCORE_MENU_ACTION_SLOTS;
+    for( int i = 0; i < limit; i++ )
+    {
+        if( src_actions[i] && src_actions[i][0] != '\0' )
+        {
+            strncpy(actions[i], src_actions[i], TORIAUXLIBCORE_MENU_ACTION_LEN - 1);
+            actions[i][TORIAUXLIBCORE_MENU_ACTION_LEN - 1] = '\0';
+        }
+    }
+}
+
+static void
+toriauxlibcache_copy_menu_actions_from_loc(
+    char actions[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN],
+    char* const* src_actions,
+    int src_count)
+{
+    for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
+        actions[i][0] = '\0';
+
+    if( !src_actions )
+        return;
+
+    int const limit = src_count > 0 ? src_count : 10;
+    for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS && i < limit; i++ )
+    {
+        if( src_actions[i] && src_actions[i][0] != '\0' )
+        {
+            strncpy(actions[i], src_actions[i], TORIAUXLIBCORE_MENU_ACTION_LEN - 1);
+            actions[i][TORIAUXLIBCORE_MENU_ACTION_LEN - 1] = '\0';
+        }
+    }
+}
 
 static struct ToriAuxLibCore_Texture*
 toriauxlibcache_texture_new_from_toridraw(const struct ToriDraw_Texture* src)
@@ -298,6 +347,12 @@ ToriAuxLibCache_LocationNewFromCacheConfigLocation(const void* cache_loc_ptr)
 
     dst->id = src->_id;
     dst->map_scene_id = -1;
+    if( src->name )
+    {
+        strncpy(dst->name, src->name, TORIAUXLIBCORE_NAME_MAX - 1);
+        dst->name[TORIAUXLIBCORE_NAME_MAX - 1] = '\0';
+    }
+    toriauxlibcache_copy_menu_actions_from_loc(dst->actions, src->actions, 10);
     dst->shapes_and_model_count = src->shapes_and_model_count;
     dst->size_x = src->size_x;
     dst->size_z = src->size_z;
@@ -393,6 +448,56 @@ ToriAuxLibCache_LocationNewFromCacheConfigLocation(const void* cache_loc_ptr)
 fail:
     ToriAuxLibCore_LocationFree(dst);
     return NULL;
+}
+
+struct ToriAuxLibCore_Npctype*
+ToriAuxLibCache_NpctypeNewFromDat1ConfigNpc(
+    const void* cache_npc_ptr,
+    int npc_id)
+{
+    const struct RSCacheDat1A_ConfigNpc* src = cache_npc_ptr;
+    if( !src )
+        return NULL;
+
+    struct ToriAuxLibCore_Npctype* dst = calloc(1, sizeof(struct ToriAuxLibCore_Npctype));
+    if( !dst )
+        return NULL;
+
+    dst->id = npc_id;
+    if( src->name )
+    {
+        strncpy(dst->name, src->name, TORIAUXLIBCORE_NAME_MAX - 1);
+        dst->name[TORIAUXLIBCORE_NAME_MAX - 1] = '\0';
+    }
+    toriauxlibcache_copy_menu_actions(dst->actions, (char* const*)src->op, 5);
+    dst->combat_level = src->vislevel;
+    dst->size = src->size > 0 ? src->size : 1;
+    return dst;
+}
+
+struct ToriAuxLibCore_Npctype*
+ToriAuxLibCache_NpctypeNewFromDat2ConfigNpctype(
+    const void* cache_npc_ptr,
+    int npc_id)
+{
+    const struct RSCacheDat2A_ConfigNpctype* src = cache_npc_ptr;
+    if( !src )
+        return NULL;
+
+    struct ToriAuxLibCore_Npctype* dst = calloc(1, sizeof(struct ToriAuxLibCore_Npctype));
+    if( !dst )
+        return NULL;
+
+    dst->id = npc_id;
+    if( src->name )
+    {
+        strncpy(dst->name, src->name, TORIAUXLIBCORE_NAME_MAX - 1);
+        dst->name[TORIAUXLIBCORE_NAME_MAX - 1] = '\0';
+    }
+    toriauxlibcache_copy_menu_actions(dst->actions, (char* const*)src->actions, 5);
+    dst->combat_level = src->combat_level;
+    dst->size = src->size > 0 ? src->size : 1;
+    return dst;
 }
 
 struct ToriAuxLibCore_Sequence*
@@ -572,6 +677,15 @@ toriauxlibcache_component_type_from_raw(int type)
 }
 
 static void
+toriauxlibcache_component_apply_graphic_hitbox_only(struct ToriAuxLibCore_Component* dst)
+{
+    if( !dst || dst->type != TORIAUXLIBCORE_COMPONENT_GRAPHIC )
+        return;
+    dst->graphic_hitbox_only =
+        (dst->sprite_ref[0] == '\0' && dst->sprite_active_ref[0] == '\0') ? 1 : 0;
+}
+
+static void
 toriauxlibcache_dat2_sprite_ref_from_id(
     int sprite_id,
     char* out,
@@ -678,6 +792,8 @@ ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
     if( src->text )
         strncpy(dst->text, src->text, sizeof(dst->text) - 1);
 
+    toriauxlibcache_component_apply_graphic_hitbox_only(dst);
+
     toriauxlibcache_component_copy_scripts(
         dst,
         src->scripts_count,
@@ -728,6 +844,8 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
 
     if( src->text )
         strncpy(dst->text, src->text, sizeof(dst->text) - 1);
+
+    toriauxlibcache_component_apply_graphic_hitbox_only(dst);
 
     return dst;
 }

@@ -119,6 +119,18 @@ ToriAuxLibCore_LocationFree(struct ToriAuxLibCore_Location* loc)
     free(loc);
 }
 
+void
+ToriAuxLibCore_NpctypeFree(struct ToriAuxLibCore_Npctype* npctype)
+{
+    free(npctype);
+}
+
+size_t
+ToriAuxLibCore_NpctypeSizeOf(const struct ToriAuxLibCore_Npctype* npctype)
+{
+    return npctype ? sizeof(*npctype) : 0;
+}
+
 static void
 toriauxlibcore_animbase_free(struct ToriAuxLibCore_AnimBase* base)
 {

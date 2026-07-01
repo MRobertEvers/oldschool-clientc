@@ -23,6 +23,7 @@
 #include "toridraw/toridraw_math.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
+#include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_sprite.h"
 
 #include <assert.h>
@@ -156,9 +157,27 @@ GameRunescape_AssertSceneFontReady(
     int font_id,
     char const* context)
 {
-    assert(font_id >= 0 && "minimenu font_id unset (revconfig font lookup failed?)");
-    assert(game && game->scene && "minimenu font draw requires ToriDraw scene");
-    assert(ToriDraw_SceneFontHas(game->scene, font_id) && context);
+    if( font_id < 0 )
+    {
+        fprintf(stderr,
+            "GameRunescape: font_id unset (context=%s)\n",
+            context ? context : "(null)");
+        assert(font_id >= 0);
+    }
+    if( !game || !game->scene )
+    {
+        fprintf(stderr,
+            "GameRunescape: missing scene for font_id=%d (context=%s, game=%p)\n",
+            font_id, context ? context : "(null)", (void*)game);
+        assert(game && game->scene);
+    }
+    if( !ToriDraw_SceneFontHas(game->scene, font_id) )
+    {
+        fprintf(stderr,
+            "GameRunescape: scene font not loaded font_id=%d (context=%s)\n",
+            font_id, context ? context : "(null)");
+        assert(ToriDraw_SceneFontHas(game->scene, font_id));
+    }
 }
 
 static void
@@ -168,6 +187,29 @@ GameRunescape_AssertMinimenuFontReady(
     char const* context)
 {
     GameRunescape_AssertSceneFontReady(game, font_id, context);
+}
+
+bool
+GameRunescape_MinimenuPrepareShow(
+    struct GameRunescape* game,
+    struct UIMinimenuLayout* out_layout,
+    int* out_content_width)
+{
+    if( !game )
+        return false;
+
+    int font_id = -1;
+    if( game->ui_tree && game->ui_minimenu_node >= 0 )
+    {
+        struct StaticUIComponent* component =
+            &game->ui_tree->components[game->ui_minimenu_node];
+        font_id = component->u.minimenu.font_id;
+    }
+
+    struct ToriDraw_Font* font =
+        game->scene && font_id >= 0 ? ToriDraw_SceneFontGet(game->scene, font_id) : NULL;
+    return ui_minimenu_prepare_show(
+        &game->minimenu, font, out_layout, out_content_width);
 }
 
 static bool
@@ -1299,6 +1341,7 @@ GameRunescape_EmitUIComponent(
         int const mw = game->minimenu.width;
         int const mh = game->minimenu.height;
         int const font_id = component->u.minimenu.font_id;
+        struct UIMinimenuLayout const layout = game->minimenu.layout;
         int step = game->frame.ui_minimenu_step;
 
         if( step == 0 )
@@ -1318,7 +1361,7 @@ GameRunescape_EmitUIComponent(
             command->u.fill_rect.x = mx + 1;
             command->u.fill_rect.y = my + 1;
             command->u.fill_rect.w = mw - 2;
-            command->u.fill_rect.h = 16;
+            command->u.fill_rect.h = layout.header_bar_h;
             command->u.fill_rect.argb = 0xFF000000u;
             game->frame.ui_minimenu_step = 2;
             return true;
@@ -1327,7 +1370,7 @@ GameRunescape_EmitUIComponent(
         {
             command->kind = TORIRSRC_FILL_RECT;
             command->u.fill_rect.x = mx + 1;
-            command->u.fill_rect.y = my + 18;
+            command->u.fill_rect.y = my + layout.separator_y;
             command->u.fill_rect.w = mw - 2;
             command->u.fill_rect.h = 1;
             command->u.fill_rect.argb = 0xFF000000u;
@@ -1349,9 +1392,9 @@ GameRunescape_EmitUIComponent(
         {
             command->kind = TORIRSRC_FILL_RECT;
             command->u.fill_rect.x = mx + 1;
-            command->u.fill_rect.y = my + 18;
+            command->u.fill_rect.y = my + layout.separator_y;
             command->u.fill_rect.w = 1;
-            command->u.fill_rect.h = mh - 19;
+            command->u.fill_rect.h = mh - layout.border_inset;
             command->u.fill_rect.argb = 0xFF000000u;
             game->frame.ui_minimenu_step = 5;
             return true;
@@ -1360,9 +1403,9 @@ GameRunescape_EmitUIComponent(
         {
             command->kind = TORIRSRC_FILL_RECT;
             command->u.fill_rect.x = mx + mw - 2;
-            command->u.fill_rect.y = my + 18;
+            command->u.fill_rect.y = my + layout.separator_y;
             command->u.fill_rect.w = 1;
-            command->u.fill_rect.h = mh - 19;
+            command->u.fill_rect.h = mh - layout.border_inset;
             command->u.fill_rect.argb = 0xFF000000u;
             game->frame.ui_minimenu_step = 6;
             return true;
@@ -1373,12 +1416,12 @@ GameRunescape_EmitUIComponent(
             command->kind = TORIRSRC_FONT;
             command->u.font.font_id = font_id;
             command->u.font.x = mx + 3;
-            command->u.font.y = my + 14;
+            command->u.font.y = my + layout.header_text_y;
             command->u.font.color = OPTIONS_MENU;
             command->u.font.center = 0;
             command->u.font.shadowed = 0;
             command->u.font.width = mw - 6;
-            command->u.font.height = 16;
+            command->u.font.height = layout.header_bar_h;
             command->u.font.text = "Choose Option";
             game->frame.ui_minimenu_step = 7;
             return true;
@@ -1388,7 +1431,7 @@ GameRunescape_EmitUIComponent(
         if( opt_draw < game->minimenu.option_count )
         {
             int const i = opt_draw;
-            int const row_top = my + 19 + i * 15;
+            int const row_top = ui_minimenu_option_y(&game->minimenu, i);
             int const hovered = game->minimenu.hovered_option == i;
 
             GameRunescape_AssertMinimenuFontReady(game, font_id, "minimenu option");
@@ -1398,9 +1441,9 @@ GameRunescape_EmitUIComponent(
             command->u.font.y = row_top;
             command->u.font.color = hovered ? YELLOW : WHITE;
             command->u.font.center = 0;
-            command->u.font.shadowed = 0;
+            command->u.font.shadowed = 1;
             command->u.font.width = mw - 6;
-            command->u.font.height = 15;
+            command->u.font.height = layout.row_stride;
             command->u.font.text = game->minimenu.options[i].text;
             game->frame.ui_minimenu_step = step + 1;
             return true;
@@ -1453,6 +1496,8 @@ GameRunescape_EmitUIComponent(
     case UIELEM_RS_TEXT:
         if( !component->u.rs_text.text )
             return false;
+        GameRunescape_AssertSceneFontReady(
+            game, component->u.rs_text.font_id, "rs_text");
         command->kind = TORIRSRC_FONT;
         command->u.font.font_id = component->u.rs_text.font_id;
         command->u.font.x = bx;
@@ -2252,6 +2297,30 @@ GameRunescape_WorldEntityAddProjectile(
     return entity_id;
 }
 
+static void
+game_runescape_npc_apply_npctype(
+    struct WorldEntity_NPC* npc,
+    struct ToriAuxLibCore_Npctype const* npctype)
+{
+    if( !npc || !npctype )
+        return;
+
+    strncpy(npc->name, npctype->name, sizeof(npc->name) - 1);
+    npc->name[sizeof(npc->name) - 1] = '\0';
+    npc->combat_level = npctype->combat_level;
+
+    for( int i = 0; i < 5; i++ )
+    {
+        npc->actions[i].code = (uint16_t)i;
+        npc->actions[i].name[0] = '\0';
+        if( npctype->actions[i][0] != '\0' )
+        {
+            strncpy(npc->actions[i].name, npctype->actions[i], sizeof(npc->actions[i].name) - 1);
+            npc->actions[i].name[sizeof(npc->actions[i].name) - 1] = '\0';
+        }
+    }
+}
+
 int
 GameRunescape_WorldEntityAddNPC(
     struct GameRunescape* game,
@@ -2310,6 +2379,16 @@ GameRunescape_WorldEntityAddNPC(
         world_npc_spawn(game->world, element_id, npc_id, level, x, z, npc_size, idle_animations);
     if( npc_idx < 0 )
         return -1;
+
+    {
+        struct ToriAuxLibCore* core = ToriAuxLibCache_Core(ToriAuxLibTD_C(game->td));
+        struct ToriAuxLibCore_Npctype* npctype =
+            core ? ToriAuxLibCore_NpctypeGet(core, npc_id) : NULL;
+        struct WorldEntity_NPC* npc_entity =
+            World_EntityPoolGet(&game->world->entities.npc, npc_idx);
+        if( npctype && npc_entity )
+            game_runescape_npc_apply_npctype(npc_entity, npctype);
+    }
 
     if( !GameRunescape_EntityRegister(game, entity_id, element_id, npc_idx) )
         return -1;

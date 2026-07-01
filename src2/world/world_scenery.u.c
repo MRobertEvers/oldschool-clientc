@@ -318,7 +318,17 @@ scenery_load_model(
     int element_id = ToriDraw_SceneElementAdd(builder->scene);
     assert(element_id >= 0 && "world_load_scenery_model: invalid element_id");
 
-    world_register_scenery_pick(builder->world, element_id, map_tile->loc_id);
+    world_scenery_register(
+        world,
+        element_id,
+        map_tile->loc_id,
+        scene_x,
+        scene_z,
+        map_tile->chunk_pos_level,
+        size_x,
+        size_z,
+        config_loc->name,
+        config_loc->actions);
 
     struct ToriDraw_ModelHandle hnd = {
         .kind = TORIDRAWMK_MODEL,

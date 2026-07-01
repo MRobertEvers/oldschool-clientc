@@ -159,6 +159,7 @@ struct StaticUIComponent
             int atlas_index;
             int scene_id_active;
             int atlas_index_active;
+            uint8_t graphic_hitbox_only;
         } rs_graphic;
         struct
         {
@@ -282,6 +283,7 @@ struct UINodeSpec
             int atlas_index;
             int scene_id_active;
             int atlas_index_active;
+            uint8_t graphic_hitbox_only;
         } rs_graphic;
         struct
         {

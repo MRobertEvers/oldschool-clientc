@@ -394,11 +394,12 @@ uitree_print_nodes(struct UITree const* tree)
             break;
         case UIELEM_RS_GRAPHIC:
             printf(
-                "       rs_graphic scene_id=%d atlas=%d active_scene=%d active_atlas=%d\n",
+                "       rs_graphic scene_id=%d atlas=%d active_scene=%d active_atlas=%d hitbox_only=%d\n",
                 c->u.rs_graphic.scene_id,
                 c->u.rs_graphic.atlas_index,
                 c->u.rs_graphic.scene_id_active,
-                c->u.rs_graphic.atlas_index_active);
+                c->u.rs_graphic.atlas_index_active,
+                (int)c->u.rs_graphic.graphic_hitbox_only);
             break;
         case UIELEM_RS_TEXT:
             printf(
@@ -539,6 +540,7 @@ uitree_push(
         component->u.rs_graphic.atlas_index = spec->u.rs_graphic.atlas_index;
         component->u.rs_graphic.scene_id_active = spec->u.rs_graphic.scene_id_active;
         component->u.rs_graphic.atlas_index_active = spec->u.rs_graphic.atlas_index_active;
+        component->u.rs_graphic.graphic_hitbox_only = spec->u.rs_graphic.graphic_hitbox_only;
         break;
 
     case UIELEM_RS_RECT:

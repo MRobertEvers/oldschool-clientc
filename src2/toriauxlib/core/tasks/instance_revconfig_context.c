@@ -13,6 +13,26 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int
+instance_revconfig_resolve_rs_text_font_id(
+    struct InstanceRevConfigContext const* ctx,
+    int cache_font_ref)
+{
+    int font_id = -1;
+
+    if( cache_font_ref >= 0 && cache_font_ref <= 3 )
+        font_id = ui_font_lookup_find_by_cache_font_id(&ctx->font_lookup, cache_font_ref);
+    else if( cache_font_ref > 3 )
+        font_id = ui_font_lookup_find_by_archive_id(&ctx->font_lookup, cache_font_ref);
+
+    if( font_id < 0 )
+        font_id = ui_font_lookup_resolve_cache_font_index(&ctx->font_lookup, cache_font_ref);
+    if( font_id < 0 )
+        font_id = ui_font_lookup_find(&ctx->font_lookup, "b12");
+    assert(font_id >= 0 && "RS text font not loaded — add p11/p12/b12/q8 to cache ini");
+    return font_id;
+}
+
 struct InstanceRevConfigRSSubtree*
 instance_revconfig_rs_subtree_find(
     struct InstanceRevConfigContext* ctx,
@@ -112,12 +132,23 @@ instance_revconfig_bake_rs_component(
         int sid_a =
             ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, info->sprite_active_ref, &atlas_a);
         if( sid < 0 && sid_a < 0 )
-            return -1;
+        {
+            if( !info->graphic_hitbox_only )
+                return -1;
+            spec.type = UIELEM_RS_GRAPHIC;
+            spec.u.rs_graphic.scene_id = -1;
+            spec.u.rs_graphic.atlas_index = 0;
+            spec.u.rs_graphic.scene_id_active = -1;
+            spec.u.rs_graphic.atlas_index_active = 0;
+            spec.u.rs_graphic.graphic_hitbox_only = 1;
+            break;
+        }
         spec.type = UIELEM_RS_GRAPHIC;
         spec.u.rs_graphic.scene_id = sid >= 0 ? sid : sid_a;
         spec.u.rs_graphic.atlas_index = sid >= 0 ? atlas : atlas_a;
         spec.u.rs_graphic.scene_id_active = sid >= 0 && sid_a >= 0 && sid_a != sid ? sid_a : -1;
         spec.u.rs_graphic.atlas_index_active = sid_a >= 0 ? atlas_a : 0;
+        spec.u.rs_graphic.graphic_hitbox_only = 0;
         break;
     }
     case TORIAUXLIBCORE_COMPONENT_RECT:
@@ -128,7 +159,8 @@ instance_revconfig_bake_rs_component(
     case TORIAUXLIBCORE_COMPONENT_TEXT:
     case TORIAUXLIBCORE_COMPONENT_INV_TEXT:
         spec.type = UIELEM_RS_TEXT;
-        spec.u.rs_text.font_id = info->font_id >= 0 && info->font_id <= 3 ? info->font_id : 1;
+        spec.u.rs_text.font_id =
+            instance_revconfig_resolve_rs_text_font_id(ctx, info->font_id);
         spec.u.rs_text.color = info->color;
         spec.u.rs_text.center = info->center;
         spec.u.rs_text.shadowed = info->shadowed;
@@ -215,12 +247,24 @@ instance_revconfig_bake_rs_subtree(
         int32_t idx = instance_revconfig_bake_rs_component(ctx, parent_idx, info, inv_index);
         if( idx < 0 )
         {
+            char const* reason = "uitree_push failed";
+            if( info->type == TORIAUXLIBCORE_COMPONENT_GRAPHIC &&
+                (info->sprite_ref[0] != '\0' || info->sprite_active_ref[0] != '\0') )
+                reason = "sprite resolve failed";
+            else if( info->type != TORIAUXLIBCORE_COMPONENT_LAYER &&
+                      info->type != TORIAUXLIBCORE_COMPONENT_GRAPHIC &&
+                      info->type != TORIAUXLIBCORE_COMPONENT_RECT &&
+                      info->type != TORIAUXLIBCORE_COMPONENT_TEXT &&
+                      info->type != TORIAUXLIBCORE_COMPONENT_INV_TEXT &&
+                      info->type != TORIAUXLIBCORE_COMPONENT_MODEL &&
+                      info->type != TORIAUXLIBCORE_COMPONENT_INV )
+                reason = "unknown type";
             fprintf(
                 stderr,
-                "instance_revconfig_bake_rs_subtree: skip component id=%d type=%d "
-                "(sprite resolve, unknown type, or uitree_push)\n",
+                "instance_revconfig_bake_rs_subtree: skip component id=%d type=%d (%s)\n",
                 info->id,
-                (int)info->type);
+                (int)info->type,
+                reason);
             continue;
         }
 
@@ -468,7 +512,7 @@ dat1_ifaces_get_component(
     return NULL;
 }
 
-static int
+int
 instance_revconfig_resolve_walk_root_id(
     struct RSCacheDat1A_ConfigComponentList* ifaces,
     int componentno)
@@ -477,24 +521,39 @@ instance_revconfig_resolve_walk_root_id(
     if( !direct )
         return componentno;
 
-    if( direct->type == COMPONENT_TYPE_LAYER )
-        return direct->id;
+    int root = componentno;
 
-    int layer_id = direct->layer;
-    for( int depth = 0; layer_id >= 0 && depth < 32; depth++ )
+    if( direct->type == COMPONENT_TYPE_LAYER )
+        root = direct->id;
+    else
     {
-        struct RSCacheDat1A_ConfigComponent* layer_comp =
-            dat1_ifaces_get_component(ifaces, layer_id);
-        if( !layer_comp )
-            break;
-        if( layer_comp->type == COMPONENT_TYPE_LAYER )
-            return layer_comp->id;
-        layer_id = layer_comp->layer;
+        int layer_id = direct->layer;
+        for( int depth = 0; layer_id >= 0 && depth < 32; depth++ )
+        {
+            struct RSCacheDat1A_ConfigComponent* layer_comp =
+                dat1_ifaces_get_component(ifaces, layer_id);
+            if( !layer_comp )
+                break;
+            if( layer_comp->type == COMPONENT_TYPE_LAYER )
+            {
+                root = layer_comp->id;
+                break;
+            }
+            layer_id = layer_comp->layer;
+        }
+
+        if( root == componentno )
+        {
+            if( direct->layer >= 0 )
+                root = direct->layer;
+            else
+                root = direct->id;
+        }
     }
 
-    if( direct->layer >= 0 )
-        return direct->layer;
-    return direct->id;
+    if( root == 0 )
+        return -1;
+    return root;
 }
 
 static void
@@ -505,15 +564,16 @@ instance_revconfig_resolve_panel_root_for(
 {
     if( componentno < 0 || componentno >= 1024 )
         return;
-    if( ctx->panel_root_id[componentno] >= 0 )
+    if( ctx->panel_root_id[componentno] != INSTANCE_RC_PANEL_ROOT_UNSET )
         return;
 
     struct RSCacheDat1A_ConfigComponent* direct = dat1_ifaces_get_component(ifaces, componentno);
     if( !direct )
         return;
 
+    int root = instance_revconfig_resolve_walk_root_id(ifaces, componentno);
     ctx->panel_root_id[componentno] =
-        instance_revconfig_resolve_walk_root_id(ifaces, componentno);
+        root >= 0 ? root : INSTANCE_RC_PANEL_ROOT_INVALID;
 }
 
 void
@@ -587,8 +647,12 @@ instance_revconfig_build_layout_node(
             if( font_id >= 0 )
                 spec.u.minimenu.font_id = font_id;
         }
-        else if( comp->font >= 0 && comp->font <= 3 )
-            spec.u.minimenu.font_id = comp->font;
+        else if( comp->font >= 0 )
+        {
+            int font_id = instance_revconfig_resolve_rs_text_font_id(ctx, comp->font);
+            if( font_id >= 0 )
+                spec.u.minimenu.font_id = font_id;
+        }
         break;
     case UIELEM_BUILTIN_MINIMAP:
         spec.always_dirty = 1;
@@ -631,10 +695,8 @@ instance_revconfig_build_layout_node(
         break;
     case UIELEM_RS_TEXT:
     {
-        int font_id = comp->font;
-        if( font_id < 0 || font_id > 3 )
-            font_id = 1;
-        spec.u.rs_text.font_id = font_id;
+        spec.u.rs_text.font_id =
+            instance_revconfig_resolve_rs_text_font_id(ctx, comp->font);
         spec.u.rs_text.color = comp->color;
         spec.u.rs_text.center = comp->center ? 1 : 0;
         spec.u.rs_text.shadowed = comp->shadowed ? 1 : 0;
