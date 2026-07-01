@@ -29,4 +29,15 @@ dat1_buildcache_obj_icon_sprite(
     int obj_id,
     int count);
 
+struct ToriAuxLibCore_Sprite*
+dat1_buildcache_widget_model_sprite(
+    struct Dat1BuildCache* buildcache,
+    struct ToriDraw_Scene* scene,
+    int model_id,
+    int zoom,
+    int xan,
+    int yan,
+    int width,
+    int height);
+
 #endif

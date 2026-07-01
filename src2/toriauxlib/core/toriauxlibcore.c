@@ -230,9 +230,9 @@ enum
     GAMECACHE_CAP_OBJTYPE = 256,
     GAMECACHE_CAP_SEQUENCE = 256,
     GAMECACHE_CAP_ANIMFRAME_REF = 512,
-    GAMECACHE_CAP_SPRITE = 64,
+    GAMECACHE_CAP_SPRITE = 256,
     GAMECACHE_CAP_FONT = 8,
-    GAMECACHE_CAP_COMPONENT = 64,
+    GAMECACHE_CAP_COMPONENT = 1024,
     GAMECACHE_CAP_CLIENTSCRIPT = 256,
     GAMECACHE_CAP_SKELETAL = 256,
     GAMECACHE_CAP_IDK_MODEL = 64,
@@ -275,6 +275,20 @@ gamecache_maybe_grow_hmap(
     free(old_buffer);
     if( gamecache )
         gamecache->map_buffer_bytes += new_buffer_size - old_buffer_size;
+}
+
+static void
+gamecache_prepare_hmap_insert(
+    struct ToriAuxLibCore* gamecache,
+    struct ToriDraw_Map* map)
+{
+    if( !map )
+        return;
+
+    uint32_t count = ToriDraw_MapCount(map);
+    uint32_t capacity = ToriDraw_MapCapacity(map);
+    if( capacity > 0 && count * 4 >= capacity * 3 )
+        gamecache_maybe_grow_hmap(gamecache, map);
 }
 
 static void
@@ -994,6 +1008,7 @@ ToriAuxLibCore_SpriteAdd(
     if( !map )
         return;
 
+    gamecache_prepare_hmap_insert(gamecache, map);
     struct MapEntry_Sprite* entry =
         (struct MapEntry_Sprite*)ToriDraw_MapSearch(map, &sprite_id, TORIDRAW_MAP_INSERT);
     if( !entry )
@@ -1195,6 +1210,7 @@ ToriAuxLibCore_ComponentAdd(
     if( !map )
         return;
 
+    gamecache_prepare_hmap_insert(gamecache, map);
     struct MapEntry_Component* entry = (struct MapEntry_Component*)ToriDraw_MapSearch(
         map, &component_id, TORIDRAW_MAP_INSERT);
     if( !entry )

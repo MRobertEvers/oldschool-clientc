@@ -8,6 +8,7 @@
 #include "toridraw_map.h"
 #include "toridraw_math.h"
 #include "toridraw_model.h"
+#include "toridraw_model_sprite.h"
 #include "toridraw_model_transform.h"
 #include "toridraw_scene.h"
 #include "toridraw_sprite.h"

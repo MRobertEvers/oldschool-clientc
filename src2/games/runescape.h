@@ -222,6 +222,8 @@ struct GameRunescape
         int ui_minimenu_step;
         int ui_chat_button_step;
         int ui_scrollbar_step;
+        /** Multi-step UIELEM_RS_MODEL chat-head draw (END_2D/BEGIN_3D/DRAW/END_3D/BEGIN_2D). */
+        int ui_model_step;
         int32_t ui_scrollbar_layer;
         /** Client.ts scrollCycle: frames LMB held this tick (for arrow repeat). */
         int ui_scroll_cycle;

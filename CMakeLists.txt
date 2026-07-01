@@ -202,6 +202,11 @@ if(NOT EMSCRIPTEN)
     target_link_libraries(dump_interface_layout rscache)
     target_include_directories(dump_interface_layout PRIVATE src)
     set_target_properties(dump_interface_layout PROPERTIES C_STANDARD 11)
+
+    add_executable(dump_map_index tools/dump_map_index/main.c)
+    target_link_libraries(dump_map_index rscache)
+    target_include_directories(dump_map_index PRIVATE src)
+    set_target_properties(dump_map_index PROPERTIES C_STANDARD 11)
 endif()
 
 # --- Native (OSX/Windows) Target ---

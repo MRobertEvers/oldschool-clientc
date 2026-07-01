@@ -8,6 +8,7 @@
 #include "toriauxlib/td/toridraw_cachesprite.h"
 #include "toridraw/toridraw_sprite.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -206,8 +207,8 @@ ToriAuxLibCache_SpriteNewFromDat1RevConfigItem(
     struct RSCacheShared_FileListDat* filelist,
     struct RevConfigCacheItem const* item)
 {
-    if( !filelist || !item )
-        return NULL;
+    assert(filelist);
+    assert(item);
 
     int start = item->atlas_count > 0 ? 0 : item->atlas_index;
     int count = item->atlas_count > 0 ? item->atlas_count : 1;

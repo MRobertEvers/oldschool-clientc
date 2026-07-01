@@ -75,6 +75,8 @@ typedef struct Component
     int32_t textLineHeight;
     bool textShadow;
 
+    /** MODEL widget only. Selects model archive + meaning of modelId:
+     *  0=none, 1=widget obj, 2=NPC head, 3=player head, 4=item, 5=local player. */
     int32_t modelType;
     int32_t modelId;
     int32_t modelZoom;

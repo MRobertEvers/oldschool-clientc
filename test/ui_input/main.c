@@ -608,6 +608,161 @@ test_scrollbar_handle_gating(void)
     return 0;
 }
 
+static int
+test_scrollbar_selected_tab(void* user)
+{
+    (void)user;
+    return 3;
+}
+
+static int
+test_scrollbar_selected_sidebar_tab(void)
+{
+    struct UITree* tree = uitree_new(8);
+    int const sidebar_x = 553;
+    int const sidebar_y = 205;
+    int const sidebar_w = 190;
+    int const sidebar_h = 261;
+
+    struct UINodeSpec sidebar0_spec = { 0 };
+    sidebar0_spec.type = UIELEM_BUILTIN_SIDEBAR;
+    sidebar0_spec.x = sidebar_x;
+    sidebar0_spec.y = sidebar_y;
+    sidebar0_spec.width = sidebar_w;
+    sidebar0_spec.height = sidebar_h;
+    sidebar0_spec.u.sidebar.tabno = 0;
+    int32_t sidebar0 = uitree_push(tree, -1, &sidebar0_spec);
+
+    struct UINodeSpec layer0_spec = { 0 };
+    layer0_spec.type = UIELEM_RS_LAYER;
+    layer0_spec.component_id = 100;
+    layer0_spec.x = 5;
+    layer0_spec.y = 10;
+    layer0_spec.width = 170;
+    layer0_spec.height = 200;
+    layer0_spec.u.rs_layer.scroll_height = 800;
+    int32_t layer0 = uitree_push(tree, sidebar0, &layer0_spec);
+
+    struct UINodeSpec sidebar3_spec = { 0 };
+    sidebar3_spec.type = UIELEM_BUILTIN_SIDEBAR;
+    sidebar3_spec.x = sidebar_x;
+    sidebar3_spec.y = sidebar_y;
+    sidebar3_spec.width = sidebar_w;
+    sidebar3_spec.height = sidebar_h;
+    sidebar3_spec.u.sidebar.tabno = 3;
+    int32_t sidebar3 = uitree_push(tree, -1, &sidebar3_spec);
+
+    struct UINodeSpec layer3_spec = { 0 };
+    layer3_spec.type = UIELEM_RS_LAYER;
+    layer3_spec.component_id = 300;
+    layer3_spec.x = 5;
+    layer3_spec.y = 10;
+    layer3_spec.width = 170;
+    layer3_spec.height = 200;
+    layer3_spec.u.rs_layer.scroll_height = 800;
+    int32_t layer3 = uitree_push(tree, sidebar3, &layer3_spec);
+
+    uitree_layout_resolve(tree, 0, 0, 765, 503);
+
+    int scroll_x[UITREE_SCROLL_MAX] = { 0 };
+    int scroll_y[UITREE_SCROLL_MAX] = { 0 };
+    scroll_y[100] = 99;
+    scroll_y[300] = 0;
+    struct UITreeScrollState scroll = { .scroll_x = scroll_x, .scroll_y = scroll_y };
+
+    struct UITreeHost host;
+    uitree_host_init(&host);
+    host.get_selected_tab = test_scrollbar_selected_tab;
+
+    int lx = 0;
+    int ly = 0;
+    int lw = 0;
+    int lh = 0;
+    uitree_layout_get_bounds(&tree->components[layer3].position, &lx, &ly, &lw, &lh);
+    int const sb_x = lx + lw;
+    int const arrow_py = ly + lh - 8;
+
+    struct UITreeScrollbarHitInfo hit = { 0 };
+    TEST_ASSERT(
+        uitree_find_scrollbar_at_padded(
+            tree, &host, &scroll, sb_x + 8, arrow_py, 0, &hit),
+        "scrollbar hit on selected sidebar tab");
+    TEST_ASSERT(hit.layer_index == layer3, "hit targets tab 3 layer not tab 0");
+    TEST_ASSERT(hit.kind == UITREE_SCROLLBAR_V_DOWN, "down arrow region");
+
+    hit.kind = UITREE_SCROLLBAR_V_DOWN;
+    hit.layer_index = layer3;
+    hit.layer_x = lx;
+    hit.layer_y = ly;
+    hit.layer_w = lw;
+    hit.layer_h = lh;
+    hit.scroll_height = layer3_spec.u.rs_layer.scroll_height;
+    hit.scroll_width = 0;
+    TEST_ASSERT(
+        uitree_scrollbar_handle(
+            tree, &scroll, &hit, sb_x + 8, arrow_py, UITREE_SCROLLBAR_ACTION_ARROW_STEP, 4),
+        "arrow step on selected tab layer");
+    TEST_ASSERT(scroll_y[300] == 4, "selected tab scroll changed");
+    TEST_ASSERT(scroll_y[100] == 99, "inactive tab scroll unchanged");
+
+    (void)layer0;
+    (void)sidebar0;
+    uitree_free(tree);
+    return 0;
+}
+
+static int
+test_scrollbar_nested_ancestor_offset(void)
+{
+    struct UITree* tree = uitree_new(4);
+    struct UINodeSpec parent_spec = { 0 };
+    parent_spec.type = UIELEM_RS_LAYER;
+    parent_spec.component_id = 10;
+    parent_spec.x = 50;
+    parent_spec.y = 40;
+    parent_spec.width = 120;
+    parent_spec.height = 100;
+    parent_spec.u.rs_layer.scroll_height = 400;
+    int32_t parent = uitree_push(tree, -1, &parent_spec);
+
+    struct UINodeSpec child_spec = { 0 };
+    child_spec.type = UIELEM_RS_LAYER;
+    child_spec.component_id = 20;
+    child_spec.x = 0;
+    child_spec.y = 0;
+    child_spec.width = 100;
+    child_spec.height = 80;
+    child_spec.u.rs_layer.scroll_height = 500;
+    int32_t child = uitree_push(tree, parent, &child_spec);
+
+    uitree_layout_resolve(tree, 0, 0, 765, 503);
+
+    int scroll_x[UITREE_SCROLL_MAX] = { 0 };
+    int scroll_y[UITREE_SCROLL_MAX] = { 0 };
+    scroll_y[10] = 50;
+    struct UITreeScrollState scroll = { .scroll_x = scroll_x, .scroll_y = scroll_y };
+
+    int lx = 0;
+    int ly = 0;
+    int lw = 0;
+    int lh = 0;
+    uitree_layout_get_bounds(&tree->components[child].position, &lx, &ly, &lw, &lh);
+    struct UITreeScrollClip clip = { 0 };
+    int32_t ancestors[] = { parent };
+    uitree_scroll_apply_ancestors(tree, &scroll, ancestors, 1, &lx, &ly, &clip);
+    int const sb_x = lx + lw;
+    int const arrow_py = ly + 8;
+
+    struct UITreeScrollbarHitInfo hit = { 0 };
+    TEST_ASSERT(
+        uitree_find_scrollbar_at(tree, NULL, &scroll, sb_x + 8, arrow_py, &hit),
+        "nested layer scrollbar hit uses ancestor scroll offset");
+    TEST_ASSERT(hit.layer_index == child, "hit nested child layer");
+
+    uitree_free(tree);
+    return 0;
+}
+
 static void
 input_tick(
     struct LibToriRS_Input* input,
@@ -685,6 +840,8 @@ main(void)
     failures += test_hover_color_without_scripts();
     failures += test_scroll_offset_apply();
     failures += test_scrollbar_handle_gating();
+    failures += test_scrollbar_selected_sidebar_tab();
+    failures += test_scrollbar_nested_ancestor_offset();
     failures += test_input_drag_lifecycle();
 
     if( failures == 0 )

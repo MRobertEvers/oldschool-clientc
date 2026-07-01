@@ -62,14 +62,43 @@ struct LibToriPlatformSDL2_RendererSoft3D
     struct ToriDraw_Font* fonts[SOFT3D_FONT_CAP];
 
     struct ToriDraw_ViewPort iface_view_port;
-    bool ui_model_3d_active;
-    struct ToriDraw_ViewPort ui_model_vp;
-    struct ToriDraw_Camera ui_model_cam;
-    struct ToriDraw_Position ui_model_cam_pos;
 #if defined(TORIRS_ENABLE_LVGL_HUD)
     struct LibToriHud* hud;
 #endif
 };
+
+static void
+soft3d_resolve_sprite_array(
+    struct LibToriPlatformSDL2_RendererSoft3D* renderer,
+    struct ToriDraw_Scene* draw_context,
+    int element_id,
+    struct ToriDraw_Sprite*** out_sprites,
+    int* out_count)
+{
+    assert(out_sprites && out_count);
+    *out_sprites = NULL;
+    *out_count = 0;
+    if( element_id < 0 )
+        return;
+
+    if( element_id < SOFT3D_SPRITE_ELEMENT_CAP )
+    {
+        *out_sprites = renderer->sprite_arrays[element_id];
+        *out_count = renderer->sprite_counts[element_id];
+    }
+
+    if( draw_context )
+    {
+        int scene_count = 0;
+        struct ToriDraw_Sprite** scene_sprites =
+            ToriDraw_SceneSpriteGet(draw_context, element_id, &scene_count);
+        if( scene_sprites && scene_count > 0 )
+        {
+            *out_sprites = scene_sprites;
+            *out_count = scene_count;
+        }
+    }
+}
 
 struct LibToriPlatformSDL2_RendererSoft3D*
 LibToriPlatformSDL2_RendererSoft3D_New(
@@ -190,7 +219,6 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
 
     bool has_3d = false;
     struct LibToriRS_RenderCommand_Begin3D cur_3d;
-    renderer->ui_model_3d_active = false;
 
     LibToriRS_FrameBegin(instance);
     struct LibToriRS_RenderCommand command;
@@ -262,28 +290,12 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
         {
             const int element_id = command.u.sprite.element_id;
             const int atlas_index = command.u.sprite.atlas_index;
-            if( element_id < 0 || element_id >= SOFT3D_SPRITE_ELEMENT_CAP )
-            {
-                fprintf(stderr,
-                    "TORIRSRC_SPRITE: invalid element_id=%d atlas_index=%d\n",
-                    element_id,
-                    atlas_index);
-                assert(element_id >= 0 && element_id < SOFT3D_SPRITE_ELEMENT_CAP);
+            if( element_id < 0 )
                 break;
-            }
-            struct ToriDraw_Sprite** sprites = renderer->sprite_arrays[element_id];
-            int count = renderer->sprite_counts[element_id];
-            if( draw_context )
-            {
-                int scene_count = 0;
-                struct ToriDraw_Sprite** scene_sprites =
-                    ToriDraw_SceneSpriteGet(draw_context, element_id, &scene_count);
-                if( scene_sprites && scene_count > 0 )
-                {
-                    sprites = scene_sprites;
-                    count = scene_count;
-                }
-            }
+
+            struct ToriDraw_Sprite** sprites = NULL;
+            int count = 0;
+            soft3d_resolve_sprite_array(renderer, draw_context, element_id, &sprites, &count);
             if( !sprites || atlas_index < 0 || atlas_index >= count )
             {
                 fprintf(stderr,
@@ -315,14 +327,19 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 vp.clip_bottom = command.u.sprite.scissor_y + command.u.sprite.scissor_h;
             }
 
-            if( command.u.sprite.mask_element_id >= 0 &&
-                command.u.sprite.mask_element_id < SOFT3D_SPRITE_ELEMENT_CAP )
+            if( command.u.sprite.mask_element_id >= 0 )
             {
-                struct ToriDraw_Sprite** mask_sprites =
-                    renderer->sprite_arrays[command.u.sprite.mask_element_id];
-                int mask_count = renderer->sprite_counts[command.u.sprite.mask_element_id];
+                struct ToriDraw_Sprite** mask_sprites = NULL;
+                int mask_count = 0;
+                soft3d_resolve_sprite_array(
+                    renderer,
+                    draw_context,
+                    command.u.sprite.mask_element_id,
+                    &mask_sprites,
+                    &mask_count);
                 int mask_idx = command.u.sprite.mask_atlas_index;
-                if( mask_sprites && mask_idx >= 0 && mask_idx < mask_count && mask_sprites[mask_idx] )
+                if( mask_sprites && mask_idx >= 0 && mask_idx < mask_count &&
+                    mask_sprites[mask_idx] )
                 {
                     ToriDraw2D_BlitSpriteMasked(
                         sp,
@@ -465,26 +482,6 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             }
             break;
         }
-        case TORIRSRC_UI_MODEL_BEGIN_3D:
-            renderer->ui_model_3d_active = true;
-            renderer->ui_model_vp = command.u.ui_model_3d.view_port;
-            renderer->ui_model_cam = command.u.ui_model_3d.camera;
-            renderer->ui_model_cam_pos = command.u.ui_model_3d.camera_position;
-            renderer->ui_model_vp.stride = renderer->width;
-            break;
-        case TORIRSRC_UI_MODEL_DRAW:
-            if( renderer->ui_model_3d_active && draw_context )
-            {
-                struct ToriDraw_ViewPort tmp_vp = renderer->ui_model_vp;
-                struct ToriDraw_Camera tmp_cam = renderer->ui_model_cam;
-                tmp_vp.stride = renderer->width;
-                ToriDraw_RenderModel3Raster(
-                    draw_context, &tmp_vp, &tmp_cam, renderer->pixel_buffer, false);
-            }
-            break;
-        case TORIRSRC_UI_MODEL_END_3D:
-            renderer->ui_model_3d_active = false;
-            break;
         default:
             break;
         }

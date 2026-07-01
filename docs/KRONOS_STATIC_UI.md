@@ -119,3 +119,28 @@ Sources: `WidgetID.java`, `Constants.GAME_FIXED_SIZE`, `Client.getViewportWidget
   - `[layout:resizable_bottom]` — group 164 layout
 - Sprites use symbolic names + `archive_id=` in `rev_kronos_ui_cache.ini`
 - Coordinates are extracted with `tools/dump_interface_layout` from the local dat2 cache
+
+## Map XTEA keys (`xteas.json`)
+
+XTEA keys decrypt **map scenery** archives (`l*_*` in dat2 table 5) only. They are **not** used for interfaces, sprites, fonts, or the static Kronos HUD.
+
+`cache.kronos/` does not ship `xteas.json`. Kronos stores region keys in `kronos-server/data/region_keys.json` as `{ "<regionId>": [k0,k1,k2,k3], ... }`. The client expects an array keyed by map archive index (`group`):
+
+```json
+[{ "archive": 5, "group": 1738, "name_hash": -1156005173, "name": "l18_54", "mapsquare": 4662, "key": [...] }]
+```
+
+`group` indices are **cache-specific** — generate from `cache.kronos`, not generic `cache/xteas.json`.
+
+### Generate `cache.kronos/xteas.json`
+
+```bash
+cmake --build build --target dump_map_index
+
+python3 tools/gen_kronos_xteas.py \
+  --region-keys /path/to/kronos-server/data/region_keys.json \
+  --cache cache.kronos \
+  --out cache.kronos/xteas.json
+```
+
+If `xteas.json` is missing at startup, dat2 init warns and continues (UI works; encrypted map scenery will not decrypt).

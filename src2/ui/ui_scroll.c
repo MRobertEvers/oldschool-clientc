@@ -358,6 +358,7 @@ hit_horizontal_scrollbar(
 static bool
 find_scrollbar_recursive(
     struct UITree const* tree,
+    struct UITreeHost const* host,
     struct UITreeScrollState const* scroll,
     int32_t node_index,
     int scroll_off_x,
@@ -379,24 +380,26 @@ find_scrollbar_recursive(
 
     if( component->type == UIELEM_RS_LAYER )
     {
+        int const hit_bx = bx - scroll_off_x;
+        int const hit_by = by - scroll_off_y;
         int hit_px = px;
         int hit_py = py;
         if( padding > 0 && uitree_scroll_layer_needs_vertical(component) )
         {
-            int sb_x = bx + bw;
-            if( px >= sb_x - padding && px < sb_x + UITREE_SCROLLBAR_THICKNESS + padding && py >= by &&
-                py < by + bh )
+            int sb_x = hit_bx + bw;
+            if( px >= sb_x - padding && px < sb_x + UITREE_SCROLLBAR_THICKNESS + padding &&
+                py >= hit_by && py < hit_by + bh )
                 hit_px = sb_x + 1;
         }
 
         enum UITreeScrollbarHitKind vhit = hit_vertical_scrollbar(
-            component, bx, by, bw, bh, scroll, hit_px, hit_py);
+            component, hit_bx, hit_by, bw, bh, scroll, hit_px, hit_py);
         if( vhit != UITREE_SCROLLBAR_NONE )
         {
             out->kind = vhit;
             out->layer_index = node_index;
-            out->layer_x = bx;
-            out->layer_y = by;
+            out->layer_x = hit_bx;
+            out->layer_y = hit_by;
             out->layer_w = bw;
             out->layer_h = bh;
             out->scroll_height = component->u.rs_layer.scroll_height;
@@ -405,13 +408,13 @@ find_scrollbar_recursive(
         }
 
         enum UITreeScrollbarHitKind hhit = hit_horizontal_scrollbar(
-            component, bx, by, bw, bh, scroll, hit_px, hit_py);
+            component, hit_bx, hit_by, bw, bh, scroll, hit_px, hit_py);
         if( hhit != UITREE_SCROLLBAR_NONE )
         {
             out->kind = hhit;
             out->layer_index = node_index;
-            out->layer_x = bx;
-            out->layer_y = by;
+            out->layer_x = hit_bx;
+            out->layer_y = hit_by;
             out->layer_w = bw;
             out->layer_h = bh;
             out->scroll_height = component->u.rs_layer.scroll_height;
@@ -438,7 +441,16 @@ find_scrollbar_recursive(
              child = tree->components[child].next_sibling )
         {
             if( find_scrollbar_recursive(
-                    tree, scroll, child, child_scroll_x, child_scroll_y, px, py, padding, out) )
+                    tree,
+                    host,
+                    scroll,
+                    child,
+                    child_scroll_x,
+                    child_scroll_y,
+                    px,
+                    py,
+                    padding,
+                    out) )
                 return true;
         }
         return false;
@@ -447,11 +459,21 @@ find_scrollbar_recursive(
     if( !uitree_point_in_scrolled_bounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y) )
         return false;
 
+    bool recurse_children = true;
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
+    {
+        if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+            recurse_children = false;
+    }
+
+    if( !recurse_children )
+        return false;
+
     for( int32_t child = component->first_child; child >= 0;
          child = tree->components[child].next_sibling )
     {
         if( find_scrollbar_recursive(
-                tree, scroll, child, scroll_off_x, scroll_off_y, px, py, padding, out) )
+                tree, host, scroll, child, scroll_off_x, scroll_off_y, px, py, padding, out) )
             return true;
     }
     return false;
@@ -460,17 +482,19 @@ find_scrollbar_recursive(
 bool
 uitree_find_scrollbar_at(
     struct UITree const* tree,
+    struct UITreeHost const* host,
     struct UITreeScrollState const* scroll,
     int px,
     int py,
     struct UITreeScrollbarHitInfo* out)
 {
-    return uitree_find_scrollbar_at_padded(tree, scroll, px, py, 0, out);
+    return uitree_find_scrollbar_at_padded(tree, host, scroll, px, py, 0, out);
 }
 
 bool
 uitree_find_scrollbar_at_padded(
     struct UITree const* tree,
+    struct UITreeHost const* host,
     struct UITreeScrollState const* scroll,
     int px,
     int py,
@@ -483,7 +507,7 @@ uitree_find_scrollbar_at_padded(
     memset(out, 0, sizeof(*out));
     for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
-        if( find_scrollbar_recursive(tree, scroll, root, 0, 0, px, py, padding, out) )
+        if( find_scrollbar_recursive(tree, host, scroll, root, 0, 0, px, py, padding, out) )
             return true;
     }
     return false;
@@ -492,6 +516,7 @@ uitree_find_scrollbar_at_padded(
 bool
 uitree_scrollbar_hit_for_layer(
     struct UITree const* tree,
+    struct UITreeScrollState const* scroll,
     int32_t layer_index,
     struct UITreeScrollbarHitInfo* out)
 {
@@ -507,6 +532,16 @@ uitree_scrollbar_hit_for_layer(
     int bw = 0;
     int bh = 0;
     uitree_layout_get_bounds(&layer->position, &bx, &by, &bw, &bh);
+
+    if( scroll )
+    {
+        int32_t ancestors[64];
+        int const ancestor_count =
+            uitree_collect_ancestors(tree, layer_index, ancestors, (int)(sizeof(ancestors) / sizeof(ancestors[0])));
+        struct UITreeScrollClip clip = { 0 };
+        uitree_scroll_apply_ancestors(tree, scroll, ancestors, ancestor_count, &bx, &by, &clip);
+    }
+
     out->kind = uitree_scroll_layer_needs_vertical(layer) ? UITREE_SCROLLBAR_V_GRIP
                                                           : UITREE_SCROLLBAR_H_GRIP;
     out->layer_index = layer_index;

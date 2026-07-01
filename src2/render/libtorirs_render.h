@@ -36,9 +36,6 @@ enum LibToriRS_RenderCommandKind
     TORIRSRC_DRAW_MODEL,
     TORIRSRC_SPRITE,
     TORIRSRC_FONT,
-    TORIRSRC_UI_MODEL_BEGIN_3D,
-    TORIRSRC_UI_MODEL_DRAW,
-    TORIRSRC_UI_MODEL_END_3D,
 
     // --- BATCHING (3D) ---
     TORIRSRC_BATCH3D_BEGIN,
@@ -180,14 +177,6 @@ struct LibToriRS_RenderCommand_Font
     int scissor_h;
 };
 
-struct LibToriRS_RenderCommand_UiModel3D
-{
-    struct ToriDraw_ViewPort view_port;
-    struct ToriDraw_Camera camera;
-    struct ToriDraw_Position camera_position;
-    struct ToriDraw_ModelHandle model;
-};
-
 struct LibToriRS_RenderCommand
 {
     enum LibToriRS_RenderCommandKind kind;
@@ -205,7 +194,6 @@ struct LibToriRS_RenderCommand
         struct LibToriRS_RenderCommand_ClearRect clear_rect;
         struct LibToriRS_RenderCommand_FillRect fill_rect;
         struct LibToriRS_RenderCommand_Font font;
-        struct LibToriRS_RenderCommand_UiModel3D ui_model_3d;
     } u;
 };
 

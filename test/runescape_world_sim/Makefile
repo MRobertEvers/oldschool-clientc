@@ -87,6 +87,7 @@ SRCS := main.c \
 	$(SRC2)/toridraw/toridraw_vec.c \
 	$(SRC2)/toridraw/toridraw_light_model.c \
 	$(SRC2)/toridraw/toridraw_sprite.c \
+	$(SRC2)/toridraw/toridraw_model_sprite.c \
 	$(SRC2)/toridraw/toridraw_font.c \
 	$(SRC2)/buildcache/dat1_buildcache_ui.c \
 	$(SRC2)/ui/ui_sprite_lookup.c \

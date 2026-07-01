@@ -59,6 +59,8 @@ struct Task_RSComponentLoad
     int walk_root_id_before_remap;
     int iface_id;
     struct Dat2BuildCache_InterfaceArchive* iface_archive;
+    int walk_parent_w;
+    int walk_parent_h;
 };
 
 struct Task_RSComponentLoad*

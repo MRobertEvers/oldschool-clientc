@@ -2,6 +2,7 @@
 #define UI_SCROLL_H
 
 #include "uitree.h"
+#include "uitree_host.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -140,6 +141,7 @@ uitree_collect_ancestors(
 bool
 uitree_find_scrollbar_at(
     struct UITree const* tree,
+    struct UITreeHost const* host,
     struct UITreeScrollState const* scroll,
     int px,
     int py,
@@ -148,6 +150,7 @@ uitree_find_scrollbar_at(
 bool
 uitree_find_scrollbar_at_padded(
     struct UITree const* tree,
+    struct UITreeHost const* host,
     struct UITreeScrollState const* scroll,
     int px,
     int py,
@@ -157,6 +160,7 @@ uitree_find_scrollbar_at_padded(
 bool
 uitree_scrollbar_hit_for_layer(
     struct UITree const* tree,
+    struct UITreeScrollState const* scroll,
     int32_t layer_index,
     struct UITreeScrollbarHitInfo* out);
 

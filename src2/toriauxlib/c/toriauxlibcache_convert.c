@@ -1025,7 +1025,11 @@ ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
     dst->type = toriauxlibcache_component_type_from_raw(src->type);
     dst->width = src->width;
     dst->height = src->height;
+    dst->model_type = src->modelType;
     dst->model_id = src->model;
+    dst->model_zoom = src->zoom;
+    dst->model_xan = src->xan;
+    dst->model_yan = src->yan;
     dst->color = src->colour;
     dst->filled = src->fill ? 1 : 0;
     dst->font_id = src->font;
@@ -1090,7 +1094,11 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
     dst->type = toriauxlibcache_component_type_from_raw(src->type);
     dst->width = src->baseWidth;
     dst->height = src->baseHeight;
+    dst->model_type = src->modelType;
     dst->model_id = src->modelId;
+    dst->model_zoom = src->modelZoom;
+    dst->model_xan = src->modelXAngle;
+    dst->model_yan = src->modelYAngle;
     dst->color = src->color;
     dst->filled = src->fill ? 1 : 0;
     dst->font_id = src->textFont;

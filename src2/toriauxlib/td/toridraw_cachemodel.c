@@ -78,7 +78,8 @@ ToriDraw_BonesNew(
         return NULL;
     memset(bones, 0, sizeof(struct ToriDraw_Bones));
 
-    struct RSCacheDat2A_ModelBones* model_bones = RSCacheDat2A_ModelBonesNewDecode(bone_map, bone_count);
+    struct RSCacheDat2A_ModelBones* model_bones =
+        RSCacheDat2A_ModelBonesNewDecode(bone_map, bone_count);
     if( !model_bones )
     {
         free(bones);
@@ -241,8 +242,8 @@ ToriDraw_ModelMoveFromCacheModel(
     {
         ftc_arr = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
         for( int i = 0; i < fc; i++ )
-            ftc_arr[i] = ToriDraw_NormalizeFaceTextureCoord(
-                (int)model->face_texture_coords[i], tfc);
+            ftc_arr[i] =
+                ToriDraw_NormalizeFaceTextureCoord((int)model->face_texture_coords[i], tfc);
         free(model->face_texture_coords);
         model->face_texture_coords = NULL;
     }
@@ -285,8 +286,8 @@ ToriDraw_ModelMoveFromCacheModel(
     if( model->face_bone_map )
         td->face_bones = ToriDraw_BonesNew(model->face_bone_map, model->face_count);
 
-    if( model->animaya_vertex_count > 0 && model->animaya_group_counts &&
-        model->animaya_groups && model->animaya_scales )
+    if( model->animaya_vertex_count > 0 && model->animaya_group_counts && model->animaya_groups &&
+        model->animaya_scales )
     {
         td->animaya_vertex_count = model->animaya_vertex_count;
         td->animaya_group_counts = model->animaya_group_counts;
@@ -318,8 +319,7 @@ ToriDraw_ModelMoveFromCacheModel(
 struct ToriDraw_Model*
 ToriDraw_ModelNewFromCacheModel(struct RSCacheDat2A_Model* model)
 {
-    if( !model )
-        return NULL;
+    assert(model);
 
     struct ToriDraw_Model* td = (struct ToriDraw_Model*)calloc(1, sizeof(struct ToriDraw_Model));
     if( !td )

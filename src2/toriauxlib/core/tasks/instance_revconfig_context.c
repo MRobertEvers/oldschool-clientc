@@ -1,7 +1,9 @@
 #include "instance_revconfig_context.h"
 
 #include "buildcache/dat1_buildcache.h"
+#include "buildcache/dat1_buildcache_ui.h"
 #include "buildcache/dat2_buildcache.h"
+#include "buildcache/dat2_buildcache_ui.h"
 #include "games/runescape.h"
 #include "osrs/minimenu_action.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
@@ -127,6 +129,19 @@ instance_revconfig_assert_sprite_atlas(
             sprites && atlas_index >= 0 && atlas_index < sprite_count &&
             sprites[atlas_index] && sprites[atlas_index]->pixels_argb);
     }
+}
+
+static int
+instance_revconfig_register_baked_sprite(
+    struct InstanceRevConfigContext* ctx,
+    struct ToriAuxLibCore_Sprite* sprite)
+{
+    assert(ctx && ctx->cache && sprite && ctx->game && ctx->game->td);
+
+    int element_id = ctx->next_element_id++;
+    ToriAuxLibCache_SubmitSprite(ctx->cache, element_id, sprite);
+    ToriAuxLibTD_Sprite(ctx->game->td, element_id);
+    return element_id;
 }
 
 static void
@@ -331,11 +346,123 @@ instance_revconfig_bake_rs_component(
         spec.u.rs_inv_text.shadowed = info->shadowed;
         break;
     case TORIAUXLIBCORE_COMPONENT_MODEL:
-        spec.type = UIELEM_RS_MODEL;
-        spec.u.rs_model.gamecache_model_id = info->model_id;
-        spec.u.rs_model.zoom = 100;
         assert(info->model_id > 0 && "MODEL component has no model_id");
-        instance_revconfig_assert_model_in_scene(ctx, info->model_id, info->id);
+        if( info->model_type == 1 )
+        {
+            instance_revconfig_assert_model_in_scene(ctx, info->model_id, info->id);
+
+            int raster_w = info->width > 0 ? info->width : 32;
+            int raster_h = info->height > 0 ? info->height : 32;
+
+            char widget_ref[96];
+            snprintf(
+                widget_ref,
+                sizeof(widget_ref),
+                "widget_model:%d:%d:%d:%d:%d:%d",
+                info->model_id,
+                info->model_zoom,
+                info->model_xan,
+                info->model_yan,
+                raster_w,
+                raster_h);
+
+            int atlas = 0;
+            int existing = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, widget_ref, &atlas);
+            if( existing >= 0 )
+            {
+                instance_revconfig_assert_sprite_atlas(
+                    ctx, existing, atlas, widget_ref, "rs_model sprite (cached)");
+
+                spec.type = UIELEM_RS_GRAPHIC;
+                spec.u.rs_graphic.scene_id = existing;
+                spec.u.rs_graphic.atlas_index = atlas;
+                spec.u.rs_graphic.scene_id_active = -1;
+                spec.u.rs_graphic.atlas_index_active = 0;
+                spec.u.rs_graphic.graphic_hitbox_only = 0;
+                break;
+            }
+
+            struct ToriAuxLibCore_Sprite* sprite = NULL;
+
+            if( ctx->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+            {
+                assert(ctx->dat1_bc && ctx->scene);
+                sprite = dat1_buildcache_widget_model_sprite(
+                    ctx->dat1_bc,
+                    ctx->scene,
+                    info->model_id,
+                    info->model_zoom,
+                    info->model_xan,
+                    info->model_yan,
+                    raster_w,
+                    raster_h);
+            }
+            else
+            {
+                assert(ctx->dat2_bc && ctx->scene);
+                sprite = dat2_buildcache_widget_model_sprite(
+                    ctx->dat2_bc,
+                    ctx->scene,
+                    info->model_id,
+                    info->model_zoom,
+                    info->model_xan,
+                    info->model_yan,
+                    raster_w,
+                    raster_h);
+            }
+
+            if( !sprite )
+            {
+                fprintf(stderr,
+                    "instance_revconfig_bake_rs_component: widget model sprite failed "
+                    "component_id=%d model_id=%d model_type=%d\n",
+                    info->id,
+                    info->model_id,
+                    info->model_type);
+                assert(sprite && "MODEL model_type 1 sprite raster failed");
+                return -1;
+            }
+
+            int scene_id = instance_revconfig_register_baked_sprite(ctx, sprite);
+            if( scene_id < 0 )
+            {
+                ToriAuxLibCore_SpriteFree(sprite);
+                assert(scene_id >= 0 && "MODEL model_type 1 sprite register failed");
+                return -1;
+            }
+
+            instance_revconfig_assert_sprite_atlas(
+                ctx, scene_id, 0, widget_ref, "rs_model sprite");
+
+            ui_sprite_lookup_add(&ctx->sprite_lookup, widget_ref, scene_id, 1);
+
+            spec.type = UIELEM_RS_GRAPHIC;
+            spec.u.rs_graphic.scene_id = scene_id;
+            spec.u.rs_graphic.atlas_index = 0;
+            spec.u.rs_graphic.scene_id_active = -1;
+            spec.u.rs_graphic.atlas_index_active = 0;
+            spec.u.rs_graphic.graphic_hitbox_only = 0;
+        }
+        else if( info->model_type == 2 || info->model_type == 3 )
+        {
+            spec.type = UIELEM_RS_MODEL;
+            spec.u.rs_model.gamecache_model_id = info->model_id;
+            spec.u.rs_model.zoom = info->model_zoom > 0 ? info->model_zoom : 100;
+            spec.u.rs_model.xan = info->model_xan;
+            spec.u.rs_model.yan = info->model_yan;
+            instance_revconfig_assert_model_in_scene(ctx, info->model_id, info->id);
+        }
+        else
+        {
+            fprintf(stderr,
+                "instance_revconfig_bake_rs_component: unsupported MODEL model_type=%d "
+                "component_id=%d model_id=%d\n",
+                info->model_type,
+                info->id,
+                info->model_id);
+            assert(false && "unsupported MODEL model_type");
+            return -1;
+        }
         break;
     case TORIAUXLIBCORE_COMPONENT_INV:
         spec.type = UIELEM_RS_INV;
@@ -538,6 +665,18 @@ instance_revconfig_bake_rs_subtree(
         int32_t idx = instance_revconfig_bake_rs_component(ctx, parent_idx, info, inv_index);
         if( idx < 0 )
         {
+            if( info->type == TORIAUXLIBCORE_COMPONENT_MODEL )
+            {
+                fprintf(
+                    stderr,
+                    "instance_revconfig_bake_rs_subtree: MODEL bake failed id=%d model_type=%d "
+                    "model_id=%d\n",
+                    info->id,
+                    info->model_type,
+                    info->model_id);
+                assert(idx >= 0 && "instance_revconfig_bake_rs_subtree: MODEL bake failed");
+            }
+
             char const* reason = "uitree_push failed";
             if( info->type == TORIAUXLIBCORE_COMPONENT_GRAPHIC &&
                 (info->sprite_ref[0] != '\0' || info->sprite_active_ref[0] != '\0') )

@@ -1810,6 +1810,35 @@ run_pipeline_test(
 
         if( mode == TORIAUXLIBCACHE_MODE_DAT2 )
         {
+            int32_t sidebar_idx = uitree_find_sidebar_tab(tree, 3);
+            TEST_ASSERT(sidebar_idx >= 0, "sidebar_tab_3 exists after dat2 pipeline load");
+            TEST_ASSERT(
+                tree->components[sidebar_idx].first_child >= 0,
+                "sidebar_tab_3 has baked RS children");
+            TEST_ASSERT(
+                count_descendants(tree, sidebar_idx) > 0,
+                "sidebar_tab_3 has RS descendants");
+
+            bool found_inv = false;
+            for( uint32_t i = 0; i < tree->component_count; i++ )
+            {
+                if( tree->components[i].type != UIELEM_RS_INV )
+                    continue;
+                int32_t walk = (int32_t)i;
+                while( walk >= 0 )
+                {
+                    if( walk == sidebar_idx )
+                    {
+                        found_inv = true;
+                        break;
+                    }
+                    walk = tree->components[walk].parent;
+                }
+                if( found_inv )
+                    break;
+            }
+            TEST_ASSERT(found_inv, "sidebar_tab_3 subtree contains RS_INV");
+
             int32_t equipment_idx = uitree_find_sidebar_tab(tree, 4);
             TEST_ASSERT(equipment_idx >= 0, "sidebar_tab_4 exists after dat2 pipeline load");
             TEST_ASSERT(

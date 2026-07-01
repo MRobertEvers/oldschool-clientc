@@ -1,13 +1,12 @@
 #include "dat2_buildcache_ui.h"
 
-#include "toriauxlib/c/toriauxlibcache_font_convert.h"
-#include "toriauxlib/c/toriauxlibcache_sprite_convert.h"
-#include "toriauxlib/td/toridraw_cachemodel.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "osrs/rscache/shared/shared_rs_buffer.h"
-#include "toridraw/graphics/shared_tables.h"
+#include "toriauxlib/c/toriauxlibcache_font_convert.h"
+#include "toriauxlib/c/toriauxlibcache_sprite_convert.h"
+#include "toriauxlib/td/toridraw_cachemodel.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_model.h"
@@ -16,34 +15,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static void
-obj_icon_postprocess_outline(uint32_t* pixels, int w, int h)
-{
-    for( int x = w - 1; x >= 0; x-- )
-    {
-        for( int y = h - 1; y >= 0; y-- )
-        {
-            int idx = x + y * w;
-            if( pixels[idx] != 0 )
-                continue;
-
-            if( (x > 0 && pixels[idx - 1] > 1) || (y > 0 && pixels[idx - w] > 1) ||
-                (x < w - 1 && pixels[idx + 1] > 1) || (y < h - 1 && pixels[idx + w] > 1) )
-                pixels[idx] = 1;
-        }
-    }
-
-    for( int x = w - 1; x >= 0; x-- )
-    {
-        for( int y = h - 1; y >= 0; y-- )
-        {
-            int idx = x + y * w;
-            if( pixels[idx] == 0 && x > 0 && y > 0 && pixels[idx - 1 - w] > 0 )
-                pixels[idx] = 1;
-        }
-    }
-}
 
 static struct RSCacheDat2A_ConfigObject*
 obj_icon_resolve_obj(
@@ -68,6 +39,93 @@ obj_icon_resolve_obj(
     }
 
     return obj;
+}
+
+struct ToriAuxLibCore_Sprite*
+dat2_buildcache_widget_model_sprite(
+    struct Dat2BuildCache* buildcache,
+    struct ToriDraw_Scene* scene,
+    int model_id,
+    int zoom,
+    int xan,
+    int yan,
+    int width,
+    int height)
+{
+    assert(buildcache && scene);
+    assert(model_id > 0);
+    assert(width > 0 && height > 0);
+
+    struct RSCacheDat2A_Model* raw = dat2_buildcache_model_get(buildcache, model_id);
+    if( !raw )
+    {
+        fprintf(
+            stderr,
+            "dat2_buildcache_widget_model_sprite: model not in cache model_id=%d\n",
+            model_id);
+        assert(raw && "dat2_buildcache_widget_model_sprite: model not in cache");
+        return NULL;
+    }
+
+    struct RSCacheDat2A_Model* copy = RSCacheDat2A_ModelNewCopy(raw);
+    if( !copy )
+    {
+        assert(copy && "dat2_buildcache_widget_model_sprite: model copy failed");
+        return NULL;
+    }
+
+    struct ToriDraw_Model* td_model = ToriDraw_ModelNewFromCacheModel(copy);
+    RSCacheDat2A_ModelFree(copy);
+    if( !td_model )
+    {
+        assert(td_model && "dat2_buildcache_widget_model_sprite: ToriDraw model build failed");
+        return NULL;
+    }
+
+    ToriDraw_ModelSetBoundsCylinder(td_model);
+
+    struct ToriDraw_ModelHandle hnd = {
+        .kind = TORIDRAWMK_MODEL,
+        .u.model.model = td_model,
+    };
+    ToriDraw_LightModelDefault(hnd, 0, 0);
+
+    char name_buf[64];
+    snprintf(name_buf, sizeof(name_buf), "widget_model:%d", model_id);
+    struct ToriDraw_Sprite* td_sprite = ToriDraw_SpriteNewFromModelRaster(
+        scene, hnd, zoom, xan, yan, width, height, true);
+
+    ToriDraw_ModelFree(td_model);
+
+    if( !td_sprite )
+    {
+        fprintf(
+            stderr,
+            "dat2_buildcache_widget_model_sprite: raster failed model_id=%d %dx%d\n",
+            model_id,
+            width,
+            height);
+        assert(td_sprite && "dat2_buildcache_widget_model_sprite: raster failed");
+        return NULL;
+    }
+
+    struct ToriAuxLibCore_Sprite* sprite = calloc(1, sizeof(struct ToriAuxLibCore_Sprite));
+    if( !sprite )
+    {
+        ToriDraw_SpriteFree(td_sprite);
+        return NULL;
+    }
+
+    sprite->frame_count = 1;
+    sprite->frames = ToriAuxLibCache_SpriteFrameNewFromToriDrawByMove(td_sprite);
+    if( !sprite->frames )
+    {
+        free(sprite);
+        return NULL;
+    }
+
+    strncpy(sprite->name, name_buf, sizeof(sprite->name) - 1);
+    return sprite;
 }
 
 struct ToriAuxLibCore_Sprite*
@@ -123,8 +181,8 @@ dat2_buildcache_obj_icon_sprite(
     if( zoom == 0 )
         zoom = 2000;
 
-    int sin_pitch = (g_sin_table[obj->xan2d] * zoom) >> 16;
-    int cos_pitch = (RSCacheDat2A_NoiseCosTable[obj->xan2d] * zoom) >> 16;
+    int sin_pitch = (ToriDraw_Sin(obj->xan2d) * zoom) >> 16;
+    int cos_pitch = (ToriDraw_Cos(obj->xan2d) * zoom) >> 16;
 
     struct ToriDraw_ViewPort view_port = { 0 };
     view_port.width = 32;
@@ -178,7 +236,7 @@ dat2_buildcache_obj_icon_sprite(
     free(pixels);
     ToriDraw_ModelFree(td_model);
 
-    obj_icon_postprocess_outline(argb, 32, 32);
+    ToriDraw_SpritePostprocessObjIconOutline(argb, 32, 32);
 
     struct ToriAuxLibCore_Sprite* sprite = calloc(1, sizeof(struct ToriAuxLibCore_Sprite));
     if( !sprite )

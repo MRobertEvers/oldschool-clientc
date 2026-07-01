@@ -364,7 +364,23 @@ struct ToriAuxLibCore_Component
     char sprite_ref[TORIAUXLIBCORE_SPRITE_REF_MAX];
     /** Client.ts graphic2 / dat activeGraphic: sprite when getIfActive. */
     char sprite_active_ref[TORIAUXLIBCORE_SPRITE_REF_MAX];
+    /** MODEL components only. dat1 modelType / dat2 modelType.
+     *  Selects what model_id refers to and src2 render path:
+     *    0 = none
+     *    1 = widget obj model (spellbook runes, static previews) → bake as sprite/graphic
+     *    2 = NPC chat head (model_id = npc id) → live 3D draw + anim
+     *    3 = player chat head (model_id = appearance hash) → live 3D draw + anim
+     *    4 = item on MODEL slot (model_id = obj id) — unsupported initially
+     *    5 = local player model (equipment UI) — unsupported initially */
+    int model_type;
+    /** Widget/NPC/item model index when type==MODEL; meaning depends on model_type. */
     int model_id;
+    /** MODEL preview camera: dat2 modelZoom / dat1 zoom. */
+    int model_zoom;
+    /** MODEL preview pitch: dat2 modelXAngle / dat1 xan. */
+    int model_xan;
+    /** MODEL preview yaw: dat2 modelYAngle / dat1 yan. */
+    int model_yan;
     int color;
     int filled;
     int font_id;

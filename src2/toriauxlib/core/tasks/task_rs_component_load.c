@@ -333,6 +333,8 @@ Task_RSComponentLoad_New(
     task->walk_root_id = -1;
     task->walk_root_id_before_remap = -1;
     task->iface_id = 0;
+    task->walk_parent_w = 0;
+    task->walk_parent_h = 0;
     if( callbacks )
         task->callbacks = *callbacks;
     return task;
@@ -845,8 +847,13 @@ rs_component_walk_dat2(
     struct Dat2BuildCache_InterfaceArchive* archive,
     int walk_root_id)
 {
+    int const parent_w =
+        task->walk_parent_w > 0 ? task->walk_parent_w : UITREE_LAYOUT_ROOT_W;
+    int const parent_h =
+        task->walk_parent_h > 0 ? task->walk_parent_h : UITREE_LAYOUT_ROOT_H;
+
     task->stack_count = 0;
-    rs_stack_push(task, walk_root_id, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, -1);
+    rs_stack_push(task, walk_root_id, parent_w, parent_h, -1);
     assert(
         task->stack_count > 0 && "rs_component_walk_dat2: failed to seed walk stack (overflow?)");
 

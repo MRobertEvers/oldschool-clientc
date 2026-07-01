@@ -89,6 +89,43 @@ td_scene_map_reset(
     *map_out = td_scene_map_new(entry_size, capacity);
 }
 
+static void
+td_scene_maybe_grow_hmap(struct ToriDraw_Map* map)
+{
+    if( !map )
+        return;
+
+    uint32_t count = ToriDraw_MapCount(map);
+    uint32_t capacity = ToriDraw_MapCapacity(map);
+    if( count * 4 <= capacity * 3 )
+        return;
+
+    size_t new_capacity = (size_t)capacity * 2;
+    size_t esize = ToriDraw_MapEntrySize(map);
+    size_t new_buffer_size = ToriDraw_MapBufferSizeFor(esize, new_capacity);
+    void* new_buffer = malloc(new_buffer_size);
+    if( !new_buffer )
+        return;
+
+    void* old_buffer = NULL;
+    int rc = ToriDraw_MapResize(map, new_buffer, new_buffer_size, new_capacity, &old_buffer);
+    assert(rc == TORIDRAW_MAP_OK);
+    (void)rc;
+    free(old_buffer);
+}
+
+static void
+td_scene_prepare_hmap_insert(struct ToriDraw_Map* map)
+{
+    if( !map )
+        return;
+
+    uint32_t count = ToriDraw_MapCount(map);
+    uint32_t capacity = ToriDraw_MapCapacity(map);
+    if( capacity > 0 && count * 4 >= capacity * 3 )
+        td_scene_maybe_grow_hmap(map);
+}
+
 static bool
 td_scene_element_valid(
     const struct ToriDraw_Scene* scene,
@@ -388,7 +425,7 @@ ToriDraw_SceneGraphInit(struct ToriDraw_Scene* scene)
 
     scene->models_hmap = td_scene_map_new(sizeof(struct MapEntry_ToriModel), 1024);
     scene->animation_hmap = td_scene_map_new(sizeof(struct MapEntry_Animation), 512);
-    scene->sprites_hmap = td_scene_map_new(sizeof(struct MapEntry_Sprite), 256);
+    scene->sprites_hmap = td_scene_map_new(sizeof(struct MapEntry_Sprite), 1024);
     scene->fonts_hmap = td_scene_map_new(sizeof(struct MapEntry_Font), 16);
     ToriDraw_IntrusiveListInit(&scene->elements);
 
@@ -474,10 +511,12 @@ ToriDraw_SceneSpriteAdd(
     if( !scene || element_id < 0 || !sprites || count <= 0 )
         return;
 
+    td_scene_prepare_hmap_insert(scene->sprites_hmap);
     struct MapEntry_Sprite* entry = (struct MapEntry_Sprite*)ToriDraw_MapSearch(
         scene->sprites_hmap, &element_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
+    td_scene_maybe_grow_hmap(scene->sprites_hmap);
 
     if( entry->sprites )
     {
@@ -531,10 +570,12 @@ ToriDraw_SceneFontAdd(
     if( !scene || font_id < 0 || !font )
         return;
 
+    td_scene_prepare_hmap_insert(scene->fonts_hmap);
     struct MapEntry_Font* entry =
         (struct MapEntry_Font*)ToriDraw_MapSearch(scene->fonts_hmap, &font_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
+    td_scene_maybe_grow_hmap(scene->fonts_hmap);
 
     if( entry->font )
     {
@@ -597,10 +638,12 @@ ToriDraw_SceneModelAdd(
     int model_id,
     struct ToriDraw_ModelHandle model)
 {
+    td_scene_prepare_hmap_insert(scene->models_hmap);
     struct MapEntry_ToriModel* entry = (struct MapEntry_ToriModel*)ToriDraw_MapSearch(
         scene->models_hmap, &model_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
+    td_scene_maybe_grow_hmap(scene->models_hmap);
 
     entry->id = model_id;
     entry->model = model;
@@ -662,10 +705,12 @@ ToriDraw_SceneAnimationAdd(
     int anim_id,
     struct ToriDraw_Animation* animation)
 {
+    td_scene_prepare_hmap_insert(scene->animation_hmap);
     struct MapEntry_Animation* entry = (struct MapEntry_Animation*)ToriDraw_MapSearch(
         scene->animation_hmap, &anim_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
+    td_scene_maybe_grow_hmap(scene->animation_hmap);
 
     if( entry->animation )
         ToriDraw_AnimationFree(entry->animation);

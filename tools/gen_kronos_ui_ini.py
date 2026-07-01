@@ -134,7 +134,28 @@ def emit_cache_ini() -> str:
 
 
 def emit_components() -> str:
+    header = """\
+; Kronos sidebar tab mappings (DisplayHandler.sendDisplay on gameframe 165).
+; tabno | Name              | iface | screen 165 child
+; ------|-------------------|-------|-------------------
+;     0 | Combat            |   593 | 8
+;     1 | Stats             |   320 | 9
+;     2 | Quest journal     |   720 | 10  (iface 399 is quest detail on frame 629)
+;     3 | Inventory         |   149 | 11  (Interface.INVENTORY; INV grid in cache.kronos)
+;     4 | Equipment         |   387 | 12
+;     5 | Prayer            |   541 | 13
+;     6 | Magic             |   218 | 14
+;     7 | Clan chat         |     7 | 15
+;     8 | Account           |   720 | 16
+;     9 | Friends           |   429 | 17  (432 when ignore list active)
+;    10 | Logout            |   182 | 18
+;    11 | Options           |   261 | 19
+;    12 | Emotes            |   216 | 20
+;    13 | Music             |   239 | 21
+"""
     lines = [
+        header.rstrip(),
+        "",
         "[component:fixed_shell]",
         "type=rs_layer", "w=765", "h=503", "",
         "[component:resizable_shell]",
@@ -163,10 +184,17 @@ def emit_components() -> str:
             "type=redstone_tab", f"tabno={i}",
             f"sprite_active={STONE_SPRITE[i]}", "",
         ]
-        lines += [
+        sidebar_lines = [
             f"[component:sidebar_tab_{i}]",
-            "type=sidebar", f"tabno={i}", f"componentno={TAB_PANEL_IFACE[i]}", "",
+            "type=sidebar", f"tabno={i}", f"componentno={TAB_PANEL_IFACE[i]}",
         ]
+        if i == 3:
+            sidebar_lines += [
+                "; Interface.INVENTORY (149); archive file 0 is the INV grid in cache.kronos.",
+                "inv=inventory",
+            ]
+        sidebar_lines.append("")
+        lines += sidebar_lines
     lines += ["[inv:inventory]", "item=1333", ""]
     return "\n".join(lines)
 

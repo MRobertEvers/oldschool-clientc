@@ -129,6 +129,7 @@ CACHE_SRCS := \
 	$(SRC2)/toridraw/toridraw_vec.c \
 	$(SRC2)/toridraw/toridraw_light_model.c \
 	$(SRC2)/toridraw/toridraw_sprite.c \
+	$(SRC2)/toridraw/toridraw_model_sprite.c \
 	$(SRC2)/toridraw/toridraw_font.c \
 	$(SRC2)/toridraw/graphics/shared_tables.c \
 	$(SRC2)/toriauxlib/toriauxlib.c \

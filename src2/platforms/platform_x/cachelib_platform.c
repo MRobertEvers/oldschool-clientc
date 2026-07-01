@@ -34,8 +34,10 @@ cachelib_platform_init(
         int xtea_keys_count = RSCacheShared_XteaConfigLoadKeys(xtea_path);
         if( xtea_keys_count == -1 )
         {
-            fprintf(stderr, "Failed to load xtea keys from: %s\n", xtea_path);
-            return 0;
+            fprintf(
+                stderr,
+                "Warning: no xtea keys at %s (map scenery decrypt unavailable; UI unaffected)\n",
+                xtea_path);
         }
 
         cache->u.cache_dat2 = RSCacheDat2Disk_NewFromDirectory(directory);

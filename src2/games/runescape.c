@@ -28,6 +28,7 @@
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_light_model.h"
+#include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_math.h"
 #include "toridraw/toridraw_model.h"
@@ -1538,7 +1539,8 @@ GameRunescape_ProcessUIScroll(
     {
         int32_t layer_idx =
             GameRunescape_UIFindLayerIndexById(game, game->ui_scroll_drag_layer_id);
-        if( layer_idx >= 0 && uitree_scrollbar_hit_for_layer(game->ui_tree, layer_idx, &hit) )
+        if( layer_idx >= 0 &&
+             uitree_scrollbar_hit_for_layer(game->ui_tree, &scroll, layer_idx, &hit) )
         {
             hit.kind = game->ui_scroll_drag_kind;
             if( uitree_scrollbar_handle(
@@ -1559,7 +1561,13 @@ GameRunescape_ProcessUIScroll(
     {
         int const padding = game->ui_scroll_grabbed ? RUNESCAPE_UI_SCROLL_DRAG_PADDING : 0;
         if( uitree_find_scrollbar_at_padded(
-                game->ui_tree, &scroll, game->mouse_x, game->mouse_y, padding, &hit) )
+                game->ui_tree,
+                &game->ui_host,
+                &scroll,
+                game->mouse_x,
+                game->mouse_y,
+                padding,
+                &hit) )
         {
             struct StaticUIComponent* layer = &game->ui_tree->components[hit.layer_index];
             if( uitree_scrollbar_is_arrow_kind(hit.kind) )
@@ -2325,6 +2333,31 @@ GameRunescape_EmitLayerScrollbars(
     return false;
 }
 
+static void
+runescape_ui_model_compute_position(
+    struct ToriDraw_ModelHandle hnd,
+    int zoom,
+    int xan,
+    int yan,
+    int viewport_h,
+    struct ToriDraw_Position* out)
+{
+    assert(out);
+
+    if( zoom <= 0 )
+        zoom = 2000;
+
+    int sin_pitch = (ToriDraw_Sin(xan) * zoom) >> 16;
+    int cos_pitch = (ToriDraw_Cos(xan) * zoom) >> 16;
+    struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
+    int model_height = bounds ? (bounds->max_y - bounds->min_y) : 0;
+
+    memset(out, 0, sizeof(*out));
+    out->yaw = yan;
+    out->y = sin_pitch - (viewport_h / 2) + (model_height / 2);
+    out->z = cos_pitch;
+}
+
 static bool
 GameRunescape_EmitUIComponent(
     struct GameRunescape* game,
@@ -2838,7 +2871,11 @@ GameRunescape_EmitUIComponent(
     }
     case UIELEM_RS_MODEL:
     {
-        int model_id = component->u.rs_model.gamecache_model_id;
+        int const model_id = component->u.rs_model.gamecache_model_id;
+        int const zoom = component->u.rs_model.zoom;
+        int const xan = component->u.rs_model.xan;
+        int const yan = component->u.rs_model.yan;
+
         if( !game->scene || !ToriDraw_SceneModelHas(game->scene, model_id) )
         {
             fprintf(stderr,
@@ -2850,14 +2887,99 @@ GameRunescape_EmitUIComponent(
                 "UIELEM_RS_MODEL draw requested but model not in scene");
             return false;
         }
-        command->kind = TORIRSRC_UI_MODEL_DRAW;
-        command->u.ui_model_3d.model = ToriDraw_SceneModelGet(game->scene, model_id);
-        if( game->view_port )
-            command->u.ui_model_3d.view_port = *game->view_port;
-        if( game->camera )
-            command->u.ui_model_3d.camera = *game->camera;
-        if( game->camera_position )
-            command->u.ui_model_3d.camera_position = *game->camera_position;
+
+        struct ToriDraw_ModelHandle hnd = ToriDraw_SceneModelGet(game->scene, model_id);
+        int const step = game->frame.ui_model_step;
+
+        if( step == 0 )
+        {
+            command->kind = TORIRSRC_END_2D;
+            game->frame.ui_model_step = 1;
+            return true;
+        }
+        if( step == 1 )
+        {
+            struct ToriDraw_ViewPort ui_vp = { 0 };
+            ui_vp.width = bw;
+            ui_vp.height = bh;
+            ui_vp.x_center = bx + bw / 2;
+            ui_vp.y_center = by + bh / 2;
+            ui_vp.clip_left = bx;
+            ui_vp.clip_top = by;
+            ui_vp.clip_right = bx + bw;
+            ui_vp.clip_bottom = by + bh;
+
+            struct ToriDraw_Camera ui_cam = { 0 };
+            ui_cam.pitch = xan;
+            ui_cam.yaw = 0;
+            ui_cam.roll = 0;
+            ui_cam.fov_rpi2048 = 512;
+            ui_cam.near_plane_z = 1;
+
+            command->kind = TORIRSRC_BEGIN_3D;
+            command->u.begin_3d.view_port = ui_vp;
+            command->u.begin_3d.camera = ui_cam;
+            memset(&command->u.begin_3d.camera_position, 0, sizeof(struct ToriDraw_Position));
+            game->frame.ui_model_step = 2;
+            return true;
+        }
+        if( step == 2 )
+        {
+            struct ToriDraw_ViewPort ui_vp = { 0 };
+            ui_vp.width = bw;
+            ui_vp.height = bh;
+            ui_vp.x_center = bx + bw / 2;
+            ui_vp.y_center = by + bh / 2;
+            ui_vp.clip_left = bx;
+            ui_vp.clip_top = by;
+            ui_vp.clip_right = bx + bw;
+            ui_vp.clip_bottom = by + bh;
+
+            struct ToriDraw_Camera ui_cam = { 0 };
+            ui_cam.pitch = xan;
+            ui_cam.yaw = 0;
+            ui_cam.roll = 0;
+            ui_cam.fov_rpi2048 = 512;
+            ui_cam.near_plane_z = 1;
+
+            struct ToriDraw_Position position = { 0 };
+            runescape_ui_model_compute_position(hnd, zoom, xan, yan, bh, &position);
+
+            if( ToriDraw_RenderModel1Project(hnd, game->scene, &position, &ui_vp, &ui_cam) !=
+                    TORIDRAW_CULL_VISIBLE ||
+                ToriDraw_RenderModel2SortFaces(hnd, game->scene) <= 0 )
+            {
+                fprintf(stderr,
+                    "rs_emit_ui_component_command: UI model project failed model_id=%d "
+                    "component_id=%d\n",
+                    model_id,
+                    component->component_id);
+                assert(false && "UIELEM_RS_MODEL project/cull failed");
+                game->frame.ui_model_step = 0;
+                return false;
+            }
+
+            command->kind = TORIRSRC_DRAW_MODEL;
+            command->u.model.model = hnd;
+            command->u.model.position = position;
+            command->u.model.world_position = position;
+            command->u.model.element_id = -1;
+            command->u.model.animation = NULL;
+            command->u.model.anim_index = 0;
+            command->u.model.anim_frame = 0;
+            command->u.model.dynamic = false;
+            game->frame.ui_model_step = 3;
+            return true;
+        }
+        if( step == 3 )
+        {
+            command->kind = TORIRSRC_END_3D;
+            game->frame.ui_model_step = 4;
+            return true;
+        }
+
+        command->kind = TORIRSRC_BEGIN_2D;
+        game->frame.ui_model_step = 0;
         return true;
     }
     default:
@@ -3123,6 +3245,7 @@ rs_phase_ui_begin(
     game->frame.ui_minimenu_step = 0;
     game->frame.ui_chat_button_step = 0;
     game->frame.ui_scrollbar_step = 0;
+    game->frame.ui_model_step = 0;
     game->frame.phase = RS_FRAME_PHASE_UI_2D;
     return RS_PHASE_YIELD;
 }
@@ -3160,6 +3283,8 @@ rs_phase_ui_step(
                                    game->minimenu.visible && game->frame.ui_minimenu_step > 0;
         bool const chat_button_more = component->type == UIELEM_BUILTIN_CHAT_BUTTON &&
                                       game->frame.ui_chat_button_step > 0;
+        bool const ui_model_more =
+            component->type == UIELEM_RS_MODEL && game->frame.ui_model_step > 0;
         if( component->type == UIELEM_RS_LAYER && layer_scroll )
         {
             bool vscroll = uitree_scroll_layer_needs_vertical(component);
@@ -3173,7 +3298,7 @@ rs_phase_ui_step(
             }
             game->frame.ui_scrollbar_step = 0;
         }
-        if( !inv_more && !minimenu_more && !chat_button_more )
+        if( !inv_more && !minimenu_more && !chat_button_more && !ui_model_more )
             GameRunescape_UIAdvance(game, cur);
         return RS_PHASE_YIELD;
     }
@@ -3183,6 +3308,9 @@ rs_phase_ui_step(
         return RS_PHASE_ADVANCE;
 
     if( component->type == UIELEM_BUILTIN_CHAT_BUTTON && game->frame.ui_chat_button_step > 0 )
+        return RS_PHASE_ADVANCE;
+
+    if( component->type == UIELEM_RS_MODEL && game->frame.ui_model_step > 0 )
         return RS_PHASE_ADVANCE;
 
     if( (component->type == UIELEM_RS_INV || component->type == UIELEM_RS_INV_TEXT) &&
@@ -3251,6 +3379,7 @@ GameRunescape_FrameBegin(
     game->frame.ui_minimenu_step = 0;
     game->frame.ui_chat_button_step = 0;
     game->frame.ui_scrollbar_step = 0;
+    game->frame.ui_model_step = 0;
     game->frame.ui_scrollbar_layer = -1;
     game->ui_hovered_node = -1;
     game->ui_over_main_com_id = -1;

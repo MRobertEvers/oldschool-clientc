@@ -43,6 +43,16 @@ resolve_cache_dat_path(
     bool use_dat2,
     bool use_kronos)
 {
+    /* --kronos always uses cache.kronos (repo root); a positional cache/ path must not
+     * override it — generic dat2 cache uses different interface archive layouts (e.g.
+     * iface 149 is a layer shell in cache/, but the INV grid in cache.kronos). */
+    if( use_kronos )
+    {
+        char const* kronos = cache_path_resolve_kronos_repo();
+        if( kronos )
+            return kronos;
+    }
+
     for( int i = 1; i < argc; i++ )
     {
         if( !argv[i] || argv[i][0] == '\0' )
@@ -53,20 +63,8 @@ resolve_cache_dat_path(
     }
 
 #ifdef CACHE_DAT_PATH
-    if( use_kronos )
-    {
-        char const* kronos = cache_path_resolve_kronos_repo();
-        if( kronos )
-            return kronos;
-    }
     return CACHE_DAT_PATH;
 #else
-    if( use_kronos )
-    {
-        char const* kronos = cache_path_resolve_kronos_repo();
-        if( kronos )
-            return kronos;
-    }
 
     static char const* const dat1_candidates[] = {
         "cache254",          "../cache254",          "../../cache254",

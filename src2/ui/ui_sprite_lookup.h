@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define UI_SPRITE_LOOKUP_MAX 256
+#define UI_SPRITE_LOOKUP_MAX 2048
 
 struct UISpriteLookupEntry
 {

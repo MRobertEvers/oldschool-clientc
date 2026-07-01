@@ -13,6 +13,7 @@
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "ui/ui_font_lookup.h"
+#include "ui/uitree_layout.h"
 #include "games/runescape.h"
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_scene.h"
@@ -571,6 +572,11 @@ Task_InstanceOnRCUIComponent_Run(
             task->rs_load->owner_component,
             task->item.name,
             sizeof(task->rs_load->owner_component) - 1);
+        if( strcmp(task->item.type, "sidebar") == 0 )
+        {
+            task->rs_load->walk_parent_w = UITREE_SIDEBAR_PANEL_W;
+            task->rs_load->walk_parent_h = UITREE_SIDEBAR_PANEL_H;
+        }
         task->rs_load->callbacks.user = task->rs_load;
         task->rs_load->callbacks.on_component = on_rc_uicomponent_rs_loaded;
 

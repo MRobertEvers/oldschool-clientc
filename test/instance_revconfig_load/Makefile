@@ -66,6 +66,7 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/toridraw/toridraw_scene.c \
 	$(SRC2_DIR)/toridraw/toridraw_intrusive_list.c \
 	$(SRC2_DIR)/toridraw/toridraw_sprite.c \
+	$(SRC2_DIR)/toridraw/toridraw_model_sprite.c \
 	$(SRC2_DIR)/toridraw/toridraw_font.c \
 	$(SRC2_DIR)/toridraw/toridraw_math.c \
 	$(SRC2_DIR)/toridraw/toridraw_map.c \
