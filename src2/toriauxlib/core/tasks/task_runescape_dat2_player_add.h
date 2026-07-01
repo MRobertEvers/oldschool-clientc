@@ -8,10 +8,12 @@
 #include "buildcache/dat2_buildcache.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "core/tapi/tapi_dat2.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/tasks/core_task_await.h"
+#include "toriauxlib/core/tasks/task_dat2_anim_io.h"
+#include "toriauxlib/core/tasks/task_dat2_io.h"
 #include "toriauxlib/core/tasks/task_runescape_dat2_anim_load.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
@@ -112,7 +114,6 @@ Task_Dat2PlayerAdd_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct Dat2BuildCache* dat2_bc = dat2(task->c);
-    struct RSCacheDat2Disk* cache_disk = ToriAuxLibCache_Dat2Disk(task->c);
     struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
     struct RSCacheDat2Disk_Archive* identkit_archive = NULL;
     struct RSCacheDat2Disk_Archive* object_archive = NULL;
@@ -166,16 +167,17 @@ Task_Dat2PlayerAdd_Run(
             IO_REQUEST(ctx, io_slot++, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Object));
         PT_YIELD(&task->thread);
 
+        DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, dat2_bc);
+
         io_slot = 0;
         if( task->need_idk )
         {
             identkit_archive =
                 TAPIDat2_DecodeConfigGroup(ctx, io_slot++, RSCacheDat2A_ConfigKind_Identkit);
-            if( identkit_archive && cache_disk )
+            if( identkit_archive )
             {
                 dat2_buildcache_identkits_init_from_archive(
                     dat2_bc,
-                    cache_disk,
                     identkit_archive,
                     task->want_idk_ids,
                     task->want_idk_count);
@@ -188,11 +190,10 @@ Task_Dat2PlayerAdd_Run(
         {
             object_archive =
                 TAPIDat2_DecodeConfigGroup(ctx, io_slot++, RSCacheDat2A_ConfigKind_Object);
-            if( object_archive && cache_disk )
+            if( object_archive )
             {
                 dat2_buildcache_objects_init_from_archive(
                     dat2_bc,
-                    cache_disk,
                     object_archive,
                     task->want_obj_ids,
                     task->want_obj_count);
@@ -272,15 +273,15 @@ Task_Dat2PlayerAdd_Run(
         PT_YIELD(&task->thread);
 
         sequence_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Sequence);
-        if( !sequence_archive || !cache_disk )
-        {
-            if( sequence_archive )
-                RSCacheDat2Disk_ArchiveFree(sequence_archive);
+        if( !sequence_archive )
             PT_EXIT(&task->thread);
-        }
+
+        DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, dat2_bc);
 
         struct Dat2AnimArchiveSet aset;
+        struct Task_Dat2AnimResolve anim_resolve;
         dat2_anim_archive_set_init(&aset, 32);
+        Task_Dat2AnimResolve_Init(&anim_resolve, task->c, dat2_bc);
         if( aset.ids )
         {
             for( int ai = 0; ai < player_anim_count; ai++ )
@@ -290,7 +291,7 @@ Task_Dat2PlayerAdd_Run(
                     continue;
 
                 dat2_buildcache_sequence_load_from_archive(
-                    dat2_bc, cache_disk, sequence_archive, seq_id);
+                    dat2_bc, sequence_archive, seq_id);
 
                 struct RSCacheDat2A_ConfigSequence* seq =
                     dat2_buildcache_sequence_get(dat2_bc, seq_id);
@@ -298,10 +299,11 @@ Task_Dat2PlayerAdd_Run(
                     continue;
 
                 dat2_anim_set_add_sequence_archives(&aset, seq);
-                dat2_anim_cache_sequence_skeletal(dat2_bc, cache_disk, seq);
+                Task_Dat2AnimResolve_AddSequenceId(&anim_resolve, seq_id);
             }
 
-            dat2_anim_submit_archive_set(task->c, dat2_bc, cache_disk, &aset);
+            Task_Dat2AnimResolve_SetArchiveSet(&anim_resolve, &aset);
+            TASK_AWAIT(&task->thread, Task_Dat2AnimResolve_Run(&anim_resolve, ctx));
             dat2_anim_submit_all_skeletal(task->c, dat2_bc);
             dat2_anim_archive_set_free(&aset);
         }

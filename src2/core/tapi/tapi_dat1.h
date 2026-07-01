@@ -334,4 +334,20 @@ TAPIDat1_DecodeInterfacesJagfile(
     return TAPIDat1_DecodeJagfileKind(ctx, slot_id, RSCacheDat1A_ConfigKind_Interfaces);
 }
 
+static inline void
+TAPIDat1_FetchTexturesJagfile(struct LibToriRS_IOContext* ctx)
+{
+    struct RSCacheDat2DiskLib_IORequest request;
+    cachelib_dat1_textures_archive_fetch(&request);
+    LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
+}
+
+static inline struct RSCacheShared_FileListDat*
+TAPIDat1_DecodeTexturesJagfile(
+    struct LibToriRS_IOContext* ctx,
+    int slot_id)
+{
+    return TAPIDat1_DecodeJagfileKind(ctx, slot_id, RSCacheDat1A_ConfigKind_Textures);
+}
+
 #endif

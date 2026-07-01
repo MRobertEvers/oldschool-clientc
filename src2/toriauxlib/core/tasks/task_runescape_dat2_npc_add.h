@@ -8,10 +8,11 @@
 #include "osrs/rscache/dat2a/dat2a_config_npctype.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
-#include "core/tapi/tapi_dat2.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/tasks/core_task_await.h"
+#include "toriauxlib/core/tasks/task_dat2_anim_io.h"
+#include "toriauxlib/core/tasks/task_dat2_io.h"
 #include "toriauxlib/core/tasks/task_runescape_dat2_anim_load.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
@@ -77,7 +78,6 @@ Task_Dat2NpcAdd_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct Dat2BuildCache* dat2_bc = dat2(task->c);
-    struct RSCacheDat2Disk* cache_disk = ToriAuxLibCache_Dat2Disk(task->c);
     struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
     struct RSCacheDat2Disk_Archive* npc_archive = NULL;
     struct RSCacheDat2Disk_Archive* sequence_archive = NULL;
@@ -93,11 +93,13 @@ Task_Dat2NpcAdd_Run(
         IO_REQUEST(ctx, 0, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Npc));
         PT_YIELD(&task->thread);
 
+        DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, dat2_bc);
+
         npc_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Npc);
-        if( npc_archive && cache_disk )
+        if( npc_archive )
         {
             dat2_buildcache_npctypes_init_from_archive(
-                dat2_bc, cache_disk, npc_archive, wanted_npc_ids, 1);
+                dat2_bc, npc_archive, wanted_npc_ids, 1);
         }
         if( npc_archive )
             RSCacheDat2Disk_ArchiveFree(npc_archive);
@@ -163,16 +165,16 @@ Task_Dat2NpcAdd_Run(
         IO_REQUEST(ctx, 0, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Sequence));
         PT_YIELD(&task->thread);
 
+        DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, dat2_bc);
+
         sequence_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Sequence);
-        if( !sequence_archive || !cache_disk )
-        {
-            if( sequence_archive )
-                RSCacheDat2Disk_ArchiveFree(sequence_archive);
+        if( !sequence_archive )
             PT_EXIT(&task->thread);
-        }
 
         struct Dat2AnimArchiveSet aset;
+        struct Task_Dat2AnimResolve anim_resolve;
         dat2_anim_archive_set_init(&aset, 32);
+        Task_Dat2AnimResolve_Init(&anim_resolve, task->c, dat2_bc);
         if( aset.ids )
         {
             for( int ai = 0; ai < 7; ai++ )
@@ -181,8 +183,7 @@ Task_Dat2NpcAdd_Run(
                 if( seq_id == -1 )
                     continue;
 
-                dat2_buildcache_sequence_load_from_archive(
-                    dat2_bc, cache_disk, sequence_archive, seq_id);
+                dat2_buildcache_sequence_load_from_archive(dat2_bc, sequence_archive, seq_id);
 
                 struct RSCacheDat2A_ConfigSequence* seq =
                     dat2_buildcache_sequence_get(dat2_bc, seq_id);
@@ -190,10 +191,11 @@ Task_Dat2NpcAdd_Run(
                     continue;
 
                 dat2_anim_set_add_sequence_archives(&aset, seq);
-                dat2_anim_cache_sequence_skeletal(dat2_bc, cache_disk, seq);
+                Task_Dat2AnimResolve_AddSequenceId(&anim_resolve, seq_id);
             }
 
-            dat2_anim_submit_archive_set(task->c, dat2_bc, cache_disk, &aset);
+            Task_Dat2AnimResolve_SetArchiveSet(&anim_resolve, &aset);
+            TASK_AWAIT(&task->thread, Task_Dat2AnimResolve_Run(&anim_resolve, ctx));
             dat2_anim_submit_all_skeletal(task->c, dat2_bc);
             dat2_anim_archive_set_free(&aset);
         }

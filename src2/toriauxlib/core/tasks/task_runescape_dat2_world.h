@@ -8,10 +8,12 @@
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "core/tapi/tapi_dat2.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/tasks/core_task_await.h"
+#include "toriauxlib/core/tasks/task_dat2_anim_io.h"
+#include "toriauxlib/core/tasks/task_dat2_io.h"
 #include "toriauxlib/core/tasks/task_runescape_dat2_anim_load.h"
 #include "toridraw/toridraw_map.h"
 
@@ -109,12 +111,11 @@ Task_Dat2WorldRebuildCore_Run(
     struct Task_Dat2WorldRebuildCore* core,
     struct LibToriRS_IOContext* ctx)
 {
-    struct RSCacheDat2Disk_Archive* underlay_archive;
-    struct RSCacheDat2Disk_Archive* overlay_archive;
-    struct RSCacheDat2Disk_Archive* sequence_archive;
-    struct RSCacheDat2Disk_Archive* locs_archive;
+    struct RSCacheDat2Disk_Archive* underlay_archive = NULL;
+    struct RSCacheDat2Disk_Archive* overlay_archive = NULL;
+    struct RSCacheDat2Disk_Archive* sequence_archive = NULL;
+    struct RSCacheDat2Disk_Archive* locs_archive = NULL;
     struct Dat2BuildCache* dat2_bc = dat2(core->c);
-    struct RSCacheDat2Disk* cache_disk = ToriAuxLibCache_Dat2Disk(core->c);
 
     PT_BEGIN(&core->thread);
 
@@ -186,10 +187,12 @@ Task_Dat2WorldRebuildCore_Run(
     locs_archive = TAPIDat2_DecodeConfigGroup(ctx, 3, RSCacheDat2A_ConfigKind_Locs);
     assert(locs_archive);
 
-    dat2_buildcache_underlays_init_from_archive(dat2_bc, cache_disk, underlay_archive);
-    dat2_buildcache_overlays_init_from_archive(dat2_bc, cache_disk, overlay_archive);
+    DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &core->thread, dat2_bc);
+
+    dat2_buildcache_underlays_init_from_archive(dat2_bc, underlay_archive);
+    dat2_buildcache_overlays_init_from_archive(dat2_bc, overlay_archive);
     dat2_buildcache_scenery_configs_init_from_archive(
-        dat2_bc, cache_disk, locs_archive, ToriAuxLibCache_VarPVarBit(core->c));
+        dat2_bc, locs_archive, ToriAuxLibCache_VarPVarBit(core->c));
 
     RSCacheDat2Disk_ArchiveFree(underlay_archive);
     RSCacheDat2Disk_ArchiveFree(overlay_archive);
@@ -265,15 +268,17 @@ Task_Dat2WorldRebuildCore_Run(
             ToriDraw_MapIterFree(loc_iter);
 
             struct Dat2AnimArchiveSet aset;
+            struct Task_Dat2AnimResolve anim_resolve;
             dat2_anim_archive_set_init(&aset, 128);
+            Task_Dat2AnimResolve_Init(&anim_resolve, core->c, dat2_bc);
             if( aset.ids )
             {
                 for( int si = 0; si < seq_count; si++ )
                 {
                     int seq_id = seq_ids[si];
-                    if( sequence_archive && cache_disk )
+                    if( sequence_archive )
                         dat2_buildcache_sequence_load_from_archive(
-                            dat2_bc, cache_disk, sequence_archive, seq_id);
+                            dat2_bc, sequence_archive, seq_id);
 
                     struct RSCacheDat2A_ConfigSequence* seq =
                         dat2_buildcache_sequence_get(dat2_bc, seq_id);
@@ -281,10 +286,11 @@ Task_Dat2WorldRebuildCore_Run(
                         continue;
 
                     dat2_anim_set_add_sequence_archives(&aset, seq);
-                    dat2_anim_cache_sequence_skeletal(dat2_bc, cache_disk, seq);
+                    Task_Dat2AnimResolve_AddSequenceId(&anim_resolve, seq_id);
                 }
 
-                dat2_anim_submit_archive_set(core->c, dat2_bc, cache_disk, &aset);
+                Task_Dat2AnimResolve_SetArchiveSet(&anim_resolve, &aset);
+                TASK_AWAIT(&core->thread, Task_Dat2AnimResolve_Run(&anim_resolve, ctx));
                 dat2_anim_submit_all_skeletal(core->c, dat2_bc);
                 dat2_anim_archive_set_free(&aset);
             }

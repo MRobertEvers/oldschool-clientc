@@ -121,36 +121,17 @@ Task_ToriAuxLibTD_TexturesLoad_Run(
 {
     struct Task_ToriAuxLibTD_TexturesLoad* task =
         (struct Task_ToriAuxLibTD_TexturesLoad*)task_state;
-    struct LibToriRS_IOQueueItem item;
-    struct RSCacheDat1Disk_Archive* archive;
     struct RSCacheShared_FileListDat* filelist;
 
     PT_BEGIN(&task->thread);
 
-    {
-        struct RSCacheDat2DiskLib_IORequest request;
-        cachelib_dat1_textures_archive_fetch(&request);
-        LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
-    }
+    IO_REQUEST(ctx, 0, TAPIDat1_FetchTexturesJagfile(ctx));
     PT_YIELD(&task->thread);
 
-    if( !LibToriRS_IOQueuePopRead(ctx->io, &item) )
-        PT_EXIT(&task->thread);
-    if( item.kind != TORIRSIO_KIND_CACHE || item.status != TORIRSIO_STAT_DONE ||
-        item.error_code != 0 )
-        PT_EXIT(&task->thread);
-    if( item.u.cache.table_id != RSCacheDat1Disk_Table_Configs ||
-        item.u.cache.archive_id != RSCacheDat1A_ConfigKind_Textures )
-        PT_EXIT(&task->thread);
-
-    archive = item.data;
-    if( !archive )
-        PT_EXIT(&task->thread);
-
-    filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
-    RSCacheDat1Disk_ArchiveFree(archive);
+    filelist = TAPIDat1_DecodeTexturesJagfile(ctx, 0);
     if( !filelist )
         PT_EXIT(&task->thread);
+    LibToriRS_IOQueueClear(ctx->io);
 
     for( int i = 0; i < DAT1_TEXTURE_COUNT; i++ )
     {

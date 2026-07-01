@@ -50,7 +50,16 @@ struct RSCacheDat2A_Framemap
 };
 
 struct RSCacheDat2Disk;
-struct RSCacheDat2A_Framemap* RSCacheDat2A_FramemapNewFromCache(struct RSCacheDat2Disk* cache, int framemap_id);
+struct RSCacheDat2Disk_Archive;
+struct RSCacheDat2Disk_ReferenceTable;
+struct RSCacheDat2A_Framemap*
+RSCacheDat2A_FramemapNewFromCache(
+    struct RSCacheDat2Disk* cache,
+    int framemap_id);
+struct RSCacheDat2A_Framemap*
+RSCacheDat2A_FramemapNewFromArchive(
+    struct RSCacheDat2Disk_Archive* archive,
+    int framemap_id);
 
 /**
  * Frame archives store the framemap id in the first 2 bytes.
@@ -59,9 +68,17 @@ struct RSCacheDat2A_Framemap* RSCacheDat2A_FramemapNewFromCache(struct RSCacheDa
  * @param data_size
  * @return int
  */
-int RSCacheDat2A_FramemapIdFromFrameArchive(char* data, int data_size);
+int
+RSCacheDat2A_FramemapIdFromFrameArchive(
+    char* data,
+    int data_size);
 
-struct RSCacheDat2A_Framemap* RSCacheDat2A_FramemapNewDecode2(int id, char* data, int data_size);
-void RSCacheDat2A_FramemapFree(struct RSCacheDat2A_Framemap* framemap);
+struct RSCacheDat2A_Framemap*
+RSCacheDat2A_FramemapNewDecode2(
+    int id,
+    char* data,
+    int data_size);
+void
+RSCacheDat2A_FramemapFree(struct RSCacheDat2A_Framemap* framemap);
 
 #endif // FRAMEMAP_H

@@ -2,9 +2,7 @@
 #define TORIAUXLIB_TASK_RUNESCAPE_DAT2_ANIM_LOAD_H
 
 #include "buildcache/dat2_buildcache.h"
-#include "osrs/rscache/dat2a/dat2a_animaya.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 
 #include <stdbool.h>
@@ -75,43 +73,6 @@ dat2_anim_set_add_sequence_archives(
         if( aid < 0 )
             continue;
         dat2_anim_archive_set_add(set, aid);
-    }
-}
-
-static void
-dat2_anim_cache_sequence_skeletal(
-    struct Dat2BuildCache* dat2_bc,
-    struct RSCacheDat2Disk* cache_disk,
-    const struct RSCacheDat2A_ConfigSequence* seq)
-{
-    if( !dat2_bc || !cache_disk || !seq )
-        return;
-
-    int maya_id = seq->anim_maya_id;
-    if( maya_id < 0 || dat2_buildcache_skeletal_has(dat2_bc, maya_id) )
-        return;
-
-    struct RSCacheDat2A_AnimMaya* maya = RSCacheDat2A_AnimMayaNewFromCache(cache_disk, maya_id);
-    if( maya )
-        dat2_buildcache_skeletal_add(dat2_bc, maya_id, maya);
-}
-
-static void
-dat2_anim_submit_archive_set(
-    struct ToriAuxLibCache* c,
-    struct Dat2BuildCache* dat2_bc,
-    struct RSCacheDat2Disk* cache_disk,
-    const struct Dat2AnimArchiveSet* set)
-{
-    if( !c || !dat2_bc || !cache_disk || !set )
-        return;
-
-    for( int i = 0; i < set->count; i++ )
-    {
-        int aid = set->ids[i];
-        if( !dat2_buildcache_frames_has(dat2_bc, aid) )
-            dat2_buildcache_frames_init_from_archive(dat2_bc, cache_disk, aid);
-        ToriAuxLibCache_SubmitAnimationFromDat2(c, aid);
     }
 }
 

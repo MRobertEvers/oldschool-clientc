@@ -177,6 +177,34 @@ gc_steal_face_indices_int32(
 }
 
 static void
+gc_sanitize_pnm_texture_coords(struct ToriAuxLibCore_Model* gc)
+{
+    if( !gc || !gc->face_texture_coords || gc->face_count <= 0 )
+        return;
+
+    int const vc = gc->vertex_count;
+    for( int i = 0; i < gc->face_count; i++ )
+    {
+        int texture_face = (int)gc->face_texture_coords[i];
+        if( texture_face < 0 )
+            continue;
+
+        if( texture_face >= gc->textured_face_count || !gc->textured_p_coordinate ||
+            !gc->textured_m_coordinate || !gc->textured_n_coordinate )
+        {
+            gc->face_texture_coords[i] = -1;
+            continue;
+        }
+
+        int const p = (int)gc->textured_p_coordinate[texture_face];
+        int const m = (int)gc->textured_m_coordinate[texture_face];
+        int const n = (int)gc->textured_n_coordinate[texture_face];
+        if( p < 0 || p >= vc || m < 0 || m >= vc || n < 0 || n >= vc )
+            gc->face_texture_coords[i] = -1;
+    }
+}
+
+static void
 gc_model_move_from_cache_model(
     struct ToriAuxLibCore_Model* gc,
     struct RSCacheDat2A_Model* model)
@@ -344,6 +372,7 @@ gc_model_move_from_cache_model(
     }
 
     gc->flags |= 0x01u;
+    gc_sanitize_pnm_texture_coords(gc);
     ToriAuxLibCore_ModelAssertPnmTextureInvariant(gc);
 }
 

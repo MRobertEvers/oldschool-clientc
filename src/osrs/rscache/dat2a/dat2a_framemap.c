@@ -27,6 +27,17 @@ RSCacheDat2A_FramemapNewFromCache(
     return framemap;
 }
 
+struct RSCacheDat2A_Framemap*
+RSCacheDat2A_FramemapNewFromArchive(
+    struct RSCacheDat2Disk_Archive* archive,
+    int framemap_id)
+{
+    if( !archive )
+        return NULL;
+
+    return RSCacheDat2A_FramemapNewDecode2(framemap_id, archive->data, archive->data_size);
+}
+
 int
 RSCacheDat2A_FramemapIdFromFrameArchive(
     char* data,

@@ -9,6 +9,7 @@
 #include "task_rs_component_load.h"
 #include "task_rs_inv_load.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
+#include "toriauxlib/c/toriauxlibcache_font_convert.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
@@ -502,16 +503,22 @@ Task_InstanceOnRCCacheFont_Run(
             PT_EXIT(&task->thread);
 
         IO_REQUEST(ctx, 0, TAPIDat2_FetchFont(ctx, task->item.archive_id));
+        IO_REQUEST(ctx, 1, TAPIDat2_FetchSprite(ctx, task->item.archive_id));
         PT_YIELD(&task->thread);
 
         struct RSCacheDat2Disk_Archive* font_archive =
             TAPIDat2_DecodeFontArchive(ctx, 0, task->item.archive_id);
-        if( !font_archive )
+        struct RSCacheDat2Disk_Archive* sprite_archive =
+            TAPIDat2_DecodeSpriteArchive(ctx, 1, task->item.archive_id);
+        if( !font_archive || !sprite_archive )
+        {
+            RSCacheDat2Disk_ArchiveFree(font_archive);
+            RSCacheDat2Disk_ArchiveFree(sprite_archive);
             PT_EXIT(&task->thread);
+        }
 
-        struct RSCacheDat2Disk* disk = ToriAuxLibCache_Dat2Disk(task->cache);
-        struct ToriAuxLibCore_Font* font = dat2_buildcache_font_decode_from_archive(
-            disk, font_archive, task->item.archive_id);
+        struct ToriAuxLibCore_Font* font = ToriAuxLibCache_FontNewFromDat2Archives(
+            font_archive, sprite_archive, task->item.archive_id);
         assert(font && "failed to decode revconfig dat2 font");
         instance_revconfig_register_core_font(
             task->rc_ctx,

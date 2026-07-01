@@ -775,6 +775,48 @@ RSCacheDat2A_AnimMayaNewDecode(
 }
 
 struct RSCacheDat2A_AnimMaya*
+RSCacheDat2A_AnimMayaNewFromArchive(
+    struct RSCacheDat2Disk_ReferenceTable* table,
+    struct RSCacheDat2Disk_Archive* archive,
+    int anim_maya_id)
+{
+    struct RSCacheDat2A_AnimMaya* maya = NULL;
+    struct RSCacheShared_FileList* filelist = NULL;
+    struct RSCacheDat2Disk_ArchiveReference* archive_ref = NULL;
+
+    if( !archive )
+        return NULL;
+
+    int archive_id = anim_maya_id >> 16;
+    int file_id = anim_maya_id & 0xFFFF;
+
+    if( table )
+    {
+        RSCacheDat2Disk_ArchiveInitMetadataFromTable(table, archive);
+        if( archive_id >= 0 && archive_id < table->archive_count )
+            archive_ref = &table->archives[archive_id];
+    }
+
+    filelist = RSCacheShared_FileListNewFromCacheArchive(archive);
+    if( !filelist )
+        return NULL;
+
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = archive_ref ? archive_ref->children.files[i].id : i;
+        if( id != file_id )
+            continue;
+
+        maya = RSCacheDat2A_AnimMayaNewDecode(
+            anim_maya_id, filelist->files[i], filelist->file_sizes[i]);
+        break;
+    }
+
+    RSCacheShared_FileListFree(filelist);
+    return maya;
+}
+
+struct RSCacheDat2A_AnimMaya*
 RSCacheDat2A_AnimMayaNewFromCache(
     struct RSCacheDat2Disk* cache,
     int anim_maya_id)
@@ -794,32 +836,9 @@ RSCacheDat2A_AnimMayaNewFromCache(
     if( !archive )
         return NULL;
 
-    RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
-
     struct RSCacheDat2Disk_ReferenceTable* table =
         cache->tables[RSCacheDat2Disk_Table_Animayas];
-    struct RSCacheDat2Disk_ArchiveReference* archive_ref = NULL;
-    if( table && archive_id >= 0 && archive_id < table->archive_count )
-        archive_ref = &table->archives[archive_id];
-
-    filelist = RSCacheShared_FileListNewFromCacheArchive(archive);
+    maya = RSCacheDat2A_AnimMayaNewFromArchive(table, archive, anim_maya_id);
     RSCacheDat2Disk_ArchiveFree(archive);
-    archive = NULL;
-
-    if( !filelist )
-        return NULL;
-
-    for( int i = 0; i < filelist->file_count; i++ )
-    {
-        int id = archive_ref ? archive_ref->children.files[i].id : i;
-        if( id != file_id )
-            continue;
-
-        maya = RSCacheDat2A_AnimMayaNewDecode(
-            anim_maya_id, filelist->files[i], filelist->file_sizes[i]);
-        break;
-    }
-
-    RSCacheShared_FileListFree(filelist);
     return maya;
 }

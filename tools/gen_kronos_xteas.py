@@ -94,7 +94,7 @@ def main() -> int:
     parser.add_argument(
         "--region-keys",
         type=Path,
-        required=True,
+        default=None,
         help="Path to Kronos kronos-server/data/region_keys.json",
     )
     parser.add_argument(
@@ -132,6 +132,9 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+
+    if args.region_keys is None:
+        parser.error("--region-keys is required unless --check is set")
 
     out_path = args.out if args.out is not None else args.cache / "xteas.json"
 

@@ -29,4 +29,10 @@ ToriAuxLibCache_FontNewFromDat2Archive(
     struct RSCacheDat2Disk_Archive* archive,
     int font_id);
 
+struct ToriAuxLibCore_Font*
+ToriAuxLibCache_FontNewFromDat2Archives(
+    struct RSCacheDat2Disk_Archive* font_archive,
+    struct RSCacheDat2Disk_Archive* sprite_archive,
+    int font_id);
+
 #endif

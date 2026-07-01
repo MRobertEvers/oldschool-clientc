@@ -349,6 +349,31 @@ ToriAuxLibCache_SubmitObjModelFromDat2(
     ToriAuxLibCore_ObjModelAdd(ToriAuxLibCache_Core(c), obj_id, gc_model);
 }
 
+static void
+toriauxlibcache_ensure_dat2_configs_reference_table(
+    struct Dat2BuildCache* dat2_bc,
+    struct RSCacheDat2Disk* disk)
+{
+    struct RSCacheDat2Disk_Archive* table_archive;
+    struct RSCacheDat2Disk_ReferenceTable* table;
+
+    if( !dat2_bc || !disk ||
+        dat2_buildcache_reference_table_has(dat2_bc, RSCacheDat2Disk_Table_Configs) )
+        return;
+
+    table_archive =
+        RSCacheDat2Disk_ArchiveNewReferenceTableLoad(disk, RSCacheDat2Disk_Table_Configs);
+    if( !table_archive )
+        return;
+
+    table = RSCacheDat2Disk_ReferenceTableNewDecode(table_archive->data, table_archive->data_size);
+    RSCacheDat2Disk_ArchiveFree(table_archive);
+    if( !table )
+        return;
+
+    dat2_buildcache_reference_table_add(dat2_bc, RSCacheDat2Disk_Table_Configs, table);
+}
+
 static bool
 toriauxlibcache_ensure_dat2_object_in_buildcache(
     struct ToriAuxLibCache* c,
@@ -374,7 +399,8 @@ toriauxlibcache_ensure_dat2_object_in_buildcache(
     if( !archive )
         return false;
 
-    dat2_buildcache_objects_init_from_archive(dat2_bc, disk, archive, &obj_id, 1);
+    toriauxlibcache_ensure_dat2_configs_reference_table(dat2_bc, disk);
+    dat2_buildcache_objects_init_from_archive(dat2_bc, archive, &obj_id, 1);
     RSCacheDat2Disk_ArchiveFree(archive);
     return dat2_buildcache_object_get(dat2_bc, obj_id) != NULL;
 }
@@ -404,7 +430,8 @@ toriauxlibcache_ensure_dat2_npctype_in_buildcache(
     if( !archive )
         return false;
 
-    dat2_buildcache_npctypes_init_from_archive(dat2_bc, disk, archive, &npc_id, 1);
+    toriauxlibcache_ensure_dat2_configs_reference_table(dat2_bc, disk);
+    dat2_buildcache_npctypes_init_from_archive(dat2_bc, archive, &npc_id, 1);
     RSCacheDat2Disk_ArchiveFree(archive);
     return dat2_buildcache_npctype_get(dat2_bc, npc_id) != NULL;
 }

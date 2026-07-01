@@ -79,6 +79,12 @@ RSCacheDat2A_AnimMayaNewFromCache(
     struct RSCacheDat2Disk* cache,
     int anim_maya_id);
 
+struct RSCacheDat2A_AnimMaya*
+RSCacheDat2A_AnimMayaNewFromArchive(
+    struct RSCacheDat2Disk_ReferenceTable* table,
+    struct RSCacheDat2Disk_Archive* archive,
+    int anim_maya_id);
+
 /**
  * Decode a raw idx22 data blob.
  * NOTE: bone_curve_count and bone_curves are populated from the stream;

@@ -41,8 +41,13 @@ TAPIDat2_DecodeModel(
         return NULL;
 
     archive = item->data;
-    if( !archive )
+    if( !archive || archive->data_size < 2 )
+    {
+        if( archive )
+            RSCacheDat2Disk_ArchiveFree(archive);
+        item->data = NULL;
         return NULL;
+    }
 
     model = RSCacheDat2A_ModelNewDecode((const unsigned char*)archive->data, archive->data_size);
     RSCacheDat2Disk_ArchiveFree(archive);
@@ -316,6 +321,37 @@ TAPIDat2_DecodeReferenceTable(
     RSCacheDat2Disk_ArchiveFree(archive);
     item->data = NULL;
     return table;
+}
+
+static inline void
+TAPIDat2_FetchArchive(
+    struct LibToriRS_IOContext* ctx,
+    int table_id,
+    int archive_id)
+{
+    struct RSCacheDat2DiskLib_IORequest request;
+    cachelib_dat2_archive_fetch(table_id, archive_id, &request);
+    LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
+}
+
+static inline struct RSCacheDat2Disk_Archive*
+TAPIDat2_DecodeArchive(
+    struct LibToriRS_IOContext* ctx,
+    int slot_id,
+    int expected_table_id,
+    int expected_archive_id)
+{
+    struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
+    if( !item )
+        return NULL;
+    if( item->kind != TORIRSIO_KIND_CACHE || item->status != TORIRSIO_STAT_DONE ||
+        item->error_code != 0 )
+        return NULL;
+    if( item->u.cache.table_id != expected_table_id ||
+        item->u.cache.archive_id != expected_archive_id )
+        return NULL;
+
+    return item->data;
 }
 
 #endif

@@ -89,6 +89,7 @@ struct Dat2BuildCache
     struct ToriDraw_Map* underlay_hmap;
     struct ToriDraw_Map* config_loc_hmap;
     struct ToriDraw_Map* frames_hmap;     /* archive_id -> Dat2BuildCache_FramesArchive* */
+    struct ToriDraw_Map* framemap_hmap;   /* framemap_id -> RSCacheDat2A_Framemap*       */
     struct ToriDraw_Map* skeletal_hmap;   /* anim_maya_id -> RSCacheDat2A_AnimMaya*      */
     struct ToriDraw_Map* identkit_hmap;
     struct ToriDraw_Map* object_hmap;
@@ -168,26 +169,22 @@ dat2_buildcache_map_scenery_has(
 void
 dat2_buildcache_underlays_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
-    struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive);
 
 void
 dat2_buildcache_overlays_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
-    struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive);
 
 void
 dat2_buildcache_sequences_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
-    struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive);
 
 /* Load a single sequence config by id from an already-decoded sequences archive. */
 bool
 dat2_buildcache_sequence_load_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
-    struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
     int seq_id);
 
@@ -199,7 +196,6 @@ dat2_buildcache_sequence_get(
 void
 dat2_buildcache_scenery_configs_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
-    struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
     struct VarPVarBitManager* varp_mgr);
 
@@ -239,7 +235,6 @@ dat2_buildcache_npctype_get(
 void
 dat2_buildcache_identkits_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
-    struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
     const int* wanted_ids,
     int wanted_count);
@@ -247,7 +242,6 @@ dat2_buildcache_identkits_init_from_archive(
 void
 dat2_buildcache_objects_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
-    struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
     const int* wanted_ids,
     int wanted_count);
@@ -255,7 +249,6 @@ dat2_buildcache_objects_init_from_archive(
 void
 dat2_buildcache_npctypes_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
-    struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
     const int* wanted_ids,
     int wanted_count);
@@ -263,10 +256,21 @@ dat2_buildcache_npctypes_init_from_archive(
 /* Classic frame/framemap (idx0 + idx1) */
 
 void
-dat2_buildcache_frames_init_from_archive(
+dat2_buildcache_framemap_add_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
-    struct RSCacheDat2Disk* cache,
-    int archive_id);
+    int framemap_id,
+    struct RSCacheDat2Disk_Archive* skeleton_archive);
+
+struct RSCacheDat2A_Framemap*
+dat2_buildcache_framemap_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int framemap_id);
+
+void
+dat2_buildcache_frames_add_from_fetched_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    int archive_id,
+    struct RSCacheDat2Disk_Archive* idx0_archive);
 
 struct Dat2BuildCache_FramesArchive*
 dat2_buildcache_frames_get(

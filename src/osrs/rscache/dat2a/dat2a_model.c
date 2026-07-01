@@ -108,6 +108,9 @@ decode_ob2(
     const unsigned char* inputData,
     int inputLength)
 {
+    if( !inputData || inputLength < 18 )
+        return NULL;
+
     struct RSCacheDat2A_Model* model =
         (struct RSCacheDat2A_Model*)malloc(sizeof(struct RSCacheDat2A_Model));
     memset(model, 0, sizeof(struct RSCacheDat2A_Model));

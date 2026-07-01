@@ -84,6 +84,7 @@ SRC   := browser.c \
 	$(SRC2)/ui/ui_sprite_lookup.c \
 	$(SRC2)/toriauxlib/core/tasks/instance_revconfig_context.c \
 	$(SRC2)/toriauxlib/core/tasks/task_rs_component_load.c \
+	$(SRC2)/toriauxlib/core/tasks/task_dat2_anim_io.c \
 	$(SRC2)/toriauxlib/core/tasks/task_rs_inv_load.c \
 	$(SRC2)/toriauxlib/core/tasks/task_instance_on_rc.c \
 	$(SRC2)/toriauxlib/core/tasks/task_instance_revconfig_load.c \

@@ -12,6 +12,7 @@
 #include "osrs/rscache/dat2a/dat2a_component.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/tasks/task_dat2_io.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "toridraw/toridraw_scene.h"
@@ -1019,25 +1020,8 @@ Task_RSComponentLoad_Run(
         {
             struct RSCacheDat2Disk_ReferenceTable* reference_table = NULL;
 
-            if( !dat2_buildcache_reference_table_has(
-                    task->rc_ctx->dat2_bc, RSCacheDat2Disk_Table_Interfaces) )
-            {
-                IO_REQUEST(
-                    ctx, 0, TAPIDat2_FetchReferenceTable(ctx, RSCacheDat2Disk_Table_Interfaces));
-                PT_YIELD(&task->thread);
-
-                reference_table =
-                    TAPIDat2_DecodeReferenceTable(ctx, 0, RSCacheDat2Disk_Table_Interfaces);
-                assert(
-                    reference_table &&
-                    "Task_RSComponentLoad: failed to decode dat2 interfaces reference table");
-                if( !reference_table )
-                    PT_EXIT(&task->thread);
-
-                dat2_buildcache_reference_table_add(
-                    task->rc_ctx->dat2_bc, RSCacheDat2Disk_Table_Interfaces, reference_table);
-                LibToriRS_IOQueueClear(ctx->io);
-            }
+            DAT2_ENSURE_REFERENCE_TABLE(
+                ctx, &task->thread, task->rc_ctx->dat2_bc, RSCacheDat2Disk_Table_Interfaces);
 
             reference_table = dat2_buildcache_reference_table_get(
                 task->rc_ctx->dat2_bc, RSCacheDat2Disk_Table_Interfaces);

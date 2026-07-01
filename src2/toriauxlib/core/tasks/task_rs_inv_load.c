@@ -12,6 +12,7 @@
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/tasks/task_dat2_io.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "toridraw/toridraw_map.h"
 #include "ui/uitree.h"
@@ -122,7 +123,6 @@ Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
     struct Task_RSInvLoad* task = task_state;
     struct Dat1BuildCache* dat1_bc = NULL;
     struct Dat2BuildCache* dat2_bc = NULL;
-    struct RSCacheDat2Disk* cache_disk = NULL;
     struct RSCacheDat2Disk_Archive* object_archive = NULL;
     int want_obj_ids[REVCONFIG_INV_MAX_ITEMS];
     int want_obj_count = 0;
@@ -284,7 +284,6 @@ Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
     else if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
     {
         dat2_bc = task->rc_ctx->dat2_bc ? task->rc_ctx->dat2_bc : dat2(task->cache);
-        cache_disk = ToriAuxLibCache_Dat2Disk(task->cache);
         want_obj_count = 0;
         need_obj = false;
 
@@ -307,18 +306,19 @@ Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
             }
         }
 
-        if( need_obj && dat2_bc && cache_disk )
+        if( need_obj && dat2_bc )
         {
             IO_REQUEST(ctx, 0, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Object));
             PT_YIELD(&task->thread);
 
             dat2_bc = task->rc_ctx->dat2_bc ? task->rc_ctx->dat2_bc : dat2(task->cache);
-            cache_disk = ToriAuxLibCache_Dat2Disk(task->cache);
+            DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, dat2_bc);
+
             object_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Object);
-            if( object_archive && dat2_bc && cache_disk )
+            if( object_archive && dat2_bc )
             {
                 dat2_buildcache_objects_init_from_archive(
-                    dat2_bc, cache_disk, object_archive, want_obj_ids, want_obj_count);
+                    dat2_bc, object_archive, want_obj_ids, want_obj_count);
                 RSCacheDat2Disk_ArchiveFree(object_archive);
                 object_archive = NULL;
             }
