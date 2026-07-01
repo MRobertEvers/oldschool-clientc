@@ -40,6 +40,16 @@ uitree_component_visible_by_id(
     int hovered_component_id);
 
 bool
+uitree_component_visible_by_hover_ids(
+    struct StaticUIComponent const* component,
+    struct UITreeHoverIds const* hover_ids);
+
+bool
+uitree_component_hovered_by_ids(
+    int component_id,
+    struct UITreeHoverIds const* hover_ids);
+
+bool
 uitree_component_visible(
     struct StaticUIComponent const* component,
     int32_t component_index,
@@ -54,10 +64,24 @@ uitree_find_hovered_component_id(
     int mouse_y,
     int* out_hovered_component_id);
 
+void
+uitree_find_hovered_component_id_for_region(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
+    int mouse_x,
+    int mouse_y,
+    int region_x,
+    int region_y,
+    int region_w,
+    int region_h,
+    int32_t start_index,
+    int* out_hovered_component_id);
+
 int
 uitree_component_rect_color(
     struct StaticUIComponent const* component,
-    int hovered_component_id,
+    struct UITreeHoverIds const* hover_ids,
     struct UITreeBehaviorHost const* host,
     int base_color);
 

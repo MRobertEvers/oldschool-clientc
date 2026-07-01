@@ -51,6 +51,11 @@ ToriAuxLibCache_EnsureObjtype(
     struct ToriAuxLibCache* c,
     int obj_id);
 
+bool
+ToriAuxLibCache_EnsureNpctype(
+    struct ToriAuxLibCache* c,
+    int npc_id);
+
 void
 ToriAuxLibCache_SubmitTexture(
     struct ToriAuxLibCache* c,

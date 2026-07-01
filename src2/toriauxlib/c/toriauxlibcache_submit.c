@@ -15,10 +15,14 @@
 #include "osrs/rscache/dat2a/dat2a_config_idk.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
+#include "osrs/rscache/dat2a/dat2a_config_npctype.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "osrs/rscache/dat2a/dat2a_maps.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat2a/dat2a_skeletalbase.h"
+#include "osrs/rscache/dat1a/dat1a_config_npc.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
@@ -344,6 +348,66 @@ ToriAuxLibCache_SubmitObjModelFromDat2(
     ToriAuxLibCore_ObjModelAdd(ToriAuxLibCache_Core(c), obj_id, gc_model);
 }
 
+static bool
+toriauxlibcache_ensure_dat2_object_in_buildcache(
+    struct ToriAuxLibCache* c,
+    int obj_id)
+{
+    struct Dat2BuildCache* dat2_bc;
+    struct RSCacheDat2Disk* disk;
+    struct RSCacheDat2Disk_Archive* archive;
+
+    if( !c || obj_id <= 0 )
+        return false;
+
+    dat2_bc = dat2(c);
+    if( dat2_buildcache_object_get(dat2_bc, obj_id) )
+        return true;
+
+    disk = ToriAuxLibCache_Dat2Disk(c);
+    if( !disk || !dat2_bc )
+        return false;
+
+    archive = RSCacheDat2Disk_ArchiveNewLoad(
+        disk, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Object);
+    if( !archive )
+        return false;
+
+    dat2_buildcache_objects_init_from_archive(dat2_bc, disk, archive, &obj_id, 1);
+    RSCacheDat2Disk_ArchiveFree(archive);
+    return dat2_buildcache_object_get(dat2_bc, obj_id) != NULL;
+}
+
+static bool
+toriauxlibcache_ensure_dat2_npctype_in_buildcache(
+    struct ToriAuxLibCache* c,
+    int npc_id)
+{
+    struct Dat2BuildCache* dat2_bc;
+    struct RSCacheDat2Disk* disk;
+    struct RSCacheDat2Disk_Archive* archive;
+
+    if( !c || npc_id < 0 )
+        return false;
+
+    dat2_bc = dat2(c);
+    if( dat2_buildcache_npctype_get(dat2_bc, npc_id) )
+        return true;
+
+    disk = ToriAuxLibCache_Dat2Disk(c);
+    if( !disk || !dat2_bc )
+        return false;
+
+    archive = RSCacheDat2Disk_ArchiveNewLoad(
+        disk, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Npc);
+    if( !archive )
+        return false;
+
+    dat2_buildcache_npctypes_init_from_archive(dat2_bc, disk, archive, &npc_id, 1);
+    RSCacheDat2Disk_ArchiveFree(archive);
+    return dat2_buildcache_npctype_get(dat2_bc, npc_id) != NULL;
+}
+
 bool
 ToriAuxLibCache_EnsureObjtype(
     struct ToriAuxLibCache* c,
@@ -358,6 +422,9 @@ ToriAuxLibCache_EnsureObjtype(
 
     if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT2 )
     {
+        if( !dat2_buildcache_object_get(dat2(c), obj_id) )
+            toriauxlibcache_ensure_dat2_object_in_buildcache(c, obj_id);
+
         struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(dat2(c), obj_id);
         if( !obj )
             return false;
@@ -381,6 +448,52 @@ ToriAuxLibCache_EnsureObjtype(
         return false;
 
     ToriAuxLibCore_ObjtypeAdd(core, obj_id, neutral);
+    return true;
+}
+
+bool
+ToriAuxLibCache_EnsureNpctype(
+    struct ToriAuxLibCache* c,
+    int npc_id)
+{
+    if( !c || npc_id < 0 )
+        return false;
+
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(c);
+    if( ToriAuxLibCore_NpctypeHas(core, npc_id) )
+        return true;
+
+    if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT2 )
+    {
+        if( !dat2_buildcache_npctype_get(dat2(c), npc_id) )
+            toriauxlibcache_ensure_dat2_npctype_in_buildcache(c, npc_id);
+
+        struct RSCacheDat2A_ConfigNpctype* npc = dat2_buildcache_npctype_get(dat2(c), npc_id);
+        if( !npc )
+            return false;
+
+        struct ToriAuxLibCore_Npctype* neutral =
+            ToriAuxLibCache_NpctypeNewFromDat2ConfigNpctype(npc, npc_id);
+        if( !neutral )
+            return false;
+
+        ToriAuxLibCore_NpctypeAdd(core, npc_id, neutral);
+        return true;
+    }
+
+    struct Dat1BuildCache* dat1_bc = dat1(c);
+    struct RSCacheDat1A_ConfigNpc* npc = dat1_buildcache_npc_get(dat1_bc, npc_id);
+    if( !npc )
+        npc = dat1_buildcache_npc_load_from_config_jagfile(dat1_bc, npc_id);
+    if( !npc )
+        return false;
+
+    struct ToriAuxLibCore_Npctype* neutral =
+        ToriAuxLibCache_NpctypeNewFromDat1ConfigNpc(npc, npc_id);
+    if( !neutral )
+        return false;
+
+    ToriAuxLibCore_NpctypeAdd(core, npc_id, neutral);
     return true;
 }
 

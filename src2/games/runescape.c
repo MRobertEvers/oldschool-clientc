@@ -4,6 +4,7 @@
 #include "../runescape/appearance.h"
 #include "../runescape/player_body.h"
 #include "../toriauxlib/c/toriauxlibcache.h"
+#include "../toriauxlib/c/toriauxlibcache_submit.h"
 #include "../toriauxlib/core/toriauxlibcore.h"
 #include "../toriauxlib/td/toriauxlibtd.h"
 #include "../toriauxlib/vm/toriauxlibvm.h"
@@ -14,6 +15,7 @@
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "ui/ui_behavior.h"
+#include "ui/ui_debug.h"
 #include "ui/ui_input_adapter.h"
 #include "ui/ui_scroll.h"
 #include "../world/heightmap.h"
@@ -161,6 +163,12 @@ rs_ui_host_eval_text_placeholder(
 {
     struct GameRunescape* game = user;
     if( !game || !game->vm )
+        return 0;
+
+    /* Mirror Client.ts getIfVar: skip eval when scripts are absent or out of range. */
+    if( !component->behavior.scripts || script_idx < 0 ||
+        script_idx >= component->behavior.scripts_count ||
+        !component->behavior.scripts[script_idx] )
         return 0;
 
     struct CS2VM_State cs2_state;
@@ -895,6 +903,12 @@ GameRunescape_New(
     assert(game->ui_tree && "GameRunescape_New: failed to allocate ui tree");
     GameRunescape_InitUIHost(game);
     game->ui_hovered_node = -1;
+    game->ui_over_main_com_id = -1;
+    game->ui_over_side_com_id = -1;
+    game->ui_over_chat_com_id = -1;
+    game->ui_over_main_com_id_prev = -1;
+    game->ui_over_side_com_id_prev = -1;
+    game->ui_over_chat_com_id_prev = -1;
     game->ui_minimenu_node = -1;
     game->ui_chat_node = -1;
     game->ui_scroll_drag_layer_id = -1;
@@ -1162,6 +1176,54 @@ GameRunescape_BuildWorldChunkList(
     GameRunescape_RebuildWorldMap(game);
 }
 
+/** Client.ts main viewport hover region (buildMinimenu). */
+#define RS_UI_HOVER_MAIN_X 4
+#define RS_UI_HOVER_MAIN_Y 4
+#define RS_UI_HOVER_MAIN_W 512
+#define RS_UI_HOVER_MAIN_H 334
+/** Client.ts sidebar hover region. */
+#define RS_UI_HOVER_SIDE_X 553
+#define RS_UI_HOVER_SIDE_Y 205
+#define RS_UI_HOVER_SIDE_W 190
+#define RS_UI_HOVER_SIDE_H 261
+/** Client.ts chatbox hover region. */
+#define RS_UI_HOVER_CHAT_X 17
+#define RS_UI_HOVER_CHAT_Y 357
+#define RS_UI_HOVER_CHAT_W 409
+#define RS_UI_HOVER_CHAT_H 96
+
+static struct UITreeHoverIds
+GameRunescape_UIHoverIds(struct GameRunescape const* game)
+{
+    struct UITreeHoverIds ids = {
+        .main_com_id = -1,
+        .side_com_id = -1,
+        .chat_com_id = -1,
+    };
+    if( !game )
+        return ids;
+    ids.main_com_id = game->ui_over_main_com_id;
+    ids.side_com_id = game->ui_over_side_com_id;
+    ids.chat_com_id = game->ui_over_chat_com_id;
+    return ids;
+}
+
+static int32_t
+GameRunescape_UISelectedSidebarIndex(struct GameRunescape const* game)
+{
+    if( !game || !game->ui_tree )
+        return -1;
+
+    int const tab = game->selected_tab;
+    for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* c = &game->ui_tree->components[i];
+        if( c->type == UIELEM_BUILTIN_SIDEBAR && c->u.sidebar.tabno == tab )
+            return (int32_t)i;
+    }
+    return -1;
+}
+
 static bool
 GameRunescape_UINodeVisible(
     struct GameRunescape* game,
@@ -1169,8 +1231,8 @@ GameRunescape_UINodeVisible(
     int32_t node_index)
 {
     (void)node_index;
-    return uitree_component_visible_host(
-        c, game->ui_hovered_component_id, &game->ui_host);
+    struct UITreeHoverIds const hover_ids = GameRunescape_UIHoverIds(game);
+    return uitree_component_visible_host(c, &hover_ids, &game->ui_host);
 }
 
 static void
@@ -1178,21 +1240,78 @@ GameRunescape_UpdateUIHover(
     struct GameRunescape* game)
 {
     game->ui_hovered_node = -1;
-    game->ui_hovered_component_id = -1;
+    game->ui_over_main_com_id = -1;
+    game->ui_over_side_com_id = -1;
+    game->ui_over_chat_com_id = -1;
     if( !game->ui_tree || !game->ui_tree_ready )
         return;
+
+    if( game->minimenu.visible )
+        goto done;
 
     struct UITreeScrollState scroll = {
         .scroll_x = game->ui_scroll_x,
         .scroll_y = game->ui_scroll_y,
     };
-    uitree_find_hovered_component_id(
+
+    uitree_find_hovered_component_id_for_region(
         game->ui_tree,
         &game->ui_host,
         &scroll,
         game->mouse_x,
         game->mouse_y,
-        &game->ui_hovered_component_id);
+        RS_UI_HOVER_MAIN_X,
+        RS_UI_HOVER_MAIN_Y,
+        RS_UI_HOVER_MAIN_W,
+        RS_UI_HOVER_MAIN_H,
+        -1,
+        &game->ui_over_main_com_id);
+    ui_hover_debug_log(
+        "main region -> over_main_com_id=%d",
+        game->ui_over_main_com_id);
+
+    {
+        int32_t const sidebar_idx = GameRunescape_UISelectedSidebarIndex(game);
+        if( sidebar_idx >= 0 )
+        {
+            uitree_find_hovered_component_id_for_region(
+                game->ui_tree,
+                &game->ui_host,
+                &scroll,
+                game->mouse_x,
+                game->mouse_y,
+                RS_UI_HOVER_SIDE_X,
+                RS_UI_HOVER_SIDE_Y,
+                RS_UI_HOVER_SIDE_W,
+                RS_UI_HOVER_SIDE_H,
+                sidebar_idx,
+                &game->ui_over_side_com_id);
+            ui_hover_debug_log(
+                "side region -> over_side_com_id=%d",
+                game->ui_over_side_com_id);
+        }
+    }
+
+    if( game->ui_chat_node >= 0 )
+    {
+        uitree_find_hovered_component_id_for_region(
+            game->ui_tree,
+            &game->ui_host,
+            &scroll,
+            game->mouse_x,
+            game->mouse_y,
+            RS_UI_HOVER_CHAT_X,
+            RS_UI_HOVER_CHAT_Y,
+            RS_UI_HOVER_CHAT_W,
+            RS_UI_HOVER_CHAT_H,
+            game->ui_chat_node,
+            &game->ui_over_chat_com_id);
+        ui_hover_debug_log(
+            "chat region -> over_chat_com_id=%d",
+            game->ui_over_chat_com_id);
+    }
+
+done:
     game->ui_hovered_node =
         GameRunescape_UIHitTest(game, game->mouse_x, game->mouse_y);
 }
@@ -1392,9 +1511,10 @@ GameRunescape_UIRectColor(
     int32_t node_index)
 {
     (void)node_index;
+    struct UITreeHoverIds const hover_ids = GameRunescape_UIHoverIds(game);
     return uitree_component_rect_color_host(
         component,
-        game->ui_hovered_component_id,
+        &hover_ids,
         &game->ui_host,
         component->u.rs_rect.color);
 }
@@ -2395,8 +2515,14 @@ GameRunescape_EmitUIComponent(
             command->u.font.font_id = component->u.rs_text.font_id;
             command->u.font.x = draw_x;
             command->u.font.y = by + lh;
-            command->u.font.color = uitree_component_text_color_host(
-                component, game->ui_hovered_component_id, &game->ui_host, component->u.rs_text.color);
+            {
+                struct UITreeHoverIds const hover_ids = GameRunescape_UIHoverIds(game);
+                command->u.font.color = uitree_component_text_color_host(
+                    component,
+                    &hover_ids,
+                    &game->ui_host,
+                    component->u.rs_text.color);
+            }
             command->u.font.center = component->u.rs_text.center;
             command->u.font.shadowed = component->u.rs_text.shadowed;
             command->u.font.width = bw;
@@ -2908,7 +3034,9 @@ GameRunescape_FrameBegin(
     game->frame.ui_scrollbar_step = 0;
     game->frame.ui_scrollbar_layer = -1;
     game->ui_hovered_node = -1;
-    game->ui_hovered_component_id = -1;
+    game->ui_over_main_com_id = -1;
+    game->ui_over_side_com_id = -1;
+    game->ui_over_chat_com_id = -1;
     if( game->scene && game->ui_tree_ready && !game->ui_fonts_synced )
     {
         ToriDraw_SceneFontsReemitLoads(game->scene);
@@ -2930,13 +3058,28 @@ GameRunescape_FrameBegin(
     GameRunescape_UpdateWorldViewport(game);
     if( game->ui_tree && game->ui_tree->component_count > 0 )
     {
+        bool hover_dirty = false;
+        bool const first_ready = !game->ui_tree_ready;
+
         uitree_layout_resolve(game->ui_tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        uitree_mark_all_dirty(game->ui_tree);
         if( !game->ui_tree_ready && !game->ui_sprites_synced )
             GameRunescape_SyncUISpritesFromScene(game);
         game->ui_tree_ready = true;
         GameRunescape_FindSpecialUINodes(game);
         GameRunescape_UpdateUIHover(game);
+
+        if( game->ui_over_main_com_id != game->ui_over_main_com_id_prev ||
+            game->ui_over_side_com_id != game->ui_over_side_com_id_prev ||
+            game->ui_over_chat_com_id != game->ui_over_chat_com_id_prev )
+        {
+            hover_dirty = true;
+            game->ui_over_main_com_id_prev = game->ui_over_main_com_id;
+            game->ui_over_side_com_id_prev = game->ui_over_side_com_id;
+            game->ui_over_chat_com_id_prev = game->ui_over_chat_com_id;
+        }
+
+        if( hover_dirty || first_ready )
+            uitree_mark_all_dirty(game->ui_tree);
     }
 
     if( game->cross_mode != RUNESCAPE_CROSS_MODE_OFF )
@@ -3404,7 +3547,10 @@ GameRunescape_WorldEntityAddNPC(
         return -1;
 
     {
-        struct ToriAuxLibCore* core = ToriAuxLibCache_Core(ToriAuxLibTD_C(game->td));
+        struct ToriAuxLibCache* cache = ToriAuxLibTD_C(game->td);
+        if( cache )
+            ToriAuxLibCache_EnsureNpctype(cache, npc_id);
+        struct ToriAuxLibCore* core = ToriAuxLibCache_Core(cache);
         struct ToriAuxLibCore_Npctype* npctype =
             core ? ToriAuxLibCore_NpctypeGet(core, npc_id) : NULL;
         struct WorldEntity_NPC* npc_entity =

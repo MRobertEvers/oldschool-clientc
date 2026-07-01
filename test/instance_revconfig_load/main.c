@@ -35,6 +35,10 @@
 #include "osrs/rscache/dat1disk/dat1disk.h"
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/core/toriauxlibcore.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/dat2a_config_npctype.h"
+#include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "vm/csvm.h"
 #include "vm/cs2vm.h"
 
@@ -1379,12 +1383,29 @@ test_mouse_hit_test_on_built_tree(void)
     {
         struct UIMinimenuState menu;
         ui_click_build_minimenu_from_pickset(&game, &npc_picks, true, &menu);
-        TEST_ASSERT(menu.option_count >= 4, "npc minimenu option count");
+        TEST_ASSERT(menu.option_count >= 5, "npc minimenu option count");
         TEST_ASSERT(strcmp(menu.options[0].text, "Cancel") == 0, "npc cancel index");
-        TEST_ASSERT(strcmp(menu.options[1].text, "Walk here") == 0, "npc walk index");
-        TEST_ASSERT(
-            strstr(menu.options[2].text, "Talk-to") != NULL, "npc talk-to option present");
-        TEST_ASSERT(strstr(menu.options[3].text, "Attack") != NULL, "npc attack option present");
+        {
+            bool has_walk = false;
+            bool has_talk = false;
+            bool has_attack = false;
+            bool has_examine = false;
+            for( int i = 0; i < menu.option_count; i++ )
+            {
+                if( strcmp(menu.options[i].text, "Walk here") == 0 )
+                    has_walk = true;
+                if( strstr(menu.options[i].text, "Talk-to") != NULL )
+                    has_talk = true;
+                if( strstr(menu.options[i].text, "Attack") != NULL )
+                    has_attack = true;
+                if( strstr(menu.options[i].text, "Examine") != NULL )
+                    has_examine = true;
+            }
+            TEST_ASSERT(has_walk, "npc walk option present");
+            TEST_ASSERT(has_talk, "npc talk-to option present");
+            TEST_ASSERT(has_attack, "npc attack option present");
+            TEST_ASSERT(has_examine, "npc examine option present");
+        }
     }
 
     struct MinimenuPickSet scenery_picks;
@@ -1873,14 +1894,20 @@ test_sidebar_tab_inv_binding(void)
     host.get_selected_tab = test_host_get_selected_tab;
 
     g_test_selected_tab = 3;
-    TEST_ASSERT(
-        uitree_component_visible_host(&tree->components[owner_idx], -1, &host),
-        "sidebar visible when selected tab is 3");
+    {
+        struct UITreeHoverIds no_hover = { -1, -1, -1 };
+        TEST_ASSERT(
+            uitree_component_visible_host(&tree->components[owner_idx], &no_hover, &host),
+            "sidebar visible when selected tab is 3");
+    }
 
     g_test_selected_tab = 2;
-    TEST_ASSERT(
-        !uitree_component_visible_host(&tree->components[owner_idx], -1, &host),
-        "sidebar hidden when selected tab is not 3");
+    {
+        struct UITreeHoverIds no_hover = { -1, -1, -1 };
+        TEST_ASSERT(
+            !uitree_component_visible_host(&tree->components[owner_idx], &no_hover, &host),
+            "sidebar hidden when selected tab is not 3");
+    }
 
     instance_revconfig_context_release_build_state(&ctx);
     ToriAuxLibCore_Free(core);
@@ -2753,6 +2780,143 @@ test_cs2_behavior_is_active(void)
     return 0;
 }
 
+static int
+test_dat2_config_menu_convert(void)
+{
+    struct RSCacheDat2A_ConfigNpctype npc_src;
+    memset(&npc_src, 0, sizeof(npc_src));
+    npc_src.name = "Goblin";
+    npc_src.actions[0] = "Attack";
+    npc_src.actions[2] = "Talk-to";
+    npc_src.combat_level = 2;
+    struct ToriAuxLibCore_Npctype* npc =
+        ToriAuxLibCache_NpctypeNewFromDat2ConfigNpctype(&npc_src, 100);
+    TEST_ASSERT(npc != NULL, "npctype convert");
+    TEST_ASSERT(strcmp(npc->actions[0], "Attack") == 0, "npctype action0");
+    TEST_ASSERT(strcmp(npc->actions[2], "Talk-to") == 0, "npctype action2");
+    ToriAuxLibCore_NpctypeFree(npc);
+
+    struct RSCacheDat2A_ConfigLocation loc_src;
+    memset(&loc_src, 0, sizeof(loc_src));
+    loc_src._id = 200;
+    loc_src.name = "Door";
+    loc_src.actions[0] = "Open";
+    loc_src.actions[4] = "Close";
+    struct ToriAuxLibCore_Location* loc =
+        ToriAuxLibCache_LocationNewFromCacheConfigLocation(&loc_src);
+    TEST_ASSERT(loc != NULL, "loc convert");
+    TEST_ASSERT(strcmp(loc->actions[0], "Open") == 0, "loc action0");
+    TEST_ASSERT(strcmp(loc->actions[4], "Close") == 0, "loc action4");
+    ToriAuxLibCore_LocationFree(loc);
+
+    struct RSCacheDat2A_ConfigObject obj_src;
+    memset(&obj_src, 0, sizeof(obj_src));
+    obj_src.name = "Sword";
+    obj_src.if_actions[0] = "Wield";
+    obj_src.if_actions[4] = "Drop";
+    struct ToriAuxLibCore_Objtype* obj =
+        ToriAuxLibCache_ObjtypeNewFromDat2ConfigObject(&obj_src, 1333);
+    TEST_ASSERT(obj != NULL, "objtype convert");
+    TEST_ASSERT(strcmp(obj->inv_actions[0], "Wield") == 0, "objtype inv_action0");
+    TEST_ASSERT(strcmp(obj->inv_actions[4], "Drop") == 0, "objtype inv_action4");
+    ToriAuxLibCore_ObjtypeFree(obj);
+
+    fprintf(stderr, "ok: dat2 npctype/loc/obj menu action convert\n");
+    return 0;
+}
+
+static int
+test_viewport_minimenu_core_actions(void)
+{
+    struct ToriAuxLibCore* core = ToriAuxLibCore_New();
+    TEST_ASSERT(core != NULL, "core new");
+
+    struct ToriAuxLibCore_Npctype* npctype = calloc(1, sizeof(struct ToriAuxLibCore_Npctype));
+    TEST_ASSERT(npctype != NULL, "npctype alloc");
+    npctype->id = 42;
+    strncpy(npctype->name, "Guard", sizeof(npctype->name) - 1);
+    strncpy(npctype->actions[0], "Attack", sizeof(npctype->actions[0]) - 1);
+    strncpy(npctype->actions[2], "Talk-to", sizeof(npctype->actions[2]) - 1);
+    npctype->combat_level = 21;
+    ToriAuxLibCore_NpctypeAdd(core, 42, npctype);
+
+    struct ToriAuxLibCore_Location* loc = calloc(1, sizeof(struct ToriAuxLibCore_Location));
+    TEST_ASSERT(loc != NULL, "loc alloc");
+    loc->id = 300;
+    strncpy(loc->name, "Bank booth", sizeof(loc->name) - 1);
+    strncpy(loc->actions[0], "Use", sizeof(loc->actions[0]) - 1);
+    strncpy(loc->actions[1], "Bank", sizeof(loc->actions[1]) - 1);
+    ToriAuxLibCore_LocationAdd(core, 300, loc);
+
+    struct GameRunescape game;
+    memset(&game, 0, sizeof(game));
+    game.core = core;
+    test_minimenu_seed_world(&game);
+
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&g_test_minimenu_world.entities.npc, 0);
+        TEST_ASSERT(npc != NULL, "seed npc");
+        npc->npc_id = 42;
+        npc->actions[0].name[0] = '\0';
+        npc->actions[2].name[0] = '\0';
+    }
+
+    {
+        struct WorldEntity_Scenery* scenery =
+            World_EntityPoolGet(&g_test_minimenu_world.entities.scenery, 0);
+        TEST_ASSERT(scenery != NULL, "seed scenery");
+        scenery->actions[0].name[0] = '\0';
+    }
+
+    struct MinimenuPickSet npc_picks;
+    minimenu_pickset_reset(&npc_picks);
+    minimenu_pickset_add(
+        &npc_picks, MINIMENU_PICK_NPC, g_test_entity_registry[0].entity_id, 0, 0, 0);
+    {
+        struct UIMinimenuState menu;
+        ui_click_build_minimenu_from_pickset(&game, &npc_picks, true, &menu);
+        TEST_ASSERT(menu.option_count >= 5, "core npc minimenu option count");
+        bool has_talk = false;
+        bool has_attack = false;
+        bool has_examine = false;
+        for( int i = 0; i < menu.option_count; i++ )
+        {
+            if( strstr(menu.options[i].text, "Talk-to") != NULL )
+                has_talk = true;
+            if( strstr(menu.options[i].text, "Attack") != NULL )
+                has_attack = true;
+            if( strstr(menu.options[i].text, "Examine") != NULL )
+                has_examine = true;
+        }
+        TEST_ASSERT(has_talk, "core npc talk-to");
+        TEST_ASSERT(has_attack, "core npc attack");
+        TEST_ASSERT(has_examine, "core npc examine");
+    }
+
+    struct MinimenuPickSet scenery_picks;
+    minimenu_pickset_reset(&scenery_picks);
+    minimenu_pickset_add(&scenery_picks, MINIMENU_PICK_SCENERY, 100, 300, 0, 0);
+    {
+        struct UIMinimenuState menu;
+        ui_click_build_minimenu_from_pickset(&game, &scenery_picks, true, &menu);
+        bool has_bank = false;
+        bool has_use = false;
+        for( int i = 0; i < menu.option_count; i++ )
+        {
+            if( strstr(menu.options[i].text, "Bank") != NULL )
+                has_bank = true;
+            if( strstr(menu.options[i].text, "Use") != NULL )
+                has_use = true;
+        }
+        TEST_ASSERT(has_bank, "core loc bank");
+        TEST_ASSERT(has_use, "core loc use");
+    }
+
+    ToriAuxLibCore_Free(core);
+    fprintf(stderr, "ok: viewport minimenu resolves actions from core\n");
+    return 0;
+}
+
 int
 main(void)
 {
@@ -2769,6 +2933,12 @@ main(void)
         return 1;
 
     if( test_cs2_behavior_is_active() != 0 )
+        return 1;
+
+    if( test_dat2_config_menu_convert() != 0 )
+        return 1;
+
+    if( test_viewport_minimenu_core_actions() != 0 )
         return 1;
 
     if( test_minimenu_layout_derivation() != 0 )

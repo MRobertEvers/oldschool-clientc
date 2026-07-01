@@ -10,6 +10,32 @@
 #include <string.h>
 
 bool
+ui_hover_debug_enabled(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+    {
+        char const* env = getenv("UI_HOVER_DEBUG");
+        cached = (env && strcmp(env, "1") == 0) ? 1 : 0;
+    }
+    return cached != 0;
+}
+
+void
+ui_hover_debug_log(char const* fmt, ...)
+{
+    if( !ui_hover_debug_enabled() || !fmt )
+        return;
+
+    va_list args;
+    va_start(args, fmt);
+    fputs("ui_hover: ", stderr);
+    vfprintf(stderr, fmt, args);
+    fputc('\n', stderr);
+    va_end(args);
+}
+
+bool
 ui_minimenu_debug_enabled(void)
 {
     static int cached = -1;

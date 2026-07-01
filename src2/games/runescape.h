@@ -140,9 +140,13 @@ struct GameRunescape
     struct ToriAuxLibVM* vm;
     struct CS2VM* cs2vm;
     int32_t ui_hovered_node;
-    /** Client.ts overSideComId / lastOverComId: RS component id for hide
-     *  reveal and hover colours. -1 when nothing hovered. */
-    int ui_hovered_component_id;
+    /** Client.ts overMainComId / overSideComId / overChatComId (-1 = none). */
+    int ui_over_main_com_id;
+    int ui_over_side_com_id;
+    int ui_over_chat_com_id;
+    int ui_over_main_com_id_prev;
+    int ui_over_side_com_id_prev;
+    int ui_over_chat_com_id_prev;
     /** Per RS component id scroll position (Client.ts scrollPos / scrollX / scrollY). */
     int ui_scroll_x[8192];
     int ui_scroll_y[8192];

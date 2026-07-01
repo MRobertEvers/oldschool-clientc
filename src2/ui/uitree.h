@@ -28,6 +28,14 @@ struct UIInventoryPool
     int capacity;
 };
 
+/** Client.ts overMainComId / overSideComId / overChatComId. -1 = none in each region. */
+struct UITreeHoverIds
+{
+    int main_com_id;
+    int side_com_id;
+    int chat_com_id;
+};
+
 /**
  * "builtin" components are historically components that would've been hardcoded into the client.
  */

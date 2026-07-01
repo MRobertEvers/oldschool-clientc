@@ -19,7 +19,7 @@ uitree_host_init(struct UITreeHost* host)
 bool
 uitree_component_visible_host(
     struct StaticUIComponent const* component,
-    int hovered_component_id,
+    struct UITreeHoverIds const* hover_ids,
     struct UITreeHost const* host)
 {
     assert(component);
@@ -48,7 +48,7 @@ uitree_component_visible_host(
         return host && host->get_minimenu_visible && host->get_minimenu_visible(host->user);
     }
 
-    return uitree_component_visible_by_id(component, hovered_component_id);
+    return uitree_component_visible_by_hover_ids(component, hover_ids);
 }
 
 bool
@@ -58,12 +58,13 @@ uitree_component_hit_test_visible_host(
     struct UITreeHost const* host)
 {
     assert(component);
+    (void)host;
 
     if( component->type == UIELEM_BUILTIN_TAB_ICONS ||
         component->type == UIELEM_BUILTIN_REDSTONE_TAB )
         return true;
 
-    return uitree_component_visible_host(component, hovered_component_id, host);
+    return uitree_component_visible_by_id(component, hovered_component_id);
 }
 
 bool
@@ -95,7 +96,7 @@ uitree_component_text_source_host(
 int
 uitree_component_text_color_host(
     struct StaticUIComponent const* component,
-    int hovered_component_id,
+    struct UITreeHoverIds const* hover_ids,
     struct UITreeHost const* host,
     int base_color)
 {
@@ -103,8 +104,7 @@ uitree_component_text_color_host(
         return base_color;
 
     int color = base_color;
-    bool hovered =
-        component->component_id >= 0 && hovered_component_id == component->component_id;
+    bool hovered = uitree_component_hovered_by_ids(component->component_id, hover_ids);
     bool active = uitree_component_is_active_host(host, component);
 
     if( active )
@@ -142,7 +142,7 @@ uitree_component_is_clickable_host(
 int
 uitree_component_rect_color_host(
     struct StaticUIComponent const* component,
-    int hovered_component_id,
+    struct UITreeHoverIds const* hover_ids,
     struct UITreeHost const* host,
     int base_color)
 {
@@ -150,8 +150,7 @@ uitree_component_rect_color_host(
     assert(component);
 
     int color = base_color;
-    bool hovered =
-        component->component_id >= 0 && hovered_component_id == component->component_id;
+    bool hovered = uitree_component_hovered_by_ids(component->component_id, hover_ids);
     bool active = uitree_component_is_active_host(host, component);
 
     if( active )

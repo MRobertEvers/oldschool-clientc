@@ -165,6 +165,31 @@ toriauxlibcache_debug_log_dat2_convert(
         toriauxlibcache_core_ops_nonempty(dst->ops));
 }
 
+static void
+toriauxlibcache_debug_log_config_menu_actions(
+    char const* kind,
+    int id,
+    char const* name,
+    char const actions[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN])
+{
+    if( !ui_minimenu_debug_enabled() || !kind )
+        return;
+
+    if( !toriauxlibcache_core_ops_nonempty(actions) )
+        return;
+
+    ui_minimenu_debug_log(
+        "convert dat2 %s id=%d name='%s' actions=[%s%s%s%s%s]",
+        kind,
+        id,
+        name ? name : "",
+        actions[0],
+        actions[1],
+        actions[2],
+        actions[3],
+        actions[4]);
+}
+
 static struct ToriAuxLibCore_Texture*
 toriauxlibcache_texture_new_from_toridraw(const struct ToriDraw_Texture* src)
 {
@@ -537,6 +562,8 @@ ToriAuxLibCache_LocationNewFromCacheConfigLocation(const void* cache_loc_ptr)
         memcpy(dst->transforms, src->transforms, (size_t)src->transform_count * sizeof(int));
     }
 
+    toriauxlibcache_debug_log_config_menu_actions("loc", dst->id, dst->name, dst->actions);
+
     return dst;
 
 fail:
@@ -591,6 +618,7 @@ ToriAuxLibCache_NpctypeNewFromDat2ConfigNpctype(
     toriauxlibcache_copy_menu_actions(dst->actions, (char* const*)src->actions, 5);
     dst->combat_level = src->combat_level;
     dst->size = src->size > 0 ? src->size : 1;
+    toriauxlibcache_debug_log_config_menu_actions("npctype", dst->id, dst->name, dst->actions);
     return dst;
 }
 
@@ -639,6 +667,7 @@ ToriAuxLibCache_ObjtypeNewFromDat2ConfigObject(
     }
     toriauxlibcache_copy_menu_actions(dst->inv_actions, (char* const*)src->if_actions, 5);
     dst->stackable = src->stacking_behaviour != 0 ? 1 : 0;
+    toriauxlibcache_debug_log_config_menu_actions("objtype", dst->id, dst->name, dst->inv_actions);
     return dst;
 }
 

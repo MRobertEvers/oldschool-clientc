@@ -163,8 +163,9 @@ test_behavior_visibility_and_color(void)
         uitree_component_visible(&tree->components[hidden], hidden, 1), "hidden visible on hover id");
 
     struct UITreeBehaviorHost host = { 0 };
+    struct UITreeHoverIds hover = { .main_com_id = 2, .side_com_id = -1, .chat_com_id = -1 };
     int color = uitree_component_rect_color(
-        &tree->components[button], 2, &host, 0x222222);
+        &tree->components[button], &hover, &host, 0x222222);
     TEST_ASSERT(color == 0xAAAAAA, "hover color");
 
     int active_script[] = { 20, 1, 0 };
@@ -185,7 +186,7 @@ test_behavior_visibility_and_color(void)
 
     host.csvm = csvm_new();
     color = uitree_component_rect_color(
-        &tree->components[button], 2, &host, 0x222222);
+        &tree->components[button], &hover, &host, 0x222222);
     TEST_ASSERT(color == 0xCCCCCC, "active hover color");
 
     csvm_free(host.csvm);
@@ -282,9 +283,135 @@ test_overlayer_hover_id(void)
     TEST_ASSERT(
         !uitree_component_visible_by_id(&tree->components[tooltip], -1),
         "hidden tooltip invisible at rest");
+    {
+        struct UITreeHoverIds hover = { .main_com_id = 100, .side_com_id = -1, .chat_com_id = -1 };
+        TEST_ASSERT(
+            uitree_component_visible_by_hover_ids(&tree->components[tooltip], &hover),
+            "hidden tooltip visible when regional hover id matches");
+    }
+
+    uitree_free(tree);
+    return 0;
+}
+
+static int
+test_hover_visible_by_regional_ids(void)
+{
+    struct UITree* tree = uitree_new(2);
+    struct UINodeSpec hidden_spec = { 0 };
+    hidden_spec.type = UIELEM_RS_RECT;
+    hidden_spec.component_id = 42;
+    hidden_spec.width = 10;
+    hidden_spec.height = 10;
+    hidden_spec.u.rs_rect.filled = 1;
+    int32_t hidden = uitree_push(tree, -1, &hidden_spec);
+    tree->components[hidden].behavior.hide = 1;
+
+    struct UITreeHoverIds main_only = { .main_com_id = 42, .side_com_id = -1, .chat_com_id = -1 };
+    struct UITreeHoverIds side_only = { .main_com_id = -1, .side_com_id = 42, .chat_com_id = -1 };
+    struct UITreeHoverIds none = { -1, -1, -1 };
+
     TEST_ASSERT(
-        uitree_component_visible_by_id(&tree->components[tooltip], 100),
-        "hidden tooltip visible when hovered id matches");
+        uitree_component_visible_by_hover_ids(&tree->components[hidden], &main_only),
+        "hide reveal via main_com_id");
+    TEST_ASSERT(
+        uitree_component_visible_by_hover_ids(&tree->components[hidden], &side_only),
+        "hide reveal via side_com_id");
+    TEST_ASSERT(
+        !uitree_component_visible_by_hover_ids(&tree->components[hidden], &none),
+        "hidden when no regional id matches");
+    TEST_ASSERT(
+        uitree_component_hovered_by_ids(42, &side_only),
+        "hovered_by_ids matches side");
+
+    uitree_free(tree);
+    return 0;
+}
+
+static int
+test_hover_region_isolation(void)
+{
+    struct UITree* tree = uitree_new(4);
+    struct UINodeSpec main_spec = { 0 };
+    main_spec.type = UIELEM_RS_RECT;
+    main_spec.component_id = 10;
+    main_spec.x = 10;
+    main_spec.y = 10;
+    main_spec.width = 20;
+    main_spec.height = 20;
+    main_spec.u.rs_rect.filled = 1;
+    int32_t main_node = uitree_push(tree, -1, &main_spec);
+    tree->components[main_node].behavior.over_color = 0xFFFFFF;
+
+    struct UINodeSpec side_spec = { 0 };
+    side_spec.type = UIELEM_RS_RECT;
+    side_spec.component_id = 20;
+    side_spec.x = 560;
+    side_spec.y = 210;
+    side_spec.width = 20;
+    side_spec.height = 20;
+    side_spec.u.rs_rect.filled = 1;
+    int32_t side_node = uitree_push(tree, -1, &side_spec);
+    tree->components[side_node].behavior.over_color = 0xFFFFFF;
+
+    uitree_layout_resolve(tree, 0, 0, 765, 503);
+
+    int main_id = -1;
+    int side_id = -1;
+    uitree_find_hovered_component_id_for_region(
+        tree, NULL, NULL, 15, 15, 4, 4, 512, 334, -1, &main_id);
+    uitree_find_hovered_component_id_for_region(
+        tree, NULL, NULL, 15, 15, 553, 205, 190, 261, -1, &side_id);
+
+    TEST_ASSERT(main_id == 10, "main region hover id");
+    TEST_ASSERT(side_id == -1, "side region not hit from main-area point");
+
+    main_id = -1;
+    side_id = -1;
+    uitree_find_hovered_component_id_for_region(
+        tree, NULL, NULL, 565, 215, 553, 205, 190, 261, side_node, &side_id);
+    uitree_find_hovered_component_id_for_region(
+        tree, NULL, NULL, 565, 215, 4, 4, 512, 334, -1, &main_id);
+
+    TEST_ASSERT(side_id == 20, "side region hover id");
+    TEST_ASSERT(main_id == -1, "main region not hit from sidebar-area point");
+
+    uitree_free(tree);
+    return 0;
+}
+
+static int
+test_hover_parent_bounds_gate(void)
+{
+    struct UITree* tree = uitree_new(4);
+    struct UINodeSpec layer_spec = { 0 };
+    layer_spec.type = UIELEM_RS_LAYER;
+    layer_spec.component_id = 1;
+    layer_spec.x = 0;
+    layer_spec.y = 0;
+    layer_spec.width = 40;
+    layer_spec.height = 40;
+    int32_t layer = uitree_push(tree, -1, &layer_spec);
+
+    struct UINodeSpec child_spec = { 0 };
+    child_spec.type = UIELEM_RS_RECT;
+    child_spec.component_id = 2;
+    child_spec.x = 50;
+    child_spec.y = 50;
+    child_spec.width = 20;
+    child_spec.height = 20;
+    child_spec.u.rs_rect.filled = 1;
+    int32_t child = uitree_push(tree, layer, &child_spec);
+    tree->components[child].behavior.over_color = 0xFFFFFF;
+
+    uitree_layout_resolve(tree, 0, 0, 200, 200);
+
+    int hovered_id = -1;
+    uitree_find_hovered_component_id(tree, NULL, NULL, 60, 60, &hovered_id);
+    TEST_ASSERT(hovered_id == -1, "child outside parent layer bounds does not hover");
+
+    uitree_find_hovered_component_id(tree, NULL, NULL, 10, 10, &hovered_id);
+    TEST_ASSERT(hovered_id == -1, "mouse in parent but not on hover trigger");
 
     uitree_free(tree);
     return 0;
@@ -360,8 +487,9 @@ test_hover_color_without_scripts(void)
     struct UITreeHost host;
     uitree_host_init(&host);
 
+    struct UITreeHoverIds hover = { .main_com_id = 9, .side_com_id = -1, .chat_com_id = -1 };
     int color = uitree_component_rect_color_host(
-        &tree->components[node], 9, &host, tree->components[node].u.rs_rect.color);
+        &tree->components[node], &hover, &host, tree->components[node].u.rs_rect.color);
     TEST_ASSERT(color == 0xAAAAAA, "hover color without CS1 scripts");
 
     uitree_free(tree);
@@ -550,6 +678,9 @@ main(void)
     failures += test_behavior_visibility_and_color();
     failures += test_behavior_button_toggle();
     failures += test_overlayer_hover_id();
+    failures += test_hover_visible_by_regional_ids();
+    failures += test_hover_region_isolation();
+    failures += test_hover_parent_bounds_gate();
     failures += test_active_text_source();
     failures += test_hover_color_without_scripts();
     failures += test_scroll_offset_apply();

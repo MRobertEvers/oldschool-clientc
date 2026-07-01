@@ -5,9 +5,12 @@
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
+#include "ui_debug.h"
 #include "ui_scroll.h"
 #include "uitree_host.h"
 #include "uitree_layout.h"
+
+#include <stdio.h>
 
 bool
 uitree_component_is_clickable(struct StaticUIComponent const* component)
@@ -89,6 +92,31 @@ uitree_component_visible_by_id(
 }
 
 bool
+uitree_component_hovered_by_ids(
+    int component_id,
+    struct UITreeHoverIds const* hover_ids)
+{
+    if( component_id < 0 || !hover_ids )
+        return false;
+    return component_id == hover_ids->main_com_id || component_id == hover_ids->side_com_id ||
+           component_id == hover_ids->chat_com_id;
+}
+
+bool
+uitree_component_visible_by_hover_ids(
+    struct StaticUIComponent const* component,
+    struct UITreeHoverIds const* hover_ids)
+{
+    if( !component )
+        return false;
+    if( !component->behavior.hide )
+        return true;
+    if( component->component_id < 0 )
+        return true;
+    return uitree_component_hovered_by_ids(component->component_id, hover_ids);
+}
+
+bool
 uitree_component_visible(
     struct StaticUIComponent const* component,
     int32_t component_index,
@@ -96,6 +124,14 @@ uitree_component_visible(
 {
     (void)component_index;
     return uitree_component_visible_by_id(component, hovered_component_id);
+}
+
+static bool
+uitree_layer_blocks_hover_find(struct StaticUIComponent const* component)
+{
+    return component &&
+           (component->type == UIELEM_RS_LAYER || component->type == UIELEM_BUILTIN_SIDEBAR) &&
+           component->behavior.hide;
 }
 
 static void
@@ -118,23 +154,47 @@ uitree_find_hovered_component_id_recursive(
         return;
 
     struct StaticUIComponent const* component = &tree->components[node_index];
+
+    if( uitree_layer_blocks_hover_find(component) )
+        return;
+
     int bx = 0;
     int by = 0;
     int bw = 0;
     int bh = 0;
     uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
 
-    if( uitree_point_in_scrolled_bounds(
-            mouse_x, mouse_y, bx, by, bw, bh, scroll_off_x, scroll_off_y) )
+    bool const mouse_in_bounds = uitree_point_in_scrolled_bounds(
+        mouse_x, mouse_y, bx, by, bw, bh, scroll_off_x, scroll_off_y);
+
+    if( mouse_in_bounds )
     {
         if( component->component_id >= 0 &&
             (component->behavior.over_layer_id >= 0 || component->behavior.over_color != 0) )
         {
-            *out_hovered_component_id = component->behavior.over_layer_id >= 0
-                                            ? component->behavior.over_layer_id
-                                            : component->component_id;
+            int const hover_id = component->behavior.over_layer_id >= 0
+                                     ? component->behavior.over_layer_id
+                                     : component->component_id;
+            *out_hovered_component_id = hover_id;
+            if( component->behavior.over_layer_id >= 0 )
+            {
+                ui_hover_debug_log(
+                    "trigger rs_id=%d -> over_layer_id=%d",
+                    component->component_id,
+                    component->behavior.over_layer_id);
+            }
         }
     }
+
+    bool recurse_children = mouse_in_bounds;
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
+    {
+        if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+            recurse_children = false;
+    }
+
+    if( !recurse_children )
+        return;
 
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;
@@ -157,16 +217,6 @@ uitree_find_hovered_component_id_recursive(
         }
     }
 
-    bool recurse_children = true;
-    if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
-    {
-        if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
-            recurse_children = false;
-    }
-
-    if( !recurse_children )
-        return;
-
     for( int32_t child = component->first_child; child >= 0;
          child = tree->components[child].next_sibling )
     {
@@ -185,18 +235,40 @@ uitree_find_hovered_component_id_recursive(
 }
 
 void
-uitree_find_hovered_component_id(
+uitree_find_hovered_component_id_for_region(
     struct UITree const* tree,
     struct UITreeHost const* host,
     struct UITreeScrollState const* scroll,
     int mouse_x,
     int mouse_y,
+    int region_x,
+    int region_y,
+    int region_w,
+    int region_h,
+    int32_t start_index,
     int* out_hovered_component_id)
 {
     if( !tree || !out_hovered_component_id )
         return;
 
     *out_hovered_component_id = -1;
+
+    if( region_w <= 0 || region_h <= 0 )
+        return;
+
+    if( mouse_x < region_x || mouse_y < region_y || mouse_x >= region_x + region_w ||
+        mouse_y >= region_y + region_h )
+        return;
+
+    if( start_index >= 0 )
+    {
+        if( (uint32_t)start_index >= tree->component_count )
+            return;
+        uitree_find_hovered_component_id_recursive(
+            tree, host, scroll, start_index, mouse_x, mouse_y, 0, 0, NULL, out_hovered_component_id);
+        return;
+    }
+
     if( tree->root_index < 0 )
         return;
 
@@ -205,6 +277,29 @@ uitree_find_hovered_component_id(
         uitree_find_hovered_component_id_recursive(
             tree, host, scroll, root, mouse_x, mouse_y, 0, 0, NULL, out_hovered_component_id);
     }
+}
+
+void
+uitree_find_hovered_component_id(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
+    int mouse_x,
+    int mouse_y,
+    int* out_hovered_component_id)
+{
+    uitree_find_hovered_component_id_for_region(
+        tree,
+        host,
+        scroll,
+        mouse_x,
+        mouse_y,
+        0,
+        0,
+        UITREE_LAYOUT_ROOT_W,
+        UITREE_LAYOUT_ROOT_H,
+        -1,
+        out_hovered_component_id);
 }
 
 bool
@@ -316,7 +411,7 @@ uitree_behavior_run_hook(
 int
 uitree_component_rect_color(
     struct StaticUIComponent const* component,
-    int hovered_component_id,
+    struct UITreeHoverIds const* hover_ids,
     struct UITreeBehaviorHost const* host,
     int base_color)
 {
@@ -324,8 +419,7 @@ uitree_component_rect_color(
         return base_color;
 
     int color = base_color;
-    bool hovered =
-        component->component_id >= 0 && hovered_component_id == component->component_id;
+    bool hovered = uitree_component_hovered_by_ids(component->component_id, hover_ids);
     bool active = host && component->behavior.script_comparator &&
                   uitree_behavior_is_active(host, &component->behavior);
 

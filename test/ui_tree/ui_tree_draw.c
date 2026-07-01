@@ -64,7 +64,12 @@ emit_component(
         return;
 
     struct StaticUIComponent const* component = &tree->components[index];
-    if( !uitree_component_visible_host(component, ctx->hovered, ctx->host) )
+    struct UITreeHoverIds hover_ids = {
+        .main_com_id = ctx->hovered,
+        .side_com_id = -1,
+        .chat_com_id = -1,
+    };
+    if( !uitree_component_visible_host(component, &hover_ids, ctx->host) )
         return;
     if( !uitree_component_should_emit(component, ctx->host) )
         return;

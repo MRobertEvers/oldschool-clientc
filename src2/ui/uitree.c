@@ -76,6 +76,7 @@ push_element(
     component->first_child = -1;
     component->next_sibling = -1;
     component->component_id = -1;
+    component->behavior.over_layer_id = -1;
     component->is_dirty = 1;
 
     link_under_parent(tree, parent_index, idx);

@@ -8,6 +8,8 @@
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_scene.h"
 #include "toriauxlib/core/toriauxlibcore.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/td/toriauxlibtd.h"
 #include "ui/minimenu_pickset.h"
 #include "ui/ui_behavior.h"
 #include "ui/ui_debug.h"
@@ -371,6 +373,120 @@ ui_minimenu_sort_priority_actions(struct UIMinimenuState* menu)
 }
 
 static void
+ui_click_copy_resolved_actions(
+    char out[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN],
+    char const src[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN])
+{
+    for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
+    {
+        out[i][0] = '\0';
+        if( src[i][0] != '\0' )
+        {
+            strncpy(out[i], src[i], TORIAUXLIBCORE_MENU_ACTION_LEN - 1);
+            out[i][TORIAUXLIBCORE_MENU_ACTION_LEN - 1] = '\0';
+        }
+    }
+}
+
+static bool
+ui_click_resolved_actions_nonempty(
+    char const actions[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN])
+{
+    for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
+    {
+        if( actions[i][0] != '\0' )
+            return true;
+    }
+    return false;
+}
+
+static void
+ui_click_resolve_npc_actions(
+    struct GameRunescape* game,
+    struct WorldEntity_NPC* npc,
+    char out[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN])
+{
+    for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
+        out[i][0] = '\0';
+
+    if( !npc )
+        return;
+
+    if( game && npc->npc_id >= 0 )
+    {
+        struct ToriAuxLibCore* core = game->core;
+
+        if( game->td )
+        {
+            struct ToriAuxLibCache* cache = ToriAuxLibTD_C(game->td);
+            ToriAuxLibCache_EnsureNpctype(cache, npc->npc_id);
+            if( !core )
+                core = ToriAuxLibCache_Core(cache);
+        }
+
+        struct ToriAuxLibCore_Npctype* npctype =
+            core ? ToriAuxLibCore_NpctypeGet(core, npc->npc_id) : NULL;
+        if( npctype )
+        {
+            ui_click_copy_resolved_actions(out, npctype->actions);
+            if( ui_click_resolved_actions_nonempty(out) )
+                return;
+        }
+    }
+
+    for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
+    {
+        if( npc->actions[i].name[0] != '\0' )
+        {
+            strncpy(out[i], npc->actions[i].name, TORIAUXLIBCORE_MENU_ACTION_LEN - 1);
+            out[i][TORIAUXLIBCORE_MENU_ACTION_LEN - 1] = '\0';
+        }
+    }
+}
+
+static void
+ui_click_resolve_loc_actions(
+    struct GameRunescape* game,
+    int loc_id,
+    struct WorldEntity_Scenery* scenery,
+    char out[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN])
+{
+    for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
+        out[i][0] = '\0';
+
+    if( game && game->core && loc_id > 0 )
+    {
+        struct ToriAuxLibCore_Location* loc = ToriAuxLibCore_LocationGet(game->core, loc_id);
+        if( loc )
+        {
+            ui_click_copy_resolved_actions(out, loc->actions);
+            if( ui_click_resolved_actions_nonempty(out) )
+                return;
+        }
+    }
+
+    if( scenery )
+    {
+        for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
+        {
+            if( scenery->actions[i].name[0] != '\0' )
+            {
+                strncpy(out[i], scenery->actions[i].name, TORIAUXLIBCORE_MENU_ACTION_LEN - 1);
+                out[i][TORIAUXLIBCORE_MENU_ACTION_LEN - 1] = '\0';
+            }
+        }
+    }
+}
+
+static void
+ui_click_ensure_objtype(struct GameRunescape* game, int obj_id)
+{
+    if( !game || !game->td || obj_id <= 0 )
+        return;
+    ToriAuxLibCache_EnsureObjtype(ToriAuxLibTD_C(game->td), obj_id);
+}
+
+static void
 ui_click_add_npc_options(
     struct GameRunescape* game,
     struct MinimenuPick const* pick,
@@ -379,6 +495,7 @@ ui_click_add_npc_options(
     struct WorldEntity_NPC* npc;
     char text[UI_MINIMENU_OPTION_LEN];
     char tooltip[64];
+    char actions[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN];
     int player_level;
 
     if( !game || !pick || !menu )
@@ -387,6 +504,8 @@ ui_click_add_npc_options(
     npc = ui_click_npc_for_entity(game, pick->id);
     if( !npc )
         return;
+
+    ui_click_resolve_npc_actions(game, npc, actions);
 
     player_level = ui_click_player_combat_level(game);
     snprintf(tooltip, sizeof(tooltip), "%s", npc->name[0] ? npc->name : "NPC");
@@ -402,12 +521,12 @@ ui_click_add_npc_options(
 
     for( int i = 4; i >= 0; i-- )
     {
-        if( npc->actions[i].name[0] == '\0' )
+        if( actions[i][0] == '\0' )
             continue;
-        if( strcasecmp(npc->actions[i].name, "attack") == 0 )
+        if( strcasecmp(actions[i], "attack") == 0 )
             continue;
 
-        snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
+        snprintf(text, sizeof(text), "%s @yel@ %s", actions[i], tooltip);
         ui_minimenu_add_option_with_pick(
             menu,
             text,
@@ -422,13 +541,13 @@ ui_click_add_npc_options(
 
     for( int i = 4; i >= 0; i-- )
     {
-        if( npc->actions[i].name[0] == '\0' )
+        if( actions[i][0] == '\0' )
             continue;
-        if( strcasecmp(npc->actions[i].name, "attack") != 0 )
+        if( strcasecmp(actions[i], "attack") != 0 )
             continue;
 
         int const priority = player_level < npc->combat_level ? MINIMENU_ACTION_PRIORITY : 0;
-        snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
+        snprintf(text, sizeof(text), "%s @yel@ %s", actions[i], tooltip);
         ui_minimenu_add_option_with_pick(
             menu,
             text,
@@ -441,6 +560,18 @@ ui_click_add_npc_options(
             pick->tertiary_id,
             pick->quaternary_id);
     }
+
+    snprintf(text, sizeof(text), "Examine @yel@ %s", tooltip);
+    ui_minimenu_add_option_with_pick(
+        menu,
+        text,
+        MINIMENU_ACTION_OPNPC6,
+        0,
+        pick->kind,
+        pick->id,
+        pick->secondary_id,
+        pick->tertiary_id,
+        pick->quaternary_id);
 }
 
 static void
@@ -451,6 +582,7 @@ ui_click_add_scenery_options(
 {
     struct WorldEntity_Scenery* scenery;
     char text[UI_MINIMENU_OPTION_LEN];
+    char actions[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN];
 
     if( !game || !pick || !menu || !game->world )
         return;
@@ -459,16 +591,18 @@ ui_click_add_scenery_options(
     if( !scenery )
         return;
 
+    ui_click_resolve_loc_actions(game, pick->secondary_id, scenery, actions);
+
     for( int i = 4; i >= 0; i-- )
     {
-        if( scenery->actions[i].name[0] == '\0' )
+        if( actions[i][0] == '\0' )
             continue;
 
         snprintf(
             text,
             sizeof(text),
             "%s @cya@ %s",
-            scenery->actions[i].name,
+            actions[i],
             scenery->name[0] ? scenery->name : "Scenery");
         ui_minimenu_add_option_with_pick(
             menu,
@@ -635,6 +769,7 @@ ui_click_add_inv_slot_options(
     int const before = menu->option_count;
     struct StaticUIComponent const* component =
         &game->ui_tree->components[pick->quaternary_id];
+    ui_click_ensure_objtype(game, obj_id);
     struct ToriAuxLibCore_Objtype* obj =
         game->core ? ToriAuxLibCore_ObjtypeGet(game->core, obj_id) : NULL;
 
@@ -1321,6 +1456,27 @@ ui_click_build_minimenu_from_pickset(
         ui_click_add_pick_options(game, &picks->items[i], menu);
 
     ui_minimenu_sort_priority_actions(menu);
+
+    if( ui_minimenu_debug_enabled() && picks && picks->count > 0 )
+    {
+        bool viewport = false;
+        for( int i = 0; i < picks->count; i++ )
+        {
+            if( picks->items[i].kind == MINIMENU_PICK_NPC ||
+                picks->items[i].kind == MINIMENU_PICK_SCENERY ||
+                picks->items[i].kind == MINIMENU_PICK_TERRAIN )
+            {
+                viewport = true;
+                break;
+            }
+        }
+        if( viewport )
+        {
+            ui_minimenu_debug_log("viewport_minimenu option_count=%d", menu->option_count);
+            for( int i = 0; i < menu->option_count; i++ )
+                ui_minimenu_debug_log("  [%d]='%s'", i, menu->options[i].text);
+        }
+    }
 }
 
 void

@@ -20,6 +20,7 @@ SRCS = main.c \
 	$(SRC2_DIR)/ui/uitree_host.c \
 	$(SRC2_DIR)/ui/ui_input.c \
 	$(SRC2_DIR)/ui/ui_behavior.c \
+	$(SRC2_DIR)/ui/ui_debug.c \
 	$(SRC2_DIR)/ui/ui_scroll.c \
 	$(SRC2_DIR)/vm/csvm.c \
 	$(SRC2_DIR)/vm/cs2vm.c \
