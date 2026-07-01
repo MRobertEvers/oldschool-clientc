@@ -1,0 +1,84 @@
+Interface 387  files=31  root=765x503
+summary: inv_children=0  inv_slots_with_graphicId=0  unsupported_type1=0
+type_counts(if1_raw): layer=21 unused=0 inv=0 rect=0 text=0 graphic=10 model=0 inv_text=0 line=0
+
+[00] id=0x01830000  if3  parent=-1  type=layer(0)  x=0 y=0 w=190 h=261  hidden=0  button=0  clientCode=0  clickMask=0x00000000
+      scroll=0x0  noClickThrough=0
+[01] id=0x01830001  if3  parent=00  type=layer(0)  x=7 y=208 w=40 h=40  hidden=0  button=0  clientCode=0  clickMask=0x00000002
+      scroll=0x0  noClickThrough=0
+      ops: [0]='View equipment stats'
+[02] id=0x01830002  if3  parent=-1  type=graphic(5)  x=10 y=210 w=32 h=32  hidden=0  button=0  clientCode=0  clickMask=0x00000000
+      graphic=675  activeGraphic=-1  textureId=0  tiled=0  transparency=0
+[03] id=0x01830003  if3  parent=00  type=layer(0)  x=52 y=208 w=40 h=40  hidden=0  button=0  clientCode=0  clickMask=0x00000002
+      scroll=0x0  noClickThrough=0
+      ops: [0]='View guide prices'
+[04] id=0x01830004  if3  parent=-1  type=graphic(5)  x=56 y=212 w=32 h=32  hidden=0  button=0  clientCode=0  clickMask=0x00000000
+      graphic=1090  activeGraphic=-1  textureId=0  tiled=0  transparency=0
+[05] id=0x01830005  if3  parent=00  type=layer(0)  x=97 y=208 w=40 h=40  hidden=0  button=0  clientCode=0  clickMask=0x00000002
+      scroll=0x0  noClickThrough=0
+      ops: [0]='View items kept on death'
+[06] id=0x01830006  if3  parent=-1  type=graphic(5)  x=99 y=211 w=34 h=34  hidden=0  button=0  clientCode=0  clickMask=0x00000000
+      graphic=912  activeGraphic=-1  textureId=0  tiled=0  transparency=0
+[07] id=0x01830007  if3  parent=00  type=layer(0)  x=142 y=208 w=40 h=40  hidden=0  button=0  clientCode=0  clickMask=0x00000002
+      scroll=0x0  noClickThrough=0
+      ops: [0]='Call follower'
+[08] id=0x01830008  if3  parent=-1  type=graphic(5)  x=145 y=211 w=32 h=32  hidden=0  button=0  clientCode=0  clickMask=0x00000000
+      graphic=1343  activeGraphic=-1  textureId=0  tiled=0  transparency=0
+[09] id=0x01830009  if3  parent=00  type=graphic(5)  x=77 y=39 w=36 h=124  hidden=0  button=0  clientCode=0  clickMask=0x00000000
+      graphic=172  activeGraphic=-1  textureId=0  tiled=1  transparency=0
+[10] id=0x0183000a  if3  parent=00  type=graphic(5)  x=21 y=118 w=36 h=45  hidden=0  button=0  clientCode=0  clickMask=0x00000000
+      graphic=172  activeGraphic=-1  textureId=0  tiled=1  transparency=0
+[11] id=0x0183000b  if3  parent=00  type=graphic(5)  x=133 y=118 w=36 h=45  hidden=0  button=0  clientCode=0  clickMask=0x00000000
+      graphic=172  activeGraphic=-1  textureId=0  tiled=1  transparency=0
+[12] id=0x0183000c  if3  parent=00  type=graphic(5)  x=56 y=81 w=78 h=36  hidden=0  button=0  clientCode=0  clickMask=0x00000000
+      graphic=173  activeGraphic=-1  textureId=0  tiled=1  transparency=0
+[13] id=0x0183000d  if3  parent=00  type=graphic(5)  x=71 y=42 w=48 h=36  hidden=0  button=0  clientCode=0  clickMask=0x00000000
+      graphic=173  activeGraphic=-1  textureId=0  tiled=1  transparency=0
+[14] id=0x0183000e  if3  parent=00  type=graphic(5)  x=118 y=19 w=36 h=45  hidden=1  button=0  clientCode=0  clickMask=0x00000000
+      graphic=172  activeGraphic=-1  textureId=0  tiled=1  transparency=0
+[15] id=0x0183000f  if3  parent=00  type=layer(0)  x=77 y=4 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x002007fe
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*' [1]='*' [2]='*' [3]='*' [4]='*' [5]='*' [6]='*' [7]='*' [8]='*' [9]='*'
+[16] id=0x01830010  if3  parent=00  type=layer(0)  x=36 y=43 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x002007fe
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*' [1]='*' [2]='*' [3]='*' [4]='*' [5]='*' [6]='*' [7]='*' [8]='*' [9]='*'
+[17] id=0x01830011  if3  parent=00  type=layer(0)  x=77 y=43 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x002007fe
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*' [1]='*' [2]='*' [3]='*' [4]='*' [5]='*' [6]='*' [7]='*' [8]='*' [9]='*'
+[18] id=0x01830012  if3  parent=00  type=layer(0)  x=21 y=82 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x002007fe
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*' [1]='*' [2]='*' [3]='*' [4]='*' [5]='*' [6]='*' [7]='*' [8]='*' [9]='*'
+[19] id=0x01830013  if3  parent=00  type=layer(0)  x=77 y=82 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x002007fe
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*' [1]='*' [2]='*' [3]='*' [4]='*' [5]='*' [6]='*' [7]='*' [8]='*' [9]='*'
+[20] id=0x01830014  if3  parent=00  type=layer(0)  x=133 y=82 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x002007fe
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*' [1]='*' [2]='*' [3]='*' [4]='*' [5]='*' [6]='*' [7]='*' [8]='*' [9]='*'
+[21] id=0x01830015  if3  parent=00  type=layer(0)  x=77 y=122 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x002007fe
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*' [1]='*' [2]='*' [3]='*' [4]='*' [5]='*' [6]='*' [7]='*' [8]='*' [9]='*'
+[22] id=0x01830016  if3  parent=00  type=layer(0)  x=21 y=162 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x002007fe
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*' [1]='*' [2]='*' [3]='*' [4]='*' [5]='*' [6]='*' [7]='*' [8]='*' [9]='*'
+[23] id=0x01830017  if3  parent=00  type=layer(0)  x=77 y=162 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x002007fe
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*' [1]='*' [2]='*' [3]='*' [4]='*' [5]='*' [6]='*' [7]='*' [8]='*' [9]='*'
+[24] id=0x01830018  if3  parent=00  type=layer(0)  x=133 y=162 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x002007fe
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*' [1]='*' [2]='*' [3]='*' [4]='*' [5]='*' [6]='*' [7]='*' [8]='*' [9]='*'
+[25] id=0x01830019  if3  parent=00  type=layer(0)  x=118 y=43 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x002007fe
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*' [1]='*' [2]='*' [3]='*' [4]='*' [5]='*' [6]='*' [7]='*' [8]='*' [9]='*'
+[26] id=0x0183001a  if3  parent=00  type=layer(0)  x=118 y=4 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x00000000
+      scroll=0x0  noClickThrough=0
+[27] id=0x0183001b  if3  parent=26  type=layer(0)  x=118 y=4 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x00000000
+      scroll=0x0  noClickThrough=0
+[28] id=0x0183001c  if3  parent=26  type=layer(0)  x=118 y=4 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x00000406
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*' [1]='*' [9]='*'
+[29] id=0x0183001d  if3  parent=00  type=layer(0)  x=18 y=4 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x00000002
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*'
+[30] id=0x0183001e  if3  parent=00  type=layer(0)  x=118 y=4 w=36 h=36  hidden=0  button=0  clientCode=0  clickMask=0x00200002
+      scroll=0x0  noClickThrough=0
+      ops: [0]='*'

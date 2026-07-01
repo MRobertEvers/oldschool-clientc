@@ -1,6 +1,7 @@
 #ifndef DUMP_INTERFACE_COMMON_H
 #define DUMP_INTERFACE_COMMON_H
 
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 
@@ -9,6 +10,12 @@ enum
     DUMP_IFACE_FIXED_ROOT_W = 765,
     DUMP_IFACE_FIXED_ROOT_H = 503,
     DUMP_IFACE_INV_SLOT_MAX = 20
+};
+
+enum DumpIfaceCacheMode
+{
+    DUMP_IFACE_CACHE_DAT1 = 0,
+    DUMP_IFACE_CACHE_DAT2 = 1
 };
 
 struct DumpIfaceLoaded
@@ -20,6 +27,10 @@ struct DumpIfaceLoaded
     int* lay_w;
     int* lay_h;
     int count;
+    enum DumpIfaceCacheMode cache_mode;
+    /** Dat1 only: parallel source widgets (for inv slot sprite names). */
+    struct RSCacheDat1A_ConfigComponent** dat1_src;
+    struct RSCacheDat1A_ConfigComponentList* dat1_list;
 };
 
 char const*
@@ -54,9 +65,20 @@ dump_iface_resolve_layout(
     int* out_h);
 
 int
-dump_iface_load(
+dump_iface_detect_cache_mode(char const* cache_dir);
+
+int
+dump_iface_load_dat2(
     struct RSCacheDat2Disk* cache,
     int iface_id,
+    int root_w,
+    int root_h,
+    struct DumpIfaceLoaded* out);
+
+int
+dump_iface_load_dat1(
+    char const* cache_dir,
+    int componentno,
     int root_w,
     int root_h,
     struct DumpIfaceLoaded* out);

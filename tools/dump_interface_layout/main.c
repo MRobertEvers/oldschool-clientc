@@ -157,7 +157,7 @@ main(
     }
 
     struct DumpIfaceLoaded li;
-    if( dump_iface_load(cache, iface, root_w, root_h, &li) != 0 )
+    if( dump_iface_load_dat2(cache, iface, root_w, root_h, &li) != 0 )
     {
         fprintf(stderr, "failed to load interface %d\n", iface);
         RSCacheDat2Disk_Free(cache);

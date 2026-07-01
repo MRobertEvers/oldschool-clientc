@@ -10,33 +10,6 @@
 #define TASK_DAT2_ANIM_RESOLVE_MAX_SEQS 16
 #define TASK_DAT2_ANIM_MAX_PENDING_FRAMEMAPS 32
 
-enum Task_Dat2AnimResolve_Phase
-{
-    TASK_DAT2_ANIM_PHASE_SKELETAL = 0,
-    TASK_DAT2_ANIM_PHASE_FRAMES_REF_TABLES = 1,
-    TASK_DAT2_ANIM_PHASE_FRAMES_LOAD = 2,
-    TASK_DAT2_ANIM_PHASE_DONE = 3,
-};
-
-enum Task_Dat2AnimResolve_LoadStep
-{
-    TASK_DAT2_ANIM_LOAD_IDLE = 0,
-    TASK_DAT2_ANIM_LOAD_FETCH_IDX0 = 1,
-    TASK_DAT2_ANIM_LOAD_FETCH_IDX0_DECODE = 2,
-    TASK_DAT2_ANIM_LOAD_FETCH_FRAMEMAP = 3,
-    TASK_DAT2_ANIM_LOAD_DECODE = 4,
-};
-
-enum Task_Dat2AnimResolve_SkeletalStep
-{
-    TASK_DAT2_ANIM_SKELETAL_IDLE = 0,
-    TASK_DAT2_ANIM_SKELETAL_ENSURE_ANIMAYAS = 1,
-    TASK_DAT2_ANIM_SKELETAL_FETCH_ANIMAYA = 2,
-    TASK_DAT2_ANIM_SKELETAL_DECODE_ANIMAYA = 3,
-    TASK_DAT2_ANIM_SKELETAL_FETCH_SKELBASE = 4,
-    TASK_DAT2_ANIM_SKELETAL_DECODE_SKELBASE = 5,
-};
-
 struct Task_Dat2AnimResolve
 {
     struct pt thread;
@@ -47,19 +20,15 @@ struct Task_Dat2AnimResolve
     int seq_count;
     int seq_index;
     int archive_index;
-    int phase;
-    int load_step;
-    int current_aid;
     int pending_framemap_ids[TASK_DAT2_ANIM_MAX_PENDING_FRAMEMAPS];
     int pending_framemap_count;
     int pending_framemap_index;
-    int pending_framemap_fetch_id;
     struct RSCacheDat2Disk_Archive* held_idx0;
-    int skeletal_step;
     int skeletal_maya_id;
     int skeletal_seq_id;
     int skeletal_animaya_aid;
     int skeletal_base_id;
+    int current_aid;
 };
 
 void

@@ -232,6 +232,11 @@ if(NOT EMSCRIPTEN)
     target_include_directories(dump_map_locs PRIVATE src)
     set_target_properties(dump_map_locs PROPERTIES C_STANDARD 11)
 
+    add_executable(dump_graphic tools/dump_graphic/main.c src/bmp.c)
+    target_link_libraries(dump_graphic rscache)
+    target_include_directories(dump_graphic PRIVATE src)
+    set_target_properties(dump_graphic PROPERTIES C_STANDARD 11)
+
     add_executable(dump_loc_shapes tools/dump_loc_shapes/main.c)
     target_link_libraries(dump_loc_shapes rscache)
     target_include_directories(dump_loc_shapes PRIVATE src)

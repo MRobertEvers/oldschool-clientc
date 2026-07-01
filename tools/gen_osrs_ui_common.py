@@ -182,6 +182,9 @@ def emit_components(component_header: str = DEFAULT_COMPONENT_HEADER) -> str:
         "anchor_x=105", "anchor_y=101", "",
         "[component:compass]", "type=compass", "sprite=compass", "w=34", "h=34",
         "anchor_x=16", "anchor_y=16", "",
+        "[component:cross]", "type=cross", "sprite=cross", "w=32", "h=32",
+        "anchor_x=12", "anchor_y=12", "",
+        "[component:minimenu]", "type=minimenu", "font=b12", "w=200", "h=200", "",
         "[component:chat_region]", "type=chat", f"componentno={CHAT_BUTTONS_ROOT}",
         f"w={CHAT_ROOT[0]}", f"h={CHAT_ROOT[1]}", "",
     ]
@@ -337,6 +340,8 @@ def emit_layout_group(
             lines += layout_from_child("", f"sidebar_tab_{i}", sb, shell)
     lines += layout_entry(
         "chat_region", "chat_region", 0, 0, shell, w=CHAT_ROOT[0], h=CHAT_ROOT[1])
+    lines += layout_entry("cross_widget", "cross", 0, 0, shell, dirty=True)
+    lines += layout_entry("minimenu_widget", "minimenu", 0, 0, shell, dirty=True)
     return "\n".join(lines) + "\n"
 
 

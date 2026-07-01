@@ -1,15 +1,17 @@
 /*
- * Human-readable dump of dat2 interface archive widgets.
+ * Human-readable dump of dat1/dat2 interface widgets.
  *
  * Usage:
  *   dump_interface <cache_dir> --iface 387
+ *   dump_interface <cache_dir> --componentno 1644 --dat1
  *   dump_interface <cache_dir> --iface 387 --child 0
  *   dump_interface <cache_dir> --iface 387 --json [--out file.json]
+ *
+ * Cache format is auto-detected (main_file_cache.dat vs .dat2) unless --dat1/--dat2 is set.
+ * Dat2 caches use --iface (archive id). Dat1 caches use --componentno (or --iface alias).
  */
 
 #include "../dump_interface_common.h"
-
-#include "osrs/rscache/dat1a/dat1a_config_component.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,11 +41,36 @@ json_escape(
 
 static void
 print_inv_slots(
-    Component const* c,
+    struct DumpIfaceLoaded const* li,
+    int i,
     FILE* fp,
     char const* indent)
 {
-    if( !c || c->type != COMPONENT_TYPE_INV || !c->invSlotGraphicId )
+    Component const* c = &li->comps[i];
+    if( !c || c->type != COMPONENT_TYPE_INV )
+        return;
+
+    if( li->cache_mode == DUMP_IFACE_CACHE_DAT1 && li->dat1_src && li->dat1_src[i] )
+    {
+        struct RSCacheDat1A_ConfigComponent const* src = li->dat1_src[i];
+        for( int si = 0; si < DUMP_IFACE_INV_SLOT_MAX; si++ )
+        {
+            char const* gfx = src->invSlotGraphic ? src->invSlotGraphic[si] : NULL;
+            if( !gfx || gfx[0] == '\0' )
+                continue;
+            fprintf(
+                fp,
+                "%sslot[%2d]  off=(%d,%d)  sprite='%s'\n",
+                indent,
+                si,
+                src->invSlotOffsetX ? src->invSlotOffsetX[si] : 0,
+                src->invSlotOffsetY ? src->invSlotOffsetY[si] : 0,
+                gfx);
+        }
+        return;
+    }
+
+    if( !c->invSlotGraphicId )
         return;
 
     for( int si = 0; si < DUMP_IFACE_INV_SLOT_MAX; si++ )
@@ -142,7 +169,7 @@ print_component_details(
             c->baseHeight,
             c->marginX,
             c->marginY);
-        print_inv_slots(c, fp, "      ");
+        print_inv_slots(li, i, fp, "      ");
     }
     else if( c->type == COMPONENT_TYPE_INV_TEXT )
     {
@@ -157,14 +184,26 @@ print_component_details(
     }
     else if( c->type == COMPONENT_TYPE_GRAPHIC || (c->if3 && c->type == 5) )
     {
-        fprintf(
-            fp,
-            "      graphic=%d  activeGraphic=%d  textureId=%d  tiled=%d  transparency=%d\n",
-            c->graphic,
-            c->activeGraphic,
-            c->textureId,
-            c->tiled ? 1 : 0,
-            c->transparency);
+        if( c->name && c->name[0] != '\0' )
+        {
+            fprintf(
+                fp,
+                "      sprite='%s'  tiled=%d  transparency=%d\n",
+                c->name,
+                c->tiled ? 1 : 0,
+                c->transparency);
+        }
+        else
+        {
+            fprintf(
+                fp,
+                "      graphic=%d  activeGraphic=%d  textureId=%d  tiled=%d  transparency=%d\n",
+                c->graphic,
+                c->activeGraphic,
+                c->textureId,
+                c->tiled ? 1 : 0,
+                c->transparency);
+        }
     }
     else if( c->type == COMPONENT_TYPE_TEXT || (c->if3 && c->type == 4) )
     {
@@ -264,7 +303,8 @@ print_summary(
 
     fprintf(
         fp,
-        "Interface %d  files=%d  root=%dx%d\n",
+        "%s %d  files=%d  root=%dx%d\n",
+        li->cache_mode == DUMP_IFACE_CACHE_DAT1 ? "Component" : "Interface",
         iface_id,
         li->count,
         root_w,
@@ -337,7 +377,28 @@ print_json_child(
         fprintf(fp, "      \"margin_x\": %d, \"margin_y\": %d,\n", c->marginX, c->marginY);
         fprintf(fp, "      \"inv_slots\": [");
         int first_slot = 1;
-        if( c->invSlotGraphicId )
+        if( li->cache_mode == DUMP_IFACE_CACHE_DAT1 && li->dat1_src && li->dat1_src[i] )
+        {
+            struct RSCacheDat1A_ConfigComponent const* src = li->dat1_src[i];
+            for( int si = 0; si < DUMP_IFACE_INV_SLOT_MAX; si++ )
+            {
+                char const* gfx = src->invSlotGraphic ? src->invSlotGraphic[si] : NULL;
+                if( !gfx || gfx[0] == '\0' )
+                    continue;
+                if( !first_slot )
+                    fprintf(fp, ",");
+                first_slot = 0;
+                fprintf(
+                    fp,
+                    "\n        {\"slot\": %d, \"offset_x\": %d, \"offset_y\": %d, \"sprite\": \"",
+                    si,
+                    src->invSlotOffsetX ? src->invSlotOffsetX[si] : 0,
+                    src->invSlotOffsetY ? src->invSlotOffsetY[si] : 0);
+                json_escape(fp, gfx);
+                fprintf(fp, "\"}");
+            }
+        }
+        else if( c->invSlotGraphicId )
         {
             for( int si = 0; si < DUMP_IFACE_INV_SLOT_MAX; si++ )
             {
@@ -408,7 +469,8 @@ usage(void)
 {
     fprintf(
         stderr,
-        "usage: dump_interface <cache_dir> --iface N [--child N | --json]\n"
+        "usage: dump_interface <cache_dir> [--dat1 | --dat2]\n"
+        "       (--iface N | --componentno N) [--child N | --json]\n"
         "       [--root-w W] [--root-h H] [--out path]\n");
 }
 
@@ -419,20 +481,28 @@ main(
 {
     const char* cache_dir = NULL;
     int iface = 387;
+    int componentno = -1;
     int child_id = -1;
     int json_mode = 0;
     int root_w = DUMP_IFACE_FIXED_ROOT_W;
     int root_h = DUMP_IFACE_FIXED_ROOT_H;
     const char* out_path = NULL;
+    int cache_mode = -1;
 
     for( int i = 1; i < argc; i++ )
     {
         if( strcmp(argv[i], "--iface") == 0 && i + 1 < argc )
             iface = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--componentno") == 0 && i + 1 < argc )
+            componentno = atoi(argv[++i]);
         else if( strcmp(argv[i], "--child") == 0 && i + 1 < argc )
             child_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--json") == 0 )
             json_mode = 1;
+        else if( strcmp(argv[i], "--dat1") == 0 )
+            cache_mode = DUMP_IFACE_CACHE_DAT1;
+        else if( strcmp(argv[i], "--dat2") == 0 )
+            cache_mode = DUMP_IFACE_CACHE_DAT2;
         else if( strcmp(argv[i], "--root-w") == 0 && i + 1 < argc )
             root_w = atoi(argv[++i]);
         else if( strcmp(argv[i], "--root-h") == 0 && i + 1 < argc )
@@ -449,25 +519,46 @@ main(
         return 1;
     }
 
-    if( iface == 161 || iface == 164 )
+    if( cache_mode < 0 )
+        cache_mode = dump_iface_detect_cache_mode(cache_dir);
+    if( cache_mode < 0 )
+    {
+        fprintf(stderr, "failed to detect cache format in: %s\n", cache_dir);
+        return 1;
+    }
+
+    int root_id = componentno >= 0 ? componentno : iface;
+    if( iface == 161 || iface == 164 || root_id == 161 || root_id == 164 )
     {
         root_w = 800;
         root_h = 600;
     }
 
-    struct RSCacheDat2Disk* cache = RSCacheDat2Disk_NewFromDirectory(cache_dir);
-    if( !cache )
-    {
-        fprintf(stderr, "failed to open cache: %s\n", cache_dir);
-        return 1;
-    }
-
     struct DumpIfaceLoaded li;
-    if( dump_iface_load(cache, iface, root_w, root_h, &li) != 0 )
+    if( cache_mode == DUMP_IFACE_CACHE_DAT1 )
     {
-        fprintf(stderr, "failed to load interface %d\n", iface);
+        if( dump_iface_load_dat1(cache_dir, root_id, root_w, root_h, &li) != 0 )
+        {
+            fprintf(stderr, "failed to load dat1 component %d\n", root_id);
+            return 1;
+        }
+    }
+    else
+    {
+        struct RSCacheDat2Disk* cache = RSCacheDat2Disk_NewFromDirectory(cache_dir);
+        if( !cache )
+        {
+            fprintf(stderr, "failed to open dat2 cache: %s\n", cache_dir);
+            return 1;
+        }
+
+        if( dump_iface_load_dat2(cache, root_id, root_w, root_h, &li) != 0 )
+        {
+            fprintf(stderr, "failed to load dat2 interface %d\n", root_id);
+            RSCacheDat2Disk_Free(cache);
+            return 1;
+        }
         RSCacheDat2Disk_Free(cache);
-        return 1;
     }
 
     FILE* fp = stdout;
@@ -478,13 +569,12 @@ main(
         {
             fprintf(stderr, "failed to open %s\n", out_path);
             dump_iface_free(&li);
-            RSCacheDat2Disk_Free(cache);
             return 1;
         }
     }
 
     if( json_mode )
-        print_json(&li, iface, root_w, root_h, fp);
+        print_json(&li, root_id, root_w, root_h, fp);
     else if( child_id >= 0 )
     {
         if( child_id >= li.count )
@@ -493,12 +583,11 @@ main(
             print_component_details(&li, child_id, fp);
     }
     else
-        print_all(&li, iface, root_w, root_h, fp);
+        print_all(&li, root_id, root_w, root_h, fp);
 
     if( fp != stdout )
         fclose(fp);
 
     dump_iface_free(&li);
-    RSCacheDat2Disk_Free(cache);
     return 0;
 }
