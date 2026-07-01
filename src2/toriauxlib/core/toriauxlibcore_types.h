@@ -353,6 +353,8 @@ struct ToriAuxLibCore_Component
     int* script_operand;
     /** GRAPHIC with no sprite refs: draw nothing, keep layout hitbox. */
     uint8_t graphic_hitbox_only;
+    char option[TORIAUXLIBCORE_MENU_ACTION_LEN];
+    char ops[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN];
 };
 
 void

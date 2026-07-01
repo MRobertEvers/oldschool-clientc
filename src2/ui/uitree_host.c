@@ -51,6 +51,23 @@ uitree_component_visible_host(
 }
 
 bool
+uitree_component_hit_test_visible_host(
+    struct StaticUIComponent const* component,
+    int32_t component_index,
+    int32_t hovered_component,
+    struct UITreeHost const* host)
+{
+    assert(component);
+
+    if( component->type == UIELEM_BUILTIN_TAB_ICONS ||
+        component->type == UIELEM_BUILTIN_REDSTONE_TAB )
+        return true;
+
+    return uitree_component_visible_host(
+        component, component_index, hovered_component, host);
+}
+
+bool
 uitree_component_is_clickable_host(
     struct StaticUIComponent const* component,
     struct UITreeHost const* host)
@@ -89,6 +106,21 @@ uitree_component_rect_color_host(
         component, component_index, hovered_component, NULL, base_color);
 }
 
+static int
+uitree_sidebar_componentno_for_tab(struct UITree const* tree, int tabno)
+{
+    if( !tree )
+        return -1;
+
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* c = &tree->components[i];
+        if( c->type == UIELEM_BUILTIN_SIDEBAR && c->u.sidebar.tabno == tabno )
+            return c->u.sidebar.componentno;
+    }
+    return -1;
+}
+
 void
 uitree_behavior_handle_click_host(
     struct UITreeHost* host,
@@ -106,11 +138,19 @@ uitree_behavior_handle_click_host(
     {
     case UIELEM_BUILTIN_TAB_ICONS:
         if( host->set_selected_tab )
-            host->set_selected_tab(host->user, component->u.tab_icon.tabno);
+        {
+            int tabno = component->u.tab_icon.tabno;
+            if( uitree_sidebar_componentno_for_tab(tree, tabno) >= 0 )
+                host->set_selected_tab(host->user, tabno);
+        }
         return;
     case UIELEM_BUILTIN_REDSTONE_TAB:
         if( host->set_selected_tab )
-            host->set_selected_tab(host->user, component->u.redstone_tab.tabno);
+        {
+            int tabno = component->u.redstone_tab.tabno;
+            if( uitree_sidebar_componentno_for_tab(tree, tabno) >= 0 )
+                host->set_selected_tab(host->user, tabno);
+        }
         return;
     default:
         break;

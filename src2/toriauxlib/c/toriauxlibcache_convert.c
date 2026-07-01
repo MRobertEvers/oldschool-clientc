@@ -791,6 +791,9 @@ ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
         strncpy(dst->sprite_active_ref, src->activeGraphic, sizeof(dst->sprite_active_ref) - 1);
     if( src->text )
         strncpy(dst->text, src->text, sizeof(dst->text) - 1);
+    if( src->option )
+        strncpy(dst->option, src->option, sizeof(dst->option) - 1);
+    toriauxlibcache_copy_menu_actions(dst->ops, src->iop, 5);
 
     toriauxlibcache_component_apply_graphic_hitbox_only(dst);
 
@@ -844,6 +847,12 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
 
     if( src->text )
         strncpy(dst->text, src->text, sizeof(dst->text) - 1);
+    if( src->option )
+        strncpy(dst->option, src->option, sizeof(dst->option) - 1);
+    if( src->type == COMPONENT_TYPE_INV && src->objOps )
+        toriauxlibcache_copy_menu_actions(dst->ops, src->objOps, 5);
+    else
+        toriauxlibcache_copy_menu_actions(dst->ops, src->ops, src->opsLen);
 
     toriauxlibcache_component_apply_graphic_hitbox_only(dst);
 

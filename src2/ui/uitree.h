@@ -100,6 +100,15 @@ struct StaticUIBehavior
     int active_over_color;
 };
 
+#define UITREE_MENU_OPTION_SLOTS 5
+#define UITREE_MENU_OPTION_LEN 32
+
+struct StaticUIMenuOptions
+{
+    char option[UITREE_MENU_OPTION_LEN];
+    char ops[UITREE_MENU_OPTION_SLOTS][UITREE_MENU_OPTION_LEN];
+};
+
 struct StaticUIComponent
 {
     enum StaticUIComponentType type;
@@ -114,6 +123,7 @@ struct StaticUIComponent
 
     struct StaticUIBehavior behavior;
     struct StaticUIElemPosition position;
+    struct StaticUIMenuOptions menu_options;
     union
     {
         struct
@@ -330,6 +340,7 @@ struct UINodeSpec
             int horizontal;
         } rs_line;
     } u;
+    struct StaticUIMenuOptions menu_options;
 };
 
 char const*

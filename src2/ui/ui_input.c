@@ -1,4 +1,5 @@
 #include "ui_input.h"
+
 #include "uitree_host.h"
 #include "uitree_layout.h"
 
@@ -40,6 +41,18 @@ uitree_component_is_pass_through(
         return !host || !host->get_cross_active || !host->get_cross_active(host->user);
     case UIELEM_BUILTIN_MINIMENU:
         return !host || !host->get_minimenu_visible || !host->get_minimenu_visible(host->user);
+    case UIELEM_RS_GRAPHIC:
+    case UIELEM_RS_TEXT:
+        if( component->behavior.button_type != 0 || component->behavior.client_code != 0 )
+            return false;
+        if( component->menu_options.option[0] != '\0' )
+            return false;
+        for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+        {
+            if( component->menu_options.ops[i][0] != '\0' )
+                return false;
+        }
+        return true;
     default:
         return false;
     }
@@ -61,15 +74,25 @@ uitree_hit_test_interactive_recursive(
     int32_t hit = -1;
     if( uitree_point_in_component(&component->position, px, py) &&
         !uitree_component_is_pass_through(component, host) &&
-        uitree_component_visible_host(component, node_index, -1, host) )
+        uitree_component_hit_test_visible_host(component, node_index, -1, host) )
         hit = node_index;
 
-    for( int32_t child = component->first_child; child >= 0;
-         child = tree->components[child].next_sibling )
+    bool recurse_children = true;
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
     {
-        int32_t child_hit = uitree_hit_test_interactive_recursive(tree, host, child, px, py);
-        if( child_hit >= 0 )
-            hit = child_hit;
+        if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+            recurse_children = false;
+    }
+
+    if( recurse_children )
+    {
+        for( int32_t child = component->first_child; child >= 0;
+             child = tree->components[child].next_sibling )
+        {
+            int32_t child_hit = uitree_hit_test_interactive_recursive(tree, host, child, px, py);
+            if( child_hit >= 0 )
+                hit = child_hit;
+        }
     }
 
     return hit;
@@ -112,8 +135,7 @@ uitree_hit_test(
         return -1;
 
     int32_t hit = -1;
-    for( int32_t root = tree->root_index; root >= 0;
-         root = tree->components[root].next_sibling )
+    for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         int32_t root_hit = uitree_hit_test_recursive(tree, root, px, py);
         if( root_hit >= 0 )
@@ -134,8 +156,7 @@ uitree_hit_test_interactive(
         return -1;
 
     int32_t hit = -1;
-    for( int32_t root = tree->root_index; root >= 0;
-         root = tree->components[root].next_sibling )
+    for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         int32_t root_hit = uitree_hit_test_interactive_recursive(tree, host, root, px, py);
         if( root_hit >= 0 )

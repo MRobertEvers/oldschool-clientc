@@ -461,6 +461,7 @@ uitree_push(
     struct StaticUIComponent* component = &tree->components[idx];
     component->type = spec->type;
     component->component_id = spec->component_id;
+    component->menu_options = spec->menu_options;
 
     if( spec->has_position )
     {

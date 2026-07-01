@@ -8,7 +8,6 @@
 #include <string.h>
 
 #define TORIDRAW_FONT_ADVANCE_ONLY_GLYPH TORIDRAW_FONT_GLYPH_COUNT
-#define TORIDRAW_FONT_CHARSET_COUNT (TORIDRAW_FONT_GLYPH_COUNT + 1)
 
 const uint16_t TORIDRAW_FONT_CHARSET[] = {
     'A', 'B',  'C', 'D', 'E',  'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
@@ -18,12 +17,12 @@ const uint16_t TORIDRAW_FONT_CHARSET[] = {
     '0', '1',  '2', '3', '4',  '5', '6', '7', '8', '9', '!', '"', 0x00A3,
     '$', '%',  '^', '&', '*',  '(', ')', '-', '_', '=', '+', '[', '{',
     ']', '}',  ';', ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/',
-    '?', '\\', '|', ' '
+    '?', '\\', ' '
 };
 
 _Static_assert(
-    sizeof(TORIDRAW_FONT_CHARSET) / sizeof(TORIDRAW_FONT_CHARSET[0]) == TORIDRAW_FONT_CHARSET_COUNT,
-    "TORIDRAW_FONT_CHARSET must have exactly TORIDRAW_FONT_GLYPH_COUNT glyph entries plus space");
+    sizeof(TORIDRAW_FONT_CHARSET) / sizeof(TORIDRAW_FONT_CHARSET[0]) == TORIDRAW_FONT_GLYPH_COUNT,
+    "TORIDRAW_FONT_CHARSET must have exactly TORIDRAW_FONT_GLYPH_COUNT entries");
 
 uint16_t const*
 ToriDraw_FontCharsetTable(void)
@@ -34,7 +33,7 @@ ToriDraw_FontCharsetTable(void)
 static int
 font_index_of_char(uint8_t c)
 {
-    for( int i = 0; i < TORIDRAW_FONT_CHARSET_COUNT; i++ )
+    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
     {
         if( (TORIDRAW_FONT_CHARSET[i] & 0xFF) == c )
             return i;
@@ -48,11 +47,14 @@ font_init_charcodeset(struct ToriDraw_Font* font)
     for( int i = 0; i < 256; i++ )
     {
         int c = font_index_of_char((uint8_t)i);
-        if( c == -1 || c >= TORIDRAW_FONT_ADVANCE_ONLY_GLYPH )
-            c = TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
+        if( c == -1 )
+            c = font_index_of_char(' ');
+        if( c < 0 || c >= TORIDRAW_FONT_GLYPH_COUNT )
+            c = TORIDRAW_FONT_GLYPH_COUNT - 1;
         font->charcodeset[i] = (char)c;
     }
     font->charcodeset[(unsigned char)' '] = (char)TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
+    font->charcodeset[(unsigned char)'|'] = (char)TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
 }
 
 static void

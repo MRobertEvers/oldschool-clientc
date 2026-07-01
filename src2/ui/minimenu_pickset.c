@@ -129,11 +129,25 @@ inv_slot_to_minimenu_pickset(
     int inv_index,
     int slot,
     int obj_id,
+    int32_t component_index,
     struct MinimenuPickSet* out)
 {
     if( !out )
         return;
 
     minimenu_pickset_reset(out);
-    minimenu_pickset_add(out, MINIMENU_PICK_INV_SLOT, inv_index, slot, obj_id, 0);
+    minimenu_pickset_add(
+        out, MINIMENU_PICK_INV_SLOT, inv_index, slot, obj_id, component_index);
+}
+
+void
+ui_component_to_minimenu_pickset(
+    int32_t component_index,
+    struct MinimenuPickSet* out)
+{
+    if( !out )
+        return;
+
+    minimenu_pickset_reset(out);
+    minimenu_pickset_add(out, MINIMENU_PICK_UI, component_index, 0, 0, 0);
 }

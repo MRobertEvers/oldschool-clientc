@@ -134,6 +134,7 @@ struct LibToriPlatformSDL2_RendererGL3
 
     struct TRSPK_Atlas sprite_atlas;
     GLuint sprite_atlas_texture;
+    GLuint white_texture;
     struct GL3SpriteSlot sprite_slots[TRSPK_GL3_SPRITE_CAP];
     struct GL3FontSlot font_slots[TRSPK_GL3_FONT_CAP];
     GLuint quad_vao;
@@ -281,6 +282,8 @@ gl3_destroy_gl_resources(struct LibToriPlatformSDL2_RendererGL3* renderer)
         glDeleteProgram(renderer->program2d);
     if( renderer->sprite_atlas_texture )
         glDeleteTextures(1, &renderer->sprite_atlas_texture);
+    if( renderer->white_texture )
+        glDeleteTextures(1, &renderer->white_texture);
     if( renderer->quad_vao )
         glDeleteVertexArrays(1, &renderer->quad_vao);
     if( renderer->quad_vbo )
@@ -301,6 +304,7 @@ gl3_destroy_gl_resources(struct LibToriPlatformSDL2_RendererGL3* renderer)
     renderer->ebo = 0u;
     renderer->atlas_texture = 0u;
     renderer->sprite_atlas_texture = 0u;
+    renderer->white_texture = 0u;
 }
 
 static void
@@ -669,6 +673,19 @@ gl3_color_from_rgb(
     rgba[3] = alpha;
 }
 
+static void
+gl3_color_from_argb(
+    int argb,
+    float rgba[4])
+{
+    if( (argb & 0xFF000000u) == 0u )
+        argb |= 0xFF000000u;
+    rgba[0] = (float)((argb >> 16) & 0xFF) / 255.0f;
+    rgba[1] = (float)((argb >> 8) & 0xFF) / 255.0f;
+    rgba[2] = (float)(argb & 0xFF) / 255.0f;
+    rgba[3] = (float)((argb >> 24) & 0xFF) / 255.0f;
+}
+
 struct GL3FontGlyphCtx
 {
     struct LibToriPlatformSDL2_RendererGL3* renderer;
@@ -742,6 +759,50 @@ gl3_draw_font_glyphs(
     glUniform1i(renderer->u2d_texture, 0);
     if( renderer->u2d_text_mode >= 0 )
         glUniform1i(renderer->u2d_text_mode, 0);
+}
+
+static void
+gl3_ev_fill_rect(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)instance;
+    if( !renderer->in2d )
+        return;
+
+    int const x = command->u.fill_rect.x;
+    int const y = command->u.fill_rect.y;
+    int const w = command->u.fill_rect.w;
+    int const h = command->u.fill_rect.h;
+    if( w <= 0 || h <= 0 )
+        return;
+
+    float rgba[4];
+    gl3_color_from_argb(command->u.fill_rect.argb, rgba);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, renderer->white_texture);
+    glUniform1i(renderer->u2d_texture, 0);
+    if( renderer->u2d_text_mode >= 0 )
+        glUniform1i(renderer->u2d_text_mode, 0);
+    if( renderer->u2d_uv_clamp >= 0 )
+        glUniform1i(renderer->u2d_uv_clamp, 0);
+
+    gl3_draw_textured_quad(
+        renderer,
+        (float)x,
+        (float)y,
+        (float)(x + w),
+        (float)(y + h),
+        0.0f,
+        0.0f,
+        1.0f,
+        1.0f,
+        rgba);
+
+    glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
+    glUniform1i(renderer->u2d_texture, 0);
 }
 
 static void
@@ -2096,6 +2157,10 @@ handle_render_command(
     case TORIRSRC_CLEAR_RECT:
         break;
 
+    case TORIRSRC_FILL_RECT:
+        gl3_ev_fill_rect(renderer, instance, command);
+        break;
+
     case TORIRSRC_SPRITE_LOAD:
         gl3_ev_sprite_load(renderer, instance, command);
         break;
@@ -2477,6 +2542,19 @@ LibToriPlatformSDL2_RendererGL3_Init(
         glVertexAttribPointer(
             2, 4, GL_FLOAT, GL_FALSE, sizeof(struct GL3Vertex2D), (void*)(4 * sizeof(float)));
         glBindVertexArray(0);
+
+        {
+            uint32_t const white_pixel = 0xFFFFFFFFu;
+            glGenTextures(1, &renderer->white_texture);
+            glBindTexture(GL_TEXTURE_2D, renderer->white_texture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexImage2D(
+                GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &white_pixel);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
     }
 
     renderer->window = window;

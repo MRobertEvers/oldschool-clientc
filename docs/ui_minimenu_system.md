@@ -24,17 +24,50 @@ enum MinimenuPickKind {
     MINIMENU_PICK_SCENERY,
     MINIMENU_PICK_TERRAIN,
     MINIMENU_PICK_INV_SLOT,
+    MINIMENU_PICK_UI,
 };
 ```
 
 | Converter | Source |
 |-----------|--------|
 | `world_pickset_to_minimenu_pickset` | Per-frame `game->pickset` (terrain, scenery, NPC) |
-| `inv_slot_to_minimenu_pickset` | Inventory slot click |
+| `inv_slot_to_minimenu_pickset` | Inventory slot click (`quaternary_id` = RS_INV uitree index) |
+| `ui_component_to_minimenu_pickset` | Right-clicked `StaticUIComponent` index |
 
 `ui_click_build_minimenu_from_pickset` iterates picks and appends options per
 kind. Each `UIMinimenuOption` stores pick-origin fields so selection can rebuild
 the correct `InteractionState` even when multiple picks contributed rows.
+
+### UI component option text
+
+Component menu labels follow a strict core-first pipeline. Bake and click code
+must not read raw Dat1/Dat2 cache component structs for interface menu labels.
+
+```
+RSCacheDat1A_ConfigComponent / Component (dat2)
+  → ToriAuxLibCore_Component.option / .ops[]   (dat2 INV: objOps → ops)
+  → StaticUIComponent.menu_options (instance_revconfig_bake_rs_component reads core only)
+  → ui_click_add_ui_options (MINIMENU_PICK_UI)
+```
+
+Item configs (`ConfigObj` / `ConfigObject`) are **not** in ToriAuxLibCore. Inventory
+slot item rows (Drop, Use, Examine) are read from Dat1/Dat2 buildcache at click
+time (`iop` / `if_actions[]`), branching on `ToriAuxLibCache_Mode`.
+
+Inventory container override rows (`Wear`, `Remove`, …) come from the baked
+`menu_options.ops[]` on the RS_INV component. `game_try_inv_click` stores the
+inv component uitree index in `MinimenuPick.quaternary_id`; the inv-slot menu
+builder merges those ops as `INV_BUTTON1..5` after item rows.
+
+`StaticUIMenuOptions` holds up to five `ops[]` strings plus a single `option`
+string (OK/Select/Continue button label). Right-clicking any hit-tested UI node
+(other than the minimenu chrome itself) builds a `MINIMENU_PICK_UI` pick; rows
+use `MINIMENU_ACTION_INV_BUTTON1..5` for `ops[]` and map `behavior.button_type`
+to `MINIMENU_ACTION_IF_BUTTON` / `_TOGGLE` / `_SELECT` for the `option` row.
+
+Non-interactive `UIELEM_RS_GRAPHIC` / `UIELEM_RS_TEXT` nodes with no
+`menu_options` and no button/client_code pass through hit testing so clicks
+reach inventory and buttons underneath.
 
 ## UIMinimenuLayout (font-derived geometry)
 

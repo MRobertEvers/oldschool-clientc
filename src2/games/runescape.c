@@ -212,6 +212,24 @@ GameRunescape_MinimenuPrepareShow(
         &game->minimenu, font, out_layout, out_content_width);
 }
 
+static int
+game_runescape_minimenu_draw_line_height(
+    struct GameRunescape* game,
+    int font_id,
+    struct UIMinimenuLayout const* layout)
+{
+    int lh =
+        layout && layout->line_height > 0 ? layout->line_height : UI_MINIMENU_DEFAULT_LINE_HEIGHT;
+
+    if( game && game->scene && font_id >= 0 )
+    {
+        struct ToriDraw_Font* font = ToriDraw_SceneFontGet(game->scene, font_id);
+        if( font && font->line_height > 0 )
+            lh = font->line_height;
+    }
+    return lh;
+}
+
 static bool
 rs_ui_host_scene_model_has(
     void* user,
@@ -1412,11 +1430,13 @@ GameRunescape_EmitUIComponent(
         }
         if( step == 6 )
         {
+            int const lh = game_runescape_minimenu_draw_line_height(game, font_id, &layout);
+
             GameRunescape_AssertMinimenuFontReady(game, font_id, "minimenu header");
             command->kind = TORIRSRC_FONT;
             command->u.font.font_id = font_id;
             command->u.font.x = mx + 3;
-            command->u.font.y = my + layout.header_text_y;
+            command->u.font.y = my + lh;
             command->u.font.color = OPTIONS_MENU;
             command->u.font.center = 0;
             command->u.font.shadowed = 0;
@@ -1431,7 +1451,11 @@ GameRunescape_EmitUIComponent(
         if( opt_draw < game->minimenu.option_count )
         {
             int const i = opt_draw;
-            int const row_top = ui_minimenu_option_y(&game->minimenu, i);
+            int const lh = game_runescape_minimenu_draw_line_height(game, font_id, &layout);
+            struct UIMinimenuLayout const draw_layout =
+                ui_minimenu_layout_from_line_height(lh);
+            int const row = (game->minimenu.option_count - 1 - i) * draw_layout.row_stride;
+            int const row_top = my + row + draw_layout.option_base_y;
             int const hovered = game->minimenu.hovered_option == i;
 
             GameRunescape_AssertMinimenuFontReady(game, font_id, "minimenu option");

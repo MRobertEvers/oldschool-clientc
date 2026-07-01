@@ -118,6 +118,18 @@ instance_revconfig_bake_rs_component(
     spec.width = info->width;
     spec.height = info->height;
     spec.behavior = behavior_ptr;
+    if( info->option[0] != '\0' )
+        strncpy(spec.menu_options.option, info->option, sizeof(spec.menu_options.option) - 1);
+    for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+    {
+        if( info->ops[i][0] != '\0' )
+        {
+            strncpy(
+                spec.menu_options.ops[i],
+                info->ops[i],
+                sizeof(spec.menu_options.ops[i]) - 1);
+        }
+    }
 
     switch( info->type )
     {

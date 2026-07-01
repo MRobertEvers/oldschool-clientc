@@ -69,6 +69,13 @@ uitree_component_visible_host(
     struct UITreeHost const* host);
 
 bool
+uitree_component_hit_test_visible_host(
+    struct StaticUIComponent const* component,
+    int32_t component_index,
+    int32_t hovered_component,
+    struct UITreeHost const* host);
+
+bool
 uitree_component_is_clickable_host(
     struct StaticUIComponent const* component,
     struct UITreeHost const* host);

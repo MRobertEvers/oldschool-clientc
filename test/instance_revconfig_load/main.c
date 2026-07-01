@@ -1071,6 +1071,13 @@ test_host_get_selected_tab(void* user)
     return g_test_selected_tab;
 }
 
+static void
+test_host_set_selected_tab(void* user, int tabno)
+{
+    (void)user;
+    g_test_selected_tab = tabno;
+}
+
 static int
 test_mouse_hit_test_on_built_tree(void)
 {
@@ -1184,6 +1191,13 @@ test_mouse_hit_test_on_built_tree(void)
     TEST_ASSERT(
         tree->components[sidebar_idx].u.sidebar.componentno == 3213,
         "sidebar_tab_3 componentno");
+    {
+        int32_t combat_sidebar = uitree_find_sidebar_tab(tree, 0);
+        TEST_ASSERT(combat_sidebar >= 0, "sidebar_tab_0 shell exists");
+        TEST_ASSERT(
+            tree->components[combat_sidebar].u.sidebar.componentno == 5855,
+            "sidebar_tab_0 componentno combat_unarmed");
+    }
     TEST_ASSERT(
         tree->components[sidebar_idx].position.width == 190,
         "sidebar_tab_3 layout width");
@@ -1202,6 +1216,7 @@ test_mouse_hit_test_on_built_tree(void)
     }
 
     host.get_selected_tab = test_host_get_selected_tab;
+    host.set_selected_tab = test_host_set_selected_tab;
     {
         int32_t inv_tab_hit = uitree_hit_test_interactive(tree, &host, 631, 172);
         TEST_ASSERT(inv_tab_hit >= 0, "inventory tab icon interactive hit");
@@ -1211,6 +1226,46 @@ test_mouse_hit_test_on_built_tree(void)
         TEST_ASSERT(
             tree->components[inv_tab_hit].u.tab_icon.tabno == 3,
             "inventory tab hit tabno");
+    }
+    {
+        int32_t friends_hit = uitree_hit_test_interactive(tree, &host, 586, 484);
+        TEST_ASSERT(friends_hit >= 0, "friends tab icon interactive hit");
+        TEST_ASSERT(
+            tree->components[friends_hit].type == UIELEM_BUILTIN_TAB_ICONS,
+            "friends tab hit is tab_icon");
+        TEST_ASSERT(
+            tree->components[friends_hit].u.tab_icon.tabno == 8,
+            "friends tab hit tabno");
+
+        int32_t music_hit = uitree_hit_test_interactive(tree, &host, 741, 484);
+        TEST_ASSERT(music_hit >= 0, "music tab icon interactive hit");
+        TEST_ASSERT(
+            tree->components[music_hit].u.tab_icon.tabno == 13,
+            "music tab hit tabno");
+    }
+    {
+        g_test_selected_tab = 3;
+        int32_t friends_hit = uitree_hit_test_interactive(tree, &host, 586, 484);
+        TEST_ASSERT(friends_hit >= 0, "friends tab hit for click handler");
+        uitree_behavior_handle_click_host(&host, tree, friends_hit);
+        TEST_ASSERT(g_test_selected_tab == 8, "click friends tab switches selected_tab");
+
+        g_test_selected_tab = 3;
+        int32_t redstone_friends = uitree_hit_test_interactive(tree, &host, 573, 467);
+        if( redstone_friends >= 0 &&
+            tree->components[redstone_friends].type == UIELEM_BUILTIN_REDSTONE_TAB )
+        {
+            uitree_behavior_handle_click_host(&host, tree, redstone_friends);
+            TEST_ASSERT(g_test_selected_tab == 8, "click unselected redstone friends tab");
+        }
+
+        g_test_selected_tab = 3;
+        int32_t slot7_hit = uitree_hit_test_interactive(tree, &host, 557, 484);
+        if( slot7_hit >= 0 )
+        {
+            uitree_behavior_handle_click_host(&host, tree, slot7_hit);
+            TEST_ASSERT(g_test_selected_tab == 3, "tab 7 click ignored when componentno=-1");
+        }
     }
 
     struct MinimenuPickSet npc_picks;
@@ -1257,6 +1312,8 @@ test_mouse_hit_test_on_built_tree(void)
     fprintf(stderr, "ok: mouse hit-test and minimenu options on built UI tree\n");
     return 0;
 }
+
+static int test_minimenu_b12_font_draw_pixels(struct ToriDraw_Scene* scene, int b12_id);
 
 static int
 run_pipeline_test(
@@ -1386,6 +1443,8 @@ run_pipeline_test(
                         ToriDraw_SceneCacheFontGet(scene, slot) != NULL,
                         "cache font slot missing after revconfig load");
                 }
+                if( test_minimenu_b12_font_draw_pixels(scene, b12_id) != 0 )
+                    return 1;
             }
             TEST_ASSERT(
                 uitree_rs_text_scene_fonts_valid(tree, scene),
@@ -1681,8 +1740,8 @@ test_dat1_walk_root_resolution(void)
         instance_revconfig_resolve_walk_root_id(list, 7) < 0,
         "componentno 7 must not resolve to global shell");
     TEST_ASSERT(
-        instance_revconfig_resolve_walk_root_id(list, 593) == 569,
-        "componentno 593 resolves to combat panel layer");
+        instance_revconfig_resolve_walk_root_id(list, 5855) == 5855,
+        "componentno 5855 resolves to combat_unarmed layer root");
     TEST_ASSERT(
         instance_revconfig_resolve_walk_root_id(list, 3213) == 3213,
         "componentno 3213 resolves to inventory layer root");
@@ -1767,6 +1826,44 @@ test_ui_click_world_viewport(void)
     revconfig_item_buffer_free(items);
 
     fprintf(stderr, "ok: ui_click world viewport cross and minimenu\n");
+    return 0;
+}
+
+static int
+test_minimenu_b12_font_draw_pixels(
+    struct ToriDraw_Scene* scene,
+    int b12_id)
+{
+    struct ToriDraw_Font* font = ToriDraw_SceneFontGet(scene, b12_id);
+    TEST_ASSERT(font != NULL, "b12 scene font for draw test");
+    TEST_ASSERT(ToriDraw_FontValidate(font), "b12 font validate for draw test");
+
+    int const lh =
+        font->line_height > 0 ? font->line_height : UI_MINIMENU_DEFAULT_LINE_HEIGHT;
+    struct UIMinimenuLayout layout = ui_minimenu_layout_from_line_height(lh);
+
+    int pixels[512 * 64];
+    memset(pixels, 0, sizeof(pixels));
+
+    struct ToriDraw_ViewPort vp = {
+        .clip_left = 0,
+        .clip_top = 0,
+        .clip_right = 512,
+        .clip_bottom = 64,
+        .stride = 512,
+    };
+
+    int const my = 10;
+    int const header_pixels = ToriDraw2D_DrawString(
+        font, &vp, 3, my + lh, "Choose Option", OPTIONS_MENU, false, false, pixels);
+    TEST_ASSERT(header_pixels > 0, "minimenu header draws visible pixels");
+
+    int const row_top = my + layout.option_base_y;
+    int const option_pixels = ToriDraw2D_DrawString(
+        font, &vp, 3, row_top, "Walk here", WHITE, false, true, pixels);
+    TEST_ASSERT(option_pixels > 0, "minimenu option draws visible pixels");
+
+    fprintf(stderr, "ok: minimenu b12 font draw pixels\n");
     return 0;
 }
 

@@ -25,6 +25,8 @@ Sources: `WidgetID.java`, `Constants.GAME_FIXED_SIZE`, `Client.getViewportWidget
 
 ## 14-tab sidebar (`InterfaceTab` 0–13)
 
+**LostCity cache:** When using the LostCity `interface.pack` (rev_245_2 dat1), sidebar `componentno` values in `rev_245_2_dat1_ui.ini` use LostCity flat wire IDs from `if_settab()` in `login.rs2` (e.g. stats=3917, questlist=638, inventory=3213). The Kronos archive indices below are legacy reference only.
+
 | tabno | Name | Panel iface | Fixed tab / icon | RS2 sideicon sprite |
 |-------|------|-------------|------------------|----------------------|
 | 0 | Combat | 593 | 48 / 55 | 774 |

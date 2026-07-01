@@ -385,8 +385,29 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 command.u.font.center != 0,
                 command.u.font.shadowed != 0,
                 renderer->pixel_buffer);
-            if( command.u.font.text[0] != '\0' )
-                assert(pixels_written > 0 && "TORIRSRC_FONT wrote no visible glyph pixels");
+            if( command.u.font.text[0] != '\0' && pixels_written <= 0 )
+            {
+                static int font_draw_warn_count;
+                if( font_draw_warn_count < 8 )
+                {
+                    fprintf(stderr,
+                        "TORIRSRC_FONT: wrote no visible glyph pixels "
+                        "(font_id=%d text=\"%.32s%s\" x=%d y=%d line_height=%d "
+                        "clip=[%d,%d,%d,%d] pixels_written=%d)\n",
+                        font_id,
+                        command.u.font.text,
+                        strlen(command.u.font.text) > 32 ? "..." : "",
+                        command.u.font.x,
+                        command.u.font.y,
+                        font->line_height,
+                        renderer->iface_view_port.clip_left,
+                        renderer->iface_view_port.clip_top,
+                        renderer->iface_view_port.clip_right,
+                        renderer->iface_view_port.clip_bottom,
+                        pixels_written);
+                    font_draw_warn_count++;
+                }
+            }
             break;
         }
         case TORIRSRC_UI_MODEL_BEGIN_3D:

@@ -13,6 +13,7 @@ enum MinimenuPickKind
     MINIMENU_PICK_SCENERY,
     MINIMENU_PICK_TERRAIN,
     MINIMENU_PICK_INV_SLOT,
+    MINIMENU_PICK_UI,
 };
 
 struct MinimenuPick
@@ -54,6 +55,12 @@ inv_slot_to_minimenu_pickset(
     int inv_index,
     int slot,
     int obj_id,
+    int32_t component_index,
+    struct MinimenuPickSet* out);
+
+void
+ui_component_to_minimenu_pickset(
+    int32_t component_index,
     struct MinimenuPickSet* out);
 
 #endif
