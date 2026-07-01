@@ -41,6 +41,13 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/buildcache/dat2_buildcache_ui.c \
 	$(SRC2_DIR)/ui/ui_sprite_lookup.c \
 	$(SRC2_DIR)/ui/ui_font_lookup.c \
+	$(SRC2_DIR)/ui/ui_input.c \
+	$(SRC2_DIR)/ui/ui_behavior.c \
+	$(SRC2_DIR)/ui/uitree_host.c \
+	$(SRC2_DIR)/ui/ui_click.c \
+	$(SRC2_DIR)/ui/ui_minimenu.c \
+	$(SRC2_DIR)/ui/interaction_state.c \
+	$(SRC2_DIR)/ui/minimenu_pickset.c \
 	$(SRC2_DIR)/ui/uitree.c \
 	$(SRC2_DIR)/ui/uitree_layout.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/instance_revconfig_context.c \
@@ -48,6 +55,7 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/task_rs_inv_load.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/task_instance_on_rc.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/task_instance_revconfig_load.c \
+	$(TEST_DIR)/font_td_shim.c \
 	$(SRC2_DIR)/toridraw/toridraw_scene.c \
 	$(SRC2_DIR)/toridraw/toridraw_intrusive_list.c \
 	$(SRC2_DIR)/toridraw/toridraw_sprite.c \
@@ -59,6 +67,7 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/revconfig/revconfig.c \
 	$(SRC2_DIR)/revconfig/revconfig_load.c \
 	$(SRC2_DIR)/world/minimap.c \
+	$(SRC2_DIR)/world/world_pickset.c \
 	$(SRC2_DIR)/3rd/ini/ini.c \
 	$(SRC_DIR)/osrs/rscache/unity.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \

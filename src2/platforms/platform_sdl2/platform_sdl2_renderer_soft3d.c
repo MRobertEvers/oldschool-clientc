@@ -250,6 +250,13 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             renderer->fonts[font_id] = command.u.font_load.font;
             break;
         }
+        case TORIRSRC_FONT_UNLOAD:
+        {
+            const int font_id = command.u.font_load.font_id;
+            if( font_id >= 0 && font_id < SOFT3D_FONT_CAP )
+                renderer->fonts[font_id] = NULL;
+            break;
+        }
         case TORIRSRC_SPRITE:
         {
             const int element_id = command.u.sprite.element_id;
@@ -356,12 +363,19 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
         case TORIRSRC_FONT:
         {
             const int font_id = command.u.font.font_id;
-            if( font_id < 0 || font_id >= SOFT3D_FONT_CAP )
+            if( font_id < 0 || !command.u.font.text )
                 break;
-            struct ToriDraw_Font* font = renderer->fonts[font_id];
-            if( !font || !command.u.font.text )
+            struct ToriDraw_Font* font = NULL;
+            if( draw_context )
+                font = ToriDraw_SceneFontGet(draw_context, font_id);
+            if( !font && font_id < SOFT3D_FONT_CAP )
+                font = renderer->fonts[font_id];
+            if( !font || !ToriDraw_FontValidate(font) )
+            {
+                assert(!"TORIRSRC_FONT: font missing or failed ToriDraw_FontValidate");
                 break;
-            ToriDraw2D_DrawString(
+            }
+            int const pixels_written = ToriDraw2D_DrawString(
                 font,
                 &renderer->iface_view_port,
                 command.u.font.x,
@@ -371,6 +385,8 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 command.u.font.center != 0,
                 command.u.font.shadowed != 0,
                 renderer->pixel_buffer);
+            if( command.u.font.text[0] != '\0' )
+                assert(pixels_written > 0 && "TORIRSRC_FONT wrote no visible glyph pixels");
             break;
         }
         case TORIRSRC_UI_MODEL_BEGIN_3D:

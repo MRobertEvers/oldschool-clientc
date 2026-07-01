@@ -1,5 +1,6 @@
 #include "toriauxlibcache_font_convert.h"
 
+#include "osrs/rscache/dat2a/dat2a_sprites.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "toridraw/toridraw_font.h"
@@ -7,6 +8,78 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define DAT2_FONT_METRICS_SIZE 257
+
+static struct ToriDraw_Font*
+font_new_from_dat2_metrics_and_sprite_pack(
+    uint8_t const* metrics,
+    struct RSCacheDat2A_SpritePack const* pack)
+{
+    if( !metrics || !pack || pack->count <= 0 )
+        return NULL;
+
+    struct ToriDraw_Font* font = calloc(1, sizeof(struct ToriDraw_Font));
+    if( !font )
+        return NULL;
+
+    ToriDraw_FontInitCharcodeset(font);
+
+    font->line_height = metrics[256] & 0xFF;
+
+    for( int gi = 0; gi < TORIDRAW_FONT_GLYPH_COUNT; gi++ )
+    {
+        uint16_t const codepoint = ToriDraw_FontCharsetTable()[gi];
+        int const cp = (int)codepoint;
+        if( cp < 0 || cp >= pack->count )
+            continue;
+
+        struct RSCacheDat2A_Sprite const* sprite = &pack->sprites[cp];
+        int const gw = sprite->crop_width;
+        int const gh = sprite->crop_height;
+        if( gw <= 0 || gh <= 0 || !sprite->pixel_alphas )
+            continue;
+
+        size_t const len = (size_t)gw * (size_t)gh;
+        font->glyph_alpha[gi] = malloc(len);
+        if( !font->glyph_alpha[gi] )
+            goto fail;
+
+        for( size_t j = 0; j < len; j++ )
+            font->glyph_alpha[gi][j] = sprite->pixel_alphas[j] != 0 ? (uint8_t)255 : (uint8_t)0;
+
+        font->glyph_width[gi] = gw;
+        font->glyph_height[gi] = gh;
+        font->offset_x[gi] = sprite->offset_x;
+        font->offset_y[gi] = sprite->offset_y;
+        font->advance[gi] = metrics[cp] & 0xFF;
+        if( font->advance[gi] <= 0 )
+            font->advance[gi] = gw > 0 ? gw + 2 : 4;
+
+        if( gh > font->line_height )
+            font->line_height = gh;
+    }
+
+    if( font->line_height <= 0 )
+    {
+        for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+        {
+            if( font->glyph_height[i] > font->line_height )
+                font->line_height = font->glyph_height[i];
+        }
+    }
+
+    for( int i = 0; i < 256; i++ )
+        font->draw_width[i] = font->advance[(unsigned char)font->charcodeset[i]];
+
+    if( !ToriDraw_FontValidate(font) )
+        goto fail;
+    return font;
+
+fail:
+    ToriDraw_FontFree(font);
+    return NULL;
+}
 
 struct ToriAuxLibCore_Font*
 ToriAuxLibCache_FontNewFromToriDrawByMove(struct ToriDraw_Font* font)
@@ -89,21 +162,32 @@ ToriAuxLibCache_FontNewFromDat2Archive(
     RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
     struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(archive);
     RSCacheDat2Disk_ArchiveFree(archive);
-    if( !fl || fl->file_count <= 0 )
+    if( !fl || fl->file_count <= 0 || fl->file_sizes[0] < DAT2_FONT_METRICS_SIZE )
     {
         RSCacheShared_FileListFree(fl);
         return NULL;
     }
 
-    void* data = fl->files[0];
-    int data_size = fl->file_sizes[0];
-    void* index_data = fl->file_count > 1 ? fl->files[1] : NULL;
-    int index_size = fl->file_count > 1 ? fl->file_sizes[1] : 0;
-
-    struct ToriAuxLibCore_Font* font =
-        ToriAuxLibCache_FontNewFromRSBytesByMove(data, data_size, index_data, index_size);
-
+    uint8_t metrics[DAT2_FONT_METRICS_SIZE];
+    memcpy(metrics, fl->files[0], DAT2_FONT_METRICS_SIZE);
     RSCacheShared_FileListFree(fl);
+
+    struct RSCacheDat2Disk_Archive* sprite_archive =
+        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Sprites, font_id);
+    if( !sprite_archive )
+        return NULL;
+
+    struct RSCacheDat2A_SpritePack* pack = RSCacheDat2A_SpritePackNewDecode(
+        (unsigned char const*)sprite_archive->data,
+        sprite_archive->data_size,
+        SPRITELOAD_FLAG_NONE);
+    RSCacheDat2Disk_ArchiveFree(sprite_archive);
+    if( !pack )
+        return NULL;
+
+    struct ToriDraw_Font* draw_font = font_new_from_dat2_metrics_and_sprite_pack(metrics, pack);
+    RSCacheDat2A_SpritePackFree(pack);
+    struct ToriAuxLibCore_Font* font = ToriAuxLibCache_FontNewFromToriDrawByMove(draw_font);
     if( font )
         snprintf(font->name, sizeof(font->name), "fnt:%d", font_id);
     return font;

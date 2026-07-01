@@ -1003,6 +1003,8 @@ ToriAuxLibTD_FontNewFromCore(const struct ToriAuxLibCore_Font* src)
     memcpy(font->draw_width, src->draw_width, sizeof(font->draw_width));
     font->line_height = src->line_height;
     memcpy(font->charcodeset, src->charcodeset, sizeof(font->charcodeset));
+    if( !ToriDraw_FontValidate(font) )
+        goto fail;
     return font;
 
 fail:

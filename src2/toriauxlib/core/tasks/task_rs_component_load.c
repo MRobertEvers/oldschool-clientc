@@ -15,6 +15,7 @@
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "ui/uitree_layout.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -110,7 +111,11 @@ dat1_get_component(
         return NULL;
 
     if( component_id < list->components_count && list->components[component_id] )
-        return list->components[component_id];
+    {
+        struct RSCacheDat1A_ConfigComponent* at_index = list->components[component_id];
+        if( at_index->id == component_id )
+            return at_index;
+    }
 
     for( int i = 0; i < list->components_count; i++ )
     {
@@ -480,6 +485,21 @@ rs_component_acquire_dynamic_sprites(
         dat2_acquire_dynamic_sprite(ctx, dat2_comp->activeGraphic);
 }
 
+static bool
+dat1_layer_lists_child(
+    struct RSCacheDat1A_ConfigComponent const* layer,
+    int child_id)
+{
+    if( !layer->children )
+        return false;
+    for( int i = 0; i < layer->children_count; i++ )
+    {
+        if( layer->children[i] == child_id )
+            return true;
+    }
+    return false;
+}
+
 static void
 rs_component_push_children_dat1(
     struct Task_RSComponentLoad* task,
@@ -487,18 +507,31 @@ rs_component_push_children_dat1(
     struct RSCacheDat1A_ConfigComponent* dat1_comp)
 {
     struct RSCacheDat1A_ConfigComponentList* dat1_ifaces = ifaces;
-    if( dat1_comp->type != COMPONENT_TYPE_LAYER || !dat1_comp->children )
+    if( dat1_comp->type != COMPONENT_TYPE_LAYER )
         return;
 
-    for( int i = dat1_comp->children_count - 1; i >= 0; i-- )
+    if( dat1_comp->children )
     {
-        struct RSCacheDat1A_ConfigComponent* child =
-            dat1_get_component(dat1_ifaces, dat1_comp->children[i]);
-        if( !child )
+        for( int i = dat1_comp->children_count - 1; i >= 0; i-- )
+        {
+            struct RSCacheDat1A_ConfigComponent* child =
+                dat1_get_component(dat1_ifaces, dat1_comp->children[i]);
+            if( !child )
+                continue;
+            int rel_x = (dat1_comp->childX ? dat1_comp->childX[i] : 0) + child->x;
+            int rel_y = (dat1_comp->childY ? dat1_comp->childY[i] : 0) + child->y;
+            rs_stack_push(task, dat1_comp->children[i], rel_x, rel_y, dat1_comp->id);
+        }
+    }
+
+    for( int i = dat1_ifaces->components_count - 1; i >= 0; i-- )
+    {
+        struct RSCacheDat1A_ConfigComponent* linked = dat1_ifaces->components[i];
+        if( !linked || linked->layer != dat1_comp->id )
             continue;
-        int rel_x = (dat1_comp->childX ? dat1_comp->childX[i] : 0) + child->x;
-        int rel_y = (dat1_comp->childY ? dat1_comp->childY[i] : 0) + child->y;
-        rs_stack_push(task, dat1_comp->children[i], rel_x, rel_y, dat1_comp->id);
+        if( dat1_layer_lists_child(dat1_comp, linked->id) )
+            continue;
+        rs_stack_push(task, linked->id, linked->x, linked->y, dat1_comp->id);
     }
 }
 
@@ -522,6 +555,22 @@ rs_component_push_children_dat2(
     }
 }
 
+static int
+dat1_max_component_id(struct RSCacheDat1A_ConfigComponentList* list)
+{
+    int max_id = 0;
+    if( !list )
+        return 0;
+
+    for( int i = 0; i < list->components_count; i++ )
+    {
+        struct RSCacheDat1A_ConfigComponent* comp = list->components[i];
+        if( comp && comp->id > max_id )
+            max_id = comp->id;
+    }
+    return max_id;
+}
+
 static void
 rs_component_walk_dat1(
     struct Task_RSComponentLoad* task,
@@ -530,6 +579,16 @@ rs_component_walk_dat1(
     int root_rel_x,
     int root_rel_y)
 {
+    struct RSCacheDat1A_ConfigComponentList* dat1_ifaces = ifaces;
+    int max_id = dat1_max_component_id(dat1_ifaces);
+    uint8_t* visited = NULL;
+    if( max_id > 0 )
+    {
+        visited = calloc((size_t)max_id + 1u, sizeof(uint8_t));
+        if( !visited )
+            return;
+    }
+
     rs_stack_push(task, walk_root_id, root_rel_x, root_rel_y, -1);
 
     while( task->stack_count > 0 )
@@ -540,6 +599,11 @@ rs_component_walk_dat1(
         int parent_id = -1;
         if( !rs_stack_pop(task, &comp_id, &rel_x, &rel_y, &parent_id) )
             break;
+
+        if( visited && comp_id >= 0 && comp_id <= max_id && visited[comp_id] )
+            continue;
+        if( visited && comp_id >= 0 && comp_id <= max_id )
+            visited[comp_id] = 1;
 
         struct RSCacheDat1A_ConfigComponent* comp = dat1_get_component(ifaces, comp_id);
         if( !comp )
@@ -557,10 +621,15 @@ rs_component_walk_dat1(
             parent_id);
 
         if( task->callbacks.on_component )
-            task->callbacks.on_component(task->callbacks.user, comp_id);
+        {
+            task->callbacks.on_component(task->callbacks.user, comp->id);
+            task->components_walked++;
+        }
 
         rs_component_push_children_dat1(task, ifaces, comp);
     }
+
+    free(visited);
 }
 
 static void
@@ -596,7 +665,10 @@ rs_component_walk_dat2(
             task->cache, task->cache_mode, comp, rel_x, rel_y, width, height, parent_id);
 
         if( task->callbacks.on_component )
-            task->callbacks.on_component(task->callbacks.user, comp_id);
+        {
+            task->callbacks.on_component(task->callbacks.user, comp->id);
+            task->components_walked++;
+        }
 
         rs_component_push_children_dat2(task, archive, comp, width, height);
     }
@@ -621,11 +693,14 @@ Task_RSComponentLoad_Run(
     struct Task_RSComponentLoad* task = task_state;
     void* walk_ifaces = NULL;
     int walk_root_id = -1;
+    int walk_root_id_before_remap = -1;
     int iface_id = 0;
     int batch_end = 0;
     bool dat2_iface_resolved = false;
     struct Dat2BuildCache_InterfaceArchive* iface_archive = NULL;
     struct RSCacheDat2Disk_Archive* iface_disk_archive = NULL;
+    char const* owner =
+        task->owner_component[0] != '\0' ? task->owner_component : "(unknown)";
 
     if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
         dat2_iface_resolved =
@@ -642,15 +717,22 @@ Task_RSComponentLoad_Run(
 
             struct RSCacheShared_FileListDat* interfaces_filelist =
                 TAPIDat1_DecodeInterfacesJagfile(ctx, 0);
+            assert(
+                interfaces_filelist &&
+                "Task_RSComponentLoad: failed to decode dat1 interfaces jagfile");
             if( interfaces_filelist )
             {
                 int data_idx = RSCacheShared_FileListDatFindFileByName(interfaces_filelist, "data");
+                assert(data_idx >= 0 && "Task_RSComponentLoad: interfaces jagfile missing data");
                 if( data_idx >= 0 )
                 {
                     void* iface_data = interfaces_filelist->files[data_idx];
                     int iface_size = interfaces_filelist->file_sizes[data_idx];
                     struct RSCacheDat1A_ConfigComponentList* interfaces =
                         RSCacheDat1A_ConfigComponentListNewDecode(iface_data, iface_size);
+                    assert(
+                        interfaces &&
+                        "Task_RSComponentLoad: failed to decode dat1 interfaces data");
                     if( interfaces )
                     {
                         dat1_buildcache_set_interfaces(dat1(task->cache), interfaces);
@@ -662,15 +744,22 @@ Task_RSComponentLoad_Run(
             LibToriRS_IOQueueClear(ctx->io);
         }
 
+        assert(
+            task->rc_ctx && task->rc_ctx->dat1_bc &&
+            "Task_RSComponentLoad: missing rc_ctx or dat1_bc");
         if( !task->rc_ctx || !task->rc_ctx->dat1_bc )
             PT_EXIT(&task->thread);
 
         instance_revconfig_resolve_panel_roots(task->rc_ctx);
 
         walk_ifaces = dat1_buildcache_get_interfaces(dat1(task->cache));
+        assert(
+            walk_ifaces &&
+            "Task_RSComponentLoad: dat1 interfaces unavailable after fetch/decode");
         if( !walk_ifaces )
             PT_EXIT(&task->thread);
 
+        walk_root_id_before_remap = task->root_component_id;
         walk_root_id = task->root_component_id;
         if( task->rc_ctx && walk_root_id >= 0 && walk_root_id < 1024 &&
             task->rc_ctx->panel_root_id[walk_root_id] >= 0 )
@@ -678,6 +767,9 @@ Task_RSComponentLoad_Run(
     }
     else if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
     {
+        assert(
+            task->rc_ctx && task->rc_ctx->dat2_bc && dat2_iface_resolved &&
+            "Task_RSComponentLoad: missing rc_ctx, dat2_bc, or invalid dat2 root");
         if( !task->rc_ctx || !task->rc_ctx->dat2_bc || !dat2_iface_resolved )
             PT_EXIT(&task->thread);
 
@@ -695,6 +787,9 @@ Task_RSComponentLoad_Run(
 
                 reference_table =
                     TAPIDat2_DecodeReferenceTable(ctx, 0, RSCacheDat2Disk_Table_Interfaces);
+                assert(
+                    reference_table &&
+                    "Task_RSComponentLoad: failed to decode dat2 interfaces reference table");
                 if( !reference_table )
                     PT_EXIT(&task->thread);
 
@@ -705,6 +800,9 @@ Task_RSComponentLoad_Run(
 
             reference_table = dat2_buildcache_reference_table_get(
                 task->rc_ctx->dat2_bc, RSCacheDat2Disk_Table_Interfaces);
+            assert(
+                reference_table &&
+                "Task_RSComponentLoad: dat2 interfaces reference table missing");
             if( !reference_table )
                 PT_EXIT(&task->thread);
 
@@ -713,15 +811,24 @@ Task_RSComponentLoad_Run(
 
             reference_table = dat2_buildcache_reference_table_get(
                 task->rc_ctx->dat2_bc, RSCacheDat2Disk_Table_Interfaces);
+            assert(
+                reference_table &&
+                "Task_RSComponentLoad: dat2 interfaces reference table missing after fetch");
             if( !reference_table )
                 PT_EXIT(&task->thread);
 
             iface_disk_archive = TAPIDat2_DecodeInterfaceArchive(ctx, 0, iface_id);
+            assert(
+                iface_disk_archive &&
+                "Task_RSComponentLoad: failed to decode dat2 interface archive");
             if( !iface_disk_archive )
                 PT_EXIT(&task->thread);
 
             iface_archive = dat2_buildcache_component_decode_iface_archive_from_archive(
                 reference_table, iface_disk_archive, iface_id);
+            assert(
+                iface_archive &&
+                "Task_RSComponentLoad: failed to decode dat2 interface components");
             if( !iface_archive )
                 PT_EXIT(&task->thread);
             dat2_buildcache_interface_archive_add(task->rc_ctx->dat2_bc, iface_id, iface_archive);
@@ -771,13 +878,43 @@ Task_RSComponentLoad_Run(
     }
     else
     {
+        assert(false && "Task_RSComponentLoad: unsupported cache mode");
         PT_EXIT(&task->thread);
     }
 
     void* root = rs_component_get(task->cache_mode, walk_ifaces, walk_root_id);
     if( !root )
+    {
+        if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+        {
+            fprintf(
+                stderr,
+                "Task_RSComponentLoad: dat1 root not found owner=%s root_component_id=%d "
+                "walk_root_id=%d panel_root_id=%d\n",
+                owner,
+                task->root_component_id,
+                walk_root_id,
+                (walk_root_id_before_remap >= 0 && walk_root_id_before_remap < 1024 &&
+                 task->rc_ctx)
+                    ? task->rc_ctx->panel_root_id[walk_root_id_before_remap]
+                    : -1);
+        }
+        else
+        {
+            fprintf(
+                stderr,
+                "Task_RSComponentLoad: dat2 root not found owner=%s root_component_id=%d "
+                "iface_id=%d walk_root_id=%d\n",
+                owner,
+                task->root_component_id,
+                iface_id,
+                walk_root_id);
+        }
+        assert(false && "Task_RSComponentLoad: root component not found in interfaces archive");
         PT_EXIT(&task->thread);
+    }
 
+    task->components_walked = 0;
     if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
     {
         struct RSCacheDat1A_ConfigComponent* dat1_root = root;
@@ -786,6 +923,13 @@ Task_RSComponentLoad_Run(
     else if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
     {
         rs_component_walk_dat2(task, walk_ifaces, walk_root_id);
+    }
+
+    if( task->callbacks.on_component )
+    {
+        assert(
+            task->components_walked > 0 &&
+            "Task_RSComponentLoad: component walk produced no nodes");
     }
 
     PT_END(&task->thread);

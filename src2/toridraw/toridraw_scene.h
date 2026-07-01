@@ -218,6 +218,9 @@ ToriDraw_SceneBatchElementAddPose(
 void
 ToriDraw_SceneSpritesReemitLoads(struct ToriDraw_Scene* scene);
 
+void
+ToriDraw_SceneFontsReemitLoads(struct ToriDraw_Scene* scene);
+
 struct ToriDraw_EventQueue*
 ToriDraw_SceneEvents(struct ToriDraw_Scene* scene);
 

@@ -30,8 +30,10 @@ struct Task_RSComponentLoad
     struct ToriDraw_Scene* scene;
     struct InstanceRevConfigContext* rc_ctx;
     int root_component_id;
+    char owner_component[64];
     struct RSComponentLoadCallbacks callbacks;
 
+    int components_walked;
     int stack[RS_COMPONENT_STACK_MAX];
     int stack_x[RS_COMPONENT_STACK_MAX];
     int stack_y[RS_COMPONENT_STACK_MAX];

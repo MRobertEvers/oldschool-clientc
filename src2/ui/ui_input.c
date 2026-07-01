@@ -1,4 +1,5 @@
 #include "ui_input.h"
+#include "uitree_host.h"
 #include "uitree_layout.h"
 
 bool
@@ -18,6 +19,60 @@ uitree_point_in_component(
     if( w <= 0 || h <= 0 )
         return false;
     return px >= x && px < x + w && py >= y && py < y + h;
+}
+
+bool
+uitree_component_is_pass_through(
+    struct StaticUIComponent const* component,
+    struct UITreeHost const* host)
+{
+    if( !component )
+        return true;
+
+    switch( component->type )
+    {
+    case UIELEM_BUILTIN_WORLD:
+    case UIELEM_RS_LAYER:
+    case UIELEM_BUILTIN_SIDEBAR:
+    case UIELEM_BUILTIN_CHAT:
+        return true;
+    case UIELEM_BUILTIN_CROSS:
+        return !host || !host->get_cross_active || !host->get_cross_active(host->user);
+    case UIELEM_BUILTIN_MINIMENU:
+        return !host || !host->get_minimenu_visible || !host->get_minimenu_visible(host->user);
+    default:
+        return false;
+    }
+}
+
+static int32_t
+uitree_hit_test_interactive_recursive(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t node_index,
+    int px,
+    int py)
+{
+    if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return -1;
+
+    struct StaticUIComponent const* component = &tree->components[node_index];
+
+    int32_t hit = -1;
+    if( uitree_point_in_component(&component->position, px, py) &&
+        !uitree_component_is_pass_through(component, host) &&
+        uitree_component_visible_host(component, node_index, -1, host) )
+        hit = node_index;
+
+    for( int32_t child = component->first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        int32_t child_hit = uitree_hit_test_interactive_recursive(tree, host, child, px, py);
+        if( child_hit >= 0 )
+            hit = child_hit;
+    }
+
+    return hit;
 }
 
 int32_t
@@ -61,6 +116,28 @@ uitree_hit_test(
          root = tree->components[root].next_sibling )
     {
         int32_t root_hit = uitree_hit_test_recursive(tree, root, px, py);
+        if( root_hit >= 0 )
+            hit = root_hit;
+    }
+
+    return hit;
+}
+
+int32_t
+uitree_hit_test_interactive(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py)
+{
+    if( !tree || tree->root_index < 0 )
+        return -1;
+
+    int32_t hit = -1;
+    for( int32_t root = tree->root_index; root >= 0;
+         root = tree->components[root].next_sibling )
+    {
+        int32_t root_hit = uitree_hit_test_interactive_recursive(tree, host, root, px, py);
         if( root_hit >= 0 )
             hit = root_hit;
     }

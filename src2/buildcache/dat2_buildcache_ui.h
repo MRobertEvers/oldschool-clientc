@@ -37,4 +37,13 @@ dat2_buildcache_component_decode_iface_archive_from_archive(
     struct RSCacheDat2Disk_Archive* archive,
     int iface_id);
 
+struct ToriDraw_Scene;
+
+struct ToriAuxLibCore_Sprite*
+dat2_buildcache_obj_icon_sprite(
+    struct Dat2BuildCache* buildcache,
+    struct ToriDraw_Scene* scene,
+    int obj_id,
+    int count);
+
 #endif

@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct UITreeHost;
+
 struct UIInputState
 {
     int32_t hovered;
@@ -51,6 +53,18 @@ uitree_hit_test_recursive(
 int32_t
 uitree_hit_test(
     struct UITree const* tree,
+    int px,
+    int py);
+
+bool
+uitree_component_is_pass_through(
+    struct StaticUIComponent const* component,
+    struct UITreeHost const* host);
+
+int32_t
+uitree_hit_test_interactive(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
     int px,
     int py);
 

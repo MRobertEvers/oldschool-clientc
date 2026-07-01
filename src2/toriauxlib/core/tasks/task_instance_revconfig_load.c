@@ -47,6 +47,7 @@ Task_InstanceRevConfigLoad_New(
     task->rc_ctx.scene = scene;
     task->rc_ctx.tree = tree;
     task->rc_ctx.game = game;
+    task->rc_ctx.td = game ? game->td : NULL;
     task->rc_ctx.cache_mode = ToriAuxLibCache_Mode(cache);
     task->rc_ctx.core = ToriAuxLibCache_Core(cache);
     task->rc_ctx.layout_group = task->layout_group;
@@ -114,6 +115,7 @@ Task_InstanceRevConfigLoad_Run(
     }
 
     task->rc_ctx.inv_pool = uitree_inv_pool_new(8);
+    task->rc_ctx.rs_capture_enabled = true;
 
     for( task->item_index = 0; task->item_index < (int)task->items->item_count; task->item_index++ )
     {
@@ -163,14 +165,21 @@ Task_InstanceRevConfigLoad_Run(
 
     instance_revconfig_build_tree(&task->rc_ctx);
 
-    GameRunescape_SetUIInvPool(task->game, task->rc_ctx.inv_pool);
+    if( task->game )
+        GameRunescape_SetUIInvPool(task->game, task->rc_ctx.inv_pool);
     task->rc_ctx.inv_pool = NULL;
 
     ToriDraw_SceneSpritesReemitLoads(task->scene);
+    ToriDraw_SceneFontsReemitLoads(task->scene);
 
-    task->game->ui_sprites_synced = false;
-    GameRunescape_SyncUISpritesFromScene(task->game);
-    GameRunescape_SetUITreeReady(task->game, true);
+    instance_revconfig_assert_fonts_in_scene(&task->rc_ctx);
+
+    if( task->game )
+    {
+        task->game->ui_sprites_synced = false;
+        GameRunescape_SyncUISpritesFromScene(task->game);
+        GameRunescape_SetUITreeReady(task->game, true);
+    }
 
     instance_revconfig_context_release_build_state(&task->rc_ctx);
 

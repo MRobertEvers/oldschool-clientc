@@ -8,10 +8,18 @@
 #include "toriauxlib/core/tasks/instance_revconfig_context.h"
 #include "toriauxlib/core/tasks/task_instance_revconfig_load.h"
 #include "toriauxlib/toriauxlib.h"
+#include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_scene.h"
+#include "games/runescape.h"
+#include "ui/minimenu_pickset.h"
+#include "ui/ui_click.h"
+#include "ui/ui_font_lookup.h"
+#include "ui/ui_input.h"
 #include "ui/ui_sprite_lookup.h"
 #include "ui/uitree.h"
+#include "ui/uitree_host.h"
 #include "world/minimap.h"
+#include "world/world_pickset.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -148,6 +156,29 @@ test_task_await(void)
 }
 
 /* --- full pipeline --- */
+
+static bool
+pipeline_cache_assets_available(void)
+{
+    static char const* const candidates[] = {
+        "../../src2/programs/sdl2/main_file_cache.dat",
+        "../../../src2/programs/sdl2/main_file_cache.dat",
+        "../src2/programs/sdl2/main_file_cache.dat",
+        "main_file_cache.dat",
+        NULL,
+    };
+
+    for( int i = 0; candidates[i]; i++ )
+    {
+        FILE* f = fopen(candidates[i], "rb");
+        if( f )
+        {
+            fclose(f);
+            return true;
+        }
+    }
+    return false;
+}
 
 static bool
 chdir_to_config_root(void)
@@ -676,6 +707,413 @@ count_items_of_kind(
     return n;
 }
 
+static bool
+populate_ctx_from_items(
+    struct InstanceRevConfigContext* ctx,
+    struct RevConfigItemBuffer const* items)
+{
+    assert(ctx && items);
+    for( uint32_t i = 0; i < items->item_count; i++ )
+    {
+        struct RevConfigItem const* item = &items->items[i];
+        if( item->kind == RCITEM_UICOMPONENT )
+        {
+            if( ctx->component_count >= INSTANCE_RC_MAX_COMPONENTS )
+                return false;
+            ctx->components[ctx->component_count] = item->u.uicomponent;
+            ctx->component_count++;
+        }
+        else if( item->kind == RCITEM_UILAYOUT )
+        {
+            if( item->u.uilayout.component[0] == '\0' )
+                continue;
+            if( ctx->layout_count >= INSTANCE_RC_MAX_LAYOUTS )
+                return false;
+            ctx->layouts[ctx->layout_count++] = item->u.uilayout;
+        }
+    }
+    return true;
+}
+
+static int
+assert_interactive_miss(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py,
+    char const* label)
+{
+    int32_t hit = uitree_hit_test_interactive(tree, host, px, py);
+    if( hit >= 0 )
+    {
+        fprintf(
+            stderr,
+            "FAIL: %s at (%d,%d) expected interactive miss, got node %d type %d\n",
+            label,
+            px,
+            py,
+            hit,
+            tree->components[hit].type);
+        return 1;
+    }
+    return 0;
+}
+
+static int
+assert_interactive_type(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py,
+    enum StaticUIComponentType expected_type,
+    char const* label)
+{
+    int32_t hit = uitree_hit_test_interactive(tree, host, px, py);
+    if( hit < 0 )
+    {
+        fprintf(stderr, "FAIL: %s at (%d,%d) expected type %d, got miss\n", label, px, py, expected_type);
+        return 1;
+    }
+    if( tree->components[hit].type != expected_type )
+    {
+        fprintf(
+            stderr,
+            "FAIL: %s at (%d,%d) expected type %d, got type %d (node %d)\n",
+            label,
+            px,
+            py,
+            expected_type,
+            tree->components[hit].type,
+            hit);
+        return 1;
+    }
+    return 0;
+}
+
+static int32_t
+uitree_find_sidebar_tab(
+    struct UITree const* tree,
+    int tabno)
+{
+    if( !tree )
+        return -1;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* c = &tree->components[i];
+        if( c->type == UIELEM_BUILTIN_SIDEBAR && c->u.sidebar.tabno == tabno )
+            return (int32_t)i;
+    }
+    return -1;
+}
+
+static int
+count_descendants(
+    struct UITree const* tree,
+    int32_t node_index)
+{
+    if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 0;
+
+    int count = 0;
+    for( int32_t child = tree->components[node_index].first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+        count += 1 + count_descendants(tree, child);
+    return count;
+}
+
+static bool
+test_stub_cross_active(void* user)
+{
+    (void)user;
+    return false;
+}
+
+static bool
+test_stub_minimenu_visible(void* user)
+{
+    (void)user;
+    return false;
+}
+
+static int
+assert_hit_type(
+    struct UITree const* tree,
+    int px,
+    int py,
+    enum StaticUIComponentType expected_type,
+    char const* label)
+{
+    int32_t hit = uitree_hit_test(tree, px, py);
+    if( hit < 0 )
+    {
+        fprintf(stderr, "FAIL: %s at (%d,%d) expected type %d, got miss\n", label, px, py, expected_type);
+        return 1;
+    }
+    if( tree->components[hit].type != expected_type )
+    {
+        fprintf(
+            stderr,
+            "FAIL: %s at (%d,%d) expected type %d, got type %d (node %d)\n",
+            label,
+            px,
+            py,
+            expected_type,
+            tree->components[hit].type,
+            hit);
+        return 1;
+    }
+    return 0;
+}
+
+static bool
+minimenu_has_option_text(
+    struct UIMinimenuState const* menu,
+    char const* text)
+{
+    if( !menu || !text )
+        return false;
+    for( int i = 0; i < menu->option_count; i++ )
+    {
+        if( strcmp(menu->options[i].text, text) == 0 )
+            return true;
+    }
+    return false;
+}
+
+static int
+assert_minimenu_options(
+    struct GameRunescape* game,
+    struct MinimenuPickSet const* picks,
+    bool include_walk,
+    int min_option_count,
+    char const* const* required_options,
+    int required_count,
+    char const* label)
+{
+    struct UIMinimenuState menu;
+    ui_click_build_minimenu_from_pickset(game, picks, include_walk, &menu);
+
+    if( menu.option_count < min_option_count )
+    {
+        fprintf(
+            stderr,
+            "FAIL: %s expected >= %d minimenu options, got %d\n",
+            label,
+            min_option_count,
+            menu.option_count);
+        return 1;
+    }
+
+    for( int i = 0; i < required_count; i++ )
+    {
+        if( !minimenu_has_option_text(&menu, required_options[i]) )
+        {
+            fprintf(
+                stderr,
+                "FAIL: %s missing minimenu option '%s' (have %d options)\n",
+                label,
+                required_options[i],
+                menu.option_count);
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+struct MouseLocationCase
+{
+    int x;
+    int y;
+    enum StaticUIComponentType expected_type;
+    char const* label;
+    bool build_world_minimenu;
+    int min_menu_options;
+    char const* required_option;
+};
+
+static int g_test_selected_tab = 3;
+
+static int
+test_host_get_selected_tab(void* user)
+{
+    (void)user;
+    return g_test_selected_tab;
+}
+
+static int
+test_mouse_hit_test_on_built_tree(void)
+{
+    void* data = NULL;
+    size_t size = 0;
+    TEST_ASSERT(read_config_file(UI_DAT1_UI_INI, &data, &size) == 0, "read dat1 ui ini");
+
+    struct RevConfigBuffer* fields = revconfig_buffer_new(4096);
+    TEST_ASSERT(fields != NULL, "revconfig_buffer_new");
+    revconfig_load_fields_from_ini_bytes(data, size, fields);
+    free(data);
+
+    struct RevConfigItemBuffer* items = revconfig_item_buffer_new(512);
+    TEST_ASSERT(items != NULL, "revconfig_item_buffer_new");
+    revconfig_items_build(fields, items);
+    revconfig_buffer_free(fields);
+
+    struct InstanceRevConfigContext ctx;
+    struct UITree* tree = uitree_new(128);
+    TEST_ASSERT(tree != NULL, "uitree_new");
+    instance_revconfig_context_init(&ctx);
+    ctx.tree = tree;
+    TEST_ASSERT(populate_ctx_from_items(&ctx, items), "populate ctx from items");
+    TEST_ASSERT(ctx.component_count > 0, "no components parsed");
+    TEST_ASSERT(ctx.layout_count > 0, "no layouts parsed");
+
+    TEST_ASSERT(instance_revconfig_build_tree(&ctx), "build tree from dat1 ui ini");
+    TEST_ASSERT(tree->component_count > 0u, "tree has no nodes");
+    TEST_ASSERT(tree->root_index >= 0, "tree missing root");
+    TEST_ASSERT(uitree_links_valid(tree), "tree link integrity");
+
+    /* Parse-only build: sidebar shells exist but RS children are not baked without
+     * Task_RSComponentLoad (full IO pipeline). first_child may be -1 on sidebar tabs. */
+    fprintf(
+        stderr,
+        "note: parse-only tree build skips RS subtree bake; sidebar first_child may be -1\n");
+
+    struct GameRunescape game;
+    memset(&game, 0, sizeof(game));
+
+    struct UITreeHost host;
+    uitree_host_init(&host);
+    host.get_cross_active = test_stub_cross_active;
+    host.get_minimenu_visible = test_stub_minimenu_visible;
+
+    static struct MouseLocationCase const cases[] = {
+        { 300, 200, UIELEM_BUILTIN_WORLD, "world center", true, 2, "Walk here" },
+        { 256, 50, UIELEM_BUILTIN_WORLD, "world upper", true, 2, "Walk here" },
+        { 50, 300, UIELEM_BUILTIN_WORLD, "world lower-left", true, 2, "Walk here" },
+        { 560, 10, UIELEM_BUILTIN_COMPASS, "compass widget", false, 0, NULL },
+        { 676, 104, UIELEM_BUILTIN_MINIMAP, "minimap center", false, 0, NULL },
+        { 700, 50, UIELEM_BUILTIN_MINIMAP, "minimap upper-right", false, 0, NULL },
+        { 10, 10, UIELEM_BUILTIN_CROSS, "cross at default layout origin", false, 0, NULL },
+        { 100, 100, UIELEM_BUILTIN_MINIMENU, "minimenu placeholder shadow", false, 0, NULL },
+        { 116, 116, UIELEM_BUILTIN_MINIMENU, "cross area shadowed by minimenu", false, 0, NULL },
+        { 400, 400, UIELEM_RS_LAYER, "fixed shell below world", false, 0, NULL },
+    };
+
+    for( size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++ )
+    {
+        struct MouseLocationCase const* c = &cases[i];
+        if( assert_hit_type(tree, c->x, c->y, c->expected_type, c->label) != 0 )
+            return 1;
+
+        if( c->expected_type == UIELEM_BUILTIN_WORLD )
+        {
+            if( assert_interactive_miss(tree, &host, c->x, c->y, c->label) != 0 )
+                return 1;
+        }
+        else if( c->expected_type == UIELEM_BUILTIN_MINIMENU )
+        {
+            if( assert_interactive_miss(tree, &host, c->x, c->y, c->label) != 0 )
+                return 1;
+        }
+        else if( c->expected_type == UIELEM_BUILTIN_COMPASS )
+        {
+            if( assert_interactive_type(
+                    tree, &host, c->x, c->y, UIELEM_BUILTIN_COMPASS, c->label) != 0 )
+                return 1;
+        }
+        else if( c->expected_type == UIELEM_BUILTIN_MINIMAP )
+        {
+            if( assert_interactive_type(
+                    tree, &host, c->x, c->y, UIELEM_BUILTIN_MINIMAP, c->label) != 0 )
+                return 1;
+        }
+
+        if( c->build_world_minimenu )
+        {
+            struct MinimenuPickSet picks;
+            minimenu_pickset_reset(&picks);
+            minimenu_pickset_add(&picks, MINIMENU_PICK_TERRAIN, 0, 40, 60, 0);
+
+            char menu_label[96];
+            snprintf(menu_label, sizeof(menu_label), "%s minimenu", c->label);
+            char const* required[] = { c->required_option, "Cancel" };
+            if( assert_minimenu_options(
+                    &game, &picks, true, c->min_menu_options, required, 2, menu_label) != 0 )
+                return 1;
+        }
+    }
+
+    int32_t miss = uitree_hit_test(tree, 2000, 2000);
+    TEST_ASSERT(miss < 0, "outside root should miss");
+
+    int32_t sidebar_idx = uitree_find_sidebar_tab(tree, 3);
+    TEST_ASSERT(sidebar_idx >= 0, "sidebar_tab_3 shell exists in dat1 tree");
+    TEST_ASSERT(
+        tree->components[sidebar_idx].u.sidebar.componentno == 3213,
+        "sidebar_tab_3 componentno");
+    TEST_ASSERT(
+        tree->components[sidebar_idx].position.width == 190,
+        "sidebar_tab_3 layout width");
+    TEST_ASSERT(
+        tree->components[sidebar_idx].position.height == 261,
+        "sidebar_tab_3 layout height");
+
+    {
+        int32_t sideicon_music_idx = uitree_layout_node_for_component(&ctx, "sideicon_music");
+        int32_t sidebar_tab_0_idx = uitree_layout_node_for_component(&ctx, "sidebar_tab_0");
+        TEST_ASSERT(sideicon_music_idx >= 0, "sideicon_music layout node");
+        TEST_ASSERT(sidebar_tab_0_idx >= 0, "sidebar_tab_0 layout node");
+        TEST_ASSERT(
+            sideicon_music_idx < sidebar_tab_0_idx,
+            "sidebar tabs should layout after tab icons");
+    }
+
+    host.get_selected_tab = test_host_get_selected_tab;
+    {
+        int32_t inv_tab_hit = uitree_hit_test_interactive(tree, &host, 631, 172);
+        TEST_ASSERT(inv_tab_hit >= 0, "inventory tab icon interactive hit");
+        TEST_ASSERT(
+            tree->components[inv_tab_hit].type == UIELEM_BUILTIN_TAB_ICONS,
+            "inventory tab hit is tab_icon");
+        TEST_ASSERT(
+            tree->components[inv_tab_hit].u.tab_icon.tabno == 3,
+            "inventory tab hit tabno");
+    }
+
+    struct MinimenuPickSet npc_picks;
+    minimenu_pickset_reset(&npc_picks);
+    minimenu_pickset_add(&npc_picks, MINIMENU_PICK_NPC, 42, 0, 0, 0);
+    {
+        char const* required[] = { "Attack", "Talk-to", "Walk here", "Cancel" };
+        if( assert_minimenu_options(&game, &npc_picks, true, 4, required, 4, "npc pickset") != 0 )
+            return 1;
+    }
+
+    struct MinimenuPickSet scenery_picks;
+    minimenu_pickset_reset(&scenery_picks);
+    minimenu_pickset_add(&scenery_picks, MINIMENU_PICK_SCENERY, 100, 200, 0, 0);
+    {
+        char const* required[] = { "Use", "Walk here", "Cancel" };
+        if( assert_minimenu_options(&game, &scenery_picks, true, 4, required, 3, "scenery pickset") != 0 )
+            return 1;
+    }
+
+    struct MinimenuPickSet empty_picks;
+    minimenu_pickset_reset(&empty_picks);
+    {
+        char const* required[] = { "Walk here", "Cancel" };
+        if( assert_minimenu_options(&game, &empty_picks, true, 2, required, 2, "empty world pickset") != 0 )
+            return 1;
+    }
+
+    instance_revconfig_context_release_build_state(&ctx);
+    uitree_free(tree);
+    revconfig_item_buffer_free(items);
+
+    fprintf(stderr, "ok: mouse hit-test and minimenu options on built UI tree\n");
+    return 0;
+}
+
 static int
 run_pipeline_test(
     enum ToriAuxLibCacheMode mode,
@@ -697,9 +1135,14 @@ run_pipeline_test(
     struct UITree* tree = uitree_new(64);
     TEST_ASSERT(tree != NULL, "uitree_new");
 
+    struct GameRunescape game;
+    memset(&game, 0, sizeof(game));
+    game.scene = scene;
+    GameRunescape_SetTD(&game, ToriAuxLib_TD(aux));
+
     char const* files[2] = { cache_ini, ui_ini };
     struct Task_InstanceRevConfigLoad* load_task =
-        Task_InstanceRevConfigLoad_New(ToriAuxLib_C(aux), scene, tree, NULL, files, 2, "fixed");
+        Task_InstanceRevConfigLoad_New(ToriAuxLib_C(aux), scene, tree, &game, files, 2, "fixed");
     TEST_ASSERT(load_task != NULL, "Task_InstanceRevConfigLoad_New");
 
     struct CoreTask* task = core_task_new(load_task, Task_InstanceRevConfigLoad_Run, NULL);
@@ -772,6 +1215,13 @@ run_pipeline_test(
             TEST_ASSERT(uitree_has_type(tree, UIELEM_BUILTIN_CROSS), "cross component missing");
             TEST_ASSERT(uitree_has_type(tree, UIELEM_BUILTIN_MINIMENU), "minimenu component missing");
             TEST_ASSERT(find_cache_font_item(load_task->items, "b12"), "b12 font item missing");
+            {
+                int const b12_id = ui_font_lookup_find(&load_task->rc_ctx.font_lookup, "b12");
+                TEST_ASSERT(b12_id >= 0, "b12 font lookup missing");
+                TEST_ASSERT(
+                    ToriDraw_SceneFontHas(scene, b12_id),
+                    "b12 font not in scene after revconfig load");
+            }
             TEST_ASSERT(
                 uitree_component_parent_is(
                     tree, &load_task->rc_ctx, "redstone_tab_quests", "fixed_shell"),
@@ -782,6 +1232,45 @@ run_pipeline_test(
             TEST_ASSERT(
                 uitree_component_parent_is(tree, &load_task->rc_ctx, "backleft2", "fixed_shell"),
                 "backleft2 parent should be fixed_shell");
+
+            int32_t sidebar_idx = uitree_find_sidebar_tab(tree, 3);
+            TEST_ASSERT(sidebar_idx >= 0, "sidebar_tab_3 exists after pipeline load");
+            TEST_ASSERT(
+                tree->components[sidebar_idx].first_child >= 0,
+                "sidebar_tab_3 has baked RS children");
+            TEST_ASSERT(
+                count_descendants(tree, sidebar_idx) > 0,
+                "sidebar_tab_3 has RS descendants");
+
+            bool found_inv = false;
+            for( uint32_t i = 0; i < tree->component_count; i++ )
+            {
+                if( tree->components[i].type != UIELEM_RS_INV )
+                    continue;
+                int32_t walk = (int32_t)i;
+                while( walk >= 0 )
+                {
+                    if( walk == sidebar_idx )
+                    {
+                        found_inv = true;
+                        break;
+                    }
+                    walk = tree->components[walk].parent;
+                }
+                if( found_inv )
+                    break;
+            }
+            TEST_ASSERT(found_inv, "sidebar_tab_3 subtree contains RS_INV");
+
+            int32_t sideicon_music_idx =
+                uitree_layout_node_for_component(&load_task->rc_ctx, "sideicon_music");
+            int32_t sidebar_tab_0_idx =
+                uitree_layout_node_for_component(&load_task->rc_ctx, "sidebar_tab_0");
+            TEST_ASSERT(sideicon_music_idx >= 0, "sideicon_music layout node");
+            TEST_ASSERT(sidebar_tab_0_idx >= 0, "sidebar_tab_0 layout node");
+            TEST_ASSERT(
+                sideicon_music_idx < sidebar_tab_0_idx,
+                "sidebar tabs layout after tab icons");
         }
     }
 
@@ -799,6 +1288,272 @@ run_pipeline_test(
     ToriDraw_SceneFree(scene);
     LibToriPlatformX_IOReactorFree(reactor);
     LibToriRS_IOQueueFree(io);
+    return 0;
+}
+
+static int
+test_sidebar_tab_inv_binding(void)
+{
+    struct ToriAuxLibCore* core = ToriAuxLibCore_New();
+    TEST_ASSERT(core != NULL, "ToriAuxLibCore_New");
+
+    struct UIInventoryPool* pool = uitree_inv_pool_new(4);
+    TEST_ASSERT(pool != NULL, "uitree_inv_pool_new");
+
+    struct UIInventory inv;
+    memset(&inv, 0, sizeof(inv));
+    strncpy(inv.name, "inventory", sizeof(inv.name) - 1);
+    inv.item_count = 1;
+    inv.items[0].obj_id = 1333;
+    inv.items[0].scene_id = 42;
+    inv.items[0].atlas_index = 0;
+    int inv_index = uitree_inv_pool_append(pool, &inv);
+    TEST_ASSERT(inv_index == 0, "inventory pool index");
+
+    struct UITree* tree = uitree_new(16);
+    TEST_ASSERT(tree != NULL, "uitree_new");
+
+    struct InstanceRevConfigContext ctx;
+    instance_revconfig_context_init(&ctx);
+    ctx.core = core;
+    ctx.tree = tree;
+    ctx.inv_pool = pool;
+
+    struct RevConfigUIComponentItem sidebar_comp;
+    memset(&sidebar_comp, 0, sizeof(sidebar_comp));
+    strncpy(sidebar_comp.name, "sidebar_tab_3", sizeof(sidebar_comp.name) - 1);
+    strncpy(sidebar_comp.type, "sidebar", sizeof(sidebar_comp.type) - 1);
+    strncpy(sidebar_comp.inv, "inventory", sizeof(sidebar_comp.inv) - 1);
+    sidebar_comp.tabno = 3;
+    sidebar_comp.componentno = 3213;
+
+    struct UINodeSpec owner_spec;
+    memset(&owner_spec, 0, sizeof(owner_spec));
+    owner_spec.type = UIELEM_BUILTIN_SIDEBAR;
+    owner_spec.u.sidebar.tabno = sidebar_comp.tabno;
+    owner_spec.u.sidebar.componentno = sidebar_comp.componentno;
+    owner_spec.u.sidebar.inv_index = inv_index;
+    int32_t owner_idx = uitree_push(tree, -1, &owner_spec);
+    TEST_ASSERT(owner_idx >= 0, "sidebar owner push");
+
+    struct ToriAuxLibCore_Component* inv_comp = calloc(1, sizeof(*inv_comp));
+    TEST_ASSERT(inv_comp != NULL, "inv core component alloc");
+    inv_comp->id = 100;
+    inv_comp->type = TORIAUXLIBCORE_COMPONENT_INV;
+    inv_comp->parent_id = -1;
+    inv_comp->inv_cols = 4;
+    inv_comp->inv_rows = 7;
+    ToriAuxLibCore_ComponentAdd(core, 100, inv_comp);
+
+    struct InstanceRevConfigRSSubtree* subtree =
+        instance_revconfig_rs_subtree_get_or_create(&ctx, sidebar_comp.name);
+    TEST_ASSERT(subtree != NULL, "rs subtree create");
+    instance_revconfig_rs_subtree_append(subtree, 100);
+
+    instance_revconfig_bake_rs_subtree(&ctx, &sidebar_comp, owner_idx);
+
+    bool found_inv = false;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        if( tree->components[i].type != UIELEM_RS_INV )
+            continue;
+        found_inv = true;
+        TEST_ASSERT(
+            tree->components[i].u.rs_inv.inv_index == inv_index,
+            "RS_INV inv_index matches inventory pool");
+        TEST_ASSERT(tree->components[i].parent == owner_idx, "RS_INV parent is sidebar owner");
+    }
+    TEST_ASSERT(found_inv, "baked RS_INV node exists");
+    TEST_ASSERT(count_descendants(tree, owner_idx) > 0, "sidebar has baked descendants");
+
+    struct UITreeHost host;
+    uitree_host_init(&host);
+    host.get_selected_tab = test_host_get_selected_tab;
+
+    g_test_selected_tab = 3;
+    TEST_ASSERT(
+        uitree_component_visible_host(&tree->components[owner_idx], owner_idx, -1, &host),
+        "sidebar visible when selected tab is 3");
+
+    g_test_selected_tab = 2;
+    TEST_ASSERT(
+        !uitree_component_visible_host(&tree->components[owner_idx], owner_idx, -1, &host),
+        "sidebar hidden when selected tab is not 3");
+
+    instance_revconfig_context_release_build_state(&ctx);
+    ToriAuxLibCore_Free(core);
+    uitree_inv_pool_free(pool);
+    uitree_free(tree);
+
+    fprintf(stderr, "ok: sidebar tab 3 inv binding and visibility\n");
+    return 0;
+}
+
+static int
+test_ui_click_world_viewport(void)
+{
+    void* data = NULL;
+    size_t size = 0;
+    TEST_ASSERT(read_config_file(UI_DAT1_UI_INI, &data, &size) == 0, "read dat1 ui ini");
+
+    struct RevConfigBuffer* fields = revconfig_buffer_new(4096);
+    TEST_ASSERT(fields != NULL, "revconfig_buffer_new");
+    revconfig_load_fields_from_ini_bytes(data, size, fields);
+    free(data);
+
+    struct RevConfigItemBuffer* items = revconfig_item_buffer_new(512);
+    TEST_ASSERT(items != NULL, "revconfig_item_buffer_new");
+    revconfig_items_build(fields, items);
+    revconfig_buffer_free(fields);
+
+    struct InstanceRevConfigContext ctx;
+    struct UITree* tree = uitree_new(128);
+    TEST_ASSERT(tree != NULL, "uitree_new");
+    instance_revconfig_context_init(&ctx);
+    ctx.tree = tree;
+    TEST_ASSERT(populate_ctx_from_items(&ctx, items), "populate ctx from items");
+    TEST_ASSERT(instance_revconfig_build_tree(&ctx), "build tree from dat1 ui ini");
+
+    struct GameRunescape game;
+    memset(&game, 0, sizeof(game));
+    game.ui_tree = tree;
+    game.ui_tree_ready = true;
+    uitree_host_init(&game.ui_host);
+    game.ui_host.user = &game;
+    game.ui_host.get_cross_active = test_stub_cross_active;
+    game.ui_host.get_minimenu_visible = test_stub_minimenu_visible;
+    game.ui_host.get_selected_tab = test_host_get_selected_tab;
+    game.world_view_port.clip_left = 4;
+    game.world_view_port.clip_top = 4;
+    game.world_view_port.clip_right = 517;
+    game.world_view_port.clip_bottom = 339;
+    game.mouse_in_viewport = true;
+
+    world_pickset_reset(&game.pickset);
+    world_pickset_add(&game.pickset, 1, WORLD_PICK_TERRAIN, 40, 60, 0);
+
+    ui_click_handle_right(&game, NULL, 300, 200);
+    TEST_ASSERT(game.minimenu.visible, "right-click viewport opens minimenu");
+    TEST_ASSERT(game.minimenu.option_count >= 2, "viewport minimenu has options");
+    TEST_ASSERT(minimenu_has_option_text(&game.minimenu, "Walk here"), "walk option");
+    TEST_ASSERT(minimenu_has_option_text(&game.minimenu, "Cancel"), "cancel option");
+
+    ui_minimenu_hide(&game.minimenu);
+    ui_click_handle_left(&game, NULL, 300, 200);
+    TEST_ASSERT(game.cross_mode == RUNESCAPE_CROSS_MODE_WALK, "left-click ground sets walk cross");
+    TEST_ASSERT(game.cross_x == 300 && game.cross_y == 200, "cross position at click");
+
+    world_pickset_reset(&game.pickset);
+    world_pickset_add(&game.pickset, 2, WORLD_PICK_NPC, 0, 0, 0);
+    game.entity_registry = calloc(1, sizeof(struct GameRunescape_EntityRecord));
+    TEST_ASSERT(game.entity_registry != NULL, "entity registry alloc");
+    game.entity_registry[0].element_id = 2;
+    game.entity_registry[0].entity_id = RS_ENTITY_ID(RS_ENTITY_KIND_NPC, 1);
+    game.entity_registry_count = 1;
+
+    ui_click_handle_left(&game, NULL, 300, 200);
+    TEST_ASSERT(
+        game.cross_mode == RUNESCAPE_CROSS_MODE_INTERACT, "left-click npc sets interact cross");
+
+    free(game.entity_registry);
+    instance_revconfig_context_release_build_state(&ctx);
+    uitree_free(tree);
+    revconfig_item_buffer_free(items);
+
+    fprintf(stderr, "ok: ui_click world viewport cross and minimenu\n");
+    return 0;
+}
+
+static int
+test_toridraw_font_opaque_alpha(void)
+{
+    struct ToriDraw_Font font;
+    memset(&font, 0, sizeof(font));
+
+    for( int i = 0; i < 256; i++ )
+        font.charcodeset[i] = (char)93;
+    font.charcodeset['A'] = 0;
+
+    uint8_t glyph_pixel = 255;
+    font.glyph_alpha[0] = &glyph_pixel;
+    font.glyph_width[0] = 1;
+    font.glyph_height[0] = 1;
+    font.line_height = 1;
+    font.offset_x[0] = 0;
+    font.offset_y[0] = 0;
+    font.advance[0] = 2;
+
+    int pixels[64];
+    memset(pixels, 0, sizeof(pixels));
+
+    struct ToriDraw_ViewPort vp = {
+        .clip_left = 0,
+        .clip_top = 0,
+        .clip_right = 8,
+        .clip_bottom = 8,
+        .stride = 8,
+    };
+
+    ToriDraw2D_DrawString(&font, &vp, 2, 2, "A", 0xffffff, false, false, pixels);
+
+    int const written = pixels[2 * vp.stride + 2];
+    TEST_ASSERT(written != 0, "glyph pixel written");
+    TEST_ASSERT((written & 0xFF000000u) == 0xFF000000u, "glyph pixel opaque alpha");
+
+    fprintf(stderr, "ok: toridraw font opaque alpha\n");
+    return 0;
+}
+
+static int
+test_ui_click_right_outside_viewport(void)
+{
+    void* data = NULL;
+    size_t size = 0;
+    TEST_ASSERT(read_config_file(UI_DAT1_UI_INI, &data, &size) == 0, "read dat1 ui ini");
+
+    struct RevConfigBuffer* fields = revconfig_buffer_new(4096);
+    TEST_ASSERT(fields != NULL, "revconfig_buffer_new");
+    revconfig_load_fields_from_ini_bytes(data, size, fields);
+    free(data);
+
+    struct RevConfigItemBuffer* items = revconfig_item_buffer_new(512);
+    TEST_ASSERT(items != NULL, "revconfig_item_buffer_new");
+    revconfig_items_build(fields, items);
+    revconfig_buffer_free(fields);
+
+    struct InstanceRevConfigContext ctx;
+    struct UITree* tree = uitree_new(128);
+    TEST_ASSERT(tree != NULL, "uitree_new");
+    instance_revconfig_context_init(&ctx);
+    ctx.tree = tree;
+    TEST_ASSERT(populate_ctx_from_items(&ctx, items), "populate ctx from items");
+    TEST_ASSERT(instance_revconfig_build_tree(&ctx), "build tree from dat1 ui ini");
+
+    struct GameRunescape game;
+    memset(&game, 0, sizeof(game));
+    game.ui_tree = tree;
+    game.ui_tree_ready = true;
+    uitree_host_init(&game.ui_host);
+    game.ui_host.user = &game;
+    game.ui_host.get_cross_active = test_stub_cross_active;
+    game.ui_host.get_minimenu_visible = test_stub_minimenu_visible;
+    game.ui_host.get_selected_tab = test_host_get_selected_tab;
+    game.world_view_port.clip_left = 4;
+    game.world_view_port.clip_top = 4;
+    game.world_view_port.clip_right = 517;
+    game.world_view_port.clip_bottom = 339;
+    game.mouse_in_viewport = false;
+
+    ui_click_handle_right(&game, NULL, 560, 10);
+    TEST_ASSERT(game.minimenu.visible, "right-click compass opens minimenu");
+    TEST_ASSERT(minimenu_has_option_text(&game.minimenu, "Cancel"), "cancel option");
+    TEST_ASSERT(!minimenu_has_option_text(&game.minimenu, "Walk here"), "no walk outside viewport");
+
+    instance_revconfig_context_release_build_state(&ctx);
+    uitree_free(tree);
+    revconfig_item_buffer_free(items);
+
+    fprintf(stderr, "ok: ui_click right outside viewport\n");
     return 0;
 }
 
@@ -835,10 +1590,34 @@ main(void)
     if( test_minimap_component_always_dirty() != 0 )
         return 1;
 
-    fprintf(
-        stderr,
-        "skip: full revconfig load pipeline requires game cache assets "
-        "(layout parent parsing verified via src2 revconfig parser above).\n");
+    if( test_mouse_hit_test_on_built_tree() != 0 )
+        return 1;
+
+    if( test_sidebar_tab_inv_binding() != 0 )
+        return 1;
+
+    if( test_ui_click_world_viewport() != 0 )
+        return 1;
+
+    if( test_toridraw_font_opaque_alpha() != 0 )
+        return 1;
+
+    if( test_ui_click_right_outside_viewport() != 0 )
+        return 1;
+
+    if( pipeline_cache_assets_available() )
+    {
+        if( run_pipeline_test(
+                TORIAUXLIBCACHE_MODE_DAT1, "dat1", UI_DAT1_CACHE_INI, UI_DAT1_UI_INI, true) != 0 )
+            return 1;
+    }
+    else
+    {
+        fprintf(
+            stderr,
+            "skip: full revconfig load pipeline requires game cache assets "
+            "(main_file_cache.dat not found)\n");
+    }
 
     printf("All instance_revconfig_load tests passed.\n");
     return 0;

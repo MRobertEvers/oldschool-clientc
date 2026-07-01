@@ -8,6 +8,12 @@
 
 #define TORIDRAW_FONT_GLYPH_COUNT 94
 
+uint16_t const*
+ToriDraw_FontCharsetTable(void);
+
+void
+ToriDraw_FontInitCharcodeset(struct ToriDraw_Font* font);
+
 struct ToriDraw_Font
 {
     uint8_t* glyph_alpha[TORIDRAW_FONT_GLYPH_COUNT];
@@ -31,12 +37,16 @@ ToriDraw_FontNewFromRSBytes(
 void
 ToriDraw_FontFree(struct ToriDraw_Font* font);
 
+bool
+ToriDraw_FontValidate(struct ToriDraw_Font* font);
+
 int
 ToriDraw2D_MeasureString(
     struct ToriDraw_Font* font,
     char const* text);
 
-void
+/** Returns the number of opaque glyph pixels written (0 if nothing drawn). */
+int
 ToriDraw2D_DrawString(
     struct ToriDraw_Font* font,
     struct ToriDraw_ViewPort* view_port,

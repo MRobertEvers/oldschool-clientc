@@ -1205,6 +1205,22 @@ ToriDraw_SceneSpritesReemitLoads(struct ToriDraw_Scene* scene)
 }
 
 void
+ToriDraw_SceneFontsReemitLoads(struct ToriDraw_Scene* scene)
+{
+    if( !scene || !scene->fonts_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(scene->fonts_hmap);
+    struct MapEntry_Font* entry = NULL;
+    while( (entry = (struct MapEntry_Font*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->font )
+            td_scene_emit_font(scene, TORIDRAW_EVENT_FONT_LOAD, entry->id, entry->font);
+    }
+    ToriDraw_MapIterFree(iter);
+}
+
+void
 ToriDraw_SceneFrameEnd(struct ToriDraw_Scene* scene)
 {
     for( int i = 0; i < scene->pending_pose_count; i++ )

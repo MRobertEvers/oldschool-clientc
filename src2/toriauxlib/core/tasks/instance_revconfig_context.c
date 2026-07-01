@@ -5,8 +5,10 @@
 #include "games/runescape.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "toriauxlib/core/toriauxlibcore.h"
+#include "toridraw/toridraw_scene.h"
 #include "ui/uitree_layout.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,7 +52,13 @@ instance_revconfig_rs_subtree_append(
     struct InstanceRevConfigRSSubtree* subtree,
     int component_id)
 {
-    assert(subtree && component_id >= 0 && subtree->item_count < INSTANCE_RC_MAX_RS_SUBTREE_ITEMS);
+    assert(subtree && component_id >= 0);
+    for( int i = 0; i < subtree->item_count; i++ )
+    {
+        if( subtree->component_ids[i] == component_id )
+            return true;
+    }
+    assert(subtree->item_count < INSTANCE_RC_MAX_RS_SUBTREE_ITEMS);
     subtree->component_ids[subtree->item_count++] = component_id;
     return true;
 }
@@ -147,9 +155,13 @@ instance_revconfig_bake_rs_component(
 }
 
 static int
-instance_revconfig_rs_file_index(int component_id)
+instance_revconfig_rs_bake_map_key(int component_id)
 {
-    return component_id & 0xFFFF;
+    if( component_id < 0 )
+        return -1;
+    if( (component_id & 0xFFFF0000) != 0 )
+        return component_id & 0xFFFF;
+    return component_id;
 }
 
 void
@@ -168,35 +180,65 @@ instance_revconfig_bake_rs_subtree(
     if( comp->inv[0] != '\0' && ctx->inv_pool )
         inv_index = uitree_inv_pool_find_by_name(ctx->inv_pool, comp->inv);
 
-    int id_to_uitree[INSTANCE_RC_RS_FILE_INDEX_MAX];
-    for( int i = 0; i < INSTANCE_RC_RS_FILE_INDEX_MAX; i++ )
+    int map_size = 0;
+    for( int i = 0; i < subtree->item_count; i++ )
+    {
+        int key = instance_revconfig_rs_bake_map_key(subtree->component_ids[i]);
+        if( key > map_size )
+            map_size = key;
+    }
+    map_size++;
+
+    int* id_to_uitree = calloc((size_t)map_size, sizeof(int));
+    assert(id_to_uitree && "instance_revconfig_bake_rs_subtree: id_to_uitree alloc");
+    for( int i = 0; i < map_size; i++ )
         id_to_uitree[i] = -1;
 
+    int baked_count = 0;
     for( int i = 0; i < subtree->item_count; i++ )
     {
         int component_id = subtree->component_ids[i];
         struct ToriAuxLibCore_Component* info =
             ctx->core ? ToriAuxLibCore_ComponentGet(ctx->core, component_id) : NULL;
-        if( !info )
-            continue;
+        assert(
+            info &&
+            "instance_revconfig_bake_rs_subtree: missing core component in rs_subtrees capture");
 
         int32_t parent_idx = owner_uitree_index;
         if( info->parent_id >= 0 )
         {
-            int parent_file = instance_revconfig_rs_file_index(info->parent_id);
-            if( parent_file < 0 || parent_file >= INSTANCE_RC_RS_FILE_INDEX_MAX ||
-                id_to_uitree[parent_file] < 0 )
-                continue;
-            parent_idx = id_to_uitree[parent_file];
+            int parent_key = instance_revconfig_rs_bake_map_key(info->parent_id);
+            if( parent_key >= 0 && parent_key < map_size && id_to_uitree[parent_key] >= 0 )
+                parent_idx = id_to_uitree[parent_key];
         }
 
         int32_t idx = instance_revconfig_bake_rs_component(ctx, parent_idx, info, inv_index);
         if( idx < 0 )
+        {
+            fprintf(
+                stderr,
+                "instance_revconfig_bake_rs_subtree: skip component id=%d type=%d "
+                "(sprite resolve, unknown type, or uitree_push)\n",
+                info->id,
+                (int)info->type);
             continue;
+        }
 
-        int file_idx = instance_revconfig_rs_file_index(info->id);
-        if( file_idx >= 0 && file_idx < INSTANCE_RC_RS_FILE_INDEX_MAX )
-            id_to_uitree[file_idx] = idx;
+        baked_count++;
+        int map_key = instance_revconfig_rs_bake_map_key(info->id);
+        if( map_key >= 0 && map_key < map_size )
+            id_to_uitree[map_key] = idx;
+    }
+
+    free(id_to_uitree);
+
+    if( baked_count == 0 )
+    {
+        fprintf(
+            stderr,
+            "instance_revconfig_bake_rs_subtree: no RS nodes baked for owner=%s componentno=%d\n",
+            comp->name,
+            comp->componentno);
     }
 }
 
@@ -208,6 +250,20 @@ instance_revconfig_context_release_build_state(struct InstanceRevConfigContext* 
         dat1_buildcache_set_interfaces(ctx->dat1_bc, NULL);
     if( ctx->dat2_bc )
         dat2_buildcache_interfaces_cleanup(ctx->dat2_bc);
+}
+
+void
+instance_revconfig_assert_fonts_in_scene(struct InstanceRevConfigContext* ctx)
+{
+    assert(ctx);
+    assert(ctx->scene && "revconfig font verify requires ToriDraw scene");
+    for( int i = 0; i < ctx->font_lookup.count; i++ )
+    {
+        int const font_id = ctx->font_lookup.entries[i].font_id;
+        assert(
+            ToriDraw_SceneFontHas(ctx->scene, font_id) &&
+            "revconfig font missing from scene after load");
+    }
 }
 
 void
@@ -388,6 +444,78 @@ component_id_from_item(struct RevConfigUIComponentItem const* comp)
     return -1;
 }
 
+static struct RSCacheDat1A_ConfigComponent*
+dat1_ifaces_get_component(
+    struct RSCacheDat1A_ConfigComponentList* list,
+    int component_id)
+{
+    if( !list || component_id < 0 )
+        return NULL;
+
+    if( component_id < list->components_count && list->components[component_id] )
+    {
+        struct RSCacheDat1A_ConfigComponent* at_index = list->components[component_id];
+        if( at_index->id == component_id )
+            return at_index;
+    }
+
+    for( int i = 0; i < list->components_count; i++ )
+    {
+        struct RSCacheDat1A_ConfigComponent* c = list->components[i];
+        if( c && c->id == component_id )
+            return c;
+    }
+    return NULL;
+}
+
+static int
+instance_revconfig_resolve_walk_root_id(
+    struct RSCacheDat1A_ConfigComponentList* ifaces,
+    int componentno)
+{
+    struct RSCacheDat1A_ConfigComponent* direct = dat1_ifaces_get_component(ifaces, componentno);
+    if( !direct )
+        return componentno;
+
+    if( direct->type == COMPONENT_TYPE_LAYER )
+        return direct->id;
+
+    int layer_id = direct->layer;
+    for( int depth = 0; layer_id >= 0 && depth < 32; depth++ )
+    {
+        struct RSCacheDat1A_ConfigComponent* layer_comp =
+            dat1_ifaces_get_component(ifaces, layer_id);
+        if( !layer_comp )
+            break;
+        if( layer_comp->type == COMPONENT_TYPE_LAYER )
+            return layer_comp->id;
+        layer_id = layer_comp->layer;
+    }
+
+    if( direct->layer >= 0 )
+        return direct->layer;
+    return direct->id;
+}
+
+static void
+instance_revconfig_resolve_panel_root_for(
+    struct InstanceRevConfigContext* ctx,
+    struct RSCacheDat1A_ConfigComponentList* ifaces,
+    int componentno)
+{
+    if( componentno < 0 || componentno >= 1024 )
+        return;
+    if( ctx->panel_root_id[componentno] >= 0 )
+        return;
+
+    struct RSCacheDat1A_ConfigComponent* direct = dat1_ifaces_get_component(ifaces, componentno);
+    if( !direct )
+        return;
+
+    ctx->panel_root_id[componentno] =
+        instance_revconfig_resolve_walk_root_id(ifaces, componentno);
+}
+
 void
 instance_revconfig_resolve_panel_roots(struct InstanceRevConfigContext* ctx)
 {
@@ -396,31 +524,12 @@ instance_revconfig_resolve_panel_roots(struct InstanceRevConfigContext* ctx)
     struct RSCacheDat1A_ConfigComponentList* ifaces = dat1_buildcache_get_interfaces(ctx->dat1_bc);
     assert(ifaces);
 
-    for( int i = 0; i < ifaces->components_count; i++ )
-    {
-        struct RSCacheDat1A_ConfigComponent* comp = ifaces->components[i];
-        if( !comp || comp->type != COMPONENT_TYPE_INV || comp->width != 4 || comp->height != 7 )
-            continue;
-        if( comp->layer < 0 || comp->layer >= 1024 )
-            continue;
-        if( ctx->panel_root_id[149] < 0 )
-            ctx->panel_root_id[149] = comp->layer;
-    }
-
     for( int i = 0; i < ctx->component_count; i++ )
     {
         struct RevConfigUIComponentItem const* sidebar = &ctx->components[i];
-        if( strcmp(sidebar->type, "sidebar") != 0 || sidebar->componentno < 0 ||
-            sidebar->componentno >= 1024 )
+        if( strcmp(sidebar->type, "sidebar") != 0 || sidebar->componentno < 0 )
             continue;
-        if( ctx->panel_root_id[sidebar->componentno] >= 0 )
-            continue;
-
-        struct RSCacheDat1A_ConfigComponent* direct = NULL;
-        if( sidebar->componentno < ifaces->components_count )
-            direct = ifaces->components[sidebar->componentno];
-        if( direct && direct->type == COMPONENT_TYPE_LAYER && direct->children_count > 0 )
-            ctx->panel_root_id[sidebar->componentno] = direct->id;
+        instance_revconfig_resolve_panel_root_for(ctx, ifaces, sidebar->componentno);
     }
 }
 
@@ -507,6 +616,8 @@ instance_revconfig_build_layout_node(
         int inv_index = -1;
         if( comp->inv[0] != '\0' && ctx->inv_pool )
             inv_index = uitree_inv_pool_find_by_name(ctx->inv_pool, comp->inv);
+        if( comp->inv[0] != '\0' && ctx->rs_capture_enabled )
+            assert(inv_index >= 0 && "sidebar inv= name not found in inv pool");
         spec.u.sidebar.tabno = comp->tabno;
         spec.u.sidebar.componentno = comp->componentno;
         spec.u.sidebar.inv_index = inv_index;
@@ -571,7 +682,26 @@ instance_revconfig_build_layout_node(
     int32_t idx = uitree_push(ctx->tree, parent_index, &spec);
     assert(idx >= 0);
     if( comp->componentno >= 0 )
-        instance_revconfig_bake_rs_subtree(ctx, comp, idx);
+    {
+        struct InstanceRevConfigRSSubtree* subtree =
+            instance_revconfig_rs_subtree_find(ctx, comp->name);
+        if( strcmp(comp->type, "sidebar") == 0 )
+        {
+            if( ctx->rs_capture_enabled )
+            {
+                assert(subtree && subtree->item_count > 0);
+                instance_revconfig_bake_rs_subtree(ctx, comp, idx);
+            }
+            else if( subtree && subtree->item_count > 0 )
+            {
+                instance_revconfig_bake_rs_subtree(ctx, comp, idx);
+            }
+        }
+        else if( subtree && subtree->item_count > 0 )
+        {
+            instance_revconfig_bake_rs_subtree(ctx, comp, idx);
+        }
+    }
 
     return idx;
 }

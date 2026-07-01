@@ -150,6 +150,26 @@ rs_ui_host_scene_font_has(
     return game && game->scene && ToriDraw_SceneFontHas(game->scene, font_id);
 }
 
+static void
+GameRunescape_AssertSceneFontReady(
+    struct GameRunescape* game,
+    int font_id,
+    char const* context)
+{
+    assert(font_id >= 0 && "minimenu font_id unset (revconfig font lookup failed?)");
+    assert(game && game->scene && "minimenu font draw requires ToriDraw scene");
+    assert(ToriDraw_SceneFontHas(game->scene, font_id) && context);
+}
+
+static void
+GameRunescape_AssertMinimenuFontReady(
+    struct GameRunescape* game,
+    int font_id,
+    char const* context)
+{
+    GameRunescape_AssertSceneFontReady(game, font_id, context);
+}
+
 static bool
 rs_ui_host_scene_model_has(
     void* user,
@@ -935,7 +955,7 @@ GameRunescape_UIHitTest(
 {
     if( !game || !game->ui_tree )
         return -1;
-    return uitree_hit_test(game->ui_tree, px, py);
+    return uitree_hit_test_interactive(game->ui_tree, &game->ui_host, px, py);
 }
 
 static int
@@ -953,13 +973,17 @@ GameRunescape_ProcessInput(
     struct GameRunescape* game,
     struct LibToriRS_Input* input)
 {
-    int const vw = game->view_port ? game->view_port->width : game->world_view_port.width;
-    int const vh = game->view_port ? game->view_port->height : game->world_view_port.height;
-
     game->mouse_x = input->curr.mouse_x;
     game->mouse_y = input->curr.mouse_y;
+
+    if( game->ui_tree && game->ui_tree_ready )
+        GameRunescape_UpdateWorldViewport(game);
+
     game->mouse_in_viewport =
-        game->mouse_x >= 0 && game->mouse_x < vw && game->mouse_y >= 0 && game->mouse_y < vh;
+        game->mouse_x >= game->world_view_port.clip_left &&
+        game->mouse_x < game->world_view_port.clip_right &&
+        game->mouse_y >= game->world_view_port.clip_top &&
+        game->mouse_y < game->world_view_port.clip_bottom;
 
     if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) && game->ui_tree && game->ui_tree_ready )
     {
@@ -1301,38 +1325,73 @@ GameRunescape_EmitUIComponent(
         }
         if( step == 2 )
         {
-            if( font_id < 0 || !game->scene || !ToriDraw_SceneFontHas(game->scene, font_id) )
-            {
-                game->frame.ui_minimenu_step = 3;
-                return false;
-            }
+            command->kind = TORIRSRC_FILL_RECT;
+            command->u.fill_rect.x = mx + 1;
+            command->u.fill_rect.y = my + 18;
+            command->u.fill_rect.w = mw - 2;
+            command->u.fill_rect.h = 1;
+            command->u.fill_rect.argb = 0xFF000000u;
+            game->frame.ui_minimenu_step = 3;
+            return true;
+        }
+        if( step == 3 )
+        {
+            command->kind = TORIRSRC_FILL_RECT;
+            command->u.fill_rect.x = mx + 1;
+            command->u.fill_rect.y = my + mh - 2;
+            command->u.fill_rect.w = mw - 2;
+            command->u.fill_rect.h = 1;
+            command->u.fill_rect.argb = 0xFF000000u;
+            game->frame.ui_minimenu_step = 4;
+            return true;
+        }
+        if( step == 4 )
+        {
+            command->kind = TORIRSRC_FILL_RECT;
+            command->u.fill_rect.x = mx + 1;
+            command->u.fill_rect.y = my + 18;
+            command->u.fill_rect.w = 1;
+            command->u.fill_rect.h = mh - 19;
+            command->u.fill_rect.argb = 0xFF000000u;
+            game->frame.ui_minimenu_step = 5;
+            return true;
+        }
+        if( step == 5 )
+        {
+            command->kind = TORIRSRC_FILL_RECT;
+            command->u.fill_rect.x = mx + mw - 2;
+            command->u.fill_rect.y = my + 18;
+            command->u.fill_rect.w = 1;
+            command->u.fill_rect.h = mh - 19;
+            command->u.fill_rect.argb = 0xFF000000u;
+            game->frame.ui_minimenu_step = 6;
+            return true;
+        }
+        if( step == 6 )
+        {
+            GameRunescape_AssertMinimenuFontReady(game, font_id, "minimenu header");
             command->kind = TORIRSRC_FONT;
             command->u.font.font_id = font_id;
             command->u.font.x = mx + 3;
-            command->u.font.y = my + 2;
+            command->u.font.y = my + 14;
             command->u.font.color = OPTIONS_MENU;
             command->u.font.center = 0;
             command->u.font.shadowed = 0;
             command->u.font.width = mw - 6;
             command->u.font.height = 16;
             command->u.font.text = "Choose Option";
-            game->frame.ui_minimenu_step = 3;
+            game->frame.ui_minimenu_step = 7;
             return true;
         }
 
-        int const opt_draw = step - 3;
+        int const opt_draw = step - 7;
         if( opt_draw < game->minimenu.option_count )
         {
             int const i = opt_draw;
             int const row_top = my + 19 + i * 15;
             int const hovered = game->minimenu.hovered_option == i;
 
-            if( font_id < 0 || !game->scene || !ToriDraw_SceneFontHas(game->scene, font_id) )
-            {
-                game->frame.ui_minimenu_step = step + 1;
-                return false;
-            }
-
+            GameRunescape_AssertMinimenuFontReady(game, font_id, "minimenu option");
             command->kind = TORIRSRC_FONT;
             command->u.font.font_id = font_id;
             command->u.font.x = mx + 3;
@@ -1732,10 +1791,16 @@ rs_phase_ui_step(
                               game->frame.ui_inv_slot <
                                   (component->u.rs_inv.cols > 0 ? component->u.rs_inv.cols : 4) *
                                       (component->u.rs_inv.rows > 0 ? component->u.rs_inv.rows : 7);
-        if( !inv_more )
+        bool const minimenu_more = component->type == UIELEM_BUILTIN_MINIMENU &&
+                                   game->minimenu.visible && game->frame.ui_minimenu_step > 0;
+        if( !inv_more && !minimenu_more )
             GameRunescape_UIAdvance(game, cur);
         return RS_PHASE_YIELD;
     }
+
+    if( component->type == UIELEM_BUILTIN_MINIMENU && game->minimenu.visible &&
+        game->frame.ui_minimenu_step > 0 )
+        return RS_PHASE_ADVANCE;
 
     if( component->type == UIELEM_RS_INV && game->frame.ui_inv_slot > 0 )
     {

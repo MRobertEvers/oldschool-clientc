@@ -410,7 +410,6 @@ game_try_inv_click(
         interaction_state_set_inv_slot(&game->interaction, inv_index, slot, obj_id);
     }
 
-    game_set_cross(game, click_x, click_y, RUNESCAPE_CROSS_MODE_INTERACT);
     return true;
 }
 
@@ -437,22 +436,19 @@ ui_click_handle_left(
         return;
     }
 
+    if( game_try_inv_click(game, click_x, click_y, false, NULL) )
+        return;
+
     int32_t clicked = GameRunescape_UIHitTest(game, click_x, click_y);
     if( clicked >= 0 )
     {
         struct StaticUIComponent* component = &game->ui_tree->components[clicked];
         if( component->type == UIELEM_BUILTIN_MINIMENU )
             return;
-        if( game_try_inv_click(game, click_x, click_y, false, NULL) )
-            return;
         uitree_behavior_handle_click_host(&game->ui_host, game->ui_tree, clicked);
         interaction_state_set_ui(&game->interaction, clicked);
-        game_set_cross(game, click_x, click_y, RUNESCAPE_CROSS_MODE_INTERACT);
         return;
     }
-
-    if( game_try_inv_click(game, click_x, click_y, false, NULL) )
-        return;
 
     if( game->mouse_in_viewport )
     {
@@ -492,15 +488,21 @@ ui_click_handle_right(
 
     int32_t hit = GameRunescape_UIHitTest(game, click_x, click_y);
     if( hit >= 0 )
-        return;
+    {
+        struct StaticUIComponent* component = &game->ui_tree->components[hit];
+        if( component->type == UIELEM_BUILTIN_MINIMENU )
+            return;
+    }
 
-    if( !game->mouse_in_viewport )
-        return;
+    if( game->mouse_in_viewport )
+    {
+        world_pickset_to_minimenu_pickset(game, &picks);
+        game->cross_x = click_x;
+        game->cross_y = click_y;
+    }
 
-    world_pickset_to_minimenu_pickset(game, &picks);
-    game->cross_x = click_x;
-    game->cross_y = click_y;
-    ui_click_build_minimenu_from_pickset(game, &picks, true, &game->minimenu);
+    ui_click_build_minimenu_from_pickset(
+        game, &picks, game->mouse_in_viewport, &game->minimenu);
     ui_minimenu_show_at(
         &game->minimenu,
         click_x,

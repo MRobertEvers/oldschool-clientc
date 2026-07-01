@@ -6,6 +6,7 @@
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "revconfig/revconfig.h"
 #include "toriauxlib/c/toriauxlibcache.h"
+#include "ui/uitree.h"
 
 struct RSInvLoadCallbacks
 {
@@ -21,7 +22,14 @@ struct Task_RSInvLoad
     struct InstanceRevConfigContext* rc_ctx;
     struct RevConfigInvItem inv_item;
     struct RSInvLoadCallbacks callbacks;
+    struct UIInventory inv;
+    struct LibToriRS_IOBatch io_batch;
+    int obj_ids[REVCONFIG_INV_MAX_ITEMS];
+    int model_ids[REVCONFIG_INV_MAX_ITEMS];
+    int model_count;
+    int model_index;
     int slot_index;
+    int pool_index;
 };
 
 struct Task_RSInvLoad*

@@ -32,6 +32,7 @@ struct Dat1BuildCache;
 struct Dat2BuildCache;
 struct ToriDraw_Scene;
 struct ToriAuxLibCore;
+struct ToriAuxLibTD;
 struct GameRunescape;
 
 struct InstanceRevConfigContext
@@ -40,6 +41,7 @@ struct InstanceRevConfigContext
     struct ToriAuxLibCache* cache;
     struct ToriDraw_Scene* scene;
     struct ToriAuxLibCore* core;
+    struct ToriAuxLibTD* td;
     struct UITree* tree;
     struct GameRunescape* game;
 
@@ -65,6 +67,7 @@ struct InstanceRevConfigContext
     int panel_root_id[1024];
     bool jagfiles_ready;
     bool title_fonts_ready;
+    bool rs_capture_enabled;
     char const* layout_group;
 };
 
@@ -110,5 +113,8 @@ instance_revconfig_bake_rs_subtree(
 
 void
 instance_revconfig_context_release_build_state(struct InstanceRevConfigContext* ctx);
+
+void
+instance_revconfig_assert_fonts_in_scene(struct InstanceRevConfigContext* ctx);
 
 #endif

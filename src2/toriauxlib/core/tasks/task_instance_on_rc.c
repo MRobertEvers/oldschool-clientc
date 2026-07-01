@@ -1,5 +1,6 @@
 #include "task_instance_on_rc.h"
 
+#include "buildcache/dat1_buildcache.h"
 #include "buildcache/dat1_buildcache_ui.h"
 #include "buildcache/dat2_buildcache_ui.h"
 #include "core/tapi/tapi_dat1.h"
@@ -7,10 +8,14 @@
 #include "core_task_await.h"
 #include "task_rs_component_load.h"
 #include "task_rs_inv_load.h"
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "ui/ui_font_lookup.h"
 #include "games/runescape.h"
+#include "toridraw/toridraw_font.h"
+#include "toridraw/toridraw_scene.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -22,6 +27,203 @@ struct RCUIComponentLoadUser
     struct InstanceRevConfigContext* ctx;
     char owner_component[64];
 };
+
+static char const*
+toriauxlibcore_component_type_name(enum ToriAuxLibCore_ComponentType type)
+{
+    switch( type )
+    {
+    case TORIAUXLIBCORE_COMPONENT_LAYER:
+        return "layer";
+    case TORIAUXLIBCORE_COMPONENT_INV:
+        return "inv";
+    case TORIAUXLIBCORE_COMPONENT_RECT:
+        return "rect";
+    case TORIAUXLIBCORE_COMPONENT_TEXT:
+        return "text";
+    case TORIAUXLIBCORE_COMPONENT_GRAPHIC:
+        return "graphic";
+    case TORIAUXLIBCORE_COMPONENT_MODEL:
+        return "model";
+    case TORIAUXLIBCORE_COMPONENT_INV_TEXT:
+        return "inv_text";
+    default:
+        return "unknown";
+    }
+}
+
+static char const*
+dat1_component_type_name(int type)
+{
+    switch( type )
+    {
+    case COMPONENT_TYPE_LAYER:
+        return "layer";
+    case COMPONENT_TYPE_INV:
+        return "inv";
+    case COMPONENT_TYPE_RECT:
+        return "rect";
+    case COMPONENT_TYPE_TEXT:
+        return "text";
+    case COMPONENT_TYPE_GRAPHIC:
+        return "graphic";
+    case COMPONENT_TYPE_MODEL:
+        return "model";
+    case COMPONENT_TYPE_INV_TEXT:
+        return "inv_text";
+    default:
+        return "unknown";
+    }
+}
+
+static void
+task_on_rc_log_sidebar_inv_load_failure(
+    struct Task_InstanceOnRCUIComponent const* task,
+    struct InstanceRevConfigRSSubtree const* subtree)
+{
+    struct ToriAuxLibCore* core = task->cache ? ToriAuxLibCache_Core(task->cache) : NULL;
+
+    fprintf(stderr, "sidebar RS component load did not capture an inventory component\n");
+    fprintf(
+        stderr,
+        "  owner=%s type=%s componentno=%d inv=%s components_walked=%d\n",
+        task->item.name[0] != '\0' ? task->item.name : "(unnamed)",
+        task->item.type,
+        task->item.componentno,
+        task->item.inv[0] != '\0' ? task->item.inv : "(none)",
+        task->rs_load ? task->rs_load->components_walked : -1);
+    fprintf(
+        stderr,
+        "  rs_subtree items=%d core=%p rc_ctx=%p\n",
+        subtree ? subtree->item_count : 0,
+        (void*)core,
+        (void*)task->rc_ctx);
+
+    if( task->rc_ctx && task->item.componentno >= 0 && task->item.componentno < 1024 )
+    {
+        fprintf(
+            stderr,
+            "  panel_root_id[%d]=%d\n",
+            task->item.componentno,
+            task->rc_ctx->panel_root_id[task->item.componentno]);
+    }
+
+    if( task->rc_ctx && task->rc_ctx->dat1_bc && task->item.componentno >= 0 )
+    {
+        struct RSCacheDat1A_ConfigComponentList* ifaces =
+            dat1_buildcache_get_interfaces(task->rc_ctx->dat1_bc);
+        if( ifaces && task->item.componentno < ifaces->components_count )
+        {
+            struct RSCacheDat1A_ConfigComponent* direct =
+                ifaces->components[task->item.componentno];
+            if( direct )
+            {
+                fprintf(
+                    stderr,
+                    "  dat1 direct[%d]: id=%d type=%s(%d) layer=%d size=%dx%d children=%d\n",
+                    task->item.componentno,
+                    direct->id,
+                    dat1_component_type_name(direct->type),
+                    direct->type,
+                    direct->layer,
+                    direct->width,
+                    direct->height,
+                    direct->children_count);
+                if( direct->layer >= 0 && ifaces )
+                {
+                    struct RSCacheDat1A_ConfigComponent* layer_parent = NULL;
+                    if( direct->layer < ifaces->components_count )
+                        layer_parent = ifaces->components[direct->layer];
+                    if( !layer_parent )
+                    {
+                        for( int j = 0; j < ifaces->components_count; j++ )
+                        {
+                            if( ifaces->components[j] &&
+                                ifaces->components[j]->id == direct->layer )
+                            {
+                                layer_parent = ifaces->components[j];
+                                break;
+                            }
+                        }
+                    }
+                    if( layer_parent )
+                    {
+                        fprintf(
+                            stderr,
+                            "  dat1 layer_parent[%d]: id=%d type=%s(%d) size=%dx%d children=%d\n",
+                            direct->layer,
+                            layer_parent->id,
+                            dat1_component_type_name(layer_parent->type),
+                            layer_parent->type,
+                            layer_parent->width,
+                            layer_parent->height,
+                            layer_parent->children_count);
+                    }
+                }
+            }
+            else
+            {
+                fprintf(
+                    stderr,
+                    "  dat1 direct[%d]: missing (components_count=%d)\n",
+                    task->item.componentno,
+                    ifaces->components_count);
+            }
+        }
+    }
+
+    if( subtree )
+    {
+        for( int i = 0; i < subtree->item_count; i++ )
+        {
+            int component_id = subtree->component_ids[i];
+            struct ToriAuxLibCore_Component* info =
+                core ? ToriAuxLibCore_ComponentGet(core, component_id) : NULL;
+            if( info )
+            {
+                fprintf(
+                    stderr,
+                    "  rs_subtree[%d]: id=%d core_type=%s(%d) size=%dx%d parent_id=%d\n",
+                    i,
+                    component_id,
+                    toriauxlibcore_component_type_name(info->type),
+                    (int)info->type,
+                    info->width,
+                    info->height,
+                    info->parent_id);
+            }
+            else
+            {
+                fprintf(
+                    stderr,
+                    "  rs_subtree[%d]: id=%d core=missing\n",
+                    i,
+                    component_id);
+            }
+        }
+    }
+
+    fprintf(
+        stderr,
+        "  expected at least one TORIAUXLIBCORE_COMPONENT_INV in rs_subtree capture\n");
+    fprintf(
+        stderr,
+        "  likely error: inv= requires a COMPONENT_TYPE_INV in the walked RS interface, but none "
+        "was found\n");
+    fprintf(
+        stderr,
+        "  the RS walk succeeded (see rs_subtree above); panel chrome may have loaded but this "
+        "interface has no inventory grid widget\n");
+    fprintf(
+        stderr,
+        "  common causes: wrong componentno in revconfig (interface is text/layer chrome only), "
+        "or componentno should be -1 and the real interface assigned at runtime via IF_SETTAB "
+        "(see rev_245_2_dat2_ui.ini sidebar_tab_3)\n");
+    fprintf(
+        stderr,
+        "  fix: set componentno to an interface that contains COMPONENT_TYPE_INV, or use "
+        "componentno=-1 until IF_SETTAB wiring is implemented\n");
+}
 
 static void
 on_rc_uicomponent_rs_loaded(
@@ -59,11 +261,22 @@ instance_revconfig_register_core_font(
     struct ToriAuxLibCore_Font* font,
     char const* lookup_name)
 {
-    if( !ctx || !ctx->cache || !font || !lookup_name || !ctx->game || !ctx->game->td )
-        return;
+    assert(ctx && ctx->cache && font && lookup_name);
+    assert(ctx->td && "revconfig font load requires ToriAuxLibTD");
+    assert(ctx->scene && "revconfig font load requires ToriDraw scene");
+    assert(ctx->core && "revconfig font load requires ToriAuxLibCore");
 
     ToriAuxLibCache_SubmitFont(ctx->cache, font_id, font);
-    ToriAuxLibTD_Font(ctx->game->td, font_id);
+    assert(ToriAuxLibCore_FontHas(ctx->core, font_id));
+
+    bool const promoted = ToriAuxLibTD_Font(ctx->td, font_id);
+    assert(promoted && "ToriAuxLibTD_Font failed");
+    assert(ToriDraw_SceneFontHas(ctx->scene, font_id));
+
+    struct ToriDraw_Font* scene_font = ToriDraw_SceneFontGet(ctx->scene, font_id);
+    assert(scene_font && "revconfig font missing from scene after ToriAuxLibTD_Font");
+    assert(ToriDraw_FontValidate(scene_font));
+
     ui_font_lookup_add(&ctx->font_lookup, lookup_name, font_id);
 }
 
@@ -242,24 +455,13 @@ Task_InstanceOnRCCacheFont_Run(
         task->font_id = task->rc_ctx->next_element_id++;
         char const* font_stem = task->item.font_name[0] != '\0' ? task->item.font_name : task->item.name;
         struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->cache);
-        if( ToriAuxLibCore_FontHas(core, task->font_id) )
-        {
-            ui_font_lookup_add(&task->rc_ctx->font_lookup, task->item.name, task->font_id);
-        }
-        else
-        {
-            struct ToriAuxLibCore_Font* font =
-                dat1_buildcache_font_decode(task->rc_ctx->dat1_bc, font_stem);
-            if( font && task->rc_ctx->game )
-            {
-                instance_revconfig_register_core_font(
-                    task->rc_ctx, task->font_id, font, task->item.name);
-            }
-            else
-            {
-                ToriAuxLibCore_FontFree(font);
-            }
-        }
+        assert(!ToriAuxLibCore_FontHas(core, task->font_id) && "font_id collision in revconfig load");
+
+        struct ToriAuxLibCore_Font* font =
+            dat1_buildcache_font_decode(task->rc_ctx->dat1_bc, font_stem);
+        assert(font && "failed to decode revconfig font (check title_fonts jagfile / font stem)");
+        instance_revconfig_register_core_font(
+            task->rc_ctx, task->font_id, font, task->item.name);
     }
     else if( ToriAuxLibCache_Mode(task->cache) == TORIAUXLIBCACHE_MODE_DAT2 )
     {
@@ -278,15 +480,9 @@ Task_InstanceOnRCCacheFont_Run(
         struct RSCacheDat2Disk* disk = ToriAuxLibCache_Dat2Disk(task->cache);
         struct ToriAuxLibCore_Font* font = dat2_buildcache_font_decode_from_archive(
             disk, font_archive, task->item.archive_id);
-        if( font && task->rc_ctx->game )
-        {
-            instance_revconfig_register_core_font(
-                task->rc_ctx, task->font_id, font, task->item.name);
-        }
-        else
-        {
-            ToriAuxLibCore_FontFree(font);
-        }
+        assert(font && "failed to decode revconfig dat2 font");
+        instance_revconfig_register_core_font(
+            task->rc_ctx, task->font_id, font, task->item.name);
     }
 
     PT_END(&task->thread);
@@ -344,8 +540,44 @@ Task_InstanceOnRCUIComponent_Run(
             task->item.componentno,
             &cbs);
         assert(task->rs_load);
+        strncpy(
+            task->rs_load->owner_component,
+            task->item.name,
+            sizeof(task->rs_load->owner_component) - 1);
 
         TASK_AWAIT(&task->thread, Task_RSComponentLoad_Run(task->rs_load, ctx));
+
+        if( task->item.componentno >= 0 )
+        {
+            struct InstanceRevConfigRSSubtree* subtree =
+                instance_revconfig_rs_subtree_find(task->rc_ctx, task->item.name);
+            assert(
+                subtree && subtree->item_count > 0 &&
+                "RS component load produced empty rs_subtree");
+
+            if( strcmp(task->item.type, "sidebar") == 0 && task->item.inv[0] != '\0' )
+            {
+                bool found_inv = false;
+                struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->cache);
+                for( int i = 0; i < subtree->item_count; i++ )
+                {
+                    struct ToriAuxLibCore_Component* info =
+                        core ? ToriAuxLibCore_ComponentGet(core, subtree->component_ids[i]) : NULL;
+                    if( info && info->type == TORIAUXLIBCORE_COMPONENT_INV )
+                    {
+                        found_inv = true;
+                        break;
+                    }
+                }
+                if( !found_inv )
+                {
+                    task_on_rc_log_sidebar_inv_load_failure(task, subtree);
+                    assert(
+                        found_inv &&
+                        "sidebar RS component load did not capture an inventory component");
+                }
+            }
+        }
 
         Task_RSComponentLoad_Free(task->rs_load);
 
