@@ -52,8 +52,8 @@
 
 #define UI_DAT1_CACHE_INI "rev_245_2/rev_245_2_dat1_cache.ini"
 #define UI_DAT1_UI_INI "rev_245_2/rev_245_2_dat1_ui.ini"
-#define UI_DAT2_CACHE_INI "rev_245_2/rev_245_2_dat2_cache.ini"
-#define UI_DAT2_UI_INI "rev_245_2/rev_245_2_dat2_ui.ini"
+#define UI_OSRS_CACHE_INI "rev_245_2/rev_osrs_ui_cache.ini"
+#define UI_OSRS_UI_INI "rev_245_2/rev_osrs_ui.ini"
 #define UI_KRONOS_CACHE_INI "rev_245_2/rev_kronos_ui_cache.ini"
 #define UI_KRONOS_UI_INI "rev_245_2/rev_kronos_ui.ini"
 
@@ -3383,7 +3383,7 @@ main(void)
 
     if( test_layout_parents_parsed(UI_DAT1_UI_INI, "dat1") != 0 )
         return 1;
-    if( test_layout_parents_parsed(UI_DAT2_UI_INI, "dat2") != 0 )
+    if( test_layout_parents_parsed(UI_OSRS_UI_INI, "dat2") != 0 )
         return 1;
     if( test_layout_parents_parsed(UI_KRONOS_UI_INI, "kronos") != 0 )
         return 1;
@@ -3461,8 +3461,8 @@ main(void)
             if( run_pipeline_test(
                     TORIAUXLIBCACHE_MODE_DAT2,
                     "dat2",
-                    UI_DAT2_CACHE_INI,
-                    UI_DAT2_UI_INI,
+                    UI_OSRS_CACHE_INI,
+                    UI_OSRS_UI_INI,
                     false,
                     dat2_cache) != 0 )
                 return 1;

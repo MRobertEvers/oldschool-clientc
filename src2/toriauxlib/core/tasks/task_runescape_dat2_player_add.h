@@ -167,7 +167,7 @@ Task_Dat2PlayerAdd_Run(
             IO_REQUEST(ctx, io_slot++, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Object));
         PT_YIELD(&task->thread);
 
-        DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, dat2_bc);
+        DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, task->c);
 
         io_slot = 0;
         if( task->need_idk )
@@ -276,7 +276,7 @@ Task_Dat2PlayerAdd_Run(
         if( !sequence_archive )
             PT_EXIT(&task->thread);
 
-        DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, dat2_bc);
+        DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, task->c);
 
         struct Dat2AnimArchiveSet aset;
         struct Task_Dat2AnimResolve anim_resolve;

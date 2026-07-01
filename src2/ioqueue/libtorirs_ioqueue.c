@@ -146,6 +146,24 @@ LibToriRS_IOQueuePushScript(
     return true;
 }
 
+void
+LibToriRS_IOQueuePushReferenceTable(
+    struct LibToriRS_IOQueue* queue,
+    int table_id)
+{
+    if( !queue )
+        return;
+    if( queue->count >= LIBTORIRS_IOQUEUE_MAX_SIZE )
+        return;
+
+    struct LibToriRS_IOQueueItem item = { 0 };
+    item.kind = TORIRSIO_KIND_REFERENCE_TABLE;
+    item.status = TORIRSIO_STAT_YIELD;
+    item.u.reference_table.table_id = table_id;
+    if( !LibToriRS_IOQueuePopWrite(queue, &item) )
+        return;
+}
+
 bool
 LibToriRS_IOQueueIsEmpty(struct LibToriRS_IOQueue* queue)
 {
@@ -213,6 +231,35 @@ LibToriRS_IOQueueFindBySlot(
     {
         struct LibToriRS_IOQueueItem* item = &queue->items[i];
         if( item->slot_id != slot_id )
+            continue;
+        if( item->consumed )
+            continue;
+        if( item->status != TORIRSIO_STAT_DONE )
+            return NULL;
+        item->consumed = true;
+        return item;
+    }
+
+    return NULL;
+}
+
+struct LibToriRS_IOQueueItem*
+LibToriRS_IOQueueFindReferenceTable(
+    struct LibToriRS_IOQueue* queue,
+    int slot_id,
+    int table_id)
+{
+    if( !queue || slot_id < 0 )
+        return NULL;
+
+    for( int i = 0; i < queue->count; i++ )
+    {
+        struct LibToriRS_IOQueueItem* item = &queue->items[i];
+        if( item->kind != TORIRSIO_KIND_REFERENCE_TABLE )
+            continue;
+        if( item->slot_id != slot_id )
+            continue;
+        if( item->u.reference_table.table_id != table_id )
             continue;
         if( item->consumed )
             continue;

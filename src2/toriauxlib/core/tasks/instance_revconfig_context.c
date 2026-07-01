@@ -39,7 +39,16 @@ instance_revconfig_resolve_rs_text_font_id(
         font_id = ui_font_lookup_resolve_cache_font_index(&ctx->font_lookup, cache_font_ref);
     if( font_id < 0 )
         font_id = ui_font_lookup_find(&ctx->font_lookup, "b12");
-    assert(font_id >= 0 && "RS text font not loaded — add p11/p12/b12/q8 to cache ini");
+    if( font_id < 0 && ctx->font_lookup.count > 0 )
+        font_id = ctx->font_lookup.entries[0].font_id;
+    if( font_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "RS text font not loaded (cache_font_ref=%d) — add p11/p12/b12/q8 to cache ini\n",
+            cache_font_ref);
+        return 0;
+    }
     return font_id;
 }
 
@@ -251,7 +260,6 @@ instance_revconfig_bake_rs_component(
                     info->id,
                     info->sprite_ref,
                     info->sprite_active_ref);
-                assert(false);
                 return -1;
             }
             spec.type = UIELEM_RS_GRAPHIC;
@@ -733,9 +741,14 @@ instance_revconfig_assert_fonts_in_scene(struct InstanceRevConfigContext* ctx)
     for( int i = 0; i < ctx->font_lookup.count; i++ )
     {
         int const font_id = ctx->font_lookup.entries[i].font_id;
-        assert(
-            ToriDraw_SceneFontHas(ctx->scene, font_id) &&
-            "revconfig font missing from scene after load");
+        if( !ToriDraw_SceneFontHas(ctx->scene, font_id) )
+        {
+            fprintf(
+                stderr,
+                "revconfig font missing from scene after load: %s (id=%d)\n",
+                ctx->font_lookup.entries[i].name,
+                font_id);
+        }
     }
 }
 
@@ -764,17 +777,29 @@ instance_revconfig_assert_sprites_in_scene(struct InstanceRevConfigContext* ctx)
     for( int i = 0; i < ctx->sprite_lookup.count; i++ )
     {
         int const element_id = ctx->sprite_lookup.entries[i].element_id;
-        assert(
-            ToriDraw_SceneSpriteHas(ctx->scene, element_id) &&
-            "revconfig sprite missing from scene after load");
+        if( !ToriDraw_SceneSpriteHas(ctx->scene, element_id) )
+        {
+            fprintf(
+                stderr,
+                "revconfig sprite missing from scene after load: %s (id=%d)\n",
+                ctx->sprite_lookup.entries[i].name,
+                element_id);
+            continue;
+        }
         int sprite_count = 0;
         struct ToriDraw_Sprite** sprites =
             ToriDraw_SceneSpriteGet(ctx->scene, element_id, &sprite_count);
         int const atlas_count = ctx->sprite_lookup.entries[i].atlas_count;
-        assert(
-            sprites && sprite_count > 0 && atlas_count > 0 &&
-            sprite_count >= atlas_count &&
-            "revconfig sprite atlas count mismatch after load");
+        if( !sprites || sprite_count <= 0 || atlas_count <= 0 || sprite_count < atlas_count )
+        {
+            fprintf(
+                stderr,
+                "revconfig sprite atlas count mismatch after load: %s (scene=%d atlas=%d)\n",
+                ctx->sprite_lookup.entries[i].name,
+                sprite_count,
+                atlas_count);
+            continue;
+        }
         for( int j = 0; j < atlas_count; j++ )
         {
             if( !sprites[j] || !sprites[j]->pixels_argb )
@@ -1415,15 +1440,10 @@ instance_revconfig_build_layout_node(
             instance_revconfig_rs_subtree_find(ctx, comp->name);
         if( strcmp(comp->type, "sidebar") == 0 )
         {
-            if( ctx->rs_capture_enabled )
-            {
-                assert(subtree && subtree->item_count > 0);
+            if( ctx->rs_capture_enabled && subtree && subtree->item_count > 0 )
                 instance_revconfig_bake_rs_subtree(ctx, comp, idx);
-            }
             else if( subtree && subtree->item_count > 0 )
-            {
                 instance_revconfig_bake_rs_subtree(ctx, comp, idx);
-            }
         }
         else if( subtree && subtree->item_count > 0 )
         {

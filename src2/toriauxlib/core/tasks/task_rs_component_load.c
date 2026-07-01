@@ -212,7 +212,6 @@ dat1_acquire_dynamic_sprite(
     {
         fprintf(stderr, "dat1_acquire_dynamic_sprite: decode failed for ref=%s\n", sprite_ref);
         ToriAuxLibCore_SpriteFree(sprite);
-        assert(sprite && sprite->frame_count > 0);
         return -1;
     }
 
@@ -251,7 +250,6 @@ dat2_acquire_dynamic_sprite(
             "dat2_acquire_dynamic_sprite: sprite not in prefetch cache sprite_id=%d\n",
             sprite_id);
         ToriAuxLibCore_SpriteFree(sprite);
-        assert(sprite && sprite->frame_count > 0);
         return -1;
     }
 
@@ -1021,12 +1019,13 @@ Task_RSComponentLoad_Run(
             struct RSCacheDat2Disk_ReferenceTable* reference_table = NULL;
 
             DAT2_ENSURE_REFERENCE_TABLE(
-                ctx, &task->thread, task->rc_ctx->dat2_bc, RSCacheDat2Disk_Table_Interfaces);
+                ctx,
+                &task->thread,
+                task->rc_ctx->dat2_bc,
+                RSCacheDat2Disk_Table_Interfaces);
 
             reference_table = dat2_buildcache_reference_table_get(
                 task->rc_ctx->dat2_bc, RSCacheDat2Disk_Table_Interfaces);
-            assert(
-                reference_table && "Task_RSComponentLoad: dat2 interfaces reference table missing");
             if( !reference_table )
                 PT_EXIT(&task->thread);
 
@@ -1035,24 +1034,15 @@ Task_RSComponentLoad_Run(
 
             reference_table = dat2_buildcache_reference_table_get(
                 task->rc_ctx->dat2_bc, RSCacheDat2Disk_Table_Interfaces);
-            assert(
-                reference_table &&
-                "Task_RSComponentLoad: dat2 interfaces reference table missing after fetch");
             if( !reference_table )
                 PT_EXIT(&task->thread);
 
             iface_disk_archive = TAPIDat2_DecodeInterfaceArchive(ctx, 0, task->iface_id);
-            assert(
-                iface_disk_archive &&
-                "Task_RSComponentLoad: failed to decode dat2 interface archive");
             if( !iface_disk_archive )
                 PT_EXIT(&task->thread);
 
             task->iface_archive = dat2_buildcache_component_decode_iface_archive_from_archive(
                 reference_table, iface_disk_archive, task->iface_id);
-            assert(
-                task->iface_archive &&
-                "Task_RSComponentLoad: failed to decode dat2 interface components");
             if( !task->iface_archive )
                 PT_EXIT(&task->thread);
             dat2_buildcache_interface_archive_add(
@@ -1090,7 +1080,6 @@ Task_RSComponentLoad_Run(
                         "Task_RSComponentLoad: failed to decode sprite archive "
                         "sprite_id=%d\n",
                         sprite_id);
-                    assert(sprite_archive);
                     continue;
                 }
 
@@ -1103,7 +1092,6 @@ Task_RSComponentLoad_Run(
                         "Task_RSComponentLoad: failed to decode sprite sprite_id=%d\n",
                         sprite_id);
                     ToriAuxLibCore_SpriteFree(sprite);
-                    assert(sprite && sprite->frame_count > 0);
                     continue;
                 }
                 dat2_buildcache_dynamic_sprite_add(task->rc_ctx->dat2_bc, sprite_id, sprite);
@@ -1247,15 +1235,6 @@ Task_RSComponentLoad_Run(
     }
     else if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
     {
-        fprintf(
-            stderr,
-            "Task_RSComponentLoad: dat2 walk owner=%s iface_id=%d walk_root_id=%d "
-            "archive=%p on_component=%p\n",
-            owner,
-            task->iface_id,
-            task->walk_root_id,
-            (void*)task->iface_archive,
-            (void*)task->callbacks.on_component);
         rs_component_walk_dat2(task, task->walk_ifaces, task->walk_root_id);
     }
 

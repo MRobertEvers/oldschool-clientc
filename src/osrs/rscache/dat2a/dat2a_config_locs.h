@@ -181,6 +181,8 @@ config_locs_free_inplace(struct RSCacheDat2A_ConfigLocation* loc);
 #define CONFIG_LOC_DECODE_DAT2 0
 #define CONFIG_LOC_DECODE_DAT 1
 #define CONFIG_LOC_DECODE_LARGE_MODEL_IDS 2
+/** Kronos client: opcode 78/79 omit ambient_sound_retain G1 after distance. */
+#define CONFIG_LOC_DECODE_KRONOS 4
 
 #define LOC_READ_MODEL_ID(buf, flags)                                                              \
     ((flags) & CONFIG_LOC_DECODE_LARGE_MODEL_IDS ? RSCacheShared_RSBufferReadBigSmart(buf)         \

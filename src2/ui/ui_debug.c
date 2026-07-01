@@ -22,7 +22,9 @@ ui_hover_debug_enabled(void)
 }
 
 void
-ui_hover_debug_log(char const* fmt, ...)
+ui_hover_debug_log(
+    char const* fmt,
+    ...)
 {
     if( !ui_hover_debug_enabled() || !fmt )
         return;
@@ -48,7 +50,9 @@ ui_active_debug_enabled(void)
 }
 
 void
-ui_active_debug_log(char const* fmt, ...)
+ui_active_debug_log(
+    char const* fmt,
+    ...)
 {
     if( !ui_active_debug_enabled() || !fmt )
         return;
@@ -74,7 +78,9 @@ ui_minimenu_debug_enabled(void)
 }
 
 void
-ui_minimenu_debug_log(char const* fmt, ...)
+ui_minimenu_debug_log(
+    char const* fmt,
+    ...)
 {
     if( !ui_minimenu_debug_enabled() || !fmt )
         return;
@@ -153,12 +159,7 @@ ui_minimenu_debug_append_ops(
             continue;
 
         int n = snprintf(
-            out + used,
-            out_size - used,
-            "%s[%d]='%s'",
-            used == 0 ? prefix : " ",
-            i,
-            ops[i]);
+            out + used, out_size - used, "%s[%d]='%s'", used == 0 ? prefix : " ", i, ops[i]);
         if( n < 0 || (size_t)n >= out_size - used )
             break;
         used += (size_t)n;
@@ -308,12 +309,7 @@ ui_minimenu_debug_append_inv_item_opcodes(
     }
 
     ui_minimenu_debug_format_inv_item_option(label, sizeof(label), "Examine", obj_name);
-    n = snprintf(
-        out + used,
-        out_size - used,
-        " '%s'->%d",
-        label,
-        (int)MINIMENU_ACTION_OPHELD6);
+    n = snprintf(out + used, out_size - used, " '%s'->%d", label, (int)MINIMENU_ACTION_OPHELD6);
     if( n > 0 && (size_t)n < out_size - used )
         used += (size_t)n;
 
@@ -375,12 +371,9 @@ ui_minimenu_debug_log_inv_slot_ops(
     if( !ui_minimenu_debug_enabled() || !pick )
         return;
 
-    int const item_ops =
-        obj ? ui_minimenu_debug_count_nonempty_ops(obj->inv_actions) : 0;
+    int const item_ops = obj ? ui_minimenu_debug_count_nonempty_ops(obj->inv_actions) : 0;
     int const container_ops =
-        inv_component
-            ? ui_minimenu_debug_count_nonempty_ops(inv_component->menu_options.ops)
-            : 0;
+        inv_component ? ui_minimenu_debug_count_nonempty_ops(inv_component->menu_options.ops) : 0;
 
     char item_opcode_buf[384];
     char container_opcode_buf[384];

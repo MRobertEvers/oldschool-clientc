@@ -1,6 +1,9 @@
 #include "platform_x_io_reactor.h"
 
+#include "platform_x/cachelib.h"
+#include "platform_x/cachelib_internal.h"
 #include "platform_x/cachelib_platform.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -165,6 +168,50 @@ load_script_item(
     return 0;
 }
 
+static int
+load_reference_table_item(
+    struct LibToriPlatformX_IOReactor* reactor,
+    struct LibToriRS_IOQueueItem* item)
+{
+    struct RSCacheDat2Disk* cache_dat2;
+
+    if( !reactor || !reactor->cache )
+    {
+        item->error_code = -1;
+        item->status = TORIRSIO_STAT_DONE;
+        return -1;
+    }
+
+    if( reactor->cache->mode != CACHE_MODE_DAT2 )
+    {
+        item->error_code = -1;
+        item->status = TORIRSIO_STAT_DONE;
+        return -1;
+    }
+
+    cache_dat2 = cachelib_dat2_disk(reactor->cache);
+    if( !cache_dat2 )
+    {
+        item->error_code = -1;
+        item->status = TORIRSIO_STAT_DONE;
+        return -1;
+    }
+
+    void* data = RSCacheDat2Disk_ArchiveNewReferenceTableLoad(
+        cache_dat2, item->u.reference_table.table_id);
+    if( !data )
+    {
+        item->error_code = -1;
+        item->status = TORIRSIO_STAT_DONE;
+        return -1;
+    }
+
+    item->data = data;
+    item->error_code = 0;
+    item->status = TORIRSIO_STAT_DONE;
+    return 0;
+}
+
 int
 LibToriPlatformX_IOReactorLoadItem(
     struct LibToriPlatformX_IOReactor* reactor,
@@ -186,6 +233,8 @@ LibToriPlatformX_IOReactorLoadItem(
         return load_config_item(item, item->u.config_file.path);
     case TORIRSIO_KIND_SCRIPT:
         return load_script_item(item, item->u.script.path);
+    case TORIRSIO_KIND_REFERENCE_TABLE:
+        return load_reference_table_item(reactor, item);
     default:
         item->error_code = -1;
         item->status = TORIRSIO_STAT_DONE;

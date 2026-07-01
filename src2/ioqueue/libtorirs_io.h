@@ -19,6 +19,7 @@ enum LibToriRS_IOKind
     TORIRSIO_KIND_CACHE = 0,
     TORIRSIO_KIND_CONFIG_FILE,
     TORIRSIO_KIND_SCRIPT,
+    TORIRSIO_KIND_REFERENCE_TABLE,
 };
 
 struct LibToriRS_IOQueueItem_Cache
@@ -37,6 +38,11 @@ struct LibToriRS_IOQueueItem_ConfigFile
 struct LibToriRS_IOQueueItem_Script
 {
     char path[LIBTORIRS_IOQUEUE_PATH_MAX];
+};
+
+struct LibToriRS_IOQueueItem_ReferenceTable
+{
+    int table_id;
 };
 
 struct IOSlot
@@ -60,6 +66,7 @@ struct LibToriRS_IOQueueItem
         struct LibToriRS_IOQueueItem_Cache cache;
         struct LibToriRS_IOQueueItem_ConfigFile config_file;
         struct LibToriRS_IOQueueItem_Script script;
+        struct LibToriRS_IOQueueItem_ReferenceTable reference_table;
     } u;
 };
 

@@ -51,6 +51,11 @@ ToriAuxLibCache_SetVarPVarBit(
     struct ToriAuxLibCache* c,
     struct VarPVarBitManager* varp_varbit);
 
+void
+ToriAuxLibCache_SetClientKronos(
+    struct ToriAuxLibCache* c,
+    bool kronos);
+
 struct VarPVarBitManager*
 ToriAuxLibCache_VarPVarBit(struct ToriAuxLibCache* c);
 

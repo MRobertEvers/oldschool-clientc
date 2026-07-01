@@ -131,6 +131,20 @@ ui_sprite_lookup_resolve_ref(
         base[sizeof(base) - 1] = '\0';
     }
 
+    if( strcmp(base, "sideicons") == 0 )
+    {
+        char alt[64];
+        snprintf(alt, sizeof(alt), "sideicon_%d", atlas);
+        int alt_atlas_count = 0;
+        int alt_id = ui_sprite_lookup_find(lookup, alt, &alt_atlas_count);
+        if( alt_id >= 0 )
+        {
+            if( out_atlas_index )
+                *out_atlas_index = ui_sprite_lookup_resolve_atlas_index(alt_atlas_count, 0);
+            return alt_id;
+        }
+    }
+
     if( out_atlas_index )
     {
         int atlas_count = 0;

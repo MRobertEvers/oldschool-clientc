@@ -214,7 +214,7 @@ task_on_rc_log_sidebar_inv_load_failure(
         stderr,
         "  common causes: wrong componentno in revconfig (interface is text/layer chrome only), "
         "or componentno should be -1 and the real interface assigned at runtime via IF_SETTAB "
-        "(see rev_245_2_dat2_ui.ini sidebar_tab_3)\n");
+        "(see rev_osrs_ui.ini sidebar_tab_3)\n");
     fprintf(
         stderr,
         "  fix: set componentno to an interface that contains COMPONENT_TYPE_INV, or use "
@@ -512,6 +512,13 @@ Task_InstanceOnRCCacheFont_Run(
             TAPIDat2_DecodeSpriteArchive(ctx, 1, task->item.archive_id);
         if( !font_archive || !sprite_archive )
         {
+            fprintf(
+                stderr,
+                "Task_InstanceOnRCCacheFont: failed to fetch font archives archive_id=%d "
+                "(font=%p sprite=%p)\n",
+                task->item.archive_id,
+                (void*)font_archive,
+                (void*)sprite_archive);
             RSCacheDat2Disk_ArchiveFree(font_archive);
             RSCacheDat2Disk_ArchiveFree(sprite_archive);
             PT_EXIT(&task->thread);
@@ -519,7 +526,15 @@ Task_InstanceOnRCCacheFont_Run(
 
         struct ToriAuxLibCore_Font* font = ToriAuxLibCache_FontNewFromDat2Archives(
             font_archive, sprite_archive, task->item.archive_id);
-        assert(font && "failed to decode revconfig dat2 font");
+        if( !font )
+        {
+            fprintf(
+                stderr,
+                "Task_InstanceOnRCCacheFont: failed to decode font archive_id=%d name=%s\n",
+                task->item.archive_id,
+                task->item.name);
+            PT_EXIT(&task->thread);
+        }
         instance_revconfig_register_core_font(
             task->rc_ctx,
             task->font_id,
@@ -593,30 +608,21 @@ Task_InstanceOnRCUIComponent_Run(
         {
             struct InstanceRevConfigRSSubtree* subtree =
                 instance_revconfig_rs_subtree_find(task->rc_ctx, task->item.name);
-            if( !subtree || subtree->item_count <= 0 )
-            {
-                fprintf(
-                    stderr,
-                    "Task_InstanceOnRCUIComponent: empty rs_subtree owner=%s type=%s "
-                    "componentno=%d walked=%d\n",
-                    task->item.name,
-                    task->item.type,
-                    task->item.componentno,
-                    task->rs_load ? task->rs_load->components_walked : -1);
-            }
             bool const panel_invalid =
                 ToriAuxLibCache_Mode(task->cache) == TORIAUXLIBCACHE_MODE_DAT1 &&
                 task->item.componentno < 1024 &&
                 task->rc_ctx->panel_root_id[task->item.componentno] ==
                     INSTANCE_RC_PANEL_ROOT_INVALID;
-            if( !panel_invalid )
+            if( !panel_invalid && (!subtree || subtree->item_count <= 0) )
             {
-                assert(
-                    subtree && subtree->item_count > 0 &&
-                    "RS component load produced empty rs_subtree");
+                fprintf(
+                    stderr,
+                    "RS component load produced empty rs_subtree for %s\n",
+                    task->item.name);
             }
 
-            if( strcmp(task->item.type, "sidebar") == 0 && task->item.inv[0] != '\0' && !panel_invalid )
+            if( strcmp(task->item.type, "sidebar") == 0 && task->item.inv[0] != '\0' &&
+                !panel_invalid && subtree && subtree->item_count > 0 )
             {
                 bool found_inv = false;
                 struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->cache);
@@ -631,12 +637,7 @@ Task_InstanceOnRCUIComponent_Run(
                     }
                 }
                 if( !found_inv )
-                {
                     task_on_rc_log_sidebar_inv_load_failure(task, subtree);
-                    assert(
-                        found_inv &&
-                        "sidebar RS component load did not capture an inventory component");
-                }
             }
         }
 

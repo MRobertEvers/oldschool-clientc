@@ -124,8 +124,15 @@ LibToriRS_InstanceSetClientKronos(
     struct LibToriRS_Instance* instance,
     bool kronos)
 {
-    if( instance )
-        instance->client_kronos = kronos;
+    if( !instance )
+        return;
+    instance->client_kronos = kronos;
+    if( instance->toriauxlib )
+    {
+        struct ToriAuxLibCache* cache = ToriAuxLib_C(instance->toriauxlib);
+        if( cache )
+            ToriAuxLibCache_SetClientKronos(cache, kronos);
+    }
 }
 
 bool

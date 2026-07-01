@@ -2,7 +2,7 @@
  * Dump decoded loc config shapes/models for given loc IDs.
  *
  * Usage:
- *   dump_loc_shapes <cache_dir> <loc_id> [loc_id...]
+ *   dump_loc_shapes [--kronos] <cache_dir> <loc_id> [loc_id...]
  */
 
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
@@ -33,64 +33,70 @@ static void
 dump_loc(
     struct RSCacheShared_FileList* filelist,
     int file_index,
-    int loc_id)
+    int loc_id,
+    int decode_flags)
 {
     int file_size = filelist->file_sizes[file_index];
-    struct RSCacheDat2A_ConfigLocation* loc =
-        config_locs_new_decode(filelist->files[file_index], file_size);
-    if( !loc )
-    {
-        fprintf(stderr, "loc %d: decode failed\n", loc_id);
-        return;
-    }
+    struct RSCacheDat2A_ConfigLocation loc;
+    memset(&loc, 0, sizeof(loc));
+    config_locs_decode_inplace(
+        &loc, filelist->files[file_index], file_size, CONFIG_LOC_DECODE_DAT2 | decode_flags);
 
     printf("loc %d name='%s' shapes=%s count=%d file_size=%d\n",
            loc_id,
-           loc->name ? loc->name : "",
-           loc->shapes ? "yes" : "no",
-           loc->shapes_and_model_count,
+           loc.name ? loc.name : "",
+           loc.shapes ? "yes" : "no",
+           loc.shapes_and_model_count,
            file_size);
-    if( loc->shapes )
+    if( loc.shapes )
     {
-        for( int i = 0; i < loc->shapes_and_model_count; i++ )
+        for( int i = 0; i < loc.shapes_and_model_count; i++ )
         {
-            int model = loc->models && loc->models[i] ? loc->models[i][0] : -1;
-            printf("  [%d] shape=%d model=%d\n", i, loc->shapes[i], model);
+            int model = loc.models && loc.models[i] ? loc.models[i][0] : -1;
+            printf("  [%d] shape=%d model=%d\n", i, loc.shapes[i], model);
         }
     }
-    else if( loc->models && loc->lengths )
+    else if( loc.models && loc.lengths )
     {
-        printf("  opcode5 models (%d):", loc->lengths[0]);
-        for( int i = 0; i < loc->lengths[0]; i++ )
-            printf(" %d", loc->models[0][i]);
+        printf("  opcode5 models (%d):", loc.lengths[0]);
+        for( int i = 0; i < loc.lengths[0]; i++ )
+            printf(" %d", loc.models[0][i]);
         printf("\n");
     }
-    if( loc->transform_count > 0 )
+    if( loc.transform_count > 0 )
     {
         printf("  transform_varbit=%d transform_varp=%d transform_count=%d\n",
-               loc->transform_varbit,
-               loc->transform_varp,
-               loc->transform_count);
-        if( loc->transforms )
+               loc.transform_varbit,
+               loc.transform_varp,
+               loc.transform_count);
+        if( loc.transforms )
         {
-            int def = loc->transform_count - 1;
-            printf("  default_transform_child=%d\n", loc->transforms[def]);
+            int def = loc.transform_count - 1;
+            printf("  default_transform_child=%d\n", loc.transforms[def]);
         }
     }
 
-    config_locs_free(loc);
+    config_locs_free_inplace(&loc);
 }
 
 int
 main(int argc, char** argv)
 {
-    if( argc < 3 )
+    int argi = 1;
+    int decode_flags = 0;
+    if( argi < argc && strcmp(argv[argi], "--kronos") == 0 )
     {
-        fprintf(stderr, "Usage: %s <cache_dir> <loc_id> [loc_id...]\n", argv[0]);
+        decode_flags |= CONFIG_LOC_DECODE_KRONOS;
+        argi++;
+    }
+
+    if( argc - argi < 2 )
+    {
+        fprintf(stderr, "Usage: %s [--kronos] <cache_dir> <loc_id> [loc_id...]\n", argv[0]);
         return 1;
     }
 
-    const char* cache_dir = argv[1];
+    const char* cache_dir = argv[argi++];
     struct RSCacheDat2Disk* cache = RSCacheDat2Disk_NewFromDirectory(cache_dir);
     if( !cache )
     {
@@ -123,7 +129,7 @@ main(int argc, char** argv)
         return 1;
     }
 
-    for( int a = 2; a < argc; a++ )
+    for( int a = argi + 1; a < argc; a++ )
     {
         int loc_id = atoi(argv[a]);
         int idx = loc_file_index(ref, loc_id);
@@ -132,7 +138,7 @@ main(int argc, char** argv)
             fprintf(stderr, "loc %d: not found in config archive\n", loc_id);
             continue;
         }
-        dump_loc(filelist, idx, loc_id);
+        dump_loc(filelist, idx, loc_id, decode_flags);
     }
 
     RSCacheShared_FileListFree(filelist);

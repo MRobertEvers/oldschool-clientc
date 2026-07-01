@@ -60,6 +60,17 @@ struct RSCacheDat2A_SkeletalBase
 
 struct RSCacheDat2Disk;
 
+struct RSCacheDat2A_SkeletalBase*
+RSCacheDat2A_SkeletalBaseNewDecode2(
+    int base_id,
+    const char* file_data,
+    int file_size);
+
+struct RSCacheDat2A_SkeletalBase*
+RSCacheDat2A_SkeletalBaseNewFromArchive(
+    struct RSCacheDat2Disk_Archive* archive,
+    int base_id);
+
 /**
  * Load and decode the skeletal base appended to the idx1 file for base_id.
  * Returns NULL if the file has no skeletal tail or on error.

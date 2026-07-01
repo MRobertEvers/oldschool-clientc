@@ -1,6 +1,7 @@
 #include "platform_x_cache.h"
 
 #include "../ioqueue/libtorirs_ioqueue.h"
+#include "platform_x/cachelib.h"
 #include "platform_x/cachelib_platform.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "osrs/rscache/dat1disk/dat1disk.h"
@@ -68,6 +69,35 @@ LibToriPlatformX_CacheLoadIO(
     for( int i = 0; i < io_queue->count; i++ )
     {
         io_item = &io_queue->items[i];
+        if( io_item->status == TORIRSIO_STAT_DONE )
+            continue;
+
+        if( io_item->kind == TORIRSIO_KIND_REFERENCE_TABLE )
+        {
+            struct RSCacheDat2Disk* cache_dat2 = cachelib_dat2_disk(cache->cache);
+            if( !cache_dat2 )
+            {
+                io_item->error_code = -1;
+                io_item->status = TORIRSIO_STAT_DONE;
+                continue;
+            }
+
+            data = RSCacheDat2Disk_ArchiveNewReferenceTableLoad(
+                cache_dat2, io_item->u.reference_table.table_id);
+            if( data )
+            {
+                io_item->data = data;
+                io_item->error_code = 0;
+                io_item->status = TORIRSIO_STAT_DONE;
+            }
+            else
+            {
+                io_item->error_code = -1;
+                io_item->status = TORIRSIO_STAT_DONE;
+            }
+            continue;
+        }
+
         if( io_item->kind != TORIRSIO_KIND_CACHE )
             continue;
 

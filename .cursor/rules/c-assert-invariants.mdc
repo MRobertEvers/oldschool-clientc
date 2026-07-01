@@ -1,0 +1,52 @@
+---
+description: Assert programming errors; never silently return on invariant violations
+globs: "{src,src2,tools,test}/**/*.{c,h}"
+alwaysApply: false
+---
+
+# Assert Invariants (C/C)
+
+Distinguish **programming errors** (assert) from **expected runtime outcomes** (handle explicitly).
+
+## Use `assert()` for
+
+- Required pointer param is NULL (`!task`, `!aset`, `!aset->ids`)
+- Enum/index out of range when caller must pass a valid value
+- Internal state that should already be set up (`task->c`, `bc`, `core`)
+- Buffer/capacity already full when caller must not overflow
+
+## Handle explicitly (not assert) for
+
+- Allocation failed (`calloc` returned NULL) — propagate error (`return NULL` / cleanup)
+- Lookup/cache miss (data may legitimately not exist) — return false, skip, log
+- Optional parameter that may be NULL by design — branch on NULL
+- `free()` / destroy accepting NULL — null-safe early return is fine
+
+## Do not combine checks
+
+Do not mix programming-error checks with runtime checks in one silent-return block. Split them:
+
+```c
+// BAD — hides caller bugs
+if( !task || !aset || !aset->ids )
+    return;
+
+// GOOD
+assert(task && aset && aset->ids);
+if( aset->count <= 0 )
+{
+    dat2_anim_archive_set_init(&task->aset, 0);
+    return;
+}
+```
+
+## Style
+
+- Use `<assert.h>`
+- Prefer separate `assert(...)` lines over long compound conditions
+- Add a short string message when the condition is not self-evident: `assert(entry && "Model must be inserted into hmap")`
+- Do not add defensive silent returns for "impossible" internal state
+
+## When editing existing code
+
+If you touch a function with silent-return guards on required pointers or internal invariants, convert them to asserts in the same change (minimal scope — only the function being edited).

@@ -9,6 +9,7 @@ A lightweight HTTP server for serving OSRS cache archives and Lua scripts with z
 - **Lua Script Serving**: Static file serving from scripts directory
 - **Zero Dependencies**: Uses only Node.js built-ins + local cachelib_js addon
 - **CORS Enabled**: Browser-friendly with CORS headers
+- **Multi-Cache Support**: Auto-detects `cache254/`, `cache/`, and `cache.kronos/` from repo root
 - **Flexible Configuration**: Command-line args or environment variables
 
 ## Installation
@@ -19,45 +20,42 @@ No installation required! The server uses the cachelib_js addon from the same re
 
 ### Starting the Server
 
-**With command-line arguments:**
+**Quick start (auto-detect caches from repo root):**
+
+```bash
+./start.sh
+```
+
+The server walks up from its location to find the repo root (`src2/` directory), then initializes any of:
+
+| Cache key | Directory | Format |
+| --------- | --------- | ------ |
+| `dat1` | `<repo>/cache254` | dat1 (`main_file_cache.dat`) |
+| `dat2` | `<repo>/cache` | dat2 (`main_file_cache.dat2`) |
+| `kronos` | `<repo>/cache.kronos` | dat2 (`main_file_cache.dat2`) |
+
+**Manual single-cache override (for dev/testing):**
 
 ```bash
 node server.js --cache=/path/to/cache --mode=dat2 --port=8080
 ```
 
-**With environment variables:**
-
 ```bash
 CACHE_DIR=/path/to/cache CACHE_MODE=dat2 PORT=8080 node server.js
 ```
 
-**Mixed approach (env vars as defaults, args to override):**
+**Customize port/static files:**
 
 ```bash
-CACHE_DIR=/path/to/cache node server.js --port=9000 --mode=dat1
+PORT=9000 STATIC_DIR=./public ./start.sh
 ```
-
-**Quick start with defaults (using start script):**
-
-```bash
-# Use default cache location (~/.jagex_cache_32)
-./start.sh
-
-# Or specify a custom cache directory
-CACHE_DIR=/path/to/cache ./start.sh
-
-# Or customize other settings
-CACHE_DIR=/path/to/cache PORT=9000 STATIC_DIR=./public ./start.sh
-```
-
-The `start.sh` script provides sensible defaults and validates the cache directory exists before starting.
 
 ### Configuration Options
 
 | Option           | CLI Argument          | Environment Variable | Default              | Description                |
 | ---------------- | --------------------- | -------------------- | -------------------- | -------------------------- |
-| Cache Directory  | `--cache=<path>`      | `CACHE_DIR`          | (required)           | Path to cache directory    |
-| Cache Mode       | `--mode=<dat1\|dat2>` | `CACHE_MODE`         | `dat2`               | Cache format version       |
+| Cache Directory  | `--cache=<path>`      | `CACHE_DIR`          | (auto-detect)        | Manual override for one cache |
+| Cache Mode       | `--mode=<dat1\|dat2>` | `CACHE_MODE`         | `dat1`               | Format for manual override |
 | Port             | `--port=<number>`     | `PORT`               | `8080`               | Server port                |
 | Host             | `--host=<address>`    | `HOST`               | `0.0.0.0`            | Bind address               |
 | Lua Scripts Dir  | `--lua=<path>`        | `LUA_DIR`            | `../../revs/scripts` | Directory for Lua scripts  |
@@ -67,18 +65,28 @@ The `start.sh` script provides sensible defaults and validates the cache directo
 
 ### 1. Load Single Archive
 
-**Endpoint:** `GET /archive/:tableId/:archiveId`
+**Endpoint:** `GET /archive/:tableId/:archiveId?cache=dat1|dat2|kronos`
 
-**Example:**
+**Query parameters:**
+
+| Param | Default | Description |
+| ----- | ------- | ----------- |
+| `flags` | `0` | Archive load flags |
+| `cache` | `dat1` | Cache source: `dat1`, `dat2`, or `kronos` |
+
+**Examples:**
 
 ```bash
-curl http://localhost:8080/archive/2/0 > archive.dat
+curl "http://localhost:8080/archive/2/0?cache=dat1" > archive.dat
+curl "http://localhost:8080/archive/2/0?cache=dat2" > archive.dat
+curl "http://localhost:8080/archive/2/0?cache=kronos" > archive.dat
 ```
 
 **Response:**
 
 - **200 OK**: Raw binary archive data (`application/octet-stream`)
-- **400 Bad Request**: Invalid table or archive ID
+- **400 Bad Request**: Invalid table, archive ID, or cache source
+- **404 Not Found**: Requested cache source not available
 - **500 Internal Server Error**: Archive loading failed
 
 ### 2. Load Multiple Archives (Batch)
@@ -90,12 +98,14 @@ curl http://localhost:8080/archive/2/0 > archive.dat
 ```json
 {
   "requests": [
-    { "table": 2, "archive": 0 },
-    { "table": 2, "archive": 1 },
-    { "table": 7, "archive": 100 }
+    { "table": 2, "archive": 0, "cache": "dat1" },
+    { "table": 2, "archive": 1, "cache": "dat2" },
+    { "table": 7, "archive": 100, "cache": "kronos", "flags": 0 }
   ]
 }
 ```
+
+Each request entry accepts an optional `"cache"` field (`dat1`, `dat2`, or `kronos`; defaults to `dat1`) and optional `"flags"` field.
 
 **Example:**
 
@@ -284,12 +294,11 @@ curl http://localhost:8080/scripts/init.lua | lua
 ### Browser Usage (with CORS)
 
 ```javascript
-// Fetch a single archive
-fetch("http://localhost:8080/archive/2/0")
+// Fetch a single archive from a specific cache
+fetch("http://localhost:8080/archive/2/0?cache=dat2")
   .then((res) => res.arrayBuffer())
   .then((data) => {
     console.log(`Archive size: ${data.byteLength} bytes`);
-    // Process the archive data
   });
 
 // Fetch multiple archives
@@ -298,8 +307,8 @@ fetch("http://localhost:8080/archives", {
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
     requests: [
-      { table: 2, archive: 0 },
-      { table: 2, archive: 1 },
+      { table: 2, archive: 0, cache: "dat1" },
+      { table: 2, archive: 1, cache: "dat2" },
     ],
   }),
 }).then(async (res) => {
@@ -312,7 +321,7 @@ fetch("http://localhost:8080/archives", {
 
 ## Performance Considerations
 
-- **Cache Initialization**: Cache is loaded once on startup and reused for all requests
+- **Cache Initialization**: Caches are loaded once on startup and reused for all requests
 - **Synchronous Loading**: Archives are loaded synchronously (blocking per request)
 - **Memory Efficient**: Archives are copied to buffers and freed immediately
 - **Concurrency**: For high load, consider:
@@ -373,14 +382,10 @@ The server will:
 
 ### Server won't start
 
-**Error:** `Error: Cache directory not specified`
+**Error:** `Error: No caches found under repo root`
 
-- **Solution:** Provide cache directory via `--cache` arg or `CACHE_DIR` env var
-
-**Error:** `Failed to initialize cache`
-
-- **Solution:** Check that the cache directory exists and contains valid cache files
-- **Solution:** Verify the cache mode matches your cache format (dat1 vs dat2)
+- **Solution:** Ensure `cache254/`, `cache/`, or `cache.kronos/` exist under the repo root with valid main cache files
+- **Solution:** Or provide a manual override via `--cache` / `CACHE_DIR`
 
 ### Archive loading fails
 

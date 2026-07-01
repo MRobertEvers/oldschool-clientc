@@ -194,6 +194,8 @@
       const cliArgs = [];
       if (params.has('runescape')) cliArgs.push('--runescape');
       if (params.has('soft3d')) cliArgs.push('--soft3d');
+      if (params.has('kronos')) cliArgs.push('--kronos');
+      else if (params.has('dat2')) cliArgs.push('--dat2');
 
       var Module = {
         arguments: cliArgs,

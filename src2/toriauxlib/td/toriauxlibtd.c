@@ -802,8 +802,6 @@ ToriAuxLibTD_ElementSetSequenceId(
     if( !td || !ToriDraw_SceneElementIsLive(td->scene, element_id) )
         return false;
 
-    ToriDraw_SceneElementSetAnimationSeq(td->scene, element_id, seq_id);
-
     /* Check if this sequence is Maya-driven */
     struct ToriAuxLibCore_Sequence* seq =
         ToriAuxLibCore_SequenceGet(ToriAuxLibTD_Core(td), seq_id);
@@ -821,6 +819,7 @@ ToriAuxLibTD_ElementSetSequenceId(
             ToriAuxLibTD_SkeletalAnimation(td, seq->anim_maya_id);
         if( skeletal )
         {
+            ToriDraw_SceneElementSetAnimationSeq(td->scene, element_id, seq_id);
             struct ToriDraw_SceneElement* el =
                 ToriDraw_SceneElementGet(td->scene, element_id);
             if( el )
@@ -852,13 +851,7 @@ ToriAuxLibTD_ElementSetSequenceId(
         return false;
     }
 
-    struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(td->scene, element_id);
-    if( el )
-    {
-        el->is_skeletal = false;
-        el->skeletal_play_frames = 0;
-    }
-
+    ToriDraw_SceneElementSetAnimationSeq(td->scene, element_id, seq_id);
     ToriDraw_SceneElementSetAnimation(td->scene, element_id, resolved, true);
     return true;
 }

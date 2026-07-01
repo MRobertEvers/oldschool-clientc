@@ -39,6 +39,11 @@ LibToriRS_IOQueuePushScript(
     struct LibToriRS_IOQueue* queue,
     const char* path);
 
+void
+LibToriRS_IOQueuePushReferenceTable(
+    struct LibToriRS_IOQueue* queue,
+    int table_id);
+
 bool
 LibToriRS_IOQueueIsEmpty(struct LibToriRS_IOQueue* queue);
 
@@ -59,5 +64,11 @@ struct LibToriRS_IOQueueItem*
 LibToriRS_IOQueueFindBySlot(
     struct LibToriRS_IOQueue* queue,
     int slot_id);
+
+struct LibToriRS_IOQueueItem*
+LibToriRS_IOQueueFindReferenceTable(
+    struct LibToriRS_IOQueue* queue,
+    int slot_id,
+    int table_id);
 
 #endif

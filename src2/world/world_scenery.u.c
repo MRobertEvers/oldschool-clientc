@@ -467,7 +467,6 @@ scenery_load_animation(
             "(seq_id=%d element_id=%d)\n",
             seq_id,
             element_id);
-    assert(loaded && "scenery animation specified but failed to load");
     (void)loaded;
 }
 

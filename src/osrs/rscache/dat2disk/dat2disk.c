@@ -478,7 +478,14 @@ RSCacheDat2Disk_ArchiveNewLoadDecrypted(
 
     // TODO: Read archive_id or archive_slot?
     struct RSCacheDisk_IndexRecord index_record = { 0 };
-    dat2disk_read_index(&index_record, cache->directory, table_id, archive_id);
+    if( dat2disk_read_index(&index_record, cache->directory, table_id, archive_id) != 0 )
+    {
+        printf(
+            "Failed to read dat2 index entry for table %d archive %d\n",
+            table_id,
+            archive_id);
+        goto error;
+    }
 
     // // The archive is not loaded.
     // if( index_record.sector == 0 )

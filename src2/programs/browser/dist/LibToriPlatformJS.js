@@ -20,6 +20,7 @@ const LUA_SCRIPTS_PREFIX = "/revs/scripts/";
 const TORIRSIO_KIND_CACHE = 0;
 const TORIRSIO_KIND_CONFIG_FILE = 1;
 const TORIRSIO_KIND_SCRIPT = 2;
+const TORIRSIO_KIND_REFERENCE_TABLE = 3;
 const TORIRSIO_STAT_DONE = 1;
 
 class LibToriPlatformJS {
@@ -243,6 +244,8 @@ class LibToriPlatformJS {
           await this.handleIOQueueConfigFileItem(item, ioserverUrl);
         } else if (kind === TORIRSIO_KIND_SCRIPT) {
           await this.handleIOQueueScriptItem(item, ioserverUrl);
+        } else if (kind === TORIRSIO_KIND_REFERENCE_TABLE) {
+          await this.handleIOQueueReferenceTableItem(item, ioserverUrl);
         } else {
           throw new Error(`Unknown IO queue item kind: ${kind}`);
         }
@@ -253,17 +256,25 @@ class LibToriPlatformJS {
     }
   }
 
+  getIOCacheSource() {
+    if (this.host.scriptAPIIsKronos()) {
+      return "kronos";
+    }
+    return this.host.scriptAPIGetCacheMode() === "dat2" ? "dat2" : "dat1";
+  }
+
   async handleIOQueueCacheItem(item, ioserverUrl) {
     const tableId = this.host.ioRequestGetTableId(item);
     const archiveId = this.host.ioRequestGetArchiveId(item);
     const flags = this.host.ioRequestGetFlags(item);
+    const cacheSource = this.getIOCacheSource();
 
-    const url = `${ioserverUrl}/archive/${tableId}/${archiveId}?flags=${flags}`;
+    const url = `${ioserverUrl}/archive/${tableId}/${archiveId}?flags=${flags}&cache=${cacheSource}`;
     const response = await fetch(url);
 
     if (!response.ok) {
       throw new Error(
-        `Failed to fetch archive ${tableId}/${archiveId}: ${response.status}`,
+        `Failed to fetch archive ${tableId}/${archiveId} (cache=${cacheSource}): ${response.status}`,
       );
     }
 
@@ -278,13 +289,46 @@ class LibToriPlatformJS {
     const heap = this.wasmModule.HEAPU8;
     heap.set(bytes, dataPtr);
 
-    const archivePtr = this.host.cacheDatArchiveDeserialize(
-      dataPtr,
-      bytes.length,
-    );
+    const archivePtr =
+      cacheSource === "dat1"
+        ? this.host.cacheDatArchiveDeserialize(dataPtr, bytes.length)
+        : this.host.cacheArchiveDeserialize(dataPtr, bytes.length);
 
     if (!archivePtr) {
-      throw new Error("Failed to deserialize CacheDatArchive from buffer");
+      throw new Error("Failed to deserialize cache archive from buffer");
+    }
+
+    this.host.ioQueueItemResolve(item, archivePtr);
+  }
+
+  async handleIOQueueReferenceTableItem(item, ioserverUrl) {
+    const tableId = this.host.ioRequestGetReferenceTableId(item);
+    const cacheSource = this.getIOCacheSource();
+    const refTableIndexId = 255;
+
+    const url = `${ioserverUrl}/archive/${refTableIndexId}/${tableId}?cache=${cacheSource}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch reference table ${tableId} (cache=${cacheSource}): ${response.status}`,
+      );
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+
+    const dataPtr = this.host.malloc(bytes.length);
+    if (!dataPtr) {
+      throw new Error("Failed to allocate WASM memory for reference table data");
+    }
+
+    const heap = this.wasmModule.HEAPU8;
+    heap.set(bytes, dataPtr);
+
+    const archivePtr = this.host.cacheArchiveDeserialize(dataPtr, bytes.length);
+    if (!archivePtr) {
+      throw new Error("Failed to deserialize reference table archive from buffer");
     }
 
     this.host.ioQueueItemResolve(item, archivePtr);

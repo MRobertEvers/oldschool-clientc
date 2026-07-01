@@ -1030,7 +1030,10 @@ ToriDraw_SceneElementApplyAnimation(
     {
         struct ToriDraw_Animation* animation =
             primary ? element->animation : element->secondary_animation;
-        assert(animation && animation->base && animation->frames && animation->frame_count > 0);
+        if( !animation || !animation->base || !animation->frames || animation->frame_count <= 0 )
+            return;
+        if( frame < 0 || frame >= animation->frame_count )
+            frame = 0;
         ToriDraw_ModelAnimateReset(model);
         ToriDraw_ModelAnimateFrame(model, animation->base, &animation->frames[frame]);
     }

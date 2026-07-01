@@ -394,12 +394,14 @@ toriauxlibcache_ensure_dat2_object_in_buildcache(
     if( !disk || !dat2_bc )
         return false;
 
+    toriauxlibcache_ensure_dat2_configs_reference_table(dat2_bc, disk);
+
     archive = RSCacheDat2Disk_ArchiveNewLoad(
         disk, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Object);
     if( !archive )
         return false;
 
-    toriauxlibcache_ensure_dat2_configs_reference_table(dat2_bc, disk);
+    RSCacheDat2Disk_ArchiveInitMetadata(disk, archive);
     dat2_buildcache_objects_init_from_archive(dat2_bc, archive, &obj_id, 1);
     RSCacheDat2Disk_ArchiveFree(archive);
     return dat2_buildcache_object_get(dat2_bc, obj_id) != NULL;
@@ -425,12 +427,14 @@ toriauxlibcache_ensure_dat2_npctype_in_buildcache(
     if( !disk || !dat2_bc )
         return false;
 
+    toriauxlibcache_ensure_dat2_configs_reference_table(dat2_bc, disk);
+
     archive = RSCacheDat2Disk_ArchiveNewLoad(
         disk, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Npc);
     if( !archive )
         return false;
 
-    toriauxlibcache_ensure_dat2_configs_reference_table(dat2_bc, disk);
+    RSCacheDat2Disk_ArchiveInitMetadata(disk, archive);
     dat2_buildcache_npctypes_init_from_archive(dat2_bc, archive, &npc_id, 1);
     RSCacheDat2Disk_ArchiveFree(archive);
     return dat2_buildcache_npctype_get(dat2_bc, npc_id) != NULL;
@@ -801,19 +805,14 @@ ToriAuxLibCache_SubmitAnimationFromDat2(
     struct ToriAuxLibCache* c,
     int archive_id)
 {
-    if( !c || archive_id < 0 )
-        return;
-
     struct Dat2BuildCache_FramesArchive* fa = dat2_buildcache_frames_take(dat2(c), archive_id);
-    if( !fa )
-        return;
+    assert(fa);
 
     struct ToriAuxLibCore_Animation* anim =
         ToriAuxLibCache_AnimationNewFromDat2FramesArchive(fa, archive_id);
     Dat2BuildCache_FramesArchiveFree(fa);
 
-    if( !anim )
-        return;
+    assert(anim);
 
     ToriAuxLibCore_AnimationAdd(ToriAuxLibCache_Core(c), archive_id, anim);
 }
@@ -823,23 +822,12 @@ ToriAuxLibCache_SubmitSkeletalFromDat2(
     struct ToriAuxLibCache* c,
     int anim_maya_id)
 {
-    if( !c || anim_maya_id < 0 )
-        return;
-
     struct RSCacheDat2A_AnimMaya* maya = dat2_buildcache_skeletal_take(dat2(c), anim_maya_id);
-    if( !maya )
-    {
-        fprintf(
-            stderr,
-            "ToriAuxLibCache_SubmitSkeletalFromDat2: anim_maya_id=%d not in "
-            "buildcache (load failed earlier)\n",
-            anim_maya_id);
-        return;
-    }
+    assert(maya);
 
-    /* Load the bind-pose SkeletalBase from idx1 using base_id */
+    /* Bind pose must have been preloaded during Task_Dat2AnimResolve skeletal phase. */
     struct RSCacheDat2A_SkeletalBase* skelbase =
-        RSCacheDat2A_SkeletalBaseNewFromCache(ToriAuxLibCache_Dat2Disk(c), maya->base_id);
+        dat2_buildcache_skeletal_base_get(dat2(c), maya->base_id);
 
     if( !skelbase )
     {
@@ -858,7 +846,6 @@ ToriAuxLibCache_SubmitSkeletalFromDat2(
     float* palette =
         RSCacheDat2A_SkeletalBaseBakePalette(maya, skelbase, &frame_count, &bone_count);
 
-    RSCacheDat2A_SkeletalBaseFree(skelbase);
     RSCacheDat2A_AnimMayaFree(maya);
 
     if( !palette )

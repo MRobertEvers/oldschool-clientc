@@ -1,8 +1,12 @@
 #include "../../ioqueue/libtorirs_ioqueue.h"
+#include "../../ioqueue/libtorirs_io.h"
 #include "../../platforms/platform_x/cachelib.h"
 #include "../../platforms/platform_x/cachelib_client.h"
 #include "../../platforms/platform_x/cachelib_platform.h"
 #include "../../platforms/platform_x_io_reactor.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/dat2a/dat2a_configs.h"
+#include "3rd/minipt.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,16 +18,24 @@
 static const char k_config_body[] = "revconfig=test\n";
 static const char k_script_body[] = "return 42\n";
 
-PT_STATE_BEGIN(io_reactor_test_task)
-int test_cache;
-int cache_table_id;
-int cache_archive_id;
-int cache_flags;
-PT_STATE_END(io_reactor_test_task)
-
-PT_THREAD(io_reactor_test_task)
+struct io_reactor_test_task_state
 {
-    PT_BEGIN();
+    struct pt thread;
+    int test_cache;
+    int cache_table_id;
+    int cache_archive_id;
+    int cache_flags;
+    int step;
+};
+
+static int
+io_reactor_test_task(
+    struct io_reactor_test_task_state* state,
+    struct LibToriRS_IOContext* ctx)
+{
+    struct pt* thread = &state->thread;
+
+    PT_BEGIN(thread);
 
     if( state->test_cache )
     {
@@ -31,16 +43,16 @@ PT_THREAD(io_reactor_test_task)
         cachelib_dat1_model_fetch(0, &request);
 
         LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
-        PT_YIELD();
+        PT_YIELD(thread);
     }
 
     LibToriRS_IOQueuePushConfigFile(ctx->io, CONFIG_FIXTURE);
-    PT_YIELD();
+    PT_YIELD(thread);
 
     LibToriRS_IOQueuePushScript(ctx->io, SCRIPT_FIXTURE);
-    PT_YIELD();
+    PT_YIELD(thread);
 
-    PT_END();
+    PT_END(thread);
 }
 
 static int
@@ -79,6 +91,65 @@ assert_bytes(
         fprintf(stderr, "%s: content mismatch\n", label);
         return -1;
     }
+    return 0;
+}
+
+static int
+test_reference_table_slot_collision(
+    struct LibToriRS_IOQueue* io_queue,
+    struct LibToriPlatformX_IOReactor* reactor)
+{
+    struct LibToriRS_IOQueueItem* cache_item = NULL;
+    struct LibToriRS_IOQueueItem* ref_item = NULL;
+    struct RSCacheDat2Disk_Archive* cache_archive = NULL;
+    struct RSCacheDat2Disk_ReferenceTable* ref_table = NULL;
+
+    LibToriRS_IOQueueClear(io_queue);
+
+    io_queue->current_slot = 0;
+    LibToriRS_IOQueuePushCache(
+        io_queue, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Object, 0);
+    LibToriRS_IOQueuePushReferenceTable(io_queue, RSCacheDat2Disk_Table_Configs);
+    io_queue->current_slot = -1;
+
+    if( LibToriPlatformX_IOReactorProcess(reactor, io_queue) <= 0 )
+    {
+        fprintf(stderr, "reference table collision test: reactor processed nothing\n");
+        return -1;
+    }
+
+    ref_item = LibToriRS_IOQueueFindReferenceTable(
+        io_queue, 0, RSCacheDat2Disk_Table_Configs);
+    if( !ref_item || ref_item->error_code != 0 || !ref_item->data )
+    {
+        fprintf(stderr, "reference table collision test: ref item missing or failed\n");
+        return -1;
+    }
+
+    ref_table = RSCacheDat2Disk_ReferenceTableNewDecode(
+        ((struct RSCacheDat2Disk_Archive*)ref_item->data)->data,
+        ((struct RSCacheDat2Disk_Archive*)ref_item->data)->data_size);
+    RSCacheDat2Disk_ArchiveFree(ref_item->data);
+    ref_item->data = NULL;
+    if( !ref_table )
+    {
+        fprintf(stderr, "reference table collision test: decode failed\n");
+        return -1;
+    }
+    RSCacheDat2Disk_ReferenceTableFree(ref_table);
+
+    cache_item = LibToriRS_IOQueueFindBySlot(io_queue, 0);
+    if( !cache_item || cache_item->kind != TORIRSIO_KIND_CACHE || cache_item->error_code != 0 ||
+        !cache_item->data )
+    {
+        fprintf(stderr, "reference table collision test: cache item missing or failed\n");
+        return -1;
+    }
+
+    cache_archive = cache_item->data;
+    RSCacheDat2Disk_ArchiveFree(cache_archive);
+    cache_item->data = NULL;
+
     return 0;
 }
 
@@ -177,34 +248,39 @@ main(
         .io = io_queue,
     };
 
-    PT_SPAWN(io_reactor_test_task, task_state);
-    PT_STATE_INIT(&task_state);
+    struct io_reactor_test_task_state task_state;
+    memset(&task_state, 0, sizeof(task_state));
+    PT_INIT(&task_state.thread);
     task_state.test_cache = test_cache;
     task_state.cache_table_id = cache_table_id;
     task_state.cache_archive_id = cache_archive_id;
     task_state.cache_flags = cache_flags;
 
-    PT_Status status = PT_YIELDED;
-    while( status == PT_YIELDED )
+    int status = PT_ENDED;
+    if( !(test_cache && cache_mode == CACHE_MODE_DAT2) )
     {
-        status = io_reactor_test_task(&task_state, &ctx);
-        LibToriPlatformX_IOReactorProcess(reactor, io_queue);
-    }
+        status = PT_YIELDED;
+        while( status == PT_YIELDED )
+        {
+            status = io_reactor_test_task(&task_state, &ctx);
+            LibToriPlatformX_IOReactorProcess(reactor, io_queue);
+        }
 
-    if( status != PT_FINISHED )
-    {
-        fprintf(stderr, "io_reactor_test_task did not finish\n");
-        LibToriRS_IOQueueFree(io_queue);
-        LibToriPlatformX_IOReactorFree(reactor);
-        if( cache )
-            cachelib_free(cache);
-        return 1;
+        if( status != PT_ENDED )
+        {
+            fprintf(stderr, "io_reactor_test_task did not finish\n");
+            LibToriRS_IOQueueFree(io_queue);
+            LibToriPlatformX_IOReactorFree(reactor);
+            if( cache )
+                cachelib_free(cache);
+            return 1;
+        }
     }
 
     int failed = 0;
-    int expected_items = test_cache ? 3 : 2;
+    int expected_items = test_cache && cache_mode == CACHE_MODE_DAT2 ? 0 : (test_cache ? 3 : 2);
 
-    if( io_queue->count != expected_items )
+    if( expected_items > 0 && io_queue->count != expected_items )
     {
         fprintf(
             stderr,
@@ -214,7 +290,7 @@ main(
         failed = 1;
     }
 
-    for( int i = 0; i < io_queue->count; i++ )
+    for( int i = 0; expected_items > 0 && i < io_queue->count; i++ )
     {
         struct LibToriRS_IOQueueItem item;
         if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
@@ -253,10 +329,23 @@ main(
             if( assert_bytes("script", item.data, item.data_size, k_script_body) != 0 )
                 failed = 1;
             break;
+        case TORIRSIO_KIND_REFERENCE_TABLE:
+            fprintf(stderr, "unexpected reference table item in main queue walk\n");
+            failed = 1;
+            break;
         default:
             fprintf(stderr, "unexpected item kind %d\n", item.kind);
             failed = 1;
             break;
+        }
+    }
+
+    if( !failed && test_cache && cache_mode == CACHE_MODE_DAT2 )
+    {
+        if( test_reference_table_slot_collision(io_queue, reactor) != 0 )
+        {
+            fprintf(stderr, "FAIL (reference table slot collision)\n");
+            failed = 1;
         }
     }
 
@@ -271,6 +360,10 @@ main(
         return 1;
     }
 
-    printf("PASS (%d queue items%s)\n", expected_items, test_cache ? ", cache included" : "");
+    printf(
+        "PASS (%d queue items%s%s)\n",
+        expected_items,
+        test_cache ? ", cache included" : "",
+        test_cache && cache_mode == CACHE_MODE_DAT2 ? ", reference table collision ok" : "");
     return 0;
 }

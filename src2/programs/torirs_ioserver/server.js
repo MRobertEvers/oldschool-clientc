@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { spawnSync } = require("child_process");
 const {
   CacheLib,
   CACHE_MODE_DAT1,
@@ -42,16 +43,105 @@ function parseCacheMode(mode) {
   return mode === "dat1" ? CACHE_MODE_DAT1 : CACHE_MODE_DAT2;
 }
 
+const VALID_CACHE_SOURCES = new Set(["dat1", "dat2", "kronos"]);
+
+const CACHE_SPECS = [
+  { key: "dat1", subdir: "cache254", mainFile: "main_file_cache.dat", mode: CACHE_MODE_DAT1 },
+  { key: "dat2", subdir: "cache", mainFile: "main_file_cache.dat2", mode: CACHE_MODE_DAT2 },
+  { key: "kronos", subdir: "cache.kronos", mainFile: "main_file_cache.dat2", mode: CACHE_MODE_DAT2 },
+];
+
+function dirHasCacheFile(dir, mainFile) {
+  try {
+    fs.accessSync(path.join(dir, mainFile), fs.constants.R_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isRepoRoot(dir) {
+  try {
+    return fs.statSync(path.join(dir, "src2")).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function findRepoRoot(startDir) {
+  let dir = path.resolve(startDir);
+  for (let depth = 0; depth < 12; depth++) {
+    if (isRepoRoot(dir)) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      break;
+    }
+    dir = parent;
+  }
+  return null;
+}
+
+function detectRepoCaches(repoRoot) {
+  const detected = {};
+  for (const spec of CACHE_SPECS) {
+    const dir = path.join(repoRoot, spec.subdir);
+    if (!dirHasCacheFile(dir, spec.mainFile)) {
+      continue;
+    }
+    if (!canOpenCache(spec.mode, dir)) {
+      console.warn(`✗ Skipping cache [${spec.key}] (${dir}): failed to open`);
+      continue;
+    }
+    detected[spec.key] = { directory: dir, mode: spec.mode };
+  }
+  return detected;
+}
+
+function canOpenCache(mode, directory) {
+  const cachelibPath = path.join(__dirname, "../cachelib_js");
+  const script = `
+    const { CacheLib } = require(${JSON.stringify(cachelibPath)});
+    const cache = new CacheLib({ mode: ${mode}, directory: ${JSON.stringify(directory)} });
+    cache.free();
+  `;
+  const result = spawnSync(process.execPath, ["-e", script], {
+    stdio: "ignore",
+    timeout: 60000,
+  });
+  return result.status === 0;
+}
+
+function parseCacheSource(value) {
+  const source = (value || "dat1").toLowerCase();
+  if (!VALID_CACHE_SOURCES.has(source)) {
+    return null;
+  }
+  return source;
+}
+
+function getCacheForSource(caches, source) {
+  const cache = caches[source];
+  if (!cache) {
+    return null;
+  }
+  return cache;
+}
+
 // Parse configuration from env vars and command-line args
 function parseConfig() {
   const args = parseArgs(process.argv.slice(2));
 
-  const config = {
+  return {
     cacheDir: args.cache || process.env.CACHE_DIR || null,
     cacheMode: parseCacheMode(args.mode || process.env.CACHE_MODE || "dat1"),
-    port: parseInt(args.port || process.env.PORT || "8080"),
+    port: parseInt(args.port || process.env.PORT || "8080", 10),
     host: args.host || process.env.HOST || "0.0.0.0",
-    scriptsDir: path.resolve(__dirname, "../../revs/scripts"),
+    scriptsDir:
+      args.lua ||
+      process.env.LUA_DIR ||
+      path.resolve(__dirname, "../../revs/scripts"),
     configDir:
       args.config ||
       process.env.CONFIG_DIR ||
@@ -61,43 +151,65 @@ function parseConfig() {
       process.env.STATIC_DIR ||
       path.resolve(__dirname, "../browser/dist"),
   };
+}
 
-  // Validate required config
-  if (!config.cacheDir) {
-    console.error("Error: Cache directory not specified.");
-    console.error(
-      "Use --cache=/path/to/cache or set CACHE_DIR environment variable.",
-    );
+function initializeCaches(config) {
+  const caches = {};
+
+  if (config.cacheDir) {
+    const source = config.cacheMode === CACHE_MODE_DAT1 ? "dat1" : "dat2";
+    try {
+      caches[source] = new CacheLib({
+        mode: config.cacheMode,
+        directory: config.cacheDir,
+      });
+      console.log(`✓ Cache [${source}] initialized from manual override: ${config.cacheDir}`);
+    } catch (error) {
+      console.error(`✗ Failed to initialize manual cache [${source}]:`, error.message);
+      process.exit(1);
+    }
+    return caches;
+  }
+
+  const repoRoot = findRepoRoot(__dirname);
+  if (!repoRoot) {
+    console.error("Error: Could not find repo root (expected src2/ directory).");
+    console.error("Use --cache=/path/to/cache or set CACHE_DIR environment variable.");
     process.exit(1);
   }
 
-  return config;
+  console.log(`Repo root: ${repoRoot}`);
+  const detected = detectRepoCaches(repoRoot);
+  for (const [key, spec] of Object.entries(detected)) {
+    try {
+      caches[key] = new CacheLib({
+        mode: spec.mode,
+        directory: spec.directory,
+      });
+      console.log(`✓ Cache [${key}] initialized: ${spec.directory}`);
+    } catch (error) {
+      console.warn(`✗ Skipping cache [${key}] (${spec.directory}): ${error.message}`);
+    }
+  }
+
+  if (Object.keys(caches).length === 0) {
+    console.error("Error: No caches found under repo root.");
+    console.error("Expected cache254/, cache/, and/or cache.kronos/ with main cache files.");
+    process.exit(1);
+  }
+
+  return caches;
 }
 
 // Configuration
 const config = parseConfig();
-console.log(`Initializing cache from: ${config.cacheDir}`);
-console.log(
-  `Cache mode: ${config.cacheMode === CACHE_MODE_DAT1 ? "DAT1" : "DAT2"}`,
-);
 console.log(`Scripts directory: ${config.scriptsDir}`);
 console.log(`Config directory: ${config.configDir}`);
 if (config.staticDir) {
   console.log(`Static files directory: ${config.staticDir}`);
 }
 
-// Initialize cache once on startup
-let cache;
-try {
-  cache = new CacheLib({
-    mode: config.cacheMode,
-    directory: config.cacheDir,
-  });
-  console.log("✓ Cache initialized successfully");
-} catch (error) {
-  console.error("✗ Failed to initialize cache:", error.message);
-  process.exit(1);
-}
+const caches = initializeCaches(config);
 
 // Handle single archive request: GET /archive/:tableId/:archiveId
 function handleSingleArchive(req, res, url) {
@@ -115,6 +227,28 @@ function handleSingleArchive(req, res, url) {
   }
 
   const flags = parseInt(url.searchParams.get("flags") || "0", 10);
+  const cacheSource = parseCacheSource(url.searchParams.get("cache"));
+  if (!cacheSource) {
+    res.writeHead(400, {
+      "Content-Type": "text/plain",
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end("Invalid cache source (expected dat1, dat2, or kronos)");
+    return;
+  }
+
+  const cache = getCacheForSource(caches, cacheSource);
+  if (!cache) {
+    res.writeHead(404, {
+      "Content-Type": "text/plain",
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end(`Cache source not available: ${cacheSource}`);
+    console.error(
+      `[${new Date().toISOString()}] GET /archive/${tableId}/${archiveId}?cache=${cacheSource} - 404 (cache unavailable)`,
+    );
+    return;
+  }
 
   try {
     const buffer = cache.loadArchiveSerialized(tableId, archiveId, flags);
@@ -125,11 +259,11 @@ function handleSingleArchive(req, res, url) {
     });
     res.end(buffer);
     console.log(
-      `[${new Date().toISOString()}] GET /archive/${tableId}/${archiveId}?flags=${flags} - 200 (${buffer.length} bytes)`,
+      `[${new Date().toISOString()}] GET /archive/${tableId}/${archiveId}?flags=${flags}&cache=${cacheSource} - 200 (${buffer.length} bytes)`,
     );
   } catch (error) {
     console.error(
-      `[${new Date().toISOString()}] GET /archive/${tableId}/${archiveId}?flags=${flags} - ERROR:`,
+      `[${new Date().toISOString()}] GET /archive/${tableId}/${archiveId}?flags=${flags}&cache=${cacheSource} - ERROR:`,
       error.message,
     );
     res.writeHead(500, {
@@ -184,13 +318,31 @@ function handleBatchArchives(req, res) {
       const parts = [];
       let successCount = 0;
       for (const r of requests) {
+        const cacheSource = parseCacheSource(r.cache);
+        if (!cacheSource) {
+          console.error(
+            `Error loading archive ${r.table}/${r.archive}: invalid cache source`,
+          );
+          continue;
+        }
+        const cache = getCacheForSource(caches, cacheSource);
+        if (!cache) {
+          console.error(
+            `Error loading archive ${r.table}/${r.archive}: cache [${cacheSource}] unavailable`,
+          );
+          continue;
+        }
         try {
-          const buffer = cache.loadArchiveSerialized(r.table, r.archive);
+          const buffer = cache.loadArchiveSerialized(
+            r.table,
+            r.archive,
+            r.flags || 0,
+          );
           parts.push({ table: r.table, archive: r.archive, buffer });
           successCount++;
         } catch (error) {
           console.error(
-            `Error loading archive ${r.table}/${r.archive}:`,
+            `Error loading archive ${r.table}/${r.archive} (cache=${cacheSource}):`,
             error.message,
           );
         }
@@ -471,13 +623,13 @@ function handleRequest(req, res) {
         res.end(`ToriRS IO Server
             
 Available endpoints:
-  GET  /archive/:tableId/:archiveId  - Load single archive
+  GET  /archive/:tableId/:archiveId?cache=dat1|dat2|kronos  - Load single archive
   POST /archives                     - Load multiple archives (JSON body, multipart response)
   GET  /config/:path.ini             - Load revconfig INI file
   GET  /scripts/:filename.lua        - Load Lua script
 
 Server running on ${config.host}:${config.port}
-Cache: ${config.cacheDir} (${config.cacheMode === CACHE_MODE_DAT1 ? "DAT1" : "DAT2"})
+Caches: ${Object.keys(caches).join(", ") || "none"}
 `);
       } else {
         handleStaticFile(req, res, url);
@@ -538,8 +690,10 @@ function shutdown(signal) {
   server.close(() => {
     clearTimeout(forceExitTimeout);
     console.log("Server closed");
-    cache.free();
-    console.log("Cache freed");
+    for (const [key, cache] of Object.entries(caches)) {
+      cache.free();
+      console.log(`Cache [${key}] freed`);
+    }
     process.exit(0);
   });
 

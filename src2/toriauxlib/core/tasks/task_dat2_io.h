@@ -7,6 +7,7 @@
 #include "buildcache/dat2_buildcache.h"
 #include "core/tapi/tapi_dat2.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
+#include "toriauxlib/c/toriauxlibcache.h"
 
 #define DAT2_ENSURE_REFERENCE_TABLE(ctx, thread, bc, table_id) \
     do { \
@@ -20,7 +21,7 @@
             { \
                 fprintf( \
                     stderr, \
-                    "Task_RSComponentLoad: failed to decode dat2 reference table id=%d\n", \
+                    "dat2: failed to load reference table id=%d\n", \
                     (int)(table_id)); \
                 PT_EXIT((thread)); \
             } \
@@ -29,7 +30,8 @@
         } \
     } while( 0 )
 
-#define DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, thread, bc) \
-    DAT2_ENSURE_REFERENCE_TABLE((ctx), (thread), (bc), RSCacheDat2Disk_Table_Configs)
+#define DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, thread, cache) \
+    DAT2_ENSURE_REFERENCE_TABLE( \
+        (ctx), (thread), dat2((cache)), RSCacheDat2Disk_Table_Configs)
 
 #endif

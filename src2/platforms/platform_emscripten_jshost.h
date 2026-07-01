@@ -96,6 +96,12 @@ LibToriPlatformEmscripten_JSHost_IORequestGetStatus(
     struct LibToriRS_IOQueueItem* item);
 
 EMSCRIPTEN_KEEPALIVE
+int
+LibToriPlatformEmscripten_JSHost_IORequestGetReferenceTableId(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueueItem* item);
+
+EMSCRIPTEN_KEEPALIVE
 const char*
 LibToriPlatformEmscripten_JSHost_IORequestGetPath(
     struct LibToriRS_Instance* instance,
@@ -343,6 +349,11 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat2_SubmitTextures(
 EMSCRIPTEN_KEEPALIVE
 const char*
 LibToriPlatformEmscripten_JSHost_ScriptAPI_GetCacheMode(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+bool
+LibToriPlatformEmscripten_JSHost_ScriptAPI_IsKronos(
     struct LibToriRS_Instance* instance);
 
 EMSCRIPTEN_KEEPALIVE

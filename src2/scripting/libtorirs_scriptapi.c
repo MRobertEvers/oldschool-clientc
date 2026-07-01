@@ -55,8 +55,8 @@ ui_load_task_destroy(void* state)
 
 #define UI_DAT1_CACHE_INI "rev_245_2/rev_245_2_dat1_cache.ini"
 #define UI_DAT1_UI_INI "rev_245_2/rev_245_2_dat1_ui.ini"
-#define UI_DAT2_CACHE_INI "rev_245_2/rev_245_2_dat2_cache.ini"
-#define UI_DAT2_UI_INI "rev_245_2/rev_245_2_dat2_ui.ini"
+#define UI_OSRS_CACHE_INI "rev_245_2/rev_osrs_ui_cache.ini"
+#define UI_OSRS_UI_INI "rev_245_2/rev_osrs_ui.ini"
 #define UI_KRONOS_CACHE_INI "rev_245_2/rev_kronos_ui_cache.ini"
 #define UI_KRONOS_UI_INI "rev_245_2/rev_kronos_ui.ini"
 
@@ -613,8 +613,8 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
         else if( ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) ==
                  TORIAUXLIBCACHE_MODE_DAT2 )
         {
-            config_files[0] = UI_DAT2_CACHE_INI;
-            config_files[1] = UI_DAT2_UI_INI;
+            config_files[0] = UI_OSRS_CACHE_INI;
+            config_files[1] = UI_OSRS_UI_INI;
         }
         else
         {

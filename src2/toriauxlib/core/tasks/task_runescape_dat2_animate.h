@@ -71,7 +71,7 @@ Task_Dat2Animate_Run(
         if( !sequence_archive )
             PT_EXIT(&task->thread);
 
-        DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, dat2_bc);
+        DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, task->c);
 
         dat2_buildcache_sequence_load_from_archive(dat2_bc, sequence_archive, seq_id);
 

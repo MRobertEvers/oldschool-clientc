@@ -1,6 +1,7 @@
 #include "dat2_buildcache.h"
 
 #include "osrs/rscache/dat2a/dat2a_animaya.h"
+#include "osrs/rscache/dat2a/dat2a_skeletalbase.h"
 #include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat2a/dat2a_config_floortype.h"
 #include "osrs/rscache/dat2a/dat2a_config_idk.h"
@@ -80,6 +81,12 @@ struct MapEntry_Skeletal
 {
     int id;
     struct RSCacheDat2A_AnimMaya* maya;
+};
+
+struct MapEntry_SkeletalBase
+{
+    int id;
+    struct RSCacheDat2A_SkeletalBase* base;
 };
 
 struct MapEntry_ConfigIdentkit
@@ -253,6 +260,8 @@ dat2_buildcache_new(void)
         dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_Framemap), 4096);
     dat2_buildcache->skeletal_hmap =
         dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_Skeletal), 4096);
+    dat2_buildcache->skeletal_base_hmap =
+        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_SkeletalBase), 4096);
     dat2_buildcache->identkit_hmap =
         dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_ConfigIdentkit), 512);
     dat2_buildcache->object_hmap =
@@ -265,6 +274,15 @@ dat2_buildcache_new(void)
         dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_DynamicSprite), 4096);
 
     return dat2_buildcache;
+}
+
+void
+dat2_buildcache_set_loc_decode_flags(
+    struct Dat2BuildCache* dat2_buildcache,
+    int flags)
+{
+    if( dat2_buildcache )
+        dat2_buildcache->loc_decode_flags = flags;
 }
 
 void
@@ -400,6 +418,19 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->skeletal_hmap);
     }
 
+    if( dat2_buildcache->skeletal_base_hmap )
+    {
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->skeletal_base_hmap);
+        struct MapEntry_SkeletalBase* entry = NULL;
+        while( (entry = (struct MapEntry_SkeletalBase*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->base )
+                RSCacheDat2A_SkeletalBaseFree(entry->base);
+        }
+        ToriDraw_MapIterFree(iter);
+        dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->skeletal_base_hmap);
+    }
+
     if( dat2_buildcache->identkit_hmap )
     {
         struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat2_buildcache->identkit_hmap);
@@ -475,7 +506,8 @@ Dat2BuildCache_FramesArchiveFree(struct Dat2BuildCache_FramesArchive* fa)
     if( !fa )
         return;
 
-    RSCacheDat2A_FramemapFree(fa->framemap);
+    /* fa->framemap is a non-owning borrow from dat2_buildcache framemap_hmap. */
+    fa->framemap = NULL;
     if( fa->frames )
     {
         for( int i = 0; i < fa->frame_count; i++ )
@@ -897,7 +929,10 @@ dat2_buildcache_locs_init_from_filelist(
             continue;
 
         config_locs_decode_inplace(
-            config_loc, filelist->files[i], filelist->file_sizes[i], CONFIG_LOC_DECODE_DAT2);
+            config_loc,
+            filelist->files[i],
+            filelist->file_sizes[i],
+            CONFIG_LOC_DECODE_DAT2 | dat2_buildcache->loc_decode_flags);
         config_loc->_id = id;
 
         struct MapEntry_ConfigLoc* entry = (struct MapEntry_ConfigLoc*)ToriDraw_MapSearch(
@@ -1695,7 +1730,49 @@ dat2_buildcache_framemap_get(
     return entry->framemap;
 }
 
-void
+int
+dat2_buildcache_frames_collect_framemap_ids(
+    const struct RSCacheShared_FileList* filelist,
+    int* out_ids,
+    int out_capacity)
+{
+    int count = 0;
+
+    if( !filelist || !out_ids || out_capacity <= 0 )
+        return 0;
+
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        char* data = filelist->files[i];
+        int data_size = filelist->file_sizes[i];
+        int framemap_id;
+
+        if( !data || data_size < 2 )
+            continue;
+
+        framemap_id = RSCacheDat2A_FrameFramemapIdFromFile(data, data_size);
+        if( framemap_id < 0 )
+            continue;
+
+        bool found = false;
+        for( int k = 0; k < count; k++ )
+        {
+            if( out_ids[k] == framemap_id )
+            {
+                found = true;
+                break;
+            }
+        }
+        if( found || count >= out_capacity )
+            continue;
+
+        out_ids[count++] = framemap_id;
+    }
+
+    return count;
+}
+
+bool
 dat2_buildcache_frames_add_from_fetched_archive(
     struct Dat2BuildCache* dat2_buildcache,
     int archive_id,
@@ -1707,32 +1784,40 @@ dat2_buildcache_frames_add_from_fetched_archive(
     struct Dat2BuildCache_FramesArchive* fa = NULL;
     struct RSCacheDat2A_Framemap* shared_framemap = NULL;
     struct MapEntry_FramesArchive* entry;
+    int decoded_count = 0;
 
     if( !dat2_buildcache || archive_id < 0 || !idx0_archive )
-        return;
+        return false;
     if( dat2_buildcache_frames_has(dat2_buildcache, archive_id) )
-        return;
+        return true;
 
     animations_table = dat2_buildcache_animations_table(dat2_buildcache);
-    if( animations_table )
+    if( !animations_table )
     {
-        RSCacheDat2Disk_ArchiveInitMetadataFromTable(animations_table, idx0_archive);
-        if( archive_id >= 0 && archive_id < animations_table->archive_count )
-            archive_ref = &animations_table->archives[archive_id];
+        fprintf(
+            stderr,
+            "dat2_buildcache_frames_add: animations reference table missing "
+            "(archive_id=%d)\n",
+            archive_id);
+        return false;
     }
+
+    RSCacheDat2Disk_ArchiveInitMetadataFromTable(animations_table, idx0_archive);
+    if( archive_id >= 0 && archive_id < animations_table->archive_count )
+        archive_ref = &animations_table->archives[archive_id];
 
     filelist = RSCacheShared_FileListNewFromCacheArchive(idx0_archive);
     if( !filelist || filelist->file_count <= 0 )
     {
         RSCacheShared_FileListFree(filelist);
-        return;
+        return false;
     }
 
     fa = calloc(1, sizeof(struct Dat2BuildCache_FramesArchive));
     if( !fa )
     {
         RSCacheShared_FileListFree(filelist);
-        return;
+        return false;
     }
 
     fa->frame_count = filelist->file_count;
@@ -1741,7 +1826,7 @@ dat2_buildcache_frames_add_from_fetched_archive(
     {
         free(fa);
         RSCacheShared_FileListFree(filelist);
-        return;
+        return false;
     }
 
     for( int i = 0; i < filelist->file_count; i++ )
@@ -1758,10 +1843,7 @@ dat2_buildcache_frames_add_from_fetched_archive(
 
         framemap_id = RSCacheDat2A_FrameFramemapIdFromFile(data, data_size);
         if( !shared_framemap || shared_framemap->id != framemap_id )
-        {
-            if( !shared_framemap )
-                shared_framemap = dat2_buildcache_framemap_get(dat2_buildcache, framemap_id);
-        }
+            shared_framemap = dat2_buildcache_framemap_get(dat2_buildcache, framemap_id);
         if( !shared_framemap )
             continue;
 
@@ -1769,10 +1851,22 @@ dat2_buildcache_frames_add_from_fetched_archive(
         frame_id = (archive_id << 16) | (file_id & 0xFFFF);
         frame = RSCacheDat2A_FrameNewDecode2(frame_id, shared_framemap, data, data_size);
         fa->frames[i] = frame;
+        if( frame )
+            decoded_count++;
     }
 
     fa->framemap = shared_framemap;
     RSCacheShared_FileListFree(filelist);
+
+    if( decoded_count <= 0 )
+    {
+        Dat2BuildCache_FramesArchiveFree(fa);
+        fprintf(
+            stderr,
+            "dat2_buildcache_frames_add: no frames decoded (archive_id=%d)\n",
+            archive_id);
+        return false;
+    }
 
     entry = (struct MapEntry_FramesArchive*)ToriDraw_MapSearch(
         dat2_buildcache->frames_hmap, &archive_id, TORIDRAW_MAP_INSERT);
@@ -1789,6 +1883,7 @@ dat2_buildcache_frames_add_from_fetched_archive(
     entry->archive = fa;
     dat2_buildcache_mem_track_add(
         dat2_buildcache, DAT2_BUILDCACHE_KIND_FRAMES, Dat2BuildCache_FramesArchiveSizeOf(fa));
+    return true;
 }
 
 struct Dat2BuildCache_FramesArchive*
@@ -1890,6 +1985,71 @@ dat2_buildcache_skeletal_has(
     int anim_maya_id)
 {
     return dat2_buildcache_skeletal_get(dat2_buildcache, anim_maya_id) != NULL;
+}
+
+void
+dat2_buildcache_skeletal_base_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int base_id,
+    struct RSCacheDat2A_SkeletalBase* base)
+{
+    struct MapEntry_SkeletalBase* entry;
+
+    if( !dat2_buildcache || base_id < 0 || !base || !dat2_buildcache->skeletal_base_hmap )
+        return;
+
+    entry = (struct MapEntry_SkeletalBase*)ToriDraw_MapSearch(
+        dat2_buildcache->skeletal_base_hmap, &base_id, TORIDRAW_MAP_INSERT);
+    assert(entry && "Skeletal base must be inserted into hmap");
+    if( entry->base )
+        RSCacheDat2A_SkeletalBaseFree(entry->base);
+    entry->id = base_id;
+    entry->base = base;
+}
+
+struct RSCacheDat2A_SkeletalBase*
+dat2_buildcache_skeletal_base_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int base_id)
+{
+    struct MapEntry_SkeletalBase* entry;
+
+    if( !dat2_buildcache || base_id < 0 || !dat2_buildcache->skeletal_base_hmap )
+        return NULL;
+
+    entry = (struct MapEntry_SkeletalBase*)ToriDraw_MapSearch(
+        dat2_buildcache->skeletal_base_hmap, &base_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->base;
+}
+
+bool
+dat2_buildcache_skeletal_base_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int base_id)
+{
+    return dat2_buildcache_skeletal_base_get(dat2_buildcache, base_id) != NULL;
+}
+
+void
+dat2_buildcache_skeletal_base_add_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    int base_id,
+    struct RSCacheDat2Disk_Archive* skeleton_archive)
+{
+    struct RSCacheDat2A_SkeletalBase* base;
+
+    if( !dat2_buildcache || base_id < 0 || !skeleton_archive )
+        return;
+    if( dat2_buildcache_skeletal_base_has(dat2_buildcache, base_id) )
+        return;
+
+    base = RSCacheDat2A_SkeletalBaseNewFromArchive(skeleton_archive, base_id);
+    if( !base )
+        return;
+
+    dat2_buildcache_skeletal_base_add(dat2_buildcache, base_id, base);
 }
 
 void

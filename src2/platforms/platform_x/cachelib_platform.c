@@ -144,6 +144,18 @@ cache_dat2_map_archive_id(
     return -1;
 }
 
+static struct RSCacheDat2Disk_Archive*
+cache_dat2_archive_init_metadata(
+    struct RSCacheDat2Disk* cache_dat2,
+    struct RSCacheDat2Disk_Archive* archive)
+{
+    if( !archive )
+        return NULL;
+
+    RSCacheDat2Disk_ArchiveInitMetadata(cache_dat2, archive);
+    return archive;
+}
+
 static void*
 cache_dat2_load_map_chunk(
     struct RSCacheDat2DiskLib* cache,
@@ -182,8 +194,9 @@ cache_dat2_load_map_chunk(
             cache_dat2, RSCacheDat2Disk_Table_Maps, resolved_archive_id);
     }
 
-    return RSCacheDat2Disk_ArchiveNewLoadDecrypted(
+    struct RSCacheDat2Disk_Archive* archive = RSCacheDat2Disk_ArchiveNewLoadDecrypted(
         cache_dat2, RSCacheDat2Disk_Table_Maps, resolved_archive_id, xtea_key);
+    return cache_dat2_archive_init_metadata(cache_dat2, archive);
 }
 
 static void*
@@ -197,6 +210,9 @@ cache_dat2_load_io(
     if( request->table_id == RSCacheDat2Disk_Table_Maps )
         return cache_dat2_load_map_chunk(cache, request->archive_id, request->flags);
 
+    if( request->table_id == RSCACHEDAT2DISK_REFERENCE_TABLE_ID )
+        return RSCacheDat2Disk_ArchiveNewReferenceTableLoad(cache_dat2, request->archive_id);
+
     uint32_t* xtea_key = NULL;
     if( request->table_id == RSCacheDat2Disk_Table_Maps )
         xtea_key = RSCacheDat2Disk_ArchiveXteaKey(cache_dat2, request->table_id, request->archive_id);
@@ -204,7 +220,7 @@ cache_dat2_load_io(
     data = RSCacheDat2Disk_ArchiveNewLoadDecrypted(
         cache_dat2, request->table_id, request->archive_id, xtea_key);
 
-    return data;
+    return cache_dat2_archive_init_metadata(cache_dat2, (struct RSCacheDat2Disk_Archive*)data);
 }
 
 void*

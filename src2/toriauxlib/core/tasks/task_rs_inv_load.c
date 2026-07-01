@@ -308,11 +308,11 @@ Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
 
         if( need_obj && dat2_bc )
         {
+            dat2_bc = task->rc_ctx->dat2_bc ? task->rc_ctx->dat2_bc : dat2(task->cache);
+            DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, task->cache);
+
             IO_REQUEST(ctx, 0, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Object));
             PT_YIELD(&task->thread);
-
-            dat2_bc = task->rc_ctx->dat2_bc ? task->rc_ctx->dat2_bc : dat2(task->cache);
-            DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, dat2_bc);
 
             object_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Object);
             if( object_archive && dat2_bc )

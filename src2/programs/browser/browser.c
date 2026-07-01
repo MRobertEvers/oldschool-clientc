@@ -6,6 +6,7 @@
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_webgl1.h"
 #include "../../scripting/libtorirs_scripting.h"
+#include "../../toriauxlib/c/toriauxlibcache.h"
 
 #include <SDL.h>
 #include <assert.h>
@@ -108,17 +109,30 @@ main(
 {
     bool const use_soft3d = has_flag(argc, argv, "--soft3d");
     bool const use_runescape = has_flag(argc, argv, "--runescape");
+    bool const use_kronos = has_flag(argc, argv, "--kronos");
+    bool const use_dat2 = has_flag(argc, argv, "--dat2") || use_kronos;
+    enum ToriAuxLibCacheMode const toriauxlib_mode =
+        use_dat2 ? TORIAUXLIBCACHE_MODE_DAT2 : TORIAUXLIBCACHE_MODE_DAT1;
+
+    if( use_kronos )
+        printf("Cache: kronos\n");
+    else if( use_dat2 )
+        printf("Cache: dat2\n");
+    else
+        printf("Cache: dat1\n");
     if( use_soft3d )
         printf("Renderer: software 3D (CPU)\n");
     if( use_runescape )
         printf("Game: runescape world\n");
 
-    struct LibToriRS_Instance* instance = LibToriRS_InstanceNew();
+    struct LibToriRS_Instance* instance =
+        LibToriRS_InstanceNewWithCacheMode((int)toriauxlib_mode);
     if( !instance )
     {
         printf("Failed to create instance\n");
         return 1;
     }
+    LibToriRS_InstanceSetClientKronos(instance, use_kronos);
 
     struct LibToriPlatformSDL2* platform = LibToriPlatformSDL2_New();
     if( !platform )

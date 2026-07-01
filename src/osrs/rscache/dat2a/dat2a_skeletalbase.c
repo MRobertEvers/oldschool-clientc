@@ -213,26 +213,15 @@ RSCacheDat2A_SkeletalBaseFree(struct RSCacheDat2A_SkeletalBase* base)
 /* ---- decode ---- */
 
 struct RSCacheDat2A_SkeletalBase*
-RSCacheDat2A_SkeletalBaseNewFromCache(
-    struct RSCacheDat2Disk* cache,
-    int base_id)
+RSCacheDat2A_SkeletalBaseNewDecode2(
+    int base_id,
+    const char* file_data,
+    int file_size)
 {
-    /* idx1 stores one file per SeqBase (archive = base_id, file 0) */
-    struct RSCacheDat2Disk_Archive* archive =
-        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Skeletons, base_id);
-    if( !archive )
-        return NULL;
-
-    /* idx1 archives are single-file (no multi-file splitting in the base Skeletons table).
-     * archive->data is the raw decompressed SeqBase bytes. */
-    const char* file_data = archive->data;
-    int         file_size = archive->data_size;
+    (void)base_id;
 
     if( !file_data || file_size < 1 )
-    {
-        RSCacheDat2Disk_ArchiveFree(archive);
         return NULL;
-    }
 
     struct RSCacheShared_RSBuffer buf = {
         .data     = (uint8_t*)file_data,
@@ -265,33 +254,29 @@ RSCacheDat2A_SkeletalBaseNewFromCache(
 
     /* --- SkeletalBase tail --- */
     if( buf.position >= buf.size )
-    {
-        RSCacheDat2Disk_ArchiveFree(archive);
         return NULL;
-    }
 
     int bone_count = g2(&buf);
     if( bone_count <= 0 )
-    {
-        RSCacheDat2Disk_ArchiveFree(archive);
         return NULL;
-    }
 
     int pose_count = g1(&buf);
     if( pose_count <= 0 )
-    {
-        RSCacheDat2Disk_ArchiveFree(archive);
         return NULL;
-    }
 
     struct RSCacheDat2A_SkeletalBase* base =
         calloc(1, sizeof(struct RSCacheDat2A_SkeletalBase));
-    if( !base ) { RSCacheDat2Disk_ArchiveFree(archive); return NULL; }
+    if( !base )
+        return NULL;
 
     base->bone_count = bone_count;
     base->pose_count = pose_count;
     base->bones = calloc((size_t)bone_count, sizeof(struct RSCacheDat2A_SkeletalBone));
-    if( !base->bones ) { RSCacheDat2Disk_ArchiveFree(archive); RSCacheDat2A_SkeletalBaseFree(base); return NULL; }
+    if( !base->bones )
+    {
+        RSCacheDat2A_SkeletalBaseFree(base);
+        return NULL;
+    }
 
     for( int bi = 0; bi < bone_count; bi++ )
     {
@@ -324,6 +309,33 @@ RSCacheDat2A_SkeletalBaseNewFromCache(
             base->bones[bi].parent = NULL;
     }
 
+    return base;
+}
+
+struct RSCacheDat2A_SkeletalBase*
+RSCacheDat2A_SkeletalBaseNewFromArchive(
+    struct RSCacheDat2Disk_Archive* archive,
+    int base_id)
+{
+    if( !archive )
+        return NULL;
+
+    return RSCacheDat2A_SkeletalBaseNewDecode2(base_id, archive->data, archive->data_size);
+}
+
+struct RSCacheDat2A_SkeletalBase*
+RSCacheDat2A_SkeletalBaseNewFromCache(
+    struct RSCacheDat2Disk* cache,
+    int base_id)
+{
+    struct RSCacheDat2Disk_Archive* archive =
+        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Skeletons, base_id);
+    struct RSCacheDat2A_SkeletalBase* base;
+
+    if( !archive )
+        return NULL;
+
+    base = RSCacheDat2A_SkeletalBaseNewFromArchive(archive, base_id);
     RSCacheDat2Disk_ArchiveFree(archive);
     return base;
 }

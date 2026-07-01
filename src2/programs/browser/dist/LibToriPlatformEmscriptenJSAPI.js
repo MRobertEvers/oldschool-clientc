@@ -83,6 +83,10 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_IORequestGetPath",
     );
+    this._ioRequestGetReferenceTableId = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_IORequestGetReferenceTableId",
+    );
 
     this._scriptQueueIsEmpty = wasmExportFn(
       mod,
@@ -132,6 +136,10 @@ export class LibToriPlatformEmscriptenJSAPI {
     this._cacheDatArchiveDeserialize = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_CacheDatArchiveDeserialize",
+    );
+    this._cacheArchiveDeserialize = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_CacheArchiveDeserialize",
     );
 
     this._scriptAPIGameModelViewerInit = wasmExportFn(
@@ -237,6 +245,10 @@ export class LibToriPlatformEmscriptenJSAPI {
     this._scriptAPIGetCacheMode = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_GetCacheMode",
+    );
+    this._scriptAPIIsKronos = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_IsKronos",
     );
     this._scriptAPIGameCacheModelsClearAll = wasmExportFn(
       mod,
@@ -387,6 +399,10 @@ export class LibToriPlatformEmscriptenJSAPI {
 
   ioRequestGetPath(item) {
     return this._ioRequestGetPath(this.instancePtr, item);
+  }
+
+  ioRequestGetReferenceTableId(item) {
+    return this._ioRequestGetReferenceTableId(this.instancePtr, item);
   }
 
   scriptQueueIsEmpty() {
@@ -543,6 +559,10 @@ export class LibToriPlatformEmscriptenJSAPI {
     return fromWasmCString(this.wasmModule, ptr) ?? "dat1";
   }
 
+  scriptAPIIsKronos() {
+    return !!this._scriptAPIIsKronos(this.instancePtr);
+  }
+
   scriptAPIGameCacheModelsClearAll() {
     this._scriptAPIGameCacheModelsClearAll(this.instancePtr);
   }
@@ -662,5 +682,9 @@ export class LibToriPlatformEmscriptenJSAPI {
 
   cacheDatArchiveDeserialize(dataPtr, dataSize) {
     return this._cacheDatArchiveDeserialize(dataPtr, dataSize);
+  }
+
+  cacheArchiveDeserialize(dataPtr, dataSize) {
+    return this._cacheArchiveDeserialize(dataPtr, dataSize);
   }
 }

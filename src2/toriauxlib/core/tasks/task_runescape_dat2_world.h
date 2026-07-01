@@ -187,7 +187,7 @@ Task_Dat2WorldRebuildCore_Run(
     locs_archive = TAPIDat2_DecodeConfigGroup(ctx, 3, RSCacheDat2A_ConfigKind_Locs);
     assert(locs_archive);
 
-    DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &core->thread, dat2_bc);
+    DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &core->thread, core->c);
 
     dat2_buildcache_underlays_init_from_archive(dat2_bc, underlay_archive);
     dat2_buildcache_overlays_init_from_archive(dat2_bc, overlay_archive);

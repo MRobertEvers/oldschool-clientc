@@ -3,6 +3,7 @@
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
 #include "buildcache/dat2_buildcache.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
 #include "toriauxlib/core/tasks/task_modelviewer_dat1_model.h"
 #include "toriauxlib/core/tasks/task_modelviewer_dat2_model.h"
 #include "toriauxlib/core/tasks/task_runescape_dat1_animate.h"
@@ -130,6 +131,17 @@ ToriAuxLibCache_SetVarPVarBit(
     if( !c )
         return;
     c->varp_varbit = varp_varbit;
+}
+
+void
+ToriAuxLibCache_SetClientKronos(
+    struct ToriAuxLibCache* c,
+    bool kronos)
+{
+    if( !c || c->mode != TORIAUXLIBCACHE_MODE_DAT2 || !c->dat2_buildcache )
+        return;
+    dat2_buildcache_set_loc_decode_flags(
+        c->dat2_buildcache, kronos ? CONFIG_LOC_DECODE_KRONOS : 0);
 }
 
 struct VarPVarBitManager*

@@ -292,8 +292,7 @@ TAPIDat2_FetchReferenceTable(
     struct LibToriRS_IOContext* ctx,
     int table_id)
 {
-    LibToriRS_IOQueuePushCache(
-        ctx->io, RSCACHEDAT2DISK_REFERENCE_TABLE_ID, table_id, 0);
+    LibToriRS_IOQueuePushReferenceTable(ctx->io, table_id);
 }
 
 static inline struct RSCacheDat2Disk_ReferenceTable*
@@ -302,14 +301,11 @@ TAPIDat2_DecodeReferenceTable(
     int slot_id,
     int expected_table_id)
 {
-    struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
+    struct LibToriRS_IOQueueItem* item =
+        LibToriRS_IOQueueFindReferenceTable(ctx->io, slot_id, expected_table_id);
     if( !item )
         return NULL;
-    if( item->kind != TORIRSIO_KIND_CACHE || item->status != TORIRSIO_STAT_DONE ||
-        item->error_code != 0 )
-        return NULL;
-    if( item->u.cache.table_id != RSCACHEDAT2DISK_REFERENCE_TABLE_ID ||
-        item->u.cache.archive_id != expected_table_id )
+    if( item->error_code != 0 )
         return NULL;
 
     struct RSCacheDat2Disk_Archive* archive = item->data;

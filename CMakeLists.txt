@@ -208,6 +208,16 @@ if(NOT EMSCRIPTEN)
     target_include_directories(dump_map_index PRIVATE src)
     set_target_properties(dump_map_index PROPERTIES C_STANDARD 11)
 
+    add_executable(dump_interface_index tools/dump_interface_index/main.c)
+    target_link_libraries(dump_interface_index rscache)
+    target_include_directories(dump_interface_index PRIVATE src)
+    set_target_properties(dump_interface_index PROPERTIES C_STANDARD 11)
+
+    add_executable(match_dat2_interface tools/match_dat2_interface/main.c)
+    target_link_libraries(match_dat2_interface rscache)
+    target_include_directories(match_dat2_interface PRIVATE src)
+    set_target_properties(match_dat2_interface PROPERTIES C_STANDARD 11)
+
     add_executable(dump_map_locs tools/dump_map_locs/main.c)
     target_link_libraries(dump_map_locs rscache)
     target_include_directories(dump_map_locs PRIVATE src)

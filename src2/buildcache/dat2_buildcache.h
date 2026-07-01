@@ -7,6 +7,7 @@
 #include "osrs/rscache/dat2a/dat2a_maps.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/shared/shared_file_list.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -52,6 +53,7 @@ struct RSCacheDat2A_AnimMaya;
 struct RSCacheDat2A_ConfigIdk;
 struct RSCacheDat2A_ConfigObject;
 struct RSCacheDat2A_ConfigNpctype;
+struct RSCacheDat2A_SkeletalBase;
 
 /**
  * Decoded frames from one idx0 animation archive.
@@ -91,6 +93,7 @@ struct Dat2BuildCache
     struct ToriDraw_Map* frames_hmap;     /* archive_id -> Dat2BuildCache_FramesArchive* */
     struct ToriDraw_Map* framemap_hmap;   /* framemap_id -> RSCacheDat2A_Framemap*       */
     struct ToriDraw_Map* skeletal_hmap;   /* anim_maya_id -> RSCacheDat2A_AnimMaya*      */
+    struct ToriDraw_Map* skeletal_base_hmap; /* base_id -> RSCacheDat2A_SkeletalBase*    */
     struct ToriDraw_Map* identkit_hmap;
     struct ToriDraw_Map* object_hmap;
     struct ToriDraw_Map* npctype_hmap;
@@ -99,7 +102,13 @@ struct Dat2BuildCache
     struct RSCacheDat2Disk_ReferenceTable* reference_tables[RSCacheDat2Disk_Table_Count];
     size_t asset_bytes[DAT2_BUILDCACHE_KIND_COUNT];
     size_t map_buffer_bytes;
+    int loc_decode_flags;
 };
+
+void
+dat2_buildcache_set_loc_decode_flags(
+    struct Dat2BuildCache* dat2_buildcache,
+    int flags);
 
 struct Dat2BuildCache*
 dat2_buildcache_new(void);
@@ -266,7 +275,13 @@ dat2_buildcache_framemap_get(
     struct Dat2BuildCache* dat2_buildcache,
     int framemap_id);
 
-void
+int
+dat2_buildcache_frames_collect_framemap_ids(
+    const struct RSCacheShared_FileList* filelist,
+    int* out_ids,
+    int out_capacity);
+
+bool
 dat2_buildcache_frames_add_from_fetched_archive(
     struct Dat2BuildCache* dat2_buildcache,
     int archive_id,
@@ -309,6 +324,28 @@ bool
 dat2_buildcache_skeletal_has(
     struct Dat2BuildCache* dat2_buildcache,
     int anim_maya_id);
+
+void
+dat2_buildcache_skeletal_base_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int base_id,
+    struct RSCacheDat2A_SkeletalBase* base);
+
+struct RSCacheDat2A_SkeletalBase*
+dat2_buildcache_skeletal_base_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int base_id);
+
+bool
+dat2_buildcache_skeletal_base_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int base_id);
+
+void
+dat2_buildcache_skeletal_base_add_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    int base_id,
+    struct RSCacheDat2Disk_Archive* skeleton_archive);
 
 struct RSCacheDat2A_ConfigLocation*
 dat2_buildcache_config_loc_get(
