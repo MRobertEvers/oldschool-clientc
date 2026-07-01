@@ -23,6 +23,7 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/platforms/platform_x/cachelib.c \
 	$(SRC2_DIR)/platforms/platform_x/cachelib_platform.c \
 	$(SRC2_DIR)/platforms/platform_x/cachelib_serialized.c \
+	$(SRC2_DIR)/platforms/platform_x/cache_path_resolve.c \
 	$(SRC2_DIR)/platforms/platform_x_cache.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/core_task.c \
 	$(SRC2_DIR)/toriauxlib/toriauxlib.c \

@@ -4,6 +4,7 @@
 #include "platforms/platform_x_io_reactor.h"
 #include "platforms/platform_x/cachelib.h"
 #include "platforms/platform_x/cachelib_platform.h"
+#include "platforms/platform_x/cache_path_resolve.h"
 #include "revconfig/revconfig.h"
 #include "revconfig/revconfig_load.h"
 #include "toriauxlib/core/tasks/core_task.h"
@@ -2552,26 +2553,7 @@ pipeline_dat2_cache_directory(void)
 static char const*
 pipeline_kronos_cache_directory(void)
 {
-    static char const* const candidates[] = {
-        "../../cache.kronos",
-        "../../../cache.kronos",
-        "../cache.kronos",
-        "cache.kronos",
-        NULL,
-    };
-
-    for( int i = 0; candidates[i]; i++ )
-    {
-        char path[512];
-        snprintf(path, sizeof(path), "%s/main_file_cache.dat2", candidates[i]);
-        FILE* f = fopen(path, "rb");
-        if( f )
-        {
-            fclose(f);
-            return candidates[i];
-        }
-    }
-    return NULL;
+    return cache_path_resolve_kronos_repo();
 }
 
 static int

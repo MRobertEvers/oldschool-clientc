@@ -4,6 +4,8 @@
 #include "painter_fuzz_scene.h"
 #include "painters.h"
 
+#include "platforms/platform_x/cache_path_resolve.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -185,26 +187,7 @@ painter_bench_find_cache_dir(void)
 const char*
 painter_bench_find_kronos_cache_dir(void)
 {
-    static const char* candidates[] = {
-        "cache.kronos",
-        "../cache.kronos",
-        "../../cache.kronos",
-        "../../../cache.kronos",
-        "../../../../cache.kronos",
-        NULL,
-    };
-    char path[512];
-    for( int i = 0; candidates[i]; i++ )
-    {
-        snprintf(path, sizeof(path), "%s/main_file_cache.dat2", candidates[i]);
-        FILE* f = fopen(path, "rb");
-        if( f )
-        {
-            fclose(f);
-            return candidates[i];
-        }
-    }
-    return NULL;
+    return cache_path_resolve_kronos_repo();
 }
 
 int

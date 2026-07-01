@@ -4,6 +4,7 @@
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"
 #include "../../platforms/platform_x/cachelib.h"
 #include "../../platforms/platform_x/cachelib_platform.h"
+#include "../../platforms/platform_x/cache_path_resolve.h"
 #include "../../platforms/platform_x_io_reactor.h"
 #include "../../platforms/platform_x_lua.h"
 #include "../../scripting/libtorirs_scriptapi.h"
@@ -52,8 +53,21 @@ resolve_cache_dat_path(
     }
 
 #ifdef CACHE_DAT_PATH
+    if( use_kronos )
+    {
+        char const* kronos = cache_path_resolve_kronos_repo();
+        if( kronos )
+            return kronos;
+    }
     return CACHE_DAT_PATH;
 #else
+    if( use_kronos )
+    {
+        char const* kronos = cache_path_resolve_kronos_repo();
+        if( kronos )
+            return kronos;
+    }
+
     static char const* const dat1_candidates[] = {
         "cache254",          "../cache254",          "../../cache254",
         "../../../cache254", "../../../../cache254", NULL,
@@ -61,14 +75,8 @@ resolve_cache_dat_path(
     static char const* const dat2_candidates[] = {
         "cache", "../cache", "../../cache", "../../../cache", "../../../../cache", NULL,
     };
-    static char const* const kronos_candidates[] = {
-        "cache.kronos",          "../cache.kronos",          "../../cache.kronos",
-        "../../../cache.kronos", "../../../../cache.kronos", NULL,
-    };
     char const* const* candidates = dat1_candidates;
-    if( use_kronos )
-        candidates = kronos_candidates;
-    else if( use_dat2 )
+    if( use_dat2 )
         candidates = dat2_candidates;
     char const* cache_file = use_dat2 ? "main_file_cache.dat2" : "main_file_cache.dat";
 

@@ -85,6 +85,7 @@ CACHE_SRCS := \
 	$(PLAT_DIR)/platform_x_lua.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
+	$(PLAT_DIR)/platform_x/cache_path_resolve.c \
 	$(SRC2)/libtorirs.c \
 	$(SCRIPT_DIR)/libtorirs_scripting.c \
 	$(SCRIPT_DIR)/libtorirs_scriptapi.c \

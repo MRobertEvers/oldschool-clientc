@@ -71,6 +71,7 @@ COMMON_SRCS := sdl2.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
 	$(PLAT_DIR)/platform_x/cachelib_serialized.c \
+	$(PLAT_DIR)/platform_x/cache_path_resolve.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_soft3d.c \
 	$(SRC2)/platformkit/core/trspk_atlas.c \
