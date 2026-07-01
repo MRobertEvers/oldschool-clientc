@@ -127,6 +127,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_model_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_sprite_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_font_convert.c \
+	$(SRC2)/toriauxlib/c/toriauxlibcache_clientscript_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_submit.c \
 	$(SRC2)/toriauxlib/td/toriauxlibtd.c \
 	$(SRC2)/toriauxlib/core/tasks/task_toriauxlibtd.c \
@@ -156,6 +157,8 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/ui/ui_minimenu.c \
 	$(SRC2)/ui/minimenu_pickset.c \
 	$(SRC2)/ui/ui_click.c \
+	$(SRC2)/ui/ui_chat_minimenu.c \
+	$(SRC2)/ui/ui_debug.c \
 	$(SRC2)/toriauxlib/core/tasks/instance_revconfig_context.c \
 	$(SRC2)/toriauxlib/core/tasks/task_rs_component_load.c \
 	$(SRC2)/toriauxlib/core/tasks/task_rs_inv_load.c \

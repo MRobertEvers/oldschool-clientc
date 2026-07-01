@@ -2,23 +2,24 @@
 
 #include "games/runescape.h"
 #include "input/libtorirs_input.h"
+#include "osrs/client_code.h"
 #include "osrs/minimenu_action.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
-#include "osrs/rscache/dat1a/dat1a_config_obj.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_scene.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "ui/minimenu_pickset.h"
+#include "ui/ui_behavior.h"
+#include "ui/ui_debug.h"
+#include "ui/ui_chat_minimenu.h"
+#include "ui/ui_input.h"
 #include "ui/uitree_host.h"
 #include "ui/ui_minimenu.h"
 #include "ui/uitree_layout.h"
-#include "buildcache/dat1_buildcache.h"
-#include "buildcache/dat2_buildcache.h"
-#include "osrs/rscache/dat2a/dat2a_config_object.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/td/toriauxlibtd.h"
 #include "world/world.h"
 
 #include <limits.h>
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -27,6 +28,14 @@
 #else
 #include <strings.h>
 #endif
+
+static bool
+ui_click_component_is_menu_debug_relevant(struct StaticUIComponent const* component)
+{
+    return component &&
+           (uitree_component_has_menu_options(component) ||
+            uitree_component_expects_minimenu_rows(component));
+}
 
 void
 uitree_inv_hit_test_slot(
@@ -370,10 +379,11 @@ ui_click_add_inv_container_ops(
     struct MinimenuPick const* pick,
     struct UIMinimenuState* menu)
 {
-    if( !game || !pick || !menu || !game->ui_tree )
-        return;
-    if( pick->quaternary_id < 0 || (uint32_t)pick->quaternary_id >= game->ui_tree->component_count )
-        return;
+    assert(game && pick && menu && game->ui_tree);
+    assert(
+        pick->quaternary_id >= 0 &&
+        (uint32_t)pick->quaternary_id < game->ui_tree->component_count &&
+        "inv slot pick missing RS_INV component index in quaternary_id");
 
     struct StaticUIMenuOptions const* copts =
         &game->ui_tree->components[pick->quaternary_id].menu_options;
@@ -392,22 +402,31 @@ ui_click_add_inv_container_ops(
             (enum MinimenuAction)(MINIMENU_ACTION_INV_BUTTON1 + i),
             i);
     }
+
+    if( ui_minimenu_debug_enabled() )
+    {
+        ui_minimenu_debug_log(
+            "inv container ops inv_index=%d slot=%d component_idx=%d",
+            pick->id,
+            pick->secondary_id,
+            pick->quaternary_id);
+    }
 }
 
 static void
-ui_click_add_inv_obj_options_dat1(
+ui_click_add_inv_obj_options(
     struct MinimenuPick const* pick,
     struct UIMinimenuState* menu,
-    struct RSCacheDat1A_ConfigObj* obj)
+    struct ToriAuxLibCore_Objtype const* obj)
 {
     char text[UI_MINIMENU_OPTION_LEN];
-    char const* obj_name = obj->name ? obj->name : "item";
+    char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
 
     for( int op = 4; op >= 3; op-- )
     {
-        if( obj->iop[op] && obj->iop[op][0] != '\0' )
+        if( obj && obj->inv_actions[op][0] != '\0' )
         {
-            snprintf(text, sizeof(text), "%s", obj->iop[op]);
+            snprintf(text, sizeof(text), "%s", obj->inv_actions[op]);
             ui_click_add_inv_option(
                 menu, pick, text, (enum MinimenuAction)(MINIMENU_ACTION_OPHELD1 + op), op);
         }
@@ -423,50 +442,9 @@ ui_click_add_inv_obj_options_dat1(
 
     for( int op = 2; op >= 0; op-- )
     {
-        if( obj->iop[op] && obj->iop[op][0] != '\0' )
+        if( obj && obj->inv_actions[op][0] != '\0' )
         {
-            snprintf(text, sizeof(text), "%s", obj->iop[op]);
-            ui_click_add_inv_option(
-                menu, pick, text, (enum MinimenuAction)(MINIMENU_ACTION_OPHELD1 + op), op);
-        }
-    }
-
-    snprintf(text, sizeof(text), "Examine @cya@ %s", obj_name);
-    ui_click_add_inv_option(menu, pick, text, MINIMENU_ACTION_OPHELD6, 0);
-}
-
-static void
-ui_click_add_inv_obj_options_dat2(
-    struct MinimenuPick const* pick,
-    struct UIMinimenuState* menu,
-    struct RSCacheDat2A_ConfigObject* obj)
-{
-    char text[UI_MINIMENU_OPTION_LEN];
-    char const* obj_name = obj->name ? obj->name : "item";
-
-    for( int op = 4; op >= 3; op-- )
-    {
-        if( obj->if_actions[op] && obj->if_actions[op][0] != '\0' )
-        {
-            snprintf(text, sizeof(text), "%s", obj->if_actions[op]);
-            ui_click_add_inv_option(
-                menu, pick, text, (enum MinimenuAction)(MINIMENU_ACTION_OPHELD1 + op), op);
-        }
-        else if( op == 4 )
-        {
-            snprintf(text, sizeof(text), "Drop @lre@ %s", obj_name);
-            ui_click_add_inv_option(menu, pick, text, MINIMENU_ACTION_OPHELD5, 4);
-        }
-    }
-
-    snprintf(text, sizeof(text), "Use");
-    ui_click_add_inv_option(menu, pick, text, MINIMENU_ACTION_OPHELDT_START, 0);
-
-    for( int op = 2; op >= 0; op-- )
-    {
-        if( obj->if_actions[op] && obj->if_actions[op][0] != '\0' )
-        {
-            snprintf(text, sizeof(text), "%s", obj->if_actions[op]);
+            snprintf(text, sizeof(text), "%s", obj->inv_actions[op]);
             ui_click_add_inv_option(
                 menu, pick, text, (enum MinimenuAction)(MINIMENU_ACTION_OPHELD1 + op), op);
         }
@@ -495,18 +473,93 @@ ui_click_if_button_action_for_type(int button_type)
     }
 }
 
-static void
-ui_click_add_ui_options(
+static bool
+ui_click_add_social_options(
     struct GameRunescape* game,
-    struct MinimenuPick const* pick,
+    struct StaticUIComponent const* component,
+    int32_t component_index,
     struct UIMinimenuState* menu)
 {
-    if( !game || !pick || !menu || !game->ui_tree )
-        return;
-    if( pick->id < 0 || (uint32_t)pick->id >= game->ui_tree->component_count )
-        return;
+    if( !game || !component || !menu )
+        return false;
 
-    struct StaticUIComponent const* component = &game->ui_tree->components[pick->id];
+    int client_code = component->behavior.client_code;
+    if( client_code_is_friend_list_entry(client_code) )
+    {
+        int slot = client_code_friend_slot_index(client_code);
+        if( slot < 0 || slot >= game->friend_count )
+            return false;
+
+        char const* username = game->friend_username[slot];
+        char text[UI_MINIMENU_OPTION_LEN];
+
+        snprintf(text, sizeof(text), "Remove @whi@%s", username);
+        ui_minimenu_add_option_with_pick(
+            menu,
+            text,
+            MINIMENU_ACTION_FRIENDLIST_DEL,
+            slot,
+            MINIMENU_PICK_UI,
+            component_index,
+            0,
+            0,
+            0);
+
+        snprintf(text, sizeof(text), "Message @whi@%s", username);
+        ui_minimenu_add_option_with_pick(
+            menu,
+            text,
+            MINIMENU_ACTION_MESSAGE_PRIVATE,
+            slot,
+            MINIMENU_PICK_UI,
+            component_index,
+            0,
+            0,
+            0);
+        return true;
+    }
+
+    if( client_code_is_ignore_list_entry(client_code) )
+    {
+        char const* label = NULL;
+        if( component->type == UIELEM_RS_TEXT && component->u.rs_text.text )
+            label = component->u.rs_text.text;
+        if( !label || label[0] == '\0' )
+            return false;
+
+        char text[UI_MINIMENU_OPTION_LEN];
+        snprintf(text, sizeof(text), "Remove @whi@%s", label);
+        ui_minimenu_add_option_with_pick(
+            menu,
+            text,
+            MINIMENU_ACTION_IGNORELIST_DEL,
+            client_code_ignore_slot_index(client_code),
+            MINIMENU_PICK_UI,
+            component_index,
+            0,
+            0,
+            0);
+        return true;
+    }
+
+    return false;
+}
+
+static int
+ui_click_add_component_menu_rows(
+    struct GameRunescape* game,
+    struct StaticUIComponent const* component,
+    int32_t component_index,
+    struct UIMinimenuState* menu)
+{
+    assert(component && menu);
+    assert(component_index >= 0);
+
+    int const before = menu->option_count;
+
+    if( ui_click_add_social_options(game, component, component_index, menu) )
+        return menu->option_count - before;
+
     struct StaticUIMenuOptions const* opts = &component->menu_options;
     char text[UI_MINIMENU_OPTION_LEN];
 
@@ -516,32 +569,380 @@ ui_click_add_ui_options(
             continue;
 
         snprintf(text, sizeof(text), "%s", opts->ops[i]);
+        enum MinimenuAction action = (enum MinimenuAction)(MINIMENU_ACTION_INV_BUTTON1 + i);
+        if( opts->op_actions[i] != 0 )
+            action = (enum MinimenuAction)opts->op_actions[i];
         ui_minimenu_add_option_with_pick(
             menu,
             text,
-            (enum MinimenuAction)(MINIMENU_ACTION_INV_BUTTON1 + i),
+            action,
             i,
-            pick->kind,
-            pick->id,
-            pick->secondary_id,
-            pick->tertiary_id,
-            pick->quaternary_id);
+            MINIMENU_PICK_UI,
+            component_index,
+            0,
+            0,
+            0);
     }
 
+    char const* label = NULL;
     if( opts->option[0] != '\0' )
+        label = opts->option;
+    else if( component->behavior.button_type == COMPONENT_BUTTON_TYPE_CLOSE )
+        label = "Close";
+    else if(
+        component->behavior.button_type == COMPONENT_BUTTON_TYPE_OK &&
+        component->behavior.client_code == 0 )
+        label = "Ok";
+    else if(
+        component->behavior.button_type == COMPONENT_BUTTON_TYPE_TOGGLE ||
+        component->behavior.button_type == COMPONENT_BUTTON_TYPE_SELECT ||
+        component->behavior.button_type == COMPONENT_BUTTON_TYPE_CONTINUE )
     {
-        snprintf(text, sizeof(text), "%s", opts->option);
+        assert(
+            opts->option[0] != '\0' &&
+            "toggle/select/continue button missing option label in menu_options");
+    }
+
+    if( label )
+    {
+        snprintf(text, sizeof(text), "%s", label);
+        enum MinimenuAction action =
+            opts->option_action != 0
+                ? (enum MinimenuAction)opts->option_action
+                : ui_click_if_button_action_for_type(component->behavior.button_type);
         ui_minimenu_add_option_with_pick(
             menu,
             text,
-            ui_click_if_button_action_for_type(component->behavior.button_type),
+            action,
             0,
-            pick->kind,
-            pick->id,
-            pick->secondary_id,
-            pick->tertiary_id,
-            pick->quaternary_id);
+            MINIMENU_PICK_UI,
+            component_index,
+            0,
+            0,
+            0);
     }
+
+    int const added = menu->option_count - before;
+    if( uitree_component_expects_minimenu_rows(component) )
+    {
+        assert(
+            added > 0 &&
+            "component expected minimenu rows but ui_click_add_component_menu_rows added none");
+    }
+
+    if( ui_minimenu_debug_enabled() &&
+        (ui_click_component_is_menu_debug_relevant(component) || added > 0) )
+    {
+        char const* implicit = "none";
+        if( opts->option[0] != '\0' )
+            implicit = "option";
+        else if( component->behavior.button_type == COMPONENT_BUTTON_TYPE_CLOSE )
+            implicit = "Close";
+        else if(
+            component->behavior.button_type == COMPONENT_BUTTON_TYPE_OK &&
+            component->behavior.client_code == 0 )
+            implicit = "Ok";
+
+        ui_minimenu_debug_log_menu_options(
+            "add_rows",
+            component->component_id,
+            component_index,
+            (int)component->type,
+            opts,
+            component->behavior.button_type,
+            component->behavior.client_code);
+        ui_minimenu_debug_log(
+            "add_rows node_idx=%d implicit_label=%s added=%d",
+            component_index,
+            implicit,
+            added);
+    }
+
+    return added;
+}
+
+static int32_t
+ui_click_find_interface_root(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t hit_idx)
+{
+    if( !tree || hit_idx < 0 || (uint32_t)hit_idx >= tree->component_count )
+        return -1;
+
+    int32_t idx = hit_idx;
+    while( idx >= 0 )
+    {
+        struct StaticUIComponent const* component = &tree->components[idx];
+        if( component->type == UIELEM_BUILTIN_SIDEBAR )
+        {
+            if( host && host->get_selected_tab &&
+                host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+                return -1;
+            return component->first_child >= 0 ? component->first_child : hit_idx;
+        }
+        if( component->parent < 0 )
+            break;
+        idx = component->parent;
+    }
+
+    return hit_idx;
+}
+
+static void
+ui_click_add_rs_interface_options_recursive(
+    struct GameRunescape* game,
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t node_idx,
+    int px,
+    int py,
+    struct UIMinimenuState* menu)
+{
+    if( !tree || !menu || node_idx < 0 || (uint32_t)node_idx >= tree->component_count )
+        return;
+
+    struct StaticUIComponent const* component = &tree->components[node_idx];
+    bool const debug_relevant = ui_click_component_is_menu_debug_relevant(component);
+
+    if( !uitree_component_hit_test_visible_host(component, -1, host) )
+    {
+        if( debug_relevant )
+        {
+            ui_minimenu_debug_log(
+                "skip invisible node_idx=%d rs_id=%d type=%s",
+                node_idx,
+                component->component_id,
+                ui_minimenu_debug_uielem_name((int)component->type));
+        }
+        return;
+    }
+
+    if( component->type == UIELEM_RS_LAYER || component->type == UIELEM_BUILTIN_SIDEBAR )
+    {
+        bool recurse_children = true;
+        if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
+        {
+            if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+            {
+                recurse_children = false;
+                if( ui_minimenu_debug_enabled() )
+                {
+                    ui_minimenu_debug_log(
+                        "skip sidebar wrong tab node_idx=%d tabno=%d selected=%d",
+                        node_idx,
+                        component->u.sidebar.tabno,
+                        host->get_selected_tab(host->user));
+                }
+            }
+        }
+
+        if( recurse_children )
+        {
+            for( int32_t child = component->first_child; child >= 0;
+                 child = tree->components[child].next_sibling )
+            {
+                ui_click_add_rs_interface_options_recursive(
+                    game, tree, host, child, px, py, menu);
+            }
+        }
+        return;
+    }
+
+    if( component->type == UIELEM_RS_INV )
+    {
+        if( debug_relevant )
+        {
+            ui_minimenu_debug_log(
+                "skip inv node_idx=%d rs_id=%d (item rows use inv path)",
+                node_idx,
+                component->component_id);
+        }
+        return;
+    }
+
+    if( !uitree_point_in_component(&component->position, px, py) )
+    {
+        if( debug_relevant )
+        {
+            int bx = 0;
+            int by = 0;
+            int bw = 0;
+            int bh = 0;
+            uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
+            ui_minimenu_debug_log(
+                "skip out of bounds node_idx=%d rs_id=%d point=(%d,%d) bounds=(%d,%d,%d,%d)",
+                node_idx,
+                component->component_id,
+                px,
+                py,
+                bx,
+                by,
+                bw,
+                bh);
+        }
+        return;
+    }
+
+    if( debug_relevant )
+    {
+        ui_minimenu_debug_log(
+            "add rows node_idx=%d rs_id=%d type=%s point=(%d,%d)",
+            node_idx,
+            component->component_id,
+            ui_minimenu_debug_uielem_name((int)component->type),
+            px,
+            py);
+    }
+
+    ui_click_add_component_menu_rows(game, component, node_idx, menu);
+}
+
+static bool
+ui_click_point_in_chat_main_lines(struct GameRunescape* game, int px, int py)
+{
+    if( !game || !game->ui_tree )
+        return false;
+
+    int32_t chat_idx = game->ui_chat_node;
+    if( chat_idx < 0 || (uint32_t)chat_idx >= game->ui_tree->component_count ||
+        game->ui_tree->components[chat_idx].type != UIELEM_BUILTIN_CHAT )
+        chat_idx = uitree_find_chat_builtin_node(game->ui_tree);
+    if( chat_idx < 0 )
+        return false;
+
+    struct StaticUIComponent const* chat = &game->ui_tree->components[chat_idx];
+    int bx = 0;
+    int by = 0;
+    int bw = 0;
+    int bh = 0;
+    uitree_layout_get_bounds(&chat->position, &bx, &by, &bw, &bh);
+    if( bw <= 0 || bh <= 0 )
+        return false;
+
+    int const main_h = bh > 19 ? bh - 19 : bh;
+    return px >= bx && px < bx + bw && py >= by && py < by + main_h;
+}
+
+static bool
+ui_click_point_expects_ui_rows_recursive(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t node_idx,
+    int px,
+    int py)
+{
+    if( !tree || node_idx < 0 || (uint32_t)node_idx >= tree->component_count )
+        return false;
+
+    struct StaticUIComponent const* component = &tree->components[node_idx];
+    if( !uitree_component_hit_test_visible_host(component, -1, host) )
+        return false;
+
+    if( component->type == UIELEM_RS_LAYER || component->type == UIELEM_BUILTIN_SIDEBAR )
+    {
+        bool recurse_children = true;
+        if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
+        {
+            if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+                recurse_children = false;
+        }
+
+        if( recurse_children )
+        {
+            for( int32_t child = component->first_child; child >= 0;
+                 child = tree->components[child].next_sibling )
+            {
+                if( ui_click_point_expects_ui_rows_recursive(tree, host, child, px, py) )
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    if( component->type == UIELEM_RS_INV )
+        return false;
+
+    if( !uitree_point_in_component(&component->position, px, py) )
+        return false;
+
+    return uitree_component_expects_minimenu_rows(component);
+}
+
+void
+ui_click_build_ui_minimenu_at_point(
+    struct GameRunescape* game,
+    int click_x,
+    int click_y,
+    int32_t hit_idx,
+    struct UIMinimenuState* menu)
+{
+    assert(game && menu && game->ui_tree);
+
+    ui_minimenu_reset(menu);
+    ui_minimenu_add_option(menu, "Cancel", MINIMENU_ACTION_CANCEL, -1);
+
+    ui_chat_minimenu_add_private_strip(game, click_x, click_y, menu);
+
+    int32_t root = ui_click_find_interface_root(game->ui_tree, &game->ui_host, hit_idx);
+    if( root < 0 )
+        root = hit_idx;
+
+    int const rows_before_rs = menu->option_count;
+    ui_click_add_rs_interface_options_recursive(
+        game, game->ui_tree, &game->ui_host, root, click_x, click_y, menu);
+
+    if( rows_before_rs == menu->option_count &&
+        ui_click_point_in_chat_main_lines(game, click_x, click_y) )
+    {
+        ui_chat_minimenu_add_main_box(game, click_x, click_y, NULL, menu);
+    }
+
+    if( ui_click_point_expects_ui_rows_recursive(
+            game->ui_tree, &game->ui_host, root, click_x, click_y) )
+    {
+        assert(
+            menu->option_count > 1 &&
+            "UI point expected minimenu rows but only Cancel was built");
+    }
+
+    ui_minimenu_sort_priority_actions(menu);
+
+    if( ui_minimenu_debug_enabled() )
+    {
+        ui_minimenu_debug_log(
+            "build_ui_minimenu_at_point click=(%d,%d) hit_idx=%d root=%d option_count=%d",
+            click_x,
+            click_y,
+            hit_idx,
+            root,
+            menu->option_count);
+        for( int i = 0; i < menu->option_count; i++ )
+        {
+            ui_minimenu_debug_log("  option[%d]='%s'", i, menu->options[i].text);
+        }
+    }
+}
+
+static void
+ui_click_add_ui_options(
+    struct GameRunescape* game,
+    struct MinimenuPick const* pick,
+    struct UIMinimenuState* menu)
+{
+    assert(game && pick && menu && game->ui_tree);
+    assert(pick->id >= 0 && (uint32_t)pick->id < game->ui_tree->component_count);
+
+    if( ui_minimenu_debug_enabled() )
+    {
+        ui_minimenu_debug_log(
+            "MINIMENU_PICK_UI component_idx=%d rs_id=%d",
+            pick->id,
+            game->ui_tree->components[pick->id].component_id);
+    }
+
+    ui_click_add_component_menu_rows(
+        game, &game->ui_tree->components[pick->id], pick->id, menu);
 }
 
 static void
@@ -567,25 +968,9 @@ ui_click_add_pick_options(
         if( obj_id <= 0 )
             break;
 
-        struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
-        if( !cache )
-            break;
-
-        if( ToriAuxLibCache_Mode(cache) == TORIAUXLIBCACHE_MODE_DAT2 )
-        {
-            struct RSCacheDat2A_ConfigObject* obj =
-                dat2_buildcache_object_get(dat2(cache), obj_id);
-            if( !obj )
-                break;
-            ui_click_add_inv_obj_options_dat2(pick, menu, obj);
-        }
-        else
-        {
-            struct RSCacheDat1A_ConfigObj* obj = dat1_buildcache_obj_get(dat1(cache), obj_id);
-            if( !obj )
-                break;
-            ui_click_add_inv_obj_options_dat1(pick, menu, obj);
-        }
+        struct ToriAuxLibCore_Objtype* obj =
+            game->core ? ToriAuxLibCore_ObjtypeGet(game->core, obj_id) : NULL;
+        ui_click_add_inv_obj_options(pick, menu, obj);
 
         ui_click_add_inv_container_ops(game, pick, menu);
         break;
@@ -615,6 +1000,9 @@ ui_click_build_minimenu_from_pickset(
         return;
 
     ui_minimenu_add_option(menu, "Cancel", MINIMENU_ACTION_CANCEL, -1);
+
+    if( game )
+        ui_chat_minimenu_add_private_strip(game, game->mouse_x, game->mouse_y, menu);
 
     if( include_walk )
     {
@@ -877,6 +1265,14 @@ ui_click_handle_right(
 
     if( game_try_inv_click(game, click_x, click_y, true, &picks) )
     {
+        if( ui_minimenu_debug_enabled() )
+        {
+            ui_minimenu_debug_log(
+                "right-click (%d,%d) path=inv pick_count=%d",
+                click_x,
+                click_y,
+                picks.count);
+        }
         ui_click_build_minimenu_from_pickset(game, &picks, false, &game->minimenu);
         ui_click_show_minimenu_at(game, click_x, click_y);
         return;
@@ -889,8 +1285,29 @@ ui_click_handle_right(
         if( component->type == UIELEM_BUILTIN_MINIMENU )
             return;
 
-        ui_component_to_minimenu_pickset(hit, &picks);
-        ui_click_build_minimenu_from_pickset(game, &picks, false, &game->minimenu);
+        if( ui_minimenu_debug_enabled() )
+        {
+            ui_minimenu_debug_log(
+                "right-click (%d,%d) path=ui hit=%d type=%s rs_id=%d",
+                click_x,
+                click_y,
+                hit,
+                ui_minimenu_debug_uielem_name((int)component->type),
+                component->component_id);
+        }
+
+        ui_click_build_ui_minimenu_at_point(game, click_x, click_y, hit, &game->minimenu);
+        ui_click_show_minimenu_at(game, click_x, click_y);
+        return;
+    }
+
+    if( ui_click_point_in_chat_main_lines(game, click_x, click_y) )
+    {
+        ui_minimenu_reset(&game->minimenu);
+        ui_minimenu_add_option(&game->minimenu, "Cancel", MINIMENU_ACTION_CANCEL, -1);
+        ui_chat_minimenu_add_private_strip(game, click_x, click_y, &game->minimenu);
+        ui_chat_minimenu_add_main_box(game, click_x, click_y, NULL, &game->minimenu);
+        ui_minimenu_sort_priority_actions(&game->minimenu);
         ui_click_show_minimenu_at(game, click_x, click_y);
         return;
     }
@@ -900,6 +1317,16 @@ ui_click_handle_right(
         world_pickset_to_minimenu_pickset(game, &picks);
         game->cross_x = click_x;
         game->cross_y = click_y;
+    }
+
+    if( ui_minimenu_debug_enabled() )
+    {
+        ui_minimenu_debug_log(
+            "right-click (%d,%d) path=viewport in_viewport=%d pick_count=%d",
+            click_x,
+            click_y,
+            game->mouse_in_viewport ? 1 : 0,
+            picks.count);
     }
 
     ui_click_build_minimenu_from_pickset(

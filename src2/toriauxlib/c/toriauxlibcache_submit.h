@@ -46,6 +46,11 @@ ToriAuxLibCache_SubmitObjModelFromDat2(
     struct ToriAuxLibCache* c,
     int obj_id);
 
+bool
+ToriAuxLibCache_EnsureObjtype(
+    struct ToriAuxLibCache* c,
+    int obj_id);
+
 void
 ToriAuxLibCache_SubmitTexture(
     struct ToriAuxLibCache* c,
@@ -72,6 +77,17 @@ ToriAuxLibCache_SubmitFont(
     struct ToriAuxLibCache* c,
     int font_id,
     struct ToriAuxLibCore_Font* font);
+
+void
+ToriAuxLibCache_SubmitClientScript(
+    struct ToriAuxLibCache* c,
+    int script_id,
+    struct ToriAuxLibCore_ClientScript* script);
+
+struct ToriAuxLibCore_ClientScript*
+ToriAuxLibCache_ClientScriptResolve(
+    struct ToriAuxLibCache* c,
+    int script_id);
 
 void
 ToriAuxLibCache_SubmitComponent(

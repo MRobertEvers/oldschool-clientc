@@ -1,7 +1,13 @@
 #ifndef REVCONFIG_CACHE_H
 #define REVCONFIG_CACHE_H
 
+#include "osrs/minimenu_action.h"
+
 #include <stdint.h>
+
+#define REVCONFIG_MENU_OPTION_SLOTS 5
+#define REVCONFIG_MENU_OPTION_LEN 32
+#define REVCONFIG_CHAT_OP_TEMPLATE_LEN 64
 
 // Dat1 sprite cache section example:
 // table=configs
@@ -56,6 +62,30 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_CENTER,
     RCFIELD_UICOMPONENT_SHADOWED,
     RCFIELD_UICOMPONENT_TEXT,
+    RCFIELD_UICOMPONENT_OPTION,
+    RCFIELD_UICOMPONENT_OPTION_ACTION,
+    RCFIELD_UICOMPONENT_OP0,
+    RCFIELD_UICOMPONENT_OP1,
+    RCFIELD_UICOMPONENT_OP2,
+    RCFIELD_UICOMPONENT_OP3,
+    RCFIELD_UICOMPONENT_OP4,
+    RCFIELD_UICOMPONENT_OP0_ACTION,
+    RCFIELD_UICOMPONENT_OP1_ACTION,
+    RCFIELD_UICOMPONENT_OP2_ACTION,
+    RCFIELD_UICOMPONENT_OP3_ACTION,
+    RCFIELD_UICOMPONENT_OP4_ACTION,
+    RCFIELD_UICOMPONENT_BUTTON_TYPE,
+    RCFIELD_UICOMPONENT_CLIENT_CODE,
+    RCFIELD_UICOMPONENT_CHAT_OP_REPORT_ABUSE,
+    RCFIELD_UICOMPONENT_CHAT_OP_REPORT_ABUSE_ACTION,
+    RCFIELD_UICOMPONENT_CHAT_OP_ADD_IGNORE,
+    RCFIELD_UICOMPONENT_CHAT_OP_ADD_IGNORE_ACTION,
+    RCFIELD_UICOMPONENT_CHAT_OP_ADD_FRIEND,
+    RCFIELD_UICOMPONENT_CHAT_OP_ADD_FRIEND_ACTION,
+    RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_TRADE,
+    RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_TRADE_ACTION,
+    RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL,
+    RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION,
     RCFIELD_INV_ITEM,
     RCFIELD_UILAYOUT_COMPONENT,
     RCFIELD_UILAYOUT_X,
@@ -342,6 +372,33 @@ struct RevConfigUIComponentItem
 
     /* INI: text= — literal string for static type=rs_text owners (not cache-backed). */
     char text[256];
+
+    /* INI: option= / op0=..op4= — minimenu row labels for static/builtin owners. */
+    char option[REVCONFIG_MENU_OPTION_LEN];
+    char ops[REVCONFIG_MENU_OPTION_SLOTS][REVCONFIG_MENU_OPTION_LEN];
+
+    /*
+     * INI: option_action= / op0_action=..op4_action=
+     * Symbolic MiniMenuAction name or numeric value. 0 = use default mapping at click time.
+     */
+    int option_action;
+    int op_actions[REVCONFIG_MENU_OPTION_SLOTS];
+
+    /* INI: button_type= / client_code= — static behavior when not RS-baked. */
+    int button_type;
+    int client_code;
+
+    /* INI: chat_op_* — dynamic chat minimenu templates on type=chat (%%s = sender). */
+    char chat_op_report_abuse[REVCONFIG_CHAT_OP_TEMPLATE_LEN];
+    int chat_op_report_abuse_action;
+    char chat_op_add_ignore[REVCONFIG_CHAT_OP_TEMPLATE_LEN];
+    int chat_op_add_ignore_action;
+    char chat_op_add_friend[REVCONFIG_CHAT_OP_TEMPLATE_LEN];
+    int chat_op_add_friend_action;
+    char chat_op_accept_trade[REVCONFIG_CHAT_OP_TEMPLATE_LEN];
+    int chat_op_accept_trade_action;
+    char chat_op_accept_duel[REVCONFIG_CHAT_OP_TEMPLATE_LEN];
+    int chat_op_accept_duel_action;
 };
 
 /*
@@ -464,5 +521,13 @@ void
 revconfig_items_build(
     const struct RevConfigBuffer* fields,
     struct RevConfigItemBuffer* out);
+
+/** Parse symbolic MiniMenuAction name or decimal string. Returns 0 if unknown/empty. */
+int
+revconfig_parse_minimenu_action(char const* str);
+
+/** Parse button_type= string (ok/toggle/select/close/continue/target) or integer. */
+int
+revconfig_parse_button_type(char const* str);
 
 #endif

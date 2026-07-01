@@ -3,10 +3,15 @@
 #include "buildcache/dat1_buildcache.h"
 #include "buildcache/dat2_buildcache.h"
 #include "games/runescape.h"
+#include "osrs/minimenu_action.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toridraw/toridraw_scene.h"
+#include "toridraw/toridraw_sprite.h"
 #include "ui/uitree_layout.h"
+#include "ui/ui_behavior.h"
+#include "vm/cs2vm.h"
+#include "ui/ui_debug.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -83,6 +88,37 @@ instance_revconfig_rs_subtree_append(
     return true;
 }
 
+static void
+instance_revconfig_assert_sprite_atlas(
+    struct InstanceRevConfigContext const* ctx,
+    int scene_id,
+    int atlas_index,
+    char const* sprite_ref,
+    char const* context)
+{
+    if( scene_id < 0 )
+        return;
+
+    int sprite_count = 0;
+    struct ToriDraw_Sprite** sprites =
+        ctx && ctx->scene ? ToriDraw_SceneSpriteGet(ctx->scene, scene_id, &sprite_count) : NULL;
+    if( atlas_index < 0 || atlas_index >= sprite_count || !sprites || !sprites[atlas_index] ||
+        !sprites[atlas_index]->pixels_argb )
+    {
+        fprintf(stderr,
+            "instance_revconfig_assert_sprite_atlas: invalid atlas scene_id=%d "
+            "atlas_index=%d count=%d sprite_ref=%s (%s)\n",
+            scene_id,
+            atlas_index,
+            sprite_count,
+            sprite_ref && sprite_ref[0] ? sprite_ref : "(none)",
+            context ? context : "(null)");
+        assert(
+            sprites && atlas_index >= 0 && atlas_index < sprite_count &&
+            sprites[atlas_index] && sprites[atlas_index]->pixels_argb);
+    }
+}
+
 static int32_t
 instance_revconfig_bake_rs_component(
     struct InstanceRevConfigContext* ctx,
@@ -98,6 +134,8 @@ instance_revconfig_bake_rs_component(
     behavior.hide = info->hide;
     behavior.button_type = info->button_type;
     behavior.client_code = info->client_code;
+    behavior.over_layer_id = info->over_layer_id;
+    behavior.script_kind = info->script_kind;
     if( info->scripts_count > 0 )
     {
         behavior.over_color = info->over_color;
@@ -130,6 +168,12 @@ instance_revconfig_bake_rs_component(
                 sizeof(spec.menu_options.ops[i]) - 1);
         }
     }
+    if( info->type == TORIAUXLIBCORE_COMPONENT_INV && info->ops[0][0] != '\0' )
+    {
+        assert(
+            spec.menu_options.ops[0][0] != '\0' &&
+            "instance_revconfig_bake_rs_component: core INV ops not copied to menu_options");
+    }
 
     switch( info->type )
     {
@@ -146,7 +190,16 @@ instance_revconfig_bake_rs_component(
         if( sid < 0 && sid_a < 0 )
         {
             if( !info->graphic_hitbox_only )
+            {
+                fprintf(stderr,
+                    "instance_revconfig_bake_rs_component: sprite resolve failed "
+                    "component_id=%d ref=%s active_ref=%s\n",
+                    info->id,
+                    info->sprite_ref,
+                    info->sprite_active_ref);
+                assert(false);
                 return -1;
+            }
             spec.type = UIELEM_RS_GRAPHIC;
             spec.u.rs_graphic.scene_id = -1;
             spec.u.rs_graphic.atlas_index = 0;
@@ -161,6 +214,20 @@ instance_revconfig_bake_rs_component(
         spec.u.rs_graphic.scene_id_active = sid >= 0 && sid_a >= 0 && sid_a != sid ? sid_a : -1;
         spec.u.rs_graphic.atlas_index_active = sid_a >= 0 ? atlas_a : 0;
         spec.u.rs_graphic.graphic_hitbox_only = 0;
+        if( spec.u.rs_graphic.scene_id >= 0 )
+            instance_revconfig_assert_sprite_atlas(
+                ctx,
+                spec.u.rs_graphic.scene_id,
+                spec.u.rs_graphic.atlas_index,
+                info->sprite_ref,
+                "rs_graphic");
+        if( spec.u.rs_graphic.scene_id_active >= 0 )
+            instance_revconfig_assert_sprite_atlas(
+                ctx,
+                spec.u.rs_graphic.scene_id_active,
+                spec.u.rs_graphic.atlas_index_active,
+                info->sprite_active_ref,
+                "rs_graphic active");
         break;
     }
     case TORIAUXLIBCORE_COMPONENT_RECT:
@@ -169,7 +236,6 @@ instance_revconfig_bake_rs_component(
         spec.u.rs_rect.filled = info->filled;
         break;
     case TORIAUXLIBCORE_COMPONENT_TEXT:
-    case TORIAUXLIBCORE_COMPONENT_INV_TEXT:
         spec.type = UIELEM_RS_TEXT;
         spec.u.rs_text.font_id =
             instance_revconfig_resolve_rs_text_font_id(ctx, info->font_id);
@@ -177,6 +243,21 @@ instance_revconfig_bake_rs_component(
         spec.u.rs_text.center = info->center;
         spec.u.rs_text.shadowed = info->shadowed;
         spec.u.rs_text.text = info->text[0] != '\0' ? info->text : NULL;
+        spec.u.rs_text.text_active =
+            info->active_text[0] != '\0' ? info->active_text : NULL;
+        break;
+    case TORIAUXLIBCORE_COMPONENT_INV_TEXT:
+        spec.type = UIELEM_RS_INV_TEXT;
+        spec.u.rs_inv_text.inv_index = inv_index;
+        spec.u.rs_inv_text.cols = info->inv_cols;
+        spec.u.rs_inv_text.rows = info->inv_rows;
+        spec.u.rs_inv_text.margin_x = info->margin_x;
+        spec.u.rs_inv_text.margin_y = info->margin_y;
+        spec.u.rs_inv_text.font_id =
+            instance_revconfig_resolve_rs_text_font_id(ctx, info->font_id);
+        spec.u.rs_inv_text.color = info->color;
+        spec.u.rs_inv_text.center = info->center;
+        spec.u.rs_inv_text.shadowed = info->shadowed;
         break;
     case TORIAUXLIBCORE_COMPONENT_MODEL:
         spec.type = UIELEM_RS_MODEL;
@@ -193,6 +274,59 @@ instance_revconfig_bake_rs_component(
         break;
     default:
         return -1;
+    }
+
+    if( ui_minimenu_debug_enabled() )
+    {
+        bool core_ops_nonempty = false;
+        for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
+        {
+            if( info->ops[i][0] != '\0' )
+            {
+                core_ops_nonempty = true;
+                break;
+            }
+        }
+        bool const core_has_menu = info->option[0] != '\0' || core_ops_nonempty;
+        ui_minimenu_debug_log(
+            "bake rs_id=%d parent_idx=%d core_type=%d core_option='%s' core_ops_nonempty=%d",
+            info->id,
+            parent_idx,
+            (int)info->type,
+            info->option,
+            core_ops_nonempty ? 1 : 0);
+        ui_minimenu_debug_log_menu_options(
+            "bake",
+            info->id,
+            -1,
+            (int)spec.type,
+            &spec.menu_options,
+            behavior.button_type,
+            behavior.client_code);
+
+        struct StaticUIComponent probe = {
+            .type = spec.type,
+            .menu_options = spec.menu_options,
+            .behavior = behavior,
+        };
+        if( uitree_component_expects_minimenu_rows(&probe) &&
+            !uitree_component_has_menu_options(&probe) &&
+            behavior.button_type != COMPONENT_BUTTON_TYPE_CLOSE &&
+            !(behavior.button_type == COMPONENT_BUTTON_TYPE_OK && behavior.client_code == 0) )
+        {
+            ui_minimenu_debug_log(
+                "WARN bake rs_id=%d expects minimenu rows but menu_options empty "
+                "(button_type=%d client_code=%d)",
+                info->id,
+                behavior.button_type,
+                behavior.client_code);
+        }
+        if( core_has_menu && !uitree_component_has_menu_options(&probe) )
+        {
+            ui_minimenu_debug_log(
+                "WARN bake rs_id=%d core had option/ops but baked menu_options empty",
+                info->id);
+        }
     }
 
     return uitree_push(ctx->tree, parent_idx, &spec);
@@ -319,6 +453,45 @@ instance_revconfig_assert_fonts_in_scene(struct InstanceRevConfigContext* ctx)
         assert(
             ToriDraw_SceneFontHas(ctx->scene, font_id) &&
             "revconfig font missing from scene after load");
+    }
+}
+
+void
+instance_revconfig_assert_sprites_in_scene(struct InstanceRevConfigContext* ctx)
+{
+    assert(ctx);
+    assert(ctx->scene && "revconfig sprite verify requires ToriDraw scene");
+    for( int i = 0; i < ctx->sprite_lookup.count; i++ )
+    {
+        int const element_id = ctx->sprite_lookup.entries[i].element_id;
+        assert(
+            ToriDraw_SceneSpriteHas(ctx->scene, element_id) &&
+            "revconfig sprite missing from scene after load");
+        int sprite_count = 0;
+        struct ToriDraw_Sprite** sprites =
+            ToriDraw_SceneSpriteGet(ctx->scene, element_id, &sprite_count);
+        int const atlas_count = ctx->sprite_lookup.entries[i].atlas_count;
+        assert(
+            sprites && sprite_count > 0 && atlas_count > 0 &&
+            sprite_count >= atlas_count &&
+            "revconfig sprite atlas count mismatch after load");
+        for( int j = 0; j < atlas_count; j++ )
+        {
+            if( !sprites[j] || !sprites[j]->pixels_argb )
+            {
+                fprintf(stderr,
+                    "revconfig sprite atlas frame missing pixels after load: "
+                    "name=%s element_id=%d frame=%d/%d scene_count=%d\n",
+                    ctx->sprite_lookup.entries[i].name,
+                    element_id,
+                    j,
+                    atlas_count,
+                    sprite_count);
+                assert(
+                    sprites[j] && sprites[j]->pixels_argb &&
+                    "revconfig sprite atlas frame missing pixels after load");
+            }
+        }
     }
 }
 
@@ -605,6 +778,85 @@ instance_revconfig_resolve_panel_roots(struct InstanceRevConfigContext* ctx)
     }
 }
 
+static void
+instance_revconfig_copy_revconfig_menu_options(
+    struct RevConfigUIComponentItem const* comp,
+    struct StaticUIMenuOptions* dst)
+{
+    assert(comp && dst);
+    if( comp->option[0] != '\0' )
+        strncpy(dst->option, comp->option, sizeof(dst->option) - 1);
+    for( int i = 0; i < REVCONFIG_MENU_OPTION_SLOTS; i++ )
+    {
+        if( comp->ops[i][0] != '\0' )
+            strncpy(dst->ops[i], comp->ops[i], sizeof(dst->ops[i]) - 1);
+        dst->op_actions[i] = comp->op_actions[i];
+    }
+    dst->option_action = comp->option_action;
+}
+
+static void
+instance_revconfig_apply_chat_template(
+    char const* src,
+    int src_action,
+    int default_action,
+    char* dst,
+    size_t dst_len,
+    int* out_action)
+{
+    if( !dst || !out_action )
+        return;
+    if( src && src[0] != '\0' )
+    {
+        strncpy(dst, src, dst_len - 1);
+        dst[dst_len - 1] = '\0';
+        *out_action = src_action != 0 ? src_action : default_action;
+    }
+}
+
+static void
+instance_revconfig_copy_chat_minimenu_config(
+    struct RevConfigUIComponentItem const* comp,
+    struct StaticUIChatMinimenuConfig* dst)
+{
+    assert(comp && dst);
+    instance_revconfig_apply_chat_template(
+        comp->chat_op_report_abuse,
+        comp->chat_op_report_abuse_action,
+        MINIMENU_ACTION_REPORT_ABUSE,
+        dst->op_report_abuse,
+        sizeof(dst->op_report_abuse),
+        &dst->op_report_abuse_action);
+    instance_revconfig_apply_chat_template(
+        comp->chat_op_add_ignore,
+        comp->chat_op_add_ignore_action,
+        MINIMENU_ACTION_IGNORELIST_ADD,
+        dst->op_add_ignore,
+        sizeof(dst->op_add_ignore),
+        &dst->op_add_ignore_action);
+    instance_revconfig_apply_chat_template(
+        comp->chat_op_add_friend,
+        comp->chat_op_add_friend_action,
+        MINIMENU_ACTION_FRIENDLIST_ADD,
+        dst->op_add_friend,
+        sizeof(dst->op_add_friend),
+        &dst->op_add_friend_action);
+    instance_revconfig_apply_chat_template(
+        comp->chat_op_accept_trade,
+        comp->chat_op_accept_trade_action,
+        MINIMENU_ACTION_OPPLAYER_TRADEREQ,
+        dst->op_accept_trade,
+        sizeof(dst->op_accept_trade),
+        &dst->op_accept_trade_action);
+    instance_revconfig_apply_chat_template(
+        comp->chat_op_accept_duel,
+        comp->chat_op_accept_duel_action,
+        MINIMENU_ACTION_OPPLAYER_DUELREQ,
+        dst->op_accept_duel,
+        sizeof(dst->op_accept_duel),
+        &dst->op_accept_duel_action);
+}
+
 static int32_t
 instance_revconfig_build_layout_node(
     struct InstanceRevConfigContext* ctx,
@@ -622,11 +874,38 @@ instance_revconfig_build_layout_node(
     int atlas_active_index = 0;
 
     if( comp->sprite[0] != '\0' )
+    {
         sprite_id = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, comp->sprite, &atlas_index);
+        if( sprite_id < 0 )
+        {
+            fprintf(stderr,
+                "instance_revconfig_build_layout_node: sprite resolve failed "
+                "component=%s sprite=%s\n",
+                comp->name,
+                comp->sprite);
+        }
+    }
 
     if( comp->sprite_active[0] != '\0' )
+    {
         sprite_active_id = ui_sprite_lookup_resolve_ref(
             &ctx->sprite_lookup, comp->sprite_active, &atlas_active_index);
+        if( sprite_active_id < 0 )
+        {
+            fprintf(stderr,
+                "instance_revconfig_build_layout_node: active sprite resolve failed "
+                "component=%s sprite_active=%s\n",
+                comp->name,
+                comp->sprite_active);
+        }
+    }
+
+    if( sprite_id >= 0 )
+        instance_revconfig_assert_sprite_atlas(
+            ctx, sprite_id, atlas_index, comp->sprite, comp->name);
+    if( sprite_active_id >= 0 )
+        instance_revconfig_assert_sprite_atlas(
+            ctx, sprite_active_id, atlas_active_index, comp->sprite_active, comp->name);
 
     enum StaticUIComponentType static_type = component_type_from_string(comp->type);
     int const component_id = component_id_from_item(comp);
@@ -671,6 +950,7 @@ instance_revconfig_build_layout_node(
         spec.u.minimap.scene_id = sprite_id;
         break;
     case UIELEM_BUILTIN_CHAT:
+        instance_revconfig_copy_chat_minimenu_config(comp, &spec.u.chat.minimenu);
         break;
     case UIELEM_BUILTIN_WORLD:
         spec.u.world.level_mask = parse_paint_levels_mask(comp->paint_levels);
@@ -751,6 +1031,17 @@ instance_revconfig_build_layout_node(
         break;
     default:
         break;
+    }
+
+    instance_revconfig_copy_revconfig_menu_options(comp, &spec.menu_options);
+
+    struct StaticUIBehavior owner_behavior;
+    if( comp->button_type != 0 || comp->client_code != 0 )
+    {
+        memset(&owner_behavior, 0, sizeof(owner_behavior));
+        owner_behavior.button_type = comp->button_type;
+        owner_behavior.client_code = comp->client_code;
+        spec.behavior = &owner_behavior;
     }
 
     int32_t idx = uitree_push(ctx->tree, parent_index, &spec);

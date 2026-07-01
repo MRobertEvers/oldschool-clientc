@@ -56,6 +56,7 @@
 #include "dat2a/dat2a_sprites.c"
 #include "dat2a/dat2a_textures.c"
 #include "dat2a/dat2a_component.c"
+#include "dat2a/dat2a_clientscript.c"
 #include "dat2a/dat2a_config_locs.c"
 #include "dat2a/dat2a_config_floortype.c"
 #include "dat2a/dat2a_config_object.c"

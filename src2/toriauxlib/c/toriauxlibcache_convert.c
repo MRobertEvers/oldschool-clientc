@@ -1,5 +1,7 @@
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
+#include "vm/csvm.h"
+#include "vm/cs2vm.h"
 
 #include "buildcache/dat2_buildcache.h"
 #include "osrs/rscache/dat2a/dat2a_component.h"
@@ -14,15 +16,20 @@
 #include "osrs/rscache/dat2a/dat2a_textures.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "osrs/rscache/dat1a/dat1a_config_npc.h"
+#include "osrs/rscache/dat1a/dat1a_config_obj.h"
 #include "osrs/rscache/dat2a/dat2a_config_npctype.h"
+#include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/dat1a/dat1a_config_textures.h"
 #include "osrs/palette.h"
 #include "osrs/texture.h"
 #include "toridraw/toridraw_model.h"
 
+#include "ui/ui_debug.h"
+
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 static void
 toriauxlibcache_copy_menu_actions(
@@ -69,6 +76,93 @@ toriauxlibcache_copy_menu_actions_from_loc(
             actions[i][TORIAUXLIBCORE_MENU_ACTION_LEN - 1] = '\0';
         }
     }
+}
+
+static bool
+toriauxlibcache_src_actions_nonempty(char* const* actions, int count)
+{
+    if( !actions || count <= 0 )
+        return false;
+    for( int i = 0; i < count; i++ )
+    {
+        if( actions[i] && actions[i][0] != '\0' )
+            return true;
+    }
+    return false;
+}
+
+static bool
+toriauxlibcache_core_ops_nonempty(
+    char const ops[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN])
+{
+    for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
+    {
+        if( ops[i][0] != '\0' )
+            return true;
+    }
+    return false;
+}
+
+static void
+toriauxlibcache_debug_log_dat1_convert(
+    struct RSCacheDat1A_ConfigComponent const* src,
+    struct ToriAuxLibCore_Component const* dst)
+{
+    if( !ui_minimenu_debug_enabled() || !src || !dst )
+        return;
+
+    bool const menu_relevant = src->buttonType != 0 || (src->option && src->option[0] != '\0') ||
+                               toriauxlibcache_src_actions_nonempty(src->iop, 5);
+    if( !menu_relevant )
+        return;
+
+    ui_minimenu_debug_log(
+        "convert dat1 id=%d type=%d button_type=%d option='%s' iop=[%s%s%s%s%s] -> core "
+        "option='%s' ops_nonempty=%d",
+        src->id,
+        src->type,
+        src->buttonType,
+        src->option ? src->option : "",
+        (src->iop && src->iop[0] && src->iop[0][0]) ? src->iop[0] : "",
+        (src->iop && src->iop[1] && src->iop[1][0]) ? src->iop[1] : "",
+        (src->iop && src->iop[2] && src->iop[2][0]) ? src->iop[2] : "",
+        (src->iop && src->iop[3] && src->iop[3][0]) ? src->iop[3] : "",
+        (src->iop && src->iop[4] && src->iop[4][0]) ? src->iop[4] : "",
+        dst->option,
+        toriauxlibcache_core_ops_nonempty(dst->ops));
+}
+
+static void
+toriauxlibcache_debug_log_dat2_convert(
+    Component const* src,
+    struct ToriAuxLibCore_Component const* dst)
+{
+    if( !ui_minimenu_debug_enabled() || !src || !dst )
+        return;
+
+    bool const has_obj_ops =
+        src->type == COMPONENT_TYPE_INV && toriauxlibcache_src_actions_nonempty(src->objOps, 5);
+    bool const has_ops = toriauxlibcache_src_actions_nonempty(src->ops, src->opsLen);
+    bool const menu_relevant = src->buttonType != 0 || (src->option && src->option[0] != '\0') ||
+                               has_obj_ops || has_ops;
+    if( !menu_relevant )
+        return;
+
+    ui_minimenu_debug_log(
+        "convert dat2 id=%d type=%d button_type=%d option='%s' objOps=[%s%s%s%s%s] opsLen=%d -> "
+        "core option='%s' ops_nonempty=%d",
+        src->id,
+        src->type,
+        src->buttonType,
+        src->option ? src->option : "",
+        (src->objOps && src->objOps[0] && src->objOps[0][0]) ? src->objOps[0] : "",
+        (src->objOps && src->objOps[1] && src->objOps[1][0]) ? src->objOps[1] : "",
+        (src->objOps && src->objOps[2] && src->objOps[2][0]) ? src->objOps[2] : "",
+        (src->objOps && src->objOps[3] && src->objOps[3][0]) ? src->objOps[3] : "",
+        (src->objOps && src->objOps[4] && src->objOps[4][0]) ? src->objOps[4] : "",
+        src->opsLen,
+        dst->option,
+        toriauxlibcache_core_ops_nonempty(dst->ops));
 }
 
 static struct ToriAuxLibCore_Texture*
@@ -500,6 +594,54 @@ ToriAuxLibCache_NpctypeNewFromDat2ConfigNpctype(
     return dst;
 }
 
+struct ToriAuxLibCore_Objtype*
+ToriAuxLibCache_ObjtypeNewFromDat1ConfigObj(
+    const void* cache_obj_ptr,
+    int obj_id)
+{
+    const struct RSCacheDat1A_ConfigObj* src = cache_obj_ptr;
+    if( !src )
+        return NULL;
+
+    struct ToriAuxLibCore_Objtype* dst = calloc(1, sizeof(struct ToriAuxLibCore_Objtype));
+    if( !dst )
+        return NULL;
+
+    dst->id = obj_id;
+    if( src->name )
+    {
+        strncpy(dst->name, src->name, TORIAUXLIBCORE_NAME_MAX - 1);
+        dst->name[TORIAUXLIBCORE_NAME_MAX - 1] = '\0';
+    }
+    toriauxlibcache_copy_menu_actions(dst->inv_actions, (char* const*)src->iop, 5);
+    dst->stackable = src->stackable ? 1 : 0;
+    return dst;
+}
+
+struct ToriAuxLibCore_Objtype*
+ToriAuxLibCache_ObjtypeNewFromDat2ConfigObject(
+    const void* cache_obj_ptr,
+    int obj_id)
+{
+    const struct RSCacheDat2A_ConfigObject* src = cache_obj_ptr;
+    if( !src )
+        return NULL;
+
+    struct ToriAuxLibCore_Objtype* dst = calloc(1, sizeof(struct ToriAuxLibCore_Objtype));
+    if( !dst )
+        return NULL;
+
+    dst->id = obj_id;
+    if( src->name )
+    {
+        strncpy(dst->name, src->name, TORIAUXLIBCORE_NAME_MAX - 1);
+        dst->name[TORIAUXLIBCORE_NAME_MAX - 1] = '\0';
+    }
+    toriauxlibcache_copy_menu_actions(dst->inv_actions, (char* const*)src->if_actions, 5);
+    dst->stackable = src->stacking_behaviour != 0 ? 1 : 0;
+    return dst;
+}
+
 struct ToriAuxLibCore_Sequence*
 ToriAuxLibCache_SequenceNewFromCacheDatSequence(
     const void* cache_seq_ptr,
@@ -628,30 +770,6 @@ fail:
     return NULL;
 }
 
-static int
-toriauxlibcache_component_script_length_from_opcode0(int const* script)
-{
-    if( !script )
-        return 0;
-    int pc = 0;
-    for( ;; )
-    {
-        int opcode = script[pc++];
-        if( opcode == 0 )
-            return pc;
-        if( opcode == 1 || opcode == 2 || opcode == 3 || opcode == 6 )
-            pc += 1;
-        else if( opcode == 4 || opcode == 10 )
-            pc += 2;
-        else if( opcode == 5 || opcode == 7 || opcode == 13 || opcode == 14 || opcode == 20 )
-            pc += 1;
-        else if( opcode == 15 || opcode == 16 || opcode == 17 )
-            continue;
-        else
-            pc += 1;
-    }
-}
-
 static enum ToriAuxLibCore_ComponentType
 toriauxlibcache_component_type_from_raw(int type)
 {
@@ -726,7 +844,7 @@ toriauxlibcache_component_copy_scripts(
 
         int len = (scripts_lengths && scripts_lengths[i] > 0)
                       ? scripts_lengths[i]
-                      : toriauxlibcache_component_script_length_from_opcode0(scripts[i]);
+                      : csvm_script_length(scripts[i]);
         if( len <= 0 )
             continue;
 
@@ -750,6 +868,68 @@ toriauxlibcache_component_copy_scripts(
         if( dst->script_operand )
             memcpy(dst->script_operand, script_operand, (size_t)scripts_count * sizeof(int));
     }
+}
+
+static void
+toriauxlibcache_copy_script_hook(
+    struct ToriAuxLibCore_ScriptHook* dst,
+    ComponentScriptVar* src,
+    int32_t src_len)
+{
+    if( !dst )
+        return;
+    memset(dst, 0, sizeof(*dst));
+    if( !src || src_len <= 0 )
+        return;
+
+    int n = src_len;
+    if( n > TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
+        n = TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX;
+    dst->argc = n;
+    for( int i = 0; i < n; i++ )
+    {
+        if( src[i].type == SCRIPT_VAR_INT )
+            dst->argv[i] = src[i].value.i;
+        else
+            dst->argv[i] = 0;
+    }
+}
+
+static void
+toriauxlibcache_component_copy_dat2_cs1_scripts(
+    struct ToriAuxLibCore_Component* dst,
+    const Component* src)
+{
+    if( !dst || !src || src->cs1ScriptsLen <= 0 || !src->cs1Scripts )
+        return;
+
+    int** scripts = (int**)src->cs1Scripts;
+    int* lengths = src->cs1ScriptsLengths;
+    toriauxlibcache_component_copy_scripts(
+        dst,
+        src->cs1ScriptsLen,
+        scripts,
+        lengths,
+        src->cs1ComparisonOpcodes,
+        src->cs1ComparisonOperands);
+    dst->script_kind = CS2VM_SCRIPT_KIND_CS1;
+}
+
+static void
+toriauxlibcache_component_copy_dat2_hooks(
+    struct ToriAuxLibCore_Component* dst,
+    const Component* src)
+{
+    if( !dst || !src || !src->if3 )
+        return;
+
+    toriauxlibcache_copy_script_hook(&dst->on_load, src->onLoad, src->onLoadLen);
+    toriauxlibcache_copy_script_hook(&dst->on_click, src->onClick, src->onClickLen);
+    toriauxlibcache_copy_script_hook(
+        &dst->on_varp_transmit, src->onVarpTransmit, src->onVarpTransmitLen);
+
+    if( dst->on_load.argc > 0 || dst->on_click.argc > 0 || dst->on_varp_transmit.argc > 0 )
+        dst->script_kind = CS2VM_SCRIPT_KIND_CS2;
 }
 
 struct ToriAuxLibCore_Component*
@@ -783,6 +963,7 @@ ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
     dst->over_color = src->overColour;
     dst->active_color = src->activeColour;
     dst->active_over_color = src->activeOverColour;
+    dst->over_layer_id = src->overlayer;
     dst->parent_id = -1;
 
     if( src->graphic )
@@ -791,6 +972,8 @@ ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
         strncpy(dst->sprite_active_ref, src->activeGraphic, sizeof(dst->sprite_active_ref) - 1);
     if( src->text )
         strncpy(dst->text, src->text, sizeof(dst->text) - 1);
+    if( src->activeText )
+        strncpy(dst->active_text, src->activeText, sizeof(dst->active_text) - 1);
     if( src->option )
         strncpy(dst->option, src->option, sizeof(dst->option) - 1);
     toriauxlibcache_copy_menu_actions(dst->ops, src->iop, 5);
@@ -804,6 +987,9 @@ ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
         src->scripts_lengths,
         src->scriptComparator,
         src->scriptOperand);
+    dst->script_kind = CS2VM_SCRIPT_KIND_CS1;
+
+    toriauxlibcache_debug_log_dat1_convert(src, dst);
 
     return dst;
 }
@@ -839,6 +1025,7 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
     dst->over_color = src->overColour;
     dst->active_color = src->activeColour;
     dst->active_over_color = src->activeOverColour;
+    dst->over_layer_id = src->linkedComponentId;
     dst->parent_id = -1;
 
     toriauxlibcache_dat2_sprite_ref_from_id(src->graphic, dst->sprite_ref, sizeof(dst->sprite_ref));
@@ -847,6 +1034,8 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
 
     if( src->text )
         strncpy(dst->text, src->text, sizeof(dst->text) - 1);
+    if( src->activeText )
+        strncpy(dst->active_text, src->activeText, sizeof(dst->active_text) - 1);
     if( src->option )
         strncpy(dst->option, src->option, sizeof(dst->option) - 1);
     if( src->type == COMPONENT_TYPE_INV && src->objOps )
@@ -854,7 +1043,40 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
     else
         toriauxlibcache_copy_menu_actions(dst->ops, src->ops, src->opsLen);
 
+    if( src->type == COMPONENT_TYPE_INV && src->objOps )
+    {
+        bool src_has_obj_ops = false;
+        for( int i = 0; i < 5; i++ )
+        {
+            if( src->objOps[i] && src->objOps[i][0] != '\0' )
+            {
+                src_has_obj_ops = true;
+                break;
+            }
+        }
+        if( src_has_obj_ops )
+        {
+            bool copied = false;
+            for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
+            {
+                if( dst->ops[i][0] != '\0' )
+                {
+                    copied = true;
+                    break;
+                }
+            }
+            assert(
+                copied &&
+                "dat2 INV objOps present in cache but core component ops[] empty after convert");
+        }
+    }
+
     toriauxlibcache_component_apply_graphic_hitbox_only(dst);
+
+    toriauxlibcache_component_copy_dat2_cs1_scripts(dst, src);
+    toriauxlibcache_component_copy_dat2_hooks(dst, src);
+
+    toriauxlibcache_debug_log_dat2_convert(src, dst);
 
     return dst;
 }

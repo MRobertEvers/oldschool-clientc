@@ -132,6 +132,60 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_SHADOWED;
     else if( strcmp(key, "text") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_TEXT;
+    else if( strcmp(key, "option") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OPTION;
+    else if( strcmp(key, "option_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OPTION_ACTION;
+    else if( strcmp(key, "op0") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OP0;
+    else if( strcmp(key, "op1") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OP1;
+    else if( strcmp(key, "op2") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OP2;
+    else if( strcmp(key, "op3") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OP3;
+    else if( strcmp(key, "op4") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OP4;
+    else if( strcmp(key, "op0_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OP0_ACTION;
+    else if( strcmp(key, "op1_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OP1_ACTION;
+    else if( strcmp(key, "op2_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OP2_ACTION;
+    else if( strcmp(key, "op3_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OP3_ACTION;
+    else if( strcmp(key, "op4_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OP4_ACTION;
+    else if( strcmp(key, "button_type") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_BUTTON_TYPE;
+    else if( strcmp(key, "client_code") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CLIENT_CODE;
+    else if( strcmp(key, "chat_op_report_abuse") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_OP_REPORT_ABUSE;
+    else if(
+        strcmp(key, "chat_op_report_abuse_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_OP_REPORT_ABUSE_ACTION;
+    else if( strcmp(key, "chat_op_add_ignore") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_OP_ADD_IGNORE;
+    else if(
+        strcmp(key, "chat_op_add_ignore_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_OP_ADD_IGNORE_ACTION;
+    else if( strcmp(key, "chat_op_add_friend") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_OP_ADD_FRIEND;
+    else if(
+        strcmp(key, "chat_op_add_friend_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_OP_ADD_FRIEND_ACTION;
+    else if(
+        strcmp(key, "chat_op_accept_trade") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_TRADE;
+    else if(
+        strcmp(key, "chat_op_accept_trade_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_TRADE_ACTION;
+    else if( strcmp(key, "chat_op_accept_duel") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL;
+    else if(
+        strcmp(key, "chat_op_accept_duel_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION;
     else if( strcmp(key, "item") == 0 && strcmp(s_ini_item_type, "inv") == 0 )
         kind = RCFIELD_INV_ITEM;
     else if( strcmp(key, "sprite_active") == 0 && strcmp(s_ini_item_type, "component") == 0 )
@@ -206,7 +260,9 @@ revconfig_load_fields_from_ini_bytes(
     ini_reader_init(&reader);
 
     struct INIElement element = { 0 };
-    while( ini_reader_next(&reader, (uint8_t*)data, size, &element) == 1 )
+    int parse_result = TORI_INI_ERR_OK;
+    while( (parse_result = ini_reader_next(&reader, (uint8_t*)data, size, &element)) ==
+           TORI_INI_ERR_OK )
     {
         switch( element.kind )
         {
@@ -225,7 +281,17 @@ revconfig_load_fields_from_ini_bytes(
     }
 
     push_field(revconfig_buffer, RCFIELD_ITEMDONE, "");
-    assert(reader.state == INI_READER_STATE_DONE);
+    if( parse_result != TORI_INI_ERR_NONE || reader.state != INI_READER_STATE_DONE )
+    {
+        fprintf(stderr,
+            "revconfig_load_fields_from_ini_bytes: parse failed result=%d state=%d "
+            "offset=%u size=%u\n",
+            parse_result,
+            (int)reader.state,
+            reader.offset,
+            size);
+    }
+    assert(parse_result == TORI_INI_ERR_NONE && reader.state == INI_READER_STATE_DONE);
 }
 
 void

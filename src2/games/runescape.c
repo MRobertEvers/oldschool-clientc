@@ -9,6 +9,11 @@
 #include "../toriauxlib/vm/toriauxlibvm.h"
 #include "../ui/ui_click.h"
 #include "../vm/cs2vm.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/core/toriauxlibcore.h"
+#include "toriauxlib/td/toriauxlibtd.h"
+#include "ui/ui_behavior.h"
+#include "ui/ui_input_adapter.h"
 #include "../world/heightmap.h"
 #include "../world/minimap.h"
 #include "../world/world_builder.h"
@@ -32,6 +37,79 @@
 #include <string.h>
 
 #define RUNESCAPE_CAMERA_MOVEMENT_SPEED 70
+#define RUNESCAPE_INV_TEXT_CELL_W 115
+#define RUNESCAPE_INV_TEXT_CELL_H 12
+
+static char const*
+GameRunescape_ObjDisplayName(
+    struct GameRunescape* game,
+    int obj_id)
+{
+    if( !game || obj_id <= 0 )
+        return NULL;
+
+    struct ToriAuxLibCore_Objtype* obj = game->core
+                                             ? ToriAuxLibCore_ObjtypeGet(game->core, obj_id)
+                                             : NULL;
+    if( !obj || obj->name[0] == '\0' )
+        return "item";
+    return obj->name;
+}
+
+static int
+GameRunescape_UIInvGridSlotLimit(struct StaticUIComponent const* component)
+{
+    if( !component )
+        return 0;
+
+    int cols = 0;
+    int rows = 0;
+    if( component->type == UIELEM_RS_INV )
+    {
+        cols = component->u.rs_inv.cols > 0 ? component->u.rs_inv.cols : 4;
+        rows = component->u.rs_inv.rows > 0 ? component->u.rs_inv.rows : 7;
+    }
+    else if( component->type == UIELEM_RS_INV_TEXT )
+    {
+        cols = component->u.rs_inv_text.cols > 0 ? component->u.rs_inv_text.cols : 1;
+        rows = component->u.rs_inv_text.rows > 0 ? component->u.rs_inv_text.rows : 1;
+    }
+    else
+        return 0;
+
+    return cols * rows;
+}
+
+static int
+rs_cs2_get_varp(
+    void* ud,
+    int id)
+{
+    return ToriAuxLibVM_GetVarp(ud, id);
+}
+
+static int
+rs_cs2_get_varbit(
+    void* ud,
+    int id)
+{
+    return ToriAuxLibVM_GetVarbit(ud, id);
+}
+
+static void
+rs_ui_host_fill_cs2vm_state(
+    struct ToriAuxLibVM* vm,
+    struct CS2VM_State* out)
+{
+    if( !out )
+        return;
+    memset(out, 0, sizeof(*out));
+    if( !vm )
+        return;
+    out->get_varp = rs_cs2_get_varp;
+    out->get_varbit = rs_cs2_get_varbit;
+    out->ud = vm;
+}
 
 static bool
 rs_ui_host_is_active(
@@ -39,8 +117,12 @@ rs_ui_host_is_active(
     struct StaticUIComponent const* component)
 {
     struct GameRunescape* game = user;
-    return game && game->vm &&
-           ToriAuxLibVM_IsActive(game->vm, (struct StaticUIComponent*)component);
+    if( !game || !game->vm || !component )
+        return false;
+
+    struct CS2VM_State cs2_state;
+    rs_ui_host_fill_cs2vm_state(game->vm, &cs2_state);
+    return ToriAuxLibVM_IsActive(game->vm, game->cs2vm, &cs2_state, component);
 }
 
 static void
@@ -49,8 +131,24 @@ rs_ui_host_apply_button_click(
     struct StaticUIComponent const* component)
 {
     struct GameRunescape* game = user;
-    if( game && game->vm )
-        ToriAuxLibVM_ApplyButtonClickOptimistic(game->vm, (struct StaticUIComponent*)component);
+    if( !game || !game->vm )
+        return;
+
+    ToriAuxLibVM_ApplyButtonClickOptimistic(game->vm, (struct StaticUIComponent*)component);
+
+    if( !game->core || !game->cs2vm || component->component_id < 0 )
+        return;
+
+    struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
+    struct ToriAuxLibCore_Component* core_comp =
+        ToriAuxLibCore_ComponentGet(game->core, component->component_id);
+    if( !core_comp )
+        return;
+
+    struct UITreeBehaviorHost host;
+    ui_input_adapter_init_behavior_host_ex(&host, game->vm, game->cs2vm);
+    uitree_behavior_run_hook(
+        &host, game->core, cache, core_comp, UITREE_BEHAVIOR_HOOK_ON_CLICK);
 }
 
 static int
@@ -62,7 +160,11 @@ rs_ui_host_eval_text_placeholder(
     struct GameRunescape* game = user;
     if( !game || !game->vm )
         return 0;
-    return ToriAuxLibVM_EvalScript(game->vm, (struct StaticUIComponent*)component, script_idx);
+
+    struct CS2VM_State cs2_state;
+    rs_ui_host_fill_cs2vm_state(game->vm, &cs2_state);
+    return ToriAuxLibVM_EvalScript(
+        game->vm, game->cs2vm, &cs2_state, (struct StaticUIComponent*)component, script_idx);
 }
 
 static int
@@ -177,6 +279,53 @@ GameRunescape_AssertSceneFontReady(
             "GameRunescape: scene font not loaded font_id=%d (context=%s)\n",
             font_id, context ? context : "(null)");
         assert(ToriDraw_SceneFontHas(game->scene, font_id));
+    }
+}
+
+static void
+GameRunescape_AssertSceneSpriteReady(
+    struct GameRunescape* game,
+    int scene_id,
+    int atlas_index,
+    char const* context)
+{
+    if( scene_id < 0 )
+    {
+        fprintf(stderr,
+            "GameRunescape: scene_id unset (context=%s)\n",
+            context ? context : "(null)");
+        assert(scene_id >= 0);
+    }
+    if( !game || !game->scene )
+    {
+        fprintf(stderr,
+            "GameRunescape: missing scene for scene_id=%d (context=%s, game=%p)\n",
+            scene_id, context ? context : "(null)", (void*)game);
+        assert(game && game->scene);
+    }
+    if( !ToriDraw_SceneSpriteHas(game->scene, scene_id) )
+    {
+        fprintf(stderr,
+            "GameRunescape: scene sprite not loaded scene_id=%d (context=%s)\n",
+            scene_id, context ? context : "(null)");
+        assert(ToriDraw_SceneSpriteHas(game->scene, scene_id));
+    }
+    int sprite_count = 0;
+    struct ToriDraw_Sprite** sprites =
+        ToriDraw_SceneSpriteGet(game->scene, scene_id, &sprite_count);
+    if( atlas_index < 0 || atlas_index >= sprite_count || !sprites ||
+        !sprites[atlas_index] || !sprites[atlas_index]->pixels_argb )
+    {
+        fprintf(stderr,
+            "GameRunescape: sprite atlas invalid scene_id=%d atlas_index=%d count=%d "
+            "(context=%s)\n",
+            scene_id,
+            atlas_index,
+            sprite_count,
+            context ? context : "(null)");
+        assert(
+            sprites && atlas_index >= 0 && atlas_index < sprite_count &&
+            sprites[atlas_index] && sprites[atlas_index]->pixels_argb);
     }
 }
 
@@ -356,6 +505,8 @@ GameRunescape_FindSpecialUINodes(struct GameRunescape* game)
     if( !game )
         return;
     game->ui_minimenu_node = -1;
+    game->ui_chat_node = -1;
+    game->ui_chat_node = -1;
     if( !game->ui_tree )
         return;
 
@@ -363,6 +514,8 @@ GameRunescape_FindSpecialUINodes(struct GameRunescape* game)
     {
         if( game->ui_tree->components[i].type == UIELEM_BUILTIN_MINIMENU )
             game->ui_minimenu_node = (int32_t)i;
+        if( game->ui_tree->components[i].type == UIELEM_BUILTIN_CHAT )
+            game->ui_chat_node = (int32_t)i;
     }
 }
 
@@ -399,6 +552,7 @@ GameRunescape_InitUIHost(struct GameRunescape* game)
     game->selected_inv_index = -1;
     game->selected_inv_slot = -1;
     game->ui_minimenu_node = -1;
+    game->ui_chat_node = -1;
     interaction_state_reset(&game->interaction);
     interaction_state_reset(&game->click_target);
     ui_minimenu_reset(&game->minimenu);
@@ -738,6 +892,9 @@ GameRunescape_New(
     game->ui_tree = uitree_new(64);
     assert(game->ui_tree && "GameRunescape_New: failed to allocate ui tree");
     GameRunescape_InitUIHost(game);
+    game->ui_hovered_node = -1;
+    game->ui_minimenu_node = -1;
+    game->ui_chat_node = -1;
 
     game->world_map_scene_id = -1;
     game->world_map_w = 0;
@@ -863,6 +1020,7 @@ GameRunescape_SetUITreeReady(
     game->ui_tree_ready = ready;
     if( ready )
     {
+        game->ui_fonts_synced = false;
         GameRunescape_AttachWorldMapToUITree(game);
         GameRunescape_FindSpecialUINodes(game);
     }
@@ -1004,7 +1162,28 @@ GameRunescape_UINodeVisible(
     struct StaticUIComponent const* c,
     int32_t node_index)
 {
-    return uitree_component_visible_host(c, node_index, game->ui_hovered_node, &game->ui_host);
+    (void)node_index;
+    return uitree_component_visible_host(
+        c, game->ui_hovered_component_id, &game->ui_host);
+}
+
+static void
+GameRunescape_UpdateUIHover(
+    struct GameRunescape* game)
+{
+    game->ui_hovered_node = -1;
+    game->ui_hovered_component_id = -1;
+    if( !game->ui_tree || !game->ui_tree_ready )
+        return;
+
+    uitree_find_hovered_component_id(
+        game->ui_tree,
+        &game->ui_host,
+        game->mouse_x,
+        game->mouse_y,
+        &game->ui_hovered_component_id);
+    game->ui_hovered_node =
+        GameRunescape_UIHitTest(game, game->mouse_x, game->mouse_y);
 }
 
 int32_t
@@ -1024,8 +1203,12 @@ GameRunescape_UIRectColor(
     struct StaticUIComponent* component,
     int32_t node_index)
 {
+    (void)node_index;
     return uitree_component_rect_color_host(
-        component, node_index, game->ui_hovered_node, &game->ui_host, component->u.rs_rect.color);
+        component,
+        game->ui_hovered_component_id,
+        &game->ui_host,
+        component->u.rs_rect.color);
 }
 
 void
@@ -1285,10 +1468,11 @@ GameRunescape_EmitUIComponent(
         }
         else if( component->type == UIELEM_RS_GRAPHIC )
         {
+            if( component->u.rs_graphic.graphic_hitbox_only )
+                return false;
             scene_id = component->u.rs_graphic.scene_id;
             atlas_index = component->u.rs_graphic.atlas_index;
-            if( game->vm && component->behavior.scripts_count > 0 &&
-                ToriAuxLibVM_IsActive(game->vm, component) )
+            if( uitree_component_is_active_host(&game->ui_host, component) )
             {
                 if( component->u.rs_graphic.scene_id_active >= 0 )
                 {
@@ -1297,8 +1481,8 @@ GameRunescape_EmitUIComponent(
                 }
             }
         }
-        if( scene_id < 0 )
-            return false;
+        GameRunescape_AssertSceneSpriteReady(
+            game, scene_id, atlas_index, "ui_sprite");
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, bx, by, bw, bh);
         return true;
     }
@@ -1306,8 +1490,8 @@ GameRunescape_EmitUIComponent(
     {
         int scene_id = component->u.sprite.scene_id;
         int atlas_index = component->u.sprite.atlas_index;
-        if( scene_id < 0 )
-            return false;
+        GameRunescape_AssertSceneSpriteReady(
+            game, scene_id, atlas_index, "compass");
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, bx, by, bw, bh);
         command->u.sprite.rotated = 1;
         command->u.sprite.rotation = uitree_component_sprite_rotation(component, &game->ui_host);
@@ -1332,8 +1516,6 @@ GameRunescape_EmitUIComponent(
     case UIELEM_BUILTIN_CROSS:
     {
         int scene_id = component->u.sprite.scene_id;
-        if( scene_id < 0 )
-            return false;
 
         int cx = bx;
         int cy = by;
@@ -1345,6 +1527,7 @@ GameRunescape_EmitUIComponent(
         int atlas_index = 0;
         if( game->ui_host.get_cross_atlas_frame )
             atlas_index = game->ui_host.get_cross_atlas_frame(game->ui_host.user);
+        GameRunescape_AssertSceneSpriteReady(game, scene_id, atlas_index, "cross");
 
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, cx, cy, bw, bh);
         return true;
@@ -1479,8 +1662,7 @@ GameRunescape_EmitUIComponent(
     case UIELEM_BUILTIN_MINIMAP:
     {
         int scene_id = component->u.minimap.scene_id;
-        if( scene_id < 0 )
-            return false;
+        GameRunescape_AssertSceneSpriteReady(game, scene_id, 0, "minimap");
         GameRunescape_EmitSpriteCommand(command, scene_id, 0, bx, by, bw, bh);
         command->u.sprite.rotated = 1;
         command->u.sprite.rotation = uitree_component_sprite_rotation(component, &game->ui_host);
@@ -1512,27 +1694,37 @@ GameRunescape_EmitUIComponent(
                 atlas_index = component->u.redstone_tab.atlas_index_active;
             }
         }
-        if( scene_id < 0 )
-            return false;
+        GameRunescape_AssertSceneSpriteReady(
+            game, scene_id, atlas_index, "redstone_tab");
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, bx, by, bw, bh);
         return true;
     }
     case UIELEM_RS_TEXT:
-        if( !component->u.rs_text.text )
+        if( !uitree_component_text_source_host(&game->ui_host, component) )
             return false;
         GameRunescape_AssertSceneFontReady(
             game, component->u.rs_text.font_id, "rs_text");
-        command->kind = TORIRSRC_FONT;
-        command->u.font.font_id = component->u.rs_text.font_id;
-        command->u.font.x = bx;
-        command->u.font.y = by;
-        command->u.font.color = component->u.rs_text.color;
-        command->u.font.center = component->u.rs_text.center;
-        command->u.font.shadowed = component->u.rs_text.shadowed;
-        command->u.font.width = bw;
-        command->u.font.height = bh;
-        command->u.font.text = uitree_expand_text_host(
-            &game->ui_host, component, game->ui_text_scratch, sizeof(game->ui_text_scratch));
+        {
+            struct ToriDraw_Font* font =
+                ToriDraw_SceneFontGet(game->scene, component->u.rs_text.font_id);
+            assert(font && "rs_text: font missing after AssertSceneFontReady");
+            int const lh = font->line_height > 0 ? font->line_height : 1;
+            int draw_x = bx;
+            if( component->u.rs_text.center && bw > 0 )
+                draw_x = bx + bw / 2;
+            command->kind = TORIRSRC_FONT;
+            command->u.font.font_id = component->u.rs_text.font_id;
+            command->u.font.x = draw_x;
+            command->u.font.y = by + lh;
+            command->u.font.color = uitree_component_text_color_host(
+                component, game->ui_hovered_component_id, &game->ui_host, component->u.rs_text.color);
+            command->u.font.center = component->u.rs_text.center;
+            command->u.font.shadowed = component->u.rs_text.shadowed;
+            command->u.font.width = bw;
+            command->u.font.height = bh;
+            command->u.font.text = uitree_expand_text_host(
+                &game->ui_host, component, game->ui_text_scratch, sizeof(game->ui_text_scratch));
+        }
         return true;
     case UIELEM_RS_RECT:
     {
@@ -1631,6 +1823,65 @@ GameRunescape_EmitUIComponent(
 
         game->frame.ui_inv_slot = slot + 1;
         return false;
+    }
+    case UIELEM_RS_INV_TEXT:
+    {
+        int cols = component->u.rs_inv_text.cols > 0 ? component->u.rs_inv_text.cols : 1;
+        int rows = component->u.rs_inv_text.rows > 0 ? component->u.rs_inv_text.rows : 1;
+        int margin_x = component->u.rs_inv_text.margin_x;
+        int margin_y = component->u.rs_inv_text.margin_y;
+        int const total_slots = cols * rows;
+        int slot = game->frame.ui_inv_slot;
+
+        if( slot >= total_slots )
+        {
+            game->frame.ui_inv_slot = 0;
+            return false;
+        }
+
+        int col = slot % cols;
+        int row = slot / cols;
+        int slot_x = bx + col * (margin_x + RUNESCAPE_INV_TEXT_CELL_W);
+        int slot_y = by + row * (margin_y + RUNESCAPE_INV_TEXT_CELL_H);
+
+        game->frame.ui_inv_slot = slot + 1;
+
+        int obj_id = 0;
+        if( game->ui_host.get_inv_slot_obj_id )
+        {
+            obj_id = game->ui_host.get_inv_slot_obj_id(
+                game->ui_host.user, component->u.rs_inv_text.inv_index, slot);
+        }
+        if( obj_id <= 0 )
+            return false;
+
+        char const* label = GameRunescape_ObjDisplayName(game, obj_id);
+        if( !label || label[0] == '\0' )
+            return false;
+
+        GameRunescape_AssertSceneFontReady(
+            game, component->u.rs_inv_text.font_id, "rs_inv_text");
+        struct ToriDraw_Font* font =
+            ToriDraw_SceneFontGet(game->scene, component->u.rs_inv_text.font_id);
+        if( !font )
+            return false;
+
+        int const lh = font->line_height > 0 ? font->line_height : RUNESCAPE_INV_TEXT_CELL_H;
+        int draw_x = slot_x;
+        if( component->u.rs_inv_text.center && bw > 0 )
+            draw_x = slot_x + bw / 2;
+
+        command->kind = TORIRSRC_FONT;
+        command->u.font.font_id = component->u.rs_inv_text.font_id;
+        command->u.font.x = draw_x;
+        command->u.font.y = slot_y + lh;
+        command->u.font.color = component->u.rs_inv_text.color;
+        command->u.font.center = component->u.rs_inv_text.center;
+        command->u.font.shadowed = component->u.rs_inv_text.shadowed;
+        command->u.font.width = RUNESCAPE_INV_TEXT_CELL_W;
+        command->u.font.height = RUNESCAPE_INV_TEXT_CELL_H;
+        command->u.font.text = label;
+        return true;
     }
     case UIELEM_RS_MODEL:
     {
@@ -1856,10 +2107,9 @@ rs_phase_ui_step(
         GameRunescape_EmitUIComponent(game, component, game->frame.ui_current, command) )
     {
         int32_t cur = game->frame.ui_current;
-        bool const inv_more = component->type == UIELEM_RS_INV && game->frame.ui_inv_slot > 0 &&
-                              game->frame.ui_inv_slot <
-                                  (component->u.rs_inv.cols > 0 ? component->u.rs_inv.cols : 4) *
-                                      (component->u.rs_inv.rows > 0 ? component->u.rs_inv.rows : 7);
+        int const inv_slot_limit = GameRunescape_UIInvGridSlotLimit(component);
+        bool const inv_more = inv_slot_limit > 0 && game->frame.ui_inv_slot > 0 &&
+                              game->frame.ui_inv_slot < inv_slot_limit;
         bool const minimenu_more = component->type == UIELEM_BUILTIN_MINIMENU &&
                                    game->minimenu.visible && game->frame.ui_minimenu_step > 0;
         if( !inv_more && !minimenu_more )
@@ -1871,12 +2121,11 @@ rs_phase_ui_step(
         game->frame.ui_minimenu_step > 0 )
         return RS_PHASE_ADVANCE;
 
-    if( component->type == UIELEM_RS_INV && game->frame.ui_inv_slot > 0 )
+    if( (component->type == UIELEM_RS_INV || component->type == UIELEM_RS_INV_TEXT) &&
+        game->frame.ui_inv_slot > 0 )
     {
-        int cols = component->u.rs_inv.cols > 0 ? component->u.rs_inv.cols : 4;
-        int rows = component->u.rs_inv.rows > 0 ? component->u.rs_inv.rows : 7;
-        int slot_limit = cols * rows;
-        if( slot_limit > UI_INV_SLOT_OFFSET_MAX )
+        int slot_limit = GameRunescape_UIInvGridSlotLimit(component);
+        if( component->type == UIELEM_RS_INV && slot_limit > UI_INV_SLOT_OFFSET_MAX )
             slot_limit = UI_INV_SLOT_OFFSET_MAX;
         if( game->frame.ui_inv_slot < slot_limit )
             return RS_PHASE_ADVANCE;
@@ -1914,8 +2163,12 @@ GameRunescape_FrameBegin(
     game->frame.ui_inv_slot = 0;
     game->frame.ui_minimenu_step = 0;
     game->ui_hovered_node = -1;
-    if( game->ui_tree && game->ui_tree_ready )
-        game->ui_hovered_node = GameRunescape_UIHitTest(game, game->mouse_x, game->mouse_y);
+    game->ui_hovered_component_id = -1;
+    if( game->scene && game->ui_tree_ready && !game->ui_fonts_synced )
+    {
+        ToriDraw_SceneFontsReemitLoads(game->scene);
+        game->ui_fonts_synced = true;
+    }
     world_pickset_reset(&game->pickset);
     if( game->scene )
     {
@@ -1938,6 +2191,7 @@ GameRunescape_FrameBegin(
             GameRunescape_SyncUISpritesFromScene(game);
         game->ui_tree_ready = true;
         GameRunescape_FindSpecialUINodes(game);
+        GameRunescape_UpdateUIHover(game);
     }
 
     if( game->cross_mode != RUNESCAPE_CROSS_MODE_OFF )

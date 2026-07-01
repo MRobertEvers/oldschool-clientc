@@ -174,6 +174,33 @@ sprite_new_with_frames(int frame_count)
     return sprite;
 }
 
+static bool
+sprite_finalize_contiguous_frames(struct ToriAuxLibCore_Sprite* sprite)
+{
+    if( !sprite || !sprite->frames || sprite->frame_count <= 0 )
+        return false;
+
+    int contiguous = 0;
+    for( int j = 0; j < sprite->frame_count; j++ )
+    {
+        if( !sprite->frames[j].pixels_argb )
+            break;
+        contiguous++;
+    }
+
+    for( int j = contiguous; j < sprite->frame_count; j++ )
+    {
+        if( sprite->frames[j].pixels_argb )
+            return false;
+    }
+
+    if( contiguous <= 0 )
+        return false;
+
+    sprite->frame_count = contiguous;
+    return true;
+}
+
 struct ToriAuxLibCore_Sprite*
 ToriAuxLibCache_SpriteNewFromDat1RevConfigItem(
     struct RSCacheShared_FileListDat* filelist,
@@ -203,6 +230,12 @@ ToriAuxLibCache_SpriteNewFromDat1RevConfigItem(
     }
 
     if( loaded <= 0 )
+    {
+        ToriAuxLibCore_SpriteFree(sprite);
+        return NULL;
+    }
+
+    if( !sprite_finalize_contiguous_frames(sprite) )
     {
         ToriAuxLibCore_SpriteFree(sprite);
         return NULL;
@@ -340,6 +373,12 @@ sprite_new_from_dat2_pack(
     }
 
     if( loaded <= 0 )
+    {
+        ToriAuxLibCore_SpriteFree(sprite);
+        return NULL;
+    }
+
+    if( !sprite_finalize_contiguous_frames(sprite) )
     {
         ToriAuxLibCore_SpriteFree(sprite);
         return NULL;

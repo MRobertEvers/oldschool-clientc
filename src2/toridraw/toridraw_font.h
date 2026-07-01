@@ -64,6 +64,17 @@ ToriDraw_FontVisitGlyphs(
     ToriDraw_FontGlyphCallback callback,
     void* ctx);
 
+void
+ToriDraw_FontVisitGlyphsStyled(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int x,
+    int y,
+    int default_color_rgb,
+    bool center,
+    ToriDraw_FontGlyphCallback callback,
+    void* ctx);
+
 int
 ToriDraw2D_MeasureString(
     struct ToriDraw_Font* font,

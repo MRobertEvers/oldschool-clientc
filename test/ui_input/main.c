@@ -1,6 +1,8 @@
 #include "ui/ui_input.h"
 #include "ui/ui_behavior.h"
 #include "ui/uitree.h"
+#include "ui/uitree_host.h"
+#include "ui/uitree_layout.h"
 #include "vm/csvm.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/varp_varbit_manager.h"
@@ -156,11 +158,11 @@ test_behavior_visibility_and_color(void)
     TEST_ASSERT(
         !uitree_component_visible(&tree->components[hidden], hidden, -1), "hidden invisible");
     TEST_ASSERT(
-        uitree_component_visible(&tree->components[hidden], hidden, hidden), "hidden visible on hover");
+        uitree_component_visible(&tree->components[hidden], hidden, 1), "hidden visible on hover id");
 
     struct UITreeBehaviorHost host = { 0 };
     int color = uitree_component_rect_color(
-        &tree->components[button], button, button, &host, 0x222222);
+        &tree->components[button], 2, &host, 0x222222);
     TEST_ASSERT(color == 0xAAAAAA, "hover color");
 
     int active_script[] = { 20, 1, 0 };
@@ -181,7 +183,7 @@ test_behavior_visibility_and_color(void)
 
     host.csvm = csvm_new();
     color = uitree_component_rect_color(
-        &tree->components[button], button, button, &host, 0x222222);
+        &tree->components[button], 2, &host, 0x222222);
     TEST_ASSERT(color == 0xCCCCCC, "active hover color");
 
     csvm_free(host.csvm);
@@ -244,6 +246,99 @@ test_behavior_button_toggle(void)
     return 0;
 }
 
+static int
+test_overlayer_hover_id(void)
+{
+    struct UITree* tree = uitree_new(4);
+    struct UINodeSpec tooltip_spec = { 0 };
+    tooltip_spec.type = UIELEM_RS_LAYER;
+    tooltip_spec.component_id = 100;
+    tooltip_spec.x = 0;
+    tooltip_spec.y = 0;
+    tooltip_spec.width = 80;
+    tooltip_spec.height = 20;
+    int32_t tooltip = uitree_push(tree, -1, &tooltip_spec);
+    tree->components[tooltip].behavior.hide = 1;
+
+    struct UINodeSpec icon_spec = { 0 };
+    icon_spec.type = UIELEM_RS_GRAPHIC;
+    icon_spec.component_id = 200;
+    icon_spec.x = 0;
+    icon_spec.y = 0;
+    icon_spec.width = 32;
+    icon_spec.height = 32;
+    icon_spec.u.rs_graphic.scene_id = 0;
+    icon_spec.u.rs_graphic.atlas_index = 0;
+    int32_t icon = uitree_push(tree, -1, &icon_spec);
+    tree->components[icon].behavior.over_layer_id = 100;
+
+    uitree_layout_resolve(tree, 0, 0, 200, 200);
+
+    int hovered_id = -1;
+    uitree_find_hovered_component_id(tree, NULL, 10, 10, &hovered_id);
+    TEST_ASSERT(hovered_id == 100, "overLayer maps hover to tooltip component id");
+    TEST_ASSERT(
+        !uitree_component_visible_by_id(&tree->components[tooltip], -1),
+        "hidden tooltip invisible at rest");
+    TEST_ASSERT(
+        uitree_component_visible_by_id(&tree->components[tooltip], 100),
+        "hidden tooltip visible when hovered id matches");
+
+    uitree_free(tree);
+    return 0;
+}
+
+static bool
+test_always_active(
+    void* user,
+    struct StaticUIComponent const* component)
+{
+    (void)user;
+    (void)component;
+    return true;
+}
+
+static int
+test_active_text_source(void)
+{
+    struct UITree* tree = uitree_new(2);
+    struct UINodeSpec text_spec = { 0 };
+    text_spec.type = UIELEM_RS_TEXT;
+    text_spec.component_id = 5;
+    text_spec.u.rs_text.text = "inactive";
+    text_spec.u.rs_text.text_active = "active";
+    text_spec.u.rs_text.color = 0x111111;
+    int32_t node = uitree_push(tree, -1, &text_spec);
+
+    struct UITreeHost host;
+    uitree_host_init(&host);
+
+    TEST_ASSERT(
+        strcmp(uitree_component_text_source_host(&host, &tree->components[node]), "inactive") == 0,
+        "inactive text when not active");
+
+    int active_script[] = { 20, 1, 0 };
+    int script_lengths[] = { 3 };
+    int comparator[] = { 0 };
+    int operand[] = { 1 };
+    struct StaticUIBehavior active_behavior = {
+        .scripts_count = 1,
+        .scripts = (int*[]){ active_script },
+        .scripts_lengths = script_lengths,
+        .script_comparator = comparator,
+        .script_operand = operand,
+    };
+    uitree_set_behavior(tree, node, &active_behavior);
+
+    host.is_active = test_always_active;
+    TEST_ASSERT(
+        strcmp(uitree_component_text_source_host(&host, &tree->components[node]), "active") == 0,
+        "active text when getIfActive");
+
+    uitree_free(tree);
+    return 0;
+}
+
 int
 main(void)
 {
@@ -252,6 +347,8 @@ main(void)
     failures += test_input_hover_and_click();
     failures += test_behavior_visibility_and_color();
     failures += test_behavior_button_toggle();
+    failures += test_overlayer_hover_id();
+    failures += test_active_text_source();
 
     if( failures == 0 )
     {

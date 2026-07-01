@@ -177,4 +177,14 @@ cachelib_dat2_interface_fetch(
     out->flags = 0;
 }
 
+static inline void
+cachelib_dat2_clientscript_fetch(
+    int script_id,
+    struct RSCacheDat2DiskLib_IORequest* out)
+{
+    out->table_id = RSCacheDat2Disk_Table_Clientscript;
+    out->archive_id = script_id;
+    out->flags = 0;
+}
+
 #endif

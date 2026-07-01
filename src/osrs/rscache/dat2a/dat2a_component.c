@@ -181,6 +181,7 @@ Component_free(Component* c)
             free(c->cs1Scripts[i]);
         free(c->cs1Scripts);
     }
+    free(c->cs1ScriptsLengths);
     free(c->cs1ComparisonOpcodes);
     free(c->cs1ComparisonOperands);
 
@@ -261,9 +262,11 @@ Component_decodeIf1(
     {
         self->cs1ScriptsLen = scriptCount;
         self->cs1Scripts = calloc((size_t)scriptCount, sizeof(int32_t*));
+        self->cs1ScriptsLengths = calloc((size_t)scriptCount, sizeof(int32_t));
         for( int32_t i = 0; i < scriptCount; i++ )
         {
             int32_t opCount = g2(buf);
+            self->cs1ScriptsLengths[i] = opCount;
             self->cs1Scripts[i] = malloc(sizeof(int32_t) * (size_t)opCount);
             for( int32_t j = 0; j < opCount; j++ )
             {

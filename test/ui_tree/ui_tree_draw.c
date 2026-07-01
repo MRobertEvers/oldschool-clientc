@@ -64,7 +64,7 @@ emit_component(
         return;
 
     struct StaticUIComponent const* component = &tree->components[index];
-    if( !uitree_component_visible_host(component, index, ctx->hovered, ctx->host) )
+    if( !uitree_component_visible_host(component, ctx->hovered, ctx->host) )
         return;
     if( !uitree_component_should_emit(component, ctx->host) )
         return;

@@ -254,6 +254,35 @@ TAPIDat2_DecodeFontArchive(
 }
 
 static inline void
+TAPIDat2_FetchClientScript(
+    struct LibToriRS_IOContext* ctx,
+    int script_id)
+{
+    struct RSCacheDat2DiskLib_IORequest request;
+    cachelib_dat2_clientscript_fetch(script_id, &request);
+    LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
+}
+
+static inline struct RSCacheDat2Disk_Archive*
+TAPIDat2_DecodeClientScriptArchive(
+    struct LibToriRS_IOContext* ctx,
+    int slot_id,
+    int expected_script_id)
+{
+    struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
+    if( !item )
+        return NULL;
+    if( item->kind != TORIRSIO_KIND_CACHE || item->status != TORIRSIO_STAT_DONE ||
+        item->error_code != 0 )
+        return NULL;
+    if( item->u.cache.table_id != RSCacheDat2Disk_Table_Clientscript ||
+        item->u.cache.archive_id != expected_script_id )
+        return NULL;
+
+    return item->data;
+}
+
+static inline void
 TAPIDat2_FetchReferenceTable(
     struct LibToriRS_IOContext* ctx,
     int table_id)

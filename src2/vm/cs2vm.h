@@ -9,11 +9,22 @@ struct CS2VM;
 /** Host-supplied state for CS2 script evaluation. */
 struct CS2VM_State
 {
-    int (*get_varp)(void* ud, int id);
-    int (*get_varbit)(void* ud, int id);
-    int (*get_varc)(void* ud, int id);
-    int (*get_stat_level)(void* ud, int skill);
-    void (*set_varp_optimistic)(void* ud, int id, int value);
+    int (*get_varp)(
+        void* ud,
+        int id);
+    int (*get_varbit)(
+        void* ud,
+        int id);
+    int (*get_varc)(
+        void* ud,
+        int id);
+    int (*get_stat_level)(
+        void* ud,
+        int skill);
+    void (*set_varp_optimistic)(
+        void* ud,
+        int id,
+        int value);
     void* ud;
 };
 

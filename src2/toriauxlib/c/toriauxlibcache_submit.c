@@ -4,6 +4,7 @@
 
 #include "buildcache/dat1_buildcache.h"
 #include "buildcache/dat2_buildcache.h"
+#include "toriauxlib/c/toriauxlibcache.h"
 #include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
@@ -18,7 +19,7 @@
 #include "osrs/rscache/dat2a/dat2a_maps.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat2a/dat2a_skeletalbase.h"
-#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
 struct SubmitSequenceCtx
@@ -341,6 +342,46 @@ ToriAuxLibCache_SubmitObjModelFromDat2(
         return;
 
     ToriAuxLibCore_ObjModelAdd(ToriAuxLibCache_Core(c), obj_id, gc_model);
+}
+
+bool
+ToriAuxLibCache_EnsureObjtype(
+    struct ToriAuxLibCache* c,
+    int obj_id)
+{
+    if( !c || obj_id <= 0 )
+        return false;
+
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(c);
+    if( ToriAuxLibCore_ObjtypeHas(core, obj_id) )
+        return true;
+
+    if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT2 )
+    {
+        struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(dat2(c), obj_id);
+        if( !obj )
+            return false;
+
+        struct ToriAuxLibCore_Objtype* neutral =
+            ToriAuxLibCache_ObjtypeNewFromDat2ConfigObject(obj, obj_id);
+        if( !neutral )
+            return false;
+
+        ToriAuxLibCore_ObjtypeAdd(core, obj_id, neutral);
+        return true;
+    }
+
+    struct RSCacheDat1A_ConfigObj* obj = dat1_buildcache_obj_get(dat1(c), obj_id);
+    if( !obj )
+        return false;
+
+    struct ToriAuxLibCore_Objtype* neutral =
+        ToriAuxLibCache_ObjtypeNewFromDat1ConfigObj(obj, obj_id);
+    if( !neutral )
+        return false;
+
+    ToriAuxLibCore_ObjtypeAdd(core, obj_id, neutral);
+    return true;
 }
 
 void
@@ -700,4 +741,47 @@ ToriAuxLibCache_SubmitSkeletalFromDat2(
     }
 
     ToriAuxLibCore_SkeletalAnimAdd(ToriAuxLibCache_Core(c), anim_maya_id, skeletal);
+}
+
+void
+ToriAuxLibCache_SubmitClientScript(
+    struct ToriAuxLibCache* c,
+    int script_id,
+    struct ToriAuxLibCore_ClientScript* script)
+{
+    if( !c || !script )
+        return;
+    ToriAuxLibCore_ClientScriptAdd(ToriAuxLibCache_Core(c), script_id, script);
+}
+
+struct ToriAuxLibCore_ClientScript*
+ToriAuxLibCache_ClientScriptResolve(
+    struct ToriAuxLibCache* c,
+    int script_id)
+{
+    if( !c || script_id < 0 )
+        return NULL;
+
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(c);
+    struct ToriAuxLibCore_ClientScript* existing = ToriAuxLibCore_ClientScriptGet(core, script_id);
+    if( existing )
+        return existing;
+
+    if( ToriAuxLibCache_Mode(c) != TORIAUXLIBCACHE_MODE_DAT2 )
+        return NULL;
+
+    struct RSCacheDat2Disk* disk = ToriAuxLibCache_Dat2Disk(c);
+    if( !disk )
+        return NULL;
+
+    struct RSCacheDat2Disk_Archive* archive = RSCacheDat2Disk_ArchiveNewLoad(
+        disk, RSCacheDat2Disk_Table_Clientscript, script_id);
+    if( !archive )
+        return NULL;
+
+    struct ToriAuxLibCore_ClientScript* script =
+        ToriAuxLibCache_ClientScriptNewFromDat2Archive(disk, archive, script_id);
+    if( script )
+        ToriAuxLibCache_SubmitClientScript(c, script_id, script);
+    return script;
 }

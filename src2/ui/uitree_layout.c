@@ -1,5 +1,7 @@
 #include "uitree_layout.h"
 
+#include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -119,6 +121,8 @@ uitree_layout_resolve(
     int* abs_h = calloc((size_t)n, sizeof(int));
     if( !depth || !order || !abs_x || !abs_y || !abs_w || !abs_h )
     {
+        fprintf(stderr, "uitree_layout_resolve: allocation failed for %u components\n", n);
+        assert(depth && order && abs_x && abs_y && abs_w && abs_h);
         free(depth);
         free(order);
         free(abs_x);

@@ -339,16 +339,93 @@ font_glyph_drawable(
     return true;
 }
 
-int
-ToriDraw2D_MeasureString(
-    struct ToriDraw_Font* font,
-    char const* text)
+static bool
+font_char_eq_icase(
+    char a,
+    char b)
 {
-    if( !font || !text )
+    if( a >= 'A' && a <= 'Z' )
+        a = (char)(a + ('a' - 'A'));
+    if( b >= 'A' && b <= 'Z' )
+        b = (char)(b + ('a' - 'A'));
+    return a == b;
+}
+
+static bool
+font_line_break_at(
+    char const* p,
+    int* advance_out)
+{
+    if( !p || p[0] == '\0' )
+        return false;
+
+    if( p[0] == '\\' && p[1] == 'n' )
+    {
+        *advance_out = 2;
+        return true;
+    }
+
+    if( p[0] == '\r' && p[1] == '\n' )
+    {
+        *advance_out = 2;
+        return true;
+    }
+
+    if( p[0] == '\n' || p[0] == '\r' )
+    {
+        *advance_out = 1;
+        return true;
+    }
+
+    if( p[0] == '<' && font_char_eq_icase(p[1], 'b') && font_char_eq_icase(p[2], 'r') &&
+        p[3] == '/' && font_char_eq_icase(p[4], '>') )
+    {
+        *advance_out = 5;
+        return true;
+    }
+
+    if( p[0] == '<' && font_char_eq_icase(p[1], 'b') && font_char_eq_icase(p[2], 'r') &&
+        p[3] == '>' )
+    {
+        *advance_out = 4;
+        return true;
+    }
+
+    return false;
+}
+
+static char const*
+font_next_line(
+    char const* rest,
+    int* line_len_out,
+    int* break_advance_out)
+{
+    char const* p = rest;
+    while( p[0] != '\0' )
+    {
+        if( font_line_break_at(p, break_advance_out) )
+        {
+            *line_len_out = (int)(p - rest);
+            return p;
+        }
+        p++;
+    }
+
+    *line_len_out = (int)(p - rest);
+    *break_advance_out = 0;
+    return p;
+}
+
+static int
+font_measure_range(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int len)
+{
+    if( !font || !text || len <= 0 )
         return 0;
 
     int width = 0;
-    int const len = (int)strlen(text);
     int const space_adv = font_space_advance(font);
 
     for( int i = 0; i < len; i++ )
@@ -367,6 +444,36 @@ ToriDraw2D_MeasureString(
         width += font_glyph_advance(font, gi);
     }
     return width;
+}
+
+int
+ToriDraw2D_MeasureString(
+    struct ToriDraw_Font* font,
+    char const* text)
+{
+    if( !font || !text )
+        return 0;
+
+    int max_width = 0;
+    char const* rest = text;
+
+    for( ;; )
+    {
+        int line_len = 0;
+        int break_advance = 0;
+        font_next_line(rest, &line_len, &break_advance);
+
+        int const line_width = font_measure_range(font, rest, line_len);
+        if( line_width > max_width )
+            max_width = line_width;
+
+        if( break_advance == 0 )
+            break;
+
+        rest += line_len + break_advance;
+    }
+
+    return max_width;
 }
 
 static int
@@ -411,6 +518,17 @@ font_draw_glyph_pixels(
 }
 
 void
+ToriDraw_FontVisitGlyphsStyled(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int x,
+    int y,
+    int default_color_rgb,
+    bool center,
+    ToriDraw_FontGlyphCallback callback,
+    void* ctx);
+
+void
 ToriDraw_FontVisitGlyphs(
     struct ToriDraw_Font* font,
     char const* text,
@@ -420,10 +538,24 @@ ToriDraw_FontVisitGlyphs(
     ToriDraw_FontGlyphCallback callback,
     void* ctx)
 {
-    if( !font || !text || !callback )
+    ToriDraw_FontVisitGlyphsStyled(
+        font, text, x, y, default_color_rgb, false, callback, ctx);
+}
+
+static void
+font_visit_glyphs_range(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int len,
+    int x,
+    int y,
+    int default_color_rgb,
+    ToriDraw_FontGlyphCallback callback,
+    void* ctx)
+{
+    if( !font || !text || len <= 0 || !callback )
         return;
 
-    int const len = (int)strlen(text);
     int color = default_color_rgb;
     int const space_adv = font_space_advance(font);
 
@@ -451,6 +583,45 @@ ToriDraw_FontVisitGlyphs(
             callback(ctx, font, gi, gx, gy, color);
         }
         x += font_glyph_advance(font, gi);
+    }
+}
+
+void
+ToriDraw_FontVisitGlyphsStyled(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int x,
+    int y,
+    int default_color_rgb,
+    bool center,
+    ToriDraw_FontGlyphCallback callback,
+    void* ctx)
+{
+    if( !font || !text || !callback )
+        return;
+
+    int const line_step = font->line_height > 0 ? font->line_height : 1;
+    char const* rest = text;
+
+    for( ;; )
+    {
+        int line_len = 0;
+        int break_advance = 0;
+        char const* break_at = font_next_line(rest, &line_len, &break_advance);
+
+        int line_x = x;
+        if( center && line_len > 0 )
+            line_x -= font_measure_range(font, rest, line_len) / 2;
+
+        if( line_len > 0 )
+            font_visit_glyphs_range(
+                font, rest, line_len, line_x, y, default_color_rgb, callback, ctx);
+
+        if( break_advance == 0 )
+            break;
+
+        y += line_step;
+        rest = break_at + break_advance;
     }
 }
 
@@ -504,78 +675,28 @@ font_draw_mask(
     }
 }
 
-int
-ToriDraw2D_DrawString(
-    struct ToriDraw_Font* font,
-    struct ToriDraw_ViewPort* view_port,
+static int
+font_draw_string_range(
+    struct ToriDraw_Font const* font,
+    char const* text,
+    int len,
     int x,
     int y,
-    char const* text,
     int color,
-    bool center,
-    bool shadowed,
+    int cl,
+    int ct,
+    int cr,
+    int cb,
+    int stride,
     int* pixel_buffer)
 {
-    if( !font || !view_port || !text || !pixel_buffer )
+    if( !font || !text || len <= 0 || !pixel_buffer )
         return 0;
-
-    if( !ToriDraw_FontValidate(font) )
-    {
-        assert(!"ToriDraw2D_DrawString: invalid font");
-        return 0;
-    }
 
     int pixels_written = 0;
-
-    int cl = view_port->clip_left;
-    int ct = view_port->clip_top;
-    int cr = view_port->clip_right;
-    int cb = view_port->clip_bottom;
-    int stride = view_port->stride;
-
-    if( center )
-        x -= ToriDraw2D_MeasureString(font, text) / 2;
-
-    y -= font->line_height;
-
-    int const shadow_color = (int)0xFF000000u;
-    int const space_adv = font_space_advance(font);
-    int len = (int)strlen(text);
-
-    if( shadowed )
-    {
-        int sx = x;
-        int sy = y;
-        for( int i = 0; i < len; i++ )
-        {
-            if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
-            {
-                i += 4;
-                continue;
-            }
-            if( font_is_rs_space_char((unsigned char)text[i]) )
-            {
-                sx += space_adv;
-                continue;
-            }
-            int const gi = font_glyph_index(font, (unsigned char)text[i]);
-            pixels_written += font_draw_glyph_pixels(
-                font,
-                gi,
-                sx + font->offset_x[gi] + 1,
-                sy + font->offset_y[gi] + 1,
-                shadow_color,
-                cl,
-                ct,
-                cr,
-                cb,
-                stride,
-                pixel_buffer);
-            sx += font_glyph_advance(font, gi);
-        }
-    }
-
     int current_color = color;
+    int const space_adv = font_space_advance(font);
+
     for( int i = 0; i < len; i++ )
     {
         if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
@@ -607,5 +728,142 @@ ToriDraw2D_DrawString(
             pixel_buffer);
         x += font_glyph_advance(font, gi);
     }
+    return pixels_written;
+}
+
+static int
+font_draw_string_shadow_range(
+    struct ToriDraw_Font const* font,
+    char const* text,
+    int len,
+    int x,
+    int y,
+    int cl,
+    int ct,
+    int cr,
+    int cb,
+    int stride,
+    int* pixel_buffer)
+{
+    if( !font || !text || len <= 0 || !pixel_buffer )
+        return 0;
+
+    int pixels_written = 0;
+    int const shadow_color = (int)0xFF000000u;
+    int const space_adv = font_space_advance(font);
+
+    for( int i = 0; i < len; i++ )
+    {
+        if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
+        {
+            i += 4;
+            continue;
+        }
+        if( font_is_rs_space_char((unsigned char)text[i]) )
+        {
+            x += space_adv;
+            continue;
+        }
+        int const gi = font_glyph_index(font, (unsigned char)text[i]);
+        pixels_written += font_draw_glyph_pixels(
+            font,
+            gi,
+            x + font->offset_x[gi] + 1,
+            y + font->offset_y[gi] + 1,
+            shadow_color,
+            cl,
+            ct,
+            cr,
+            cb,
+            stride,
+            pixel_buffer);
+        x += font_glyph_advance(font, gi);
+    }
+    return pixels_written;
+}
+
+int
+ToriDraw2D_DrawString(
+    struct ToriDraw_Font* font,
+    struct ToriDraw_ViewPort* view_port,
+    int x,
+    int y,
+    char const* text,
+    int color,
+    bool center,
+    bool shadowed,
+    int* pixel_buffer)
+{
+    if( !font || !view_port || !text || !pixel_buffer )
+        return 0;
+
+    if( !ToriDraw_FontValidate(font) )
+    {
+        assert(!"ToriDraw2D_DrawString: invalid font");
+        return 0;
+    }
+
+    int pixels_written = 0;
+
+    int cl = view_port->clip_left;
+    int ct = view_port->clip_top;
+    int cr = view_port->clip_right;
+    int cb = view_port->clip_bottom;
+    int stride = view_port->stride;
+
+    y -= font->line_height;
+
+    int const line_step = font->line_height > 0 ? font->line_height : 1;
+    char const* rest = text;
+
+    for( ;; )
+    {
+        int line_len = 0;
+        int break_advance = 0;
+        char const* break_at = font_next_line(rest, &line_len, &break_advance);
+
+        int line_x = x;
+        if( center && line_len > 0 )
+            line_x -= font_measure_range(font, rest, line_len) / 2;
+
+        if( line_len > 0 )
+        {
+            if( shadowed )
+            {
+                pixels_written += font_draw_string_shadow_range(
+                    font,
+                    rest,
+                    line_len,
+                    line_x,
+                    y,
+                    cl,
+                    ct,
+                    cr,
+                    cb,
+                    stride,
+                    pixel_buffer);
+            }
+            pixels_written += font_draw_string_range(
+                font,
+                rest,
+                line_len,
+                line_x,
+                y,
+                color,
+                cl,
+                ct,
+                cr,
+                cb,
+                stride,
+                pixel_buffer);
+        }
+
+        if( break_advance == 0 )
+            break;
+
+        y += line_step;
+        rest = break_at + break_advance;
+    }
+
     return pixels_written;
 }

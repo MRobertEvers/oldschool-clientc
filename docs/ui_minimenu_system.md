@@ -8,8 +8,9 @@ It spans three layers: generic pickset, option state, and UI tree rendering.
 | File | Purpose |
 |------|---------|
 | `src2/ui/minimenu_pickset.h/.c` | Subsystem-agnostic `MinimenuPickSet` |
-| `src2/ui/ui_minimenu.h/.c` | Visible menu state, layout, hover |
+| `ui_minimenu.h/.c` | Visible menu state, layout, hover |
 | `src2/ui/ui_click.c` | Builds menu options from pickset |
+| `src2/ui/ui_chat_minimenu.c` | Dynamic chat-strip and chatbox minimenu rows |
 | `src2/games/runescape.c` | `UIELEM_BUILTIN_MINIMENU` render emission |
 
 ## MinimenuPickSet (generic pick layer)
@@ -60,14 +61,117 @@ inv component uitree index in `MinimenuPick.quaternary_id`; the inv-slot menu
 builder merges those ops as `INV_BUTTON1..5` after item rows.
 
 `StaticUIMenuOptions` holds up to five `ops[]` strings plus a single `option`
-string (OK/Select/Continue button label). Right-clicking any hit-tested UI node
+string (OK/Select/Continue button label), and optional per-row `op_actions[]` /
+`option_action` overrides (0 = default mapping). Right-clicking any hit-tested UI node
 (other than the minimenu chrome itself) builds a `MINIMENU_PICK_UI` pick; rows
-use `MINIMENU_ACTION_INV_BUTTON1..5` for `ops[]` and map `behavior.button_type`
-to `MINIMENU_ACTION_IF_BUTTON` / `_TOGGLE` / `_SELECT` for the `option` row.
+use `MINIMENU_ACTION_INV_BUTTON1..5` for `ops[]` (unless `opN_action=` set) and map
+`behavior.button_type` to `MINIMENU_ACTION_IF_BUTTON` / `_TOGGLE` / `_SELECT` for the
+`option` row (unless `option_action=` set).
 
-Non-interactive `UIELEM_RS_GRAPHIC` / `UIELEM_RS_TEXT` nodes with no
-`menu_options` and no button/client_code pass through hit testing so clicks
-reach inventory and buttons underneath.
+### Revconfig static/builtin menu fields
+
+Any `[component:name]` section in `*_ui.ini` may declare minimenu labels and opcodes
+without RS cache backing:
+
+| INI key | Purpose |
+|---------|---------|
+| `option=` | Primary button row label |
+| `option_action=` | Symbolic or numeric `MinimenuAction` for `option=` |
+| `op0=` … `op4=` | Extra inventory-style rows |
+| `op0_action=` … `op4_action=` | Per-slot action override |
+| `button_type=` | `ok` / `toggle` / `select` / `close` / `continue` / `target` |
+| `client_code=` | Enables friends/ignore social rows (`addSocialOptions`) |
+
+Chat builtin (`type=chat`) also supports `chat_op_*` template strings (`%s` = sender)
+for dynamic rows from `ui_chat_minimenu.c`. Both dat1 and dat2 UI configs define
+`[component:chat_region]`:
+
+| Config | Layout bounds | Notes |
+|--------|---------------|-------|
+| `rev_245_2_dat1_ui.ini` | `x=17 y=357 w=409 h=96` | Matches Client.ts `addChatOptions` main chatbox; default `./sdl2 --runescape` path |
+| `rev_kronos_ui.ini` | full shell `765×503` | Dat2 resizable UI; optional `componentno` for RS chat overlay |
+
+Private-strip row hit tests (`addPrivateChatOptions`) still use hardcoded Client.ts
+coordinates in `ui_chat_minimenu.c`; the chat builtin provides INI templates and
+the `ui_click_point_in_chat_main_lines` gate for the main chat right-click path.
+
+Pipeline for static owners:
+
+```
+[component:foo] option=/opN= in *_ui.ini
+  → RevConfigUIComponentItem
+  → instance_revconfig_build_layout_node → UINodeSpec.menu_options
+  → StaticUIComponent.menu_options
+  → ui_click_add_component_menu_rows
+```
+
+### Client.ts hardcoded minimenu audit
+
+Reference for parity with [`Client-TS/src/client/Client.ts`](../../Client-TS/src/client/Client.ts)
+`buildMinimenu()`:
+
+| Source | Rows | Actions |
+|--------|------|---------|
+| Always | Cancel | `CANCEL` |
+| `addPrivateChatOptions` | Report abuse / Add ignore / Add friend | `_PRIORITY +` social actions |
+| `addChatOptions` | Same + Accept trade / Accept duel | trade/duel request actions |
+| `addWorldOptions` | Walk here + entity config ops | `WALK` + world pick actions |
+| `addComponentOptions` | Inv/item/button rows from cache | `OP_HELD*`, `INV_BUTTON*`, `IF_BUTTON`, … |
+| `addSocialOptions` | Remove / Message (friends), Remove (ignore) | `FRIENDLIST_DEL`, `MESSAGE_PRIVATE`, `IGNORELIST_DEL` |
+
+Priority sort: rows with `action < 1000` bubble above `action >= 1000` after build
+(`ui_minimenu_sort_priority_actions`). Private-strip chat rows use `_PRIORITY` (+2000).
+
+Dynamic chat/social rows are built by [`ui_chat_minimenu.c`](../src2/ui/ui_chat_minimenu.c)
+and [`ui_click_add_social_options`](../src2/ui/ui_click.c) using `GameRunescape` chat/friend
+state plus INI templates on `type=chat`.
+
+Non-interactive `UIELEM_RS_GRAPHIC` / `UIELEM_RS_TEXT` / `UIELEM_RS_RECT` /
+`UIELEM_RS_MODEL` / `UIELEM_RS_LINE` nodes with no `menu_options` and no
+button/client_code pass through hit testing so clicks reach inventory and
+buttons underneath.
+
+### Recursive 2D interface collection
+
+Right-clicking 2D UI (sidebar, modals) walks the active interface subtree from
+`ui_click_find_interface_root`, mirroring Client.ts `addComponentOptions`: every
+visible RS child under the cursor contributes minimenu rows, not only the
+topmost hit node. `ui_click_build_ui_minimenu_at_point` performs this walk;
+`ui_click_handle_right` calls it for UI hits.
+
+### Fail-loud asserts
+
+Debug builds assert instead of silently showing Cancel-only menus when:
+
+- A component `uitree_component_expects_minimenu_rows` but no rows were added
+- Inv-slot menu build cannot resolve object config (`obj_id > 0`)
+- Inv pick is missing `quaternary_id` (RS_INV uitree index)
+- Dat2 INV `objOps` fail to copy into core `ops[]`
+- Core INV `ops[]` fail to copy into baked `menu_options`
+
+Helpers: `uitree_component_has_menu_options`, `uitree_component_expects_minimenu_rows`
+in `ui_behavior.c`.
+
+### Debugging
+
+Set `UI_MINIMENU_DEBUG=1` to trace component menu option text through the pipeline.
+All messages use the `ui_minimenu:` prefix on stderr.
+
+```bash
+UI_MINIMENU_DEBUG=1 ./sdl2 --runescape --soft3d
+```
+
+| Log stage | When it appears | What to check |
+|-----------|-----------------|---------------|
+| `convert dat1` / `convert dat2` | Revconfig load | Cache `option` / `iop` / `objOps` copied into core |
+| `bake` | RS component bake | Core `option`/`ops[]` copied into `StaticUIComponent.menu_options` |
+| `WARN bake` | Bake | Core had menu text but baked tree is empty, or button expects label |
+| `right-click path=` | Right-click | `ui` = UI hit, `inv` = inventory slot, `viewport` = world |
+| `skip invisible` | Recursive walk | Component hidden by `hide` script |
+| `skip out of bounds` | Recursive walk | Layout/coordinate mismatch (compare point vs bounds) |
+| `skip sidebar wrong tab` | Recursive walk | Sidebar tab not selected |
+| `add rows` / `add_rows` | Row builder | Final rows added from baked `menu_options` |
+| `build_ui_minimenu_at_point` | After menu build | Final option list shown to player |
 
 ## UIMinimenuLayout (font-derived geometry)
 

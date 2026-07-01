@@ -131,6 +131,18 @@ ToriAuxLibCore_NpctypeSizeOf(const struct ToriAuxLibCore_Npctype* npctype)
     return npctype ? sizeof(*npctype) : 0;
 }
 
+void
+ToriAuxLibCore_ObjtypeFree(struct ToriAuxLibCore_Objtype* objtype)
+{
+    free(objtype);
+}
+
+size_t
+ToriAuxLibCore_ObjtypeSizeOf(const struct ToriAuxLibCore_Objtype* objtype)
+{
+    return objtype ? sizeof(*objtype) : 0;
+}
+
 static void
 toriauxlibcore_animbase_free(struct ToriAuxLibCore_AnimBase* base)
 {
@@ -612,6 +624,33 @@ ToriAuxLibCore_FontFree(struct ToriAuxLibCore_Font* font)
     for( int i = 0; i < TORIAUXLIBCORE_FONT_GLYPH_COUNT; i++ )
         free(font->glyph_alpha[i]);
     free(font);
+}
+
+size_t
+ToriAuxLibCore_ClientScriptSizeOf(const struct ToriAuxLibCore_ClientScript* script)
+{
+    if( !script )
+        return 0;
+
+    size_t bytes = sizeof(*script);
+    if( script->instructions )
+        bytes += (size_t)script->op_count * sizeof(*script->instructions);
+    if( script->int_operands )
+        bytes += (size_t)script->op_count * sizeof(*script->int_operands);
+    if( script->cs2vm_ops )
+        bytes += (size_t)script->cs2vm_op_count * sizeof(*script->cs2vm_ops);
+    return bytes;
+}
+
+void
+ToriAuxLibCore_ClientScriptFree(struct ToriAuxLibCore_ClientScript* script)
+{
+    if( !script )
+        return;
+    free(script->instructions);
+    free(script->int_operands);
+    free(script->cs2vm_ops);
+    free(script);
 }
 
 void

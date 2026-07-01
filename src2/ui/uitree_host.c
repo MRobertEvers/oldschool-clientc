@@ -17,8 +17,7 @@ uitree_host_init(struct UITreeHost* host)
 bool
 uitree_component_visible_host(
     struct StaticUIComponent const* component,
-    int32_t component_index,
-    int32_t hovered_component,
+    int hovered_component_id,
     struct UITreeHost const* host)
 {
     assert(component);
@@ -47,14 +46,13 @@ uitree_component_visible_host(
         return host && host->get_minimenu_visible && host->get_minimenu_visible(host->user);
     }
 
-    return uitree_component_visible(component, component_index, hovered_component);
+    return uitree_component_visible_by_id(component, hovered_component_id);
 }
 
 bool
 uitree_component_hit_test_visible_host(
     struct StaticUIComponent const* component,
-    int32_t component_index,
-    int32_t hovered_component,
+    int hovered_component_id,
     struct UITreeHost const* host)
 {
     assert(component);
@@ -63,8 +61,60 @@ uitree_component_hit_test_visible_host(
         component->type == UIELEM_BUILTIN_REDSTONE_TAB )
         return true;
 
-    return uitree_component_visible_host(
-        component, component_index, hovered_component, host);
+    return uitree_component_visible_host(component, hovered_component_id, host);
+}
+
+bool
+uitree_component_is_active_host(
+    struct UITreeHost const* host,
+    struct StaticUIComponent const* component)
+{
+    if( !component || !component->behavior.script_comparator )
+        return false;
+    if( host && host->is_active )
+        return host->is_active(host->user, component);
+    return false;
+}
+
+char const*
+uitree_component_text_source_host(
+    struct UITreeHost const* host,
+    struct StaticUIComponent const* component)
+{
+    if( !component || component->type != UIELEM_RS_TEXT )
+        return NULL;
+
+    bool active = uitree_component_is_active_host(host, component);
+    if( active && component->u.rs_text.text_active && component->u.rs_text.text_active[0] != '\0' )
+        return component->u.rs_text.text_active;
+    return component->u.rs_text.text;
+}
+
+int
+uitree_component_text_color_host(
+    struct StaticUIComponent const* component,
+    int hovered_component_id,
+    struct UITreeHost const* host,
+    int base_color)
+{
+    if( !component )
+        return base_color;
+
+    int color = base_color;
+    bool hovered =
+        component->component_id >= 0 && hovered_component_id == component->component_id;
+    bool active = uitree_component_is_active_host(host, component);
+
+    if( active )
+        color = component->behavior.active_color ? component->behavior.active_color : color;
+    if( hovered )
+    {
+        if( active && component->behavior.active_over_color != 0 )
+            color = component->behavior.active_over_color;
+        else if( !active && component->behavior.over_color != 0 )
+            color = component->behavior.over_color;
+    }
+    return color;
 }
 
 bool
@@ -90,20 +140,28 @@ uitree_component_is_clickable_host(
 int
 uitree_component_rect_color_host(
     struct StaticUIComponent const* component,
-    int32_t component_index,
-    int32_t hovered_component,
+    int hovered_component_id,
     struct UITreeHost const* host,
     int base_color)
 {
     assert(host);
-    struct UITreeBehaviorHost behavior_host = { 0 };
-    if( host->is_active )
+    assert(component);
+
+    int color = base_color;
+    bool hovered =
+        component->component_id >= 0 && hovered_component_id == component->component_id;
+    bool active = uitree_component_is_active_host(host, component);
+
+    if( active )
+        color = component->behavior.active_color ? component->behavior.active_color : color;
+    if( hovered )
     {
-        /* Legacy CSVM path unused when host provides is_active; rect color uses behavior fields. */
-        (void)behavior_host;
+        if( active && component->behavior.active_over_color != 0 )
+            color = component->behavior.active_over_color;
+        else if( !active && component->behavior.over_color != 0 )
+            color = component->behavior.over_color;
     }
-    return uitree_component_rect_color(
-        component, component_index, hovered_component, NULL, base_color);
+    return color;
 }
 
 static int
@@ -171,13 +229,13 @@ uitree_expand_text_host(
     assert(component);
     assert(scratch);
     assert(scratch_size > 0);
-    if( component->type != UIELEM_RS_TEXT || !component->u.rs_text.text )
-        return component->u.rs_text.text;
 
-    if( !host->eval_text_placeholder )
-        return component->u.rs_text.text;
+    char const* src = uitree_component_text_source_host(host, component);
+    if( !src || src[0] == '\0' )
+        return src;
 
-    char const* src = component->u.rs_text.text;
+    if( component->type != UIELEM_RS_TEXT || !host->eval_text_placeholder )
+        return src;
     size_t di = 0;
 
     for( size_t i = 0; src[i] != '\0' && di + 1 < scratch_size; i++ )

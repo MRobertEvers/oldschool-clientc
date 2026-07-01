@@ -64,15 +64,13 @@ uitree_host_init(struct UITreeHost* host);
 bool
 uitree_component_visible_host(
     struct StaticUIComponent const* component,
-    int32_t component_index,
-    int32_t hovered_component,
+    int hovered_component_id,
     struct UITreeHost const* host);
 
 bool
 uitree_component_hit_test_visible_host(
     struct StaticUIComponent const* component,
-    int32_t component_index,
-    int32_t hovered_component,
+    int hovered_component_id,
     struct UITreeHost const* host);
 
 bool
@@ -83,10 +81,26 @@ uitree_component_is_clickable_host(
 int
 uitree_component_rect_color_host(
     struct StaticUIComponent const* component,
-    int32_t component_index,
-    int32_t hovered_component,
+    int hovered_component_id,
     struct UITreeHost const* host,
     int base_color);
+
+bool
+uitree_component_is_active_host(
+    struct UITreeHost const* host,
+    struct StaticUIComponent const* component);
+
+int
+uitree_component_text_color_host(
+    struct StaticUIComponent const* component,
+    int hovered_component_id,
+    struct UITreeHost const* host,
+    int base_color);
+
+char const*
+uitree_component_text_source_host(
+    struct UITreeHost const* host,
+    struct StaticUIComponent const* component);
 
 void
 uitree_behavior_handle_click_host(

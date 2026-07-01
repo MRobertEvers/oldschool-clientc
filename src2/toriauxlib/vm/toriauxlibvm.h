@@ -4,7 +4,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct ToriAuxLibVM;
 struct StaticUIComponent;
+struct CS2VM;
+struct CS2VM_State;
 struct RSCacheShared_FileListDat;
 struct CSVM;
 struct VarPVarBitManager;
@@ -18,12 +21,16 @@ ToriAuxLibVM_Free(struct ToriAuxLibVM* vm);
 int
 ToriAuxLibVM_EvalScript(
     struct ToriAuxLibVM* vm,
+    struct CS2VM* cs2vm,
+    struct CS2VM_State const* cs2vm_state,
     struct StaticUIComponent const* c,
     int script_id);
 
 bool
 ToriAuxLibVM_IsActive(
     struct ToriAuxLibVM* vm,
+    struct CS2VM* cs2vm,
+    struct CS2VM_State const* cs2vm_state,
     struct StaticUIComponent const* c);
 
 int

@@ -49,7 +49,7 @@ struct INIElement
 
         struct
         {
-            char name[24];
+            char name[48];
             char value[128];
         } _keyval;
     };

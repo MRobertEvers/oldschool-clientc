@@ -268,7 +268,7 @@
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/src2/programs/sdl2/sdl2",
-      "args": ["--runescape", "--soft3d"],
+      "args": ["--runescape", "--dat2","/Users/matthewevers/Documents/git_repos/3draster/cache", "--soft3d"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/src2/programs/sdl2",
       "environment": [],

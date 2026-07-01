@@ -17,11 +17,13 @@ struct ToriAuxLibCore
     struct ToriDraw_Map* underlay_hmap;
     struct ToriDraw_Map* config_loc_hmap;
     struct ToriDraw_Map* npctype_hmap;
+    struct ToriDraw_Map* objtype_hmap;
     struct ToriDraw_Map* sequences_hmap;
     struct ToriDraw_Map* animframes_reftable;
     struct ToriDraw_Map* sprites_hmap;
     struct ToriDraw_Map* fonts_hmap;
     struct ToriDraw_Map* components_hmap;
+    struct ToriDraw_Map* clientscripts_hmap;
     struct ToriDraw_Map* skeletal_hmap;
     struct ToriDraw_Map* idk_models_hmap;
     struct ToriDraw_Map* obj_models_hmap;
@@ -120,6 +122,12 @@ struct MapEntry_Npctype
     struct ToriAuxLibCore_Npctype* npctype;
 };
 
+struct MapEntry_Objtype
+{
+    int id;
+    struct ToriAuxLibCore_Objtype* objtype;
+};
+
 struct MapEntry_Sequence
 {
     int id;
@@ -142,6 +150,12 @@ struct MapEntry_Component
 {
     int id;
     struct ToriAuxLibCore_Component* component;
+};
+
+struct MapEntry_ClientScript
+{
+    int id;
+    struct ToriAuxLibCore_ClientScript* script;
 };
 
 struct MapEntry_IdkModel
@@ -213,11 +227,13 @@ enum
     GAMECACHE_CAP_FLOTYPE = 64,
     GAMECACHE_CAP_LOCATION = 256,
     GAMECACHE_CAP_NPCTYPE = 256,
+    GAMECACHE_CAP_OBJTYPE = 256,
     GAMECACHE_CAP_SEQUENCE = 256,
     GAMECACHE_CAP_ANIMFRAME_REF = 512,
     GAMECACHE_CAP_SPRITE = 64,
     GAMECACHE_CAP_FONT = 8,
     GAMECACHE_CAP_COMPONENT = 64,
+    GAMECACHE_CAP_CLIENTSCRIPT = 256,
     GAMECACHE_CAP_SKELETAL = 256,
     GAMECACHE_CAP_IDK_MODEL = 64,
     GAMECACHE_CAP_OBJ_MODEL = 256,
@@ -478,6 +494,28 @@ ToriAuxLibCore_Free_npctypes(
 }
 
 static void
+ToriAuxLibCore_Free_objtypes(
+    struct ToriAuxLibCore* gamecache,
+    struct ToriDraw_Map* map)
+{
+    if( !map )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
+    struct MapEntry_Objtype* entry = NULL;
+    while( (entry = (struct MapEntry_Objtype*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->objtype )
+        {
+            gamecache_mem_track_sub(
+                gamecache, TORIAUXLIBCORE_KIND_OBJTYPE, ToriAuxLibCore_ObjtypeSizeOf(entry->objtype));
+            ToriAuxLibCore_ObjtypeFree(entry->objtype);
+        }
+    }
+    ToriDraw_MapIterFree(iter);
+}
+
+static void
 ToriAuxLibCore_Free_sequences(
     struct ToriAuxLibCore* gamecache,
     struct ToriDraw_Map* map)
@@ -540,6 +578,30 @@ ToriAuxLibCore_Free_fonts(
             gamecache_mem_track_sub(
                 gamecache, TORIAUXLIBCORE_KIND_FONT, ToriAuxLibCore_FontSizeOf(entry->font));
             ToriAuxLibCore_FontFree(entry->font);
+        }
+    }
+    ToriDraw_MapIterFree(iter);
+}
+
+static void
+ToriAuxLibCore_Free_clientscripts(
+    struct ToriAuxLibCore* gamecache,
+    struct ToriDraw_Map* map)
+{
+    if( !map )
+        return;
+
+    struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(map);
+    struct MapEntry_ClientScript* entry = NULL;
+    while( (entry = (struct MapEntry_ClientScript*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->script )
+        {
+            gamecache_mem_track_sub(
+                gamecache,
+                TORIAUXLIBCORE_KIND_CLIENTSCRIPT,
+                ToriAuxLibCore_ClientScriptSizeOf(entry->script));
+            ToriAuxLibCore_ClientScriptFree(entry->script);
         }
     }
     ToriDraw_MapIterFree(iter);
@@ -632,6 +694,9 @@ ToriAuxLibCore_Free(struct ToriAuxLibCore* gamecache)
     ToriAuxLibCore_Free_npctypes(gamecache, gamecache->npctype_hmap);
     gamecache_map_free(gamecache, gamecache->npctype_hmap);
 
+    ToriAuxLibCore_Free_objtypes(gamecache, gamecache->objtype_hmap);
+    gamecache_map_free(gamecache, gamecache->objtype_hmap);
+
     ToriAuxLibCore_Free_sequences(gamecache, gamecache->sequences_hmap);
     gamecache_map_free(gamecache, gamecache->sequences_hmap);
 
@@ -645,6 +710,9 @@ ToriAuxLibCore_Free(struct ToriAuxLibCore* gamecache)
 
     ToriAuxLibCore_Free_components(gamecache, gamecache->components_hmap);
     gamecache_map_free(gamecache, gamecache->components_hmap);
+
+    ToriAuxLibCore_Free_clientscripts(gamecache, gamecache->clientscripts_hmap);
+    gamecache_map_free(gamecache, gamecache->clientscripts_hmap);
 
     if( gamecache->skeletal_hmap )
     {
@@ -1039,6 +1107,78 @@ ToriAuxLibCore_FontsClearAll(struct ToriAuxLibCore* gamecache)
 
     ToriAuxLibCore_Free_fonts(gamecache, gamecache->fonts_hmap);
     gamecache_map_reset(gamecache, &gamecache->fonts_hmap, sizeof(struct MapEntry_Font), GAMECACHE_CAP_FONT);
+}
+
+void
+ToriAuxLibCore_ClientScriptAdd(
+    struct ToriAuxLibCore* gamecache,
+    int script_id,
+    struct ToriAuxLibCore_ClientScript* script)
+{
+    struct ToriDraw_Map* map = gamecache_map_ptr(
+        gamecache,
+        &gamecache->clientscripts_hmap,
+        sizeof(struct MapEntry_ClientScript),
+        GAMECACHE_CAP_CLIENTSCRIPT);
+    if( !map )
+        return;
+
+    struct MapEntry_ClientScript* entry = (struct MapEntry_ClientScript*)ToriDraw_MapSearch(
+        map, &script_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->script )
+    {
+        gamecache_mem_track_sub(
+            gamecache,
+            TORIAUXLIBCORE_KIND_CLIENTSCRIPT,
+            ToriAuxLibCore_ClientScriptSizeOf(entry->script));
+        ToriAuxLibCore_ClientScriptFree(entry->script);
+    }
+
+    entry->id = script_id;
+    entry->script = script;
+    gamecache_mem_track_add(
+        gamecache, TORIAUXLIBCORE_KIND_CLIENTSCRIPT, ToriAuxLibCore_ClientScriptSizeOf(script));
+    gamecache_maybe_grow_hmap(gamecache, map);
+}
+
+struct ToriAuxLibCore_ClientScript*
+ToriAuxLibCore_ClientScriptGet(
+    struct ToriAuxLibCore* gamecache,
+    int script_id)
+{
+    if( !gamecache || !gamecache->clientscripts_hmap )
+        return NULL;
+
+    struct MapEntry_ClientScript* entry = (struct MapEntry_ClientScript*)ToriDraw_MapSearch(
+        gamecache->clientscripts_hmap, &script_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->script;
+}
+
+bool
+ToriAuxLibCore_ClientScriptHas(
+    struct ToriAuxLibCore* gamecache,
+    int script_id)
+{
+    return ToriAuxLibCore_ClientScriptGet(gamecache, script_id) != NULL;
+}
+
+void
+ToriAuxLibCore_ClientScriptsClearAll(struct ToriAuxLibCore* gamecache)
+{
+    if( !gamecache || !gamecache->clientscripts_hmap )
+        return;
+
+    ToriAuxLibCore_Free_clientscripts(gamecache, gamecache->clientscripts_hmap);
+    gamecache_map_reset(
+        gamecache,
+        &gamecache->clientscripts_hmap,
+        sizeof(struct MapEntry_ClientScript),
+        GAMECACHE_CAP_CLIENTSCRIPT);
 }
 
 void
@@ -1606,6 +1746,62 @@ ToriAuxLibCore_NpctypeHas(
     int npc_id)
 {
     return ToriAuxLibCore_NpctypeGet(gamecache, npc_id) != NULL;
+}
+
+void
+ToriAuxLibCore_ObjtypeAdd(
+    struct ToriAuxLibCore* gamecache,
+    int obj_id,
+    struct ToriAuxLibCore_Objtype* objtype)
+{
+    struct ToriDraw_Map* map = gamecache_map_ptr(
+        gamecache,
+        &gamecache->objtype_hmap,
+        sizeof(struct MapEntry_Objtype),
+        GAMECACHE_CAP_OBJTYPE);
+    if( !map )
+        return;
+
+    struct MapEntry_Objtype* entry =
+        (struct MapEntry_Objtype*)ToriDraw_MapSearch(map, &obj_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    if( entry->objtype )
+    {
+        gamecache_mem_track_sub(
+            gamecache, TORIAUXLIBCORE_KIND_OBJTYPE, ToriAuxLibCore_ObjtypeSizeOf(entry->objtype));
+        ToriAuxLibCore_ObjtypeFree(entry->objtype);
+    }
+
+    entry->id = obj_id;
+    entry->objtype = objtype;
+    gamecache_mem_track_add(
+        gamecache, TORIAUXLIBCORE_KIND_OBJTYPE, ToriAuxLibCore_ObjtypeSizeOf(objtype));
+    gamecache_maybe_grow_hmap(gamecache, map);
+}
+
+struct ToriAuxLibCore_Objtype*
+ToriAuxLibCore_ObjtypeGet(
+    struct ToriAuxLibCore* gamecache,
+    int obj_id)
+{
+    if( !gamecache || !gamecache->objtype_hmap )
+        return NULL;
+
+    struct MapEntry_Objtype* entry = (struct MapEntry_Objtype*)ToriDraw_MapSearch(
+        gamecache->objtype_hmap, &obj_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->objtype;
+}
+
+bool
+ToriAuxLibCore_ObjtypeHas(
+    struct ToriAuxLibCore* gamecache,
+    int obj_id)
+{
+    return ToriAuxLibCore_ObjtypeGet(gamecache, obj_id) != NULL;
 }
 
 void

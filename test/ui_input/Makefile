@@ -20,6 +20,7 @@ SRCS = main.c \
 	$(SRC2_DIR)/ui/ui_input.c \
 	$(SRC2_DIR)/ui/ui_behavior.c \
 	$(SRC2_DIR)/vm/csvm.c \
+	$(SRC2_DIR)/vm/cs2vm.c \
 	$(SRC_DIR)/osrs/varp_varbit_manager.c
 
 OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o)))

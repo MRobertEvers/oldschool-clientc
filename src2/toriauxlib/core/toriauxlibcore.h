@@ -135,6 +135,25 @@ void
 ToriAuxLibCore_FontsClearAll(struct ToriAuxLibCore* gamecache);
 
 void
+ToriAuxLibCore_ClientScriptAdd(
+    struct ToriAuxLibCore* gamecache,
+    int script_id,
+    struct ToriAuxLibCore_ClientScript* script);
+
+struct ToriAuxLibCore_ClientScript*
+ToriAuxLibCore_ClientScriptGet(
+    struct ToriAuxLibCore* gamecache,
+    int script_id);
+
+bool
+ToriAuxLibCore_ClientScriptHas(
+    struct ToriAuxLibCore* gamecache,
+    int script_id);
+
+void
+ToriAuxLibCore_ClientScriptsClearAll(struct ToriAuxLibCore* gamecache);
+
+void
 ToriAuxLibCore_ComponentAdd(
     struct ToriAuxLibCore* gamecache,
     int component_id,
@@ -177,6 +196,22 @@ bool
 ToriAuxLibCore_NpctypeHas(
     struct ToriAuxLibCore* gamecache,
     int npc_id);
+
+void
+ToriAuxLibCore_ObjtypeAdd(
+    struct ToriAuxLibCore* gamecache,
+    int obj_id,
+    struct ToriAuxLibCore_Objtype* objtype);
+
+struct ToriAuxLibCore_Objtype*
+ToriAuxLibCore_ObjtypeGet(
+    struct ToriAuxLibCore* gamecache,
+    int obj_id);
+
+bool
+ToriAuxLibCore_ObjtypeHas(
+    struct ToriAuxLibCore* gamecache,
+    int obj_id);
 
 void
 ToriAuxLibCore_FlotypesClearAll(struct ToriAuxLibCore* gamecache);

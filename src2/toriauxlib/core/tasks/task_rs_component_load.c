@@ -156,11 +156,11 @@ instance_revconfig_register_core_sprite(
     char const* lookup_name,
     int atlas_count)
 {
-    if( !ctx || !ctx->cache || !sprite || !lookup_name || !ctx->game || !ctx->game->td )
-        return;
+    assert(ctx && ctx->cache && sprite && lookup_name && ctx->game && ctx->game->td);
 
     ToriAuxLibCache_SubmitSprite(ctx->cache, element_id, sprite);
-    ToriAuxLibTD_Sprite(ctx->game->td, element_id);
+    bool const promoted = ToriAuxLibTD_Sprite(ctx->game->td, element_id);
+    assert(promoted && "ToriAuxLibTD_Sprite failed for dynamic sprite");
     ui_sprite_lookup_add(&ctx->sprite_lookup, lookup_name, element_id, atlas_count);
 }
 
@@ -197,38 +197,17 @@ dat1_acquire_dynamic_sprite(
         dat1_buildcache_sprite_decode_ref(ctx->dat1_bc, sprite_ref);
     if( !sprite || sprite->frame_count <= 0 )
     {
+        fprintf(stderr,
+            "dat1_acquire_dynamic_sprite: decode failed for ref=%s\n",
+            sprite_ref);
         ToriAuxLibCore_SpriteFree(sprite);
+        assert(sprite && sprite->frame_count > 0);
         return -1;
     }
 
     int element_id = ctx->next_element_id++;
 
-    char base[64];
-    char const* comma = strchr(sprite_ref, ',');
-    char const* bracket = strchr(sprite_ref, '[');
-    if( comma )
-    {
-        size_t len = (size_t)(comma - sprite_ref);
-        if( len >= sizeof(base) )
-            len = sizeof(base) - 1;
-        memcpy(base, sprite_ref, len);
-        base[len] = '\0';
-    }
-    else if( bracket )
-    {
-        size_t len = (size_t)(bracket - sprite_ref);
-        if( len >= sizeof(base) )
-            len = sizeof(base) - 1;
-        memcpy(base, sprite_ref, len);
-        base[len] = '\0';
-    }
-    else
-    {
-        strncpy(base, sprite_ref, sizeof(base) - 1);
-        base[sizeof(base) - 1] = '\0';
-    }
-
-    instance_revconfig_register_core_sprite(ctx, element_id, sprite, base, sprite->frame_count);
+    instance_revconfig_register_core_sprite(ctx, element_id, sprite, sprite_ref, sprite->frame_count);
     return element_id;
 }
 
@@ -254,7 +233,11 @@ dat2_acquire_dynamic_sprite(
         dat2_buildcache_dynamic_sprite_release(ctx->dat2_bc, sprite_id);
     if( !sprite || sprite->frame_count <= 0 )
     {
+        fprintf(stderr,
+            "dat2_acquire_dynamic_sprite: sprite not in prefetch cache sprite_id=%d\n",
+            sprite_id);
         ToriAuxLibCore_SpriteFree(sprite);
+        assert(sprite && sprite->frame_count > 0);
         return -1;
     }
 
@@ -871,18 +854,27 @@ Task_RSComponentLoad_Run(
                 struct RSCacheDat2Disk_Archive* sprite_archive =
                     TAPIDat2_DecodeSpriteArchive(ctx, i, sprite_id);
                 if( !sprite_archive )
+                {
+                    fprintf(stderr,
+                        "Task_RSComponentLoad: failed to decode sprite archive "
+                        "sprite_id=%d\n",
+                        sprite_id);
+                    assert(sprite_archive);
                     continue;
+                }
 
                 struct ToriAuxLibCore_Sprite* sprite =
                     dat2_buildcache_sprite_decode_id_from_archive(sprite_archive, sprite_id);
-                if( sprite && sprite->frame_count > 0 )
+                if( !sprite || sprite->frame_count <= 0 )
                 {
-                    dat2_buildcache_dynamic_sprite_add(task->rc_ctx->dat2_bc, sprite_id, sprite);
-                }
-                else
-                {
+                    fprintf(stderr,
+                        "Task_RSComponentLoad: failed to decode sprite sprite_id=%d\n",
+                        sprite_id);
                     ToriAuxLibCore_SpriteFree(sprite);
+                    assert(sprite && sprite->frame_count > 0);
+                    continue;
                 }
+                dat2_buildcache_dynamic_sprite_add(task->rc_ctx->dat2_bc, sprite_id, sprite);
             }
         }
 

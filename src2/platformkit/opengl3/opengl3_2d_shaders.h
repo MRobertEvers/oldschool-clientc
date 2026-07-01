@@ -30,7 +30,7 @@ static char const* const trspk_opengl3_2d_fragment_shader =
     "        discard;\n"
     "    vec4 tex = texture(u_texture, v_texcoord);\n"
     "    vec4 c = (u_text_mode == 1)\n"
-    "        ? vec4(v_color.rgb, tex.r * v_color.a)\n"
+    "        ? vec4(v_color.rgb, tex.a * v_color.a)\n"
     "        : tex * v_color;\n"
     "    if (c.a < 0.004) discard;\n"
     "    fragColor = c;\n"

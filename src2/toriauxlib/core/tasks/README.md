@@ -154,6 +154,21 @@ Standard OSRS convention: `0=p11`, `1=p12`, `2=b12`, `3=q8` (override per revisi
 
 At bake time, `instance_revconfig_resolve_rs_text_font_id` resolves cache values through `UIFontLookup` (`ui_font_lookup_find_by_cache_font_id`, `ui_font_lookup_find_by_archive_id`, then name fallback). See `RevConfigFontItem` in [`revconfig.h`](../../../revconfig/revconfig.h).
 
+### Minimenu fields on `[component:name]` (`*_ui.ini`)
+
+| INI key | Purpose |
+|---------|---------|
+| `option=` | Primary button row label |
+| `option_action=` | Symbolic or numeric `MinimenuAction` for `option=` |
+| `op0=` … `op4=` | Extra inventory-style rows |
+| `op0_action=` … `op4_action=` | Per-slot action override (0 = default `INV_BUTTON1 + i`) |
+| `button_type=` | `ok` / `toggle` / `select` / `close` / `continue` / `target` |
+| `client_code=` | Friends/ignore social minimenu rows |
+
+Chat builtin (`type=chat`) also supports `chat_op_*` / `chat_op_*_action` (`%s` = sender) on
+`[component:chat_region]` in both `rev_245_2_dat1_ui.ini` (fixed layout, `x=17 y=357 w=409 h=96`)
+and `rev_kronos_ui.ini` (resizable shell).
+
 ### `instance_revconfig_build_layout_node`: owner node vs RS expansion
 
 `instance_revconfig_build_tree` calls `instance_revconfig_build_layout_node` once per layout entry. That function has **two distinct jobs** — only the second one creates RS layers and other cache-backed children.
@@ -168,7 +183,7 @@ At bake time, `instance_revconfig_resolve_rs_text_font_id` resolves cache values
 | `compass`, `sprite`, tabs, … | builtin types | sprites, tabno, world mask, etc. |
 | `rs_layer` | `UIELEM_RS_LAYER` | layout shell only (`reserved = 0`); no archive walk |
 | `rs_graphic`, `rs_text`, `rs_rect`, `rs_model`, `rs_inv`, `rs_line` | RS types (no `componentno`) | static RevConfig fields only |
-| `chat` | `UIELEM_BUILTIN_CHAT` | no extra payload |
+| `chat` | `UIELEM_BUILTIN_CHAT` | `chat_op_*` templates → `u.chat.minimenu`; layout bounds gate chat right-click |
 
 The `switch` does **not** walk the interfaces archive. Cache-backed RS widgets (including nested `TORIAUXLIBCORE_COMPONENT_LAYER` nodes) always arrive through the bake path below when `componentno >= 0`.
 

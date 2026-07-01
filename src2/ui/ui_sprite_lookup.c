@@ -63,6 +63,16 @@ ui_sprite_lookup_find(
     return -1;
 }
 
+static int
+ui_sprite_lookup_resolve_atlas_index(
+    int atlas_count,
+    int atlas_from_ref)
+{
+    if( atlas_count <= 1 )
+        return 0;
+    return atlas_from_ref;
+}
+
 int
 ui_sprite_lookup_resolve_ref(
     struct UISpriteLookup const* lookup,
@@ -72,6 +82,15 @@ ui_sprite_lookup_resolve_ref(
     assert(lookup && sprite_ref);
     if( sprite_ref[0] == '\0' )
         return -1;
+
+    int exact_atlas_count = 0;
+    int exact_id = ui_sprite_lookup_find(lookup, sprite_ref, &exact_atlas_count);
+    if( exact_id >= 0 )
+    {
+        if( out_atlas_index )
+            *out_atlas_index = ui_sprite_lookup_resolve_atlas_index(exact_atlas_count, 0);
+        return exact_id;
+    }
 
     char base[64];
     int atlas = 0;
@@ -113,6 +132,11 @@ ui_sprite_lookup_resolve_ref(
     }
 
     if( out_atlas_index )
-        *out_atlas_index = atlas;
+    {
+        int atlas_count = 0;
+        int element_id = ui_sprite_lookup_find(lookup, base, &atlas_count);
+        *out_atlas_index = ui_sprite_lookup_resolve_atlas_index(atlas_count, atlas);
+        return element_id;
+    }
     return ui_sprite_lookup_find(lookup, base, NULL);
 }

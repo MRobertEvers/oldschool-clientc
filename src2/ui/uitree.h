@@ -52,6 +52,7 @@ enum StaticUIComponentType
     UIELEM_RS_LAYER = 18,
     UIELEM_RS_RECT = 19,
     UIELEM_RS_LINE = 20,
+    UIELEM_RS_INV_TEXT = 21,
 };
 
 enum StaticUIElemPositionKind
@@ -86,17 +87,38 @@ struct StaticUIElemPosition
 
 struct StaticUIBehavior
 {
+    /** Number of embedded CS1/CS2 scripts (Client.ts scripts[]). */
     int scripts_count;
-    int** scripts;           /* CS1 bytecode arrays; heap-owned, freed in uitree_free */
-    int* scripts_lengths;    /* per-script length; 0 = scan until opcode 0 */
-    int* script_comparator;  /* per-script comparator opcode */
-    int* script_operand;     /* per-script operand */
-    uint8_t hide;            /* static hide flag from cache LAYER/component */
-    uint8_t script_kind;     /* 0 = CS1, 1 = CS2 */
-    int button_type;         /* 0=none; OK/TOGGLE/SELECT/CLOSE/CONTINUE */
+    /** Per-script bytecode; evaluated by getIfVar / getIfActive. Heap-owned. */
+    int** scripts;
+    /** Per-script length; 0 = scan until opcode 0. */
+    int* scripts_lengths;
+    /** Per-script comparator opcode (1==, 2<, 3>, 4!=). Required for getIfActive. */
+    int* script_comparator;
+    /** Per-script comparison operand (Client.ts scriptOperand). */
+    int* script_operand;
+
+    /** Client.ts hide: layer skipped unless hovered_component_id == component_id. */
+    uint8_t hide;
+
+    /** 0 = CS1 (csvm), 1 = CS2 (cs2vm). */
+    uint8_t script_kind;
+
+    /** Client.ts buttonType: OK/TARGET/CLOSE/TOGGLE/SELECT/CONTINUE; 0 = none. */
+    int button_type;
+    /** Client.ts clientCode: hardcoded client-side handler id. */
     int client_code;
-    int over_color;          /* hover color for rect/text; 0 = none */
+
+    /** Client.ts overLayerId (dat1 overlayer / dat2 linkedComponentId).
+     *  When the mouse is over this component, hover tracking reports this id
+     *  instead of component_id — used to reveal hidden tooltip layers. -1 = none. */
+    int over_layer_id;
+
+    /** Client.ts colourOver: hover tint when inactive (rect/text). 0 = none. */
+    int over_color;
+    /** Client.ts colour2: fill/text colour when getIfActive is true. 0 = keep base. */
     int active_color;
+    /** Client.ts colour2Over: hover tint when active. 0 = none. */
     int active_over_color;
 };
 
@@ -107,6 +129,25 @@ struct StaticUIMenuOptions
 {
     char option[UITREE_MENU_OPTION_LEN];
     char ops[UITREE_MENU_OPTION_SLOTS][UITREE_MENU_OPTION_LEN];
+    /** 0 = derive action at click time from slot index or button_type. */
+    int option_action;
+    int op_actions[UITREE_MENU_OPTION_SLOTS];
+};
+
+#define UITREE_CHAT_OP_TEMPLATE_LEN 64
+
+struct StaticUIChatMinimenuConfig
+{
+    char op_report_abuse[UITREE_CHAT_OP_TEMPLATE_LEN];
+    int op_report_abuse_action;
+    char op_add_ignore[UITREE_CHAT_OP_TEMPLATE_LEN];
+    int op_add_ignore_action;
+    char op_add_friend[UITREE_CHAT_OP_TEMPLATE_LEN];
+    int op_add_friend_action;
+    char op_accept_trade[UITREE_CHAT_OP_TEMPLATE_LEN];
+    int op_accept_trade_action;
+    char op_accept_duel[UITREE_CHAT_OP_TEMPLATE_LEN];
+    int op_accept_duel_action;
 };
 
 struct StaticUIComponent
@@ -157,18 +198,24 @@ struct StaticUIComponent
         struct
         {
             int font_id;
+            /** Client.ts colour: inactive text colour (0xRRGGBB). */
             int color;
             int center;
             int shadowed;
-            /** Heap copy; owned by UITree, freed in uitree_free. */
+            /** Client.ts text: inactive label. Heap copy; freed in uitree_free. */
             char const* text;
+            /** Client.ts text2: label when getIfActive; empty/null = keep text. */
+            char const* text_active;
         } rs_text;
         struct
         {
+            /** Client.ts graphic: inactive sprite. */
             int scene_id;
             int atlas_index;
+            /** Client.ts graphic2: sprite when getIfActive. -1 = no active variant. */
             int scene_id_active;
             int atlas_index_active;
+            /** Draw nothing but keep bounds for hit-testing (IF3 empty graphic). */
             uint8_t graphic_hitbox_only;
         } rs_graphic;
         struct
@@ -212,10 +259,26 @@ struct StaticUIComponent
         } minimenu;
         struct
         {
+            struct StaticUIChatMinimenuConfig minimenu;
+        } chat;
+        struct
+        {
             int color;
             int line_width;
             int horizontal;
         } rs_line;
+        struct
+        {
+            int inv_index;
+            int cols;
+            int rows;
+            int margin_x;
+            int margin_y;
+            int font_id;
+            int color;
+            int center;
+            int shadowed;
+        } rs_inv_text;
 
     } u;
 };
@@ -286,6 +349,7 @@ struct UINodeSpec
             int center;
             int shadowed;
             char const* text;
+            char const* text_active;
         } rs_text;
         struct
         {
@@ -335,10 +399,26 @@ struct UINodeSpec
         } minimenu;
         struct
         {
+            struct StaticUIChatMinimenuConfig minimenu;
+        } chat;
+        struct
+        {
             int color;
             int line_width;
             int horizontal;
         } rs_line;
+        struct
+        {
+            int inv_index;
+            int cols;
+            int rows;
+            int margin_x;
+            int margin_y;
+            int font_id;
+            int color;
+            int center;
+            int shadowed;
+        } rs_inv_text;
     } u;
     struct StaticUIMenuOptions menu_options;
 };
@@ -390,7 +470,7 @@ uitree_inv_pool_append(
 #define STATIC_UI_RELATIVE_FLAG_RIGHT 4
 #define STATIC_UI_RELATIVE_FLAG_BOTTOM 8
 
-/** Create a node from spec. rs_text.text is strdup'd. Returns new index or -1. */
+/** Create a node from spec. rs_text.text and rs_text.text_active are strdup'd. Returns new index or -1. */
 int32_t
 uitree_push(
     struct UITree* tree,

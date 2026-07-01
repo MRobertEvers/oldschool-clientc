@@ -1,10 +1,20 @@
 #include "revconfig.h"
 
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/shared/shared_string_utils.h"
 
+#include <assert.h>
+#include <ctype.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(_WIN32)
+#define strcasecmp _stricmp
+#else
+#include <strings.h>
+#endif
 
 char const*
 revconfig_field_kind_str(enum RevConfigFieldKind kind)
@@ -85,6 +95,54 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_SHADOWED";
     case RCFIELD_UICOMPONENT_TEXT:
         return "RCFIELD_UICOMPONENT_TEXT";
+    case RCFIELD_UICOMPONENT_OPTION:
+        return "RCFIELD_UICOMPONENT_OPTION";
+    case RCFIELD_UICOMPONENT_OPTION_ACTION:
+        return "RCFIELD_UICOMPONENT_OPTION_ACTION";
+    case RCFIELD_UICOMPONENT_OP0:
+        return "RCFIELD_UICOMPONENT_OP0";
+    case RCFIELD_UICOMPONENT_OP1:
+        return "RCFIELD_UICOMPONENT_OP1";
+    case RCFIELD_UICOMPONENT_OP2:
+        return "RCFIELD_UICOMPONENT_OP2";
+    case RCFIELD_UICOMPONENT_OP3:
+        return "RCFIELD_UICOMPONENT_OP3";
+    case RCFIELD_UICOMPONENT_OP4:
+        return "RCFIELD_UICOMPONENT_OP4";
+    case RCFIELD_UICOMPONENT_OP0_ACTION:
+        return "RCFIELD_UICOMPONENT_OP0_ACTION";
+    case RCFIELD_UICOMPONENT_OP1_ACTION:
+        return "RCFIELD_UICOMPONENT_OP1_ACTION";
+    case RCFIELD_UICOMPONENT_OP2_ACTION:
+        return "RCFIELD_UICOMPONENT_OP2_ACTION";
+    case RCFIELD_UICOMPONENT_OP3_ACTION:
+        return "RCFIELD_UICOMPONENT_OP3_ACTION";
+    case RCFIELD_UICOMPONENT_OP4_ACTION:
+        return "RCFIELD_UICOMPONENT_OP4_ACTION";
+    case RCFIELD_UICOMPONENT_BUTTON_TYPE:
+        return "RCFIELD_UICOMPONENT_BUTTON_TYPE";
+    case RCFIELD_UICOMPONENT_CLIENT_CODE:
+        return "RCFIELD_UICOMPONENT_CLIENT_CODE";
+    case RCFIELD_UICOMPONENT_CHAT_OP_REPORT_ABUSE:
+        return "RCFIELD_UICOMPONENT_CHAT_OP_REPORT_ABUSE";
+    case RCFIELD_UICOMPONENT_CHAT_OP_REPORT_ABUSE_ACTION:
+        return "RCFIELD_UICOMPONENT_CHAT_OP_REPORT_ABUSE_ACTION";
+    case RCFIELD_UICOMPONENT_CHAT_OP_ADD_IGNORE:
+        return "RCFIELD_UICOMPONENT_CHAT_OP_ADD_IGNORE";
+    case RCFIELD_UICOMPONENT_CHAT_OP_ADD_IGNORE_ACTION:
+        return "RCFIELD_UICOMPONENT_CHAT_OP_ADD_IGNORE_ACTION";
+    case RCFIELD_UICOMPONENT_CHAT_OP_ADD_FRIEND:
+        return "RCFIELD_UICOMPONENT_CHAT_OP_ADD_FRIEND";
+    case RCFIELD_UICOMPONENT_CHAT_OP_ADD_FRIEND_ACTION:
+        return "RCFIELD_UICOMPONENT_CHAT_OP_ADD_FRIEND_ACTION";
+    case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_TRADE:
+        return "RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_TRADE";
+    case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_TRADE_ACTION:
+        return "RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_TRADE_ACTION";
+    case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL:
+        return "RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL";
+    case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION:
+        return "RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION";
     case RCFIELD_INV_ITEM:
         return "RCFIELD_INV_ITEM";
     case RCFIELD_UILAYOUT_COMPONENT:
@@ -391,6 +449,102 @@ revconfig_font_field_is_numeric(const char* value)
     return 1;
 }
 
+static int
+revconfig_minimenu_action_from_symbol(char const* sym)
+{
+    if( !sym || sym[0] == '\0' )
+        return 0;
+
+#define MAP_ACTION(name)                                                                           \
+    if( strcasecmp(sym, #name) == 0 )                                                              \
+        return MINIMENU_ACTION_##name;
+
+    MAP_ACTION(CANCEL)
+    MAP_ACTION(WALK)
+    MAP_ACTION(IF_BUTTON)
+    MAP_ACTION(IF_BUTTON_TOGGLE)
+    MAP_ACTION(IF_BUTTON_SELECT)
+    MAP_ACTION(RESUME_PAUSEBUTTON)
+    MAP_ACTION(CLOSE_MODAL)
+    MAP_ACTION(INV_BUTTON1)
+    MAP_ACTION(INV_BUTTON2)
+    MAP_ACTION(INV_BUTTON3)
+    MAP_ACTION(INV_BUTTON4)
+    MAP_ACTION(INV_BUTTON5)
+    MAP_ACTION(FRIENDLIST_ADD)
+    MAP_ACTION(IGNORELIST_ADD)
+    MAP_ACTION(FRIENDLIST_DEL)
+    MAP_ACTION(IGNORELIST_DEL)
+    MAP_ACTION(MESSAGE_PRIVATE)
+    MAP_ACTION(REPORT_ABUSE)
+    MAP_ACTION(OPHELD1)
+    MAP_ACTION(OPHELD2)
+    MAP_ACTION(OPHELD3)
+    MAP_ACTION(OPHELD4)
+    MAP_ACTION(OPHELD5)
+    MAP_ACTION(OPHELD6)
+    /* Client.ts aliases */
+    if( strcasecmp(sym, "CLOSE_BUTTON") == 0 )
+        return MINIMENU_ACTION_CLOSE_MODAL;
+    if( strcasecmp(sym, "TOGGLE_BUTTON") == 0 )
+        return MINIMENU_ACTION_IF_BUTTON_TOGGLE;
+    if( strcasecmp(sym, "SELECT_BUTTON") == 0 )
+        return MINIMENU_ACTION_IF_BUTTON_SELECT;
+    if( strcasecmp(sym, "PAUSE_BUTTON") == 0 )
+        return MINIMENU_ACTION_RESUME_PAUSEBUTTON;
+    if( strcasecmp(sym, "ABUSE_REPORT") == 0 )
+        return MINIMENU_ACTION_REPORT_ABUSE;
+    if( strcasecmp(sym, "ACCEPT_TRADEREQ") == 0 )
+        return MINIMENU_ACTION_OPPLAYER_TRADEREQ;
+    if( strcasecmp(sym, "ACCEPT_DUELREQ") == 0 )
+        return MINIMENU_ACTION_OPPLAYER_DUELREQ;
+
+#undef MAP_ACTION
+    return 0;
+}
+
+int
+revconfig_parse_minimenu_action(char const* str)
+{
+    if( !str || str[0] == '\0' )
+        return 0;
+
+    int sym = revconfig_minimenu_action_from_symbol(str);
+    if( sym != 0 )
+        return sym;
+
+    char* end = NULL;
+    long v = strtol(str, &end, 10);
+    if( end != str && *end == '\0' && v > 0 )
+        return (int)v;
+
+    fprintf(stderr, "revconfig_parse_minimenu_action: unknown action '%s'\n", str);
+    assert(false && "unknown minimenu action in revconfig");
+    return 0;
+}
+
+int
+revconfig_parse_button_type(char const* str)
+{
+    if( !str || str[0] == '\0' )
+        return 0;
+
+    if( strcasecmp(str, "ok") == 0 )
+        return COMPONENT_BUTTON_TYPE_OK;
+    if( strcasecmp(str, "target") == 0 )
+        return COMPONENT_BUTTON_TYPE_TARGET;
+    if( strcasecmp(str, "close") == 0 )
+        return COMPONENT_BUTTON_TYPE_CLOSE;
+    if( strcasecmp(str, "toggle") == 0 )
+        return COMPONENT_BUTTON_TYPE_TOGGLE;
+    if( strcasecmp(str, "select") == 0 )
+        return COMPONENT_BUTTON_TYPE_SELECT;
+    if( strcasecmp(str, "continue") == 0 )
+        return COMPONENT_BUTTON_TYPE_CONTINUE;
+
+    return atoi(str);
+}
+
 static void
 revconfig_item_apply_uicomponent_field(
     struct RevConfigUIComponentItem* comp,
@@ -462,6 +616,89 @@ revconfig_item_apply_uicomponent_field(
     case RCFIELD_UICOMPONENT_TEXT:
         strncpy(comp->text, value, sizeof(comp->text) - 1);
         comp->text[sizeof(comp->text) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_OPTION:
+        strncpy(comp->option, value, sizeof(comp->option) - 1);
+        comp->option[sizeof(comp->option) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_OPTION_ACTION:
+        comp->option_action = revconfig_parse_minimenu_action(value);
+        break;
+    case RCFIELD_UICOMPONENT_OP0:
+        strncpy(comp->ops[0], value, sizeof(comp->ops[0]) - 1);
+        comp->ops[0][sizeof(comp->ops[0]) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_OP1:
+        strncpy(comp->ops[1], value, sizeof(comp->ops[1]) - 1);
+        comp->ops[1][sizeof(comp->ops[1]) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_OP2:
+        strncpy(comp->ops[2], value, sizeof(comp->ops[2]) - 1);
+        comp->ops[2][sizeof(comp->ops[2]) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_OP3:
+        strncpy(comp->ops[3], value, sizeof(comp->ops[3]) - 1);
+        comp->ops[3][sizeof(comp->ops[3]) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_OP4:
+        strncpy(comp->ops[4], value, sizeof(comp->ops[4]) - 1);
+        comp->ops[4][sizeof(comp->ops[4]) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_OP0_ACTION:
+        comp->op_actions[0] = revconfig_parse_minimenu_action(value);
+        break;
+    case RCFIELD_UICOMPONENT_OP1_ACTION:
+        comp->op_actions[1] = revconfig_parse_minimenu_action(value);
+        break;
+    case RCFIELD_UICOMPONENT_OP2_ACTION:
+        comp->op_actions[2] = revconfig_parse_minimenu_action(value);
+        break;
+    case RCFIELD_UICOMPONENT_OP3_ACTION:
+        comp->op_actions[3] = revconfig_parse_minimenu_action(value);
+        break;
+    case RCFIELD_UICOMPONENT_OP4_ACTION:
+        comp->op_actions[4] = revconfig_parse_minimenu_action(value);
+        break;
+    case RCFIELD_UICOMPONENT_BUTTON_TYPE:
+        comp->button_type = revconfig_parse_button_type(value);
+        break;
+    case RCFIELD_UICOMPONENT_CLIENT_CODE:
+        comp->client_code = atoi(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_OP_REPORT_ABUSE:
+        strncpy(comp->chat_op_report_abuse, value, sizeof(comp->chat_op_report_abuse) - 1);
+        comp->chat_op_report_abuse[sizeof(comp->chat_op_report_abuse) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_OP_REPORT_ABUSE_ACTION:
+        comp->chat_op_report_abuse_action = revconfig_parse_minimenu_action(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_OP_ADD_IGNORE:
+        strncpy(comp->chat_op_add_ignore, value, sizeof(comp->chat_op_add_ignore) - 1);
+        comp->chat_op_add_ignore[sizeof(comp->chat_op_add_ignore) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_OP_ADD_IGNORE_ACTION:
+        comp->chat_op_add_ignore_action = revconfig_parse_minimenu_action(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_OP_ADD_FRIEND:
+        strncpy(comp->chat_op_add_friend, value, sizeof(comp->chat_op_add_friend) - 1);
+        comp->chat_op_add_friend[sizeof(comp->chat_op_add_friend) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_OP_ADD_FRIEND_ACTION:
+        comp->chat_op_add_friend_action = revconfig_parse_minimenu_action(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_TRADE:
+        strncpy(comp->chat_op_accept_trade, value, sizeof(comp->chat_op_accept_trade) - 1);
+        comp->chat_op_accept_trade[sizeof(comp->chat_op_accept_trade) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_TRADE_ACTION:
+        comp->chat_op_accept_trade_action = revconfig_parse_minimenu_action(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL:
+        strncpy(comp->chat_op_accept_duel, value, sizeof(comp->chat_op_accept_duel) - 1);
+        comp->chat_op_accept_duel[sizeof(comp->chat_op_accept_duel) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION:
+        comp->chat_op_accept_duel_action = revconfig_parse_minimenu_action(value);
         break;
     default:
         break;
@@ -552,8 +789,7 @@ revconfig_item_apply_field(
         revconfig_item_apply_uilayout_field(&item->u.uilayout, kind, value);
         break;
     case RCITEM_INV:
-        if( kind == RCFIELD_INV_ITEM &&
-            item->u.inv.item_count < REVCONFIG_INV_MAX_ITEMS )
+        if( kind == RCFIELD_INV_ITEM && item->u.inv.item_count < REVCONFIG_INV_MAX_ITEMS )
         {
             strncpy(
                 item->u.inv.items[item->u.inv.item_count],

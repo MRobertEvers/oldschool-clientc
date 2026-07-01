@@ -8,7 +8,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct UITree;
+struct UITreeHost;
+
 struct VarPVarBitManager;
+struct ToriAuxLibCore;
+struct ToriAuxLibCache;
+struct ToriAuxLibCore_Component;
 
 struct UITreeBehaviorHost
 {
@@ -23,16 +29,34 @@ bool
 uitree_component_is_clickable(struct StaticUIComponent const* component);
 
 bool
+uitree_component_has_menu_options(struct StaticUIComponent const* component);
+
+bool
+uitree_component_expects_minimenu_rows(struct StaticUIComponent const* component);
+
+bool
+uitree_component_visible_by_id(
+    struct StaticUIComponent const* component,
+    int hovered_component_id);
+
+bool
 uitree_component_visible(
     struct StaticUIComponent const* component,
     int32_t component_index,
-    int32_t hovered_component);
+    int hovered_component_id);
+
+void
+uitree_find_hovered_component_id(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int mouse_x,
+    int mouse_y,
+    int* out_hovered_component_id);
 
 int
 uitree_component_rect_color(
     struct StaticUIComponent const* component,
-    int32_t component_index,
-    int32_t hovered_component,
+    int hovered_component_id,
     struct UITreeBehaviorHost const* host,
     int base_color);
 
@@ -40,6 +64,21 @@ bool
 uitree_behavior_is_active(
     struct UITreeBehaviorHost const* host,
     struct StaticUIBehavior const* behavior);
+
+enum UITreeBehaviorHookKind
+{
+    UITREE_BEHAVIOR_HOOK_ON_LOAD,
+    UITREE_BEHAVIOR_HOOK_ON_CLICK,
+    UITREE_BEHAVIOR_HOOK_ON_VARP_TRANSMIT,
+};
+
+void
+uitree_behavior_run_hook(
+    struct UITreeBehaviorHost* host,
+    struct ToriAuxLibCore* core,
+    struct ToriAuxLibCache* cache,
+    struct ToriAuxLibCore_Component const* component,
+    enum UITreeBehaviorHookKind hook_kind);
 
 void
 uitree_behavior_apply_button_click(

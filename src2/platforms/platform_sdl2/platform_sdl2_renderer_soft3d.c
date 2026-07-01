@@ -13,6 +13,7 @@
 #include <SDL_render.h>
 
 #include <SDL.h>
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -262,7 +263,14 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             const int element_id = command.u.sprite.element_id;
             const int atlas_index = command.u.sprite.atlas_index;
             if( element_id < 0 || element_id >= SOFT3D_SPRITE_ELEMENT_CAP )
+            {
+                fprintf(stderr,
+                    "TORIRSRC_SPRITE: invalid element_id=%d atlas_index=%d\n",
+                    element_id,
+                    atlas_index);
+                assert(element_id >= 0 && element_id < SOFT3D_SPRITE_ELEMENT_CAP);
                 break;
+            }
             struct ToriDraw_Sprite** sprites = renderer->sprite_arrays[element_id];
             int count = renderer->sprite_counts[element_id];
             if( draw_context )
@@ -277,10 +285,26 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 }
             }
             if( !sprites || atlas_index < 0 || atlas_index >= count )
+            {
+                fprintf(stderr,
+                    "TORIRSRC_SPRITE: missing sprite array element_id=%d atlas_index=%d "
+                    "count=%d\n",
+                    element_id,
+                    atlas_index,
+                    count);
+                assert(sprites && atlas_index >= 0 && atlas_index < count);
                 break;
+            }
             struct ToriDraw_Sprite* sp = sprites[atlas_index];
             if( !sp || !sp->pixels_argb )
+            {
+                fprintf(stderr,
+                    "TORIRSRC_SPRITE: missing sprite pixels element_id=%d atlas_index=%d\n",
+                    element_id,
+                    atlas_index);
+                assert(sp && sp->pixels_argb);
                 break;
+            }
 
             struct ToriDraw_ViewPort vp = renderer->iface_view_port;
             if( command.u.sprite.scissor_w > 0 && command.u.sprite.scissor_h > 0 )
@@ -364,7 +388,14 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
         {
             const int font_id = command.u.font.font_id;
             if( font_id < 0 || !command.u.font.text )
+            {
+                fprintf(stderr,
+                    "TORIRSRC_FONT: invalid font_id=%d text=%p\n",
+                    font_id,
+                    (void*)command.u.font.text);
+                assert(font_id >= 0 && command.u.font.text);
                 break;
+            }
             struct ToriDraw_Font* font = NULL;
             if( draw_context )
                 font = ToriDraw_SceneFontGet(draw_context, font_id);
@@ -387,26 +418,21 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 renderer->pixel_buffer);
             if( command.u.font.text[0] != '\0' && pixels_written <= 0 )
             {
-                static int font_draw_warn_count;
-                if( font_draw_warn_count < 8 )
-                {
-                    fprintf(stderr,
-                        "TORIRSRC_FONT: wrote no visible glyph pixels "
-                        "(font_id=%d text=\"%.32s%s\" x=%d y=%d line_height=%d "
-                        "clip=[%d,%d,%d,%d] pixels_written=%d)\n",
-                        font_id,
-                        command.u.font.text,
-                        strlen(command.u.font.text) > 32 ? "..." : "",
-                        command.u.font.x,
-                        command.u.font.y,
-                        font->line_height,
-                        renderer->iface_view_port.clip_left,
-                        renderer->iface_view_port.clip_top,
-                        renderer->iface_view_port.clip_right,
-                        renderer->iface_view_port.clip_bottom,
-                        pixels_written);
-                    font_draw_warn_count++;
-                }
+                fprintf(stderr,
+                    "TORIRSRC_FONT: wrote no visible glyph pixels "
+                    "(font_id=%d text=\"%.32s%s\" x=%d y=%d line_height=%d "
+                    "clip=[%d,%d,%d,%d] pixels_written=%d)\n",
+                    font_id,
+                    command.u.font.text,
+                    strlen(command.u.font.text) > 32 ? "..." : "",
+                    command.u.font.x,
+                    command.u.font.y,
+                    font->line_height,
+                    renderer->iface_view_port.clip_left,
+                    renderer->iface_view_port.clip_top,
+                    renderer->iface_view_port.clip_right,
+                    renderer->iface_view_port.clip_bottom,
+                    pixels_written);
             }
             break;
         }

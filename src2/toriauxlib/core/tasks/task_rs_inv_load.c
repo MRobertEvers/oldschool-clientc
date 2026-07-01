@@ -70,6 +70,22 @@ inv_load_register_obj_sprite(
     return element_id;
 }
 
+static void
+inv_load_ensure_objtypes(
+    struct ToriAuxLibCache* cache,
+    int const* obj_ids,
+    int count)
+{
+    if( !cache || !obj_ids || count <= 0 )
+        return;
+
+    for( int i = 0; i < count; i++ )
+    {
+        if( obj_ids[i] > 0 )
+            ToriAuxLibCache_EnsureObjtype(cache, obj_ids[i]);
+    }
+}
+
 struct Task_RSInvLoad*
 Task_RSInvLoad_New(
     enum ToriAuxLibCacheMode cache_mode,
@@ -215,6 +231,8 @@ Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
             LibToriRS_IOQueueClear(ctx->io);
         }
 
+        inv_load_ensure_objtypes(task->cache, task->obj_ids, task->inv.item_count);
+
         dat1_bc = task->rc_ctx->dat1_bc ? task->rc_ctx->dat1_bc : dat1(task->cache);
         if( dat1_bc && task->rc_ctx->scene )
         {
@@ -284,6 +302,8 @@ Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
             }
             LibToriRS_IOQueueClear(ctx->io);
         }
+
+        inv_load_ensure_objtypes(task->cache, task->obj_ids, task->inv.item_count);
 
         dat2_bc = task->rc_ctx->dat2_bc ? task->rc_ctx->dat2_bc : dat2(task->cache);
         if( dat2_bc )

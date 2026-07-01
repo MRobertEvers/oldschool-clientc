@@ -4,6 +4,7 @@
 #include "platforms/platform_x_io_reactor.h"
 #include "revconfig/revconfig.h"
 #include "revconfig/revconfig_load.h"
+#include "osrs/minimenu_action.h"
 #include "toriauxlib/core/tasks/core_task.h"
 
 #include <stdbool.h>
@@ -204,20 +205,28 @@ get_cache_font_item(
     return NULL;
 }
 
+static struct RevConfigUIComponentItem const*
+get_uicomponent(
+    struct RevConfigItemBuffer const* items,
+    char const* name)
+{
+    if( !items || !name )
+        return NULL;
+    for( uint32_t i = 0; i < items->item_count; i++ )
+    {
+        struct RevConfigItem const* item = &items->items[i];
+        if( item->kind == RCITEM_UICOMPONENT && strcmp(item->u.uicomponent.name, name) == 0 )
+            return &item->u.uicomponent;
+    }
+    return NULL;
+}
+
 static bool
 find_uicomponent(
     struct RevConfigItemBuffer const* items,
     char const* name)
 {
-    if( !items || !name )
-        return false;
-    for( uint32_t i = 0; i < items->item_count; i++ )
-    {
-        struct RevConfigItem const* item = &items->items[i];
-        if( item->kind == RCITEM_UICOMPONENT && strcmp(item->u.uicomponent.name, name) == 0 )
-            return true;
-    }
-    return false;
+    return get_uicomponent(items, name) != NULL;
 }
 
 static bool
@@ -330,6 +339,22 @@ run_ini_pair_test(
     return 0;
 }
 
+static int
+test_revconfig_menu_option_fields(void)
+{
+    TEST_ASSERT(
+        revconfig_parse_minimenu_action("CLOSE_BUTTON") == MINIMENU_ACTION_CLOSE_MODAL,
+        "CLOSE_BUTTON alias");
+    TEST_ASSERT(
+        revconfig_parse_minimenu_action("INV_BUTTON1") == MINIMENU_ACTION_INV_BUTTON1,
+        "INV_BUTTON1 symbol");
+    TEST_ASSERT(
+        revconfig_parse_minimenu_action("737") == MINIMENU_ACTION_CLOSE_MODAL,
+        "numeric action");
+    fprintf(stderr, "ok: revconfig menu option fields\n");
+    return 0;
+}
+
 int
 main(void)
 {
@@ -343,6 +368,9 @@ main(void)
         goto fail;
 
     if( run_ini_pair_test(io, reactor, "dat2", UI_DAT2_CACHE_INI, UI_DAT2_UI_INI, false) != 0 )
+        goto fail;
+
+    if( test_revconfig_menu_option_fields() != 0 )
         goto fail;
 
     LibToriPlatformX_IOReactorFree(reactor);

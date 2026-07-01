@@ -608,8 +608,9 @@ gl3_bake_font_atlas(struct GL3FontSlot* slot)
 
     int atlas_w = max_w;
     int atlas_h = total_h;
-    uint8_t* pixels = calloc((size_t)atlas_w * (size_t)atlas_h, 1);
-    if( !pixels )
+    size_t const pixel_count = (size_t)atlas_w * (size_t)atlas_h;
+    uint8_t* alpha = calloc(pixel_count, 1);
+    if( !alpha )
         return;
 
     int y = 0;
@@ -623,7 +624,7 @@ gl3_bake_font_atlas(struct GL3FontSlot* slot)
             for( int row = 0; row < gh; row++ )
             {
                 for( int col = 0; col < gw; col++ )
-                    pixels[(y + row) * atlas_w + col] = src[col + row * gw];
+                    alpha[(y + row) * atlas_w + col] = src[col + row * gw];
             }
         }
         float u0 = 0.0f;
@@ -637,6 +638,21 @@ gl3_bake_font_atlas(struct GL3FontSlot* slot)
         y += gh;
     }
 
+    uint8_t* rgba = malloc(pixel_count * 4u);
+    if( !rgba )
+    {
+        free(alpha);
+        return;
+    }
+    for( size_t i = 0; i < pixel_count; i++ )
+    {
+        rgba[i * 4u + 0] = 255u;
+        rgba[i * 4u + 1] = 255u;
+        rgba[i * 4u + 2] = 255u;
+        rgba[i * 4u + 3] = alpha[i];
+    }
+    free(alpha);
+
     if( slot->texture )
         glDeleteTextures(1, &slot->texture);
     glGenTextures(1, &slot->texture);
@@ -646,7 +662,15 @@ gl3_bake_font_atlas(struct GL3FontSlot* slot)
         glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpack_align);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         glTexImage2D(
-            GL_TEXTURE_2D, 0, GL_R8, atlas_w, atlas_h, 0, GL_RED, GL_UNSIGNED_BYTE, pixels);
+            GL_TEXTURE_2D,
+            0,
+            GL_RGBA8,
+            atlas_w,
+            atlas_h,
+            0,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            rgba);
         glPixelStorei(GL_UNPACK_ALIGNMENT, unpack_align);
     }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -658,7 +682,50 @@ gl3_bake_font_atlas(struct GL3FontSlot* slot)
     slot->atlas_w = atlas_w;
     slot->atlas_h = atlas_h;
     slot->baked = true;
-    free(pixels);
+    free(rgba);
+}
+
+static struct ToriDraw_Scene*
+get_context(struct LibToriRS_Instance* instance)
+{
+    return LibToriRS_GetCurrentToriDrawScene(instance);
+}
+
+static struct GL3FontSlot*
+gl3_ensure_font_slot(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance,
+    int font_id)
+{
+    if( font_id < 0 || font_id >= TRSPK_GL3_FONT_CAP )
+        return NULL;
+
+    struct GL3FontSlot* slot = &renderer->font_slots[font_id];
+    if( !slot->font )
+    {
+        struct ToriDraw_Scene* scene = get_context(instance);
+        if( scene )
+            slot->font = ToriDraw_SceneFontGet(scene, font_id);
+    }
+    if( slot->font && !slot->baked )
+        gl3_bake_font_atlas(slot);
+    return slot;
+}
+
+static void
+gl3_sync_scene_fonts(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct LibToriRS_Instance* instance)
+{
+    struct ToriDraw_Scene* scene = get_context(instance);
+    if( !scene )
+        return;
+
+    for( int font_id = 0; font_id < TRSPK_GL3_FONT_CAP; font_id++ )
+    {
+        if( ToriDraw_SceneFontHas(scene, font_id) )
+            gl3_ensure_font_slot(renderer, instance, font_id);
+    }
 }
 
 static void
@@ -736,16 +803,21 @@ gl3_draw_font_glyphs(
     int y,
     int default_color_rgb,
     float alpha,
-    bool shadow)
+    bool shadow,
+    bool center)
 {
     if( !text || !slot->baked || !font )
         return;
 
+    glUseProgram(renderer->program2d);
+    glBindVertexArray(renderer->quad_vao);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, slot->texture);
     glUniform1i(renderer->u2d_texture, 0);
     if( renderer->u2d_text_mode >= 0 )
         glUniform1i(renderer->u2d_text_mode, 1);
+    if( renderer->u2d_uv_clamp >= 0 )
+        glUniform1i(renderer->u2d_uv_clamp, 0);
 
     struct GL3FontGlyphCtx ctx = {
         .renderer = renderer,
@@ -753,7 +825,8 @@ gl3_draw_font_glyphs(
         .alpha = alpha,
         .shadow = shadow,
     };
-    ToriDraw_FontVisitGlyphs(font, text, x, y, default_color_rgb, gl3_font_glyph_callback, &ctx);
+    ToriDraw_FontVisitGlyphsStyled(
+        font, text, x, y, default_color_rgb, center, gl3_font_glyph_callback, &ctx);
 
     glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
     glUniform1i(renderer->u2d_texture, 0);
@@ -815,6 +888,7 @@ gl3_ev_begin_2d(
     (void)command;
     renderer->in2d = true;
     glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(renderer->program2d);
@@ -829,6 +903,7 @@ gl3_ev_begin_2d(
     if( renderer->u2d_uv_clamp >= 0 )
         glUniform1i(renderer->u2d_uv_clamp, 0);
     glBindVertexArray(renderer->quad_vao);
+    gl3_sync_scene_fonts(renderer, instance);
 }
 
 static void
@@ -868,7 +943,14 @@ gl3_ev_sprite_load(
     {
         struct ToriDraw_Sprite* sp = slot->sprites[i];
         if( !sp || !sp->pixels_argb )
+        {
+            fprintf(stderr,
+                "gl3_ev_sprite_load: missing sprite pixels element_id=%d atlas_index=%d\n",
+                element_id,
+                i);
+            assert(sp && sp->pixels_argb);
             continue;
+        }
         uint32_t* rgba = malloc((size_t)sp->width * (size_t)sp->height * sizeof(uint32_t));
         if( !rgba )
             continue;
@@ -942,17 +1024,43 @@ gl3_ev_sprite(
 {
     (void)instance;
     if( !renderer->in2d )
+    {
+        fprintf(stderr, "gl3_ev_sprite: called outside 2D pass\n");
+        assert(renderer->in2d);
         return;
+    }
     const int element_id = command->u.sprite.element_id;
     const int atlas_index = command->u.sprite.atlas_index;
     if( element_id < 0 || element_id >= TRSPK_GL3_SPRITE_CAP )
+    {
+        fprintf(stderr,
+            "gl3_ev_sprite: invalid element_id=%d atlas_index=%d\n",
+            element_id,
+            atlas_index);
+        assert(element_id >= 0 && element_id < TRSPK_GL3_SPRITE_CAP);
         return;
+    }
     struct GL3SpriteSlot* slot = &renderer->sprite_slots[element_id];
     if( !slot->sprites || atlas_index < 0 || atlas_index >= slot->count || !slot->uvs )
+    {
+        fprintf(stderr,
+            "gl3_ev_sprite: missing sprite slot element_id=%d atlas_index=%d count=%d\n",
+            element_id,
+            atlas_index,
+            slot->count);
+        assert(slot->sprites && atlas_index >= 0 && atlas_index < slot->count && slot->uvs);
         return;
+    }
     struct ToriDraw_Sprite* sp = slot->sprites[atlas_index];
     if( !sp )
+    {
+        fprintf(stderr,
+            "gl3_ev_sprite: null sprite element_id=%d atlas_index=%d\n",
+            element_id,
+            atlas_index);
+        assert(sp);
         return;
+    }
 
     if( command->u.sprite.scissor_w > 0 && command->u.sprite.scissor_h > 0 )
         gl3_apply_logical_scissor(
@@ -1044,14 +1152,16 @@ gl3_ev_font_load(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_RenderCommand* command)
 {
-    (void)instance;
     const int font_id = command->u.font_load.font_id;
     if( font_id < 0 || font_id >= TRSPK_GL3_FONT_CAP )
         return;
     struct GL3FontSlot* slot = &renderer->font_slots[font_id];
-    slot->font = command->u.font_load.font;
-    slot->baked = false;
-    gl3_bake_font_atlas(slot);
+    if( slot->font != command->u.font_load.font )
+    {
+        slot->font = command->u.font_load.font;
+        slot->baked = false;
+    }
+    gl3_ensure_font_slot(renderer, instance, font_id);
 }
 
 static void
@@ -1060,25 +1170,21 @@ gl3_ev_font(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_RenderCommand* command)
 {
-    (void)instance;
     if( !renderer->in2d )
         return;
     const int font_id = command->u.font.font_id;
-    if( font_id < 0 || font_id >= TRSPK_GL3_FONT_CAP )
+    if( font_id < 0 || !command->u.font.text || command->u.font.text[0] == '\0' )
         return;
-    struct GL3FontSlot* slot = &renderer->font_slots[font_id];
-    struct ToriDraw_Font* font = slot->font;
-    if( !font || !command->u.font.text )
-        return;
-    if( !slot->baked )
-        gl3_bake_font_atlas(slot);
-    if( !slot->baked )
+    struct GL3FontSlot* slot = gl3_ensure_font_slot(renderer, instance, font_id);
+    struct ToriDraw_Font* font = slot ? slot->font : NULL;
+    if( !font || !slot->baked || !ToriDraw_FontValidate(font) )
         return;
 
     int x = command->u.font.x;
     int y = command->u.font.y;
-    if( command->u.font.center )
-        x -= ToriDraw2D_MeasureString(font, command->u.font.text) / 2;
+    bool const center = command->u.font.center != 0;
+
+    y -= font->line_height;
 
     if( command->u.font.shadowed )
         gl3_draw_font_glyphs(
@@ -1090,22 +1196,26 @@ gl3_ev_font(
             y + 1,
             command->u.font.color,
             1.0f,
-            true);
+            true,
+            center);
 
     gl3_draw_font_glyphs(
-        renderer, slot, font, command->u.font.text, x, y, command->u.font.color, 1.0f, false);
+        renderer,
+        slot,
+        font,
+        command->u.font.text,
+        x,
+        y,
+        command->u.font.color,
+        1.0f,
+        false,
+        center);
 }
 
 static struct ToriDraw_Model*
 get_model(struct ToriDraw_ModelHandle model_handle)
 {
     return model_handle.u.model.model;
-}
-
-static struct ToriDraw_Scene*
-get_context(struct LibToriRS_Instance* instance)
-{
-    return LibToriRS_GetCurrentToriDrawScene(instance);
 }
 
 static void

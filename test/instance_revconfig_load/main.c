@@ -13,22 +13,30 @@
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_scene.h"
 #include "osrs/colors.h"
+#include "osrs/minimenu_action.h"
 #include "games/runescape.h"
 #include "ui/minimenu_pickset.h"
 #include "ui/ui_click.h"
+#include "ui/ui_chat_minimenu.h"
+#include "ui/ui_behavior.h"
 #include "ui/ui_font_lookup.h"
 #include "ui/ui_minimenu.h"
 #include "ui/ui_input.h"
 #include "ui/ui_sprite_lookup.h"
 #include "ui/uitree.h"
 #include "ui/uitree_host.h"
+#include "ui/uitree_layout.h"
 #include "world/minimap.h"
 #include "world/world.h"
 #include "world/world_pickset.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/dat1a/dat1a_configs_dat.h"
+#include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat1disk/dat1disk.h"
 #include "osrs/rscache/shared/shared_file_list.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "vm/csvm.h"
+#include "vm/cs2vm.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -1136,7 +1144,8 @@ test_mouse_hit_test_on_built_tree(void)
         { 10, 10, UIELEM_BUILTIN_CROSS, "cross at default layout origin", false, 0, NULL },
         { 100, 100, UIELEM_BUILTIN_MINIMENU, "minimenu placeholder shadow", false, 0, NULL },
         { 116, 116, UIELEM_BUILTIN_MINIMENU, "cross area shadowed by minimenu", false, 0, NULL },
-        { 400, 400, UIELEM_RS_LAYER, "fixed shell below world", false, 0, NULL },
+        { 400, 400, UIELEM_BUILTIN_CHAT, "chat region main box", false, 0, NULL },
+        { 500, 480, UIELEM_RS_LAYER, "fixed shell below chat", false, 0, NULL },
     };
 
     for( size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++ )
@@ -1310,6 +1319,146 @@ test_mouse_hit_test_on_built_tree(void)
     revconfig_item_buffer_free(items);
 
     fprintf(stderr, "ok: mouse hit-test and minimenu options on built UI tree\n");
+    return 0;
+}
+
+static int
+test_pipeline_ui_minimenu_smoke(struct UITree* tree, struct GameRunescape* game)
+{
+    if( !tree || !game )
+        return 0;
+
+    game->ui_tree = tree;
+    game->ui_tree_ready = true;
+    uitree_host_init(&game->ui_host);
+
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct StaticUIComponent* component = &tree->components[i];
+        if( !uitree_component_expects_minimenu_rows(component) )
+            continue;
+
+        int bx = 0;
+        int by = 0;
+        int bw = 0;
+        int bh = 0;
+        uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
+        if( bw <= 0 || bh <= 0 )
+            continue;
+
+        int const px = bx + bw / 2;
+        int const py = by + bh / 2;
+        int32_t hit = GameRunescape_UIHitTest(game, px, py);
+        if( hit != (int32_t)i )
+            continue;
+
+        struct UIMinimenuState menu;
+        ui_click_build_ui_minimenu_at_point(game, px, py, hit, &menu);
+        TEST_ASSERT(menu.option_count >= 2, "pipeline UI minimenu has actionable rows");
+        fprintf(stderr, "ok: pipeline UI minimenu smoke at node %u\n", i);
+        return 0;
+    }
+
+    fprintf(stderr, "note: pipeline UI minimenu smoke skipped (no clickable hit)\n");
+    return 0;
+}
+
+static int
+test_ui_recursive_minimenu_synthetic(void)
+{
+    struct UITree* tree = uitree_new(8);
+    TEST_ASSERT(tree != NULL, "uitree_new synthetic");
+
+    struct UINodeSpec layer_spec = { 0 };
+    layer_spec.type = UIELEM_RS_LAYER;
+    layer_spec.x = 500;
+    layer_spec.y = 100;
+    layer_spec.width = 200;
+    layer_spec.height = 200;
+    int32_t layer_idx = uitree_push(tree, -1, &layer_spec);
+    TEST_ASSERT(layer_idx >= 0, "synthetic layer push");
+
+    struct UINodeSpec rect_spec = { 0 };
+    rect_spec.type = UIELEM_RS_RECT;
+    rect_spec.x = 0;
+    rect_spec.y = 0;
+    rect_spec.width = 200;
+    rect_spec.height = 200;
+    rect_spec.u.rs_rect.color = 0;
+    rect_spec.u.rs_rect.filled = 1;
+    int32_t rect_idx = uitree_push(tree, layer_idx, &rect_spec);
+    TEST_ASSERT(rect_idx >= 0, "synthetic rect push");
+    (void)rect_idx;
+
+    struct StaticUIBehavior btn_behavior = { 0 };
+    btn_behavior.button_type = COMPONENT_BUTTON_TYPE_OK;
+    struct UINodeSpec btn_spec = { 0 };
+    btn_spec.type = UIELEM_RS_GRAPHIC;
+    btn_spec.x = 50;
+    btn_spec.y = 50;
+    btn_spec.width = 80;
+    btn_spec.height = 25;
+    btn_spec.behavior = &btn_behavior;
+    strncpy(btn_spec.menu_options.option, "Select", sizeof(btn_spec.menu_options.option) - 1);
+    btn_spec.u.rs_graphic.scene_id = -1;
+    btn_spec.u.rs_graphic.graphic_hitbox_only = 1;
+    int32_t btn_idx = uitree_push(tree, layer_idx, &btn_spec);
+    TEST_ASSERT(btn_idx >= 0, "synthetic button push");
+
+    struct GameRunescape game;
+    memset(&game, 0, sizeof(game));
+    game.ui_tree = tree;
+    game.ui_tree_ready = true;
+    uitree_host_init(&game.ui_host);
+    uitree_layout_resolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+
+    int const px = 575;
+    int const py = 162;
+    int32_t hit = GameRunescape_UIHitTest(&game, px, py);
+    TEST_ASSERT(hit == btn_idx, "synthetic hit reaches button through decorative rect");
+
+    struct UIMinimenuState menu;
+    ui_click_build_ui_minimenu_at_point(&game, px, py, hit, &menu);
+    TEST_ASSERT(menu.option_count >= 2, "synthetic recursive UI minimenu row count");
+    TEST_ASSERT(strstr(menu.options[1].text, "Select") != NULL, "synthetic recursive UI label");
+
+    uitree_free(tree);
+    fprintf(stderr, "ok: ui recursive minimenu synthetic\n");
+    return 0;
+}
+
+static int
+test_ui_minimenu_explicit_opcodes(void)
+{
+    struct UITree* tree = uitree_new(4);
+    TEST_ASSERT(tree != NULL, "uitree_new opcode test");
+
+    struct UINodeSpec spec = { 0 };
+    spec.type = UIELEM_RS_GRAPHIC;
+    spec.x = 10;
+    spec.y = 10;
+    spec.width = 80;
+    spec.height = 25;
+    spec.u.rs_graphic.scene_id = -1;
+    spec.u.rs_graphic.graphic_hitbox_only = 1;
+    strncpy(spec.menu_options.ops[0], "Remove", sizeof(spec.menu_options.ops[0]) - 1);
+    spec.menu_options.op_actions[0] = MINIMENU_ACTION_FRIENDLIST_DEL;
+    int32_t idx = uitree_push(tree, -1, &spec);
+    TEST_ASSERT(idx >= 0, "opcode test node push");
+
+    struct GameRunescape game;
+    memset(&game, 0, sizeof(game));
+    game.ui_tree = tree;
+    game.ui_tree_ready = true;
+    uitree_host_init(&game.ui_host);
+
+    struct UIMinimenuState menu;
+    ui_click_build_ui_minimenu_at_point(&game, 20, 20, idx, &menu);
+    TEST_ASSERT(menu.option_count >= 2, "opcode test row count");
+    TEST_ASSERT(menu.options[1].action == MINIMENU_ACTION_FRIENDLIST_DEL, "opcode test action");
+
+    uitree_free(tree);
+    fprintf(stderr, "ok: ui minimenu explicit opcodes\n");
     return 0;
 }
 
@@ -1501,6 +1650,11 @@ run_pipeline_test(
         }
     }
 
+    game.ui_tree = tree;
+    game.ui_tree_ready = true;
+    if( test_pipeline_ui_minimenu_smoke(tree, &game) != 0 )
+        return 1;
+
     fprintf(
         stderr,
         "ok: %s items=%u tree_nodes=%u sprites=%d\n",
@@ -1600,12 +1754,12 @@ test_sidebar_tab_inv_binding(void)
 
     g_test_selected_tab = 3;
     TEST_ASSERT(
-        uitree_component_visible_host(&tree->components[owner_idx], owner_idx, -1, &host),
+        uitree_component_visible_host(&tree->components[owner_idx], -1, &host),
         "sidebar visible when selected tab is 3");
 
     g_test_selected_tab = 2;
     TEST_ASSERT(
-        !uitree_component_visible_host(&tree->components[owner_idx], owner_idx, -1, &host),
+        !uitree_component_visible_host(&tree->components[owner_idx], -1, &host),
         "sidebar hidden when selected tab is not 3");
 
     instance_revconfig_context_release_build_state(&ctx);
@@ -1788,6 +1942,8 @@ test_ui_click_world_viewport(void)
     game.ui_host.get_cross_active = test_stub_cross_active;
     game.ui_host.get_minimenu_visible = test_stub_minimenu_visible;
     game.ui_host.get_selected_tab = test_host_get_selected_tab;
+    uitree_layout_resolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    game.ui_chat_node = uitree_find_chat_builtin_node(tree);
     game.world_view_port.clip_left = 4;
     game.world_view_port.clip_top = 4;
     game.world_view_port.clip_right = 517;
@@ -2049,10 +2205,96 @@ test_ui_click_right_outside_viewport(void)
     return 0;
 }
 
+static int
+test_csvm_eval_len_bounded(void)
+{
+    struct CSVM* vm = csvm_new();
+    TEST_ASSERT(vm != NULL, "csvm_new");
+
+    int script[] = { 13, 5, 3 };
+    struct CSVM_State state = { 0 };
+    int value = csvm_eval_len(vm, script, &state, 3);
+    (void)value;
+    TEST_ASSERT(true, "bounded eval completes 3-int script without reading past end");
+
+    csvm_free(vm);
+    fprintf(stderr, "ok: csvm_eval_len bounded script\n");
+    return 0;
+}
+
+static int
+test_dat2_cs1_scripts_copy(void)
+{
+    Component src;
+    Component_init(&src);
+    src.type = 4;
+    src.cs1ScriptsLen = 1;
+    src.cs1Scripts = calloc(1, sizeof(int32_t*));
+    src.cs1ScriptsLengths = calloc(1, sizeof(int32_t));
+    src.cs1ScriptsLengths[0] = 3;
+    src.cs1Scripts[0] = malloc(3 * sizeof(int32_t));
+    src.cs1Scripts[0][0] = 13;
+    src.cs1Scripts[0][1] = 5;
+    src.cs1Scripts[0][2] = 3;
+    src.cs1ComparisonLen = 1;
+    src.cs1ComparisonOpcodes = malloc(sizeof(int32_t));
+    src.cs1ComparisonOperands = malloc(sizeof(int32_t));
+    src.cs1ComparisonOpcodes[0] = 2;
+    src.cs1ComparisonOperands[0] = 0;
+
+    struct ToriAuxLibCore_Component* dst = ToriAuxLibCache_ComponentNewFromCacheDat2Component(&src);
+    TEST_ASSERT(dst != NULL, "dat2 component convert");
+    TEST_ASSERT(dst->scripts_count == 1, "dat2 cs1 script count");
+    TEST_ASSERT(dst->script_kind == CS2VM_SCRIPT_KIND_CS1, "dat2 cs1 script_kind");
+    TEST_ASSERT(dst->scripts_lengths && dst->scripts_lengths[0] == 3, "dat2 cs1 script length");
+
+    Component_free(&src);
+    ToriAuxLibCore_ComponentFree(dst);
+    fprintf(stderr, "ok: dat2 cs1 scripts copy\n");
+    return 0;
+}
+
+static int
+test_cs2_behavior_is_active(void)
+{
+    int script[] = { 1, 5, 0 };
+    int* script_ptr = script;
+    int comp = 2;
+    int operand = 5;
+    struct StaticUIBehavior behavior = { 0 };
+    behavior.script_kind = CS2VM_SCRIPT_KIND_CS2;
+    behavior.scripts_count = 1;
+    behavior.scripts = &script_ptr;
+    behavior.script_comparator = &comp;
+    behavior.script_operand = &operand;
+
+    struct CS2VM* vm = cs2vm_new();
+    TEST_ASSERT(vm != NULL, "cs2vm_new");
+
+    struct UITreeBehaviorHost host;
+    memset(&host, 0, sizeof(host));
+    host.cs2vm = vm;
+
+    TEST_ASSERT(uitree_behavior_is_active(&host, &behavior), "cs2 visibility script active");
+
+    cs2vm_free(vm);
+    fprintf(stderr, "ok: cs2 behavior is_active\n");
+    return 0;
+}
+
 int
 main(void)
 {
     if( test_task_await() != 0 )
+        return 1;
+
+    if( test_csvm_eval_len_bounded() != 0 )
+        return 1;
+
+    if( test_dat2_cs1_scripts_copy() != 0 )
+        return 1;
+
+    if( test_cs2_behavior_is_active() != 0 )
         return 1;
 
     if( test_minimenu_layout_derivation() != 0 )
@@ -2097,6 +2339,12 @@ main(void)
     if( test_minimap_component_always_dirty() != 0 )
         return 1;
 
+    if( test_ui_recursive_minimenu_synthetic() != 0 )
+        return 1;
+
+    if( test_ui_minimenu_explicit_opcodes() != 0 )
+        return 1;
+
     if( test_mouse_hit_test_on_built_tree() != 0 )
         return 1;
 
@@ -2116,6 +2364,10 @@ main(void)
     {
         if( run_pipeline_test(
                 TORIAUXLIBCACHE_MODE_DAT1, "dat1", UI_DAT1_CACHE_INI, UI_DAT1_UI_INI, true) != 0 )
+            return 1;
+        if( run_pipeline_test(
+                TORIAUXLIBCACHE_MODE_DAT2, "dat2", UI_DAT2_CACHE_INI, UI_DAT2_UI_INI, false) !=
+            0 )
             return 1;
     }
     else

@@ -121,6 +121,12 @@ ToriAuxLibCache_NpctypeNewFromDat1ConfigNpc(const void* cache_npc, int npc_id);
 struct ToriAuxLibCore_Npctype*
 ToriAuxLibCache_NpctypeNewFromDat2ConfigNpctype(const void* cache_npc, int npc_id);
 
+struct ToriAuxLibCore_Objtype*
+ToriAuxLibCache_ObjtypeNewFromDat1ConfigObj(const void* cache_obj, int obj_id);
+
+struct ToriAuxLibCore_Objtype*
+ToriAuxLibCache_ObjtypeNewFromDat2ConfigObject(const void* cache_obj, int obj_id);
+
 struct ToriAuxLibCore_Sequence*
 ToriAuxLibCache_SequenceNewFromCacheDatSequence(
     const void* cache_seq,

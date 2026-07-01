@@ -22,6 +22,21 @@ uitree_point_in_component(
     return px >= x && px < x + w && py >= y && py < y + h;
 }
 
+static bool
+uitree_rs_node_is_decorative_passthrough(struct StaticUIComponent const* component)
+{
+    if( component->behavior.button_type != 0 || component->behavior.client_code != 0 )
+        return false;
+    if( component->menu_options.option[0] != '\0' )
+        return false;
+    for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+    {
+        if( component->menu_options.ops[i][0] != '\0' )
+            return false;
+    }
+    return true;
+}
+
 bool
 uitree_component_is_pass_through(
     struct StaticUIComponent const* component,
@@ -43,16 +58,11 @@ uitree_component_is_pass_through(
         return !host || !host->get_minimenu_visible || !host->get_minimenu_visible(host->user);
     case UIELEM_RS_GRAPHIC:
     case UIELEM_RS_TEXT:
-        if( component->behavior.button_type != 0 || component->behavior.client_code != 0 )
-            return false;
-        if( component->menu_options.option[0] != '\0' )
-            return false;
-        for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
-        {
-            if( component->menu_options.ops[i][0] != '\0' )
-                return false;
-        }
-        return true;
+    case UIELEM_RS_INV_TEXT:
+    case UIELEM_RS_RECT:
+    case UIELEM_RS_MODEL:
+    case UIELEM_RS_LINE:
+        return uitree_rs_node_is_decorative_passthrough(component);
     default:
         return false;
     }
@@ -74,7 +84,7 @@ uitree_hit_test_interactive_recursive(
     int32_t hit = -1;
     if( uitree_point_in_component(&component->position, px, py) &&
         !uitree_component_is_pass_through(component, host) &&
-        uitree_component_hit_test_visible_host(component, node_index, -1, host) )
+        uitree_component_hit_test_visible_host(component, -1, host) )
         hit = node_index;
 
     bool recurse_children = true;

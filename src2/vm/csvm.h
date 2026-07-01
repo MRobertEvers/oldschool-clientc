@@ -40,6 +40,22 @@ csvm_eval(
     int const* script,
     struct CSVM_State const* state);
 
+/**
+ * Evaluate one CS1 script with an explicit int count from cache.
+ * When script_len > 0, stops at pc >= script_len (no opcode-0 required).
+ * When script_len <= 0, uses opcode-0 termination (same as csvm_eval).
+ */
+int
+csvm_eval_len(
+    struct CSVM* vm,
+    int const* script,
+    struct CSVM_State const* state,
+    int script_len);
+
+/** Byte length of one CS1 script as int count (includes terminating opcode 0). */
+int
+csvm_script_length(int const* script);
+
 /** Returns true when (value, comparator, operand) satisfies the active condition. */
 bool
 csvm_compare(

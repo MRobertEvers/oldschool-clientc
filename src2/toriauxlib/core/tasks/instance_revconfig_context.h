@@ -127,4 +127,7 @@ instance_revconfig_context_release_build_state(struct InstanceRevConfigContext* 
 void
 instance_revconfig_assert_fonts_in_scene(struct InstanceRevConfigContext* ctx);
 
+void
+instance_revconfig_assert_sprites_in_scene(struct InstanceRevConfigContext* ctx);
+
 #endif

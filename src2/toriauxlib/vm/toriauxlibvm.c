@@ -1,8 +1,12 @@
 #include "toriauxlibvm.h"
 
-#include "ui/uitree.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/varp_varbit_manager.h"
+#include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/toriauxlibcore.h"
+#include "ui/uitree.h"
+#include "vm/cs2vm.h"
 #include "vm/csvm.h"
 
 #include <assert.h>
@@ -40,6 +44,7 @@ tal_vm_state_fill(
 {
     if( !out )
         return;
+    memset(out, 0, sizeof(*out));
     out->get_varp = tal_vm_get_varp;
     out->get_varbit = tal_vm_get_varbit;
     out->ud = vm;
@@ -74,21 +79,38 @@ ToriAuxLibVM_Free(struct ToriAuxLibVM* vm)
 int
 ToriAuxLibVM_EvalScript(
     struct ToriAuxLibVM* vm,
+    struct CS2VM* cs2vm,
+    struct CS2VM_State const* cs2vm_state,
     struct StaticUIComponent const* c,
     int script_id)
 {
-    if( !vm || !c || script_id < 0 || script_id >= c->behavior.scripts_count )
-        return -2;
-    if( !c->behavior.scripts || !c->behavior.scripts[script_id] )
-        return -1;
+    assert(vm);
+    assert(c);
+    assert(script_id >= 0 && script_id < c->behavior.scripts_count);
+    assert(c->behavior.scripts);
+    assert(c->behavior.scripts[script_id]);
+
+    if( c->behavior.script_kind == CS2VM_SCRIPT_KIND_CS2 )
+    {
+        if( !cs2vm || !cs2vm_state )
+            return 0;
+        return cs2vm_eval(cs2vm, c->behavior.scripts[script_id], cs2vm_state);
+    }
+
+    assert(vm->csvm);
     struct CSVM_State state;
     tal_vm_state_fill(vm, &state);
-    return csvm_eval(vm->csvm, c->behavior.scripts[script_id], &state);
+    int script_len = 0;
+    if( c->behavior.scripts_lengths )
+        script_len = c->behavior.scripts_lengths[script_id];
+    return csvm_eval_len(vm->csvm, c->behavior.scripts[script_id], &state, script_len);
 }
 
 bool
 ToriAuxLibVM_IsActive(
     struct ToriAuxLibVM* vm,
+    struct CS2VM* cs2vm,
+    struct CS2VM_State const* cs2vm_state,
     struct StaticUIComponent const* c)
 {
     if( !vm || !c || !c->behavior.script_comparator || !c->behavior.script_operand )
@@ -98,17 +120,35 @@ ToriAuxLibVM_IsActive(
     if( count <= 0 )
         return false;
 
-    struct CSVM_State state;
-    tal_vm_state_fill(vm, &state);
+    struct CSVM_State csvm_state;
+    tal_vm_state_fill(vm, &csvm_state);
+
     for( int i = 0; i < count; i++ )
     {
         if( !c->behavior.scripts || !c->behavior.scripts[i] )
             return false;
 
-        int value = csvm_eval(vm->csvm, c->behavior.scripts[i], &state);
+        int script_len = c->behavior.scripts_lengths ? c->behavior.scripts_lengths[i] : 0;
+        int value = 0;
+        if( c->behavior.script_kind == CS2VM_SCRIPT_KIND_CS2 )
+        {
+            if( !cs2vm || !cs2vm_state )
+                return false;
+            value = cs2vm_eval(cs2vm, c->behavior.scripts[i], cs2vm_state);
+        }
+        else
+        {
+            value = csvm_eval_len(vm->csvm, c->behavior.scripts[i], &csvm_state, script_len);
+        }
+
         int operand = c->behavior.script_operand[i];
         int comp = c->behavior.script_comparator[i];
-        if( !csvm_compare(comp, value, operand) )
+        if( c->behavior.script_kind == CS2VM_SCRIPT_KIND_CS2 )
+        {
+            if( !cs2vm_compare(comp, value, operand) )
+                return false;
+        }
+        else if( !csvm_compare(comp, value, operand) )
             return false;
     }
     return true;
@@ -163,8 +203,9 @@ ToriAuxLibVM_ApplyButtonClickOptimistic(
     assert(!(!vm || !c));
 
     struct StaticUIBehavior const* b = &c->behavior;
-    if( !b->scripts || b->scripts_count < 1 || !b->scripts[0] )
-        return;
+    assert(b->scripts);
+    assert(b->scripts_count >= 1);
+    assert(b->scripts[0]);
 
     int* script = b->scripts[0];
     int opcode = script[0];

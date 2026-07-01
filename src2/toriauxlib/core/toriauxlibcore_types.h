@@ -25,6 +25,8 @@ enum ToriAuxLibCore_Kind
     TORIAUXLIBCORE_KIND_SPRITE,
     TORIAUXLIBCORE_KIND_FONT,
     TORIAUXLIBCORE_KIND_COMPONENT,
+    TORIAUXLIBCORE_KIND_CLIENTSCRIPT,
+    TORIAUXLIBCORE_KIND_OBJTYPE,
     TORIAUXLIBCORE_KIND_COUNT,
 };
 
@@ -219,6 +221,14 @@ struct ToriAuxLibCore_Npctype
     int size;
 };
 
+struct ToriAuxLibCore_Objtype
+{
+    int id;
+    char name[TORIAUXLIBCORE_NAME_MAX];
+    char inv_actions[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN];
+    uint8_t stackable;
+};
+
 struct ToriAuxLibCore_Sequence
 {
     int id;
@@ -318,6 +328,24 @@ enum ToriAuxLibCore_ComponentType
     TORIAUXLIBCORE_COMPONENT_INV_TEXT,
 };
 
+#define TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX 16
+
+struct ToriAuxLibCore_ScriptHook
+{
+    int argc;
+    int argv[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX];
+};
+
+struct ToriAuxLibCore_ClientScript
+{
+    int script_id;
+    int* instructions;
+    int* int_operands;
+    int op_count;
+    int* cs2vm_ops;
+    int cs2vm_op_count;
+};
+
 struct ToriAuxLibCore_Component
 {
     int id;
@@ -328,6 +356,7 @@ struct ToriAuxLibCore_Component
     int width;
     int height;
     char sprite_ref[TORIAUXLIBCORE_SPRITE_REF_MAX];
+    /** Client.ts graphic2 / dat activeGraphic: sprite when getIfActive. */
     char sprite_active_ref[TORIAUXLIBCORE_SPRITE_REF_MAX];
     int model_id;
     int color;
@@ -335,22 +364,35 @@ struct ToriAuxLibCore_Component
     int font_id;
     int center;
     int shadowed;
+    /** Client.ts text: inactive label. */
     char text[TORIAUXLIBCORE_COMPONENT_TEXT_MAX];
+    /** Client.ts text2 / dat activeText. Used when script comparators pass. */
+    char active_text[TORIAUXLIBCORE_COMPONENT_TEXT_MAX];
     int inv_cols;
     int inv_rows;
     int margin_x;
     int margin_y;
+    /** Client.ts hide: layer skipped unless hovered_component_id == component id. */
     uint8_t hide;
     int button_type;
     int client_code;
+    /** Client.ts overLayerId. dat1 overlayer / dat2 linkedComponentId. -1 = none. */
+    int over_layer_id;
+    /** Client.ts colourOver: hover tint when inactive. 0 = none. */
     int over_color;
+    /** Client.ts colour2: colour when getIfActive. 0 = keep base. */
     int active_color;
+    /** Client.ts colour2Over: hover tint when active. 0 = none. */
     int active_over_color;
     int scripts_count;
     int** scripts;
     int* scripts_lengths;
     int* script_comparator;
     int* script_operand;
+    uint8_t script_kind;
+    struct ToriAuxLibCore_ScriptHook on_load;
+    struct ToriAuxLibCore_ScriptHook on_click;
+    struct ToriAuxLibCore_ScriptHook on_varp_transmit;
     /** GRAPHIC with no sprite refs: draw nothing, keep layout hitbox. */
     uint8_t graphic_hitbox_only;
     char option[TORIAUXLIBCORE_MENU_ACTION_LEN];
@@ -383,6 +425,9 @@ void
 ToriAuxLibCore_NpctypeFree(struct ToriAuxLibCore_Npctype* npctype);
 
 void
+ToriAuxLibCore_ObjtypeFree(struct ToriAuxLibCore_Objtype* objtype);
+
+void
 ToriAuxLibCore_SequenceFree(struct ToriAuxLibCore_Sequence* seq);
 
 void
@@ -413,6 +458,12 @@ ToriAuxLibCore_SpriteFree(struct ToriAuxLibCore_Sprite* sprite);
 void
 ToriAuxLibCore_FontFree(struct ToriAuxLibCore_Font* font);
 
+size_t
+ToriAuxLibCore_ClientScriptSizeOf(const struct ToriAuxLibCore_ClientScript* script);
+
+void
+ToriAuxLibCore_ClientScriptFree(struct ToriAuxLibCore_ClientScript* script);
+
 void
 ToriAuxLibCore_ComponentFree(struct ToriAuxLibCore_Component* component);
 
@@ -430,6 +481,9 @@ ToriAuxLibCore_LocationSizeOf(const struct ToriAuxLibCore_Location* loc);
 
 size_t
 ToriAuxLibCore_NpctypeSizeOf(const struct ToriAuxLibCore_Npctype* npctype);
+
+size_t
+ToriAuxLibCore_ObjtypeSizeOf(const struct ToriAuxLibCore_Objtype* objtype);
 
 size_t
 ToriAuxLibCore_SequenceSizeOf(const struct ToriAuxLibCore_Sequence* seq);

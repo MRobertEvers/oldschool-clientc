@@ -42,6 +42,14 @@ ui_click_handle_right(
     int click_y);
 
 void
+ui_click_build_ui_minimenu_at_point(
+    struct GameRunescape* game,
+    int click_x,
+    int click_y,
+    int32_t hit_idx,
+    struct UIMinimenuState* menu);
+
+void
 ui_click_build_minimenu_from_pickset(
     struct GameRunescape* game,
     struct MinimenuPickSet const* picks,

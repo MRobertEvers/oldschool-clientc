@@ -202,6 +202,7 @@ typedef struct Component
     int32_t varcstrTriggersLen;
 
     int32_t** cs1Scripts;
+    int32_t* cs1ScriptsLengths;
     int32_t cs1ScriptsLen;
     int32_t* cs1ComparisonOpcodes;
     int32_t* cs1ComparisonOperands;

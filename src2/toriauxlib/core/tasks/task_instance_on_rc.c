@@ -22,12 +22,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct RCUIComponentLoadUser
-{
-    struct InstanceRevConfigContext* ctx;
-    char owner_component[64];
-};
-
 static char const*
 toriauxlibcore_component_type_name(enum ToriAuxLibCore_ComponentType type)
 {
@@ -230,11 +224,11 @@ on_rc_uicomponent_rs_loaded(
     void* user,
     int component_id)
 {
-    struct RCUIComponentLoadUser* load_user = user;
-    assert(load_user && load_user->ctx && component_id >= 0);
+    struct Task_RSComponentLoad* rs_task = user;
+    assert(rs_task && rs_task->rc_ctx && rs_task->owner_component[0] != '\0' && component_id >= 0);
 
-    struct InstanceRevConfigRSSubtree* subtree =
-        instance_revconfig_rs_subtree_get_or_create(load_user->ctx, load_user->owner_component);
+    struct InstanceRevConfigRSSubtree* subtree = instance_revconfig_rs_subtree_get_or_create(
+        rs_task->rc_ctx, rs_task->owner_component);
     assert(subtree);
     instance_revconfig_rs_subtree_append(subtree, component_id);
 }
@@ -246,11 +240,11 @@ instance_revconfig_register_core_sprite(
     struct ToriAuxLibCore_Sprite* sprite,
     char const* lookup_name)
 {
-    if( !ctx || !ctx->cache || !sprite || !lookup_name || !ctx->game || !ctx->game->td )
-        return;
+    assert(ctx && ctx->cache && sprite && lookup_name && ctx->game && ctx->game->td);
 
     ToriAuxLibCache_SubmitSprite(ctx->cache, element_id, sprite);
-    ToriAuxLibTD_Sprite(ctx->game->td, element_id);
+    bool const promoted = ToriAuxLibTD_Sprite(ctx->game->td, element_id);
+    assert(promoted && "ToriAuxLibTD_Sprite failed for revconfig cache sprite");
     ui_sprite_lookup_add(&ctx->sprite_lookup, lookup_name, element_id, sprite->frame_count);
 }
 
@@ -356,22 +350,23 @@ Task_InstanceOnRCCacheSprite_Run(
         task->element_id = task->rc_ctx->next_element_id++;
         if( ToriAuxLibCore_SpriteHas(core, task->element_id) )
         {
+            struct ToriAuxLibCore_Sprite* existing =
+                ToriAuxLibCore_SpriteGet(core, task->element_id);
+            int atlas_count = existing ? existing->frame_count : 1;
+            bool const promoted = ToriAuxLibTD_Sprite(task->rc_ctx->game->td, task->element_id);
+            assert(promoted && "ToriAuxLibTD_Sprite failed for existing revconfig cache sprite");
             ui_sprite_lookup_add(
-                &task->rc_ctx->sprite_lookup, task->item.name, task->element_id, 1);
+                &task->rc_ctx->sprite_lookup, task->item.name, task->element_id, atlas_count);
         }
         else
         {
             struct ToriAuxLibCore_Sprite* sprite =
                 dat1_buildcache_sprite_decode(task->rc_ctx->dat1_bc, &task->item);
-            if( sprite && sprite->frame_count > 0 && task->rc_ctx->game )
-            {
-                instance_revconfig_register_core_sprite(
-                    task->rc_ctx, task->element_id, sprite, task->item.name);
-            }
-            else
-            {
-                ToriAuxLibCore_SpriteFree(sprite);
-            }
+            assert(
+                sprite && sprite->frame_count > 0 && task->rc_ctx->game &&
+                "failed to decode revconfig cache sprite (check media jagfile / sprite item)");
+            instance_revconfig_register_core_sprite(
+                task->rc_ctx, task->element_id, sprite, task->item.name);
         }
     }
     else if( ToriAuxLibCache_Mode(task->cache) == TORIAUXLIBCACHE_MODE_DAT2 )
@@ -386,20 +381,15 @@ Task_InstanceOnRCCacheSprite_Run(
 
         struct RSCacheDat2Disk_Archive* sprite_archive =
             TAPIDat2_DecodeSpriteArchive(ctx, 0, task->item.archive_id);
-        if( !sprite_archive )
-            PT_EXIT(&task->thread);
+        assert(sprite_archive && "failed to decode revconfig cache sprite archive");
 
         struct ToriAuxLibCore_Sprite* sprite =
             dat2_buildcache_sprite_decode_from_archive(sprite_archive, &task->item);
-        if( sprite && sprite->frame_count > 0 && task->rc_ctx->game )
-        {
-            instance_revconfig_register_core_sprite(
-                task->rc_ctx, task->element_id, sprite, task->item.name);
-        }
-        else
-        {
-            ToriAuxLibCore_SpriteFree(sprite);
-        }
+        assert(
+            sprite && sprite->frame_count > 0 && task->rc_ctx->game &&
+            "failed to decode revconfig cache sprite from archive");
+        instance_revconfig_register_core_sprite(
+            task->rc_ctx, task->element_id, sprite, task->item.name);
         (void)core;
     }
 
@@ -553,7 +543,6 @@ Task_InstanceOnRCUIComponent_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct Task_InstanceOnRCUIComponent* task = task_state;
-    struct RCUIComponentLoadUser load_user;
 
     PT_BEGIN(&task->thread);
 
@@ -567,26 +556,20 @@ Task_InstanceOnRCUIComponent_Run(
 
     if( revconfig_uicomponent_needs_rs_load(&task->item) && task->cache )
     {
-        memset(&load_user, 0, sizeof(load_user));
-        load_user.ctx = task->rc_ctx;
-        strncpy(load_user.owner_component, task->item.name, sizeof(load_user.owner_component) - 1);
-
-        struct RSComponentLoadCallbacks cbs = { 0 };
-        cbs.user = &load_user;
-        cbs.on_component = on_rc_uicomponent_rs_loaded;
-
         task->rs_load = Task_RSComponentLoad_New(
             ToriAuxLibCache_Mode(task->cache),
             task->cache,
             task->rc_ctx->scene,
             task->rc_ctx,
             task->item.componentno,
-            &cbs);
+            NULL);
         assert(task->rs_load);
         strncpy(
             task->rs_load->owner_component,
             task->item.name,
             sizeof(task->rs_load->owner_component) - 1);
+        task->rs_load->callbacks.user = task->rs_load;
+        task->rs_load->callbacks.on_component = on_rc_uicomponent_rs_loaded;
 
         TASK_AWAIT(&task->thread, Task_RSComponentLoad_Run(task->rs_load, ctx));
 

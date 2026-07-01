@@ -33,6 +33,7 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_model_convert.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_sprite_convert.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_font_convert.c \
+	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_clientscript_convert.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_submit.c \
 	$(SRC2_DIR)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2_DIR)/buildcache/dat1_buildcache.c \
@@ -45,11 +46,15 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/ui/ui_behavior.c \
 	$(SRC2_DIR)/ui/uitree_host.c \
 	$(SRC2_DIR)/ui/ui_click.c \
+	$(SRC2_DIR)/ui/ui_chat_minimenu.c \
+	$(SRC2_DIR)/ui/ui_debug.c \
 	$(SRC2_DIR)/ui/ui_minimenu.c \
 	$(SRC2_DIR)/ui/interaction_state.c \
 	$(SRC2_DIR)/ui/minimenu_pickset.c \
 	$(SRC2_DIR)/ui/uitree.c \
 	$(SRC2_DIR)/ui/uitree_layout.c \
+	$(SRC2_DIR)/vm/csvm.c \
+	$(SRC2_DIR)/vm/cs2vm.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/instance_revconfig_context.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/task_rs_component_load.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/task_rs_inv_load.c \

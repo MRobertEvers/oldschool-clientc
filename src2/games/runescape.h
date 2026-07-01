@@ -94,6 +94,15 @@ enum GameRunescape_FramePhase
 #define RUNESCAPE_UI_TRAVERSAL_STACK_MAX 64
 #define RUNESCAPE_UI_TEXT_SCRATCH_MAX 512
 #define RUNESCAPE_ENTITY_REGISTRY_INITIAL_CAP 32
+#define RUNESCAPE_CHAT_LINE_MAX 100
+#define RUNESCAPE_FRIEND_MAX 200
+
+struct GameRunescape_ChatLine
+{
+    char text[256];
+    char username[64];
+    int type;
+};
 
 struct GameRunescape_UITraversalFrame
 {
@@ -122,6 +131,7 @@ struct GameRunescape
     struct UITree* ui_tree;
     bool ui_tree_ready;
     bool ui_sprites_synced;
+    bool ui_fonts_synced;
     struct UIInventoryPool* ui_inv_pool;
     struct UITreeHost ui_host;
     struct UIInputState ui_input;
@@ -129,8 +139,24 @@ struct GameRunescape
     struct ToriAuxLibVM* vm;
     struct CS2VM* cs2vm;
     int32_t ui_hovered_node;
+    /** Client.ts overSideComId / lastOverComId: RS component id for hide
+     *  reveal and hover colours. -1 when nothing hovered. */
+    int ui_hovered_component_id;
     int32_t ui_minimenu_node;
+    int32_t ui_chat_node;
     char ui_text_scratch[RUNESCAPE_UI_TEXT_SCRATCH_MAX];
+
+    struct GameRunescape_ChatLine chat_lines[RUNESCAPE_CHAT_LINE_MAX];
+    int chat_line_count;
+    char friend_username[RUNESCAPE_FRIEND_MAX][64];
+    int friend_count;
+    int chat_scroll_pos;
+    int split_private_chat;
+    int chat_public_mode;
+    int chat_private_mode;
+    int chat_trade_mode;
+    int staff_mod_level;
+    int reboot_timer;
 
     struct InteractionState interaction;
     struct UIMinimenuState minimenu;

@@ -173,10 +173,12 @@ Task_InstanceRevConfigLoad_Run(
     ToriDraw_SceneFontsReemitLoads(task->scene);
 
     instance_revconfig_assert_fonts_in_scene(&task->rc_ctx);
+    instance_revconfig_assert_sprites_in_scene(&task->rc_ctx);
 
     if( task->game )
     {
         task->game->ui_sprites_synced = false;
+        task->game->ui_fonts_synced = false;
         GameRunescape_SyncUISpritesFromScene(task->game);
         GameRunescape_SetUITreeReady(task->game, true);
     }

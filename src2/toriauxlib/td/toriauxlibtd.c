@@ -963,10 +963,14 @@ ToriAuxLibTD_SpritePackNewFromCore(const struct ToriAuxLibCore_Sprite* src)
         sprites[i] = ToriAuxLibTD_SpriteFrameNewFromCore(&src->frames[i]);
         if( sprites[i] )
             loaded++;
+        else
+            break;
     }
 
-    if( loaded <= 0 )
+    if( loaded != src->frame_count )
     {
+        for( int i = 0; i < loaded; i++ )
+            ToriDraw_SpriteFree(sprites[i]);
         free(sprites);
         return NULL;
     }
@@ -1018,18 +1022,36 @@ ToriAuxLibTD_Sprite(
     int element_id)
 {
     if( !td || element_id < 0 )
+    {
+        fprintf(stderr,
+            "ToriAuxLibTD_Sprite: invalid td or element_id=%d\n",
+            element_id);
+        assert(td && element_id >= 0);
         return false;
+    }
 
     if( ToriDraw_SceneSpriteHas(td->scene, element_id) )
         return true;
 
     struct ToriAuxLibCore_Sprite* core_sprite = ToriAuxLibCore_SpriteGet(td->core, element_id);
     if( !core_sprite )
+    {
+        fprintf(stderr,
+            "ToriAuxLibTD_Sprite: core sprite missing element_id=%d\n",
+            element_id);
+        assert(core_sprite);
         return false;
+    }
 
     struct ToriDraw_Sprite** sprites = ToriAuxLibTD_SpritePackNewFromCore(core_sprite);
     if( !sprites )
+    {
+        fprintf(stderr,
+            "ToriAuxLibTD_Sprite: failed to pack sprite frames element_id=%d\n",
+            element_id);
+        assert(sprites);
         return false;
+    }
 
     ToriDraw_SceneSpriteAdd(td->scene, element_id, sprites, core_sprite->frame_count);
     return true;

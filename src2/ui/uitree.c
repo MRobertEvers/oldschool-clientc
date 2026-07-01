@@ -1,5 +1,8 @@
 #include "uitree.h"
 
+#include "vm/csvm.h"
+
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -181,6 +184,8 @@ uitree_component_type_str(enum StaticUIComponentType type)
         return "rs_rect";
     case UIELEM_RS_LINE:
         return "rs_line";
+    case UIELEM_RS_INV_TEXT:
+        return "rs_inv_text";
     }
     return "unknown";
 }
@@ -207,6 +212,8 @@ uitree_free(struct UITree* tree)
         struct StaticUIComponent* c = &tree->components[i];
         if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text )
             free((void*)c->u.rs_text.text);
+        if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text_active )
+            free((void*)c->u.rs_text.text_active);
         struct StaticUIBehavior* b = &c->behavior;
         if( b->scripts )
         {
@@ -229,30 +236,6 @@ uitree_mark_all_dirty(struct UITree* tree)
         return;
     for( uint32_t i = 0; i < tree->component_count; i++ )
         tree->components[i].is_dirty = 1;
-}
-
-static int
-uitree_script_length_from_opcode0(int const* script)
-{
-    if( !script )
-        return 0;
-    int pc = 0;
-    for( ;; )
-    {
-        int opcode = script[pc++];
-        if( opcode == 0 )
-            return pc;
-        if( opcode == 1 || opcode == 2 || opcode == 3 || opcode == 6 )
-            pc += 1;
-        else if( opcode == 4 || opcode == 10 )
-            pc += 2;
-        else if( opcode == 5 || opcode == 7 || opcode == 13 || opcode == 14 || opcode == 20 )
-            pc += 1;
-        else if( opcode == 15 || opcode == 16 || opcode == 17 )
-            continue;
-        else
-            pc += 1;
-    }
 }
 
 void
@@ -281,10 +264,13 @@ uitree_set_behavior(
     dst->hide = src->hide;
     dst->button_type = src->button_type;
     dst->client_code = src->client_code;
+    dst->over_layer_id = src->over_layer_id;
+    dst->over_layer_id = src->over_layer_id;
     dst->over_color = src->over_color;
     dst->active_color = src->active_color;
     dst->active_over_color = src->active_over_color;
     dst->scripts_count = src->scripts_count;
+    dst->script_kind = src->script_kind;
 
     if( src->scripts_count <= 0 || !src->scripts )
         return;
@@ -300,7 +286,7 @@ uitree_set_behavior(
             continue;
         int len = src->scripts_lengths && src->scripts_lengths[i] > 0
                       ? src->scripts_lengths[i]
-                      : uitree_script_length_from_opcode0(src->scripts[i]);
+                      : csvm_script_length(src->scripts[i]);
         if( len <= 0 )
             continue;
         dst->scripts[i] = malloc((size_t)len * sizeof(int));
@@ -409,6 +395,15 @@ uitree_print_nodes(struct UITree const* tree)
                 c->u.rs_text.center,
                 c->u.rs_text.text ? c->u.rs_text.text : "(null)");
             break;
+        case UIELEM_RS_INV_TEXT:
+            printf(
+                "       rs_inv_text inv_index=%d cols=%d rows=%d font_id=%d color=%d\n",
+                c->u.rs_inv_text.inv_index,
+                c->u.rs_inv_text.cols,
+                c->u.rs_inv_text.rows,
+                c->u.rs_inv_text.font_id,
+                c->u.rs_inv_text.color);
+            break;
         case UIELEM_RS_MODEL:
             printf(
                 "       rs_model gamecache_model_id=%d zoom=%d\n",
@@ -444,17 +439,28 @@ uitree_push(
         return -1;
 
     char* text_owned = NULL;
+    char* text_active_owned = NULL;
     if( spec->type == UIELEM_RS_TEXT && spec->u.rs_text.text )
     {
         text_owned = strdup(spec->u.rs_text.text);
         if( !text_owned )
             return -1;
     }
+    if( spec->type == UIELEM_RS_TEXT && spec->u.rs_text.text_active )
+    {
+        text_active_owned = strdup(spec->u.rs_text.text_active);
+        if( !text_active_owned )
+        {
+            free(text_owned);
+            return -1;
+        }
+    }
 
     int32_t idx = push_element(tree, parent_index);
     if( idx < 0 )
     {
         free(text_owned);
+        free(text_active_owned);
         return -1;
     }
 
@@ -496,6 +502,10 @@ uitree_push(
         component->u.minimenu.font_id = spec->u.minimenu.font_id;
         break;
 
+    case UIELEM_BUILTIN_CHAT:
+        component->u.chat.minimenu = spec->u.chat.minimenu;
+        break;
+
     case UIELEM_BUILTIN_REDSTONE_TAB:
         component->u.redstone_tab.tabno = spec->u.redstone_tab.tabno;
         component->u.redstone_tab.scene_id = spec->u.redstone_tab.scene_id;
@@ -526,13 +536,21 @@ uitree_push(
     {
         int font_id = spec->u.rs_text.font_id;
         if( font_id < 0 || font_id > 3 )
+        {
+            fprintf(stderr,
+                "uitree_push: invalid rs_text font_id=%d, expected 0-3\n",
+                font_id);
+            assert(font_id >= 0 && font_id <= 3);
             font_id = 1;
+        }
         component->u.rs_text.font_id = font_id;
         component->u.rs_text.color = spec->u.rs_text.color;
         component->u.rs_text.center = spec->u.rs_text.center;
         component->u.rs_text.shadowed = spec->u.rs_text.shadowed;
         component->u.rs_text.text = text_owned;
+        component->u.rs_text.text_active = text_active_owned;
         text_owned = NULL;
+        text_active_owned = NULL;
         break;
     }
 
@@ -606,6 +624,18 @@ uitree_push(
         component->u.rs_line.line_width =
             spec->u.rs_line.line_width > 0 ? spec->u.rs_line.line_width : 1;
         component->u.rs_line.horizontal = spec->u.rs_line.horizontal ? 1 : 0;
+        break;
+
+    case UIELEM_RS_INV_TEXT:
+        component->u.rs_inv_text.inv_index = spec->u.rs_inv_text.inv_index;
+        component->u.rs_inv_text.cols = spec->u.rs_inv_text.cols;
+        component->u.rs_inv_text.rows = spec->u.rs_inv_text.rows;
+        component->u.rs_inv_text.margin_x = spec->u.rs_inv_text.margin_x;
+        component->u.rs_inv_text.margin_y = spec->u.rs_inv_text.margin_y;
+        component->u.rs_inv_text.font_id = spec->u.rs_inv_text.font_id;
+        component->u.rs_inv_text.color = spec->u.rs_inv_text.color;
+        component->u.rs_inv_text.center = spec->u.rs_inv_text.center;
+        component->u.rs_inv_text.shadowed = spec->u.rs_inv_text.shadowed;
         break;
 
     default:
