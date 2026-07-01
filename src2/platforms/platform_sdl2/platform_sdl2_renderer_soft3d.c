@@ -383,6 +383,19 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                     command.u.sprite.rotation,
                     renderer->pixel_buffer);
             }
+            else if( command.u.sprite.tiled )
+            {
+                ToriDraw2D_BlitSpriteTiled(
+                    sp,
+                    &vp,
+                    command.u.sprite.x,
+                    command.u.sprite.y,
+                    command.u.sprite.w,
+                    command.u.sprite.h,
+                    command.u.sprite.x + sp->crop_x,
+                    command.u.sprite.y + sp->crop_y,
+                    renderer->pixel_buffer);
+            }
             else
             {
                 ToriDraw2D_BlitSprite(

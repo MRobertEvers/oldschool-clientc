@@ -131,6 +131,7 @@ struct LibToriRS_RenderCommand_Sprite
     int mask_element_id;
     int mask_atlas_index;
     int alpha;
+    int tiled;
 };
 
 struct LibToriRS_RenderCommand_FontLoad

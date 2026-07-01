@@ -92,6 +92,30 @@ See `src/osrs/revconfig/configs/cullmaps/README.md` for options. Keep `BAKE_*` /
 
 ---
 
+## `dump_interface/`
+
+Human-readable dump of dat2 interface archive widgets (types, layout, INV slot graphics, ops).
+
+**Build** (standalone — avoids CMake ASAN hang on macOS):
+
+```bash
+make -C tools/dump_interface
+# binary: tools/dump_interface/dump_interface
+```
+
+CMake `build/dump_interface` is also available but may hang if the project was configured with
+`-DCMAKE_C_FLAGS="-fsanitize=address"`; use the standalone Makefile for cache dump tools.
+
+**Usage:**
+
+```bash
+tools/dump_interface/dump_interface cache.kronos --iface 387
+tools/dump_interface/dump_interface cache.kronos --iface 387 --child 3
+tools/dump_interface/dump_interface cache.kronos --iface 387 --json --out iface387.json
+```
+
+Layout-only list: `make -C tools/dump_interface_layout` → `tools/dump_interface_layout/dump_interface_layout`
+
 ## `interface161_test/`
 
 Standalone **Makefile** build and **`run_interfaces_1_500.mjs`** to export interface BMPs from a cache.

@@ -247,6 +247,8 @@ struct StaticUIComponent
             int atlas_index_active;
             /** Draw nothing but keep bounds for hit-testing (IF3 empty graphic). */
             uint8_t graphic_hitbox_only;
+            /** dat2 tiled: repeat sprite across IF3 layout rect. */
+            uint8_t tiled;
         } rs_graphic;
         struct
         {
@@ -392,6 +394,7 @@ struct UINodeSpec
             int scene_id_active;
             int atlas_index_active;
             uint8_t graphic_hitbox_only;
+            uint8_t tiled;
         } rs_graphic;
         struct
         {

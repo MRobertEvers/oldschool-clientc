@@ -46,6 +46,9 @@ struct Task_Dat2PlayerAdd
     int want_obj_count;
     bool need_idk;
     bool need_obj;
+    struct Task_Dat2AnimResolve anim_resolve;
+    bool anim_resolve_ready;
+    struct RSCacheDat2Disk_Archive* sequence_archive;
 };
 
 static bool
@@ -105,6 +108,14 @@ Task_Dat2PlayerAdd_New(
 void
 Task_Dat2PlayerAdd_Free(struct Task_Dat2PlayerAdd* task)
 {
+    if( !task )
+        return;
+    Task_Dat2AnimResolve_Destroy(&task->anim_resolve);
+    if( task->sequence_archive )
+    {
+        RSCacheDat2Disk_ArchiveFree(task->sequence_archive);
+        task->sequence_archive = NULL;
+    }
     free(task);
 }
 
@@ -117,7 +128,6 @@ Task_Dat2PlayerAdd_Run(
     struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
     struct RSCacheDat2Disk_Archive* identkit_archive = NULL;
     struct RSCacheDat2Disk_Archive* object_archive = NULL;
-    struct RSCacheDat2Disk_Archive* sequence_archive = NULL;
     int const player_anims[] = {
         task->readyanim,  task->walkanim,   task->turnanim,   task->runanim,
         task->walkanim_b, task->walkanim_r, task->walkanim_l,
@@ -267,49 +277,64 @@ Task_Dat2PlayerAdd_Run(
             task->walkanim_r,
             task->walkanim_l) )
     {
-        sequence_archive = NULL;
+        task->sequence_archive = NULL;
 
         IO_REQUEST(ctx, 0, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Sequence));
         PT_YIELD(&task->thread);
 
-        sequence_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Sequence);
-        if( !sequence_archive )
+        task->sequence_archive =
+            TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Sequence);
+        if( !task->sequence_archive )
             PT_EXIT(&task->thread);
 
         DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, task->c);
 
-        struct Dat2AnimArchiveSet aset;
-        struct Task_Dat2AnimResolve anim_resolve;
-        dat2_anim_archive_set_init(&aset, 32);
-        Task_Dat2AnimResolve_Init(&anim_resolve, task->c, dat2_bc);
-        if( aset.ids )
+        if( !task->anim_resolve_ready )
         {
-            for( int ai = 0; ai < player_anim_count; ai++ )
+            struct Dat2AnimArchiveSet aset;
+
+            Task_Dat2AnimResolve_Init(&task->anim_resolve, task->c, dat2_bc);
+            dat2_anim_archive_set_init(&aset, 32);
+            if( aset.ids )
             {
-                int seq_id = player_anims[ai];
-                if( seq_id == -1 )
-                    continue;
+                for( int ai = 0; ai < player_anim_count; ai++ )
+                {
+                    int seq_id = player_anims[ai];
+                    if( seq_id == -1 )
+                        continue;
 
-                dat2_buildcache_sequence_load_from_archive(
-                    dat2_bc, sequence_archive, seq_id);
+                    dat2_buildcache_sequence_load_from_archive(
+                        dat2_bc, task->sequence_archive, seq_id);
 
-                struct RSCacheDat2A_ConfigSequence* seq =
-                    dat2_buildcache_sequence_get(dat2_bc, seq_id);
-                if( !seq )
-                    continue;
+                    struct RSCacheDat2A_ConfigSequence* seq =
+                        dat2_buildcache_sequence_get(dat2_bc, seq_id);
+                    if( !seq )
+                        continue;
 
-                dat2_anim_set_add_sequence_archives(&aset, seq);
-                Task_Dat2AnimResolve_AddSequenceId(&anim_resolve, seq_id);
+                    dat2_anim_set_add_sequence_archives(&aset, seq);
+                    Task_Dat2AnimResolve_AddSequenceId(&task->anim_resolve, seq_id);
+                }
+
+                Task_Dat2AnimResolve_SetArchiveSet(&task->anim_resolve, &aset);
+                dat2_anim_archive_set_free(&aset);
+                task->anim_resolve_ready = true;
             }
+        }
 
-            Task_Dat2AnimResolve_SetArchiveSet(&anim_resolve, &aset);
-            TASK_AWAIT(&task->thread, Task_Dat2AnimResolve_Run(&anim_resolve, ctx));
+        if( task->anim_resolve_ready )
+        {
+            TASK_AWAIT(&task->thread, Task_Dat2AnimResolve_Run(&task->anim_resolve, ctx));
+            Task_Dat2AnimResolve_Destroy(&task->anim_resolve);
+            task->anim_resolve_ready = false;
             dat2_anim_submit_all_skeletal(task->c, dat2_bc);
-            dat2_anim_archive_set_free(&aset);
         }
 
         ToriAuxLibCache_SubmitAllSequencesFromDat2(task->c);
-        RSCacheDat2Disk_ArchiveFree(sequence_archive);
+        if( task->sequence_archive )
+        {
+            RSCacheDat2Disk_ArchiveFree(task->sequence_archive);
+            task->sequence_archive = NULL;
+        }
         LibToriRS_IOQueueClear(ctx->io);
     }
 

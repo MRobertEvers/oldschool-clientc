@@ -1126,6 +1126,7 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
     dst->active_over_color = src->activeOverColour;
     dst->over_layer_id = src->linkedComponentId;
     dst->parent_id = -1;
+    dst->tiled = src->tiled ? 1 : 0;
     if( src->type == COMPONENT_TYPE_LAYER )
     {
         dst->scroll_height = src->scrollHeight;

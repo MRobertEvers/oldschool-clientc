@@ -1,0 +1,67 @@
+#ifndef DUMP_INTERFACE_COMMON_H
+#define DUMP_INTERFACE_COMMON_H
+
+#include "osrs/rscache/dat2a/dat2a_component.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+
+enum
+{
+    DUMP_IFACE_FIXED_ROOT_W = 765,
+    DUMP_IFACE_FIXED_ROOT_H = 503,
+    DUMP_IFACE_INV_SLOT_MAX = 20
+};
+
+struct DumpIfaceLoaded
+{
+    Component* comps;
+    int* parent_idx;
+    int* lay_x;
+    int* lay_y;
+    int* lay_w;
+    int* lay_h;
+    int count;
+};
+
+char const*
+dump_iface_component_type_name(
+    Component const* c);
+
+int
+dump_iface_parent_file_index(
+    struct DumpIfaceLoaded const* li,
+    int child_index);
+
+int
+dump_iface_decode_component_from_bytes(
+    Component* out,
+    char* data,
+    int size,
+    int iface_id,
+    int file_index);
+
+void
+dump_iface_resolve_layout(
+    Component* comps,
+    int n,
+    int root_x,
+    int root_y,
+    int root_w,
+    int root_h,
+    int* parent_idx,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h);
+
+int
+dump_iface_load(
+    struct RSCacheDat2Disk* cache,
+    int iface_id,
+    int root_w,
+    int root_h,
+    struct DumpIfaceLoaded* out);
+
+void
+dump_iface_free(struct DumpIfaceLoaded* li);
+
+#endif

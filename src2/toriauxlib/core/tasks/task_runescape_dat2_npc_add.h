@@ -8,6 +8,7 @@
 #include "osrs/rscache/dat2a/dat2a_config_npctype.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/core_task_await.h"
@@ -18,9 +19,7 @@
 
 #include <assert.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #define TASK_DAT2_NPC_IO_BATCH 64
 
@@ -34,11 +33,15 @@ struct Task_Dat2NpcAdd
     int model_count;
     int model_index;
     int npc_anims[7];
+    struct Task_Dat2AnimResolve anim_resolve;
+    bool anim_resolve_ready;
+    struct RSCacheDat2Disk_Archive* sequence_archive;
 };
 
 static bool
-task_dat2_npc_sequence_missing(
+task_dat2_npc_anim_resolve_needed(
     struct ToriAuxLibCache* c,
+    struct Dat2BuildCache* dat2_bc,
     const int* anims,
     int count)
 {
@@ -46,7 +49,20 @@ task_dat2_npc_sequence_missing(
 
     for( int i = 0; i < count; i++ )
     {
-        if( anims[i] != -1 && !ToriAuxLibCore_SequenceGet(core, anims[i]) )
+        int seq_id = anims[i];
+        struct RSCacheDat2A_ConfigSequence* bc_seq;
+        struct ToriAuxLibCore_Sequence* core_seq;
+
+        if( seq_id == -1 )
+            continue;
+
+        core_seq = ToriAuxLibCore_SequenceGet(core, seq_id);
+        bc_seq = dat2_buildcache_sequence_get(dat2_bc, seq_id);
+
+        if( !core_seq )
+            return true;
+
+        if( dat2_anim_sequence_assets_missing(core, dat2_bc, bc_seq, core_seq) )
             return true;
     }
 
@@ -55,10 +71,11 @@ task_dat2_npc_sequence_missing(
 
 static void
 task_dat2_npc_assert_classic_sequence_frames(
+    struct ToriAuxLibCore* core,
     struct Dat2BuildCache* dat2_bc,
     struct RSCacheDat2A_ConfigSequence* seq)
 {
-    assert(dat2_bc && seq);
+    assert(core && dat2_bc && seq);
 
     if( seq->anim_maya_id >= 0 && seq->frame_count == 0 )
         return;
@@ -68,7 +85,7 @@ task_dat2_npc_assert_classic_sequence_frames(
         int aid = (seq->frame_ids[fi] >> 16) & 0xFFFF;
         if( aid < 0 )
             continue;
-        assert(dat2_buildcache_frames_has(dat2_bc, aid) &&
+        assert(dat2_anim_classic_frame_archive_loaded(core, dat2_bc, aid) &&
                "npc classic sequence missing frame archive after IO");
     }
 }
@@ -85,24 +102,14 @@ task_dat2_npc_submit_sequence_assets(
 
     if( seq->anim_maya_id >= 0 && seq->frame_count == 0 )
     {
-        if( dat2_buildcache_skeletal_has(dat2_bc, seq->anim_maya_id) )
-            dat2_anim_submit_sequence_skeletal(task->c, dat2_bc, seq);
-        else
-        {
-            fprintf(
-                stderr,
-                "Task_Dat2NpcAdd: npc_id=%d seq_id=%d anim_maya_id=%d animaya_aid=%d not loaded; "
-                "NPC will spawn without this skeletal anim\n",
-                task->npc_id,
-                seq_id,
-                seq->anim_maya_id,
-                seq->anim_maya_id >> 16);
-        }
+        assert(dat2_anim_skeletal_loaded(core, dat2_bc, seq->anim_maya_id) &&
+               "npc skeletal sequence missing animaya after IO");
     }
     else
-        task_dat2_npc_assert_classic_sequence_frames(dat2_bc, seq);
+        task_dat2_npc_assert_classic_sequence_frames(core, dat2_bc, seq);
 
-    ToriAuxLibCache_SubmitSequenceFromDat2(task->c, seq_id);
+    if( !ToriAuxLibCore_SequenceGet(core, seq_id) )
+        ToriAuxLibCache_SubmitSequenceFromDat2(task->c, seq_id);
     assert(ToriAuxLibCore_SequenceGet(core, seq_id) &&
            "npc sequence not in core after submit");
 }
@@ -124,6 +131,14 @@ Task_Dat2NpcAdd_New(
 void
 Task_Dat2NpcAdd_Free(struct Task_Dat2NpcAdd* task)
 {
+    if( !task )
+        return;
+    Task_Dat2AnimResolve_Destroy(&task->anim_resolve);
+    if( task->sequence_archive )
+    {
+        RSCacheDat2Disk_ArchiveFree(task->sequence_archive);
+        task->sequence_archive = NULL;
+    }
     free(task);
 }
 
@@ -135,7 +150,6 @@ Task_Dat2NpcAdd_Run(
     struct Dat2BuildCache* dat2_bc = dat2(task->c);
     struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
     struct RSCacheDat2Disk_Archive* npc_archive = NULL;
-    struct RSCacheDat2Disk_Archive* sequence_archive = NULL;
     struct RSCacheDat2A_ConfigNpctype* npc;
     int const wanted_npc_ids[] = { task->npc_id };
 
@@ -219,41 +233,59 @@ Task_Dat2NpcAdd_Run(
         assert(ToriAuxLibCore_ModelHas(core, model_id) && "npc model not in core after submit");
     }
 
-    if( task_dat2_npc_sequence_missing(task->c, task->npc_anims, 7) )
+    if( task_dat2_npc_anim_resolve_needed(task->c, dat2_bc, task->npc_anims, 7) )
     {
         IO_REQUEST(ctx, 0, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Sequence));
         PT_YIELD(&task->thread);
 
         DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, task->c);
 
-        sequence_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Sequence);
-        assert(sequence_archive && "npc sequence config group missing after IO");
+        task->sequence_archive =
+            TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Sequence);
+        assert(task->sequence_archive && "npc sequence config group missing after IO");
 
-        struct Dat2AnimArchiveSet aset;
-        struct Task_Dat2AnimResolve anim_resolve;
-        dat2_anim_archive_set_init(&aset, 32);
-        Task_Dat2AnimResolve_Init(&anim_resolve, task->c, dat2_bc);
-        assert(aset.ids && "npc anim archive set alloc failed");
-
-        for( int ai = 0; ai < 7; ai++ )
+        if( !task->anim_resolve_ready )
         {
-            int seq_id = task->npc_anims[ai];
-            struct RSCacheDat2A_ConfigSequence* seq;
+            struct Dat2AnimArchiveSet aset;
 
-            if( seq_id == -1 )
-                continue;
+            Task_Dat2AnimResolve_Init(&task->anim_resolve, task->c, dat2_bc);
+            dat2_anim_archive_set_init(&aset, 32);
+            assert(aset.ids && "npc anim archive set alloc failed");
 
-            dat2_buildcache_sequence_load_from_archive(dat2_bc, sequence_archive, seq_id);
+            for( int ai = 0; ai < 7; ai++ )
+            {
+                int seq_id = task->npc_anims[ai];
+                struct RSCacheDat2A_ConfigSequence* seq;
 
-            seq = dat2_buildcache_sequence_get(dat2_bc, seq_id);
-            assert(seq && "npc sequence missing after IO");
+                if( seq_id == -1 )
+                    continue;
 
-            dat2_anim_set_add_sequence_archives(&aset, seq);
-            Task_Dat2AnimResolve_AddSequenceId(&anim_resolve, seq_id);
+                dat2_buildcache_sequence_load_from_archive(
+                    dat2_bc, task->sequence_archive, seq_id);
+
+                seq = dat2_buildcache_sequence_get(dat2_bc, seq_id);
+                assert(seq && "npc sequence missing after IO");
+
+                dat2_anim_set_add_sequence_archives(&aset, seq);
+                Task_Dat2AnimResolve_AddSequenceId(&task->anim_resolve, seq_id);
+            }
+
+            Task_Dat2AnimResolve_SetArchiveSet(&task->anim_resolve, &aset);
+            dat2_anim_archive_set_free(&aset);
+            task->anim_resolve_ready = true;
         }
 
-        Task_Dat2AnimResolve_SetArchiveSet(&anim_resolve, &aset);
-        TASK_AWAIT(&task->thread, Task_Dat2AnimResolve_Run(&anim_resolve, ctx));
+        DAT2_ENSURE_REFERENCE_TABLE(
+            ctx, &task->thread, dat2_bc, RSCacheDat2Disk_Table_Animayas);
+        DAT2_ENSURE_REFERENCE_TABLE(
+            ctx, &task->thread, dat2_bc, RSCacheDat2Disk_Table_Animations);
+        DAT2_ENSURE_REFERENCE_TABLE(
+            ctx, &task->thread, dat2_bc, RSCacheDat2Disk_Table_Skeletons);
+
+        TASK_AWAIT(&task->thread, Task_Dat2AnimResolve_Run(&task->anim_resolve, ctx));
+        Task_Dat2AnimResolve_Destroy(&task->anim_resolve);
+        task->anim_resolve_ready = false;
+        dat2_anim_submit_all_skeletal(task->c, dat2_bc);
 
         for( int ai = 0; ai < 7; ai++ )
         {
@@ -269,8 +301,11 @@ Task_Dat2NpcAdd_Run(
             task_dat2_npc_submit_sequence_assets(task, dat2_bc, core, seq_id, seq);
         }
 
-        dat2_anim_archive_set_free(&aset);
-        RSCacheDat2Disk_ArchiveFree(sequence_archive);
+        if( task->sequence_archive )
+        {
+            RSCacheDat2Disk_ArchiveFree(task->sequence_archive);
+            task->sequence_archive = NULL;
+        }
         LibToriRS_IOQueueClear(ctx->io);
     }
 

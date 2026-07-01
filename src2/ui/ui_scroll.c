@@ -183,7 +183,7 @@ uitree_scroll_apply_ancestors(
             continue;
 
         struct StaticUIComponent const* layer = &tree->components[idx];
-        if( layer->type != UIELEM_RS_LAYER )
+        if( layer->type != UIELEM_RS_LAYER && layer->type != UIELEM_BUILTIN_SIDEBAR )
             continue;
 
         int ax = 0;
@@ -192,6 +192,9 @@ uitree_scroll_apply_ancestors(
         int ah = 0;
         uitree_layout_get_bounds(&layer->position, &ax, &ay, &aw, &ah);
         uitree_scroll_intersect_clip(clip, ax, ay, aw, ah);
+
+        if( layer->type != UIELEM_RS_LAYER )
+            continue;
 
         bool vscroll = uitree_scroll_layer_needs_vertical(layer);
         bool hscroll = uitree_scroll_layer_needs_horizontal(layer);

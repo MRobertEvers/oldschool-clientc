@@ -285,6 +285,62 @@ ToriDraw2D_BlitSpriteRotatedEx(
 }
 
 void
+ToriDraw2D_BlitSpriteTiled(
+    struct ToriDraw_Sprite* sprite,
+    struct ToriDraw_ViewPort* view_port,
+    int rect_x,
+    int rect_y,
+    int rect_w,
+    int rect_h,
+    int origin_x,
+    int origin_y,
+    int* pixel_buffer)
+{
+    if( !sprite || !sprite->pixels_argb || !view_port || !pixel_buffer )
+        return;
+
+    int const sw = sprite->width;
+    int const sh = sprite->height;
+    if( sw <= 0 || sh <= 0 || rect_w <= 0 || rect_h <= 0 )
+        return;
+
+    int const cl = view_port->clip_left;
+    int const ct = view_port->clip_top;
+    int const cr = view_port->clip_right;
+    int const cb = view_port->clip_bottom;
+    int const stride = view_port->stride;
+
+    int x0 = rect_x;
+    int y0 = rect_y;
+    int x1 = rect_x + rect_w;
+    int y1 = rect_y + rect_h;
+    if( x0 < cl )
+        x0 = cl;
+    if( y0 < ct )
+        y0 = ct;
+    if( x1 > cr )
+        x1 = cr;
+    if( y1 > cb )
+        y1 = cb;
+
+    for( int y = y0; y < y1; y++ )
+    {
+        int sy = y - origin_y;
+        sy = ((sy % sh) + sh) % sh;
+        int const dst_row = y * stride;
+        for( int x = x0; x < x1; x++ )
+        {
+            int sx = x - origin_x;
+            sx = ((sx % sw) + sw) % sw;
+            uint32_t const pixel = sprite->pixels_argb[sx + sy * sw];
+            if( pixel == 0 )
+                continue;
+            pixel_buffer[dst_row + x] = (int)pixel;
+        }
+    }
+}
+
+void
 ToriDraw2D_BlitSpriteRotated(
     struct ToriDraw_Sprite* sprite,
     struct ToriDraw_ViewPort* view_port,

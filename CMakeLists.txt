@@ -193,10 +193,24 @@ target_include_directories(rscache PUBLIC src src/osrs/rscache)
 set_target_properties(rscache PROPERTIES C_STANDARD 11)
 
 if(NOT EMSCRIPTEN)
+    add_library(dump_interface_common STATIC
+        tools/dump_interface_common.c
+    )
+    target_link_libraries(dump_interface_common PUBLIC rscache)
+    target_include_directories(dump_interface_common PUBLIC src src2 tools)
+    set_target_properties(dump_interface_common PROPERTIES C_STANDARD 11)
+
     add_executable(dump_interface_layout tools/dump_interface_layout/main.c)
-    target_link_libraries(dump_interface_layout rscache)
-    target_include_directories(dump_interface_layout PRIVATE src src2)
+    target_link_libraries(dump_interface_layout dump_interface_common)
+    target_include_directories(dump_interface_layout PRIVATE src src2 tools)
     set_target_properties(dump_interface_layout PROPERTIES C_STANDARD 11)
+
+    add_executable(dump_interface tools/dump_interface/main.c)
+    target_link_libraries(dump_interface dump_interface_common)
+    target_include_directories(dump_interface PRIVATE src src2 tools)
+    set_target_properties(dump_interface PROPERTIES C_STANDARD 11)
+    # Prefer: make -C tools/dump_interface (standalone, no ASAN). CMake binary hangs on
+    # macOS when CMAKE_C_FLAGS includes -fsanitize=address.
 
     add_executable(dump_map_index tools/dump_map_index/main.c)
     target_link_libraries(dump_map_index rscache)

@@ -569,6 +569,7 @@ uitree_push(
         component->u.rs_graphic.scene_id_active = spec->u.rs_graphic.scene_id_active;
         component->u.rs_graphic.atlas_index_active = spec->u.rs_graphic.atlas_index_active;
         component->u.rs_graphic.graphic_hitbox_only = spec->u.rs_graphic.graphic_hitbox_only;
+        component->u.rs_graphic.tiled = spec->u.rs_graphic.tiled;
         break;
 
     case UIELEM_RS_RECT:

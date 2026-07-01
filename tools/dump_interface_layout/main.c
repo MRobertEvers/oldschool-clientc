@@ -7,267 +7,15 @@
  *   dump_interface_layout <cache_dir> --iface 548 --json [--out file.json]
  */
 
-#include "osrs/rscache/dat2disk/dat2disk.h"
-#include "osrs/rscache/shared/shared_file_list.h"
-#include "osrs/rscache/shared/shared_rs_buffer.h"
-#include "osrs/rscache/dat2a/dat2a_component.h"
-#include "ui/ui_if3_layout.h"
+#include "../dump_interface_common.h"
 
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-enum
-{
-    FIXED_MODE_ROOT_W = 765,
-    FIXED_MODE_ROOT_H = 503
-};
-
-static int
-decode_component_from_bytes(
-    Component* out,
-    char* data,
-    int size,
-    int iface_id,
-    int file_index)
-{
-    if( !data || size <= 0 )
-        return -1;
-    struct RSCacheShared_RSBuffer buf;
-    RSCacheShared_RSBufferInit(&buf, (int8_t*)data, size);
-    Component_init(out);
-    out->id = (iface_id << 16) | (file_index & 0xFFFF);
-    if( (unsigned char)data[0] == (unsigned char)255 )
-        Component_decodeIf3(out, &buf);
-    else
-        Component_decodeIf1(out, &buf);
-    return 0;
-}
-
-static void
-resolve_interface_layout(
-    Component* comps,
-    int n,
-    int root_x,
-    int root_y,
-    int root_w,
-    int root_h,
-    int* out_x,
-    int* out_y,
-    int* out_w,
-    int* out_h)
-{
-    int* parent_idx = calloc((size_t)n, sizeof(int));
-    int* depth = calloc((size_t)n, sizeof(int));
-    int* order = calloc((size_t)n, sizeof(int));
-    if( !parent_idx || !depth || !order )
-    {
-        free(parent_idx);
-        free(depth);
-        free(order);
-        for( int i = 0; i < n; i++ )
-        {
-            out_x[i] = root_x + comps[i].baseX;
-            out_y[i] = root_y + comps[i].baseY;
-            out_w[i] = comps[i].baseWidth;
-            out_h[i] = comps[i].baseHeight;
-        }
-        return;
-    }
-
-    for( int i = 0; i < n; i++ )
-    {
-        parent_idx[i] = -1;
-        if( comps[i].layer < 0 )
-            continue;
-        for( int j = 0; j < n; j++ )
-        {
-            if( comps[j].id == comps[i].layer )
-            {
-                parent_idx[i] = j;
-                break;
-            }
-        }
-    }
-
-    for( int i = 0; i < n; i++ )
-    {
-        int d = 0;
-        int cur = i;
-        while( parent_idx[cur] >= 0 )
-        {
-            cur = parent_idx[cur];
-            d++;
-            if( d > n )
-                break;
-        }
-        depth[i] = d;
-    }
-
-    for( int i = 0; i < n; i++ )
-        order[i] = i;
-    for( int a = 0; a < n; a++ )
-    {
-        for( int b = a + 1; b < n; b++ )
-        {
-            if( depth[order[b]] < depth[order[a]] )
-            {
-                int t = order[a];
-                order[a] = order[b];
-                order[b] = t;
-            }
-        }
-    }
-
-    for( int k = 0; k < n; k++ )
-    {
-        int i = order[k];
-        int px = root_x;
-        int py = root_y;
-        int pw = root_w;
-        int ph = root_h;
-        if( parent_idx[i] >= 0 )
-        {
-            int p = parent_idx[i];
-            px = out_x[p];
-            py = out_y[p];
-            pw = out_w[p];
-            ph = out_h[p];
-        }
-
-        if( !comps[i].if3 )
-        {
-            out_x[i] = px + comps[i].baseX;
-            out_y[i] = py + comps[i].baseY;
-            out_w[i] = comps[i].baseWidth;
-            out_h[i] = comps[i].baseHeight;
-            continue;
-        }
-
-        int rel_x = 0;
-        int rel_y = 0;
-        int w = 0;
-        int h = 0;
-        ui_if3_component_parent_relative_layout(
-            1,
-            comps[i].widthMode,
-            comps[i].heightMode,
-            comps[i].xMode,
-            comps[i].yMode,
-            comps[i].baseX,
-            comps[i].baseY,
-            comps[i].baseWidth,
-            comps[i].baseHeight,
-            comps[i].aspect_ratio_w,
-            comps[i].aspect_ratio_h,
-            pw,
-            ph,
-            &rel_x,
-            &rel_y,
-            &w,
-            &h);
-        out_w[i] = w;
-        out_h[i] = h;
-        out_x[i] = px + rel_x;
-        out_y[i] = py + rel_y;
-    }
-
-    free(parent_idx);
-    free(depth);
-    free(order);
-}
-
-struct LoadedIface
-{
-    Component* comps;
-    int* lay_x;
-    int* lay_y;
-    int* lay_w;
-    int* lay_h;
-    int count;
-};
-
-static int
-load_interface(
-    struct RSCacheDat2Disk* cache,
-    int iface_id,
-    int root_w,
-    int root_h,
-    struct LoadedIface* out)
-{
-    memset(out, 0, sizeof(*out));
-
-    struct RSCacheDat2Disk_Archive* arch =
-        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, iface_id);
-    if( !arch )
-        return -1;
-
-    RSCacheDat2Disk_ArchiveInitMetadata(cache, arch);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
-    if( !fl )
-    {
-        RSCacheDat2Disk_ArchiveFree(arch);
-        return -1;
-    }
-
-    int n = fl->file_count;
-    Component* comps = calloc((size_t)n, sizeof(Component));
-    int* lay_x = calloc((size_t)n, sizeof(int));
-    int* lay_y = calloc((size_t)n, sizeof(int));
-    int* lay_w = calloc((size_t)n, sizeof(int));
-    int* lay_h = calloc((size_t)n, sizeof(int));
-    if( !comps || !lay_x || !lay_y || !lay_w || !lay_h )
-    {
-        free(comps);
-        free(lay_x);
-        free(lay_y);
-        free(lay_w);
-        free(lay_h);
-        RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
-        return -1;
-    }
-
-    for( int fi = 0; fi < n; fi++ )
-    {
-        if( decode_component_from_bytes(
-                &comps[fi], fl->files[fi], fl->file_sizes[fi], iface_id, fi) != 0 )
-            Component_init(&comps[fi]);
-    }
-
-    resolve_interface_layout(comps, n, 0, 0, root_w, root_h, lay_x, lay_y, lay_w, lay_h);
-
-    out->comps = comps;
-    out->lay_x = lay_x;
-    out->lay_y = lay_y;
-    out->lay_w = lay_w;
-    out->lay_h = lay_h;
-    out->count = n;
-
-    RSCacheShared_FileListFree(fl);
-    RSCacheDat2Disk_ArchiveFree(arch);
-    return 0;
-}
-
-static void
-free_loaded_iface(struct LoadedIface* li)
-{
-    if( !li )
-        return;
-    for( int i = 0; i < li->count; i++ )
-        Component_free(&li->comps[i]);
-    free(li->comps);
-    free(li->lay_x);
-    free(li->lay_y);
-    free(li->lay_w);
-    free(li->lay_h);
-    memset(li, 0, sizeof(*li));
-}
-
 static void
 print_child(
-    struct LoadedIface const* li,
+    struct DumpIfaceLoaded const* li,
     int child_id,
     FILE* fp)
 {
@@ -291,7 +39,9 @@ print_child(
 }
 
 static void
-print_list(struct LoadedIface const* li, FILE* fp)
+print_list(
+    struct DumpIfaceLoaded const* li,
+    FILE* fp)
 {
     for( int i = 0; i < li->count; i++ )
     {
@@ -313,7 +63,10 @@ print_list(struct LoadedIface const* li, FILE* fp)
 }
 
 static void
-print_json(struct LoadedIface const* li, int iface_id, FILE* fp)
+print_json(
+    struct DumpIfaceLoaded const* li,
+    int iface_id,
+    FILE* fp)
 {
     fprintf(fp, "{\n  \"iface\": %d,\n  \"children\": [\n", iface_id);
     int first = 1;
@@ -360,8 +113,8 @@ main(
     int child_id = -1;
     int list_mode = 0;
     int json_mode = 0;
-    int root_w = FIXED_MODE_ROOT_W;
-    int root_h = FIXED_MODE_ROOT_H;
+    int root_w = DUMP_IFACE_FIXED_ROOT_W;
+    int root_h = DUMP_IFACE_FIXED_ROOT_H;
     const char* out_path = NULL;
 
     for( int i = 1; i < argc; i++ )
@@ -403,8 +156,8 @@ main(
         return 1;
     }
 
-    struct LoadedIface li;
-    if( load_interface(cache, iface, root_w, root_h, &li) != 0 )
+    struct DumpIfaceLoaded li;
+    if( dump_iface_load(cache, iface, root_w, root_h, &li) != 0 )
     {
         fprintf(stderr, "failed to load interface %d\n", iface);
         RSCacheDat2Disk_Free(cache);
@@ -418,7 +171,7 @@ main(
         if( !fp )
         {
             fprintf(stderr, "failed to open %s\n", out_path);
-            free_loaded_iface(&li);
+            dump_iface_free(&li);
             RSCacheDat2Disk_Free(cache);
             return 1;
         }
@@ -434,7 +187,7 @@ main(
     if( fp != stdout )
         fclose(fp);
 
-    free_loaded_iface(&li);
+    dump_iface_free(&li);
     RSCacheDat2Disk_Free(cache);
     return 0;
 }

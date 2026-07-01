@@ -4,10 +4,72 @@
 #include "buildcache/dat2_buildcache.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 
 #include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
+
+static bool
+dat2_anim_classic_frame_archive_loaded(
+    struct ToriAuxLibCore* core,
+    struct Dat2BuildCache* dat2_bc,
+    int archive_id)
+{
+    return dat2_buildcache_frames_has(dat2_bc, archive_id) ||
+           ToriAuxLibCore_AnimationHas(core, archive_id);
+}
+
+static bool
+dat2_anim_skeletal_loaded(
+    struct ToriAuxLibCore* core,
+    struct Dat2BuildCache* dat2_bc,
+    int anim_maya_id)
+{
+    return dat2_buildcache_skeletal_has(dat2_bc, anim_maya_id) ||
+           ToriAuxLibCore_SkeletalAnimHas(core, anim_maya_id);
+}
+
+static bool
+dat2_anim_sequence_assets_missing(
+    struct ToriAuxLibCore* core,
+    struct Dat2BuildCache* dat2_bc,
+    const struct RSCacheDat2A_ConfigSequence* bc_seq,
+    const struct ToriAuxLibCore_Sequence* core_seq)
+{
+    if( bc_seq )
+    {
+        if( bc_seq->anim_maya_id >= 0 && bc_seq->frame_count == 0 )
+            return !dat2_anim_skeletal_loaded(core, dat2_bc, bc_seq->anim_maya_id);
+
+        for( int fi = 0; fi < bc_seq->frame_count; fi++ )
+        {
+            int aid = (bc_seq->frame_ids[fi] >> 16) & 0xFFFF;
+            if( aid < 0 )
+                continue;
+            if( !dat2_anim_classic_frame_archive_loaded(core, dat2_bc, aid) )
+                return true;
+        }
+        return false;
+    }
+
+    if( core_seq )
+    {
+        if( core_seq->anim_maya_id >= 0 && core_seq->frame_count == 0 )
+            return !dat2_anim_skeletal_loaded(core, dat2_bc, core_seq->anim_maya_id);
+
+        for( int fi = 0; fi < core_seq->frame_count; fi++ )
+        {
+            int aid = (core_seq->frames[fi] >> 16) & 0xFFFF;
+            if( aid < 0 )
+                continue;
+            if( !dat2_anim_classic_frame_archive_loaded(core, dat2_bc, aid) )
+                return true;
+        }
+    }
+
+    return true;
+}
 
 struct Dat2AnimArchiveSet
 {

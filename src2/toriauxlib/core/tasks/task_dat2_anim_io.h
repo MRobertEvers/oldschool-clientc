@@ -27,6 +27,16 @@ enum Task_Dat2AnimResolve_LoadStep
     TASK_DAT2_ANIM_LOAD_DECODE = 4,
 };
 
+enum Task_Dat2AnimResolve_SkeletalStep
+{
+    TASK_DAT2_ANIM_SKELETAL_IDLE = 0,
+    TASK_DAT2_ANIM_SKELETAL_ENSURE_ANIMAYAS = 1,
+    TASK_DAT2_ANIM_SKELETAL_FETCH_ANIMAYA = 2,
+    TASK_DAT2_ANIM_SKELETAL_DECODE_ANIMAYA = 3,
+    TASK_DAT2_ANIM_SKELETAL_FETCH_SKELBASE = 4,
+    TASK_DAT2_ANIM_SKELETAL_DECODE_SKELBASE = 5,
+};
+
 struct Task_Dat2AnimResolve
 {
     struct pt thread;
@@ -45,6 +55,11 @@ struct Task_Dat2AnimResolve
     int pending_framemap_index;
     int pending_framemap_fetch_id;
     struct RSCacheDat2Disk_Archive* held_idx0;
+    int skeletal_step;
+    int skeletal_maya_id;
+    int skeletal_seq_id;
+    int skeletal_animaya_aid;
+    int skeletal_base_id;
 };
 
 void
@@ -67,5 +82,8 @@ int
 Task_Dat2AnimResolve_Run(
     struct Task_Dat2AnimResolve* task,
     struct LibToriRS_IOContext* ctx);
+
+void
+Task_Dat2AnimResolve_Destroy(struct Task_Dat2AnimResolve* task);
 
 #endif

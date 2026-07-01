@@ -1992,6 +1992,7 @@ GameRunescape_EmitSpriteCommand(
     command->u.sprite.scissor_h = 0;
     command->u.sprite.mask_element_id = -1;
     command->u.sprite.mask_atlas_index = 0;
+    command->u.sprite.tiled = 0;
 }
 
 static void
@@ -2420,7 +2421,9 @@ GameRunescape_EmitUIComponent(
             if( scene_id < 0 )
                 return false;
         }
-        if( (bw <= 0 || bh <= 0) && scene_id >= 0 && game->scene )
+        bool const tiled =
+            component->type == UIELEM_RS_GRAPHIC && component->u.rs_graphic.tiled;
+        if( !tiled && (bw <= 0 || bh <= 0) && scene_id >= 0 && game->scene )
         {
             int sprite_count = 0;
             struct ToriDraw_Sprite** sprites =
@@ -2440,6 +2443,8 @@ GameRunescape_EmitUIComponent(
         GameRunescape_AssertSceneSpriteReady(
             game, scene_id, atlas_index, "ui_sprite");
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, bx, by, bw, bh);
+        if( tiled )
+            command->u.sprite.tiled = 1;
         GameRunescape_ApplyScissorToSprite(command, &clip);
         return true;
     }

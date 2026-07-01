@@ -426,6 +426,7 @@ instance_revconfig_bake_rs_component(
             spec.u.rs_graphic.scene_id_active = -1;
             spec.u.rs_graphic.atlas_index_active = 0;
             spec.u.rs_graphic.graphic_hitbox_only = 1;
+            spec.u.rs_graphic.tiled = 0;
             break;
         }
         spec.type = UIELEM_RS_GRAPHIC;
@@ -450,6 +451,7 @@ instance_revconfig_bake_rs_component(
             spec.u.rs_graphic.atlas_index_active = 0;
         }
         spec.u.rs_graphic.graphic_hitbox_only = 0;
+        spec.u.rs_graphic.tiled = info->tiled;
         ui_active_debug_log(
             "bake rs_graphic id=%d ref='%s' active_ref='%s' sid=%d sid_a=%d "
             "scene_id=%d scene_id_active=%d",

@@ -1,7 +1,8 @@
-# Standalone build (no CMake ASAN). See tools/dump_interface/Makefile.
+# Standalone build (no CMake ASAN). CMake-built dump_interface can hang on macOS when
+# CMAKE_C_FLAGS includes -fsanitize=address; use this Makefile instead.
 CC = clang
 OBJ_DIR = build
-TARGET = dump_interface_layout
+TARGET = dump_interface
 
 REPO_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
 SRC_DIR   := $(REPO_ROOT)/src
@@ -26,6 +27,7 @@ SRCS = main.c \
 
 OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o)))
 
+# dump_interface_common.o must not collide with dump_interface_layout build
 COMMON_OBJ = $(OBJ_DIR)/dump_interface_common.o
 
 all: $(OBJ_DIR) $(TARGET)

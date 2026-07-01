@@ -425,6 +425,8 @@ struct ToriAuxLibCore_Component
     struct ToriAuxLibCore_ScriptHook on_varp_transmit;
     /** GRAPHIC with no sprite refs: draw nothing, keep layout hitbox. */
     uint8_t graphic_hitbox_only;
+    /** dat2 tiled: repeat sprite across IF3 layout rect. */
+    uint8_t tiled;
     char option[TORIAUXLIBCORE_MENU_ACTION_LEN];
     char ops[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN];
 };

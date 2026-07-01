@@ -17,6 +17,7 @@
 #include "toriauxlib/core/toriauxlibcore.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdlib.h>
 
 struct Task_Dat2ProjectileAdd
@@ -25,6 +26,9 @@ struct Task_Dat2ProjectileAdd
     struct ToriAuxLibCache* c;
     int model_id;
     int anim_id;
+    struct Task_Dat2AnimResolve anim_resolve;
+    bool anim_resolve_ready;
+    struct RSCacheDat2Disk_Archive* sequence_archive;
 };
 
 struct Task_Dat2ProjectileAdd*
@@ -46,6 +50,14 @@ Task_Dat2ProjectileAdd_New(
 void
 Task_Dat2ProjectileAdd_Free(struct Task_Dat2ProjectileAdd* task)
 {
+    if( !task )
+        return;
+    Task_Dat2AnimResolve_Destroy(&task->anim_resolve);
+    if( task->sequence_archive )
+    {
+        RSCacheDat2Disk_ArchiveFree(task->sequence_archive);
+        task->sequence_archive = NULL;
+    }
     free(task);
 }
 
@@ -56,7 +68,6 @@ Task_Dat2ProjectileAdd_Run(
 {
     struct Dat2BuildCache* dat2_bc = dat2(task->c);
     struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
-    struct RSCacheDat2Disk_Archive* sequence_archive = NULL;
     int seq_id = task->anim_id;
 
     PT_BEGIN(&task->thread);
@@ -80,41 +91,55 @@ Task_Dat2ProjectileAdd_Run(
 
     if( seq_id != -1 && !ToriAuxLibCore_SequenceGet(core, seq_id) )
     {
-        sequence_archive = NULL;
+        task->sequence_archive = NULL;
 
         IO_REQUEST(ctx, 0, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Sequence));
         PT_YIELD(&task->thread);
 
-        sequence_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Sequence);
-        if( !sequence_archive )
+        task->sequence_archive =
+            TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Sequence);
+        if( !task->sequence_archive )
             PT_EXIT(&task->thread);
 
         DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, task->c);
 
-        dat2_buildcache_sequence_load_from_archive(dat2_bc, sequence_archive, seq_id);
+        dat2_buildcache_sequence_load_from_archive(dat2_bc, task->sequence_archive, seq_id);
 
         struct RSCacheDat2A_ConfigSequence* seq = dat2_buildcache_sequence_get(dat2_bc, seq_id);
         if( seq )
         {
-            struct Dat2AnimArchiveSet aset;
-            struct Task_Dat2AnimResolve anim_resolve;
-            dat2_anim_archive_set_init(&aset, 32);
-            Task_Dat2AnimResolve_Init(&anim_resolve, task->c, dat2_bc);
-            if( aset.ids )
+            if( !task->anim_resolve_ready )
             {
-                dat2_anim_set_add_sequence_archives(&aset, seq);
-                Task_Dat2AnimResolve_AddSequenceId(&anim_resolve, seq_id);
-                Task_Dat2AnimResolve_SetArchiveSet(&anim_resolve, &aset);
-                TASK_AWAIT(&task->thread, Task_Dat2AnimResolve_Run(&anim_resolve, ctx));
-                dat2_anim_archive_set_free(&aset);
+                struct Dat2AnimArchiveSet aset;
+
+                Task_Dat2AnimResolve_Init(&task->anim_resolve, task->c, dat2_bc);
+                dat2_anim_archive_set_init(&aset, 32);
+                if( aset.ids )
+                {
+                    dat2_anim_set_add_sequence_archives(&aset, seq);
+                    Task_Dat2AnimResolve_AddSequenceId(&task->anim_resolve, seq_id);
+                    Task_Dat2AnimResolve_SetArchiveSet(&task->anim_resolve, &aset);
+                    dat2_anim_archive_set_free(&aset);
+                    task->anim_resolve_ready = true;
+                }
+            }
+
+            if( task->anim_resolve_ready )
+            {
+                TASK_AWAIT(&task->thread, Task_Dat2AnimResolve_Run(&task->anim_resolve, ctx));
+                Task_Dat2AnimResolve_Destroy(&task->anim_resolve);
+                task->anim_resolve_ready = false;
             }
 
             dat2_anim_submit_sequence_skeletal(task->c, dat2_bc, seq);
             ToriAuxLibCache_SubmitSequenceFromDat2(task->c, seq_id);
         }
 
-        RSCacheDat2Disk_ArchiveFree(sequence_archive);
-        sequence_archive = NULL;
+        if( task->sequence_archive )
+        {
+            RSCacheDat2Disk_ArchiveFree(task->sequence_archive);
+            task->sequence_archive = NULL;
+        }
         LibToriRS_IOQueueClear(ctx->io);
     }
 

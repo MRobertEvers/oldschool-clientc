@@ -18,6 +18,7 @@
 #include "toridraw/toridraw_map.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -41,6 +42,9 @@ struct Task_Dat2WorldRebuildCore
     int* model_ids;
     int model_count;
     int model_index;
+    struct Task_Dat2AnimResolve anim_resolve;
+    bool anim_resolve_ready;
+    struct RSCacheDat2Disk_Archive* sequence_archive;
 };
 
 static void
@@ -71,6 +75,12 @@ Task_Dat2WorldRebuildCore_SetChunks(
 static void
 Task_Dat2WorldRebuildCore_Cleanup(struct Task_Dat2WorldRebuildCore* core)
 {
+    Task_Dat2AnimResolve_Destroy(&core->anim_resolve);
+    if( core->sequence_archive )
+    {
+        RSCacheDat2Disk_ArchiveFree(core->sequence_archive);
+        core->sequence_archive = NULL;
+    }
     free(core->model_ids);
     core->model_ids = NULL;
 }
@@ -113,7 +123,6 @@ Task_Dat2WorldRebuildCore_Run(
 {
     struct RSCacheDat2Disk_Archive* underlay_archive = NULL;
     struct RSCacheDat2Disk_Archive* overlay_archive = NULL;
-    struct RSCacheDat2Disk_Archive* sequence_archive = NULL;
     struct RSCacheDat2Disk_Archive* locs_archive = NULL;
     struct Dat2BuildCache* dat2_bc = dat2(core->c);
 
@@ -182,8 +191,8 @@ Task_Dat2WorldRebuildCore_Run(
     assert(underlay_archive);
     overlay_archive = TAPIDat2_DecodeConfigGroup(ctx, 1, RSCacheDat2A_ConfigKind_Overlay);
     assert(overlay_archive);
-    sequence_archive = TAPIDat2_DecodeConfigGroup(ctx, 2, RSCacheDat2A_ConfigKind_Sequence);
-    assert(sequence_archive);
+    core->sequence_archive = TAPIDat2_DecodeConfigGroup(ctx, 2, RSCacheDat2A_ConfigKind_Sequence);
+    assert(core->sequence_archive);
     locs_archive = TAPIDat2_DecodeConfigGroup(ctx, 3, RSCacheDat2A_ConfigKind_Locs);
     assert(locs_archive);
 
@@ -208,6 +217,7 @@ Task_Dat2WorldRebuildCore_Run(
 
     /* Load classic frame/framemap archives and skeletal anims referenced by
      * visible scene locs only — do NOT walk every sequence in the cache. */
+    if( !core->anim_resolve_ready )
     {
         int* seq_ids = NULL;
         int seq_capacity = 256;
@@ -268,17 +278,17 @@ Task_Dat2WorldRebuildCore_Run(
             ToriDraw_MapIterFree(loc_iter);
 
             struct Dat2AnimArchiveSet aset;
-            struct Task_Dat2AnimResolve anim_resolve;
+
+            Task_Dat2AnimResolve_Init(&core->anim_resolve, core->c, dat2_bc);
             dat2_anim_archive_set_init(&aset, 128);
-            Task_Dat2AnimResolve_Init(&anim_resolve, core->c, dat2_bc);
             if( aset.ids )
             {
                 for( int si = 0; si < seq_count; si++ )
                 {
                     int seq_id = seq_ids[si];
-                    if( sequence_archive )
+                    if( core->sequence_archive )
                         dat2_buildcache_sequence_load_from_archive(
-                            dat2_bc, sequence_archive, seq_id);
+                            dat2_bc, core->sequence_archive, seq_id);
 
                     struct RSCacheDat2A_ConfigSequence* seq =
                         dat2_buildcache_sequence_get(dat2_bc, seq_id);
@@ -286,28 +296,32 @@ Task_Dat2WorldRebuildCore_Run(
                         continue;
 
                     dat2_anim_set_add_sequence_archives(&aset, seq);
-                    Task_Dat2AnimResolve_AddSequenceId(&anim_resolve, seq_id);
+                    Task_Dat2AnimResolve_AddSequenceId(&core->anim_resolve, seq_id);
                 }
 
-                Task_Dat2AnimResolve_SetArchiveSet(&anim_resolve, &aset);
-                TASK_AWAIT(&core->thread, Task_Dat2AnimResolve_Run(&anim_resolve, ctx));
-                dat2_anim_submit_all_skeletal(core->c, dat2_bc);
+                Task_Dat2AnimResolve_SetArchiveSet(&core->anim_resolve, &aset);
                 dat2_anim_archive_set_free(&aset);
+                core->anim_resolve_ready = true;
             }
             free(seq_ids);
-            seq_ids = NULL;
         }
-        else
-            free(seq_ids);
+    }
 
-        ToriAuxLibCache_SubmitAllSequencesFromDat2(core->c);
-        dat2_buildcache_sequences_cleanup(dat2_bc);
+    if( core->anim_resolve_ready )
+    {
+        TASK_AWAIT(&core->thread, Task_Dat2AnimResolve_Run(&core->anim_resolve, ctx));
+        Task_Dat2AnimResolve_Destroy(&core->anim_resolve);
+        core->anim_resolve_ready = false;
+        dat2_anim_submit_all_skeletal(core->c, dat2_bc);
+    }
 
-        if( sequence_archive )
-        {
-            RSCacheDat2Disk_ArchiveFree(sequence_archive);
-            sequence_archive = NULL;
-        }
+    ToriAuxLibCache_SubmitAllSequencesFromDat2(core->c);
+    dat2_buildcache_sequences_cleanup(dat2_bc);
+
+    if( core->sequence_archive )
+    {
+        RSCacheDat2Disk_ArchiveFree(core->sequence_archive);
+        core->sequence_archive = NULL;
     }
 
     LibToriRS_IOQueueClear(ctx->io);
