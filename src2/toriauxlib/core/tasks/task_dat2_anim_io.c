@@ -10,8 +10,15 @@
 #include "toriauxlib/core/tasks/task_dat2_io.h"
 
 #include <assert.h>
-#include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+#define TASK_DAT2_ANIM_FATAL(...)              \
+    do {                                       \
+        fprintf(stderr, "Task_Dat2AnimResolve: "); \
+        fprintf(stderr, __VA_ARGS__);          \
+        abort();                               \
+    } while( 0 )
 
 static void
 task_dat2_anim_reset_skeletal_state(struct Task_Dat2AnimResolve* task)
@@ -105,7 +112,6 @@ Task_Dat2AnimResolve_Run(
     struct RSCacheDat2Disk_ReferenceTable* animations_table = NULL;
     struct RSCacheDat2Disk_ReferenceTable* animaya_table = NULL;
     struct RSCacheDat2A_AnimMaya* maya = NULL;
-    bool loaded = false;
     int fmid = -1;
 
 #if defined(__clang__)
@@ -124,7 +130,10 @@ Task_Dat2AnimResolve_Run(
         seq = dat2_buildcache_sequence_get(task->bc, task->seq_ids[task->seq_index]);
         task->skeletal_seq_id = task->seq_ids[task->seq_index];
         if( !seq )
-            continue;
+        {
+            TASK_DAT2_ANIM_FATAL(
+                "sequence missing from buildcache (seq_id=%d)\n", task->skeletal_seq_id);
+        }
 
         task->skeletal_maya_id = seq->anim_maya_id;
         if( task->skeletal_maya_id < 0 ||
@@ -139,14 +148,11 @@ Task_Dat2AnimResolve_Run(
 
         if( !dat2_buildcache_reference_table_has(task->bc, RSCacheDat2Disk_Table_Animayas) )
         {
-            fprintf(
-                stderr,
-                "Task_Dat2AnimResolve: Animayas reference table missing for "
-                "maya_id=%d animaya_aid=%d seq_id=%d\n",
+            TASK_DAT2_ANIM_FATAL(
+                "Animayas reference table missing for maya_id=%d animaya_aid=%d seq_id=%d\n",
                 task->skeletal_maya_id,
                 task->skeletal_animaya_aid,
                 task->skeletal_seq_id);
-            continue;
         }
 
         IO_REQUEST(
@@ -163,20 +169,23 @@ Task_Dat2AnimResolve_Run(
             task->skeletal_animaya_aid);
         if( !animaya_arch )
         {
-            fprintf(
-                stderr,
-                "Task_Dat2AnimResolve: failed to load animaya table=%d archive=%d "
-                "maya_id=%d seq_id=%d\n",
+            TASK_DAT2_ANIM_FATAL(
+                "failed to load animaya table=%d archive=%d maya_id=%d seq_id=%d\n",
                 RSCacheDat2Disk_Table_Animayas,
                 task->skeletal_animaya_aid,
                 task->skeletal_maya_id,
                 task->skeletal_seq_id);
-            LibToriRS_IOQueueClear(ctx->io);
-            continue;
         }
 
         animaya_table =
             dat2_buildcache_reference_table_get(task->bc, RSCacheDat2Disk_Table_Animayas);
+        if( !animaya_table )
+        {
+            TASK_DAT2_ANIM_FATAL(
+                "Animayas reference table missing during decode maya_id=%d seq_id=%d\n",
+                task->skeletal_maya_id,
+                task->skeletal_seq_id);
+        }
         maya = RSCacheDat2A_AnimMayaNewFromArchive(
             animaya_table, animaya_arch, task->skeletal_maya_id);
         RSCacheDat2Disk_ArchiveFree(animaya_arch);
@@ -184,15 +193,11 @@ Task_Dat2AnimResolve_Run(
 
         if( !maya )
         {
-            fprintf(
-                stderr,
-                "Task_Dat2AnimResolve: failed to decode animaya maya_id=%d "
-                "animaya_aid=%d seq_id=%d\n",
+            TASK_DAT2_ANIM_FATAL(
+                "failed to decode animaya maya_id=%d animaya_aid=%d seq_id=%d\n",
                 task->skeletal_maya_id,
                 task->skeletal_animaya_aid,
                 task->skeletal_seq_id);
-            LibToriRS_IOQueueClear(ctx->io);
-            continue;
         }
 
         dat2_buildcache_skeletal_add(task->bc, task->skeletal_maya_id, maya);
@@ -211,24 +216,19 @@ Task_Dat2AnimResolve_Run(
 
             skel_base_arch = TAPIDat2_DecodeArchive(
                 ctx, 1, RSCacheDat2Disk_Table_Skeletons, task->skeletal_base_id);
-            if( skel_base_arch )
+            if( !skel_base_arch )
             {
-                dat2_buildcache_skeletal_base_add_from_archive(
-                    task->bc, task->skeletal_base_id, skel_base_arch);
-                RSCacheDat2Disk_ArchiveFree(skel_base_arch);
-                skel_base_arch = NULL;
-            }
-            else
-            {
-                fprintf(
-                    stderr,
-                    "Task_Dat2AnimResolve: failed to load skeletal base table=%d "
-                    "archive=%d maya_id=%d seq_id=%d\n",
+                TASK_DAT2_ANIM_FATAL(
+                    "failed to load skeletal base table=%d archive=%d maya_id=%d seq_id=%d\n",
                     RSCacheDat2Disk_Table_Skeletons,
                     task->skeletal_base_id,
                     task->skeletal_maya_id,
                     task->skeletal_seq_id);
             }
+            dat2_buildcache_skeletal_base_add_from_archive(
+                task->bc, task->skeletal_base_id, skel_base_arch);
+            RSCacheDat2Disk_ArchiveFree(skel_base_arch);
+            skel_base_arch = NULL;
             LibToriRS_IOQueueClear(ctx->io);
         }
         else
@@ -247,9 +247,6 @@ Task_Dat2AnimResolve_Run(
         task->current_aid = task->aset.ids[task->archive_index];
         if( dat2_buildcache_frames_has(task->bc, task->current_aid) )
         {
-            assert(
-                dat2_buildcache_frames_has(task->bc, task->current_aid) &&
-                "frames missing before submit");
             ToriAuxLibCache_SubmitAnimationFromDat2(task->c, task->current_aid);
             continue;
         }
@@ -265,30 +262,32 @@ Task_Dat2AnimResolve_Run(
             ctx, 0, RSCacheDat2Disk_Table_Animations, task->current_aid);
         if( !task->held_idx0 )
         {
-            fprintf(
-                stderr,
-                "Task_Dat2AnimResolve: failed to decode animation archive "
-                "(archive_id=%d)\n",
-                task->current_aid);
-            LibToriRS_IOQueueClear(ctx->io);
-            continue;
+            TASK_DAT2_ANIM_FATAL(
+                "failed to decode animation archive (archive_id=%d)\n", task->current_aid);
         }
 
         animations_table =
             dat2_buildcache_reference_table_get(task->bc, RSCacheDat2Disk_Table_Animations);
-        if( animations_table )
-            RSCacheDat2Disk_ArchiveInitMetadataFromTable(animations_table, task->held_idx0);
+        if( !animations_table )
+        {
+            TASK_DAT2_ANIM_FATAL(
+                "Animations reference table missing (archive_id=%d)\n", task->current_aid);
+        }
+        RSCacheDat2Disk_ArchiveInitMetadataFromTable(animations_table, task->held_idx0);
 
         fl = RSCacheShared_FileListNewFromCacheArchive(task->held_idx0);
         task->pending_framemap_count = 0;
         task->pending_framemap_index = 0;
-        if( fl )
+        if( !fl )
         {
-            task->pending_framemap_count = dat2_buildcache_frames_collect_framemap_ids(
-                fl, task->pending_framemap_ids, TASK_DAT2_ANIM_MAX_PENDING_FRAMEMAPS);
-            RSCacheShared_FileListFree(fl);
-            fl = NULL;
+            TASK_DAT2_ANIM_FATAL(
+                "failed to build file list from animation archive (archive_id=%d)\n",
+                task->current_aid);
         }
+        task->pending_framemap_count = dat2_buildcache_frames_collect_framemap_ids(
+            fl, task->pending_framemap_ids, TASK_DAT2_ANIM_MAX_PENDING_FRAMEMAPS);
+        RSCacheShared_FileListFree(fl);
+        fl = NULL;
 
         LibToriRS_IOQueueClear(ctx->io);
 
@@ -306,47 +305,34 @@ Task_Dat2AnimResolve_Run(
 
             fmid = task->pending_framemap_ids[task->pending_framemap_index];
             skel = TAPIDat2_DecodeArchive(ctx, 1, RSCacheDat2Disk_Table_Skeletons, fmid);
-            if( skel )
+            if( !skel )
             {
-                dat2_buildcache_framemap_add_from_archive(task->bc, fmid, skel);
-                RSCacheDat2Disk_ArchiveFree(skel);
-                skel = NULL;
-            }
-            else
-            {
-                fprintf(
-                    stderr,
-                    "Task_Dat2AnimResolve: failed to decode framemap "
-                    "(archive_id=%d framemap_id=%d)\n",
+                TASK_DAT2_ANIM_FATAL(
+                    "failed to decode framemap (archive_id=%d framemap_id=%d)\n",
                     task->current_aid,
                     fmid);
             }
+            dat2_buildcache_framemap_add_from_archive(task->bc, fmid, skel);
+            RSCacheDat2Disk_ArchiveFree(skel);
+            skel = NULL;
             LibToriRS_IOQueueClear(ctx->io);
         }
 
-        loaded = false;
-        if( task->held_idx0 )
+        if( !dat2_buildcache_frames_add_from_fetched_archive(
+                task->bc, task->current_aid, task->held_idx0) )
         {
-            loaded = dat2_buildcache_frames_add_from_fetched_archive(
-                task->bc, task->current_aid, task->held_idx0);
-            if( !loaded )
-            {
-                fprintf(
-                    stderr,
-                    "Task_Dat2AnimResolve: frame decode failed "
-                    "(archive_id=%d pending_framemaps=%d)\n",
-                    task->current_aid,
-                    task->pending_framemap_count);
-            }
+            TASK_DAT2_ANIM_FATAL(
+                "frame decode failed (archive_id=%d pending_framemaps=%d)\n",
+                task->current_aid,
+                task->pending_framemap_count);
         }
-
-        if( loaded )
+        if( !dat2_buildcache_frames_has(task->bc, task->current_aid) )
         {
-            assert(
-                dat2_buildcache_frames_has(task->bc, task->current_aid) &&
-                "frames missing before submit after decode");
-            ToriAuxLibCache_SubmitAnimationFromDat2(task->c, task->current_aid);
+            TASK_DAT2_ANIM_FATAL(
+                "frames missing before submit after decode (archive_id=%d)\n",
+                task->current_aid);
         }
+        ToriAuxLibCache_SubmitAnimationFromDat2(task->c, task->current_aid);
 
         task_dat2_anim_reset_load_state(task);
         LibToriRS_IOQueueClear(ctx->io);

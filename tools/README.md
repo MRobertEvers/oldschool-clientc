@@ -147,28 +147,16 @@ tools/dump_graphic/dump_graphic cache.dat1 --ref invback.dat --bmp invback.bmp
 
 ## `interface161_test/`
 
-Standalone **Makefile** build and **`run_interfaces_1_500.mjs`** to export interface BMPs from a cache.
+Offline dat2 interface decoder and BMP renderer (layout debug, Equipment panel 387, batch export).
 
-**Build:**
+**Full documentation:** [`interface161_test/README.md`](interface161_test/README.md)
+
+**Quick start:**
 
 ```bash
 make -C tools/interface161_test
-```
 
-**Export:**
-
-```bash
-node tools/interface161_test/run_interfaces_1_500.mjs /path/to/cache [--out-dir DIR] [--binary PATH]
-```
-
-**Single interface (Kronos Equipment, archive 387):**
-
-```bash
 ./tools/interface161_test/interface161_test cache.kronos --iface 387 --sprites \
   --fixture tools/interface161_test/fixtures/equipment_387.json \
   build/interface_387.bmp
 ```
-
-Interface 387 is the Kronos Equipment panel (sidebar tab 4; `componentno=387` in `rev_kronos_ui.ini`). Requires `cache.kronos/` at repo root.
-
-Draws type 2 (inventory slot backgrounds), type 3 (rect fill/outline), and type 5 (sprites). Equipment slot widgets (type 0) are empty unless `--fixture` supplies sample obj ids. Without `--fixture`, worn items only appear at runtime in the live client.

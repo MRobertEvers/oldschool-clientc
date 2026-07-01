@@ -628,7 +628,8 @@ Task_InstanceOnRCUIComponent_Run(
             }
 
             if( strcmp(task->item.type, "sidebar") == 0 && task->item.inv[0] != '\0' &&
-                !panel_invalid && subtree && subtree->item_count > 0 )
+                !panel_invalid && subtree && subtree->item_count > 0 &&
+                ToriAuxLibCache_Mode(task->cache) != TORIAUXLIBCACHE_MODE_DAT2 )
             {
                 bool found_inv = false;
                 struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->cache);

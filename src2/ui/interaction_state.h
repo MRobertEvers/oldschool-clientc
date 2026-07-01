@@ -19,7 +19,7 @@ struct InteractionState
 {
     enum InteractionTargetKind kind;
     int32_t ui_component_index;
-    int inv_index;
+    int inv_source_id;
     int inv_slot;
     int tile_x;
     int tile_z;
@@ -43,7 +43,7 @@ interaction_state_set_ui(
 void
 interaction_state_set_inv_slot(
     struct InteractionState* state,
-    int inv_index,
+    int inv_source_id,
     int slot,
     int obj_id);
 

@@ -332,6 +332,7 @@ enum ToriAuxLibCore_ComponentType
 #define TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX 16
 /** Matches OSRS INV slotGraphic array length (equipment silhouettes, etc.). */
 #define TORIAUXLIBCORE_INV_SLOT_MAX 20
+#define TORIAUXLIBCORE_INVENTORY_TRIGGER_MAX 8
 
 struct ToriAuxLibCore_ScriptHook
 {
@@ -423,6 +424,9 @@ struct ToriAuxLibCore_Component
     struct ToriAuxLibCore_ScriptHook on_load;
     struct ToriAuxLibCore_ScriptHook on_click;
     struct ToriAuxLibCore_ScriptHook on_varp_transmit;
+    struct ToriAuxLibCore_ScriptHook on_inv_transmit;
+    int inventory_triggers_count;
+    int inventory_triggers[TORIAUXLIBCORE_INVENTORY_TRIGGER_MAX];
     /** GRAPHIC with no sprite refs: draw nothing, keep layout hitbox. */
     uint8_t graphic_hitbox_only;
     /** dat2 tiled: repeat sprite across IF3 layout rect. */

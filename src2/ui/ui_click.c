@@ -16,6 +16,8 @@
 #include "ui/ui_chat_minimenu.h"
 #include "ui/ui_input.h"
 #include "ui/ui_scroll.h"
+#include "ui/ui_inv_data_service.h"
+#include "ui/ui_inv_slot_view.h"
 #include "ui/uitree_host.h"
 #include "ui/ui_minimenu.h"
 #include "ui/uitree_layout.h"
@@ -41,7 +43,7 @@ ui_click_component_is_menu_debug_relevant(struct StaticUIComponent const* compon
 }
 
 void
-uitree_inv_hit_test_slot(
+uitree_inv_grid_hit_test_slot(
     struct StaticUIComponent const* component,
     int px,
     int py,
@@ -51,7 +53,7 @@ uitree_inv_hit_test_slot(
 {
     if( out_slot )
         *out_slot = -1;
-    if( !component || component->type != UIELEM_RS_INV )
+    if( !component || component->type != UIELEM_INV_GRID )
         return;
 
     int bx = 0;
@@ -62,32 +64,18 @@ uitree_inv_hit_test_slot(
     bx -= scroll_off_x;
     by -= scroll_off_y;
 
-    int cols = component->u.rs_inv.cols > 0 ? component->u.rs_inv.cols : 4;
-    int rows = component->u.rs_inv.rows > 0 ? component->u.rs_inv.rows : 7;
-    int margin_x = component->u.rs_inv.margin_x;
-    int margin_y = component->u.rs_inv.margin_y;
-    int total = cols * rows;
-    if( total > UI_INV_SLOT_OFFSET_MAX )
-        total = UI_INV_SLOT_OFFSET_MAX;
+    struct UIInvGridLayout layout = {
+        .cols = component->u.inv_grid.cols > 0 ? component->u.inv_grid.cols : 4,
+        .rows = component->u.inv_grid.rows > 0 ? component->u.inv_grid.rows : 7,
+        .margin_x = component->u.inv_grid.margin_x,
+        .margin_y = component->u.inv_grid.margin_y,
+        .offset_x = component->u.inv_grid.inv_slot_offset_x,
+        .offset_y = component->u.inv_grid.inv_slot_offset_y,
+    };
 
-    for( int slot = 0; slot < total; slot++ )
-    {
-        int col = slot % cols;
-        int row = slot / cols;
-        int slot_x = bx + col * (margin_x + 32);
-        int slot_y = by + row * (margin_y + 32);
-        if( slot < UI_INV_SLOT_OFFSET_MAX )
-        {
-            slot_x += component->u.rs_inv.inv_slot_offset_x[slot];
-            slot_y += component->u.rs_inv.inv_slot_offset_y[slot];
-        }
-        if( px >= slot_x && px < slot_x + 32 && py >= slot_y && py < slot_y + 32 )
-        {
-            if( out_slot )
-                *out_slot = slot;
-            return;
-        }
-    }
+    int slot = ui_inv_slot_view_grid_hit_test(bx, by, &layout, px, py);
+    if( out_slot )
+        *out_slot = slot;
 }
 
 static void
@@ -95,7 +83,6 @@ uitree_inv_pick_at_point_recursive(
     struct UITree const* tree,
     struct UITreeHost const* host,
     struct UITreeScrollState const* scroll,
-    struct UIInventoryPool const* inv_pool,
     int32_t node_index,
     int px,
     int py,
@@ -115,23 +102,52 @@ uitree_inv_pick_at_point_recursive(
     if( !uitree_component_hit_test_visible_host(component, -1, host) )
         return;
 
-    if( component->type == UIELEM_RS_INV )
+    if( component->type == UIELEM_INV_GRID )
     {
         int slot = -1;
-        uitree_inv_hit_test_slot(component, px, py, scroll_off_x, scroll_off_y, &slot);
+        uitree_inv_grid_hit_test_slot(component, px, py, scroll_off_x, scroll_off_y, &slot);
         if( slot >= 0 )
         {
-            int inv_index = component->u.rs_inv.inv_index;
             int obj_id = 0;
-            if( inv_pool && inv_index >= 0 && inv_index < inv_pool->count )
+            if( host && host->get_inv_source_slot )
             {
-                struct UIInventory const* inv = &inv_pool->inventories[inv_index];
-                if( slot < inv->item_count )
-                    obj_id = inv->items[slot].obj_id;
+                struct UIInvSlotData slot_data;
+                if( host->get_inv_source_slot(
+                        host->user, component->u.inv_grid.inv_source_id, slot, &slot_data) )
+                    obj_id = slot_data.obj_id;
             }
             pick->component_index = node_index;
-            pick->inv_index = inv_index;
+            pick->inv_source_id = component->u.inv_grid.inv_source_id;
             pick->slot = slot;
+            pick->obj_id = obj_id;
+        }
+    }
+
+    if( component->type == UIELEM_INV_SLOT )
+    {
+        int bx = 0;
+        int by = 0;
+        int bw = 0;
+        int bh = 0;
+        uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
+        bx -= scroll_off_x;
+        by -= scroll_off_y;
+        if( ui_inv_slot_view_hit_test_rect(px, py, bx, by, bw, bh) )
+        {
+            int obj_id = 0;
+            if( host && host->get_inv_source_slot )
+            {
+                struct UIInvSlotData slot_data;
+                if( host->get_inv_source_slot(
+                        host->user,
+                        component->u.inv_slot.inv_source_id,
+                        component->u.inv_slot.slot,
+                        &slot_data) )
+                    obj_id = slot_data.obj_id;
+            }
+            pick->component_index = node_index;
+            pick->inv_source_id = component->u.inv_slot.inv_source_id;
+            pick->slot = component->u.inv_slot.slot;
             pick->obj_id = obj_id;
         }
     }
@@ -178,7 +194,6 @@ uitree_inv_pick_at_point_recursive(
                 tree,
                 host,
                 scroll,
-                inv_pool,
                 child,
                 px,
                 py,
@@ -195,7 +210,6 @@ uitree_inv_pick_at_point(
     struct UITree const* tree,
     struct UITreeHost const* host,
     struct UITreeScrollState const* scroll,
-    struct UIInventoryPool const* inv_pool,
     int px,
     int py,
     struct UITreeInvPick* out)
@@ -204,7 +218,7 @@ uitree_inv_pick_at_point(
         return false;
 
     out->component_index = -1;
-    out->inv_index = -1;
+    out->inv_source_id = UI_INV_SOURCE_INVALID;
     out->slot = -1;
     out->obj_id = 0;
 
@@ -213,7 +227,7 @@ uitree_inv_pick_at_point(
 
     struct UITreeInvPick pick = {
         .component_index = -1,
-        .inv_index = -1,
+        .inv_source_id = UI_INV_SOURCE_INVALID,
         .slot = -1,
         .obj_id = 0,
     };
@@ -221,7 +235,7 @@ uitree_inv_pick_at_point(
     for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         uitree_inv_pick_at_point_recursive(
-            tree, host, scroll, inv_pool, root, px, py, 0, 0, NULL, &pick);
+            tree, host, scroll, root, px, py, 0, 0, NULL, &pick);
     }
 
     if( pick.component_index < 0 || pick.slot < 0 )
@@ -1134,7 +1148,7 @@ ui_click_add_rs_interface_options_recursive(
         return;
     }
 
-    if( component->type == UIELEM_RS_INV )
+    if( component->type == UIELEM_INV_GRID )
     {
         if( debug_relevant )
         {
@@ -1291,7 +1305,7 @@ ui_click_point_expects_ui_rows_recursive(
         return false;
     }
 
-    if( component->type == UIELEM_RS_INV )
+    if( component->type == UIELEM_INV_GRID )
         return false;
 
     int bx = 0;
@@ -1616,7 +1630,6 @@ game_try_inv_click(
             game->ui_tree,
             &game->ui_host,
             &scroll,
-            game->ui_inv_pool,
             click_x,
             click_y,
             &inv_pick) )
@@ -1626,7 +1639,7 @@ game_try_inv_click(
         return false;
 
     int32_t const hit = inv_pick.component_index;
-    int const inv_index = inv_pick.inv_index;
+    int const inv_source_id = inv_pick.inv_source_id;
     int const slot = inv_pick.slot;
     int const obj_id = inv_pick.obj_id;
     struct StaticUIComponent* component = &game->ui_tree->components[hit];
@@ -1634,7 +1647,7 @@ game_try_inv_click(
     if( right_click )
     {
         if( out_picks )
-            inv_slot_to_minimenu_pickset(inv_index, slot, obj_id, hit, out_picks);
+            inv_slot_to_minimenu_pickset(inv_source_id, slot, obj_id, hit, out_picks);
         game->cross_x = click_x;
         game->cross_y = click_y;
         return true;
@@ -1644,7 +1657,7 @@ game_try_inv_click(
     {
         struct MinimenuPick pick = {
             .kind = MINIMENU_PICK_INV_SLOT,
-            .id = inv_index,
+            .id = inv_source_id,
             .secondary_id = slot,
             .tertiary_id = obj_id,
             .quaternary_id = hit,
@@ -1656,33 +1669,38 @@ game_try_inv_click(
             "inv_left_click", &pick, component, obj, 0, 0, -1);
     }
 
-    if( game->selected_inv_index == inv_index && game->selected_inv_slot == slot )
+    if( game->selected_inv_source_id == inv_source_id && game->selected_inv_slot == slot )
     {
-        game->selected_inv_index = -1;
+        game->selected_inv_source_id = -1;
         game->selected_inv_slot = -1;
     }
     else if(
-        game->selected_inv_index >= 0 && game->selected_inv_slot >= 0 &&
-        (game->selected_inv_index != inv_index || game->selected_inv_slot != slot) &&
-        game->ui_inv_pool )
+        game->selected_inv_source_id >= 0 && game->selected_inv_slot >= 0 &&
+        (game->selected_inv_source_id != inv_source_id || game->selected_inv_slot != slot) &&
+        game->ui_host.set_inv_source_slot && game->ui_host.get_inv_source_slot )
     {
-        struct UIInventory* src =
-            &game->ui_inv_pool->inventories[game->selected_inv_index];
-        struct UIInventory* dst = &game->ui_inv_pool->inventories[inv_index];
-        if( game->selected_inv_slot < src->item_count && slot < dst->item_count )
+        struct UIInvSlotData src_data;
+        struct UIInvSlotData dst_data;
+        if( game->ui_host.get_inv_source_slot(
+                game->ui_host.user,
+                game->selected_inv_source_id,
+                game->selected_inv_slot,
+                &src_data) &&
+            game->ui_host.get_inv_source_slot(
+                game->ui_host.user, inv_source_id, slot, &dst_data) )
         {
-            struct UIInventoryItem tmp = src->items[game->selected_inv_slot];
-            src->items[game->selected_inv_slot] = dst->items[slot];
-            dst->items[slot] = tmp;
+            game->ui_host.set_inv_source_slot(
+                game->ui_host.user, game->selected_inv_source_id, game->selected_inv_slot, &dst_data);
+            game->ui_host.set_inv_source_slot(game->ui_host.user, inv_source_id, slot, &src_data);
         }
-        game->selected_inv_index = -1;
+        game->selected_inv_source_id = -1;
         game->selected_inv_slot = -1;
     }
     else
     {
-        game->selected_inv_index = inv_index;
+        game->selected_inv_source_id = inv_source_id;
         game->selected_inv_slot = slot;
-        interaction_state_set_inv_slot(&game->interaction, inv_index, slot, obj_id);
+        interaction_state_set_inv_slot(&game->interaction, inv_source_id, slot, obj_id);
     }
 
     return true;

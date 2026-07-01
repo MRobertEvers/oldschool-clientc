@@ -10,7 +10,7 @@ interaction_state_reset(struct InteractionState* state)
     memset(state, 0, sizeof(*state));
     state->kind = INTERACTION_TARGET_NONE;
     state->ui_component_index = -1;
-    state->inv_index = -1;
+    state->inv_source_id = -1;
     state->inv_slot = -1;
     state->entity_id = -1;
     state->scenery_element_id = -1;
@@ -35,7 +35,7 @@ interaction_state_set_ui(
 void
 interaction_state_set_inv_slot(
     struct InteractionState* state,
-    int inv_index,
+    int inv_source_id,
     int slot,
     int obj_id)
 {
@@ -43,7 +43,7 @@ interaction_state_set_inv_slot(
         return;
     interaction_state_reset(state);
     state->kind = INTERACTION_TARGET_INV_SLOT;
-    state->inv_index = inv_index;
+    state->inv_source_id = inv_source_id;
     state->inv_slot = slot;
     state->obj_id = obj_id;
 }

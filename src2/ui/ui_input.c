@@ -57,7 +57,8 @@ uitree_component_is_pass_through(
         return !host || !host->get_cross_active || !host->get_cross_active(host->user);
     case UIELEM_BUILTIN_MINIMENU:
         return !host || !host->get_minimenu_visible || !host->get_minimenu_visible(host->user);
-    case UIELEM_RS_INV:
+    case UIELEM_INV_GRID:
+    case UIELEM_INV_SLOT:
     case UIELEM_RS_INV_TEXT:
         return true;
     case UIELEM_RS_GRAPHIC:

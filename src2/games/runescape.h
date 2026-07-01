@@ -17,6 +17,7 @@
 #include "ui/uitree.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
+#include "ui/ui_inv_data_service.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -134,6 +135,7 @@ struct GameRunescape
     bool ui_sprites_synced;
     bool ui_fonts_synced;
     struct UIInventoryPool* ui_inv_pool;
+    struct UIInvDataService inv_data;
     struct UITreeHost ui_host;
     struct UIInputState ui_input;
     int selected_tab;
@@ -180,7 +182,7 @@ struct GameRunescape
     int cross_mode;
     int cross_cycle;
 
-    int selected_inv_index;
+    int selected_inv_source_id;
     int selected_inv_slot;
 
     int zone_center_x;
@@ -264,6 +266,33 @@ void
 GameRunescape_SetUIInvPool(
     struct GameRunescape* game,
     struct UIInventoryPool* pool);
+
+void
+GameRunescape_IF3InvSetContainerSlot(
+    struct GameRunescape* game,
+    int container_id,
+    int slot,
+    int obj_id,
+    int obj_count,
+    int scene_id,
+    int atlas_index);
+
+void
+GameRunescape_IF3InvApplyFull(
+    struct GameRunescape* game,
+    int container_id,
+    int const* obj_ids,
+    int const* obj_counts,
+    int count);
+
+void
+GameRunescape_IF3InvApplyPartial(
+    struct GameRunescape* game,
+    int container_id,
+    int const* slots,
+    int const* obj_ids,
+    int const* obj_counts,
+    int count);
 
 void
 GameRunescape_SyncUISpritesFromScene(struct GameRunescape* game);

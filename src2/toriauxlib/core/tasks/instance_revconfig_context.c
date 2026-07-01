@@ -16,6 +16,8 @@
 #include "ui/ui_behavior.h"
 #include "ui/ui_debug.h"
 #include "ui/ui_if3_layout.h"
+#include "instance_revconfig_inv_bind.h"
+#include "ui/ui_inv_data_service.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
 #include "vm/cs2vm.h"
@@ -342,7 +344,7 @@ instance_revconfig_bake_rs_component(
     struct InstanceRevConfigContext* ctx,
     int32_t parent_idx,
     struct ToriAuxLibCore_Component const* info,
-    int inv_index)
+    int inv_source_id)
 {
     assert(ctx && ctx->tree && info);
 
@@ -396,9 +398,21 @@ instance_revconfig_bake_rs_component(
     switch( info->type )
     {
     case TORIAUXLIBCORE_COMPONENT_LAYER:
-        spec.type = UIELEM_RS_LAYER;
-        spec.u.rs_layer.scroll_height = info->scroll_height;
-        spec.u.rs_layer.scroll_width = info->scroll_width;
+        if( instance_revconfig_inv_is_equipment_slot_layer(info->id) && ctx->game )
+        {
+            int const worn_source =
+                instance_revconfig_inv_resolve_source(ctx->game, UI_INV_SOURCE_NAME_WORN);
+            spec.type = UIELEM_INV_SLOT;
+            spec.u.inv_slot.inv_source_id = worn_source;
+            spec.u.inv_slot.slot = instance_revconfig_inv_equipment_slot_index(info->id);
+            spec.u.inv_slot.center_icon = 1;
+        }
+        else
+        {
+            spec.type = UIELEM_RS_LAYER;
+            spec.u.rs_layer.scroll_height = info->scroll_height;
+            spec.u.rs_layer.scroll_width = info->scroll_width;
+        }
         break;
     case TORIAUXLIBCORE_COMPONENT_GRAPHIC:
     {
@@ -500,7 +514,7 @@ instance_revconfig_bake_rs_component(
         break;
     case TORIAUXLIBCORE_COMPONENT_INV_TEXT:
         spec.type = UIELEM_RS_INV_TEXT;
-        spec.u.rs_inv_text.inv_index = inv_index;
+        spec.u.rs_inv_text.inv_source_id = inv_source_id;
         spec.u.rs_inv_text.cols = info->inv_cols;
         spec.u.rs_inv_text.rows = info->inv_rows;
         spec.u.rs_inv_text.margin_x = info->margin_x;
@@ -637,12 +651,12 @@ instance_revconfig_bake_rs_component(
         spec.u.rs_line.horizontal = info->filled ? 1 : 0;
         break;
     case TORIAUXLIBCORE_COMPONENT_INV:
-        spec.type = UIELEM_RS_INV;
-        spec.u.rs_inv.inv_index = inv_index;
-        spec.u.rs_inv.cols = info->inv_cols;
-        spec.u.rs_inv.rows = info->inv_rows;
-        spec.u.rs_inv.margin_x = info->margin_x;
-        spec.u.rs_inv.margin_y = info->margin_y;
+        spec.type = UIELEM_INV_GRID;
+        spec.u.inv_grid.inv_source_id = inv_source_id;
+        spec.u.inv_grid.cols = info->inv_cols;
+        spec.u.inv_grid.rows = info->inv_rows;
+        spec.u.inv_grid.margin_x = info->margin_x;
+        spec.u.inv_grid.margin_y = info->margin_y;
 
         {
             int const cols = info->inv_cols;
@@ -682,10 +696,10 @@ instance_revconfig_bake_rs_component(
                 ctx, sid, inv_bg_ai[si], info->inv_slot_sprite_ref[si], "rs_inv slot bg");
         }
 
-        spec.u.rs_inv.inv_slot_offset_x = info->inv_slot_offset_x;
-        spec.u.rs_inv.inv_slot_offset_y = info->inv_slot_offset_y;
-        spec.u.rs_inv.inv_slot_bg_scene_id = inv_bg_sid;
-        spec.u.rs_inv.inv_slot_bg_atlas_index = inv_bg_ai;
+        spec.u.inv_grid.inv_slot_offset_x = info->inv_slot_offset_x;
+        spec.u.inv_grid.inv_slot_offset_y = info->inv_slot_offset_y;
+        spec.u.inv_grid.inv_slot_bg_scene_id = inv_bg_sid;
+        spec.u.inv_grid.inv_slot_bg_atlas_index = inv_bg_ai;
         break;
     default:
         return -1;
@@ -791,11 +805,15 @@ instance_revconfig_bake_rs_subtree(
     if( ctx->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 && ctx->dat2_bc && comp->componentno >= 0 )
         iface_archive = dat2_buildcache_interface_archive_get(ctx->dat2_bc, comp->componentno);
 
-    int inv_index = -1;
+    int inv_source_id = UI_INV_SOURCE_INVALID;
+    if( comp->inv[0] != '\0' && ctx->game )
+        inv_source_id = instance_revconfig_inv_resolve_source(ctx->game, comp->inv);
     if( comp->inv[0] != '\0' && ctx->inv_pool )
-        inv_index = uitree_inv_pool_find_by_name(ctx->inv_pool, comp->inv);
-    if( comp->inv[0] != '\0' )
-        assert(inv_index >= 0 && "sidebar inv= name not found in inv pool");
+    {
+        int pool_index = uitree_inv_pool_find_by_name(ctx->inv_pool, comp->inv);
+        (void)pool_index;
+        assert(pool_index >= 0 && "sidebar inv= name not found in inv pool");
+    }
 
     struct InstanceRevConfigRsBakeIdMap id_map[INSTANCE_RC_MAX_RS_SUBTREE_ITEMS];
     int id_map_count = 0;
@@ -889,7 +907,7 @@ instance_revconfig_bake_rs_subtree(
             }
         }
 
-        int32_t idx = instance_revconfig_bake_rs_component(ctx, parent_idx, info, inv_index);
+        int32_t idx = instance_revconfig_bake_rs_component(ctx, parent_idx, info, inv_source_id);
         if( idx < 0 )
         {
             if( info->type == TORIAUXLIBCORE_COMPONENT_MODEL )
@@ -1122,7 +1140,7 @@ component_type_from_string(char const* type)
     if( strcmp(type, "rs_model") == 0 )
         return UIELEM_RS_MODEL;
     if( strcmp(type, "rs_inv") == 0 )
-        return UIELEM_RS_INV;
+        return UIELEM_INV_GRID;
     if( strcmp(type, "rs_line") == 0 )
         return UIELEM_RS_LINE;
     if( strcmp(type, "rs_graphic") == 0 )
@@ -1587,14 +1605,17 @@ instance_revconfig_build_layout_node(
         break;
     case UIELEM_BUILTIN_SIDEBAR:
     {
-        int inv_index = -1;
-        if( comp->inv[0] != '\0' && ctx->inv_pool )
-            inv_index = uitree_inv_pool_find_by_name(ctx->inv_pool, comp->inv);
-        if( comp->inv[0] != '\0' && ctx->rs_capture_enabled )
-            assert(inv_index >= 0 && "sidebar inv= name not found in inv pool");
+        int inv_source_id = UI_INV_SOURCE_INVALID;
+        if( comp->inv[0] != '\0' && ctx->game )
+            inv_source_id = instance_revconfig_inv_resolve_source(ctx->game, comp->inv);
+        if( comp->inv[0] != '\0' && ctx->rs_capture_enabled && ctx->inv_pool )
+        {
+            int pool_index = uitree_inv_pool_find_by_name(ctx->inv_pool, comp->inv);
+            assert(pool_index >= 0 && "sidebar inv= name not found in inv pool");
+        }
         spec.u.sidebar.tabno = comp->tabno;
         spec.u.sidebar.componentno = comp->componentno;
-        spec.u.sidebar.inv_index = inv_index;
+        spec.u.sidebar.inv_source_id = inv_source_id;
         break;
     }
     case UIELEM_RS_GRAPHIC:
@@ -1626,16 +1647,16 @@ instance_revconfig_build_layout_node(
         spec.u.rs_model.xan = 0;
         spec.u.rs_model.yan = 0;
         break;
-    case UIELEM_RS_INV:
+    case UIELEM_INV_GRID:
     {
-        int inv_index = -1;
-        if( comp->inv[0] != '\0' && ctx->inv_pool )
-            inv_index = uitree_inv_pool_find_by_name(ctx->inv_pool, comp->inv);
-        spec.u.rs_inv.inv_index = inv_index;
-        spec.u.rs_inv.cols = comp->width > 0 ? comp->width : 4;
-        spec.u.rs_inv.rows = comp->height > 0 ? comp->height : 7;
-        spec.u.rs_inv.margin_x = 0;
-        spec.u.rs_inv.margin_y = 0;
+        int inv_source_id = UI_INV_SOURCE_INVALID;
+        if( comp->inv[0] != '\0' && ctx->game )
+            inv_source_id = instance_revconfig_inv_resolve_source(ctx->game, comp->inv);
+        spec.u.inv_grid.inv_source_id = inv_source_id;
+        spec.u.inv_grid.cols = comp->width > 0 ? comp->width : 4;
+        spec.u.inv_grid.rows = comp->height > 0 ? comp->height : 7;
+        spec.u.inv_grid.margin_x = 0;
+        spec.u.inv_grid.margin_y = 0;
         break;
     }
     case UIELEM_RS_LINE:
@@ -1742,5 +1763,9 @@ instance_revconfig_build_tree(struct InstanceRevConfigContext* ctx)
     uitree_mark_all_dirty(ctx->tree);
 
     assert(built == active_count && "instance_revconfig_build_tree: incomplete layout build");
+
+    if( built == active_count && ctx->game )
+        instance_revconfig_inv_setup_after_build(ctx->game, ctx);
+
     return built == active_count;
 }

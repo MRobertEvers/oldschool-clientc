@@ -57,11 +57,12 @@ enum StaticUIComponentType
     UIELEM_RS_TEXT = 14,
     UIELEM_RS_GRAPHIC = 15,
     UIELEM_RS_MODEL = 16,
-    UIELEM_RS_INV = 17,
+    UIELEM_INV_GRID = 17,
     UIELEM_RS_LAYER = 18,
     UIELEM_RS_RECT = 19,
     UIELEM_RS_LINE = 20,
     UIELEM_RS_INV_TEXT = 21,
+    UIELEM_INV_SLOT = 22,
 };
 
 enum StaticUIElemPositionKind
@@ -222,7 +223,7 @@ struct StaticUIComponent
         {
             int tabno;
             int componentno;
-            int inv_index; /* UIInventoryPool index; -1 if none */
+            int inv_source_id; /* UIInvDataService source; UI_INV_SOURCE_INVALID if none */
         } sidebar;
 
         struct
@@ -264,7 +265,8 @@ struct StaticUIComponent
         } rs_rect;
         struct
         {
-            int inv_index;
+            /** Opaque handle into UIInvDataService; UI_INV_SOURCE_INVALID if none. */
+            int inv_source_id;
             int cols;
             int rows;
             int margin_x;
@@ -274,7 +276,13 @@ struct StaticUIComponent
             /** UIScene element per slot for invSlotGraphic; -1 if none. */
             int inv_slot_bg_scene_id[UI_INV_SLOT_OFFSET_MAX];
             int inv_slot_bg_atlas_index[UI_INV_SLOT_OFFSET_MAX];
-        } rs_inv;
+        } inv_grid;
+        struct
+        {
+            int inv_source_id;
+            int slot;
+            uint8_t center_icon;
+        } inv_slot;
         struct
         {
             /** Client.ts scrollHeight / dat1 scroll. 0 = no vertical scroll. */
@@ -305,7 +313,7 @@ struct StaticUIComponent
         } rs_line;
         struct
         {
-            int inv_index;
+            int inv_source_id;
             int cols;
             int rows;
             int margin_x;
@@ -376,7 +384,7 @@ struct UINodeSpec
         {
             int tabno;
             int componentno;
-            int inv_index;
+            int inv_source_id;
         } sidebar;
         struct
         {
@@ -410,7 +418,7 @@ struct UINodeSpec
         } rs_rect;
         struct
         {
-            int inv_index;
+            int inv_source_id;
             int cols;
             int rows;
             int margin_x;
@@ -419,7 +427,13 @@ struct UINodeSpec
             int const* inv_slot_offset_y;
             int const* inv_slot_bg_scene_id;
             int const* inv_slot_bg_atlas_index;
-        } rs_inv;
+        } inv_grid;
+        struct
+        {
+            int inv_source_id;
+            int slot;
+            uint8_t center_icon;
+        } inv_slot;
         struct
         {
             /** Client.ts scrollHeight / dat1 scroll. 0 = no vertical scroll. */
@@ -450,7 +464,7 @@ struct UINodeSpec
         } rs_line;
         struct
         {
-            int inv_index;
+            int inv_source_id;
             int cols;
             int rows;
             int margin_x;

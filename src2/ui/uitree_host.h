@@ -1,7 +1,7 @@
 #ifndef UITREE_HOST_H
 #define UITREE_HOST_H
 
-#include "uitree.h"
+#include "ui_inv_data_service.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -52,10 +52,17 @@ struct UITreeHost
     bool (*scene_font_has)(void* user, int font_id);
     bool (*scene_model_has)(void* user, int model_id);
 
-    /* Inventory slot for RS inv grids */
-    int (*get_inv_slot_obj_id)(void* user, int inv_index, int slot);
-    int (*get_inv_slot_scene_id)(void* user, int inv_index, int slot);
-    int (*get_inv_slot_atlas_index)(void* user, int inv_index, int slot);
+    /* Inventory data (opaque source handles) */
+    bool (*get_inv_source_slot)(
+        void* user,
+        int source_id,
+        int slot,
+        struct UIInvSlotData* out);
+    bool (*set_inv_source_slot)(
+        void* user,
+        int source_id,
+        int slot,
+        struct UIInvSlotData const* data);
 };
 
 void

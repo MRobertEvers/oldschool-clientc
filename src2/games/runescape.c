@@ -18,6 +18,10 @@
 #include "ui/ui_debug.h"
 #include "ui/ui_input_adapter.h"
 #include "ui/ui_scroll.h"
+#include "ui/rs_inv_container.h"
+#include "ui/ui_inv_data_service.h"
+#include "ui/ui_inv_slot_view.h"
+#include "toriauxlib/core/tasks/instance_revconfig_inv_bind.h"
 #include "../world/heightmap.h"
 #include "../world/minimap.h"
 #include "../world/world_builder.h"
@@ -69,10 +73,10 @@ GameRunescape_UIInvGridSlotLimit(struct StaticUIComponent const* component)
 
     int cols = 0;
     int rows = 0;
-    if( component->type == UIELEM_RS_INV )
+    if( component->type == UIELEM_INV_GRID )
     {
-        cols = component->u.rs_inv.cols > 0 ? component->u.rs_inv.cols : 4;
-        rows = component->u.rs_inv.rows > 0 ? component->u.rs_inv.rows : 7;
+        cols = component->u.inv_grid.cols > 0 ? component->u.inv_grid.cols : 4;
+        rows = component->u.inv_grid.rows > 0 ? component->u.inv_grid.rows : 7;
     }
     else if( component->type == UIELEM_RS_INV_TEXT )
     {
@@ -468,49 +472,33 @@ rs_ui_host_get_minimenu_hovered_option(void* user)
     return game ? game->minimenu.hovered_option : -1;
 }
 
-static int
-rs_ui_host_get_inv_slot_obj_id(
+static bool
+rs_ui_host_get_inv_source_slot(
     void* user,
-    int inv_index,
-    int slot)
+    int source_id,
+    int slot,
+    struct UIInvSlotData* out)
 {
     struct GameRunescape* game = user;
-    if( !game || !game->ui_inv_pool || inv_index < 0 || inv_index >= game->ui_inv_pool->count )
-        return 0;
-    struct UIInventory* inv = &game->ui_inv_pool->inventories[inv_index];
-    if( slot < 0 || slot >= inv->item_count )
-        return 0;
-    return inv->items[slot].obj_id;
+    if( !game )
+        return false;
+    return ui_inv_data_service_get_slot(&game->inv_data, source_id, slot, out);
 }
 
-static int
-rs_ui_host_get_inv_slot_scene_id(
+static bool
+rs_ui_host_set_inv_source_slot(
     void* user,
-    int inv_index,
-    int slot)
+    int source_id,
+    int slot,
+    struct UIInvSlotData const* data)
 {
     struct GameRunescape* game = user;
-    if( !game || !game->ui_inv_pool || inv_index < 0 || inv_index >= game->ui_inv_pool->count )
-        return -1;
-    struct UIInventory* inv = &game->ui_inv_pool->inventories[inv_index];
-    if( slot < 0 || slot >= inv->item_count )
-        return -1;
-    return inv->items[slot].scene_id;
-}
-
-static int
-rs_ui_host_get_inv_slot_atlas_index(
-    void* user,
-    int inv_index,
-    int slot)
-{
-    struct GameRunescape* game = user;
-    if( !game || !game->ui_inv_pool || inv_index < 0 || inv_index >= game->ui_inv_pool->count )
-        return 0;
-    struct UIInventory* inv = &game->ui_inv_pool->inventories[inv_index];
-    if( slot < 0 || slot >= inv->item_count )
-        return 0;
-    return inv->items[slot].atlas_index;
+    if( !game )
+        return false;
+    if( !ui_inv_data_service_set_slot(&game->inv_data, source_id, slot, data) )
+        return false;
+    instance_revconfig_inv_mark_dirty(game, source_id);
+    return true;
 }
 
 static void
@@ -557,13 +545,12 @@ GameRunescape_InitUIHost(struct GameRunescape* game)
     game->ui_host.get_minimenu_visible = rs_ui_host_get_minimenu_visible;
     game->ui_host.get_minimenu_layout = rs_ui_host_get_minimenu_layout;
     game->ui_host.get_minimenu_hovered_option = rs_ui_host_get_minimenu_hovered_option;
-    game->ui_host.get_inv_slot_obj_id = rs_ui_host_get_inv_slot_obj_id;
-    game->ui_host.get_inv_slot_scene_id = rs_ui_host_get_inv_slot_scene_id;
-    game->ui_host.get_inv_slot_atlas_index = rs_ui_host_get_inv_slot_atlas_index;
+    game->ui_host.get_inv_source_slot = rs_ui_host_get_inv_source_slot;
+    game->ui_host.set_inv_source_slot = rs_ui_host_set_inv_source_slot;
     game->ui_input.hovered = -1;
     game->ui_input.pressed = -1;
     game->selected_tab = 3;
-    game->selected_inv_index = -1;
+    game->selected_inv_source_id = -1;
     game->selected_inv_slot = -1;
     game->ui_minimenu_node = -1;
     game->ui_chat_node = -1;
@@ -941,6 +928,7 @@ GameRunescape_New(
 
     game->ui_tree = uitree_new(64);
     assert(game->ui_tree && "GameRunescape_New: failed to allocate ui tree");
+    ui_inv_data_service_init(&game->inv_data);
     GameRunescape_InitUIHost(game);
     game->ui_hovered_node = -1;
     game->ui_over_main_com_id = -1;
@@ -1047,6 +1035,66 @@ GameRunescape_SetUITree(
     game->ui_tree = ui_tree;
     GameRunescape_AttachWorldMapToUITree(game);
     GameRunescape_FindSpecialUINodes(game);
+}
+
+void
+GameRunescape_IF3InvSetContainerSlot(
+    struct GameRunescape* game,
+    int container_id,
+    int slot,
+    int obj_id,
+    int obj_count,
+    int scene_id,
+    int atlas_index)
+{
+    if( !game || container_id < 0 )
+        return;
+    struct RSInvContainer* container =
+        rs_inv_container_get_or_create(&game->inv_data.store, container_id, 0);
+    if( !container )
+        return;
+    rs_inv_container_set_slot(
+        container, slot, obj_id, obj_count, scene_id, atlas_index);
+    instance_revconfig_inv_mark_dirty(game, UI_INV_SOURCE_INVALID);
+}
+
+void
+GameRunescape_IF3InvApplyFull(
+    struct GameRunescape* game,
+    int container_id,
+    int const* obj_ids,
+    int const* obj_counts,
+    int count)
+{
+    if( !game || container_id < 0 )
+        return;
+    struct RSInvContainer* container =
+        rs_inv_container_get_or_create(&game->inv_data.store, container_id, 0);
+    if( !container )
+        return;
+    rs_inv_container_apply_full(container, obj_ids, obj_counts, count);
+    if( game->ui_tree )
+        uitree_mark_all_dirty(game->ui_tree);
+}
+
+void
+GameRunescape_IF3InvApplyPartial(
+    struct GameRunescape* game,
+    int container_id,
+    int const* slots,
+    int const* obj_ids,
+    int const* obj_counts,
+    int count)
+{
+    if( !game || container_id < 0 )
+        return;
+    struct RSInvContainer* container =
+        rs_inv_container_get_or_create(&game->inv_data.store, container_id, 0);
+    if( !container )
+        return;
+    rs_inv_container_apply_partial(container, slots, obj_ids, obj_counts, count);
+    if( game->ui_tree )
+        uitree_mark_all_dirty(game->ui_tree);
 }
 
 void
@@ -2381,8 +2429,10 @@ GameRunescape_EmitUIComponent(
     switch( component->type )
     {
     case UIELEM_RS_LAYER:
+    {
         return GameRunescape_EmitLayerScrollbars(
             game, component, game->frame.ui_scrollbar_step, command);
+    }
     case UIELEM_BUILTIN_SPRITE:
     case UIELEM_BUILTIN_TAB_ICONS:
     case UIELEM_RS_GRAPHIC:
@@ -2772,15 +2822,19 @@ GameRunescape_EmitUIComponent(
         GameRunescape_ApplyScissorToFillRect(command, &clip);
         return true;
     }
-    case UIELEM_RS_INV:
+    case UIELEM_INV_GRID:
     {
-        int cols = component->u.rs_inv.cols > 0 ? component->u.rs_inv.cols : 4;
-        int rows = component->u.rs_inv.rows > 0 ? component->u.rs_inv.rows : 7;
-        int margin_x = component->u.rs_inv.margin_x;
-        int margin_y = component->u.rs_inv.margin_y;
-        int const total_slots = cols * rows;
-        int slot_limit =
-            total_slots < UI_INV_SLOT_OFFSET_MAX ? total_slots : UI_INV_SLOT_OFFSET_MAX;
+        int cols = component->u.inv_grid.cols > 0 ? component->u.inv_grid.cols : 4;
+        int rows = component->u.inv_grid.rows > 0 ? component->u.inv_grid.rows : 7;
+        struct UIInvGridLayout layout = {
+            .cols = cols,
+            .rows = rows,
+            .margin_x = component->u.inv_grid.margin_x,
+            .margin_y = component->u.inv_grid.margin_y,
+            .offset_x = component->u.inv_grid.inv_slot_offset_x,
+            .offset_y = component->u.inv_grid.inv_slot_offset_y,
+        };
+        int const slot_limit = ui_inv_slot_view_grid_slot_limit(&layout);
         int slot = game->frame.ui_inv_slot;
 
         if( slot >= slot_limit )
@@ -2789,37 +2843,38 @@ GameRunescape_EmitUIComponent(
             return false;
         }
 
-        int col = slot % cols;
-        int row = slot / cols;
-        int slot_x = bx + col * (margin_x + 32);
-        int slot_y = by + row * (margin_y + 32);
-        if( slot < UI_INV_SLOT_OFFSET_MAX )
+        int slot_x = 0;
+        int slot_y = 0;
+        ui_inv_slot_view_grid_rect(bx, by, &layout, slot, &slot_x, &slot_y, NULL, NULL);
+
+        struct UIInvSlotData slot_data;
+        int obj_id = 0;
+        int scene_id = -1;
+        int atlas_index = 0;
+        if( game->ui_host.get_inv_source_slot )
         {
-            slot_x += component->u.rs_inv.inv_slot_offset_x[slot];
-            slot_y += component->u.rs_inv.inv_slot_offset_y[slot];
+            game->ui_host.get_inv_source_slot(
+                game->ui_host.user,
+                component->u.inv_grid.inv_source_id,
+                slot,
+                &slot_data);
+            obj_id = slot_data.obj_id;
+            scene_id = slot_data.scene_id;
+            atlas_index = slot_data.atlas_index;
         }
 
-        struct UIInventory* inv = NULL;
-        int inv_i = component->u.rs_inv.inv_index;
-        if( game->ui_inv_pool && inv_i >= 0 && inv_i < game->ui_inv_pool->count )
-            inv = &game->ui_inv_pool->inventories[inv_i];
-
-        if( inv && slot < inv->item_count )
+        if( obj_id > 0 && scene_id >= 0 )
         {
-            struct UIInventoryItem const* it = &inv->items[slot];
-            if( it->obj_id > 0 && it->scene_id >= 0 )
-            {
-                GameRunescape_EmitSpriteCommand(
-                    command, it->scene_id, it->atlas_index, slot_x, slot_y, 32, 32);
-                game->frame.ui_inv_slot = slot + 1;
-                return true;
-            }
+            GameRunescape_EmitSpriteCommand(
+                command, scene_id, atlas_index, slot_x, slot_y, 32, 32);
+            game->frame.ui_inv_slot = slot + 1;
+            return true;
         }
 
         if( slot < UI_INV_SLOT_OFFSET_MAX )
         {
-            int bg_scene = component->u.rs_inv.inv_slot_bg_scene_id[slot];
-            int bg_atlas = component->u.rs_inv.inv_slot_bg_atlas_index[slot];
+            int bg_scene = component->u.inv_grid.inv_slot_bg_scene_id[slot];
+            int bg_atlas = component->u.inv_grid.inv_slot_bg_atlas_index[slot];
             if( bg_scene >= 0 )
             {
                 GameRunescape_EmitSpriteCommand(
@@ -2830,6 +2885,38 @@ GameRunescape_EmitUIComponent(
         }
 
         game->frame.ui_inv_slot = slot + 1;
+        return false;
+    }
+    case UIELEM_INV_SLOT:
+    {
+        struct UIInvSlotData slot_data;
+        int obj_id = 0;
+        int scene_id = -1;
+        int atlas_index = 0;
+        if( game->ui_host.get_inv_source_slot )
+        {
+            game->ui_host.get_inv_source_slot(
+                game->ui_host.user,
+                component->u.inv_slot.inv_source_id,
+                component->u.inv_slot.slot,
+                &slot_data);
+            obj_id = slot_data.obj_id;
+            scene_id = slot_data.scene_id;
+            atlas_index = slot_data.atlas_index;
+        }
+
+        if( obj_id > 0 && scene_id >= 0 )
+        {
+            int ix = bx;
+            int iy = by;
+            if( component->u.inv_slot.center_icon )
+            {
+                ui_inv_slot_view_centered_rect(
+                    bx, by, bw, bh, UI_INV_SLOT_ICON_SIZE, &ix, &iy, NULL, NULL);
+            }
+            GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, ix, iy, 32, 32);
+            return true;
+        }
         return false;
     }
     case UIELEM_RS_INV_TEXT:
@@ -2855,10 +2942,12 @@ GameRunescape_EmitUIComponent(
         game->frame.ui_inv_slot = slot + 1;
 
         int obj_id = 0;
-        if( game->ui_host.get_inv_slot_obj_id )
+        if( game->ui_host.get_inv_source_slot )
         {
-            obj_id = game->ui_host.get_inv_slot_obj_id(
-                game->ui_host.user, component->u.rs_inv_text.inv_index, slot);
+            struct UIInvSlotData slot_data;
+            if( game->ui_host.get_inv_source_slot(
+                    game->ui_host.user, component->u.rs_inv_text.inv_source_id, slot, &slot_data) )
+                obj_id = slot_data.obj_id;
         }
         if( obj_id <= 0 )
             return false;
@@ -3335,11 +3424,11 @@ rs_phase_ui_step(
     if( component->type == UIELEM_RS_MODEL && game->frame.ui_model_step > 0 )
         return RS_PHASE_ADVANCE;
 
-    if( (component->type == UIELEM_RS_INV || component->type == UIELEM_RS_INV_TEXT) &&
+    if( (component->type == UIELEM_INV_GRID || component->type == UIELEM_RS_INV_TEXT) &&
         game->frame.ui_inv_slot > 0 )
     {
         int slot_limit = GameRunescape_UIInvGridSlotLimit(component);
-        if( component->type == UIELEM_RS_INV && slot_limit > UI_INV_SLOT_OFFSET_MAX )
+        if( component->type == UIELEM_INV_GRID && slot_limit > UI_INV_SLOT_OFFSET_MAX )
             slot_limit = UI_INV_SLOT_OFFSET_MAX;
         if( game->frame.ui_inv_slot < slot_limit )
             return RS_PHASE_ADVANCE;

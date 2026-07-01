@@ -126,8 +126,10 @@ ui_minimenu_debug_uielem_name(int type)
         return "UIELEM_RS_GRAPHIC";
     case UIELEM_RS_MODEL:
         return "UIELEM_RS_MODEL";
-    case UIELEM_RS_INV:
-        return "UIELEM_RS_INV";
+    case UIELEM_INV_GRID:
+        return "UIELEM_INV_GRID";
+    case UIELEM_INV_SLOT:
+        return "UIELEM_INV_SLOT";
     case UIELEM_RS_LAYER:
         return "UIELEM_RS_LAYER";
     case UIELEM_RS_RECT:

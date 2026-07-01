@@ -13,6 +13,7 @@
 #include "toriauxlib/toriauxlib.h"
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_scene.h"
+#include "toridraw/toridraw_sprite.h"
 #include "osrs/colors.h"
 #include "osrs/minimenu_action.h"
 #include "games/runescape.h"
@@ -24,7 +25,7 @@
 #include "ui/ui_minimenu.h"
 #include "ui/ui_input.h"
 #include "ui/ui_sprite_lookup.h"
-#include "ui/uitree.h"
+#include "ui/ui_inv_data_service.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
 #include "world/minimap.h"
@@ -66,6 +67,68 @@
         } \
     } while( 0 )
 // clang-format on
+
+static void
+test_component_attach_cs1_script(
+    struct ToriAuxLibCore_Component* component,
+    int const* script_ops,
+    int script_len,
+    int comparator,
+    int operand)
+{
+    int* script = malloc((size_t)script_len * sizeof(int));
+    int** scripts = malloc(sizeof(int*));
+    int* scripts_lengths = malloc(sizeof(int));
+    int* script_comparator = malloc(sizeof(int));
+    int* script_operand = malloc(sizeof(int));
+    if( !script || !scripts || !scripts_lengths || !script_comparator || !script_operand )
+    {
+        free(script);
+        free(scripts);
+        free(scripts_lengths);
+        free(script_comparator);
+        free(script_operand);
+        return;
+    }
+    memcpy(script, script_ops, (size_t)script_len * sizeof(int));
+    scripts[0] = script;
+    scripts_lengths[0] = script_len;
+    *script_comparator = comparator;
+    *script_operand = operand;
+    component->scripts_count = 1;
+    component->scripts = scripts;
+    component->scripts_lengths = scripts_lengths;
+    component->script_comparator = script_comparator;
+    component->script_operand = script_operand;
+    component->script_kind = CS2VM_SCRIPT_KIND_CS1;
+}
+
+static void
+test_scene_add_stub_sprite(
+    struct ToriDraw_Scene* scene,
+    int scene_id)
+{
+    if( !scene || scene_id < 0 )
+        return;
+    uint32_t* px = malloc(sizeof(uint32_t));
+    if( !px )
+        return;
+    *px = 0xFF000000u;
+    struct ToriDraw_Sprite* spr = ToriDraw_SpriteNewFromArgbOwned(px, 1, 1);
+    if( !spr )
+    {
+        free(px);
+        return;
+    }
+    struct ToriDraw_Sprite** arr = malloc(sizeof(struct ToriDraw_Sprite*));
+    if( !arr )
+    {
+        ToriDraw_SpriteFree(spr);
+        return;
+    }
+    arr[0] = spr;
+    ToriDraw_SceneSpriteAdd(scene, scene_id, arr, 1);
+}
 
 /* --- TASK_AWAIT unit test --- */
 
@@ -886,12 +949,12 @@ subtree_has_inv_slot_bg(
     if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return false;
 
-    if( tree->components[node_index].type == UIELEM_RS_INV )
+    if( tree->components[node_index].type == UIELEM_INV_GRID )
     {
         struct StaticUIComponent const* c = &tree->components[node_index];
         for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
         {
-            if( c->u.rs_inv.inv_slot_bg_scene_id[si] >= 0 )
+            if( c->u.inv_grid.inv_slot_bg_scene_id[si] >= 0 )
                 return true;
         }
     }
@@ -1201,6 +1264,19 @@ test_host_get_selected_tab(void* user)
 {
     (void)user;
     return g_test_selected_tab;
+}
+
+static bool
+test_host_get_inv_source_slot(
+    void* user,
+    int source_id,
+    int slot,
+    struct UIInvSlotData* out)
+{
+    struct GameRunescape* game = user;
+    if( !game )
+        return false;
+    return ui_inv_data_service_get_slot(&game->inv_data, source_id, slot, out);
 }
 
 static void
@@ -1777,7 +1853,7 @@ run_pipeline_test(
             bool found_inv = false;
             for( uint32_t i = 0; i < tree->component_count; i++ )
             {
-                if( tree->components[i].type != UIELEM_RS_INV )
+                if( tree->components[i].type != UIELEM_INV_GRID )
                     continue;
                 int32_t walk = (int32_t)i;
                 while( walk >= 0 )
@@ -1822,7 +1898,7 @@ run_pipeline_test(
             bool found_inv = false;
             for( uint32_t i = 0; i < tree->component_count; i++ )
             {
-                if( tree->components[i].type != UIELEM_RS_INV )
+                if( tree->components[i].type != UIELEM_INV_GRID )
                     continue;
                 int32_t walk = (int32_t)i;
                 while( walk >= 0 )
@@ -1902,11 +1978,19 @@ test_sidebar_tab_inv_binding(void)
     struct UITree* tree = uitree_new(16);
     TEST_ASSERT(tree != NULL, "uitree_new");
 
+    struct GameRunescape game_stub;
+    memset(&game_stub, 0, sizeof(game_stub));
+    ui_inv_data_service_init(&game_stub.inv_data);
+    int const inv_source_id =
+        ui_inv_data_service_resolve_source(&game_stub.inv_data, "inventory");
+    ui_inv_data_service_seed_from_pool(&game_stub.inv_data, inv_source_id, pool, inv_index);
+
     struct InstanceRevConfigContext ctx;
     instance_revconfig_context_init(&ctx);
     ctx.core = core;
     ctx.tree = tree;
     ctx.inv_pool = pool;
+    ctx.game = &game_stub;
 
     struct RevConfigUIComponentItem sidebar_comp;
     memset(&sidebar_comp, 0, sizeof(sidebar_comp));
@@ -1921,7 +2005,7 @@ test_sidebar_tab_inv_binding(void)
     owner_spec.type = UIELEM_BUILTIN_SIDEBAR;
     owner_spec.u.sidebar.tabno = sidebar_comp.tabno;
     owner_spec.u.sidebar.componentno = sidebar_comp.componentno;
-    owner_spec.u.sidebar.inv_index = inv_index;
+    owner_spec.u.sidebar.inv_source_id = inv_source_id;
     int32_t owner_idx = uitree_push(tree, -1, &owner_spec);
     TEST_ASSERT(owner_idx >= 0, "sidebar owner push");
 
@@ -1944,12 +2028,12 @@ test_sidebar_tab_inv_binding(void)
     bool found_inv = false;
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
-        if( tree->components[i].type != UIELEM_RS_INV )
+        if( tree->components[i].type != UIELEM_INV_GRID )
             continue;
         found_inv = true;
         TEST_ASSERT(
-            tree->components[i].u.rs_inv.inv_index == inv_index,
-            "RS_INV inv_index matches inventory pool");
+            tree->components[i].u.inv_grid.inv_source_id == inv_source_id,
+            "INV_GRID inv_source_id matches inventory source");
         TEST_ASSERT(tree->components[i].parent == owner_idx, "RS_INV parent is sidebar owner");
     }
     TEST_ASSERT(found_inv, "baked RS_INV node exists");
@@ -1996,16 +2080,21 @@ test_inventory_pick_at_slot_center(
         return 1;
 
     uitree_host_init(&game->ui_host);
+    game->ui_host.user = game;
     game->ui_host.get_selected_tab = test_host_get_selected_tab;
+    game->ui_host.get_inv_source_slot = test_host_get_inv_source_slot;
     g_test_selected_tab = 3;
     game->ui_tree = tree;
     game->ui_tree_ready = true;
     game->ui_inv_pool = inv_pool;
 
+    if( inv_pool && game->inv_data.source_count == 0 )
+        ui_inv_data_service_init(&game->inv_data);
+
     int32_t inv_node = -1;
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
-        if( tree->components[i].type == UIELEM_RS_INV )
+        if( tree->components[i].type == UIELEM_INV_GRID )
         {
             inv_node = (int32_t)i;
             break;
@@ -2024,8 +2113,8 @@ test_inventory_pick_at_slot_center(
     int slot_y = by;
     if( UI_INV_SLOT_OFFSET_MAX > 0 )
     {
-        slot_x += inv_component->u.rs_inv.inv_slot_offset_x[0];
-        slot_y += inv_component->u.rs_inv.inv_slot_offset_y[0];
+        slot_x += inv_component->u.inv_grid.inv_slot_offset_x[0];
+        slot_y += inv_component->u.inv_grid.inv_slot_offset_y[0];
     }
     int const px = slot_x + 16;
     int const py = slot_y + 16;
@@ -2033,7 +2122,7 @@ test_inventory_pick_at_slot_center(
     struct UITreeScrollState scroll = { 0 };
     struct UITreeInvPick pick;
     TEST_ASSERT(
-        uitree_inv_pick_at_point(tree, &game->ui_host, &scroll, inv_pool, px, py, &pick),
+        uitree_inv_pick_at_point(tree, &game->ui_host, &scroll, px, py, &pick),
         "uitree_inv_pick_at_point hits slot 0");
     TEST_ASSERT(pick.component_index == inv_node, "pick component_index");
     TEST_ASSERT(pick.slot == 0, "pick slot 0");
@@ -2045,13 +2134,13 @@ test_inventory_pick_at_slot_center(
     if( ui_hit >= 0 )
     {
         TEST_ASSERT(
-            tree->components[ui_hit].type != UIELEM_RS_INV,
+            tree->components[ui_hit].type != UIELEM_INV_GRID,
             "generic UI hit test must not return RS_INV");
     }
 
     struct MinimenuPickSet picks;
     inv_slot_to_minimenu_pickset(
-        pick.inv_index, pick.slot, pick.obj_id, pick.component_index, &picks);
+        pick.inv_source_id, pick.slot, pick.obj_id, pick.component_index, &picks);
     struct UIMinimenuState menu;
     ui_click_build_minimenu_from_pickset(game, &picks, false, &menu);
     TEST_ASSERT(menu.option_count >= 4, "inv minimenu has item rows");
@@ -2110,6 +2199,14 @@ test_inventory_slot_minimenu_pick(void)
     struct UITree* tree = uitree_new(16);
     TEST_ASSERT(tree != NULL, "uitree_new");
 
+    struct GameRunescape game;
+    memset(&game, 0, sizeof(game));
+    game.core = core;
+    ui_inv_data_service_init(&game.inv_data);
+    int const inv_source_id =
+        ui_inv_data_service_resolve_source(&game.inv_data, "inventory");
+    ui_inv_data_service_seed_from_pool(&game.inv_data, inv_source_id, pool, inv_index);
+
     struct UINodeSpec sidebar_spec = { 0 };
     sidebar_spec.type = UIELEM_BUILTIN_SIDEBAR;
     sidebar_spec.x = 553;
@@ -2118,27 +2215,24 @@ test_inventory_slot_minimenu_pick(void)
     sidebar_spec.height = 261;
     sidebar_spec.u.sidebar.tabno = 3;
     sidebar_spec.u.sidebar.componentno = 3213;
-    sidebar_spec.u.sidebar.inv_index = inv_index;
+    sidebar_spec.u.sidebar.inv_source_id = inv_source_id;
     int32_t sidebar_idx = uitree_push(tree, -1, &sidebar_spec);
     TEST_ASSERT(sidebar_idx >= 0, "sidebar push for inv pick test");
 
     struct UINodeSpec inv_spec = { 0 };
-    inv_spec.type = UIELEM_RS_INV;
+    inv_spec.type = UIELEM_INV_GRID;
     inv_spec.x = 0;
     inv_spec.y = 0;
     inv_spec.width = 4;
     inv_spec.height = 7;
-    inv_spec.u.rs_inv.inv_index = inv_index;
-    inv_spec.u.rs_inv.cols = 4;
-    inv_spec.u.rs_inv.rows = 7;
+    inv_spec.u.inv_grid.inv_source_id = inv_source_id;
+    inv_spec.u.inv_grid.cols = 4;
+    inv_spec.u.inv_grid.rows = 7;
     int32_t inv_idx = uitree_push(tree, sidebar_idx, &inv_spec);
-    TEST_ASSERT(inv_idx >= 0, "RS_INV push for pick test");
+    TEST_ASSERT(inv_idx >= 0, "INV_GRID push for pick test");
 
     uitree_layout_resolve(tree, 0, 0, 765, 503);
 
-    struct GameRunescape game;
-    memset(&game, 0, sizeof(game));
-    game.core = core;
     int rc = test_inventory_pick_at_slot_center(tree, &game, pool, 1333, "synthetic");
     if( rc != 0 )
     {
@@ -2224,6 +2318,11 @@ test_hitbox_only_graphic_bake(void)
 static int
 test_rs_graphic_active_inactive_bake(void)
 {
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL);
+    TEST_ASSERT(scene != NULL, "scene alloc");
+    test_scene_add_stub_sprite(scene, 100);
+    test_scene_add_stub_sprite(scene, 101);
+
     struct ToriAuxLibCore* core = ToriAuxLibCore_New();
     TEST_ASSERT(core != NULL, "ToriAuxLibCore_New");
 
@@ -2234,6 +2333,7 @@ test_rs_graphic_active_inactive_bake(void)
     instance_revconfig_context_init(&ctx);
     ctx.core = core;
     ctx.tree = tree;
+    ctx.scene = scene;
     ui_sprite_lookup_add(&ctx.sprite_lookup, "spr_inactive", 100, 1);
     ui_sprite_lookup_add(&ctx.sprite_lookup, "spr_active", 101, 1);
 
@@ -2257,15 +2357,8 @@ test_rs_graphic_active_inactive_bake(void)
     graphic->height = 34;
     strncpy(graphic->sprite_ref, "spr_inactive", sizeof(graphic->sprite_ref) - 1);
     strncpy(graphic->sprite_active_ref, "spr_active", sizeof(graphic->sprite_active_ref) - 1);
-    int script[] = { 13, 83, 0, 0 };
-    int* script_ptr = script;
-    int comp = 1;
-    int operand = 1;
-    graphic->scripts_count = 1;
-    graphic->scripts = &script_ptr;
-    graphic->script_comparator = &comp;
-    graphic->script_operand = &operand;
-    graphic->script_kind = CS2VM_SCRIPT_KIND_CS1;
+    int const script_ops[] = { 13, 83, 0, 0 };
+    test_component_attach_cs1_script(graphic, script_ops, 4, 1, 1);
     ToriAuxLibCore_ComponentAdd(core, 200, graphic);
 
     struct InstanceRevConfigRSSubtree* subtree =
@@ -2292,6 +2385,7 @@ test_rs_graphic_active_inactive_bake(void)
     instance_revconfig_context_release_build_state(&ctx);
     uitree_free(tree);
     ToriAuxLibCore_Free(core);
+    ToriDraw_SceneFree(scene);
     fprintf(stderr, "ok: rs graphic active/inactive bake\n");
     return 0;
 }
@@ -2299,6 +2393,10 @@ test_rs_graphic_active_inactive_bake(void)
 static int
 test_rs_graphic_active_only_no_inactive_fallback(void)
 {
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL);
+    TEST_ASSERT(scene != NULL, "scene alloc");
+    test_scene_add_stub_sprite(scene, 102);
+
     struct ToriAuxLibCore* core = ToriAuxLibCore_New();
     TEST_ASSERT(core != NULL, "ToriAuxLibCore_New");
 
@@ -2309,6 +2407,7 @@ test_rs_graphic_active_only_no_inactive_fallback(void)
     instance_revconfig_context_init(&ctx);
     ctx.core = core;
     ctx.tree = tree;
+    ctx.scene = scene;
     ui_sprite_lookup_add(&ctx.sprite_lookup, "spr_active_only", 102, 1);
 
     struct RevConfigUIComponentItem owner_comp;
@@ -2352,6 +2451,7 @@ test_rs_graphic_active_only_no_inactive_fallback(void)
     instance_revconfig_context_release_build_state(&ctx);
     uitree_free(tree);
     ToriAuxLibCore_Free(core);
+    ToriDraw_SceneFree(scene);
     fprintf(stderr, "ok: rs graphic active-only no inactive fallback\n");
     return 0;
 }

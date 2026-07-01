@@ -134,7 +134,7 @@ world_pickset_to_minimenu_pickset(
 
 void
 inv_slot_to_minimenu_pickset(
-    int inv_index,
+    int inv_source_id,
     int slot,
     int obj_id,
     int32_t component_index,
@@ -145,7 +145,7 @@ inv_slot_to_minimenu_pickset(
 
     minimenu_pickset_reset(out);
     minimenu_pickset_add(
-        out, MINIMENU_PICK_INV_SLOT, inv_index, slot, obj_id, component_index);
+        out, MINIMENU_PICK_INV_SLOT, inv_source_id, slot, obj_id, component_index);
 }
 
 void

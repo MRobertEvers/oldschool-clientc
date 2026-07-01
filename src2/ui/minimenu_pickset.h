@@ -52,7 +52,7 @@ world_pickset_to_minimenu_pickset(
 
 void
 inv_slot_to_minimenu_pickset(
-    int inv_index,
+    int inv_source_id,
     int slot,
     int obj_id,
     int32_t component_index,

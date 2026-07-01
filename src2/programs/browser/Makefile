@@ -103,6 +103,10 @@ SRC   := browser.c \
 	$(SRC2)/ui/uitree_host.c \
 	$(SRC2)/ui/ui_input.c \
 	$(SRC2)/ui/ui_scroll.c \
+	$(SRC2)/ui/rs_inv_container.c \
+	$(SRC2)/ui/ui_inv_data_service.c \
+	$(SRC2)/ui/ui_inv_slot_view.c \
+	$(SRC2)/toriauxlib/core/tasks/instance_revconfig_inv_bind.c \
 	$(SRC2)/ui/ui_behavior.c \
 	$(SRC2)/ui/ui_input_adapter.c \
 	$(SRC2)/3rd/ini/ini.c \

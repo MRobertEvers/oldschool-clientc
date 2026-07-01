@@ -1009,9 +1009,22 @@ toriauxlibcache_component_copy_dat2_hooks(
     toriauxlibcache_copy_script_hook(&dst->on_click, src->onClick, src->onClickLen);
     toriauxlibcache_copy_script_hook(
         &dst->on_varp_transmit, src->onVarpTransmit, src->onVarpTransmitLen);
+    toriauxlibcache_copy_script_hook(
+        &dst->on_inv_transmit, src->onInvTransmit, src->onInvTransmitLen);
+
+    if( src->inventoryTriggers && src->inventoryTriggersLen > 0 )
+    {
+        int n = src->inventoryTriggersLen;
+        if( n > TORIAUXLIBCORE_INVENTORY_TRIGGER_MAX )
+            n = TORIAUXLIBCORE_INVENTORY_TRIGGER_MAX;
+        dst->inventory_triggers_count = n;
+        for( int i = 0; i < n; i++ )
+            dst->inventory_triggers[i] = src->inventoryTriggers[i];
+    }
 
     if( dst->scripts_count <= 0 &&
-        (dst->on_load.argc > 0 || dst->on_click.argc > 0 || dst->on_varp_transmit.argc > 0) )
+        (dst->on_load.argc > 0 || dst->on_click.argc > 0 || dst->on_varp_transmit.argc > 0 ||
+         dst->on_inv_transmit.argc > 0) )
         dst->script_kind = CS2VM_SCRIPT_KIND_CS2;
 }
 

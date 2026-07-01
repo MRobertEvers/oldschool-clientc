@@ -25,13 +25,13 @@ struct UIClickResult
 struct UITreeInvPick
 {
     int32_t component_index;
-    int inv_index;
+    int inv_source_id;
     int slot;
     int obj_id;
 };
 
 void
-uitree_inv_hit_test_slot(
+uitree_inv_grid_hit_test_slot(
     struct StaticUIComponent const* component,
     int px,
     int py,
@@ -44,7 +44,6 @@ uitree_inv_pick_at_point(
     struct UITree const* tree,
     struct UITreeHost const* host,
     struct UITreeScrollState const* scroll,
-    struct UIInventoryPool const* inv_pool,
     int px,
     int py,
     struct UITreeInvPick* out);
