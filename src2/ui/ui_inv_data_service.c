@@ -1,12 +1,12 @@
 #include "ui_inv_data_service.h"
 
+#include <assert.h>
 #include <string.h>
 
 static int
 ui_inv_data_service_default_container_for_name(char const* name)
 {
-    if( !name || name[0] == '\0' )
-        return RS_INV_CONTAINER_BACKPACK;
+    assert(name && name[0] != '\0');
     if( strcmp(name, UI_INV_SOURCE_NAME_WORN) == 0 )
         return RS_INV_CONTAINER_WORN;
     return RS_INV_CONTAINER_BACKPACK;
@@ -15,8 +15,7 @@ ui_inv_data_service_default_container_for_name(char const* name)
 void
 ui_inv_data_service_init(struct UIInvDataService* svc)
 {
-    if( !svc )
-        return;
+    assert(svc);
     memset(svc, 0, sizeof(*svc));
 }
 
@@ -25,8 +24,9 @@ ui_inv_data_service_resolve_source(
     struct UIInvDataService* svc,
     char const* name)
 {
-    if( !svc || !name || name[0] == '\0' )
-        return UI_INV_SOURCE_INVALID;
+    assert(svc);
+    assert(name);
+    assert(name[0] != '\0');
 
     for( int i = 0; i < svc->source_count; i++ )
     {
@@ -106,8 +106,8 @@ ui_inv_data_service_set_slot(
         return false;
 
     int const container_id = svc->sources[source_id].container_id;
-    struct RSInvContainer* container =
-        rs_inv_container_get_or_create(&svc->store, container_id, svc->sources[source_id].slot_count);
+    struct RSInvContainer* container = rs_inv_container_get_or_create(
+        &svc->store, container_id, svc->sources[source_id].slot_count);
     if( !container )
         return false;
 
@@ -134,14 +134,14 @@ ui_inv_data_service_seed_from_pool(
         return;
 
     int const container_id = svc->sources[source_id].container_id;
-    struct RSInvContainer* container = rs_inv_container_get_or_create(
-        &svc->store, container_id, RS_INV_CONTAINER_MAX_SLOTS);
+    struct RSInvContainer* container =
+        rs_inv_container_get_or_create(&svc->store, container_id, RS_INV_CONTAINER_MAX_SLOTS);
     if( !container )
         return;
 
     struct UIInventory const* inv = &pool->inventories[inv_index];
-    int const n = inv->item_count < RS_INV_CONTAINER_MAX_SLOTS ? inv->item_count
-                                                               : RS_INV_CONTAINER_MAX_SLOTS;
+    int const n =
+        inv->item_count < RS_INV_CONTAINER_MAX_SLOTS ? inv->item_count : RS_INV_CONTAINER_MAX_SLOTS;
     for( int i = 0; i < n; i++ )
     {
         rs_inv_container_set_slot(

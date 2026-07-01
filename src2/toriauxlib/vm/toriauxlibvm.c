@@ -6,8 +6,8 @@
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "ui/uitree.h"
-#include "vm/cs2vm.h"
-#include "vm/csvm.h"
+#include "vm/cs1vm.h"
+#include "vm/cs1vm_host.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -15,7 +15,7 @@
 
 struct ToriAuxLibVM
 {
-    struct CSVM* csvm;
+    struct CS1VM* cs1vm;
     struct VarPVarBitManager varp_varbit;
 };
 
@@ -37,27 +37,14 @@ tal_vm_get_varbit(
     return varp_varbit_get_varbit(&vm->varp_varbit, id);
 }
 
-static void
-tal_vm_state_fill(
-    struct ToriAuxLibVM* vm,
-    struct CSVM_State* out)
-{
-    if( !out )
-        return;
-    memset(out, 0, sizeof(*out));
-    out->get_varp = tal_vm_get_varp;
-    out->get_varbit = tal_vm_get_varbit;
-    out->ud = vm;
-}
-
 struct ToriAuxLibVM*
 ToriAuxLibVM_New(void)
 {
     struct ToriAuxLibVM* vm = calloc(1, sizeof(struct ToriAuxLibVM));
     if( !vm )
         return NULL;
-    vm->csvm = csvm_new();
-    if( !vm->csvm )
+    vm->cs1vm = cs1vm_new();
+    if( !vm->cs1vm )
     {
         free(vm);
         return NULL;
@@ -72,15 +59,13 @@ ToriAuxLibVM_Free(struct ToriAuxLibVM* vm)
     if( !vm )
         return;
     varp_varbit_free(&vm->varp_varbit);
-    csvm_free(vm->csvm);
+    cs1vm_free(vm->cs1vm);
     free(vm);
 }
 
 int
 ToriAuxLibVM_EvalScript(
     struct ToriAuxLibVM* vm,
-    struct CS2VM* cs2vm,
-    struct CS2VM_State const* cs2vm_state,
     struct StaticUIComponent const* c,
     int script_id)
 {
@@ -90,38 +75,39 @@ ToriAuxLibVM_EvalScript(
     assert(c->behavior.scripts);
     assert(c->behavior.scripts[script_id]);
 
-    if( c->behavior.script_kind == CS2VM_SCRIPT_KIND_CS2 )
-    {
-        if( !cs2vm || !cs2vm_state )
-            return 0;
-        return cs2vm_eval(cs2vm, c->behavior.scripts[script_id], cs2vm_state);
-    }
+    if( c->behavior.script_kind == CS1VM_SCRIPT_KIND_CS2 )
+        return 0;
 
-    assert(vm->csvm);
-    struct CSVM_State state;
-    tal_vm_state_fill(vm, &state);
+    assert(vm->cs1vm);
+    struct CS1Host host;
+    cs1vm_host_fill_varp_varbit(&host, vm);
     int script_len = 0;
     if( c->behavior.scripts_lengths )
         script_len = c->behavior.scripts_lengths[script_id];
-    return csvm_eval_len(vm->csvm, c->behavior.scripts[script_id], &state, script_len);
+    return cs1vm_eval_len(vm->cs1vm, c->behavior.scripts[script_id], &host, script_len);
 }
 
 bool
 ToriAuxLibVM_IsActive(
     struct ToriAuxLibVM* vm,
-    struct CS2VM* cs2vm,
-    struct CS2VM_State const* cs2vm_state,
+    struct CS1Host const* cs1host,
     struct StaticUIComponent const* c)
 {
     if( !vm || !c || !c->behavior.script_comparator || !c->behavior.script_operand )
+        return false;
+
+    if( c->behavior.script_kind == CS1VM_SCRIPT_KIND_CS2 )
         return false;
 
     int count = c->behavior.scripts_count;
     if( count <= 0 )
         return false;
 
-    struct CSVM_State csvm_state;
-    tal_vm_state_fill(vm, &csvm_state);
+    struct CS1Host local_cs1host;
+    if( cs1host )
+        local_cs1host = *cs1host;
+    else
+        cs1vm_host_fill_varp_varbit(&local_cs1host, vm);
 
     for( int i = 0; i < count; i++ )
     {
@@ -129,26 +115,12 @@ ToriAuxLibVM_IsActive(
             return false;
 
         int script_len = c->behavior.scripts_lengths ? c->behavior.scripts_lengths[i] : 0;
-        int value = 0;
-        if( c->behavior.script_kind == CS2VM_SCRIPT_KIND_CS2 )
-        {
-            if( !cs2vm || !cs2vm_state )
-                return false;
-            value = cs2vm_eval(cs2vm, c->behavior.scripts[i], cs2vm_state);
-        }
-        else
-        {
-            value = csvm_eval_len(vm->csvm, c->behavior.scripts[i], &csvm_state, script_len);
-        }
+        int value =
+            cs1vm_eval_len(vm->cs1vm, c->behavior.scripts[i], &local_cs1host, script_len);
 
         int operand = c->behavior.script_operand[i];
         int comp = c->behavior.script_comparator[i];
-        if( c->behavior.script_kind == CS2VM_SCRIPT_KIND_CS2 )
-        {
-            if( !cs2vm_compare(comp, value, operand) )
-                return false;
-        }
-        else if( !csvm_compare(comp, value, operand) )
+        if( !cs1vm_compare(comp, value, operand) )
             return false;
     }
     return true;
@@ -273,10 +245,10 @@ ToriAuxLibVM_ApplyButtonClickOptimistic(
     }
 }
 
-struct CSVM*
-ToriAuxLibVM_CSVM(struct ToriAuxLibVM* vm)
+struct CS1VM*
+ToriAuxLibVM_CS1VM(struct ToriAuxLibVM* vm)
 {
-    return vm ? vm->csvm : NULL;
+    return vm ? vm->cs1vm : NULL;
 }
 
 struct VarPVarBitManager*

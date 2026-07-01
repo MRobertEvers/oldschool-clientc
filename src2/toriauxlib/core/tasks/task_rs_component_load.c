@@ -707,6 +707,57 @@ rs_component_walk_dat1(
     free(visited);
 }
 
+static int
+dat2_component_file_index(
+    struct Dat2BuildCache_InterfaceArchive* archive,
+    int component_id)
+{
+    if( !archive || component_id < 0 )
+        return -1;
+
+    int const file_index = component_id & 0xFFFF;
+    if( file_index >= 0 && file_index < archive->component_count &&
+        archive->components[file_index] &&
+        archive->components[file_index]->id == component_id )
+        return file_index;
+
+    for( int i = 0; i < archive->component_count; i++ )
+    {
+        if( archive->components[i] && archive->components[i]->id == component_id )
+            return i;
+    }
+    return -1;
+}
+
+static void
+rs_component_process_dat2_node(
+    struct Task_RSComponentLoad* task,
+    struct Dat2BuildCache_InterfaceArchive* archive,
+    Component* comp,
+    int parent_w,
+    int parent_h,
+    int parent_id)
+{
+    int rel_x = 0;
+    int rel_y = 0;
+    int width = 0;
+    int height = 0;
+    ui_if3_dat2_component_parent_relative_layout(
+        comp, parent_w, parent_h, &rel_x, &rel_y, &width, &height);
+
+    rs_component_acquire_dynamic_sprites(task->cache_mode, task->rc_ctx, comp);
+    rs_component_sync_to_core(
+        task->cache, task->cache_mode, comp, rel_x, rel_y, width, height, parent_id);
+
+    if( task->callbacks.on_component )
+    {
+        task->callbacks.on_component(task->callbacks.user, comp->id, parent_id, rel_x, rel_y);
+        task->components_walked++;
+    }
+
+    rs_component_push_children_dat2(task, archive, comp, width, height);
+}
+
 static void
 rs_component_walk_dat2(
     struct Task_RSComponentLoad* task,
@@ -718,6 +769,18 @@ rs_component_walk_dat2(
     int const parent_h =
         task->walk_parent_h > 0 ? task->walk_parent_h : UITREE_LAYOUT_ROOT_H;
 
+    uint8_t* visited = NULL;
+    if( archive && archive->component_count > 0 )
+    {
+        visited = calloc((size_t)archive->component_count, sizeof(uint8_t));
+        if( !visited )
+        {
+            fprintf(stderr, "rs_component_walk_dat2: failed to allocate visited bitmap\n");
+            assert(visited && "rs_component_walk_dat2: visited bitmap allocation failed");
+            return;
+        }
+    }
+
     task->stack_count = 0;
     rs_stack_push(task, walk_root_id, parent_w, parent_h, -1);
     assert(
@@ -726,14 +789,20 @@ rs_component_walk_dat2(
     while( task->stack_count > 0 )
     {
         int comp_id = 0;
-        int parent_w = 0;
-        int parent_h = 0;
+        int stack_parent_w = 0;
+        int stack_parent_h = 0;
         int parent_id = -1;
-        if( !rs_stack_pop(task, &comp_id, &parent_w, &parent_h, &parent_id) )
+        if( !rs_stack_pop(task, &comp_id, &stack_parent_w, &stack_parent_h, &parent_id) )
             break;
 
         if( comp_id < 0 )
             continue;
+
+        int const file_index = dat2_component_file_index(archive, comp_id);
+        if( file_index >= 0 && visited && visited[file_index] )
+            continue;
+        if( file_index >= 0 && visited )
+            visited[file_index] = 1;
 
         Component* comp = dat2_get_component(archive, comp_id);
         if( !comp )
@@ -744,25 +813,33 @@ rs_component_walk_dat2(
             continue;
         }
 
-        int rel_x = 0;
-        int rel_y = 0;
-        int width = 0;
-        int height = 0;
-        ui_if3_dat2_component_parent_relative_layout(
-            comp, parent_w, parent_h, &rel_x, &rel_y, &width, &height);
-
-        rs_component_acquire_dynamic_sprites(task->cache_mode, task->rc_ctx, comp);
-        rs_component_sync_to_core(
-            task->cache, task->cache_mode, comp, rel_x, rel_y, width, height, parent_id);
-
-        if( task->callbacks.on_component )
-        {
-            task->callbacks.on_component(task->callbacks.user, comp->id, parent_id, rel_x, rel_y);
-            task->components_walked++;
-        }
-
-        rs_component_push_children_dat2(task, archive, comp, width, height);
+        rs_component_process_dat2_node(
+            task, archive, comp, stack_parent_w, stack_parent_h, parent_id);
     }
+
+    Component* root = dat2_get_component(archive, walk_root_id);
+    if( root && visited )
+    {
+        int root_w = 0;
+        int root_h = 0;
+        int root_x = 0;
+        int root_y = 0;
+        ui_if3_dat2_component_parent_relative_layout(
+            root, parent_w, parent_h, &root_x, &root_y, &root_w, &root_h);
+
+        for( int i = 0; i < archive->component_count; i++ )
+        {
+            Component* comp = archive->components[i];
+            if( !comp || visited[i] || comp->id == walk_root_id || comp->layer >= 0 )
+                continue;
+
+            visited[i] = 1;
+            rs_component_process_dat2_node(
+                task, archive, comp, root_w, root_h, walk_root_id);
+        }
+    }
+
+    free(visited);
 }
 
 static void*

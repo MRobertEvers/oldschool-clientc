@@ -4,6 +4,7 @@
 #include "platform_sdl2_lvgl_hud.h"
 #endif
 
+#include "../trspk_sprite.h"
 #include "../trspk_toridraw.h"
 #include "graphics/uv_pnm.h"
 #include "libtorirs.h"
@@ -44,7 +45,6 @@ typedef struct TRSPK_UboWorld
 } TRSPK_UboWorld;
 
 #define TRSPK_GL3_ATLAS_DIM 2048u
-#define TRSPK_GL3_ATLAS_TILE 128u
 #define TRSPK_GL3_ATLAS_COLS 16u
 #define TRSPK_GL3_DRAWRANGE_CAP 4096u
 #define TRSPK_GL3_VBO_PAGE (1u << 28)
@@ -330,23 +330,6 @@ gl3_destroy_gl_resources(struct LibToriPlatformSDL2_RendererGL3* renderer)
 }
 
 static void
-gl3_make_ortho2d(
-    float* m,
-    float left,
-    float right,
-    float bottom,
-    float top)
-{
-    memset(m, 0, 16 * sizeof(float));
-    m[0] = 2.0f / (right - left);
-    m[5] = 2.0f / (top - bottom);
-    m[10] = -1.0f;
-    m[12] = -(right + left) / (right - left);
-    m[13] = -(top + bottom) / (top - bottom);
-    m[15] = 1.0f;
-}
-
-static void
 gl3_upload_sprite_atlas(struct LibToriPlatformSDL2_RendererGL3* renderer)
 {
     if( !trspk_atlas_is_initialized(&renderer->sprite_atlas) )
@@ -420,13 +403,26 @@ gl3_apply_logical_scissor(
     int logical_w,
     int logical_h)
 {
-    const float sx = (float)renderer->lb_w / (float)renderer->width;
-    const float sy = (float)renderer->lb_h / (float)renderer->height;
-    const int gl_x = renderer->lb_x + (int)(logical_x * sx);
-    const int gl_w = (int)(logical_w * sx);
-    const int gl_h = (int)(logical_h * sy);
-    const int logical_bottom = renderer->height - logical_y - logical_h;
-    const int gl_y = renderer->lb_y + (int)(logical_bottom * sy);
+    int gl_x = 0;
+    int gl_y = 0;
+    int gl_w = 0;
+    int gl_h = 0;
+    trspk_logical_rect_to_framebuffer(
+        logical_x,
+        logical_y,
+        logical_w,
+        logical_h,
+        renderer->height,
+        renderer->lb_x,
+        renderer->lb_y,
+        renderer->lb_w,
+        renderer->lb_h,
+        renderer->width,
+        renderer->height,
+        &gl_x,
+        &gl_y,
+        &gl_w,
+        &gl_h);
     glEnable(GL_SCISSOR_TEST);
     glScissor(gl_x, gl_y, gl_w, gl_h);
 }
@@ -842,7 +838,7 @@ gl3_composite_hud(
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(renderer->program2d);
     glViewport(renderer->lb_x, renderer->lb_y, renderer->lb_w, renderer->lb_h);
-    gl3_make_ortho2d(renderer->proj2d, 0.0f, (float)renderer->width, (float)renderer->height, 0.0f);
+    trspk_mat4_ortho2d_top_left(renderer->proj2d, 0.0f, (float)renderer->width, (float)renderer->height, 0.0f);
     glUniformMatrix4fv(renderer->u2d_projection, 1, GL_FALSE, renderer->proj2d);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, renderer->hud_texture);
@@ -872,39 +868,6 @@ gl3_composite_hud(
 #endif
 
 static void
-gl3_sprite_local_to_uv(
-    int local_x,
-    int local_y,
-    int dst_anchor_x,
-    int dst_anchor_y,
-    int src_anchor_x,
-    int src_anchor_y,
-    int crop_w,
-    int crop_h,
-    int rotation_r2pi2048,
-    float u0,
-    float v0,
-    float u1,
-    float v1,
-    float* out_u,
-    float* out_v)
-{
-    const int ang = ToriDraw_NormalizeAngle(rotation_r2pi2048);
-    const int cos = ToriDraw_Cos(ang);
-    const int sin = ToriDraw_Sin(ang);
-    const float rel_x = (float)local_x - 0.5f - (float)dst_anchor_x;
-    const float rel_y = (float)local_y - 0.5f - (float)dst_anchor_y;
-    const int src_rel_x = (int)(rel_x * (float)cos + rel_y * (float)sin) >> 16;
-    const int src_rel_y = (int)(-rel_x * (float)sin + rel_y * (float)cos) >> 16;
-    const float src_x = (float)(src_anchor_x + src_rel_x);
-    const float src_y = (float)(src_anchor_y + src_rel_y);
-    const float du = u1 - u0;
-    const float dv = v1 - v0;
-    *out_u = u0 + (crop_w > 0 ? ((src_x + 0.5f) / (float)crop_w) * du : 0.0f);
-    *out_v = v0 + (crop_h > 0 ? ((src_y + 0.5f) / (float)crop_h) * dv : 0.0f);
-}
-
-static void
 gl3_draw_sprite_rotated(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     struct LibToriRS_RenderCommand* command,
@@ -922,43 +885,26 @@ gl3_draw_sprite_rotated(
     if( dst_w <= 0 || dst_h <= 0 )
         return;
 
-    const int dst_anchor_x = command->u.sprite.dst_anchor_x;
-    const int dst_anchor_y = command->u.sprite.dst_anchor_y;
-    const int src_anchor_x = command->u.sprite.src_anchor_x;
-    const int src_anchor_y = command->u.sprite.src_anchor_y;
-    const int crop_w = sp->crop_width > 0 ? sp->crop_width : sp->width;
-    const int crop_h = sp->crop_height > 0 ? sp->crop_height : sp->height;
-    const int rotation = command->u.sprite.rotation;
-
-    const int local_corners[4][2] = {
-        { 0,     0     },
-        { dst_w, 0     },
-        { dst_w, dst_h },
-        { 0,     dst_h },
-    };
     float pos[4][2];
     float uv[4][2];
-    for( int i = 0; i < 4; i++ )
-    {
-        pos[i][0] = (float)(dst_x + local_corners[i][0]);
-        pos[i][1] = (float)(dst_y + local_corners[i][1]);
-        gl3_sprite_local_to_uv(
-            local_corners[i][0],
-            local_corners[i][1],
-            dst_anchor_x,
-            dst_anchor_y,
-            src_anchor_x,
-            src_anchor_y,
-            crop_w,
-            crop_h,
-            rotation,
-            u0,
-            v0,
-            u1,
-            v1,
-            &uv[i][0],
-            &uv[i][1]);
-    }
+    trspk_sprite_rotated_corners(
+        dst_x,
+        dst_y,
+        dst_w,
+        dst_h,
+        command->u.sprite.dst_anchor_x,
+        command->u.sprite.dst_anchor_y,
+        command->u.sprite.src_anchor_x,
+        command->u.sprite.src_anchor_y,
+        sp->crop_width > 0 ? sp->crop_width : sp->width,
+        sp->crop_height > 0 ? sp->crop_height : sp->height,
+        command->u.sprite.rotation,
+        u0,
+        v0,
+        u1,
+        v1,
+        pos,
+        uv);
 
     gl3_draw_textured_quad_uv4(renderer, pos, uv, rgba);
 }
@@ -1136,31 +1082,6 @@ gl3_sync_scene_fonts(
     }
 }
 
-static void
-gl3_color_from_rgb(
-    int color,
-    float alpha,
-    float rgba[4])
-{
-    rgba[0] = (float)((color >> 16) & 0xFF) / 255.0f;
-    rgba[1] = (float)((color >> 8) & 0xFF) / 255.0f;
-    rgba[2] = (float)(color & 0xFF) / 255.0f;
-    rgba[3] = alpha;
-}
-
-static void
-gl3_color_from_argb(
-    int argb,
-    float rgba[4])
-{
-    if( (argb & 0xFF000000u) == 0u )
-        argb |= 0xFF000000u;
-    rgba[0] = (float)((argb >> 16) & 0xFF) / 255.0f;
-    rgba[1] = (float)((argb >> 8) & 0xFF) / 255.0f;
-    rgba[2] = (float)(argb & 0xFF) / 255.0f;
-    rgba[3] = (float)((argb >> 24) & 0xFF) / 255.0f;
-}
-
 struct GL3FontGlyphCtx
 {
     struct LibToriPlatformSDL2_RendererGL3* renderer;
@@ -1197,7 +1118,7 @@ gl3_font_glyph_callback(
 
     int const rgb = gctx->shadow ? 0 : color_rgb;
     float rgba[4];
-    gl3_color_from_rgb(rgb, gctx->alpha, rgba);
+    trspk_color_rgb_to_rgba(rgb, gctx->alpha, rgba);
     gl3_draw_textured_quad(
         renderer,
         slot->texture,
@@ -1271,7 +1192,7 @@ gl3_ev_fill_rect(
         command->u.fill_rect.scissor_h);
 
     float rgba[4];
-    gl3_color_from_argb(command->u.fill_rect.argb, rgba);
+    trspk_color_argb_to_rgba(command->u.fill_rect.argb, rgba);
 
     gl3_draw_textured_quad(
         renderer,
@@ -1306,7 +1227,7 @@ gl3_ev_begin_2d(
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(renderer->program2d);
     glViewport(renderer->lb_x, renderer->lb_y, renderer->lb_w, renderer->lb_h);
-    gl3_make_ortho2d(renderer->proj2d, 0.0f, (float)renderer->width, (float)renderer->height, 0.0f);
+    trspk_mat4_ortho2d_top_left(renderer->proj2d, 0.0f, (float)renderer->width, (float)renderer->height, 0.0f);
     glUniformMatrix4fv(renderer->u2d_projection, 1, GL_FALSE, renderer->proj2d);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
@@ -1436,6 +1357,75 @@ gl3_ev_sprite_load(
 }
 
 static void
+gl3_draw_sprite_tiled(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    struct ToriDraw_Sprite* sp,
+    struct LibToriRS_RenderCommand* command,
+    float u0,
+    float v0,
+    float u1,
+    float v1,
+    float const rgba[4])
+{
+    int const tile_w = sp->width > 0 ? sp->width : 1;
+    int const tile_h = sp->height > 0 ? sp->height : 1;
+    int const dest_x = command->u.sprite.x;
+    int const dest_y = command->u.sprite.y;
+    int const dest_w = command->u.sprite.w > 0 ? command->u.sprite.w : tile_w;
+    int const dest_h = command->u.sprite.h > 0 ? command->u.sprite.h : tile_h;
+    int const origin_x = dest_x + sp->crop_x;
+    int const origin_y = dest_y + sp->crop_y;
+
+    int clip_x = 0;
+    int clip_y = 0;
+    int clip_w = 0;
+    int clip_h = 0;
+    trspk_rect_intersect(
+        command->u.sprite.scissor_x,
+        command->u.sprite.scissor_y,
+        command->u.sprite.scissor_w,
+        command->u.sprite.scissor_h,
+        dest_x,
+        dest_y,
+        dest_w,
+        dest_h,
+        &clip_x,
+        &clip_y,
+        &clip_w,
+        &clip_h);
+    gl3_set_draw_scissor(renderer, clip_x, clip_y, clip_w, clip_h);
+
+    int start_x = 0;
+    int start_y = 0;
+    trspk_sprite_tile_phase_origin(dest_x, dest_y, origin_x, origin_y, tile_w, tile_h, &start_x, &start_y);
+
+    float const uv_bounds[4] = { u0, v0, u1, v1 };
+    int const dest_right = dest_x + dest_w;
+    int const dest_bottom = dest_y + dest_h;
+    for( int ty = start_y; ty < dest_bottom; ty += tile_h )
+    {
+        for( int tx = start_x; tx < dest_right; tx += tile_w )
+        {
+            gl3_draw_textured_quad(
+                renderer,
+                renderer->sprite_atlas_texture,
+                0,
+                true,
+                uv_bounds,
+                (float)tx,
+                (float)ty,
+                (float)(tx + tile_w),
+                (float)(ty + tile_h),
+                u0,
+                v0,
+                u1,
+                v1,
+                rgba);
+        }
+    }
+}
+
+static void
 gl3_ev_sprite(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     struct LibToriRS_Instance* instance,
@@ -1494,6 +1484,7 @@ gl3_ev_sprite(
     float v1 = slot->uvs[atlas_index * 4 + 3];
     float alpha = command->u.sprite.alpha > 0 ? (float)command->u.sprite.alpha / 255.0f : 1.0f;
     const bool rotated = command->u.sprite.rotated != 0;
+    const bool tiled = !rotated && command->u.sprite.tiled != 0;
     float x0;
     float y0;
     float x1;
@@ -1507,10 +1498,17 @@ gl3_ev_sprite(
     }
     else
     {
+        int const dst_w = command->u.sprite.w > 0 ? command->u.sprite.w : sp->width;
+        int const dst_h = command->u.sprite.h > 0 ? command->u.sprite.h : sp->height;
         x0 = (float)(command->u.sprite.x + sp->crop_x);
         y0 = (float)(command->u.sprite.y + sp->crop_y);
-        x1 = x0 + (float)sp->width;
-        y1 = y0 + (float)sp->height;
+        if( tiled )
+        {
+            x0 = (float)command->u.sprite.x;
+            y0 = (float)command->u.sprite.y;
+        }
+        x1 = x0 + (float)dst_w;
+        y1 = y0 + (float)dst_h;
     }
     float rgba[4] = { 1.0f, 1.0f, 1.0f, alpha };
 
@@ -1567,6 +1565,10 @@ gl3_ev_sprite(
     if( rotated )
     {
         gl3_draw_sprite_rotated(renderer, command, sp, u0, v0, u1, v1, rgba);
+    }
+    else if( tiled )
+    {
+        gl3_draw_sprite_tiled(renderer, sp, command, u0, v0, u1, v1, rgba);
     }
     else
     {
@@ -1702,152 +1704,6 @@ get_model(struct ToriDraw_ModelHandle model_handle)
 }
 
 static void
-uv_pnm_face(
-    struct UVFaceCoords* out,
-    struct ToriDraw_Model* model,
-    uint32_t face_index)
-{
-    uint32_t face_a = (uint32_t)model->face_indices_a[face_index];
-    uint32_t face_b = (uint32_t)model->face_indices_b[face_index];
-    uint32_t face_c = (uint32_t)model->face_indices_c[face_index];
-
-    uint32_t p_vertex = face_a;
-    uint32_t m_vertex = face_b;
-    uint32_t n_vertex = face_c;
-
-    if( model->face_texture_coords && model->face_texture_coords[face_index] != -1 )
-    {
-        assert(model->textured_p_coordinate != NULL);
-        assert(model->textured_m_coordinate != NULL);
-        assert(model->textured_n_coordinate != NULL);
-
-        uint32_t texture_face = (uint32_t)model->face_texture_coords[face_index];
-        p_vertex = (uint32_t)model->textured_p_coordinate[texture_face];
-        m_vertex = (uint32_t)model->textured_m_coordinate[texture_face];
-        n_vertex = (uint32_t)model->textured_n_coordinate[texture_face];
-    }
-
-    uv_pnm_compute(
-        out,
-        model->vertices_x[p_vertex],
-        model->vertices_y[p_vertex],
-        model->vertices_z[p_vertex],
-        model->vertices_x[m_vertex],
-        model->vertices_y[m_vertex],
-        model->vertices_z[m_vertex],
-        model->vertices_x[n_vertex],
-        model->vertices_y[n_vertex],
-        model->vertices_z[n_vertex],
-        model->vertices_x[face_a],
-        model->vertices_y[face_a],
-        model->vertices_z[face_a],
-        model->vertices_x[face_b],
-        model->vertices_y[face_b],
-        model->vertices_z[face_b],
-        model->vertices_x[face_c],
-        model->vertices_y[face_c],
-        model->vertices_z[face_c]);
-}
-
-static void
-hsl16_to_rgba(
-    uint16_t hsl16,
-    uint8_t alpha,
-    float rgba[4])
-{
-    uint32_t rgb = ToriDraw_Hsl16ToRgb(hsl16);
-    rgba[0] = (float)((rgb >> 16) & 0xFFu) / 255.0f;
-    rgba[1] = (float)((rgb >> 8) & 0xFFu) / 255.0f;
-    rgba[2] = (float)(rgb & 0xFFu) / 255.0f;
-    rgba[3] = (float)alpha / 255.0f;
-}
-
-static void
-compute_view_matrix(
-    float* out_matrix,
-    float camera_x,
-    float camera_y,
-    float camera_z,
-    float pitch,
-    float yaw)
-{
-    float cosPitch = cosf(-pitch);
-    float sinPitch = sinf(-pitch);
-    float cosYaw = cosf(-yaw);
-    float sinYaw = sinf(-yaw);
-
-    out_matrix[0] = cosYaw;
-    out_matrix[1] = sinYaw * sinPitch;
-    out_matrix[2] = sinYaw * cosPitch;
-    out_matrix[3] = 0.0f;
-    out_matrix[4] = 0.0f;
-    out_matrix[5] = cosPitch;
-    out_matrix[6] = -sinPitch;
-    out_matrix[7] = 0.0f;
-    out_matrix[8] = -sinYaw;
-    out_matrix[9] = cosYaw * sinPitch;
-    out_matrix[10] = cosYaw * cosPitch;
-    out_matrix[11] = 0.0f;
-    out_matrix[12] = -camera_x * cosYaw + camera_z * sinYaw;
-    out_matrix[13] =
-        -camera_x * sinYaw * sinPitch - camera_y * cosPitch - camera_z * cosYaw * sinPitch;
-    out_matrix[14] =
-        -camera_x * sinYaw * cosPitch + camera_y * sinPitch - camera_z * cosYaw * cosPitch;
-    out_matrix[15] = 1.0f;
-}
-
-static void
-compute_projection_matrix(
-    float* out_matrix,
-    float fov,
-    float screen_width,
-    float screen_height)
-{
-    float y = 1.0f / tanf(fov * 0.5f);
-    float x = y;
-    out_matrix[0] = x * 512.0f / (screen_width / 2.0f);
-    out_matrix[1] = 0.0f;
-    out_matrix[2] = 0.0f;
-    out_matrix[3] = 0.0f;
-    out_matrix[4] = 0.0f;
-    out_matrix[5] = -y * 512.0f / (screen_height / 2.0f);
-    out_matrix[6] = 0.0f;
-    out_matrix[7] = 0.0f;
-    out_matrix[8] = 0.0f;
-    out_matrix[9] = 0.0f;
-    out_matrix[10] = 0.0f;
-    out_matrix[11] = 1.0f;
-    out_matrix[12] = 0.0f;
-    out_matrix[13] = 0.0f;
-    out_matrix[14] = -1.0f;
-    out_matrix[15] = 0.0f;
-}
-
-static void
-compute_pass_matrices(
-    float view[16],
-    float proj[16],
-    const struct LibToriRS_RenderCommand_Begin3D* b3d,
-    int fallback_w,
-    int fallback_h)
-{
-    const struct ToriDraw_Position* cam_pos = &b3d->camera_position;
-    const struct ToriDraw_Camera* cam = &b3d->camera;
-    const struct ToriDraw_ViewPort* vp = &b3d->view_port;
-    const int pass_w = vp->width > 0 ? vp->width : fallback_w;
-    const int pass_h = vp->height > 0 ? vp->height : fallback_h;
-
-    compute_view_matrix(
-        view,
-        -(float)cam_pos->x,
-        -(float)cam_pos->y,
-        -(float)cam_pos->z,
-        ToriDraw_AngleToRadians(cam->pitch),
-        ToriDraw_AngleToRadians(cam->yaw));
-    compute_projection_matrix(proj, (90.0f * (float)M_PI) / 180.0f, (float)pass_w, (float)pass_h);
-}
-
-static void
 upload_world_ubo(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     const float* view,
@@ -1861,67 +1717,6 @@ upload_world_ubo(
     glBufferSubData(GL_UNIFORM_BUFFER, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld), &u);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     glBindBufferRange(GL_UNIFORM_BUFFER, 0u, renderer->ubo, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld));
-}
-
-static void
-gl3_decode_texture_rgba(
-    const struct ToriDraw_Texture* tex,
-    uint8_t* out_rgba)
-{
-    const uint32_t src_w = (uint32_t)tex->width;
-    const uint32_t src_h = (uint32_t)tex->height;
-
-    memset(out_rgba, 0, TRSPK_GL3_ATLAS_TILE * TRSPK_GL3_ATLAS_TILE * 4u);
-    if( src_w == 0u || src_h == 0u )
-        return;
-
-    for( uint32_t dst_row = 0; dst_row < TRSPK_GL3_ATLAS_TILE; dst_row++ )
-    {
-        uint32_t src_row = (dst_row * src_h) / TRSPK_GL3_ATLAS_TILE;
-        for( uint32_t dst_col = 0; dst_col < TRSPK_GL3_ATLAS_TILE; dst_col++ )
-        {
-            uint32_t src_col = (dst_col * src_w) / TRSPK_GL3_ATLAS_TILE;
-            int texel = tex->texels[src_row * src_w + src_col];
-            uint8_t rv = (uint8_t)((texel >> 16) & 0xFF);
-            uint8_t gv = (uint8_t)((texel >> 8) & 0xFF);
-            uint8_t bv = (uint8_t)(texel & 0xFF);
-            uint8_t av = (tex->opaque || texel != 0) ? 255u : 0u;
-            uint32_t idx = (dst_row * TRSPK_GL3_ATLAS_TILE + dst_col) * 4u;
-            out_rgba[idx + 0] = rv;
-            out_rgba[idx + 1] = gv;
-            out_rgba[idx + 2] = bv;
-            out_rgba[idx + 3] = av;
-        }
-    }
-}
-
-static float
-gl3_pack_uv_mode(
-    int animation_direction,
-    int animation_speed)
-{
-    if( animation_direction == 0 || animation_speed == 0 )
-        return 0.0f;
-
-    int enc;
-    if( animation_direction == 2 || animation_direction == 4 )
-        enc = animation_speed * 2 + 1;
-    else
-        enc = animation_speed * 2 + 257;
-
-    return (float)(2 * enc);
-}
-
-static float
-gl3_encode_tex_id(
-    int tex_id,
-    const struct ToriDraw_Texture* tex)
-{
-    if( tex_id < 0 )
-        return TRSPK_VERTEX_OPENGL3_TEXID_INVALID;
-    if( tex && !tex->opaque )
-        return (float)(tex_id + 256);
-    return (float)tex_id;
 }
 
 static void
@@ -2119,16 +1914,16 @@ gl3_ev_tex_load(
     if( tex_id < 0 || tex_id >= 256 || !tex || !tex->texels )
         return;
 
-    static uint8_t rgba_scratch[TRSPK_GL3_ATLAS_TILE * TRSPK_GL3_ATLAS_TILE * 4];
-    gl3_decode_texture_rgba(tex, rgba_scratch);
+    static uint8_t rgba_scratch[TRSPK_ATLAS_TILE * TRSPK_ATLAS_TILE * 4u];
+    trspk_atlas_decode_texture_rgba(tex, TRSPK_ATLAS_TILE, rgba_scratch);
 
     trspk_atlas_grid_insert_at(
         &renderer->atlas,
         (uint32_t)tex_id,
         rgba_scratch,
-        TRSPK_GL3_ATLAS_TILE * 4u,
-        TRSPK_GL3_ATLAS_TILE,
-        TRSPK_GL3_ATLAS_TILE,
+        TRSPK_ATLAS_TILE * 4u,
+        TRSPK_ATLAS_TILE,
+        TRSPK_ATLAS_TILE,
         NULL);
 }
 
@@ -2229,18 +2024,32 @@ gl3_ev_begin_3d(
         const struct ToriDraw_ViewPort* vp = &renderer->cur_3d.view_port;
         const int vp_w = vp->width > 0 ? vp->width : renderer->width;
         const int vp_h = vp->height > 0 ? vp->height : renderer->height;
-        const float sx = (float)renderer->lb_w / (float)renderer->width;
-        const float sy = (float)renderer->lb_h / (float)renderer->height;
         const int wx = vp->x_center - vp_w / 2;
         const int wy = vp->y_center - vp_h / 2;
-        const int gl_x = renderer->lb_x + (int)(wx * sx);
-        const int gl_w = (int)(vp_w * sx);
-        const int gl_h = (int)(vp_h * sy);
-        const int gl_y = renderer->lb_y + (int)((renderer->height - (wy + vp_h)) * sy);
+        int gl_x = 0;
+        int gl_y = 0;
+        int gl_w = 0;
+        int gl_h = 0;
+        trspk_logical_rect_to_framebuffer(
+            wx,
+            wy,
+            vp_w,
+            vp_h,
+            renderer->height,
+            renderer->lb_x,
+            renderer->lb_y,
+            renderer->lb_w,
+            renderer->lb_h,
+            renderer->width,
+            renderer->height,
+            &gl_x,
+            &gl_y,
+            &gl_w,
+            &gl_h);
         glViewport(gl_x, gl_y, gl_w, gl_h);
     }
 
-    compute_pass_matrices(
+    trspk_compute_pass_matrices(
         renderer->view, renderer->proj, &renderer->cur_3d, renderer->width, renderer->height);
     upload_world_ubo(renderer, renderer->view, renderer->proj);
 
@@ -2335,104 +2144,44 @@ gl3_bake_into_arena(
     for( uint32_t face_index = 0; face_index < tri_count; face_index++ )
     {
         const uint32_t vi = base + face_index * 3u;
-
-        const uint32_t face_a = (uint32_t)model->face_indices_a[face_index];
-        const uint32_t face_b = (uint32_t)model->face_indices_b[face_index];
-        const uint32_t face_c = (uint32_t)model->face_indices_c[face_index];
-
-        const uint16_t color_a_hsl16 = model->face_colors_a[face_index];
-        const uint16_t color_b_hsl16 = model->face_colors_b[face_index];
-        const uint16_t color_c_hsl16 = model->face_colors_c[face_index];
-        uint8_t alpha;
-        if( model->face_alphas )
-            alpha = 0xFFu - model->face_alphas[face_index];
-        else
-            alpha = 0xFFu;
-
-        float color_a[4], color_b[4], color_c[4];
-        if( color_c_hsl16 == TORIDRAWHSL16_HIDDEN )
-        {
-            alpha = 0u;
-            hsl16_to_rgba(color_a_hsl16, alpha, color_a);
-            color_b[0] = color_a[0];
-            color_b[1] = color_a[1];
-            color_b[2] = color_a[2];
-            color_b[3] = color_a[3];
-            color_c[0] = color_a[0];
-            color_c[1] = color_a[1];
-            color_c[2] = color_a[2];
-            color_c[3] = color_a[3];
-        }
-        else if( color_c_hsl16 == TORIDRAWHSL16_FLAT )
-        {
-            hsl16_to_rgba(color_a_hsl16, alpha, color_a);
-            color_b[0] = color_a[0];
-            color_b[1] = color_a[1];
-            color_b[2] = color_a[2];
-            color_b[3] = color_a[3];
-            color_c[0] = color_a[0];
-            color_c[1] = color_a[1];
-            color_c[2] = color_a[2];
-            color_c[3] = color_a[3];
-        }
-        else
-        {
-            hsl16_to_rgba(color_a_hsl16, alpha, color_a);
-            hsl16_to_rgba(color_b_hsl16, alpha, color_b);
-            hsl16_to_rgba(color_c_hsl16, alpha, color_c);
-        }
-
-        const int tex_id = model->face_textures ? (int)model->face_textures[face_index] : -1;
-        struct ToriDraw_Texture* tex = NULL;
-        float uv_mode = 0.0f;
-        if( tex_id >= 0 && ctx )
-        {
-            tex = ToriDraw_TextureMapGet(&ToriDraw_SceneTexState(ctx)->texture_map, tex_id);
-            if( tex )
-                uv_mode = gl3_pack_uv_mode(tex->animation_direction, tex->animation_speed);
-        }
-
-        const float tex_id_encoded = gl3_encode_tex_id(tex_id, tex);
+        struct TRSPK_ToriDrawBakeFaceVerts face;
+        trspk_toridraw_bake_face(model, face_index, world_position, ctx, true, &face);
 
         trspk_triangles_set(&g->triangles, (base / 3u) + face_index, TRSPK_TRIANGLES_ATLAS);
 
-        struct UVFaceCoords uv;
-        uv_pnm_face(&uv, model, face_index);
-
-        float wx_a, wy_a, wz_a;
-        float wx_b, wy_b, wz_b;
-        float wx_c, wy_c, wz_c;
-        trspk_toridraw_world_vertex(
-            world_position,
-            model->vertices_x[face_a],
-            model->vertices_y[face_a],
-            model->vertices_z[face_a],
-            &wx_a,
-            &wy_a,
-            &wz_a);
-        trspk_toridraw_world_vertex(
-            world_position,
-            model->vertices_x[face_b],
-            model->vertices_y[face_b],
-            model->vertices_z[face_b],
-            &wx_b,
-            &wy_b,
-            &wz_b);
-        trspk_toridraw_world_vertex(
-            world_position,
-            model->vertices_x[face_c],
-            model->vertices_y[face_c],
-            model->vertices_z[face_c],
-            &wx_c,
-            &wy_c,
-            &wz_c);
-
         gl3_write_vertex_opengl3(
-            g->vbo_cpu, vi + 0u, wx_a, wy_a, wz_a, color_a, uv.u1, uv.v1, tex_id_encoded, uv_mode);
+            g->vbo_cpu,
+            vi + 0u,
+            face.wx_a,
+            face.wy_a,
+            face.wz_a,
+            face.color_a,
+            face.uv.u1,
+            face.uv.v1,
+            face.tex_id_encoded,
+            face.uv_mode);
         gl3_write_vertex_opengl3(
-            g->vbo_cpu, vi + 1u, wx_b, wy_b, wz_b, color_b, uv.u2, uv.v2, tex_id_encoded, uv_mode);
+            g->vbo_cpu,
+            vi + 1u,
+            face.wx_b,
+            face.wy_b,
+            face.wz_b,
+            face.color_b,
+            face.uv.u2,
+            face.uv.v2,
+            face.tex_id_encoded,
+            face.uv_mode);
         gl3_write_vertex_opengl3(
-            g->vbo_cpu, vi + 2u, wx_c, wy_c, wz_c, color_c, uv.u3, uv.v3, tex_id_encoded, uv_mode);
+            g->vbo_cpu,
+            vi + 2u,
+            face.wx_c,
+            face.wy_c,
+            face.wz_c,
+            face.color_c,
+            face.uv.u3,
+            face.uv.v3,
+            face.tex_id_encoded,
+            face.uv_mode);
     }
 
     if( update_pose_table )
@@ -2869,8 +2618,8 @@ LibToriPlatformSDL2_RendererGL3_New(
             &renderer->atlas,
             TRSPK_GL3_ATLAS_DIM,
             TRSPK_GL3_ATLAS_DIM,
-            TRSPK_GL3_ATLAS_TILE,
-            TRSPK_GL3_ATLAS_TILE,
+            TRSPK_ATLAS_TILE,
+            TRSPK_ATLAS_TILE,
             4u) )
         goto fail;
 
@@ -3246,23 +2995,13 @@ LibToriPlatformSDL2_RendererGL3_Render(
     SDL_GL_GetDrawableSize(renderer->window, &drawable_w, &drawable_h);
 
     {
-        const float src_aspect = (float)renderer->width / (float)renderer->height;
-        const float win_aspect = (float)drawable_w / (float)drawable_h;
-
-        if( src_aspect > win_aspect )
-        {
-            renderer->lb_w = drawable_w;
-            renderer->lb_h = (int)((float)drawable_w / src_aspect);
-            renderer->lb_x = 0;
-            renderer->lb_y = (drawable_h - renderer->lb_h) / 2;
-        }
-        else
-        {
-            renderer->lb_h = drawable_h;
-            renderer->lb_w = (int)((float)drawable_h * src_aspect);
-            renderer->lb_y = 0;
-            renderer->lb_x = (drawable_w - renderer->lb_w) / 2;
-        }
+        struct TRSPK_Letterbox lb;
+        trspk_compute_letterbox(
+            renderer->width, renderer->height, drawable_w, drawable_h, &lb);
+        renderer->lb_x = lb.x;
+        renderer->lb_y = lb.y;
+        renderer->lb_w = lb.w;
+        renderer->lb_h = lb.h;
     }
 
     glViewport(0, 0, drawable_w, drawable_h);

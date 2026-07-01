@@ -45,6 +45,12 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/ui/ui_font_lookup.c \
 	$(SRC2_DIR)/ui/ui_input.c \
 	$(SRC2_DIR)/ui/ui_scroll.c \
+	$(SRC2_DIR)/ui/ui_scroll_runtime.c \
+	$(SRC2_DIR)/ui/ui_cross_cursor.c \
+	$(SRC2_DIR)/ui/ui_hover_routing.c \
+	$(SRC2_DIR)/ui/ui_inv_selection.c \
+	$(SRC2_DIR)/ui/chat_state.c \
+	$(SRC2_DIR)/world/entity_registry.c \
 	$(SRC2_DIR)/ui/rs_inv_container.c \
 	$(SRC2_DIR)/ui/ui_inv_data_service.c \
 	$(SRC2_DIR)/ui/ui_inv_slot_view.c \
@@ -59,8 +65,14 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/ui/minimenu_pickset.c \
 	$(SRC2_DIR)/ui/uitree.c \
 	$(SRC2_DIR)/ui/uitree_layout.c \
-	$(SRC2_DIR)/vm/csvm.c \
+	$(SRC2_DIR)/vm/cs1vm.c \
+	$(SRC2_DIR)/vm/cs1vm_host.c \
+	$(SRC2_DIR)/vm/cs1vm_level.c \
+	$(SRC2_DIR)/vm/cs2_script.c \
 	$(SRC2_DIR)/vm/cs2vm.c \
+	$(SRC2_DIR)/vm/cs2_opcode_meta.c \
+	$(SRC2_DIR)/vm/cs2_host_ui.c \
+	$(SRC2_DIR)/toriauxlib/vm/toriauxlibvm.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/instance_revconfig_context.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/task_rs_component_load.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/task_rs_inv_load.c \

@@ -7,6 +7,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define TRSPK_ATLAS_TILE 128u
+
+struct ToriDraw_Texture;
+
 /* ------------------------------------------------------------------ */
 /* Tile: pixel position + normalized UV bounds within an atlas         */
 /* ------------------------------------------------------------------ */
@@ -219,5 +223,15 @@ trspk_atlas_binpack_insert(
     uint32_t src_w,
     uint32_t src_h,
     struct TRSPK_AtlasTile* tile_out);
+
+/*
+ * Nearest-neighbor rescale of a ToriDraw texture into a square atlas tile.
+ * out_rgba must hold tile_size * tile_size * 4 bytes.
+ */
+void
+trspk_atlas_decode_texture_rgba(
+    const struct ToriDraw_Texture* tex,
+    uint32_t tile_size,
+    uint8_t* out_rgba);
 
 #endif

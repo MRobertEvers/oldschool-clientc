@@ -16,7 +16,8 @@
 #include "ui/ui_chat_minimenu.h"
 #include "ui/ui_input.h"
 #include "ui/ui_scroll.h"
-#include "ui/ui_inv_data_service.h"
+#include "ui/ui_cross_cursor.h"
+#include "ui/ui_inv_selection.h"
 #include "ui/ui_inv_slot_view.h"
 #include "ui/uitree_host.h"
 #include "ui/ui_minimenu.h"
@@ -254,10 +255,7 @@ game_set_cross(
 {
     if( !game )
         return;
-    game->cross_x = x;
-    game->cross_y = y;
-    game->cross_mode = mode;
-    game->cross_cycle = 0;
+    ui_cross_cursor_show(&game->cross, (enum UICrossCursorMode)mode, x, y);
 }
 
 static void
@@ -347,14 +345,14 @@ ui_click_npc_for_entity(
 
     if( !game || !game->world || RS_ENTITY_KIND_OF(entity_id) != RS_ENTITY_KIND_NPC )
         return NULL;
-    if( !game->entity_registry )
+    if( !game->entities.records )
         return NULL;
 
-    for( int i = 0; i < game->entity_registry_count; i++ )
+    for( int i = 0; i < game->entities.count; i++ )
     {
-        if( game->entity_registry[i].entity_id != entity_id )
+        if( game->entities.records[i].entity_id != entity_id )
             continue;
-        world_index = game->entity_registry[i].world_index;
+        world_index = game->entities.records[i].world_index;
         if( !World_EntityPoolIsActive(&game->world->entities.npc, world_index) )
             return NULL;
         return World_EntityPoolGet(&game->world->entities.npc, world_index);
@@ -852,10 +850,10 @@ ui_click_add_social_options(
     if( client_code_is_friend_list_entry(client_code) )
     {
         int slot = client_code_friend_slot_index(client_code);
-        if( slot < 0 || slot >= game->friend_count )
+        if( slot < 0 || slot >= game->chat.friend_count )
             return false;
 
-        char const* username = game->friend_username[slot];
+        char const* username = game->chat.friend_username[slot];
         char text[UI_MINIMENU_OPTION_LEN];
 
         snprintf(text, sizeof(text), "Remove @whi@%s", username);
@@ -1205,7 +1203,7 @@ ui_click_point_in_chat_main_lines(struct GameRunescape* game, int px, int py)
     if( !game || !game->ui_tree )
         return false;
 
-    int32_t chat_idx = game->ui_chat_node;
+    int32_t chat_idx = game->ui_hover.chat_node;
     if( chat_idx < 0 || (uint32_t)chat_idx >= game->ui_tree->component_count ||
         game->ui_tree->components[chat_idx].type != UIELEM_BUILTIN_CHAT )
         chat_idx = uitree_find_chat_builtin_node(game->ui_tree);
@@ -1340,8 +1338,8 @@ ui_click_build_ui_minimenu_at_point(
 
     int const rows_before_rs = menu->option_count;
     struct UITreeScrollState scroll = {
-        .scroll_x = game->ui_scroll_x,
-        .scroll_y = game->ui_scroll_y,
+        .scroll_x = game->ui_scroll.scroll_x,
+        .scroll_y = game->ui_scroll.scroll_y,
     };
     ui_click_add_rs_interface_options_recursive(
         game,
@@ -1456,7 +1454,7 @@ ui_click_build_minimenu_from_pickset(
     ui_minimenu_add_option(menu, "Cancel", MINIMENU_ACTION_CANCEL, -1);
 
     if( game )
-        ui_chat_minimenu_add_private_strip(game, game->mouse_x, game->mouse_y, menu);
+        ui_chat_minimenu_add_private_strip(game, game->world_pick.mouse_x, game->world_pick.mouse_y, menu);
 
     if( include_walk )
     {
@@ -1555,6 +1553,20 @@ ui_click_use_minimenu_option(
         opt->action_index,
         (int)game->interaction.kind);
 
+    if( (opt->action == MINIMENU_ACTION_IF_BUTTON ||
+         opt->action == MINIMENU_ACTION_IF_BUTTON_TOGGLE ||
+         opt->action == MINIMENU_ACTION_IF_BUTTON_SELECT ||
+         opt->action == MINIMENU_ACTION_RESUME_PAUSEBUTTON) &&
+        game->interaction.kind == INTERACTION_TARGET_UI_COMPONENT && game->ui_tree &&
+        game->interaction.ui_component_index >= 0 &&
+        (uint32_t)game->interaction.ui_component_index < game->ui_tree->component_count &&
+        game->ui_host.apply_button_click )
+    {
+        struct StaticUIComponent const* component =
+            &game->ui_tree->components[game->interaction.ui_component_index];
+        game->ui_host.apply_button_click(game->ui_host.user, component);
+    }
+
     if( opt->pick_kind == MINIMENU_PICK_INV_SLOT && game->ui_tree &&
         opt->pick_quaternary_id >= 0 &&
         (uint32_t)opt->pick_quaternary_id < game->ui_tree->component_count )
@@ -1622,8 +1634,8 @@ game_try_inv_click(
         return false;
 
     struct UITreeScrollState scroll = {
-        .scroll_x = game->ui_scroll_x,
-        .scroll_y = game->ui_scroll_y,
+        .scroll_x = game->ui_scroll.scroll_x,
+        .scroll_y = game->ui_scroll.scroll_y,
     };
     struct UITreeInvPick inv_pick;
     if( !uitree_inv_pick_at_point(
@@ -1648,8 +1660,8 @@ game_try_inv_click(
     {
         if( out_picks )
             inv_slot_to_minimenu_pickset(inv_source_id, slot, obj_id, hit, out_picks);
-        game->cross_x = click_x;
-        game->cross_y = click_y;
+        game->cross.x = click_x;
+        game->cross.y = click_y;
         return true;
     }
 
@@ -1669,37 +1681,34 @@ game_try_inv_click(
             "inv_left_click", &pick, component, obj, 0, 0, -1);
     }
 
-    if( game->selected_inv_source_id == inv_source_id && game->selected_inv_slot == slot )
+    if( ui_inv_selection_matches(&game->inv_selection, inv_source_id, slot) )
     {
-        game->selected_inv_source_id = -1;
-        game->selected_inv_slot = -1;
+        ui_inv_selection_clear(&game->inv_selection);
     }
     else if(
-        game->selected_inv_source_id >= 0 && game->selected_inv_slot >= 0 &&
-        (game->selected_inv_source_id != inv_source_id || game->selected_inv_slot != slot) &&
+        ui_inv_selection_is_set(&game->inv_selection) &&
+        !ui_inv_selection_matches(&game->inv_selection, inv_source_id, slot) &&
         game->ui_host.set_inv_source_slot && game->ui_host.get_inv_source_slot )
     {
         struct UIInvSlotData src_data;
         struct UIInvSlotData dst_data;
         if( game->ui_host.get_inv_source_slot(
                 game->ui_host.user,
-                game->selected_inv_source_id,
-                game->selected_inv_slot,
+                game->inv_selection.source_id,
+                game->inv_selection.slot,
                 &src_data) &&
             game->ui_host.get_inv_source_slot(
                 game->ui_host.user, inv_source_id, slot, &dst_data) )
         {
             game->ui_host.set_inv_source_slot(
-                game->ui_host.user, game->selected_inv_source_id, game->selected_inv_slot, &dst_data);
+                game->ui_host.user, game->inv_selection.source_id, game->inv_selection.slot, &dst_data);
             game->ui_host.set_inv_source_slot(game->ui_host.user, inv_source_id, slot, &src_data);
         }
-        game->selected_inv_source_id = -1;
-        game->selected_inv_slot = -1;
+        ui_inv_selection_clear(&game->inv_selection);
     }
     else
     {
-        game->selected_inv_source_id = inv_source_id;
-        game->selected_inv_slot = slot;
+        ui_inv_selection_set(&game->inv_selection, inv_source_id, slot);
         interaction_state_set_inv_slot(&game->interaction, inv_source_id, slot, obj_id);
     }
 
@@ -1743,7 +1752,7 @@ ui_click_handle_left(
         return;
     }
 
-    if( game->mouse_in_viewport )
+    if( game->world_pick.mouse_in_viewport )
     {
         struct MinimenuPickSet picks;
         GameRunescape_RefreshPicksetAtMouse(game, click_x, click_y);
@@ -1823,8 +1832,8 @@ ui_click_add_rs_options_at_root(
         return;
 
     struct UITreeScrollState scroll = {
-        .scroll_x = game->ui_scroll_x,
-        .scroll_y = game->ui_scroll_y,
+        .scroll_x = game->ui_scroll.scroll_x,
+        .scroll_y = game->ui_scroll.scroll_y,
     };
     ui_click_add_rs_interface_options_recursive(
         game,
@@ -1861,15 +1870,15 @@ ui_click_build_minimenu_client_ts(
     if( GameRunescape_PointInMainHoverRegion(game, click_x, click_y) )
     {
         path = "main";
-        if( !tree_ready || game->ui_over_main_com_id < 0 )
+        if( !tree_ready || game->ui_hover.over_main_com_id < 0 )
         {
             if( world_ready )
             {
                 GameRunescape_RefreshPicksetAtMouse(game, click_x, click_y);
                 world_pickset_to_minimenu_pickset(game, picks);
                 ui_click_append_world_options_to_menu(game, picks, &game->minimenu);
-                game->cross_x = click_x;
-                game->cross_y = click_y;
+                game->cross.x = click_x;
+                game->cross.y = click_y;
             }
             else if( !tree_ready && ui_minimenu_debug_enabled() )
             {
@@ -1878,12 +1887,12 @@ ui_click_build_minimenu_client_ts(
         }
         else if( tree_ready )
         {
-            int32_t root = GameRunescape_UITreeIndexForComponentId(game, game->ui_over_main_com_id);
+            int32_t root = GameRunescape_UITreeIndexForComponentId(game, game->ui_hover.over_main_com_id);
             if( root >= 0 )
             {
                 root = ui_click_find_interface_root(game->ui_tree, &game->ui_host, root);
                 if( root < 0 )
-                    root = GameRunescape_UITreeIndexForComponentId(game, game->ui_over_main_com_id);
+                    root = GameRunescape_UITreeIndexForComponentId(game, game->ui_hover.over_main_com_id);
                 ui_click_add_rs_options_at_root(game, click_x, click_y, root, &game->minimenu);
             }
         }
@@ -1905,9 +1914,9 @@ ui_click_build_minimenu_client_ts(
     else if( tree_ready && GameRunescape_PointInChatHoverRegion(click_x, click_y) )
     {
         path = "chat";
-        if( game->ui_over_chat_com_id >= 0 )
+        if( game->ui_hover.over_chat_com_id >= 0 )
         {
-            int32_t root = GameRunescape_UITreeIndexForComponentId(game, game->ui_over_chat_com_id);
+            int32_t root = GameRunescape_UITreeIndexForComponentId(game, game->ui_hover.over_chat_com_id);
             if( root >= 0 )
             {
                 root = ui_click_find_interface_root(game->ui_tree, &game->ui_host, root);
@@ -2004,7 +2013,7 @@ ui_click_handle_right(
             click_x,
             click_y,
             path,
-            game->mouse_in_viewport ? 1 : 0,
+            game->world_pick.mouse_in_viewport ? 1 : 0,
             picks.count,
             game->minimenu.option_count);
         for( int i = 0; i < picks.count; i++ )

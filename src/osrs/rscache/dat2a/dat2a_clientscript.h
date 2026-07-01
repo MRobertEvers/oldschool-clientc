@@ -1,14 +1,13 @@
 #ifndef RSCACHE_RSCACHEDAT2A_CLIENTSCRIPT_H
 #define RSCACHE_RSCACHEDAT2A_CLIENTSCRIPT_H
 
+#include "vm/cs2_script.h"
+
 #include <stdint.h>
 
 struct RSCacheDat2A_ClientScript
 {
-    int script_id;
-    int* instructions;
-    int* int_operands;
-    int op_count;
+    struct CS2_Script script;
 };
 
 struct RSCacheDat2A_ClientScript*

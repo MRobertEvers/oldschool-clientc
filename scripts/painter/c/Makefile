@@ -146,7 +146,7 @@ CACHE_SRCS := \
 	$(SRC2)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachemodel.c \
 	$(SRC2)/toriauxlib/vm/toriauxlibvm.c \
-	$(SRC2)/vm/csvm.c \
+	$(SRC2)/vm/cs1vm.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
 	$(SRC2)/buildcache/dat2_buildcache.c \
 	$(SRC2)/buildcache/dat1_buildcache_ui.c \

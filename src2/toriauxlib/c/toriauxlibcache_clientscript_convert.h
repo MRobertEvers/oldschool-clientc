@@ -1,23 +1,21 @@
 #ifndef TORIAUXLIBCACHE_CLIENTSCRIPT_CONVERT_H
 #define TORIAUXLIBCACHE_CLIENTSCRIPT_CONVERT_H
 
-#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/dat2a/dat2a_clientscript.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
-struct RSCacheDat2A_ClientScript;
+struct RSCacheDat2Disk;
+struct RSCacheDat2Disk_Archive;
 
 struct ToriAuxLibCore_ClientScript*
 ToriAuxLibCache_ClientScriptNewFromDat2Decode(
     int script_id,
-    const struct RSCacheDat2A_ClientScript* src);
+    struct RSCacheDat2A_ClientScript* src);
 
 struct ToriAuxLibCore_ClientScript*
 ToriAuxLibCache_ClientScriptNewFromDat2Archive(
     struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
     int script_id);
-
-void
-ToriAuxLibCore_ClientScriptBuildCs2vmOps(struct ToriAuxLibCore_ClientScript* script);
 
 #endif

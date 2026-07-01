@@ -5,7 +5,7 @@
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
 #include "input/libtorirs_input.h"
-#include "vm/csvm.h"
+#include "vm/cs1vm.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/varp_varbit_manager.h"
 
@@ -184,12 +184,12 @@ test_behavior_visibility_and_color(void)
     };
     uitree_set_behavior(tree, button, &active_behavior);
 
-    host.csvm = csvm_new();
+    host.cs1vm = cs1vm_new();
     color = uitree_component_rect_color(
         &tree->components[button], &hover, &host, 0x222222);
     TEST_ASSERT(color == 0xCCCCCC, "active hover color");
 
-    csvm_free(host.csvm);
+    cs1vm_free(host.cs1vm);
     uitree_free(tree);
     return 0;
 }
@@ -224,11 +224,11 @@ test_behavior_button_toggle(void)
     mgr.var = calloc(1, sizeof(int));
     mgr.var_serv = calloc(1, sizeof(int));
 
-    struct CSVM* csvm = csvm_new();
+    struct CS1VM* cs1vm = cs1vm_new();
 
     struct UITreeBehaviorHost host = {
-        .csvm = csvm,
-        .csvm_state = { .get_varp = test_get_varp_cb, .ud = &mgr },
+        .cs1vm = cs1vm,
+        .cs1host = { .get_varp = test_get_varp_cb, .ud = &mgr },
         .varp_varbit = &mgr,
     };
 
@@ -243,7 +243,7 @@ test_behavior_button_toggle(void)
     uitree_behavior_handle_input_result(&host, tree, &result);
     TEST_ASSERT(varp_varbit_get_varp(&mgr, 0) == 0, "toggle varp back to 0");
 
-    csvm_free(csvm);
+    cs1vm_free(cs1vm);
     varp_varbit_free(&mgr);
     uitree_free(tree);
     return 0;

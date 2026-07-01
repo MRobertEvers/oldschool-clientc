@@ -8,20 +8,13 @@
 #include "../toriauxlib/core/toriauxlibcore.h"
 #include "../toriauxlib/td/toriauxlibtd.h"
 #include "../toriauxlib/vm/toriauxlibvm.h"
-#include "../ui/ui_click.h"
 #include "../ui/ui_chat_minimenu.h"
+#include "../ui/ui_click.h"
+#include "../vm/cs1vm_host.h"
+#include "../vm/cs1vm_level.h"
+#include "../vm/cs1vm_opcode.h"
+#include "../vm/cs2_host_ui.h"
 #include "../vm/cs2vm.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/core/toriauxlibcore.h"
-#include "toriauxlib/td/toriauxlibtd.h"
-#include "ui/ui_behavior.h"
-#include "ui/ui_debug.h"
-#include "ui/ui_input_adapter.h"
-#include "ui/ui_scroll.h"
-#include "ui/rs_inv_container.h"
-#include "ui/ui_inv_data_service.h"
-#include "ui/ui_inv_slot_view.h"
-#include "toriauxlib/core/tasks/instance_revconfig_inv_bind.h"
 #include "../world/heightmap.h"
 #include "../world/minimap.h"
 #include "../world/world_builder.h"
@@ -29,16 +22,27 @@
 #include "osrs/colors.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
+#include "osrs/varp_varbit_manager.h"
+#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/core/tasks/instance_revconfig_inv_bind.h"
+#include "toriauxlib/core/toriauxlibcore.h"
+#include "toriauxlib/td/toriauxlibtd.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_animation.h"
+#include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_light_model.h"
-#include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_math.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
-#include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_sprite.h"
+#include "ui/rs_inv_container.h"
+#include "ui/ui_behavior.h"
+#include "ui/ui_debug.h"
+#include "ui/ui_input_adapter.h"
+#include "ui/ui_inv_data_service.h"
+#include "ui/ui_inv_slot_view.h"
+#include "ui/ui_scroll.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -49,6 +53,112 @@
 #define RUNESCAPE_INV_TEXT_CELL_W 115
 #define RUNESCAPE_INV_TEXT_CELL_H 12
 
+static bool s_cs1vm_level_ready;
+
+static void
+rs_cs1vm_ensure_level_table(void)
+{
+    if( !s_cs1vm_level_ready )
+    {
+        cs1vm_level_experience_init();
+        s_cs1vm_level_ready = true;
+    }
+}
+
+static void
+rs_ui_note_varp_change(
+    struct GameRunescape* game,
+    int varp_id)
+{
+    if( !game || varp_id < 0 )
+        return;
+    for( int i = 0; i < game->varp_change_count; i++ )
+    {
+        if( game->varp_change_ids[i] == varp_id )
+            return;
+    }
+    if( game->varp_change_count >= RS_UI_VARP_CHANGE_MAX )
+        return;
+    game->varp_change_ids[game->varp_change_count++] = varp_id;
+}
+
+static void
+rs_ui_on_cs2_varp_change(
+    void* ud,
+    int varp_id)
+{
+    rs_ui_note_varp_change((struct GameRunescape*)ud, varp_id);
+}
+
+static void
+rs_ui_init_cs2_host(struct GameRunescape* game)
+{
+    if( !game )
+        return;
+    struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
+    struct CS2HostUIInitArgs args = {
+        .core = game->core,
+        .cache = cache,
+        .vm = game->vm,
+        .tree = game->ui_tree,
+        .on_varp_change = rs_ui_on_cs2_varp_change,
+        .on_varp_change_ud = game,
+    };
+    cs2_host_ui_init(&game->cs2host, &args);
+}
+
+static void
+rs_ui_build_behavior_host(
+    struct GameRunescape* game,
+    struct UITreeBehaviorHost* out)
+{
+    if( !game || !out )
+        return;
+    rs_ui_init_cs2_host(game);
+    ui_input_adapter_init_behavior_host_ex(out, game->vm, game->cs2vm, &game->cs2host);
+}
+
+static void
+rs_ui_flush_varp_transmits(struct GameRunescape* game)
+{
+    assert(game);
+    assert(game->core);
+    assert(game->cs2vm);
+    assert(game->ui_tree);
+
+    struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
+    struct UITreeBehaviorHost host;
+    rs_ui_build_behavior_host(game, &host);
+
+    for( int i = 0; i < game->varp_change_count; i++ )
+    {
+        uitree_behavior_dispatch_varp_transmit(
+            &host, game->core, cache, game->ui_tree, game->varp_change_ids[i]);
+    }
+    game->varp_change_count = 0;
+
+    if( game->ui_tree )
+        uitree_mark_all_dirty(game->ui_tree);
+}
+
+void
+GameRunescape_DispatchInvTransmit(
+    struct GameRunescape* game,
+    int container_id)
+{
+    if( !game || !game->core || !game->cs2vm || !game->ui_tree ||
+        game->ui_tree->component_count == 0 || container_id < 0 )
+        return;
+
+    struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
+    struct UITreeBehaviorHost host;
+    rs_ui_build_behavior_host(game, &host);
+    uitree_behavior_dispatch_inv_transmit(&host, game->core, cache, game->ui_tree, container_id);
+
+    if( game->ui_tree )
+        uitree_mark_all_dirty(game->ui_tree);
+}
+
 static char const*
 GameRunescape_ObjDisplayName(
     struct GameRunescape* game,
@@ -57,9 +167,8 @@ GameRunescape_ObjDisplayName(
     if( !game || obj_id <= 0 )
         return NULL;
 
-    struct ToriAuxLibCore_Objtype* obj = game->core
-                                             ? ToriAuxLibCore_ObjtypeGet(game->core, obj_id)
-                                             : NULL;
+    struct ToriAuxLibCore_Objtype* obj =
+        game->core ? ToriAuxLibCore_ObjtypeGet(game->core, obj_id) : NULL;
     if( !obj || obj->name[0] == '\0' )
         return "item";
     return obj->name;
@@ -90,34 +199,182 @@ GameRunescape_UIInvGridSlotLimit(struct StaticUIComponent const* component)
 }
 
 static int
-rs_cs2_get_varp(
-    void* ud,
-    int id)
+rs_cs1vm_inv_count_in_service(
+    struct UIInvDataService const* svc,
+    int obj_id)
 {
-    return ToriAuxLibVM_GetVarp(ud, id);
+    if( !svc || obj_id <= 0 )
+        return 0;
+
+    int total = 0;
+    for( int src = 0; src < svc->source_count; src++ )
+    {
+        if( !svc->sources[src].used )
+            continue;
+        int const slot_limit = svc->sources[src].slot_count;
+        for( int slot = 0; slot < slot_limit; slot++ )
+        {
+            struct UIInvSlotData data;
+            if( !ui_inv_data_service_get_slot(svc, src, slot, &data) )
+                continue;
+            if( data.obj_id == obj_id )
+                total += data.obj_count > 0 ? data.obj_count : 1;
+        }
+    }
+    return total;
+}
+
+static bool
+rs_cs1vm_inv_contains_in_service(
+    struct UIInvDataService const* svc,
+    int obj_id)
+{
+    return rs_cs1vm_inv_count_in_service(svc, obj_id) > 0;
 }
 
 static int
-rs_cs2_get_varbit(
+rs_cs1vm_get_inv_count(
     void* ud,
-    int id)
+    int iface_id,
+    int obj_id)
 {
-    return ToriAuxLibVM_GetVarbit(ud, id);
+    (void)iface_id;
+    struct GameRunescape* game = ud;
+    if( !game )
+        return 0;
+    return rs_cs1vm_inv_count_in_service(&game->inv_data, obj_id);
+}
+
+static int
+rs_cs1vm_inv_contains(
+    void* ud,
+    int iface_id,
+    int obj_id)
+{
+    (void)iface_id;
+    struct GameRunescape* game = ud;
+    if( !game )
+        return 0;
+    return rs_cs1vm_inv_contains_in_service(&game->inv_data, obj_id) ? CS1VM_INV_CONTAINS_PRESENT
+                                                                     : 0;
+}
+
+static int
+rs_cs1vm_get_stat_level(
+    void* ud,
+    int skill)
+{
+    (void)ud;
+    (void)skill;
+    return 0;
+}
+
+static int
+rs_cs1vm_get_stat_base_level(
+    void* ud,
+    int skill)
+{
+    (void)ud;
+    (void)skill;
+    return 0;
+}
+
+static int
+rs_cs1vm_get_stat_xp(
+    void* ud,
+    int skill)
+{
+    (void)ud;
+    (void)skill;
+    return 0;
+}
+
+static int
+rs_cs1vm_get_stat_xp_remaining(
+    void* ud,
+    int skill)
+{
+    (void)ud;
+    rs_cs1vm_ensure_level_table();
+    int const base = rs_cs1vm_get_stat_base_level(ud, skill);
+    int const xp = rs_cs1vm_get_stat_xp(ud, skill);
+    int const target = cs1vm_level_experience_for_base_level(base + 1);
+    if( target <= xp )
+        return 0;
+    return target - xp;
+}
+
+static int
+rs_cs1vm_get_combat_level(void* ud)
+{
+    (void)ud;
+    return 0;
+}
+
+static int
+rs_cs1vm_get_total_level(void* ud)
+{
+    (void)ud;
+    return 0;
+}
+
+static int
+rs_cs1vm_get_runenergy(void* ud)
+{
+    (void)ud;
+    return 10000;
+}
+
+static int
+rs_cs1vm_get_runweight(void* ud)
+{
+    (void)ud;
+    return 0;
+}
+
+static int
+rs_cs1vm_get_coord_x(void* ud)
+{
+    struct GameRunescape* game = ud;
+    if( !game || !game->camera_position )
+        return 0;
+    return game->camera_position->x / 128;
+}
+
+static int
+rs_cs1vm_get_coord_z(void* ud)
+{
+    struct GameRunescape* game = ud;
+    if( !game || !game->camera_position )
+        return 0;
+    return game->camera_position->z / 128;
 }
 
 static void
-rs_ui_host_fill_cs2vm_state(
-    struct ToriAuxLibVM* vm,
-    struct CS2VM_State* out)
+rs_ui_host_fill_cs1host(
+    struct GameRunescape* game,
+    struct CS1Host* out)
 {
     if( !out )
         return;
     memset(out, 0, sizeof(*out));
-    if( !vm )
+    if( !game || !game->vm )
         return;
-    out->get_varp = rs_cs2_get_varp;
-    out->get_varbit = rs_cs2_get_varbit;
-    out->ud = vm;
+
+    cs1vm_host_fill_varp_varbit(out, game->vm);
+    out->ud = game;
+    out->get_stat_level = rs_cs1vm_get_stat_level;
+    out->get_stat_base_level = rs_cs1vm_get_stat_base_level;
+    out->get_stat_xp = rs_cs1vm_get_stat_xp;
+    out->get_inv_count = rs_cs1vm_get_inv_count;
+    out->inv_contains = rs_cs1vm_inv_contains;
+    out->get_stat_xp_remaining = rs_cs1vm_get_stat_xp_remaining;
+    out->get_combat_level = rs_cs1vm_get_combat_level;
+    out->get_total_level = rs_cs1vm_get_total_level;
+    out->get_runenergy = rs_cs1vm_get_runenergy;
+    out->get_runweight = rs_cs1vm_get_runweight;
+    out->get_coord_x = rs_cs1vm_get_coord_x;
+    out->get_coord_z = rs_cs1vm_get_coord_z;
 }
 
 static bool
@@ -126,12 +383,42 @@ rs_ui_host_is_active(
     struct StaticUIComponent const* component)
 {
     struct GameRunescape* game = user;
-    if( !game || !game->vm || !component )
-        return false;
+    assert(game);
+    assert(game->vm);
+    assert(component);
 
-    struct CS2VM_State cs2_state;
-    rs_ui_host_fill_cs2vm_state(game->vm, &cs2_state);
-    return ToriAuxLibVM_IsActive(game->vm, game->cs2vm, &cs2_state, component);
+    struct CS1Host cs1host;
+    rs_ui_host_fill_cs1host(game, &cs1host);
+    return ToriAuxLibVM_IsActive(game->vm, &cs1host, (struct StaticUIComponent*)component);
+}
+
+static void
+rs_ui_host_run_hooks(
+    struct GameRunescape* game,
+    enum UITreeBehaviorHookKind hook_kind)
+{
+    assert(game);
+    assert(game->core);
+    assert(game->cs2vm);
+    assert(game->ui_tree);
+
+    struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
+    struct UITreeBehaviorHost host;
+    rs_ui_build_behavior_host(game, &host);
+
+    for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* node = &game->ui_tree->components[i];
+        if( node->component_id < 0 )
+            continue;
+        struct ToriAuxLibCore_Component* core_comp =
+            ToriAuxLibCore_ComponentGet(game->core, node->component_id);
+        if( !core_comp )
+            continue;
+        uitree_behavior_run_hook(&host, game->core, cache, core_comp, hook_kind);
+    }
+
+    uitree_mark_all_dirty(game->ui_tree);
 }
 
 static void
@@ -140,10 +427,33 @@ rs_ui_host_apply_button_click(
     struct StaticUIComponent const* component)
 {
     struct GameRunescape* game = user;
-    if( !game || !game->vm )
-        return;
+    assert(game);
+    assert(game->vm);
+    assert(component);
 
     ToriAuxLibVM_ApplyButtonClickOptimistic(game->vm, (struct StaticUIComponent*)component);
+
+    if( component->behavior.scripts && component->behavior.scripts_count > 0 &&
+        component->behavior.scripts[0] )
+    {
+        int opcode = component->behavior.scripts[0][0];
+        if( opcode == 5 && component->behavior.scripts[0][1] >= 0 )
+            rs_ui_note_varp_change(game, component->behavior.scripts[0][1]);
+        else if( opcode == 14 && component->behavior.scripts[0][1] >= 0 && game->vm )
+        {
+            struct VarPVarBitManager* mgr = ToriAuxLibVM_VarPVarBit(game->vm);
+            if( mgr )
+            {
+                int varbit_id = component->behavior.scripts[0][1];
+                if( varbit_id >= 0 && varbit_id < mgr->varbit_count )
+                {
+                    int basevar = mgr->varbit_types[varbit_id].basevar;
+                    if( basevar >= 0 )
+                        rs_ui_note_varp_change(game, basevar);
+                }
+            }
+        }
+    }
 
     if( game->ui_tree )
         uitree_mark_all_dirty(game->ui_tree);
@@ -158,9 +468,10 @@ rs_ui_host_apply_button_click(
         return;
 
     struct UITreeBehaviorHost host;
-    ui_input_adapter_init_behavior_host_ex(&host, game->vm, game->cs2vm);
-    uitree_behavior_run_hook(
-        &host, game->core, cache, core_comp, UITREE_BEHAVIOR_HOOK_ON_CLICK);
+    rs_ui_build_behavior_host(game, &host);
+    uitree_behavior_run_hook(&host, game->core, cache, core_comp, UITREE_BEHAVIOR_HOOK_ON_CLICK);
+
+    rs_ui_flush_varp_transmits(game);
 }
 
 static int
@@ -170,8 +481,9 @@ rs_ui_host_eval_text_placeholder(
     int script_idx)
 {
     struct GameRunescape* game = user;
-    if( !game || !game->vm )
-        return 0;
+    assert(game);
+    assert(game->vm);
+    assert(component);
 
     /* Mirror Client.ts getIfVar: skip eval when scripts are absent or out of range. */
     if( !component->behavior.scripts || script_idx < 0 ||
@@ -179,17 +491,15 @@ rs_ui_host_eval_text_placeholder(
         !component->behavior.scripts[script_idx] )
         return 0;
 
-    struct CS2VM_State cs2_state;
-    rs_ui_host_fill_cs2vm_state(game->vm, &cs2_state);
-    return ToriAuxLibVM_EvalScript(
-        game->vm, game->cs2vm, &cs2_state, (struct StaticUIComponent*)component, script_idx);
+    return ToriAuxLibVM_EvalScript(game->vm, (struct StaticUIComponent*)component, script_idx);
 }
 
 static int
 rs_ui_host_get_selected_tab(void* user)
 {
     struct GameRunescape* game = user;
-    return game ? game->selected_tab : 0;
+    assert(game);
+    return game->selected_tab;
 }
 
 static void
@@ -198,15 +508,17 @@ rs_ui_host_set_selected_tab(
     int tabno)
 {
     struct GameRunescape* game = user;
-    if( game )
-        game->selected_tab = tabno;
+    assert(game);
+    game->selected_tab = tabno;
 }
 
 static int
 rs_ui_host_get_camera_yaw(void* user)
 {
     struct GameRunescape* game = user;
-    return game && game->camera ? ToriDraw_NormalizeAngle(game->camera->yaw) : 0;
+    assert(game);
+    assert(game->camera);
+    return ToriDraw_NormalizeAngle(game->camera->yaw);
 }
 
 static void
@@ -216,14 +528,17 @@ rs_ui_host_get_minimap_anchor(
     int* out_src_anchor_y)
 {
     struct GameRunescape* game = user;
-    if( !out_src_anchor_x || !out_src_anchor_y )
-        return;
+    assert(game);
+    assert(out_src_anchor_x);
+    assert(out_src_anchor_y);
+    assert(game->camera_position);
+    assert(game->world);
+    assert(game->world->minimap);
+    assert(game->world_map.world_map_w > 0);
+    assert(game->world_map.world_map_h > 0);
+
     *out_src_anchor_x = 0;
     *out_src_anchor_y = 0;
-    if( !game || !game->camera_position || !game->world || !game->world->minimap ||
-        game->world_map_w <= 0 || game->world_map_h <= 0 )
-        return;
-
     struct Minimap* mm = game->world->minimap;
     if( mm->width <= 0 || mm->height <= 0 )
         return;
@@ -231,8 +546,8 @@ rs_ui_host_get_minimap_anchor(
     minimap_compute_camera_src_anchor(
         game->camera_position->x,
         game->camera_position->z,
-        game->world_map_w,
-        game->world_map_h,
+        game->world_map.world_map_w,
+        game->world_map.world_map_h,
         mm->width,
         mm->height,
         out_src_anchor_x,
@@ -246,11 +561,13 @@ rs_ui_host_get_world_map_size(
     int* out_h)
 {
     struct GameRunescape* game = user;
-    if( out_w )
-        *out_w = game ? game->world_map_w : 0;
-    if( out_h )
-        *out_h = game ? game->world_map_h : 0;
-    return game ? 0 : -1;
+    assert(game);
+    assert(out_w);
+    assert(out_h);
+
+    *out_w = game->world_map.world_map_w;
+    *out_h = game->world_map.world_map_h;
+    return 0;
 }
 
 static bool
@@ -259,7 +576,9 @@ rs_ui_host_scene_sprite_has(
     int scene_id)
 {
     struct GameRunescape* game = user;
-    return game && game->scene && ToriDraw_SceneSpriteHas(game->scene, scene_id);
+    assert(game);
+    assert(game->scene);
+    return ToriDraw_SceneSpriteHas(game->scene, scene_id);
 }
 
 static bool
@@ -268,7 +587,9 @@ rs_ui_host_scene_font_has(
     int font_id)
 {
     struct GameRunescape* game = user;
-    return game && game->scene && ToriDraw_SceneFontHas(game->scene, font_id);
+    assert(game);
+    assert(game->scene);
+    return ToriDraw_SceneFontHas(game->scene, font_id);
 }
 
 static void
@@ -279,23 +600,27 @@ GameRunescape_AssertSceneFontReady(
 {
     if( font_id < 0 )
     {
-        fprintf(stderr,
-            "GameRunescape: font_id unset (context=%s)\n",
-            context ? context : "(null)");
+        fprintf(
+            stderr, "GameRunescape: font_id unset (context=%s)\n", context ? context : "(null)");
         assert(font_id >= 0);
     }
     if( !game || !game->scene )
     {
-        fprintf(stderr,
+        fprintf(
+            stderr,
             "GameRunescape: missing scene for font_id=%d (context=%s, game=%p)\n",
-            font_id, context ? context : "(null)", (void*)game);
+            font_id,
+            context ? context : "(null)",
+            (void*)game);
         assert(game && game->scene);
     }
     if( !ToriDraw_SceneFontHas(game->scene, font_id) )
     {
-        fprintf(stderr,
+        fprintf(
+            stderr,
             "GameRunescape: scene font not loaded font_id=%d (context=%s)\n",
-            font_id, context ? context : "(null)");
+            font_id,
+            context ? context : "(null)");
         assert(ToriDraw_SceneFontHas(game->scene, font_id));
     }
 }
@@ -309,32 +634,37 @@ GameRunescape_AssertSceneSpriteReady(
 {
     if( scene_id < 0 )
     {
-        fprintf(stderr,
-            "GameRunescape: scene_id unset (context=%s)\n",
-            context ? context : "(null)");
+        fprintf(
+            stderr, "GameRunescape: scene_id unset (context=%s)\n", context ? context : "(null)");
         assert(scene_id >= 0);
     }
     if( !game || !game->scene )
     {
-        fprintf(stderr,
+        fprintf(
+            stderr,
             "GameRunescape: missing scene for scene_id=%d (context=%s, game=%p)\n",
-            scene_id, context ? context : "(null)", (void*)game);
+            scene_id,
+            context ? context : "(null)",
+            (void*)game);
         assert(game && game->scene);
     }
     if( !ToriDraw_SceneSpriteHas(game->scene, scene_id) )
     {
-        fprintf(stderr,
+        fprintf(
+            stderr,
             "GameRunescape: scene sprite not loaded scene_id=%d (context=%s)\n",
-            scene_id, context ? context : "(null)");
+            scene_id,
+            context ? context : "(null)");
         assert(ToriDraw_SceneSpriteHas(game->scene, scene_id));
     }
     int sprite_count = 0;
     struct ToriDraw_Sprite** sprites =
         ToriDraw_SceneSpriteGet(game->scene, scene_id, &sprite_count);
-    if( atlas_index < 0 || atlas_index >= sprite_count || !sprites ||
-        !sprites[atlas_index] || !sprites[atlas_index]->pixels_argb )
+    if( atlas_index < 0 || atlas_index >= sprite_count || !sprites || !sprites[atlas_index] ||
+        !sprites[atlas_index]->pixels_argb )
     {
-        fprintf(stderr,
+        fprintf(
+            stderr,
             "GameRunescape: sprite atlas invalid scene_id=%d atlas_index=%d count=%d "
             "(context=%s)\n",
             scene_id,
@@ -342,8 +672,8 @@ GameRunescape_AssertSceneSpriteReady(
             sprite_count,
             context ? context : "(null)");
         assert(
-            sprites && atlas_index >= 0 && atlas_index < sprite_count &&
-            sprites[atlas_index] && sprites[atlas_index]->pixels_argb);
+            sprites && atlas_index >= 0 && atlas_index < sprite_count && sprites[atlas_index] &&
+            sprites[atlas_index]->pixels_argb);
     }
 }
 
@@ -366,17 +696,16 @@ GameRunescape_MinimenuPrepareShow(
         return false;
 
     int font_id = -1;
-    if( game->ui_tree && game->ui_minimenu_node >= 0 )
+    if( game->ui_tree && game->ui_hover.minimenu_node >= 0 )
     {
         struct StaticUIComponent* component =
-            &game->ui_tree->components[game->ui_minimenu_node];
+            &game->ui_tree->components[game->ui_hover.minimenu_node];
         font_id = component->u.minimenu.font_id;
     }
 
     struct ToriDraw_Font* font =
         game->scene && font_id >= 0 ? ToriDraw_SceneFontGet(game->scene, font_id) : NULL;
-    return ui_minimenu_prepare_show(
-        &game->minimenu, font, out_layout, out_content_width);
+    return ui_minimenu_prepare_show(&game->minimenu, font, out_layout, out_content_width);
 }
 
 static int
@@ -410,7 +739,7 @@ static bool
 rs_ui_host_get_cross_active(void* user)
 {
     struct GameRunescape* game = user;
-    return game && game->cross_mode != RUNESCAPE_CROSS_MODE_OFF;
+    return game && ui_cross_cursor_is_active(&game->cross);
 }
 
 static void
@@ -420,23 +749,14 @@ rs_ui_host_get_cross_position(
     int* out_y)
 {
     struct GameRunescape* game = user;
-    if( out_x )
-        *out_x = game ? game->cross_x : 0;
-    if( out_y )
-        *out_y = game ? game->cross_y : 0;
+    ui_cross_cursor_get_position(game ? &game->cross : NULL, out_x, out_y);
 }
 
 static int
 rs_ui_host_get_cross_atlas_frame(void* user)
 {
     struct GameRunescape* game = user;
-    if( !game || game->cross_mode == RUNESCAPE_CROSS_MODE_OFF )
-        return 0;
-
-    int phase = game->cross_cycle / 100;
-    if( game->cross_mode == RUNESCAPE_CROSS_MODE_INTERACT )
-        return phase + 4;
-    return phase;
+    return ui_cross_cursor_atlas_frame(game ? &game->cross : NULL);
 }
 
 static bool
@@ -498,6 +818,8 @@ rs_ui_host_set_inv_source_slot(
     if( !ui_inv_data_service_set_slot(&game->inv_data, source_id, slot, data) )
         return false;
     instance_revconfig_inv_mark_dirty(game, source_id);
+    GameRunescape_DispatchInvTransmit(
+        game, ui_inv_data_service_container_for_source(&game->inv_data, source_id));
     return true;
 }
 
@@ -506,18 +828,18 @@ GameRunescape_FindSpecialUINodes(struct GameRunescape* game)
 {
     if( !game )
         return;
-    game->ui_minimenu_node = -1;
-    game->ui_chat_node = -1;
-    game->ui_chat_node = -1;
+    game->ui_hover.minimenu_node = -1;
+    game->ui_hover.chat_node = -1;
+    game->ui_hover.chat_node = -1;
     if( !game->ui_tree )
         return;
 
     for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
     {
         if( game->ui_tree->components[i].type == UIELEM_BUILTIN_MINIMENU )
-            game->ui_minimenu_node = (int32_t)i;
+            game->ui_hover.minimenu_node = (int32_t)i;
         if( game->ui_tree->components[i].type == UIELEM_BUILTIN_CHAT )
-            game->ui_chat_node = (int32_t)i;
+            game->ui_hover.chat_node = (int32_t)i;
     }
 }
 
@@ -550,10 +872,10 @@ GameRunescape_InitUIHost(struct GameRunescape* game)
     game->ui_input.hovered = -1;
     game->ui_input.pressed = -1;
     game->selected_tab = 3;
-    game->selected_inv_source_id = -1;
-    game->selected_inv_slot = -1;
-    game->ui_minimenu_node = -1;
-    game->ui_chat_node = -1;
+    game->inv_selection.source_id = -1;
+    game->inv_selection.slot = -1;
+    game->ui_hover.minimenu_node = -1;
+    game->ui_hover.chat_node = -1;
     interaction_state_reset(&game->interaction);
     interaction_state_reset(&game->click_target);
     ui_minimenu_reset(&game->minimenu);
@@ -729,14 +1051,14 @@ rs_classify_dynamic_pick_type(
     struct GameRunescape* game,
     int element_id)
 {
-    if( !game || !game->entity_registry )
+    if( !game || !game->entities.records )
         return WORLD_PICK_PROJECTILE;
 
-    for( int i = 0; i < game->entity_registry_count; i++ )
+    for( int i = 0; i < game->entities.count; i++ )
     {
-        if( game->entity_registry[i].element_id != element_id )
+        if( game->entities.records[i].element_id != element_id )
             continue;
-        if( RS_ENTITY_KIND_OF(game->entity_registry[i].entity_id) == RS_ENTITY_KIND_NPC )
+        if( RS_ENTITY_KIND_OF(game->entities.records[i].entity_id) == RS_ENTITY_KIND_NPC )
             return WORLD_PICK_NPC;
         break;
     }
@@ -752,8 +1074,7 @@ game_runescape_mouse_in_world_viewport(
 {
     return game && mouse_x >= game->world_view_port.clip_left &&
            mouse_x < game->world_view_port.clip_right &&
-           mouse_y >= game->world_view_port.clip_top &&
-           mouse_y < game->world_view_port.clip_bottom;
+           mouse_y >= game->world_view_port.clip_top && mouse_y < game->world_view_port.clip_bottom;
 }
 
 static bool
@@ -791,17 +1112,22 @@ game_runescape_project_and_pick_element(
     if( cull != TORIDRAW_CULL_VISIBLE )
         return false;
 
-    if( allow_pick && game->mouse_in_viewport &&
+    if( allow_pick && game->world_pick.mouse_in_viewport &&
         ToriDraw_ProjectedModelContainsPoint(
-            game->scene, element->model, &game->world_view_port, game->mouse_x, game->mouse_y) )
+            game->scene,
+            element->model,
+            &game->world_view_port,
+            game->world_pick.mouse_x,
+            game->world_pick.mouse_y) )
     {
-        world_pickset_add(&game->pickset, element_id, pick_type, tile_x, tile_z, tile_level);
+        world_pickset_add(
+            &game->world_pick.pickset, element_id, pick_type, tile_x, tile_z, tile_level);
         if( pick_type == WORLD_PICK_TERRAIN )
         {
-            game->last_tile_sx = tile_x;
-            game->last_tile_sz = tile_z;
-            game->last_tile_level = tile_level;
-            game->last_tile_valid = true;
+            game->world_pick.last_tile_sx = tile_x;
+            game->world_pick.last_tile_sz = tile_z;
+            game->world_pick.last_tile_level = tile_level;
+            game->world_pick.last_tile_valid = true;
         }
     }
 
@@ -898,8 +1224,8 @@ GameRunescape_New(
 
     game->script_queue = script_queue;
     game->scene = scene;
-    game->zone_center_x = RUNESCAPE_ZONE_CENTER_X;
-    game->zone_center_z = RUNESCAPE_ZONE_CENTER_Z;
+    game->world_map.zone_center_x = RUNESCAPE_ZONE_CENTER_X;
+    game->world_map.zone_center_z = RUNESCAPE_ZONE_CENTER_Z;
 
     game->camera_position = calloc(1, sizeof(struct ToriDraw_Position));
     game->camera = calloc(1, sizeof(struct ToriDraw_Camera));
@@ -930,26 +1256,12 @@ GameRunescape_New(
     assert(game->ui_tree && "GameRunescape_New: failed to allocate ui tree");
     ui_inv_data_service_init(&game->inv_data);
     GameRunescape_InitUIHost(game);
-    game->ui_hovered_node = -1;
-    game->ui_over_main_com_id = -1;
-    game->ui_over_side_com_id = -1;
-    game->ui_over_chat_com_id = -1;
-    game->ui_over_main_com_id_prev = -1;
-    game->ui_over_side_com_id_prev = -1;
-    game->ui_over_chat_com_id_prev = -1;
-    game->ui_minimenu_node = -1;
-    game->ui_chat_node = -1;
-    game->ui_scroll_drag_layer_id = -1;
-    game->ui_scroll_drag_kind = UITREE_SCROLLBAR_NONE;
-
-    game->world_map_scene_id = -1;
-    game->world_map_w = 0;
-    game->world_map_h = 0;
-    game->ui_scrollbar0_scene_id = -1;
-    game->ui_scrollbar1_scene_id = -1;
-    game->entity_registry_cap = RUNESCAPE_ENTITY_REGISTRY_INITIAL_CAP;
-    game->entity_registry =
-        calloc((size_t)game->entity_registry_cap, sizeof(struct GameRunescape_EntityRecord));
+    ui_hover_routing_reset(&game->ui_hover);
+    ui_scroll_runtime_reset(&game->ui_scroll);
+    ui_cross_cursor_reset(&game->cross);
+    chat_state_reset(&game->chat);
+    ui_inv_selection_reset(&game->inv_selection);
+    entity_registry_init(&game->entities, RUNESCAPE_ENTITY_REGISTRY_INITIAL_CAP);
 
     return game;
 }
@@ -972,7 +1284,7 @@ GameRunescape_Free(struct GameRunescape* game)
         uitree_inv_pool_free(game->ui_inv_pool);
     if( game->cs2vm )
         cs2vm_free(game->cs2vm);
-    free(game->entity_registry);
+    entity_registry_free(&game->entities);
     free(game->camera_position);
     free(game->camera);
     free(game->view_port);
@@ -1012,14 +1324,14 @@ GameRunescape_SetVM(
 static void
 GameRunescape_AttachWorldMapToUITree(struct GameRunescape* game)
 {
-    if( !game || game->world_map_scene_id < 0 || !game->ui_tree )
+    if( !game || game->world_map.world_map_scene_id < 0 || !game->ui_tree )
         return;
 
     for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
     {
         if( game->ui_tree->components[i].type == UIELEM_BUILTIN_MINIMAP )
         {
-            game->ui_tree->components[i].u.minimap.scene_id = game->world_map_scene_id;
+            game->ui_tree->components[i].u.minimap.scene_id = game->world_map.world_map_scene_id;
             break;
         }
     }
@@ -1053,9 +1365,9 @@ GameRunescape_IF3InvSetContainerSlot(
         rs_inv_container_get_or_create(&game->inv_data.store, container_id, 0);
     if( !container )
         return;
-    rs_inv_container_set_slot(
-        container, slot, obj_id, obj_count, scene_id, atlas_index);
+    rs_inv_container_set_slot(container, slot, obj_id, obj_count, scene_id, atlas_index);
     instance_revconfig_inv_mark_dirty(game, UI_INV_SOURCE_INVALID);
+    GameRunescape_DispatchInvTransmit(game, container_id);
 }
 
 void
@@ -1075,6 +1387,7 @@ GameRunescape_IF3InvApplyFull(
     rs_inv_container_apply_full(container, obj_ids, obj_counts, count);
     if( game->ui_tree )
         uitree_mark_all_dirty(game->ui_tree);
+    GameRunescape_DispatchInvTransmit(game, container_id);
 }
 
 void
@@ -1095,6 +1408,7 @@ GameRunescape_IF3InvApplyPartial(
     rs_inv_container_apply_partial(container, slots, obj_ids, obj_counts, count);
     if( game->ui_tree )
         uitree_mark_all_dirty(game->ui_tree);
+    GameRunescape_DispatchInvTransmit(game, container_id);
 }
 
 void
@@ -1163,9 +1477,9 @@ GameRunescape_RebuildWorldMap(struct GameRunescape* game)
     sprites_array[0] = sp;
 
     ToriDraw_SceneSpriteAdd(game->scene, RUNESCAPE_WORLD_MAP_SCENE_ID, sprites_array, 1);
-    game->world_map_scene_id = RUNESCAPE_WORLD_MAP_SCENE_ID;
-    game->world_map_w = pw;
-    game->world_map_h = ph;
+    game->world_map.world_map_scene_id = RUNESCAPE_WORLD_MAP_SCENE_ID;
+    game->world_map.world_map_w = pw;
+    game->world_map.world_map_h = ph;
     GameRunescape_AttachWorldMapToUITree(game);
 }
 
@@ -1217,7 +1531,7 @@ GameRunescape_BuildWorldCenterzone(
         game_runescape_clear_gamecache_map_chunks_except(game->core, game->world);
     if( game->td )
         ToriAuxLibCache_PruneBuildCaches(ToriAuxLibTD_C(game->td));
-    game->world_built = true;
+    game->world_map.world_built = true;
 
     if( game->camera_position && game->camera )
     {
@@ -1249,7 +1563,7 @@ GameRunescape_BuildWorldChunkList(
         game_runescape_clear_gamecache_map_chunks_except(game->core, game->world);
     if( game->td )
         ToriAuxLibCache_PruneBuildCaches(ToriAuxLibTD_C(game->td));
-    game->world_built = true;
+    game->world_map.world_built = true;
 
     if( game->camera_position && game->camera )
     {
@@ -1283,17 +1597,7 @@ GameRunescape_BuildWorldChunkList(
 static struct UITreeHoverIds
 GameRunescape_UIHoverIds(struct GameRunescape const* game)
 {
-    struct UITreeHoverIds ids = {
-        .main_com_id = -1,
-        .side_com_id = -1,
-        .chat_com_id = -1,
-    };
-    if( !game )
-        return ids;
-    ids.main_com_id = game->ui_over_main_com_id;
-    ids.side_com_id = game->ui_over_side_com_id;
-    ids.chat_com_id = game->ui_over_chat_com_id;
-    return ids;
+    return ui_hover_routing_to_ids(game ? &game->ui_hover : NULL);
 }
 
 int32_t
@@ -1313,18 +1617,15 @@ GameRunescape_UISelectedSidebarIndex(struct GameRunescape const* game)
 }
 
 static bool
-game_runescape_world_clip_is_builtin_widget(
-    struct GameRunescape const* game)
+game_runescape_world_clip_is_builtin_widget(struct GameRunescape const* game)
 {
     if( !game )
         return false;
 
     int const vw = game->view_port ? game->view_port->width : UITREE_LAYOUT_ROOT_W;
     int const vh = game->view_port ? game->view_port->height : UITREE_LAYOUT_ROOT_H;
-    int const clip_w =
-        game->world_view_port.clip_right - game->world_view_port.clip_left;
-    int const clip_h =
-        game->world_view_port.clip_bottom - game->world_view_port.clip_top;
+    int const clip_w = game->world_view_port.clip_right - game->world_view_port.clip_left;
+    int const clip_h = game->world_view_port.clip_bottom - game->world_view_port.clip_top;
 
     if( clip_w <= 0 || clip_h <= 0 )
         return false;
@@ -1341,10 +1642,8 @@ GameRunescape_PointInMainHoverRegion(
 {
     if( game && game_runescape_world_clip_is_builtin_widget(game) )
     {
-        return px >= game->world_view_port.clip_left &&
-               px < game->world_view_port.clip_right &&
-               py >= game->world_view_port.clip_top &&
-               py < game->world_view_port.clip_bottom;
+        return px >= game->world_view_port.clip_left && px < game->world_view_port.clip_right &&
+               py >= game->world_view_port.clip_top && py < game->world_view_port.clip_bottom;
     }
 
     return px > RS_UI_HOVER_MAIN_X && py > RS_UI_HOVER_MAIN_Y &&
@@ -1400,13 +1699,9 @@ GameRunescape_UINodeVisible(
 }
 
 static void
-GameRunescape_UpdateUIHover(
-    struct GameRunescape* game)
+GameRunescape_UpdateUIHover(struct GameRunescape* game)
 {
-    game->ui_hovered_node = -1;
-    game->ui_over_main_com_id = -1;
-    game->ui_over_side_com_id = -1;
-    game->ui_over_chat_com_id = -1;
+    ui_hover_routing_begin_frame(&game->ui_hover);
     if( !game->ui_tree || !game->ui_tree_ready )
         return;
 
@@ -1414,25 +1709,23 @@ GameRunescape_UpdateUIHover(
         goto done;
 
     struct UITreeScrollState scroll = {
-        .scroll_x = game->ui_scroll_x,
-        .scroll_y = game->ui_scroll_y,
+        .scroll_x = game->ui_scroll.scroll_x,
+        .scroll_y = game->ui_scroll.scroll_y,
     };
 
     uitree_find_hovered_component_id_for_region(
         game->ui_tree,
         &game->ui_host,
         &scroll,
-        game->mouse_x,
-        game->mouse_y,
+        game->world_pick.mouse_x,
+        game->world_pick.mouse_y,
         RS_UI_HOVER_MAIN_X,
         RS_UI_HOVER_MAIN_Y,
         RS_UI_HOVER_MAIN_W,
         RS_UI_HOVER_MAIN_H,
         -1,
-        &game->ui_over_main_com_id);
-    ui_hover_debug_log(
-        "main region -> over_main_com_id=%d",
-        game->ui_over_main_com_id);
+        &game->ui_hover.over_main_com_id);
+    ui_hover_debug_log("main region -> over_main_com_id=%d", game->ui_hover.over_main_com_id);
 
     {
         int32_t const sidebar_idx = GameRunescape_UISelectedSidebarIndex(game);
@@ -1442,42 +1735,39 @@ GameRunescape_UpdateUIHover(
                 game->ui_tree,
                 &game->ui_host,
                 &scroll,
-                game->mouse_x,
-                game->mouse_y,
+                game->world_pick.mouse_x,
+                game->world_pick.mouse_y,
                 RS_UI_HOVER_SIDE_X,
                 RS_UI_HOVER_SIDE_Y,
                 RS_UI_HOVER_SIDE_W,
                 RS_UI_HOVER_SIDE_H,
                 sidebar_idx,
-                &game->ui_over_side_com_id);
+                &game->ui_hover.over_side_com_id);
             ui_hover_debug_log(
-                "side region -> over_side_com_id=%d",
-                game->ui_over_side_com_id);
+                "side region -> over_side_com_id=%d", game->ui_hover.over_side_com_id);
         }
     }
 
-    if( game->ui_chat_node >= 0 )
+    if( game->ui_hover.chat_node >= 0 )
     {
         uitree_find_hovered_component_id_for_region(
             game->ui_tree,
             &game->ui_host,
             &scroll,
-            game->mouse_x,
-            game->mouse_y,
+            game->world_pick.mouse_x,
+            game->world_pick.mouse_y,
             RS_UI_HOVER_CHAT_X,
             RS_UI_HOVER_CHAT_Y,
             RS_UI_HOVER_CHAT_W,
             RS_UI_HOVER_CHAT_H,
-            game->ui_chat_node,
-            &game->ui_over_chat_com_id);
-        ui_hover_debug_log(
-            "chat region -> over_chat_com_id=%d",
-            game->ui_over_chat_com_id);
+            game->ui_hover.chat_node,
+            &game->ui_hover.over_chat_com_id);
+        ui_hover_debug_log("chat region -> over_chat_com_id=%d", game->ui_hover.over_chat_com_id);
     }
 
 done:
-    game->ui_hovered_node =
-        GameRunescape_UIHitTest(game, game->mouse_x, game->mouse_y);
+    game->ui_hover.hovered_node =
+        GameRunescape_UIHitTest(game, game->world_pick.mouse_x, game->world_pick.mouse_y);
 }
 
 int32_t
@@ -1489,11 +1779,10 @@ GameRunescape_UIHitTest(
     if( !game || !game->ui_tree )
         return -1;
     struct UITreeScrollState scroll = {
-        .scroll_x = game->ui_scroll_x,
-        .scroll_y = game->ui_scroll_y,
+        .scroll_x = game->ui_scroll.scroll_x,
+        .scroll_y = game->ui_scroll.scroll_y,
     };
-    return uitree_hit_test_interactive(
-        game->ui_tree, &game->ui_host, &scroll, px, py);
+    return uitree_hit_test_interactive(game->ui_tree, &game->ui_host, &scroll, px, py);
 }
 
 void
@@ -1506,8 +1795,8 @@ GameRunescape_GetScrollPos(
     if( !game )
         return;
     struct UITreeScrollState scroll = {
-        .scroll_x = (int*)game->ui_scroll_x,
-        .scroll_y = (int*)game->ui_scroll_y,
+        .scroll_x = (int*)game->ui_scroll.scroll_x,
+        .scroll_y = (int*)game->ui_scroll.scroll_y,
     };
     uitree_scroll_get_pos(&scroll, component_id, sx, sy);
 }
@@ -1520,8 +1809,8 @@ GameRunescape_ClampScroll(
     if( !game || !layer || layer->component_id < 0 )
         return;
     struct UITreeScrollState scroll = {
-        .scroll_x = game->ui_scroll_x,
-        .scroll_y = game->ui_scroll_y,
+        .scroll_x = game->ui_scroll.scroll_x,
+        .scroll_y = game->ui_scroll.scroll_y,
     };
     uitree_scroll_clamp_pos(layer, &scroll, layer->component_id);
 }
@@ -1533,10 +1822,7 @@ GameRunescape_UIScrollDragClear(struct GameRunescape* game)
 {
     if( !game )
         return;
-    game->ui_scroll_drag_layer_id = -1;
-    game->ui_scroll_drag_kind = UITREE_SCROLLBAR_NONE;
-    game->ui_scroll_drag_anchor = 0;
-    game->ui_scroll_grabbed = false;
+    ui_scroll_runtime_end_drag(&game->ui_scroll);
     game->frame.ui_scroll_cycle = 0;
 }
 
@@ -1575,28 +1861,27 @@ GameRunescape_ProcessUIScroll(
     game->frame.ui_scroll_cycle++;
 
     struct UITreeScrollState scroll = {
-        .scroll_x = game->ui_scroll_x,
-        .scroll_y = game->ui_scroll_y,
+        .scroll_x = game->ui_scroll.scroll_x,
+        .scroll_y = game->ui_scroll.scroll_y,
     };
     struct UITreeScrollbarHitInfo hit = { 0 };
     bool changed = false;
     bool consume_click = false;
 
-    if( game->ui_scroll_grabbed && game->ui_scroll_drag_layer_id >= 0 &&
-        uitree_scrollbar_is_grip_kind(game->ui_scroll_drag_kind) )
+    if( game->ui_scroll.grabbed && game->ui_scroll.drag_layer_id >= 0 &&
+        uitree_scrollbar_is_grip_kind(game->ui_scroll.drag_kind) )
     {
-        int32_t layer_idx =
-            GameRunescape_UIFindLayerIndexById(game, game->ui_scroll_drag_layer_id);
+        int32_t layer_idx = GameRunescape_UIFindLayerIndexById(game, game->ui_scroll.drag_layer_id);
         if( layer_idx >= 0 &&
-             uitree_scrollbar_hit_for_layer(game->ui_tree, &scroll, layer_idx, &hit) )
+            uitree_scrollbar_hit_for_layer(game->ui_tree, &scroll, layer_idx, &hit) )
         {
-            hit.kind = game->ui_scroll_drag_kind;
+            hit.kind = game->ui_scroll.drag_kind;
             if( uitree_scrollbar_handle(
                     game->ui_tree,
                     &scroll,
                     &hit,
-                    game->mouse_x,
-                    game->mouse_y,
+                    game->world_pick.mouse_x,
+                    game->world_pick.mouse_y,
                     UITREE_SCROLLBAR_ACTION_GRIP_DRAG,
                     0) )
             {
@@ -1607,13 +1892,13 @@ GameRunescape_ProcessUIScroll(
     }
     else
     {
-        int const padding = game->ui_scroll_grabbed ? RUNESCAPE_UI_SCROLL_DRAG_PADDING : 0;
+        int const padding = game->ui_scroll.grabbed ? RUNESCAPE_UI_SCROLL_DRAG_PADDING : 0;
         if( uitree_find_scrollbar_at_padded(
                 game->ui_tree,
                 &game->ui_host,
                 &scroll,
-                game->mouse_x,
-                game->mouse_y,
+                game->world_pick.mouse_x,
+                game->world_pick.mouse_y,
                 padding,
                 &hit) )
         {
@@ -1625,15 +1910,15 @@ GameRunescape_ProcessUIScroll(
                         game->ui_tree,
                         &scroll,
                         &hit,
-                        game->mouse_x,
-                        game->mouse_y,
+                        game->world_pick.mouse_x,
+                        game->world_pick.mouse_y,
                         UITREE_SCROLLBAR_ACTION_ARROW_STEP,
                         step) )
                 {
                     changed = true;
                     consume_click = true;
-                    game->ui_scroll_drag_layer_id = layer->component_id;
-                    game->ui_scroll_drag_kind = hit.kind;
+                    game->ui_scroll.drag_layer_id = layer->component_id;
+                    game->ui_scroll.drag_kind = hit.kind;
                 }
             }
             else if( uitree_scrollbar_is_grip_kind(hit.kind) && game->frame.ui_scroll_cycle > 0 )
@@ -1642,16 +1927,16 @@ GameRunescape_ProcessUIScroll(
                         game->ui_tree,
                         &scroll,
                         &hit,
-                        game->mouse_x,
-                        game->mouse_y,
+                        game->world_pick.mouse_x,
+                        game->world_pick.mouse_y,
                         UITREE_SCROLLBAR_ACTION_GRIP_DRAG,
                         0) )
                 {
                     changed = true;
                     consume_click = true;
-                    game->ui_scroll_drag_layer_id = layer->component_id;
-                    game->ui_scroll_drag_kind = hit.kind;
-                    game->ui_scroll_grabbed = true;
+                    game->ui_scroll.drag_layer_id = layer->component_id;
+                    game->ui_scroll.drag_kind = hit.kind;
+                    game->ui_scroll.grabbed = true;
                 }
             }
         }
@@ -1660,10 +1945,10 @@ GameRunescape_ProcessUIScroll(
     if( changed )
     {
         uitree_mark_all_dirty(game->ui_tree);
-        if( game->ui_scroll_drag_layer_id >= 0 )
+        if( game->ui_scroll.drag_layer_id >= 0 )
         {
             int32_t layer_idx =
-                GameRunescape_UIFindLayerIndexById(game, game->ui_scroll_drag_layer_id);
+                GameRunescape_UIFindLayerIndexById(game, game->ui_scroll.drag_layer_id);
             if( layer_idx >= 0 )
             {
                 struct StaticUIComponent* layer = &game->ui_tree->components[layer_idx];
@@ -1684,10 +1969,7 @@ GameRunescape_UIRectColor(
     (void)node_index;
     struct UITreeHoverIds const hover_ids = GameRunescape_UIHoverIds(game);
     return uitree_component_rect_color_host(
-        component,
-        &hover_ids,
-        &game->ui_host,
-        component->u.rs_rect.color);
+        component, &hover_ids, &game->ui_host, component->u.rs_rect.color);
 }
 
 void
@@ -1695,17 +1977,17 @@ GameRunescape_ProcessInput(
     struct GameRunescape* game,
     struct LibToriRS_Input* input)
 {
-    game->mouse_x = input->curr.mouse_x;
-    game->mouse_y = input->curr.mouse_y;
+    game->world_pick.mouse_x = input->curr.mouse_x;
+    game->world_pick.mouse_y = input->curr.mouse_y;
 
     if( game->ui_tree && game->ui_tree_ready )
         GameRunescape_UpdateWorldViewport(game);
 
-    game->mouse_in_viewport =
-        game->mouse_x >= game->world_view_port.clip_left &&
-        game->mouse_x < game->world_view_port.clip_right &&
-        game->mouse_y >= game->world_view_port.clip_top &&
-        game->mouse_y < game->world_view_port.clip_bottom;
+    game->world_pick.mouse_in_viewport =
+        game->world_pick.mouse_x >= game->world_view_port.clip_left &&
+        game->world_pick.mouse_x < game->world_view_port.clip_right &&
+        game->world_pick.mouse_y >= game->world_view_port.clip_top &&
+        game->world_pick.mouse_y < game->world_view_port.clip_bottom;
 
     if( game->ui_tree && game->ui_tree_ready )
     {
@@ -1714,22 +1996,21 @@ GameRunescape_ProcessInput(
         if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) && !scroll_consumed_click )
         {
             ui_click_handle_left(
-                game,
-                input,
-                input->last_click_x[TORIRSM_LEFT],
-                input->last_click_y[TORIRSM_LEFT]);
+                game, input, input->last_click_x[TORIRSM_LEFT], input->last_click_y[TORIRSM_LEFT]);
         }
     }
 
     if( LibToriRS_Input_IsClick(input, TORIRSM_RIGHT) )
     {
-        bool const can_right_click = game->ui_tree &&
-            (game->ui_tree_ready ||
-             (game->world && game->world->load_complete));
+        bool const can_right_click =
+            game->ui_tree && (game->ui_tree_ready || (game->world && game->world->load_complete));
         if( can_right_click )
         {
             ui_click_handle_right(
-                game, input, input->last_click_x[TORIRSM_RIGHT], input->last_click_y[TORIRSM_RIGHT]);
+                game,
+                input,
+                input->last_click_x[TORIRSM_RIGHT],
+                input->last_click_y[TORIRSM_RIGHT]);
         }
     }
 
@@ -1939,8 +2220,8 @@ static struct UITreeScrollState
 GameRunescape_UIScrollState(struct GameRunescape* game)
 {
     struct UITreeScrollState scroll = {
-        .scroll_x = game->ui_scroll_x,
-        .scroll_y = game->ui_scroll_y,
+        .scroll_x = game->ui_scroll.scroll_x,
+        .scroll_y = game->ui_scroll.scroll_y,
     };
     return scroll;
 }
@@ -1977,16 +2258,11 @@ GameRunescape_UIGetDrawContext(
     clip->clip_h = 0;
 
     int32_t ancestors[RUNESCAPE_UI_TRAVERSAL_STACK_MAX];
-    int ancestor_count = GameRunescape_UIGetAncestors(game, ancestors, RUNESCAPE_UI_TRAVERSAL_STACK_MAX);
+    int ancestor_count =
+        GameRunescape_UIGetAncestors(game, ancestors, RUNESCAPE_UI_TRAVERSAL_STACK_MAX);
     struct UITreeScrollState scroll_state = GameRunescape_UIScrollState(game);
     uitree_scroll_apply_ancestors(
-        game->ui_tree,
-        &scroll_state,
-        ancestors,
-        ancestor_count,
-        bx,
-        by,
-        clip);
+        game->ui_tree, &scroll_state, ancestors, ancestor_count, bx, by, clip);
 }
 
 static void
@@ -2189,18 +2465,19 @@ GameRunescape_EmitLayerScrollbars(
         {
         case 0:
             GameRunescape_EmitScrollbarArrow(
-                command, game->ui_scrollbar0_scene_id, sb_x, ly, 0);
+                command, game->ui_scroll.scrollbar0_scene_id, sb_x, ly, 0);
             return true;
         case 1:
             GameRunescape_EmitScrollbarArrow(
                 command,
-                game->ui_scrollbar1_scene_id,
+                game->ui_scroll.scrollbar1_scene_id,
                 sb_x,
                 ly + vh - UITREE_SCROLLBAR_THICKNESS,
                 0);
             return true;
         case 2:
-            if( !GameRunescape_VerticalScrollbarGrip(layer, vh, lh, sy, &grip_y, &grip_size, &track_h) )
+            if( !GameRunescape_VerticalScrollbarGrip(
+                    layer, vh, lh, sy, &grip_y, &grip_size, &track_h) )
                 return false;
             GameRunescape_EmitScrollbarFill(
                 command,
@@ -2211,7 +2488,8 @@ GameRunescape_EmitLayerScrollbars(
                 UITREE_SCROLLBAR_TRACK_ARGB);
             return true;
         case 3:
-            if( !GameRunescape_VerticalScrollbarGrip(layer, vh, lh, sy, &grip_y, &grip_size, &track_h) )
+            if( !GameRunescape_VerticalScrollbarGrip(
+                    layer, vh, lh, sy, &grip_y, &grip_size, &track_h) )
                 return false;
             GameRunescape_EmitScrollbarFill(
                 command,
@@ -2226,7 +2504,8 @@ GameRunescape_EmitLayerScrollbars(
         case 6:
         case 7:
         case 8:
-            if( !GameRunescape_VerticalScrollbarGrip(layer, vh, lh, sy, &grip_y, &grip_size, &track_h) )
+            if( !GameRunescape_VerticalScrollbarGrip(
+                    layer, vh, lh, sy, &grip_y, &grip_size, &track_h) )
                 return false;
             grip_y0 = ly + UITREE_SCROLLBAR_THICKNESS + grip_y;
             switch( step )
@@ -2237,7 +2516,12 @@ GameRunescape_EmitLayerScrollbars(
                 return true;
             case 5:
                 GameRunescape_EmitScrollbarFill(
-                    command, sb_x, grip_y0, UITREE_SCROLLBAR_THICKNESS, 2, UITREE_SCROLLBAR_GRIP_HI_ARGB);
+                    command,
+                    sb_x,
+                    grip_y0,
+                    UITREE_SCROLLBAR_THICKNESS,
+                    2,
+                    UITREE_SCROLLBAR_GRIP_HI_ARGB);
                 return true;
             case 6:
                 GameRunescape_EmitScrollbarFill(
@@ -2292,18 +2576,19 @@ GameRunescape_EmitLayerScrollbars(
     {
     case 0:
         GameRunescape_EmitScrollbarArrow(
-            command, game->ui_scrollbar0_scene_id, lx, sb_y, h_arrow_rotation);
+            command, game->ui_scroll.scrollbar0_scene_id, lx, sb_y, h_arrow_rotation);
         return true;
     case 1:
         GameRunescape_EmitScrollbarArrow(
             command,
-            game->ui_scrollbar1_scene_id,
+            game->ui_scroll.scrollbar1_scene_id,
             lx + sw - UITREE_SCROLLBAR_THICKNESS,
             sb_y,
             h_arrow_rotation);
         return true;
     case 2:
-        if( !GameRunescape_HorizontalScrollbarGrip(layer, sw, lw, sx, &grip_x, &grip_size, &track_w) )
+        if( !GameRunescape_HorizontalScrollbarGrip(
+                layer, sw, lw, sx, &grip_x, &grip_size, &track_w) )
             return false;
         GameRunescape_EmitScrollbarFill(
             command,
@@ -2314,7 +2599,8 @@ GameRunescape_EmitLayerScrollbars(
             UITREE_SCROLLBAR_TRACK_ARGB);
         return true;
     case 3:
-        if( !GameRunescape_HorizontalScrollbarGrip(layer, sw, lw, sx, &grip_x, &grip_size, &track_w) )
+        if( !GameRunescape_HorizontalScrollbarGrip(
+                layer, sw, lw, sx, &grip_x, &grip_size, &track_w) )
             return false;
         GameRunescape_EmitScrollbarFill(
             command,
@@ -2329,14 +2615,20 @@ GameRunescape_EmitLayerScrollbars(
     case 6:
     case 7:
     case 8:
-        if( !GameRunescape_HorizontalScrollbarGrip(layer, sw, lw, sx, &grip_x, &grip_size, &track_w) )
+        if( !GameRunescape_HorizontalScrollbarGrip(
+                layer, sw, lw, sx, &grip_x, &grip_size, &track_w) )
             return false;
         grip_x0 = lx + UITREE_SCROLLBAR_THICKNESS + grip_x;
         switch( hstep )
         {
         case 4:
             GameRunescape_EmitScrollbarFill(
-                command, grip_x0, sb_y, 2, UITREE_SCROLLBAR_THICKNESS, UITREE_SCROLLBAR_GRIP_HI_ARGB);
+                command,
+                grip_x0,
+                sb_y,
+                2,
+                UITREE_SCROLLBAR_THICKNESS,
+                UITREE_SCROLLBAR_GRIP_HI_ARGB);
             return true;
         case 5:
             GameRunescape_EmitScrollbarFill(
@@ -2471,17 +2763,15 @@ GameRunescape_EmitUIComponent(
             if( scene_id < 0 )
                 return false;
         }
-        bool const tiled =
-            component->type == UIELEM_RS_GRAPHIC && component->u.rs_graphic.tiled;
+        bool const tiled = component->type == UIELEM_RS_GRAPHIC && component->u.rs_graphic.tiled;
         if( !tiled && (bw <= 0 || bh <= 0) && scene_id >= 0 && game->scene )
         {
             int sprite_count = 0;
             struct ToriDraw_Sprite** sprites =
                 ToriDraw_SceneSpriteGet(game->scene, scene_id, &sprite_count);
-            struct ToriDraw_Sprite* sp =
-                (sprites && atlas_index >= 0 && atlas_index < sprite_count)
-                    ? sprites[atlas_index]
-                    : NULL;
+            struct ToriDraw_Sprite* sp = (sprites && atlas_index >= 0 && atlas_index < sprite_count)
+                                             ? sprites[atlas_index]
+                                             : NULL;
             if( sp )
             {
                 if( bw <= 0 )
@@ -2490,8 +2780,7 @@ GameRunescape_EmitUIComponent(
                     bh = sp->crop_height > 0 ? sp->crop_height : sp->height;
             }
         }
-        GameRunescape_AssertSceneSpriteReady(
-            game, scene_id, atlas_index, "ui_sprite");
+        GameRunescape_AssertSceneSpriteReady(game, scene_id, atlas_index, "ui_sprite");
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, bx, by, bw, bh);
         if( tiled )
             command->u.sprite.tiled = 1;
@@ -2502,8 +2791,7 @@ GameRunescape_EmitUIComponent(
     {
         int scene_id = component->u.sprite.scene_id;
         int atlas_index = component->u.sprite.atlas_index;
-        GameRunescape_AssertSceneSpriteReady(
-            game, scene_id, atlas_index, "compass");
+        GameRunescape_AssertSceneSpriteReady(game, scene_id, atlas_index, "compass");
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, bx, by, bw, bh);
         command->u.sprite.rotated = 1;
         command->u.sprite.rotation = uitree_component_sprite_rotation(component, &game->ui_host);
@@ -2647,8 +2935,7 @@ GameRunescape_EmitUIComponent(
         {
             int const i = opt_draw;
             int const lh = game_runescape_minimenu_draw_line_height(game, font_id, &layout);
-            struct UIMinimenuLayout const draw_layout =
-                ui_minimenu_layout_from_line_height(lh);
+            struct UIMinimenuLayout const draw_layout = ui_minimenu_layout_from_line_height(lh);
             int const row = (game->minimenu.option_count - 1 - i) * draw_layout.row_stride;
             int const row_top = my + row + draw_layout.option_base_y;
             int const hovered = game->minimenu.hovered_option == i;
@@ -2731,16 +3018,14 @@ GameRunescape_EmitUIComponent(
                 atlas_index = component->u.redstone_tab.atlas_index_active;
             }
         }
-        GameRunescape_AssertSceneSpriteReady(
-            game, scene_id, atlas_index, "redstone_tab");
+        GameRunescape_AssertSceneSpriteReady(game, scene_id, atlas_index, "redstone_tab");
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, bx, by, bw, bh);
         return true;
     }
     case UIELEM_RS_TEXT:
         if( !uitree_component_text_source_host(&game->ui_host, component) )
             return false;
-        GameRunescape_AssertSceneFontReady(
-            game, component->u.rs_text.font_id, "rs_text");
+        GameRunescape_AssertSceneFontReady(game, component->u.rs_text.font_id, "rs_text");
         {
             struct ToriDraw_Font* font =
                 ToriDraw_SceneFontGet(game->scene, component->u.rs_text.font_id);
@@ -2756,10 +3041,7 @@ GameRunescape_EmitUIComponent(
             {
                 struct UITreeHoverIds const hover_ids = GameRunescape_UIHoverIds(game);
                 command->u.font.color = uitree_component_text_color_host(
-                    component,
-                    &hover_ids,
-                    &game->ui_host,
-                    component->u.rs_text.color);
+                    component, &hover_ids, &game->ui_host, component->u.rs_text.color);
             }
             command->u.font.center = component->u.rs_text.center;
             command->u.font.shadowed = component->u.rs_text.shadowed;
@@ -2854,10 +3136,7 @@ GameRunescape_EmitUIComponent(
         if( game->ui_host.get_inv_source_slot )
         {
             game->ui_host.get_inv_source_slot(
-                game->ui_host.user,
-                component->u.inv_grid.inv_source_id,
-                slot,
-                &slot_data);
+                game->ui_host.user, component->u.inv_grid.inv_source_id, slot, &slot_data);
             obj_id = slot_data.obj_id;
             scene_id = slot_data.scene_id;
             atlas_index = slot_data.atlas_index;
@@ -2865,8 +3144,7 @@ GameRunescape_EmitUIComponent(
 
         if( obj_id > 0 && scene_id >= 0 )
         {
-            GameRunescape_EmitSpriteCommand(
-                command, scene_id, atlas_index, slot_x, slot_y, 32, 32);
+            GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, slot_x, slot_y, 32, 32);
             game->frame.ui_inv_slot = slot + 1;
             return true;
         }
@@ -2956,8 +3234,7 @@ GameRunescape_EmitUIComponent(
         if( !label || label[0] == '\0' )
             return false;
 
-        GameRunescape_AssertSceneFontReady(
-            game, component->u.rs_inv_text.font_id, "rs_inv_text");
+        GameRunescape_AssertSceneFontReady(game, component->u.rs_inv_text.font_id, "rs_inv_text");
         struct ToriDraw_Font* font =
             ToriDraw_SceneFontGet(game->scene, component->u.rs_inv_text.font_id);
         if( !font )
@@ -2989,7 +3266,8 @@ GameRunescape_EmitUIComponent(
 
         if( !game->scene || !ToriDraw_SceneModelHas(game->scene, model_id) )
         {
-            fprintf(stderr,
+            fprintf(
+                stderr,
                 "rs_emit_ui_component_command: model not in scene model_id=%d component_id=%d\n",
                 model_id,
                 component->component_id);
@@ -3060,7 +3338,8 @@ GameRunescape_EmitUIComponent(
                     TORIDRAW_CULL_VISIBLE ||
                 ToriDraw_RenderModel2SortFaces(hnd, game->scene) <= 0 )
             {
-                fprintf(stderr,
+                fprintf(
+                    stderr,
                     "rs_emit_ui_component_command: UI model project failed model_id=%d "
                     "component_id=%d\n",
                     model_id,
@@ -3203,15 +3482,16 @@ GameRunescape_RefreshPicksetAtMouse(
         return;
 
     world = game->world;
-    saved_mouse_x = game->mouse_x;
-    saved_mouse_y = game->mouse_y;
-    saved_mouse_in_viewport = game->mouse_in_viewport;
+    saved_mouse_x = game->world_pick.mouse_x;
+    saved_mouse_y = game->world_pick.mouse_y;
+    saved_mouse_in_viewport = game->world_pick.mouse_in_viewport;
 
     GameRunescape_UpdateWorldViewport(game);
-    game->mouse_x = mouse_x;
-    game->mouse_y = mouse_y;
-    game->mouse_in_viewport = game_runescape_mouse_in_world_viewport(game, mouse_x, mouse_y);
-    world_pickset_reset(&game->pickset);
+    game->world_pick.mouse_x = mouse_x;
+    game->world_pick.mouse_y = mouse_y;
+    game->world_pick.mouse_in_viewport =
+        game_runescape_mouse_in_world_viewport(game, mouse_x, mouse_y);
+    world_pickset_reset(&game->world_pick.pickset);
 
     if( world->load_complete && world->painter && game->painter_buffer )
     {
@@ -3260,9 +3540,9 @@ GameRunescape_RefreshPicksetAtMouse(
         }
     }
 
-    game->mouse_x = saved_mouse_x;
-    game->mouse_y = saved_mouse_y;
-    game->mouse_in_viewport = saved_mouse_in_viewport;
+    game->world_pick.mouse_x = saved_mouse_x;
+    game->world_pick.mouse_y = saved_mouse_y;
+    game->world_pick.mouse_in_viewport = saved_mouse_in_viewport;
 }
 
 static enum RsPhaseResult
@@ -3380,9 +3660,8 @@ rs_phase_ui_step(
     }
 
     bool const layer_scroll =
-        component->type == UIELEM_RS_LAYER &&
-        (uitree_scroll_layer_needs_vertical(component) ||
-         uitree_scroll_layer_needs_horizontal(component));
+        component->type == UIELEM_RS_LAYER && (uitree_scroll_layer_needs_vertical(component) ||
+                                               uitree_scroll_layer_needs_horizontal(component));
     if( (component->is_dirty || layer_scroll) &&
         GameRunescape_EmitUIComponent(game, component, game->frame.ui_current, command) )
     {
@@ -3392,8 +3671,8 @@ rs_phase_ui_step(
                               game->frame.ui_inv_slot < inv_slot_limit;
         bool const minimenu_more = component->type == UIELEM_BUILTIN_MINIMENU &&
                                    game->minimenu.visible && game->frame.ui_minimenu_step > 0;
-        bool const chat_button_more = component->type == UIELEM_BUILTIN_CHAT_BUTTON &&
-                                      game->frame.ui_chat_button_step > 0;
+        bool const chat_button_more =
+            component->type == UIELEM_BUILTIN_CHAT_BUTTON && game->frame.ui_chat_button_step > 0;
         bool const ui_model_more =
             component->type == UIELEM_RS_MODEL && game->frame.ui_model_step > 0;
         if( component->type == UIELEM_RS_LAYER && layer_scroll )
@@ -3458,9 +3737,7 @@ GameRunescape_ApplyChatFilterSettings(
 {
     if( !game )
         return;
-    game->chat_public_mode = public_mode;
-    game->chat_private_mode = private_mode;
-    game->chat_trade_mode = trade_mode;
+    chat_state_set_filter_modes(&game->chat, public_mode, private_mode, trade_mode);
 }
 
 void
@@ -3492,16 +3769,13 @@ GameRunescape_FrameBegin(
     game->frame.ui_scrollbar_step = 0;
     game->frame.ui_model_step = 0;
     game->frame.ui_scrollbar_layer = -1;
-    game->ui_hovered_node = -1;
-    game->ui_over_main_com_id = -1;
-    game->ui_over_side_com_id = -1;
-    game->ui_over_chat_com_id = -1;
+    ui_hover_routing_begin_frame(&game->ui_hover);
     if( game->scene && game->ui_tree_ready && !game->ui_fonts_synced )
     {
         ToriDraw_SceneFontsReemitLoads(game->scene);
         game->ui_fonts_synced = true;
     }
-    world_pickset_reset(&game->pickset);
+    world_pickset_reset(&game->world_pick.pickset);
     if( game->scene )
     {
         struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(game->scene);
@@ -3517,7 +3791,6 @@ GameRunescape_FrameBegin(
     GameRunescape_UpdateWorldViewport(game);
     if( game->ui_tree && game->ui_tree->component_count > 0 )
     {
-        bool hover_dirty = false;
         bool const first_ready = !game->ui_tree_ready;
 
         uitree_layout_resolve(game->ui_tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -3527,28 +3800,18 @@ GameRunescape_FrameBegin(
         GameRunescape_FindSpecialUINodes(game);
         GameRunescape_UpdateUIHover(game);
 
-        if( game->ui_over_main_com_id != game->ui_over_main_com_id_prev ||
-            game->ui_over_side_com_id != game->ui_over_side_com_id_prev ||
-            game->ui_over_chat_com_id != game->ui_over_chat_com_id_prev )
-        {
-            hover_dirty = true;
-            game->ui_over_main_com_id_prev = game->ui_over_main_com_id;
-            game->ui_over_side_com_id_prev = game->ui_over_side_com_id;
-            game->ui_over_chat_com_id_prev = game->ui_over_chat_com_id;
-        }
-
-        if( hover_dirty || first_ready )
+        if( ui_hover_routing_commit_frame(&game->ui_hover) || first_ready )
             uitree_mark_all_dirty(game->ui_tree);
+
+        if( first_ready )
+            rs_ui_host_run_hooks(game, UITREE_BEHAVIOR_HOOK_ON_LOAD);
+
+        rs_ui_flush_varp_transmits(game);
     }
 
-    if( game->cross_mode != RUNESCAPE_CROSS_MODE_OFF )
-    {
-        game->cross_cycle += 20;
-        if( game->cross_cycle >= 400 )
-            game->cross_mode = RUNESCAPE_CROSS_MODE_OFF;
-    }
+    ui_cross_cursor_tick(&game->cross, 20);
 
-    ui_minimenu_update_hover(&game->minimenu, game->mouse_x, game->mouse_y);
+    ui_minimenu_update_hover(&game->minimenu, game->world_pick.mouse_x, game->world_pick.mouse_y);
 }
 
 bool
@@ -3600,20 +3863,12 @@ GameRunescape_FrameEnd(struct GameRunescape* game)
     game->frame.phase = RS_FRAME_PHASE_DONE;
 }
 
-static struct GameRunescape_EntityRecord*
+static struct EntityRecord*
 GameRunescape_EntityFind(
     struct GameRunescape* game,
     int entity_id)
 {
-    if( !game || !game->entity_registry )
-        return NULL;
-
-    for( int i = 0; i < game->entity_registry_count; i++ )
-    {
-        if( game->entity_registry[i].entity_id == entity_id )
-            return &game->entity_registry[i];
-    }
-    return NULL;
+    return entity_registry_find(game ? &game->entities : NULL, entity_id);
 }
 
 static bool
@@ -3623,37 +3878,8 @@ GameRunescape_EntityRegister(
     int element_id,
     int world_index)
 {
-    struct GameRunescape_EntityRecord* existing;
-
-    if( !game )
-        return false;
-
-    existing = GameRunescape_EntityFind(game, entity_id);
-    if( existing )
-    {
-        existing->element_id = element_id;
-        existing->world_index = world_index;
-        return true;
-    }
-
-    if( game->entity_registry_count >= game->entity_registry_cap )
-    {
-        int new_cap = game->entity_registry_cap ? game->entity_registry_cap * 2
-                                                : RUNESCAPE_ENTITY_REGISTRY_INITIAL_CAP;
-        struct GameRunescape_EntityRecord* grown =
-            realloc(game->entity_registry, (size_t)new_cap * sizeof(*grown));
-        if( !grown )
-            return false;
-        game->entity_registry = grown;
-        game->entity_registry_cap = new_cap;
-    }
-
-    game->entity_registry[game->entity_registry_count++] = (struct GameRunescape_EntityRecord){
-        .entity_id = entity_id,
-        .element_id = element_id,
-        .world_index = world_index,
-    };
-    return true;
+    return entity_registry_register(
+        game ? &game->entities : NULL, entity_id, element_id, world_index);
 }
 
 static struct ToriDraw_ModelHandle
@@ -3821,7 +4047,7 @@ GameRunescape_WorldEntityAnimate(
     int anim_id,
     int primary_secondary)
 {
-    struct GameRunescape_EntityRecord* record;
+    struct EntityRecord* record;
 
     if( !game || RS_ENTITY_KIND_OF(entity_id) == RS_ENTITY_KIND_NONE )
         return false;

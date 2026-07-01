@@ -2,8 +2,8 @@
 #define UI_BEHAVIOR_H
 
 #include "ui_input.h"
+#include "vm/cs1vm.h"
 #include "vm/cs2vm.h"
-#include "vm/csvm.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -18,10 +18,10 @@ struct ToriAuxLibCore_Component;
 
 struct UITreeBehaviorHost
 {
-    struct CSVM* csvm;
-    struct CSVM_State csvm_state;
+    struct CS1VM* cs1vm;
+    struct CS1Host cs1host;
     struct CS2VM* cs2vm;
-    struct CS2VM_State cs2vm_state;
+    struct CS2Host cs2host;
     struct VarPVarBitManager* varp_varbit;
 };
 
@@ -95,6 +95,7 @@ enum UITreeBehaviorHookKind
     UITREE_BEHAVIOR_HOOK_ON_LOAD,
     UITREE_BEHAVIOR_HOOK_ON_CLICK,
     UITREE_BEHAVIOR_HOOK_ON_VARP_TRANSMIT,
+    UITREE_BEHAVIOR_HOOK_ON_INV_TRANSMIT,
 };
 
 void
@@ -104,6 +105,24 @@ uitree_behavior_run_hook(
     struct ToriAuxLibCache* cache,
     struct ToriAuxLibCore_Component const* component,
     enum UITreeBehaviorHookKind hook_kind);
+
+/** Run onInvTransmit for every core component watching container_id. */
+void
+uitree_behavior_dispatch_inv_transmit(
+    struct UITreeBehaviorHost* host,
+    struct ToriAuxLibCore* core,
+    struct ToriAuxLibCache* cache,
+    struct UITree const* tree,
+    int container_id);
+
+/** Run onVarpTransmit for every core component watching varp_id. */
+void
+uitree_behavior_dispatch_varp_transmit(
+    struct UITreeBehaviorHost* host,
+    struct ToriAuxLibCore* core,
+    struct ToriAuxLibCache* cache,
+    struct UITree const* tree,
+    int varp_id);
 
 void
 uitree_behavior_apply_button_click(

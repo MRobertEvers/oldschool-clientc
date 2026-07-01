@@ -41,7 +41,7 @@
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
 #include "osrs/rscache/dat2a/dat2a_config_npctype.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
-#include "vm/csvm.h"
+#include "vm/cs1vm.h"
 #include "vm/cs2vm.h"
 
 #include <assert.h>
@@ -100,7 +100,7 @@ test_component_attach_cs1_script(
     component->scripts_lengths = scripts_lengths;
     component->script_comparator = script_comparator;
     component->script_operand = script_operand;
-    component->script_kind = CS2VM_SCRIPT_KIND_CS1;
+    component->script_kind = CS1VM_SCRIPT_KIND_CS1;
 }
 
 static void
@@ -959,11 +959,72 @@ subtree_has_inv_slot_bg(
         }
     }
 
+    if( tree->components[node_index].type == UIELEM_INV_SLOT &&
+        tree->components[node_index].u.inv_slot.inv_source_id >= 0 )
+        return true;
+
     for( int32_t child = tree->components[node_index].first_child; child >= 0;
          child = tree->components[child].next_sibling )
     {
         if( subtree_has_inv_slot_bg(tree, child) )
             return true;
+    }
+    return false;
+}
+
+static int
+subtree_count_inv_slots(
+    struct UITree const* tree,
+    int32_t node_index)
+{
+    if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 0;
+
+    int count = tree->components[node_index].type == UIELEM_INV_SLOT ? 1 : 0;
+    for( int32_t child = tree->components[node_index].first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+        count += subtree_count_inv_slots(tree, child);
+    return count;
+}
+
+static bool
+subtree_has_component_id(
+    struct UITree const* tree,
+    int32_t node_index,
+    int component_id)
+{
+    if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return false;
+
+    if( tree->components[node_index].component_id == component_id )
+        return true;
+
+    for( int32_t child = tree->components[node_index].first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        if( subtree_has_component_id(tree, child, component_id) )
+            return true;
+    }
+    return false;
+}
+
+static bool
+equipment_worn_container_seeded(struct GameRunescape const* game)
+{
+    if( !game )
+        return false;
+
+    for( int i = 0; i < game->inv_data.source_count; i++ )
+    {
+        if( !game->inv_data.sources[i].used )
+            continue;
+        if( strcmp(game->inv_data.sources[i].name, UI_INV_SOURCE_NAME_WORN) != 0 )
+            continue;
+
+        struct UIInvSlotData slot;
+        if( !ui_inv_data_service_get_slot(&game->inv_data, i, 0, &slot) )
+            return false;
+        return slot.obj_id > 0 && slot.scene_id >= 0;
     }
     return false;
 }
@@ -1194,7 +1255,7 @@ assert_minimenu_options(
 }
 
 static struct World g_test_minimenu_world;
-static struct GameRunescape_EntityRecord g_test_entity_registry[1];
+static struct EntityRecord g_test_entity_registry[1];
 
 static void
 test_minimenu_seed_world(struct GameRunescape* game)
@@ -1227,16 +1288,16 @@ test_minimenu_seed_world(struct GameRunescape* game)
     scenery->actions[0].code = 0;
 
     npc_entity_id = RS_ENTITY_ID(RS_ENTITY_KIND_NPC, npc_idx);
-    g_test_entity_registry[0] = (struct GameRunescape_EntityRecord){
+    g_test_entity_registry[0] = (struct EntityRecord){
         .entity_id = npc_entity_id,
         .element_id = 10,
         .world_index = npc_idx,
     };
 
     game->world = &g_test_minimenu_world;
-    game->entity_registry = g_test_entity_registry;
-    game->entity_registry_count = 1;
-    game->entity_registry_cap = 1;
+    game->entities.records = g_test_entity_registry;
+    game->entities.count = 1;
+    game->entities.cap = 1;
 
     g_test_minimenu_world.scenery_picks[0] = (struct WorldSceneryPick){
         .element_id = 100,
@@ -1922,7 +1983,25 @@ run_pipeline_test(
                 "sidebar_tab_4 has baked RS descendants");
             TEST_ASSERT(
                 subtree_has_inv_slot_bg(tree, equipment_idx),
-                "sidebar_tab_4 equipment inv slot backgrounds baked");
+                "sidebar_tab_4 equipment inv slot wiring baked");
+            TEST_ASSERT(
+                subtree_count_inv_slots(tree, equipment_idx) == 11,
+                "sidebar_tab_4 equipment has eleven UIELEM_INV_SLOT nodes");
+            TEST_ASSERT(
+                equipment_worn_container_seeded(&game),
+                "sidebar_tab_4 worn container seeded with icon scene ids");
+            TEST_ASSERT(
+                subtree_has_component_id(tree, equipment_idx, 0x01830002),
+                "sidebar_tab_4 equipment stats graphic baked");
+            TEST_ASSERT(
+                subtree_has_component_id(tree, equipment_idx, 0x01830004),
+                "sidebar_tab_4 price checker graphic baked");
+            TEST_ASSERT(
+                subtree_has_component_id(tree, equipment_idx, 0x01830006),
+                "sidebar_tab_4 items-kept graphic baked");
+            TEST_ASSERT(
+                subtree_has_component_id(tree, equipment_idx, 0x01830008),
+                "sidebar_tab_4 follower graphic baked");
         }
     }
 
@@ -2477,23 +2556,23 @@ test_rs_graphic_get_if_active_varp_bit(void)
     int comp = 1;
     int operand = 1;
     struct StaticUIBehavior behavior = { 0 };
-    behavior.script_kind = CS2VM_SCRIPT_KIND_CS1;
+    behavior.script_kind = CS1VM_SCRIPT_KIND_CS1;
     behavior.scripts_count = 1;
     behavior.scripts = &script_ptr;
     behavior.script_comparator = &comp;
     behavior.script_operand = &operand;
 
-    struct CSVM* csvm = csvm_new();
-    TEST_ASSERT(csvm != NULL, "csvm_new");
+    struct CS1VM* cs1vm = cs1vm_new();
+    TEST_ASSERT(cs1vm != NULL, "cs1vm_new");
 
-    struct CSVM_State csvm_state;
-    memset(&csvm_state, 0, sizeof(csvm_state));
-    csvm_state.get_varp = test_get_varp_for_active;
+    struct CS1Host cs1host;
+    memset(&cs1host, 0, sizeof(cs1host));
+    cs1host.get_varp = test_get_varp_for_active;
 
     struct UITreeBehaviorHost host;
     memset(&host, 0, sizeof(host));
-    host.csvm = csvm;
-    host.csvm_state = csvm_state;
+    host.cs1vm = cs1vm;
+    host.cs1host = cs1host;
 
     g_test_varp_for_active = 0;
     TEST_ASSERT(!uitree_behavior_is_active(&host, &behavior), "inactive when varp bit clear");
@@ -2501,7 +2580,7 @@ test_rs_graphic_get_if_active_varp_bit(void)
     g_test_varp_for_active = 1;
     TEST_ASSERT(uitree_behavior_is_active(&host, &behavior), "active when varp bit set");
 
-    csvm_free(csvm);
+    cs1vm_free(cs1vm);
     fprintf(stderr, "ok: rs graphic getIfActive varp bit\n");
     return 0;
 }
@@ -2765,22 +2844,22 @@ test_ui_click_world_viewport(void)
     game.ui_host.get_minimenu_visible = test_stub_minimenu_visible;
     game.ui_host.get_selected_tab = test_host_get_selected_tab;
     uitree_layout_resolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    game.ui_chat_node = uitree_find_chat_builtin_node(tree);
+    game.ui_hover.chat_node = uitree_find_chat_builtin_node(tree);
     game.world_view_port.clip_left = 4;
     game.world_view_port.clip_top = 4;
     game.world_view_port.clip_right = 517;
     game.world_view_port.clip_bottom = 339;
-    game.mouse_in_viewport = true;
+    game.world_pick.mouse_in_viewport = true;
     {
         static struct World test_viewport_world;
         memset(&test_viewport_world, 0, sizeof(test_viewport_world));
         test_viewport_world.load_complete = true;
         game.world = &test_viewport_world;
     }
-    game.ui_over_main_com_id = -1;
+    game.ui_hover.over_main_com_id = -1;
 
-    world_pickset_reset(&game.pickset);
-    world_pickset_add(&game.pickset, 1, WORLD_PICK_TERRAIN, 40, 60, 0);
+    world_pickset_reset(&game.world_pick.pickset);
+    world_pickset_add(&game.world_pick.pickset, 1, WORLD_PICK_TERRAIN, 40, 60, 0);
 
     ui_click_handle_right(&game, NULL, 300, 200);
     TEST_ASSERT(game.minimenu.visible, "right-click viewport opens minimenu");
@@ -2804,29 +2883,29 @@ test_ui_click_world_viewport(void)
         menu_click_x != 300 || menu_click_y != 200, "menu click differs from right-click");
     ui_click_handle_left(&game, NULL, menu_click_x, menu_click_y);
     TEST_ASSERT(
-        game.cross_mode == RUNESCAPE_CROSS_MODE_WALK, "minimenu walk option sets walk cross");
+        game.cross.mode == RUNESCAPE_CROSS_MODE_WALK, "minimenu walk option sets walk cross");
     TEST_ASSERT(
-        game.cross_x == menu_click_x && game.cross_y == menu_click_y,
+        game.cross.x == menu_click_x && game.cross.y == menu_click_y,
         "cross at minimenu left-click");
 
     ui_minimenu_hide(&game.minimenu);
     ui_click_handle_left(&game, NULL, 300, 200);
-    TEST_ASSERT(game.cross_mode == RUNESCAPE_CROSS_MODE_WALK, "left-click ground sets walk cross");
-    TEST_ASSERT(game.cross_x == 300 && game.cross_y == 200, "cross position at click");
+    TEST_ASSERT(game.cross.mode == RUNESCAPE_CROSS_MODE_WALK, "left-click ground sets walk cross");
+    TEST_ASSERT(game.cross.x == 300 && game.cross.y == 200, "cross position at click");
 
-    world_pickset_reset(&game.pickset);
-    world_pickset_add(&game.pickset, 2, WORLD_PICK_NPC, 0, 0, 0);
-    game.entity_registry = calloc(1, sizeof(struct GameRunescape_EntityRecord));
-    TEST_ASSERT(game.entity_registry != NULL, "entity registry alloc");
-    game.entity_registry[0].element_id = 2;
-    game.entity_registry[0].entity_id = RS_ENTITY_ID(RS_ENTITY_KIND_NPC, 1);
-    game.entity_registry_count = 1;
+    world_pickset_reset(&game.world_pick.pickset);
+    world_pickset_add(&game.world_pick.pickset, 2, WORLD_PICK_NPC, 0, 0, 0);
+    game.entities.records = calloc(1, sizeof(struct EntityRecord));
+    TEST_ASSERT(game.entities.records != NULL, "entity registry alloc");
+    game.entities.records[0].element_id = 2;
+    game.entities.records[0].entity_id = RS_ENTITY_ID(RS_ENTITY_KIND_NPC, 1);
+    game.entities.count = 1;
 
     ui_click_handle_left(&game, NULL, 300, 200);
     TEST_ASSERT(
-        game.cross_mode == RUNESCAPE_CROSS_MODE_INTERACT, "left-click npc sets interact cross");
+        game.cross.mode == RUNESCAPE_CROSS_MODE_INTERACT, "left-click npc sets interact cross");
 
-    free(game.entity_registry);
+    free(game.entities.records);
     instance_revconfig_context_release_build_state(&ctx);
     uitree_free(tree);
     revconfig_item_buffer_free(items);
@@ -2850,7 +2929,7 @@ test_ui_click_region_routing(void)
     game.world_view_port.clip_top = 4;
     game.world_view_port.clip_right = 517;
     game.world_view_port.clip_bottom = 339;
-    game.ui_over_main_com_id = -1;
+    game.ui_hover.over_main_com_id = -1;
 
     TEST_ASSERT(
         GameRunescape_PointInMainHoverRegion(&game, 300, 200),
@@ -2865,8 +2944,8 @@ test_ui_click_region_routing(void)
         !GameRunescape_PointInSidebarHoverRegion(300, 200),
         "sidebar hover region excludes viewport click");
 
-    world_pickset_reset(&game.pickset);
-    world_pickset_add(&game.pickset, 1, WORLD_PICK_TERRAIN, 40, 60, 0);
+    world_pickset_reset(&game.world_pick.pickset);
+    world_pickset_add(&game.world_pick.pickset, 1, WORLD_PICK_TERRAIN, 40, 60, 0);
     minimenu_pickset_reset(&picks);
     world_pickset_to_minimenu_pickset(&game, &picks);
     TEST_ASSERT(picks.count > 0, "main region pickset has terrain");
@@ -2877,8 +2956,8 @@ test_ui_click_region_routing(void)
         TEST_ASSERT(minimenu_has_option_text(&menu, "Walk here"), "main region walk");
     }
 
-    world_pickset_reset(&game.pickset);
-    world_pickset_add(&game.pickset, 1, WORLD_PICK_TERRAIN, 40, 60, 0);
+    world_pickset_reset(&game.world_pick.pickset);
+    world_pickset_add(&game.world_pick.pickset, 1, WORLD_PICK_TERRAIN, 40, 60, 0);
     minimenu_pickset_reset(&picks);
     world_pickset_to_minimenu_pickset(&game, &picks);
     TEST_ASSERT(
@@ -3102,7 +3181,7 @@ test_ui_click_right_outside_viewport(void)
     game.world_view_port.clip_top = 4;
     game.world_view_port.clip_right = 517;
     game.world_view_port.clip_bottom = 339;
-    game.mouse_in_viewport = false;
+    game.world_pick.mouse_in_viewport = false;
 
     ui_click_handle_right(&game, NULL, 560, 10);
     TEST_ASSERT(game.minimenu.visible, "right-click compass opens minimenu");
@@ -3118,19 +3197,19 @@ test_ui_click_right_outside_viewport(void)
 }
 
 static int
-test_csvm_eval_len_bounded(void)
+test_cs1vm_eval_len_bounded(void)
 {
-    struct CSVM* vm = csvm_new();
-    TEST_ASSERT(vm != NULL, "csvm_new");
+    struct CS1VM* vm = cs1vm_new();
+    TEST_ASSERT(vm != NULL, "cs1vm_new");
 
     int script[] = { 13, 5, 3 };
-    struct CSVM_State state = { 0 };
-    int value = csvm_eval_len(vm, script, &state, 3);
+    struct CS1Host state = { 0 };
+    int value = cs1vm_eval_len(vm, script, &state, 3);
     (void)value;
     TEST_ASSERT(true, "bounded eval completes 3-int script without reading past end");
 
-    csvm_free(vm);
-    fprintf(stderr, "ok: csvm_eval_len bounded script\n");
+    cs1vm_free(vm);
+    fprintf(stderr, "ok: cs1vm_eval_len bounded script\n");
     return 0;
 }
 
@@ -3212,7 +3291,7 @@ test_dat2_cs1_scripts_copy(void)
     struct ToriAuxLibCore_Component* dst = ToriAuxLibCache_ComponentNewFromCacheDat2Component(&src);
     TEST_ASSERT(dst != NULL, "dat2 component convert");
     TEST_ASSERT(dst->scripts_count == 1, "dat2 cs1 script count");
-    TEST_ASSERT(dst->script_kind == CS2VM_SCRIPT_KIND_CS1, "dat2 cs1 script_kind");
+    TEST_ASSERT(dst->script_kind == CS1VM_SCRIPT_KIND_CS1, "dat2 cs1 script_kind");
     TEST_ASSERT(dst->scripts_lengths && dst->scripts_lengths[0] == 3, "dat2 cs1 script length");
 
     Component_free(&src);
@@ -3249,7 +3328,7 @@ test_dat2_cs1_with_if3_hooks_script_kind(void)
     struct ToriAuxLibCore_Component* dst = ToriAuxLibCache_ComponentNewFromCacheDat2Component(&src);
     TEST_ASSERT(dst != NULL, "dat2 mixed convert");
     TEST_ASSERT(dst->scripts_count == 1, "dat2 cs1 scripts preserved with IF3 hooks");
-    TEST_ASSERT(dst->script_kind == CS2VM_SCRIPT_KIND_CS1, "script_kind stays CS1 with IF3 hooks");
+    TEST_ASSERT(dst->script_kind == CS1VM_SCRIPT_KIND_CS1, "script_kind stays CS1 with IF3 hooks");
     TEST_ASSERT(dst->on_load.argc == 1, "IF3 onLoad hook copied");
 
     Component_free(&src);
@@ -3266,23 +3345,18 @@ test_cs2_behavior_is_active(void)
     int comp = 2;
     int operand = 5;
     struct StaticUIBehavior behavior = { 0 };
-    behavior.script_kind = CS2VM_SCRIPT_KIND_CS2;
+    behavior.script_kind = CS1VM_SCRIPT_KIND_CS2;
     behavior.scripts_count = 1;
     behavior.scripts = &script_ptr;
     behavior.script_comparator = &comp;
     behavior.script_operand = &operand;
 
-    struct CS2VM* vm = cs2vm_new();
-    TEST_ASSERT(vm != NULL, "cs2vm_new");
-
     struct UITreeBehaviorHost host;
     memset(&host, 0, sizeof(host));
-    host.cs2vm = vm;
 
-    TEST_ASSERT(uitree_behavior_is_active(&host, &behavior), "cs2 visibility script active");
+    TEST_ASSERT(!uitree_behavior_is_active(&host, &behavior), "cs2-kind inline behavior inactive");
 
-    cs2vm_free(vm);
-    fprintf(stderr, "ok: cs2 behavior is_active\n");
+    fprintf(stderr, "ok: cs2-kind inline behavior inactive\n");
     return 0;
 }
 
@@ -3429,7 +3503,7 @@ main(void)
     if( test_task_await() != 0 )
         return 1;
 
-    if( test_csvm_eval_len_bounded() != 0 )
+    if( test_cs1vm_eval_len_bounded() != 0 )
         return 1;
 
     if( test_dat2_cs1_scripts_copy() != 0 )

@@ -1007,10 +1007,10 @@ instance_revconfig_attach_scrollbar_sprites(
     int atlas = 0;
     int id = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, "scrollbar0", &atlas);
     if( id >= 0 )
-        game->ui_scrollbar0_scene_id = id;
+        game->ui_scroll.scrollbar0_scene_id = id;
     id = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, "scrollbar1", &atlas);
     if( id >= 0 )
-        game->ui_scrollbar1_scene_id = id;
+        game->ui_scroll.scrollbar1_scene_id = id;
 }
 
 void

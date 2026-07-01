@@ -1,6 +1,6 @@
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
-#include "vm/csvm.h"
+#include "vm/cs1vm.h"
 #include "vm/cs2vm.h"
 
 #include "buildcache/dat2_buildcache.h"
@@ -926,7 +926,7 @@ toriauxlibcache_component_copy_scripts(
 
         int len = (scripts_lengths && scripts_lengths[i] > 0)
                       ? scripts_lengths[i]
-                      : csvm_script_length(scripts[i]);
+                      : cs1vm_script_length(scripts[i]);
         if( len <= 0 )
             continue;
 
@@ -994,7 +994,7 @@ toriauxlibcache_component_copy_dat2_cs1_scripts(
         lengths,
         src->cs1ComparisonOpcodes,
         src->cs1ComparisonOperands);
-    dst->script_kind = CS2VM_SCRIPT_KIND_CS1;
+    dst->script_kind = CS1VM_SCRIPT_KIND_CS1;
 }
 
 static void
@@ -1022,10 +1022,20 @@ toriauxlibcache_component_copy_dat2_hooks(
             dst->inventory_triggers[i] = src->inventoryTriggers[i];
     }
 
+    if( src->varpTriggers && src->varpTriggersLen > 0 )
+    {
+        int n = src->varpTriggersLen;
+        if( n > TORIAUXLIBCORE_VARP_TRIGGER_MAX )
+            n = TORIAUXLIBCORE_VARP_TRIGGER_MAX;
+        dst->varp_triggers_count = n;
+        for( int i = 0; i < n; i++ )
+            dst->varp_triggers[i] = src->varpTriggers[i];
+    }
+
     if( dst->scripts_count <= 0 &&
         (dst->on_load.argc > 0 || dst->on_click.argc > 0 || dst->on_varp_transmit.argc > 0 ||
          dst->on_inv_transmit.argc > 0) )
-        dst->script_kind = CS2VM_SCRIPT_KIND_CS2;
+        dst->script_kind = CS1VM_SCRIPT_KIND_CS2;
 }
 
 struct ToriAuxLibCore_Component*
@@ -1090,7 +1100,7 @@ ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
         src->scripts_lengths,
         src->scriptComparator,
         src->scriptOperand);
-    dst->script_kind = CS2VM_SCRIPT_KIND_CS1;
+    dst->script_kind = CS1VM_SCRIPT_KIND_CS1;
 
     toriauxlibcache_debug_log_dat1_convert(src, dst);
 

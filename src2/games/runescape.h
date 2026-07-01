@@ -12,12 +12,19 @@
 #include "toridraw/toridraw_types.h"
 #include "ui/ui_input.h"
 #include "ui/ui_scroll.h"
+#include "ui/ui_scroll_runtime.h"
+#include "ui/ui_cross_cursor.h"
+#include "ui/ui_hover_routing.h"
+#include "ui/ui_inv_selection.h"
+#include "ui/chat_state.h"
 #include "ui/interaction_state.h"
 #include "ui/ui_minimenu.h"
 #include "ui/uitree.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
 #include "ui/ui_inv_data_service.h"
+#include "vm/cs2vm.h"
+#include "world/entity_registry.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -27,11 +34,12 @@ struct ToriDraw_Scene;
 struct ToriAuxLibTD;
 struct LibToriRS_IOContext;
 struct CS2VM;
+struct CS2Host;
 
-/** Click cross overlay (walk/interact cursor). */
-#define RUNESCAPE_CROSS_MODE_OFF 0
-#define RUNESCAPE_CROSS_MODE_WALK 1
-#define RUNESCAPE_CROSS_MODE_INTERACT 2
+/** Click cross overlay (walk/interact cursor). Prefer UI_CROSS_MODE_* from ui_cross_cursor.h. */
+#define RUNESCAPE_CROSS_MODE_OFF UI_CROSS_MODE_OFF
+#define RUNESCAPE_CROSS_MODE_WALK UI_CROSS_MODE_WALK
+#define RUNESCAPE_CROSS_MODE_INTERACT UI_CROSS_MODE_INTERACT
 
 /* OSRS rebuild-normal zone coords (zonex, zonez). */
 // Waterfall
@@ -65,22 +73,6 @@ struct CS2VM;
  */
 #define RUNESCAPE_WORLD_MAP_SCENE_ID 0
 
-enum GameRunescape_EntityKind
-{
-    RS_ENTITY_KIND_NONE = 0,
-    RS_ENTITY_KIND_PLAYER = 1,
-    RS_ENTITY_KIND_PROJECTILE = 2,
-    RS_ENTITY_KIND_NPC = 3,
-};
-
-#define RS_ENTITY_KIND_SHIFT 28
-#define RS_ENTITY_KIND_MASK 0xF
-#define RS_ENTITY_INDEX_MASK ((1 << RS_ENTITY_KIND_SHIFT) - 1)
-#define RS_ENTITY_ID(kind, index)                                                                  \
-    (((int)(kind) << RS_ENTITY_KIND_SHIFT) | ((index) & RS_ENTITY_INDEX_MASK))
-#define RS_ENTITY_KIND_OF(id) (((id) >> RS_ENTITY_KIND_SHIFT) & RS_ENTITY_KIND_MASK)
-#define RS_ENTITY_INDEX_OF(id) ((id) & RS_ENTITY_INDEX_MASK)
-
 enum GameRunescape_FramePhase
 {
     RS_FRAME_PHASE_GC_EVENTS = 0,
@@ -95,27 +87,74 @@ enum GameRunescape_FramePhase
 
 #define RUNESCAPE_UI_TRAVERSAL_STACK_MAX 64
 #define RUNESCAPE_UI_TEXT_SCRATCH_MAX 512
-#define RUNESCAPE_ENTITY_REGISTRY_INITIAL_CAP 32
-#define RUNESCAPE_CHAT_LINE_MAX 100
-#define RUNESCAPE_FRIEND_MAX 200
+#define RUNESCAPE_ENTITY_REGISTRY_INITIAL_CAP ENTITY_REGISTRY_INITIAL_CAP
+#define RUNESCAPE_CHAT_LINE_MAX CHAT_STATE_LINE_MAX
+#define RUNESCAPE_FRIEND_MAX CHAT_STATE_FRIEND_MAX
 
-struct GameRunescape_ChatLine
-{
-    char text[256];
-    char username[64];
-    int type;
-};
+typedef struct ChatLine GameRunescape_ChatLine;
+typedef struct EntityRecord GameRunescape_EntityRecord;
+typedef enum EntityKind GameRunescape_EntityKind;
 
 struct GameRunescape_UITraversalFrame
 {
     int32_t parent_index;
 };
 
-struct GameRunescape_EntityRecord
+/** Zone center, build flag, and baked minimap sprite dimensions. */
+struct GameRunescape_WorldMapState
 {
-    int entity_id;
-    int element_id;
-    int world_index;
+    /** OSRS zone X coordinate used when building the local scene. */
+    int zone_center_x;
+    /** OSRS zone Z coordinate used when building the local scene. */
+    int zone_center_z;
+    /** True after BuildWorldCenterzone / BuildWorldChunkList succeeds. */
+    bool world_built;
+    /** ToriDraw scene sprite id for the baked world-map minimap texture. */
+    int world_map_scene_id;
+    int world_map_w;
+    int world_map_h;
+};
+
+/** Mouse position, world viewport pickset, and last ground tile under cursor. */
+struct GameRunescape_WorldPickState
+{
+    int mouse_x;
+    int mouse_y;
+    /** True when mouse is inside world_view_port clip rect. */
+    bool mouse_in_viewport;
+    struct WorldPickSet pickset;
+    int last_tile_sx;
+    int last_tile_sz;
+    int last_tile_level;
+    bool last_tile_valid;
+};
+
+#define RS_UI_VARP_CHANGE_MAX 64
+
+/** Per-frame render traversal state (phase machine for GameRunescape_FrameNextCommand). */
+struct GameRunescape_FrameState
+{
+    enum GameRunescape_FramePhase phase;
+    int event_index;
+    int element_index;
+    int painter_command_index;
+    bool world_emitted;
+    bool painter_paint_done;
+    bool ui_2d_begun;
+    /** Current UITree node index during UI_2D traversal (-1 = none). */
+    int32_t ui_current;
+    /** Inventory slot index within the current inv-grid draw step. */
+    int ui_inv_slot;
+    int ui_minimenu_step;
+    int ui_chat_button_step;
+    int ui_scrollbar_step;
+    /** Multi-step UIELEM_RS_MODEL chat-head draw (END_2D/BEGIN_3D/DRAW/END_3D/BEGIN_2D). */
+    int ui_model_step;
+    int32_t ui_scrollbar_layer;
+    /** Client.ts scrollCycle: frames LMB held this tick (for arrow repeat). */
+    int ui_scroll_cycle;
+    struct GameRunescape_UITraversalFrame ui_stack[RUNESCAPE_UI_TRAVERSAL_STACK_MAX];
+    int ui_stack_top;
 };
 
 struct GameRunescape
@@ -128,110 +167,54 @@ struct GameRunescape
     struct ToriDraw_Position* camera_position;
     struct ToriDraw_Camera* camera;
     struct ToriDraw_ViewPort* view_port;
+    /** Clip rect for the 3D world viewport (main game area, not full UI canvas). */
     struct ToriDraw_ViewPort world_view_port;
     struct PaintersBuffer* painter_buffer;
+    /** Baked static UI component tree (revconfig / interface load). */
     struct UITree* ui_tree;
+    /** True once revconfig UI tree is loaded and safe to traverse. */
     bool ui_tree_ready;
+    /** True after SyncUISpritesFromScene has wired scene sprite ids into the tree. */
     bool ui_sprites_synced;
+    /** True after scene fonts are registered for UI text draw. */
     bool ui_fonts_synced;
+    /** Bake-time inventory pool (legacy seed data for inv_data). */
     struct UIInventoryPool* ui_inv_pool;
     struct UIInvDataService inv_data;
+    /** UITreeHost callbacks (CS2 active state, selected tab, inv slot lookup). */
     struct UITreeHost ui_host;
     struct UIInputState ui_input;
+    /** Active sidebar tab index (Client.ts selectedTab). */
     int selected_tab;
     struct ToriAuxLibVM* vm;
     struct CS2VM* cs2vm;
-    int32_t ui_hovered_node;
-    /** Client.ts overMainComId / overSideComId / overChatComId (-1 = none). */
-    int ui_over_main_com_id;
-    int ui_over_side_com_id;
-    int ui_over_chat_com_id;
-    int ui_over_main_com_id_prev;
-    int ui_over_side_com_id_prev;
-    int ui_over_chat_com_id_prev;
-    /** Per RS component id scroll position (Client.ts scrollPos / scrollX / scrollY). */
-    int ui_scroll_x[8192];
-    int ui_scroll_y[8192];
-    int ui_scroll_drag_layer_id;
-    enum UITreeScrollbarHitKind ui_scroll_drag_kind;
-    int ui_scroll_drag_anchor;
-    /** Client.ts scrollGrabbed: widens grip drag hit zone while dragging. */
-    bool ui_scroll_grabbed;
-    int32_t ui_minimenu_node;
-    int32_t ui_chat_node;
+    struct CS2Host cs2host;
+    struct UIHoverRouting ui_hover;
+    struct UIScrollRuntime ui_scroll;
+    /** Scratch buffer for per-frame UI text emission (avoids stack large strings). */
     char ui_text_scratch[RUNESCAPE_UI_TEXT_SCRATCH_MAX];
 
-    struct GameRunescape_ChatLine chat_lines[RUNESCAPE_CHAT_LINE_MAX];
-    int chat_line_count;
-    char friend_username[RUNESCAPE_FRIEND_MAX][64];
-    int friend_count;
-    int chat_scroll_pos;
-    int split_private_chat;
-    int chat_public_mode;
-    int chat_private_mode;
-    int chat_trade_mode;
-    int staff_mod_level;
-    int reboot_timer;
+    struct ChatState chat;
 
+    /** Current committed interaction target (walk, use, etc.). */
     struct InteractionState interaction;
     struct UIMinimenuState minimenu;
+    /** Staging interaction copied from a minimenu pick before commit. */
     struct InteractionState click_target;
 
-    int cross_x;
-    int cross_y;
-    int cross_mode;
-    int cross_cycle;
+    struct UICrossCursorState cross;
 
-    int selected_inv_source_id;
-    int selected_inv_slot;
+    struct UIInvSelection inv_selection;
 
-    int zone_center_x;
-    int zone_center_z;
-    bool world_built;
-    int world_map_scene_id;
-    int world_map_w;
-    int world_map_h;
-    int ui_scrollbar0_scene_id;
-    int ui_scrollbar1_scene_id;
+    struct GameRunescape_WorldMapState world_map;
+    struct GameRunescape_WorldPickState world_pick;
 
-    int mouse_x;
-    int mouse_y;
-    bool mouse_in_viewport;
-    struct WorldPickSet pickset;
-    int last_tile_sx;
-    int last_tile_sz;
-    int last_tile_level;
-    bool last_tile_valid;
+    struct EntityRegistry entities;
 
-    struct GameRunescape_EntityRecord* entity_registry;
-    int entity_registry_count;
-    int entity_registry_cap;
-    int next_projectile_entity_index;
-    int next_player_entity_index;
-    int next_npc_entity_index;
+    int varp_change_ids[RS_UI_VARP_CHANGE_MAX];
+    int varp_change_count;
 
-    struct
-    {
-        enum GameRunescape_FramePhase phase;
-        int event_index;
-        int element_index;
-        int painter_command_index;
-        bool world_emitted;
-        bool painter_paint_done;
-        bool ui_2d_begun;
-        int32_t ui_current;
-        int ui_inv_slot;
-        int ui_minimenu_step;
-        int ui_chat_button_step;
-        int ui_scrollbar_step;
-        /** Multi-step UIELEM_RS_MODEL chat-head draw (END_2D/BEGIN_3D/DRAW/END_3D/BEGIN_2D). */
-        int ui_model_step;
-        int32_t ui_scrollbar_layer;
-        /** Client.ts scrollCycle: frames LMB held this tick (for arrow repeat). */
-        int ui_scroll_cycle;
-        struct GameRunescape_UITraversalFrame ui_stack[RUNESCAPE_UI_TRAVERSAL_STACK_MAX];
-        int ui_stack_top;
-    } frame;
+    struct GameRunescape_FrameState frame;
 };
 
 struct GameRunescape*
@@ -293,6 +276,12 @@ GameRunescape_IF3InvApplyPartial(
     int const* obj_ids,
     int const* obj_counts,
     int count);
+
+/** Fire onInvTransmit hooks for components watching container_id. */
+void
+GameRunescape_DispatchInvTransmit(
+    struct GameRunescape* game,
+    int container_id);
 
 void
 GameRunescape_SyncUISpritesFromScene(struct GameRunescape* game);

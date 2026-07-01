@@ -364,11 +364,11 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                 int sx;
                 int sz;
                 int level;
-                if( game->last_tile_valid )
+                if( game->world_pick.last_tile_valid )
                 {
-                    sx = game->last_tile_sx;
-                    sz = game->last_tile_sz;
-                    level = game->last_tile_level;
+                    sx = game->world_pick.last_tile_sx;
+                    sz = game->world_pick.last_tile_sz;
+                    level = game->world_pick.last_tile_level;
                 }
                 else
                 {
@@ -377,7 +377,7 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                     level = GameRunescape_CameraTerrainLevel(game);
                 }
                 int const entity_id = RS_ENTITY_ID(
-                    RS_ENTITY_KIND_PROJECTILE, game->next_projectile_entity_index++);
+                    RS_ENTITY_KIND_PROJECTILE, game->entities.next_projectile_index++);
                 struct Task_GameRunescape_WorldEntityAddProjectile* task =
                     Task_GameRunescape_WorldEntityAddProjectile_New(
                         game,
@@ -411,11 +411,11 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                 int sx;
                 int sz;
                 int level;
-                if( game->last_tile_valid )
+                if( game->world_pick.last_tile_valid )
                 {
-                    sx = game->last_tile_sx;
-                    sz = game->last_tile_sz;
-                    level = game->last_tile_level;
+                    sx = game->world_pick.last_tile_sx;
+                    sz = game->world_pick.last_tile_sz;
+                    level = game->world_pick.last_tile_level;
                 }
                 else
                 {
@@ -424,7 +424,7 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                     level = GameRunescape_CameraTerrainLevel(game);
                 }
                 int const entity_id = RS_ENTITY_ID(
-                    RS_ENTITY_KIND_PLAYER, game->next_player_entity_index++);
+                    RS_ENTITY_KIND_PLAYER, game->entities.next_player_index++);
                 struct Task_GameRunescape_WorldEntityAddPlayer* task =
                     Task_GameRunescape_WorldEntityAddPlayer_New(
                         game,
@@ -456,11 +456,11 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                 int sz;
                 int level;
                 int npc_id;
-                if( game->last_tile_valid )
+                if( game->world_pick.last_tile_valid )
                 {
-                    sx = game->last_tile_sx;
-                    sz = game->last_tile_sz;
-                    level = game->last_tile_level;
+                    sx = game->world_pick.last_tile_sx;
+                    sz = game->world_pick.last_tile_sz;
+                    level = game->world_pick.last_tile_level;
                 }
                 else
                 {
@@ -473,7 +473,7 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                              ? RUNESCAPE_EXAMPLE_NPC_ID_DAT1
                              : RUNESCAPE_EXAMPLE_NPC_ID_DAT2;
                 int const entity_id =
-                    RS_ENTITY_ID(RS_ENTITY_KIND_NPC, game->next_npc_entity_index++);
+                    RS_ENTITY_ID(RS_ENTITY_KIND_NPC, game->entities.next_npc_index++);
                 struct Task_GameRunescape_WorldEntityAddNPC* task =
                     Task_GameRunescape_WorldEntityAddNPC_New(
                         game, entity_id, npc_id, sx, sz, level);

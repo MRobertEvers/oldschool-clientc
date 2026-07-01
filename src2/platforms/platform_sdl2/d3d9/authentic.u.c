@@ -18,8 +18,8 @@ d3d9_ev_tex_load(
     struct ToriDraw_Texture* tex = command->u.tex_load.texture;
     assert(tex_id < 0 || tex_id >= 255 || !tex || !tex->texels);
 
-    static uint8_t rgba_scratch[TRSPK_D3D9_ATLAS_TILE * TRSPK_D3D9_ATLAS_TILE * 4];
-    d3d9_decode_texture_rgba(tex, rgba_scratch);
+    static uint8_t rgba_scratch[TRSPK_ATLAS_TILE * TRSPK_ATLAS_TILE * 4u];
+    trspk_atlas_decode_texture_rgba(tex, TRSPK_ATLAS_TILE, rgba_scratch);
 
     if( tex->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE )
     {
@@ -42,9 +42,9 @@ d3d9_ev_tex_load(
             &renderer->atlas,
             (uint32_t)(tex_id + 1),
             rgba_scratch,
-            TRSPK_D3D9_ATLAS_TILE * 4u,
-            TRSPK_D3D9_ATLAS_TILE,
-            TRSPK_D3D9_ATLAS_TILE,
+            TRSPK_ATLAS_TILE * 4u,
+            TRSPK_ATLAS_TILE,
+            TRSPK_ATLAS_TILE,
             NULL);
 
     }

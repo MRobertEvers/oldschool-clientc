@@ -1,6 +1,7 @@
 #ifndef UITREE_H
 #define UITREE_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define UI_INVENTORY_MAX_ITEMS 128
@@ -111,7 +112,7 @@ struct StaticUIBehavior
     /** Client.ts hide: layer skipped unless hovered_component_id == component_id. */
     uint8_t hide;
 
-    /** 0 = CS1 (csvm), 1 = CS2 (cs2vm). */
+    /** 0 = CS1 (cs1vm), 1 = CS2-kind inline (inactive). */
     uint8_t script_kind;
 
     /** Client.ts buttonType: OK/TARGET/CLOSE/TOGGLE/SELECT/CONTINUE; 0 = none. */
@@ -490,6 +491,69 @@ uitree_free(struct UITree* tree);
 /** Mark every component dirty for the upcoming frame traversal. */
 void
 uitree_mark_all_dirty(struct UITree* tree);
+
+/** Mark one node dirty for the upcoming frame traversal. */
+void
+uitree_mark_node_dirty(
+    struct UITree* tree,
+    int32_t idx);
+
+/** Linear search for a baked RS node by cache component id; -1 if not found. */
+int32_t
+uitree_find_by_component_id(
+    struct UITree const* tree,
+    int component_id);
+
+/** Apply CS2 IF/CC hide to a node (by packed component id). Returns true if updated. */
+bool
+uitree_apply_hide(
+    struct UITree* tree,
+    int component_id,
+    int hide);
+
+/** Apply CS2 IF/CC text to RS_TEXT node. Returns true if updated. */
+bool
+uitree_apply_text(
+    struct UITree* tree,
+    int component_id,
+    char const* text);
+
+/** Apply CS2 IF/CC graphic id to RS_GRAPHIC node. Returns true if updated. */
+bool
+uitree_apply_graphic(
+    struct UITree* tree,
+    int component_id,
+    int graphic_id);
+
+/** Apply CS2 IF/CC colour to RS_TEXT or RS_RECT node. Returns true if updated. */
+bool
+uitree_apply_colour(
+    struct UITree* tree,
+    int component_id,
+    int colour);
+
+/** Apply CS2 IF_SETPOSITION / IF_SETSIZE to a node's layout fields. */
+bool
+uitree_apply_position(
+    struct UITree* tree,
+    int component_id,
+    int x,
+    int y);
+
+bool
+uitree_apply_size(
+    struct UITree* tree,
+    int component_id,
+    int width,
+    int height);
+
+/** Apply CS2 IF_SETSCROLLSIZE to RS_LAYER scroll fields. */
+bool
+uitree_apply_scroll_size(
+    struct UITree* tree,
+    int component_id,
+    int scroll_width,
+    int scroll_height);
 
 /** Deep-copies script arrays from src into tree->components[idx].behavior. */
 void

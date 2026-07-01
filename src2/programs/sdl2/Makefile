@@ -75,6 +75,7 @@ COMMON_SRCS := sdl2.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_soft3d.c \
 	$(SRC2)/platformkit/core/trspk_atlas.c \
+	$(SRC2)/platformkit/core/trspk_core_math.c \
 	$(SRC2)/platformkit/core/trspk_drawrangelist.c \
 	$(SRC2)/platformkit/core/trspk_drawrangeex.c \
 	$(SRC2)/platformkit/core/trspk_ibo.c \
@@ -84,6 +85,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/platformkit/core/trspk_vbo.c \
 	$(SRC2)/platformkit/core/trspk_vbochain16.c \
 	$(PLAT_DIR)/trspk_toridraw.c \
+	$(PLAT_DIR)/trspk_sprite.c \
 	$(TRSPK_DIR)/src/tools/trspk_batch32.c \
 	$(TRSPK_DIR)/src/tools/trspk_resource_cache.c \
 	$(TRSPK_DIR)/src/tools/trspk_vertex_buffer.c \
@@ -134,8 +136,13 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toriauxlib/core/tasks/task_toriauxlibtd.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachemodel.c \
-	$(SRC2)/vm/csvm.c \
+	$(SRC2)/vm/cs1vm.c \
+	$(SRC2)/vm/cs1vm_host.c \
+	$(SRC2)/vm/cs1vm_level.c \
+	$(SRC2)/vm/cs2_script.c \
 	$(SRC2)/vm/cs2vm.c \
+	$(SRC2)/vm/cs2_opcode_meta.c \
+	$(SRC2)/vm/cs2_host_ui.c \
 	$(SRC2)/toriauxlib/vm/toriauxlibvm.c \
 	$(SRC_DIR)/osrs/varp_varbit_manager.c \
 	$(SRC2)/toridraw/toridraw_animation.c \
@@ -172,6 +179,12 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/ui/uitree_host.c \
 	$(SRC2)/ui/ui_input.c \
 	$(SRC2)/ui/ui_scroll.c \
+	$(SRC2)/ui/ui_scroll_runtime.c \
+	$(SRC2)/ui/ui_cross_cursor.c \
+	$(SRC2)/ui/ui_hover_routing.c \
+	$(SRC2)/ui/ui_inv_selection.c \
+	$(SRC2)/ui/chat_state.c \
+	$(SRC2)/world/entity_registry.c \
 	$(SRC2)/ui/ui_behavior.c \
 	$(SRC2)/ui/rs_inv_container.c \
 	$(SRC2)/ui/ui_inv_data_service.c \

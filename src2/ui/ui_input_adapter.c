@@ -2,6 +2,7 @@
 
 #include "../input/libtorirs_input.h"
 #include "toriauxlib/vm/toriauxlibvm.h"
+#include "vm/cs1vm_host.h"
 
 #include <string.h>
 
@@ -92,14 +93,15 @@ ui_input_adapter_init_behavior_host(
     struct UITreeBehaviorHost* host,
     struct ToriAuxLibVM* vm)
 {
-    ui_input_adapter_init_behavior_host_ex(host, vm, NULL);
+    ui_input_adapter_init_behavior_host_ex(host, vm, NULL, NULL);
 }
 
 void
 ui_input_adapter_init_behavior_host_ex(
     struct UITreeBehaviorHost* host,
     struct ToriAuxLibVM* vm,
-    struct CS2VM* cs2vm)
+    struct CS2VM* cs2vm,
+    struct CS2Host* cs2host)
 {
     if( !host )
         return;
@@ -110,15 +112,12 @@ ui_input_adapter_init_behavior_host_ex(
 
     if( vm )
     {
-        host->csvm = ToriAuxLibVM_CSVM(vm);
+        host->cs1vm = ToriAuxLibVM_CS1VM(vm);
         host->varp_varbit = ToriAuxLibVM_VarPVarBit(vm);
-        host->csvm_state.get_varp = ui_adapter_get_varp;
-        host->csvm_state.get_varbit = ui_adapter_get_varbit;
-        host->csvm_state.ud = vm;
-        host->cs2vm_state.get_varp = ui_adapter_get_varp;
-        host->cs2vm_state.get_varbit = ui_adapter_get_varbit;
-        host->cs2vm_state.ud = vm;
+        cs1vm_host_fill_varp_varbit(&host->cs1host, vm);
     }
 
     host->cs2vm = cs2vm;
+    if( cs2host )
+        host->cs2host = *cs2host;
 }

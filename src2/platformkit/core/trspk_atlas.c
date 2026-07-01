@@ -1,5 +1,7 @@
 #include "platformkit/core/trspk_atlas.h"
 
+#include "toridraw/toridraw_types.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -410,6 +412,40 @@ trspk_atlas_binpack_insert(
 
     tile_fill(tile_out, chosen.x, chosen.y, src_w, src_h, atlas->width, atlas->height);
     return true;
+}
+
+void
+trspk_atlas_decode_texture_rgba(
+    const struct ToriDraw_Texture* tex,
+    uint32_t tile_size,
+    uint8_t* out_rgba)
+{
+    const uint32_t src_w = (uint32_t)tex->width;
+    const uint32_t src_h = (uint32_t)tex->height;
+    const uint32_t pixel_count = tile_size * tile_size * 4u;
+
+    memset(out_rgba, 0, pixel_count);
+    if( src_w == 0u || src_h == 0u )
+        return;
+
+    for( uint32_t dst_row = 0; dst_row < tile_size; dst_row++ )
+    {
+        const uint32_t src_row = (dst_row * src_h) / tile_size;
+        for( uint32_t dst_col = 0; dst_col < tile_size; dst_col++ )
+        {
+            const uint32_t src_col = (dst_col * src_w) / tile_size;
+            const int texel = tex->texels[src_row * src_w + src_col];
+            const uint8_t rv = (uint8_t)((texel >> 16) & 0xFF);
+            const uint8_t gv = (uint8_t)((texel >> 8) & 0xFF);
+            const uint8_t bv = (uint8_t)(texel & 0xFF);
+            const uint8_t av = (tex->opaque || texel != 0) ? 255u : 0u;
+            const uint32_t idx = (dst_row * tile_size + dst_col) * 4u;
+            out_rgba[idx + 0] = rv;
+            out_rgba[idx + 1] = gv;
+            out_rgba[idx + 2] = bv;
+            out_rgba[idx + 3] = av;
+        }
+    }
 }
 
 /* ------------------------------------------------------------------ */

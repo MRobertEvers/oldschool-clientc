@@ -1,5 +1,7 @@
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
+#include "vm/cs2_script.h"
+
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_sprite.h"
 
@@ -633,12 +635,22 @@ ToriAuxLibCore_ClientScriptSizeOf(const struct ToriAuxLibCore_ClientScript* scri
         return 0;
 
     size_t bytes = sizeof(*script);
-    if( script->instructions )
-        bytes += (size_t)script->op_count * sizeof(*script->instructions);
-    if( script->int_operands )
-        bytes += (size_t)script->op_count * sizeof(*script->int_operands);
-    if( script->cs2vm_ops )
-        bytes += (size_t)script->cs2vm_op_count * sizeof(*script->cs2vm_ops);
+    struct CS2_Script const* s = &script->script;
+    if( s->opcodes )
+        bytes += (size_t)s->op_count * sizeof(*s->opcodes);
+    if( s->int_operands )
+        bytes += (size_t)s->op_count * sizeof(*s->int_operands);
+    if( s->string_operands )
+    {
+        bytes += (size_t)s->op_count * sizeof(*s->string_operands);
+        for( int i = 0; i < s->op_count; i++ )
+        {
+            if( s->string_operands[i] )
+                bytes += strlen(s->string_operands[i]) + 1;
+        }
+    }
+    if( s->signature )
+        bytes += strlen(s->signature) + 1;
     return bytes;
 }
 
@@ -647,9 +659,7 @@ ToriAuxLibCore_ClientScriptFree(struct ToriAuxLibCore_ClientScript* script)
 {
     if( !script )
         return;
-    free(script->instructions);
-    free(script->int_operands);
-    free(script->cs2vm_ops);
+    cs2_script_free(&script->script);
     free(script);
 }
 

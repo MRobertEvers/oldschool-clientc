@@ -231,7 +231,7 @@ test_projectile_movement_and_painter(
     struct LibToriPlatformSDL2_RendererSoft3D* renderer)
 {
     struct GameRunescape* game = instance->runescape;
-    if( !game || !game->world_built || !game->world || !game->world->load_complete )
+    if( !game || !game->world_map.world_built || !game->world || !game->world->load_complete )
         FAIL("runescape world not built");
 
     int const projectile_model_id = PROJECTILE_MODEL_ID;
@@ -272,12 +272,12 @@ test_projectile_movement_and_painter(
 
     int projectile_idx = -1;
     int element_id = -1;
-    for( int i = 0; i < game->entity_registry_count; i++ )
+    for( int i = 0; i < game->entities.count; i++ )
     {
-        if( game->entity_registry[i].entity_id == entity_id )
+        if( game->entities.records[i].entity_id == entity_id )
         {
-            projectile_idx = game->entity_registry[i].world_index;
-            element_id = game->entity_registry[i].element_id;
+            projectile_idx = game->entities.records[i].world_index;
+            element_id = game->entities.records[i].element_id;
             break;
         }
     }
@@ -472,7 +472,7 @@ main(
     if( !run_init_script(instance, lua, io_reactor) )
         FAIL("init_runescape.lua failed");
 
-    if( !instance->runescape || !instance->runescape->world_built )
+    if( !instance->runescape || !instance->runescape->world_map.world_built )
         FAIL("world not built after init script");
 
     struct LibToriPlatformSDL2* platform = LibToriPlatformSDL2_New();
@@ -521,7 +521,7 @@ main(
         int const camera_sx = game->camera_position->x / 128;
         int const camera_sz = game->camera_position->z / 128;
         int const interactive_entity_id =
-            RS_ENTITY_ID(RS_ENTITY_KIND_PROJECTILE, game->next_projectile_entity_index++);
+            RS_ENTITY_ID(RS_ENTITY_KIND_PROJECTILE, game->entities.next_projectile_index++);
         (void)GameRunescape_WorldEntityAddProjectile(
             game,
             interactive_entity_id,

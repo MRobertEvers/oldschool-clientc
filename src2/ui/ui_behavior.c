@@ -2,7 +2,6 @@
 
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/varp_varbit_manager.h"
-#include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "ui_debug.h"
@@ -10,6 +9,7 @@
 #include "uitree_host.h"
 #include "uitree_layout.h"
 
+#include <assert.h>
 #include <stdio.h>
 
 bool
@@ -310,15 +310,11 @@ uitree_behavior_is_active(
     if( !host || !behavior || !behavior->script_comparator || !behavior->script_operand )
         return false;
 
-    if( behavior->script_kind == CS2VM_SCRIPT_KIND_CS2 )
-    {
-        if( !host->cs2vm )
-            return false;
-    }
-    else if( !host->csvm )
-    {
+    if( behavior->script_kind == CS1VM_SCRIPT_KIND_CS2 )
         return false;
-    }
+
+    if( !host->cs1vm )
+        return false;
 
     int count = behavior->scripts_count;
     if( count <= 0 )
@@ -331,22 +327,12 @@ uitree_behavior_is_active(
 
         int script_len =
             behavior->scripts_lengths ? behavior->scripts_lengths[i] : 0;
-        int value = 0;
-        if( behavior->script_kind == CS2VM_SCRIPT_KIND_CS2 && host->cs2vm )
-            value = cs2vm_eval(host->cs2vm, behavior->scripts[i], &host->cs2vm_state);
-        else if( host->csvm )
-            value = csvm_eval_len(host->csvm, behavior->scripts[i], &host->csvm_state, script_len);
-        else
-            return false;
+        int value =
+            cs1vm_eval_len(host->cs1vm, behavior->scripts[i], &host->cs1host, script_len);
 
         int operand = behavior->script_operand[i];
         int comp = behavior->script_comparator[i];
-        if( behavior->script_kind == CS2VM_SCRIPT_KIND_CS2 )
-        {
-            if( !cs2vm_compare(comp, value, operand) )
-                return false;
-        }
-        else if( !csvm_compare(comp, value, operand) )
+        if( !cs1vm_compare(comp, value, operand) )
             return false;
     }
     return true;
@@ -368,6 +354,8 @@ uitree_behavior_hook_slot(
         return &component->on_click;
     case UITREE_BEHAVIOR_HOOK_ON_VARP_TRANSMIT:
         return &component->on_varp_transmit;
+    case UITREE_BEHAVIOR_HOOK_ON_INV_TRANSMIT:
+        return &component->on_inv_transmit;
     default:
         return NULL;
     }
@@ -397,15 +385,114 @@ uitree_behavior_run_hook(
         script = ToriAuxLibCore_ClientScriptGet(core, script_id);
     if( !script && cache )
         script = ToriAuxLibCache_ClientScriptResolve(cache, script_id);
-    if( !script )
+    if( !script || script->script.op_count <= 0 )
         return;
 
-    if( !script->cs2vm_ops )
-        ToriAuxLibCore_ClientScriptBuildCs2vmOps(script);
-    if( !script->cs2vm_ops || script->cs2vm_op_count <= 0 )
+    struct CS2_RunArgs args = {
+        .int_argc = hook->argc > 1 ? hook->argc - 1 : 0,
+        .int_argv = hook->argc > 1 ? &hook->argv[1] : NULL,
+        .string_argc = 0,
+        .string_argv = NULL,
+    };
+    int rc = cs2vm_run(host->cs2vm, &script->script, &host->cs2host, &args);
+    if( rc != CS2VM_OK )
+    {
+        fprintf(
+            stderr,
+            "uitree_behavior_run_hook: cs2vm_run failed script_id=%d hook=%d rc=%d\n",
+            script_id,
+            (int)hook_kind,
+            rc);
+        assert(rc == CS2VM_OK);
+    }
+}
+
+static bool
+uitree_behavior_component_watches_container(
+    struct ToriAuxLibCore_Component const* component,
+    int container_id)
+{
+    if( !component || container_id < 0 || component->on_inv_transmit.argc <= 0 )
+        return false;
+    if( component->inventory_triggers_count <= 0 )
+        return true;
+    for( int i = 0; i < component->inventory_triggers_count; i++ )
+    {
+        if( component->inventory_triggers[i] == container_id )
+            return true;
+    }
+    return false;
+}
+
+static bool
+uitree_behavior_component_watches_varp(
+    struct ToriAuxLibCore_Component const* component,
+    int varp_id)
+{
+    if( !component || varp_id < 0 || component->on_varp_transmit.argc <= 0 )
+        return false;
+    if( component->varp_triggers_count <= 0 )
+        return true;
+    for( int i = 0; i < component->varp_triggers_count; i++ )
+    {
+        if( component->varp_triggers[i] == varp_id )
+            return true;
+    }
+    return false;
+}
+
+void
+uitree_behavior_dispatch_inv_transmit(
+    struct UITreeBehaviorHost* host,
+    struct ToriAuxLibCore* core,
+    struct ToriAuxLibCache* cache,
+    struct UITree const* tree,
+    int container_id)
+{
+    if( !host || !host->cs2vm || !core || !tree || container_id < 0 )
         return;
 
-    (void)cs2vm_eval(host->cs2vm, script->cs2vm_ops, &host->cs2vm_state);
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* node = &tree->components[i];
+        if( node->component_id < 0 )
+            continue;
+        struct ToriAuxLibCore_Component* component =
+            ToriAuxLibCore_ComponentGet(core, node->component_id);
+        if( !component )
+            continue;
+        if( !uitree_behavior_component_watches_container(component, container_id) )
+            continue;
+        uitree_behavior_run_hook(
+            host, core, cache, component, UITREE_BEHAVIOR_HOOK_ON_INV_TRANSMIT);
+    }
+}
+
+void
+uitree_behavior_dispatch_varp_transmit(
+    struct UITreeBehaviorHost* host,
+    struct ToriAuxLibCore* core,
+    struct ToriAuxLibCache* cache,
+    struct UITree const* tree,
+    int varp_id)
+{
+    if( !host || !host->cs2vm || !core || !tree || varp_id < 0 )
+        return;
+
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* node = &tree->components[i];
+        if( node->component_id < 0 )
+            continue;
+        struct ToriAuxLibCore_Component* component =
+            ToriAuxLibCore_ComponentGet(core, node->component_id);
+        if( !component )
+            continue;
+        if( !uitree_behavior_component_watches_varp(component, varp_id) )
+            continue;
+        uitree_behavior_run_hook(
+            host, core, cache, component, UITREE_BEHAVIOR_HOOK_ON_VARP_TRANSMIT);
+    }
 }
 
 int

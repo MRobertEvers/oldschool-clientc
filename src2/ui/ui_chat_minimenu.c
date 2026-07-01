@@ -1,6 +1,7 @@
 #include "ui_chat_minimenu.h"
 
 #include "games/runescape.h"
+#include "ui/chat_state.h"
 #include "osrs/minimenu_action.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw_scene.h"
@@ -86,14 +87,7 @@ ui_chat_minimenu_add_template_row(
 static bool
 ui_chat_minimenu_sender_is_friend(struct GameRunescape const* game, char const* sender)
 {
-    if( !game || !sender || sender[0] == '\0' )
-        return false;
-    for( int i = 0; i < game->friend_count; i++ )
-    {
-        if( strcmp(game->friend_username[i], sender) == 0 )
-            return true;
-    }
-    return false;
+    return game && chat_state_is_friend(&game->chat, sender);
 }
 
 static bool
@@ -104,9 +98,9 @@ ui_chat_minimenu_line_visible_public(
 {
     if( chat_type != 1 && chat_type != 2 )
         return false;
-    if( game->chat_public_mode == 0 )
+    if( game->chat.public_mode == 0 )
         return true;
-    if( game->chat_public_mode == 1 )
+    if( game->chat.public_mode == 1 )
         return ui_chat_minimenu_sender_is_friend(game, sender);
     return false;
 }
@@ -121,9 +115,9 @@ ui_chat_minimenu_line_visible_private(
         return false;
     if( chat_type == 7 )
         return true;
-    if( game->chat_private_mode == 0 )
+    if( game->chat.private_mode == 0 )
         return true;
-    if( game->chat_private_mode == 1 )
+    if( game->chat.private_mode == 1 )
         return ui_chat_minimenu_sender_is_friend(game, sender);
     return false;
 }
@@ -136,9 +130,9 @@ ui_chat_minimenu_line_visible_trade(
 {
     if( chat_type != 4 && chat_type != 8 )
         return false;
-    if( game->chat_trade_mode == 0 )
+    if( game->chat.trade_mode == 0 )
         return true;
-    if( game->chat_trade_mode == 1 )
+    if( game->chat.trade_mode == 1 )
         return ui_chat_minimenu_sender_is_friend(game, sender);
     return false;
 }
@@ -154,7 +148,7 @@ ui_chat_minimenu_add_social_rows(
     if( !game || !config || !menu || !sender || sender[0] == '\0' )
         return;
 
-    if( game->staff_mod_level >= 1 && config->op_report_abuse[0] != '\0' )
+    if( game->chat.staff_mod_level >= 1 && config->op_report_abuse[0] != '\0' )
     {
         ui_chat_minimenu_add_template_row(
             menu,
@@ -204,7 +198,7 @@ ui_chat_minimenu_resolve_config(struct GameRunescape* game)
     if( !game || !game->ui_tree )
         return &k_defaults;
 
-    int32_t chat_idx = game->ui_chat_node;
+    int32_t chat_idx = game->ui_hover.chat_node;
     if( chat_idx < 0 || (uint32_t)chat_idx >= game->ui_tree->component_count ||
         game->ui_tree->components[chat_idx].type != UIELEM_BUILTIN_CHAT )
         chat_idx = uitree_find_chat_builtin_node(game->ui_tree);
@@ -226,22 +220,22 @@ ui_chat_minimenu_add_private_strip(
     int mouse_y,
     struct UIMinimenuState* menu)
 {
-    if( !game || !menu || game->split_private_chat == 0 )
+    if( !game || !menu || game->chat.split_private_chat == 0 )
         return;
 
     struct StaticUIChatMinimenuConfig const* config = ui_chat_minimenu_resolve_config(game);
-    int line = game->reboot_timer != 0 ? 1 : 0;
+    int line = game->chat.reboot_timer != 0 ? 1 : 0;
 
-    for( int i = 0; i < game->chat_line_count && i < RUNESCAPE_CHAT_LINE_MAX; i++ )
+    for( int i = 0; i < game->chat.line_count && i < RUNESCAPE_CHAT_LINE_MAX; i++ )
     {
-        struct GameRunescape_ChatLine const* row = &game->chat_lines[i];
+        struct ChatLine const* row = &game->chat.lines[i];
         if( row->text[0] == '\0' )
             continue;
 
         int const chat_type = row->type;
         if( !ui_chat_minimenu_line_visible_private(game, chat_type, row->username) )
         {
-            if( (chat_type == 5 || chat_type == 6) && game->chat_private_mode < 2 )
+            if( (chat_type == 5 || chat_type == 6) && game->chat.private_mode < 2 )
                 line++;
             continue;
         }
@@ -270,9 +264,9 @@ ui_chat_minimenu_add_main_box(
     if( !config )
         config = ui_chat_minimenu_resolve_config(game);
 
-    for( int i = 0; i < game->chat_line_count && i < RUNESCAPE_CHAT_LINE_MAX; i++ )
+    for( int i = 0; i < game->chat.line_count && i < RUNESCAPE_CHAT_LINE_MAX; i++ )
     {
-        struct GameRunescape_ChatLine const* row = &game->chat_lines[i];
+        struct ChatLine const* row = &game->chat.lines[i];
         if( row->text[0] == '\0' )
             continue;
 
@@ -280,24 +274,24 @@ ui_chat_minimenu_add_main_box(
         int line = 0;
         for( int j = 0; j < i; j++ )
         {
-            int const prior_type = game->chat_lines[j].type;
+            int const prior_type = game->chat.lines[j].type;
             if( prior_type == 0 )
                 line++;
             else if( prior_type == 1 || prior_type == 2 )
                 line++;
             else if(
-                (prior_type == 3 || prior_type == 7) && game->split_private_chat == 0 &&
-                game->chat_private_mode < 2 )
+                (prior_type == 3 || prior_type == 7) && game->chat.split_private_chat == 0 &&
+                game->chat.private_mode < 2 )
                 line++;
-            else if( (prior_type == 4 || prior_type == 8) && game->chat_trade_mode < 2 )
+            else if( (prior_type == 4 || prior_type == 8) && game->chat.trade_mode < 2 )
                 line++;
             else if(
-                (prior_type == 5 || prior_type == 6) && game->split_private_chat == 0 &&
-                game->chat_private_mode < 2 )
+                (prior_type == 5 || prior_type == 6) && game->chat.split_private_chat == 0 &&
+                game->chat.private_mode < 2 )
                 line++;
         }
 
-        int const y = game->chat_scroll_pos + 70 + 4 - line * 14;
+        int const y = game->chat.scroll_pos + 70 + 4 - line * 14;
         if( y < -20 )
             break;
 
@@ -311,7 +305,7 @@ ui_chat_minimenu_add_main_box(
         }
         else if(
             ui_chat_minimenu_line_visible_private(game, chat_type, row->username) &&
-            game->split_private_chat == 0 )
+            game->chat.split_private_chat == 0 )
         {
             ui_chat_minimenu_add_social_rows(game, config, menu, row->username, 0);
         }
@@ -354,11 +348,11 @@ ui_chat_button_active_mode(
     switch( filter )
     {
     case STATIC_UI_CHAT_BUTTON_PUBLIC:
-        return game->chat_public_mode;
+        return game->chat.public_mode;
     case STATIC_UI_CHAT_BUTTON_PRIVATE:
-        return game->chat_private_mode;
+        return game->chat.private_mode;
     case STATIC_UI_CHAT_BUTTON_TRADE:
-        return game->chat_trade_mode;
+        return game->chat.trade_mode;
     default:
         return 0;
     }
@@ -489,15 +483,15 @@ ui_chat_button_handle_click(
     switch( cfg->filter )
     {
     case STATIC_UI_CHAT_BUTTON_PUBLIC:
-        game->chat_public_mode = (game->chat_public_mode + 1) % 4;
+        chat_state_cycle_public_mode(&game->chat);
         GameRunescape_SendChatSetMode(game);
         break;
     case STATIC_UI_CHAT_BUTTON_PRIVATE:
-        game->chat_private_mode = (game->chat_private_mode + 1) % 3;
+        chat_state_cycle_private_mode(&game->chat);
         GameRunescape_SendChatSetMode(game);
         break;
     case STATIC_UI_CHAT_BUTTON_TRADE:
-        game->chat_trade_mode = (game->chat_trade_mode + 1) % 3;
+        chat_state_cycle_trade_mode(&game->chat);
         GameRunescape_SendChatSetMode(game);
         break;
     case STATIC_UI_CHAT_BUTTON_REPORT:

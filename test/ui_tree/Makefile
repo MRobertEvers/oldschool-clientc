@@ -25,8 +25,9 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/ui/ui_input.c \
 	$(SRC2_DIR)/ui/ui_scroll.c \
 	$(SRC2_DIR)/ui/ui_chat_minimenu.c \
+	$(SRC2_DIR)/ui/chat_state.c \
 	$(SRC2_DIR)/ui/ui_behavior.c \
-	$(SRC2_DIR)/vm/csvm.c \
+	$(SRC2_DIR)/vm/cs1vm.c \
 	$(SRC2_DIR)/toridraw/toridraw_sprite.c \
 	$(SRC2_DIR)/toridraw/toridraw_math.c \
 	$(SRC_DIR)/bmp.c \

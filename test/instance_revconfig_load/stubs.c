@@ -144,8 +144,8 @@ GameRunescape_MinimenuPrepareShow(
         return false;
 
     int font_id = -1;
-    if( game->ui_tree && game->ui_minimenu_node >= 0 )
-        font_id = game->ui_tree->components[game->ui_minimenu_node].u.minimenu.font_id;
+    if( game->ui_tree && game->ui_hover.minimenu_node >= 0 )
+        font_id = game->ui_tree->components[game->ui_hover.minimenu_node].u.minimenu.font_id;
 
     struct ToriDraw_Font* font =
         game->scene && font_id >= 0 ? ToriDraw_SceneFontGet(game->scene, font_id) : NULL;
@@ -173,9 +173,9 @@ GameRunescape_GetScrollPos(
     if( !game || component_id < 0 || component_id >= 8192 )
         return;
     if( sx )
-        *sx = game->ui_scroll_x[component_id];
+        *sx = game->ui_scroll.scroll_x[component_id];
     if( sy )
-        *sy = game->ui_scroll_y[component_id];
+        *sy = game->ui_scroll.scroll_y[component_id];
 }
 
 void
@@ -293,34 +293,4 @@ GameRunescape_UITreeIndexForComponentId(
             return (int32_t)i;
     }
     return -1;
-}
-
-struct ToriAuxLibVM
-{
-    struct VarPVarBitManager varp_varbit;
-};
-
-struct ToriAuxLibVM*
-ToriAuxLibVM_New(void)
-{
-    struct ToriAuxLibVM* vm = calloc(1, sizeof(*vm));
-    if( !vm )
-        return NULL;
-    varp_varbit_init(&vm->varp_varbit);
-    return vm;
-}
-
-void
-ToriAuxLibVM_Free(struct ToriAuxLibVM* vm)
-{
-    if( !vm )
-        return;
-    varp_varbit_free(&vm->varp_varbit);
-    free(vm);
-}
-
-struct VarPVarBitManager*
-ToriAuxLibVM_VarPVarBit(struct ToriAuxLibVM* vm)
-{
-    return vm ? &vm->varp_varbit : NULL;
 }

@@ -1,6 +1,8 @@
 #ifndef TORIAUXLIBCORE_TYPES_H
 #define TORIAUXLIBCORE_TYPES_H
 
+#include "vm/cs2_script.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -333,6 +335,7 @@ enum ToriAuxLibCore_ComponentType
 /** Matches OSRS INV slotGraphic array length (equipment silhouettes, etc.). */
 #define TORIAUXLIBCORE_INV_SLOT_MAX 20
 #define TORIAUXLIBCORE_INVENTORY_TRIGGER_MAX 8
+#define TORIAUXLIBCORE_VARP_TRIGGER_MAX 8
 
 struct ToriAuxLibCore_ScriptHook
 {
@@ -342,12 +345,7 @@ struct ToriAuxLibCore_ScriptHook
 
 struct ToriAuxLibCore_ClientScript
 {
-    int script_id;
-    int* instructions;
-    int* int_operands;
-    int op_count;
-    int* cs2vm_ops;
-    int cs2vm_op_count;
+    struct CS2_Script script;
 };
 
 struct ToriAuxLibCore_Component
@@ -427,6 +425,8 @@ struct ToriAuxLibCore_Component
     struct ToriAuxLibCore_ScriptHook on_inv_transmit;
     int inventory_triggers_count;
     int inventory_triggers[TORIAUXLIBCORE_INVENTORY_TRIGGER_MAX];
+    int varp_triggers_count;
+    int varp_triggers[TORIAUXLIBCORE_VARP_TRIGGER_MAX];
     /** GRAPHIC with no sprite refs: draw nothing, keep layout hitbox. */
     uint8_t graphic_hitbox_only;
     /** dat2 tiled: repeat sprite across IF3 layout rect. */

@@ -53,6 +53,7 @@ Used during UI tree emission for `UIELEM_RS_INV` rendering.
 
 ## Related subsystems
 
+- [Equipment IF3 rendering](equipment_if3_rendering.md) — worn tab (iface 387), IF3 vs legacy INV, container model
 - [UI Click System](ui_click_system.md) — routes inv clicks before world picks
 - [UI Minimenu System](ui_minimenu_system.md) — builds item option rows from pickset
 - [UI Interaction State](ui_interaction_state.md) — `INTERACTION_TARGET_INV_SLOT`

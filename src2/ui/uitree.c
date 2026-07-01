@@ -1,6 +1,6 @@
 #include "uitree.h"
 
-#include "vm/csvm.h"
+#include "vm/cs1vm.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -244,6 +244,161 @@ uitree_mark_all_dirty(struct UITree* tree)
 }
 
 void
+uitree_mark_node_dirty(
+    struct UITree* tree,
+    int32_t idx)
+{
+    if( !tree || idx < 0 || (uint32_t)idx >= tree->component_count )
+        return;
+    tree->components[idx].is_dirty = 1;
+}
+
+int32_t
+uitree_find_by_component_id(
+    struct UITree const* tree,
+    int component_id)
+{
+    if( !tree || component_id < 0 )
+        return -1;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        if( tree->components[i].component_id == component_id )
+            return (int32_t)i;
+    }
+    return -1;
+}
+
+static int32_t
+uitree_resolve_component_target(
+    struct UITree const* tree,
+    int component_id,
+    int active_component)
+{
+    if( component_id >= 0 )
+        return uitree_find_by_component_id(tree, component_id);
+    if( active_component >= 0 )
+        return uitree_find_by_component_id(tree, active_component);
+    return -1;
+}
+
+bool
+uitree_apply_hide(
+    struct UITree* tree,
+    int component_id,
+    int hide)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    tree->components[idx].behavior.hide = hide ? 1 : 0;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_text(
+    struct UITree* tree,
+    int component_id,
+    char const* text)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_TEXT )
+        return false;
+    char* copy = strdup(text ? text : "");
+    if( !copy )
+        return false;
+    free((void*)tree->components[idx].u.rs_text.text);
+    tree->components[idx].u.rs_text.text = copy;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_graphic(
+    struct UITree* tree,
+    int component_id,
+    int graphic_id)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
+        return false;
+    tree->components[idx].u.rs_graphic.scene_id = graphic_id;
+    tree->components[idx].u.rs_graphic.atlas_index = 0;
+    tree->components[idx].u.rs_graphic.graphic_hitbox_only = 0;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_colour(
+    struct UITree* tree,
+    int component_id,
+    int colour)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    if( tree->components[idx].type == UIELEM_RS_TEXT )
+        tree->components[idx].u.rs_text.color = colour;
+    else if( tree->components[idx].type == UIELEM_RS_RECT )
+        tree->components[idx].u.rs_rect.color = colour;
+    else
+        return false;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_position(
+    struct UITree* tree,
+    int component_id,
+    int x,
+    int y)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    tree->components[idx].position.x = x;
+    tree->components[idx].position.y = y;
+    tree->components[idx].position.layout_resolved = 0;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_size(
+    struct UITree* tree,
+    int component_id,
+    int width,
+    int height)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    tree->components[idx].position.width = width;
+    tree->components[idx].position.height = height;
+    tree->components[idx].position.layout_resolved = 0;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_scroll_size(
+    struct UITree* tree,
+    int component_id,
+    int scroll_width,
+    int scroll_height)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_LAYER )
+        return false;
+    tree->components[idx].u.rs_layer.scroll_width = scroll_width;
+    tree->components[idx].u.rs_layer.scroll_height = scroll_height;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+void
 uitree_set_behavior(
     struct UITree* tree,
     int32_t idx,
@@ -291,7 +446,7 @@ uitree_set_behavior(
             continue;
         int len = src->scripts_lengths && src->scripts_lengths[i] > 0
                       ? src->scripts_lengths[i]
-                      : csvm_script_length(src->scripts[i]);
+                      : cs1vm_script_length(src->scripts[i]);
         if( len <= 0 )
             continue;
         dst->scripts[i] = malloc((size_t)len * sizeof(int));

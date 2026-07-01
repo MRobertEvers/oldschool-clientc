@@ -1,6 +1,7 @@
 #include "dat2a_clientscript.h"
 
 #include "../shared/shared_rs_buffer.h"
+#include "vm/cs2_opcode.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -16,60 +17,97 @@ read_u16_at(
     return ((int)data[pos] << 8) | (int)data[pos + 1];
 }
 
+static int
+cs2_operand_is_int8(int opcode)
+{
+    return opcode >= 100 || opcode == CS2_OP_RETURN || opcode == CS2_OP_POP_INT_DISCARD ||
+           opcode == CS2_OP_POP_STRING_DISCARD;
+}
+
 struct RSCacheDat2A_ClientScript*
 RSCacheDat2A_ClientScriptNewDecode(
     int script_id,
     const uint8_t* data,
     int data_size)
 {
-    if( !data || data_size < 16 )
+    if( !data || data_size < 16 || data[0] != 0 )
         return NULL;
 
     int trailer_len = read_u16_at(data, data_size, data_size - 2);
     int trailer_pos = data_size - 14 - trailer_len;
-    if( trailer_pos < 0 || trailer_pos > data_size )
+    if( trailer_pos < 1 || trailer_pos > data_size )
         return NULL;
 
-    int op_count = 0;
+    struct RSCacheShared_RSBuffer trailer;
+    RSCacheShared_RSBufferInit(&trailer, (uint8_t*)data + trailer_pos, (uint32_t)(data_size - trailer_pos));
+
+    int op_count = RSCacheShared_RSBufferG4(&trailer);
+    int local_int_count = (int)RSCacheShared_RSBufferG2(&trailer);
+    int local_string_count = (int)RSCacheShared_RSBufferG2(&trailer);
+    int int_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
+    int string_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
+
+    int switch_table_count = (int)RSCacheShared_RSBufferG1(&trailer);
+    if( switch_table_count < 0 || switch_table_count > CS2_SCRIPT_MAX_SWITCHES )
+        return NULL;
+    if( op_count <= 0 || op_count > 65536 )
+        return NULL;
+
+    struct RSCacheDat2A_ClientScript* out = calloc(1, sizeof(*out));
+    if( !out )
+        return NULL;
+
+    struct CS2_Script* script = &out->script;
+    cs2_script_init(script);
+    script->script_id = script_id;
+    script->local_int_count = local_int_count;
+    script->local_string_count = local_string_count;
+    script->int_argument_count = int_argument_count;
+    script->string_argument_count = string_argument_count;
+    script->op_count = op_count;
+    script->switch_table_count = switch_table_count;
+
+    for( int s = 0; s < switch_table_count; s++ )
     {
-        struct RSCacheShared_RSBuffer trailer;
-        RSCacheShared_RSBufferInit(&trailer, (uint8_t*)data + trailer_pos, (uint32_t)(data_size - trailer_pos));
-        op_count = RSCacheShared_RSBufferG4(&trailer);
-        if( op_count <= 0 || op_count > 65536 )
+        int case_count = (int)RSCacheShared_RSBufferG2(&trailer);
+        if( case_count < 0 || case_count > CS2_SCRIPT_MAX_SWITCH_CASES )
+        {
+            RSCacheDat2A_ClientScriptFree(out);
             return NULL;
+        }
+        script->switch_tables[s].case_count = case_count;
+        for( int c = 0; c < case_count; c++ )
+        {
+            script->switch_tables[s].cases[c].key = RSCacheShared_RSBufferG4(&trailer);
+            script->switch_tables[s].cases[c].target_pc = RSCacheShared_RSBufferG4(&trailer);
+        }
     }
 
-    struct RSCacheDat2A_ClientScript* script = calloc(1, sizeof(*script));
-    if( !script )
-        return NULL;
-
-    script->script_id = script_id;
-    script->op_count = op_count;
-    script->instructions = calloc((size_t)op_count, sizeof(int));
+    script->opcodes = calloc((size_t)op_count, sizeof(uint16_t));
     script->int_operands = calloc((size_t)op_count, sizeof(int));
-    if( !script->instructions || !script->int_operands )
+    script->string_operands = calloc((size_t)op_count, sizeof(char*));
+    if( !script->opcodes || !script->int_operands || !script->string_operands )
     {
-        RSCacheDat2A_ClientScriptFree(script);
+        RSCacheDat2A_ClientScriptFree(out);
         return NULL;
     }
 
     struct RSCacheShared_RSBuffer body;
     RSCacheShared_RSBufferInit(&body, (uint8_t*)data, (uint32_t)data_size);
-    (void)RSCacheShared_RSBufferReadStringNullTerminated(&body);
+    script->signature = RSCacheShared_RSBufferReadStringNullTerminated(&body);
 
     int op = 0;
     while( body.position < (uint32_t)trailer_pos && op < op_count )
     {
-        int opcode = RSCacheShared_RSBufferG2(&body);
-        script->instructions[op] = opcode;
+        int opcode = (int)RSCacheShared_RSBufferG2(&body);
+        script->opcodes[op] = (uint16_t)opcode;
 
-        if( opcode == 3 )
+        if( opcode == CS2_OP_PUSH_CONSTANT_STRING )
         {
-            char* s = RSCacheShared_RSBufferReadStringNullTerminated(&body);
-            free(s);
+            script->string_operands[op] = RSCacheShared_RSBufferReadStringNullTerminated(&body);
             script->int_operands[op] = 0;
         }
-        else if( opcode >= 100 || opcode == 21 || opcode == 38 || opcode == 39 )
+        else if( cs2_operand_is_int8(opcode) )
             script->int_operands[op] = (int)RSCacheShared_RSBufferG1b(&body);
         else
             script->int_operands[op] = RSCacheShared_RSBufferG4(&body);
@@ -78,7 +116,7 @@ RSCacheDat2A_ClientScriptNewDecode(
     }
 
     script->op_count = op;
-    return script;
+    return out;
 }
 
 void
@@ -86,7 +124,6 @@ RSCacheDat2A_ClientScriptFree(struct RSCacheDat2A_ClientScript* script)
 {
     if( !script )
         return;
-    free(script->instructions);
-    free(script->int_operands);
+    cs2_script_free(&script->script);
     free(script);
 }

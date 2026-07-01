@@ -66,13 +66,13 @@ runescape_entity_id_for_element(
     struct GameRunescape* game,
     int element_id)
 {
-    if( !game || !game->entity_registry )
+    if( !game || !game->entities.records )
         return -1;
 
-    for( int i = 0; i < game->entity_registry_count; i++ )
+    for( int i = 0; i < game->entities.count; i++ )
     {
-        if( game->entity_registry[i].element_id == element_id )
-            return game->entity_registry[i].entity_id;
+        if( game->entities.records[i].element_id == element_id )
+            return game->entities.records[i].entity_id;
     }
 
     return -1;
@@ -90,9 +90,9 @@ world_pickset_to_minimenu_pickset(
     if( !game )
         return;
 
-    for( int i = 0; i < game->pickset.count; i++ )
+    for( int i = 0; i < game->world_pick.pickset.count; i++ )
     {
-        struct WorldPicked const* picked = &game->pickset.items[i];
+        struct WorldPicked const* picked = &game->world_pick.pickset.items[i];
 
         switch( picked->type )
         {
