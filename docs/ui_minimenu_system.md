@@ -53,7 +53,9 @@ RSCacheDat1A_ConfigComponent / Component (dat2)
 
 Item configs (`ConfigObj` / `ConfigObject`) are **not** in ToriAuxLibCore. Inventory
 slot item rows (Drop, Use, Examine) are read from Dat1/Dat2 buildcache at click
-time (`iop` / `if_actions[]`), branching on `ToriAuxLibCache_Mode`.
+time (`iop` / `if_actions[]`), branching on `ToriAuxLibCache_Mode`. Each item row
+appends ` @lre@ <obj name>` to the verb (including Examine), matching Client.ts
+`addComponentOptions`.
 
 Inventory container override rows (`Wear`, `Remove`, …) come from the baked
 `menu_options.ops[]` on the RS_INV component. `game_try_inv_click` stores the

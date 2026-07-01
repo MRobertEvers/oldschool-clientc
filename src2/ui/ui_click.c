@@ -500,6 +500,16 @@ ui_click_add_scenery_options(
 }
 
 static void
+ui_click_format_inv_item_option(
+    char* out,
+    size_t out_size,
+    char const* verb,
+    char const* obj_name)
+{
+    snprintf(out, out_size, "%s @lre@ %s", verb, obj_name);
+}
+
+static void
 ui_click_add_inv_option(
     struct UIMinimenuState* menu,
     struct MinimenuPick const* pick,
@@ -527,7 +537,8 @@ ui_click_add_menu_ops_rows(
     int pick_id,
     int pick_secondary_id,
     int pick_tertiary_id,
-    int pick_quaternary_id)
+    int pick_quaternary_id,
+    char const* inv_obj_name)
 {
     if( !menu || !opts )
         return 0;
@@ -540,7 +551,10 @@ ui_click_add_menu_ops_rows(
         if( opts->ops[i][0] == '\0' )
             continue;
 
-        snprintf(text, sizeof(text), "%s", opts->ops[i]);
+        if( inv_obj_name && inv_obj_name[0] != '\0' )
+            ui_click_format_inv_item_option(text, sizeof(text), opts->ops[i], inv_obj_name);
+        else
+            snprintf(text, sizeof(text), "%s", opts->ops[i]);
         enum MinimenuAction action = (enum MinimenuAction)(MINIMENU_ACTION_INV_BUTTON1 + i);
         if( opts->op_actions[i] != 0 )
             action = (enum MinimenuAction)opts->op_actions[i];
@@ -572,31 +586,33 @@ ui_click_add_inv_obj_options(
     {
         if( obj && obj->inv_actions[op][0] != '\0' )
         {
-            snprintf(text, sizeof(text), "%s", obj->inv_actions[op]);
+            ui_click_format_inv_item_option(
+                text, sizeof(text), obj->inv_actions[op], obj_name);
             ui_click_add_inv_option(
                 menu, pick, text, (enum MinimenuAction)(MINIMENU_ACTION_OPHELD1 + op), op);
         }
         else if( op == 4 )
         {
-            snprintf(text, sizeof(text), "Drop @lre@ %s", obj_name);
+            ui_click_format_inv_item_option(text, sizeof(text), "Drop", obj_name);
             ui_click_add_inv_option(menu, pick, text, MINIMENU_ACTION_OPHELD5, 4);
         }
     }
 
-    snprintf(text, sizeof(text), "Use");
+    ui_click_format_inv_item_option(text, sizeof(text), "Use", obj_name);
     ui_click_add_inv_option(menu, pick, text, MINIMENU_ACTION_OPHELDT_START, 0);
 
     for( int op = 2; op >= 0; op-- )
     {
         if( obj && obj->inv_actions[op][0] != '\0' )
         {
-            snprintf(text, sizeof(text), "%s", obj->inv_actions[op]);
+            ui_click_format_inv_item_option(
+                text, sizeof(text), obj->inv_actions[op], obj_name);
             ui_click_add_inv_option(
                 menu, pick, text, (enum MinimenuAction)(MINIMENU_ACTION_OPHELD1 + op), op);
         }
     }
 
-    snprintf(text, sizeof(text), "Examine @cya@ %s", obj_name);
+    ui_click_format_inv_item_option(text, sizeof(text), "Examine", obj_name);
     ui_click_add_inv_option(menu, pick, text, MINIMENU_ACTION_OPHELD6, 0);
 }
 
@@ -623,6 +639,7 @@ ui_click_add_inv_slot_options(
         game->core ? ToriAuxLibCore_ObjtypeGet(game->core, obj_id) : NULL;
 
     ui_click_add_inv_obj_options(pick, menu, obj);
+    char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
     ui_click_add_menu_ops_rows(
         menu,
         &component->menu_options,
@@ -630,7 +647,8 @@ ui_click_add_inv_slot_options(
         pick->id,
         pick->secondary_id,
         pick->tertiary_id,
-        pick->quaternary_id);
+        pick->quaternary_id,
+        obj_name);
 
     int const added = menu->option_count - before;
     ui_minimenu_debug_log_inv_slot_ops(
@@ -754,7 +772,8 @@ ui_click_add_component_menu_rows(
         component_index,
         0,
         0,
-        0);
+        0,
+        NULL);
 
     char const* label = NULL;
     if( opts->option[0] != '\0' )

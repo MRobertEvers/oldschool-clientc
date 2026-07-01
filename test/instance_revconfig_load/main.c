@@ -1668,14 +1668,20 @@ run_pipeline_test(
     {
         TEST_ASSERT(tree->root_index >= 0, "tree missing root");
         TEST_ASSERT(uitree_links_valid(tree), "tree link integrity");
+        TEST_ASSERT(uitree_has_type(tree, UIELEM_BUILTIN_CROSS), "cross component missing");
+        TEST_ASSERT(uitree_has_type(tree, UIELEM_BUILTIN_MINIMENU), "minimenu component missing");
+        TEST_ASSERT(
+            uitree_component_parent_is(tree, &load_task->rc_ctx, "cross", "fixed_shell"),
+            "cross parent should be fixed_shell");
+        TEST_ASSERT(
+            uitree_component_parent_is(tree, &load_task->rc_ctx, "minimenu", "fixed_shell"),
+            "minimenu parent should be fixed_shell");
         if( expect_compass )
         {
             TEST_ASSERT(
                 uitree_has_type(tree, UIELEM_BUILTIN_COMPASS) ||
                     uitree_has_type(tree, UIELEM_BUILTIN_MINIMAP),
                 "expected builtin UI node");
-            TEST_ASSERT(uitree_has_type(tree, UIELEM_BUILTIN_CROSS), "cross component missing");
-            TEST_ASSERT(uitree_has_type(tree, UIELEM_BUILTIN_MINIMENU), "minimenu component missing");
             TEST_ASSERT(find_cache_font_item(load_task->items, "b12"), "b12 font item missing");
             {
                 int const b12_id = ui_font_lookup_find(&load_task->rc_ctx.font_lookup, "b12");
@@ -1959,15 +1965,23 @@ test_inventory_pick_at_slot_center(
 
     bool has_use = false;
     bool has_examine = false;
+    bool has_wield = false;
     for( int i = 0; i < menu.option_count; i++ )
     {
-        if( strstr(menu.options[i].text, "Use") != NULL )
+        if( strstr(menu.options[i].text, "Use @lre@") != NULL )
             has_use = true;
-        if( strstr(menu.options[i].text, "Examine") != NULL )
+        if( strstr(menu.options[i].text, "Examine @lre@") != NULL )
             has_examine = true;
+        if( strstr(menu.options[i].text, "Wield @lre@") != NULL )
+            has_wield = true;
+        TEST_ASSERT(
+            strstr(menu.options[i].text, "Examine") == NULL ||
+                strstr(menu.options[i].text, "@cya@") == NULL,
+            "inv Examine must not use @cya@");
     }
-    TEST_ASSERT(has_use, "inv menu has Use");
-    TEST_ASSERT(has_examine, "inv menu has Examine");
+    TEST_ASSERT(has_use, "inv menu has Use @lre@");
+    TEST_ASSERT(has_examine, "inv menu has Examine @lre@");
+    TEST_ASSERT(has_wield, "inv menu has Wield @lre@");
 
     fprintf(stderr, "ok: inventory pick at slot center (%s)\n", label);
     return 0;
@@ -1976,6 +1990,17 @@ test_inventory_pick_at_slot_center(
 static int
 test_inventory_slot_minimenu_pick(void)
 {
+    struct ToriAuxLibCore* core = ToriAuxLibCore_New();
+    TEST_ASSERT(core != NULL, "ToriAuxLibCore_New");
+
+    struct ToriAuxLibCore_Objtype* scimitar = calloc(1, sizeof(*scimitar));
+    TEST_ASSERT(scimitar != NULL, "objtype alloc");
+    scimitar->id = 1333;
+    strncpy(scimitar->name, "Rune scimitar", sizeof(scimitar->name) - 1);
+    strncpy(scimitar->inv_actions[0], "Wield", sizeof(scimitar->inv_actions[0]) - 1);
+    strncpy(scimitar->inv_actions[4], "Drop", sizeof(scimitar->inv_actions[4]) - 1);
+    ToriAuxLibCore_ObjtypeAdd(core, 1333, scimitar);
+
     struct UIInventoryPool* pool = uitree_inv_pool_new(4);
     TEST_ASSERT(pool != NULL, "uitree_inv_pool_new");
 
@@ -2020,16 +2045,19 @@ test_inventory_slot_minimenu_pick(void)
 
     struct GameRunescape game;
     memset(&game, 0, sizeof(game));
+    game.core = core;
     int rc = test_inventory_pick_at_slot_center(tree, &game, pool, 1333, "synthetic");
     if( rc != 0 )
     {
         uitree_free(tree);
         uitree_inv_pool_free(pool);
+        ToriAuxLibCore_Free(core);
         return rc;
     }
 
     uitree_free(tree);
     uitree_inv_pool_free(pool);
+    ToriAuxLibCore_Free(core);
     fprintf(stderr, "ok: inventory slot minimenu pick synthetic\n");
     return 0;
 }
@@ -2771,6 +2799,8 @@ main(void)
     if( test_layout_parents_parsed(UI_DAT1_UI_INI, "dat1") != 0 )
         return 1;
     if( test_layout_parents_parsed("rev_245_2/rev_245_2_dat2_ui.ini", "dat2") != 0 )
+        return 1;
+    if( test_layout_parents_parsed(UI_DAT2_UI_INI, "kronos") != 0 )
         return 1;
 
     if( test_layout_component_defaults_applied() != 0 )

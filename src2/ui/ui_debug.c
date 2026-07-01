@@ -169,6 +169,16 @@ ui_minimenu_debug_count_nonempty_ops(
 }
 
 static void
+ui_minimenu_debug_format_inv_item_option(
+    char* out,
+    size_t out_size,
+    char const* verb,
+    char const* obj_name)
+{
+    snprintf(out, out_size, "%s @lre@ %s", verb, obj_name);
+}
+
+static void
 ui_minimenu_debug_append_inv_item_opcodes(
     char* out,
     size_t out_size,
@@ -179,19 +189,21 @@ ui_minimenu_debug_append_inv_item_opcodes(
 
     out[0] = '\0';
     size_t used = 0;
+    char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
+    char label[UITREE_MENU_OPTION_LEN];
 
     for( int op = 4; op >= 3; op-- )
     {
-        char const* label = NULL;
+        char const* verb = NULL;
         enum MinimenuAction action = MINIMENU_ACTION_CANCEL;
         if( obj && obj->inv_actions[op][0] != '\0' )
         {
-            label = obj->inv_actions[op];
+            verb = obj->inv_actions[op];
             action = (enum MinimenuAction)(MINIMENU_ACTION_OPHELD1 + op);
         }
         else if( op == 4 )
         {
-            label = "Drop";
+            verb = "Drop";
             action = MINIMENU_ACTION_OPHELD5;
         }
         else
@@ -199,10 +211,11 @@ ui_minimenu_debug_append_inv_item_opcodes(
             continue;
         }
 
+        ui_minimenu_debug_format_inv_item_option(label, sizeof(label), verb, obj_name);
         int n = snprintf(
             out + used,
             out_size - used,
-            "%s[%d]:%s->%d",
+            "%s[%d]:'%s'->%d",
             used == 0 ? "item_opcodes=" : " ",
             op,
             label,
@@ -212,11 +225,13 @@ ui_minimenu_debug_append_inv_item_opcodes(
         used += (size_t)n;
     }
 
+    ui_minimenu_debug_format_inv_item_option(label, sizeof(label), "Use", obj_name);
     int n = snprintf(
         out + used,
         out_size - used,
-        "%sUse->%d",
+        "%s'%s'->%d",
         used == 0 ? "item_opcodes=" : " ",
+        label,
         (int)MINIMENU_ACTION_OPHELDT_START);
     if( n > 0 && (size_t)n < out_size - used )
         used += (size_t)n;
@@ -226,22 +241,26 @@ ui_minimenu_debug_append_inv_item_opcodes(
         if( !obj || obj->inv_actions[op][0] == '\0' )
             continue;
 
+        ui_minimenu_debug_format_inv_item_option(
+            label, sizeof(label), obj->inv_actions[op], obj_name);
         n = snprintf(
             out + used,
             out_size - used,
-            " [%d]:%s->%d",
+            " [%d]:'%s'->%d",
             op,
-            obj->inv_actions[op],
+            label,
             (int)(MINIMENU_ACTION_OPHELD1 + op));
         if( n < 0 || (size_t)n >= out_size - used )
             break;
         used += (size_t)n;
     }
 
+    ui_minimenu_debug_format_inv_item_option(label, sizeof(label), "Examine", obj_name);
     n = snprintf(
         out + used,
         out_size - used,
-        " Examine->%d",
+        " '%s'->%d",
+        label,
         (int)MINIMENU_ACTION_OPHELD6);
     if( n > 0 && (size_t)n < out_size - used )
         used += (size_t)n;
@@ -254,13 +273,17 @@ static void
 ui_minimenu_debug_append_inv_container_opcodes(
     char* out,
     size_t out_size,
-    struct StaticUIMenuOptions const* opts)
+    struct StaticUIMenuOptions const* opts,
+    char const* obj_name)
 {
     if( !out || out_size == 0 || !opts )
         return;
 
     out[0] = '\0';
     size_t used = 0;
+    char label[UITREE_MENU_OPTION_LEN];
+    char const* name = (obj_name && obj_name[0] != '\0') ? obj_name : "item";
+
     for( int i = 4; i >= 0; i-- )
     {
         if( opts->ops[i][0] == '\0' )
@@ -270,13 +293,14 @@ ui_minimenu_debug_append_inv_container_opcodes(
         if( opts->op_actions[i] != 0 )
             action = (enum MinimenuAction)opts->op_actions[i];
 
+        ui_minimenu_debug_format_inv_item_option(label, sizeof(label), opts->ops[i], name);
         int n = snprintf(
             out + used,
             out_size - used,
             "%s[%d]:'%s'->%d",
             used == 0 ? "container_opcodes=" : " ",
             i,
-            opts->ops[i],
+            label,
             (int)action);
         if( n < 0 || (size_t)n >= out_size - used )
             break;
@@ -308,13 +332,15 @@ ui_minimenu_debug_log_inv_slot_ops(
 
     char item_opcode_buf[384];
     char container_opcode_buf[384];
+    char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
     ui_minimenu_debug_append_inv_item_opcodes(item_opcode_buf, sizeof(item_opcode_buf), obj);
     if( inv_component )
     {
         ui_minimenu_debug_append_inv_container_opcodes(
             container_opcode_buf,
             sizeof(container_opcode_buf),
-            &inv_component->menu_options);
+            &inv_component->menu_options,
+            obj_name);
     }
     else
     {
