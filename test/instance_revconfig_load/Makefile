@@ -43,6 +43,7 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/ui/ui_sprite_lookup.c \
 	$(SRC2_DIR)/ui/ui_font_lookup.c \
 	$(SRC2_DIR)/ui/ui_input.c \
+	$(SRC2_DIR)/ui/ui_scroll.c \
 	$(SRC2_DIR)/ui/ui_behavior.c \
 	$(SRC2_DIR)/ui/uitree_host.c \
 	$(SRC2_DIR)/ui/ui_click.c \

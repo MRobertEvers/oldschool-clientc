@@ -15,6 +15,7 @@ CFLAGS = -std=c11 -Wall -Wextra -g \
 LDFLAGS = -Wl,-dead_strip
 
 SRCS = $(TEST_DIR)/main.c \
+	$(TEST_DIR)/stubs.c \
 	$(TEST_DIR)/test_sprites.c \
 	$(TEST_DIR)/sidenav_fixture.c \
 	$(TEST_DIR)/ui_tree_draw.c \
@@ -22,6 +23,8 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/ui/uitree_layout.c \
 	$(SRC2_DIR)/ui/uitree_host.c \
 	$(SRC2_DIR)/ui/ui_input.c \
+	$(SRC2_DIR)/ui/ui_scroll.c \
+	$(SRC2_DIR)/ui/ui_chat_minimenu.c \
 	$(SRC2_DIR)/ui/ui_behavior.c \
 	$(SRC2_DIR)/vm/csvm.c \
 	$(SRC2_DIR)/toridraw/toridraw_sprite.c \

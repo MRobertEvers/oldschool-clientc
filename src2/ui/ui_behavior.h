@@ -49,6 +49,7 @@ void
 uitree_find_hovered_component_id(
     struct UITree const* tree,
     struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
     int mouse_x,
     int mouse_y,
     int* out_hovered_component_id);

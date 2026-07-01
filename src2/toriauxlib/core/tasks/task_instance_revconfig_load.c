@@ -176,6 +176,9 @@ Task_InstanceRevConfigLoad_Run(
     instance_revconfig_assert_sprites_in_scene(&task->rc_ctx);
 
     if( task->game )
+        instance_revconfig_attach_scrollbar_sprites(&task->rc_ctx, task->game);
+
+    if( task->game )
     {
         task->game->ui_sprites_synced = false;
         task->game->ui_fonts_synced = false;

@@ -168,6 +168,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/ui/uitree_layout.c \
 	$(SRC2)/ui/uitree_host.c \
 	$(SRC2)/ui/ui_input.c \
+	$(SRC2)/ui/ui_scroll.c \
 	$(SRC2)/ui/ui_behavior.c \
 	$(SRC2)/ui/ui_input_adapter.c \
 	$(SRC2)/toriauxlib/core/tasks/core_task.c \

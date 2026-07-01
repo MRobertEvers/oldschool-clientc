@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 struct UITreeHost;
+struct UITreeScrollState;
 
 struct UIInputState
 {
@@ -65,6 +66,7 @@ int32_t
 uitree_hit_test_interactive(
     struct UITree const* tree,
     struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
     int px,
     int py);
 

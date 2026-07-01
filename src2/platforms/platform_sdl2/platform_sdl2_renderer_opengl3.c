@@ -53,6 +53,7 @@ typedef struct TRSPK_UboWorld
 #define TRSPK_GL3_SPRITE_CAP 256
 #define TRSPK_GL3_FONT_CAP 8
 #define TRSPK_GL3_2D_ATLAS_DIM 2048u
+#define GL3_2D_BATCH_MAX_VERTS 32768u
 
 struct GL3SpriteSlot
 {
@@ -76,6 +77,21 @@ struct GL3Vertex2D
     float position[2];
     float texcoord[2];
     float color[4];
+};
+
+struct GL3Batch2DState
+{
+    struct GL3Vertex2D* verts;
+    uint32_t vert_count;
+    GLuint texture;
+    int text_mode;
+    bool uv_clamp;
+    float uv_bounds[4];
+    int scissor_x;
+    int scissor_y;
+    int scissor_w;
+    int scissor_h;
+    bool scissor_set;
 };
 
 struct GL3ModelGroup
@@ -146,6 +162,12 @@ struct LibToriPlatformSDL2_RendererGL3
     GLint u2d_uv_bounds;
     bool in2d;
     float proj2d[16];
+    struct GL3Batch2DState batch2d;
+    int draw_scissor_x;
+    int draw_scissor_y;
+    int draw_scissor_w;
+    int draw_scissor_h;
+    bool sprite_atlas_texture_allocated;
 #if defined(TORIRS_ENABLE_LVGL_HUD)
     struct LibToriHud* hud;
     GLuint hud_texture;
@@ -329,23 +351,49 @@ gl3_upload_sprite_atlas(struct LibToriPlatformSDL2_RendererGL3* renderer)
 {
     if( !trspk_atlas_is_initialized(&renderer->sprite_atlas) )
         return;
+    if( !trspk_atlas_is_dirty(&renderer->sprite_atlas) )
+        return;
+    if( !renderer->sprite_atlas.pixels || renderer->sprite_atlas.width == 0u ||
+        renderer->sprite_atlas.height == 0u )
+        return;
+
     if( !renderer->sprite_atlas_texture )
         glGenTextures(1, &renderer->sprite_atlas_texture);
+    if( !renderer->sprite_atlas_texture )
+        return;
+
     glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
-    glTexImage2D(
-        GL_TEXTURE_2D,
-        0,
-        GL_RGBA8,
-        (GLsizei)renderer->sprite_atlas.width,
-        (GLsizei)renderer->sprite_atlas.height,
-        0,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        renderer->sprite_atlas.pixels);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    if( !renderer->sprite_atlas_texture_allocated )
+    {
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            GL_RGBA8,
+            (GLsizei)renderer->sprite_atlas.width,
+            (GLsizei)renderer->sprite_atlas.height,
+            0,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            NULL);
+        renderer->sprite_atlas_texture_allocated = true;
+    }
+
+    glTexSubImage2D(
+        GL_TEXTURE_2D,
+        0,
+        0,
+        0,
+        (GLsizei)renderer->sprite_atlas.width,
+        (GLsizei)renderer->sprite_atlas.height,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        renderer->sprite_atlas.pixels);
+    trspk_atlas_clear_dirty(&renderer->sprite_atlas);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
@@ -365,7 +413,304 @@ gl3_sprite_uv_clamp_set(
 }
 
 static void
-gl3_draw_textured_quad(
+gl3_apply_logical_scissor(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    int logical_x,
+    int logical_y,
+    int logical_w,
+    int logical_h)
+{
+    const float sx = (float)renderer->lb_w / (float)renderer->width;
+    const float sy = (float)renderer->lb_h / (float)renderer->height;
+    const int gl_x = renderer->lb_x + (int)(logical_x * sx);
+    const int gl_w = (int)(logical_w * sx);
+    const int gl_h = (int)(logical_h * sy);
+    const int logical_bottom = renderer->height - logical_y - logical_h;
+    const int gl_y = renderer->lb_y + (int)(logical_bottom * sy);
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(gl_x, gl_y, gl_w, gl_h);
+}
+
+static void
+gl3_flush_2d_batch(struct LibToriPlatformSDL2_RendererGL3* renderer);
+
+static void
+gl3_batch2d_flush_if_needed(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    GLuint texture,
+    int text_mode,
+    bool uv_clamp,
+    float const uv_bounds[4],
+    int scissor_x,
+    int scissor_y,
+    int scissor_w,
+    int scissor_h,
+    uint32_t extra_verts);
+
+static void
+gl3_batch2d_append_verts(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    GLuint texture,
+    int text_mode,
+    bool uv_clamp,
+    float const uv_bounds[4],
+    int scissor_x,
+    int scissor_y,
+    int scissor_w,
+    int scissor_h,
+    struct GL3Vertex2D const* verts,
+    uint32_t vert_count)
+{
+    gl3_batch2d_flush_if_needed(
+        renderer,
+        texture,
+        text_mode,
+        uv_clamp,
+        uv_bounds,
+        scissor_x,
+        scissor_y,
+        scissor_w,
+        scissor_h,
+        vert_count);
+
+    struct GL3Batch2DState* b = &renderer->batch2d;
+    b->texture = texture;
+    b->text_mode = text_mode;
+    b->uv_clamp = uv_clamp;
+    if( uv_bounds )
+    {
+        b->uv_bounds[0] = uv_bounds[0];
+        b->uv_bounds[1] = uv_bounds[1];
+        b->uv_bounds[2] = uv_bounds[2];
+        b->uv_bounds[3] = uv_bounds[3];
+    }
+    b->scissor_set = scissor_w > 0 && scissor_h > 0;
+    if( b->scissor_set )
+    {
+        b->scissor_x = scissor_x;
+        b->scissor_y = scissor_y;
+        b->scissor_w = scissor_w;
+        b->scissor_h = scissor_h;
+    }
+
+    memcpy(&b->verts[b->vert_count], verts, (size_t)vert_count * sizeof(struct GL3Vertex2D));
+    b->vert_count += vert_count;
+}
+
+static void
+gl3_set_draw_scissor(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    int logical_x,
+    int logical_y,
+    int logical_w,
+    int logical_h)
+{
+    renderer->draw_scissor_x = logical_x;
+    renderer->draw_scissor_y = logical_y;
+    renderer->draw_scissor_w = logical_w;
+    renderer->draw_scissor_h = logical_h;
+}
+
+static void
+gl3_batch2d_reset(struct LibToriPlatformSDL2_RendererGL3* renderer)
+{
+    struct GL3Batch2DState* b = &renderer->batch2d;
+    b->vert_count = 0u;
+    b->texture = 0u;
+    b->text_mode = 0;
+    b->uv_clamp = false;
+    b->scissor_set = false;
+}
+
+static void
+gl3_batch2d_free(struct LibToriPlatformSDL2_RendererGL3* renderer)
+{
+    free(renderer->batch2d.verts);
+    renderer->batch2d.verts = NULL;
+    renderer->batch2d.vert_count = 0u;
+}
+
+static bool
+gl3_batch2d_init(struct LibToriPlatformSDL2_RendererGL3* renderer)
+{
+    renderer->batch2d.verts =
+        (struct GL3Vertex2D*)malloc((size_t)GL3_2D_BATCH_MAX_VERTS * sizeof(struct GL3Vertex2D));
+    if( !renderer->batch2d.verts )
+        return false;
+    gl3_batch2d_reset(renderer);
+    return true;
+}
+
+static bool
+gl3_batch2d_scissor_matches(
+    struct GL3Batch2DState const* b,
+    int scissor_x,
+    int scissor_y,
+    int scissor_w,
+    int scissor_h)
+{
+    const bool want_scissor = scissor_w > 0 && scissor_h > 0;
+    if( want_scissor != b->scissor_set )
+        return false;
+    if( !want_scissor )
+        return true;
+    return b->scissor_x == scissor_x && b->scissor_y == scissor_y && b->scissor_w == scissor_w &&
+           b->scissor_h == scissor_h;
+}
+
+static void
+gl3_flush_2d_batch(struct LibToriPlatformSDL2_RendererGL3* renderer);
+
+static void
+gl3_batch2d_flush_if_needed(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    GLuint texture,
+    int text_mode,
+    bool uv_clamp,
+    float const uv_bounds[4],
+    int scissor_x,
+    int scissor_y,
+    int scissor_w,
+    int scissor_h,
+    uint32_t extra_verts)
+{
+    struct GL3Batch2DState* b = &renderer->batch2d;
+    if( b->vert_count == 0u )
+    {
+        b->texture = texture;
+        b->text_mode = text_mode;
+        b->uv_clamp = uv_clamp;
+        if( uv_bounds )
+        {
+            b->uv_bounds[0] = uv_bounds[0];
+            b->uv_bounds[1] = uv_bounds[1];
+            b->uv_bounds[2] = uv_bounds[2];
+            b->uv_bounds[3] = uv_bounds[3];
+        }
+        b->scissor_set = scissor_w > 0 && scissor_h > 0;
+        if( b->scissor_set )
+        {
+            b->scissor_x = scissor_x;
+            b->scissor_y = scissor_y;
+            b->scissor_w = scissor_w;
+            b->scissor_h = scissor_h;
+        }
+        return;
+    }
+
+    bool const state_changed = b->texture != texture || b->text_mode != text_mode ||
+                               b->uv_clamp != uv_clamp ||
+                               !gl3_batch2d_scissor_matches(b, scissor_x, scissor_y, scissor_w, scissor_h);
+    bool const uv_bounds_changed =
+        uv_clamp &&
+        (b->uv_bounds[0] != uv_bounds[0] || b->uv_bounds[1] != uv_bounds[1] ||
+         b->uv_bounds[2] != uv_bounds[2] || b->uv_bounds[3] != uv_bounds[3]);
+
+    if( state_changed || uv_bounds_changed || b->vert_count + extra_verts > GL3_2D_BATCH_MAX_VERTS )
+        gl3_flush_2d_batch(renderer);
+}
+
+static void
+gl3_batch2d_append_quad(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    GLuint texture,
+    int text_mode,
+    bool uv_clamp,
+    float const uv_bounds[4],
+    int scissor_x,
+    int scissor_y,
+    int scissor_w,
+    int scissor_h,
+    float x0,
+    float y0,
+    float x1,
+    float y1,
+    float u0,
+    float v0,
+    float u1,
+    float v1,
+    float const rgba[4])
+{
+    gl3_batch2d_flush_if_needed(
+        renderer,
+        texture,
+        text_mode,
+        uv_clamp,
+        uv_bounds,
+        scissor_x,
+        scissor_y,
+        scissor_w,
+        scissor_h,
+        6u);
+
+    struct GL3Batch2DState* b = &renderer->batch2d;
+    b->texture = texture;
+    b->text_mode = text_mode;
+    b->uv_clamp = uv_clamp;
+    if( uv_bounds )
+    {
+        b->uv_bounds[0] = uv_bounds[0];
+        b->uv_bounds[1] = uv_bounds[1];
+        b->uv_bounds[2] = uv_bounds[2];
+        b->uv_bounds[3] = uv_bounds[3];
+    }
+    b->scissor_set = scissor_w > 0 && scissor_h > 0;
+    if( b->scissor_set )
+    {
+        b->scissor_x = scissor_x;
+        b->scissor_y = scissor_y;
+        b->scissor_w = scissor_w;
+        b->scissor_h = scissor_h;
+    }
+
+    struct GL3Vertex2D* dst = &b->verts[b->vert_count];
+    dst[0] = (struct GL3Vertex2D){ { x0, y0 }, { u0, v0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+    dst[1] = (struct GL3Vertex2D){ { x1, y0 }, { u1, v0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+    dst[2] = (struct GL3Vertex2D){ { x1, y1 }, { u1, v1 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+    dst[3] = (struct GL3Vertex2D){ { x0, y0 }, { u0, v0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+    dst[4] = (struct GL3Vertex2D){ { x1, y1 }, { u1, v1 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+    dst[5] = (struct GL3Vertex2D){ { x0, y1 }, { u0, v1 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+    b->vert_count += 6u;
+}
+
+static void
+gl3_flush_2d_batch(struct LibToriPlatformSDL2_RendererGL3* renderer)
+{
+    struct GL3Batch2DState* b = &renderer->batch2d;
+    if( b->vert_count == 0u )
+        return;
+
+    if( b->scissor_set )
+        gl3_apply_logical_scissor(renderer, b->scissor_x, b->scissor_y, b->scissor_w, b->scissor_h);
+    else
+        glDisable(GL_SCISSOR_TEST);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(renderer->program2d);
+    glUniformMatrix4fv(renderer->u2d_projection, 1, GL_FALSE, renderer->proj2d);
+    glBindVertexArray(renderer->quad_vao);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, b->texture);
+    glUniform1i(renderer->u2d_texture, 0);
+    if( renderer->u2d_text_mode >= 0 )
+        glUniform1i(renderer->u2d_text_mode, b->text_mode);
+    if( renderer->u2d_uv_clamp >= 0 )
+        glUniform1i(renderer->u2d_uv_clamp, b->uv_clamp ? 1 : 0);
+    if( b->uv_clamp && renderer->u2d_uv_bounds >= 0 )
+        glUniform4f(
+            renderer->u2d_uv_bounds, b->uv_bounds[0], b->uv_bounds[1], b->uv_bounds[2], b->uv_bounds[3]);
+
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->quad_vbo);
+    glBufferSubData(
+        GL_ARRAY_BUFFER, 0, (GLsizeiptr)(b->vert_count * sizeof(struct GL3Vertex2D)), b->verts);
+    glDrawArrays(GL_TRIANGLES, 0, (GLsizei)b->vert_count);
+
+    b->vert_count = 0u;
+}
+
+static void
+gl3_draw_textured_quad_immediate(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     float x0,
     float y0,
@@ -388,6 +733,44 @@ gl3_draw_textured_quad(
     glBindBuffer(GL_ARRAY_BUFFER, renderer->quad_vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+static void
+gl3_draw_textured_quad(
+    struct LibToriPlatformSDL2_RendererGL3* renderer,
+    GLuint texture,
+    int text_mode,
+    bool uv_clamp,
+    float const uv_bounds[4],
+    float x0,
+    float y0,
+    float x1,
+    float y1,
+    float u0,
+    float v0,
+    float u1,
+    float v1,
+    float const rgba[4])
+{
+    gl3_batch2d_append_quad(
+        renderer,
+        texture,
+        text_mode,
+        uv_clamp,
+        uv_bounds,
+        renderer->draw_scissor_x,
+        renderer->draw_scissor_y,
+        renderer->draw_scissor_w,
+        renderer->draw_scissor_h,
+        x0,
+        y0,
+        x1,
+        y1,
+        u0,
+        v0,
+        u1,
+        v1,
+        rgba);
 }
 
 static void
@@ -417,9 +800,18 @@ gl3_draw_textured_quad_uv4(
          { uv[3][0], uv[3][1] },
          { rgba[0], rgba[1], rgba[2], rgba[3] } },
     };
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->quad_vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    gl3_batch2d_append_verts(
+        renderer,
+        renderer->sprite_atlas_texture,
+        0,
+        false,
+        NULL,
+        renderer->draw_scissor_x,
+        renderer->draw_scissor_y,
+        renderer->draw_scissor_w,
+        renderer->draw_scissor_h,
+        verts,
+        6u);
 }
 
 #if defined(TORIRS_ENABLE_LVGL_HUD)
@@ -462,7 +854,9 @@ gl3_composite_hud(
     glBindVertexArray(renderer->quad_vao);
 
     float const white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    gl3_draw_textured_quad(
+    gl3_flush_2d_batch(renderer);
+    glDisable(GL_SCISSOR_TEST);
+    gl3_draw_textured_quad_immediate(
         renderer,
         (float)LIBTORI_HUD_PANEL_X,
         (float)LIBTORI_HUD_PANEL_Y,
@@ -476,25 +870,6 @@ gl3_composite_hud(
     glBindVertexArray(0);
 }
 #endif
-
-static void
-gl3_apply_logical_scissor(
-    struct LibToriPlatformSDL2_RendererGL3* renderer,
-    int logical_x,
-    int logical_y,
-    int logical_w,
-    int logical_h)
-{
-    const float sx = (float)renderer->lb_w / (float)renderer->width;
-    const float sy = (float)renderer->lb_h / (float)renderer->height;
-    const int gl_x = renderer->lb_x + (int)(logical_x * sx);
-    const int gl_w = (int)(logical_w * sx);
-    const int gl_h = (int)(logical_h * sy);
-    const int logical_bottom = renderer->height - logical_y - logical_h;
-    const int gl_y = renderer->lb_y + (int)(logical_bottom * sy);
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(gl_x, gl_y, gl_w, gl_h);
-}
 
 static void
 gl3_sprite_local_to_uv(
@@ -588,12 +963,14 @@ gl3_draw_sprite_rotated(
     gl3_draw_textured_quad_uv4(renderer, pos, uv, rgba);
 }
 
-static void
-gl3_bake_font_atlas(struct GL3FontSlot* slot)
+static bool
+gl3_bake_font_atlas(
+    struct GL3FontSlot* slot,
+    int font_id)
 {
     struct ToriDraw_Font* font = slot->font;
     if( !font || slot->baked )
-        return;
+        return slot->baked;
 
     int max_w = 0;
     int total_h = 0;
@@ -604,20 +981,32 @@ gl3_bake_font_atlas(struct GL3FontSlot* slot)
         total_h += font->glyph_height[i];
     }
     if( max_w <= 0 || total_h <= 0 )
-        return;
+    {
+        fprintf(stderr,
+            "gl3_bake_font_atlas: invalid atlas dimensions font_id=%d max_w=%d total_h=%d "
+            "line_height=%d\n",
+            font_id,
+            max_w,
+            total_h,
+            font->line_height);
+        return false;
+    }
 
-    int atlas_w = max_w;
-    int atlas_h = total_h;
+    int const atlas_w = max_w;
+    int const atlas_h = total_h;
     size_t const pixel_count = (size_t)atlas_w * (size_t)atlas_h;
     uint8_t* alpha = calloc(pixel_count, 1);
     if( !alpha )
-        return;
+    {
+        fprintf(stderr, "gl3_bake_font_atlas: alpha alloc failed font_id=%d\n", font_id);
+        return false;
+    }
 
     int y = 0;
     for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
     {
-        int gw = font->glyph_width[i];
-        int gh = font->glyph_height[i];
+        int const gw = font->glyph_width[i];
+        int const gh = font->glyph_height[i];
         uint8_t const* src = font->glyph_alpha[i];
         if( src && gw > 0 && gh > 0 )
         {
@@ -627,10 +1016,10 @@ gl3_bake_font_atlas(struct GL3FontSlot* slot)
                     alpha[(y + row) * atlas_w + col] = src[col + row * gw];
             }
         }
-        float u0 = 0.0f;
-        float v0 = (float)y / (float)atlas_h;
-        float u1 = (float)gw / (float)atlas_w;
-        float v1 = (float)(y + gh) / (float)atlas_h;
+        float const u0 = 0.0f;
+        float const v0 = (float)y / (float)atlas_h;
+        float const u1 = (float)gw / (float)atlas_w;
+        float const v1 = (float)(y + gh) / (float)atlas_h;
         slot->glyph_uv[i * 4 + 0] = u0;
         slot->glyph_uv[i * 4 + 1] = v0;
         slot->glyph_uv[i * 4 + 2] = u1;
@@ -638,25 +1027,20 @@ gl3_bake_font_atlas(struct GL3FontSlot* slot)
         y += gh;
     }
 
-    uint8_t* rgba = malloc(pixel_count * 4u);
-    if( !rgba )
-    {
-        free(alpha);
-        return;
-    }
-    for( size_t i = 0; i < pixel_count; i++ )
-    {
-        rgba[i * 4u + 0] = 255u;
-        rgba[i * 4u + 1] = 255u;
-        rgba[i * 4u + 2] = 255u;
-        rgba[i * 4u + 3] = alpha[i];
-    }
-    free(alpha);
-
     if( slot->texture )
         glDeleteTextures(1, &slot->texture);
-    glGenTextures(1, &slot->texture);
-    glBindTexture(GL_TEXTURE_2D, slot->texture);
+    slot->texture = 0u;
+
+    GLuint tex = 0u;
+    glGenTextures(1, &tex);
+    if( tex == 0u )
+    {
+        free(alpha);
+        fprintf(stderr, "gl3_bake_font_atlas: glGenTextures failed font_id=%d\n", font_id);
+        return false;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, tex);
     {
         GLint unpack_align = 0;
         glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpack_align);
@@ -664,25 +1048,40 @@ gl3_bake_font_atlas(struct GL3FontSlot* slot)
         glTexImage2D(
             GL_TEXTURE_2D,
             0,
-            GL_RGBA8,
+            GL_R8,
             atlas_w,
             atlas_h,
             0,
-            GL_RGBA,
+            GL_RED,
             GL_UNSIGNED_BYTE,
-            rgba);
+            alpha);
         glPixelStorei(GL_UNPACK_ALIGNMENT, unpack_align);
     }
+    free(alpha);
+
+    if( !gl3_check_error("gl3_bake_font_atlas glTexImage2D") )
+    {
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glDeleteTextures(1, &tex);
+        fprintf(stderr,
+            "gl3_bake_font_atlas: texture upload failed font_id=%d atlas=%dx%d\n",
+            font_id,
+            atlas_w,
+            atlas_h);
+        return false;
+    }
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    slot->texture = tex;
     slot->atlas_w = atlas_w;
     slot->atlas_h = atlas_h;
     slot->baked = true;
-    free(rgba);
+    return true;
 }
 
 static struct ToriDraw_Scene*
@@ -708,7 +1107,16 @@ gl3_ensure_font_slot(
             slot->font = ToriDraw_SceneFontGet(scene, font_id);
     }
     if( slot->font && !slot->baked )
-        gl3_bake_font_atlas(slot);
+    {
+        if( !gl3_bake_font_atlas(slot, font_id) )
+        {
+            struct ToriDraw_Font* font = slot->font;
+            fprintf(stderr,
+                "gl3_ensure_font_slot: bake failed font_id=%d line_height=%d\n",
+                font_id,
+                font ? font->line_height : -1);
+        }
+    }
     return slot;
 }
 
@@ -790,7 +1198,21 @@ gl3_font_glyph_callback(
     int const rgb = gctx->shadow ? 0 : color_rgb;
     float rgba[4];
     gl3_color_from_rgb(rgb, gctx->alpha, rgba);
-    gl3_draw_textured_quad(renderer, gx, gy, gx + (float)gw, gy + (float)gh, u0, v0, u1, v1, rgba);
+    gl3_draw_textured_quad(
+        renderer,
+        slot->texture,
+        1,
+        false,
+        NULL,
+        gx,
+        gy,
+        gx + (float)gw,
+        gy + (float)gh,
+        u0,
+        v0,
+        u1,
+        v1,
+        rgba);
 }
 
 static void
@@ -806,18 +1228,10 @@ gl3_draw_font_glyphs(
     bool shadow,
     bool center)
 {
-    if( !text || !slot->baked || !font )
+    if( !text || !slot->baked || !font || slot->texture == 0u )
         return;
 
-    glUseProgram(renderer->program2d);
-    glBindVertexArray(renderer->quad_vao);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, slot->texture);
-    glUniform1i(renderer->u2d_texture, 0);
-    if( renderer->u2d_text_mode >= 0 )
-        glUniform1i(renderer->u2d_text_mode, 1);
-    if( renderer->u2d_uv_clamp >= 0 )
-        glUniform1i(renderer->u2d_uv_clamp, 0);
+    gl3_flush_2d_batch(renderer);
 
     struct GL3FontGlyphCtx ctx = {
         .renderer = renderer,
@@ -828,10 +1242,8 @@ gl3_draw_font_glyphs(
     ToriDraw_FontVisitGlyphsStyled(
         font, text, x, y, default_color_rgb, center, gl3_font_glyph_callback, &ctx);
 
-    glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
-    glUniform1i(renderer->u2d_texture, 0);
-    if( renderer->u2d_text_mode >= 0 )
-        glUniform1i(renderer->u2d_text_mode, 0);
+    gl3_flush_2d_batch(renderer);
+    gl3_batch2d_reset(renderer);
 }
 
 static void
@@ -851,19 +1263,22 @@ gl3_ev_fill_rect(
     if( w <= 0 || h <= 0 )
         return;
 
+    gl3_set_draw_scissor(
+        renderer,
+        command->u.fill_rect.scissor_x,
+        command->u.fill_rect.scissor_y,
+        command->u.fill_rect.scissor_w,
+        command->u.fill_rect.scissor_h);
+
     float rgba[4];
     gl3_color_from_argb(command->u.fill_rect.argb, rgba);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, renderer->white_texture);
-    glUniform1i(renderer->u2d_texture, 0);
-    if( renderer->u2d_text_mode >= 0 )
-        glUniform1i(renderer->u2d_text_mode, 0);
-    if( renderer->u2d_uv_clamp >= 0 )
-        glUniform1i(renderer->u2d_uv_clamp, 0);
-
     gl3_draw_textured_quad(
         renderer,
+        renderer->white_texture,
+        0,
+        false,
+        NULL,
         (float)x,
         (float)y,
         (float)(x + w),
@@ -873,9 +1288,6 @@ gl3_ev_fill_rect(
         1.0f,
         1.0f,
         rgba);
-
-    glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
-    glUniform1i(renderer->u2d_texture, 0);
 }
 
 static void
@@ -889,6 +1301,7 @@ gl3_ev_begin_2d(
     renderer->in2d = true;
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_STENCIL_TEST);
+    glDisable(GL_SCISSOR_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(renderer->program2d);
@@ -903,6 +1316,11 @@ gl3_ev_begin_2d(
     if( renderer->u2d_uv_clamp >= 0 )
         glUniform1i(renderer->u2d_uv_clamp, 0);
     glBindVertexArray(renderer->quad_vao);
+    gl3_batch2d_reset(renderer);
+    renderer->draw_scissor_x = 0;
+    renderer->draw_scissor_y = 0;
+    renderer->draw_scissor_w = 0;
+    renderer->draw_scissor_h = 0;
     gl3_sync_scene_fonts(renderer, instance);
 }
 
@@ -914,6 +1332,7 @@ gl3_ev_end_2d(
 {
     (void)instance;
     (void)command;
+    gl3_flush_2d_batch(renderer);
     glBindVertexArray(0);
     glDisable(GL_SCISSOR_TEST);
     glDisable(GL_STENCIL_TEST);
@@ -1062,15 +1481,12 @@ gl3_ev_sprite(
         return;
     }
 
-    if( command->u.sprite.scissor_w > 0 && command->u.sprite.scissor_h > 0 )
-        gl3_apply_logical_scissor(
-            renderer,
-            command->u.sprite.scissor_x,
-            command->u.sprite.scissor_y,
-            command->u.sprite.scissor_w,
-            command->u.sprite.scissor_h);
-    else
-        glDisable(GL_SCISSOR_TEST);
+    gl3_set_draw_scissor(
+        renderer,
+        command->u.sprite.scissor_x,
+        command->u.sprite.scissor_y,
+        command->u.sprite.scissor_w,
+        command->u.sprite.scissor_h);
 
     float u0 = slot->uvs[atlas_index * 4 + 0];
     float v0 = slot->uvs[atlas_index * 4 + 1];
@@ -1120,8 +1536,26 @@ gl3_ev_sprite(
             float mu1 = mask_slot->uvs[mask_atlas_index * 4 + 2];
             float mv1 = mask_slot->uvs[mask_atlas_index * 4 + 3];
             float mask_rgba[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+            float const mask_uv_bounds[4] = { mu0, mv0, mu1, mv1 };
+            gl3_flush_2d_batch(renderer);
+            if( renderer->draw_scissor_w > 0 && renderer->draw_scissor_h > 0 )
+                gl3_apply_logical_scissor(
+                    renderer,
+                    renderer->draw_scissor_x,
+                    renderer->draw_scissor_y,
+                    renderer->draw_scissor_w,
+                    renderer->draw_scissor_h);
+            else
+                glDisable(GL_SCISSOR_TEST);
+            glUseProgram(renderer->program2d);
+            glBindVertexArray(renderer->quad_vao);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
+            glUniform1i(renderer->u2d_texture, 0);
+            if( renderer->u2d_text_mode >= 0 )
+                glUniform1i(renderer->u2d_text_mode, 0);
             gl3_sprite_uv_clamp_set(renderer, true, mu0, mv0, mu1, mv1);
-            gl3_draw_textured_quad(renderer, x0, y0, x1, y1, mu0, mv0, mu1, mv1, mask_rgba);
+            gl3_draw_textured_quad_immediate(renderer, x0, y0, x1, y1, mu0, mv0, mu1, mv1, mask_rgba);
             gl3_sprite_uv_clamp_set(renderer, false, 0.0f, 0.0f, 0.0f, 0.0f);
 
             glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -1132,14 +1566,26 @@ gl3_ev_sprite(
 
     if( rotated )
     {
-        gl3_sprite_uv_clamp_set(renderer, false, 0.0f, 0.0f, 0.0f, 0.0f);
         gl3_draw_sprite_rotated(renderer, command, sp, u0, v0, u1, v1, rgba);
     }
     else
     {
-        gl3_sprite_uv_clamp_set(renderer, true, u0, v0, u1, v1);
-        gl3_draw_textured_quad(renderer, x0, y0, x1, y1, u0, v0, u1, v1, rgba);
-        gl3_sprite_uv_clamp_set(renderer, false, 0.0f, 0.0f, 0.0f, 0.0f);
+        float const uv_bounds[4] = { u0, v0, u1, v1 };
+        gl3_draw_textured_quad(
+            renderer,
+            renderer->sprite_atlas_texture,
+            0,
+            true,
+            uv_bounds,
+            x0,
+            y0,
+            x1,
+            y1,
+            u0,
+            v0,
+            u1,
+            v1,
+            rgba);
     }
 
     if( use_stencil )
@@ -1161,7 +1607,14 @@ gl3_ev_font_load(
         slot->font = command->u.font_load.font;
         slot->baked = false;
     }
-    gl3_ensure_font_slot(renderer, instance, font_id);
+    struct GL3FontSlot* baked_slot = gl3_ensure_font_slot(renderer, instance, font_id);
+    if( baked_slot && baked_slot->font && !baked_slot->baked )
+    {
+        fprintf(stderr,
+            "gl3_ev_font_load: bake failed font_id=%d line_height=%d\n",
+            font_id,
+            baked_slot->font->line_height);
+    }
 }
 
 static void
@@ -1171,14 +1624,44 @@ gl3_ev_font(
     struct LibToriRS_RenderCommand* command)
 {
     if( !renderer->in2d )
+    {
+        fprintf(stderr, "gl3_ev_font: called outside 2D pass\n");
         return;
+    }
     const int font_id = command->u.font.font_id;
-    if( font_id < 0 || !command->u.font.text || command->u.font.text[0] == '\0' )
+    if( font_id < 0 || !command->u.font.text )
+    {
+        fprintf(stderr,
+            "gl3_ev_font: invalid font_id=%d text=%p\n",
+            font_id,
+            (void*)command->u.font.text);
+        return;
+    }
+    if( command->u.font.text[0] == '\0' )
         return;
     struct GL3FontSlot* slot = gl3_ensure_font_slot(renderer, instance, font_id);
     struct ToriDraw_Font* font = slot ? slot->font : NULL;
     if( !font || !slot->baked || !ToriDraw_FontValidate(font) )
+    {
+        fprintf(stderr,
+            "gl3_ev_font: font missing or not baked (font_id=%d font=%p baked=%d text=\"%.32s%s\" "
+            "x=%d y=%d)\n",
+            font_id,
+            (void*)font,
+            slot ? (int)slot->baked : 0,
+            command->u.font.text,
+            strlen(command->u.font.text) > 32 ? "..." : "",
+            command->u.font.x,
+            command->u.font.y);
         return;
+    }
+
+    gl3_set_draw_scissor(
+        renderer,
+        command->u.font.scissor_x,
+        command->u.font.scissor_y,
+        command->u.font.scissor_w,
+        command->u.font.scissor_h);
 
     int x = command->u.font.x;
     int y = command->u.font.y;
@@ -2430,6 +2913,7 @@ LibToriPlatformSDL2_RendererGL3_Free(struct LibToriPlatformSDL2_RendererGL3* ren
     if( renderer->window && renderer->gl_context )
         SDL_GL_MakeCurrent(renderer->window, renderer->gl_context);
 
+    gl3_batch2d_free(renderer);
     gl3_destroy_gl_resources(renderer);
     gl3_release_gpu_mesh_buffers(renderer);
 
@@ -2618,6 +3102,12 @@ LibToriPlatformSDL2_RendererGL3_Init(
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    if( !gl3_batch2d_init(renderer) )
+    {
+        fprintf(stderr, "OpenGL3: failed to allocate 2D batch buffer\n");
+        goto fail_gl;
+    }
+
     {
         GLuint vs2d = gl3_compile_shader(GL_VERTEX_SHADER, trspk_opengl3_2d_vertex_shader);
         GLuint fs2d = gl3_compile_shader(GL_FRAGMENT_SHADER, trspk_opengl3_2d_fragment_shader);
@@ -2630,19 +3120,54 @@ LibToriPlatformSDL2_RendererGL3_Init(
             glBindAttribLocation(renderer->program2d, 1, "a_texcoord");
             glBindAttribLocation(renderer->program2d, 2, "a_color");
             glLinkProgram(renderer->program2d);
-            renderer->u2d_projection = glGetUniformLocation(renderer->program2d, "u_projection");
-            renderer->u2d_texture = glGetUniformLocation(renderer->program2d, "u_texture");
-            renderer->u2d_text_mode = glGetUniformLocation(renderer->program2d, "u_text_mode");
-            renderer->u2d_uv_clamp = glGetUniformLocation(renderer->program2d, "u_uv_clamp");
-            renderer->u2d_uv_bounds = glGetUniformLocation(renderer->program2d, "u_uv_bounds");
+            GLint link_ok = 0;
+            glGetProgramiv(renderer->program2d, GL_LINK_STATUS, &link_ok);
+            if( !link_ok )
+            {
+                char buf[512];
+                glGetProgramInfoLog(renderer->program2d, (GLsizei)sizeof(buf), NULL, buf);
+                fprintf(stderr, "OpenGL3: program2d link failed: %s\n", buf);
+                glDeleteProgram(renderer->program2d);
+                renderer->program2d = 0u;
+            }
+            else
+            {
+                renderer->u2d_projection =
+                    glGetUniformLocation(renderer->program2d, "u_projection");
+                renderer->u2d_texture = glGetUniformLocation(renderer->program2d, "u_texture");
+                renderer->u2d_text_mode = glGetUniformLocation(renderer->program2d, "u_text_mode");
+                renderer->u2d_uv_clamp = glGetUniformLocation(renderer->program2d, "u_uv_clamp");
+                renderer->u2d_uv_bounds = glGetUniformLocation(renderer->program2d, "u_uv_bounds");
+                if( renderer->u2d_projection < 0 || renderer->u2d_texture < 0 ||
+                    renderer->u2d_text_mode < 0 )
+                {
+                    fprintf(stderr,
+                        "OpenGL3: program2d missing required uniforms "
+                        "(projection=%d texture=%d text_mode=%d)\n",
+                        renderer->u2d_projection,
+                        renderer->u2d_texture,
+                        renderer->u2d_text_mode);
+                    glDeleteProgram(renderer->program2d);
+                    renderer->program2d = 0u;
+                }
+            }
             glDeleteShader(vs2d);
             glDeleteShader(fs2d);
+        }
+        if( !renderer->program2d )
+        {
+            fprintf(stderr, "OpenGL3: failed to create 2D program\n");
+            goto fail_gl;
         }
         glGenVertexArrays(1, &renderer->quad_vao);
         glGenBuffers(1, &renderer->quad_vbo);
         glBindVertexArray(renderer->quad_vao);
         glBindBuffer(GL_ARRAY_BUFFER, renderer->quad_vbo);
-        glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(struct GL3Vertex2D), NULL, GL_DYNAMIC_DRAW);
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            (GLsizeiptr)(GL3_2D_BATCH_MAX_VERTS * sizeof(struct GL3Vertex2D)),
+            NULL,
+            GL_DYNAMIC_DRAW);
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(struct GL3Vertex2D), (void*)0);
         glEnableVertexAttribArray(1);

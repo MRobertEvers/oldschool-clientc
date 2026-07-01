@@ -19,7 +19,10 @@ struct RSComponentLoadCallbacks
     void* user;
     void (*on_component)(
         void* user,
-        int component_id);
+        int component_id,
+        int parent_id,
+        int rel_x,
+        int rel_y);
 };
 
 struct Task_RSComponentLoad

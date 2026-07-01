@@ -11,6 +11,7 @@
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"
 #include "ui/ui_input.h"
+#include "ui/ui_scroll.h"
 #include "ui/interaction_state.h"
 #include "ui/ui_minimenu.h"
 #include "ui/uitree.h"
@@ -142,6 +143,14 @@ struct GameRunescape
     /** Client.ts overSideComId / lastOverComId: RS component id for hide
      *  reveal and hover colours. -1 when nothing hovered. */
     int ui_hovered_component_id;
+    /** Per RS component id scroll position (Client.ts scrollPos / scrollX / scrollY). */
+    int ui_scroll_x[8192];
+    int ui_scroll_y[8192];
+    int ui_scroll_drag_layer_id;
+    enum UITreeScrollbarHitKind ui_scroll_drag_kind;
+    int ui_scroll_drag_anchor;
+    /** Client.ts scrollGrabbed: widens grip drag hit zone while dragging. */
+    bool ui_scroll_grabbed;
     int32_t ui_minimenu_node;
     int32_t ui_chat_node;
     char ui_text_scratch[RUNESCAPE_UI_TEXT_SCRATCH_MAX];
@@ -176,6 +185,8 @@ struct GameRunescape
     int world_map_scene_id;
     int world_map_w;
     int world_map_h;
+    int ui_scrollbar0_scene_id;
+    int ui_scrollbar1_scene_id;
 
     int mouse_x;
     int mouse_y;
@@ -205,6 +216,11 @@ struct GameRunescape
         int32_t ui_current;
         int ui_inv_slot;
         int ui_minimenu_step;
+        int ui_chat_button_step;
+        int ui_scrollbar_step;
+        int32_t ui_scrollbar_layer;
+        /** Client.ts scrollCycle: frames LMB held this tick (for arrow repeat). */
+        int ui_scroll_cycle;
         struct GameRunescape_UITraversalFrame ui_stack[RUNESCAPE_UI_TRAVERSAL_STACK_MAX];
         int ui_stack_top;
     } frame;
@@ -278,11 +294,33 @@ GameRunescape_UIHitTest(
     int px,
     int py);
 
+void
+GameRunescape_GetScrollPos(
+    struct GameRunescape const* game,
+    int component_id,
+    int* sx,
+    int* sy);
+
+void
+GameRunescape_ClampScroll(
+    struct GameRunescape* game,
+    struct StaticUIComponent const* layer);
+
 bool
 GameRunescape_MinimenuPrepareShow(
     struct GameRunescape* game,
     struct UIMinimenuLayout* out_layout,
     int* out_content_width);
+
+void
+GameRunescape_ApplyChatFilterSettings(
+    struct GameRunescape* game,
+    int public_mode,
+    int private_mode,
+    int trade_mode);
+
+void
+GameRunescape_SendChatSetMode(struct GameRunescape* game);
 
 void
 GameRunescape_FrameBegin(

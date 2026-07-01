@@ -5,6 +5,7 @@
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
+#include "ui_scroll.h"
 #include "uitree_host.h"
 #include "uitree_layout.h"
 
@@ -42,6 +43,7 @@ uitree_component_expects_minimenu_rows(struct StaticUIComponent const* component
     case UIELEM_BUILTIN_WORLD:
     case UIELEM_BUILTIN_SIDEBAR:
     case UIELEM_BUILTIN_CHAT:
+    case UIELEM_BUILTIN_CHAT_BUTTON:
     case UIELEM_BUILTIN_CROSS:
     case UIELEM_BUILTIN_MINIMENU:
     case UIELEM_BUILTIN_COMPASS:
@@ -100,12 +102,19 @@ static void
 uitree_find_hovered_component_id_recursive(
     struct UITree const* tree,
     struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
     int32_t node_index,
     int mouse_x,
     int mouse_y,
+    int scroll_off_x,
+    int scroll_off_y,
+    struct UITreeScrollClip const* clip,
     int* out_hovered_component_id)
 {
     if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return;
+
+    if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !uitree_point_in_clip(mouse_x, mouse_y, clip) )
         return;
 
     struct StaticUIComponent const* component = &tree->components[node_index];
@@ -115,7 +124,8 @@ uitree_find_hovered_component_id_recursive(
     int bh = 0;
     uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
 
-    if( mouse_x >= bx && mouse_x < bx + bw && mouse_y >= by && mouse_y < by + bh )
+    if( uitree_point_in_scrolled_bounds(
+            mouse_x, mouse_y, bx, by, bw, bh, scroll_off_x, scroll_off_y) )
     {
         if( component->component_id >= 0 &&
             (component->behavior.over_layer_id >= 0 || component->behavior.over_color != 0) )
@@ -123,6 +133,27 @@ uitree_find_hovered_component_id_recursive(
             *out_hovered_component_id = component->behavior.over_layer_id >= 0
                                             ? component->behavior.over_layer_id
                                             : component->component_id;
+        }
+    }
+
+    int child_scroll_x = scroll_off_x;
+    int child_scroll_y = scroll_off_y;
+    struct UITreeScrollClip child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
+
+    if( component->type == UIELEM_RS_LAYER )
+    {
+        uitree_scroll_intersect_clip(&child_clip, bx, by, bw, bh);
+        if( scroll && uitree_scroll_layer_needs_horizontal(component) && component->component_id >= 0 )
+        {
+            int sx = 0;
+            uitree_scroll_get_pos(scroll, component->component_id, &sx, NULL);
+            child_scroll_x += sx;
+        }
+        if( scroll && uitree_scroll_layer_needs_vertical(component) && component->component_id >= 0 )
+        {
+            int sy = 0;
+            uitree_scroll_get_pos(scroll, component->component_id, NULL, &sy);
+            child_scroll_y += sy;
         }
     }
 
@@ -140,7 +171,16 @@ uitree_find_hovered_component_id_recursive(
          child = tree->components[child].next_sibling )
     {
         uitree_find_hovered_component_id_recursive(
-            tree, host, child, mouse_x, mouse_y, out_hovered_component_id);
+            tree,
+            host,
+            scroll,
+            child,
+            mouse_x,
+            mouse_y,
+            child_scroll_x,
+            child_scroll_y,
+            &child_clip,
+            out_hovered_component_id);
     }
 }
 
@@ -148,6 +188,7 @@ void
 uitree_find_hovered_component_id(
     struct UITree const* tree,
     struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
     int mouse_x,
     int mouse_y,
     int* out_hovered_component_id)
@@ -162,7 +203,7 @@ uitree_find_hovered_component_id(
     for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         uitree_find_hovered_component_id_recursive(
-            tree, host, root, mouse_x, mouse_y, out_hovered_component_id);
+            tree, host, scroll, root, mouse_x, mouse_y, 0, 0, NULL, out_hovered_component_id);
     }
 }
 

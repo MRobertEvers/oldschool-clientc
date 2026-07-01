@@ -2,11 +2,15 @@
 
 #include "games/runescape.h"
 #include "osrs/minimenu_action.h"
+#include "render/libtorirs_render.h"
+#include "toridraw/toridraw_scene.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
 
 #include <stdio.h>
 #include <string.h>
+
+#define CLIENT_CODE_REPORT_INPUT 600
 
 int32_t
 uitree_find_chat_builtin_node(struct UITree const* tree)
@@ -338,4 +342,168 @@ ui_chat_minimenu_add_main_box(
     }
 
     (void)mouse_x;
+}
+
+static int
+ui_chat_button_active_mode(
+    struct GameRunescape const* game,
+    enum StaticUIChatButtonFilter filter)
+{
+    if( !game )
+        return 0;
+    switch( filter )
+    {
+    case STATIC_UI_CHAT_BUTTON_PUBLIC:
+        return game->chat_public_mode;
+    case STATIC_UI_CHAT_BUTTON_PRIVATE:
+        return game->chat_private_mode;
+    case STATIC_UI_CHAT_BUTTON_TRADE:
+        return game->chat_trade_mode;
+    default:
+        return 0;
+    }
+}
+
+int
+ui_chat_button_emit_step_count(struct StaticUIComponent const* component)
+{
+    if( !component || component->type != UIELEM_BUILTIN_CHAT_BUTTON )
+        return 0;
+    if( component->u.chat_button.filter == STATIC_UI_CHAT_BUTTON_REPORT )
+        return 1;
+    return 2;
+}
+
+bool
+ui_chat_button_emit(
+    struct GameRunescape* game,
+    struct StaticUIComponent const* component,
+    int step,
+    struct LibToriRS_RenderCommand* command,
+    char* text_scratch,
+    size_t text_scratch_size)
+{
+    if( !game || !component || !command || component->type != UIELEM_BUILTIN_CHAT_BUTTON )
+        return false;
+
+    struct StaticUIChatButtonConfig const* cfg = &component->u.chat_button;
+    if( cfg->label[0] == '\0' )
+        return false;
+
+    int bx = 0;
+    int by = 0;
+    int bw = 0;
+    int bh = 0;
+    uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
+
+    int font_id = cfg->font_id;
+    if( font_id < 0 || font_id > 3 )
+        font_id = 1;
+
+    struct ToriDraw_Font* font = game->scene ? ToriDraw_SceneFontGet(game->scene, font_id) : NULL;
+    if( !font )
+        return false;
+
+    int const lh = font->line_height > 0 ? font->line_height : 1;
+    int draw_x = bx;
+    if( cfg->center && bw > 0 )
+        draw_x = bx + bw / 2;
+
+    char const* text = NULL;
+    int color = 0xFFFFFF;
+
+    if( step == 0 )
+    {
+        text = cfg->label;
+        color = 0xFFFFFF;
+        command->u.font.y = by + cfg->label_y;
+    }
+    else if(
+        step == 1 && cfg->filter != STATIC_UI_CHAT_BUTTON_REPORT &&
+        cfg->mode_label[0][0] != '\0' )
+    {
+        int const mode = ui_chat_button_active_mode(game, cfg->filter);
+        int const idx = mode >= 0 && mode < 4 ? mode : 0;
+        text = cfg->mode_label[idx][0] != '\0' ? cfg->mode_label[idx] : cfg->mode_label[0];
+        color = cfg->mode_color[idx] != 0 ? cfg->mode_color[idx] : 0xFFFFFF;
+        command->u.font.y = by + cfg->mode_y;
+    }
+    else
+    {
+        return false;
+    }
+
+    if( !text || text[0] == '\0' )
+        return false;
+
+    if( text_scratch && text_scratch_size > 0 )
+    {
+        snprintf(text_scratch, text_scratch_size, "%s", text);
+        text = text_scratch;
+    }
+
+    command->kind = TORIRSRC_FONT;
+    command->u.font.font_id = font_id;
+    command->u.font.x = draw_x;
+    command->u.font.color = color;
+    command->u.font.center = cfg->center ? 1 : 0;
+    command->u.font.shadowed = cfg->shadowed ? 1 : 0;
+    command->u.font.width = bw;
+    command->u.font.height = bh;
+    command->u.font.text = text;
+    command->u.font.scissor_x = 0;
+    command->u.font.scissor_y = 0;
+    command->u.font.scissor_w = 0;
+    command->u.font.scissor_h = 0;
+    (void)lh;
+    return true;
+}
+
+static void
+ui_chat_button_open_report_abuse(struct GameRunescape* game)
+{
+    if( !game || !game->ui_tree )
+        return;
+
+    for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* c = &game->ui_tree->components[i];
+        if( c->behavior.client_code == CLIENT_CODE_REPORT_INPUT )
+        {
+            fprintf(stderr, "ui_chat_button: open report abuse (component_id=%d)\n", c->component_id);
+            return;
+        }
+    }
+    fprintf(stderr, "ui_chat_button: report abuse clicked (CC_REPORT_INPUT interface not loaded)\n");
+}
+
+void
+ui_chat_button_handle_click(
+    struct GameRunescape* game,
+    struct StaticUIComponent const* component)
+{
+    if( !game || !component || component->type != UIELEM_BUILTIN_CHAT_BUTTON )
+        return;
+
+    struct StaticUIChatButtonConfig const* cfg = &component->u.chat_button;
+    switch( cfg->filter )
+    {
+    case STATIC_UI_CHAT_BUTTON_PUBLIC:
+        game->chat_public_mode = (game->chat_public_mode + 1) % 4;
+        GameRunescape_SendChatSetMode(game);
+        break;
+    case STATIC_UI_CHAT_BUTTON_PRIVATE:
+        game->chat_private_mode = (game->chat_private_mode + 1) % 3;
+        GameRunescape_SendChatSetMode(game);
+        break;
+    case STATIC_UI_CHAT_BUTTON_TRADE:
+        game->chat_trade_mode = (game->chat_trade_mode + 1) % 3;
+        GameRunescape_SendChatSetMode(game);
+        break;
+    case STATIC_UI_CHAT_BUTTON_REPORT:
+        ui_chat_button_open_report_abuse(game);
+        break;
+    default:
+        break;
+    }
 }

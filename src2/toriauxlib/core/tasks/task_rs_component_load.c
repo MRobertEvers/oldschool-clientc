@@ -468,21 +468,6 @@ rs_component_acquire_dynamic_sprites(
         dat2_acquire_dynamic_sprite(ctx, dat2_comp->activeGraphic);
 }
 
-static bool
-dat1_layer_lists_child(
-    struct RSCacheDat1A_ConfigComponent const* layer,
-    int child_id)
-{
-    if( !layer->children )
-        return false;
-    for( int i = 0; i < layer->children_count; i++ )
-    {
-        if( layer->children[i] == child_id )
-            return true;
-    }
-    return false;
-}
-
 static void
 rs_component_push_children_dat1(
     struct Task_RSComponentLoad* task,
@@ -493,28 +478,22 @@ rs_component_push_children_dat1(
     if( dat1_comp->type != COMPONENT_TYPE_LAYER )
         return;
 
-    if( dat1_comp->children )
+    if( dat1_comp->children && dat1_comp->children_count > 0 )
     {
+        assert(
+            dat1_comp->childX && dat1_comp->childY &&
+            "rs_component_push_children_dat1: layer has children but childX/childY missing");
+
         for( int i = dat1_comp->children_count - 1; i >= 0; i-- )
         {
             struct RSCacheDat1A_ConfigComponent* child =
                 dat1_get_component(dat1_ifaces, dat1_comp->children[i]);
             if( !child )
                 continue;
-            int rel_x = (dat1_comp->childX ? dat1_comp->childX[i] : 0) + child->x;
-            int rel_y = (dat1_comp->childY ? dat1_comp->childY[i] : 0) + child->y;
+            int const rel_x = dat1_comp->childX[i] + child->x;
+            int const rel_y = dat1_comp->childY[i] + child->y;
             rs_stack_push(task, dat1_comp->children[i], rel_x, rel_y, dat1_comp->id);
         }
-    }
-
-    for( int i = dat1_ifaces->components_count - 1; i >= 0; i-- )
-    {
-        struct RSCacheDat1A_ConfigComponent* linked = dat1_ifaces->components[i];
-        if( !linked || linked->layer != dat1_comp->id )
-            continue;
-        if( dat1_layer_lists_child(dat1_comp, linked->id) )
-            continue;
-        rs_stack_push(task, linked->id, linked->x, linked->y, dat1_comp->id);
     }
 }
 
@@ -605,7 +584,8 @@ rs_component_walk_dat1(
 
         if( task->callbacks.on_component )
         {
-            task->callbacks.on_component(task->callbacks.user, comp->id);
+            task->callbacks.on_component(
+                task->callbacks.user, comp->id, parent_id, rel_x, rel_y);
             task->components_walked++;
         }
 
@@ -649,7 +629,8 @@ rs_component_walk_dat2(
 
         if( task->callbacks.on_component )
         {
-            task->callbacks.on_component(task->callbacks.user, comp->id);
+            task->callbacks.on_component(
+                task->callbacks.user, comp->id, parent_id, rel_x, rel_y);
             task->components_walked++;
         }
 

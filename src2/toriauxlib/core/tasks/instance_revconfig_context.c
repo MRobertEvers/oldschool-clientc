@@ -6,6 +6,7 @@
 #include "osrs/minimenu_action.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "toriauxlib/core/toriauxlibcore.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_sprite.h"
 #include "ui/uitree_layout.h"
@@ -75,7 +76,10 @@ instance_revconfig_rs_subtree_get_or_create(
 bool
 instance_revconfig_rs_subtree_append(
     struct InstanceRevConfigRSSubtree* subtree,
-    int component_id)
+    int component_id,
+    int parent_id,
+    int rel_x,
+    int rel_y)
 {
     assert(subtree && component_id >= 0);
     for( int i = 0; i < subtree->item_count; i++ )
@@ -84,7 +88,11 @@ instance_revconfig_rs_subtree_append(
             return true;
     }
     assert(subtree->item_count < INSTANCE_RC_MAX_RS_SUBTREE_ITEMS);
-    subtree->component_ids[subtree->item_count++] = component_id;
+    int const idx = subtree->item_count++;
+    subtree->component_ids[idx] = component_id;
+    subtree->parent_ids[idx] = parent_id;
+    subtree->rel_x[idx] = rel_x;
+    subtree->rel_y[idx] = rel_y;
     return true;
 }
 
@@ -136,11 +144,11 @@ instance_revconfig_bake_rs_component(
     behavior.client_code = info->client_code;
     behavior.over_layer_id = info->over_layer_id;
     behavior.script_kind = info->script_kind;
+    behavior.over_color = info->over_color;
+    behavior.active_color = info->active_color;
+    behavior.active_over_color = info->active_over_color;
     if( info->scripts_count > 0 )
     {
-        behavior.over_color = info->over_color;
-        behavior.active_color = info->active_color;
-        behavior.active_over_color = info->active_over_color;
         behavior.scripts_count = info->scripts_count;
         behavior.scripts = info->scripts;
         behavior.scripts_lengths = info->scripts_lengths;
@@ -179,6 +187,8 @@ instance_revconfig_bake_rs_component(
     {
     case TORIAUXLIBCORE_COMPONENT_LAYER:
         spec.type = UIELEM_RS_LAYER;
+        spec.u.rs_layer.scroll_height = info->scroll_height;
+        spec.u.rs_layer.scroll_width = info->scroll_width;
         break;
     case TORIAUXLIBCORE_COMPONENT_GRAPHIC:
     {
@@ -332,14 +342,27 @@ instance_revconfig_bake_rs_component(
     return uitree_push(ctx->tree, parent_idx, &spec);
 }
 
-static int
-instance_revconfig_rs_bake_map_key(int component_id)
+struct InstanceRevConfigRsBakeIdMap
 {
-    if( component_id < 0 )
+    int component_id;
+    int32_t uitree_index;
+};
+
+static int32_t
+instance_revconfig_rs_bake_lookup(
+    struct InstanceRevConfigRsBakeIdMap const* map,
+    int map_count,
+    int component_id)
+{
+    if( component_id < 0 || !map )
         return -1;
-    if( (component_id & 0xFFFF0000) != 0 )
-        return component_id & 0xFFFF;
-    return component_id;
+
+    for( int i = 0; i < map_count; i++ )
+    {
+        if( map[i].component_id == component_id )
+            return map[i].uitree_index;
+    }
+    return -1;
 }
 
 void
@@ -358,19 +381,8 @@ instance_revconfig_bake_rs_subtree(
     if( comp->inv[0] != '\0' && ctx->inv_pool )
         inv_index = uitree_inv_pool_find_by_name(ctx->inv_pool, comp->inv);
 
-    int map_size = 0;
-    for( int i = 0; i < subtree->item_count; i++ )
-    {
-        int key = instance_revconfig_rs_bake_map_key(subtree->component_ids[i]);
-        if( key > map_size )
-            map_size = key;
-    }
-    map_size++;
-
-    int* id_to_uitree = calloc((size_t)map_size, sizeof(int));
-    assert(id_to_uitree && "instance_revconfig_bake_rs_subtree: id_to_uitree alloc");
-    for( int i = 0; i < map_size; i++ )
-        id_to_uitree[i] = -1;
+    struct InstanceRevConfigRsBakeIdMap id_map[INSTANCE_RC_MAX_RS_SUBTREE_ITEMS];
+    int id_map_count = 0;
 
     int baked_count = 0;
     for( int i = 0; i < subtree->item_count; i++ )
@@ -382,12 +394,46 @@ instance_revconfig_bake_rs_subtree(
             info &&
             "instance_revconfig_bake_rs_subtree: missing core component in rs_subtrees capture");
 
+        ToriAuxLibCore_ComponentApplyWalkLayout(
+            info,
+            subtree->parent_ids[i],
+            subtree->rel_x[i],
+            subtree->rel_y[i]);
+
         int32_t parent_idx = owner_uitree_index;
-        if( info->parent_id >= 0 )
+        if( subtree->parent_ids[i] >= 0 )
         {
-            int parent_key = instance_revconfig_rs_bake_map_key(info->parent_id);
-            if( parent_key >= 0 && parent_key < map_size && id_to_uitree[parent_key] >= 0 )
-                parent_idx = id_to_uitree[parent_key];
+            int32_t mapped =
+                instance_revconfig_rs_bake_lookup(id_map, id_map_count, subtree->parent_ids[i]);
+            if( mapped >= 0 )
+                parent_idx = mapped;
+            else
+            {
+                fprintf(
+                    stderr,
+                    "instance_revconfig_bake_rs_subtree: parent lookup failed owner=%s "
+                    "component_id=%d parent_id=%d (attaching to sidebar owner)\n",
+                    comp->name,
+                    info->id,
+                    subtree->parent_ids[i]);
+            }
+        }
+
+        if( ui_minimenu_debug_enabled() && info->type == TORIAUXLIBCORE_COMPONENT_TEXT &&
+            subtree->parent_ids[i] >= 0 && ctx->tree &&
+            parent_idx >= 0 && (uint32_t)parent_idx < ctx->tree->component_count )
+        {
+            enum StaticUIComponentType parent_type = ctx->tree->components[parent_idx].type;
+            if( parent_type != UIELEM_RS_LAYER )
+            {
+                ui_minimenu_debug_log(
+                    "bake: text rs_id=%d parent_idx=%d parent_type=%d "
+                    "(expected UIELEM_RS_LAYER=%d)",
+                    info->id,
+                    parent_idx,
+                    (int)parent_type,
+                    (int)UIELEM_RS_LAYER);
+            }
         }
 
         int32_t idx = instance_revconfig_bake_rs_component(ctx, parent_idx, info, inv_index);
@@ -415,12 +461,11 @@ instance_revconfig_bake_rs_subtree(
         }
 
         baked_count++;
-        int map_key = instance_revconfig_rs_bake_map_key(info->id);
-        if( map_key >= 0 && map_key < map_size )
-            id_to_uitree[map_key] = idx;
+        assert(id_map_count < INSTANCE_RC_MAX_RS_SUBTREE_ITEMS);
+        id_map[id_map_count].component_id = info->id;
+        id_map[id_map_count].uitree_index = idx;
+        id_map_count++;
     }
-
-    free(id_to_uitree);
 
     if( baked_count == 0 )
     {
@@ -454,6 +499,23 @@ instance_revconfig_assert_fonts_in_scene(struct InstanceRevConfigContext* ctx)
             ToriDraw_SceneFontHas(ctx->scene, font_id) &&
             "revconfig font missing from scene after load");
     }
+}
+
+void
+instance_revconfig_attach_scrollbar_sprites(
+    struct InstanceRevConfigContext* ctx,
+    struct GameRunescape* game)
+{
+    if( !ctx || !game )
+        return;
+
+    int atlas = 0;
+    int id = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, "scrollbar0", &atlas);
+    if( id >= 0 )
+        game->ui_scrollbar0_scene_id = id;
+    id = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, "scrollbar1", &atlas);
+    if( id >= 0 )
+        game->ui_scrollbar1_scene_id = id;
 }
 
 void
@@ -559,6 +621,8 @@ component_type_from_string(char const* type)
         return UIELEM_BUILTIN_SIDEBAR;
     if( strcmp(type, "chat") == 0 )
         return UIELEM_BUILTIN_CHAT;
+    if( strcmp(type, "chat_button") == 0 )
+        return UIELEM_BUILTIN_CHAT_BUTTON;
     if( strcmp(type, "sprite") == 0 )
         return UIELEM_BUILTIN_SPRITE;
     if( strcmp(type, "redstone_tab") == 0 )
@@ -857,6 +921,63 @@ instance_revconfig_copy_chat_minimenu_config(
         &dst->op_accept_duel_action);
 }
 
+static void
+instance_revconfig_copy_chat_button_config(
+    struct InstanceRevConfigContext const* ctx,
+    struct RevConfigUIComponentItem const* comp,
+    struct StaticUIChatButtonConfig* dst)
+{
+    assert(comp && dst);
+    memset(dst, 0, sizeof(*dst));
+
+    if( comp->chat_button_filter >= 0 && comp->chat_button_filter <= 3 )
+        dst->filter = (enum StaticUIChatButtonFilter)comp->chat_button_filter;
+    else
+        dst->filter = STATIC_UI_CHAT_BUTTON_PUBLIC;
+
+    strncpy(dst->label, comp->chat_button_label, sizeof(dst->label) - 1);
+    dst->label[sizeof(dst->label) - 1] = '\0';
+
+    if( comp->chat_button_label_y != 0 )
+        dst->label_y = comp->chat_button_label_y;
+    else if( dst->filter == STATIC_UI_CHAT_BUTTON_REPORT )
+        dst->label_y = 19;
+    else
+        dst->label_y = 14;
+
+    if( comp->chat_button_mode_y != 0 )
+        dst->mode_y = comp->chat_button_mode_y;
+    else
+        dst->mode_y = 27;
+
+    if( comp->has_font_ref && comp->font_ref[0] && ctx )
+    {
+        int font_id = ui_font_lookup_find(&ctx->font_lookup, comp->font_ref);
+        if( font_id >= 0 )
+            dst->font_id = font_id;
+    }
+    else if( comp->font >= 0 && ctx )
+        dst->font_id = instance_revconfig_resolve_rs_text_font_id(ctx, comp->font);
+    else
+        dst->font_id = 1;
+
+    dst->center = comp->center ? 1 : 0;
+    dst->shadowed = comp->shadowed ? 1 : 0;
+
+    for( int i = 0; i < 4; i++ )
+    {
+        if( comp->chat_button_mode_label[i][0] != '\0' )
+        {
+            strncpy(
+                dst->mode_label[i],
+                comp->chat_button_mode_label[i],
+                sizeof(dst->mode_label[i]) - 1);
+            dst->mode_label[i][sizeof(dst->mode_label[i]) - 1] = '\0';
+        }
+        dst->mode_color[i] = comp->chat_button_mode_color[i];
+    }
+}
+
 static int32_t
 instance_revconfig_build_layout_node(
     struct InstanceRevConfigContext* ctx,
@@ -952,6 +1073,9 @@ instance_revconfig_build_layout_node(
     case UIELEM_BUILTIN_CHAT:
         instance_revconfig_copy_chat_minimenu_config(comp, &spec.u.chat.minimenu);
         break;
+    case UIELEM_BUILTIN_CHAT_BUTTON:
+        instance_revconfig_copy_chat_button_config(ctx, comp, &spec.u.chat_button);
+        break;
     case UIELEM_BUILTIN_WORLD:
         spec.u.world.level_mask = parse_paint_levels_mask(comp->paint_levels);
         break;
@@ -1000,7 +1124,8 @@ instance_revconfig_build_layout_node(
         spec.u.rs_rect.filled = comp->filled ? 1 : 0;
         break;
     case UIELEM_RS_LAYER:
-        spec.u.rs_layer.reserved = 0;
+        spec.u.rs_layer.scroll_height = 0;
+        spec.u.rs_layer.scroll_width = 0;
         break;
     case UIELEM_RS_MODEL:
         spec.u.rs_model.gamecache_model_id = component_id >= 0 ? component_id : 0;

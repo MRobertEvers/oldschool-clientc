@@ -165,7 +165,8 @@ Task_Dat1NpcAdd_Run(
         LibToriRS_IOQueueClear(ctx->io);
     }
 
-    if( !ToriAuxLibCore_NpctypeHas(core, task->npc_id) )
+    npc = dat1_buildcache_npc_get(dat1_bc, task->npc_id);
+    if( npc && !ToriAuxLibCore_NpctypeHas(core, task->npc_id) )
     {
         struct ToriAuxLibCore_Npctype* neutral =
             ToriAuxLibCache_NpctypeNewFromDat1ConfigNpc(npc, task->npc_id);

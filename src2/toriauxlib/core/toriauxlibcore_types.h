@@ -355,6 +355,10 @@ struct ToriAuxLibCore_Component
     int rel_y;
     int width;
     int height;
+    /** Client.ts scrollHeight / dat1 scroll. Layer content height; 0 = no vertical scroll. */
+    int scroll_height;
+    /** dat2 scrollWidth. Layer content width; 0 = no horizontal scroll. */
+    int scroll_width;
     char sprite_ref[TORIAUXLIBCORE_SPRITE_REF_MAX];
     /** Client.ts graphic2 / dat activeGraphic: sprite when getIfActive. */
     char sprite_active_ref[TORIAUXLIBCORE_SPRITE_REF_MAX];

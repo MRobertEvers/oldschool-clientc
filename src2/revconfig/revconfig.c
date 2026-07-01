@@ -143,6 +143,30 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL";
     case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION:
         return "RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION";
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER:
+        return "RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER";
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL:
+        return "RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL";
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL_Y:
+        return "RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL_Y";
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE_Y:
+        return "RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE_Y";
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE0:
+        return "RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE0";
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE1:
+        return "RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE1";
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE2:
+        return "RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE2";
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE3:
+        return "RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE3";
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE0_COLOR:
+        return "RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE0_COLOR";
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE1_COLOR:
+        return "RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE1_COLOR";
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE2_COLOR:
+        return "RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE2_COLOR";
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE3_COLOR:
+        return "RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE3_COLOR";
     case RCFIELD_INV_ITEM:
         return "RCFIELD_INV_ITEM";
     case RCFIELD_UILAYOUT_COMPONENT:
@@ -523,6 +547,22 @@ revconfig_parse_minimenu_action(char const* str)
     return 0;
 }
 
+static int
+revconfig_parse_chat_button_filter(char const* value)
+{
+    if( !value || value[0] == '\0' )
+        return -1;
+    if( strcasecmp(value, "public") == 0 )
+        return 0;
+    if( strcasecmp(value, "private") == 0 )
+        return 1;
+    if( strcasecmp(value, "trade") == 0 )
+        return 2;
+    if( strcasecmp(value, "report") == 0 )
+        return 3;
+    return atoi(value);
+}
+
 int
 revconfig_parse_button_type(char const* str)
 {
@@ -699,6 +739,47 @@ revconfig_item_apply_uicomponent_field(
         break;
     case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION:
         comp->chat_op_accept_duel_action = revconfig_parse_minimenu_action(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER:
+        comp->chat_button_filter = revconfig_parse_chat_button_filter(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL:
+        strncpy(comp->chat_button_label, value, sizeof(comp->chat_button_label) - 1);
+        comp->chat_button_label[sizeof(comp->chat_button_label) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL_Y:
+        comp->chat_button_label_y = atoi(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE_Y:
+        comp->chat_button_mode_y = atoi(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE0:
+        strncpy(comp->chat_button_mode_label[0], value, sizeof(comp->chat_button_mode_label[0]) - 1);
+        comp->chat_button_mode_label[0][sizeof(comp->chat_button_mode_label[0]) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE1:
+        strncpy(comp->chat_button_mode_label[1], value, sizeof(comp->chat_button_mode_label[1]) - 1);
+        comp->chat_button_mode_label[1][sizeof(comp->chat_button_mode_label[1]) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE2:
+        strncpy(comp->chat_button_mode_label[2], value, sizeof(comp->chat_button_mode_label[2]) - 1);
+        comp->chat_button_mode_label[2][sizeof(comp->chat_button_mode_label[2]) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE3:
+        strncpy(comp->chat_button_mode_label[3], value, sizeof(comp->chat_button_mode_label[3]) - 1);
+        comp->chat_button_mode_label[3][sizeof(comp->chat_button_mode_label[3]) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE0_COLOR:
+        comp->chat_button_mode_color[0] = atoi(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE1_COLOR:
+        comp->chat_button_mode_color[1] = atoi(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE2_COLOR:
+        comp->chat_button_mode_color[2] = atoi(value);
+        break;
+    case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE3_COLOR:
+        comp->chat_button_mode_color[3] = atoi(value);
         break;
     default:
         break;

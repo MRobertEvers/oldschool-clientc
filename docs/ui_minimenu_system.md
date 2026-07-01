@@ -95,6 +95,26 @@ Private-strip row hit tests (`addPrivateChatOptions`) still use hardcoded Client
 coordinates in `ui_chat_minimenu.c`; the chat builtin provides INI templates and
 the `ui_click_point_in_chat_main_lines` gate for the main chat right-click path.
 
+### Chat privacy bar (`type=chat_button`)
+
+Client.ts draws the Public / Private / Trade / Report abuse controls on `backbase1`
+via `redrawPrivacySettings` and `chatModeLoop`. Dat1/dat2 UI configs use
+`type=chat_button` (`UIELEM_BUILTIN_CHAT_BUTTON`) — separate from `type=chat`
+(`chat_region` minimenu only).
+
+| INI key | Purpose |
+|---------|---------|
+| `filter=public \| private \| trade \| report` | Which mode field / click handler |
+| `label=` | Title text (e.g. `Public chat`) |
+| `label_y=` / `mode_y=` | Y offsets within layout rect (defaults 14 / 27; report label 19) |
+| `mode0=` … `mode3=` | Mode labels (public uses four; private/trade use three) |
+| `mode0_color=` … `mode3_color=` | Decimal RGB for each mode |
+| `font=p12`, `center=true`, `shadowed=true` | Match Client.ts `p12` rendering |
+
+Layout entries at Client.ts click rects (`dirty=true`). Left-click cycles modes and
+calls `GameRunescape_SendChatSetMode`; server sync via
+`GameRunescape_ApplyChatFilterSettings` on `CHAT_FILTER_SETTINGS`.
+
 Pipeline for static owners:
 
 ```
@@ -129,7 +149,10 @@ state plus INI templates on `type=chat`.
 Non-interactive `UIELEM_RS_GRAPHIC` / `UIELEM_RS_TEXT` / `UIELEM_RS_RECT` /
 `UIELEM_RS_MODEL` / `UIELEM_RS_LINE` nodes with no `menu_options` and no
 button/client_code pass through hit testing so clicks reach inventory and
-buttons underneath.
+buttons underneath. `UIELEM_RS_INV` / `UIELEM_RS_INV_TEXT` are also pass-through
+in `uitree_hit_test_interactive`; inventory slot picks use 32×32 slot-grid
+geometry via `uitree_inv_pick_at_point` (not layout width/height, which are
+grid column/row counts).
 
 ### Recursive 2D interface collection
 
@@ -172,6 +195,9 @@ UI_MINIMENU_DEBUG=1 ./sdl2 --runescape --soft3d
 | `skip sidebar wrong tab` | Recursive walk | Sidebar tab not selected |
 | `add rows` / `add_rows` | Row builder | Final rows added from baked `menu_options` |
 | `build_ui_minimenu_at_point` | After menu build | Final option list shown to player |
+| `inv_right_click` | Right-click inventory slot | Item `inv_actions` + container `ops[]` counts and opcode mapping; `menu_rows_added` |
+| `inv_left_click` | Left-click inventory slot | Same source op counts (no menu rows built) |
+| `inv_use_option` | Minimenu row picked on inv slot | Source op summary plus `selected_action` / `selected_action_index` |
 
 ## UIMinimenuLayout (font-derived geometry)
 

@@ -14,11 +14,13 @@ CFLAGS = -std=c11 -Wall -Wextra -g \
 LDFLAGS = -Wl,-dead_strip
 
 SRCS = main.c \
+	$(SRC2_DIR)/input/libtorirs_input.c \
 	$(SRC2_DIR)/ui/uitree.c \
 	$(SRC2_DIR)/ui/uitree_layout.c \
 	$(SRC2_DIR)/ui/uitree_host.c \
 	$(SRC2_DIR)/ui/ui_input.c \
 	$(SRC2_DIR)/ui/ui_behavior.c \
+	$(SRC2_DIR)/ui/ui_scroll.c \
 	$(SRC2_DIR)/vm/csvm.c \
 	$(SRC2_DIR)/vm/cs2vm.c \
 	$(SRC_DIR)/osrs/varp_varbit_manager.c

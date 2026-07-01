@@ -29,6 +29,9 @@ struct InstanceRevConfigRSSubtree
 {
     char owner_component[64];
     int component_ids[INSTANCE_RC_MAX_RS_SUBTREE_ITEMS];
+    int parent_ids[INSTANCE_RC_MAX_RS_SUBTREE_ITEMS];
+    int rel_x[INSTANCE_RC_MAX_RS_SUBTREE_ITEMS];
+    int rel_y[INSTANCE_RC_MAX_RS_SUBTREE_ITEMS];
     int item_count;
 };
 
@@ -113,7 +116,10 @@ instance_revconfig_rs_subtree_get_or_create(
 bool
 instance_revconfig_rs_subtree_append(
     struct InstanceRevConfigRSSubtree* subtree,
-    int component_id);
+    int component_id,
+    int parent_id,
+    int rel_x,
+    int rel_y);
 
 void
 instance_revconfig_bake_rs_subtree(
@@ -129,5 +135,10 @@ instance_revconfig_assert_fonts_in_scene(struct InstanceRevConfigContext* ctx);
 
 void
 instance_revconfig_assert_sprites_in_scene(struct InstanceRevConfigContext* ctx);
+
+void
+instance_revconfig_attach_scrollbar_sprites(
+    struct InstanceRevConfigContext* ctx,
+    struct GameRunescape* game);
 
 #endif

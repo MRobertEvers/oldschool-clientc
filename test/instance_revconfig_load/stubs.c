@@ -118,7 +118,7 @@ GameRunescape_UIHitTest(
 {
     if( !game || !game->ui_tree )
         return -1;
-    return uitree_hit_test_interactive(game->ui_tree, &game->ui_host, px, py);
+    return uitree_hit_test_interactive(game->ui_tree, &game->ui_host, NULL, px, py);
 }
 
 bool
@@ -138,6 +138,40 @@ GameRunescape_MinimenuPrepareShow(
         game->scene && font_id >= 0 ? ToriDraw_SceneFontGet(game->scene, font_id) : NULL;
     return ui_minimenu_prepare_show(
         &game->minimenu, font, out_layout, out_content_width);
+}
+
+void
+GameRunescape_SendChatSetMode(struct GameRunescape* game)
+{
+    (void)game;
+}
+
+void
+GameRunescape_GetScrollPos(
+    struct GameRunescape const* game,
+    int component_id,
+    int* sx,
+    int* sy)
+{
+    if( sx )
+        *sx = 0;
+    if( sy )
+        *sy = 0;
+    if( !game || component_id < 0 || component_id >= 8192 )
+        return;
+    if( sx )
+        *sx = game->ui_scroll_x[component_id];
+    if( sy )
+        *sy = game->ui_scroll_y[component_id];
+}
+
+void
+GameRunescape_ClampScroll(
+    struct GameRunescape* game,
+    struct StaticUIComponent const* layer)
+{
+    (void)game;
+    (void)layer;
 }
 
 struct ToriAuxLibVM

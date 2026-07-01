@@ -8,12 +8,14 @@
 #include "../toriauxlib/td/toriauxlibtd.h"
 #include "../toriauxlib/vm/toriauxlibvm.h"
 #include "../ui/ui_click.h"
+#include "../ui/ui_chat_minimenu.h"
 #include "../vm/cs2vm.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "ui/ui_behavior.h"
 #include "ui/ui_input_adapter.h"
+#include "ui/ui_scroll.h"
 #include "../world/heightmap.h"
 #include "../world/minimap.h"
 #include "../world/world_builder.h"
@@ -895,10 +897,14 @@ GameRunescape_New(
     game->ui_hovered_node = -1;
     game->ui_minimenu_node = -1;
     game->ui_chat_node = -1;
+    game->ui_scroll_drag_layer_id = -1;
+    game->ui_scroll_drag_kind = UITREE_SCROLLBAR_NONE;
 
     game->world_map_scene_id = -1;
     game->world_map_w = 0;
     game->world_map_h = 0;
+    game->ui_scrollbar0_scene_id = -1;
+    game->ui_scrollbar1_scene_id = -1;
     game->entity_registry_cap = RUNESCAPE_ENTITY_REGISTRY_INITIAL_CAP;
     game->entity_registry =
         calloc((size_t)game->entity_registry_cap, sizeof(struct GameRunescape_EntityRecord));
@@ -1176,9 +1182,14 @@ GameRunescape_UpdateUIHover(
     if( !game->ui_tree || !game->ui_tree_ready )
         return;
 
+    struct UITreeScrollState scroll = {
+        .scroll_x = game->ui_scroll_x,
+        .scroll_y = game->ui_scroll_y,
+    };
     uitree_find_hovered_component_id(
         game->ui_tree,
         &game->ui_host,
+        &scroll,
         game->mouse_x,
         game->mouse_y,
         &game->ui_hovered_component_id);
@@ -1194,7 +1205,184 @@ GameRunescape_UIHitTest(
 {
     if( !game || !game->ui_tree )
         return -1;
-    return uitree_hit_test_interactive(game->ui_tree, &game->ui_host, px, py);
+    struct UITreeScrollState scroll = {
+        .scroll_x = game->ui_scroll_x,
+        .scroll_y = game->ui_scroll_y,
+    };
+    return uitree_hit_test_interactive(
+        game->ui_tree, &game->ui_host, &scroll, px, py);
+}
+
+void
+GameRunescape_GetScrollPos(
+    struct GameRunescape const* game,
+    int component_id,
+    int* sx,
+    int* sy)
+{
+    if( !game )
+        return;
+    struct UITreeScrollState scroll = {
+        .scroll_x = (int*)game->ui_scroll_x,
+        .scroll_y = (int*)game->ui_scroll_y,
+    };
+    uitree_scroll_get_pos(&scroll, component_id, sx, sy);
+}
+
+void
+GameRunescape_ClampScroll(
+    struct GameRunescape* game,
+    struct StaticUIComponent const* layer)
+{
+    if( !game || !layer || layer->component_id < 0 )
+        return;
+    struct UITreeScrollState scroll = {
+        .scroll_x = game->ui_scroll_x,
+        .scroll_y = game->ui_scroll_y,
+    };
+    uitree_scroll_clamp_pos(layer, &scroll, layer->component_id);
+}
+
+#define RUNESCAPE_UI_SCROLL_DRAG_PADDING 32
+
+static void
+GameRunescape_UIScrollDragClear(struct GameRunescape* game)
+{
+    if( !game )
+        return;
+    game->ui_scroll_drag_layer_id = -1;
+    game->ui_scroll_drag_kind = UITREE_SCROLLBAR_NONE;
+    game->ui_scroll_drag_anchor = 0;
+    game->ui_scroll_grabbed = false;
+    game->frame.ui_scroll_cycle = 0;
+}
+
+static int32_t
+GameRunescape_UIFindLayerIndexById(
+    struct GameRunescape const* game,
+    int component_id)
+{
+    if( !game || !game->ui_tree || component_id < 0 )
+        return -1;
+
+    for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* component = &game->ui_tree->components[i];
+        if( component->type == UIELEM_RS_LAYER && component->component_id == component_id )
+            return (int32_t)i;
+    }
+    return -1;
+}
+
+static bool
+GameRunescape_ProcessUIScroll(
+    struct GameRunescape* game,
+    struct LibToriRS_Input* input)
+{
+    if( !game || !game->ui_tree || !game->ui_tree_ready )
+        return false;
+
+    bool const mouse_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+    if( !mouse_held || LibToriRS_Input_IsDragEnd(input, TORIRSM_LEFT) )
+    {
+        GameRunescape_UIScrollDragClear(game);
+        return false;
+    }
+
+    game->frame.ui_scroll_cycle++;
+
+    struct UITreeScrollState scroll = {
+        .scroll_x = game->ui_scroll_x,
+        .scroll_y = game->ui_scroll_y,
+    };
+    struct UITreeScrollbarHitInfo hit = { 0 };
+    bool changed = false;
+    bool consume_click = false;
+
+    if( game->ui_scroll_grabbed && game->ui_scroll_drag_layer_id >= 0 &&
+        uitree_scrollbar_is_grip_kind(game->ui_scroll_drag_kind) )
+    {
+        int32_t layer_idx =
+            GameRunescape_UIFindLayerIndexById(game, game->ui_scroll_drag_layer_id);
+        if( layer_idx >= 0 && uitree_scrollbar_hit_for_layer(game->ui_tree, layer_idx, &hit) )
+        {
+            hit.kind = game->ui_scroll_drag_kind;
+            if( uitree_scrollbar_handle(
+                    game->ui_tree,
+                    &scroll,
+                    &hit,
+                    game->mouse_x,
+                    game->mouse_y,
+                    UITREE_SCROLLBAR_ACTION_GRIP_DRAG,
+                    0) )
+            {
+                changed = true;
+                consume_click = true;
+            }
+        }
+    }
+    else
+    {
+        int const padding = game->ui_scroll_grabbed ? RUNESCAPE_UI_SCROLL_DRAG_PADDING : 0;
+        if( uitree_find_scrollbar_at_padded(
+                game->ui_tree, &scroll, game->mouse_x, game->mouse_y, padding, &hit) )
+        {
+            struct StaticUIComponent* layer = &game->ui_tree->components[hit.layer_index];
+            if( uitree_scrollbar_is_arrow_kind(hit.kind) )
+            {
+                int const step = game->frame.ui_scroll_cycle * UITREE_SCROLLBAR_ARROW_DELTA;
+                if( uitree_scrollbar_handle(
+                        game->ui_tree,
+                        &scroll,
+                        &hit,
+                        game->mouse_x,
+                        game->mouse_y,
+                        UITREE_SCROLLBAR_ACTION_ARROW_STEP,
+                        step) )
+                {
+                    changed = true;
+                    consume_click = true;
+                    game->ui_scroll_drag_layer_id = layer->component_id;
+                    game->ui_scroll_drag_kind = hit.kind;
+                }
+            }
+            else if( uitree_scrollbar_is_grip_kind(hit.kind) && game->frame.ui_scroll_cycle > 0 )
+            {
+                if( uitree_scrollbar_handle(
+                        game->ui_tree,
+                        &scroll,
+                        &hit,
+                        game->mouse_x,
+                        game->mouse_y,
+                        UITREE_SCROLLBAR_ACTION_GRIP_DRAG,
+                        0) )
+                {
+                    changed = true;
+                    consume_click = true;
+                    game->ui_scroll_drag_layer_id = layer->component_id;
+                    game->ui_scroll_drag_kind = hit.kind;
+                    game->ui_scroll_grabbed = true;
+                }
+            }
+        }
+    }
+
+    if( changed )
+    {
+        uitree_mark_all_dirty(game->ui_tree);
+        if( game->ui_scroll_drag_layer_id >= 0 )
+        {
+            int32_t layer_idx =
+                GameRunescape_UIFindLayerIndexById(game, game->ui_scroll_drag_layer_id);
+            if( layer_idx >= 0 )
+            {
+                struct StaticUIComponent* layer = &game->ui_tree->components[layer_idx];
+                uitree_scroll_clamp_pos(layer, &scroll, layer->component_id);
+            }
+        }
+    }
+
+    return consume_click && LibToriRS_Input_IsClick(input, TORIRSM_LEFT);
 }
 
 static int
@@ -1228,10 +1416,18 @@ GameRunescape_ProcessInput(
         game->mouse_y >= game->world_view_port.clip_top &&
         game->mouse_y < game->world_view_port.clip_bottom;
 
-    if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) && game->ui_tree && game->ui_tree_ready )
+    if( game->ui_tree && game->ui_tree_ready )
     {
-        ui_click_handle_left(
-            game, input, input->last_click_x[TORIRSM_LEFT], input->last_click_y[TORIRSM_LEFT]);
+        bool scroll_consumed_click = GameRunescape_ProcessUIScroll(game, input);
+
+        if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) && !scroll_consumed_click )
+        {
+            ui_click_handle_left(
+                game,
+                input,
+                input->last_click_x[TORIRSM_LEFT],
+                input->last_click_y[TORIRSM_LEFT]);
+        }
     }
 
     if( LibToriRS_Input_IsClick(input, TORIRSM_RIGHT) && game->ui_tree && game->ui_tree_ready )
@@ -1404,6 +1600,120 @@ GameRunescape_UIAdvance(
 }
 
 static void
+GameRunescape_ApplyScissorToSprite(
+    struct LibToriRS_RenderCommand* command,
+    struct UITreeScrollClip const* clip)
+{
+    if( !command || !clip || clip->clip_w <= 0 || clip->clip_h <= 0 )
+        return;
+    command->u.sprite.scissor_x = clip->clip_x;
+    command->u.sprite.scissor_y = clip->clip_y;
+    command->u.sprite.scissor_w = clip->clip_w;
+    command->u.sprite.scissor_h = clip->clip_h;
+}
+
+static void
+GameRunescape_ApplyScissorToFillRect(
+    struct LibToriRS_RenderCommand* command,
+    struct UITreeScrollClip const* clip)
+{
+    if( !command || !clip || clip->clip_w <= 0 || clip->clip_h <= 0 )
+        return;
+    command->u.fill_rect.scissor_x = clip->clip_x;
+    command->u.fill_rect.scissor_y = clip->clip_y;
+    command->u.fill_rect.scissor_w = clip->clip_w;
+    command->u.fill_rect.scissor_h = clip->clip_h;
+}
+
+static void
+GameRunescape_ApplyScissorToFont(
+    struct LibToriRS_RenderCommand* command,
+    struct UITreeScrollClip const* clip)
+{
+    if( !command || !clip || clip->clip_w <= 0 || clip->clip_h <= 0 )
+        return;
+    command->u.font.scissor_x = clip->clip_x;
+    command->u.font.scissor_y = clip->clip_y;
+    command->u.font.scissor_w = clip->clip_w;
+    command->u.font.scissor_h = clip->clip_h;
+}
+
+static struct UITreeScrollState
+GameRunescape_UIScrollState(struct GameRunescape* game)
+{
+    struct UITreeScrollState scroll = {
+        .scroll_x = game->ui_scroll_x,
+        .scroll_y = game->ui_scroll_y,
+    };
+    return scroll;
+}
+
+static int
+GameRunescape_UIGetAncestors(
+    struct GameRunescape* game,
+    int32_t* ancestors,
+    int max_ancestors)
+{
+    if( !game || !ancestors || max_ancestors <= 0 )
+        return 0;
+
+    int count = 0;
+    for( int i = 0; i <= game->frame.ui_stack_top && count < max_ancestors; i++ )
+        ancestors[count++] = game->frame.ui_stack[i].parent_index;
+    return count;
+}
+
+static void
+GameRunescape_UIGetDrawContext(
+    struct GameRunescape* game,
+    struct StaticUIComponent* component,
+    int* bx,
+    int* by,
+    int* bw,
+    int* bh,
+    struct UITreeScrollClip* clip)
+{
+    uitree_layout_get_bounds(&component->position, bx, by, bw, bh);
+    clip->clip_x = 0;
+    clip->clip_y = 0;
+    clip->clip_w = 0;
+    clip->clip_h = 0;
+
+    int32_t ancestors[RUNESCAPE_UI_TRAVERSAL_STACK_MAX];
+    int ancestor_count = GameRunescape_UIGetAncestors(game, ancestors, RUNESCAPE_UI_TRAVERSAL_STACK_MAX);
+    struct UITreeScrollState scroll_state = GameRunescape_UIScrollState(game);
+    uitree_scroll_apply_ancestors(
+        game->ui_tree,
+        &scroll_state,
+        ancestors,
+        ancestor_count,
+        bx,
+        by,
+        clip);
+}
+
+static void
+GameRunescape_EmitScrollbarFill(
+    struct LibToriRS_RenderCommand* command,
+    int x,
+    int y,
+    int w,
+    int h,
+    int argb)
+{
+    command->kind = TORIRSRC_FILL_RECT;
+    command->u.fill_rect.x = x;
+    command->u.fill_rect.y = y;
+    command->u.fill_rect.w = w;
+    command->u.fill_rect.h = h;
+    command->u.fill_rect.argb = argb;
+    command->u.fill_rect.scissor_x = 0;
+    command->u.fill_rect.scissor_y = 0;
+    command->u.fill_rect.scissor_w = 0;
+    command->u.fill_rect.scissor_h = 0;
+}
+
+static void
 GameRunescape_EmitSpriteCommand(
     struct LibToriRS_RenderCommand* command,
     int scene_id,
@@ -1435,6 +1745,345 @@ GameRunescape_EmitSpriteCommand(
     command->u.sprite.mask_atlas_index = 0;
 }
 
+static void
+GameRunescape_EmitSpriteCommandRotated(
+    struct LibToriRS_RenderCommand* command,
+    int scene_id,
+    int atlas_index,
+    int x,
+    int y,
+    int w,
+    int h,
+    int rotation_r2pi2048)
+{
+    GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, x, y, w, h);
+    if( rotation_r2pi2048 != 0 )
+    {
+        command->u.sprite.rotated = 1;
+        command->u.sprite.rotation = rotation_r2pi2048;
+    }
+}
+
+static void
+GameRunescape_EmitScrollbarArrow(
+    struct LibToriRS_RenderCommand* command,
+    int scene_id,
+    int x,
+    int y,
+    int rotation_r2pi2048)
+{
+    if( scene_id >= 0 )
+    {
+        GameRunescape_EmitSpriteCommandRotated(
+            command,
+            scene_id,
+            0,
+            x,
+            y,
+            UITREE_SCROLLBAR_THICKNESS,
+            UITREE_SCROLLBAR_THICKNESS,
+            rotation_r2pi2048);
+    }
+    else
+    {
+        GameRunescape_EmitScrollbarFill(
+            command,
+            x,
+            y,
+            UITREE_SCROLLBAR_THICKNESS,
+            UITREE_SCROLLBAR_THICKNESS,
+            UITREE_SCROLLBAR_GRIP_ARGB);
+    }
+}
+
+static bool
+GameRunescape_VerticalScrollbarGrip(
+    struct StaticUIComponent* layer,
+    int vh,
+    int lh,
+    int sy,
+    int* grip_y,
+    int* grip_size,
+    int* track_h)
+{
+    *track_h = vh - 32;
+    if( *track_h <= 0 )
+        return false;
+    *grip_size = (*track_h * lh) / layer->u.rs_layer.scroll_height;
+    if( *grip_size < 8 )
+        *grip_size = 8;
+    if( *grip_size > *track_h )
+        *grip_size = *track_h;
+    int range = uitree_scroll_max_y(layer);
+    *grip_y = range > 0 ? ((*track_h - *grip_size) * sy) / range : 0;
+    return true;
+}
+
+static bool
+GameRunescape_HorizontalScrollbarGrip(
+    struct StaticUIComponent* layer,
+    int sw,
+    int lw,
+    int sx,
+    int* grip_x,
+    int* grip_size,
+    int* track_w)
+{
+    *track_w = sw - 32;
+    if( *track_w <= 0 )
+        return false;
+    *grip_size = (*track_w * lw) / layer->u.rs_layer.scroll_width;
+    if( *grip_size < 8 )
+        *grip_size = 8;
+    if( *grip_size > *track_w )
+        *grip_size = *track_w;
+    int range = uitree_scroll_max_x(layer);
+    *grip_x = range > 0 ? ((*track_w - *grip_size) * sx) / range : 0;
+    return true;
+}
+
+static bool
+GameRunescape_EmitLayerScrollbars(
+    struct GameRunescape* game,
+    struct StaticUIComponent* layer,
+    int step,
+    struct LibToriRS_RenderCommand* command)
+{
+    if( !layer || layer->type != UIELEM_RS_LAYER || !command )
+        return false;
+
+    bool vscroll = uitree_scroll_layer_needs_vertical(layer);
+    bool hscroll = uitree_scroll_layer_needs_horizontal(layer);
+    if( !vscroll && !hscroll )
+        return false;
+
+    int lx = 0;
+    int ly = 0;
+    int lw = 0;
+    int lh = 0;
+    struct UITreeScrollClip clip = { 0 };
+    GameRunescape_UIGetDrawContext(game, layer, &lx, &ly, &lw, &lh, &clip);
+
+    int sx = 0;
+    int sy = 0;
+    if( layer->component_id >= 0 )
+    {
+        struct UITreeScrollState scroll_state = GameRunescape_UIScrollState(game);
+        uitree_scroll_get_pos(&scroll_state, layer->component_id, &sx, &sy);
+    }
+
+    int const v_steps = vscroll ? UITREE_SCROLLBAR_V_DRAW_STEPS : 0;
+    int const h_steps = hscroll ? UITREE_SCROLLBAR_H_DRAW_STEPS : 0;
+    int const total_steps = v_steps + h_steps;
+    if( step >= total_steps )
+        return false;
+
+    if( step < v_steps )
+    {
+        int sb_x = lx + lw;
+        int vh = hscroll ? lh - UITREE_SCROLLBAR_THICKNESS : lh;
+        int grip_y = 0;
+        int grip_size = 0;
+        int track_h = 0;
+        int grip_y0 = 0;
+
+        switch( step )
+        {
+        case 0:
+            GameRunescape_EmitScrollbarArrow(
+                command, game->ui_scrollbar0_scene_id, sb_x, ly, 0);
+            return true;
+        case 1:
+            GameRunescape_EmitScrollbarArrow(
+                command,
+                game->ui_scrollbar1_scene_id,
+                sb_x,
+                ly + vh - UITREE_SCROLLBAR_THICKNESS,
+                0);
+            return true;
+        case 2:
+            if( !GameRunescape_VerticalScrollbarGrip(layer, vh, lh, sy, &grip_y, &grip_size, &track_h) )
+                return false;
+            GameRunescape_EmitScrollbarFill(
+                command,
+                sb_x,
+                ly + UITREE_SCROLLBAR_THICKNESS,
+                UITREE_SCROLLBAR_THICKNESS,
+                track_h,
+                UITREE_SCROLLBAR_TRACK_ARGB);
+            return true;
+        case 3:
+            if( !GameRunescape_VerticalScrollbarGrip(layer, vh, lh, sy, &grip_y, &grip_size, &track_h) )
+                return false;
+            GameRunescape_EmitScrollbarFill(
+                command,
+                sb_x,
+                ly + UITREE_SCROLLBAR_THICKNESS + grip_y,
+                UITREE_SCROLLBAR_THICKNESS,
+                grip_size,
+                UITREE_SCROLLBAR_GRIP_ARGB);
+            return true;
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+            if( !GameRunescape_VerticalScrollbarGrip(layer, vh, lh, sy, &grip_y, &grip_size, &track_h) )
+                return false;
+            grip_y0 = ly + UITREE_SCROLLBAR_THICKNESS + grip_y;
+            switch( step )
+            {
+            case 4:
+                GameRunescape_EmitScrollbarFill(
+                    command, sb_x, grip_y0, 2, grip_size, UITREE_SCROLLBAR_GRIP_HI_ARGB);
+                return true;
+            case 5:
+                GameRunescape_EmitScrollbarFill(
+                    command, sb_x, grip_y0, UITREE_SCROLLBAR_THICKNESS, 2, UITREE_SCROLLBAR_GRIP_HI_ARGB);
+                return true;
+            case 6:
+                GameRunescape_EmitScrollbarFill(
+                    command,
+                    sb_x + UITREE_SCROLLBAR_THICKNESS - 1,
+                    grip_y0,
+                    1,
+                    grip_size,
+                    UITREE_SCROLLBAR_GRIP_LO_ARGB);
+                return true;
+            case 7:
+                if( grip_size > 1 )
+                {
+                    GameRunescape_EmitScrollbarFill(
+                        command,
+                        sb_x + UITREE_SCROLLBAR_THICKNESS - 2,
+                        grip_y0 + 1,
+                        1,
+                        grip_size - 1,
+                        UITREE_SCROLLBAR_GRIP_LO_ARGB);
+                }
+                return true;
+            case 8:
+                GameRunescape_EmitScrollbarFill(
+                    command,
+                    sb_x,
+                    grip_y0 + grip_size - 1,
+                    UITREE_SCROLLBAR_THICKNESS,
+                    1,
+                    UITREE_SCROLLBAR_GRIP_LO_ARGB);
+                return true;
+            default:
+                break;
+            }
+            break;
+        default:
+            break;
+        }
+        return false;
+    }
+
+    int hstep = step - v_steps;
+    int sb_y = ly + lh - UITREE_SCROLLBAR_THICKNESS;
+    int sw = vscroll ? lw - UITREE_SCROLLBAR_THICKNESS : lw;
+    int grip_x = 0;
+    int grip_size = 0;
+    int track_w = 0;
+    int grip_x0 = 0;
+    int const h_arrow_rotation = 512;
+
+    switch( hstep )
+    {
+    case 0:
+        GameRunescape_EmitScrollbarArrow(
+            command, game->ui_scrollbar0_scene_id, lx, sb_y, h_arrow_rotation);
+        return true;
+    case 1:
+        GameRunescape_EmitScrollbarArrow(
+            command,
+            game->ui_scrollbar1_scene_id,
+            lx + sw - UITREE_SCROLLBAR_THICKNESS,
+            sb_y,
+            h_arrow_rotation);
+        return true;
+    case 2:
+        if( !GameRunescape_HorizontalScrollbarGrip(layer, sw, lw, sx, &grip_x, &grip_size, &track_w) )
+            return false;
+        GameRunescape_EmitScrollbarFill(
+            command,
+            lx + UITREE_SCROLLBAR_THICKNESS,
+            sb_y,
+            track_w,
+            UITREE_SCROLLBAR_THICKNESS,
+            UITREE_SCROLLBAR_TRACK_ARGB);
+        return true;
+    case 3:
+        if( !GameRunescape_HorizontalScrollbarGrip(layer, sw, lw, sx, &grip_x, &grip_size, &track_w) )
+            return false;
+        GameRunescape_EmitScrollbarFill(
+            command,
+            lx + UITREE_SCROLLBAR_THICKNESS + grip_x,
+            sb_y,
+            grip_size,
+            UITREE_SCROLLBAR_THICKNESS,
+            UITREE_SCROLLBAR_GRIP_ARGB);
+        return true;
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+        if( !GameRunescape_HorizontalScrollbarGrip(layer, sw, lw, sx, &grip_x, &grip_size, &track_w) )
+            return false;
+        grip_x0 = lx + UITREE_SCROLLBAR_THICKNESS + grip_x;
+        switch( hstep )
+        {
+        case 4:
+            GameRunescape_EmitScrollbarFill(
+                command, grip_x0, sb_y, 2, UITREE_SCROLLBAR_THICKNESS, UITREE_SCROLLBAR_GRIP_HI_ARGB);
+            return true;
+        case 5:
+            GameRunescape_EmitScrollbarFill(
+                command, grip_x0, sb_y, grip_size, 2, UITREE_SCROLLBAR_GRIP_HI_ARGB);
+            return true;
+        case 6:
+            GameRunescape_EmitScrollbarFill(
+                command,
+                grip_x0 + grip_size - 1,
+                sb_y,
+                1,
+                UITREE_SCROLLBAR_THICKNESS,
+                UITREE_SCROLLBAR_GRIP_LO_ARGB);
+            return true;
+        case 7:
+            if( UITREE_SCROLLBAR_THICKNESS > 1 )
+            {
+                GameRunescape_EmitScrollbarFill(
+                    command,
+                    grip_x0 + grip_size - 2,
+                    sb_y + 1,
+                    1,
+                    UITREE_SCROLLBAR_THICKNESS - 1,
+                    UITREE_SCROLLBAR_GRIP_LO_ARGB);
+            }
+            return true;
+        case 8:
+            GameRunescape_EmitScrollbarFill(
+                command,
+                grip_x0,
+                sb_y + UITREE_SCROLLBAR_THICKNESS - 1,
+                grip_size,
+                1,
+                UITREE_SCROLLBAR_GRIP_LO_ARGB);
+            return true;
+        default:
+            break;
+        }
+        break;
+    default:
+        break;
+    }
+    return false;
+}
+
 static bool
 GameRunescape_EmitUIComponent(
     struct GameRunescape* game,
@@ -1451,10 +2100,14 @@ GameRunescape_EmitUIComponent(
     int by = 0;
     int bw = 0;
     int bh = 0;
-    uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
+    struct UITreeScrollClip clip = { 0 };
+    GameRunescape_UIGetDrawContext(game, component, &bx, &by, &bw, &bh, &clip);
 
     switch( component->type )
     {
+    case UIELEM_RS_LAYER:
+        return GameRunescape_EmitLayerScrollbars(
+            game, component, game->frame.ui_scrollbar_step, command);
     case UIELEM_BUILTIN_SPRITE:
     case UIELEM_BUILTIN_TAB_ICONS:
     case UIELEM_RS_GRAPHIC:
@@ -1484,6 +2137,7 @@ GameRunescape_EmitUIComponent(
         GameRunescape_AssertSceneSpriteReady(
             game, scene_id, atlas_index, "ui_sprite");
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, bx, by, bw, bh);
+        GameRunescape_ApplyScissorToSprite(command, &clip);
         return true;
     }
     case UIELEM_BUILTIN_COMPASS:
@@ -1659,6 +2313,31 @@ GameRunescape_EmitUIComponent(
         game->frame.ui_minimenu_step = 0;
         return false;
     }
+    case UIELEM_BUILTIN_CHAT_BUTTON:
+    {
+        int font_id = component->u.chat_button.font_id;
+        if( font_id < 0 || font_id > 3 )
+            font_id = 1;
+        GameRunescape_AssertSceneFontReady(game, font_id, "chat_button");
+        int const step = game->frame.ui_chat_button_step;
+        if( ui_chat_button_emit(
+                game,
+                component,
+                step,
+                command,
+                game->ui_text_scratch,
+                sizeof(game->ui_text_scratch)) )
+        {
+            GameRunescape_ApplyScissorToFont(command, &clip);
+            if( step + 1 < ui_chat_button_emit_step_count(component) )
+                game->frame.ui_chat_button_step = step + 1;
+            else
+                game->frame.ui_chat_button_step = 0;
+            return true;
+        }
+        game->frame.ui_chat_button_step = 0;
+        return false;
+    }
     case UIELEM_BUILTIN_MINIMAP:
     {
         int scene_id = component->u.minimap.scene_id;
@@ -1724,6 +2403,11 @@ GameRunescape_EmitUIComponent(
             command->u.font.height = bh;
             command->u.font.text = uitree_expand_text_host(
                 &game->ui_host, component, game->ui_text_scratch, sizeof(game->ui_text_scratch));
+            command->u.font.scissor_x = 0;
+            command->u.font.scissor_y = 0;
+            command->u.font.scissor_w = 0;
+            command->u.font.scissor_h = 0;
+            GameRunescape_ApplyScissorToFont(command, &clip);
         }
         return true;
     case UIELEM_RS_RECT:
@@ -1737,6 +2421,11 @@ GameRunescape_EmitUIComponent(
         command->u.fill_rect.w = bw;
         command->u.fill_rect.h = bh;
         command->u.fill_rect.argb = color;
+        command->u.fill_rect.scissor_x = 0;
+        command->u.fill_rect.scissor_y = 0;
+        command->u.fill_rect.scissor_w = 0;
+        command->u.fill_rect.scissor_h = 0;
+        GameRunescape_ApplyScissorToFillRect(command, &clip);
         return true;
     }
     case UIELEM_RS_LINE:
@@ -1745,6 +2434,10 @@ GameRunescape_EmitUIComponent(
         if( color == 0 )
             return false;
         command->kind = TORIRSRC_FILL_RECT;
+        command->u.fill_rect.scissor_x = 0;
+        command->u.fill_rect.scissor_y = 0;
+        command->u.fill_rect.scissor_w = 0;
+        command->u.fill_rect.scissor_h = 0;
         if( component->u.rs_line.horizontal )
         {
             int lh = component->u.rs_line.line_width > 0 ? component->u.rs_line.line_width : 1;
@@ -1762,6 +2455,7 @@ GameRunescape_EmitUIComponent(
             command->u.fill_rect.h = bh;
         }
         command->u.fill_rect.argb = color;
+        GameRunescape_ApplyScissorToFillRect(command, &clip);
         return true;
     }
     case UIELEM_RS_INV:
@@ -2081,6 +2775,9 @@ rs_phase_ui_begin(
         game->ui_tree && game->ui_tree->root_index >= 0 ? game->ui_tree->root_index : -1;
     game->frame.ui_stack_top = -1;
     game->frame.ui_inv_slot = 0;
+    game->frame.ui_minimenu_step = 0;
+    game->frame.ui_chat_button_step = 0;
+    game->frame.ui_scrollbar_step = 0;
     game->frame.phase = RS_FRAME_PHASE_UI_2D;
     return RS_PHASE_YIELD;
 }
@@ -2103,7 +2800,11 @@ rs_phase_ui_step(
         return RS_PHASE_ADVANCE;
     }
 
-    if( component->is_dirty &&
+    bool const layer_scroll =
+        component->type == UIELEM_RS_LAYER &&
+        (uitree_scroll_layer_needs_vertical(component) ||
+         uitree_scroll_layer_needs_horizontal(component));
+    if( (component->is_dirty || layer_scroll) &&
         GameRunescape_EmitUIComponent(game, component, game->frame.ui_current, command) )
     {
         int32_t cur = game->frame.ui_current;
@@ -2112,13 +2813,31 @@ rs_phase_ui_step(
                               game->frame.ui_inv_slot < inv_slot_limit;
         bool const minimenu_more = component->type == UIELEM_BUILTIN_MINIMENU &&
                                    game->minimenu.visible && game->frame.ui_minimenu_step > 0;
-        if( !inv_more && !minimenu_more )
+        bool const chat_button_more = component->type == UIELEM_BUILTIN_CHAT_BUTTON &&
+                                      game->frame.ui_chat_button_step > 0;
+        if( component->type == UIELEM_RS_LAYER && layer_scroll )
+        {
+            bool vscroll = uitree_scroll_layer_needs_vertical(component);
+            bool hscroll = uitree_scroll_layer_needs_horizontal(component);
+            int total_steps = (vscroll ? UITREE_SCROLLBAR_V_DRAW_STEPS : 0) +
+                              (hscroll ? UITREE_SCROLLBAR_H_DRAW_STEPS : 0);
+            if( total_steps > 0 && game->frame.ui_scrollbar_step + 1 < total_steps )
+            {
+                game->frame.ui_scrollbar_step++;
+                return RS_PHASE_YIELD;
+            }
+            game->frame.ui_scrollbar_step = 0;
+        }
+        if( !inv_more && !minimenu_more && !chat_button_more )
             GameRunescape_UIAdvance(game, cur);
         return RS_PHASE_YIELD;
     }
 
     if( component->type == UIELEM_BUILTIN_MINIMENU && game->minimenu.visible &&
         game->frame.ui_minimenu_step > 0 )
+        return RS_PHASE_ADVANCE;
+
+    if( component->type == UIELEM_BUILTIN_CHAT_BUTTON && game->frame.ui_chat_button_step > 0 )
         return RS_PHASE_ADVANCE;
 
     if( (component->type == UIELEM_RS_INV || component->type == UIELEM_RS_INV_TEXT) &&
@@ -2147,6 +2866,29 @@ rs_phase_ui_end(
 }
 
 void
+GameRunescape_ApplyChatFilterSettings(
+    struct GameRunescape* game,
+    int public_mode,
+    int private_mode,
+    int trade_mode)
+{
+    if( !game )
+        return;
+    game->chat_public_mode = public_mode;
+    game->chat_private_mode = private_mode;
+    game->chat_trade_mode = trade_mode;
+}
+
+void
+GameRunescape_SendChatSetMode(struct GameRunescape* game)
+{
+    if( !game )
+        return;
+    (void)game;
+    /* Outbound PKTOUT_LC245_2_CHAT_SETMODE when live connection is wired. */
+}
+
+void
 GameRunescape_FrameBegin(
     struct GameRunescape* game,
     int cycles_elapsed)
@@ -2162,6 +2904,9 @@ GameRunescape_FrameBegin(
     game->frame.ui_stack_top = -1;
     game->frame.ui_inv_slot = 0;
     game->frame.ui_minimenu_step = 0;
+    game->frame.ui_chat_button_step = 0;
+    game->frame.ui_scrollbar_step = 0;
+    game->frame.ui_scrollbar_layer = -1;
     game->ui_hovered_node = -1;
     game->ui_hovered_component_id = -1;
     if( game->scene && game->ui_tree_ready && !game->ui_fonts_synced )

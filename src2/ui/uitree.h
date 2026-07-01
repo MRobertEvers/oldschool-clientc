@@ -44,6 +44,7 @@ enum StaticUIComponentType
     UIELEM_BUILTIN_TAB_ICONS = 9,
     UIELEM_BUILTIN_CROSS = 10,
     UIELEM_BUILTIN_MINIMENU = 11,
+    UIELEM_BUILTIN_CHAT_BUTTON = 12,
     //
     UIELEM_RS_TEXT = 14,
     UIELEM_RS_GRAPHIC = 15,
@@ -150,6 +151,27 @@ struct StaticUIChatMinimenuConfig
     int op_accept_duel_action;
 };
 
+enum StaticUIChatButtonFilter
+{
+    STATIC_UI_CHAT_BUTTON_PUBLIC = 0,
+    STATIC_UI_CHAT_BUTTON_PRIVATE,
+    STATIC_UI_CHAT_BUTTON_TRADE,
+    STATIC_UI_CHAT_BUTTON_REPORT,
+};
+
+struct StaticUIChatButtonConfig
+{
+    enum StaticUIChatButtonFilter filter;
+    char label[64];
+    int label_y;
+    int mode_y;
+    int font_id;
+    int center;
+    int shadowed;
+    char mode_label[4][16];
+    int mode_color[4];
+};
+
 struct StaticUIComponent
 {
     enum StaticUIComponentType type;
@@ -245,7 +267,10 @@ struct StaticUIComponent
         } rs_inv;
         struct
         {
-            int reserved;
+            /** Client.ts scrollHeight / dat1 scroll. 0 = no vertical scroll. */
+            int scroll_height;
+            /** dat2 scrollWidth. 0 = no horizontal scroll. */
+            int scroll_width;
         } rs_layer;
         struct
         {
@@ -261,6 +286,7 @@ struct StaticUIComponent
         {
             struct StaticUIChatMinimenuConfig minimenu;
         } chat;
+        struct StaticUIChatButtonConfig chat_button;
         struct
         {
             int color;
@@ -385,7 +411,10 @@ struct UINodeSpec
         } rs_inv;
         struct
         {
-            int reserved;
+            /** Client.ts scrollHeight / dat1 scroll. 0 = no vertical scroll. */
+            int scroll_height;
+            /** dat2 scrollWidth. 0 = no horizontal scroll. */
+            int scroll_width;
         } rs_layer;
         struct
         {
@@ -401,6 +430,7 @@ struct UINodeSpec
         {
             struct StaticUIChatMinimenuConfig minimenu;
         } chat;
+        struct StaticUIChatButtonConfig chat_button;
         struct
         {
             int color;

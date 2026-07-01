@@ -1,8 +1,10 @@
 #include "ui/ui_input.h"
 #include "ui/ui_behavior.h"
 #include "ui/uitree.h"
+#include "ui/ui_scroll.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
+#include "input/libtorirs_input.h"
 #include "vm/csvm.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/varp_varbit_manager.h"
@@ -275,7 +277,7 @@ test_overlayer_hover_id(void)
     uitree_layout_resolve(tree, 0, 0, 200, 200);
 
     int hovered_id = -1;
-    uitree_find_hovered_component_id(tree, NULL, 10, 10, &hovered_id);
+    uitree_find_hovered_component_id(tree, NULL, NULL, 10, 10, &hovered_id);
     TEST_ASSERT(hovered_id == 100, "overLayer maps hover to tooltip component id");
     TEST_ASSERT(
         !uitree_component_visible_by_id(&tree->components[tooltip], -1),
@@ -339,6 +341,206 @@ test_active_text_source(void)
     return 0;
 }
 
+static int
+test_hover_color_without_scripts(void)
+{
+    struct UITree* tree = uitree_new(2);
+    struct UINodeSpec rect_spec = { 0 };
+    rect_spec.type = UIELEM_RS_RECT;
+    rect_spec.component_id = 9;
+    rect_spec.x = 0;
+    rect_spec.y = 0;
+    rect_spec.width = 20;
+    rect_spec.height = 20;
+    rect_spec.u.rs_rect.color = 0x111111;
+    rect_spec.u.rs_rect.filled = 1;
+    int32_t node = uitree_push(tree, -1, &rect_spec);
+    tree->components[node].behavior.over_color = 0xAAAAAA;
+
+    struct UITreeHost host;
+    uitree_host_init(&host);
+
+    int color = uitree_component_rect_color_host(
+        &tree->components[node], 9, &host, tree->components[node].u.rs_rect.color);
+    TEST_ASSERT(color == 0xAAAAAA, "hover color without CS1 scripts");
+
+    uitree_free(tree);
+    return 0;
+}
+
+static int
+test_scroll_offset_apply(void)
+{
+    struct UITree* tree = uitree_new(4);
+    struct UINodeSpec layer_spec = { 0 };
+    layer_spec.type = UIELEM_RS_LAYER;
+    layer_spec.component_id = 50;
+    layer_spec.x = 10;
+    layer_spec.y = 20;
+    layer_spec.width = 100;
+    layer_spec.height = 80;
+    layer_spec.u.rs_layer.scroll_height = 500;
+    int32_t layer = uitree_push(tree, -1, &layer_spec);
+
+    struct UINodeSpec text_spec = { 0 };
+    text_spec.type = UIELEM_RS_TEXT;
+    text_spec.component_id = 51;
+    text_spec.x = 0;
+    text_spec.y = 200;
+    text_spec.width = 80;
+    text_spec.height = 14;
+    text_spec.u.rs_text.text = "quest";
+    int32_t text = uitree_push(tree, layer, &text_spec);
+
+    uitree_layout_resolve(tree, 0, 0, 765, 503);
+
+    int scroll_x[UITREE_SCROLL_MAX] = { 0 };
+    int scroll_y[UITREE_SCROLL_MAX] = { 0 };
+    scroll_y[50] = 150;
+    struct UITreeScrollState scroll = { .scroll_x = scroll_x, .scroll_y = scroll_y };
+
+    int32_t ancestors[] = { layer };
+    int bx = 0;
+    int by = 0;
+    int bw = 0;
+    int bh = 0;
+    struct UITreeScrollClip clip = { 0 };
+    uitree_layout_get_bounds(&tree->components[text].position, &bx, &by, &bw, &bh);
+    uitree_scroll_apply_ancestors(tree, &scroll, ancestors, 1, &bx, &by, &clip);
+    TEST_ASSERT(by == 70, "child Y offset by layer scroll");
+    TEST_ASSERT(clip.clip_w == 100 && clip.clip_h == 80, "layer clip applied");
+
+    uitree_free(tree);
+    return 0;
+}
+
+static int
+test_scrollbar_handle_gating(void)
+{
+    struct UITree* tree = uitree_new(4);
+    struct UINodeSpec layer_spec = { 0 };
+    layer_spec.type = UIELEM_RS_LAYER;
+    layer_spec.component_id = 60;
+    layer_spec.x = 100;
+    layer_spec.y = 50;
+    layer_spec.width = 100;
+    layer_spec.height = 80;
+    layer_spec.u.rs_layer.scroll_height = 500;
+    int32_t layer = uitree_push(tree, -1, &layer_spec);
+    uitree_layout_resolve(tree, 0, 0, 765, 503);
+
+    int scroll_x[UITREE_SCROLL_MAX] = { 0 };
+    int scroll_y[UITREE_SCROLL_MAX] = { 0 };
+    scroll_y[60] = 40;
+    struct UITreeScrollState scroll = { .scroll_x = scroll_x, .scroll_y = scroll_y };
+
+    struct UITreeScrollbarHitInfo hit = { 0 };
+    hit.kind = UITREE_SCROLLBAR_V_TRACK;
+    hit.layer_index = layer;
+    hit.layer_x = 100;
+    hit.layer_y = 50;
+    hit.layer_w = 100;
+    hit.layer_h = 80;
+    hit.scroll_height = 500;
+    hit.scroll_width = 0;
+
+    int const track_py = hit.layer_y + UITREE_SCROLLBAR_THICKNESS + 20;
+    TEST_ASSERT(
+        !uitree_scrollbar_handle(
+            tree, &scroll, &hit, hit.layer_x + hit.layer_w + 8, track_py,
+            UITREE_SCROLLBAR_ACTION_NONE, 0),
+        "hover over track does not scroll");
+    TEST_ASSERT(scroll_y[60] == 40, "scroll unchanged on hover");
+
+    TEST_ASSERT(
+        !uitree_scrollbar_handle(
+            tree, &scroll, &hit, hit.layer_x + hit.layer_w + 8, track_py,
+            UITREE_SCROLLBAR_ACTION_ARROW_STEP, 4),
+        "track hit ignores arrow action");
+    TEST_ASSERT(scroll_y[60] == 40, "scroll unchanged when arrow action on track");
+
+    hit.kind = UITREE_SCROLLBAR_V_DOWN;
+    TEST_ASSERT(
+        uitree_scrollbar_handle(
+            tree, &scroll, &hit, hit.layer_x + hit.layer_w + 8,
+            hit.layer_y + hit.layer_h - 8, UITREE_SCROLLBAR_ACTION_ARROW_STEP, 4),
+        "arrow step applies on down arrow");
+    TEST_ASSERT(scroll_y[60] == 44, "scroll increased by arrow step");
+
+    scroll_y[60] = 40;
+    hit.kind = UITREE_SCROLLBAR_V_TRACK;
+    TEST_ASSERT(
+        uitree_scrollbar_handle(
+            tree, &scroll, &hit, hit.layer_x + hit.layer_w + 8, track_py,
+            UITREE_SCROLLBAR_ACTION_GRIP_DRAG, 0),
+        "grip drag updates scroll");
+    TEST_ASSERT(scroll_y[60] != 40, "scroll changed by grip drag");
+
+    uitree_free(tree);
+    return 0;
+}
+
+static void
+input_tick(
+    struct LibToriRS_Input* input,
+    uint64_t time)
+{
+    LibToriRS_Input_Begin(input, time);
+    LibToriRS_Input_End(input);
+}
+
+static int
+test_input_drag_lifecycle(void)
+{
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input = LibToriRS_Input_Init(&input_storage, 0);
+    TEST_ASSERT(input != NULL, "input init");
+
+    LibToriRS_Input_Begin(input, 100);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 10, 10);
+    LibToriRS_Input_End(input);
+
+    TEST_ASSERT(LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT), "mouse down edge on press");
+    TEST_ASSERT(LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT), "mouse held on press");
+    TEST_ASSERT(!LibToriRS_Input_IsDragging(input, TORIRSM_LEFT), "not dragging before deadzone");
+
+    input_tick(input, 110);
+    TEST_ASSERT(!LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT), "mouse down edge only first tick");
+    TEST_ASSERT(LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT), "mouse held on move tick");
+
+    LibToriRS_Input_Begin(input, 120);
+    LibToriRS_Input_PushMouseMove(input, 10, 20);
+    LibToriRS_Input_End(input);
+
+    TEST_ASSERT(LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT), "mouse held after move");
+    TEST_ASSERT(LibToriRS_Input_IsDragging(input, TORIRSM_LEFT), "dragging after deadzone");
+    TEST_ASSERT(LibToriRS_Input_IsDragStart(input, TORIRSM_LEFT), "drag start on deadzone cross");
+
+    input_tick(input, 130);
+    TEST_ASSERT(LibToriRS_Input_IsDragging(input, TORIRSM_LEFT), "dragging continues");
+    TEST_ASSERT(!LibToriRS_Input_IsDragStart(input, TORIRSM_LEFT), "drag start only first drag tick");
+
+    LibToriRS_Input_Begin(input, 140);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 10, 20);
+    LibToriRS_Input_End(input);
+
+    TEST_ASSERT(!LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT), "mouse not held after release");
+    TEST_ASSERT(!LibToriRS_Input_IsClick(input, TORIRSM_LEFT), "no click after drag");
+    TEST_ASSERT(LibToriRS_Input_IsDragEnd(input, TORIRSM_LEFT), "drag end on release");
+
+    LibToriRS_Input_Begin(input, 200);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 50, 50);
+    LibToriRS_Input_End(input);
+    LibToriRS_Input_Begin(input, 210);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 50, 50);
+    LibToriRS_Input_End(input);
+
+    TEST_ASSERT(LibToriRS_Input_IsClick(input, TORIRSM_LEFT), "click when released without drag");
+    TEST_ASSERT(!LibToriRS_Input_IsDragEnd(input, TORIRSM_LEFT), "no drag end without drag");
+
+    return 0;
+}
+
 int
 main(void)
 {
@@ -349,6 +551,10 @@ main(void)
     failures += test_behavior_button_toggle();
     failures += test_overlayer_hover_id();
     failures += test_active_text_source();
+    failures += test_hover_color_without_scripts();
+    failures += test_scroll_offset_apply();
+    failures += test_scrollbar_handle_gating();
+    failures += test_input_drag_lifecycle();
 
     if( failures == 0 )
     {

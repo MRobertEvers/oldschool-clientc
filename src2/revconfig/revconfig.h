@@ -86,6 +86,18 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_TRADE_ACTION,
     RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL,
     RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION,
+    RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER,
+    RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL,
+    RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL_Y,
+    RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE_Y,
+    RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE0,
+    RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE1,
+    RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE2,
+    RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE3,
+    RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE0_COLOR,
+    RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE1_COLOR,
+    RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE2_COLOR,
+    RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE3_COLOR,
     RCFIELD_INV_ITEM,
     RCFIELD_UILAYOUT_COMPONENT,
     RCFIELD_UILAYOUT_X,
@@ -277,7 +289,7 @@ struct RevConfigUIComponentItem
     /*
      * INI: type=
      * Widget kind; mapped by component_type_from_string() to StaticUIComponentType.
-     * Builtin: compass, minimap, world, sidebar, chat, sprite, redstone_tab, tab_icon.
+     * Builtin: compass, minimap, world, sidebar, chat, chat_button, sprite, redstone_tab, tab_icon.
      * RS (static owner or RS-load trigger): rs_layer, rs_graphic, rs_text, rs_rect,
      * rs_model, rs_inv, rs_line.
      */
@@ -399,6 +411,14 @@ struct RevConfigUIComponentItem
     int chat_op_accept_trade_action;
     char chat_op_accept_duel[REVCONFIG_CHAT_OP_TEMPLATE_LEN];
     int chat_op_accept_duel_action;
+
+    /* INI: type=chat_button — privacy bar below chatback (filter, label, mode0..3). */
+    int chat_button_filter;
+    char chat_button_label[64];
+    int chat_button_label_y;
+    int chat_button_mode_y;
+    char chat_button_mode_label[4][16];
+    int chat_button_mode_color[4];
 };
 
 /*

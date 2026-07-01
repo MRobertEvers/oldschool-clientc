@@ -222,7 +222,10 @@ task_on_rc_log_sidebar_inv_load_failure(
 static void
 on_rc_uicomponent_rs_loaded(
     void* user,
-    int component_id)
+    int component_id,
+    int parent_id,
+    int rel_x,
+    int rel_y)
 {
     struct Task_RSComponentLoad* rs_task = user;
     assert(rs_task && rs_task->rc_ctx && rs_task->owner_component[0] != '\0' && component_id >= 0);
@@ -230,7 +233,7 @@ on_rc_uicomponent_rs_loaded(
     struct InstanceRevConfigRSSubtree* subtree = instance_revconfig_rs_subtree_get_or_create(
         rs_task->rc_ctx, rs_task->owner_component);
     assert(subtree);
-    instance_revconfig_rs_subtree_append(subtree, component_id);
+    instance_revconfig_rs_subtree_append(subtree, component_id, parent_id, rel_x, rel_y);
 }
 
 static void

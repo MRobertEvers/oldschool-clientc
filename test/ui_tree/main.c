@@ -144,6 +144,148 @@ test_layout_nested(void)
     return 0;
 }
 
+static void
+assert_node_abs_bounds(
+    struct UITree* tree,
+    int32_t node,
+    int expected_x,
+    int expected_y,
+    char const* label)
+{
+    int ax = 0;
+    int ay = 0;
+    int aw = 0;
+    int ah = 0;
+    uitree_layout_get_bounds(&tree->components[node].position, &ax, &ay, &aw, &ah);
+    if( ax != expected_x || ay != expected_y )
+    {
+        fprintf(
+            stderr,
+            "FAIL: %s abs=(%d,%d) expected=(%d,%d)\n",
+            label,
+            ax,
+            ay,
+            expected_x,
+            expected_y);
+        exit(1);
+    }
+}
+
+static int
+test_rs_layer_nested_child_layout(void)
+{
+    struct UITree* tree = uitree_new(16);
+    TEST_ASSERT(tree != NULL, "tree alloc");
+
+    struct UINodeSpec outer_spec = { 0 };
+    outer_spec.type = UIELEM_RS_LAYER;
+    outer_spec.component_id = 1;
+    outer_spec.x = 10;
+    outer_spec.y = 20;
+    outer_spec.width = 180;
+    outer_spec.height = 200;
+    int32_t outer_layer = uitree_push(tree, -1, &outer_spec);
+    TEST_ASSERT(outer_layer >= 0, "outer layer push");
+
+    struct UINodeSpec text_a_spec = { 0 };
+    text_a_spec.type = UIELEM_RS_TEXT;
+    text_a_spec.component_id = 2;
+    text_a_spec.x = 5;
+    text_a_spec.y = 8;
+    text_a_spec.width = 40;
+    text_a_spec.height = 12;
+    text_a_spec.u.rs_text.font_id = 1;
+    text_a_spec.u.rs_text.text = "Next";
+    int32_t text_a = uitree_push(tree, outer_layer, &text_a_spec);
+    TEST_ASSERT(text_a >= 0, "text_a push");
+
+    struct UINodeSpec text_b_spec = { 0 };
+    text_b_spec.type = UIELEM_RS_TEXT;
+    text_b_spec.component_id = 3;
+    text_b_spec.x = 60;
+    text_b_spec.y = 8;
+    text_b_spec.width = 40;
+    text_b_spec.height = 12;
+    text_b_spec.u.rs_text.font_id = 1;
+    text_b_spec.u.rs_text.text = "level";
+    int32_t text_b = uitree_push(tree, outer_layer, &text_b_spec);
+    TEST_ASSERT(text_b >= 0, "text_b push");
+
+    struct UINodeSpec inner_spec = { 0 };
+    inner_spec.type = UIELEM_RS_LAYER;
+    inner_spec.component_id = 4;
+    inner_spec.x = 0;
+    inner_spec.y = 40;
+    inner_spec.width = 180;
+    inner_spec.height = 100;
+    int32_t inner_layer = uitree_push(tree, outer_layer, &inner_spec);
+    TEST_ASSERT(inner_layer >= 0, "inner layer push");
+
+    struct UINodeSpec text_c_spec = { 0 };
+    text_c_spec.type = UIELEM_RS_TEXT;
+    text_c_spec.component_id = 5;
+    text_c_spec.x = 12;
+    text_c_spec.y = 6;
+    text_c_spec.width = 40;
+    text_c_spec.height = 12;
+    text_c_spec.u.rs_text.font_id = 1;
+    text_c_spec.u.rs_text.text = "at:";
+    int32_t text_c = uitree_push(tree, inner_layer, &text_c_spec);
+    TEST_ASSERT(text_c >= 0, "text_c push");
+
+    uitree_layout_resolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+
+    assert_node_abs_bounds(tree, outer_layer, 10, 20, "outer_layer");
+    assert_node_abs_bounds(tree, text_a, 15, 28, "text_a");
+    assert_node_abs_bounds(tree, text_b, 70, 28, "text_b");
+    assert_node_abs_bounds(tree, inner_layer, 10, 60, "inner_layer");
+    assert_node_abs_bounds(tree, text_c, 22, 66, "text_c");
+
+    TEST_ASSERT(uitree_hit_test(tree, 20, 30) == text_a, "hit text_a");
+    TEST_ASSERT(uitree_hit_test(tree, 75, 30) == text_b, "hit text_b");
+    TEST_ASSERT(uitree_hit_test(tree, 30, 70) == text_c, "hit text_c");
+    TEST_ASSERT(uitree_hit_test(tree, 75, 30) != text_a, "text_b does not hit text_a");
+
+    /* Sidebar mount offset propagates through nested layers. */
+    struct UINodeSpec sidebar_spec = { 0 };
+    sidebar_spec.type = UIELEM_BUILTIN_SIDEBAR;
+    sidebar_spec.x = 553;
+    sidebar_spec.y = 205;
+    sidebar_spec.width = 190;
+    sidebar_spec.height = 261;
+    sidebar_spec.u.sidebar.tabno = 1;
+    int32_t sidebar = uitree_push(tree, -1, &sidebar_spec);
+    TEST_ASSERT(sidebar >= 0, "sidebar push");
+
+    struct UINodeSpec mounted_layer_spec = { 0 };
+    mounted_layer_spec.type = UIELEM_RS_LAYER;
+    mounted_layer_spec.component_id = 10;
+    mounted_layer_spec.x = 5;
+    mounted_layer_spec.y = 10;
+    mounted_layer_spec.width = 180;
+    mounted_layer_spec.height = 200;
+    int32_t mounted_layer = uitree_push(tree, sidebar, &mounted_layer_spec);
+    TEST_ASSERT(mounted_layer >= 0, "mounted layer push");
+
+    struct UINodeSpec mounted_text_spec = { 0 };
+    mounted_text_spec.type = UIELEM_RS_TEXT;
+    mounted_text_spec.component_id = 11;
+    mounted_text_spec.x = 20;
+    mounted_text_spec.y = 15;
+    mounted_text_spec.width = 80;
+    mounted_text_spec.height = 12;
+    mounted_text_spec.u.rs_text.font_id = 1;
+    mounted_text_spec.u.rs_text.text = "mounted";
+    int32_t mounted_text = uitree_push(tree, mounted_layer, &mounted_text_spec);
+    TEST_ASSERT(mounted_text >= 0, "mounted text push");
+
+    uitree_layout_resolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    assert_node_abs_bounds(tree, mounted_text, 553 + 5 + 20, 205 + 10 + 15, "mounted_text");
+
+    uitree_free(tree);
+    return 0;
+}
+
 static int
 test_sidebar_tab_click(void)
 {
@@ -253,6 +395,7 @@ main(void)
 {
     int failures = 0;
     failures += test_layout_nested();
+    failures += test_rs_layer_nested_child_layout();
     failures += test_sidebar_tab_click();
     failures += test_sidenav_interactive();
 

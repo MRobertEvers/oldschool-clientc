@@ -1,5 +1,6 @@
 #include "ui_input.h"
 
+#include "ui_scroll.h"
 #include "uitree_host.h"
 #include "uitree_layout.h"
 
@@ -56,9 +57,11 @@ uitree_component_is_pass_through(
         return !host || !host->get_cross_active || !host->get_cross_active(host->user);
     case UIELEM_BUILTIN_MINIMENU:
         return !host || !host->get_minimenu_visible || !host->get_minimenu_visible(host->user);
+    case UIELEM_RS_INV:
+    case UIELEM_RS_INV_TEXT:
+        return true;
     case UIELEM_RS_GRAPHIC:
     case UIELEM_RS_TEXT:
-    case UIELEM_RS_INV_TEXT:
     case UIELEM_RS_RECT:
     case UIELEM_RS_MODEL:
     case UIELEM_RS_LINE:
@@ -72,20 +75,54 @@ static int32_t
 uitree_hit_test_interactive_recursive(
     struct UITree const* tree,
     struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
     int32_t node_index,
     int px,
-    int py)
+    int py,
+    int scroll_off_x,
+    int scroll_off_y,
+    struct UITreeScrollClip const* clip)
 {
     if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return -1;
 
+    if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !uitree_point_in_clip(px, py, clip) )
+        return -1;
+
     struct StaticUIComponent const* component = &tree->components[node_index];
 
+    int bx = 0;
+    int by = 0;
+    int bw = 0;
+    int bh = 0;
+    uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
+
     int32_t hit = -1;
-    if( uitree_point_in_component(&component->position, px, py) &&
+    if( uitree_point_in_scrolled_bounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y) &&
         !uitree_component_is_pass_through(component, host) &&
         uitree_component_hit_test_visible_host(component, -1, host) )
         hit = node_index;
+
+    int child_scroll_x = scroll_off_x;
+    int child_scroll_y = scroll_off_y;
+    struct UITreeScrollClip child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
+
+    if( component->type == UIELEM_RS_LAYER )
+    {
+        uitree_scroll_intersect_clip(&child_clip, bx, by, bw, bh);
+        if( scroll && uitree_scroll_layer_needs_horizontal(component) && component->component_id >= 0 )
+        {
+            int sx = 0;
+            uitree_scroll_get_pos(scroll, component->component_id, &sx, NULL);
+            child_scroll_x += sx;
+        }
+        if( scroll && uitree_scroll_layer_needs_vertical(component) && component->component_id >= 0 )
+        {
+            int sy = 0;
+            uitree_scroll_get_pos(scroll, component->component_id, NULL, &sy);
+            child_scroll_y += sy;
+        }
+    }
 
     bool recurse_children = true;
     if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
@@ -99,7 +136,8 @@ uitree_hit_test_interactive_recursive(
         for( int32_t child = component->first_child; child >= 0;
              child = tree->components[child].next_sibling )
         {
-            int32_t child_hit = uitree_hit_test_interactive_recursive(tree, host, child, px, py);
+            int32_t child_hit = uitree_hit_test_interactive_recursive(
+                tree, host, scroll, child, px, py, child_scroll_x, child_scroll_y, &child_clip);
             if( child_hit >= 0 )
                 hit = child_hit;
         }
@@ -159,6 +197,7 @@ int32_t
 uitree_hit_test_interactive(
     struct UITree const* tree,
     struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
     int px,
     int py)
 {
@@ -168,7 +207,8 @@ uitree_hit_test_interactive(
     int32_t hit = -1;
     for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
-        int32_t root_hit = uitree_hit_test_interactive_recursive(tree, host, root, px, py);
+        int32_t root_hit = uitree_hit_test_interactive_recursive(
+            tree, host, scroll, root, px, py, 0, 0, NULL);
         if( root_hit >= 0 )
             hit = root_hit;
     }

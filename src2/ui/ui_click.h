@@ -12,6 +12,8 @@
 struct GameRunescape;
 struct LibToriRS_Input;
 struct ToriAuxLibCache;
+struct UITreeHost;
+struct UITreeScrollState;
 
 struct UIClickResult
 {
@@ -20,12 +22,32 @@ struct UIClickResult
     int minimenu_option;
 };
 
+struct UITreeInvPick
+{
+    int32_t component_index;
+    int inv_index;
+    int slot;
+    int obj_id;
+};
+
 void
 uitree_inv_hit_test_slot(
     struct StaticUIComponent const* component,
     int px,
     int py,
+    int scroll_off_x,
+    int scroll_off_y,
     int* out_slot);
+
+bool
+uitree_inv_pick_at_point(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
+    struct UIInventoryPool const* inv_pool,
+    int px,
+    int py,
+    struct UITreeInvPick* out);
 
 void
 ui_click_handle_left(
@@ -59,6 +81,8 @@ ui_click_build_minimenu_from_pickset(
 void
 ui_click_use_minimenu_option(
     struct GameRunescape* game,
-    int option_index);
+    int option_index,
+    int click_x,
+    int click_y);
 
 #endif

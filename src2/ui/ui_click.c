@@ -13,6 +13,7 @@
 #include "ui/ui_debug.h"
 #include "ui/ui_chat_minimenu.h"
 #include "ui/ui_input.h"
+#include "ui/ui_scroll.h"
 #include "ui/uitree_host.h"
 #include "ui/ui_minimenu.h"
 #include "ui/uitree_layout.h"
@@ -42,6 +43,8 @@ uitree_inv_hit_test_slot(
     struct StaticUIComponent const* component,
     int px,
     int py,
+    int scroll_off_x,
+    int scroll_off_y,
     int* out_slot)
 {
     if( out_slot )
@@ -54,6 +57,8 @@ uitree_inv_hit_test_slot(
     int bw = 0;
     int bh = 0;
     uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
+    bx -= scroll_off_x;
+    by -= scroll_off_y;
 
     int cols = component->u.rs_inv.cols > 0 ? component->u.rs_inv.cols : 4;
     int rows = component->u.rs_inv.rows > 0 ? component->u.rs_inv.rows : 7;
@@ -81,6 +86,147 @@ uitree_inv_hit_test_slot(
             return;
         }
     }
+}
+
+static void
+uitree_inv_pick_at_point_recursive(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
+    struct UIInventoryPool const* inv_pool,
+    int32_t node_index,
+    int px,
+    int py,
+    int scroll_off_x,
+    int scroll_off_y,
+    struct UITreeScrollClip const* clip,
+    struct UITreeInvPick* pick)
+{
+    if( !tree || !pick || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return;
+
+    if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !uitree_point_in_clip(px, py, clip) )
+        return;
+
+    struct StaticUIComponent const* component = &tree->components[node_index];
+
+    if( !uitree_component_hit_test_visible_host(component, -1, host) )
+        return;
+
+    if( component->type == UIELEM_RS_INV )
+    {
+        int slot = -1;
+        uitree_inv_hit_test_slot(component, px, py, scroll_off_x, scroll_off_y, &slot);
+        if( slot >= 0 )
+        {
+            int inv_index = component->u.rs_inv.inv_index;
+            int obj_id = 0;
+            if( inv_pool && inv_index >= 0 && inv_index < inv_pool->count )
+            {
+                struct UIInventory const* inv = &inv_pool->inventories[inv_index];
+                if( slot < inv->item_count )
+                    obj_id = inv->items[slot].obj_id;
+            }
+            pick->component_index = node_index;
+            pick->inv_index = inv_index;
+            pick->slot = slot;
+            pick->obj_id = obj_id;
+        }
+    }
+
+    int child_scroll_x = scroll_off_x;
+    int child_scroll_y = scroll_off_y;
+    struct UITreeScrollClip child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
+
+    if( component->type == UIELEM_RS_LAYER )
+    {
+        int bx = 0;
+        int by = 0;
+        int bw = 0;
+        int bh = 0;
+        uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
+        uitree_scroll_intersect_clip(&child_clip, bx, by, bw, bh);
+        if( scroll && uitree_scroll_layer_needs_horizontal(component) && component->component_id >= 0 )
+        {
+            int sx = 0;
+            uitree_scroll_get_pos(scroll, component->component_id, &sx, NULL);
+            child_scroll_x += sx;
+        }
+        if( scroll && uitree_scroll_layer_needs_vertical(component) && component->component_id >= 0 )
+        {
+            int sy = 0;
+            uitree_scroll_get_pos(scroll, component->component_id, NULL, &sy);
+            child_scroll_y += sy;
+        }
+    }
+
+    bool recurse_children = true;
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
+    {
+        if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+            recurse_children = false;
+    }
+
+    if( recurse_children )
+    {
+        for( int32_t child = component->first_child; child >= 0;
+             child = tree->components[child].next_sibling )
+        {
+            uitree_inv_pick_at_point_recursive(
+                tree,
+                host,
+                scroll,
+                inv_pool,
+                child,
+                px,
+                py,
+                child_scroll_x,
+                child_scroll_y,
+                component->type == UIELEM_RS_LAYER ? &child_clip : clip,
+                pick);
+        }
+    }
+}
+
+bool
+uitree_inv_pick_at_point(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
+    struct UIInventoryPool const* inv_pool,
+    int px,
+    int py,
+    struct UITreeInvPick* out)
+{
+    if( !tree || !out )
+        return false;
+
+    out->component_index = -1;
+    out->inv_index = -1;
+    out->slot = -1;
+    out->obj_id = 0;
+
+    if( tree->root_index < 0 )
+        return false;
+
+    struct UITreeInvPick pick = {
+        .component_index = -1,
+        .inv_index = -1,
+        .slot = -1,
+        .obj_id = 0,
+    };
+
+    for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
+    {
+        uitree_inv_pick_at_point_recursive(
+            tree, host, scroll, inv_pool, root, px, py, 0, 0, NULL, &pick);
+    }
+
+    if( pick.component_index < 0 || pick.slot < 0 )
+        return false;
+
+    *out = pick;
+    return true;
 }
 
 static void
@@ -373,44 +519,44 @@ ui_click_add_inv_option(
         pick->quaternary_id);
 }
 
-static void
-ui_click_add_inv_container_ops(
-    struct GameRunescape* game,
-    struct MinimenuPick const* pick,
-    struct UIMinimenuState* menu)
+static int
+ui_click_add_menu_ops_rows(
+    struct UIMinimenuState* menu,
+    struct StaticUIMenuOptions const* opts,
+    enum MinimenuPickKind pick_kind,
+    int pick_id,
+    int pick_secondary_id,
+    int pick_tertiary_id,
+    int pick_quaternary_id)
 {
-    assert(game && pick && menu && game->ui_tree);
-    assert(
-        pick->quaternary_id >= 0 &&
-        (uint32_t)pick->quaternary_id < game->ui_tree->component_count &&
-        "inv slot pick missing RS_INV component index in quaternary_id");
+    if( !menu || !opts )
+        return 0;
 
-    struct StaticUIMenuOptions const* copts =
-        &game->ui_tree->components[pick->quaternary_id].menu_options;
+    int const before = menu->option_count;
     char text[UI_MINIMENU_OPTION_LEN];
 
     for( int i = 4; i >= 0; i-- )
     {
-        if( copts->ops[i][0] == '\0' )
+        if( opts->ops[i][0] == '\0' )
             continue;
 
-        snprintf(text, sizeof(text), "%s", copts->ops[i]);
-        ui_click_add_inv_option(
+        snprintf(text, sizeof(text), "%s", opts->ops[i]);
+        enum MinimenuAction action = (enum MinimenuAction)(MINIMENU_ACTION_INV_BUTTON1 + i);
+        if( opts->op_actions[i] != 0 )
+            action = (enum MinimenuAction)opts->op_actions[i];
+        ui_minimenu_add_option_with_pick(
             menu,
-            pick,
             text,
-            (enum MinimenuAction)(MINIMENU_ACTION_INV_BUTTON1 + i),
-            i);
+            action,
+            i,
+            pick_kind,
+            pick_id,
+            pick_secondary_id,
+            pick_tertiary_id,
+            pick_quaternary_id);
     }
 
-    if( ui_minimenu_debug_enabled() )
-    {
-        ui_minimenu_debug_log(
-            "inv container ops inv_index=%d slot=%d component_idx=%d",
-            pick->id,
-            pick->secondary_id,
-            pick->quaternary_id);
-    }
+    return menu->option_count - before;
 }
 
 static void
@@ -452,6 +598,44 @@ ui_click_add_inv_obj_options(
 
     snprintf(text, sizeof(text), "Examine @cya@ %s", obj_name);
     ui_click_add_inv_option(menu, pick, text, MINIMENU_ACTION_OPHELD6, 0);
+}
+
+static int
+ui_click_add_inv_slot_options(
+    struct GameRunescape* game,
+    struct MinimenuPick const* pick,
+    struct UIMinimenuState* menu)
+{
+    assert(game && pick && menu && game->ui_tree);
+    assert(
+        pick->quaternary_id >= 0 &&
+        (uint32_t)pick->quaternary_id < game->ui_tree->component_count &&
+        "inv slot pick missing RS_INV component index in quaternary_id");
+
+    int obj_id = pick->tertiary_id;
+    if( obj_id <= 0 )
+        return 0;
+
+    int const before = menu->option_count;
+    struct StaticUIComponent const* component =
+        &game->ui_tree->components[pick->quaternary_id];
+    struct ToriAuxLibCore_Objtype* obj =
+        game->core ? ToriAuxLibCore_ObjtypeGet(game->core, obj_id) : NULL;
+
+    ui_click_add_inv_obj_options(pick, menu, obj);
+    ui_click_add_menu_ops_rows(
+        menu,
+        &component->menu_options,
+        pick->kind,
+        pick->id,
+        pick->secondary_id,
+        pick->tertiary_id,
+        pick->quaternary_id);
+
+    int const added = menu->option_count - before;
+    ui_minimenu_debug_log_inv_slot_ops(
+        "inv_right_click", pick, component, obj, added, 0, -1);
+    return added;
 }
 
 static enum MinimenuAction
@@ -563,26 +747,14 @@ ui_click_add_component_menu_rows(
     struct StaticUIMenuOptions const* opts = &component->menu_options;
     char text[UI_MINIMENU_OPTION_LEN];
 
-    for( int i = 4; i >= 0; i-- )
-    {
-        if( opts->ops[i][0] == '\0' )
-            continue;
-
-        snprintf(text, sizeof(text), "%s", opts->ops[i]);
-        enum MinimenuAction action = (enum MinimenuAction)(MINIMENU_ACTION_INV_BUTTON1 + i);
-        if( opts->op_actions[i] != 0 )
-            action = (enum MinimenuAction)opts->op_actions[i];
-        ui_minimenu_add_option_with_pick(
-            menu,
-            text,
-            action,
-            i,
-            MINIMENU_PICK_UI,
-            component_index,
-            0,
-            0,
-            0);
-    }
+    ui_click_add_menu_ops_rows(
+        menu,
+        opts,
+        MINIMENU_PICK_UI,
+        component_index,
+        0,
+        0,
+        0);
 
     char const* label = NULL;
     if( opts->option[0] != '\0' )
@@ -694,12 +866,19 @@ ui_click_add_rs_interface_options_recursive(
     struct GameRunescape* game,
     struct UITree const* tree,
     struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
     int32_t node_idx,
     int px,
     int py,
+    int scroll_off_x,
+    int scroll_off_y,
+    struct UITreeScrollClip const* clip,
     struct UIMinimenuState* menu)
 {
     if( !tree || !menu || node_idx < 0 || (uint32_t)node_idx >= tree->component_count )
+        return;
+
+    if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !uitree_point_in_clip(px, py, clip) )
         return;
 
     struct StaticUIComponent const* component = &tree->components[node_idx];
@@ -739,11 +918,49 @@ ui_click_add_rs_interface_options_recursive(
 
         if( recurse_children )
         {
+            int child_scroll_x = scroll_off_x;
+            int child_scroll_y = scroll_off_y;
+            struct UITreeScrollClip child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
+
+            if( component->type == UIELEM_RS_LAYER )
+            {
+                int bx = 0;
+                int by = 0;
+                int bw = 0;
+                int bh = 0;
+                uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
+                uitree_scroll_intersect_clip(&child_clip, bx, by, bw, bh);
+                if( scroll && uitree_scroll_layer_needs_horizontal(component) &&
+                    component->component_id >= 0 )
+                {
+                    int sx = 0;
+                    uitree_scroll_get_pos(scroll, component->component_id, &sx, NULL);
+                    child_scroll_x += sx;
+                }
+                if( scroll && uitree_scroll_layer_needs_vertical(component) &&
+                    component->component_id >= 0 )
+                {
+                    int sy = 0;
+                    uitree_scroll_get_pos(scroll, component->component_id, NULL, &sy);
+                    child_scroll_y += sy;
+                }
+            }
+
             for( int32_t child = component->first_child; child >= 0;
                  child = tree->components[child].next_sibling )
             {
                 ui_click_add_rs_interface_options_recursive(
-                    game, tree, host, child, px, py, menu);
+                    game,
+                    tree,
+                    host,
+                    scroll,
+                    child,
+                    px,
+                    py,
+                    child_scroll_x,
+                    child_scroll_y,
+                    component->type == UIELEM_RS_LAYER ? &child_clip : clip,
+                    menu);
             }
         }
         return;
@@ -761,17 +978,17 @@ ui_click_add_rs_interface_options_recursive(
         return;
     }
 
-    if( !uitree_point_in_component(&component->position, px, py) )
+    int bx = 0;
+    int by = 0;
+    int bw = 0;
+    int bh = 0;
+    uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
+    if( !uitree_point_in_scrolled_bounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y) )
     {
         if( debug_relevant )
         {
-            int bx = 0;
-            int by = 0;
-            int bw = 0;
-            int bh = 0;
-            uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
             ui_minimenu_debug_log(
-                "skip out of bounds node_idx=%d rs_id=%d point=(%d,%d) bounds=(%d,%d,%d,%d)",
+                "skip out of bounds node_idx=%d rs_id=%d point=(%d,%d) bounds=(%d,%d,%d,%d) scroll=(%d,%d)",
                 node_idx,
                 component->component_id,
                 px,
@@ -779,7 +996,9 @@ ui_click_add_rs_interface_options_recursive(
                 bx,
                 by,
                 bw,
-                bh);
+                bh,
+                scroll_off_x,
+                scroll_off_y);
         }
         return;
     }
@@ -828,11 +1047,18 @@ static bool
 ui_click_point_expects_ui_rows_recursive(
     struct UITree const* tree,
     struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
     int32_t node_idx,
     int px,
-    int py)
+    int py,
+    int scroll_off_x,
+    int scroll_off_y,
+    struct UITreeScrollClip const* clip)
 {
     if( !tree || node_idx < 0 || (uint32_t)node_idx >= tree->component_count )
+        return false;
+
+    if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !uitree_point_in_clip(px, py, clip) )
         return false;
 
     struct StaticUIComponent const* component = &tree->components[node_idx];
@@ -850,10 +1076,47 @@ ui_click_point_expects_ui_rows_recursive(
 
         if( recurse_children )
         {
+            int child_scroll_x = scroll_off_x;
+            int child_scroll_y = scroll_off_y;
+            struct UITreeScrollClip child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
+
+            if( component->type == UIELEM_RS_LAYER )
+            {
+                int bx = 0;
+                int by = 0;
+                int bw = 0;
+                int bh = 0;
+                uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
+                uitree_scroll_intersect_clip(&child_clip, bx, by, bw, bh);
+                if( scroll && uitree_scroll_layer_needs_horizontal(component) &&
+                    component->component_id >= 0 )
+                {
+                    int sx = 0;
+                    uitree_scroll_get_pos(scroll, component->component_id, &sx, NULL);
+                    child_scroll_x += sx;
+                }
+                if( scroll && uitree_scroll_layer_needs_vertical(component) &&
+                    component->component_id >= 0 )
+                {
+                    int sy = 0;
+                    uitree_scroll_get_pos(scroll, component->component_id, NULL, &sy);
+                    child_scroll_y += sy;
+                }
+            }
+
             for( int32_t child = component->first_child; child >= 0;
                  child = tree->components[child].next_sibling )
             {
-                if( ui_click_point_expects_ui_rows_recursive(tree, host, child, px, py) )
+                if( ui_click_point_expects_ui_rows_recursive(
+                        tree,
+                        host,
+                        scroll,
+                        child,
+                        px,
+                        py,
+                        child_scroll_x,
+                        child_scroll_y,
+                        component->type == UIELEM_RS_LAYER ? &child_clip : clip) )
                     return true;
             }
         }
@@ -863,7 +1126,12 @@ ui_click_point_expects_ui_rows_recursive(
     if( component->type == UIELEM_RS_INV )
         return false;
 
-    if( !uitree_point_in_component(&component->position, px, py) )
+    int bx = 0;
+    int by = 0;
+    int bw = 0;
+    int bh = 0;
+    uitree_layout_get_bounds(&component->position, &bx, &by, &bw, &bh);
+    if( !uitree_point_in_scrolled_bounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y) )
         return false;
 
     return uitree_component_expects_minimenu_rows(component);
@@ -889,8 +1157,22 @@ ui_click_build_ui_minimenu_at_point(
         root = hit_idx;
 
     int const rows_before_rs = menu->option_count;
+    struct UITreeScrollState scroll = {
+        .scroll_x = game->ui_scroll_x,
+        .scroll_y = game->ui_scroll_y,
+    };
     ui_click_add_rs_interface_options_recursive(
-        game, game->ui_tree, &game->ui_host, root, click_x, click_y, menu);
+        game,
+        game->ui_tree,
+        &game->ui_host,
+        &scroll,
+        root,
+        click_x,
+        click_y,
+        0,
+        0,
+        NULL,
+        menu);
 
     if( rows_before_rs == menu->option_count &&
         ui_click_point_in_chat_main_lines(game, click_x, click_y) )
@@ -899,7 +1181,7 @@ ui_click_build_ui_minimenu_at_point(
     }
 
     if( ui_click_point_expects_ui_rows_recursive(
-            game->ui_tree, &game->ui_host, root, click_x, click_y) )
+            game->ui_tree, &game->ui_host, &scroll, root, click_x, click_y, 0, 0, NULL) )
     {
         assert(
             menu->option_count > 1 &&
@@ -963,18 +1245,8 @@ ui_click_add_pick_options(
         ui_click_add_scenery_options(game, pick, menu);
         break;
     case MINIMENU_PICK_INV_SLOT:
-    {
-        int obj_id = pick->tertiary_id;
-        if( obj_id <= 0 )
-            break;
-
-        struct ToriAuxLibCore_Objtype* obj =
-            game->core ? ToriAuxLibCore_ObjtypeGet(game->core, obj_id) : NULL;
-        ui_click_add_inv_obj_options(pick, menu, obj);
-
-        ui_click_add_inv_container_ops(game, pick, menu);
+        ui_click_add_inv_slot_options(game, pick, menu);
         break;
-    }
     case MINIMENU_PICK_UI:
         ui_click_add_ui_options(game, pick, menu);
         break;
@@ -1035,7 +1307,9 @@ ui_click_build_minimenu_from_pickset(
 void
 ui_click_use_minimenu_option(
     struct GameRunescape* game,
-    int option_index)
+    int option_index,
+    int click_x,
+    int click_y)
 {
     if( !game || option_index < 0 || option_index >= game->minimenu.option_count )
         return;
@@ -1067,9 +1341,9 @@ ui_click_use_minimenu_option(
     }
 
     if( opt->action == MINIMENU_ACTION_WALK )
-        game_set_cross(game, game->cross_x, game->cross_y, RUNESCAPE_CROSS_MODE_WALK);
+        game_set_cross(game, click_x, click_y, RUNESCAPE_CROSS_MODE_WALK);
     else
-        game_set_cross(game, game->cross_x, game->cross_y, RUNESCAPE_CROSS_MODE_INTERACT);
+        game_set_cross(game, click_x, click_y, RUNESCAPE_CROSS_MODE_INTERACT);
 
     ui_minimenu_hide(&game->minimenu);
     printf(
@@ -1077,6 +1351,32 @@ ui_click_use_minimenu_option(
         (int)opt->action,
         opt->action_index,
         (int)game->interaction.kind);
+
+    if( opt->pick_kind == MINIMENU_PICK_INV_SLOT && game->ui_tree &&
+        opt->pick_quaternary_id >= 0 &&
+        (uint32_t)opt->pick_quaternary_id < game->ui_tree->component_count )
+    {
+        struct MinimenuPick pick = {
+            .kind = opt->pick_kind,
+            .id = opt->pick_id,
+            .secondary_id = opt->pick_secondary_id,
+            .tertiary_id = opt->pick_tertiary_id,
+            .quaternary_id = opt->pick_quaternary_id,
+        };
+        struct StaticUIComponent const* component =
+            &game->ui_tree->components[opt->pick_quaternary_id];
+        struct ToriAuxLibCore_Objtype* obj = NULL;
+        if( game->core && pick.tertiary_id > 0 )
+            obj = ToriAuxLibCore_ObjtypeGet(game->core, pick.tertiary_id);
+        ui_minimenu_debug_log_inv_slot_ops(
+            "inv_use_option",
+            &pick,
+            component,
+            obj,
+            0,
+            (int)opt->action,
+            opt->action_index);
+    }
 }
 
 static void
@@ -1118,27 +1418,29 @@ game_try_inv_click(
     if( !game || !game->ui_tree )
         return false;
 
-    int32_t hit = GameRunescape_UIHitTest(game, click_x, click_y);
-    if( hit < 0 || (uint32_t)hit >= game->ui_tree->component_count )
+    struct UITreeScrollState scroll = {
+        .scroll_x = game->ui_scroll_x,
+        .scroll_y = game->ui_scroll_y,
+    };
+    struct UITreeInvPick inv_pick;
+    if( !uitree_inv_pick_at_point(
+            game->ui_tree,
+            &game->ui_host,
+            &scroll,
+            game->ui_inv_pool,
+            click_x,
+            click_y,
+            &inv_pick) )
         return false;
 
+    if( right_click && inv_pick.obj_id <= 0 )
+        return false;
+
+    int32_t const hit = inv_pick.component_index;
+    int const inv_index = inv_pick.inv_index;
+    int const slot = inv_pick.slot;
+    int const obj_id = inv_pick.obj_id;
     struct StaticUIComponent* component = &game->ui_tree->components[hit];
-    if( component->type != UIELEM_RS_INV )
-        return false;
-
-    int slot = -1;
-    uitree_inv_hit_test_slot(component, click_x, click_y, &slot);
-    if( slot < 0 )
-        return false;
-
-    int inv_index = component->u.rs_inv.inv_index;
-    int obj_id = 0;
-    if( game->ui_inv_pool && inv_index >= 0 && inv_index < game->ui_inv_pool->count )
-    {
-        struct UIInventory* inv = &game->ui_inv_pool->inventories[inv_index];
-        if( slot < inv->item_count )
-            obj_id = inv->items[slot].obj_id;
-    }
 
     if( right_click )
     {
@@ -1147,6 +1449,22 @@ game_try_inv_click(
         game->cross_x = click_x;
         game->cross_y = click_y;
         return true;
+    }
+
+    if( ui_minimenu_debug_enabled() )
+    {
+        struct MinimenuPick pick = {
+            .kind = MINIMENU_PICK_INV_SLOT,
+            .id = inv_index,
+            .secondary_id = slot,
+            .tertiary_id = obj_id,
+            .quaternary_id = hit,
+        };
+        struct ToriAuxLibCore_Objtype* obj = NULL;
+        if( game->core && obj_id > 0 )
+            obj = ToriAuxLibCore_ObjtypeGet(game->core, obj_id);
+        ui_minimenu_debug_log_inv_slot_ops(
+            "inv_left_click", &pick, component, obj, 0, 0, -1);
     }
 
     if( game->selected_inv_index == inv_index && game->selected_inv_slot == slot )
@@ -1197,7 +1515,7 @@ ui_click_handle_left(
         int opt = ui_minimenu_hit_option(&game->minimenu, click_x, click_y);
         if( opt >= 0 )
         {
-            ui_click_use_minimenu_option(game, opt);
+            ui_click_use_minimenu_option(game, opt, click_x, click_y);
             return;
         }
         ui_minimenu_hide(&game->minimenu);

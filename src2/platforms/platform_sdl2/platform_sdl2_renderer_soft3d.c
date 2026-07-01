@@ -373,17 +373,38 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             break;
         }
         case TORIRSRC_FILL_RECT:
+        {
+            int x0 = command.u.fill_rect.x;
+            int y0 = command.u.fill_rect.y;
+            int x1 = command.u.fill_rect.x + command.u.fill_rect.w;
+            int y1 = command.u.fill_rect.y + command.u.fill_rect.h;
+            if( command.u.fill_rect.scissor_w > 0 && command.u.fill_rect.scissor_h > 0 )
+            {
+                int sx0 = command.u.fill_rect.scissor_x;
+                int sy0 = command.u.fill_rect.scissor_y;
+                int sx1 = sx0 + command.u.fill_rect.scissor_w;
+                int sy1 = sy0 + command.u.fill_rect.scissor_h;
+                if( x0 < sx0 )
+                    x0 = sx0;
+                if( y0 < sy0 )
+                    y0 = sy0;
+                if( x1 > sx1 )
+                    x1 = sx1;
+                if( y1 > sy1 )
+                    y1 = sy1;
+            }
             soft3d_fill_rect(
                 renderer->pixel_buffer,
                 renderer->width,
                 renderer->width,
                 renderer->height,
-                command.u.fill_rect.x,
-                command.u.fill_rect.y,
-                command.u.fill_rect.x + command.u.fill_rect.w,
-                command.u.fill_rect.y + command.u.fill_rect.h,
+                x0,
+                y0,
+                x1,
+                y1,
                 command.u.fill_rect.argb);
             break;
+        }
         case TORIRSRC_FONT:
         {
             const int font_id = command.u.font.font_id;
@@ -406,9 +427,17 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 assert(!"TORIRSRC_FONT: font missing or failed ToriDraw_FontValidate");
                 break;
             }
+            struct ToriDraw_ViewPort vp = renderer->iface_view_port;
+            if( command.u.font.scissor_w > 0 && command.u.font.scissor_h > 0 )
+            {
+                vp.clip_left = command.u.font.scissor_x;
+                vp.clip_top = command.u.font.scissor_y;
+                vp.clip_right = command.u.font.scissor_x + command.u.font.scissor_w;
+                vp.clip_bottom = command.u.font.scissor_y + command.u.font.scissor_h;
+            }
             int const pixels_written = ToriDraw2D_DrawString(
                 font,
-                &renderer->iface_view_port,
+                &vp,
                 command.u.font.x,
                 command.u.font.y,
                 command.u.font.text,

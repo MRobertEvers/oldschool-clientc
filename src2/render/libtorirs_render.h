@@ -157,6 +157,10 @@ struct LibToriRS_RenderCommand_FillRect
     int w;
     int h;
     int argb;
+    int scissor_x;
+    int scissor_y;
+    int scissor_w;
+    int scissor_h;
 };
 
 struct LibToriRS_RenderCommand_Font
@@ -170,6 +174,10 @@ struct LibToriRS_RenderCommand_Font
     int width;
     int height;
     char const* text;
+    int scissor_x;
+    int scissor_y;
+    int scissor_w;
+    int scissor_h;
 };
 
 struct LibToriRS_RenderCommand_UiModel3D

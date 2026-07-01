@@ -1,6 +1,8 @@
 #include "uitree_host.h"
 
 #include "ui_behavior.h"
+#include "ui_chat_minimenu.h"
+#include "ui_scroll.h"
 #include "uitree_layout.h"
 
 #include <assert.h>
@@ -210,6 +212,9 @@ uitree_behavior_handle_click_host(
                 host->set_selected_tab(host->user, tabno);
         }
         return;
+    case UIELEM_BUILTIN_CHAT_BUTTON:
+        ui_chat_button_handle_click(host->user, component);
+        return;
     default:
         break;
     }
@@ -293,7 +298,12 @@ uitree_component_should_emit(
     }
 
     if( component->type == UIELEM_RS_LAYER )
+    {
+        if( uitree_scroll_layer_needs_vertical(component) ||
+            uitree_scroll_layer_needs_horizontal(component) )
+            return true;
         return false;
+    }
 
     return true;
 }

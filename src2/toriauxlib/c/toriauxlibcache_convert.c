@@ -928,7 +928,8 @@ toriauxlibcache_component_copy_dat2_hooks(
     toriauxlibcache_copy_script_hook(
         &dst->on_varp_transmit, src->onVarpTransmit, src->onVarpTransmitLen);
 
-    if( dst->on_load.argc > 0 || dst->on_click.argc > 0 || dst->on_varp_transmit.argc > 0 )
+    if( dst->scripts_count <= 0 &&
+        (dst->on_load.argc > 0 || dst->on_click.argc > 0 || dst->on_varp_transmit.argc > 0) )
         dst->script_kind = CS2VM_SCRIPT_KIND_CS2;
 }
 
@@ -965,6 +966,8 @@ ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
     dst->active_over_color = src->activeOverColour;
     dst->over_layer_id = src->overlayer;
     dst->parent_id = -1;
+    if( src->type == COMPONENT_TYPE_LAYER )
+        dst->scroll_height = src->scroll;
 
     if( src->graphic )
         strncpy(dst->sprite_ref, src->graphic, sizeof(dst->sprite_ref) - 1);
@@ -1027,6 +1030,11 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
     dst->active_over_color = src->activeOverColour;
     dst->over_layer_id = src->linkedComponentId;
     dst->parent_id = -1;
+    if( src->type == COMPONENT_TYPE_LAYER )
+    {
+        dst->scroll_height = src->scrollHeight;
+        dst->scroll_width = src->scrollWidth;
+    }
 
     toriauxlibcache_dat2_sprite_ref_from_id(src->graphic, dst->sprite_ref, sizeof(dst->sprite_ref));
     toriauxlibcache_dat2_sprite_ref_from_id(

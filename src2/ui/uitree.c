@@ -164,6 +164,8 @@ uitree_component_type_str(enum StaticUIComponentType type)
         return "sidebar";
     case UIELEM_BUILTIN_CHAT:
         return "chat";
+    case UIELEM_BUILTIN_CHAT_BUTTON:
+        return "chat_button";
     case UIELEM_BUILTIN_SPRITE:
         return "sprite";
     case UIELEM_BUILTIN_REDSTONE_TAB:
@@ -506,6 +508,11 @@ uitree_push(
         component->u.chat.minimenu = spec->u.chat.minimenu;
         break;
 
+    case UIELEM_BUILTIN_CHAT_BUTTON:
+        component->u.chat_button = spec->u.chat_button;
+        component->is_dirty = 1;
+        break;
+
     case UIELEM_BUILTIN_REDSTONE_TAB:
         component->u.redstone_tab.tabno = spec->u.redstone_tab.tabno;
         component->u.redstone_tab.scene_id = spec->u.redstone_tab.scene_id;
@@ -529,7 +536,8 @@ uitree_push(
         break;
 
     case UIELEM_RS_LAYER:
-        component->u.rs_layer.reserved = spec->u.rs_layer.reserved;
+        component->u.rs_layer.scroll_height = spec->u.rs_layer.scroll_height;
+        component->u.rs_layer.scroll_width = spec->u.rs_layer.scroll_width;
         break;
 
     case UIELEM_RS_TEXT:

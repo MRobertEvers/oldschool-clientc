@@ -217,6 +217,14 @@ LibToriRS_Input_IsMouseDown(
 }
 
 static inline bool
+LibToriRS_Input_IsMouseHeld(
+    struct LibToriRS_Input* input,
+    enum LibToriRS_MouseButton button)
+{
+    return input->mouse_button_held[button] != 0;
+}
+
+static inline bool
 LibToriRS_Input_IsClick(
     struct LibToriRS_Input* input,
     enum LibToriRS_MouseButton button)

@@ -186,6 +186,30 @@ push_field_from_ini_kv(
     else if(
         strcmp(key, "chat_op_accept_duel_action") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION;
+    else if( strcmp(key, "filter") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER;
+    else if( strcmp(key, "label") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL;
+    else if( strcmp(key, "label_y") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL_Y;
+    else if( strcmp(key, "mode_y") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE_Y;
+    else if( strcmp(key, "mode0") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE0;
+    else if( strcmp(key, "mode1") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE1;
+    else if( strcmp(key, "mode2") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE2;
+    else if( strcmp(key, "mode3") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE3;
+    else if( strcmp(key, "mode0_color") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE0_COLOR;
+    else if( strcmp(key, "mode1_color") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE1_COLOR;
+    else if( strcmp(key, "mode2_color") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE2_COLOR;
+    else if( strcmp(key, "mode3_color") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE3_COLOR;
     else if( strcmp(key, "item") == 0 && strcmp(s_ini_item_type, "inv") == 0 )
         kind = RCFIELD_INV_ITEM;
     else if( strcmp(key, "sprite_active") == 0 && strcmp(s_ini_item_type, "component") == 0 )
