@@ -1247,6 +1247,15 @@ Task_RSComponentLoad_Run(
     }
     else if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
     {
+        fprintf(
+            stderr,
+            "Task_RSComponentLoad: dat2 walk owner=%s iface_id=%d walk_root_id=%d "
+            "archive=%p on_component=%p\n",
+            owner,
+            task->iface_id,
+            task->walk_root_id,
+            (void*)task->iface_archive,
+            (void*)task->callbacks.on_component);
         rs_component_walk_dat2(task, task->walk_ifaces, task->walk_root_id);
     }
 

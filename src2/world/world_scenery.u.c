@@ -234,6 +234,79 @@ apply_transforms(
         ToriDraw_ModelTranslate(model, loc->offset_x, loc->offset_y, loc->offset_z);
 }
 
+static void
+scenery_log_shape_miss(
+    struct WorldBuilder* builder,
+    struct ToriAuxLibCore_MapLoc* map_tile,
+    struct ToriAuxLibCore_Location* config_loc,
+    int shape_select,
+    int scene_x,
+    int scene_z)
+{
+    fprintf(
+        stderr,
+        "scenery_load_model: no models (shape_select=%d)\n"
+        "  map_loc_id=%d resolved_loc_id=%d name='%s'\n"
+        "  map_chunk=(%d,%d) chunk_pos=(%d,%d) level=%d orientation=%d\n"
+        "  scene_pos=(%d,%d) map_shape_select=%d\n"
+        "  shapes_and_model_count=%d shapes=%s\n",
+        shape_select,
+        builder->scenery_base_loc_id,
+        config_loc->id,
+        config_loc->name,
+        builder->scenery_mapx,
+        builder->scenery_mapz,
+        map_tile->chunk_pos_x,
+        map_tile->chunk_pos_z,
+        map_tile->chunk_pos_level,
+        map_tile->orientation,
+        scene_x,
+        scene_z,
+        map_tile->shape_select,
+        config_loc->shapes_and_model_count,
+        config_loc->shapes ? "yes" : "no");
+    if( config_loc->shapes )
+    {
+        for( int i = 0; i < config_loc->shapes_and_model_count; i++ )
+        {
+            int model_id = config_loc->models && config_loc->models[i] ? config_loc->models[i][0] : -1;
+            fprintf(
+                stderr,
+                "    [%d] shape=%d model=%d length=%d\n",
+                i,
+                config_loc->shapes[i],
+                model_id,
+                config_loc->lengths ? config_loc->lengths[i] : -1);
+        }
+    }
+    else if( config_loc->models && config_loc->lengths )
+    {
+        int count = config_loc->lengths[0];
+        fprintf(stderr, "    opcode5 models (%d):", count);
+        for( int i = 0; i < count; i++ )
+            fprintf(stderr, " %d", config_loc->models[0][i]);
+        fprintf(stderr, "\n");
+    }
+    if( config_loc->transform_count > 0 )
+    {
+        fprintf(
+            stderr,
+            "  transform_varbit=%d transform_varp=%d transform_count=%d\n",
+            config_loc->transform_varbit,
+            config_loc->transform_varp,
+            config_loc->transform_count);
+    }
+    struct ToriAuxLibCore_Location* base_loc =
+        ToriAuxLibCore_LocationGet(builder->core, builder->scenery_base_loc_id);
+    if( base_loc && base_loc->id != config_loc->id && base_loc->shapes )
+    {
+        fprintf(stderr, "  base_loc shapes:");
+        for( int i = 0; i < base_loc->shapes_and_model_count; i++ )
+            fprintf(stderr, " %d", base_loc->shapes[i]);
+        fprintf(stderr, "\n");
+    }
+}
+
 static int
 scenery_load_model(
     struct WorldBuilder* builder,
@@ -277,14 +350,14 @@ scenery_load_model(
         }
         if( !found )
         {
-            fprintf(stderr, "scenery_load_model: no models (shape_select=%d)\n", shape_select);
+            scenery_log_shape_miss(builder, map_tile, config_loc, shape_select, scene_x, scene_z);
             abort();
         }
     }
 
     if( models_count <= 0 )
     {
-        fprintf(stderr, "scenery_load_model: no models (shape_select=%d)\n", shape_select);
+        scenery_log_shape_miss(builder, map_tile, config_loc, shape_select, scene_x, scene_z);
         abort();
     }
 

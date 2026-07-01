@@ -53,12 +53,14 @@ SRC   := browser.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_model_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_sprite_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_font_convert.c \
+	$(SRC2)/toriauxlib/c/toriauxlibcache_clientscript_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_submit.c \
 	$(SRC2)/toriauxlib/td/toriauxlibtd.c \
 	$(SRC2)/toriauxlib/core/tasks/task_toriauxlibtd.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachemodel.c \
 	$(SRC2)/vm/csvm.c \
+	$(SRC2)/vm/cs2vm.c \
 	$(SRC2)/toriauxlib/vm/toriauxlibvm.c \
 	$(SRC_DIR)/osrs/varp_varbit_manager.c \
 	$(SRC2)/toridraw/toridraw_animation.c \
@@ -81,7 +83,15 @@ SRC   := browser.c \
 	$(SRC2)/toridraw/toridraw_model_sprite.c \
 	$(SRC2)/toridraw/toridraw_font.c \
 	$(SRC2)/buildcache/dat1_buildcache_ui.c \
+	$(SRC2)/buildcache/dat2_buildcache_ui.c \
 	$(SRC2)/ui/ui_sprite_lookup.c \
+	$(SRC2)/ui/ui_font_lookup.c \
+	$(SRC2)/ui/interaction_state.c \
+	$(SRC2)/ui/ui_minimenu.c \
+	$(SRC2)/ui/minimenu_pickset.c \
+	$(SRC2)/ui/ui_click.c \
+	$(SRC2)/ui/ui_chat_minimenu.c \
+	$(SRC2)/ui/ui_debug.c \
 	$(SRC2)/toriauxlib/core/tasks/instance_revconfig_context.c \
 	$(SRC2)/toriauxlib/core/tasks/task_rs_component_load.c \
 	$(SRC2)/toriauxlib/core/tasks/task_dat2_anim_io.c \
@@ -92,6 +102,7 @@ SRC   := browser.c \
 	$(SRC2)/ui/uitree_layout.c \
 	$(SRC2)/ui/uitree_host.c \
 	$(SRC2)/ui/ui_input.c \
+	$(SRC2)/ui/ui_scroll.c \
 	$(SRC2)/ui/ui_behavior.c \
 	$(SRC2)/ui/ui_input_adapter.c \
 	$(SRC2)/3rd/ini/ini.c \

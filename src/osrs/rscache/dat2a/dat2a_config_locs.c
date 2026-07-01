@@ -230,13 +230,7 @@ decode_loc(
     while( true )
     {
         if( buffer.position >= buffer.size )
-        {
-            printf(
-                "decode_loc: Buffer position %d exceeded data size %d\n",
-                buffer.position,
-                buffer.size);
             break;
-        }
 
         int opcode = RSCacheShared_RSBufferG1(&buffer) & 0xFF;
         if( opcode == 0 )
@@ -508,8 +502,6 @@ decode_loc(
         {
             loc->ambient_sound_id = RSCacheShared_RSBufferG2(&buffer);
             loc->ambient_sound_distance = RSCacheShared_RSBufferG1(&buffer);
-            // TODO: Check cache info for ambient_sound_retain
-            loc->ambient_sound_retain = RSCacheShared_RSBufferG1(&buffer);
             break;
         }
         case 79:
@@ -517,8 +509,6 @@ decode_loc(
             loc->ambient_sound_ticks_min = RSCacheShared_RSBufferG2(&buffer);
             loc->ambient_sound_ticks_max = RSCacheShared_RSBufferG2(&buffer);
             loc->ambient_sound_distance = RSCacheShared_RSBufferG1(&buffer);
-            // TODO: Check cache info for ambient_sound_retain
-            loc->ambient_sound_retain = RSCacheShared_RSBufferG1(&buffer);
             int count = RSCacheShared_RSBufferG1(&buffer);
             loc->ambient_sound_id_count = count;
             if( count > 0 )
@@ -677,8 +667,12 @@ decode_loc(
             RSCacheShared_RSBufferReadParams(&buffer, &loc->param_values);
             break;
         default:
-
-            printf("LocType: Opcode %d not implemented\n", opcode);
+            fprintf(
+                stderr,
+                "decode_loc: unimplemented opcode %d at offset %d (loc decode desync)\n",
+                opcode,
+                buffer.position - 1);
+            abort();
             break;
         }
     }

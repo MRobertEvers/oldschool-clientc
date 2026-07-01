@@ -17,7 +17,13 @@
             struct RSCacheDat2Disk_ReferenceTable* _dat2_ref_table = \
                 TAPIDat2_DecodeReferenceTable((ctx), 0, (table_id)); \
             if( !_dat2_ref_table ) \
+            { \
+                fprintf( \
+                    stderr, \
+                    "Task_RSComponentLoad: failed to decode dat2 reference table id=%d\n", \
+                    (int)(table_id)); \
                 PT_EXIT((thread)); \
+            } \
             dat2_buildcache_reference_table_add((bc), (table_id), _dat2_ref_table); \
             LibToriRS_IOQueueClear((ctx)->io); \
         } \

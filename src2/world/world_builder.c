@@ -163,6 +163,10 @@ world_builder_rebuild_centerzone_chunk_scenery(
         if( !scene_in_bounds(builder, scene_x, scene_z) )
             continue;
 
+        builder->scenery_mapx = mapx;
+        builder->scenery_mapz = mapz;
+        builder->scenery_base_loc_id = map_loc->loc_id;
+
         world_collision_add_loc(builder, map_loc, config_loc, scene_x, scene_z);
         scenery_add(builder, map_loc, config_loc, scene_x, scene_z);
     }

@@ -36,6 +36,11 @@ struct WorldBuilder
     struct Shademap2* shademap;
     struct FlagMap* flag_map;
     struct ContourGroundQueue contour_ground_queue;
+
+    /** Set during scenery chunk rebuild for scenery_load_model diagnostics. */
+    int scenery_mapx;
+    int scenery_mapz;
+    int scenery_base_loc_id;
 };
 
 struct WorldBuilder*

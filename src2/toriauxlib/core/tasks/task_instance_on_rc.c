@@ -593,6 +593,17 @@ Task_InstanceOnRCUIComponent_Run(
         {
             struct InstanceRevConfigRSSubtree* subtree =
                 instance_revconfig_rs_subtree_find(task->rc_ctx, task->item.name);
+            if( !subtree || subtree->item_count <= 0 )
+            {
+                fprintf(
+                    stderr,
+                    "Task_InstanceOnRCUIComponent: empty rs_subtree owner=%s type=%s "
+                    "componentno=%d walked=%d\n",
+                    task->item.name,
+                    task->item.type,
+                    task->item.componentno,
+                    task->rs_load ? task->rs_load->components_walked : -1);
+            }
             bool const panel_invalid =
                 ToriAuxLibCache_Mode(task->cache) == TORIAUXLIBCACHE_MODE_DAT1 &&
                 task->item.componentno < 1024 &&

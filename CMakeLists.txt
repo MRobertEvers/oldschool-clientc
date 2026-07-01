@@ -207,6 +207,16 @@ if(NOT EMSCRIPTEN)
     target_link_libraries(dump_map_index rscache)
     target_include_directories(dump_map_index PRIVATE src)
     set_target_properties(dump_map_index PROPERTIES C_STANDARD 11)
+
+    add_executable(dump_map_locs tools/dump_map_locs/main.c)
+    target_link_libraries(dump_map_locs rscache)
+    target_include_directories(dump_map_locs PRIVATE src)
+    set_target_properties(dump_map_locs PROPERTIES C_STANDARD 11)
+
+    add_executable(dump_loc_shapes tools/dump_loc_shapes/main.c)
+    target_link_libraries(dump_loc_shapes rscache)
+    target_include_directories(dump_loc_shapes PRIVATE src)
+    set_target_properties(dump_loc_shapes PROPERTIES C_STANDARD 11)
 endif()
 
 # --- Native (OSX/Windows) Target ---
