@@ -37,6 +37,9 @@ LibToriRS_ScriptAPI_Dat2_SubmitTextures(struct LibToriRS_Instance* instance);
 const char*
 LibToriRS_ScriptAPI_GetCacheMode(struct LibToriRS_Instance* instance);
 
+bool
+LibToriRS_ScriptAPI_IsKronos(struct LibToriRS_Instance* instance);
+
 void
 LibToriRS_ScriptAPI_Dat1_ModelFetch(
     struct LibToriRS_Instance* instance,

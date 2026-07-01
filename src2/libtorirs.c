@@ -120,6 +120,21 @@ LibToriRS_InstanceNewWithCacheMode(int cache_mode)
 }
 
 void
+LibToriRS_InstanceSetClientKronos(
+    struct LibToriRS_Instance* instance,
+    bool kronos)
+{
+    if( instance )
+        instance->client_kronos = kronos;
+}
+
+bool
+LibToriRS_InstanceIsKronos(struct LibToriRS_Instance* instance)
+{
+    return instance && instance->client_kronos;
+}
+
+void
 LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
 {
     if( !instance )

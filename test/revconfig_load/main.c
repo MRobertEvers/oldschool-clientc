@@ -14,8 +14,10 @@
 
 #define UI_DAT1_CACHE_INI "rev_245_2/rev_245_2_dat1_cache.ini"
 #define UI_DAT1_UI_INI "rev_245_2/rev_245_2_dat1_ui.ini"
-#define UI_DAT2_CACHE_INI "rev_245_2/rev_kronos_ui_cache.ini"
-#define UI_DAT2_UI_INI "rev_245_2/rev_kronos_ui.ini"
+#define UI_DAT2_CACHE_INI "rev_245_2/rev_245_2_dat2_cache.ini"
+#define UI_DAT2_UI_INI "rev_245_2/rev_245_2_dat2_ui.ini"
+#define UI_KRONOS_CACHE_INI "rev_245_2/rev_kronos_ui_cache.ini"
+#define UI_KRONOS_UI_INI "rev_245_2/rev_kronos_ui.ini"
 
 // clang-format off
 #define TEST_ASSERT(cond, msg) \
@@ -368,6 +370,10 @@ main(void)
         goto fail;
 
     if( run_ini_pair_test(io, reactor, "dat2", UI_DAT2_CACHE_INI, UI_DAT2_UI_INI, false) != 0 )
+        goto fail;
+
+    if( run_ini_pair_test(io, reactor, "kronos", UI_KRONOS_CACHE_INI, UI_KRONOS_UI_INI, false) !=
+        0 )
         goto fail;
 
     if( test_revconfig_menu_option_fields() != 0 )

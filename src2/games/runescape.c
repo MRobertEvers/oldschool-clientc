@@ -140,6 +140,9 @@ rs_ui_host_apply_button_click(
 
     ToriAuxLibVM_ApplyButtonClickOptimistic(game->vm, (struct StaticUIComponent*)component);
 
+    if( game->ui_tree )
+        uitree_mark_all_dirty(game->ui_tree);
+
     if( !game->core || !game->cs2vm || component->component_id < 0 )
         return;
 
@@ -688,7 +691,7 @@ GameRunescape_TranslateGCEvent(
     }
 }
 
-static void
+void
 GameRunescape_UpdateWorldViewport(struct GameRunescape* game)
 {
     int vw = game->view_port ? game->view_port->width : 800;
@@ -754,14 +757,26 @@ rs_classify_dynamic_pick_type(
 }
 
 static bool
-GameRunescape_EmitDrawElement(
+game_runescape_mouse_in_world_viewport(
+    struct GameRunescape* game,
+    int mouse_x,
+    int mouse_y)
+{
+    return game && mouse_x >= game->world_view_port.clip_left &&
+           mouse_x < game->world_view_port.clip_right &&
+           mouse_y >= game->world_view_port.clip_top &&
+           mouse_y < game->world_view_port.clip_bottom;
+}
+
+static bool
+game_runescape_project_and_pick_element(
     struct GameRunescape* game,
     int element_id,
     enum WorldPickType pick_type,
     int tile_x,
     int tile_z,
     int tile_level,
-    struct LibToriRS_RenderCommand* command)
+    bool allow_pick)
 {
     assert(ToriDraw_SceneElementIsLive(game->scene, element_id));
 
@@ -780,31 +795,55 @@ GameRunescape_EmitDrawElement(
     if( element->anim_seq_id != -1 )
         ToriDraw_SceneElementApplyAnimation(game->scene, element_id, true, element->anim_frame);
 
-    if( game->scene )
+    if( !game->scene )
+        return false;
+
+    const int cull = ToriDraw_RenderModel1Project(
+        element->model, game->scene, &rel_pos, &game->world_view_port, game->camera);
+    if( cull != TORIDRAW_CULL_VISIBLE )
+        return false;
+
+    if( allow_pick && game->mouse_in_viewport &&
+        ToriDraw_ProjectedModelContainsPoint(
+            game->scene, element->model, &game->world_view_port, game->mouse_x, game->mouse_y) )
     {
-        const int cull = ToriDraw_RenderModel1Project(
-            element->model, game->scene, &rel_pos, &game->world_view_port, game->camera);
-        if( cull != TORIDRAW_CULL_VISIBLE )
-            return false;
-
-        if( game->mouse_in_viewport &&
-            ToriDraw_ProjectedModelContainsPoint(
-                game->scene, element->model, &game->world_view_port, game->mouse_x, game->mouse_y) )
+        world_pickset_add(&game->pickset, element_id, pick_type, tile_x, tile_z, tile_level);
+        if( pick_type == WORLD_PICK_TERRAIN )
         {
-            world_pickset_add(
-                &game->pickset, element_id, pick_type, tile_x, tile_z, tile_level);
-            if( pick_type == WORLD_PICK_TERRAIN )
-            {
-                game->last_tile_sx = tile_x;
-                game->last_tile_sz = tile_z;
-                game->last_tile_level = tile_level;
-                game->last_tile_valid = true;
-            }
+            game->last_tile_sx = tile_x;
+            game->last_tile_sz = tile_z;
+            game->last_tile_level = tile_level;
+            game->last_tile_valid = true;
         }
-
-        if( ToriDraw_RenderModel2SortFaces(element->model, game->scene) <= 0 )
-            return false;
     }
+
+    return true;
+}
+
+static bool
+GameRunescape_EmitDrawElement(
+    struct GameRunescape* game,
+    int element_id,
+    enum WorldPickType pick_type,
+    int tile_x,
+    int tile_z,
+    int tile_level,
+    struct LibToriRS_RenderCommand* command)
+{
+    struct ToriDraw_SceneElement* element = ToriDraw_SceneElementGet(game->scene, element_id);
+    if( !game_runescape_project_and_pick_element(
+            game, element_id, pick_type, tile_x, tile_z, tile_level, true) )
+        return false;
+
+    struct ToriDraw_Position rel_pos = element->world_position;
+    rel_pos.x -= game->camera_position->x;
+    rel_pos.y -= game->camera_position->y;
+    rel_pos.z -= game->camera_position->z;
+    rel_pos.pitch = ToriDraw_NormalizeAngle(element->world_position.pitch);
+    rel_pos.yaw = ToriDraw_NormalizeAngle(element->world_position.yaw);
+
+    if( ToriDraw_RenderModel2SortFaces(element->model, game->scene) <= 0 )
+        return false;
 
     command->kind = TORIRSRC_DRAW_MODEL;
     command->u.model.model = element->model;
@@ -1208,7 +1247,7 @@ GameRunescape_UIHoverIds(struct GameRunescape const* game)
     return ids;
 }
 
-static int32_t
+int32_t
 GameRunescape_UISelectedSidebarIndex(struct GameRunescape const* game)
 {
     if( !game || !game->ui_tree )
@@ -1219,6 +1258,82 @@ GameRunescape_UISelectedSidebarIndex(struct GameRunescape const* game)
     {
         struct StaticUIComponent const* c = &game->ui_tree->components[i];
         if( c->type == UIELEM_BUILTIN_SIDEBAR && c->u.sidebar.tabno == tab )
+            return (int32_t)i;
+    }
+    return -1;
+}
+
+static bool
+game_runescape_world_clip_is_builtin_widget(
+    struct GameRunescape const* game)
+{
+    if( !game )
+        return false;
+
+    int const vw = game->view_port ? game->view_port->width : UITREE_LAYOUT_ROOT_W;
+    int const vh = game->view_port ? game->view_port->height : UITREE_LAYOUT_ROOT_H;
+    int const clip_w =
+        game->world_view_port.clip_right - game->world_view_port.clip_left;
+    int const clip_h =
+        game->world_view_port.clip_bottom - game->world_view_port.clip_top;
+
+    if( clip_w <= 0 || clip_h <= 0 )
+        return false;
+
+    return game->world_view_port.clip_left > 0 || game->world_view_port.clip_top > 0 ||
+           game->world_view_port.clip_right < vw || game->world_view_port.clip_bottom < vh;
+}
+
+bool
+GameRunescape_PointInMainHoverRegion(
+    struct GameRunescape const* game,
+    int px,
+    int py)
+{
+    if( game && game_runescape_world_clip_is_builtin_widget(game) )
+    {
+        return px >= game->world_view_port.clip_left &&
+               px < game->world_view_port.clip_right &&
+               py >= game->world_view_port.clip_top &&
+               py < game->world_view_port.clip_bottom;
+    }
+
+    return px > RS_UI_HOVER_MAIN_X && py > RS_UI_HOVER_MAIN_Y &&
+           px < RS_UI_HOVER_MAIN_X + RS_UI_HOVER_MAIN_W &&
+           py < RS_UI_HOVER_MAIN_Y + RS_UI_HOVER_MAIN_H;
+}
+
+bool
+GameRunescape_PointInSidebarHoverRegion(
+    int px,
+    int py)
+{
+    return px > RS_UI_HOVER_SIDE_X && py > RS_UI_HOVER_SIDE_Y &&
+           px < RS_UI_HOVER_SIDE_X + RS_UI_HOVER_SIDE_W &&
+           py < RS_UI_HOVER_SIDE_Y + RS_UI_HOVER_SIDE_H;
+}
+
+bool
+GameRunescape_PointInChatHoverRegion(
+    int px,
+    int py)
+{
+    return px > RS_UI_HOVER_CHAT_X && py > RS_UI_HOVER_CHAT_Y &&
+           px < RS_UI_HOVER_CHAT_X + RS_UI_HOVER_CHAT_W &&
+           py < RS_UI_HOVER_CHAT_Y + RS_UI_HOVER_CHAT_H;
+}
+
+int32_t
+GameRunescape_UITreeIndexForComponentId(
+    struct GameRunescape const* game,
+    int component_id)
+{
+    if( !game || !game->ui_tree || component_id < 0 )
+        return -1;
+
+    for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
+    {
+        if( game->ui_tree->components[i].component_id == component_id )
             return (int32_t)i;
     }
     return -1;
@@ -1550,10 +1665,16 @@ GameRunescape_ProcessInput(
         }
     }
 
-    if( LibToriRS_Input_IsClick(input, TORIRSM_RIGHT) && game->ui_tree && game->ui_tree_ready )
+    if( LibToriRS_Input_IsClick(input, TORIRSM_RIGHT) )
     {
-        ui_click_handle_right(
-            game, input, input->last_click_x[TORIRSM_RIGHT], input->last_click_y[TORIRSM_RIGHT]);
+        bool const can_right_click = game->ui_tree &&
+            (game->ui_tree_ready ||
+             (game->world && game->world->load_complete));
+        if( can_right_click )
+        {
+            ui_click_handle_right(
+                game, input, input->last_click_x[TORIRSM_RIGHT], input->last_click_y[TORIRSM_RIGHT]);
+        }
     }
 
     const int move = RUNESCAPE_CAMERA_MOVEMENT_SPEED;
@@ -2245,7 +2366,8 @@ GameRunescape_EmitUIComponent(
                 return false;
             scene_id = component->u.rs_graphic.scene_id;
             atlas_index = component->u.rs_graphic.atlas_index;
-            if( uitree_component_is_active_host(&game->ui_host, component) )
+            bool const active = uitree_component_is_active_host(&game->ui_host, component);
+            if( active )
             {
                 if( component->u.rs_graphic.scene_id_active >= 0 )
                 {
@@ -2253,6 +2375,17 @@ GameRunescape_EmitUIComponent(
                     atlas_index = component->u.rs_graphic.atlas_index_active;
                 }
             }
+            ui_active_debug_log(
+                "emit rs_graphic id=%d is_active=%d scene_id=%d atlas=%d "
+                "inactive_scene=%d active_scene=%d",
+                component->component_id,
+                active ? 1 : 0,
+                scene_id,
+                atlas_index,
+                component->u.rs_graphic.scene_id,
+                component->u.rs_graphic.scene_id_active);
+            if( scene_id < 0 )
+                return false;
         }
         GameRunescape_AssertSceneSpriteReady(
             game, scene_id, atlas_index, "ui_sprite");
@@ -2707,7 +2840,16 @@ GameRunescape_EmitUIComponent(
     {
         int model_id = component->u.rs_model.gamecache_model_id;
         if( !game->scene || !ToriDraw_SceneModelHas(game->scene, model_id) )
+        {
+            fprintf(stderr,
+                "rs_emit_ui_component_command: model not in scene model_id=%d component_id=%d\n",
+                model_id,
+                component->component_id);
+            assert(
+                game->scene && ToriDraw_SceneModelHas(game->scene, model_id) &&
+                "UIELEM_RS_MODEL draw requested but model not in scene");
             return false;
+        }
         command->kind = TORIRSRC_UI_MODEL_DRAW;
         command->u.ui_model_3d.model = ToriDraw_SceneModelGet(game->scene, model_id);
         if( game->view_port )
@@ -2811,6 +2953,83 @@ rs_resolve_painter_command(
     }
 
     return *element_id >= 0;
+}
+
+void
+GameRunescape_RefreshPicksetAtMouse(
+    struct GameRunescape* game,
+    int mouse_x,
+    int mouse_y)
+{
+    struct World* world;
+    int saved_mouse_x;
+    int saved_mouse_y;
+    bool saved_mouse_in_viewport;
+
+    if( !game || !game->scene || !game->world )
+        return;
+
+    world = game->world;
+    saved_mouse_x = game->mouse_x;
+    saved_mouse_y = game->mouse_y;
+    saved_mouse_in_viewport = game->mouse_in_viewport;
+
+    GameRunescape_UpdateWorldViewport(game);
+    game->mouse_x = mouse_x;
+    game->mouse_y = mouse_y;
+    game->mouse_in_viewport = game_runescape_mouse_in_world_viewport(game, mouse_x, mouse_y);
+    world_pickset_reset(&game->pickset);
+
+    if( world->load_complete && world->painter && game->painter_buffer )
+    {
+        painter_set_camera_angles(world->painter, game->camera->pitch, game->camera->yaw);
+        painter_set_level_mask(world->painter, 0xF);
+        int camera_sx;
+        int camera_sz;
+        int camera_slevel;
+        GameRunescape_CameraTile(game, &camera_sx, &camera_sz, &camera_slevel);
+        painter_paint_bucket(
+            world->painter, game->painter_buffer, camera_sx, camera_sz, camera_slevel);
+
+        for( int i = 0; i < game->painter_buffer->command_count; i++ )
+        {
+            const struct PaintersElementCommand* cmd = &game->painter_buffer->commands[i];
+            int element_id;
+            enum WorldPickType pick_type;
+            int tile_x;
+            int tile_z;
+            int tile_level;
+
+            if( !rs_resolve_painter_command(
+                    game, world, cmd, &element_id, &pick_type, &tile_x, &tile_z, &tile_level) )
+                continue;
+
+            (void)game_runescape_project_and_pick_element(
+                game, element_id, pick_type, tile_x, tile_z, tile_level, true);
+        }
+    }
+
+    {
+        int const slot_count = ToriDraw_SceneElementSlotCount(game->scene);
+        for( int element_id = 0; element_id < slot_count; element_id++ )
+        {
+            enum WorldPickType pick_type = WORLD_PICK_SCENERY;
+            if( !ToriDraw_SceneElementIsLive(game->scene, element_id) )
+                continue;
+
+            struct ToriDraw_SceneElement* element =
+                ToriDraw_SceneElementGet(game->scene, element_id);
+            if( element && element->dynamic )
+                pick_type = rs_classify_dynamic_pick_type(game, element_id);
+
+            (void)game_runescape_project_and_pick_element(
+                game, element_id, pick_type, -1, -1, -1, true);
+        }
+    }
+
+    game->mouse_x = saved_mouse_x;
+    game->mouse_y = saved_mouse_y;
+    game->mouse_in_viewport = saved_mouse_in_viewport;
 }
 
 static enum RsPhaseResult

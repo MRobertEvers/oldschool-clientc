@@ -7,8 +7,10 @@
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/td/toriauxlibtd.h"
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_sprite.h"
+#include "ui/uitree.h"
 #include "ui/uitree_layout.h"
 #include "ui/ui_behavior.h"
 #include "vm/cs2vm.h"
@@ -127,6 +129,30 @@ instance_revconfig_assert_sprite_atlas(
     }
 }
 
+static void
+instance_revconfig_assert_model_in_scene(
+    struct InstanceRevConfigContext const* ctx,
+    int model_id,
+    int component_id)
+{
+    assert(ctx && ctx->td && ctx->scene);
+
+    if( !ToriDraw_SceneModelHas(ctx->scene, model_id) )
+        ToriAuxLibTD_Model(ctx->td, model_id);
+
+    if( !ToriDraw_SceneModelHas(ctx->scene, model_id) )
+    {
+        fprintf(stderr,
+            "instance_revconfig_assert_model_in_scene: model not in scene "
+            "model_id=%d component_id=%d\n",
+            model_id,
+            component_id);
+        assert(
+            ToriDraw_SceneModelHas(ctx->scene, model_id) &&
+            "MODEL component model not in scene after RS component load");
+    }
+}
+
 static int32_t
 instance_revconfig_bake_rs_component(
     struct InstanceRevConfigContext* ctx,
@@ -183,6 +209,9 @@ instance_revconfig_bake_rs_component(
             "instance_revconfig_bake_rs_component: core INV ops not copied to menu_options");
     }
 
+    int inv_bg_sid[UI_INV_SLOT_OFFSET_MAX];
+    int inv_bg_ai[UI_INV_SLOT_OFFSET_MAX];
+
     switch( info->type )
     {
     case TORIAUXLIBCORE_COMPONENT_LAYER:
@@ -219,11 +248,43 @@ instance_revconfig_bake_rs_component(
             break;
         }
         spec.type = UIELEM_RS_GRAPHIC;
-        spec.u.rs_graphic.scene_id = sid >= 0 ? sid : sid_a;
-        spec.u.rs_graphic.atlas_index = sid >= 0 ? atlas : atlas_a;
-        spec.u.rs_graphic.scene_id_active = sid >= 0 && sid_a >= 0 && sid_a != sid ? sid_a : -1;
-        spec.u.rs_graphic.atlas_index_active = sid_a >= 0 ? atlas_a : 0;
+        if( sid >= 0 )
+        {
+            spec.u.rs_graphic.scene_id = sid;
+            spec.u.rs_graphic.atlas_index = atlas;
+        }
+        else
+        {
+            spec.u.rs_graphic.scene_id = -1;
+            spec.u.rs_graphic.atlas_index = 0;
+        }
+        if( sid_a >= 0 && (sid < 0 || sid_a != sid) )
+        {
+            spec.u.rs_graphic.scene_id_active = sid_a;
+            spec.u.rs_graphic.atlas_index_active = atlas_a;
+        }
+        else
+        {
+            spec.u.rs_graphic.scene_id_active = -1;
+            spec.u.rs_graphic.atlas_index_active = 0;
+        }
         spec.u.rs_graphic.graphic_hitbox_only = 0;
+        ui_active_debug_log(
+            "bake rs_graphic id=%d ref='%s' active_ref='%s' sid=%d sid_a=%d "
+            "scene_id=%d scene_id_active=%d",
+            info->id,
+            info->sprite_ref,
+            info->sprite_active_ref,
+            sid,
+            sid_a,
+            spec.u.rs_graphic.scene_id,
+            spec.u.rs_graphic.scene_id_active);
+        if( sid < 0 && sid_a >= 0 && !info->graphic_hitbox_only )
+        {
+            ui_active_debug_log(
+                "bake rs_graphic id=%d: inactive ref unresolved; active gated by getIfActive",
+                info->id);
+        }
         if( spec.u.rs_graphic.scene_id >= 0 )
             instance_revconfig_assert_sprite_atlas(
                 ctx,
@@ -273,6 +334,8 @@ instance_revconfig_bake_rs_component(
         spec.type = UIELEM_RS_MODEL;
         spec.u.rs_model.gamecache_model_id = info->model_id;
         spec.u.rs_model.zoom = 100;
+        assert(info->model_id > 0 && "MODEL component has no model_id");
+        instance_revconfig_assert_model_in_scene(ctx, info->model_id, info->id);
         break;
     case TORIAUXLIBCORE_COMPONENT_INV:
         spec.type = UIELEM_RS_INV;
@@ -281,6 +344,40 @@ instance_revconfig_bake_rs_component(
         spec.u.rs_inv.rows = info->inv_rows;
         spec.u.rs_inv.margin_x = info->margin_x;
         spec.u.rs_inv.margin_y = info->margin_y;
+
+        for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
+        {
+            inv_bg_sid[si] = -1;
+            inv_bg_ai[si] = 0;
+            if( info->inv_slot_sprite_ref[si][0] == '\0' )
+                continue;
+
+            int sid = ui_sprite_lookup_resolve_ref(
+                &ctx->sprite_lookup, info->inv_slot_sprite_ref[si], &inv_bg_ai[si]);
+            if( sid < 0 )
+            {
+                fprintf(
+                    stderr,
+                    "instance_revconfig_bake_rs_component: inv slot sprite resolve failed "
+                    "component_id=%d slot=%d ref=%s\n",
+                    info->id,
+                    si,
+                    info->inv_slot_sprite_ref[si]);
+                assert(sid >= 0);
+            }
+            inv_bg_sid[si] = sid;
+            instance_revconfig_assert_sprite_atlas(
+                ctx,
+                sid,
+                inv_bg_ai[si],
+                info->inv_slot_sprite_ref[si],
+                "rs_inv slot bg");
+        }
+
+        spec.u.rs_inv.inv_slot_offset_x = info->inv_slot_offset_x;
+        spec.u.rs_inv.inv_slot_offset_y = info->inv_slot_offset_y;
+        spec.u.rs_inv.inv_slot_bg_scene_id = inv_bg_sid;
+        spec.u.rs_inv.inv_slot_bg_atlas_index = inv_bg_ai;
         break;
     default:
         return -1;
@@ -380,6 +477,8 @@ instance_revconfig_bake_rs_subtree(
     int inv_index = -1;
     if( comp->inv[0] != '\0' && ctx->inv_pool )
         inv_index = uitree_inv_pool_find_by_name(ctx->inv_pool, comp->inv);
+    if( comp->inv[0] != '\0' )
+        assert(inv_index >= 0 && "sidebar inv= name not found in inv pool");
 
     struct InstanceRevConfigRsBakeIdMap id_map[INSTANCE_RC_MAX_RS_SUBTREE_ITEMS];
     int id_map_count = 0;

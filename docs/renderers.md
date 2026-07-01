@@ -1,5 +1,7 @@
 # Renderer architecture
 
+**Building a new renderer?** See [trspk_retained_mode_renderer.md](trspk_retained_mode_renderer.md) for a step-by-step guide using the OpenGL3 backend as reference.
+
 This document describes how each platform renderer turns LibToriRS render commands into pixels, what GPU/CPU resources it uses, and how geometry is buffered across frames.
 
 All renderers consume the same per-frame **render command stream** (`TORIRSRC_*` commands from `libtorirs_render.h`). The game builds painter's-order face lists in ToriDraw; renderers submit triangles in that order. **Depth testing is disabled** in every GPU renderer (`glDepthFunc(GL_ALWAYS)` / `D3DRS_ZENABLE FALSE`), so correct occlusion depends entirely on submission order.

@@ -133,7 +133,7 @@ The callback `on_rc_uicomponent_rs_loaded` appends each visited component id int
 | `TORIAUXLIBCORE_COMPONENT_RECT` | `UIELEM_RS_RECT` | Color + filled flag |
 | `TORIAUXLIBCORE_COMPONENT_TEXT` / `TORIAUXLIBCORE_COMPONENT_INV_TEXT` | `UIELEM_RS_TEXT` | Font, color, center, shadow |
 | `TORIAUXLIBCORE_COMPONENT_MODEL` | `UIELEM_RS_MODEL` | `gamecache_model_id` from cache |
-| `TORIAUXLIBCORE_COMPONENT_INV` | `UIELEM_RS_INV` | Grid cols/rows/margins; `inv_index` from owner's `inv=` field |
+| `TORIAUXLIBCORE_COMPONENT_INV` | `UIELEM_RS_INV` | Grid cols/rows/margins; `inv_index` from owner's `inv=` field; `invSlotGraphic` → `inv_slot_sprite_ref` → `inv_slot_bg_scene_id` |
 
 ### Fonts (`[font:name]` in `*_cache.ini`)
 

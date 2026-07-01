@@ -8,13 +8,17 @@
 
 struct ToriAuxLibCore_Objtype;
 
-#include "ui_debug.h"
-
 bool
 ui_hover_debug_enabled(void);
 
 void
 ui_hover_debug_log(char const* fmt, ...);
+
+bool
+ui_active_debug_enabled(void);
+
+void
+ui_active_debug_log(char const* fmt, ...);
 
 bool
 ui_minimenu_debug_enabled(void);

@@ -182,6 +182,31 @@ painter_bench_find_cache_dir(void)
     return NULL;
 }
 
+const char*
+painter_bench_find_kronos_cache_dir(void)
+{
+    static const char* candidates[] = {
+        "cache.kronos",
+        "../cache.kronos",
+        "../../cache.kronos",
+        "../../../cache.kronos",
+        "../../../../cache.kronos",
+        NULL,
+    };
+    char path[512];
+    for( int i = 0; candidates[i]; i++ )
+    {
+        snprintf(path, sizeof(path), "%s/main_file_cache.dat2", candidates[i]);
+        FILE* f = fopen(path, "rb");
+        if( f )
+        {
+            fclose(f);
+            return candidates[i];
+        }
+    }
+    return NULL;
+}
+
 int
 painter_fuzz_cache_scene(
     const char* cache_dir,

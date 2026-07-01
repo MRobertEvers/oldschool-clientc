@@ -2,6 +2,7 @@
 
 #include "buildcache/dat1_buildcache.h"
 #include "buildcache/dat1_buildcache_ui.h"
+#include "buildcache/dat2_buildcache.h"
 #include "buildcache/dat2_buildcache_ui.h"
 #include "core/tapi/tapi_dat1.h"
 #include "core/tapi/tapi_dat2.h"
@@ -13,6 +14,7 @@
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
+#include "toridraw/toridraw_scene.h"
 #include "ui/uitree_layout.h"
 
 #include <assert.h>
@@ -103,12 +105,22 @@ dat2_component_parent_relative_layout(
 }
 
 static struct RSCacheDat1A_ConfigComponent*
+dat1_get_component_by_index(
+    struct RSCacheDat1A_ConfigComponentList* list,
+    int index)
+{
+    assert(list);
+    assert(index >= 0 && index < list->components_count);
+    return list->components[index];
+}
+
+static struct RSCacheDat1A_ConfigComponent*
 dat1_get_component(
     struct RSCacheDat1A_ConfigComponentList* list,
     int component_id)
 {
-    if( !list || component_id < 0 )
-        return NULL;
+    assert(list);
+    assert(component_id >= 0);
 
     if( component_id < list->components_count && list->components[component_id] )
     {
@@ -197,9 +209,7 @@ dat1_acquire_dynamic_sprite(
         dat1_buildcache_sprite_decode_ref(ctx->dat1_bc, sprite_ref);
     if( !sprite || sprite->frame_count <= 0 )
     {
-        fprintf(stderr,
-            "dat1_acquire_dynamic_sprite: decode failed for ref=%s\n",
-            sprite_ref);
+        fprintf(stderr, "dat1_acquire_dynamic_sprite: decode failed for ref=%s\n", sprite_ref);
         ToriAuxLibCore_SpriteFree(sprite);
         assert(sprite && sprite->frame_count > 0);
         return -1;
@@ -207,7 +217,8 @@ dat1_acquire_dynamic_sprite(
 
     int element_id = ctx->next_element_id++;
 
-    instance_revconfig_register_core_sprite(ctx, element_id, sprite, sprite_ref, sprite->frame_count);
+    instance_revconfig_register_core_sprite(
+        ctx, element_id, sprite, sprite_ref, sprite->frame_count);
     return element_id;
 }
 
@@ -216,8 +227,9 @@ dat2_acquire_dynamic_sprite(
     struct InstanceRevConfigContext* ctx,
     int sprite_id)
 {
-    if( !ctx || sprite_id < 0 || !ctx->dat2_bc )
-        return -1;
+    assert(ctx);
+    assert(ctx->dat2_bc);
+    assert(sprite_id >= 0);
 
     char ref[64];
     dat2_sprite_ref_from_id(sprite_id, ref, sizeof(ref));
@@ -233,7 +245,8 @@ dat2_acquire_dynamic_sprite(
         dat2_buildcache_dynamic_sprite_release(ctx->dat2_bc, sprite_id);
     if( !sprite || sprite->frame_count <= 0 )
     {
-        fprintf(stderr,
+        fprintf(
+            stderr,
             "dat2_acquire_dynamic_sprite: sprite not in prefetch cache sprite_id=%d\n",
             sprite_id);
         ToriAuxLibCore_SpriteFree(sprite);
@@ -317,6 +330,9 @@ Task_RSComponentLoad_New(
     task->scene = scene;
     task->rc_ctx = rc_ctx;
     task->root_component_id = root_component_id;
+    task->walk_root_id = -1;
+    task->walk_root_id_before_remap = -1;
+    task->iface_id = 0;
     if( callbacks )
         task->callbacks = *callbacks;
     return task;
@@ -328,7 +344,161 @@ Task_RSComponentLoad_Free(struct Task_RSComponentLoad* task)
     if( !task )
         return;
     free(task->needed_sprite_ids);
+    free(task->needed_model_ids);
     free(task);
+}
+
+static bool
+rs_component_model_id_add_unique(
+    struct Task_RSComponentLoad* task,
+    int model_id)
+{
+    assert(task);
+    assert(model_id >= 0);
+
+    for( int i = 0; i < task->needed_model_count; i++ )
+    {
+        if( task->needed_model_ids[i] == model_id )
+            return true;
+    }
+
+    int new_count = task->needed_model_count + 1;
+    int* grown = realloc(task->needed_model_ids, (size_t)new_count * sizeof(int));
+    if( !grown )
+        return false;
+    task->needed_model_ids = grown;
+    task->needed_model_ids[task->needed_model_count] = model_id;
+    task->needed_model_count = new_count;
+    return true;
+}
+
+static bool
+rs_component_model_already_loaded(
+    struct Task_RSComponentLoad* task,
+    int model_id)
+{
+    assert(task);
+    assert(task->cache);
+    assert(model_id >= 0);
+
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->cache);
+    if( core && ToriAuxLibCore_ModelHas(core, model_id) )
+        return true;
+
+    if( task->rc_ctx && task->rc_ctx->scene &&
+        ToriDraw_SceneModelHas(task->rc_ctx->scene, model_id) )
+        return true;
+
+    if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 && task->rc_ctx && task->rc_ctx->dat1_bc &&
+        dat1_buildcache_model_get(task->rc_ctx->dat1_bc, model_id) )
+        return true;
+
+    if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 && task->rc_ctx && task->rc_ctx->dat2_bc &&
+        dat2_buildcache_model_get(task->rc_ctx->dat2_bc, model_id) )
+        return true;
+
+    return false;
+}
+
+static void
+rs_component_maybe_queue_model(
+    struct Task_RSComponentLoad* task,
+    int model_id)
+{
+    assert(task);
+    assert(model_id >= 0);
+
+    if( rs_component_model_already_loaded(task, model_id) )
+        return;
+    rs_component_model_id_add_unique(task, model_id);
+}
+
+static void
+dat1_collect_models_from_component(
+    struct Task_RSComponentLoad* task,
+    struct RSCacheDat1A_ConfigComponentList* ifaces,
+    struct RSCacheDat1A_ConfigComponent* comp)
+{
+    assert(task);
+    assert(ifaces);
+    assert(comp);
+
+    if( comp->type == COMPONENT_TYPE_MODEL && comp->modelType == 1 && comp->model > 0 )
+        rs_component_maybe_queue_model(task, comp->model);
+
+    if( comp->type == COMPONENT_TYPE_LAYER && comp->children && comp->children_count > 0 )
+    {
+        for( int i = 0; i < comp->children_count; i++ )
+        {
+            struct RSCacheDat1A_ConfigComponent* child =
+                dat1_get_component_by_index(ifaces, comp->children[i]);
+            if( child )
+                dat1_collect_models_from_component(task, ifaces, child);
+        }
+    }
+}
+
+static void
+dat1_collect_needed_models_from_subtree(
+    struct Task_RSComponentLoad* task,
+    struct RSCacheDat1A_ConfigComponentList* ifaces,
+    int walk_root_id)
+{
+    task->needed_model_count = 0;
+    free(task->needed_model_ids);
+    task->needed_model_ids = NULL;
+    assert(ifaces);
+
+    struct RSCacheDat1A_ConfigComponent* root = dat1_get_component(ifaces, walk_root_id);
+    if( root )
+        dat1_collect_models_from_component(task, ifaces, root);
+}
+
+static void
+dat2_collect_needed_models_from_archive(
+    struct Task_RSComponentLoad* task,
+    struct Dat2BuildCache_InterfaceArchive* archive)
+{
+    task->needed_model_count = 0;
+    free(task->needed_model_ids);
+    task->needed_model_ids = NULL;
+    assert(task);
+    assert(archive);
+
+    for( int i = 0; i < archive->component_count; i++ )
+    {
+        Component* comp = archive->components[i];
+        if( !comp )
+            continue;
+        if( comp->type == COMPONENT_TYPE_MODEL && comp->modelType == 1 && comp->modelId > 0 )
+            rs_component_maybe_queue_model(task, comp->modelId);
+    }
+}
+
+static void
+rs_component_submit_model_to_scene(
+    struct Task_RSComponentLoad* task,
+    int model_id,
+    char const* owner)
+{
+    assert(task && task->rc_ctx && task->rc_ctx->td && task->rc_ctx->scene && task->cache);
+
+    if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+        ToriAuxLibCache_SubmitModelFromDat1(task->cache, model_id);
+    else
+        ToriAuxLibCache_SubmitModelFromDat2(task->cache, model_id);
+
+    struct ToriDraw_ModelHandle hnd = ToriAuxLibTD_Model(task->rc_ctx->td, model_id);
+    if( hnd.kind != TORIDRAWMK_MODEL || !ToriDraw_SceneModelHas(task->rc_ctx->scene, model_id) )
+    {
+        fprintf(
+            stderr,
+            "Task_RSComponentLoad: model not in scene model_id=%d owner=%s\n",
+            model_id,
+            owner ? owner : "(unknown)");
+        assert(
+            hnd.kind == TORIDRAWMK_MODEL && ToriDraw_SceneModelHas(task->rc_ctx->scene, model_id));
+    }
 }
 
 static bool
@@ -377,6 +547,11 @@ dat2_collect_needed_sprites_from_archive(
             continue;
         dat2_needed_sprite_append(task, comp->graphic);
         dat2_needed_sprite_append(task, comp->activeGraphic);
+        if( comp->type == COMPONENT_TYPE_INV && comp->invSlotGraphicId )
+        {
+            for( int si = 0; si < 20; si++ )
+                dat2_needed_sprite_append(task, comp->invSlotGraphicId[si]);
+        }
     }
 }
 
@@ -443,6 +618,41 @@ dat2_resolve_iface_and_root(
 }
 
 static void
+rs_component_acquire_inv_slot_sprites(
+    enum ToriAuxLibCacheMode cache_mode,
+    struct InstanceRevConfigContext* ctx,
+    void* comp)
+{
+    if( !ctx || !comp )
+        return;
+
+    if( cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+    {
+        struct RSCacheDat1A_ConfigComponent* dat1_comp = comp;
+        if( dat1_comp->type != COMPONENT_TYPE_INV || !dat1_comp->invSlotGraphic )
+            return;
+
+        for( int si = 0; si < 20; si++ )
+        {
+            char const* gname = dat1_comp->invSlotGraphic[si];
+            if( gname && gname[0] != '\0' )
+                dat1_acquire_dynamic_sprite(ctx, gname);
+        }
+        return;
+    }
+
+    Component* dat2_comp = comp;
+    if( dat2_comp->type != COMPONENT_TYPE_INV || !dat2_comp->invSlotGraphicId )
+        return;
+
+    for( int si = 0; si < 20; si++ )
+    {
+        if( dat2_comp->invSlotGraphicId[si] >= 0 )
+            dat2_acquire_dynamic_sprite(ctx, dat2_comp->invSlotGraphicId[si]);
+    }
+}
+
+static void
 rs_component_acquire_dynamic_sprites(
     enum ToriAuxLibCacheMode cache_mode,
     struct InstanceRevConfigContext* ctx,
@@ -458,6 +668,7 @@ rs_component_acquire_dynamic_sprites(
             dat1_acquire_dynamic_sprite(ctx, dat1_comp->graphic);
         if( dat1_comp->activeGraphic && dat1_comp->activeGraphic[0] != '\0' )
             dat1_acquire_dynamic_sprite(ctx, dat1_comp->activeGraphic);
+        rs_component_acquire_inv_slot_sprites(cache_mode, ctx, comp);
         return;
     }
 
@@ -466,6 +677,7 @@ rs_component_acquire_dynamic_sprites(
         dat2_acquire_dynamic_sprite(ctx, dat2_comp->graphic);
     if( dat2_comp->activeGraphic >= 0 )
         dat2_acquire_dynamic_sprite(ctx, dat2_comp->activeGraphic);
+    rs_component_acquire_inv_slot_sprites(cache_mode, ctx, comp);
 }
 
 static void
@@ -486,13 +698,26 @@ rs_component_push_children_dat1(
 
         for( int i = dat1_comp->children_count - 1; i >= 0; i-- )
         {
-            struct RSCacheDat1A_ConfigComponent* child =
-                dat1_get_component(dat1_ifaces, dat1_comp->children[i]);
-            if( !child )
+            int const child_index = dat1_comp->children[i];
+            if( child_index < 0 )
                 continue;
+
+            struct RSCacheDat1A_ConfigComponent* child =
+                dat1_get_component_by_index(dat1_ifaces, child_index);
+            if( !child )
+            {
+                fprintf(
+                    stderr,
+                    "rs_component_push_children_dat1: missing child index=%d "
+                    "parent_id=%d\n",
+                    child_index,
+                    dat1_comp->id);
+                assert(child && "rs_component_push_children_dat1: child component not found");
+                continue;
+            }
             int const rel_x = dat1_comp->childX[i] + child->x;
             int const rel_y = dat1_comp->childY[i] + child->y;
-            rs_stack_push(task, dat1_comp->children[i], rel_x, rel_y, dat1_comp->id);
+            rs_stack_push(task, child->id, rel_x, rel_y, dat1_comp->id);
         }
     }
 }
@@ -544,14 +769,26 @@ rs_component_walk_dat1(
     struct RSCacheDat1A_ConfigComponentList* dat1_ifaces = ifaces;
     int max_id = dat1_max_component_id(dat1_ifaces);
     uint8_t* visited = NULL;
+
+    task->stack_count = 0;
+
     if( max_id > 0 )
     {
         visited = calloc((size_t)max_id + 1u, sizeof(uint8_t));
         if( !visited )
+        {
+            fprintf(
+                stderr,
+                "rs_component_walk_dat1: failed to allocate visited bitmap max_id=%d\n",
+                max_id);
+            assert(visited && "rs_component_walk_dat1: visited bitmap allocation failed");
             return;
+        }
     }
 
     rs_stack_push(task, walk_root_id, root_rel_x, root_rel_y, -1);
+    assert(
+        task->stack_count > 0 && "rs_component_walk_dat1: failed to seed walk stack (overflow?)");
 
     while( task->stack_count > 0 )
     {
@@ -562,14 +799,22 @@ rs_component_walk_dat1(
         if( !rs_stack_pop(task, &comp_id, &rel_x, &rel_y, &parent_id) )
             break;
 
+        if( comp_id < 0 )
+            continue;
+
         if( visited && comp_id >= 0 && comp_id <= max_id && visited[comp_id] )
             continue;
         if( visited && comp_id >= 0 && comp_id <= max_id )
             visited[comp_id] = 1;
 
-        struct RSCacheDat1A_ConfigComponent* comp = dat1_get_component(ifaces, comp_id);
+        struct RSCacheDat1A_ConfigComponent* comp = dat1_get_component(dat1_ifaces, comp_id);
         if( !comp )
+        {
+            fprintf(
+                stderr, "rs_component_walk_dat1: component not found component_id=%d\n", comp_id);
+            assert(comp && "rs_component_walk_dat1: component not found in interfaces");
             continue;
+        }
 
         rs_component_acquire_dynamic_sprites(task->cache_mode, task->rc_ctx, comp);
         rs_component_sync_to_core(
@@ -584,8 +829,7 @@ rs_component_walk_dat1(
 
         if( task->callbacks.on_component )
         {
-            task->callbacks.on_component(
-                task->callbacks.user, comp->id, parent_id, rel_x, rel_y);
+            task->callbacks.on_component(task->callbacks.user, comp->id, parent_id, rel_x, rel_y);
             task->components_walked++;
         }
 
@@ -601,7 +845,10 @@ rs_component_walk_dat2(
     struct Dat2BuildCache_InterfaceArchive* archive,
     int walk_root_id)
 {
+    task->stack_count = 0;
     rs_stack_push(task, walk_root_id, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, -1);
+    assert(
+        task->stack_count > 0 && "rs_component_walk_dat2: failed to seed walk stack (overflow?)");
 
     while( task->stack_count > 0 )
     {
@@ -612,9 +859,17 @@ rs_component_walk_dat2(
         if( !rs_stack_pop(task, &comp_id, &parent_w, &parent_h, &parent_id) )
             break;
 
+        if( comp_id < 0 )
+            continue;
+
         Component* comp = dat2_get_component(archive, comp_id);
         if( !comp )
+        {
+            fprintf(
+                stderr, "rs_component_walk_dat2: component not found component_id=%d\n", comp_id);
+            assert(comp && "rs_component_walk_dat2: component not found in interface archive");
             continue;
+        }
 
         int rel_x = 0;
         int rel_y = 0;
@@ -629,8 +884,7 @@ rs_component_walk_dat2(
 
         if( task->callbacks.on_component )
         {
-            task->callbacks.on_component(
-                task->callbacks.user, comp->id, parent_id, rel_x, rel_y);
+            task->callbacks.on_component(task->callbacks.user, comp->id, parent_id, rel_x, rel_y);
             task->components_walked++;
         }
 
@@ -655,20 +909,15 @@ Task_RSComponentLoad_Run(
     struct LibToriRS_IOContext* ctx)
 {
     struct Task_RSComponentLoad* task = task_state;
-    void* walk_ifaces = NULL;
-    int walk_root_id = -1;
-    int walk_root_id_before_remap = -1;
-    int iface_id = 0;
     int batch_end = 0;
     bool dat2_iface_resolved = false;
-    struct Dat2BuildCache_InterfaceArchive* iface_archive = NULL;
     struct RSCacheDat2Disk_Archive* iface_disk_archive = NULL;
     char const* owner =
         task->owner_component[0] != '\0' ? task->owner_component : "(unknown)";
 
     if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
-        dat2_iface_resolved =
-            dat2_resolve_iface_and_root(task->root_component_id, &iface_id, &walk_root_id);
+        dat2_iface_resolved = dat2_resolve_iface_and_root(
+            task->root_component_id, &task->iface_id, &task->walk_root_id);
 
     PT_BEGIN(&task->thread);
 
@@ -716,29 +965,38 @@ Task_RSComponentLoad_Run(
 
         instance_revconfig_resolve_panel_roots(task->rc_ctx);
 
-        walk_ifaces = dat1_buildcache_get_interfaces(dat1(task->cache));
+        task->walk_ifaces = dat1_buildcache_get_interfaces(dat1(task->cache));
         assert(
-            walk_ifaces &&
+            task->walk_ifaces &&
             "Task_RSComponentLoad: dat1 interfaces unavailable after fetch/decode");
-        if( !walk_ifaces )
+        if( !task->walk_ifaces )
             PT_EXIT(&task->thread);
 
-        walk_root_id_before_remap = task->root_component_id;
-        walk_root_id = task->root_component_id;
-        if( task->rc_ctx && walk_root_id >= 0 && walk_root_id < 1024 )
+        task->walk_root_id_before_remap = task->root_component_id;
+        task->walk_root_id = task->root_component_id;
+        if( task->rc_ctx && task->walk_root_id >= 0 && task->walk_root_id < 1024 )
         {
-            int mapped = task->rc_ctx->panel_root_id[walk_root_id];
+            int mapped = task->rc_ctx->panel_root_id[task->walk_root_id];
             if( mapped == INSTANCE_RC_PANEL_ROOT_INVALID )
                 PT_EXIT(&task->thread);
             if( mapped >= 0 )
-                walk_root_id = mapped;
+                task->walk_root_id = mapped;
             else
             {
-                int resolved = instance_revconfig_resolve_walk_root_id(walk_ifaces, walk_root_id);
+                int resolved = instance_revconfig_resolve_walk_root_id(
+                    task->walk_ifaces, task->walk_root_id);
                 if( resolved < 0 )
                     PT_EXIT(&task->thread);
-                walk_root_id = resolved;
+                task->walk_root_id = resolved;
             }
+        }
+        else if( task->walk_root_id >= 0 )
+        {
+            int resolved = instance_revconfig_resolve_walk_root_id(
+                task->walk_ifaces, task->walk_root_id);
+            if( resolved < 0 )
+                PT_EXIT(&task->thread);
+            task->walk_root_id = resolved;
         }
     }
     else if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
@@ -749,8 +1007,8 @@ Task_RSComponentLoad_Run(
         if( !task->rc_ctx || !task->rc_ctx->dat2_bc || !dat2_iface_resolved )
             PT_EXIT(&task->thread);
 
-        iface_archive = dat2_buildcache_interface_archive_get(task->rc_ctx->dat2_bc, iface_id);
-        if( !iface_archive )
+        task->iface_archive = dat2_buildcache_interface_archive_get(task->rc_ctx->dat2_bc, task->iface_id);
+        if( !task->iface_archive )
         {
             struct RSCacheDat2Disk_ReferenceTable* reference_table = NULL;
 
@@ -777,12 +1035,11 @@ Task_RSComponentLoad_Run(
             reference_table = dat2_buildcache_reference_table_get(
                 task->rc_ctx->dat2_bc, RSCacheDat2Disk_Table_Interfaces);
             assert(
-                reference_table &&
-                "Task_RSComponentLoad: dat2 interfaces reference table missing");
+                reference_table && "Task_RSComponentLoad: dat2 interfaces reference table missing");
             if( !reference_table )
                 PT_EXIT(&task->thread);
 
-            IO_REQUEST(ctx, 0, TAPIDat2_FetchInterface(ctx, iface_id));
+            IO_REQUEST(ctx, 0, TAPIDat2_FetchInterface(ctx, task->iface_id));
             PT_YIELD(&task->thread);
 
             reference_table = dat2_buildcache_reference_table_get(
@@ -793,25 +1050,26 @@ Task_RSComponentLoad_Run(
             if( !reference_table )
                 PT_EXIT(&task->thread);
 
-            iface_disk_archive = TAPIDat2_DecodeInterfaceArchive(ctx, 0, iface_id);
+            iface_disk_archive = TAPIDat2_DecodeInterfaceArchive(ctx, 0, task->iface_id);
             assert(
                 iface_disk_archive &&
                 "Task_RSComponentLoad: failed to decode dat2 interface archive");
             if( !iface_disk_archive )
                 PT_EXIT(&task->thread);
 
-            iface_archive = dat2_buildcache_component_decode_iface_archive_from_archive(
-                reference_table, iface_disk_archive, iface_id);
+            task->iface_archive = dat2_buildcache_component_decode_iface_archive_from_archive(
+                reference_table, iface_disk_archive, task->iface_id);
             assert(
-                iface_archive &&
+                task->iface_archive &&
                 "Task_RSComponentLoad: failed to decode dat2 interface components");
-            if( !iface_archive )
+            if( !task->iface_archive )
                 PT_EXIT(&task->thread);
-            dat2_buildcache_interface_archive_add(task->rc_ctx->dat2_bc, iface_id, iface_archive);
-            ToriAuxLibCache_SubmitComponentsFromDat2(task->cache, iface_archive);
+            dat2_buildcache_interface_archive_add(
+                task->rc_ctx->dat2_bc, task->iface_id, task->iface_archive);
+            ToriAuxLibCache_SubmitComponentsFromDat2(task->cache, task->iface_archive);
         }
 
-        dat2_collect_needed_sprites_from_archive(task, iface_archive);
+        dat2_collect_needed_sprites_from_archive(task, task->iface_archive);
         task->prefetch_chunk_index = 0;
         while( task->prefetch_chunk_index < task->needed_sprite_count )
         {
@@ -836,7 +1094,8 @@ Task_RSComponentLoad_Run(
                     TAPIDat2_DecodeSpriteArchive(ctx, i, sprite_id);
                 if( !sprite_archive )
                 {
-                    fprintf(stderr,
+                    fprintf(
+                        stderr,
                         "Task_RSComponentLoad: failed to decode sprite archive "
                         "sprite_id=%d\n",
                         sprite_id);
@@ -848,7 +1107,8 @@ Task_RSComponentLoad_Run(
                     dat2_buildcache_sprite_decode_id_from_archive(sprite_archive, sprite_id);
                 if( !sprite || sprite->frame_count <= 0 )
                 {
-                    fprintf(stderr,
+                    fprintf(
+                        stderr,
                         "Task_RSComponentLoad: failed to decode sprite sprite_id=%d\n",
                         sprite_id);
                     ToriAuxLibCore_SpriteFree(sprite);
@@ -859,7 +1119,8 @@ Task_RSComponentLoad_Run(
             }
         }
 
-        walk_ifaces = dat2_buildcache_interface_archive_get(task->rc_ctx->dat2_bc, iface_id);
+        task->walk_ifaces =
+            dat2_buildcache_interface_archive_get(task->rc_ctx->dat2_bc, task->iface_id);
     }
     else
     {
@@ -867,8 +1128,9 @@ Task_RSComponentLoad_Run(
         PT_EXIT(&task->thread);
     }
 
-    void* root = rs_component_get(task->cache_mode, walk_ifaces, walk_root_id);
-    if( !root )
+    task->walk_root =
+        rs_component_get(task->cache_mode, task->walk_ifaces, task->walk_root_id);
+    if( !task->walk_root )
     {
         if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
         {
@@ -878,10 +1140,10 @@ Task_RSComponentLoad_Run(
                 "walk_root_id=%d panel_root_id=%d\n",
                 owner,
                 task->root_component_id,
-                walk_root_id,
-                (walk_root_id_before_remap >= 0 && walk_root_id_before_remap < 1024 &&
+                task->walk_root_id,
+                (task->walk_root_id_before_remap >= 0 && task->walk_root_id_before_remap < 1024 &&
                  task->rc_ctx)
-                    ? task->rc_ctx->panel_root_id[walk_root_id_before_remap]
+                    ? task->rc_ctx->panel_root_id[task->walk_root_id_before_remap]
                     : -1);
         }
         else
@@ -892,29 +1154,128 @@ Task_RSComponentLoad_Run(
                 "iface_id=%d walk_root_id=%d\n",
                 owner,
                 task->root_component_id,
-                iface_id,
-                walk_root_id);
+                task->iface_id,
+                task->walk_root_id);
         }
         assert(false && "Task_RSComponentLoad: root component not found in interfaces archive");
         PT_EXIT(&task->thread);
     }
 
+    if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+        dat1_collect_needed_models_from_subtree(
+            task, task->walk_ifaces, task->walk_root_id);
+    else
+        dat2_collect_needed_models_from_archive(task, task->iface_archive);
+
+    task->model_prefetch_chunk_index = 0;
+    while( task->model_prefetch_chunk_index < task->needed_model_count )
+    {
+        batch_end = task->model_prefetch_chunk_index + TASK_RS_COMPONENT_PREFETCH_BATCH;
+        if( batch_end > task->needed_model_count )
+            batch_end = task->needed_model_count;
+
+        LibToriRS_IOBatchReset(&task->io_batch);
+        for( int i = task->model_prefetch_chunk_index; i < batch_end; i++ )
+        {
+            int model_id = task->needed_model_ids[i];
+            if( rs_component_model_already_loaded(task, model_id) )
+                continue;
+
+            int slot = LibToriRS_IOBatchAdd(&task->io_batch, model_id);
+            if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+                IO_REQUEST(ctx, slot, TAPIDat1_FetchModel(ctx, model_id));
+            else
+                IO_REQUEST(ctx, slot, TAPIDat2_FetchModel(ctx, model_id));
+        }
+        task->model_prefetch_chunk_index = batch_end;
+
+        if( LibToriRS_IOBatchEmpty(&task->io_batch) )
+            continue;
+
+        PT_YIELD(&task->thread);
+
+        for( int i = 0; i < LibToriRS_IOBatchCount(&task->io_batch); i++ )
+        {
+            int model_id = LibToriRS_IOBatchUser(&task->io_batch, i);
+            struct RSCacheDat2A_Model* model = NULL;
+
+            if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+                model = TAPIDat1_DecodeModel(ctx, i);
+            else
+                model = TAPIDat2_DecodeModel(ctx, i);
+
+            if( !model )
+            {
+                fprintf(
+                    stderr,
+                    "Task_RSComponentLoad: failed to decode model_id=%d owner=%s\n",
+                    model_id,
+                    owner);
+                assert(model && "Task_RSComponentLoad: failed to decode model");
+                continue;
+            }
+
+            if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
+                dat1_buildcache_model_add(task->rc_ctx->dat1_bc, model_id, model);
+            else
+                dat2_buildcache_model_add(task->rc_ctx->dat2_bc, model_id, model);
+
+            rs_component_submit_model_to_scene(task, model_id, owner);
+        }
+        LibToriRS_IOQueueClear(ctx->io);
+    }
+
+    for( int i = 0; i < task->needed_model_count; i++ )
+    {
+        int model_id = task->needed_model_ids[i];
+        if( !rs_component_model_already_loaded(task, model_id) )
+        {
+            fprintf(
+                stderr,
+                "Task_RSComponentLoad: model still missing after prefetch model_id=%d owner=%s\n",
+                model_id,
+                owner);
+            assert(
+                rs_component_model_already_loaded(task, model_id) &&
+                "Task_RSComponentLoad: model missing after prefetch");
+        }
+        else if(
+            task->rc_ctx && task->rc_ctx->td && task->rc_ctx->scene &&
+            !ToriDraw_SceneModelHas(task->rc_ctx->scene, model_id) )
+        {
+            rs_component_submit_model_to_scene(task, model_id, owner);
+        }
+    }
+
     task->components_walked = 0;
     if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
     {
-        struct RSCacheDat1A_ConfigComponent* dat1_root = root;
-        rs_component_walk_dat1(task, walk_ifaces, walk_root_id, dat1_root->x, dat1_root->y);
+        struct RSCacheDat1A_ConfigComponent* dat1_root = task->walk_root;
+        rs_component_walk_dat1(
+            task, task->walk_ifaces, task->walk_root_id, dat1_root->x, dat1_root->y);
     }
     else if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
     {
-        rs_component_walk_dat2(task, walk_ifaces, walk_root_id);
+        rs_component_walk_dat2(task, task->walk_ifaces, task->walk_root_id);
     }
 
-    if( task->callbacks.on_component )
+    if( task->callbacks.on_component && task->components_walked <= 0 )
     {
+        bool const critical_owner =
+            strcmp(owner, "sidebar") == 0 || strstr(owner, "inv") != NULL ||
+            strstr(owner, "inventory") != NULL;
+
+        fprintf(
+            stderr,
+            "Task_RSComponentLoad: component walk produced no nodes owner=%s "
+            "root_component_id=%d walk_root_id=%d%s\n",
+            owner,
+            task->root_component_id,
+            task->walk_root_id,
+            critical_owner ? " (critical)" : " (skipped)");
         assert(
-            task->components_walked > 0 &&
-            "Task_RSComponentLoad: component walk produced no nodes");
+            !critical_owner &&
+            "Task_RSComponentLoad: component walk produced no nodes for critical owner");
     }
 
     PT_END(&task->thread);

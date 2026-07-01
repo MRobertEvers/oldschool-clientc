@@ -39,7 +39,8 @@ static char const*
 resolve_cache_dat_path(
     int argc,
     char* argv[],
-    bool use_dat2)
+    bool use_dat2,
+    bool use_kronos)
 {
     for( int i = 1; i < argc; i++ )
     {
@@ -60,7 +61,15 @@ resolve_cache_dat_path(
     static char const* const dat2_candidates[] = {
         "cache", "../cache", "../../cache", "../../../cache", "../../../../cache", NULL,
     };
-    char const* const* candidates = use_dat2 ? dat2_candidates : dat1_candidates;
+    static char const* const kronos_candidates[] = {
+        "cache.kronos",          "../cache.kronos",          "../../cache.kronos",
+        "../../../cache.kronos", "../../../../cache.kronos", NULL,
+    };
+    char const* const* candidates = dat1_candidates;
+    if( use_kronos )
+        candidates = kronos_candidates;
+    else if( use_dat2 )
+        candidates = dat2_candidates;
     char const* cache_file = use_dat2 ? "main_file_cache.dat2" : "main_file_cache.dat";
 
     char dat_path[512];
@@ -87,7 +96,8 @@ main(
 
     bool const use_soft3d = has_flag(argc, argv, "--soft3d");
     bool const use_runescape = has_flag(argc, argv, "--runescape");
-    bool const use_dat2 = has_flag(argc, argv, "--dat2");
+    bool const use_kronos = has_flag(argc, argv, "--kronos");
+    bool const use_dat2 = has_flag(argc, argv, "--dat2") || use_kronos;
     int const cache_mode = use_dat2 ? CACHE_MODE_DAT2 : CACHE_MODE_DAT1;
     enum ToriAuxLibCacheMode toriauxlib_mode = use_dat2 ? TORIAUXLIBCACHE_MODE_DAT2 : TORIAUXLIBCACHE_MODE_DAT1;
 
@@ -104,7 +114,7 @@ main(
     struct LibToriRS_CommandQueue* command_queue = NULL;
     struct LibToriRS_Instance* instance = NULL;
 
-    char const* cache_dat_path = resolve_cache_dat_path(argc, argv, use_dat2);
+    char const* cache_dat_path = resolve_cache_dat_path(argc, argv, use_dat2, use_kronos);
     if( !cache_dat_path )
     {
         printf(
@@ -114,7 +124,11 @@ main(
             use_dat2 ? "dat2" : "dat");
         goto error_exit;
     }
-    printf("Using cache: %s (%s)\n", cache_dat_path, use_dat2 ? "dat2" : "dat1");
+    printf(
+        "Using cache: %s (format=%s%s)\n",
+        cache_dat_path,
+        use_dat2 ? "dat2" : "dat1",
+        use_kronos ? ", client=kronos" : "");
     if( use_soft3d )
         printf("Renderer: software 3D (CPU)\n");
     if( use_runescape )
@@ -126,6 +140,7 @@ main(
         printf("Failed to create instance\n");
         goto error_exit;
     }
+    LibToriRS_InstanceSetClientKronos(instance, use_kronos);
 
     lua = LibToriPlatformX_LuaNew(instance);
     if( !lua )

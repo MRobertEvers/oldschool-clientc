@@ -2,6 +2,7 @@
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "toridraw/toridraw_font.h"
+#include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_scene.h"
 
 #include <assert.h>
@@ -149,4 +150,32 @@ ToriAuxLibTD_Sprite(
     (void)td;
     (void)element_id;
     return false;
+}
+
+struct ToriDraw_ModelHandle
+ToriAuxLibTD_Model(
+    struct ToriAuxLibTD* td,
+    int model_id)
+{
+    struct ToriDraw_ModelHandle none = { .kind = TORIDRAWMK_NONE };
+    if( !td || model_id < 0 )
+        return none;
+
+    struct ToriDraw_ModelHandle existing = ToriDraw_SceneModelGet(td->scene, model_id);
+    if( existing.kind == TORIDRAWMK_MODEL )
+        return existing;
+
+    if( !ToriAuxLibCore_ModelHas(td->core, model_id) )
+        return none;
+
+    struct ToriDraw_Model* model = ToriDraw_ModelNew(1, 1, 0);
+    if( !model )
+        return none;
+
+    struct ToriDraw_ModelHandle hnd = {
+        .kind = TORIDRAWMK_MODEL,
+        .u.model.model = model,
+    };
+    ToriDraw_SceneModelAdd(td->scene, model_id, hnd);
+    return hnd;
 }

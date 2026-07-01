@@ -27,6 +27,7 @@
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/toriauxlib.h"
+#include "toriauxlib/vm/toriauxlibvm.h"
 #include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_map.h"
@@ -54,8 +55,10 @@ ui_load_task_destroy(void* state)
 
 #define UI_DAT1_CACHE_INI "rev_245_2/rev_245_2_dat1_cache.ini"
 #define UI_DAT1_UI_INI "rev_245_2/rev_245_2_dat1_ui.ini"
-#define UI_DAT2_CACHE_INI "rev_245_2/rev_kronos_ui_cache.ini"
-#define UI_DAT2_UI_INI "rev_245_2/rev_kronos_ui.ini"
+#define UI_DAT2_CACHE_INI "rev_245_2/rev_245_2_dat2_cache.ini"
+#define UI_DAT2_UI_INI "rev_245_2/rev_245_2_dat2_ui.ini"
+#define UI_KRONOS_CACHE_INI "rev_245_2/rev_kronos_ui_cache.ini"
+#define UI_KRONOS_UI_INI "rev_245_2/rev_kronos_ui.ini"
 
 void
 LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
@@ -108,6 +111,10 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(
 
     dat1_buildcache_set_fromconfigtable_config_jagfile(
         dat1(ToriAuxLib_C(instance->toriauxlib)), filelist_dat);
+
+    struct ToriAuxLibVM* vm = ToriAuxLib_VM(instance->toriauxlib);
+    if( vm )
+        ToriAuxLibVM_LoadConfig(vm, filelist_dat);
 
     RSCacheDat1Disk_ArchiveFree(archive);
     return true;
@@ -353,6 +360,12 @@ LibToriRS_ScriptAPI_GetCacheMode(struct LibToriRS_Instance* instance)
     return "dat1";
 }
 
+bool
+LibToriRS_ScriptAPI_IsKronos(struct LibToriRS_Instance* instance)
+{
+    return LibToriRS_InstanceIsKronos(instance);
+}
+
 void
 LibToriRS_ScriptAPI_Dat1_ModelCacheAdd(
     struct LibToriRS_Instance* instance,
@@ -592,8 +605,13 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
     {
         char const* config_files[2];
         char const* layout_group = "fixed";
-        if( ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) ==
-            TORIAUXLIBCACHE_MODE_DAT2 )
+        if( instance->client_kronos )
+        {
+            config_files[0] = UI_KRONOS_CACHE_INI;
+            config_files[1] = UI_KRONOS_UI_INI;
+        }
+        else if( ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) ==
+                 TORIAUXLIBCACHE_MODE_DAT2 )
         {
             config_files[0] = UI_DAT2_CACHE_INI;
             config_files[1] = UI_DAT2_UI_INI;

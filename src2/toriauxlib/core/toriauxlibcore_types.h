@@ -329,6 +329,8 @@ enum ToriAuxLibCore_ComponentType
 };
 
 #define TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX 16
+/** Matches OSRS INV slotGraphic array length (equipment silhouettes, etc.). */
+#define TORIAUXLIBCORE_INV_SLOT_MAX 20
 
 struct ToriAuxLibCore_ScriptHook
 {
@@ -376,6 +378,11 @@ struct ToriAuxLibCore_Component
     int inv_rows;
     int margin_x;
     int margin_y;
+    /** Per-slot pixel offsets (dat1 invSlotOffsetX/Y). */
+    int inv_slot_offset_x[TORIAUXLIBCORE_INV_SLOT_MAX];
+    int inv_slot_offset_y[TORIAUXLIBCORE_INV_SLOT_MAX];
+    /** Empty-slot background sprite refs (dat1 invSlotGraphic name or dat2 spr:id). */
+    char inv_slot_sprite_ref[TORIAUXLIBCORE_INV_SLOT_MAX][TORIAUXLIBCORE_SPRITE_REF_MAX];
     /** Client.ts hide: layer skipped unless hovered_component_id == component id. */
     uint8_t hide;
     int button_type;

@@ -18,6 +18,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define RS_UI_HOVER_MAIN_X 4
+#define RS_UI_HOVER_MAIN_Y 4
+#define RS_UI_HOVER_MAIN_W 512
+#define RS_UI_HOVER_MAIN_H 334
+#define RS_UI_HOVER_SIDE_X 553
+#define RS_UI_HOVER_SIDE_Y 205
+#define RS_UI_HOVER_SIDE_W 190
+#define RS_UI_HOVER_SIDE_H 261
+#define RS_UI_HOVER_CHAT_X 17
+#define RS_UI_HOVER_CHAT_Y 357
+#define RS_UI_HOVER_CHAT_W 409
+#define RS_UI_HOVER_CHAT_H 96
+
 static int g_sin_table_data[2048];
 static int noise_cos_table_data[2048];
 const int* g_sin_table = g_sin_table_data;
@@ -172,6 +185,114 @@ GameRunescape_ClampScroll(
 {
     (void)game;
     (void)layer;
+}
+
+void
+GameRunescape_RefreshPicksetAtMouse(
+    struct GameRunescape* game,
+    int mouse_x,
+    int mouse_y)
+{
+    (void)game;
+    (void)mouse_x;
+    (void)mouse_y;
+}
+
+void
+GameRunescape_UpdateWorldViewport(struct GameRunescape* game)
+{
+    (void)game;
+}
+
+static bool
+stub_world_clip_is_builtin_widget(struct GameRunescape const* game)
+{
+    if( !game )
+        return false;
+
+    int const vw = game->view_port ? game->view_port->width : 765;
+    int const vh = game->view_port ? game->view_port->height : 503;
+    int const clip_w =
+        game->world_view_port.clip_right - game->world_view_port.clip_left;
+    int const clip_h =
+        game->world_view_port.clip_bottom - game->world_view_port.clip_top;
+
+    if( clip_w <= 0 || clip_h <= 0 )
+        return false;
+
+    return game->world_view_port.clip_left > 0 || game->world_view_port.clip_top > 0 ||
+           game->world_view_port.clip_right < vw || game->world_view_port.clip_bottom < vh;
+}
+
+bool
+GameRunescape_PointInMainHoverRegion(
+    struct GameRunescape const* game,
+    int px,
+    int py)
+{
+    if( game && stub_world_clip_is_builtin_widget(game) )
+    {
+        return px >= game->world_view_port.clip_left &&
+               px < game->world_view_port.clip_right &&
+               py >= game->world_view_port.clip_top &&
+               py < game->world_view_port.clip_bottom;
+    }
+
+    return px > RS_UI_HOVER_MAIN_X && py > RS_UI_HOVER_MAIN_Y &&
+           px < RS_UI_HOVER_MAIN_X + RS_UI_HOVER_MAIN_W &&
+           py < RS_UI_HOVER_MAIN_Y + RS_UI_HOVER_MAIN_H;
+}
+
+bool
+GameRunescape_PointInSidebarHoverRegion(
+    int px,
+    int py)
+{
+    return px > RS_UI_HOVER_SIDE_X && py > RS_UI_HOVER_SIDE_Y &&
+           px < RS_UI_HOVER_SIDE_X + RS_UI_HOVER_SIDE_W &&
+           py < RS_UI_HOVER_SIDE_Y + RS_UI_HOVER_SIDE_H;
+}
+
+bool
+GameRunescape_PointInChatHoverRegion(
+    int px,
+    int py)
+{
+    return px > RS_UI_HOVER_CHAT_X && py > RS_UI_HOVER_CHAT_Y &&
+           px < RS_UI_HOVER_CHAT_X + RS_UI_HOVER_CHAT_W &&
+           py < RS_UI_HOVER_CHAT_Y + RS_UI_HOVER_CHAT_H;
+}
+
+int32_t
+GameRunescape_UISelectedSidebarIndex(struct GameRunescape const* game)
+{
+    if( !game || !game->ui_tree )
+        return -1;
+
+    int const tab = game->selected_tab;
+    for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* c = &game->ui_tree->components[i];
+        if( c->type == UIELEM_BUILTIN_SIDEBAR && c->u.sidebar.tabno == tab )
+            return (int32_t)i;
+    }
+    return -1;
+}
+
+int32_t
+GameRunescape_UITreeIndexForComponentId(
+    struct GameRunescape const* game,
+    int component_id)
+{
+    if( !game || !game->ui_tree || component_id < 0 )
+        return -1;
+
+    for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
+    {
+        if( game->ui_tree->components[i].component_id == component_id )
+            return (int32_t)i;
+    }
+    return -1;
 }
 
 struct ToriAuxLibVM

@@ -849,6 +849,54 @@ toriauxlibcache_dat2_sprite_ref_from_id(
 }
 
 static void
+toriauxlibcache_component_copy_inv_slots_dat1(
+    struct ToriAuxLibCore_Component* dst,
+    const struct RSCacheDat1A_ConfigComponent* src)
+{
+    if( !dst || !src || src->type != COMPONENT_TYPE_INV )
+        return;
+
+    for( int i = 0; i < TORIAUXLIBCORE_INV_SLOT_MAX; i++ )
+    {
+        if( src->invSlotOffsetX )
+            dst->inv_slot_offset_x[i] = src->invSlotOffsetX[i];
+        if( src->invSlotOffsetY )
+            dst->inv_slot_offset_y[i] = src->invSlotOffsetY[i];
+        if( src->invSlotGraphic && src->invSlotGraphic[i] && src->invSlotGraphic[i][0] != '\0' )
+        {
+            strncpy(
+                dst->inv_slot_sprite_ref[i],
+                src->invSlotGraphic[i],
+                sizeof(dst->inv_slot_sprite_ref[i]) - 1);
+        }
+    }
+}
+
+static void
+toriauxlibcache_component_copy_inv_slots_dat2(
+    struct ToriAuxLibCore_Component* dst,
+    const Component* src)
+{
+    if( !dst || !src || src->type != COMPONENT_TYPE_INV )
+        return;
+
+    for( int i = 0; i < TORIAUXLIBCORE_INV_SLOT_MAX; i++ )
+    {
+        if( src->invSlotOffsetX )
+            dst->inv_slot_offset_x[i] = src->invSlotOffsetX[i];
+        if( src->invSlotOffsetY )
+            dst->inv_slot_offset_y[i] = src->invSlotOffsetY[i];
+        if( src->invSlotGraphicId )
+        {
+            toriauxlibcache_dat2_sprite_ref_from_id(
+                src->invSlotGraphicId[i],
+                dst->inv_slot_sprite_ref[i],
+                sizeof(dst->inv_slot_sprite_ref[i]));
+        }
+    }
+}
+
+static void
 toriauxlibcache_component_copy_scripts(
     struct ToriAuxLibCore_Component* dst,
     int scripts_count,
@@ -1011,6 +1059,7 @@ ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
     toriauxlibcache_copy_menu_actions(dst->ops, src->iop, 5);
 
     toriauxlibcache_component_apply_graphic_hitbox_only(dst);
+    toriauxlibcache_component_copy_inv_slots_dat1(dst, src);
 
     toriauxlibcache_component_copy_scripts(
         dst,
@@ -1109,6 +1158,7 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
     }
 
     toriauxlibcache_component_apply_graphic_hitbox_only(dst);
+    toriauxlibcache_component_copy_inv_slots_dat2(dst, src);
 
     toriauxlibcache_component_copy_dat2_cs1_scripts(dst, src);
     toriauxlibcache_component_copy_dat2_hooks(dst, src);

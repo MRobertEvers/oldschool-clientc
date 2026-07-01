@@ -52,6 +52,9 @@ struct LibToriRS_Instance
     struct GameHandle model_viewer_handle;
     struct GameRunescape* runescape;
     struct GameHandle runescape_handle;
+
+    /** Kronos client revision (dat2 format + rev_kronos UI); set via --kronos CLI. */
+    bool client_kronos;
 };
 
 #endif

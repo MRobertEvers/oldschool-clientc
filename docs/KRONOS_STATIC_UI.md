@@ -25,22 +25,24 @@ Sources: `WidgetID.java`, `Constants.GAME_FIXED_SIZE`, `Client.getViewportWidget
 
 ## 14-tab sidebar (`InterfaceTab` 0–13)
 
-**LostCity cache:** When using the LostCity `interface.pack` (rev_245_2 dat1), sidebar `componentno` values in `rev_245_2_dat1_ui.ini` use LostCity flat wire IDs from `if_settab()` in `login.rs2` (e.g. stats=3917, questlist=638, inventory=3213). The Kronos archive indices below are legacy reference only.
+**Kronos client (`--kronos`):** Sidebar `componentno` values in `rev_kronos_ui.ini` match Kronos server `DisplayHandler.sendDisplay()` (screen 165 children 8–21). Use `--kronos` (implies `--dat2` format) with `cache.kronos/`; generic dat2 uses `rev_245_2_dat2_ui.ini` and `cache/`.
+
+**LostCity cache:** When using the LostCity `interface.pack` (rev_245_2 dat1), sidebar `componentno` values in `rev_245_2_dat1_ui.ini` use LostCity flat wire IDs from `if_settab()` in `login.rs2` (e.g. stats=3917, questlist=638, inventory=3213).
 
 | tabno | Name | Panel iface | Fixed tab / icon | RS2 sideicon sprite |
 |-------|------|-------------|------------------|----------------------|
 | 0 | Combat | 593 | 48 / 55 | 774 |
 | 1 | Stats | 320 | 49 / 56 | 775 |
-| 2 | Quest | 399 | 50 / 57 | 776 |
+| 2 | Quest | 720 | 50 / 57 | 776 |
 | 3 | Inventory | 149 | 51 / 58 | 777 |
 | 4 | Equipment | 387 | 52 / 59 | 778 |
 | 5 | Prayer | 541 | 53 / 60 | 779 |
 | 6 | Spellbook | 218 | 54 / 61 | 780 |
 | 7 | Clan | 7 | 31 / 38 | 781 |
-| 8 | Account | dynamic | — | dynamic |
+| 8 | Account | 720 | — | dynamic |
 | 9 | Friends | 429 | 33 / 40 | 782 |
 | 10 | Logout | 182 | 34 / 41 | 784 |
-| 11 | Options | — | 35 / 42 | 785 |
+| 11 | Options | 261 | 35 / 42 | 785 |
 | 12 | Emotes | 216 | 36 / 43 | 786 |
 | 13 | Music | 239 | 37 / 44 | 787 |
 

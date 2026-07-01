@@ -30,8 +30,8 @@ flowchart LR
     hitUI -->|no| worldConvert[world_pickset_to_minimenu_pickset]
     worldPickset --> worldConvert
     worldConvert -->|left click| defaultAction[first actionable pick]
-    worldConvert -->|right click| buildMenu[ui_click_build_minimenu_from_pickset]
-    buildMenu --> showMenu[ui_minimenu_show_at]
+    worldConvert -->|right click| regionBuild[ui_click_build_minimenu_client_ts]
+    regionBuild --> showMenu[ui_minimenu_show_at]
     useOption --> interactionState[InteractionState]
     defaultAction --> interactionState
     interactionState --> crossUpdate[game_set_cross on entity/walk only]
@@ -47,19 +47,36 @@ flowchart LR
 
 ### Right click
 
-1. Inventory slot: build pickset from slot, show item menu (no Walk here).
-2. Interactive UI hit (compass, minimap, etc.): ignored.
-3. World viewport: convert `game->pickset` to `MinimenuPickSet`, build full menu
-   (all picks + Walk here + Cancel), always shows at least Walk here / Cancel.
+Right-click routing mirrors Client.ts `buildMinimenu()` region checks (not global
+UI hit-test-first). `ui_click_build_minimenu_client_ts` builds the menu:
 
-`mouse_in_viewport` uses `UIELEM_BUILTIN_WORLD` clip bounds (not the full 765×503
-frame), matching Client.ts viewport region checks.
+1. Dismiss minimenu if right-clicking the open minimenu chrome.
+2. Inventory slot: build pickset from slot, show item menu (no Walk here).
+3. Cancel + private-chat strip (always).
+4. **Main viewport region** (`GameRunescape_PointInMainHoverRegion`):
+   - No main modal (`ui_over_main_com_id < 0`): refresh pickset at mouse,
+     `world_pickset_to_minimenu_pickset`, Walk here + entity rows from core.
+   - Main modal open: recursive RS interface walk from hovered component.
+5. **Sidebar region** (`GameRunescape_PointInSidebarHoverRegion`): recursive RS
+   walk from selected sidebar subtree.
+6. **Chat region** (`GameRunescape_PointInChatHoverRegion`): chat overlay RS walk
+   and/or `ui_chat_minimenu_add_main_box` for main chat lines.
+7. Clicks outside all three regions (minimap, compass, tab chrome) get Cancel only.
+
+Right-click is allowed when `ui_tree_ready` **or** `world->load_complete` (world
+entity menus do not require the RS interface tree).
+
+`GameRunescape_PointInMainHoverRegion` prefers `UIELEM_BUILTIN_WORLD` clip bounds
+when the world widget is narrower than the shell; otherwise uses fixed Client.ts
+rect (4,4)–(516,338).
 
 ## Key functions
 
 | Function | Role |
 |----------|------|
-| `uitree_hit_test_interactive` | Hit-test skipping layout/pass-through nodes |
+| `uitree_hit_test_interactive` | Hit-test skipping layout/pass-through nodes (left click) |
+| `GameRunescape_PointInMainHoverRegion` | Client.ts main viewport minimenu region |
+| `ui_click_build_minimenu_client_ts` | Region-based right-click menu build |
 | `uitree_inv_hit_test_slot` | 32x32 slot hit-test inside `UIELEM_RS_INV` |
 | `ui_click_build_minimenu_from_pickset` | Turns `MinimenuPickSet` into `UIMinimenuState` options |
 | `ui_click_use_minimenu_option` | Applies selected row to `game->interaction` and cross |

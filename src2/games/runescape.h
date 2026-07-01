@@ -292,11 +292,44 @@ GameRunescape_ProcessInput(
     struct GameRunescape* game,
     struct LibToriRS_Input* input);
 
+void
+GameRunescape_UpdateWorldViewport(struct GameRunescape* game);
+
+void
+GameRunescape_RefreshPicksetAtMouse(
+    struct GameRunescape* game,
+    int mouse_x,
+    int mouse_y);
+
 int32_t
 GameRunescape_UIHitTest(
     struct GameRunescape* game,
     int px,
     int py);
+
+bool
+GameRunescape_PointInMainHoverRegion(
+    struct GameRunescape const* game,
+    int px,
+    int py);
+
+bool
+GameRunescape_PointInSidebarHoverRegion(
+    int px,
+    int py);
+
+bool
+GameRunescape_PointInChatHoverRegion(
+    int px,
+    int py);
+
+int32_t
+GameRunescape_UISelectedSidebarIndex(struct GameRunescape const* game);
+
+int32_t
+GameRunescape_UITreeIndexForComponentId(
+    struct GameRunescape const* game,
+    int component_id);
 
 void
 GameRunescape_GetScrollPos(

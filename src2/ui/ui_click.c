@@ -454,6 +454,9 @@ ui_click_resolve_loc_actions(
     for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
         out[i][0] = '\0';
 
+    if( loc_id <= 0 && scenery )
+        loc_id = scenery->loc_id;
+
     if( game && game->core && loc_id > 0 )
     {
         struct ToriAuxLibCore_Location* loc = ToriAuxLibCore_LocationGet(game->core, loc_id);
@@ -593,6 +596,7 @@ ui_click_add_scenery_options(
 
     ui_click_resolve_loc_actions(game, pick->secondary_id, scenery, actions);
 
+    int const rows_before = menu->option_count;
     for( int i = 4; i >= 0; i-- )
     {
         if( actions[i][0] == '\0' )
@@ -614,6 +618,16 @@ ui_click_add_scenery_options(
             pick->secondary_id,
             pick->tertiary_id,
             pick->quaternary_id);
+    }
+
+    if( ui_minimenu_debug_enabled() && menu->option_count == rows_before )
+    {
+        ui_minimenu_debug_log(
+            "scenery_minimenu no action rows element_id=%d loc_id=%d scenery_loc_id=%d core=%p",
+            pick->id,
+            pick->secondary_id,
+            scenery->loc_id,
+            (void*)game->core);
     }
 
     snprintf(
@@ -1714,6 +1728,7 @@ ui_click_handle_left(
     if( game->mouse_in_viewport )
     {
         struct MinimenuPickSet picks;
+        GameRunescape_RefreshPicksetAtMouse(game, click_x, click_y);
         world_pickset_to_minimenu_pickset(game, &picks);
         struct MinimenuPick const* pick = minimenu_pickset_first_actionable(&picks);
         if( pick )
@@ -1742,6 +1757,177 @@ ui_click_show_minimenu_at(
         game->view_port ? game->view_port->height : 503);
 }
 
+static void
+ui_click_append_world_options_to_menu(
+    struct GameRunescape* game,
+    struct MinimenuPickSet const* picks,
+    struct UIMinimenuState* menu)
+{
+    if( !menu )
+        return;
+
+    struct MinimenuPick const* terrain = minimenu_pickset_first_terrain(picks);
+    if( terrain )
+    {
+        ui_minimenu_add_option_with_pick(
+            menu,
+            "Walk here",
+            MINIMENU_ACTION_WALK,
+            0,
+            terrain->kind,
+            terrain->id,
+            terrain->secondary_id,
+            terrain->tertiary_id,
+            terrain->quaternary_id);
+    }
+    else
+    {
+        ui_minimenu_add_option(menu, "Walk here", MINIMENU_ACTION_WALK, 0);
+    }
+
+    if( !game || !picks )
+        return;
+
+    for( int i = 0; i < picks->count; i++ )
+        ui_click_add_pick_options(game, &picks->items[i], menu);
+}
+
+static void
+ui_click_add_rs_options_at_root(
+    struct GameRunescape* game,
+    int click_x,
+    int click_y,
+    int32_t root_idx,
+    struct UIMinimenuState* menu)
+{
+    if( !game || !game->ui_tree || !menu || root_idx < 0 ||
+        (uint32_t)root_idx >= game->ui_tree->component_count )
+        return;
+
+    struct UITreeScrollState scroll = {
+        .scroll_x = game->ui_scroll_x,
+        .scroll_y = game->ui_scroll_y,
+    };
+    ui_click_add_rs_interface_options_recursive(
+        game,
+        game->ui_tree,
+        &game->ui_host,
+        &scroll,
+        root_idx,
+        click_x,
+        click_y,
+        0,
+        0,
+        NULL,
+        menu);
+}
+
+static void
+ui_click_build_minimenu_client_ts(
+    struct GameRunescape* game,
+    int click_x,
+    int click_y,
+    struct MinimenuPickSet* picks,
+    char const** out_path)
+{
+    bool const tree_ready = game->ui_tree && game->ui_tree_ready;
+    bool const world_ready = game->world && game->world->load_complete;
+    char const* path = "none";
+
+    ui_minimenu_reset(&game->minimenu);
+    ui_minimenu_add_option(&game->minimenu, "Cancel", MINIMENU_ACTION_CANCEL, -1);
+    ui_chat_minimenu_add_private_strip(game, click_x, click_y, &game->minimenu);
+
+    GameRunescape_UpdateWorldViewport(game);
+
+    if( GameRunescape_PointInMainHoverRegion(game, click_x, click_y) )
+    {
+        path = "main";
+        if( !tree_ready || game->ui_over_main_com_id < 0 )
+        {
+            if( world_ready )
+            {
+                GameRunescape_RefreshPicksetAtMouse(game, click_x, click_y);
+                world_pickset_to_minimenu_pickset(game, picks);
+                ui_click_append_world_options_to_menu(game, picks, &game->minimenu);
+                game->cross_x = click_x;
+                game->cross_y = click_y;
+            }
+            else if( !tree_ready && ui_minimenu_debug_enabled() )
+            {
+                path = "main_not_ready";
+            }
+        }
+        else if( tree_ready )
+        {
+            int32_t root = GameRunescape_UITreeIndexForComponentId(game, game->ui_over_main_com_id);
+            if( root >= 0 )
+            {
+                root = ui_click_find_interface_root(game->ui_tree, &game->ui_host, root);
+                if( root < 0 )
+                    root = GameRunescape_UITreeIndexForComponentId(game, game->ui_over_main_com_id);
+                ui_click_add_rs_options_at_root(game, click_x, click_y, root, &game->minimenu);
+            }
+        }
+    }
+    else if( tree_ready && GameRunescape_PointInSidebarHoverRegion(click_x, click_y) )
+    {
+        path = "sidebar";
+        int32_t sidebar_idx = GameRunescape_UISelectedSidebarIndex(game);
+        if( sidebar_idx >= 0 )
+        {
+            int32_t root = game->ui_tree->components[sidebar_idx].first_child;
+            if( root < 0 )
+                root = sidebar_idx;
+            else
+                root = ui_click_find_interface_root(game->ui_tree, &game->ui_host, root);
+            ui_click_add_rs_options_at_root(game, click_x, click_y, root, &game->minimenu);
+        }
+    }
+    else if( tree_ready && GameRunescape_PointInChatHoverRegion(click_x, click_y) )
+    {
+        path = "chat";
+        if( game->ui_over_chat_com_id >= 0 )
+        {
+            int32_t root = GameRunescape_UITreeIndexForComponentId(game, game->ui_over_chat_com_id);
+            if( root >= 0 )
+            {
+                root = ui_click_find_interface_root(game->ui_tree, &game->ui_host, root);
+                ui_click_add_rs_options_at_root(game, click_x, click_y, root, &game->minimenu);
+            }
+        }
+        if( ui_click_point_in_chat_main_lines(game, click_x, click_y) )
+            ui_chat_minimenu_add_main_box(game, click_x, click_y, NULL, &game->minimenu);
+    }
+
+    ui_minimenu_sort_priority_actions(&game->minimenu);
+
+    if( ui_minimenu_debug_enabled() && picks && picks->count > 0 )
+    {
+        bool viewport = false;
+        for( int i = 0; i < picks->count; i++ )
+        {
+            if( picks->items[i].kind == MINIMENU_PICK_NPC ||
+                picks->items[i].kind == MINIMENU_PICK_SCENERY ||
+                picks->items[i].kind == MINIMENU_PICK_TERRAIN )
+            {
+                viewport = true;
+                break;
+            }
+        }
+        if( viewport )
+        {
+            ui_minimenu_debug_log(
+                "viewport_minimenu option_count=%d", game->minimenu.option_count);
+            for( int i = 0; i < game->minimenu.option_count; i++ )
+                ui_minimenu_debug_log("  [%d]='%s'", i, game->minimenu.options[i].text);
+        }
+    }
+
+    if( out_path )
+        *out_path = path;
+}
+
 void
 ui_click_handle_right(
     struct GameRunescape* game,
@@ -1750,13 +1936,32 @@ ui_click_handle_right(
     int click_y)
 {
     (void)input;
-    if( !game || !game->ui_tree || !game->ui_tree_ready )
+    if( !game )
         return;
+
+    bool const tree_ready = game->ui_tree && game->ui_tree_ready;
+    bool const world_ready = game->world && game->world->load_complete;
+    if( !tree_ready && !world_ready )
+        return;
+
+    if( tree_ready && game->minimenu.visible )
+    {
+        int32_t hit = GameRunescape_UIHitTest(game, click_x, click_y);
+        if( hit >= 0 && game->ui_tree->components[hit].type == UIELEM_BUILTIN_MINIMENU )
+        {
+            ui_minimenu_hide(&game->minimenu);
+            if( ui_minimenu_debug_enabled() )
+            {
+                ui_minimenu_debug_log(
+                    "right-click (%d,%d) dismiss minimenu", click_x, click_y);
+            }
+        }
+    }
 
     struct MinimenuPickSet picks;
     minimenu_pickset_reset(&picks);
 
-    if( game_try_inv_click(game, click_x, click_y, true, &picks) )
+    if( tree_ready && game_try_inv_click(game, click_x, click_y, true, &picks) )
     {
         if( ui_minimenu_debug_enabled() )
         {
@@ -1771,58 +1976,31 @@ ui_click_handle_right(
         return;
     }
 
-    int32_t hit = GameRunescape_UIHitTest(game, click_x, click_y);
-    if( hit >= 0 )
-    {
-        struct StaticUIComponent* component = &game->ui_tree->components[hit];
-        if( component->type == UIELEM_BUILTIN_MINIMENU )
-            return;
-
-        if( ui_minimenu_debug_enabled() )
-        {
-            ui_minimenu_debug_log(
-                "right-click (%d,%d) path=ui hit=%d type=%s rs_id=%d",
-                click_x,
-                click_y,
-                hit,
-                ui_minimenu_debug_uielem_name((int)component->type),
-                component->component_id);
-        }
-
-        ui_click_build_ui_minimenu_at_point(game, click_x, click_y, hit, &game->minimenu);
-        ui_click_show_minimenu_at(game, click_x, click_y);
-        return;
-    }
-
-    if( ui_click_point_in_chat_main_lines(game, click_x, click_y) )
-    {
-        ui_minimenu_reset(&game->minimenu);
-        ui_minimenu_add_option(&game->minimenu, "Cancel", MINIMENU_ACTION_CANCEL, -1);
-        ui_chat_minimenu_add_private_strip(game, click_x, click_y, &game->minimenu);
-        ui_chat_minimenu_add_main_box(game, click_x, click_y, NULL, &game->minimenu);
-        ui_minimenu_sort_priority_actions(&game->minimenu);
-        ui_click_show_minimenu_at(game, click_x, click_y);
-        return;
-    }
-
-    if( game->mouse_in_viewport )
-    {
-        world_pickset_to_minimenu_pickset(game, &picks);
-        game->cross_x = click_x;
-        game->cross_y = click_y;
-    }
+    char const* path = "none";
+    ui_click_build_minimenu_client_ts(game, click_x, click_y, &picks, &path);
 
     if( ui_minimenu_debug_enabled() )
     {
         ui_minimenu_debug_log(
-            "right-click (%d,%d) path=viewport in_viewport=%d pick_count=%d",
+            "right-click (%d,%d) path=%s in_viewport=%d pick_count=%d option_count=%d",
             click_x,
             click_y,
+            path,
             game->mouse_in_viewport ? 1 : 0,
-            picks.count);
+            picks.count,
+            game->minimenu.option_count);
+        for( int i = 0; i < picks.count; i++ )
+        {
+            ui_minimenu_debug_log(
+                "  pick[%d] kind=%d id=%d secondary=%d",
+                i,
+                (int)picks.items[i].kind,
+                picks.items[i].id,
+                picks.items[i].secondary_id);
+        }
+        for( int i = 0; i < game->minimenu.option_count; i++ )
+            ui_minimenu_debug_log("  option[%d]='%s'", i, game->minimenu.options[i].text);
     }
 
-    ui_click_build_minimenu_from_pickset(
-        game, &picks, game->mouse_in_viewport, &game->minimenu);
     ui_click_show_minimenu_at(game, click_x, click_y);
 }

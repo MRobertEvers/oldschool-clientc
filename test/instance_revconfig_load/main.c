@@ -51,8 +51,10 @@
 
 #define UI_DAT1_CACHE_INI "rev_245_2/rev_245_2_dat1_cache.ini"
 #define UI_DAT1_UI_INI "rev_245_2/rev_245_2_dat1_ui.ini"
-#define UI_DAT2_CACHE_INI "rev_245_2/rev_kronos_ui_cache.ini"
-#define UI_DAT2_UI_INI "rev_245_2/rev_kronos_ui.ini"
+#define UI_DAT2_CACHE_INI "rev_245_2/rev_245_2_dat2_cache.ini"
+#define UI_DAT2_UI_INI "rev_245_2/rev_245_2_dat2_ui.ini"
+#define UI_KRONOS_CACHE_INI "rev_245_2/rev_kronos_ui_cache.ini"
+#define UI_KRONOS_UI_INI "rev_245_2/rev_kronos_ui.ini"
 
 // clang-format off
 #define TEST_ASSERT(cond, msg) \
@@ -213,26 +215,21 @@ test_task_await(void)
 static char const*
 pipeline_cache_directory(void);
 
+static char const*
+pipeline_dat2_cache_directory(void);
+
+static char const*
+pipeline_kronos_cache_directory(void);
+
 static bool
 pipeline_cache_assets_available(void)
 {
-    static char const* const candidates[] = {
-        "../../src2/programs/sdl2/main_file_cache.dat",
-        "../../../src2/programs/sdl2/main_file_cache.dat",
-        "../src2/programs/sdl2/main_file_cache.dat",
-        "main_file_cache.dat",
-        NULL,
-    };
-
-    for( int i = 0; candidates[i]; i++ )
-    {
-        FILE* f = fopen(candidates[i], "rb");
-        if( f )
-        {
-            fclose(f);
-            return true;
-        }
-    }
+    if( pipeline_cache_directory() != NULL )
+        return true;
+    if( pipeline_dat2_cache_directory() != NULL )
+        return true;
+    if( pipeline_kronos_cache_directory() != NULL )
+        return true;
     return false;
 }
 
@@ -878,6 +875,33 @@ uitree_find_sidebar_tab(
             return (int32_t)i;
     }
     return -1;
+}
+
+static bool
+subtree_has_inv_slot_bg(
+    struct UITree const* tree,
+    int32_t node_index)
+{
+    if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return false;
+
+    if( tree->components[node_index].type == UIELEM_RS_INV )
+    {
+        struct StaticUIComponent const* c = &tree->components[node_index];
+        for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
+        {
+            if( c->u.rs_inv.inv_slot_bg_scene_id[si] >= 0 )
+                return true;
+        }
+    }
+
+    for( int32_t child = tree->components[node_index].first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        if( subtree_has_inv_slot_bg(tree, child) )
+            return true;
+    }
+    return false;
 }
 
 static int
@@ -1595,9 +1619,9 @@ run_pipeline_test(
     char const* label,
     char const* cache_ini,
     char const* ui_ini,
-    bool expect_compass)
+    bool expect_compass,
+    char const* cache_dir)
 {
-    char const* cache_dir = pipeline_cache_directory();
     TEST_ASSERT(cache_dir != NULL, "pipeline cache directory");
 
     int cache_mode = mode == TORIAUXLIBCACHE_MODE_DAT1 ? CACHE_MODE_DAT1 : CACHE_MODE_DAT2;
@@ -1781,6 +1805,18 @@ run_pipeline_test(
 
             if( assert_stats_sidebar_rs_layout(tree, &load_task->rc_ctx) != 0 )
                 return 1;
+        }
+
+        if( mode == TORIAUXLIBCACHE_MODE_DAT2 )
+        {
+            int32_t equipment_idx = uitree_find_sidebar_tab(tree, 4);
+            TEST_ASSERT(equipment_idx >= 0, "sidebar_tab_4 exists after dat2 pipeline load");
+            TEST_ASSERT(
+                count_descendants(tree, equipment_idx) > 0,
+                "sidebar_tab_4 has baked RS descendants");
+            TEST_ASSERT(
+                subtree_has_inv_slot_bg(tree, equipment_idx),
+                "sidebar_tab_4 equipment inv slot backgrounds baked");
         }
     }
 
@@ -2156,6 +2192,191 @@ test_hitbox_only_graphic_bake(void)
 }
 
 static int
+test_rs_graphic_active_inactive_bake(void)
+{
+    struct ToriAuxLibCore* core = ToriAuxLibCore_New();
+    TEST_ASSERT(core != NULL, "ToriAuxLibCore_New");
+
+    struct UITree* tree = uitree_new(8);
+    TEST_ASSERT(tree != NULL, "uitree_new");
+
+    struct InstanceRevConfigContext ctx;
+    instance_revconfig_context_init(&ctx);
+    ctx.core = core;
+    ctx.tree = tree;
+    ui_sprite_lookup_add(&ctx.sprite_lookup, "spr_inactive", 100, 1);
+    ui_sprite_lookup_add(&ctx.sprite_lookup, "spr_active", 101, 1);
+
+    struct RevConfigUIComponentItem owner_comp;
+    memset(&owner_comp, 0, sizeof(owner_comp));
+    strncpy(owner_comp.name, "test_owner", sizeof(owner_comp.name) - 1);
+    strncpy(owner_comp.type, "sidebar", sizeof(owner_comp.type) - 1);
+
+    struct UINodeSpec owner_spec;
+    memset(&owner_spec, 0, sizeof(owner_spec));
+    owner_spec.type = UIELEM_BUILTIN_SIDEBAR;
+    int32_t owner_idx = uitree_push(tree, -1, &owner_spec);
+    TEST_ASSERT(owner_idx >= 0, "owner push");
+
+    struct ToriAuxLibCore_Component* graphic = calloc(1, sizeof(*graphic));
+    TEST_ASSERT(graphic != NULL, "graphic alloc");
+    graphic->id = 200;
+    graphic->type = TORIAUXLIBCORE_COMPONENT_GRAPHIC;
+    graphic->parent_id = -1;
+    graphic->width = 34;
+    graphic->height = 34;
+    strncpy(graphic->sprite_ref, "spr_inactive", sizeof(graphic->sprite_ref) - 1);
+    strncpy(graphic->sprite_active_ref, "spr_active", sizeof(graphic->sprite_active_ref) - 1);
+    int script[] = { 13, 83, 0, 0 };
+    int* script_ptr = script;
+    int comp = 1;
+    int operand = 1;
+    graphic->scripts_count = 1;
+    graphic->scripts = &script_ptr;
+    graphic->script_comparator = &comp;
+    graphic->script_operand = &operand;
+    graphic->script_kind = CS2VM_SCRIPT_KIND_CS1;
+    ToriAuxLibCore_ComponentAdd(core, 200, graphic);
+
+    struct InstanceRevConfigRSSubtree* subtree =
+        instance_revconfig_rs_subtree_get_or_create(&ctx, owner_comp.name);
+    instance_revconfig_rs_subtree_append(subtree, 200, -1, 0, 0);
+    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, owner_idx);
+
+    bool found = false;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        if( tree->components[i].type != UIELEM_RS_GRAPHIC )
+            continue;
+        found = true;
+        TEST_ASSERT(tree->components[i].component_id == 200, "graphic component id");
+        TEST_ASSERT(tree->components[i].u.rs_graphic.scene_id == 100, "inactive scene id");
+        TEST_ASSERT(tree->components[i].u.rs_graphic.scene_id_active == 101, "active scene id");
+        TEST_ASSERT(
+            tree->components[i].u.rs_graphic.scene_id !=
+                tree->components[i].u.rs_graphic.scene_id_active,
+            "inactive and active scenes differ");
+    }
+    TEST_ASSERT(found, "active/inactive RS_GRAPHIC baked");
+
+    instance_revconfig_context_release_build_state(&ctx);
+    uitree_free(tree);
+    ToriAuxLibCore_Free(core);
+    fprintf(stderr, "ok: rs graphic active/inactive bake\n");
+    return 0;
+}
+
+static int
+test_rs_graphic_active_only_no_inactive_fallback(void)
+{
+    struct ToriAuxLibCore* core = ToriAuxLibCore_New();
+    TEST_ASSERT(core != NULL, "ToriAuxLibCore_New");
+
+    struct UITree* tree = uitree_new(8);
+    TEST_ASSERT(tree != NULL, "uitree_new");
+
+    struct InstanceRevConfigContext ctx;
+    instance_revconfig_context_init(&ctx);
+    ctx.core = core;
+    ctx.tree = tree;
+    ui_sprite_lookup_add(&ctx.sprite_lookup, "spr_active_only", 102, 1);
+
+    struct RevConfigUIComponentItem owner_comp;
+    memset(&owner_comp, 0, sizeof(owner_comp));
+    strncpy(owner_comp.name, "test_owner", sizeof(owner_comp.name) - 1);
+    strncpy(owner_comp.type, "sidebar", sizeof(owner_comp.type) - 1);
+
+    struct UINodeSpec owner_spec;
+    memset(&owner_spec, 0, sizeof(owner_spec));
+    owner_spec.type = UIELEM_BUILTIN_SIDEBAR;
+    int32_t owner_idx = uitree_push(tree, -1, &owner_spec);
+    TEST_ASSERT(owner_idx >= 0, "owner push");
+
+    struct ToriAuxLibCore_Component* graphic = calloc(1, sizeof(*graphic));
+    TEST_ASSERT(graphic != NULL, "graphic alloc");
+    graphic->id = 201;
+    graphic->type = TORIAUXLIBCORE_COMPONENT_GRAPHIC;
+    graphic->parent_id = -1;
+    graphic->width = 34;
+    graphic->height = 34;
+    strncpy(graphic->sprite_active_ref, "spr_active_only", sizeof(graphic->sprite_active_ref) - 1);
+    ToriAuxLibCore_ComponentAdd(core, 201, graphic);
+
+    struct InstanceRevConfigRSSubtree* subtree =
+        instance_revconfig_rs_subtree_get_or_create(&ctx, owner_comp.name);
+    instance_revconfig_rs_subtree_append(subtree, 201, -1, 0, 0);
+    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, owner_idx);
+
+    bool found = false;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        if( tree->components[i].type != UIELEM_RS_GRAPHIC )
+            continue;
+        found = true;
+        TEST_ASSERT(tree->components[i].component_id == 201, "graphic component id");
+        TEST_ASSERT(tree->components[i].u.rs_graphic.scene_id < 0, "no inactive scene fallback");
+        TEST_ASSERT(tree->components[i].u.rs_graphic.scene_id_active == 102, "active scene id");
+    }
+    TEST_ASSERT(found, "active-only RS_GRAPHIC baked");
+
+    instance_revconfig_context_release_build_state(&ctx);
+    uitree_free(tree);
+    ToriAuxLibCore_Free(core);
+    fprintf(stderr, "ok: rs graphic active-only no inactive fallback\n");
+    return 0;
+}
+
+static int g_test_varp_for_active = 0;
+
+static int
+test_get_varp_for_active(
+    void* ud,
+    int id)
+{
+    (void)ud;
+    if( id == 83 )
+        return g_test_varp_for_active;
+    return 0;
+}
+
+static int
+test_rs_graphic_get_if_active_varp_bit(void)
+{
+    int script[] = { 13, 83, 0, 0 };
+    int* script_ptr = script;
+    int comp = 1;
+    int operand = 1;
+    struct StaticUIBehavior behavior = { 0 };
+    behavior.script_kind = CS2VM_SCRIPT_KIND_CS1;
+    behavior.scripts_count = 1;
+    behavior.scripts = &script_ptr;
+    behavior.script_comparator = &comp;
+    behavior.script_operand = &operand;
+
+    struct CSVM* csvm = csvm_new();
+    TEST_ASSERT(csvm != NULL, "csvm_new");
+
+    struct CSVM_State csvm_state;
+    memset(&csvm_state, 0, sizeof(csvm_state));
+    csvm_state.get_varp = test_get_varp_for_active;
+
+    struct UITreeBehaviorHost host;
+    memset(&host, 0, sizeof(host));
+    host.csvm = csvm;
+    host.csvm_state = csvm_state;
+
+    g_test_varp_for_active = 0;
+    TEST_ASSERT(!uitree_behavior_is_active(&host, &behavior), "inactive when varp bit clear");
+
+    g_test_varp_for_active = 1;
+    TEST_ASSERT(uitree_behavior_is_active(&host, &behavior), "active when varp bit set");
+
+    csvm_free(csvm);
+    fprintf(stderr, "ok: rs graphic getIfActive varp bit\n");
+    return 0;
+}
+
+static int
 test_bake_over_color_without_scripts(void)
 {
     struct ToriAuxLibCore* core = ToriAuxLibCore_New();
@@ -2303,6 +2524,56 @@ pipeline_cache_directory(void)
     return NULL;
 }
 
+static char const*
+pipeline_dat2_cache_directory(void)
+{
+    static char const* const candidates[] = {
+        "../../cache",
+        "../../../cache",
+        "../cache",
+        "cache",
+        NULL,
+    };
+
+    for( int i = 0; candidates[i]; i++ )
+    {
+        char path[512];
+        snprintf(path, sizeof(path), "%s/main_file_cache.dat2", candidates[i]);
+        FILE* f = fopen(path, "rb");
+        if( f )
+        {
+            fclose(f);
+            return candidates[i];
+        }
+    }
+    return NULL;
+}
+
+static char const*
+pipeline_kronos_cache_directory(void)
+{
+    static char const* const candidates[] = {
+        "../../cache.kronos",
+        "../../../cache.kronos",
+        "../cache.kronos",
+        "cache.kronos",
+        NULL,
+    };
+
+    for( int i = 0; candidates[i]; i++ )
+    {
+        char path[512];
+        snprintf(path, sizeof(path), "%s/main_file_cache.dat2", candidates[i]);
+        FILE* f = fopen(path, "rb");
+        if( f )
+        {
+            fclose(f);
+            return candidates[i];
+        }
+    }
+    return NULL;
+}
+
 static int
 test_dat1_walk_root_resolution(void)
 {
@@ -2389,6 +2660,13 @@ test_ui_click_world_viewport(void)
     game.world_view_port.clip_right = 517;
     game.world_view_port.clip_bottom = 339;
     game.mouse_in_viewport = true;
+    {
+        static struct World test_viewport_world;
+        memset(&test_viewport_world, 0, sizeof(test_viewport_world));
+        test_viewport_world.load_complete = true;
+        game.world = &test_viewport_world;
+    }
+    game.ui_over_main_com_id = -1;
 
     world_pickset_reset(&game.pickset);
     world_pickset_add(&game.pickset, 1, WORLD_PICK_TERRAIN, 40, 60, 0);
@@ -2443,6 +2721,68 @@ test_ui_click_world_viewport(void)
     revconfig_item_buffer_free(items);
 
     fprintf(stderr, "ok: ui_click world viewport cross and minimenu\n");
+    return 0;
+}
+
+static int
+test_ui_click_region_routing(void)
+{
+    struct GameRunescape game;
+    static struct World test_world;
+    struct MinimenuPickSet picks;
+
+    memset(&game, 0, sizeof(game));
+    memset(&test_world, 0, sizeof(test_world));
+    test_world.load_complete = true;
+    game.world = &test_world;
+    game.world_view_port.clip_left = 4;
+    game.world_view_port.clip_top = 4;
+    game.world_view_port.clip_right = 517;
+    game.world_view_port.clip_bottom = 339;
+    game.ui_over_main_com_id = -1;
+
+    TEST_ASSERT(
+        GameRunescape_PointInMainHoverRegion(&game, 300, 200),
+        "main hover region includes viewport click");
+    TEST_ASSERT(
+        !GameRunescape_PointInMainHoverRegion(&game, 635, 86),
+        "main hover region excludes minimap click");
+    TEST_ASSERT(
+        GameRunescape_PointInSidebarHoverRegion(687, 387),
+        "sidebar hover region includes sidebar click");
+    TEST_ASSERT(
+        !GameRunescape_PointInSidebarHoverRegion(300, 200),
+        "sidebar hover region excludes viewport click");
+
+    world_pickset_reset(&game.pickset);
+    world_pickset_add(&game.pickset, 1, WORLD_PICK_TERRAIN, 40, 60, 0);
+    minimenu_pickset_reset(&picks);
+    world_pickset_to_minimenu_pickset(&game, &picks);
+    TEST_ASSERT(picks.count > 0, "main region pickset has terrain");
+
+    {
+        struct UIMinimenuState menu;
+        ui_click_build_minimenu_from_pickset(&game, &picks, true, &menu);
+        TEST_ASSERT(minimenu_has_option_text(&menu, "Walk here"), "main region walk");
+    }
+
+    world_pickset_reset(&game.pickset);
+    world_pickset_add(&game.pickset, 1, WORLD_PICK_TERRAIN, 40, 60, 0);
+    minimenu_pickset_reset(&picks);
+    world_pickset_to_minimenu_pickset(&game, &picks);
+    TEST_ASSERT(
+        !GameRunescape_PointInMainHoverRegion(&game, 635, 86),
+        "outside region still excluded");
+    {
+        struct UIMinimenuState menu;
+        ui_minimenu_reset(&menu);
+        ui_minimenu_add_option(&menu, "Cancel", MINIMENU_ACTION_CANCEL, -1);
+        TEST_ASSERT(
+            !minimenu_has_option_text(&menu, "Walk here"),
+            "outside region shell has no walk");
+    }
+
+    fprintf(stderr, "ok: ui_click region routing\n");
     return 0;
 }
 
@@ -2680,6 +3020,61 @@ test_csvm_eval_len_bounded(void)
 
     csvm_free(vm);
     fprintf(stderr, "ok: csvm_eval_len bounded script\n");
+    return 0;
+}
+
+static int
+test_inv_slot_graphic_convert(void)
+{
+    Component src;
+    Component_init(&src);
+    src.type = COMPONENT_TYPE_INV;
+    src.baseWidth = 4;
+    src.baseHeight = 7;
+    src.invSlotOffsetX = calloc(20, sizeof(int32_t));
+    src.invSlotOffsetY = calloc(20, sizeof(int32_t));
+    src.invSlotGraphicId = calloc(20, sizeof(int32_t));
+    src.invSlotOffsetX[0] = 3;
+    src.invSlotOffsetY[0] = -4;
+    src.invSlotGraphicId[0] = 9001;
+    for( int i = 1; i < 20; i++ )
+        src.invSlotGraphicId[i] = -1;
+
+    struct ToriAuxLibCore_Component* dst = ToriAuxLibCache_ComponentNewFromCacheDat2Component(&src);
+    TEST_ASSERT(dst != NULL, "dat2 inv slot convert");
+    TEST_ASSERT(dst->type == TORIAUXLIBCORE_COMPONENT_INV, "dat2 inv slot type");
+    TEST_ASSERT(dst->inv_slot_offset_x[0] == 3, "dat2 inv slot offset x");
+    TEST_ASSERT(dst->inv_slot_offset_y[0] == -4, "dat2 inv slot offset y");
+    TEST_ASSERT(
+        strcmp(dst->inv_slot_sprite_ref[0], "spr:9001") == 0, "dat2 inv slot sprite ref");
+
+    Component_free(&src);
+    ToriAuxLibCore_ComponentFree(dst);
+
+    struct RSCacheDat1A_ConfigComponent dat1;
+    memset(&dat1, 0, sizeof(dat1));
+    dat1.type = COMPONENT_TYPE_INV;
+    dat1.invSlotOffsetX = calloc(20, sizeof(int));
+    dat1.invSlotOffsetY = calloc(20, sizeof(int));
+    dat1.invSlotGraphic = calloc(20, sizeof(char*));
+    dat1.invSlotOffsetX[1] = 5;
+    dat1.invSlotOffsetY[1] = 6;
+    dat1.invSlotGraphic[1] = strdup("wornicons,0");
+
+    struct ToriAuxLibCore_Component* dst1 = ToriAuxLibCache_ComponentNewFromCacheComponent(&dat1);
+    TEST_ASSERT(dst1 != NULL, "dat1 inv slot convert");
+    TEST_ASSERT(dst1->inv_slot_offset_x[1] == 5, "dat1 inv slot offset x");
+    TEST_ASSERT(dst1->inv_slot_offset_y[1] == 6, "dat1 inv slot offset y");
+    TEST_ASSERT(
+        strcmp(dst1->inv_slot_sprite_ref[1], "wornicons,0") == 0, "dat1 inv slot sprite ref");
+
+    free(dat1.invSlotOffsetX);
+    free(dat1.invSlotOffsetY);
+    free(dat1.invSlotGraphic[1]);
+    free(dat1.invSlotGraphic);
+    ToriAuxLibCore_ComponentFree(dst1);
+
+    fprintf(stderr, "ok: inv slot graphic convert\n");
     return 0;
 }
 
@@ -2929,16 +3324,25 @@ main(void)
     if( test_dat2_cs1_scripts_copy() != 0 )
         return 1;
 
+    if( test_inv_slot_graphic_convert() != 0 )
+        return 1;
+
     if( test_dat2_cs1_with_if3_hooks_script_kind() != 0 )
         return 1;
 
     if( test_cs2_behavior_is_active() != 0 )
         return 1;
 
+    if( test_rs_graphic_get_if_active_varp_bit() != 0 )
+        return 1;
+
     if( test_dat2_config_menu_convert() != 0 )
         return 1;
 
     if( test_viewport_minimenu_core_actions() != 0 )
+        return 1;
+
+    if( test_ui_click_region_routing() != 0 )
         return 1;
 
     if( test_minimenu_layout_derivation() != 0 )
@@ -2968,9 +3372,9 @@ main(void)
 
     if( test_layout_parents_parsed(UI_DAT1_UI_INI, "dat1") != 0 )
         return 1;
-    if( test_layout_parents_parsed("rev_245_2/rev_245_2_dat2_ui.ini", "dat2") != 0 )
+    if( test_layout_parents_parsed(UI_DAT2_UI_INI, "dat2") != 0 )
         return 1;
-    if( test_layout_parents_parsed(UI_DAT2_UI_INI, "kronos") != 0 )
+    if( test_layout_parents_parsed(UI_KRONOS_UI_INI, "kronos") != 0 )
         return 1;
 
     if( test_layout_component_defaults_applied() != 0 )
@@ -3003,6 +3407,12 @@ main(void)
     if( test_hitbox_only_graphic_bake() != 0 )
         return 1;
 
+    if( test_rs_graphic_active_inactive_bake() != 0 )
+        return 1;
+
+    if( test_rs_graphic_active_only_no_inactive_fallback() != 0 )
+        return 1;
+
     if( test_bake_over_color_without_scripts() != 0 )
         return 1;
 
@@ -3017,20 +3427,63 @@ main(void)
 
     if( pipeline_cache_assets_available() )
     {
-        if( run_pipeline_test(
-                TORIAUXLIBCACHE_MODE_DAT1, "dat1", UI_DAT1_CACHE_INI, UI_DAT1_UI_INI, true) != 0 )
-            return 1;
-        if( run_pipeline_test(
-                TORIAUXLIBCACHE_MODE_DAT2, "dat2", UI_DAT2_CACHE_INI, UI_DAT2_UI_INI, false) !=
-            0 )
-            return 1;
+        char const* dat1_cache = pipeline_cache_directory();
+        if( dat1_cache )
+        {
+            if( run_pipeline_test(
+                    TORIAUXLIBCACHE_MODE_DAT1,
+                    "dat1",
+                    UI_DAT1_CACHE_INI,
+                    UI_DAT1_UI_INI,
+                    true,
+                    dat1_cache) != 0 )
+                return 1;
+        }
+        else
+        {
+            fprintf(stderr, "skip: dat1 pipeline (cache254 not found)\n");
+        }
+
+        char const* dat2_cache = pipeline_dat2_cache_directory();
+        if( dat2_cache )
+        {
+            if( run_pipeline_test(
+                    TORIAUXLIBCACHE_MODE_DAT2,
+                    "dat2",
+                    UI_DAT2_CACHE_INI,
+                    UI_DAT2_UI_INI,
+                    false,
+                    dat2_cache) != 0 )
+                return 1;
+        }
+        else
+        {
+            fprintf(stderr, "skip: dat2 pipeline (cache/ not found)\n");
+        }
+
+        char const* kronos_cache = pipeline_kronos_cache_directory();
+        if( kronos_cache )
+        {
+            if( run_pipeline_test(
+                    TORIAUXLIBCACHE_MODE_DAT2,
+                    "kronos",
+                    UI_KRONOS_CACHE_INI,
+                    UI_KRONOS_UI_INI,
+                    false,
+                    kronos_cache) != 0 )
+                return 1;
+        }
+        else
+        {
+            fprintf(stderr, "skip: kronos pipeline (cache.kronos/ not found)\n");
+        }
     }
     else
     {
         fprintf(
             stderr,
             "skip: full revconfig load pipeline requires game cache assets "
-            "(main_file_cache.dat not found)\n");
+            "(no cache254, cache/, or cache.kronos found)\n");
     }
 
     if( test_ui_click_right_outside_viewport() != 0 )

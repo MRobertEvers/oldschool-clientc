@@ -22,8 +22,18 @@ main(
 #ifdef FUZZ_WITH_CACHE
     if( argc >= 2 && strcmp(argv[1], "cache") == 0 )
     {
-        const char* cache_dir =
-            (argc >= 3 && argv[2][0] != '\0') ? argv[2] : painter_bench_find_cache_dir();
+        const char* cache_dir = NULL;
+        if( argc >= 3 && argv[2][0] != '\0' )
+        {
+            if( strcmp(argv[2], "kronos") == 0 )
+                cache_dir = painter_bench_find_kronos_cache_dir();
+            else
+                cache_dir = argv[2];
+        }
+        else
+        {
+            cache_dir = painter_bench_find_cache_dir();
+        }
         int iters = (argc >= 4) ? (int)strtol(argv[3], NULL, 10) : 200;
         if( !cache_dir )
         {

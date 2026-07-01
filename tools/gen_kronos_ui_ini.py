@@ -18,6 +18,9 @@ TAB_NAMES = [
     "clan", "account", "friends", "logout", "options", "emotes", "music",
 ]
 
+# Kronos DisplayHandler.sendDisplay() sidebar iface IDs (screen 165 children 8-21).
+TAB_PANEL_IFACE = [593, 320, 720, 149, 387, 541, 218, 7, 720, 429, 182, 261, 216, 239]
+
 # Cache child file indices per tab (from dump cross-ref with Kronos InterfaceTab order).
 ICON_CHILD = {
     "fixed": [70, 71, 72, 73, 74, 75, 76, 54, 55, 56, 57, 58, 59, 60],
@@ -162,7 +165,7 @@ def emit_components() -> str:
         ]
         lines += [
             f"[component:sidebar_tab_{i}]",
-            "type=sidebar", f"tabno={i}", "componentno=-1", "",
+            "type=sidebar", f"tabno={i}", f"componentno={TAB_PANEL_IFACE[i]}", "",
         ]
     lines += ["[inv:inventory]", "item=1333", ""]
     return "\n".join(lines)

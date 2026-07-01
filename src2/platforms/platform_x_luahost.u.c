@@ -666,6 +666,28 @@ LibToriPlatformX_LuaHost_Game_GetCacheMode(lua_State* L)
 }
 
 int
+LibToriPlatformX_LuaHost_Game_IsKronos(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+    {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+    {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    lua_pushboolean(L, LibToriRS_ScriptAPI_IsKronos(instance));
+    return 1;
+}
+
+int
 LibToriPlatformX_LuaHost_Game_Dat1_SubmitTextures(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
@@ -1189,6 +1211,7 @@ LibToriPlatformX_LuaHost_BindToPlatform(
         L, lua, "Dat2_SubmitTextures", LibToriPlatformX_LuaHost_Game_Dat2_SubmitTextures);
     lua_bind_function_to_platform(
         L, lua, "GetCacheMode", LibToriPlatformX_LuaHost_Game_GetCacheMode);
+    lua_bind_function_to_platform(L, lua, "IsKronos", LibToriPlatformX_LuaHost_Game_IsKronos);
     lua_bind_function_to_platform(
         L, lua, "GameCache_ModelsClearAll", LibToriPlatformX_LuaHost_Game_GameCache_ModelsClearAll);
     lua_bind_function_to_platform(

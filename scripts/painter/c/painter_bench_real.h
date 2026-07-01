@@ -8,6 +8,7 @@ int painter_bench_seeded(uint32_t start, uint32_t count, int iters);
 
 #ifdef FUZZ_WITH_CACHE
 const char* painter_bench_find_cache_dir(void);
+const char* painter_bench_find_kronos_cache_dir(void);
 
 /* Benchmark dat2 cache world sweep (timing only). Returns 1 if bucket slower. */
 int painter_bench_cache(const char* cache_dir, int iters);

@@ -10,6 +10,7 @@
 struct InstanceRevConfigContext;
 struct ToriDraw_Scene;
 struct LibToriRS_IOContext;
+struct Dat2BuildCache_InterfaceArchive;
 
 #define RS_COMPONENT_STACK_MAX 1024
 #define TASK_RS_COMPONENT_PREFETCH_BATCH 64
@@ -47,6 +48,17 @@ struct Task_RSComponentLoad
     int* needed_sprite_ids;
     int needed_sprite_count;
     int prefetch_chunk_index;
+
+    int* needed_model_ids;
+    int needed_model_count;
+    int model_prefetch_chunk_index;
+
+    void* walk_ifaces;
+    void* walk_root;
+    int walk_root_id;
+    int walk_root_id_before_remap;
+    int iface_id;
+    struct Dat2BuildCache_InterfaceArchive* iface_archive;
 };
 
 struct Task_RSComponentLoad*

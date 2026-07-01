@@ -1,6 +1,7 @@
 #include "minimenu_pickset.h"
 
 #include "games/runescape.h"
+#include "world/world.h"
 #include "world/world_pickset.h"
 
 #include <string.h>
@@ -105,6 +106,13 @@ world_pickset_to_minimenu_pickset(
         case WORLD_PICK_SCENERY:
         {
             int loc_id = runescape_scenery_loc_id_for_element(game, picked->element_id);
+            if( loc_id < 0 && game->world )
+            {
+                struct WorldEntity_Scenery* scenery =
+                    world_scenery_get_by_element_id(game->world, picked->element_id);
+                if( scenery )
+                    loc_id = scenery->loc_id;
+            }
             minimenu_pickset_add(
                 out, MINIMENU_PICK_SCENERY, picked->element_id, loc_id, 0, 0);
             break;
