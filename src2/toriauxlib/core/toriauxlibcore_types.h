@@ -326,6 +326,7 @@ enum ToriAuxLibCore_ComponentType
     TORIAUXLIBCORE_COMPONENT_GRAPHIC,
     TORIAUXLIBCORE_COMPONENT_MODEL,
     TORIAUXLIBCORE_COMPONENT_INV_TEXT,
+    TORIAUXLIBCORE_COMPONENT_LINE,
 };
 
 #define TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX 16
@@ -394,6 +395,8 @@ struct ToriAuxLibCore_Component
     int inv_rows;
     int margin_x;
     int margin_y;
+    /** LINE widget line thickness (dat2 lineWidth). */
+    int line_width;
     /** Per-slot pixel offsets (dat1 invSlotOffsetX/Y). */
     int inv_slot_offset_x[TORIAUXLIBCORE_INV_SLOT_MAX];
     int inv_slot_offset_y[TORIAUXLIBCORE_INV_SLOT_MAX];

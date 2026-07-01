@@ -613,7 +613,13 @@ Task_InstanceOnRCUIComponent_Run(
                 task->item.componentno < 1024 &&
                 task->rc_ctx->panel_root_id[task->item.componentno] ==
                     INSTANCE_RC_PANEL_ROOT_INVALID;
-            if( !panel_invalid && (!subtree || subtree->item_count <= 0) )
+            if( strcmp(task->item.type, "sidebar") == 0 && !panel_invalid )
+            {
+                assert(
+                    subtree && subtree->item_count > 0 &&
+                    "sidebar RS component load produced empty rs_subtree");
+            }
+            else if( !panel_invalid && (!subtree || subtree->item_count <= 0) )
             {
                 fprintf(
                     stderr,

@@ -16,6 +16,7 @@
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "toridraw/toridraw_scene.h"
+#include "ui/ui_if3_layout.h"
 #include "ui/uitree_layout.h"
 
 #include <assert.h>
@@ -23,86 +24,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int
-dat2_dim_from_parent_mode(
-    int8_t mode,
-    int orig,
-    int parent_dim)
+static bool
+rs_component_owner_is_critical(char const* owner)
 {
-    switch( mode )
-    {
-    case 0:
-        return orig;
-    case 1:
-        return parent_dim - orig;
-    case 2:
-        return (int)((int64_t)parent_dim * (int64_t)orig / UITREE_RS_LAYOUT_UNITS);
-    default:
-        return orig;
-    }
-}
-
-static int
-dat2_axis_from_position_mode(
-    int8_t mode,
-    int base,
-    int parent_origin,
-    int parent_dim,
-    int self_dim)
-{
-    switch( mode )
-    {
-    case 0:
-        return parent_origin + base;
-    case 1:
-        return parent_origin + (parent_dim - self_dim) / 2 + base;
-    case 2:
-        return parent_origin + parent_dim - base - self_dim;
-    case 3:
-        return parent_origin + (int)((int64_t)parent_dim * (int64_t)base / UITREE_RS_LAYOUT_UNITS);
-    case 4:
-        return parent_origin + (parent_dim - self_dim) / 2 +
-               (int)((int64_t)parent_dim * (int64_t)base / UITREE_RS_LAYOUT_UNITS);
-    case 5:
-        return parent_origin + parent_dim -
-               (int)((int64_t)parent_dim * (int64_t)base / UITREE_RS_LAYOUT_UNITS) - self_dim;
-    default:
-        return parent_origin + base;
-    }
-}
-
-static void
-dat2_component_parent_relative_layout(
-    Component const* comp,
-    int parent_w,
-    int parent_h,
-    int* out_rel_x,
-    int* out_rel_y,
-    int* out_w,
-    int* out_h)
-{
-    assert(comp && out_rel_x && out_rel_y && out_w && out_h);
-
-    if( !comp->if3 )
-    {
-        *out_rel_x = comp->baseX;
-        *out_rel_y = comp->baseY;
-        *out_w = comp->baseWidth;
-        *out_h = comp->baseHeight;
-        return;
-    }
-
-    int w = dat2_dim_from_parent_mode(comp->widthMode, comp->baseWidth, parent_w);
-    int h = dat2_dim_from_parent_mode(comp->heightMode, comp->baseHeight, parent_h);
-    if( w < 0 )
-        w = 0;
-    if( h < 0 )
-        h = 0;
-
-    *out_w = w;
-    *out_h = h;
-    *out_rel_x = dat2_axis_from_position_mode(comp->xMode, comp->baseX, 0, parent_w, w);
-    *out_rel_y = dat2_axis_from_position_mode(comp->yMode, comp->baseY, 0, parent_h, h);
+    if( !owner || owner[0] == '\0' )
+        return false;
+    if( strncmp(owner, "sidebar_tab_", 12) == 0 )
+        return true;
+    if( strcmp(owner, "sidebar") == 0 )
+        return true;
+    if( strstr(owner, "inv") != NULL )
+        return true;
+    if( strstr(owner, "inventory") != NULL )
+        return true;
+    return false;
 }
 
 static struct RSCacheDat1A_ConfigComponent*
@@ -161,38 +96,6 @@ dat2_get_component(
     return NULL;
 }
 
-static void
-instance_revconfig_register_core_sprite(
-    struct InstanceRevConfigContext* ctx,
-    int element_id,
-    struct ToriAuxLibCore_Sprite* sprite,
-    char const* lookup_name,
-    int atlas_count)
-{
-    assert(ctx && ctx->cache && sprite && lookup_name && ctx->game && ctx->game->td);
-
-    ToriAuxLibCache_SubmitSprite(ctx->cache, element_id, sprite);
-    bool const promoted = ToriAuxLibTD_Sprite(ctx->game->td, element_id);
-    assert(promoted && "ToriAuxLibTD_Sprite failed for dynamic sprite");
-    ui_sprite_lookup_add(&ctx->sprite_lookup, lookup_name, element_id, atlas_count);
-}
-
-static void
-dat2_sprite_ref_from_id(
-    int sprite_id,
-    char* out,
-    size_t out_size)
-{
-    if( !out || out_size == 0 )
-        return;
-    if( sprite_id < 0 )
-    {
-        out[0] = '\0';
-        return;
-    }
-    snprintf(out, out_size, "spr:%d", sprite_id);
-}
-
 static int
 dat1_acquire_dynamic_sprite(
     struct InstanceRevConfigContext* ctx,
@@ -217,44 +120,8 @@ dat1_acquire_dynamic_sprite(
 
     int element_id = ctx->next_element_id++;
 
-    instance_revconfig_register_core_sprite(
+    instance_revconfig_register_dynamic_sprite(
         ctx, element_id, sprite, sprite_ref, sprite->frame_count);
-    return element_id;
-}
-
-static int
-dat2_acquire_dynamic_sprite(
-    struct InstanceRevConfigContext* ctx,
-    int sprite_id)
-{
-    assert(ctx);
-    assert(ctx->dat2_bc);
-    assert(sprite_id >= 0);
-
-    char ref[64];
-    dat2_sprite_ref_from_id(sprite_id, ref, sizeof(ref));
-    if( ref[0] == '\0' )
-        return -1;
-
-    int atlas = 0;
-    int existing = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, ref, &atlas);
-    if( existing >= 0 )
-        return existing;
-
-    struct ToriAuxLibCore_Sprite* sprite =
-        dat2_buildcache_dynamic_sprite_release(ctx->dat2_bc, sprite_id);
-    if( !sprite || sprite->frame_count <= 0 )
-    {
-        fprintf(
-            stderr,
-            "dat2_acquire_dynamic_sprite: sprite not in prefetch cache sprite_id=%d\n",
-            sprite_id);
-        ToriAuxLibCore_SpriteFree(sprite);
-        return -1;
-    }
-
-    int element_id = ctx->next_element_id++;
-    instance_revconfig_register_core_sprite(ctx, element_id, sprite, ref, sprite->frame_count);
     return element_id;
 }
 
@@ -649,7 +516,7 @@ rs_component_acquire_inv_slot_sprites(
     for( int si = 0; si < 20; si++ )
     {
         if( dat2_comp->invSlotGraphicId[si] >= 0 )
-            dat2_acquire_dynamic_sprite(ctx, dat2_comp->invSlotGraphicId[si]);
+            instance_revconfig_dat2_ensure_sprite_id(ctx, dat2_comp->invSlotGraphicId[si]);
     }
 }
 
@@ -675,9 +542,9 @@ rs_component_acquire_dynamic_sprites(
 
     Component* dat2_comp = comp;
     if( dat2_comp->graphic >= 0 )
-        dat2_acquire_dynamic_sprite(ctx, dat2_comp->graphic);
+        instance_revconfig_dat2_ensure_sprite_id(ctx, dat2_comp->graphic);
     if( dat2_comp->activeGraphic >= 0 )
-        dat2_acquire_dynamic_sprite(ctx, dat2_comp->activeGraphic);
+        instance_revconfig_dat2_ensure_sprite_id(ctx, dat2_comp->activeGraphic);
     rs_component_acquire_inv_slot_sprites(cache_mode, ctx, comp);
 }
 
@@ -881,7 +748,7 @@ rs_component_walk_dat2(
         int rel_y = 0;
         int width = 0;
         int height = 0;
-        dat2_component_parent_relative_layout(
+        ui_if3_dat2_component_parent_relative_layout(
             comp, parent_w, parent_h, &rel_x, &rel_y, &width, &height);
 
         rs_component_acquire_dynamic_sprites(task->cache_mode, task->rc_ctx, comp);
@@ -1240,9 +1107,7 @@ Task_RSComponentLoad_Run(
 
     if( task->callbacks.on_component && task->components_walked <= 0 )
     {
-        bool const critical_owner =
-            strcmp(owner, "sidebar") == 0 || strstr(owner, "inv") != NULL ||
-            strstr(owner, "inventory") != NULL;
+        bool const critical_owner = rs_component_owner_is_critical(owner);
 
         fprintf(
             stderr,

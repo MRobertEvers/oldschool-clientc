@@ -1,56 +1,55 @@
 /*
  * Load interface archive N from dat2 cache (table RSCacheDat2Disk_Table_Interfaces), decode each
- * file as IF1/IF3 Component, optionally blit type-3/type-5 widgets to a BMP.
+ * file as IF1/IF3 Component, optionally blit widgets to a BMP.
  *
- * IF3: parent-relative coords + width/height/x/y modes (RuneLite
- * WidgetSizeMode / WidgetPositionMode, 16384ths scaling).
- *
- * IF1: baseX/baseY are parent-relative (same as the client). Resolved as
- * px+baseX, py+baseY where (px,py) is the parent or virtual root (765x503 shell or
- * a --mount slot). Hidden components are skipped.
- *
- * Fixed-mode IF3 roots use a 765x503 virtual parent. --mount childFile:iface
- * loads another archive into that slot's resolved rect. File indices for
- * interface 548 vary by revision: e.g. 21 is often the main chatbox container,
- * 23 on older caches; 19 may be minimap (so 162 there draws top-right). Try
- * --mount 13:165 for a common game-viewport / welcome background slot.
+ * Draws type 2 (inventory slot backgrounds), type 3 (rect fill/outline), type 5 (sprites).
+ * Use --fixture for sample worn items on equipment slot widgets (type 0 file indices).
  *
  * Usage: interface161_test <cache_directory> [--iface N] [--sprites]
+ *          [--fixture path.json] [--panel] [--root-w W] [--root-h H]
  *          [--mount childFileIndex:ifaceId] ... [out.bmp]
- *
- * Example: interface161_test <cache> --iface 548 --sprites --mount 21:162 out.bmp
  */
 
 #include "bmp.h"
+#include "fixture.h"
+#include "ui/ui_if3_layout.h"
+#include "osrs/rscache/dat2a/dat2a_component.h"
+#include "osrs/rscache/dat2a/dat2a_sprites.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "osrs/rscache/shared/shared_rs_buffer.h"
-#include "osrs/rscache/dat2a/dat2a_component.h"
-#include "osrs/rscache/dat2a/dat2a_sprites.h"
+#include "toridraw/toridraw.h"
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 enum
 {
     CANVAS_W = 1024,
     CANVAS_H = 768,
-    /** OSRS fixed-mode viewport; IF3 roots resolve against this, not CANVAS_*. */
     FIXED_MODE_ROOT_W = 765,
-    FIXED_MODE_ROOT_H = 503
-};
-
-enum
-{
-    MAX_MOUNTS = 32
+    FIXED_MODE_ROOT_H = 503,
+    MAX_MOUNTS = 32,
+    INV_SLOT_PITCH = 32
 };
 
 struct MountSpec
 {
     int child_file_index;
     int iface_id;
+};
+
+struct DrawContext
+{
+    struct RSCacheDat2Disk* cache;
+    struct ToriDraw_Scene* scene;
+    struct Interface161Fixture const* fixture;
+    struct Interface161ObjIconCache** obj_icon_cache;
+    int* pixels;
+    int want_sprites;
 };
 
 static void
@@ -77,6 +76,57 @@ fill_rect(
 }
 
 static void
+draw_rect_outline(
+    int* px,
+    int stride,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int argb)
+{
+    if( x1 <= x0 || y1 <= y0 )
+        return;
+    fill_rect(px, stride, x0, y0, x1, y0 + 1, argb);
+    fill_rect(px, stride, x0, y1 - 1, x1, y1, argb);
+    fill_rect(px, stride, x0, y0, x0 + 1, y1, argb);
+    fill_rect(px, stride, x1 - 1, y0, x1, y1, argb);
+}
+
+static void
+blit_rgba_pixel(
+    int* dest,
+    int dstride,
+    int sx,
+    int sy,
+    int p,
+    int trans_scale)
+{
+    if( sx < 0 || sy < 0 || sx >= CANVAS_W || sy >= CANVAS_H )
+        return;
+
+    int a = (p >> 24) & 0xFF;
+    if( trans_scale < 256 )
+        a = (a * trans_scale) / 256;
+    if( a == 0 )
+        return;
+
+    if( a == 255 )
+    {
+        dest[sy * dstride + sx] = (p & 0x00FFFFFF) | 0xFF000000;
+        return;
+    }
+
+    int d = dest[sy * dstride + sx];
+    int dr = (d >> 16) & 0xFF, dg = (d >> 8) & 0xFF, db = d & 0xFF;
+    int sr = (p >> 16) & 0xFF, sg = (p >> 8) & 0xFF, sb = p & 0xFF;
+    int rr = (sr * a + dr * (255 - a)) / 255;
+    int rg = (sg * a + dg * (255 - a)) / 255;
+    int rb = (sb * a + db * (255 - a)) / 255;
+    dest[sy * dstride + sx] = 0xFF000000 | (rr << 16) | (rg << 8) | rb;
+}
+
+static void
 blit_rgba_sprite(
     int* dest,
     int dstride,
@@ -84,42 +134,17 @@ blit_rgba_sprite(
     int dy,
     const int* spr,
     int sw,
-    int sh)
+    int sh,
+    int trans_scale)
 {
     for( int y = 0; y < sh; y++ )
     {
         int sy = dy + y;
-        if( sy < 0 || sy >= CANVAS_H )
-            continue;
         for( int x = 0; x < sw; x++ )
-        {
-            int sx = dx + x;
-            if( sx < 0 || sx >= CANVAS_W )
-                continue;
-            int p = spr[y * sw + x];
-            int a = (p >> 24) & 0xFF;
-            if( a == 0 )
-                continue;
-            if( a == 255 )
-                dest[sy * dstride + sx] = p;
-            else
-            {
-                int d = dest[sy * dstride + sx];
-                int dr = (d >> 16) & 0xFF, dg = (d >> 8) & 0xFF, db = d & 0xFF;
-                int sr = (p >> 16) & 0xFF, sg = (p >> 8) & 0xFF, sb = p & 0xFF;
-                int rr = (sr * a + dr * (255 - a)) / 255;
-                int rg = (sg * a + dg * (255 - a)) / 255;
-                int rb = (sb * a + db * (255 - a)) / 255;
-                dest[sy * dstride + sx] = 0xFF000000 | (rr << 16) | (rg << 8) | rb;
-            }
-        }
+            blit_rgba_pixel(dest, dstride, dx + x, sy, spr[y * sw + x], trans_scale);
     }
 }
 
-/**
- * Repeat spr (sw x sh) to fill [rect_x, rect_y) + size. Sample coordinates use
- * the same origin as a single-sprite blit: (origin_x, origin_y) maps to spr[0,0].
- */
 static void
 blit_rgba_sprite_tiled(
     int* dest,
@@ -132,10 +157,12 @@ blit_rgba_sprite_tiled(
     int sw,
     int sh,
     int origin_x,
-    int origin_y)
+    int origin_y,
+    int trans_scale)
 {
     if( sw <= 0 || sh <= 0 || rect_w <= 0 || rect_h <= 0 )
         return;
+
     int x0 = rect_x;
     int y0 = rect_y;
     int x1 = rect_x + rect_w;
@@ -148,6 +175,7 @@ blit_rgba_sprite_tiled(
         x1 = CANVAS_W;
     if( y1 > CANVAS_H )
         y1 = CANVAS_H;
+
     for( int y = y0; y < y1; y++ )
     {
         int sy = y - origin_y;
@@ -156,24 +184,75 @@ blit_rgba_sprite_tiled(
         {
             int sx = x - origin_x;
             sx = ((sx % sw) + sw) % sw;
-            int p = spr[sy * sw + sx];
-            int a = (p >> 24) & 0xFF;
-            if( a == 0 )
-                continue;
-            if( a == 255 )
-                dest[y * dstride + x] = p;
-            else
-            {
-                int d = dest[y * dstride + x];
-                int dr = (d >> 16) & 0xFF, dg = (d >> 8) & 0xFF, db = d & 0xFF;
-                int sr = (p >> 16) & 0xFF, sg = (p >> 8) & 0xFF, sb = p & 0xFF;
-                int rr = (sr * a + dr * (255 - a)) / 255;
-                int rg = (sg * a + dg * (255 - a)) / 255;
-                int rb = (sb * a + db * (255 - a)) / 255;
-                dest[y * dstride + x] = 0xFF000000 | (rr << 16) | (rg << 8) | rb;
-            }
+            blit_rgba_pixel(dest, dstride, x, y, spr[sy * sw + sx], trans_scale);
         }
     }
+}
+
+static void
+blit_sprite_from_cache(
+    struct DrawContext* ctx,
+    int graphic_id,
+    int dx,
+    int dy,
+    int lw,
+    int lh,
+    bool tiled,
+    int trans_scale)
+{
+    if( !ctx->want_sprites || graphic_id < 0 )
+        return;
+
+    struct RSCacheDat2A_SpritePack* pack =
+        RSCacheDat2A_SpritePackNewFromCache(ctx->cache, graphic_id);
+    if( !pack || pack->count <= 0 || !pack->palette )
+    {
+        if( pack )
+            RSCacheDat2A_SpritePackFree(pack);
+        return;
+    }
+
+    int* spr_px = RSCacheDat2A_SpriteGetPixels(&pack->sprites[0], pack->palette, 0);
+    if( spr_px )
+    {
+        int ox = dx + pack->sprites[0].offset_x;
+        int oy = dy + pack->sprites[0].offset_y;
+        int sw = pack->sprites[0].width;
+        int sh = pack->sprites[0].height;
+        if( tiled )
+        {
+            blit_rgba_sprite_tiled(
+                ctx->pixels, CANVAS_W, dx, dy, lw, lh, spr_px, sw, sh, ox, oy, trans_scale);
+        }
+        else
+        {
+            blit_rgba_sprite(ctx->pixels, CANVAS_W, ox, oy, spr_px, sw, sh, trans_scale);
+        }
+        free(spr_px);
+    }
+    RSCacheDat2A_SpritePackFree(pack);
+}
+
+static void
+blit_obj_icon_centered(
+    struct DrawContext* ctx,
+    int obj_id,
+    int cx,
+    int cy,
+    int box_w,
+    int box_h)
+{
+    if( obj_id < 0 || !ctx->scene || !ctx->obj_icon_cache )
+        return;
+
+    const int* icon =
+        interface161_obj_icon_get(ctx->cache, ctx->scene, ctx->obj_icon_cache, obj_id);
+    if( !icon )
+        return;
+
+    int dx = cx + (box_w - INV_SLOT_PITCH) / 2;
+    int dy = cy + (box_h - INV_SLOT_PITCH) / 2;
+    blit_rgba_sprite(ctx->pixels, CANVAS_W, dx, dy, icon, INV_SLOT_PITCH, INV_SLOT_PITCH, 256);
 }
 
 static int
@@ -197,67 +276,6 @@ decode_component_from_bytes(
     return 0;
 }
 
-/** Matches net.runelite.api.widgets.WidgetSizeMode / WidgetPositionMode (16384ths). */
-enum
-{
-    RS_LAYOUT_UNITS = 16384
-};
-
-static int
-dim_from_parent_mode(
-    int8_t mode,
-    int orig,
-    int parent_dim)
-{
-    switch( mode )
-    {
-    case 0:
-        return orig;
-    case 1:
-        return parent_dim - orig;
-    case 2:
-        return (int)((int64_t)parent_dim * (int64_t)orig / RS_LAYOUT_UNITS);
-    default:
-        return orig;
-    }
-}
-
-static int
-axis_from_position_mode(
-    int8_t mode,
-    int base,
-    int parent_origin,
-    int parent_dim,
-    int self_dim)
-{
-    switch( mode )
-    {
-    case 0:
-        return parent_origin + base;
-    case 1:
-        return parent_origin + (parent_dim - self_dim) / 2 + base;
-    case 2:
-        return parent_origin + parent_dim - base - self_dim;
-    case 3:
-        return parent_origin + (int)((int64_t)parent_dim * (int64_t)base / RS_LAYOUT_UNITS);
-    case 4:
-        return parent_origin + (parent_dim - self_dim) / 2 +
-               (int)((int64_t)parent_dim * (int64_t)base / RS_LAYOUT_UNITS);
-    case 5:
-        return parent_origin + parent_dim -
-               (int)((int64_t)parent_dim * (int64_t)base / RS_LAYOUT_UNITS) - self_dim;
-    default:
-        return parent_origin + base;
-    }
-}
-
-/**
- * IF3: coordinates relative to parent + modes. IF1: baseX/baseY relative to
- * parent (or root_x/root_y for roots). Resolve bounds into *out_*.
- * Root IF3 nodes (no parent in this archive) use (root_x,root_y) and
- * (root_w,root_h) as the virtual parent — fixed mode uses 765x503 for the HUD
- * shell; mounted sub-interfaces use the mount slot's resolved rect.
- */
 static void
 resolve_interface_layout(
     Component* comps,
@@ -269,22 +287,23 @@ resolve_interface_layout(
     int* out_x,
     int* out_y,
     int* out_w,
-    int* out_h)
+    int* out_h,
+    int* out_order)
 {
     int* parent_idx = calloc((size_t)n, sizeof(int));
     int* depth = calloc((size_t)n, sizeof(int));
-    int* order = calloc((size_t)n, sizeof(int));
-    if( !parent_idx || !depth || !order )
+    if( !parent_idx || !depth )
     {
         free(parent_idx);
         free(depth);
-        free(order);
         for( int i = 0; i < n; i++ )
         {
             out_x[i] = root_x + comps[i].baseX;
             out_y[i] = root_y + comps[i].baseY;
             out_w[i] = comps[i].baseWidth;
             out_h[i] = comps[i].baseHeight;
+            if( out_order )
+                out_order[i] = i;
         }
         return;
     }
@@ -318,24 +337,27 @@ resolve_interface_layout(
         depth[i] = d;
     }
 
-    for( int i = 0; i < n; i++ )
-        order[i] = i;
-    for( int a = 0; a < n; a++ )
+    if( out_order )
     {
-        for( int b = a + 1; b < n; b++ )
+        for( int i = 0; i < n; i++ )
+            out_order[i] = i;
+        for( int a = 0; a < n; a++ )
         {
-            if( depth[order[b]] < depth[order[a]] )
+            for( int b = a + 1; b < n; b++ )
             {
-                int t = order[a];
-                order[a] = order[b];
-                order[b] = t;
+                if( depth[out_order[b]] < depth[out_order[a]] )
+                {
+                    int t = out_order[a];
+                    out_order[a] = out_order[b];
+                    out_order[b] = t;
+                }
             }
         }
     }
 
     for( int k = 0; k < n; k++ )
     {
-        int i = order[k];
+        int i = out_order ? out_order[k] : k;
 
         int px = root_x;
         int py = root_y;
@@ -352,7 +374,6 @@ resolve_interface_layout(
 
         if( !comps[i].if3 )
         {
-            /* IF1: baseX/baseY are relative to parent (or root / mount origin). */
             out_x[i] = px + comps[i].baseX;
             out_y[i] = py + comps[i].baseY;
             out_w[i] = comps[i].baseWidth;
@@ -360,90 +381,136 @@ resolve_interface_layout(
             continue;
         }
 
-        int w = dim_from_parent_mode(comps[i].widthMode, comps[i].baseWidth, pw);
-        int h = dim_from_parent_mode(comps[i].heightMode, comps[i].baseHeight, ph);
-        if( w < 0 )
-            w = 0;
-        if( h < 0 )
-            h = 0;
-
+        int rel_x = 0;
+        int rel_y = 0;
+        int w = 0;
+        int h = 0;
+        ui_if3_dat2_component_parent_relative_layout(
+            &comps[i], pw, ph, &rel_x, &rel_y, &w, &h);
         out_w[i] = w;
         out_h[i] = h;
-        out_x[i] = axis_from_position_mode(comps[i].xMode, comps[i].baseX, px, pw, w);
-        out_y[i] = axis_from_position_mode(comps[i].yMode, comps[i].baseY, py, ph, h);
+        out_x[i] = px + rel_x;
+        out_y[i] = py + rel_y;
     }
 
     free(parent_idx);
     free(depth);
-    free(order);
+}
+
+static void
+draw_component_inv(
+    struct DrawContext* ctx,
+    Component* comp,
+    int fi,
+    int px,
+    int py,
+    int lw,
+    int lh)
+{
+    (void)lh;
+    int cols = comp->baseWidth > 0 ? comp->baseWidth : lw;
+    int rows = comp->baseHeight > 0 ? comp->baseHeight : 1;
+    int margin_x = comp->marginX;
+    int margin_y = comp->marginY;
+    int fixture_obj = ctx->fixture ? interface161_fixture_obj_for_file(ctx->fixture, fi) : -1;
+
+    int slot = 0;
+    for( int row = 0; row < rows; row++ )
+    {
+        for( int col = 0; col < cols; col++ )
+        {
+            int slot_x = px + col * (margin_x + INV_SLOT_PITCH);
+            int slot_y = py + row * (margin_y + INV_SLOT_PITCH);
+            if( slot < 20 && comp->invSlotOffsetX && comp->invSlotOffsetY )
+            {
+                slot_x += comp->invSlotOffsetX[slot];
+                slot_y += comp->invSlotOffsetY[slot];
+            }
+
+            if( fixture_obj >= 0 )
+            {
+                blit_obj_icon_centered(
+                    ctx, fixture_obj, slot_x, slot_y, INV_SLOT_PITCH, INV_SLOT_PITCH);
+            }
+            else if( comp->invSlotGraphicId && slot < 20 && comp->invSlotGraphicId[slot] >= 0 )
+            {
+                blit_sprite_from_cache(
+                    ctx, comp->invSlotGraphicId[slot], slot_x, slot_y, 0, 0, false, 256);
+            }
+
+            slot++;
+        }
+    }
+}
+
+static void
+draw_one_component(
+    struct DrawContext* ctx,
+    Component* comp,
+    int fi,
+    int px,
+    int py,
+    int lw,
+    int lh)
+{
+    int trans_scale = 256 - (comp->transparency & 0xFF);
+    if( trans_scale < 0 )
+        trans_scale = 0;
+
+    if( comp->type == 3 )
+    {
+        int argb = 0xFF000000 | (comp->color & 0xFFFFFF);
+        if( comp->fill )
+            fill_rect(ctx->pixels, CANVAS_W, px, py, px + lw, py + lh, argb);
+        else
+            draw_rect_outline(ctx->pixels, CANVAS_W, px, py, px + lw, py + lh, argb);
+    }
+
+    if( comp->type == 2 )
+        draw_component_inv(ctx, comp, fi, px, py, lw, lh);
+
+    if( comp->type == 5 && comp->graphic >= 0 )
+    {
+        blit_sprite_from_cache(
+            ctx, comp->graphic, px, py, lw, lh, comp->tiled, trans_scale);
+    }
+
+    if( ctx->fixture )
+    {
+        int fixture_obj = interface161_fixture_obj_for_file(ctx->fixture, fi);
+        if( fixture_obj >= 0 && comp->type == 0 )
+            blit_obj_icon_centered(ctx, fixture_obj, px, py, lw, lh);
+    }
 }
 
 static void
 draw_interface_components(
-    struct RSCacheDat2Disk* cache,
+    struct DrawContext* ctx,
     Component* comps,
     int n,
     const int* lay_x,
     const int* lay_y,
     const int* lay_w,
     const int* lay_h,
-    int* pixels,
-    int want_sprites)
+    const int* draw_order)
 {
-    for( int fi = 0; fi < n; fi++ )
+    for( int k = 0; k < n; k++ )
     {
+        int fi = draw_order ? draw_order[k] : k;
         Component* comp = &comps[fi];
-        if( comp->type < 0 )
+        if( comp->type < 0 || comp->hidden )
             continue;
 
-        int px = lay_x[fi];
-        int py = lay_y[fi];
-        int lw = lay_w[fi];
-        int lh = lay_h[fi];
-
-        if( comp->hidden )
-            continue;
-
-        if( comp->type == 3 && comp->fill )
-        {
-            int argb = 0xFF000000 | (comp->color & 0xFFFFFF);
-            fill_rect(pixels, CANVAS_W, px, py, px + lw, py + lh, argb);
-        }
-
-        if( want_sprites && comp->type == 5 && comp->graphic >= 0 )
-        {
-            struct RSCacheDat2A_SpritePack* pack = RSCacheDat2A_SpritePackNewFromCache(cache, comp->graphic);
-            if( pack && pack->count > 0 && pack->palette )
-            {
-                int* spr_px = RSCacheDat2A_SpriteGetPixels(&pack->sprites[0], pack->palette, 0);
-                if( spr_px )
-                {
-                    int ox = px + pack->sprites[0].offset_x;
-                    int oy = py + pack->sprites[0].offset_y;
-                    int sw = pack->sprites[0].width;
-                    int sh = pack->sprites[0].height;
-                    if( comp->tiled )
-                        blit_rgba_sprite_tiled(
-                            pixels, CANVAS_W, px, py, lw, lh, spr_px, sw, sh, ox, oy);
-                    else
-                        blit_rgba_sprite(pixels, CANVAS_W, ox, oy, spr_px, sw, sh);
-                    free(spr_px);
-                }
-                RSCacheDat2A_SpritePackFree(pack);
-            }
-            else if( pack )
-                RSCacheDat2A_SpritePackFree(pack);
-        }
+        draw_one_component(ctx, comp, fi, lay_x[fi], lay_y[fi], lay_w[fi], lay_h[fi]);
     }
 }
 
-/**
- * Load another interface archive and draw it with IF3 roots resolved inside
- * [root_x,root_y,+root_w,+root_h] (e.g. a slot on the HUD shell).
- */
 static int
 render_mounted_interface(
     struct RSCacheDat2Disk* cache,
+    struct ToriDraw_Scene* scene,
+    struct Interface161Fixture const* fixture,
+    struct Interface161ObjIconCache** obj_icon_cache,
     int iface_id,
     int root_x,
     int root_y,
@@ -455,10 +522,11 @@ render_mounted_interface(
     if( root_w <= 0 || root_h <= 0 )
         return 0;
 
-    struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, iface_id);
+    struct RSCacheDat2Disk_Archive* arch =
+        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, iface_id);
     if( !arch )
     {
-        fprintf(stderr, "mount: failed to load RSCacheDat2Disk_Table_Interfaces archive %d\n", iface_id);
+        fprintf(stderr, "mount: failed to load interface archive %d\n", iface_id);
         return -1;
     }
 
@@ -466,7 +534,6 @@ render_mounted_interface(
     struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
     if( !fl )
     {
-        fprintf(stderr, "mount: failed to unpack interface archive %d\n", iface_id);
         RSCacheDat2Disk_ArchiveFree(arch);
         return -1;
     }
@@ -477,13 +544,15 @@ render_mounted_interface(
     int* lay_y = calloc((size_t)n, sizeof(int));
     int* lay_w = calloc((size_t)n, sizeof(int));
     int* lay_h = calloc((size_t)n, sizeof(int));
-    if( !comps || !lay_x || !lay_y || !lay_w || !lay_h )
+    int* draw_order = calloc((size_t)n, sizeof(int));
+    if( !comps || !lay_x || !lay_y || !lay_w || !lay_h || !draw_order )
     {
         free(comps);
         free(lay_x);
         free(lay_y);
         free(lay_w);
         free(lay_h);
+        free(draw_order);
         RSCacheShared_FileListFree(fl);
         RSCacheDat2Disk_ArchiveFree(arch);
         return -1;
@@ -493,15 +562,21 @@ render_mounted_interface(
     {
         if( decode_component_from_bytes(
                 &comps[fi], fl->files[fi], fl->file_sizes[fi], iface_id, fi) != 0 )
-        {
             Component_init(&comps[fi]);
-            continue;
-        }
     }
 
-    resolve_interface_layout(comps, n, root_x, root_y, root_w, root_h, lay_x, lay_y, lay_w, lay_h);
+    resolve_interface_layout(
+        comps, n, root_x, root_y, root_w, root_h, lay_x, lay_y, lay_w, lay_h, draw_order);
 
-    draw_interface_components(cache, comps, n, lay_x, lay_y, lay_w, lay_h, pixels, want_sprites);
+    struct DrawContext dctx = {
+        .cache = cache,
+        .scene = scene,
+        .fixture = fixture,
+        .obj_icon_cache = obj_icon_cache,
+        .pixels = pixels,
+        .want_sprites = want_sprites,
+    };
+    draw_interface_components(&dctx, comps, n, lay_x, lay_y, lay_w, lay_h, draw_order);
 
     for( int fi = 0; fi < n; fi++ )
         Component_free(&comps[fi]);
@@ -510,6 +585,7 @@ render_mounted_interface(
     free(lay_y);
     free(lay_w);
     free(lay_h);
+    free(draw_order);
     RSCacheShared_FileListFree(fl);
     RSCacheDat2Disk_ArchiveFree(arch);
     return 0;
@@ -521,12 +597,16 @@ usage(void)
     fprintf(
         stderr,
         "usage: interface161_test <cache_directory> [--iface N] [--sprites]\n"
+        "          [--fixture path.json] [--panel] [--root-w W] [--root-h H]\n"
         "          [--mount childFileIndex:ifaceId] ... [out.bmp]\n"
-        "  IF1 positions are parent-relative (px+baseX). For IF 548, mount index\n"
-        "  is revision-specific; try --mount 21:162 (chatbox), not 19 (minimap).\n");
+        "  --panel       use sidebar panel root size (%dx%d)\n"
+        "  --root-w/h    IF3 virtual parent size (default %dx%d)\n",
+        UITREE_SIDEBAR_PANEL_W,
+        UITREE_SIDEBAR_PANEL_H,
+        FIXED_MODE_ROOT_W,
+        FIXED_MODE_ROOT_H);
 }
 
-// ./interface161_test ../cache --iface 548 --sprites --mount 10:162 out.bmp
 int
 main(
     int argc,
@@ -534,21 +614,31 @@ main(
 {
     const char* cache_dir = NULL;
     const char* out_path = "interface161_out.bmp";
+    const char* fixture_path = NULL;
     int iface = 161;
     int want_sprites = 0;
+    int root_w = FIXED_MODE_ROOT_W;
+    int root_h = FIXED_MODE_ROOT_H;
     int mount_count = 0;
     struct MountSpec mounts[MAX_MOUNTS];
 
     for( int i = 1; i < argc; i++ )
     {
         if( strcmp(argv[i], "--iface") == 0 && i + 1 < argc )
-        {
             iface = atoi(argv[++i]);
-        }
         else if( strcmp(argv[i], "--sprites") == 0 )
-        {
             want_sprites = 1;
+        else if( strcmp(argv[i], "--fixture") == 0 && i + 1 < argc )
+            fixture_path = argv[++i];
+        else if( strcmp(argv[i], "--panel") == 0 )
+        {
+            root_w = UITREE_SIDEBAR_PANEL_W;
+            root_h = UITREE_SIDEBAR_PANEL_H;
         }
+        else if( strcmp(argv[i], "--root-w") == 0 && i + 1 < argc )
+            root_w = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--root-h") == 0 && i + 1 < argc )
+            root_h = atoi(argv[++i]);
         else if( strcmp(argv[i], "--mount") == 0 && i + 1 < argc )
         {
             const char* s = argv[++i];
@@ -561,13 +651,9 @@ main(
             }
         }
         else if( !cache_dir )
-        {
             cache_dir = argv[i];
-        }
         else
-        {
             out_path = argv[i];
-        }
     }
 
     if( !cache_dir )
@@ -576,18 +662,39 @@ main(
         return 1;
     }
 
+    struct Interface161Fixture fixture;
+    interface161_fixture_init(&fixture);
+    if( fixture_path && interface161_fixture_load(&fixture, fixture_path) != 0 )
+        fprintf(stderr, "warning: could not load fixture %s\n", fixture_path);
+
     struct RSCacheDat2Disk* cache = RSCacheDat2Disk_NewFromDirectory(cache_dir);
     if( !cache )
     {
         fprintf(stderr, "failed to open cache: %s\n", cache_dir);
+        interface161_fixture_free(&fixture);
         return 1;
     }
 
-    struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, iface);
+    struct ToriDraw_Scene* scene = NULL;
+    struct Interface161ObjIconCache* obj_icon_cache = NULL;
+    if( fixture.slot_count > 0 )
+    {
+        ToriDraw_Init();
+        scene = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL);
+        if( !scene )
+            fprintf(stderr, "warning: ToriDraw_SceneNew failed; fixture objs skipped\n");
+    }
+
+    struct RSCacheDat2Disk_Archive* arch =
+        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, iface);
     if( !arch )
     {
-        fprintf(stderr, "failed to load RSCacheDat2Disk_Table_Interfaces archive %d\n", iface);
+        fprintf(stderr, "failed to load interface archive %d\n", iface);
+        interface161_obj_icon_cache_free(obj_icon_cache);
+        if( scene )
+            ToriDraw_SceneFree(scene);
         RSCacheDat2Disk_Free(cache);
+        interface161_fixture_free(&fixture);
         return 1;
     }
 
@@ -595,9 +702,12 @@ main(
     struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
     if( !fl )
     {
-        fprintf(stderr, "failed to unpack interface archive file list\n");
         RSCacheDat2Disk_ArchiveFree(arch);
+        interface161_obj_icon_cache_free(obj_icon_cache);
+        if( scene )
+            ToriDraw_SceneFree(scene);
         RSCacheDat2Disk_Free(cache);
+        interface161_fixture_free(&fixture);
         return 1;
     }
 
@@ -606,7 +716,11 @@ main(
     {
         RSCacheShared_FileListFree(fl);
         RSCacheDat2Disk_ArchiveFree(arch);
+        interface161_obj_icon_cache_free(obj_icon_cache);
+        if( scene )
+            ToriDraw_SceneFree(scene);
         RSCacheDat2Disk_Free(cache);
+        interface161_fixture_free(&fixture);
         return 1;
     }
     fill_rect(pixels, CANVAS_W, 0, 0, CANVAS_W, CANVAS_H, 0xFF202428);
@@ -617,70 +731,84 @@ main(
     int* lay_y = calloc((size_t)n, sizeof(int));
     int* lay_w = calloc((size_t)n, sizeof(int));
     int* lay_h = calloc((size_t)n, sizeof(int));
-    if( !comps || !lay_x || !lay_y || !lay_w || !lay_h )
+    int* draw_order = calloc((size_t)n, sizeof(int));
+    if( !comps || !lay_x || !lay_y || !lay_w || !lay_h || !draw_order )
     {
         free(comps);
         free(lay_x);
         free(lay_y);
         free(lay_w);
         free(lay_h);
+        free(draw_order);
         free(pixels);
         RSCacheShared_FileListFree(fl);
         RSCacheDat2Disk_ArchiveFree(arch);
+        interface161_obj_icon_cache_free(obj_icon_cache);
+        if( scene )
+            ToriDraw_SceneFree(scene);
         RSCacheDat2Disk_Free(cache);
+        interface161_fixture_free(&fixture);
         return 1;
     }
 
     int decoded = 0;
     int in_group = 0;
-
     for( int fi = 0; fi < n; fi++ )
     {
-        if( decode_component_from_bytes(&comps[fi], fl->files[fi], fl->file_sizes[fi], iface, fi) !=
+        if( decode_component_from_bytes(&comps[fi], fl->files[fi], fl->file_sizes[fi], iface, fi) ==
             0 )
         {
-            Component_init(&comps[fi]);
-            continue;
+            decoded++;
+            if( (comps[fi].id >> 16) == iface )
+                in_group++;
         }
-        decoded++;
-        if( (comps[fi].id >> 16) == iface )
-            in_group++;
+        else
+            Component_init(&comps[fi]);
     }
 
     resolve_interface_layout(
-        comps, n, 0, 0, FIXED_MODE_ROOT_W, FIXED_MODE_ROOT_H, lay_x, lay_y, lay_w, lay_h);
+        comps,
+        n,
+        0,
+        0,
+        root_w,
+        root_h,
+        lay_x,
+        lay_y,
+        lay_w,
+        lay_h,
+        draw_order);
 
     printf(
-        "main iface %d: component positions (resolved, fixed root %dx%d)\n",
+        "interface %d: root=%dx%d files=%d decoded_ok=%d id_group_match=%d -> %s\n",
         iface,
-        FIXED_MODE_ROOT_W,
-        FIXED_MODE_ROOT_H);
-    for( int fi = 0; fi < n; fi++ )
-    {
-        printf(
-            "  file %d: id=%d x=%d y=%d w=%d h=%d type=%d%s\n",
-            fi,
-            comps[fi].id,
-            lay_x[fi],
-            lay_y[fi],
-            lay_w[fi],
-            lay_h[fi],
-            comps[fi].type,
-            comps[fi].hidden ? " hidden" : "");
-    }
+        root_w,
+        root_h,
+        fl->file_count,
+        decoded,
+        in_group,
+        out_path);
 
-    draw_interface_components(cache, comps, n, lay_x, lay_y, lay_w, lay_h, pixels, want_sprites);
+    struct DrawContext dctx = {
+        .cache = cache,
+        .scene = scene,
+        .fixture = fixture.slot_count > 0 ? &fixture : NULL,
+        .obj_icon_cache = &obj_icon_cache,
+        .pixels = pixels,
+        .want_sprites = want_sprites,
+    };
+    draw_interface_components(&dctx, comps, n, lay_x, lay_y, lay_w, lay_h, draw_order);
 
     for( int mi = 0; mi < mount_count; mi++ )
     {
         int cf = mounts[mi].child_file_index;
         if( cf < 0 || cf >= n )
-        {
-            fprintf(stderr, "mount: skip out-of-range child file index %d\n", cf);
             continue;
-        }
         render_mounted_interface(
             cache,
+            scene,
+            fixture.slot_count > 0 ? &fixture : NULL,
+            &obj_icon_cache,
             mounts[mi].iface_id,
             lay_x[cf],
             lay_y[cf],
@@ -690,6 +818,8 @@ main(
             want_sprites);
     }
 
+    bmp_write_file(out_path, pixels, CANVAS_W, CANVAS_H);
+
     for( int fi = 0; fi < n; fi++ )
         Component_free(&comps[fi]);
     free(comps);
@@ -697,20 +827,14 @@ main(
     free(lay_y);
     free(lay_w);
     free(lay_h);
-
-    printf(
-        "interface %d: files=%d decoded_ok=%d id_group_match=%d -> %s\n",
-        iface,
-        fl->file_count,
-        decoded,
-        in_group,
-        out_path);
-
-    bmp_write_file(out_path, pixels, CANVAS_W, CANVAS_H);
-
+    free(draw_order);
     free(pixels);
     RSCacheShared_FileListFree(fl);
     RSCacheDat2Disk_ArchiveFree(arch);
+    if( scene )
+        ToriDraw_SceneFree(scene);
+    interface161_obj_icon_cache_free(obj_icon_cache);
     RSCacheDat2Disk_Free(cache);
+    interface161_fixture_free(&fixture);
     return 0;
 }

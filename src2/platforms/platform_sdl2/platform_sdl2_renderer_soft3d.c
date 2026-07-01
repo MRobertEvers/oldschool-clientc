@@ -8,8 +8,8 @@
 #include "libtorirs_internal.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw.h"
-#include "toridraw/toridraw_sprite.h"
 #include "toridraw/toridraw_font.h"
+#include "toridraw/toridraw_sprite.h"
 #include <SDL_render.h>
 
 #include <SDL.h>
@@ -238,8 +238,7 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 break;
             {
                 draw_model_count++;
-                if( track_element_id >= 0 &&
-                    command.u.model.element_id == track_element_id )
+                if( track_element_id >= 0 && command.u.model.element_id == track_element_id )
                     track_element_drawn = true;
                 struct ToriDraw_Position tmp_pos = cur_3d.camera_position;
                 struct ToriDraw_ViewPort tmp_vp = cur_3d.view_port;
@@ -298,7 +297,8 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             soft3d_resolve_sprite_array(renderer, draw_context, element_id, &sprites, &count);
             if( !sprites || atlas_index < 0 || atlas_index >= count )
             {
-                fprintf(stderr,
+                fprintf(
+                    stderr,
                     "TORIRSRC_SPRITE: missing sprite array element_id=%d atlas_index=%d "
                     "count=%d\n",
                     element_id,
@@ -310,7 +310,8 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             struct ToriDraw_Sprite* sp = sprites[atlas_index];
             if( !sp || !sp->pixels_argb )
             {
-                fprintf(stderr,
+                fprintf(
+                    stderr,
                     "TORIRSRC_SPRITE: missing sprite pixels element_id=%d atlas_index=%d\n",
                     element_id,
                     atlas_index);
@@ -427,7 +428,8 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             const int font_id = command.u.font.font_id;
             if( font_id < 0 || !command.u.font.text )
             {
-                fprintf(stderr,
+                fprintf(
+                    stderr,
                     "TORIRSRC_FONT: invalid font_id=%d text=%p\n",
                     font_id,
                     (void*)command.u.font.text);
@@ -462,24 +464,24 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 command.u.font.center != 0,
                 command.u.font.shadowed != 0,
                 renderer->pixel_buffer);
-            if( command.u.font.text[0] != '\0' && pixels_written <= 0 )
-            {
-                fprintf(stderr,
-                    "TORIRSRC_FONT: wrote no visible glyph pixels "
-                    "(font_id=%d text=\"%.32s%s\" x=%d y=%d line_height=%d "
-                    "clip=[%d,%d,%d,%d] pixels_written=%d)\n",
-                    font_id,
-                    command.u.font.text,
-                    strlen(command.u.font.text) > 32 ? "..." : "",
-                    command.u.font.x,
-                    command.u.font.y,
-                    font->line_height,
-                    renderer->iface_view_port.clip_left,
-                    renderer->iface_view_port.clip_top,
-                    renderer->iface_view_port.clip_right,
-                    renderer->iface_view_port.clip_bottom,
-                    pixels_written);
-            }
+            // if( command.u.font.text[0] != '\0' && pixels_written <= 0 )
+            // {
+            //     fprintf(stderr,
+            //         "TORIRSRC_FONT: wrote no visible glyph pixels "
+            //         "(font_id=%d text=\"%.32s%s\" x=%d y=%d line_height=%d "
+            //         "clip=[%d,%d,%d,%d] pixels_written=%d)\n",
+            //         font_id,
+            //         command.u.font.text,
+            //         strlen(command.u.font.text) > 32 ? "..." : "",
+            //         command.u.font.x,
+            //         command.u.font.y,
+            //         font->line_height,
+            //         renderer->iface_view_port.clip_left,
+            //         renderer->iface_view_port.clip_top,
+            //         renderer->iface_view_port.clip_right,
+            //         renderer->iface_view_port.clip_bottom,
+            //         pixels_written);
+            // }
             break;
         }
         default:

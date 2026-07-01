@@ -5,4 +5,8 @@
 char const*
 cache_path_resolve_kronos_repo(void);
 
+/** Resolve <repo-root>/cache (must contain main_file_cache.dat2). Returns static buffer or NULL. */
+char const*
+cache_path_resolve_osrs_repo(void);
+
 #endif

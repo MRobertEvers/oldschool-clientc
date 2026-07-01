@@ -53,6 +53,13 @@ resolve_cache_dat_path(
             return kronos;
     }
 
+    if( use_dat2 )
+    {
+        char const* osrs = cache_path_resolve_osrs_repo();
+        if( osrs )
+            return osrs;
+    }
+
     for( int i = 1; i < argc; i++ )
     {
         if( !argv[i] || argv[i][0] == '\0' )
@@ -103,7 +110,9 @@ main(
     bool const use_soft3d = has_flag(argc, argv, "--soft3d");
     bool const use_runescape = has_flag(argc, argv, "--runescape");
     bool const use_kronos = has_flag(argc, argv, "--kronos");
-    bool const use_dat2 = has_flag(argc, argv, "--dat2") || use_kronos;
+    bool const use_dat1 = has_flag(argc, argv, "--dat1");
+    bool const use_dat2 =
+        has_flag(argc, argv, "--dat2") || use_kronos || (use_runescape && !use_dat1);
     int const cache_mode = use_dat2 ? CACHE_MODE_DAT2 : CACHE_MODE_DAT1;
     enum ToriAuxLibCacheMode toriauxlib_mode = use_dat2 ? TORIAUXLIBCACHE_MODE_DAT2 : TORIAUXLIBCACHE_MODE_DAT1;
 

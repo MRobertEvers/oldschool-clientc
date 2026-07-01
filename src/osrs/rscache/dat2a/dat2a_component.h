@@ -138,6 +138,9 @@ typedef struct Component
     int16_t aShort49;
     bool aBoolean411;
     int32_t anInt5957;
+    /** IF3 aspect ratio numerator/denominator (Kronos field2688/field2662). */
+    int32_t aspect_ratio_w;
+    int32_t aspect_ratio_h;
     int32_t anInt5920;
     int32_t anInt5930;
     int32_t anInt5890;

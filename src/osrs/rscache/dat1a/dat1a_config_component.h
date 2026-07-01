@@ -14,6 +14,7 @@ enum RSCacheDat1A_ConfigComponentType
     COMPONENT_TYPE_GRAPHIC = 5,
     COMPONENT_TYPE_MODEL = 6,
     COMPONENT_TYPE_INV_TEXT = 7,
+    COMPONENT_TYPE_LINE = 9,
 };
 
 enum RSCacheDat1A_ConfigComponentButtonType

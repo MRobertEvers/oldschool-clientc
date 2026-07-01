@@ -18,6 +18,7 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -50,6 +51,60 @@ task_dat2_npc_sequence_missing(
     }
 
     return false;
+}
+
+static void
+task_dat2_npc_assert_classic_sequence_frames(
+    struct Dat2BuildCache* dat2_bc,
+    struct RSCacheDat2A_ConfigSequence* seq)
+{
+    assert(dat2_bc && seq);
+
+    if( seq->anim_maya_id >= 0 && seq->frame_count == 0 )
+        return;
+
+    for( int fi = 0; fi < seq->frame_count; fi++ )
+    {
+        int aid = (seq->frame_ids[fi] >> 16) & 0xFFFF;
+        if( aid < 0 )
+            continue;
+        assert(dat2_buildcache_frames_has(dat2_bc, aid) &&
+               "npc classic sequence missing frame archive after IO");
+    }
+}
+
+static void
+task_dat2_npc_submit_sequence_assets(
+    struct Task_Dat2NpcAdd* task,
+    struct Dat2BuildCache* dat2_bc,
+    struct ToriAuxLibCore* core,
+    int seq_id,
+    struct RSCacheDat2A_ConfigSequence* seq)
+{
+    assert(task && dat2_bc && core && seq);
+
+    if( seq->anim_maya_id >= 0 && seq->frame_count == 0 )
+    {
+        if( dat2_buildcache_skeletal_has(dat2_bc, seq->anim_maya_id) )
+            dat2_anim_submit_sequence_skeletal(task->c, dat2_bc, seq);
+        else
+        {
+            fprintf(
+                stderr,
+                "Task_Dat2NpcAdd: npc_id=%d seq_id=%d anim_maya_id=%d animaya_aid=%d not loaded; "
+                "NPC will spawn without this skeletal anim\n",
+                task->npc_id,
+                seq_id,
+                seq->anim_maya_id,
+                seq->anim_maya_id >> 16);
+        }
+    }
+    else
+        task_dat2_npc_assert_classic_sequence_frames(dat2_bc, seq);
+
+    ToriAuxLibCache_SubmitSequenceFromDat2(task->c, seq_id);
+    assert(ToriAuxLibCore_SequenceGet(core, seq_id) &&
+           "npc sequence not in core after submit");
 }
 
 struct Task_Dat2NpcAdd*
@@ -108,8 +163,7 @@ Task_Dat2NpcAdd_Run(
     }
 
     npc = dat2_buildcache_npctype_get(dat2_bc, task->npc_id);
-    if( !npc )
-        PT_EXIT(&task->thread);
+    assert(npc && "npctype missing after IO");
 
     task->npc_anims[0] = npc->standing_animation;
     task->npc_anims[1] = npc->walking_animation;
@@ -158,7 +212,12 @@ Task_Dat2NpcAdd_Run(
     }
 
     for( int i = 0; i < task->model_count; i++ )
-        ToriAuxLibCache_SubmitModelFromDat2(task->c, task->model_ids[i]);
+    {
+        int model_id = task->model_ids[i];
+        assert(dat2_buildcache_model_get(dat2_bc, model_id) && "npc model missing after IO");
+        ToriAuxLibCache_SubmitModelFromDat2(task->c, model_id);
+        assert(ToriAuxLibCore_ModelHas(core, model_id) && "npc model not in core after submit");
+    }
 
     if( task_dat2_npc_sequence_missing(task->c, task->npc_anims, 7) )
     {
@@ -168,50 +227,61 @@ Task_Dat2NpcAdd_Run(
         DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, task->c);
 
         sequence_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Sequence);
-        if( !sequence_archive )
-            PT_EXIT(&task->thread);
+        assert(sequence_archive && "npc sequence config group missing after IO");
 
         struct Dat2AnimArchiveSet aset;
         struct Task_Dat2AnimResolve anim_resolve;
         dat2_anim_archive_set_init(&aset, 32);
         Task_Dat2AnimResolve_Init(&anim_resolve, task->c, dat2_bc);
-        if( aset.ids )
+        assert(aset.ids && "npc anim archive set alloc failed");
+
+        for( int ai = 0; ai < 7; ai++ )
         {
-            for( int ai = 0; ai < 7; ai++ )
-            {
-                int seq_id = task->npc_anims[ai];
-                if( seq_id == -1 )
-                    continue;
+            int seq_id = task->npc_anims[ai];
+            struct RSCacheDat2A_ConfigSequence* seq;
 
-                dat2_buildcache_sequence_load_from_archive(dat2_bc, sequence_archive, seq_id);
+            if( seq_id == -1 )
+                continue;
 
-                struct RSCacheDat2A_ConfigSequence* seq =
-                    dat2_buildcache_sequence_get(dat2_bc, seq_id);
-                if( !seq )
-                    continue;
+            dat2_buildcache_sequence_load_from_archive(dat2_bc, sequence_archive, seq_id);
 
-                dat2_anim_set_add_sequence_archives(&aset, seq);
-                Task_Dat2AnimResolve_AddSequenceId(&anim_resolve, seq_id);
-            }
+            seq = dat2_buildcache_sequence_get(dat2_bc, seq_id);
+            assert(seq && "npc sequence missing after IO");
 
-            Task_Dat2AnimResolve_SetArchiveSet(&anim_resolve, &aset);
-            TASK_AWAIT(&task->thread, Task_Dat2AnimResolve_Run(&anim_resolve, ctx));
-            dat2_anim_submit_all_skeletal(task->c, dat2_bc);
-            dat2_anim_archive_set_free(&aset);
+            dat2_anim_set_add_sequence_archives(&aset, seq);
+            Task_Dat2AnimResolve_AddSequenceId(&anim_resolve, seq_id);
         }
 
-        ToriAuxLibCache_SubmitAllSequencesFromDat2(task->c);
+        Task_Dat2AnimResolve_SetArchiveSet(&anim_resolve, &aset);
+        TASK_AWAIT(&task->thread, Task_Dat2AnimResolve_Run(&anim_resolve, ctx));
+
+        for( int ai = 0; ai < 7; ai++ )
+        {
+            int seq_id = task->npc_anims[ai];
+            struct RSCacheDat2A_ConfigSequence* seq;
+
+            if( seq_id == -1 )
+                continue;
+
+            seq = dat2_buildcache_sequence_get(dat2_bc, seq_id);
+            assert(seq && "npc sequence missing after anim resolve");
+
+            task_dat2_npc_submit_sequence_assets(task, dat2_bc, core, seq_id, seq);
+        }
+
+        dat2_anim_archive_set_free(&aset);
         RSCacheDat2Disk_ArchiveFree(sequence_archive);
         LibToriRS_IOQueueClear(ctx->io);
     }
 
     npc = dat2_buildcache_npctype_get(dat2_bc, task->npc_id);
-    if( npc && !ToriAuxLibCore_NpctypeHas(core, task->npc_id) )
+    assert(npc && "npctype missing after IO");
+    if( !ToriAuxLibCore_NpctypeHas(core, task->npc_id) )
     {
         struct ToriAuxLibCore_Npctype* neutral =
             ToriAuxLibCache_NpctypeNewFromDat2ConfigNpctype(npc, task->npc_id);
-        if( neutral )
-            ToriAuxLibCore_NpctypeAdd(core, task->npc_id, neutral);
+        assert(neutral && "npc npctype core conversion failed");
+        ToriAuxLibCore_NpctypeAdd(core, task->npc_id, neutral);
     }
 
     PT_END(&task->thread);

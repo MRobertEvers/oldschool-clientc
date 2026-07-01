@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdio.h>
 
 static void
 toriauxlibcache_copy_menu_actions(
@@ -818,7 +819,11 @@ toriauxlibcache_component_type_from_raw(int type)
         return TORIAUXLIBCORE_COMPONENT_MODEL;
     case COMPONENT_TYPE_INV_TEXT:
         return TORIAUXLIBCORE_COMPONENT_INV_TEXT;
+    case COMPONENT_TYPE_LINE:
+        return TORIAUXLIBCORE_COMPONENT_LINE;
     default:
+        fprintf(stderr, "toriauxlibcache_component_type_from_raw: unknown dat2 type=%d\n", type);
+        assert(false && "unknown dat2 component type");
         return TORIAUXLIBCORE_COMPONENT_LAYER;
     }
 }
@@ -1108,6 +1113,11 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
     dst->inv_rows = src->baseHeight;
     dst->margin_x = src->marginX;
     dst->margin_y = src->marginY;
+    if( src->type == COMPONENT_TYPE_LINE )
+    {
+        dst->line_width = src->lineWidth > 0 ? src->lineWidth : 1;
+        dst->filled = src->lineDirection ? 1 : 0;
+    }
     dst->hide = src->hidden ? 1 : 0;
     dst->button_type = src->buttonType;
     dst->client_code = src->clientCode;

@@ -102,6 +102,7 @@ Task_Dat2AnimResolve_Run(
 
             struct RSCacheDat2A_ConfigSequence* seq =
                 dat2_buildcache_sequence_get(task->bc, task->seq_ids[task->seq_index]);
+            int const seq_id = task->seq_ids[task->seq_index];
             task->seq_index++;
 
             int maya_id = -1;
@@ -119,7 +120,16 @@ Task_Dat2AnimResolve_Run(
             DAT2_ENSURE_REFERENCE_TABLE(
                 ctx, &task->thread, task->bc, RSCacheDat2Disk_Table_Animayas);
             if( !dat2_buildcache_reference_table_has(task->bc, RSCacheDat2Disk_Table_Animayas) )
+            {
+                fprintf(
+                    stderr,
+                    "Task_Dat2AnimResolve: Animayas reference table missing for "
+                    "maya_id=%d animaya_aid=%d seq_id=%d\n",
+                    maya_id,
+                    animaya_aid,
+                    seq_id);
                 continue;
+            }
 
             IO_REQUEST(
                 ctx, 0, TAPIDat2_FetchArchive(ctx, RSCacheDat2Disk_Table_Animayas, animaya_aid));
@@ -128,6 +138,17 @@ Task_Dat2AnimResolve_Run(
             animaya_aid = maya_id >> 16;
             animaya_arch =
                 TAPIDat2_DecodeArchive(ctx, 0, RSCacheDat2Disk_Table_Animayas, animaya_aid);
+            if( !animaya_arch )
+            {
+                fprintf(
+                    stderr,
+                    "Task_Dat2AnimResolve: failed to load animaya table=%d archive=%d "
+                    "maya_id=%d seq_id=%d\n",
+                    RSCacheDat2Disk_Table_Animayas,
+                    animaya_aid,
+                    maya_id,
+                    seq_id);
+            }
             if( animaya_arch )
             {
                 struct RSCacheDat2Disk_ReferenceTable* animaya_table =
@@ -156,7 +177,28 @@ Task_Dat2AnimResolve_Run(
                                 task->bc, maya->base_id, skel_base_arch);
                             RSCacheDat2Disk_ArchiveFree(skel_base_arch);
                         }
+                        else
+                        {
+                            fprintf(
+                                stderr,
+                                "Task_Dat2AnimResolve: failed to load skeletal base table=%d "
+                                "archive=%d maya_id=%d seq_id=%d\n",
+                                RSCacheDat2Disk_Table_Skeletons,
+                                maya->base_id,
+                                maya_id,
+                                seq_id);
+                        }
                     }
+                }
+                else
+                {
+                    fprintf(
+                        stderr,
+                        "Task_Dat2AnimResolve: failed to decode animaya maya_id=%d "
+                        "animaya_aid=%d seq_id=%d\n",
+                        maya_id,
+                        animaya_aid,
+                        seq_id);
                 }
             }
             LibToriRS_IOQueueClear(ctx->io);
@@ -185,6 +227,8 @@ Task_Dat2AnimResolve_Run(
                 task->current_aid = task->aset.ids[task->archive_index];
                 if( dat2_buildcache_frames_has(task->bc, task->current_aid) )
                 {
+                    assert(dat2_buildcache_frames_has(task->bc, task->current_aid) &&
+                           "frames missing before submit");
                     ToriAuxLibCache_SubmitAnimationFromDat2(task->c, task->current_aid);
                     task->archive_index++;
                     continue;
@@ -317,8 +361,12 @@ Task_Dat2AnimResolve_Run(
                     }
                 }
 
-                if( loaded && dat2_buildcache_frames_has(task->bc, task->current_aid) )
+                if( loaded )
+                {
+                    assert(dat2_buildcache_frames_has(task->bc, task->current_aid) &&
+                           "frames missing before submit after decode");
                     ToriAuxLibCache_SubmitAnimationFromDat2(task->c, task->current_aid);
+                }
 
                 task->archive_index++;
                 task_dat2_anim_reset_load_state(task);

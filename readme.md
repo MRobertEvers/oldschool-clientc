@@ -1980,3 +1980,110 @@ Likewise, for Task_InstanceOnRCInv
 there should be a Task_RSInvLoad that is structured similarly to Task_RSComponentLoad
 
 For Task_InstanceOnRCCacheSprite, it should load the sprite information into a named lookup.
+
+## Kronos Interfaces
+
+```
+On player connect, tab interfaces are set in DisplayHandler.sendDisplay(), which runs the first time the client sends its display-mode packet (opcode 72) — before player.start() and login listeners.
+
+
+DisplayHandler.java
+Lines 25-28
+        if(!player.hasDisplay()) {
+            player.setDisplayMode(displayMode);
+            sendDisplay(player);
+            player.start();
+Sidebar tab interfaces (gameframe 165)
+Each row is: tab → interface ID (constant name).
+
+Tab	Interface ID	Constant
+Combat
+593
+COMBAT_OPTIONS
+Stats
+320
+SKILLS
+Quest
+720
+NOTICEBOARD (custom, not vanilla quest journal)
+Inventory
+149
+INVENTORY
+Equipment
+387
+EQUIPMENT
+Prayer
+541
+PRAYER
+Spellbook
+218
+MAGIC_BOOK
+Clan Chat
+7
+CLAN_CHAT
+Account Management
+720
+NOTICEBOARD (custom)
+Friends / Ignore
+429 or 432
+FRIENDS_LIST or IGNORE_LIST
+Logout
+182
+LOGOUT
+Options
+261
+OPTIONS
+Emotes
+216
+EMOTE
+Music
+239
+MUSIC_PLAYER
+The mapping comes from sendInterface(interfaceId, 165, childId, 1) calls in sendDisplay():
+
+
+DisplayHandler.java
+Lines 53-68
+        ps.sendInterface(320, 165, 9, 1);
+        ps.sendInterface(Interface.NOTICEBOARD, 165, 10, 1);
+        ps.sendInterface(399, 629, 2, 1);
+        ps.sendInterface(149, 165, 11, 1);
+        ps.sendInterface(387, 165, 12, 1);
+        ps.sendInterface(541, 165, 13, 1);
+        ps.sendInterface(218, 165, 14, 1);
+        ps.sendInterface(Config.FRIENDS_AND_IGNORE_TOGGLE.get(player) == 0 ? Interface.FRIENDS_LIST : Interface.IGNORE_LIST, 165, 17, 1);
+        ps.sendInterface(Interface.NOTICEBOARD, 165, 16, 1);
+        ps.sendInterface(182, 165, 18, 1);
+        ps.sendInterface(261, 165, 19, 1);
+        ps.sendInterface(216, 165, 20, 1);
+        ps.sendInterface(239, 165, 21, 1);
+        ps.sendInterface(7, 165, 15, 1);
+        ps.sendInterface(COMBAT_OPTIONS, 165, 8, 1);
+Conditional / extra UI on connect
+Element	Interface	Condition
+Chat bar
+162 (CHAT_BAR)
+Always
+Private chat
+163 (PRIVATE_CHAT)
+Always
+Minimap orbs
+160 (ORBS)
+DATA_ORBS == 0 (default 0 → shown)
+XP counter
+122 (EXPERIENCE_COUNTER)
+XP_COUNTER_SHOWN == 1 (default 0 → hidden)
+Quest list shell
+399 (QUEST) on parent 629
+Always loaded, but Quest tab shows NOTICEBOARD
+Friends tab: FRIENDS_AND_IGNORE_TOGGLE == 0 → Friends (429); == 1 → Ignore (432). Default is 0 → Friends.
+
+Game frame after tabs load
+After attaching interfaces to frame 165, the server switches to the player’s layout:
+
+Fixed: 548
+Resizable with side panels: 164 (SIDE_PANELS == 1)
+Resizable without side panels: 161
+Sub-interfaces are moved via enum maps 1129–1132.
+
+```

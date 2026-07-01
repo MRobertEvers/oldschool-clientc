@@ -11,6 +11,7 @@
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "osrs/rscache/shared/shared_rs_buffer.h"
 #include "osrs/rscache/dat2a/dat2a_component.h"
+#include "ui/ui_if3_layout.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -20,57 +21,8 @@
 enum
 {
     FIXED_MODE_ROOT_W = 765,
-    FIXED_MODE_ROOT_H = 503,
-    RS_LAYOUT_UNITS = 16384
+    FIXED_MODE_ROOT_H = 503
 };
-
-static int
-dim_from_parent_mode(
-    int8_t mode,
-    int orig,
-    int parent_dim)
-{
-    switch( mode )
-    {
-    case 0:
-        return orig;
-    case 1:
-        return parent_dim - orig;
-    case 2:
-        return (int)((int64_t)parent_dim * (int64_t)orig / RS_LAYOUT_UNITS);
-    default:
-        return orig;
-    }
-}
-
-static int
-axis_from_position_mode(
-    int8_t mode,
-    int base,
-    int parent_origin,
-    int parent_dim,
-    int self_dim)
-{
-    switch( mode )
-    {
-    case 0:
-        return parent_origin + base;
-    case 1:
-        return parent_origin + (parent_dim - self_dim) / 2 + base;
-    case 2:
-        return parent_origin + parent_dim - base - self_dim;
-    case 3:
-        return parent_origin + (int)((int64_t)parent_dim * (int64_t)base / RS_LAYOUT_UNITS);
-    case 4:
-        return parent_origin + (parent_dim - self_dim) / 2 +
-               (int)((int64_t)parent_dim * (int64_t)base / RS_LAYOUT_UNITS);
-    case 5:
-        return parent_origin + parent_dim -
-               (int)((int64_t)parent_dim * (int64_t)base / RS_LAYOUT_UNITS) - self_dim;
-    default:
-        return parent_origin + base;
-    }
-}
 
 static int
 decode_component_from_bytes(
@@ -193,16 +145,32 @@ resolve_interface_layout(
             continue;
         }
 
-        int w = dim_from_parent_mode(comps[i].widthMode, comps[i].baseWidth, pw);
-        int h = dim_from_parent_mode(comps[i].heightMode, comps[i].baseHeight, ph);
-        if( w < 0 )
-            w = 0;
-        if( h < 0 )
-            h = 0;
+        int rel_x = 0;
+        int rel_y = 0;
+        int w = 0;
+        int h = 0;
+        ui_if3_component_parent_relative_layout(
+            1,
+            comps[i].widthMode,
+            comps[i].heightMode,
+            comps[i].xMode,
+            comps[i].yMode,
+            comps[i].baseX,
+            comps[i].baseY,
+            comps[i].baseWidth,
+            comps[i].baseHeight,
+            comps[i].aspect_ratio_w,
+            comps[i].aspect_ratio_h,
+            pw,
+            ph,
+            &rel_x,
+            &rel_y,
+            &w,
+            &h);
         out_w[i] = w;
         out_h[i] = h;
-        out_x[i] = axis_from_position_mode(comps[i].xMode, comps[i].baseX, px, pw, w);
-        out_y[i] = axis_from_position_mode(comps[i].yMode, comps[i].baseY, py, ph, h);
+        out_x[i] = px + rel_x;
+        out_y[i] = py + rel_y;
     }
 
     free(parent_idx);

@@ -7,16 +7,18 @@
 #include "games/runescape.h"
 #include "osrs/minimenu_action.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
-#include "toriauxlib/core/toriauxlibcore.h"
+#include "osrs/rscache/dat2a/dat2a_component.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_sprite.h"
+#include "ui/ui_behavior.h"
+#include "ui/ui_debug.h"
+#include "ui/ui_if3_layout.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
-#include "ui/ui_behavior.h"
 #include "vm/cs2vm.h"
-#include "ui/ui_debug.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -126,7 +128,8 @@ instance_revconfig_assert_sprite_atlas(
     if( atlas_index < 0 || atlas_index >= sprite_count || !sprites || !sprites[atlas_index] ||
         !sprites[atlas_index]->pixels_argb )
     {
-        fprintf(stderr,
+        fprintf(
+            stderr,
             "instance_revconfig_assert_sprite_atlas: invalid atlas scene_id=%d "
             "atlas_index=%d count=%d sprite_ref=%s (%s)\n",
             scene_id,
@@ -135,8 +138,8 @@ instance_revconfig_assert_sprite_atlas(
             sprite_ref && sprite_ref[0] ? sprite_ref : "(none)",
             context ? context : "(null)");
         assert(
-            sprites && atlas_index >= 0 && atlas_index < sprite_count &&
-            sprites[atlas_index] && sprites[atlas_index]->pixels_argb);
+            sprites && atlas_index >= 0 && atlas_index < sprite_count && sprites[atlas_index] &&
+            sprites[atlas_index]->pixels_argb);
     }
 }
 
@@ -153,6 +156,156 @@ instance_revconfig_register_baked_sprite(
     return element_id;
 }
 
+void
+instance_revconfig_register_dynamic_sprite(
+    struct InstanceRevConfigContext* ctx,
+    int element_id,
+    struct ToriAuxLibCore_Sprite* sprite,
+    char const* lookup_name,
+    int atlas_count)
+{
+    assert(ctx && ctx->cache && sprite && lookup_name && ctx->game && ctx->game->td);
+
+    ToriAuxLibCache_SubmitSprite(ctx->cache, element_id, sprite);
+    bool const promoted = ToriAuxLibTD_Sprite(ctx->game->td, element_id);
+    assert(promoted && "ToriAuxLibTD_Sprite failed for dynamic sprite");
+    ui_sprite_lookup_add(&ctx->sprite_lookup, lookup_name, element_id, atlas_count);
+}
+
+struct InstanceRevConfigRsBakeDimMap
+{
+    int component_id;
+    int w;
+    int h;
+};
+
+static void
+instance_revconfig_dat2_sprite_ref_from_id(
+    int sprite_id,
+    char* out,
+    size_t out_size)
+{
+    if( !out || out_size == 0 )
+        return;
+    if( sprite_id < 0 )
+    {
+        out[0] = '\0';
+        return;
+    }
+    snprintf(out, out_size, "spr:%d", sprite_id);
+}
+
+int
+instance_revconfig_dat2_ensure_sprite_id(
+    struct InstanceRevConfigContext* ctx,
+    int sprite_id)
+{
+    assert(ctx);
+    if( sprite_id < 0 || !ctx->dat2_bc )
+        return -1;
+
+    char ref[64];
+    instance_revconfig_dat2_sprite_ref_from_id(sprite_id, ref, sizeof(ref));
+    if( ref[0] == '\0' )
+        return -1;
+
+    return instance_revconfig_dat2_ensure_sprite_ref(ctx, ref);
+}
+
+int
+instance_revconfig_dat2_ensure_sprite_ref(
+    struct InstanceRevConfigContext* ctx,
+    char const* sprite_ref)
+{
+    if( !ctx || !sprite_ref || !sprite_ref[0] )
+        return -1;
+
+    int atlas = 0;
+    int existing = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, sprite_ref, &atlas);
+    if( existing >= 0 )
+        return existing;
+
+    if( !ctx->dat2_bc || strncmp(sprite_ref, "spr:", 4) != 0 )
+        return -1;
+
+    int sprite_id = atoi(sprite_ref + 4);
+    if( sprite_id < 0 )
+        return -1;
+
+    struct ToriAuxLibCore_Sprite* sprite =
+        dat2_buildcache_dynamic_sprite_release(ctx->dat2_bc, sprite_id);
+    if( !sprite || sprite->frame_count <= 0 )
+    {
+        fprintf(
+            stderr,
+            "instance_revconfig_dat2_ensure_sprite_ref: sprite not in prefetch cache "
+            "sprite_id=%d ref=%s\n",
+            sprite_id,
+            sprite_ref);
+        ToriAuxLibCore_SpriteFree(sprite);
+        return -1;
+    }
+
+    int element_id = ctx->next_element_id++;
+    instance_revconfig_register_dynamic_sprite(
+        ctx, element_id, sprite, sprite_ref, sprite->frame_count);
+    return element_id;
+}
+
+static Component*
+instance_revconfig_dat2_get_component(
+    struct Dat2BuildCache_InterfaceArchive* archive,
+    int component_id)
+{
+    if( !archive || component_id < 0 )
+        return NULL;
+
+    int file_index = component_id & 0xFFFF;
+    if( file_index >= 0 && file_index < archive->component_count &&
+        archive->components[file_index] && archive->components[file_index]->id == component_id )
+        return archive->components[file_index];
+
+    for( int i = 0; i < archive->component_count; i++ )
+    {
+        Component* c = archive->components[i];
+        if( c && c->id == component_id )
+            return c;
+    }
+    return NULL;
+}
+
+static int
+instance_revconfig_rs_bake_parent_dims(
+    struct InstanceRevConfigRsBakeDimMap const* dim_map,
+    int dim_map_count,
+    int parent_id,
+    int panel_w,
+    int panel_h,
+    int* out_w,
+    int* out_h)
+{
+    if( parent_id < 0 )
+    {
+        *out_w = panel_w;
+        *out_h = panel_h;
+        return 0;
+    }
+
+    for( int d = 0; d < dim_map_count; d++ )
+    {
+        if( dim_map[d].component_id == parent_id )
+        {
+            *out_w = dim_map[d].w;
+            *out_h = dim_map[d].h;
+            return 0;
+        }
+    }
+
+    *out_w = panel_w;
+    *out_h = panel_h;
+    return -1;
+}
+
 static void
 instance_revconfig_assert_model_in_scene(
     struct InstanceRevConfigContext const* ctx,
@@ -166,7 +319,8 @@ instance_revconfig_assert_model_in_scene(
 
     if( !ToriDraw_SceneModelHas(ctx->scene, model_id) )
     {
-        fprintf(stderr,
+        fprintf(
+            stderr,
             "instance_revconfig_assert_model_in_scene: model not in scene "
             "model_id=%d component_id=%d\n",
             model_id,
@@ -175,6 +329,12 @@ instance_revconfig_assert_model_in_scene(
             ToriDraw_SceneModelHas(ctx->scene, model_id) &&
             "MODEL component model not in scene after RS component load");
     }
+}
+
+static bool
+instance_revconfig_comp_is_sidebar(struct RevConfigUIComponentItem const* comp)
+{
+    return comp && strcmp(comp->type, "sidebar") == 0;
 }
 
 static int32_t
@@ -220,10 +380,7 @@ instance_revconfig_bake_rs_component(
     {
         if( info->ops[i][0] != '\0' )
         {
-            strncpy(
-                spec.menu_options.ops[i],
-                info->ops[i],
-                sizeof(spec.menu_options.ops[i]) - 1);
+            strncpy(spec.menu_options.ops[i], info->ops[i], sizeof(spec.menu_options.ops[i]) - 1);
         }
     }
     if( info->type == TORIAUXLIBCORE_COMPONENT_INV && info->ops[0][0] != '\0' )
@@ -254,7 +411,8 @@ instance_revconfig_bake_rs_component(
         {
             if( !info->graphic_hitbox_only )
             {
-                fprintf(stderr,
+                fprintf(
+                    stderr,
                     "instance_revconfig_bake_rs_component: sprite resolve failed "
                     "component_id=%d ref=%s active_ref=%s\n",
                     info->id,
@@ -331,14 +489,12 @@ instance_revconfig_bake_rs_component(
         break;
     case TORIAUXLIBCORE_COMPONENT_TEXT:
         spec.type = UIELEM_RS_TEXT;
-        spec.u.rs_text.font_id =
-            instance_revconfig_resolve_rs_text_font_id(ctx, info->font_id);
+        spec.u.rs_text.font_id = instance_revconfig_resolve_rs_text_font_id(ctx, info->font_id);
         spec.u.rs_text.color = info->color;
         spec.u.rs_text.center = info->center;
         spec.u.rs_text.shadowed = info->shadowed;
         spec.u.rs_text.text = info->text[0] != '\0' ? info->text : NULL;
-        spec.u.rs_text.text_active =
-            info->active_text[0] != '\0' ? info->active_text : NULL;
+        spec.u.rs_text.text_active = info->active_text[0] != '\0' ? info->active_text : NULL;
         break;
     case TORIAUXLIBCORE_COMPONENT_INV_TEXT:
         spec.type = UIELEM_RS_INV_TEXT;
@@ -347,8 +503,7 @@ instance_revconfig_bake_rs_component(
         spec.u.rs_inv_text.rows = info->inv_rows;
         spec.u.rs_inv_text.margin_x = info->margin_x;
         spec.u.rs_inv_text.margin_y = info->margin_y;
-        spec.u.rs_inv_text.font_id =
-            instance_revconfig_resolve_rs_text_font_id(ctx, info->font_id);
+        spec.u.rs_inv_text.font_id = instance_revconfig_resolve_rs_text_font_id(ctx, info->font_id);
         spec.u.rs_inv_text.color = info->color;
         spec.u.rs_inv_text.center = info->center;
         spec.u.rs_inv_text.shadowed = info->shadowed;
@@ -421,7 +576,8 @@ instance_revconfig_bake_rs_component(
 
             if( !sprite )
             {
-                fprintf(stderr,
+                fprintf(
+                    stderr,
                     "instance_revconfig_bake_rs_component: widget model sprite failed "
                     "component_id=%d model_id=%d model_type=%d\n",
                     info->id,
@@ -439,8 +595,7 @@ instance_revconfig_bake_rs_component(
                 return -1;
             }
 
-            instance_revconfig_assert_sprite_atlas(
-                ctx, scene_id, 0, widget_ref, "rs_model sprite");
+            instance_revconfig_assert_sprite_atlas(ctx, scene_id, 0, widget_ref, "rs_model sprite");
 
             ui_sprite_lookup_add(&ctx->sprite_lookup, widget_ref, scene_id, 1);
 
@@ -462,7 +617,8 @@ instance_revconfig_bake_rs_component(
         }
         else
         {
-            fprintf(stderr,
+            fprintf(
+                stderr,
                 "instance_revconfig_bake_rs_component: unsupported MODEL model_type=%d "
                 "component_id=%d model_id=%d\n",
                 info->model_type,
@@ -472,6 +628,12 @@ instance_revconfig_bake_rs_component(
             return -1;
         }
         break;
+    case TORIAUXLIBCORE_COMPONENT_LINE:
+        spec.type = UIELEM_RS_LINE;
+        spec.u.rs_line.color = info->color;
+        spec.u.rs_line.line_width = info->line_width > 0 ? info->line_width : 1;
+        spec.u.rs_line.horizontal = info->filled ? 1 : 0;
+        break;
     case TORIAUXLIBCORE_COMPONENT_INV:
         spec.type = UIELEM_RS_INV;
         spec.u.rs_inv.inv_index = inv_index;
@@ -479,6 +641,16 @@ instance_revconfig_bake_rs_component(
         spec.u.rs_inv.rows = info->inv_rows;
         spec.u.rs_inv.margin_x = info->margin_x;
         spec.u.rs_inv.margin_y = info->margin_y;
+
+        {
+            int const cols = info->inv_cols;
+            int const rows = info->inv_rows;
+            int const pitch_x = info->margin_x + 32;
+            int const pitch_y = info->margin_y + 32;
+            spec.width = cols > 0 ? (cols * pitch_x - info->margin_x) : pitch_x;
+            spec.height = rows > 0 ? (rows * pitch_y - info->margin_y) : pitch_y;
+        }
+        spec.always_dirty = 1;
 
         for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
         {
@@ -489,6 +661,9 @@ instance_revconfig_bake_rs_component(
 
             int sid = ui_sprite_lookup_resolve_ref(
                 &ctx->sprite_lookup, info->inv_slot_sprite_ref[si], &inv_bg_ai[si]);
+            if( sid < 0 && ctx->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
+                sid = instance_revconfig_dat2_ensure_sprite_ref(
+                    ctx, info->inv_slot_sprite_ref[si]);
             if( sid < 0 )
             {
                 fprintf(
@@ -502,11 +677,7 @@ instance_revconfig_bake_rs_component(
             }
             inv_bg_sid[si] = sid;
             instance_revconfig_assert_sprite_atlas(
-                ctx,
-                sid,
-                inv_bg_ai[si],
-                info->inv_slot_sprite_ref[si],
-                "rs_inv slot bg");
+                ctx, sid, inv_bg_ai[si], info->inv_slot_sprite_ref[si], "rs_inv slot bg");
         }
 
         spec.u.rs_inv.inv_slot_offset_x = info->inv_slot_offset_x;
@@ -566,8 +737,7 @@ instance_revconfig_bake_rs_component(
         if( core_has_menu && !uitree_component_has_menu_options(&probe) )
         {
             ui_minimenu_debug_log(
-                "WARN bake rs_id=%d core had option/ops but baked menu_options empty",
-                info->id);
+                "WARN bake rs_id=%d core had option/ops but baked menu_options empty", info->id);
         }
     }
 
@@ -601,6 +771,7 @@ void
 instance_revconfig_bake_rs_subtree(
     struct InstanceRevConfigContext* ctx,
     struct RevConfigUIComponentItem const* comp,
+    struct RevConfigUILayoutItem const* layout,
     int32_t owner_uitree_index)
 {
     assert(ctx && comp && owner_uitree_index >= 0);
@@ -608,6 +779,15 @@ instance_revconfig_bake_rs_subtree(
     struct InstanceRevConfigRSSubtree* subtree =
         instance_revconfig_rs_subtree_find(ctx, comp->name);
     assert(subtree && subtree->item_count > 0);
+
+    int const panel_w =
+        layout && layout->width > 0 ? layout->width : UITREE_SIDEBAR_PANEL_W;
+    int const panel_h =
+        layout && layout->height > 0 ? layout->height : UITREE_SIDEBAR_PANEL_H;
+
+    struct Dat2BuildCache_InterfaceArchive* iface_archive = NULL;
+    if( ctx->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 && ctx->dat2_bc && comp->componentno >= 0 )
+        iface_archive = dat2_buildcache_interface_archive_get(ctx->dat2_bc, comp->componentno);
 
     int inv_index = -1;
     if( comp->inv[0] != '\0' && ctx->inv_pool )
@@ -617,8 +797,11 @@ instance_revconfig_bake_rs_subtree(
 
     struct InstanceRevConfigRsBakeIdMap id_map[INSTANCE_RC_MAX_RS_SUBTREE_ITEMS];
     int id_map_count = 0;
+    struct InstanceRevConfigRsBakeDimMap dim_map[INSTANCE_RC_MAX_RS_SUBTREE_ITEMS];
+    int dim_map_count = 0;
 
     int baked_count = 0;
+    bool const sidebar_owner = instance_revconfig_comp_is_sidebar(comp);
     for( int i = 0; i < subtree->item_count; i++ )
     {
         int component_id = subtree->component_ids[i];
@@ -628,11 +811,44 @@ instance_revconfig_bake_rs_subtree(
             info &&
             "instance_revconfig_bake_rs_subtree: missing core component in rs_subtrees capture");
 
+        if( iface_archive )
+        {
+            Component* dat2_comp = instance_revconfig_dat2_get_component(iface_archive, component_id);
+            if( dat2_comp )
+            {
+                int parent_w = panel_w;
+                int parent_h = panel_h;
+                instance_revconfig_rs_bake_parent_dims(
+                    dim_map,
+                    dim_map_count,
+                    subtree->parent_ids[i],
+                    panel_w,
+                    panel_h,
+                    &parent_w,
+                    &parent_h);
+
+                int rel_x = 0;
+                int rel_y = 0;
+                int width = 0;
+                int height = 0;
+                ui_if3_dat2_component_parent_relative_layout(
+                    dat2_comp, parent_w, parent_h, &rel_x, &rel_y, &width, &height);
+
+                info->rel_x = rel_x;
+                info->rel_y = rel_y;
+                info->width = width;
+                info->height = height;
+
+                assert(dim_map_count < INSTANCE_RC_MAX_RS_SUBTREE_ITEMS);
+                dim_map[dim_map_count].component_id = component_id;
+                dim_map[dim_map_count].w = width;
+                dim_map[dim_map_count].h = height;
+                dim_map_count++;
+            }
+        }
+
         ToriAuxLibCore_ComponentApplyWalkLayout(
-            info,
-            subtree->parent_ids[i],
-            subtree->rel_x[i],
-            subtree->rel_y[i]);
+            info, subtree->parent_ids[i], info->rel_x, info->rel_y);
 
         int32_t parent_idx = owner_uitree_index;
         if( subtree->parent_ids[i] >= 0 )
@@ -646,16 +862,17 @@ instance_revconfig_bake_rs_subtree(
                 fprintf(
                     stderr,
                     "instance_revconfig_bake_rs_subtree: parent lookup failed owner=%s "
-                    "component_id=%d parent_id=%d (attaching to sidebar owner)\n",
+                    "component_id=%d parent_id=%d\n",
                     comp->name,
                     info->id,
                     subtree->parent_ids[i]);
+                assert(mapped >= 0 && "instance_revconfig_bake_rs_subtree: parent lookup failed");
             }
         }
 
         if( ui_minimenu_debug_enabled() && info->type == TORIAUXLIBCORE_COMPONENT_TEXT &&
-            subtree->parent_ids[i] >= 0 && ctx->tree &&
-            parent_idx >= 0 && (uint32_t)parent_idx < ctx->tree->component_count )
+            subtree->parent_ids[i] >= 0 && ctx->tree && parent_idx >= 0 &&
+            (uint32_t)parent_idx < ctx->tree->component_count )
         {
             enum StaticUIComponentType parent_type = ctx->tree->components[parent_idx].type;
             if( parent_type != UIELEM_RS_LAYER )
@@ -689,13 +906,15 @@ instance_revconfig_bake_rs_subtree(
             if( info->type == TORIAUXLIBCORE_COMPONENT_GRAPHIC &&
                 (info->sprite_ref[0] != '\0' || info->sprite_active_ref[0] != '\0') )
                 reason = "sprite resolve failed";
-            else if( info->type != TORIAUXLIBCORE_COMPONENT_LAYER &&
-                      info->type != TORIAUXLIBCORE_COMPONENT_GRAPHIC &&
-                      info->type != TORIAUXLIBCORE_COMPONENT_RECT &&
-                      info->type != TORIAUXLIBCORE_COMPONENT_TEXT &&
-                      info->type != TORIAUXLIBCORE_COMPONENT_INV_TEXT &&
-                      info->type != TORIAUXLIBCORE_COMPONENT_MODEL &&
-                      info->type != TORIAUXLIBCORE_COMPONENT_INV )
+            else if(
+                info->type != TORIAUXLIBCORE_COMPONENT_LAYER &&
+                info->type != TORIAUXLIBCORE_COMPONENT_GRAPHIC &&
+                info->type != TORIAUXLIBCORE_COMPONENT_RECT &&
+                info->type != TORIAUXLIBCORE_COMPONENT_TEXT &&
+                info->type != TORIAUXLIBCORE_COMPONENT_INV_TEXT &&
+                info->type != TORIAUXLIBCORE_COMPONENT_MODEL &&
+                info->type != TORIAUXLIBCORE_COMPONENT_INV &&
+                info->type != TORIAUXLIBCORE_COMPONENT_LINE )
                 reason = "unknown type";
             fprintf(
                 stderr,
@@ -703,6 +922,10 @@ instance_revconfig_bake_rs_subtree(
                 info->id,
                 (int)info->type,
                 reason);
+            if( sidebar_owner )
+            {
+                assert(idx >= 0 && "instance_revconfig_bake_rs_subtree: sidebar child bake failed");
+            }
             continue;
         }
 
@@ -720,6 +943,7 @@ instance_revconfig_bake_rs_subtree(
             "instance_revconfig_bake_rs_subtree: no RS nodes baked for owner=%s componentno=%d\n",
             comp->name,
             comp->componentno);
+        assert(!sidebar_owner && "instance_revconfig_bake_rs_subtree: sidebar baked zero RS nodes");
     }
 }
 
@@ -804,7 +1028,8 @@ instance_revconfig_assert_sprites_in_scene(struct InstanceRevConfigContext* ctx)
         {
             if( !sprites[j] || !sprites[j]->pixels_argb )
             {
-                fprintf(stderr,
+                fprintf(
+                    stderr,
                     "revconfig sprite atlas frame missing pixels after load: "
                     "name=%s element_id=%d frame=%d/%d scene_count=%d\n",
                     ctx->sprite_lookup.entries[i].name,
@@ -1084,8 +1309,7 @@ instance_revconfig_resolve_panel_root_for(
         return;
 
     int root = instance_revconfig_resolve_walk_root_id(ifaces, componentno);
-    ctx->panel_root_id[componentno] =
-        root >= 0 ? root : INSTANCE_RC_PANEL_ROOT_INVALID;
+    ctx->panel_root_id[componentno] = root >= 0 ? root : INSTANCE_RC_PANEL_ROOT_INVALID;
 }
 
 void
@@ -1262,11 +1486,15 @@ instance_revconfig_build_layout_node(
         sprite_id = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, comp->sprite, &atlas_index);
         if( sprite_id < 0 )
         {
-            fprintf(stderr,
+            fprintf(
+                stderr,
                 "instance_revconfig_build_layout_node: sprite resolve failed "
                 "component=%s sprite=%s\n",
                 comp->name,
                 comp->sprite);
+            assert(
+                !ctx->revconfig_ingest_complete ||
+                (sprite_id >= 0 && "instance_revconfig_build_layout_node: sprite resolve failed"));
         }
     }
 
@@ -1276,7 +1504,8 @@ instance_revconfig_build_layout_node(
             &ctx->sprite_lookup, comp->sprite_active, &atlas_active_index);
         if( sprite_active_id < 0 )
         {
-            fprintf(stderr,
+            fprintf(
+                stderr,
                 "instance_revconfig_build_layout_node: active sprite resolve failed "
                 "component=%s sprite_active=%s\n",
                 comp->name,
@@ -1374,8 +1603,7 @@ instance_revconfig_build_layout_node(
         break;
     case UIELEM_RS_TEXT:
     {
-        spec.u.rs_text.font_id =
-            instance_revconfig_resolve_rs_text_font_id(ctx, comp->font);
+        spec.u.rs_text.font_id = instance_revconfig_resolve_rs_text_font_id(ctx, comp->font);
         spec.u.rs_text.color = comp->color;
         spec.u.rs_text.center = comp->center ? 1 : 0;
         spec.u.rs_text.shadowed = comp->shadowed ? 1 : 0;
@@ -1441,13 +1669,13 @@ instance_revconfig_build_layout_node(
         if( strcmp(comp->type, "sidebar") == 0 )
         {
             if( ctx->rs_capture_enabled && subtree && subtree->item_count > 0 )
-                instance_revconfig_bake_rs_subtree(ctx, comp, idx);
+                instance_revconfig_bake_rs_subtree(ctx, comp, layout, idx);
             else if( subtree && subtree->item_count > 0 )
-                instance_revconfig_bake_rs_subtree(ctx, comp, idx);
+                instance_revconfig_bake_rs_subtree(ctx, comp, layout, idx);
         }
         else if( subtree && subtree->item_count > 0 )
         {
-            instance_revconfig_bake_rs_subtree(ctx, comp, idx);
+            instance_revconfig_bake_rs_subtree(ctx, comp, layout, idx);
         }
     }
 
@@ -1511,5 +1739,6 @@ instance_revconfig_build_tree(struct InstanceRevConfigContext* ctx)
 
     uitree_mark_all_dirty(ctx->tree);
 
-    return true;
+    assert(built == active_count && "instance_revconfig_build_tree: incomplete layout build");
+    return built == active_count;
 }

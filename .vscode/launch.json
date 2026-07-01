@@ -151,7 +151,7 @@
       "name": "(lldb) Launch interface161_test",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/interface161_test",
+      "program": "${workspaceFolder}/tools/interface161_test/interface161_test",
       "args": [
         "${workspaceFolder}/cache",
         "--iface",
@@ -160,7 +160,7 @@
         "${workspaceFolder}/build/interface161_test.bmp"
       ],
       "stopAtEntry": false,
-      "cwd": "${workspaceFolder}/build",
+      "cwd": "${workspaceFolder}",
       "externalConsole": false,
       "MIMode": "lldb",
       "setupCommands": [

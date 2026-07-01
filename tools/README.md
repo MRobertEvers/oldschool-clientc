@@ -94,13 +94,11 @@ See `src/osrs/revconfig/configs/cullmaps/README.md` for options. Keep `BAKE_*` /
 
 ## `interface161_test/`
 
-CMake target `interface161_test` (see root `CMakeLists.txt`) plus a **Makefile** wrapper and **`run_interfaces_1_500.mjs`** to export interface BMPs from a cache.
+Standalone **Makefile** build and **`run_interfaces_1_500.mjs`** to export interface BMPs from a cache.
 
 **Build:**
 
 ```bash
-cmake --build build --target interface161_test
-# or:
 make -C tools/interface161_test
 ```
 
@@ -109,3 +107,15 @@ make -C tools/interface161_test
 ```bash
 node tools/interface161_test/run_interfaces_1_500.mjs /path/to/cache [--out-dir DIR] [--binary PATH]
 ```
+
+**Single interface (Kronos Equipment, archive 387):**
+
+```bash
+./tools/interface161_test/interface161_test cache.kronos --iface 387 --sprites \
+  --fixture tools/interface161_test/fixtures/equipment_387.json \
+  build/interface_387.bmp
+```
+
+Interface 387 is the Kronos Equipment panel (sidebar tab 4; `componentno=387` in `rev_kronos_ui.ini`). Requires `cache.kronos/` at repo root.
+
+Draws type 2 (inventory slot backgrounds), type 3 (rect fill/outline), and type 5 (sprites). Equipment slot widgets (type 0) are empty unless `--fixture` supplies sample obj ids. Without `--fixture`, worn items only appear at runtime in the live client.

@@ -1939,7 +1939,7 @@ test_sidebar_tab_inv_binding(void)
     TEST_ASSERT(subtree != NULL, "rs subtree create");
     instance_revconfig_rs_subtree_append(subtree, 100, -1, 0, 0);
 
-    instance_revconfig_bake_rs_subtree(&ctx, &sidebar_comp, owner_idx);
+    instance_revconfig_bake_rs_subtree(&ctx, &sidebar_comp, NULL, owner_idx);
 
     bool found_inv = false;
     for( uint32_t i = 0; i < tree->component_count; i++ )
@@ -2196,7 +2196,7 @@ test_hitbox_only_graphic_bake(void)
         instance_revconfig_rs_subtree_get_or_create(&ctx, owner_comp.name);
     instance_revconfig_rs_subtree_append(subtree, 130, -1, 0, 0);
 
-    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, owner_idx);
+    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, NULL, owner_idx);
 
     bool found = false;
     for( uint32_t i = 0; i < tree->component_count; i++ )
@@ -2271,7 +2271,7 @@ test_rs_graphic_active_inactive_bake(void)
     struct InstanceRevConfigRSSubtree* subtree =
         instance_revconfig_rs_subtree_get_or_create(&ctx, owner_comp.name);
     instance_revconfig_rs_subtree_append(subtree, 200, -1, 0, 0);
-    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, owner_idx);
+    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, NULL, owner_idx);
 
     bool found = false;
     for( uint32_t i = 0; i < tree->component_count; i++ )
@@ -2335,7 +2335,7 @@ test_rs_graphic_active_only_no_inactive_fallback(void)
     struct InstanceRevConfigRSSubtree* subtree =
         instance_revconfig_rs_subtree_get_or_create(&ctx, owner_comp.name);
     instance_revconfig_rs_subtree_append(subtree, 201, -1, 0, 0);
-    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, owner_idx);
+    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, NULL, owner_idx);
 
     bool found = false;
     for( uint32_t i = 0; i < tree->component_count; i++ )
@@ -2445,7 +2445,7 @@ test_bake_over_color_without_scripts(void)
     struct InstanceRevConfigRSSubtree* subtree =
         instance_revconfig_rs_subtree_get_or_create(&ctx, owner_comp.name);
     instance_revconfig_rs_subtree_append(subtree, 140, -1, 0, 0);
-    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, owner_idx);
+    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, NULL, owner_idx);
 
     bool found = false;
     for( uint32_t i = 0; i < tree->component_count; i++ )
@@ -2506,7 +2506,7 @@ test_bake_layer_scroll_height(void)
     struct InstanceRevConfigRSSubtree* subtree =
         instance_revconfig_rs_subtree_get_or_create(&ctx, owner_comp.name);
     instance_revconfig_rs_subtree_append(subtree, 150, -1, 0, 0);
-    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, owner_idx);
+    instance_revconfig_bake_rs_subtree(&ctx, &owner_comp, NULL, owner_idx);
 
     bool found = false;
     for( uint32_t i = 0; i < tree->component_count; i++ )

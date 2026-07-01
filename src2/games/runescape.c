@@ -2420,6 +2420,23 @@ GameRunescape_EmitUIComponent(
             if( scene_id < 0 )
                 return false;
         }
+        if( (bw <= 0 || bh <= 0) && scene_id >= 0 && game->scene )
+        {
+            int sprite_count = 0;
+            struct ToriDraw_Sprite** sprites =
+                ToriDraw_SceneSpriteGet(game->scene, scene_id, &sprite_count);
+            struct ToriDraw_Sprite* sp =
+                (sprites && atlas_index >= 0 && atlas_index < sprite_count)
+                    ? sprites[atlas_index]
+                    : NULL;
+            if( sp )
+            {
+                if( bw <= 0 )
+                    bw = sp->crop_width > 0 ? sp->crop_width : sp->width;
+                if( bh <= 0 )
+                    bh = sp->crop_height > 0 ? sp->crop_height : sp->height;
+            }
+        }
         GameRunescape_AssertSceneSpriteReady(
             game, scene_id, atlas_index, "ui_sprite");
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, bx, by, bw, bh);
@@ -4127,6 +4144,8 @@ Task_GameRunescape_WorldEntityAddNPC_Run(
 
     if( load_state == PT_EXITED )
         PT_EXIT(&task->thread);
+
+    assert(load_state == PT_ENDED && "npc cache load task exited without completing");
 
     idle_animations = runescape_npc_animation_from_config(task->game, task->npc_id);
     runescape_preload_idle_animations(task->game, &idle_animations);

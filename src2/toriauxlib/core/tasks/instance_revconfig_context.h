@@ -76,6 +76,8 @@ struct InstanceRevConfigContext
     bool jagfiles_ready;
     bool title_fonts_ready;
     bool rs_capture_enabled;
+    /** Set after revconfig item loop completes; gates sprite resolve asserts in build_tree. */
+    bool revconfig_ingest_complete;
     char const* layout_group;
 };
 
@@ -125,7 +127,26 @@ void
 instance_revconfig_bake_rs_subtree(
     struct InstanceRevConfigContext* ctx,
     struct RevConfigUIComponentItem const* comp,
+    struct RevConfigUILayoutItem const* layout,
     int32_t owner_uitree_index);
+
+void
+instance_revconfig_register_dynamic_sprite(
+    struct InstanceRevConfigContext* ctx,
+    int element_id,
+    struct ToriAuxLibCore_Sprite* sprite,
+    char const* lookup_name,
+    int atlas_count);
+
+int
+instance_revconfig_dat2_ensure_sprite_id(
+    struct InstanceRevConfigContext* ctx,
+    int sprite_id);
+
+int
+instance_revconfig_dat2_ensure_sprite_ref(
+    struct InstanceRevConfigContext* ctx,
+    char const* sprite_ref);
 
 void
 instance_revconfig_context_release_build_state(struct InstanceRevConfigContext* ctx);

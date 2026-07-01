@@ -28,15 +28,11 @@ is_3draster_repo_root(char const* dir)
     if( stat(path, &st) != 0 || !S_ISDIR(st.st_mode) )
         return false;
 
-    snprintf(path, sizeof(path), "%s/cache.kronos", dir);
-    if( stat(path, &st) != 0 || !S_ISDIR(st.st_mode) )
-        return false;
-
-    return dir_has_dat2_cache(path);
+    return true;
 }
 
-char const*
-cache_path_resolve_kronos_repo(void)
+static char const*
+cache_path_resolve_repo_subdir(char const* subdir)
 {
     static char resolved[512];
     char probe[512];
@@ -48,8 +44,10 @@ cache_path_resolve_kronos_repo(void)
     {
         if( is_3draster_repo_root(probe) )
         {
-            snprintf(resolved, sizeof(resolved), "%s/cache.kronos", probe);
-            return resolved;
+            snprintf(resolved, sizeof(resolved), "%s/%s", probe, subdir);
+            if( dir_has_dat2_cache(resolved) )
+                return resolved;
+            return NULL;
         }
 
         char* slash = strrchr(probe, '/');
@@ -59,4 +57,16 @@ cache_path_resolve_kronos_repo(void)
     }
 
     return NULL;
+}
+
+char const*
+cache_path_resolve_kronos_repo(void)
+{
+    return cache_path_resolve_repo_subdir("cache.kronos");
+}
+
+char const*
+cache_path_resolve_osrs_repo(void)
+{
+    return cache_path_resolve_repo_subdir("cache");
 }

@@ -10,14 +10,12 @@
 #define TORIDRAW_FONT_ADVANCE_ONLY_GLYPH TORIDRAW_FONT_GLYPH_COUNT
 
 const uint16_t TORIDRAW_FONT_CHARSET[] = {
-    'A', 'B',  'C', 'D', 'E',  'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-    'N', 'O',  'P', 'Q', 'R',  'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-    'a', 'b',  'c', 'd', 'e',  'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-    'n', 'o',  'p', 'q', 'r',  's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-    '0', '1',  '2', '3', '4',  '5', '6', '7', '8', '9', '!', '"', 0x00A3,
-    '$', '%',  '^', '&', '*',  '(', ')', '-', '_', '=', '+', '[', '{',
-    ']', '}',  ';', ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/',
-    '?', '\\', ' '
+    'A',    'B', 'C',  'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',  'N', 'O', 'P',
+    'Q',    'R', 'S',  'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c',  'd', 'e', 'f',
+    'g',    'h', 'i',  'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',  't', 'u', 'v',
+    'w',    'x', 'y',  'z', '0', '1', '2', '3', '4', '5', '6', '7', '8',  '9', '!', '"',
+    0x00A3, '$', '%',  '^', '&', '*', '(', ')', '-', '_', '=', '+', '[',  '{', ']', '}',
+    ';',    ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/', '?', '\\', ' '
 };
 
 _Static_assert(
@@ -157,19 +155,17 @@ ToriDraw_FontNewFromRSBytes(
     void* index_data,
     int index_data_size)
 {
-    if( !data || !index_data || data_size <= 0 || index_data_size <= 0 )
-        return NULL;
+    assert(data && index_data && data_size > 0 && index_data_size > 0);
 
     struct ToriDraw_Font* font = calloc(1, sizeof(struct ToriDraw_Font));
-    if( !font )
-        return NULL;
+    assert(font);
 
     font_init_charcodeset(font);
 
-    struct RSCacheShared_RSBuffer databuf = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size) };
-    struct RSCacheShared_RSBuffer indexbuf = {
-        .data = (uint8_t*)(index_data), .size = (uint32_t)(index_data_size)
-    };
+    struct RSCacheShared_RSBuffer databuf = { .data = (uint8_t*)(data),
+                                              .size = (uint32_t)(data_size) };
+    struct RSCacheShared_RSBuffer indexbuf = { .data = (uint8_t*)(index_data),
+                                               .size = (uint32_t)(index_data_size) };
 
     indexbuf.position = g2(&databuf) + 4;
     int off = g1(&indexbuf);
@@ -275,8 +271,7 @@ ToriDraw_FontFree(struct ToriDraw_Font* font)
 bool
 ToriDraw_FontValidate(struct ToriDraw_Font* font)
 {
-    if( !font )
-        return false;
+    assert(font);
 
     for( int i = 0; i < 256; i++ )
     {
@@ -327,8 +322,7 @@ font_glyph_drawable(
     struct ToriDraw_Font const* font,
     int gi)
 {
-    if( gi < 0 || gi >= TORIDRAW_FONT_GLYPH_COUNT )
-        return false;
+    assert(font && gi >= 0 && gi < TORIDRAW_FONT_GLYPH_COUNT);
 
     int const gw = font->glyph_width[gi];
     int const gh = font->glyph_height[gi];
@@ -422,8 +416,7 @@ font_measure_range(
     char const* text,
     int len)
 {
-    if( !font || !text || len <= 0 )
-        return 0;
+    assert(font && text && len > 0);
 
     int width = 0;
     int const space_adv = font_space_advance(font);
@@ -451,8 +444,7 @@ ToriDraw2D_MeasureString(
     struct ToriDraw_Font* font,
     char const* text)
 {
-    if( !font || !text )
-        return 0;
+    assert(font && text);
 
     int max_width = 0;
     char const* rest = text;
@@ -538,8 +530,7 @@ ToriDraw_FontVisitGlyphs(
     ToriDraw_FontGlyphCallback callback,
     void* ctx)
 {
-    ToriDraw_FontVisitGlyphsStyled(
-        font, text, x, y, default_color_rgb, false, callback, ctx);
+    ToriDraw_FontVisitGlyphsStyled(font, text, x, y, default_color_rgb, false, callback, ctx);
 }
 
 static void
@@ -553,8 +544,7 @@ font_visit_glyphs_range(
     ToriDraw_FontGlyphCallback callback,
     void* ctx)
 {
-    if( !font || !text || len <= 0 || !callback )
-        return;
+    assert(font && text && len > 0 && callback);
 
     int color = default_color_rgb;
     int const space_adv = font_space_advance(font);
@@ -597,8 +587,7 @@ ToriDraw_FontVisitGlyphsStyled(
     ToriDraw_FontGlyphCallback callback,
     void* ctx)
 {
-    if( !font || !text || !callback )
-        return;
+    assert(font && text && callback);
 
     int const line_step = font->line_height > 0 ? font->line_height : 1;
     char const* rest = text;
@@ -690,8 +679,7 @@ font_draw_string_range(
     int stride,
     int* pixel_buffer)
 {
-    if( !font || !text || len <= 0 || !pixel_buffer )
-        return 0;
+    assert(font && text && len > 0 && pixel_buffer);
 
     int pixels_written = 0;
     int current_color = color;
@@ -745,8 +733,7 @@ font_draw_string_shadow_range(
     int stride,
     int* pixel_buffer)
 {
-    if( !font || !text || len <= 0 || !pixel_buffer )
-        return 0;
+    assert(font && text && len > 0 && pixel_buffer);
 
     int pixels_written = 0;
     int const shadow_color = (int)0xFF000000u;
@@ -794,8 +781,7 @@ ToriDraw2D_DrawString(
     bool shadowed,
     int* pixel_buffer)
 {
-    if( !font || !view_port || !text || !pixel_buffer )
-        return 0;
+    assert(font && view_port && text && pixel_buffer);
 
     if( !ToriDraw_FontValidate(font) )
     {
@@ -831,31 +817,10 @@ ToriDraw2D_DrawString(
             if( shadowed )
             {
                 pixels_written += font_draw_string_shadow_range(
-                    font,
-                    rest,
-                    line_len,
-                    line_x,
-                    y,
-                    cl,
-                    ct,
-                    cr,
-                    cb,
-                    stride,
-                    pixel_buffer);
+                    font, rest, line_len, line_x, y, cl, ct, cr, cb, stride, pixel_buffer);
             }
             pixels_written += font_draw_string_range(
-                font,
-                rest,
-                line_len,
-                line_x,
-                y,
-                color,
-                cl,
-                ct,
-                cr,
-                cb,
-                stride,
-                pixel_buffer);
+                font, rest, line_len, line_x, y, color, cl, ct, cr, cb, stride, pixel_buffer);
         }
 
         if( break_advance == 0 )

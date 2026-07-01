@@ -108,6 +108,8 @@ Component_init(Component* c)
     c->activeGraphic = -1;
     c->linkedComponentId = -1;
     c->modelZoom = 100;
+    c->aspect_ratio_w = 1;
+    c->aspect_ratio_h = 1;
     c->showObjCount = true;
     c->lineWidth = 1;
     c->aShort49 = 3000;
@@ -558,7 +560,7 @@ Component_decodeIf3(
         if( self->widthMode != 0 )
             self->anInt5957 = g2(buf);
         if( self->heightMode != 0 )
-            g2(buf);
+            self->aspect_ratio_h = g2(buf);
     }
     if( self->type == 4 )
     {

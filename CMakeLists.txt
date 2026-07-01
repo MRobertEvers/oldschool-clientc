@@ -193,14 +193,9 @@ target_include_directories(rscache PUBLIC src src/osrs/rscache)
 set_target_properties(rscache PROPERTIES C_STANDARD 11)
 
 if(NOT EMSCRIPTEN)
-    add_executable(interface161_test tools/interface161_test/main.c)
-    target_link_libraries(interface161_test rscache)
-    target_include_directories(interface161_test PRIVATE src)
-    set_target_properties(interface161_test PROPERTIES C_STANDARD 11)
-
     add_executable(dump_interface_layout tools/dump_interface_layout/main.c)
     target_link_libraries(dump_interface_layout rscache)
-    target_include_directories(dump_interface_layout PRIVATE src)
+    target_include_directories(dump_interface_layout PRIVATE src src2)
     set_target_properties(dump_interface_layout PROPERTIES C_STANDARD 11)
 
     add_executable(dump_map_index tools/dump_map_index/main.c)

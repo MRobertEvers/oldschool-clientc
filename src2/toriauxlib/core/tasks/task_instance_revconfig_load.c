@@ -163,7 +163,9 @@ Task_InstanceRevConfigLoad_Run(
             TASK_AWAIT(&task->thread, task->sub_run(task->sub_state, ctx));
     }
 
-    instance_revconfig_build_tree(&task->rc_ctx);
+    task->rc_ctx.revconfig_ingest_complete = true;
+
+    bool const tree_built = instance_revconfig_build_tree(&task->rc_ctx);
 
     if( task->game )
         GameRunescape_SetUIInvPool(task->game, task->rc_ctx.inv_pool);
@@ -183,7 +185,7 @@ Task_InstanceRevConfigLoad_Run(
         task->game->ui_sprites_synced = false;
         task->game->ui_fonts_synced = false;
         GameRunescape_SyncUISpritesFromScene(task->game);
-        GameRunescape_SetUITreeReady(task->game, true);
+        GameRunescape_SetUITreeReady(task->game, tree_built);
     }
 
     instance_revconfig_context_release_build_state(&task->rc_ctx);
