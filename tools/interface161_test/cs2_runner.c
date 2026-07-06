@@ -703,6 +703,7 @@ interface161_cs2_run_component_hook(
     if( ctx->cs2vm )
     {
         cs2vm_set_active_component(ctx->cs2vm, comp->id);
+        cs2vm_set_dot_component(ctx->cs2vm, comp->id);
         int const rc = cs2vm_run(ctx->cs2vm, script, &s_runner.host, &args);
         if( rc != CS2VM_OK )
         {

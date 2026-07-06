@@ -19,6 +19,7 @@ struct CS2_InvokeCtx
     int opcode;
     int operand;
     int active_component;
+    int dot_component;
 };
 
 /** Host-supplied callbacks. Any callback may be NULL (treated as 0 / stub). */
@@ -139,6 +140,19 @@ cs2vm_set_active_component(
 
 int
 cs2vm_get_active_component(struct CS2VM const* vm);
+
+void
+cs2vm_host_set_dot_component(
+    struct CS2_InvokeCtx* ctx,
+    int component_id);
+
+void
+cs2vm_set_dot_component(
+    struct CS2VM* vm,
+    int component_id);
+
+int
+cs2vm_get_dot_component(struct CS2VM const* vm);
 
 /** Enable/disable per-opcode stderr trace (also seeded from IE_CS2_TRACE env on first run). */
 void

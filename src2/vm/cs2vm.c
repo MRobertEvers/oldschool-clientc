@@ -53,6 +53,7 @@ struct CS2VM
     struct CS2VMFrame frames[CS2_RT_MAX_FRAMES];
     int frame_sp;
     int active_component;
+    int dot_component;
     struct CS2VMArray arrays[CS2_RT_MAX_ARRAYS];
     int run_error;
     bool halted;
@@ -406,6 +407,7 @@ cs2_rt_host_invoke(
         .opcode = opcode,
         .operand = operand,
         .active_component = rt->active_component,
+        .dot_component = rt->dot_component,
     };
     host->invoke(host->ud, &ctx);
 }
@@ -803,6 +805,7 @@ cs2_rt_reset(
     rt->string_pool_used = 0;
     rt->frame_sp = 0;
     rt->active_component = -1;
+    rt->dot_component = -1;
     rt->run_error = 0;
     rt->halted = false;
     rt->last_error_valid = false;
@@ -877,8 +880,10 @@ cs2vm_run(
 
     cs2_rt_ensure_trace_env();
     int const initial_active = rt->active_component;
+    int const initial_dot = rt->dot_component;
     cs2_rt_reset(rt, script, args);
     rt->active_component = initial_active;
+    rt->dot_component = initial_dot;
     rt->opcount = 0;
     if( s_cs2_trace_json )
         s_trace_count = 0;
@@ -1095,4 +1100,31 @@ cs2vm_get_active_component(struct CS2VM const* vm)
 {
     assert(vm);
     return vm->active_component;
+}
+
+void
+cs2vm_host_set_dot_component(
+    struct CS2_InvokeCtx* ctx,
+    int component_id)
+{
+    assert(ctx);
+    assert(ctx->vm);
+    ctx->vm->dot_component = component_id;
+    ctx->dot_component = component_id;
+}
+
+void
+cs2vm_set_dot_component(
+    struct CS2VM* vm,
+    int component_id)
+{
+    assert(vm);
+    vm->dot_component = component_id;
+}
+
+int
+cs2vm_get_dot_component(struct CS2VM const* vm)
+{
+    assert(vm);
+    return vm->dot_component;
 }

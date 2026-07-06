@@ -84,6 +84,17 @@
       "activeComponent": 25346063,
       "componentFile": 15,
       "iface": 387
+    },
+    {
+      "id": "cc_dot_sethide",
+      "description": "Synthetic: dot cc_create + dot cc_sethide hides child not parent",
+      "scriptId": null,
+      "synthetic": true,
+      "intArgs": [],
+      "stringArgs": [],
+      "activeComponent": 25346063,
+      "componentFile": 15,
+      "iface": 387
     }
   ],
   "spriteCases": [

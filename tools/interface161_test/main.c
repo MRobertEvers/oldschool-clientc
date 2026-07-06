@@ -537,6 +537,37 @@ load_sprite_rgba(
     return working;
 }
 
+static int
+count_on_canvas_opaque(
+    int const* spr,
+    int sw,
+    int sh,
+    int dx,
+    int dy,
+    int trans_scale)
+{
+    int count = 0;
+    for( int y = 0; y < sh; y++ )
+    {
+        int sy = dy + y;
+        if( sy < 0 || sy >= CANVAS_H )
+            continue;
+        for( int x = 0; x < sw; x++ )
+        {
+            int sx = dx + x;
+            if( sx < 0 || sx >= CANVAS_W )
+                continue;
+            int p = spr[y * sw + x];
+            int a = (p >> 24) & 0xFF;
+            if( trans_scale < 256 )
+                a = (a * trans_scale) / 256;
+            if( a > 0 )
+                count++;
+        }
+    }
+    return count;
+}
+
 static void
 blit_sprite_from_cache(
     struct DrawContext* ctx,
@@ -561,16 +592,31 @@ blit_sprite_from_cache(
         return;
     }
 
-    ox = dx + ox;
-    oy = dy + oy;
+    int const blit_x = dx + ox;
+    int const blit_y = dy + oy;
+    if( verbose_layout && !tiled )
+    {
+        fprintf(
+            stderr,
+            "blit sprite=%d at=%d,%d box=%dx%d spr=%dx%d opaque_on_canvas=%d\n",
+            graphic_id,
+            blit_x,
+            blit_y,
+            lw,
+            lh,
+            sw,
+            sh,
+            count_on_canvas_opaque(spr_px, sw, sh, blit_x, blit_y, trans_scale));
+    }
+
     if( tiled )
     {
         blit_rgba_sprite_tiled(
-            ctx->pixels, CANVAS_W, dx, dy, lw, lh, spr_px, sw, sh, ox, oy, trans_scale);
+            ctx->pixels, CANVAS_W, dx, dy, lw, lh, spr_px, sw, sh, blit_x, blit_y, trans_scale);
     }
     else
     {
-        blit_rgba_sprite(ctx->pixels, CANVAS_W, ox, oy, spr_px, sw, sh, trans_scale);
+        blit_rgba_sprite(ctx->pixels, CANVAS_W, blit_x, blit_y, spr_px, sw, sh, trans_scale);
     }
     free(spr_px);
 }
@@ -1572,7 +1618,7 @@ draw_cs2_tree_graphics(
             continue;
         if( node->u.rs_graphic.graphic_hitbox_only )
             continue;
-        if( node->u.rs_graphic.scene_id < 0 )
+        if( node->u.rs_graphic.scene_id <= 0 )
             continue;
 
         int px = node->position.abs_x;
@@ -1585,6 +1631,12 @@ draw_cs2_tree_graphics(
             .flip_h = node->u.rs_graphic.flip_h != 0,
             .flip_v = node->u.rs_graphic.flip_v != 0,
         };
+        int trans_scale = 256;
+        if( node->trans > 0 )
+            trans_scale = 256 - (node->trans & 0xFF);
+        if( trans_scale < 0 )
+            trans_scale = 0;
+
         blit_sprite_from_cache(
             ctx,
             node->u.rs_graphic.scene_id,
@@ -1593,7 +1645,7 @@ draw_cs2_tree_graphics(
             pw,
             ph,
             node->u.rs_graphic.tiled != 0,
-            256,
+            trans_scale,
             &chrome);
     }
 }

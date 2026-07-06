@@ -743,6 +743,29 @@ cs2_host_ui_set_active(
     st->active_node_index = cs2_host_ui_resolve_target(st, component_id, component_id);
 }
 
+static int
+cs2_host_ui_cc_target_component(struct CS2_InvokeCtx const* ctx)
+{
+    if( !ctx )
+        return -1;
+    return ctx->operand == 1 ? ctx->dot_component : ctx->active_component;
+}
+
+static void
+cs2_host_ui_set_cc_target(
+    struct CS2HostUIState* st,
+    struct CS2_InvokeCtx* ctx,
+    int int_op,
+    int component_id)
+{
+    if( !st || !ctx )
+        return;
+    if( int_op == 1 )
+        cs2vm_host_set_dot_component(ctx, component_id);
+    else
+        cs2_host_ui_set_active(st, ctx, component_id);
+}
+
 static void
 cs2_host_ui_apply_object_op(
     struct CS2HostUIState* st,
@@ -833,8 +856,9 @@ cs2_host_ui_invoke(
             break;
         }
         int child_id = st->tree->components[child_idx].component_id;
-        cs2vm_host_set_active_component(ctx, child_id);
-        st->active_node_index = child_idx;
+        cs2_host_ui_set_cc_target(st, ctx, ctx->operand, child_id);
+        if( ctx->operand != 1 )
+            st->active_node_index = child_idx;
         if( cs2vm_get_trace() )
         {
             fprintf(
@@ -922,7 +946,7 @@ cs2_host_ui_invoke(
             if( child_idx >= 0 )
             {
                 int child_id = st->tree->components[child_idx].component_id;
-                cs2_host_ui_set_active(st, ctx, child_id);
+                cs2_host_ui_set_cc_target(st, ctx, ctx->operand, child_id);
                 found = 1;
             }
         }
@@ -941,19 +965,19 @@ cs2_host_ui_invoke(
     case CS2_OP_CC_SETHIDE:
     {
         int hide = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_hide(st, -1, ctx->active_component, hide);
+        cs2_host_ui_apply_hide(st, -1, cs2_host_ui_cc_target_component(ctx), hide);
         break;
     }
     case CS2_OP_CC_SETTEXT:
     {
         char* text = cs2vm_host_pop_string(ctx);
-        cs2_host_ui_apply_text(st, -1, ctx->active_component, text ? text : "");
+        cs2_host_ui_apply_text(st, -1, cs2_host_ui_cc_target_component(ctx), text ? text : "");
         break;
     }
     case CS2_OP_CC_SETTEXTFONT:
     {
         int font_id = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_text_font(st, -1, ctx->active_component, font_id);
+        cs2_host_ui_apply_text_font(st, -1, cs2_host_ui_cc_target_component(ctx), font_id);
         break;
     }
     case CS2_OP_CC_SETTEXTALIGN:
@@ -961,52 +985,52 @@ cs2_host_ui_invoke(
         int line_height = cs2vm_host_pop_int(ctx);
         int y_align = cs2vm_host_pop_int(ctx);
         int x_align = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_text_align(st, -1, ctx->active_component, x_align, y_align, line_height);
+        cs2_host_ui_apply_text_align(st, -1, cs2_host_ui_cc_target_component(ctx), x_align, y_align, line_height);
         break;
     }
     case CS2_OP_CC_SETTEXTSHADOW:
     {
         int shadow = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_text_shadow(st, -1, ctx->active_component, shadow);
+        cs2_host_ui_apply_text_shadow(st, -1, cs2_host_ui_cc_target_component(ctx), shadow);
         break;
     }
     case CS2_OP_CC_SETCOLOUR:
     {
         int colour = cs2vm_host_pop_int(ctx);
         if( st->tree )
-            (void)uitree_apply_colour(st->tree, ctx->active_component, colour);
+            (void)uitree_apply_colour(st->tree, cs2_host_ui_cc_target_component(ctx), colour);
         break;
     }
     case CS2_OP_CC_SETFILL:
     {
         int filled = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_fill(st, -1, ctx->active_component, filled);
+        cs2_host_ui_apply_fill(st, -1, cs2_host_ui_cc_target_component(ctx), filled);
         break;
     }
     case CS2_OP_CC_SETTRANS:
     {
         int trans = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_trans(st, -1, ctx->active_component, trans);
+        cs2_host_ui_apply_trans(st, -1, cs2_host_ui_cc_target_component(ctx), trans);
         break;
     }
     case CS2_OP_CC_SETNOCLICKTHROUGH:
     {
         int no_click_through = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_no_click_through(st, -1, ctx->active_component, no_click_through);
+        cs2_host_ui_apply_no_click_through(st, -1, cs2_host_ui_cc_target_component(ctx), no_click_through);
         break;
     }
     case CS2_OP_CC_SETOP:
     {
         char* text = cs2vm_host_pop_string(ctx);
         int index = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_op(st, -1, ctx->active_component, index, text ? text : "");
+        cs2_host_ui_apply_op(st, -1, cs2_host_ui_cc_target_component(ctx), index, text ? text : "");
         break;
     }
     case CS2_OP_CC_SETOPBASE:
     {
         char* text = cs2vm_host_pop_string(ctx);
         if( st->tree )
-            (void)uitree_apply_op_base(st->tree, ctx->active_component, text ? text : "");
+            (void)uitree_apply_op_base(st->tree, cs2_host_ui_cc_target_component(ctx), text ? text : "");
         break;
     }
     case CS2_OP_CC_SETTARGETVERB:
@@ -1014,7 +1038,7 @@ cs2_host_ui_invoke(
         break;
     case CS2_OP_CC_CLEAROPS:
         if( st->tree )
-            (void)uitree_clear_ops(st->tree, -1, ctx->active_component);
+            (void)uitree_clear_ops(st->tree, -1, cs2_host_ui_cc_target_component(ctx));
         break;
     case CS2_OP__1308:
     case CS2_OP__1309:
@@ -1034,31 +1058,31 @@ cs2_host_ui_invoke(
     {
         int child_index = cs2vm_host_pop_int(ctx);
         int parent_uid = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_draggable(st, -1, ctx->active_component, parent_uid, child_index);
+        cs2_host_ui_apply_draggable(st, -1, cs2_host_ui_cc_target_component(ctx), parent_uid, child_index);
         break;
     }
     case CS2_OP_CC_SETDRAGGABLEBEHAVIOR:
     {
         int behavior = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_draggable_behavior(st, -1, ctx->active_component, behavior);
+        cs2_host_ui_apply_draggable_behavior(st, -1, cs2_host_ui_cc_target_component(ctx), behavior);
         break;
     }
     case CS2_OP_CC_SETDRAGDEADZONE:
     {
         int zone = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_drag_dead_zone(st, -1, ctx->active_component, zone);
+        cs2_host_ui_apply_drag_dead_zone(st, -1, cs2_host_ui_cc_target_component(ctx), zone);
         break;
     }
     case CS2_OP_CC_SETDRAGDEADTIME:
     {
         int time = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_drag_dead_time(st, -1, ctx->active_component, time);
+        cs2_host_ui_apply_drag_dead_time(st, -1, cs2_host_ui_cc_target_component(ctx), time);
         break;
     }
     case CS2_OP_CC_SETGRAPHIC:
     {
         int graphic = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_graphic(st, -1, ctx->active_component, graphic);
+        cs2_host_ui_apply_graphic(st, -1, cs2_host_ui_cc_target_component(ctx), graphic);
         break;
     }
     case CS2_OP_CC_SETPOSITION:
@@ -1069,7 +1093,7 @@ cs2_host_ui_invoke(
         int x = cs2vm_host_pop_int(ctx);
         if( st->tree )
             (void)uitree_apply_position_modes(
-                st->tree, ctx->active_component, x, y, x_mode, y_mode);
+                st->tree, cs2_host_ui_cc_target_component(ctx), x, y, x_mode, y_mode);
         break;
     }
     case CS2_OP_CC_SETSIZE:
@@ -1080,32 +1104,32 @@ cs2_host_ui_invoke(
         int width = cs2vm_host_pop_int(ctx);
         if( st->tree )
             (void)uitree_apply_size_modes(
-                st->tree, ctx->active_component, width, height, width_mode, height_mode);
+                st->tree, cs2_host_ui_cc_target_component(ctx), width, height, width_mode, height_mode);
         break;
     }
     case CS2_OP_CC_SETTILING:
     {
         int tiled = cs2vm_host_pop_int(ctx);
         if( st->tree )
-            (void)uitree_apply_graphic_tiled(st->tree, ctx->active_component, tiled);
+            (void)uitree_apply_graphic_tiled(st->tree, cs2_host_ui_cc_target_component(ctx), tiled);
         break;
     }
     case CS2_OP_CC_SETOUTLINE:
     {
         int outline = cs2vm_host_pop_int(ctx);
         if( st->tree )
-            (void)uitree_apply_graphic_outline(st->tree, ctx->active_component, outline);
+            (void)uitree_apply_graphic_outline(st->tree, cs2_host_ui_cc_target_component(ctx), outline);
         break;
     }
     case CS2_OP_CC_SETGRAPHICSHADOW:
     {
         int shadow = cs2vm_host_pop_int(ctx);
         if( st->tree )
-            (void)uitree_apply_graphic_shadow(st->tree, ctx->active_component, shadow);
+            (void)uitree_apply_graphic_shadow(st->tree, cs2_host_ui_cc_target_component(ctx), shadow);
         break;
     }
     case CS2_OP_CC_GETID:
-        cs2vm_host_push_int(ctx, ctx->active_component);
+        cs2vm_host_push_int(ctx, cs2_host_ui_cc_target_component(ctx));
         break;
     case CS2_OP_CC_PARAM:
     {
@@ -1119,31 +1143,31 @@ cs2_host_ui_invoke(
         break;
     }
     case CS2_OP_CC_GETX:
-        cs2vm_host_push_int(ctx, cs2_host_ui_get_pos_x(st, ctx->active_component));
+        cs2vm_host_push_int(ctx, cs2_host_ui_get_pos_x(st, cs2_host_ui_cc_target_component(ctx)));
         break;
     case CS2_OP_CC_GETY:
-        cs2vm_host_push_int(ctx, cs2_host_ui_get_pos_y(st, ctx->active_component));
+        cs2vm_host_push_int(ctx, cs2_host_ui_get_pos_y(st, cs2_host_ui_cc_target_component(ctx)));
         break;
     case CS2_OP_CC_GETLAYER:
-        cs2vm_host_push_int(ctx, cs2_host_ui_get_layer(st, ctx->active_component));
+        cs2vm_host_push_int(ctx, cs2_host_ui_get_layer(st, cs2_host_ui_cc_target_component(ctx)));
         break;
     case CS2_OP_CC_GETOP:
     {
         int op_index = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_push_component_op(st, ctx, -1, ctx->active_component, op_index);
+        cs2_host_ui_push_component_op(st, ctx, -1, cs2_host_ui_cc_target_component(ctx), op_index);
         break;
     }
     case CS2_OP_CC_GETOPBASE:
-        cs2_host_ui_push_component_op_base(st, ctx, -1, ctx->active_component);
+        cs2_host_ui_push_component_op_base(st, ctx, -1, cs2_host_ui_cc_target_component(ctx));
         break;
     case CS2_OP_CC_GETTEXT:
-        cs2_host_ui_push_component_text(st, ctx, -1, ctx->active_component);
+        cs2_host_ui_push_component_text(st, ctx, -1, cs2_host_ui_cc_target_component(ctx));
         break;
     case CS2_OP_CC_GETWIDTH:
     {
         int width = 0;
         if( st->tree )
-            width = uitree_get_layout_width(st->tree, ctx->active_component);
+            width = uitree_get_layout_width(st->tree, cs2_host_ui_cc_target_component(ctx));
         cs2vm_host_push_int(ctx, width);
         break;
     }
@@ -1151,12 +1175,12 @@ cs2_host_ui_invoke(
     {
         int height = 0;
         if( st->tree )
-            height = uitree_get_layout_height(st->tree, ctx->active_component);
+            height = uitree_get_layout_height(st->tree, cs2_host_ui_cc_target_component(ctx));
         cs2vm_host_push_int(ctx, height);
         break;
     }
     case CS2_OP_CC_GETHIDE:
-        cs2vm_host_push_int(ctx, cs2_host_ui_get_hide(st, ctx->active_component));
+        cs2vm_host_push_int(ctx, cs2_host_ui_get_hide(st, cs2_host_ui_cc_target_component(ctx)));
         break;
     case CS2_OP_CC_GETSCROLLX:
         cs2vm_host_push_int(ctx, 0);
@@ -1165,10 +1189,10 @@ cs2_host_ui_invoke(
         cs2vm_host_push_int(ctx, 0);
         break;
     case CS2_OP_CC_GETSCROLLWIDTH:
-        cs2vm_host_push_int(ctx, cs2_host_ui_get_scroll_width(st, ctx->active_component));
+        cs2vm_host_push_int(ctx, cs2_host_ui_get_scroll_width(st, cs2_host_ui_cc_target_component(ctx)));
         break;
     case CS2_OP_CC_GETSCROLLHEIGHT:
-        cs2vm_host_push_int(ctx, cs2_host_ui_get_scroll_height(st, ctx->active_component));
+        cs2vm_host_push_int(ctx, cs2_host_ui_get_scroll_height(st, cs2_host_ui_cc_target_component(ctx)));
         break;
     case CS2_OP_IF_GETWIDTH:
     {
@@ -1401,14 +1425,14 @@ cs2_host_ui_invoke(
     {
         int count = cs2vm_host_pop_int(ctx);
         int obj_id = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_object_op(st, -1, ctx->active_component, obj_id, count, true);
+        cs2_host_ui_apply_object_op(st, -1, cs2_host_ui_cc_target_component(ctx), obj_id, count, true);
         break;
     }
     case CS2_OP_CC_SETOBJECT_NONUM:
     {
         int count = cs2vm_host_pop_int(ctx);
         int obj_id = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_object_op(st, -1, ctx->active_component, obj_id, count, false);
+        cs2_host_ui_apply_object_op(st, -1, cs2_host_ui_cc_target_component(ctx), obj_id, count, false);
         break;
     }
     case CS2_OP_IF_SETOBJECT:

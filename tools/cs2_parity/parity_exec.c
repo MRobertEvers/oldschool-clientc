@@ -89,9 +89,18 @@ parity_resolve_script(void* ud, int script_id)
     return &k_empty_script;
 }
 
+static int
+parity_resolve_active_component(struct ParityCs2Case const* cs_case)
+{
+    if( cs_case->iface > 0 && cs_case->component_file >= 0 )
+        return (cs_case->iface << 16) | (cs_case->component_file & 0xffff);
+    return cs_case->active_component;
+}
+
 static void
 parity_build_synthetic_script(
     char const* case_id,
+    int parent_component,
     struct CS2_Script* script,
     uint16_t* opcodes,
     int* operands,
@@ -125,6 +134,27 @@ parity_build_synthetic_script(
         operands[4] = 0;
         operands[5] = 0;
         *op_count = 6;
+    }
+    else if( strcmp(case_id, "cc_dot_sethide") == 0 )
+    {
+        /* .cc_create (operand 1) graphic child, then .cc_sethide (operand 1) on dot target. */
+        opcodes[0] = CS2_OP_PUSH_CONSTANT_INT;
+        opcodes[1] = CS2_OP_PUSH_CONSTANT_INT;
+        opcodes[2] = CS2_OP_PUSH_CONSTANT_INT;
+        opcodes[3] = CS2_OP_PUSH_CONSTANT_INT;
+        opcodes[4] = CS2_OP_CC_CREATE;
+        opcodes[5] = CS2_OP_PUSH_CONSTANT_INT;
+        opcodes[6] = CS2_OP_CC_SETHIDE;
+        opcodes[7] = CS2_OP_RETURN;
+        operands[0] = parent_component;
+        operands[1] = 5;        /* TYPE_GRAPHIC */
+        operands[2] = 0;        /* child index */
+        operands[3] = 0;        /* is_nested */
+        operands[4] = 1;        /* dot cc_create */
+        operands[5] = 1;        /* hide */
+        operands[6] = 1;        /* dot cc_sethide */
+        operands[7] = 0;
+        *op_count = 8;
     }
     script->op_count = *op_count;
     script->opcodes = opcodes;
@@ -245,7 +275,9 @@ parity_exec_case(
 
     cs2vm_set_trace_json(true);
 
-    if( cs_case->iface > 0 && !cs_case->synthetic )
+    int const active_component = parity_resolve_active_component(cs_case);
+
+    if( cs_case->iface > 0 )
     {
         int root_w = 0;
         int root_h = 0;
@@ -268,7 +300,8 @@ parity_exec_case(
 
         if( cs_case->synthetic )
         {
-            parity_build_synthetic_script(cs_case->id, &script, opcodes, operands, &op_count);
+            parity_build_synthetic_script(
+                cs_case->id, active_component, &script, opcodes, operands, &op_count);
         }
         else
         {
@@ -283,10 +316,32 @@ parity_exec_case(
             script = *loaded;
         }
 
-        if( cs_case->active_component > 0 )
-            cs2vm_set_active_component(ctx.cs2vm, cs_case->active_component);
+        if( active_component > 0 )
+        {
+            cs2vm_set_active_component(ctx.cs2vm, active_component);
+            cs2vm_set_dot_component(ctx.cs2vm, active_component);
+        }
 
         int status = cs2vm_run(ctx.cs2vm, &script, ctx.cs2host, &args);
+
+        if( strcmp(cs_case->id, "cc_dot_sethide") == 0 && ctx.tree )
+        {
+            int32_t const parent_idx =
+                uitree_find_by_component_id(ctx.tree, active_component);
+            int const parent_hide =
+                parent_idx >= 0 ? ctx.tree->components[parent_idx].behavior.hide : -1;
+            int32_t const child_idx =
+                parent_idx >= 0
+                ? uitree_find_child_by_subid(ctx.tree, parent_idx, active_component, 0)
+                : -1;
+            int const child_hide =
+                child_idx >= 0 ? ctx.tree->components[child_idx].behavior.hide : -1;
+            if( parent_idx < 0 || parent_hide )
+                status = CS2VM_ERR_INVALID;
+            else if( child_idx < 0 || !child_hide )
+                status = CS2VM_ERR_INVALID;
+        }
+
         int rc = parity_write_exec_artifact(out_path, cs_case, ctx.cs2vm, status);
 
         interface161_cs2_context_free(&ctx);
@@ -312,7 +367,8 @@ parity_exec_case(
 
     if( cs_case->synthetic )
     {
-        parity_build_synthetic_script(cs_case->id, &script, opcodes, operands, &op_count);
+        parity_build_synthetic_script(
+            cs_case->id, active_component, &script, opcodes, operands, &op_count);
     }
     else
     {
@@ -327,8 +383,11 @@ parity_exec_case(
         script = *loaded;
     }
 
-    if( cs_case->active_component > 0 )
-        cs2vm_set_active_component(vm, cs_case->active_component);
+    if( active_component > 0 )
+    {
+        cs2vm_set_active_component(vm, active_component);
+        cs2vm_set_dot_component(vm, active_component);
+    }
 
     int status = cs2vm_run(vm, &script, &s_host, &args);
     int rc = parity_write_exec_artifact(out_path, cs_case, vm, status);
