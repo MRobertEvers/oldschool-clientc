@@ -10,6 +10,7 @@
 #include "../../scripting/libtorirs_scriptapi.h"
 #include "../../toriauxlib/c/toriauxlibcache.h"
 #include "../../toriauxlib/toriauxlib.h"
+#include "osrs/rscache/dat2a/dat2a_clientscript.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -97,6 +98,21 @@ parse_verify_interface_id(int argc, char* argv[])
     return -1;
 }
 
+static int
+parse_cs2_trailer_flag(int argc, char* argv[])
+{
+    for( int i = 1; i + 1 < argc; i++ )
+    {
+        if( strcmp(argv[i], "--cs2-trailer") == 0 )
+        {
+            if( strcmp(argv[i + 1], "legacy") == 0 )
+                return CLIENTSCRIPT_DECODE_TRAILER_LEGACY;
+            return CLIENTSCRIPT_DECODE_TRAILER_MODERN;
+        }
+    }
+    return CLIENTSCRIPT_DECODE_TRAILER_MODERN;
+}
+
 int
 main(int argc, char* argv[])
 {
@@ -148,6 +164,10 @@ main(int argc, char* argv[])
     }
 
     GameInterfaceEditor_SetDat2Cache(instance->interface_editor, dat2_disk);
+    int const cs2_trailer_flags = parse_cs2_trailer_flag(argc, argv);
+    GameInterfaceEditor_SetClientscriptDecodeFlags(instance->interface_editor, cs2_trailer_flags);
+    ToriAuxLibCache_SetClientscriptDecodeFlags(
+        ToriAuxLib_C(LibToriRS_GetToriAuxLib(instance)), cs2_trailer_flags);
     if( !GameInterfaceEditor_EnumerateInterfaceGroups(instance->interface_editor) )
         fprintf(stderr, "Warning: no interface groups found in cache\n");
 

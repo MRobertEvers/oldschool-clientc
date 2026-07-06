@@ -3,6 +3,7 @@
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
 #include "buildcache/dat2_buildcache.h"
+#include "osrs/rscache/dat2a/dat2a_clientscript.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
 #include "toriauxlib/core/tasks/task_modelviewer_dat1_model.h"
 #include "toriauxlib/core/tasks/task_modelviewer_dat2_model.h"
@@ -29,6 +30,7 @@ struct ToriAuxLibCache
     struct Dat2BuildCache* dat2_buildcache;
     struct RSCacheDat2Disk* dat2_disk;
     struct VarPVarBitManager* varp_varbit;
+    int clientscript_decode_flags;
 };
 
 struct ToriAuxLibCache*
@@ -42,6 +44,7 @@ ToriAuxLibCache_New(
 
     c->mode = mode;
     c->core = core;
+    c->clientscript_decode_flags = CLIENTSCRIPT_DECODE_TRAILER_MODERN;
 
     switch( mode )
     {
@@ -142,6 +145,21 @@ ToriAuxLibCache_SetClientKronos(
         return;
     dat2_buildcache_set_loc_decode_flags(
         c->dat2_buildcache, kronos ? CONFIG_LOC_DECODE_KRONOS : 0);
+}
+
+void
+ToriAuxLibCache_SetClientscriptDecodeFlags(
+    struct ToriAuxLibCache* c,
+    int flags)
+{
+    if( c )
+        c->clientscript_decode_flags = flags;
+}
+
+int
+ToriAuxLibCache_ClientscriptDecodeFlags(struct ToriAuxLibCache* c)
+{
+    return c ? c->clientscript_decode_flags : CLIENTSCRIPT_DECODE_TRAILER_MODERN;
 }
 
 struct VarPVarBitManager*

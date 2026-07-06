@@ -2,7 +2,9 @@
 
 #include "../shared/shared_rs_buffer.h"
 #include "vm/cs2_opcode.h"
+#include "vm/cs2_opcode_meta.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -17,6 +19,12 @@
 #define CS2_OP_PUSH_NULL 63
 #endif
 
+enum CS2ScriptTrailerFooter
+{
+    CS2_SCRIPT_TRAILER_FOOTER_LEGACY = 14,
+    CS2_SCRIPT_TRAILER_FOOTER_MODERN = 18,
+};
+
 static int
 read_u16_at(
     const uint8_t* data,
@@ -28,38 +36,118 @@ read_u16_at(
     return ((int)data[pos] << 8) | (int)data[pos + 1];
 }
 
-static int
-cs2_operand_is_int8(int opcode)
+static bool
+cs2_operand_uses_int8(int opcode)
 {
     return opcode >= 100 || opcode == CS2_OP_RETURN || opcode == CS2_OP_POP_INT_DISCARD ||
            opcode == CS2_OP_POP_STRING_DISCARD || opcode == CS2_OP_POP_LONG_DISCARD ||
            opcode == CS2_OP_PUSH_NULL;
 }
 
-struct RSCacheDat2A_ClientScript*
-RSCacheDat2A_ClientScriptNewDecode(
+static bool
+cs2_script_read_operand(
+    struct RSCacheShared_RSBuffer* body,
+    int opcode,
+    int op_index,
+    struct CS2_Script* script)
+{
+    if( opcode == CS2_OP_PUSH_CONSTANT_LONG )
+    {
+        int high = RSCacheShared_RSBufferG4(body);
+        int low = RSCacheShared_RSBufferG4(body);
+        script->int_operands[op_index] = low;
+        (void)high;
+        return true;
+    }
+
+    if( cs2_operand_uses_int8(opcode) )
+    {
+        script->int_operands[op_index] = (int)RSCacheShared_RSBufferG1b(body);
+        return true;
+    }
+
+    switch( cs2_opcode_operand_kind(opcode) )
+    {
+    case CS2_OPERAND_STRING:
+        script->string_operands[op_index] = RSCacheShared_RSBufferReadStringNullTerminated(body);
+        script->int_operands[op_index] = 0;
+        break;
+    case CS2_OPERAND_INT8:
+        script->int_operands[op_index] = (int)RSCacheShared_RSBufferG1b(body);
+        break;
+    case CS2_OPERAND_NONE:
+        script->int_operands[op_index] = 0;
+        break;
+    case CS2_OPERAND_INT32:
+    default:
+        script->int_operands[op_index] = RSCacheShared_RSBufferG4(body);
+        break;
+    }
+    return true;
+}
+
+static bool
+cs2_script_parse_body(
+    const uint8_t* data,
+    int data_size,
+    int trailer_pos,
+    int op_count,
+    struct CS2_Script* script)
+{
+    struct RSCacheShared_RSBuffer body;
+    RSCacheShared_RSBufferInit(&body, (uint8_t*)data, (uint32_t)data_size);
+    script->signature = RSCacheShared_RSBufferReadStringNullTerminated(&body);
+
+    int op = 0;
+    while( body.position < (uint32_t)trailer_pos && op < op_count )
+    {
+        int opcode = (int)RSCacheShared_RSBufferG2(&body);
+        script->opcodes[op] = (uint16_t)opcode;
+        if( !cs2_script_read_operand(&body, opcode, op, script) )
+            return false;
+        op++;
+    }
+
+    return op == op_count && body.position == (uint32_t)trailer_pos;
+}
+
+static struct RSCacheDat2A_ClientScript*
+cs2_script_try_decode_footer(
     int script_id,
     const uint8_t* data,
-    int data_size)
+    int data_size,
+    int footer_size,
+    bool legacy)
 {
-    if( !data || data_size < 18 || data[0] != 0 )
-        return NULL;
-
     int trailer_len = read_u16_at(data, data_size, data_size - 2);
-    int trailer_pos = data_size - 18 - trailer_len;
+    int trailer_pos = data_size - footer_size - trailer_len;
     if( trailer_pos < 1 || trailer_pos > data_size )
         return NULL;
 
     struct RSCacheShared_RSBuffer trailer;
-    RSCacheShared_RSBufferInit(&trailer, (uint8_t*)data + trailer_pos, (uint32_t)(data_size - trailer_pos));
+    RSCacheShared_RSBufferInit(
+        &trailer, (uint8_t*)data + trailer_pos, (uint32_t)(data_size - trailer_pos));
 
     int op_count = RSCacheShared_RSBufferG4(&trailer);
     int local_int_count = (int)RSCacheShared_RSBufferG2(&trailer);
     int local_string_count = (int)RSCacheShared_RSBufferG2(&trailer);
-    int local_long_count = (int)RSCacheShared_RSBufferG2(&trailer);
-    int int_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
-    int string_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
-    int long_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
+    int local_long_count = 0;
+    int int_argument_count;
+    int string_argument_count;
+    int long_argument_count = 0;
+
+    if( legacy )
+    {
+        int_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
+        string_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
+    }
+    else
+    {
+        local_long_count = (int)RSCacheShared_RSBufferG2(&trailer);
+        int_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
+        string_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
+        long_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
+    }
 
     int switch_table_count = (int)RSCacheShared_RSBufferG1(&trailer);
     if( switch_table_count < 0 || switch_table_count > CS2_SCRIPT_MAX_SWITCHES )
@@ -108,44 +196,41 @@ RSCacheDat2A_ClientScriptNewDecode(
         return NULL;
     }
 
-    struct RSCacheShared_RSBuffer body;
-    RSCacheShared_RSBufferInit(&body, (uint8_t*)data, (uint32_t)data_size);
-    script->signature = RSCacheShared_RSBufferReadStringNullTerminated(&body);
-
-    int op = 0;
-    while( body.position < (uint32_t)trailer_pos && op < op_count )
-    {
-        int opcode = (int)RSCacheShared_RSBufferG2(&body);
-        script->opcodes[op] = (uint16_t)opcode;
-
-        if( opcode == CS2_OP_PUSH_CONSTANT_STRING )
-        {
-            script->string_operands[op] = RSCacheShared_RSBufferReadStringNullTerminated(&body);
-            script->int_operands[op] = 0;
-        }
-        else if( opcode == CS2_OP_PUSH_CONSTANT_LONG )
-        {
-            int high = RSCacheShared_RSBufferG4(&body);
-            int low = RSCacheShared_RSBufferG4(&body);
-            script->int_operands[op] = low;
-            (void)high;
-        }
-        else if( cs2_operand_is_int8(opcode) )
-            script->int_operands[op] = (int)RSCacheShared_RSBufferG1b(&body);
-        else
-            script->int_operands[op] = RSCacheShared_RSBufferG4(&body);
-
-        op++;
-    }
-
-    if( op != op_count || body.position != (uint32_t)trailer_pos )
+    if( !cs2_script_parse_body(data, data_size, trailer_pos, op_count, script) )
     {
         RSCacheDat2A_ClientScriptFree(out);
         return NULL;
     }
 
-    script->op_count = op;
+    script->op_count = op_count;
     return out;
+}
+
+struct RSCacheDat2A_ClientScript*
+RSCacheDat2A_ClientScriptNewFromDecodeFlags(
+    int script_id,
+    const uint8_t* data,
+    int data_size,
+    int flags)
+{
+    if( !data || data_size < CS2_SCRIPT_TRAILER_FOOTER_LEGACY )
+        return NULL;
+
+    bool legacy = flags == CLIENTSCRIPT_DECODE_TRAILER_LEGACY;
+    int footer_size =
+        legacy ? CS2_SCRIPT_TRAILER_FOOTER_LEGACY : CS2_SCRIPT_TRAILER_FOOTER_MODERN;
+
+    struct RSCacheDat2A_ClientScript* decoded =
+        cs2_script_try_decode_footer(script_id, data, data_size, footer_size, legacy);
+    if( decoded )
+        return decoded;
+
+    fprintf(
+        stderr,
+        "RSCacheDat2A_ClientScriptNewFromDecodeFlags: script %d decode failed (trailer=%s)\n",
+        script_id,
+        legacy ? "legacy" : "modern");
+    return NULL;
 }
 
 void

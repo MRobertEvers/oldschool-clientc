@@ -913,7 +913,8 @@ ToriAuxLibCache_ClientScriptResolve(
         return NULL;
 
     struct ToriAuxLibCore_ClientScript* script =
-        ToriAuxLibCache_ClientScriptNewFromDat2Archive(disk, archive, script_id);
+        ToriAuxLibCache_ClientScriptNewFromDat2Archive(
+            disk, archive, script_id, ToriAuxLibCache_ClientscriptDecodeFlags(c));
     if( script )
         ToriAuxLibCache_SubmitClientScript(c, script_id, script);
     return script;

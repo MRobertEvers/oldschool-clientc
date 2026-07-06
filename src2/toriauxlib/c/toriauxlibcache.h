@@ -56,6 +56,14 @@ ToriAuxLibCache_SetClientKronos(
     struct ToriAuxLibCache* c,
     bool kronos);
 
+void
+ToriAuxLibCache_SetClientscriptDecodeFlags(
+    struct ToriAuxLibCache* c,
+    int flags);
+
+int
+ToriAuxLibCache_ClientscriptDecodeFlags(struct ToriAuxLibCache* c);
+
 struct VarPVarBitManager*
 ToriAuxLibCache_VarPVarBit(struct ToriAuxLibCache* c);
 

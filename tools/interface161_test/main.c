@@ -274,8 +274,7 @@ struct SpriteChromeOpts
 };
 
 static bool
-sprite_pixel_opaque(
-    int p)
+sprite_pixel_opaque(int p)
 {
     return ((p >> 24) & 0xFF) != 0;
 }
@@ -906,12 +905,26 @@ draw_line_component(
     if( horizontal )
     {
         int lh_draw = line_width > 0 ? line_width : 1;
-        fill_rect(pixels, CANVAS_W, px, py + (lh - lh_draw) / 2, px + lw, py + (lh - lh_draw) / 2 + lh_draw, argb);
+        fill_rect(
+            pixels,
+            CANVAS_W,
+            px,
+            py + (lh - lh_draw) / 2,
+            px + lw,
+            py + (lh - lh_draw) / 2 + lh_draw,
+            argb);
     }
     else
     {
         int lw_draw = line_width > 0 ? line_width : 1;
-        fill_rect(pixels, CANVAS_W, px + (lw - lw_draw) / 2, py, px + (lw - lw_draw) / 2 + lw_draw, py + lh, argb);
+        fill_rect(
+            pixels,
+            CANVAS_W,
+            px + (lw - lw_draw) / 2,
+            py,
+            px + (lw - lw_draw) / 2 + lw_draw,
+            py + lh,
+            argb);
     }
 }
 
@@ -1232,15 +1245,7 @@ draw_component_inv(
             else if( comp->invSlotGraphicId && slot < 20 && comp->invSlotGraphicId[slot] >= 0 )
             {
                 blit_sprite_from_cache(
-                    ctx,
-                    comp->invSlotGraphicId[slot],
-                    slot_x,
-                    slot_y,
-                    0,
-                    0,
-                    false,
-                    256,
-                    NULL);
+                    ctx, comp->invSlotGraphicId[slot], slot_x, slot_y, 0, 0, false, 256, NULL);
             }
 
             slot++;
@@ -1295,13 +1300,7 @@ draw_one_component(
         int rw = lw > 0 ? lw : (comp->baseWidth > 0 ? comp->baseWidth : 32);
         int rh = lh > 0 ? lh : (comp->baseHeight > 0 ? comp->baseHeight : 32);
         int* model_px = interface161_model_sprite_get(
-            ctx,
-            comp->modelId,
-            comp->modelZoom,
-            comp->modelXAngle,
-            comp->modelYAngle,
-            rw,
-            rh);
+            ctx, comp->modelId, comp->modelZoom, comp->modelXAngle, comp->modelYAngle, rw, rh);
         if( model_px )
             blit_rgba_sprite(ctx->pixels, CANVAS_W, px, py, model_px, rw, rh, trans_scale);
     }
@@ -1309,14 +1308,7 @@ draw_one_component(
     if( comp->type == 9 )
     {
         draw_line_component(
-            ctx->pixels,
-            comp->color,
-            comp->lineWidth,
-            comp->lineDirection,
-            px,
-            py,
-            lw,
-            lh);
+            ctx->pixels, comp->color, comp->lineWidth, comp->lineDirection, px, py, lw, lh);
     }
 
     if( comp->type == 5 && comp->graphic >= 0 )
@@ -1464,8 +1456,7 @@ render_interface_archive(
         .pixels = pixels,
         .want_sprites = want_sprites,
     };
-    draw_interface_components(
-        &dctx, comps, n, lay_x, lay_y, lay_w, lay_h, draw_order, draw_count);
+    draw_interface_components(&dctx, comps, n, lay_x, lay_y, lay_w, lay_h, draw_order, draw_count);
 
     struct Interface161Cs2Context cs2;
     interface161_cs2_context_init(&cs2);
@@ -1474,6 +1465,7 @@ render_interface_archive(
     cs2.obj_icon_cache = &obj_icon_cache;
     cs2.root_w = root_w;
     cs2.root_h = root_h;
+    cs2.clientscript_decode_flags = interface161_cs2_clientscript_decode_flags();
     if( interface161_cs2_run_interface(
             &cs2, comps, n, lay_x, lay_y, lay_w, lay_h, iface_id, fixture) == 0 )
     {
@@ -1495,8 +1487,7 @@ render_interface_archive(
 }
 
 static bool
-is_orphan_graphic(
-    Component const* comp)
+is_orphan_graphic(Component const* comp)
 {
     return comp && comp->type == 5 && comp->layer < 0 && comp->graphic >= 0 && !comp->hidden;
 }
@@ -1704,6 +1695,7 @@ usage(void)
         "usage: interface161_test <cache_directory> [--iface N] [--sprites]\n"
         "          [--fixture path.json] [--panel] [--root-w W] [--root-h H]\n"
         "          [--mount childFileIndex:ifaceId] ... [--verbose-layout] [out.bmp]\n"
+        "          [--cs2-trailer modern|legacy]\n"
         "  --panel       use sidebar panel root size (%dx%d)\n"
         "  --root-w/h    IF3 virtual parent size (default %dx%d)\n",
         UITREE_SIDEBAR_PANEL_W,
@@ -1726,6 +1718,7 @@ main(
     int root_h = FIXED_MODE_ROOT_H;
     int mount_count = 0;
     struct MountSpec mounts[MAX_MOUNTS];
+    int clientscript_decode_flags = 0;
 
     for( int i = 1; i < argc; i++ )
     {
@@ -1735,6 +1728,12 @@ main(
             want_sprites = 1;
         else if( strcmp(argv[i], "--fixture") == 0 && i + 1 < argc )
             fixture_path = argv[++i];
+        else if( strcmp(argv[i], "--cs2-trailer") == 0 && i + 1 < argc )
+        {
+            if( strcmp(argv[i + 1], "legacy") == 0 )
+                clientscript_decode_flags = 1;
+            ++i;
+        }
         else if( strcmp(argv[i], "--panel") == 0 )
         {
             root_w = UITREE_SIDEBAR_PANEL_W;
@@ -1773,6 +1772,8 @@ main(
     interface161_fixture_init(&fixture);
     if( fixture_path && interface161_fixture_load(&fixture, fixture_path) != 0 )
         fprintf(stderr, "warning: could not load fixture %s\n", fixture_path);
+
+    interface161_cs2_set_clientscript_decode_flags(clientscript_decode_flags);
 
     struct RSCacheDat2Disk* cache = RSCacheDat2Disk_NewFromDirectory(cache_dir);
     if( !cache )
@@ -1878,18 +1879,7 @@ main(
 
     int draw_count = 0;
     resolve_interface_layout(
-        comps,
-        n,
-        0,
-        0,
-        root_w,
-        root_h,
-        lay_x,
-        lay_y,
-        lay_w,
-        lay_h,
-        draw_order,
-        &draw_count);
+        comps, n, 0, 0, root_w, root_h, lay_x, lay_y, lay_w, lay_h, draw_order, &draw_count);
 
     if( verbose_layout )
         fprintf(stderr, "draw_count=%d want_sprites=%d\n", draw_count, want_sprites);
@@ -1914,8 +1904,7 @@ main(
         .pixels = pixels,
         .want_sprites = want_sprites,
     };
-    draw_interface_components(
-        &dctx, comps, n, lay_x, lay_y, lay_w, lay_h, draw_order, draw_count);
+    draw_interface_components(&dctx, comps, n, lay_x, lay_y, lay_w, lay_h, draw_order, draw_count);
 
     struct Interface161Cs2Context cs2;
     interface161_cs2_context_init(&cs2);
@@ -1924,6 +1913,7 @@ main(
     cs2.obj_icon_cache = &obj_icon_cache;
     cs2.root_w = root_w;
     cs2.root_h = root_h;
+    cs2.clientscript_decode_flags = clientscript_decode_flags;
     if( interface161_cs2_run_interface(
             &cs2, comps, n, lay_x, lay_y, lay_w, lay_h, iface, &fixture) == 0 )
     {

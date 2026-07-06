@@ -23,7 +23,13 @@ If `cache_dir` is omitted, resolution order is:
 2. `<repo-root>/cache`
 3. Relative `cache/` paths from the working directory
 
-The local `3draster/cache` tree is often an older revision whose clientscripts do not decode with the modern CS2 trailer layout; use the xrsps cache for CS2 preview.
+The local `3draster/cache` tree is often an older revision whose clientscripts use the legacy CS2 trailer layout. Pass `--cs2-trailer legacy` when using that cache:
+
+```bash
+./interface_editor cache --cs2-trailer legacy
+```
+
+For rev-237 / xrsps caches, the default modern trailer is correct.
 
 Example:
 

@@ -5,16 +5,20 @@
 
 #include <stdint.h>
 
+#define CLIENTSCRIPT_DECODE_TRAILER_MODERN 0
+#define CLIENTSCRIPT_DECODE_TRAILER_LEGACY 1
+
 struct RSCacheDat2A_ClientScript
 {
     struct CS2_Script script;
 };
 
 struct RSCacheDat2A_ClientScript*
-RSCacheDat2A_ClientScriptNewDecode(
+RSCacheDat2A_ClientScriptNewFromDecodeFlags(
     int script_id,
     const uint8_t* data,
-    int data_size);
+    int data_size,
+    int flags);
 
 void
 RSCacheDat2A_ClientScriptFree(struct RSCacheDat2A_ClientScript* script);

@@ -161,5 +161,9 @@
     "trspk_opengl3.h": "c",
     "uv_pnm.h": "c",
     "toridraw_math.h": "c"
-  }
+  },
+  "lldb.displayFormat": "auto",
+  "lldb.showDisassembly": "always",
+  "lldb.dereferencePointers": true,
+  "lldb.consoleMode": "commands"
 }

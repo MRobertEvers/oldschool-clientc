@@ -28,7 +28,8 @@ struct ToriAuxLibCore_ClientScript*
 ToriAuxLibCache_ClientScriptNewFromDat2Archive(
     struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
-    int script_id)
+    int script_id,
+    int clientscript_decode_flags)
 {
     if( !cache || !archive || script_id < 0 )
     {
@@ -37,10 +38,11 @@ ToriAuxLibCache_ClientScriptNewFromDat2Archive(
     }
 
     RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
-    struct RSCacheDat2A_ClientScript* decoded = RSCacheDat2A_ClientScriptNewDecode(
+    struct RSCacheDat2A_ClientScript* decoded = RSCacheDat2A_ClientScriptNewFromDecodeFlags(
         script_id,
         (const uint8_t*)archive->data,
-        archive->data_size);
+        archive->data_size,
+        clientscript_decode_flags);
     RSCacheDat2Disk_ArchiveFree(archive);
     if( !decoded )
         return NULL;

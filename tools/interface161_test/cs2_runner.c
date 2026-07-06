@@ -2,16 +2,16 @@
 
 #include "enum_lookup.h"
 #include "fixture.h"
-#include "struct_lookup.h"
 #include "games/ie_enum_lookup.h"
+#include "struct_lookup.h"
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
-#include "vm/cs2_script.h"
 #include "ui/rs_inv_container.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
 #include "vm/cs2_host_ui.h"
 #include "vm/cs2_opcode.h"
+#include "vm/cs2_script.h"
 #include "vm/cs2_trigger_args.h"
 #include "vm/cs2vm.h"
 
@@ -21,14 +21,6 @@
 #include <string.h>
 
 #define CS2_RUNNER_SCRIPT_CACHE_MAX 64
-
-static uint16_t k_empty_script_opcodes[] = { CS2_OP_RETURN };
-static int k_empty_script_operands[] = { 0 };
-static struct CS2_Script k_empty_script = {
-    .op_count = 1,
-    .opcodes = k_empty_script_opcodes,
-    .int_operands = k_empty_script_operands,
-};
 
 static int const k_equipment_387_slot_files[] = { 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 };
 static int const k_equipment_387_slot_count =
@@ -43,12 +35,34 @@ struct Interface161Cs2ScriptEntry
 struct Interface161Cs2RunnerState
 {
     struct Interface161Cs2Context* ctx;
+    struct RSCacheDat2Disk* disk;
     struct Interface161Cs2ScriptEntry scripts[CS2_RUNNER_SCRIPT_CACHE_MAX];
     int script_count;
     struct CS2Host host;
 };
 
 static struct Interface161Cs2RunnerState s_runner;
+static int s_clientscript_decode_flags = CLIENTSCRIPT_DECODE_TRAILER_MODERN;
+
+void
+interface161_cs2_set_clientscript_decode_flags(int flags)
+{
+    s_clientscript_decode_flags = flags;
+}
+
+int
+interface161_cs2_clientscript_decode_flags(void)
+{
+    return s_clientscript_decode_flags;
+}
+
+static int
+interface161_cs2_resolve_decode_flags(void)
+{
+    if( s_runner.ctx )
+        return s_runner.ctx->clientscript_decode_flags;
+    return s_clientscript_decode_flags;
+}
 
 static void
 interface161_cs2_run_component_hook(
@@ -103,9 +117,13 @@ interface161_runtime_store_inv_hook(
             continue;
         s_runtime_inv_hooks[i].script_id = script_id;
         s_runtime_inv_hooks[i].argc = argc > 16 ? 16 : argc;
-        memcpy(s_runtime_inv_hooks[i].argv, argv, (size_t)s_runtime_inv_hooks[i].argc * sizeof(int));
+        memcpy(
+            s_runtime_inv_hooks[i].argv, argv, (size_t)s_runtime_inv_hooks[i].argc * sizeof(int));
         s_runtime_inv_hooks[i].trigger_count = trigger_count > 8 ? 8 : trigger_count;
-        memcpy(s_runtime_inv_hooks[i].triggers, triggers, (size_t)s_runtime_inv_hooks[i].trigger_count * sizeof(int));
+        memcpy(
+            s_runtime_inv_hooks[i].triggers,
+            triggers,
+            (size_t)s_runtime_inv_hooks[i].trigger_count * sizeof(int));
         return;
     }
 
@@ -327,13 +345,14 @@ interface161_cs2_place_fixture_equipment_icons(
         int scene_id = -1;
         int atlas_index = 0;
         (void)interface161_cs2_resolve_obj_icon(ctx, obj_id, &scene_id, &atlas_index);
-        (void)uitree_apply_object(
-            ctx->tree, child_id, obj_id, 1, scene_id, atlas_index);
+        (void)uitree_apply_object(ctx->tree, child_id, obj_id, 1, scene_id, atlas_index);
     }
 }
 
 static int
-equipment_slot_for_file(int iface_id, int file_index)
+equipment_slot_for_file(
+    int iface_id,
+    int file_index)
 {
     if( iface_id != 387 )
         return -1;
@@ -346,8 +365,7 @@ equipment_slot_for_file(int iface_id, int file_index)
 }
 
 static void
-interface161_cs2_seed_empty_worn(
-    struct Interface161Cs2Context* ctx)
+interface161_cs2_seed_empty_worn(struct Interface161Cs2Context* ctx)
 {
     if( !ctx )
         return;
@@ -427,10 +445,9 @@ interface161_cs2_seed_fixture(
     if( !ctx || !fixture || fixture->slot_count <= 0 )
         return;
 
-    int const container_id =
-        iface_id == 387 ? RS_INV_CONTAINER_WORN : RS_INV_CONTAINER_BACKPACK;
-    char const* source_name =
-        container_id == RS_INV_CONTAINER_WORN ? UI_INV_SOURCE_NAME_WORN : UI_INV_SOURCE_NAME_BACKPACK;
+    int const container_id = iface_id == 387 ? RS_INV_CONTAINER_WORN : RS_INV_CONTAINER_BACKPACK;
+    char const* source_name = container_id == RS_INV_CONTAINER_WORN ? UI_INV_SOURCE_NAME_WORN
+                                                                    : UI_INV_SOURCE_NAME_BACKPACK;
     int const source_id = ui_inv_data_service_resolve_source(&ctx->inv_data, source_name);
     if( source_id < 0 )
         return;
@@ -450,8 +467,8 @@ interface161_cs2_seed_fixture(
         int atlas_index = 0;
         if( ctx->scene && ctx->obj_icon_cache )
         {
-            const int* icon = interface161_obj_icon_get(
-                ctx->cache, ctx->scene, ctx->obj_icon_cache, obj_id);
+            const int* icon =
+                interface161_obj_icon_get(ctx->cache, ctx->scene, ctx->obj_icon_cache, obj_id);
             if( icon )
             {
                 scene_id = obj_id;
@@ -557,10 +574,60 @@ interface161_cs2_resolve_obj_icon(
     return false;
 }
 
-static void
+static struct RSCacheDat2Disk*
+interface161_cs2_runner_disk(void)
+{
+    if( s_runner.disk )
+        return s_runner.disk;
+    if( s_runner.ctx && s_runner.ctx->cache )
+        return s_runner.ctx->cache;
+    return NULL;
+}
+
+static bool
 interface161_cs2_cache_script(
-    struct Interface161Cs2Context* ctx,
-    int script_id);
+    struct RSCacheDat2Disk* disk,
+    int script_id)
+{
+    if( !disk || script_id < 0 )
+        return false;
+
+    for( int i = 0; i < s_runner.script_count; i++ )
+    {
+        if( s_runner.scripts[i].script_id == script_id )
+            return true;
+    }
+
+    if( s_runner.script_count >= CS2_RUNNER_SCRIPT_CACHE_MAX )
+    {
+        fprintf(stderr, "interface161_cs2: script cache full, cannot load script %d\n", script_id);
+        return false;
+    }
+
+    struct RSCacheDat2Disk_Archive* archive =
+        RSCacheDat2Disk_ArchiveNewLoad(disk, RSCacheDat2Disk_Table_Clientscript, script_id);
+    if( !archive )
+    {
+        fprintf(stderr, "interface161_cs2: script %d not found in cache\n", script_id);
+        return false;
+    }
+
+    struct ToriAuxLibCore_ClientScript* loaded =
+        ToriAuxLibCache_ClientScriptNewFromDat2Archive(
+            disk, archive, script_id, interface161_cs2_resolve_decode_flags());
+    if( !loaded || loaded->script.op_count <= 0 )
+    {
+        fprintf(stderr, "interface161_cs2: failed to decode script %d from cache\n", script_id);
+        if( loaded )
+            free(loaded);
+        return false;
+    }
+
+    struct Interface161Cs2ScriptEntry* entry = &s_runner.scripts[s_runner.script_count++];
+    entry->script_id = script_id;
+    entry->loaded = loaded;
+    return true;
+}
 
 static struct CS2_Script*
 interface161_cs2_resolve_script(
@@ -574,45 +641,16 @@ interface161_cs2_resolve_script(
             return &s_runner.scripts[i].loaded->script;
     }
 
-    if( s_runner.ctx )
-        interface161_cs2_cache_script(s_runner.ctx, script_id);
+    struct RSCacheDat2Disk* disk = interface161_cs2_runner_disk();
+    if( !disk || !interface161_cs2_cache_script(disk, script_id) )
+        return NULL;
 
     for( int i = 0; i < s_runner.script_count; i++ )
     {
         if( s_runner.scripts[i].script_id == script_id )
             return &s_runner.scripts[i].loaded->script;
     }
-    fprintf(stderr, "interface161_cs2: unresolved gosub script %d, using empty return\n", script_id);
-    return &k_empty_script;
-}
-
-static void
-interface161_cs2_cache_script(
-    struct Interface161Cs2Context* ctx,
-    int script_id)
-{
-    if( !ctx || script_id < 0 )
-        return;
-
-    for( int i = 0; i < s_runner.script_count; i++ )
-    {
-        if( s_runner.scripts[i].script_id == script_id )
-            return;
-    }
-
-    if( s_runner.script_count >= CS2_RUNNER_SCRIPT_CACHE_MAX )
-        return;
-
-    struct RSCacheDat2Disk_Archive* archive = RSCacheDat2Disk_ArchiveNewLoad(
-        ctx->cache, RSCacheDat2Disk_Table_Clientscript, script_id);
-    struct ToriAuxLibCore_ClientScript* loaded =
-        ToriAuxLibCache_ClientScriptNewFromDat2Archive(ctx->cache, archive, script_id);
-    if( !loaded || loaded->script.op_count <= 0 )
-        return;
-
-    struct Interface161Cs2ScriptEntry* entry = &s_runner.scripts[s_runner.script_count++];
-    entry->script_id = script_id;
-    entry->loaded = loaded;
+    return NULL;
 }
 
 static void
@@ -629,12 +667,18 @@ interface161_cs2_run_component_hook(
     if( script_id < 0 )
         return;
 
-    interface161_cs2_cache_script(ctx, script_id);
     struct CS2_Script* script = interface161_cs2_resolve_script(ctx, script_id);
     if( !script )
+    {
+        fprintf(
+            stderr,
+            "interface161_cs2: hook script %d for comp 0x%x not resolved\n",
+            script_id,
+            comp->id);
         return;
+    }
 
-  int argv[16];
+    int argv[16];
     int argc = hook_len - 1;
     if( argc > 16 )
         argc = 16;
@@ -921,6 +965,7 @@ interface161_cs2_init_host_shell(
     memset(&s_runner, 0, sizeof(s_runner));
     interface161_runtime_inv_hooks_reset();
     s_runner.ctx = ctx;
+    s_runner.disk = ctx->cache;
     ctx->tree = uitree_new(64);
     ctx->cs2vm = cs2vm_new();
     if( !ctx->tree || !ctx->cs2vm )
@@ -1046,8 +1091,7 @@ interface161_cs2_run_interface(
             continue;
         if( comps[i].onLoadLen <= 0 )
             continue;
-        interface161_cs2_run_component_hook(
-            ctx, &comps[i], comps[i].onLoad, comps[i].onLoadLen);
+        interface161_cs2_run_component_hook(ctx, &comps[i], comps[i].onLoad, comps[i].onLoadLen);
     }
     uitree_layout_resolve(ctx->tree, 0, 0, ctx->root_w, ctx->root_h);
 
@@ -1057,8 +1101,7 @@ interface161_cs2_run_interface(
             continue;
         if( comps[i].onLoadLen <= 0 )
             continue;
-        interface161_cs2_run_component_hook(
-            ctx, &comps[i], comps[i].onLoad, comps[i].onLoadLen);
+        interface161_cs2_run_component_hook(ctx, &comps[i], comps[i].onLoad, comps[i].onLoadLen);
     }
     uitree_layout_resolve(ctx->tree, 0, 0, ctx->root_w, ctx->root_h);
 

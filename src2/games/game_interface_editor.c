@@ -1,17 +1,16 @@
-#include "interface_editor.h"
 #include "ie_enum_lookup.h"
 #include "ie_struct_lookup.h"
-
+#include "interface_editor.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
-#include "toridraw/toridraw.h"
-#include "toridraw/toridraw_font.h"
-#include "toridraw/toridraw_scene.h"
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/c/toriauxlibcache_font_convert.h"
 #include "toriauxlib/c/toriauxlibcache_sprite_convert.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/td/toridraw_cachemodel.h"
+#include "toridraw/toridraw.h"
+#include "toridraw/toridraw_font.h"
+#include "toridraw/toridraw_scene.h"
 #include "ui/ui_if3_layout.h"
 #include "ui/ui_inv_slot_view.h"
 #include "ui/uitree_layout.h"
@@ -19,8 +18,8 @@
 #include "vm/cs2_host_ui.h"
 #include "vm/cs2_opcode.h"
 #include "vm/cs2_opcode_meta.h"
-#include "vm/cs2_trigger_args.h"
 #include "vm/cs2_script.h"
+#include "vm/cs2_trigger_args.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -59,7 +58,10 @@ ie_on_inv_container_change(
     int container_id);
 
 static void
-ie_push_script_error(struct GameInterfaceEditor* game, char const* fmt, ...)
+ie_push_script_error(
+    struct GameInterfaceEditor* game,
+    char const* fmt,
+    ...)
 {
     if( !game || !fmt )
         return;
@@ -76,9 +78,7 @@ ie_push_script_error(struct GameInterfaceEditor* game, char const* fmt, ...)
     if( game->script_error_count < IE_SCRIPT_ERR_MAX )
     {
         strncpy(
-            game->script_errors[game->script_error_count],
-            buf,
-            sizeof(game->script_errors[0]) - 1);
+            game->script_errors[game->script_error_count], buf, sizeof(game->script_errors[0]) - 1);
         game->script_error_count++;
     }
 }
@@ -102,19 +102,27 @@ ie_on_cc_create_notify(
 }
 
 static int
-ie_resolve_obj_icon_sprite(struct GameInterfaceEditor* game, int obj_id);
+ie_resolve_obj_icon_sprite(
+    struct GameInterfaceEditor* game,
+    int obj_id);
 
 static bool
 ie_enumerate_sprite_ids(struct GameInterfaceEditor* game);
 
 static struct RSCacheDat2A_ConfigObject*
-ie_load_object_config(struct RSCacheDat2Disk* cache, int obj_id);
+ie_load_object_config(
+    struct RSCacheDat2Disk* cache,
+    int obj_id);
 
 static void
-ie_sync_preview_inventory(struct GameInterfaceEditor* game, struct InterfaceEditorWidget* w);
+ie_sync_preview_inventory(
+    struct GameInterfaceEditor* game,
+    struct InterfaceEditorWidget* w);
 
 static int
-ie_widget_parent_index(struct GameInterfaceEditor* game, int widget_index);
+ie_widget_parent_index(
+    struct GameInterfaceEditor* game,
+    int widget_index);
 
 static int const k_addable_types[] = { 0, 2, 3, 4, 5, 6, 9 };
 static int const k_addable_type_count = 7;
@@ -152,7 +160,9 @@ ie_is_container_type(int type)
 }
 
 static struct InterfaceEditorWidget*
-ie_find_widget(struct GameInterfaceEditor* game, int uid)
+ie_find_widget(
+    struct GameInterfaceEditor* game,
+    int uid)
 {
     for( int i = 0; i < game->widget_count; i++ )
     {
@@ -163,7 +173,9 @@ ie_find_widget(struct GameInterfaceEditor* game, int uid)
 }
 
 static int
-ie_widget_index(struct GameInterfaceEditor* game, int uid)
+ie_widget_index(
+    struct GameInterfaceEditor* game,
+    int uid)
 {
     for( int i = 0; i < game->widget_count; i++ )
     {
@@ -174,7 +186,9 @@ ie_widget_index(struct GameInterfaceEditor* game, int uid)
 }
 
 static bool
-ie_is_expanded(struct GameInterfaceEditor* game, int uid)
+ie_is_expanded(
+    struct GameInterfaceEditor* game,
+    int uid)
 {
     for( int i = 0; i < game->expanded_count; i++ )
     {
@@ -185,7 +199,9 @@ ie_is_expanded(struct GameInterfaceEditor* game, int uid)
 }
 
 static void
-ie_toggle_expanded(struct GameInterfaceEditor* game, int uid)
+ie_toggle_expanded(
+    struct GameInterfaceEditor* game,
+    int uid)
 {
     for( int i = 0; i < game->expanded_count; i++ )
     {
@@ -201,7 +217,9 @@ ie_toggle_expanded(struct GameInterfaceEditor* game, int uid)
 }
 
 static void
-ie_expand_uid(struct GameInterfaceEditor* game, int uid)
+ie_expand_uid(
+    struct GameInterfaceEditor* game,
+    int uid)
 {
     if( ie_is_expanded(game, uid) )
         return;
@@ -210,7 +228,9 @@ ie_expand_uid(struct GameInterfaceEditor* game, int uid)
 }
 
 static bool
-ie_widget_has_static_children(struct GameInterfaceEditor* game, int parent_uid)
+ie_widget_has_static_children(
+    struct GameInterfaceEditor* game,
+    int parent_uid)
 {
     for( int i = 0; i < game->widget_count; i++ )
     {
@@ -223,7 +243,9 @@ ie_widget_has_static_children(struct GameInterfaceEditor* game, int parent_uid)
 }
 
 static int
-ie_widget_depth(struct GameInterfaceEditor* game, int widget_index)
+ie_widget_depth(
+    struct GameInterfaceEditor* game,
+    int widget_index)
 {
     int depth = 0;
     int idx = widget_index;
@@ -341,7 +363,10 @@ ie_push_hit(
 }
 
 static int
-ie_clamp_scroll(int scroll, int content_h, int visible_h)
+ie_clamp_scroll(
+    int scroll,
+    int content_h,
+    int visible_h)
 {
     int max_scroll = content_h - visible_h;
     if( max_scroll < 0 )
@@ -431,7 +456,13 @@ ie_panel_scroll_metrics(
 }
 
 static struct IEVerticalScrollbarGeom
-ie_vertical_scrollbar_geom(int x, int y, int w, int h, int scroll, int content_h)
+ie_vertical_scrollbar_geom(
+    int x,
+    int y,
+    int w,
+    int h,
+    int scroll,
+    int content_h)
 {
     struct IEVerticalScrollbarGeom geom = { .content_w = w };
     if( content_h <= h )
@@ -471,19 +502,9 @@ ie_push_vertical_scrollbar(
         return;
 
     ie_push_draw_fill(
-        game,
-        geom->track_x,
-        geom->track_y,
-        geom->track_w,
-        geom->track_h,
-        IE_SCROLLBAR_TRACK_ARGB);
+        game, geom->track_x, geom->track_y, geom->track_w, geom->track_h, IE_SCROLLBAR_TRACK_ARGB);
     ie_push_draw_fill(
-        game,
-        geom->track_x,
-        geom->grip_y,
-        geom->track_w,
-        geom->grip_h,
-        IE_SCROLLBAR_GRIP_ARGB);
+        game, geom->track_x, geom->grip_y, geom->track_w, geom->grip_h, IE_SCROLLBAR_GRIP_ARGB);
     ie_push_hit(
         game,
         IEHIT_SCROLLBAR_GRIP,
@@ -521,7 +542,10 @@ ie_scroll_for_grip_y(
 }
 
 static void
-ie_apply_scroll_to_target(struct GameInterfaceEditor* game, enum InterfaceEditorScrollTarget target, int delta)
+ie_apply_scroll_to_target(
+    struct GameInterfaceEditor* game,
+    enum InterfaceEditorScrollTarget target,
+    int delta)
 {
     struct IEPanelScrollMetrics metrics;
     if( !ie_panel_scroll_metrics(game, target, &metrics) )
@@ -530,20 +554,20 @@ ie_apply_scroll_to_target(struct GameInterfaceEditor* game, enum InterfaceEditor
     switch( target )
     {
     case IE_SCROLL_LIST:
-        game->list_scroll = ie_clamp_scroll(
-            game->list_scroll + delta, metrics.content_h, metrics.visible_h);
+        game->list_scroll =
+            ie_clamp_scroll(game->list_scroll + delta, metrics.content_h, metrics.visible_h);
         break;
     case IE_SCROLL_TREE:
-        game->tree_scroll = ie_clamp_scroll(
-            game->tree_scroll + delta, metrics.content_h, metrics.visible_h);
+        game->tree_scroll =
+            ie_clamp_scroll(game->tree_scroll + delta, metrics.content_h, metrics.visible_h);
         break;
     case IE_SCROLL_BOTTOM:
         if( game->right_tab == IE_TAB_CONTAINERS )
             game->containers_scroll = ie_clamp_scroll(
                 game->containers_scroll + delta, metrics.content_h, metrics.visible_h);
         else
-            game->props_scroll = ie_clamp_scroll(
-                game->props_scroll + delta, metrics.content_h, metrics.visible_h);
+            game->props_scroll =
+                ie_clamp_scroll(game->props_scroll + delta, metrics.content_h, metrics.visible_h);
         break;
     default:
         break;
@@ -582,7 +606,10 @@ ie_set_scroll_for_target(
 
 /* Keep in sync with ie_build_draw_list panel geometry. */
 static enum InterfaceEditorScrollTarget
-ie_scroll_target_at(struct GameInterfaceEditor* game, int mx, int my)
+ie_scroll_target_at(
+    struct GameInterfaceEditor* game,
+    int mx,
+    int my)
 {
     (void)game;
     int const content_y = IE_TOOLBAR_H;
@@ -602,7 +629,11 @@ ie_scroll_target_at(struct GameInterfaceEditor* game, int mx, int my)
 }
 
 static void
-ie_apply_scroll(struct GameInterfaceEditor* game, int mx, int my, int delta)
+ie_apply_scroll(
+    struct GameInterfaceEditor* game,
+    int mx,
+    int my,
+    int delta)
 {
     enum InterfaceEditorScrollTarget const target = ie_scroll_target_at(game, mx, my);
     if( target == IE_SCROLL_NONE )
@@ -611,7 +642,9 @@ ie_apply_scroll(struct GameInterfaceEditor* game, int mx, int my, int delta)
 }
 
 static void
-ie_scrollbar_drag_update(struct GameInterfaceEditor* game, struct LibToriRS_Input* input)
+ie_scrollbar_drag_update(
+    struct GameInterfaceEditor* game,
+    struct LibToriRS_Input* input)
 {
     if( !game || !input )
         return;
@@ -664,7 +697,9 @@ ie_default_ui_font_id(struct GameInterfaceEditor* game)
 }
 
 static int
-ie_resolve_scene_font(struct GameInterfaceEditor* game, int rs_font_id)
+ie_resolve_scene_font(
+    struct GameInterfaceEditor* game,
+    int rs_font_id)
 {
     if( !game || rs_font_id < 0 )
         return ie_default_ui_font_id(game);
@@ -675,7 +710,8 @@ ie_resolve_scene_font(struct GameInterfaceEditor* game, int rs_font_id)
             return game->font_cache[i].scene_font_id;
     }
 
-    if( !game->dat2_cache || !game->cache || !game->td || game->font_cache_count >= IE_FONT_CACHE_MAX )
+    if( !game->dat2_cache || !game->cache || !game->td ||
+        game->font_cache_count >= IE_FONT_CACHE_MAX )
         return ie_default_ui_font_id(game);
 
     struct RSCacheDat2Disk_Archive* font_archive =
@@ -1242,7 +1278,8 @@ ie_cs2_host_invoke(
     if( ie_cs2_opcode_to_seton_event(ctx->opcode, &event) )
     {
         int target_component_id = ctx->active_component;
-        if( ctx->opcode >= CS2_OP_IF_SETONCLICK && ctx->opcode <= CS2_OP_IF_SETONCLANCHANNELTRANSMIT )
+        if( ctx->opcode >= CS2_OP_IF_SETONCLICK &&
+            ctx->opcode <= CS2_OP_IF_SETONCLANCHANNELTRANSMIT )
         {
             if( !cs2vm_host_try_pop_int(ctx, &target_component_id) )
                 return;
@@ -1395,12 +1432,12 @@ ie_cs2_cache_script(
     struct RSCacheDat2Disk_Archive* archive = RSCacheDat2Disk_ArchiveNewLoad(
         game->dat2_cache, RSCacheDat2Disk_Table_Clientscript, script_id);
     struct ToriAuxLibCore_ClientScript* loaded =
-        ToriAuxLibCache_ClientScriptNewFromDat2Archive(game->dat2_cache, archive, script_id);
+        ToriAuxLibCache_ClientScriptNewFromDat2Archive(
+            disk, archive, script_id, game->clientscript_decode_flags);
     if( !loaded || loaded->script.op_count <= 0 )
         return;
 
-    struct InterfaceEditorScriptEntry* entry =
-        &game->script_cache[game->script_cache_count++];
+    struct InterfaceEditorScriptEntry* entry = &game->script_cache[game->script_cache_count++];
     entry->script_id = script_id;
     entry->loaded = loaded;
 }
@@ -1676,8 +1713,8 @@ ie_widget_parent_index(
     if( !game || widget_index < 0 || widget_index >= game->widget_count )
         return -1;
     int const layer = game->widgets[widget_index].is_editor_added
-        ? game->widgets[widget_index].parent_uid
-        : game->widgets[widget_index].data.layer;
+                          ? game->widgets[widget_index].parent_uid
+                          : game->widgets[widget_index].data.layer;
     if( layer < 0 )
         return -1;
     for( int j = 0; j < game->widget_count; j++ )
@@ -1815,13 +1852,14 @@ ie_trigger_inv_transmit_initial(struct GameInterfaceEditor* game)
             continue;
         if( comp->inventoryTriggersLen <= 0 )
             continue;
-        (void)ie_cs2_run_component_hook(
-            game, comp, comp->onInvTransmit, comp->onInvTransmitLen);
+        (void)ie_cs2_run_component_hook(game, comp, comp->onInvTransmit, comp->onInvTransmitLen);
     }
 }
 
 static void
-ie_cs2_run_script_pass(struct GameInterfaceEditor* game, bool fire_inv_transmit)
+ie_cs2_run_script_pass(
+    struct GameInterfaceEditor* game,
+    bool fire_inv_transmit)
 {
     if( !game || !game->cs2_tree )
         return;
@@ -1853,8 +1891,8 @@ ie_component_watches_any_changed_inv(
         return cycles->transmit_dirty;
 
     int const start = cycles->changed_inv_count > IE_TRANSMIT_RING_SIZE
-        ? cycles->changed_inv_count - IE_TRANSMIT_RING_SIZE
-        : 0;
+                          ? cycles->changed_inv_count - IE_TRANSMIT_RING_SIZE
+                          : 0;
     for( int i = cycles->changed_inv_count - 1; i >= start; i-- )
     {
         int const inv_id = cycles->changed_inv_buffer[i & (IE_TRANSMIT_RING_SIZE - 1)];
@@ -1874,8 +1912,7 @@ ie_mark_var_transmit(
 
     struct InterfaceEditorTransmitCycles* cycles = &game->transmit_cycles;
     cycles->transmit_dirty = true;
-    cycles->changed_varp_buffer[cycles->changed_varp_count & (IE_TRANSMIT_RING_SIZE - 1)] =
-        varp_id;
+    cycles->changed_varp_buffer[cycles->changed_varp_count & (IE_TRANSMIT_RING_SIZE - 1)] = varp_id;
     cycles->changed_varp_count++;
 }
 
@@ -1919,8 +1956,8 @@ ie_runtime_hook_inv_changed(
         return false;
 
     int const start = cycles->changed_inv_count > IE_TRANSMIT_RING_SIZE
-        ? cycles->changed_inv_count - IE_TRANSMIT_RING_SIZE
-        : 0;
+                          ? cycles->changed_inv_count - IE_TRANSMIT_RING_SIZE
+                          : 0;
     for( int i = cycles->changed_inv_count - 1; i >= start; i-- )
     {
         int const inv_id = cycles->changed_inv_buffer[i & (IE_TRANSMIT_RING_SIZE - 1)];
@@ -2034,8 +2071,8 @@ ie_process_widget_transmits(struct GameInterfaceEditor* game)
         else
         {
             int const start = game->transmit_cycles.changed_varp_count > IE_TRANSMIT_RING_SIZE
-                ? game->transmit_cycles.changed_varp_count - IE_TRANSMIT_RING_SIZE
-                : 0;
+                                  ? game->transmit_cycles.changed_varp_count - IE_TRANSMIT_RING_SIZE
+                                  : 0;
             for( int v = game->transmit_cycles.changed_varp_count - 1; v >= start; v-- )
             {
                 int const varp_id =
@@ -2055,8 +2092,7 @@ ie_process_widget_transmits(struct GameInterfaceEditor* game)
         if( !should_fire )
             continue;
 
-        (void)ie_cs2_run_component_hook(
-            game, comp, comp->onVarpTransmit, comp->onVarpTransmitLen);
+        (void)ie_cs2_run_component_hook(game, comp, comp->onVarpTransmit, comp->onVarpTransmitLen);
     }
 
     game->transmit_cycles.last_transmit_process_cycle = game->transmit_cycles.cycle_cntr;
@@ -2162,8 +2198,7 @@ ie_restore_drag_thresholds(
 {
     if( !game || !input )
         return;
-    LibToriRS_Input_SetDragThresholds(
-        input, game->saved_drag_zone_px, game->saved_drag_time_ms);
+    LibToriRS_Input_SetDragThresholds(input, game->saved_drag_zone_px, game->saved_drag_time_ms);
     game->canvas_drag_uid = -1;
 }
 
@@ -2217,15 +2252,13 @@ ie_handle_canvas_drag_scripts(
 
     enum InterfaceEditorSetonEvent const event =
         drag_complete ? IE_SETON_ON_DRAGCOMPLETE : IE_SETON_ON_DRAG;
-    struct InterfaceEditorRuntimeHook* runtime_hook =
-        ie_runtime_find_hook(game, comp->id, event);
+    struct InterfaceEditorRuntimeHook* runtime_hook = ie_runtime_find_hook(game, comp->id, event);
     if( runtime_hook )
         (void)ie_cs2_run_runtime_hook(game, runtime_hook);
     else if( !drag_complete && comp->onDragLen > 0 )
         (void)ie_cs2_run_component_hook(game, comp, comp->onDrag, comp->onDragLen);
     else if( drag_complete && comp->onDragCompleteLen > 0 )
-        (void)ie_cs2_run_component_hook(
-            game, comp, comp->onDragComplete, comp->onDragCompleteLen);
+        (void)ie_cs2_run_component_hook(game, comp, comp->onDragComplete, comp->onDragCompleteLen);
 }
 
 static void
@@ -2391,9 +2424,8 @@ ie_cs2_build_tree(struct GameInterfaceEditor* game)
 
     for( int i = 0; i < comp_count; i++ )
     {
-        int const layer = game->widgets[i].is_editor_added
-            ? game->widgets[i].parent_uid
-            : game->widgets[i].data.layer;
+        int const layer = game->widgets[i].is_editor_added ? game->widgets[i].parent_uid
+                                                           : game->widgets[i].data.layer;
         if( layer < 0 )
             continue;
         for( int j = 0; j < comp_count; j++ )
@@ -2426,8 +2458,8 @@ ie_cs2_build_tree(struct GameInterfaceEditor* game)
             int32_t parent_tree = -1;
             if( parent_idx[i] >= 0 )
                 parent_tree = tree_idx[parent_idx[i]];
-            tree_idx[i] = ie_cs2_push_component(
-                game->cs2_tree, parent_tree, &game->widgets[i].data);
+            tree_idx[i] =
+                ie_cs2_push_component(game->cs2_tree, parent_tree, &game->widgets[i].data);
             if( tree_idx[i] < 0 )
                 continue;
             pushed[i] = true;
@@ -2584,8 +2616,8 @@ ie_resolve_obj_icon_sprite(
     if( zoom == 0 )
         zoom = 2000;
 
-    struct ToriDraw_Sprite* td_sprite = ToriDraw_SpriteNewFromModelRaster(
-        game->scene, hnd, zoom, xan2d, yan2d, 32, 32, true);
+    struct ToriDraw_Sprite* td_sprite =
+        ToriDraw_SpriteNewFromModelRaster(game->scene, hnd, zoom, xan2d, yan2d, 32, 32, true);
     if( !td_sprite )
         return -1;
 
@@ -2694,10 +2726,7 @@ GameInterfaceEditor_RunScripts(struct GameInterfaceEditor* game)
     if( !game->cs2_tree || !game->cs2vm )
     {
         GameInterfaceEditor_FreeScripts(game);
-        snprintf(
-            game->script_error,
-            sizeof(game->script_error),
-            "failed to allocate CS2 tree/vm");
+        snprintf(game->script_error, sizeof(game->script_error), "failed to allocate CS2 tree/vm");
         return;
     }
 
@@ -2705,10 +2734,7 @@ GameInterfaceEditor_RunScripts(struct GameInterfaceEditor* game)
     if( ie_cs2_build_tree(game) != 0 )
     {
         GameInterfaceEditor_FreeScripts(game);
-        snprintf(
-            game->script_error,
-            sizeof(game->script_error),
-            "failed to build UITree");
+        snprintf(game->script_error, sizeof(game->script_error), "failed to build UITree");
         return;
     }
 
@@ -2795,7 +2821,9 @@ ie_free_widgets(struct GameInterfaceEditor* game)
 }
 
 static bool
-ie_load_group(struct GameInterfaceEditor* game, int group_id)
+ie_load_group(
+    struct GameInterfaceEditor* game,
+    int group_id)
 {
     if( !game || !game->dat2_cache )
         return false;
@@ -2805,8 +2833,8 @@ ie_load_group(struct GameInterfaceEditor* game, int group_id)
     game->selected_uid = -1;
     game->next_dynamic_child = 0x8000;
 
-    struct RSCacheDat2Disk_Archive* arch =
-        RSCacheDat2Disk_ArchiveNewLoad(game->dat2_cache, RSCacheDat2Disk_Table_Interfaces, group_id);
+    struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(
+        game->dat2_cache, RSCacheDat2Disk_Table_Interfaces, group_id);
     if( !arch )
         return false;
 
@@ -2849,7 +2877,9 @@ ie_load_group(struct GameInterfaceEditor* game, int group_id)
 }
 
 bool
-GameInterfaceEditor_LoadGroup(struct GameInterfaceEditor* game, int group_id)
+GameInterfaceEditor_LoadGroup(
+    struct GameInterfaceEditor* game,
+    int group_id)
 {
     return ie_load_group(game, group_id);
 }
@@ -2892,7 +2922,9 @@ GameInterfaceEditor_PrintDynamicCs2Children(struct GameInterfaceEditor* game)
 }
 
 static void
-ie_apply_type_defaults(Component* c, int type)
+ie_apply_type_defaults(
+    Component* c,
+    int type)
 {
     c->type = type;
     switch( type )
@@ -2942,7 +2974,11 @@ ie_apply_type_defaults(Component* c, int type)
 }
 
 static bool
-ie_add_dynamic_widget(struct GameInterfaceEditor* game, int parent_uid, int type, int sprite_id)
+ie_add_dynamic_widget(
+    struct GameInterfaceEditor* game,
+    int parent_uid,
+    int type,
+    int sprite_id)
 {
     if( !game || game->widget_count >= IE_MAX_WIDGETS )
         return false;
@@ -2970,7 +3006,10 @@ ie_add_dynamic_widget(struct GameInterfaceEditor* game, int parent_uid, int type
 }
 
 static int
-ie_hit_test(struct GameInterfaceEditor* game, int px, int py)
+ie_hit_test(
+    struct GameInterfaceEditor* game,
+    int px,
+    int py)
 {
     for( int i = game->hit_count - 1; i >= 0; i-- )
     {
@@ -3107,7 +3146,9 @@ ie_property_value_string(
 }
 
 static int
-ie_parse_int(char const* text, int fallback)
+ie_parse_int(
+    char const* text,
+    int fallback)
 {
     if( !text || !text[0] )
         return fallback;
@@ -3230,7 +3271,9 @@ ie_apply_property(
 }
 
 static void
-ie_sync_preview_inventory(struct GameInterfaceEditor* game, struct InterfaceEditorWidget* w)
+ie_sync_preview_inventory(
+    struct GameInterfaceEditor* game,
+    struct InterfaceEditorWidget* w)
 {
     if( !game || !w || w->data.type != 2 || w->preview_inv_id < 0 )
         return;
@@ -3280,7 +3323,11 @@ ie_sync_preview_inventory(struct GameInterfaceEditor* game, struct InterfaceEdit
 }
 
 static char const*
-ie_obj_display_name(struct GameInterfaceEditor* game, int obj_id, char* buf, size_t buf_len)
+ie_obj_display_name(
+    struct GameInterfaceEditor* game,
+    int obj_id,
+    char* buf,
+    size_t buf_len)
 {
     if( !buf || buf_len == 0 )
         return "";
@@ -3351,11 +3398,7 @@ ie_commit_text_field(struct GameInterfaceEditor* game)
             count = slot_data.obj_count > 0 ? slot_data.obj_count : 1;
         }
         ie_set_container_slot(
-            game,
-            game->container_edit_source_id,
-            game->container_edit_slot,
-            obj_id,
-            count);
+            game, game->container_edit_source_id, game->container_edit_slot, obj_id, count);
     }
     else if( game->text_field.kind == IE_FIELD_CONTAINER_COUNT )
     {
@@ -3371,18 +3414,16 @@ ie_commit_text_field(struct GameInterfaceEditor* game)
             obj_id = slot_data.obj_id;
         }
         ie_set_container_slot(
-            game,
-            game->container_edit_source_id,
-            game->container_edit_slot,
-            obj_id,
-            count);
+            game, game->container_edit_source_id, game->container_edit_slot, obj_id, count);
     }
 
     ie_text_field_end(game);
 }
 
 static void
-ie_handle_text_input(struct GameInterfaceEditor* game, struct LibToriRS_Input* input)
+ie_handle_text_input(
+    struct GameInterfaceEditor* game,
+    struct LibToriRS_Input* input)
 {
     if( !game->text_field.active )
         return;
@@ -3487,10 +3528,9 @@ ie_show_mode_dropdown(
     ui_minimenu_reset(&game->dropdown);
     game->dropdown_property_id = property_id;
 
-    bool const is_size_mode =
-        property_id == IE_PROP_W_MODE || property_id == IE_PROP_H_MODE;
-    static int const k_size_modes[] = {0, 1, 2, 4};
-    static int const k_pos_modes[] = {0, 1, 2, 3, 4, 5};
+    bool const is_size_mode = property_id == IE_PROP_W_MODE || property_id == IE_PROP_H_MODE;
+    static int const k_size_modes[] = { 0, 1, 2, 4 };
+    static int const k_pos_modes[] = { 0, 1, 2, 3, 4, 5 };
     int const mode_count = is_size_mode ? 4 : 6;
     int const* modes = is_size_mode ? k_size_modes : k_pos_modes;
 
@@ -3498,25 +3538,21 @@ ie_show_mode_dropdown(
     {
         int const mode = modes[i];
         char label[48];
-        char const* name =
-            is_size_mode ? ie_size_mode_label(mode) : ie_position_mode_label(mode);
+        char const* name = is_size_mode ? ie_size_mode_label(mode) : ie_position_mode_label(mode);
         snprintf(label, sizeof(label), "%d - %s", mode, name);
         ui_minimenu_add_option(&game->dropdown, label, (enum MinimenuAction)0, mode);
     }
     struct UIMinimenuLayout layout = ui_minimenu_layout_from_line_height(IE_ROW_H);
     int content_w = 120;
     ui_minimenu_show_at(
-        &game->dropdown,
-        layout,
-        content_w,
-        click_x,
-        click_y,
-        IE_WINDOW_W,
-        IE_WINDOW_H);
+        &game->dropdown, layout, content_w, click_x, click_y, IE_WINDOW_W, IE_WINDOW_H);
 }
 
 static void
-ie_show_type_dropdown(struct GameInterfaceEditor* game, int click_x, int click_y)
+ie_show_type_dropdown(
+    struct GameInterfaceEditor* game,
+    int click_x,
+    int click_y)
 {
     ui_minimenu_reset(&game->dropdown);
     game->dropdown_property_id = -1;
@@ -3532,12 +3568,15 @@ ie_show_type_dropdown(struct GameInterfaceEditor* game, int click_x, int click_y
         ui_minimenu_add_option(&game->dropdown, label, (enum MinimenuAction)0, k_addable_types[i]);
     }
     struct UIMinimenuLayout layout = ui_minimenu_layout_from_line_height(IE_ROW_H);
-    ui_minimenu_show_at(
-        &game->dropdown, layout, 180, click_x, click_y, IE_WINDOW_W, IE_WINDOW_H);
+    ui_minimenu_show_at(&game->dropdown, layout, 180, click_x, click_y, IE_WINDOW_W, IE_WINDOW_H);
 }
 
 static void
-ie_handle_hit(struct GameInterfaceEditor* game, int hit_index, int click_x, int click_y)
+ie_handle_hit(
+    struct GameInterfaceEditor* game,
+    int hit_index,
+    int click_x,
+    int click_y)
 {
     if( hit_index < 0 )
         return;
@@ -3659,10 +3698,7 @@ ie_handle_hit(struct GameInterfaceEditor* game, int hit_index, int click_x, int 
         break;
     case IEHIT_ADD_DIALOG_SPRITE_FIELD:
         ie_text_field_begin(
-            game,
-            IE_FIELD_ADD_DIALOG_SPRITE,
-            0,
-            game->add_dialog_sprite_id >= 0 ? "" : "-1");
+            game, IE_FIELD_ADD_DIALOG_SPRITE, 0, game->add_dialog_sprite_id >= 0 ? "" : "-1");
         break;
     case IEHIT_ADD_DIALOG_SPRITE_PICKER_BTN:
         game->sprite_picker_open = true;
@@ -3709,10 +3745,7 @@ ie_handle_hit(struct GameInterfaceEditor* game, int hit_index, int click_x, int 
     case IEHIT_TOOLBAR_TRACE:
         game->cs2_trace_enabled = !game->cs2_trace_enabled;
         cs2vm_set_trace(game->cs2_trace_enabled);
-        fprintf(
-            stderr,
-            "ie_cs2: trace %s\n",
-            game->cs2_trace_enabled ? "enabled" : "disabled");
+        fprintf(stderr, "ie_cs2: trace %s\n", game->cs2_trace_enabled ? "enabled" : "disabled");
         break;
     case IEHIT_TAB_PROPERTIES:
         game->right_tab = IE_TAB_PROPERTIES;
@@ -3802,15 +3835,7 @@ ie_push_property_row(
         0);
 
     if( dropdown )
-        ie_push_hit(
-            game,
-            IEHIT_PROPERTY_DROPDOWN,
-            field_x,
-            y,
-            field_w,
-            row_h,
-            property_id,
-            0);
+        ie_push_hit(game, IEHIT_PROPERTY_DROPDOWN, field_x, y, field_w, row_h, property_id, 0);
     else
         ie_push_hit(game, IEHIT_PROPERTY_FIELD, field_x, y, field_w, row_h, property_id, 0);
 
@@ -3838,8 +3863,7 @@ ie_push_checkbox_row(
     }
     int box = 14;
     int box_x = panel_x + 4;
-    ie_push_draw_fill(
-        game, box_x, y + 3, box, box, checked ? 0xFF4A9EFF : 0xFF3A3A3A);
+    ie_push_draw_fill(game, box_x, y + 3, box, box, checked ? 0xFF4A9EFF : 0xFF3A3A3A);
     ie_push_hit(game, IEHIT_PROPERTY_CHECKBOX, box_x, y, box + 120, IE_ROW_H, checkbox_id, 0);
     ie_push_draw_font(
         game,
@@ -3893,8 +3917,8 @@ ie_build_containers_panel(
 {
     ie_push_draw_fill(game, x, y, panel_w, panel_h, 0xFF1E1E1E);
 
-    int const source_id = game->containers_source_id >= 0 ? game->containers_source_id
-                                                          : game->worn_source_id;
+    int const source_id =
+        game->containers_source_id >= 0 ? game->containers_source_id : game->worn_source_id;
     int slot_count = RS_INV_CONTAINER_MAX_SLOTS;
     if( source_id >= 0 && source_id < game->inv_data.source_count )
         slot_count = game->inv_data.sources[source_id].slot_count;
@@ -3910,21 +3934,13 @@ ie_build_containers_panel(
         .offset_y = NULL,
     };
 
-    game->containers_content_h =
-        (IE_ROW_H + 12) + rows * (layout.margin_y + UI_INV_SLOT_ICON_SIZE);
+    game->containers_content_h = (IE_ROW_H + 12) + rows * (layout.margin_y + UI_INV_SLOT_ICON_SIZE);
     int const containers_visible_h = panel_h - IE_ROW_H;
-    game->containers_scroll = ie_clamp_scroll(
-        game->containers_scroll,
-        game->containers_content_h,
-        containers_visible_h);
+    game->containers_scroll =
+        ie_clamp_scroll(game->containers_scroll, game->containers_content_h, containers_visible_h);
 
     struct IEVerticalScrollbarGeom const containers_geom = ie_vertical_scrollbar_geom(
-        x,
-        y,
-        panel_w,
-        containers_visible_h,
-        game->containers_scroll,
-        game->containers_content_h);
+        x, y, panel_w, containers_visible_h, game->containers_scroll, game->containers_content_h);
     int const content_w = containers_geom.content_w;
     int tab_x = x + 2;
     int tab_y = y + 4 - game->containers_scroll;
@@ -3949,8 +3965,7 @@ ie_build_containers_panel(
         }
 
         bool const selected = game->containers_source_id == si;
-        ie_push_draw_fill(
-            game, tab_x, tab_y, tab_w, IE_ROW_H, selected ? 0xFF2A3A4A : 0xFF252525);
+        ie_push_draw_fill(game, tab_x, tab_y, tab_w, IE_ROW_H, selected ? 0xFF2A3A4A : 0xFF252525);
         ie_push_hit(game, IEHIT_CONTAINER_SOURCE_TAB, tab_x, tab_y, tab_w, IE_ROW_H, si, 0);
         ie_push_draw_font(
             game,
@@ -3994,7 +4009,8 @@ ie_build_containers_panel(
             int iy = 0;
             int iw = 0;
             int ih = 0;
-            ui_inv_slot_view_centered_rect(sx, sy, sw, sh, UI_INV_SLOT_ICON_SIZE, &ix, &iy, &iw, &ih);
+            ui_inv_slot_view_centered_rect(
+                sx, sy, sw, sh, UI_INV_SLOT_ICON_SIZE, &ix, &iy, &iw, &ih);
             ie_push_draw_sprite(
                 game, ix, iy, iw, ih, slot_data.scene_id, slot_data.atlas_index, 255, 0);
         }
@@ -4002,35 +4018,12 @@ ie_build_containers_panel(
         char label[48];
         char obj_name[48];
         ie_obj_display_name(game, slot_data.obj_id, obj_name, sizeof(obj_name));
-        snprintf(
-            label,
-            sizeof(label),
-            "%d %s",
-            slot_data.obj_id,
-            obj_name);
+        snprintf(label, sizeof(label), "%d %s", slot_data.obj_id, obj_name);
         ie_push_draw_font(
-            game,
-            sx,
-            sy + sh - 10,
-            sw,
-            10,
-            ie_default_ui_font_id(game),
-            label,
-            0xAAAAAA,
-            1,
-            0);
+            game, sx, sy + sh - 10, sw, 10, ie_default_ui_font_id(game), label, 0xAAAAAA, 1, 0);
 
-        ie_push_hit(
-            game, IEHIT_CONTAINER_SLOT_OBJ, sx, sy, sw, sh - 10, source_id, slot);
-        ie_push_hit(
-            game,
-            IEHIT_CONTAINER_SLOT_COUNT,
-            sx,
-            sy + sh - 10,
-            sw,
-            10,
-            source_id,
-            slot);
+        ie_push_hit(game, IEHIT_CONTAINER_SLOT_OBJ, sx, sy, sw, sh - 10, source_id, slot);
+        ie_push_hit(game, IEHIT_CONTAINER_SLOT_COUNT, sx, sy + sh - 10, sw, 10, source_id, slot);
     }
 
     ie_push_draw_font(
@@ -4098,12 +4091,16 @@ ie_build_right_panel_tabs(
 }
 
 static void
-ie_build_properties_panel(struct GameInterfaceEditor* game, int x, int y, int panel_w, int panel_h)
+ie_build_properties_panel(
+    struct GameInterfaceEditor* game,
+    int x,
+    int y,
+    int panel_w,
+    int panel_h)
 {
     ie_push_draw_fill(game, x, y, panel_w, panel_h, 0xFF1E1E1E);
 
-    game->props_scroll =
-        ie_clamp_scroll(game->props_scroll, game->props_content_h, panel_h);
+    game->props_scroll = ie_clamp_scroll(game->props_scroll, game->props_content_h, panel_h);
 
     struct IEVerticalScrollbarGeom props_geom = ie_vertical_scrollbar_geom(
         x, y, panel_w, panel_h, game->props_scroll, game->props_content_h);
@@ -4135,40 +4132,42 @@ ie_build_properties_panel(struct GameInterfaceEditor* game, int x, int y, int pa
     char buf[64];
 
     snprintf(buf, sizeof(buf), "%d", sel->uid);
-    ie_push_property_section_header(
-        game, x, y, content_w, panel_h, &cursor_y, "Identity");
+    ie_push_property_section_header(game, x, y, content_w, panel_h, &cursor_y, "Identity");
     ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "UID", 0, buf, false);
-    snprintf(
-        buf,
-        sizeof(buf),
-        "%s (%d)",
-        widget_type_label(c->type),
-        c->type);
+    snprintf(buf, sizeof(buf), "%s (%d)", widget_type_label(c->type), c->type);
     ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "Type", 0, buf, false);
     ie_push_checkbox_row(game, x, y, content_w, panel_h, &cursor_y, "Active", !c->hidden, 1);
     snprintf(buf, sizeof(buf), "%d", sel->parent_uid);
     ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "Parent", 0, buf, false);
 
-    ie_push_property_section_header(
-        game, x, y, content_w, panel_h, &cursor_y, "Layout");
+    ie_push_property_section_header(game, x, y, content_w, panel_h, &cursor_y, "Layout");
     snprintf(buf, sizeof(buf), "%d", c->baseX);
-    ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "rawX", IE_PROP_RAW_X, buf, false);
+    ie_push_property_row(
+        game, x, y, content_w, panel_h, &cursor_y, "rawX", IE_PROP_RAW_X, buf, false);
     snprintf(buf, sizeof(buf), "%d", c->baseY);
-    ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "rawY", IE_PROP_RAW_Y, buf, false);
+    ie_push_property_row(
+        game, x, y, content_w, panel_h, &cursor_y, "rawY", IE_PROP_RAW_Y, buf, false);
     snprintf(buf, sizeof(buf), "%d", c->baseWidth);
-    ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "rawWidth", IE_PROP_RAW_W, buf, false);
+    ie_push_property_row(
+        game, x, y, content_w, panel_h, &cursor_y, "rawWidth", IE_PROP_RAW_W, buf, false);
     snprintf(buf, sizeof(buf), "%d", c->baseHeight);
-    ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "rawHeight", IE_PROP_RAW_H, buf, false);
+    ie_push_property_row(
+        game, x, y, content_w, panel_h, &cursor_y, "rawHeight", IE_PROP_RAW_H, buf, false);
     snprintf(buf, sizeof(buf), "%d", (int)c->xMode);
-    ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "xMode", IE_PROP_X_MODE, buf, true);
+    ie_push_property_row(
+        game, x, y, content_w, panel_h, &cursor_y, "xMode", IE_PROP_X_MODE, buf, true);
     snprintf(buf, sizeof(buf), "%d", (int)c->yMode);
-    ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "yMode", IE_PROP_Y_MODE, buf, true);
+    ie_push_property_row(
+        game, x, y, content_w, panel_h, &cursor_y, "yMode", IE_PROP_Y_MODE, buf, true);
     snprintf(buf, sizeof(buf), "%d", (int)c->widthMode);
-    ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "widthMode", IE_PROP_W_MODE, buf, true);
+    ie_push_property_row(
+        game, x, y, content_w, panel_h, &cursor_y, "widthMode", IE_PROP_W_MODE, buf, true);
     snprintf(buf, sizeof(buf), "%d", (int)c->heightMode);
-    ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "heightMode", IE_PROP_H_MODE, buf, true);
+    ie_push_property_row(
+        game, x, y, content_w, panel_h, &cursor_y, "heightMode", IE_PROP_H_MODE, buf, true);
     snprintf(buf, sizeof(buf), "%d", c->transparency);
-    ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "opacity", IE_PROP_OPACITY, buf, false);
+    ie_push_property_row(
+        game, x, y, content_w, panel_h, &cursor_y, "opacity", IE_PROP_OPACITY, buf, false);
 
     if( c->type == 0 )
     {
@@ -4177,28 +4176,56 @@ ie_build_properties_panel(struct GameInterfaceEditor* game, int x, int y, int pa
             game, x, y, content_w, panel_h, &cursor_y, "scrollWidth", IE_PROP_SCROLL_W, buf, false);
         snprintf(buf, sizeof(buf), "%d", c->scrollHeight);
         ie_push_property_row(
-            game, x, y, content_w, panel_h, &cursor_y, "scrollHeight", IE_PROP_SCROLL_H, buf, false);
+            game,
+            x,
+            y,
+            content_w,
+            panel_h,
+            &cursor_y,
+            "scrollHeight",
+            IE_PROP_SCROLL_H,
+            buf,
+            false);
         ie_push_checkbox_row(
             game, x, y, content_w, panel_h, &cursor_y, "noClickThrough", c->noClickThrough, 5);
     }
     else if( c->type == 3 )
     {
-        ie_push_property_section_header(
-            game, x, y, content_w, panel_h, &cursor_y, "Rectangle");
+        ie_push_property_section_header(game, x, y, content_w, panel_h, &cursor_y, "Rectangle");
         ie_push_checkbox_row(game, x, y, content_w, panel_h, &cursor_y, "filled", c->fill, 2);
         snprintf(buf, sizeof(buf), "%06X", c->color & 0xFFFFFF);
-        ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "color", IE_PROP_COLOR, buf, false);
+        ie_push_property_row(
+            game, x, y, content_w, panel_h, &cursor_y, "color", IE_PROP_COLOR, buf, false);
     }
     else if( c->type == 4 )
     {
         ie_push_property_section_header(game, x, y, content_w, panel_h, &cursor_y, "Text");
         ie_push_property_row(
-            game, x, y, content_w, panel_h, &cursor_y, "text", IE_PROP_TEXT, c->text ? c->text : "", false);
+            game,
+            x,
+            y,
+            content_w,
+            panel_h,
+            &cursor_y,
+            "text",
+            IE_PROP_TEXT,
+            c->text ? c->text : "",
+            false);
         snprintf(buf, sizeof(buf), "%d", c->textFont);
-        ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "fontId", IE_PROP_FONT_ID, buf, false);
+        ie_push_property_row(
+            game, x, y, content_w, panel_h, &cursor_y, "fontId", IE_PROP_FONT_ID, buf, false);
         snprintf(buf, sizeof(buf), "%d", c->textLineHeight);
         ie_push_property_row(
-            game, x, y, content_w, panel_h, &cursor_y, "lineHeight", IE_PROP_LINE_HEIGHT, buf, false);
+            game,
+            x,
+            y,
+            content_w,
+            panel_h,
+            &cursor_y,
+            "lineHeight",
+            IE_PROP_LINE_HEIGHT,
+            buf,
+            false);
         snprintf(buf, sizeof(buf), "%d", c->textHorizontalAlignment);
         ie_push_property_row(
             game, x, y, content_w, panel_h, &cursor_y, "alignH", IE_PROP_TEXT_ALIGN_H, buf, true);
@@ -4207,7 +4234,8 @@ ie_build_properties_panel(struct GameInterfaceEditor* game, int x, int y, int pa
             game, x, y, content_w, panel_h, &cursor_y, "alignV", IE_PROP_TEXT_ALIGN_V, buf, true);
         ie_push_checkbox_row(game, x, y, content_w, panel_h, &cursor_y, "shaded", c->textShadow, 3);
         snprintf(buf, sizeof(buf), "%06X", c->color & 0xFFFFFF);
-        ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "color", IE_PROP_COLOR, buf, false);
+        ie_push_property_row(
+            game, x, y, content_w, panel_h, &cursor_y, "color", IE_PROP_COLOR, buf, false);
     }
     else if( c->type == 5 )
     {
@@ -4218,7 +4246,14 @@ ie_build_properties_panel(struct GameInterfaceEditor* game, int x, int y, int pa
         ie_push_draw_fill(
             game, x + content_w - 60, cursor_y - IE_ROW_H + 2, 50, IE_ROW_H - 4, 0xFF4A9EFF);
         ie_push_hit(
-            game, IEHIT_PROPERTY_BUTTON, x + content_w - 60, cursor_y - IE_ROW_H, 50, IE_ROW_H, 1, 0);
+            game,
+            IEHIT_PROPERTY_BUTTON,
+            x + content_w - 60,
+            cursor_y - IE_ROW_H,
+            50,
+            IE_ROW_H,
+            1,
+            0);
         ie_push_draw_font(
             game,
             x + content_w - 58,
@@ -4234,22 +4269,28 @@ ie_build_properties_panel(struct GameInterfaceEditor* game, int x, int y, int pa
         ie_push_property_row(
             game, x, y, content_w, panel_h, &cursor_y, "spriteId2", IE_PROP_SPRITE_ID2, buf, false);
         snprintf(buf, sizeof(buf), "%d", c->objId);
-        ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "objId", IE_PROP_OBJ_ID, buf, false);
+        ie_push_property_row(
+            game, x, y, content_w, panel_h, &cursor_y, "objId", IE_PROP_OBJ_ID, buf, false);
         snprintf(buf, sizeof(buf), "%d", c->objCount);
         ie_push_property_row(
             game, x, y, content_w, panel_h, &cursor_y, "objCount", IE_PROP_OBJ_COUNT, buf, false);
         snprintf(buf, sizeof(buf), "%d", c->angle);
-        ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "angle", IE_PROP_ANGLE, buf, false);
+        ie_push_property_row(
+            game, x, y, content_w, panel_h, &cursor_y, "angle", IE_PROP_ANGLE, buf, false);
         ie_push_checkbox_row(game, x, y, content_w, panel_h, &cursor_y, "tiled", c->tiled, 4);
-        ie_push_checkbox_row(game, x, y, content_w, panel_h, &cursor_y, "hFlip", c->horizontalFlip, 6);
-        ie_push_checkbox_row(game, x, y, content_w, panel_h, &cursor_y, "vFlip", c->verticalFlip, 7);
+        ie_push_checkbox_row(
+            game, x, y, content_w, panel_h, &cursor_y, "hFlip", c->horizontalFlip, 6);
+        ie_push_checkbox_row(
+            game, x, y, content_w, panel_h, &cursor_y, "vFlip", c->verticalFlip, 7);
     }
     else if( c->type == 6 )
     {
         snprintf(buf, sizeof(buf), "%d", c->modelId);
-        ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "modelId", IE_PROP_MODEL_ID, buf, false);
+        ie_push_property_row(
+            game, x, y, content_w, panel_h, &cursor_y, "modelId", IE_PROP_MODEL_ID, buf, false);
         snprintf(buf, sizeof(buf), "%d", c->modelZoom);
-        ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "zoom", IE_PROP_ZOOM, buf, false);
+        ie_push_property_row(
+            game, x, y, content_w, panel_h, &cursor_y, "zoom", IE_PROP_ZOOM, buf, false);
     }
     else if( c->type == 9 )
     {
@@ -4259,26 +4300,64 @@ ie_build_properties_panel(struct GameInterfaceEditor* game, int x, int y, int pa
         ie_push_checkbox_row(
             game, x, y, content_w, panel_h, &cursor_y, "horizontal", c->lineDirection, 8);
         snprintf(buf, sizeof(buf), "%06X", c->color & 0xFFFFFF);
-        ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "color", IE_PROP_COLOR, buf, false);
+        ie_push_property_row(
+            game, x, y, content_w, panel_h, &cursor_y, "color", IE_PROP_COLOR, buf, false);
     }
     else if( c->type == 2 )
     {
-        ie_push_property_section_header(game, x, y, content_w, panel_h, &cursor_y, "Inventory grid");
+        ie_push_property_section_header(
+            game, x, y, content_w, panel_h, &cursor_y, "Inventory grid");
         snprintf(buf, sizeof(buf), "%d", c->baseWidth);
         ie_push_property_row(
-            game, x, y, content_w, panel_h, &cursor_y, "gridColumns", IE_PROP_GRID_COLS, buf, false);
+            game,
+            x,
+            y,
+            content_w,
+            panel_h,
+            &cursor_y,
+            "gridColumns",
+            IE_PROP_GRID_COLS,
+            buf,
+            false);
         snprintf(buf, sizeof(buf), "%d", c->baseHeight);
         ie_push_property_row(
             game, x, y, content_w, panel_h, &cursor_y, "gridRows", IE_PROP_GRID_ROWS, buf, false);
         snprintf(buf, sizeof(buf), "%d", c->marginX);
         ie_push_property_row(
-            game, x, y, content_w, panel_h, &cursor_y, "gridXPitch", IE_PROP_GRID_X_PITCH, buf, false);
+            game,
+            x,
+            y,
+            content_w,
+            panel_h,
+            &cursor_y,
+            "gridXPitch",
+            IE_PROP_GRID_X_PITCH,
+            buf,
+            false);
         snprintf(buf, sizeof(buf), "%d", c->marginY);
         ie_push_property_row(
-            game, x, y, content_w, panel_h, &cursor_y, "gridYPitch", IE_PROP_GRID_Y_PITCH, buf, false);
+            game,
+            x,
+            y,
+            content_w,
+            panel_h,
+            &cursor_y,
+            "gridYPitch",
+            IE_PROP_GRID_Y_PITCH,
+            buf,
+            false);
         snprintf(buf, sizeof(buf), "%d", sel->preview_inv_id);
         ie_push_property_row(
-            game, x, y, content_w, panel_h, &cursor_y, "previewInvId", IE_PROP_PREVIEW_INV, buf, false);
+            game,
+            x,
+            y,
+            content_w,
+            panel_h,
+            &cursor_y,
+            "previewInvId",
+            IE_PROP_PREVIEW_INV,
+            buf,
+            false);
     }
 
     ie_push_property_section_header(game, x, y, content_w, panel_h, &cursor_y, "Scripts");
@@ -4294,9 +4373,11 @@ ie_build_properties_panel(struct GameInterfaceEditor* game, int x, int y, int pa
     ie_push_property_row(
         game, x, y, content_w, panel_h, &cursor_y, "onVarTransmit", 0, script_buf, false);
     ie_format_script_binding(script_buf, sizeof(script_buf), "onTimer", c->onTimer, c->onTimerLen);
-    ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "onTimer", 0, script_buf, false);
+    ie_push_property_row(
+        game, x, y, content_w, panel_h, &cursor_y, "onTimer", 0, script_buf, false);
     ie_format_script_binding(script_buf, sizeof(script_buf), "onClick", c->onClick, c->onClickLen);
-    ie_push_property_row(game, x, y, content_w, panel_h, &cursor_y, "onClick", 0, script_buf, false);
+    ie_push_property_row(
+        game, x, y, content_w, panel_h, &cursor_y, "onClick", 0, script_buf, false);
 
     game->props_content_h = cursor_y - (y + 4);
     props_geom = ie_vertical_scrollbar_geom(
@@ -4441,13 +4522,14 @@ ie_build_dynamic_tree_rows(
 
         *y_cursor += IE_ROW_H;
         if( has_children && expanded )
-            ie_build_dynamic_tree_rows(
-                game, x, y, panel_w, panel_h, uid, depth + 1, y_cursor);
+            ie_build_dynamic_tree_rows(game, x, y, panel_w, panel_h, uid, depth + 1, y_cursor);
     }
 }
 
 static bool
-ie_component_has_tree_children(struct GameInterfaceEditor* game, int component_uid);
+ie_component_has_tree_children(
+    struct GameInterfaceEditor* game,
+    int component_uid);
 
 static void
 ie_build_tree_rows(
@@ -4472,15 +4554,16 @@ ie_build_dynamic_tree_rows(
     int* y_cursor);
 
 static bool
-ie_component_has_tree_children(struct GameInterfaceEditor* game, int component_uid)
+ie_component_has_tree_children(
+    struct GameInterfaceEditor* game,
+    int component_uid)
 {
     if( ie_widget_has_static_children(game, component_uid) )
         return true;
     if( !game->scripts_ran || !game->cs2_tree )
         return false;
 
-    int32_t const parent_index =
-        ie_cs2_tree_find_by_component_id(game->cs2_tree, component_uid);
+    int32_t const parent_index = ie_cs2_tree_find_by_component_id(game->cs2_tree, component_uid);
     if( parent_index < 0 )
         return false;
     return ie_cs2_tree_has_dynamic_child(game->cs2_tree, parent_index);
@@ -4587,8 +4670,7 @@ ie_build_tree_rows(
 
             if( has_children )
             {
-                ie_push_hit(
-                    game, IEHIT_TREE_EXPAND, indent, row_y, 12, IE_ROW_H, node->uid, 0);
+                ie_push_hit(game, IEHIT_TREE_EXPAND, indent, row_y, 12, IE_ROW_H, node->uid, 0);
                 ie_push_draw_font(
                     game,
                     indent,
@@ -4661,8 +4743,7 @@ ie_build_tree_rows(
         *y_cursor += IE_ROW_H;
         if( ie_component_has_tree_children(game, node->uid) && ie_is_expanded(game, node->uid) )
         {
-            ie_build_tree_rows(
-                game, x, y, panel_w, panel_h, node->uid, depth + 1, y_cursor);
+            ie_build_tree_rows(game, x, y, panel_w, panel_h, node->uid, depth + 1, y_cursor);
             ie_build_dynamic_tree_rows(
                 game, x, y, panel_w, panel_h, node->uid, depth + 1, y_cursor);
         }
@@ -4670,7 +4751,12 @@ ie_build_tree_rows(
 }
 
 static void
-ie_build_tree_panel(struct GameInterfaceEditor* game, int x, int y, int panel_w, int panel_h)
+ie_build_tree_panel(
+    struct GameInterfaceEditor* game,
+    int x,
+    int y,
+    int panel_w,
+    int panel_h)
 {
     ie_push_draw_fill(game, x, y, panel_w, panel_h, 0xFF1E1E1E);
     ie_push_draw_font(
@@ -4707,12 +4793,7 @@ ie_build_tree_panel(struct GameInterfaceEditor* game, int x, int y, int panel_w,
     game->tree_scroll = ie_clamp_scroll(game->tree_scroll, game->tree_content_h, tree_visible_h);
 
     struct IEVerticalScrollbarGeom tree_geom = ie_vertical_scrollbar_geom(
-        x,
-        tree_viewport_y,
-        panel_w,
-        tree_visible_h,
-        game->tree_scroll,
-        game->tree_content_h);
+        x, tree_viewport_y, panel_w, tree_visible_h, game->tree_scroll, game->tree_content_h);
     int const content_w = tree_geom.content_w;
 
     int y_cursor = tree_viewport_y;
@@ -4736,12 +4817,7 @@ ie_build_tree_panel(struct GameInterfaceEditor* game, int x, int y, int panel_w,
 
     game->tree_content_h = y_cursor - (y + IE_ROW_H);
     tree_geom = ie_vertical_scrollbar_geom(
-        x,
-        tree_viewport_y,
-        panel_w,
-        tree_visible_h,
-        game->tree_scroll,
-        game->tree_content_h);
+        x, tree_viewport_y, panel_w, tree_visible_h, game->tree_scroll, game->tree_content_h);
     ie_push_vertical_scrollbar(game, IE_SCROLL_TREE, &tree_geom);
 }
 
@@ -4791,7 +4867,8 @@ ie_draw_inv_slot_grid(
             }
 
             if( scene_id >= 0 )
-                ie_push_draw_sprite(game, slot_x, slot_y, pitch, pitch, scene_id, atlas_index, 255, 0);
+                ie_push_draw_sprite(
+                    game, slot_x, slot_y, pitch, pitch, scene_id, atlas_index, 255, 0);
             slot++;
         }
     }
@@ -4820,7 +4897,7 @@ ie_draw_widget_preview(
     if( alpha < 0 )
         alpha = 0;
 
-  if( c->type == 3 )
+    if( c->type == 3 )
     {
         int const colour = 0xFF000000 | (c->color & 0xFFFFFF);
         if( c->fill )
@@ -4855,8 +4932,7 @@ ie_draw_widget_preview(
         int element_id = -1;
         int frame_count = 0;
         if( ie_resolve_sprite(game, c->graphic, &element_id, &frame_count) )
-            ie_push_draw_sprite(
-                game, bx, by, bw, bh, element_id, 0, alpha, c->tiled ? 1 : 0);
+            ie_push_draw_sprite(game, bx, by, bw, bh, element_id, 0, alpha, c->tiled ? 1 : 0);
     }
     else if( c->type == 2 )
     {
@@ -5089,8 +5165,7 @@ ie_draw_orphan_widget_graphics(
         int element_id = -1;
         int frame_count = 0;
         if( ie_resolve_sprite(game, w->data.graphic, &element_id, &frame_count) )
-            ie_push_draw_sprite(
-                game, bx, by, bw, bh, element_id, 0, alpha, w->data.tiled ? 1 : 0);
+            ie_push_draw_sprite(game, bx, by, bw, bh, element_id, 0, alpha, w->data.tiled ? 1 : 0);
     }
 }
 
@@ -5144,7 +5219,8 @@ ie_draw_tree_node_preview(
         if( pass != IE_TREE_DRAW_RECT )
             break;
         if( node->u.rs_rect.filled )
-            ie_push_draw_fill(game, bx, by, bw, bh, 0xFF000000 | (node->u.rs_rect.color & 0xFFFFFF));
+            ie_push_draw_fill(
+                game, bx, by, bw, bh, 0xFF000000 | (node->u.rs_rect.color & 0xFFFFFF));
         else
         {
             int const colour = 0xFF000000 | (node->u.rs_rect.color & 0xFFFFFF);
@@ -5279,8 +5355,7 @@ ie_draw_tree_node_preview(
 
     if( pass == IE_TREE_DRAW_LINE || pass == IE_TREE_DRAW_GRAPHIC )
     {
-        ie_push_hit(
-            game, IEHIT_CANVAS_WIDGET, bx, by, bw, bh, node->component_id, 0);
+        ie_push_hit(game, IEHIT_CANVAS_WIDGET, bx, by, bw, bh, node->component_id, 0);
         if( game->selected_uid == node->component_id )
         {
             ie_push_draw_fill(game, bx, by, bw, 2, 0xFF4A9EFF);
@@ -5292,7 +5367,12 @@ ie_draw_tree_node_preview(
 }
 
 static void
-ie_build_preview_panel(struct GameInterfaceEditor* game, int x, int y, int w, int h)
+ie_build_preview_panel(
+    struct GameInterfaceEditor* game,
+    int x,
+    int y,
+    int w,
+    int h)
 {
     ie_push_draw_fill(game, x, y, w, h, 0xFF141414);
 
@@ -5348,7 +5428,12 @@ ie_build_preview_panel(struct GameInterfaceEditor* game, int x, int y, int w, in
 }
 
 static void
-ie_build_list_panel(struct GameInterfaceEditor* game, int x, int y, int w, int h)
+ie_build_list_panel(
+    struct GameInterfaceEditor* game,
+    int x,
+    int y,
+    int w,
+    int h)
 {
     ie_push_draw_fill(game, x, y, w, h, 0xFF1E1E1E);
     ie_push_draw_font(
@@ -5367,16 +5452,10 @@ ie_build_list_panel(struct GameInterfaceEditor* game, int x, int y, int w, int h
     int const list_visible_h = h - IE_ROW_H - 4;
     int const list_viewport_y = row_y;
     game->list_content_h = game->group_count * IE_ROW_H;
-    game->list_scroll =
-        ie_clamp_scroll(game->list_scroll, game->list_content_h, list_visible_h);
+    game->list_scroll = ie_clamp_scroll(game->list_scroll, game->list_content_h, list_visible_h);
 
     struct IEVerticalScrollbarGeom const list_geom = ie_vertical_scrollbar_geom(
-        x,
-        list_viewport_y,
-        w,
-        list_visible_h,
-        game->list_scroll,
-        game->list_content_h);
+        x, list_viewport_y, w, list_visible_h, game->list_scroll, game->list_content_h);
     int const row_w = list_geom.content_w - 4;
 
     for( int i = 0; i < game->group_count; i++ )
@@ -5389,8 +5468,7 @@ ie_build_list_panel(struct GameInterfaceEditor* game, int x, int y, int w, int h
         char label[64];
         snprintf(label, sizeof(label), "Interface %d", gid);
         bool selected = gid == game->loaded_group_id;
-        ie_push_draw_fill(
-            game, x + 2, ry, row_w, IE_ROW_H, selected ? 0xFF2A3A4A : 0xFF252525);
+        ie_push_draw_fill(game, x + 2, ry, row_w, IE_ROW_H, selected ? 0xFF2A3A4A : 0xFF252525);
         ie_push_hit(game, IEHIT_LIST_ROW, x + 2, ry, row_w, IE_ROW_H, gid, 0);
         ie_push_draw_font(
             game,
@@ -5409,7 +5487,12 @@ ie_build_list_panel(struct GameInterfaceEditor* game, int x, int y, int w, int h
 }
 
 static void
-ie_build_sprite_picker(struct GameInterfaceEditor* game, int x, int y, int w, int h)
+ie_build_sprite_picker(
+    struct GameInterfaceEditor* game,
+    int x,
+    int y,
+    int w,
+    int h)
 {
     int cols = 8;
     int thumb = 40;
@@ -5428,14 +5511,10 @@ ie_build_sprite_picker(struct GameInterfaceEditor* game, int x, int y, int w, in
     char page_label[64];
     int const page_count =
         game->sprite_id_count > 0
-        ? (game->sprite_id_count + IE_SPRITE_PICKER_PAGE_SIZE - 1) / IE_SPRITE_PICKER_PAGE_SIZE
-        : 1;
+            ? (game->sprite_id_count + IE_SPRITE_PICKER_PAGE_SIZE - 1) / IE_SPRITE_PICKER_PAGE_SIZE
+            : 1;
     snprintf(
-        page_label,
-        sizeof(page_label),
-        "Sprites %d/%d",
-        game->sprite_picker_page + 1,
-        page_count);
+        page_label, sizeof(page_label), "Sprites %d/%d", game->sprite_picker_page + 1, page_count);
     ie_push_draw_font(
         game,
         x + 12,
@@ -5467,7 +5546,8 @@ ie_build_sprite_picker(struct GameInterfaceEditor* game, int x, int y, int w, in
     if( page_end < game->sprite_id_count )
     {
         ie_push_draw_fill(game, x + w - 60, y + h - IE_ROW_H - 8, 48, IE_ROW_H, 0xFF3A3A3A);
-        ie_push_hit(game, IEHIT_SPRITE_THUMB, x + w - 60, y + h - IE_ROW_H - 8, 48, IE_ROW_H, -2, 0);
+        ie_push_hit(
+            game, IEHIT_SPRITE_THUMB, x + w - 60, y + h - IE_ROW_H - 8, 48, IE_ROW_H, -2, 0);
         ie_push_draw_font(
             game,
             x + w - 56,
@@ -5566,8 +5646,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
         char sprite_buf[32];
         snprintf(sprite_buf, sizeof(sprite_buf), "spriteId: %d", game->add_dialog_sprite_id);
         ie_push_draw_fill(game, dx + 12, row, dw - 80, IE_ROW_H, 0xFF1E1E1E);
-        ie_push_hit(
-            game, IEHIT_ADD_DIALOG_SPRITE_FIELD, dx + 12, row, dw - 80, IE_ROW_H, 0, 0);
+        ie_push_hit(game, IEHIT_ADD_DIALOG_SPRITE_FIELD, dx + 12, row, dw - 80, IE_ROW_H, 0, 0);
         ie_push_draw_font(
             game,
             dx + 16,
@@ -5581,14 +5660,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
             0);
         ie_push_draw_fill(game, dx + dw - 64, row, 52, IE_ROW_H, 0xFF4A9EFF);
         ie_push_hit(
-            game,
-            IEHIT_ADD_DIALOG_SPRITE_PICKER_BTN,
-            dx + dw - 64,
-            row,
-            52,
-            IE_ROW_H,
-            0,
-            0);
+            game, IEHIT_ADD_DIALOG_SPRITE_PICKER_BTN, dx + dw - 64, row, 52, IE_ROW_H, 0, 0);
         ie_push_draw_font(
             game,
             dx + dw - 58,
@@ -5681,30 +5753,12 @@ ie_build_draw_list(struct GameInterfaceEditor* game)
     ie_push_draw_fill(game, 0, 0, IE_WINDOW_W, IE_WINDOW_H, 0xFF121212);
     ie_push_draw_fill(game, 0, 0, IE_WINDOW_W, IE_TOOLBAR_H, 0xFF1A1A1A);
     ie_push_draw_font(
-        game,
-        8,
-        4,
-        200,
-        IE_ROW_H,
-        ie_default_ui_font_id(game),
-        "Interface Editor",
-        0xFFFFFF,
-        0,
-        0);
+        game, 8, 4, 200, IE_ROW_H, ie_default_ui_font_id(game), "Interface Editor", 0xFFFFFF, 0, 0);
 
     ie_push_draw_fill(game, 220, 2, 110, IE_TOOLBAR_H - 4, 0xFF4A9EFF);
     ie_push_hit(game, IEHIT_TOOLBAR_RUN_SCRIPTS, 220, 2, 110, IE_TOOLBAR_H - 4, 0, 0);
     ie_push_draw_font(
-        game,
-        228,
-        4,
-        100,
-        IE_ROW_H,
-        ie_default_ui_font_id(game),
-        "Rerun Scripts",
-        0xFFFFFF,
-        0,
-        0);
+        game, 228, 4, 100, IE_ROW_H, ie_default_ui_font_id(game), "Rerun Scripts", 0xFFFFFF, 0, 0);
 
     int const trace_color = game->cs2_trace_enabled ? 0xFF3A6A3A : 0xFF3A3A3A;
     ie_push_draw_fill(game, 336, 2, 64, IE_TOOLBAR_H - 4, trace_color);
@@ -5712,16 +5766,7 @@ ie_build_draw_list(struct GameInterfaceEditor* game)
     char trace_label[16];
     snprintf(trace_label, sizeof(trace_label), "Trace %s", game->cs2_trace_enabled ? "ON" : "OFF");
     ie_push_draw_font(
-        game,
-        340,
-        4,
-        56,
-        IE_ROW_H,
-        ie_default_ui_font_id(game),
-        trace_label,
-        0xFFFFFF,
-        0,
-        0);
+        game, 340, 4, 56, IE_ROW_H, ie_default_ui_font_id(game), trace_label, 0xFFFFFF, 0, 0);
 
     char status[IE_SCRIPT_ERROR_LEN + 64];
     if( game->script_error_count > 0 )
@@ -5775,8 +5820,7 @@ ie_build_draw_list(struct GameInterfaceEditor* game)
             game, right_x, bottom_y + IE_ROW_H + 2, IE_RIGHT_PANEL_W, bottom_h - IE_ROW_H - 2);
 
     if( game->sprite_picker_open )
-        ie_build_sprite_picker(
-            game, right_x, bottom_y, IE_RIGHT_PANEL_W, bottom_h);
+        ie_build_sprite_picker(game, right_x, bottom_y, IE_RIGHT_PANEL_W, bottom_h);
     if( game->add_dialog_open )
         ie_build_add_dialog(game);
     ie_build_dropdown(game);
@@ -5870,8 +5914,7 @@ GameInterfaceEditor_New(
 
     game->cs1vm_wrap = ToriAuxLibVM_New();
     ui_inv_data_service_init(&game->inv_data);
-    ui_inv_data_service_set_change_callback(
-        &game->inv_data, ie_on_inv_container_change, game);
+    ui_inv_data_service_set_change_callback(&game->inv_data, ie_on_inv_container_change, game);
     game->worn_source_id =
         ui_inv_data_service_ensure_container(&game->inv_data, RS_INV_CONTAINER_WORN, 14, "worn");
     game->inventory_source_id = ui_inv_data_service_ensure_container(
@@ -5905,21 +5948,27 @@ GameInterfaceEditor_Free(struct GameInterfaceEditor* game)
 }
 
 void
-GameInterfaceEditor_SetCore(struct GameInterfaceEditor* game, struct ToriAuxLibCore* core)
+GameInterfaceEditor_SetCore(
+    struct GameInterfaceEditor* game,
+    struct ToriAuxLibCore* core)
 {
     if( game )
         game->core = core;
 }
 
 void
-GameInterfaceEditor_SetCache(struct GameInterfaceEditor* game, struct ToriAuxLibCache* cache)
+GameInterfaceEditor_SetCache(
+    struct GameInterfaceEditor* game,
+    struct ToriAuxLibCache* cache)
 {
     if( game )
         game->cache = cache;
 }
 
 void
-GameInterfaceEditor_SetTD(struct GameInterfaceEditor* game, struct ToriAuxLibTD* td)
+GameInterfaceEditor_SetTD(
+    struct GameInterfaceEditor* game,
+    struct ToriAuxLibTD* td)
 {
     if( game )
         game->td = td;
@@ -5937,6 +5986,15 @@ GameInterfaceEditor_SetDat2Cache(
         (void)ie_resolve_scene_font(game, 495);
     if( dat2_cache )
         (void)ie_enumerate_sprite_ids(game);
+}
+
+void
+GameInterfaceEditor_SetClientscriptDecodeFlags(
+    struct GameInterfaceEditor* game,
+    int flags)
+{
+    if( game )
+        game->clientscript_decode_flags = flags;
 }
 
 bool
@@ -6003,8 +6061,8 @@ ie_enumerate_sprite_ids(struct GameInterfaceEditor* game)
     game->sprite_ids = NULL;
     game->sprite_id_count = 0;
 
-    struct RSCacheDat2Disk_Archive* table_archive =
-        RSCacheDat2Disk_ArchiveNewReferenceTableLoad(game->dat2_cache, RSCacheDat2Disk_Table_Sprites);
+    struct RSCacheDat2Disk_Archive* table_archive = RSCacheDat2Disk_ArchiveNewReferenceTableLoad(
+        game->dat2_cache, RSCacheDat2Disk_Table_Sprites);
     if( !table_archive )
         return false;
 
@@ -6087,21 +6145,13 @@ GameInterfaceEditor_ProcessInput(
         if( LibToriRS_Input_IsDragging(input, TORIRSM_LEFT) )
         {
             ie_handle_canvas_drag_scripts(
-                game,
-                game->canvas_drag_uid,
-                input->curr.mouse_x,
-                input->curr.mouse_y,
-                false);
+                game, game->canvas_drag_uid, input->curr.mouse_x, input->curr.mouse_y, false);
         }
 
         if( LibToriRS_Input_IsDragEnd(input, TORIRSM_LEFT) )
         {
             ie_handle_canvas_drag_scripts(
-                game,
-                game->canvas_drag_uid,
-                input->curr.mouse_x,
-                input->curr.mouse_y,
-                true);
+                game, game->canvas_drag_uid, input->curr.mouse_x, input->curr.mouse_y, true);
             ie_restore_drag_thresholds(game, input);
         }
         else if( input->curr.mouse_button_up[TORIRSM_LEFT] )
@@ -6118,7 +6168,8 @@ GameInterfaceEditor_ProcessInput(
 
     ie_scrollbar_drag_update(game, input);
 
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_UP) || LibToriRS_Input_IsKeyDown(input, TORIRSK_DOWN) )
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_UP) ||
+        LibToriRS_Input_IsKeyDown(input, TORIRSK_DOWN) )
     {
         int dir = LibToriRS_Input_IsKeyDown(input, TORIRSK_UP) ? -1 : 1;
         ie_apply_scroll(game, input->curr.mouse_x, input->curr.mouse_y, dir * IE_ROW_H);
@@ -6135,7 +6186,9 @@ GameInterfaceEditor_ProcessInput(
 }
 
 void
-GameInterfaceEditor_FrameBegin(struct GameInterfaceEditor* game, int cycles_elapsed)
+GameInterfaceEditor_FrameBegin(
+    struct GameInterfaceEditor* game,
+    int cycles_elapsed)
 {
     if( !game )
         return;
@@ -6190,8 +6243,7 @@ GameInterfaceEditor_FrameNextCommand(
                 game->frame.phase = IE_FRAME_END_2D;
                 continue;
             }
-            struct InterfaceEditorDrawItem const* item =
-                &game->draw_list[game->frame.draw_index++];
+            struct InterfaceEditorDrawItem const* item = &game->draw_list[game->frame.draw_index++];
             switch( item->kind )
             {
             case IEDRAW_FILL_RECT:

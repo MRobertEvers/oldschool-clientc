@@ -684,9 +684,7 @@ uitree_apply_op_base(
     if( idx < 0 )
         return false;
     strncpy(
-        tree->components[idx].menu_options.option,
-        text ? text : "",
-        UITREE_MENU_OPTION_LEN - 1);
+        tree->components[idx].menu_options.option, text ? text : "", UITREE_MENU_OPTION_LEN - 1);
     tree->components[idx].menu_options.option[UITREE_MENU_OPTION_LEN - 1] = '\0';
     uitree_mark_node_dirty(tree, idx);
     return true;
@@ -709,10 +707,7 @@ uitree_get_op(
     int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
     if( idx < 0 )
         return false;
-    strncpy(
-        out_buf,
-        tree->components[idx].menu_options.ops[index - 1],
-        out_len - 1);
+    strncpy(out_buf, tree->components[idx].menu_options.ops[index - 1], out_len - 1);
     out_buf[out_len - 1] = '\0';
     return true;
 }
@@ -733,10 +728,7 @@ uitree_get_op_base(
     int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
     if( idx < 0 )
         return false;
-    strncpy(
-        out_buf,
-        tree->components[idx].menu_options.option,
-        out_len - 1);
+    strncpy(out_buf, tree->components[idx].menu_options.option, out_len - 1);
     out_buf[out_len - 1] = '\0';
     return true;
 }
@@ -811,9 +803,9 @@ uitree_unlink_child(
     int32_t parent_index,
     int32_t child_index)
 {
-    if( !tree || parent_index < 0 || child_index < 0
-        || (uint32_t)parent_index >= tree->component_count
-        || (uint32_t)child_index >= tree->component_count )
+    if( !tree || parent_index < 0 || child_index < 0 ||
+        (uint32_t)parent_index >= tree->component_count ||
+        (uint32_t)child_index >= tree->component_count )
         return;
 
     struct StaticUIComponent* parent = &tree->components[parent_index];
@@ -853,8 +845,7 @@ uitree_cc_create(
     int const iface_id = parent_component_id >= 0 ? (parent_component_id >> 16) : 0;
     int const child_component_id = uitree_allocate_dynamic_component_id(tree, iface_id);
 
-    int32_t existing =
-        uitree_find_child_by_subid(tree, parent_index, parent_component_id, sub_id);
+    int32_t existing = uitree_find_child_by_subid(tree, parent_index, parent_component_id, sub_id);
     if( existing >= 0 && tree->components[existing].dynamic )
         uitree_unlink_child(tree, parent_index, existing);
 
@@ -1070,7 +1061,8 @@ uitree_print_nodes(struct UITree const* tree)
             break;
         case UIELEM_RS_GRAPHIC:
             printf(
-                "       rs_graphic scene_id=%d atlas=%d active_scene=%d active_atlas=%d hitbox_only=%d\n",
+                "       rs_graphic scene_id=%d atlas=%d active_scene=%d active_atlas=%d "
+                "hitbox_only=%d\n",
                 c->u.rs_graphic.scene_id,
                 c->u.rs_graphic.atlas_index,
                 c->u.rs_graphic.scene_id_active,

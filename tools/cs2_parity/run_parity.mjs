@@ -17,6 +17,7 @@ function parseArgs(argv) {
         suite: "all",
         caseId: null,
         cache: null,
+        cs2Trailer: null,
         regen: false,
         binary: path.join(__dirname, "cs2_parity"),
     };
@@ -25,6 +26,7 @@ function parseArgs(argv) {
         if (a === "--suite" && argv[i + 1]) opts.suite = argv[++i];
         else if (a === "--case" && argv[i + 1]) opts.caseId = argv[++i];
         else if (a === "--cache" && argv[i + 1]) opts.cache = argv[++i];
+        else if (a === "--cs2-trailer" && argv[i + 1]) opts.cs2Trailer = argv[++i];
         else if (a === "--binary" && argv[i + 1]) opts.binary = argv[++i];
         else if (a === "--regen") opts.regen = true;
     }
@@ -153,8 +155,9 @@ function compareTree(golden, actual) {
     return null;
 }
 
-function runBinary(binary, cacheDir, args) {
-    execFileSync(binary, [cacheDir, ...args], { stdio: "inherit", cwd: __dirname });
+function runBinary(binary, cacheDir, args, cs2Trailer) {
+    const prefix = cs2Trailer ? ["--cs2-trailer", cs2Trailer] : [];
+    execFileSync(binary, [...prefix, cacheDir, ...args], { stdio: "inherit", cwd: __dirname });
 }
 
 function regenGoldens(cacheDir) {
@@ -170,6 +173,7 @@ function main() {
     const opts = parseArgs(process.argv);
     const manifest = loadManifest();
     const cacheDir = resolveCacheDir(manifest, opts.cache);
+    const cs2Trailer = opts.cs2Trailer ?? manifest.cache?.clientscriptTrailer ?? "modern";
 
     if (!fs.existsSync(cacheDir)) {
         console.error(`Cache not found: ${cacheDir}`);
@@ -194,7 +198,7 @@ function main() {
         for (const csCase of manifest.cs2Cases) {
             if (opts.caseId && csCase.id !== opts.caseId) continue;
             const outPath = path.join(OUT_DIR, `cs2_${csCase.id}.json`);
-            runBinary(opts.binary, cacheDir, ["exec", csCase.id, outPath]);
+            runBinary(opts.binary, cacheDir, ["exec", csCase.id, outPath], cs2Trailer);
             ok &= compareJsonArtifact(
                 `cs2/${csCase.id}`,
                 path.join(GOLDEN_DIR, `cs2_${csCase.id}.json`),
@@ -207,7 +211,7 @@ function main() {
     if (opts.suite === "all" || opts.suite === "sprite") {
         for (const sp of manifest.spriteCases) {
             if (opts.caseId && sp.id !== opts.caseId) continue;
-            runBinary(opts.binary, cacheDir, ["sprite", sp.id, OUT_DIR]);
+            runBinary(opts.binary, cacheDir, ["sprite", sp.id, OUT_DIR], cs2Trailer);
             ok &= compareJsonArtifact(
                 `sprite/${sp.id}`,
                 path.join(GOLDEN_DIR, `sprite_${sp.id}.json`),
@@ -221,7 +225,7 @@ function main() {
         for (const treeCase of manifest.treeCases) {
             if (opts.caseId && treeCase.id !== opts.caseId) continue;
             const outPath = path.join(OUT_DIR, `tree_${treeCase.id}.json`);
-            runBinary(opts.binary, cacheDir, ["tree", treeCase.id, outPath]);
+            runBinary(opts.binary, cacheDir, ["tree", treeCase.id, outPath], cs2Trailer);
             ok &= compareJsonArtifact(
                 `tree/${treeCase.id}`,
                 path.join(GOLDEN_DIR, `tree_${treeCase.id}.json`),

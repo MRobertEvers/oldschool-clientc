@@ -1,7 +1,7 @@
+#include "osrs/rscache/dat2a/dat2a_clientscript.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "parity_exec.h"
 #include "parity_manifest.h"
-
-#include "osrs/rscache/dat2disk/dat2disk.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,15 +13,25 @@ default_manifest_path(void)
     return "manifest.json";
 }
 
+static int
+parse_clientscript_trailer_flag(char const* value)
+{
+    if( !value )
+        return CLIENTSCRIPT_DECODE_TRAILER_MODERN;
+    if( strcmp(value, "legacy") == 0 )
+        return CLIENTSCRIPT_DECODE_TRAILER_LEGACY;
+    return CLIENTSCRIPT_DECODE_TRAILER_MODERN;
+}
+
 static void
 usage(char const* argv0)
 {
     fprintf(
         stderr,
-        "Usage: %s <cache_dir> exec <caseId> <out.json>\n"
-        "       %s <cache_dir> sprite <caseId> <out_dir>\n"
-        "       %s <cache_dir> tree <caseId> <out.json>\n"
-        "       %s <cache_dir> all <out_dir>\n",
+        "Usage: %s [--cs2-trailer modern|legacy] <cache_dir> exec <caseId> <out.json>\n"
+        "       %s [--cs2-trailer modern|legacy] <cache_dir> sprite <caseId> <out_dir>\n"
+        "       %s [--cs2-trailer modern|legacy] <cache_dir> tree <caseId> <out.json>\n"
+        "       %s [--cs2-trailer modern|legacy] <cache_dir> all <out_dir>\n",
         argv0,
         argv0,
         argv0,
@@ -29,16 +39,34 @@ usage(char const* argv0)
 }
 
 int
-main(int argc, char** argv)
+main(
+    int argc,
+    char** argv)
 {
-    if( argc < 4 )
+    int argi = 1;
+    int clientscript_decode_flags = CLIENTSCRIPT_DECODE_TRAILER_MODERN;
+
+    while( argi < argc && strcmp(argv[argi], "--cs2-trailer") == 0 )
+    {
+        if( argi + 1 >= argc )
+        {
+            usage(argv[0]);
+            return 1;
+        }
+        clientscript_decode_flags = parse_clientscript_trailer_flag(argv[argi + 1]);
+        argi += 2;
+    }
+
+    if( argc - argi < 3 )
     {
         usage(argv[0]);
         return 1;
     }
 
-    char const* cache_dir = argv[1];
-    char const* cmd = argv[2];
+    parity_set_clientscript_decode_flags(clientscript_decode_flags);
+
+    char const* cache_dir = argv[argi++];
+    char const* cmd = argv[argi++];
     char const* manifest_path = default_manifest_path();
 
     if( parity_manifest_load(manifest_path) != 0 )
@@ -58,73 +86,73 @@ main(int argc, char** argv)
 
     if( strcmp(cmd, "exec") == 0 )
     {
-        if( argc < 5 )
+        if( argc - argi < 2 )
         {
             usage(argv[0]);
             rc = 1;
         }
         else
         {
-            struct ParityCs2Case const* cs_case = parity_manifest_find_cs2(argv[3]);
+            struct ParityCs2Case const* cs_case = parity_manifest_find_cs2(argv[argi]);
             if( !cs_case )
             {
-                fprintf(stderr, "unknown cs2 case %s\n", argv[3]);
+                fprintf(stderr, "unknown cs2 case %s\n", argv[argi]);
                 rc = 1;
             }
-            else if( parity_exec_case(cache, cs_case, argv[4]) != 0 )
+            else if( parity_exec_case(cache, cs_case, argv[argi + 1]) != 0 )
             {
-                fprintf(stderr, "exec failed for %s\n", argv[3]);
+                fprintf(stderr, "exec failed for %s\n", argv[argi]);
                 rc = 1;
             }
         }
     }
     else if( strcmp(cmd, "sprite") == 0 )
     {
-        if( argc < 5 )
+        if( argc - argi < 2 )
         {
             usage(argv[0]);
             rc = 1;
         }
         else
         {
-            struct ParitySpriteCase const* sp_case = parity_manifest_find_sprite(argv[3]);
+            struct ParitySpriteCase const* sp_case = parity_manifest_find_sprite(argv[argi]);
             if( !sp_case )
             {
-                fprintf(stderr, "unknown sprite case %s\n", argv[3]);
+                fprintf(stderr, "unknown sprite case %s\n", argv[argi]);
                 rc = 1;
             }
-            else if( parity_sprite_case(cache, sp_case, argv[4]) != 0 )
+            else if( parity_sprite_case(cache, sp_case, argv[argi + 1]) != 0 )
             {
-                fprintf(stderr, "sprite failed for %s\n", argv[3]);
+                fprintf(stderr, "sprite failed for %s\n", argv[argi]);
                 rc = 1;
             }
         }
     }
     else if( strcmp(cmd, "tree") == 0 )
     {
-        if( argc < 5 )
+        if( argc - argi < 2 )
         {
             usage(argv[0]);
             rc = 1;
         }
         else
         {
-            struct ParityTreeCase const* tree_case = parity_manifest_find_tree(argv[3]);
+            struct ParityTreeCase const* tree_case = parity_manifest_find_tree(argv[argi]);
             if( !tree_case )
             {
-                fprintf(stderr, "unknown tree case %s\n", argv[3]);
+                fprintf(stderr, "unknown tree case %s\n", argv[argi]);
                 rc = 1;
             }
-            else if( parity_tree_case(cache, tree_case, argv[4]) != 0 )
+            else if( parity_tree_case(cache, tree_case, argv[argi + 1]) != 0 )
             {
-                fprintf(stderr, "tree failed for %s\n", argv[3]);
+                fprintf(stderr, "tree failed for %s\n", argv[argi]);
                 rc = 1;
             }
         }
     }
     else if( strcmp(cmd, "all") == 0 )
     {
-        char const* out_dir = argv[3];
+        char const* out_dir = argv[argi];
         for( int i = 0; i < parity_manifest_cs2_count(); i++ )
         {
             struct ParityCs2Case const* cs_case = parity_manifest_cs2_at(i);

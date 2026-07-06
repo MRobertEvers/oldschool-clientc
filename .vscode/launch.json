@@ -296,6 +296,8 @@
         "${workspaceFolder}/cache",
         "--iface",
         "387",
+        "--cs2-trailer", 
+        "legacy",
         "--sprites",
         "${workspaceFolder}/build/interface387_test.bmp"
       ],

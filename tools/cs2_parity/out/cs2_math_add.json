@@ -1,0 +1,14 @@
+{
+  "caseId": "math_add",
+  "scriptId": null,
+  "status": 0,
+  "opcount": 4,
+  "intStack": [42],
+  "stringStack": [],
+  "trace": [
+    {"step":0,"pc":0,"opcode":0,"intSp":0,"strSp":0,"topInt":0},
+    {"step":1,"pc":1,"opcode":0,"intSp":1,"strSp":0,"topInt":40},
+    {"step":2,"pc":2,"opcode":4000,"intSp":2,"strSp":0,"topInt":2},
+    {"step":3,"pc":3,"opcode":21,"intSp":1,"strSp":0,"topInt":42}
+  ]
+}

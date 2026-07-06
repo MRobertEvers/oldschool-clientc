@@ -2,6 +2,7 @@
 #define INTERFACE161_CS2_RUNNER_H
 
 #include "fixture.h"
+#include "osrs/rscache/dat2a/dat2a_clientscript.h"
 #include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "toridraw/toridraw.h"
@@ -22,7 +23,14 @@ struct Interface161Cs2Context
     struct Interface161ObjIconCache** obj_icon_cache;
     int root_w;
     int root_h;
+    int clientscript_decode_flags;
 };
+
+void
+interface161_cs2_set_clientscript_decode_flags(int flags);
+
+int
+interface161_cs2_clientscript_decode_flags(void);
 
 void
 interface161_cs2_context_init(struct Interface161Cs2Context* ctx);

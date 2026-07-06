@@ -1,0 +1,17 @@
+{
+  "caseId": "equip_slot_onload_3282",
+  "scriptId": 3282,
+  "status": 0,
+  "opcount": 7,
+  "intStack": [],
+  "stringStack": [],
+  "trace": [
+    {"step":0,"pc":0,"opcode":33,"intSp":0,"strSp":0,"topInt":0},
+    {"step":1,"pc":1,"opcode":102,"intSp":1,"strSp":0,"topInt":0},
+    {"step":2,"pc":2,"opcode":33,"intSp":0,"strSp":0,"topInt":0},
+    {"step":3,"pc":3,"opcode":0,"intSp":1,"strSp":0,"topInt":0},
+    {"step":4,"pc":4,"opcode":0,"intSp":2,"strSp":0,"topInt":5},
+    {"step":5,"pc":5,"opcode":0,"intSp":3,"strSp":0,"topInt":0},
+    {"step":6,"pc":6,"opcode":100,"intSp":4,"strSp":0,"topInt":0}
+  ]
+}

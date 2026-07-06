@@ -5,6 +5,9 @@
 #include "osrs/rscache/dat2disk/dat2disk.h"
 
 int
+parity_set_clientscript_decode_flags(int flags);
+
+int
 parity_exec_case(
     struct RSCacheDat2Disk* cache,
     struct ParityCs2Case const* cs_case,

@@ -316,6 +316,7 @@ struct GameInterfaceEditor
     struct ToriAuxLibTD* td;
     struct ToriDraw_Scene* scene;
     struct RSCacheDat2Disk* dat2_cache;
+    int clientscript_decode_flags;
 
     int* group_ids;
     int group_count;
@@ -441,6 +442,11 @@ void
 GameInterfaceEditor_SetDat2Cache(
     struct GameInterfaceEditor* game,
     struct RSCacheDat2Disk* dat2_cache);
+
+void
+GameInterfaceEditor_SetClientscriptDecodeFlags(
+    struct GameInterfaceEditor* game,
+    int flags);
 
 bool
 GameInterfaceEditor_EnumerateInterfaceGroups(struct GameInterfaceEditor* game);
