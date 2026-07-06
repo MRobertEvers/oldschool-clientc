@@ -80,6 +80,20 @@ ToriDraw2D_MeasureString(
     struct ToriDraw_Font* font,
     char const* text);
 
+/** Word-wrap at max_width pixels; return widest resulting line width. */
+int
+ToriDraw2D_WrapMaxLineWidth(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int max_width);
+
+/** Word-wrap at max_width pixels; return resulting line count (0 for empty text). */
+int
+ToriDraw2D_WrapLineCount(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int max_width);
+
 /** Returns the number of opaque glyph pixels written (0 if nothing drawn). */
 int
 ToriDraw2D_DrawString(

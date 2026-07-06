@@ -1,6 +1,7 @@
 #include "ui_inv_data_service.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 
 static int
@@ -42,7 +43,7 @@ ui_inv_data_service_resolve_source(
     memset(src, 0, sizeof(*src));
     strncpy(src->name, name, sizeof(src->name) - 1);
     src->container_id = ui_inv_data_service_default_container_for_name(name);
-    src->slot_count = src->container_id == RS_INV_CONTAINER_WORN ? 11 : RS_INV_CONTAINER_MAX_SLOTS;
+    src->slot_count = src->container_id == RS_INV_CONTAINER_WORN ? 14 : RS_INV_CONTAINER_MAX_SLOTS;
     src->used = true;
 
     rs_inv_container_get_or_create(&svc->store, src->container_id, src->slot_count);
@@ -118,6 +119,7 @@ ui_inv_data_service_set_slot(
         data->obj_count > 0 ? data->obj_count : 1,
         data->scene_id,
         data->atlas_index);
+    ui_inv_data_service_mark_dirty(svc, source_id);
     return true;
 }
 
@@ -161,6 +163,56 @@ ui_inv_data_service_mark_dirty(
     struct UIInvDataService* svc,
     int source_id)
 {
-    (void)svc;
-    (void)source_id;
+    if( !svc || source_id < 0 || source_id >= svc->source_count )
+        return;
+    if( !svc->sources[source_id].used )
+        return;
+    if( svc->on_container_change )
+        svc->on_container_change(svc->on_container_change_ud, svc->sources[source_id].container_id);
+}
+
+int
+ui_inv_data_service_ensure_container(
+    struct UIInvDataService* svc,
+    int container_id,
+    int slot_count,
+    char const* display_name)
+{
+    if( !svc || container_id < 0 )
+        return UI_INV_SOURCE_INVALID;
+
+    for( int i = 0; i < svc->source_count; i++ )
+    {
+        if( svc->sources[i].used && svc->sources[i].container_id == container_id )
+            return i;
+    }
+
+    if( svc->source_count >= UI_INV_SOURCE_MAX )
+        return UI_INV_SOURCE_INVALID;
+
+    int const idx = svc->source_count++;
+    struct UIInvDataSource* src = &svc->sources[idx];
+    memset(src, 0, sizeof(*src));
+    src->container_id = container_id;
+    src->slot_count = slot_count > 0 ? slot_count : RS_INV_CONTAINER_MAX_SLOTS;
+    src->used = true;
+    if( display_name && display_name[0] != '\0' )
+        strncpy(src->name, display_name, sizeof(src->name) - 1);
+    else
+        snprintf(src->name, sizeof(src->name), "inv_%d", container_id);
+
+    rs_inv_container_get_or_create(&svc->store, container_id, src->slot_count);
+    return idx;
+}
+
+void
+ui_inv_data_service_set_change_callback(
+    struct UIInvDataService* svc,
+    void (*cb)(void* ud, int container_id),
+    void* ud)
+{
+    if( !svc )
+        return;
+    svc->on_container_change = cb;
+    svc->on_container_change_ud = ud;
 }

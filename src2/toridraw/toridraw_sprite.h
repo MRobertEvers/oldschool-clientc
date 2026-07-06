@@ -77,6 +77,15 @@ ToriDraw2D_BlitSprite(
     int* pixel_buffer);
 
 void
+ToriDraw2D_BlitSpriteAlpha(
+    struct ToriDraw_Sprite* sprite,
+    struct ToriDraw_ViewPort* view_port,
+    int x,
+    int y,
+    int alpha,
+    int* pixel_buffer);
+
+void
 ToriDraw2D_BlitSprite_subrect(
     struct ToriDraw_Sprite* sprite,
     struct ToriDraw_ViewPort* view_port,

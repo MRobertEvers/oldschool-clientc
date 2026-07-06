@@ -64,6 +64,8 @@ enum StaticUIComponentType
     UIELEM_RS_LINE = 20,
     UIELEM_RS_INV_TEXT = 21,
     UIELEM_INV_SLOT = 22,
+    /** CS2 cc_create / if_setobject dynamic item icon (objbox). */
+    UIELEM_CC_OBJ = 23,
 };
 
 enum StaticUIElemPositionKind
@@ -87,6 +89,14 @@ struct StaticUIElemPosition
     int bottom;
     int width;
     int height;
+
+    /** IF3 position/size modes (-1 = use simple x/y/width/height). */
+    int8_t x_mode;
+    int8_t y_mode;
+    int8_t width_mode;
+    int8_t height_mode;
+    int aspect_w;
+    int aspect_h;
 
     /** Resolved absolute bounds (set by uitree_layout_resolve). */
     int abs_x;
@@ -193,6 +203,31 @@ struct StaticUIComponent
     int32_t first_child;  /* -1 = leaf */
     int32_t next_sibling; /* -1 = last sibling */
     int component_id;     /* CacheDatConfigComponent id for RS nodes; -1 for builtins */
+    /** 1 when created by CS2 cc_create (removed by cc_deleteall). */
+    uint8_t dynamic;
+    /** CC_CREATE childIndex under parent; -1 for static nodes. */
+    int dynamic_child_index;
+
+    /** CS2 cc_setobject / if_setobject override (any widget type; mirrors TS itemId). */
+    int item_id;
+    int item_count;
+    int item_scene_id;
+    int item_atlas_index;
+
+    /** CC_SETTRANS / IF_SETTRANS opacity (0-255; 255 = fully transparent). */
+    int trans;
+    /** CC_SETNOCLICKTHROUGH / IF_SETNOCLICKTHROUGH. */
+    uint8_t no_click_through;
+    /** CC_SETDRAGGABLE / IF_SETDRAGGABLE. */
+    uint8_t draggable;
+    /** CC_SETDRAGGABLEBEHAVIOR / IF_SETDRAGGABLEBEHAVIOR. */
+    int drag_behavior;
+    /** CC_SETDRAGDEADZONE / IF_SETDRAGDEADZONE (pixels; 0 = client default 5). */
+    uint8_t drag_dead_zone;
+    /** CC_SETDRAGDEADTIME / IF_SETDRAGDEADTIME (client-clock ticks; 0 = no time gate). */
+    uint8_t drag_dead_time;
+    /** IF_SETMODELTRANSPARENT (CS2 runtime). */
+    uint8_t model_transparent;
 
     struct StaticUIBehavior behavior;
     struct StaticUIElemPosition position;
@@ -233,6 +268,8 @@ struct StaticUIComponent
             /** Client.ts colour: inactive text colour (0xRRGGBB). */
             int color;
             int center;
+            int y_align;
+            int line_height;
             int shadowed;
             /** Client.ts text: inactive label. Heap copy; freed in uitree_free. */
             char const* text;
@@ -251,6 +288,10 @@ struct StaticUIComponent
             uint8_t graphic_hitbox_only;
             /** dat2 tiled: repeat sprite across IF3 layout rect. */
             uint8_t tiled;
+            int outline;
+            int graphic_shadow;
+            uint8_t flip_h;
+            uint8_t flip_v;
         } rs_graphic;
         struct
         {
@@ -284,6 +325,14 @@ struct StaticUIComponent
             int slot;
             uint8_t center_icon;
         } inv_slot;
+        struct
+        {
+            int obj_id;
+            int obj_count;
+            int scene_id;
+            int atlas_index;
+            uint8_t center_icon;
+        } cc_obj;
         struct
         {
             /** Client.ts scrollHeight / dat1 scroll. 0 = no vertical scroll. */
@@ -336,6 +385,8 @@ struct UITree
     int32_t root_index; /* first root in root sibling chain; -1 if empty */
     /** Incremented on every `uitree_push` / node add; used to invalidate UI dirty caches. */
     uint32_t generation;
+    /** Next uid low-16 for cc_create (0x8000..0xffff); 0 = uninitialized. */
+    uint16_t next_dynamic_uid;
 };
 
 /** Descriptor for creating a single UITree node via uitree_push(). */
@@ -352,6 +403,10 @@ struct UINodeSpec
     int anchor_y;
 
     uint8_t always_dirty;
+    /** When set, node is CS2 cc_create child (cc_deleteall removes). */
+    uint8_t dynamic;
+    /** CC_CREATE childIndex; only when dynamic is set. */
+    int dynamic_child_index;
     /** When set, position is copied verbatim (XY or RELATIVE). */
     uint8_t has_position;
     struct StaticUIElemPosition position;
@@ -392,6 +447,8 @@ struct UINodeSpec
             int font_id;
             int color;
             int center;
+            int y_align;
+            int line_height;
             int shadowed;
             char const* text;
             char const* text_active;
@@ -404,6 +461,10 @@ struct UINodeSpec
             int atlas_index_active;
             uint8_t graphic_hitbox_only;
             uint8_t tiled;
+            int outline;
+            int graphic_shadow;
+            uint8_t flip_h;
+            uint8_t flip_v;
         } rs_graphic;
         struct
         {
@@ -435,6 +496,14 @@ struct UINodeSpec
             int slot;
             uint8_t center_icon;
         } inv_slot;
+        struct
+        {
+            int obj_id;
+            int obj_count;
+            int scene_id;
+            int atlas_index;
+            uint8_t center_icon;
+        } cc_obj;
         struct
         {
             /** Client.ts scrollHeight / dat1 scroll. 0 = no vertical scroll. */
@@ -547,6 +616,52 @@ uitree_apply_size(
     int width,
     int height);
 
+bool
+uitree_apply_position_modes(
+    struct UITree* tree,
+    int component_id,
+    int x,
+    int y,
+    int x_mode,
+    int y_mode);
+
+bool
+uitree_apply_size_modes(
+    struct UITree* tree,
+    int component_id,
+    int width,
+    int height,
+    int width_mode,
+    int height_mode);
+
+bool
+uitree_apply_graphic_tiled(
+    struct UITree* tree,
+    int component_id,
+    int tiled);
+
+bool
+uitree_apply_graphic_outline(
+    struct UITree* tree,
+    int component_id,
+    int outline);
+
+bool
+uitree_apply_graphic_shadow(
+    struct UITree* tree,
+    int component_id,
+    int shadow_colour);
+
+int
+uitree_get_layout_width(
+    struct UITree const* tree,
+    int component_id);
+
+int
+uitree_get_layout_height(
+    struct UITree const* tree,
+    int component_id);
+
 /** Apply CS2 IF_SETSCROLLSIZE to RS_LAYER scroll fields. */
 bool
 uitree_apply_scroll_size(
@@ -554,6 +669,88 @@ uitree_apply_scroll_size(
     int component_id,
     int scroll_width,
     int scroll_height);
+
+/** Apply CS2 CC_/IF_SETOBJECT to a node (may set UIELEM_CC_OBJ payload). */
+bool
+uitree_apply_object(
+    struct UITree* tree,
+    int component_id,
+    int obj_id,
+    int obj_count,
+    int scene_id,
+    int atlas_index);
+
+bool
+uitree_apply_model(
+    struct UITree* tree,
+    int component_id,
+    int model_id);
+
+bool
+uitree_apply_model_transparent(
+    struct UITree* tree,
+    int component_id,
+    int transparent);
+
+bool
+uitree_apply_op_base(
+    struct UITree* tree,
+    int component_id,
+    char const* text);
+
+bool
+uitree_get_op(
+    struct UITree const* tree,
+    int component_id,
+    int active_component,
+    int index,
+    char* out_buf,
+    int out_len);
+
+bool
+uitree_get_op_base(
+    struct UITree const* tree,
+    int component_id,
+    int active_component,
+    char* out_buf,
+    int out_len);
+
+bool
+uitree_clear_ops(
+    struct UITree* tree,
+    int component_id,
+    int active_component);
+
+bool
+uitree_get_text(
+    struct UITree const* tree,
+    int component_id,
+    int active_component,
+    char* out_buf,
+    int out_len);
+
+/** Find child of parent_index with comsubid (low 16 bits of component_id). */
+int32_t
+uitree_find_child_by_subid(
+    struct UITree const* tree,
+    int32_t parent_index,
+    int parent_component_id,
+    int sub_id);
+
+/** CS2 cc_create: push dynamic child under parent; returns node index or -1. */
+int32_t
+uitree_cc_create(
+    struct UITree* tree,
+    int32_t parent_index,
+    int parent_component_id,
+    int widget_type,
+    int sub_id);
+
+/** CS2 cc_deleteall: detach dynamic children of parent. */
+void
+uitree_cc_delete_all(
+    struct UITree* tree,
+    int32_t parent_index);
 
 /** Deep-copies script arrays from src into tree->components[idx].behavior. */
 void

@@ -6,6 +6,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Long/null opcodes not yet in generated cs2_opcode.h (RuneStar Script.kt). */
+#ifndef CS2_OP_PUSH_CONSTANT_LONG
+#define CS2_OP_PUSH_CONSTANT_LONG 61
+#endif
+#ifndef CS2_OP_POP_LONG_DISCARD
+#define CS2_OP_POP_LONG_DISCARD 62
+#endif
+#ifndef CS2_OP_PUSH_NULL
+#define CS2_OP_PUSH_NULL 63
+#endif
+
 static int
 read_u16_at(
     const uint8_t* data,
@@ -21,7 +32,8 @@ static int
 cs2_operand_is_int8(int opcode)
 {
     return opcode >= 100 || opcode == CS2_OP_RETURN || opcode == CS2_OP_POP_INT_DISCARD ||
-           opcode == CS2_OP_POP_STRING_DISCARD;
+           opcode == CS2_OP_POP_STRING_DISCARD || opcode == CS2_OP_POP_LONG_DISCARD ||
+           opcode == CS2_OP_PUSH_NULL;
 }
 
 struct RSCacheDat2A_ClientScript*
@@ -30,11 +42,11 @@ RSCacheDat2A_ClientScriptNewDecode(
     const uint8_t* data,
     int data_size)
 {
-    if( !data || data_size < 16 || data[0] != 0 )
+    if( !data || data_size < 18 || data[0] != 0 )
         return NULL;
 
     int trailer_len = read_u16_at(data, data_size, data_size - 2);
-    int trailer_pos = data_size - 14 - trailer_len;
+    int trailer_pos = data_size - 18 - trailer_len;
     if( trailer_pos < 1 || trailer_pos > data_size )
         return NULL;
 
@@ -44,8 +56,10 @@ RSCacheDat2A_ClientScriptNewDecode(
     int op_count = RSCacheShared_RSBufferG4(&trailer);
     int local_int_count = (int)RSCacheShared_RSBufferG2(&trailer);
     int local_string_count = (int)RSCacheShared_RSBufferG2(&trailer);
+    int local_long_count = (int)RSCacheShared_RSBufferG2(&trailer);
     int int_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
     int string_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
+    int long_argument_count = (int)RSCacheShared_RSBufferG2(&trailer);
 
     int switch_table_count = (int)RSCacheShared_RSBufferG1(&trailer);
     if( switch_table_count < 0 || switch_table_count > CS2_SCRIPT_MAX_SWITCHES )
@@ -62,8 +76,10 @@ RSCacheDat2A_ClientScriptNewDecode(
     script->script_id = script_id;
     script->local_int_count = local_int_count;
     script->local_string_count = local_string_count;
+    script->local_long_count = local_long_count;
     script->int_argument_count = int_argument_count;
     script->string_argument_count = string_argument_count;
+    script->long_argument_count = long_argument_count;
     script->op_count = op_count;
     script->switch_table_count = switch_table_count;
 
@@ -107,12 +123,25 @@ RSCacheDat2A_ClientScriptNewDecode(
             script->string_operands[op] = RSCacheShared_RSBufferReadStringNullTerminated(&body);
             script->int_operands[op] = 0;
         }
+        else if( opcode == CS2_OP_PUSH_CONSTANT_LONG )
+        {
+            int high = RSCacheShared_RSBufferG4(&body);
+            int low = RSCacheShared_RSBufferG4(&body);
+            script->int_operands[op] = low;
+            (void)high;
+        }
         else if( cs2_operand_is_int8(opcode) )
             script->int_operands[op] = (int)RSCacheShared_RSBufferG1b(&body);
         else
             script->int_operands[op] = RSCacheShared_RSBufferG4(&body);
 
         op++;
+    }
+
+    if( op != op_count || body.position != (uint32_t)trailer_pos )
+    {
+        RSCacheDat2A_ClientScriptFree(out);
+        return NULL;
     }
 
     script->op_count = op;

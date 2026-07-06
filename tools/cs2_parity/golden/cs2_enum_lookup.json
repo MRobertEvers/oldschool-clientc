@@ -1,0 +1,60 @@
+{
+  "caseId": "enum_lookup",
+  "scriptId": null,
+  "status": 0,
+  "opcount": 6,
+  "intStack": [
+    -1
+  ],
+  "stringStack": [],
+  "trace": [
+    {
+      "step": 0,
+      "pc": 0,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 1,
+      "pc": 1,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 2,
+      "pc": 2,
+      "opcode": 0,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 3,
+      "pc": 3,
+      "opcode": 0,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 99
+    },
+    {
+      "step": 4,
+      "pc": 4,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 5,
+      "pc": 5,
+      "opcode": 21,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    }
+  ]
+}

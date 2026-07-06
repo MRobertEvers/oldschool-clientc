@@ -209,8 +209,13 @@ if(NOT EMSCRIPTEN)
     target_link_libraries(dump_interface dump_interface_common)
     target_include_directories(dump_interface PRIVATE src src2 tools)
     set_target_properties(dump_interface PROPERTIES C_STANDARD 11)
-    # Prefer: make -C tools/dump_interface (standalone, no ASAN). CMake binary hangs on
-    # macOS when CMAKE_C_FLAGS includes -fsanitize=address.
+    # ASAN on global CMAKE_C_FLAGS hangs dat2 interface decode on macOS; force-disable here.
+    if(CMAKE_C_FLAGS MATCHES "sanitize" OR ENABLE_ASAN)
+        target_compile_options(dump_interface PRIVATE -fno-sanitize=address -fno-sanitize=undefined)
+        target_link_options(dump_interface PRIVATE -fno-sanitize=address -fno-sanitize=undefined)
+        target_compile_options(dump_interface_layout PRIVATE -fno-sanitize=address -fno-sanitize=undefined)
+        target_link_options(dump_interface_layout PRIVATE -fno-sanitize=address -fno-sanitize=undefined)
+    endif()
 
     add_executable(dump_map_index tools/dump_map_index/main.c)
     target_link_libraries(dump_map_index rscache)

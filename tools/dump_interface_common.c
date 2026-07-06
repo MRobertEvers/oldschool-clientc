@@ -73,6 +73,37 @@ dump_iface_parent_file_index(
 }
 
 int
+dump_iface_packed_id_iface(
+    int packed_id)
+{
+    return (packed_id >> 16) & 0xFFFF;
+}
+
+int
+dump_iface_packed_id_file(
+    int packed_id)
+{
+    return packed_id & 0xFFFF;
+}
+
+void
+dump_iface_format_packed_id(
+    char* buf,
+    size_t buf_size,
+    int packed_id)
+{
+    if( !buf || buf_size == 0 )
+        return;
+    snprintf(
+        buf,
+        buf_size,
+        "0x%08x (%d<<16|%d)",
+        (unsigned)packed_id,
+        dump_iface_packed_id_iface(packed_id),
+        dump_iface_packed_id_file(packed_id));
+}
+
+int
 dump_iface_decode_component_from_bytes(
     Component* out,
     char* data,
@@ -760,4 +791,271 @@ dump_iface_free(struct DumpIfaceLoaded* li)
     if( li->dat1_list )
         dat1_interfaces_list_free(li->dat1_list);
     memset(li, 0, sizeof(*li));
+}
+
+static bool
+hook_refs_iface(
+    ComponentScriptVar const* hook,
+    int hook_len,
+    int target_iface)
+{
+    if( !hook || hook_len <= 0 )
+        return false;
+    for( int i = 0; i < hook_len; i++ )
+    {
+        if( hook[i].type != SCRIPT_VAR_INT )
+            continue;
+        int v = hook[i].value.i;
+        if( v == target_iface || (v >> 16) == target_iface )
+            return true;
+    }
+    return false;
+}
+
+static bool
+component_refs_iface(
+    Component const* c,
+    int target_iface)
+{
+    if( !c )
+        return false;
+
+    int packed = target_iface << 16;
+    if( c->id == packed || (c->id >> 16) == target_iface )
+        return false;
+    if( c->linkedComponentId == target_iface || c->linkedComponentId == packed ||
+        (c->linkedComponentId >> 16) == target_iface )
+        return true;
+
+    if( hook_refs_iface(c->onLoad, c->onLoadLen, target_iface) )
+        return true;
+    if( hook_refs_iface(c->onInvTransmit, c->onInvTransmitLen, target_iface) )
+        return true;
+    if( hook_refs_iface(c->onVarpTransmit, c->onVarpTransmitLen, target_iface) )
+        return true;
+    if( hook_refs_iface(c->onClick, c->onClickLen, target_iface) )
+        return true;
+    if( hook_refs_iface(c->onOp, c->onOpLen, target_iface) )
+        return true;
+    return false;
+}
+
+static void
+print_hook_ref(
+    FILE* fp,
+    int parent_iface,
+    int file_index,
+    char const* hook_name,
+    ComponentScriptVar const* hook,
+    int hook_len,
+    int target_iface)
+{
+    if( !hook_refs_iface(hook, hook_len, target_iface) )
+        return;
+    fprintf(
+        fp,
+        "  iface %d file[%02d] hook %s:",
+        parent_iface,
+        file_index,
+        hook_name);
+    for( int i = 0; i < hook_len; i++ )
+    {
+        if( hook[i].type == SCRIPT_VAR_INT )
+            fprintf(fp, " %d", hook[i].value.i);
+        else if( hook[i].type == SCRIPT_VAR_STRING && hook[i].value.s )
+            fprintf(fp, " '%s'", hook[i].value.s);
+    }
+    fputc('\n', fp);
+}
+
+int
+dump_iface_scan_parents(
+    struct RSCacheDat2Disk* cache,
+    int target_iface,
+    FILE* fp)
+{
+    if( !cache || !fp || target_iface < 0 )
+        return -1;
+
+    struct RSCacheDat2Disk_ReferenceTable* table =
+        cache->tables[RSCacheDat2Disk_Table_Interfaces];
+    if( !table )
+        return -1;
+
+    fprintf(fp, "Scanning interface archives for references to iface %d...\n\n", target_iface);
+
+    struct DumpIfaceLoaded target;
+    if( dump_iface_load_dat2(cache, target_iface, DUMP_IFACE_FIXED_ROOT_W, DUMP_IFACE_FIXED_ROOT_H, &target) ==
+        0 )
+    {
+        fprintf(fp, "Internal component parents (iface %d):\n", target_iface);
+        for( int i = 0; i < target.count; i++ )
+        {
+            if( target.comps[i].type < 0 )
+                continue;
+            int parent = dump_iface_parent_file_index(&target, i);
+            char id_buf[48];
+            char layer_buf[48];
+            dump_iface_format_packed_id(id_buf, sizeof(id_buf), target.comps[i].id);
+            if( target.comps[i].layer >= 0 )
+                dump_iface_format_packed_id(layer_buf, sizeof(layer_buf), target.comps[i].layer);
+            else
+                snprintf(layer_buf, sizeof(layer_buf), "-1");
+            fprintf(
+                fp,
+                "  [%02d] parent=%02d id=%s layer=%s type=%s inv_triggers=",
+                i,
+                parent,
+                id_buf,
+                layer_buf,
+                dump_iface_component_type_name(&target.comps[i]));
+            if( target.comps[i].inventoryTriggers && target.comps[i].inventoryTriggersLen > 0 )
+            {
+                for( int t = 0; t < target.comps[i].inventoryTriggersLen; t++ )
+                    fprintf(fp, "%s%d", t ? "," : "", target.comps[i].inventoryTriggers[t]);
+            }
+            else
+                fputs("none", fp);
+            if( target.comps[i].onInvTransmitLen > 0 && target.comps[i].onInvTransmit &&
+                target.comps[i].onInvTransmit[0].type == SCRIPT_VAR_INT )
+                fprintf(fp, " onInvTransmit=%d", target.comps[i].onInvTransmit[0].value.i);
+            else if( target.comps[i].onInvTransmitLen > 0 )
+                fprintf(fp, " onInvTransmitLen=%d", target.comps[i].onInvTransmitLen);
+            fputc('\n', fp);
+        }
+        fputc('\n', fp);
+        dump_iface_free(&target);
+    }
+
+    struct DumpIfaceLoaded gameframe;
+    if( dump_iface_load_dat2(cache, 165, DUMP_IFACE_FIXED_ROOT_W, DUMP_IFACE_FIXED_ROOT_H, &gameframe) == 0 )
+    {
+        fprintf(fp, "Gameframe 165 mount slots (runtime sidebar parents):\n");
+        for( int i = 0; i < gameframe.count; i++ )
+        {
+            if( gameframe.comps[i].type != 0 )
+                continue;
+            int parent = dump_iface_parent_file_index(&gameframe, i);
+            if( parent != 1 )
+                continue;
+            char id_buf[48];
+            dump_iface_format_packed_id(id_buf, sizeof(id_buf), gameframe.comps[i].id);
+            fprintf(
+                fp,
+                "  child[%02d] id=%s  %dx%d mount layer\n",
+                i,
+                id_buf,
+                gameframe.lay_w[i],
+                gameframe.lay_h[i]);
+        }
+        fprintf(
+            fp,
+            "  (sidebar panels mount on gameframe 165 children 8-21 via DisplayHandler; "
+            "see rev_kronos_ui.ini tab table for iface %d)\n\n",
+            target_iface);
+        dump_iface_free(&gameframe);
+    }
+
+    int ref_count = 0;
+    int worn_watch_count = 0;
+    fprintf(fp, "Interfaces watching worn container 94 (onInvTransmit):\n");
+    for( int ti = 0; ti < table->id_count; ti++ )
+    {
+        int iface_id = table->ids[ti];
+        struct DumpIfaceLoaded li;
+        if( dump_iface_load_dat2(
+                cache, iface_id, DUMP_IFACE_FIXED_ROOT_W, DUMP_IFACE_FIXED_ROOT_H, &li) != 0 )
+            continue;
+
+        for( int fi = 0; fi < li.count; fi++ )
+        {
+            Component const* c = &li.comps[fi];
+            if( c->type < 0 || c->onInvTransmitLen <= 0 )
+                continue;
+            bool watches_94 = c->inventoryTriggersLen <= 0;
+            if( c->inventoryTriggers )
+            {
+                watches_94 = false;
+                for( int t = 0; t < c->inventoryTriggersLen; t++ )
+                {
+                    if( c->inventoryTriggers[t] == 94 )
+                        watches_94 = true;
+                }
+            }
+            if( !watches_94 )
+                continue;
+            fprintf(
+                fp,
+                "  iface %d file[%02d] onInvTransmit=%d inv_triggers=",
+                iface_id,
+                fi,
+                c->onInvTransmit[0].type == SCRIPT_VAR_INT ? c->onInvTransmit[0].value.i : -1);
+            if( c->inventoryTriggersLen > 0 )
+            {
+                for( int t = 0; t < c->inventoryTriggersLen; t++ )
+                    fprintf(fp, "%s%d", t ? "," : "", c->inventoryTriggers[t]);
+            }
+            else
+                fputs("all", fp);
+            fputc('\n', fp);
+            worn_watch_count++;
+        }
+        dump_iface_free(&li);
+    }
+    if( worn_watch_count == 0 )
+        fprintf(fp, "  (none)\n");
+    fputc('\n', fp);
+
+    fprintf(fp, "Cross-interface component references:\n");
+    for( int ti = 0; ti < table->id_count; ti++ )
+    {
+        int parent_iface = table->ids[ti];
+        if( parent_iface == target_iface )
+            continue;
+
+        struct DumpIfaceLoaded li;
+        if( dump_iface_load_dat2(
+                cache, parent_iface, DUMP_IFACE_FIXED_ROOT_W, DUMP_IFACE_FIXED_ROOT_H, &li) != 0 )
+            continue;
+
+        bool any = false;
+        for( int fi = 0; fi < li.count; fi++ )
+        {
+            Component const* c = &li.comps[fi];
+            if( c->type < 0 )
+                continue;
+            if( !component_refs_iface(c, target_iface) )
+                continue;
+            if( !any )
+            {
+                fprintf(fp, "iface %d:\n", parent_iface);
+                any = true;
+                ref_count++;
+            }
+            char id_buf[48];
+            dump_iface_format_packed_id(id_buf, sizeof(id_buf), c->id);
+            fprintf(
+                fp,
+                "  file[%02d] id=%s linked=%d clientCode=%d\n",
+                fi,
+                id_buf,
+                c->linkedComponentId,
+                c->clientCode);
+            print_hook_ref(fp, parent_iface, fi, "onLoad", c->onLoad, c->onLoadLen, target_iface);
+            print_hook_ref(
+                fp, parent_iface, fi, "onInvTransmit", c->onInvTransmit, c->onInvTransmitLen, target_iface);
+            print_hook_ref(
+                fp, parent_iface, fi, "onClick", c->onClick, c->onClickLen, target_iface);
+        }
+        dump_iface_free(&li);
+    }
+
+    if( ref_count == 0 )
+        fprintf(fp, "  (none found in component hooks/linked ids)\n");
+    fprintf(
+        fp,
+        "\nNote: sidebar mounting of iface %d is driven by client DisplayHandler onto gameframe 165 "
+        "child 12, not embedded in iface 165 component data.\n",
+        target_iface);
+    return 0;
 }

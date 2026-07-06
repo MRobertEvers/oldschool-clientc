@@ -36,6 +36,8 @@ struct UIInvDataService
     struct RSInvContainerStore store;
     struct UIInvDataSource sources[UI_INV_SOURCE_MAX];
     int source_count;
+    void (*on_container_change)(void* ud, int container_id);
+    void* on_container_change_ud;
 };
 
 void
@@ -75,5 +77,19 @@ ui_inv_data_service_seed_from_pool(
 
 void
 ui_inv_data_service_mark_dirty(struct UIInvDataService* svc, int source_id);
+
+/** Register a container by numeric id (creates backing store entry). Returns source id or UI_INV_SOURCE_INVALID. */
+int
+ui_inv_data_service_ensure_container(
+    struct UIInvDataService* svc,
+    int container_id,
+    int slot_count,
+    char const* display_name);
+
+void
+ui_inv_data_service_set_change_callback(
+    struct UIInvDataService* svc,
+    void (*cb)(void* ud, int container_id),
+    void* ud);
 
 #endif

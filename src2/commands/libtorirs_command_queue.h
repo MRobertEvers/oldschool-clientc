@@ -45,4 +45,11 @@ LibToriRS_CommandQueue_PushMouseMoveEvent(
     int xrel,
     int yrel);
 
+void
+LibToriRS_CommandQueue_PushMouseWheelEvent(
+    struct LibToriRS_CommandQueue* command_queue,
+    int wheel_y,
+    int mouse_x,
+    int mouse_y);
+
 #endif

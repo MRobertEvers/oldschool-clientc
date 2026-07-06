@@ -12,10 +12,18 @@ CFLAGS = -std=c11 -Wall -Wextra -g \
 	-I$(SRC2_DIR) -I$(SRC_DIR) -I$(REPO_ROOT)
 LDFLAGS = -Wl,-dead_strip -lm
 
-SRCS = main.c \
+SRCS = main.c stubs.c \
 	$(SRC2_DIR)/vm/cs2_script.c \
 	$(SRC2_DIR)/vm/cs2vm.c \
 	$(SRC2_DIR)/vm/cs2_opcode_meta.c \
+	$(SRC2_DIR)/vm/cs2_host_ui.c \
+	$(SRC2_DIR)/vm/cs1vm.c \
+	$(SRC2_DIR)/games/ie_enum_lookup.c \
+	$(SRC2_DIR)/games/ie_struct_lookup.c \
+	$(SRC2_DIR)/ui/uitree.c \
+	$(SRC2_DIR)/toridraw/toridraw_font.c \
+	$(SRC_DIR)/osrs/rscache/shared/shared_rs_buffer.c \
+	$(SRC_DIR)/osrs/rscache/shared/shared_file_list.c
 
 .PHONY: all clean run check
 

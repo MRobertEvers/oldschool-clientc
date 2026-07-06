@@ -1,48 +1,48 @@
 #include "3rd/minipt.h"
 #include "core_task_await.h"
+#include "games/runescape.h"
 #include "ioqueue/libtorirs_ioqueue.h"
-#include "platforms/platform_x_io_reactor.h"
+#include "osrs/colors.h"
+#include "osrs/minimenu_action.h"
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
+#include "osrs/rscache/dat1a/dat1a_configs_dat.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/dat2a/dat2a_component.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/dat2a_config_npctype.h"
+#include "osrs/rscache/dat2a/dat2a_config_object.h"
+#include "osrs/rscache/shared/shared_file_list.h"
+#include "platforms/platform_x/cache_path_resolve.h"
 #include "platforms/platform_x/cachelib.h"
 #include "platforms/platform_x/cachelib_platform.h"
-#include "platforms/platform_x/cache_path_resolve.h"
+#include "platforms/platform_x_io_reactor.h"
 #include "revconfig/revconfig.h"
 #include "revconfig/revconfig_load.h"
+#include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/core/tasks/core_task.h"
 #include "toriauxlib/core/tasks/instance_revconfig_context.h"
 #include "toriauxlib/core/tasks/task_instance_revconfig_load.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/toriauxlib.h"
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_sprite.h"
-#include "osrs/colors.h"
-#include "osrs/minimenu_action.h"
-#include "games/runescape.h"
 #include "ui/minimenu_pickset.h"
-#include "ui/ui_click.h"
-#include "ui/ui_chat_minimenu.h"
 #include "ui/ui_behavior.h"
+#include "ui/ui_chat_minimenu.h"
+#include "ui/ui_click.h"
 #include "ui/ui_font_lookup.h"
-#include "ui/ui_minimenu.h"
 #include "ui/ui_input.h"
-#include "ui/ui_sprite_lookup.h"
 #include "ui/ui_inv_data_service.h"
+#include "ui/ui_minimenu.h"
+#include "ui/ui_sprite_lookup.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
+#include "vm/cs1vm.h"
+#include "vm/cs2vm.h"
 #include "world/minimap.h"
 #include "world/world.h"
 #include "world/world_pickset.h"
-#include "osrs/rscache/dat1a/dat1a_config_component.h"
-#include "osrs/rscache/dat1a/dat1a_configs_dat.h"
-#include "osrs/rscache/dat2a/dat2a_component.h"
-#include "osrs/rscache/dat1disk/dat1disk.h"
-#include "osrs/rscache/shared/shared_file_list.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/core/toriauxlibcore.h"
-#include "osrs/rscache/dat2a/dat2a_config_locs.h"
-#include "osrs/rscache/dat2a/dat2a_config_npctype.h"
-#include "osrs/rscache/dat2a/dat2a_config_object.h"
-#include "vm/cs1vm.h"
-#include "vm/cs2vm.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -386,7 +386,9 @@ read_config_file(
 }
 
 static int
-test_layout_parents_parsed(char const* ui_ini, char const* label)
+test_layout_parents_parsed(
+    char const* ui_ini,
+    char const* label)
 {
     void* data = NULL;
     size_t size = 0;
@@ -580,8 +582,10 @@ test_dat1_compass_layout_uses_component_defaults(void)
     TEST_ASSERT(tree->components[0].type == UIELEM_BUILTIN_COMPASS, "compass node type");
     TEST_ASSERT(tree->components[0].position.width == 34, "dat1 compass width from component");
     TEST_ASSERT(tree->components[0].position.height == 34, "dat1 compass height from component");
-    TEST_ASSERT(tree->components[0].position.anchor_x == 16, "dat1 compass anchor_x from component");
-    TEST_ASSERT(tree->components[0].position.anchor_y == 16, "dat1 compass anchor_y from component");
+    TEST_ASSERT(
+        tree->components[0].position.anchor_x == 16, "dat1 compass anchor_x from component");
+    TEST_ASSERT(
+        tree->components[0].position.anchor_y == 16, "dat1 compass anchor_y from component");
     TEST_ASSERT(tree->components[0].position.x == 550, "dat1 compass x from layout");
     TEST_ASSERT(tree->components[0].position.y == 4, "dat1 compass y from layout");
 
@@ -618,7 +622,8 @@ test_dat1_minimap_layout_uses_component_anchor_defaults(void)
         struct RevConfigItem const* item = &items->items[i];
         if( item->kind == RCITEM_UICOMPONENT && strcmp(item->u.uicomponent.name, "minimap") == 0 )
             minimap_comp = &item->u.uicomponent;
-        if( item->kind == RCITEM_UILAYOUT && strcmp(item->u.uilayout.name, "minimap_viewport") == 0 &&
+        if( item->kind == RCITEM_UILAYOUT &&
+            strcmp(item->u.uilayout.name, "minimap_viewport") == 0 &&
             strcmp(item->u.uilayout.layout_group, "fixed") == 0 )
             minimap_layout = &item->u.uilayout;
     }
@@ -651,8 +656,10 @@ test_dat1_minimap_layout_uses_component_anchor_defaults(void)
     TEST_ASSERT(tree->components[0].type == UIELEM_BUILTIN_MINIMAP, "minimap node type");
     TEST_ASSERT(tree->components[0].position.width == 213, "dat1 minimap width from component");
     TEST_ASSERT(tree->components[0].position.height == 190, "dat1 minimap height from component");
-    TEST_ASSERT(tree->components[0].position.anchor_x == 106, "dat1 minimap anchor_x from component");
-    TEST_ASSERT(tree->components[0].position.anchor_y == 95, "dat1 minimap anchor_y from component");
+    TEST_ASSERT(
+        tree->components[0].position.anchor_x == 106, "dat1 minimap anchor_x from component");
+    TEST_ASSERT(
+        tree->components[0].position.anchor_y == 95, "dat1 minimap anchor_y from component");
     TEST_ASSERT(tree->components[0].position.x == 570, "dat1 minimap x from layout");
     TEST_ASSERT(tree->components[0].position.y == 9, "dat1 minimap y from layout");
 
@@ -906,7 +913,13 @@ assert_interactive_type(
     int32_t hit = uitree_hit_test_interactive(tree, host, NULL, px, py);
     if( hit < 0 )
     {
-        fprintf(stderr, "FAIL: %s at (%d,%d) expected type %d, got miss\n", label, px, py, expected_type);
+        fprintf(
+            stderr,
+            "FAIL: %s at (%d,%d) expected type %d, got miss\n",
+            label,
+            px,
+            py,
+            expected_type);
         return 1;
     }
     if( tree->components[hit].type != expected_type )
@@ -985,6 +998,47 @@ subtree_count_inv_slots(
          child = tree->components[child].next_sibling )
         count += subtree_count_inv_slots(tree, child);
     return count;
+}
+
+static int
+subtree_count_cc_obj_with_items(
+    struct UITree const* tree,
+    int32_t node_index)
+{
+    if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 0;
+
+    int count = 0;
+    if( tree->components[node_index].type == UIELEM_CC_OBJ &&
+        tree->components[node_index].u.cc_obj.obj_id > 0 )
+        count = 1;
+
+    for( int32_t child = tree->components[node_index].first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+        count += subtree_count_cc_obj_with_items(tree, child);
+    return count;
+}
+
+static bool
+subtree_has_inv_or_cc_obj(
+    struct UITree const* tree,
+    int32_t node_index)
+{
+    if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return false;
+
+    if( tree->components[node_index].type == UIELEM_INV_GRID ||
+        (tree->components[node_index].type == UIELEM_CC_OBJ &&
+         tree->components[node_index].u.cc_obj.obj_id > 0) )
+        return true;
+
+    for( int32_t child = tree->components[node_index].first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        if( subtree_has_inv_or_cc_obj(tree, child) )
+            return true;
+    }
+    return false;
 }
 
 static bool
@@ -1080,7 +1134,9 @@ collect_rs_text_layout_under(
 }
 
 static int
-count_distinct_ints(int const* values, int count)
+count_distinct_ints(
+    int const* values,
+    int count)
 {
     int distinct = 0;
     for( int i = 0; i < count; i++ )
@@ -1110,8 +1166,7 @@ assert_stats_sidebar_rs_layout(
     int32_t sidebar_idx = uitree_find_sidebar_tab(tree, 1);
     TEST_ASSERT(sidebar_idx >= 0, "stats sidebar_tab_1 exists after dat1 pipeline load");
     TEST_ASSERT(
-        count_descendants(tree, sidebar_idx) > 0,
-        "stats sidebar_tab_1 has baked RS descendants");
+        count_descendants(tree, sidebar_idx) > 0, "stats sidebar_tab_1 has baked RS descendants");
 
     uitree_layout_resolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 
@@ -1164,7 +1219,13 @@ assert_hit_type(
     int32_t hit = uitree_hit_test(tree, px, py);
     if( hit < 0 )
     {
-        fprintf(stderr, "FAIL: %s at (%d,%d) expected type %d, got miss\n", label, px, py, expected_type);
+        fprintf(
+            stderr,
+            "FAIL: %s at (%d,%d) expected type %d, got miss\n",
+            label,
+            px,
+            py,
+            expected_type);
         return 1;
     }
     if( tree->components[hit].type != expected_type )
@@ -1341,7 +1402,9 @@ test_host_get_inv_source_slot(
 }
 
 static void
-test_host_set_selected_tab(void* user, int tabno)
+test_host_set_selected_tab(
+    void* user,
+    int tabno)
 {
     (void)user;
     g_test_selected_tab = tabno;
@@ -1396,18 +1459,18 @@ test_mouse_hit_test_on_built_tree(void)
     host.get_minimenu_visible = test_stub_minimenu_visible;
 
     static struct MouseLocationCase const cases[] = {
-        { 300, 200, UIELEM_BUILTIN_WORLD, "world center", true, 2, "Walk here" },
-        { 256, 50, UIELEM_BUILTIN_WORLD, "world upper", true, 2, "Walk here" },
-        { 50, 300, UIELEM_BUILTIN_WORLD, "world lower-left", true, 2, "Walk here" },
-        { 560, 10, UIELEM_BUILTIN_COMPASS, "compass widget", false, 0, NULL },
-        { 676, 104, UIELEM_BUILTIN_MINIMAP, "minimap center", false, 0, NULL },
-        { 700, 50, UIELEM_BUILTIN_MINIMAP, "minimap upper-right", false, 0, NULL },
-        { 10, 10, UIELEM_BUILTIN_CROSS, "cross at default layout origin", false, 0, NULL },
-        { 100, 100, UIELEM_BUILTIN_MINIMENU, "minimenu placeholder shadow", false, 0, NULL },
-        { 116, 116, UIELEM_BUILTIN_MINIMENU, "cross area shadowed by minimenu", false, 0, NULL },
-        { 400, 400, UIELEM_BUILTIN_CHAT, "chat region main box", false, 0, NULL },
-        { 550, 455, UIELEM_RS_LAYER, "fixed shell above chat strip", false, 0, NULL },
-        { 450, 480, UIELEM_BUILTIN_CHAT_BUTTON, "chat report button strip", false, 0, NULL },
+        { 300, 200, UIELEM_BUILTIN_WORLD,       "world center",                    true,  2, "Walk here" },
+        { 256, 50,  UIELEM_BUILTIN_WORLD,       "world upper",                     true,  2, "Walk here" },
+        { 50,  300, UIELEM_BUILTIN_WORLD,       "world lower-left",                true,  2, "Walk here" },
+        { 560, 10,  UIELEM_BUILTIN_COMPASS,     "compass widget",                  false, 0, NULL        },
+        { 676, 104, UIELEM_BUILTIN_MINIMAP,     "minimap center",                  false, 0, NULL        },
+        { 700, 50,  UIELEM_BUILTIN_MINIMAP,     "minimap upper-right",             false, 0, NULL        },
+        { 10,  10,  UIELEM_BUILTIN_CROSS,       "cross at default layout origin",  false, 0, NULL        },
+        { 100, 100, UIELEM_BUILTIN_MINIMENU,    "minimenu placeholder shadow",     false, 0, NULL        },
+        { 116, 116, UIELEM_BUILTIN_MINIMENU,    "cross area shadowed by minimenu", false, 0, NULL        },
+        { 400, 400, UIELEM_BUILTIN_CHAT,        "chat region main box",            false, 0, NULL        },
+        { 550, 455, UIELEM_RS_LAYER,            "fixed shell above chat strip",    false, 0, NULL        },
+        { 450, 480, UIELEM_BUILTIN_CHAT_BUTTON, "chat report button strip",        false, 0, NULL        },
     };
 
     for( size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++ )
@@ -1460,8 +1523,7 @@ test_mouse_hit_test_on_built_tree(void)
     int32_t sidebar_idx = uitree_find_sidebar_tab(tree, 3);
     TEST_ASSERT(sidebar_idx >= 0, "sidebar_tab_3 shell exists in dat1 tree");
     TEST_ASSERT(
-        tree->components[sidebar_idx].u.sidebar.componentno == 3213,
-        "sidebar_tab_3 componentno");
+        tree->components[sidebar_idx].u.sidebar.componentno == 3213, "sidebar_tab_3 componentno");
     {
         int32_t combat_sidebar = uitree_find_sidebar_tab(tree, 0);
         TEST_ASSERT(combat_sidebar >= 0, "sidebar_tab_0 shell exists");
@@ -1469,12 +1531,9 @@ test_mouse_hit_test_on_built_tree(void)
             tree->components[combat_sidebar].u.sidebar.componentno == 5855,
             "sidebar_tab_0 componentno combat_unarmed");
     }
+    TEST_ASSERT(tree->components[sidebar_idx].position.width == 190, "sidebar_tab_3 layout width");
     TEST_ASSERT(
-        tree->components[sidebar_idx].position.width == 190,
-        "sidebar_tab_3 layout width");
-    TEST_ASSERT(
-        tree->components[sidebar_idx].position.height == 261,
-        "sidebar_tab_3 layout height");
+        tree->components[sidebar_idx].position.height == 261, "sidebar_tab_3 layout height");
 
     {
         int32_t sideicon_music_idx = uitree_layout_node_for_component(&ctx, "sideicon_music");
@@ -1482,8 +1541,7 @@ test_mouse_hit_test_on_built_tree(void)
         TEST_ASSERT(sideicon_music_idx >= 0, "sideicon_music layout node");
         TEST_ASSERT(sidebar_tab_0_idx >= 0, "sidebar_tab_0 layout node");
         TEST_ASSERT(
-            sideicon_music_idx < sidebar_tab_0_idx,
-            "sidebar tabs should layout after tab icons");
+            sideicon_music_idx < sidebar_tab_0_idx, "sidebar tabs should layout after tab icons");
     }
 
     host.get_selected_tab = test_host_get_selected_tab;
@@ -1494,9 +1552,7 @@ test_mouse_hit_test_on_built_tree(void)
         TEST_ASSERT(
             tree->components[inv_tab_hit].type == UIELEM_BUILTIN_TAB_ICONS,
             "inventory tab hit is tab_icon");
-        TEST_ASSERT(
-            tree->components[inv_tab_hit].u.tab_icon.tabno == 3,
-            "inventory tab hit tabno");
+        TEST_ASSERT(tree->components[inv_tab_hit].u.tab_icon.tabno == 3, "inventory tab hit tabno");
     }
     {
         int32_t friends_hit = uitree_hit_test_interactive(tree, &host, NULL, 586, 484);
@@ -1504,15 +1560,11 @@ test_mouse_hit_test_on_built_tree(void)
         TEST_ASSERT(
             tree->components[friends_hit].type == UIELEM_BUILTIN_TAB_ICONS,
             "friends tab hit is tab_icon");
-        TEST_ASSERT(
-            tree->components[friends_hit].u.tab_icon.tabno == 8,
-            "friends tab hit tabno");
+        TEST_ASSERT(tree->components[friends_hit].u.tab_icon.tabno == 8, "friends tab hit tabno");
 
         int32_t music_hit = uitree_hit_test_interactive(tree, &host, NULL, 741, 484);
         TEST_ASSERT(music_hit >= 0, "music tab icon interactive hit");
-        TEST_ASSERT(
-            tree->components[music_hit].u.tab_icon.tabno == 13,
-            "music tab hit tabno");
+        TEST_ASSERT(tree->components[music_hit].u.tab_icon.tabno == 13, "music tab hit tabno");
     }
     {
         g_test_selected_tab = 3;
@@ -1588,8 +1640,8 @@ test_mouse_hit_test_on_built_tree(void)
     minimenu_pickset_reset(&empty_picks);
     {
         char const* required[] = { "Walk here" };
-        if( assert_minimenu_options(&game, &empty_picks, true, 2, required, 1, "empty world pickset") !=
-            0 )
+        if( assert_minimenu_options(
+                &game, &empty_picks, true, 2, required, 1, "empty world pickset") != 0 )
             return 1;
     }
 
@@ -1602,7 +1654,9 @@ test_mouse_hit_test_on_built_tree(void)
 }
 
 static int
-test_pipeline_ui_minimenu_smoke(struct UITree* tree, struct GameRunescape* game)
+test_pipeline_ui_minimenu_smoke(
+    struct UITree* tree,
+    struct GameRunescape* game)
 {
     if( !tree || !game )
         return 0;
@@ -1741,7 +1795,10 @@ test_ui_minimenu_explicit_opcodes(void)
     return 0;
 }
 
-static int test_minimenu_b12_font_draw_pixels(struct ToriDraw_Scene* scene, int b12_id);
+static int
+test_minimenu_b12_font_draw_pixels(
+    struct ToriDraw_Scene* scene,
+    int b12_id);
 
 static int
 test_inventory_pick_at_slot_center(
@@ -1896,7 +1953,8 @@ run_pipeline_test(
                     tree, &load_task->rc_ctx, "redstone_tab_quests", "fixed_shell"),
                 "redstone_tab_quests parent should be fixed_shell");
             TEST_ASSERT(
-                uitree_component_parent_is(tree, &load_task->rc_ctx, "sidebar_tab_5", "fixed_shell"),
+                uitree_component_parent_is(
+                    tree, &load_task->rc_ctx, "sidebar_tab_5", "fixed_shell"),
                 "sidebar_tab_5 parent should be fixed_shell");
             TEST_ASSERT(
                 uitree_component_parent_is(tree, &load_task->rc_ctx, "backleft2", "fixed_shell"),
@@ -1908,8 +1966,7 @@ run_pipeline_test(
                 tree->components[sidebar_idx].first_child >= 0,
                 "sidebar_tab_3 has baked RS children");
             TEST_ASSERT(
-                count_descendants(tree, sidebar_idx) > 0,
-                "sidebar_tab_3 has RS descendants");
+                count_descendants(tree, sidebar_idx) > 0, "sidebar_tab_3 has RS descendants");
 
             bool found_inv = false;
             for( uint32_t i = 0; i < tree->component_count; i++ )
@@ -1938,8 +1995,7 @@ run_pipeline_test(
             TEST_ASSERT(sideicon_music_idx >= 0, "sideicon_music layout node");
             TEST_ASSERT(sidebar_tab_0_idx >= 0, "sidebar_tab_0 layout node");
             TEST_ASSERT(
-                sideicon_music_idx < sidebar_tab_0_idx,
-                "sidebar tabs layout after tab icons");
+                sideicon_music_idx < sidebar_tab_0_idx, "sidebar tabs layout after tab icons");
 
             if( assert_stats_sidebar_rs_layout(tree, &load_task->rc_ctx) != 0 )
                 return 1;
@@ -1953,13 +2009,13 @@ run_pipeline_test(
                 tree->components[sidebar_idx].first_child >= 0,
                 "sidebar_tab_3 has baked RS children");
             TEST_ASSERT(
-                count_descendants(tree, sidebar_idx) > 0,
-                "sidebar_tab_3 has RS descendants");
+                count_descendants(tree, sidebar_idx) > 0, "sidebar_tab_3 has RS descendants");
 
             bool found_inv = false;
             for( uint32_t i = 0; i < tree->component_count; i++ )
             {
-                if( tree->components[i].type != UIELEM_INV_GRID )
+                if( tree->components[i].type != UIELEM_INV_GRID &&
+                    tree->components[i].type != UIELEM_CC_OBJ )
                     continue;
                 int32_t walk = (int32_t)i;
                 while( walk >= 0 )
@@ -1974,7 +2030,7 @@ run_pipeline_test(
                 if( found_inv )
                     break;
             }
-            TEST_ASSERT(found_inv, "sidebar_tab_3 subtree contains RS_INV");
+            TEST_ASSERT(found_inv, "sidebar_tab_3 subtree contains inv grid or CS2 obj");
 
             int32_t equipment_idx = uitree_find_sidebar_tab(tree, 4);
             TEST_ASSERT(equipment_idx >= 0, "sidebar_tab_4 exists after dat2 pipeline load");
@@ -1982,11 +2038,8 @@ run_pipeline_test(
                 count_descendants(tree, equipment_idx) > 0,
                 "sidebar_tab_4 has baked RS descendants");
             TEST_ASSERT(
-                subtree_has_inv_slot_bg(tree, equipment_idx),
-                "sidebar_tab_4 equipment inv slot wiring baked");
-            TEST_ASSERT(
-                subtree_count_inv_slots(tree, equipment_idx) == 11,
-                "sidebar_tab_4 equipment has eleven UIELEM_INV_SLOT nodes");
+                subtree_count_cc_obj_with_items(tree, equipment_idx) > 0,
+                "sidebar_tab_4 equipment has CS2 obj icons from inv transmit");
             TEST_ASSERT(
                 equipment_worn_container_seeded(&game),
                 "sidebar_tab_4 worn container seeded with icon scene ids");
@@ -2012,8 +2065,7 @@ run_pipeline_test(
 
     if( expect_compass && game.ui_inv_pool )
     {
-        if( test_inventory_pick_at_slot_center(
-                tree, &game, game.ui_inv_pool, 1333, label) != 0 )
+        if( test_inventory_pick_at_slot_center(tree, &game, game.ui_inv_pool, 1333, label) != 0 )
             return 1;
     }
 
@@ -2060,8 +2112,7 @@ test_sidebar_tab_inv_binding(void)
     struct GameRunescape game_stub;
     memset(&game_stub, 0, sizeof(game_stub));
     ui_inv_data_service_init(&game_stub.inv_data);
-    int const inv_source_id =
-        ui_inv_data_service_resolve_source(&game_stub.inv_data, "inventory");
+    int const inv_source_id = ui_inv_data_service_resolve_source(&game_stub.inv_data, "inventory");
     ui_inv_data_service_seed_from_pool(&game_stub.inv_data, inv_source_id, pool, inv_index);
 
     struct InstanceRevConfigContext ctx;
@@ -2282,8 +2333,7 @@ test_inventory_slot_minimenu_pick(void)
     memset(&game, 0, sizeof(game));
     game.core = core;
     ui_inv_data_service_init(&game.inv_data);
-    int const inv_source_id =
-        ui_inv_data_service_resolve_source(&game.inv_data, "inventory");
+    int const inv_source_id = ui_inv_data_service_resolve_source(&game.inv_data, "inventory");
     ui_inv_data_service_seed_from_pool(&game.inv_data, inv_source_id, pool, inv_index);
 
     struct UINodeSpec sidebar_spec = { 0 };
@@ -2379,8 +2429,7 @@ test_hitbox_only_graphic_bake(void)
         found = true;
         TEST_ASSERT(tree->components[i].component_id == 130, "graphic component id");
         TEST_ASSERT(
-            tree->components[i].u.rs_graphic.graphic_hitbox_only == 1,
-            "graphic_hitbox_only set");
+            tree->components[i].u.rs_graphic.graphic_hitbox_only == 1, "graphic_hitbox_only set");
         TEST_ASSERT(tree->components[i].u.rs_graphic.scene_id < 0, "no scene sprite");
         TEST_ASSERT(tree->components[i].position.width == 40, "hitbox width");
         TEST_ASSERT(tree->components[i].position.height == 120, "hitbox height");
@@ -2694,8 +2743,7 @@ test_bake_layer_scroll_height(void)
             continue;
         found = true;
         TEST_ASSERT(
-            tree->components[i].u.rs_layer.scroll_height == 500,
-            "layer scroll_height baked");
+            tree->components[i].u.rs_layer.scroll_height == 500, "layer scroll_height baked");
         TEST_ASSERT(tree->components[i].position.height == 80, "layer viewport height");
     }
     TEST_ASSERT(found, "RS_LAYER baked");
@@ -2737,11 +2785,7 @@ static char const*
 pipeline_dat2_cache_directory(void)
 {
     static char const* const candidates[] = {
-        "../../cache",
-        "../../../cache",
-        "../cache",
-        "cache",
-        NULL,
+        "../../cache", "../../../cache", "../cache", "cache", NULL,
     };
 
     for( int i = 0; candidates[i]; i++ )
@@ -2787,8 +2831,8 @@ test_dat1_walk_root_resolution(void)
     int data_idx = RSCacheShared_FileListDatFindFileByName(fl, "data");
     TEST_ASSERT(data_idx >= 0, "interfaces data file");
 
-    struct RSCacheDat1A_ConfigComponentList* list = RSCacheDat1A_ConfigComponentListNewDecode(
-        fl->files[data_idx], fl->file_sizes[data_idx]);
+    struct RSCacheDat1A_ConfigComponentList* list =
+        RSCacheDat1A_ConfigComponentListNewDecode(fl->files[data_idx], fl->file_sizes[data_idx]);
     TEST_ASSERT(list != NULL, "interfaces decode");
 
     TEST_ASSERT(
@@ -2879,8 +2923,7 @@ test_ui_click_world_viewport(void)
     TEST_ASSERT(walk_idx >= 0, "walk here option index");
     int const menu_click_x = game.minimenu.x + game.minimenu.width / 2;
     int const menu_click_y = ui_minimenu_option_y(&game.minimenu, walk_idx);
-    TEST_ASSERT(
-        menu_click_x != 300 || menu_click_y != 200, "menu click differs from right-click");
+    TEST_ASSERT(menu_click_x != 300 || menu_click_y != 200, "menu click differs from right-click");
     ui_click_handle_left(&game, NULL, menu_click_x, menu_click_y);
     TEST_ASSERT(
         game.cross.mode == RUNESCAPE_CROSS_MODE_WALK, "minimenu walk option sets walk cross");
@@ -2961,15 +3004,13 @@ test_ui_click_region_routing(void)
     minimenu_pickset_reset(&picks);
     world_pickset_to_minimenu_pickset(&game, &picks);
     TEST_ASSERT(
-        !GameRunescape_PointInMainHoverRegion(&game, 635, 86),
-        "outside region still excluded");
+        !GameRunescape_PointInMainHoverRegion(&game, 635, 86), "outside region still excluded");
     {
         struct UIMinimenuState menu;
         ui_minimenu_reset(&menu);
         ui_minimenu_add_option(&menu, "Cancel", MINIMENU_ACTION_CANCEL, -1);
         TEST_ASSERT(
-            !minimenu_has_option_text(&menu, "Walk here"),
-            "outside region shell has no walk");
+            !minimenu_has_option_text(&menu, "Walk here"), "outside region shell has no walk");
     }
 
     fprintf(stderr, "ok: ui_click region routing\n");
@@ -2985,8 +3026,7 @@ test_minimenu_b12_font_draw_pixels(
     TEST_ASSERT(font != NULL, "b12 scene font for draw test");
     TEST_ASSERT(ToriDraw_FontValidate(font), "b12 font validate for draw test");
 
-    int const lh =
-        font->line_height > 0 ? font->line_height : UI_MINIMENU_DEFAULT_LINE_HEIGHT;
+    int const lh = font->line_height > 0 ? font->line_height : UI_MINIMENU_DEFAULT_LINE_HEIGHT;
     struct UIMinimenuLayout layout = ui_minimenu_layout_from_line_height(lh);
 
     int pixels[512 * 64];
@@ -3006,8 +3046,8 @@ test_minimenu_b12_font_draw_pixels(
     TEST_ASSERT(header_pixels > 0, "minimenu header draws visible pixels");
 
     int const row_top = my + layout.option_base_y;
-    int const option_pixels = ToriDraw2D_DrawString(
-        font, &vp, 3, row_top, "Walk here", WHITE, false, true, pixels);
+    int const option_pixels =
+        ToriDraw2D_DrawString(font, &vp, 3, row_top, "Walk here", WHITE, false, true, pixels);
     TEST_ASSERT(option_pixels > 0, "minimenu option draws visible pixels");
 
     fprintf(stderr, "ok: minimenu b12 font draw pixels\n");
@@ -3235,8 +3275,7 @@ test_inv_slot_graphic_convert(void)
     TEST_ASSERT(dst->type == TORIAUXLIBCORE_COMPONENT_INV, "dat2 inv slot type");
     TEST_ASSERT(dst->inv_slot_offset_x[0] == 3, "dat2 inv slot offset x");
     TEST_ASSERT(dst->inv_slot_offset_y[0] == -4, "dat2 inv slot offset y");
-    TEST_ASSERT(
-        strcmp(dst->inv_slot_sprite_ref[0], "spr:9001") == 0, "dat2 inv slot sprite ref");
+    TEST_ASSERT(strcmp(dst->inv_slot_sprite_ref[0], "spr:9001") == 0, "dat2 inv slot sprite ref");
 
     Component_free(&src);
     ToriAuxLibCore_ComponentFree(dst);

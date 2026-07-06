@@ -824,6 +824,31 @@ test_input_drag_lifecycle(void)
     return 0;
 }
 
+static int
+test_input_drag_dead_time(void)
+{
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input = LibToriRS_Input_Init(&input_storage, 0);
+    TEST_ASSERT(input != NULL, "input init");
+
+    LibToriRS_Input_SetDragThresholds(input, 1, 100);
+    LibToriRS_Input_Begin(input, 0);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 10, 10);
+    LibToriRS_Input_End(input);
+
+    LibToriRS_Input_Begin(input, 50);
+    LibToriRS_Input_PushMouseMove(input, 10, 20);
+    LibToriRS_Input_End(input);
+    TEST_ASSERT(!LibToriRS_Input_IsDragging(input, TORIRSM_LEFT), "not dragging before dead time");
+
+    LibToriRS_Input_Begin(input, 120);
+    LibToriRS_Input_PushMouseMove(input, 10, 20);
+    LibToriRS_Input_End(input);
+    TEST_ASSERT(LibToriRS_Input_IsDragging(input, TORIRSM_LEFT), "dragging after dead time");
+
+    return 0;
+}
+
 int
 main(void)
 {
@@ -843,6 +868,7 @@ main(void)
     failures += test_scrollbar_selected_sidebar_tab();
     failures += test_scrollbar_nested_ancestor_offset();
     failures += test_input_drag_lifecycle();
+    failures += test_input_drag_dead_time();
 
     if( failures == 0 )
     {

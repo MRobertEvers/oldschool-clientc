@@ -398,21 +398,9 @@ instance_revconfig_bake_rs_component(
     switch( info->type )
     {
     case TORIAUXLIBCORE_COMPONENT_LAYER:
-        if( instance_revconfig_inv_is_equipment_slot_layer(info->id) && ctx->game )
-        {
-            int const worn_source =
-                instance_revconfig_inv_resolve_source(ctx->game, UI_INV_SOURCE_NAME_WORN);
-            spec.type = UIELEM_INV_SLOT;
-            spec.u.inv_slot.inv_source_id = worn_source;
-            spec.u.inv_slot.slot = instance_revconfig_inv_equipment_slot_index(info->id);
-            spec.u.inv_slot.center_icon = 1;
-        }
-        else
-        {
-            spec.type = UIELEM_RS_LAYER;
-            spec.u.rs_layer.scroll_height = info->scroll_height;
-            spec.u.rs_layer.scroll_width = info->scroll_width;
-        }
+        spec.type = UIELEM_RS_LAYER;
+        spec.u.rs_layer.scroll_height = info->scroll_height;
+        spec.u.rs_layer.scroll_width = info->scroll_width;
         break;
     case TORIAUXLIBCORE_COMPONENT_GRAPHIC:
     {

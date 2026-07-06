@@ -79,6 +79,7 @@ struct LibToriRS_Command
         struct LibToriRS_Command_MouseDown mouse_down;
         struct LibToriRS_Command_MouseUp mouse_up;
         struct LibToriRS_Command_MouseMove mouse_move;
+        struct LibToriRS_Command_MouseWheel mouse_wheel;
     } u;
 };
 

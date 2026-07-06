@@ -136,15 +136,30 @@ print_component_details(
 
     int parent = dump_iface_parent_file_index(li, i);
     char const* tname = dump_iface_component_type_name(c);
+    char id_buf[48];
+    char layer_buf[48];
+
+    if( li->cache_mode == DUMP_IFACE_CACHE_DAT2 )
+        dump_iface_format_packed_id(id_buf, sizeof(id_buf), c->id);
+    else
+        snprintf(id_buf, sizeof(id_buf), "%d", c->id);
+
+    if( c->layer >= 0 && li->cache_mode == DUMP_IFACE_CACHE_DAT2 )
+        dump_iface_format_packed_id(layer_buf, sizeof(layer_buf), c->layer);
+    else if( c->layer >= 0 )
+        snprintf(layer_buf, sizeof(layer_buf), "%d", c->layer);
+    else
+        snprintf(layer_buf, sizeof(layer_buf), "-1");
 
     fprintf(
         fp,
-        "[%02d] id=0x%08x  %s  parent=%02d  type=%s(%d)  x=%d y=%d w=%d h=%d  "
+        "[%02d] id=%s  %s  parent=%02d  layer=%s  type=%s(%d)  x=%d y=%d w=%d h=%d  "
         "hidden=%d  button=%d  clientCode=%d  clickMask=0x%08x",
         i,
-        (unsigned)c->id,
+        id_buf,
         c->if3 ? "if3" : "if1",
         parent,
+        layer_buf,
         tname,
         c->type,
         li->lay_x[i],
@@ -309,6 +324,8 @@ print_summary(
         li->count,
         root_w,
         root_h);
+    if( li->cache_mode == DUMP_IFACE_CACHE_DAT2 )
+        fprintf(fp, "id encoding: packed_id = (iface_archive << 16) | file_index\n");
     fprintf(
         fp,
         "summary: inv_children=%d  inv_slots_with_graphicId=%d  unsupported_type1=%d\n",
@@ -357,8 +374,24 @@ print_json_child(
     fprintf(fp, "    {\n");
     fprintf(fp, "      \"child_id\": %d,\n", i);
     fprintf(fp, "      \"id\": %d,\n", c->id);
+    if( li->cache_mode == DUMP_IFACE_CACHE_DAT2 )
+    {
+        fprintf(fp, "      \"id_iface\": %d,\n", dump_iface_packed_id_iface(c->id));
+        fprintf(fp, "      \"id_file\": %d,\n", dump_iface_packed_id_file(c->id));
+    }
     fprintf(fp, "      \"if3\": %s,\n", c->if3 ? "true" : "false");
     fprintf(fp, "      \"parent\": %d,\n", parent);
+    if( c->layer >= 0 )
+    {
+        fprintf(fp, "      \"layer\": %d,\n", c->layer);
+        if( li->cache_mode == DUMP_IFACE_CACHE_DAT2 )
+        {
+            fprintf(fp, "      \"layer_iface\": %d,\n", dump_iface_packed_id_iface(c->layer));
+            fprintf(fp, "      \"layer_file\": %d,\n", dump_iface_packed_id_file(c->layer));
+        }
+    }
+    else
+        fprintf(fp, "      \"layer\": -1,\n");
     fprintf(fp, "      \"type\": %d,\n", c->type);
     fprintf(fp, "      \"type_name\": \"%s\",\n", tname);
     fprintf(fp, "      \"x\": %d, \"y\": %d, \"w\": %d, \"h\": %d,\n", li->lay_x[i], li->lay_y[i], li->lay_w[i], li->lay_h[i]);
@@ -470,7 +503,7 @@ usage(void)
     fprintf(
         stderr,
         "usage: dump_interface <cache_dir> [--dat1 | --dat2]\n"
-        "       (--iface N | --componentno N) [--child N | --json]\n"
+        "       (--iface N | --componentno N) [--child N | --json | --parents]\n"
         "       [--root-w W] [--root-h H] [--out path]\n");
 }
 
@@ -484,6 +517,7 @@ main(
     int componentno = -1;
     int child_id = -1;
     int json_mode = 0;
+    int parents_mode = 0;
     int root_w = DUMP_IFACE_FIXED_ROOT_W;
     int root_h = DUMP_IFACE_FIXED_ROOT_H;
     const char* out_path = NULL;
@@ -499,6 +533,8 @@ main(
             child_id = atoi(argv[++i]);
         else if( strcmp(argv[i], "--json") == 0 )
             json_mode = 1;
+        else if( strcmp(argv[i], "--parents") == 0 )
+            parents_mode = 1;
         else if( strcmp(argv[i], "--dat1") == 0 )
             cache_mode = DUMP_IFACE_CACHE_DAT1;
         else if( strcmp(argv[i], "--dat2") == 0 )
@@ -537,6 +573,11 @@ main(
     struct DumpIfaceLoaded li;
     if( cache_mode == DUMP_IFACE_CACHE_DAT1 )
     {
+        if( parents_mode )
+        {
+            fprintf(stderr, "--parents requires dat2 cache\n");
+            return 1;
+        }
         if( dump_iface_load_dat1(cache_dir, root_id, root_w, root_h, &li) != 0 )
         {
             fprintf(stderr, "failed to load dat1 component %d\n", root_id);
@@ -550,6 +591,26 @@ main(
         {
             fprintf(stderr, "failed to open dat2 cache: %s\n", cache_dir);
             return 1;
+        }
+
+        if( parents_mode )
+        {
+            FILE* fp = stdout;
+            if( out_path )
+            {
+                fp = fopen(out_path, "w");
+                if( !fp )
+                {
+                    fprintf(stderr, "failed to open %s\n", out_path);
+                    RSCacheDat2Disk_Free(cache);
+                    return 1;
+                }
+            }
+            int rc = dump_iface_scan_parents(cache, root_id, fp);
+            if( fp != stdout )
+                fclose(fp);
+            RSCacheDat2Disk_Free(cache);
+            return rc != 0;
         }
 
         if( dump_iface_load_dat2(cache, root_id, root_w, root_h, &li) != 0 )

@@ -6,13 +6,6 @@
 
 struct GameRunescape;
 
-/** Equipment iface 387: archive file index -> worn slot (container 94). */
-int
-instance_revconfig_inv_equipment_slot_index(int component_id);
-
-bool
-instance_revconfig_inv_is_equipment_slot_layer(int component_id);
-
 /** Resolve revconfig inv= name to a UIInvDataService source on the game. */
 int
 instance_revconfig_inv_resolve_source(
@@ -24,7 +17,7 @@ instance_revconfig_inv_seed_sources_from_pool(
     struct GameRunescape* game,
     struct InstanceRevConfigContext* ctx);
 
-/** IF3 sidebar finalize: inject backpack grid / seed worn container. */
+/** Register inv= source for a sidebar tab (no hardcoded IF3 injection). */
 void
 instance_revconfig_inv_finalize_sidebar(
     enum ToriAuxLibCacheMode cache_mode,

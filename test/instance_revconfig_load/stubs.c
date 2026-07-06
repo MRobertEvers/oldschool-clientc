@@ -10,8 +10,13 @@
 #include "toriauxlib/td/toridraw_cachemodel.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "toriauxlib/vm/toriauxlibvm.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "ui/ui_input.h"
 #include "ui/ui_minimenu.h"
+#include "ui/ui_behavior.h"
+#include "ui/ui_input_adapter.h"
+#include "ui/rs_inv_container.h"
+#include "vm/cs2_host_ui.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -293,4 +298,204 @@ GameRunescape_UITreeIndexForComponentId(
             return (int32_t)i;
     }
     return -1;
+}
+
+static void
+stub_note_varp_change(
+    struct GameRunescape* game,
+    int varp_id)
+{
+    if( !game || varp_id < 0 )
+        return;
+    for( int i = 0; i < game->varp_change_count; i++ )
+    {
+        if( game->varp_change_ids[i] == varp_id )
+            return;
+    }
+    if( game->varp_change_count >= RS_UI_VARP_CHANGE_MAX )
+        return;
+    game->varp_change_ids[game->varp_change_count++] = varp_id;
+}
+
+static void
+stub_on_cs2_varp_change(
+    void* ud,
+    int varp_id)
+{
+    stub_note_varp_change((struct GameRunescape*)ud, varp_id);
+}
+
+static int
+stub_cs2_host_inv_get_obj(
+    void* ud,
+    int inv_id,
+    int slot)
+{
+    struct GameRunescape* game = ud;
+    if( !game || inv_id < 0 || slot < 0 )
+        return 0;
+    struct RSInvContainer const* container =
+        rs_inv_container_find(&game->inv_data.store, inv_id);
+    if( !container || slot >= container->slot_count )
+        return 0;
+    return container->obj_id[slot];
+}
+
+static int
+stub_cs2_host_inv_get_num(
+    void* ud,
+    int inv_id,
+    int slot)
+{
+    struct GameRunescape* game = ud;
+    if( !game || inv_id < 0 || slot < 0 )
+        return 0;
+    struct RSInvContainer const* container =
+        rs_inv_container_find(&game->inv_data.store, inv_id);
+    if( !container || slot >= container->slot_count )
+        return 0;
+    return container->obj_count[slot];
+}
+
+static int
+stub_cs2_host_inv_size(
+    void* ud,
+    int inv_id)
+{
+    struct GameRunescape* game = ud;
+    if( !game || inv_id < 0 )
+        return 0;
+    struct RSInvContainer const* container =
+        rs_inv_container_find(&game->inv_data.store, inv_id);
+    return container ? container->slot_count : 0;
+}
+
+static bool
+stub_cs2_host_resolve_obj_icon(
+    void* ud,
+    int obj_id,
+    int* out_scene_id,
+    int* out_atlas_index)
+{
+    struct GameRunescape* game = ud;
+    if( out_scene_id )
+        *out_scene_id = -1;
+    if( out_atlas_index )
+        *out_atlas_index = 0;
+    if( !game || obj_id <= 0 )
+        return false;
+
+    for( int src = 0; src < game->inv_data.source_count; src++ )
+    {
+        if( !game->inv_data.sources[src].used )
+            continue;
+        int const container_id = game->inv_data.sources[src].container_id;
+        struct RSInvContainer const* container =
+            rs_inv_container_find(&game->inv_data.store, container_id);
+        if( !container )
+            continue;
+        for( int slot = 0; slot < container->slot_count; slot++ )
+        {
+            if( container->obj_id[slot] != obj_id )
+                continue;
+            if( container->scene_id[slot] < 0 )
+                continue;
+            if( out_scene_id )
+                *out_scene_id = container->scene_id[slot];
+            if( out_atlas_index )
+                *out_atlas_index = container->atlas_index[slot];
+            return true;
+        }
+    }
+    return false;
+}
+
+static void
+stub_init_cs2_host(struct GameRunescape* game)
+{
+    if( !game )
+        return;
+    struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
+    struct CS2HostUIInitArgs args = {
+        .core = game->core,
+        .cache = cache,
+        .vm = game->vm,
+        .tree = game->ui_tree,
+        .on_varp_change = stub_on_cs2_varp_change,
+        .on_varp_change_ud = game,
+        .resolve_obj_icon = stub_cs2_host_resolve_obj_icon,
+        .resolve_obj_icon_ud = game,
+        .inv_get_obj = stub_cs2_host_inv_get_obj,
+        .inv_get_num = stub_cs2_host_inv_get_num,
+        .inv_size = stub_cs2_host_inv_size,
+        .inv_ud = game,
+    };
+    cs2_host_ui_init(&game->cs2host, &args);
+}
+
+static void
+stub_build_behavior_host(
+    struct GameRunescape* game,
+    struct UITreeBehaviorHost* out)
+{
+    if( !game || !out )
+        return;
+    stub_init_cs2_host(game);
+    ui_input_adapter_init_behavior_host_ex(out, game->vm, game->cs2vm, &game->cs2host);
+}
+
+static void
+stub_run_hooks(
+    struct GameRunescape* game,
+    enum UITreeBehaviorHookKind hook_kind)
+{
+    if( !game || !game->core || !game->cs2vm || !game->ui_tree )
+        return;
+
+    struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
+    struct UITreeBehaviorHost host;
+    stub_build_behavior_host(game, &host);
+
+    for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* node = &game->ui_tree->components[i];
+        if( node->component_id < 0 )
+            continue;
+        struct ToriAuxLibCore_Component* core_comp =
+            ToriAuxLibCore_ComponentGet(game->core, node->component_id);
+        if( !core_comp )
+            continue;
+        uitree_behavior_run_hook(&host, game->core, cache, core_comp, hook_kind);
+    }
+
+    uitree_mark_all_dirty(game->ui_tree);
+}
+
+void
+GameRunescape_DispatchInvTransmit(
+    struct GameRunescape* game,
+    int container_id)
+{
+    if( !game || !game->core || !game->cs2vm || !game->ui_tree ||
+        game->ui_tree->component_count == 0 || container_id < 0 )
+        return;
+
+    struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
+    struct UITreeBehaviorHost host;
+    stub_build_behavior_host(game, &host);
+    uitree_behavior_dispatch_inv_transmit(&host, game->core, cache, game->ui_tree, container_id);
+
+    if( game->ui_tree )
+        uitree_mark_all_dirty(game->ui_tree);
+}
+
+void
+GameRunescape_RunOnLoadHooks(struct GameRunescape* game)
+{
+    if( !game || game->ui_on_load_hooks_ran || !game->core || !game->cs2vm || !game->ui_tree ||
+        game->ui_tree->component_count == 0 )
+        return;
+
+    stub_run_hooks(game, UITREE_BEHAVIOR_HOOK_ON_LOAD);
+    game->ui_on_load_hooks_ran = true;
 }

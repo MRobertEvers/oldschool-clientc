@@ -3,6 +3,7 @@
 #include "3rd/minipt.h"
 #include "commands/libtorirs_command_queue.h"
 #include "commands/libtorirs_command_queue_internal.h"
+#include "games/interface_editor.h"
 #include "games/model_viewer.h"
 #include "games/runescape.h"
 #include "input/libtorirs_input.h"
@@ -161,6 +162,8 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
         game_modelviewer_free(instance->model_viewer);
     if( instance->runescape )
         GameRunescape_Free(instance->runescape);
+    if( instance->interface_editor )
+        GameInterfaceEditor_Free(instance->interface_editor);
     free(instance);
 }
 
@@ -237,6 +240,11 @@ LibToriRS_ProcessCommandQueue(
                 instance->input,
                 command_queue->commands[i].u.mouse_move.mouse_x,
                 command_queue->commands[i].u.mouse_move.mouse_y);
+            break;
+        case LIBTORIRS_COMMAND_TYPE_MOUSE_WHEEL:
+            LibToriRS_Input_PushMouseWheel(
+                instance->input,
+                command_queue->commands[i].u.mouse_wheel.wheel);
             break;
         default:
             break;
@@ -316,7 +324,8 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                 input->curr.mouse_y);
     }
 
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_ESCAPE) )
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_ESCAPE) &&
+        instance->active_game_kind != GAME_HANDLE_KIND_INTERFACE_EDITOR )
     {
         instance->running = false;
     }
@@ -488,6 +497,10 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
             }
         }
         break;
+    case GAME_HANDLE_KIND_INTERFACE_EDITOR:
+        if( instance->interface_editor )
+            GameInterfaceEditor_ProcessInput(instance->interface_editor, input);
+        break;
     default:
         break;
     }
@@ -518,6 +531,10 @@ LibToriRS_FrameBegin(struct LibToriRS_Instance* instance)
         if( instance->runescape )
             GameRunescape_FrameBegin(instance->runescape, cycles_elapsed);
         break;
+    case GAME_HANDLE_KIND_INTERFACE_EDITOR:
+        if( instance->interface_editor )
+            GameInterfaceEditor_FrameBegin(instance->interface_editor, cycles_elapsed);
+        break;
     default:
         break;
     }
@@ -545,6 +562,11 @@ LibToriRS_FrameNextCommand(
         if( instance->runescape && GameRunescape_FrameNextCommand(instance->runescape, command) )
             return true;
         break;
+    case GAME_HANDLE_KIND_INTERFACE_EDITOR:
+        if( instance->interface_editor &&
+            GameInterfaceEditor_FrameNextCommand(instance->interface_editor, command) )
+            return true;
+        break;
     default:
         break;
     }
@@ -565,6 +587,10 @@ LibToriRS_FrameEnd(struct LibToriRS_Instance* instance)
     case GAME_HANDLE_KIND_RUNESCAPE:
         if( instance->runescape )
             GameRunescape_FrameEnd(instance->runescape);
+        break;
+    case GAME_HANDLE_KIND_INTERFACE_EDITOR:
+        if( instance->interface_editor )
+            GameInterfaceEditor_FrameEnd(instance->interface_editor);
         break;
     default:
         break;

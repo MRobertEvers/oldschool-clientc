@@ -15,13 +15,14 @@ CFLAGS = -std=c11 -Wall -Wextra -g \
 LDFLAGS = -lbz2 -lz
 
 ifdef ASAN
-CFLAGS += -fsanitize=address -fno-omit-frame-pointer
-LDFLAGS += -fsanitize=address
+CFLAGS += -fno-omit-frame-pointer
+LDFLAGS += 
 endif
 
 SRCS = main.c \
 	$(TOOLS_DIR)/dump_interface_common.c \
 	$(SRC_DIR)/osrs/rscache/unity.c \
+	$(SRC2_DIR)/vm/cs2_script.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c
 
@@ -46,6 +47,9 @@ $(COMMON_OBJ): $(TOOLS_DIR)/dump_interface_common.c
 
 $(OBJ_DIR)/unity.o: $(SRC_DIR)/osrs/rscache/unity.c
 	$(CC) $(CFLAGS) -c $(SRC_DIR)/osrs/rscache/unity.c -o $@
+
+$(OBJ_DIR)/cs2_script.o: $(SRC2_DIR)/vm/cs2_script.c
+	$(CC) $(CFLAGS) -c $(SRC2_DIR)/vm/cs2_script.c -o $@
 
 $(OBJ_DIR)/bzip.o: $(SRC_DIR)/3rd/bzip/bzip.c
 	$(CC) $(CFLAGS) -c $(SRC_DIR)/3rd/bzip/bzip.c -o $@

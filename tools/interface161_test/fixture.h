@@ -22,7 +22,6 @@ struct Interface161ObjIconCache
 {
     int obj_id;
     int* pixels;
-    struct ToriDraw_Model* model;
     struct Interface161ObjIconCache* next;
 };
 

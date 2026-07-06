@@ -87,6 +87,9 @@ void
 LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance);
 
 void
+LibToriRS_ScriptAPI_Game_InterfaceEditor_Init(struct LibToriRS_Instance* instance);
+
+void
 LibToriRS_ScriptAPI_Game_Runescape_BuildWorld(struct LibToriRS_Instance* instance);
 
 void

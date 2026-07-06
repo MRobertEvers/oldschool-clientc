@@ -398,8 +398,21 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
             }
             else
             {
-                ToriDraw2D_BlitSprite(
-                    sp, &vp, command.u.sprite.x, command.u.sprite.y, renderer->pixel_buffer);
+                int const alpha = command.u.sprite.alpha;
+                if( alpha <= 0 )
+                {
+                    /* fully transparent */
+                }
+                else if( alpha < 255 )
+                {
+                    ToriDraw2D_BlitSpriteAlpha(
+                        sp, &vp, command.u.sprite.x, command.u.sprite.y, alpha, renderer->pixel_buffer);
+                }
+                else
+                {
+                    ToriDraw2D_BlitSprite(
+                        sp, &vp, command.u.sprite.x, command.u.sprite.y, renderer->pixel_buffer);
+                }
             }
             break;
         }

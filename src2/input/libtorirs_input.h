@@ -98,6 +98,7 @@ struct LibToriRS_Input_State
 
     int mouse_x;
     int mouse_y;
+    int mouse_wheel_y;
 };
 
 struct LibToriRS_Input
@@ -115,6 +116,7 @@ struct LibToriRS_Input
 
     int press_origin_x[TORIRSM_COUNT];
     int press_origin_y[TORIRSM_COUNT];
+    uint64_t press_origin_time[TORIRSM_COUNT];
 
     uint64_t last_press_time[TORIRSM_COUNT];
     int last_click_x[TORIRSM_COUNT];
@@ -133,7 +135,16 @@ struct LibToriRS_Input
     // --- ADDED: Threshold Configurations ---
     uint64_t double_click_threshold_ms; // e.g., 0.3 seconds
     uint64_t drag_deadzone_pixels;      // e.g., 5 pixels
+    uint64_t drag_dead_time_ms;         // 0 = no time gate
 };
+
+#define LIBTORIRS_INPUT_DEFAULT_DRAG_DEADZONE_PX 5u
+
+void
+LibToriRS_Input_SetDragThresholds(
+    struct LibToriRS_Input* input,
+    uint64_t zone_pixels,
+    uint64_t time_ms);
 
 struct LibToriRS_Input*
 LibToriRS_Input_New(void);
@@ -183,6 +194,11 @@ LibToriRS_Input_PushMouseMove(
     struct LibToriRS_Input* input,
     int x,
     int y);
+
+void
+LibToriRS_Input_PushMouseWheel(
+    struct LibToriRS_Input* input,
+    int wheel_y);
 
 static inline bool
 LibToriRS_Input_IsKeyDown(

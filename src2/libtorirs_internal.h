@@ -5,6 +5,7 @@
 #include "toriauxlib/core/tasks/core_task.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "games/game_handle.h"
+#include "games/interface_editor.h"
 #include "games/model_viewer.h"
 #include "games/runescape.h"
 #include "ioqueue/libtorirs_ioqueue.h"
@@ -52,6 +53,8 @@ struct LibToriRS_Instance
     struct GameHandle model_viewer_handle;
     struct GameRunescape* runescape;
     struct GameHandle runescape_handle;
+    struct GameInterfaceEditor* interface_editor;
+    struct GameHandle interface_editor_handle;
 
     /** Kronos client revision (dat2 format + rev_kronos UI); set via --kronos CLI. */
     bool client_kronos;

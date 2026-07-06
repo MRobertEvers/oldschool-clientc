@@ -11,6 +11,8 @@ ROOT = Path(__file__).resolve().parent
 VENDOR = ROOT / "vendor" / "Opcodes.kt"
 OUT_DIR = ROOT.parent.parent / "src2" / "vm"
 
+from opcode_docs import OPCODE_DOCS
+
 # Opcodes executed by cs2_runtime.c without host invoke (RuneStar Command.kt core).
 VM_OPCODES = {
     0,  # PUSH_CONSTANT_INT
@@ -69,6 +71,9 @@ def emit_header(entries: list[tuple[str, int]]) -> str:
         "",
     ]
     for name, val in entries:
+        doc = OPCODE_DOCS.get(name)
+        if doc:
+            lines.append(f"/* {doc} */")
         lines.append(f"#define CS2_OP_{name} {val}")
     lines += ["", "#endif", ""]
     return "\n".join(lines)

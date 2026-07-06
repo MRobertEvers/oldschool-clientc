@@ -7,71 +7,122 @@
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
+/* Push int constant. in: -. out int: op. */
 #define CS2_OP_PUSH_CONSTANT_INT 0
+/* Read varp. in: -. out int: varp[op]. */
 #define CS2_OP_PUSH_VAR 1
+/* Write varp. in: value. out: -; sets varp[op]=value. */
 #define CS2_OP_POP_VAR 2
+/* Push string constant. sin: -. out str: script string at op. */
 #define CS2_OP_PUSH_CONSTANT_STRING 3
+/* Unconditional branch. in: -. out: -; pc += op. */
 #define CS2_OP_BRANCH 6
+/* Branch if false. in: cond. out: -; pc += op if cond==0. */
 #define CS2_OP_BRANCH_NOT 7
+/* Branch if equal. in: a, b (b top). out: -; pc += op if a==b. */
 #define CS2_OP_BRANCH_EQUALS 8
+/* Branch if less. in: a, b (b top). out: -; pc += op if a<b. */
 #define CS2_OP_BRANCH_LESS_THAN 9
+/* Branch if greater. in: a, b (b top). out: -; pc += op if a>b. */
 #define CS2_OP_BRANCH_GREATER_THAN 10
+/* Return from script. in: optional return int. out: -; pops frame. */
 #define CS2_OP_RETURN 21
+/* Read varbit. in: -. out int: varbit[op]. */
 #define CS2_OP_PUSH_VARBIT 25
+/* Write varbit. in: value. out: -; sets varbit[op]=value. */
 #define CS2_OP_POP_VARBIT 27
+/* Branch if <=. in: a, b (b top). out: -; pc += op if a<=b. */
 #define CS2_OP_BRANCH_LESS_THAN_OR_EQUALS 31
+/* Branch if >=. in: a, b (b top). out: -; pc += op if a>=b. */
 #define CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS 32
+/* Push int local. in: -. out int: int_local[op]. */
 #define CS2_OP_PUSH_INT_LOCAL 33
+/* Pop int local. in: value. out: -; sets int_local[op]=value. */
 #define CS2_OP_POP_INT_LOCAL 34
+/* Push string local. in: -. out str: str_local[op]. */
 #define CS2_OP_PUSH_STRING_LOCAL 35
+/* Pop string local. sin: value. out: -; sets str_local[op]=value. */
 #define CS2_OP_POP_STRING_LOCAL 36
+/* Concatenate strings. sin: a, b (b top). out str: a+b. */
 #define CS2_OP_JOIN_STRING 37
+/* Discard int. in: value (op times). out: -. */
 #define CS2_OP_POP_INT_DISCARD 38
+/* Discard string. sin: value (op times). out: -. */
 #define CS2_OP_POP_STRING_DISCARD 39
+/* Call script. in: script args per callee signature. out: callee return values. */
 #define CS2_OP_GOSUB_WITH_PARAMS 40
+/* Read client int varc. in: -. out int: varc_int[op]. */
 #define CS2_OP_PUSH_VARC_INT 42
+/* Write client int varc. in: value. out: -; sets varc_int[op]=value. */
 #define CS2_OP_POP_VARC_INT 43
+/* Define int array. in: size. out: -; creates array[op]. */
 #define CS2_OP_DEFINE_ARRAY 44
+/* Read array element. in: index. out int: array[op][index]. */
 #define CS2_OP_PUSH_ARRAY_INT 45
+/* Write array element. in: index, value (value top). out: -; array[op][index]=value. */
 #define CS2_OP_POP_ARRAY_INT 46
 #define CS2_OP_PUSH_VARC_STRING_OLD 47
 #define CS2_OP_POP_VARC_STRING_OLD 48
+/* Read client string varc. in: -. out str: varc_string[op]. */
 #define CS2_OP_PUSH_VARC_STRING 49
+/* Write client string varc. sin: value. out: -; sets varc_string[op]=value. */
 #define CS2_OP_POP_VARC_STRING 50
+/* Switch jump. in: key. out: -; pc = case target or fall through. */
 #define CS2_OP_SWITCH 60
 #define CS2_OP_PUSH_VARCLANSETTING 74
 #define CS2_OP_PUSH_VARCLAN 76
+/* Create dynamic child component. in: sub_id. op=widget_type. out: -; sets active to new child. */
 #define CS2_OP_CC_CREATE 100
 #define CS2_OP_CC_DELETE 101
 #define CS2_OP__103 103
 #define CS2_OP__104 104
+/* Delete all dynamic children of active parent. in: -. out: -. */
 #define CS2_OP_CC_DELETEALL 102
+/* Find child by sub-id. in: parent, sub (sub top). out int: 1 if found (active set) else 0. */
 #define CS2_OP_CC_FIND 200
+/* Find interface component. in: component. out int: 1 if found (active set) else 0. */
 #define CS2_OP_IF_FIND 201
+/* Find child by param match. in: parentUid, param1, value1, param2, value2, v1Type, v2Type. out int: 1 if found. */
+#define CS2_OP_IF_FIND_CHILD 210
 #define CS2_OP__202 202
 #define CS2_OP__203 202
+/* Set position modes. in: x, y, x_mode, y_mode (y_mode top). out: -. */
 #define CS2_OP_CC_SETPOSITION 1000
+/* Set size modes. in: w, h, w_mode, h_mode (h_mode top). out: -. */
 #define CS2_OP_CC_SETSIZE 1001
+/* Hide active child. in: hide. out: -. */
 #define CS2_OP_CC_SETHIDE 1003
+/* Set no-click-through. in: enabled. out: -. */
 #define CS2_OP_CC_SETNOCLICKTHROUGH 1005
 #define CS2_OP_CC_SETNOSCROLLTHROUGH 1006
 #define CS2_OP_CC_SETSCROLLPOS 1100
+/* Set colour on active child. in: colour. out: -. */
 #define CS2_OP_CC_SETCOLOUR 1101
+/* Set rectangle fill. in: filled. out: -. */
 #define CS2_OP_CC_SETFILL 1102
+/* Set transparency. in: trans. out: -. */
 #define CS2_OP_CC_SETTRANS 1103
 #define CS2_OP_CC_SETLINEWID 1104
+/* Set sprite graphic. in: graphic_id. out: -. */
 #define CS2_OP_CC_SETGRAPHIC 1105
 #define CS2_OP_CC_SET2DANGLE 1106
+/* Set sprite tiling. in: tiled. out: -. */
 #define CS2_OP_CC_SETTILING 1107
 #define CS2_OP_CC_SETMODEL 1108
 #define CS2_OP_CC_SETMODELANGLE 1109
 #define CS2_OP_CC_SETMODELANIM 1110
 #define CS2_OP_CC_SETMODELORTHOG 1111
+/* Set text on active child. sin: text. out: -. */
 #define CS2_OP_CC_SETTEXT 1112
+/* Set font on active child. in: font_id. out: -. */
 #define CS2_OP_CC_SETTEXTFONT 1113
+/* Set text alignment. in: x_align, y_align, line_height (line_height top). out: -. */
 #define CS2_OP_CC_SETTEXTALIGN 1114
+/* Set text shadow. in: shadowed. out: -. */
 #define CS2_OP_CC_SETTEXTSHADOW 1115
+/* Set sprite outline. in: outline. out: -. */
 #define CS2_OP_CC_SETOUTLINE 1116
+/* Set sprite shadow. in: shadow. out: -. */
 #define CS2_OP_CC_SETGRAPHICSHADOW 1117
 #define CS2_OP_CC_SETVFLIP 1118
 #define CS2_OP_CC_SETHFLIP 1119
@@ -84,18 +135,29 @@
 #define CS2_OP_CC_SETLINEDIRECTION 1126
 #define CS2_OP_CC_SETMODELTRANSPARENT 1127
 #define CS2_OP__1128 1128
+/* Set object icon on active child. in: obj_count, obj_id (obj_id top). out: -. */
 #define CS2_OP_CC_SETOBJECT 1200
 #define CS2_OP_CC_SETNPCHEAD 1201
 #define CS2_OP_CC_SETPLAYERHEAD_SELF 1202
+/* Set object icon without qty. in: obj_id. out: -. */
 #define CS2_OP_CC_SETOBJECT_NONUM 1205
+/* Set object icon always showing qty. in: obj_count, obj_id. out: -. */
 #define CS2_OP_CC_SETOBJECT_ALWAYS_NUM 1212
+/* Set right-click op. sin: text. in: index. out: -. */
 #define CS2_OP_CC_SETOP 1300
+/* Set draggable parent/child. in: parent_uid, child_index (child_index top). out: -. */
 #define CS2_OP_CC_SETDRAGGABLE 1301
+/* Set drag behavior. in: behavior. out: -. */
 #define CS2_OP_CC_SETDRAGGABLEBEHAVIOR 1302
+/* Set drag dead zone pixels. in: zone. out: -. */
 #define CS2_OP_CC_SETDRAGDEADZONE 1303
+/* Set drag dead time ms. in: time. out: -. */
 #define CS2_OP_CC_SETDRAGDEADTIME 1304
+/* Set op base text. sin: text. out: -. */
 #define CS2_OP_CC_SETOPBASE 1305
+/* Set target verb (stub). sin: text. out: -. */
 #define CS2_OP_CC_SETTARGETVERB 1306
+/* Clear all ops on active child. in: -. out: -. */
 #define CS2_OP_CC_CLEAROPS 1307
 #define CS2_OP__1308 1308
 #define CS2_OP__1309 1309
@@ -118,6 +180,7 @@
 #define CS2_OP_CC_SETONDRAGCOMPLETE 1410
 #define CS2_OP_CC_SETONCLICKREPEAT 1411
 #define CS2_OP_CC_SETONMOUSEREPEAT 1412
+/* Register inv-transmit script on active child. op=script_id; signature in stack. */
 #define CS2_OP_CC_SETONINVTRANSMIT 1414
 #define CS2_OP_CC_SETONSTATTRANSMIT 1415
 #define CS2_OP_CC_SETONTARGETENTER 1416
@@ -134,16 +197,27 @@
 #define CS2_OP_CC_SETONRESIZE 1427
 #define CS2_OP_CC_SETONCLANSETTINGSTRANSMIT 1428
 #define CS2_OP_CC_SETONCLANCHANNELTRANSMIT 1429
+/* Get relative X of active child. in: -. out int: x. */
 #define CS2_OP_CC_GETX 1500
+/* Get relative Y of active child. in: -. out int: y. */
 #define CS2_OP_CC_GETY 1501
+/* Get layout width. in: -. out int: width. */
 #define CS2_OP_CC_GETWIDTH 1502
+/* Get layout height. in: -. out int: height. */
 #define CS2_OP_CC_GETHEIGHT 1503
+/* Get hidden flag. in: -. out int: hidden?1:0. */
 #define CS2_OP_CC_GETHIDE 1504
+/* Get parent component id. in: -. out int: parent_id. */
 #define CS2_OP_CC_GETLAYER 1505
+/* Get scroll X (stub). in: -. out int: 0. */
 #define CS2_OP_CC_GETSCROLLX 1600
+/* Get scroll Y (stub). in: -. out int: 0. */
 #define CS2_OP_CC_GETSCROLLY 1601
+/* Get text. in: -. out str: text. */
 #define CS2_OP_CC_GETTEXT 1602
+/* Get scroll content width. in: -. out int: scroll_width. */
 #define CS2_OP_CC_GETSCROLLWIDTH 1603
+/* Get scroll content height. in: -. out int: scroll_height. */
 #define CS2_OP_CC_GETSCROLLHEIGHT 1604
 #define CS2_OP_CC_GETMODELZOOM 1605
 #define CS2_OP_CC_GETMODELANGLE_X 1606
@@ -159,37 +233,56 @@
 #define CS2_OP__1616 1616
 #define CS2_OP_CC_GETINVOBJECT 1700
 #define CS2_OP_CC_GETINVCOUNT 1701
+/* Get active component id. in: -. out int: active_component. */
 #define CS2_OP_CC_GETID 1702
+#define CS2_OP_CC_PARAM 1703
 #define CS2_OP_CC_GETTARGETMASK 1800
+/* Get op text. in: op_index. out str: op text. */
 #define CS2_OP_CC_GETOP 1801
+/* Get op base text. in: -. out str: op_base. */
 #define CS2_OP_CC_GETOPBASE 1802
 #define CS2_OP_CC_CALLONRESIZE 1927
 #define CS2_OP_CC_TRIGGEROP 1928
+/* Set position. in: component, x, y (y top). out: -. */
 #define CS2_OP_IF_SETPOSITION 2000
+/* Set size. in: component, width, height (height top). out: -. */
 #define CS2_OP_IF_SETSIZE 2001
+/* Set hidden. in: component, hide (hide top). out: -. */
 #define CS2_OP_IF_SETHIDE 2003
+/* Set no-click-through. in: component, enabled (enabled top). out: -. */
 #define CS2_OP_IF_SETNOCLICKTHROUGH 2005
 #define CS2_OP_IF_SETNOSCROLLTHROUGH 2006
+/* Set scroll position (stub). in: component, scroll_x, scroll_y. out: -. */
 #define CS2_OP_IF_SETSCROLLPOS 2100
+/* Set colour. in: component, colour (colour top). out: -. */
 #define CS2_OP_IF_SETCOLOUR 2101
+/* Set fill. in: component, filled (filled top). out: -. */
 #define CS2_OP_IF_SETFILL 2102
+/* Set transparency. in: component, trans (trans top). out: -. */
 #define CS2_OP_IF_SETTRANS 2103
 #define CS2_OP_IF_SETLINEWID 2104
+/* Set graphic. in: component, graphic_id (graphic_id top). out: -. */
 #define CS2_OP_IF_SETGRAPHIC 2105
 #define CS2_OP_IF_SET2DANGLE 2106
 #define CS2_OP_IF_SETTILING 2107
+/* Set model id. in: component, model_id (model_id top). out: -. */
 #define CS2_OP_IF_SETMODEL 2108
 #define CS2_OP_IF_SETMODELANGLE 2109
 #define CS2_OP_IF_SETMODELANIM 2110
 #define CS2_OP_IF_SETMODELORTHOG 2111
+/* Set text. sin: text. in: component. out: -. */
 #define CS2_OP_IF_SETTEXT 2112
+/* Set font. in: component, font_id (font_id top). out: -. */
 #define CS2_OP_IF_SETTEXTFONT 2113
+/* Set text alignment. in: component, x_align, y_align, line_height (line_height top). out: -. */
 #define CS2_OP_IF_SETTEXTALIGN 2114
+/* Set text shadow. in: component, shadow (shadow top). out: -. */
 #define CS2_OP_IF_SETTEXTSHADOW 2115
 #define CS2_OP_IF_SETOUTLINE 2116
 #define CS2_OP_IF_SETGRAPHICSHADOW 2117
 #define CS2_OP_IF_SETVFLIP 2118
 #define CS2_OP_IF_SETHFLIP 2119
+/* Set scroll size. in: component, scroll_w, scroll_h (scroll_h top). out: -. */
 #define CS2_OP_IF_SETSCROLLSIZE 2120
 #define CS2_OP_IF_RESUME_PAUSEBUTTON 2121
 #define CS2_OP__2122 2122
@@ -197,20 +290,32 @@
 #define CS2_OP__2124 2124
 #define CS2_OP__2125 2125
 #define CS2_OP_IF_SETLINEDIRECTION 2126
+/* Set model transparency. in: component, transparent (transparent top). out: -. */
 #define CS2_OP_IF_SETMODELTRANSPARENT 2127
 #define CS2_OP__2128 2128
+/* Set object icon. in: component, obj_count, obj_id (obj_id top). out: -. */
 #define CS2_OP_IF_SETOBJECT 2200
 #define CS2_OP_IF_SETNPCHEAD 2201
 #define CS2_OP_IF_SETPLAYERHEAD_SELF 2202
+/* Set object icon without qty. in: component, obj_id. out: -. */
 #define CS2_OP_IF_SETOBJECT_NONUM 2205
+/* Set object icon always showing qty. in: component, obj_count, obj_id. out: -. */
 #define CS2_OP_IF_SETOBJECT_ALWAYS_NUM 2212
+/* Set op text. sin: text. in: component, index (index top). out: -. */
 #define CS2_OP_IF_SETOP 2300
+/* Set draggable. in: component, parent_uid, child_index (child_index top). out: -. */
 #define CS2_OP_IF_SETDRAGGABLE 2301
+/* Set drag behavior. in: component, behavior (behavior top). out: -. */
 #define CS2_OP_IF_SETDRAGGABLEBEHAVIOR 2302
+/* Set drag dead zone. in: component, zone (zone top). out: -. */
 #define CS2_OP_IF_SETDRAGDEADZONE 2303
+/* Set drag dead time. in: component, time (time top). out: -. */
 #define CS2_OP_IF_SETDRAGDEADTIME 2304
+/* Set op base. sin: text. in: component. out: -. */
 #define CS2_OP_IF_SETOPBASE 2305
+/* Set target verb (stub). sin: text. in: component. out: -. */
 #define CS2_OP_IF_SETTARGETVERB 2306
+/* Clear ops. in: component. out: -. */
 #define CS2_OP_IF_CLEAROPS 2307
 #define CS2_OP__2308 2308
 #define CS2_OP__2309 2309
@@ -233,6 +338,7 @@
 #define CS2_OP_IF_SETONDRAGCOMPLETE 2410
 #define CS2_OP_IF_SETONCLICKREPEAT 2411
 #define CS2_OP_IF_SETONMOUSEREPEAT 2412
+/* Register inv-transmit script. in: component; op=script_id; signature in stack. */
 #define CS2_OP_IF_SETONINVTRANSMIT 2414
 #define CS2_OP_IF_SETONSTATTRANSMIT 2415
 #define CS2_OP_IF_SETONTARGETENTER 2416
@@ -249,16 +355,27 @@
 #define CS2_OP_IF_SETONRESIZE 2427
 #define CS2_OP_IF_SETONCLANSETTINGSTRANSMIT 2428
 #define CS2_OP_IF_SETONCLANCHANNELTRANSMIT 2429
+/* Get relative X. in: component. out int: x. */
 #define CS2_OP_IF_GETX 2500
+/* Get relative Y. in: component. out int: y. */
 #define CS2_OP_IF_GETY 2501
+/* Get layout width. in: component. out int: width. */
 #define CS2_OP_IF_GETWIDTH 2502
+/* Get layout height. in: component. out int: height. */
 #define CS2_OP_IF_GETHEIGHT 2503
+/* Get hidden flag. in: component. out int: hidden?1:0. */
 #define CS2_OP_IF_GETHIDE 2504
+/* Get parent component id. in: component. out int: parent_id. */
 #define CS2_OP_IF_GETLAYER 2505
+/* Get scroll X (stub). in: component. out int: 0. */
 #define CS2_OP_IF_GETSCROLLX 2600
+/* Get scroll Y (stub). in: component. out int: 0. */
 #define CS2_OP_IF_GETSCROLLY 2601
+/* Get text. in: component. out str: text. */
 #define CS2_OP_IF_GETTEXT 2602
+/* Get scroll content width. in: component. out int: scroll_width. */
 #define CS2_OP_IF_GETSCROLLWIDTH 2603
+/* Get scroll content height. in: component. out int: scroll_height. */
 #define CS2_OP_IF_GETSCROLLHEIGHT 2604
 #define CS2_OP_IF_GETMODELZOOM 2605
 #define CS2_OP_IF_GETMODELANGLE_X 2606
@@ -275,9 +392,12 @@
 #define CS2_OP_IF_GETINVOBJECT 2700
 #define CS2_OP_IF_GETINVCOUNT 2701
 #define CS2_OP_IF_HASSUB 2702
+/* Get root component id. in: -. out int: top component or -1. */
 #define CS2_OP_IF_GETTOP 2706
 #define CS2_OP_IF_GETTARGETMASK 2800
+/* Get op text. in: component, op_index (op_index top). out str: op text. */
 #define CS2_OP_IF_GETOP 2801
+/* Get op base text. in: component. out str: op_base. */
 #define CS2_OP_IF_GETOPBASE 2802
 #define CS2_OP_IF_CALLONRESIZE 2927
 #define CS2_OP_IF_TRIGGEROP 2928
@@ -341,26 +461,35 @@
 #define CS2_OP_GETVOLUMEAREASOUNDS 3208
 #define CS2_OP__3209 3209
 #define CS2_OP__3210 3210
+/* Get client tick counter. in: -. out int: clock_ticks. */
 #define CS2_OP_CLIENTCLOCK 3300
+/* Get inventory item id. in: slot, inv_id (slot top). out int: obj_id or -1 if empty. */
 #define CS2_OP_INV_GETOBJ 3301
+/* Get inventory stack size. in: slot, inv_id (slot top). out int: count. */
 #define CS2_OP_INV_GETNUM 3302
 #define CS2_OP_INV_TOTAL 3303
+/* Get inventory capacity. in: inv_id. out int: slot_count. */
 #define CS2_OP_INV_SIZE 3304
 #define CS2_OP_STAT 3305
 #define CS2_OP_STAT_BASE 3306
 #define CS2_OP_STAT_XP 3307
+/* Get player coord packed (stub). in: -. out int: 0. */
 #define CS2_OP_COORD 3308
+/* Extract X from packed coord. in: packed. out int: (packed>>14)&0x3FFF. */
 #define CS2_OP_COORDX 3309
 #define CS2_OP_COORDY 3310
 #define CS2_OP_COORDZ 3311
+/* Is members world (stub). in: -. out int: 1. */
 #define CS2_OP_MAP_MEMBERS 3312
 #define CS2_OP_INVOTHER_GETOBJ 3313
 #define CS2_OP_INVOTHER_GETNUM 3314
 #define CS2_OP_INVOTHER_TOTAL 3315
 #define CS2_OP_STAFFMODLEVEL 3316
 #define CS2_OP_REBOOTTIMER 3317
+/* Get world id (stub). in: -. out int: 301. */
 #define CS2_OP_MAP_WORLD 3318
 #define CS2_OP_RUNENERGY_VISIBLE 3321
+/* Get visible player weight. in: -. out int: weight kg (0 default). */
 #define CS2_OP_RUNWEIGHT_VISIBLE 3322
 #define CS2_OP_PLAYERMOD 3323
 #define CS2_OP_WORLDFLAGS 3324
@@ -369,7 +498,9 @@
 #define CS2_OP_MOUSE_GETY 3327
 #define CS2_OP__3330 3330
 #define CS2_OP_ENUM_STRING 3400
+/* Enum lookup. in: key, enum_id, output_type, input_type (key top). out int: mapped value or -1. */
 #define CS2_OP_ENUM 3408
+/* Get enum output count. in: enum_id. out int: count. */
 #define CS2_OP_ENUM_GETOUTPUTCOUNT 3411
 #define CS2_OP_FRIEND_COUNT 3600
 #define CS2_OP_FRIEND_GETNAME 3601
@@ -489,22 +620,35 @@
 #define CS2_OP_TRADINGPOST_GETOFFERCOUNT 3924
 #define CS2_OP_TRADINGPOST_GETOFFERPRICE 3925
 #define CS2_OP_TRADINGPOST_GETOFFERITEM 3926
+/* Integer add. in: a, b (b top). out int: a+b. */
 #define CS2_OP_ADD 4000
+/* Integer subtract. in: a, b (b top). out int: a-b. */
 #define CS2_OP_SUB 4001
+/* Integer multiply. in: a, b (b top). out int: a*b. */
 #define CS2_OP_MULTIPLY 4002
+/* Integer divide. in: a, b (b top). out int: a/b (0 if b==0). */
 #define CS2_OP_DIV 4003
 #define CS2_OP_RANDOM 4004
+/* Random inclusive. in: max. out int: rand()%(max+1). */
 #define CS2_OP_RANDOMINC 4005
+/* Linear interpolate. in: a, b, c, d, e (e top). out int: a+(b-a)*(e-c)/(d-c). */
 #define CS2_OP_INTERPOLATE 4006
 #define CS2_OP_ADDPERCENT 4007
+/* Set bit in value. in: value, bit (bit top). out int: value with bit set. */
 #define CS2_OP_SETBIT 4008
+/* Clear bit in value. in: value, bit (bit top). out int: value with bit cleared. */
 #define CS2_OP_CLEARBIT 4009
+/* Test bit set. in: value, bit (bit top). out int: (value&(1<<bit))!=0. */
 #define CS2_OP_TESTBIT 4010
+/* Integer modulo. in: a, b (b top). out int: a%b (0 if b==0). */
 #define CS2_OP_MOD 4011
 #define CS2_OP_POW 4012
 #define CS2_OP_INVPOW 4013
+/* Bitwise and. in: a, b (b top). out int: a&b. */
 #define CS2_OP_AND 4014
+/* Bitwise or. in: a, b (b top). out int: a|b. */
 #define CS2_OP_OR 4015
+/* Scale interpolate (c*a)/b. in: a, b, c (c top). out int: result; b==0 yields 0. */
 #define CS2_OP_SCALE 4018
 #define CS2_OP_BITCOUNT 4025
 #define CS2_OP_TOGGLEBIT 4026
@@ -516,23 +660,31 @@
 #define CS2_OP_COS_DEG 4033
 #define CS2_OP__4034 4034
 #define CS2_OP_ABS 4035
+/* Append int as decimal. sin: dest. in: value. out str: dest+value. */
 #define CS2_OP_APPEND_NUM 4100
+/* Append string. sin: dest, src (src top). out str: dest+src. */
 #define CS2_OP_APPEND 4101
+/* Append signed int. sin: dest. in: value. out str: dest+signed value. */
 #define CS2_OP_APPEND_SIGNNUM 4102
 #define CS2_OP_LOWERCASE 4103
 #define CS2_OP_FROMDATE 4104
 #define CS2_OP_TEXT_GENDER 4105
+/* Int to string. in: value. out str: decimal string. */
 #define CS2_OP_TOSTRING 4106
 #define CS2_OP_COMPARE 4107
+/* Wrapped line count. sin: text. in: max_width, font_id (font_id top). out int: lines. */
 #define CS2_OP_PARAHEIGHT 4108
+/* Wrapped max line width. sin: text. in: max_width, font_id (font_id top). out int: pixels. */
 #define CS2_OP_PARAWIDTH 4109
 #define CS2_OP_TEXT_SWITCH 4110
 #define CS2_OP_ESCAPE 4111
+/* Append char. sin: dest. in: ch. out str: dest+char. */
 #define CS2_OP_APPEND_CHAR 4112
 #define CS2_OP_CHAR_ISPRINTABLE 4113
 #define CS2_OP_CHAR_ISALPHANUMERIC 4114
 #define CS2_OP_CHAR_ISALPHA 4115
 #define CS2_OP_CHAR_ISNUMERIC 4116
+/* String length. sin: str. out int: strlen. */
 #define CS2_OP_STRING_LENGTH 4117
 #define CS2_OP_SUBSTRING 4118
 #define CS2_OP_REMOVETAGS 4119
@@ -547,6 +699,7 @@
 #define CS2_OP_OC_UNCERT 4206
 #define CS2_OP_OC_MEMBERS 4207
 #define CS2_OP_OC_PLACEHOLDER 4208
+/* Resolve placeholder item. in: item_id. out int: underlying id or item_id. */
 #define CS2_OP_OC_UNPLACEHOLDER 4209
 #define CS2_OP_OC_FIND 4210
 #define CS2_OP_OC_FINDNEXT 4211
@@ -613,8 +766,11 @@
 #define CS2_OP_NC_PARAM 6513
 #define CS2_OP_LC_PARAM 6514
 #define CS2_OP_OC_PARAM 6515
+/* Read struct param. in: struct_id, param_id (param_id top). out int or str. */
 #define CS2_OP_STRUCT_PARAM 6516
+/* Is mobile client (stub). in: -. out int: 0. */
 #define CS2_OP_ON_MOBILE 6518
+/* Get client type (stub). in: -. out int: 10. */
 #define CS2_OP_CLIENTTYPE 6519
 #define CS2_OP__6520 6520
 #define CS2_OP_MOBILE_KEYBOARDHIDE 6521

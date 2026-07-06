@@ -469,6 +469,177 @@ ToriDraw2D_MeasureString(
 }
 
 static int
+font_wrap_segment_max_width(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int len,
+    int max_width)
+{
+    if( !font || !text || len <= 0 )
+        return 0;
+    if( max_width <= 0 )
+        return font_measure_range(font, text, len);
+
+    int max_line = 0;
+    int cur_w = 0;
+    int word_start = 0;
+    int const space_adv = font_space_advance(font);
+
+    for( int i = 0; i <= len; i++ )
+    {
+        if( i < len && text[i] != ' ' )
+            continue;
+
+        int const word_len = i - word_start;
+        int const word_w =
+            word_len > 0 ? font_measure_range(font, text + word_start, word_len) : 0;
+
+        if( word_len == 0 )
+        {
+            word_start = i + 1;
+            continue;
+        }
+
+        int const candidate = cur_w == 0 ? word_w : (cur_w + space_adv + word_w);
+        if( cur_w > 0 && candidate > max_width )
+        {
+            if( cur_w > max_line )
+                max_line = cur_w;
+            cur_w = word_w;
+        }
+        else
+            cur_w = candidate;
+
+        word_start = i + 1;
+    }
+
+    if( cur_w > max_line )
+        max_line = cur_w;
+    return max_line;
+}
+
+int
+ToriDraw2D_WrapMaxLineWidth(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int max_width)
+{
+    assert(font && text);
+
+    if( text[0] == '\0' )
+        return 0;
+
+    int max_line = 0;
+    char const* rest = text;
+
+    for( ;; )
+    {
+        int line_len = 0;
+        int break_advance = 0;
+        font_next_line(rest, &line_len, &break_advance);
+
+        if( line_len > 0 )
+        {
+            int const w = font_wrap_segment_max_width(font, rest, line_len, max_width);
+            if( w > max_line )
+                max_line = w;
+        }
+
+        if( break_advance == 0 )
+            break;
+
+        rest += line_len + break_advance;
+    }
+
+    return max_line;
+}
+
+static int
+font_wrap_segment_line_count(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int len,
+    int max_width)
+{
+    if( !font || !text || len <= 0 )
+        return 0;
+
+    if( max_width <= 0 )
+        return 1;
+
+    int lines = 1;
+    int cur_w = 0;
+    int word_start = 0;
+
+    for( int i = 0; i <= len; i++ )
+    {
+        bool const at_end = i == len;
+        bool const is_space = !at_end && text[i] == ' ';
+        if( !at_end && !is_space )
+            continue;
+
+        int const word_len = i - word_start;
+        if( word_len <= 0 )
+        {
+            word_start = i + 1;
+            continue;
+        }
+
+        int word_w = font_measure_range(font, text + word_start, word_len);
+        int space_adv = 0;
+        if( !at_end && is_space )
+            space_adv = font->glyph_width[(unsigned char)' '];
+
+        int const candidate = cur_w == 0 ? word_w : (cur_w + space_adv + word_w);
+        if( cur_w > 0 && candidate > max_width )
+        {
+            lines++;
+            cur_w = word_w;
+        }
+        else
+            cur_w = candidate;
+
+        word_start = i + 1;
+    }
+
+    return lines > 0 ? lines : 1;
+}
+
+int
+ToriDraw2D_WrapLineCount(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int max_width)
+{
+    assert(font && text);
+
+    if( text[0] == '\0' )
+        return 0;
+
+    int total = 0;
+    char const* rest = text;
+
+    for( ;; )
+    {
+        int line_len = 0;
+        int break_advance = 0;
+        font_next_line(rest, &line_len, &break_advance);
+
+        if( line_len > 0 )
+            total += font_wrap_segment_line_count(font, rest, line_len, max_width);
+        else
+            total += 1;
+
+        if( break_advance == 0 )
+            break;
+
+        rest += line_len + break_advance;
+    }
+
+    return total > 0 ? total : 1;
+}
+
+static int
 font_draw_glyph_pixels(
     struct ToriDraw_Font const* font,
     int gi,

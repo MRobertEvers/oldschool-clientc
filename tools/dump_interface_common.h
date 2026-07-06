@@ -42,6 +42,22 @@ dump_iface_parent_file_index(
     struct DumpIfaceLoaded const* li,
     int child_index);
 
+/** Packed widget id: (iface_archive << 16) | file_index. */
+int
+dump_iface_packed_id_iface(
+    int packed_id);
+
+int
+dump_iface_packed_id_file(
+    int packed_id);
+
+/** Format into buf: "0x........ (iface=N<<16|file=M)". */
+void
+dump_iface_format_packed_id(
+    char* buf,
+    size_t buf_size,
+    int packed_id);
+
 int
 dump_iface_decode_component_from_bytes(
     Component* out,
@@ -85,5 +101,12 @@ dump_iface_load_dat1(
 
 void
 dump_iface_free(struct DumpIfaceLoaded* li);
+
+/** Scan all dat2 interface archives for references to target_iface. Returns 0 on success. */
+int
+dump_iface_scan_parents(
+    struct RSCacheDat2Disk* cache,
+    int target_iface,
+    FILE* fp);
 
 #endif

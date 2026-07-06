@@ -174,6 +174,8 @@ struct GameRunescape
     struct UITree* ui_tree;
     /** True once revconfig UI tree is loaded and safe to traverse. */
     bool ui_tree_ready;
+    /** True after onLoad CS2 hooks ran (setup or first frame). */
+    bool ui_on_load_hooks_ran;
     /** True after SyncUISpritesFromScene has wired scene sprite ids into the tree. */
     bool ui_sprites_synced;
     /** True after scene fonts are registered for UI text draw. */
@@ -282,6 +284,10 @@ void
 GameRunescape_DispatchInvTransmit(
     struct GameRunescape* game,
     int container_id);
+
+/** Run onLoad CS2 hooks once (idempotent). */
+void
+GameRunescape_RunOnLoadHooks(struct GameRunescape* game);
 
 void
 GameRunescape_SyncUISpritesFromScene(struct GameRunescape* game);

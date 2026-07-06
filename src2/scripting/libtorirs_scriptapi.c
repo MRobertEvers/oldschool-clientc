@@ -4,6 +4,7 @@
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../libtorirs_internal.h"
 #include "buildcache/dat1_buildcache.h"
+#include "games/interface_editor.h"
 #include "games/runescape.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "osrs/rscache/dat1a/dat1a_config_textures.h"
@@ -633,6 +634,27 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
         LibToriRS_TasksAdd(
             instance, ui_task, Task_InstanceRevConfigLoad_Run, ui_load_task_destroy);
     }
+}
+
+void
+LibToriRS_ScriptAPI_Game_InterfaceEditor_Init(struct LibToriRS_Instance* instance)
+{
+    if( !instance )
+        return;
+
+    instance->interface_editor =
+        GameInterfaceEditor_New(instance->script_queue, instance->scene);
+    if( !instance->interface_editor )
+        return;
+
+    GameInterfaceEditor_SetCore(instance->interface_editor, ToriAuxLib_Core(instance->toriauxlib));
+    GameInterfaceEditor_SetCache(
+        instance->interface_editor, ToriAuxLib_C(instance->toriauxlib));
+    GameInterfaceEditor_SetTD(instance->interface_editor, ToriAuxLib_TD(instance->toriauxlib));
+
+    instance->interface_editor_handle.kind = GAME_HANDLE_KIND_INTERFACE_EDITOR;
+    instance->interface_editor_handle.u.interface_editor = instance->interface_editor;
+    instance->active_game_kind = GAME_HANDLE_KIND_INTERFACE_EDITOR;
 }
 
 void

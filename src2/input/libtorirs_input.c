@@ -46,6 +46,9 @@ try_start_drag(
         return;
     if( !input->mouse_button_held[button] || input->drag_active[button] )
         return;
+    uint64_t const elapsed_ms = input->curr.time - input->press_origin_time[button];
+    if( input->drag_dead_time_ms > 0 && elapsed_ms < input->drag_dead_time_ms )
+        return;
     int dsq = distance_squared(
         input->curr.mouse_x,
         input->curr.mouse_y,
@@ -79,8 +82,21 @@ LibToriRS_Input_Init(
     input->curr.time = time;
     input->prev.time = time;
     input->double_click_threshold_ms = 400;
-    input->drag_deadzone_pixels = 5;
+    input->drag_deadzone_pixels = LIBTORIRS_INPUT_DEFAULT_DRAG_DEADZONE_PX;
+    input->drag_dead_time_ms = 0;
     return input;
+}
+
+void
+LibToriRS_Input_SetDragThresholds(
+    struct LibToriRS_Input* input,
+    uint64_t zone_pixels,
+    uint64_t time_ms)
+{
+    if( !input )
+        return;
+    input->drag_deadzone_pixels = zone_pixels;
+    input->drag_dead_time_ms = time_ms;
 }
 
 void
@@ -165,6 +181,7 @@ LibToriRS_Input_PushMouseDown(
     input->mouse_button_held[button] = 1;
     input->press_origin_x[button] = x;
     input->press_origin_y[button] = y;
+    input->press_origin_time[button] = input->curr.time;
     input->drag_active[button] = 0;
     try_start_drag(input, button);
 }
@@ -226,4 +243,14 @@ LibToriRS_Input_PushMouseMove(
     input->curr.mouse_y = y;
     for( int b = TORIRSM_LEFT; b < TORIRSM_COUNT; b++ )
         try_start_drag(input, (enum LibToriRS_MouseButton)b);
+}
+
+void
+LibToriRS_Input_PushMouseWheel(
+    struct LibToriRS_Input* input,
+    int wheel_y)
+{
+    if( !input )
+        return;
+    input->curr.mouse_wheel_y += wheel_y;
 }

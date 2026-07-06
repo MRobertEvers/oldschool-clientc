@@ -55,6 +55,27 @@
 
 static bool s_cs1vm_level_ready;
 
+static bool
+rs_cs2_host_resolve_obj_icon(
+    void* ud,
+    int obj_id,
+    int* out_scene_id,
+    int* out_atlas_index);
+
+static int
+rs_cs2_host_inv_get_obj(void* ud, int inv_id, int slot);
+
+static int
+rs_cs2_host_inv_get_num(void* ud, int inv_id, int slot);
+
+static int
+rs_cs2_host_inv_size(void* ud, int inv_id);
+
+static void
+rs_ui_host_run_hooks(
+    struct GameRunescape* game,
+    enum UITreeBehaviorHookKind hook_kind);
+
 static void
 rs_cs1vm_ensure_level_table(void)
 {
@@ -103,6 +124,13 @@ rs_ui_init_cs2_host(struct GameRunescape* game)
         .tree = game->ui_tree,
         .on_varp_change = rs_ui_on_cs2_varp_change,
         .on_varp_change_ud = game,
+        .resolve_obj_icon = rs_cs2_host_resolve_obj_icon,
+        .resolve_obj_icon_ud = game,
+        .inv_get_obj = rs_cs2_host_inv_get_obj,
+        .inv_get_num = rs_cs2_host_inv_get_num,
+        .inv_size = rs_cs2_host_inv_size,
+        .inv_ud = game,
+        .scene = game->scene,
     };
     cs2_host_ui_init(&game->cs2host, &args);
 }
@@ -157,6 +185,17 @@ GameRunescape_DispatchInvTransmit(
 
     if( game->ui_tree )
         uitree_mark_all_dirty(game->ui_tree);
+}
+
+void
+GameRunescape_RunOnLoadHooks(struct GameRunescape* game)
+{
+    if( !game || game->ui_on_load_hooks_ran || !game->core || !game->cs2vm || !game->ui_tree ||
+        game->ui_tree->component_count == 0 )
+        return;
+
+    rs_ui_host_run_hooks(game, UITREE_BEHAVIOR_HOOK_ON_LOAD);
+    game->ui_on_load_hooks_ran = true;
 }
 
 static char const*
@@ -803,6 +842,111 @@ rs_ui_host_get_inv_source_slot(
     if( !game )
         return false;
     return ui_inv_data_service_get_slot(&game->inv_data, source_id, slot, out);
+}
+
+static int
+rs_cs2_host_inv_get_obj(
+    void* ud,
+    int inv_id,
+    int slot)
+{
+    struct GameRunescape* game = ud;
+    if( !game || inv_id < 0 || slot < 0 )
+        return 0;
+    struct RSInvContainer const* container =
+        rs_inv_container_find(&game->inv_data.store, inv_id);
+    if( !container || slot >= container->slot_count )
+        return 0;
+    return container->obj_id[slot];
+}
+
+static int
+rs_cs2_host_inv_get_num(
+    void* ud,
+    int inv_id,
+    int slot)
+{
+    struct GameRunescape* game = ud;
+    if( !game || inv_id < 0 || slot < 0 )
+        return 0;
+    struct RSInvContainer const* container =
+        rs_inv_container_find(&game->inv_data.store, inv_id);
+    if( !container || slot >= container->slot_count )
+        return 0;
+    return container->obj_count[slot];
+}
+
+static int
+rs_cs2_host_inv_size(
+    void* ud,
+    int inv_id)
+{
+    struct GameRunescape* game = ud;
+    if( !game || inv_id < 0 )
+        return 0;
+    struct RSInvContainer const* container =
+        rs_inv_container_find(&game->inv_data.store, inv_id);
+    return container ? container->slot_count : 0;
+}
+
+static bool
+rs_cs2_host_resolve_obj_icon(
+    void* ud,
+    int obj_id,
+    int* out_scene_id,
+    int* out_atlas_index)
+{
+    struct GameRunescape* game = ud;
+    if( out_scene_id )
+        *out_scene_id = -1;
+    if( out_atlas_index )
+        *out_atlas_index = 0;
+    if( !game || obj_id <= 0 )
+        return false;
+
+    for( int src = 0; src < game->inv_data.source_count; src++ )
+    {
+        if( !game->inv_data.sources[src].used )
+            continue;
+        int const container_id = game->inv_data.sources[src].container_id;
+        struct RSInvContainer const* container =
+            rs_inv_container_find(&game->inv_data.store, container_id);
+        if( !container )
+            continue;
+        for( int slot = 0; slot < container->slot_count; slot++ )
+        {
+            if( container->obj_id[slot] != obj_id )
+                continue;
+            if( container->scene_id[slot] < 0 )
+                continue;
+            if( out_scene_id )
+                *out_scene_id = container->scene_id[slot];
+            if( out_atlas_index )
+                *out_atlas_index = container->atlas_index[slot];
+            return true;
+        }
+    }
+
+    if( game->ui_inv_pool )
+    {
+        for( int pi = 0; pi < game->ui_inv_pool->count; pi++ )
+        {
+            struct UIInventory const* inv = &game->ui_inv_pool->inventories[pi];
+            for( int ii = 0; ii < inv->item_count; ii++ )
+            {
+                if( inv->items[ii].obj_id != obj_id )
+                    continue;
+                if( inv->items[ii].scene_id < 0 )
+                    continue;
+                if( out_scene_id )
+                    *out_scene_id = inv->items[ii].scene_id;
+                if( out_atlas_index )
+                    *out_atlas_index = inv->items[ii].atlas_index;
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 static bool
@@ -2782,6 +2926,14 @@ GameRunescape_EmitUIComponent(
         }
         GameRunescape_AssertSceneSpriteReady(game, scene_id, atlas_index, "ui_sprite");
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, bx, by, bw, bh);
+        {
+            int alpha = 255 - component->trans;
+            if( alpha < 0 )
+                alpha = 0;
+            else if( alpha > 255 )
+                alpha = 255;
+            command->u.sprite.alpha = alpha;
+        }
         if( tiled )
             command->u.sprite.tiled = 1;
         GameRunescape_ApplyScissorToSprite(command, &clip);
@@ -3188,6 +3340,31 @@ GameRunescape_EmitUIComponent(
             int ix = bx;
             int iy = by;
             if( component->u.inv_slot.center_icon )
+            {
+                ui_inv_slot_view_centered_rect(
+                    bx, by, bw, bh, UI_INV_SLOT_ICON_SIZE, &ix, &iy, NULL, NULL);
+            }
+            GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, ix, iy, 32, 32);
+            return true;
+        }
+        return false;
+    }
+    case UIELEM_CC_OBJ:
+    {
+        int obj_id = component->u.cc_obj.obj_id;
+        int scene_id = component->u.cc_obj.scene_id;
+        int atlas_index = component->u.cc_obj.atlas_index;
+        if( obj_id > 0 && scene_id < 0 && game )
+        {
+            rs_cs2_host_resolve_obj_icon(game, obj_id, &scene_id, &atlas_index);
+            component->u.cc_obj.scene_id = scene_id;
+            component->u.cc_obj.atlas_index = atlas_index;
+        }
+        if( obj_id > 0 && scene_id >= 0 )
+        {
+            int ix = bx;
+            int iy = by;
+            if( component->u.cc_obj.center_icon )
             {
                 ui_inv_slot_view_centered_rect(
                     bx, by, bw, bh, UI_INV_SLOT_ICON_SIZE, &ix, &iy, NULL, NULL);
@@ -3786,7 +3963,10 @@ GameRunescape_FrameBegin(
         world_cycle(game->world, cycles_elapsed);
     GameRunescape_DrainWorldEvents(game);
     for( int i = 0; i < cycles_elapsed; i++ )
+    {
         GameRunescape_TickAnimations(game);
+        cs2_host_ui_tick(&game->cs2host);
+    }
     GameRunescape_SyncProjectilesToScene(game);
     GameRunescape_UpdateWorldViewport(game);
     if( game->ui_tree && game->ui_tree->component_count > 0 )
@@ -3803,8 +3983,8 @@ GameRunescape_FrameBegin(
         if( ui_hover_routing_commit_frame(&game->ui_hover) || first_ready )
             uitree_mark_all_dirty(game->ui_tree);
 
-        if( first_ready )
-            rs_ui_host_run_hooks(game, UITREE_BEHAVIOR_HOOK_ON_LOAD);
+        if( first_ready && !game->ui_on_load_hooks_ran )
+            GameRunescape_RunOnLoadHooks(game);
 
         rs_ui_flush_varp_transmits(game);
     }

@@ -27,8 +27,10 @@ struct CS2_Script
     char* signature;
     int local_int_count;
     int local_string_count;
+    int local_long_count;
     int int_argument_count;
     int string_argument_count;
+    int long_argument_count;
     int int_stack_depth;
     int str_stack_depth;
     int op_count;

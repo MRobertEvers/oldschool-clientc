@@ -158,8 +158,6 @@ interface161_obj_icon_cache_free(struct Interface161ObjIconCache* cache)
     {
         struct Interface161ObjIconCache* next = cache->next;
         free(cache->pixels);
-        if( cache->model )
-            ToriDraw_ModelFree(cache->model);
         free(cache);
         cache = next;
     }
@@ -215,11 +213,8 @@ static int*
 rasterize_obj_icon(
     struct RSCacheDat2Disk* cache,
     struct ToriDraw_Scene* scene,
-    struct RSCacheDat2A_ConfigObject* obj,
-    struct ToriDraw_Model** out_model)
+    struct RSCacheDat2A_ConfigObject* obj)
 {
-    if( out_model )
-        *out_model = NULL;
     if( !obj || obj->inventory_model_id <= 0 )
         return NULL;
 
@@ -268,7 +263,7 @@ rasterize_obj_icon(
         scene, hnd, zoom, obj->xan2d, obj->yan2d, 32, 32, true);
     if( !spr || !spr->pixels_argb )
     {
-        ToriDraw_ModelFree(td_model);
+        ToriDraw_SceneFrameEnd(scene);
         ToriDraw_SpriteFree(spr);
         return NULL;
     }
@@ -276,16 +271,13 @@ rasterize_obj_icon(
     int* pixels = malloc(32 * 32 * sizeof(int));
     if( !pixels )
     {
-        ToriDraw_ModelFree(td_model);
+        ToriDraw_SceneFrameEnd(scene);
         ToriDraw_SpriteFree(spr);
         return NULL;
     }
     memcpy(pixels, spr->pixels_argb, 32 * 32 * sizeof(int));
     ToriDraw_SpriteFree(spr);
-    if( out_model )
-        *out_model = td_model;
-    else
-        ToriDraw_ModelFree(td_model);
+    ToriDraw_SceneFrameEnd(scene);
     return pixels;
 }
 
@@ -309,27 +301,19 @@ interface161_obj_icon_get(
     if( !obj )
         return NULL;
 
-    struct ToriDraw_Model* model = NULL;
-    int* pixels = rasterize_obj_icon(cache, scene, obj, &model);
+    int* pixels = rasterize_obj_icon(cache, scene, obj);
     RSCacheDat2A_ConfigObjectFree(obj);
     if( !pixels )
-    {
-        if( model )
-            ToriDraw_ModelFree(model);
         return NULL;
-    }
 
     struct Interface161ObjIconCache* entry = calloc(1, sizeof(struct Interface161ObjIconCache));
     if( !entry )
     {
         free(pixels);
-        if( model )
-            ToriDraw_ModelFree(model);
         return NULL;
     }
     entry->obj_id = obj_id;
     entry->pixels = pixels;
-    entry->model = model;
     entry->next = *cache_head;
     *cache_head = entry;
     return entry->pixels;

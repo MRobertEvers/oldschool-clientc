@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const IFACE_START = 1;
-const IFACE_END = 500;
+const IFACE_END = 10000;
 
 function parseArgs(argv) {
   const cacheDir = argv[0];

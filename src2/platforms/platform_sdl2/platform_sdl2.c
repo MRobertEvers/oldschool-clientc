@@ -251,6 +251,14 @@ LibToriPlatformSDL2_PollEvents(
                 event.motion.xrel,
                 event.motion.yrel);
             break;
+        case SDL_MOUSEWHEEL:
+        {
+            int wheel_y = event.wheel.y;
+            if( event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED )
+                wheel_y = -wheel_y;
+            LibToriRS_CommandQueue_PushMouseWheelEvent(command_queue, wheel_y, 0, 0);
+            break;
+        }
         }
     }
 }

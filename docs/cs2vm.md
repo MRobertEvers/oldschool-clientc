@@ -58,13 +58,29 @@ VM-native opcodes (branches, locals, arithmetic, arrays, gosub, return) run insi
 Host invoke helpers (`cs2vm_host_pop_int`, `cs2vm_host_push_int`, etc.) manipulate the
 active `CS2VM` stack from within `invoke` handlers.
 
+### Inventory / dynamic component host opcodes (`cs2_host_ui.c`)
+
+`CS2HostUIInitArgs` supplies game callbacks used by inventory scripts:
+
+| Callback | CS2 opcodes |
+|----------|-------------|
+| `inv_get_obj` / `inv_get_num` / `inv_size` | `INV_GETOBJ`, `INV_GETNUM`, `INV_SIZE` |
+| `resolve_obj_icon` | `CC_SETOBJECT*`, `IF_SETOBJECT*` |
+| `tree` + `active_node_index` | `CC_CREATE`, `CC_DELETEALL`, `CC_FIND`, `IF_FIND` |
+
+Implemented handlers create or update **`UIELEM_CC_OBJ`** nodes (`uitree_cc_create`,
+`uitree_apply_object`) so IF3 equipment/backpack scripts can build item icons from container
+93/94 without baking `UIELEM_INV_SLOT` grids in C.
+
+`CC_SETONINVTRANSMIT` / `IF_SETONINVTRANSMIT` pop their string operand (stack balance only);
+refresh is driven by the static cache `on_inv_transmit` hook on the parent component.
+
 `GOSUB_WITH_PARAMS` saves `return_pc` on the **caller** frame; `RETURN` must resume the
 caller at `caller->return_pc` (not the callee's zeroed frame) and push the return int back
-onto the caller stack.
+onto the caller stack. Unresolved gosub targets log a warning and are skipped (no assert).
 
-`cs2vm_run` returns `CS2VM_OK` on success, or `CS2VM_ERR_INVALID`, `CS2VM_ERR_PC_OOB`,
-`CS2VM_ERR_STEP_LIMIT`, or `CS2VM_ERR_STACK` on failure. A step budget
-(`CS2_RT_MAX_STEPS`) catches runaway branch loops.
+`cs2vm_run` resets `active_component` to `-1` at start; scripts must use `IF_FIND` /
+`CC_FIND` or receive the component via hook argv before `CC_*` ops on a specific widget.
 
 ## IF3 hook dispatch
 
@@ -73,7 +89,11 @@ onto the caller stack.
 | `onLoad` | First frame when UI tree becomes ready |
 | `onClick` | Left-click / minimenu IF-button on clickable component |
 | `onVarpTransmit` | Varp write (button toggle, CS2 `POP_VAR`, etc.) when `varp_triggers` matches |
-| `onInvTransmit` | Container 93/94 update (revconfig `inv=` seed, `GameRunescape_IF3Inv*`) when `inventory_triggers` matches |
+| `onInvTransmit` | Container 93/94 update (`inv=` seed + simulated transmit after tree load, live `GameRunescape_DispatchInvTransmit`) when `inventory_triggers` matches |
+
+After revconfig bake, `instance_revconfig_inv_setup_after_build` seeds pool containers,
+runs `GameRunescape_RunOnLoadHooks`, then **`GameRunescape_DispatchInvTransmit` per `inv=` source**
+so CS2 scripts populate `UIELEM_CC_OBJ` icons before the first frame draws.
 
 `uitree_behavior_dispatch_inv_transmit` / `uitree_behavior_dispatch_varp_transmit` scan baked
 nodes and run matching hooks via `cs2vm_run`. `onTimer` is not converted from cache yet.

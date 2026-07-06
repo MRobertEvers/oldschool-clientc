@@ -11,6 +11,12 @@
 #define UITREE_SIDEBAR_PANEL_H 261
 #define UITREE_RS_LAYOUT_UNITS 16384
 
+static inline int
+uitree_mul_shift14(int a, int b)
+{
+    return (int)(((int64_t)a * (int64_t)b) >> 14);
+}
+
 void
 uitree_layout_invalidate(struct UITree* tree);
 

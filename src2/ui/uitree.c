@@ -18,6 +18,18 @@ link_under_parent(
     new_c->first_child = -1;
     new_c->next_sibling = -1;
 
+    if( parent_index >= 0 && (uint32_t)parent_index >= tree->component_count )
+    {
+        fprintf(
+            stderr,
+            "uitree: invalid parent index %d for child %d (count=%u)\n",
+            (int)parent_index,
+            (int)new_index,
+            tree->component_count);
+        parent_index = -1;
+        new_c->parent = -1;
+    }
+
     if( parent_index < 0 )
     {
         new_c->parent = -1;
@@ -191,6 +203,8 @@ uitree_component_type_str(enum StaticUIComponentType type)
         return "rs_inv_text";
     case UIELEM_INV_SLOT:
         return "inv_slot";
+    case UIELEM_CC_OBJ:
+        return "cc_obj";
     }
     return "unknown";
 }
@@ -258,14 +272,54 @@ uitree_find_by_component_id(
     struct UITree const* tree,
     int component_id)
 {
-    if( !tree || component_id < 0 )
+    if( !tree || component_id < 0 || !tree->components )
         return -1;
+    int32_t fallback = -1;
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
-        if( tree->components[i].component_id == component_id )
+        if( tree->components[i].component_id != component_id )
+            continue;
+        if( tree->components[i].dynamic )
             return (int32_t)i;
+        if( fallback < 0 )
+            fallback = (int32_t)i;
     }
-    return -1;
+    return fallback;
+}
+
+static int
+uitree_allocate_dynamic_component_id(
+    struct UITree* tree,
+    int iface_id)
+{
+    if( !tree )
+        return -1;
+
+    uint16_t next = tree->next_dynamic_uid;
+    if( next < 0x8000u )
+        next = 0x8000u;
+
+    for( int i = 0; i < 0x8000; i++ )
+    {
+        uint16_t const child_id = next;
+        int const uid = (iface_id << 16) | (int)child_id;
+        next = (uint16_t)((child_id + 1u) & 0xffffu);
+        if( next < 0x8000u )
+            next = 0x8000u;
+        if( uitree_find_by_component_id(tree, uid) < 0 )
+        {
+            tree->next_dynamic_uid = next;
+            return uid;
+        }
+    }
+
+    for( uint16_t child_id = 0x8000u; child_id != 0u; child_id++ )
+    {
+        int const uid = (iface_id << 16) | (int)child_id;
+        if( uitree_find_by_component_id(tree, uid) < 0 )
+            return uid;
+    }
+    return (iface_id << 16) | 0xffff;
 }
 
 static int32_t
@@ -383,6 +437,118 @@ uitree_apply_size(
 }
 
 bool
+uitree_apply_position_modes(
+    struct UITree* tree,
+    int component_id,
+    int x,
+    int y,
+    int x_mode,
+    int y_mode)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    tree->components[idx].position.x = x;
+    tree->components[idx].position.y = y;
+    tree->components[idx].position.x_mode = (int8_t)x_mode;
+    tree->components[idx].position.y_mode = (int8_t)y_mode;
+    tree->components[idx].position.layout_resolved = 0;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_size_modes(
+    struct UITree* tree,
+    int component_id,
+    int width,
+    int height,
+    int width_mode,
+    int height_mode)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    tree->components[idx].position.width = width;
+    tree->components[idx].position.height = height;
+    tree->components[idx].position.width_mode = (int8_t)width_mode;
+    tree->components[idx].position.height_mode = (int8_t)height_mode;
+    tree->components[idx].position.layout_resolved = 0;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_graphic_tiled(
+    struct UITree* tree,
+    int component_id,
+    int tiled)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
+        return false;
+    tree->components[idx].u.rs_graphic.tiled = tiled ? 1 : 0;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_graphic_outline(
+    struct UITree* tree,
+    int component_id,
+    int outline)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
+        return false;
+    tree->components[idx].u.rs_graphic.outline = outline;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_graphic_shadow(
+    struct UITree* tree,
+    int component_id,
+    int shadow_colour)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
+        return false;
+    tree->components[idx].u.rs_graphic.graphic_shadow = shadow_colour;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+int
+uitree_get_layout_width(
+    struct UITree const* tree,
+    int component_id)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 )
+        return 0;
+    struct StaticUIElemPosition const* pos = &tree->components[idx].position;
+    if( pos->layout_resolved && pos->abs_w > 0 )
+        return pos->abs_w;
+    return pos->width > 0 ? pos->width : 0;
+}
+
+int
+uitree_get_layout_height(
+    struct UITree const* tree,
+    int component_id)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 )
+        return 0;
+    struct StaticUIElemPosition const* pos = &tree->components[idx].position;
+    if( pos->layout_resolved && pos->abs_h > 0 )
+        return pos->abs_h;
+    return pos->height > 0 ? pos->height : 0;
+}
+
+bool
 uitree_apply_scroll_size(
     struct UITree* tree,
     int component_id,
@@ -396,6 +562,363 @@ uitree_apply_scroll_size(
     tree->components[idx].u.rs_layer.scroll_height = scroll_height;
     uitree_mark_node_dirty(tree, idx);
     return true;
+}
+
+static int32_t
+uitree_find_dynamic_child_by_index(
+    struct UITree* tree,
+    int32_t parent_idx,
+    int dynamic_index)
+{
+    if( !tree || parent_idx < 0 || (uint32_t)parent_idx >= tree->component_count )
+        return -1;
+
+    int child_index = 0;
+    for( int32_t child = tree->components[parent_idx].first_child; child >= 0;
+         child = tree->components[child].next_sibling, child_index++ )
+    {
+        if( !tree->components[child].dynamic )
+            continue;
+        if( child_index == dynamic_index )
+            return child;
+    }
+    return -1;
+}
+
+bool
+uitree_apply_object(
+    struct UITree* tree,
+    int component_id,
+    int obj_id,
+    int obj_count,
+    int scene_id,
+    int atlas_index)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+
+    struct StaticUIComponent* c = &tree->components[idx];
+    if( obj_id > 0 && !c->dynamic && c->first_child >= 0 )
+    {
+        int32_t overlay_idx = uitree_find_dynamic_child_by_index(tree, idx, 1);
+        if( overlay_idx >= 0 )
+        {
+            idx = overlay_idx;
+            c = &tree->components[idx];
+        }
+    }
+
+    if( obj_id <= 0 )
+    {
+        c->item_id = 0;
+        c->item_count = 0;
+        c->item_scene_id = -1;
+        c->item_atlas_index = 0;
+        if( c->type == UIELEM_CC_OBJ )
+        {
+            c->u.cc_obj.obj_id = 0;
+            c->u.cc_obj.obj_count = 0;
+            c->u.cc_obj.scene_id = -1;
+            c->u.cc_obj.atlas_index = 0;
+        }
+        uitree_mark_node_dirty(tree, idx);
+        return true;
+    }
+
+    c->item_id = obj_id;
+    c->item_count = obj_count > 0 ? obj_count : 1;
+    c->item_scene_id = scene_id;
+    c->item_atlas_index = atlas_index;
+
+    if( c->type == UIELEM_CC_OBJ )
+    {
+        c->u.cc_obj.obj_id = obj_id;
+        c->u.cc_obj.obj_count = c->item_count;
+        c->u.cc_obj.scene_id = scene_id;
+        c->u.cc_obj.atlas_index = atlas_index;
+        c->u.cc_obj.center_icon = 1;
+    }
+
+    if( c->behavior.hide )
+        c->behavior.hide = 0;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_model(
+    struct UITree* tree,
+    int component_id,
+    int model_id)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
+        return false;
+    tree->components[idx].u.rs_model.gamecache_model_id = model_id;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_model_transparent(
+    struct UITree* tree,
+    int component_id,
+    int transparent)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    tree->components[idx].model_transparent = transparent ? 1 : 0;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_op_base(
+    struct UITree* tree,
+    int component_id,
+    char const* text)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    strncpy(
+        tree->components[idx].menu_options.option,
+        text ? text : "",
+        UITREE_MENU_OPTION_LEN - 1);
+    tree->components[idx].menu_options.option[UITREE_MENU_OPTION_LEN - 1] = '\0';
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_get_op(
+    struct UITree const* tree,
+    int component_id,
+    int active_component,
+    int index,
+    char* out_buf,
+    int out_len)
+{
+    if( !out_buf || out_len <= 0 )
+        return false;
+    out_buf[0] = '\0';
+    if( !tree || index < 1 || index > UITREE_MENU_OPTION_SLOTS )
+        return false;
+    int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
+    if( idx < 0 )
+        return false;
+    strncpy(
+        out_buf,
+        tree->components[idx].menu_options.ops[index - 1],
+        out_len - 1);
+    out_buf[out_len - 1] = '\0';
+    return true;
+}
+
+bool
+uitree_get_op_base(
+    struct UITree const* tree,
+    int component_id,
+    int active_component,
+    char* out_buf,
+    int out_len)
+{
+    if( !out_buf || out_len <= 0 )
+        return false;
+    out_buf[0] = '\0';
+    if( !tree )
+        return false;
+    int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
+    if( idx < 0 )
+        return false;
+    strncpy(
+        out_buf,
+        tree->components[idx].menu_options.option,
+        out_len - 1);
+    out_buf[out_len - 1] = '\0';
+    return true;
+}
+
+bool
+uitree_clear_ops(
+    struct UITree* tree,
+    int component_id,
+    int active_component)
+{
+    if( !tree )
+        return false;
+    int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
+    if( idx < 0 )
+        return false;
+    for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+        tree->components[idx].menu_options.ops[i][0] = '\0';
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_get_text(
+    struct UITree const* tree,
+    int component_id,
+    int active_component,
+    char* out_buf,
+    int out_len)
+{
+    if( !out_buf || out_len <= 0 )
+        return false;
+    out_buf[0] = '\0';
+    if( !tree )
+        return false;
+    int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
+    if( idx < 0 )
+        return false;
+    char const* text = "";
+    if( tree->components[idx].type == UIELEM_RS_TEXT )
+        text = tree->components[idx].u.rs_text.text;
+    strncpy(out_buf, text ? text : "", (size_t)(out_len - 1));
+    out_buf[out_len - 1] = '\0';
+    return true;
+}
+
+int32_t
+uitree_find_child_by_subid(
+    struct UITree const* tree,
+    int32_t parent_index,
+    int parent_component_id,
+    int sub_id)
+{
+    (void)parent_component_id;
+    if( !tree || parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
+        return -1;
+
+    for( int32_t child = tree->components[parent_index].first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        struct StaticUIComponent const* c = &tree->components[child];
+        if( c->dynamic && c->dynamic_child_index == sub_id )
+            return child;
+        if( !c->dynamic && (c->component_id & 0xFFFF) == (sub_id & 0xFFFF) )
+            return child;
+    }
+    return -1;
+}
+
+static void
+uitree_unlink_child(
+    struct UITree* tree,
+    int32_t parent_index,
+    int32_t child_index)
+{
+    if( !tree || parent_index < 0 || child_index < 0
+        || (uint32_t)parent_index >= tree->component_count
+        || (uint32_t)child_index >= tree->component_count )
+        return;
+
+    struct StaticUIComponent* parent = &tree->components[parent_index];
+    int32_t prev = -1;
+    int32_t walk = parent->first_child;
+    while( walk >= 0 )
+    {
+        if( walk == child_index )
+        {
+            int32_t const next = tree->components[walk].next_sibling;
+            if( prev < 0 )
+                parent->first_child = next;
+            else
+                tree->components[prev].next_sibling = next;
+            tree->components[walk].parent = -1;
+            tree->components[walk].next_sibling = -1;
+            parent->is_dirty = 1;
+            tree->generation++;
+            return;
+        }
+        prev = walk;
+        walk = tree->components[walk].next_sibling;
+    }
+}
+
+int32_t
+uitree_cc_create(
+    struct UITree* tree,
+    int32_t parent_index,
+    int parent_component_id,
+    int widget_type,
+    int sub_id)
+{
+    if( !tree || parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
+        return -1;
+
+    int const iface_id = parent_component_id >= 0 ? (parent_component_id >> 16) : 0;
+    int const child_component_id = uitree_allocate_dynamic_component_id(tree, iface_id);
+
+    int32_t existing =
+        uitree_find_child_by_subid(tree, parent_index, parent_component_id, sub_id);
+    if( existing >= 0 && tree->components[existing].dynamic )
+        uitree_unlink_child(tree, parent_index, existing);
+
+    struct UINodeSpec spec;
+    memset(&spec, 0, sizeof(spec));
+    spec.component_id = child_component_id;
+    spec.dynamic = 1;
+    spec.dynamic_child_index = sub_id;
+    spec.always_dirty = 1;
+    spec.width = 0;
+    spec.height = 0;
+
+    switch( widget_type )
+    {
+    case 5:
+        spec.type = UIELEM_RS_GRAPHIC;
+        break;
+    case 3:
+        spec.type = UIELEM_RS_RECT;
+        spec.u.rs_rect.color = 0;
+        spec.u.rs_rect.filled = 1;
+        break;
+    case 4:
+        spec.type = UIELEM_RS_TEXT;
+        break;
+    default:
+        spec.type = UIELEM_CC_OBJ;
+        break;
+    }
+
+    return uitree_push(tree, parent_index, &spec);
+}
+
+void
+uitree_cc_delete_all(
+    struct UITree* tree,
+    int32_t parent_index)
+{
+    if( !tree || parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
+        return;
+
+    struct StaticUIComponent* parent = &tree->components[parent_index];
+    int32_t child = parent->first_child;
+    int32_t prev = -1;
+    while( child >= 0 )
+    {
+        int32_t const next = tree->components[child].next_sibling;
+        if( tree->components[child].dynamic )
+        {
+            if( prev < 0 )
+                parent->first_child = next;
+            else
+                tree->components[prev].next_sibling = next;
+            tree->components[child].parent = -1;
+            tree->components[child].next_sibling = -1;
+        }
+        else
+        {
+            prev = child;
+        }
+        child = next;
+    }
+    parent->is_dirty = 1;
+    tree->generation++;
 }
 
 void
@@ -634,6 +1157,8 @@ uitree_push(
     struct StaticUIComponent* component = &tree->components[idx];
     component->type = spec->type;
     component->component_id = spec->component_id;
+    component->dynamic = spec->dynamic ? 1 : 0;
+    component->dynamic_child_index = spec->dynamic ? spec->dynamic_child_index : -1;
     component->menu_options = spec->menu_options;
 
     if( spec->has_position )
@@ -708,14 +1233,8 @@ uitree_push(
     case UIELEM_RS_TEXT:
     {
         int font_id = spec->u.rs_text.font_id;
-        if( font_id < 0 || font_id > 3 )
-        {
-            fprintf(stderr,
-                "uitree_push: invalid rs_text font_id=%d, expected 0-3\n",
-                font_id);
-            assert(font_id >= 0 && font_id <= 3);
+        if( font_id < 0 )
             font_id = 1;
-        }
         component->u.rs_text.font_id = font_id;
         component->u.rs_text.color = spec->u.rs_text.color;
         component->u.rs_text.center = spec->u.rs_text.center;
@@ -734,6 +1253,10 @@ uitree_push(
         component->u.rs_graphic.atlas_index_active = spec->u.rs_graphic.atlas_index_active;
         component->u.rs_graphic.graphic_hitbox_only = spec->u.rs_graphic.graphic_hitbox_only;
         component->u.rs_graphic.tiled = spec->u.rs_graphic.tiled;
+        component->u.rs_graphic.outline = spec->u.rs_graphic.outline;
+        component->u.rs_graphic.graphic_shadow = spec->u.rs_graphic.graphic_shadow;
+        component->u.rs_graphic.flip_h = spec->u.rs_graphic.flip_h;
+        component->u.rs_graphic.flip_v = spec->u.rs_graphic.flip_v;
         break;
 
     case UIELEM_RS_RECT:
@@ -790,6 +1313,14 @@ uitree_push(
         component->u.inv_slot.inv_source_id = spec->u.inv_slot.inv_source_id;
         component->u.inv_slot.slot = spec->u.inv_slot.slot;
         component->u.inv_slot.center_icon = spec->u.inv_slot.center_icon;
+        break;
+
+    case UIELEM_CC_OBJ:
+        component->u.cc_obj.obj_id = spec->u.cc_obj.obj_id;
+        component->u.cc_obj.obj_count = spec->u.cc_obj.obj_count;
+        component->u.cc_obj.scene_id = spec->u.cc_obj.scene_id;
+        component->u.cc_obj.atlas_index = spec->u.cc_obj.atlas_index;
+        component->u.cc_obj.center_icon = spec->u.cc_obj.center_icon;
         break;
 
     case UIELEM_BUILTIN_TAB_ICONS:

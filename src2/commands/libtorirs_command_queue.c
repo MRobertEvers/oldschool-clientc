@@ -149,3 +149,21 @@ LibToriRS_CommandQueue_PushMouseMoveEvent(
     command->u.mouse_move.xrel = xrel;
     command->u.mouse_move.yrel = yrel;
 }
+
+void
+LibToriRS_CommandQueue_PushMouseWheelEvent(
+    struct LibToriRS_CommandQueue* command_queue,
+    int wheel_y,
+    int mouse_x,
+    int mouse_y)
+{
+    if( !command_queue )
+        return;
+    struct LibToriRS_Command* command = emplace_command(command_queue);
+    if( !command )
+        return;
+    command->type = LIBTORIRS_COMMAND_TYPE_MOUSE_WHEEL;
+    command->u.mouse_wheel.wheel = wheel_y;
+    command->u.mouse_wheel.mouse_x = mouse_x;
+    command->u.mouse_wheel.mouse_y = mouse_y;
+}

@@ -19,7 +19,7 @@ ui_if3_dim_from_parent_mode(
     case 1:
         return parent_dim - orig;
     case 2:
-        return (int)((int64_t)parent_dim * (int64_t)orig / UITREE_RS_LAYOUT_UNITS);
+        return uitree_mul_shift14(parent_dim, orig);
     default:
         return orig;
     }
@@ -38,17 +38,16 @@ ui_if3_axis_from_position_mode(
     case 0:
         return parent_origin + base;
     case 1:
-        return parent_origin + (parent_dim - self_dim) / 2 + base;
+        return parent_origin + ((parent_dim - self_dim) >> 1) + base;
     case 2:
         return parent_origin + parent_dim - base - self_dim;
     case 3:
-        return parent_origin + (int)((int64_t)parent_dim * (int64_t)base / UITREE_RS_LAYOUT_UNITS);
+        return parent_origin + uitree_mul_shift14(parent_dim, base);
     case 4:
-        return parent_origin + (parent_dim - self_dim) / 2 +
-               (int)((int64_t)parent_dim * (int64_t)base / UITREE_RS_LAYOUT_UNITS);
+        return parent_origin + ((parent_dim - self_dim) >> 1) +
+               uitree_mul_shift14(parent_dim, base);
     case 5:
-        return parent_origin + parent_dim -
-               (int)((int64_t)parent_dim * (int64_t)base / UITREE_RS_LAYOUT_UNITS) - self_dim;
+        return parent_origin + parent_dim - uitree_mul_shift14(parent_dim, base) - self_dim;
     default:
         return parent_origin + base;
     }

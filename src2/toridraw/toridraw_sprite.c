@@ -161,6 +161,91 @@ ToriDraw2D_BlitSprite(
         pixel_buffer);
 }
 
+static void
+sprite_blend_pixel(
+    int* dst,
+    uint32_t src,
+    int alpha)
+{
+    if( alpha >= 255 )
+    {
+        *dst = (int)src;
+        return;
+    }
+    if( alpha <= 0 )
+        return;
+
+    int const dst_px = *dst;
+    int const src_a = (int)(src >> 24) & 0xFF;
+    if( src_a == 0 && (src & 0xFFFFFF) == 0 )
+        return;
+
+    int const src_r = (int)(src >> 16) & 0xFF;
+    int const src_g = (int)(src >> 8) & 0xFF;
+    int const src_b = (int)src & 0xFF;
+    int const dst_r = (dst_px >> 16) & 0xFF;
+    int const dst_g = (dst_px >> 8) & 0xFF;
+    int const dst_b = dst_px & 0xFF;
+
+    int const blend = alpha;
+    int const inv = 255 - blend;
+    int const r = (src_r * blend + dst_r * inv) / 255;
+    int const g = (src_g * blend + dst_g * inv) / 255;
+    int const b = (src_b * blend + dst_b * inv) / 255;
+    *dst = (int)(0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b);
+}
+
+void
+ToriDraw2D_BlitSpriteAlpha(
+    struct ToriDraw_Sprite* sprite,
+    struct ToriDraw_ViewPort* view_port,
+    int x_offset,
+    int y_offset,
+    int alpha,
+    int* pixel_buffer)
+{
+    if( !sprite || !sprite->pixels_argb || !view_port || !pixel_buffer )
+        return;
+    if( alpha >= 255 )
+    {
+        ToriDraw2D_BlitSprite(sprite, view_port, x_offset, y_offset, pixel_buffer);
+        return;
+    }
+    if( alpha <= 0 )
+        return;
+
+    int const src_w = sprite->width;
+    int const src_h = sprite->height;
+    x_offset += sprite->crop_x;
+    y_offset += sprite->crop_y;
+
+    int const cl = view_port->clip_left;
+    int const ct = view_port->clip_top;
+    int const cr = view_port->clip_right;
+    int const cb = view_port->clip_bottom;
+    int const stride = view_port->stride;
+
+    for( int y = 0; y < src_h; y++ )
+    {
+        int const dst_y = y + y_offset;
+        if( dst_y < ct || dst_y >= cb )
+            continue;
+        for( int x = 0; x < src_w; x++ )
+        {
+            int const dst_x = x + x_offset;
+            if( dst_x < cl || dst_x >= cr )
+                continue;
+
+            uint32_t const pixel = sprite->pixels_argb[x + y * src_w];
+            if( pixel == 0 )
+                continue;
+
+            int* const dst = &pixel_buffer[dst_y * stride + dst_x];
+            sprite_blend_pixel(dst, pixel, alpha);
+        }
+    }
+}
+
 void
 ToriDraw2D_BlitSprite_subrect(
     struct ToriDraw_Sprite* sprite,

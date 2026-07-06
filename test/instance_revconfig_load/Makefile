@@ -55,6 +55,7 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/ui/ui_inv_data_service.c \
 	$(SRC2_DIR)/ui/ui_inv_slot_view.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/instance_revconfig_inv_bind.c \
+	$(SRC2_DIR)/ui/ui_input_adapter.c \
 	$(SRC2_DIR)/ui/ui_behavior.c \
 	$(SRC2_DIR)/ui/uitree_host.c \
 	$(SRC2_DIR)/ui/ui_click.c \

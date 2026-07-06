@@ -1,5 +1,7 @@
 #include "uitree_layout.h"
 
+#include "ui_if3_layout.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +29,7 @@ dim_from_parent_mode(
     case 1:
         return parent_dim - orig;
     case 2:
-        return (int)((int64_t)parent_dim * (int64_t)orig / UITREE_RS_LAYOUT_UNITS);
+        return uitree_mul_shift14(parent_dim, orig);
     default:
         return orig;
     }
@@ -46,17 +48,16 @@ axis_from_position_mode(
     case 0:
         return parent_origin + base;
     case 1:
-        return parent_origin + (parent_dim - self_dim) / 2 + base;
+        return parent_origin + ((parent_dim - self_dim) >> 1) + base;
     case 2:
         return parent_origin + parent_dim - base - self_dim;
     case 3:
-        return parent_origin + (int)((int64_t)parent_dim * (int64_t)base / UITREE_RS_LAYOUT_UNITS);
+        return parent_origin + uitree_mul_shift14(parent_dim, base);
     case 4:
-        return parent_origin + (parent_dim - self_dim) / 2 +
-               (int)((int64_t)parent_dim * (int64_t)base / UITREE_RS_LAYOUT_UNITS);
+        return parent_origin + ((parent_dim - self_dim) >> 1) +
+               uitree_mul_shift14(parent_dim, base);
     case 5:
-        return parent_origin + parent_dim -
-               (int)((int64_t)parent_dim * (int64_t)base / UITREE_RS_LAYOUT_UNITS) - self_dim;
+        return parent_origin + parent_dim - uitree_mul_shift14(parent_dim, base) - self_dim;
     default:
         return parent_origin + base;
     }
@@ -136,9 +137,22 @@ uitree_layout_resolve(
     {
         int d = 0;
         int32_t cur = (int32_t)i;
-        while( tree->components[cur].parent >= 0 )
+        while( cur >= 0 && (uint32_t)cur < n )
         {
-            cur = tree->components[cur].parent;
+            int32_t const parent = tree->components[cur].parent;
+            if( parent < 0 )
+                break;
+            if( (uint32_t)parent >= n )
+            {
+                fprintf(
+                    stderr,
+                    "uitree_layout_resolve: invalid parent %d for component %u (n=%u)\n",
+                    parent,
+                    (unsigned)i,
+                    n);
+                break;
+            }
+            cur = parent;
             d++;
             if( d > (int)n )
                 break;
@@ -170,12 +184,20 @@ uitree_layout_resolve(
         int py = root_y;
         int pw = root_w;
         int ph = root_h;
-        if( c->parent >= 0 )
+        if( c->parent >= 0 && (uint32_t)c->parent < n )
         {
             px = abs_x[c->parent];
             py = abs_y[c->parent];
             pw = abs_w[c->parent];
             ph = abs_h[c->parent];
+            struct StaticUIComponent const* parent = &tree->components[c->parent];
+            if( parent->type == UIELEM_RS_LAYER )
+            {
+                if( parent->u.rs_layer.scroll_width > 0 )
+                    pw = parent->u.rs_layer.scroll_width;
+                if( parent->u.rs_layer.scroll_height > 0 )
+                    ph = parent->u.rs_layer.scroll_height;
+            }
         }
 
         if( pos->kind == UIPOS_RELATIVE )
@@ -188,10 +210,53 @@ uitree_layout_resolve(
             continue;
         }
 
-        abs_x[i] = px + pos->x;
-        abs_y[i] = py + pos->y;
-        abs_w[i] = pos->width;
-        abs_h[i] = pos->height;
+        int w = pos->width;
+        int h = pos->height;
+        if( pos->width_mode >= 0 || pos->height_mode >= 0 )
+        {
+            int8_t wm = pos->width_mode >= 0 ? pos->width_mode : 0;
+            int8_t hm = pos->height_mode >= 0 ? pos->height_mode : 0;
+            if( wm == 4 || hm == 4 )
+            {
+                ui_if3_compute_size(
+                    wm,
+                    hm,
+                    pos->width,
+                    pos->height,
+                    pw,
+                    ph,
+                    pos->aspect_w > 0 ? pos->aspect_w : 1,
+                    pos->aspect_h > 0 ? pos->aspect_h : 1,
+                    &w,
+                    &h);
+            }
+            else
+            {
+                w = dim_from_parent_mode(wm, pos->width, pw);
+                h = dim_from_parent_mode(hm, pos->height, ph);
+            }
+        }
+
+        if( c->parent < 0 && w == 0 && h == 0 )
+        {
+            w = pw;
+            h = ph;
+        }
+
+        int rx = pos->x;
+        int ry = pos->y;
+        if( pos->x_mode >= 0 || pos->y_mode >= 0 )
+        {
+            int8_t xm = pos->x_mode >= 0 ? pos->x_mode : 0;
+            int8_t ym = pos->y_mode >= 0 ? pos->y_mode : 0;
+            rx = axis_from_position_mode(xm, pos->x, 0, pw, w);
+            ry = axis_from_position_mode(ym, pos->y, 0, ph, h);
+        }
+
+        abs_x[i] = px + rx;
+        abs_y[i] = py + ry;
+        abs_w[i] = w;
+        abs_h[i] = h;
         pos->abs_x = abs_x[i];
         pos->abs_y = abs_y[i];
         pos->abs_w = abs_w[i];
