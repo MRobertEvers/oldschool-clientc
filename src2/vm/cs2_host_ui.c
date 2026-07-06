@@ -1265,16 +1265,14 @@ cs2_host_ui_invoke(
     {
         int no_click_through = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_no_click_through(st, component, ctx->active_component, no_click_through);
+        cs2_host_ui_apply_no_click_through(st, component, component, no_click_through);
         break;
     }
     case CS2_OP_IF_SETTRANS:
     {
         int trans = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_trans(st, component, ctx->active_component, trans);
+        cs2_host_ui_apply_trans(st, component, component, trans);
         break;
     }
     case CS2_OP_IF_SETOP:
@@ -1282,8 +1280,7 @@ cs2_host_ui_invoke(
         char* text = cs2vm_host_pop_string(ctx);
         int index = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_op(st, component, ctx->active_component, index, text ? text : "");
+        cs2_host_ui_apply_op(st, component, component, index, text ? text : "");
         break;
     }
     case CS2_OP_IF_SETDRAGGABLE:
@@ -1291,40 +1288,35 @@ cs2_host_ui_invoke(
         int child_index = cs2vm_host_pop_int(ctx);
         int parent_uid = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_draggable(st, component, ctx->active_component, parent_uid, child_index);
+        cs2_host_ui_apply_draggable(st, component, component, parent_uid, child_index);
         break;
     }
     case CS2_OP_IF_SETDRAGGABLEBEHAVIOR:
     {
         int behavior = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_draggable_behavior(st, component, ctx->active_component, behavior);
+        cs2_host_ui_apply_draggable_behavior(st, component, component, behavior);
         break;
     }
     case CS2_OP_IF_SETHIDE:
     {
         int hide = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_hide(st, component, ctx->active_component, hide);
+        cs2_host_ui_apply_hide(st, component, component, hide);
         break;
     }
     case CS2_OP_IF_SETTEXT:
     {
         char* text = cs2vm_host_pop_string(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_text(st, component, ctx->active_component, text ? text : "");
+        cs2_host_ui_apply_text(st, component, component, text ? text : "");
         break;
     }
     case CS2_OP_IF_SETTEXTFONT:
     {
         int font_id = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_text_font(st, component, ctx->active_component, font_id);
+        cs2_host_ui_apply_text_font(st, component, component, font_id);
         break;
     }
     case CS2_OP_IF_SETTEXTALIGN:
@@ -1333,40 +1325,35 @@ cs2_host_ui_invoke(
         int line_height = cs2vm_host_pop_int(ctx);
         int y_align = cs2vm_host_pop_int(ctx);
         int x_align = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         cs2_host_ui_apply_text_align(
-            st, component, ctx->active_component, x_align, y_align, line_height);
+            st, component, component, x_align, y_align, line_height);
         break;
     }
     case CS2_OP_IF_SETTEXTSHADOW:
     {
         int shadow = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_text_shadow(st, component, ctx->active_component, shadow);
+        cs2_host_ui_apply_text_shadow(st, component, component, shadow);
         break;
     }
     case CS2_OP_IF_SETFILL:
     {
         int filled = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_fill(st, component, ctx->active_component, filled);
+        cs2_host_ui_apply_fill(st, component, component, filled);
         break;
     }
     case CS2_OP_IF_SETGRAPHIC:
     {
         int graphic = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_graphic(st, component, ctx->active_component, graphic);
+        cs2_host_ui_apply_graphic(st, component, component, graphic);
         break;
     }
     case CS2_OP_IF_SETCOLOUR:
     {
         int colour = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         if( st->tree )
             (void)uitree_apply_colour(st->tree, component, colour);
         break;
@@ -1375,7 +1362,6 @@ cs2_host_ui_invoke(
     {
         int outline = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         if( st->tree )
             (void)uitree_apply_graphic_outline(st->tree, component, outline);
         break;
@@ -1387,7 +1373,6 @@ cs2_host_ui_invoke(
         int x_mode = cs2vm_host_pop_int(ctx);
         int y = cs2vm_host_pop_int(ctx);
         int x = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         if( st->tree )
             (void)uitree_apply_position_modes(st->tree, component, x, y, x_mode, y_mode);
         break;
@@ -1399,7 +1384,6 @@ cs2_host_ui_invoke(
         int width_mode = cs2vm_host_pop_int(ctx);
         int height = cs2vm_host_pop_int(ctx);
         int width = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         if( st->tree )
             (void)uitree_apply_size_modes(
                 st->tree, component, width, height, width_mode, height_mode);
@@ -1410,7 +1394,6 @@ cs2_host_ui_invoke(
         int scroll_height = cs2vm_host_pop_int(ctx);
         int scroll_width = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         if( st->tree )
             (void)uitree_apply_scroll_size(st->tree, component, scroll_width, scroll_height);
         break;
@@ -1441,8 +1424,7 @@ cs2_host_ui_invoke(
         int component = cs2vm_host_pop_int(ctx);
         int count = cs2vm_host_pop_int(ctx);
         int obj_id = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_set_active(st, ctx, component);
-        cs2_host_ui_apply_object_op(st, component, ctx->active_component, obj_id, count, true);
+        cs2_host_ui_apply_object_op(st, component, component, obj_id, count, true);
         break;
     }
     case CS2_OP_IF_SETOBJECT_NONUM:
@@ -1450,8 +1432,7 @@ cs2_host_ui_invoke(
         int component = cs2vm_host_pop_int(ctx);
         int count = cs2vm_host_pop_int(ctx);
         int obj_id = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_set_active(st, ctx, component);
-        cs2_host_ui_apply_object_op(st, component, ctx->active_component, obj_id, count, false);
+        cs2_host_ui_apply_object_op(st, component, component, obj_id, count, false);
         break;
     }
     case CS2_OP_INV_GETOBJ:
@@ -1788,7 +1769,6 @@ cs2_host_ui_invoke(
     {
         int component = cs2vm_host_pop_int(ctx);
         int model_id = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         if( st->tree )
             (void)uitree_apply_model(st->tree, component, model_id);
         break;
@@ -1797,7 +1777,6 @@ cs2_host_ui_invoke(
     {
         int component = cs2vm_host_pop_int(ctx);
         int transparent = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         if( st->tree )
             (void)uitree_apply_model_transparent(st->tree, component, transparent);
         break;
@@ -1806,7 +1785,6 @@ cs2_host_ui_invoke(
     {
         int component = cs2vm_host_pop_int(ctx);
         char* text = cs2vm_host_pop_string(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         if( st->tree )
             (void)uitree_apply_op_base(st->tree, component, text ? text : "");
         break;
@@ -1815,15 +1793,13 @@ cs2_host_ui_invoke(
     {
         int component = cs2vm_host_pop_int(ctx);
         (void)cs2vm_host_pop_string(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         break;
     }
     case CS2_OP_IF_CLEAROPS:
     {
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         if( st->tree )
-            (void)uitree_clear_ops(st->tree, component, ctx->active_component);
+            (void)uitree_clear_ops(st->tree, component, component);
         break;
     }
     case CS2_OP__2308:
@@ -1831,14 +1807,12 @@ cs2_host_ui_invoke(
     {
         int component = cs2vm_host_pop_int(ctx);
         (void)cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         break;
     }
     case CS2_OP_IF_CLEAROPSUBMENU:
     {
         int component = cs2vm_host_pop_int(ctx);
         (void)cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
         break;
     }
     case CS2_OP_IF_SETOPSUBMENU:
@@ -1849,7 +1823,6 @@ cs2_host_ui_invoke(
         char* text = NULL;
         if( !cs2vm_host_try_pop_string(ctx, &text) )
             text = "";
-        cs2vm_host_set_active_component(ctx, component);
         (void)sub_index;
         (void)op_index;
         (void)text;
@@ -1878,16 +1851,14 @@ cs2_host_ui_invoke(
     {
         int zone = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_drag_dead_zone(st, component, ctx->active_component, zone);
+        cs2_host_ui_apply_drag_dead_zone(st, component, component, zone);
         break;
     }
     case CS2_OP_IF_SETDRAGDEADTIME:
     {
         int time = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
-        cs2vm_host_set_active_component(ctx, component);
-        cs2_host_ui_apply_drag_dead_time(st, component, ctx->active_component, time);
+        cs2_host_ui_apply_drag_dead_time(st, component, component, time);
         break;
     }
     case CS2_OP_MAP_WORLD:

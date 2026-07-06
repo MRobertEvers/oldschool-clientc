@@ -1576,6 +1576,7 @@ ie_cs2_run_component_hook(
         return true;
 
     cs2vm_set_active_component(game->cs2vm, comp->id);
+    cs2vm_set_dot_component(game->cs2vm, comp->id);
     int const rc = cs2vm_run(game->cs2vm, script, &game->cs2host, &args);
     if( rc != CS2VM_OK )
     {
