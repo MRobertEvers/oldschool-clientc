@@ -130,6 +130,9 @@ struct StaticUIBehavior
     /** Client.ts clientCode: hardcoded client-side handler id. */
     int client_code;
 
+    /** Client.ts clickMask / IF_SETCLICKMASK runtime override (IF1/IF3 packed click bits). */
+    int32_t click_mask;
+
     /** Client.ts overLayerId (dat1 overlayer / dat2 linkedComponentId).
      *  When the mouse is over this component, hover tracking reports this id
      *  instead of component_id — used to reveal hidden tooltip layers. -1 = none. */
@@ -591,6 +594,13 @@ uitree_apply_hide(
     struct UITree* tree,
     int component_id,
     int hide);
+
+/** Apply CS2 IF_SETCLICKMASK to a node (by packed component id). Returns true if updated. */
+bool
+uitree_apply_click_mask(
+    struct UITree* tree,
+    int component_id,
+    int32_t click_mask);
 
 /** Apply CS2 IF/CC text to RS_TEXT node. Returns true if updated. */
 bool

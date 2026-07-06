@@ -1003,3 +1003,136 @@ ToriDraw2D_DrawString(
 
     return pixels_written;
 }
+
+static int
+font_max_ascent(struct ToriDraw_Font* font)
+{
+    int ascent = 0;
+    if( !font )
+        return 1;
+
+    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+    {
+        int const top = -font->offset_y[i];
+        if( top > ascent )
+            ascent = top;
+    }
+    if( ascent <= 0 )
+        ascent = font->line_height > 0 ? font->line_height : 1;
+    return ascent;
+}
+
+enum
+{
+    FONT_DRAW_BOX_MAX_LINES = 64,
+};
+
+int
+ToriDraw2D_DrawStringBox(
+    struct ToriDraw_Font* font,
+    struct ToriDraw_ViewPort* view_port,
+    int x,
+    int y,
+    int w,
+    int h,
+    char const* text,
+    int color,
+    int x_align,
+    int y_align,
+    int line_height,
+    bool shadowed,
+    int* pixel_buffer)
+{
+    assert(font && view_port && text && pixel_buffer);
+
+    if( !ToriDraw_FontValidate(font) )
+    {
+        assert(!"ToriDraw2D_DrawStringBox: invalid font");
+        return 0;
+    }
+
+    char const* lines[FONT_DRAW_BOX_MAX_LINES];
+    int line_lens[FONT_DRAW_BOX_MAX_LINES];
+    int line_count = 0;
+    char const* rest = text;
+    while( rest && rest[0] != '\0' && line_count < FONT_DRAW_BOX_MAX_LINES )
+    {
+        int line_len = 0;
+        int break_advance = 0;
+        char const* break_at = font_next_line(rest, &line_len, &break_advance);
+        lines[line_count] = rest;
+        line_lens[line_count] = line_len;
+        line_count++;
+        if( break_advance == 0 )
+            break;
+        rest = break_at + break_advance;
+    }
+
+    if( line_count <= 0 )
+        return 0;
+
+    int const resolved_lh =
+        line_height > 0 ? line_height : (font->line_height > 0 ? font->line_height : 1);
+    int const ascent = font_max_ascent(font);
+    int const descent = 0;
+    int const logical_h =
+        h > 0 ? h : ascent + descent + resolved_lh * (line_count > 0 ? line_count - 1 : 0);
+    int const logical_w = w > 0 ? w : 1;
+
+    int base_y0 = ascent;
+    if( y_align == 1 )
+    {
+        int const space =
+            logical_h - ascent - descent - resolved_lh * (line_count > 0 ? line_count - 1 : 0);
+        base_y0 = ascent + space / 2;
+    }
+    else if( y_align == 2 )
+    {
+        base_y0 = logical_h - descent - resolved_lh * (line_count > 0 ? line_count - 1 : 0);
+    }
+
+    int const cl = view_port->clip_left;
+    int const ct = view_port->clip_top;
+    int const cr = view_port->clip_right;
+    int const cb = view_port->clip_bottom;
+    int const stride = view_port->stride;
+
+    int pixels_written = 0;
+    for( int i = 0; i < line_count; i++ )
+    {
+        int line_x = x;
+        if( line_lens[i] > 0 )
+        {
+            int const tw = font_measure_range(font, lines[i], line_lens[i]);
+            if( x_align == 1 )
+                line_x = x + (logical_w - tw) / 2;
+            else if( x_align == 2 )
+                line_x = x + logical_w - tw;
+        }
+
+        int const draw_y = y + base_y0 + i * resolved_lh - font->line_height;
+        if( line_lens[i] <= 0 )
+            continue;
+
+        if( shadowed )
+        {
+            pixels_written += font_draw_string_shadow_range(
+                font, lines[i], line_lens[i], line_x, draw_y, cl, ct, cr, cb, stride, pixel_buffer);
+        }
+        pixels_written += font_draw_string_range(
+            font,
+            lines[i],
+            line_lens[i],
+            line_x,
+            draw_y,
+            color,
+            cl,
+            ct,
+            cr,
+            cb,
+            stride,
+            pixel_buffer);
+    }
+
+    return pixels_written;
+}

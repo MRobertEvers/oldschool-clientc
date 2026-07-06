@@ -287,7 +287,8 @@
 /* Set scroll size. in: component, scroll_w, scroll_h (scroll_h top). out: -. */
 #define CS2_OP_IF_SETSCROLLSIZE 2120
 #define CS2_OP_IF_RESUME_PAUSEBUTTON 2121
-#define CS2_OP__2122 2122
+/* Set click mask. in: component, mask (mask top). out: -. */
+#define CS2_OP_IF_SETCLICKMASK 2122
 #define CS2_OP_IF_SETFILLCOLOUR 2123
 #define CS2_OP__2124 2124
 #define CS2_OP__2125 2125

@@ -146,9 +146,37 @@ fill_rect(
         x1 = CANVAS_W;
     if( y1 > CANVAS_H )
         y1 = CANVAS_H;
+
+    int const sa = (argb >> 24) & 0xFF;
+    int const sr = (argb >> 16) & 0xFF;
+    int const sg = (argb >> 8) & 0xFF;
+    int const sb = argb & 0xFF;
+
     for( int y = y0; y < y1; y++ )
+    {
         for( int x = x0; x < x1; x++ )
-            px[y * stride + x] = argb;
+        {
+            int* dst = &px[y * stride + x];
+            if( sa >= 255 )
+            {
+                *dst = argb;
+                continue;
+            }
+            if( sa <= 0 )
+                continue;
+
+            int const da = (*dst >> 24) & 0xFF;
+            int const dr = (*dst >> 16) & 0xFF;
+            int const dg = (*dst >> 8) & 0xFF;
+            int const db = *dst & 0xFF;
+            int const inv = 255 - sa;
+            int const or = (sr * sa + dr * inv) / 255;
+            int const og = (sg * sa + dg * inv) / 255;
+            int const ob = (sb * sa + db * inv) / 255;
+            int const oa = sa + (da * inv) / 255;
+            *dst = (oa << 24) | (or << 16) | (og << 8) | ob;
+        }
+    }
 }
 
 static void
@@ -803,8 +831,10 @@ draw_text_component(
     int font_id,
     char const* text,
     int color,
-    int center,
+    int x_align,
     int shadowed,
+    int line_height,
+    int y_align,
     int px,
     int py,
     int lw,
@@ -828,9 +858,28 @@ draw_text_component(
         .stride = CANVAS_W,
     };
 
+    if( lw > 0 && lh > 0 )
+    {
+        (void)ToriDraw2D_DrawStringBox(
+            font,
+            &view_port,
+            px,
+            py,
+            lw,
+            lh,
+            text,
+            color & 0xFFFFFF,
+            x_align,
+            y_align,
+            line_height,
+            shadowed != 0,
+            ctx->pixels);
+        return;
+    }
+
     int tx = px;
     int ty = py + lh;
-    if( center && lw > 0 )
+    if( x_align == 1 && lw > 0 )
     {
         int tw = ToriDraw2D_MeasureString(font, text);
         tx = px + (lw - tw) / 2;
@@ -838,7 +887,7 @@ draw_text_component(
 
     int rgb = color & 0xFFFFFF;
     (void)ToriDraw2D_DrawString(
-        font, &view_port, tx, ty, text, rgb, center != 0, shadowed != 0, ctx->pixels);
+        font, &view_port, tx, ty, text, rgb, x_align == 1, shadowed != 0, ctx->pixels);
 }
 
 static int*
@@ -1335,6 +1384,8 @@ draw_one_component(
             comp->color,
             comp->textHorizontalAlignment,
             comp->textShadow ? 1 : 0,
+            comp->textLineHeight,
+            comp->textVerticalAlignment,
             px,
             py,
             lw,
@@ -1600,31 +1651,44 @@ collect_visible_preorder(
 }
 
 static void
-draw_cs2_tree_graphics(
+draw_cs2_tree_node(
     struct DrawContext* ctx,
-    struct UITree const* tree,
-    int32_t const* indices,
-    int index_count)
+    struct StaticUIComponent const* node)
 {
-    if( !ctx || !tree || !indices || index_count <= 0 )
+    if( !ctx || !node || node->behavior.hide )
         return;
 
-    for( int i = 0; i < index_count; i++ )
-    {
-        struct StaticUIComponent const* node = &tree->components[indices[i]];
-        if( node->type != UIELEM_RS_GRAPHIC )
-            continue;
-        if( node->item_id > 0 )
-            continue;
-        if( node->u.rs_graphic.graphic_hitbox_only )
-            continue;
-        if( node->u.rs_graphic.scene_id <= 0 )
-            continue;
+    int px = node->position.abs_x;
+    int py = node->position.abs_y;
+    int pw = node->position.abs_w > 0 ? node->position.abs_w : 1;
+    int ph = node->position.abs_h > 0 ? node->position.abs_h : 1;
+    if( pw <= 0 || ph <= 0 )
+        return;
 
-        int px = node->position.abs_x;
-        int py = node->position.abs_y;
-        int pw = node->position.abs_w > 0 ? node->position.abs_w : 36;
-        int ph = node->position.abs_h > 0 ? node->position.abs_h : 36;
+    if( node->type == UIELEM_RS_RECT )
+    {
+        int alpha = 255 - node->trans;
+        if( alpha < 0 )
+            alpha = 0;
+        else if( alpha > 255 )
+            alpha = 255;
+        int argb = (alpha << 24) | (node->u.rs_rect.color & 0xFFFFFF);
+        if( node->u.rs_rect.filled )
+            fill_rect(ctx->pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
+        else
+            draw_rect_outline(ctx->pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
+        return;
+    }
+
+    if( node->type == UIELEM_RS_GRAPHIC )
+    {
+        if( node->item_id > 0 )
+            return;
+        if( node->u.rs_graphic.graphic_hitbox_only )
+            return;
+        if( node->u.rs_graphic.scene_id <= 0 )
+            return;
+
         struct SpriteChromeOpts chrome = {
             .outline = node->u.rs_graphic.outline,
             .graphic_shadow = node->u.rs_graphic.graphic_shadow,
@@ -1647,31 +1711,13 @@ draw_cs2_tree_graphics(
             node->u.rs_graphic.tiled != 0,
             trans_scale,
             &chrome);
-    }
-}
-
-static void
-draw_cs2_tree_text(
-    struct DrawContext* ctx,
-    struct UITree const* tree,
-    int32_t const* indices,
-    int index_count)
-{
-    if( !ctx || !tree || !indices || index_count <= 0 )
         return;
+    }
 
-    for( int i = 0; i < index_count; i++ )
+    if( node->type == UIELEM_RS_TEXT )
     {
-        struct StaticUIComponent const* node = &tree->components[indices[i]];
-        if( node->type != UIELEM_RS_TEXT )
-            continue;
         if( !node->u.rs_text.text || !node->u.rs_text.text[0] )
-            continue;
-
-        int px = node->position.abs_x;
-        int py = node->position.abs_y;
-        int pw = node->position.abs_w > 0 ? node->position.abs_w : 0;
-        int ph = node->position.abs_h > 0 ? node->position.abs_h : 0;
+            return;
         draw_text_component(
             ctx,
             ctx->font_cache,
@@ -1680,33 +1726,17 @@ draw_cs2_tree_text(
             node->u.rs_text.color,
             node->u.rs_text.center,
             node->u.rs_text.shadowed,
+            node->u.rs_text.line_height,
+            node->u.rs_text.y_align,
             px,
             py,
             pw,
             ph);
-    }
-}
-
-static void
-draw_cs2_tree_lines(
-    struct DrawContext* ctx,
-    struct UITree const* tree,
-    int32_t const* indices,
-    int index_count)
-{
-    if( !ctx || !tree || !indices || index_count <= 0 )
         return;
+    }
 
-    for( int i = 0; i < index_count; i++ )
+    if( node->type == UIELEM_RS_LINE )
     {
-        struct StaticUIComponent const* node = &tree->components[indices[i]];
-        if( node->type != UIELEM_RS_LINE )
-            continue;
-
-        int px = node->position.abs_x;
-        int py = node->position.abs_y;
-        int pw = node->position.abs_w > 0 ? node->position.abs_w : 1;
-        int ph = node->position.abs_h > 0 ? node->position.abs_h : 1;
         draw_line_component(
             ctx->pixels,
             node->u.rs_line.color,
@@ -1716,30 +1746,12 @@ draw_cs2_tree_lines(
             py,
             pw,
             ph);
-    }
-}
-
-static void
-draw_cs2_tree_objs(
-    struct DrawContext* ctx,
-    struct UITree const* tree,
-    int32_t const* indices,
-    int index_count)
-{
-    if( !ctx || !tree || !indices || index_count <= 0 )
         return;
+    }
 
-    for( int i = 0; i < index_count; i++ )
+    int obj_id = node_item_obj_id(node);
+    if( obj_id > 0 )
     {
-        struct StaticUIComponent const* node = &tree->components[indices[i]];
-        int obj_id = node_item_obj_id(node);
-        if( obj_id <= 0 )
-            continue;
-
-        int px = node->position.abs_x;
-        int py = node->position.abs_y;
-        int pw = node->position.abs_w > 0 ? node->position.abs_w : 36;
-        int ph = node->position.abs_h > 0 ? node->position.abs_h : 36;
         blit_obj_icon_centered(ctx, obj_id, px, py, pw, ph);
     }
 }
@@ -1770,10 +1782,8 @@ draw_cs2_tree_overlays(
 
     if( indices && index_count > 0 )
     {
-        draw_cs2_tree_graphics(ctx, tree, indices, index_count);
-        draw_cs2_tree_text(ctx, tree, indices, index_count);
-        draw_cs2_tree_lines(ctx, tree, indices, index_count);
-        draw_cs2_tree_objs(ctx, tree, indices, index_count);
+        for( int i = 0; i < index_count; i++ )
+            draw_cs2_tree_node(ctx, &tree->components[indices[i]]);
     }
 
     free(indices);

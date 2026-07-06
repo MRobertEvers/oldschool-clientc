@@ -685,13 +685,28 @@ cs2_rt_exec_opcode(
             host->resolve_script ? host->resolve_script(host->ud, operand) : NULL;
         if( !callee )
         {
+            int int_args = 0;
+            int str_args = 0;
+            if( host->script_arg_counts &&
+                host->script_arg_counts(host->ud, operand, &int_args, &str_args) )
+            {
+                int const argc = int_args + str_args;
+                for( int i = argc - 1; i >= 0; i-- )
+                {
+                    if( i < str_args )
+                        (void)cs2_rt_pop_str(rt);
+                    else
+                        (void)cs2_rt_pop_int(rt);
+                }
+            }
             fprintf(
                 stderr,
                 "cs2vm: gosub script %d not resolved (script_id=%d pc=%d)\n",
                 operand,
                 frame->script ? frame->script->script_id : -1,
                 frame->pc);
-            break;
+            rt->run_error = CS2VM_ERR_INVALID;
+            return false;
         }
         struct CS2VMFrame* caller = frame;
         caller->return_pc = caller->pc;

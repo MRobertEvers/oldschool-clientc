@@ -308,6 +308,19 @@
       "MIMode": "lldb"
     },
     {
+      "name": "(lldb) Launch interfacex test",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/tools/interfacex/interfacex",
+      "args": [
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/tools/interfacex",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "lldb"
+    },
+    {
       "name": "(lldb) Launch ioreactor test",
       "type": "cppdbg",
       "request": "launch",

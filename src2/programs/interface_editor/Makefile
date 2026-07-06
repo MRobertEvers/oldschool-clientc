@@ -139,11 +139,7 @@ COMMON_SRCS := interface_editor.c \
 	$(SRC2)/vm/cs1vm.c \
 	$(SRC2)/vm/cs1vm_host.c \
 	$(SRC2)/vm/cs1vm_level.c \
-	$(SRC2)/vm/cs2_script.c \
-	$(SRC2)/vm/cs2vm.c \
-	$(SRC2)/vm/cs2_opcode_meta.c \
-	$(SRC2)/vm/cs2_host_ui.c \
-	$(SRC2)/vm/cs2_trigger_args.c \
+	$(SRC2)/vm/cs2vm_unity.c \
 	$(SRC2)/toriauxlib/vm/toriauxlibvm.c \
 	$(SRC_DIR)/osrs/varp_varbit_manager.c \
 	$(SRC2)/toridraw/toridraw_animation.c \

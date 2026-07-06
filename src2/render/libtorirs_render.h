@@ -168,6 +168,8 @@ struct LibToriRS_RenderCommand_Font
     int y;
     int color;
     int center;
+    int y_align;
+    int line_height;
     int shadowed;
     int width;
     int height;

@@ -19,10 +19,7 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/vm/cs1vm.c \
 	$(SRC2_DIR)/vm/cs1vm_host.c \
 	$(SRC2_DIR)/vm/cs1vm_level.c \
-	$(SRC2_DIR)/vm/cs2_script.c \
-	$(SRC2_DIR)/vm/cs2vm.c \
-	$(SRC2_DIR)/vm/cs2_opcode_meta.c \
-	$(SRC2_DIR)/vm/cs2_host_ui.c \
+	$(SRC2_DIR)/vm/cs2vm_unity.c \
 	$(SRC2_DIR)/toriauxlib/vm/toriauxlibvm.c \
 	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore.c \
 	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c \

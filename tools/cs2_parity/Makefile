@@ -40,11 +40,7 @@ SRCS = $(TOOL_DIR)/cs2_parity.c \
 	$(SRC2_DIR)/ui/rs_inv_container.c \
 	$(SRC2_DIR)/ui/ui_inv_data_service.c \
 	$(SRC2_DIR)/vm/cs1vm.c \
-	$(SRC2_DIR)/vm/cs2vm.c \
-	$(SRC2_DIR)/vm/cs2_opcode_meta.c \
-	$(SRC2_DIR)/vm/cs2_script.c \
-	$(SRC2_DIR)/vm/cs2_trigger_args.c \
-	$(SRC2_DIR)/vm/cs2_host_ui.c \
+	$(SRC2_DIR)/vm/cs2vm_unity.c \
 	$(SRC2_DIR)/games/ie_enum_lookup.c \
 	$(SRC2_DIR)/games/ie_struct_lookup.c \
 	$(SRC2_DIR)/games/ie_param_lookup.c \
@@ -142,19 +138,7 @@ $(OBJ_DIR)/ui_inv_data_service.o: $(SRC2_DIR)/ui/ui_inv_data_service.c
 $(OBJ_DIR)/cs1vm.o: $(SRC2_DIR)/vm/cs1vm.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/cs2vm.o: $(SRC2_DIR)/vm/cs2vm.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/cs2_opcode_meta.o: $(SRC2_DIR)/vm/cs2_opcode_meta.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/cs2_script.o: $(SRC2_DIR)/vm/cs2_script.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/cs2_trigger_args.o: $(SRC2_DIR)/vm/cs2_trigger_args.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/cs2_host_ui.o: $(SRC2_DIR)/vm/cs2_host_ui.c
+$(OBJ_DIR)/cs2vm_unity.o: $(SRC2_DIR)/vm/cs2vm_unity.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/ie_enum_lookup.o: $(SRC2_DIR)/games/ie_enum_lookup.c

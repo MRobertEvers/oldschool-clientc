@@ -68,6 +68,7 @@ struct CS2HostUIState
     int viewport_w;
     int viewport_h;
     int client_type;
+    int window_mode;
     int32_t active_node_index;
     int clock_ticks;
     int varc_int[CS2_HOST_UI_VARC_INT_MAX];
@@ -555,6 +556,19 @@ cs2_host_ui_apply_hide(
         return;
     st->tree->components[idx].behavior.hide = hide ? 1 : 0;
     uitree_mark_node_dirty(st->tree, idx);
+}
+
+static void
+cs2_host_ui_apply_click_mask(
+    struct CS2HostUIState* st,
+    int component_id,
+    int active_component,
+    int32_t click_mask)
+{
+    if( !st || !st->tree )
+        return;
+    int target = component_id >= 0 ? component_id : active_component;
+    (void)uitree_apply_click_mask(st->tree, target, click_mask);
 }
 
 static void
@@ -1509,6 +1523,13 @@ cs2_host_ui_invoke(
         cs2_host_ui_apply_hide(st, component, component, hide);
         break;
     }
+    case CS2_OP_IF_SETCLICKMASK:
+    {
+        int mask = cs2vm_host_pop_int(ctx);
+        int component = cs2vm_host_pop_int(ctx);
+        cs2_host_ui_apply_click_mask(st, component, component, (int32_t)mask);
+        break;
+    }
     case CS2_OP_IF_SETTEXT:
     {
         char* text = cs2vm_host_pop_string(ctx);
@@ -2166,6 +2187,9 @@ cs2_host_ui_invoke(
             cs2vm_host_push_int(ctx, 0);
         break;
     }
+    case CS2_OP_GETWINDOWMODE:
+        cs2vm_host_push_int(ctx, st->window_mode > 0 ? st->window_mode : 1);
+        break;
     default:
     {
         const struct CS2_OpcodeMeta* meta = cs2_opcode_meta_lookup(ctx->opcode);
@@ -2218,6 +2242,7 @@ cs2_host_ui_init(
         s_cs2_host_ui_state.viewport_w = args->viewport_w;
         s_cs2_host_ui_state.viewport_h = args->viewport_h;
         s_cs2_host_ui_state.client_type = args->client_type > 0 ? args->client_type : 80;
+        s_cs2_host_ui_state.window_mode = args->window_mode > 0 ? args->window_mode : 1;
         s_cs2_host_ui_state.active_node_index = -1;
         s_cs2_host_ui_state.clock_ticks = 0;
     }

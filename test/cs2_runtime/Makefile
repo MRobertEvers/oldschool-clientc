@@ -13,10 +13,7 @@ CFLAGS = -std=c11 -Wall -Wextra -g \
 LDFLAGS = -Wl,-dead_strip -lm
 
 SRCS = main.c stubs.c \
-	$(SRC2_DIR)/vm/cs2_script.c \
-	$(SRC2_DIR)/vm/cs2vm.c \
-	$(SRC2_DIR)/vm/cs2_opcode_meta.c \
-	$(SRC2_DIR)/vm/cs2_host_ui.c \
+	$(SRC2_DIR)/vm/cs2vm_unity.c \
 	$(SRC2_DIR)/vm/cs1vm.c \
 	$(SRC2_DIR)/games/ie_enum_lookup.c \
 	$(SRC2_DIR)/games/ie_struct_lookup.c \

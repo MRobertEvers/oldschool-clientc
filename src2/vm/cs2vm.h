@@ -35,6 +35,12 @@ struct CS2Host
     void (*set_varc_int)(void* ud, int id, int value);
     void (*set_varc_string)(void* ud, int id, char const* value);
     struct CS2_Script* (*resolve_script)(void* ud, int script_id);
+    /** Optional: callee argc for failed GOSUB cleanup (return false if unknown). */
+    bool (*script_arg_counts)(
+        void* ud,
+        int script_id,
+        int* out_int_args,
+        int* out_str_args);
     void (*invoke)(void* ud, struct CS2_InvokeCtx* ctx);
     /** CS2 enum(input_type, output_type, enum_id, key); return -1 if missing. */
     int (*enum_lookup)(void* ud, int input_type, int output_type, int enum_id, int key);

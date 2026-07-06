@@ -3077,23 +3077,18 @@ GameRunescape_EmitUIComponent(
             return false;
         GameRunescape_AssertSceneFontReady(game, component->u.rs_text.font_id, "rs_text");
         {
-            struct ToriDraw_Font* font =
-                ToriDraw_SceneFontGet(game->scene, component->u.rs_text.font_id);
-            assert(font && "rs_text: font missing after AssertSceneFontReady");
-            int const lh = font->line_height > 0 ? font->line_height : 1;
-            int draw_x = bx;
-            if( component->u.rs_text.center && bw > 0 )
-                draw_x = bx + bw / 2;
             command->kind = TORIRSRC_FONT;
             command->u.font.font_id = component->u.rs_text.font_id;
-            command->u.font.x = draw_x;
-            command->u.font.y = by + lh;
+            command->u.font.x = bx;
+            command->u.font.y = by;
             {
                 struct UITreeHoverIds const hover_ids = GameRunescape_UIHoverIds(game);
                 command->u.font.color = uitree_component_text_color_host(
                     component, &hover_ids, &game->ui_host, component->u.rs_text.color);
             }
             command->u.font.center = component->u.rs_text.center;
+            command->u.font.y_align = component->u.rs_text.y_align;
+            command->u.font.line_height = component->u.rs_text.line_height;
             command->u.font.shadowed = component->u.rs_text.shadowed;
             command->u.font.width = bw;
             command->u.font.height = bh;

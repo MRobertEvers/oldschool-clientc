@@ -41,7 +41,7 @@
 #define IE_SPRITE_CACHE_MAX 512
 #define IE_FONT_CACHE_MAX 32
 #define IE_SPRITE_PICKER_PAGE_SIZE 80
-#define IE_SCRIPT_CACHE_MAX 64
+#define IE_SCRIPT_CACHE_MAX 512
 #define IE_RUNTIME_INV_HOOK_MAX 32
 #define IE_RUNTIME_HOOK_MAX 256
 #define IE_TRANSMIT_RING_SIZE 32
@@ -243,6 +243,8 @@ struct InterfaceEditorDrawItem
     int font_id;
     int color;
     int center;
+    int y_align;
+    int line_height;
     int shadowed;
     char text[IE_TEXT_FIELD_LEN];
     int sprite_element_id;

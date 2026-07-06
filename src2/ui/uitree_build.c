@@ -69,6 +69,8 @@ uitree_push_component(
         spec.u.rs_text.font_id = comp->font_id >= 0 ? comp->font_id : 495;
         spec.u.rs_text.color = comp->color;
         spec.u.rs_text.center = comp->text_h_align;
+        spec.u.rs_text.y_align = comp->text_v_align;
+        spec.u.rs_text.line_height = comp->text_line_height;
         spec.u.rs_text.shadowed = comp->shadowed ? 1 : 0;
         spec.u.rs_text.text = comp->text[0] != '\0' ? comp->text : NULL;
         break;

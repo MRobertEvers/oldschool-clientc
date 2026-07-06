@@ -40,6 +40,7 @@ python3 tools/cs2_gen_opcodes/validate_cache.py cache
 | [`dat2a_clientscript.c`](src/osrs/rscache/dat2a/dat2a_clientscript.c) | RuneStar `Script.kt` decode |
 | [`cs2vm.c`](src2/vm/cs2vm.c) | Dual-stack interpreter (`CS2VM` state) |
 | [`cs2vm.h`](src2/vm/cs2vm.h) | `CS2VM`, `CS2Host`, invoke helpers |
+| [`cs2vm_unity.c`](src2/vm/cs2vm_unity.c) | Unity build — compile once to link all CS2 VM `.c` files |
 | [`cs2_host_ui.c`](src2/vm/cs2_host_ui.c) | Concrete `CS2Host` wiring + `CC_*` / `IF_*` invoke handlers (mutate `UITree`) |
 
 ## Host callbacks (`CS2Host`)
@@ -54,6 +55,14 @@ All external data and UI effects go through `CS2Host`:
 optional `on_varp_change` callback used to queue `onVarpTransmit` dispatch.
 
 VM-native opcodes (branches, locals, arithmetic, arrays, gosub, return) run inside `cs2vm.c`.
+
+## Unity build
+
+Full-VM consumers should compile [`cs2vm_unity.c`](src2/vm/cs2vm_unity.c) once instead of listing
+`cs2_opcode_meta.c`, `cs2_script.c`, `cs2_trigger_args.c`, `cs2vm.c`, and `cs2_host_ui.c`
+separately. Add `-I<repo>/src2` and `#include "vm/cs2vm.h"` (and `cs2_host_ui.h` as needed) for
+the public API. Partial consumers that only need decode helpers (e.g. `dump_interface`) should
+continue to compile individual files.
 
 Host invoke helpers (`cs2vm_host_pop_int`, `cs2vm_host_push_int`, etc.) manipulate the
 active `CS2VM` stack from within `invoke` handlers.

@@ -107,4 +107,21 @@ ToriDraw2D_DrawString(
     bool shadowed,
     int* pixel_buffer);
 
+/** Multi-line widget text with box alignment (OSRS drawLines semantics). */
+int
+ToriDraw2D_DrawStringBox(
+    struct ToriDraw_Font* font,
+    struct ToriDraw_ViewPort* view_port,
+    int x,
+    int y,
+    int w,
+    int h,
+    char const* text,
+    int color,
+    int x_align,
+    int y_align,
+    int line_height,
+    bool shadowed,
+    int* pixel_buffer);
+
 #endif

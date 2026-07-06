@@ -397,6 +397,20 @@ uitree_apply_hide(
 }
 
 bool
+uitree_apply_click_mask(
+    struct UITree* tree,
+    int component_id,
+    int32_t click_mask)
+{
+    int32_t idx = uitree_resolve_component_target(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    tree->components[idx].behavior.click_mask = click_mask;
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
 uitree_apply_text(
     struct UITree* tree,
     int component_id,
@@ -1277,6 +1291,8 @@ uitree_push(
         component->u.rs_text.font_id = font_id;
         component->u.rs_text.color = spec->u.rs_text.color;
         component->u.rs_text.center = spec->u.rs_text.center;
+        component->u.rs_text.y_align = spec->u.rs_text.y_align;
+        component->u.rs_text.line_height = spec->u.rs_text.line_height;
         component->u.rs_text.shadowed = spec->u.rs_text.shadowed;
         component->u.rs_text.text = text_owned;
         component->u.rs_text.text_active = text_active_owned;

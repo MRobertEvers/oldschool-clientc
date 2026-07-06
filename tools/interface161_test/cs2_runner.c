@@ -883,6 +883,7 @@ interface161_cs2_init_host_shell(
         .viewport_w = ctx->root_w,
         .viewport_h = ctx->root_h,
         .client_type = 80,
+        .window_mode = 1,
     };
     cs2_host_ui_init(&s_runner.host, &args);
     s_runner.host.resolve_script = interface161_cs2_resolve_script;

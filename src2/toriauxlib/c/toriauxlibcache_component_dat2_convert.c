@@ -310,6 +310,8 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
     dst->graphic = src->graphic;
     dst->transparency = src->transparency;
     dst->text_h_align = src->textHorizontalAlignment;
+    dst->text_v_align = src->textVerticalAlignment;
+    dst->text_line_height = src->textLineHeight;
     dst->drag_dead_zone = src->dragDeadZone;
     dst->drag_dead_time = src->dragDeadTime;
     if( src->type == COMPONENT_TYPE_LAYER )

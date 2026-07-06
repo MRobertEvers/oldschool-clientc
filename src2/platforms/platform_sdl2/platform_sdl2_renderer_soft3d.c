@@ -39,9 +39,37 @@ soft3d_fill_rect(
         x1 = width;
     if( y1 > height )
         y1 = height;
+
+    int const sa = (argb >> 24) & 0xFF;
+    int const sr = (argb >> 16) & 0xFF;
+    int const sg = (argb >> 8) & 0xFF;
+    int const sb = argb & 0xFF;
+
     for( int y = y0; y < y1; y++ )
+    {
         for( int x = x0; x < x1; x++ )
-            pixels[y * stride + x] = argb;
+        {
+            int* dst = &pixels[y * stride + x];
+            if( sa >= 255 )
+            {
+                *dst = argb;
+                continue;
+            }
+            if( sa <= 0 )
+                continue;
+
+            int const da = (*dst >> 24) & 0xFF;
+            int const dr = (*dst >> 16) & 0xFF;
+            int const dg = (*dst >> 8) & 0xFF;
+            int const db = *dst & 0xFF;
+            int const inv = 255 - sa;
+            int const or = (sr * sa + dr * inv) / 255;
+            int const og = (sg * sa + dg * inv) / 255;
+            int const ob = (sb * sa + db * inv) / 255;
+            int const oa = sa + (da * inv) / 255;
+            *dst = (oa << 24) | (or << 16) | (og << 8) | ob;
+        }
+    }
 }
 
 #define SOFT3D_SPRITE_ELEMENT_CAP 256
@@ -480,34 +508,36 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 vp.clip_right = command.u.font.scissor_x + command.u.font.scissor_w;
                 vp.clip_bottom = command.u.font.scissor_y + command.u.font.scissor_h;
             }
-            int const pixels_written = ToriDraw2D_DrawString(
-                font,
-                &vp,
-                command.u.font.x,
-                command.u.font.y,
-                command.u.font.text,
-                command.u.font.color,
-                command.u.font.center != 0,
-                command.u.font.shadowed != 0,
-                renderer->pixel_buffer);
-            // if( command.u.font.text[0] != '\0' && pixels_written <= 0 )
-            // {
-            //     fprintf(stderr,
-            //         "TORIRSRC_FONT: wrote no visible glyph pixels "
-            //         "(font_id=%d text=\"%.32s%s\" x=%d y=%d line_height=%d "
-            //         "clip=[%d,%d,%d,%d] pixels_written=%d)\n",
-            //         font_id,
-            //         command.u.font.text,
-            //         strlen(command.u.font.text) > 32 ? "..." : "",
-            //         command.u.font.x,
-            //         command.u.font.y,
-            //         font->line_height,
-            //         renderer->iface_view_port.clip_left,
-            //         renderer->iface_view_port.clip_top,
-            //         renderer->iface_view_port.clip_right,
-            //         renderer->iface_view_port.clip_bottom,
-            //         pixels_written);
-            // }
+            if( command.u.font.width > 0 && command.u.font.height > 0 )
+            {
+                (void)ToriDraw2D_DrawStringBox(
+                    font,
+                    &vp,
+                    command.u.font.x,
+                    command.u.font.y,
+                    command.u.font.width,
+                    command.u.font.height,
+                    command.u.font.text,
+                    command.u.font.color,
+                    command.u.font.center,
+                    command.u.font.y_align,
+                    command.u.font.line_height,
+                    command.u.font.shadowed != 0,
+                    renderer->pixel_buffer);
+            }
+            else
+            {
+                (void)ToriDraw2D_DrawString(
+                    font,
+                    &vp,
+                    command.u.font.x,
+                    command.u.font.y,
+                    command.u.font.text,
+                    command.u.font.color,
+                    command.u.font.center != 0,
+                    command.u.font.shadowed != 0,
+                    renderer->pixel_buffer);
+            }
             break;
         }
         default:

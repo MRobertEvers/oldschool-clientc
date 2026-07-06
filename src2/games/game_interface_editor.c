@@ -1,3 +1,4 @@
+#include "buildcache/dat2_buildcache.h"
 #include "ie_enum_lookup.h"
 #include "ie_struct_lookup.h"
 #include "interface_editor.h"
@@ -27,14 +28,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static uint16_t k_empty_script_opcodes[] = { CS2_OP_RETURN };
-static int k_empty_script_operands[] = { 0 };
-static struct CS2_Script k_empty_script = {
-    .op_count = 1,
-    .opcodes = k_empty_script_opcodes,
-    .int_operands = k_empty_script_operands,
-};
 
 /** Active game during CS2 script resolution callbacks. */
 static struct GameInterfaceEditor* s_ie_cs2_game;
@@ -113,7 +106,7 @@ ie_enumerate_sprite_ids(struct GameInterfaceEditor* game);
 
 static struct RSCacheDat2A_ConfigObject*
 ie_load_object_config(
-    struct RSCacheDat2Disk* cache,
+    struct GameInterfaceEditor* game,
     int obj_id);
 
 static void
@@ -294,7 +287,9 @@ ie_push_draw_font(
     char const* text,
     int color,
     int center,
-    int shadowed)
+    int shadowed,
+    int line_height,
+    int y_align)
 {
     if( !text || !text[0] || game->draw_count >= IE_MAX_DRAW_ITEMS )
         return;
@@ -311,8 +306,14 @@ ie_push_draw_font(
     item->color = color;
     item->center = center;
     item->shadowed = shadowed;
+    item->line_height = line_height;
+    item->y_align = y_align;
     snprintf(item->text, sizeof(item->text), "%s", text);
 }
+
+#define ie_push_draw_font_ui(game, x, y, w, h, font_id, text, color, center, shadowed) \
+    ie_push_draw_font(                                                                 \
+        (game), (x), (y), (w), (h), (font_id), (text), (color), (center), (shadowed), 0, 0)
 
 static void
 ie_push_draw_sprite(
@@ -1418,34 +1419,120 @@ ie_cs2_resolve_obj_icon(
     return true;
 }
 
-static void
+static bool
 ie_cs2_cache_script(
     struct GameInterfaceEditor* game,
     int script_id)
 {
     if( !game || !game->dat2_cache || script_id < 0 )
-        return;
+        return false;
 
     for( int i = 0; i < game->script_cache_count; i++ )
     {
         if( game->script_cache[i].script_id == script_id )
-            return;
+            return true;
     }
 
     if( game->script_cache_count >= IE_SCRIPT_CACHE_MAX )
-        return;
+    {
+        if( game->cs2_trace_enabled )
+        {
+            fprintf(
+                stderr,
+                "ie_cs2: script cache full, cannot load script %d\n",
+                script_id);
+        }
+        return false;
+    }
 
     struct RSCacheDat2Disk_Archive* archive = RSCacheDat2Disk_ArchiveNewLoad(
         game->dat2_cache, RSCacheDat2Disk_Table_Clientscript, script_id);
+    if( !archive )
+    {
+        if( game->cs2_trace_enabled )
+        {
+            fprintf(stderr, "ie_cs2: script %d not found in cache\n", script_id);
+        }
+        return false;
+    }
+
     struct ToriAuxLibCore_ClientScript* loaded =
         ToriAuxLibCache_ClientScriptNewFromDat2Archive(
             game->dat2_cache, archive, script_id, game->clientscript_decode_flags);
     if( !loaded || loaded->script.op_count <= 0 )
-        return;
+    {
+        if( game->cs2_trace_enabled )
+        {
+            fprintf(
+                stderr,
+                "ie_cs2: failed to decode script %d from cache\n",
+                script_id);
+        }
+        if( loaded )
+        {
+            cs2_script_free(&loaded->script);
+            free(loaded);
+        }
+        return false;
+    }
 
     struct InterfaceEditorScriptEntry* entry = &game->script_cache[game->script_cache_count++];
     entry->script_id = script_id;
     entry->loaded = loaded;
+    return true;
+}
+
+static bool
+ie_cs2_script_arg_counts(
+    void* ud,
+    int script_id,
+    int* out_int_args,
+    int* out_str_args)
+{
+    (void)ud;
+    struct GameInterfaceEditor* game = s_ie_cs2_game;
+    if( !out_int_args || !out_str_args || script_id < 0 )
+        return false;
+
+    if( game )
+    {
+        for( int i = 0; i < game->script_cache_count; i++ )
+        {
+            if( game->script_cache[i].script_id != script_id )
+                continue;
+            struct CS2_Script* script = &game->script_cache[i].loaded->script;
+            *out_int_args = script->int_argument_count;
+            *out_str_args = script->string_argument_count;
+            return true;
+        }
+    }
+
+    if( !game || !game->dat2_cache )
+        return false;
+
+    struct RSCacheDat2Disk_Archive* archive = RSCacheDat2Disk_ArchiveNewLoad(
+        game->dat2_cache, RSCacheDat2Disk_Table_Clientscript, script_id);
+    if( !archive )
+        return false;
+
+    struct ToriAuxLibCore_ClientScript* loaded =
+        ToriAuxLibCache_ClientScriptNewFromDat2Archive(
+            game->dat2_cache, archive, script_id, game->clientscript_decode_flags);
+    if( !loaded || loaded->script.op_count <= 0 )
+    {
+        if( loaded )
+        {
+            cs2_script_free(&loaded->script);
+            free(loaded);
+        }
+        return false;
+    }
+
+    *out_int_args = loaded->script.int_argument_count;
+    *out_str_args = loaded->script.string_argument_count;
+    cs2_script_free(&loaded->script);
+    free(loaded);
+    return true;
 }
 
 static struct CS2_Script*
@@ -1456,7 +1543,7 @@ ie_cs2_resolve_script(
     (void)ud;
     struct GameInterfaceEditor* game = s_ie_cs2_game;
     if( !game )
-        return &k_empty_script;
+        return NULL;
 
     for( int i = 0; i < game->script_cache_count; i++ )
     {
@@ -1464,7 +1551,7 @@ ie_cs2_resolve_script(
             return &game->script_cache[i].loaded->script;
     }
 
-    ie_cs2_cache_script(game, script_id);
+    (void)ie_cs2_cache_script(game, script_id);
 
     for( int i = 0; i < game->script_cache_count; i++ )
     {
@@ -1472,12 +1559,9 @@ ie_cs2_resolve_script(
             return &game->script_cache[i].loaded->script;
     }
 
-    if( game )
-    {
-        game->diag_gosub_unresolved++;
-        ie_push_script_error(game, "unresolved gosub script %d", script_id);
-    }
-    return &k_empty_script;
+    game->diag_gosub_unresolved++;
+    ie_push_script_error(game, "unresolved gosub script %d", script_id);
+    return NULL;
 }
 
 static int
@@ -2347,9 +2431,24 @@ ie_cs2_build_tree(struct GameInterfaceEditor* game)
 
 static struct RSCacheDat2A_ConfigObject*
 ie_load_object_config(
-    struct RSCacheDat2Disk* cache,
+    struct GameInterfaceEditor* game,
     int obj_id)
 {
+    if( !game || obj_id < 0 || !game->cache )
+        return NULL;
+
+    struct Dat2BuildCache* bc = dat2(game->cache);
+    if( !bc )
+        return NULL;
+
+    struct RSCacheDat2A_ConfigObject* cached = dat2_buildcache_object_get(bc, obj_id);
+    if( cached )
+        return cached;
+
+    struct RSCacheDat2Disk* cache = game->dat2_cache;
+    if( !cache )
+        return NULL;
+
     struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(
         cache, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Object);
     if( !arch )
@@ -2386,6 +2485,10 @@ ie_load_object_config(
 
     RSCacheShared_FileListFree(fl);
     RSCacheDat2Disk_ArchiveFree(arch);
+
+    if( out )
+        dat2_buildcache_object_add(bc, obj_id, out);
+
     return out;
 }
 
@@ -2408,12 +2511,9 @@ ie_resolve_obj_icon_sprite(
     if( game->obj_icon_cache_count >= IE_OBJ_ICON_CACHE_MAX )
         return -1;
 
-    struct RSCacheDat2A_ConfigObject* obj = ie_load_object_config(game->dat2_cache, obj_id);
+    struct RSCacheDat2A_ConfigObject* obj = ie_load_object_config(game, obj_id);
     if( !obj || obj->inventory_model_id <= 0 )
-    {
-        RSCacheDat2A_ConfigObjectFree(obj);
         return -1;
-    }
 
     int const inventory_model_id = obj->inventory_model_id;
     int const zoom2d = obj->zoom2d;
@@ -2434,8 +2534,6 @@ ie_resolve_obj_icon_sprite(
             memcpy(recolors_to, obj->recolors_to, (size_t)recolor_count * sizeof(int));
         }
     }
-    RSCacheDat2A_ConfigObjectFree(obj);
-    obj = NULL;
 
     struct RSCacheDat2A_Model* raw =
         RSCacheDat2A_ModelNewFromCache(game->dat2_cache, inventory_model_id);
@@ -2637,9 +2735,11 @@ GameInterfaceEditor_RunScripts(struct GameInterfaceEditor* game)
         .cc_create_notify_ud = game,
         .viewport_w = root_w,
         .viewport_h = root_h,
+        .window_mode = 1,
     };
     cs2_host_ui_init(&game->cs2host, &args);
     game->cs2host.resolve_script = ie_cs2_resolve_script;
+    game->cs2host.script_arg_counts = ie_cs2_script_arg_counts;
     game->cs2host.enum_lookup = ie_cs2_enum_lookup_cb;
     game->cs2host.enum_lookup_string = ie_cs2_enum_lookup_string_cb;
     game->cs2host.invoke = ie_cs2_host_invoke;
@@ -3209,15 +3309,12 @@ ie_obj_display_name(
         return buf;
     }
 
-    struct RSCacheDat2A_ConfigObject* obj = ie_load_object_config(game->dat2_cache, obj_id);
+    struct RSCacheDat2A_ConfigObject* obj = ie_load_object_config(game, obj_id);
     if( obj && obj->name && obj->name[0] )
     {
         snprintf(buf, buf_len, "%s", obj->name);
-        RSCacheDat2A_ConfigObjectFree(obj);
         return buf;
     }
-    if( obj )
-        RSCacheDat2A_ConfigObjectFree(obj);
     snprintf(buf, buf_len, "obj %d", obj_id);
     return buf;
 }
@@ -3682,7 +3779,7 @@ ie_push_property_row(
     int field_x = panel_x + panel_w / 2;
     int field_w = panel_w / 2 - 8;
 
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         panel_x + 4,
         y,
@@ -3694,7 +3791,7 @@ ie_push_property_row(
         0,
         0);
     ie_push_draw_fill(game, field_x, y + 2, field_w, row_h - 4, 0xFF2A2A2A);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         field_x + 4,
         y,
@@ -3737,7 +3834,7 @@ ie_push_checkbox_row(
     int box_x = panel_x + 4;
     ie_push_draw_fill(game, box_x, y + 3, box, box, checked ? 0xFF4A9EFF : 0xFF3A3A3A);
     ie_push_hit(game, IEHIT_PROPERTY_CHECKBOX, box_x, y, box + 120, IE_ROW_H, checkbox_id, 0);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         box_x + box + 6,
         y,
@@ -3764,7 +3861,7 @@ ie_push_property_section_header(
     int y = *y_cursor;
     if( y + IE_ROW_H >= panel_y && y < panel_y + panel_h )
     {
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             panel_x + 4,
             y,
@@ -3839,7 +3936,7 @@ ie_build_containers_panel(
         bool const selected = game->containers_source_id == si;
         ie_push_draw_fill(game, tab_x, tab_y, tab_w, IE_ROW_H, selected ? 0xFF2A3A4A : 0xFF252525);
         ie_push_hit(game, IEHIT_CONTAINER_SOURCE_TAB, tab_x, tab_y, tab_w, IE_ROW_H, si, 0);
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             tab_x + 4,
             tab_y,
@@ -3891,14 +3988,14 @@ ie_build_containers_panel(
         char obj_name[48];
         ie_obj_display_name(game, slot_data.obj_id, obj_name, sizeof(obj_name));
         snprintf(label, sizeof(label), "%d %s", slot_data.obj_id, obj_name);
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game, sx, sy + sh - 10, sw, 10, ie_default_ui_font_id(game), label, 0xAAAAAA, 1, 0);
 
         ie_push_hit(game, IEHIT_CONTAINER_SLOT_OBJ, sx, sy, sw, sh - 10, source_id, slot);
         ie_push_hit(game, IEHIT_CONTAINER_SLOT_COUNT, sx, sy + sh - 10, sw, 10, source_id, slot);
     }
 
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         x + 8,
         y + panel_h - IE_ROW_H - 4,
@@ -3929,7 +4026,7 @@ ie_build_right_panel_tabs(
         IE_ROW_H,
         game->right_tab == IE_TAB_PROPERTIES ? 0xFF2A3A4A : 0xFF252525);
     ie_push_hit(game, IEHIT_TAB_PROPERTIES, x + 2, y, tab_w, IE_ROW_H, 0, 0);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         x + 8,
         y,
@@ -3949,7 +4046,7 @@ ie_build_right_panel_tabs(
         IE_ROW_H,
         game->right_tab == IE_TAB_CONTAINERS ? 0xFF2A3A4A : 0xFF252525);
     ie_push_hit(game, IEHIT_TAB_CONTAINERS, x + tab_w + 4, y, tab_w, IE_ROW_H, 0, 0);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         x + tab_w + 12,
         y,
@@ -3982,7 +4079,7 @@ ie_build_properties_panel(
     struct InterfaceEditorWidget* sel = ie_find_widget(game, game->selected_uid);
     if( !sel )
     {
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             x + 8,
             cursor_y,
@@ -4126,7 +4223,7 @@ ie_build_properties_panel(
             IE_ROW_H,
             1,
             0);
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             x + content_w - 58,
             cursor_y - IE_ROW_H,
@@ -4346,10 +4443,10 @@ ie_build_dynamic_tree_rows(
             int indent = x + 4 + depth * 14;
             char label[128];
 
+            int const expand_indent = indent;
             if( has_children )
             {
-                ie_push_hit(game, IEHIT_TREE_EXPAND, indent, row_y, 12, IE_ROW_H, uid, 0);
-                ie_push_draw_font(
+                ie_push_draw_font_ui(
                     game,
                     indent,
                     row_y,
@@ -4367,7 +4464,7 @@ ie_build_dynamic_tree_rows(
                 label,
                 sizeof(label),
                 "Dynamic %d (%s)",
-                uid & 0xFFFF,
+                node->dynamic_child_index >= 0 ? node->dynamic_child_index : (uid & 0xFFFF),
                 ie_uitree_type_label(node->type));
 
             int label_color = uid == game->selected_uid ? 0x4A9EFF : 0xCCCCCC;
@@ -4379,7 +4476,7 @@ ie_build_dynamic_tree_rows(
                 IE_ROW_H,
                 uid == game->selected_uid ? 0xFF2A3A4A : 0x00000000);
             ie_push_hit(game, IEHIT_TREE_ROW, x, row_y, panel_w, IE_ROW_H, uid, 0);
-            ie_push_draw_font(
+            ie_push_draw_font_ui(
                 game,
                 indent,
                 row_y,
@@ -4390,6 +4487,8 @@ ie_build_dynamic_tree_rows(
                 label_color,
                 0,
                 0);
+            if( has_children )
+                ie_push_hit(game, IEHIT_TREE_EXPAND, expand_indent, row_y, 12, IE_ROW_H, uid, 0);
         }
 
         *y_cursor += IE_ROW_H;
@@ -4466,7 +4565,7 @@ ie_build_tree_root_row(
             IE_ROW_H,
             root_uid == game->selected_uid ? 0xFF2A3A4A : 0x00000000);
         ie_push_hit(game, IEHIT_TREE_ROW, x, row_y, content_w, IE_ROW_H, root_uid, 0);
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             x + 18,
             row_y,
@@ -4478,7 +4577,7 @@ ie_build_tree_root_row(
             0,
             0);
         ie_push_hit(game, IEHIT_TREE_EXPAND, x + 4, row_y, 12, IE_ROW_H, root_uid, 0);
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             x + 4,
             row_y,
@@ -4491,7 +4590,7 @@ ie_build_tree_root_row(
             0);
         ie_push_draw_fill(game, x + content_w - 22, row_y + 2, 18, IE_ROW_H - 4, 0xFF3A3A3A);
         ie_push_hit(game, IEHIT_TREE_ADD, x + content_w - 22, row_y, 18, IE_ROW_H, root_uid, 0);
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             x + content_w - 18,
             row_y,
@@ -4540,10 +4639,10 @@ ie_build_tree_rows(
             bool const has_children = ie_component_has_tree_children(game, node->uid);
             char label[128];
 
+            int const expand_indent = indent;
             if( has_children )
             {
-                ie_push_hit(game, IEHIT_TREE_EXPAND, indent, row_y, 12, IE_ROW_H, node->uid, 0);
-                ie_push_draw_font(
+                ie_push_draw_font_ui(
                     game,
                     indent,
                     row_y,
@@ -4581,7 +4680,7 @@ ie_build_tree_rows(
                 IE_ROW_H,
                 node->uid == game->selected_uid ? 0xFF2A3A4A : 0x00000000);
             ie_push_hit(game, IEHIT_TREE_ROW, x, row_y, panel_w, IE_ROW_H, node->uid, 0);
-            ie_push_draw_font(
+            ie_push_draw_font_ui(
                 game,
                 indent,
                 row_y,
@@ -4598,7 +4697,7 @@ ie_build_tree_rows(
                 int add_x = x + panel_w - 22;
                 ie_push_draw_fill(game, add_x, row_y + 2, 18, IE_ROW_H - 4, 0xFF3A3A3A);
                 ie_push_hit(game, IEHIT_TREE_ADD, add_x, row_y, 18, IE_ROW_H, node->uid, 0);
-                ie_push_draw_font(
+                ie_push_draw_font_ui(
                     game,
                     add_x + 4,
                     row_y,
@@ -4610,6 +4709,9 @@ ie_build_tree_rows(
                     0,
                     0);
             }
+            if( has_children )
+                ie_push_hit(
+                    game, IEHIT_TREE_EXPAND, expand_indent, row_y, 12, IE_ROW_H, node->uid, 0);
         }
 
         *y_cursor += IE_ROW_H;
@@ -4631,7 +4733,7 @@ ie_build_tree_panel(
     int panel_h)
 {
     ie_push_draw_fill(game, x, y, panel_w, panel_h, 0xFF1E1E1E);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         x + 4,
         y + 4,
@@ -4645,7 +4747,7 @@ ie_build_tree_panel(
 
     if( game->loaded_group_id < 0 || game->widget_count <= 0 )
     {
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             x + 8,
             y + IE_ROW_H + 12,
@@ -4796,8 +4898,10 @@ ie_draw_widget_preview(
                 font_id,
                 c->text,
                 c->color & 0xFFFFFF,
-                c->textHorizontalAlignment == 1,
-                c->textShadow);
+                c->textHorizontalAlignment,
+                c->textShadow,
+                c->textLineHeight,
+                c->textVerticalAlignment);
     }
     else if( c->type == 5 && c->graphic >= 0 )
     {
@@ -4896,50 +5000,13 @@ ie_draw_orphan_widget_graphics(
     int off_y,
     float scale);
 
-enum IETreeDrawPass
-{
-    IE_TREE_DRAW_RECT = 0,
-    IE_TREE_DRAW_GRAPHIC,
-    IE_TREE_DRAW_TEXT,
-    IE_TREE_DRAW_LINE,
-    IE_TREE_DRAW_INV,
-    IE_TREE_DRAW_OBJ,
-};
-
 static void
 ie_draw_tree_node_preview(
     struct GameInterfaceEditor* game,
     struct StaticUIComponent const* node,
     int off_x,
     int off_y,
-    float scale,
-    int pass);
-
-static void
-ie_draw_cs2_tree_pass(
-    struct GameInterfaceEditor* game,
-    int canvas_x,
-    int canvas_y,
-    float scale,
-    int pass)
-{
-    if( !game || !game->cs2_tree )
-        return;
-
-    struct UITree* tree = game->cs2_tree;
-    int32_t stack[UITREE_WALK_STACK_MAX];
-    int stack_top = -1;
-    int32_t current = tree->root_index;
-    while( current >= 0 )
-    {
-        struct StaticUIComponent const* node = &tree->components[current];
-        bool const visible = !node->behavior.hide;
-        if( visible )
-            ie_draw_tree_node_preview(game, node, canvas_x, canvas_y, scale, pass);
-        uitree_walk_advance(
-            tree, &current, stack, &stack_top, UITREE_WALK_STACK_MAX, visible);
-    }
-}
+    float scale);
 
 static void
 ie_draw_cs2_tree_preview(
@@ -4951,13 +5018,21 @@ ie_draw_cs2_tree_preview(
     if( !game || !game->cs2_tree || game->cs2_tree->component_count == 0 )
         return;
 
-    ie_draw_cs2_tree_pass(game, canvas_x, canvas_y, scale, IE_TREE_DRAW_RECT);
-    ie_draw_cs2_tree_pass(game, canvas_x, canvas_y, scale, IE_TREE_DRAW_GRAPHIC);
-    ie_draw_cs2_tree_pass(game, canvas_x, canvas_y, scale, IE_TREE_DRAW_TEXT);
-    ie_draw_cs2_tree_pass(game, canvas_x, canvas_y, scale, IE_TREE_DRAW_LINE);
+    struct UITree* tree = game->cs2_tree;
+    int32_t stack[UITREE_WALK_STACK_MAX];
+    int stack_top = -1;
+    int32_t current = tree->root_index;
+    while( current >= 0 )
+    {
+        struct StaticUIComponent const* node = &tree->components[current];
+        bool const visible = !node->behavior.hide;
+        if( visible )
+            ie_draw_tree_node_preview(game, node, canvas_x, canvas_y, scale);
+        uitree_walk_advance(
+            tree, &current, stack, &stack_top, UITREE_WALK_STACK_MAX, visible);
+    }
+
     ie_draw_orphan_widget_graphics(game, canvas_x, canvas_y, scale);
-    ie_draw_cs2_tree_pass(game, canvas_x, canvas_y, scale, IE_TREE_DRAW_INV);
-    ie_draw_cs2_tree_pass(game, canvas_x, canvas_y, scale, IE_TREE_DRAW_OBJ);
 }
 
 static bool
@@ -5006,8 +5081,7 @@ ie_draw_tree_node_preview(
     struct StaticUIComponent const* node,
     int off_x,
     int off_y,
-    float scale,
-    int pass)
+    float scale)
 {
     if( !game || !node || node->behavior.hide )
         return;
@@ -5019,24 +5093,25 @@ ie_draw_tree_node_preview(
     if( bw <= 0 || bh <= 0 )
         return;
 
-    if( pass == IE_TREE_DRAW_OBJ )
+    if( node->type == UIELEM_CC_OBJ || (node->type == UIELEM_RS_GRAPHIC && node->item_id > 0) )
     {
         int obj_id = ie_tree_node_obj_id(node);
-        if( obj_id <= 0 )
-            return;
-        int scene_id = node->item_scene_id;
-        int atlas_index = node->item_atlas_index;
-        if( scene_id < 0 )
-            scene_id = ie_resolve_obj_icon_sprite(game, obj_id);
-        if( scene_id < 0 )
-            return;
-        int icon = (int)(UI_INV_SLOT_ICON_SIZE * scale);
-        if( icon < 8 )
-            icon = 8;
-        int ix = bx + (bw - icon) / 2;
-        int iy = by + (bh - icon) / 2;
-        ie_push_draw_sprite(game, ix, iy, icon, icon, scene_id, atlas_index, 255, 0);
-        return;
+        if( obj_id > 0 )
+        {
+            int scene_id = node->item_scene_id;
+            int atlas_index = node->item_atlas_index;
+            if( scene_id < 0 )
+                scene_id = ie_resolve_obj_icon_sprite(game, obj_id);
+            if( scene_id >= 0 )
+            {
+                int icon = (int)(UI_INV_SLOT_ICON_SIZE * scale);
+                if( icon < 8 )
+                    icon = 8;
+                int ix = bx + (bw - icon) / 2;
+                int iy = by + (bh - icon) / 2;
+                ie_push_draw_sprite(game, ix, iy, icon, icon, scene_id, atlas_index, 255, 0);
+            }
+        }
     }
 
     struct CS1Host cs1host;
@@ -5047,24 +5122,27 @@ ie_draw_tree_node_preview(
     switch( node->type )
     {
     case UIELEM_RS_RECT:
-        if( pass != IE_TREE_DRAW_RECT )
-            break;
-        if( node->u.rs_rect.filled )
-            ie_push_draw_fill(
-                game, bx, by, bw, bh, 0xFF000000 | (node->u.rs_rect.color & 0xFFFFFF));
-        else
         {
-            int const colour = 0xFF000000 | (node->u.rs_rect.color & 0xFFFFFF);
-            int const lw = 1;
-            ie_push_draw_fill(game, bx, by, bw, lw, colour);
-            ie_push_draw_fill(game, bx, by + bh - lw, bw, lw, colour);
-            ie_push_draw_fill(game, bx, by, lw, bh, colour);
-            ie_push_draw_fill(game, bx + bw - lw, by, lw, bh, colour);
+            int alpha = 255 - node->trans;
+            if( alpha < 0 )
+                alpha = 0;
+            else if( alpha > 255 )
+                alpha = 255;
+            int const colour =
+                (alpha << 24) | (node->u.rs_rect.color & 0xFFFFFF);
+            if( node->u.rs_rect.filled )
+                ie_push_draw_fill(game, bx, by, bw, bh, colour);
+            else
+            {
+                int const lw = 1;
+                ie_push_draw_fill(game, bx, by, bw, lw, colour);
+                ie_push_draw_fill(game, bx, by + bh - lw, bw, lw, colour);
+                ie_push_draw_fill(game, bx, by, lw, bh, colour);
+                ie_push_draw_fill(game, bx + bw - lw, by, lw, bh, colour);
+            }
         }
         break;
     case UIELEM_RS_TEXT:
-        if( pass != IE_TREE_DRAW_TEXT )
-            break;
         {
             char const* text = node->u.rs_text.text;
             if( active && node->u.rs_text.text_active && node->u.rs_text.text_active[0] )
@@ -5086,12 +5164,12 @@ ie_draw_tree_node_preview(
                     text,
                     color & 0xFFFFFF,
                     node->u.rs_text.center,
-                    node->u.rs_text.shadowed);
+                    node->u.rs_text.shadowed,
+                    node->u.rs_text.line_height,
+                    node->u.rs_text.y_align);
         }
         break;
     case UIELEM_RS_GRAPHIC:
-        if( pass != IE_TREE_DRAW_GRAPHIC )
-            break;
         if( node->item_id > 0 )
             break;
         if( node->u.rs_graphic.graphic_hitbox_only )
@@ -5123,8 +5201,6 @@ ie_draw_tree_node_preview(
         }
         break;
     case UIELEM_RS_LINE:
-        if( pass != IE_TREE_DRAW_LINE )
-            break;
         {
             int const colour = 0xFF000000 | (node->u.rs_line.color & 0xFFFFFF);
             int const lw = node->u.rs_line.line_width > 0 ? node->u.rs_line.line_width : 1;
@@ -5164,8 +5240,6 @@ ie_draw_tree_node_preview(
         }
         break;
     case UIELEM_INV_GRID:
-        if( pass != IE_TREE_DRAW_INV )
-            break;
         ie_draw_inv_slot_grid(
             game,
             bx,
@@ -5184,7 +5258,7 @@ ie_draw_tree_node_preview(
         break;
     }
 
-    if( pass == IE_TREE_DRAW_LINE || pass == IE_TREE_DRAW_GRAPHIC )
+    if( node->type == UIELEM_RS_LINE || node->type == UIELEM_RS_GRAPHIC )
     {
         ie_push_hit(game, IEHIT_CANVAS_WIDGET, bx, by, bw, bh, node->component_id, 0);
         if( game->selected_uid == node->component_id )
@@ -5241,7 +5315,7 @@ ie_build_preview_panel(
 
     if( game->loaded_group_id < 0 )
     {
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             x,
             y + (h - IE_ROW_H) / 2,
@@ -5278,7 +5352,7 @@ ie_build_list_panel(
     int h)
 {
     ie_push_draw_fill(game, x, y, w, h, 0xFF1E1E1E);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         x + 4,
         y + 4,
@@ -5312,7 +5386,7 @@ ie_build_list_panel(
         bool selected = gid == game->loaded_group_id;
         ie_push_draw_fill(game, x + 2, ry, row_w, IE_ROW_H, selected ? 0xFF2A3A4A : 0xFF252525);
         ie_push_hit(game, IEHIT_LIST_ROW, x + 2, ry, row_w, IE_ROW_H, gid, 0);
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             x + 8,
             ry,
@@ -5357,7 +5431,7 @@ ie_build_sprite_picker(
             : 1;
     snprintf(
         page_label, sizeof(page_label), "Sprites %d/%d", game->sprite_picker_page + 1, page_count);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         x + 12,
         y + 8,
@@ -5373,7 +5447,7 @@ ie_build_sprite_picker(
     {
         ie_push_draw_fill(game, x + 12, y + h - IE_ROW_H - 8, 48, IE_ROW_H, 0xFF3A3A3A);
         ie_push_hit(game, IEHIT_SPRITE_THUMB, x + 12, y + h - IE_ROW_H - 8, 48, IE_ROW_H, -1, 0);
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             x + 16,
             y + h - IE_ROW_H - 8,
@@ -5390,7 +5464,7 @@ ie_build_sprite_picker(
         ie_push_draw_fill(game, x + w - 60, y + h - IE_ROW_H - 8, 48, IE_ROW_H, 0xFF3A3A3A);
         ie_push_hit(
             game, IEHIT_SPRITE_THUMB, x + w - 60, y + h - IE_ROW_H - 8, 48, IE_ROW_H, -2, 0);
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             x + w - 56,
             y + h - IE_ROW_H - 8,
@@ -5437,7 +5511,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
 
     char parent_buf[64];
     snprintf(parent_buf, sizeof(parent_buf), "Parent: %d", game->add_dialog_parent_uid);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         dx + 12,
         dy + 8,
@@ -5448,7 +5522,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
         0xFFFFFF,
         0,
         0);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         dx + 12,
         dy + 24,
@@ -5470,7 +5544,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
     int row = dy + 48;
     ie_push_draw_fill(game, dx + 12, row, dw - 24, IE_ROW_H, 0xFF1E1E1E);
     ie_push_hit(game, IEHIT_ADD_DIALOG_TYPE, dx + 12, row, dw - 24, IE_ROW_H, 0, 0);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         dx + 16,
         row,
@@ -5489,7 +5563,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
         snprintf(sprite_buf, sizeof(sprite_buf), "spriteId: %d", game->add_dialog_sprite_id);
         ie_push_draw_fill(game, dx + 12, row, dw - 80, IE_ROW_H, 0xFF1E1E1E);
         ie_push_hit(game, IEHIT_ADD_DIALOG_SPRITE_FIELD, dx + 12, row, dw - 80, IE_ROW_H, 0, 0);
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             dx + 16,
             row,
@@ -5503,7 +5577,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
         ie_push_draw_fill(game, dx + dw - 64, row, 52, IE_ROW_H, 0xFF4A9EFF);
         ie_push_hit(
             game, IEHIT_ADD_DIALOG_SPRITE_PICKER_BTN, dx + dw - 64, row, 52, IE_ROW_H, 0, 0);
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             dx + dw - 58,
             row,
@@ -5519,7 +5593,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
     int btn_y = dy + dh - 36;
     ie_push_draw_fill(game, dx + 12, btn_y, 80, 24, 0xFF3A3A3A);
     ie_push_hit(game, IEHIT_ADD_DIALOG_CANCEL, dx + 12, btn_y, 80, 24, 0, 0);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         dx + 28,
         btn_y + 4,
@@ -5533,7 +5607,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
 
     ie_push_draw_fill(game, dx + dw - 92, btn_y, 80, 24, 0xFF4A9EFF);
     ie_push_hit(game, IEHIT_ADD_DIALOG_ADD, dx + dw - 92, btn_y, 80, 24, 0, 0);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         dx + dw - 72,
         btn_y + 4,
@@ -5563,7 +5637,7 @@ ie_build_dropdown(struct GameInterfaceEditor* game)
     {
         int oy = ui_minimenu_option_y(&game->dropdown, i);
         int hovered = game->dropdown.hovered_option == i;
-        ie_push_draw_font(
+        ie_push_draw_font_ui(
             game,
             game->dropdown.x + 8,
             oy - 10,
@@ -5594,12 +5668,12 @@ ie_build_draw_list(struct GameInterfaceEditor* game)
 
     ie_push_draw_fill(game, 0, 0, IE_WINDOW_W, IE_WINDOW_H, 0xFF121212);
     ie_push_draw_fill(game, 0, 0, IE_WINDOW_W, IE_TOOLBAR_H, 0xFF1A1A1A);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game, 8, 4, 200, IE_ROW_H, ie_default_ui_font_id(game), "Interface Editor", 0xFFFFFF, 0, 0);
 
     ie_push_draw_fill(game, 220, 2, 110, IE_TOOLBAR_H - 4, 0xFF4A9EFF);
     ie_push_hit(game, IEHIT_TOOLBAR_RUN_SCRIPTS, 220, 2, 110, IE_TOOLBAR_H - 4, 0, 0);
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game, 228, 4, 100, IE_ROW_H, ie_default_ui_font_id(game), "Rerun Scripts", 0xFFFFFF, 0, 0);
 
     int const trace_color = game->cs2_trace_enabled ? 0xFF3A6A3A : 0xFF3A3A3A;
@@ -5607,7 +5681,7 @@ ie_build_draw_list(struct GameInterfaceEditor* game)
     ie_push_hit(game, IEHIT_TOOLBAR_TRACE, 336, 2, 64, IE_TOOLBAR_H - 4, 0, 0);
     char trace_label[16];
     snprintf(trace_label, sizeof(trace_label), "Trace %s", game->cs2_trace_enabled ? "ON" : "OFF");
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game, 340, 4, 56, IE_ROW_H, ie_default_ui_font_id(game), trace_label, 0xFFFFFF, 0, 0);
 
     char status[IE_SCRIPT_ERROR_LEN + 64];
@@ -5629,7 +5703,7 @@ ie_build_draw_list(struct GameInterfaceEditor* game)
         snprintf(status, sizeof(status), "CS1/CS2 preview: on (scripts ran)");
     else
         snprintf(status, sizeof(status), "CS1/CS2 preview: waiting for load");
-    ie_push_draw_font(
+    ie_push_draw_font_ui(
         game,
         408,
         4,
@@ -5674,6 +5748,28 @@ ie_emit_font_draw_command(
     struct InterfaceEditorDrawItem const* item,
     struct LibToriRS_RenderCommand* command)
 {
+    command->kind = TORIRSRC_FONT;
+    command->u.font.font_id = item->font_id;
+    command->u.font.color = item->color;
+    command->u.font.center = item->center;
+    command->u.font.y_align = item->y_align;
+    command->u.font.line_height = item->line_height;
+    command->u.font.shadowed = item->shadowed;
+    command->u.font.text = item->text;
+    command->u.font.scissor_x = 0;
+    command->u.font.scissor_y = 0;
+    command->u.font.scissor_w = 0;
+    command->u.font.scissor_h = 0;
+
+    if( item->w > 0 && item->h > IE_ROW_H + 2 )
+    {
+        command->u.font.x = item->x;
+        command->u.font.y = item->y;
+        command->u.font.width = item->w;
+        command->u.font.height = item->h;
+        return;
+    }
+
     int lh = 13;
     if( game && game->scene )
     {
@@ -5692,20 +5788,10 @@ ie_emit_font_draw_command(
     else
         draw_y = item->y + lh;
 
-    command->kind = TORIRSRC_FONT;
-    command->u.font.font_id = item->font_id;
     command->u.font.x = draw_x;
     command->u.font.y = draw_y;
-    command->u.font.width = item->w;
-    command->u.font.height = item->h;
-    command->u.font.color = item->color;
-    command->u.font.center = item->center;
-    command->u.font.shadowed = item->shadowed;
-    command->u.font.text = item->text;
-    command->u.font.scissor_x = 0;
-    command->u.font.scissor_y = 0;
-    command->u.font.scissor_w = 0;
-    command->u.font.scissor_h = 0;
+    command->u.font.width = 0;
+    command->u.font.height = 0;
 }
 
 static bool

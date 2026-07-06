@@ -80,6 +80,8 @@ struct CS2HostUIInitArgs
     int viewport_w;
     int viewport_h;
     int client_type;
+    /** 1 = fixed, 2 = resizable (GETWINDOWMODE). */
+    int window_mode;
 };
 
 void

@@ -380,6 +380,10 @@ struct ToriAuxLibCore_Component
     int transparency;
     /** Raw text horizontal alignment (dat2 textHorizontalAlignment). */
     int text_h_align;
+    /** Raw text vertical alignment (dat2 textVerticalAlignment). */
+    int text_v_align;
+    /** Raw text line height (dat2 textLineHeight); 0 = font default. */
+    int text_line_height;
     /** LINE widget direction: 1 = horizontal (dat2 lineDirection). */
     uint8_t line_horizontal;
     uint8_t drag_dead_zone;
