@@ -11,7 +11,7 @@
 #include <string.h>
 
 char const*
-dump_iface_component_type_name(Component const* c)
+dump_iface_component_type_name(RSCacheDat2A_Component const* c)
 {
     if( !c )
         return "unknown";
@@ -105,7 +105,7 @@ dump_iface_format_packed_id(
 
 int
 dump_iface_decode_component_from_bytes(
-    Component* out,
+    RSCacheDat2A_Component* out,
     char* data,
     int size,
     int iface_id,
@@ -116,18 +116,18 @@ dump_iface_decode_component_from_bytes(
 
     struct RSCacheShared_RSBuffer buf;
     RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, size);
-    Component_init(out);
+    RSCacheDat2A_ComponentInit(out);
     out->id = (iface_id << 16) | (file_index & 0xFFFF);
     if( (unsigned char)data[0] == (unsigned char)255 )
-        Component_decodeIf3(out, &buf);
+        RSCacheDat2A_ComponentDecodeIf3(out, &buf);
     else
-        Component_decodeIf1(out, &buf);
+        RSCacheDat2A_ComponentDecodeIf1(out, &buf);
     return 0;
 }
 
 void
 dump_iface_resolve_layout(
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int n,
     int root_x,
     int root_y,
@@ -364,10 +364,10 @@ dump_iface_strdup(char const* s)
 
 static void
 dump_iface_dat1_convert(
-    Component* out,
+    RSCacheDat2A_Component* out,
     struct RSCacheDat1A_ConfigComponent const* src)
 {
-    Component_init(out);
+    RSCacheDat2A_ComponentInit(out);
     out->id = src->id;
     out->type = src->type;
     out->layer = src->layer;
@@ -652,7 +652,7 @@ dump_iface_load_dat1(
     free(visited);
 
     int n = node_count;
-    Component* comps = calloc((size_t)n, sizeof(Component));
+    RSCacheDat2A_Component* comps = calloc((size_t)n, sizeof(RSCacheDat2A_Component));
     int* parent_idx = calloc((size_t)n, sizeof(int));
     int* lay_x = calloc((size_t)n, sizeof(int));
     int* lay_y = calloc((size_t)n, sizeof(int));
@@ -731,7 +731,7 @@ dump_iface_load_dat2(
     }
 
     int n = fl->file_count;
-    Component* comps = calloc((size_t)n, sizeof(Component));
+    RSCacheDat2A_Component* comps = calloc((size_t)n, sizeof(RSCacheDat2A_Component));
     int* parent_idx = calloc((size_t)n, sizeof(int));
     int* lay_x = calloc((size_t)n, sizeof(int));
     int* lay_y = calloc((size_t)n, sizeof(int));
@@ -754,7 +754,7 @@ dump_iface_load_dat2(
     {
         if( dump_iface_decode_component_from_bytes(
                 &comps[fi], fl->files[fi], fl->file_sizes[fi], iface_id, fi) != 0 )
-            Component_init(&comps[fi]);
+            RSCacheDat2A_ComponentInit(&comps[fi]);
     }
 
     dump_iface_resolve_layout(
@@ -780,7 +780,7 @@ dump_iface_free(struct DumpIfaceLoaded* li)
     if( !li )
         return;
     for( int i = 0; i < li->count; i++ )
-        Component_free(&li->comps[i]);
+        RSCacheDat2A_ComponentFree(&li->comps[i]);
     free(li->comps);
     free(li->parent_idx);
     free(li->lay_x);
@@ -814,7 +814,7 @@ hook_refs_iface(
 
 static bool
 component_refs_iface(
-    Component const* c,
+    RSCacheDat2A_Component const* c,
     int target_iface)
 {
     if( !c )
@@ -969,7 +969,7 @@ dump_iface_scan_parents(
 
         for( int fi = 0; fi < li.count; fi++ )
         {
-            Component const* c = &li.comps[fi];
+            RSCacheDat2A_Component const* c = &li.comps[fi];
             if( c->type < 0 || c->onInvTransmitLen <= 0 )
                 continue;
             bool watches_94 = c->inventoryTriggersLen <= 0;
@@ -1021,7 +1021,7 @@ dump_iface_scan_parents(
         bool any = false;
         for( int fi = 0; fi < li.count; fi++ )
         {
-            Component const* c = &li.comps[fi];
+            RSCacheDat2A_Component const* c = &li.comps[fi];
             if( c->type < 0 )
                 continue;
             if( !component_refs_iface(c, target_iface) )

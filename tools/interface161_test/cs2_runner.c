@@ -4,6 +4,7 @@
 #include "fixture.h"
 #include "games/ie_enum_lookup.h"
 #include "struct_lookup.h"
+#include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 #include "ui/rs_inv_container.h"
@@ -68,7 +69,7 @@ interface161_cs2_resolve_decode_flags(void)
 static void
 interface161_cs2_run_component_hook(
     struct Interface161Cs2Context* ctx,
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     ComponentScriptVar* hook,
     int hook_len);
 
@@ -243,7 +244,7 @@ static void
 interface161_cs2_run_runtime_inv_hook(
     struct Interface161Cs2Context* ctx,
     struct Interface161RuntimeInvHook const* hook,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int comp_count)
 {
     if( !ctx || !hook || hook->script_id < 0 )
@@ -260,7 +261,7 @@ interface161_cs2_run_runtime_inv_hook(
         hookv[i + 1].value.i = hook->argv[i];
     }
 
-    Component* comp = NULL;
+    RSCacheDat2A_Component* comp = NULL;
     for( int i = 0; i < comp_count; i++ )
     {
         if( comps[i].id == hook->target_component_id )
@@ -270,10 +271,10 @@ interface161_cs2_run_runtime_inv_hook(
         }
     }
 
-    Component temp;
+    RSCacheDat2A_Component temp;
     if( !comp )
     {
-        Component_init(&temp);
+        RSCacheDat2A_ComponentInit(&temp);
         temp.id = hook->target_component_id;
         comp = &temp;
     }
@@ -305,7 +306,7 @@ interface161_parent_has_item_child(
 static void
 interface161_cs2_place_fixture_equipment_icons(
     struct Interface161Cs2Context* ctx,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int comp_count,
     struct Interface161Fixture const* fixture)
 {
@@ -657,7 +658,7 @@ interface161_cs2_resolve_script(
 static void
 interface161_cs2_run_component_hook(
     struct Interface161Cs2Context* ctx,
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     ComponentScriptVar* hook,
     int hook_len)
 {
@@ -717,7 +718,7 @@ interface161_cs2_run_component_hook(
 
 static bool
 component_watches_container(
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     int container_id)
 {
     if( !comp || comp->onInvTransmitLen <= 0 )
@@ -734,10 +735,10 @@ component_watches_container(
 
 struct Interface161BuildContext
 {
-    Component* comps;
+    struct ToriAuxLibCore_Component** core_comps;
 };
 
-static Component*
+static struct ToriAuxLibCore_Component*
 interface161_build_get_component(
     void* ud,
     int index)
@@ -745,7 +746,7 @@ interface161_build_get_component(
     struct Interface161BuildContext* ctx = ud;
     if( !ctx || index < 0 )
         return NULL;
-    return &ctx->comps[index];
+    return ctx->core_comps[index];
 }
 
 static int
@@ -754,21 +755,35 @@ interface161_build_get_parent_id(
     int index)
 {
     struct Interface161BuildContext* ctx = ud;
-    if( !ctx || index < 0 )
+    if( !ctx || index < 0 || !ctx->core_comps[index] )
         return -1;
-    return ctx->comps[index].layer;
+    return ctx->core_comps[index]->parent_id;
 }
 
 int
 interface161_cs2_build_tree(
     struct UITree* tree,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int comp_count)
 {
     if( !tree || !comps || comp_count <= 0 )
         return -1;
 
-    struct Interface161BuildContext ctx = { .comps = comps };
+    struct ToriAuxLibCore_Component** core_comps =
+        calloc((size_t)comp_count, sizeof(*core_comps));
+    if( !core_comps )
+        return -1;
+
+    for( int i = 0; i < comp_count; i++ )
+    {
+        if( comps[i].type < 0 )
+            continue;
+        core_comps[i] = ToriAuxLibCache_ComponentNewFromCacheDat2Component(&comps[i]);
+        if( core_comps[i] )
+            core_comps[i]->parent_id = comps[i].layer;
+    }
+
+    struct Interface161BuildContext ctx = { .core_comps = core_comps };
     struct UITreeBuildSource src = {
         .count = comp_count,
         .get_component = interface161_build_get_component,
@@ -776,7 +791,12 @@ interface161_cs2_build_tree(
         .resolve_sprite = NULL,
         .ud = &ctx,
     };
-    return uitree_build_from_source(tree, &src);
+    int const rc = uitree_build_from_source(tree, &src);
+
+    for( int i = 0; i < comp_count; i++ )
+        ToriAuxLibCore_ComponentFree(core_comps[i]);
+    free(core_comps);
+    return rc;
 }
 
 void
@@ -811,7 +831,7 @@ interface161_cs2_context_free(struct Interface161Cs2Context* ctx)
 static int
 interface161_cs2_init_host_shell(
     struct Interface161Cs2Context* ctx,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int comp_count,
     int iface_id,
     struct Interface161Fixture const* fixture)
@@ -875,7 +895,7 @@ interface161_cs2_init_host_shell(
 int
 interface161_cs2_prepare_exec_shell(
     struct Interface161Cs2Context* ctx,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int comp_count,
     int iface_id,
     int root_w,
@@ -924,7 +944,7 @@ interface161_cs2_seed_gameframe_s35_children(struct UITree* tree)
 int
 interface161_cs2_run_interface(
     struct Interface161Cs2Context* ctx,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int comp_count,
     int const* lay_x,
     int const* lay_y,

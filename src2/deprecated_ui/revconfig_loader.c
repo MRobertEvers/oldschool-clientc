@@ -723,7 +723,7 @@ bake_rs_subtree(
     }
 }
 
-/* Component type enum for revconfig layout parsing (matches existing). */
+/* RSCacheDat2A_Component type enum for revconfig layout parsing (matches existing). */
 enum BakeCompType
 {
     BAKE_COMP_WORLD = 6,

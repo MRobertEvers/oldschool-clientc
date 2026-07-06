@@ -3,6 +3,7 @@
 #include "interface_editor.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
+#include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/c/toriauxlibcache_font_convert.h"
 #include "toriauxlib/c/toriauxlibcache_sprite_convert.h"
@@ -785,7 +786,7 @@ ie_resolve_sprite(
 
 static int
 ie_decode_component(
-    Component* out,
+    RSCacheDat2A_Component* out,
     char* data,
     int size,
     int group_id,
@@ -795,18 +796,18 @@ ie_decode_component(
         return -1;
     struct RSCacheShared_RSBuffer buf;
     RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, size);
-    Component_init(out);
+    RSCacheDat2A_ComponentInit(out);
     out->id = (group_id << 16) | (file_index & 0xFFFF);
     if( (unsigned char)data[0] == (unsigned char)255 )
-        Component_decodeIf3(out, &buf);
+        RSCacheDat2A_ComponentDecodeIf3(out, &buf);
     else
-        Component_decodeIf1(out, &buf);
+        RSCacheDat2A_ComponentDecodeIf1(out, &buf);
     return 0;
 }
 
 static void
 ie_layout_one(
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     int px,
     int py,
     int pw,
@@ -859,7 +860,7 @@ ie_relayout(struct GameInterfaceEditor* game)
 
     for( int i = 0; i < n; i++ )
     {
-        Component* c = &game->widgets[i].data;
+        RSCacheDat2A_Component* c = &game->widgets[i].data;
         if( game->widgets[i].is_editor_added )
         {
             parent_idx[i] = ie_widget_index(game, game->widgets[i].parent_uid);
@@ -1016,7 +1017,7 @@ ie_cs2_layout_root_size(
     {
         for( int i = 0; i < game->widget_count; i++ )
         {
-            Component* comp = &game->widgets[i].data;
+            RSCacheDat2A_Component* comp = &game->widgets[i].data;
             if( comp->type != 0 || comp->layer >= 0 )
                 continue;
             if( comp->baseWidth > 0 && comp->baseWidth <= 800 && comp->baseHeight > 0 )
@@ -1535,7 +1536,7 @@ ie_cs2_struct_param_cb(
 static bool
 ie_cs2_run_component_hook(
     struct GameInterfaceEditor* game,
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     ComponentScriptVar* hook,
     int hook_len)
 {
@@ -1605,7 +1606,7 @@ ie_cs2_run_component_hook(
 
 static bool
 ie_component_watches_container(
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     int container_id)
 {
     if( !comp || comp->onInvTransmitLen <= 0 )
@@ -1639,7 +1640,7 @@ ie_cs2_run_runtime_inv_hook(
         hookv[i + 1].value.i = hook->argv[i];
     }
 
-    Component* comp = NULL;
+    RSCacheDat2A_Component* comp = NULL;
     for( int i = 0; i < game->widget_count; i++ )
     {
         if( game->widgets[i].data.id == hook->target_component_id )
@@ -1649,10 +1650,10 @@ ie_cs2_run_runtime_inv_hook(
         }
     }
 
-    Component temp;
+    RSCacheDat2A_Component temp;
     if( !comp )
     {
-        Component_init(&temp);
+        RSCacheDat2A_ComponentInit(&temp);
         temp.id = hook->target_component_id;
         comp = &temp;
     }
@@ -1660,7 +1661,7 @@ ie_cs2_run_runtime_inv_hook(
     ie_cs2_run_component_hook(game, comp, hookv, hook_len);
 }
 
-static Component*
+static RSCacheDat2A_Component*
 ie_find_component_by_id(
     struct GameInterfaceEditor* game,
     int component_id)
@@ -1694,11 +1695,11 @@ ie_cs2_run_runtime_hook(
         hookv[i + 1].value.i = hook->argv[i];
     }
 
-    Component temp;
-    Component* comp = ie_find_component_by_id(game, hook->target_component_id);
+    RSCacheDat2A_Component temp;
+    RSCacheDat2A_Component* comp = ie_find_component_by_id(game, hook->target_component_id);
     if( !comp )
     {
-        Component_init(&temp);
+        RSCacheDat2A_ComponentInit(&temp);
         temp.id = hook->target_component_id;
         comp = &temp;
     }
@@ -1804,7 +1805,7 @@ ie_trigger_onload_dfs(struct GameInterfaceEditor* game)
     while( sp > 0 )
     {
         int const wi = stack[--sp];
-        Component* comp = &game->widgets[wi].data;
+        RSCacheDat2A_Component* comp = &game->widgets[wi].data;
 
         if( comp->onLoadLen > 0 )
         {
@@ -1836,7 +1837,7 @@ ie_trigger_inv_transmit_initial(struct GameInterfaceEditor* game)
 
     for( int i = 0; i < game->widget_count; i++ )
     {
-        Component* comp = &game->widgets[i].data;
+        RSCacheDat2A_Component* comp = &game->widgets[i].data;
         if( comp->type < 0 )
             continue;
 
@@ -1883,7 +1884,7 @@ ie_cs2_run_script_pass(
 
 static bool
 ie_component_watches_any_changed_inv(
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     struct InterfaceEditorTransmitCycles const* cycles)
 {
     if( !comp || comp->onInvTransmitLen <= 0 || !cycles )
@@ -1979,7 +1980,7 @@ ie_process_widget_timers(struct GameInterfaceEditor* game)
 
     for( int i = 0; i < game->widget_count; i++ )
     {
-        Component* comp = &game->widgets[i].data;
+        RSCacheDat2A_Component* comp = &game->widgets[i].data;
         if( comp->type < 0 || comp->hidden )
             continue;
 
@@ -2035,7 +2036,7 @@ ie_process_widget_transmits(struct GameInterfaceEditor* game)
 
     for( int i = 0; i < game->widget_count; i++ )
     {
-        Component* comp = &game->widgets[i].data;
+        RSCacheDat2A_Component* comp = &game->widgets[i].data;
         if( comp->type < 0 || comp->onInvTransmitLen <= 0 )
             continue;
         if( !ie_component_watches_any_changed_inv(comp, &game->transmit_cycles) )
@@ -2062,7 +2063,7 @@ ie_process_widget_transmits(struct GameInterfaceEditor* game)
 
     for( int i = 0; i < game->widget_count; i++ )
     {
-        Component* comp = &game->widgets[i].data;
+        RSCacheDat2A_Component* comp = &game->widgets[i].data;
         if( comp->type < 0 || comp->onVarpTransmitLen <= 0 )
             continue;
 
@@ -2123,7 +2124,7 @@ ie_handle_canvas_click_scripts(
     if( !game || !game->scripts_ran || component_uid < 0 )
         return;
 
-    Component* comp = NULL;
+    RSCacheDat2A_Component* comp = NULL;
     for( int i = 0; i < game->widget_count; i++ )
     {
         if( game->widgets[i].uid == component_uid )
@@ -2236,7 +2237,7 @@ ie_handle_canvas_drag_scripts(
     if( !game || !game->scripts_ran || component_uid < 0 )
         return;
 
-    Component* comp = NULL;
+    RSCacheDat2A_Component* comp = NULL;
     for( int i = 0; i < game->widget_count; i++ )
     {
         if( game->widgets[i].uid == component_uid )
@@ -2262,15 +2263,21 @@ ie_handle_canvas_drag_scripts(
         (void)ie_cs2_run_component_hook(game, comp, comp->onDragComplete, comp->onDragCompleteLen);
 }
 
-static Component*
+struct IeCs2BuildContext
+{
+    struct GameInterfaceEditor* game;
+    struct ToriAuxLibCore_Component** core_comps;
+};
+
+static struct ToriAuxLibCore_Component*
 ie_cs2_build_get_component(
     void* ud,
     int index)
 {
-    struct GameInterfaceEditor* game = ud;
-    if( !game || index < 0 || index >= game->widget_count )
+    struct IeCs2BuildContext* ctx = ud;
+    if( !ctx || !ctx->game || index < 0 || index >= ctx->game->widget_count )
         return NULL;
-    return &game->widgets[index].data;
+    return ctx->core_comps[index];
 }
 
 static int
@@ -2278,11 +2285,11 @@ ie_cs2_build_get_parent_id(
     void* ud,
     int index)
 {
-    struct GameInterfaceEditor* game = ud;
-    if( !game || index < 0 || index >= game->widget_count )
+    struct IeCs2BuildContext* ctx = ud;
+    if( !ctx || !ctx->game || index < 0 || index >= ctx->game->widget_count )
         return -1;
-    return game->widgets[index].is_editor_added ? game->widgets[index].parent_uid
-                                                : game->widgets[index].data.layer;
+    return ctx->game->widgets[index].is_editor_added ? ctx->game->widgets[index].parent_uid
+                                                     : ctx->game->widgets[index].data.layer;
 }
 
 static int
@@ -2304,14 +2311,33 @@ ie_cs2_build_tree(struct GameInterfaceEditor* game)
     if( !game || !game->cs2_tree )
         return -1;
 
+    int const n = game->widget_count;
+    struct ToriAuxLibCore_Component** core_comps = calloc((size_t)n, sizeof(*core_comps));
+    if( !core_comps )
+        return -1;
+
+    for( int i = 0; i < n; i++ )
+    {
+        RSCacheDat2A_Component const* src = &game->widgets[i].data;
+        if( src->type < 0 )
+            continue;
+        core_comps[i] = ToriAuxLibCache_ComponentNewFromCacheDat2Component(src);
+    }
+
+    struct IeCs2BuildContext build_ctx = { .game = game, .core_comps = core_comps };
     struct UITreeBuildSource src = {
-        .count = game->widget_count,
+        .count = n,
         .get_component = ie_cs2_build_get_component,
         .get_parent_id = ie_cs2_build_get_parent_id,
         .resolve_sprite = ie_cs2_resolve_sprite_for_build,
-        .ud = game,
+        .ud = &build_ctx,
     };
-    return uitree_build_from_source(game->cs2_tree, &src);
+    int const rc = uitree_build_from_source(game->cs2_tree, &src);
+
+    for( int i = 0; i < n; i++ )
+        ToriAuxLibCore_ComponentFree(core_comps[i]);
+    free(core_comps);
+    return rc;
 }
 
 static struct RSCacheDat2A_ConfigObject*
@@ -2656,7 +2682,7 @@ static void
 ie_free_widgets(struct GameInterfaceEditor* game)
 {
     for( int i = 0; i < game->widget_count; i++ )
-        Component_free(&game->widgets[i].data);
+        RSCacheDat2A_ComponentFree(&game->widgets[i].data);
     game->widget_count = 0;
     game->draw_order_count = 0;
 }
@@ -2690,7 +2716,7 @@ ie_load_group(
         struct InterfaceEditorWidget* w = &game->widgets[game->widget_count];
         if( ie_decode_component(&w->data, fl->files[fi], fl->file_sizes[fi], group_id, fi) != 0 )
         {
-            Component_init(&w->data);
+            RSCacheDat2A_ComponentInit(&w->data);
             w->data.id = (group_id << 16) | (fi & 0xFFFF);
         }
         w->uid = w->data.id;
@@ -2764,7 +2790,7 @@ GameInterfaceEditor_PrintDynamicCs2Children(struct GameInterfaceEditor* game)
 
 static void
 ie_apply_type_defaults(
-    Component* c,
+    RSCacheDat2A_Component* c,
     int type)
 {
     c->type = type;
@@ -2829,7 +2855,7 @@ ie_add_dynamic_widget(
         return false;
 
     struct InterfaceEditorWidget* w = &game->widgets[game->widget_count];
-    Component_init(&w->data);
+    RSCacheDat2A_ComponentInit(&w->data);
     w->uid = (game->loaded_group_id << 16) | child_id;
     w->parent_uid = parent_uid;
     w->file_index = -1;
@@ -2895,7 +2921,7 @@ ie_property_value_string(
 {
     if( !widget || !out || out_size == 0 )
         return;
-    Component* c = &widget->data;
+    RSCacheDat2A_Component* c = &widget->data;
     switch( property_id )
     {
     case IE_PROP_RAW_X:
@@ -3003,7 +3029,7 @@ ie_apply_property(
     int property_id,
     char const* value)
 {
-    Component* c = &w->data;
+    RSCacheDat2A_Component* c = &w->data;
     switch( property_id )
     {
     case IE_PROP_RAW_X:
@@ -3969,7 +3995,7 @@ ie_build_properties_panel(
         return;
     }
 
-    Component* c = &sel->data;
+    RSCacheDat2A_Component* c = &sel->data;
     char buf[64];
 
     snprintf(buf, sizeof(buf), "%d", sel->uid);
@@ -4426,7 +4452,7 @@ ie_build_tree_root_row(
     if( row_y + IE_ROW_H >= y + IE_ROW_H && row_y < y + panel_h )
     {
         char root_label[64];
-        snprintf(root_label, sizeof(root_label), "Component %d (Layer)", file_index);
+        snprintf(root_label, sizeof(root_label), "RSCacheDat2A_Component %d (Layer)", file_index);
         ie_push_draw_fill(
             game,
             x,
@@ -4537,7 +4563,7 @@ ie_build_tree_rows(
                 snprintf(
                     label,
                     sizeof(label),
-                    "Component %d (%s)",
+                    "RSCacheDat2A_Component %d (%s)",
                     node->file_index,
                     widget_type_label(node->data.type));
 
@@ -4723,7 +4749,7 @@ ie_draw_widget_preview(
     int off_y,
     float scale)
 {
-    Component* c = &w->data;
+    RSCacheDat2A_Component* c = &w->data;
     if( c->hidden )
         return;
 
@@ -4856,7 +4882,7 @@ ie_draw_widget_preview(
 }
 
 static bool
-ie_is_orphan_graphic(Component const* comp);
+ie_is_orphan_graphic(RSCacheDat2A_Component const* comp);
 
 static void
 ie_draw_orphan_widget_graphics(
@@ -4930,7 +4956,7 @@ ie_draw_cs2_tree_preview(
 }
 
 static bool
-ie_is_orphan_graphic(Component const* comp)
+ie_is_orphan_graphic(RSCacheDat2A_Component const* comp)
 {
     return comp && comp->type == 5 && comp->layer < 0 && comp->graphic >= 0 && !comp->hidden;
 }
@@ -5402,7 +5428,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
         dw - 24,
         IE_ROW_H,
         ie_default_ui_font_id(game),
-        "Add Component",
+        "Add RSCacheDat2A_Component",
         0xFFFFFF,
         0,
         0);

@@ -546,7 +546,7 @@ Dat2BuildCache_InterfaceArchiveFree(struct Dat2BuildCache_InterfaceArchive* arch
         {
             if( archive->components[i] )
             {
-                Component_free(archive->components[i]);
+                RSCacheDat2A_ComponentFree(archive->components[i]);
                 free(archive->components[i]);
             }
         }

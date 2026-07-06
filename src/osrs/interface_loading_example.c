@@ -62,7 +62,7 @@ buildcachedat_loader_load_interfaces(
         struct RSCacheDat1A_ConfigComponent* component = component_list->components[i];
         
         if (component) {
-            printf("  Component %d: type=%d, layer=%d, width=%d, height=%d\n",
+            printf("  RSCacheDat2A_Component %d: type=%d, layer=%d, width=%d, height=%d\n",
                    component->id,
                    component->type,
                    component->layer,

@@ -135,7 +135,7 @@ toriauxlibcache_debug_log_dat1_convert(
 
 static void
 toriauxlibcache_debug_log_dat2_convert(
-    Component const* src,
+    RSCacheDat2A_Component const* src,
     struct ToriAuxLibCore_Component const* dst)
 {
     if( !ui_minimenu_debug_enabled() || !src || !dst )
@@ -880,7 +880,7 @@ toriauxlibcache_component_copy_inv_slots_dat1(
 static void
 toriauxlibcache_component_copy_inv_slots_dat2(
     struct ToriAuxLibCore_Component* dst,
-    const Component* src)
+    const RSCacheDat2A_Component* src)
 {
     if( !dst || !src || src->type != COMPONENT_TYPE_INV )
         return;
@@ -893,6 +893,7 @@ toriauxlibcache_component_copy_inv_slots_dat2(
             dst->inv_slot_offset_y[i] = src->invSlotOffsetY[i];
         if( src->invSlotGraphicId )
         {
+            dst->inv_slot_graphic_id[i] = src->invSlotGraphicId[i];
             toriauxlibcache_dat2_sprite_ref_from_id(
                 src->invSlotGraphicId[i],
                 dst->inv_slot_sprite_ref[i],
@@ -980,7 +981,7 @@ toriauxlibcache_copy_script_hook(
 static void
 toriauxlibcache_component_copy_dat2_cs1_scripts(
     struct ToriAuxLibCore_Component* dst,
-    const Component* src)
+    const RSCacheDat2A_Component* src)
 {
     if( !dst || !src || src->cs1ScriptsLen <= 0 || !src->cs1Scripts )
         return;
@@ -1000,7 +1001,7 @@ toriauxlibcache_component_copy_dat2_cs1_scripts(
 static void
 toriauxlibcache_component_copy_dat2_hooks(
     struct ToriAuxLibCore_Component* dst,
-    const Component* src)
+    const RSCacheDat2A_Component* src)
 {
     if( !dst || !src || !src->if3 )
         return;
@@ -1103,109 +1104,6 @@ ToriAuxLibCache_ComponentNewFromCacheComponent(const void* cache_component_ptr)
     dst->script_kind = CS1VM_SCRIPT_KIND_CS1;
 
     toriauxlibcache_debug_log_dat1_convert(src, dst);
-
-    return dst;
-}
-
-struct ToriAuxLibCore_Component*
-ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_ptr)
-{
-    const Component* src = cache_component_ptr;
-    if( !src )
-        return NULL;
-
-    struct ToriAuxLibCore_Component* dst = calloc(1, sizeof(struct ToriAuxLibCore_Component));
-    if( !dst )
-        return NULL;
-
-    dst->id = src->id;
-    dst->type = toriauxlibcache_component_type_from_raw(src->type);
-    dst->width = src->baseWidth;
-    dst->height = src->baseHeight;
-    dst->model_type = src->modelType;
-    dst->model_id = src->modelId;
-    dst->model_zoom = src->modelZoom;
-    dst->model_xan = src->modelXAngle;
-    dst->model_yan = src->modelYAngle;
-    dst->color = src->color;
-    dst->filled = src->fill ? 1 : 0;
-    dst->font_id = src->textFont;
-    dst->center = src->textHorizontalAlignment != 0 ? 1 : 0;
-    dst->shadowed = src->textShadow ? 1 : 0;
-    dst->inv_cols = src->baseWidth;
-    dst->inv_rows = src->baseHeight;
-    dst->margin_x = src->marginX;
-    dst->margin_y = src->marginY;
-    if( src->type == COMPONENT_TYPE_LINE )
-    {
-        dst->line_width = src->lineWidth > 0 ? src->lineWidth : 1;
-        dst->filled = src->lineDirection ? 1 : 0;
-    }
-    dst->hide = src->hidden ? 1 : 0;
-    dst->button_type = src->buttonType;
-    dst->client_code = src->clientCode;
-    dst->over_color = src->overColour;
-    dst->active_color = src->activeColour;
-    dst->active_over_color = src->activeOverColour;
-    dst->over_layer_id = src->linkedComponentId;
-    dst->parent_id = -1;
-    dst->tiled = src->tiled ? 1 : 0;
-    if( src->type == COMPONENT_TYPE_LAYER )
-    {
-        dst->scroll_height = src->scrollHeight;
-        dst->scroll_width = src->scrollWidth;
-    }
-
-    toriauxlibcache_dat2_sprite_ref_from_id(src->graphic, dst->sprite_ref, sizeof(dst->sprite_ref));
-    toriauxlibcache_dat2_sprite_ref_from_id(
-        src->activeGraphic, dst->sprite_active_ref, sizeof(dst->sprite_active_ref));
-
-    if( src->text )
-        strncpy(dst->text, src->text, sizeof(dst->text) - 1);
-    if( src->activeText )
-        strncpy(dst->active_text, src->activeText, sizeof(dst->active_text) - 1);
-    if( src->option )
-        strncpy(dst->option, src->option, sizeof(dst->option) - 1);
-    if( src->type == COMPONENT_TYPE_INV && src->objOps )
-        toriauxlibcache_copy_menu_actions(dst->ops, src->objOps, 5);
-    else
-        toriauxlibcache_copy_menu_actions(dst->ops, src->ops, src->opsLen);
-
-    if( src->type == COMPONENT_TYPE_INV && src->objOps )
-    {
-        bool src_has_obj_ops = false;
-        for( int i = 0; i < 5; i++ )
-        {
-            if( src->objOps[i] && src->objOps[i][0] != '\0' )
-            {
-                src_has_obj_ops = true;
-                break;
-            }
-        }
-        if( src_has_obj_ops )
-        {
-            bool copied = false;
-            for( int i = 0; i < TORIAUXLIBCORE_MENU_ACTION_SLOTS; i++ )
-            {
-                if( dst->ops[i][0] != '\0' )
-                {
-                    copied = true;
-                    break;
-                }
-            }
-            assert(
-                copied &&
-                "dat2 INV objOps present in cache but core component ops[] empty after convert");
-        }
-    }
-
-    toriauxlibcache_component_apply_graphic_hitbox_only(dst);
-    toriauxlibcache_component_copy_inv_slots_dat2(dst, src);
-
-    toriauxlibcache_component_copy_dat2_cs1_scripts(dst, src);
-    toriauxlibcache_component_copy_dat2_hooks(dst, src);
-
-    toriauxlibcache_debug_log_dat2_convert(src, dst);
 
     return dst;
 }

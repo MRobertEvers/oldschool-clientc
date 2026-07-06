@@ -254,7 +254,7 @@ instance_revconfig_dat2_ensure_sprite_ref(
     return element_id;
 }
 
-static Component*
+static RSCacheDat2A_Component*
 instance_revconfig_dat2_get_component(
     struct Dat2BuildCache_InterfaceArchive* archive,
     int component_id)
@@ -269,7 +269,7 @@ instance_revconfig_dat2_get_component(
 
     for( int i = 0; i < archive->component_count; i++ )
     {
-        Component* c = archive->components[i];
+        RSCacheDat2A_Component* c = archive->components[i];
         if( c && c->id == component_id )
             return c;
     }
@@ -821,7 +821,7 @@ instance_revconfig_bake_rs_subtree(
 
         if( iface_archive )
         {
-            Component* dat2_comp = instance_revconfig_dat2_get_component(iface_archive, component_id);
+            RSCacheDat2A_Component* dat2_comp = instance_revconfig_dat2_get_component(iface_archive, component_id);
             if( dat2_comp )
             {
                 int parent_w = panel_w;

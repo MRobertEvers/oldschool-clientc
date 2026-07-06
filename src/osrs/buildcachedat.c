@@ -1561,7 +1561,7 @@ buildcachedat_add_component(
 {
     struct ComponentEntry* component_entry = (struct ComponentEntry*)dashmap_search(
         buildcachedat->component_hmap, &component_id, DASHMAP_INSERT);
-    assert(component_entry && "Component must be inserted into hmap");
+    assert(component_entry && "RSCacheDat2A_Component must be inserted into hmap");
     component_entry->id = component_id;
     component_entry->component = component;
     buildcachedat_maybe_grow_hmap(buildcachedat->component_hmap);
@@ -1608,7 +1608,7 @@ buildcachedat_add_component_sprite_ref(
     strncpy(buffer, sprite_name, sizeof(buffer));
     struct ComponentSpriteRefEntry* sprite_entry = (struct ComponentSpriteRefEntry*)dashmap_search(
         buildcachedat->component_sprites_reftable, buffer, DASHMAP_INSERT);
-    assert(sprite_entry && "Component sprite ref must be inserted into reftable");
+    assert(sprite_entry && "RSCacheDat2A_Component sprite ref must be inserted into reftable");
     /* Key bytes were copied by dashmap_search; only set value. */
     sprite_entry->uiscene_element_id = uiscene_element_id;
     buildcachedat_maybe_grow_hmap(buildcachedat->component_sprites_reftable);

@@ -24,7 +24,7 @@ print_child(
         fprintf(fp, "child %d: not found (count=%d)\n", child_id, li->count);
         return;
     }
-    Component const* c = &li->comps[child_id];
+    RSCacheDat2A_Component const* c = &li->comps[child_id];
     fprintf(
         fp,
         "child_id=%d type=%d x=%d y=%d w=%d h=%d graphic=%d hidden=%d\n",
@@ -45,7 +45,7 @@ print_list(
 {
     for( int i = 0; i < li->count; i++ )
     {
-        Component const* c = &li->comps[i];
+        RSCacheDat2A_Component const* c = &li->comps[i];
         if( c->type < 0 )
             continue;
         fprintf(
@@ -72,7 +72,7 @@ print_json(
     int first = 1;
     for( int i = 0; i < li->count; i++ )
     {
-        Component const* c = &li->comps[i];
+        RSCacheDat2A_Component const* c = &li->comps[i];
         if( c->type < 0 )
             continue;
         if( !first )

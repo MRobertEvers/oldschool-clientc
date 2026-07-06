@@ -74,7 +74,7 @@ Dat2BuildCache_FramesArchiveFree(struct Dat2BuildCache_FramesArchive* fa);
  */
 struct Dat2BuildCache_InterfaceArchive
 {
-    Component** components;
+    RSCacheDat2A_Component** components;
     int component_count;
 };
 

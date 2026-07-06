@@ -23,7 +23,7 @@ dat2_buildcache_font_decode_from_archive(
     struct RSCacheDat2Disk_Archive* archive,
     int font_id);
 
-Component*
+RSCacheDat2A_Component*
 dat2_buildcache_component_decode_iface_file_from_archive(
     struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,

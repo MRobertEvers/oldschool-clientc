@@ -74,7 +74,7 @@ dat1_get_component(
     return NULL;
 }
 
-static Component*
+static RSCacheDat2A_Component*
 dat2_get_component(
     struct Dat2BuildCache_InterfaceArchive* archive,
     int component_id)
@@ -89,7 +89,7 @@ dat2_get_component(
 
     for( int i = 0; i < archive->component_count; i++ )
     {
-        Component* c = archive->components[i];
+        RSCacheDat2A_Component* c = archive->components[i];
         if( c && c->id == component_id )
             return c;
     }
@@ -156,7 +156,7 @@ rs_component_sync_to_core(
     }
     else
     {
-        Component* dat2_comp = comp;
+        RSCacheDat2A_Component* dat2_comp = comp;
         comp_id = dat2_comp->id;
         if( !ToriAuxLibCore_ComponentHas(core, comp_id) )
         {
@@ -335,7 +335,7 @@ dat2_collect_needed_models_from_archive(
 
     for( int i = 0; i < archive->component_count; i++ )
     {
-        Component* comp = archive->components[i];
+        RSCacheDat2A_Component* comp = archive->components[i];
         if( !comp )
             continue;
         if( comp->type == COMPONENT_TYPE_MODEL && comp->modelType == 1 && comp->modelId > 0 )
@@ -410,7 +410,7 @@ dat2_collect_needed_sprites_from_archive(
 
     for( int i = 0; i < archive->component_count; i++ )
     {
-        Component* comp = archive->components[i];
+        RSCacheDat2A_Component* comp = archive->components[i];
         if( !comp )
             continue;
         dat2_needed_sprite_append(task, comp->graphic);
@@ -509,7 +509,7 @@ rs_component_acquire_inv_slot_sprites(
         return;
     }
 
-    Component* dat2_comp = comp;
+    RSCacheDat2A_Component* dat2_comp = comp;
     if( dat2_comp->type != COMPONENT_TYPE_INV || !dat2_comp->invSlotGraphicId )
         return;
 
@@ -540,7 +540,7 @@ rs_component_acquire_dynamic_sprites(
         return;
     }
 
-    Component* dat2_comp = comp;
+    RSCacheDat2A_Component* dat2_comp = comp;
     if( dat2_comp->graphic >= 0 )
         instance_revconfig_dat2_ensure_sprite_id(ctx, dat2_comp->graphic);
     if( dat2_comp->activeGraphic >= 0 )
@@ -594,7 +594,7 @@ static void
 rs_component_push_children_dat2(
     struct Task_RSComponentLoad* task,
     struct Dat2BuildCache_InterfaceArchive* archive,
-    Component* dat2_comp,
+    RSCacheDat2A_Component* dat2_comp,
     int parent_w,
     int parent_h)
 {
@@ -603,7 +603,7 @@ rs_component_push_children_dat2(
 
     for( int i = archive->component_count - 1; i >= 0; i-- )
     {
-        Component* child = archive->components[i];
+        RSCacheDat2A_Component* child = archive->components[i];
         if( !child || child->layer != dat2_comp->id )
             continue;
         rs_stack_push(task, child->id, parent_w, parent_h, dat2_comp->id);
@@ -733,7 +733,7 @@ static void
 rs_component_process_dat2_node(
     struct Task_RSComponentLoad* task,
     struct Dat2BuildCache_InterfaceArchive* archive,
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     int parent_w,
     int parent_h,
     int parent_id)
@@ -804,7 +804,7 @@ rs_component_walk_dat2(
         if( file_index >= 0 && visited )
             visited[file_index] = 1;
 
-        Component* comp = dat2_get_component(archive, comp_id);
+        RSCacheDat2A_Component* comp = dat2_get_component(archive, comp_id);
         if( !comp )
         {
             fprintf(
@@ -817,7 +817,7 @@ rs_component_walk_dat2(
             task, archive, comp, stack_parent_w, stack_parent_h, parent_id);
     }
 
-    Component* root = dat2_get_component(archive, walk_root_id);
+    RSCacheDat2A_Component* root = dat2_get_component(archive, walk_root_id);
     if( root && visited )
     {
         int root_w = 0;
@@ -829,7 +829,7 @@ rs_component_walk_dat2(
 
         for( int i = 0; i < archive->component_count; i++ )
         {
-            Component* comp = archive->components[i];
+            RSCacheDat2A_Component* comp = archive->components[i];
             if( !comp || visited[i] || comp->id == walk_root_id || comp->layer >= 0 )
                 continue;
 

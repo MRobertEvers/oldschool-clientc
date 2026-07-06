@@ -501,7 +501,7 @@ load_component(
     component_entry = dashmap_search(component_hmap, load->name, DASHMAP_INSERT);
     memset(component_entry, 0, sizeof(struct ComponentEntry));
 
-    assert(component_entry && "Component must be inserted into hmap");
+    assert(component_entry && "RSCacheDat2A_Component must be inserted into hmap");
     component_entry->type = type;
     component_entry->sprite_id = -1;
     component_entry->sprite_index = 0;
@@ -1009,7 +1009,7 @@ load_layout(
     {
         layout_entry = &load->entries[i];
         component_entry = dashmap_search(component_hmap, layout_entry->component, DASHMAP_FIND);
-        assert(component_entry && "Component for layout entry not found in hmap");
+        assert(component_entry && "RSCacheDat2A_Component for layout entry not found in hmap");
         switch( component_entry->type )
         {
         case UIELEM_BUILTIN_COMPASS:

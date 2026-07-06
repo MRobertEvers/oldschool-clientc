@@ -51,7 +51,7 @@
 
 struct InterfaceEditorWidget
 {
-    Component data;
+    RSCacheDat2A_Component data;
     int uid;
     int parent_uid;
     int file_index;

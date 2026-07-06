@@ -361,6 +361,29 @@ struct ToriAuxLibCore_Component
     int scroll_height;
     /** dat2 scrollWidth. Layer content width; 0 = no horizontal scroll. */
     int scroll_width;
+    /** IF3 layout base rect (dat2 baseX/baseY/baseWidth/baseHeight). */
+    int base_x;
+    int base_y;
+    int base_width;
+    int base_height;
+    int8_t x_mode;
+    int8_t y_mode;
+    int8_t width_mode;
+    int8_t height_mode;
+    int aspect_w;
+    int aspect_h;
+    uint8_t if3;
+    /** Raw cache graphic id (dat2 graphic); UITree scene_id when building. */
+    int graphic;
+    /** Raw cache inv-slot graphic ids (dat2 invSlotGraphicId). */
+    int inv_slot_graphic_id[TORIAUXLIBCORE_INV_SLOT_MAX];
+    int transparency;
+    /** Raw text horizontal alignment (dat2 textHorizontalAlignment). */
+    int text_h_align;
+    /** LINE widget direction: 1 = horizontal (dat2 lineDirection). */
+    uint8_t line_horizontal;
+    uint8_t drag_dead_zone;
+    uint8_t drag_dead_time;
     char sprite_ref[TORIAUXLIBCORE_SPRITE_REF_MAX];
     /** Client.ts graphic2 / dat activeGraphic: sprite when getIfActive. */
     char sprite_active_ref[TORIAUXLIBCORE_SPRITE_REF_MAX];

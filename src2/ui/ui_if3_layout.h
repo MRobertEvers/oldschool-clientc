@@ -139,7 +139,7 @@ ui_if3_component_parent_relative_layout(
 
 static inline void
 ui_if3_dat2_component_parent_relative_layout(
-    Component const* comp,
+    RSCacheDat2A_Component const* comp,
     int parent_w,
     int parent_h,
     int* out_rel_x,

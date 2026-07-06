@@ -304,7 +304,7 @@ ie_resolve_sprite(
 
 static int
 ie_decode_component(
-    Component* out,
+    RSCacheDat2A_Component* out,
     char* data,
     int size,
     int group_id,
@@ -314,18 +314,18 @@ ie_decode_component(
         return -1;
     struct RSCacheShared_RSBuffer buf;
     RSCacheShared_RSBufferInit(&buf, (int8_t*)data, size);
-    Component_init(out);
+    RSCacheDat2A_ComponentInit(out);
     out->id = (group_id << 16) | (file_index & 0xFFFF);
     if( (unsigned char)data[0] == (unsigned char)255 )
-        Component_decodeIf3(out, &buf);
+        RSCacheDat2A_ComponentDecodeIf3(out, &buf);
     else
-        Component_decodeIf1(out, &buf);
+        RSCacheDat2A_ComponentDecodeIf1(out, &buf);
     return 0;
 }
 
 static void
 ie_layout_one(
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     int px,
     int py,
     int pw,
@@ -377,7 +377,7 @@ ie_relayout(struct GameInterfaceEditor* game)
 
     for( int i = 0; i < n; i++ )
     {
-        Component* c = &game->widgets[i].data;
+        RSCacheDat2A_Component* c = &game->widgets[i].data;
         if( game->widgets[i].is_editor_added )
         {
             parent_idx[i] = ie_widget_index(game, game->widgets[i].parent_uid);
@@ -519,7 +519,7 @@ static void
 ie_free_widgets(struct GameInterfaceEditor* game)
 {
     for( int i = 0; i < game->widget_count; i++ )
-        Component_free(&game->widgets[i].data);
+        RSCacheDat2A_ComponentFree(&game->widgets[i].data);
     game->widget_count = 0;
     game->draw_order_count = 0;
 }
@@ -553,7 +553,7 @@ ie_load_group(
         struct InterfaceEditorWidget* w = &game->widgets[game->widget_count];
         if( ie_decode_component(&w->data, fl->files[fi], fl->file_sizes[fi], group_id, fi) != 0 )
         {
-            Component_init(&w->data);
+            RSCacheDat2A_ComponentInit(&w->data);
             w->data.id = (group_id << 16) | (fi & 0xFFFF);
         }
         w->uid = w->data.id;
@@ -570,7 +570,7 @@ ie_load_group(
 
 static void
 ie_apply_type_defaults(
-    Component* c,
+    RSCacheDat2A_Component* c,
     int type)
 {
     c->type = type;
@@ -635,7 +635,7 @@ ie_add_dynamic_widget(
         return false;
 
     struct InterfaceEditorWidget* w = &game->widgets[game->widget_count];
-    Component_init(&w->data);
+    RSCacheDat2A_ComponentInit(&w->data);
     w->uid = (game->loaded_group_id << 16) | child_id;
     w->parent_uid = parent_uid;
     w->file_index = -1;
@@ -709,7 +709,7 @@ ie_property_value_string(
 {
     if( !widget || !out || out_size == 0 )
         return;
-    Component* c = &widget->data;
+    RSCacheDat2A_Component* c = &widget->data;
     switch( property_id )
     {
     case IE_PROP_RAW_X:
@@ -817,7 +817,7 @@ ie_apply_property(
     int property_id,
     char const* value)
 {
-    Component* c = &w->data;
+    RSCacheDat2A_Component* c = &w->data;
     switch( property_id )
     {
     case IE_PROP_RAW_X:
@@ -1316,7 +1316,7 @@ ie_build_properties_panel(
         return;
     }
 
-    Component* c = &sel->data;
+    RSCacheDat2A_Component* c = &sel->data;
     char buf[64];
 
     snprintf(buf, sizeof(buf), "%d", sel->uid);
@@ -1488,7 +1488,7 @@ ie_build_tree_rows(
                 snprintf(
                     label,
                     sizeof(label),
-                    "Component %d (%s)",
+                    "RSCacheDat2A_Component %d (%s)",
                     node->file_index,
                     widget_type_label(node->data.type));
 
@@ -1575,7 +1575,7 @@ ie_draw_widget_preview(
     int off_y,
     float scale)
 {
-    Component* c = &w->data;
+    RSCacheDat2A_Component* c = &w->data;
     if( c->hidden )
         return;
 
@@ -1805,7 +1805,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
         dw - 24,
         IE_ROW_H,
         ie_default_ui_font_id(game),
-        "Add Component",
+        "Add RSCacheDat2A_Component",
         0xFFFFFF,
         0,
         0);

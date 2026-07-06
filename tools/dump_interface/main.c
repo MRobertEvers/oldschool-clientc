@@ -46,7 +46,7 @@ print_inv_slots(
     FILE* fp,
     char const* indent)
 {
-    Component const* c = &li->comps[i];
+    RSCacheDat2A_Component const* c = &li->comps[i];
     if( !c || c->type != COMPONENT_TYPE_INV )
         return;
 
@@ -90,7 +90,7 @@ print_inv_slots(
 
 static void
 print_ops(
-    Component const* c,
+    RSCacheDat2A_Component const* c,
     FILE* fp,
     char const* indent)
 {
@@ -130,7 +130,7 @@ print_component_details(
     int i,
     FILE* fp)
 {
-    Component const* c = &li->comps[i];
+    RSCacheDat2A_Component const* c = &li->comps[i];
     if( c->type < 0 )
         return;
 
@@ -293,7 +293,7 @@ print_summary(
 
     for( int i = 0; i < li->count; i++ )
     {
-        Component const* c = &li->comps[i];
+        RSCacheDat2A_Component const* c = &li->comps[i];
         if( c->type < 0 )
             continue;
         if( c->type >= 0 && c->type < 16 )
@@ -319,7 +319,7 @@ print_summary(
     fprintf(
         fp,
         "%s %d  files=%d  root=%dx%d\n",
-        li->cache_mode == DUMP_IFACE_CACHE_DAT1 ? "Component" : "Interface",
+        li->cache_mode == DUMP_IFACE_CACHE_DAT1 ? "RSCacheDat2A_Component" : "Interface",
         iface_id,
         li->count,
         root_w,
@@ -367,7 +367,7 @@ print_json_child(
     int i,
     FILE* fp)
 {
-    Component const* c = &li->comps[i];
+    RSCacheDat2A_Component const* c = &li->comps[i];
     int parent = dump_iface_parent_file_index(li, i);
     char const* tname = dump_iface_component_type_name(c);
 

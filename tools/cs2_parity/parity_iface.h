@@ -6,7 +6,7 @@
 
 struct ParityIfaceLoad
 {
-    Component* comps;
+    RSCacheDat2A_Component* comps;
     int comp_count;
     int* lay_x;
     int* lay_y;

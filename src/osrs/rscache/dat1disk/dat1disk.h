@@ -102,7 +102,7 @@ enum RSCacheDat1Disk_Table
  * Table: CONFIG
  * Archive: RSCacheDat1A_ConfigKind_Interfaces
  * Files:
- * // Seen in "Component.unpack" in LostCity JavaClient
+ * // Seen in "RSCacheDat2A_Component.unpack" in LostCity JavaClient
  * // This appears to be the only file in this archive.
  * // Note: NO ".dat" extension.
  * - "data"
@@ -111,7 +111,7 @@ enum RSCacheDat1Disk_Table
  * Archive: RSCacheDat1A_ConfigKind_Media2dGraphics
  * Files:
  * // Seen in Pix32 in JavaClient
- * // the name comes from the Component object parsed from the interfaces
+ * // the name comes from the RSCacheDat2A_Component object parsed from the interfaces
  * - <component name>.dat
  * - "index.dat"
  * - "invback.dat" // Seen in client.java

@@ -95,7 +95,7 @@ read_triggers(
 }
 
 void
-Component_init(Component* c)
+RSCacheDat2A_ComponentInit(RSCacheDat2A_Component* c)
 {
     memset(c, 0, sizeof(*c));
     c->id = -1;
@@ -123,7 +123,7 @@ Component_init(Component* c)
 }
 
 void
-Component_free(Component* c)
+RSCacheDat2A_ComponentFree(RSCacheDat2A_Component* c)
 {
     if( !c )
         return;
@@ -193,7 +193,7 @@ Component_free(Component* c)
         {
             if( c->createdComponents[i] )
             {
-                Component_free(c->createdComponents[i]);
+                RSCacheDat2A_ComponentFree(c->createdComponents[i]);
                 free(c->createdComponents[i]);
             }
         }
@@ -210,14 +210,14 @@ Component_free(Component* c)
 }
 
 void
-Component_clearStaticCaches(void)
+RSCacheDat2A_ComponentClearStaticCaches(void)
 {
     /* SoftLruHashTable not ported in C yet; mirrors Component.clear() no-op for statics. */
 }
 
 void
-Component_decodeIf1(
-    Component* self,
+RSCacheDat2A_ComponentDecodeIf1(
+    RSCacheDat2A_Component* self,
     struct RSCacheShared_RSBuffer* buf)
 {
     self->if3 = false;
@@ -476,7 +476,7 @@ Component_decodeIf1(
 
 static void
 decode_if3_hook(
-    Component* self,
+    RSCacheDat2A_Component* self,
     struct RSCacheShared_RSBuffer* buf,
     ComponentScriptVar** out,
     int32_t* outLen)
@@ -488,8 +488,8 @@ decode_if3_hook(
 }
 
 void
-Component_decodeIf3(
-    Component* self,
+RSCacheDat2A_ComponentDecodeIf3(
+    RSCacheDat2A_Component* self,
     struct RSCacheShared_RSBuffer* buf)
 {
     self->if3 = true;
@@ -642,8 +642,8 @@ Component_decodeIf3(
 }
 
 void
-Component_setOp(
-    Component* self,
+RSCacheDat2A_ComponentSetOp(
+    RSCacheDat2A_Component* self,
     int32_t i,
     const char* op)
 {
@@ -670,8 +670,8 @@ Component_setOp(
 }
 
 Model*
-Component_getModel(
-    Component* self,
+RSCacheDat2A_ComponentGetModel(
+    RSCacheDat2A_Component* self,
     SeqType* seq,
     PlayerAppearance* appearance,
     int32_t frame,

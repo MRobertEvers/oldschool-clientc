@@ -20,7 +20,7 @@ enum DumpIfaceCacheMode
 
 struct DumpIfaceLoaded
 {
-    Component* comps;
+    RSCacheDat2A_Component* comps;
     int* parent_idx;
     int* lay_x;
     int* lay_y;
@@ -35,7 +35,7 @@ struct DumpIfaceLoaded
 
 char const*
 dump_iface_component_type_name(
-    Component const* c);
+    RSCacheDat2A_Component const* c);
 
 int
 dump_iface_parent_file_index(
@@ -60,7 +60,7 @@ dump_iface_format_packed_id(
 
 int
 dump_iface_decode_component_from_bytes(
-    Component* out,
+    RSCacheDat2A_Component* out,
     char* data,
     int size,
     int iface_id,
@@ -68,7 +68,7 @@ dump_iface_decode_component_from_bytes(
 
 void
 dump_iface_resolve_layout(
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int n,
     int root_x,
     int root_y,

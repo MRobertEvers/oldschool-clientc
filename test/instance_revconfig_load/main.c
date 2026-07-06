@@ -3256,8 +3256,8 @@ test_cs1vm_eval_len_bounded(void)
 static int
 test_inv_slot_graphic_convert(void)
 {
-    Component src;
-    Component_init(&src);
+    RSCacheDat2A_Component src;
+    RSCacheDat2A_ComponentInit(&src);
     src.type = COMPONENT_TYPE_INV;
     src.baseWidth = 4;
     src.baseHeight = 7;
@@ -3277,7 +3277,7 @@ test_inv_slot_graphic_convert(void)
     TEST_ASSERT(dst->inv_slot_offset_y[0] == -4, "dat2 inv slot offset y");
     TEST_ASSERT(strcmp(dst->inv_slot_sprite_ref[0], "spr:9001") == 0, "dat2 inv slot sprite ref");
 
-    Component_free(&src);
+    RSCacheDat2A_ComponentFree(&src);
     ToriAuxLibCore_ComponentFree(dst);
 
     struct RSCacheDat1A_ConfigComponent dat1;
@@ -3310,8 +3310,8 @@ test_inv_slot_graphic_convert(void)
 static int
 test_dat2_cs1_scripts_copy(void)
 {
-    Component src;
-    Component_init(&src);
+    RSCacheDat2A_Component src;
+    RSCacheDat2A_ComponentInit(&src);
     src.type = 4;
     src.cs1ScriptsLen = 1;
     src.cs1Scripts = calloc(1, sizeof(int32_t*));
@@ -3333,7 +3333,7 @@ test_dat2_cs1_scripts_copy(void)
     TEST_ASSERT(dst->script_kind == CS1VM_SCRIPT_KIND_CS1, "dat2 cs1 script_kind");
     TEST_ASSERT(dst->scripts_lengths && dst->scripts_lengths[0] == 3, "dat2 cs1 script length");
 
-    Component_free(&src);
+    RSCacheDat2A_ComponentFree(&src);
     ToriAuxLibCore_ComponentFree(dst);
     fprintf(stderr, "ok: dat2 cs1 scripts copy\n");
     return 0;
@@ -3342,8 +3342,8 @@ test_dat2_cs1_scripts_copy(void)
 static int
 test_dat2_cs1_with_if3_hooks_script_kind(void)
 {
-    Component src;
-    Component_init(&src);
+    RSCacheDat2A_Component src;
+    RSCacheDat2A_ComponentInit(&src);
     src.type = 4;
     src.if3 = true;
     src.cs1ScriptsLen = 1;
@@ -3370,7 +3370,7 @@ test_dat2_cs1_with_if3_hooks_script_kind(void)
     TEST_ASSERT(dst->script_kind == CS1VM_SCRIPT_KIND_CS1, "script_kind stays CS1 with IF3 hooks");
     TEST_ASSERT(dst->on_load.argc == 1, "IF3 onLoad hook copied");
 
-    Component_free(&src);
+    RSCacheDat2A_ComponentFree(&src);
     ToriAuxLibCore_ComponentFree(dst);
     fprintf(stderr, "ok: dat2 cs1 with if3 hooks script_kind\n");
     return 0;

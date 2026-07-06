@@ -23,7 +23,7 @@ parity_tree_case(
         return -1;
 
     int n = iface.comp_count;
-    Component* comps = iface.comps;
+    RSCacheDat2A_Component* comps = iface.comps;
     int* lay_x = iface.lay_x;
     int* lay_y = iface.lay_y;
     int* lay_w = iface.lay_w;

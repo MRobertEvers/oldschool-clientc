@@ -41,7 +41,7 @@ interface161_cs2_context_free(struct Interface161Cs2Context* ctx);
 int
 interface161_cs2_run_interface(
     struct Interface161Cs2Context* ctx,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int comp_count,
     int const* lay_x,
     int const* lay_y,
@@ -54,14 +54,14 @@ interface161_cs2_run_interface(
 int
 interface161_cs2_build_tree(
     struct UITree* tree,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int comp_count);
 
 /** Build UITree + CS2 host for a decoded interface without running CS2 hooks. */
 int
 interface161_cs2_prepare_exec_shell(
     struct Interface161Cs2Context* ctx,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int comp_count,
     int iface_id,
     int root_w,

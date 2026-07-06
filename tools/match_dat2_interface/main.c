@@ -32,7 +32,7 @@ typedef struct
 
 typedef struct
 {
-    Component** components;
+    RSCacheDat2A_Component** components;
     int count;
 } DecodedIface;
 
@@ -42,13 +42,13 @@ decoded_iface_free(DecodedIface* iface)
     if( !iface )
         return;
     for( int i = 0; i < iface->count; i++ )
-        Component_free(iface->components[i]);
+        RSCacheDat2A_ComponentFree(iface->components[i]);
     free(iface->components);
     iface->components = NULL;
     iface->count = 0;
 }
 
-static Component*
+static RSCacheDat2A_Component*
 component_decode_from_bytes(
     int packed_id,
     char* data,
@@ -57,18 +57,18 @@ component_decode_from_bytes(
     if( !data || size <= 0 )
         return NULL;
 
-    Component* comp = calloc(1, sizeof(Component));
+    RSCacheDat2A_Component* comp = calloc(1, sizeof(RSCacheDat2A_Component));
     if( !comp )
         return NULL;
 
     struct RSCacheShared_RSBuffer buf;
     RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, size);
-    Component_init(comp);
+    RSCacheDat2A_ComponentInit(comp);
     comp->id = packed_id;
     if( (unsigned char)data[0] == (unsigned char)255 )
-        Component_decodeIf3(comp, &buf);
+        RSCacheDat2A_ComponentDecodeIf3(comp, &buf);
     else
-        Component_decodeIf1(comp, &buf);
+        RSCacheDat2A_ComponentDecodeIf1(comp, &buf);
     return comp;
 }
 
@@ -91,7 +91,7 @@ decode_iface_archive(
     }
 
     out.count = fl->file_count;
-    out.components = calloc((size_t)fl->file_count, sizeof(Component*));
+    out.components = calloc((size_t)fl->file_count, sizeof(RSCacheDat2A_Component*));
     if( !out.components )
     {
         RSCacheShared_FileListFree(fl);
@@ -233,7 +233,7 @@ dat1_fingerprint(
 
 static void
 dat2_count_component_tree(
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     int depth,
     PanelFingerprint* fp)
 {
@@ -291,7 +291,7 @@ dat2_root_dimensions(
 
     for( int i = 0; i < iface->count; i++ )
     {
-        Component* comp = iface->components[i];
+        RSCacheDat2A_Component* comp = iface->components[i];
         if( !comp )
             continue;
         int w = comp->width > 0 ? comp->width : comp->baseWidth;
@@ -307,7 +307,7 @@ dat2_root_dimensions(
 
     if( iface->components[0] )
     {
-        Component* root = iface->components[0];
+        RSCacheDat2A_Component* root = iface->components[0];
         int w = root->width > 0 ? root->width : root->baseWidth;
         int h = root->height > 0 ? root->height : root->baseHeight;
         if( w > 0 && h > 0 && w <= 260 && h <= 280 )
@@ -366,14 +366,14 @@ dat2_archive_references_dat1_id(
 
     for( int i = 0; i < iface->count; i++ )
     {
-        Component* stack[256];
+        RSCacheDat2A_Component* stack[256];
         int stack_count = 0;
         if( iface->components[i] )
             stack[stack_count++] = iface->components[i];
 
         while( stack_count > 0 )
         {
-            Component* comp = stack[--stack_count];
+            RSCacheDat2A_Component* comp = stack[--stack_count];
             if( !comp )
                 continue;
             if( comp->id == packed || comp->id == dat1_id || comp->linkedComponentId == dat1_id )

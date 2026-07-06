@@ -126,6 +126,7 @@ COMMON_SRCS := interface_editor.c \
 	$(SRC2)/toriauxlib/core/toriauxlibcore_types.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_convert.c \
+	$(SRC2)/toriauxlib/c/toriauxlibcache_component_dat2_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_model_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_sprite_convert.c \
 	$(SRC2)/toriauxlib/c/toriauxlibcache_font_convert.c \

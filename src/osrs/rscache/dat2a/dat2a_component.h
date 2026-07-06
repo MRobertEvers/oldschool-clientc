@@ -35,7 +35,7 @@ typedef struct
 /**
  * IF1 / IF3 interface widget. Decode layout follows InterfaceLoader.java (RuneLite cache).
  */
-typedef struct Component
+typedef struct RSCacheDat2A_Component
 {
     int32_t id;
     int32_t type;
@@ -213,7 +213,7 @@ typedef struct Component
     int32_t* cs1ComparisonOperands;
     int32_t cs1ComparisonLen;
 
-    struct Component** createdComponents;
+    struct RSCacheDat2A_Component** createdComponents;
     int32_t createdComponentsLen;
     int32_t createdComponentId;
 
@@ -224,36 +224,36 @@ typedef struct Component
     int32_t opsLen;
     int32_t* opCursors;
     int32_t opCursorsLen;
-} Component;
+} RSCacheDat2A_Component;
 
 void
-Component_init(Component* c);
+RSCacheDat2A_ComponentInit(RSCacheDat2A_Component* c);
 
 void
-Component_free(Component* c);
+RSCacheDat2A_ComponentFree(RSCacheDat2A_Component* c);
 
 void
-Component_clearStaticCaches(void);
+RSCacheDat2A_ComponentClearStaticCaches(void);
 
 void
-Component_decodeIf1(
-    Component* self,
+RSCacheDat2A_ComponentDecodeIf1(
+    RSCacheDat2A_Component* self,
     struct RSCacheShared_RSBuffer* buffer);
 
 void
-Component_decodeIf3(
-    Component* self,
+RSCacheDat2A_ComponentDecodeIf3(
+    RSCacheDat2A_Component* self,
     struct RSCacheShared_RSBuffer* buffer);
 
 void
-Component_setOp(
-    Component* self,
+RSCacheDat2A_ComponentSetOp(
+    RSCacheDat2A_Component* self,
     int32_t i,
     const char* op);
 
 Model*
-Component_getModel(
-    Component* self,
+RSCacheDat2A_ComponentGetModel(
+    RSCacheDat2A_Component* self,
     SeqType* seq,
     PlayerAppearance* appearance,
     int32_t frame,

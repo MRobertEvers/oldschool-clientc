@@ -603,7 +603,7 @@ ToriAuxLibCache_SubmitComponentsFromDat2(
     struct ToriAuxLibCore* core = ToriAuxLibCache_Core(c);
     for( int i = 0; i < archive->component_count; i++ )
     {
-        Component* comp = archive->components[i];
+        RSCacheDat2A_Component* comp = archive->components[i];
         if( !comp )
             continue;
 

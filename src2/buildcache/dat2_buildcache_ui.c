@@ -288,7 +288,7 @@ dat2_buildcache_font_decode_from_archive(
     return ToriAuxLibCache_FontNewFromDat2Archive(cache, archive, font_id);
 }
 
-static Component*
+static RSCacheDat2A_Component*
 component_decode_from_bytes(
     int packed_id,
     char* data,
@@ -297,22 +297,22 @@ component_decode_from_bytes(
     if( !data || size <= 0 )
         return NULL;
 
-    Component* comp = calloc(1, sizeof(Component));
+    RSCacheDat2A_Component* comp = calloc(1, sizeof(RSCacheDat2A_Component));
     if( !comp )
         return NULL;
 
     struct RSCacheShared_RSBuffer buf;
     RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, size);
-    Component_init(comp);
+    RSCacheDat2A_ComponentInit(comp);
     comp->id = packed_id;
     if( (unsigned char)data[0] == (unsigned char)255 )
-        Component_decodeIf3(comp, &buf);
+        RSCacheDat2A_ComponentDecodeIf3(comp, &buf);
     else
-        Component_decodeIf1(comp, &buf);
+        RSCacheDat2A_ComponentDecodeIf1(comp, &buf);
     return comp;
 }
 
-Component*
+RSCacheDat2A_Component*
 dat2_buildcache_component_decode_iface_file_from_archive(
     struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
@@ -338,7 +338,7 @@ dat2_buildcache_component_decode_iface_file_from_archive(
     char* data = fl->files[file_index];
     int size = fl->file_sizes[file_index];
     int packed_id = (iface_id << 16) | (file_index & 0xFFFF);
-    Component* comp = component_decode_from_bytes(packed_id, data, size);
+    RSCacheDat2A_Component* comp = component_decode_from_bytes(packed_id, data, size);
 
     if( out_size )
         *out_size = size;
@@ -377,7 +377,7 @@ dat2_buildcache_component_decode_iface_archive_from_archive(
     }
 
     iface_archive->component_count = fl->file_count;
-    iface_archive->components = calloc((size_t)fl->file_count, sizeof(Component*));
+    iface_archive->components = calloc((size_t)fl->file_count, sizeof(RSCacheDat2A_Component*));
     if( !iface_archive->components )
     {
         free(iface_archive);

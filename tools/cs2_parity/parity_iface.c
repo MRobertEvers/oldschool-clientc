@@ -9,7 +9,7 @@
 
 static int
 decode_component_from_bytes(
-    Component* out,
+    RSCacheDat2A_Component* out,
     char* data,
     int size,
     int iface_id,
@@ -19,18 +19,18 @@ decode_component_from_bytes(
         return -1;
     struct RSCacheShared_RSBuffer buf;
     RSCacheShared_RSBufferInit(&buf, (int8_t*)data, size);
-    Component_init(out);
+    RSCacheDat2A_ComponentInit(out);
     out->id = (iface_id << 16) | (file_index & 0xFFFF);
     if( (unsigned char)data[0] == (unsigned char)255 )
-        Component_decodeIf3(out, &buf);
+        RSCacheDat2A_ComponentDecodeIf3(out, &buf);
     else
-        Component_decodeIf1(out, &buf);
+        RSCacheDat2A_ComponentDecodeIf1(out, &buf);
     return 0;
 }
 
 static void
 resolve_interface_layout_simple(
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int n,
     int root_x,
     int root_y,
@@ -146,7 +146,7 @@ parity_iface_load(
     }
 
     int n = fl->file_count;
-    Component* comps = calloc((size_t)n, sizeof(Component));
+    RSCacheDat2A_Component* comps = calloc((size_t)n, sizeof(RSCacheDat2A_Component));
     int* lay_x = calloc((size_t)n, sizeof(int));
     int* lay_y = calloc((size_t)n, sizeof(int));
     int* lay_w = calloc((size_t)n, sizeof(int));
@@ -167,7 +167,7 @@ parity_iface_load(
     {
         if( decode_component_from_bytes(
                 &comps[fi], fl->files[fi], fl->file_sizes[fi], iface_id, fi) != 0 )
-            Component_init(&comps[fi]);
+            RSCacheDat2A_ComponentInit(&comps[fi]);
     }
 
     resolve_interface_layout_simple(comps, n, 0, 0, root_w, root_h, lay_x, lay_y, lay_w, lay_h);
@@ -192,7 +192,7 @@ parity_iface_free(struct ParityIfaceLoad* load)
     if( load->comps )
     {
         for( int i = 0; i < load->comp_count; i++ )
-            Component_free(&load->comps[i]);
+            RSCacheDat2A_ComponentFree(&load->comps[i]);
         free(load->comps);
     }
     free(load->lay_x);

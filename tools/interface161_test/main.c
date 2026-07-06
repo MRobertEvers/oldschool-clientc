@@ -1,6 +1,6 @@
 /*
  * Load interface archive N from dat2 cache (table RSCacheDat2Disk_Table_Interfaces), decode each
- * file as IF1/IF3 Component, optionally blit widgets to a BMP.
+ * file as IF1/IF3 RSCacheDat2A_Component, optionally blit widgets to a BMP.
  *
  * Draws type 2 (inventory slot backgrounds), type 3 (rect fill/outline), type 5 (sprites).
  * Use --fixture for sample worn items on equipment slot widgets (type 0 file indices).
@@ -940,7 +940,7 @@ node_item_obj_id(struct StaticUIComponent const* node)
 
 static int
 decode_component_from_bytes(
-    Component* out,
+    RSCacheDat2A_Component* out,
     char* data,
     int size,
     int iface_id,
@@ -950,18 +950,18 @@ decode_component_from_bytes(
         return -1;
     struct RSCacheShared_RSBuffer buf;
     RSCacheShared_RSBufferInit(&buf, (int8_t*)data, size);
-    Component_init(out);
+    RSCacheDat2A_ComponentInit(out);
     out->id = (iface_id << 16) | (file_index & 0xFFFF);
     if( (unsigned char)data[0] == (unsigned char)255 )
-        Component_decodeIf3(out, &buf);
+        RSCacheDat2A_ComponentDecodeIf3(out, &buf);
     else
-        Component_decodeIf1(out, &buf);
+        RSCacheDat2A_ComponentDecodeIf1(out, &buf);
     return 0;
 }
 
 static void
 layout_one_component(
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     int px,
     int py,
     int pw,
@@ -1001,7 +1001,7 @@ find_layout_root_index(int n)
 
 static void
 resolve_interface_layout(
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int n,
     int root_x,
     int root_y,
@@ -1185,7 +1185,7 @@ resolve_interface_layout(
     {
         for( int i = 0; i < n; i++ )
         {
-            Component* c = &comps[i];
+            RSCacheDat2A_Component* c = &comps[i];
             fprintf(
                 stderr,
                 "layout[%02d] type=%d lay=%d,%d %dx%d graphic=%d tiled=%d layer=0x%08x tree=%d\n",
@@ -1210,7 +1210,7 @@ resolve_interface_layout(
 static void
 draw_component_inv(
     struct DrawContext* ctx,
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     int fi,
     int px,
     int py,
@@ -1256,7 +1256,7 @@ draw_component_inv(
 static void
 draw_one_component(
     struct DrawContext* ctx,
-    Component* comp,
+    RSCacheDat2A_Component* comp,
     int fi,
     int px,
     int py,
@@ -1336,7 +1336,7 @@ draw_one_component(
 static void
 draw_interface_components(
     struct DrawContext* ctx,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int n,
     const int* lay_x,
     const int* lay_y,
@@ -1350,7 +1350,7 @@ draw_interface_components(
     for( int k = 0; k < draw_count; k++ )
     {
         int fi = draw_order ? draw_order[k] : k;
-        Component* comp = &comps[fi];
+        RSCacheDat2A_Component* comp = &comps[fi];
         if( comp->type < 0 || comp->hidden )
             continue;
 
@@ -1362,7 +1362,7 @@ static void
 draw_cs2_tree_overlays(
     struct DrawContext* ctx,
     struct UITree const* tree,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int n,
     const int* lay_x,
     const int* lay_y,
@@ -1405,7 +1405,7 @@ render_interface_archive(
     }
 
     int n = fl->file_count;
-    Component* comps = calloc((size_t)n, sizeof(Component));
+    RSCacheDat2A_Component* comps = calloc((size_t)n, sizeof(RSCacheDat2A_Component));
     int* lay_x = calloc((size_t)n, sizeof(int));
     int* lay_y = calloc((size_t)n, sizeof(int));
     int* lay_w = calloc((size_t)n, sizeof(int));
@@ -1428,7 +1428,7 @@ render_interface_archive(
     {
         if( decode_component_from_bytes(
                 &comps[fi], fl->files[fi], fl->file_sizes[fi], iface_id, fi) != 0 )
-            Component_init(&comps[fi]);
+            RSCacheDat2A_ComponentInit(&comps[fi]);
     }
 
     int draw_count = 0;
@@ -1474,7 +1474,7 @@ render_interface_archive(
     interface161_cs2_context_free(&cs2);
 
     for( int fi = 0; fi < n; fi++ )
-        Component_free(&comps[fi]);
+        RSCacheDat2A_ComponentFree(&comps[fi]);
     free(comps);
     free(lay_x);
     free(lay_y);
@@ -1487,7 +1487,7 @@ render_interface_archive(
 }
 
 static bool
-is_orphan_graphic(Component const* comp)
+is_orphan_graphic(RSCacheDat2A_Component const* comp)
 {
     return comp && comp->type == 5 && comp->layer < 0 && comp->graphic >= 0 && !comp->hidden;
 }
@@ -1495,7 +1495,7 @@ is_orphan_graphic(Component const* comp)
 static void
 draw_orphan_graphics(
     struct DrawContext* ctx,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int n,
     const int* lay_x,
     const int* lay_y,
@@ -1696,7 +1696,7 @@ static void
 draw_cs2_tree_overlays(
     struct DrawContext* ctx,
     struct UITree const* tree,
-    Component* comps,
+    RSCacheDat2A_Component* comps,
     int n,
     const int* lay_x,
     const int* lay_y,
@@ -1880,7 +1880,7 @@ main(
     fill_rect(pixels, CANVAS_W, 0, 0, CANVAS_W, CANVAS_H, 0xFF202428);
 
     int n = fl->file_count;
-    Component* comps = calloc((size_t)n, sizeof(Component));
+    RSCacheDat2A_Component* comps = calloc((size_t)n, sizeof(RSCacheDat2A_Component));
     int* lay_x = calloc((size_t)n, sizeof(int));
     int* lay_y = calloc((size_t)n, sizeof(int));
     int* lay_w = calloc((size_t)n, sizeof(int));
@@ -1917,7 +1917,7 @@ main(
                 in_group++;
         }
         else
-            Component_init(&comps[fi]);
+            RSCacheDat2A_ComponentInit(&comps[fi]);
     }
 
     int draw_count = 0;
@@ -1993,7 +1993,7 @@ main(
     bmp_write_file(out_path, pixels, CANVAS_W, CANVAS_H);
 
     for( int fi = 0; fi < n; fi++ )
-        Component_free(&comps[fi]);
+        RSCacheDat2A_ComponentFree(&comps[fi]);
     free(comps);
     free(lay_x);
     free(lay_y);

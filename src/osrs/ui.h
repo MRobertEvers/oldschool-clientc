@@ -324,7 +324,7 @@ ui_draw_tooltip(
     const char* text);
 
 // ============================================================================
-// Interface/Component System
+// Interface/RSCacheDat2A_Component System
 // ============================================================================
 
 void

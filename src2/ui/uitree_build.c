@@ -6,24 +6,24 @@
 void
 uitree_fill_position_from_component(
     struct StaticUIElemPosition* pos,
-    Component const* comp)
+    struct ToriAuxLibCore_Component const* comp)
 {
     if( !pos || !comp )
         return;
 
     pos->kind = UIPOS_XY;
-    pos->x = comp->baseX;
-    pos->y = comp->baseY;
-    pos->width = comp->baseWidth;
-    pos->height = comp->baseHeight;
+    pos->x = comp->base_x;
+    pos->y = comp->base_y;
+    pos->width = comp->base_width;
+    pos->height = comp->base_height;
     if( comp->if3 )
     {
-        pos->x_mode = comp->xMode;
-        pos->y_mode = comp->yMode;
-        pos->width_mode = comp->widthMode;
-        pos->height_mode = comp->heightMode;
-        pos->aspect_w = comp->aspect_ratio_w > 0 ? comp->aspect_ratio_w : 1;
-        pos->aspect_h = comp->aspect_ratio_h > 0 ? comp->aspect_ratio_h : 1;
+        pos->x_mode = comp->x_mode;
+        pos->y_mode = comp->y_mode;
+        pos->width_mode = comp->width_mode;
+        pos->height_mode = comp->height_mode;
+        pos->aspect_w = comp->aspect_w > 0 ? comp->aspect_w : 1;
+        pos->aspect_h = comp->aspect_h > 0 ? comp->aspect_h : 1;
     }
     else
     {
@@ -38,7 +38,7 @@ int32_t
 uitree_push_component(
     struct UITree* tree,
     int32_t parent_index,
-    Component* comp,
+    struct ToriAuxLibCore_Component* comp,
     int (*resolve_sprite)(void*, int),
     void* resolve_ud)
 {
@@ -53,32 +53,32 @@ uitree_push_component(
 
     switch( comp->type )
     {
-    case 5:
+    case TORIAUXLIBCORE_COMPONENT_GRAPHIC:
         spec.type = UIELEM_RS_GRAPHIC;
         spec.u.rs_graphic.scene_id = comp->graphic;
         spec.u.rs_graphic.graphic_hitbox_only = comp->graphic < 0 ? 1 : 0;
         spec.u.rs_graphic.tiled = comp->tiled ? 1 : 0;
         break;
-    case 3:
+    case TORIAUXLIBCORE_COMPONENT_RECT:
         spec.type = UIELEM_RS_RECT;
         spec.u.rs_rect.color = comp->color;
-        spec.u.rs_rect.filled = comp->fill ? 1 : 0;
+        spec.u.rs_rect.filled = comp->filled ? 1 : 0;
         break;
-    case 4:
+    case TORIAUXLIBCORE_COMPONENT_TEXT:
         spec.type = UIELEM_RS_TEXT;
-        spec.u.rs_text.font_id = comp->textFont >= 0 ? comp->textFont : 495;
+        spec.u.rs_text.font_id = comp->font_id >= 0 ? comp->font_id : 495;
         spec.u.rs_text.color = comp->color;
-        spec.u.rs_text.center = comp->textHorizontalAlignment;
-        spec.u.rs_text.shadowed = comp->textShadow ? 1 : 0;
-        spec.u.rs_text.text = comp->text;
+        spec.u.rs_text.center = comp->text_h_align;
+        spec.u.rs_text.shadowed = comp->shadowed ? 1 : 0;
+        spec.u.rs_text.text = comp->text[0] != '\0' ? comp->text : NULL;
         break;
-    case 9:
+    case TORIAUXLIBCORE_COMPONENT_LINE:
         spec.type = UIELEM_RS_LINE;
         spec.u.rs_line.color = comp->color;
-        spec.u.rs_line.line_width = comp->lineWidth;
-        spec.u.rs_line.horizontal = comp->lineDirection ? 1 : 0;
+        spec.u.rs_line.line_width = comp->line_width;
+        spec.u.rs_line.horizontal = comp->line_horizontal ? 1 : 0;
         break;
-    case 2:
+    case TORIAUXLIBCORE_COMPONENT_INV:
     {
         int offset_x[UI_INV_SLOT_OFFSET_MAX];
         int offset_y[UI_INV_SLOT_OFFSET_MAX];
@@ -93,22 +93,17 @@ uitree_push_component(
         }
 
         spec.type = UIELEM_INV_GRID;
-        spec.u.inv_grid.cols = comp->baseWidth > 0 ? comp->baseWidth : 1;
-        spec.u.inv_grid.rows = comp->baseHeight > 0 ? comp->baseHeight : 1;
-        spec.u.inv_grid.margin_x = comp->marginX;
-        spec.u.inv_grid.margin_y = comp->marginY;
-        if( comp->invSlotOffsetX && comp->invSlotOffsetY )
-        {
-            memcpy(offset_x, comp->invSlotOffsetX, (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
-            memcpy(offset_y, comp->invSlotOffsetY, (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
-        }
-        spec.u.inv_grid.inv_slot_offset_x = offset_x;
-        spec.u.inv_grid.inv_slot_offset_y = offset_y;
-        if( comp->invSlotGraphicId && resolve_sprite )
+        spec.u.inv_grid.cols = comp->inv_cols > 0 ? comp->inv_cols : 1;
+        spec.u.inv_grid.rows = comp->inv_rows > 0 ? comp->inv_rows : 1;
+        spec.u.inv_grid.margin_x = comp->margin_x;
+        spec.u.inv_grid.margin_y = comp->margin_y;
+        memcpy(offset_x, comp->inv_slot_offset_x, (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
+        memcpy(offset_y, comp->inv_slot_offset_y, (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
+        if( resolve_sprite )
         {
             for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
             {
-                int const gfx = comp->invSlotGraphicId[si];
+                int const gfx = comp->inv_slot_graphic_id[si];
                 if( gfx < 0 )
                     continue;
                 int const element_id = resolve_sprite(resolve_ud, gfx);
@@ -116,33 +111,35 @@ uitree_push_component(
                     bg_sid[si] = element_id;
             }
         }
+        spec.u.inv_grid.inv_slot_offset_x = offset_x;
+        spec.u.inv_grid.inv_slot_offset_y = offset_y;
         spec.u.inv_grid.inv_slot_bg_scene_id = bg_sid;
         spec.u.inv_grid.inv_slot_bg_atlas_index = bg_ai;
         break;
     }
-    case 6:
+    case TORIAUXLIBCORE_COMPONENT_MODEL:
         spec.type = UIELEM_RS_MODEL;
-        spec.u.rs_model.gamecache_model_id = comp->modelId;
-        spec.u.rs_model.zoom = comp->modelZoom > 0 ? comp->modelZoom : 100;
-        spec.u.rs_model.xan = comp->modelXAngle;
-        spec.u.rs_model.yan = comp->modelYAngle;
+        spec.u.rs_model.gamecache_model_id = comp->model_id;
+        spec.u.rs_model.zoom = comp->model_zoom > 0 ? comp->model_zoom : 100;
+        spec.u.rs_model.xan = comp->model_xan;
+        spec.u.rs_model.yan = comp->model_yan;
         break;
-    case 0:
+    case TORIAUXLIBCORE_COMPONENT_LAYER:
     default:
         spec.type = UIELEM_RS_LAYER;
-        spec.u.rs_layer.scroll_width = comp->scrollWidth;
-        spec.u.rs_layer.scroll_height = comp->scrollHeight;
+        spec.u.rs_layer.scroll_width = comp->scroll_width;
+        spec.u.rs_layer.scroll_height = comp->scroll_height;
         break;
     }
 
     int32_t idx = uitree_push(tree, parent_index, &spec);
     if( idx >= 0 )
     {
-        tree->components[idx].behavior.hide = comp->hidden ? 1 : 0;
+        tree->components[idx].behavior.hide = comp->hide ? 1 : 0;
         if( comp->transparency > 0 )
             tree->components[idx].trans = comp->transparency;
-        tree->components[idx].drag_dead_zone = comp->dragDeadZone;
-        tree->components[idx].drag_dead_time = comp->dragDeadTime;
+        tree->components[idx].drag_dead_zone = comp->drag_dead_zone;
+        tree->components[idx].drag_dead_time = comp->drag_dead_time;
     }
     return idx;
 }
@@ -175,7 +172,7 @@ uitree_build_from_source(
             continue;
         for( int j = 0; j < comp_count; j++ )
         {
-            Component* comp = src->get_component(src->ud, j);
+            struct ToriAuxLibCore_Component* comp = src->get_component(src->ud, j);
             if( comp && comp->id == parent_id )
             {
                 parent_idx[i] = j;
@@ -197,8 +194,8 @@ uitree_build_from_source(
     {
         for( int i = 0; i < comp_count; i++ )
         {
-            Component* comp = src->get_component(src->ud, i);
-            if( !comp || comp->type < 0 || pushed[i] )
+            struct ToriAuxLibCore_Component* comp = src->get_component(src->ud, i);
+            if( !comp || pushed[i] )
                 continue;
             if( parent_idx[i] >= 0 && !pushed[parent_idx[i]] )
                 continue;

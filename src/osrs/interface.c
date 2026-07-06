@@ -1530,7 +1530,7 @@ interface_handle_inv_button(
     int component_id)
 {
     // Based on Client.ts: INV_BUTTON1-5 (component iop) and OPHELD1-5 (object iop)
-    // Component options: 602=INV_BUTTON1, 596=INV_BUTTON2, 22=INV_BUTTON3, 892=INV_BUTTON4,
+    // RSCacheDat2A_Component options: 602=INV_BUTTON1, 596=INV_BUTTON2, 22=INV_BUTTON3, 892=INV_BUTTON4,
     // 415=INV_BUTTON5 Object options:    405=OPHELD1, 38=OPHELD2, 422=OPHELD3, 478=OPHELD4,
     // 347=OPHELD5
 
@@ -1541,14 +1541,14 @@ interface_handle_inv_button(
     if( component )
     {
         printf(
-            "Component found: id=%d, type=%d, iop=%p\n",
+            "RSCacheDat2A_Component found: id=%d, type=%d, iop=%p\n",
             component->id,
             component->type,
             (void*)component->iop);
 
         if( component->iop )
         {
-            printf("Component has inventory options:\n");
+            printf("RSCacheDat2A_Component has inventory options:\n");
             for( int i = 0; i < 5; i++ )
             {
                 if( component->iop[i] )
