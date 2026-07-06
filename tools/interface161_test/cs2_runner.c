@@ -8,6 +8,7 @@
 #include "toriauxlib/core/toriauxlibcore_types.h"
 #include "ui/rs_inv_container.h"
 #include "ui/uitree.h"
+#include "ui/uitree_build.h"
 #include "ui/uitree_layout.h"
 #include "vm/cs2_host_ui.h"
 #include "vm/cs2_opcode.h"
@@ -731,127 +732,31 @@ component_watches_container(
     return false;
 }
 
-static void
-interface161_cs2_fill_position_from_component(
-    struct StaticUIElemPosition* pos,
-    Component const* comp)
+struct Interface161BuildContext
 {
-    pos->kind = UIPOS_XY;
-    pos->x = comp->baseX;
-    pos->y = comp->baseY;
-    pos->width = comp->baseWidth;
-    pos->height = comp->baseHeight;
-    if( comp->if3 )
-    {
-        pos->x_mode = comp->xMode;
-        pos->y_mode = comp->yMode;
-        pos->width_mode = comp->widthMode;
-        pos->height_mode = comp->heightMode;
-        pos->aspect_w = comp->aspect_ratio_w > 0 ? comp->aspect_ratio_w : 1;
-        pos->aspect_h = comp->aspect_ratio_h > 0 ? comp->aspect_ratio_h : 1;
-    }
-    else
-    {
-        pos->x_mode = -1;
-        pos->y_mode = -1;
-        pos->width_mode = -1;
-        pos->height_mode = -1;
-    }
+    Component* comps;
+};
+
+static Component*
+interface161_build_get_component(
+    void* ud,
+    int index)
+{
+    struct Interface161BuildContext* ctx = ud;
+    if( !ctx || index < 0 )
+        return NULL;
+    return &ctx->comps[index];
 }
 
-static int32_t
-interface161_cs2_push_component(
-    struct UITree* tree,
-    int32_t parent_index,
-    Component* comp)
+static int
+interface161_build_get_parent_id(
+    void* ud,
+    int index)
 {
-    struct UINodeSpec spec;
-    memset(&spec, 0, sizeof(spec));
-    spec.component_id = comp->id;
-    spec.has_position = 1;
-    interface161_cs2_fill_position_from_component(&spec.position, comp);
-
-    struct StaticUIBehavior behavior;
-    memset(&behavior, 0, sizeof(behavior));
-    behavior.hide = comp->hidden ? 1 : 0;
-    spec.behavior = &behavior;
-
-    switch( comp->type )
-    {
-    case 5:
-        spec.type = UIELEM_RS_GRAPHIC;
-        spec.u.rs_graphic.scene_id = comp->graphic;
-        spec.u.rs_graphic.graphic_hitbox_only = comp->graphic < 0 ? 1 : 0;
-        spec.u.rs_graphic.tiled = comp->tiled ? 1 : 0;
-        break;
-    case 3:
-        spec.type = UIELEM_RS_RECT;
-        spec.u.rs_rect.color = comp->color;
-        spec.u.rs_rect.filled = comp->fill ? 1 : 0;
-        break;
-    case 4:
-        spec.type = UIELEM_RS_TEXT;
-        spec.u.rs_text.font_id = comp->textFont >= 0 ? comp->textFont : 495;
-        spec.u.rs_text.color = comp->color;
-        spec.u.rs_text.center = comp->textHorizontalAlignment;
-        spec.u.rs_text.shadowed = comp->textShadow ? 1 : 0;
-        spec.u.rs_text.text = comp->text;
-        break;
-    case 9:
-        spec.type = UIELEM_RS_LINE;
-        spec.u.rs_line.color = comp->color;
-        spec.u.rs_line.line_width = comp->lineWidth;
-        spec.u.rs_line.horizontal = comp->lineDirection ? 1 : 0;
-        break;
-    case 2:
-    {
-        int offset_x[UI_INV_SLOT_OFFSET_MAX];
-        int offset_y[UI_INV_SLOT_OFFSET_MAX];
-        int bg_sid[UI_INV_SLOT_OFFSET_MAX];
-        int bg_ai[UI_INV_SLOT_OFFSET_MAX];
-        for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
-        {
-            offset_x[si] = 0;
-            offset_y[si] = 0;
-            bg_sid[si] = -1;
-            bg_ai[si] = 0;
-        }
-
-        spec.type = UIELEM_INV_GRID;
-        spec.u.inv_grid.cols = comp->baseWidth > 0 ? comp->baseWidth : 1;
-        spec.u.inv_grid.rows = comp->baseHeight > 0 ? comp->baseHeight : 1;
-        spec.u.inv_grid.margin_x = comp->marginX;
-        spec.u.inv_grid.margin_y = comp->marginY;
-        if( comp->invSlotOffsetX && comp->invSlotOffsetY )
-        {
-            memcpy(offset_x, comp->invSlotOffsetX, (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
-            memcpy(offset_y, comp->invSlotOffsetY, (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
-        }
-        spec.u.inv_grid.inv_slot_offset_x = offset_x;
-        spec.u.inv_grid.inv_slot_offset_y = offset_y;
-        spec.u.inv_grid.inv_slot_bg_scene_id = bg_sid;
-        spec.u.inv_grid.inv_slot_bg_atlas_index = bg_ai;
-        break;
-    }
-    case 6:
-        spec.type = UIELEM_RS_MODEL;
-        spec.u.rs_model.gamecache_model_id = comp->modelId;
-        spec.u.rs_model.zoom = comp->modelZoom > 0 ? comp->modelZoom : 100;
-        spec.u.rs_model.xan = comp->modelXAngle;
-        spec.u.rs_model.yan = comp->modelYAngle;
-        break;
-    case 0:
-    default:
-        spec.type = UIELEM_RS_LAYER;
-        spec.u.rs_layer.scroll_width = comp->scrollWidth;
-        spec.u.rs_layer.scroll_height = comp->scrollHeight;
-        break;
-    }
-
-    int32_t idx = uitree_push(tree, parent_index, &spec);
-    if( idx >= 0 && comp->transparency > 0 )
-        tree->components[idx].trans = comp->transparency;
-    return idx;
+    struct Interface161BuildContext* ctx = ud;
+    if( !ctx || index < 0 )
+        return -1;
+    return ctx->comps[index].layer;
 }
 
 int
@@ -862,64 +767,16 @@ interface161_cs2_build_tree(
 {
     if( !tree || !comps || comp_count <= 0 )
         return -1;
-    int* parent_idx = calloc((size_t)comp_count, sizeof(int));
-    int* tree_idx = calloc((size_t)comp_count, sizeof(int));
-    if( !parent_idx || !tree_idx )
-    {
-        free(parent_idx);
-        free(tree_idx);
-        return -1;
-    }
 
-    for( int i = 0; i < comp_count; i++ )
-        parent_idx[i] = -1;
-
-    for( int i = 0; i < comp_count; i++ )
-    {
-        if( comps[i].layer < 0 )
-            continue;
-        for( int j = 0; j < comp_count; j++ )
-        {
-            if( comps[j].id == comps[i].layer )
-            {
-                parent_idx[i] = j;
-                break;
-            }
-        }
-    }
-
-    bool* pushed = calloc((size_t)comp_count, sizeof(bool));
-    if( !pushed )
-    {
-        free(parent_idx);
-        free(tree_idx);
-        return -1;
-    }
-
-    int pushed_count = 0;
-    for( int pass = 0; pass < comp_count && pushed_count < comp_count; pass++ )
-    {
-        for( int i = 0; i < comp_count; i++ )
-        {
-            if( comps[i].type < 0 || pushed[i] )
-                continue;
-            if( parent_idx[i] >= 0 && !pushed[parent_idx[i]] )
-                continue;
-            int32_t parent_tree = -1;
-            if( parent_idx[i] >= 0 )
-                parent_tree = tree_idx[parent_idx[i]];
-            tree_idx[i] = interface161_cs2_push_component(tree, parent_tree, &comps[i]);
-            if( tree_idx[i] < 0 )
-                continue;
-            pushed[i] = true;
-            pushed_count++;
-        }
-    }
-    free(pushed);
-
-    free(parent_idx);
-    free(tree_idx);
-    return 0;
+    struct Interface161BuildContext ctx = { .comps = comps };
+    struct UITreeBuildSource src = {
+        .count = comp_count,
+        .get_component = interface161_build_get_component,
+        .get_parent_id = interface161_build_get_parent_id,
+        .resolve_sprite = NULL,
+        .ud = &ctx,
+    };
+    return uitree_build_from_source(tree, &src);
 }
 
 void

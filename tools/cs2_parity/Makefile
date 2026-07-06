@@ -33,6 +33,7 @@ SRCS = $(TOOL_DIR)/cs2_parity.c \
 	$(SRC2_DIR)/toriauxlib/td/toridraw_cachemodel.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_clientscript_convert.c \
 	$(SRC2_DIR)/ui/uitree.c \
+	$(SRC2_DIR)/ui/uitree_build.c \
 	$(SRC2_DIR)/ui/uitree_layout.c \
 	$(SRC2_DIR)/ui/rs_inv_container.c \
 	$(SRC2_DIR)/ui/ui_inv_data_service.c \
@@ -116,6 +117,9 @@ $(OBJ_DIR)/toriauxlibcache_clientscript_convert.o: $(SRC2_DIR)/toriauxlib/c/tori
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/uitree.o: $(SRC2_DIR)/ui/uitree.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/uitree_build.o: $(SRC2_DIR)/ui/uitree_build.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/uitree_layout.o: $(SRC2_DIR)/ui/uitree_layout.c

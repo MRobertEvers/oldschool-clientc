@@ -175,6 +175,7 @@ COMMON_SRCS := interface_editor.c \
 	$(SRC2)/toriauxlib/core/tasks/task_instance_on_rc.c \
 	$(SRC2)/toriauxlib/core/tasks/task_instance_revconfig_load.c \
 	$(SRC2)/ui/uitree.c \
+	$(SRC2)/ui/uitree_build.c \
 	$(SRC2)/ui/uitree_layout.c \
 	$(SRC2)/ui/uitree_host.c \
 	$(SRC2)/ui/ui_input.c \

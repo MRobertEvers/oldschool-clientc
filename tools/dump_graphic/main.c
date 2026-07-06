@@ -109,15 +109,14 @@ dat1_parse_sprite_ref(
     filename_out[filename_cap - 1] = '\0';
 
 ensure_dat:
+{
+    size_t len = strlen(filename_out);
+    if( len + 5 <= filename_cap && (len < 4 || strcmp(filename_out + len - 4, ".dat") != 0) )
     {
-        size_t len = strlen(filename_out);
-        if( len + 5 <= filename_cap &&
-            (len < 4 || strcmp(filename_out + len - 4, ".dat") != 0) )
-        {
-            memcpy(filename_out + len, ".dat", 4);
-            filename_out[len + 4] = '\0';
-        }
+        memcpy(filename_out + len, ".dat", 4);
+        filename_out[len + 4] = '\0';
     }
+}
     return 0;
 }
 
@@ -205,8 +204,7 @@ dat1_load_sprite(
 }
 
 static int*
-pix8_to_argb(
-    struct RSCacheDat1A_Pix8Palette const* pix8)
+pix8_to_argb(struct RSCacheDat1A_Pix8Palette const* pix8)
 {
     if( !pix8 || !pix8->pixels || !pix8->palette || pix8->width <= 0 || pix8->height <= 0 )
         return NULL;
@@ -415,6 +413,7 @@ export_dat2_bmp(
     if( !pixels )
         return -1;
 
+    printf("writing bmp to %s: %dx%d\n", path, sprite->width, sprite->height);
     bmp_write_file(path, pixels, sprite->width, sprite->height);
     free(pixels);
     return 0;
@@ -431,6 +430,7 @@ export_dat1_bmp(
 
     if( pix32 && pix32->pixels )
     {
+        printf("writing bmp to %s: %dx%d\n", path, pix32->stride_x, pix32->stride_y);
         bmp_write_file(path, pix32->pixels, pix32->stride_x, pix32->stride_y);
         return 0;
     }
@@ -440,7 +440,9 @@ export_dat1_bmp(
         int* pixels = pix8_to_argb(pix8);
         if( !pixels )
             return -1;
+        printf("writing bmp to %s: %dx%d\n", path, pix8->width, pix8->height);
         bmp_write_file(path, pixels, pix8->width, pix8->height);
+
         free(pixels);
         return 0;
     }
@@ -571,8 +573,8 @@ main(
     char format[16];
     struct RSCacheDat1A_Pix32* pix32 = NULL;
     struct RSCacheDat1A_Pix8Palette* pix8 = NULL;
-    if( dat1_load_sprite(cache_dir, sprite_ref, dat1_frame, &pix32, &pix8, format, sizeof(format)) !=
-        0 )
+    if( dat1_load_sprite(
+            cache_dir, sprite_ref, dat1_frame, &pix32, &pix8, format, sizeof(format)) != 0 )
     {
         fprintf(stderr, "failed to load dat1 graphic ref='%s' frame=%d\n", sprite_ref, dat1_frame);
         return 1;

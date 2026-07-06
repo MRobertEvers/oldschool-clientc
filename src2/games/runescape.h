@@ -95,11 +95,6 @@ typedef struct ChatLine GameRunescape_ChatLine;
 typedef struct EntityRecord GameRunescape_EntityRecord;
 typedef enum EntityKind GameRunescape_EntityKind;
 
-struct GameRunescape_UITraversalFrame
-{
-    int32_t parent_index;
-};
-
 /** Zone center, build flag, and baked minimap sprite dimensions. */
 struct GameRunescape_WorldMapState
 {
@@ -153,7 +148,7 @@ struct GameRunescape_FrameState
     int32_t ui_scrollbar_layer;
     /** Client.ts scrollCycle: frames LMB held this tick (for arrow repeat). */
     int ui_scroll_cycle;
-    struct GameRunescape_UITraversalFrame ui_stack[RUNESCAPE_UI_TRAVERSAL_STACK_MAX];
+    int32_t ui_stack[RUNESCAPE_UI_TRAVERSAL_STACK_MAX];
     int ui_stack_top;
 };
 

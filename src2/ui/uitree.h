@@ -573,6 +573,18 @@ uitree_find_by_component_id(
     struct UITree const* tree,
     int component_id);
 
+#define UITREE_WALK_STACK_MAX 64
+
+/** Preorder DFS cursor. Descends into first_child only when current_visible is true. */
+void
+uitree_walk_advance(
+    struct UITree const* tree,
+    int32_t* io_current,
+    int32_t* stack,
+    int* io_stack_top,
+    int stack_max,
+    bool current_visible);
+
 /** Apply CS2 IF/CC hide to a node (by packed component id). Returns true if updated. */
 bool
 uitree_apply_hide(

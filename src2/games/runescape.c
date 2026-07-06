@@ -2289,36 +2289,16 @@ GameRunescape_UIAdvance(
 {
     struct UITree* tree = game->ui_tree;
     struct StaticUIComponent* c = &tree->components[stepped_index];
+    bool const current_visible = GameRunescape_UINodeVisible(game, c, stepped_index);
 
-    if( c->first_child >= 0 && GameRunescape_UINodeVisible(game, c, stepped_index) )
-    {
-        if( game->frame.ui_stack_top + 1 < RUNESCAPE_UI_TRAVERSAL_STACK_MAX )
-        {
-            game->frame.ui_stack[++game->frame.ui_stack_top] =
-                (struct GameRunescape_UITraversalFrame){ .parent_index = stepped_index };
-            game->frame.ui_current = c->first_child;
-            return;
-        }
-    }
-
-    if( c->next_sibling >= 0 )
-    {
-        game->frame.ui_current = c->next_sibling;
-        return;
-    }
-
-    while( game->frame.ui_stack_top >= 0 )
-    {
-        struct GameRunescape_UITraversalFrame frame =
-            game->frame.ui_stack[game->frame.ui_stack_top--];
-        struct StaticUIComponent* parent = &tree->components[frame.parent_index];
-        if( parent->next_sibling >= 0 )
-        {
-            game->frame.ui_current = parent->next_sibling;
-            return;
-        }
-    }
-    game->frame.ui_current = -1;
+    game->frame.ui_current = stepped_index;
+    uitree_walk_advance(
+        tree,
+        &game->frame.ui_current,
+        game->frame.ui_stack,
+        &game->frame.ui_stack_top,
+        RUNESCAPE_UI_TRAVERSAL_STACK_MAX,
+        current_visible);
 }
 
 static void
@@ -2381,7 +2361,7 @@ GameRunescape_UIGetAncestors(
 
     int count = 0;
     for( int i = 0; i <= game->frame.ui_stack_top && count < max_ancestors; i++ )
-        ancestors[count++] = game->frame.ui_stack[i].parent_index;
+        ancestors[count++] = game->frame.ui_stack[i];
     return count;
 }
 

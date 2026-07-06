@@ -13,6 +13,7 @@
 #include "toridraw/toridraw_scene.h"
 #include "ui/ui_if3_layout.h"
 #include "ui/ui_inv_slot_view.h"
+#include "ui/uitree_build.h"
 #include "ui/uitree_layout.h"
 #include "vm/cs1vm_host.h"
 #include "vm/cs2_host_ui.h"
@@ -1433,7 +1434,7 @@ ie_cs2_cache_script(
         game->dat2_cache, RSCacheDat2Disk_Table_Clientscript, script_id);
     struct ToriAuxLibCore_ClientScript* loaded =
         ToriAuxLibCache_ClientScriptNewFromDat2Archive(
-            disk, archive, script_id, game->clientscript_decode_flags);
+            game->dat2_cache, archive, script_id, game->clientscript_decode_flags);
     if( !loaded || loaded->script.op_count <= 0 )
         return;
 
@@ -2261,146 +2262,40 @@ ie_handle_canvas_drag_scripts(
         (void)ie_cs2_run_component_hook(game, comp, comp->onDragComplete, comp->onDragCompleteLen);
 }
 
-static void
-ie_cs2_fill_position_from_component(
-    struct StaticUIElemPosition* pos,
-    Component const* comp)
+static Component*
+ie_cs2_build_get_component(
+    void* ud,
+    int index)
 {
-    pos->kind = UIPOS_XY;
-    pos->x = comp->baseX;
-    pos->y = comp->baseY;
-    pos->width = comp->baseWidth;
-    pos->height = comp->baseHeight;
-    if( comp->if3 )
-    {
-        pos->x_mode = comp->xMode;
-        pos->y_mode = comp->yMode;
-        pos->width_mode = comp->widthMode;
-        pos->height_mode = comp->heightMode;
-        pos->aspect_w = comp->aspect_ratio_w > 0 ? comp->aspect_ratio_w : 1;
-        pos->aspect_h = comp->aspect_ratio_h > 0 ? comp->aspect_ratio_h : 1;
-    }
-    else
-    {
-        pos->x_mode = -1;
-        pos->y_mode = -1;
-        pos->width_mode = -1;
-        pos->height_mode = -1;
-    }
+    struct GameInterfaceEditor* game = ud;
+    if( !game || index < 0 || index >= game->widget_count )
+        return NULL;
+    return &game->widgets[index].data;
 }
 
-static int32_t
-ie_cs2_push_component(
-    struct UITree* tree,
-    int32_t parent_index,
-    Component* comp)
+static int
+ie_cs2_build_get_parent_id(
+    void* ud,
+    int index)
 {
-    struct UINodeSpec spec;
-    memset(&spec, 0, sizeof(spec));
-    spec.component_id = comp->id;
-    spec.has_position = 1;
-    ie_cs2_fill_position_from_component(&spec.position, comp);
+    struct GameInterfaceEditor* game = ud;
+    if( !game || index < 0 || index >= game->widget_count )
+        return -1;
+    return game->widgets[index].is_editor_added ? game->widgets[index].parent_uid
+                                                : game->widgets[index].data.layer;
+}
 
-    struct StaticUIBehavior behavior;
-    memset(&behavior, 0, sizeof(behavior));
-    behavior.hide = comp->hidden ? 1 : 0;
-
-    switch( comp->type )
-    {
-    case 5:
-        spec.type = UIELEM_RS_GRAPHIC;
-        spec.u.rs_graphic.scene_id = comp->graphic;
-        spec.u.rs_graphic.graphic_hitbox_only = comp->graphic < 0 ? 1 : 0;
-        spec.u.rs_graphic.tiled = comp->tiled ? 1 : 0;
-        break;
-    case 3:
-        spec.type = UIELEM_RS_RECT;
-        spec.u.rs_rect.color = comp->color;
-        spec.u.rs_rect.filled = comp->fill ? 1 : 0;
-        break;
-    case 4:
-        spec.type = UIELEM_RS_TEXT;
-        spec.u.rs_text.font_id = comp->textFont >= 0 ? comp->textFont : 495;
-        spec.u.rs_text.color = comp->color;
-        spec.u.rs_text.center = comp->textHorizontalAlignment;
-        spec.u.rs_text.shadowed = comp->textShadow ? 1 : 0;
-        spec.u.rs_text.text = comp->text;
-        break;
-    case 9:
-        spec.type = UIELEM_RS_LINE;
-        spec.u.rs_line.color = comp->color;
-        spec.u.rs_line.line_width = comp->lineWidth;
-        spec.u.rs_line.horizontal = comp->lineDirection ? 1 : 0;
-        break;
-    case 2:
-    {
-        int offset_x[UI_INV_SLOT_OFFSET_MAX];
-        int offset_y[UI_INV_SLOT_OFFSET_MAX];
-        int bg_sid[UI_INV_SLOT_OFFSET_MAX];
-        int bg_ai[UI_INV_SLOT_OFFSET_MAX];
-        for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
-        {
-            offset_x[si] = 0;
-            offset_y[si] = 0;
-            bg_sid[si] = -1;
-            bg_ai[si] = 0;
-        }
-
-        spec.type = UIELEM_INV_GRID;
-        spec.u.inv_grid.cols = comp->baseWidth > 0 ? comp->baseWidth : 1;
-        spec.u.inv_grid.rows = comp->baseHeight > 0 ? comp->baseHeight : 1;
-        spec.u.inv_grid.margin_x = comp->marginX;
-        spec.u.inv_grid.margin_y = comp->marginY;
-        if( comp->invSlotOffsetX && comp->invSlotOffsetY )
-        {
-            memcpy(offset_x, comp->invSlotOffsetX, (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
-            memcpy(offset_y, comp->invSlotOffsetY, (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
-        }
-        spec.u.inv_grid.inv_slot_offset_x = offset_x;
-        spec.u.inv_grid.inv_slot_offset_y = offset_y;
-        if( comp->invSlotGraphicId )
-        {
-            struct GameInterfaceEditor* push_game = s_ie_cs2_game;
-            for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
-            {
-                int const gfx = comp->invSlotGraphicId[si];
-                if( gfx < 0 )
-                    continue;
-                int element_id = -1;
-                int frame_count = 0;
-                if( push_game && ie_resolve_sprite(push_game, gfx, &element_id, &frame_count) )
-                    bg_sid[si] = element_id;
-            }
-        }
-        spec.u.inv_grid.inv_slot_bg_scene_id = bg_sid;
-        spec.u.inv_grid.inv_slot_bg_atlas_index = bg_ai;
-        break;
-    }
-    case 6:
-        spec.type = UIELEM_RS_MODEL;
-        spec.u.rs_model.gamecache_model_id = comp->modelId;
-        spec.u.rs_model.zoom = comp->modelZoom > 0 ? comp->modelZoom : 100;
-        spec.u.rs_model.xan = comp->modelXAngle;
-        spec.u.rs_model.yan = comp->modelYAngle;
-        break;
-    case 0:
-    default:
-        spec.type = UIELEM_RS_LAYER;
-        spec.u.rs_layer.scroll_width = comp->scrollWidth;
-        spec.u.rs_layer.scroll_height = comp->scrollHeight;
-        break;
-    }
-
-    int32_t idx = uitree_push(tree, parent_index, &spec);
-    if( idx >= 0 )
-    {
-        tree->components[idx].behavior.hide = behavior.hide;
-        if( comp->transparency > 0 )
-            tree->components[idx].trans = comp->transparency;
-        tree->components[idx].drag_dead_zone = comp->dragDeadZone;
-        tree->components[idx].drag_dead_time = comp->dragDeadTime;
-    }
-    return idx;
+static int
+ie_cs2_resolve_sprite_for_build(
+    void* ud,
+    int graphic_id)
+{
+    struct GameInterfaceEditor* game = ud;
+    int element_id = -1;
+    int frame_count = 0;
+    if( !game || !ie_resolve_sprite(game, graphic_id, &element_id, &frame_count) )
+        return -1;
+    return element_id;
 }
 
 static int
@@ -2409,68 +2304,14 @@ ie_cs2_build_tree(struct GameInterfaceEditor* game)
     if( !game || !game->cs2_tree )
         return -1;
 
-    int const comp_count = game->widget_count;
-    int* parent_idx = calloc((size_t)comp_count, sizeof(int));
-    int* tree_idx = calloc((size_t)comp_count, sizeof(int));
-    if( !parent_idx || !tree_idx )
-    {
-        free(parent_idx);
-        free(tree_idx);
-        return -1;
-    }
-
-    for( int i = 0; i < comp_count; i++ )
-        parent_idx[i] = -1;
-
-    for( int i = 0; i < comp_count; i++ )
-    {
-        int const layer = game->widgets[i].is_editor_added ? game->widgets[i].parent_uid
-                                                           : game->widgets[i].data.layer;
-        if( layer < 0 )
-            continue;
-        for( int j = 0; j < comp_count; j++ )
-        {
-            if( game->widgets[j].data.id == layer )
-            {
-                parent_idx[i] = j;
-                break;
-            }
-        }
-    }
-
-    bool* pushed = calloc((size_t)comp_count, sizeof(bool));
-    if( !pushed )
-    {
-        free(parent_idx);
-        free(tree_idx);
-        return -1;
-    }
-
-    int pushed_count = 0;
-    for( int pass = 0; pass < comp_count && pushed_count < comp_count; pass++ )
-    {
-        for( int i = 0; i < comp_count; i++ )
-        {
-            if( game->widgets[i].data.type < 0 || pushed[i] )
-                continue;
-            if( parent_idx[i] >= 0 && !pushed[parent_idx[i]] )
-                continue;
-            int32_t parent_tree = -1;
-            if( parent_idx[i] >= 0 )
-                parent_tree = tree_idx[parent_idx[i]];
-            tree_idx[i] =
-                ie_cs2_push_component(game->cs2_tree, parent_tree, &game->widgets[i].data);
-            if( tree_idx[i] < 0 )
-                continue;
-            pushed[i] = true;
-            pushed_count++;
-        }
-    }
-    free(pushed);
-
-    free(parent_idx);
-    free(tree_idx);
-    return 0;
+    struct UITreeBuildSource src = {
+        .count = game->widget_count,
+        .get_component = ie_cs2_build_get_component,
+        .get_parent_id = ie_cs2_build_get_parent_id,
+        .resolve_sprite = ie_cs2_resolve_sprite_for_build,
+        .ud = game,
+    };
+    return uitree_build_from_source(game->cs2_tree, &src);
 }
 
 static struct RSCacheDat2A_ConfigObject*
@@ -5014,53 +4855,6 @@ ie_draw_widget_preview(
     ie_push_hit(game, IEHIT_CANVAS_WIDGET, bx, by, bw, bh, w->uid, 0);
 }
 
-enum IETreeTraversalStackMax
-{
-    IE_UI_TRAVERSAL_STACK_MAX = 64
-};
-
-static void
-ie_ui_tree_advance(
-    struct UITree* tree,
-    int32_t* current,
-    int32_t* stack,
-    int* stack_top,
-    bool descend_visible)
-{
-    if( !tree || !current || *current < 0 )
-        return;
-
-    struct StaticUIComponent* c = &tree->components[*current];
-
-    if( c->first_child >= 0 && descend_visible && !c->behavior.hide )
-    {
-        if( *stack_top + 1 < IE_UI_TRAVERSAL_STACK_MAX )
-        {
-            stack[++(*stack_top)] = *current;
-            *current = c->first_child;
-            return;
-        }
-    }
-
-    if( c->next_sibling >= 0 )
-    {
-        *current = c->next_sibling;
-        return;
-    }
-
-    while( *stack_top >= 0 )
-    {
-        int32_t parent_index = stack[(*stack_top)--];
-        struct StaticUIComponent* parent = &tree->components[parent_index];
-        if( parent->next_sibling >= 0 )
-        {
-            *current = parent->next_sibling;
-            return;
-        }
-    }
-    *current = -1;
-}
-
 static bool
 ie_is_orphan_graphic(Component const* comp);
 
@@ -5101,12 +4895,18 @@ ie_draw_cs2_tree_pass(
     if( !game || !game->cs2_tree )
         return;
 
-    for( uint32_t i = 0; i < game->cs2_tree->component_count; i++ )
+    struct UITree* tree = game->cs2_tree;
+    int32_t stack[UITREE_WALK_STACK_MAX];
+    int stack_top = -1;
+    int32_t current = tree->root_index;
+    while( current >= 0 )
     {
-        struct StaticUIComponent const* node = &game->cs2_tree->components[i];
-        if( node->behavior.hide )
-            continue;
-        ie_draw_tree_node_preview(game, node, canvas_x, canvas_y, scale, pass);
+        struct StaticUIComponent const* node = &tree->components[current];
+        bool const visible = !node->behavior.hide;
+        if( visible )
+            ie_draw_tree_node_preview(game, node, canvas_x, canvas_y, scale, pass);
+        uitree_walk_advance(
+            tree, &current, stack, &stack_top, UITREE_WALK_STACK_MAX, visible);
     }
 }
 

@@ -163,7 +163,6 @@
     "toridraw_math.h": "c"
   },
   "lldb.displayFormat": "auto",
-  "lldb.showDisassembly": "always",
   "lldb.dereferencePointers": true,
   "lldb.consoleMode": "commands"
 }

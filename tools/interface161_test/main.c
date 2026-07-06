@@ -1529,19 +1529,44 @@ draw_orphan_graphics(
 }
 
 static void
-draw_cs2_tree_graphics(
-    struct DrawContext* ctx,
-    struct UITree const* tree)
+collect_visible_preorder(
+    struct UITree const* tree,
+    int32_t* out,
+    int max,
+    int* out_count)
 {
-    if( !ctx || !tree )
+    *out_count = 0;
+    if( !tree || !out || max <= 0 )
         return;
 
-    for( uint32_t i = 0; i < tree->component_count; i++ )
+    int32_t stack[UITREE_WALK_STACK_MAX];
+    int stack_top = -1;
+    int32_t current = tree->root_index;
+    while( current >= 0 && *out_count < max )
     {
-        struct StaticUIComponent const* node = &tree->components[i];
+        struct StaticUIComponent const* node = &tree->components[current];
+        bool const visible = !node->behavior.hide;
+        if( visible )
+            out[(*out_count)++] = current;
+        uitree_walk_advance(
+            tree, &current, stack, &stack_top, UITREE_WALK_STACK_MAX, visible);
+    }
+}
+
+static void
+draw_cs2_tree_graphics(
+    struct DrawContext* ctx,
+    struct UITree const* tree,
+    int32_t const* indices,
+    int index_count)
+{
+    if( !ctx || !tree || !indices || index_count <= 0 )
+        return;
+
+    for( int i = 0; i < index_count; i++ )
+    {
+        struct StaticUIComponent const* node = &tree->components[indices[i]];
         if( node->type != UIELEM_RS_GRAPHIC )
-            continue;
-        if( node->behavior.hide )
             continue;
         if( node->item_id > 0 )
             continue;
@@ -1576,17 +1601,17 @@ draw_cs2_tree_graphics(
 static void
 draw_cs2_tree_text(
     struct DrawContext* ctx,
-    struct UITree const* tree)
+    struct UITree const* tree,
+    int32_t const* indices,
+    int index_count)
 {
-    if( !ctx || !tree )
+    if( !ctx || !tree || !indices || index_count <= 0 )
         return;
 
-    for( uint32_t i = 0; i < tree->component_count; i++ )
+    for( int i = 0; i < index_count; i++ )
     {
-        struct StaticUIComponent const* node = &tree->components[i];
+        struct StaticUIComponent const* node = &tree->components[indices[i]];
         if( node->type != UIELEM_RS_TEXT )
-            continue;
-        if( node->behavior.hide )
             continue;
         if( !node->u.rs_text.text || !node->u.rs_text.text[0] )
             continue;
@@ -1613,17 +1638,17 @@ draw_cs2_tree_text(
 static void
 draw_cs2_tree_lines(
     struct DrawContext* ctx,
-    struct UITree const* tree)
+    struct UITree const* tree,
+    int32_t const* indices,
+    int index_count)
 {
-    if( !ctx || !tree )
+    if( !ctx || !tree || !indices || index_count <= 0 )
         return;
 
-    for( uint32_t i = 0; i < tree->component_count; i++ )
+    for( int i = 0; i < index_count; i++ )
     {
-        struct StaticUIComponent const* node = &tree->components[i];
+        struct StaticUIComponent const* node = &tree->components[indices[i]];
         if( node->type != UIELEM_RS_LINE )
-            continue;
-        if( node->behavior.hide )
             continue;
 
         int px = node->position.abs_x;
@@ -1645,17 +1670,16 @@ draw_cs2_tree_lines(
 static void
 draw_cs2_tree_objs(
     struct DrawContext* ctx,
-    struct UITree const* tree)
+    struct UITree const* tree,
+    int32_t const* indices,
+    int index_count)
 {
-    if( !ctx || !tree )
+    if( !ctx || !tree || !indices || index_count <= 0 )
         return;
 
-    for( uint32_t i = 0; i < tree->component_count; i++ )
+    for( int i = 0; i < index_count; i++ )
     {
-        struct StaticUIComponent const* node = &tree->components[i];
-        if( node->behavior.hide )
-            continue;
-
+        struct StaticUIComponent const* node = &tree->components[indices[i]];
         int obj_id = node_item_obj_id(node);
         if( obj_id <= 0 )
             continue;
@@ -1679,12 +1703,31 @@ draw_cs2_tree_overlays(
     const int* lay_w,
     const int* lay_h)
 {
-    draw_cs2_tree_graphics(ctx, tree);
-    draw_cs2_tree_text(ctx, tree);
-    draw_cs2_tree_lines(ctx, tree);
+    if( !ctx || !tree )
+        return;
+
+    int32_t* indices = NULL;
+    int index_count = 0;
+    if( tree->component_count > 0 )
+    {
+        indices = malloc((size_t)tree->component_count * sizeof(int32_t));
+        if( indices )
+            collect_visible_preorder(
+                tree, indices, (int)tree->component_count, &index_count);
+    }
+
+    if( indices && index_count > 0 )
+    {
+        draw_cs2_tree_graphics(ctx, tree, indices, index_count);
+        draw_cs2_tree_text(ctx, tree, indices, index_count);
+        draw_cs2_tree_lines(ctx, tree, indices, index_count);
+        draw_cs2_tree_objs(ctx, tree, indices, index_count);
+    }
+
+    free(indices);
+
     if( comps && n > 0 )
         draw_orphan_graphics(ctx, comps, n, lay_x, lay_y, lay_w, lay_h);
-    draw_cs2_tree_objs(ctx, tree);
 }
 
 static void

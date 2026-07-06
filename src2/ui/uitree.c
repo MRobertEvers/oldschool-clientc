@@ -335,6 +335,53 @@ uitree_resolve_component_target(
     return -1;
 }
 
+void
+uitree_walk_advance(
+    struct UITree const* tree,
+    int32_t* io_current,
+    int32_t* stack,
+    int* io_stack_top,
+    int stack_max,
+    bool current_visible)
+{
+    if( !tree || !io_current || *io_current < 0 )
+        return;
+
+    struct StaticUIComponent const* c = &tree->components[*io_current];
+
+    if( c->first_child >= 0 && current_visible && io_stack_top && stack &&
+        *io_stack_top + 1 < stack_max )
+    {
+        stack[++(*io_stack_top)] = *io_current;
+        *io_current = c->first_child;
+        return;
+    }
+
+    if( c->next_sibling >= 0 )
+    {
+        *io_current = c->next_sibling;
+        return;
+    }
+
+    if( !io_stack_top || !stack )
+    {
+        *io_current = -1;
+        return;
+    }
+
+    while( *io_stack_top >= 0 )
+    {
+        int32_t parent_index = stack[(*io_stack_top)--];
+        struct StaticUIComponent const* parent = &tree->components[parent_index];
+        if( parent->next_sibling >= 0 )
+        {
+            *io_current = parent->next_sibling;
+            return;
+        }
+    }
+    *io_current = -1;
+}
+
 bool
 uitree_apply_hide(
     struct UITree* tree,

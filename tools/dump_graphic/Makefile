@@ -20,6 +20,8 @@ endif
 
 SRCS = main.c \
 	$(SRC_DIR)/osrs/rscache/unity.c \
+	$(SRC2_DIR)/vm/cs2_script.c \
+	$(SRC2_DIR)/vm/cs2_opcode_meta.c \
 	$(SRC_DIR)/bmp.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c
@@ -39,6 +41,12 @@ $(OBJ_DIR)/main.o: main.c
 
 $(OBJ_DIR)/unity.o: $(SRC_DIR)/osrs/rscache/unity.c
 	$(CC) $(CFLAGS) -c $(SRC_DIR)/osrs/rscache/unity.c -o $@
+
+$(OBJ_DIR)/cs2_script.o: $(SRC2_DIR)/vm/cs2_script.c
+	$(CC) $(CFLAGS) -c $(SRC2_DIR)/vm/cs2_script.c -o $@
+
+$(OBJ_DIR)/cs2_opcode_meta.o: $(SRC2_DIR)/vm/cs2_opcode_meta.c
+	$(CC) $(CFLAGS) -c $(SRC2_DIR)/vm/cs2_opcode_meta.c -o $@
 
 $(OBJ_DIR)/bmp.o: $(SRC_DIR)/bmp.c
 	$(CC) $(CFLAGS) -c $(SRC_DIR)/bmp.c -o $@
