@@ -236,6 +236,8 @@
 /* Get active component id. in: -. out int: active_component. */
 #define CS2_OP_CC_GETID 1702
 #define CS2_OP_CC_PARAM 1703
+/* Set widget param on CC target. in: param_id, value, script_var_type. out: -. */
+#define CS2_OP_CC_SETPARAM 1704
 #define CS2_OP_CC_GETTARGETMASK 1800
 /* Get op text. in: op_index. out str: op text. */
 #define CS2_OP_CC_GETOP 1801
@@ -392,6 +394,10 @@
 #define CS2_OP_IF_GETINVOBJECT 2700
 #define CS2_OP_IF_GETINVCOUNT 2701
 #define CS2_OP_IF_HASSUB 2702
+/* Read widget param. in: param_id, widget_uid, child_index. out int/str: param value. */
+#define CS2_OP_IF_PARAM 2703
+/* Set widget param. in: param_id, value, widget_uid, child_index, script_var_type. out: -. */
+#define CS2_OP_IF_SETPARAM 2704
 /* Get root component id. in: -. out int: top component or -1. */
 #define CS2_OP_IF_GETTOP 2706
 #define CS2_OP_IF_GETTARGETMASK 2800
@@ -648,6 +654,10 @@
 #define CS2_OP_AND 4014
 /* Bitwise or. in: a, b (b top). out int: a|b. */
 #define CS2_OP_OR 4015
+/* Integer min. in: a, b (b top). out int: min(a,b). */
+#define CS2_OP_MIN 4016
+/* Integer max. in: a, b (b top). out int: max(a,b). */
+#define CS2_OP_MAX 4017
 /* Scale interpolate (c*a)/b. in: a, b, c (c top). out int: result; b==0 yields 0. */
 #define CS2_OP_SCALE 4018
 #define CS2_OP_BITCOUNT 4025

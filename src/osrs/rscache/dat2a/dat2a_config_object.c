@@ -499,10 +499,7 @@ RSCacheDat2A_ConfigObjectDecodeInplace(
             break;
         }
         default:
-        {
-            printf("ObjectType: Opcode %d not implemented\n", opcode);
             break;
-        }
         }
     }
 }

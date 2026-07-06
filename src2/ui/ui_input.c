@@ -54,9 +54,19 @@ uitree_component_is_pass_through(
     case UIELEM_BUILTIN_CHAT:
         return true;
     case UIELEM_BUILTIN_CROSS:
-        return !host || !host->get_cross_active || !host->get_cross_active(host->user);
+    {
+        if( !host )
+            return true;
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_CROSS_ACTIVE };
+        return uitree_host(host, &req) == 0;
+    }
     case UIELEM_BUILTIN_MINIMENU:
-        return !host || !host->get_minimenu_visible || !host->get_minimenu_visible(host->user);
+    {
+        if( !host )
+            return true;
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
+        return uitree_host(host, &req) == 0;
+    }
     case UIELEM_INV_GRID:
     case UIELEM_INV_SLOT:
     case UIELEM_RS_INV_TEXT:
@@ -126,9 +136,10 @@ uitree_hit_test_interactive_recursive(
     }
 
     bool recurse_children = true;
-    if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
     {
-        if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        if( uitree_host(host, &req) != component->u.sidebar.tabno )
             recurse_children = false;
     }
 

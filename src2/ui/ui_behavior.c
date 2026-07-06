@@ -187,9 +187,10 @@ uitree_find_hovered_component_id_recursive(
     }
 
     bool recurse_children = mouse_in_bounds;
-    if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
     {
-        if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        if( uitree_host(host, &req) != component->u.sidebar.tabno )
             recurse_children = false;
     }
 

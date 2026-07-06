@@ -838,6 +838,15 @@ ie_layout_one(
 }
 
 static void
+ie_cs2_relayout_preview(struct GameInterfaceEditor* game);
+
+static void
+ie_cs2_layout_root_size(
+    struct GameInterfaceEditor* game,
+    int* out_w,
+    int* out_h);
+
+static void
 ie_relayout(struct GameInterfaceEditor* game)
 {
     bool const rerun_scripts = game->scripts_ran;
@@ -948,8 +957,9 @@ ie_relayout(struct GameInterfaceEditor* game)
 
     int const root_x = 0;
     int const root_y = 0;
-    int const root_w = IE_PREVIEW_ROOT_W;
-    int const root_h = IE_PREVIEW_ROOT_H;
+    int root_w = IE_PREVIEW_ROOT_W;
+    int root_h = IE_PREVIEW_ROOT_H;
+    ie_cs2_layout_root_size(game, &root_w, &root_h);
 
     for( int k = 0; k < game->draw_order_count; k++ )
     {
@@ -997,8 +1007,8 @@ ie_relayout(struct GameInterfaceEditor* game)
         game->widgets[i].lay_h = lay_h[i];
     }
 
-    if( rerun_scripts && game->loaded_group_id >= 0 && game->widget_count > 0 )
-        GameInterfaceEditor_RunScripts(game);
+    if( rerun_scripts && game->cs2_tree )
+        ie_cs2_relayout_preview(game);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1015,19 +1025,13 @@ ie_cs2_layout_root_size(
     int root_h = IE_PREVIEW_ROOT_H;
     if( game )
     {
-        for( int i = 0; i < game->widget_count; i++ )
-        {
-            RSCacheDat2A_Component* comp = &game->widgets[i].data;
-            if( comp->type != 0 || comp->layer >= 0 )
-                continue;
-            if( comp->baseWidth > 0 && comp->baseWidth <= 800 && comp->baseHeight > 0 )
-            {
-                root_w = comp->baseWidth;
-                root_h = comp->baseHeight;
-                break;
-            }
-        }
+        root_w = game->preview_layout_w > 0 ? game->preview_layout_w : IE_PREVIEW_ROOT_W;
+        root_h = game->preview_layout_h > 0 ? game->preview_layout_h : IE_PREVIEW_ROOT_H;
     }
+    if( root_w < 320 )
+        root_w = 320;
+    if( root_h < 240 )
+        root_h = 240;
     if( out_w )
         *out_w = root_w;
     if( out_h )
@@ -2646,7 +2650,7 @@ GameInterfaceEditor_RunScripts(struct GameInterfaceEditor* game)
     ie_cs2_run_script_pass(game, true);
 
     game->scripts_ran = true;
-    game->transmit_cycles.widgets_loaded_dirty = true;
+    game->transmit_cycles.widgets_loaded_dirty = false;
 
     if( game->cs2_trace_enabled )
     {
@@ -5203,24 +5207,35 @@ ie_build_preview_panel(
 {
     ie_push_draw_fill(game, x, y, w, h, 0xFF141414);
 
-    int pw = IE_PREVIEW_ROOT_W;
-    int ph = IE_PREVIEW_ROOT_H;
-    float scale_x = (float)(w - 16) / (float)pw;
-    float scale_y = (float)(h - 32) / (float)ph;
-    float scale = scale_x < scale_y ? scale_x : scale_y;
-    if( scale > 1.0f )
-        scale = 1.0f;
+    int const padding = 8;
+    int canvas_w = w - padding * 2;
+    int canvas_h = h - IE_ROW_H - padding * 2;
+    if( canvas_w < 320 )
+        canvas_w = 320;
+    if( canvas_h < 240 )
+        canvas_h = 240;
 
-    int canvas_w = (int)(pw * scale);
-    int canvas_h = (int)(ph * scale);
     int canvas_x = x + (w - canvas_w) / 2;
     int canvas_y = y + IE_ROW_H + (h - IE_ROW_H - canvas_h) / 2;
+
+    bool const layout_changed =
+        game->preview_layout_w != canvas_w || game->preview_layout_h != canvas_h;
 
     game->preview_x = canvas_x;
     game->preview_y = canvas_y;
     game->preview_w = canvas_w;
     game->preview_h = canvas_h;
-    game->preview_scale = scale;
+    game->preview_scale = 1.0f;
+    game->preview_layout_w = canvas_w;
+    game->preview_layout_h = canvas_h;
+
+    if( layout_changed )
+    {
+        if( game->scripts_ran && game->cs2_tree )
+            ie_cs2_relayout_preview(game);
+        else if( game->widget_count > 0 )
+            ie_relayout(game);
+    }
 
     ie_push_draw_fill(game, canvas_x, canvas_y, canvas_w, canvas_h, 0xFF202020);
 
@@ -5242,14 +5257,14 @@ ie_build_preview_panel(
 
     if( game->scripts_ran && game->cs2_tree )
     {
-        ie_draw_cs2_tree_preview(game, canvas_x, canvas_y, scale);
+        ie_draw_cs2_tree_preview(game, canvas_x, canvas_y, 1.0f);
     }
     else
     {
         for( int k = 0; k < game->draw_order_count; k++ )
         {
             int i = game->draw_order[k];
-            ie_draw_widget_preview(game, &game->widgets[i], canvas_x, canvas_y, scale);
+            ie_draw_widget_preview(game, &game->widgets[i], canvas_x, canvas_y, 1.0f);
         }
     }
 }
@@ -5751,6 +5766,9 @@ GameInterfaceEditor_New(
     (void)ui_inv_data_service_ensure_container(&game->inv_data, 620, 2048, "collection_log");
     game->containers_source_id = game->worn_source_id;
     game->canvas_drag_uid = -1;
+    game->preview_layout_w = IE_PREVIEW_ROOT_W;
+    game->preview_layout_h = IE_PREVIEW_ROOT_H;
+    game->preview_scale = 1.0f;
 
     {
         char const* env = getenv("IE_CS2_TRACE");

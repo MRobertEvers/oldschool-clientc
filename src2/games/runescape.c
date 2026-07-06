@@ -416,19 +416,215 @@ rs_ui_host_fill_cs1host(
     out->get_coord_z = rs_cs1vm_get_coord_z;
 }
 
-static bool
-rs_ui_host_is_active(
-    void* user,
-    struct StaticUIComponent const* component)
+static int
+rs_ui_host_request(void* user, struct UITreeHostRequest* req)
 {
     struct GameRunescape* game = user;
-    assert(game);
-    assert(game->vm);
-    assert(component);
+    assert(req);
 
-    struct CS1Host cs1host;
-    rs_ui_host_fill_cs1host(game, &cs1host);
-    return ToriAuxLibVM_IsActive(game->vm, &cs1host, (struct StaticUIComponent*)component);
+    switch( req->kind )
+    {
+    case UITREE_HOST_IS_ACTIVE:
+    {
+        struct StaticUIComponent const* component = req->u.is_active.component;
+        assert(game);
+        assert(game->vm);
+        assert(component);
+
+        struct CS1Host cs1host;
+        rs_ui_host_fill_cs1host(game, &cs1host);
+        return ToriAuxLibVM_IsActive(
+                   game->vm, &cs1host, (struct StaticUIComponent*)component) ?
+                   1 :
+                   0;
+    }
+    case UITREE_HOST_APPLY_BUTTON_CLICK:
+    {
+        struct StaticUIComponent const* component = req->u.apply_button_click.component;
+        assert(game);
+        assert(game->vm);
+        assert(component);
+
+        ToriAuxLibVM_ApplyButtonClickOptimistic(game->vm, (struct StaticUIComponent*)component);
+
+        if( component->behavior.scripts && component->behavior.scripts_count > 0 &&
+            component->behavior.scripts[0] )
+        {
+            int opcode = component->behavior.scripts[0][0];
+            if( opcode == 5 && component->behavior.scripts[0][1] >= 0 )
+                rs_ui_note_varp_change(game, component->behavior.scripts[0][1]);
+            else if( opcode == 14 && component->behavior.scripts[0][1] >= 0 && game->vm )
+            {
+                struct VarPVarBitManager* mgr = ToriAuxLibVM_VarPVarBit(game->vm);
+                if( mgr )
+                {
+                    int varbit_id = component->behavior.scripts[0][1];
+                    if( varbit_id >= 0 && varbit_id < mgr->varbit_count )
+                    {
+                        int basevar = mgr->varbit_types[varbit_id].basevar;
+                        if( basevar >= 0 )
+                            rs_ui_note_varp_change(game, basevar);
+                    }
+                }
+            }
+        }
+
+        if( game->ui_tree )
+            uitree_mark_all_dirty(game->ui_tree);
+
+        if( !game->core || !game->cs2vm || component->component_id < 0 )
+            return 0;
+
+        struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
+        struct ToriAuxLibCore_Component* core_comp =
+            ToriAuxLibCore_ComponentGet(game->core, component->component_id);
+        if( !core_comp )
+            return 0;
+
+        struct UITreeBehaviorHost host;
+        rs_ui_build_behavior_host(game, &host);
+        uitree_behavior_run_hook(&host, game->core, cache, core_comp, UITREE_BEHAVIOR_HOOK_ON_CLICK);
+
+        rs_ui_flush_varp_transmits(game);
+        return 0;
+    }
+    case UITREE_HOST_EVAL_TEXT_PLACEHOLDER:
+    {
+        struct StaticUIComponent const* component = req->u.eval_text_placeholder.component;
+        int script_idx = req->u.eval_text_placeholder.script_idx;
+        assert(game);
+        assert(game->vm);
+        assert(component);
+
+        if( !component->behavior.scripts || script_idx < 0 ||
+            script_idx >= component->behavior.scripts_count ||
+            !component->behavior.scripts[script_idx] )
+            return 0;
+
+        return ToriAuxLibVM_EvalScript(game->vm, (struct StaticUIComponent*)component, script_idx);
+    }
+    case UITREE_HOST_GET_SELECTED_TAB:
+        assert(game);
+        return game->selected_tab;
+    case UITREE_HOST_SET_SELECTED_TAB:
+        assert(game);
+        game->selected_tab = req->u.set_selected_tab.tabno;
+        return 0;
+    case UITREE_HOST_GET_CAMERA_YAW:
+        assert(game);
+        assert(game->camera);
+        return ToriDraw_NormalizeAngle(game->camera->yaw);
+    case UITREE_HOST_GET_MINIMAP_ANCHOR:
+    {
+        int* out_src_anchor_x = req->u.get_minimap_anchor.out_x;
+        int* out_src_anchor_y = req->u.get_minimap_anchor.out_y;
+        assert(game);
+        assert(out_src_anchor_x);
+        assert(out_src_anchor_y);
+        assert(game->camera_position);
+        assert(game->world);
+        assert(game->world->minimap);
+        assert(game->world_map.world_map_w > 0);
+        assert(game->world_map.world_map_h > 0);
+
+        *out_src_anchor_x = 0;
+        *out_src_anchor_y = 0;
+        struct Minimap* mm = game->world->minimap;
+        if( mm->width <= 0 || mm->height <= 0 )
+            return 0;
+
+        minimap_compute_camera_src_anchor(
+            game->camera_position->x,
+            game->camera_position->z,
+            game->world_map.world_map_w,
+            game->world_map.world_map_h,
+            mm->width,
+            mm->height,
+            out_src_anchor_x,
+            out_src_anchor_y);
+        return 0;
+    }
+    case UITREE_HOST_GET_WORLD_MAP_SIZE:
+    {
+        int* out_w = req->u.get_world_map_size.out_w;
+        int* out_h = req->u.get_world_map_size.out_h;
+        assert(game);
+        assert(out_w);
+        assert(out_h);
+        *out_w = game->world_map.world_map_w;
+        *out_h = game->world_map.world_map_h;
+        return 0;
+    }
+    case UITREE_HOST_GET_CROSS_ACTIVE:
+        return game && ui_cross_cursor_is_active(&game->cross) ? 1 : 0;
+    case UITREE_HOST_GET_CROSS_POSITION:
+        ui_cross_cursor_get_position(
+            game ? &game->cross : NULL,
+            req->u.get_cross_position.out_x,
+            req->u.get_cross_position.out_y);
+        return 0;
+    case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
+        return ui_cross_cursor_atlas_frame(game ? &game->cross : NULL);
+    case UITREE_HOST_GET_MINIMENU_VISIBLE:
+        return game && game->minimenu.visible ? 1 : 0;
+    case UITREE_HOST_GET_MINIMENU_LAYOUT:
+    {
+        int* out_x = req->u.get_minimenu_layout.out_x;
+        int* out_y = req->u.get_minimenu_layout.out_y;
+        int* out_w = req->u.get_minimenu_layout.out_w;
+        int* out_h = req->u.get_minimenu_layout.out_h;
+        if( out_x )
+            *out_x = game ? game->minimenu.x : 0;
+        if( out_y )
+            *out_y = game ? game->minimenu.y : 0;
+        if( out_w )
+            *out_w = game ? game->minimenu.width : 0;
+        if( out_h )
+            *out_h = game ? game->minimenu.height : 0;
+        return 0;
+    }
+    case UITREE_HOST_GET_MINIMENU_HOVERED_OPTION:
+        return game ? game->minimenu.hovered_option : -1;
+    case UITREE_HOST_SCENE_SPRITE_HAS:
+        assert(game);
+        assert(game->scene);
+        return ToriDraw_SceneSpriteHas(game->scene, req->u.scene_sprite_has.scene_id) ? 1 : 0;
+    case UITREE_HOST_SCENE_FONT_HAS:
+        assert(game);
+        assert(game->scene);
+        return ToriDraw_SceneFontHas(game->scene, req->u.scene_font_has.font_id) ? 1 : 0;
+    case UITREE_HOST_SCENE_MODEL_HAS:
+        return game && game->scene &&
+                       ToriDraw_SceneModelHas(game->scene, req->u.scene_model_has.model_id) ?
+                   1 :
+                   0;
+    case UITREE_HOST_GET_INV_SOURCE_SLOT:
+        if( !game )
+            return 0;
+        return ui_inv_data_service_get_slot(
+                   &game->inv_data,
+                   req->u.get_inv_source_slot.source_id,
+                   req->u.get_inv_source_slot.slot,
+                   req->u.get_inv_source_slot.out) ?
+                   1 :
+                   0;
+    case UITREE_HOST_SET_INV_SOURCE_SLOT:
+        if( !game )
+            return 0;
+        if( !ui_inv_data_service_set_slot(
+                &game->inv_data,
+                req->u.set_inv_source_slot.source_id,
+                req->u.set_inv_source_slot.slot,
+                req->u.set_inv_source_slot.data) )
+            return 0;
+        instance_revconfig_inv_mark_dirty(game, req->u.set_inv_source_slot.source_id);
+        GameRunescape_DispatchInvTransmit(
+            game,
+            ui_inv_data_service_container_for_source(
+                &game->inv_data, req->u.set_inv_source_slot.source_id));
+        return 0;
+    }
+    return 0;
 }
 
 static void
@@ -458,177 +654,6 @@ rs_ui_host_run_hooks(
     }
 
     uitree_mark_all_dirty(game->ui_tree);
-}
-
-static void
-rs_ui_host_apply_button_click(
-    void* user,
-    struct StaticUIComponent const* component)
-{
-    struct GameRunescape* game = user;
-    assert(game);
-    assert(game->vm);
-    assert(component);
-
-    ToriAuxLibVM_ApplyButtonClickOptimistic(game->vm, (struct StaticUIComponent*)component);
-
-    if( component->behavior.scripts && component->behavior.scripts_count > 0 &&
-        component->behavior.scripts[0] )
-    {
-        int opcode = component->behavior.scripts[0][0];
-        if( opcode == 5 && component->behavior.scripts[0][1] >= 0 )
-            rs_ui_note_varp_change(game, component->behavior.scripts[0][1]);
-        else if( opcode == 14 && component->behavior.scripts[0][1] >= 0 && game->vm )
-        {
-            struct VarPVarBitManager* mgr = ToriAuxLibVM_VarPVarBit(game->vm);
-            if( mgr )
-            {
-                int varbit_id = component->behavior.scripts[0][1];
-                if( varbit_id >= 0 && varbit_id < mgr->varbit_count )
-                {
-                    int basevar = mgr->varbit_types[varbit_id].basevar;
-                    if( basevar >= 0 )
-                        rs_ui_note_varp_change(game, basevar);
-                }
-            }
-        }
-    }
-
-    if( game->ui_tree )
-        uitree_mark_all_dirty(game->ui_tree);
-
-    if( !game->core || !game->cs2vm || component->component_id < 0 )
-        return;
-
-    struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
-    struct ToriAuxLibCore_Component* core_comp =
-        ToriAuxLibCore_ComponentGet(game->core, component->component_id);
-    if( !core_comp )
-        return;
-
-    struct UITreeBehaviorHost host;
-    rs_ui_build_behavior_host(game, &host);
-    uitree_behavior_run_hook(&host, game->core, cache, core_comp, UITREE_BEHAVIOR_HOOK_ON_CLICK);
-
-    rs_ui_flush_varp_transmits(game);
-}
-
-static int
-rs_ui_host_eval_text_placeholder(
-    void* user,
-    struct StaticUIComponent const* component,
-    int script_idx)
-{
-    struct GameRunescape* game = user;
-    assert(game);
-    assert(game->vm);
-    assert(component);
-
-    /* Mirror Client.ts getIfVar: skip eval when scripts are absent or out of range. */
-    if( !component->behavior.scripts || script_idx < 0 ||
-        script_idx >= component->behavior.scripts_count ||
-        !component->behavior.scripts[script_idx] )
-        return 0;
-
-    return ToriAuxLibVM_EvalScript(game->vm, (struct StaticUIComponent*)component, script_idx);
-}
-
-static int
-rs_ui_host_get_selected_tab(void* user)
-{
-    struct GameRunescape* game = user;
-    assert(game);
-    return game->selected_tab;
-}
-
-static void
-rs_ui_host_set_selected_tab(
-    void* user,
-    int tabno)
-{
-    struct GameRunescape* game = user;
-    assert(game);
-    game->selected_tab = tabno;
-}
-
-static int
-rs_ui_host_get_camera_yaw(void* user)
-{
-    struct GameRunescape* game = user;
-    assert(game);
-    assert(game->camera);
-    return ToriDraw_NormalizeAngle(game->camera->yaw);
-}
-
-static void
-rs_ui_host_get_minimap_anchor(
-    void* user,
-    int* out_src_anchor_x,
-    int* out_src_anchor_y)
-{
-    struct GameRunescape* game = user;
-    assert(game);
-    assert(out_src_anchor_x);
-    assert(out_src_anchor_y);
-    assert(game->camera_position);
-    assert(game->world);
-    assert(game->world->minimap);
-    assert(game->world_map.world_map_w > 0);
-    assert(game->world_map.world_map_h > 0);
-
-    *out_src_anchor_x = 0;
-    *out_src_anchor_y = 0;
-    struct Minimap* mm = game->world->minimap;
-    if( mm->width <= 0 || mm->height <= 0 )
-        return;
-
-    minimap_compute_camera_src_anchor(
-        game->camera_position->x,
-        game->camera_position->z,
-        game->world_map.world_map_w,
-        game->world_map.world_map_h,
-        mm->width,
-        mm->height,
-        out_src_anchor_x,
-        out_src_anchor_y);
-}
-
-static int
-rs_ui_host_get_world_map_size(
-    void* user,
-    int* out_w,
-    int* out_h)
-{
-    struct GameRunescape* game = user;
-    assert(game);
-    assert(out_w);
-    assert(out_h);
-
-    *out_w = game->world_map.world_map_w;
-    *out_h = game->world_map.world_map_h;
-    return 0;
-}
-
-static bool
-rs_ui_host_scene_sprite_has(
-    void* user,
-    int scene_id)
-{
-    struct GameRunescape* game = user;
-    assert(game);
-    assert(game->scene);
-    return ToriDraw_SceneSpriteHas(game->scene, scene_id);
-}
-
-static bool
-rs_ui_host_scene_font_has(
-    void* user,
-    int font_id)
-{
-    struct GameRunescape* game = user;
-    assert(game);
-    assert(game->scene);
-    return ToriDraw_SceneFontHas(game->scene, font_id);
 }
 
 static void
@@ -765,85 +790,6 @@ game_runescape_minimenu_draw_line_height(
     return lh;
 }
 
-static bool
-rs_ui_host_scene_model_has(
-    void* user,
-    int model_id)
-{
-    struct GameRunescape* game = user;
-    return game && game->scene && ToriDraw_SceneModelHas(game->scene, model_id);
-}
-
-static bool
-rs_ui_host_get_cross_active(void* user)
-{
-    struct GameRunescape* game = user;
-    return game && ui_cross_cursor_is_active(&game->cross);
-}
-
-static void
-rs_ui_host_get_cross_position(
-    void* user,
-    int* out_x,
-    int* out_y)
-{
-    struct GameRunescape* game = user;
-    ui_cross_cursor_get_position(game ? &game->cross : NULL, out_x, out_y);
-}
-
-static int
-rs_ui_host_get_cross_atlas_frame(void* user)
-{
-    struct GameRunescape* game = user;
-    return ui_cross_cursor_atlas_frame(game ? &game->cross : NULL);
-}
-
-static bool
-rs_ui_host_get_minimenu_visible(void* user)
-{
-    struct GameRunescape* game = user;
-    return game && game->minimenu.visible;
-}
-
-static void
-rs_ui_host_get_minimenu_layout(
-    void* user,
-    int* out_x,
-    int* out_y,
-    int* out_w,
-    int* out_h)
-{
-    struct GameRunescape* game = user;
-    if( out_x )
-        *out_x = game ? game->minimenu.x : 0;
-    if( out_y )
-        *out_y = game ? game->minimenu.y : 0;
-    if( out_w )
-        *out_w = game ? game->minimenu.width : 0;
-    if( out_h )
-        *out_h = game ? game->minimenu.height : 0;
-}
-
-static int
-rs_ui_host_get_minimenu_hovered_option(void* user)
-{
-    struct GameRunescape* game = user;
-    return game ? game->minimenu.hovered_option : -1;
-}
-
-static bool
-rs_ui_host_get_inv_source_slot(
-    void* user,
-    int source_id,
-    int slot,
-    struct UIInvSlotData* out)
-{
-    struct GameRunescape* game = user;
-    if( !game )
-        return false;
-    return ui_inv_data_service_get_slot(&game->inv_data, source_id, slot, out);
-}
-
 static int
 rs_cs2_host_inv_get_obj(
     void* ud,
@@ -949,24 +895,6 @@ rs_cs2_host_resolve_obj_icon(
     return false;
 }
 
-static bool
-rs_ui_host_set_inv_source_slot(
-    void* user,
-    int source_id,
-    int slot,
-    struct UIInvSlotData const* data)
-{
-    struct GameRunescape* game = user;
-    if( !game )
-        return false;
-    if( !ui_inv_data_service_set_slot(&game->inv_data, source_id, slot, data) )
-        return false;
-    instance_revconfig_inv_mark_dirty(game, source_id);
-    GameRunescape_DispatchInvTransmit(
-        game, ui_inv_data_service_container_for_source(&game->inv_data, source_id));
-    return true;
-}
-
 static void
 GameRunescape_FindSpecialUINodes(struct GameRunescape* game)
 {
@@ -994,25 +922,7 @@ GameRunescape_InitUIHost(struct GameRunescape* game)
         return;
     uitree_host_init(&game->ui_host);
     game->ui_host.user = game;
-    game->ui_host.is_active = rs_ui_host_is_active;
-    game->ui_host.apply_button_click = rs_ui_host_apply_button_click;
-    game->ui_host.eval_text_placeholder = rs_ui_host_eval_text_placeholder;
-    game->ui_host.get_selected_tab = rs_ui_host_get_selected_tab;
-    game->ui_host.set_selected_tab = rs_ui_host_set_selected_tab;
-    game->ui_host.get_camera_yaw = rs_ui_host_get_camera_yaw;
-    game->ui_host.get_minimap_anchor = rs_ui_host_get_minimap_anchor;
-    game->ui_host.get_world_map_size = rs_ui_host_get_world_map_size;
-    game->ui_host.scene_sprite_has = rs_ui_host_scene_sprite_has;
-    game->ui_host.scene_font_has = rs_ui_host_scene_font_has;
-    game->ui_host.scene_model_has = rs_ui_host_scene_model_has;
-    game->ui_host.get_cross_active = rs_ui_host_get_cross_active;
-    game->ui_host.get_cross_position = rs_ui_host_get_cross_position;
-    game->ui_host.get_cross_atlas_frame = rs_ui_host_get_cross_atlas_frame;
-    game->ui_host.get_minimenu_visible = rs_ui_host_get_minimenu_visible;
-    game->ui_host.get_minimenu_layout = rs_ui_host_get_minimenu_layout;
-    game->ui_host.get_minimenu_hovered_option = rs_ui_host_get_minimenu_hovered_option;
-    game->ui_host.get_inv_source_slot = rs_ui_host_get_inv_source_slot;
-    game->ui_host.set_inv_source_slot = rs_ui_host_set_inv_source_slot;
+    game->ui_host.request = rs_ui_host_request;
     game->ui_input.hovered = -1;
     game->ui_input.pressed = -1;
     game->selected_tab = 3;
@@ -2951,14 +2861,19 @@ GameRunescape_EmitUIComponent(
 
         int cx = bx;
         int cy = by;
-        if( game->ui_host.get_cross_position )
-            game->ui_host.get_cross_position(game->ui_host.user, &cx, &cy);
+        {
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_GET_CROSS_POSITION,
+                .u.get_cross_position.out_x = &cx,
+                .u.get_cross_position.out_y = &cy,
+            };
+            uitree_host(&game->ui_host, &req);
+        }
         cx -= component->position.anchor_x;
         cy -= component->position.anchor_y;
 
-        int atlas_index = 0;
-        if( game->ui_host.get_cross_atlas_frame )
-            atlas_index = game->ui_host.get_cross_atlas_frame(game->ui_host.user);
+        struct UITreeHostRequest atlas_req = { .kind = UITREE_HOST_GET_CROSS_ATLAS_FRAME };
+        int atlas_index = uitree_host(&game->ui_host, &atlas_req);
         GameRunescape_AssertSceneSpriteReady(game, scene_id, atlas_index, "cross");
 
         GameRunescape_EmitSpriteCommand(command, scene_id, atlas_index, cx, cy, bw, bh);
@@ -3124,12 +3039,13 @@ GameRunescape_EmitUIComponent(
         command->u.sprite.rotation = uitree_component_sprite_rotation(component, &game->ui_host);
         command->u.sprite.dst_anchor_x = component->position.anchor_x;
         command->u.sprite.dst_anchor_y = component->position.anchor_y;
-        if( game->ui_host.get_minimap_anchor )
         {
-            game->ui_host.get_minimap_anchor(
-                game->ui_host.user,
-                &command->u.sprite.src_anchor_x,
-                &command->u.sprite.src_anchor_y);
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_GET_MINIMAP_ANCHOR,
+                .u.get_minimap_anchor.out_x = &command->u.sprite.src_anchor_x,
+                .u.get_minimap_anchor.out_y = &command->u.sprite.src_anchor_y,
+            };
+            uitree_host(&game->ui_host, &req);
         }
         command->u.sprite.scissor_x = bx;
         command->u.sprite.scissor_y = by;
@@ -3141,13 +3057,15 @@ GameRunescape_EmitUIComponent(
     {
         int scene_id = component->u.redstone_tab.scene_id;
         int atlas_index = component->u.redstone_tab.atlas_index;
-        if( game->ui_host.get_selected_tab &&
-            game->ui_host.get_selected_tab(game->ui_host.user) == component->u.redstone_tab.tabno )
         {
-            if( component->u.redstone_tab.scene_id_active >= 0 )
+            struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+            if( uitree_host(&game->ui_host, &req) == component->u.redstone_tab.tabno )
             {
-                scene_id = component->u.redstone_tab.scene_id_active;
-                atlas_index = component->u.redstone_tab.atlas_index_active;
+                if( component->u.redstone_tab.scene_id_active >= 0 )
+                {
+                    scene_id = component->u.redstone_tab.scene_id_active;
+                    atlas_index = component->u.redstone_tab.atlas_index_active;
+                }
             }
         }
         GameRunescape_AssertSceneSpriteReady(game, scene_id, atlas_index, "redstone_tab");
@@ -3265,13 +3183,19 @@ GameRunescape_EmitUIComponent(
         int obj_id = 0;
         int scene_id = -1;
         int atlas_index = 0;
-        if( game->ui_host.get_inv_source_slot )
         {
-            game->ui_host.get_inv_source_slot(
-                game->ui_host.user, component->u.inv_grid.inv_source_id, slot, &slot_data);
-            obj_id = slot_data.obj_id;
-            scene_id = slot_data.scene_id;
-            atlas_index = slot_data.atlas_index;
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_GET_INV_SOURCE_SLOT,
+                .u.get_inv_source_slot.source_id = component->u.inv_grid.inv_source_id,
+                .u.get_inv_source_slot.slot = slot,
+                .u.get_inv_source_slot.out = &slot_data,
+            };
+            if( uitree_host(&game->ui_host, &req) )
+            {
+                obj_id = slot_data.obj_id;
+                scene_id = slot_data.scene_id;
+                atlas_index = slot_data.atlas_index;
+            }
         }
 
         if( obj_id > 0 && scene_id >= 0 )
@@ -3303,16 +3227,19 @@ GameRunescape_EmitUIComponent(
         int obj_id = 0;
         int scene_id = -1;
         int atlas_index = 0;
-        if( game->ui_host.get_inv_source_slot )
         {
-            game->ui_host.get_inv_source_slot(
-                game->ui_host.user,
-                component->u.inv_slot.inv_source_id,
-                component->u.inv_slot.slot,
-                &slot_data);
-            obj_id = slot_data.obj_id;
-            scene_id = slot_data.scene_id;
-            atlas_index = slot_data.atlas_index;
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_GET_INV_SOURCE_SLOT,
+                .u.get_inv_source_slot.source_id = component->u.inv_slot.inv_source_id,
+                .u.get_inv_source_slot.slot = component->u.inv_slot.slot,
+                .u.get_inv_source_slot.out = &slot_data,
+            };
+            if( uitree_host(&game->ui_host, &req) )
+            {
+                obj_id = slot_data.obj_id;
+                scene_id = slot_data.scene_id;
+                atlas_index = slot_data.atlas_index;
+            }
         }
 
         if( obj_id > 0 && scene_id >= 0 )
@@ -3377,11 +3304,15 @@ GameRunescape_EmitUIComponent(
         game->frame.ui_inv_slot = slot + 1;
 
         int obj_id = 0;
-        if( game->ui_host.get_inv_source_slot )
         {
             struct UIInvSlotData slot_data;
-            if( game->ui_host.get_inv_source_slot(
-                    game->ui_host.user, component->u.rs_inv_text.inv_source_id, slot, &slot_data) )
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_GET_INV_SOURCE_SLOT,
+                .u.get_inv_source_slot.source_id = component->u.rs_inv_text.inv_source_id,
+                .u.get_inv_source_slot.slot = slot,
+                .u.get_inv_source_slot.out = &slot_data,
+            };
+            if( uitree_host(&game->ui_host, &req) )
                 obj_id = slot_data.obj_id;
         }
         if( obj_id <= 0 )

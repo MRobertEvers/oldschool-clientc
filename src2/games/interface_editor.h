@@ -371,6 +371,9 @@ struct GameInterfaceEditor
     int preview_w;
     int preview_h;
     float preview_scale;
+    /** Layout viewport passed to uitree_layout_resolve (live preview panel size). */
+    int preview_layout_w;
+    int preview_layout_h;
 
     struct GameInterfaceEditor_FrameState frame;
 

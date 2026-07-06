@@ -110,11 +110,16 @@ uitree_inv_pick_at_point_recursive(
         if( slot >= 0 )
         {
             int obj_id = 0;
-            if( host && host->get_inv_source_slot )
+            if( host )
             {
                 struct UIInvSlotData slot_data;
-                if( host->get_inv_source_slot(
-                        host->user, component->u.inv_grid.inv_source_id, slot, &slot_data) )
+                struct UITreeHostRequest req = {
+                    .kind = UITREE_HOST_GET_INV_SOURCE_SLOT,
+                    .u.get_inv_source_slot.source_id = component->u.inv_grid.inv_source_id,
+                    .u.get_inv_source_slot.slot = slot,
+                    .u.get_inv_source_slot.out = &slot_data,
+                };
+                if( uitree_host(host, &req) )
                     obj_id = slot_data.obj_id;
             }
             pick->component_index = node_index;
@@ -136,14 +141,16 @@ uitree_inv_pick_at_point_recursive(
         if( ui_inv_slot_view_hit_test_rect(px, py, bx, by, bw, bh) )
         {
             int obj_id = 0;
-            if( host && host->get_inv_source_slot )
+            if( host )
             {
                 struct UIInvSlotData slot_data;
-                if( host->get_inv_source_slot(
-                        host->user,
-                        component->u.inv_slot.inv_source_id,
-                        component->u.inv_slot.slot,
-                        &slot_data) )
+                struct UITreeHostRequest req = {
+                    .kind = UITREE_HOST_GET_INV_SOURCE_SLOT,
+                    .u.get_inv_source_slot.source_id = component->u.inv_slot.inv_source_id,
+                    .u.get_inv_source_slot.slot = component->u.inv_slot.slot,
+                    .u.get_inv_source_slot.out = &slot_data,
+                };
+                if( uitree_host(host, &req) )
                     obj_id = slot_data.obj_id;
             }
             pick->component_index = node_index;
@@ -180,9 +187,10 @@ uitree_inv_pick_at_point_recursive(
     }
 
     bool recurse_children = true;
-    if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
     {
-        if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        if( uitree_host(host, &req) != component->u.sidebar.tabno )
             recurse_children = false;
     }
 
@@ -1028,8 +1036,8 @@ ui_click_find_interface_root(
         struct StaticUIComponent const* component = &tree->components[idx];
         if( component->type == UIELEM_BUILTIN_SIDEBAR )
         {
-            if( host && host->get_selected_tab &&
-                host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+            struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+            if( host && uitree_host(host, &req) != component->u.sidebar.tabno )
                 return -1;
             return component->first_child >= 0 ? component->first_child : hit_idx;
         }
@@ -1080,9 +1088,11 @@ ui_click_add_rs_interface_options_recursive(
     if( component->type == UIELEM_RS_LAYER || component->type == UIELEM_BUILTIN_SIDEBAR )
     {
         bool recurse_children = true;
-        if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
+        if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
         {
-            if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+            struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+            int selected_tab = uitree_host(host, &req);
+            if( selected_tab != component->u.sidebar.tabno )
             {
                 recurse_children = false;
                 if( ui_minimenu_debug_enabled() )
@@ -1091,7 +1101,7 @@ ui_click_add_rs_interface_options_recursive(
                         "skip sidebar wrong tab node_idx=%d tabno=%d selected=%d",
                         node_idx,
                         component->u.sidebar.tabno,
-                        host->get_selected_tab(host->user));
+                        selected_tab);
                 }
             }
         }
@@ -1248,9 +1258,10 @@ ui_click_point_expects_ui_rows_recursive(
     if( component->type == UIELEM_RS_LAYER || component->type == UIELEM_BUILTIN_SIDEBAR )
     {
         bool recurse_children = true;
-        if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
+        if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
         {
-            if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+            struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+            if( uitree_host(host, &req) != component->u.sidebar.tabno )
                 recurse_children = false;
         }
 
@@ -1559,12 +1570,15 @@ ui_click_use_minimenu_option(
          opt->action == MINIMENU_ACTION_RESUME_PAUSEBUTTON) &&
         game->interaction.kind == INTERACTION_TARGET_UI_COMPONENT && game->ui_tree &&
         game->interaction.ui_component_index >= 0 &&
-        (uint32_t)game->interaction.ui_component_index < game->ui_tree->component_count &&
-        game->ui_host.apply_button_click )
+        (uint32_t)game->interaction.ui_component_index < game->ui_tree->component_count )
     {
         struct StaticUIComponent const* component =
             &game->ui_tree->components[game->interaction.ui_component_index];
-        game->ui_host.apply_button_click(game->ui_host.user, component);
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_APPLY_BUTTON_CLICK,
+            .u.apply_button_click.component = component,
+        };
+        uitree_host(&game->ui_host, &req);
     }
 
     if( opt->pick_kind == MINIMENU_PICK_INV_SLOT && game->ui_tree &&
@@ -1687,22 +1701,38 @@ game_try_inv_click(
     }
     else if(
         ui_inv_selection_is_set(&game->inv_selection) &&
-        !ui_inv_selection_matches(&game->inv_selection, inv_source_id, slot) &&
-        game->ui_host.set_inv_source_slot && game->ui_host.get_inv_source_slot )
+        !ui_inv_selection_matches(&game->inv_selection, inv_source_id, slot) )
     {
         struct UIInvSlotData src_data;
         struct UIInvSlotData dst_data;
-        if( game->ui_host.get_inv_source_slot(
-                game->ui_host.user,
-                game->inv_selection.source_id,
-                game->inv_selection.slot,
-                &src_data) &&
-            game->ui_host.get_inv_source_slot(
-                game->ui_host.user, inv_source_id, slot, &dst_data) )
+        struct UITreeHostRequest get_src = {
+            .kind = UITREE_HOST_GET_INV_SOURCE_SLOT,
+            .u.get_inv_source_slot.source_id = game->inv_selection.source_id,
+            .u.get_inv_source_slot.slot = game->inv_selection.slot,
+            .u.get_inv_source_slot.out = &src_data,
+        };
+        struct UITreeHostRequest get_dst = {
+            .kind = UITREE_HOST_GET_INV_SOURCE_SLOT,
+            .u.get_inv_source_slot.source_id = inv_source_id,
+            .u.get_inv_source_slot.slot = slot,
+            .u.get_inv_source_slot.out = &dst_data,
+        };
+        if( uitree_host(&game->ui_host, &get_src) && uitree_host(&game->ui_host, &get_dst) )
         {
-            game->ui_host.set_inv_source_slot(
-                game->ui_host.user, game->inv_selection.source_id, game->inv_selection.slot, &dst_data);
-            game->ui_host.set_inv_source_slot(game->ui_host.user, inv_source_id, slot, &src_data);
+            struct UITreeHostRequest set_src = {
+                .kind = UITREE_HOST_SET_INV_SOURCE_SLOT,
+                .u.set_inv_source_slot.source_id = game->inv_selection.source_id,
+                .u.set_inv_source_slot.slot = game->inv_selection.slot,
+                .u.set_inv_source_slot.data = &dst_data,
+            };
+            struct UITreeHostRequest set_dst = {
+                .kind = UITREE_HOST_SET_INV_SOURCE_SLOT,
+                .u.set_inv_source_slot.source_id = inv_source_id,
+                .u.set_inv_source_slot.slot = slot,
+                .u.set_inv_source_slot.data = &src_data,
+            };
+            uitree_host(&game->ui_host, &set_src);
+            uitree_host(&game->ui_host, &set_dst);
         }
         ui_inv_selection_clear(&game->inv_selection);
     }

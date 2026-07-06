@@ -9,64 +9,115 @@
 
 struct ToriDraw_Scene;
 
+enum UITreeHostRequestKind
+{
+    UITREE_HOST_IS_ACTIVE,
+    UITREE_HOST_APPLY_BUTTON_CLICK,
+    UITREE_HOST_EVAL_TEXT_PLACEHOLDER,
+    UITREE_HOST_GET_SELECTED_TAB,
+    UITREE_HOST_SET_SELECTED_TAB,
+    UITREE_HOST_GET_CAMERA_YAW,
+    UITREE_HOST_GET_MINIMAP_ANCHOR,
+    UITREE_HOST_GET_WORLD_MAP_SIZE,
+    UITREE_HOST_GET_CROSS_ACTIVE,
+    UITREE_HOST_GET_CROSS_POSITION,
+    UITREE_HOST_GET_CROSS_ATLAS_FRAME,
+    UITREE_HOST_GET_MINIMENU_VISIBLE,
+    UITREE_HOST_GET_MINIMENU_LAYOUT,
+    UITREE_HOST_GET_MINIMENU_HOVERED_OPTION,
+    UITREE_HOST_SCENE_SPRITE_HAS,
+    UITREE_HOST_SCENE_FONT_HAS,
+    UITREE_HOST_SCENE_MODEL_HAS,
+    UITREE_HOST_GET_INV_SOURCE_SLOT,
+    UITREE_HOST_SET_INV_SOURCE_SLOT,
+};
+
+struct UITreeHostRequest
+{
+    enum UITreeHostRequestKind kind;
+    union
+    {
+        struct
+        {
+            struct StaticUIComponent const* component;
+        } is_active;
+        struct
+        {
+            struct StaticUIComponent const* component;
+        } apply_button_click;
+        struct
+        {
+            struct StaticUIComponent const* component;
+            int script_idx;
+        } eval_text_placeholder;
+        struct
+        {
+            int tabno;
+        } set_selected_tab;
+        struct
+        {
+            int* out_x;
+            int* out_y;
+        } get_minimap_anchor;
+        struct
+        {
+            int* out_w;
+            int* out_h;
+        } get_world_map_size;
+        struct
+        {
+            int* out_x;
+            int* out_y;
+        } get_cross_position;
+        struct
+        {
+            int* out_x;
+            int* out_y;
+            int* out_w;
+            int* out_h;
+        } get_minimenu_layout;
+        struct
+        {
+            int scene_id;
+        } scene_sprite_has;
+        struct
+        {
+            int font_id;
+        } scene_font_has;
+        struct
+        {
+            int model_id;
+        } scene_model_has;
+        struct
+        {
+            int source_id;
+            int slot;
+            struct UIInvSlotData* out;
+        } get_inv_source_slot;
+        struct
+        {
+            int source_id;
+            int slot;
+            struct UIInvSlotData const* data;
+        } set_inv_source_slot;
+    } u;
+};
+
 /**
- * Callback table for retained UI tree: the only way the UI module reaches VM,
+ * Host bridge for retained UI tree: the only way the UI module reaches VM,
  * game state, and scene assets. Pixel data stays in ToriDraw_Scene.
  */
 struct UITreeHost
 {
     void* user;
-
-    /* VM / CS1 */
-    bool (*is_active)(void* user, struct StaticUIComponent const* component);
-    void (*apply_button_click)(void* user, struct StaticUIComponent const* component);
-    int (*eval_text_placeholder)(
-        void* user,
-        struct StaticUIComponent const* component,
-        int script_idx);
-
-    /* Game state */
-    int (*get_selected_tab)(void* user);
-    void (*set_selected_tab)(void* user, int tabno);
-    int (*get_camera_yaw)(void* user);
-    void (*get_minimap_anchor)(
-        void* user,
-        int* out_src_anchor_x,
-        int* out_src_anchor_y);
-    int (*get_world_map_size)(void* user, int* out_w, int* out_h);
-
-    bool (*get_cross_active)(void* user);
-    void (*get_cross_position)(void* user, int* out_x, int* out_y);
-    int (*get_cross_atlas_frame)(void* user);
-    bool (*get_minimenu_visible)(void* user);
-    void (*get_minimenu_layout)(
-        void* user,
-        int* out_x,
-        int* out_y,
-        int* out_w,
-        int* out_h);
-    int (*get_minimenu_hovered_option)(void* user);
-
-    /* Scene assets (existence only; lookup by id) */
-    bool (*scene_sprite_has)(void* user, int scene_id);
-    bool (*scene_font_has)(void* user, int font_id);
-    bool (*scene_model_has)(void* user, int model_id);
-
-    /* Inventory data (opaque source handles) */
-    bool (*get_inv_source_slot)(
-        void* user,
-        int source_id,
-        int slot,
-        struct UIInvSlotData* out);
-    bool (*set_inv_source_slot)(
-        void* user,
-        int source_id,
-        int slot,
-        struct UIInvSlotData const* data);
+    int (*request)(void* user, struct UITreeHostRequest* req);
 };
 
 void
 uitree_host_init(struct UITreeHost* host);
+
+int
+uitree_host(struct UITreeHost const* host, struct UITreeHostRequest* req);
 
 bool
 uitree_component_visible_host(

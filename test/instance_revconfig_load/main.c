@@ -1382,32 +1382,39 @@ struct MouseLocationCase
 static int g_test_selected_tab = 3;
 
 static int
-test_host_get_selected_tab(void* user)
+test_host_request(void* user, struct UITreeHostRequest* req)
 {
-    (void)user;
-    return g_test_selected_tab;
-}
+    assert(req);
 
-static bool
-test_host_get_inv_source_slot(
-    void* user,
-    int source_id,
-    int slot,
-    struct UIInvSlotData* out)
-{
-    struct GameRunescape* game = user;
-    if( !game )
-        return false;
-    return ui_inv_data_service_get_slot(&game->inv_data, source_id, slot, out);
-}
-
-static void
-test_host_set_selected_tab(
-    void* user,
-    int tabno)
-{
-    (void)user;
-    g_test_selected_tab = tabno;
+    switch( req->kind )
+    {
+    case UITREE_HOST_GET_SELECTED_TAB:
+        (void)user;
+        return g_test_selected_tab;
+    case UITREE_HOST_SET_SELECTED_TAB:
+        (void)user;
+        g_test_selected_tab = req->u.set_selected_tab.tabno;
+        return 0;
+    case UITREE_HOST_GET_CROSS_ACTIVE:
+        return test_stub_cross_active(user) ? 1 : 0;
+    case UITREE_HOST_GET_MINIMENU_VISIBLE:
+        return test_stub_minimenu_visible(user) ? 1 : 0;
+    case UITREE_HOST_GET_INV_SOURCE_SLOT:
+    {
+        struct GameRunescape* game = user;
+        if( !game )
+            return 0;
+        return ui_inv_data_service_get_slot(
+                   &game->inv_data,
+                   req->u.get_inv_source_slot.source_id,
+                   req->u.get_inv_source_slot.slot,
+                   req->u.get_inv_source_slot.out) ?
+                   1 :
+                   0;
+    }
+    default:
+        return 0;
+    }
 }
 
 static int
@@ -1455,8 +1462,7 @@ test_mouse_hit_test_on_built_tree(void)
 
     struct UITreeHost host;
     uitree_host_init(&host);
-    host.get_cross_active = test_stub_cross_active;
-    host.get_minimenu_visible = test_stub_minimenu_visible;
+    host.request = test_host_request;
 
     static struct MouseLocationCase const cases[] = {
         { 300, 200, UIELEM_BUILTIN_WORLD,       "world center",                    true,  2, "Walk here" },
@@ -1544,8 +1550,6 @@ test_mouse_hit_test_on_built_tree(void)
             sideicon_music_idx < sidebar_tab_0_idx, "sidebar tabs should layout after tab icons");
     }
 
-    host.get_selected_tab = test_host_get_selected_tab;
-    host.set_selected_tab = test_host_set_selected_tab;
     {
         int32_t inv_tab_hit = uitree_hit_test_interactive(tree, &host, NULL, 631, 172);
         TEST_ASSERT(inv_tab_hit >= 0, "inventory tab icon interactive hit");
@@ -2171,7 +2175,7 @@ test_sidebar_tab_inv_binding(void)
 
     struct UITreeHost host;
     uitree_host_init(&host);
-    host.get_selected_tab = test_host_get_selected_tab;
+    host.request = test_host_request;
 
     g_test_selected_tab = 3;
     {
@@ -2211,8 +2215,7 @@ test_inventory_pick_at_slot_center(
 
     uitree_host_init(&game->ui_host);
     game->ui_host.user = game;
-    game->ui_host.get_selected_tab = test_host_get_selected_tab;
-    game->ui_host.get_inv_source_slot = test_host_get_inv_source_slot;
+    game->ui_host.request = test_host_request;
     g_test_selected_tab = 3;
     game->ui_tree = tree;
     game->ui_tree_ready = true;
@@ -2884,9 +2887,7 @@ test_ui_click_world_viewport(void)
     game.ui_tree_ready = true;
     uitree_host_init(&game.ui_host);
     game.ui_host.user = &game;
-    game.ui_host.get_cross_active = test_stub_cross_active;
-    game.ui_host.get_minimenu_visible = test_stub_minimenu_visible;
-    game.ui_host.get_selected_tab = test_host_get_selected_tab;
+    game.ui_host.request = test_host_request;
     uitree_layout_resolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     game.ui_hover.chat_node = uitree_find_chat_builtin_node(tree);
     game.world_view_port.clip_left = 4;
@@ -3214,9 +3215,7 @@ test_ui_click_right_outside_viewport(void)
     game.ui_tree_ready = true;
     uitree_host_init(&game.ui_host);
     game.ui_host.user = &game;
-    game.ui_host.get_cross_active = test_stub_cross_active;
-    game.ui_host.get_minimenu_visible = test_stub_minimenu_visible;
-    game.ui_host.get_selected_tab = test_host_get_selected_tab;
+    game.ui_host.request = test_host_request;
     game.world_view_port.clip_left = 4;
     game.world_view_port.clip_top = 4;
     game.world_view_port.clip_right = 517;

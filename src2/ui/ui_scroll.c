@@ -1,5 +1,6 @@
 #include "ui_scroll.h"
 
+#include "uitree_host.h"
 #include "uitree_layout.h"
 
 #include <string.h>
@@ -463,9 +464,10 @@ find_scrollbar_recursive(
         return false;
 
     bool recurse_children = true;
-    if( component->type == UIELEM_BUILTIN_SIDEBAR && host && host->get_selected_tab )
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
     {
-        if( host->get_selected_tab(host->user) != component->u.sidebar.tabno )
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        if( uitree_host(host, &req) != component->u.sidebar.tabno )
             recurse_children = false;
     }
 

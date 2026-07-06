@@ -18,7 +18,7 @@ static int s_trace_count = 0;
 
 #define CS2_RT_MAX_FRAMES 32
 #define CS2_RT_MAX_LOCALS 128
-#define CS2_RT_MAX_ARRAYS 32
+#define CS2_RT_MAX_ARRAYS 128
 #define CS2_RT_ARRAY_CAPACITY 256
 #define CS2_RT_MAX_STEPS 1000000
 
@@ -412,6 +412,13 @@ cs2_rt_host_invoke(
     host->invoke(host->ud, &ctx);
 }
 
+static int
+cs2_array_define_slot(
+    int operand)
+{
+    return operand >> 16;
+}
+
 static bool
 cs2_rt_exec_opcode(
     struct CS2VM* rt,
@@ -648,6 +655,20 @@ cs2_rt_exec_opcode(
         CS2_RT_PUSH_INT(rt, a | b);
         break;
     }
+    case CS2_OP_MIN:
+    {
+        int b = cs2_rt_pop_int(rt);
+        int a = cs2_rt_pop_int(rt);
+        CS2_RT_PUSH_INT(rt, a < b ? a : b);
+        break;
+    }
+    case CS2_OP_MAX:
+    {
+        int b = cs2_rt_pop_int(rt);
+        int a = cs2_rt_pop_int(rt);
+        CS2_RT_PUSH_INT(rt, a > b ? a : b);
+        break;
+    }
     case CS2_OP_TESTBIT:
     {
         int bit = cs2_rt_pop_int(rt);
@@ -702,14 +723,25 @@ cs2_rt_exec_opcode(
     case CS2_OP_DEFINE_ARRAY:
     {
         int size = cs2_rt_pop_int(rt);
-        assert(operand >= 0 && operand < CS2_RT_MAX_ARRAYS);
+        int const slot = cs2_array_define_slot(operand);
+        if( slot < 0 || slot >= CS2_RT_MAX_ARRAYS )
+        {
+            fprintf(
+                stderr,
+                "cs2vm: DEFINE_ARRAY slot out of range script_id=%d slot=%d operand=%d\n",
+                frame->script ? frame->script->script_id : -1,
+                slot,
+                operand);
+            rt->run_error = CS2VM_ERR_INVALID;
+            return false;
+        }
         if( size < 0 )
             size = 0;
         if( size > CS2_RT_ARRAY_CAPACITY )
             size = CS2_RT_ARRAY_CAPACITY;
-        rt->arrays[operand].defined = true;
-        rt->arrays[operand].size = size;
-        memset(rt->arrays[operand].values, 0, sizeof(rt->arrays[operand].values));
+        rt->arrays[slot].defined = true;
+        rt->arrays[slot].size = size;
+        memset(rt->arrays[slot].values, 0, sizeof(rt->arrays[slot].values));
         break;
     }
     case CS2_OP_PUSH_ARRAY_INT:

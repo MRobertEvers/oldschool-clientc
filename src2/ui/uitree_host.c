@@ -16,6 +16,42 @@ uitree_host_init(struct UITreeHost* host)
     memset(host, 0, sizeof(*host));
 }
 
+int
+uitree_host(struct UITreeHost const* host, struct UITreeHostRequest* req)
+{
+    assert(req);
+
+    if( host && host->request )
+        return host->request(host->user, req);
+
+    switch( req->kind )
+    {
+    case UITREE_HOST_IS_ACTIVE:
+    case UITREE_HOST_GET_CROSS_ACTIVE:
+    case UITREE_HOST_GET_MINIMENU_VISIBLE:
+    case UITREE_HOST_SCENE_SPRITE_HAS:
+    case UITREE_HOST_SCENE_FONT_HAS:
+    case UITREE_HOST_SCENE_MODEL_HAS:
+    case UITREE_HOST_GET_INV_SOURCE_SLOT:
+        return 0;
+    case UITREE_HOST_APPLY_BUTTON_CLICK:
+    case UITREE_HOST_SET_SELECTED_TAB:
+    case UITREE_HOST_GET_MINIMAP_ANCHOR:
+    case UITREE_HOST_GET_WORLD_MAP_SIZE:
+    case UITREE_HOST_GET_CROSS_POSITION:
+    case UITREE_HOST_GET_MINIMENU_LAYOUT:
+    case UITREE_HOST_SET_INV_SOURCE_SLOT:
+        return 0;
+    case UITREE_HOST_EVAL_TEXT_PLACEHOLDER:
+    case UITREE_HOST_GET_SELECTED_TAB:
+    case UITREE_HOST_GET_CAMERA_YAW:
+    case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
+    case UITREE_HOST_GET_MINIMENU_HOVERED_OPTION:
+        return 0;
+    }
+    return 0;
+}
+
 bool
 uitree_component_visible_host(
     struct StaticUIComponent const* component,
@@ -27,25 +63,31 @@ uitree_component_visible_host(
     if( component->type == UIELEM_BUILTIN_REDSTONE_TAB )
     {
         assert(host);
-        assert(host->get_selected_tab);
-        return host->get_selected_tab(host->user) == component->u.redstone_tab.tabno;
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        return uitree_host(host, &req) == component->u.redstone_tab.tabno;
     }
 
     if( component->type == UIELEM_BUILTIN_SIDEBAR )
     {
         assert(host);
-        assert(host->get_selected_tab);
-        return host->get_selected_tab(host->user) == component->u.sidebar.tabno;
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        return uitree_host(host, &req) == component->u.sidebar.tabno;
     }
 
     if( component->type == UIELEM_BUILTIN_CROSS )
     {
-        return host && host->get_cross_active && host->get_cross_active(host->user);
+        if( !host )
+            return false;
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_CROSS_ACTIVE };
+        return uitree_host(host, &req) != 0;
     }
 
     if( component->type == UIELEM_BUILTIN_MINIMENU )
     {
-        return host && host->get_minimenu_visible && host->get_minimenu_visible(host->user);
+        if( !host )
+            return false;
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
+        return uitree_host(host, &req) != 0;
     }
 
     return uitree_component_visible_by_hover_ids(component, hover_ids);
@@ -74,9 +116,14 @@ uitree_component_is_active_host(
 {
     if( !component || !component->behavior.script_comparator )
         return false;
-    if( host && host->is_active )
-        return host->is_active(host->user, component);
-    return false;
+    if( !host )
+        return false;
+
+    struct UITreeHostRequest req = {
+        .kind = UITREE_HOST_IS_ACTIVE,
+        .u.is_active.component = component,
+    };
+    return uitree_host(host, &req) != 0;
 }
 
 char const*
@@ -196,21 +243,31 @@ uitree_behavior_handle_click_host(
     switch( component->type )
     {
     case UIELEM_BUILTIN_TAB_ICONS:
-        if( host->set_selected_tab )
+    {
+        int tabno = component->u.tab_icon.tabno;
+        if( uitree_sidebar_componentno_for_tab(tree, tabno) >= 0 )
         {
-            int tabno = component->u.tab_icon.tabno;
-            if( uitree_sidebar_componentno_for_tab(tree, tabno) >= 0 )
-                host->set_selected_tab(host->user, tabno);
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_SET_SELECTED_TAB,
+                .u.set_selected_tab.tabno = tabno,
+            };
+            uitree_host(host, &req);
         }
         return;
+    }
     case UIELEM_BUILTIN_REDSTONE_TAB:
-        if( host->set_selected_tab )
+    {
+        int tabno = component->u.redstone_tab.tabno;
+        if( uitree_sidebar_componentno_for_tab(tree, tabno) >= 0 )
         {
-            int tabno = component->u.redstone_tab.tabno;
-            if( uitree_sidebar_componentno_for_tab(tree, tabno) >= 0 )
-                host->set_selected_tab(host->user, tabno);
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_SET_SELECTED_TAB,
+                .u.set_selected_tab.tabno = tabno,
+            };
+            uitree_host(host, &req);
         }
         return;
+    }
     case UIELEM_BUILTIN_CHAT_BUTTON:
         ui_chat_button_handle_click(host->user, component);
         return;
@@ -218,8 +275,14 @@ uitree_behavior_handle_click_host(
         break;
     }
 
-    if( uitree_component_is_clickable(component) && host->apply_button_click )
-        host->apply_button_click(host->user, component);
+    if( uitree_component_is_clickable(component) )
+    {
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_APPLY_BUTTON_CLICK,
+            .u.apply_button_click.component = component,
+        };
+        uitree_host(host, &req);
+    }
 }
 
 char const*
@@ -238,8 +301,9 @@ uitree_expand_text_host(
     if( !src || src[0] == '\0' )
         return src;
 
-    if( component->type != UIELEM_RS_TEXT || !host->eval_text_placeholder )
+    if( component->type != UIELEM_RS_TEXT )
         return src;
+
     size_t di = 0;
 
     for( size_t i = 0; src[i] != '\0' && di + 1 < scratch_size; i++ )
@@ -247,7 +311,12 @@ uitree_expand_text_host(
         if( src[i] == '%' && src[i + 1] >= '1' && src[i + 1] <= '5' )
         {
             int script_idx = src[i + 1] - '1';
-            int val = host->eval_text_placeholder(host->user, component, script_idx);
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_EVAL_TEXT_PLACEHOLDER,
+                .u.eval_text_placeholder.component = component,
+                .u.eval_text_placeholder.script_idx = script_idx,
+            };
+            int val = uitree_host(host, &req);
             char num[16];
             int n = snprintf(num, sizeof(num), "%d", val);
             if( n < 0 )
@@ -273,8 +342,8 @@ uitree_component_should_emit(
 
     if( component->type == UIELEM_BUILTIN_REDSTONE_TAB )
     {
-        assert(host->get_selected_tab);
-        return host->get_selected_tab(host->user) == component->u.redstone_tab.tabno;
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        return uitree_host(host, &req) == component->u.redstone_tab.tabno;
     }
 
     if( component->type == UIELEM_BUILTIN_TAB_ICONS )
@@ -288,12 +357,14 @@ uitree_component_should_emit(
 
     if( component->type == UIELEM_BUILTIN_CROSS )
     {
-        return host->get_cross_active && host->get_cross_active(host->user);
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_CROSS_ACTIVE };
+        return uitree_host(host, &req) != 0;
     }
 
     if( component->type == UIELEM_BUILTIN_MINIMENU )
     {
-        return host->get_minimenu_visible && host->get_minimenu_visible(host->user);
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
+        return uitree_host(host, &req) != 0;
     }
 
     if( component->type == UIELEM_RS_LAYER )
@@ -316,7 +387,10 @@ uitree_component_sprite_rotation(
     assert(host);
 
     if( component->type == UIELEM_BUILTIN_COMPASS || component->type == UIELEM_BUILTIN_MINIMAP )
-        return host->get_camera_yaw(host->user);
+    {
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_CAMERA_YAW };
+        return uitree_host(host, &req);
+    }
 
     return 0;
 }

@@ -28,18 +28,21 @@ static int g_selected_tab = 3;
 static int g_last_set_tab = -1;
 
 static int
-mock_get_selected_tab(void* user)
+mock_host_request(void* user, struct UITreeHostRequest* req)
 {
     (void)user;
-    return g_selected_tab;
-}
 
-static void
-mock_set_selected_tab(void* user, int tabno)
-{
-    (void)user;
-    g_last_set_tab = tabno;
-    g_selected_tab = tabno;
+    switch( req->kind )
+    {
+    case UITREE_HOST_GET_SELECTED_TAB:
+        return g_selected_tab;
+    case UITREE_HOST_SET_SELECTED_TAB:
+        g_last_set_tab = req->u.set_selected_tab.tabno;
+        g_selected_tab = req->u.set_selected_tab.tabno;
+        return 0;
+    default:
+        return 0;
+    }
 }
 
 static int
@@ -303,9 +306,7 @@ test_sidebar_tab_click(void)
     uitree_layout_resolve(tree, 0, 0, 765, 503);
 
     struct UITreeHost host = { 0 };
-    host.user = NULL;
-    host.get_selected_tab = mock_get_selected_tab;
-    host.set_selected_tab = mock_set_selected_tab;
+    host.request = mock_host_request;
 
     TEST_ASSERT(uitree_hit_test(tree, 110, 110) == tab, "tab icon hit inside bounds");
     TEST_ASSERT(uitree_hit_test(tree, 99, 110) < 0, "tab icon miss left of bounds");
@@ -327,8 +328,7 @@ test_sidenav_interactive(void)
     TEST_ASSERT(sidenav_fixture_build(&fixture), "sidenav fixture build");
 
     struct UITreeHost host = { 0 };
-    host.get_selected_tab = mock_get_selected_tab;
-    host.set_selected_tab = mock_set_selected_tab;
+    host.request = mock_host_request;
 
     g_selected_tab = 3;
     g_last_set_tab = -1;

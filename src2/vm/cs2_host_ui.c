@@ -27,6 +27,16 @@
 #define CS2_HOST_UI_VARC_INT_MAX 256
 #define CS2_HOST_UI_VARC_STRING_MAX 64
 #define CS2_HOST_UI_VARC_STRING_LEN 128
+#define CS2_HOST_UI_WIDGET_PARAM_MAX 4096
+
+struct CS2HostUIWidgetParam
+{
+    int component_id;
+    int param_id;
+    bool is_string;
+    int int_value;
+    char string_value[CS2_HOST_UI_VARC_STRING_LEN];
+};
 
 #define CS2_OP_CC_CLEAROPSUBMENU 1310
 #define CS2_OP_CC_SETOPSUBMENU 1311
@@ -62,6 +72,8 @@ struct CS2HostUIState
     int clock_ticks;
     int varc_int[CS2_HOST_UI_VARC_INT_MAX];
     char varc_string[CS2_HOST_UI_VARC_STRING_MAX][CS2_HOST_UI_VARC_STRING_LEN];
+    struct CS2HostUIWidgetParam widget_params[CS2_HOST_UI_WIDGET_PARAM_MAX];
+    int widget_param_count;
 };
 
 static struct CS2HostUIState s_cs2_host_ui_state;
@@ -138,6 +150,180 @@ cs2_host_ui_resolve_target(
     if( active_component >= 0 )
         return uitree_find_by_component_id(st->tree, active_component);
     return -1;
+}
+
+static int
+cs2_host_ui_widget_by_uid_and_child(
+    struct CS2HostUIState const* st,
+    int widget_uid,
+    int child_index)
+{
+    if( !st || !st->tree || widget_uid < 0 )
+        return -1;
+
+    int32_t parent_idx = uitree_find_by_component_id(st->tree, widget_uid);
+    if( parent_idx < 0 )
+        return -1;
+
+    if( child_index == -1 )
+        return widget_uid;
+    if( child_index < -1 )
+        return -1;
+
+    int dyn_i = 0;
+    for( int32_t child = st->tree->components[parent_idx].first_child; child >= 0;
+         child = st->tree->components[child].next_sibling )
+    {
+        struct StaticUIComponent const* c = &st->tree->components[child];
+        if( !c->dynamic )
+            continue;
+        if( dyn_i == child_index )
+            return c->component_id;
+        dyn_i++;
+    }
+
+    int const direct_uid = (widget_uid & 0xFFFF0000) | (child_index & 0xFFFF);
+    int32_t direct_idx = uitree_find_by_component_id(st->tree, direct_uid);
+    if( direct_idx >= 0 )
+    {
+        int32_t p = st->tree->components[direct_idx].parent;
+        if( p >= 0 && st->tree->components[p].component_id == widget_uid )
+            return direct_uid;
+    }
+
+    for( int32_t child = st->tree->components[parent_idx].first_child; child >= 0;
+         child = st->tree->components[child].next_sibling )
+    {
+        struct StaticUIComponent const* c = &st->tree->components[child];
+        if( c->dynamic )
+            continue;
+        if( (c->component_id & 0xFFFF) == (child_index & 0xFFFF) )
+            return c->component_id;
+    }
+    return -1;
+}
+
+static struct CS2HostUIWidgetParam*
+cs2_host_ui_widget_param_find(
+    struct CS2HostUIState* st,
+    int component_id,
+    int param_id)
+{
+    if( !st )
+        return NULL;
+    for( int i = 0; i < st->widget_param_count; i++ )
+    {
+        struct CS2HostUIWidgetParam* entry = &st->widget_params[i];
+        if( entry->component_id == component_id && entry->param_id == param_id )
+            return entry;
+    }
+    return NULL;
+}
+
+static bool
+cs2_host_ui_widget_param_set(
+    struct CS2HostUIState* st,
+    int component_id,
+    int param_id,
+    bool is_string,
+    int int_value,
+    char const* string_value)
+{
+    if( !st || component_id < 0 )
+        return false;
+
+    struct CS2HostUIWidgetParam* entry =
+        cs2_host_ui_widget_param_find(st, component_id, param_id);
+    if( !entry )
+    {
+        if( st->widget_param_count >= CS2_HOST_UI_WIDGET_PARAM_MAX )
+            return false;
+        entry = &st->widget_params[st->widget_param_count++];
+        memset(entry, 0, sizeof(*entry));
+        entry->component_id = component_id;
+        entry->param_id = param_id;
+    }
+
+    entry->is_string = is_string;
+    if( is_string )
+    {
+        entry->int_value = 0;
+        strncpy(
+            entry->string_value,
+            string_value ? string_value : "",
+            sizeof(entry->string_value) - 1);
+        entry->string_value[sizeof(entry->string_value) - 1] = '\0';
+    }
+    else
+    {
+        entry->int_value = int_value;
+        entry->string_value[0] = '\0';
+    }
+    return true;
+}
+
+static bool
+cs2_host_ui_pop_typed_value(
+    struct CS2_InvokeCtx* ctx,
+    int script_var_type,
+    int* out_int,
+    char const** out_string,
+    bool* out_is_string)
+{
+    if( !ctx || !out_int || !out_string || !out_is_string )
+        return false;
+
+    *out_int = 0;
+    *out_string = "";
+    *out_is_string = false;
+
+    if( script_var_type == -1 )
+        return true;
+    if( script_var_type == 0 )
+    {
+        *out_int = cs2vm_host_pop_int(ctx);
+        return true;
+    }
+    if( script_var_type == 2 )
+    {
+        *out_is_string = true;
+        *out_string = cs2vm_host_pop_string(ctx);
+        return true;
+    }
+    cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
+    return false;
+}
+
+static void
+cs2_host_ui_push_widget_param(
+    struct CS2HostUIState* st,
+    struct CS2_InvokeCtx* ctx,
+    int component_id,
+    int param_id)
+{
+    struct RSCacheDat2Disk* dat2 = cs2_host_ui_dat2_disk(st);
+    bool const default_is_string = dat2 && ie_param_is_string(dat2, param_id);
+    struct CS2HostUIWidgetParam* entry =
+        cs2_host_ui_widget_param_find(st, component_id, param_id);
+    if( entry )
+    {
+        if( entry->is_string )
+            cs2vm_host_push_string(
+                ctx, cs2vm_host_alloc_string(ctx, entry->string_value));
+        else
+            cs2vm_host_push_int(ctx, entry->int_value);
+        return;
+    }
+
+    if( default_is_string )
+    {
+        cs2vm_host_push_string(
+            ctx,
+            cs2vm_host_alloc_string(
+                ctx, dat2 ? ie_param_default_string(dat2, param_id) : ""));
+    }
+    else
+        cs2vm_host_push_int(ctx, dat2 ? ie_param_default_int(dat2, param_id) : 0);
 }
 
 static int
@@ -1134,12 +1320,30 @@ cs2_host_ui_invoke(
     case CS2_OP_CC_PARAM:
     {
         int param_id = cs2vm_host_pop_int(ctx);
-        struct RSCacheDat2Disk* dat2 = cs2_host_ui_dat2_disk(st);
-        if( dat2 && ie_param_is_string(dat2, param_id) )
-            cs2vm_host_push_string(
-                ctx, cs2vm_host_alloc_string(ctx, ie_param_default_string(dat2, param_id)));
-        else
-            cs2vm_host_push_int(ctx, dat2 ? ie_param_default_int(dat2, param_id) : 0);
+        int const component = cs2_host_ui_cc_target_component(ctx);
+        if( component < 0 )
+        {
+            cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
+            break;
+        }
+        cs2_host_ui_push_widget_param(st, ctx, component, param_id);
+        break;
+    }
+    case CS2_OP_CC_SETPARAM:
+    {
+        int script_var_type = cs2vm_host_pop_int(ctx);
+        int int_value = 0;
+        char const* string_value = "";
+        bool is_string = false;
+        if( !cs2_host_ui_pop_typed_value(
+                ctx, script_var_type, &int_value, &string_value, &is_string) )
+            break;
+        int param_id = cs2vm_host_pop_int(ctx);
+        int const component = cs2_host_ui_cc_target_component(ctx);
+        if( component < 0 ||
+            !cs2_host_ui_widget_param_set(
+                st, component, param_id, is_string, int_value, string_value) )
+            cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
         break;
     }
     case CS2_OP_CC_GETX:
@@ -1585,6 +1789,12 @@ cs2_host_ui_invoke(
     case CS2_OP_CLIENTCLOCK:
         cs2vm_host_push_int(ctx, st ? st->clock_ticks : 0);
         break;
+    case CS2_OP_MOUSE_GETX:
+        cs2vm_host_push_int(ctx, -1);
+        break;
+    case CS2_OP_MOUSE_GETY:
+        cs2vm_host_push_int(ctx, -1);
+        break;
     case CS2_OP_COORD:
         cs2vm_host_push_int(ctx, 0);
         break;
@@ -1708,6 +1918,39 @@ cs2_host_ui_invoke(
     {
         (void)cs2vm_host_pop_int(ctx);
         cs2vm_host_push_int(ctx, 0);
+        break;
+    }
+    case CS2_OP_IF_PARAM:
+    {
+        int child_index = cs2vm_host_pop_int(ctx);
+        int widget_uid = cs2vm_host_pop_int(ctx);
+        int param_id = cs2vm_host_pop_int(ctx);
+        int const component = cs2_host_ui_widget_by_uid_and_child(st, widget_uid, child_index);
+        if( component < 0 )
+        {
+            cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
+            break;
+        }
+        cs2_host_ui_push_widget_param(st, ctx, component, param_id);
+        break;
+    }
+    case CS2_OP_IF_SETPARAM:
+    {
+        int script_var_type = cs2vm_host_pop_int(ctx);
+        int child_index = cs2vm_host_pop_int(ctx);
+        int widget_uid = cs2vm_host_pop_int(ctx);
+        int int_value = 0;
+        char const* string_value = "";
+        bool is_string = false;
+        if( !cs2_host_ui_pop_typed_value(
+                ctx, script_var_type, &int_value, &string_value, &is_string) )
+            break;
+        int param_id = cs2vm_host_pop_int(ctx);
+        int const component = cs2_host_ui_widget_by_uid_and_child(st, widget_uid, child_index);
+        if( component < 0 ||
+            !cs2_host_ui_widget_param_set(
+                st, component, param_id, is_string, int_value, string_value) )
+            cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
         break;
     }
     case CS2_OP_CAM_SETFOLLOWHEIGHT:

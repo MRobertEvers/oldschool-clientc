@@ -417,14 +417,13 @@ test_hover_parent_bounds_gate(void)
     return 0;
 }
 
-static bool
-test_always_active(
-    void* user,
-    struct StaticUIComponent const* component)
+static int
+test_always_active_request(void* user, struct UITreeHostRequest* req)
 {
     (void)user;
-    (void)component;
-    return true;
+    if( req->kind == UITREE_HOST_IS_ACTIVE )
+        return 1;
+    return 0;
 }
 
 static int
@@ -459,7 +458,7 @@ test_active_text_source(void)
     };
     uitree_set_behavior(tree, node, &active_behavior);
 
-    host.is_active = test_always_active;
+    host.request = test_always_active_request;
     TEST_ASSERT(
         strcmp(uitree_component_text_source_host(&host, &tree->components[node]), "active") == 0,
         "active text when getIfActive");
@@ -609,10 +608,12 @@ test_scrollbar_handle_gating(void)
 }
 
 static int
-test_scrollbar_selected_tab(void* user)
+test_scrollbar_host_request(void* user, struct UITreeHostRequest* req)
 {
     (void)user;
-    return 3;
+    if( req->kind == UITREE_HOST_GET_SELECTED_TAB )
+        return 3;
+    return 0;
 }
 
 static int
@@ -672,7 +673,7 @@ test_scrollbar_selected_sidebar_tab(void)
 
     struct UITreeHost host;
     uitree_host_init(&host);
-    host.get_selected_tab = test_scrollbar_selected_tab;
+    host.request = test_scrollbar_host_request;
 
     int lx = 0;
     int ly = 0;
