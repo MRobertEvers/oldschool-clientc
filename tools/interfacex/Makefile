@@ -18,8 +18,12 @@ LDFLAGS += -fsanitize=address
 endif
 
 SRCS = $(TOOL_DIR)/main.c \
+	$(SRC2_DIR)/games/ie_enum_lookup.c \
+	$(SRC_DIR)/bmp.c \
 	$(SRC2_DIR)/toridraw/toridraw_unity.c \
+	$(SRC2_DIR)/toridraw/toridraw_model_sprite.c \
 	$(SRC2_DIR)/toridraw/toridraw_font.c \
+	$(SRC2_DIR)/toriauxlib/td/toridraw_cachemodel.c \
 	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_clientscript_convert.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_component_dat2_convert.c \
@@ -42,10 +46,22 @@ $(TARGET): $(OBJS)
 $(OBJ_DIR)/main.o: $(TOOL_DIR)/main.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(OBJ_DIR)/ie_enum_lookup.o: $(SRC2_DIR)/games/ie_enum_lookup.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/bmp.o: $(SRC_DIR)/bmp.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(OBJ_DIR)/stubs.o: $(TOOL_DIR)/stubs.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/toridraw_unity.o: $(SRC2_DIR)/toridraw/toridraw_unity.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/toridraw_model_sprite.o: $(SRC2_DIR)/toridraw/toridraw_model_sprite.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/toridraw_cachemodel.o: $(SRC2_DIR)/toriauxlib/td/toridraw_cachemodel.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/toriauxlibcore_types.o: $(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c
