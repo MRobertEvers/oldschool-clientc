@@ -1,10 +1,9 @@
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
+#include "osrs/rscache/dat2a/dat2a_component.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 #include "vm/cs1vm.h"
 #include "vm/cs2vm.h"
-
-#include "osrs/rscache/dat1a/dat1a_config_component.h"
-#include "osrs/rscache/dat2a/dat2a_component.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -136,9 +135,8 @@ toriauxlibcache_component_copy_scripts(
         if( !scripts[i] )
             continue;
 
-        int len = (scripts_lengths && scripts_lengths[i] > 0)
-                      ? scripts_lengths[i]
-                      : cs1vm_script_length(scripts[i]);
+        int len = (scripts_lengths && scripts_lengths[i] > 0) ? scripts_lengths[i]
+                                                              : cs1vm_script_length(scripts[i]);
         if( len <= 0 )
             continue;
 
@@ -291,7 +289,7 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
     dst->active_color = src->activeColour;
     dst->active_over_color = src->activeOverColour;
     dst->over_layer_id = src->linkedComponentId;
-    dst->parent_id = -1;
+    dst->parent_id = src->layer;
     dst->tiled = src->tiled ? 1 : 0;
     dst->base_x = src->baseX;
     dst->base_y = src->baseY;

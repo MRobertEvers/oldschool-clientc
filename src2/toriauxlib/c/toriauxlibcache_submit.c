@@ -587,8 +587,7 @@ ToriAuxLibCache_SubmitComponent(
     int component_id,
     struct ToriAuxLibCore_Component* component)
 {
-    if( !c || !component )
-        return;
+    assert(c && component);
     ToriAuxLibCore_ComponentAdd(ToriAuxLibCache_Core(c), component_id, component);
 }
 
@@ -912,9 +911,8 @@ ToriAuxLibCache_ClientScriptResolve(
     if( !archive )
         return NULL;
 
-    struct ToriAuxLibCore_ClientScript* script =
-        ToriAuxLibCache_ClientScriptNewFromDat2Archive(
-            disk, archive, script_id, ToriAuxLibCache_ClientscriptDecodeFlags(c));
+    struct ToriAuxLibCore_ClientScript* script = ToriAuxLibCache_ClientScriptNewFromDat2Archive(
+        disk, archive, script_id, ToriAuxLibCache_ClientscriptDecodeFlags(c));
     if( script )
         ToriAuxLibCache_SubmitClientScript(c, script_id, script);
     return script;

@@ -1,5 +1,6 @@
 #include "osrs/varp_varbit_manager.h"
 #include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/toriauxlib.h"
 #include "toriauxlib/vm/toriauxlibvm.h"
@@ -114,6 +115,17 @@ ToriAuxLibCache_Dat2Disk(struct ToriAuxLibCache* c)
 {
     (void)c;
     return NULL;
+}
+
+void
+ToriAuxLibCache_SubmitComponent(
+    struct ToriAuxLibCache* c,
+    int component_id,
+    struct ToriAuxLibCore_Component* component)
+{
+    (void)c;
+    (void)component_id;
+    (void)component;
 }
 
 int

@@ -19,4 +19,10 @@ ToriAuxLibCache_ClientScriptNewFromDat2Archive(
     int script_id,
     int clientscript_decode_flags);
 
+struct ToriAuxLibCore_ClientScript*
+ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
+    struct RSCacheDat2Disk_Archive* archive,
+    int script_id,
+    int clientscript_decode_flags);
+
 #endif

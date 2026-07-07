@@ -22,6 +22,7 @@ SRCS = $(TOOL_DIR)/main.c \
 	$(SRC2_DIR)/toridraw/toridraw_unity.c \
 	$(SRC2_DIR)/toridraw/toridraw_font.c \
 	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c \
+	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_clientscript_convert.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_component_dat2_convert.c \
 	$(SRC2_DIR)/vm/cs2_script.c \
 	$(SRC2_DIR)/vm/cs2_opcode_meta.c \
@@ -49,6 +50,9 @@ $(OBJ_DIR)/toridraw_unity.o: $(SRC2_DIR)/toridraw/toridraw_unity.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/toriauxlibcore_types.o: $(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/toriauxlibcache_clientscript_convert.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_clientscript_convert.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/toriauxlibcache_component_dat2_convert.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_component_dat2_convert.c

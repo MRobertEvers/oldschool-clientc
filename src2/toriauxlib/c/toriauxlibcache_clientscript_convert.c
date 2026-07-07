@@ -3,6 +3,7 @@
 #include "osrs/rscache/dat2a/dat2a_clientscript.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -39,10 +40,28 @@ ToriAuxLibCache_ClientScriptNewFromDat2Archive(
 
     RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
     struct RSCacheDat2A_ClientScript* decoded = RSCacheDat2A_ClientScriptNewFromDecodeFlags(
-        script_id,
-        (const uint8_t*)archive->data,
-        archive->data_size,
-        clientscript_decode_flags);
+        script_id, (const uint8_t*)archive->data, archive->data_size, clientscript_decode_flags);
+    RSCacheDat2Disk_ArchiveFree(archive);
+    if( !decoded )
+        return NULL;
+
+    struct ToriAuxLibCore_ClientScript* script =
+        ToriAuxLibCache_ClientScriptNewFromDat2Decode(script_id, decoded);
+    RSCacheDat2A_ClientScriptFree(decoded);
+    return script;
+}
+
+struct ToriAuxLibCore_ClientScript*
+ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
+    struct RSCacheDat2Disk_Archive* archive,
+    int script_id,
+    int clientscript_decode_flags)
+{
+    assert(archive);
+    assert(script_id >= 0);
+
+    struct RSCacheDat2A_ClientScript* decoded = RSCacheDat2A_ClientScriptNewFromDecodeFlags(
+        script_id, (const uint8_t*)archive->data, archive->data_size, clientscript_decode_flags);
     RSCacheDat2Disk_ArchiveFree(archive);
     if( !decoded )
         return NULL;
