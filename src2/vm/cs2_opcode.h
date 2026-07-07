@@ -7,122 +7,412 @@
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
-/* Push int constant. in: -. out int: op. */
+/* PUSH_CONSTANT_INT — Push int constant.
+ * operand: int constant
+ * int stack in:   -      
+ * str stack in:   -      
+ * int stack out:  operand
+ * str stack out:  -      
+ */
 #define CS2_OP_PUSH_CONSTANT_INT 0
-/* Read varp. in: -. out int: varp[op]. */
+/* PUSH_VAR — Read varp.
+ * operand: varp id
+ * int stack in:   -            
+ * str stack in:   -            
+ * int stack out:  varp[operand]
+ * str stack out:  -            
+ */
 #define CS2_OP_PUSH_VAR 1
-/* Write varp. in: value. out: -; sets varp[op]=value. */
+/* POP_VAR — Write varp.
+ * operand: varp id
+ * int stack in:   value
+ * str stack in:   -    
+ * int stack out:  -    
+ * str stack out:  -    
+ * notes: varp[operand] = value
+ */
 #define CS2_OP_POP_VAR 2
-/* Push string constant. sin: -. out str: script string at op. */
+/* PUSH_CONSTANT_STRING — Push string constant.
+ * operand: string index
+ * int stack in:   -                     
+ * str stack in:   -                     
+ * int stack out:  -                     
+ * str stack out:  script_string[operand]
+ */
 #define CS2_OP_PUSH_CONSTANT_STRING 3
-/* Unconditional branch. in: -. out: -; pc += op. */
+/* BRANCH — Unconditional branch.
+ * operand: branch offset
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: pc += operand
+ */
 #define CS2_OP_BRANCH 6
-/* Branch if false. in: cond. out: -; pc += op if cond==0. */
+/* BRANCH_NOT — Branch if false.
+ * operand: branch offset
+ * int stack in:   cond
+ * str stack in:   -   
+ * int stack out:  -   
+ * str stack out:  -   
+ * notes: pc += operand if cond == 0
+ */
 #define CS2_OP_BRANCH_NOT 7
-/* Branch if equal. in: a, b (b top). out: -; pc += op if a==b. */
+/* BRANCH_EQUALS — Branch if equal.
+ * operand: branch offset
+ * int stack in:   a, b  (b = top)
+ * str stack in:   -   
+ * int stack out:  -   
+ * str stack out:  -   
+ * notes: pc += operand if a == b
+ */
 #define CS2_OP_BRANCH_EQUALS 8
-/* Branch if less. in: a, b (b top). out: -; pc += op if a<b. */
+/* BRANCH_LESS_THAN — Branch if less.
+ * operand: branch offset
+ * int stack in:   a, b  (b = top)
+ * str stack in:   -   
+ * int stack out:  -   
+ * str stack out:  -   
+ * notes: pc += operand if a < b
+ */
 #define CS2_OP_BRANCH_LESS_THAN 9
-/* Branch if greater. in: a, b (b top). out: -; pc += op if a>b. */
+/* BRANCH_GREATER_THAN — Branch if greater.
+ * operand: branch offset
+ * int stack in:   a, b  (b = top)
+ * str stack in:   -   
+ * int stack out:  -   
+ * str stack out:  -   
+ * notes: pc += operand if a > b
+ */
 #define CS2_OP_BRANCH_GREATER_THAN 10
-/* Return from script. in: optional return int. out: -; pops frame. */
+/* RETURN — Return from script.
+ * int stack in:   return value (optional)
+ * str stack in:   -                      
+ * int stack out:  -                      
+ * str stack out:  -                      
+ * notes: pops frame
+ */
 #define CS2_OP_RETURN 21
-/* Read varbit. in: -. out int: varbit[op]. */
+/* PUSH_VARBIT — Read varbit.
+ * operand: varbit id
+ * int stack in:   -              
+ * str stack in:   -              
+ * int stack out:  varbit[operand]
+ * str stack out:  -              
+ */
 #define CS2_OP_PUSH_VARBIT 25
-/* Write varbit. in: value. out: -; sets varbit[op]=value. */
+/* POP_VARBIT — Write varbit.
+ * operand: varbit id
+ * int stack in:   value
+ * str stack in:   -    
+ * int stack out:  -    
+ * str stack out:  -    
+ * notes: varbit[operand] = value
+ */
 #define CS2_OP_POP_VARBIT 27
-/* Branch if <=. in: a, b (b top). out: -; pc += op if a<=b. */
+/* BRANCH_LESS_THAN_OR_EQUALS — Branch if less than or equal.
+ * operand: branch offset
+ * int stack in:   a, b  (b = top)
+ * str stack in:   -   
+ * int stack out:  -   
+ * str stack out:  -   
+ * notes: pc += operand if a <= b
+ */
 #define CS2_OP_BRANCH_LESS_THAN_OR_EQUALS 31
-/* Branch if >=. in: a, b (b top). out: -; pc += op if a>=b. */
+/* BRANCH_GREATER_THAN_OR_EQUALS — Branch if greater than or equal.
+ * operand: branch offset
+ * int stack in:   a, b  (b = top)
+ * str stack in:   -   
+ * int stack out:  -   
+ * str stack out:  -   
+ * notes: pc += operand if a >= b
+ */
 #define CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS 32
-/* Push int local. in: -. out int: int_local[op]. */
+/* PUSH_INT_LOCAL — Push int local.
+ * operand: local index
+ * int stack in:   -                 
+ * str stack in:   -                 
+ * int stack out:  int_local[operand]
+ * str stack out:  -                 
+ */
 #define CS2_OP_PUSH_INT_LOCAL 33
-/* Pop int local. in: value. out: -; sets int_local[op]=value. */
+/* POP_INT_LOCAL — Pop int local.
+ * operand: local index
+ * int stack in:   value
+ * str stack in:   -    
+ * int stack out:  -    
+ * str stack out:  -    
+ * notes: int_local[operand] = value
+ */
 #define CS2_OP_POP_INT_LOCAL 34
-/* Push string local. in: -. out str: str_local[op]. */
+/* PUSH_STRING_LOCAL — Push string local.
+ * operand: local index
+ * int stack in:   -                 
+ * str stack in:   -                 
+ * int stack out:  -                 
+ * str stack out:  str_local[operand]
+ */
 #define CS2_OP_PUSH_STRING_LOCAL 35
-/* Pop string local. sin: value. out: -; sets str_local[op]=value. */
+/* POP_STRING_LOCAL — Pop string local.
+ * operand: local index
+ * int stack in:   -    
+ * str stack in:   value
+ * int stack out:  -    
+ * str stack out:  -    
+ * notes: str_local[operand] = value
+ */
 #define CS2_OP_POP_STRING_LOCAL 36
-/* Concatenate strings. sin: a, b (b top). out str: a+b. */
+/* JOIN_STRING — Concatenate strings.
+ * int stack in:   -    
+ * str stack in:   a, b   (b = top)
+ * int stack out:  -    
+ * str stack out:  a + b
+ */
 #define CS2_OP_JOIN_STRING 37
-/* Discard int. in: value (op times). out: -. */
+/* POP_INT_DISCARD — Discard int.
+ * operand: repeat count
+ * int stack in:   value
+ * str stack in:   -    
+ * int stack out:  -    
+ * str stack out:  -    
+ * notes: discards operand times
+ */
 #define CS2_OP_POP_INT_DISCARD 38
-/* Discard string. sin: value (op times). out: -. */
+/* POP_STRING_DISCARD — Discard string.
+ * operand: repeat count
+ * int stack in:   -    
+ * str stack in:   value
+ * int stack out:  -    
+ * str stack out:  -    
+ * notes: discards operand times
+ */
 #define CS2_OP_POP_STRING_DISCARD 39
-/* Call script. in: script args per callee signature. out: callee return values. */
+/* GOSUB_WITH_PARAMS — Call script.
+ * int stack in:   callee args per signature   
+ * str stack in:   -                           
+ * int stack out:  callee returns per signature
+ * str stack out:  -                           
+ */
 #define CS2_OP_GOSUB_WITH_PARAMS 40
-/* Read client int varc. in: -. out int: varc_int[op]. */
+/* PUSH_VARC_INT — Read client int varc.
+ * operand: varc id
+ * int stack in:   -                
+ * str stack in:   -                
+ * int stack out:  varc_int[operand]
+ * str stack out:  -                
+ */
 #define CS2_OP_PUSH_VARC_INT 42
-/* Write client int varc. in: value. out: -; sets varc_int[op]=value. */
+/* POP_VARC_INT — Write client int varc.
+ * operand: varc id
+ * int stack in:   value
+ * str stack in:   -    
+ * int stack out:  -    
+ * str stack out:  -    
+ * notes: varc_int[operand] = value
+ */
 #define CS2_OP_POP_VARC_INT 43
-/* Define int array. in: size. out: -; creates array[op]. */
+/* DEFINE_ARRAY — Define int array.
+ * operand: array id
+ * int stack in:   size
+ * str stack in:   -   
+ * int stack out:  -   
+ * str stack out:  -   
+ * notes: creates array[operand]
+ */
 #define CS2_OP_DEFINE_ARRAY 44
-/* Read array element. in: index. out int: array[op][index]. */
+/* PUSH_ARRAY_INT — Read array element.
+ * operand: array id
+ * int stack in:   index                
+ * str stack in:   -                    
+ * int stack out:  array[operand][index]
+ * str stack out:  -                    
+ */
 #define CS2_OP_PUSH_ARRAY_INT 45
-/* Write array element. in: index, value (value top). out: -; array[op][index]=value. */
+/* POP_ARRAY_INT — Write array element.
+ * operand: array id
+ * int stack in:   index, value  (value = top)
+ * str stack in:   -           
+ * int stack out:  -           
+ * str stack out:  -           
+ * notes: array[operand][index] = value
+ */
 #define CS2_OP_POP_ARRAY_INT 46
 #define CS2_OP_PUSH_VARC_STRING_OLD 47
 #define CS2_OP_POP_VARC_STRING_OLD 48
-/* Read client string varc. in: -. out str: varc_string[op]. */
+/* PUSH_VARC_STRING — Read client string varc.
+ * operand: varc id
+ * int stack in:   -                   
+ * str stack in:   -                   
+ * int stack out:  -                   
+ * str stack out:  varc_string[operand]
+ */
 #define CS2_OP_PUSH_VARC_STRING 49
-/* Write client string varc. sin: value. out: -; sets varc_string[op]=value. */
+/* POP_VARC_STRING — Write client string varc.
+ * operand: varc id
+ * int stack in:   -    
+ * str stack in:   value
+ * int stack out:  -    
+ * str stack out:  -    
+ * notes: varc_string[operand] = value
+ */
 #define CS2_OP_POP_VARC_STRING 50
-/* Switch jump. in: key. out: -; pc = case target or fall through. */
+/* SWITCH — Switch jump.
+ * int stack in:   key
+ * str stack in:   -  
+ * int stack out:  -  
+ * str stack out:  -  
+ * notes: pc = case target or fall through
+ */
 #define CS2_OP_SWITCH 60
 #define CS2_OP_PUSH_VARCLANSETTING 74
 #define CS2_OP_PUSH_VARCLAN 76
-/* Create dynamic child component. in: sub_id. op=widget_type. out: -; sets active to new child. */
+/* CC_CREATE — Create dynamic child component.
+ * operand: widget type
+ * int stack in:   sub_id
+ * str stack in:   -     
+ * int stack out:  -     
+ * str stack out:  -     
+ * notes: sets active to new child
+ */
 #define CS2_OP_CC_CREATE 100
 #define CS2_OP_CC_DELETE 101
 #define CS2_OP__103 103
 #define CS2_OP__104 104
-/* Delete all dynamic children of active parent. in: -. out: -. */
+/* CC_DELETEALL — Delete all dynamic children of active parent.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_CC_DELETEALL 102
-/* Find child by sub-id. in: parent, sub (sub top). out int: 1 if found (active set) else 0. */
+/* CC_FIND — Find child by sub-id.
+ * int stack in:   parent, sub                     (sub = top)
+ * str stack in:   -                             
+ * int stack out:  1 if found (active set) else 0
+ * str stack out:  -                             
+ */
 #define CS2_OP_CC_FIND 200
-/* Find interface component. in: component. out int: 1 if found (active set) else 0. */
+/* IF_FIND — Find interface component.
+ * int stack in:   component                     
+ * str stack in:   -                             
+ * int stack out:  1 if found (active set) else 0
+ * str stack out:  -                             
+ */
 #define CS2_OP_IF_FIND 201
-/* Find child by param match. in: parentUid, param1, value1, param2, value2, v1Type, v2Type. out int: 1 if found. */
-#define CS2_OP_IF_FIND_CHILD 210
 #define CS2_OP__202 202
 #define CS2_OP__203 202
-/* Set position modes. in: x, y, x_mode, y_mode (y_mode top). out: -. */
+/* CC_SETPOSITION — Set position modes.
+ * int stack in:   x, y, x_mode, y_mode  (y_mode = top)
+ * str stack in:   -                   
+ * int stack out:  -                   
+ * str stack out:  -                   
+ */
 #define CS2_OP_CC_SETPOSITION 1000
-/* Set size modes. in: w, h, w_mode, h_mode (h_mode top). out: -. */
+/* CC_SETSIZE — Set size modes.
+ * int stack in:   w, h, w_mode, h_mode  (h_mode = top)
+ * str stack in:   -                   
+ * int stack out:  -                   
+ * str stack out:  -                   
+ */
 #define CS2_OP_CC_SETSIZE 1001
-/* Hide active child. in: hide. out: -. */
+/* CC_SETHIDE — Hide active child.
+ * int stack in:   hide
+ * str stack in:   -   
+ * int stack out:  -   
+ * str stack out:  -   
+ */
 #define CS2_OP_CC_SETHIDE 1003
-/* Set no-click-through. in: enabled. out: -. */
+/* CC_SETNOCLICKTHROUGH — Set no-click-through.
+ * int stack in:   enabled
+ * str stack in:   -      
+ * int stack out:  -      
+ * str stack out:  -      
+ */
 #define CS2_OP_CC_SETNOCLICKTHROUGH 1005
 #define CS2_OP_CC_SETNOSCROLLTHROUGH 1006
 #define CS2_OP_CC_SETSCROLLPOS 1100
-/* Set colour on active child. in: colour. out: -. */
+/* CC_SETCOLOUR — Set colour on active child.
+ * int stack in:   colour
+ * str stack in:   -     
+ * int stack out:  -     
+ * str stack out:  -     
+ */
 #define CS2_OP_CC_SETCOLOUR 1101
-/* Set rectangle fill. in: filled. out: -. */
+/* CC_SETFILL — Set rectangle fill.
+ * int stack in:   filled
+ * str stack in:   -     
+ * int stack out:  -     
+ * str stack out:  -     
+ */
 #define CS2_OP_CC_SETFILL 1102
-/* Set transparency. in: trans. out: -. */
+/* CC_SETTRANS — Set transparency.
+ * int stack in:   trans
+ * str stack in:   -    
+ * int stack out:  -    
+ * str stack out:  -    
+ */
 #define CS2_OP_CC_SETTRANS 1103
 #define CS2_OP_CC_SETLINEWID 1104
-/* Set sprite graphic. in: graphic_id. out: -. */
+/* CC_SETGRAPHIC — Set sprite graphic.
+ * int stack in:   graphic_id
+ * str stack in:   -         
+ * int stack out:  -         
+ * str stack out:  -         
+ */
 #define CS2_OP_CC_SETGRAPHIC 1105
 #define CS2_OP_CC_SET2DANGLE 1106
-/* Set sprite tiling. in: tiled. out: -. */
+/* CC_SETTILING — Set sprite tiling.
+ * int stack in:   tiled
+ * str stack in:   -    
+ * int stack out:  -    
+ * str stack out:  -    
+ */
 #define CS2_OP_CC_SETTILING 1107
 #define CS2_OP_CC_SETMODEL 1108
 #define CS2_OP_CC_SETMODELANGLE 1109
 #define CS2_OP_CC_SETMODELANIM 1110
 #define CS2_OP_CC_SETMODELORTHOG 1111
-/* Set text on active child. sin: text. out: -. */
+/* CC_SETTEXT — Set text on active child.
+ * int stack in:   -   
+ * str stack in:   text
+ * int stack out:  -   
+ * str stack out:  -   
+ */
 #define CS2_OP_CC_SETTEXT 1112
-/* Set font on active child. in: font_id. out: -. */
+/* CC_SETTEXTFONT — Set font on active child.
+ * int stack in:   font_id
+ * str stack in:   -      
+ * int stack out:  -      
+ * str stack out:  -      
+ */
 #define CS2_OP_CC_SETTEXTFONT 1113
-/* Set text alignment. in: x_align, y_align, line_height (line_height top). out: -. */
+/* CC_SETTEXTALIGN — Set text alignment.
+ * int stack in:   x_align, y_align, line_height  (line_height = top)
+ * str stack in:   -                            
+ * int stack out:  -                            
+ * str stack out:  -                            
+ */
 #define CS2_OP_CC_SETTEXTALIGN 1114
-/* Set text shadow. in: shadowed. out: -. */
+/* CC_SETTEXTSHADOW — Set text shadow.
+ * int stack in:   shadowed
+ * str stack in:   -       
+ * int stack out:  -       
+ * str stack out:  -       
+ */
 #define CS2_OP_CC_SETTEXTSHADOW 1115
-/* Set sprite outline. in: outline. out: -. */
+/* CC_SETOUTLINE — Set sprite outline.
+ * int stack in:   outline
+ * str stack in:   -      
+ * int stack out:  -      
+ * str stack out:  -      
+ */
 #define CS2_OP_CC_SETOUTLINE 1116
-/* Set sprite shadow. in: shadow. out: -. */
+/* CC_SETGRAPHICSHADOW — Set sprite shadow.
+ * int stack in:   shadow
+ * str stack in:   -     
+ * int stack out:  -     
+ * str stack out:  -     
+ */
 #define CS2_OP_CC_SETGRAPHICSHADOW 1117
 #define CS2_OP_CC_SETVFLIP 1118
 #define CS2_OP_CC_SETHFLIP 1119
@@ -135,29 +425,84 @@
 #define CS2_OP_CC_SETLINEDIRECTION 1126
 #define CS2_OP_CC_SETMODELTRANSPARENT 1127
 #define CS2_OP__1128 1128
-/* Set object icon on active child. in: obj_count, obj_id (obj_id top). out: -. */
+/* CC_SETOBJECT — Set object icon on active child.
+ * int stack in:   obj_count, obj_id  (obj_id = top)
+ * str stack in:   -                
+ * int stack out:  -                
+ * str stack out:  -                
+ */
 #define CS2_OP_CC_SETOBJECT 1200
 #define CS2_OP_CC_SETNPCHEAD 1201
 #define CS2_OP_CC_SETPLAYERHEAD_SELF 1202
-/* Set object icon without qty. in: obj_id. out: -. */
+/* CC_SETOBJECT_NONUM — Set object icon without qty.
+ * int stack in:   obj_id
+ * str stack in:   -     
+ * int stack out:  -     
+ * str stack out:  -     
+ */
 #define CS2_OP_CC_SETOBJECT_NONUM 1205
-/* Set object icon always showing qty. in: obj_count, obj_id. out: -. */
+/* CC_SETOBJECT_ALWAYS_NUM — Set object icon always showing qty.
+ * int stack in:   obj_count, obj_id  (obj_id = top)
+ * str stack in:   -                
+ * int stack out:  -                
+ * str stack out:  -                
+ */
 #define CS2_OP_CC_SETOBJECT_ALWAYS_NUM 1212
-/* Set right-click op. sin: text. in: index. out: -. */
+/* CC_SETOP — Set right-click op.
+ * int stack in:   index
+ * str stack in:   text 
+ * int stack out:  -    
+ * str stack out:  -    
+ */
 #define CS2_OP_CC_SETOP 1300
-/* Set draggable parent/child. in: parent_uid, child_index (child_index top). out: -. */
+/* CC_SETDRAGGABLE — Set draggable parent/child.
+ * int stack in:   parent_uid, child_index  (child_index = top)
+ * str stack in:   -                      
+ * int stack out:  -                      
+ * str stack out:  -                      
+ */
 #define CS2_OP_CC_SETDRAGGABLE 1301
-/* Set drag behavior. in: behavior. out: -. */
+/* CC_SETDRAGGABLEBEHAVIOR — Set drag behavior.
+ * int stack in:   behavior
+ * str stack in:   -       
+ * int stack out:  -       
+ * str stack out:  -       
+ */
 #define CS2_OP_CC_SETDRAGGABLEBEHAVIOR 1302
-/* Set drag dead zone pixels. in: zone. out: -. */
+/* CC_SETDRAGDEADZONE — Set drag dead zone pixels.
+ * int stack in:   zone
+ * str stack in:   -   
+ * int stack out:  -   
+ * str stack out:  -   
+ */
 #define CS2_OP_CC_SETDRAGDEADZONE 1303
-/* Set drag dead time ms. in: time. out: -. */
+/* CC_SETDRAGDEADTIME — Set drag dead time ms.
+ * int stack in:   time
+ * str stack in:   -   
+ * int stack out:  -   
+ * str stack out:  -   
+ */
 #define CS2_OP_CC_SETDRAGDEADTIME 1304
-/* Set op base text. sin: text. out: -. */
+/* CC_SETOPBASE — Set op base text.
+ * int stack in:   -   
+ * str stack in:   text
+ * int stack out:  -   
+ * str stack out:  -   
+ */
 #define CS2_OP_CC_SETOPBASE 1305
-/* Set target verb (stub). sin: text. out: -. */
+/* CC_SETTARGETVERB — Set target verb (stub).
+ * int stack in:   -   
+ * str stack in:   text
+ * int stack out:  -   
+ * str stack out:  -   
+ */
 #define CS2_OP_CC_SETTARGETVERB 1306
-/* Clear all ops on active child. in: -. out: -. */
+/* CC_CLEAROPS — Clear all ops on active child.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_CC_CLEAROPS 1307
 #define CS2_OP__1308 1308
 #define CS2_OP__1309 1309
@@ -180,7 +525,14 @@
 #define CS2_OP_CC_SETONDRAGCOMPLETE 1410
 #define CS2_OP_CC_SETONCLICKREPEAT 1411
 #define CS2_OP_CC_SETONMOUSEREPEAT 1412
-/* Register inv-transmit script on active child. op=script_id; signature in stack. */
+/* CC_SETONINVTRANSMIT — Register inv-transmit script on active child.
+ * operand: script id
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: signature args on stack
+ */
 #define CS2_OP_CC_SETONINVTRANSMIT 1414
 #define CS2_OP_CC_SETONSTATTRANSMIT 1415
 #define CS2_OP_CC_SETONTARGETENTER 1416
@@ -197,27 +549,82 @@
 #define CS2_OP_CC_SETONRESIZE 1427
 #define CS2_OP_CC_SETONCLANSETTINGSTRANSMIT 1428
 #define CS2_OP_CC_SETONCLANCHANNELTRANSMIT 1429
-/* Get relative X of active child. in: -. out int: x. */
+/* CC_GETX — Get relative X of active child.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  x
+ * str stack out:  -
+ */
 #define CS2_OP_CC_GETX 1500
-/* Get relative Y of active child. in: -. out int: y. */
+/* CC_GETY — Get relative Y of active child.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  y
+ * str stack out:  -
+ */
 #define CS2_OP_CC_GETY 1501
-/* Get layout width. in: -. out int: width. */
+/* CC_GETWIDTH — Get layout width.
+ * int stack in:   -    
+ * str stack in:   -    
+ * int stack out:  width
+ * str stack out:  -    
+ */
 #define CS2_OP_CC_GETWIDTH 1502
-/* Get layout height. in: -. out int: height. */
+/* CC_GETHEIGHT — Get layout height.
+ * int stack in:   -     
+ * str stack in:   -     
+ * int stack out:  height
+ * str stack out:  -     
+ */
 #define CS2_OP_CC_GETHEIGHT 1503
-/* Get hidden flag. in: -. out int: hidden?1:0. */
+/* CC_GETHIDE — Get hidden flag.
+ * int stack in:   -             
+ * str stack in:   -             
+ * int stack out:  hidden ? 1 : 0
+ * str stack out:  -             
+ */
 #define CS2_OP_CC_GETHIDE 1504
-/* Get parent component id. in: -. out int: parent_id. */
+/* CC_GETLAYER — Get parent component id.
+ * int stack in:   -        
+ * str stack in:   -        
+ * int stack out:  parent_id
+ * str stack out:  -        
+ */
 #define CS2_OP_CC_GETLAYER 1505
-/* Get scroll X (stub). in: -. out int: 0. */
+/* CC_GETSCROLLX — Get scroll X (stub).
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  0
+ * str stack out:  -
+ */
 #define CS2_OP_CC_GETSCROLLX 1600
-/* Get scroll Y (stub). in: -. out int: 0. */
+/* CC_GETSCROLLY — Get scroll Y (stub).
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  0
+ * str stack out:  -
+ */
 #define CS2_OP_CC_GETSCROLLY 1601
-/* Get text. in: -. out str: text. */
+/* CC_GETTEXT — Get text.
+ * int stack in:   -   
+ * str stack in:   -   
+ * int stack out:  -   
+ * str stack out:  text
+ */
 #define CS2_OP_CC_GETTEXT 1602
-/* Get scroll content width. in: -. out int: scroll_width. */
+/* CC_GETSCROLLWIDTH — Get scroll content width.
+ * int stack in:   -           
+ * str stack in:   -           
+ * int stack out:  scroll_width
+ * str stack out:  -           
+ */
 #define CS2_OP_CC_GETSCROLLWIDTH 1603
-/* Get scroll content height. in: -. out int: scroll_height. */
+/* CC_GETSCROLLHEIGHT — Get scroll content height.
+ * int stack in:   -            
+ * str stack in:   -            
+ * int stack out:  scroll_height
+ * str stack out:  -            
+ */
 #define CS2_OP_CC_GETSCROLLHEIGHT 1604
 #define CS2_OP_CC_GETMODELZOOM 1605
 #define CS2_OP_CC_GETMODELANGLE_X 1606
@@ -233,92 +640,238 @@
 #define CS2_OP__1616 1616
 #define CS2_OP_CC_GETINVOBJECT 1700
 #define CS2_OP_CC_GETINVCOUNT 1701
-/* Get active component id. in: -. out int: active_component. */
+/* CC_GETID — Get active component id.
+ * int stack in:   -               
+ * str stack in:   -               
+ * int stack out:  active_component
+ * str stack out:  -               
+ */
 #define CS2_OP_CC_GETID 1702
-#define CS2_OP_CC_PARAM 1703
-/* Set widget param on CC target. in: param_id, value, script_var_type. out: -. */
-#define CS2_OP_CC_SETPARAM 1704
 #define CS2_OP_CC_GETTARGETMASK 1800
-/* Get op text. in: op_index. out str: op text. */
+/* CC_GETOP — Get op text.
+ * int stack in:   op_index
+ * str stack in:   -       
+ * int stack out:  -       
+ * str stack out:  op text 
+ */
 #define CS2_OP_CC_GETOP 1801
-/* Get op base text. in: -. out str: op_base. */
+/* CC_GETOPBASE — Get op base text.
+ * int stack in:   -      
+ * str stack in:   -      
+ * int stack out:  -      
+ * str stack out:  op_base
+ */
 #define CS2_OP_CC_GETOPBASE 1802
 #define CS2_OP_CC_CALLONRESIZE 1927
 #define CS2_OP_CC_TRIGGEROP 1928
-/* Set position. in: component, x, y (y top). out: -. */
+/* IF_SETPOSITION — Set position.
+ * int stack in:   x, y, x_mode, y_mode, component  (component = top)
+ * str stack in:   -                              
+ * int stack out:  -                              
+ * str stack out:  -                              
+ */
 #define CS2_OP_IF_SETPOSITION 2000
-/* Set size. in: component, width, height (height top). out: -. */
+/* IF_SETSIZE — Set size.
+ * int stack in:   width, height, width_mode, height_mode, component  (component = top)
+ * str stack in:   -                                                
+ * int stack out:  -                                                
+ * str stack out:  -                                                
+ */
 #define CS2_OP_IF_SETSIZE 2001
-/* Set hidden. in: component, hide (hide top). out: -. */
+/* IF_SETHIDE — Set hidden.
+ * int stack in:   component, hide  (hide = top)
+ * str stack in:   -              
+ * int stack out:  -              
+ * str stack out:  -              
+ */
 #define CS2_OP_IF_SETHIDE 2003
-/* Set no-click-through. in: component, enabled (enabled top). out: -. */
+/* IF_SETNOCLICKTHROUGH — Set no-click-through.
+ * int stack in:   component, enabled  (enabled = top)
+ * str stack in:   -                 
+ * int stack out:  -                 
+ * str stack out:  -                 
+ */
 #define CS2_OP_IF_SETNOCLICKTHROUGH 2005
 #define CS2_OP_IF_SETNOSCROLLTHROUGH 2006
-/* Set scroll position (stub). in: component, scroll_x, scroll_y. out: -. */
+/* IF_SETSCROLLPOS — Set scroll position (stub).
+ * int stack in:   component, scroll_x, scroll_y  (scroll_y = top)
+ * str stack in:   -                            
+ * int stack out:  -                            
+ * str stack out:  -                            
+ */
 #define CS2_OP_IF_SETSCROLLPOS 2100
-/* Set colour. in: component, colour (colour top). out: -. */
+/* IF_SETCOLOUR — Set colour.
+ * int stack in:   component, colour  (colour = top)
+ * str stack in:   -                
+ * int stack out:  -                
+ * str stack out:  -                
+ */
 #define CS2_OP_IF_SETCOLOUR 2101
-/* Set fill. in: component, filled (filled top). out: -. */
+/* IF_SETFILL — Set fill.
+ * int stack in:   component, filled  (filled = top)
+ * str stack in:   -                
+ * int stack out:  -                
+ * str stack out:  -                
+ */
 #define CS2_OP_IF_SETFILL 2102
-/* Set transparency. in: component, trans (trans top). out: -. */
+/* IF_SETTRANS — Set transparency.
+ * int stack in:   component, trans  (trans = top)
+ * str stack in:   -               
+ * int stack out:  -               
+ * str stack out:  -               
+ */
 #define CS2_OP_IF_SETTRANS 2103
 #define CS2_OP_IF_SETLINEWID 2104
-/* Set graphic. in: component, graphic_id (graphic_id top). out: -. */
+/* IF_SETGRAPHIC — Set graphic.
+ * int stack in:   component, graphic_id  (graphic_id = top)
+ * str stack in:   -                    
+ * int stack out:  -                    
+ * str stack out:  -                    
+ */
 #define CS2_OP_IF_SETGRAPHIC 2105
 #define CS2_OP_IF_SET2DANGLE 2106
 #define CS2_OP_IF_SETTILING 2107
-/* Set model id. in: component, model_id (model_id top). out: -. */
+/* IF_SETMODEL — Set model id.
+ * int stack in:   model_id, component  (component = top)
+ * str stack in:   -                  
+ * int stack out:  -                  
+ * str stack out:  -                  
+ */
 #define CS2_OP_IF_SETMODEL 2108
 #define CS2_OP_IF_SETMODELANGLE 2109
 #define CS2_OP_IF_SETMODELANIM 2110
 #define CS2_OP_IF_SETMODELORTHOG 2111
-/* Set text. sin: text. in: component. out: -. */
+/* IF_SETTEXT — Set text.
+ * int stack in:   component
+ * str stack in:   text     
+ * int stack out:  -        
+ * str stack out:  -        
+ */
 #define CS2_OP_IF_SETTEXT 2112
-/* Set font. in: component, font_id (font_id top). out: -. */
+/* IF_SETTEXTFONT — Set font.
+ * int stack in:   component, font_id  (font_id = top)
+ * str stack in:   -                 
+ * int stack out:  -                 
+ * str stack out:  -                 
+ */
 #define CS2_OP_IF_SETTEXTFONT 2113
-/* Set text alignment. in: component, x_align, y_align, line_height (line_height top). out: -. */
+/* IF_SETTEXTALIGN — Set text alignment.
+ * int stack in:   x_align, y_align, line_height, component  (component = top)
+ * str stack in:   -                                       
+ * int stack out:  -                                       
+ * str stack out:  -                                       
+ */
 #define CS2_OP_IF_SETTEXTALIGN 2114
-/* Set text shadow. in: component, shadow (shadow top). out: -. */
+/* IF_SETTEXTSHADOW — Set text shadow.
+ * int stack in:   component, shadow  (shadow = top)
+ * str stack in:   -                
+ * int stack out:  -                
+ * str stack out:  -                
+ */
 #define CS2_OP_IF_SETTEXTSHADOW 2115
 #define CS2_OP_IF_SETOUTLINE 2116
 #define CS2_OP_IF_SETGRAPHICSHADOW 2117
 #define CS2_OP_IF_SETVFLIP 2118
 #define CS2_OP_IF_SETHFLIP 2119
-/* Set scroll size. in: component, scroll_w, scroll_h (scroll_h top). out: -. */
+/* IF_SETSCROLLSIZE — Set scroll size.
+ * int stack in:   component, scroll_w, scroll_h  (scroll_h = top)
+ * str stack in:   -                            
+ * int stack out:  -                            
+ * str stack out:  -                            
+ */
 #define CS2_OP_IF_SETSCROLLSIZE 2120
 #define CS2_OP_IF_RESUME_PAUSEBUTTON 2121
-/* Set click mask. in: component, mask (mask top). out: -. */
-#define CS2_OP_IF_SETCLICKMASK 2122
+#define CS2_OP__2122 2122
 #define CS2_OP_IF_SETFILLCOLOUR 2123
 #define CS2_OP__2124 2124
 #define CS2_OP__2125 2125
 #define CS2_OP_IF_SETLINEDIRECTION 2126
-/* Set model transparency. in: component, transparent (transparent top). out: -. */
+/* IF_SETMODELTRANSPARENT — Set model transparency.
+ * int stack in:   transparent, component  (component = top)
+ * str stack in:   -                     
+ * int stack out:  -                     
+ * str stack out:  -                     
+ */
 #define CS2_OP_IF_SETMODELTRANSPARENT 2127
 #define CS2_OP__2128 2128
-/* Set object icon. in: component, obj_count, obj_id (obj_id top). out: -. */
+/* IF_SETOBJECT — Set object icon.
+ * int stack in:   obj_id, obj_count, component  (component = top)
+ * str stack in:   -                           
+ * int stack out:  -                           
+ * str stack out:  -                           
+ */
 #define CS2_OP_IF_SETOBJECT 2200
 #define CS2_OP_IF_SETNPCHEAD 2201
 #define CS2_OP_IF_SETPLAYERHEAD_SELF 2202
-/* Set object icon without qty. in: component, obj_id. out: -. */
+/* IF_SETOBJECT_NONUM — Set object icon without qty.
+ * int stack in:   obj_id, obj_count, component  (component = top)
+ * str stack in:   -                           
+ * int stack out:  -                           
+ * str stack out:  -                           
+ */
 #define CS2_OP_IF_SETOBJECT_NONUM 2205
-/* Set object icon always showing qty. in: component, obj_count, obj_id. out: -. */
+/* IF_SETOBJECT_ALWAYS_NUM — Set object icon always showing qty.
+ * int stack in:   obj_id, obj_count, component  (component = top)
+ * str stack in:   -                           
+ * int stack out:  -                           
+ * str stack out:  -                           
+ */
 #define CS2_OP_IF_SETOBJECT_ALWAYS_NUM 2212
-/* Set op text. sin: text. in: component, index (index top). out: -. */
+/* IF_SETOP — Set op text.
+ * int stack in:   index, component  (component = top)
+ * str stack in:   text            
+ * int stack out:  -               
+ * str stack out:  -               
+ */
 #define CS2_OP_IF_SETOP 2300
-/* Set draggable. in: component, parent_uid, child_index (child_index top). out: -. */
+/* IF_SETDRAGGABLE — Set draggable.
+ * int stack in:   component, parent_uid, child_index  (child_index = top)
+ * str stack in:   -                                 
+ * int stack out:  -                                 
+ * str stack out:  -                                 
+ */
 #define CS2_OP_IF_SETDRAGGABLE 2301
-/* Set drag behavior. in: component, behavior (behavior top). out: -. */
+/* IF_SETDRAGGABLEBEHAVIOR — Set drag behavior.
+ * int stack in:   component, behavior  (behavior = top)
+ * str stack in:   -                  
+ * int stack out:  -                  
+ * str stack out:  -                  
+ */
 #define CS2_OP_IF_SETDRAGGABLEBEHAVIOR 2302
-/* Set drag dead zone. in: component, zone (zone top). out: -. */
+/* IF_SETDRAGDEADZONE — Set drag dead zone.
+ * int stack in:   component, zone  (zone = top)
+ * str stack in:   -              
+ * int stack out:  -              
+ * str stack out:  -              
+ */
 #define CS2_OP_IF_SETDRAGDEADZONE 2303
-/* Set drag dead time. in: component, time (time top). out: -. */
+/* IF_SETDRAGDEADTIME — Set drag dead time.
+ * int stack in:   component, time  (time = top)
+ * str stack in:   -              
+ * int stack out:  -              
+ * str stack out:  -              
+ */
 #define CS2_OP_IF_SETDRAGDEADTIME 2304
-/* Set op base. sin: text. in: component. out: -. */
+/* IF_SETOPBASE — Set op base.
+ * int stack in:   component
+ * str stack in:   text     
+ * int stack out:  -        
+ * str stack out:  -        
+ */
 #define CS2_OP_IF_SETOPBASE 2305
-/* Set target verb (stub). sin: text. in: component. out: -. */
+/* IF_SETTARGETVERB — Set target verb (stub).
+ * int stack in:   component
+ * str stack in:   text     
+ * int stack out:  -        
+ * str stack out:  -        
+ */
 #define CS2_OP_IF_SETTARGETVERB 2306
-/* Clear ops. in: component. out: -. */
+/* IF_CLEAROPS — Clear ops.
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  -        
+ * str stack out:  -        
+ */
 #define CS2_OP_IF_CLEAROPS 2307
 #define CS2_OP__2308 2308
 #define CS2_OP__2309 2309
@@ -341,7 +894,14 @@
 #define CS2_OP_IF_SETONDRAGCOMPLETE 2410
 #define CS2_OP_IF_SETONCLICKREPEAT 2411
 #define CS2_OP_IF_SETONMOUSEREPEAT 2412
-/* Register inv-transmit script. in: component; op=script_id; signature in stack. */
+/* IF_SETONINVTRANSMIT — Register inv-transmit script.
+ * operand: script id
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  -        
+ * str stack out:  -        
+ * notes: signature args on stack
+ */
 #define CS2_OP_IF_SETONINVTRANSMIT 2414
 #define CS2_OP_IF_SETONSTATTRANSMIT 2415
 #define CS2_OP_IF_SETONTARGETENTER 2416
@@ -358,27 +918,82 @@
 #define CS2_OP_IF_SETONRESIZE 2427
 #define CS2_OP_IF_SETONCLANSETTINGSTRANSMIT 2428
 #define CS2_OP_IF_SETONCLANCHANNELTRANSMIT 2429
-/* Get relative X. in: component. out int: x. */
+/* IF_GETX — Get relative X.
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  x        
+ * str stack out:  -        
+ */
 #define CS2_OP_IF_GETX 2500
-/* Get relative Y. in: component. out int: y. */
+/* IF_GETY — Get relative Y.
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  y        
+ * str stack out:  -        
+ */
 #define CS2_OP_IF_GETY 2501
-/* Get layout width. in: component. out int: width. */
+/* IF_GETWIDTH — Get layout width.
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  width    
+ * str stack out:  -        
+ */
 #define CS2_OP_IF_GETWIDTH 2502
-/* Get layout height. in: component. out int: height. */
+/* IF_GETHEIGHT — Get layout height.
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  height   
+ * str stack out:  -        
+ */
 #define CS2_OP_IF_GETHEIGHT 2503
-/* Get hidden flag. in: component. out int: hidden?1:0. */
+/* IF_GETHIDE — Get hidden flag.
+ * int stack in:   component     
+ * str stack in:   -             
+ * int stack out:  hidden ? 1 : 0
+ * str stack out:  -             
+ */
 #define CS2_OP_IF_GETHIDE 2504
-/* Get parent component id. in: component. out int: parent_id. */
+/* IF_GETLAYER — Get parent component id.
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  parent_id
+ * str stack out:  -        
+ */
 #define CS2_OP_IF_GETLAYER 2505
-/* Get scroll X (stub). in: component. out int: 0. */
+/* IF_GETSCROLLX — Get scroll X (stub).
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  0        
+ * str stack out:  -        
+ */
 #define CS2_OP_IF_GETSCROLLX 2600
-/* Get scroll Y (stub). in: component. out int: 0. */
+/* IF_GETSCROLLY — Get scroll Y (stub).
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  0        
+ * str stack out:  -        
+ */
 #define CS2_OP_IF_GETSCROLLY 2601
-/* Get text. in: component. out str: text. */
+/* IF_GETTEXT — Get text.
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  -        
+ * str stack out:  text     
+ */
 #define CS2_OP_IF_GETTEXT 2602
-/* Get scroll content width. in: component. out int: scroll_width. */
+/* IF_GETSCROLLWIDTH — Get scroll content width.
+ * int stack in:   component   
+ * str stack in:   -           
+ * int stack out:  scroll_width
+ * str stack out:  -           
+ */
 #define CS2_OP_IF_GETSCROLLWIDTH 2603
-/* Get scroll content height. in: component. out int: scroll_height. */
+/* IF_GETSCROLLHEIGHT — Get scroll content height.
+ * int stack in:   component    
+ * str stack in:   -            
+ * int stack out:  scroll_height
+ * str stack out:  -            
+ */
 #define CS2_OP_IF_GETSCROLLHEIGHT 2604
 #define CS2_OP_IF_GETMODELZOOM 2605
 #define CS2_OP_IF_GETMODELANGLE_X 2606
@@ -395,16 +1010,27 @@
 #define CS2_OP_IF_GETINVOBJECT 2700
 #define CS2_OP_IF_GETINVCOUNT 2701
 #define CS2_OP_IF_HASSUB 2702
-/* Read widget param. in: param_id, widget_uid, child_index. out int/str: param value. */
-#define CS2_OP_IF_PARAM 2703
-/* Set widget param. in: param_id, value, widget_uid, child_index, script_var_type. out: -. */
-#define CS2_OP_IF_SETPARAM 2704
-/* Get root component id. in: -. out int: top component or -1. */
+/* IF_GETTOP — Get root component id.
+ * int stack in:   -                  
+ * str stack in:   -                  
+ * int stack out:  top component or -1
+ * str stack out:  -                  
+ */
 #define CS2_OP_IF_GETTOP 2706
 #define CS2_OP_IF_GETTARGETMASK 2800
-/* Get op text. in: component, op_index (op_index top). out str: op text. */
+/* IF_GETOP — Get op text.
+ * int stack in:   component, op_index  (op_index = top)
+ * str stack in:   -                  
+ * int stack out:  -                  
+ * str stack out:  op text            
+ */
 #define CS2_OP_IF_GETOP 2801
-/* Get op base text. in: component. out str: op_base. */
+/* IF_GETOPBASE — Get op base text.
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  -        
+ * str stack out:  op_base  
+ */
 #define CS2_OP_IF_GETOPBASE 2802
 #define CS2_OP_IF_CALLONRESIZE 2927
 #define CS2_OP_IF_TRIGGEROP 2928
@@ -468,35 +1094,86 @@
 #define CS2_OP_GETVOLUMEAREASOUNDS 3208
 #define CS2_OP__3209 3209
 #define CS2_OP__3210 3210
-/* Get client tick counter. in: -. out int: clock_ticks. */
+/* CLIENTCLOCK — Get client tick counter.
+ * int stack in:   -          
+ * str stack in:   -          
+ * int stack out:  clock_ticks
+ * str stack out:  -          
+ */
 #define CS2_OP_CLIENTCLOCK 3300
-/* Get inventory item id. in: slot, inv_id (slot top). out int: obj_id or -1 if empty. */
+/* INV_GETOBJ — Get inventory item id.
+ * int stack in:   inv_id, slot           (slot = top)
+ * str stack in:   -                    
+ * int stack out:  obj_id or -1 if empty
+ * str stack out:  -                    
+ */
 #define CS2_OP_INV_GETOBJ 3301
-/* Get inventory stack size. in: slot, inv_id (slot top). out int: count. */
+/* INV_GETNUM — Get inventory stack size.
+ * int stack in:   inv_id, slot  (slot = top)
+ * str stack in:   -           
+ * int stack out:  count       
+ * str stack out:  -           
+ */
 #define CS2_OP_INV_GETNUM 3302
+/* INV_TOTAL — Count item across inventory.
+ * int stack in:   inv_id, item_id  (item_id = top)
+ * str stack in:   -              
+ * int stack out:  total qty      
+ * str stack out:  -              
+ */
 #define CS2_OP_INV_TOTAL 3303
-/* Get inventory capacity. in: inv_id. out int: slot_count. */
+/* INV_SIZE — Get inventory capacity.
+ * int stack in:   inv_id    
+ * str stack in:   -         
+ * int stack out:  slot_count
+ * str stack out:  -         
+ */
 #define CS2_OP_INV_SIZE 3304
 #define CS2_OP_STAT 3305
 #define CS2_OP_STAT_BASE 3306
 #define CS2_OP_STAT_XP 3307
-/* Get player coord packed (stub). in: -. out int: 0. */
+/* COORD — Get player coord packed (stub).
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  0
+ * str stack out:  -
+ */
 #define CS2_OP_COORD 3308
-/* Extract X from packed coord. in: packed. out int: (packed>>14)&0x3FFF. */
+/* COORDX — Extract X from packed coord.
+ * int stack in:   packed                 
+ * str stack in:   -                      
+ * int stack out:  (packed >> 14) & 0x3FFF
+ * str stack out:  -                      
+ */
 #define CS2_OP_COORDX 3309
 #define CS2_OP_COORDY 3310
 #define CS2_OP_COORDZ 3311
-/* Is members world (stub). in: -. out int: 1. */
+/* MAP_MEMBERS — Is members world (stub).
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  1
+ * str stack out:  -
+ */
 #define CS2_OP_MAP_MEMBERS 3312
 #define CS2_OP_INVOTHER_GETOBJ 3313
 #define CS2_OP_INVOTHER_GETNUM 3314
 #define CS2_OP_INVOTHER_TOTAL 3315
 #define CS2_OP_STAFFMODLEVEL 3316
 #define CS2_OP_REBOOTTIMER 3317
-/* Get world id (stub). in: -. out int: 301. */
+/* MAP_WORLD — Get world id (stub).
+ * int stack in:   -  
+ * str stack in:   -  
+ * int stack out:  301
+ * str stack out:  -  
+ */
 #define CS2_OP_MAP_WORLD 3318
 #define CS2_OP_RUNENERGY_VISIBLE 3321
-/* Get visible player weight. in: -. out int: weight kg (0 default). */
+/* RUNWEIGHT_VISIBLE — Get visible player weight.
+ * int stack in:   -                    
+ * str stack in:   -                    
+ * int stack out:  weight kg (0 default)
+ * str stack out:  -                    
+ */
 #define CS2_OP_RUNWEIGHT_VISIBLE 3322
 #define CS2_OP_PLAYERMOD 3323
 #define CS2_OP_WORLDFLAGS 3324
@@ -505,9 +1182,19 @@
 #define CS2_OP_MOUSE_GETY 3327
 #define CS2_OP__3330 3330
 #define CS2_OP_ENUM_STRING 3400
-/* Enum lookup. in: key, enum_id, output_type, input_type (key top). out int: mapped value or -1. */
+/* ENUM — Enum lookup.
+ * int stack in:   input_type, output_type, enum_id, key  (key = top)
+ * str stack in:   -                                    
+ * int stack out:  mapped value or -1                   
+ * str stack out:  -                                    
+ */
 #define CS2_OP_ENUM 3408
-/* Get enum output count. in: enum_id. out int: count. */
+/* ENUM_GETOUTPUTCOUNT — Get enum output count.
+ * int stack in:   enum_id
+ * str stack in:   -      
+ * int stack out:  count  
+ * str stack out:  -      
+ */
 #define CS2_OP_ENUM_GETOUTPUTCOUNT 3411
 #define CS2_OP_FRIEND_COUNT 3600
 #define CS2_OP_FRIEND_GETNAME 3601
@@ -627,39 +1314,103 @@
 #define CS2_OP_TRADINGPOST_GETOFFERCOUNT 3924
 #define CS2_OP_TRADINGPOST_GETOFFERPRICE 3925
 #define CS2_OP_TRADINGPOST_GETOFFERITEM 3926
-/* Integer add. in: a, b (b top). out int: a+b. */
+/* ADD — Integer add.
+ * int stack in:   a, b   (b = top)
+ * str stack in:   -    
+ * int stack out:  a + b
+ * str stack out:  -    
+ */
 #define CS2_OP_ADD 4000
-/* Integer subtract. in: a, b (b top). out int: a-b. */
+/* SUB — Integer subtract.
+ * int stack in:   a, b   (b = top)
+ * str stack in:   -    
+ * int stack out:  a - b
+ * str stack out:  -    
+ */
 #define CS2_OP_SUB 4001
-/* Integer multiply. in: a, b (b top). out int: a*b. */
+/* MULTIPLY — Integer multiply.
+ * int stack in:   a, b   (b = top)
+ * str stack in:   -    
+ * int stack out:  a * b
+ * str stack out:  -    
+ */
 #define CS2_OP_MULTIPLY 4002
-/* Integer divide. in: a, b (b top). out int: a/b (0 if b==0). */
+/* DIV — Integer divide.
+ * int stack in:   a, b   (b = top)
+ * str stack in:   -    
+ * int stack out:  a / b
+ * str stack out:  -    
+ * notes: 0 if b == 0
+ */
 #define CS2_OP_DIV 4003
 #define CS2_OP_RANDOM 4004
-/* Random inclusive. in: max. out int: rand()%(max+1). */
+/* RANDOMINC — Random inclusive.
+ * int stack in:   max               
+ * str stack in:   -                 
+ * int stack out:  rand() % (max + 1)
+ * str stack out:  -                 
+ */
 #define CS2_OP_RANDOMINC 4005
-/* Linear interpolate. in: a, b, c, d, e (e top). out int: a+(b-a)*(e-c)/(d-c). */
+/* INTERPOLATE — Linear interpolate.
+ * int stack in:   a, b, c, d, e                    (e = top)
+ * str stack in:   -                              
+ * int stack out:  a + (b - a) * (e - c) / (d - c)
+ * str stack out:  -                              
+ */
 #define CS2_OP_INTERPOLATE 4006
 #define CS2_OP_ADDPERCENT 4007
-/* Set bit in value. in: value, bit (bit top). out int: value with bit set. */
+/* SETBIT — Set bit in value.
+ * int stack in:   value, bit          (bit = top)
+ * str stack in:   -                 
+ * int stack out:  value with bit set
+ * str stack out:  -                 
+ */
 #define CS2_OP_SETBIT 4008
-/* Clear bit in value. in: value, bit (bit top). out int: value with bit cleared. */
+/* CLEARBIT — Clear bit in value.
+ * int stack in:   value, bit              (bit = top)
+ * str stack in:   -                     
+ * int stack out:  value with bit cleared
+ * str stack out:  -                     
+ */
 #define CS2_OP_CLEARBIT 4009
-/* Test bit set. in: value, bit (bit top). out int: (value&(1<<bit))!=0. */
+/* TESTBIT — Test bit set.
+ * int stack in:   value, bit                 (bit = top)
+ * str stack in:   -                        
+ * int stack out:  (value & (1 << bit)) != 0
+ * str stack out:  -                        
+ */
 #define CS2_OP_TESTBIT 4010
-/* Integer modulo. in: a, b (b top). out int: a%b (0 if b==0). */
+/* MOD — Integer modulo.
+ * int stack in:   a, b   (b = top)
+ * str stack in:   -    
+ * int stack out:  a % b
+ * str stack out:  -    
+ * notes: 0 if b == 0
+ */
 #define CS2_OP_MOD 4011
 #define CS2_OP_POW 4012
 #define CS2_OP_INVPOW 4013
-/* Bitwise and. in: a, b (b top). out int: a&b. */
+/* AND — Bitwise and.
+ * int stack in:   a, b   (b = top)
+ * str stack in:   -    
+ * int stack out:  a & b
+ * str stack out:  -    
+ */
 #define CS2_OP_AND 4014
-/* Bitwise or. in: a, b (b top). out int: a|b. */
+/* OR — Bitwise or.
+ * int stack in:   a, b   (b = top)
+ * str stack in:   -    
+ * int stack out:  a | b
+ * str stack out:  -    
+ */
 #define CS2_OP_OR 4015
-/* Integer min. in: a, b (b top). out int: min(a,b). */
-#define CS2_OP_MIN 4016
-/* Integer max. in: a, b (b top). out int: max(a,b). */
-#define CS2_OP_MAX 4017
-/* Scale interpolate (c*a)/b. in: a, b, c (c top). out int: result; b==0 yields 0. */
+/* SCALE — Scale interpolate (c*a)/b.
+ * int stack in:   a, b, c  (c = top)
+ * str stack in:   -      
+ * int stack out:  result 
+ * str stack out:  -      
+ * notes: b == 0 yields 0
+ */
 #define CS2_OP_SCALE 4018
 #define CS2_OP_BITCOUNT 4025
 #define CS2_OP_TOGGLEBIT 4026
@@ -671,31 +1422,71 @@
 #define CS2_OP_COS_DEG 4033
 #define CS2_OP__4034 4034
 #define CS2_OP_ABS 4035
-/* Append int as decimal. sin: dest. in: value. out str: dest+value. */
+/* APPEND_NUM — Append int as decimal.
+ * int stack in:   value       
+ * str stack in:   dest        
+ * int stack out:  -           
+ * str stack out:  dest + value
+ */
 #define CS2_OP_APPEND_NUM 4100
-/* Append string. sin: dest, src (src top). out str: dest+src. */
+/* APPEND — Append string.
+ * int stack in:   -         
+ * str stack in:   dest, src   (src = top)
+ * int stack out:  -         
+ * str stack out:  dest + src
+ */
 #define CS2_OP_APPEND 4101
-/* Append signed int. sin: dest. in: value. out str: dest+signed value. */
+/* APPEND_SIGNNUM — Append signed int.
+ * int stack in:   value              
+ * str stack in:   dest               
+ * int stack out:  -                  
+ * str stack out:  dest + signed value
+ */
 #define CS2_OP_APPEND_SIGNNUM 4102
 #define CS2_OP_LOWERCASE 4103
 #define CS2_OP_FROMDATE 4104
 #define CS2_OP_TEXT_GENDER 4105
-/* Int to string. in: value. out str: decimal string. */
+/* TOSTRING — Int to string.
+ * int stack in:   value         
+ * str stack in:   -             
+ * int stack out:  -             
+ * str stack out:  decimal string
+ */
 #define CS2_OP_TOSTRING 4106
 #define CS2_OP_COMPARE 4107
-/* Wrapped line count. sin: text. in: max_width, font_id (font_id top). out int: lines. */
+/* PARAHEIGHT — Wrapped line count.
+ * int stack in:   max_width, font_id  (font_id = top)
+ * str stack in:   text              
+ * int stack out:  lines             
+ * str stack out:  -                 
+ */
 #define CS2_OP_PARAHEIGHT 4108
-/* Wrapped max line width. sin: text. in: max_width, font_id (font_id top). out int: pixels. */
+/* PARAWIDTH — Wrapped max line width.
+ * int stack in:   max_width, font_id  (font_id = top)
+ * str stack in:   text              
+ * int stack out:  pixels            
+ * str stack out:  -                 
+ */
 #define CS2_OP_PARAWIDTH 4109
 #define CS2_OP_TEXT_SWITCH 4110
 #define CS2_OP_ESCAPE 4111
-/* Append char. sin: dest. in: ch. out str: dest+char. */
+/* APPEND_CHAR — Append char.
+ * int stack in:   ch         
+ * str stack in:   dest       
+ * int stack out:  -          
+ * str stack out:  dest + char
+ */
 #define CS2_OP_APPEND_CHAR 4112
 #define CS2_OP_CHAR_ISPRINTABLE 4113
 #define CS2_OP_CHAR_ISALPHANUMERIC 4114
 #define CS2_OP_CHAR_ISALPHA 4115
 #define CS2_OP_CHAR_ISNUMERIC 4116
-/* String length. sin: str. out int: strlen. */
+/* STRING_LENGTH — String length.
+ * int stack in:   -     
+ * str stack in:   str   
+ * int stack out:  strlen
+ * str stack out:  -     
+ */
 #define CS2_OP_STRING_LENGTH 4117
 #define CS2_OP_SUBSTRING 4118
 #define CS2_OP_REMOVETAGS 4119
@@ -710,7 +1501,12 @@
 #define CS2_OP_OC_UNCERT 4206
 #define CS2_OP_OC_MEMBERS 4207
 #define CS2_OP_OC_PLACEHOLDER 4208
-/* Resolve placeholder item. in: item_id. out int: underlying id or item_id. */
+/* OC_UNPLACEHOLDER — Resolve placeholder item.
+ * int stack in:   item_id                 
+ * str stack in:   -                       
+ * int stack out:  underlying id or item_id
+ * str stack out:  -                       
+ */
 #define CS2_OP_OC_UNPLACEHOLDER 4209
 #define CS2_OP_OC_FIND 4210
 #define CS2_OP_OC_FINDNEXT 4211
@@ -777,11 +1573,27 @@
 #define CS2_OP_NC_PARAM 6513
 #define CS2_OP_LC_PARAM 6514
 #define CS2_OP_OC_PARAM 6515
-/* Read struct param. in: struct_id, param_id (param_id top). out int or str. */
+/* STRUCT_PARAM — Read struct param.
+ * int stack in:   struct_id, param_id   (param_id = top)
+ * str stack in:   -                   
+ * int stack out:  param value         
+ * str stack out:  param value (string)
+ * notes: pushes int or str depending on param type
+ */
 #define CS2_OP_STRUCT_PARAM 6516
-/* Is mobile client (stub). in: -. out int: 0. */
+/* ON_MOBILE — Is mobile client (stub).
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  0
+ * str stack out:  -
+ */
 #define CS2_OP_ON_MOBILE 6518
-/* Get client type (stub). in: -. out int: 10. */
+/* CLIENTTYPE — Get client type (stub).
+ * int stack in:   - 
+ * str stack in:   - 
+ * int stack out:  10
+ * str stack out:  - 
+ */
 #define CS2_OP_CLIENTTYPE 6519
 #define CS2_OP__6520 6520
 #define CS2_OP_MOBILE_KEYBOARDHIDE 6521

@@ -698,12 +698,11 @@ interface161_cs2_run_component_hook(
         .int_argv = argc > 0 ? argv : NULL,
         .string_argc = 0,
         .string_argv = NULL,
+        .event_component_id = comp->id,
     };
 
     if( ctx->cs2vm )
     {
-        cs2vm_set_active_component(ctx->cs2vm, comp->id);
-        cs2vm_set_dot_component(ctx->cs2vm, comp->id);
         int const rc = cs2vm_run(ctx->cs2vm, script, &s_runner.host, &args);
         if( rc != CS2VM_OK )
         {

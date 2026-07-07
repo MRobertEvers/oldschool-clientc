@@ -18,7 +18,6 @@ LDFLAGS += -fsanitize=address
 endif
 
 SRCS = $(TOOL_DIR)/main.c \
-	$(TOOL_DIR)/stubs.c \
 	$(SRC2_DIR)/toridraw/toridraw_unity.c \
 	$(SRC2_DIR)/toridraw/toridraw_font.c \
 	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c \

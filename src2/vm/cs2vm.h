@@ -59,7 +59,13 @@ struct CS2_RunArgs
     int const* int_argv;
     int string_argc;
     char const* const* string_argv;
+    /** Hook source widget. If >= 0, active_component and dot_component are set
+     *  to this id for the duration of the run (Client.ts activeWidget/dotWidget). */
+    int event_component_id;
 };
+
+/** Pass when no hook source widget should be bound for this run. */
+#define CS2_RUN_EVENT_COMPONENT_NONE (-1)
 
 #define CS2VM_OK 0
 #define CS2VM_ERR_INVALID (-1)

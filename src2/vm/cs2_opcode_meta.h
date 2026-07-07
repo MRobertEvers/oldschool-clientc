@@ -34,4 +34,7 @@ cs2_opcode_meta_lookup(int opcode);
 enum CS2_OperandKind
 cs2_opcode_operand_kind(int opcode);
 
+const char*
+CS2_OpCode_String(int opcode);
+
 #endif

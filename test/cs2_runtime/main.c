@@ -400,6 +400,69 @@ test_struct_param_host_opcode(void)
 }
 
 static int
+test_hook_event_component_cc_sethide(void)
+{
+    enum
+    {
+        k_component = 0x000c0005,
+        k_prev_active = 0x7abcdef,
+    };
+
+    struct UITree* tree = uitree_new(4);
+    TEST_ASSERT(tree != NULL, "uitree new");
+
+    struct UINodeSpec spec;
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = k_component;
+    spec.width = 100;
+    spec.height = 100;
+    int32_t idx = uitree_push(tree, -1, &spec);
+    TEST_ASSERT(idx >= 0, "layer pushed");
+    TEST_ASSERT(tree->components[idx].behavior.hide == 0, "starts visible");
+
+    struct CS2HostUIInitArgs host_args = { .tree = tree };
+    struct CS2Host host;
+    cs2_host_ui_init(&host, &host_args);
+
+    static uint16_t opcodes[] = {
+        CS2_OP_PUSH_CONSTANT_INT,
+        CS2_OP_CC_SETHIDE,
+        CS2_OP_RETURN,
+    };
+    static int operands[] = { 1, 0, 0 };
+
+    struct CS2_Script script = { 0 };
+    script.op_count = 3;
+    script.opcodes = opcodes;
+    script.int_operands = operands;
+
+    struct CS2VM* vm = cs2vm_new();
+    TEST_ASSERT(vm != NULL, "cs2vm new");
+    cs2vm_set_active_component(vm, k_prev_active);
+    cs2vm_set_dot_component(vm, k_prev_active);
+
+    struct CS2_RunArgs args = {
+        .event_component_id = k_component,
+    };
+    TEST_ASSERT(
+        cs2vm_run(vm, &script, &host, &args) == CS2VM_OK,
+        "hook event cc_sethide script ok");
+    TEST_ASSERT(tree->components[idx].behavior.hide == 1, "component hidden");
+    TEST_ASSERT(
+        cs2vm_get_active_component(vm) == k_prev_active,
+        "active_component restored after run");
+    TEST_ASSERT(
+        cs2vm_get_dot_component(vm) == k_prev_active,
+        "dot_component restored after run");
+
+    cs2vm_free(vm);
+    uitree_free(tree);
+    fprintf(stderr, "ok: hook event_component_id enables CC_SETHIDE without IF_FIND\n");
+    return 0;
+}
+
+static int
 test_step_limit(void)
 {
     static uint16_t loop_opcodes[] = {
@@ -431,6 +494,7 @@ main(void)
     failures += test_host_drag_dead_zone_opcodes();
     failures += test_enum_getoutputcount_host_opcode();
     failures += test_struct_param_host_opcode();
+    failures += test_hook_event_component_cc_sethide();
     failures += test_step_limit();
     if( failures == 0 )
     {

@@ -266,16 +266,18 @@ parity_exec_case(
     struct CS2_Script script;
     int op_count = 0;
 
+    int const active_component = parity_resolve_active_component(cs_case);
+
     struct CS2_RunArgs args = {
         .int_argc = cs_case->int_argc,
         .int_argv = cs_case->int_argc > 0 ? cs_case->int_argv : NULL,
         .string_argc = cs_case->string_argc,
         .string_argv = cs_case->string_argc > 0 ? (char const* const*)cs_case->string_argv : NULL,
+        .event_component_id =
+            active_component > 0 ? active_component : CS2_RUN_EVENT_COMPONENT_NONE,
     };
 
     cs2vm_set_trace_json(true);
-
-    int const active_component = parity_resolve_active_component(cs_case);
 
     if( cs_case->iface > 0 )
     {
@@ -314,12 +316,6 @@ parity_exec_case(
                 return -1;
             }
             script = *loaded;
-        }
-
-        if( active_component > 0 )
-        {
-            cs2vm_set_active_component(ctx.cs2vm, active_component);
-            cs2vm_set_dot_component(ctx.cs2vm, active_component);
         }
 
         int status = cs2vm_run(ctx.cs2vm, &script, ctx.cs2host, &args);
@@ -381,12 +377,6 @@ parity_exec_case(
             return -1;
         }
         script = *loaded;
-    }
-
-    if( active_component > 0 )
-    {
-        cs2vm_set_active_component(vm, active_component);
-        cs2vm_set_dot_component(vm, active_component);
     }
 
     int status = cs2vm_run(vm, &script, &s_host, &args);

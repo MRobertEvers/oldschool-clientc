@@ -1658,13 +1658,12 @@ ie_cs2_run_component_hook(
         .int_argv = argc > 0 ? argv : NULL,
         .string_argc = 0,
         .string_argv = NULL,
+        .event_component_id = comp->id,
     };
 
     if( !game->cs2vm )
         return true;
 
-    cs2vm_set_active_component(game->cs2vm, comp->id);
-    cs2vm_set_dot_component(game->cs2vm, comp->id);
     int const rc = cs2vm_run(game->cs2vm, script, &game->cs2host, &args);
     if( rc != CS2VM_OK )
     {

@@ -88,8 +88,20 @@ refresh is driven by the static cache `on_inv_transmit` hook on the parent compo
 caller at `caller->return_pc` (not the callee's zeroed frame) and push the return int back
 onto the caller stack. Unresolved gosub targets log a warning and are skipped (no assert).
 
-`cs2vm_run` resets `active_component` to `-1` at start; scripts must use `IF_FIND` /
-`CC_FIND` or receive the component via hook argv before `CC_*` ops on a specific widget.
+### Active component (hook source widget)
+
+Widget hook scripts (onLoad, onClick, onVarpTransmit, onInvTransmit, etc.) run with
+**both** `active_component` and `dot_component` set to the handler’s source widget for the
+duration of the script — matching Client.ts `activeWidget` / `dotWidget` in
+`invokeEventHandler` / `runScriptEvent`.
+
+Pass the source widget via `CS2_RunArgs.event_component_id` (or
+`CS2_RUN_EVENT_COMPONENT_NONE` when not running a widget hook). `uitree_behavior_run_hook`
+sets this from `component->id` automatically.
+
+A script attached to component `12:5` can call `CC_SETHIDE` without `CC_FIND` — it hides
+that widget (the one the hook is on). `CC_FIND` / `IF_FIND` still update active/dot when a
+script needs a different target mid-run.
 
 ## IF3 hook dispatch
 

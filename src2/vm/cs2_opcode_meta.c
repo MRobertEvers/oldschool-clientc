@@ -1707,8 +1707,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [1700] = { "CC_GETINVOBJECT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1701] = { "CC_GETINVCOUNT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [1702] = { "CC_GETID", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [1703] = { "CC_PARAM", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [1704] = { "CC_SETPARAM", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [1703] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [1704] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1705] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1706] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [1707] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -2126,7 +2126,7 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2119] = { "IF_SETHFLIP", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2120] = { "IF_SETSCROLLSIZE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2121] = { "IF_RESUME_PAUSEBUTTON", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [2122] = { "IF_SETCLICKMASK", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
+    [2122] = { "_2122", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2123] = { "IF_SETFILLCOLOUR", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2124] = { "_2124", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2125] = { "_2125", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
@@ -2707,8 +2707,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [2700] = { "IF_GETINVOBJECT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2701] = { "IF_GETINVCOUNT", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2702] = { "IF_HASSUB", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
-    [2703] = { "IF_PARAM", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
-    [2704] = { "IF_SETPARAM", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [2703] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [2704] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2705] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [2706] = { "IF_GETTOP", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [2707] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -4020,8 +4020,8 @@ const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {
     [4013] = { "INVPOW", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [4014] = { "AND", CS2_OPERAND_INT8, CS2_HANDLER_VM },
     [4015] = { "OR", CS2_OPERAND_INT8, CS2_HANDLER_VM },
-    [4016] = { "MIN", CS2_OPERAND_INT8, CS2_HANDLER_VM },
-    [4017] = { "MAX", CS2_OPERAND_INT8, CS2_HANDLER_VM },
+    [4016] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
+    [4017] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [4018] = { "SCALE", CS2_OPERAND_INT8, CS2_HANDLER_HOST },
     [4019] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
     [4020] = { "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST },
@@ -7271,4 +7271,17 @@ enum CS2_OperandKind
 cs2_opcode_operand_kind(int opcode)
 {
     return cs2_opcode_meta_lookup(opcode)->operand;
+}
+
+const char*
+CS2_OpCode_String(int opcode)
+{
+    switch( opcode )
+    {
+    case -2: return "SS_AND";
+    case -1: return "SS_OR";
+    }
+    if( opcode < 0 || opcode >= cs2_opcode_meta_table_size )
+        return "_unknown";
+    return cs2_opcode_meta_table[opcode].name;
 }

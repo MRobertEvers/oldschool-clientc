@@ -394,6 +394,7 @@ uitree_behavior_run_hook(
         .int_argv = hook->argc > 1 ? &hook->argv[1] : NULL,
         .string_argc = 0,
         .string_argv = NULL,
+        .event_component_id = component->id,
     };
     int rc = cs2vm_run(host->cs2vm, &script->script, &host->cs2host, &args);
     if( rc != CS2VM_OK )

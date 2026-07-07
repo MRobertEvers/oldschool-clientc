@@ -925,6 +925,16 @@ cs2vm_run(
     assert(script);
     assert(script->op_count > 0);
 
+    int const prev_active = rt->active_component;
+    int const prev_dot = rt->dot_component;
+    int result = CS2VM_OK;
+
+    if( args && args->event_component_id >= 0 )
+    {
+        rt->active_component = args->event_component_id;
+        rt->dot_component = args->event_component_id;
+    }
+
     cs2_rt_ensure_trace_env();
     int const initial_active = rt->active_component;
     int const initial_dot = rt->dot_component;
@@ -950,7 +960,8 @@ cs2vm_run(
                 rt->frame_sp,
                 frame->pc,
                 meta->name ? meta->name : "?");
-            return CS2VM_ERR_STEP_LIMIT;
+            result = CS2VM_ERR_STEP_LIMIT;
+            goto done;
         }
 
         struct CS2VMFrame* frame = cs2_rt_current_frame(rt);
@@ -964,7 +975,8 @@ cs2vm_run(
                 frame->script->op_count);
             assert(frame->pc >= 0);
             assert(frame->pc < frame->script->op_count);
-            return CS2VM_ERR_PC_OOB;
+            result = CS2VM_ERR_PC_OOB;
+            goto done;
         }
 
         int pc = frame->pc++;
@@ -1031,8 +1043,12 @@ cs2vm_run(
             break;
     }
     if( rt->run_error != 0 )
-        return rt->run_error;
-    return CS2VM_OK;
+        result = rt->run_error;
+
+done:
+    rt->active_component = prev_active;
+    rt->dot_component = prev_dot;
+    return result;
 }
 
 int
