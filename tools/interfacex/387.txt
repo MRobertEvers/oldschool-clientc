@@ -1,0 +1,1229 @@
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362433
+pc=1 GOSUB_WITH_PARAMS (op 40) operand.int=486
+    args: variable (callee signature)
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362433
+pc=1 CC_DELETEALL (op 102) operand.int=0
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362433
+pc=3 IF_GETWIDTH (op 2502) operand.int=0
+pc=4 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 0
+    int arg[0] (top-0) = 1024
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362433
+pc=6 IF_GETHEIGHT (op 2503) operand.int=0
+pc=7 POP_INT_LOCAL (op 34) operand.int=2
+    int_local[2] = 0
+    int arg[0] (top-0) = 768
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 1024
+pc=9 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=10 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 9
+    int arg[1] (top-1) = 1024
+pc=11 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = 0
+    int arg[0] (top-0) = 1015
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 768
+pc=13 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=14 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 9
+    int arg[1] (top-1) = 768
+pc=15 POP_INT_LOCAL (op 34) operand.int=4
+    int_local[4] = 0
+    int arg[0] (top-0) = 759
+pc=16 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 1024
+pc=17 PUSH_CONSTANT_INT (op 0) operand.int=18
+pc=18 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 18
+    int arg[1] (top-1) = 1024
+pc=19 POP_INT_LOCAL (op 34) operand.int=5
+    int_local[5] = 0
+    int arg[0] (top-0) = 1006
+pc=20 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 768
+pc=21 PUSH_CONSTANT_INT (op 0) operand.int=18
+pc=22 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 18
+    int arg[1] (top-1) = 768
+pc=23 POP_INT_LOCAL (op 34) operand.int=6
+    int_local[6] = 0
+    int arg[0] (top-0) = 750
+pc=24 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362433
+pc=25 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=26 PUSH_CONSTANT_INT (op 0) operand.int=913
+pc=27 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=29 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=30 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=31 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=32 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=33 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=34 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=35 GOSUB_WITH_PARAMS (op 40) operand.int=98
+    args: variable (callee signature)
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362433
+pc=1 PUSH_CONSTANT_INT (op 0) operand.int=5
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 0
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=4 CC_CREATE (op 100) operand.int=0
+    int arg[0] (top-0) = 0
+    int arg[1] (top-1) = 0
+    int arg[2] (top-2) = 5
+    int arg[3] (top-3) = 25362433
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 0
+pc=6 PUSH_INT_LOCAL (op 33) operand.int=4
+    int_local[4] = 0
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=5
+    int_local[5] = 0
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=6
+    int_local[6] = 0
+pc=9 CC_SETPOSITION (op 1000) operand.int=0
+pc=10 PUSH_INT_LOCAL (op 33) operand.int=7
+    int_local[7] = 9
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=8
+    int_local[8] = 9
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=9
+    int_local[9] = 0
+pc=13 PUSH_INT_LOCAL (op 33) operand.int=10
+    int_local[10] = 0
+pc=14 CC_SETSIZE (op 1001) operand.int=0
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 913
+pc=16 CC_SETGRAPHIC (op 1105) operand.int=0
+pc=17 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=18 CC_SETTILING (op 1107) operand.int=0
+pc=0 PUSH_CONSTANT_INT (op 0) operand.int=2642
+pc=1 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362434
+pc=2 PUSH_CONSTANT_INT (op 0) operand.int=281
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=2686
+pc=4 PUSH_CONSTANT_INT (op 0) operand.int=2
+pc=5 PUSH_CONSTANT_STRING (op 3) operand.str="iY"
+pc=6 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362434
+pc=7 IF_SETONVARTRANSMIT (op 2407) operand.int=0
+pc=8 RETURN (op 21) operand.int=0
+pc=19 RETURN (op 21) operand.int=0
+pc=36 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362433
+pc=37 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=38 PUSH_CONSTANT_INT (op 0) operand.int=914
+pc=39 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 1015
+pc=40 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=41 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=42 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=43 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=44 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=45 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=46 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=47 GOSUB_WITH_PARAMS (op 40) operand.int=98
+    args: variable (callee signature)
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362433
+pc=1 PUSH_CONSTANT_INT (op 0) operand.int=5
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 1
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=4 CC_CREATE (op 100) operand.int=0
+    int arg[0] (top-0) = 0
+    int arg[1] (top-1) = 1
+    int arg[2] (top-2) = 5
+    int arg[3] (top-3) = 25362433
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 1015
+pc=6 PUSH_INT_LOCAL (op 33) operand.int=4
+    int_local[4] = 0
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=5
+    int_local[5] = 0
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=6
+    int_local[6] = 0
+pc=9 CC_SETPOSITION (op 1000) operand.int=0
+pc=10 PUSH_INT_LOCAL (op 33) operand.int=7
+    int_local[7] = 9
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=8
+    int_local[8] = 9
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=9
+    int_local[9] = 0
+pc=13 PUSH_INT_LOCAL (op 33) operand.int=10
+    int_local[10] = 0
+pc=14 CC_SETSIZE (op 1001) operand.int=0
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 914
+pc=16 CC_SETGRAPHIC (op 1105) operand.int=0
+pc=17 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=18 CC_SETTILING (op 1107) operand.int=0
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362435
+pc=1 GOSUB_WITH_PARAMS (op 40) operand.int=486
+    args: variable (callee signature)
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362435
+pc=1 CC_DELETEALL (op 102) operand.int=0
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362435
+pc=3 IF_GETWIDTH (op 2502) operand.int=0
+pc=4 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 0
+    int arg[0] (top-0) = 1024
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362435
+pc=6 IF_GETHEIGHT (op 2503) operand.int=0
+pc=7 POP_INT_LOCAL (op 34) operand.int=2
+    int_local[2] = 0
+    int arg[0] (top-0) = 768
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 1024
+pc=9 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=10 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 9
+    int arg[1] (top-1) = 1024
+pc=11 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = 0
+    int arg[0] (top-0) = 1015
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 768
+pc=13 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=14 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 9
+    int arg[1] (top-1) = 768
+pc=15 POP_INT_LOCAL (op 34) operand.int=4
+    int_local[4] = 0
+    int arg[0] (top-0) = 759
+pc=16 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 1024
+pc=17 PUSH_CONSTANT_INT (op 0) operand.int=18
+pc=18 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 18
+    int arg[1] (top-1) = 1024
+pc=19 POP_INT_LOCAL (op 34) operand.int=5
+    int_local[5] = 0
+    int arg[0] (top-0) = 1006
+pc=20 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 768
+pc=21 PUSH_CONSTANT_INT (op 0) operand.int=18
+pc=22 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 18
+    int arg[1] (top-1) = 768
+pc=23 POP_INT_LOCAL (op 34) operand.int=6
+    int_local[6] = 0
+    int arg[0] (top-0) = 750
+pc=24 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362435
+pc=25 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=26 PUSH_CONSTANT_INT (op 0) operand.int=913
+pc=27 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=29 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=30 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=31 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=32 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=33 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=34 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=35 GOSUB_WITH_PARAMS (op 40) operand.int=98
+    args: variable (callee signature)
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362435
+pc=1 PUSH_CONSTANT_INT (op 0) operand.int=5
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 0
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=4 CC_CREATE (op 100) operand.int=0
+    int arg[0] (top-0) = 0
+    int arg[1] (top-1) = 0
+    int arg[2] (top-2) = 5
+    int arg[3] (top-3) = 25362435
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 0
+pc=6 PUSH_INT_LOCAL (op 33) operand.int=4
+    int_local[4] = 0
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=5
+    int_local[5] = 0
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=6
+    int_local[6] = 0
+pc=9 CC_SETPOSITION (op 1000) operand.int=0
+pc=10 PUSH_INT_LOCAL (op 33) operand.int=7
+    int_local[7] = 9
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=8
+    int_local[8] = 9
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=9
+    int_local[9] = 0
+pc=13 PUSH_INT_LOCAL (op 33) operand.int=10
+    int_local[10] = 0
+pc=14 CC_SETSIZE (op 1001) operand.int=0
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 913
+pc=16 CC_SETGRAPHIC (op 1105) operand.int=0
+pc=17 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=18 CC_SETTILING (op 1107) operand.int=0
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362437
+pc=1 GOSUB_WITH_PARAMS (op 40) operand.int=486
+    args: variable (callee signature)
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362437
+pc=1 CC_DELETEALL (op 102) operand.int=0
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362437
+pc=3 IF_GETWIDTH (op 2502) operand.int=0
+pc=4 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 0
+    int arg[0] (top-0) = 1024
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362437
+pc=6 IF_GETHEIGHT (op 2503) operand.int=0
+pc=7 POP_INT_LOCAL (op 34) operand.int=2
+    int_local[2] = 0
+    int arg[0] (top-0) = 768
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 1024
+pc=9 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=10 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 9
+    int arg[1] (top-1) = 1024
+pc=11 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = 0
+    int arg[0] (top-0) = 1015
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 768
+pc=13 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=14 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 9
+    int arg[1] (top-1) = 768
+pc=15 POP_INT_LOCAL (op 34) operand.int=4
+    int_local[4] = 0
+    int arg[0] (top-0) = 759
+pc=16 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 1024
+pc=17 PUSH_CONSTANT_INT (op 0) operand.int=18
+pc=18 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 18
+    int arg[1] (top-1) = 1024
+pc=19 POP_INT_LOCAL (op 34) operand.int=5
+    int_local[5] = 0
+    int arg[0] (top-0) = 1006
+pc=20 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 768
+pc=21 PUSH_CONSTANT_INT (op 0) operand.int=18
+pc=22 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 18
+    int arg[1] (top-1) = 768
+pc=23 POP_INT_LOCAL (op 34) operand.int=6
+    int_local[6] = 0
+    int arg[0] (top-0) = 750
+pc=24 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362437
+pc=25 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=26 PUSH_CONSTANT_INT (op 0) operand.int=913
+pc=27 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=29 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=30 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=31 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=32 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=33 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=34 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=35 GOSUB_WITH_PARAMS (op 40) operand.int=98
+    args: variable (callee signature)
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362437
+pc=1 PUSH_CONSTANT_INT (op 0) operand.int=5
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 0
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=4 CC_CREATE (op 100) operand.int=0
+    int arg[0] (top-0) = 0
+    int arg[1] (top-1) = 0
+    int arg[2] (top-2) = 5
+    int arg[3] (top-3) = 25362437
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 0
+pc=6 PUSH_INT_LOCAL (op 33) operand.int=4
+    int_local[4] = 0
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=5
+    int_local[5] = 0
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=6
+    int_local[6] = 0
+pc=9 CC_SETPOSITION (op 1000) operand.int=0
+pc=10 PUSH_INT_LOCAL (op 33) operand.int=7
+    int_local[7] = 9
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=8
+    int_local[8] = 9
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=9
+    int_local[9] = 0
+pc=13 PUSH_INT_LOCAL (op 33) operand.int=10
+    int_local[10] = 0
+pc=14 CC_SETSIZE (op 1001) operand.int=0
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 913
+pc=16 CC_SETGRAPHIC (op 1105) operand.int=0
+pc=17 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=18 CC_SETTILING (op 1107) operand.int=0
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362439
+pc=1 GOSUB_WITH_PARAMS (op 40) operand.int=486
+    args: variable (callee signature)
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362439
+pc=1 CC_DELETEALL (op 102) operand.int=0
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362439
+pc=3 IF_GETWIDTH (op 2502) operand.int=0
+pc=4 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 0
+    int arg[0] (top-0) = 1024
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362439
+pc=6 IF_GETHEIGHT (op 2503) operand.int=0
+pc=7 POP_INT_LOCAL (op 34) operand.int=2
+    int_local[2] = 0
+    int arg[0] (top-0) = 768
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 1024
+pc=9 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=10 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 9
+    int arg[1] (top-1) = 1024
+pc=11 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = 0
+    int arg[0] (top-0) = 1015
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 768
+pc=13 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=14 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 9
+    int arg[1] (top-1) = 768
+pc=15 POP_INT_LOCAL (op 34) operand.int=4
+    int_local[4] = 0
+    int arg[0] (top-0) = 759
+pc=16 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 1024
+pc=17 PUSH_CONSTANT_INT (op 0) operand.int=18
+pc=18 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 18
+    int arg[1] (top-1) = 1024
+pc=19 POP_INT_LOCAL (op 34) operand.int=5
+    int_local[5] = 0
+    int arg[0] (top-0) = 1006
+pc=20 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 768
+pc=21 PUSH_CONSTANT_INT (op 0) operand.int=18
+pc=22 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 18
+    int arg[1] (top-1) = 768
+pc=23 POP_INT_LOCAL (op 34) operand.int=6
+    int_local[6] = 0
+    int arg[0] (top-0) = 750
+pc=24 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362439
+pc=25 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=26 PUSH_CONSTANT_INT (op 0) operand.int=913
+pc=27 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=29 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=30 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=31 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=32 PUSH_CONSTANT_INT (op 0) operand.int=9
+pc=33 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=34 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=35 GOSUB_WITH_PARAMS (op 40) operand.int=98
+    args: variable (callee signature)
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362439
+pc=1 PUSH_CONSTANT_INT (op 0) operand.int=5
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 0
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=4 CC_CREATE (op 100) operand.int=0
+    int arg[0] (top-0) = 0
+    int arg[1] (top-1) = 0
+    int arg[2] (top-2) = 5
+    int arg[3] (top-3) = 25362439
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 0
+pc=6 PUSH_INT_LOCAL (op 33) operand.int=4
+    int_local[4] = 0
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=5
+    int_local[5] = 0
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=6
+    int_local[6] = 0
+pc=9 CC_SETPOSITION (op 1000) operand.int=0
+pc=10 PUSH_INT_LOCAL (op 33) operand.int=7
+    int_local[7] = 9
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=8
+    int_local[8] = 9
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=9
+    int_local[9] = 0
+pc=13 PUSH_INT_LOCAL (op 33) operand.int=10
+    int_local[10] = 0
+pc=14 CC_SETSIZE (op 1001) operand.int=0
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 913
+pc=16 CC_SETGRAPHIC (op 1105) operand.int=0
+pc=17 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=18 CC_SETTILING (op 1107) operand.int=0
+pc=0 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=1 POP_INT_LOCAL (op 34) operand.int=2
+    int_local[2] = 0
+    int arg[0] (top-0) = -1
+pc=2 PUSH_CONSTANT_INT (op 0) operand.int=94
+pc=3 INV_SIZE (op 3304) operand.int=0
+pc=4 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = 0
+    int arg[0] (top-0) = 14
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 14
+pc=6 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=7 BRANCH_GREATER_THAN (op 10) operand.int=1
+pc=9 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 14
+pc=10 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=11 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 1
+    int arg[1] (top-1) = 14
+pc=12 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = 14
+    int arg[0] (top-0) = 13
+pc=13 PUSH_CONSTANT_INT (op 0) operand.int=105
+pc=14 PUSH_CONSTANT_INT (op 0) operand.int=73
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 2775
+pc=16 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 13
+pc=17 ENUM (op 3408) operand.int=0
+pc=0 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=1 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362458
+pc=2 IF_SETHIDE (op 2003) operand.int=0
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=4 PUSH_CONSTANT_STRING (op 3) operand.str=""
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 25362460
+pc=6 IF_SETOP (op 2300) operand.int=0
+pc=7 PUSH_CONSTANT_INT (op 0) operand.int=2
+pc=8 PUSH_CONSTANT_STRING (op 3) operand.str=""
+pc=9 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 25362460
+pc=10 IF_SETOP (op 2300) operand.int=0
+pc=11 PUSH_CONSTANT_INT (op 0) operand.int=10
+pc=12 PUSH_CONSTANT_STRING (op 3) operand.str=""
+pc=13 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 25362460
+pc=14 IF_SETOP (op 2300) operand.int=0
+pc=15 MAP_MEMBERS (op 3312) operand.int=0
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=17 BRANCH_EQUALS (op 8) operand.int=1
+pc=18 BRANCH (op 6) operand.int=1
+pc=20 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=21 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362458
+pc=22 IF_SETHIDE (op 2003) operand.int=0
+pc=23 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 25362459
+pc=24 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 25362460
+pc=25 GOSUB_WITH_PARAMS (op 40) operand.int=5025
+    args: variable (callee signature)
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 25362460
+pc=1 CC_DELETEALL (op 102) operand.int=0
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362459
+pc=3 CC_DELETEALL (op 102) operand.int=0
+pc=4 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=5 PUSH_CONSTANT_STRING (op 3) operand.str=""
+pc=6 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 25362460
+pc=7 IF_SETOP (op 2300) operand.int=0
+pc=8 PUSH_CONSTANT_INT (op 0) operand.int=2
+pc=9 PUSH_CONSTANT_STRING (op 3) operand.str=""
+pc=10 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 25362460
+pc=11 IF_SETOP (op 2300) operand.int=0
+pc=12 PUSH_CONSTANT_INT (op 0) operand.int=10
+pc=13 PUSH_CONSTANT_STRING (op 3) operand.str=""
+pc=14 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 25362460
+pc=15 IF_SETOP (op 2300) operand.int=0
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=17 POP_INT_LOCAL (op 34) operand.int=2
+    int_local[2] = 0
+    int arg[0] (top-0) = 0
+pc=18 PUSH_CONSTANT_INT (op 0) operand.int=100
+pc=19 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = 0
+    int arg[0] (top-0) = 100
+pc=20 GOSUB_WITH_PARAMS (op 40) operand.int=5027
+    args: variable (callee signature)
+pc=0 PUSH_CONSTANT_INT (op 0) operand.int=94
+pc=1 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=2 INV_GETOBJ (op 3301) operand.int=0
+pc=3 POP_INT_LOCAL (op 34) operand.int=0
+    int_local[0] = 0
+    int arg[0] (top-0) = -1
+pc=4 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = -1
+pc=5 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=6 BRANCH_NOT (op 7) operand.int=1
+pc=7 BRANCH (op 6) operand.int=8
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=17 RETURN (op 21) operand.int=0
+pc=21 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=22 BRANCH_EQUALS (op 8) operand.int=1
+pc=23 BRANCH (op 6) operand.int=5
+pc=29 PUSH_CONSTANT_INT (op 0) operand.int=93
+pc=30 GOSUB_WITH_PARAMS (op 40) operand.int=5028
+    args: variable (callee signature)
+pc=0 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=1 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 0
+    int arg[0] (top-0) = 0
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=3 INV_SIZE (op 3304) operand.int=0
+pc=4 POP_INT_LOCAL (op 34) operand.int=2
+    int_local[2] = 0
+    int arg[0] (top-0) = 14
+pc=5 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=6 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = 0
+    int arg[0] (top-0) = -1
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 0
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 0
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 0
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 0
+    int arg[0] (top-0) = 1
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 1
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 1
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 1
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 1
+    int arg[0] (top-0) = 2
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 2
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 2
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 2
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 2
+    int arg[0] (top-0) = 3
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 3
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 3
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 3
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 3
+    int arg[0] (top-0) = 4
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 4
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 4
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 4
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 4
+    int arg[0] (top-0) = 5
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 5
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 5
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 5
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 5
+    int arg[0] (top-0) = 6
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 6
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 6
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 6
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 6
+    int arg[0] (top-0) = 7
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 7
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 7
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 7
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 7
+    int arg[0] (top-0) = 8
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 8
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 8
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 8
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 8
+    int arg[0] (top-0) = 9
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 9
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 9
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 9
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 9
+    int arg[0] (top-0) = 10
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 10
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 10
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 10
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 10
+    int arg[0] (top-0) = 11
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 11
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 11
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 11
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 11
+    int arg[0] (top-0) = 12
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 12
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 12
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 12
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 12
+    int arg[0] (top-0) = 13
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 13
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 93
+pc=12 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 13
+pc=13 INV_GETOBJ (op 3301) operand.int=0
+pc=14 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = -1
+    int arg[0] (top-0) = -1
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = -1
+pc=16 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=17 BRANCH_NOT (op 7) operand.int=1
+pc=18 BRANCH (op 6) operand.int=8
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 13
+pc=28 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=29 ADD (op 4000) operand.int=0
+pc=30 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 13
+    int arg[0] (top-0) = 14
+pc=31 BRANCH (op 6) operand.int=-25
+pc=7 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 14
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 14
+pc=9 BRANCH_LESS_THAN (op 9) operand.int=1
+pc=10 BRANCH (op 6) operand.int=21
+pc=32 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=33 RETURN (op 21) operand.int=0
+pc=31 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=32 BRANCH_EQUALS (op 8) operand.int=1
+pc=34 RETURN (op 21) operand.int=0
+pc=26 PUSH_CONSTANT_INT (op 0) operand.int=5024
+pc=27 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 25362459
+pc=28 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 25362460
+pc=29 PUSH_CONSTANT_INT (op 0) operand.int=93
+pc=30 PUSH_CONSTANT_INT (op 0) operand.int=94
+pc=31 PUSH_CONSTANT_INT (op 0) operand.int=2
+pc=32 PUSH_CONSTANT_STRING (op 3) operand.str="iiY"
+pc=33 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362458
+pc=34 IF_SETONINVTRANSMIT (op 2414) operand.int=0
+pc=35 PUSH_CONSTANT_INT (op 0) operand.int=5024
+pc=36 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 25362459
+pc=37 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 25362460
+pc=38 PUSH_CONSTANT_INT (op 0) operand.int=4141
+pc=39 PUSH_CONSTANT_INT (op 0) operand.int=4142
+pc=40 PUSH_CONSTANT_INT (op 0) operand.int=2
+pc=41 PUSH_CONSTANT_STRING (op 3) operand.str="iiY"
+pc=42 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362458
+pc=43 IF_SETONVARTRANSMIT (op 2407) operand.int=0
+pc=44 RETURN (op 21) operand.int=0
+pc=18 POP_INT_LOCAL (op 34) operand.int=2
+    int_local[2] = -1
+    int arg[0] (top-0) = 25362458
+pc=19 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 25362458
+pc=20 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=21 BRANCH_NOT (op 7) operand.int=1
+pc=22 BRANCH (op 6) operand.int=4
+pc=27 BRANCH (op 6) operand.int=-23
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 13
+pc=6 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=7 BRANCH_GREATER_THAN (op 10) operand.int=1
+pc=9 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 13
+pc=10 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=11 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 1
+    int arg[1] (top-1) = 13
+pc=12 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = 13
+    int arg[0] (top-0) = 12
+pc=13 PUSH_CONSTANT_INT (op 0) operand.int=105
+pc=14 PUSH_CONSTANT_INT (op 0) operand.int=73
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 2775
+pc=16 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 12
+pc=17 ENUM (op 3408) operand.int=0
+pc=0 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362461
+pc=1 CC_DELETEALL (op 102) operand.int=0
+pc=2 GOSUB_WITH_PARAMS (op 40) operand.int=1138
+    args: variable (callee signature)
+pc=0 PUSH_VAR (op 1) operand.int=3717
+pc=1 GOSUB_WITH_PARAMS (op 40) operand.int=6942
+    args: variable (callee signature)
+pc=0 GOSUB_WITH_PARAMS (op 40) operand.int=2237
+    args: variable (callee signature)
+pc=0 PUSH_VAR (op 1) operand.int=3717
+pc=1 PUSH_CONSTANT_INT (op 0) operand.int=25
+pc=2 TESTBIT (op 4010) operand.int=0
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=4 BRANCH_EQUALS (op 8) operand.int=1
+pc=5 BRANCH (op 6) operand.int=14
+pc=20 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=21 RETURN (op 21) operand.int=0
+pc=1 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 0
+    int arg[0] (top-0) = 0
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 0
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=4 BRANCH_EQUALS (op 8) operand.int=4
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 0
+pc=6 PUSH_CONSTANT_INT (op 0) operand.int=4
+pc=7 BRANCH_EQUALS (op 8) operand.int=1
+pc=8 BRANCH (op 6) operand.int=2
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 123
+pc=12 PUSH_CONSTANT_INT (op 0) operand.int=29
+pc=13 TESTBIT (op 4010) operand.int=0
+pc=14 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=15 BRANCH_EQUALS (op 8) operand.int=1
+pc=16 BRANCH (op 6) operand.int=15
+pc=32 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=33 RETURN (op 21) operand.int=0
+pc=2 RETURN (op 21) operand.int=0
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=3
+pc=4 BRANCH_NOT (op 7) operand.int=4
+pc=5 GOSUB_WITH_PARAMS (op 40) operand.int=2237
+    args: variable (callee signature)
+pc=0 PUSH_VAR (op 1) operand.int=3717
+pc=1 PUSH_CONSTANT_INT (op 0) operand.int=25
+pc=2 TESTBIT (op 4010) operand.int=0
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=4 BRANCH_EQUALS (op 8) operand.int=1
+pc=5 BRANCH (op 6) operand.int=14
+pc=20 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=21 RETURN (op 21) operand.int=0
+pc=6 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=7 BRANCH_NOT (op 7) operand.int=1
+pc=9 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362461
+pc=10 IF_CLEAROPS (op 2307) operand.int=0
+pc=11 RETURN (op 21) operand.int=0
+pc=18 POP_INT_LOCAL (op 34) operand.int=2
+    int_local[2] = 25362458
+    int arg[0] (top-0) = 0
+pc=19 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 0
+pc=20 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=21 BRANCH_NOT (op 7) operand.int=1
+pc=22 BRANCH (op 6) operand.int=4
+pc=27 BRANCH (op 6) operand.int=-23
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 12
+pc=6 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=7 BRANCH_GREATER_THAN (op 10) operand.int=1
+pc=9 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 12
+pc=10 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=11 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 1
+    int arg[1] (top-1) = 12
+pc=12 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = 12
+    int arg[0] (top-0) = 11
+pc=13 PUSH_CONSTANT_INT (op 0) operand.int=105
+pc=14 PUSH_CONSTANT_INT (op 0) operand.int=73
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 2775
+pc=16 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 11
+pc=17 ENUM (op 3408) operand.int=0
+pc=0 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=1 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362462
+pc=2 IF_SETHIDE (op 2003) operand.int=0
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=4 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 25362446
+pc=5 IF_SETHIDE (op 2003) operand.int=0
+pc=6 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=7 PUSH_CONSTANT_STRING (op 3) operand.str=""
+pc=8 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 25362462
+pc=9 IF_SETOP (op 2300) operand.int=0
+pc=10 GOSUB_WITH_PARAMS (op 40) operand.int=1138
+    args: variable (callee signature)
+pc=0 PUSH_VAR (op 1) operand.int=3717
+pc=1 GOSUB_WITH_PARAMS (op 40) operand.int=6942
+    args: variable (callee signature)
+pc=0 GOSUB_WITH_PARAMS (op 40) operand.int=2237
+    args: variable (callee signature)
+pc=0 PUSH_VAR (op 1) operand.int=3717
+pc=1 PUSH_CONSTANT_INT (op 0) operand.int=25
+pc=2 TESTBIT (op 4010) operand.int=0
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=4 BRANCH_EQUALS (op 8) operand.int=1
+pc=5 BRANCH (op 6) operand.int=14
+pc=20 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=21 RETURN (op 21) operand.int=0
+pc=1 POP_INT_LOCAL (op 34) operand.int=1
+    int_local[1] = 0
+    int arg[0] (top-0) = 0
+pc=2 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 0
+pc=3 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=4 BRANCH_EQUALS (op 8) operand.int=4
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=1
+    int_local[1] = 0
+pc=6 PUSH_CONSTANT_INT (op 0) operand.int=4
+pc=7 BRANCH_EQUALS (op 8) operand.int=1
+pc=8 BRANCH (op 6) operand.int=2
+pc=11 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 123
+pc=12 PUSH_CONSTANT_INT (op 0) operand.int=29
+pc=13 TESTBIT (op 4010) operand.int=0
+pc=14 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=15 BRANCH_EQUALS (op 8) operand.int=1
+pc=16 BRANCH (op 6) operand.int=15
+pc=32 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=33 RETURN (op 21) operand.int=0
+pc=2 RETURN (op 21) operand.int=0
+pc=11 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=12 BRANCH_NOT (op 7) operand.int=4
+pc=17 RETURN (op 21) operand.int=0
+pc=18 POP_INT_LOCAL (op 34) operand.int=2
+    int_local[2] = 0
+    int arg[0] (top-0) = 0
+pc=19 PUSH_INT_LOCAL (op 33) operand.int=2
+    int_local[2] = 0
+pc=20 PUSH_CONSTANT_INT (op 0) operand.int=-1
+pc=21 BRANCH_NOT (op 7) operand.int=1
+pc=22 BRANCH (op 6) operand.int=4
+pc=27 BRANCH (op 6) operand.int=-23
+pc=5 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 11
+pc=6 PUSH_CONSTANT_INT (op 0) operand.int=0
+pc=7 BRANCH_GREATER_THAN (op 10) operand.int=1
+pc=9 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 11
+pc=10 PUSH_CONSTANT_INT (op 0) operand.int=1
+pc=11 SUB (op 4001) operand.int=0
+    int arg[0] (top-0) = 1
+    int arg[1] (top-1) = 11
+pc=12 POP_INT_LOCAL (op 34) operand.int=3
+    int_local[3] = 11
+    int arg[0] (top-0) = 10
+pc=13 PUSH_CONSTANT_INT (op 0) operand.int=105
+pc=14 PUSH_CONSTANT_INT (op 0) operand.int=73
+pc=15 PUSH_INT_LOCAL (op 33) operand.int=0
+    int_local[0] = 2775
+pc=16 PUSH_INT_LOCAL (op 33) operand.int=3
+    int_local[3] = 10
+pc=17 ENUM (op 3408) operand.int=0
+uitreex: 31 nodes
+[0] kind=layer user_id=0x01830000 (387<<16|0)
+  [1] kind=layer user_id=0x01830001 (387<<16|1)
+  [3] kind=layer user_id=0x01830003 (387<<16|3)
+  [5] kind=layer user_id=0x01830005 (387<<16|5)
+  [7] kind=layer user_id=0x01830007 (387<<16|7)
+  [9] kind=graphic user_id=0x01830009 (387<<16|9) graphic_id=172 scene_id=0
+  [10] kind=graphic user_id=0x0183000a (387<<16|10) graphic_id=172 scene_id=0
+  [11] kind=graphic user_id=0x0183000b (387<<16|11) graphic_id=172 scene_id=0
+  [12] kind=graphic user_id=0x0183000c (387<<16|12) graphic_id=173 scene_id=0
+  [13] kind=graphic user_id=0x0183000d (387<<16|13) graphic_id=173 scene_id=0
+  [14] kind=graphic user_id=0x0183000e (387<<16|14) graphic_id=172 scene_id=0
+  [15] kind=layer user_id=0x0183000f (387<<16|15)
+  [16] kind=layer user_id=0x01830010 (387<<16|16)
+  [17] kind=layer user_id=0x01830011 (387<<16|17)
+  [18] kind=layer user_id=0x01830012 (387<<16|18)
+  [19] kind=layer user_id=0x01830013 (387<<16|19)
+  [20] kind=layer user_id=0x01830014 (387<<16|20)
+  [21] kind=layer user_id=0x01830015 (387<<16|21)
+  [22] kind=layer user_id=0x01830016 (387<<16|22)
+  [23] kind=layer user_id=0x01830017 (387<<16|23)
+  [24] kind=layer user_id=0x01830018 (387<<16|24)
+  [25] kind=layer user_id=0x01830019 (387<<16|25)
+  [26] kind=layer user_id=0x0183001a (387<<16|26)
+    [27] kind=layer user_id=0x0183001b (387<<16|27)
+    [28] kind=layer user_id=0x0183001c (387<<16|28)
+  [29] kind=layer user_id=0x0183001d (387<<16|29)
+  [30] kind=layer user_id=0x0183001e (387<<16|30)
+[2] kind=graphic user_id=0x01830002 (387<<16|2) graphic_id=675 scene_id=0
+[4] kind=graphic user_id=0x01830004 (387<<16|4) graphic_id=1090 scene_id=0
+[6] kind=graphic user_id=0x01830006 (387<<16|6) graphic_id=912 scene_id=0
+[8] kind=graphic user_id=0x01830008 (387<<16|8) graphic_id=1343 scene_id=0
