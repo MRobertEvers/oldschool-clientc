@@ -279,6 +279,9 @@ UITreeX_NodeInit(
     node->link.next_sibling_tree_idx = -1;
     node->link.first_child_tree_idx = -1;
     node->link.last_child_tree_idx = -1;
+    node->u.rs_graphic.graphic_id = -1;
+    node->u.rs_graphic.graphic_id2 = -1;
+    node->u.rs_graphic.scene_id = -1;
 }
 
 static int
@@ -319,12 +322,21 @@ struct UITreeXBuilder_ParentStack
     int last_sibling_idx;
 };
 
+struct UITreeXBuilder_PendingParent
+{
+    int child_idx;
+    int parent_user_id;
+};
+
 struct UITreeXBuilder
 {
     struct UITreeXBuilder_ParentStack parent_stack[36];
     int parent_stack_top;
 
     struct UITreeX* tree;
+
+    struct UITreeXBuilder_PendingParent pending_parents[MAX_NODES];
+    int pending_parent_count;
 };
 
 void
@@ -432,6 +444,89 @@ UITreeXBuilder_SetActiveParentByUserId(
     return 0;
 }
 
+static int
+UITreeX_FindByUserId(
+    struct UITreeX const* tree,
+    int user_id);
+
+static void
+UITreeXBuilder_AppendChild(
+    struct UITreeX* tree,
+    int parent_idx,
+    int child_idx)
+{
+    assert(tree);
+    assert(parent_idx >= 0 && parent_idx < tree->node_count);
+    assert(child_idx >= 0 && child_idx < tree->node_count);
+
+    struct UITreeXNode* parent = &tree->nodes[parent_idx];
+    struct UITreeXNode* child = &tree->nodes[child_idx];
+
+    child->link.parent_tree_idx = parent_idx;
+
+    int last = parent->link.last_child_tree_idx;
+    if( last != -1 )
+        tree->nodes[last].link.next_sibling_tree_idx = child_idx;
+    else
+        parent->link.first_child_tree_idx = child_idx;
+    parent->link.last_child_tree_idx = child_idx;
+}
+
+static void
+UITreeXBuilder_EnqueueParent(
+    struct UITreeXBuilder* builder,
+    int child_idx,
+    int parent_user_id)
+{
+    assert(builder);
+
+    if( parent_user_id < 0 )
+        return;
+
+    if( builder->pending_parent_count >= MAX_NODES )
+    {
+        fprintf(stderr, "UITreeXBuilder: pending parent cap %d exceeded\n", MAX_NODES);
+        return;
+    }
+
+    struct UITreeXBuilder_PendingParent* entry =
+        &builder->pending_parents[builder->pending_parent_count++];
+    entry->child_idx = child_idx;
+    entry->parent_user_id = parent_user_id;
+}
+
+static void
+UITreeXBuilder_ResolvePendingParents(struct UITreeXBuilder* builder)
+{
+    assert(builder);
+    assert(builder->tree);
+
+    struct UITreeX* tree = builder->tree;
+
+    for( int i = 0; i < builder->pending_parent_count; i++ )
+    {
+        struct UITreeXBuilder_PendingParent const* pending = &builder->pending_parents[i];
+        int child_idx = pending->child_idx;
+        int parent_user_id = pending->parent_user_id;
+
+        if( child_idx < 0 || child_idx >= tree->node_count )
+            continue;
+
+        int parent_idx = UITreeX_FindByUserId(tree, parent_user_id);
+        if( parent_idx < 0 )
+        {
+            fprintf(
+                stderr,
+                "static link NOT-FOUND: child=0x%08x parent=0x%08x (root fallback)\n",
+                (unsigned)tree->nodes[child_idx].user_id,
+                (unsigned)parent_user_id);
+            continue;
+        }
+
+        UITreeXBuilder_AppendChild(tree, parent_idx, child_idx);
+    }
+}
+
 int
 UITreeXBuilder_PushLayerWithParentUserId(
     struct UITreeXBuilder* builder,
@@ -448,6 +543,8 @@ UITreeXBuilder_PushLayerWithParentUserId(
 
     node->kind = UITreeXNodeKind_RSLayer;
     node->user_id = user_id;
+
+    UITreeXBuilder_EnqueueParent(builder, node->idx, parent_user_id);
 
     return node->idx;
 }
@@ -467,13 +564,14 @@ UITreeXBuilder_PushGraphicWithParentUserId(
     if( !node )
         return -1;
 
-    (void)parent_user_id;
-
     node->kind = UITreeXNodeKind_RSGraphic;
     node->user_id = user_id;
 
     node->u.rs_graphic.graphic_id = graphic_id;
+    node->u.rs_graphic.graphic_id2 = -1;
     node->u.rs_graphic.scene_id = -1;
+
+    UITreeXBuilder_EnqueueParent(builder, node->idx, parent_user_id);
 
     return node->idx;
 }
@@ -490,12 +588,12 @@ UITreeXBuilder_PushRectWithParentUserId(
     if( !node )
         return -1;
 
-    (void)parent_user_id;
-
     node->kind = UITreeXNodeKind_RSRect;
     node->user_id = user_id;
     node->u.rs_rect.color = 0;
     node->u.rs_rect.filled = 1;
+
+    UITreeXBuilder_EnqueueParent(builder, node->idx, parent_user_id);
 
     return node->idx;
 }
@@ -512,8 +610,6 @@ UITreeXBuilder_PushTextWithParentUserId(
     if( !node )
         return -1;
 
-    (void)parent_user_id;
-
     node->kind = UITreeXNodeKind_RSText;
     node->user_id = user_id;
     node->u.rs_text.font_id = 0;
@@ -523,6 +619,8 @@ UITreeXBuilder_PushTextWithParentUserId(
     node->u.rs_text.line_height = 0;
     node->u.rs_text.shadowed = 0;
     node->u.rs_text.text[0] = '\0';
+
+    UITreeXBuilder_EnqueueParent(builder, node->idx, parent_user_id);
 
     return node->idx;
 }
@@ -539,14 +637,14 @@ UITreeXBuilder_PushModelWithParentUserId(
     if( !node )
         return -1;
 
-    (void)parent_user_id;
-
     node->kind = UITreeXNodeKind_RSModel;
     node->user_id = user_id;
     node->u.rs_model.model_id = -1;
     node->u.rs_model.model_kind = INTERFACEX_MODEL_KIND_NONE;
     node->u.rs_model.zoom = 2000;
     node->u.rs_model.scene_id = -1;
+
+    UITreeXBuilder_EnqueueParent(builder, node->idx, parent_user_id);
 
     return node->idx;
 }
@@ -563,13 +661,13 @@ UITreeXBuilder_PushLineWithParentUserId(
     if( !node )
         return -1;
 
-    (void)parent_user_id;
-
     node->kind = UITreeXNodeKind_RSLine;
     node->user_id = user_id;
     node->u.rs_line.color = 0;
     node->u.rs_line.line_width = 1;
     node->u.rs_line.line_direction = 1;
+
+    UITreeXBuilder_EnqueueParent(builder, node->idx, parent_user_id);
 
     return node->idx;
 }
@@ -7491,8 +7589,6 @@ struct InterfaceX_VMHost
     struct InterfaceX_GraphicSceneCacheEntry* graphic_scene_cache;
     struct InterfaceX_ModelSceneCacheEntry* model_scene_cache;
     int next_scene_id;
-    /** Global compass needle sprite (graphics defaults); used for contentType 1339. */
-    int compass_sprite_id;
 };
 
 struct ToriAuxLibCore_ClientScript*
@@ -9135,38 +9231,6 @@ interface_x_scene_sprite_at(
 }
 
 static void
-InterfaceX_InferCompassSpriteFromTree(struct InterfaceX_VMHost* host)
-{
-    if( !host || host->compass_sprite_id >= 0 || !host->tree )
-        return;
-
-    int best_id = -1;
-    int best_area = 0;
-    for( int i = 0; i < host->tree->node_count; i++ )
-    {
-        struct UITreeXNode const* node = &host->tree->nodes[i];
-        if( node->kind != UITreeXNodeKind_RSGraphic || node->hidden )
-            continue;
-        if( node->client_code == INTERFACEX_CONTENT_COMPASS )
-            continue;
-        if( node->u.rs_graphic.graphic_id < 0 )
-            continue;
-        if( node->abs_y > 250 || node->abs_x < 400 )
-            continue;
-
-        int area = (node->abs_w > 0 ? node->abs_w : 1) * (node->abs_h > 0 ? node->abs_h : 1);
-        if( area > best_area )
-        {
-            best_area = area;
-            best_id = node->u.rs_graphic.graphic_id;
-        }
-    }
-
-    if( best_id >= 0 )
-        host->compass_sprite_id = best_id;
-}
-
-static void
 InterfaceX_BlitCompassGraphic(
     struct InterfaceX_VMHost* host,
     int* pixels,
@@ -9180,9 +9244,7 @@ InterfaceX_BlitCompassGraphic(
     if( mask_id < 0 )
         return;
 
-    int content_id = host->compass_sprite_id;
-    if( content_id < 0 )
-        content_id = node->u.rs_graphic.graphic_id2;
+    int content_id = node->u.rs_graphic.graphic_id2;
     if( content_id < 0 )
         return;
 
@@ -9406,8 +9468,11 @@ UITreeX_RenderNode(
         goto render_children;
     int node_alpha = 255 - trans;
 
-    if( node->kind == UITreeXNodeKind_RSGraphic && node->u.rs_graphic.graphic_id >= 0 && host )
+    if( node->kind == UITreeXNodeKind_RSGraphic && host )
     {
+        if( node->u.rs_graphic.graphic_id < 0 && node->u.rs_graphic.scene_id < 0 )
+            goto render_children;
+
         if( node->client_code == INTERFACEX_CONTENT_COMPASS )
         {
             InterfaceX_BlitCompassGraphic(host, pixels, node, node_alpha);
@@ -9417,25 +9482,13 @@ UITreeX_RenderNode(
         if( node->client_code == INTERFACEX_CONTENT_MINIMAP )
             goto render_children;
 
-        if( host->compass_sprite_id >= 0 &&
-            node->u.rs_graphic.graphic_id == host->compass_sprite_id )
-        {
-            bool has_compass_widget = false;
-            for( int i = 0; i < tree->node_count; i++ )
-            {
-                if( tree->nodes[i].client_code == INTERFACEX_CONTENT_COMPASS )
-                {
-                    has_compass_widget = true;
-                    break;
-                }
-            }
-            if( has_compass_widget )
-                goto render_children;
-        }
-
         int scene_id = node->u.rs_graphic.scene_id;
         if( scene_id < 0 )
+        {
+            if( node->u.rs_graphic.graphic_id < 0 )
+                goto render_children;
             scene_id = InterfaceX_ResolveGraphicScene(host, node->u.rs_graphic.graphic_id);
+        }
 
         if( scene_id >= 0 )
         {
@@ -9722,9 +9775,6 @@ UITreeX_Render(
 
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
 
-    if( host )
-        InterfaceX_InferCompassSpriteFromTree(host);
-
     g_render_clip_x0 = 0;
     g_render_clip_y0 = 0;
     g_render_clip_x1 = CANVAS_W;
@@ -9759,69 +9809,6 @@ component_decode_from_bytes(
     else
         RSCacheDat2A_ComponentDecodeIf1(comp, &buf);
     return comp;
-}
-
-static void
-UITreeXBuilder_AppendChild(
-    struct UITreeX* tree,
-    int parent_idx,
-    int child_idx)
-{
-    assert(tree);
-    assert(parent_idx >= 0 && parent_idx < tree->node_count);
-    assert(child_idx >= 0 && child_idx < tree->node_count);
-
-    struct UITreeXNode* parent = &tree->nodes[parent_idx];
-    struct UITreeXNode* child = &tree->nodes[child_idx];
-
-    child->link.parent_tree_idx = parent_idx;
-
-    int last = parent->link.last_child_tree_idx;
-    if( last != -1 )
-        tree->nodes[last].link.next_sibling_tree_idx = child_idx;
-    else
-        parent->link.first_child_tree_idx = child_idx;
-    parent->link.last_child_tree_idx = child_idx;
-}
-
-/* Pass 2: link static nodes after all components exist so forward parent refs resolve. */
-static void
-UITreeXBuilder_LinkStaticComponents(
-    struct UITreeX* tree,
-    struct ToriAuxLibCore_Component** components,
-    int component_count)
-{
-    assert(tree);
-    if( !components || component_count <= 0 )
-        return;
-
-    for( int i = 0; i < component_count; i++ )
-    {
-        struct ToriAuxLibCore_Component* comp = components[i];
-        if( !comp )
-            continue;
-
-        int child_idx = UITreeX_FindByUserId(tree, comp->id);
-        if( child_idx < 0 )
-            continue;
-
-        int parent_id = comp->parent_id;
-        if( parent_id < 0 )
-            continue;
-
-        int parent_idx = UITreeX_FindByUserId(tree, parent_id);
-        if( parent_idx < 0 )
-        {
-            fprintf(
-                stderr,
-                "static link NOT-FOUND: child=0x%08x parent=0x%08x (root fallback)\n",
-                (unsigned)comp->id,
-                (unsigned)parent_id);
-            continue;
-        }
-
-        UITreeXBuilder_AppendChild(tree, parent_idx, child_idx);
-    }
 }
 
 static int
@@ -11476,6 +11463,8 @@ InterfaceX_VMHost_Exec_IF_SetOutline(
     if( node->kind != UITreeXNodeKind_RSGraphic )
     {
         node->kind = UITreeXNodeKind_RSGraphic;
+        node->u.rs_graphic.graphic_id = -1;
+        node->u.rs_graphic.graphic_id2 = -1;
         node->u.rs_graphic.scene_id = -1;
     }
 
@@ -12016,6 +12005,7 @@ InterfaceX_VMHost_Exec_CC_Create(
     case 5:
         node->kind = UITreeXNodeKind_RSGraphic;
         node->u.rs_graphic.graphic_id = -1;
+        node->u.rs_graphic.graphic_id2 = -1;
         node->u.rs_graphic.scene_id = -1;
         break;
     case 3:
@@ -12303,6 +12293,8 @@ InterfaceX_VMHost_Exec_CC_SetOutline(
     if( node->kind != UITreeXNodeKind_RSGraphic )
     {
         node->kind = UITreeXNodeKind_RSGraphic;
+        node->u.rs_graphic.graphic_id = -1;
+        node->u.rs_graphic.graphic_id2 = -1;
         node->u.rs_graphic.scene_id = -1;
     }
 
@@ -12327,6 +12319,8 @@ InterfaceX_VMHost_Exec_CC_SetGraphicShadow(
     if( node->kind != UITreeXNodeKind_RSGraphic )
     {
         node->kind = UITreeXNodeKind_RSGraphic;
+        node->u.rs_graphic.graphic_id = -1;
+        node->u.rs_graphic.graphic_id2 = -1;
         node->u.rs_graphic.scene_id = -1;
     }
 
@@ -13989,7 +13983,7 @@ main(
         process_component(builder, component_core);
     }
 
-    UITreeXBuilder_LinkStaticComponents(tree, components, file_list->file_count);
+    UITreeXBuilder_ResolvePendingParents(builder);
 
     reference_table = cache->tables[RSCacheDat2Disk_Table_Clientscript];
     for( int i = 0; i < file_list->file_count; i++ )
