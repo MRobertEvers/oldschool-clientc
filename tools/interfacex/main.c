@@ -205,6 +205,12 @@ UITreeX_NodeInit(
     node->link.last_child_tree_idx = -1;
 }
 
+static int
+UITreeX_NodeIsLiveRoot(struct UITreeXNode const* node)
+{
+    return node->link.parent_tree_idx == -1 && node->user_id != -1;
+}
+
 struct UITreeX*
 UITreeX_New(void)
 {
@@ -577,7 +583,7 @@ UITreeX_PrintNodes(struct UITreeX const* tree)
 
     for( int i = 0; i < tree->node_count; i++ )
     {
-        if( tree->nodes[i].link.parent_tree_idx == -1 )
+        if( UITreeX_NodeIsLiveRoot(&tree->nodes[i]) )
             UITreeX_PrintNode(tree, i, 0);
     }
 }
@@ -5295,7 +5301,7 @@ UITreeX_LayoutResolve(
 
     for( int i = 0; i < tree->node_count; i++ )
     {
-        if( tree->nodes[i].link.parent_tree_idx == -1 )
+        if( UITreeX_NodeIsLiveRoot(&tree->nodes[i]) )
             UITreeX_LayoutNode(tree, i, 0, 0, root_w, root_h, 1);
     }
 }
@@ -6048,7 +6054,7 @@ UITreeX_Render(
 
     for( int i = 0; i < tree->node_count; i++ )
     {
-        if( tree->nodes[i].link.parent_tree_idx == -1 )
+        if( UITreeX_NodeIsLiveRoot(&tree->nodes[i]) )
             UITreeX_RenderNode(host, cache, tree, i, pixels);
     }
 }
@@ -7643,7 +7649,12 @@ InterfaceX_VMHost_Exec_CC_Create(
 
     int existing = UITreeX_FindDynamicChild(host->tree, parent_idx, child_index);
     if( existing >= 0 )
+    {
         UITreeX_UnlinkChild(host->tree, parent_idx, existing);
+        host->tree->nodes[existing].user_id = -1;
+        CS2VMX_InvalidateComponentIfGone(vm, host->tree, &vm->active_component_id);
+        CS2VMX_InvalidateComponentIfGone(vm, host->tree, &vm->dot_component_id);
+    }
 
     struct UITreeXNode* node = UITreeX_NodeEmplace(host->tree);
     node->user_id = InterfaceX_VMHost_AllocateDynamicUid(host);
