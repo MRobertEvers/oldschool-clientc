@@ -549,8 +549,8 @@ RSCacheDat2A_ComponentDecodeIf3(
         self->modelXOffset = g2b(buf);
         self->modelYOffset = g2b(buf);
         self->modelXAngle = g2(buf);
-        self->modelZAngle = g2(buf);
         self->modelYAngle = g2(buf);
+        self->modelZAngle = g2(buf);
         self->modelZoom = g2(buf);
         self->modelSeqId = g2(buf);
         if( self->modelSeqId == 65535 )

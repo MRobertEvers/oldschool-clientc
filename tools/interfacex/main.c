@@ -91,8 +91,17 @@ struct UITreeXNode_RSGraphic
 struct UITreeXNode_RSRect
 {
     int color;
+    int color2;
     int filled;
 };
+
+/* OSRS interface component types (cache / CC_CREATE). Immutable after load. */
+#define INTERFACEX_WIDGET_TYPE_LAYER 0
+#define INTERFACEX_WIDGET_TYPE_RECT 3
+#define INTERFACEX_WIDGET_TYPE_TEXT 4
+#define INTERFACEX_WIDGET_TYPE_GRAPHIC 5
+#define INTERFACEX_WIDGET_TYPE_MODEL 6
+#define INTERFACEX_WIDGET_TYPE_LINE 9
 
 struct UITreeXNode_RSText
 {
@@ -201,6 +210,7 @@ struct UITreeXNode
     int idx;
     struct UITreeNodeXLink link;
     enum UITreeXNodeKind kind;
+    int widget_type;
     int x;
     int y;
     int w;
@@ -245,6 +255,8 @@ struct UITreeXNode
     int is_scroll_bar;
     uint8_t drag_dead_zone;
     uint8_t drag_dead_time;
+    /* CS2 model fields for non-type-6 widgets (SETMODEL must not clobber rs_rect). */
+    struct UITreeXNode_RSModel model_overlay;
     union
     {
         struct UITreeXNode_RSLayer rs_layer;
@@ -282,6 +294,28 @@ UITreeX_NodeInit(
     node->u.rs_graphic.graphic_id = -1;
     node->u.rs_graphic.graphic_id2 = -1;
     node->u.rs_graphic.scene_id = -1;
+    node->model_overlay.model_id = -1;
+    node->model_overlay.model_kind = INTERFACEX_MODEL_KIND_NONE;
+    node->model_overlay.zoom = 2000;
+    node->model_overlay.scene_id = -1;
+}
+
+static struct UITreeXNode_RSModel*
+UITreeX_NodeModelMut(struct UITreeXNode* node)
+{
+    assert(node);
+    if( node->widget_type == INTERFACEX_WIDGET_TYPE_MODEL )
+        return &node->u.rs_model;
+    return &node->model_overlay;
+}
+
+static struct UITreeXNode_RSModel const*
+UITreeX_NodeModel(struct UITreeXNode const* node)
+{
+    assert(node);
+    if( node->widget_type == INTERFACEX_WIDGET_TYPE_MODEL )
+        return &node->u.rs_model;
+    return &node->model_overlay;
 }
 
 static int
@@ -542,6 +576,7 @@ UITreeXBuilder_PushLayerWithParentUserId(
     (void)parent_user_id;
 
     node->kind = UITreeXNodeKind_RSLayer;
+    node->widget_type = INTERFACEX_WIDGET_TYPE_LAYER;
     node->user_id = user_id;
 
     UITreeXBuilder_EnqueueParent(builder, node->idx, parent_user_id);
@@ -565,6 +600,7 @@ UITreeXBuilder_PushGraphicWithParentUserId(
         return -1;
 
     node->kind = UITreeXNodeKind_RSGraphic;
+    node->widget_type = INTERFACEX_WIDGET_TYPE_GRAPHIC;
     node->user_id = user_id;
 
     node->u.rs_graphic.graphic_id = graphic_id;
@@ -589,8 +625,10 @@ UITreeXBuilder_PushRectWithParentUserId(
         return -1;
 
     node->kind = UITreeXNodeKind_RSRect;
+    node->widget_type = INTERFACEX_WIDGET_TYPE_RECT;
     node->user_id = user_id;
     node->u.rs_rect.color = 0;
+    node->u.rs_rect.color2 = 0;
     node->u.rs_rect.filled = 1;
 
     UITreeXBuilder_EnqueueParent(builder, node->idx, parent_user_id);
@@ -611,6 +649,7 @@ UITreeXBuilder_PushTextWithParentUserId(
         return -1;
 
     node->kind = UITreeXNodeKind_RSText;
+    node->widget_type = INTERFACEX_WIDGET_TYPE_TEXT;
     node->user_id = user_id;
     node->u.rs_text.font_id = 0;
     node->u.rs_text.color = 0;
@@ -638,6 +677,7 @@ UITreeXBuilder_PushModelWithParentUserId(
         return -1;
 
     node->kind = UITreeXNodeKind_RSModel;
+    node->widget_type = INTERFACEX_WIDGET_TYPE_MODEL;
     node->user_id = user_id;
     node->u.rs_model.model_id = -1;
     node->u.rs_model.model_kind = INTERFACEX_MODEL_KIND_NONE;
@@ -662,6 +702,7 @@ UITreeXBuilder_PushLineWithParentUserId(
         return -1;
 
     node->kind = UITreeXNodeKind_RSLine;
+    node->widget_type = INTERFACEX_WIDGET_TYPE_LINE;
     node->user_id = user_id;
     node->u.rs_line.color = 0;
     node->u.rs_line.line_width = 1;
@@ -739,9 +780,12 @@ UITreeX_PrintNode(
 
     UITreeX_UserIdFormat(user_id_buf, sizeof(user_id_buf), node->user_id);
     printf(
-        "[%d] kind=%s user_id=%s %s",
+        "[%d] kind=%s widget_type=%d trans=%d fill_mode=%d user_id=%s %s",
         node_idx,
         UITreeX_NodeKindStr(node->kind),
+        node->widget_type,
+        node->trans,
+        node->fill_mode,
         user_id_buf,
         node->dynamic ? "dynamic" : "static");
 
@@ -771,10 +815,13 @@ UITreeX_PrintNode(
     else if( node->kind == UITreeXNodeKind_RSModel )
     {
         printf(
-            " model=%d kind=%d zoom=%d abs=%d,%d %dx%d hidden=%d",
+            " model=%d kind=%d zoom=%d xan=%d yan=%d zan=%d abs=%d,%d %dx%d hidden=%d",
             node->u.rs_model.model_id,
             (int)node->u.rs_model.model_kind,
             node->u.rs_model.zoom,
+            node->u.rs_model.angle_x,
+            node->u.rs_model.angle_y,
+            node->u.rs_model.angle_z,
             node->abs_x,
             node->abs_y,
             node->abs_w,
@@ -797,8 +844,9 @@ UITreeX_PrintNode(
     else if( node->kind == UITreeXNodeKind_RSRect )
     {
         printf(
-            " color=0x%x filled=%d abs=%d,%d %dx%d hidden=%d",
+            " color=0x%x color2=0x%x filled=%d abs=%d,%d %dx%d hidden=%d",
             node->u.rs_rect.color,
+            node->u.rs_rect.color2,
             node->u.rs_rect.filled,
             node->abs_x,
             node->abs_y,
@@ -946,6 +994,9 @@ CS2VMX_SetTraceExtra(
 struct CS2VMX;
 struct CS2VM_HostRequest;
 struct InterfaceX_VMHost;
+
+static int
+InterfaceX_VMHost_ClientClock(struct CS2VMX* vm);
 
 static int
 UITreeX_FindByUserId(
@@ -2208,6 +2259,119 @@ CS2VMX_Op_ToString(
         return CS2VM_EXECNO_ERROR;
 
     return CS2VMX_PushStr(vm, str);
+}
+
+int
+CS2VMX_Op_Append(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    char *src, *dest;
+    if( CS2VMX_PopStr(vm, &src) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopStr(vm, &dest) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    char buf[512];
+    snprintf(buf, sizeof(buf), "%s%s", dest ? dest : "", src ? src : "");
+
+    char* result = strdup(buf);
+    if( !result )
+        return CS2VM_EXECNO_ERROR;
+
+    return CS2VMX_PushStr(vm, result);
+}
+
+int
+CS2VMX_Op_AppendNum(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int num;
+    char* str;
+    if( CS2VMX_PopInt(vm, &num) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopStr(vm, &str) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    char buf[512];
+    snprintf(buf, sizeof(buf), "%s%d", str ? str : "", num);
+
+    char* result = strdup(buf);
+    if( !result )
+        return CS2VM_EXECNO_ERROR;
+
+    return CS2VMX_PushStr(vm, result);
+}
+
+int
+CS2VMX_Op_AppendSignNum(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int num;
+    char* str;
+    if( CS2VMX_PopInt(vm, &num) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopStr(vm, &str) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    char buf[512];
+    snprintf(buf, sizeof(buf), "%s%s%d", str ? str : "", num >= 0 ? "+" : "", num);
+
+    char* result = strdup(buf);
+    if( !result )
+        return CS2VM_EXECNO_ERROR;
+
+    return CS2VMX_PushStr(vm, result);
+}
+
+int
+CS2VMX_Op_AppendChar(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int chr;
+    char* str;
+    if( CS2VMX_PopInt(vm, &chr) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopStr(vm, &str) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    char buf[512];
+    size_t len = str ? strlen(str) : 0;
+    if( len >= sizeof(buf) - 2 )
+        len = sizeof(buf) - 2;
+    if( str && len > 0 )
+        memcpy(buf, str, len);
+    buf[len] = (char)chr;
+    buf[len + 1] = '\0';
+
+    char* result = strdup(buf);
+    if( !result )
+        return CS2VM_EXECNO_ERROR;
+
+    return CS2VMX_PushStr(vm, result);
 }
 
 int
@@ -6731,6 +6895,14 @@ CS2VMX_RunOp(
         return CS2VMX_Op_ParaWidth(vm, frame, operand);
     case CS2_OP_TOSTRING:
         return CS2VMX_Op_ToString(vm, frame, operand);
+    case CS2_OP_APPEND:
+        return CS2VMX_Op_Append(vm, frame, operand);
+    case CS2_OP_APPEND_NUM:
+        return CS2VMX_Op_AppendNum(vm, frame, operand);
+    case CS2_OP_APPEND_SIGNNUM:
+        return CS2VMX_Op_AppendSignNum(vm, frame, operand);
+    case CS2_OP_APPEND_CHAR:
+        return CS2VMX_Op_AppendChar(vm, frame, operand);
     case CS2_OP_GOSUB_WITH_PARAMS:
         return CS2VMX_Op_GosubWithParams(vm, frame, operand);
     case CS2_OP_POP_INT_DISCARD:
@@ -7196,6 +7368,8 @@ CS2VMX_RunOp(
         return CS2VMX_Op_OC_IntParam(vm, frame, operand, CS2VMX_OC_GetterId);
     case CS2_OP_STRUCT_PARAM:
         return CS2VMX_Op_StructParam(vm, frame, operand);
+    case CS2_OP_CLIENTCLOCK:
+        return InterfaceX_VMHost_ClientClock(vm);
     default:
         return CS2VMX_Op_StackMetaStub(vm, frame, opcode, operand);
     }
@@ -7503,6 +7677,8 @@ struct InterfaceX_ModelSceneCacheEntry
     int offset_x;
     int offset_y;
     int scene_id;
+    int extent_offset_x;
+    int extent_offset_y;
     struct InterfaceX_ModelSceneCacheEntry* next;
 };
 
@@ -7589,7 +7765,13 @@ struct InterfaceX_VMHost
     struct InterfaceX_GraphicSceneCacheEntry* graphic_scene_cache;
     struct InterfaceX_ModelSceneCacheEntry* model_scene_cache;
     int next_scene_id;
+    int client_clock;
 };
+
+static struct InterfaceX_ModelSceneCacheEntry*
+InterfaceX_ModelSceneCacheFindBySceneId(
+    struct InterfaceX_VMHost* host,
+    int scene_id);
 
 struct ToriAuxLibCore_ClientScript*
 InterfaceX_VMHost_ResolveScript(
@@ -8588,6 +8770,30 @@ UITreeX_DeleteDynamicChildren(
     }
 }
 
+static int
+InterfaceX_ComponentTypeToWidgetType(int component_type)
+{
+    switch( component_type )
+    {
+    case TORIAUXLIBCORE_COMPONENT_LAYER:
+    case TORIAUXLIBCORE_COMPONENT_INV:
+        return INTERFACEX_WIDGET_TYPE_LAYER;
+    case TORIAUXLIBCORE_COMPONENT_RECT:
+        return INTERFACEX_WIDGET_TYPE_RECT;
+    case TORIAUXLIBCORE_COMPONENT_TEXT:
+    case TORIAUXLIBCORE_COMPONENT_INV_TEXT:
+        return INTERFACEX_WIDGET_TYPE_TEXT;
+    case TORIAUXLIBCORE_COMPONENT_GRAPHIC:
+        return INTERFACEX_WIDGET_TYPE_GRAPHIC;
+    case TORIAUXLIBCORE_COMPONENT_MODEL:
+        return INTERFACEX_WIDGET_TYPE_MODEL;
+    case TORIAUXLIBCORE_COMPONENT_LINE:
+        return INTERFACEX_WIDGET_TYPE_LINE;
+    default:
+        return INTERFACEX_WIDGET_TYPE_LAYER;
+    }
+}
+
 static void
 UITreeX_ApplyComponentGeometry(
     struct UITreeXNode* node,
@@ -8600,6 +8806,7 @@ UITreeX_ApplyComponentGeometry(
     node->hidden = component->hide ? 1 : 0;
     node->tiling = component->tiled ? 1 : 0;
     node->trans = component->transparency;
+    node->widget_type = InterfaceX_ComponentTypeToWidgetType(component->type);
     node->client_code = component->client_code;
     node->hflip = component->horizontal_flip ? 1 : 0;
     node->vflip = component->vertical_flip ? 1 : 0;
@@ -8621,6 +8828,8 @@ UITreeX_ApplyComponentGeometry(
     else if( node->kind == UITreeXNodeKind_RSRect )
     {
         node->u.rs_rect.color = component->color;
+        node->u.rs_rect.color2 =
+            component->active_color != 0 ? component->active_color : component->color;
         node->u.rs_rect.filled = component->filled ? 1 : 0;
     }
     else if( node->kind == UITreeXNodeKind_RSText )
@@ -8641,6 +8850,9 @@ UITreeX_ApplyComponentGeometry(
         node->u.rs_model.zoom = component->model_zoom > 0 ? component->model_zoom : 2000;
         node->u.rs_model.angle_x = component->model_xan;
         node->u.rs_model.angle_y = component->model_yan;
+        node->u.rs_model.angle_z = component->model_zan;
+        node->u.rs_model.offset_x = component->model_x_offset;
+        node->u.rs_model.offset_y = component->model_y_offset;
         node->u.rs_model.scene_id = -1;
     }
     else if( node->kind == UITreeXNodeKind_RSLine )
@@ -8713,6 +8925,74 @@ InterfaceX_FillRect(
             else
                 blit_rgba_pixel(pixels, stride, x, y, argb);
         }
+    }
+}
+
+static int
+InterfaceX_LerpChannel(
+    int a,
+    int b,
+    int t,
+    int denom)
+{
+    if( denom <= 0 )
+        return a;
+    return a + (b - a) * t / denom;
+}
+
+static void
+InterfaceX_FillRectGradientVertical(
+    int* pixels,
+    int stride,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int color_top,
+    int color_bot,
+    int alpha)
+{
+    int h = y1 - y0;
+    if( h <= 0 )
+        return;
+
+    for( int y = y0; y < y1; y++ )
+    {
+        int t = y - y0;
+        int r = InterfaceX_LerpChannel((color_top >> 16) & 0xFF, (color_bot >> 16) & 0xFF, t, h);
+        int g = InterfaceX_LerpChannel((color_top >> 8) & 0xFF, (color_bot >> 8) & 0xFF, t, h);
+        int b = InterfaceX_LerpChannel(color_top & 0xFF, color_bot & 0xFF, t, h);
+        int argb = (alpha << 24) | (r << 16) | (g << 8) | b;
+        InterfaceX_FillRect(pixels, stride, x0, y, x1, y + 1, argb);
+    }
+}
+
+static void
+InterfaceX_FillRectGradientAlpha(
+    int* pixels,
+    int stride,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int color_top,
+    int color_bot,
+    int alpha_top,
+    int alpha_bot)
+{
+    int h = y1 - y0;
+    if( h <= 0 )
+        return;
+
+    for( int y = y0; y < y1; y++ )
+    {
+        int t = y - y0;
+        int r = InterfaceX_LerpChannel((color_top >> 16) & 0xFF, (color_bot >> 16) & 0xFF, t, h);
+        int g = InterfaceX_LerpChannel((color_top >> 8) & 0xFF, (color_bot >> 8) & 0xFF, t, h);
+        int b = InterfaceX_LerpChannel(color_top & 0xFF, color_bot & 0xFF, t, h);
+        int a = InterfaceX_LerpChannel(alpha_top, alpha_bot, t, h);
+        int argb = (a << 24) | (r << 16) | (g << 8) | b;
+        InterfaceX_FillRect(pixels, stride, x0, y, x1, y + 1, argb);
     }
 }
 
@@ -9468,7 +9748,7 @@ UITreeX_RenderNode(
         goto render_children;
     int node_alpha = 255 - trans;
 
-    if( node->kind == UITreeXNodeKind_RSGraphic && host )
+    if( node->widget_type == INTERFACEX_WIDGET_TYPE_GRAPHIC && host )
     {
         if( node->u.rs_graphic.graphic_id < 0 && node->u.rs_graphic.scene_id < 0 )
             goto render_children;
@@ -9515,8 +9795,12 @@ UITreeX_RenderNode(
             }
         }
     }
-    else if( node->kind == UITreeXNodeKind_RSModel && host )
+    else if( node->widget_type == INTERFACEX_WIDGET_TYPE_MODEL && host )
     {
+        struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
+        if( model->model_kind != INTERFACEX_MODEL_KIND_PLAIN || model->model_id < 0 )
+            goto render_children;
+
         int scene_id = InterfaceX_ResolveModelScene(host, node);
         if( scene_id >= 0 )
         {
@@ -9530,19 +9814,17 @@ UITreeX_RenderNode(
                 int sh = spr->height > 0 ? spr->height : 1;
                 int bw = node->abs_w > 0 ? node->abs_w : sw;
                 int bh = node->abs_h > 0 ? node->abs_h : sh;
+                struct InterfaceX_ModelSceneCacheEntry* cache_entry =
+                    InterfaceX_ModelSceneCacheFindBySceneId(host, scene_id);
+                int extent_offset_x = cache_entry ? cache_entry->extent_offset_x : (sw / 2);
+                int extent_offset_y = cache_entry ? cache_entry->extent_offset_y : (sh / 2);
+                int draw_x = node->abs_x + (bw / 2) - extent_offset_x;
+                int draw_y = node->abs_y + (bh / 2) - extent_offset_y;
 
                 if( node_alpha >= 255 )
                 {
-                    blit_rgba_sprite_scaled(
-                        pixels,
-                        CANVAS_W,
-                        node->abs_x,
-                        node->abs_y,
-                        bw,
-                        bh,
-                        (int const*)spr->pixels_argb,
-                        sw,
-                        sh);
+                    blit_rgba_sprite(
+                        pixels, CANVAS_W, draw_x, draw_y, (int const*)spr->pixels_argb, sw, sh);
                 }
                 else
                 {
@@ -9552,23 +9834,14 @@ UITreeX_RenderNode(
                     {
                         memcpy(tmp, spr->pixels_argb, pixel_count * sizeof(uint32_t));
                         interface_x_scale_pixel_alpha(tmp, pixel_count, node_alpha);
-                        blit_rgba_sprite_scaled(
-                            pixels,
-                            CANVAS_W,
-                            node->abs_x,
-                            node->abs_y,
-                            bw,
-                            bh,
-                            (int const*)tmp,
-                            sw,
-                            sh);
+                        blit_rgba_sprite(pixels, CANVAS_W, draw_x, draw_y, (int const*)tmp, sw, sh);
                         free(tmp);
                     }
                 }
             }
         }
     }
-    else if( node->kind == UITreeXNodeKind_RSLine )
+    else if( node->widget_type == INTERFACEX_WIDGET_TYPE_LINE )
     {
         int px = node->abs_x;
         int py = node->abs_y;
@@ -9651,19 +9924,49 @@ UITreeX_RenderNode(
             }
         }
     }
-    else if( node->kind == UITreeXNodeKind_RSRect )
+    else if( node->widget_type == INTERFACEX_WIDGET_TYPE_RECT )
     {
         int px = node->abs_x;
         int py = node->abs_y;
         int pw = node->abs_w > 0 ? node->abs_w : 1;
         int ph = node->abs_h > 0 ? node->abs_h : 1;
-        int argb = (node_alpha << 24) | (node->u.rs_rect.color & 0xFFFFFF);
+        int color = node->u.rs_rect.color & 0xFFFFFF;
+        int color2 = node->u.rs_rect.color2 ? (node->u.rs_rect.color2 & 0xFFFFFF) : color;
+        int argb = (node_alpha << 24) | color;
         if( node->u.rs_rect.filled )
-            InterfaceX_FillRect(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
+        {
+            switch( node->fill_mode )
+            {
+            case 1:
+                InterfaceX_FillRectGradientVertical(
+                    pixels, CANVAS_W, px, py, px + pw, py + ph, color, color2, node_alpha);
+                break;
+            case 2:
+            {
+                int trans_bot = node->trans_bot >= 0 ? node->trans_bot : node->trans;
+                int alpha_bot = 255 - trans_bot;
+                InterfaceX_FillRectGradientAlpha(
+                    pixels,
+                    CANVAS_W,
+                    px,
+                    py,
+                    px + pw,
+                    py + ph,
+                    color,
+                    color2,
+                    node_alpha,
+                    alpha_bot);
+                break;
+            }
+            default:
+                InterfaceX_FillRect(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
+                break;
+            }
+        }
         else
             InterfaceX_DrawRectOutline(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
     }
-    else if( node->kind == UITreeXNodeKind_RSText && node->u.rs_text.text[0] && host )
+    else if( node->widget_type == INTERFACEX_WIDGET_TYPE_TEXT && node->u.rs_text.text[0] && host )
     {
         int font_id = node->u.rs_text.font_id;
         if( font_id < 0 )
@@ -10266,6 +10569,19 @@ InterfaceX_ResolveObjIconScene(
     return scene_id;
 }
 
+static struct InterfaceX_ModelSceneCacheEntry*
+InterfaceX_ModelSceneCacheFindBySceneId(
+    struct InterfaceX_VMHost* host,
+    int scene_id)
+{
+    for( struct InterfaceX_ModelSceneCacheEntry* it = host->model_scene_cache; it; it = it->next )
+    {
+        if( it->scene_id == scene_id )
+            return it;
+    }
+    return NULL;
+}
+
 static int
 InterfaceX_ResolveModelScene(
     struct InterfaceX_VMHost* host,
@@ -10274,20 +10590,22 @@ InterfaceX_ResolveModelScene(
     assert(host);
     assert(node);
 
-    if( node->kind != UITreeXNodeKind_RSModel )
-        return -1;
-    if( node->u.rs_model.model_kind != INTERFACEX_MODEL_KIND_PLAIN )
-        return -1;
-    if( node->u.rs_model.model_id < 0 )
+    if( node->widget_type != INTERFACEX_WIDGET_TYPE_MODEL )
         return -1;
 
-    int model_id = node->u.rs_model.model_id;
-    int zoom = node->u.rs_model.zoom > 0 ? node->u.rs_model.zoom : 2000;
-    int angle_x = node->u.rs_model.angle_x;
-    int angle_y = node->u.rs_model.angle_y;
-    int angle_z = node->u.rs_model.angle_z;
-    int offset_x = node->u.rs_model.offset_x;
-    int offset_y = node->u.rs_model.offset_y;
+    struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
+    if( model->model_kind != INTERFACEX_MODEL_KIND_PLAIN )
+        return -1;
+    if( model->model_id < 0 )
+        return -1;
+
+    int model_id = model->model_id;
+    int zoom = model->zoom > 0 ? model->zoom : 2000;
+    int angle_x = model->angle_x;
+    int angle_y = model->angle_y;
+    int angle_z = model->angle_z;
+    int offset_x = model->offset_x;
+    int offset_y = model->offset_y;
 
     for( struct InterfaceX_ModelSceneCacheEntry* it = host->model_scene_cache; it; it = it->next )
     {
@@ -10314,11 +10632,9 @@ InterfaceX_ResolveModelScene(
     };
     ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
 
-    int width = node->abs_w > 0 ? node->abs_w : 64;
-    int height = node->abs_h > 0 ? node->abs_h : 64;
-
-    struct ToriDraw_Sprite* spr = ToriDraw_SpriteNewFromModelRaster(
-        host->scene, hnd, zoom, angle_x, angle_y, width, height, false);
+    struct ToriDraw_ModelExtentsRaster extents = ToriDraw_SpriteNewFromModelRasterExtents(
+        host->scene, hnd, zoom, angle_x, angle_y, angle_z, offset_x, offset_y, false);
+    struct ToriDraw_Sprite* spr = extents.sprite;
 
     ToriDraw_ModelFree(td_model);
     if( !spr )
@@ -10353,6 +10669,8 @@ InterfaceX_ResolveModelScene(
         entry->offset_x = offset_x;
         entry->offset_y = offset_y;
         entry->scene_id = scene_id;
+        entry->extent_offset_x = extents.offset_x;
+        entry->extent_offset_y = extents.offset_y;
         entry->next = host->model_scene_cache;
         host->model_scene_cache = entry;
     }
@@ -10517,6 +10835,8 @@ InterfaceX_VMHost_DrainScriptQueue(
     assert(host);
     assert(vm);
 
+    host->client_clock++;
+
     while( host->script_queue_count > 0 )
     {
         struct InterfaceX_ScriptQueueEntry entry = host->script_queue[host->script_queue_head];
@@ -10634,7 +10954,17 @@ InterfaceX_VMHost_Init(struct InterfaceX_VMHost* host)
     if( !host->script_queue )
         return false;
 
+    host->client_clock = 100;
     return true;
+}
+
+static int
+InterfaceX_VMHost_ClientClock(struct CS2VMX* vm)
+{
+    assert(vm);
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)CS2VM_USER(vm);
+    int clock = host ? host->client_clock : 0;
+    return CS2VMX_PushInt(vm, clock);
 }
 
 struct ToriAuxLibCore_ClientScript*
@@ -11198,23 +11528,22 @@ InterfaceX_VMHost_Exec_IF_SetScrollSize(
 static void
 InterfaceX_ModelNodeInvalidateScene(struct UITreeXNode* node)
 {
-    if( node && node->kind == UITreeXNodeKind_RSModel )
+    if( node && node->widget_type == INTERFACEX_WIDGET_TYPE_MODEL )
         node->u.rs_model.scene_id = -1;
 }
 
 static void
-InterfaceX_EnsureModelNode(struct UITreeXNode* node)
+InterfaceX_ApplySetModel(
+    struct UITreeXNode* node,
+    int model_id,
+    enum InterfaceX_ModelKind model_kind)
 {
     assert(node);
-    if( node->kind == UITreeXNodeKind_RSModel )
-        return;
 
-    memset(&node->u.rs_model, 0, sizeof(node->u.rs_model));
-    node->kind = UITreeXNodeKind_RSModel;
-    node->u.rs_model.model_id = -1;
-    node->u.rs_model.model_kind = INTERFACEX_MODEL_KIND_PLAIN;
-    node->u.rs_model.zoom = 2000;
-    node->u.rs_model.scene_id = -1;
+    struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(node);
+    model->model_id = model_id;
+    model->model_kind = model_kind;
+    InterfaceX_ModelNodeInvalidateScene(node);
 }
 
 static void
@@ -11237,17 +11566,17 @@ InterfaceX_ApplyWidgetSetInt(
         node->angle_2d = value;
         break;
     case CS2VM_WIDGET_INT_FILL_COLOUR:
-        if( node->kind == UITreeXNodeKind_RSRect )
+        if( node->widget_type == INTERFACEX_WIDGET_TYPE_RECT )
             node->u.rs_rect.color = value;
-        else if( node->kind == UITreeXNodeKind_RSLine )
+        else if( node->widget_type == INTERFACEX_WIDGET_TYPE_LINE )
             node->u.rs_line.color = value;
         break;
     case CS2VM_WIDGET_INT_LINE_WIDTH:
-        if( node->kind == UITreeXNodeKind_RSLine )
+        if( node->widget_type == INTERFACEX_WIDGET_TYPE_LINE )
             node->u.rs_line.line_width = value > 0 ? value : 1;
         break;
     case CS2VM_WIDGET_INT_LINE_DIRECTION:
-        if( node->kind == UITreeXNodeKind_RSLine )
+        if( node->widget_type == INTERFACEX_WIDGET_TYPE_LINE )
             node->u.rs_line.line_direction = value;
         break;
     case CS2VM_WIDGET_INT_FILL_MODE:
@@ -11275,19 +11604,25 @@ InterfaceX_ApplyWidgetSetInt(
         node->drag_dead_time = (uint8_t)value;
         break;
     case CS2VM_WIDGET_INT_MODEL_ANIM:
-        InterfaceX_EnsureModelNode(node);
-        node->u.rs_model.anim_seq = value;
+    {
+        struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(node);
+        model->anim_seq = value;
         break;
+    }
     case CS2VM_WIDGET_INT_MODEL_ORTHOG:
-        InterfaceX_EnsureModelNode(node);
-        node->u.rs_model.orthog = value;
+    {
+        struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(node);
+        model->orthog = value;
         InterfaceX_ModelNodeInvalidateScene(node);
         break;
+    }
     case CS2VM_WIDGET_INT_MODEL_TRANSPARENT:
-        InterfaceX_EnsureModelNode(node);
-        node->u.rs_model.transparent = value;
+    {
+        struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(node);
+        model->transparent = value;
         InterfaceX_ModelNodeInvalidateScene(node);
         break;
+    }
     case CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON:
         break;
     default:
@@ -11343,10 +11678,7 @@ InterfaceX_VMHost_Exec_WidgetSetModel(
     if( !node )
         return CS2VM_EXECNO_OK;
 
-    InterfaceX_EnsureModelNode(node);
-    node->u.rs_model.model_id = request.model_id;
-    node->u.rs_model.model_kind = INTERFACEX_MODEL_KIND_PLAIN;
-    InterfaceX_ModelNodeInvalidateScene(node);
+    InterfaceX_ApplySetModel(node, request.model_id, INTERFACEX_MODEL_KIND_PLAIN);
     return CS2VM_EXECNO_OK;
 }
 
@@ -11363,14 +11695,14 @@ InterfaceX_VMHost_Exec_WidgetSetModelAngle(
     if( !node )
         return CS2VM_EXECNO_OK;
 
-    InterfaceX_EnsureModelNode(node);
-    node->u.rs_model.offset_x = request.offset_x;
-    node->u.rs_model.offset_y = request.offset_y;
-    node->u.rs_model.angle_x = request.angle_x;
-    node->u.rs_model.angle_y = request.angle_y;
-    node->u.rs_model.angle_z = request.angle_z;
+    struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(node);
+    model->offset_x = request.offset_x;
+    model->offset_y = request.offset_y;
+    model->angle_x = request.angle_x;
+    model->angle_y = request.angle_y;
+    model->angle_z = request.angle_z;
     if( request.zoom > 0 )
-        node->u.rs_model.zoom = request.zoom;
+        model->zoom = request.zoom;
     InterfaceX_ModelNodeInvalidateScene(node);
     return CS2VM_EXECNO_OK;
 }
@@ -11406,10 +11738,10 @@ InterfaceX_VMHost_Exec_WidgetSetModelKind(
     if( !node )
         return CS2VM_EXECNO_OK;
 
-    InterfaceX_EnsureModelNode(node);
-    node->u.rs_model.model_kind = request.model_kind;
+    struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(node);
+    model->model_kind = request.model_kind;
     if( request.model_id >= 0 )
-        node->u.rs_model.model_id = request.model_id;
+        model->model_id = request.model_id;
     InterfaceX_ModelNodeInvalidateScene(node);
     return CS2VM_EXECNO_OK;
 }
@@ -12004,17 +12336,21 @@ InterfaceX_VMHost_Exec_CC_Create(
     {
     case 5:
         node->kind = UITreeXNodeKind_RSGraphic;
+        node->widget_type = INTERFACEX_WIDGET_TYPE_GRAPHIC;
         node->u.rs_graphic.graphic_id = -1;
         node->u.rs_graphic.graphic_id2 = -1;
         node->u.rs_graphic.scene_id = -1;
         break;
     case 3:
         node->kind = UITreeXNodeKind_RSRect;
+        node->widget_type = INTERFACEX_WIDGET_TYPE_RECT;
         node->u.rs_rect.color = 0;
+        node->u.rs_rect.color2 = 0;
         node->u.rs_rect.filled = 1;
         break;
     case 4:
         node->kind = UITreeXNodeKind_RSText;
+        node->widget_type = INTERFACEX_WIDGET_TYPE_TEXT;
         node->u.rs_text.font_id = 0;
         node->u.rs_text.color = 0;
         node->u.rs_text.center = 0;
@@ -12025,6 +12361,7 @@ InterfaceX_VMHost_Exec_CC_Create(
         break;
     case 6:
         node->kind = UITreeXNodeKind_RSModel;
+        node->widget_type = INTERFACEX_WIDGET_TYPE_MODEL;
         node->u.rs_model.model_id = -1;
         node->u.rs_model.model_kind = INTERFACEX_MODEL_KIND_NONE;
         node->u.rs_model.zoom = 2000;
@@ -12032,15 +12369,18 @@ InterfaceX_VMHost_Exec_CC_Create(
         break;
     case 9:
         node->kind = UITreeXNodeKind_RSLine;
+        node->widget_type = INTERFACEX_WIDGET_TYPE_LINE;
         node->u.rs_line.color = 0;
         node->u.rs_line.line_width = 1;
         node->u.rs_line.line_direction = 1;
         break;
     case 0:
         node->kind = UITreeXNodeKind_RSLayer;
+        node->widget_type = INTERFACEX_WIDGET_TYPE_LAYER;
         break;
     default:
         node->kind = UITreeXNodeKind_RSObj;
+        node->widget_type = type;
         node->u.rs_obj.obj_id = 0;
         node->u.rs_obj.obj_count = 0;
         node->u.rs_obj.scene_id = -1;
@@ -12339,7 +12679,7 @@ InterfaceX_VMHost_Exec_CC_SetColour(
     (void)vm;
 
     struct UITreeXNode* node = UITreeX_NodeByComponentId(host, request.component_id);
-    if( !node || node->kind != UITreeXNodeKind_RSRect )
+    if( !node || node->widget_type != INTERFACEX_WIDGET_TYPE_RECT )
         return CS2VM_EXECNO_OK;
 
     node->u.rs_rect.color = request.colour;
@@ -12357,7 +12697,7 @@ InterfaceX_VMHost_Exec_CC_SetFill(
     (void)vm;
 
     struct UITreeXNode* node = UITreeX_NodeByComponentId(host, request.component_id);
-    if( !node || node->kind != UITreeXNodeKind_RSRect )
+    if( !node || node->widget_type != INTERFACEX_WIDGET_TYPE_RECT )
         return CS2VM_EXECNO_OK;
 
     node->u.rs_rect.filled = request.filled != 0;

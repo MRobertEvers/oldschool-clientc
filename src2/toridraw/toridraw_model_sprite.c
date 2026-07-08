@@ -5,7 +5,85 @@
 #include "toridraw_sprite.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
+
+#define TORIDRAW_MODEL_EXTENTS_BORDER 3
+#define TORIDRAW_MODEL_EXTENTS_MAX_BBOX 1024
+#define TORIDRAW_MODEL_EXTENTS_MAX_PIXELS 1060900 /* 1030 * 1030 */
+
+static bool
+ToriDraw_ModelComputeRasterExtents(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_Camera* camera,
+    int* out_width,
+    int* out_height,
+    int* out_offset_x,
+    int* out_offset_y)
+{
+    struct ToriDraw_ViewPort probe_vp = { 0 };
+    probe_vp.width = 256;
+    probe_vp.height = 256;
+    probe_vp.stride = 256;
+    probe_vp.x_center = 128;
+    probe_vp.y_center = 128;
+    probe_vp.clip_left = 0;
+    probe_vp.clip_top = 0;
+    probe_vp.clip_right = 256;
+    probe_vp.clip_bottom = 256;
+
+    int cull = ToriDraw_RenderModel1Project(hnd, scene, position, &probe_vp, camera);
+    if( cull != TORIDRAW_CULL_VISIBLE )
+        return false;
+
+    int vc = ToriDraw_ModelGetVertexCount(hnd);
+    int min_x = INT_MAX;
+    int max_x = INT_MIN;
+    int min_y = INT_MAX;
+    int max_y = INT_MIN;
+    bool any = false;
+
+    for( int i = 0; i < vc; i++ )
+    {
+        int sx = scene->screen_vertices_x[i];
+        if( sx <= -5000 )
+            continue;
+
+        int sy = scene->screen_vertices_y[i];
+        if( sx < min_x )
+            min_x = sx;
+        if( sx > max_x )
+            max_x = sx;
+        if( sy < min_y )
+            min_y = sy;
+        if( sy > max_y )
+            max_y = sy;
+        any = true;
+    }
+
+    if( !any )
+        return false;
+
+    int bbox_w = max_x - min_x + 1;
+    int bbox_h = max_y - min_y + 1;
+    if( bbox_w > TORIDRAW_MODEL_EXTENTS_MAX_BBOX )
+        bbox_w = TORIDRAW_MODEL_EXTENTS_MAX_BBOX;
+    if( bbox_h > TORIDRAW_MODEL_EXTENTS_MAX_BBOX )
+        bbox_h = TORIDRAW_MODEL_EXTENTS_MAX_BBOX;
+
+    int sw = bbox_w + TORIDRAW_MODEL_EXTENTS_BORDER * 2;
+    int sh = bbox_h + TORIDRAW_MODEL_EXTENTS_BORDER * 2;
+    if( sw <= 0 || sh <= 0 || (size_t)sw * (size_t)sh > TORIDRAW_MODEL_EXTENTS_MAX_PIXELS )
+        return false;
+
+    *out_width = sw;
+    *out_height = sh;
+    *out_offset_x = TORIDRAW_MODEL_EXTENTS_BORDER - min_x;
+    *out_offset_y = TORIDRAW_MODEL_EXTENTS_BORDER - min_y;
+    return true;
+}
 
 void
 ToriDraw_SpritePostprocessObjIconOutline(
@@ -36,6 +114,91 @@ ToriDraw_SpritePostprocessObjIconOutline(
                 pixels[idx] = 1;
         }
     }
+}
+
+struct ToriDraw_ModelExtentsRaster
+ToriDraw_SpriteNewFromModelRasterExtents(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int offset_x,
+    int offset_y,
+    bool postprocess_outline)
+{
+    struct ToriDraw_ModelExtentsRaster result = { 0 };
+
+    assert(scene);
+    assert(hnd.kind == TORIDRAWMK_MODEL);
+
+    if( zoom <= 0 )
+        zoom = 2000;
+
+    int sin_pitch = (ToriDraw_Sin(xan) * zoom) >> 16;
+    int cos_pitch = (ToriDraw_Cos(xan) * zoom) >> 16;
+
+    struct ToriDraw_Position position = { 0 };
+    position.pitch = 0;
+    position.yaw = yan;
+    position.roll = zan;
+    position.x = offset_x;
+    position.y = sin_pitch + offset_y;
+    position.z = cos_pitch + offset_y;
+
+    struct ToriDraw_Camera camera = { 0 };
+    camera.pitch = xan;
+    camera.yaw = 0;
+    camera.roll = 0;
+    camera.fov_rpi2048 = 512;
+    camera.near_plane_z = 1;
+
+    int width = 0;
+    int height = 0;
+    int blit_offset_x = 0;
+    int blit_offset_y = 0;
+    if( !ToriDraw_ModelComputeRasterExtents(
+            scene, hnd, &position, &camera, &width, &height, &blit_offset_x, &blit_offset_y) )
+        return result;
+
+    struct ToriDraw_ViewPort view_port = { 0 };
+    view_port.width = width;
+    view_port.height = height;
+    view_port.clip_left = 0;
+    view_port.clip_top = 0;
+    view_port.clip_right = width;
+    view_port.clip_bottom = height;
+    view_port.x_center = blit_offset_x;
+    view_port.y_center = blit_offset_y;
+    view_port.stride = width;
+
+    size_t pixel_count = (size_t)width * (size_t)height;
+    toripixel_t* pixels = calloc(pixel_count, sizeof(toripixel_t));
+    if( !pixels )
+        return result;
+
+    ToriDraw_RenderModel(hnd, scene, &position, &view_port, &camera, pixels);
+
+    uint32_t* argb = malloc(pixel_count * sizeof(uint32_t));
+    if( !argb )
+    {
+        free(pixels);
+        return result;
+    }
+
+    for( size_t i = 0; i < pixel_count; i++ )
+        argb[i] = (uint32_t)pixels[i];
+
+    free(pixels);
+
+    if( postprocess_outline )
+        ToriDraw_SpritePostprocessObjIconOutline(argb, width, height);
+
+    result.sprite = ToriDraw_SpriteNewFromArgbOwned(argb, width, height);
+    result.offset_x = blit_offset_x;
+    result.offset_y = blit_offset_y;
+    return result;
 }
 
 struct ToriDraw_Sprite*

@@ -439,6 +439,12 @@ struct ToriAuxLibCore_Component
     int model_xan;
     /** MODEL preview yaw: dat2 modelYAngle / dat1 yan. */
     int model_yan;
+    /** MODEL preview roll: dat2 modelZAngle (IF3 only). */
+    int model_zan;
+    /** MODEL preview X offset: dat2 modelXOffset (IF3 only). */
+    int model_x_offset;
+    /** MODEL preview Y offset: dat2 modelYOffset (IF3 only). */
+    int model_y_offset;
     int color;
     int filled;
     int font_id;

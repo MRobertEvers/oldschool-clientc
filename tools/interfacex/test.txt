@@ -1,113 +1,168 @@
-running onVarTransmit script 902 for component 10551296
-running onVarTransmit script 3458 for component 10551317
-running onVarTransmit script 4730 for component 10551307
-running onVarTransmit script 5303 for component 10551346
-running onVarTransmit script 7418 for component 58458112
-uitreex: 106 nodes
-[0] kind=layer user_id=0x00a10000 (161<<16|0) static
-[34] kind=layer user_id=0x00a10022 (161<<16|34) static
-  [91] kind=layer user_id=0x00a1005b (161<<16|91) static
-  [92] kind=layer user_id=0x00a1005c (161<<16|92) static
-    [1] kind=layer user_id=0x00a10001 (161<<16|1) static
-    [2] kind=layer user_id=0x00a10002 (161<<16|2) static
-    [3] kind=layer user_id=0x00a10003 (161<<16|3) static
-    [4] kind=layer user_id=0x00a10004 (161<<16|4) static
-      [11] kind=layer user_id=0x00a1000b (161<<16|11) static
-        [12] kind=layer user_id=0x00a1000c (161<<16|12) static
-    [5] kind=layer user_id=0x00a10005 (161<<16|5) static
-    [6] kind=layer user_id=0x00a10006 (161<<16|6) static
-    [7] kind=layer user_id=0x00a10007 (161<<16|7) static
-      [8] kind=layer user_id=0x00a10008 (161<<16|8) static
-      [9] kind=layer user_id=0x00a10009 (161<<16|9) static
-      [10] kind=layer user_id=0x00a1000a (161<<16|10) static
-    [13] kind=layer user_id=0x00a1000d (161<<16|13) static
-  [93] kind=layer user_id=0x00a1005d (161<<16|93) static
-  [94] kind=layer user_id=0x00a1005e (161<<16|94) static
-    [14] kind=layer user_id=0x00a1000e (161<<16|14) static
-    [15] kind=layer user_id=0x00a1000f (161<<16|15) static
-      [16] kind=layer user_id=0x00a10010 (161<<16|16) static
-      [17] kind=layer user_id=0x00a10011 (161<<16|17) static
-      [18] kind=layer user_id=0x00a10012 (161<<16|18) static
-      [19] kind=layer user_id=0x00a10013 (161<<16|19) static
-    [20] kind=graphic user_id=0x00a10014 (161<<16|20) static graphic=442 abs=963,170 25x25 hidden=1
-    [21] kind=layer user_id=0x00a10015 (161<<16|21) static
-      [100] kind=graphic user_id=0x00a18002 (161<<16|32770) dynamic graphic=2507 abs=905,179 13x13 hidden=1
-      [101] kind=text user_id=0x00a18003 (161<<16|32771) dynamic font=494 color=0x0 text="" abs=897,178 30x25 hidden=1
-  [95] kind=layer user_id=0x00a1005f (161<<16|95) static
-    [22] kind=layer user_id=0x00a10016 (161<<16|22) static
-      [23] kind=layer user_id=0x00a10017 (161<<16|23) static
-      [24] kind=layer user_id=0x00a10018 (161<<16|24) static
-      [25] kind=layer user_id=0x00a10019 (161<<16|25) static
-      [26] kind=layer user_id=0x00a1001a (161<<16|26) static
-      [27] kind=layer user_id=0x00a1001b (161<<16|27) static
-      [28] kind=layer user_id=0x00a1001c (161<<16|28) static
-      [29] kind=graphic user_id=0x00a1001d (161<<16|29) static graphic=1179 abs=805,5 35x35 hidden=0
-      [30] kind=graphic user_id=0x00a1001e (161<<16|30) static graphic=1178 abs=824,8 152x152 hidden=0
-      [31] kind=layer user_id=0x00a1001f (161<<16|31) static
-        [98] kind=text user_id=0x00a18000 (161<<16|32768) dynamic font=0 color=0x0 text="" abs=803,3 36x36 hidden=0
-        [99] kind=text user_id=0x00a18001 (161<<16|32769) dynamic font=0 color=0x0 text="" abs=803,3 36x36 hidden=0
-      [32] kind=graphic user_id=0x00a10020 (161<<16|32) static graphic=1177 abs=800,0 182x166 hidden=0
-    [33] kind=layer user_id=0x00a10021 (161<<16|33) static
-  [96] kind=layer user_id=0x00a10060 (161<<16|96) static
-  [97] kind=layer user_id=0x00a10061 (161<<16|97) static
-    [38] kind=graphic user_id=0x00a10026 (161<<16|38) static graphic=897 abs=761,460 200x281 hidden=0
-    [39] kind=graphic user_id=0x00a10027 (161<<16|39) static graphic=1175 abs=743,470 26x261 hidden=0
-    [40] kind=graphic user_id=0x00a10028 (161<<16|40) static graphic=1176 abs=953,470 26x261 hidden=0
-    [41] kind=graphic user_id=0x00a10029 (161<<16|41) static graphic=1174 abs=741,731 241x37 hidden=0
-    [42] kind=layer user_id=0x00a1002a (161<<16|42) static
-      [43] kind=graphic user_id=0x00a1002b (161<<16|43) static graphic=1028 abs=741,731 38x36 hidden=1
-      [44] kind=graphic user_id=0x00a1002c (161<<16|44) static graphic=1030 abs=812,731 33x36 hidden=1
-      [45] kind=graphic user_id=0x00a1002d (161<<16|45) static graphic=1030 abs=779,731 33x36 hidden=1
-      [46] kind=graphic user_id=0x00a1002e (161<<16|46) static graphic=1030 abs=845,731 33x36 hidden=1
-      [47] kind=graphic user_id=0x00a1002f (161<<16|47) static graphic=1030 abs=878,731 33x36 hidden=1
-      [48] kind=graphic user_id=0x00a10030 (161<<16|48) static graphic=1030 abs=911,731 33x36 hidden=1
-      [49] kind=graphic user_id=0x00a10031 (161<<16|49) static graphic=1029 abs=944,731 38x36 hidden=1
-      [50] kind=graphic user_id=0x00a10032 (161<<16|50) static graphic=904 abs=745,731 33x36 hidden=1
-      [51] kind=graphic user_id=0x00a10033 (161<<16|51) static graphic=1709 abs=812,731 33x36 hidden=1
-      [52] kind=graphic user_id=0x00a10034 (161<<16|52) static graphic=905 abs=779,731 33x36 hidden=1
-      [53] kind=graphic user_id=0x00a10035 (161<<16|53) static graphic=907 abs=845,731 33x36 hidden=1
-      [54] kind=graphic user_id=0x00a10036 (161<<16|54) static graphic=908 abs=878,731 33x36 hidden=1
-      [55] kind=graphic user_id=0x00a10037 (161<<16|55) static graphic=909 abs=911,731 33x36 hidden=1
-      [56] kind=graphic user_id=0x00a10038 (161<<16|56) static graphic=910 abs=945,731 33x36 hidden=1
-    [57] kind=graphic user_id=0x00a10039 (161<<16|57) static graphic=1173 abs=741,433 241x37 hidden=0
-    [58] kind=layer user_id=0x00a1003a (161<<16|58) static
-      [59] kind=graphic user_id=0x00a1003b (161<<16|59) static graphic=1026 abs=741,433 38x36 hidden=1
-      [60] kind=graphic user_id=0x00a1003c (161<<16|60) static graphic=1030 abs=779,433 33x36 hidden=1
-      [61] kind=graphic user_id=0x00a1003d (161<<16|61) static graphic=1030 abs=812,433 38x36 hidden=1
-      [62] kind=graphic user_id=0x00a1003e (161<<16|62) static graphic=1030 abs=845,433 33x36 hidden=1
-      [63] kind=graphic user_id=0x00a1003f (161<<16|63) static graphic=1030 abs=878,433 33x36 hidden=1
-      [64] kind=graphic user_id=0x00a10040 (161<<16|64) static graphic=1030 abs=911,433 33x36 hidden=1
-      [65] kind=graphic user_id=0x00a10041 (161<<16|65) static graphic=1027 abs=944,433 38x36 hidden=1
-      [66] kind=graphic user_id=0x00a10042 (161<<16|66) static graphic=168 abs=745,433 33x36 hidden=1
-      [67] kind=graphic user_id=0x00a10043 (161<<16|67) static graphic=898 abs=779,433 33x36 hidden=1
-      [68] kind=graphic user_id=0x00a10044 (161<<16|68) static graphic=899 abs=812,433 33x36 hidden=1
-      [69] kind=graphic user_id=0x00a10045 (161<<16|69) static graphic=900 abs=845,433 33x36 hidden=1
-      [70] kind=graphic user_id=0x00a10046 (161<<16|70) static graphic=901 abs=878,433 33x36 hidden=1
-      [71] kind=graphic user_id=0x00a10047 (161<<16|71) static graphic=902 abs=911,433 33x36 hidden=1
-      [72] kind=graphic user_id=0x00a10048 (161<<16|72) static graphic=903 abs=945,433 33x36 hidden=1
-    [73] kind=layer user_id=0x00a10049 (161<<16|73) static
-      [74] kind=layer user_id=0x00a1004a (161<<16|74) static
-      [75] kind=layer user_id=0x00a1004b (161<<16|75) static
-        [76] kind=layer user_id=0x00a1004c (161<<16|76) static
-        [77] kind=layer user_id=0x00a1004d (161<<16|77) static
-        [78] kind=layer user_id=0x00a1004e (161<<16|78) static
-        [79] kind=layer user_id=0x00a1004f (161<<16|79) static
-        [80] kind=layer user_id=0x00a10050 (161<<16|80) static
-        [81] kind=layer user_id=0x00a10051 (161<<16|81) static
-        [82] kind=layer user_id=0x00a10052 (161<<16|82) static
-        [83] kind=layer user_id=0x00a10053 (161<<16|83) static
-        [84] kind=layer user_id=0x00a10054 (161<<16|84) static
-        [85] kind=layer user_id=0x00a10055 (161<<16|85) static
-        [86] kind=layer user_id=0x00a10056 (161<<16|86) static
-        [87] kind=layer user_id=0x00a10057 (161<<16|87) static
-        [88] kind=layer user_id=0x00a10058 (161<<16|88) static
-        [89] kind=layer user_id=0x00a10059 (161<<16|89) static
-      [90] kind=layer user_id=0x00a1005a (161<<16|90) static
-[35] kind=layer user_id=0x00a10023 (161<<16|35) static
-[36] kind=layer user_id=0x00a10024 (161<<16|36) static
-  [102] kind=rect user_id=0x00a18004 (161<<16|32772) dynamic color=0x0 filled=1 abs=0,0 1x1 hidden=0
-  [103] kind=rect user_id=0x00a18005 (161<<16|32773) dynamic color=0x0 filled=1 abs=0,0 1x1 hidden=0
-  [104] kind=rect user_id=0x00a18006 (161<<16|32774) dynamic color=0x0 filled=1 abs=0,0 1x1 hidden=0
-  [105] kind=graphic user_id=0x00a18007 (161<<16|32775) dynamic graphic=4829 abs=0,72 0x1 hidden=1
-[37] kind=layer user_id=0x00a10025 (161<<16|37) static
-wrote ./interfacex_161-3.bmp (1024x768)
+running onVarTransmit script 3151 for component 2162688
+uitreex: 81 nodes
+[0] kind=layer user_id=0x00210000 (33<<16|0) static
+  [1] kind=layer user_id=0x00210001 (33<<16|1) static
+    [59] kind=graphic user_id=0x00218000 (33<<16|32768) dynamic graphic=297 abs=344,271 340x226 hidden=0
+    [60] kind=text user_id=0x00218001 (33<<16|32769) dynamic font=496 color=0x0 text="" abs=349,276 330x24 hidden=0
+    [61] kind=graphic user_id=0x00218002 (33<<16|32770) dynamic graphic=310 abs=343,270 25x30 hidden=0
+    [62] kind=graphic user_id=0x00218003 (33<<16|32771) dynamic graphic=311 abs=660,270 25x30 hidden=0
+    [63] kind=graphic user_id=0x00218004 (33<<16|32772) dynamic graphic=312 abs=343,468 25x30 hidden=0
+    [64] kind=graphic user_id=0x00218005 (33<<16|32773) dynamic graphic=313 abs=660,468 25x30 hidden=0
+    [65] kind=graphic user_id=0x00218006 (33<<16|32774) dynamic graphic=172 abs=328,300 36x168 hidden=0
+    [66] kind=graphic user_id=0x00218007 (33<<16|32775) dynamic graphic=315 abs=664,300 36x168 hidden=0
+    [67] kind=graphic user_id=0x00218008 (33<<16|32776) dynamic graphic=314 abs=368,255 292x36 hidden=0
+    [68] kind=graphic user_id=0x00218009 (33<<16|32777) dynamic graphic=173 abs=368,477 292x36 hidden=0
+    [69] kind=graphic user_id=0x0021800a (33<<16|32778) dynamic graphic=2546 abs=348,284 332x26 hidden=0
+    [70] kind=graphic user_id=0x0021800b (33<<16|32779) dynamic graphic=535 abs=656,276 26x23 hidden=0
+  [2] kind=layer user_id=0x00210002 (33<<16|2) static
+    [3] kind=layer user_id=0x00210003 (33<<16|3) static
+      [4] kind=layer user_id=0x00210004 (33<<16|4) static
+        [5] kind=graphic user_id=0x00210005 (33<<16|5) static graphic=697 abs=367,339 17x17 hidden=0
+        [6] kind=model user_id=0x00210006 (33<<16|6) static model=2399 kind=1 zoom=622 abs=387,331 34x32 hidden=0
+      [7] kind=layer user_id=0x00210007 (33<<16|7) static
+        [8] kind=graphic user_id=0x00210008 (33<<16|8) static graphic=697 abs=367,380 17x17 hidden=0
+        [9] kind=model user_id=0x00210009 (33<<16|9) static model=2652 kind=1 zoom=622 abs=387,372 34x32 hidden=0
+      [10] kind=layer user_id=0x0021000a (33<<16|10) static
+        [11] kind=graphic user_id=0x0021000b (33<<16|11) static graphic=697 abs=367,421 17x17 hidden=0
+        [12] kind=model user_id=0x0021000c (33<<16|12) static model=2737 kind=1 zoom=622 abs=387,413 34x32 hidden=0
+      [13] kind=layer user_id=0x0021000d (33<<16|13) static
+        [14] kind=graphic user_id=0x0021000e (33<<16|14) static graphic=697 abs=367,462 17x17 hidden=0
+        [15] kind=model user_id=0x0021000f (33<<16|15) static model=2405 kind=1 zoom=622 abs=387,454 34x32 hidden=0
+      [16] kind=layer user_id=0x00210010 (33<<16|16) static
+        [17] kind=graphic user_id=0x00210011 (33<<16|17) static graphic=697 abs=431,339 17x17 hidden=0
+        [18] kind=model user_id=0x00210012 (33<<16|18) static model=2481 kind=1 zoom=622 abs=451,331 34x32 hidden=0
+      [19] kind=layer user_id=0x00210013 (33<<16|19) static
+        [20] kind=graphic user_id=0x00210014 (33<<16|20) static graphic=697 abs=431,380 17x17 hidden=0
+        [21] kind=model user_id=0x00210015 (33<<16|21) static model=2340 kind=1 zoom=622 abs=451,372 34x32 hidden=0
+      [22] kind=layer user_id=0x00210016 (33<<16|22) static
+        [23] kind=graphic user_id=0x00210017 (33<<16|23) static graphic=697 abs=431,421 17x17 hidden=0
+        [24] kind=model user_id=0x00210018 (33<<16|24) static model=2734 kind=1 zoom=622 abs=451,413 34x32 hidden=0
+      [25] kind=layer user_id=0x00210019 (33<<16|25) static
+        [26] kind=graphic user_id=0x0021001a (33<<16|26) static graphic=697 abs=431,462 17x17 hidden=0
+        [27] kind=model user_id=0x0021001b (33<<16|27) static model=2707 kind=1 zoom=622 abs=451,454 34x32 hidden=0
+      [28] kind=layer user_id=0x0021001c (33<<16|28) static
+        [29] kind=graphic user_id=0x0021001d (33<<16|29) static graphic=697 abs=495,339 17x17 hidden=0
+        [30] kind=model user_id=0x0021001e (33<<16|30) static model=2382 kind=1 zoom=622 abs=515,331 34x32 hidden=0
+      [31] kind=layer user_id=0x0021001f (33<<16|31) static
+        [32] kind=graphic user_id=0x00210020 (33<<16|32) static graphic=697 abs=495,380 17x17 hidden=0
+        [33] kind=model user_id=0x00210021 (33<<16|33) static model=2735 kind=1 zoom=622 abs=515,373 34x31 hidden=0
+      [34] kind=layer user_id=0x00210022 (33<<16|34) static
+        [35] kind=graphic user_id=0x00210023 (33<<16|35) static graphic=697 abs=495,421 17x17 hidden=0
+        [36] kind=model user_id=0x00210024 (33<<16|36) static model=2665 kind=1 zoom=622 abs=515,413 34x32 hidden=0
+      [37] kind=layer user_id=0x00210025 (33<<16|37) static
+        [38] kind=graphic user_id=0x00210026 (33<<16|38) static graphic=697 abs=495,462 17x17 hidden=0
+        [39] kind=model user_id=0x00210027 (33<<16|39) static model=2434 kind=1 zoom=622 abs=515,454 34x32 hidden=0
+      [40] kind=text user_id=0x00210028 (33<<16|40) static font=495 color=0xff981f text="Choose piece:" abs=362,309 180x17 hidden=0
+    [41] kind=layer user_id=0x00210029 (33<<16|41) static
+      [42] kind=text user_id=0x0021002a (33<<16|42) static font=495 color=0xff981f text="Time per move:" abs=561,308 102x17 hidden=0
+      [43] kind=layer user_id=0x0021002b (33<<16|43) static
+        [44] kind=graphic user_id=0x0021002c (33<<16|44) static graphic=697 abs=566,328 17x17 hidden=0
+        [45] kind=text user_id=0x0021002d (33<<16|45) static font=495 color=0xff981f text="15 seconds" abs=588,328 80x17 hidden=0
+      [46] kind=layer user_id=0x0021002e (33<<16|46) static
+        [47] kind=graphic user_id=0x0021002f (33<<16|47) static graphic=697 abs=566,348 17x17 hidden=0
+        [48] kind=text user_id=0x00210030 (33<<16|48) static font=495 color=0xff981f text="30 seconds" abs=588,348 80x17 hidden=0
+      [49] kind=layer user_id=0x00210031 (33<<16|49) static
+        [50] kind=graphic user_id=0x00210032 (33<<16|50) static graphic=697 abs=566,368 17x17 hidden=0
+        [51] kind=text user_id=0x00210033 (33<<16|51) static font=495 color=0xff981f text="1 minute" abs=588,368 80x17 hidden=0
+      [52] kind=layer user_id=0x00210034 (33<<16|52) static
+        [53] kind=graphic user_id=0x00210035 (33<<16|53) static graphic=697 abs=566,388 17x17 hidden=0
+        [54] kind=text user_id=0x00210036 (33<<16|54) static font=495 color=0xff981f text="2 minutes" abs=588,388 80x17 hidden=0
+    [55] kind=layer user_id=0x00210037 (33<<16|55) static
+      [56] kind=text user_id=0x00210038 (33<<16|56) static font=495 color=0xff981f text="Ranked" abs=588,468 80x17 hidden=0
+      [57] kind=graphic user_id=0x00210039 (33<<16|57) static graphic=697 abs=566,468 17x17 hidden=0
+    [58] kind=layer user_id=0x0021003a (33<<16|58) static
+      [71] kind=rect user_id=0x0021800c (33<<16|32780) dynamic color=0x0 filled=1 abs=573,423 66x30 hidden=0
+      [72] kind=graphic user_id=0x0021800d (33<<16|32781) dynamic graphic=310 abs=567,417 25x30 hidden=0
+      [73] kind=graphic user_id=0x0021800e (33<<16|32782) dynamic graphic=311 abs=620,417 25x30 hidden=0
+      [74] kind=graphic user_id=0x0021800f (33<<16|32783) dynamic graphic=312 abs=567,429 25x30 hidden=0
+      [75] kind=graphic user_id=0x00218010 (33<<16|32784) dynamic graphic=313 abs=620,429 25x30 hidden=0
+      [76] kind=graphic user_id=0x00218011 (33<<16|32785) dynamic graphic=172 abs=552,438 36x0 hidden=0
+      [77] kind=graphic user_id=0x00218012 (33<<16|32786) dynamic graphic=315 abs=624,438 36x0 hidden=0
+      [78] kind=graphic user_id=0x00218013 (33<<16|32787) dynamic graphic=314 abs=592,402 28x36 hidden=0
+      [79] kind=graphic user_id=0x00218014 (33<<16|32788) dynamic graphic=173 abs=592,438 28x36 hidden=0
+      [80] kind=text user_id=0x00218015 (33<<16|32789) dynamic font=494 color=0x0 text="" abs=567,417 78x42 hidden=0
+wrote ./interfacex_33-3.bmp (1024x768)
+running onVarTransmit script 3151 for component 2162688
+uitreex: 81 nodes
+[0] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210000 (33<<16|0) static
+  [1] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210001 (33<<16|1) static
+    [59] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218000 (33<<16|32768) dynamic graphic=297 abs=344,271 340x226 hidden=0
+    [60] kind=text widget_type=4 trans=0 fill_mode=0 user_id=0x00218001 (33<<16|32769) dynamic font=496 color=0x0 text="" abs=349,276 330x24 hidden=0
+    [61] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218002 (33<<16|32770) dynamic graphic=310 abs=343,270 25x30 hidden=0
+    [62] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218003 (33<<16|32771) dynamic graphic=311 abs=660,270 25x30 hidden=0
+    [63] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218004 (33<<16|32772) dynamic graphic=312 abs=343,468 25x30 hidden=0
+    [64] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218005 (33<<16|32773) dynamic graphic=313 abs=660,468 25x30 hidden=0
+    [65] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218006 (33<<16|32774) dynamic graphic=172 abs=328,300 36x168 hidden=0
+    [66] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218007 (33<<16|32775) dynamic graphic=315 abs=664,300 36x168 hidden=0
+    [67] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218008 (33<<16|32776) dynamic graphic=314 abs=368,255 292x36 hidden=0
+    [68] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218009 (33<<16|32777) dynamic graphic=173 abs=368,477 292x36 hidden=0
+    [69] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x0021800a (33<<16|32778) dynamic graphic=2546 abs=348,284 332x26 hidden=0
+    [70] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x0021800b (33<<16|32779) dynamic graphic=535 abs=656,276 26x23 hidden=0
+  [2] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210002 (33<<16|2) static
+    [3] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210003 (33<<16|3) static
+      [4] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210004 (33<<16|4) static
+        [5] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00210005 (33<<16|5) static graphic=697 abs=367,339 17x17 hidden=0
+        [6] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x00210006 (33<<16|6) static model=2399 kind=1 zoom=622 xan=452 yan=1024 zan=0 abs=387,331 34x32 hidden=0
+      [7] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210007 (33<<16|7) static
+        [8] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00210008 (33<<16|8) static graphic=697 abs=367,380 17x17 hidden=0
+        [9] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x00210009 (33<<16|9) static model=2652 kind=1 zoom=622 xan=452 yan=1024 zan=0 abs=387,372 34x32 hidden=0
+      [10] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x0021000a (33<<16|10) static
+        [11] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x0021000b (33<<16|11) static graphic=697 abs=367,421 17x17 hidden=0
+        [12] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x0021000c (33<<16|12) static model=2737 kind=1 zoom=622 xan=452 yan=1024 zan=0 abs=387,413 34x32 hidden=0
+      [13] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x0021000d (33<<16|13) static
+        [14] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x0021000e (33<<16|14) static graphic=697 abs=367,462 17x17 hidden=0
+        [15] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x0021000f (33<<16|15) static model=2405 kind=1 zoom=622 xan=452 yan=1024 zan=0 abs=387,454 34x32 hidden=0
+      [16] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210010 (33<<16|16) static
+        [17] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00210011 (33<<16|17) static graphic=697 abs=431,339 17x17 hidden=0
+        [18] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x00210012 (33<<16|18) static model=2481 kind=1 zoom=622 xan=452 yan=1024 zan=0 abs=451,331 34x32 hidden=0
+      [19] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210013 (33<<16|19) static
+        [20] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00210014 (33<<16|20) static graphic=697 abs=431,380 17x17 hidden=0
+        [21] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x00210015 (33<<16|21) static model=2340 kind=1 zoom=622 xan=452 yan=1024 zan=0 abs=451,372 34x32 hidden=0
+      [22] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210016 (33<<16|22) static
+        [23] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00210017 (33<<16|23) static graphic=697 abs=431,421 17x17 hidden=0
+        [24] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x00210018 (33<<16|24) static model=2734 kind=1 zoom=622 xan=452 yan=1024 zan=0 abs=451,413 34x32 hidden=0
+      [25] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210019 (33<<16|25) static
+        [26] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x0021001a (33<<16|26) static graphic=697 abs=431,462 17x17 hidden=0
+        [27] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x0021001b (33<<16|27) static model=2707 kind=1 zoom=622 xan=452 yan=1024 zan=0 abs=451,454 34x32 hidden=0
+      [28] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x0021001c (33<<16|28) static
+        [29] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x0021001d (33<<16|29) static graphic=697 abs=495,339 17x17 hidden=0
+        [30] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x0021001e (33<<16|30) static model=2382 kind=1 zoom=622 xan=452 yan=1024 zan=0 abs=515,331 34x32 hidden=0
+      [31] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x0021001f (33<<16|31) static
+        [32] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00210020 (33<<16|32) static graphic=697 abs=495,380 17x17 hidden=0
+        [33] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x00210021 (33<<16|33) static model=2735 kind=1 zoom=622 xan=452 yan=1024 zan=0 abs=515,373 34x31 hidden=0
+      [34] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210022 (33<<16|34) static
+        [35] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00210023 (33<<16|35) static graphic=697 abs=495,421 17x17 hidden=0
+        [36] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x00210024 (33<<16|36) static model=2665 kind=1 zoom=622 xan=452 yan=1024 zan=0 abs=515,413 34x32 hidden=0
+      [37] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210025 (33<<16|37) static
+        [38] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00210026 (33<<16|38) static graphic=697 abs=495,462 17x17 hidden=0
+        [39] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x00210027 (33<<16|39) static model=2434 kind=1 zoom=622 xan=452 yan=1024 zan=0 abs=515,454 34x32 hidden=0
+      [40] kind=text widget_type=4 trans=0 fill_mode=0 user_id=0x00210028 (33<<16|40) static font=495 color=0xff981f text="Choose piece:" abs=362,309 180x17 hidden=0
+    [41] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210029 (33<<16|41) static
+      [42] kind=text widget_type=4 trans=0 fill_mode=0 user_id=0x0021002a (33<<16|42) static font=495 color=0xff981f text="Time per move:" abs=561,308 102x17 hidden=0
+      [43] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x0021002b (33<<16|43) static
+        [44] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x0021002c (33<<16|44) static graphic=697 abs=566,328 17x17 hidden=0
+        [45] kind=text widget_type=4 trans=0 fill_mode=0 user_id=0x0021002d (33<<16|45) static font=495 color=0xff981f text="15 seconds" abs=588,328 80x17 hidden=0
+      [46] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x0021002e (33<<16|46) static
+        [47] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x0021002f (33<<16|47) static graphic=697 abs=566,348 17x17 hidden=0
+        [48] kind=text widget_type=4 trans=0 fill_mode=0 user_id=0x00210030 (33<<16|48) static font=495 color=0xff981f text="30 seconds" abs=588,348 80x17 hidden=0
+      [49] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210031 (33<<16|49) static
+        [50] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00210032 (33<<16|50) static graphic=697 abs=566,368 17x17 hidden=0
+        [51] kind=text widget_type=4 trans=0 fill_mode=0 user_id=0x00210033 (33<<16|51) static font=495 color=0xff981f text="1 minute" abs=588,368 80x17 hidden=0
+      [52] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210034 (33<<16|52) static
+        [53] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00210035 (33<<16|53) static graphic=697 abs=566,388 17x17 hidden=0
+        [54] kind=text widget_type=4 trans=0 fill_mode=0 user_id=0x00210036 (33<<16|54) static font=495 color=0xff981f text="2 minutes" abs=588,388 80x17 hidden=0
+    [55] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x00210037 (33<<16|55) static
+      [56] kind=text widget_type=4 trans=0 fill_mode=0 user_id=0x00210038 (33<<16|56) static font=495 color=0xff981f text="Ranked" abs=588,468 80x17 hidden=0
+      [57] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00210039 (33<<16|57) static graphic=697 abs=566,468 17x17 hidden=0
+    [58] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x0021003a (33<<16|58) static
+      [71] kind=rect widget_type=3 trans=0 fill_mode=0 user_id=0x0021800c (33<<16|32780) dynamic color=0x0 color2=0x0 filled=1 abs=573,423 66x30 hidden=0
+      [72] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x0021800d (33<<16|32781) dynamic graphic=310 abs=567,417 25x30 hidden=0
+      [73] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x0021800e (33<<16|32782) dynamic graphic=311 abs=620,417 25x30 hidden=0
+      [74] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x0021800f (33<<16|32783) dynamic graphic=312 abs=567,429 25x30 hidden=0
+      [75] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218010 (33<<16|32784) dynamic graphic=313 abs=620,429 25x30 hidden=0
+      [76] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218011 (33<<16|32785) dynamic graphic=172 abs=552,438 36x0 hidden=0
+      [77] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218012 (33<<16|32786) dynamic graphic=315 abs=624,438 36x0 hidden=0
+      [78] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218013 (33<<16|32787) dynamic graphic=314 abs=592,402 28x36 hidden=0
+      [79] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218014 (33<<16|32788) dynamic graphic=173 abs=592,438 28x36 hidden=0
+      [80] kind=text widget_type=4 trans=0 fill_mode=0 user_id=0x00218015 (33<<16|32789) dynamic font=494 color=0x0 text="" abs=567,417 78x42 hidden=0
+wrote ./interfacex_33-3.bmp (1024x768)
