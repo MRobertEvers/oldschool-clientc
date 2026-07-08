@@ -22,6 +22,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +31,9 @@
 #define INTERFACEX_DEBUG_OPS 0
 
 static int g_interfacex_write_bmp = 1;
+/* 0=off, 1=targeting ops only, 2=all opcodes */
+static int g_cs2_trace_mode = 0;
+static char g_cs2_trace_extra[512];
 
 #define BANK_INTERFACE 12
 #define INVENTORY_INTERFACE 630
@@ -38,6 +42,9 @@ static int g_interfacex_write_bmp = 1;
 #define CANVAS_W 1024
 #define CANVAS_H 768
 #define CANVAS_BG 0xFF202428
+
+#define INTERFACEX_CONTENT_MINIMAP 1338
+#define INTERFACEX_CONTENT_COMPASS 1339
 
 /* Current render clip rect (canvas-space, [x0,y0) .. [x1,y1) ), narrowed while recursing
  * into a scrollable RSLayer's children and restored on the way back out. Rendering is a
@@ -75,6 +82,7 @@ struct UITreeXNode_RSLayer
 struct UITreeXNode_RSGraphic
 {
     int graphic_id;
+    int graphic_id2;
     int scene_id;
     int outline;
     int graphic_shadow;
@@ -214,6 +222,7 @@ struct UITreeXNode
     int no_scroll_through;
     int pinch_enabled;
     int clickmask;
+    int client_code;
     int hflip;
     int vflip;
     int angle_2d;
@@ -418,6 +427,8 @@ UITreeXBuilder_SetActiveParentByUserId(
         }
     }
 
+    builder->parent_stack[builder->parent_stack_top].parent_idx = -1;
+    builder->parent_stack[builder->parent_stack_top].last_sibling_idx = -1;
     return 0;
 }
 
@@ -433,9 +444,7 @@ UITreeXBuilder_PushLayerWithParentUserId(
     if( !node )
         return -1;
 
-    UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
-
-    UITreeXBuilder_LinkPushSibling(builder, node);
+    (void)parent_user_id;
 
     node->kind = UITreeXNodeKind_RSLayer;
     node->user_id = user_id;
@@ -458,9 +467,7 @@ UITreeXBuilder_PushGraphicWithParentUserId(
     if( !node )
         return -1;
 
-    UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
-
-    UITreeXBuilder_LinkPushSibling(builder, node);
+    (void)parent_user_id;
 
     node->kind = UITreeXNodeKind_RSGraphic;
     node->user_id = user_id;
@@ -483,9 +490,7 @@ UITreeXBuilder_PushRectWithParentUserId(
     if( !node )
         return -1;
 
-    UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
-
-    UITreeXBuilder_LinkPushSibling(builder, node);
+    (void)parent_user_id;
 
     node->kind = UITreeXNodeKind_RSRect;
     node->user_id = user_id;
@@ -507,9 +512,7 @@ UITreeXBuilder_PushTextWithParentUserId(
     if( !node )
         return -1;
 
-    UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
-
-    UITreeXBuilder_LinkPushSibling(builder, node);
+    (void)parent_user_id;
 
     node->kind = UITreeXNodeKind_RSText;
     node->user_id = user_id;
@@ -536,8 +539,7 @@ UITreeXBuilder_PushModelWithParentUserId(
     if( !node )
         return -1;
 
-    UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
-    UITreeXBuilder_LinkPushSibling(builder, node);
+    (void)parent_user_id;
 
     node->kind = UITreeXNodeKind_RSModel;
     node->user_id = user_id;
@@ -561,8 +563,7 @@ UITreeXBuilder_PushLineWithParentUserId(
     if( !node )
         return -1;
 
-    UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
-    UITreeXBuilder_LinkPushSibling(builder, node);
+    (void)parent_user_id;
 
     node->kind = UITreeXNodeKind_RSLine;
     node->user_id = user_id;
@@ -813,9 +814,49 @@ struct CS2VMXArray
     int defined;
 };
 
+#define CS2VMX_CHILDREN_ITER_MAX 256
+
+/* Opcodes missing from cs2_opcode.h but used by gameframe scripts. */
+#define CS2_OP_CC_CREATECHILD 106
+#define CS2_OP_CC_CREATESIBLING 107
+#define CS2_OP_CC_FINDROOT 202
+#define CS2_OP_CC_CHILDREN_FIND 203
+#define CS2_OP_CC_CHILDREN_FINDNEXTID 204
+#define CS2_OP_IF_CHILDREN_FIND 205
+#define CS2_OP_IF_CHILDREN_FINDNEXTID 206
+
+static void
+CS2VMX_ClearTraceExtra(void)
+{
+    g_cs2_trace_extra[0] = '\0';
+}
+
+static void
+CS2VMX_SetTraceExtra(
+    char const* fmt,
+    ...)
+{
+    if( !g_cs2_trace_mode || !fmt )
+        return;
+
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(g_cs2_trace_extra, sizeof(g_cs2_trace_extra), fmt, ap);
+    va_end(ap);
+}
+
 struct CS2VMX;
 struct CS2VM_HostRequest;
 struct InterfaceX_VMHost;
+
+static int
+UITreeX_FindByUserId(
+    struct UITreeX const* tree,
+    int user_id);
+static int
+UITreeX_ParentComponentId(
+    struct UITreeX const* tree,
+    int component_id);
 
 typedef int (*CS2VMX_HostExec_Fn)(
     struct CS2VMX* vm,
@@ -845,8 +886,73 @@ struct CS2VMX
     int last_error_pc;
     int last_error_script_id;
 
+    int children_iter_indices[CS2VMX_CHILDREN_ITER_MAX];
+    int children_iter_count;
+    int children_iter_index;
+
     struct CS2VMXArray arrays[CS2VMX_MAX_ARRAYS];
 };
+
+static bool
+CS2VMX_IsTargetingOpcode(int opcode)
+{
+    switch( opcode )
+    {
+    case CS2_OP_IF_FIND:
+    case CS2_OP_CC_FIND:
+    case CS2_OP_CC_FINDROOT:
+    case CS2_OP_CC_CHILDREN_FIND:
+    case CS2_OP_CC_CHILDREN_FINDNEXTID:
+    case CS2_OP_IF_CHILDREN_FIND:
+    case CS2_OP_IF_CHILDREN_FINDNEXTID:
+    case CS2_OP_CC_CREATE:
+    case CS2_OP_CC_CREATECHILD:
+    case CS2_OP_CC_CREATESIBLING:
+    case CS2_OP_IF_SETOP:
+    case CS2_OP_IF_SETOPBASE:
+    case CS2_OP_CC_SETOP:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static void
+CS2VMX_TraceOpcode(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int op_pc,
+    int opcode,
+    int operand,
+    int result)
+{
+    if( !g_cs2_trace_mode )
+        return;
+#if !INTERFACEX_DEBUG_OPS
+    if( g_cs2_trace_mode == 1 && !CS2VMX_IsTargetingOpcode(opcode) && result == CS2VM_EXECNO_OK )
+        return;
+#endif
+
+    char const* op_name = CS2_OpCode_String(opcode);
+    fprintf(
+        stderr,
+        "CS2TRACE script=%d pc=%d op=%s(%d) intOp=%d istack=%d sstack=%d aw=0x%08x dw=0x%08x",
+        frame->script->script_id,
+        op_pc,
+        op_name ? op_name : "_unknown",
+        opcode,
+        operand,
+        vm->ints_stack_top,
+        vm->strs_stack_top,
+        (unsigned)vm->active_component_id,
+        (unsigned)vm->dot_component_id);
+    if( g_cs2_trace_extra[0] != '\0' )
+        fprintf(stderr, " %s", g_cs2_trace_extra);
+    if( result != CS2VM_EXECNO_OK )
+        fprintf(stderr, " result=error");
+    fprintf(stderr, "\n");
+    CS2VMX_ClearTraceExtra();
+}
 
 enum CS2VM_HostRequestKind
 {
@@ -1519,6 +1625,70 @@ CS2VMX_DotOrActiveComponentId(
 {
     assert(vm);
     return operand == 1 ? vm->dot_component_id : vm->active_component_id;
+}
+
+static void
+CS2VMX_SetTargetComponentId(
+    struct CS2VMX* vm,
+    int operand,
+    int component_id)
+{
+    assert(vm);
+    if( operand == 1 )
+        vm->dot_component_id = component_id;
+    else
+        vm->active_component_id = component_id;
+}
+
+static void
+CS2VMX_ResetChildrenIter(struct CS2VMX* vm)
+{
+    assert(vm);
+    vm->children_iter_count = 0;
+    vm->children_iter_index = 0;
+}
+
+static int
+CS2VMX_CollectDynamicChildIndices(
+    struct UITreeX* tree,
+    int parent_component_id,
+    int start_index,
+    int* out_indices,
+    int out_cap)
+{
+    if( !tree || parent_component_id < 0 || !out_indices || out_cap <= 0 )
+        return 0;
+
+    int parent_idx = UITreeX_FindByUserId(tree, parent_component_id);
+    if( parent_idx < 0 )
+        return 0;
+
+    int count = 0;
+    for( int child = tree->nodes[parent_idx].link.first_child_tree_idx; child != -1;
+         child = tree->nodes[child].link.next_sibling_tree_idx )
+    {
+        struct UITreeXNode* c = &tree->nodes[child];
+        if( !c->dynamic )
+            continue;
+        if( c->child_index <= start_index )
+            continue;
+        if( count < out_cap )
+            out_indices[count++] = c->child_index;
+    }
+
+    for( int i = 1; i < count; i++ )
+    {
+        int key = out_indices[i];
+        int j = i - 1;
+        while( j >= 0 && out_indices[j] > key )
+        {
+            out_indices[j + 1] = out_indices[j];
+            j--;
+        }
+        out_indices[j + 1] = key;
+    }
+
+    return count;
 }
 
 static inline int
@@ -4508,7 +4678,7 @@ CS2VMX_Op_IF_SetOp(
     struct CS2VM_HostRequest request;
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETOP;
-    request.u.if_set_op.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.if_set_op.component_id = widget;
     request.u.if_set_op.index = index;
     request.u.if_set_op.text = text;
 
@@ -4884,6 +5054,94 @@ CS2VMX_Op_OnMobile(
     (void)operand;
 
     return CS2VMX_PushInt(vm, 0);
+}
+
+int
+CS2VMX_Op_GetCanvasSize(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    if( CS2VMX_PushInt(vm, CANVAS_W) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VMX_PushInt(vm, CANVAS_H);
+}
+
+int
+CS2VMX_Op_ViewPortGetEffectiveSize(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    if( CS2VMX_PushInt(vm, CANVAS_W) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VMX_PushInt(vm, CANVAS_H);
+}
+
+int
+CS2VMX_Op_ViewPortGetZoom(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    /* Matches cs2_host_ui.c defaults for fixed-layout clients. */
+    if( CS2VMX_PushInt(vm, 128) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VMX_PushInt(vm, 896);
+}
+
+int
+CS2VMX_Op_ViewPortGetFov(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    if( CS2VMX_PushInt(vm, 128) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VMX_PushInt(vm, 896);
+}
+
+int
+CS2VMX_Op_GetWindowMode(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    /* Resizable mode (2) matches live-client semantics for gameframe scripts. */
+    return CS2VMX_PushInt(vm, 2);
+}
+
+int
+CS2VMX_Op_GetDefaultWindowMode(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    return CS2VMX_PushInt(vm, 2);
 }
 
 /* COORD returns the local player's packed world coordinate; it does not pop from the
@@ -5547,6 +5805,48 @@ CS2VMX_Op_CC_GetText(
     int operand);
 
 int
+CS2VMX_Op_CC_FindRoot(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
+CS2VMX_Op_CC_ChildrenFind(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
+CS2VMX_Op_CC_ChildrenFindNextId(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
+CS2VMX_Op_IF_ChildrenFind(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
+CS2VMX_Op_IF_ChildrenFindNextId(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
+CS2VMX_Op_CC_CreateChild(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
+CS2VMX_Op_CC_CreateSibling(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
 CS2VMX_Op_CC_GetTrans(
     struct CS2VMX* vm,
     struct CS2VMX_Frame* frame,
@@ -5904,8 +6204,8 @@ CS2VMX_Op_CC_WidgetInt(
     if( CS2VMX_PopInt(vm, &value) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    int result = CS2VMX_DispatchWidgetSetInt(
-        vm, CS2VMX_DotOrActiveComponentId(vm, operand), field, value);
+    int result =
+        CS2VMX_DispatchWidgetSetInt(vm, CS2VMX_DotOrActiveComponentId(vm, operand), field, value);
     return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
 }
 
@@ -6345,6 +6645,18 @@ CS2VMX_RunOp(
         return CS2VMX_Op_IsMapMembers(vm, frame, operand);
     case CS2_OP_ON_MOBILE:
         return CS2VMX_Op_OnMobile(vm, frame, operand);
+    case CS2_OP_GETCANVASSIZE:
+        return CS2VMX_Op_GetCanvasSize(vm, frame, operand);
+    case CS2_OP_VIEWPORT_GETEFFECTIVESIZE:
+        return CS2VMX_Op_ViewPortGetEffectiveSize(vm, frame, operand);
+    case CS2_OP_VIEWPORT_GETZOOM:
+        return CS2VMX_Op_ViewPortGetZoom(vm, frame, operand);
+    case CS2_OP_VIEWPORT_GETFOV:
+        return CS2VMX_Op_ViewPortGetFov(vm, frame, operand);
+    case CS2_OP_GETWINDOWMODE:
+        return CS2VMX_Op_GetWindowMode(vm, frame, operand);
+    case CS2_OP_GETDEFAULTWINDOWMODE:
+        return CS2VMX_Op_GetDefaultWindowMode(vm, frame, operand);
     case CS2_OP_CLIENTTYPE:
         return CS2VMX_Op_ClientType(vm, frame, operand);
     case CS2_OP_COORD:
@@ -6371,6 +6683,20 @@ CS2VMX_RunOp(
         return CS2VMX_Op_CC_Create(vm, frame, operand);
     case CS2_OP_CC_FIND:
         return CS2VMX_Op_CC_Find(vm, frame, operand);
+    case CS2_OP_CC_CREATECHILD:
+        return CS2VMX_Op_CC_CreateChild(vm, frame, operand);
+    case CS2_OP_CC_CREATESIBLING:
+        return CS2VMX_Op_CC_CreateSibling(vm, frame, operand);
+    case CS2_OP_CC_FINDROOT:
+        return CS2VMX_Op_CC_FindRoot(vm, frame, operand);
+    case CS2_OP_CC_CHILDREN_FIND:
+        return CS2VMX_Op_CC_ChildrenFind(vm, frame, operand);
+    case CS2_OP_CC_CHILDREN_FINDNEXTID:
+        return CS2VMX_Op_CC_ChildrenFindNextId(vm, frame, operand);
+    case CS2_OP_IF_CHILDREN_FIND:
+        return CS2VMX_Op_IF_ChildrenFind(vm, frame, operand);
+    case CS2_OP_IF_CHILDREN_FINDNEXTID:
+        return CS2VMX_Op_IF_ChildrenFindNextId(vm, frame, operand);
     case CS2_OP_CC_SETPOSITION:
         return CS2VMX_Op_CC_SetPosition(vm, frame, operand);
     case CS2_OP_CC_SETSIZE:
@@ -6614,8 +6940,7 @@ CS2VMX_RunOp(
     case CS2_OP_CC_SETPINCH:
         return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_PINCH);
     case CS2_OP_CC_SETNPCHEAD:
-        return CS2VMX_Op_CC_SetModelKind(
-            vm, frame, operand, INTERFACEX_MODEL_KIND_NPC_HEAD, true);
+        return CS2VMX_Op_CC_SetModelKind(vm, frame, operand, INTERFACEX_MODEL_KIND_NPC_HEAD, true);
     case CS2_OP_CC_SETPLAYERHEAD_SELF:
         return CS2VMX_Op_CC_SetModelKind(
             vm, frame, operand, INTERFACEX_MODEL_KIND_PLAYER_SELF, false);
@@ -6694,8 +7019,7 @@ CS2VMX_RunOp(
     case CS2_OP_IF_SETPINCH:
         return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_PINCH);
     case CS2_OP_IF_SETNPCHEAD:
-        return CS2VMX_Op_IF_SetModelKind(
-            vm, frame, operand, INTERFACEX_MODEL_KIND_NPC_HEAD, true);
+        return CS2VMX_Op_IF_SetModelKind(vm, frame, operand, INTERFACEX_MODEL_KIND_NPC_HEAD, true);
     case CS2_OP_IF_SETPLAYERHEAD_SELF:
         return CS2VMX_Op_IF_SetModelKind(
             vm, frame, operand, INTERFACEX_MODEL_KIND_PLAYER_SELF, false);
@@ -6805,6 +7129,16 @@ CS2VMX_OpArgCounts(
         *int_args = 4;
         return 0;
     case CS2_OP_CC_FIND:
+        *int_args = 2;
+        return 0;
+    case CS2_OP_CC_CREATECHILD:
+    case CS2_OP_CC_CREATESIBLING:
+        *int_args = 2;
+        return 0;
+    case CS2_OP_CC_CHILDREN_FIND:
+        *int_args = 1;
+        return 0;
+    case CS2_OP_IF_CHILDREN_FIND:
         *int_args = 2;
         return 0;
     case CS2_OP_POP_INT_LOCAL:
@@ -6986,6 +7320,8 @@ CS2VMX_RunScript(struct CS2VMX* vm)
 
         result = CS2VMX_RunOp(vm, frame, opcode, operand, str_operand_str);
 
+        CS2VMX_TraceOpcode(vm, frame, op_pc, opcode, operand, result);
+
         switch( result )
         {
         case CS2VM_EXECNO_OK:
@@ -7016,7 +7352,10 @@ struct MapEntry_ClientScript
     struct ToriAuxLibCore_ClientScript* script;
 };
 
+#define INTERFACEX_SCRIPT_QUEUE_MAX 8192
 #define INTERFACEX_INV_TRANSMIT_HOOK_MAX 32
+#define INTERFACEX_VAR_TRANSMIT_HOOK_MAX 32
+#define INTERFACEX_VAR_TRANSMIT_TRIGGER_MAX 8
 #define INTERFACEX_VARC_INT_MAX 256
 #define INTERFACEX_VARC_STRING_MAX 64
 #define INTERFACEX_VARC_STRING_LEN 128
@@ -7069,6 +7408,14 @@ struct InterfaceX_ModelSceneCacheEntry
     struct InterfaceX_ModelSceneCacheEntry* next;
 };
 
+struct InterfaceX_ScriptQueueEntry
+{
+    int script_id;
+    int component_id;
+    int int_args[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX];
+    int int_arg_count;
+};
+
 struct InterfaceX_InvTransmitHook
 {
     int component_id;
@@ -7076,6 +7423,14 @@ struct InterfaceX_InvTransmitHook
     int int_args[INTERFACEX_INV_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
     int trigger_ids[INTERFACEX_INV_TRANSMIT_TRIGGER_MAX];
+    int trigger_count;
+};
+
+struct InterfaceX_VarTransmitHook
+{
+    int component_id;
+    int script_id;
+    int trigger_ids[INTERFACEX_VAR_TRANSMIT_TRIGGER_MAX];
     int trigger_count;
 };
 
@@ -7119,6 +7474,13 @@ struct InterfaceX_VMHost
     struct InterfaceX_InvTransmitHook inv_transmit_hooks[INTERFACEX_INV_TRANSMIT_HOOK_MAX];
     int inv_transmit_hook_count;
 
+    struct InterfaceX_VarTransmitHook var_transmit_hooks[INTERFACEX_VAR_TRANSMIT_HOOK_MAX];
+    int var_transmit_hook_count;
+
+    struct InterfaceX_ScriptQueueEntry* script_queue;
+    int script_queue_head;
+    int script_queue_count;
+
     struct InterfaceX_InvContainer inv_containers[INTERFACEX_INV_CONTAINER_MAX];
     int inv_container_count;
 
@@ -7129,6 +7491,8 @@ struct InterfaceX_VMHost
     struct InterfaceX_GraphicSceneCacheEntry* graphic_scene_cache;
     struct InterfaceX_ModelSceneCacheEntry* model_scene_cache;
     int next_scene_id;
+    /** Global compass needle sprite (graphics defaults); used for contentType 1339. */
+    int compass_sprite_id;
 };
 
 struct ToriAuxLibCore_ClientScript*
@@ -7147,6 +7511,19 @@ InterfaceX_RunClientScript(
     int component_id,
     int const* int_args,
     int int_arg_count);
+
+static void
+InterfaceX_VMHost_QueueScript(
+    struct InterfaceX_VMHost* host,
+    int script_id,
+    int component_id,
+    int const* int_args,
+    int int_arg_count);
+
+static void
+InterfaceX_VMHost_DrainScriptQueue(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm);
 
 static struct InterfaceX_InvContainer*
 InterfaceX_InvContainerGet(
@@ -7217,6 +7594,14 @@ InterfaceX_EnumLookup(
     int enum_id,
     int key);
 
+static char const*
+InterfaceX_EnumLookupString(
+    struct RSCacheDat2Disk* disk,
+    int input_type,
+    int output_type,
+    int enum_id,
+    int key);
+
 static int
 InterfaceX_EnumOutputCount(
     struct RSCacheDat2Disk* disk,
@@ -7251,6 +7636,202 @@ UITreeX_FindByUserId(
             return i;
     }
     return -1;
+}
+
+static int
+UITreeX_ParentComponentId(
+    struct UITreeX const* tree,
+    int component_id)
+{
+    int idx = UITreeX_FindByUserId(tree, component_id);
+    if( idx < 0 )
+        return -1;
+
+    int parent_idx = tree->nodes[idx].link.parent_tree_idx;
+    if( parent_idx < 0 )
+        return -1;
+
+    return tree->nodes[parent_idx].user_id;
+}
+
+static int
+CS2VMX_Op_CC_CreateUnderParent(
+    struct CS2VMX* vm,
+    int parent_id,
+    int type,
+    int child_index,
+    int operand)
+{
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_CREATE;
+    request.u.cc_create.parent_id = parent_id;
+    request.u.cc_create.component_type = type;
+    request.u.cc_create.child_index = child_index;
+    request.u.cc_create.is_nested = 0;
+    request.u.cc_create.dot_operand = operand;
+
+    return vm->host_exec(vm, &request);
+}
+
+int
+CS2VMX_Op_CC_FindRoot(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
+    int component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    int found = 0;
+
+    if( host && host->tree && component_id >= 0 )
+    {
+        int parent_id = UITreeX_ParentComponentId(host->tree, component_id);
+        if( parent_id >= 0 )
+        {
+            CS2VMX_SetTargetComponentId(vm, operand, parent_id);
+            found = 1;
+        }
+    }
+
+    CS2VMX_SetTraceExtra("found=%d target=%s", found, operand == 1 ? "dw" : "aw");
+    return CS2VMX_PushInt(vm, found);
+}
+
+int
+CS2VMX_Op_CC_ChildrenFind(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int start_index;
+    if( CS2VMX_PopInt(vm, &start_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
+    int parent_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+
+    CS2VMX_ResetChildrenIter(vm);
+    if( host && host->tree )
+    {
+        vm->children_iter_count = CS2VMX_CollectDynamicChildIndices(
+            host->tree,
+            parent_id,
+            start_index,
+            vm->children_iter_indices,
+            CS2VMX_CHILDREN_ITER_MAX);
+    }
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_CC_ChildrenFindNextId(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    if( vm->children_iter_index < vm->children_iter_count )
+        return CS2VMX_PushInt(vm, vm->children_iter_indices[vm->children_iter_index++]);
+    return CS2VMX_PushInt(vm, -1);
+}
+
+int
+CS2VMX_Op_IF_ChildrenFind(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int start_index, uid;
+    if( CS2VMX_PopInt(vm, &start_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &uid) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
+
+    CS2VMX_ResetChildrenIter(vm);
+    if( host && host->tree )
+    {
+        vm->children_iter_count = CS2VMX_CollectDynamicChildIndices(
+            host->tree, uid, start_index, vm->children_iter_indices, CS2VMX_CHILDREN_ITER_MAX);
+
+        if( UITreeX_FindByUserId(host->tree, uid) >= 0 )
+            CS2VMX_SetTargetComponentId(vm, operand, uid);
+    }
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_IF_ChildrenFindNextId(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    return CS2VMX_Op_CC_ChildrenFindNextId(vm, frame, operand);
+}
+
+int
+CS2VMX_Op_CC_CreateChild(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int child_index, type;
+    if( CS2VMX_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &type) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int parent_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    if( parent_id < 0 )
+        return CS2VM_EXECNO_ERROR;
+
+    return CS2VMX_Op_CC_CreateUnderParent(vm, parent_id, type, child_index, operand);
+}
+
+int
+CS2VMX_Op_CC_CreateSibling(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int child_index, type;
+    if( CS2VMX_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &type) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
+    int current_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    if( current_id < 0 || !host || !host->tree )
+        return CS2VM_EXECNO_ERROR;
+
+    int parent_id = UITreeX_ParentComponentId(host->tree, current_id);
+    if( parent_id < 0 )
+        return CS2VM_EXECNO_ERROR;
+
+    return CS2VMX_Op_CC_CreateUnderParent(vm, parent_id, type, child_index, operand);
 }
 
 static void
@@ -7564,7 +8145,8 @@ UITreeX_NodeByComponentId(
     int component_id)
 {
     assert(host);
-    assert(component_id >= 0);
+    if( component_id < 0 )
+        return NULL;
 
     int idx = UITreeX_FindByUserId(host->tree, component_id);
     if( idx < 0 )
@@ -7674,7 +8256,6 @@ CS2VMX_Op_IF_Find(
 {
     assert(vm);
     assert(frame);
-    (void)operand;
 
     int component_id;
     if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
@@ -7684,9 +8265,14 @@ CS2VMX_Op_IF_Find(
     int found = 0;
     if( host && UITreeX_FindByUserId(host->tree, component_id) >= 0 )
     {
-        vm->active_component_id = component_id;
+        if( operand == 1 )
+            vm->dot_component_id = component_id;
+        else
+            vm->active_component_id = component_id;
         found = 1;
     }
+    CS2VMX_SetTraceExtra(
+        "uid=0x%08x found=%d target=%s", (unsigned)component_id, found, operand == 1 ? "dw" : "aw");
     return CS2VMX_PushInt(vm, found);
 }
 
@@ -7874,8 +8460,6 @@ UITreeX_FindChildBySubid(
         struct UITreeXNode* c = &tree->nodes[child];
         if( c->dynamic && c->child_index == sub_id )
             return child;
-        if( !c->dynamic && (c->user_id & 0xFFFF) == (sub_id & 0xFFFF) )
-            return child;
     }
     return -1;
 }
@@ -7920,10 +8504,20 @@ UITreeX_ApplyComponentGeometry(
     node->hidden = component->hide ? 1 : 0;
     node->tiling = component->tiled ? 1 : 0;
     node->trans = component->transparency;
+    node->client_code = component->client_code;
+    node->hflip = component->horizontal_flip ? 1 : 0;
+    node->vflip = component->vertical_flip ? 1 : 0;
+    node->angle_2d = component->sprite_angle;
     node->aspect_w = component->aspect_w > 0 ? component->aspect_w : 1;
     node->aspect_h = component->aspect_h > 0 ? component->aspect_h : 1;
 
-    if( node->kind == UITreeXNodeKind_RSLayer )
+    if( node->kind == UITreeXNodeKind_RSGraphic )
+    {
+        node->u.rs_graphic.outline = component->outline;
+        node->u.rs_graphic.graphic_shadow = component->graphic_shadow;
+        node->u.rs_graphic.graphic_id2 = component->graphic_active;
+    }
+    else if( node->kind == UITreeXNodeKind_RSLayer )
     {
         node->u.rs_layer.scroll_width = component->scroll_width;
         node->u.rs_layer.scroll_height = component->scroll_height;
@@ -8124,9 +8718,9 @@ interface_x_transform_sprite_pixels(
     int cy = src_h / 2;
 
     int corners[4][2] = {
-        { -cx, -cy },
-        { src_w - 1 - cx, -cy },
-        { -cx, src_h - 1 - cy },
+        { -cx,            -cy            },
+        { src_w - 1 - cx, -cy            },
+        { -cx,            src_h - 1 - cy },
         { src_w - 1 - cx, src_h - 1 - cy },
     };
     int min_x = 0;
@@ -8308,6 +8902,323 @@ blit_rgba_sprite_tiled(
             blit_rgba_pixel(dest, dstride, x, y, spr[sy * sw + sx]);
         }
     }
+}
+
+static int
+interface_x_sprite_alpha(uint32_t p)
+{
+    return (int)((p >> 24) & 0xFF);
+}
+
+static uint32_t
+interface_x_sprite_sample(
+    uint32_t const* spr,
+    int sw,
+    int sh,
+    int sx,
+    int sy)
+{
+    if( !spr || sx < 0 || sy < 0 || sx >= sw || sy >= sh )
+        return 0;
+    return spr[sy * sw + sx];
+}
+
+/* Draw content only where mask alpha is zero (compass / inverted-mask semantics). */
+static void
+blit_rgba_sprite_masked_inverted(
+    int* dest,
+    int dstride,
+    int dx,
+    int dy,
+    int dw,
+    int dh,
+    uint32_t const* content,
+    int cw,
+    int ch,
+    uint32_t const* mask,
+    int mw,
+    int mh)
+{
+    if( !dest || !content || !mask || dw <= 0 || dh <= 0 || mw <= 0 || mh <= 0 || cw <= 0 ||
+        ch <= 0 )
+        return;
+
+    for( int y = 0; y < dh; y++ )
+    {
+        int dst_y = dy + y;
+        int my = (y * mh) / dh;
+        if( my >= mh )
+            my = mh - 1;
+        for( int x = 0; x < dw; x++ )
+        {
+            int dst_x = dx + x;
+            int mx = (x * mw) / dw;
+            if( mx >= mw )
+                mx = mw - 1;
+
+            uint32_t mask_px = mask[my * mw + mx];
+            if( interface_x_sprite_alpha(mask_px) > 127 )
+                continue;
+
+            int cx = (x * cw) / dw;
+            int cy = (y * ch) / dh;
+            if( cx >= cw )
+                cx = cw - 1;
+            if( cy >= ch )
+                cy = ch - 1;
+
+            uint32_t content_px = content[cy * cw + cx];
+            if( interface_x_sprite_alpha(content_px) == 0 )
+                continue;
+
+            blit_rgba_pixel(dest, dstride, dst_x, dst_y, (int)content_px);
+        }
+    }
+}
+
+/* Draw content only where mask alpha is non-zero (positive-mask semantics). */
+static void
+blit_rgba_sprite_masked(
+    int* dest,
+    int dstride,
+    int dx,
+    int dy,
+    int dw,
+    int dh,
+    uint32_t const* content,
+    int cw,
+    int ch,
+    uint32_t const* mask,
+    int mw,
+    int mh)
+{
+    if( !dest || !content || !mask || dw <= 0 || dh <= 0 || mw <= 0 || mh <= 0 || cw <= 0 ||
+        ch <= 0 )
+        return;
+
+    for( int y = 0; y < dh; y++ )
+    {
+        int dst_y = dy + y;
+        int my = (y * mh) / dh;
+        if( my >= mh )
+            my = mh - 1;
+        for( int x = 0; x < dw; x++ )
+        {
+            int dst_x = dx + x;
+            int mx = (x * mw) / dw;
+            if( mx >= mw )
+                mx = mw - 1;
+
+            uint32_t mask_px = mask[my * mw + mx];
+            if( interface_x_sprite_alpha(mask_px) == 0 )
+                continue;
+
+            int cx = (x * cw) / dw;
+            int cy = (y * ch) / dh;
+            if( cx >= cw )
+                cx = cw - 1;
+            if( cy >= ch )
+                cy = ch - 1;
+
+            uint32_t content_px = content[cy * cw + cx];
+            if( interface_x_sprite_alpha(content_px) == 0 )
+                continue;
+
+            blit_rgba_pixel(dest, dstride, dst_x, dst_y, (int)content_px);
+        }
+    }
+}
+
+/* Compass draw: rotated content center-cropped to mask, inverted mask clip.
+ * angle_scale matches reference widget spriteAngle (65536 = full turn). */
+static void
+interface_x_blit_rotated_masked_inverted(
+    int* dest,
+    int dstride,
+    int mask_x,
+    int mask_y,
+    int mask_w,
+    int mask_h,
+    uint32_t const* content,
+    int content_w,
+    int content_h,
+    uint32_t const* mask,
+    int mask_sw,
+    int mask_sh,
+    int angle,
+    int angle_scale,
+    int alpha)
+{
+    if( !dest || !content || !mask || mask_w <= 0 || mask_h <= 0 || content_w <= 0 ||
+        content_h <= 0 || mask_sw <= 0 || mask_sh <= 0 )
+        return;
+
+    double rad = 0.0;
+    if( angle != 0 && angle_scale > 0 )
+        rad = ((double)angle * 2.0 * 3.141592653589793) / (double)angle_scale;
+
+    double cos_a = cos(rad);
+    double sin_a = sin(rad);
+    int cx = mask_x + mask_w / 2;
+    int cy = mask_y + mask_h / 2;
+    int content_cx = content_w / 2;
+    int content_cy = content_h / 2;
+
+    int x0 = mask_x < g_render_clip_x0 ? g_render_clip_x0 : mask_x;
+    int y0 = mask_y < g_render_clip_y0 ? g_render_clip_y0 : mask_y;
+    int x1 = mask_x + mask_w;
+    int y1 = mask_y + mask_h;
+    if( x1 > g_render_clip_x1 )
+        x1 = g_render_clip_x1;
+    if( y1 > g_render_clip_y1 )
+        y1 = g_render_clip_y1;
+
+    for( int py = y0; py < y1; py++ )
+    {
+        int my = ((py - mask_y) * mask_sh) / mask_h;
+        if( my < 0 )
+            my = 0;
+        else if( my >= mask_sh )
+            my = mask_sh - 1;
+
+        for( int px = x0; px < x1; px++ )
+        {
+            int mx = ((px - mask_x) * mask_sw) / mask_w;
+            if( mx < 0 )
+                mx = 0;
+            else if( mx >= mask_sw )
+                mx = mask_sw - 1;
+
+            uint32_t mask_px = mask[my * mask_sw + mx];
+            if( interface_x_sprite_alpha(mask_px) > 127 )
+                continue;
+
+            double lx = (double)(px - cx);
+            double ly = (double)(py - cy);
+            double ux = lx * cos_a + ly * sin_a;
+            double uy = -lx * sin_a + ly * cos_a;
+            int csx = (int)lround((double)content_cx + ux);
+            int csy = (int)lround((double)content_cy + uy);
+            if( csx < 0 || csy < 0 || csx >= content_w || csy >= content_h )
+                continue;
+
+            uint32_t content_px = content[csy * content_w + csx];
+            if( interface_x_sprite_alpha(content_px) == 0 )
+                continue;
+
+            if( alpha < 255 )
+            {
+                int a = interface_x_sprite_alpha(content_px);
+                a = (a * alpha) / 255;
+                content_px = (content_px & 0x00FFFFFFu) | ((uint32_t)a << 24);
+            }
+
+            blit_rgba_pixel(dest, dstride, px, py, (int)content_px);
+        }
+    }
+}
+
+static struct ToriDraw_Sprite const*
+interface_x_scene_sprite_at(
+    struct InterfaceX_VMHost* host,
+    int scene_id)
+{
+    if( !host || scene_id < 0 )
+        return NULL;
+
+    int sprite_count = 0;
+    struct ToriDraw_Sprite** sprites =
+        ToriDraw_SceneSpriteGet(host->scene, scene_id, &sprite_count);
+    if( !sprites || sprite_count <= 0 || !sprites[0] || !sprites[0]->pixels_argb )
+        return NULL;
+    return sprites[0];
+}
+
+static void
+InterfaceX_InferCompassSpriteFromTree(struct InterfaceX_VMHost* host)
+{
+    if( !host || host->compass_sprite_id >= 0 || !host->tree )
+        return;
+
+    int best_id = -1;
+    int best_area = 0;
+    for( int i = 0; i < host->tree->node_count; i++ )
+    {
+        struct UITreeXNode const* node = &host->tree->nodes[i];
+        if( node->kind != UITreeXNodeKind_RSGraphic || node->hidden )
+            continue;
+        if( node->client_code == INTERFACEX_CONTENT_COMPASS )
+            continue;
+        if( node->u.rs_graphic.graphic_id < 0 )
+            continue;
+        if( node->abs_y > 250 || node->abs_x < 400 )
+            continue;
+
+        int area = (node->abs_w > 0 ? node->abs_w : 1) * (node->abs_h > 0 ? node->abs_h : 1);
+        if( area > best_area )
+        {
+            best_area = area;
+            best_id = node->u.rs_graphic.graphic_id;
+        }
+    }
+
+    if( best_id >= 0 )
+        host->compass_sprite_id = best_id;
+}
+
+static void
+InterfaceX_BlitCompassGraphic(
+    struct InterfaceX_VMHost* host,
+    int* pixels,
+    struct UITreeXNode const* node,
+    int node_alpha)
+{
+    if( !host || !pixels || !node )
+        return;
+
+    int mask_id = node->u.rs_graphic.graphic_id;
+    if( mask_id < 0 )
+        return;
+
+    int content_id = host->compass_sprite_id;
+    if( content_id < 0 )
+        content_id = node->u.rs_graphic.graphic_id2;
+    if( content_id < 0 )
+        return;
+
+    int mask_scene = node->u.rs_graphic.scene_id;
+    if( mask_scene < 0 )
+        mask_scene = InterfaceX_ResolveGraphicScene(host, mask_id);
+
+    int content_scene = InterfaceX_ResolveGraphicScene(host, content_id);
+    struct ToriDraw_Sprite const* mask_spr = interface_x_scene_sprite_at(host, mask_scene);
+    struct ToriDraw_Sprite const* content_spr = interface_x_scene_sprite_at(host, content_scene);
+    if( !mask_spr || !content_spr )
+        return;
+
+    int mask_w = mask_spr->width > 0 ? mask_spr->width : 1;
+    int mask_h = mask_spr->height > 0 ? mask_spr->height : 1;
+    int widget_w = node->abs_w > 0 ? node->abs_w : mask_w;
+    int widget_h = node->abs_h > 0 ? node->abs_h : mask_h;
+    int draw_x = node->abs_x + (widget_w - mask_w) / 2;
+    int draw_y = node->abs_y + (widget_h - mask_h) / 2;
+
+    interface_x_blit_rotated_masked_inverted(
+        pixels,
+        CANVAS_W,
+        draw_x,
+        draw_y,
+        mask_w,
+        mask_h,
+        content_spr->pixels_argb,
+        content_spr->width,
+        content_spr->height,
+        mask_spr->pixels_argb,
+        mask_w,
+        mask_h,
+        node->angle_2d,
+        65536,
+        node_alpha);
 }
 
 /* Composite an expanded sprite buffer back into a nominal canvas, clipping pixels
@@ -8497,6 +9408,31 @@ UITreeX_RenderNode(
 
     if( node->kind == UITreeXNodeKind_RSGraphic && node->u.rs_graphic.graphic_id >= 0 && host )
     {
+        if( node->client_code == INTERFACEX_CONTENT_COMPASS )
+        {
+            InterfaceX_BlitCompassGraphic(host, pixels, node, node_alpha);
+            goto render_children;
+        }
+
+        if( node->client_code == INTERFACEX_CONTENT_MINIMAP )
+            goto render_children;
+
+        if( host->compass_sprite_id >= 0 &&
+            node->u.rs_graphic.graphic_id == host->compass_sprite_id )
+        {
+            bool has_compass_widget = false;
+            for( int i = 0; i < tree->node_count; i++ )
+            {
+                if( tree->nodes[i].client_code == INTERFACEX_CONTENT_COMPASS )
+                {
+                    has_compass_widget = true;
+                    break;
+                }
+            }
+            if( has_compass_widget )
+                goto render_children;
+        }
+
         int scene_id = node->u.rs_graphic.scene_id;
         if( scene_id < 0 )
             scene_id = InterfaceX_ResolveGraphicScene(host, node->u.rs_graphic.graphic_id);
@@ -8599,7 +9535,8 @@ UITreeX_RenderNode(
         }
         else
         {
-            InterfaceX_DrawLine(pixels, CANVAS_W, px, py, px + pw - 1, py + ph - 1, thickness, argb);
+            InterfaceX_DrawLine(
+                pixels, CANVAS_W, px, py, px + pw - 1, py + ph - 1, thickness, argb);
         }
     }
     else if( node->kind == UITreeXNodeKind_RSObj && node->u.rs_obj.obj_id > 0 && host )
@@ -8785,6 +9722,9 @@ UITreeX_Render(
 
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
 
+    if( host )
+        InterfaceX_InferCompassSpriteFromTree(host);
+
     g_render_clip_x0 = 0;
     g_render_clip_y0 = 0;
     g_render_clip_x1 = CANVAS_W;
@@ -8819,6 +9759,69 @@ component_decode_from_bytes(
     else
         RSCacheDat2A_ComponentDecodeIf1(comp, &buf);
     return comp;
+}
+
+static void
+UITreeXBuilder_AppendChild(
+    struct UITreeX* tree,
+    int parent_idx,
+    int child_idx)
+{
+    assert(tree);
+    assert(parent_idx >= 0 && parent_idx < tree->node_count);
+    assert(child_idx >= 0 && child_idx < tree->node_count);
+
+    struct UITreeXNode* parent = &tree->nodes[parent_idx];
+    struct UITreeXNode* child = &tree->nodes[child_idx];
+
+    child->link.parent_tree_idx = parent_idx;
+
+    int last = parent->link.last_child_tree_idx;
+    if( last != -1 )
+        tree->nodes[last].link.next_sibling_tree_idx = child_idx;
+    else
+        parent->link.first_child_tree_idx = child_idx;
+    parent->link.last_child_tree_idx = child_idx;
+}
+
+/* Pass 2: link static nodes after all components exist so forward parent refs resolve. */
+static void
+UITreeXBuilder_LinkStaticComponents(
+    struct UITreeX* tree,
+    struct ToriAuxLibCore_Component** components,
+    int component_count)
+{
+    assert(tree);
+    if( !components || component_count <= 0 )
+        return;
+
+    for( int i = 0; i < component_count; i++ )
+    {
+        struct ToriAuxLibCore_Component* comp = components[i];
+        if( !comp )
+            continue;
+
+        int child_idx = UITreeX_FindByUserId(tree, comp->id);
+        if( child_idx < 0 )
+            continue;
+
+        int parent_id = comp->parent_id;
+        if( parent_id < 0 )
+            continue;
+
+        int parent_idx = UITreeX_FindByUserId(tree, parent_id);
+        if( parent_idx < 0 )
+        {
+            fprintf(
+                stderr,
+                "static link NOT-FOUND: child=0x%08x parent=0x%08x (root fallback)\n",
+                (unsigned)comp->id,
+                (unsigned)parent_id);
+            continue;
+        }
+
+        UITreeXBuilder_AppendChild(tree, parent_idx, child_idx);
+    }
 }
 
 static int
@@ -9430,11 +10433,17 @@ InterfaceX_RuntimeHookOwnsComponent(
         if( host->inv_transmit_hooks[i].component_id == component_id )
             return true;
     }
+    for( int i = 0; i < host->var_transmit_hook_count; i++ )
+    {
+        if( host->var_transmit_hooks[i].component_id == component_id )
+            return true;
+    }
     return false;
 }
 
 static void
 InterfaceX_SetHookIntLocal(
+    struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
     int component_id,
     int local_idx,
@@ -9445,10 +10454,21 @@ InterfaceX_SetHookIntLocal(
     case CS2VM_SCRIPT_ARG_WIDGET_ID:
         CS2VMX_SetIntCurrentFrameLocal(vm, local_idx, component_id);
         break;
+    case CS2VM_SCRIPT_ARG_WIDGET_CHILD_INDEX:
+    {
+        int child_index = -1;
+        if( host && host->tree )
+        {
+            int idx = UITreeX_FindByUserId(host->tree, component_id);
+            if( idx >= 0 && host->tree->nodes[idx].dynamic )
+                child_index = host->tree->nodes[idx].child_index;
+        }
+        CS2VMX_SetIntCurrentFrameLocal(vm, local_idx, child_index);
+        break;
+    }
     case CS2VM_SCRIPT_ARG_MOUSE_X:
     case CS2VM_SCRIPT_ARG_MOUSE_Y:
     case CS2VM_SCRIPT_ARG_OP_INDEX:
-    case CS2VM_SCRIPT_ARG_WIDGET_CHILD_INDEX:
     case CS2VM_SCRIPT_ARG_DRAG_TARGET_ID:
     case CS2VM_SCRIPT_ARG_DRAG_TARGET_CHILD_INDEX:
     case CS2VM_SCRIPT_ARG_KEY_TYPED:
@@ -9458,6 +10478,66 @@ InterfaceX_SetHookIntLocal(
     default:
         CS2VMX_SetIntCurrentFrameLocal(vm, local_idx, argi);
         break;
+    }
+}
+
+static void
+InterfaceX_VMHost_QueueScript(
+    struct InterfaceX_VMHost* host,
+    int script_id,
+    int component_id,
+    int const* int_args,
+    int int_arg_count)
+{
+    assert(host);
+
+    if( script_id <= 0 )
+        return;
+
+    if( host->script_queue_count >= INTERFACEX_SCRIPT_QUEUE_MAX )
+    {
+        fprintf(
+            stderr,
+            "script queue full, dropping script %d for component %d\n",
+            script_id,
+            component_id);
+        return;
+    }
+
+    if( !host->script_queue )
+        return;
+
+    if( int_arg_count > TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
+        int_arg_count = TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX;
+
+    int tail = (host->script_queue_head + host->script_queue_count) % INTERFACEX_SCRIPT_QUEUE_MAX;
+    struct InterfaceX_ScriptQueueEntry* entry = &host->script_queue[tail];
+
+    entry->script_id = script_id;
+    entry->component_id = component_id;
+    entry->int_arg_count = int_arg_count;
+    if( int_arg_count > 0 && int_args )
+        memcpy(entry->int_args, int_args, (size_t)int_arg_count * sizeof(entry->int_args[0]));
+
+    host->script_queue_count++;
+}
+
+static void
+InterfaceX_VMHost_DrainScriptQueue(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm)
+{
+    assert(host);
+    assert(vm);
+
+    while( host->script_queue_count > 0 )
+    {
+        struct InterfaceX_ScriptQueueEntry entry = host->script_queue[host->script_queue_head];
+        host->script_queue_head = (host->script_queue_head + 1) % INTERFACEX_SCRIPT_QUEUE_MAX;
+        host->script_queue_count--;
+
+        (void)InterfaceX_RunClientScript(
+            host, vm, entry.script_id, entry.component_id, entry.int_args, entry.int_arg_count);
     }
 }
 
@@ -9487,9 +10567,16 @@ InterfaceX_RunClientScript(
     CS2VMX_ResetRuntime(vm);
     CS2VMX_PushCallScript(vm, &client_script->script);
     for( int j = 0; j < int_arg_count; j++ )
-        InterfaceX_SetHookIntLocal(vm, component_id, j, int_args[j]);
+        InterfaceX_SetHookIntLocal(host, vm, component_id, j, int_args[j]);
 
     CS2VMX_SetActiveAndDotComponentId(vm, component_id);
+
+    if( g_cs2_trace_mode )
+        fprintf(
+            stderr,
+            "CS2TRACE BEGIN script=%d component=0x%08x\n",
+            script_id,
+            (unsigned)component_id);
 
     int res;
     while( (res = CS2VMX_RunScript(vm)) )
@@ -9497,14 +10584,39 @@ InterfaceX_RunClientScript(
         switch( res )
         {
         case CS2VM_EXECNO_DONE:
+            if( g_cs2_trace_mode )
+                fprintf(
+                    stderr,
+                    "CS2TRACE END script=%d component=0x%08x\n",
+                    script_id,
+                    (unsigned)component_id);
             return CS2VM_EXECNO_OK;
         case CS2VM_EXECNO_YIELD:
             break;
         case CS2VM_EXECNO_ERROR:
+            fprintf(
+                stderr,
+                "script %d failed at opcode %d pc %d (invoked as script %d for component 0x%x)\n",
+                vm->last_error_script_id,
+                vm->last_error_opcode,
+                vm->last_error_pc,
+                script_id,
+                (unsigned)component_id);
+            if( g_cs2_trace_mode )
+                fprintf(
+                    stderr,
+                    "CS2TRACE FAIL script=%d component=0x%08x opcode=%d pc=%d\n",
+                    script_id,
+                    (unsigned)component_id,
+                    vm->last_error_opcode,
+                    vm->last_error_pc);
             CS2VMX_ResetRuntime(vm);
-            return CS2VM_EXECNO_OK;
+            return CS2VM_EXECNO_ERROR;
         }
     }
+    if( g_cs2_trace_mode )
+        fprintf(
+            stderr, "CS2TRACE END script=%d component=0x%08x\n", script_id, (unsigned)component_id);
     return CS2VM_EXECNO_OK;
 }
 
@@ -9527,6 +10639,14 @@ InterfaceX_VMHost_Init(struct InterfaceX_VMHost* host)
     };
 
     host->scripts = ToriDraw_MapNew(&config, 0);
+    if( !host->scripts )
+        return false;
+
+    host->script_queue =
+        calloc((size_t)INTERFACEX_SCRIPT_QUEUE_MAX, sizeof(struct InterfaceX_ScriptQueueEntry));
+    if( !host->script_queue )
+        return false;
+
     return true;
 }
 
@@ -9734,9 +10854,9 @@ InterfaceX_VMHost_Exec_VarsReadVarp(
     assert(host->builder);
 
     int varp_id = request.varp_id;
+    (void)varp_id;
 
-#define DUMMY_VARP_VALUE 123
-    CS2VMX_PushInt(vm, DUMMY_VARP_VALUE);
+    CS2VMX_PushInt(vm, 0);
 
     return CS2VM_EXECNO_OK;
 }
@@ -9833,6 +10953,13 @@ InterfaceX_VMHost_Exec_EnumLookup(
 {
     assert(host);
     assert(vm);
+
+    if( request.output_type == (int)'s' )
+    {
+        char const* value = InterfaceX_EnumLookupString(
+            host->disk, request.input_type, request.output_type, request.enum_id, request.key);
+        return CS2VMX_PushStr(vm, strdup(value ? value : "null"));
+    }
 
     int value = -1;
     if( host->disk )
@@ -10091,7 +11218,8 @@ InterfaceX_ModelNodeInvalidateScene(struct UITreeXNode* node)
 static void
 InterfaceX_EnsureModelNode(struct UITreeXNode* node)
 {
-    if( !node || node->kind == UITreeXNodeKind_RSModel )
+    assert(node);
+    if( node->kind == UITreeXNodeKind_RSModel )
         return;
 
     memset(&node->u.rs_model, 0, sizeof(node->u.rs_model));
@@ -10108,8 +11236,7 @@ InterfaceX_ApplyWidgetSetInt(
     enum CS2VM_WidgetIntField field,
     int value)
 {
-    if( !node )
-        return;
+    assert(node);
 
     switch( field )
     {
@@ -10546,8 +11673,30 @@ InterfaceX_VMHost_Exec_IF_SetOnVarTransmit(
 {
     assert(host);
     assert(host->builder);
+    (void)vm;
 
-    int component_id = request.component_id;
+    if( host->var_transmit_hook_count >= INTERFACEX_VAR_TRANSMIT_HOOK_MAX )
+        return CS2VM_EXECNO_OK;
+
+    struct InterfaceX_VarTransmitHook* hook =
+        &host->var_transmit_hooks[host->var_transmit_hook_count++];
+
+    hook->component_id = request.component_id;
+    hook->script_id = request.script_id;
+    hook->trigger_count = request.trigger_count;
+    if( hook->trigger_count > INTERFACEX_VAR_TRANSMIT_TRIGGER_MAX )
+        hook->trigger_count = INTERFACEX_VAR_TRANSMIT_TRIGGER_MAX;
+    if( request.trigger_ids && hook->trigger_count > 0 )
+    {
+        memcpy(
+            hook->trigger_ids,
+            request.trigger_ids,
+            (size_t)hook->trigger_count * sizeof(hook->trigger_ids[0]));
+    }
+    else
+    {
+        hook->trigger_count = 0;
+    }
 
     return CS2VM_EXECNO_OK;
 }
@@ -10701,6 +11850,12 @@ InterfaceX_VMHost_Exec_CC_SetOp(
     if( node )
         UITreeX_ApplyOp(node, request.index, request.text);
 
+    CS2VMX_SetTraceExtra(
+        "widget=0x%08x index=%d text=\"%s\" hit=%d",
+        (unsigned)request.component_id,
+        request.index,
+        request.text ? request.text : "",
+        node ? 1 : 0);
     return CS2VM_EXECNO_OK;
 }
 
@@ -10718,6 +11873,12 @@ InterfaceX_VMHost_Exec_IF_SetOp(
     if( node )
         UITreeX_ApplyOp(node, request.index, request.text);
 
+    CS2VMX_SetTraceExtra(
+        "widget=0x%08x index=%d text=\"%s\" hit=%d",
+        (unsigned)request.component_id,
+        request.index,
+        request.text ? request.text : "",
+        node ? 1 : 0);
     return CS2VM_EXECNO_OK;
 }
 
@@ -10810,6 +11971,10 @@ InterfaceX_VMHost_Exec_CC_Create(
     assert(host->tree);
 
     int parent_id = request.parent_id;
+    if( parent_id == 10551393 )
+    {
+        printf("Hello");
+    }
     int type = request.component_type;
     int child_index = request.child_index;
     (void)request.is_nested;
@@ -10834,6 +11999,11 @@ InterfaceX_VMHost_Exec_CC_Create(
     node->user_id = InterfaceX_VMHost_AllocateDynamicUid(host);
     if( node->user_id < 0 )
         return CS2VM_EXECNO_ERROR;
+
+    if( node->user_id == 10551394 )
+    {
+        printf("Hello");
+    }
 
     node->dynamic = 1;
     node->child_index = child_index;
@@ -10900,6 +12070,13 @@ InterfaceX_VMHost_Exec_CC_Create(
     else
         vm->active_component_id = node->user_id;
 
+    CS2VMX_SetTraceExtra(
+        "parent=0x%08x type=%d child=%d new=0x%08x target=%s",
+        (unsigned)parent_id,
+        type,
+        child_index,
+        (unsigned)node->user_id,
+        request.dot_operand == 1 ? "dw" : "aw");
 #if INTERFACEX_DEBUG_OPS
     fprintf(
         stderr,
@@ -10941,6 +12118,12 @@ InterfaceX_VMHost_Exec_CC_Find(
         }
     }
 
+    CS2VMX_SetTraceExtra(
+        "parent=0x%08x sub=%d found=%d target=%s",
+        (unsigned)request.parent_id,
+        request.sub_id,
+        found,
+        request.dot_operand == 1 ? "dw" : "aw");
     CS2VMX_PushInt(vm, found);
     return CS2VM_EXECNO_OK;
 }
@@ -11397,7 +12580,7 @@ InterfaceX_VMHost_Exec_CC_GetId(
     if( !node )
         return CS2VM_EXECNO_ERROR;
 
-    int child_index = node->dynamic ? node->child_index : (node->user_id & 0xFFFF);
+    int child_index = node->dynamic ? node->child_index : -1;
     CS2VMX_PushInt(vm, child_index);
     return CS2VM_EXECNO_OK;
 }
@@ -11487,8 +12670,8 @@ InterfaceX_ConfigArchiveReady(
     struct RSCacheDat2Disk* disk,
     int config_kind)
 {
-    if( !disk || config_kind < 0 )
-        return false;
+    assert(disk);
+    assert(config_kind >= 0);
 
     struct RSCacheDat2Disk_ReferenceTable* table = disk->tables[RSCacheDat2Disk_Table_Configs];
     if( !table || config_kind >= table->archive_count )
@@ -11506,8 +12689,9 @@ InterfaceX_ConfigArchiveFindFile(
     uint8_t const** out_data,
     int* out_len)
 {
-    if( !disk || !fl || file_id < 0 )
-        return false;
+    assert(disk);
+    assert(fl);
+    assert(file_id >= 0);
 
     struct RSCacheDat2Disk_ReferenceTable* table = disk->tables[RSCacheDat2Disk_Table_Configs];
     struct RSCacheDat2Disk_ArchiveReference* ref = NULL;
@@ -11631,8 +12815,9 @@ InterfaceX_DecodeEnumConfig(
     int len,
     struct InterfaceX_EnumCacheEntry* entry)
 {
-    if( !entry || !data || len <= 0 || (len == 1 && data[0] == 0) )
-        return;
+    assert(entry);
+    assert(data);
+    assert(len > 0);
 
     struct RSCacheShared_RSBuffer buf;
     RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, len);
@@ -11677,8 +12862,7 @@ InterfaceX_DecodeEnumConfig(
                 {
                     int new_cap = key_cap < 8 ? 8 : key_cap * 2;
                     int* new_keys = realloc(keys, (size_t)new_cap * sizeof(int));
-                    char** new_strings =
-                        realloc(string_values, (size_t)new_cap * sizeof(char*));
+                    char** new_strings = realloc(string_values, (size_t)new_cap * sizeof(char*));
                     if( !new_keys || !new_strings )
                     {
                         free(value);
@@ -11831,6 +13015,37 @@ InterfaceX_EnumLookup(
             return entry->int_values ? entry->int_values[i] : -1;
     }
     return entry->default_int;
+}
+
+static char const*
+InterfaceX_EnumLookupString(
+    struct RSCacheDat2Disk* disk,
+    int input_type,
+    int output_type,
+    int enum_id,
+    int key)
+{
+    (void)input_type;
+    (void)output_type;
+    if( !disk || enum_id < 0 )
+        return "null";
+
+    struct InterfaceX_EnumCacheEntry* entry = InterfaceX_EnumCacheGet(disk, enum_id);
+    if( !entry || !entry->output_is_string )
+        return "null";
+    if( !entry->keys || entry->count <= 0 )
+        return entry->default_string ? entry->default_string : "null";
+
+    for( int i = 0; i < entry->count; i++ )
+    {
+        if( entry->keys[i] == key )
+        {
+            if( entry->string_values && entry->string_values[i] )
+                return entry->string_values[i];
+            return entry->default_string ? entry->default_string : "null";
+        }
+    }
+    return entry->default_string ? entry->default_string : "null";
 }
 
 static int
@@ -12429,11 +13644,13 @@ InterfaceX_VMHost_Exec(
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
         return InterfaceX_VMHost_Exec_WidgetSetModel(vmhost, vm, request->u.widget_set_model);
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_ANGLE:
-        return InterfaceX_VMHost_Exec_WidgetSetModelAngle(vmhost, vm, request->u.widget_set_model_angle);
+        return InterfaceX_VMHost_Exec_WidgetSetModelAngle(
+            vmhost, vm, request->u.widget_set_model_angle);
     case CS2VM_HOST_REQUEST_WIDGET_SET_ARC:
         return InterfaceX_VMHost_Exec_WidgetSetArc(vmhost, vm, request->u.widget_set_arc);
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
-        return InterfaceX_VMHost_Exec_WidgetSetModelKind(vmhost, vm, request->u.widget_set_model_kind);
+        return InterfaceX_VMHost_Exec_WidgetSetModelKind(
+            vmhost, vm, request->u.widget_set_model_kind);
     case CS2VM_HOST_REQUEST_WIDGET_INPUT_INT:
         return InterfaceX_VMHost_Exec_WidgetInputInt(vmhost, vm, request->u.widget_input_int);
     default:
@@ -12449,6 +13666,68 @@ CS2VMX_ResetRuntime(struct CS2VMX* vm)
     vm->ints_stack_top = 0;
     vm->strs_stack_top = 0;
     vm->frame_sp = 0;
+}
+
+static void
+InterfaceX_VMHost_FireVarTransmitHooks(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm)
+{
+    assert(host);
+    assert(vm);
+
+    for( int i = 0; i < host->var_transmit_hook_count; i++ )
+    {
+        struct InterfaceX_VarTransmitHook const* hook = &host->var_transmit_hooks[i];
+        if( hook->script_id <= 0 )
+            continue;
+        if( hook->trigger_count <= 0 )
+            continue;
+
+        printf(
+            "running onVarTransmit script %d for component %d\n",
+            hook->script_id,
+            hook->component_id);
+
+        InterfaceX_VMHost_QueueScript(host, hook->script_id, hook->component_id, NULL, 0);
+    }
+}
+
+static void
+InterfaceX_VMHost_FireCacheVarTransmitHooks(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct ToriAuxLibCore_Component** components,
+    int component_count)
+{
+    assert(host);
+    assert(vm);
+    if( !components || component_count <= 0 )
+        return;
+
+    for( int i = 0; i < component_count; i++ )
+    {
+        struct ToriAuxLibCore_Component* comp = components[i];
+        if( !comp )
+            continue;
+        if( InterfaceX_RuntimeHookOwnsComponent(host, comp->id) )
+            continue;
+        if( comp->on_varp_transmit.argc <= 0 )
+            continue;
+        if( comp->varp_triggers_count <= 0 )
+            continue;
+
+        int script_id = comp->on_varp_transmit.argv[0];
+        int args[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX];
+        int arg_count = comp->on_varp_transmit.argc - 1;
+        if( arg_count > TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
+            arg_count = TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX;
+        for( int j = 0; j < arg_count; j++ )
+            args[j] = comp->on_varp_transmit.argv[j + 1];
+
+        printf("running cache onVarTransmit script %d for component %d\n", script_id, comp->id);
+        InterfaceX_VMHost_QueueScript(host, script_id, comp->id, args, arg_count);
+    }
 }
 
 static void
@@ -12473,8 +13752,8 @@ InterfaceX_VMHost_FireInvTransmitHooks(
             printf(" %d", hook->int_args[j]);
         printf(")\n");
 
-        (void)InterfaceX_RunClientScript(
-            host, vm, hook->script_id, hook->component_id, hook->int_args, hook->int_arg_count);
+        InterfaceX_VMHost_QueueScript(
+            host, hook->script_id, hook->component_id, hook->int_args, hook->int_arg_count);
     }
 }
 
@@ -12509,7 +13788,7 @@ InterfaceX_VMHost_FireCacheInvTransmitHooks(
             args[j] = comp->on_inv_transmit.argv[j + 1];
 
         printf("running cache onInvTransmit script %d for component %d\n", script_id, comp->id);
-        (void)InterfaceX_RunClientScript(host, vm, script_id, comp->id, args, arg_count);
+        InterfaceX_VMHost_QueueScript(host, script_id, comp->id, args, arg_count);
     }
 }
 
@@ -12526,8 +13805,7 @@ InterfaceX_VMHost_FireCacheInvTransmitHooks(
 static int
 InterfaceX_ListInterfaceIds(struct RSCacheDat2Disk* cache)
 {
-    struct RSCacheDat2Disk_ReferenceTable* table =
-        cache->tables[RSCacheDat2Disk_Table_Interfaces];
+    struct RSCacheDat2Disk_ReferenceTable* table = cache->tables[RSCacheDat2Disk_Table_Interfaces];
     if( !table )
     {
         fprintf(stderr, "failed to load interfaces reference table\n");
@@ -12545,8 +13823,10 @@ InterfaceX_PrintUsage(char const* argv0)
 {
     fprintf(
         stderr,
-        "usage: %s [--list] [--no-bmp] [interface_id]\n"
-        "  default interface_id: %d (inventory)\n",
+        "usage: %s [--list] [--no-bmp] [--cs2-trace] [--cs2-trace-all] [interface_id]\n"
+        "  default interface_id: %d (inventory)\n"
+        "  --cs2-trace: log targeting opcode trace to stderr (CS2TRACE lines)\n"
+        "  --cs2-trace-all: log every opcode to stderr\n",
         argv0,
         INVENTORY_INTERFACE);
 }
@@ -12565,6 +13845,10 @@ main(
             list_only = true;
         else if( strcmp(argv[i], "--no-bmp") == 0 )
             g_interfacex_write_bmp = 0;
+        else if( strcmp(argv[i], "--cs2-trace") == 0 )
+            g_cs2_trace_mode = 1;
+        else if( strcmp(argv[i], "--cs2-trace-all") == 0 )
+            g_cs2_trace_mode = 2;
         else if( strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0 )
         {
             InterfaceX_PrintUsage(argv[0]);
@@ -12705,6 +13989,8 @@ main(
         process_component(builder, component_core);
     }
 
+    UITreeXBuilder_LinkStaticComponents(tree, components, file_list->file_count);
+
     reference_table = cache->tables[RSCacheDat2Disk_Table_Clientscript];
     for( int i = 0; i < file_list->file_count; i++ )
     {
@@ -12721,12 +14007,22 @@ main(
         for( int j = 0; j < arg_count; j++ )
             args[j] = component_core->on_load.argv[j + 1];
 
-        (void)InterfaceX_RunClientScript(
-            &vmhost, &vm, script_id, component_core->id, args, arg_count);
+        InterfaceX_VMHost_QueueScript(&vmhost, script_id, component_core->id, args, arg_count);
     }
 
+    InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
+
+    InterfaceX_VMHost_FireVarTransmitHooks(&vmhost, &vm);
+    InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
+
+    InterfaceX_VMHost_FireCacheVarTransmitHooks(&vmhost, &vm, components, file_list->file_count);
+    InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
+
     InterfaceX_VMHost_FireInvTransmitHooks(&vmhost, &vm);
+    InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
+
     InterfaceX_VMHost_FireCacheInvTransmitHooks(&vmhost, &vm, components, file_list->file_count);
+    InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
 
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
     UITreeX_PrintNodes(tree);
@@ -12755,6 +14051,7 @@ main(
 
     free(pixels);
 
+    free(vmhost.script_queue);
     InterfaceX_ConfigArchiveCacheFreeAll();
     return 0;
 }

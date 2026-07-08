@@ -306,6 +306,12 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
         dst->aspect_h = src->aspect_ratio_h > 0 ? src->aspect_ratio_h : 1;
     }
     dst->graphic = src->graphic;
+    dst->graphic_active = src->activeGraphic;
+    dst->outline = src->outline;
+    dst->graphic_shadow = src->graphicShadow;
+    dst->sprite_angle = src->angle;
+    dst->horizontal_flip = src->horizontalFlip ? 1 : 0;
+    dst->vertical_flip = src->verticalFlip ? 1 : 0;
     dst->transparency = src->transparency;
     dst->text_h_align = src->textHorizontalAlignment;
     dst->text_v_align = src->textVerticalAlignment;

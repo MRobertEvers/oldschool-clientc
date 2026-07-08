@@ -396,6 +396,16 @@ struct ToriAuxLibCore_Component
     uint8_t if3;
     /** Raw cache graphic id (dat2 graphic); UITree scene_id when building. */
     int graphic;
+    /** dat2 activeGraphic / spriteId2. */
+    int graphic_active;
+    /** dat2 outline (borderType). */
+    int outline;
+    /** dat2 graphicShadow. */
+    int graphic_shadow;
+    /** dat2 angle (spriteAngle, 16-bit scale in reference GL path). */
+    int sprite_angle;
+    uint8_t horizontal_flip;
+    uint8_t vertical_flip;
     /** Raw cache inv-slot graphic ids (dat2 invSlotGraphicId). */
     int inv_slot_graphic_id[TORIAUXLIBCORE_INV_SLOT_MAX];
     int transparency;

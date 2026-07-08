@@ -466,9 +466,17 @@ RSCacheDat2A_SpriteGetPixels(struct RSCacheDat2A_Sprite* sprite, int* palette, i
 
     for( int pixel_index = 0; pixel_index < sprite->width * sprite->height; pixel_index++ )
     {
-        int palette_index = palette_pixels[pixel_index];
+        int palette_index = palette_pixels[pixel_index] & 0xFF;
+        /* Palette index 0 is always transparent (matches reference SpritePixels /
+         * texture-cache indexedSpriteToSpritePixels). */
+        if( palette_index == 0 )
+            continue;
+
         uint8_t alpha = sprite->pixel_alphas[pixel_index];
-        pixels[pixel_index] = (alpha << 24) | palette[palette_index];
+        if( alpha == 0 )
+            continue;
+
+        pixels[pixel_index] = ((int)alpha << 24) | palette[palette_index];
     }
 
     return pixels;

@@ -11,6 +11,22 @@ OUT = Path(__file__).resolve().parent / "interfacex_opcode_stack.gen.h"
 
 MAX_OPCODE = 7602
 
+MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
+    106: (2, 0, 0, 0),  # CC_CREATECHILD
+    107: (2, 0, 0, 0),  # CC_CREATESIBLING
+    202: (0, 0, 1, 0),  # CC_FINDROOT
+    203: (1, 0, 0, 0),  # CC_CHILDREN_FIND
+    204: (0, 0, 1, 0),  # CC_CHILDREN_FINDNEXTID
+    205: (2, 0, 0, 0),  # IF_CHILDREN_FIND
+    206: (0, 0, 1, 0),  # IF_CHILDREN_FINDNEXTID
+    6200: (2, 0, 0, 0),  # VIEWPORT_SETFOV
+    6201: (2, 0, 0, 0),  # VIEWPORT_SETZOOM
+    6202: (4, 0, 0, 0),  # VIEWPORT_CLAMPFOV
+    6203: (0, 0, 2, 0),  # VIEWPORT_GETEFFECTIVESIZE
+    6204: (0, 0, 2, 0),  # VIEWPORT_GETZOOM
+    6205: (0, 0, 2, 0),  # VIEWPORT_GETFOV
+}
+
 
 def parse_stack_line(line: str) -> int:
     rhs = line.split(":", 1)[1]
@@ -91,7 +107,11 @@ def heuristic(name: str) -> tuple[int, int, int, int] | None:
         return (0, 0, 1, 0)
     if name in ("MOUSE_GETX", "MOUSE_GETY"):
         return (0, 0, 1, 0)
+    if name == "GETCANVASSIZE":
+        return (0, 0, 2, 0)
     if name == "GETWINDOWMODE":
+        return (0, 0, 1, 0)
+    if name == "GETDEFAULTWINDOWMODE":
         return (0, 0, 1, 0)
     if name == "IF_GETTOP":
         return (0, 0, 1, 0)
@@ -123,8 +143,12 @@ def heuristic(name: str) -> tuple[int, int, int, int] | None:
         if "NAME" in name or "HISTORY" in name:
             return (1, 0, 0, 1) if "NAME" in name else (2, 0, 0, 1)
         return (0, 0, 1, 0)
-    if name.startswith("VIEWPORT_"):
-        return (1, 0, 1, 0)
+    if name.startswith("VIEWPORT_GET"):
+        return (0, 0, 2, 0)
+    if name.startswith("VIEWPORT_SET"):
+        return (2, 0, 0, 0)
+    if name == "VIEWPORT_CLAMPFOV":
+        return (4, 0, 0, 0)
     if name in ("MES", "IF_CLOSE", "SOUND_SYNTH"):
         return (0, 1, 0, 0)
     if name.startswith("SET") and "SETON" not in name:
@@ -139,6 +163,9 @@ def heuristic(name: str) -> tuple[int, int, int, int] | None:
 def main() -> None:
     entries = parse_opcode_h()
     names = parse_meta_names()
+
+    for op, stack in MANUAL_STACK.items():
+        entries[op] = stack
 
     for op, name in names.items():
         if op in entries and any(entries[op]):
