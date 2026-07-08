@@ -148,6 +148,13 @@ struct StaticUIBehavior
 
 #define UITREE_MENU_OPTION_SLOTS 5
 #define UITREE_MENU_OPTION_LEN 32
+#define UITREE_SUBMENU_OP_SLOTS 10
+#define UITREE_SUBMENU_ENTRY_SLOTS 32
+
+struct StaticUIMenuSubmenuOptions
+{
+    char ops[UITREE_SUBMENU_OP_SLOTS][UITREE_SUBMENU_ENTRY_SLOTS][UITREE_MENU_OPTION_LEN];
+};
 
 struct StaticUIMenuOptions
 {
@@ -156,6 +163,7 @@ struct StaticUIMenuOptions
     /** 0 = derive action at click time from slot index or button_type. */
     int option_action;
     int op_actions[UITREE_MENU_OPTION_SLOTS];
+    struct StaticUIMenuSubmenuOptions submenus;
 };
 
 #define UITREE_CHAT_OP_TEMPLATE_LEN 64
@@ -742,6 +750,22 @@ uitree_clear_ops(
     struct UITree* tree,
     int component_id,
     int active_component);
+
+bool
+uitree_apply_op_submenu(
+    struct UITree* tree,
+    int component_id,
+    int active_component,
+    int op_index,
+    int sub_index,
+    char const* text);
+
+bool
+uitree_clear_op_submenu(
+    struct UITree* tree,
+    int component_id,
+    int active_component,
+    int op_index);
 
 bool
 uitree_get_text(

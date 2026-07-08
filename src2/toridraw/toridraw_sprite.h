@@ -149,6 +149,26 @@ ToriDraw2D_BlitSpriteMasked(
     int y,
     int* pixel_buffer);
 
+/** RS UI graphic outline (CC_SETOUTLINE). Returns new owned buffer or NULL. */
+uint32_t*
+ToriDraw_SpriteNewGraphicOutline(
+    uint32_t const* src,
+    int sw,
+    int sh,
+    int outline,
+    int* out_w,
+    int* out_h);
+
+/** RS UI graphic shadow (CC_SETGRAPHICSHADOW). Returns new owned buffer or NULL. */
+uint32_t*
+ToriDraw_SpriteNewGraphicShadow(
+    uint32_t const* src,
+    int sw,
+    int sh,
+    int shadow_colour,
+    int* out_w,
+    int* out_h);
+
 void
 ToriDraw_SpriteFlipHorizontal(struct ToriDraw_Sprite* sprite);
 
@@ -157,5 +177,11 @@ ToriDraw_SpriteFlipVertical(struct ToriDraw_Sprite* sprite);
 
 void
 ToriDraw_SpriteFree(struct ToriDraw_Sprite* sprite);
+
+/** Write sprite ARGB pixels to a 32-bit BMP. Exports the embedded crop rect when set. */
+int
+ToriDraw_SpriteWriteBmpFile(
+    struct ToriDraw_Sprite const* sprite,
+    char const* path);
 
 #endif

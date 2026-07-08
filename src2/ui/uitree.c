@@ -807,6 +807,47 @@ uitree_clear_ops(
         return false;
     for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
         tree->components[idx].menu_options.ops[i][0] = '\0';
+    memset(&tree->components[idx].menu_options.submenus, 0, sizeof(struct StaticUIMenuSubmenuOptions));
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_apply_op_submenu(
+    struct UITree* tree,
+    int component_id,
+    int active_component,
+    int op_index,
+    int sub_index,
+    char const* text)
+{
+    if( !tree || op_index < 0 || op_index >= UITREE_SUBMENU_OP_SLOTS || sub_index < 0 ||
+        sub_index >= UITREE_SUBMENU_ENTRY_SLOTS )
+        return false;
+    int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
+    if( idx < 0 )
+        return false;
+    char* dst = tree->components[idx].menu_options.submenus.ops[op_index][sub_index];
+    strncpy(dst, text ? text : "", UITREE_MENU_OPTION_LEN - 1);
+    dst[UITREE_MENU_OPTION_LEN - 1] = '\0';
+    uitree_mark_node_dirty(tree, idx);
+    return true;
+}
+
+bool
+uitree_clear_op_submenu(
+    struct UITree* tree,
+    int component_id,
+    int active_component,
+    int op_index)
+{
+    if( !tree || op_index < 0 || op_index >= UITREE_SUBMENU_OP_SLOTS )
+        return false;
+    int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
+    if( idx < 0 )
+        return false;
+    for( int i = 0; i < UITREE_SUBMENU_ENTRY_SLOTS; i++ )
+        tree->components[idx].menu_options.submenus.ops[op_index][i][0] = '\0';
     uitree_mark_node_dirty(tree, idx);
     return true;
 }

@@ -136,13 +136,25 @@ ToriAuxLibCore_NpctypeSizeOf(const struct ToriAuxLibCore_Npctype* npctype)
 void
 ToriAuxLibCore_ObjtypeFree(struct ToriAuxLibCore_Objtype* objtype)
 {
+    if( !objtype )
+        return;
+    free(objtype->recolors_from);
+    free(objtype->recolors_to);
     free(objtype);
 }
 
 size_t
 ToriAuxLibCore_ObjtypeSizeOf(const struct ToriAuxLibCore_Objtype* objtype)
 {
-    return objtype ? sizeof(*objtype) : 0;
+    if( !objtype )
+        return 0;
+
+    size_t bytes = sizeof(*objtype);
+    if( objtype->recolors_from )
+        bytes += (size_t)objtype->recolor_count * sizeof(*objtype->recolors_from);
+    if( objtype->recolors_to )
+        bytes += (size_t)objtype->recolor_count * sizeof(*objtype->recolors_to);
+    return bytes;
 }
 
 static void

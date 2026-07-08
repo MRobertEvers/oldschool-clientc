@@ -21,6 +21,21 @@ ToriDraw_SpriteNewFromModelRaster(
     int height,
     bool postprocess_outline);
 
+/** Rasterize a model for RS inventory/obj icons (offsets, roll, obj-icon Y placement). */
+struct ToriDraw_Sprite*
+ToriDraw_SpriteNewFromObjIconRaster(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int xof,
+    int yof,
+    int width,
+    int height,
+    bool postprocess_outline);
+
 /** RS inventory/obj icon 1-pixel outline pass on raw ARGB buffer. */
 void
 ToriDraw_SpritePostprocessObjIconOutline(

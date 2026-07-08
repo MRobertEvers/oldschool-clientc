@@ -41,7 +41,6 @@ struct CS2HostUIWidgetParam
 #define CS2_OP_CC_CLEAROPSUBMENU 1310
 #define CS2_OP_CC_SETOPSUBMENU 1311
 #define CS2_OP_IF_CLEAROPSUBMENU 2310
-#define CS2_OP_IF_SETOPSUBMENU 2311
 
 struct CS2HostUIState
 {
@@ -151,6 +150,21 @@ cs2_host_ui_resolve_target(
     if( active_component >= 0 )
         return uitree_find_by_component_id(st->tree, active_component);
     return -1;
+}
+
+static int
+cs2_host_ui_get_child_index(
+    struct CS2HostUIState const* st,
+    int component_id)
+{
+    int32_t idx = cs2_host_ui_resolve_target(st, component_id, component_id);
+    if( idx < 0 )
+        return -1;
+
+    struct StaticUIComponent const* c = &st->tree->components[idx];
+    if( c->dynamic )
+        return c->dynamic_child_index;
+    return c->component_id & 0xFFFF;
 }
 
 static int
@@ -772,6 +786,33 @@ cs2_host_ui_apply_op(
 }
 
 static void
+cs2_host_ui_apply_op_submenu(
+    struct CS2HostUIState* st,
+    int component_id,
+    int active_component,
+    int op_index,
+    int sub_index,
+    char const* text)
+{
+    if( !st || !st->tree )
+        return;
+    (void)uitree_apply_op_submenu(
+        st->tree, component_id, active_component, op_index, sub_index, text ? text : "");
+}
+
+static void
+cs2_host_ui_clear_op_submenu(
+    struct CS2HostUIState* st,
+    int component_id,
+    int active_component,
+    int op_index)
+{
+    if( !st || !st->tree )
+        return;
+    (void)uitree_clear_op_submenu(st->tree, component_id, active_component, op_index);
+}
+
+static void
 cs2_host_ui_push_cstring(
     struct CS2_InvokeCtx* ctx,
     char const* text)
@@ -1245,13 +1286,30 @@ cs2_host_ui_invoke(
         (void)cs2vm_host_pop_int(ctx);
         break;
     case CS2_OP_CC_CLEAROPSUBMENU:
-        (void)cs2vm_host_pop_int(ctx);
+    {
+        int action_index = cs2vm_host_pop_int(ctx) - 1;
+        if( action_index >= 0 && action_index <= 9 )
+        {
+            cs2_host_ui_clear_op_submenu(
+                st, -1, cs2_host_ui_cc_target_component(ctx), action_index);
+        }
         break;
+    }
     case CS2_OP_CC_SETOPSUBMENU:
     {
-        (void)cs2vm_host_pop_string(ctx);
-        (void)cs2vm_host_pop_int(ctx);
-        (void)cs2vm_host_pop_int(ctx);
+        int sub_index = cs2vm_host_pop_int(ctx) - 1;
+        int op_index = cs2vm_host_pop_int(ctx) - 1;
+        char* text = cs2vm_host_pop_string(ctx);
+        if( op_index >= 0 && op_index <= 9 && sub_index >= 0 )
+        {
+            cs2_host_ui_apply_op_submenu(
+                st,
+                -1,
+                cs2_host_ui_cc_target_component(ctx),
+                op_index,
+                sub_index,
+                text ? text : "");
+        }
         break;
     }
     case CS2_OP_CC_SETDRAGGABLE:
@@ -1329,8 +1387,17 @@ cs2_host_ui_invoke(
         break;
     }
     case CS2_OP_CC_GETID:
-        cs2vm_host_push_int(ctx, cs2_host_ui_cc_target_component(ctx));
+    {
+        int const component = cs2_host_ui_cc_target_component(ctx);
+        int const child_index = cs2_host_ui_get_child_index(st, component);
+        if( child_index < 0 )
+        {
+            cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
+            break;
+        }
+        cs2vm_host_push_int(ctx, child_index);
         break;
+    }
     case CS2_OP_CC_PARAM:
     {
         int param_id = cs2vm_host_pop_int(ctx);
@@ -1585,8 +1652,8 @@ cs2_host_ui_invoke(
     }
     case CS2_OP_IF_SETOUTLINE:
     {
-        int outline = cs2vm_host_pop_int(ctx);
         int component = cs2vm_host_pop_int(ctx);
+        int outline = cs2vm_host_pop_int(ctx);
         if( st->tree )
             (void)uitree_apply_graphic_outline(st->tree, component, outline);
         break;
@@ -2076,20 +2143,30 @@ cs2_host_ui_invoke(
     case CS2_OP_IF_CLEAROPSUBMENU:
     {
         int component = cs2vm_host_pop_int(ctx);
-        (void)cs2vm_host_pop_int(ctx);
+        int action_index = cs2vm_host_pop_int(ctx) - 1;
+        if( action_index >= 0 && action_index <= 9 )
+            cs2_host_ui_clear_op_submenu(st, component, component, action_index);
         break;
     }
     case CS2_OP_IF_SETOPSUBMENU:
     {
         int component = cs2vm_host_pop_int(ctx);
-        int sub_index = cs2vm_host_pop_int(ctx);
-        int op_index = cs2vm_host_pop_int(ctx);
-        char* text = NULL;
-        if( !cs2vm_host_try_pop_string(ctx, &text) )
-            text = "";
-        (void)sub_index;
-        (void)op_index;
-        (void)text;
+        int sub_index = cs2vm_host_pop_int(ctx) - 1;
+        int op_index = cs2vm_host_pop_int(ctx) - 1;
+        char* text = cs2vm_host_pop_string(ctx);
+        if( op_index >= 0 && op_index <= 9 && sub_index >= 0 )
+        {
+            cs2_host_ui_apply_op_submenu(
+                st, component, component, op_index, sub_index, text ? text : "");
+        }
+        break;
+    }
+    case CS2_OP_IF_SETTARGETPRIORITY:
+    {
+        int priority = cs2vm_host_pop_int(ctx);
+        int component = cs2vm_host_pop_int(ctx);
+        (void)priority;
+        (void)component;
         break;
     }
     case CS2_OP_IF_GETOP:

@@ -668,6 +668,29 @@ ToriAuxLibCache_ObjtypeNewFromDat2ConfigObject(
     }
     toriauxlibcache_copy_menu_actions(dst->inv_actions, (char* const*)src->if_actions, 5);
     dst->stackable = src->stacking_behaviour != 0 ? 1 : 0;
+    dst->inventory_model_id = src->inventory_model_id;
+    dst->zoom2d = src->zoom2d;
+    dst->xan2d = src->xan2d;
+    dst->yan2d = src->yan2d;
+    dst->offset_x2d = src->offset_x2d;
+    dst->offset_y2d = src->offset_y2d;
+    dst->ambient = src->ambient;
+    dst->contrast = src->contrast;
+    dst->recolor_count = src->recolor_count;
+
+    if( src->recolor_count > 0 && src->recolors_from && src->recolors_to )
+    {
+        dst->recolors_from = malloc((size_t)src->recolor_count * sizeof(int));
+        dst->recolors_to = malloc((size_t)src->recolor_count * sizeof(int));
+        if( !dst->recolors_from || !dst->recolors_to )
+        {
+            ToriAuxLibCore_ObjtypeFree(dst);
+            return NULL;
+        }
+        memcpy(dst->recolors_from, src->recolors_from, (size_t)src->recolor_count * sizeof(int));
+        memcpy(dst->recolors_to, src->recolors_to, (size_t)src->recolor_count * sizeof(int));
+    }
+
     toriauxlibcache_debug_log_config_menu_actions("objtype", dst->id, dst->name, dst->inv_actions);
     return dst;
 }

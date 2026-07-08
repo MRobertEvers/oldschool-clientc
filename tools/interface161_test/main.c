@@ -301,12 +301,6 @@ struct SpriteChromeOpts
     bool flip_v;
 };
 
-static bool
-sprite_pixel_opaque(int p)
-{
-    return ((p >> 24) & 0xFF) != 0;
-}
-
 static void
 flip_sprite_h(
     int* px,
@@ -343,141 +337,6 @@ flip_sprite_v(
             px[b] = tmp;
         }
     }
-}
-
-static int*
-apply_sprite_outline(
-    int const* src,
-    int sw,
-    int sh,
-    int outline,
-    int* out_w,
-    int* out_h)
-{
-    if( outline <= 0 || !src )
-    {
-        *out_w = sw;
-        *out_h = sh;
-        return NULL;
-    }
-
-    int pad = outline;
-    int dw = sw + pad * 2;
-    int dh = sh + pad * 2;
-    int* dst = calloc((size_t)dw * (size_t)dh, sizeof(int));
-    if( !dst )
-        return NULL;
-
-    for( int y = 0; y < dh; y++ )
-    {
-        for( int x = 0; x < dw; x++ )
-        {
-            int sx = x - pad;
-            int sy = y - pad;
-            if( sx >= 0 && sx < sw && sy >= 0 && sy < sh && sprite_pixel_opaque(src[sy * sw + sx]) )
-                dst[y * dw + x] = src[sy * sw + sx];
-        }
-    }
-
-    for( int pass = 0; pass < (outline >= 2 ? 2 : 1); pass++ )
-    {
-        int outline_rgb = pass == 0 ? 0xFF000000 : 0xFFFFFFFF;
-        int* next = calloc((size_t)dw * (size_t)dh, sizeof(int));
-        if( !next )
-            break;
-        memcpy(next, dst, (size_t)dw * (size_t)dh * sizeof(int));
-
-        for( int y = 0; y < dh; y++ )
-        {
-            for( int x = 0; x < dw; x++ )
-            {
-                if( sprite_pixel_opaque(dst[y * dw + x]) )
-                    continue;
-                bool neighbor = false;
-                for( int oy = -1; oy <= 1 && !neighbor; oy++ )
-                {
-                    for( int ox = -1; ox <= 1; ox++ )
-                    {
-                        if( ox == 0 && oy == 0 )
-                            continue;
-                        int nx = x + ox;
-                        int ny = y + oy;
-                        if( nx < 0 || ny < 0 || nx >= dw || ny >= dh )
-                            continue;
-                        if( sprite_pixel_opaque(dst[ny * dw + nx]) )
-                        {
-                            neighbor = true;
-                            break;
-                        }
-                    }
-                }
-                if( neighbor )
-                    next[y * dw + x] = outline_rgb;
-            }
-        }
-        free(dst);
-        dst = next;
-    }
-
-    *out_w = dw;
-    *out_h = dh;
-    return dst;
-}
-
-static int*
-apply_sprite_shadow(
-    int const* src,
-    int sw,
-    int sh,
-    int shadow_colour,
-    int* out_w,
-    int* out_h,
-    int* out_ox,
-    int* out_oy)
-{
-    if( shadow_colour == 0 || !src )
-        return NULL;
-
-    int pad = 2;
-    int dw = sw + pad;
-    int dh = sh + pad;
-    int* dst = calloc((size_t)dw * (size_t)dh, sizeof(int));
-    if( !dst )
-        return NULL;
-
-    int sr = (shadow_colour >> 16) & 0xFF;
-    int sg = (shadow_colour >> 8) & 0xFF;
-    int sb = shadow_colour & 0xFF;
-    int shadow_px = 0xFF000000 | (sr << 16) | (sg << 8) | sb;
-
-    for( int y = 0; y < sh; y++ )
-    {
-        for( int x = 0; x < sw; x++ )
-        {
-            if( !sprite_pixel_opaque(src[y * sw + x]) )
-                continue;
-            int dx = x + 1;
-            int dy = y + 1;
-            if( dx < dw && dy < dh )
-                dst[dy * dw + dx] = shadow_px;
-        }
-    }
-
-    for( int y = 0; y < sh; y++ )
-    {
-        for( int x = 0; x < sw; x++ )
-        {
-            int p = src[y * sw + x];
-            if( sprite_pixel_opaque(p) )
-                dst[y * dw + x] = p;
-        }
-    }
-
-    *out_w = dw;
-    *out_h = dh;
-    *out_ox = 0;
-    *out_oy = 0;
-    return dst;
 }
 
 static int*
@@ -528,12 +387,13 @@ load_sprite_rgba(
     if( chrome->outline > 0 )
     {
         int ow = 0, oh = 0;
-        int* outlined = apply_sprite_outline(working, sw, sh, chrome->outline, &ow, &oh);
+        uint32_t* outlined = ToriDraw_SpriteNewGraphicOutline(
+            (uint32_t const*)working, sw, sh, chrome->outline, &ow, &oh);
         if( outlined )
         {
             if( working != spr_px )
                 free(working);
-            working = outlined;
+            working = (int*)outlined;
             ox -= chrome->outline;
             oy -= chrome->outline;
             sw = ow;
@@ -543,14 +403,14 @@ load_sprite_rgba(
 
     if( chrome->graphic_shadow != 0 )
     {
-        int sw2 = 0, sh2 = 0, ox2 = 0, oy2 = 0;
-        int* shadowed =
-            apply_sprite_shadow(working, sw, sh, chrome->graphic_shadow, &sw2, &sh2, &ox2, &oy2);
+        int sw2 = 0, sh2 = 0;
+        uint32_t* shadowed = ToriDraw_SpriteNewGraphicShadow(
+            (uint32_t const*)working, sw, sh, chrome->graphic_shadow, &sw2, &sh2);
         if( shadowed )
         {
             if( working != spr_px )
                 free(working);
-            working = shadowed;
+            working = (int*)shadowed;
             sw = sw2;
             sh = sh2;
         }

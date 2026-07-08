@@ -9,4 +9,11 @@ ToriDraw_LightModelDefault(
     int model_contrast,
     int model_ambient);
 
+/** Like ToriDraw_LightModelDefault but contrast is already pre-scaled (dat2 decode). */
+void
+ToriDraw_LightModelDefaultPreScaled(
+    struct ToriDraw_ModelHandle hnd,
+    int model_contrast,
+    int model_ambient);
+
 #endif

@@ -1,10 +1,18 @@
 #include "toridraw_sprite.h"
 
+#include "bmp.h"
 #include "toridraw_math.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+
+static bool
+toridraw_sprite_pixel_opaque(uint32_t p)
+{
+    return ((p >> 24) & 0xFF) != 0;
+}
 
 static uint32_t*
 ToriDraw_Pix8ToArgb(
@@ -547,6 +555,134 @@ ToriDraw2D_BlitSpriteMasked(
     }
 }
 
+uint32_t*
+ToriDraw_SpriteNewGraphicOutline(
+    uint32_t const* src,
+    int sw,
+    int sh,
+    int outline,
+    int* out_w,
+    int* out_h)
+{
+    if( outline <= 0 || !src )
+        return NULL;
+
+    int pad = outline;
+    int dw = sw + pad * 2;
+    int dh = sh + pad * 2;
+    uint32_t* dst = calloc((size_t)dw * (size_t)dh, sizeof(uint32_t));
+    if( !dst )
+        return NULL;
+
+    for( int y = 0; y < dh; y++ )
+    {
+        for( int x = 0; x < dw; x++ )
+        {
+            int sx = x - pad;
+            int sy = y - pad;
+            if( sx >= 0 && sx < sw && sy >= 0 && sy < sh &&
+                toridraw_sprite_pixel_opaque(src[sy * sw + sx]) )
+                dst[y * dw + x] = src[sy * sw + sx];
+        }
+    }
+
+    for( int pass = 0; pass < (outline >= 2 ? 2 : 1); pass++ )
+    {
+        uint32_t outline_rgb = pass == 0 ? 0xFF000000u : 0xFFFFFFFFu;
+        uint32_t* next = calloc((size_t)dw * (size_t)dh, sizeof(uint32_t));
+        if( !next )
+            break;
+        memcpy(next, dst, (size_t)dw * (size_t)dh * sizeof(uint32_t));
+
+        for( int y = 0; y < dh; y++ )
+        {
+            for( int x = 0; x < dw; x++ )
+            {
+                if( toridraw_sprite_pixel_opaque(dst[y * dw + x]) )
+                    continue;
+                bool neighbor = false;
+                for( int oy = -1; oy <= 1 && !neighbor; oy++ )
+                {
+                    for( int ox = -1; ox <= 1; ox++ )
+                    {
+                        if( ox == 0 && oy == 0 )
+                            continue;
+                        int nx = x + ox;
+                        int ny = y + oy;
+                        if( nx < 0 || ny < 0 || nx >= dw || ny >= dh )
+                            continue;
+                        if( toridraw_sprite_pixel_opaque(dst[ny * dw + nx]) )
+                        {
+                            neighbor = true;
+                            break;
+                        }
+                    }
+                }
+                if( neighbor )
+                    next[y * dw + x] = outline_rgb;
+            }
+        }
+        free(dst);
+        dst = next;
+    }
+
+    *out_w = dw;
+    *out_h = dh;
+    return dst;
+}
+
+uint32_t*
+ToriDraw_SpriteNewGraphicShadow(
+    uint32_t const* src,
+    int sw,
+    int sh,
+    int shadow_colour,
+    int* out_w,
+    int* out_h)
+{
+    if( shadow_colour == 0 || !src )
+        return NULL;
+
+    int pad = 2;
+    int dw = sw + pad;
+    int dh = sh + pad;
+    uint32_t* dst = calloc((size_t)dw * (size_t)dh, sizeof(uint32_t));
+    if( !dst )
+        return NULL;
+
+    int sr = (shadow_colour >> 16) & 0xFF;
+    int sg = (shadow_colour >> 8) & 0xFF;
+    int sb = shadow_colour & 0xFF;
+    uint32_t shadow_px = 0xFF000000u | (uint32_t)(sr << 16) | (uint32_t)(sg << 8) | (uint32_t)sb;
+
+    for( int y = 0; y < sh; y++ )
+    {
+        for( int x = 0; x < sw; x++ )
+        {
+            if( !toridraw_sprite_pixel_opaque(src[y * sw + x]) )
+                continue;
+            int dx = x + 1;
+            int dy = y + 1;
+            if( dx < dw && dy < dh )
+                dst[dy * dw + dx] = shadow_px;
+        }
+    }
+
+    for( int y = 0; y < sh; y++ )
+    {
+        for( int x = 0; x < sw; x++ )
+        {
+            uint32_t p = src[y * sw + x];
+            if( toridraw_sprite_pixel_opaque(p) )
+                dst[y * dw + x] = p;
+        }
+    }
+
+    *out_w = dw;
+    *out_h = dh;
+    return dst;
+}
+
 void
 ToriDraw_SpriteFlipHorizontal(struct ToriDraw_Sprite* sprite)
 {
@@ -592,4 +728,61 @@ ToriDraw_SpriteFree(struct ToriDraw_Sprite* sprite)
         return;
     free(sprite->pixels_argb);
     free(sprite);
+}
+
+int
+ToriDraw_SpriteWriteBmpFile(
+    struct ToriDraw_Sprite const* sprite,
+    char const* path)
+{
+    if( !sprite || !sprite->pixels_argb || !path || sprite->width <= 0 || sprite->height <= 0 )
+        return -1;
+
+    int src_x = 0;
+    int src_y = 0;
+    int out_w = sprite->width;
+    int out_h = sprite->height;
+
+    if( sprite->crop_width > 0 &&
+        (sprite->crop_width < sprite->width || sprite->crop_height < sprite->height) )
+    {
+        src_x = sprite->crop_x;
+        src_y = sprite->crop_y;
+        out_w = sprite->crop_width;
+        out_h = sprite->crop_height;
+        if( src_x < 0 )
+            src_x = 0;
+        if( src_y < 0 )
+            src_y = 0;
+        if( src_x + out_w > sprite->width )
+            out_w = sprite->width - src_x;
+        if( src_y + out_h > sprite->height )
+            out_h = sprite->height - src_y;
+    }
+
+    if( out_w <= 0 || out_h <= 0 )
+        return -1;
+
+    if( src_x == 0 && src_y == 0 && out_w == sprite->width && out_h == sprite->height )
+    {
+        bmp_write_file(path, (int*)sprite->pixels_argb, out_w, out_h);
+        return 0;
+    }
+
+    int* pixels = malloc((size_t)out_w * (size_t)out_h * sizeof(int));
+    if( !pixels )
+        return -1;
+
+    int const src_stride = sprite->width;
+    for( int y = 0; y < out_h; y++ )
+    {
+        int const src_row = src_y + y;
+        int const dst_row = y * out_w;
+        for( int x = 0; x < out_w; x++ )
+            pixels[dst_row + x] = (int)sprite->pixels_argb[src_x + x + src_row * src_stride];
+    }
+
+    bmp_write_file(path, pixels, out_w, out_h);
+    free(pixels);
+    return 0;
 }

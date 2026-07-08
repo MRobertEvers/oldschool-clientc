@@ -6,11 +6,12 @@
 #include <assert.h>
 #include <math.h>
 
-void
-ToriDraw_LightModelDefault(
+static void
+toridraw_light_model_default_impl(
     struct ToriDraw_ModelHandle hnd,
     int model_contrast,
-    int model_ambient)
+    int model_ambient,
+    bool contrast_pre_scaled)
 {
     if( hnd.kind != TORIDRAWMK_MODEL )
         return;
@@ -26,8 +27,11 @@ ToriDraw_LightModelDefault(
     int lightsrc_z = -50;
 
     light_ambient += model_ambient;
-    // This is what 2004Scape does. Later revs do not.
-    light_attenuation += (model_contrast & 0xff) * 5;
+    if( contrast_pre_scaled )
+        light_attenuation += model_contrast;
+    else
+        // This is what 2004Scape does. Later revs do not.
+        light_attenuation += (model_contrast & 0xff) * 5;
 
     int light_magnitude =
         (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
@@ -71,4 +75,22 @@ ToriDraw_LightModelDefault(
         model->vertices_x,
         model->vertices_y,
         model->vertices_z);
+}
+
+void
+ToriDraw_LightModelDefault(
+    struct ToriDraw_ModelHandle hnd,
+    int model_contrast,
+    int model_ambient)
+{
+    toridraw_light_model_default_impl(hnd, model_contrast, model_ambient, false);
+}
+
+void
+ToriDraw_LightModelDefaultPreScaled(
+    struct ToriDraw_ModelHandle hnd,
+    int model_contrast,
+    int model_ambient)
+{
+    toridraw_light_model_default_impl(hnd, model_contrast, model_ambient, true);
 }

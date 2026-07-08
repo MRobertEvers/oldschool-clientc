@@ -460,12 +460,12 @@ RSCacheDat2A_ConfigObjectDecodeInplace(
         }
         case 113:
         {
-            object->ambient = g2(&buffer);
+            object->ambient = g1b(&buffer);
             break;
         }
         case 114:
         {
-            object->contrast = g2(&buffer);
+            object->contrast = g1b(&buffer) * 5;
             break;
         }
         case 115:

@@ -298,8 +298,12 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("index",),
     ),
     "CC_SETOPBASE": OpcodeDoc(
-        summary="Set op base text",
+        summary="Set context-menu target label (op base)",
         str_in=("text",),
+        notes=(
+            "Op base is the right-hand target text in Choose Option menus "
+            "(e.g. spell name on Cast). Stored as widget opBase."
+        ),
     ),
     "CC_SETTARGETVERB": OpcodeDoc(
         summary="Set target verb (stub)",
@@ -473,6 +477,11 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set colour",
         int_in=("component", "colour"),
     ),
+    "IF_SETOUTLINE": OpcodeDoc(
+        summary="Set sprite outline (border type)",
+        int_in=("outline", "component"),
+        notes="Sets widget borderType for sprite outline rendering.",
+    ),
     "IF_SETPOSITION": OpcodeDoc(
         summary="Set position",
         int_in=("x", "y", "x_mode", "y_mode", "component"),
@@ -510,9 +519,13 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("transparent", "component"),
     ),
     "IF_SETOPBASE": OpcodeDoc(
-        summary="Set op base",
+        summary="Set context-menu target label (op base)",
         str_in=("text",),
         int_in=("component",),
+        notes=(
+            "Op base is the right-hand target text in Choose Option menus "
+            "(e.g. spell name on Cast). Stored as widget opBase."
+        ),
     ),
     "IF_SETTARGETVERB": OpcodeDoc(
         summary="Set target verb (stub)",
@@ -522,6 +535,16 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     "IF_CLEAROPS": OpcodeDoc(
         summary="Clear ops",
         int_in=("component",),
+    ),
+    "IF_SETOPSUBMENU": OpcodeDoc(
+        summary="Set op submenu label",
+        str_in=("text",),
+        int_in=("op_index", "sub_index", "component"),
+        notes="op_index and sub_index are 1-based in script",
+    ),
+    "IF_SETTARGETPRIORITY": OpcodeDoc(
+        summary="Set target priority (stub)",
+        int_in=("component", "priority"),
     ),
     "IF_SETDRAGDEADZONE": OpcodeDoc(
         summary="Set drag dead zone",

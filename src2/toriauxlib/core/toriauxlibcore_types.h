@@ -229,6 +229,23 @@ struct ToriAuxLibCore_Objtype
     char name[TORIAUXLIBCORE_NAME_MAX];
     char inv_actions[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN];
     uint8_t stackable;
+    int inventory_model_id;
+    int zoom2d;
+    int xan2d;
+    int yan2d;
+    int zan2d;
+    int offset_x2d;
+    int offset_y2d;
+    int resize_x;
+    int resize_y;
+    int resize_z;
+    int count_obj[10];
+    int count_co[10];
+    int ambient;
+    int contrast;
+    int* recolors_from;
+    int* recolors_to;
+    int recolor_count;
 };
 
 struct ToriAuxLibCore_Sequence
