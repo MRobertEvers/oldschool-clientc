@@ -182,6 +182,8 @@ struct UITreeXNode
     int drag_child_index;
     int drag_behavior;
     int is_scroll_bar;
+    uint8_t drag_dead_zone;
+    uint8_t drag_dead_time;
     union
     {
         struct UITreeXNode_RSLayer rs_layer;
@@ -702,6 +704,7 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_VARS_READ_VARBIT,
     CS2VM_HOST_REQUEST_VARS_READ_VARC_INT,
     CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING,
+    CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT,
     CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING,
     CS2VM_HOST_REQUEST_ENUM_LOOKUP,
     CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT,
@@ -725,6 +728,8 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_CC_SETTEXTSHADOW,
     CS2VM_HOST_REQUEST_CC_SETDRAGGABLE,
     CS2VM_HOST_REQUEST_CC_SETDRAGGABLEBEHAVIOR,
+    CS2VM_HOST_REQUEST_CC_SETDRAGDEADZONE,
+    CS2VM_HOST_REQUEST_CC_SETDRAGDEADTIME,
     CS2VM_HOST_REQUEST_CC_SETOP,
     CS2VM_HOST_REQUEST_CC_SETOBJECT,
     CS2VM_HOST_REQUEST_CC_GETID,
@@ -732,6 +737,7 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_CC_GETY,
     CS2VM_HOST_REQUEST_CC_GETWIDTH,
     CS2VM_HOST_REQUEST_CC_GETHEIGHT,
+    CS2VM_HOST_REQUEST_CC_GETHIDE,
     CS2VM_HOST_REQUEST_CC_SETONCLICK,
     CS2VM_HOST_REQUEST_CC_SETONHOLD,
     CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER,
@@ -741,13 +747,17 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_CC_SETONKEY,
     CS2VM_HOST_REQUEST_CC_SETONOP,
     CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE,
+    CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT,
     // IF Interfaces
     CS2VM_HOST_REQUEST_IF_GETWIDTH,
     CS2VM_HOST_REQUEST_IF_GETHEIGHT,
     CS2VM_HOST_REQUEST_IF_GETY,
     CS2VM_HOST_REQUEST_IF_GETLAYER,
     CS2VM_HOST_REQUEST_IF_GETTOP,
+    CS2VM_HOST_REQUEST_IF_GETSCROLLX,
+    CS2VM_HOST_REQUEST_IF_GETSCROLLY,
     CS2VM_HOST_REQUEST_IF_GETSCROLLHEIGHT,
+    CS2VM_HOST_REQUEST_IF_GETHIDE,
     CS2VM_HOST_REQUEST_IF_SETHIDE,
     CS2VM_HOST_REQUEST_IF_SETPOSITION,
     CS2VM_HOST_REQUEST_IF_SETSIZE,
@@ -764,6 +774,7 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT,
     CS2VM_HOST_REQUEST_IF_SETONTIMER,
     CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL,
+    CS2VM_HOST_REQUEST_IF_SETONKEY,
     CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT,
     CS2VM_HOST_REQUEST_IF_SETOP,
     CS2VM_HOST_REQUEST_IF_SETOPBASE,
@@ -825,6 +836,12 @@ struct CS2VM_HostRequest_VarsReadVarcInt
 struct CS2VM_HostRequest_VarsReadVarcString
 {
     int varc_id;
+};
+
+struct CS2VM_HostRequest_VarsWriteVarcInt
+{
+    int varc_id;
+    int value;
 };
 
 struct CS2VM_HostRequest_VarsWriteVarcString
@@ -1074,6 +1091,18 @@ struct CS2VM_HostRequest_CC_SetDraggableBehavior
     int behavior;
 };
 
+struct CS2VM_HostRequest_CC_SetDragDeadZone
+{
+    int component_id;
+    int zone;
+};
+
+struct CS2VM_HostRequest_CC_SetDragDeadTime
+{
+    int component_id;
+    int time;
+};
+
 struct CS2VM_HostRequest_CC_SetObject
 {
     int component_id;
@@ -1131,6 +1160,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_VarsReadVarbit vars_read_varbit;
         struct CS2VM_HostRequest_VarsReadVarcInt vars_read_varc_int;
         struct CS2VM_HostRequest_VarsReadVarcString vars_read_varc_string;
+        struct CS2VM_HostRequest_VarsWriteVarcInt vars_write_varc_int;
         struct CS2VM_HostRequest_VarsWriteVarcString vars_write_varc_string;
         struct CS2VM_HostRequest_EnumLookup enum_lookup;
         struct CS2VM_HostRequest_EnumGetOutputCount enum_get_output_count;
@@ -1153,6 +1183,8 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_CC_SetTextShadow cc_set_text_shadow;
         struct CS2VM_HostRequest_CC_SetDraggable cc_set_draggable;
         struct CS2VM_HostRequest_CC_SetDraggableBehavior cc_set_draggable_behavior;
+        struct CS2VM_HostRequest_CC_SetDragDeadZone cc_set_drag_dead_zone;
+        struct CS2VM_HostRequest_CC_SetDragDeadTime cc_set_drag_dead_time;
         struct CS2VM_HostRequest_CC_SetObject cc_set_object;
         struct CS2VM_HostRequest_CC_GetId cc_get_id;
         struct CS2VM_HostRequest_IF_SetOnOp cc_set_on_scroll;
@@ -1163,6 +1195,8 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_GetWidth if_get_width;
         struct CS2VM_HostRequest_IF_GetHeight if_get_height;
         struct CS2VM_HostRequest_IF_GetLayer if_get_layer;
+        struct CS2VM_HostRequest_IF_GetLayer if_get_scroll_x;
+        struct CS2VM_HostRequest_IF_GetLayer if_get_scroll_y;
         struct CS2VM_HostRequest_IF_GetLayer if_get_scroll_height;
         struct CS2VM_HostRequest_IF_SetHide if_set_hide;
         struct CS2VM_HostRequest_IF_SetScrollPos if_set_scroll_pos;
@@ -1178,6 +1212,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_SetOnOp if_set_on_mouse_repeat;
         struct CS2VM_HostRequest_IF_SetOnOp if_set_on_timer;
         struct CS2VM_HostRequest_IF_SetOnOp if_set_on_scroll_wheel;
+        struct CS2VM_HostRequest_IF_SetOnOp if_set_on_key;
         struct CS2VM_HostRequest_IF_SetOnOp if_set_on_misc_transmit;
         struct CS2VM_HostRequest_IF_SetOp if_set_op;
         struct CS2VM_HostRequest_IF_SetOpBase if_set_op_base;
@@ -1435,6 +1470,32 @@ CS2VMX_Op_PushVarcInt(
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_VARS_READ_VARC_INT;
     request.u.vars_read_varc_int.varc_id = operand;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_PopVarcInt(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int value;
+    if( CS2VMX_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT;
+    request.u.vars_write_varc_int.varc_id = operand;
+    request.u.vars_write_varc_int.value = value;
 
     int result = vm->host_exec(vm, &request);
     if( result != CS2VM_EXECNO_OK )
@@ -2523,6 +2584,58 @@ CS2VMX_Op_CC_SetDraggableBehavior(
 }
 
 int
+CS2VMX_Op_CC_SetDragDeadZone(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int zone;
+    if( CS2VMX_PopInt(vm, &zone) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETDRAGDEADZONE;
+    request.u.cc_set_drag_dead_zone.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.cc_set_drag_dead_zone.zone = zone;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_CC_SetDragDeadTime(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int time;
+    if( CS2VMX_PopInt(vm, &time) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETDRAGDEADTIME;
+    request.u.cc_set_drag_dead_time.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.cc_set_drag_dead_time.time = time;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
 CS2VMX_Op_CC_SetObject(
     struct CS2VMX* vm,
     struct CS2VMX_Frame* frame,
@@ -2669,6 +2782,32 @@ CS2VMX_Op_CC_SetOp(
     request.u.if_set_op.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
     request.u.if_set_op.index = index;
     request.u.if_set_op.text = text;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_CC_SetOpBase(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    char* text;
+    if( CS2VMX_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_SETOPBASE;
+    request.u.if_set_op_base.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.if_set_op_base.text = text;
 
     int result = vm->host_exec(vm, &request);
     if( result != CS2VM_EXECNO_OK )
@@ -2836,6 +2975,28 @@ CS2VMX_Op_CC_GetHeight(
 }
 
 int
+CS2VMX_Op_CC_GetHide(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_GETHIDE;
+    request.u.cc_get_id.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
 CS2VMX_Op_IF_GetWidth(
     struct CS2VMX* vm,
     struct CS2VMX_Frame* frame,
@@ -2879,6 +3040,32 @@ CS2VMX_Op_IF_GetHeight(
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETHEIGHT;
     request.u.if_get_height.component_id = component_id;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_IF_GetHide(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_GETHIDE;
+    request.u.if_get_width.component_id = component_id;
 
     int result = vm->host_exec(vm, &request);
     if( result != CS2VM_EXECNO_OK )
@@ -2952,6 +3139,58 @@ CS2VMX_Op_IF_GetTop(
     struct CS2VM_HostRequest request;
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETTOP;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_IF_GetScrollX(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_GETSCROLLX;
+    request.u.if_get_scroll_x.component_id = component_id;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_IF_GetScrollY(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_GETSCROLLY;
+    request.u.if_get_scroll_y.component_id = component_id;
 
     int result = vm->host_exec(vm, &request);
     if( result != CS2VM_EXECNO_OK )
@@ -3480,6 +3719,20 @@ CS2VMX_Op_CC_SetOnMouseLeave(
 }
 
 int
+CS2VMX_Op_CC_SetOnMouseRepeat(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VMX_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT, &request);
+}
+
+int
 CS2VMX_Op_CC_SetOnDrag(
     struct CS2VMX* vm,
     struct CS2VMX_Frame* frame,
@@ -3926,6 +4179,20 @@ CS2VMX_Op_IF_SetOnScrollWheel(
 }
 
 int
+CS2VMX_Op_IF_SetOnKey(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VMX_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEY, &request);
+}
+
+int
 CS2VMX_Op_IF_SetOnMiscTransmit(
     struct CS2VMX* vm,
     struct CS2VMX_Frame* frame,
@@ -4193,6 +4460,32 @@ CS2VMX_Op_Mod(
         return CS2VM_EXECNO_ERROR;
 
     return CS2VMX_PushInt(vm, intpop_a % intpop_b);
+}
+
+int
+CS2VMX_Op_Scale(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int c, b, a;
+
+    if( CS2VMX_PopInt(vm, &c) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int result = 0;
+    if( b != 0 )
+        result = (int)(((int64_t)c * (int64_t)a) / (int64_t)b);
+
+    return CS2VMX_PushInt(vm, result);
 }
 
 int
@@ -4875,6 +5168,8 @@ CS2VMX_RunOp(
         return CS2VMX_Op_PushVarbit(vm, frame, operand);
     case CS2_OP_PUSH_VARC_INT:
         return CS2VMX_Op_PushVarcInt(vm, frame, operand);
+    case CS2_OP_POP_VARC_INT:
+        return CS2VMX_Op_PopVarcInt(vm, frame, operand);
     case CS2_OP_PUSH_VARC_STRING:
         return CS2VMX_Op_PushVarcString(vm, frame, operand);
     case CS2_OP_POP_VARC_STRING:
@@ -4987,12 +5282,18 @@ CS2VMX_RunOp(
         return CS2VMX_Op_CC_SetDraggable(vm, frame, operand);
     case CS2_OP_CC_SETDRAGGABLEBEHAVIOR:
         return CS2VMX_Op_CC_SetDraggableBehavior(vm, frame, operand);
+    case CS2_OP_CC_SETDRAGDEADZONE:
+        return CS2VMX_Op_CC_SetDragDeadZone(vm, frame, operand);
+    case CS2_OP_CC_SETDRAGDEADTIME:
+        return CS2VMX_Op_CC_SetDragDeadTime(vm, frame, operand);
     case CS2_OP_CC_SETOBJECT:
     case CS2_OP_CC_SETOBJECT_ALWAYS_NUM:
     case CS2_OP_CC_SETOBJECT_NONUM:
         return CS2VMX_Op_CC_SetObject(vm, frame, operand);
     case CS2_OP_CC_SETOP:
         return CS2VMX_Op_CC_SetOp(vm, frame, operand);
+    case CS2_OP_CC_SETOPBASE:
+        return CS2VMX_Op_CC_SetOpBase(vm, frame, operand);
     case CS2_OP_CC_CLEAROPS:
         return CS2VMX_Op_CC_ClearOps(vm, frame, operand);
     case CS2_OP_CC_SETHIDE:
@@ -5007,6 +5308,8 @@ CS2VMX_RunOp(
         return CS2VMX_Op_CC_GetWidth(vm, frame, operand);
     case CS2_OP_CC_GETHEIGHT:
         return CS2VMX_Op_CC_GetHeight(vm, frame, operand);
+    case CS2_OP_CC_GETHIDE:
+        return CS2VMX_Op_CC_GetHide(vm, frame, operand);
     case CS2_OP_CC_SETONCLICK:
         return CS2VMX_Op_CC_SetOnClick(vm, frame, operand);
     case CS2_OP_CC_SETONHOLD:
@@ -5015,6 +5318,8 @@ CS2VMX_RunOp(
         return CS2VMX_Op_CC_SetOnMouseOver(vm, frame, operand);
     case CS2_OP_CC_SETONMOUSELEAVE:
         return CS2VMX_Op_CC_SetOnMouseLeave(vm, frame, operand);
+    case CS2_OP_CC_SETONMOUSEREPEAT:
+        return CS2VMX_Op_CC_SetOnMouseRepeat(vm, frame, operand);
     case CS2_OP_CC_SETONDRAG:
         return CS2VMX_Op_CC_SetOnDrag(vm, frame, operand);
     case CS2_OP_CC_SETONSCROLLWHEEL:
@@ -5035,8 +5340,14 @@ CS2VMX_RunOp(
         return CS2VMX_Op_IF_GetLayer(vm, frame, operand);
     case CS2_OP_IF_GETTOP:
         return CS2VMX_Op_IF_GetTop(vm, frame, operand);
+    case CS2_OP_IF_GETSCROLLX:
+        return CS2VMX_Op_IF_GetScrollX(vm, frame, operand);
+    case CS2_OP_IF_GETSCROLLY:
+        return CS2VMX_Op_IF_GetScrollY(vm, frame, operand);
     case CS2_OP_IF_GETSCROLLHEIGHT:
         return CS2VMX_Op_IF_GetScrollHeight(vm, frame, operand);
+    case CS2_OP_IF_GETHIDE:
+        return CS2VMX_Op_IF_GetHide(vm, frame, operand);
     case CS2_OP_IF_SETHIDE:
         return CS2VMX_Op_IF_SetHide(vm, frame, operand);
     case CS2_OP_IF_SETPOSITION:
@@ -5069,6 +5380,8 @@ CS2VMX_RunOp(
         return CS2VMX_Op_IF_SetOnTimer(vm, frame, operand);
     case CS2_OP_IF_SETONSCROLLWHEEL:
         return CS2VMX_Op_IF_SetOnScrollWheel(vm, frame, operand);
+    case CS2_OP_IF_SETONKEY:
+        return CS2VMX_Op_IF_SetOnKey(vm, frame, operand);
     case CS2_OP_IF_SETONMISCTRANSMIT:
         return CS2VMX_Op_IF_SetOnMiscTransmit(vm, frame, operand);
     case CS2_OP_IF_SETOP:
@@ -5115,6 +5428,8 @@ CS2VMX_RunOp(
         return CS2VMX_Op_Mod(vm, frame, operand);
     case CS2_OP_POW:
         return CS2VMX_Op_Pow(vm, frame, operand);
+    case CS2_OP_SCALE:
+        return CS2VMX_Op_Scale(vm, frame, operand);
     case CS2_OP_TESTBIT:
         return CS2VMX_Op_TestBit(vm, frame, operand);
     case CS2_OP_OC_PARAM:
@@ -5182,6 +5497,9 @@ CS2VMX_OpArgCounts(
     case CS2_OP_POW:
         *int_args = 2;
         return 0;
+    case CS2_OP_SCALE:
+        *int_args = 3;
+        return 0;
     case CS2_OP_CC_CREATE:
         *int_args = 4;
         return 0;
@@ -5223,6 +5541,9 @@ CS2VMX_OpArgCounts(
         *int_args = 1;
         *str_args = 1;
         return 0;
+    case CS2_OP_CC_SETOPBASE:
+        *str_args = 1;
+        return 0;
     case CS2_OP_IF_SETOUTLINE:
         *int_args = 2;
         return 0;
@@ -5244,8 +5565,6 @@ CS2VMX_OpArgCounts(
     case CS2_OP_CC_SETMODELORTHOG:    /* orthog */
     case CS2_OP_CC_SETMODELTRANSPARENT: /* transparent */
     case CS2_OP_CC_SETNOSCROLLTHROUGH: /* no_scroll_through */
-    case CS2_OP_CC_SETDRAGDEADZONE:   /* zone */
-    case CS2_OP_CC_SETDRAGDEADTIME:   /* time */
     case CS2_OP_CC_SETNPCHEAD:        /* npcId */
     case CS2_OP_CC_SETVFLIP:          /* flip */
     case CS2_OP__1122: /* CC_SETGRAPHIC2: id */
@@ -6520,7 +6839,7 @@ UITreeX_RenderNode(
 
     struct UITreeXNode const* node = &tree->nodes[node_idx];
     if( node->hidden )
-        goto render_children;
+        return;
 
     /* trans: 0 = fully opaque, 255 = fully invisible (client semantics). The node's
      * own content is skipped once fully transparent, but children still recurse -
@@ -7273,8 +7592,6 @@ InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
     // node still renders via the RSGraphic path.
     // node->kind = UITreeXNodeKind_RSObj;
 
-    node->hidden = false;
-
     return CS2VM_EXECNO_OK;
 }
 
@@ -7659,6 +7976,21 @@ InterfaceX_VMHost_Exec_VarsReadVarcString(
 }
 
 int
+InterfaceX_VMHost_Exec_VarsWriteVarcInt(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_VarsWriteVarcInt request)
+{
+    assert(host);
+    (void)vm;
+
+    if( request.varc_id >= 0 && request.varc_id < INTERFACEX_VARC_INT_MAX )
+        host->varc_int[request.varc_id] = request.value;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
 InterfaceX_VMHost_Exec_VarsWriteVarcString(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
@@ -7775,6 +8107,46 @@ InterfaceX_VMHost_Exec_IF_GetTop(
     assert(host->builder);
 
     CS2VMX_PushInt(vm, UITreeX_GetTop(host->tree, host->interface_id));
+    return CS2VM_EXECNO_OK;
+}
+
+int
+InterfaceX_VMHost_Exec_IF_GetScrollX(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    int component_id)
+{
+    assert(host);
+    assert(host->builder);
+
+    struct UITreeXNode* node = UITreeX_NodeByComponentId(host, component_id);
+    if( !node || node->kind != UITreeXNodeKind_RSLayer )
+    {
+        CS2VMX_PushInt(vm, 0);
+        return CS2VM_EXECNO_OK;
+    }
+
+    CS2VMX_PushInt(vm, node->u.rs_layer.scroll_x);
+    return CS2VM_EXECNO_OK;
+}
+
+int
+InterfaceX_VMHost_Exec_IF_GetScrollY(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    int component_id)
+{
+    assert(host);
+    assert(host->builder);
+
+    struct UITreeXNode* node = UITreeX_NodeByComponentId(host, component_id);
+    if( !node || node->kind != UITreeXNodeKind_RSLayer )
+    {
+        CS2VMX_PushInt(vm, 0);
+        return CS2VM_EXECNO_OK;
+    }
+
+    CS2VMX_PushInt(vm, node->u.rs_layer.scroll_y);
     return CS2VM_EXECNO_OK;
 }
 
@@ -7996,6 +8368,20 @@ InterfaceX_VMHost_Exec_CC_SetOnMouseLeave(
 }
 
 int
+InterfaceX_VMHost_Exec_CC_SetOnMouseRepeat(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_IF_SetOnOp request)
+{
+    assert(host);
+    assert(host->builder);
+    (void)vm;
+    (void)request;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
 InterfaceX_VMHost_Exec_CC_SetOnDrag(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
@@ -8193,6 +8579,20 @@ InterfaceX_VMHost_Exec_IF_SetOnTimer(
 
 int
 InterfaceX_VMHost_Exec_IF_SetOnScrollWheel(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_IF_SetOnOp request)
+{
+    assert(host);
+    assert(host->builder);
+    (void)vm;
+    (void)request;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+InterfaceX_VMHost_Exec_IF_SetOnKey(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
     struct CS2VM_HostRequest_IF_SetOnOp request)
@@ -8887,6 +9287,40 @@ InterfaceX_VMHost_Exec_CC_SetDraggableBehavior(
 }
 
 int
+InterfaceX_VMHost_Exec_CC_SetDragDeadZone(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_CC_SetDragDeadZone request)
+{
+    assert(host);
+    assert(host->builder);
+    (void)vm;
+
+    struct UITreeXNode* node = UITreeX_NodeByComponentId(host, request.component_id);
+    if( node )
+        node->drag_dead_zone = (uint8_t)request.zone;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+InterfaceX_VMHost_Exec_CC_SetDragDeadTime(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_CC_SetDragDeadTime request)
+{
+    assert(host);
+    assert(host->builder);
+    (void)vm;
+
+    struct UITreeXNode* node = UITreeX_NodeByComponentId(host, request.component_id);
+    if( node )
+        node->drag_dead_time = (uint8_t)request.time;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
 InterfaceX_VMHost_Exec_CC_GetId(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
@@ -8956,6 +9390,34 @@ InterfaceX_VMHost_Exec_CC_GetHeight(
     assert(host->builder);
 
     CS2VMX_PushInt(vm, UITreeX_GetLayoutHeight(host->tree, request.component_id));
+    return CS2VM_EXECNO_OK;
+}
+
+int
+InterfaceX_VMHost_Exec_CC_GetHide(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_CC_GetId request)
+{
+    assert(host);
+    assert(host->builder);
+
+    struct UITreeXNode* node = UITreeX_NodeByComponentId(host, request.component_id);
+    CS2VMX_PushInt(vm, node && node->hidden ? 1 : 0);
+    return CS2VM_EXECNO_OK;
+}
+
+int
+InterfaceX_VMHost_Exec_IF_GetHide(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    int component_id)
+{
+    assert(host);
+    assert(host->builder);
+
+    struct UITreeXNode* node = UITreeX_NodeByComponentId(host, component_id);
+    CS2VMX_PushInt(vm, node && node->hidden ? 1 : 0);
     return CS2VM_EXECNO_OK;
 }
 
@@ -9326,6 +9788,8 @@ InterfaceX_VMHost_Exec(
     case CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING:
         return InterfaceX_VMHost_Exec_VarsReadVarcString(
             vmhost, vm, request->u.vars_read_varc_string);
+    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT:
+        return InterfaceX_VMHost_Exec_VarsWriteVarcInt(vmhost, vm, request->u.vars_write_varc_int);
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING:
         return InterfaceX_VMHost_Exec_VarsWriteVarcString(
             vmhost, vm, request->u.vars_write_varc_string);
@@ -9345,9 +9809,18 @@ InterfaceX_VMHost_Exec(
         return InterfaceX_VMHost_Exec_IF_GetLayer(vmhost, vm, request->u.if_get_layer.component_id);
     case CS2VM_HOST_REQUEST_IF_GETTOP:
         return InterfaceX_VMHost_Exec_IF_GetTop(vmhost, vm);
+    case CS2VM_HOST_REQUEST_IF_GETSCROLLX:
+        return InterfaceX_VMHost_Exec_IF_GetScrollX(
+            vmhost, vm, request->u.if_get_scroll_x.component_id);
+    case CS2VM_HOST_REQUEST_IF_GETSCROLLY:
+        return InterfaceX_VMHost_Exec_IF_GetScrollY(
+            vmhost, vm, request->u.if_get_scroll_y.component_id);
     case CS2VM_HOST_REQUEST_IF_GETSCROLLHEIGHT:
         return InterfaceX_VMHost_Exec_IF_GetScrollHeight(
             vmhost, vm, request->u.if_get_scroll_height.component_id);
+    case CS2VM_HOST_REQUEST_IF_GETHIDE:
+        return InterfaceX_VMHost_Exec_IF_GetHide(
+            vmhost, vm, request->u.if_get_width.component_id);
     case CS2VM_HOST_REQUEST_IF_SETHIDE:
         return InterfaceX_VMHost_Exec_IF_SetHide(vmhost, vm, request->u.if_set_hide);
     case CS2VM_HOST_REQUEST_IF_SETPOSITION:
@@ -9386,6 +9859,8 @@ InterfaceX_VMHost_Exec(
     case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
         return InterfaceX_VMHost_Exec_IF_SetOnScrollWheel(
             vmhost, vm, request->u.if_set_on_scroll_wheel);
+    case CS2VM_HOST_REQUEST_IF_SETONKEY:
+        return InterfaceX_VMHost_Exec_IF_SetOnKey(vmhost, vm, request->u.if_set_on_key);
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
         return InterfaceX_VMHost_Exec_IF_SetOnMiscTransmit(
             vmhost, vm, request->u.if_set_on_misc_transmit);
@@ -9444,6 +9919,12 @@ InterfaceX_VMHost_Exec(
     case CS2VM_HOST_REQUEST_CC_SETDRAGGABLEBEHAVIOR:
         return InterfaceX_VMHost_Exec_CC_SetDraggableBehavior(
             vmhost, vm, request->u.cc_set_draggable_behavior);
+    case CS2VM_HOST_REQUEST_CC_SETDRAGDEADZONE:
+        return InterfaceX_VMHost_Exec_CC_SetDragDeadZone(
+            vmhost, vm, request->u.cc_set_drag_dead_zone);
+    case CS2VM_HOST_REQUEST_CC_SETDRAGDEADTIME:
+        return InterfaceX_VMHost_Exec_CC_SetDragDeadTime(
+            vmhost, vm, request->u.cc_set_drag_dead_time);
     case CS2VM_HOST_REQUEST_CC_SETOP:
         return InterfaceX_VMHost_Exec_CC_SetOp(vmhost, vm, request->u.if_set_op);
     case CS2VM_HOST_REQUEST_CC_SETOBJECT:
@@ -9458,6 +9939,8 @@ InterfaceX_VMHost_Exec(
         return InterfaceX_VMHost_Exec_CC_GetWidth(vmhost, vm, request->u.cc_get_id);
     case CS2VM_HOST_REQUEST_CC_GETHEIGHT:
         return InterfaceX_VMHost_Exec_CC_GetHeight(vmhost, vm, request->u.cc_get_id);
+    case CS2VM_HOST_REQUEST_CC_GETHIDE:
+        return InterfaceX_VMHost_Exec_CC_GetHide(vmhost, vm, request->u.cc_get_id);
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
         return InterfaceX_VMHost_Exec_CC_SetOnClick(vmhost, vm, request->u.cc_set_on_scroll);
     case CS2VM_HOST_REQUEST_CC_SETONHOLD:
@@ -9466,6 +9949,8 @@ InterfaceX_VMHost_Exec(
         return InterfaceX_VMHost_Exec_CC_SetOnMouseOver(vmhost, vm, request->u.cc_set_on_scroll);
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
         return InterfaceX_VMHost_Exec_CC_SetOnMouseLeave(vmhost, vm, request->u.cc_set_on_scroll);
+    case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
+        return InterfaceX_VMHost_Exec_CC_SetOnMouseRepeat(vmhost, vm, request->u.cc_set_on_scroll);
     case CS2VM_HOST_REQUEST_CC_SETONDRAG:
         return InterfaceX_VMHost_Exec_CC_SetOnDrag(vmhost, vm, request->u.cc_set_on_scroll);
     case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
