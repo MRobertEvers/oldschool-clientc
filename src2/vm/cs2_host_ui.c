@@ -247,8 +247,7 @@ cs2_host_ui_widget_param_set(
     if( !st || component_id < 0 )
         return false;
 
-    struct CS2HostUIWidgetParam* entry =
-        cs2_host_ui_widget_param_find(st, component_id, param_id);
+    struct CS2HostUIWidgetParam* entry = cs2_host_ui_widget_param_find(st, component_id, param_id);
     if( !entry )
     {
         if( st->widget_param_count >= CS2_HOST_UI_WIDGET_PARAM_MAX )
@@ -264,9 +263,7 @@ cs2_host_ui_widget_param_set(
     {
         entry->int_value = 0;
         strncpy(
-            entry->string_value,
-            string_value ? string_value : "",
-            sizeof(entry->string_value) - 1);
+            entry->string_value, string_value ? string_value : "", sizeof(entry->string_value) - 1);
         entry->string_value[sizeof(entry->string_value) - 1] = '\0';
     }
     else
@@ -318,13 +315,11 @@ cs2_host_ui_push_widget_param(
 {
     struct RSCacheDat2Disk* dat2 = cs2_host_ui_dat2_disk(st);
     bool const default_is_string = dat2 && ie_param_is_string(dat2, param_id);
-    struct CS2HostUIWidgetParam* entry =
-        cs2_host_ui_widget_param_find(st, component_id, param_id);
+    struct CS2HostUIWidgetParam* entry = cs2_host_ui_widget_param_find(st, component_id, param_id);
     if( entry )
     {
         if( entry->is_string )
-            cs2vm_host_push_string(
-                ctx, cs2vm_host_alloc_string(ctx, entry->string_value));
+            cs2vm_host_push_string(ctx, cs2vm_host_alloc_string(ctx, entry->string_value));
         else
             cs2vm_host_push_int(ctx, entry->int_value);
         return;
@@ -333,9 +328,7 @@ cs2_host_ui_push_widget_param(
     if( default_is_string )
     {
         cs2vm_host_push_string(
-            ctx,
-            cs2vm_host_alloc_string(
-                ctx, dat2 ? ie_param_default_string(dat2, param_id) : ""));
+            ctx, cs2vm_host_alloc_string(ctx, dat2 ? ie_param_default_string(dat2, param_id) : ""));
     }
     else
         cs2vm_host_push_int(ctx, dat2 ? ie_param_default_int(dat2, param_id) : 0);
@@ -1124,57 +1117,57 @@ cs2_host_ui_invoke(
     }
     case CS2_OP_CC_DELETE:
         break;
-    case CS2_OP_IF_FIND_CHILD:
-    {
-        int value2_type = cs2vm_host_pop_int(ctx);
-        int value1_type = cs2vm_host_pop_int(ctx);
-        int value2 = value2_type == 0 ? cs2vm_host_pop_int(ctx) : 0;
-        if( value2_type != 0 )
-            (void)cs2vm_host_pop_string(ctx);
-        int param2_id = cs2vm_host_pop_int(ctx);
-        int value1 = value1_type == 0 ? cs2vm_host_pop_int(ctx) : 0;
-        if( value1_type != 0 )
-            (void)cs2vm_host_pop_string(ctx);
-        int param1_id = cs2vm_host_pop_int(ctx);
-        int parent_uid = cs2vm_host_pop_int(ctx);
-        int32_t parent_idx = cs2_host_ui_resolve_target(st, parent_uid, parent_uid);
-        int found = 0;
-        if( parent_idx >= 0 && st->tree )
-        {
-            for( int32_t child = st->tree->components[parent_idx].first_child; child >= 0;
-                 child = st->tree->components[child].next_sibling )
-            {
-                struct StaticUIComponent* c = &st->tree->components[child];
-                if( c->dynamic )
-                    continue;
-                if( param1_id >= 0 && c->behavior.client_code != value1 )
-                    continue;
-                if( param2_id >= 0 && c->behavior.client_code != value2 )
-                    continue;
-                cs2_host_ui_set_active(st, ctx, c->component_id);
-                found = 1;
-                break;
-            }
-            if( !found && (parent_uid & 0xffff) == 1 )
-            {
-                for( int32_t child = st->tree->components[parent_idx].first_child; child >= 0;
-                     child = st->tree->components[child].next_sibling )
-                {
-                    struct StaticUIComponent* c = &st->tree->components[child];
-                    if( c->dynamic )
-                        continue;
-                    if( (c->component_id & 0xffff) == 35 )
-                    {
-                        cs2_host_ui_set_active(st, ctx, c->component_id);
-                        found = 1;
-                        break;
-                    }
-                }
-            }
-        }
-        cs2vm_host_push_int(ctx, found);
-        break;
-    }
+    // case CS2_OP_IF_FIND_CHILD:
+    // {
+    //     int value2_type = cs2vm_host_pop_int(ctx);
+    //     int value1_type = cs2vm_host_pop_int(ctx);
+    //     int value2 = value2_type == 0 ? cs2vm_host_pop_int(ctx) : 0;
+    //     if( value2_type != 0 )
+    //         (void)cs2vm_host_pop_string(ctx);
+    //     int param2_id = cs2vm_host_pop_int(ctx);
+    //     int value1 = value1_type == 0 ? cs2vm_host_pop_int(ctx) : 0;
+    //     if( value1_type != 0 )
+    //         (void)cs2vm_host_pop_string(ctx);
+    //     int param1_id = cs2vm_host_pop_int(ctx);
+    //     int parent_uid = cs2vm_host_pop_int(ctx);
+    //     int32_t parent_idx = cs2_host_ui_resolve_target(st, parent_uid, parent_uid);
+    //     int found = 0;
+    //     if( parent_idx >= 0 && st->tree )
+    //     {
+    //         for( int32_t child = st->tree->components[parent_idx].first_child; child >= 0;
+    //              child = st->tree->components[child].next_sibling )
+    //         {
+    //             struct StaticUIComponent* c = &st->tree->components[child];
+    //             if( c->dynamic )
+    //                 continue;
+    //             if( param1_id >= 0 && c->behavior.client_code != value1 )
+    //                 continue;
+    //             if( param2_id >= 0 && c->behavior.client_code != value2 )
+    //                 continue;
+    //             cs2_host_ui_set_active(st, ctx, c->component_id);
+    //             found = 1;
+    //             break;
+    //         }
+    //         if( !found && (parent_uid & 0xffff) == 1 )
+    //         {
+    //             for( int32_t child = st->tree->components[parent_idx].first_child; child >= 0;
+    //                  child = st->tree->components[child].next_sibling )
+    //             {
+    //                 struct StaticUIComponent* c = &st->tree->components[child];
+    //                 if( c->dynamic )
+    //                     continue;
+    //                 if( (c->component_id & 0xffff) == 35 )
+    //                 {
+    //                     cs2_host_ui_set_active(st, ctx, c->component_id);
+    //                     found = 1;
+    //                     break;
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     cs2vm_host_push_int(ctx, found);
+    //     break;
+    // }
     case CS2_OP_CC_FIND:
     {
         int sub = cs2vm_host_pop_int(ctx);
@@ -1226,7 +1219,8 @@ cs2_host_ui_invoke(
         int line_height = cs2vm_host_pop_int(ctx);
         int y_align = cs2vm_host_pop_int(ctx);
         int x_align = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_text_align(st, -1, cs2_host_ui_cc_target_component(ctx), x_align, y_align, line_height);
+        cs2_host_ui_apply_text_align(
+            st, -1, cs2_host_ui_cc_target_component(ctx), x_align, y_align, line_height);
         break;
     }
     case CS2_OP_CC_SETTEXTSHADOW:
@@ -1257,7 +1251,8 @@ cs2_host_ui_invoke(
     case CS2_OP_CC_SETNOCLICKTHROUGH:
     {
         int no_click_through = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_no_click_through(st, -1, cs2_host_ui_cc_target_component(ctx), no_click_through);
+        cs2_host_ui_apply_no_click_through(
+            st, -1, cs2_host_ui_cc_target_component(ctx), no_click_through);
         break;
     }
     case CS2_OP_CC_SETOP:
@@ -1271,7 +1266,8 @@ cs2_host_ui_invoke(
     {
         char* text = cs2vm_host_pop_string(ctx);
         if( st->tree )
-            (void)uitree_apply_op_base(st->tree, cs2_host_ui_cc_target_component(ctx), text ? text : "");
+            (void)uitree_apply_op_base(
+                st->tree, cs2_host_ui_cc_target_component(ctx), text ? text : "");
         break;
     }
     case CS2_OP_CC_SETTARGETVERB:
@@ -1316,13 +1312,15 @@ cs2_host_ui_invoke(
     {
         int child_index = cs2vm_host_pop_int(ctx);
         int parent_uid = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_draggable(st, -1, cs2_host_ui_cc_target_component(ctx), parent_uid, child_index);
+        cs2_host_ui_apply_draggable(
+            st, -1, cs2_host_ui_cc_target_component(ctx), parent_uid, child_index);
         break;
     }
     case CS2_OP_CC_SETDRAGGABLEBEHAVIOR:
     {
         int behavior = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_draggable_behavior(st, -1, cs2_host_ui_cc_target_component(ctx), behavior);
+        cs2_host_ui_apply_draggable_behavior(
+            st, -1, cs2_host_ui_cc_target_component(ctx), behavior);
         break;
     }
     case CS2_OP_CC_SETDRAGDEADZONE:
@@ -1362,7 +1360,12 @@ cs2_host_ui_invoke(
         int width = cs2vm_host_pop_int(ctx);
         if( st->tree )
             (void)uitree_apply_size_modes(
-                st->tree, cs2_host_ui_cc_target_component(ctx), width, height, width_mode, height_mode);
+                st->tree,
+                cs2_host_ui_cc_target_component(ctx),
+                width,
+                height,
+                width_mode,
+                height_mode);
         break;
     }
     case CS2_OP_CC_SETTILING:
@@ -1376,14 +1379,16 @@ cs2_host_ui_invoke(
     {
         int outline = cs2vm_host_pop_int(ctx);
         if( st->tree )
-            (void)uitree_apply_graphic_outline(st->tree, cs2_host_ui_cc_target_component(ctx), outline);
+            (void)uitree_apply_graphic_outline(
+                st->tree, cs2_host_ui_cc_target_component(ctx), outline);
         break;
     }
     case CS2_OP_CC_SETGRAPHICSHADOW:
     {
         int shadow = cs2vm_host_pop_int(ctx);
         if( st->tree )
-            (void)uitree_apply_graphic_shadow(st->tree, cs2_host_ui_cc_target_component(ctx), shadow);
+            (void)uitree_apply_graphic_shadow(
+                st->tree, cs2_host_ui_cc_target_component(ctx), shadow);
         break;
     }
     case CS2_OP_CC_GETID:
@@ -1398,35 +1403,34 @@ cs2_host_ui_invoke(
         cs2vm_host_push_int(ctx, child_index);
         break;
     }
-    case CS2_OP_CC_PARAM:
-    {
-        int param_id = cs2vm_host_pop_int(ctx);
-        int const component = cs2_host_ui_cc_target_component(ctx);
-        if( component < 0 )
-        {
-            cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
-            break;
-        }
-        cs2_host_ui_push_widget_param(st, ctx, component, param_id);
-        break;
-    }
-    case CS2_OP_CC_SETPARAM:
-    {
-        int script_var_type = cs2vm_host_pop_int(ctx);
-        int int_value = 0;
-        char const* string_value = "";
-        bool is_string = false;
-        if( !cs2_host_ui_pop_typed_value(
-                ctx, script_var_type, &int_value, &string_value, &is_string) )
-            break;
-        int param_id = cs2vm_host_pop_int(ctx);
-        int const component = cs2_host_ui_cc_target_component(ctx);
-        if( component < 0 ||
-            !cs2_host_ui_widget_param_set(
-                st, component, param_id, is_string, int_value, string_value) )
-            cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
-        break;
-    }
+    // case CS2_OP_CC_PARAM:
+    // {
+    //     int param_id = cs2vm_host_pop_int(ctx);
+    //     int const component = cs2_host_ui_cc_target_component(ctx);
+    //     if( component < 0 )
+    //     {
+    //         cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
+    //         break;
+    //     }
+    //     cs2_host_ui_push_widget_param(st, ctx, component, param_id);
+    //     break;
+    // }
+    // case CS2_OP_CC_SETPARAM:
+    // {
+    //     int script_var_type = cs2vm_host_pop_int(ctx);
+    //     int int_value = 0;
+    //     char const* string_value = "";
+    //     bool is_string = false;
+    //     if( !cs2_host_ui_pop_typed_value(
+    //             ctx, script_var_type, &int_value, &string_value, &is_string) )
+    //         break;
+    //     int param_id = cs2vm_host_pop_int(ctx);
+    //     int const component = cs2_host_ui_cc_target_component(ctx);
+    //     if( component < 0 || !cs2_host_ui_widget_param_set(
+    //                              st, component, param_id, is_string, int_value, string_value) )
+    //         cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
+    //     break;
+    // }
     case CS2_OP_CC_GETX:
         cs2vm_host_push_int(ctx, cs2_host_ui_get_pos_x(st, cs2_host_ui_cc_target_component(ctx)));
         break;
@@ -1474,10 +1478,12 @@ cs2_host_ui_invoke(
         cs2vm_host_push_int(ctx, 0);
         break;
     case CS2_OP_CC_GETSCROLLWIDTH:
-        cs2vm_host_push_int(ctx, cs2_host_ui_get_scroll_width(st, cs2_host_ui_cc_target_component(ctx)));
+        cs2vm_host_push_int(
+            ctx, cs2_host_ui_get_scroll_width(st, cs2_host_ui_cc_target_component(ctx)));
         break;
     case CS2_OP_CC_GETSCROLLHEIGHT:
-        cs2vm_host_push_int(ctx, cs2_host_ui_get_scroll_height(st, cs2_host_ui_cc_target_component(ctx)));
+        cs2vm_host_push_int(
+            ctx, cs2_host_ui_get_scroll_height(st, cs2_host_ui_cc_target_component(ctx)));
         break;
     case CS2_OP_IF_GETWIDTH:
     {
@@ -1590,13 +1596,13 @@ cs2_host_ui_invoke(
         cs2_host_ui_apply_hide(st, component, component, hide);
         break;
     }
-    case CS2_OP_IF_SETCLICKMASK:
-    {
-        int mask = cs2vm_host_pop_int(ctx);
-        int component = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_click_mask(st, component, component, (int32_t)mask);
-        break;
-    }
+    // case CS2_OP_IF_SETCLICKMASK:
+    // {
+    //     int mask = cs2vm_host_pop_int(ctx);
+    //     int component = cs2vm_host_pop_int(ctx);
+    //     cs2_host_ui_apply_click_mask(st, component, component, (int32_t)mask);
+    //     break;
+    // }
     case CS2_OP_IF_SETTEXT:
     {
         char* text = cs2vm_host_pop_string(ctx);
@@ -1617,8 +1623,7 @@ cs2_host_ui_invoke(
         int line_height = cs2vm_host_pop_int(ctx);
         int y_align = cs2vm_host_pop_int(ctx);
         int x_align = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_text_align(
-            st, component, component, x_align, y_align, line_height);
+        cs2_host_ui_apply_text_align(st, component, component, x_align, y_align, line_height);
         break;
     }
     case CS2_OP_IF_SETTEXTSHADOW:
@@ -1700,14 +1705,16 @@ cs2_host_ui_invoke(
     {
         int count = cs2vm_host_pop_int(ctx);
         int obj_id = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_object_op(st, -1, cs2_host_ui_cc_target_component(ctx), obj_id, count, true);
+        cs2_host_ui_apply_object_op(
+            st, -1, cs2_host_ui_cc_target_component(ctx), obj_id, count, true);
         break;
     }
     case CS2_OP_CC_SETOBJECT_NONUM:
     {
         int count = cs2vm_host_pop_int(ctx);
         int obj_id = cs2vm_host_pop_int(ctx);
-        cs2_host_ui_apply_object_op(st, -1, cs2_host_ui_cc_target_component(ctx), obj_id, count, false);
+        cs2_host_ui_apply_object_op(
+            st, -1, cs2_host_ui_cc_target_component(ctx), obj_id, count, false);
         break;
     }
     case CS2_OP_IF_SETOBJECT:
@@ -2008,39 +2015,39 @@ cs2_host_ui_invoke(
         cs2vm_host_push_int(ctx, 0);
         break;
     }
-    case CS2_OP_IF_PARAM:
-    {
-        int child_index = cs2vm_host_pop_int(ctx);
-        int widget_uid = cs2vm_host_pop_int(ctx);
-        int param_id = cs2vm_host_pop_int(ctx);
-        int const component = cs2_host_ui_widget_by_uid_and_child(st, widget_uid, child_index);
-        if( component < 0 )
-        {
-            cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
-            break;
-        }
-        cs2_host_ui_push_widget_param(st, ctx, component, param_id);
-        break;
-    }
-    case CS2_OP_IF_SETPARAM:
-    {
-        int script_var_type = cs2vm_host_pop_int(ctx);
-        int child_index = cs2vm_host_pop_int(ctx);
-        int widget_uid = cs2vm_host_pop_int(ctx);
-        int int_value = 0;
-        char const* string_value = "";
-        bool is_string = false;
-        if( !cs2_host_ui_pop_typed_value(
-                ctx, script_var_type, &int_value, &string_value, &is_string) )
-            break;
-        int param_id = cs2vm_host_pop_int(ctx);
-        int const component = cs2_host_ui_widget_by_uid_and_child(st, widget_uid, child_index);
-        if( component < 0 ||
-            !cs2_host_ui_widget_param_set(
-                st, component, param_id, is_string, int_value, string_value) )
-            cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
-        break;
-    }
+    // case CS2_OP_IF_PARAM:
+    // {
+    //     int child_index = cs2vm_host_pop_int(ctx);
+    //     int widget_uid = cs2vm_host_pop_int(ctx);
+    //     int param_id = cs2vm_host_pop_int(ctx);
+    //     int const component = cs2_host_ui_widget_by_uid_and_child(st, widget_uid, child_index);
+    //     if( component < 0 )
+    //     {
+    //         cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
+    //         break;
+    //     }
+    //     cs2_host_ui_push_widget_param(st, ctx, component, param_id);
+    //     break;
+    // }
+    // case CS2_OP_IF_SETPARAM:
+    // {
+    //     int script_var_type = cs2vm_host_pop_int(ctx);
+    //     int child_index = cs2vm_host_pop_int(ctx);
+    //     int widget_uid = cs2vm_host_pop_int(ctx);
+    //     int int_value = 0;
+    //     char const* string_value = "";
+    //     bool is_string = false;
+    //     if( !cs2_host_ui_pop_typed_value(
+    //             ctx, script_var_type, &int_value, &string_value, &is_string) )
+    //         break;
+    //     int param_id = cs2vm_host_pop_int(ctx);
+    //     int const component = cs2_host_ui_widget_by_uid_and_child(st, widget_uid, child_index);
+    //     if( component < 0 ||
+    //         !cs2_host_ui_widget_param_set(
+    //             st, component, param_id, is_string, int_value, string_value) )
+    //         cs2vm_host_fail(ctx, CS2VM_ERR_INVALID);
+    //     break;
+    // }
     case CS2_OP_CAM_SETFOLLOWHEIGHT:
         (void)cs2vm_host_pop_int(ctx);
         break;

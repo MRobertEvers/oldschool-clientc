@@ -5,17 +5,16 @@
 #include "../../../libtorirs.h"
 #include "3rd/minipt.h"
 #include "buildcache/dat2_buildcache.h"
+#include "core/tapi/tapi_dat2.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
-#include "core/tapi/tapi_dat2.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/core_task_await.h"
 #include "toriauxlib/core/tasks/task_dat2_anim_io.h"
 #include "toriauxlib/core/tasks/task_dat2_io.h"
 #include "toriauxlib/core/tasks/task_runescape_dat2_anim_load.h"
-#include "toridraw/toridraw_map.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -116,6 +115,57 @@ task_dat2_world_compute_centerzone_chunks(
     core->chunk_count = count;
 }
 
+struct Task_Dat2WorldCollectSeqCtx
+{
+    int* ids;
+    int count;
+    int capacity;
+};
+
+static bool
+task_dat2_world_collect_seq(
+    struct Task_Dat2WorldCollectSeqCtx* ctx,
+    int sid)
+{
+    if( sid < 0 )
+        return true;
+
+    for( int k = 0; k < ctx->count; k++ )
+        if( ctx->ids[k] == sid )
+            return true;
+
+    if( ctx->count >= ctx->capacity )
+    {
+        ctx->capacity *= 2;
+        int* grown = realloc(ctx->ids, (size_t)ctx->capacity * sizeof(int));
+        if( !grown )
+            return false;
+        ctx->ids = grown;
+    }
+
+    ctx->ids[ctx->count++] = sid;
+    return true;
+}
+
+static void
+task_dat2_world_collect_config_loc_seqs_cb(
+    int loc_id,
+    struct RSCacheDat2A_ConfigLocation* config_loc,
+    void* user_data)
+{
+    (void)loc_id;
+    struct Task_Dat2WorldCollectSeqCtx* ctx = user_data;
+
+    if( !task_dat2_world_collect_seq(ctx, config_loc->seq_id) )
+        return;
+
+    for( int ri = 0; ri < config_loc->random_seq_id_count; ri++ )
+    {
+        if( !task_dat2_world_collect_seq(ctx, config_loc->random_seq_ids[ri]) )
+            return;
+    }
+}
+
 int
 Task_Dat2WorldRebuildCore_Run(
     struct Task_Dat2WorldRebuildCore* core,
@@ -187,6 +237,8 @@ Task_Dat2WorldRebuildCore_Run(
     IO_REQUEST(ctx, 3, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Locs));
     PT_YIELD(&core->thread);
 
+    DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &core->thread, core->c);
+
     underlay_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Underlay);
     assert(underlay_archive);
     overlay_archive = TAPIDat2_DecodeConfigGroup(ctx, 1, RSCacheDat2A_ConfigKind_Overlay);
@@ -195,8 +247,6 @@ Task_Dat2WorldRebuildCore_Run(
     assert(core->sequence_archive);
     locs_archive = TAPIDat2_DecodeConfigGroup(ctx, 3, RSCacheDat2A_ConfigKind_Locs);
     assert(locs_archive);
-
-    DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &core->thread, core->c);
 
     dat2_buildcache_underlays_init_from_archive(dat2_bc, underlay_archive);
     dat2_buildcache_overlays_init_from_archive(dat2_bc, overlay_archive);
@@ -227,55 +277,16 @@ Task_Dat2WorldRebuildCore_Run(
         if( seq_ids )
         {
             /* --- Phase 1: collect deduped seq ids from visible loc configs --- */
-            struct ToriDraw_MapIter* loc_iter = ToriDraw_MapIterNew(dat2_bc->config_loc_hmap);
-            void* loc_entry_v = NULL;
-            while( (loc_entry_v = ToriDraw_MapIterNext(loc_iter)) )
-            {
-                struct _LocEntry
-                {
-                    int id;
-                    struct RSCacheDat2A_ConfigLocation* config_loc;
-                };
-                struct _LocEntry* le = loc_entry_v;
-                if( !le->config_loc )
-                    continue;
-
-                /* Inline helper: add sid to seq_ids if not already present */
-#define COLLECT_SEQ(sid)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        int _s = (sid);                                                                            \
-        if( _s < 0 )                                                                               \
-            break;                                                                                 \
-        bool _found = false;                                                                       \
-        for( int _k = 0; _k < seq_count; _k++ )                                                    \
-            if( seq_ids[_k] == _s )                                                                \
-            {                                                                                      \
-                _found = true;                                                                     \
-                break;                                                                             \
-            }                                                                                      \
-        if( !_found )                                                                              \
-        {                                                                                          \
-            if( seq_count >= seq_capacity )                                                        \
-            {                                                                                      \
-                seq_capacity *= 2;                                                                 \
-                int* _g = realloc(seq_ids, (size_t)seq_capacity * sizeof(int));                    \
-                if( _g )                                                                           \
-                    seq_ids = _g;                                                                  \
-                else                                                                               \
-                    break;                                                                         \
-            }                                                                                      \
-            seq_ids[seq_count++] = _s;                                                             \
-        }                                                                                          \
-    } while( 0 )
-
-                COLLECT_SEQ(le->config_loc->seq_id);
-                for( int ri = 0; ri < le->config_loc->random_seq_id_count; ri++ )
-                    COLLECT_SEQ(le->config_loc->random_seq_ids[ri]);
-
-#undef COLLECT_SEQ
-            }
-            ToriDraw_MapIterFree(loc_iter);
+            struct Task_Dat2WorldCollectSeqCtx collect_ctx = {
+                .ids = seq_ids,
+                .count = 0,
+                .capacity = seq_capacity,
+            };
+            dat2_buildcache_foreach_config_loc(
+                dat2_bc, task_dat2_world_collect_config_loc_seqs_cb, &collect_ctx);
+            seq_ids = collect_ctx.ids;
+            seq_count = collect_ctx.count;
+            seq_capacity = collect_ctx.capacity;
 
             struct Dat2AnimArchiveSet aset;
 

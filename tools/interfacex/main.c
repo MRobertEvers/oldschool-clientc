@@ -5555,42 +5555,42 @@ CS2VMX_OpArgCounts(
      * widget comes from the dot/active component operand, not the stack, so only the
      * value args below need to be discarded. Counts verified against
      * xrsps-typescript/src/rs/cs2/handlers/WidgetOps.ts. */
-    case CS2_OP_CC_SET2DANGLE:        /* angle */
-    case CS2_OP_CC_SETFILLCOLOUR:     /* color */
-    case CS2_OP_CC_SETHFLIP:          /* flip */
-    case CS2_OP_CC_SETLINEDIRECTION:  /* direction */
-    case CS2_OP_CC_SETLINEWID:        /* width */
-    case CS2_OP_CC_SETMODEL:          /* modelId */
-    case CS2_OP_CC_SETMODELANIM:      /* seq */
-    case CS2_OP_CC_SETMODELORTHOG:    /* orthog */
+    case CS2_OP_CC_SET2DANGLE:          /* angle */
+    case CS2_OP_CC_SETFILLCOLOUR:       /* color */
+    case CS2_OP_CC_SETHFLIP:            /* flip */
+    case CS2_OP_CC_SETLINEDIRECTION:    /* direction */
+    case CS2_OP_CC_SETLINEWID:          /* width */
+    case CS2_OP_CC_SETMODEL:            /* modelId */
+    case CS2_OP_CC_SETMODELANIM:        /* seq */
+    case CS2_OP_CC_SETMODELORTHOG:      /* orthog */
     case CS2_OP_CC_SETMODELTRANSPARENT: /* transparent */
-    case CS2_OP_CC_SETNOSCROLLTHROUGH: /* no_scroll_through */
-    case CS2_OP_CC_SETNPCHEAD:        /* npcId */
-    case CS2_OP_CC_SETVFLIP:          /* flip */
-    case CS2_OP__1122: /* CC_SETGRAPHIC2: id */
-    case CS2_OP__1124: /* CC_SETTRANSBOT: transBot */
-    case CS2_OP__1125: /* CC_SETFILLMODE: mode */
-    case 1004: /* CC_SETPINCH: pinchEnabled */
-    case 1133: /* CC_INPUT_SETSUBMITMODE */
-    case 1134: /* CC_INPUT_SETSELECTCOLOUR */
-    case 1136: /* CC_INPUT_SETWRAPMODE */
-    case 1137: /* CC_INPUT_SETLINEWRAPPINGWIDTH */
-    case 1138: /* CC_INPUT_SETSELECTBGCOLOUR */
-    case 1139: /* CC_INPUT_SETLINECOUNTLIMIT */
-    case 1140: /* CC_INPUT_SETCURSORCOLOUR */
-    case 1141: /* CC_INPUT_SETCURSORTRANS */
-    case 1142: /* CC_INPUT_SETCURSORWIDTH */
-    case 1143: /* CC_INPUT_SETCURSORHEIGHT */
-    case 1144: /* CC_INPUT_SETCURSOROFFSET */
-    case 1145: /* CC_INPUT_SETLINEWIDTHLIMIT */
-    case 1146: /* CC_INPUT_SETCHARFILTER */
-    case 1207: /* CC_SETPLAYERMODEL_SELF: keepEquipment */
-    case 1214: /* CC_SETMODEL_PLAYERCHATHEAD: modelId */
+    case CS2_OP_CC_SETNOSCROLLTHROUGH:  /* no_scroll_through */
+    case CS2_OP_CC_SETNPCHEAD:          /* npcId */
+    case CS2_OP_CC_SETVFLIP:            /* flip */
+    case CS2_OP__1122:                  /* CC_SETGRAPHIC2: id */
+    case CS2_OP__1124:                  /* CC_SETTRANSBOT: transBot */
+    case CS2_OP__1125:                  /* CC_SETFILLMODE: mode */
+    case 1004:                          /* CC_SETPINCH: pinchEnabled */
+    case 1133:                          /* CC_INPUT_SETSUBMITMODE */
+    case 1134:                          /* CC_INPUT_SETSELECTCOLOUR */
+    case 1136:                          /* CC_INPUT_SETWRAPMODE */
+    case 1137:                          /* CC_INPUT_SETLINEWRAPPINGWIDTH */
+    case 1138:                          /* CC_INPUT_SETSELECTBGCOLOUR */
+    case 1139:                          /* CC_INPUT_SETLINECOUNTLIMIT */
+    case 1140:                          /* CC_INPUT_SETCURSORCOLOUR */
+    case 1141:                          /* CC_INPUT_SETCURSORTRANS */
+    case 1142:                          /* CC_INPUT_SETCURSORWIDTH */
+    case 1143:                          /* CC_INPUT_SETCURSORHEIGHT */
+    case 1144:                          /* CC_INPUT_SETCURSOROFFSET */
+    case 1145:                          /* CC_INPUT_SETLINEWIDTHLIMIT */
+    case 1146:                          /* CC_INPUT_SETCHARFILTER */
+    case 1207:                          /* CC_SETPLAYERMODEL_SELF: keepEquipment */
+    case 1214:                          /* CC_SETMODEL_PLAYERCHATHEAD: modelId */
         *int_args = 1;
         return 0;
-    case CS2_OP_CC_SETSCROLLPOS:   /* scrollX, scrollY */
-    case CS2_OP_CC_SETSCROLLSIZE:  /* width, height */
-    case CS2_OP__1128: /* CC_SETARC: start, end */
+    case CS2_OP_CC_SETSCROLLPOS:  /* scrollX, scrollY */
+    case CS2_OP_CC_SETSCROLLSIZE: /* width, height */
+    case CS2_OP__1128:            /* CC_SETARC: start, end */
         *int_args = 2;
         return 0;
     case CS2_OP_CC_SETMODELANGLE: /* offsetX, offsetY, angleX, angleY, angleZ, zoom */
@@ -5617,9 +5617,9 @@ CS2VMX_OpArgCounts(
     case CS2_OP_IF_SETNPCHEAD:
     case CS2_OP_IF_SETDRAGDEADZONE: /* zone, uid */
     case CS2_OP_IF_SETDRAGDEADTIME: /* time, uid */
-    case CS2_OP__2122: /* IF_SETCLICKMASK */
-    case 2004: /* IF_SETPINCH */
-    case 2214: /* IF_SETMODEL_PLAYERCHATHEAD */
+    case CS2_OP__2122:              /* IF_SETCLICKMASK */
+    case 2004:                      /* IF_SETPINCH */
+    case 2214:                      /* IF_SETMODEL_PLAYERCHATHEAD */
         *int_args = 2;
         return 0;
     case CS2_OP__2128: /* IF_SETARC: start, end, uid */
@@ -5961,6 +5961,14 @@ InterfaceX_ConfigArchiveFindFile(
     int file_id,
     uint8_t const** out_data,
     int* out_len);
+
+static struct RSCacheShared_FileList*
+InterfaceX_ConfigArchiveGetFileList(
+    struct RSCacheDat2Disk* disk,
+    int config_kind);
+
+static void
+InterfaceX_ConfigArchiveCacheFreeAll(void);
 
 static void
 InterfaceX_InvStoreSeedDefaults(struct InterfaceX_VMHost* host);
@@ -7002,7 +7010,15 @@ UITreeX_RenderNode(
                     tx = node->abs_x + (lw - tw) / 2;
                 }
                 (void)ToriDraw2D_DrawString(
-                    font, &view_port, tx, ty, node->u.rs_text.text, color, center, shadowed, pixels);
+                    font,
+                    &view_port,
+                    tx,
+                    ty,
+                    node->u.rs_text.text,
+                    color,
+                    center,
+                    shadowed,
+                    pixels);
             }
         }
     }
@@ -7198,40 +7214,23 @@ InterfaceX_LoadObjConfig(
     assert(disk);
     assert(item_id >= 0);
 
-    if( !InterfaceX_ConfigArchiveReady(disk, RSCacheDat2A_ConfigKind_Object) )
+    struct RSCacheShared_FileList* fl =
+        InterfaceX_ConfigArchiveGetFileList(disk, RSCacheDat2A_ConfigKind_Object);
+    if( !fl )
         return NULL;
-
-    struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(
-        disk, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Object);
-    assert(arch);
-
-    RSCacheDat2Disk_ArchiveInitMetadata(disk, arch);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
-    assert(fl);
 
     uint8_t const* data = NULL;
     int data_len = 0;
     if( !InterfaceX_ConfigArchiveFindFile(
             disk, RSCacheDat2A_ConfigKind_Object, fl, item_id, &data, &data_len) )
-    {
-        RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
         return NULL;
-    }
 
     struct RSCacheDat2A_ConfigObject* decoded = calloc(1, sizeof(struct RSCacheDat2A_ConfigObject));
     if( !decoded )
-    {
-        RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
         return NULL;
-    }
 
     RSCacheDat2A_ConfigObjectDecodeInplace(decoded, (char*)data, data_len);
     decoded->_id = item_id;
-
-    RSCacheShared_FileListFree(fl);
-    RSCacheDat2Disk_ArchiveFree(arch);
     return decoded;
 }
 
@@ -9467,6 +9466,70 @@ InterfaceX_ConfigArchiveFindFile(
     return false;
 }
 
+#define INTERFACEX_CONFIG_ARCHIVE_CACHE_CAP 4
+
+struct InterfaceX_ConfigArchiveCacheEntry
+{
+    struct RSCacheDat2Disk* disk;
+    int config_kind;
+    struct RSCacheShared_FileList* file_list;
+};
+
+static struct InterfaceX_ConfigArchiveCacheEntry
+    s_config_archive_cache[INTERFACEX_CONFIG_ARCHIVE_CACHE_CAP];
+static int s_config_archive_cache_count = 0;
+
+static void
+InterfaceX_ConfigArchiveCacheFreeAll(void)
+{
+    for( int i = 0; i < s_config_archive_cache_count; i++ )
+        RSCacheShared_FileListFree(s_config_archive_cache[i].file_list);
+    s_config_archive_cache_count = 0;
+}
+
+static struct RSCacheShared_FileList*
+InterfaceX_ConfigArchiveGetFileList(
+    struct RSCacheDat2Disk* disk,
+    int config_kind)
+{
+    if( !disk || config_kind < 0 )
+        return NULL;
+
+    for( int i = 0; i < s_config_archive_cache_count; i++ )
+    {
+        if( s_config_archive_cache[i].disk == disk &&
+            s_config_archive_cache[i].config_kind == config_kind )
+            return s_config_archive_cache[i].file_list;
+    }
+
+    if( !InterfaceX_ConfigArchiveReady(disk, config_kind) )
+        return NULL;
+
+    struct RSCacheDat2Disk_Archive* arch =
+        RSCacheDat2Disk_ArchiveNewLoad(disk, RSCacheDat2Disk_Table_Configs, config_kind);
+    if( !arch )
+        return NULL;
+
+    RSCacheDat2Disk_ArchiveInitMetadata(disk, arch);
+    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
+    RSCacheDat2Disk_ArchiveFree(arch);
+    if( !fl )
+        return NULL;
+
+    if( s_config_archive_cache_count >= INTERFACEX_CONFIG_ARCHIVE_CACHE_CAP )
+    {
+        RSCacheShared_FileListFree(fl);
+        return NULL;
+    }
+
+    s_config_archive_cache[s_config_archive_cache_count].disk = disk;
+    s_config_archive_cache[s_config_archive_cache_count].config_kind = config_kind;
+    s_config_archive_cache[s_config_archive_cache_count].file_list = fl;
+    s_config_archive_cache_count++;
+
+    return fl;
+}
+
 static char
 InterfaceX_ParamTypeIdToChar(int id)
 {
@@ -9526,21 +9589,10 @@ InterfaceX_LoadParamType(
     if( !disk || param_id < 0 )
         return false;
 
-    if( !InterfaceX_ConfigArchiveReady(disk, RSCacheDat2A_ConfigKind_Params) )
-        return false;
-
-    struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(
-        disk, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Params);
-    if( !arch )
-        return false;
-
-    RSCacheDat2Disk_ArchiveInitMetadata(disk, arch);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
+    struct RSCacheShared_FileList* fl =
+        InterfaceX_ConfigArchiveGetFileList(disk, RSCacheDat2A_ConfigKind_Params);
     if( !fl )
-    {
-        RSCacheDat2Disk_ArchiveFree(arch);
         return false;
-    }
 
     uint8_t const* data = NULL;
     int data_len = 0;
@@ -9550,8 +9602,6 @@ InterfaceX_LoadParamType(
     if( found )
         InterfaceX_DecodeParamType(data, data_len, out);
 
-    RSCacheShared_FileListFree(fl);
-    RSCacheDat2Disk_ArchiveFree(arch);
     return found;
 }
 
@@ -9563,39 +9613,20 @@ InterfaceX_LoadObjType(
     if( !disk || item_id <= 0 )
         return NULL;
 
-    if( !InterfaceX_ConfigArchiveReady(disk, RSCacheDat2A_ConfigKind_Object) )
-        return NULL;
-
-    struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(
-        disk, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Object);
-    if( !arch )
-        return NULL;
-
-    RSCacheDat2Disk_ArchiveInitMetadata(disk, arch);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
+    struct RSCacheShared_FileList* fl =
+        InterfaceX_ConfigArchiveGetFileList(disk, RSCacheDat2A_ConfigKind_Object);
     if( !fl )
-    {
-        RSCacheDat2Disk_ArchiveFree(arch);
         return NULL;
-    }
 
     uint8_t const* data = NULL;
     int data_len = 0;
     if( !InterfaceX_ConfigArchiveFindFile(
             disk, RSCacheDat2A_ConfigKind_Object, fl, item_id, &data, &data_len) )
-    {
-        RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
         return NULL;
-    }
 
     struct RSCacheDat2A_ConfigObject* decoded = calloc(1, sizeof(struct RSCacheDat2A_ConfigObject));
     if( !decoded )
-    {
-        RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
         return NULL;
-    }
 
     RSCacheDat2A_ConfigObjectDecodeInplace(decoded, (char*)data, data_len);
 
@@ -9603,8 +9634,6 @@ InterfaceX_LoadObjType(
     if( !obj )
     {
         RSCacheDat2A_ConfigObjectFree(decoded);
-        RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
         return NULL;
     }
 
@@ -9617,8 +9646,6 @@ InterfaceX_LoadObjType(
         {
             RSCacheDat2A_ConfigObjectFree(decoded);
             free(obj);
-            RSCacheShared_FileListFree(fl);
-            RSCacheDat2Disk_ArchiveFree(arch);
             return NULL;
         }
 
@@ -9641,8 +9668,6 @@ InterfaceX_LoadObjType(
     }
 
     RSCacheDat2A_ConfigObjectFree(decoded);
-    RSCacheShared_FileListFree(fl);
-    RSCacheDat2Disk_ArchiveFree(arch);
     return obj;
 }
 
@@ -9819,8 +9844,7 @@ InterfaceX_VMHost_Exec(
         return InterfaceX_VMHost_Exec_IF_GetScrollHeight(
             vmhost, vm, request->u.if_get_scroll_height.component_id);
     case CS2VM_HOST_REQUEST_IF_GETHIDE:
-        return InterfaceX_VMHost_Exec_IF_GetHide(
-            vmhost, vm, request->u.if_get_width.component_id);
+        return InterfaceX_VMHost_Exec_IF_GetHide(vmhost, vm, request->u.if_get_width.component_id);
     case CS2VM_HOST_REQUEST_IF_SETHIDE:
         return InterfaceX_VMHost_Exec_IF_SetHide(vmhost, vm, request->u.if_set_hide);
     case CS2VM_HOST_REQUEST_IF_SETPOSITION:
@@ -10107,8 +10131,9 @@ main(
     CS2VMX_BindHost(&vm, &vmhost, InterfaceX_VMHost_Exec);
 
 #define BANK_INTERFACE 12
+#define INVENTORY_INTERFACE 630
 #define EQUIPMENT_INTERFACE 387
-#define INTERFACE_ID BANK_INTERFACE
+#define INTERFACE_ID INVENTORY_INTERFACE
 
     reference_table = cache->tables[RSCacheDat2Disk_Table_Interfaces];
     if( !reference_table )
@@ -10224,5 +10249,6 @@ main(
     printf("wrote %s (%dx%d)\n", outpath, CANVAS_W, CANVAS_H);
     free(pixels);
 
+    InterfaceX_ConfigArchiveCacheFreeAll();
     return 0;
 }

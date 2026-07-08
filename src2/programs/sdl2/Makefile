@@ -173,6 +173,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toriauxlib/core/tasks/task_instance_on_rc.c \
 	$(SRC2)/toriauxlib/core/tasks/task_instance_revconfig_load.c \
 	$(SRC2)/ui/uitree.c \
+	$(SRC2)/ui/uitree_build.c \
 	$(SRC2)/ui/uitree_layout.c \
 	$(SRC2)/ui/uitree_host.c \
 	$(SRC2)/ui/ui_input.c \
@@ -195,6 +196,10 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/revconfig/revconfig_load.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC2)/games/runescape.c \
+	$(SRC2)/games/game_interface_editor.c \
+	$(SRC2)/games/ie_enum_lookup.c \
+	$(SRC2)/games/ie_struct_lookup.c \
+	$(SRC2)/games/ie_param_lookup.c \
 	$(SRC2)/runescape/appearance.c \
 	$(SRC2)/runescape/player_body.c \
 	$(SRC_DIR)/osrs/datatypes/appearances.c \
@@ -205,6 +210,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC_DIR)/osrs/painters.c \
 	$(SRC_DIR)/osrs/texture.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
+	$(SRC_DIR)/bmp.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c \
 	$(SRC_DIR)/osrs/rscache/unity.c \
 	$(PLAT_DIR)/platform_x_cache.c \

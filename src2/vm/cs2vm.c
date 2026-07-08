@@ -413,8 +413,7 @@ cs2_rt_host_invoke(
 }
 
 static int
-cs2_array_define_slot(
-    int operand)
+cs2_array_define_slot(int operand)
 {
     return operand >> 16;
 }
@@ -655,20 +654,20 @@ cs2_rt_exec_opcode(
         CS2_RT_PUSH_INT(rt, a | b);
         break;
     }
-    case CS2_OP_MIN:
-    {
-        int b = cs2_rt_pop_int(rt);
-        int a = cs2_rt_pop_int(rt);
-        CS2_RT_PUSH_INT(rt, a < b ? a : b);
-        break;
-    }
-    case CS2_OP_MAX:
-    {
-        int b = cs2_rt_pop_int(rt);
-        int a = cs2_rt_pop_int(rt);
-        CS2_RT_PUSH_INT(rt, a > b ? a : b);
-        break;
-    }
+    // case CS2_OP_MIN:
+    // {
+    //     int b = cs2_rt_pop_int(rt);
+    //     int a = cs2_rt_pop_int(rt);
+    //     CS2_RT_PUSH_INT(rt, a < b ? a : b);
+    //     break;
+    // }
+    // case CS2_OP_MAX:
+    // {
+    //     int b = cs2_rt_pop_int(rt);
+    //     int a = cs2_rt_pop_int(rt);
+    //     CS2_RT_PUSH_INT(rt, a > b ? a : b);
+    //     break;
+    // }
     case CS2_OP_TESTBIT:
     {
         int bit = cs2_rt_pop_int(rt);
