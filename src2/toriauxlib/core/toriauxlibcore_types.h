@@ -348,7 +348,11 @@ enum ToriAuxLibCore_ComponentType
     TORIAUXLIBCORE_COMPONENT_LINE,
 };
 
-#define TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX 16
+/* Some interface onLoad hooks (e.g. the bank's) declare 30+ int script params
+ * (CS2_Script.int_argument_count), well past the old cap of 16. Truncating argv there
+ * left the trailing script locals uninitialized (0), which surfaced as a CC_CREATE
+ * with parent_id=0 several gosub calls deep. */
+#define TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX 64
 /** Matches OSRS INV slotGraphic array length (equipment silhouettes, etc.). */
 #define TORIAUXLIBCORE_INV_SLOT_MAX 20
 #define TORIAUXLIBCORE_INVENTORY_TRIGGER_MAX 8

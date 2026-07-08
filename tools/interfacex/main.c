@@ -32,6 +32,15 @@
 #define CANVAS_H 768
 #define CANVAS_BG 0xFF202428
 
+/* Current render clip rect (canvas-space, [x0,y0) .. [x1,y1) ), narrowed while recursing
+ * into a scrollable RSLayer's children and restored on the way back out. Rendering is a
+ * single-threaded, synchronous depth-first walk, so plain save/restore around each
+ * recursive call is sufficient - no need to thread a clip struct through every helper. */
+static int g_render_clip_x0 = 0;
+static int g_render_clip_y0 = 0;
+static int g_render_clip_x1 = CANVAS_W;
+static int g_render_clip_y1 = CANVAS_H;
+
 static inline int
 uitree_mul_shift14(
     int a,
@@ -183,7 +192,9 @@ struct UITreeXNode
     } u;
 };
 
-#define MAX_NODES 1024
+/* Some onLoad scripts (e.g. the bank's search-slot prefetch loop) create 1200+ dynamic
+ * children up front, well past the old cap of 1024. */
+#define MAX_NODES 4096
 struct UITreeX
 {
     int node_count;
@@ -669,6 +680,14 @@ struct CS2VMX
 
     int active_component_id;
     int dot_component_id;
+
+    /* Diagnostics for the opcode that last caused CS2VM_EXECNO_ERROR, so callers can
+     * log which instruction failed instead of just "script N errored". last_error_script_id
+     * is the failing frame's own script (may differ from the originally-invoked script id
+     * when the error happens inside a gosub callee). */
+    int last_error_opcode;
+    int last_error_pc;
+    int last_error_script_id;
 };
 
 enum CS2VM_HostRequestKind
@@ -1995,6 +2014,64 @@ CS2VMX_Op_CC_SetGraphicShadow(
 }
 
 int
+CS2VMX_Op_IF_SetTiling(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id, tiling;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &tiling) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETTILING;
+    request.u.cc_set_tiling.component_id = component_id;
+    request.u.cc_set_tiling.tiling = tiling;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_IF_SetGraphicShadow(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id, shadow;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &shadow) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHICSHADOW;
+    request.u.cc_set_graphic_shadow.component_id = component_id;
+    request.u.cc_set_graphic_shadow.shadow = shadow;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
 CS2VMX_Op_CC_SetColour(
     struct CS2VMX* vm,
     struct CS2VMX_Frame* frame,
@@ -2011,6 +2088,35 @@ CS2VMX_Op_CC_SetColour(
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETCOLOUR;
     request.u.cc_set_colour.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.cc_set_colour.colour = colour;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_IF_SetColour(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id, colour;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &colour) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETCOLOUR;
+    request.u.cc_set_colour.component_id = component_id;
     request.u.cc_set_colour.colour = colour;
 
     int result = vm->host_exec(vm, &request);
@@ -2047,6 +2153,35 @@ CS2VMX_Op_CC_SetFill(
 }
 
 int
+CS2VMX_Op_IF_SetFill(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id, filled;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &filled) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETFILL;
+    request.u.cc_set_fill.component_id = component_id;
+    request.u.cc_set_fill.filled = filled;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
 CS2VMX_Op_CC_SetTrans(
     struct CS2VMX* vm,
     struct CS2VMX_Frame* frame,
@@ -2063,6 +2198,35 @@ CS2VMX_Op_CC_SetTrans(
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTRANS;
     request.u.cc_set_trans.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.cc_set_trans.trans = trans;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_IF_SetTrans(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id, trans;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &trans) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETTRANS;
+    request.u.cc_set_trans.component_id = component_id;
     request.u.cc_set_trans.trans = trans;
 
     int result = vm->host_exec(vm, &request);
@@ -2151,6 +2315,35 @@ CS2VMX_Op_CC_SetTextFont(
 }
 
 int
+CS2VMX_Op_IF_SetTextFont(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id, font_id;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &font_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETTEXTFONT;
+    request.u.cc_set_text_font.component_id = component_id;
+    request.u.cc_set_text_font.font_id = font_id;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
 CS2VMX_Op_CC_SetTextAlign(
     struct CS2VMX* vm,
     struct CS2VMX_Frame* frame,
@@ -2183,6 +2376,41 @@ CS2VMX_Op_CC_SetTextAlign(
 }
 
 int
+CS2VMX_Op_IF_SetTextAlign(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id, line_height, y_align, x_align;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &line_height) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &y_align) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &x_align) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETTEXTALIGN;
+    request.u.cc_set_text_align.component_id = component_id;
+    request.u.cc_set_text_align.x_align = x_align;
+    request.u.cc_set_text_align.y_align = y_align;
+    request.u.cc_set_text_align.line_height = line_height;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
 CS2VMX_Op_CC_SetTextShadow(
     struct CS2VMX* vm,
     struct CS2VMX_Frame* frame,
@@ -2199,6 +2427,35 @@ CS2VMX_Op_CC_SetTextShadow(
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTEXTSHADOW;
     request.u.cc_set_text_shadow.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.cc_set_text_shadow.shadowed = shadowed;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_IF_SetTextShadow(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id, shadowed;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &shadowed) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETTEXTSHADOW;
+    request.u.cc_set_text_shadow.component_id = component_id;
     request.u.cc_set_text_shadow.shadowed = shadowed;
 
     int result = vm->host_exec(vm, &request);
@@ -2412,6 +2669,28 @@ CS2VMX_Op_CC_SetOp(
     request.u.if_set_op.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
     request.u.if_set_op.index = index;
     request.u.if_set_op.text = text;
+
+    int result = vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_CC_ClearOps(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_CLEAROPS;
+    request.u.if_clear_ops.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
 
     int result = vm->host_exec(vm, &request);
     if( result != CS2VM_EXECNO_OK )
@@ -4037,6 +4316,70 @@ CS2VMX_Op_OnMobile(
     return CS2VMX_PushInt(vm, 0);
 }
 
+/* COORD returns the local player's packed world coordinate; it does not pop from the
+ * stack. This offline renderer has no player position, so it pushes a fixed dummy coord
+ * (plane 0, x 0, y 0) — good enough to keep script-local stack balance correct. */
+int
+CS2VMX_Op_Coord(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    return CS2VMX_PushInt(vm, 0);
+}
+
+int
+CS2VMX_Op_CoordX(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int packed;
+    if( CS2VMX_PopInt(vm, &packed) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VMX_PushInt(vm, (packed >> 14) & 0x3fff);
+}
+
+int
+CS2VMX_Op_CoordY(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int packed;
+    if( CS2VMX_PopInt(vm, &packed) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VMX_PushInt(vm, packed & 0x3fff);
+}
+
+int
+CS2VMX_Op_CoordZ(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int packed;
+    if( CS2VMX_PopInt(vm, &packed) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VMX_PushInt(vm, (packed >> 28) & 0x3);
+}
+
 int
 CS2VMX_Op_ClientType(
     struct CS2VMX* vm,
@@ -4501,6 +4844,14 @@ CS2VMX_Op_InvTotal(
     return CS2VM_EXECNO_OK;
 }
 
+/* Fills *int_args / *str_args with the stack values this opcode pops.
+ * Returns 0 for a fixed count, 1 when the count is variable (e.g. GOSUB). */
+static int
+CS2VMX_OpArgCounts(
+    int opcode,
+    int* int_args,
+    int* str_args);
+
 int
 CS2VMX_RunOp(
     struct CS2VMX* vm,
@@ -4564,6 +4915,14 @@ CS2VMX_RunOp(
         return CS2VMX_Op_OnMobile(vm, frame, operand);
     case CS2_OP_CLIENTTYPE:
         return CS2VMX_Op_ClientType(vm, frame, operand);
+    case CS2_OP_COORD:
+        return CS2VMX_Op_Coord(vm, frame, operand);
+    case CS2_OP_COORDX:
+        return CS2VMX_Op_CoordX(vm, frame, operand);
+    case CS2_OP_COORDY:
+        return CS2VMX_Op_CoordY(vm, frame, operand);
+    case CS2_OP_COORDZ:
+        return CS2VMX_Op_CoordZ(vm, frame, operand);
     case CS2_OP_RUNWEIGHT_VISIBLE:
         return CS2VMX_Op_RunWeightVisible(vm, frame, operand);
     case CS2_OP_INV_SIZE:
@@ -4588,26 +4947,42 @@ CS2VMX_RunOp(
         return CS2VMX_Op_CC_SetGraphic(vm, frame, operand);
     case CS2_OP_CC_SETTILING:
         return CS2VMX_Op_CC_SetTiling(vm, frame, operand);
+    case CS2_OP_IF_SETTILING:
+        return CS2VMX_Op_IF_SetTiling(vm, frame, operand);
     case CS2_OP_CC_SETOUTLINE:
         return CS2VMX_Op_CC_SetOutline(vm, frame, operand);
     case CS2_OP_CC_SETGRAPHICSHADOW:
         return CS2VMX_Op_CC_SetGraphicShadow(vm, frame, operand);
+    case CS2_OP_IF_SETGRAPHICSHADOW:
+        return CS2VMX_Op_IF_SetGraphicShadow(vm, frame, operand);
     case CS2_OP_CC_SETCOLOUR:
         return CS2VMX_Op_CC_SetColour(vm, frame, operand);
+    case CS2_OP_IF_SETCOLOUR:
+        return CS2VMX_Op_IF_SetColour(vm, frame, operand);
     case CS2_OP_CC_SETFILL:
         return CS2VMX_Op_CC_SetFill(vm, frame, operand);
+    case CS2_OP_IF_SETFILL:
+        return CS2VMX_Op_IF_SetFill(vm, frame, operand);
     case CS2_OP_CC_SETTRANS:
         return CS2VMX_Op_CC_SetTrans(vm, frame, operand);
+    case CS2_OP_IF_SETTRANS:
+        return CS2VMX_Op_IF_SetTrans(vm, frame, operand);
     case CS2_OP_CC_SETNOCLICKTHROUGH:
         return CS2VMX_Op_CC_SetNoClickThrough(vm, frame, operand);
     case CS2_OP_CC_SETTEXT:
         return CS2VMX_Op_CC_SetText(vm, frame, operand);
     case CS2_OP_CC_SETTEXTFONT:
         return CS2VMX_Op_CC_SetTextFont(vm, frame, operand);
+    case CS2_OP_IF_SETTEXTFONT:
+        return CS2VMX_Op_IF_SetTextFont(vm, frame, operand);
     case CS2_OP_CC_SETTEXTALIGN:
         return CS2VMX_Op_CC_SetTextAlign(vm, frame, operand);
+    case CS2_OP_IF_SETTEXTALIGN:
+        return CS2VMX_Op_IF_SetTextAlign(vm, frame, operand);
     case CS2_OP_CC_SETTEXTSHADOW:
         return CS2VMX_Op_CC_SetTextShadow(vm, frame, operand);
+    case CS2_OP_IF_SETTEXTSHADOW:
+        return CS2VMX_Op_IF_SetTextShadow(vm, frame, operand);
     case CS2_OP_CC_SETDRAGGABLE:
         return CS2VMX_Op_CC_SetDraggable(vm, frame, operand);
     case CS2_OP_CC_SETDRAGGABLEBEHAVIOR:
@@ -4618,6 +4993,8 @@ CS2VMX_RunOp(
         return CS2VMX_Op_CC_SetObject(vm, frame, operand);
     case CS2_OP_CC_SETOP:
         return CS2VMX_Op_CC_SetOp(vm, frame, operand);
+    case CS2_OP_CC_CLEAROPS:
+        return CS2VMX_Op_CC_ClearOps(vm, frame, operand);
     case CS2_OP_CC_SETHIDE:
         return CS2VMX_Op_CC_SetHide(vm, frame, operand);
     case CS2_OP_CC_GETID:
@@ -4747,8 +5124,42 @@ CS2VMX_RunOp(
     case CS2_OP_OC_UNPLACEHOLDER:
         return CS2VMX_Op_OC_Unplaceholder(vm, frame, operand);
     default:
-        fprintf(stderr, "unknown opcode: %d (pc=%d)\n", opcode, frame->pc - 1);
+    {
+        int int_args = 0;
+        int str_args = 0;
+        int variable = CS2VMX_OpArgCounts(opcode, &int_args, &str_args);
+        if( variable )
+        {
+            fprintf(
+                stderr,
+                "unknown opcode: %d (pc=%d), variable arg count unknown; stack may be corrupted\n",
+                opcode,
+                frame->pc - 1);
+            return CS2VM_EXECNO_OK;
+        }
+
+        fprintf(
+            stderr,
+            "unknown opcode: %d (pc=%d), discarding %d int / %d string arg(s)\n",
+            opcode,
+            frame->pc - 1,
+            int_args,
+            str_args);
+
+        for( int i = 0; i < int_args; i++ )
+        {
+            int discard;
+            if( CS2VMX_PopInt(vm, &discard) != CS2VM_EXECNO_OK )
+                break;
+        }
+        for( int i = 0; i < str_args; i++ )
+        {
+            char* discard;
+            if( CS2VMX_PopStr(vm, &discard) != CS2VM_EXECNO_OK )
+                break;
+        }
         return CS2VM_EXECNO_OK;
+    }
     }
 }
 
@@ -4817,6 +5228,86 @@ CS2VMX_OpArgCounts(
         return 0;
     case CS2_OP_IF_SETTARGETPRIORITY:
         *int_args = 2;
+        return 0;
+
+    /* Unimplemented CC_* setters (models, lines/arcs, flip/angle, input fields). Target
+     * widget comes from the dot/active component operand, not the stack, so only the
+     * value args below need to be discarded. Counts verified against
+     * xrsps-typescript/src/rs/cs2/handlers/WidgetOps.ts. */
+    case CS2_OP_CC_SET2DANGLE:        /* angle */
+    case CS2_OP_CC_SETFILLCOLOUR:     /* color */
+    case CS2_OP_CC_SETHFLIP:          /* flip */
+    case CS2_OP_CC_SETLINEDIRECTION:  /* direction */
+    case CS2_OP_CC_SETLINEWID:        /* width */
+    case CS2_OP_CC_SETMODEL:          /* modelId */
+    case CS2_OP_CC_SETMODELANIM:      /* seq */
+    case CS2_OP_CC_SETMODELORTHOG:    /* orthog */
+    case CS2_OP_CC_SETMODELTRANSPARENT: /* transparent */
+    case CS2_OP_CC_SETNOSCROLLTHROUGH: /* no_scroll_through */
+    case CS2_OP_CC_SETDRAGDEADZONE:   /* zone */
+    case CS2_OP_CC_SETDRAGDEADTIME:   /* time */
+    case CS2_OP_CC_SETNPCHEAD:        /* npcId */
+    case CS2_OP_CC_SETVFLIP:          /* flip */
+    case CS2_OP__1122: /* CC_SETGRAPHIC2: id */
+    case CS2_OP__1124: /* CC_SETTRANSBOT: transBot */
+    case CS2_OP__1125: /* CC_SETFILLMODE: mode */
+    case 1004: /* CC_SETPINCH: pinchEnabled */
+    case 1133: /* CC_INPUT_SETSUBMITMODE */
+    case 1134: /* CC_INPUT_SETSELECTCOLOUR */
+    case 1136: /* CC_INPUT_SETWRAPMODE */
+    case 1137: /* CC_INPUT_SETLINEWRAPPINGWIDTH */
+    case 1138: /* CC_INPUT_SETSELECTBGCOLOUR */
+    case 1139: /* CC_INPUT_SETLINECOUNTLIMIT */
+    case 1140: /* CC_INPUT_SETCURSORCOLOUR */
+    case 1141: /* CC_INPUT_SETCURSORTRANS */
+    case 1142: /* CC_INPUT_SETCURSORWIDTH */
+    case 1143: /* CC_INPUT_SETCURSORHEIGHT */
+    case 1144: /* CC_INPUT_SETCURSOROFFSET */
+    case 1145: /* CC_INPUT_SETLINEWIDTHLIMIT */
+    case 1146: /* CC_INPUT_SETCHARFILTER */
+    case 1207: /* CC_SETPLAYERMODEL_SELF: keepEquipment */
+    case 1214: /* CC_SETMODEL_PLAYERCHATHEAD: modelId */
+        *int_args = 1;
+        return 0;
+    case CS2_OP_CC_SETSCROLLPOS:   /* scrollX, scrollY */
+    case CS2_OP_CC_SETSCROLLSIZE:  /* width, height */
+    case CS2_OP__1128: /* CC_SETARC: start, end */
+        *int_args = 2;
+        return 0;
+    case CS2_OP_CC_SETMODELANGLE: /* offsetX, offsetY, angleX, angleY, angleZ, zoom */
+        *int_args = 6;
+        return 0;
+
+    /* Unimplemented IF_* setters: these pop the target widget uid from the stack
+     * (top), in addition to the same value args as their CC_* counterpart above. */
+    case CS2_OP_IF_SETPLAYERHEAD_SELF: /* uid only */
+    case CS2_OP_IF_RESUME_PAUSEBUTTON: /* uid only */
+        *int_args = 1;
+        return 0;
+    case CS2_OP_IF_SETHFLIP:
+    case CS2_OP_IF_SETVFLIP:
+    case CS2_OP_IF_SET2DANGLE:
+    case CS2_OP_IF_SETLINEDIRECTION:
+    case CS2_OP_IF_SETLINEWID:
+    case CS2_OP_IF_SETMODEL:
+    case CS2_OP_IF_SETMODELANIM:
+    case CS2_OP_IF_SETMODELORTHOG:
+    case CS2_OP_IF_SETMODELTRANSPARENT:
+    case CS2_OP_IF_SETNOCLICKTHROUGH:
+    case CS2_OP_IF_SETNOSCROLLTHROUGH:
+    case CS2_OP_IF_SETNPCHEAD:
+    case CS2_OP_IF_SETDRAGDEADZONE: /* zone, uid */
+    case CS2_OP_IF_SETDRAGDEADTIME: /* time, uid */
+    case CS2_OP__2122: /* IF_SETCLICKMASK */
+    case 2004: /* IF_SETPINCH */
+    case 2214: /* IF_SETMODEL_PLAYERCHATHEAD */
+        *int_args = 2;
+        return 0;
+    case CS2_OP__2128: /* IF_SETARC: start, end, uid */
+        *int_args = 3;
+        return 0;
+    case CS2_OP_IF_SETMODELANGLE: /* offsetX, offsetY, angleX, angleY, angleZ, zoom, uid */
+        *int_args = 7;
         return 0;
     default:
         return 0;
@@ -4948,6 +5439,7 @@ CS2VMX_RunScript(struct CS2VMX* vm)
 
         CS2VMX_DebugPrintOpCode(vm, frame, opcode, operand, str_operand_str);
 
+        int op_pc = frame->pc;
         frame->pc += 1;
 
         result = CS2VMX_RunOp(vm, frame, opcode, operand, str_operand_str);
@@ -4957,8 +5449,21 @@ CS2VMX_RunScript(struct CS2VMX* vm)
         case CS2VM_EXECNO_OK:
             break;
         default:
+            if( result == CS2VM_EXECNO_ERROR )
+            {
+                vm->last_error_opcode = opcode;
+                vm->last_error_pc = op_pc;
+                vm->last_error_script_id = frame->script->script_id;
+            }
             return result;
         }
+    }
+
+    {
+        struct CS2VMX_Frame* frame = &vm->frames[vm->frame_sp - 1];
+        vm->last_error_opcode = -1;
+        vm->last_error_pc = frame->pc;
+        vm->last_error_script_id = frame->script->script_id;
     }
     return CS2VM_EXECNO_ERROR;
 }
@@ -5046,7 +5551,7 @@ struct InterfaceX_VMHost
 {
     struct ToriDraw_Map* scripts;
 
-    unsigned char scripts_buf[4096];
+    unsigned char scripts_buf[65536];
     struct RSCacheDat2Disk* disk;
     struct RSCacheDat2Disk_ReferenceTable* clientscript_table;
     struct ToriDraw_Scene* scene;
@@ -5103,6 +5608,11 @@ static int
 InterfaceX_ResolveGraphicScene(
     struct InterfaceX_VMHost* host,
     int graphic_id);
+
+static struct ToriDraw_Font*
+InterfaceX_EnsureSceneFont(
+    struct InterfaceX_VMHost* host,
+    int font_id);
 
 static int
 InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
@@ -5276,17 +5786,23 @@ UITreeX_LayoutNode(
 
     int child_pw = w;
     int child_ph = h;
+    int child_px = node->abs_x;
+    int child_py = node->abs_y;
     if( node->kind == UITreeXNodeKind_RSLayer )
     {
         if( node->u.rs_layer.scroll_width > 0 )
             child_pw = node->u.rs_layer.scroll_width;
         if( node->u.rs_layer.scroll_height > 0 )
             child_ph = node->u.rs_layer.scroll_height;
+        /* Scrolled content is laid out at its natural position, then shifted up/left
+         * by the scroll offset; UITreeX_RenderNode clips it back to the layer's bounds. */
+        child_px -= node->u.rs_layer.scroll_x;
+        child_py -= node->u.rs_layer.scroll_y;
     }
 
     for( int child = node->link.first_child_tree_idx; child != -1;
          child = tree->nodes[child].link.next_sibling_tree_idx )
-        UITreeX_LayoutNode(tree, child, node->abs_x, node->abs_y, child_pw, child_ph, 0);
+        UITreeX_LayoutNode(tree, child, child_px, child_py, child_pw, child_ph, 0);
 }
 
 static void
@@ -5653,6 +6169,16 @@ UITreeX_ApplyComponentGeometry(
     }
 }
 
+/* Alpha-blends a single ARGB pixel into dest, matching blit_rgba_pixel below
+ * (declared ahead of its definition so InterfaceX_FillRect can honor node trans). */
+static void
+blit_rgba_pixel(
+    int* dest,
+    int dstride,
+    int sx,
+    int sy,
+    int p);
+
 static void
 InterfaceX_FillRect(
     int* pixels,
@@ -5663,18 +6189,25 @@ InterfaceX_FillRect(
     int y1,
     int argb)
 {
-    if( x0 < 0 )
-        x0 = 0;
-    if( y0 < 0 )
-        y0 = 0;
-    if( x1 > CANVAS_W )
-        x1 = CANVAS_W;
-    if( y1 > CANVAS_H )
-        y1 = CANVAS_H;
+    if( x0 < g_render_clip_x0 )
+        x0 = g_render_clip_x0;
+    if( y0 < g_render_clip_y0 )
+        y0 = g_render_clip_y0;
+    if( x1 > g_render_clip_x1 )
+        x1 = g_render_clip_x1;
+    if( y1 > g_render_clip_y1 )
+        y1 = g_render_clip_y1;
+
+    int a = (argb >> 24) & 0xFF;
     for( int y = y0; y < y1; y++ )
     {
         for( int x = x0; x < x1; x++ )
-            pixels[y * stride + x] = argb;
+        {
+            if( a >= 255 )
+                pixels[y * stride + x] = argb;
+            else
+                blit_rgba_pixel(pixels, stride, x, y, argb);
+        }
     }
 }
 
@@ -5702,7 +6235,8 @@ blit_rgba_pixel(
     int sy,
     int p)
 {
-    if( sx < 0 || sy < 0 || sx >= CANVAS_W || sy >= CANVAS_H )
+    if( sx < g_render_clip_x0 || sy < g_render_clip_y0 || sx >= g_render_clip_x1 ||
+        sy >= g_render_clip_y1 )
         return;
 
     int a = (p >> 24) & 0xFF;
@@ -5797,14 +6331,14 @@ blit_rgba_sprite_tiled(
     if( sw <= 0 || sh <= 0 || rect_w <= 0 || rect_h <= 0 )
         return;
 
-    int x0 = rect_x < 0 ? 0 : rect_x;
-    int y0 = rect_y < 0 ? 0 : rect_y;
+    int x0 = rect_x < g_render_clip_x0 ? g_render_clip_x0 : rect_x;
+    int y0 = rect_y < g_render_clip_y0 ? g_render_clip_y0 : rect_y;
     int x1 = rect_x + rect_w;
     int y1 = rect_y + rect_h;
-    if( x1 > CANVAS_W )
-        x1 = CANVAS_W;
-    if( y1 > CANVAS_H )
-        y1 = CANVAS_H;
+    if( x1 > g_render_clip_x1 )
+        x1 = g_render_clip_x1;
+    if( y1 > g_render_clip_y1 )
+        y1 = g_render_clip_y1;
 
     for( int y = y0; y < y1; y++ )
     {
@@ -5855,8 +6389,32 @@ interface_x_sprite_clamp_to_nominal(
     return dst;
 }
 
+/* Scales the alpha channel of every pixel in buf by `alpha` (0-255), leaving
+ * color untouched. Used to apply a node's `trans` property to cached sprite data
+ * without mutating the shared scene cache. No-op when alpha >= 255. */
+static void
+interface_x_scale_pixel_alpha(
+    uint32_t* buf,
+    size_t count,
+    int alpha)
+{
+    if( !buf || alpha >= 255 )
+        return;
+    if( alpha < 0 )
+        alpha = 0;
+
+    for( size_t i = 0; i < count; i++ )
+    {
+        uint32_t p = buf[i];
+        int a = (int)((p >> 24) & 0xFF);
+        a = (a * alpha) / 255;
+        buf[i] = (p & 0x00FFFFFFu) | ((uint32_t)a << 24);
+    }
+}
+
 /* Blit a type-5 graphic sprite. if3 selects stretch-vs-native drawing:
- * IF3 stretches the nominal sprite to lw x lh; IF1 blits at native size (+ crop offset). */
+ * IF3 stretches the nominal sprite to lw x lh; IF1 blits at native size (+ crop offset).
+ * alpha (0-255) applies the node's trans property; 255 = fully opaque. */
 static void
 InterfaceX_BlitSceneSprite(
     int* pixels,
@@ -5868,7 +6426,8 @@ InterfaceX_BlitSceneSprite(
     int tiling,
     int outline,
     int graphic_shadow,
-    int if3)
+    int if3,
+    int alpha)
 {
     if( !pixels || !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
         return;
@@ -5918,6 +6477,8 @@ InterfaceX_BlitSceneSprite(
         }
     }
 
+    interface_x_scale_pixel_alpha(spr_px, (size_t)sw * (size_t)sh, alpha);
+
     /* IF3: stretch nominal sprite to widget bounds (lw x lh). IF1: native-size blit below. */
     if( if3 && !tiling )
     {
@@ -5961,6 +6522,18 @@ UITreeX_RenderNode(
     if( node->hidden )
         goto render_children;
 
+    /* trans: 0 = fully opaque, 255 = fully invisible (client semantics). The node's
+     * own content is skipped once fully transparent, but children still recurse -
+     * matching the reference client, since child nodes carry their own trans value. */
+    int trans = node->trans;
+    if( trans < 0 )
+        trans = 0;
+    else if( trans > 255 )
+        trans = 255;
+    if( trans >= 255 )
+        goto render_children;
+    int node_alpha = 255 - trans;
+
     if( node->kind == UITreeXNodeKind_RSGraphic && node->u.rs_graphic.graphic_id >= 0 && host )
     {
         int scene_id = node->u.rs_graphic.scene_id;
@@ -5984,7 +6557,8 @@ UITreeX_RenderNode(
                     node->tiling,
                     node->u.rs_graphic.outline,
                     node->u.rs_graphic.graphic_shadow,
-                    node->if3);
+                    node->if3,
+                    node_alpha);
             }
         }
     }
@@ -6007,16 +6581,43 @@ UITreeX_RenderNode(
                 int sh = spr->height > 0 ? spr->height : 1;
                 int bw = node->abs_w > 0 ? node->abs_w : sw;
                 int bh = node->abs_h > 0 ? node->abs_h : sh;
-                blit_rgba_sprite_scaled(
-                    pixels,
-                    CANVAS_W,
-                    node->abs_x,
-                    node->abs_y,
-                    bw,
-                    bh,
-                    (int const*)spr->pixels_argb,
-                    sw,
-                    sh);
+
+                if( node_alpha >= 255 )
+                {
+                    blit_rgba_sprite_scaled(
+                        pixels,
+                        CANVAS_W,
+                        node->abs_x,
+                        node->abs_y,
+                        bw,
+                        bh,
+                        (int const*)spr->pixels_argb,
+                        sw,
+                        sh);
+                }
+                else
+                {
+                    /* Sprite pixels are cache-owned; copy before scaling alpha so we
+                     * don't mutate data shared with other nodes/frames. */
+                    size_t pixel_count = (size_t)sw * (size_t)sh;
+                    uint32_t* tmp = malloc(pixel_count * sizeof(uint32_t));
+                    if( tmp )
+                    {
+                        memcpy(tmp, spr->pixels_argb, pixel_count * sizeof(uint32_t));
+                        interface_x_scale_pixel_alpha(tmp, pixel_count, node_alpha);
+                        blit_rgba_sprite_scaled(
+                            pixels,
+                            CANVAS_W,
+                            node->abs_x,
+                            node->abs_y,
+                            bw,
+                            bh,
+                            (int const*)tmp,
+                            sw,
+                            sh);
+                        free(tmp);
+                    }
+                }
             }
         }
     }
@@ -6026,17 +6627,101 @@ UITreeX_RenderNode(
         int py = node->abs_y;
         int pw = node->abs_w > 0 ? node->abs_w : 1;
         int ph = node->abs_h > 0 ? node->abs_h : 1;
-        int argb = 0xFF000000 | (node->u.rs_rect.color & 0xFFFFFF);
+        int argb = (node_alpha << 24) | (node->u.rs_rect.color & 0xFFFFFF);
         if( node->u.rs_rect.filled )
             InterfaceX_FillRect(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
         else
             InterfaceX_DrawRectOutline(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
     }
+    else if( node->kind == UITreeXNodeKind_RSText && node->u.rs_text.text[0] && host )
+    {
+        int font_id = node->u.rs_text.font_id;
+        if( font_id < 0 )
+            font_id = 495;
+
+        struct ToriDraw_Font* font = InterfaceX_EnsureSceneFont(host, font_id);
+        if( font )
+        {
+            struct ToriDraw_ViewPort view_port = {
+                .clip_left = g_render_clip_x0,
+                .clip_top = g_render_clip_y0,
+                .clip_right = g_render_clip_x1,
+                .clip_bottom = g_render_clip_y1,
+                .stride = CANVAS_W,
+            };
+
+            int lw = node->abs_w;
+            int lh = node->abs_h;
+            int color = node->u.rs_text.color & 0xFFFFFF;
+            bool shadowed = node->u.rs_text.shadowed != 0;
+            bool center = node->u.rs_text.center == 1;
+
+            if( lw > 0 && lh > 0 )
+            {
+                (void)ToriDraw2D_DrawStringBox(
+                    font,
+                    &view_port,
+                    node->abs_x,
+                    node->abs_y,
+                    lw,
+                    lh,
+                    node->u.rs_text.text,
+                    color,
+                    node->u.rs_text.center,
+                    node->u.rs_text.y_align,
+                    node->u.rs_text.line_height,
+                    shadowed,
+                    pixels);
+            }
+            else
+            {
+                int tx = node->abs_x;
+                int ty = node->abs_y + lh;
+                if( center && lw > 0 )
+                {
+                    int tw = ToriDraw2D_MeasureString(font, node->u.rs_text.text);
+                    tx = node->abs_x + (lw - tw) / 2;
+                }
+                (void)ToriDraw2D_DrawString(
+                    font, &view_port, tx, ty, node->u.rs_text.text, color, center, shadowed, pixels);
+            }
+        }
+    }
 
 render_children:
+{
+    int saved_clip_x0 = g_render_clip_x0;
+    int saved_clip_y0 = g_render_clip_y0;
+    int saved_clip_x1 = g_render_clip_x1;
+    int saved_clip_y1 = g_render_clip_y1;
+
+    /* Scrollable layers clip their children to the layer's own viewport; a
+     * zero-size layer (pure grouping container) leaves the inherited clip as-is. */
+    if( node->kind == UITreeXNodeKind_RSLayer && node->abs_w > 0 && node->abs_h > 0 )
+    {
+        int lx0 = node->abs_x;
+        int ly0 = node->abs_y;
+        int lx1 = node->abs_x + node->abs_w;
+        int ly1 = node->abs_y + node->abs_h;
+        if( lx0 > g_render_clip_x0 )
+            g_render_clip_x0 = lx0;
+        if( ly0 > g_render_clip_y0 )
+            g_render_clip_y0 = ly0;
+        if( lx1 < g_render_clip_x1 )
+            g_render_clip_x1 = lx1;
+        if( ly1 < g_render_clip_y1 )
+            g_render_clip_y1 = ly1;
+    }
+
     for( int child = node->link.first_child_tree_idx; child != -1;
          child = tree->nodes[child].link.next_sibling_tree_idx )
         UITreeX_RenderNode(host, cache, tree, child, pixels);
+
+    g_render_clip_x0 = saved_clip_x0;
+    g_render_clip_y0 = saved_clip_y0;
+    g_render_clip_x1 = saved_clip_x1;
+    g_render_clip_y1 = saved_clip_y1;
+}
 }
 
 static void
@@ -6051,6 +6736,11 @@ UITreeX_Render(
     assert(pixels);
 
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
+
+    g_render_clip_x0 = 0;
+    g_render_clip_y0 = 0;
+    g_render_clip_x1 = CANVAS_W;
+    g_render_clip_y1 = CANVAS_H;
 
     for( int i = 0; i < tree->node_count; i++ )
     {
@@ -6121,7 +6811,9 @@ process_component(
     return idx;
 }
 
-#define HOST_SCRIPT_MAP_CAP 64
+/* Resolved-clientscript cache, keyed by script id. Complex onLoad hooks (e.g. the
+ * bank's) gosub into dozens of distinct helper scripts, well past the old cap of 64. */
+#define HOST_SCRIPT_MAP_CAP 1024
 
 static struct InterfaceX_InvContainer*
 InterfaceX_InvContainerGet(
@@ -6669,7 +7361,28 @@ InterfaceX_RunClientScript(
         case CS2VM_EXECNO_YIELD:
             break;
         case CS2VM_EXECNO_ERROR:
-            fprintf(stderr, "error running script %d (continuing)\n", script_id);
+            if( vm->last_error_opcode >= 0 )
+            {
+                fprintf(
+                    stderr,
+                    "error running script %d: opcode %d (%s) at pc=%d in script %d "
+                    "(continuing)\n",
+                    script_id,
+                    vm->last_error_opcode,
+                    CS2_OpCode_String(vm->last_error_opcode),
+                    vm->last_error_pc,
+                    vm->last_error_script_id);
+            }
+            else
+            {
+                fprintf(
+                    stderr,
+                    "error running script %d: exceeded max cycles at pc=%d in script %d "
+                    "(continuing)\n",
+                    script_id,
+                    vm->last_error_pc,
+                    vm->last_error_script_id);
+            }
             CS2VMX_ResetRuntime(vm);
             return CS2VM_EXECNO_ERROR;
         }
@@ -7519,6 +8232,16 @@ UITreeX_ApplyOp(
     node->ops[index - 1][INTERFACEX_OP_LEN - 1] = '\0';
 }
 
+static void
+UITreeX_ClearOps(struct UITreeXNode* node)
+{
+    if( !node )
+        return;
+
+    for( int i = 0; i < INTERFACEX_OP_SLOTS; i++ )
+        node->ops[i][0] = '\0';
+}
+
 int
 InterfaceX_VMHost_Exec_CC_SetOp(
     struct InterfaceX_VMHost* host,
@@ -7605,8 +8328,11 @@ InterfaceX_VMHost_Exec_IF_ClearOps(
 {
     assert(host);
     assert(host->builder);
+    (void)vm;
 
-    int component_id = request.component_id;
+    struct UITreeXNode* node = UITreeX_NodeByComponentId(host, request.component_id);
+    if( node )
+        UITreeX_ClearOps(node);
 
     return CS2VM_EXECNO_OK;
 }
