@@ -261,7 +261,8 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("hide",),
     ),
     "CC_SETTEXT": OpcodeDoc(
-        summary="Set text on active child",
+        summary="Set text on child component",
+        operand="0 = active component, 1 = dot component",
         str_in=("text",),
     ),
     "CC_SETTEXTFONT": OpcodeDoc(
@@ -286,16 +287,21 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "CC_SETTRANS": OpcodeDoc(
         summary="Set transparency",
+        operand="0 = active component, 1 = dot component",
         int_in=("trans",),
+        notes="0-255 opacity (255 = fully transparent)",
     ),
     "CC_SETNOCLICKTHROUGH": OpcodeDoc(
         summary="Set no-click-through",
+        operand="0 = active component, 1 = dot component",
         int_in=("enabled",),
     ),
     "CC_SETOP": OpcodeDoc(
         summary="Set right-click op",
+        operand="0 = active component, 1 = dot component",
         str_in=("text",),
         int_in=("index",),
+        notes="index 1-10 maps to actions[index - 1]",
     ),
     "CC_SETOPBASE": OpcodeDoc(
         summary="Set context-menu target label (op base)",
@@ -318,7 +324,9 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "CC_SETDRAGGABLEBEHAVIOR": OpcodeDoc(
         summary="Set drag behavior",
+        operand="0 = active component, 1 = dot component",
         int_in=("behavior",),
+        notes="behavior 1 sets isScrollBar",
     ),
     "CC_SETDRAGDEADZONE": OpcodeDoc(
         summary="Set drag dead zone pixels",
@@ -370,11 +378,13 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_out=("active_component",),
     ),
     "CC_GETX": OpcodeDoc(
-        summary="Get relative X of active child",
+        summary="Get relative X of child component",
+        operand="0 = active component, 1 = dot component",
         int_out=("x",),
     ),
     "CC_GETY": OpcodeDoc(
-        summary="Get relative Y of active child",
+        summary="Get relative Y of child component",
+        operand="0 = active component, 1 = dot component",
         int_out=("y",),
     ),
     "CC_GETLAYER": OpcodeDoc(
@@ -396,10 +406,12 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "CC_GETWIDTH": OpcodeDoc(
         summary="Get layout width",
+        operand="0 = active component, 1 = dot component",
         int_out=("width",),
     ),
     "CC_GETHEIGHT": OpcodeDoc(
         summary="Get layout height",
+        operand="0 = active component, 1 = dot component",
         int_out=("height",),
     ),
     "CC_GETHIDE": OpcodeDoc(
@@ -485,18 +497,20 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     "IF_SETPOSITION": OpcodeDoc(
         summary="Set position",
         int_in=("x", "y", "x_mode", "y_mode", "component"),
+        notes="component is top of int stack.",
     ),
     "IF_SETSIZE": OpcodeDoc(
         summary="Set size",
         int_in=("width", "height", "width_mode", "height_mode", "component"),
+        notes="component is top of int stack.",
     ),
     "IF_SETSCROLLSIZE": OpcodeDoc(
         summary="Set scroll size",
-        int_in=("component", "scroll_w", "scroll_h"),
+        int_in=("scroll_h", "scroll_w", "component"),
     ),
     "IF_SETSCROLLPOS": OpcodeDoc(
-        summary="Set scroll position (stub)",
-        int_in=("component", "scroll_x", "scroll_y"),
+        summary="Set scroll position",
+        int_in=("scroll_y", "scroll_x", "component"),
     ),
     "IF_SETOBJECT": OpcodeDoc(
         summary="Set object icon",
@@ -651,11 +665,77 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         operand="script id",
         notes="signature args on stack",
     ),
+    "CC_SETONCLICK": OpcodeDoc(
+        summary="Set onClick handler on active child",
+        operand="0 = active component, 1 = dot component",
+        notes="signature args on stack",
+    ),
+    "CC_SETONHOLD": OpcodeDoc(
+        summary="Set onHold handler on active child",
+        operand="0 = active component, 1 = dot component",
+        notes="signature args on stack",
+    ),
+    "CC_SETONMOUSEOVER": OpcodeDoc(
+        summary="Set onMouseOver handler on active child",
+        operand="0 = active component, 1 = dot component",
+        notes="signature args on stack",
+    ),
+    "CC_SETONMOUSELEAVE": OpcodeDoc(
+        summary="Set onMouseLeave handler on active child",
+        operand="0 = active component, 1 = dot component",
+        notes="signature args on stack",
+    ),
+    "CC_SETONDRAG": OpcodeDoc(
+        summary="Set onDrag handler on active child",
+        operand="0 = active component, 1 = dot component",
+        notes="signature args on stack",
+    ),
+    "CC_SETONSCROLLWHEEL": OpcodeDoc(
+        summary="Set onScroll handler on active child",
+        operand="0 = active component, 1 = dot component",
+        notes=(
+            "Stores onScroll (not onScrollWheel); wheel in opcode name is the trigger.\n"
+            "signature args on stack"
+        ),
+    ),
+    "CC_SETONKEY": OpcodeDoc(
+        summary="Set onKey handler on active child",
+        operand="0 = active component, 1 = dot component",
+        notes="signature args on stack",
+    ),
+    "CC_SETONOP": OpcodeDoc(
+        summary="Set onOp handler on active child",
+        operand="0 = active component, 1 = dot component",
+        notes="signature args on stack",
+    ),
+    "CC_SETONDRAGCOMPLETE": OpcodeDoc(
+        summary="Set onDragComplete handler on active child",
+        operand="0 = active component, 1 = dot component",
+        notes="signature args on stack",
+    ),
     "IF_SETONINVTRANSMIT": OpcodeDoc(
         summary="Register inv-transmit script",
         operand="script id",
         int_in=("component",),
         notes="signature args on stack",
+    ),
+    "IF_SETONMOUSEOVER": OpcodeDoc(
+        summary="Set onMouseOver handler",
+        int_in=("component",),
+        notes="signature args on stack",
+    ),
+    "IF_SETONTIMER": OpcodeDoc(
+        summary="Set onTimer handler",
+        int_in=("component",),
+        notes="signature args on stack",
+    ),
+    "IF_SETONSCROLLWHEEL": OpcodeDoc(
+        summary="Set onScroll handler",
+        int_in=("component",),
+        notes=(
+            "Stores onScroll (not onScrollWheel); wheel in opcode name is the trigger.\n"
+            "signature args on stack"
+        ),
     ),
     # --- String/math host ---
     "TOSTRING": OpcodeDoc(
@@ -765,8 +845,18 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_out=("0",),
     ),
     "CLIENTTYPE": OpcodeDoc(
-        summary="Get client type (stub)",
-        int_out=("10",),
+        summary="Get client type",
+        int_out=("client_type",),
+        notes=(
+            "Client type values (OSRS):\n"
+            "  1 Desktop (legacy Java client)\n"
+            "  2 Android\n"
+            "  3 iOS\n"
+            "  4 Enhanced (RuneLite / C++ client)\n"
+            "  5 Mac\n"
+            "  7 Mobile (generic)\n"
+            " 10 Steam / enhanced variant"
+        ),
     ),
     "ENUM_GETOUTPUTCOUNT": OpcodeDoc(
         summary="Get enum output count",

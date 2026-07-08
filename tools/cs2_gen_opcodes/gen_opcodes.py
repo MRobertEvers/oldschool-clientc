@@ -88,7 +88,10 @@ def format_opcode_comment(name: str, doc: OpcodeDoc) -> list[str]:
         suffix = f"  {top}" if top else ""
         lines.append(f" * {label}{label_pad}  {value}{value_pad}{suffix}")
     if doc.notes:
-        lines.append(f" * notes: {doc.notes}")
+        note_lines = doc.notes.split("\n")
+        lines.append(f" * notes: {note_lines[0]}")
+        for note_line in note_lines[1:]:
+            lines.append(f" *        {note_line}")
     lines.append(" */")
     return lines
 

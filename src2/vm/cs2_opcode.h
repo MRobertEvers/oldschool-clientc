@@ -346,10 +346,12 @@
  */
 #define CS2_OP_CC_SETFILL 1102
 /* CC_SETTRANS — Set transparency.
+ * operand: 0 = active component, 1 = dot component
  * int stack in:   trans
  * str stack in:   -    
  * int stack out:  -    
  * str stack out:  -    
+ * notes: 0-255 opacity (255 = fully transparent)
  */
 #define CS2_OP_CC_SETTRANS 1103
 #define CS2_OP_CC_SETLINEWID 1104
@@ -372,7 +374,8 @@
 #define CS2_OP_CC_SETMODELANGLE 1109
 #define CS2_OP_CC_SETMODELANIM 1110
 #define CS2_OP_CC_SETMODELORTHOG 1111
-/* CC_SETTEXT — Set text on active child.
+/* CC_SETTEXT — Set text on child component.
+ * operand: 0 = active component, 1 = dot component
  * int stack in:   -   
  * str stack in:   text
  * int stack out:  -   
@@ -449,10 +452,12 @@
  */
 #define CS2_OP_CC_SETOBJECT_ALWAYS_NUM 1212
 /* CC_SETOP — Set right-click op.
+ * operand: 0 = active component, 1 = dot component
  * int stack in:   index
  * str stack in:   text 
  * int stack out:  -    
  * str stack out:  -    
+ * notes: index 1-10 maps to actions[index - 1]
  */
 #define CS2_OP_CC_SETOP 1300
 /* CC_SETDRAGGABLE — Set draggable parent/child.
@@ -516,12 +521,36 @@
 #define CS2_OP_CC_SETONCLICK 1400
 #define CS2_OP_CC_SETONHOLD 1401
 #define CS2_OP_CC_SETONRELEASE 1402
+/* CC_SETONMOUSEOVER — Set onMouseOver handler on active child.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: signature args on stack
+ */
 #define CS2_OP_CC_SETONMOUSEOVER 1403
+/* CC_SETONMOUSELEAVE — Set onMouseLeave handler on active child.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: signature args on stack
+ */
 #define CS2_OP_CC_SETONMOUSELEAVE 1404
 #define CS2_OP_CC_SETONDRAG 1405
 #define CS2_OP_CC_SETONTARGETLEAVE 1406
 #define CS2_OP_CC_SETONVARTRANSMIT 1407
 #define CS2_OP_CC_SETONTIMER 1408
+/* CC_SETONOP — Set onOp handler on active child.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: signature args on stack
+ */
 #define CS2_OP_CC_SETONOP 1409
 #define CS2_OP_CC_SETONDRAGCOMPLETE 1410
 #define CS2_OP_CC_SETONCLICKREPEAT 1411
@@ -537,8 +566,25 @@
 #define CS2_OP_CC_SETONINVTRANSMIT 1414
 #define CS2_OP_CC_SETONSTATTRANSMIT 1415
 #define CS2_OP_CC_SETONTARGETENTER 1416
+/* CC_SETONSCROLLWHEEL — Set onScroll handler on active child.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: Stores onScroll (not onScrollWheel); wheel in opcode name is the trigger.
+ *        signature args on stack
+ */
 #define CS2_OP_CC_SETONSCROLLWHEEL 1417
 #define CS2_OP_CC_SETONCHATTRANSMIT 1418
+/* CC_SETONKEY — Set onKey handler on active child.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: signature args on stack
+ */
 #define CS2_OP_CC_SETONKEY 1419
 #define CS2_OP_CC_SETONFRIENDTRANSMIT 1420
 #define CS2_OP_CC_SETONCLANTRANSMIT 1421
@@ -550,14 +596,16 @@
 #define CS2_OP_CC_SETONRESIZE 1427
 #define CS2_OP_CC_SETONCLANSETTINGSTRANSMIT 1428
 #define CS2_OP_CC_SETONCLANCHANNELTRANSMIT 1429
-/* CC_GETX — Get relative X of active child.
+/* CC_GETX — Get relative X of child component.
+ * operand: 0 = active component, 1 = dot component
  * int stack in:   -
  * str stack in:   -
  * int stack out:  x
  * str stack out:  -
  */
 #define CS2_OP_CC_GETX 1500
-/* CC_GETY — Get relative Y of active child.
+/* CC_GETY — Get relative Y of child component.
+ * operand: 0 = active component, 1 = dot component
  * int stack in:   -
  * str stack in:   -
  * int stack out:  y
@@ -565,6 +613,7 @@
  */
 #define CS2_OP_CC_GETY 1501
 /* CC_GETWIDTH — Get layout width.
+ * operand: 0 = active component, 1 = dot component
  * int stack in:   -    
  * str stack in:   -    
  * int stack out:  width
@@ -572,6 +621,7 @@
  */
 #define CS2_OP_CC_GETWIDTH 1502
 /* CC_GETHEIGHT — Get layout height.
+ * operand: 0 = active component, 1 = dot component
  * int stack in:   -     
  * str stack in:   -     
  * int stack out:  height
@@ -670,6 +720,7 @@
  * str stack in:   -                              
  * int stack out:  -                              
  * str stack out:  -                              
+ * notes: component is top of int stack.
  */
 #define CS2_OP_IF_SETPOSITION 2000
 /* IF_SETSIZE — Set size.
@@ -694,8 +745,8 @@
  */
 #define CS2_OP_IF_SETNOCLICKTHROUGH 2005
 #define CS2_OP_IF_SETNOSCROLLTHROUGH 2006
-/* IF_SETSCROLLPOS — Set scroll position (stub).
- * int stack in:   component, scroll_x, scroll_y  (scroll_y = top)
+/* IF_SETSCROLLPOS — Set scroll position.
+ * int stack in:   scroll_y, scroll_x, component  (component = top)
  * str stack in:   -                            
  * int stack out:  -                            
  * str stack out:  -                            
@@ -782,7 +833,7 @@
 #define CS2_OP_IF_SETVFLIP 2118
 #define CS2_OP_IF_SETHFLIP 2119
 /* IF_SETSCROLLSIZE — Set scroll size.
- * int stack in:   component, scroll_w, scroll_h  (scroll_h = top)
+ * int stack in:   scroll_h, scroll_w, component  (component = top)
  * str stack in:   -                            
  * int stack out:  -                            
  * str stack out:  -                            
@@ -1612,11 +1663,19 @@
  * str stack out:  -
  */
 #define CS2_OP_ON_MOBILE 6518
-/* CLIENTTYPE — Get client type (stub).
- * int stack in:   - 
- * str stack in:   - 
- * int stack out:  10
- * str stack out:  - 
+/* CLIENTTYPE — Get client type.
+ * int stack in:   -          
+ * str stack in:   -          
+ * int stack out:  client_type
+ * str stack out:  -          
+ * notes: Client type values (OSRS):
+ *          1 Desktop (legacy Java client)
+ *          2 Android
+ *          3 iOS
+ *          4 Enhanced (RuneLite / C++ client)
+ *          5 Mac
+ *          7 Mobile (generic)
+ *         10 Steam / enhanced variant
  */
 #define CS2_OP_CLIENTTYPE 6519
 #define CS2_OP__6520 6520

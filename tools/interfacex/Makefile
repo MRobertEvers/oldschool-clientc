@@ -28,6 +28,7 @@ SRCS = $(TOOL_DIR)/main.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_clientscript_convert.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_component_dat2_convert.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_objtype_convert.c \
+	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_font_convert.c \
 	$(SRC2_DIR)/vm/cs2_script.c \
 	$(SRC2_DIR)/vm/cs2_opcode_meta.c \
 	$(SRC2_DIR)/vm/cs1vm.c \
@@ -75,6 +76,9 @@ $(OBJ_DIR)/toriauxlibcache_component_dat2_convert.o: $(SRC2_DIR)/toriauxlib/c/to
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/toriauxlibcache_objtype_convert.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_objtype_convert.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/toriauxlibcache_font_convert.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_font_convert.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/toridraw_font.o: $(SRC2_DIR)/toridraw/toridraw_font.c
