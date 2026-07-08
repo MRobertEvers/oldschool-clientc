@@ -7688,6 +7688,8 @@ struct InterfaceX_ScriptQueueEntry
     int component_id;
     int int_args[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX];
     int int_arg_count;
+    char* string_args[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX];
+    int string_arg_count;
 };
 
 struct InterfaceX_InvTransmitHook
@@ -7788,7 +7790,9 @@ InterfaceX_RunClientScript(
     int script_id,
     int component_id,
     int const* int_args,
-    int int_arg_count);
+    int int_arg_count,
+    char const* const* string_args,
+    int string_arg_count);
 
 static void
 InterfaceX_VMHost_QueueScript(
@@ -7796,7 +7800,63 @@ InterfaceX_VMHost_QueueScript(
     int script_id,
     int component_id,
     int const* int_args,
-    int int_arg_count);
+    int int_arg_count,
+    char const* const* string_args,
+    int string_arg_count);
+
+static void
+InterfaceX_VMHost_QueueScriptHook(
+    struct InterfaceX_VMHost* host,
+    int component_id,
+    ComponentScriptVar const* hook,
+    int hook_len)
+{
+    assert(host);
+
+    if( !hook || hook_len <= 0 || hook[0].type != SCRIPT_VAR_INT )
+        return;
+
+    int script_id = hook[0].value.i;
+    if( script_id <= 0 )
+        return;
+
+    int int_args[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX];
+    char const* string_args[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX];
+    char string_storage[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX][TORIAUXLIBCORE_COMPONENT_TEXT_MAX];
+    int int_arg_count = 0;
+    int string_arg_count = 0;
+
+    for( int i = 1; i < hook_len; i++ )
+    {
+        if( hook[i].type == SCRIPT_VAR_INT )
+        {
+            if( int_arg_count >= TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
+                continue;
+            int_args[int_arg_count++] = hook[i].value.i;
+        }
+        else if( hook[i].type == SCRIPT_VAR_STRING && hook[i].value.s )
+        {
+            if( string_arg_count >= TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
+                continue;
+            strncpy(
+                string_storage[string_arg_count],
+                hook[i].value.s,
+                sizeof(string_storage[string_arg_count]) - 1);
+            string_storage[string_arg_count][sizeof(string_storage[string_arg_count]) - 1] = '\0';
+            string_args[string_arg_count] = string_storage[string_arg_count];
+            string_arg_count++;
+        }
+    }
+
+    InterfaceX_VMHost_QueueScript(
+        host,
+        script_id,
+        component_id,
+        int_args,
+        int_arg_count,
+        string_args,
+        string_arg_count);
+}
 
 static void
 InterfaceX_VMHost_DrainScriptQueue(
@@ -10792,7 +10852,9 @@ InterfaceX_VMHost_QueueScript(
     int script_id,
     int component_id,
     int const* int_args,
-    int int_arg_count)
+    int int_arg_count,
+    char const* const* string_args,
+    int string_arg_count)
 {
     assert(host);
 
@@ -10814,6 +10876,8 @@ InterfaceX_VMHost_QueueScript(
 
     if( int_arg_count > TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
         int_arg_count = TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX;
+    if( string_arg_count > TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
+        string_arg_count = TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX;
 
     int tail = (host->script_queue_head + host->script_queue_count) % INTERFACEX_SCRIPT_QUEUE_MAX;
     struct InterfaceX_ScriptQueueEntry* entry = &host->script_queue[tail];
@@ -10821,8 +10885,27 @@ InterfaceX_VMHost_QueueScript(
     entry->script_id = script_id;
     entry->component_id = component_id;
     entry->int_arg_count = int_arg_count;
+    entry->string_arg_count = 0;
     if( int_arg_count > 0 && int_args )
         memcpy(entry->int_args, int_args, (size_t)int_arg_count * sizeof(entry->int_args[0]));
+    if( string_arg_count > 0 && string_args )
+    {
+        for( int i = 0; i < string_arg_count; i++ )
+        {
+            char const* src = string_args[i] ? string_args[i] : "";
+            entry->string_args[i] = strdup(src);
+            if( !entry->string_args[i] )
+            {
+                for( int j = 0; j < i; j++ )
+                {
+                    free(entry->string_args[j]);
+                    entry->string_args[j] = NULL;
+                }
+                return;
+            }
+            entry->string_arg_count++;
+        }
+    }
 
     host->script_queue_count++;
 }
@@ -10844,7 +10927,20 @@ InterfaceX_VMHost_DrainScriptQueue(
         host->script_queue_count--;
 
         (void)InterfaceX_RunClientScript(
-            host, vm, entry.script_id, entry.component_id, entry.int_args, entry.int_arg_count);
+            host,
+            vm,
+            entry.script_id,
+            entry.component_id,
+            entry.int_args,
+            entry.int_arg_count,
+            (char const* const*)entry.string_args,
+            entry.string_arg_count);
+
+        for( int i = 0; i < entry.string_arg_count; i++ )
+        {
+            free(entry.string_args[i]);
+            entry.string_args[i] = NULL;
+        }
     }
 }
 
@@ -10855,7 +10951,9 @@ InterfaceX_RunClientScript(
     int script_id,
     int component_id,
     int const* int_args,
-    int int_arg_count)
+    int int_arg_count,
+    char const* const* string_args,
+    int string_arg_count)
 {
     assert(host);
     assert(vm);
@@ -10873,6 +10971,16 @@ InterfaceX_RunClientScript(
 
     CS2VMX_ResetRuntime(vm);
     CS2VMX_PushCallScript(vm, &client_script->script);
+    {
+        struct CS2VMX_Frame* frame = CS2VM_FRAME(vm);
+        for( int j = 0; j < string_arg_count; j++ )
+        {
+            char const* src = string_args && string_args[j] ? string_args[j] : "";
+            frame->str_locals[j] = strdup(src);
+            if( !frame->str_locals[j] )
+                return CS2VM_EXECNO_ERROR;
+        }
+    }
     for( int j = 0; j < int_arg_count; j++ )
         InterfaceX_SetHookIntLocal(host, vm, component_id, j, int_args[j]);
 
@@ -12679,10 +12787,21 @@ InterfaceX_VMHost_Exec_CC_SetColour(
     (void)vm;
 
     struct UITreeXNode* node = UITreeX_NodeByComponentId(host, request.component_id);
-    if( !node || node->widget_type != INTERFACEX_WIDGET_TYPE_RECT )
+    if( !node )
         return CS2VM_EXECNO_OK;
 
-    node->u.rs_rect.color = request.colour;
+    if( node->kind == UITreeXNodeKind_RSText )
+    {
+        node->u.rs_text.color = request.colour;
+        return CS2VM_EXECNO_OK;
+    }
+
+    if( node->widget_type == INTERFACEX_WIDGET_TYPE_RECT )
+    {
+        node->u.rs_rect.color = request.colour;
+        return CS2VM_EXECNO_OK;
+    }
+
     return CS2VM_EXECNO_OK;
 }
 
@@ -14023,7 +14142,7 @@ InterfaceX_VMHost_FireVarTransmitHooks(
             hook->script_id,
             hook->component_id);
 
-        InterfaceX_VMHost_QueueScript(host, hook->script_id, hook->component_id, NULL, 0);
+        InterfaceX_VMHost_QueueScript(host, hook->script_id, hook->component_id, NULL, 0, NULL, 0);
     }
 }
 
@@ -14060,7 +14179,7 @@ InterfaceX_VMHost_FireCacheVarTransmitHooks(
             args[j] = comp->on_varp_transmit.argv[j + 1];
 
         printf("running cache onVarTransmit script %d for component %d\n", script_id, comp->id);
-        InterfaceX_VMHost_QueueScript(host, script_id, comp->id, args, arg_count);
+        InterfaceX_VMHost_QueueScript(host, script_id, comp->id, args, arg_count, NULL, 0);
     }
 }
 
@@ -14087,7 +14206,7 @@ InterfaceX_VMHost_FireInvTransmitHooks(
         printf(")\n");
 
         InterfaceX_VMHost_QueueScript(
-            host, hook->script_id, hook->component_id, hook->int_args, hook->int_arg_count);
+            host, hook->script_id, hook->component_id, hook->int_args, hook->int_arg_count, NULL, 0);
     }
 }
 
@@ -14122,7 +14241,7 @@ InterfaceX_VMHost_FireCacheInvTransmitHooks(
             args[j] = comp->on_inv_transmit.argv[j + 1];
 
         printf("running cache onInvTransmit script %d for component %d\n", script_id, comp->id);
-        InterfaceX_VMHost_QueueScript(host, script_id, comp->id, args, arg_count);
+        InterfaceX_VMHost_QueueScript(host, script_id, comp->id, args, arg_count, NULL, 0);
     }
 }
 
@@ -14211,6 +14330,7 @@ main(
     RSCacheDat2A_Component* component = NULL;
     struct ToriAuxLibCore_Component* component_core = NULL;
     struct ToriAuxLibCore_Component** components = NULL;
+    RSCacheDat2A_Component** raw_components = NULL;
     struct UITreeX* tree = NULL;
     struct UITreeXBuilder* builder = NULL;
     struct RSCacheShared_FileList* file_list = NULL;
@@ -14296,6 +14416,13 @@ main(
     InterfaceX_InvStoreSeedDefaults(&vmhost);
 
     components = calloc(file_list->file_count, sizeof(struct ToriAuxLibCore_Component*));
+    raw_components = calloc(file_list->file_count, sizeof(RSCacheDat2A_Component*));
+    if( !components || !raw_components )
+    {
+        fprintf(stderr, "failed to allocate component arrays: %d\n", interface_id);
+        return 1;
+    }
+
     for( int i = 0; i < file_list->file_count; i++ )
     {
         int packed_id = (interface_id << 16) | (i & 0xFFFF);
@@ -14306,6 +14433,8 @@ main(
             fprintf(stderr, "failed to decode component: %d (file %d)\n", interface_id, i);
             return 1;
         }
+
+        raw_components[i] = component;
 
         component_core = ToriAuxLibCache_ComponentNewFromCacheDat2Component(component);
         if( !component_core )
@@ -14329,19 +14458,14 @@ main(
     for( int i = 0; i < file_list->file_count; i++ )
     {
         component_core = components[i];
-
-        int script_id = component_core->on_load.argv[0];
-        if( script_id <= 0 )
+        component = raw_components[i];
+        if( !component_core || !component )
+            continue;
+        if( component->onLoadLen <= 0 || !component->onLoad )
             continue;
 
-        int args[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX];
-        int arg_count = component_core->on_load.argc - 1;
-        if( arg_count > TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
-            arg_count = TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX;
-        for( int j = 0; j < arg_count; j++ )
-            args[j] = component_core->on_load.argv[j + 1];
-
-        InterfaceX_VMHost_QueueScript(&vmhost, script_id, component_core->id, args, arg_count);
+        InterfaceX_VMHost_QueueScriptHook(
+            &vmhost, component_core->id, component->onLoad, component->onLoadLen);
     }
 
     InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
@@ -14384,6 +14508,14 @@ main(
         printf("rendered interface %d (%dx%d, no bmp)\n", interface_id, CANVAS_W, CANVAS_H);
 
     free(pixels);
+
+    if( raw_components )
+    {
+        for( int i = 0; i < file_list->file_count; i++ )
+            RSCacheDat2A_ComponentFree(raw_components[i]);
+        free(raw_components);
+    }
+    free(components);
 
     free(vmhost.script_queue);
     InterfaceX_ConfigArchiveCacheFreeAll();

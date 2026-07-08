@@ -166,3 +166,33 @@ uitreex: 81 nodes
       [79] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x00218014 (33<<16|32788) dynamic graphic=173 abs=592,438 28x36 hidden=0
       [80] kind=text widget_type=4 trans=0 fill_mode=0 user_id=0x00218015 (33<<16|32789) dynamic font=494 color=0x0 text="" abs=567,417 78x42 hidden=0
 wrote ./interfacex_33-3.bmp (1024x768)
+uitreex: 28 nodes
+[0] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x001b0000 (27<<16|0) static
+  [1] kind=rect widget_type=3 trans=180 fill_mode=0 user_id=0x001b0001 (27<<16|1) static color=0x0 color2=0x0 filled=1 abs=257,217 512x334 hidden=0
+  [2] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b0002 (27<<16|2) static model=9748 kind=1 zoom=415 xan=0 yan=5 zan=0 abs=372,408 32x33 hidden=0
+  [3] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b0003 (27<<16|3) static model=13394 kind=1 zoom=358 xan=528 yan=0 zan=0 abs=352,315 32x32 hidden=0
+  [4] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b0004 (27<<16|4) static model=13395 kind=1 zoom=422 xan=565 yan=0 zan=0 abs=441,444 35x34 hidden=0
+  [5] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b0005 (27<<16|5) static model=4141 kind=1 zoom=422 xan=565 yan=0 zan=0 abs=535,444 35x34 hidden=0
+  [6] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b0006 (27<<16|6) static model=13396 kind=1 zoom=422 xan=565 yan=0 zan=0 abs=630,444 35x34 hidden=0
+  [7] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x001b0007 (27<<16|7) static
+    [25] kind=rect widget_type=3 trans=255 fill_mode=0 user_id=0x001b8002 (27<<16|32770) dynamic color=0xffffff color2=0x0 filled=1 abs=438,397 50x115 hidden=0
+  [8] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x001b0008 (27<<16|8) static
+    [26] kind=rect widget_type=3 trans=255 fill_mode=0 user_id=0x001b8003 (27<<16|32771) dynamic color=0xffffff color2=0x0 filled=1 abs=530,397 50x115 hidden=0
+  [9] kind=layer widget_type=0 trans=0 fill_mode=0 user_id=0x001b0009 (27<<16|9) static
+    [27] kind=rect widget_type=3 trans=255 fill_mode=0 user_id=0x001b8004 (27<<16|32772) dynamic color=0xffffff color2=0x0 filled=1 abs=627,397 50x115 hidden=0
+  [10] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b000a (27<<16|10) static model=9757 kind=1 zoom=1200 xan=498 yan=9 zan=0 abs=432,242 34x33 hidden=0
+  [11] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b000b (27<<16|11) static model=9757 kind=1 zoom=1200 xan=498 yan=9 zan=0 abs=482,242 32x32 hidden=0
+  [12] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b000c (27<<16|12) static model=9757 kind=1 zoom=1200 xan=498 yan=9 zan=0 abs=532,242 32x32 hidden=0
+  [13] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b000d (27<<16|13) static model=9757 kind=1 zoom=1200 xan=498 yan=9 zan=0 abs=582,242 32x32 hidden=0
+  [14] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b000e (27<<16|14) static model=9757 kind=1 zoom=1200 xan=498 yan=9 zan=0 abs=632,242 32x32 hidden=0
+  [15] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b000f (27<<16|15) static model=9757 kind=1 zoom=1200 xan=498 yan=9 zan=0 abs=682,242 32x32 hidden=0
+  [16] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b0010 (27<<16|16) static model=15272 kind=1 zoom=860 xan=542 yan=0 zan=0 abs=442,250 32x32 hidden=0
+  [17] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b0011 (27<<16|17) static model=15272 kind=1 zoom=860 xan=542 yan=0 zan=0 abs=490,248 32x32 hidden=0
+  [18] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b0012 (27<<16|18) static model=15272 kind=1 zoom=860 xan=542 yan=0 zan=0 abs=540,248 32x32 hidden=0
+  [19] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b0013 (27<<16|19) static model=15272 kind=1 zoom=860 xan=542 yan=0 zan=0 abs=590,248 32x32 hidden=0
+  [20] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b0014 (27<<16|20) static model=15272 kind=1 zoom=860 xan=542 yan=0 zan=0 abs=640,247 32x32 hidden=0
+  [21] kind=model widget_type=6 trans=0 fill_mode=0 user_id=0x001b0015 (27<<16|21) static model=15272 kind=1 zoom=860 xan=542 yan=0 zan=0 abs=691,246 32x32 hidden=0
+  [22] kind=graphic widget_type=5 trans=0 fill_mode=0 user_id=0x001b0016 (27<<16|22) static graphic=541 abs=718,250 26x23 hidden=0
+  [23] kind=rect widget_type=3 trans=0 fill_mode=0 user_id=0x001b8000 (27<<16|32768) dynamic color=0xe0e0c color2=0x0 filled=0 abs=257,217 512x334 hidden=0
+  [24] kind=rect widget_type=3 trans=0 fill_mode=0 user_id=0x001b8001 (27<<16|32769) dynamic color=0x474745 color2=0x0 filled=0 abs=258,218 510x332 hidden=0
+wrote ./interfacex_27-3.bmp (1024x768)
