@@ -120,6 +120,106 @@ ToriDraw_FontEvaluateColorTag(char const tag[3])
     return -1;
 }
 
+static bool
+font_is_hex_digit(char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+static int
+font_parse_hex_rgb(char const* hex, int len)
+{
+    if( !hex || (len != 6 && len != 8) )
+        return -1;
+
+    int rgb = 0;
+    for( int i = 0; i < 6; i++ )
+    {
+        if( !font_is_hex_digit(hex[i]) )
+            return -1;
+        int v;
+        char const c = hex[i];
+        if( c >= '0' && c <= '9' )
+            v = c - '0';
+        else if( c >= 'a' && c <= 'f' )
+            v = c - 'a' + 10;
+        else
+            v = c - 'A' + 10;
+        rgb = (rgb << 4) | v;
+    }
+
+    if( len == 8 )
+    {
+        for( int i = 6; i < 8; i++ )
+        {
+            if( !font_is_hex_digit(hex[i]) )
+                return -1;
+        }
+    }
+
+    return rgb;
+}
+
+int
+ToriDraw_FontParseHexColor(char const* hex, int len)
+{
+    return font_parse_hex_rgb(hex, len);
+}
+
+static int
+font_try_consume_markup(
+    char const* text,
+    int len,
+    int i,
+    int default_color,
+    int* color_out,
+    bool apply_color)
+{
+    if( !text || i < 0 || i >= len )
+        return 0;
+
+    if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
+    {
+        if( apply_color && color_out )
+        {
+            int const tagged = ToriDraw_FontEvaluateColorTag(&text[i + 1]);
+            if( tagged >= 0 )
+                *color_out = tagged;
+        }
+        return 5;
+    }
+
+    if( text[i] == '<' && len - i >= 6 && strncmp(&text[i], "</col>", 6) == 0 )
+    {
+        if( apply_color && color_out )
+            *color_out = default_color;
+        return 6;
+    }
+
+    if( text[i] == '<' && len - i >= 10 && strncmp(&text[i], "<col=", 5) == 0 )
+    {
+        int j = i + 5;
+        int hex_len = 0;
+        while( j < len && hex_len < 8 && font_is_hex_digit(text[j]) )
+        {
+            j++;
+            hex_len++;
+        }
+        if( (hex_len == 6 || hex_len == 8) && j < len && text[j] == '>' )
+        {
+            if( apply_color && color_out )
+            {
+                int const parsed = font_parse_hex_rgb(&text[i + 5], hex_len);
+                if( parsed >= 0 )
+                    *color_out = parsed;
+            }
+            return j - i + 1;
+        }
+    }
+
+    return 0;
+}
+
 static int
 font_space_advance(struct ToriDraw_Font const* font)
 {
@@ -423,9 +523,10 @@ font_measure_range(
 
     for( int i = 0; i < len; i++ )
     {
-        if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
+        int const consumed = font_try_consume_markup(text, len, i, 0, NULL, false);
+        if( consumed > 0 )
         {
-            i += 4;
+            i += consumed - 1;
             continue;
         }
         if( font_is_rs_space_char((unsigned char)text[i]) )
@@ -722,12 +823,11 @@ font_visit_glyphs_range(
 
     for( int i = 0; i < len; i++ )
     {
-        if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
+        int const consumed =
+            font_try_consume_markup(text, len, i, default_color_rgb, &color, true);
+        if( consumed > 0 )
         {
-            int const tagged = ToriDraw_FontEvaluateColorTag(&text[i + 1]);
-            if( tagged >= 0 )
-                color = tagged;
-            i += 4;
+            i += consumed - 1;
             continue;
         }
         if( font_is_rs_space_char((unsigned char)text[i]) )
@@ -858,12 +958,10 @@ font_draw_string_range(
 
     for( int i = 0; i < len; i++ )
     {
-        if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
+        int const consumed = font_try_consume_markup(text, len, i, color, &current_color, true);
+        if( consumed > 0 )
         {
-            int const tagged = ToriDraw_FontEvaluateColorTag(&text[i + 1]);
-            if( tagged >= 0 )
-                current_color = tagged;
-            i += 4;
+            i += consumed - 1;
             continue;
         }
         if( font_is_rs_space_char((unsigned char)text[i]) )
@@ -912,9 +1010,10 @@ font_draw_string_shadow_range(
 
     for( int i = 0; i < len; i++ )
     {
-        if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
+        int const consumed = font_try_consume_markup(text, len, i, 0, NULL, false);
+        if( consumed > 0 )
         {
-            i += 4;
+            i += consumed - 1;
             continue;
         }
         if( font_is_rs_space_char((unsigned char)text[i]) )

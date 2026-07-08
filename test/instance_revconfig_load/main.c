@@ -3145,6 +3145,85 @@ test_toridraw_font_color_tag_draw(void)
 }
 
 static int
+test_toridraw_font_parse_hex_color(void)
+{
+    TEST_ASSERT(ToriDraw_FontParseHexColor("ffffff", 6) == (int)0xFFFFFF, "white hex");
+    TEST_ASSERT(ToriDraw_FontParseHexColor("ff981f", 6) == (int)0xFF981F, "orange hex");
+    TEST_ASSERT(ToriDraw_FontParseHexColor("00ffff", 6) == (int)0x00FFFF, "cyan hex");
+    TEST_ASSERT(
+        ToriDraw_FontParseHexColor("ffffff00", 8) == (int)0xFFFFFF,
+        "8-digit uses first 6 for rgb");
+    TEST_ASSERT(ToriDraw_FontParseHexColor("zzz", 3) == -1, "invalid length");
+    TEST_ASSERT(ToriDraw_FontParseHexColor("gggggg", 6) == -1, "invalid hex");
+
+    fprintf(stderr, "ok: toridraw font parse hex color\n");
+    return 0;
+}
+
+static int
+test_toridraw_font_measure_col_tag(void)
+{
+    struct ToriDraw_Font font;
+    test_font_setup_measure(&font);
+
+    int const plain = ToriDraw2D_MeasureString(&font, "AB");
+    int const tagged = ToriDraw2D_MeasureString(&font, "A<col=ffffff>B</col>");
+    TEST_ASSERT(tagged == plain, "col tag measure skips markup");
+
+    fprintf(stderr, "ok: toridraw font measure col tag\n");
+    return 0;
+}
+
+static int
+test_toridraw_font_col_tag_draw(void)
+{
+    struct ToriDraw_Font font;
+    static uint8_t glyph_pixel = 255;
+
+    memset(&font, 0, sizeof(font));
+    ToriDraw_FontInitCharcodeset(&font);
+    font.charcodeset['A'] = 0;
+    font.charcodeset['B'] = 0;
+    font.charcodeset['C'] = 0;
+    font.glyph_alpha[0] = &glyph_pixel;
+    font.glyph_width[0] = 1;
+    font.glyph_height[0] = 1;
+    font.line_height = 1;
+    font.offset_x[0] = 0;
+    font.offset_y[0] = 0;
+    font.advance[0] = 2;
+    font.advance[8] = 2;
+    ToriDraw_FontFinishDrawWidths(&font);
+
+    int pixels[64];
+    memset(pixels, 0, sizeof(pixels));
+
+    struct ToriDraw_ViewPort vp = {
+        .clip_left = 0,
+        .clip_top = 0,
+        .clip_right = 32,
+        .clip_bottom = 8,
+        .stride = 32,
+    };
+
+    ToriDraw2D_DrawString(
+        &font, &vp, 0, font.line_height, "A<col=00ffff>B</col>C", WHITE, false, false, pixels);
+
+    int const row = 0;
+    int const first = pixels[row * vp.stride + 0];
+    int const second = pixels[row * vp.stride + 2];
+    int const third = pixels[row * vp.stride + 4];
+    TEST_ASSERT(first == (int)(0xFF000000u | (uint32_t)WHITE), "first glyph default color");
+    TEST_ASSERT(
+        second == (int)(0xFF000000u | (uint32_t)0x00FFFF),
+        "second glyph cyan from col tag");
+    TEST_ASSERT(third == (int)(0xFF000000u | (uint32_t)WHITE), "third glyph default after close tag");
+
+    fprintf(stderr, "ok: toridraw font col tag draw\n");
+    return 0;
+}
+
+static int
 test_toridraw_font_opaque_alpha(void)
 {
     struct ToriDraw_Font font;
@@ -3578,6 +3657,15 @@ main(void)
         return 1;
 
     if( test_toridraw_font_color_tag_draw() != 0 )
+        return 1;
+
+    if( test_toridraw_font_parse_hex_color() != 0 )
+        return 1;
+
+    if( test_toridraw_font_measure_col_tag() != 0 )
+        return 1;
+
+    if( test_toridraw_font_col_tag_draw() != 0 )
         return 1;
 
     if( test_toridraw_font_opaque_alpha() != 0 )
