@@ -18,7 +18,6 @@ LDFLAGS += -fsanitize=address
 endif
 
 SRCS = $(TOOL_DIR)/main.c \
-	$(SRC2_DIR)/games/ie_enum_lookup.c \
 	$(SRC_DIR)/bmp.c \
 	$(SRC2_DIR)/toridraw/toridraw_unity.c \
 	$(SRC2_DIR)/toridraw/toridraw_model_sprite.c \
@@ -46,9 +45,6 @@ $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS)
 
 $(OBJ_DIR)/main.o: $(TOOL_DIR)/main.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/ie_enum_lookup.o: $(SRC2_DIR)/games/ie_enum_lookup.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/bmp.o: $(SRC_DIR)/bmp.c

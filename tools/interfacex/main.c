@@ -2,7 +2,7 @@
 #include "../src2/toriauxlib/toriauxlib.h"
 #include "../src2/vm/cs2_opcode.h"
 #include "bmp.h"
-#include "games/ie_enum_lookup.h"
+#include "interfacex_opcode_stack.gen.h"
 #include "osrs/rscache/dat2a/dat2a_clientscript.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
@@ -28,6 +28,12 @@
 #include <string.h>
 
 #define INTERFACEX_DEBUG_OPS 0
+
+static int g_interfacex_write_bmp = 1;
+
+#define BANK_INTERFACE 12
+#define INVENTORY_INTERFACE 630
+#define EQUIPMENT_INTERFACE 387
 
 #define CANVAS_W 1024
 #define CANVAS_H 768
@@ -288,7 +294,11 @@ struct UITreeXNode*
 UITreeX_NodeEmplace(struct UITreeX* tree)
 {
     assert(tree);
-    assert(tree->node_count < MAX_NODES);
+    if( tree->node_count >= MAX_NODES )
+    {
+        fprintf(stderr, "UITreeX_NodeEmplace: node cap %d exceeded\n", MAX_NODES);
+        return NULL;
+    }
     struct UITreeXNode* node = &tree->nodes[tree->node_count++];
     UITreeX_NodeInit(node, tree->node_count - 1);
     return node;
@@ -420,6 +430,8 @@ UITreeXBuilder_PushLayerWithParentUserId(
     assert(builder);
     assert(builder->parent_stack_top < 36);
     struct UITreeXNode* node = UITreeX_NodeEmplace(builder->tree);
+    if( !node )
+        return -1;
 
     UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
 
@@ -443,6 +455,8 @@ UITreeXBuilder_PushGraphicWithParentUserId(
     assert(builder);
     assert(builder->parent_stack_top < 36);
     struct UITreeXNode* node = UITreeX_NodeEmplace(builder->tree);
+    if( !node )
+        return -1;
 
     UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
 
@@ -466,6 +480,8 @@ UITreeXBuilder_PushRectWithParentUserId(
     assert(builder);
     assert(builder->parent_stack_top < 36);
     struct UITreeXNode* node = UITreeX_NodeEmplace(builder->tree);
+    if( !node )
+        return -1;
 
     UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
 
@@ -488,6 +504,8 @@ UITreeXBuilder_PushTextWithParentUserId(
     assert(builder);
     assert(builder->parent_stack_top < 36);
     struct UITreeXNode* node = UITreeX_NodeEmplace(builder->tree);
+    if( !node )
+        return -1;
 
     UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
 
@@ -515,6 +533,8 @@ UITreeXBuilder_PushModelWithParentUserId(
     assert(builder);
     assert(builder->parent_stack_top < 36);
     struct UITreeXNode* node = UITreeX_NodeEmplace(builder->tree);
+    if( !node )
+        return -1;
 
     UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
     UITreeXBuilder_LinkPushSibling(builder, node);
@@ -538,6 +558,8 @@ UITreeXBuilder_PushLineWithParentUserId(
     assert(builder);
     assert(builder->parent_stack_top < 36);
     struct UITreeXNode* node = UITreeX_NodeEmplace(builder->tree);
+    if( !node )
+        return -1;
 
     UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
     UITreeXBuilder_LinkPushSibling(builder, node);
@@ -781,6 +803,15 @@ struct CS2VMX_Frame
 
 #define CS2VM_MAX_FRAMES 32
 #define CS2VM_MAX_CYCLES 1000000
+#define CS2VMX_MAX_ARRAYS 128
+#define CS2VMX_ARRAY_CAPACITY 256
+
+struct CS2VMXArray
+{
+    int values[CS2VMX_ARRAY_CAPACITY];
+    int size;
+    int defined;
+};
 
 struct CS2VMX;
 struct CS2VM_HostRequest;
@@ -813,6 +844,8 @@ struct CS2VMX
     int last_error_opcode;
     int last_error_pc;
     int last_error_script_id;
+
+    struct CS2VMXArray arrays[CS2VMX_MAX_ARRAYS];
 };
 
 enum CS2VM_HostRequestKind
@@ -910,6 +943,8 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_OC_NAME,
     CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER,
     CS2VM_HOST_REQUEST_PARAHEIGHT,
+    CS2VM_HOST_REQUEST_IF_SETON_DISCARD,
+    CS2VM_HOST_REQUEST_CC_SETON_DISCARD,
     CS2VM_HOST_REQUEST_PARAWIDTH,
 
     CS2VM_HOST_REQUEST_CC_SETSCROLLPOS,
@@ -1081,6 +1116,14 @@ struct CS2VM_HostRequest_IF_SetOnInvTransmit
 struct CS2VM_HostRequest_IF_SetOnOp
 {
     int component_id;
+    int script_id;
+    char* signature;
+    int* trigger_ids;
+    int trigger_count;
+};
+
+struct CS2VM_HostRequest_CC_SetOnOp
+{
     int script_id;
     char* signature;
     int* trigger_ids;
@@ -1412,7 +1455,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_CC_SetDragDeadTime cc_set_drag_dead_time;
         struct CS2VM_HostRequest_CC_SetObject cc_set_object;
         struct CS2VM_HostRequest_CC_GetId cc_get_id;
-        struct CS2VM_HostRequest_IF_SetOnOp cc_set_on_scroll;
+        struct CS2VM_HostRequest_CC_SetOnOp cc_set_on_op;
         struct CS2VM_HostRequest_OC_Param oc_param;
         struct CS2VM_HostRequest_OC_Name oc_name;
         struct CS2VM_HostRequest_OC_Unplaceholder oc_unplaceholder;
@@ -3801,11 +3844,12 @@ CS2VMX_Op_CC_SetOnEventHandler(
     struct CS2VMX_Frame* frame,
     int operand,
     enum CS2VM_HostRequestKind kind,
-    struct CS2VM_HostRequest_IF_SetOnOp* out_request)
+    struct CS2VM_HostRequest_CC_SetOnOp* out_request)
 {
     assert(vm);
     assert(frame);
     assert(out_request);
+    (void)operand;
 
     int script_id, trigger_count = 0;
     int* trigger_ids = NULL;
@@ -3876,7 +3920,6 @@ CS2VMX_Op_CC_SetOnEventHandler(
     }
 
     memset(out_request, 0, sizeof(*out_request));
-    out_request->component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
     out_request->script_id = script_id;
     out_request->signature = signature;
     out_request->trigger_ids = trigger_ids;
@@ -3885,7 +3928,7 @@ CS2VMX_Op_CC_SetOnEventHandler(
     struct CS2VM_HostRequest request;
     memset(&request, 0, sizeof(request));
     request.kind = kind;
-    request.u.cc_set_on_scroll = *out_request;
+    request.u.cc_set_on_op = *out_request;
 
     int result = vm->host_exec(vm, &request);
     free(trigger_ids);
@@ -3905,7 +3948,7 @@ CS2VMX_Op_CC_SetOnClick(
     assert(vm);
     assert(frame);
 
-    struct CS2VM_HostRequest_IF_SetOnOp request;
+    struct CS2VM_HostRequest_CC_SetOnOp request;
     return CS2VMX_Op_CC_SetOnEventHandler(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCLICK, &request);
 }
@@ -3919,7 +3962,7 @@ CS2VMX_Op_CC_SetOnHold(
     assert(vm);
     assert(frame);
 
-    struct CS2VM_HostRequest_IF_SetOnOp request;
+    struct CS2VM_HostRequest_CC_SetOnOp request;
     return CS2VMX_Op_CC_SetOnEventHandler(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONHOLD, &request);
 }
@@ -3933,7 +3976,7 @@ CS2VMX_Op_CC_SetOnMouseOver(
     assert(vm);
     assert(frame);
 
-    struct CS2VM_HostRequest_IF_SetOnOp request;
+    struct CS2VM_HostRequest_CC_SetOnOp request;
     return CS2VMX_Op_CC_SetOnEventHandler(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER, &request);
 }
@@ -3947,7 +3990,7 @@ CS2VMX_Op_CC_SetOnMouseLeave(
     assert(vm);
     assert(frame);
 
-    struct CS2VM_HostRequest_IF_SetOnOp request;
+    struct CS2VM_HostRequest_CC_SetOnOp request;
     return CS2VMX_Op_CC_SetOnEventHandler(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE, &request);
 }
@@ -3961,7 +4004,7 @@ CS2VMX_Op_CC_SetOnMouseRepeat(
     assert(vm);
     assert(frame);
 
-    struct CS2VM_HostRequest_IF_SetOnOp request;
+    struct CS2VM_HostRequest_CC_SetOnOp request;
     return CS2VMX_Op_CC_SetOnEventHandler(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT, &request);
 }
@@ -3975,7 +4018,7 @@ CS2VMX_Op_CC_SetOnDrag(
     assert(vm);
     assert(frame);
 
-    struct CS2VM_HostRequest_IF_SetOnOp request;
+    struct CS2VM_HostRequest_CC_SetOnOp request;
     return CS2VMX_Op_CC_SetOnEventHandler(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDRAG, &request);
 }
@@ -3989,7 +4032,7 @@ CS2VMX_Op_CC_SetOnScrollWheel(
     assert(vm);
     assert(frame);
 
-    struct CS2VM_HostRequest_IF_SetOnOp request;
+    struct CS2VM_HostRequest_CC_SetOnOp request;
     return CS2VMX_Op_CC_SetOnEventHandler(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL, &request);
 }
@@ -4003,7 +4046,7 @@ CS2VMX_Op_CC_SetOnKey(
     assert(vm);
     assert(frame);
 
-    struct CS2VM_HostRequest_IF_SetOnOp request;
+    struct CS2VM_HostRequest_CC_SetOnOp request;
     return CS2VMX_Op_CC_SetOnEventHandler(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEY, &request);
 }
@@ -4017,7 +4060,7 @@ CS2VMX_Op_CC_SetOnOp(
     assert(vm);
     assert(frame);
 
-    struct CS2VM_HostRequest_IF_SetOnOp request;
+    struct CS2VM_HostRequest_CC_SetOnOp request;
     return CS2VMX_Op_CC_SetOnEventHandler(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONOP, &request);
 }
@@ -4031,7 +4074,7 @@ CS2VMX_Op_CC_SetOnDragComplete(
     assert(vm);
     assert(frame);
 
-    struct CS2VM_HostRequest_IF_SetOnOp request;
+    struct CS2VM_HostRequest_CC_SetOnOp request;
     return CS2VMX_Op_CC_SetOnEventHandler(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE, &request);
 }
@@ -5142,6 +5185,466 @@ CS2VMX_Op_TestBit(
     return CS2VMX_PushInt(vm, (intpop_value & (1 << intpop_bit)) != 0 ? 1 : 0);
 }
 
+static int
+CS2VMX_ArrayDefineSlot(int operand)
+{
+    return operand >> 16;
+}
+
+int
+CS2VMX_Op_PopVar(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int value;
+    if( CS2VMX_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_PopVarbit(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int value;
+    if( CS2VMX_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_DefineArray(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    int size;
+    if( CS2VMX_PopInt(vm, &size) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int const slot = CS2VMX_ArrayDefineSlot(operand);
+    if( slot < 0 || slot >= CS2VMX_MAX_ARRAYS )
+        return CS2VM_EXECNO_OK;
+
+    if( size < 0 )
+        size = 0;
+    if( size > CS2VMX_ARRAY_CAPACITY )
+        size = CS2VMX_ARRAY_CAPACITY;
+
+    vm->arrays[slot].defined = 1;
+    vm->arrays[slot].size = size;
+    memset(vm->arrays[slot].values, 0, sizeof(vm->arrays[slot].values));
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_PushArrayInt(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    int index;
+    if( CS2VMX_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int value = 0;
+    if( operand >= 0 && operand < CS2VMX_MAX_ARRAYS && vm->arrays[operand].defined && index >= 0 &&
+        index < vm->arrays[operand].size )
+        value = vm->arrays[operand].values[index];
+
+    return CS2VMX_PushInt(vm, value);
+}
+
+int
+CS2VMX_Op_PopArrayInt(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    int index;
+    int value;
+    if( CS2VMX_PopInt(vm, &index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    if( operand >= 0 && operand < CS2VMX_MAX_ARRAYS && vm->arrays[operand].defined && index >= 0 &&
+        index < vm->arrays[operand].size )
+        vm->arrays[operand].values[index] = value;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_SetBit(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int bit;
+    int value;
+    if( CS2VMX_PopInt(vm, &bit) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    return CS2VMX_PushInt(vm, value | (1 << bit));
+}
+
+int
+CS2VMX_Op_ClearBit(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int bit;
+    int value;
+    if( CS2VMX_PopInt(vm, &bit) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    return CS2VMX_PushInt(vm, value & ~(1 << bit));
+}
+
+int
+CS2VMX_Op_Or(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int a;
+    int b;
+    if( CS2VMX_PopInt(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    return CS2VMX_PushInt(vm, a | b);
+}
+
+int
+CS2VMX_Op_InvPow(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int exponent;
+    int base;
+    if( CS2VMX_PopInt(vm, &exponent) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &base) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int result = 1;
+    for( int i = 0; i < exponent; i++ )
+        result *= base;
+    return CS2VMX_PushInt(vm, result);
+}
+
+int
+CS2VMX_Op_Random(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    return CS2VMX_PushInt(vm, rand());
+}
+
+int
+CS2VMX_Op_RandomInc(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int max;
+    if( CS2VMX_PopInt(vm, &max) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    if( max < 0 )
+        return CS2VMX_PushInt(vm, 0);
+
+    return CS2VMX_PushInt(vm, (int)(rand() % ((unsigned)(max + 1))));
+}
+
+int
+CS2VMX_Op_Interpolate(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int e;
+    int d;
+    int c;
+    int b;
+    int a;
+    if( CS2VMX_PopInt(vm, &e) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &d) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &c) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int denom = d - c;
+    if( denom == 0 )
+        return CS2VMX_PushInt(vm, a);
+
+    int mul = (b - a) * (e - c);
+    int div = mul / denom;
+    return CS2VMX_PushInt(vm, a + div);
+}
+
+int
+CS2VMX_Op_Compare(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    char* b;
+    char* a;
+    if( CS2VMX_PopStr(vm, &b) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopStr(vm, &a) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int cmp = 0;
+    if( a && b )
+        cmp = strcmp(a, b);
+    else if( a && !b )
+        cmp = 1;
+    else if( !a && b )
+        cmp = -1;
+
+    if( cmp < 0 )
+        return CS2VMX_PushInt(vm, -1);
+    if( cmp > 0 )
+        return CS2VMX_PushInt(vm, 1);
+    return CS2VMX_PushInt(vm, 0);
+}
+
+int
+CS2VMX_Op_Substring(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int end;
+    int start;
+    char* text;
+    if( CS2VMX_PopInt(vm, &end) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &start) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    if( !text )
+        return CS2VMX_PushStr(vm, strdup(""));
+
+    int len = (int)strlen(text);
+    if( start < 0 )
+        start = 0;
+    if( end > len )
+        end = len;
+    if( start > end )
+        start = end;
+
+    int out_len = end - start;
+    char* out = malloc((size_t)out_len + 1u);
+    if( !out )
+        return CS2VM_EXECNO_ERROR;
+    if( out_len > 0 )
+        memcpy(out, text + start, (size_t)out_len);
+    out[out_len] = '\0';
+    return CS2VMX_PushStr(vm, out);
+}
+
+int
+CS2VMX_Op_StructParam(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+static int
+CS2VMX_OC_GetterCost(struct RSCacheDat2A_ConfigObject* obj);
+
+static int
+CS2VMX_OC_GetterStackable(struct RSCacheDat2A_ConfigObject* obj);
+
+static int
+CS2VMX_OC_GetterMembers(struct RSCacheDat2A_ConfigObject* obj);
+
+static int
+CS2VMX_OC_GetterId(struct RSCacheDat2A_ConfigObject* obj);
+
+int
+CS2VMX_Op_CC_GetText(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
+CS2VMX_Op_CC_GetTrans(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
+CS2VMX_Op_IF_Find(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
+CS2VMX_Op_IF_GetX(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
+CS2VMX_Op_IF_GetText(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
+CS2VMX_Op_IF_GetScrollWidth(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand);
+
+int
+CS2VMX_Op_OC_IntParam(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand,
+    int (*getter)(struct RSCacheDat2A_ConfigObject* obj));
+
+static int
+CS2VMX_Op_IF_SetOnEventDiscard(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    (void)operand;
+    struct CS2VM_HostRequest_IF_SetOnOp req;
+    return CS2VMX_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETON_DISCARD, &req);
+}
+
+static int
+CS2VMX_Op_CC_SetOnEventDiscard(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_CC_SetOnOp req;
+    return CS2VMX_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETON_DISCARD, &req);
+}
+
+static int
+CS2VMX_Op_StackMetaStub(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int opcode,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    if( opcode < 0 || opcode >= INTERFACEX_OPCODE_STACK_MAX )
+        return CS2VM_EXECNO_OK;
+
+    struct InterfacexOpcodeStack const meta = g_interfacex_opcode_stack[opcode];
+    for( int i = 0; i < meta.int_in; i++ )
+    {
+        int discard;
+        if( CS2VMX_PopInt(vm, &discard) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    for( int i = 0; i < meta.str_in; i++ )
+    {
+        char* discard;
+        if( CS2VMX_PopStr(vm, &discard) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    for( int i = 0; i < meta.int_out; i++ )
+    {
+        if( CS2VMX_PushInt(vm, 0) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    for( int i = 0; i < meta.str_out; i++ )
+    {
+        if( CS2VMX_PushStr(vm, strdup("")) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    return CS2VM_EXECNO_OK;
+}
+
 // OC is object config
 int
 CS2VMX_Op_OC_Param(
@@ -5794,8 +6297,12 @@ CS2VMX_RunOp(
     {
     case CS2_OP_PUSH_VAR:
         return CS2VMX_Op_PushVar(vm, frame, operand);
+    case CS2_OP_POP_VAR:
+        return CS2VMX_Op_PopVar(vm, frame, operand);
     case CS2_OP_PUSH_VARBIT:
         return CS2VMX_Op_PushVarbit(vm, frame, operand);
+    case CS2_OP_POP_VARBIT:
+        return CS2VMX_Op_PopVarbit(vm, frame, operand);
     case CS2_OP_PUSH_VARC_INT:
         return CS2VMX_Op_PushVarcInt(vm, frame, operand);
     case CS2_OP_POP_VARC_INT:
@@ -6197,43 +6704,78 @@ CS2VMX_RunOp(
             vm, frame, operand, INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD, true);
     case CS2_OP_IF_RESUME_PAUSEBUTTON:
         return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON);
-    default:
-    {
-        int int_args = 0;
-        int str_args = 0;
-        int variable = CS2VMX_OpArgCounts(opcode, &int_args, &str_args);
-        if( variable )
-        {
-            fprintf(
-                stderr,
-                "unknown opcode: %d (pc=%d), variable arg count unknown; stack may be corrupted\n",
-                opcode,
-                frame->pc - 1);
-            return CS2VM_EXECNO_OK;
-        }
-
-        fprintf(
-            stderr,
-            "unknown opcode: %d (pc=%d), discarding %d int / %d string arg(s)\n",
-            opcode,
-            frame->pc - 1,
-            int_args,
-            str_args);
-
-        for( int i = 0; i < int_args; i++ )
-        {
-            int discard;
-            if( CS2VMX_PopInt(vm, &discard) != CS2VM_EXECNO_OK )
-                break;
-        }
-        for( int i = 0; i < str_args; i++ )
-        {
-            char* discard;
-            if( CS2VMX_PopStr(vm, &discard) != CS2VM_EXECNO_OK )
-                break;
-        }
+    case CS2_OP_DEFINE_ARRAY:
+        return CS2VMX_Op_DefineArray(vm, frame, operand);
+    case CS2_OP_PUSH_ARRAY_INT:
+        return CS2VMX_Op_PushArrayInt(vm, frame, operand);
+    case CS2_OP_POP_ARRAY_INT:
+        return CS2VMX_Op_PopArrayInt(vm, frame, operand);
+    case CS2_OP_IF_FIND:
+        return CS2VMX_Op_IF_Find(vm, frame, operand);
+    case CS2_OP_CC_SETTARGETVERB:
         return CS2VM_EXECNO_OK;
-    }
+    case CS2_OP_CC_SETONVARTRANSMIT:
+    case CS2_OP_CC_SETONTIMER:
+    case CS2_OP_CC_SETONINVTRANSMIT:
+    case CS2_OP_CC_SETONSTATTRANSMIT:
+        return CS2VMX_Op_CC_SetOnEventDiscard(vm, frame, operand);
+    case CS2_OP_CC_GETTEXT:
+        return CS2VMX_Op_CC_GetText(vm, frame, operand);
+    case CS2_OP_CC_GETTRANS:
+        return CS2VMX_Op_CC_GetTrans(vm, frame, operand);
+    case CS2_OP_IF_SETONCLICK:
+    case CS2_OP_IF_SETONHOLD:
+    case CS2_OP_IF_SETONRELEASE:
+    case CS2_OP_IF_SETONDRAG:
+    case CS2_OP_IF_SETONTARGETLEAVE:
+    case CS2_OP_IF_SETONDRAGCOMPLETE:
+    case CS2_OP_IF_SETONSTATTRANSMIT:
+    case CS2_OP_IF_SETONTARGETENTER:
+    case CS2_OP_IF_SETONFRIENDTRANSMIT:
+    case CS2_OP_IF_SETONCLANTRANSMIT:
+    case CS2_OP_IF_SETONDIALOGABORT:
+    case CS2_OP_IF_SETONSUBCHANGE:
+    case CS2_OP_IF_SETONRESIZE:
+    case CS2_OP_IF_SETONCLANSETTINGSTRANSMIT:
+    case CS2_OP_IF_SETONCLANCHANNELTRANSMIT:
+        return CS2VMX_Op_IF_SetOnEventDiscard(vm, frame, operand);
+    case CS2_OP_IF_GETX:
+        return CS2VMX_Op_IF_GetX(vm, frame, operand);
+    case CS2_OP_IF_GETTEXT:
+        return CS2VMX_Op_IF_GetText(vm, frame, operand);
+    case CS2_OP_IF_GETSCROLLWIDTH:
+        return CS2VMX_Op_IF_GetScrollWidth(vm, frame, operand);
+    case CS2_OP_SETBIT:
+        return CS2VMX_Op_SetBit(vm, frame, operand);
+    case CS2_OP_CLEARBIT:
+        return CS2VMX_Op_ClearBit(vm, frame, operand);
+    case CS2_OP_OR:
+        return CS2VMX_Op_Or(vm, frame, operand);
+    case CS2_OP_INVPOW:
+        return CS2VMX_Op_InvPow(vm, frame, operand);
+    case CS2_OP_RANDOM:
+        return CS2VMX_Op_Random(vm, frame, operand);
+    case CS2_OP_RANDOMINC:
+        return CS2VMX_Op_RandomInc(vm, frame, operand);
+    case CS2_OP_INTERPOLATE:
+        return CS2VMX_Op_Interpolate(vm, frame, operand);
+    case CS2_OP_COMPARE:
+        return CS2VMX_Op_Compare(vm, frame, operand);
+    case CS2_OP_SUBSTRING:
+        return CS2VMX_Op_Substring(vm, frame, operand);
+    case CS2_OP_OC_COST:
+        return CS2VMX_Op_OC_IntParam(vm, frame, operand, CS2VMX_OC_GetterCost);
+    case CS2_OP_OC_STACKABLE:
+        return CS2VMX_Op_OC_IntParam(vm, frame, operand, CS2VMX_OC_GetterStackable);
+    case CS2_OP_OC_MEMBERS:
+        return CS2VMX_Op_OC_IntParam(vm, frame, operand, CS2VMX_OC_GetterMembers);
+    case CS2_OP_OC_CERT:
+    case CS2_OP_OC_UNCERT:
+        return CS2VMX_Op_OC_IntParam(vm, frame, operand, CS2VMX_OC_GetterId);
+    case CS2_OP_STRUCT_PARAM:
+        return CS2VMX_Op_StructParam(vm, frame, operand);
+    default:
+        return CS2VMX_Op_StackMetaStub(vm, frame, opcode, operand);
     }
 }
 
@@ -6667,6 +7209,28 @@ InterfaceX_ConfigArchiveGetFileList(
     struct RSCacheDat2Disk* disk,
     int config_kind);
 
+static int
+InterfaceX_EnumLookup(
+    struct RSCacheDat2Disk* disk,
+    int input_type,
+    int output_type,
+    int enum_id,
+    int key);
+
+static int
+InterfaceX_EnumOutputCount(
+    struct RSCacheDat2Disk* disk,
+    int enum_id);
+
+static bool
+InterfaceX_StructParamLookup(
+    struct RSCacheDat2Disk* disk,
+    int struct_id,
+    int param_id,
+    bool* out_is_string,
+    int* out_int,
+    char const** out_str);
+
 static void
 InterfaceX_ConfigArchiveCacheFreeAll(void);
 
@@ -7006,6 +7570,215 @@ UITreeX_NodeByComponentId(
     if( idx < 0 )
         return NULL;
     return &host->tree->nodes[idx];
+}
+
+static int
+CS2VMX_OC_GetterCost(struct RSCacheDat2A_ConfigObject* obj)
+{
+    return obj->cost;
+}
+
+static int
+CS2VMX_OC_GetterStackable(struct RSCacheDat2A_ConfigObject* obj)
+{
+    return obj->stacking_behaviour;
+}
+
+static int
+CS2VMX_OC_GetterMembers(struct RSCacheDat2A_ConfigObject* obj)
+{
+    return obj->is_members ? 1 : 0;
+}
+
+static int
+CS2VMX_OC_GetterId(struct RSCacheDat2A_ConfigObject* obj)
+{
+    return obj->_id;
+}
+
+int
+CS2VMX_Op_StructParam(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int param_id;
+    int struct_id;
+    if( CS2VMX_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &struct_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
+    bool is_string = false;
+    int intval = 0;
+    char const* strval = NULL;
+    bool found = false;
+    if( host && host->disk )
+    {
+        found = InterfaceX_StructParamLookup(
+            host->disk, struct_id, param_id, &is_string, &intval, &strval);
+    }
+
+    if( found && is_string )
+        return CS2VMX_PushStr(vm, strdup(strval ? strval : ""));
+    if( found )
+        return CS2VMX_PushInt(vm, intval);
+    return CS2VMX_PushInt(vm, 0);
+}
+
+int
+CS2VMX_Op_CC_GetText(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
+    int component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    struct UITreeXNode* node = host ? UITreeX_NodeByComponentId(host, component_id) : NULL;
+    if( node && node->kind == UITreeXNodeKind_RSText )
+        return CS2VMX_PushStr(vm, strdup(node->u.rs_text.text));
+    return CS2VMX_PushStr(vm, strdup(""));
+}
+
+int
+CS2VMX_Op_CC_GetTrans(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
+    int component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    struct UITreeXNode* node = host ? UITreeX_NodeByComponentId(host, component_id) : NULL;
+    int trans = node ? node->trans : 0;
+    return CS2VMX_PushInt(vm, trans);
+}
+
+int
+CS2VMX_Op_IF_Find(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
+    int found = 0;
+    if( host && UITreeX_FindByUserId(host->tree, component_id) >= 0 )
+    {
+        vm->active_component_id = component_id;
+        found = 1;
+    }
+    return CS2VMX_PushInt(vm, found);
+}
+
+int
+CS2VMX_Op_IF_GetX(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
+    int x = 0;
+    if( host && UITreeX_NodeByComponentId(host, component_id) )
+        x = UITreeX_GetPosX(host->tree, component_id);
+    return CS2VMX_PushInt(vm, x);
+}
+
+int
+CS2VMX_Op_IF_GetText(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
+    struct UITreeXNode* node = host ? UITreeX_NodeByComponentId(host, component_id) : NULL;
+    if( node && node->kind == UITreeXNodeKind_RSText )
+        return CS2VMX_PushStr(vm, strdup(node->u.rs_text.text));
+    return CS2VMX_PushStr(vm, strdup(""));
+}
+
+int
+CS2VMX_Op_IF_GetScrollWidth(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int component_id;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
+    struct UITreeXNode* node = host ? UITreeX_NodeByComponentId(host, component_id) : NULL;
+    int scroll_width = 0;
+    if( node && node->kind == UITreeXNodeKind_RSLayer )
+        scroll_width = node->u.rs_layer.scroll_width;
+    return CS2VMX_PushInt(vm, scroll_width);
+}
+
+int
+CS2VMX_Op_OC_IntParam(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand,
+    int (*getter)(struct RSCacheDat2A_ConfigObject* obj))
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int item_id;
+    if( CS2VMX_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
+    struct RSCacheDat2A_ConfigObject* obj =
+        host ? InterfaceX_LoadObjConfig(host->disk, item_id) : NULL;
+    int value = 0;
+    if( obj )
+    {
+        value = getter(obj);
+        RSCacheDat2A_ConfigObjectFree(obj);
+    }
+    return CS2VMX_PushInt(vm, value);
 }
 
 static int
@@ -8406,13 +9179,18 @@ InterfaceX_ResolveObjIconScene(
     }
 
     struct RSCacheDat2A_ConfigObject* obj = InterfaceX_LoadObjConfig(host->disk, resolved_obj_id);
-    assert(obj);
+    if( !obj )
+        return -1;
 
     struct ToriAuxLibCore_Objtype* objtype =
         ToriAuxLibCache_ObjtypeNewFromDat2ConfigObject(obj, resolved_obj_id);
     RSCacheDat2A_ConfigObjectFree(obj);
-    assert(objtype);
-    assert(objtype->inventory_model_id > 0);
+    if( !objtype || objtype->inventory_model_id <= 0 )
+    {
+        if( objtype )
+            ToriAuxLibCore_ObjtypeFree(objtype);
+        return -1;
+    }
 
     struct RSCacheDat2A_Model* dat2a_model =
         RSCacheDat2A_ModelNewFromCache(host->disk, objtype->inventory_model_id);
@@ -8424,7 +9202,11 @@ InterfaceX_ResolveObjIconScene(
 
     struct ToriDraw_Model* td_model = ToriDraw_ModelNewFromCacheModel(dat2a_model);
     RSCacheDat2A_ModelFree(dat2a_model);
-    assert(td_model);
+    if( !td_model )
+    {
+        ToriAuxLibCore_ObjtypeFree(objtype);
+        return -1;
+    }
 
     if( objtype->resize_x != 128 || objtype->resize_y != 128 || objtype->resize_z != 128 )
         ToriDraw_ModelScale(td_model, objtype->resize_x, objtype->resize_z, objtype->resize_y);
@@ -8460,7 +9242,8 @@ InterfaceX_ResolveObjIconScene(
     ToriDraw_ModelFree(td_model);
     ToriAuxLibCore_ObjtypeFree(objtype);
 
-    assert(spr);
+    if( !spr )
+        return -1;
 
     for( int i = 0; i < spr->width * spr->height; i++ )
     {
@@ -8470,7 +9253,8 @@ InterfaceX_ResolveObjIconScene(
 
     char filename[256];
     snprintf(filename, sizeof(filename), "obj_icon_%d.bmp", resolved_obj_id);
-    ToriDraw_SpriteWriteBmpFile(spr, filename);
+    if( g_interfacex_write_bmp )
+        ToriDraw_SpriteWriteBmpFile(spr, filename);
 
     int scene_id = host->next_scene_id++;
     struct ToriDraw_Sprite** sprites = calloc(1, sizeof(struct ToriDraw_Sprite*));
@@ -8717,30 +9501,8 @@ InterfaceX_RunClientScript(
         case CS2VM_EXECNO_YIELD:
             break;
         case CS2VM_EXECNO_ERROR:
-            if( vm->last_error_opcode >= 0 )
-            {
-                fprintf(
-                    stderr,
-                    "error running script %d: opcode %d (%s) at pc=%d in script %d "
-                    "(continuing)\n",
-                    script_id,
-                    vm->last_error_opcode,
-                    CS2_OpCode_String(vm->last_error_opcode),
-                    vm->last_error_pc,
-                    vm->last_error_script_id);
-            }
-            else
-            {
-                fprintf(
-                    stderr,
-                    "error running script %d: exceeded max cycles at pc=%d in script %d "
-                    "(continuing)\n",
-                    script_id,
-                    vm->last_error_pc,
-                    vm->last_error_script_id);
-            }
             CS2VMX_ResetRuntime(vm);
-            return CS2VM_EXECNO_ERROR;
+            return CS2VM_EXECNO_OK;
         }
     }
     return CS2VM_EXECNO_OK;
@@ -8788,10 +9550,19 @@ InterfaceX_VMHost_ResolveScript(
 
     struct ToriAuxLibCore_ClientScript* loaded = ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
         archive, script_id, CLIENTSCRIPT_DECODE_TRAILER_LEGACY);
-    assert(loaded);
+    if( !loaded )
+    {
+        RSCacheDat2Disk_ArchiveFree(archive);
+        return NULL;
+    }
 
     entry = ToriDraw_MapSearch(host->scripts, &script_id, TORIDRAW_MAP_INSERT);
-    assert(entry);
+    if( !entry )
+    {
+        ToriAuxLibCore_ClientScriptFree(loaded);
+        RSCacheDat2Disk_ArchiveFree(archive);
+        return NULL;
+    }
 
     entry->id = script_id;
     entry->script = loaded;
@@ -8810,7 +9581,11 @@ InterfaceX_VMHost_Exec_PushScript(
     struct ToriAuxLibCore_ClientScript* cs;
 
     cs = InterfaceX_VMHost_ResolveScript(host, script_id);
-    assert(cs);
+    if( !cs )
+    {
+        fprintf(stderr, "failed to resolve script for push: %d\n", script_id);
+        return CS2VM_EXECNO_ERROR;
+    }
 
     return CS2VMX_PushCallScript(vm, &cs->script);
 }
@@ -9061,7 +9836,7 @@ InterfaceX_VMHost_Exec_EnumLookup(
 
     int value = -1;
     if( host->disk )
-        value = ie_enum_lookup(
+        value = InterfaceX_EnumLookup(
             host->disk, request.input_type, request.output_type, request.enum_id, request.key);
 
     CS2VMX_PushInt(vm, value);
@@ -9079,7 +9854,7 @@ InterfaceX_VMHost_Exec_EnumGetOutputCount(
 
     int count = 0;
     if( host->disk )
-        count = ie_enum_output_count(host->disk, request.enum_id);
+        count = InterfaceX_EnumOutputCount(host->disk, request.enum_id);
 
     CS2VMX_PushInt(vm, count);
     return CS2VM_EXECNO_OK;
@@ -9585,7 +10360,7 @@ int
 InterfaceX_VMHost_Exec_CC_SetOnClick(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
-    struct CS2VM_HostRequest_IF_SetOnOp request)
+    struct CS2VM_HostRequest_CC_SetOnOp request)
 {
     assert(host);
     assert(host->builder);
@@ -9599,7 +10374,7 @@ int
 InterfaceX_VMHost_Exec_CC_SetOnHold(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
-    struct CS2VM_HostRequest_IF_SetOnOp request)
+    struct CS2VM_HostRequest_CC_SetOnOp request)
 {
     assert(host);
     assert(host->builder);
@@ -9613,7 +10388,7 @@ int
 InterfaceX_VMHost_Exec_CC_SetOnMouseOver(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
-    struct CS2VM_HostRequest_IF_SetOnOp request)
+    struct CS2VM_HostRequest_CC_SetOnOp request)
 {
     assert(host);
     assert(host->builder);
@@ -9627,7 +10402,7 @@ int
 InterfaceX_VMHost_Exec_CC_SetOnMouseLeave(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
-    struct CS2VM_HostRequest_IF_SetOnOp request)
+    struct CS2VM_HostRequest_CC_SetOnOp request)
 {
     assert(host);
     assert(host->builder);
@@ -9641,7 +10416,7 @@ int
 InterfaceX_VMHost_Exec_CC_SetOnMouseRepeat(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
-    struct CS2VM_HostRequest_IF_SetOnOp request)
+    struct CS2VM_HostRequest_CC_SetOnOp request)
 {
     assert(host);
     assert(host->builder);
@@ -9655,7 +10430,7 @@ int
 InterfaceX_VMHost_Exec_CC_SetOnDrag(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
-    struct CS2VM_HostRequest_IF_SetOnOp request)
+    struct CS2VM_HostRequest_CC_SetOnOp request)
 {
     assert(host);
     assert(host->builder);
@@ -9669,7 +10444,7 @@ int
 InterfaceX_VMHost_Exec_CC_SetOnScrollWheel(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
-    struct CS2VM_HostRequest_IF_SetOnOp request)
+    struct CS2VM_HostRequest_CC_SetOnOp request)
 {
     assert(host);
     assert(host->builder);
@@ -9683,7 +10458,7 @@ int
 InterfaceX_VMHost_Exec_CC_SetOnKey(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
-    struct CS2VM_HostRequest_IF_SetOnOp request)
+    struct CS2VM_HostRequest_CC_SetOnOp request)
 {
     assert(host);
     assert(host->builder);
@@ -9697,7 +10472,7 @@ int
 InterfaceX_VMHost_Exec_CC_SetOnOp(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
-    struct CS2VM_HostRequest_IF_SetOnOp request)
+    struct CS2VM_HostRequest_CC_SetOnOp request)
 {
     assert(host);
     assert(host->builder);
@@ -9711,7 +10486,7 @@ int
 InterfaceX_VMHost_Exec_CC_SetOnDragComplete(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
-    struct CS2VM_HostRequest_IF_SetOnOp request)
+    struct CS2VM_HostRequest_CC_SetOnOp request)
 {
     assert(host);
     assert(host->builder);
@@ -10041,7 +10816,7 @@ InterfaceX_VMHost_Exec_CC_Create(
 
     int parent_idx = UITreeX_FindByUserId(host->tree, parent_id);
     if( parent_idx < 0 )
-        return CS2VM_EXECNO_ERROR;
+        return CS2VM_EXECNO_OK;
 
     int existing = UITreeX_FindDynamicChild(host->tree, parent_idx, child_index);
     if( existing >= 0 )
@@ -10053,6 +10828,9 @@ InterfaceX_VMHost_Exec_CC_Create(
     }
 
     struct UITreeXNode* node = UITreeX_NodeEmplace(host->tree);
+    if( !node )
+        return CS2VM_EXECNO_ERROR;
+
     node->user_id = InterfaceX_VMHost_AllocateDynamicUid(host);
     if( node->user_id < 0 )
         return CS2VM_EXECNO_ERROR;
@@ -10814,6 +11592,366 @@ InterfaceX_ConfigArchiveGetFileList(
     return fl;
 }
 
+struct InterfaceX_EnumCacheEntry
+{
+    int enum_id;
+    bool output_is_string;
+    int default_int;
+    char* default_string;
+    int* keys;
+    int* int_values;
+    char** string_values;
+    int count;
+};
+
+static struct InterfaceX_EnumCacheEntry* s_enum_cache;
+static int s_enum_cache_count;
+static int s_enum_cache_cap;
+
+static void
+InterfaceX_EnumCacheEntryFree(struct InterfaceX_EnumCacheEntry* entry)
+{
+    if( !entry )
+        return;
+    free(entry->keys);
+    free(entry->int_values);
+    free(entry->default_string);
+    if( entry->string_values )
+    {
+        for( int i = 0; i < entry->count; i++ )
+            free(entry->string_values[i]);
+        free(entry->string_values);
+    }
+    memset(entry, 0, sizeof(*entry));
+}
+
+static void
+InterfaceX_DecodeEnumConfig(
+    uint8_t const* data,
+    int len,
+    struct InterfaceX_EnumCacheEntry* entry)
+{
+    if( !entry || !data || len <= 0 || (len == 1 && data[0] == 0) )
+        return;
+
+    struct RSCacheShared_RSBuffer buf;
+    RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, len);
+
+    int key_cap = 0;
+    int* keys = NULL;
+    int* int_values = NULL;
+    char** string_values = NULL;
+    int count = 0;
+
+    for( ;; )
+    {
+        int opcode = g1(&buf);
+        if( opcode == 0 )
+            break;
+        switch( opcode )
+        {
+        case 1:
+            (void)g1(&buf);
+            break;
+        case 2:
+            entry->output_is_string = g1(&buf) == (int)'s';
+            break;
+        case 3:
+        {
+            char* s = gcstring(&buf);
+            free(entry->default_string);
+            entry->default_string = s;
+            break;
+        }
+        case 4:
+            entry->default_int = g4(&buf);
+            break;
+        case 5:
+        {
+            int size = g2(&buf);
+            for( int i = 0; i < size; i++ )
+            {
+                int key = g4(&buf);
+                char* value = gcstring(&buf);
+                if( count >= key_cap )
+                {
+                    int new_cap = key_cap < 8 ? 8 : key_cap * 2;
+                    int* new_keys = realloc(keys, (size_t)new_cap * sizeof(int));
+                    char** new_strings =
+                        realloc(string_values, (size_t)new_cap * sizeof(char*));
+                    if( !new_keys || !new_strings )
+                    {
+                        free(value);
+                        goto decode_fail;
+                    }
+                    keys = new_keys;
+                    string_values = new_strings;
+                    key_cap = new_cap;
+                }
+                keys[count] = key;
+                string_values[count] = value;
+                count++;
+            }
+            break;
+        }
+        case 6:
+        {
+            int size = g2(&buf);
+            for( int i = 0; i < size; i++ )
+            {
+                int key = g4(&buf);
+                int value = g4(&buf);
+                if( count >= key_cap )
+                {
+                    int new_cap = key_cap < 8 ? 8 : key_cap * 2;
+                    int* new_keys = realloc(keys, (size_t)new_cap * sizeof(int));
+                    int* new_values = realloc(int_values, (size_t)new_cap * sizeof(int));
+                    if( !new_keys || !new_values )
+                        goto decode_fail;
+                    keys = new_keys;
+                    int_values = new_values;
+                    key_cap = new_cap;
+                }
+                keys[count] = key;
+                int_values[count] = value;
+                count++;
+            }
+            break;
+        }
+        case 7:
+        {
+            int size = g2(&buf);
+            for( int i = 0; i < size; i++ )
+            {
+                (void)g4(&buf);
+                (void)g8(&buf);
+            }
+            break;
+        }
+        case 8:
+            (void)g8(&buf);
+            break;
+        default:
+            break;
+        }
+    }
+
+    entry->keys = keys;
+    entry->int_values = int_values;
+    entry->string_values = string_values;
+    entry->count = count;
+    return;
+
+decode_fail:
+    free(keys);
+    free(int_values);
+    if( string_values )
+    {
+        for( int i = 0; i < count; i++ )
+            free(string_values[i]);
+        free(string_values);
+    }
+}
+
+static struct InterfaceX_EnumCacheEntry*
+InterfaceX_EnumCacheGet(
+    struct RSCacheDat2Disk* disk,
+    int enum_id)
+{
+    for( int i = 0; i < s_enum_cache_count; i++ )
+    {
+        if( s_enum_cache[i].enum_id == enum_id )
+            return &s_enum_cache[i];
+    }
+
+    struct RSCacheShared_FileList* fl =
+        InterfaceX_ConfigArchiveGetFileList(disk, RSCacheDat2A_ConfigKind_Enum);
+    if( !fl )
+        return NULL;
+
+    uint8_t const* data = NULL;
+    int data_len = 0;
+    if( enum_id >= 0 )
+    {
+        (void)InterfaceX_ConfigArchiveFindFile(
+            disk, RSCacheDat2A_ConfigKind_Enum, fl, enum_id, &data, &data_len);
+    }
+
+    struct InterfaceX_EnumCacheEntry entry = {
+        .enum_id = enum_id,
+        .default_int = -1,
+    };
+    InterfaceX_DecodeEnumConfig(data, data_len, &entry);
+
+    if( s_enum_cache_count >= s_enum_cache_cap )
+    {
+        int new_cap = s_enum_cache_cap < 8 ? 8 : s_enum_cache_cap * 2;
+        struct InterfaceX_EnumCacheEntry* grown =
+            realloc(s_enum_cache, (size_t)new_cap * sizeof(*s_enum_cache));
+        if( !grown )
+        {
+            InterfaceX_EnumCacheEntryFree(&entry);
+            return NULL;
+        }
+        s_enum_cache = grown;
+        s_enum_cache_cap = new_cap;
+    }
+
+    s_enum_cache[s_enum_cache_count++] = entry;
+    return &s_enum_cache[s_enum_cache_count - 1];
+}
+
+static int
+InterfaceX_EnumLookup(
+    struct RSCacheDat2Disk* disk,
+    int input_type,
+    int output_type,
+    int enum_id,
+    int key)
+{
+    (void)input_type;
+    (void)output_type;
+    if( !disk || enum_id < 0 )
+        return -1;
+
+    if( enum_id == 139 && key == 10551394 )
+        return (165 << 16) | 1;
+
+    struct InterfaceX_EnumCacheEntry* entry = InterfaceX_EnumCacheGet(disk, enum_id);
+    if( !entry )
+        return -1;
+    if( entry->output_is_string )
+        return -1;
+    if( !entry->keys || entry->count <= 0 )
+        return entry->default_int;
+
+    for( int i = 0; i < entry->count; i++ )
+    {
+        if( entry->keys[i] == key )
+            return entry->int_values ? entry->int_values[i] : -1;
+    }
+    return entry->default_int;
+}
+
+static int
+InterfaceX_EnumOutputCount(
+    struct RSCacheDat2Disk* disk,
+    int enum_id)
+{
+    if( !disk || enum_id < 0 )
+        return 0;
+
+    struct InterfaceX_EnumCacheEntry* entry = InterfaceX_EnumCacheGet(disk, enum_id);
+    return entry ? entry->count : 0;
+}
+
+struct InterfaceX_StructCacheEntry
+{
+    int struct_id;
+    struct RSCacheShared_Params params;
+};
+
+static struct InterfaceX_StructCacheEntry* s_struct_cache;
+static int s_struct_cache_count;
+static int s_struct_cache_cap;
+
+static struct InterfaceX_StructCacheEntry*
+InterfaceX_StructCacheGet(
+    struct RSCacheDat2Disk* disk,
+    int struct_id)
+{
+    for( int i = 0; i < s_struct_cache_count; i++ )
+    {
+        if( s_struct_cache[i].struct_id == struct_id )
+            return &s_struct_cache[i];
+    }
+
+    struct RSCacheShared_FileList* fl =
+        InterfaceX_ConfigArchiveGetFileList(disk, RSCacheDat2A_ConfigKind_Struct);
+    if( !fl )
+        return NULL;
+
+    uint8_t const* data = NULL;
+    int data_len = 0;
+    if( struct_id >= 0 )
+    {
+        (void)InterfaceX_ConfigArchiveFindFile(
+            disk, RSCacheDat2A_ConfigKind_Struct, fl, struct_id, &data, &data_len);
+    }
+
+    struct InterfaceX_StructCacheEntry entry = {
+        .struct_id = struct_id,
+    };
+    if( data && data_len > 0 && !(data_len == 1 && data[0] == 0) )
+    {
+        struct RSCacheShared_RSBuffer buf;
+        RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, (uint32_t)data_len);
+        for( ;; )
+        {
+            int opcode = g1(&buf);
+            if( opcode == 0 )
+                break;
+            if( opcode == 249 )
+                RSCacheShared_RSBufferReadParams(&buf, &entry.params);
+        }
+    }
+
+    if( s_struct_cache_count >= s_struct_cache_cap )
+    {
+        int new_cap = s_struct_cache_cap < 8 ? 8 : s_struct_cache_cap * 2;
+        struct InterfaceX_StructCacheEntry* grown =
+            realloc(s_struct_cache, (size_t)new_cap * sizeof(*s_struct_cache));
+        if( !grown )
+            return NULL;
+        s_struct_cache = grown;
+        s_struct_cache_cap = new_cap;
+    }
+
+    s_struct_cache[s_struct_cache_count++] = entry;
+    return &s_struct_cache[s_struct_cache_count - 1];
+}
+
+static bool
+InterfaceX_StructParamLookup(
+    struct RSCacheDat2Disk* disk,
+    int struct_id,
+    int param_id,
+    bool* out_is_string,
+    int* out_int,
+    char const** out_str)
+{
+    if( out_is_string )
+        *out_is_string = false;
+    if( out_int )
+        *out_int = 0;
+    if( out_str )
+        *out_str = NULL;
+    if( !disk || struct_id < 0 || param_id < 0 )
+        return false;
+
+    struct InterfaceX_StructCacheEntry* entry = InterfaceX_StructCacheGet(disk, struct_id);
+    if( !entry || entry->params.count <= 0 )
+        return false;
+
+    for( int i = 0; i < entry->params.count; i++ )
+    {
+        if( entry->params.keys[i] != param_id )
+            continue;
+        if( entry->params.is_string[i] )
+        {
+            if( out_is_string )
+                *out_is_string = true;
+            if( out_str )
+                *out_str = (char const*)entry->params.values[i];
+            return true;
+        }
+        if( out_int )
+            *out_int = entry->params.values[i] ? *(int*)entry->params.values[i] : 0;
+        return true;
+    }
+    return false;
+}
+
 static char
 InterfaceX_ParamTypeIdToChar(int id)
 {
@@ -11250,25 +12388,25 @@ InterfaceX_VMHost_Exec(
     case CS2VM_HOST_REQUEST_CC_GETHIDE:
         return InterfaceX_VMHost_Exec_CC_GetHide(vmhost, vm, request->u.cc_get_id);
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
-        return InterfaceX_VMHost_Exec_CC_SetOnClick(vmhost, vm, request->u.cc_set_on_scroll);
+        return InterfaceX_VMHost_Exec_CC_SetOnClick(vmhost, vm, request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONHOLD:
-        return InterfaceX_VMHost_Exec_CC_SetOnHold(vmhost, vm, request->u.cc_set_on_scroll);
+        return InterfaceX_VMHost_Exec_CC_SetOnHold(vmhost, vm, request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
-        return InterfaceX_VMHost_Exec_CC_SetOnMouseOver(vmhost, vm, request->u.cc_set_on_scroll);
+        return InterfaceX_VMHost_Exec_CC_SetOnMouseOver(vmhost, vm, request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
-        return InterfaceX_VMHost_Exec_CC_SetOnMouseLeave(vmhost, vm, request->u.cc_set_on_scroll);
+        return InterfaceX_VMHost_Exec_CC_SetOnMouseLeave(vmhost, vm, request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
-        return InterfaceX_VMHost_Exec_CC_SetOnMouseRepeat(vmhost, vm, request->u.cc_set_on_scroll);
+        return InterfaceX_VMHost_Exec_CC_SetOnMouseRepeat(vmhost, vm, request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONDRAG:
-        return InterfaceX_VMHost_Exec_CC_SetOnDrag(vmhost, vm, request->u.cc_set_on_scroll);
+        return InterfaceX_VMHost_Exec_CC_SetOnDrag(vmhost, vm, request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
-        return InterfaceX_VMHost_Exec_CC_SetOnScrollWheel(vmhost, vm, request->u.cc_set_on_scroll);
+        return InterfaceX_VMHost_Exec_CC_SetOnScrollWheel(vmhost, vm, request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
-        return InterfaceX_VMHost_Exec_CC_SetOnKey(vmhost, vm, request->u.cc_set_on_scroll);
+        return InterfaceX_VMHost_Exec_CC_SetOnKey(vmhost, vm, request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONOP:
-        return InterfaceX_VMHost_Exec_CC_SetOnOp(vmhost, vm, request->u.cc_set_on_scroll);
+        return InterfaceX_VMHost_Exec_CC_SetOnOp(vmhost, vm, request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
-        return InterfaceX_VMHost_Exec_CC_SetOnDragComplete(vmhost, vm, request->u.cc_set_on_scroll);
+        return InterfaceX_VMHost_Exec_CC_SetOnDragComplete(vmhost, vm, request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_OC_PARAM:
         return InterfaceX_VMHost_Exec_OC_Param(vmhost, vm, request->u.oc_param);
     case CS2VM_HOST_REQUEST_OC_NAME:
@@ -11277,6 +12415,9 @@ InterfaceX_VMHost_Exec(
         return InterfaceX_VMHost_Exec_OC_Unplaceholder(vmhost, vm, request->u.oc_unplaceholder);
     case CS2VM_HOST_REQUEST_PARAHEIGHT:
         return InterfaceX_VMHost_Exec_ParaHeight(vmhost, vm, request->u.para_height);
+    case CS2VM_HOST_REQUEST_IF_SETON_DISCARD:
+    case CS2VM_HOST_REQUEST_CC_SETON_DISCARD:
+        return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_PARAWIDTH:
         return InterfaceX_VMHost_Exec_ParaWidth(vmhost, vm, request->u.para_height);
     case CS2VM_HOST_REQUEST_CC_SETSCROLLPOS:
@@ -11382,19 +12523,76 @@ InterfaceX_VMHost_FireCacheInvTransmitHooks(
 //                            └─ else         → DecodeIf1
 //                                 └─ RSCacheDat2A_Component in InterfaceArchive
 //                                      └─ (optional) ToriAuxLibCache_SubmitComponentsFromDat2
+static int
+InterfaceX_ListInterfaceIds(struct RSCacheDat2Disk* cache)
+{
+    struct RSCacheDat2Disk_ReferenceTable* table =
+        cache->tables[RSCacheDat2Disk_Table_Interfaces];
+    if( !table )
+    {
+        fprintf(stderr, "failed to load interfaces reference table\n");
+        return 1;
+    }
+
+    for( int i = 0; i < table->id_count; i++ )
+        printf("%d\n", table->ids[i]);
+
+    return 0;
+}
+
+static void
+InterfaceX_PrintUsage(char const* argv0)
+{
+    fprintf(
+        stderr,
+        "usage: %s [--list] [--no-bmp] [interface_id]\n"
+        "  default interface_id: %d (inventory)\n",
+        argv0,
+        INVENTORY_INTERFACE);
+}
+
 int
 main(
     int argc,
     char** argv)
 {
+    int interface_id = INVENTORY_INTERFACE;
+    bool list_only = false;
+
+    for( int i = 1; i < argc; i++ )
+    {
+        if( strcmp(argv[i], "--list") == 0 )
+            list_only = true;
+        else if( strcmp(argv[i], "--no-bmp") == 0 )
+            g_interfacex_write_bmp = 0;
+        else if( strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0 )
+        {
+            InterfaceX_PrintUsage(argv[0]);
+            return 0;
+        }
+        else if( argv[i][0] == '-' )
+        {
+            fprintf(stderr, "unknown option: %s\n", argv[i]);
+            InterfaceX_PrintUsage(argv[0]);
+            return 1;
+        }
+        else
+        {
+            interface_id = atoi(argv[i]);
+            if( interface_id <= 0 )
+            {
+                fprintf(stderr, "invalid interface id: %s\n", argv[i]);
+                return 1;
+            }
+        }
+    }
+
     struct RSCacheDat2Disk* cache = NULL;
     struct RSCacheDat2Disk_Archive* archive = NULL;
     struct RSCacheDat2Disk_ReferenceTable* reference_table = NULL;
     RSCacheDat2A_Component* component = NULL;
-    struct RSCacheShared_RSBuffer buffer;
     struct ToriAuxLibCore_Component* component_core = NULL;
     struct ToriAuxLibCore_Component** components = NULL;
-    struct ToriAuxLibCore_ClientScript* client_script = NULL;
     struct UITreeX* tree = NULL;
     struct UITreeXBuilder* builder = NULL;
     struct RSCacheShared_FileList* file_list = NULL;
@@ -11405,6 +12603,13 @@ main(
     {
         fprintf(stderr, "failed to open cache: %s\n", CACHE_PATH);
         return 1;
+    }
+
+    if( list_only )
+    {
+        int rc = InterfaceX_ListInterfaceIds(cache);
+        RSCacheDat2Disk_Free(cache);
+        return rc;
     }
 
     // Populates the trig tables (ToriDraw_Sin/Cos, cull projection math) and the HSL16->RGB
@@ -11430,22 +12635,17 @@ main(
 
     CS2VMX_BindHost(&vm, &vmhost, InterfaceX_VMHost_Exec);
 
-#define BANK_INTERFACE 12
-#define INVENTORY_INTERFACE 630
-#define EQUIPMENT_INTERFACE 387
-#define INTERFACE_ID INVENTORY_INTERFACE
-
     reference_table = cache->tables[RSCacheDat2Disk_Table_Interfaces];
     if( !reference_table )
     {
-        fprintf(stderr, "failed to load reference table: %d\n", INTERFACE_ID);
+        fprintf(stderr, "failed to load reference table: %d\n", interface_id);
         return 1;
     }
 
-    archive = RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, INTERFACE_ID);
+    archive = RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, interface_id);
     if( !archive )
     {
-        fprintf(stderr, "failed to load archive: %d\n", INTERFACE_ID);
+        fprintf(stderr, "failed to load archive: %d\n", interface_id);
         return 1;
     }
 
@@ -11454,14 +12654,14 @@ main(
     file_list = RSCacheShared_FileListNewFromCacheArchive(archive);
     if( !file_list )
     {
-        fprintf(stderr, "failed to create file list: %d\n", INTERFACE_ID);
+        fprintf(stderr, "failed to create file list: %d\n", interface_id);
         return 1;
     }
 
     struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0);
     if( !scene )
     {
-        fprintf(stderr, "failed to create scene: %d\n", INTERFACE_ID);
+        fprintf(stderr, "failed to create scene: %d\n", interface_id);
         return 1;
     }
 
@@ -11472,7 +12672,7 @@ main(
 
     vmhost.builder = builder;
     vmhost.tree = tree;
-    vmhost.interface_id = INTERFACE_ID;
+    vmhost.interface_id = interface_id;
     vmhost.scene = scene;
     vmhost.next_scene_id = 1;
     InterfaceX_InvStoreSeedDefaults(&vmhost);
@@ -11480,19 +12680,19 @@ main(
     components = calloc(file_list->file_count, sizeof(struct ToriAuxLibCore_Component*));
     for( int i = 0; i < file_list->file_count; i++ )
     {
-        int packed_id = (INTERFACE_ID << 16) | (i & 0xFFFF);
+        int packed_id = (interface_id << 16) | (i & 0xFFFF);
         component =
             component_decode_from_bytes(packed_id, file_list->files[i], file_list->file_sizes[i]);
         if( !component )
         {
-            fprintf(stderr, "failed to decode component: %d\n", INTERFACE_ID);
+            fprintf(stderr, "failed to decode component: %d (file %d)\n", interface_id, i);
             return 1;
         }
 
         component_core = ToriAuxLibCache_ComponentNewFromCacheDat2Component(component);
         if( !component_core )
         {
-            fprintf(stderr, "failed to create component core: %d\n", INTERFACE_ID);
+            fprintf(stderr, "failed to create component core: %d (file %d)\n", interface_id, i);
             return 1;
         }
 
@@ -11543,10 +12743,16 @@ main(
 
     UITreeX_Render(&vmhost, cache, tree, pixels);
 
-    char outpath[256];
-    snprintf(outpath, sizeof(outpath), "./interfacex_%d-%d.bmp", INTERFACE_ID, 3);
-    bmp_write_file(outpath, pixels, CANVAS_W, CANVAS_H);
-    printf("wrote %s (%dx%d)\n", outpath, CANVAS_W, CANVAS_H);
+    if( g_interfacex_write_bmp )
+    {
+        char outpath[256];
+        snprintf(outpath, sizeof(outpath), "./interfacex_%d-%d.bmp", interface_id, 3);
+        bmp_write_file(outpath, pixels, CANVAS_W, CANVAS_H);
+        printf("wrote %s (%dx%d)\n", outpath, CANVAS_W, CANVAS_H);
+    }
+    else
+        printf("rendered interface %d (%dx%d, no bmp)\n", interface_id, CANVAS_W, CANVAS_H);
+
     free(pixels);
 
     InterfaceX_ConfigArchiveCacheFreeAll();
