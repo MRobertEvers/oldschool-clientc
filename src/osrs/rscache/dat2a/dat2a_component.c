@@ -532,13 +532,18 @@ RSCacheDat2A_ComponentDecodeIf3(
     if( self->type == 5 )
     {
         self->graphic = (int32_t)g4(buf);
-        self->textureId = (int32_t)g2(buf);
-        self->tiled = (g1(buf) == 1);
+        self->angle = (int32_t)g2(buf);
+        {
+            uint8_t flags = (uint8_t)g1(buf);
+            self->alpha = (flags & 0x2) != 0;
+            self->tiled = (flags & 0x1) != 0;
+        }
         self->transparency = g1(buf);
         self->outline = g1(buf);
         self->graphicShadow = (int32_t)g4(buf);
-        self->verticalFlip = (g1(buf) == 1);
         self->horizontalFlip = (g1(buf) == 1);
+        self->verticalFlip = (g1(buf) == 1);
+        self->color = (int32_t)g4(buf);
     }
     if( self->type == 6 )
     {

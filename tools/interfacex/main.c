@@ -795,8 +795,11 @@ UITreeX_PrintNode(
     if( node->kind == UITreeXNodeKind_RSGraphic )
     {
         printf(
-            " graphic=%d abs=%d,%d %dx%d hidden=%d",
+            " graphic=%d angle=%d tiling=%d if3=%d abs=%d,%d %dx%d hidden=%d",
             node->u.rs_graphic.graphic_id,
+            node->angle_2d,
+            node->tiling,
+            node->if3,
             node->abs_x,
             node->abs_y,
             node->abs_w,
@@ -9753,46 +9756,51 @@ InterfaceX_BlitSceneSprite(
     int pre_rot_sh = sh;
     int pre_rot_ox = ox;
     int pre_rot_oy = oy;
-    interface_x_transform_sprite_pixels(&spr_px, &sw, &sh, hflip, vflip, angle_2d);
 
     /* IF3: stretch nominal sprite to widget bounds (lw x lh). IF1: native-size blit below. */
     if( if3 && !tiling )
     {
-        if( angle_2d == 0 )
+        interface_x_transform_sprite_pixels(&spr_px, &sw, &sh, hflip, vflip, 0);
+
+        uint32_t* clamped =
+            interface_x_sprite_clamp_to_nominal(spr_px, sw, sh, ox, oy, nominal_w, nominal_h);
+        if( clamped )
         {
-            uint32_t* clamped =
-                interface_x_sprite_clamp_to_nominal(spr_px, sw, sh, ox, oy, nominal_w, nominal_h);
-            if( clamped )
-            {
-                free(spr_px);
-                spr_px = clamped;
-                sw = nominal_w;
-                sh = nominal_h;
-                ox = 0;
-                oy = 0;
-            }
+            free(spr_px);
+            spr_px = clamped;
+            sw = nominal_w;
+            sh = nominal_h;
+            ox = 0;
+            oy = 0;
         }
+
+        interface_x_transform_sprite_pixels(&spr_px, &sw, &sh, 0, 0, angle_2d);
 
         int draw_w = lw > 0 ? lw : sw;
         int draw_h = lh > 0 ? lh : sh;
         blit_rgba_sprite_scaled(
             pixels, CANVAS_W, dx, dy, draw_w, draw_h, (int const*)spr_px, sw, sh);
     }
-    else if( tiling )
-        blit_rgba_sprite_tiled(
-            pixels, CANVAS_W, dx, dy, lw, lh, (int const*)spr_px, sw, sh, dx, dy);
     else
     {
-        int draw_x = dx + ox;
-        int draw_y = dy + oy;
-        if( angle_2d != 0 )
+        interface_x_transform_sprite_pixels(&spr_px, &sw, &sh, hflip, vflip, angle_2d);
+
+        if( tiling )
+            blit_rgba_sprite_tiled(
+                pixels, CANVAS_W, dx, dy, lw, lh, (int const*)spr_px, sw, sh, dx + ox, dy + oy);
+        else
         {
-            int center_x = dx + pre_rot_ox + pre_rot_sw / 2;
-            int center_y = dy + pre_rot_oy + pre_rot_sh / 2;
-            draw_x = center_x - sw / 2;
-            draw_y = center_y - sh / 2;
+            int draw_x = dx + ox;
+            int draw_y = dy + oy;
+            if( angle_2d != 0 )
+            {
+                int center_x = dx + pre_rot_ox + pre_rot_sw / 2;
+                int center_y = dy + pre_rot_oy + pre_rot_sh / 2;
+                draw_x = center_x - sw / 2;
+                draw_y = center_y - sh / 2;
+            }
+            blit_rgba_sprite(pixels, CANVAS_W, draw_x, draw_y, (int const*)spr_px, sw, sh);
         }
-        blit_rgba_sprite(pixels, CANVAS_W, draw_x, draw_y, (int const*)spr_px, sw, sh);
     }
     free(spr_px);
 }
