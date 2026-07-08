@@ -1103,22 +1103,63 @@ ToriDraw2D_DrawString(
     return pixels_written;
 }
 
-static int
-font_max_ascent(struct ToriDraw_Font* font)
+static void
+font_line_vertical_extents(
+    struct ToriDraw_Font const* font,
+    char const* text,
+    int len,
+    int* min_oy_out,
+    int* visual_h_out)
 {
-    int ascent = 0;
-    if( !font )
-        return 1;
+    assert(font && min_oy_out && visual_h_out);
 
-    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+    int const fallback_h = font->line_height > 0 ? font->line_height : 1;
+    int min_oy = 0;
+    int max_bottom = 0;
+    bool any = false;
+
+    if( !text || len <= 0 )
     {
-        int const top = -font->offset_y[i];
-        if( top > ascent )
-            ascent = top;
+        *min_oy_out = 0;
+        *visual_h_out = fallback_h;
+        return;
     }
-    if( ascent <= 0 )
-        ascent = font->line_height > 0 ? font->line_height : 1;
-    return ascent;
+
+    for( int i = 0; i < len; i++ )
+    {
+        int const consumed = font_try_consume_markup(text, len, i, 0, NULL, false);
+        if( consumed > 0 )
+        {
+            i += consumed - 1;
+            continue;
+        }
+        if( font_is_rs_space_char((unsigned char)text[i]) )
+            continue;
+
+        int const gi = font_glyph_index(font, (unsigned char)text[i]);
+        if( !font_glyph_drawable(font, gi) )
+            continue;
+
+        int const oy = font->offset_y[gi];
+        int const bottom = oy + font->glyph_height[gi];
+        if( !any || oy < min_oy )
+            min_oy = oy;
+        if( !any || bottom > max_bottom )
+            max_bottom = bottom;
+        any = true;
+    }
+
+    if( !any )
+    {
+        *min_oy_out = 0;
+        *visual_h_out = fallback_h;
+        return;
+    }
+
+    *min_oy_out = min_oy;
+    *visual_h_out = max_bottom - min_oy;
+    if( *visual_h_out <= 0 )
+        *visual_h_out = fallback_h;
 }
 
 enum
@@ -1172,23 +1213,27 @@ ToriDraw2D_DrawStringBox(
 
     int const resolved_lh =
         line_height > 0 ? line_height : (font->line_height > 0 ? font->line_height : 1);
-    int const ascent = font_max_ascent(font);
-    int const descent = 0;
-    int const logical_h =
-        h > 0 ? h : ascent + descent + resolved_lh * (line_count > 0 ? line_count - 1 : 0);
     int const logical_w = w > 0 ? w : 1;
 
-    int base_y0 = ascent;
+    int line_min_oy[FONT_DRAW_BOX_MAX_LINES];
+    int line_visual_h[FONT_DRAW_BOX_MAX_LINES];
+    int max_visual_h = 1;
+    for( int i = 0; i < line_count; i++ )
+    {
+        font_line_vertical_extents(font, lines[i], line_lens[i], &line_min_oy[i], &line_visual_h[i]);
+        if( line_visual_h[i] > max_visual_h )
+            max_visual_h = line_visual_h[i];
+    }
+
+    int const block_h =
+        line_count > 0 ? resolved_lh * (line_count - 1) + max_visual_h : max_visual_h;
+    int const logical_h = h > 0 ? h : block_h;
+
+    int block_top = y;
     if( y_align == 1 )
-    {
-        int const space =
-            logical_h - ascent - descent - resolved_lh * (line_count > 0 ? line_count - 1 : 0);
-        base_y0 = ascent + space / 2;
-    }
+        block_top = y + (logical_h - block_h) / 2;
     else if( y_align == 2 )
-    {
-        base_y0 = logical_h - descent - resolved_lh * (line_count > 0 ? line_count - 1 : 0);
-    }
+        block_top = y + logical_h - block_h;
 
     int const cl = view_port->clip_left;
     int const ct = view_port->clip_top;
@@ -1209,7 +1254,7 @@ ToriDraw2D_DrawStringBox(
                 line_x = x + logical_w - tw;
         }
 
-        int const draw_y = y + base_y0 + i * resolved_lh - font->line_height;
+        int const draw_y = block_top + i * resolved_lh - line_min_oy[i];
         if( line_lens[i] <= 0 )
             continue;
 

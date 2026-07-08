@@ -46,6 +46,9 @@ static char g_cs2_trace_extra[512];
 #define INTERFACEX_CONTENT_MINIMAP 1338
 #define INTERFACEX_CONTENT_COMPASS 1339
 
+/* dat2 widget spriteAngle / CS2 ANGLE_2D: 65536 = one full turn */
+#define INTERFACEX_SPRITE_ANGLE_SCALE 65536
+
 /* Current render clip rect (canvas-space, [x0,y0) .. [x1,y1) ), narrowed while recursing
  * into a scrollable RSLayer's children and restored on the way back out. Rendering is a
  * single-threaded, synchronous depth-first walk, so plain save/restore around each
@@ -7849,13 +7852,7 @@ InterfaceX_VMHost_QueueScriptHook(
     }
 
     InterfaceX_VMHost_QueueScript(
-        host,
-        script_id,
-        component_id,
-        int_args,
-        int_arg_count,
-        string_args,
-        string_arg_count);
+        host, script_id, component_id, int_args, int_arg_count, string_args, string_arg_count);
 }
 
 static void
@@ -9145,7 +9142,8 @@ interface_x_transform_sprite_pixels(
     if( angle_2d == 0 )
         return;
 
-    double rad = ((double)angle_2d * 2.0 * 3.141592653589793) / 2048.0;
+    double rad =
+        ((double)angle_2d * 2.0 * 3.141592653589793) / (double)INTERFACEX_SPRITE_ANGLE_SCALE;
     double c = cos(rad);
     double s = sin(rad);
     int src_w = *sw;
@@ -9619,7 +9617,7 @@ InterfaceX_BlitCompassGraphic(
         mask_w,
         mask_h,
         node->angle_2d,
-        65536,
+        INTERFACEX_SPRITE_ANGLE_SCALE,
         node_alpha);
 }
 
@@ -9751,21 +9749,28 @@ InterfaceX_BlitSceneSprite(
     }
 
     interface_x_scale_pixel_alpha(spr_px, (size_t)sw * (size_t)sh, alpha);
+    int pre_rot_sw = sw;
+    int pre_rot_sh = sh;
+    int pre_rot_ox = ox;
+    int pre_rot_oy = oy;
     interface_x_transform_sprite_pixels(&spr_px, &sw, &sh, hflip, vflip, angle_2d);
 
     /* IF3: stretch nominal sprite to widget bounds (lw x lh). IF1: native-size blit below. */
     if( if3 && !tiling )
     {
-        uint32_t* clamped =
-            interface_x_sprite_clamp_to_nominal(spr_px, sw, sh, ox, oy, nominal_w, nominal_h);
-        if( clamped )
+        if( angle_2d == 0 )
         {
-            free(spr_px);
-            spr_px = clamped;
-            sw = nominal_w;
-            sh = nominal_h;
-            ox = 0;
-            oy = 0;
+            uint32_t* clamped =
+                interface_x_sprite_clamp_to_nominal(spr_px, sw, sh, ox, oy, nominal_w, nominal_h);
+            if( clamped )
+            {
+                free(spr_px);
+                spr_px = clamped;
+                sw = nominal_w;
+                sh = nominal_h;
+                ox = 0;
+                oy = 0;
+            }
         }
 
         int draw_w = lw > 0 ? lw : sw;
@@ -9777,7 +9782,18 @@ InterfaceX_BlitSceneSprite(
         blit_rgba_sprite_tiled(
             pixels, CANVAS_W, dx, dy, lw, lh, (int const*)spr_px, sw, sh, dx, dy);
     else
-        blit_rgba_sprite(pixels, CANVAS_W, dx + ox, dy + oy, (int const*)spr_px, sw, sh);
+    {
+        int draw_x = dx + ox;
+        int draw_y = dy + oy;
+        if( angle_2d != 0 )
+        {
+            int center_x = dx + pre_rot_ox + pre_rot_sw / 2;
+            int center_y = dy + pre_rot_oy + pre_rot_sh / 2;
+            draw_x = center_x - sw / 2;
+            draw_y = center_y - sh / 2;
+        }
+        blit_rgba_sprite(pixels, CANVAS_W, draw_x, draw_y, (int const*)spr_px, sw, sh);
+    }
     free(spr_px);
 }
 
@@ -10069,7 +10085,7 @@ UITreeX_RenderNode(
             else
             {
                 int tx = node->abs_x;
-                int ty = node->abs_y + lh;
+                int ty = node->abs_y + (lh > 0 ? lh : font->line_height);
                 if( center && lw > 0 )
                 {
                     int tw = ToriDraw2D_MeasureString(font, node->u.rs_text.text);
@@ -14206,7 +14222,13 @@ InterfaceX_VMHost_FireInvTransmitHooks(
         printf(")\n");
 
         InterfaceX_VMHost_QueueScript(
-            host, hook->script_id, hook->component_id, hook->int_args, hook->int_arg_count, NULL, 0);
+            host,
+            hook->script_id,
+            hook->component_id,
+            hook->int_args,
+            hook->int_arg_count,
+            NULL,
+            0);
     }
 }
 
