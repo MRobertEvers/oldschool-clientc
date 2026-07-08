@@ -16,6 +16,7 @@
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model_sprite.h"
+#include "toridraw/toridraw_sprite.h"
 #include "vm/cs2_script.h"
 #include <sys/stat.h>
 
@@ -97,6 +98,39 @@ struct UITreeXNode_RSObj
     int scene_id;
 };
 
+enum InterfaceX_ModelKind
+{
+    INTERFACEX_MODEL_KIND_NONE = 0,
+    INTERFACEX_MODEL_KIND_PLAIN = 1,
+    INTERFACEX_MODEL_KIND_NPC_HEAD = 2,
+    INTERFACEX_MODEL_KIND_PLAYER_HEAD = 3,
+    INTERFACEX_MODEL_KIND_PLAYER_SELF = 5,
+    INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD = 6,
+};
+
+struct UITreeXNode_RSModel
+{
+    int model_id;
+    enum InterfaceX_ModelKind model_kind;
+    int zoom;
+    int offset_x;
+    int offset_y;
+    int angle_x;
+    int angle_y;
+    int angle_z;
+    int anim_seq;
+    int orthog;
+    int transparent;
+    int scene_id;
+};
+
+struct UITreeXNode_RSLine
+{
+    int color;
+    int line_width;
+    int line_direction;
+};
+
 // 0
 // Layer (container)
 // Yes — scroll lists, tab bodies, nested layouts
@@ -143,6 +177,8 @@ enum UITreeXNodeKind
     UITreeXNodeKind_RSRect,
     UITreeXNodeKind_RSText,
     UITreeXNodeKind_RSObj,
+    UITreeXNodeKind_RSModel,
+    UITreeXNodeKind_RSLine,
 };
 
 struct UITreeXNode
@@ -167,7 +203,17 @@ struct UITreeXNode
     char ops[INTERFACEX_OP_SLOTS][INTERFACEX_OP_LEN];
     int tiling;
     int trans;
+    int trans_bot;
     int no_click_through;
+    int no_scroll_through;
+    int pinch_enabled;
+    int clickmask;
+    int hflip;
+    int vflip;
+    int angle_2d;
+    int fill_mode;
+    int arc_start;
+    int arc_end;
     int aspect_w;
     int aspect_h;
     int abs_x;
@@ -191,6 +237,8 @@ struct UITreeXNode
         struct UITreeXNode_RSRect rs_rect;
         struct UITreeXNode_RSText rs_text;
         struct UITreeXNode_RSObj rs_obj;
+        struct UITreeXNode_RSModel rs_model;
+        struct UITreeXNode_RSLine rs_line;
     } u;
 };
 
@@ -458,6 +506,51 @@ UITreeXBuilder_PushTextWithParentUserId(
     return node->idx;
 }
 
+int
+UITreeXBuilder_PushModelWithParentUserId(
+    struct UITreeXBuilder* builder,
+    int user_id,
+    int parent_user_id)
+{
+    assert(builder);
+    assert(builder->parent_stack_top < 36);
+    struct UITreeXNode* node = UITreeX_NodeEmplace(builder->tree);
+
+    UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
+    UITreeXBuilder_LinkPushSibling(builder, node);
+
+    node->kind = UITreeXNodeKind_RSModel;
+    node->user_id = user_id;
+    node->u.rs_model.model_id = -1;
+    node->u.rs_model.model_kind = INTERFACEX_MODEL_KIND_NONE;
+    node->u.rs_model.zoom = 2000;
+    node->u.rs_model.scene_id = -1;
+
+    return node->idx;
+}
+
+int
+UITreeXBuilder_PushLineWithParentUserId(
+    struct UITreeXBuilder* builder,
+    int user_id,
+    int parent_user_id)
+{
+    assert(builder);
+    assert(builder->parent_stack_top < 36);
+    struct UITreeXNode* node = UITreeX_NodeEmplace(builder->tree);
+
+    UITreeXBuilder_SetActiveParentByUserId(builder, parent_user_id);
+    UITreeXBuilder_LinkPushSibling(builder, node);
+
+    node->kind = UITreeXNodeKind_RSLine;
+    node->user_id = user_id;
+    node->u.rs_line.color = 0;
+    node->u.rs_line.line_width = 1;
+    node->u.rs_line.line_direction = 1;
+
+    return node->idx;
+}
+
 static char const*
 UITreeX_NodeKindStr(enum UITreeXNodeKind kind)
 {
@@ -475,6 +568,10 @@ UITreeX_NodeKindStr(enum UITreeXNodeKind kind)
         return "text";
     case UITreeXNodeKind_RSObj:
         return "obj";
+    case UITreeXNodeKind_RSModel:
+        return "model";
+    case UITreeXNodeKind_RSLine:
+        return "line";
     default:
         return "?";
     }
@@ -544,6 +641,32 @@ UITreeX_PrintNode(
             " obj=%d count=%d abs=%d,%d %dx%d hidden=%d",
             node->u.rs_obj.obj_id,
             node->u.rs_obj.obj_count,
+            node->abs_x,
+            node->abs_y,
+            node->abs_w,
+            node->abs_h,
+            node->hidden);
+    }
+    else if( node->kind == UITreeXNodeKind_RSModel )
+    {
+        printf(
+            " model=%d kind=%d zoom=%d abs=%d,%d %dx%d hidden=%d",
+            node->u.rs_model.model_id,
+            (int)node->u.rs_model.model_kind,
+            node->u.rs_model.zoom,
+            node->abs_x,
+            node->abs_y,
+            node->abs_w,
+            node->abs_h,
+            node->hidden);
+    }
+    else if( node->kind == UITreeXNodeKind_RSLine )
+    {
+        printf(
+            " color=0x%x width=%d dir=%d abs=%d,%d %dx%d hidden=%d",
+            node->u.rs_line.color,
+            node->u.rs_line.line_width,
+            node->u.rs_line.line_direction,
             node->abs_x,
             node->abs_y,
             node->abs_w,
@@ -788,6 +911,16 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER,
     CS2VM_HOST_REQUEST_PARAHEIGHT,
     CS2VM_HOST_REQUEST_PARAWIDTH,
+
+    CS2VM_HOST_REQUEST_CC_SETSCROLLPOS,
+    CS2VM_HOST_REQUEST_CC_SETSCROLLSIZE,
+    CS2VM_HOST_REQUEST_WIDGET_SET_INT,
+    CS2VM_HOST_REQUEST_WIDGET_SET_INT2,
+    CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_ANGLE,
+    CS2VM_HOST_REQUEST_WIDGET_SET_ARC,
+    CS2VM_HOST_REQUEST_WIDGET_SET_MODEL,
+    CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND,
+    CS2VM_HOST_REQUEST_WIDGET_INPUT_INT,
 };
 
 struct CS2VM_HostRequest_PushScript
@@ -1145,6 +1278,98 @@ struct CS2VM_HostRequest_ParaHeight
     char* text;
 };
 
+enum CS2VM_WidgetIntField
+{
+    CS2VM_WIDGET_INT_HFLIP,
+    CS2VM_WIDGET_INT_VFLIP,
+    CS2VM_WIDGET_INT_ANGLE_2D,
+    CS2VM_WIDGET_INT_FILL_COLOUR,
+    CS2VM_WIDGET_INT_LINE_WIDTH,
+    CS2VM_WIDGET_INT_LINE_DIRECTION,
+    CS2VM_WIDGET_INT_FILL_MODE,
+    CS2VM_WIDGET_INT_TRANS_BOT,
+    CS2VM_WIDGET_INT_NO_SCROLL_THROUGH,
+    CS2VM_WIDGET_INT_NO_CLICK_THROUGH,
+    CS2VM_WIDGET_INT_PINCH,
+    CS2VM_WIDGET_INT_CLICKMASK,
+    CS2VM_WIDGET_INT_DRAG_DEAD_ZONE,
+    CS2VM_WIDGET_INT_DRAG_DEAD_TIME,
+    CS2VM_WIDGET_INT_MODEL_ANIM,
+    CS2VM_WIDGET_INT_MODEL_ORTHOG,
+    CS2VM_WIDGET_INT_MODEL_TRANSPARENT,
+    CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON,
+};
+
+enum CS2VM_WidgetInputField
+{
+    CS2VM_WIDGET_INPUT_SUBMITMODE,
+    CS2VM_WIDGET_INPUT_SELECTCOLOUR,
+    CS2VM_WIDGET_INPUT_WRAPMODE,
+    CS2VM_WIDGET_INPUT_LINEWRAPPINGWIDTH,
+    CS2VM_WIDGET_INPUT_SELECTBGCOLOUR,
+    CS2VM_WIDGET_INPUT_LINECOUNTLIMIT,
+    CS2VM_WIDGET_INPUT_CURSORCOLOUR,
+    CS2VM_WIDGET_INPUT_CURSORTRANS,
+    CS2VM_WIDGET_INPUT_CURSORWIDTH,
+    CS2VM_WIDGET_INPUT_CURSORHEIGHT,
+    CS2VM_WIDGET_INPUT_CURSOROFFSET,
+    CS2VM_WIDGET_INPUT_LINEWIDTHLIMIT,
+    CS2VM_WIDGET_INPUT_CHARFILTER,
+};
+
+struct CS2VM_HostRequest_WidgetSetInt
+{
+    int component_id;
+    enum CS2VM_WidgetIntField field;
+    int value;
+};
+
+struct CS2VM_HostRequest_WidgetSetInt2
+{
+    int component_id;
+    enum CS2VM_WidgetIntField field;
+    int value_a;
+    int value_b;
+};
+
+struct CS2VM_HostRequest_WidgetSetModelAngle
+{
+    int component_id;
+    int offset_x;
+    int offset_y;
+    int angle_x;
+    int angle_y;
+    int angle_z;
+    int zoom;
+};
+
+struct CS2VM_HostRequest_WidgetSetArc
+{
+    int component_id;
+    int arc_start;
+    int arc_end;
+};
+
+struct CS2VM_HostRequest_WidgetSetModel
+{
+    int component_id;
+    int model_id;
+};
+
+struct CS2VM_HostRequest_WidgetSetModelKind
+{
+    int component_id;
+    enum InterfaceX_ModelKind model_kind;
+    int model_id;
+};
+
+struct CS2VM_HostRequest_WidgetInputInt
+{
+    int component_id;
+    enum CS2VM_WidgetInputField field;
+    int value;
+};
+
 struct CS2VM_HostRequest
 {
     enum CS2VM_HostRequestKind kind;
@@ -1220,6 +1445,15 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_SetTargetPriority if_set_target_priority;
         struct CS2VM_HostRequest_IF_ClearOps if_clear_ops;
         struct CS2VM_HostRequest_IF_SetObject if_set_object;
+        struct CS2VM_HostRequest_IF_SetScrollPos cc_set_scroll_pos;
+        struct CS2VM_HostRequest_IF_SetScrollSize cc_set_scroll_size;
+        struct CS2VM_HostRequest_WidgetSetInt widget_set_int;
+        struct CS2VM_HostRequest_WidgetSetInt2 widget_set_int2;
+        struct CS2VM_HostRequest_WidgetSetModelAngle widget_set_model_angle;
+        struct CS2VM_HostRequest_WidgetSetArc widget_set_arc;
+        struct CS2VM_HostRequest_WidgetSetModel widget_set_model;
+        struct CS2VM_HostRequest_WidgetSetModelKind widget_set_model_kind;
+        struct CS2VM_HostRequest_WidgetInputInt widget_input_int;
     } u;
 };
 
@@ -5137,6 +5371,402 @@ CS2VMX_Op_InvTotal(
     return CS2VM_EXECNO_OK;
 }
 
+static int
+CS2VMX_DispatchWidgetSetInt(
+    struct CS2VMX* vm,
+    int component_id,
+    enum CS2VM_WidgetIntField field,
+    int value)
+{
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_INT;
+    request.u.widget_set_int.component_id = component_id;
+    request.u.widget_set_int.field = field;
+    request.u.widget_set_int.value = value;
+    return vm->host_exec(vm, &request);
+}
+
+static int
+CS2VMX_Op_CC_WidgetInt(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand,
+    enum CS2VM_WidgetIntField field)
+{
+    assert(frame);
+    (void)frame;
+
+    int value;
+    if( CS2VMX_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int result = CS2VMX_DispatchWidgetSetInt(
+        vm, CS2VMX_DotOrActiveComponentId(vm, operand), field, value);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
+static int
+CS2VMX_Op_IF_WidgetInt(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand,
+    enum CS2VM_WidgetIntField field)
+{
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    int component_id;
+    int value;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int result = CS2VMX_DispatchWidgetSetInt(vm, component_id, field, value);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
+static int
+CS2VMX_Op_CC_SetScrollPos(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(frame);
+    (void)frame;
+
+    int scroll_y;
+    int scroll_x;
+    if( CS2VMX_PopInt(vm, &scroll_y) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &scroll_x) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETSCROLLPOS;
+    request.u.cc_set_scroll_pos.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.cc_set_scroll_pos.scroll_x = scroll_x;
+    request.u.cc_set_scroll_pos.scroll_y = scroll_y;
+
+    int result = vm->host_exec(vm, &request);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
+static int
+CS2VMX_Op_CC_SetScrollSize(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(frame);
+    (void)frame;
+
+    int scroll_height;
+    int scroll_width;
+    if( CS2VMX_PopInt(vm, &scroll_height) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &scroll_width) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_SETSCROLLSIZE;
+    request.u.cc_set_scroll_size.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.cc_set_scroll_size.scroll_width = scroll_width;
+    request.u.cc_set_scroll_size.scroll_height = scroll_height;
+
+    int result = vm->host_exec(vm, &request);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
+static int
+CS2VMX_Op_CC_SetModel(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(frame);
+    (void)frame;
+
+    int model_id;
+    if( CS2VMX_PopInt(vm, &model_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL;
+    request.u.widget_set_model.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.widget_set_model.model_id = model_id;
+
+    int result = vm->host_exec(vm, &request);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
+static int
+CS2VMX_Op_IF_SetModel(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    int component_id;
+    int model_id;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &model_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL;
+    request.u.widget_set_model.component_id = component_id;
+    request.u.widget_set_model.model_id = model_id;
+
+    int result = vm->host_exec(vm, &request);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
+static int
+CS2VMX_Op_CC_SetModelAngle(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(frame);
+    (void)frame;
+
+    int zoom;
+    int angle_z;
+    int angle_y;
+    int angle_x;
+    int offset_y;
+    int offset_x;
+    if( CS2VMX_PopInt(vm, &zoom) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &angle_z) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &angle_y) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &angle_x) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &offset_y) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &offset_x) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_ANGLE;
+    request.u.widget_set_model_angle.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.widget_set_model_angle.offset_x = offset_x;
+    request.u.widget_set_model_angle.offset_y = offset_y;
+    request.u.widget_set_model_angle.angle_x = angle_x;
+    request.u.widget_set_model_angle.angle_y = angle_y;
+    request.u.widget_set_model_angle.angle_z = angle_z;
+    request.u.widget_set_model_angle.zoom = zoom;
+
+    int result = vm->host_exec(vm, &request);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
+static int
+CS2VMX_Op_IF_SetModelAngle(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    int component_id;
+    int zoom;
+    int angle_z;
+    int angle_y;
+    int angle_x;
+    int offset_y;
+    int offset_x;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &zoom) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &angle_z) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &angle_y) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &angle_x) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &offset_y) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &offset_x) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_ANGLE;
+    request.u.widget_set_model_angle.component_id = component_id;
+    request.u.widget_set_model_angle.offset_x = offset_x;
+    request.u.widget_set_model_angle.offset_y = offset_y;
+    request.u.widget_set_model_angle.angle_x = angle_x;
+    request.u.widget_set_model_angle.angle_y = angle_y;
+    request.u.widget_set_model_angle.angle_z = angle_z;
+    request.u.widget_set_model_angle.zoom = zoom;
+
+    int result = vm->host_exec(vm, &request);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
+static int
+CS2VMX_Op_CC_SetArc(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(frame);
+    (void)frame;
+
+    int arc_end;
+    int arc_start;
+    if( CS2VMX_PopInt(vm, &arc_end) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &arc_start) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_ARC;
+    request.u.widget_set_arc.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.widget_set_arc.arc_start = arc_start;
+    request.u.widget_set_arc.arc_end = arc_end;
+
+    int result = vm->host_exec(vm, &request);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
+static int
+CS2VMX_Op_IF_SetArc(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    int component_id;
+    int arc_end;
+    int arc_start;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &arc_end) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &arc_start) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_ARC;
+    request.u.widget_set_arc.component_id = component_id;
+    request.u.widget_set_arc.arc_start = arc_start;
+    request.u.widget_set_arc.arc_end = arc_end;
+
+    int result = vm->host_exec(vm, &request);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
+static int
+CS2VMX_Op_CC_SetModelKind(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand,
+    enum InterfaceX_ModelKind model_kind,
+    bool has_model_id)
+{
+    assert(frame);
+    (void)frame;
+
+    int model_id = -1;
+    if( has_model_id )
+    {
+        if( CS2VMX_PopInt(vm, &model_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND;
+    request.u.widget_set_model_kind.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.widget_set_model_kind.model_kind = model_kind;
+    request.u.widget_set_model_kind.model_id = model_id;
+
+    int result = vm->host_exec(vm, &request);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
+static int
+CS2VMX_Op_IF_SetModelKind(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand,
+    enum InterfaceX_ModelKind model_kind,
+    bool has_model_id)
+{
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    int component_id;
+    int model_id = -1;
+    if( CS2VMX_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( has_model_id )
+    {
+        if( CS2VMX_PopInt(vm, &model_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND;
+    request.u.widget_set_model_kind.component_id = component_id;
+    request.u.widget_set_model_kind.model_kind = model_kind;
+    request.u.widget_set_model_kind.model_id = model_id;
+
+    int result = vm->host_exec(vm, &request);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
+static int
+CS2VMX_Op_CC_InputInt(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand,
+    enum CS2VM_WidgetInputField field)
+{
+    assert(frame);
+    (void)frame;
+
+    int value;
+    if( CS2VMX_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_WIDGET_INPUT_INT;
+    request.u.widget_input_int.component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
+    request.u.widget_input_int.field = field;
+    request.u.widget_input_int.value = value;
+
+    int result = vm->host_exec(vm, &request);
+    return result == CS2VM_EXECNO_OK ? CS2VM_EXECNO_OK : result;
+}
+
 /* Fills *int_args / *str_args with the stack values this opcode pops.
  * Returns 0 for a fixed count, 1 when the count is variable (e.g. GOSUB). */
 static int
@@ -5438,6 +6068,135 @@ CS2VMX_RunOp(
         return CS2VMX_Op_OC_Name(vm, frame, operand);
     case CS2_OP_OC_UNPLACEHOLDER:
         return CS2VMX_Op_OC_Unplaceholder(vm, frame, operand);
+    case CS2_OP_CC_SETSCROLLPOS:
+        return CS2VMX_Op_CC_SetScrollPos(vm, frame, operand);
+    case CS2_OP_CC_SETSCROLLSIZE:
+        return CS2VMX_Op_CC_SetScrollSize(vm, frame, operand);
+    case CS2_OP_CC_SETMODEL:
+        return CS2VMX_Op_CC_SetModel(vm, frame, operand);
+    case CS2_OP_CC_SETMODELANGLE:
+        return CS2VMX_Op_CC_SetModelAngle(vm, frame, operand);
+    case CS2_OP_CC_SETMODELANIM:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_MODEL_ANIM);
+    case CS2_OP_CC_SETMODELORTHOG:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_MODEL_ORTHOG);
+    case CS2_OP_CC_SETMODELTRANSPARENT:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_MODEL_TRANSPARENT);
+    case CS2_OP_CC_SETHFLIP:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_HFLIP);
+    case CS2_OP_CC_SETVFLIP:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_VFLIP);
+    case CS2_OP_CC_SET2DANGLE:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_ANGLE_2D);
+    case CS2_OP_CC_SETFILLCOLOUR:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_FILL_COLOUR);
+    case CS2_OP_CC_SETLINEWID:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_LINE_WIDTH);
+    case CS2_OP_CC_SETLINEDIRECTION:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_LINE_DIRECTION);
+    case CS2_OP_CC_SETGRAPHIC2:
+        return CS2VMX_Op_CC_SetGraphic(vm, frame, operand);
+    case CS2_OP_CC_SETTRANSBOT:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_TRANS_BOT);
+    case CS2_OP_CC_SETFILLMODE:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_FILL_MODE);
+    case CS2_OP_CC_SETARC:
+        return CS2VMX_Op_CC_SetArc(vm, frame, operand);
+    case CS2_OP_CC_SETNOSCROLLTHROUGH:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_NO_SCROLL_THROUGH);
+    case CS2_OP_CC_SETPINCH:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_PINCH);
+    case CS2_OP_CC_SETNPCHEAD:
+        return CS2VMX_Op_CC_SetModelKind(
+            vm, frame, operand, INTERFACEX_MODEL_KIND_NPC_HEAD, true);
+    case CS2_OP_CC_SETPLAYERHEAD_SELF:
+        return CS2VMX_Op_CC_SetModelKind(
+            vm, frame, operand, INTERFACEX_MODEL_KIND_PLAYER_SELF, false);
+    case CS2_OP_CC_SETPLAYERMODEL_SELF:
+        return CS2VMX_Op_CC_SetModelKind(
+            vm, frame, operand, INTERFACEX_MODEL_KIND_PLAYER_SELF, true);
+    case CS2_OP_CC_SETMODEL_PLAYERCHATHEAD:
+        return CS2VMX_Op_CC_SetModelKind(
+            vm, frame, operand, INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD, true);
+    case CS2_OP_CC_RESUME_PAUSEBUTTON:
+        return CS2VMX_Op_CC_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON);
+    case CS2_OP_CC_INPUT_SETSUBMITMODE:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_SUBMITMODE);
+    case CS2_OP_CC_INPUT_SETSELECTCOLOUR:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_SELECTCOLOUR);
+    case CS2_OP_CC_INPUT_SETWRAPMODE:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_WRAPMODE);
+    case CS2_OP_CC_INPUT_SETLINEWRAPPINGWIDTH:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_LINEWRAPPINGWIDTH);
+    case CS2_OP_CC_INPUT_SETSELECTBGCOLOUR:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_SELECTBGCOLOUR);
+    case CS2_OP_CC_INPUT_SETLINECOUNTLIMIT:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_LINECOUNTLIMIT);
+    case CS2_OP_CC_INPUT_SETCURSORCOLOUR:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_CURSORCOLOUR);
+    case CS2_OP_CC_INPUT_SETCURSORTRANS:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_CURSORTRANS);
+    case CS2_OP_CC_INPUT_SETCURSORWIDTH:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_CURSORWIDTH);
+    case CS2_OP_CC_INPUT_SETCURSORHEIGHT:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_CURSORHEIGHT);
+    case CS2_OP_CC_INPUT_SETCURSOROFFSET:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_CURSOROFFSET);
+    case CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_LINEWIDTHLIMIT);
+    case CS2_OP_CC_INPUT_SETCHARFILTER:
+        return CS2VMX_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_CHARFILTER);
+    case CS2_OP_IF_SETMODEL:
+        return CS2VMX_Op_IF_SetModel(vm, frame, operand);
+    case CS2_OP_IF_SETMODELANGLE:
+        return CS2VMX_Op_IF_SetModelAngle(vm, frame, operand);
+    case CS2_OP_IF_SETMODELANIM:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_MODEL_ANIM);
+    case CS2_OP_IF_SETMODELORTHOG:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_MODEL_ORTHOG);
+    case CS2_OP_IF_SETMODELTRANSPARENT:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_MODEL_TRANSPARENT);
+    case CS2_OP_IF_SETHFLIP:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_HFLIP);
+    case CS2_OP_IF_SETVFLIP:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_VFLIP);
+    case CS2_OP_IF_SET2DANGLE:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_ANGLE_2D);
+    case CS2_OP_IF_SETFILLCOLOUR:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_FILL_COLOUR);
+    case CS2_OP_IF_SETLINEWID:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_LINE_WIDTH);
+    case CS2_OP_IF_SETLINEDIRECTION:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_LINE_DIRECTION);
+    case CS2_OP_IF_SETTRANSBOT:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_TRANS_BOT);
+    case CS2_OP_IF_SETFILLMODE:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_FILL_MODE);
+    case CS2_OP_IF_SETARC:
+        return CS2VMX_Op_IF_SetArc(vm, frame, operand);
+    case CS2_OP_IF_SETNOSCROLLTHROUGH:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_NO_SCROLL_THROUGH);
+    case CS2_OP_IF_SETNOCLICKTHROUGH:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_NO_CLICK_THROUGH);
+    case CS2_OP_IF_SETDRAGDEADZONE:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_DRAG_DEAD_ZONE);
+    case CS2_OP_IF_SETDRAGDEADTIME:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_DRAG_DEAD_TIME);
+    case CS2_OP_IF_SETCLICKMASK:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_CLICKMASK);
+    case CS2_OP_IF_SETPINCH:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_PINCH);
+    case CS2_OP_IF_SETNPCHEAD:
+        return CS2VMX_Op_IF_SetModelKind(
+            vm, frame, operand, INTERFACEX_MODEL_KIND_NPC_HEAD, true);
+    case CS2_OP_IF_SETPLAYERHEAD_SELF:
+        return CS2VMX_Op_IF_SetModelKind(
+            vm, frame, operand, INTERFACEX_MODEL_KIND_PLAYER_SELF, false);
+    case CS2_OP_IF_SETMODEL_PLAYERCHATHEAD:
+        return CS2VMX_Op_IF_SetModelKind(
+            vm, frame, operand, INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD, true);
+    case CS2_OP_IF_RESUME_PAUSEBUTTON:
+        return CS2VMX_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON);
     default:
     {
         int int_args = 0;
@@ -5549,84 +6308,6 @@ CS2VMX_OpArgCounts(
         return 0;
     case CS2_OP_IF_SETTARGETPRIORITY:
         *int_args = 2;
-        return 0;
-
-    /* Unimplemented CC_* setters (models, lines/arcs, flip/angle, input fields). Target
-     * widget comes from the dot/active component operand, not the stack, so only the
-     * value args below need to be discarded. Counts verified against
-     * xrsps-typescript/src/rs/cs2/handlers/WidgetOps.ts. */
-    case CS2_OP_CC_SET2DANGLE:          /* angle */
-    case CS2_OP_CC_SETFILLCOLOUR:       /* color */
-    case CS2_OP_CC_SETHFLIP:            /* flip */
-    case CS2_OP_CC_SETLINEDIRECTION:    /* direction */
-    case CS2_OP_CC_SETLINEWID:          /* width */
-    case CS2_OP_CC_SETMODEL:            /* modelId */
-    case CS2_OP_CC_SETMODELANIM:        /* seq */
-    case CS2_OP_CC_SETMODELORTHOG:      /* orthog */
-    case CS2_OP_CC_SETMODELTRANSPARENT: /* transparent */
-    case CS2_OP_CC_SETNOSCROLLTHROUGH:  /* no_scroll_through */
-    case CS2_OP_CC_SETNPCHEAD:          /* npcId */
-    case CS2_OP_CC_SETVFLIP:            /* flip */
-    case CS2_OP__1122:                  /* CC_SETGRAPHIC2: id */
-    case CS2_OP__1124:                  /* CC_SETTRANSBOT: transBot */
-    case CS2_OP__1125:                  /* CC_SETFILLMODE: mode */
-    case 1004:                          /* CC_SETPINCH: pinchEnabled */
-    case 1133:                          /* CC_INPUT_SETSUBMITMODE */
-    case 1134:                          /* CC_INPUT_SETSELECTCOLOUR */
-    case 1136:                          /* CC_INPUT_SETWRAPMODE */
-    case 1137:                          /* CC_INPUT_SETLINEWRAPPINGWIDTH */
-    case 1138:                          /* CC_INPUT_SETSELECTBGCOLOUR */
-    case 1139:                          /* CC_INPUT_SETLINECOUNTLIMIT */
-    case 1140:                          /* CC_INPUT_SETCURSORCOLOUR */
-    case 1141:                          /* CC_INPUT_SETCURSORTRANS */
-    case 1142:                          /* CC_INPUT_SETCURSORWIDTH */
-    case 1143:                          /* CC_INPUT_SETCURSORHEIGHT */
-    case 1144:                          /* CC_INPUT_SETCURSOROFFSET */
-    case 1145:                          /* CC_INPUT_SETLINEWIDTHLIMIT */
-    case 1146:                          /* CC_INPUT_SETCHARFILTER */
-    case 1207:                          /* CC_SETPLAYERMODEL_SELF: keepEquipment */
-    case 1214:                          /* CC_SETMODEL_PLAYERCHATHEAD: modelId */
-        *int_args = 1;
-        return 0;
-    case CS2_OP_CC_SETSCROLLPOS:  /* scrollX, scrollY */
-    case CS2_OP_CC_SETSCROLLSIZE: /* width, height */
-    case CS2_OP__1128:            /* CC_SETARC: start, end */
-        *int_args = 2;
-        return 0;
-    case CS2_OP_CC_SETMODELANGLE: /* offsetX, offsetY, angleX, angleY, angleZ, zoom */
-        *int_args = 6;
-        return 0;
-
-    /* Unimplemented IF_* setters: these pop the target widget uid from the stack
-     * (top), in addition to the same value args as their CC_* counterpart above. */
-    case CS2_OP_IF_SETPLAYERHEAD_SELF: /* uid only */
-    case CS2_OP_IF_RESUME_PAUSEBUTTON: /* uid only */
-        *int_args = 1;
-        return 0;
-    case CS2_OP_IF_SETHFLIP:
-    case CS2_OP_IF_SETVFLIP:
-    case CS2_OP_IF_SET2DANGLE:
-    case CS2_OP_IF_SETLINEDIRECTION:
-    case CS2_OP_IF_SETLINEWID:
-    case CS2_OP_IF_SETMODEL:
-    case CS2_OP_IF_SETMODELANIM:
-    case CS2_OP_IF_SETMODELORTHOG:
-    case CS2_OP_IF_SETMODELTRANSPARENT:
-    case CS2_OP_IF_SETNOCLICKTHROUGH:
-    case CS2_OP_IF_SETNOSCROLLTHROUGH:
-    case CS2_OP_IF_SETNPCHEAD:
-    case CS2_OP_IF_SETDRAGDEADZONE: /* zone, uid */
-    case CS2_OP_IF_SETDRAGDEADTIME: /* time, uid */
-    case CS2_OP__2122:              /* IF_SETCLICKMASK */
-    case 2004:                      /* IF_SETPINCH */
-    case 2214:                      /* IF_SETMODEL_PLAYERCHATHEAD */
-        *int_args = 2;
-        return 0;
-    case CS2_OP__2128: /* IF_SETARC: start, end, uid */
-        *int_args = 3;
-        return 0;
-    case CS2_OP_IF_SETMODELANGLE: /* offsetX, offsetY, angleX, angleY, angleZ, zoom, uid */
-        *int_args = 7;
         return 0;
     default:
         return 0;
@@ -5833,6 +6514,19 @@ struct InterfaceX_GraphicSceneCacheEntry
     struct InterfaceX_GraphicSceneCacheEntry* next;
 };
 
+struct InterfaceX_ModelSceneCacheEntry
+{
+    int model_id;
+    int zoom;
+    int angle_x;
+    int angle_y;
+    int angle_z;
+    int offset_x;
+    int offset_y;
+    int scene_id;
+    struct InterfaceX_ModelSceneCacheEntry* next;
+};
+
 struct InterfaceX_InvTransmitHook
 {
     int component_id;
@@ -5891,6 +6585,7 @@ struct InterfaceX_VMHost
 
     struct InterfaceX_ObjIconCacheEntry* obj_icon_cache;
     struct InterfaceX_GraphicSceneCacheEntry* graphic_scene_cache;
+    struct InterfaceX_ModelSceneCacheEntry* model_scene_cache;
     int next_scene_id;
 };
 
@@ -5927,6 +6622,11 @@ static int
 InterfaceX_ResolveGraphicScene(
     struct InterfaceX_VMHost* host,
     int graphic_id);
+
+static int
+InterfaceX_ResolveModelScene(
+    struct InterfaceX_VMHost* host,
+    struct UITreeXNode const* node);
 
 static struct ToriDraw_Font*
 InterfaceX_EnsureSceneFont(
@@ -6471,6 +7171,21 @@ UITreeX_ApplyComponentGeometry(
         strncpy(node->u.rs_text.text, component->text, sizeof(node->u.rs_text.text) - 1);
         node->u.rs_text.text[sizeof(node->u.rs_text.text) - 1] = '\0';
     }
+    else if( node->kind == UITreeXNodeKind_RSModel )
+    {
+        node->u.rs_model.model_id = component->model_id;
+        node->u.rs_model.model_kind = (enum InterfaceX_ModelKind)component->model_type;
+        node->u.rs_model.zoom = component->model_zoom > 0 ? component->model_zoom : 2000;
+        node->u.rs_model.angle_x = component->model_xan;
+        node->u.rs_model.angle_y = component->model_yan;
+        node->u.rs_model.scene_id = -1;
+    }
+    else if( node->kind == UITreeXNodeKind_RSLine )
+    {
+        node->u.rs_line.color = component->color;
+        node->u.rs_line.line_width = component->line_width > 0 ? component->line_width : 1;
+        node->u.rs_line.line_direction = component->line_horizontal ? 1 : 0;
+    }
 
     if( node->if3 )
     {
@@ -6552,6 +7267,148 @@ InterfaceX_DrawRectOutline(
     InterfaceX_FillRect(pixels, stride, x0, y1 - 1, x1, y1, argb);
     InterfaceX_FillRect(pixels, stride, x0, y0, x0 + 1, y1, argb);
     InterfaceX_FillRect(pixels, stride, x1 - 1, y0, x1, y1, argb);
+}
+
+static void
+InterfaceX_DrawLine(
+    int* pixels,
+    int stride,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int thickness,
+    int argb)
+{
+    if( thickness < 1 )
+        thickness = 1;
+
+    int dx = abs(x1 - x0);
+    int dy = abs(y1 - y0);
+    int sx = x0 < x1 ? 1 : -1;
+    int sy = y0 < y1 ? 1 : -1;
+    int err = dx - dy;
+    int x = x0;
+    int y = y0;
+
+    while( true )
+    {
+        int half = thickness / 2;
+        InterfaceX_FillRect(
+            pixels, stride, x - half, y - half, x - half + thickness, y - half + thickness, argb);
+
+        if( x == x1 && y == y1 )
+            break;
+
+        int e2 = err * 2;
+        if( e2 > -dy )
+        {
+            err -= dy;
+            x += sx;
+        }
+        if( e2 < dx )
+        {
+            err += dx;
+            y += sy;
+        }
+    }
+}
+
+static void
+interface_x_transform_sprite_pixels(
+    uint32_t** spr_px,
+    int* sw,
+    int* sh,
+    int hflip,
+    int vflip,
+    int angle_2d)
+{
+    if( !spr_px || !*spr_px || *sw <= 0 || *sh <= 0 )
+        return;
+
+    if( hflip || vflip )
+    {
+        struct ToriDraw_Sprite tmp = {
+            .width = *sw,
+            .height = *sh,
+            .pixels_argb = *spr_px,
+        };
+        if( hflip )
+            ToriDraw_SpriteFlipHorizontal(&tmp);
+        if( vflip )
+            ToriDraw_SpriteFlipVertical(&tmp);
+    }
+
+    if( angle_2d == 0 )
+        return;
+
+    double rad = ((double)angle_2d * 2.0 * 3.141592653589793) / 2048.0;
+    double c = cos(rad);
+    double s = sin(rad);
+    int src_w = *sw;
+    int src_h = *sh;
+    int cx = src_w / 2;
+    int cy = src_h / 2;
+
+    int corners[4][2] = {
+        { -cx, -cy },
+        { src_w - 1 - cx, -cy },
+        { -cx, src_h - 1 - cy },
+        { src_w - 1 - cx, src_h - 1 - cy },
+    };
+    int min_x = 0;
+    int max_x = 0;
+    int min_y = 0;
+    int max_y = 0;
+    for( int i = 0; i < 4; i++ )
+    {
+        int rx = (int)lround((double)corners[i][0] * c - (double)corners[i][1] * s);
+        int ry = (int)lround((double)corners[i][0] * s + (double)corners[i][1] * c);
+        if( i == 0 )
+        {
+            min_x = max_x = rx;
+            min_y = max_y = ry;
+        }
+        else
+        {
+            if( rx < min_x )
+                min_x = rx;
+            if( rx > max_x )
+                max_x = rx;
+            if( ry < min_y )
+                min_y = ry;
+            if( ry > max_y )
+                max_y = ry;
+        }
+    }
+
+    int dst_w = max_x - min_x + 1;
+    int dst_h = max_y - min_y + 1;
+    if( dst_w <= 0 || dst_h <= 0 )
+        return;
+
+    uint32_t* dst = calloc((size_t)dst_w * (size_t)dst_h, sizeof(uint32_t));
+    if( !dst )
+        return;
+
+    uint32_t const* src = *spr_px;
+    for( int dy = 0; dy < dst_h; dy++ )
+    {
+        for( int dx = 0; dx < dst_w; dx++ )
+        {
+            double lx = (double)(dx + min_x);
+            double ly = (double)(dy + min_y);
+            int sx = (int)lround(lx * c + ly * s) + cx;
+            int sy = (int)lround(-lx * s + ly * c) + cy;
+            if( sx >= 0 && sx < src_w && sy >= 0 && sy < src_h )
+                dst[dx + dy * dst_w] = src[sx + sy * src_w];
+        }
+    }
+
+    free(*spr_px);
+    *spr_px = dst;
+    *sw = dst_w;
+    *sh = dst_h;
 }
 
 static void
@@ -6754,7 +7611,10 @@ InterfaceX_BlitSceneSprite(
     int outline,
     int graphic_shadow,
     int if3,
-    int alpha)
+    int alpha,
+    int hflip,
+    int vflip,
+    int angle_2d)
 {
     if( !pixels || !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
         return;
@@ -6805,6 +7665,7 @@ InterfaceX_BlitSceneSprite(
     }
 
     interface_x_scale_pixel_alpha(spr_px, (size_t)sw * (size_t)sh, alpha);
+    interface_x_transform_sprite_pixels(&spr_px, &sw, &sh, hflip, vflip, angle_2d);
 
     /* IF3: stretch nominal sprite to widget bounds (lw x lh). IF1: native-size blit below. */
     if( if3 && !tiling )
@@ -6885,8 +7746,87 @@ UITreeX_RenderNode(
                     node->u.rs_graphic.outline,
                     node->u.rs_graphic.graphic_shadow,
                     node->if3,
-                    node_alpha);
+                    node_alpha,
+                    node->hflip,
+                    node->vflip,
+                    node->angle_2d);
             }
+        }
+    }
+    else if( node->kind == UITreeXNodeKind_RSModel && host )
+    {
+        int scene_id = InterfaceX_ResolveModelScene(host, node);
+        if( scene_id >= 0 )
+        {
+            int sprite_count = 0;
+            struct ToriDraw_Sprite** sprites =
+                ToriDraw_SceneSpriteGet(host->scene, scene_id, &sprite_count);
+            if( sprites && sprite_count > 0 && sprites[0] && sprites[0]->pixels_argb )
+            {
+                struct ToriDraw_Sprite const* spr = sprites[0];
+                int sw = spr->width > 0 ? spr->width : 1;
+                int sh = spr->height > 0 ? spr->height : 1;
+                int bw = node->abs_w > 0 ? node->abs_w : sw;
+                int bh = node->abs_h > 0 ? node->abs_h : sh;
+
+                if( node_alpha >= 255 )
+                {
+                    blit_rgba_sprite_scaled(
+                        pixels,
+                        CANVAS_W,
+                        node->abs_x,
+                        node->abs_y,
+                        bw,
+                        bh,
+                        (int const*)spr->pixels_argb,
+                        sw,
+                        sh);
+                }
+                else
+                {
+                    size_t pixel_count = (size_t)sw * (size_t)sh;
+                    uint32_t* tmp = malloc(pixel_count * sizeof(uint32_t));
+                    if( tmp )
+                    {
+                        memcpy(tmp, spr->pixels_argb, pixel_count * sizeof(uint32_t));
+                        interface_x_scale_pixel_alpha(tmp, pixel_count, node_alpha);
+                        blit_rgba_sprite_scaled(
+                            pixels,
+                            CANVAS_W,
+                            node->abs_x,
+                            node->abs_y,
+                            bw,
+                            bh,
+                            (int const*)tmp,
+                            sw,
+                            sh);
+                        free(tmp);
+                    }
+                }
+            }
+        }
+    }
+    else if( node->kind == UITreeXNodeKind_RSLine )
+    {
+        int px = node->abs_x;
+        int py = node->abs_y;
+        int pw = node->abs_w > 0 ? node->abs_w : 1;
+        int ph = node->abs_h > 0 ? node->abs_h : 1;
+        int argb = (node_alpha << 24) | (node->u.rs_line.color & 0xFFFFFF);
+        int thickness = node->u.rs_line.line_width > 0 ? node->u.rs_line.line_width : 1;
+        if( node->u.rs_line.line_direction == 1 )
+        {
+            int y = py + ph / 2;
+            InterfaceX_DrawLine(pixels, CANVAS_W, px, y, px + pw - 1, y, thickness, argb);
+        }
+        else if( node->u.rs_line.line_direction == 0 )
+        {
+            int x = px + pw / 2;
+            InterfaceX_DrawLine(pixels, CANVAS_W, x, py, x, py + ph - 1, thickness, argb);
+        }
+        else
+        {
+            InterfaceX_DrawLine(pixels, CANVAS_W, px, py, px + pw - 1, py + ph - 1, thickness, argb);
         }
     }
     else if( node->kind == UITreeXNodeKind_RSObj && node->u.rs_obj.obj_id > 0 && host )
@@ -7134,6 +8074,12 @@ process_component(
     case TORIAUXLIBCORE_COMPONENT_TEXT:
     case TORIAUXLIBCORE_COMPONENT_INV_TEXT:
         idx = UITreeXBuilder_PushTextWithParentUserId(builder, component->id, layer);
+        break;
+    case TORIAUXLIBCORE_COMPONENT_MODEL:
+        idx = UITreeXBuilder_PushModelWithParentUserId(builder, component->id, layer);
+        break;
+    case TORIAUXLIBCORE_COMPONENT_LINE:
+        idx = UITreeXBuilder_PushLineWithParentUserId(builder, component->id, layer);
         break;
     default:
         idx = UITreeXBuilder_PushLayerWithParentUserId(builder, component->id, layer);
@@ -7542,6 +8488,100 @@ InterfaceX_ResolveObjIconScene(
     entry->scene_id = scene_id;
     entry->next = host->obj_icon_cache;
     host->obj_icon_cache = entry;
+
+    return scene_id;
+}
+
+static int
+InterfaceX_ResolveModelScene(
+    struct InterfaceX_VMHost* host,
+    struct UITreeXNode const* node)
+{
+    assert(host);
+    assert(node);
+
+    if( node->kind != UITreeXNodeKind_RSModel )
+        return -1;
+    if( node->u.rs_model.model_kind != INTERFACEX_MODEL_KIND_PLAIN )
+        return -1;
+    if( node->u.rs_model.model_id < 0 )
+        return -1;
+
+    int model_id = node->u.rs_model.model_id;
+    int zoom = node->u.rs_model.zoom > 0 ? node->u.rs_model.zoom : 2000;
+    int angle_x = node->u.rs_model.angle_x;
+    int angle_y = node->u.rs_model.angle_y;
+    int angle_z = node->u.rs_model.angle_z;
+    int offset_x = node->u.rs_model.offset_x;
+    int offset_y = node->u.rs_model.offset_y;
+
+    for( struct InterfaceX_ModelSceneCacheEntry* it = host->model_scene_cache; it; it = it->next )
+    {
+        if( it->model_id == model_id && it->zoom == zoom && it->angle_x == angle_x &&
+            it->angle_y == angle_y && it->angle_z == angle_z && it->offset_x == offset_x &&
+            it->offset_y == offset_y )
+            return it->scene_id;
+    }
+
+    struct RSCacheDat2A_Model* dat2a_model = RSCacheDat2A_ModelNewFromCache(host->disk, model_id);
+    if( !dat2a_model )
+        return -1;
+
+    struct ToriDraw_Model* td_model = ToriDraw_ModelNewFromCacheModel(dat2a_model);
+    RSCacheDat2A_ModelFree(dat2a_model);
+    if( !td_model )
+        return -1;
+
+    ToriDraw_ModelSetBoundsCylinder(td_model);
+
+    struct ToriDraw_ModelHandle hnd = {
+        .kind = TORIDRAWMK_MODEL,
+        .u.model.model = td_model,
+    };
+    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+
+    int width = node->abs_w > 0 ? node->abs_w : 64;
+    int height = node->abs_h > 0 ? node->abs_h : 64;
+
+    struct ToriDraw_Sprite* spr = ToriDraw_SpriteNewFromModelRaster(
+        host->scene, hnd, zoom, angle_x, angle_y, width, height, false);
+
+    ToriDraw_ModelFree(td_model);
+    if( !spr )
+        return -1;
+
+    for( int i = 0; i < spr->width * spr->height; i++ )
+    {
+        if( spr->pixels_argb[i] != 0 && (spr->pixels_argb[i] >> 24) == 0 )
+            spr->pixels_argb[i] |= 0xFF000000u;
+    }
+
+    int scene_id = host->next_scene_id++;
+    struct ToriDraw_Sprite** sprites = calloc(1, sizeof(struct ToriDraw_Sprite*));
+    if( !sprites )
+    {
+        ToriDraw_SpriteFree(spr);
+        return -1;
+    }
+
+    sprites[0] = spr;
+    ToriDraw_SceneSpriteAdd(host->scene, scene_id, sprites, 1);
+
+    struct InterfaceX_ModelSceneCacheEntry* entry =
+        calloc(1, sizeof(struct InterfaceX_ModelSceneCacheEntry));
+    if( entry )
+    {
+        entry->model_id = model_id;
+        entry->zoom = zoom;
+        entry->angle_x = angle_x;
+        entry->angle_y = angle_y;
+        entry->angle_z = angle_z;
+        entry->offset_x = offset_x;
+        entry->offset_y = offset_y;
+        entry->scene_id = scene_id;
+        entry->next = host->model_scene_cache;
+        host->model_scene_cache = entry;
+    }
 
     return scene_id;
 }
@@ -8266,6 +9306,237 @@ InterfaceX_VMHost_Exec_IF_SetScrollSize(
     return CS2VM_EXECNO_OK;
 }
 
+static void
+InterfaceX_ModelNodeInvalidateScene(struct UITreeXNode* node)
+{
+    if( node && node->kind == UITreeXNodeKind_RSModel )
+        node->u.rs_model.scene_id = -1;
+}
+
+static void
+InterfaceX_EnsureModelNode(struct UITreeXNode* node)
+{
+    if( !node || node->kind == UITreeXNodeKind_RSModel )
+        return;
+
+    memset(&node->u.rs_model, 0, sizeof(node->u.rs_model));
+    node->kind = UITreeXNodeKind_RSModel;
+    node->u.rs_model.model_id = -1;
+    node->u.rs_model.model_kind = INTERFACEX_MODEL_KIND_PLAIN;
+    node->u.rs_model.zoom = 2000;
+    node->u.rs_model.scene_id = -1;
+}
+
+static void
+InterfaceX_ApplyWidgetSetInt(
+    struct UITreeXNode* node,
+    enum CS2VM_WidgetIntField field,
+    int value)
+{
+    if( !node )
+        return;
+
+    switch( field )
+    {
+    case CS2VM_WIDGET_INT_HFLIP:
+        node->hflip = value ? 1 : 0;
+        break;
+    case CS2VM_WIDGET_INT_VFLIP:
+        node->vflip = value ? 1 : 0;
+        break;
+    case CS2VM_WIDGET_INT_ANGLE_2D:
+        node->angle_2d = value;
+        break;
+    case CS2VM_WIDGET_INT_FILL_COLOUR:
+        if( node->kind == UITreeXNodeKind_RSRect )
+            node->u.rs_rect.color = value;
+        else if( node->kind == UITreeXNodeKind_RSLine )
+            node->u.rs_line.color = value;
+        break;
+    case CS2VM_WIDGET_INT_LINE_WIDTH:
+        if( node->kind == UITreeXNodeKind_RSLine )
+            node->u.rs_line.line_width = value > 0 ? value : 1;
+        break;
+    case CS2VM_WIDGET_INT_LINE_DIRECTION:
+        if( node->kind == UITreeXNodeKind_RSLine )
+            node->u.rs_line.line_direction = value;
+        break;
+    case CS2VM_WIDGET_INT_FILL_MODE:
+        node->fill_mode = value;
+        break;
+    case CS2VM_WIDGET_INT_TRANS_BOT:
+        node->trans_bot = value;
+        break;
+    case CS2VM_WIDGET_INT_NO_SCROLL_THROUGH:
+        node->no_scroll_through = value ? 1 : 0;
+        break;
+    case CS2VM_WIDGET_INT_NO_CLICK_THROUGH:
+        node->no_click_through = value ? 1 : 0;
+        break;
+    case CS2VM_WIDGET_INT_PINCH:
+        node->pinch_enabled = value ? 1 : 0;
+        break;
+    case CS2VM_WIDGET_INT_CLICKMASK:
+        node->clickmask = value;
+        break;
+    case CS2VM_WIDGET_INT_DRAG_DEAD_ZONE:
+        node->drag_dead_zone = (uint8_t)value;
+        break;
+    case CS2VM_WIDGET_INT_DRAG_DEAD_TIME:
+        node->drag_dead_time = (uint8_t)value;
+        break;
+    case CS2VM_WIDGET_INT_MODEL_ANIM:
+        InterfaceX_EnsureModelNode(node);
+        node->u.rs_model.anim_seq = value;
+        break;
+    case CS2VM_WIDGET_INT_MODEL_ORTHOG:
+        InterfaceX_EnsureModelNode(node);
+        node->u.rs_model.orthog = value;
+        InterfaceX_ModelNodeInvalidateScene(node);
+        break;
+    case CS2VM_WIDGET_INT_MODEL_TRANSPARENT:
+        InterfaceX_EnsureModelNode(node);
+        node->u.rs_model.transparent = value;
+        InterfaceX_ModelNodeInvalidateScene(node);
+        break;
+    case CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON:
+        break;
+    default:
+        break;
+    }
+}
+
+int
+InterfaceX_VMHost_Exec_CC_SetScrollPos(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_IF_SetScrollPos request)
+{
+    return InterfaceX_VMHost_Exec_IF_SetScrollPos(host, vm, request);
+}
+
+int
+InterfaceX_VMHost_Exec_CC_SetScrollSize(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_IF_SetScrollSize request)
+{
+    return InterfaceX_VMHost_Exec_IF_SetScrollSize(host, vm, request);
+}
+
+int
+InterfaceX_VMHost_Exec_WidgetSetInt(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_WidgetSetInt request)
+{
+    assert(host);
+    (void)vm;
+
+    struct UITreeXNode* node = UITreeX_NodeByComponentId(host, request.component_id);
+    if( !node )
+        return CS2VM_EXECNO_OK;
+
+    InterfaceX_ApplyWidgetSetInt(node, request.field, request.value);
+    return CS2VM_EXECNO_OK;
+}
+
+int
+InterfaceX_VMHost_Exec_WidgetSetModel(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_WidgetSetModel request)
+{
+    assert(host);
+    (void)vm;
+
+    struct UITreeXNode* node = UITreeX_NodeByComponentId(host, request.component_id);
+    if( !node )
+        return CS2VM_EXECNO_OK;
+
+    InterfaceX_EnsureModelNode(node);
+    node->u.rs_model.model_id = request.model_id;
+    node->u.rs_model.model_kind = INTERFACEX_MODEL_KIND_PLAIN;
+    InterfaceX_ModelNodeInvalidateScene(node);
+    return CS2VM_EXECNO_OK;
+}
+
+int
+InterfaceX_VMHost_Exec_WidgetSetModelAngle(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_WidgetSetModelAngle request)
+{
+    assert(host);
+    (void)vm;
+
+    struct UITreeXNode* node = UITreeX_NodeByComponentId(host, request.component_id);
+    if( !node )
+        return CS2VM_EXECNO_OK;
+
+    InterfaceX_EnsureModelNode(node);
+    node->u.rs_model.offset_x = request.offset_x;
+    node->u.rs_model.offset_y = request.offset_y;
+    node->u.rs_model.angle_x = request.angle_x;
+    node->u.rs_model.angle_y = request.angle_y;
+    node->u.rs_model.angle_z = request.angle_z;
+    if( request.zoom > 0 )
+        node->u.rs_model.zoom = request.zoom;
+    InterfaceX_ModelNodeInvalidateScene(node);
+    return CS2VM_EXECNO_OK;
+}
+
+int
+InterfaceX_VMHost_Exec_WidgetSetArc(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_WidgetSetArc request)
+{
+    assert(host);
+    (void)vm;
+
+    struct UITreeXNode* node = UITreeX_NodeByComponentId(host, request.component_id);
+    if( !node )
+        return CS2VM_EXECNO_OK;
+
+    node->arc_start = request.arc_start;
+    node->arc_end = request.arc_end;
+    return CS2VM_EXECNO_OK;
+}
+
+int
+InterfaceX_VMHost_Exec_WidgetSetModelKind(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_WidgetSetModelKind request)
+{
+    assert(host);
+    (void)vm;
+
+    struct UITreeXNode* node = UITreeX_NodeByComponentId(host, request.component_id);
+    if( !node )
+        return CS2VM_EXECNO_OK;
+
+    InterfaceX_EnsureModelNode(node);
+    node->u.rs_model.model_kind = request.model_kind;
+    if( request.model_id >= 0 )
+        node->u.rs_model.model_id = request.model_id;
+    InterfaceX_ModelNodeInvalidateScene(node);
+    return CS2VM_EXECNO_OK;
+}
+
+int
+InterfaceX_VMHost_Exec_WidgetInputInt(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest_WidgetInputInt request)
+{
+    assert(host);
+    (void)vm;
+    (void)request;
+    return CS2VM_EXECNO_OK;
+}
+
 int
 InterfaceX_VMHost_Exec_IF_SetHide(
     struct InterfaceX_VMHost* host,
@@ -8813,6 +10084,19 @@ InterfaceX_VMHost_Exec_CC_Create(
         node->u.rs_text.line_height = 0;
         node->u.rs_text.shadowed = 0;
         node->u.rs_text.text[0] = '\0';
+        break;
+    case 6:
+        node->kind = UITreeXNodeKind_RSModel;
+        node->u.rs_model.model_id = -1;
+        node->u.rs_model.model_kind = INTERFACEX_MODEL_KIND_NONE;
+        node->u.rs_model.zoom = 2000;
+        node->u.rs_model.scene_id = -1;
+        break;
+    case 9:
+        node->kind = UITreeXNodeKind_RSLine;
+        node->u.rs_line.color = 0;
+        node->u.rs_line.line_width = 1;
+        node->u.rs_line.line_direction = 1;
         break;
     case 0:
         node->kind = UITreeXNodeKind_RSLayer;
@@ -9995,6 +11279,22 @@ InterfaceX_VMHost_Exec(
         return InterfaceX_VMHost_Exec_ParaHeight(vmhost, vm, request->u.para_height);
     case CS2VM_HOST_REQUEST_PARAWIDTH:
         return InterfaceX_VMHost_Exec_ParaWidth(vmhost, vm, request->u.para_height);
+    case CS2VM_HOST_REQUEST_CC_SETSCROLLPOS:
+        return InterfaceX_VMHost_Exec_CC_SetScrollPos(vmhost, vm, request->u.cc_set_scroll_pos);
+    case CS2VM_HOST_REQUEST_CC_SETSCROLLSIZE:
+        return InterfaceX_VMHost_Exec_CC_SetScrollSize(vmhost, vm, request->u.cc_set_scroll_size);
+    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
+        return InterfaceX_VMHost_Exec_WidgetSetInt(vmhost, vm, request->u.widget_set_int);
+    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
+        return InterfaceX_VMHost_Exec_WidgetSetModel(vmhost, vm, request->u.widget_set_model);
+    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_ANGLE:
+        return InterfaceX_VMHost_Exec_WidgetSetModelAngle(vmhost, vm, request->u.widget_set_model_angle);
+    case CS2VM_HOST_REQUEST_WIDGET_SET_ARC:
+        return InterfaceX_VMHost_Exec_WidgetSetArc(vmhost, vm, request->u.widget_set_arc);
+    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
+        return InterfaceX_VMHost_Exec_WidgetSetModelKind(vmhost, vm, request->u.widget_set_model_kind);
+    case CS2VM_HOST_REQUEST_WIDGET_INPUT_INT:
+        return InterfaceX_VMHost_Exec_WidgetInputInt(vmhost, vm, request->u.widget_input_int);
     default:
         printf("VMHost: unknown request kind: %d\n", request->kind);
         return CS2VM_EXECNO_ERROR;
