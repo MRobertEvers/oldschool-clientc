@@ -40,9 +40,15 @@ static char g_cs2_trace_extra[512];
 #define INVENTORY_INTERFACE 630
 #define EQUIPMENT_INTERFACE 387
 
-#define CANVAS_W 1024
-#define CANVAS_H 768
+// #define CANVAS_W (492 + 15)
+// #define CANVAS_H (314 + 15)
 #define CANVAS_BG 0xFF202428
+
+// portal nexus viewport size
+// There is some padding that gets added so we account for that
+// It's either 10 or 9 all the way around.
+#define CANVAS_W (492 + 20)
+#define CANVAS_H (314 + 20)
 
 #define INTERFACEX_CONTENT_MINIMAP 1338
 #define INTERFACEX_CONTENT_COMPASS 1339
@@ -930,7 +936,8 @@ UITreeX_PrintNode(
     {
         struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
         printf(
-            " model=%d kind=%d zoom=%d xan=%d yan=%d zan=%d orient=%d offset=%d orthog=%d fixed_zoom=%d"
+            " model=%d kind=%d zoom=%d xan=%d yan=%d zan=%d orient=%d offset=%d orthog=%d "
+            "fixed_zoom=%d"
             " x=%d y=%d xm=%d ym=%d w=%d h=%d",
             model->model_id,
             (int)model->model_kind,
@@ -11150,8 +11157,7 @@ InterfaceX_RasterModelNodeToCanvas(
     if( !ok || sw <= 0 || sh <= 0 )
         return;
 
-    interface_x_bake_model_raster_alpha(
-        dest, dest_stride, draw_x, draw_y, sw, sh, node_alpha);
+    interface_x_bake_model_raster_alpha(dest, dest_stride, draw_x, draw_y, sw, sh, node_alpha);
 }
 
 static int
