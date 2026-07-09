@@ -2369,20 +2369,60 @@ CS2VMX_Op_JoinString(
 {
     assert(vm);
     assert(frame);
-    (void)operand;
 
-    char *b, *a;
-    if( CS2VMX_PopStr(vm, &b) != CS2VM_EXECNO_OK )
+    int count = operand;
+    if( count <= 0 )
+    {
+        char* empty = strdup("");
+        if( !empty )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VMX_PushStr(vm, empty);
+    }
+
+    if( count == 1 )
+    {
+        char* s;
+        if( CS2VMX_PopStr(vm, &s) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VMX_PushStr(vm, s);
+    }
+
+    char** parts = calloc((size_t)count, sizeof(char*));
+    if( !parts )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VMX_PopStr(vm, &a) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
 
-    char buf[512];
-    snprintf(buf, sizeof(buf), "%s%s", a ? a : "", b ? b : "");
+    for( int i = count - 1; i >= 0; i-- )
+    {
+        if( CS2VMX_PopStr(vm, &parts[i]) != CS2VM_EXECNO_OK )
+        {
+            free(parts);
+            return CS2VM_EXECNO_ERROR;
+        }
+    }
 
-    char* joined = strdup(buf);
+    size_t total = 1;
+    for( int i = 0; i < count; i++ )
+        total += parts[i] ? strlen(parts[i]) : 0;
+
+    char* joined = malloc(total);
     if( !joined )
+    {
+        free(parts);
         return CS2VM_EXECNO_ERROR;
+    }
+
+    char* out = joined;
+    for( int i = 0; i < count; i++ )
+    {
+        if( parts[i] )
+        {
+            size_t len = strlen(parts[i]);
+            memcpy(out, parts[i], len);
+            out += len;
+        }
+    }
+    *out = '\0';
+    free(parts);
 
     return CS2VMX_PushStr(vm, joined);
 }
@@ -5416,12 +5456,38 @@ CS2VMX_Op_Pow(
 int
 CS2VMX_Op_PopIntDiscard(
     struct CS2VMX* vm,
-    struct CS2VMX_Frame* frame)
+    struct CS2VMX_Frame* frame,
+    int operand)
 {
     assert(vm);
-    int intpop;
-    if( CS2VMX_PopInt(vm, &intpop) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
+    assert(frame);
+    (void)frame;
+
+    for( int i = 0; i < operand; i++ )
+    {
+        int intpop;
+        if( CS2VMX_PopInt(vm, &intpop) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VMX_Op_PopStrDiscard(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    for( int i = 0; i < operand; i++ )
+    {
+        char* strpop;
+        if( CS2VMX_PopStr(vm, &strpop) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
     return CS2VM_EXECNO_OK;
 }
 
@@ -7021,6 +7087,7 @@ CS2VMX_Op_CC_InputInt(
 static int
 CS2VMX_OpArgCounts(
     int opcode,
+    int operand,
     int* int_args,
     int* str_args);
 
@@ -7090,7 +7157,9 @@ CS2VMX_RunOp(
     case CS2_OP_GOSUB_WITH_PARAMS:
         return CS2VMX_Op_GosubWithParams(vm, frame, operand);
     case CS2_OP_POP_INT_DISCARD:
-        return CS2VMX_Op_PopIntDiscard(vm, frame);
+        return CS2VMX_Op_PopIntDiscard(vm, frame, operand);
+    case CS2_OP_POP_STRING_DISCARD:
+        return CS2VMX_Op_PopStrDiscard(vm, frame, operand);
     case CS2_OP_ENUM:
         return CS2VMX_Op_Enum(vm, frame, operand);
     case CS2_OP_ENUM_GETOUTPUTCOUNT:
@@ -7564,6 +7633,7 @@ CS2VMX_RunOp(
 static int
 CS2VMX_OpArgCounts(
     int opcode,
+    int operand,
     int* int_args,
     int* str_args)
 {
@@ -7598,14 +7668,19 @@ CS2VMX_OpArgCounts(
         *int_args = 2;
         return 0;
     case CS2_OP_POP_INT_LOCAL:
-    case CS2_OP_POP_INT_DISCARD:
         *int_args = 1;
+        return 0;
+    case CS2_OP_POP_INT_DISCARD:
+        *int_args = operand > 0 ? operand : 0;
         return 0;
     case CS2_OP_POP_STRING_LOCAL:
         *str_args = 1;
         return 0;
+    case CS2_OP_POP_STRING_DISCARD:
+        *str_args = operand > 0 ? operand : 0;
+        return 0;
     case CS2_OP_JOIN_STRING:
-        *str_args = 2;
+        *str_args = operand > 0 ? operand : 0;
         return 0;
     case CS2_OP_STRING_LENGTH:
         *str_args = 1;
@@ -7683,7 +7758,7 @@ CS2VMX_DebugPrintOpCode(
 
     int int_args = 0;
     int str_args = 0;
-    if( CS2VMX_OpArgCounts(opcode, &int_args, &str_args) != 0 )
+    if( CS2VMX_OpArgCounts(opcode, operand, &int_args, &str_args) != 0 )
     {
         printf("    args: variable (callee signature)\n");
         return;
@@ -10257,27 +10332,23 @@ render_children:
     int saved_clip_x1 = g_render_clip_x1;
     int saved_clip_y1 = g_render_clip_y1;
 
-    /* Scrollable layers clip their children to the layer's own viewport; a
-     * zero-size layer (pure grouping container) leaves the inherited clip as-is. */
+    /* Every positive-size layer clips its children to the layer viewport (OSRS parity).
+     * Scroll offsets are handled separately during layout; clipping uses visible bounds.
+     * Zero-size layers (pure grouping containers) leave the inherited clip as-is. */
     if( node->kind == UITreeXNodeKind_RSLayer && node->abs_w > 0 && node->abs_h > 0 )
     {
-        struct UITreeXNode_RSLayer const* layer = UITreeX_NodeRSLayer(node);
-        int scrolls = (layer->scroll_width > node->abs_w) || (layer->scroll_height > node->abs_h);
-        if( scrolls )
-        {
-            int lx0 = node->abs_x;
-            int ly0 = node->abs_y;
-            int lx1 = node->abs_x + node->abs_w;
-            int ly1 = node->abs_y + node->abs_h;
-            if( lx0 > g_render_clip_x0 )
-                g_render_clip_x0 = lx0;
-            if( ly0 > g_render_clip_y0 )
-                g_render_clip_y0 = ly0;
-            if( lx1 < g_render_clip_x1 )
-                g_render_clip_x1 = lx1;
-            if( ly1 < g_render_clip_y1 )
-                g_render_clip_y1 = ly1;
-        }
+        int lx0 = node->abs_x;
+        int ly0 = node->abs_y;
+        int lx1 = node->abs_x + node->abs_w;
+        int ly1 = node->abs_y + node->abs_h;
+        if( lx0 > g_render_clip_x0 )
+            g_render_clip_x0 = lx0;
+        if( ly0 > g_render_clip_y0 )
+            g_render_clip_y0 = ly0;
+        if( lx1 < g_render_clip_x1 )
+            g_render_clip_x1 = lx1;
+        if( ly1 < g_render_clip_y1 )
+            g_render_clip_y1 = ly1;
     }
 
     for( int child = node->link.first_child_tree_idx; child != -1;

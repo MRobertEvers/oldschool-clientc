@@ -166,6 +166,32 @@ ToriDraw_FontParseHexColor(char const* hex, int len)
     return font_parse_hex_rgb(hex, len);
 }
 
+static bool
+font_char_eq_icase(
+    char a,
+    char b)
+{
+    if( a >= 'A' && a <= 'Z' )
+        a = (char)(a + ('a' - 'A'));
+    if( b >= 'A' && b <= 'Z' )
+        b = (char)(b + ('a' - 'A'));
+    return a == b;
+}
+
+static bool
+font_match_icase_literal(
+    char const* p,
+    char const* lit,
+    int lit_len)
+{
+    for( int k = 0; k < lit_len; k++ )
+    {
+        if( !font_char_eq_icase(p[k], lit[k]) )
+            return false;
+    }
+    return true;
+}
+
 static int
 font_try_consume_markup(
     char const* text,
@@ -173,10 +199,14 @@ font_try_consume_markup(
     int i,
     int default_color,
     int* color_out,
-    bool apply_color)
+    bool apply_color,
+    unsigned char* emit_char_out)
 {
     if( !text || i < 0 || i >= len )
         return 0;
+
+    if( emit_char_out )
+        *emit_char_out = 0;
 
     if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
     {
@@ -187,6 +217,22 @@ font_try_consume_markup(
                 *color_out = tagged;
         }
         return 5;
+    }
+
+    if( text[i] == '<' && len - i >= 4 &&
+        font_match_icase_literal(&text[i + 1], "gt>", 3) )
+    {
+        if( emit_char_out )
+            *emit_char_out = '>';
+        return 4;
+    }
+
+    if( text[i] == '<' && len - i >= 4 &&
+        font_match_icase_literal(&text[i + 1], "lt>", 3) )
+    {
+        if( emit_char_out )
+            *emit_char_out = '<';
+        return 4;
     }
 
     if( text[i] == '<' && len - i >= 6 && strncmp(&text[i], "</col>", 6) == 0 )
@@ -434,18 +480,6 @@ font_glyph_drawable(
 }
 
 static bool
-font_char_eq_icase(
-    char a,
-    char b)
-{
-    if( a >= 'A' && a <= 'Z' )
-        a = (char)(a + ('a' - 'A'));
-    if( b >= 'A' && b <= 'Z' )
-        b = (char)(b + ('a' - 'A'));
-    return a == b;
-}
-
-static bool
 font_line_break_at(
     char const* p,
     int* advance_out)
@@ -523,9 +557,16 @@ font_measure_range(
 
     for( int i = 0; i < len; i++ )
     {
-        int const consumed = font_try_consume_markup(text, len, i, 0, NULL, false);
+        unsigned char emit_char = 0;
+        int const consumed =
+            font_try_consume_markup(text, len, i, 0, NULL, false, &emit_char);
         if( consumed > 0 )
         {
+            if( emit_char )
+            {
+                int const gi = font_glyph_index(font, emit_char);
+                width += font_glyph_advance(font, gi);
+            }
             i += consumed - 1;
             continue;
         }
@@ -823,10 +864,22 @@ font_visit_glyphs_range(
 
     for( int i = 0; i < len; i++ )
     {
-        int const consumed =
-            font_try_consume_markup(text, len, i, default_color_rgb, &color, true);
+        unsigned char emit_char = 0;
+        int const consumed = font_try_consume_markup(
+            text, len, i, default_color_rgb, &color, true, &emit_char);
         if( consumed > 0 )
         {
+            if( emit_char )
+            {
+                int const gi = font_glyph_index(font, emit_char);
+                if( font_glyph_drawable(font, gi) )
+                {
+                    int const gx = x + font->offset_x[gi];
+                    int const gy = y + font->offset_y[gi];
+                    callback(ctx, font, gi, gx, gy, color);
+                }
+                x += font_glyph_advance(font, gi);
+            }
             i += consumed - 1;
             continue;
         }
@@ -958,9 +1011,29 @@ font_draw_string_range(
 
     for( int i = 0; i < len; i++ )
     {
-        int const consumed = font_try_consume_markup(text, len, i, color, &current_color, true);
+        unsigned char emit_char = 0;
+        int const consumed =
+            font_try_consume_markup(text, len, i, color, &current_color, true, &emit_char);
         if( consumed > 0 )
         {
+            if( emit_char )
+            {
+                int const gi = font_glyph_index(font, emit_char);
+                int const opaque_color = (int)(0xFF000000u | (uint32_t)current_color);
+                pixels_written += font_draw_glyph_pixels(
+                    font,
+                    gi,
+                    x + font->offset_x[gi],
+                    y + font->offset_y[gi],
+                    opaque_color,
+                    cl,
+                    ct,
+                    cr,
+                    cb,
+                    stride,
+                    pixel_buffer);
+                x += font_glyph_advance(font, gi);
+            }
             i += consumed - 1;
             continue;
         }
@@ -1010,9 +1083,28 @@ font_draw_string_shadow_range(
 
     for( int i = 0; i < len; i++ )
     {
-        int const consumed = font_try_consume_markup(text, len, i, 0, NULL, false);
+        unsigned char emit_char = 0;
+        int const consumed =
+            font_try_consume_markup(text, len, i, 0, NULL, false, &emit_char);
         if( consumed > 0 )
         {
+            if( emit_char )
+            {
+                int const gi = font_glyph_index(font, emit_char);
+                pixels_written += font_draw_glyph_pixels(
+                    font,
+                    gi,
+                    x + font->offset_x[gi] + 1,
+                    y + font->offset_y[gi] + 1,
+                    shadow_color,
+                    cl,
+                    ct,
+                    cr,
+                    cb,
+                    stride,
+                    pixel_buffer);
+                x += font_glyph_advance(font, gi);
+            }
             i += consumed - 1;
             continue;
         }
@@ -1127,9 +1219,25 @@ font_line_vertical_extents(
 
     for( int i = 0; i < len; i++ )
     {
-        int const consumed = font_try_consume_markup(text, len, i, 0, NULL, false);
+        unsigned char emit_char = 0;
+        int const consumed =
+            font_try_consume_markup(text, len, i, 0, NULL, false, &emit_char);
         if( consumed > 0 )
         {
+            if( emit_char )
+            {
+                int const gi = font_glyph_index(font, emit_char);
+                if( font_glyph_drawable(font, gi) )
+                {
+                    int const oy = font->offset_y[gi];
+                    int const bottom = oy + font->glyph_height[gi];
+                    if( !any || oy < min_oy )
+                        min_oy = oy;
+                    if( !any || bottom > max_bottom )
+                        max_bottom = bottom;
+                    any = true;
+                }
+            }
             i += consumed - 1;
             continue;
         }
@@ -1239,9 +1347,13 @@ font_segment_has_visible_content(
         if( font_is_rs_space_char((unsigned char)text[i]) )
             continue;
 
-        int const consumed = font_try_consume_markup(text, len, i, 0, NULL, false);
+        unsigned char emit_char = 0;
+        int const consumed =
+            font_try_consume_markup(text, len, i, 0, NULL, false, &emit_char);
         if( consumed > 0 )
         {
+            if( emit_char )
+                return true;
             i += consumed - 1;
             continue;
         }

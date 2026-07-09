@@ -163,10 +163,11 @@
  */
 #define CS2_OP_POP_STRING_LOCAL 36
 /* JOIN_STRING — Concatenate strings.
+ * operand: string count
  * int stack in:   -    
- * str stack in:   a, b   (b = top)
+ * str stack in:   s0, s1, ... sN-1   (sN-1 = top)
  * int stack out:  -    
- * str stack out:  a + b
+ * str stack out:  s0 + s1 + ... + sN-1
  */
 #define CS2_OP_JOIN_STRING 37
 /* POP_INT_DISCARD — Discard int.

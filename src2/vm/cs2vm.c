@@ -502,18 +502,63 @@ cs2_rt_exec_opcode(
         break;
     case CS2_OP_JOIN_STRING:
     {
-        char* b = cs2_rt_pop_str(rt);
-        char* a = cs2_rt_pop_str(rt);
-        char buf[512];
-        snprintf(buf, sizeof(buf), "%s%s", a ? a : "", b ? b : "");
-        CS2_RT_PUSH_STR(rt, cs2_rt_alloc_string(rt, buf));
+        int count = operand;
+        if( count <= 0 )
+        {
+            CS2_RT_PUSH_STR(rt, cs2_rt_alloc_string(rt, ""));
+            break;
+        }
+        if( count == 1 )
+        {
+            CS2_RT_PUSH_STR(rt, cs2_rt_pop_str(rt));
+            break;
+        }
+
+        char** parts = calloc((size_t)count, sizeof(char*));
+        if( !parts )
+        {
+            rt->run_error = CS2VM_ERR_STACK;
+            return false;
+        }
+
+        for( int i = count - 1; i >= 0; i-- )
+            parts[i] = cs2_rt_pop_str(rt);
+
+        size_t total = 1;
+        for( int i = 0; i < count; i++ )
+            total += parts[i] ? strlen(parts[i]) : 0;
+
+        char* joined = malloc(total);
+        if( !joined )
+        {
+            free(parts);
+            rt->run_error = CS2VM_ERR_STACK;
+            return false;
+        }
+
+        char* out = joined;
+        for( int i = 0; i < count; i++ )
+        {
+            if( parts[i] )
+            {
+                size_t len = strlen(parts[i]);
+                memcpy(out, parts[i], len);
+                out += len;
+            }
+        }
+        *out = '\0';
+        free(parts);
+        CS2_RT_PUSH_STR(rt, cs2_rt_alloc_string(rt, joined));
+        free(joined);
         break;
     }
     case CS2_OP_POP_INT_DISCARD:
-        (void)cs2_rt_pop_int(rt);
+        for( int i = 0; i < operand; i++ )
+            (void)cs2_rt_pop_int(rt);
         break;
     case CS2_OP_POP_STRING_DISCARD:
-        (void)cs2_rt_pop_str(rt);
+        for( int i = 0; i < operand; i++ )
+            (void)cs2_rt_pop_str(rt);
         break;
     case CS2_OP_BRANCH:
         frame->pc += operand;

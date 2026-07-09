@@ -2118,3 +2118,27 @@ All non-root links are deferred, not only forward references. That preserves sib
 
 Implementation: `UITreeXBuilder_EnqueueParent` / `UITreeXBuilder_ResolvePendingParents` in `tools/interfacex/main.c`, called after the `process_component` loop and before script execution.
 
+## interfacex — layer clipping
+
+OSRS clips **every** positive-size layer/container to its own bounds before drawing children — not only scrollable layers. Child widgets can be sized wider or taller than their parent (e.g. a divider line that spans the outer frame width inside a narrower tab row). The client does not shorten those widgets; it clips them at the parent edge.
+
+### How interfacex implements it
+
+`UITreeX_RenderNode` in `tools/interfacex/main.c` keeps a recursive clip rect in `g_render_clip_*` (canvas space, half-open `[x0,y0)..[x1,y1)`). Before rendering a layer's children, if the layer has `abs_w > 0` and `abs_h > 0`, the clip is intersected with the layer viewport (`abs_x/y` .. `abs_x+abs_w`, `abs_y+abs_h`). Primitives (`InterfaceX_FillRect`, `InterfaceX_DrawLine`, text, sprites) already drop pixels outside that clip.
+
+Scroll is separate: scroll offsets shift child positions during layout; clipping still uses the layer's visible bounds.
+
+### Example: bank divider overshoot
+
+On interface 12 (bank), line component `[12]` (`0x000c000c`) is intentionally **`488x0`** under parent layer `[11]` at **`478x40`**:
+
+- Line draw end: `277 + 488 = 765`
+- Parent right edge: `276 + 478 = 754`
+
+Without layer clipping the line extends ~11px past the vertical border. With clipping it stops at the parent edge, matching the official client.
+
+### Parity references
+
+- Production: `uitree_scroll_intersect_clip` / `uitree_scroll_apply_ancestors` in `src2/ui/ui_scroll.c` (always intersects layer ancestor bounds).
+- TypeScript reference: container child clip in `xrsps-typescript/src/ui/gl/widgets-gl.ts` ("ALL type 0/11 containers clip their children, not just scrollable ones").
+

@@ -3224,6 +3224,66 @@ test_toridraw_font_col_tag_draw(void)
 }
 
 static int
+test_toridraw_font_measure_gt_lt(void)
+{
+    struct ToriDraw_Font font;
+    test_font_setup_measure(&font);
+    font.charcodeset['<'] = 0;
+    font.charcodeset['>'] = 0;
+
+    int const plain = ToriDraw2D_MeasureString(&font, "A>B<C");
+    int const tagged = ToriDraw2D_MeasureString(&font, "A<gt>B<lt>C");
+    TEST_ASSERT(tagged == plain, "gt/lt tag measure matches literal brackets");
+
+    fprintf(stderr, "ok: toridraw font measure gt lt\n");
+    return 0;
+}
+
+static int
+test_toridraw_font_gt_lt_draw(void)
+{
+    struct ToriDraw_Font font;
+    static uint8_t glyph_pixel = 255;
+
+    memset(&font, 0, sizeof(font));
+    ToriDraw_FontInitCharcodeset(&font);
+    font.charcodeset['A'] = 0;
+    font.charcodeset['B'] = 0;
+    font.charcodeset['>'] = 0;
+    font.glyph_alpha[0] = &glyph_pixel;
+    font.glyph_width[0] = 1;
+    font.glyph_height[0] = 1;
+    font.line_height = 1;
+    font.offset_x[0] = 0;
+    font.offset_y[0] = 0;
+    font.advance[0] = 2;
+    font.advance[8] = 2;
+    ToriDraw_FontFinishDrawWidths(&font);
+
+    int pixels[64];
+    memset(pixels, 0, sizeof(pixels));
+
+    struct ToriDraw_ViewPort vp = {
+        .clip_left = 0,
+        .clip_top = 0,
+        .clip_right = 32,
+        .clip_bottom = 8,
+        .stride = 32,
+    };
+
+    ToriDraw2D_DrawString(&font, &vp, 0, font.line_height, "A<gt>B", WHITE, false, false, pixels);
+
+    int const row = 0;
+    int const first = pixels[row * vp.stride + 0];
+    int const second = pixels[row * vp.stride + 2];
+    TEST_ASSERT(first == (int)(0xFF000000u | (uint32_t)WHITE), "first glyph before gt tag");
+    TEST_ASSERT(second == (int)(0xFF000000u | (uint32_t)WHITE), "second glyph after gt tag");
+
+    fprintf(stderr, "ok: toridraw font gt lt draw\n");
+    return 0;
+}
+
+static int
 test_toridraw_font_opaque_alpha(void)
 {
     struct ToriDraw_Font font;
@@ -3666,6 +3726,12 @@ main(void)
         return 1;
 
     if( test_toridraw_font_col_tag_draw() != 0 )
+        return 1;
+
+    if( test_toridraw_font_measure_gt_lt() != 0 )
+        return 1;
+
+    if( test_toridraw_font_gt_lt_draw() != 0 )
         return 1;
 
     if( test_toridraw_font_opaque_alpha() != 0 )
