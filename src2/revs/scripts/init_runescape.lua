@@ -9,6 +9,9 @@ if Game.GetCacheMode() == "dat2" then
         print("Dat2 textures load failed")
         return
     end
+    while not Game.RunTasks() do
+        Platform.LoadIO(io_queue)
+    end
     print("Dat2 textures loaded")
     Game.Dat2_SubmitTextures()
     print("Dat2 textures submitted")

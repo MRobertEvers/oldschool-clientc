@@ -153,8 +153,6 @@ main(int argc, char* argv[])
     }
 
     struct RSCacheDat2Disk* dat2_disk = cachelib_dat2_disk(cache);
-    if( dat2_disk )
-        ToriAuxLibCache_SetDat2Disk(ToriAuxLib_C(LibToriRS_GetToriAuxLib(instance)), dat2_disk);
 
     LibToriRS_ScriptAPI_Game_InterfaceEditor_Init(instance);
     if( !instance->interface_editor )

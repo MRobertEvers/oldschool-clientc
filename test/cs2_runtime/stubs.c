@@ -75,13 +75,6 @@ ToriAuxLibCache_ClientScriptResolve(
     return NULL;
 }
 
-struct RSCacheDat2Disk*
-ToriAuxLibCache_Dat2Disk(struct ToriAuxLibCache* c)
-{
-    (void)c;
-    return NULL;
-}
-
 struct RSCacheDat2Disk_Archive*
 RSCacheDat2Disk_ArchiveNewLoad(
     struct RSCacheDat2Disk* cache,

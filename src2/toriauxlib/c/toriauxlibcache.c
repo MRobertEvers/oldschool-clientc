@@ -28,7 +28,6 @@ struct ToriAuxLibCache
     enum ToriAuxLibCacheMode mode;
     struct Dat1BuildCache* dat1_buildcache;
     struct Dat2BuildCache* dat2_buildcache;
-    struct RSCacheDat2Disk* dat2_disk;
     struct VarPVarBitManager* varp_varbit;
     int clientscript_decode_flags;
 };
@@ -96,22 +95,6 @@ ToriAuxLibCache_Dat2BuildCache(struct ToriAuxLibCache* c)
 {
     assert(c->mode == TORIAUXLIBCACHE_MODE_DAT2);
     return c->dat2_buildcache;
-}
-
-void
-ToriAuxLibCache_SetDat2Disk(
-    struct ToriAuxLibCache* c,
-    struct RSCacheDat2Disk* disk)
-{
-    if( !c )
-        return;
-    c->dat2_disk = disk;
-}
-
-struct RSCacheDat2Disk*
-ToriAuxLibCache_Dat2Disk(struct ToriAuxLibCache* c)
-{
-    return c ? c->dat2_disk : NULL;
 }
 
 struct ToriAuxLibCore*

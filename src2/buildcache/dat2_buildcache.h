@@ -2,6 +2,9 @@
 #define DAT2_BUILDCACHE_H
 
 #include "osrs/rscache/dat2a/dat2a_component.h"
+#include "osrs/rscache/dat2a/dat2a_config_enum.h"
+#include "osrs/rscache/dat2a/dat2a_config_param.h"
+#include "osrs/rscache/dat2a/dat2a_config_struct.h"
 #include "osrs/rscache/dat2a/dat2a_frame.h"
 #include "osrs/rscache/dat2a/dat2a_framemap.h"
 #include "osrs/rscache/dat2a/dat2a_maps.h"
@@ -29,6 +32,11 @@ enum Dat2BuildCache_Kind
     DAT2_BUILDCACHE_KIND_IDENTKIT,
     DAT2_BUILDCACHE_KIND_OBJECT,
     DAT2_BUILDCACHE_KIND_NPCTYPE,
+    DAT2_BUILDCACHE_KIND_FONT,
+    DAT2_BUILDCACHE_KIND_CLIENTSCRIPT,
+    DAT2_BUILDCACHE_KIND_PARAM,
+    DAT2_BUILDCACHE_KIND_ENUM,
+    DAT2_BUILDCACHE_KIND_STRUCT,
     DAT2_BUILDCACHE_KIND_COUNT,
 };
 
@@ -54,6 +62,16 @@ struct RSCacheDat2A_ConfigIdk;
 struct RSCacheDat2A_ConfigObject;
 struct RSCacheDat2A_ConfigNpctype;
 struct RSCacheDat2A_SkeletalBase;
+struct RSCacheDat2A_ClientScript;
+struct RSCacheDat2A_SpritePack;
+
+#define DAT2_BUILDCACHE_FONT_METRICS_SIZE 257
+
+struct Dat2BuildCache_FontAsset
+{
+    uint8_t metrics[DAT2_BUILDCACHE_FONT_METRICS_SIZE];
+    struct RSCacheDat2A_SpritePack* glyphs;
+};
 
 /**
  * Decoded frames from one idx0 animation archive.
@@ -97,6 +115,11 @@ struct Dat2BuildCache
     struct ToriDraw_Map* identkit_hmap;
     struct ToriDraw_Map* object_hmap;
     struct ToriDraw_Map* npctype_hmap;
+    struct ToriDraw_Map* fonts_hmap;
+    struct ToriDraw_Map* clientscripts_hmap;
+    struct ToriDraw_Map* params_hmap;
+    struct ToriDraw_Map* enums_hmap;
+    struct ToriDraw_Map* structs_hmap;
     struct ToriDraw_Map* interfaces_hmap;
     struct ToriDraw_Map* dynamic_sprites_hmap;
     struct RSCacheDat2Disk_ReferenceTable* reference_tables[RSCacheDat2Disk_Table_Count];
@@ -254,6 +277,14 @@ dat2_buildcache_objects_init_from_archive(
     struct RSCacheDat2Disk_Archive* archive,
     const int* wanted_ids,
     int wanted_count);
+
+struct RSCacheDat2Disk_ReferenceTable*
+dat2_buildcache_configs_table(struct Dat2BuildCache* dat2_buildcache);
+
+struct RSCacheDat2Disk_ArchiveReference*
+dat2_buildcache_archive_reference_from_table(
+    struct RSCacheDat2Disk_ReferenceTable* table,
+    struct RSCacheDat2Disk_Archive* archive);
 
 void
 dat2_buildcache_npctypes_init_from_archive(
@@ -508,6 +539,102 @@ void
 dat2_buildcache_dynamic_sprites_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
 void
+Dat2BuildCache_FontAssetFree(struct Dat2BuildCache_FontAsset* asset);
+
+bool
+dat2_buildcache_font_add_from_archives(
+    struct Dat2BuildCache* dat2_buildcache,
+    int font_id,
+    struct RSCacheDat2Disk_Archive* font_archive,
+    struct RSCacheDat2Disk_Archive* sprite_archive);
+
+struct Dat2BuildCache_FontAsset*
+dat2_buildcache_font_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int font_id);
+
+bool
+dat2_buildcache_font_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int font_id);
+
+void
+dat2_buildcache_clientscript_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int script_id,
+    struct RSCacheDat2A_ClientScript* script);
+
+struct RSCacheDat2A_ClientScript*
+dat2_buildcache_clientscript_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int script_id);
+
+bool
+dat2_buildcache_clientscript_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int script_id);
+
+struct RSCacheDat2A_ClientScript*
+dat2_buildcache_clientscript_decode_from_archive(
+    struct RSCacheDat2Disk_Archive* archive,
+    int script_id,
+    int decode_flags);
+
+void
+dat2_buildcache_params_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk_Archive* archive);
+
+void
+dat2_buildcache_enums_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk_Archive* archive);
+
+void
+dat2_buildcache_structs_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk_Archive* archive);
+
+struct RSCacheDat2A_ConfigParam*
+dat2_buildcache_param_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int param_id);
+
+struct RSCacheDat2A_ConfigEnum*
+dat2_buildcache_enum_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int enum_id);
+
+struct RSCacheDat2A_ConfigStruct*
+dat2_buildcache_struct_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int struct_id);
+
+void
 dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_meta_maps_init(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_meta_maps_free(struct Dat2BuildCache* dat2_buildcache);
+
+struct ToriDraw_Map*
+dat2_buildcache_map_new(
+    struct Dat2BuildCache* cache,
+    int entry_size,
+    int capacity);
+
+void
+dat2_buildcache_map_reset(
+    struct Dat2BuildCache* cache,
+    struct ToriDraw_Map** map_out,
+    int entry_size,
+    int capacity);
+
+void
+dat2_buildcache_map_free(
+    struct Dat2BuildCache* cache,
+    struct ToriDraw_Map* map);
 
 #endif

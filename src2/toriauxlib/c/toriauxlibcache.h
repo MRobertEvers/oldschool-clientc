@@ -4,7 +4,6 @@
 #include "../../libtorirs.h"
 #include "buildcache/dat1_buildcache.h"
 #include "buildcache/dat2_buildcache.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
 struct ToriAuxLibCache;
@@ -31,14 +30,6 @@ ToriAuxLibCache_Dat1BuildCache(struct ToriAuxLibCache* c);
 struct Dat2BuildCache*
 ToriAuxLibCache_Dat2BuildCache(struct ToriAuxLibCache* c);
 #define dat2(c) ((struct Dat2BuildCache*)ToriAuxLibCache_Dat2BuildCache(c))
-
-void
-ToriAuxLibCache_SetDat2Disk(
-    struct ToriAuxLibCache* c,
-    struct RSCacheDat2Disk* disk);
-
-struct RSCacheDat2Disk*
-ToriAuxLibCache_Dat2Disk(struct ToriAuxLibCache* c);
 
 struct ToriAuxLibCore*
 ToriAuxLibCache_Core(struct ToriAuxLibCache* c);

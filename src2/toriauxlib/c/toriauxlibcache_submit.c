@@ -19,9 +19,9 @@
 #include "osrs/rscache/dat2a/dat2a_maps.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat2a/dat2a_skeletalbase.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
+#include "toriauxlib/c/toriauxlibcache_font_convert.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
 #include <stdio.h>
@@ -349,95 +349,20 @@ ToriAuxLibCache_SubmitObjModelFromDat2(
     ToriAuxLibCore_ObjModelAdd(ToriAuxLibCache_Core(c), obj_id, gc_model);
 }
 
-static void
-toriauxlibcache_ensure_dat2_configs_reference_table(
-    struct Dat2BuildCache* dat2_bc,
-    struct RSCacheDat2Disk* disk)
-{
-    struct RSCacheDat2Disk_Archive* table_archive;
-    struct RSCacheDat2Disk_ReferenceTable* table;
-
-    if( !dat2_bc || !disk ||
-        dat2_buildcache_reference_table_has(dat2_bc, RSCacheDat2Disk_Table_Configs) )
-        return;
-
-    table_archive =
-        RSCacheDat2Disk_ArchiveNewReferenceTableLoad(disk, RSCacheDat2Disk_Table_Configs);
-    if( !table_archive )
-        return;
-
-    table = RSCacheDat2Disk_ReferenceTableNewDecode(table_archive->data, table_archive->data_size);
-    RSCacheDat2Disk_ArchiveFree(table_archive);
-    if( !table )
-        return;
-
-    dat2_buildcache_reference_table_add(dat2_bc, RSCacheDat2Disk_Table_Configs, table);
-}
-
-static bool
-toriauxlibcache_ensure_dat2_object_in_buildcache(
+bool
+ToriAuxLibCache_PromoteObjtype(
     struct ToriAuxLibCache* c,
     int obj_id)
 {
-    struct Dat2BuildCache* dat2_bc;
-    struct RSCacheDat2Disk* disk;
-    struct RSCacheDat2Disk_Archive* archive;
-
-    if( !c || obj_id <= 0 )
-        return false;
-
-    dat2_bc = dat2(c);
-    if( dat2_buildcache_object_get(dat2_bc, obj_id) )
-        return true;
-
-    disk = ToriAuxLibCache_Dat2Disk(c);
-    if( !disk || !dat2_bc )
-        return false;
-
-    toriauxlibcache_ensure_dat2_configs_reference_table(dat2_bc, disk);
-
-    archive = RSCacheDat2Disk_ArchiveNewLoad(
-        disk, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Object);
-    if( !archive )
-        return false;
-
-    RSCacheDat2Disk_ArchiveInitMetadata(disk, archive);
-    dat2_buildcache_objects_init_from_archive(dat2_bc, archive, &obj_id, 1);
-    RSCacheDat2Disk_ArchiveFree(archive);
-    return dat2_buildcache_object_get(dat2_bc, obj_id) != NULL;
+    return ToriAuxLibCache_EnsureObjtype(c, obj_id);
 }
 
-static bool
-toriauxlibcache_ensure_dat2_npctype_in_buildcache(
+bool
+ToriAuxLibCache_PromoteNpctype(
     struct ToriAuxLibCache* c,
     int npc_id)
 {
-    struct Dat2BuildCache* dat2_bc;
-    struct RSCacheDat2Disk* disk;
-    struct RSCacheDat2Disk_Archive* archive;
-
-    if( !c || npc_id < 0 )
-        return false;
-
-    dat2_bc = dat2(c);
-    if( dat2_buildcache_npctype_get(dat2_bc, npc_id) )
-        return true;
-
-    disk = ToriAuxLibCache_Dat2Disk(c);
-    if( !disk || !dat2_bc )
-        return false;
-
-    toriauxlibcache_ensure_dat2_configs_reference_table(dat2_bc, disk);
-
-    archive = RSCacheDat2Disk_ArchiveNewLoad(
-        disk, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Npc);
-    if( !archive )
-        return false;
-
-    RSCacheDat2Disk_ArchiveInitMetadata(disk, archive);
-    dat2_buildcache_npctypes_init_from_archive(dat2_bc, archive, &npc_id, 1);
-    RSCacheDat2Disk_ArchiveFree(archive);
-    return dat2_buildcache_npctype_get(dat2_bc, npc_id) != NULL;
+    return ToriAuxLibCache_EnsureNpctype(c, npc_id);
 }
 
 bool
@@ -454,9 +379,6 @@ ToriAuxLibCache_EnsureObjtype(
 
     if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT2 )
     {
-        if( !dat2_buildcache_object_get(dat2(c), obj_id) )
-            toriauxlibcache_ensure_dat2_object_in_buildcache(c, obj_id);
-
         struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(dat2(c), obj_id);
         if( !obj )
             return false;
@@ -497,9 +419,6 @@ ToriAuxLibCache_EnsureNpctype(
 
     if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT2 )
     {
-        if( !dat2_buildcache_npctype_get(dat2(c), npc_id) )
-            toriauxlibcache_ensure_dat2_npctype_in_buildcache(c, npc_id);
-
         struct RSCacheDat2A_ConfigNpctype* npc = dat2_buildcache_npctype_get(dat2(c), npc_id);
         if( !npc )
             return false;
@@ -876,6 +795,53 @@ ToriAuxLibCache_SubmitSkeletalFromDat2(
 }
 
 void
+ToriAuxLibCache_SubmitFontFromDat2(
+    struct ToriAuxLibCache* c,
+    int font_id)
+{
+    struct Dat2BuildCache_FontAsset* asset;
+    struct ToriAuxLibCore_Font* font;
+
+    if( !c || font_id < 0 )
+        return;
+
+    asset = dat2_buildcache_font_get(dat2(c), font_id);
+    if( !asset || !asset->glyphs )
+        return;
+
+    font = ToriAuxLibCache_FontNewFromDat2FontAsset(asset, font_id);
+    if( !font )
+        return;
+
+    ToriAuxLibCache_SubmitFont(c, font_id, font);
+}
+
+void
+ToriAuxLibCache_SubmitClientScriptFromDat2(
+    struct ToriAuxLibCache* c,
+    int script_id)
+{
+    struct RSCacheDat2A_ClientScript* l1_script;
+    struct ToriAuxLibCore_ClientScript* script;
+
+    if( !c || script_id < 0 )
+        return;
+
+    if( ToriAuxLibCore_ClientScriptGet(ToriAuxLibCache_Core(c), script_id) )
+        return;
+
+    l1_script = dat2_buildcache_clientscript_get(dat2(c), script_id);
+    if( !l1_script )
+        return;
+
+    script = ToriAuxLibCache_ClientScriptNewFromDat2Decode(script_id, l1_script);
+    if( !script )
+        return;
+
+    ToriAuxLibCache_SubmitClientScript(c, script_id, script);
+}
+
+void
 ToriAuxLibCache_SubmitClientScript(
     struct ToriAuxLibCache* c,
     int script_id,
@@ -902,18 +868,6 @@ ToriAuxLibCache_ClientScriptResolve(
     if( ToriAuxLibCache_Mode(c) != TORIAUXLIBCACHE_MODE_DAT2 )
         return NULL;
 
-    struct RSCacheDat2Disk* disk = ToriAuxLibCache_Dat2Disk(c);
-    if( !disk )
-        return NULL;
-
-    struct RSCacheDat2Disk_Archive* archive =
-        RSCacheDat2Disk_ArchiveNewLoad(disk, RSCacheDat2Disk_Table_Clientscript, script_id);
-    if( !archive )
-        return NULL;
-
-    struct ToriAuxLibCore_ClientScript* script = ToriAuxLibCache_ClientScriptNewFromDat2Archive(
-        disk, archive, script_id, ToriAuxLibCache_ClientscriptDecodeFlags(c));
-    if( script )
-        ToriAuxLibCache_SubmitClientScript(c, script_id, script);
-    return script;
+    ToriAuxLibCache_SubmitClientScriptFromDat2(c, script_id);
+    return ToriAuxLibCore_ClientScriptGet(core, script_id);
 }

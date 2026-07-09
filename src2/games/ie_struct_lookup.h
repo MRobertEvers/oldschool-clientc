@@ -3,11 +3,11 @@
 
 #include <stdbool.h>
 
-struct RSCacheDat2Disk;
+struct Dat2BuildCache;
 
 bool
 ie_struct_param_lookup(
-    struct RSCacheDat2Disk* cache,
+    struct Dat2BuildCache* bc,
     int struct_id,
     int param_id,
     bool* out_is_string,

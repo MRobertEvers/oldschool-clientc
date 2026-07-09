@@ -177,13 +177,6 @@ main(
         goto error_exit;
     }
 
-    if( use_dat2 )
-    {
-        struct RSCacheDat2Disk* dat2_disk = cachelib_dat2_disk(cache);
-        if( dat2_disk )
-            ToriAuxLibCache_SetDat2Disk(ToriAuxLib_C(LibToriRS_GetToriAuxLib(instance)), dat2_disk);
-    }
-
     io_reactor = LibToriPlatformX_IOReactorNew(cache);
     if( !io_reactor )
     {

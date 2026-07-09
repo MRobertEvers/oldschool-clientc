@@ -53,6 +53,10 @@ struct Task_RSComponentLoad
     int needed_model_count;
     int model_prefetch_chunk_index;
 
+    int* needed_script_ids;
+    int needed_script_count;
+    int script_prefetch_index;
+
     void* walk_ifaces;
     void* walk_root;
     int walk_root_id;

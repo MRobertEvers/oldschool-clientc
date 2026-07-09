@@ -3,7 +3,9 @@
 #include "enum_lookup.h"
 #include "fixture.h"
 #include "games/ie_enum_lookup.h"
-#include "struct_lookup.h"
+#include "games/ie_struct_lookup.h"
+#include "osrs/rscache/dat2a/dat2a_configs.h"
+#include "osrs/rscache/shared/shared_file_list.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
@@ -381,6 +383,36 @@ interface161_cs2_seed_empty_worn(struct Interface161Cs2Context* ctx)
         rs_inv_container_set_slot(container, slot, 0, 0, -1, 0);
 }
 
+static void
+interface161_cs2_ensure_config_meta(struct Interface161Cs2Context* ctx)
+{
+    struct RSCacheDat2Disk_Archive* params_archive;
+    struct RSCacheDat2Disk_Archive* enum_archive;
+    struct RSCacheDat2Disk_Archive* struct_archive;
+
+    if( !ctx || !ctx->cache || !ctx->dat2_bc || ctx->config_meta_loaded )
+        return;
+
+    params_archive = RSCacheDat2Disk_ArchiveNewLoad(
+        ctx->cache, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Params);
+    enum_archive = RSCacheDat2Disk_ArchiveNewLoad(
+        ctx->cache, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Enum);
+    struct_archive = RSCacheDat2Disk_ArchiveNewLoad(
+        ctx->cache, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Struct);
+
+    if( params_archive )
+        dat2_buildcache_params_init_from_archive(ctx->dat2_bc, params_archive);
+    if( enum_archive )
+        dat2_buildcache_enums_init_from_archive(ctx->dat2_bc, enum_archive);
+    if( struct_archive )
+        dat2_buildcache_structs_init_from_archive(ctx->dat2_bc, struct_archive);
+
+    RSCacheDat2Disk_ArchiveFree(params_archive);
+    RSCacheDat2Disk_ArchiveFree(enum_archive);
+    RSCacheDat2Disk_ArchiveFree(struct_archive);
+    ctx->config_meta_loaded = true;
+}
+
 static int
 interface161_cs2_enum_lookup(
     void* ud,
@@ -391,9 +423,10 @@ interface161_cs2_enum_lookup(
 {
     (void)ud;
     struct Interface161Cs2Context* ctx = s_runner.ctx;
-    if( !ctx || !ctx->cache )
+    if( !ctx || !ctx->dat2_bc )
         return -1;
-    return ie_enum_lookup(ctx->cache, input_type, output_type, enum_id, key);
+    interface161_cs2_ensure_config_meta(ctx);
+    return ie_enum_lookup(ctx->dat2_bc, input_type, output_type, enum_id, key);
 }
 
 static char const*
@@ -406,9 +439,10 @@ interface161_cs2_enum_lookup_string(
 {
     (void)ud;
     struct Interface161Cs2Context* ctx = s_runner.ctx;
-    if( !ctx || !ctx->cache )
+    if( !ctx || !ctx->dat2_bc )
         return NULL;
-    return ie_enum_lookup_string(ctx->cache, input_type, output_type, enum_id, key);
+    interface161_cs2_ensure_config_meta(ctx);
+    return ie_enum_lookup_string(ctx->dat2_bc, input_type, output_type, enum_id, key);
 }
 
 static int
@@ -432,10 +466,11 @@ interface161_cs2_struct_param(
     char const** out_str)
 {
     struct Interface161Cs2Context* ctx = ud;
-    if( !ctx || !ctx->cache )
+    if( !ctx || !ctx->dat2_bc )
         return false;
-    return interface161_struct_param_lookup(
-        ctx->cache, struct_id, param_id, out_is_string, out_int, out_str);
+    interface161_cs2_ensure_config_meta(ctx);
+    return ie_struct_param_lookup(
+        ctx->dat2_bc, struct_id, param_id, out_is_string, out_int, out_str);
 }
 
 static void
@@ -615,8 +650,8 @@ interface161_cs2_cache_script(
     }
 
     struct ToriAuxLibCore_ClientScript* loaded =
-        ToriAuxLibCache_ClientScriptNewFromDat2Archive(
-            disk, archive, script_id, interface161_cs2_resolve_decode_flags());
+        ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
+            archive, script_id, interface161_cs2_resolve_decode_flags());
     if( !loaded || loaded->script.op_count <= 0 )
     {
         fprintf(stderr, "interface161_cs2: failed to decode script %d from cache\n", script_id);
@@ -805,6 +840,7 @@ interface161_cs2_context_init(struct Interface161Cs2Context* ctx)
     if( !ctx )
         return;
     memset(ctx, 0, sizeof(*ctx));
+    ctx->dat2_bc = dat2_buildcache_new();
 }
 
 void
@@ -812,6 +848,10 @@ interface161_cs2_context_free(struct Interface161Cs2Context* ctx)
 {
     if( !ctx )
         return;
+
+    if( ctx->dat2_bc )
+        dat2_buildcache_free(ctx->dat2_bc);
+    ctx->dat2_bc = NULL;
     if( ctx->tree )
         uitree_free(ctx->tree);
     if( ctx->cs2vm )
@@ -866,7 +906,6 @@ interface161_cs2_init_host_shell(
     struct CS2HostUIInitArgs args = {
         .core = NULL,
         .cache = NULL,
-        .dat2_disk = ctx->cache,
         .vm = NULL,
         .tree = ctx->tree,
         .resolve_obj_icon = interface161_cs2_resolve_obj_icon,

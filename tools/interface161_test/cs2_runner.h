@@ -2,6 +2,7 @@
 #define INTERFACE161_CS2_RUNNER_H
 
 #include "fixture.h"
+#include "buildcache/dat2_buildcache.h"
 #include "osrs/rscache/dat2a/dat2a_clientscript.h"
 #include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
@@ -15,6 +16,8 @@ struct CS2Host;
 struct Interface161Cs2Context
 {
     struct RSCacheDat2Disk* cache;
+    struct Dat2BuildCache* dat2_bc;
+    bool config_meta_loaded;
     struct UITree* tree;
     struct CS2VM* cs2vm;
     struct CS2Host* cs2host;

@@ -121,6 +121,7 @@ COMMON_SRCS := interface_editor.c \
 	$(SCRIPT_DIR)/libtorirs_scriptapi.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
 	$(SRC2)/buildcache/dat2_buildcache.c \
+	$(SRC2)/buildcache/dat2_buildcache_meta.c \
 	$(SRC2)/toriauxlib/toriauxlib.c \
 	$(SRC2)/toriauxlib/core/toriauxlibcore.c \
 	$(SRC2)/toriauxlib/core/toriauxlibcore_types.c \

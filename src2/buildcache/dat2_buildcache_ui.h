@@ -19,8 +19,8 @@ dat2_buildcache_sprite_decode_id_from_archive(
 
 struct ToriAuxLibCore_Font*
 dat2_buildcache_font_decode_from_archive(
-    struct RSCacheDat2Disk* cache,
-    struct RSCacheDat2Disk_Archive* archive,
+    struct RSCacheDat2Disk_Archive* font_archive,
+    struct RSCacheDat2Disk_Archive* sprite_archive,
     int font_id);
 
 RSCacheDat2A_Component*

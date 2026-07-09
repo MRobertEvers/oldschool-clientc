@@ -1,7 +1,7 @@
 #include "toriauxlibcache_font_convert.h"
 
+#include "buildcache/dat2_buildcache.h"
 #include "osrs/rscache/dat2a/dat2a_sprites.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "toridraw/toridraw_font.h"
 
@@ -144,6 +144,27 @@ ToriAuxLibCache_FontNewFromDat1Jagfile(
 }
 
 struct ToriAuxLibCore_Font*
+ToriAuxLibCache_FontNewFromDat2FontAsset(
+    struct Dat2BuildCache_FontAsset const* asset,
+    int font_id)
+{
+    struct ToriDraw_Font* draw_font;
+    struct ToriAuxLibCore_Font* font;
+
+    if( !asset || !asset->glyphs || font_id < 0 )
+        return NULL;
+
+    draw_font = font_new_from_dat2_metrics_and_sprite_pack(asset->metrics, asset->glyphs);
+    if( !draw_font )
+        return NULL;
+
+    font = ToriAuxLibCache_FontNewFromToriDrawByMove(draw_font);
+    if( font )
+        snprintf(font->name, sizeof(font->name), "fnt:%d", font_id);
+    return font;
+}
+
+struct ToriAuxLibCore_Font*
 ToriAuxLibCache_FontNewFromDat2Archives(
     struct RSCacheDat2Disk_Archive* font_archive,
     struct RSCacheDat2Disk_Archive* sprite_archive,
@@ -168,53 +189,6 @@ ToriAuxLibCache_FontNewFromDat2Archives(
     uint8_t metrics[DAT2_FONT_METRICS_SIZE];
     memcpy(metrics, fl->files[0], DAT2_FONT_METRICS_SIZE);
     RSCacheShared_FileListFree(fl);
-
-    struct RSCacheDat2A_SpritePack* pack = RSCacheDat2A_SpritePackNewDecode(
-        (unsigned char const*)sprite_archive->data,
-        sprite_archive->data_size,
-        SPRITELOAD_FLAG_NONE);
-    RSCacheDat2Disk_ArchiveFree(sprite_archive);
-    if( !pack )
-        return NULL;
-
-    struct ToriDraw_Font* draw_font = font_new_from_dat2_metrics_and_sprite_pack(metrics, pack);
-    RSCacheDat2A_SpritePackFree(pack);
-    struct ToriAuxLibCore_Font* font = ToriAuxLibCache_FontNewFromToriDrawByMove(draw_font);
-    if( font )
-        snprintf(font->name, sizeof(font->name), "fnt:%d", font_id);
-    return font;
-}
-
-struct ToriAuxLibCore_Font*
-ToriAuxLibCache_FontNewFromDat2Archive(
-    struct RSCacheDat2Disk* cache,
-    struct RSCacheDat2Disk_Archive* archive,
-    int font_id)
-{
-    if( !cache || !archive || font_id < 0 )
-    {
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return NULL;
-    }
-
-    RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(archive);
-    if( !fl || fl->file_count <= 0 || fl->file_sizes[0] < DAT2_FONT_METRICS_SIZE )
-    {
-        RSCacheDat2Disk_ArchiveFree(archive);
-        RSCacheShared_FileListFree(fl);
-        return NULL;
-    }
-
-    uint8_t metrics[DAT2_FONT_METRICS_SIZE];
-    memcpy(metrics, fl->files[0], DAT2_FONT_METRICS_SIZE);
-    RSCacheShared_FileListFree(fl);
-    RSCacheDat2Disk_ArchiveFree(archive);
-
-    struct RSCacheDat2Disk_Archive* sprite_archive =
-        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Sprites, font_id);
-    if( !sprite_archive )
-        return NULL;
 
     struct RSCacheDat2A_SpritePack* pack = RSCacheDat2A_SpritePackNewDecode(
         (unsigned char const*)sprite_archive->data,

@@ -216,8 +216,7 @@ painter_fuzz_cache_scene(
     }
 
     struct RSCacheDat2Disk* disk = cachelib_dat2_disk(cache);
-    if( disk )
-        ToriAuxLibCache_SetDat2Disk(ToriAuxLib_C(LibToriRS_GetToriAuxLib(inst)), disk);
+    (void)disk;
 
     struct LibToriPlatformX_IOReactor* rx = LibToriPlatformX_IOReactorNew(cache);
     if( !rx )

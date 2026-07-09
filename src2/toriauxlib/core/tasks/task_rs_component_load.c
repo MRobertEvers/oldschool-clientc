@@ -12,6 +12,7 @@
 #include "osrs/rscache/dat2a/dat2a_component.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/tasks/task_clientscript_load.h"
 #include "toriauxlib/core/tasks/task_dat2_io.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
@@ -213,6 +214,7 @@ Task_RSComponentLoad_Free(struct Task_RSComponentLoad* task)
         return;
     free(task->needed_sprite_ids);
     free(task->needed_model_ids);
+    free(task->needed_script_ids);
     free(task);
 }
 
@@ -992,6 +994,45 @@ Task_RSComponentLoad_Run(
             dat2_buildcache_interface_archive_add(
                 task->rc_ctx->dat2_bc, task->iface_id, task->iface_archive);
             ToriAuxLibCache_SubmitComponentsFromDat2(task->cache, task->iface_archive);
+            toriauxlibcache_collect_component_hook_script_ids(
+                task->iface_archive, &task->needed_script_ids, &task->needed_script_count);
+            task->script_prefetch_index = 0;
+        }
+
+        while( task->script_prefetch_index < task->needed_script_count )
+        {
+            if( task->needed_script_ids[task->script_prefetch_index] >= 0 &&
+                !ToriAuxLibCore_ClientScriptGet(
+                    ToriAuxLibCache_Core(task->cache),
+                    task->needed_script_ids[task->script_prefetch_index]) &&
+                !dat2_buildcache_clientscript_has(
+                    dat2(task->cache), task->needed_script_ids[task->script_prefetch_index]) )
+            {
+                IO_REQUEST(
+                    ctx,
+                    0,
+                    TAPIDat2_FetchClientScript(
+                        ctx, task->needed_script_ids[task->script_prefetch_index]));
+                PT_YIELD(&task->thread);
+
+                struct RSCacheDat2A_ClientScript* decoded =
+                    dat2_buildcache_clientscript_decode_from_archive(
+                        TAPIDat2_DecodeClientScriptArchive(
+                            ctx, 0, task->needed_script_ids[task->script_prefetch_index]),
+                        task->needed_script_ids[task->script_prefetch_index],
+                        ToriAuxLibCache_ClientscriptDecodeFlags(task->cache));
+                if( decoded )
+                {
+                    dat2_buildcache_clientscript_add(
+                        dat2(task->cache),
+                        task->needed_script_ids[task->script_prefetch_index],
+                        decoded);
+                    ToriAuxLibCache_SubmitClientScriptFromDat2(
+                        task->cache, task->needed_script_ids[task->script_prefetch_index]);
+                }
+                LibToriRS_IOQueueClear(ctx->io);
+            }
+            task->script_prefetch_index++;
         }
 
         dat2_collect_needed_sprites_from_archive(task, task->iface_archive);

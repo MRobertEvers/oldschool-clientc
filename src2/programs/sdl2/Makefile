@@ -122,6 +122,7 @@ COMMON_SRCS := sdl2.c \
 	$(SCRIPT_DIR)/libtorirs_scriptapi.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
 	$(SRC2)/buildcache/dat2_buildcache.c \
+	$(SRC2)/buildcache/dat2_buildcache_meta.c \
 	$(SRC2)/toriauxlib/toriauxlib.c \
 	$(SRC2)/toriauxlib/core/toriauxlibcore.c \
 	$(SRC2)/toriauxlib/core/toriauxlibcore_types.c \
@@ -168,6 +169,9 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/ui/ui_debug.c \
 	$(SRC2)/toriauxlib/core/tasks/instance_revconfig_context.c \
 	$(SRC2)/toriauxlib/core/tasks/task_rs_component_load.c \
+	$(SRC2)/toriauxlib/core/tasks/task_clientscript_load.c \
+	$(SRC2)/toriauxlib/core/tasks/task_dat2_config_meta_load.c \
+	$(SRC2)/toriauxlib/core/tasks/task_dat2_textures_load.c \
 	$(SRC2)/toriauxlib/core/tasks/task_dat2_anim_io.c \
 	$(SRC2)/toriauxlib/core/tasks/task_rs_inv_load.c \
 	$(SRC2)/toriauxlib/core/tasks/task_instance_on_rc.c \

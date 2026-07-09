@@ -65,13 +65,6 @@ ToriAuxLibCache_ClientScriptResolve(
     return NULL;
 }
 
-struct RSCacheDat2Disk*
-ToriAuxLibCache_Dat2Disk(struct ToriAuxLibCache* c)
-{
-    (void)c;
-    return NULL;
-}
-
 int
 varp_varbit_get_varp(
     struct VarPVarBitManager const* mgr,

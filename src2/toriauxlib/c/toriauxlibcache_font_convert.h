@@ -1,6 +1,7 @@
 #ifndef TORIAUXLIBCACHE_FONT_CONVERT_H
 #define TORIAUXLIBCACHE_FONT_CONVERT_H
 
+#include "buildcache/dat2_buildcache.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 
 struct RSCacheDat2Disk;
@@ -24,9 +25,8 @@ ToriAuxLibCache_FontNewFromDat1Jagfile(
     char const* font_name);
 
 struct ToriAuxLibCore_Font*
-ToriAuxLibCache_FontNewFromDat2Archive(
-    struct RSCacheDat2Disk* cache,
-    struct RSCacheDat2Disk_Archive* archive,
+ToriAuxLibCache_FontNewFromDat2FontAsset(
+    struct Dat2BuildCache_FontAsset const* asset,
     int font_id);
 
 struct ToriAuxLibCore_Font*

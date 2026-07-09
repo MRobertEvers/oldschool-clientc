@@ -154,7 +154,7 @@ dat2_buildcache_map_buffer_size(struct ToriDraw_Map* map)
     return ToriDraw_MapBufferSizeFor(ToriDraw_MapEntrySize(map), ToriDraw_MapCapacity(map));
 }
 
-static struct ToriDraw_Map*
+struct ToriDraw_Map*
 dat2_buildcache_map_new(
     struct Dat2BuildCache* cache,
     int entry_size,
@@ -174,7 +174,7 @@ dat2_buildcache_map_new(
     return map;
 }
 
-static void
+void
 dat2_buildcache_map_free(
     struct Dat2BuildCache* cache,
     struct ToriDraw_Map* map)
@@ -188,7 +188,7 @@ dat2_buildcache_map_free(
     ToriDraw_MapFree(map);
 }
 
-static void
+void
 dat2_buildcache_map_reset(
     struct Dat2BuildCache* cache,
     struct ToriDraw_Map** map_out,
@@ -202,7 +202,7 @@ dat2_buildcache_map_reset(
     *map_out = dat2_buildcache_map_new(cache, entry_size, capacity);
 }
 
-static struct RSCacheDat2Disk_ArchiveReference*
+struct RSCacheDat2Disk_ArchiveReference*
 dat2_buildcache_archive_reference_from_table(
     struct RSCacheDat2Disk_ReferenceTable* table,
     struct RSCacheDat2Disk_Archive* archive)
@@ -217,7 +217,7 @@ dat2_buildcache_archive_reference_from_table(
     return &table->archives[archive->archive_id];
 }
 
-static struct RSCacheDat2Disk_ReferenceTable*
+struct RSCacheDat2Disk_ReferenceTable*
 dat2_buildcache_configs_table(struct Dat2BuildCache* dat2_buildcache)
 {
     if( !dat2_buildcache )
@@ -268,6 +268,7 @@ dat2_buildcache_new(void)
         dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_ConfigObject), 8192);
     dat2_buildcache->npctype_hmap =
         dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_ConfigNpctype), 8192);
+    dat2_buildcache_meta_maps_init(dat2_buildcache);
     dat2_buildcache->interfaces_hmap =
         dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_InterfaceArchive), 512);
     dat2_buildcache->dynamic_sprites_hmap =
@@ -493,6 +494,7 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->dynamic_sprites_hmap);
     }
 
+    dat2_buildcache_meta_maps_free(dat2_buildcache);
     dat2_buildcache_reference_tables_cleanup(dat2_buildcache);
 
     memset(dat2_buildcache->asset_bytes, 0, sizeof(dat2_buildcache->asset_bytes));

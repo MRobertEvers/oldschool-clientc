@@ -67,8 +67,8 @@ parity_cache_script(int script_id)
     struct RSCacheDat2Disk_Archive* archive =
         RSCacheDat2Disk_ArchiveNewLoad(s_cache, RSCacheDat2Disk_Table_Clientscript, script_id);
     struct ToriAuxLibCore_ClientScript* loaded =
-        ToriAuxLibCache_ClientScriptNewFromDat2Archive(
-            s_cache, archive, script_id, interface161_cs2_clientscript_decode_flags());
+        ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
+            archive, script_id, interface161_cs2_clientscript_decode_flags());
     if( !loaded || loaded->script.op_count <= 0 )
         return;
     s_scripts[s_script_count].script_id = script_id;

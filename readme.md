@@ -2124,7 +2124,7 @@ OSRS clips **every** positive-size layer/container to its own bounds before draw
 
 ### How interfacex implements it
 
-`UITreeX_RenderNode` in `tools/interfacex/main.c` keeps a recursive clip rect in `g_render_clip_*` (canvas space, half-open `[x0,y0)..[x1,y1)`). Before rendering a layer's children, if the layer has `abs_w > 0` and `abs_h > 0`, the clip is intersected with the layer viewport (`abs_x/y` .. `abs_x+abs_w`, `abs_y+abs_h`). Primitives (`InterfaceX_FillRect`, `InterfaceX_DrawLine`, text, sprites) already drop pixels outside that clip.
+`UITreeX_RenderNode` in `tools/interfacex/main.c` keeps a recursive clip rect in `g_render_clip_*` (canvas space, half-open `[x0,y0)..[x1,y1)`). Before rendering a layer's children, if the layer has `abs_w > 0` and `abs_h > 0`, the clip is intersected with the layer viewport (`abs_x/y` .. `abs_x+abs_w`, `abs_y+abs_h`). Primitives (`ToriDraw2D_FillRect`, `ToriDraw2D_DrawLine`, text, sprites) already drop pixels outside that clip.
 
 Scroll is separate: scroll offsets shift child positions during layout; clipping still uses the layer's visible bounds.
 

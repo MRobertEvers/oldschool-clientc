@@ -13,6 +13,7 @@
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 #include "toridraw/toridraw.h"
+#include "toridraw/toridraw_2d.h"
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model_sprite.h"
@@ -39,15 +40,15 @@ static char g_cs2_trace_extra[512];
 #define INVENTORY_INTERFACE 630
 #define EQUIPMENT_INTERFACE 387
 
-// #define CANVAS_W 1024
-// #define CANVAS_H 768
+#define CANVAS_W 1024
+#define CANVAS_H 768
 #define CANVAS_BG 0xFF202428
 
 // portal nexus viewport size
 // There is some padding that gets added so we account for that
 // It's either 10 or 9 all the way around.
-#define CANVAS_W (492 + 20)
-#define CANVAS_H (314 + 20)
+// #define CANVAS_W (492 + 20)
+// #define CANVAS_H (314 + 20)
 
 // export const ContentType = {
 //     VIEWPORT: 1337, // 3D game viewport
@@ -74,6 +75,18 @@ static int g_render_clip_x0 = 0;
 static int g_render_clip_y0 = 0;
 static int g_render_clip_x1 = CANVAS_W;
 static int g_render_clip_y1 = CANVAS_H;
+
+static struct ToriDraw_ViewPort
+InterfaceX_RenderViewPort(void)
+{
+    return (struct ToriDraw_ViewPort){
+        .clip_left = g_render_clip_x0,
+        .clip_top = g_render_clip_y0,
+        .clip_right = g_render_clip_x1,
+        .clip_bottom = g_render_clip_y1,
+        .stride = CANVAS_W,
+    };
+}
 
 static inline int
 uitree_mul_shift14(
@@ -9404,177 +9417,6 @@ UITreeX_ApplyComponentGeometry(
     }
 }
 
-/* Alpha-blends a single ARGB pixel into dest, matching blit_rgba_pixel below
- * (declared ahead of its definition so InterfaceX_FillRect can honor node trans). */
-static void
-blit_rgba_pixel(
-    int* dest,
-    int dstride,
-    int sx,
-    int sy,
-    int p);
-
-static void
-InterfaceX_FillRect(
-    int* pixels,
-    int stride,
-    int x0,
-    int y0,
-    int x1,
-    int y1,
-    int argb)
-{
-    if( x0 < g_render_clip_x0 )
-        x0 = g_render_clip_x0;
-    if( y0 < g_render_clip_y0 )
-        y0 = g_render_clip_y0;
-    if( x1 > g_render_clip_x1 )
-        x1 = g_render_clip_x1;
-    if( y1 > g_render_clip_y1 )
-        y1 = g_render_clip_y1;
-
-    int a = (argb >> 24) & 0xFF;
-    for( int y = y0; y < y1; y++ )
-    {
-        for( int x = x0; x < x1; x++ )
-        {
-            if( a >= 255 )
-                pixels[y * stride + x] = argb;
-            else
-                blit_rgba_pixel(pixels, stride, x, y, argb);
-        }
-    }
-}
-
-static int
-InterfaceX_LerpChannel(
-    int a,
-    int b,
-    int t,
-    int denom)
-{
-    if( denom <= 0 )
-        return a;
-    return a + (b - a) * t / denom;
-}
-
-static void
-InterfaceX_FillRectGradientVertical(
-    int* pixels,
-    int stride,
-    int x0,
-    int y0,
-    int x1,
-    int y1,
-    int color_top,
-    int color_bot,
-    int alpha)
-{
-    int h = y1 - y0;
-    if( h <= 0 )
-        return;
-
-    for( int y = y0; y < y1; y++ )
-    {
-        int t = y - y0;
-        int r = InterfaceX_LerpChannel((color_top >> 16) & 0xFF, (color_bot >> 16) & 0xFF, t, h);
-        int g = InterfaceX_LerpChannel((color_top >> 8) & 0xFF, (color_bot >> 8) & 0xFF, t, h);
-        int b = InterfaceX_LerpChannel(color_top & 0xFF, color_bot & 0xFF, t, h);
-        int argb = (alpha << 24) | (r << 16) | (g << 8) | b;
-        InterfaceX_FillRect(pixels, stride, x0, y, x1, y + 1, argb);
-    }
-}
-
-static void
-InterfaceX_FillRectGradientAlpha(
-    int* pixels,
-    int stride,
-    int x0,
-    int y0,
-    int x1,
-    int y1,
-    int color_top,
-    int color_bot,
-    int alpha_top,
-    int alpha_bot)
-{
-    int h = y1 - y0;
-    if( h <= 0 )
-        return;
-
-    for( int y = y0; y < y1; y++ )
-    {
-        int t = y - y0;
-        int r = InterfaceX_LerpChannel((color_top >> 16) & 0xFF, (color_bot >> 16) & 0xFF, t, h);
-        int g = InterfaceX_LerpChannel((color_top >> 8) & 0xFF, (color_bot >> 8) & 0xFF, t, h);
-        int b = InterfaceX_LerpChannel(color_top & 0xFF, color_bot & 0xFF, t, h);
-        int a = InterfaceX_LerpChannel(alpha_top, alpha_bot, t, h);
-        int argb = (a << 24) | (r << 16) | (g << 8) | b;
-        InterfaceX_FillRect(pixels, stride, x0, y, x1, y + 1, argb);
-    }
-}
-
-static void
-InterfaceX_DrawRectOutline(
-    int* pixels,
-    int stride,
-    int x0,
-    int y0,
-    int x1,
-    int y1,
-    int argb)
-{
-    InterfaceX_FillRect(pixels, stride, x0, y0, x1, y0 + 1, argb);
-    InterfaceX_FillRect(pixels, stride, x0, y1 - 1, x1, y1, argb);
-    InterfaceX_FillRect(pixels, stride, x0, y0, x0 + 1, y1, argb);
-    InterfaceX_FillRect(pixels, stride, x1 - 1, y0, x1, y1, argb);
-}
-
-static void
-InterfaceX_DrawLine(
-    int* pixels,
-    int stride,
-    int x0,
-    int y0,
-    int x1,
-    int y1,
-    int thickness,
-    int argb)
-{
-    if( thickness < 1 )
-        thickness = 1;
-
-    int dx = abs(x1 - x0);
-    int dy = abs(y1 - y0);
-    int sx = x0 < x1 ? 1 : -1;
-    int sy = y0 < y1 ? 1 : -1;
-    int err = dx - dy;
-    int x = x0;
-    int y = y0;
-
-    while( true )
-    {
-        int half = thickness / 2;
-        InterfaceX_FillRect(
-            pixels, stride, x - half, y - half, x - half + thickness, y - half + thickness, argb);
-
-        if( x == x1 && y == y1 )
-            break;
-
-        int e2 = err * 2;
-        if( e2 > -dy )
-        {
-            err -= dy;
-            x += sx;
-        }
-        if( e2 < dx )
-        {
-            err += dx;
-            y += sy;
-        }
-    }
-}
-
 static void
 interface_x_transform_sprite_pixels(
     uint32_t** spr_px,
@@ -9673,346 +9515,6 @@ interface_x_transform_sprite_pixels(
     *sh = dst_h;
 }
 
-static void
-blit_rgba_pixel(
-    int* dest,
-    int dstride,
-    int sx,
-    int sy,
-    int p)
-{
-    if( sx < g_render_clip_x0 || sy < g_render_clip_y0 || sx >= g_render_clip_x1 ||
-        sy >= g_render_clip_y1 )
-        return;
-
-    int a = (p >> 24) & 0xFF;
-    if( a == 0 )
-        return;
-
-    if( a == 255 )
-    {
-        dest[sy * dstride + sx] = (p & 0x00FFFFFF) | 0xFF000000;
-        return;
-    }
-
-    int d = dest[sy * dstride + sx];
-    int dr = (d >> 16) & 0xFF;
-    int dg = (d >> 8) & 0xFF;
-    int db = d & 0xFF;
-    int sr = (p >> 16) & 0xFF;
-    int sg = (p >> 8) & 0xFF;
-    int sb = p & 0xFF;
-    int rr = (sr * a + dr * (255 - a)) / 255;
-    int rg = (sg * a + dg * (255 - a)) / 255;
-    int rb = (sb * a + db * (255 - a)) / 255;
-    dest[sy * dstride + sx] = 0xFF000000 | (rr << 16) | (rg << 8) | rb;
-}
-
-static void
-blit_rgba_sprite(
-    int* dest,
-    int dstride,
-    int dx,
-    int dy,
-    int const* spr,
-    int sw,
-    int sh)
-{
-    for( int y = 0; y < sh; y++ )
-    {
-        int sy = dy + y;
-        for( int x = 0; x < sw; x++ )
-            blit_rgba_pixel(dest, dstride, dx + x, sy, spr[y * sw + x]);
-    }
-}
-
-/* Like blit_rgba_sprite, but source (sw x sh) and destination (dw x dh) sizes may differ.
- * Uses nearest-neighbor sampling so the source stride (sw) is always respected, unlike a
- * plain blit_rgba_sprite call with a shrunk width/height (which would read the wrong pixels). */
-static void
-blit_rgba_sprite_scaled(
-    int* dest,
-    int dstride,
-    int dx,
-    int dy,
-    int dw,
-    int dh,
-    int const* spr,
-    int sw,
-    int sh)
-{
-    if( sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0 )
-        return;
-
-    for( int y = 0; y < dh; y++ )
-    {
-        int sy = (y * sh) / dh;
-        if( sy >= sh )
-            sy = sh - 1;
-        int dsty = dy + y;
-        for( int x = 0; x < dw; x++ )
-        {
-            int sx = (x * sw) / dw;
-            if( sx >= sw )
-                sx = sw - 1;
-            blit_rgba_pixel(dest, dstride, dx + x, dsty, spr[sy * sw + sx]);
-        }
-    }
-}
-
-static void
-blit_rgba_sprite_tiled(
-    int* dest,
-    int dstride,
-    int rect_x,
-    int rect_y,
-    int rect_w,
-    int rect_h,
-    int const* spr,
-    int sw,
-    int sh,
-    int origin_x,
-    int origin_y)
-{
-    if( sw <= 0 || sh <= 0 || rect_w <= 0 || rect_h <= 0 )
-        return;
-
-    int x0 = rect_x < g_render_clip_x0 ? g_render_clip_x0 : rect_x;
-    int y0 = rect_y < g_render_clip_y0 ? g_render_clip_y0 : rect_y;
-    int x1 = rect_x + rect_w;
-    int y1 = rect_y + rect_h;
-    if( x1 > g_render_clip_x1 )
-        x1 = g_render_clip_x1;
-    if( y1 > g_render_clip_y1 )
-        y1 = g_render_clip_y1;
-
-    for( int y = y0; y < y1; y++ )
-    {
-        int sy = y - origin_y;
-        sy = ((sy % sh) + sh) % sh;
-        for( int x = x0; x < x1; x++ )
-        {
-            int sx = x - origin_x;
-            sx = ((sx % sw) + sw) % sw;
-            blit_rgba_pixel(dest, dstride, x, y, spr[sy * sw + sx]);
-        }
-    }
-}
-
-static int
-interface_x_sprite_alpha(uint32_t p)
-{
-    return (int)((p >> 24) & 0xFF);
-}
-
-static uint32_t
-interface_x_sprite_sample(
-    uint32_t const* spr,
-    int sw,
-    int sh,
-    int sx,
-    int sy)
-{
-    if( !spr || sx < 0 || sy < 0 || sx >= sw || sy >= sh )
-        return 0;
-    return spr[sy * sw + sx];
-}
-
-/* Draw content only where mask alpha is zero (compass / inverted-mask semantics). */
-static void
-blit_rgba_sprite_masked_inverted(
-    int* dest,
-    int dstride,
-    int dx,
-    int dy,
-    int dw,
-    int dh,
-    uint32_t const* content,
-    int cw,
-    int ch,
-    uint32_t const* mask,
-    int mw,
-    int mh)
-{
-    if( !dest || !content || !mask || dw <= 0 || dh <= 0 || mw <= 0 || mh <= 0 || cw <= 0 ||
-        ch <= 0 )
-        return;
-
-    for( int y = 0; y < dh; y++ )
-    {
-        int dst_y = dy + y;
-        int my = (y * mh) / dh;
-        if( my >= mh )
-            my = mh - 1;
-        for( int x = 0; x < dw; x++ )
-        {
-            int dst_x = dx + x;
-            int mx = (x * mw) / dw;
-            if( mx >= mw )
-                mx = mw - 1;
-
-            uint32_t mask_px = mask[my * mw + mx];
-            if( interface_x_sprite_alpha(mask_px) > 127 )
-                continue;
-
-            int cx = (x * cw) / dw;
-            int cy = (y * ch) / dh;
-            if( cx >= cw )
-                cx = cw - 1;
-            if( cy >= ch )
-                cy = ch - 1;
-
-            uint32_t content_px = content[cy * cw + cx];
-            if( interface_x_sprite_alpha(content_px) == 0 )
-                continue;
-
-            blit_rgba_pixel(dest, dstride, dst_x, dst_y, (int)content_px);
-        }
-    }
-}
-
-/* Draw content only where mask alpha is non-zero (positive-mask semantics). */
-static void
-blit_rgba_sprite_masked(
-    int* dest,
-    int dstride,
-    int dx,
-    int dy,
-    int dw,
-    int dh,
-    uint32_t const* content,
-    int cw,
-    int ch,
-    uint32_t const* mask,
-    int mw,
-    int mh)
-{
-    if( !dest || !content || !mask || dw <= 0 || dh <= 0 || mw <= 0 || mh <= 0 || cw <= 0 ||
-        ch <= 0 )
-        return;
-
-    for( int y = 0; y < dh; y++ )
-    {
-        int dst_y = dy + y;
-        int my = (y * mh) / dh;
-        if( my >= mh )
-            my = mh - 1;
-        for( int x = 0; x < dw; x++ )
-        {
-            int dst_x = dx + x;
-            int mx = (x * mw) / dw;
-            if( mx >= mw )
-                mx = mw - 1;
-
-            uint32_t mask_px = mask[my * mw + mx];
-            if( interface_x_sprite_alpha(mask_px) == 0 )
-                continue;
-
-            int cx = (x * cw) / dw;
-            int cy = (y * ch) / dh;
-            if( cx >= cw )
-                cx = cw - 1;
-            if( cy >= ch )
-                cy = ch - 1;
-
-            uint32_t content_px = content[cy * cw + cx];
-            if( interface_x_sprite_alpha(content_px) == 0 )
-                continue;
-
-            blit_rgba_pixel(dest, dstride, dst_x, dst_y, (int)content_px);
-        }
-    }
-}
-
-/* Compass draw: rotated content center-cropped to mask, inverted mask clip.
- * angle_scale matches reference widget spriteAngle (65536 = full turn). */
-static void
-interface_x_blit_rotated_masked_inverted(
-    int* dest,
-    int dstride,
-    int mask_x,
-    int mask_y,
-    int mask_w,
-    int mask_h,
-    uint32_t const* content,
-    int content_w,
-    int content_h,
-    uint32_t const* mask,
-    int mask_sw,
-    int mask_sh,
-    int angle,
-    int angle_scale,
-    int alpha)
-{
-    if( !dest || !content || !mask || mask_w <= 0 || mask_h <= 0 || content_w <= 0 ||
-        content_h <= 0 || mask_sw <= 0 || mask_sh <= 0 )
-        return;
-
-    double rad = 0.0;
-    if( angle != 0 && angle_scale > 0 )
-        rad = ((double)angle * 2.0 * 3.141592653589793) / (double)angle_scale;
-
-    double cos_a = cos(rad);
-    double sin_a = sin(rad);
-    int cx = mask_x + mask_w / 2;
-    int cy = mask_y + mask_h / 2;
-    int content_cx = content_w / 2;
-    int content_cy = content_h / 2;
-
-    int x0 = mask_x < g_render_clip_x0 ? g_render_clip_x0 : mask_x;
-    int y0 = mask_y < g_render_clip_y0 ? g_render_clip_y0 : mask_y;
-    int x1 = mask_x + mask_w;
-    int y1 = mask_y + mask_h;
-    if( x1 > g_render_clip_x1 )
-        x1 = g_render_clip_x1;
-    if( y1 > g_render_clip_y1 )
-        y1 = g_render_clip_y1;
-
-    for( int py = y0; py < y1; py++ )
-    {
-        int my = ((py - mask_y) * mask_sh) / mask_h;
-        if( my < 0 )
-            my = 0;
-        else if( my >= mask_sh )
-            my = mask_sh - 1;
-
-        for( int px = x0; px < x1; px++ )
-        {
-            int mx = ((px - mask_x) * mask_sw) / mask_w;
-            if( mx < 0 )
-                mx = 0;
-            else if( mx >= mask_sw )
-                mx = mask_sw - 1;
-
-            uint32_t mask_px = mask[my * mask_sw + mx];
-            if( interface_x_sprite_alpha(mask_px) > 127 )
-                continue;
-
-            double lx = (double)(px - cx);
-            double ly = (double)(py - cy);
-            double ux = lx * cos_a + ly * sin_a;
-            double uy = -lx * sin_a + ly * cos_a;
-            int csx = (int)lround((double)content_cx + ux);
-            int csy = (int)lround((double)content_cy + uy);
-            if( csx < 0 || csy < 0 || csx >= content_w || csy >= content_h )
-                continue;
-
-            uint32_t content_px = content[csy * content_w + csx];
-            if( interface_x_sprite_alpha(content_px) == 0 )
-                continue;
-
-            if( alpha < 255 )
-            {
-                int a = interface_x_sprite_alpha(content_px);
-                a = (a * alpha) / 255;
-                content_px = (content_px & 0x00FFFFFFu) | ((uint32_t)a << 24);
-            }
-
-            blit_rgba_pixel(dest, dstride, px, py, (int)content_px);
-        }
-    }
-}
-
 static struct ToriDraw_Sprite const*
 interface_x_scene_sprite_at(
     struct InterfaceX_VMHost* host,
@@ -10065,9 +9567,9 @@ InterfaceX_BlitCompassGraphic(
     int draw_x = node->abs_x + (widget_w - mask_w) / 2;
     int draw_y = node->abs_y + (widget_h - mask_h) / 2;
 
-    interface_x_blit_rotated_masked_inverted(
-        pixels,
-        CANVAS_W,
+    struct ToriDraw_ViewPort view_port = InterfaceX_RenderViewPort();
+    ToriDraw2D_BlitArgbRotatedMaskedInverted(
+        &view_port,
         draw_x,
         draw_y,
         mask_w,
@@ -10080,7 +9582,8 @@ InterfaceX_BlitCompassGraphic(
         mask_h,
         node->angle_2d,
         INTERFACEX_SPRITE_ANGLE_SCALE,
-        node_alpha);
+        node_alpha,
+        pixels);
 }
 
 /* Composite an expanded sprite buffer back into a nominal canvas, clipping pixels
@@ -10215,6 +9718,7 @@ InterfaceX_BlitSceneSprite(
     int pre_rot_sh = sh;
     int pre_rot_ox = ox;
     int pre_rot_oy = oy;
+    struct ToriDraw_ViewPort view_port = InterfaceX_RenderViewPort();
 
     /* IF3: stretch nominal sprite to widget bounds (lw x lh). IF1: native-size blit below. */
     if( if3 && !tiling )
@@ -10237,16 +9741,15 @@ InterfaceX_BlitSceneSprite(
 
         int draw_w = lw > 0 ? lw : sw;
         int draw_h = lh > 0 ? lh : sh;
-        blit_rgba_sprite_scaled(
-            pixels, CANVAS_W, dx, dy, draw_w, draw_h, (int const*)spr_px, sw, sh);
+        ToriDraw2D_BlitArgbScaled(&view_port, dx, dy, draw_w, draw_h, spr_px, sw, sh, pixels);
     }
     else
     {
         interface_x_transform_sprite_pixels(&spr_px, &sw, &sh, hflip, vflip, angle_2d);
 
         if( tiling )
-            blit_rgba_sprite_tiled(
-                pixels, CANVAS_W, dx, dy, lw, lh, (int const*)spr_px, sw, sh, dx + ox, dy + oy);
+            ToriDraw2D_BlitArgbTiled(
+                &view_port, dx, dy, lw, lh, spr_px, sw, sh, dx + ox, dy + oy, pixels);
         else
         {
             int draw_x = dx + ox;
@@ -10258,7 +9761,7 @@ InterfaceX_BlitSceneSprite(
                 draw_x = center_x - sw / 2;
                 draw_y = center_y - sh / 2;
             }
-            blit_rgba_sprite(pixels, CANVAS_W, draw_x, draw_y, (int const*)spr_px, sw, sh);
+            ToriDraw2D_BlitArgb(&view_port, draw_x, draw_y, spr_px, sw, sh, pixels);
         }
     }
     free(spr_px);
@@ -10392,7 +9895,8 @@ UITreeX_RenderNodeImpl(
                 y2 = py + ph;
             }
 
-            InterfaceX_DrawLine(pixels, CANVAS_W, x1, y1, x2, y2, thickness, argb);
+            struct ToriDraw_ViewPort view_port = InterfaceX_RenderViewPort();
+            ToriDraw2D_DrawLine(&view_port, x1, y1, x2, y2, thickness, argb, pixels);
         }
         else if(
             node->kind == UITreeXNodeKind_RSObj && UITreeX_NodeRSObj(node)->obj_id > 0 && host )
@@ -10414,19 +9918,20 @@ UITreeX_RenderNodeImpl(
                     int sh = spr->height > 0 ? spr->height : 1;
                     int bw = node->abs_w > 0 ? node->abs_w : sw;
                     int bh = node->abs_h > 0 ? node->abs_h : sh;
+                    struct ToriDraw_ViewPort view_port = InterfaceX_RenderViewPort();
 
                     if( node_alpha >= 255 )
                     {
-                        blit_rgba_sprite_scaled(
-                            pixels,
-                            CANVAS_W,
+                        ToriDraw2D_BlitArgbScaled(
+                            &view_port,
                             node->abs_x,
                             node->abs_y,
                             bw,
                             bh,
-                            (int const*)spr->pixels_argb,
+                            spr->pixels_argb,
                             sw,
-                            sh);
+                            sh,
+                            pixels);
                     }
                     else
                     {
@@ -10438,16 +9943,8 @@ UITreeX_RenderNodeImpl(
                         {
                             memcpy(tmp, spr->pixels_argb, pixel_count * sizeof(uint32_t));
                             interface_x_scale_pixel_alpha(tmp, pixel_count, node_alpha);
-                            blit_rgba_sprite_scaled(
-                                pixels,
-                                CANVAS_W,
-                                node->abs_x,
-                                node->abs_y,
-                                bw,
-                                bh,
-                                (int const*)tmp,
-                                sw,
-                                sh);
+                            ToriDraw2D_BlitArgbScaled(
+                                &view_port, node->abs_x, node->abs_y, bw, bh, tmp, sw, sh, pixels);
                             free(tmp);
                         }
                     }
@@ -10464,21 +9961,21 @@ UITreeX_RenderNodeImpl(
             int color = rect->color & 0xFFFFFF;
             int color2 = rect->color2 ? (rect->color2 & 0xFFFFFF) : color;
             int argb = (node_alpha << 24) | color;
+            struct ToriDraw_ViewPort view_port = InterfaceX_RenderViewPort();
             if( rect->filled )
             {
                 switch( node->fill_mode )
                 {
                 case 1:
-                    InterfaceX_FillRectGradientVertical(
-                        pixels, CANVAS_W, px, py, px + pw, py + ph, color, color2, node_alpha);
+                    ToriDraw2D_FillRectGradientVertical(
+                        &view_port, px, py, px + pw, py + ph, color, color2, node_alpha, pixels);
                     break;
                 case 2:
                 {
                     int trans_bot = node->trans_bot >= 0 ? node->trans_bot : node->trans;
                     int alpha_bot = 255 - trans_bot;
-                    InterfaceX_FillRectGradientAlpha(
-                        pixels,
-                        CANVAS_W,
+                    ToriDraw2D_FillRectGradientAlpha(
+                        &view_port,
                         px,
                         py,
                         px + pw,
@@ -10486,16 +9983,17 @@ UITreeX_RenderNodeImpl(
                         color,
                         color2,
                         node_alpha,
-                        alpha_bot);
+                        alpha_bot,
+                        pixels);
                     break;
                 }
                 default:
-                    InterfaceX_FillRect(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
+                    ToriDraw2D_FillRect(&view_port, px, py, px + pw, py + ph, argb, pixels);
                     break;
                 }
             }
             else
-                InterfaceX_DrawRectOutline(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
+                ToriDraw2D_DrawRectOutline(&view_port, px, py, px + pw, py + ph, argb, pixels);
         }
     }
     else if( node->kind == UITreeXNodeKind_RSText && UITreeX_NodeRSText(node)->text[0] && host )
@@ -10508,13 +10006,7 @@ UITreeX_RenderNodeImpl(
         struct ToriDraw_Font* font = InterfaceX_EnsureSceneFont(host, font_id);
         if( font )
         {
-            struct ToriDraw_ViewPort view_port = {
-                .clip_left = g_render_clip_x0,
-                .clip_top = g_render_clip_y0,
-                .clip_right = g_render_clip_x1,
-                .clip_bottom = g_render_clip_y1,
-                .stride = CANVAS_W,
-            };
+            struct ToriDraw_ViewPort view_port = InterfaceX_RenderViewPort();
 
             int lw = node->abs_w;
             int lh = node->abs_h;
@@ -10903,13 +10395,23 @@ InterfaceX_EnsureSceneFont(
     if( font )
         return font;
 
-    struct RSCacheDat2Disk_Archive* archive =
+    struct RSCacheDat2Disk_Archive* font_archive =
         RSCacheDat2Disk_ArchiveNewLoad(host->disk, RSCacheDat2Disk_Table_Fonts, font_id);
-    if( !archive )
+    if( !font_archive )
         return NULL;
 
+    struct RSCacheDat2Disk_Archive* sprite_archive =
+        RSCacheDat2Disk_ArchiveNewLoad(host->disk, RSCacheDat2Disk_Table_Sprites, font_id);
+    if( !sprite_archive )
+    {
+        RSCacheDat2Disk_ArchiveFree(font_archive);
+        return NULL;
+    }
+
     struct ToriAuxLibCore_Font* core =
-        ToriAuxLibCache_FontNewFromDat2Archive(host->disk, archive, font_id);
+        ToriAuxLibCache_FontNewFromDat2Archives(font_archive, sprite_archive, font_id);
+    RSCacheDat2Disk_ArchiveFree(font_archive);
+    RSCacheDat2Disk_ArchiveFree(sprite_archive);
     if( !core )
         return NULL;
 

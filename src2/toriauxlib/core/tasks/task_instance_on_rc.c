@@ -524,8 +524,21 @@ Task_InstanceOnRCCacheFont_Run(
             PT_EXIT(&task->thread);
         }
 
-        struct ToriAuxLibCore_Font* font = ToriAuxLibCache_FontNewFromDat2Archives(
-            font_archive, sprite_archive, task->item.archive_id);
+        if( !dat2_buildcache_font_add_from_archives(
+                dat2(task->cache), task->item.archive_id, font_archive, sprite_archive) )
+        {
+            RSCacheDat2Disk_ArchiveFree(font_archive);
+            RSCacheDat2Disk_ArchiveFree(sprite_archive);
+            PT_EXIT(&task->thread);
+        }
+        RSCacheDat2Disk_ArchiveFree(font_archive);
+        RSCacheDat2Disk_ArchiveFree(sprite_archive);
+        LibToriRS_IOQueueClear(ctx->io);
+
+        struct Dat2BuildCache_FontAsset* font_asset =
+            dat2_buildcache_font_get(dat2(task->cache), task->item.archive_id);
+        struct ToriAuxLibCore_Font* font = ToriAuxLibCache_FontNewFromDat2FontAsset(
+            font_asset, task->item.archive_id);
         if( !font )
         {
             fprintf(

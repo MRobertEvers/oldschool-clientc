@@ -3,6 +3,7 @@
 #include "cs2_opcode.h"
 #include "cs2_opcode_meta.h"
 #include "cs2vm.h"
+#include "buildcache/dat2_buildcache.h"
 #include "games/ie_enum_lookup.h"
 #include "games/ie_param_lookup.h"
 #include "games/ie_struct_lookup.h"
@@ -11,6 +12,7 @@
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "osrs/varp_varbit_manager.h"
 #include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/vm/toriauxlibvm.h"
@@ -46,7 +48,6 @@ struct CS2HostUIState
 {
     struct ToriAuxLibCore* core;
     struct ToriAuxLibCache* cache;
-    struct RSCacheDat2Disk* dat2_disk;
     struct ToriAuxLibVM* vm;
     struct UITree* tree;
     CS2HostUIVarpChangeFn on_varp_change;
@@ -78,63 +79,23 @@ struct CS2HostUIState
 
 static struct CS2HostUIState s_cs2_host_ui_state;
 
-static struct RSCacheDat2Disk*
-cs2_host_ui_dat2_disk(struct CS2HostUIState const* st)
+static struct Dat2BuildCache*
+cs2_host_ui_dat2_buildcache(struct CS2HostUIState const* st)
 {
-    if( !st )
+    if( !st || !st->cache || ToriAuxLibCache_Mode(st->cache) != TORIAUXLIBCACHE_MODE_DAT2 )
         return NULL;
-    if( st->dat2_disk )
-        return st->dat2_disk;
-    if( st->cache )
-        return ToriAuxLibCache_Dat2Disk(st->cache);
-    return NULL;
+    return dat2(st->cache);
 }
 
 static struct RSCacheDat2A_ConfigObject*
-cs2_host_ui_load_object_config(
-    struct RSCacheDat2Disk* cache,
+cs2_host_ui_object_config(
+    struct CS2HostUIState const* st,
     int obj_id)
 {
-    if( !cache || obj_id <= 0 )
+    struct Dat2BuildCache* bc = cs2_host_ui_dat2_buildcache(st);
+    if( !bc || obj_id <= 0 )
         return NULL;
-
-    struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(
-        cache, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Object);
-    if( !arch )
-        return NULL;
-
-    RSCacheDat2Disk_ArchiveInitMetadata(cache, arch);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
-    if( !fl )
-    {
-        RSCacheDat2Disk_ArchiveFree(arch);
-        return NULL;
-    }
-
-    struct RSCacheDat2Disk_ReferenceTable* table = cache->tables[RSCacheDat2Disk_Table_Configs];
-    struct RSCacheDat2Disk_ArchiveReference* ref = NULL;
-    if( table && table->archives )
-        ref = &table->archives[RSCacheDat2A_ConfigKind_Object];
-
-    struct RSCacheDat2A_ConfigObject* out = NULL;
-    for( int i = 0; i < fl->file_count; i++ )
-    {
-        int id = (ref && i < ref->children.count) ? ref->children.files[i].id : i;
-        if( id != obj_id )
-            continue;
-
-        out = calloc(1, sizeof(struct RSCacheDat2A_ConfigObject));
-        if( !out )
-            break;
-
-        RSCacheDat2A_ConfigObjectDecodeInplace(out, fl->files[i], fl->file_sizes[i]);
-        out->_id = obj_id;
-        break;
-    }
-
-    RSCacheShared_FileListFree(fl);
-    RSCacheDat2Disk_ArchiveFree(arch);
-    return out;
+    return dat2_buildcache_object_get(bc, obj_id);
 }
 
 static int32_t
@@ -313,8 +274,8 @@ cs2_host_ui_push_widget_param(
     int component_id,
     int param_id)
 {
-    struct RSCacheDat2Disk* dat2 = cs2_host_ui_dat2_disk(st);
-    bool const default_is_string = dat2 && ie_param_is_string(dat2, param_id);
+    struct Dat2BuildCache* bc = cs2_host_ui_dat2_buildcache(st);
+    bool const default_is_string = bc && ie_param_is_string(bc, param_id);
     struct CS2HostUIWidgetParam* entry = cs2_host_ui_widget_param_find(st, component_id, param_id);
     if( entry )
     {
@@ -328,10 +289,10 @@ cs2_host_ui_push_widget_param(
     if( default_is_string )
     {
         cs2vm_host_push_string(
-            ctx, cs2vm_host_alloc_string(ctx, dat2 ? ie_param_default_string(dat2, param_id) : ""));
+            ctx, cs2vm_host_alloc_string(ctx, bc ? ie_param_default_string(bc, param_id) : ""));
     }
     else
-        cs2vm_host_push_int(ctx, dat2 ? ie_param_default_int(dat2, param_id) : 0);
+        cs2vm_host_push_int(ctx, bc ? ie_param_default_int(bc, param_id) : 0);
 }
 
 static int
@@ -906,50 +867,20 @@ cs2_host_ui_oc_unplaceholder(
     struct CS2HostUIState const* st,
     int item_id)
 {
+    struct Dat2BuildCache* bc = cs2_host_ui_dat2_buildcache(st);
+    struct RSCacheDat2A_ConfigObject* obj;
+
     if( item_id <= 0 )
         return item_id;
-
-    struct RSCacheDat2Disk* dat2 = cs2_host_ui_dat2_disk(st);
-    if( !dat2 )
+    if( !bc )
         return item_id;
 
-    struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(
-        dat2, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Object);
-    if( !arch )
+    obj = dat2_buildcache_object_get(bc, item_id);
+    if( !obj )
         return item_id;
-
-    RSCacheDat2Disk_ArchiveInitMetadata(dat2, arch);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
-    if( !fl )
-    {
-        RSCacheDat2Disk_ArchiveFree(arch);
-        return item_id;
-    }
-
-    struct RSCacheDat2Disk_ReferenceTable* table = dat2->tables[RSCacheDat2Disk_Table_Configs];
-    struct RSCacheDat2Disk_ArchiveReference* ref = NULL;
-    if( table && table->archives )
-        ref = &table->archives[RSCacheDat2A_ConfigKind_Object];
-
-    int result = item_id;
-    for( int i = 0; i < fl->file_count; i++ )
-    {
-        int id = (ref && i < ref->children.count) ? ref->children.files[i].id : i;
-        if( id != item_id )
-            continue;
-
-        struct RSCacheDat2A_ConfigObject obj;
-        memset(&obj, 0, sizeof(obj));
-        RSCacheDat2A_ConfigObjectDecodeInplace(&obj, fl->files[i], fl->file_sizes[i]);
-        if( obj.placeholder_template_id >= 0 && obj.placeholder_id >= 0 )
-            result = obj.placeholder_id;
-        RSCacheDat2A_ConfigObjectFree(&obj);
-        break;
-    }
-
-    RSCacheShared_FileListFree(fl);
-    RSCacheDat2Disk_ArchiveFree(arch);
-    return result;
+    if( obj->placeholder_template_id >= 0 && obj->placeholder_id >= 0 )
+        return obj->placeholder_id;
+    return item_id;
 }
 
 static void
@@ -1947,14 +1878,14 @@ cs2_host_ui_invoke(
     {
         int item_id = cs2vm_host_pop_int(ctx);
         char const* name = "null";
-        struct RSCacheDat2A_ConfigObject* obj =
-            cs2_host_ui_load_object_config(cs2_host_ui_dat2_disk(st), item_id);
-        if( obj )
-        {
-            if( obj->name && obj->name[0] != '\0' )
-                name = obj->name;
-            RSCacheDat2A_ConfigObjectFree(obj);
-        }
+        struct ToriAuxLibCore_Objtype* objtype = NULL;
+
+        if( st->cache )
+            ToriAuxLibCache_PromoteObjtype(st->cache, item_id);
+        if( st->core )
+            objtype = ToriAuxLibCore_ObjtypeGet(st->core, item_id);
+        if( objtype && objtype->name[0] != '\0' )
+            name = objtype->name;
         cs2vm_host_push_string(ctx, cs2vm_host_alloc_string(ctx, name));
         break;
     }
@@ -1968,9 +1899,9 @@ cs2_host_ui_invoke(
     {
         int param_id = cs2vm_host_pop_int(ctx);
         int item_id = cs2vm_host_pop_int(ctx);
-        struct RSCacheDat2Disk* dat2 = cs2_host_ui_dat2_disk(st);
-        bool const is_string = dat2 && ie_param_is_string(dat2, param_id);
-        struct RSCacheDat2A_ConfigObject* obj = cs2_host_ui_load_object_config(dat2, item_id);
+        struct Dat2BuildCache* bc = cs2_host_ui_dat2_buildcache(st);
+        bool const is_string = bc && ie_param_is_string(bc, param_id);
+        struct RSCacheDat2A_ConfigObject* obj = cs2_host_ui_object_config(st, item_id);
         bool found = false;
         if( obj && obj->params.count > 0 )
         {
@@ -1993,8 +1924,6 @@ cs2_host_ui_invoke(
                 break;
             }
         }
-        if( obj )
-            RSCacheDat2A_ConfigObjectFree(obj);
         if( !found )
         {
             if( is_string )
@@ -2002,10 +1931,10 @@ cs2_host_ui_invoke(
                 cs2vm_host_push_string(
                     ctx,
                     cs2vm_host_alloc_string(
-                        ctx, dat2 ? ie_param_default_string(dat2, param_id) : ""));
+                        ctx, bc ? ie_param_default_string(bc, param_id) : ""));
             }
             else
-                cs2vm_host_push_int(ctx, dat2 ? ie_param_default_int(dat2, param_id) : 0);
+                cs2vm_host_push_int(ctx, bc ? ie_param_default_int(bc, param_id) : 0);
         }
         break;
     }
@@ -2229,9 +2158,9 @@ cs2_host_ui_invoke(
             count = st->enum_output_count(st->enum_output_count_ud, enum_id);
         else
         {
-            struct RSCacheDat2Disk* dat2 = cs2_host_ui_dat2_disk(st);
-            if( dat2 )
-                count = ie_enum_output_count(dat2, enum_id);
+            struct Dat2BuildCache* bc = cs2_host_ui_dat2_buildcache(st);
+            if( bc )
+                count = ie_enum_output_count(bc, enum_id);
         }
         cs2vm_host_push_int(ctx, count);
         break;
@@ -2251,11 +2180,11 @@ cs2_host_ui_invoke(
         }
         else
         {
-            struct RSCacheDat2Disk* dat2 = cs2_host_ui_dat2_disk(st);
-            if( dat2 )
+            struct Dat2BuildCache* bc = cs2_host_ui_dat2_buildcache(st);
+            if( bc )
             {
                 found =
-                    ie_struct_param_lookup(dat2, struct_id, param_id, &is_string, &intval, &strval);
+                    ie_struct_param_lookup(bc, struct_id, param_id, &is_string, &intval, &strval);
             }
         }
         if( found )
@@ -2305,7 +2234,6 @@ cs2_host_ui_init(
     {
         s_cs2_host_ui_state.core = args->core;
         s_cs2_host_ui_state.cache = args->cache;
-        s_cs2_host_ui_state.dat2_disk = args->dat2_disk;
         s_cs2_host_ui_state.vm = args->vm;
         s_cs2_host_ui_state.tree = args->tree;
         s_cs2_host_ui_state.on_varp_change = args->on_varp_change;

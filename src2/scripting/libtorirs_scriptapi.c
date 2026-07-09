@@ -23,6 +23,8 @@
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/texture.h"
+#include "toriauxlib/core/tasks/task_dat2_config_meta_load.h"
+#include "toriauxlib/core/tasks/task_dat2_textures_load.h"
 #include "toriauxlib/core/tasks/task_instance_revconfig_load.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
@@ -52,6 +54,18 @@ static void
 ui_load_task_destroy(void* state)
 {
     Task_InstanceRevConfigLoad_Free(state);
+}
+
+static void
+dat2_config_meta_load_task_destroy(void* state)
+{
+    Task_Dat2ConfigMetaLoad_Free(state);
+}
+
+static void
+dat2_textures_load_task_destroy(void* state)
+{
+    Task_Dat2TexturesLoad_Free(state);
 }
 
 #define UI_DAT1_CACHE_INI "rev_245_2/rev_245_2_dat1_cache.ini"
@@ -213,115 +227,19 @@ bool
 LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_Dat2_TexturesLoad\n");
-    if( !instance )
+    if( !instance || !instance->toriauxlib )
         return false;
 
     struct ToriAuxLibCache* c = ToriAuxLib_C(instance->toriauxlib);
     if( !c || ToriAuxLibCache_Mode(c) != TORIAUXLIBCACHE_MODE_DAT2 )
         return false;
 
-    struct RSCacheDat2Disk* cache = ToriAuxLibCache_Dat2Disk(c);
-    if( !cache )
+    struct Task_Dat2TexturesLoad* task = Task_Dat2TexturesLoad_New(c);
+    if( !task )
         return false;
 
-    struct RSCacheDat2Disk_Archive* archive =
-        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Textures, 0);
-    if( !archive )
-        return false;
-
-    RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
-
-    struct RSCacheShared_FileList* filelist = RSCacheShared_FileListNewFromCacheArchive(archive);
-    if( !filelist )
-    {
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return false;
-    }
-
-    struct RSCacheDat2Disk_ReferenceTable* textures_table =
-        cache->tables[RSCacheDat2Disk_Table_Textures];
-    if( !textures_table )
-    {
-        RSCacheShared_FileListFree(filelist);
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return false;
-    }
-
-    struct RSCacheDat2Disk_ArchiveReference* reference = &textures_table->archives[0];
-    int count = reference->children.count;
-    if( filelist->file_count < count )
-        count = filelist->file_count;
-
-    printf(
-        "Dat2 textures: file_count=%d, children.count=%d, effective count=%d\n",
-        filelist->file_count,
-        reference->children.count,
-        count);
-
-    int loaded_count = 0;
-    for( int i = 0; i < count; i++ )
-    {
-        int texture_id = reference->children.files[i].id;
-        struct RSCacheDat2A_Texture* def = RSCacheDat2A_TextureDefinitionNewDecode(
-            (const unsigned char*)filelist->files[i], filelist->file_sizes[i]);
-        if( !def )
-        {
-            printf("Dat2 textures: failed to decode texture id %d at index %d\n", texture_id, i);
-            continue;
-        }
-
-        struct RSCacheDat2A_SpritePack** packs = NULL;
-        if( def->sprite_ids_count > 0 )
-        {
-            packs = calloc((size_t)def->sprite_ids_count, sizeof(struct RSCacheDat2A_SpritePack*));
-            if( !packs )
-            {
-                RSCacheDat2A_TextureDefinitionFree(def);
-                continue;
-            }
-
-            for( int k = 0; k < def->sprite_ids_count; k++ )
-            {
-                packs[k] = RSCacheDat2A_SpritePackNewFromCache(cache, def->sprite_ids[k]);
-                if( !packs[k] )
-                {
-                    printf(
-                        "Dat2 textures: failed to load sprite %d for texture %d\n",
-                        def->sprite_ids[k],
-                        texture_id);
-                }
-            }
-        }
-
-        struct ToriAuxLibCore_Texture* gc_texture = ToriAuxLibCache_TextureNewFromDat2Definition(
-            def, packs, def->animation_direction, def->animation_speed);
-
-        if( packs )
-        {
-            for( int k = 0; k < def->sprite_ids_count; k++ )
-            {
-                if( packs[k] )
-                    RSCacheDat2A_SpritePackFree(packs[k]);
-            }
-            free(packs);
-        }
-
-        RSCacheDat2A_TextureDefinitionFree(def);
-
-        if( !gc_texture )
-        {
-            printf("Dat2 textures: failed to build engine texture %d\n", texture_id);
-            continue;
-        }
-
-        ToriAuxLibCache_SubmitTexture(c, texture_id, gc_texture);
-        loaded_count++;
-    }
-
-    printf("Dat2 textures: loaded %d textures into core\n", loaded_count);
-
-    RSCacheShared_FileListFree(filelist);
-    RSCacheDat2Disk_ArchiveFree(archive);
+    LibToriRS_TasksAdd(
+        instance, task, Task_Dat2TexturesLoad_Run, dat2_textures_load_task_destroy);
     return true;
 }
 
@@ -602,6 +520,20 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
         task,
         Task_ToriAuxLibCache_WorldRebuildNormalCenterzone_Run,
         world_rebuild_normal_centerzone_task_destroy);
+
+    if( ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) == TORIAUXLIBCACHE_MODE_DAT2 )
+    {
+        struct Task_Dat2ConfigMetaLoad* meta_task =
+            Task_Dat2ConfigMetaLoad_New(ToriAuxLib_C(instance->toriauxlib));
+        if( meta_task )
+        {
+            LibToriRS_TasksAdd(
+                instance,
+                meta_task,
+                Task_Dat2ConfigMetaLoad_Run,
+                dat2_config_meta_load_task_destroy);
+        }
+    }
 
     {
         char const* config_files[2];

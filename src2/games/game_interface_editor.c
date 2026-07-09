@@ -719,11 +719,17 @@ ie_resolve_scene_font(
 
     struct RSCacheDat2Disk_Archive* font_archive =
         RSCacheDat2Disk_ArchiveNewLoad(game->dat2_cache, RSCacheDat2Disk_Table_Fonts, rs_font_id);
-    if( !font_archive )
+    struct RSCacheDat2Disk_Archive* sprite_archive =
+        RSCacheDat2Disk_ArchiveNewLoad(game->dat2_cache, RSCacheDat2Disk_Table_Sprites, rs_font_id);
+    if( !font_archive || !sprite_archive )
+    {
+        RSCacheDat2Disk_ArchiveFree(font_archive);
+        RSCacheDat2Disk_ArchiveFree(sprite_archive);
         return ie_default_ui_font_id(game);
+    }
 
     struct ToriAuxLibCore_Font* core_font =
-        ToriAuxLibCache_FontNewFromDat2Archive(game->dat2_cache, font_archive, rs_font_id);
+        ToriAuxLibCache_FontNewFromDat2Archives(font_archive, sprite_archive, rs_font_id);
     if( !core_font )
         return ie_default_ui_font_id(game);
 
@@ -1457,8 +1463,8 @@ ie_cs2_cache_script(
     }
 
     struct ToriAuxLibCore_ClientScript* loaded =
-        ToriAuxLibCache_ClientScriptNewFromDat2Archive(
-            game->dat2_cache, archive, script_id, game->clientscript_decode_flags);
+        ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
+            archive, script_id, game->clientscript_decode_flags);
     if( !loaded || loaded->script.op_count <= 0 )
     {
         if( game->cs2_trace_enabled )
@@ -1516,8 +1522,8 @@ ie_cs2_script_arg_counts(
         return false;
 
     struct ToriAuxLibCore_ClientScript* loaded =
-        ToriAuxLibCache_ClientScriptNewFromDat2Archive(
-            game->dat2_cache, archive, script_id, game->clientscript_decode_flags);
+        ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
+            archive, script_id, game->clientscript_decode_flags);
     if( !loaded || loaded->script.op_count <= 0 )
     {
         if( loaded )
@@ -1574,9 +1580,9 @@ ie_cs2_enum_lookup_cb(
 {
     (void)ud;
     struct GameInterfaceEditor* game = s_ie_cs2_game;
-    if( !game || !game->dat2_cache )
+    if( !game || !game->cache )
         return -1;
-    return ie_enum_lookup(game->dat2_cache, input_type, output_type, enum_id, key);
+    return ie_enum_lookup(dat2(game->cache), input_type, output_type, enum_id, key);
 }
 
 static char const*
@@ -1589,9 +1595,9 @@ ie_cs2_enum_lookup_string_cb(
 {
     (void)ud;
     struct GameInterfaceEditor* game = s_ie_cs2_game;
-    if( !game || !game->dat2_cache )
+    if( !game || !game->cache )
         return NULL;
-    return ie_enum_lookup_string(game->dat2_cache, input_type, output_type, enum_id, key);
+    return ie_enum_lookup_string(dat2(game->cache), input_type, output_type, enum_id, key);
 }
 
 static int
@@ -1600,9 +1606,9 @@ ie_cs2_enum_output_count_cb(
     int enum_id)
 {
     struct GameInterfaceEditor* game = ud;
-    if( !game || !game->dat2_cache )
+    if( !game || !game->cache )
         return 0;
-    return ie_enum_output_count(game->dat2_cache, enum_id);
+    return ie_enum_output_count(dat2(game->cache), enum_id);
 }
 
 static bool
@@ -1615,10 +1621,10 @@ ie_cs2_struct_param_cb(
     char const** out_str)
 {
     struct GameInterfaceEditor* game = ud;
-    if( !game || !game->dat2_cache )
+    if( !game || !game->cache )
         return false;
     return ie_struct_param_lookup(
-        game->dat2_cache, struct_id, param_id, out_is_string, out_int, out_str);
+        dat2(game->cache), struct_id, param_id, out_is_string, out_int, out_str);
 }
 
 static bool
@@ -2714,7 +2720,6 @@ GameInterfaceEditor_RunScripts(struct GameInterfaceEditor* game)
     struct CS2HostUIInitArgs args = {
         .core = game->core,
         .cache = game->cache,
-        .dat2_disk = game->dat2_cache,
         .vm = game->cs1vm_wrap,
         .tree = game->cs2_tree,
         .resolve_obj_icon = ie_cs2_resolve_obj_icon,

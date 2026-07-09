@@ -6,7 +6,6 @@
 struct ToriAuxLibCore;
 struct ToriAuxLibCache;
 struct ToriAuxLibVM;
-struct RSCacheDat2Disk;
 struct ToriDraw_Scene;
 struct UITree;
 
@@ -59,7 +58,6 @@ struct CS2HostUIInitArgs
 {
     struct ToriAuxLibCore* core;
     struct ToriAuxLibCache* cache;
-    struct RSCacheDat2Disk* dat2_disk;
     struct ToriAuxLibVM* vm;
     struct UITree* tree;
     struct ToriDraw_Scene* scene;

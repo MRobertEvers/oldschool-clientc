@@ -44,7 +44,6 @@ run_npc_skeletal_verify(const char* cache_dir, int npc_id)
         goto done;
     }
 
-    ToriAuxLibCache_SetDat2Disk(tal_c, cachelib_dat2_disk(cache));
     load = Task_ToriAuxLibCache_NpcAdd_New(tal_c, npc_id);
     if( !load )
     {
