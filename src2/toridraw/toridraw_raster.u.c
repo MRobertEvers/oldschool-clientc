@@ -556,11 +556,29 @@ context_from_handle(
         ctx->colors_b = m->face_colors_b;
         ctx->colors_c = m->face_colors_c;
         ctx->face_alphas_nullable = m->face_alphas;
-        ctx->offset_x = view_port->width >> 1;
-        ctx->offset_y = view_port->height >> 1;
+        /* Rebase clip so left/top become 0: existing x_start<0 / y<0 clamps apply.
+         * Caller advances pixel_buffer by clip_left + clip_top*stride. */
+        {
+            int clip_left = view_port->clip_left;
+            int clip_top = view_port->clip_top;
+            int clip_right =
+                view_port->clip_right > 0 ? view_port->clip_right : view_port->width;
+            int clip_bottom =
+                view_port->clip_bottom > 0 ? view_port->clip_bottom : view_port->height;
+            if( clip_left < 0 )
+                clip_left = 0;
+            if( clip_top < 0 )
+                clip_top = 0;
+            if( clip_right < clip_left )
+                clip_right = clip_left;
+            if( clip_bottom < clip_top )
+                clip_bottom = clip_top;
+            ctx->offset_x = (view_port->width >> 1) - clip_left;
+            ctx->offset_y = (view_port->height >> 1) - clip_top;
+            ctx->screen_width = clip_right - clip_left;
+            ctx->screen_height = clip_bottom - clip_top;
+        }
         ctx->near_plane_z = camera->near_plane_z;
-        ctx->screen_width = view_port->width;
-        ctx->screen_height = view_port->height;
         ctx->stride = view_port->stride ? view_port->stride : view_port->width;
         ctx->camera_fov = camera->fov_rpi2048;
         ctx->texture_map = &ToriDraw_SceneTexState(scene)->texture_map;
@@ -588,7 +606,12 @@ ToriDraw_RasterWithFaceIndices(
 {
     struct ToriDrawModelRasterContext ctx;
     context_from_handle(scene, hnd, view_port, camera, smooth, &ctx);
-    ctx.pixel_buffer = pixel_buffer;
+    {
+        int clip_left = view_port->clip_left > 0 ? view_port->clip_left : 0;
+        int clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
+        int stride = ctx.stride;
+        ctx.pixel_buffer = pixel_buffer + clip_left + clip_top * stride;
+    }
 
     for( int i = 0; i < scene->tmp_face_order_count; i++ )
     {
