@@ -118,6 +118,12 @@ typedef struct RSCacheDat2A_Component
     bool lineDirection;
 
     int32_t buttonType;
+    // AKA ContentType
+    // The client will assign special functionality to these.
+    // 1337 = CONTENT_WORLD
+    // 1338 = CONTENT_MINIMAP
+    // 1339 = CONTENT_COMPASS
+    // 1400 = CONTENT_WORLDMAP
     int32_t clientCode;
     int32_t linkedComponentId;
     char* option;

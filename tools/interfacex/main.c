@@ -49,8 +49,17 @@ static char g_cs2_trace_extra[512];
 #define CANVAS_W (492 + 20)
 #define CANVAS_H (314 + 20)
 
+// export const ContentType = {
+//     VIEWPORT: 1337, // 3D game viewport
+//     MINIMAP: 1338, // Minimap area
+//     COMPASS: 1339, // Compass (rotates with camera yaw)
+//     WORLDMAP: 1400, // World map
+// } as const;
+#define INTERFACEX_CONTENT_NONE 0
+#define INTERFACEX_CONTENT_WORLD 1337
 #define INTERFACEX_CONTENT_MINIMAP 1338
 #define INTERFACEX_CONTENT_COMPASS 1339
+#define INTERFACEX_CONTENT_WORLDMAP 1400
 
 /* dat2 widget spriteAngle / CS2 ANGLE_2D: 65536 = one full turn */
 #define INTERFACEX_SPRITE_ANGLE_SCALE 65536
