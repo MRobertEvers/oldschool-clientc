@@ -751,6 +751,87 @@ UITreeX_UserIdFormat(
         user_id & 0xFFFF);
 }
 
+/* Union tag guards: set INTERFACEX_UNION_GUARD=1 to log wrong-kind reads/writes. */
+static int g_interfacex_union_guard = -1;
+
+static int
+UITreeX_UnionGuardEnabled(void)
+{
+    if( g_interfacex_union_guard < 0 )
+        g_interfacex_union_guard = getenv("INTERFACEX_UNION_GUARD") != NULL ? 1 : 0;
+    return g_interfacex_union_guard;
+}
+
+static void
+UITreeX_ReportTagMismatch(
+    struct UITreeXNode const* node,
+    enum UITreeXNodeKind expected,
+    char const* file,
+    int line,
+    char const* func)
+{
+    char user_id_buf[48];
+    UITreeX_UserIdFormat(user_id_buf, sizeof(user_id_buf), node->user_id);
+    fprintf(
+        stderr,
+        "UITreeX union tag mismatch: node[%d] user_id=%s expected=%s actual=%s at %s:%d:%s\n",
+        node->idx,
+        user_id_buf,
+        UITreeX_NodeKindStr(expected),
+        UITreeX_NodeKindStr(node->kind),
+        file,
+        line,
+        func);
+}
+
+#define UITreeX_UnionCheckTag(node, expected, file, line, func)                    \
+    do                                                                             \
+    {                                                                              \
+        struct UITreeXNode const* _ug_node = (node);                               \
+        if( _ug_node && UITreeX_UnionGuardEnabled() && _ug_node->kind != (expected) ) \
+            UITreeX_ReportTagMismatch(_ug_node, (expected), (file), (line), (func)); \
+    } while( 0 )
+
+#define UITREEX_DEFINE_UNION_ACCESSOR(TypeName, Kind, Member)                                 \
+    static struct UITreeXNode_##TypeName*                                                   \
+    UITreeX_Node##TypeName##Mut_at(                                                         \
+        struct UITreeXNode* node, char const* file, int line, char const* func)               \
+    {                                                                                       \
+        assert(node);                                                                       \
+        UITreeX_UnionCheckTag(node, Kind, file, line, func);                                \
+        return &node->u.Member;                                                             \
+    }                                                                                       \
+    static struct UITreeXNode_##TypeName const*                                             \
+    UITreeX_Node##TypeName##_at(                                                            \
+        struct UITreeXNode const* node, char const* file, int line, char const* func)         \
+    {                                                                                       \
+        assert(node);                                                                       \
+        UITreeX_UnionCheckTag(node, Kind, file, line, func);                                \
+        return &node->u.Member;                                                             \
+    }
+
+UITREEX_DEFINE_UNION_ACCESSOR(RSLayer, UITreeXNodeKind_RSLayer, rs_layer)
+UITREEX_DEFINE_UNION_ACCESSOR(RSGraphic, UITreeXNodeKind_RSGraphic, rs_graphic)
+UITREEX_DEFINE_UNION_ACCESSOR(RSRect, UITreeXNodeKind_RSRect, rs_rect)
+UITREEX_DEFINE_UNION_ACCESSOR(RSText, UITreeXNodeKind_RSText, rs_text)
+UITREEX_DEFINE_UNION_ACCESSOR(RSObj, UITreeXNodeKind_RSObj, rs_obj)
+UITREEX_DEFINE_UNION_ACCESSOR(RSLine, UITreeXNodeKind_RSLine, rs_line)
+
+#define UITreeX_NodeRSLayer(n)     UITreeX_NodeRSLayer##_at((n), __FILE__, __LINE__, __func__)
+#define UITreeX_NodeRSLayerMut(n)  UITreeX_NodeRSLayer##Mut_at((n), __FILE__, __LINE__, __func__)
+#define UITreeX_NodeRSGraphic(n)     UITreeX_NodeRSGraphic##_at((n), __FILE__, __LINE__, __func__)
+#define UITreeX_NodeRSGraphicMut(n)  UITreeX_NodeRSGraphic##Mut_at((n), __FILE__, __LINE__, __func__)
+#define UITreeX_NodeRSRect(n)     UITreeX_NodeRSRect##_at((n), __FILE__, __LINE__, __func__)
+#define UITreeX_NodeRSRectMut(n)  UITreeX_NodeRSRect##Mut_at((n), __FILE__, __LINE__, __func__)
+#define UITreeX_NodeRSText(n)     UITreeX_NodeRSText##_at((n), __FILE__, __LINE__, __func__)
+#define UITreeX_NodeRSTextMut(n)  UITreeX_NodeRSText##Mut_at((n), __FILE__, __LINE__, __func__)
+#define UITreeX_NodeRSObj(n)     UITreeX_NodeRSObj##_at((n), __FILE__, __LINE__, __func__)
+#define UITreeX_NodeRSObjMut(n)  UITreeX_NodeRSObj##Mut_at((n), __FILE__, __LINE__, __func__)
+#define UITreeX_NodeRSLine(n)     UITreeX_NodeRSLine##_at((n), __FILE__, __LINE__, __func__)
+#define UITreeX_NodeRSLineMut(n)  UITreeX_NodeRSLine##Mut_at((n), __FILE__, __LINE__, __func__)
+
+#undef UITREEX_DEFINE_UNION_ACCESSOR
+
 static void
 UITreeX_PrintNode(
     struct UITreeX const* tree,
@@ -778,9 +859,10 @@ UITreeX_PrintNode(
 
     if( node->kind == UITreeXNodeKind_RSGraphic )
     {
+        struct UITreeXNode_RSGraphic const* graphic = UITreeX_NodeRSGraphic(node);
         printf(
             " graphic=%d angle=%d tiling=%d if3=%d abs=%d,%d %dx%d hidden=%d",
-            node->u.rs_graphic.graphic_id,
+            graphic->graphic_id,
             node->angle_2d,
             node->tiling,
             node->if3,
@@ -792,10 +874,11 @@ UITreeX_PrintNode(
     }
     else if( node->kind == UITreeXNodeKind_RSObj )
     {
+        struct UITreeXNode_RSObj const* obj = UITreeX_NodeRSObj(node);
         printf(
             " obj=%d count=%d abs=%d,%d %dx%d hidden=%d",
-            node->u.rs_obj.obj_id,
-            node->u.rs_obj.obj_count,
+            obj->obj_id,
+            obj->obj_count,
             node->abs_x,
             node->abs_y,
             node->abs_w,
@@ -804,14 +887,15 @@ UITreeX_PrintNode(
     }
     else if( node->kind == UITreeXNodeKind_RSModel )
     {
+        struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
         printf(
             " model=%d kind=%d zoom=%d xan=%d yan=%d zan=%d abs=%d,%d %dx%d hidden=%d",
-            node->u.rs_model.model_id,
-            (int)node->u.rs_model.model_kind,
-            node->u.rs_model.zoom,
-            node->u.rs_model.angle_x,
-            node->u.rs_model.angle_y,
-            node->u.rs_model.angle_z,
+            model->model_id,
+            (int)model->model_kind,
+            model->zoom,
+            model->angle_x,
+            model->angle_y,
+            model->angle_z,
             node->abs_x,
             node->abs_y,
             node->abs_w,
@@ -820,11 +904,12 @@ UITreeX_PrintNode(
     }
     else if( node->kind == UITreeXNodeKind_RSLine )
     {
+        struct UITreeXNode_RSLine const* line = UITreeX_NodeRSLine(node);
         printf(
             " color=0x%x width=%d dir=%d abs=%d,%d %dx%d hidden=%d",
-            node->u.rs_line.color,
-            node->u.rs_line.line_width,
-            node->u.rs_line.line_direction,
+            line->color,
+            line->line_width,
+            line->line_direction,
             node->abs_x,
             node->abs_y,
             node->abs_w,
@@ -833,11 +918,12 @@ UITreeX_PrintNode(
     }
     else if( node->kind == UITreeXNodeKind_RSRect )
     {
+        struct UITreeXNode_RSRect const* rect = UITreeX_NodeRSRect(node);
         printf(
             " color=0x%x color2=0x%x filled=%d abs=%d,%d %dx%d hidden=%d",
-            node->u.rs_rect.color,
-            node->u.rs_rect.color2,
-            node->u.rs_rect.filled,
+            rect->color,
+            rect->color2,
+            rect->filled,
             node->abs_x,
             node->abs_y,
             node->abs_w,
@@ -846,11 +932,12 @@ UITreeX_PrintNode(
     }
     else if( node->kind == UITreeXNodeKind_RSText )
     {
+        struct UITreeXNode_RSText const* text = UITreeX_NodeRSText(node);
         printf(
             " font=%d color=0x%x text=\"%s\" abs=%d,%d %dx%d hidden=%d",
-            node->u.rs_text.font_id,
-            node->u.rs_text.color,
-            node->u.rs_text.text,
+            text->font_id,
+            text->color,
+            text->text,
             node->abs_x,
             node->abs_y,
             node->abs_w,
@@ -8284,14 +8371,15 @@ UITreeX_LayoutNode(
     int child_py = node->abs_y;
     if( node->kind == UITreeXNodeKind_RSLayer )
     {
-        if( node->u.rs_layer.scroll_width > 0 )
-            child_pw = node->u.rs_layer.scroll_width;
-        if( node->u.rs_layer.scroll_height > 0 )
-            child_ph = node->u.rs_layer.scroll_height;
+        struct UITreeXNode_RSLayer const* layer = UITreeX_NodeRSLayer(node);
+        if( layer->scroll_width > 0 )
+            child_pw = layer->scroll_width;
+        if( layer->scroll_height > 0 )
+            child_ph = layer->scroll_height;
         /* Scrolled content is laid out at its natural position, then shifted up/left
          * by the scroll offset; UITreeX_RenderNode clips it back to the layer's bounds. */
-        child_px -= node->u.rs_layer.scroll_x;
-        child_py -= node->u.rs_layer.scroll_y;
+        child_px -= layer->scroll_x;
+        child_py -= layer->scroll_y;
     }
 
     for( int child = node->link.first_child_tree_idx; child != -1;
@@ -8549,7 +8637,7 @@ CS2VMX_Op_CC_GetText(
     int component_id = CS2VMX_DotOrActiveComponentId(vm, operand);
     struct UITreeXNode* node = host ? UITreeX_NodeByComponentId(host, component_id) : NULL;
     if( node && node->kind == UITreeXNodeKind_RSText )
-        return CS2VMX_PushStr(vm, strdup(node->u.rs_text.text));
+        return CS2VMX_PushStr(vm, strdup(UITreeX_NodeRSText(node)->text));
     return CS2VMX_PushStr(vm, strdup(""));
 }
 
@@ -8636,7 +8724,7 @@ CS2VMX_Op_IF_GetText(
     struct InterfaceX_VMHost* host = (struct InterfaceX_VMHost*)vm->user;
     struct UITreeXNode* node = host ? UITreeX_NodeByComponentId(host, component_id) : NULL;
     if( node && node->kind == UITreeXNodeKind_RSText )
-        return CS2VMX_PushStr(vm, strdup(node->u.rs_text.text));
+        return CS2VMX_PushStr(vm, strdup(UITreeX_NodeRSText(node)->text));
     return CS2VMX_PushStr(vm, strdup(""));
 }
 
@@ -8658,7 +8746,7 @@ CS2VMX_Op_IF_GetScrollWidth(
     struct UITreeXNode* node = host ? UITreeX_NodeByComponentId(host, component_id) : NULL;
     int scroll_width = 0;
     if( node && node->kind == UITreeXNodeKind_RSLayer )
-        scroll_width = node->u.rs_layer.scroll_width;
+        scroll_width = UITreeX_NodeRSLayer(node)->scroll_width;
     return CS2VMX_PushInt(vm, scroll_width);
 }
 
@@ -9565,15 +9653,16 @@ InterfaceX_BlitCompassGraphic(
     if( !host || !pixels || !node )
         return;
 
-    int mask_id = node->u.rs_graphic.graphic_id;
+    struct UITreeXNode_RSGraphic const* graphic = UITreeX_NodeRSGraphic(node);
+    int mask_id = graphic->graphic_id;
     if( mask_id < 0 )
         return;
 
-    int content_id = node->u.rs_graphic.graphic_id2;
+    int content_id = graphic->graphic_id2;
     if( content_id < 0 )
         return;
 
-    int mask_scene = node->u.rs_graphic.scene_id;
+    int mask_scene = graphic->scene_id;
     if( mask_scene < 0 )
         mask_scene = InterfaceX_ResolveGraphicScene(host, mask_id);
 
@@ -9818,7 +9907,8 @@ UITreeX_RenderNode(
 
     if( node->kind == UITreeXNodeKind_RSGraphic && host )
     {
-        if( node->u.rs_graphic.graphic_id < 0 && node->u.rs_graphic.scene_id < 0 )
+        struct UITreeXNode_RSGraphic const* graphic = UITreeX_NodeRSGraphic(node);
+        if( graphic->graphic_id < 0 && graphic->scene_id < 0 )
             goto render_children;
 
         if( node->client_code == INTERFACEX_CONTENT_COMPASS )
@@ -9830,12 +9920,12 @@ UITreeX_RenderNode(
         if( node->client_code == INTERFACEX_CONTENT_MINIMAP )
             goto render_children;
 
-        int scene_id = node->u.rs_graphic.scene_id;
+        int scene_id = graphic->scene_id;
         if( scene_id < 0 )
         {
-            if( node->u.rs_graphic.graphic_id < 0 )
+            if( graphic->graphic_id < 0 )
                 goto render_children;
-            scene_id = InterfaceX_ResolveGraphicScene(host, node->u.rs_graphic.graphic_id);
+            scene_id = InterfaceX_ResolveGraphicScene(host, graphic->graphic_id);
         }
 
         if( scene_id >= 0 )
@@ -9853,8 +9943,8 @@ UITreeX_RenderNode(
                     node->abs_w > 0 ? node->abs_w : CANVAS_W,
                     node->abs_h > 0 ? node->abs_h : CANVAS_H,
                     node->tiling,
-                    node->u.rs_graphic.outline,
-                    node->u.rs_graphic.graphic_shadow,
+                    graphic->outline,
+                    graphic->graphic_shadow,
                     node->if3,
                     node_alpha,
                     node->hflip,
@@ -9911,18 +10001,19 @@ UITreeX_RenderNode(
     }
     else if( node->kind == UITreeXNodeKind_RSLine )
     {
+        struct UITreeXNode_RSLine const* line = UITreeX_NodeRSLine(node);
         int px = node->abs_x;
         int py = node->abs_y;
         int pw = node->abs_w > 0 ? node->abs_w : 1;
         int ph = node->abs_h > 0 ? node->abs_h : 1;
-        int argb = (node_alpha << 24) | (node->u.rs_line.color & 0xFFFFFF);
-        int thickness = node->u.rs_line.line_width > 0 ? node->u.rs_line.line_width : 1;
-        if( node->u.rs_line.line_direction == 1 )
+        int argb = (node_alpha << 24) | (line->color & 0xFFFFFF);
+        int thickness = line->line_width > 0 ? line->line_width : 1;
+        if( line->line_direction == 1 )
         {
             int y = py + ph / 2;
             InterfaceX_DrawLine(pixels, CANVAS_W, px, y, px + pw - 1, y, thickness, argb);
         }
-        else if( node->u.rs_line.line_direction == 0 )
+        else if( line->line_direction == 0 )
         {
             int x = px + pw / 2;
             InterfaceX_DrawLine(pixels, CANVAS_W, x, py, x, py + ph - 1, thickness, argb);
@@ -9933,12 +10024,12 @@ UITreeX_RenderNode(
                 pixels, CANVAS_W, px, py, px + pw - 1, py + ph - 1, thickness, argb);
         }
     }
-    else if( node->kind == UITreeXNodeKind_RSObj && node->u.rs_obj.obj_id > 0 && host )
+    else if( node->kind == UITreeXNodeKind_RSObj && UITreeX_NodeRSObj(node)->obj_id > 0 && host )
     {
-        int scene_id = node->u.rs_obj.scene_id;
+        struct UITreeXNode_RSObj const* obj = UITreeX_NodeRSObj(node);
+        int scene_id = obj->scene_id;
         if( scene_id < 0 )
-            scene_id = InterfaceX_ResolveObjIconScene(
-                host, node->u.rs_obj.obj_id, node->u.rs_obj.obj_count);
+            scene_id = InterfaceX_ResolveObjIconScene(host, obj->obj_id, obj->obj_count);
 
         if( scene_id >= 0 )
         {
@@ -9994,14 +10085,15 @@ UITreeX_RenderNode(
     }
     else if( node->kind == UITreeXNodeKind_RSRect )
     {
+        struct UITreeXNode_RSRect const* rect = UITreeX_NodeRSRect(node);
         int px = node->abs_x;
         int py = node->abs_y;
         int pw = node->abs_w > 0 ? node->abs_w : 1;
         int ph = node->abs_h > 0 ? node->abs_h : 1;
-        int color = node->u.rs_rect.color & 0xFFFFFF;
-        int color2 = node->u.rs_rect.color2 ? (node->u.rs_rect.color2 & 0xFFFFFF) : color;
+        int color = rect->color & 0xFFFFFF;
+        int color2 = rect->color2 ? (rect->color2 & 0xFFFFFF) : color;
         int argb = (node_alpha << 24) | color;
-        if( node->u.rs_rect.filled )
+        if( rect->filled )
         {
             switch( node->fill_mode )
             {
@@ -10034,9 +10126,10 @@ UITreeX_RenderNode(
         else
             InterfaceX_DrawRectOutline(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
     }
-    else if( node->kind == UITreeXNodeKind_RSText && node->u.rs_text.text[0] && host )
+    else if( node->kind == UITreeXNodeKind_RSText && UITreeX_NodeRSText(node)->text[0] && host )
     {
-        int font_id = node->u.rs_text.font_id;
+        struct UITreeXNode_RSText const* text = UITreeX_NodeRSText(node);
+        int font_id = text->font_id;
         if( font_id < 0 )
             font_id = 495;
 
@@ -10053,9 +10146,9 @@ UITreeX_RenderNode(
 
             int lw = node->abs_w;
             int lh = node->abs_h;
-            int color = node->u.rs_text.color & 0xFFFFFF;
-            bool shadowed = node->u.rs_text.shadowed != 0;
-            bool center = node->u.rs_text.center == 1;
+            int color = text->color & 0xFFFFFF;
+            bool shadowed = text->shadowed != 0;
+            bool center = text->center == 1;
 
             if( lw > 0 && lh > 0 )
             {
@@ -10066,11 +10159,11 @@ UITreeX_RenderNode(
                     node->abs_y,
                     lw,
                     lh,
-                    node->u.rs_text.text,
+                    text->text,
                     color,
-                    node->u.rs_text.center,
-                    node->u.rs_text.y_align,
-                    node->u.rs_text.line_height,
+                    text->center,
+                    text->y_align,
+                    text->line_height,
                     shadowed,
                     pixels);
             }
@@ -10080,7 +10173,7 @@ UITreeX_RenderNode(
                 int ty = node->abs_y + (lh > 0 ? lh : font->line_height);
                 if( center && lw > 0 )
                 {
-                    int tw = ToriDraw2D_MeasureString(font, node->u.rs_text.text);
+                    int tw = ToriDraw2D_MeasureString(font, text->text);
                     tx = node->abs_x + (lw - tw) / 2;
                 }
                 (void)ToriDraw2D_DrawString(
@@ -10088,7 +10181,7 @@ UITreeX_RenderNode(
                     &view_port,
                     tx,
                     ty,
-                    node->u.rs_text.text,
+                    text->text,
                     color,
                     center,
                     shadowed,
@@ -10771,15 +10864,21 @@ InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
     switch( node->kind )
     {
     case UITreeXNodeKind_RSObj:
-        node->u.rs_obj.obj_id = obj_id;
-        node->u.rs_obj.obj_count = count > 0 ? count : 1;
-        node->u.rs_obj.scene_id = InterfaceX_ResolveObjIconScene(host, obj_id, count);
+    {
+        struct UITreeXNode_RSObj* obj = UITreeX_NodeRSObjMut(node);
+        obj->obj_id = obj_id;
+        obj->obj_count = count > 0 ? count : 1;
+        obj->scene_id = InterfaceX_ResolveObjIconScene(host, obj_id, count);
         break;
+    }
     case UITreeXNodeKind_RSGraphic:
-        node->u.rs_graphic.graphic_id = obj_id;
-        node->u.rs_graphic.outline = 0;
-        node->u.rs_graphic.scene_id = InterfaceX_ResolveObjIconScene(host, obj_id, count);
+    {
+        struct UITreeXNode_RSGraphic* graphic = UITreeX_NodeRSGraphicMut(node);
+        graphic->graphic_id = obj_id;
+        graphic->outline = 0;
+        graphic->scene_id = InterfaceX_ResolveObjIconScene(host, obj_id, count);
         break;
+    }
     default:
         fprintf(stderr, "unexpected node kind in CC_SetObjectOnNode: %d\n", node->kind);
         return CS2VM_EXECNO_ERROR;
@@ -11500,7 +11599,7 @@ InterfaceX_VMHost_Exec_IF_GetScrollX(
         return CS2VM_EXECNO_OK;
     }
 
-    CS2VMX_PushInt(vm, node->u.rs_layer.scroll_x);
+    CS2VMX_PushInt(vm, UITreeX_NodeRSLayer(node)->scroll_x);
     return CS2VM_EXECNO_OK;
 }
 
@@ -11520,7 +11619,7 @@ InterfaceX_VMHost_Exec_IF_GetScrollY(
         return CS2VM_EXECNO_OK;
     }
 
-    CS2VMX_PushInt(vm, node->u.rs_layer.scroll_y);
+    CS2VMX_PushInt(vm, UITreeX_NodeRSLayer(node)->scroll_y);
     return CS2VM_EXECNO_OK;
 }
 
@@ -11540,7 +11639,7 @@ InterfaceX_VMHost_Exec_IF_GetScrollHeight(
         return CS2VM_EXECNO_OK;
     }
 
-    CS2VMX_PushInt(vm, node->u.rs_layer.scroll_height);
+    CS2VMX_PushInt(vm, UITreeX_NodeRSLayer(node)->scroll_height);
     return CS2VM_EXECNO_OK;
 }
 
@@ -11558,6 +11657,8 @@ InterfaceX_VMHost_Exec_IF_SetScrollPos(
     if( !node || node->kind != UITreeXNodeKind_RSLayer )
         return CS2VM_EXECNO_OK;
 
+    struct UITreeXNode_RSLayer* layer = UITreeX_NodeRSLayerMut(node);
+
     UITreeX_LayoutResolve(host->tree, CANVAS_W, CANVAS_H);
 
     int view_w = node->layout_resolved && node->abs_w > 0 ? node->abs_w : node->w;
@@ -11567,9 +11668,8 @@ InterfaceX_VMHost_Exec_IF_SetScrollPos(
     if( view_h < 0 )
         view_h = 0;
 
-    int max_x = node->u.rs_layer.scroll_width > view_w ? node->u.rs_layer.scroll_width - view_w : 0;
-    int max_y =
-        node->u.rs_layer.scroll_height > view_h ? node->u.rs_layer.scroll_height - view_h : 0;
+    int max_x = layer->scroll_width > view_w ? layer->scroll_width - view_w : 0;
+    int max_y = layer->scroll_height > view_h ? layer->scroll_height - view_h : 0;
 
     int scroll_x = request.scroll_x;
     int scroll_y = request.scroll_y;
@@ -11582,8 +11682,8 @@ InterfaceX_VMHost_Exec_IF_SetScrollPos(
     if( scroll_y > max_y )
         scroll_y = max_y;
 
-    node->u.rs_layer.scroll_x = scroll_x;
-    node->u.rs_layer.scroll_y = scroll_y;
+    layer->scroll_x = scroll_x;
+    layer->scroll_y = scroll_y;
     return CS2VM_EXECNO_OK;
 }
 
@@ -11601,10 +11701,12 @@ InterfaceX_VMHost_Exec_IF_SetScrollSize(
     if( !node || node->kind != UITreeXNodeKind_RSLayer )
         return CS2VM_EXECNO_OK;
 
-    bool size_changed = node->u.rs_layer.scroll_width != request.scroll_width ||
-                        node->u.rs_layer.scroll_height != request.scroll_height;
-    node->u.rs_layer.scroll_width = request.scroll_width;
-    node->u.rs_layer.scroll_height = request.scroll_height;
+    struct UITreeXNode_RSLayer* layer = UITreeX_NodeRSLayerMut(node);
+
+    bool size_changed =
+        layer->scroll_width != request.scroll_width || layer->scroll_height != request.scroll_height;
+    layer->scroll_width = request.scroll_width;
+    layer->scroll_height = request.scroll_height;
 
     UITreeX_LayoutResolve(host->tree, CANVAS_W, CANVAS_H);
 
@@ -11615,12 +11717,11 @@ InterfaceX_VMHost_Exec_IF_SetScrollSize(
     if( view_h < 0 )
         view_h = 0;
 
-    int max_x = node->u.rs_layer.scroll_width > view_w ? node->u.rs_layer.scroll_width - view_w : 0;
-    int max_y =
-        node->u.rs_layer.scroll_height > view_h ? node->u.rs_layer.scroll_height - view_h : 0;
+    int max_x = layer->scroll_width > view_w ? layer->scroll_width - view_w : 0;
+    int max_y = layer->scroll_height > view_h ? layer->scroll_height - view_h : 0;
 
-    int scroll_x = node->u.rs_layer.scroll_x;
-    int scroll_y = node->u.rs_layer.scroll_y;
+    int scroll_x = layer->scroll_x;
+    int scroll_y = layer->scroll_y;
     if( scroll_x < 0 )
         scroll_x = 0;
     if( scroll_x > max_x )
@@ -11630,10 +11731,9 @@ InterfaceX_VMHost_Exec_IF_SetScrollSize(
     if( scroll_y > max_y )
         scroll_y = max_y;
 
-    bool scroll_changed =
-        scroll_x != node->u.rs_layer.scroll_x || scroll_y != node->u.rs_layer.scroll_y;
-    node->u.rs_layer.scroll_x = scroll_x;
-    node->u.rs_layer.scroll_y = scroll_y;
+    bool scroll_changed = scroll_x != layer->scroll_x || scroll_y != layer->scroll_y;
+    layer->scroll_x = scroll_x;
+    layer->scroll_y = scroll_y;
 
     if( size_changed || scroll_changed )
         UITreeX_InvalidateLayout(host->tree);
@@ -11683,17 +11783,17 @@ InterfaceX_ApplyWidgetSetInt(
         break;
     case CS2VM_WIDGET_INT_FILL_COLOUR:
         if( node->kind == UITreeXNodeKind_RSRect )
-            node->u.rs_rect.color = value;
+            UITreeX_NodeRSRectMut(node)->color = value;
         else if( node->kind == UITreeXNodeKind_RSLine )
-            node->u.rs_line.color = value;
+            UITreeX_NodeRSLineMut(node)->color = value;
         break;
     case CS2VM_WIDGET_INT_LINE_WIDTH:
         if( node->kind == UITreeXNodeKind_RSLine )
-            node->u.rs_line.line_width = value > 0 ? value : 1;
+            UITreeX_NodeRSLineMut(node)->line_width = value > 0 ? value : 1;
         break;
     case CS2VM_WIDGET_INT_LINE_DIRECTION:
         if( node->kind == UITreeXNodeKind_RSLine )
-            node->u.rs_line.line_direction = value;
+            UITreeX_NodeRSLineMut(node)->line_direction = value;
         break;
     case CS2VM_WIDGET_INT_FILL_MODE:
         node->fill_mode = value;
@@ -11916,7 +12016,7 @@ InterfaceX_VMHost_Exec_IF_SetOutline(
         node->u.rs_graphic.scene_id = -1;
     }
 
-    node->u.rs_graphic.outline = request.outline;
+    UITreeX_NodeRSGraphicMut(node)->outline = request.outline;
     return CS2VM_EXECNO_OK;
 }
 
@@ -12644,11 +12744,12 @@ InterfaceX_VMHost_Exec_CC_SetGraphic(
         node->u.rs_graphic.scene_id = -1;
     }
 
-    node->u.rs_graphic.graphic_id = request.graphic_id;
+    struct UITreeXNode_RSGraphic* graphic = UITreeX_NodeRSGraphicMut(node);
+    graphic->graphic_id = request.graphic_id;
     if( request.graphic_id >= 0 )
-        node->u.rs_graphic.scene_id = InterfaceX_ResolveGraphicScene(host, request.graphic_id);
+        graphic->scene_id = InterfaceX_ResolveGraphicScene(host, request.graphic_id);
     else
-        node->u.rs_graphic.scene_id = -1;
+        graphic->scene_id = -1;
 
     return CS2VM_EXECNO_OK;
 }
@@ -12747,7 +12848,7 @@ InterfaceX_VMHost_Exec_CC_SetOutline(
         node->u.rs_graphic.scene_id = -1;
     }
 
-    node->u.rs_graphic.outline = request.outline;
+    UITreeX_NodeRSGraphicMut(node)->outline = request.outline;
     return CS2VM_EXECNO_OK;
 }
 
@@ -12773,7 +12874,7 @@ InterfaceX_VMHost_Exec_CC_SetGraphicShadow(
         node->u.rs_graphic.scene_id = -1;
     }
 
-    node->u.rs_graphic.graphic_shadow = request.shadow;
+    UITreeX_NodeRSGraphicMut(node)->graphic_shadow = request.shadow;
     return CS2VM_EXECNO_OK;
 }
 
@@ -12793,13 +12894,13 @@ InterfaceX_VMHost_Exec_CC_SetColour(
 
     if( node->kind == UITreeXNodeKind_RSText )
     {
-        node->u.rs_text.color = request.colour;
+        UITreeX_NodeRSTextMut(node)->color = request.colour;
         return CS2VM_EXECNO_OK;
     }
 
     if( node->kind == UITreeXNodeKind_RSRect )
     {
-        node->u.rs_rect.color = request.colour;
+        UITreeX_NodeRSRectMut(node)->color = request.colour;
         return CS2VM_EXECNO_OK;
     }
 
@@ -12820,7 +12921,7 @@ InterfaceX_VMHost_Exec_CC_SetFill(
     if( !node || node->kind != UITreeXNodeKind_RSRect )
         return CS2VM_EXECNO_OK;
 
-    node->u.rs_rect.filled = request.filled != 0;
+    UITreeX_NodeRSRectMut(node)->filled = request.filled != 0;
     return CS2VM_EXECNO_OK;
 }
 
@@ -12874,7 +12975,7 @@ InterfaceX_VMHost_Exec_CC_SetTextFont(
     if( !node || node->kind != UITreeXNodeKind_RSText )
         return CS2VM_EXECNO_OK;
 
-    node->u.rs_text.font_id = request.font_id;
+    UITreeX_NodeRSTextMut(node)->font_id = request.font_id;
     return CS2VM_EXECNO_OK;
 }
 
@@ -12892,9 +12993,9 @@ InterfaceX_VMHost_Exec_CC_SetText(
     if( !node || node->kind != UITreeXNodeKind_RSText )
         return CS2VM_EXECNO_OK;
 
-    strncpy(
-        node->u.rs_text.text, request.text ? request.text : "", sizeof(node->u.rs_text.text) - 1);
-    node->u.rs_text.text[sizeof(node->u.rs_text.text) - 1] = '\0';
+    struct UITreeXNode_RSText* text = UITreeX_NodeRSTextMut(node);
+    strncpy(text->text, request.text ? request.text : "", sizeof(text->text) - 1);
+    text->text[sizeof(text->text) - 1] = '\0';
     return CS2VM_EXECNO_OK;
 }
 
@@ -12921,9 +13022,10 @@ InterfaceX_VMHost_Exec_CC_SetTextAlign(
     if( !node || node->kind != UITreeXNodeKind_RSText )
         return CS2VM_EXECNO_OK;
 
-    node->u.rs_text.center = request.x_align;
-    node->u.rs_text.y_align = request.y_align;
-    node->u.rs_text.line_height = request.line_height;
+    struct UITreeXNode_RSText* text = UITreeX_NodeRSTextMut(node);
+    text->center = request.x_align;
+    text->y_align = request.y_align;
+    text->line_height = request.line_height;
     return CS2VM_EXECNO_OK;
 }
 
@@ -12941,7 +13043,7 @@ InterfaceX_VMHost_Exec_CC_SetTextShadow(
     if( !node || node->kind != UITreeXNodeKind_RSText )
         return CS2VM_EXECNO_OK;
 
-    node->u.rs_text.shadowed = request.shadowed != 0;
+    UITreeX_NodeRSTextMut(node)->shadowed = request.shadowed != 0;
     return CS2VM_EXECNO_OK;
 }
 
