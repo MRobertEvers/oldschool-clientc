@@ -34,7 +34,9 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     bool postprocess_outline);
 
 /** Rasterize widget-model extents directly into a canvas buffer via RenderModel2/3.
- *  out_draw_x/out_draw_y are the canvas top-left of the tight extents raster area. */
+ *  out_draw_x/out_draw_y are the canvas top-left of the tight extents raster area.
+ *  orthographic: 1 = orthographic projection; 0 = perspective (objRender).
+ *  fixed_zoom: 1 = zoom3d uses zoom (drawModel2DAtZoom); 0 = fixed 512 (drawModel2D). */
 bool
 ToriDraw_RenderModelExtentsAtWidget(
     struct ToriDraw_Scene* scene,
@@ -43,9 +45,11 @@ ToriDraw_RenderModelExtentsAtWidget(
     int xan,
     int yan,
     int zan,
-    int offset_x,
-    int offset_y,
+    int orientation,
+    int model_offset,
+    int model_center_y,
     bool orthographic,
+    bool fixed_zoom,
     toripixel_t* pixels,
     int stride,
     int canvas_w,

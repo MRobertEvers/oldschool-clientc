@@ -561,11 +561,13 @@ RSCacheDat2A_ComponentDecodeIf3(
         if( self->modelSeqId == 65535 )
             self->modelSeqId = -1;
         self->modelOrthographic = (g1(buf) == 1);
-        g2(buf);
+        self->aShort50 = (int16_t)g2(buf);
+        self->aShort49 = (int16_t)g2(buf);
+        self->aBoolean411 = (g1(buf) == 1);
         if( self->widthMode != 0 )
             self->anInt5957 = g2(buf);
         if( self->heightMode != 0 )
-            self->aspect_ratio_h = g2(buf);
+            self->anInt5920 = g2(buf);
     }
     if( self->type == 4 )
     {

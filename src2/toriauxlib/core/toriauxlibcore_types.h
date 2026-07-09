@@ -441,12 +441,16 @@ struct ToriAuxLibCore_Component
     int model_yan;
     /** MODEL preview roll: dat2 modelZAngle (IF3 only). */
     int model_zan;
-    /** MODEL preview X offset: dat2 modelXOffset (IF3 only). */
+    /** MODEL orientation: dat2 modelXOffset / anInt5907 (IF3 only). Added to X after rotate. */
     int model_x_offset;
-    /** MODEL preview Y offset: dat2 modelYOffset (IF3 only). */
+    /** MODEL depth offset: dat2 modelYOffset / anInt5921 (IF3 only). Added to Y and Z. */
     int model_y_offset;
-    /** MODEL orthographic projection: dat2 modelOrthographic (IF3 only). */
+    /** MODEL projection mode: dat2 modelOrthographic (IF3 only).
+     *  1 = orthographic (scale x/y, no z divide); 0 = perspective (objRender). */
     uint8_t model_orthog;
+    /** MODEL projection scale: dat2 aBoolean411 (IF3 only).
+     *  1 = zoom3d = widget zoom (drawModel2DAtZoom); 0 = zoom3d = 512 (drawModel2D). */
+    uint8_t model_fixed_zoom;
     int color;
     int filled;
     int font_id;

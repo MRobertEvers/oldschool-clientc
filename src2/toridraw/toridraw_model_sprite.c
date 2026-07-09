@@ -43,20 +43,25 @@ widget_model_init_transform(
     int xan,
     int yan,
     int zan,
-    int offset_x,
-    int offset_y,
-    bool orthographic)
+    int orientation,
+    int model_offset,
+    int model_center_y,
+    bool orthographic, /* 1 = orthographic path; 0 = perspective objRender */
+    bool fixed_zoom)   /* 1 = zoom3d = zoom; 0 = zoom3d = 512 */
 {
     const int var1 = 0;
     const int var2 = yan & 2047;
     const int var3 = zan & 2047;
     const int var4 = xan & 2047;
 
+    int sin_pitch = (zoom * ToriDraw_Sin(var4)) >> 16;
+    int cos_pitch = (zoom * ToriDraw_Cos(var4)) >> 16;
+
     xf->var2 = var2;
     xf->var3 = var3;
-    xf->var5 = offset_x;
-    xf->var6 = ((zoom * ToriDraw_Sin(var4)) >> 16) + offset_y;
-    xf->var7 = ((zoom * ToriDraw_Cos(var4)) >> 16) + offset_y;
+    xf->var5 = orientation;
+    xf->var6 = sin_pitch + model_offset + model_center_y;
+    xf->var7 = cos_pitch + model_offset;
     xf->var10 = ToriDraw_Sin(var1);
     xf->var11 = ToriDraw_Cos(var1);
     xf->var12 = ToriDraw_Sin(var2);
@@ -66,7 +71,7 @@ widget_model_init_transform(
     xf->var16 = ToriDraw_Sin(var4);
     xf->var17 = ToriDraw_Cos(var4);
     xf->zoom2d = zoom > 0 ? zoom : 2000;
-    xf->zoom3d = WIDGET_MODEL_ZOOM3D;
+    xf->zoom3d = fixed_zoom ? xf->zoom2d : WIDGET_MODEL_ZOOM3D;
     xf->orthographic = orthographic;
 }
 
@@ -342,9 +347,11 @@ ToriDraw_RenderModelExtentsAtWidget(
     int xan,
     int yan,
     int zan,
-    int offset_x,
-    int offset_y,
+    int orientation,
+    int model_offset,
+    int model_center_y,
     bool orthographic,
+    bool fixed_zoom,
     toripixel_t* pixels,
     int stride,
     int canvas_w,
@@ -375,7 +382,16 @@ ToriDraw_RenderModelExtentsAtWidget(
 
     struct WidgetModelTransform xf;
     widget_model_init_transform(
-        &xf, zoom, xan, yan, zan, offset_x, offset_y, orthographic);
+        &xf,
+        zoom,
+        xan,
+        yan,
+        zan,
+        orientation,
+        model_offset,
+        model_center_y,
+        orthographic,
+        fixed_zoom);
 
     int sw = 0;
     int sh = 0;
@@ -527,7 +543,7 @@ ToriDraw_SpriteNewFromModelRasterExtents(
 
     struct WidgetModelTransform xf;
     widget_model_init_transform(
-        &xf, zoom, xan, yan, zan, offset_x, offset_y, orthographic);
+        &xf, zoom, xan, yan, zan, offset_x, offset_y, 0, orthographic, false);
 
     int width = 0;
     int height = 0;

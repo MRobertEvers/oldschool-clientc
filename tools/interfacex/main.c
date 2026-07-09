@@ -134,13 +134,18 @@ struct UITreeXNode_RSModel
     int model_id;
     enum InterfaceX_ModelKind model_kind;
     int zoom;
+    /** drawModel2D orientation (modelOrientation / SETMODELANGLE arg 1). */
     int offset_x;
+    /** drawModel2D modelOffset (SETMODELANGLE arg 2); cache anInt5921. */
     int offset_y;
     int angle_x;
     int angle_y;
     int angle_z;
     int anim_seq;
+    /** 1 = orthographic projection (no z divide); 0 = perspective (objRender / drawModel2D). */
     int orthog;
+    /** 1 = zoom3d uses widget zoom (drawModel2DAtZoom); 0 = fixed 512 scale (drawModel2D). */
+    int fixed_zoom;
     int transparent;
     int item_id;
     int item_count;
@@ -925,7 +930,8 @@ UITreeX_PrintNode(
     {
         struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
         printf(
-            " model=%d kind=%d zoom=%d xan=%d yan=%d zan=%d ox=%d oy=%d orthog=%d",
+            " model=%d kind=%d zoom=%d xan=%d yan=%d zan=%d orient=%d offset=%d orthog=%d fixed_zoom=%d"
+            " x=%d y=%d xm=%d ym=%d w=%d h=%d",
             model->model_id,
             (int)model->model_kind,
             model->zoom,
@@ -934,7 +940,14 @@ UITreeX_PrintNode(
             model->angle_z,
             model->offset_x,
             model->offset_y,
-            model->orthog);
+            model->orthog,
+            model->fixed_zoom,
+            node->x,
+            node->y,
+            node->x_mode,
+            node->y_mode,
+            node->w,
+            node->h);
     }
     else if( node->kind == UITreeXNodeKind_RSLine )
     {
@@ -9205,6 +9218,7 @@ UITreeX_ApplyComponentGeometry(
         node->u.rs_model.offset_x = component->model_x_offset;
         node->u.rs_model.offset_y = component->model_y_offset;
         node->u.rs_model.orthog = component->model_orthog ? 1 : 0;
+        node->u.rs_model.fixed_zoom = component->model_fixed_zoom ? 1 : 0;
         node->u.rs_model.scene_id = -1;
     }
     else if( node->kind == UITreeXNodeKind_RSLine )
@@ -11070,9 +11084,10 @@ InterfaceX_RasterModelNodeToCanvas(
     int angle_x = model->angle_x;
     int angle_y = model->angle_y;
     int angle_z = model->angle_z;
-    int offset_x = model->offset_x;
-    int offset_y = model->offset_y;
+    int orientation = model->offset_x;
+    int model_offset = model->offset_y;
     int orthog = model->orthog ? 1 : 0;
+    int fixed_zoom = model->fixed_zoom ? 1 : 0;
 
     struct RSCacheDat2A_Model* dat2a_model = RSCacheDat2A_ModelNewFromCache(host->disk, model_id);
     if( !dat2a_model )
@@ -11084,6 +11099,12 @@ InterfaceX_RasterModelNodeToCanvas(
         return;
 
     ToriDraw_ModelSetBoundsCylinder(td_model);
+
+    struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(
+        (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_MODEL, .u.model.model = td_model });
+    int model_center_y = 0;
+    if( model->item_id != -1 && bounds )
+        model_center_y = -bounds->min_y / 2;
 
     struct ToriDraw_ModelHandle hnd = {
         .kind = TORIDRAWMK_MODEL,
@@ -11102,9 +11123,11 @@ InterfaceX_RasterModelNodeToCanvas(
         angle_x,
         angle_y,
         angle_z,
-        offset_x,
-        offset_y,
+        orientation,
+        model_offset,
+        model_center_y,
         orthog != 0,
+        fixed_zoom != 0,
         dest,
         dest_stride,
         CANVAS_W,

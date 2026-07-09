@@ -86,6 +86,7 @@ typedef struct RSCacheDat2A_Component
     int32_t modelXOffset;
     int32_t modelYOffset;
     int32_t modelSeqId;
+    /** 1 = orthographic projection; 0 = perspective (objRender / drawModel2D). */
     bool modelOrthographic;
 
     int32_t objId;
@@ -136,6 +137,7 @@ typedef struct RSCacheDat2A_Component
     int32_t anInt5921;
     int16_t aShort50;
     int16_t aShort49;
+    /** 1 = projection scale uses widget zoom (drawModel2DAtZoom); 0 = fixed 512 (drawModel2D). */
     bool aBoolean411;
     int32_t anInt5957;
     /** IF3 aspect ratio numerator/denominator (Kronos field2688/field2662). */
