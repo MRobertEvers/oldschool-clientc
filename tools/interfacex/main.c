@@ -288,10 +288,9 @@ UITreeX_NodeInit(
     node->link.next_sibling_tree_idx = -1;
     node->link.first_child_tree_idx = -1;
     node->link.last_child_tree_idx = -1;
-    node->u.rs_graphic.graphic_id = -1;
-    node->u.rs_graphic.graphic_id2 = -1;
-    node->u.rs_graphic.scene_id = -1;
-    node->u.rs_graphic.cs1_active = 0;
+    /* Do not write rs_graphic fields here: scene_id aliases rs_layer.scroll_x. */
+    node->u.rs_layer.scroll_x = 0;
+    node->u.rs_layer.scroll_y = 0;
     node->model_overlay.model_id = -1;
     node->model_overlay.model_kind = INTERFACEX_MODEL_KIND_NONE;
     node->model_overlay.zoom = 2000;
