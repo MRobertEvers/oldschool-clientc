@@ -1058,6 +1058,9 @@ UITreeX_PrintNodes(struct UITreeX const* tree)
 #define CS2VM_SCRIPT_ARG_KEY_PRESSED -2147483639
 #define CS2VM_SCRIPT_ARG_OP_SUBINDEX -2147483638
 
+/* On CS2VM_EXECNO_YIELD the host must not partially mutate VM state; the opcode
+ * checkpoint in CS2VMX_RunScript rolls back stack, frames, and pc so RunScript can
+ * be re-entered after external host work. */
 #define CS2VM_EXECNO_YIELD -2
 #define CS2VM_EXECNO_ERROR -1
 #define CS2VM_EXECNO_OK 0
@@ -1172,12 +1175,112 @@ struct CS2VMX
     int last_error_pc;
     int last_error_script_id;
 
+    /* Tracks cooperative yields (halts) for the current opcode site; crash if > 1. */
+    int yield_halt_frame_sp;
+    int yield_halt_script_id;
+    int yield_halt_pc;
+    int yield_halt_count;
+
     int children_iter_indices[CS2VMX_CHILDREN_ITER_MAX];
     int children_iter_count;
     int children_iter_index;
 
     struct CS2VMXArray arrays[CS2VMX_MAX_ARRAYS];
 };
+
+struct CS2VMX_YieldCheckpoint
+{
+    int ints_stack_top;
+    int strs_stack_top;
+    int frame_sp;
+    int active_component_id;
+    int dot_component_id;
+    struct CS2VMX_Frame frames[CS2VM_MAX_FRAMES];
+};
+
+static void
+CS2VMX_SaveYieldCheckpoint(
+    struct CS2VMX* vm,
+    struct CS2VMX_YieldCheckpoint* cp)
+{
+    assert(vm);
+    assert(cp);
+
+    cp->ints_stack_top = vm->ints_stack_top;
+    cp->strs_stack_top = vm->strs_stack_top;
+    cp->frame_sp = vm->frame_sp;
+    cp->active_component_id = vm->active_component_id;
+    cp->dot_component_id = vm->dot_component_id;
+    memcpy(cp->frames, vm->frames, (size_t)vm->frame_sp * sizeof(struct CS2VMX_Frame));
+}
+
+static void
+CS2VMX_RestoreYieldCheckpoint(
+    struct CS2VMX* vm,
+    struct CS2VMX_YieldCheckpoint const* cp,
+    int op_pc)
+{
+    assert(vm);
+    assert(cp);
+    assert(cp->frame_sp > 0);
+
+    for( int i = cp->frame_sp; i < vm->frame_sp; i++ )
+        memset(&vm->frames[i], 0, sizeof(struct CS2VMX_Frame));
+
+    vm->ints_stack_top = cp->ints_stack_top;
+    vm->strs_stack_top = cp->strs_stack_top;
+    vm->frame_sp = cp->frame_sp;
+    vm->active_component_id = cp->active_component_id;
+    vm->dot_component_id = cp->dot_component_id;
+    memcpy(vm->frames, cp->frames, (size_t)cp->frame_sp * sizeof(struct CS2VMX_Frame));
+    vm->frames[vm->frame_sp - 1].pc = op_pc;
+}
+
+static void
+CS2VMX_ClearYieldHalt(struct CS2VMX* vm)
+{
+    assert(vm);
+    vm->yield_halt_frame_sp = 0;
+    vm->yield_halt_script_id = 0;
+    vm->yield_halt_pc = -1;
+    vm->yield_halt_count = 0;
+}
+
+static void
+CS2VMX_CheckYieldHalt(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int op_pc,
+    int opcode)
+{
+    assert(vm);
+    assert(frame);
+
+    int script_id = frame->script->script_id;
+
+    if( vm->yield_halt_frame_sp == vm->frame_sp && vm->yield_halt_script_id == script_id &&
+        vm->yield_halt_pc == op_pc )
+        vm->yield_halt_count++;
+    else
+    {
+        vm->yield_halt_frame_sp = vm->frame_sp;
+        vm->yield_halt_script_id = script_id;
+        vm->yield_halt_pc = op_pc;
+        vm->yield_halt_count = 1;
+    }
+
+    if( vm->yield_halt_count > 1 )
+    {
+        fprintf(
+            stderr,
+            "CS2VM: opcode %d yielded more than once at script=%d pc=%d frame=%d\n",
+            opcode,
+            script_id,
+            op_pc,
+            vm->frame_sp);
+        abort();
+    }
+}
 
 static bool
 CS2VMX_IsTargetingOpcode(int opcode)
@@ -7228,7 +7331,7 @@ CS2VMX_RunOp(
     struct CS2VMX_Frame* frame,
     int opcode,
     int operand,
-    char const* str_operand)
+    char* str_operand)
 {
     assert(vm);
     assert(frame);
@@ -7984,6 +8087,9 @@ CS2VMX_RunScript(struct CS2VMX* vm)
         int op_pc = frame->pc;
         frame->pc += 1;
 
+        struct CS2VMX_YieldCheckpoint yield_cp;
+        CS2VMX_SaveYieldCheckpoint(vm, &yield_cp);
+
         result = CS2VMX_RunOp(vm, frame, opcode, operand, str_operand_str);
 
         CS2VMX_TraceOpcode(vm, frame, op_pc, opcode, operand, result);
@@ -7991,7 +8097,14 @@ CS2VMX_RunScript(struct CS2VMX* vm)
         switch( result )
         {
         case CS2VM_EXECNO_OK:
+            if( vm->yield_halt_frame_sp == vm->frame_sp &&
+                vm->yield_halt_script_id == frame->script->script_id && vm->yield_halt_pc == op_pc )
+                CS2VMX_ClearYieldHalt(vm);
             break;
+        case CS2VM_EXECNO_YIELD:
+            CS2VMX_CheckYieldHalt(vm, frame, op_pc, opcode);
+            CS2VMX_RestoreYieldCheckpoint(vm, &yield_cp, op_pc);
+            return CS2VM_EXECNO_YIELD;
         default:
             if( result == CS2VM_EXECNO_ERROR )
             {
@@ -15027,6 +15140,7 @@ CS2VMX_ResetRuntime(struct CS2VMX* vm)
     vm->ints_stack_top = 0;
     vm->strs_stack_top = 0;
     vm->frame_sp = 0;
+    CS2VMX_ClearYieldHalt(vm);
 }
 
 static void
@@ -15509,6 +15623,92 @@ InterfaceX_FreeLoadedInterface(struct InterfaceX_LoadedInterface* loaded)
     memset(loaded, 0, sizeof(*loaded));
 }
 
+static int g_cs2vm_yield_test_host_calls;
+
+static int
+CS2VMX_TestYieldHostExec(
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest* request)
+{
+    (void)request;
+
+    vm->active_component_id = 0xDEADBEEF;
+    vm->dot_component_id = 0xCAFEBABE;
+    g_cs2vm_yield_test_host_calls++;
+    if( g_cs2vm_yield_test_host_calls == 1 )
+        return CS2VM_EXECNO_YIELD;
+    return CS2VM_EXECNO_OK;
+}
+
+static int
+CS2VMX_TestYieldRollback(void)
+{
+    uint16_t opcodes[2] = { CS2_OP_CC_DELETEALL, CS2_OP_RETURN };
+    int operands[2] = { 0, 0 };
+    struct CS2_Script script = {
+        .script_id = 1,
+        .op_count = 2,
+        .opcodes = opcodes,
+        .int_operands = operands,
+    };
+
+    struct CS2VMX vm;
+    memset(&vm, 0, sizeof(vm));
+    CS2VMX_BindHost(&vm, NULL, CS2VMX_TestYieldHostExec);
+    CS2VMX_PushCallScript(&vm, &script);
+    CS2VMX_PushInt(&vm, 0x12345678);
+
+    int const saved_int_top = vm.ints_stack_top;
+
+    vm.active_component_id = 0x11111111;
+    vm.dot_component_id = 0x22222222;
+
+    g_cs2vm_yield_test_host_calls = 0;
+    int res = CS2VMX_RunScript(&vm);
+    if( res != CS2VM_EXECNO_YIELD )
+    {
+        fprintf(stderr, "yield test: expected YIELD, got %d\n", res);
+        return 1;
+    }
+    if( vm.frames[0].pc != 0 )
+    {
+        fprintf(stderr, "yield test: expected pc rollback to 0, got %d\n", vm.frames[0].pc);
+        return 1;
+    }
+    if( vm.ints_stack_top != saved_int_top || vm.ints_stack[0] != 0x12345678 )
+    {
+        fprintf(stderr, "yield test: stack not restored after yield\n");
+        return 1;
+    }
+    if( vm.active_component_id != 0x11111111 || vm.dot_component_id != 0x22222222 )
+    {
+        fprintf(stderr, "yield test: component ids not restored after yield\n");
+        return 1;
+    }
+
+    res = CS2VMX_RunScript(&vm);
+    if( res != CS2VM_EXECNO_DONE )
+    {
+        fprintf(stderr, "yield test: expected DONE after resume, got %d\n", res);
+        return 1;
+    }
+
+    if( g_cs2vm_yield_test_host_calls != 2 )
+    {
+        fprintf(
+            stderr, "yield test: expected 2 host calls, got %d\n", g_cs2vm_yield_test_host_calls);
+        return 1;
+    }
+    if( vm.frame_sp != 0 )
+    {
+        fprintf(stderr, "yield test: expected empty frame stack after completion\n");
+        return 1;
+    }
+
+    printf("CS2VM yield rollback test passed\n");
+    return 0;
+}
+
 int
 main(
     int argc,
@@ -15545,6 +15745,8 @@ main(
             g_cs2_trace_mode = 1;
         else if( strcmp(argv[i], "--cs2-trace-all") == 0 )
             g_cs2_trace_mode = 2;
+        else if( strcmp(argv[i], "--test-yield") == 0 )
+            return CS2VMX_TestYieldRollback();
         else if( strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0 )
         {
             InterfaceX_PrintUsage(argv[0]);
@@ -15651,8 +15853,7 @@ main(
             return 1;
     }
 
-    if( !InterfaceX_LoadInterfaceComponents(
-            &vmhost, builder, cache, interface_id, &primary) )
+    if( !InterfaceX_LoadInterfaceComponents(&vmhost, builder, cache, interface_id, &primary) )
         return 1;
 
     UITreeXBuilder_ResolvePendingParents(builder);
