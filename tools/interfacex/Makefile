@@ -30,7 +30,6 @@ SRCS = $(TOOL_DIR)/main.c \
 	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_font_convert.c \
 	$(SRC2_DIR)/vm/cs2_script.c \
 	$(SRC2_DIR)/vm/cs2_opcode_meta.c \
-	$(SRC2_DIR)/vm/cs1vm.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c
 
@@ -87,9 +86,6 @@ $(OBJ_DIR)/cs2_script.o: $(SRC2_DIR)/vm/cs2_script.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/cs2_opcode_meta.o: $(SRC2_DIR)/vm/cs2_opcode_meta.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/cs1vm.o: $(SRC2_DIR)/vm/cs1vm.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/bzip.o: $(SRC_DIR)/3rd/bzip/bzip.c

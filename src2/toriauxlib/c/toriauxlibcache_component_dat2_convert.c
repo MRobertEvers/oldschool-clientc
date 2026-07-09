@@ -2,7 +2,6 @@
 #include "osrs/rscache/dat2a/dat2a_component.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
-#include "vm/cs1vm.h"
 #include "vm/cs2vm.h"
 
 #include <assert.h>
@@ -135,10 +134,8 @@ toriauxlibcache_component_copy_scripts(
         if( !scripts[i] )
             continue;
 
-        int len = (scripts_lengths && scripts_lengths[i] > 0) ? scripts_lengths[i]
-                                                              : cs1vm_script_length(scripts[i]);
-        if( len <= 0 )
-            continue;
+        assert(scripts_lengths && scripts_lengths[i] > 0);
+        int len = scripts_lengths[i];
 
         dst->scripts[i] = malloc((size_t)len * sizeof(int));
         if( !dst->scripts[i] )
@@ -204,7 +201,7 @@ toriauxlibcache_component_copy_dat2_cs1_scripts(
         lengths,
         src->cs1ComparisonOpcodes,
         src->cs1ComparisonOperands);
-    dst->script_kind = CS1VM_SCRIPT_KIND_CS1;
+    dst->script_kind = 0;
 }
 
 static void
@@ -245,7 +242,7 @@ toriauxlibcache_component_copy_dat2_hooks(
     if( dst->scripts_count <= 0 &&
         (dst->on_load.argc > 0 || dst->on_click.argc > 0 || dst->on_varp_transmit.argc > 0 ||
          dst->on_inv_transmit.argc > 0) )
-        dst->script_kind = CS1VM_SCRIPT_KIND_CS2;
+        dst->script_kind = 1;
 }
 
 struct ToriAuxLibCore_Component*

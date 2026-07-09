@@ -17,7 +17,6 @@
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model_sprite.h"
 #include "toridraw/toridraw_sprite.h"
-#include "vm/cs1vm.h"
 #include "vm/cs2_script.h"
 #include <sys/stat.h>
 
@@ -10540,48 +10539,11 @@ component_decode_from_bytes(
     return comp;
 }
 
-static bool
-InterfaceX_ComponentCs1Active(
-    struct ToriAuxLibCore_Component const* component,
-    struct CS1VM* cs1vm)
-{
-    if( !component || !cs1vm )
-        return false;
-
-    if( component->script_kind == CS1VM_SCRIPT_KIND_CS2 )
-        return false;
-
-    if( component->scripts_count <= 0 )
-        return false;
-
-    if( !component->script_comparator || !component->script_operand )
-        return false;
-
-    struct CS1Host host;
-    memset(&host, 0, sizeof(host));
-
-    for( int i = 0; i < component->scripts_count; i++ )
-    {
-        if( !component->scripts || !component->scripts[i] )
-            return false;
-
-        int script_len = component->scripts_lengths ? component->scripts_lengths[i] : 0;
-        int value = cs1vm_eval_len(cs1vm, component->scripts[i], &host, script_len);
-        int operand = component->script_operand[i];
-        int comp = component->script_comparator[i];
-        if( !cs1vm_compare(comp, value, operand) )
-            return false;
-    }
-
-    return true;
-}
-
 static int
 process_component(
     struct UITreeXBuilder* builder,
     struct ToriAuxLibCore_Component* component,
-    RSCacheDat2A_Component const* raw_component,
-    struct CS1VM* cs1vm)
+    RSCacheDat2A_Component const* raw_component)
 {
     assert(builder);
     assert(component);
@@ -10629,9 +10591,11 @@ process_component(
             model->cache_an5920 = raw_component->anInt5920;
         }
 
-        if( component->type == TORIAUXLIBCORE_COMPONENT_GRAPHIC && !component->if3 )
-            builder->tree->nodes[idx].u.rs_graphic.cs1_active =
-                InterfaceX_ComponentCs1Active(component, cs1vm) ? 1 : 0;
+        if( component->type == TORIAUXLIBCORE_COMPONENT_GRAPHIC && !component->if3 &&
+            component->scripts_count > 0 && component->script_comparator )
+        {
+            assert(!"interfacex: CS1 getIfActive evaluation is not supported");
+        }
     }
 
     return idx;
@@ -11125,8 +11089,9 @@ InterfaceX_RasterModelNodeToCanvas(
 
     int model_id = model->model_id;
     int zoom = model->zoom > 0 ? model->zoom : 2000;
-    /* OSRS only applies zoom*32/width for item model widgets (CC_SETOBJECT), not plain cache models.
-     * Plain models (e.g. portal nexus 19:5) keep cache modelZoom (1348) and center on the model node. */
+    /* OSRS only applies zoom*32/width for item model widgets (CC_SETOBJECT), not plain cache
+     * models. Plain models (e.g. portal nexus 19:5) keep cache modelZoom (1348) and center on the
+     * model node. */
     if( model->item_id >= 0 )
     {
         if( node->w_mode != 0 && model->cache_an5957 > 0 )
@@ -14681,8 +14646,9 @@ InterfaceX_ObjTypeParamGet(
     struct InterfaceX_ObjType const* obj,
     int param_id)
 {
-    if( !obj || !obj->params || obj->param_count <= 0 )
-        return NULL;
+    assert(obj);
+    assert(obj->params);
+    assert(obj->param_count > 0);
 
     for( int i = 0; i < obj->param_count; i++ )
     {
@@ -15365,8 +15331,7 @@ static int
 process_component(
     struct UITreeXBuilder* builder,
     struct ToriAuxLibCore_Component* component,
-    RSCacheDat2A_Component const* raw_component,
-    struct CS1VM* cs1vm);
+    RSCacheDat2A_Component const* raw_component);
 
 static int
 InterfaceX_CompanionInterfaceCount(int interface_id)
@@ -15391,14 +15356,12 @@ InterfaceX_LoadInterfaceComponents(
     struct InterfaceX_VMHost* host,
     struct UITreeXBuilder* builder,
     struct RSCacheDat2Disk* cache,
-    struct CS1VM* cs1vm,
     int interface_id,
     struct InterfaceX_LoadedInterface* loaded)
 {
     assert(host);
     assert(builder);
     assert(cache);
-    assert(cs1vm);
     assert(loaded);
 
     memset(loaded, 0, sizeof(*loaded));
@@ -15472,7 +15435,7 @@ InterfaceX_LoadInterfaceComponents(
     }
 
     for( int i = 0; i < file_list->file_count; i++ )
-        process_component(builder, loaded->components[i], loaded->raw_components[i], cs1vm);
+        process_component(builder, loaded->components[i], loaded->raw_components[i]);
 
     RSCacheShared_FileListFree(file_list);
     RSCacheDat2Disk_ArchiveFree(archive);
@@ -15644,13 +15607,6 @@ main(
     vm.active_component_id = -1;
     vm.dot_component_id = -1;
 
-    struct CS1VM* cs1vm = cs1vm_new();
-    if( !cs1vm )
-    {
-        fprintf(stderr, "failed to create cs1vm\n");
-        return 1;
-    }
-
     memset(&vmhost, 0, sizeof(vmhost));
     vmhost.disk = cache;
     vmhost.clientscript_table = cache->tables[RSCacheDat2Disk_Table_Clientscript];
@@ -15691,12 +15647,12 @@ main(
         if( companion_id < 0 )
             continue;
         if( !InterfaceX_LoadInterfaceComponents(
-                &vmhost, builder, cache, cs1vm, companion_id, &companions[i]) )
+                &vmhost, builder, cache, companion_id, &companions[i]) )
             return 1;
     }
 
     if( !InterfaceX_LoadInterfaceComponents(
-            &vmhost, builder, cache, cs1vm, interface_id, &primary) )
+            &vmhost, builder, cache, interface_id, &primary) )
         return 1;
 
     UITreeXBuilder_ResolvePendingParents(builder);
@@ -15755,7 +15711,6 @@ main(
     InterfaceX_FreeLoadedInterface(&primary);
 
     free(vmhost.script_queue);
-    cs1vm_free(cs1vm);
     InterfaceX_ConfigArchiveCacheFreeAll();
     return 0;
 }
