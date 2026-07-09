@@ -98,12 +98,14 @@ def heuristic(name: str) -> tuple[int, int, int, int] | None:
     if name in ("LOWERCASE", "REMOVETAGS", "FROMDATE"):
         return (0, 1, 0, 1)
     if name == "STRING_INDEXOF_STRING":
-        return (1, 1, 1, 0)
+        return (1, 2, 1, 0)
+    if name == "STRING_INDEXOF_CHAR":
+        return (2, 1, 1, 0)
     if name == "STRUCT_PARAM":
         return (2, 0, 1, 0)
     if name in ("ON_MOBILE", "CLIENTTYPE", "COORD", "RUNWEIGHT_VISIBLE", "RUNENERGY_VISIBLE"):
         return (0, 0, 1, 0)
-    if name == "CLIENTCLOCK":
+    if name in ("CLIENTCLOCK", "REBOOTTIMER"):
         return (0, 0, 1, 0)
     if name in ("MOUSE_GETX", "MOUSE_GETY"):
         return (0, 0, 1, 0)
@@ -141,6 +143,8 @@ def heuristic(name: str) -> tuple[int, int, int, int] | None:
         return (1, 0, 1, 0)
     if name.startswith("CHAT_"):
         if name == "CHAT_PLAYERNAME":
+            return (0, 0, 0, 1)
+        if name == "CHAT_GETMESSAGEFILTER":
             return (0, 0, 0, 1)
         if "NAME" in name:
             return (1, 0, 0, 1)

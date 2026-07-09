@@ -31,7 +31,9 @@ struct WidgetModelTransform
     int var15;
     int var16;
     int var17;
+    int zoom2d;
     int zoom3d;
+    bool orthographic;
 };
 
 static void
@@ -42,7 +44,8 @@ widget_model_init_transform(
     int yan,
     int zan,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool orthographic)
 {
     const int var1 = 0;
     const int var2 = yan & 2047;
@@ -62,7 +65,9 @@ widget_model_init_transform(
     xf->var15 = ToriDraw_Cos(var3);
     xf->var16 = ToriDraw_Sin(var4);
     xf->var17 = ToriDraw_Cos(var4);
+    xf->zoom2d = zoom > 0 ? zoom : 2000;
     xf->zoom3d = WIDGET_MODEL_ZOOM3D;
+    xf->orthographic = orthographic;
 }
 
 static void
@@ -127,6 +132,7 @@ widget_model_project_bounds(
     double min_y = INFINITY;
     double max_y = -INFINITY;
     bool any = false;
+    int ortho_scale = xf->zoom2d > 100 ? xf->zoom2d : 100;
 
     for( int i = 0; i < vc; i++ )
     {
@@ -136,11 +142,21 @@ widget_model_project_bounds(
         widget_model_transform_vertex(
             xf, vertices_x[i], vertices_y[i], vertices_z[i], &cx, &cy, &cz);
 
-        if( cz <= WIDGET_MODEL_NEAR )
-            continue;
+        double px;
+        double py;
+        if( xf->orthographic )
+        {
+            px = (double)cx * (double)xf->zoom3d / (double)ortho_scale;
+            py = (double)cy * (double)xf->zoom3d / (double)ortho_scale;
+        }
+        else
+        {
+            if( cz <= WIDGET_MODEL_NEAR )
+                continue;
 
-        double px = (double)cx * (double)xf->zoom3d / (double)cz;
-        double py = (double)cy * (double)xf->zoom3d / (double)cz;
+            px = (double)cx * (double)xf->zoom3d / (double)cz;
+            py = (double)cy * (double)xf->zoom3d / (double)cz;
+        }
         if( px < min_x )
             min_x = px;
         if( px > max_x )
@@ -195,6 +211,7 @@ widget_model_project_vertices(
 
     int z_sum = 0;
     int z_count = 0;
+    int ortho_scale = xf->zoom2d > 100 ? xf->zoom2d : 100;
 
     for( int i = 0; i < vc; i++ )
     {
@@ -208,16 +225,27 @@ widget_model_project_vertices(
         scene->orthographic_vertices_y[i] = cy;
         scene->orthographic_vertices_z[i] = cz;
 
-        if( cz <= WIDGET_MODEL_NEAR )
+        int px;
+        int py;
+        if( xf->orthographic )
         {
-            scene->screen_vertices_x[i] = WIDGET_MODEL_CLIP_X;
-            scene->screen_vertices_y[i] = 0;
-            scene->screen_vertices_z[i] = cz;
-            continue;
+            px = (cx * xf->zoom3d) / ortho_scale;
+            py = (cy * xf->zoom3d) / ortho_scale;
+        }
+        else
+        {
+            if( cz <= WIDGET_MODEL_NEAR )
+            {
+                scene->screen_vertices_x[i] = WIDGET_MODEL_CLIP_X;
+                scene->screen_vertices_y[i] = 0;
+                scene->screen_vertices_z[i] = cz;
+                continue;
+            }
+
+            px = (cx * xf->zoom3d) / cz;
+            py = (cy * xf->zoom3d) / cz;
         }
 
-        int px = (cx * xf->zoom3d) / cz;
-        int py = (cy * xf->zoom3d) / cz;
         scene->screen_vertices_x[i] = px + dx - (sw >> 1);
         scene->screen_vertices_y[i] = py + dy - (sh >> 1);
         scene->screen_vertices_z[i] = cz;
@@ -273,6 +301,7 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     int zan,
     int offset_x,
     int offset_y,
+    bool orthographic,
     bool postprocess_outline)
 {
     struct ToriDraw_ModelExtentsRaster result = { 0 };
@@ -284,7 +313,8 @@ ToriDraw_SpriteNewFromModelRasterExtents(
         zoom = 2000;
 
     struct WidgetModelTransform xf;
-    widget_model_init_transform(&xf, zoom, xan, yan, zan, offset_x, offset_y);
+    widget_model_init_transform(
+        &xf, zoom, xan, yan, zan, offset_x, offset_y, orthographic);
 
     int width = 0;
     int height = 0;

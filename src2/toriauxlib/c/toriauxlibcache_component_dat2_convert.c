@@ -271,6 +271,7 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
     dst->model_zan = src->modelZAngle;
     dst->model_x_offset = src->modelXOffset;
     dst->model_y_offset = src->modelYOffset;
+    dst->model_orthog = src->modelOrthographic ? 1 : 0;
     dst->color = src->color;
     dst->filled = src->fill ? 1 : 0;
     dst->font_id = src->textFont;

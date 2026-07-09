@@ -29,6 +29,7 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     int zan,
     int offset_x,
     int offset_y,
+    bool orthographic,
     bool postprocess_outline);
 
 /** Rasterize a model into a new ToriDraw_Sprite (heap-owned ARGB). Uses widget preview Y placement. */

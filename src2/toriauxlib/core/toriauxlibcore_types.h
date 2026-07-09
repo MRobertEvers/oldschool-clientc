@@ -445,6 +445,8 @@ struct ToriAuxLibCore_Component
     int model_x_offset;
     /** MODEL preview Y offset: dat2 modelYOffset (IF3 only). */
     int model_y_offset;
+    /** MODEL orthographic projection: dat2 modelOrthographic (IF3 only). */
+    uint8_t model_orthog;
     int color;
     int filled;
     int font_id;

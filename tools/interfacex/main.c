@@ -142,6 +142,8 @@ struct UITreeXNode_RSModel
     int anim_seq;
     int orthog;
     int transparent;
+    int item_id;
+    int item_count;
     int scene_id;
 };
 
@@ -294,6 +296,7 @@ UITreeX_NodeInit(
     node->model_overlay.model_id = -1;
     node->model_overlay.model_kind = INTERFACEX_MODEL_KIND_NONE;
     node->model_overlay.zoom = 2000;
+    node->model_overlay.item_id = -1;
     node->model_overlay.scene_id = -1;
 }
 
@@ -675,6 +678,7 @@ UITreeXBuilder_PushModelWithParentUserId(
     node->u.rs_model.model_id = -1;
     node->u.rs_model.model_kind = INTERFACEX_MODEL_KIND_NONE;
     node->u.rs_model.zoom = 2000;
+    node->u.rs_model.item_id = -1;
     node->u.rs_model.scene_id = -1;
 
     UITreeXBuilder_EnqueueParent(builder, node->idx, parent_user_id);
@@ -922,13 +926,16 @@ UITreeX_PrintNode(
     {
         struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
         printf(
-            " model=%d kind=%d zoom=%d xan=%d yan=%d zan=%d",
+            " model=%d kind=%d zoom=%d xan=%d yan=%d zan=%d ox=%d oy=%d orthog=%d",
             model->model_id,
             (int)model->model_kind,
             model->zoom,
             model->angle_x,
             model->angle_y,
-            model->angle_z);
+            model->angle_z,
+            model->offset_x,
+            model->offset_y,
+            model->orthog);
     }
     else if( node->kind == UITreeXNodeKind_RSLine )
     {
@@ -6312,6 +6319,82 @@ CS2VMX_Op_Substring(
 }
 
 int
+CS2VMX_Op_StringIndexOfString(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int start;
+    char* needle;
+    char* haystack;
+    if( CS2VMX_PopInt(vm, &start) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopStr(vm, &needle) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopStr(vm, &haystack) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int result = -1;
+    if( haystack && needle && needle[0] != '\0' )
+    {
+        int len = (int)strlen(haystack);
+        if( start < 0 )
+            start = 0;
+        if( start <= len )
+        {
+            char const* found = strstr(haystack + start, needle);
+            if( found )
+                result = (int)(found - haystack);
+        }
+    }
+
+    return CS2VMX_PushInt(vm, result);
+}
+
+int
+CS2VMX_Op_StringIndexOfChar(
+    struct CS2VMX* vm,
+    struct CS2VMX_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int ch;
+    int start;
+    char* haystack;
+    if( CS2VMX_PopInt(vm, &ch) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopInt(vm, &start) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VMX_PopStr(vm, &haystack) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    int result = -1;
+    if( haystack )
+    {
+        int len = (int)strlen(haystack);
+        if( start < 0 )
+            start = 0;
+        for( int i = start; i < len; i++ )
+        {
+            if( (unsigned char)haystack[i] == (unsigned char)ch )
+            {
+                result = i;
+                break;
+            }
+        }
+    }
+
+    return CS2VMX_PushInt(vm, result);
+}
+
+int
 CS2VMX_Op_StructParam(
     struct CS2VMX* vm,
     struct CS2VMX_Frame* frame,
@@ -7617,6 +7700,10 @@ CS2VMX_RunOp(
         return CS2VMX_Op_Compare(vm, frame, operand);
     case CS2_OP_SUBSTRING:
         return CS2VMX_Op_Substring(vm, frame, operand);
+    case CS2_OP_STRING_INDEXOF_STRING:
+        return CS2VMX_Op_StringIndexOfString(vm, frame, operand);
+    case CS2_OP_STRING_INDEXOF_CHAR:
+        return CS2VMX_Op_StringIndexOfChar(vm, frame, operand);
     case CS2_OP_OC_COST:
         return CS2VMX_Op_OC_IntParam(vm, frame, operand, CS2VM_OC_INT_COST);
     case CS2_OP_OC_STACKABLE:
@@ -7942,6 +8029,7 @@ struct InterfaceX_ModelSceneCacheEntry
     int angle_z;
     int offset_x;
     int offset_y;
+    int orthog;
     int scene_id;
     int extent_offset_x;
     int extent_offset_y;
@@ -8151,6 +8239,9 @@ static struct ToriDraw_Font*
 InterfaceX_EnsureSceneFont(
     struct InterfaceX_VMHost* host,
     int font_id);
+
+static void
+InterfaceX_ModelNodeInvalidateScene(struct UITreeXNode* node);
 
 static int
 InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
@@ -9125,6 +9216,7 @@ UITreeX_ApplyComponentGeometry(
         node->u.rs_model.angle_z = component->model_zan;
         node->u.rs_model.offset_x = component->model_x_offset;
         node->u.rs_model.offset_y = component->model_y_offset;
+        node->u.rs_model.orthog = component->model_orthog ? 1 : 0;
         node->u.rs_model.scene_id = -1;
     }
     else if( node->kind == UITreeXNodeKind_RSLine )
@@ -10953,12 +11045,13 @@ InterfaceX_ResolveModelScene(
     int angle_z = model->angle_z;
     int offset_x = model->offset_x;
     int offset_y = model->offset_y;
+    int orthog = model->orthog ? 1 : 0;
 
     for( struct InterfaceX_ModelSceneCacheEntry* it = host->model_scene_cache; it; it = it->next )
     {
         if( it->model_id == model_id && it->zoom == zoom && it->angle_x == angle_x &&
             it->angle_y == angle_y && it->angle_z == angle_z && it->offset_x == offset_x &&
-            it->offset_y == offset_y )
+            it->offset_y == offset_y && it->orthog == orthog )
             return it->scene_id;
     }
 
@@ -10980,7 +11073,16 @@ InterfaceX_ResolveModelScene(
     ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
 
     struct ToriDraw_ModelExtentsRaster extents = ToriDraw_SpriteNewFromModelRasterExtents(
-        host->scene, hnd, zoom, angle_x, angle_y, angle_z, offset_x, offset_y, false);
+        host->scene,
+        hnd,
+        zoom,
+        angle_x,
+        angle_y,
+        angle_z,
+        offset_x,
+        offset_y,
+        orthog != 0,
+        false);
     struct ToriDraw_Sprite* spr = extents.sprite;
 
     ToriDraw_ModelFree(td_model);
@@ -11015,6 +11117,7 @@ InterfaceX_ResolveModelScene(
         entry->angle_z = angle_z;
         entry->offset_x = offset_x;
         entry->offset_y = offset_y;
+        entry->orthog = orthog;
         entry->scene_id = scene_id;
         entry->extent_offset_x = extents.offset_x;
         entry->extent_offset_y = extents.offset_y;
@@ -11023,6 +11126,64 @@ InterfaceX_ResolveModelScene(
     }
 
     return scene_id;
+}
+
+static int
+InterfaceX_NormalizeModelItemZoom(
+    int zoom2d,
+    int widget_width)
+{
+    int zoom = zoom2d > 0 ? zoom2d : 2000;
+    int width_units = widget_width > 0 ? widget_width : 32;
+    int scaled = (zoom * 32) / width_units;
+    return scaled > 0 ? scaled : 1;
+}
+
+static bool
+InterfaceX_ApplyObjToModelNode(
+    struct InterfaceX_VMHost* host,
+    struct UITreeXNode* node,
+    int obj_id,
+    int count)
+{
+    assert(host);
+    assert(node);
+
+    if( node->kind != UITreeXNodeKind_RSModel )
+        return false;
+
+    int resolved_obj_id = InterfaceX_ResolveObjIconCountVariant(host, obj_id, count);
+    struct RSCacheDat2A_ConfigObject* obj = InterfaceX_LoadObjConfig(host->disk, resolved_obj_id);
+    if( !obj )
+        return false;
+
+    struct ToriAuxLibCore_Objtype* objtype =
+        ToriAuxLibCache_ObjtypeNewFromDat2ConfigObject(obj, resolved_obj_id);
+    RSCacheDat2A_ConfigObjectFree(obj);
+    if( !objtype || objtype->inventory_model_id <= 0 )
+    {
+        if( objtype )
+            ToriAuxLibCore_ObjtypeFree(objtype);
+        return false;
+    }
+
+    struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(node);
+    int widget_w = node->layout_resolved && node->abs_w > 0 ? node->abs_w : node->w;
+
+    model->item_id = obj_id;
+    model->item_count = count > 0 ? count : 1;
+    model->model_id = objtype->inventory_model_id;
+    model->model_kind = INTERFACEX_MODEL_KIND_PLAIN;
+    model->angle_x = objtype->xan2d;
+    model->angle_y = objtype->zan2d;
+    model->angle_z = objtype->yan2d;
+    model->offset_x = objtype->offset_x2d;
+    model->offset_y = objtype->offset_y2d;
+    model->zoom = InterfaceX_NormalizeModelItemZoom(objtype->zoom2d, widget_w);
+    model->orthog = 1;
+    ToriAuxLibCore_ObjtypeFree(objtype);
+    InterfaceX_ModelNodeInvalidateScene(node);
+    return true;
 }
 
 static int
@@ -11065,6 +11226,13 @@ InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
         graphic->scene_id = InterfaceX_ResolveObjIconScene(host, obj_id, count);
         break;
     }
+    case UITreeXNodeKind_RSModel:
+        if( !InterfaceX_ApplyObjToModelNode(host, node, obj_id, count) )
+        {
+            fprintf(stderr, "failed to apply obj to model node in CC_SetObjectOnNode: %d\n", obj_id);
+            return CS2VM_EXECNO_ERROR;
+        }
+        break;
     default:
         fprintf(stderr, "unexpected node kind in CC_SetObjectOnNode: %d\n", node->kind);
         return CS2VM_EXECNO_ERROR;
@@ -12877,6 +13045,7 @@ InterfaceX_VMHost_Exec_CC_Create(
         node->u.rs_model.model_id = -1;
         node->u.rs_model.model_kind = INTERFACEX_MODEL_KIND_NONE;
         node->u.rs_model.zoom = 2000;
+        node->u.rs_model.item_id = -1;
         node->u.rs_model.scene_id = -1;
         break;
     case 9:
