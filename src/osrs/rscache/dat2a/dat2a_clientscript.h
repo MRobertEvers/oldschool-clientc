@@ -1,7 +1,7 @@
 #ifndef RSCACHE_RSCACHEDAT2A_CLIENTSCRIPT_H
 #define RSCACHE_RSCACHEDAT2A_CLIENTSCRIPT_H
 
-#include "vm/cs2_script.h"
+#include "dat2a_cs2_script.h"
 
 #include <stdint.h>
 
@@ -10,7 +10,7 @@
 
 struct RSCacheDat2A_ClientScript
 {
-    struct CS2_Script script;
+    struct RSCache_CS2_Script script;
 };
 
 struct RSCacheDat2A_ClientScript*

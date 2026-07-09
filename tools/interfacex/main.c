@@ -1,5 +1,4 @@
 #include "../src/osrs/rscache/rscache.u.c"
-#include "../src2/toriauxlib/toriauxlib.h"
 #include "../src2/vm/cs2_opcode.h"
 #include "bmp.h"
 #include "interfacex_opcode_stack.gen.h"

@@ -163,11 +163,10 @@
  */
 #define CS2_OP_POP_STRING_LOCAL 36
 /* JOIN_STRING — Concatenate strings.
- * operand: string count
  * int stack in:   -    
- * str stack in:   s0, s1, ... sN-1   (sN-1 = top)
+ * str stack in:   a, b   (b = top)
  * int stack out:  -    
- * str stack out:  s0 + s1 + ... + sN-1
+ * str stack out:  a + b
  */
 #define CS2_OP_JOIN_STRING 37
 /* POP_INT_DISCARD — Discard int.
@@ -324,6 +323,7 @@
  */
 #define CS2_OP_CC_SETHIDE 1003
 /* CC_SETNOCLICKTHROUGH — Set no-click-through.
+ * operand: 0 = active component, 1 = dot component
  * int stack in:   enabled
  * str stack in:   -      
  * int stack out:  -      
@@ -469,10 +469,12 @@
  */
 #define CS2_OP_CC_SETDRAGGABLE 1301
 /* CC_SETDRAGGABLEBEHAVIOR — Set drag behavior.
+ * operand: 0 = active component, 1 = dot component
  * int stack in:   behavior
  * str stack in:   -       
  * int stack out:  -       
  * str stack out:  -       
+ * notes: behavior 1 sets isScrollBar
  */
 #define CS2_OP_CC_SETDRAGGABLEBEHAVIOR 1302
 /* CC_SETDRAGDEADZONE — Set drag dead zone pixels.
@@ -519,7 +521,23 @@
 #define CS2_OP_CC_SETOPTKEYRATE 1353
 #define CS2_OP_CC_SETOPKEYIGNOREHELD 1354
 #define CS2_OP_CC_SETOPTKEYIGNOREHELD 1355
+/* CC_SETONCLICK — Set onClick handler on active child.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: signature args on stack
+ */
 #define CS2_OP_CC_SETONCLICK 1400
+/* CC_SETONHOLD — Set onHold handler on active child.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: signature args on stack
+ */
 #define CS2_OP_CC_SETONHOLD 1401
 #define CS2_OP_CC_SETONRELEASE 1402
 /* CC_SETONMOUSEOVER — Set onMouseOver handler on active child.
@@ -540,6 +558,14 @@
  * notes: signature args on stack
  */
 #define CS2_OP_CC_SETONMOUSELEAVE 1404
+/* CC_SETONDRAG — Set onDrag handler on active child.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: signature args on stack
+ */
 #define CS2_OP_CC_SETONDRAG 1405
 #define CS2_OP_CC_SETONTARGETLEAVE 1406
 #define CS2_OP_CC_SETONVARTRANSMIT 1407
@@ -553,6 +579,14 @@
  * notes: signature args on stack
  */
 #define CS2_OP_CC_SETONOP 1409
+/* CC_SETONDRAGCOMPLETE — Set onDragComplete handler on active child.
+ * operand: 0 = active component, 1 = dot component
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: signature args on stack
+ */
 #define CS2_OP_CC_SETONDRAGCOMPLETE 1410
 #define CS2_OP_CC_SETONCLICKREPEAT 1411
 #define CS2_OP_CC_SETONMOUSEREPEAT 1412
@@ -729,6 +763,7 @@
  * str stack in:   -                                                
  * int stack out:  -                                                
  * str stack out:  -                                                
+ * notes: component is top of int stack.
  */
 #define CS2_OP_IF_SETSIZE 2001
 /* IF_SETHIDE — Set hidden.
@@ -960,11 +995,25 @@
 #define CS2_OP_IF_SETONCLICK 2400
 #define CS2_OP_IF_SETONHOLD 2401
 #define CS2_OP_IF_SETONRELEASE 2402
+/* IF_SETONMOUSEOVER — Set onMouseOver handler.
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  -        
+ * str stack out:  -        
+ * notes: signature args on stack
+ */
 #define CS2_OP_IF_SETONMOUSEOVER 2403
 #define CS2_OP_IF_SETONMOUSELEAVE 2404
 #define CS2_OP_IF_SETONDRAG 2405
 #define CS2_OP_IF_SETONTARGETLEAVE 2406
 #define CS2_OP_IF_SETONVARTRANSMIT 2407
+/* IF_SETONTIMER — Set onTimer handler.
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  -        
+ * str stack out:  -        
+ * notes: signature args on stack
+ */
 #define CS2_OP_IF_SETONTIMER 2408
 #define CS2_OP_IF_SETONOP 2409
 #define CS2_OP_IF_SETONDRAGCOMPLETE 2410
@@ -981,6 +1030,14 @@
 #define CS2_OP_IF_SETONINVTRANSMIT 2414
 #define CS2_OP_IF_SETONSTATTRANSMIT 2415
 #define CS2_OP_IF_SETONTARGETENTER 2416
+/* IF_SETONSCROLLWHEEL — Set onScroll handler.
+ * int stack in:   component
+ * str stack in:   -        
+ * int stack out:  -        
+ * str stack out:  -        
+ * notes: Stores onScroll (not onScrollWheel); wheel in opcode name is the trigger.
+ *        signature args on stack
+ */
 #define CS2_OP_IF_SETONSCROLLWHEEL 2417
 #define CS2_OP_IF_SETONCHATTRANSMIT 2418
 #define CS2_OP_IF_SETONKEY 2419
@@ -1834,33 +1891,5 @@
 #define CS2_OP__7214 7214
 #define CS2_OP_SETMINIMAPLOCK 7250
 #define CS2_OP__7252 7252
-
-/* Manual aliases for opcodes referenced by interfacex (not yet named in Opcodes.kt). */
-#define CS2_OP_CC_SETPINCH 1004
-#define CS2_OP_CC_INPUT_SETSUBMITMODE 1133
-#define CS2_OP_CC_INPUT_SETSELECTCOLOUR 1134
-#define CS2_OP_CC_INPUT_SETWRAPMODE 1136
-#define CS2_OP_CC_INPUT_SETLINEWRAPPINGWIDTH 1137
-#define CS2_OP_CC_INPUT_SETSELECTBGCOLOUR 1138
-#define CS2_OP_CC_INPUT_SETLINECOUNTLIMIT 1139
-#define CS2_OP_CC_INPUT_SETCURSORCOLOUR 1140
-#define CS2_OP_CC_INPUT_SETCURSORTRANS 1141
-#define CS2_OP_CC_INPUT_SETCURSORWIDTH 1142
-#define CS2_OP_CC_INPUT_SETCURSORHEIGHT 1143
-#define CS2_OP_CC_INPUT_SETCURSOROFFSET 1144
-#define CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT 1145
-#define CS2_OP_CC_INPUT_SETCHARFILTER 1146
-#define CS2_OP_CC_SETPLAYERMODEL_SELF 1207
-#define CS2_OP_CC_SETMODEL_PLAYERCHATHEAD 1214
-#define CS2_OP_IF_SETPINCH 2004
-#define CS2_OP_IF_SETMODEL_PLAYERCHATHEAD 2214
-#define CS2_OP_CC_SETGRAPHIC2 CS2_OP__1122
-#define CS2_OP_CC_SETTRANSBOT CS2_OP__1124
-#define CS2_OP_CC_SETFILLMODE CS2_OP__1125
-#define CS2_OP_CC_SETARC CS2_OP__1128
-#define CS2_OP_IF_SETCLICKMASK CS2_OP__2122
-#define CS2_OP_IF_SETARC CS2_OP__2128
-#define CS2_OP_IF_SETTRANSBOT CS2_OP__2124
-#define CS2_OP_IF_SETFILLMODE CS2_OP__2125
 
 #endif

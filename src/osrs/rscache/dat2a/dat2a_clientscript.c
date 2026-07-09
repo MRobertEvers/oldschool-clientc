@@ -1,23 +1,18 @@
 #include "dat2a_clientscript.h"
 
 #include "../shared/shared_rs_buffer.h"
-#include "vm/cs2_opcode.h"
-#include "vm/cs2_opcode_meta.h"
+#include "dat2a_cs2_opcode_decode.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* Long/null opcodes not yet in generated cs2_opcode.h (RuneStar Script.kt). */
-#ifndef CS2_OP_PUSH_CONSTANT_LONG
-#define CS2_OP_PUSH_CONSTANT_LONG 61
-#endif
-#ifndef CS2_OP_POP_LONG_DISCARD
-#define CS2_OP_POP_LONG_DISCARD 62
-#endif
-#ifndef CS2_OP_PUSH_NULL
-#define CS2_OP_PUSH_NULL 63
-#endif
+#define RSCACHE_CS2_OP_RETURN 21
+#define RSCACHE_CS2_OP_POP_INT_DISCARD 38
+#define RSCACHE_CS2_OP_POP_STRING_DISCARD 39
+#define RSCACHE_CS2_OP_PUSH_CONSTANT_LONG 61
+#define RSCACHE_CS2_OP_POP_LONG_DISCARD 62
+#define RSCACHE_CS2_OP_PUSH_NULL 63
 
 enum CS2ScriptTrailerFooter
 {
@@ -39,9 +34,10 @@ read_u16_at(
 static bool
 cs2_operand_uses_int8(int opcode)
 {
-    return opcode >= 100 || opcode == CS2_OP_RETURN || opcode == CS2_OP_POP_INT_DISCARD ||
-           opcode == CS2_OP_POP_STRING_DISCARD || opcode == CS2_OP_POP_LONG_DISCARD ||
-           opcode == CS2_OP_PUSH_NULL;
+    return opcode >= 100 || opcode == RSCACHE_CS2_OP_RETURN ||
+           opcode == RSCACHE_CS2_OP_POP_INT_DISCARD ||
+           opcode == RSCACHE_CS2_OP_POP_STRING_DISCARD ||
+           opcode == RSCACHE_CS2_OP_POP_LONG_DISCARD || opcode == RSCACHE_CS2_OP_PUSH_NULL;
 }
 
 static bool
@@ -49,9 +45,9 @@ cs2_script_read_operand(
     struct RSCacheShared_RSBuffer* body,
     int opcode,
     int op_index,
-    struct CS2_Script* script)
+    struct RSCache_CS2_Script* script)
 {
-    if( opcode == CS2_OP_PUSH_CONSTANT_LONG )
+    if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_LONG )
     {
         int high = RSCacheShared_RSBufferG4(body);
         int low = RSCacheShared_RSBufferG4(body);
@@ -66,19 +62,19 @@ cs2_script_read_operand(
         return true;
     }
 
-    switch( cs2_opcode_operand_kind(opcode) )
+    switch( rscache_cs2_opcode_operand_kind(opcode) )
     {
-    case CS2_OPERAND_STRING:
+    case RSCACHE_CS2_OPERAND_STRING:
         script->string_operands[op_index] = RSCacheShared_RSBufferReadStringNullTerminated(body);
         script->int_operands[op_index] = 0;
         break;
-    case CS2_OPERAND_INT8:
+    case RSCACHE_CS2_OPERAND_INT8:
         script->int_operands[op_index] = (int)RSCacheShared_RSBufferG1b(body);
         break;
-    case CS2_OPERAND_NONE:
+    case RSCACHE_CS2_OPERAND_NONE:
         script->int_operands[op_index] = 0;
         break;
-    case CS2_OPERAND_INT32:
+    case RSCACHE_CS2_OPERAND_INT32:
     default:
         script->int_operands[op_index] = RSCacheShared_RSBufferG4(body);
         break;
@@ -92,7 +88,7 @@ cs2_script_parse_body(
     int data_size,
     int trailer_pos,
     int op_count,
-    struct CS2_Script* script)
+    struct RSCache_CS2_Script* script)
 {
     struct RSCacheShared_RSBuffer body;
     RSCacheShared_RSBufferInit(&body, (uint8_t*)data, (uint32_t)data_size);
@@ -150,7 +146,7 @@ cs2_script_try_decode_footer(
     }
 
     int switch_table_count = (int)RSCacheShared_RSBufferG1(&trailer);
-    if( switch_table_count < 0 || switch_table_count > CS2_SCRIPT_MAX_SWITCHES )
+    if( switch_table_count < 0 || switch_table_count > RSCACHE_CS2_SCRIPT_MAX_SWITCHES )
         return NULL;
     if( op_count <= 0 || op_count > 65536 )
         return NULL;
@@ -159,8 +155,8 @@ cs2_script_try_decode_footer(
     if( !out )
         return NULL;
 
-    struct CS2_Script* script = &out->script;
-    cs2_script_init(script);
+    struct RSCache_CS2_Script* script = &out->script;
+    RSCache_CS2_ScriptInit(script);
     script->script_id = script_id;
     script->local_int_count = local_int_count;
     script->local_string_count = local_string_count;
@@ -174,7 +170,7 @@ cs2_script_try_decode_footer(
     for( int s = 0; s < switch_table_count; s++ )
     {
         int case_count = (int)RSCacheShared_RSBufferG2(&trailer);
-        if( case_count < 0 || case_count > CS2_SCRIPT_MAX_SWITCH_CASES )
+        if( case_count < 0 || case_count > RSCACHE_CS2_SCRIPT_MAX_SWITCH_CASES )
         {
             RSCacheDat2A_ClientScriptFree(out);
             return NULL;
@@ -238,6 +234,6 @@ RSCacheDat2A_ClientScriptFree(struct RSCacheDat2A_ClientScript* script)
 {
     if( !script )
         return;
-    cs2_script_free(&script->script);
+    RSCache_CS2_ScriptFree(&script->script);
     free(script);
 }

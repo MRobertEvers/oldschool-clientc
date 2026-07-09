@@ -43,8 +43,8 @@ $(OBJ_DIR):
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS)
 
-check_cache_revision: check_cache_revision.c $(SRC_DIR)/osrs/rscache/rscache.u.c $(SRC2_DIR)/vm/cs2_script.c $(SRC2_DIR)/vm/cs2_opcode_meta.c $(SRC_DIR)/3rd/bzip/bzip.c $(SRC_DIR)/3rd/miniz/miniz.c
-	$(CC) $(CFLAGS) -w -o $@ check_cache_revision.c $(SRC_DIR)/osrs/rscache/rscache.u.c $(SRC2_DIR)/vm/cs2_script.c $(SRC2_DIR)/vm/cs2_opcode_meta.c $(SRC_DIR)/3rd/bzip/bzip.c $(SRC_DIR)/3rd/miniz/miniz.c $(LDFLAGS)
+check_cache_revision: check_cache_revision.c $(SRC_DIR)/osrs/rscache/rscache.u.c $(SRC_DIR)/3rd/bzip/bzip.c $(SRC_DIR)/3rd/miniz/miniz.c
+	$(CC) $(CFLAGS) -w -o $@ check_cache_revision.c $(SRC_DIR)/osrs/rscache/rscache.u.c $(SRC_DIR)/3rd/bzip/bzip.c $(SRC_DIR)/3rd/miniz/miniz.c $(LDFLAGS)
 
 $(OBJ_DIR)/main.o: $(TOOL_DIR)/main.c
 	$(CC) $(CFLAGS) -c $< -o $@

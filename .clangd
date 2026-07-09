@@ -63,6 +63,12 @@ If:
 CompileFlags:
   CompilationDatabase: test/gamecache/
 ---
+# tools/interfacex/ is built via Makefile — use tools/interfacex/compile_flags.txt.
+If:
+  PathMatch: tools/interfacex/.*\.(c|h)$
+CompileFlags:
+  CompilationDatabase: tools/interfacex/
+---
 # Other test/* targets are Makefile-built — use test/compile_flags.txt, not build/.
 If:
   PathMatch: test/(revconfig_load|ui_tree|ui_input|trspk_leak|model_render|datserver|trspk_batch16)/.*\.(c|h)$
