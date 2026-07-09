@@ -2142,3 +2142,136 @@ Without layer clipping the line extends ~11px past the vertical border. With cli
 - Production: `uitree_scroll_intersect_clip` / `uitree_scroll_apply_ancestors` in `src2/ui/ui_scroll.c` (always intersects layer ancestor bounds).
 - TypeScript reference: container child clip in `xrsps-typescript/src/ui/gl/widgets-gl.ts` ("ALL type 0/11 containers clip their children, not just scrollable ones").
 
+## Nonzero `clientCode` values in the dat2 cache
+
+Scanned all **917** interface archives in `cache/` with `tools/dump_interface/dump_interface`. **22** distinct nonzero `clientCode` values appear on **54** widgets.
+
+`clientCode` is decoded from each component record (see [`dat2a_component.h`](src/osrs/rscache/dat2a/dat2a_component.h)). In interfacex it is stored on the root [`UITreeXNode`](tools/interfacex/main.c) as `client_code`.
+
+Many codes from [`Client-TS/src/client/ClientCode.ts`](Client-TS/src/client/ClientCode.ts) (friends list slots 1–203, ignores 401–503, friends2 701–900, player design 300–327, etc.) are assigned **at runtime** by the client to dynamic list rows — they do not appear as baked `clientCode` fields in the cache dump. Only values actually stored on widgets are listed below.
+
+### Gameframe content slots (1336–1401)
+
+These mount special client content into layer/graphic placeholders on the gameframe chrome (161 resizable box, 164 resizable bottom, 548 fixed, 601, etc.). Interfacex defines the main ones in [`tools/interfacex/main.c`](tools/interfacex/main.c):
+
+| clientCode | Name | Widget type | Count | Interfaces |
+|------------|------|-------------|-------|------------|
+| 1336 | CONTENT_CHAT | layer | 4 | 161, 164, 548, 601 |
+| 1337 | CONTENT_WORLD (viewport) | layer | 6 | 16, 80, 161, 164, 548, 601 |
+| 1338 | CONTENT_MINIMAP | graphic | 4 | 161, 164, 548, 601 |
+| 1339 | CONTENT_COMPASS | graphic | 5 | 161, 164, 548, 601, 898 |
+| 1354 | CONTENT_XP_DROPS | layer | 5 | 80, 161, 164, 548, 601 |
+| 1400 | CONTENT_WORLDMAP | layer | 1 | 595 |
+| 1401 | CONTENT_WORLDMAP_OVERVIEW | layer | 1 | 595 |
+
+**1337 viewport** — world render mount inside gameframe chrome:
+
+| Interface | Component | Packed ID | Size |
+|-----------|-----------|-----------|------|
+| 16 | file 1 | `0x00100001` | 765×503 |
+| 80 | file 2 | `0x00500002` | 765×503 |
+| 161 (resizable box) | file 91 | `0x00a1005b` | 800×600 |
+| 164 (resizable bottom) | file 88 | `0x00a40058` | 800×600 |
+| 548 (fixed) | file 25 | `0x02240019` | 512×334 |
+| 601 | file 1 | `0x02590001` | 765×503 |
+
+**1336 chat** (120×100 layer on gameframes):
+
+| Interface | Component | Packed ID |
+|-----------|-----------|-----------|
+| 161 | file 19 | `0x00a10013` |
+| 164 | file 19 | `0x00a40013` |
+| 548 | file 44 | `0x0224002c` |
+| 601 | file 30 | `0x0259001e` |
+
+**1338 minimap** (graphic, ~145–152²):
+
+| Interface | Component | Packed ID | Size |
+|-----------|-----------|-----------|------|
+| 161 | file 30 | `0x00a1001e` | 152×152 |
+| 164 | file 30 | `0x00a4001e` | 152×152 |
+| 548 | file 21 | `0x02240015` | 145×151 |
+| 601 | file 34 | `0x02590022` | 152×152 |
+
+**1339 compass** (graphic, ~32–35²):
+
+| Interface | Component | Packed ID | Size |
+|-----------|-----------|-----------|------|
+| 161 | file 29 | `0x00a1001d` | 35×35 |
+| 164 | file 29 | `0x00a4001d` | 35×35 |
+| 548 | file 20 | `0x02240014` | 32×33 |
+| 601 | file 33 | `0x02590021` | 35×35 |
+| 898 | file 44 | `0x0382002c` | 35×35 |
+
+**1354 XP drops** (layer; iface 80 is 1×1 hidden):
+
+| Interface | Component | Packed ID | Size | Hidden |
+|-----------|-----------|-----------|------|--------|
+| 80 | file 24 | `0x00500018` | 1×1 | yes |
+| 161 | file 74 | `0x00a1004a` | 190×261 | no |
+| 164 | file 71 | `0x00a40047` | 190×261 | no |
+| 548 | file 78 | `0x0224004e` | 190×261 | no |
+| 601 | file 114 | `0x02590072` | 190×261 | no |
+
+**1400 / 1401 on interface 595** (world map sub-interface, opened from minimap via `openSubInterface(..., WORLD_MAP_GROUP_ID, 1, ...)`):
+
+| clientCode | Component | Packed ID | Size | Role |
+|------------|-----------|-----------|------|------|
+| 1400 | file 8 | `0x02530008` | 573×403 | Main interactive world map — pannable/zoomable, draws map tiles, labels, icons |
+| 1401 | file 12 | `0x0253000c` | 146×146 | Overview pane — area background, map element icons, red viewport rectangle showing where the main map is looking |
+
+`WidgetManager.ts` only names 1400 as `WORLDMAP` in its `ContentType` enum; 1401 is handled separately in `widgets-gl.ts`. Both are type-0 layers whose layout comes from normal widget geometry (and ancestor `onResize` scripts). Neither draws like a normal layer (no children/sprites) — the renderer intercepts `contentType === 1400` or `1401` and draws via `worldMapState`. Both block camera zoom (`utils.ts` treats them as visible map surfaces).
+
+### Known `ClientCode.ts` values present in cache
+
+| clientCode | Name | Widget type | Count | Interfaces |
+|------------|------|-------------|-------|------------|
+| 205 | CC_LOGOUT | text | 2 | 182, 374 |
+| 206 | CC_BANKMODE | text | 1 | 182 |
+
+| Interface | clientCode | Component | Packed ID | Size | Button |
+|-----------|------------|-----------|-----------|------|--------|
+| 182 | 205 | file 12 | `0x00b6000c` | 144×36 | 0 |
+| 374 | 205 | file 5 | `0x01760005` | 110×25 | 1 |
+| 182 | 206 | file 7 | `0x00b60007` | 144×36 | 0 |
+
+### Other cache-specific codes
+
+| clientCode | OSRS | This client | Count | Type | Interfaces |
+|------------|------|-------------|-------|------|------------|
+| 70 | Thin layer host (scrollbar/divider) | Generic layer | 1 | layer | 774 |
+| 328 | Local player 3D preview | Implemented | 5 | model | 12, 84, 516, 529, 679 |
+| 999 | — | — | 1 | model | 277 |
+| 6488 | — | — | 1 | text | 746 |
+| 6556 | — | — | 1 | layer | 84 |
+| 6828 | — | — | 1 | layer | 601 |
+| 6985 | — | — | 5 | text | 368 |
+| 7209 | — | — | 1 | rect | 863 |
+| 7961 | — | — | 2 | text | 333 |
+| 8261 | — | — | 1 | text | 184 |
+| 8366 | — | — | 3 | layer | 913, 914, 915 |
+| 9307 | — | — | 1 | layer | 819 |
+| 9586 | — | — | 2 | layer | 12, 84 |
+
+**328 — local player 3D preview** — marks `TYPE_MODEL` widgets where the client renders the local player's equipped appearance as a rotating 3D model (bank equipment tab, worn-equipment side panel, and similar UIs). The official client intercepts `clientCode === 328` and draws from live player state rather than baking a static `modelId`. In cache these widgets are often `modelType=1 modelId=-1`; runtime CS2 (`CC_SETPLAYERMODEL_SELF` / `IF_SETPLAYERHEAD_SELF`) and equipment changes keep the preview in sync.
+
+| Interface | Component | Packed ID | Size | UI |
+|-----------|-----------|-----------|------|-----|
+| 12 | file 80 | `0x000c0050` | 136×168 | Bank (equipment tab player model) |
+| 84 | file 4 | `0x00540004` | 136×168 | Worn equipment side panel |
+| 516 | file 22 | `0x02040016` | 136×102 | — |
+| 529 | file 20 | `0x02110014` | 136×168 | — |
+| 679 | file 73 | `0x02a70049` | 136×192 | — |
+
+Interfacex maps `modelType` 5 to `INTERFACEX_MODEL_KIND_PLAYER_SELF` and handles `IF_SETPLAYERMODEL` opcodes; `client_code` 328 identifies these slots in the UITree for the same preview path.
+
+**70 — thin layer host** — on interface 774, file 81 (`16×96`). OSRS uses `clientCode` 70 for scrollbar/divider chrome layers; this client treats it as a generic layer (no special renderer).
+
+### Inspect / render
+
+```bash
+tools/dump_interface/dump_interface cache --iface 161
+tools/interfacex/interfacex --no-bmp 601
+```
+
+To rescan: list interface archive ids with `dump_interface_index`, then grep `dump_interface` output for `clientCode=` (layer fields in the dump include a packed-id suffix after the hex id, so parse with field-specific regex rather than a single full-line pattern).

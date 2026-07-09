@@ -55,11 +55,13 @@ static char g_cs2_trace_extra[512];
 //     COMPASS: 1339, // Compass (rotates with camera yaw)
 //     WORLDMAP: 1400, // World map
 // } as const;
+// 1401 is not in ContentType; widgets-gl.ts handles it as the world-map overview pane.
 #define INTERFACEX_CONTENT_NONE 0
 #define INTERFACEX_CONTENT_WORLD 1337
 #define INTERFACEX_CONTENT_MINIMAP 1338
 #define INTERFACEX_CONTENT_COMPASS 1339
 #define INTERFACEX_CONTENT_WORLDMAP 1400
+#define INTERFACEX_CONTENT_WORLDMAP_OVERVIEW 1401
 
 /* dat2 widget spriteAngle / CS2 ANGLE_2D: 65536 = one full turn */
 #define INTERFACEX_SPRITE_ANGLE_SCALE 65536
