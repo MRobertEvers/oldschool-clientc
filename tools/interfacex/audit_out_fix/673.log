@@ -1,0 +1,83 @@
+unexpected node kind in CC_SetObjectOnNode: 1
+script 3528 failed at opcode 1205 pc 71 (invoked as script 3526 for component 0x2a10000)
+failed to resolve node in CC_SetObjectOnNode: -1
+script 3528 failed at opcode 1205 pc 71 (invoked as script 3526 for component 0x0)
+running onVarTransmit script 3523 for component 44105736
+running onVarTransmit script 3526 for component 44105728
+running onInvTransmit script 3526 for component 44105728 (args: -1 44105728 44105731 44105734 44105735)
+running onInvTransmit script 3526 for component 0 (args: 0 0 0 0 0)
+uitreex: 117 nodes
+[0] kind=layer trans=255 fill_mode=0 user_id=0x02a10000 (673<<16|0) static
+  [1] kind=layer trans=0 fill_mode=0 user_id=0x02a10001 (673<<16|1) static
+    [59] kind=graphic trans=0 fill_mode=0 user_id=0x02a18032 (673<<16|32818) dynamic graphic=297 angle=0 tiling=1 if3=1 abs=5,4 34x30 hidden=0
+    [60] kind=text trans=0 fill_mode=0 user_id=0x02a18033 (673<<16|32819) dynamic font=496 color=0xff981f text="Mahogany Homes Reward Shop" abs=10,9 24x24 hidden=0
+    [61] kind=graphic trans=0 fill_mode=0 user_id=0x02a18034 (673<<16|32820) dynamic graphic=310 angle=0 tiling=1 if3=1 abs=4,3 25x30 hidden=0
+    [62] kind=graphic trans=0 fill_mode=0 user_id=0x02a18035 (673<<16|32821) dynamic graphic=311 angle=0 tiling=1 if3=1 abs=15,3 25x30 hidden=0
+    [63] kind=graphic trans=0 fill_mode=0 user_id=0x02a18036 (673<<16|32822) dynamic graphic=312 angle=0 tiling=1 if3=1 abs=4,5 25x30 hidden=0
+    [64] kind=graphic trans=0 fill_mode=0 user_id=0x02a18037 (673<<16|32823) dynamic graphic=313 angle=0 tiling=1 if3=1 abs=15,5 25x30 hidden=0
+    [65] kind=graphic trans=0 fill_mode=0 user_id=0x02a18038 (673<<16|32824) dynamic graphic=172 angle=0 tiling=1 if3=1 abs=-11,19 36x0 hidden=0
+    [66] kind=graphic trans=0 fill_mode=0 user_id=0x02a18039 (673<<16|32825) dynamic graphic=315 angle=0 tiling=1 if3=1 abs=19,19 36x0 hidden=0
+    [67] kind=graphic trans=0 fill_mode=0 user_id=0x02a1803a (673<<16|32826) dynamic graphic=314 angle=0 tiling=1 if3=1 abs=22,-12 0x36 hidden=0
+    [68] kind=graphic trans=0 fill_mode=0 user_id=0x02a1803b (673<<16|32827) dynamic graphic=173 angle=0 tiling=1 if3=1 abs=22,14 0x36 hidden=0
+    [69] kind=graphic trans=0 fill_mode=0 user_id=0x02a1803c (673<<16|32828) dynamic graphic=2546 angle=0 tiling=1 if3=1 abs=9,17 26x26 hidden=0
+    [70] kind=graphic trans=0 fill_mode=0 user_id=0x02a1803d (673<<16|32829) dynamic graphic=535 angle=0 tiling=1 if3=1 abs=11,9 26x23 hidden=0
+  [2] kind=layer trans=0 fill_mode=0 user_id=0x02a10002 (673<<16|2) static
+    [3] kind=layer trans=0 fill_mode=0 user_id=0x02a10003 (673<<16|3) static
+      [73] kind=rect trans=255 fill_mode=0 user_id=0x02a18040 (673<<16|32832) dynamic color=0x0 color2=0x0 filled=1 abs=16,-12 10x32 hidden=0
+      [74] kind=graphic trans=0 fill_mode=0 user_id=0x02a18041 (673<<16|32833) dynamic graphic=24884 angle=0 tiling=0 if3=1 abs=18,-12 36x32 hidden=0
+      [75] kind=text trans=0 fill_mode=0 user_id=0x02a18042 (673<<16|32834) dynamic font=494 color=0xdf00 text="Supply crate" abs=56,-12 0x32 hidden=0
+      [76] kind=text trans=0 fill_mode=0 user_id=0x02a18043 (673<<16|32835) dynamic font=494 color=0xff981f text="Free" abs=56,-12 0x32 hidden=0
+      [77] kind=rect trans=255 fill_mode=0 user_id=0x02a18044 (673<<16|32836) dynamic color=0x0 color2=0x0 filled=1 abs=26,-12 10x32 hidden=0
+      [78] kind=graphic trans=0 fill_mode=0 user_id=0x02a18045 (673<<16|32837) dynamic graphic=24880 angle=0 tiling=0 if3=1 abs=28,-12 36x32 hidden=0
+      [79] kind=text trans=0 fill_mode=0 user_id=0x02a18046 (673<<16|32838) dynamic font=494 color=0xdf00 text="Amy's saw" abs=66,-12 0x32 hidden=0
+      [80] kind=text trans=0 fill_mode=0 user_id=0x02a18047 (673<<16|32839) dynamic font=494 color=0xff981f text="Free" abs=66,-12 0x32 hidden=0
+      [81] kind=rect trans=255 fill_mode=0 user_id=0x02a18048 (673<<16|32840) dynamic color=0x0 color2=0x0 filled=1 abs=16,23 10x32 hidden=0
+      [82] kind=graphic trans=0 fill_mode=0 user_id=0x02a18049 (673<<16|32841) dynamic graphic=24882 angle=0 tiling=0 if3=1 abs=18,23 36x32 hidden=0
+      [83] kind=text trans=0 fill_mode=0 user_id=0x02a1804a (673<<16|32842) dynamic font=494 color=0xdf00 text="Plank sack" abs=56,23 0x32 hidden=0
+      [84] kind=text trans=0 fill_mode=0 user_id=0x02a1804b (673<<16|32843) dynamic font=494 color=0xff981f text="Free" abs=56,23 0x32 hidden=0
+      [85] kind=rect trans=255 fill_mode=0 user_id=0x02a1804c (673<<16|32844) dynamic color=0x0 color2=0x0 filled=1 abs=26,23 10x32 hidden=0
+      [86] kind=graphic trans=0 fill_mode=0 user_id=0x02a1804d (673<<16|32845) dynamic graphic=24885 angle=0 tiling=0 if3=1 abs=28,23 36x32 hidden=0
+      [87] kind=text trans=0 fill_mode=0 user_id=0x02a1804e (673<<16|32846) dynamic font=494 color=0xdf00 text="Hosidius blueprints" abs=66,23 0x32 hidden=0
+      [88] kind=text trans=0 fill_mode=0 user_id=0x02a1804f (673<<16|32847) dynamic font=494 color=0xff981f text="Free" abs=66,23 0x32 hidden=0
+      [89] kind=rect trans=0 fill_mode=0 user_id=0x02a18050 (673<<16|32848) dynamic color=0xe0e0c color2=0x0 filled=1 abs=16,63 0x1 hidden=0
+      [90] kind=rect trans=0 fill_mode=0 user_id=0x02a18051 (673<<16|32849) dynamic color=0x474745 color2=0x0 filled=1 abs=16,64 0x1 hidden=0
+      [91] kind=rect trans=255 fill_mode=0 user_id=0x02a18052 (673<<16|32850) dynamic color=0x0 color2=0x0 filled=1 abs=16,71 10x32 hidden=0
+      [92] kind=graphic trans=0 fill_mode=0 user_id=0x02a18053 (673<<16|32851) dynamic graphic=24874 angle=0 tiling=0 if3=1 abs=18,71 36x32 hidden=0
+      [93] kind=text trans=0 fill_mode=0 user_id=0x02a18054 (673<<16|32852) dynamic font=494 color=0xdf00 text="Carpenter's shirt" abs=56,71 0x32 hidden=0
+      [94] kind=text trans=0 fill_mode=0 user_id=0x02a18055 (673<<16|32853) dynamic font=494 color=0xff981f text="Free" abs=56,71 0x32 hidden=0
+      [95] kind=rect trans=255 fill_mode=0 user_id=0x02a18056 (673<<16|32854) dynamic color=0x0 color2=0x0 filled=1 abs=26,71 10x32 hidden=0
+      [96] kind=graphic trans=0 fill_mode=0 user_id=0x02a18057 (673<<16|32855) dynamic graphic=24872 angle=0 tiling=0 if3=1 abs=28,71 36x32 hidden=0
+      [97] kind=text trans=0 fill_mode=0 user_id=0x02a18058 (673<<16|32856) dynamic font=494 color=0xdf00 text="Carpenter's helmet" abs=66,71 0x32 hidden=0
+      [98] kind=text trans=0 fill_mode=0 user_id=0x02a18059 (673<<16|32857) dynamic font=494 color=0xff981f text="Free" abs=66,71 0x32 hidden=0
+      [99] kind=rect trans=255 fill_mode=0 user_id=0x02a1805a (673<<16|32858) dynamic color=0x0 color2=0x0 filled=1 abs=16,106 10x32 hidden=0
+      [100] kind=graphic trans=0 fill_mode=0 user_id=0x02a1805b (673<<16|32859) dynamic graphic=24876 angle=0 tiling=0 if3=1 abs=18,106 36x32 hidden=0
+      [101] kind=text trans=0 fill_mode=0 user_id=0x02a1805c (673<<16|32860) dynamic font=494 color=0xdf00 text="Carpenter's trousers" abs=56,106 0x32 hidden=0
+      [102] kind=text trans=0 fill_mode=0 user_id=0x02a1805d (673<<16|32861) dynamic font=494 color=0xff981f text="Free" abs=56,106 0x32 hidden=0
+      [103] kind=rect trans=255 fill_mode=0 user_id=0x02a1805e (673<<16|32862) dynamic color=0x0 color2=0x0 filled=1 abs=26,106 10x32 hidden=0
+      [104] kind=graphic trans=0 fill_mode=0 user_id=0x02a1805f (673<<16|32863) dynamic graphic=24878 angle=0 tiling=0 if3=1 abs=28,106 36x32 hidden=0
+      [105] kind=text trans=0 fill_mode=0 user_id=0x02a18060 (673<<16|32864) dynamic font=494 color=0xdf00 text="Carpenter's boots" abs=66,106 0x32 hidden=0
+      [106] kind=text trans=0 fill_mode=0 user_id=0x02a18061 (673<<16|32865) dynamic font=494 color=0xff981f text="Free" abs=66,106 0x32 hidden=0
+    [4] kind=layer trans=0 fill_mode=0 user_id=0x02a10004 (673<<16|4) static
+      [53] kind=graphic trans=0 fill_mode=0 user_id=0x02a1802c (673<<16|32812) dynamic graphic=792 angle=0 tiling=0 if3=1 abs=13,-15 16x0 hidden=0
+      [54] kind=graphic trans=0 fill_mode=0 user_id=0x02a1802d (673<<16|32813) dynamic graphic=790 angle=0 tiling=0 if3=1 abs=13,1 16x194 hidden=0
+      [55] kind=graphic trans=0 fill_mode=0 user_id=0x02a1802e (673<<16|32814) dynamic graphic=789 angle=0 tiling=0 if3=1 abs=13,1 16x5 hidden=0
+      [56] kind=graphic trans=0 fill_mode=0 user_id=0x02a1802f (673<<16|32815) dynamic graphic=791 angle=0 tiling=0 if3=1 abs=13,190 16x5 hidden=0
+      [57] kind=graphic trans=0 fill_mode=0 user_id=0x02a18030 (673<<16|32816) dynamic graphic=773 angle=0 tiling=0 if3=1 abs=13,-15 16x16 hidden=0
+      [58] kind=graphic trans=0 fill_mode=0 user_id=0x02a18031 (673<<16|32817) dynamic graphic=788 angle=0 tiling=0 if3=1 abs=13,-31 16x16 hidden=0
+    [71] kind=rect trans=0 fill_mode=0 user_id=0x02a1803e (673<<16|32830) dynamic color=0xe0e0c color2=0x0 filled=0 abs=14,-15 16x0 hidden=0
+    [72] kind=rect trans=0 fill_mode=0 user_id=0x02a1803f (673<<16|32831) dynamic color=0x474745 color2=0x0 filled=0 abs=15,-15 14x0 hidden=0
+  [5] kind=layer trans=0 fill_mode=0 user_id=0x02a10005 (673<<16|5) static
+    [6] kind=layer trans=0 fill_mode=0 user_id=0x02a10006 (673<<16|6) static
+      [7] kind=layer trans=0 fill_mode=0 user_id=0x02a10007 (673<<16|7) static
+        [107] kind=graphic trans=0 fill_mode=0 user_id=0x02a18062 (673<<16|32866) dynamic graphic=897 angle=0 tiling=1 if3=1 abs=-50,-9 148x33 hidden=0
+        [108] kind=graphic trans=0 fill_mode=0 user_id=0x02a18063 (673<<16|32867) dynamic graphic=921 angle=0 tiling=1 if3=1 abs=-51,-10 9x9 hidden=0
+        [109] kind=graphic trans=0 fill_mode=0 user_id=0x02a18064 (673<<16|32868) dynamic graphic=922 angle=0 tiling=1 if3=1 abs=90,-10 9x9 hidden=0
+        [110] kind=graphic trans=0 fill_mode=0 user_id=0x02a18065 (673<<16|32869) dynamic graphic=923 angle=0 tiling=1 if3=1 abs=-51,16 9x9 hidden=0
+        [111] kind=graphic trans=0 fill_mode=0 user_id=0x02a18066 (673<<16|32870) dynamic graphic=924 angle=0 tiling=1 if3=1 abs=90,16 9x9 hidden=0
+        [112] kind=graphic trans=0 fill_mode=0 user_id=0x02a18067 (673<<16|32871) dynamic graphic=925 angle=0 tiling=1 if3=1 abs=-51,-1 9x17 hidden=0
+        [113] kind=graphic trans=0 fill_mode=0 user_id=0x02a18068 (673<<16|32872) dynamic graphic=926 angle=0 tiling=1 if3=1 abs=-42,-10 132x9 hidden=0
+        [114] kind=graphic trans=0 fill_mode=0 user_id=0x02a18069 (673<<16|32873) dynamic graphic=927 angle=0 tiling=1 if3=1 abs=90,-1 9x17 hidden=0
+        [115] kind=graphic trans=0 fill_mode=0 user_id=0x02a1806a (673<<16|32874) dynamic graphic=928 angle=0 tiling=1 if3=1 abs=-42,16 132x9 hidden=0
+        [116] kind=text trans=0 fill_mode=0 user_id=0x02a1806b (673<<16|32875) dynamic font=495 color=0x7f7f7f text="Confirm" abs=-51,-10 150x35 hidden=0
+    [8] kind=text trans=0 fill_mode=0 user_id=0x02a10008 (673<<16|8) static font=495 color=0xff981f text="0</col>" abs=14,-10 150x35 hidden=0
+rendered interface 673 (1024x768, no bmp)
