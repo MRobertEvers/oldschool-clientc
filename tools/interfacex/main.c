@@ -10262,18 +10262,23 @@ render_children:
      * zero-size layer (pure grouping container) leaves the inherited clip as-is. */
     if( node->kind == UITreeXNodeKind_RSLayer && node->abs_w > 0 && node->abs_h > 0 )
     {
-        int lx0 = node->abs_x;
-        int ly0 = node->abs_y;
-        int lx1 = node->abs_x + node->abs_w;
-        int ly1 = node->abs_y + node->abs_h;
-        if( lx0 > g_render_clip_x0 )
-            g_render_clip_x0 = lx0;
-        if( ly0 > g_render_clip_y0 )
-            g_render_clip_y0 = ly0;
-        if( lx1 < g_render_clip_x1 )
-            g_render_clip_x1 = lx1;
-        if( ly1 < g_render_clip_y1 )
-            g_render_clip_y1 = ly1;
+        struct UITreeXNode_RSLayer const* layer = UITreeX_NodeRSLayer(node);
+        int scrolls = (layer->scroll_width > node->abs_w) || (layer->scroll_height > node->abs_h);
+        if( scrolls )
+        {
+            int lx0 = node->abs_x;
+            int ly0 = node->abs_y;
+            int lx1 = node->abs_x + node->abs_w;
+            int ly1 = node->abs_y + node->abs_h;
+            if( lx0 > g_render_clip_x0 )
+                g_render_clip_x0 = lx0;
+            if( ly0 > g_render_clip_y0 )
+                g_render_clip_y0 = ly0;
+            if( lx1 < g_render_clip_x1 )
+                g_render_clip_x1 = lx1;
+            if( ly1 < g_render_clip_y1 )
+                g_render_clip_y1 = ly1;
+        }
     }
 
     for( int child = node->link.first_child_tree_idx; child != -1;
