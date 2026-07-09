@@ -40,15 +40,15 @@ static char g_cs2_trace_extra[512];
 #define INVENTORY_INTERFACE 630
 #define EQUIPMENT_INTERFACE 387
 
-#define CANVAS_W 1024
-#define CANVAS_H 768
+// #define CANVAS_W 1024
+// #define CANVAS_H 768
 #define CANVAS_BG 0xFF202428
 
 // portal nexus viewport size
 // There is some padding that gets added so we account for that
 // It's either 10 or 9 all the way around.
-// #define CANVAS_W (492 + 20)
-// #define CANVAS_H (314 + 20)
+#define CANVAS_W (492 + 20)
+#define CANVAS_H (314 + 20)
 
 #define INTERFACEX_CONTENT_MINIMAP 1338
 #define INTERFACEX_CONTENT_COMPASS 1339
@@ -152,6 +152,10 @@ struct UITreeXNode_RSModel
     int orthog;
     /** 1 = zoom3d uses widget zoom (drawModel2DAtZoom); 0 = fixed 512 scale (drawModel2D). */
     int fixed_zoom;
+    int16_t cache_short50;
+    int16_t cache_short49;
+    int32_t cache_an5957;
+    int32_t cache_an5920;
     int transparent;
     int item_id;
     int item_count;
@@ -917,15 +921,36 @@ UITreeX_PrintNode(
         node->abs_h,
         node->hidden);
 
+    if( node->if3 )
+    {
+        int parent_w = 0;
+        int parent_h = 0;
+        if( node->link.parent_tree_idx >= 0 )
+        {
+            struct UITreeXNode const* parent = &tree->nodes[node->link.parent_tree_idx];
+            parent_w = parent->abs_w;
+            parent_h = parent->abs_h;
+        }
+        printf(
+            " if3 x=%d y=%d xm=%d ym=%d wm=%d hm=%d w=%d h=%d aspect=%d:%d parent=%dx%d",
+            node->x,
+            node->y,
+            node->x_mode,
+            node->y_mode,
+            node->w_mode,
+            node->h_mode,
+            node->w,
+            node->h,
+            node->aspect_w,
+            node->aspect_h,
+            parent_w,
+            parent_h);
+    }
+
     if( node->kind == UITreeXNodeKind_RSGraphic )
     {
         struct UITreeXNode_RSGraphic const* graphic = UITreeX_NodeRSGraphic(node);
-        printf(
-            " graphic=%d angle=%d tiling=%d if3=%d",
-            graphic->graphic_id,
-            node->angle_2d,
-            node->tiling,
-            node->if3);
+        printf(" graphic=%d angle=%d tiling=%d", graphic->graphic_id, node->angle_2d, node->tiling);
     }
     else if( node->kind == UITreeXNodeKind_RSObj )
     {
@@ -937,8 +962,7 @@ UITreeX_PrintNode(
         struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
         printf(
             " model=%d kind=%d zoom=%d xan=%d yan=%d zan=%d orient=%d offset=%d orthog=%d "
-            "fixed_zoom=%d"
-            " x=%d y=%d xm=%d ym=%d w=%d h=%d",
+            "fixed_zoom=%d short50=%d short49=%d an5957=%d an5920=%d",
             model->model_id,
             (int)model->model_kind,
             model->zoom,
@@ -949,12 +973,10 @@ UITreeX_PrintNode(
             model->offset_y,
             model->orthog,
             model->fixed_zoom,
-            node->x,
-            node->y,
-            node->x_mode,
-            node->y_mode,
-            node->w,
-            node->h);
+            (int)model->cache_short50,
+            (int)model->cache_short49,
+            model->cache_an5957,
+            model->cache_an5920);
     }
     else if( node->kind == UITreeXNodeKind_RSLine )
     {
@@ -980,13 +1002,8 @@ UITreeX_PrintNode(
     }
     else if( node->kind == UITreeXNodeKind_RSLayer )
     {
-        printf(
-            " if3=%d x=%d y=%d xm=%d ym=%d",
-            node->if3,
-            node->x,
-            node->y,
-            node->x_mode,
-            node->y_mode);
+        struct UITreeXNode_RSLayer const* layer = &node->u.rs_layer;
+        printf(" scroll=%dx%d", layer->scroll_width, layer->scroll_height);
     }
 
     putchar('\n');
@@ -8142,6 +8159,11 @@ InterfaceX_RasterModelNodeToCanvas(
     struct UITreeXNode const* node,
     int node_alpha);
 
+static int
+InterfaceX_NormalizeModelItemZoom(
+    int zoom2d,
+    int widget_width);
+
 struct ToriAuxLibCore_ClientScript*
 InterfaceX_VMHost_ResolveScript(
     struct InterfaceX_VMHost* host,
@@ -10502,6 +10524,11 @@ component_decode_from_bytes(
     if( !comp )
         return NULL;
 
+    if( packed_id == 1245189 )
+    {
+        printf("wow");
+    }
+
     struct RSCacheShared_RSBuffer buf;
     RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, size);
     RSCacheDat2A_ComponentInit(comp);
@@ -10553,6 +10580,7 @@ static int
 process_component(
     struct UITreeXBuilder* builder,
     struct ToriAuxLibCore_Component* component,
+    RSCacheDat2A_Component const* raw_component,
     struct CS1VM* cs1vm)
 {
     assert(builder);
@@ -10591,6 +10619,15 @@ process_component(
     if( idx >= 0 && idx < builder->tree->node_count )
     {
         UITreeX_ApplyComponentGeometry(&builder->tree->nodes[idx], component);
+
+        if( component->type == TORIAUXLIBCORE_COMPONENT_MODEL && raw_component )
+        {
+            struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(&builder->tree->nodes[idx]);
+            model->cache_short50 = raw_component->aShort50;
+            model->cache_short49 = raw_component->aShort49;
+            model->cache_an5957 = raw_component->anInt5957;
+            model->cache_an5920 = raw_component->anInt5920;
+        }
 
         if( component->type == TORIAUXLIBCORE_COMPONENT_GRAPHIC && !component->if3 )
             builder->tree->nodes[idx].u.rs_graphic.cs1_active =
@@ -11088,6 +11125,15 @@ InterfaceX_RasterModelNodeToCanvas(
 
     int model_id = model->model_id;
     int zoom = model->zoom > 0 ? model->zoom : 2000;
+    /* OSRS only applies zoom*32/width for item model widgets (CC_SETOBJECT), not plain cache models.
+     * Plain models (e.g. portal nexus 19:5) keep cache modelZoom (1348) and center on the model node. */
+    if( model->item_id >= 0 )
+    {
+        if( node->w_mode != 0 && model->cache_an5957 > 0 )
+            zoom = InterfaceX_NormalizeModelItemZoom(zoom, model->cache_an5957);
+        else if( node->w > 0 )
+            zoom = InterfaceX_NormalizeModelItemZoom(zoom, node->w);
+    }
     int angle_x = model->angle_x;
     int angle_y = model->angle_y;
     int angle_z = model->angle_z;
@@ -15188,12 +15234,123 @@ InterfaceX_PrintUsage(char const* argv0)
 {
     fprintf(
         stderr,
-        "usage: %s [--list] [--no-bmp] [--cs2-trace] [--cs2-trace-all] [interface_id]\n"
+        "usage: %s [--list] [--no-bmp] [--cs2-trace] [--cs2-trace-all]\n"
+        "       %s --dump-component <interface_id> <file_index>\n"
+        "       %s [interface_id]\n"
         "  default interface_id: %d (inventory)\n"
+        "  --dump-component: print raw bytes + decoded IF3 header for one component file\n"
         "  --cs2-trace: log targeting opcode trace to stderr (CS2TRACE lines)\n"
         "  --cs2-trace-all: log every opcode to stderr\n",
         argv0,
+        argv0,
+        argv0,
         INVENTORY_INTERFACE);
+}
+
+static RSCacheDat2A_Component*
+component_decode_from_bytes(
+    int packed_id,
+    char* data,
+    int size);
+
+static int
+InterfaceX_DumpComponentRaw(
+    struct RSCacheDat2Disk* cache,
+    int interface_id,
+    int file_index)
+{
+    assert(cache);
+
+    struct RSCacheDat2Disk_Archive* archive =
+        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, interface_id);
+    if( !archive )
+    {
+        fprintf(stderr, "failed to load interface archive %d\n", interface_id);
+        return 1;
+    }
+
+    RSCacheDat2Disk_ArchiveInitMetadataFromTable(
+        cache->tables[RSCacheDat2Disk_Table_Interfaces], archive);
+
+    struct RSCacheShared_FileList* file_list = RSCacheShared_FileListNewFromCacheArchive(archive);
+    if( !file_list || file_index < 0 || file_index >= file_list->file_count )
+    {
+        fprintf(
+            stderr,
+            "invalid file index %d for interface %d (count=%d)\n",
+            file_index,
+            interface_id,
+            file_list ? file_list->file_count : 0);
+        RSCacheShared_FileListFree(file_list);
+        RSCacheDat2Disk_ArchiveFree(archive);
+        return 1;
+    }
+
+    char* data = file_list->files[file_index];
+    int size = file_list->file_sizes[file_index];
+    int packed_id = (interface_id << 16) | (file_index & 0xFFFF);
+
+    printf(
+        "interface=%d file=%d packed_id=0x%08x size=%d cache=%s\n",
+        interface_id,
+        file_index,
+        packed_id,
+        size,
+        CACHE_PATH);
+
+    int dump_len = size < 48 ? size : 48;
+    printf("raw_hex:");
+    for( int i = 0; i < dump_len; i++ )
+        printf(" %02x", (unsigned char)data[i]);
+    if( size > dump_len )
+        printf(" ...");
+    printf("\n");
+
+    RSCacheDat2A_Component* component = component_decode_from_bytes(packed_id, data, size);
+    if( !component )
+    {
+        fprintf(stderr, "failed to decode component\n");
+        RSCacheShared_FileListFree(file_list);
+        RSCacheDat2Disk_ArchiveFree(archive);
+        return 1;
+    }
+
+    printf(
+        "decoded: type=%d baseX=%d baseY=%d baseW=%d baseH=%d wm=%d hm=%d xm=%d ym=%d\n",
+        component->type,
+        component->baseX,
+        component->baseY,
+        component->baseWidth,
+        component->baseHeight,
+        component->widthMode,
+        component->heightMode,
+        component->xMode,
+        component->yMode);
+
+    if( component->type == 6 )
+    {
+        printf(
+            "model: id=%d zoom=%d xan=%d yan=%d zan=%d orient=%d offset=%d orthog=%d fixed_zoom=%d "
+            "short50=%d short49=%d an5957=%d an5920=%d\n",
+            component->modelId,
+            component->modelZoom,
+            component->modelXAngle,
+            component->modelYAngle,
+            component->modelZAngle,
+            component->modelXOffset,
+            component->modelYOffset,
+            component->modelOrthographic,
+            component->aBoolean411,
+            (int)component->aShort50,
+            (int)component->aShort49,
+            component->anInt5957,
+            component->anInt5920);
+    }
+
+    RSCacheDat2A_ComponentFree(component);
+    RSCacheShared_FileListFree(file_list);
+    RSCacheDat2Disk_ArchiveFree(archive);
+    return 0;
 }
 
 struct InterfaceX_LoadedInterface
@@ -15204,16 +15361,11 @@ struct InterfaceX_LoadedInterface
     RSCacheDat2A_Component** raw_components;
 };
 
-static RSCacheDat2A_Component*
-component_decode_from_bytes(
-    int packed_id,
-    char* data,
-    int size);
-
 static int
 process_component(
     struct UITreeXBuilder* builder,
     struct ToriAuxLibCore_Component* component,
+    RSCacheDat2A_Component const* raw_component,
     struct CS1VM* cs1vm);
 
 static int
@@ -15320,7 +15472,7 @@ InterfaceX_LoadInterfaceComponents(
     }
 
     for( int i = 0; i < file_list->file_count; i++ )
-        process_component(builder, loaded->components[i], cs1vm);
+        process_component(builder, loaded->components[i], loaded->raw_components[i], cs1vm);
 
     RSCacheShared_FileListFree(file_list);
     RSCacheDat2Disk_ArchiveFree(archive);
@@ -15401,10 +15553,28 @@ main(
 {
     int interface_id = INVENTORY_INTERFACE;
     bool list_only = false;
+    int dump_iface = -1;
+    int dump_file = -1;
 
     for( int i = 1; i < argc; i++ )
     {
-        if( strcmp(argv[i], "--list") == 0 )
+        if( strcmp(argv[i], "--dump-component") == 0 )
+        {
+            if( i + 2 >= argc )
+            {
+                fprintf(stderr, "--dump-component requires <interface_id> <file_index>\n");
+                InterfaceX_PrintUsage(argv[0]);
+                return 1;
+            }
+            dump_iface = atoi(argv[++i]);
+            dump_file = atoi(argv[++i]);
+            if( dump_iface <= 0 || dump_file < 0 )
+            {
+                fprintf(stderr, "invalid --dump-component args\n");
+                return 1;
+            }
+        }
+        else if( strcmp(argv[i], "--list") == 0 )
             list_only = true;
         else if( strcmp(argv[i], "--no-bmp") == 0 )
             g_interfacex_write_bmp = 0;
@@ -15447,6 +15617,13 @@ main(
     {
         fprintf(stderr, "failed to open cache: %s\n", CACHE_PATH);
         return 1;
+    }
+
+    if( dump_iface >= 0 )
+    {
+        int rc = InterfaceX_DumpComponentRaw(cache, dump_iface, dump_file);
+        RSCacheDat2Disk_Free(cache);
+        return rc;
     }
 
     if( list_only )

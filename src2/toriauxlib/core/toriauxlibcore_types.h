@@ -446,10 +446,10 @@ struct ToriAuxLibCore_Component
     /** MODEL depth offset: dat2 modelYOffset / anInt5921 (IF3 only). Added to Y and Z. */
     int model_y_offset;
     /** MODEL projection mode: dat2 modelOrthographic (IF3 only).
-     *  1 = orthographic (scale x/y, no z divide); 0 = perspective (objRender). */
+     *  1 = orthographic projection path; 0 = perspective (objRender / drawModel2D). */
     uint8_t model_orthog;
     /** MODEL projection scale: dat2 aBoolean411 (IF3 only).
-     *  1 = zoom3d = widget zoom (drawModel2DAtZoom); 0 = zoom3d = 512 (drawModel2D). */
+     *  Deobfuscator Widget.useFixedZoom: 1 = zoom3d = widget zoom (drawModel2DAtZoom); 0 = 512 (drawModel2D). */
     uint8_t model_fixed_zoom;
     int color;
     int filled;

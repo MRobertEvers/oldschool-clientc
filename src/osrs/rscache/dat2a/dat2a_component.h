@@ -86,7 +86,9 @@ typedef struct RSCacheDat2A_Component
     int32_t modelXOffset;
     int32_t modelYOffset;
     int32_t modelSeqId;
-    /** 1 = orthographic projection; 0 = perspective (objRender / drawModel2D). */
+    /** IF3 type-6: first byte after sequence id.
+     *  Rev ~233: selects orthographic draw (method5172) vs perspective (method5228).
+     *  RuneLite cache tools label this "orthogonal"; do not confuse with aBoolean411 below. */
     bool modelOrthographic;
 
     int32_t objId;
@@ -137,7 +139,9 @@ typedef struct RSCacheDat2A_Component
     int32_t anInt5921;
     int16_t aShort50;
     int16_t aShort49;
-    /** 1 = projection scale uses widget zoom (drawModel2DAtZoom); 0 = fixed 512 (drawModel2D). */
+    /** IF3 type-6: byte after aShort49.
+     *  Deobfuscator Widget.useFixedZoom / drawModel2DAtZoom vs drawModel2D when IF3.
+     *  Engine: model_fixed_zoom → zoom3d = widget zoom (true) or 512 (false). */
     bool aBoolean411;
     int32_t anInt5957;
     /** IF3 aspect ratio numerator/denominator (Kronos field2688/field2662). */

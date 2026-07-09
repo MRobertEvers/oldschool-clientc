@@ -307,8 +307,8 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
         dst->y_mode = src->yMode;
         dst->width_mode = src->widthMode;
         dst->height_mode = src->heightMode;
-        dst->aspect_w = src->aspect_ratio_w > 0 ? src->aspect_ratio_w : 1;
-        dst->aspect_h = src->aspect_ratio_h > 0 ? src->aspect_ratio_h : 1;
+        dst->aspect_w = src->baseWidth > 0 ? src->baseWidth : 1;
+        dst->aspect_h = src->baseHeight > 0 ? src->baseHeight : 1;
     }
     dst->graphic = src->graphic;
     dst->graphic_active = src->activeGraphic;
