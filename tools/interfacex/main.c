@@ -9101,6 +9101,8 @@ UITreeX_FindChildBySubid(
         struct UITreeXNode* c = &tree->nodes[child];
         if( c->dynamic && c->child_index == sub_id )
             return child;
+        if( !c->dynamic && (c->user_id & 0xFFFF) == (sub_id & 0xFFFF) )
+            return child;
     }
     return -1;
 }
@@ -10116,7 +10118,17 @@ UITreeX_RenderNode(
     struct RSCacheDat2Disk* cache,
     struct UITreeX const* tree,
     int node_idx,
-    int* pixels)
+    int* pixels,
+    int text_pass);
+
+static void
+UITreeX_RenderNodeImpl(
+    struct InterfaceX_VMHost* host,
+    struct RSCacheDat2Disk* cache,
+    struct UITreeX const* tree,
+    int node_idx,
+    int* pixels,
+    int text_pass)
 {
     assert(tree);
     assert(node_idx >= 0 && node_idx < tree->node_count);
@@ -10137,6 +10149,8 @@ UITreeX_RenderNode(
         goto render_children;
     int node_alpha = 255 - trans;
 
+    if( text_pass == 0 )
+    {
     if( node->kind == UITreeXNodeKind_RSGraphic && host )
     {
         struct UITreeXNode_RSGraphic const* graphic = UITreeX_NodeRSGraphic(node);
@@ -10368,6 +10382,7 @@ UITreeX_RenderNode(
         else
             InterfaceX_DrawRectOutline(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
     }
+    }
     else if( node->kind == UITreeXNodeKind_RSText && UITreeX_NodeRSText(node)->text[0] && host )
     {
         struct UITreeXNode_RSText const* text = UITreeX_NodeRSText(node);
@@ -10452,13 +10467,25 @@ render_children:
 
     for( int child = node->link.first_child_tree_idx; child != -1;
          child = tree->nodes[child].link.next_sibling_tree_idx )
-        UITreeX_RenderNode(host, cache, tree, child, pixels);
+        UITreeX_RenderNodeImpl(host, cache, tree, child, pixels, text_pass);
 
     g_render_clip_x0 = saved_clip_x0;
     g_render_clip_y0 = saved_clip_y0;
     g_render_clip_x1 = saved_clip_x1;
     g_render_clip_y1 = saved_clip_y1;
 }
+}
+
+static void
+UITreeX_RenderNode(
+    struct InterfaceX_VMHost* host,
+    struct RSCacheDat2Disk* cache,
+    struct UITreeX const* tree,
+    int node_idx,
+    int* pixels,
+    int text_pass)
+{
+    UITreeX_RenderNodeImpl(host, cache, tree, node_idx, pixels, text_pass);
 }
 
 static void
@@ -10482,7 +10509,13 @@ UITreeX_Render(
     for( int i = 0; i < tree->node_count; i++ )
     {
         if( UITreeX_NodeIsLiveRoot(&tree->nodes[i]) )
-            UITreeX_RenderNode(host, cache, tree, i, pixels);
+            UITreeX_RenderNode(host, cache, tree, i, pixels, 0);
+    }
+
+    for( int i = 0; i < tree->node_count; i++ )
+    {
+        if( UITreeX_NodeIsLiveRoot(&tree->nodes[i]) )
+            UITreeX_RenderNode(host, cache, tree, i, pixels, 1);
     }
 }
 
@@ -15162,6 +15195,204 @@ InterfaceX_PrintUsage(char const* argv0)
         INVENTORY_INTERFACE);
 }
 
+struct InterfaceX_LoadedInterface
+{
+    int interface_id;
+    int component_count;
+    struct ToriAuxLibCore_Component** components;
+    RSCacheDat2A_Component** raw_components;
+};
+
+static RSCacheDat2A_Component*
+component_decode_from_bytes(
+    int packed_id,
+    char* data,
+    int size);
+
+static int
+process_component(
+    struct UITreeXBuilder* builder,
+    struct ToriAuxLibCore_Component* component,
+    struct CS1VM* cs1vm);
+
+static int
+InterfaceX_CompanionInterfaceCount(int interface_id)
+{
+    if( interface_id == 17 )
+        return 1;
+    return 0;
+}
+
+static int
+InterfaceX_CompanionInterfaceId(
+    int interface_id,
+    int index)
+{
+    if( interface_id == 17 && index == 0 )
+        return 162;
+    return -1;
+}
+
+static bool
+InterfaceX_LoadInterfaceComponents(
+    struct InterfaceX_VMHost* host,
+    struct UITreeXBuilder* builder,
+    struct RSCacheDat2Disk* cache,
+    struct CS1VM* cs1vm,
+    int interface_id,
+    struct InterfaceX_LoadedInterface* loaded)
+{
+    assert(host);
+    assert(builder);
+    assert(cache);
+    assert(cs1vm);
+    assert(loaded);
+
+    memset(loaded, 0, sizeof(*loaded));
+    loaded->interface_id = interface_id;
+
+    struct RSCacheDat2Disk_ReferenceTable* reference_table =
+        cache->tables[RSCacheDat2Disk_Table_Interfaces];
+    if( !reference_table )
+    {
+        fprintf(stderr, "failed to load reference table: %d\n", interface_id);
+        return false;
+    }
+
+    struct RSCacheDat2Disk_Archive* archive =
+        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, interface_id);
+    if( !archive )
+    {
+        fprintf(stderr, "failed to load archive: %d\n", interface_id);
+        return false;
+    }
+
+    RSCacheDat2Disk_ArchiveInitMetadataFromTable(reference_table, archive);
+
+    struct RSCacheShared_FileList* file_list = RSCacheShared_FileListNewFromCacheArchive(archive);
+    if( !file_list )
+    {
+        fprintf(stderr, "failed to create file list: %d\n", interface_id);
+        RSCacheDat2Disk_ArchiveFree(archive);
+        return false;
+    }
+
+    loaded->component_count = file_list->file_count;
+    loaded->components = calloc(file_list->file_count, sizeof(struct ToriAuxLibCore_Component*));
+    loaded->raw_components = calloc(file_list->file_count, sizeof(RSCacheDat2A_Component*));
+    if( !loaded->components || !loaded->raw_components )
+    {
+        fprintf(stderr, "failed to allocate component arrays: %d\n", interface_id);
+        free(loaded->components);
+        free(loaded->raw_components);
+        RSCacheShared_FileListFree(file_list);
+        RSCacheDat2Disk_ArchiveFree(archive);
+        return false;
+    }
+
+    for( int i = 0; i < file_list->file_count; i++ )
+    {
+        int packed_id = (interface_id << 16) | (i & 0xFFFF);
+        RSCacheDat2A_Component* component = component_decode_from_bytes(
+            packed_id, file_list->files[i], file_list->file_sizes[i]);
+        if( !component )
+        {
+            fprintf(stderr, "failed to decode component: %d (file %d)\n", interface_id, i);
+            RSCacheShared_FileListFree(file_list);
+            RSCacheDat2Disk_ArchiveFree(archive);
+            return false;
+        }
+
+        loaded->raw_components[i] = component;
+
+        struct ToriAuxLibCore_Component* component_core =
+            ToriAuxLibCache_ComponentNewFromCacheDat2Component(component);
+        if( !component_core )
+        {
+            fprintf(stderr, "failed to create component core: %d (file %d)\n", interface_id, i);
+            RSCacheShared_FileListFree(file_list);
+            RSCacheDat2Disk_ArchiveFree(archive);
+            return false;
+        }
+
+        loaded->components[i] = component_core;
+    }
+
+    for( int i = 0; i < file_list->file_count; i++ )
+        process_component(builder, loaded->components[i], cs1vm);
+
+    RSCacheShared_FileListFree(file_list);
+    RSCacheDat2Disk_ArchiveFree(archive);
+    return true;
+}
+
+static void
+InterfaceX_QueueInterfaceOnLoadScripts(
+    struct InterfaceX_VMHost* host,
+    struct InterfaceX_LoadedInterface const* loaded)
+{
+    assert(host);
+    assert(loaded);
+
+    for( int i = 0; i < loaded->component_count; i++ )
+    {
+        struct ToriAuxLibCore_Component* component_core = loaded->components[i];
+        RSCacheDat2A_Component* component = loaded->raw_components[i];
+        if( !component_core || !component )
+            continue;
+        if( component->onLoadLen <= 0 || !component->onLoad )
+            continue;
+
+        InterfaceX_VMHost_QueueScriptHook(
+            host, component_core->id, component->onLoad, component->onLoadLen);
+    }
+}
+
+static void
+InterfaceX_HideInterfaceRoots(
+    struct UITreeX* tree,
+    int interface_id)
+{
+    assert(tree);
+    if( interface_id < 0 )
+        return;
+
+    int iface_prefix = interface_id << 16;
+    for( int i = 0; i < tree->node_count; i++ )
+    {
+        struct UITreeXNode* node = &tree->nodes[i];
+        if( node->user_id < 0 )
+            continue;
+        if( (node->user_id & 0xFFFF0000) != (unsigned)iface_prefix )
+            continue;
+        if( node->link.parent_tree_idx < 0 )
+            node->hidden = 1;
+    }
+}
+
+static void
+InterfaceX_FreeLoadedInterface(struct InterfaceX_LoadedInterface* loaded)
+{
+    if( !loaded )
+        return;
+
+    if( loaded->raw_components )
+    {
+        for( int i = 0; i < loaded->component_count; i++ )
+            RSCacheDat2A_ComponentFree(loaded->raw_components[i]);
+        free(loaded->raw_components);
+    }
+
+    if( loaded->components )
+    {
+        for( int i = 0; i < loaded->component_count; i++ )
+            ToriAuxLibCore_ComponentFree(loaded->components[i]);
+        free(loaded->components);
+    }
+
+    memset(loaded, 0, sizeof(*loaded));
+}
+
 int
 main(
     int argc,
@@ -15203,15 +15434,11 @@ main(
     }
 
     struct RSCacheDat2Disk* cache = NULL;
-    struct RSCacheDat2Disk_Archive* archive = NULL;
-    struct RSCacheDat2Disk_ReferenceTable* reference_table = NULL;
-    RSCacheDat2A_Component* component = NULL;
-    struct ToriAuxLibCore_Component* component_core = NULL;
-    struct ToriAuxLibCore_Component** components = NULL;
-    RSCacheDat2A_Component** raw_components = NULL;
+    struct InterfaceX_LoadedInterface primary = {0};
+    struct InterfaceX_LoadedInterface companions[4];
+    int companion_count = 0;
     struct UITreeX* tree = NULL;
     struct UITreeXBuilder* builder = NULL;
-    struct RSCacheShared_FileList* file_list = NULL;
     struct InterfaceX_VMHost vmhost;
 
     cache = RSCacheDat2Disk_NewFromDirectory(CACHE_PATH);
@@ -15258,29 +15485,6 @@ main(
 
     CS2VMX_BindHost(&vm, &vmhost, InterfaceX_VMHost_Exec);
 
-    reference_table = cache->tables[RSCacheDat2Disk_Table_Interfaces];
-    if( !reference_table )
-    {
-        fprintf(stderr, "failed to load reference table: %d\n", interface_id);
-        return 1;
-    }
-
-    archive = RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, interface_id);
-    if( !archive )
-    {
-        fprintf(stderr, "failed to load archive: %d\n", interface_id);
-        return 1;
-    }
-
-    RSCacheDat2Disk_ArchiveInitMetadataFromTable(reference_table, archive);
-
-    file_list = RSCacheShared_FileListNewFromCacheArchive(archive);
-    if( !file_list )
-    {
-        fprintf(stderr, "failed to create file list: %d\n", interface_id);
-        return 1;
-    }
-
     struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0);
     if( !scene )
     {
@@ -15288,7 +15492,6 @@ main(
         return 1;
     }
 
-    // Layout loading loop
     tree = UITreeX_New();
     builder = calloc(1, sizeof(struct UITreeXBuilder));
     UITreeXBuilder_Init(builder, tree);
@@ -15300,72 +15503,47 @@ main(
     vmhost.next_scene_id = 1;
     InterfaceX_InvStoreSeedDefaults(&vmhost);
 
-    components = calloc(file_list->file_count, sizeof(struct ToriAuxLibCore_Component*));
-    raw_components = calloc(file_list->file_count, sizeof(RSCacheDat2A_Component*));
-    if( !components || !raw_components )
+    companion_count = InterfaceX_CompanionInterfaceCount(interface_id);
+    if( companion_count > (int)(sizeof(companions) / sizeof(companions[0])) )
+        companion_count = (int)(sizeof(companions) / sizeof(companions[0]));
+
+    for( int i = 0; i < companion_count; i++ )
     {
-        fprintf(stderr, "failed to allocate component arrays: %d\n", interface_id);
+        int companion_id = InterfaceX_CompanionInterfaceId(interface_id, i);
+        if( companion_id < 0 )
+            continue;
+        if( !InterfaceX_LoadInterfaceComponents(
+                &vmhost, builder, cache, cs1vm, companion_id, &companions[i]) )
+            return 1;
+    }
+
+    if( !InterfaceX_LoadInterfaceComponents(
+            &vmhost, builder, cache, cs1vm, interface_id, &primary) )
         return 1;
-    }
-
-    for( int i = 0; i < file_list->file_count; i++ )
-    {
-        int packed_id = (interface_id << 16) | (i & 0xFFFF);
-        component =
-            component_decode_from_bytes(packed_id, file_list->files[i], file_list->file_sizes[i]);
-        if( !component )
-        {
-            fprintf(stderr, "failed to decode component: %d (file %d)\n", interface_id, i);
-            return 1;
-        }
-
-        raw_components[i] = component;
-
-        component_core = ToriAuxLibCache_ComponentNewFromCacheDat2Component(component);
-        if( !component_core )
-        {
-            fprintf(stderr, "failed to create component core: %d (file %d)\n", interface_id, i);
-            return 1;
-        }
-
-        components[i] = component_core;
-    }
-
-    for( int i = 0; i < file_list->file_count; i++ )
-    {
-        component_core = components[i];
-        process_component(builder, component_core, cs1vm);
-    }
 
     UITreeXBuilder_ResolvePendingParents(builder);
 
-    reference_table = cache->tables[RSCacheDat2Disk_Table_Clientscript];
-    for( int i = 0; i < file_list->file_count; i++ )
-    {
-        component_core = components[i];
-        component = raw_components[i];
-        if( !component_core || !component )
-            continue;
-        if( component->onLoadLen <= 0 || !component->onLoad )
-            continue;
-
-        InterfaceX_VMHost_QueueScriptHook(
-            &vmhost, component_core->id, component->onLoad, component->onLoadLen);
-    }
-
+    for( int i = 0; i < companion_count; i++ )
+        InterfaceX_QueueInterfaceOnLoadScripts(&vmhost, &companions[i]);
+    InterfaceX_QueueInterfaceOnLoadScripts(&vmhost, &primary);
     InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
 
     InterfaceX_VMHost_FireVarTransmitHooks(&vmhost, &vm);
     InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
 
-    InterfaceX_VMHost_FireCacheVarTransmitHooks(&vmhost, &vm, components, file_list->file_count);
+    InterfaceX_VMHost_FireCacheVarTransmitHooks(
+        &vmhost, &vm, primary.components, primary.component_count);
     InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
 
     InterfaceX_VMHost_FireInvTransmitHooks(&vmhost, &vm);
     InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
 
-    InterfaceX_VMHost_FireCacheInvTransmitHooks(&vmhost, &vm, components, file_list->file_count);
+    InterfaceX_VMHost_FireCacheInvTransmitHooks(
+        &vmhost, &vm, primary.components, primary.component_count);
     InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
+
+    for( int i = 0; i < companion_count; i++ )
+        InterfaceX_HideInterfaceRoots(tree, companions[i].interface_id);
 
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
     UITreeX_PrintNodes(tree);
@@ -15394,13 +15572,9 @@ main(
 
     free(pixels);
 
-    if( raw_components )
-    {
-        for( int i = 0; i < file_list->file_count; i++ )
-            RSCacheDat2A_ComponentFree(raw_components[i]);
-        free(raw_components);
-    }
-    free(components);
+    for( int i = 0; i < companion_count; i++ )
+        InterfaceX_FreeLoadedInterface(&companions[i]);
+    InterfaceX_FreeLoadedInterface(&primary);
 
     free(vmhost.script_queue);
     cs1vm_free(cs1vm);
