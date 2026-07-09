@@ -290,9 +290,8 @@ UITreeX_NodeInit(
     node->link.next_sibling_tree_idx = -1;
     node->link.first_child_tree_idx = -1;
     node->link.last_child_tree_idx = -1;
-    /* Do not write rs_graphic fields here: scene_id aliases rs_layer.scroll_x. */
-    node->u.rs_layer.scroll_x = 0;
-    node->u.rs_layer.scroll_y = 0;
+    /* Union is fully zeroed by memset above. Do not touch rs_layer/rs_graphic here:
+     * rs_layer.scroll_x aliases rs_model.zoom and rs_graphic.scene_id. */
     node->model_overlay.model_id = -1;
     node->model_overlay.model_kind = INTERFACEX_MODEL_KIND_NONE;
     node->model_overlay.zoom = 2000;
@@ -961,7 +960,13 @@ UITreeX_PrintNode(
     }
     else if( node->kind == UITreeXNodeKind_RSLayer )
     {
-        printf(" if3=%d x=%d y=%d xm=%d ym=%d", node->if3, node->x, node->y, node->x_mode, node->y_mode);
+        printf(
+            " if3=%d x=%d y=%d xm=%d ym=%d",
+            node->if3,
+            node->x,
+            node->y,
+            node->x_mode,
+            node->y_mode);
     }
 
     putchar('\n');
@@ -8020,22 +8025,6 @@ struct InterfaceX_GraphicSceneCacheEntry
     struct InterfaceX_GraphicSceneCacheEntry* next;
 };
 
-struct InterfaceX_ModelSceneCacheEntry
-{
-    int model_id;
-    int zoom;
-    int angle_x;
-    int angle_y;
-    int angle_z;
-    int offset_x;
-    int offset_y;
-    int orthog;
-    int scene_id;
-    int extent_offset_x;
-    int extent_offset_y;
-    struct InterfaceX_ModelSceneCacheEntry* next;
-};
-
 struct InterfaceX_ScriptQueueEntry
 {
     int script_id;
@@ -8121,15 +8110,17 @@ struct InterfaceX_VMHost
 
     struct InterfaceX_ObjIconCacheEntry* obj_icon_cache;
     struct InterfaceX_GraphicSceneCacheEntry* graphic_scene_cache;
-    struct InterfaceX_ModelSceneCacheEntry* model_scene_cache;
     int next_scene_id;
     int client_clock;
 };
 
-static struct InterfaceX_ModelSceneCacheEntry*
-InterfaceX_ModelSceneCacheFindBySceneId(
+static void
+InterfaceX_RasterModelNodeToCanvas(
     struct InterfaceX_VMHost* host,
-    int scene_id);
+    int* dest,
+    int dest_stride,
+    struct UITreeXNode const* node,
+    int node_alpha);
 
 struct ToriAuxLibCore_ClientScript*
 InterfaceX_VMHost_ResolveScript(
@@ -8229,11 +8220,6 @@ static int
 InterfaceX_ResolveGraphicScene(
     struct InterfaceX_VMHost* host,
     int graphic_id);
-
-static int
-InterfaceX_ResolveModelScene(
-    struct InterfaceX_VMHost* host,
-    struct UITreeXNode const* node);
 
 static struct ToriDraw_Font*
 InterfaceX_EnsureSceneFont(
@@ -10151,178 +10137,120 @@ UITreeX_RenderNodeImpl(
 
     if( text_pass == 0 )
     {
-    if( node->kind == UITreeXNodeKind_RSGraphic && host )
-    {
-        struct UITreeXNode_RSGraphic const* graphic = UITreeX_NodeRSGraphic(node);
-
-        if( node->client_code == INTERFACEX_CONTENT_COMPASS )
+        if( node->kind == UITreeXNodeKind_RSGraphic && host )
         {
-            InterfaceX_BlitCompassGraphic(host, pixels, node, node_alpha);
-            goto render_children;
-        }
+            struct UITreeXNode_RSGraphic const* graphic = UITreeX_NodeRSGraphic(node);
 
-        int chosen_graphic = graphic->graphic_id;
-        if( !node->if3 && graphic->cs1_active && graphic->graphic_id2 >= 0 )
-            chosen_graphic = graphic->graphic_id2;
+            if( node->client_code == INTERFACEX_CONTENT_COMPASS )
+            {
+                InterfaceX_BlitCompassGraphic(host, pixels, node, node_alpha);
+                goto render_children;
+            }
 
-        if( chosen_graphic < 0 && graphic->scene_id < 0 )
-            goto render_children;
+            int chosen_graphic = graphic->graphic_id;
+            if( !node->if3 && graphic->cs1_active && graphic->graphic_id2 >= 0 )
+                chosen_graphic = graphic->graphic_id2;
 
-        if( node->client_code == INTERFACEX_CONTENT_MINIMAP )
-            goto render_children;
+            if( chosen_graphic < 0 && graphic->scene_id < 0 )
+                goto render_children;
 
-        int scene_id = -1;
-        if( chosen_graphic == graphic->graphic_id && graphic->scene_id >= 0 )
-            scene_id = graphic->scene_id;
-        else if( chosen_graphic >= 0 )
-            scene_id = InterfaceX_ResolveGraphicScene(host, chosen_graphic);
+            if( node->client_code == INTERFACEX_CONTENT_MINIMAP )
+                goto render_children;
 
-        if( scene_id < 0 )
-            goto render_children;
+            int scene_id = -1;
+            if( chosen_graphic == graphic->graphic_id && graphic->scene_id >= 0 )
+                scene_id = graphic->scene_id;
+            else if( chosen_graphic >= 0 )
+                scene_id = InterfaceX_ResolveGraphicScene(host, chosen_graphic);
 
-        int sprite_count = 0;
-        struct ToriDraw_Sprite** sprites =
-            ToriDraw_SceneSpriteGet(host->scene, scene_id, &sprite_count);
-        if( sprites && sprite_count > 0 && sprites[0] && sprites[0]->pixels_argb )
-        {
-            InterfaceX_BlitSceneSprite(
-                pixels,
-                sprites[0],
-                node->abs_x,
-                node->abs_y,
-                node->abs_w > 0 ? node->abs_w : CANVAS_W,
-                node->abs_h > 0 ? node->abs_h : CANVAS_H,
-                node->tiling,
-                graphic->outline,
-                graphic->graphic_shadow,
-                node->if3,
-                node_alpha,
-                node->hflip,
-                node->vflip,
-                node->angle_2d);
-        }
-    }
-    else if( node->kind == UITreeXNodeKind_RSModel && host )
-    {
-        struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
-        if( model->model_kind != INTERFACEX_MODEL_KIND_PLAIN || model->model_id < 0 )
-            goto render_children;
+            if( scene_id < 0 )
+                goto render_children;
 
-        int scene_id = InterfaceX_ResolveModelScene(host, node);
-        if( scene_id >= 0 )
-        {
             int sprite_count = 0;
             struct ToriDraw_Sprite** sprites =
                 ToriDraw_SceneSpriteGet(host->scene, scene_id, &sprite_count);
             if( sprites && sprite_count > 0 && sprites[0] && sprites[0]->pixels_argb )
             {
-                struct ToriDraw_Sprite const* spr = sprites[0];
-                int sw = spr->width > 0 ? spr->width : 1;
-                int sh = spr->height > 0 ? spr->height : 1;
-                int bw = node->abs_w > 0 ? node->abs_w : sw;
-                int bh = node->abs_h > 0 ? node->abs_h : sh;
-                struct InterfaceX_ModelSceneCacheEntry* cache_entry =
-                    InterfaceX_ModelSceneCacheFindBySceneId(host, scene_id);
-                int extent_offset_x = cache_entry ? cache_entry->extent_offset_x : (sw / 2);
-                int extent_offset_y = cache_entry ? cache_entry->extent_offset_y : (sh / 2);
-                int draw_x = node->abs_x + (bw / 2) - extent_offset_x;
-                int draw_y = node->abs_y + (bh / 2) - extent_offset_y;
-
-                if( node_alpha >= 255 )
-                {
-                    blit_rgba_sprite(
-                        pixels, CANVAS_W, draw_x, draw_y, (int const*)spr->pixels_argb, sw, sh);
-                }
-                else
-                {
-                    size_t pixel_count = (size_t)sw * (size_t)sh;
-                    uint32_t* tmp = malloc(pixel_count * sizeof(uint32_t));
-                    if( tmp )
-                    {
-                        memcpy(tmp, spr->pixels_argb, pixel_count * sizeof(uint32_t));
-                        interface_x_scale_pixel_alpha(tmp, pixel_count, node_alpha);
-                        blit_rgba_sprite(pixels, CANVAS_W, draw_x, draw_y, (int const*)tmp, sw, sh);
-                        free(tmp);
-                    }
-                }
+                InterfaceX_BlitSceneSprite(
+                    pixels,
+                    sprites[0],
+                    node->abs_x,
+                    node->abs_y,
+                    node->abs_w > 0 ? node->abs_w : CANVAS_W,
+                    node->abs_h > 0 ? node->abs_h : CANVAS_H,
+                    node->tiling,
+                    graphic->outline,
+                    graphic->graphic_shadow,
+                    node->if3,
+                    node_alpha,
+                    node->hflip,
+                    node->vflip,
+                    node->angle_2d);
             }
         }
-    }
-    else if( node->kind == UITreeXNodeKind_RSLine )
-    {
-        struct UITreeXNode_RSLine const* line = UITreeX_NodeRSLine(node);
-        int px = node->abs_x;
-        int py = node->abs_y;
-        int pw = node->abs_w;
-        int ph = node->abs_h;
-        int argb = (node_alpha << 24) | (line->color & 0xFFFFFF);
-        int thickness = line->line_width > 0 ? line->line_width : 1;
-        int x1;
-        int y1;
-        int x2;
-        int y2;
-
-        /* Type-9 line: endpoints are widget corners; line_direction flips diagonal. */
-        if( line->line_direction )
+        else if( node->kind == UITreeXNodeKind_RSModel && host )
         {
-            x1 = px;
-            y1 = py + ph;
-            x2 = px + pw;
-            y2 = py;
+            struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
+            if( model->model_kind != INTERFACEX_MODEL_KIND_PLAIN || model->model_id < 0 )
+                goto render_children;
+
+            InterfaceX_RasterModelNodeToCanvas(host, pixels, CANVAS_W, node, node_alpha);
         }
-        else
+        else if( node->kind == UITreeXNodeKind_RSLine )
         {
-            x1 = px;
-            y1 = py;
-            x2 = px + pw;
-            y2 = py + ph;
-        }
+            struct UITreeXNode_RSLine const* line = UITreeX_NodeRSLine(node);
+            int px = node->abs_x;
+            int py = node->abs_y;
+            int pw = node->abs_w;
+            int ph = node->abs_h;
+            int argb = (node_alpha << 24) | (line->color & 0xFFFFFF);
+            int thickness = line->line_width > 0 ? line->line_width : 1;
+            int x1;
+            int y1;
+            int x2;
+            int y2;
 
-        InterfaceX_DrawLine(pixels, CANVAS_W, x1, y1, x2, y2, thickness, argb);
-    }
-    else if( node->kind == UITreeXNodeKind_RSObj && UITreeX_NodeRSObj(node)->obj_id > 0 && host )
-    {
-        struct UITreeXNode_RSObj const* obj = UITreeX_NodeRSObj(node);
-        int scene_id = obj->scene_id;
-        if( scene_id < 0 )
-            scene_id = InterfaceX_ResolveObjIconScene(host, obj->obj_id, obj->obj_count);
-
-        if( scene_id >= 0 )
-        {
-            int sprite_count = 0;
-            struct ToriDraw_Sprite** sprites =
-                ToriDraw_SceneSpriteGet(host->scene, scene_id, &sprite_count);
-            if( sprites && sprite_count > 0 && sprites[0] && sprites[0]->pixels_argb )
+            /* Type-9 line: endpoints are widget corners; line_direction flips diagonal. */
+            if( line->line_direction )
             {
-                struct ToriDraw_Sprite const* spr = sprites[0];
-                int sw = spr->width > 0 ? spr->width : 1;
-                int sh = spr->height > 0 ? spr->height : 1;
-                int bw = node->abs_w > 0 ? node->abs_w : sw;
-                int bh = node->abs_h > 0 ? node->abs_h : sh;
+                x1 = px;
+                y1 = py + ph;
+                x2 = px + pw;
+                y2 = py;
+            }
+            else
+            {
+                x1 = px;
+                y1 = py;
+                x2 = px + pw;
+                y2 = py + ph;
+            }
 
-                if( node_alpha >= 255 )
+            InterfaceX_DrawLine(pixels, CANVAS_W, x1, y1, x2, y2, thickness, argb);
+        }
+        else if(
+            node->kind == UITreeXNodeKind_RSObj && UITreeX_NodeRSObj(node)->obj_id > 0 && host )
+        {
+            struct UITreeXNode_RSObj const* obj = UITreeX_NodeRSObj(node);
+            int scene_id = obj->scene_id;
+            if( scene_id < 0 )
+                scene_id = InterfaceX_ResolveObjIconScene(host, obj->obj_id, obj->obj_count);
+
+            if( scene_id >= 0 )
+            {
+                int sprite_count = 0;
+                struct ToriDraw_Sprite** sprites =
+                    ToriDraw_SceneSpriteGet(host->scene, scene_id, &sprite_count);
+                if( sprites && sprite_count > 0 && sprites[0] && sprites[0]->pixels_argb )
                 {
-                    blit_rgba_sprite_scaled(
-                        pixels,
-                        CANVAS_W,
-                        node->abs_x,
-                        node->abs_y,
-                        bw,
-                        bh,
-                        (int const*)spr->pixels_argb,
-                        sw,
-                        sh);
-                }
-                else
-                {
-                    /* Sprite pixels are cache-owned; copy before scaling alpha so we
-                     * don't mutate data shared with other nodes/frames. */
-                    size_t pixel_count = (size_t)sw * (size_t)sh;
-                    uint32_t* tmp = malloc(pixel_count * sizeof(uint32_t));
-                    if( tmp )
+                    struct ToriDraw_Sprite const* spr = sprites[0];
+                    int sw = spr->width > 0 ? spr->width : 1;
+                    int sh = spr->height > 0 ? spr->height : 1;
+                    int bw = node->abs_w > 0 ? node->abs_w : sw;
+                    int bh = node->abs_h > 0 ? node->abs_h : sh;
+
+                    if( node_alpha >= 255 )
                     {
-                        memcpy(tmp, spr->pixels_argb, pixel_count * sizeof(uint32_t));
-                        interface_x_scale_pixel_alpha(tmp, pixel_count, node_alpha);
                         blit_rgba_sprite_scaled(
                             pixels,
                             CANVAS_W,
@@ -10330,58 +10258,79 @@ UITreeX_RenderNodeImpl(
                             node->abs_y,
                             bw,
                             bh,
-                            (int const*)tmp,
+                            (int const*)spr->pixels_argb,
                             sw,
                             sh);
-                        free(tmp);
+                    }
+                    else
+                    {
+                        /* Sprite pixels are cache-owned; copy before scaling alpha so we
+                         * don't mutate data shared with other nodes/frames. */
+                        size_t pixel_count = (size_t)sw * (size_t)sh;
+                        uint32_t* tmp = malloc(pixel_count * sizeof(uint32_t));
+                        if( tmp )
+                        {
+                            memcpy(tmp, spr->pixels_argb, pixel_count * sizeof(uint32_t));
+                            interface_x_scale_pixel_alpha(tmp, pixel_count, node_alpha);
+                            blit_rgba_sprite_scaled(
+                                pixels,
+                                CANVAS_W,
+                                node->abs_x,
+                                node->abs_y,
+                                bw,
+                                bh,
+                                (int const*)tmp,
+                                sw,
+                                sh);
+                            free(tmp);
+                        }
                     }
                 }
             }
         }
-    }
-    else if( node->kind == UITreeXNodeKind_RSRect )
-    {
-        struct UITreeXNode_RSRect const* rect = UITreeX_NodeRSRect(node);
-        int px = node->abs_x;
-        int py = node->abs_y;
-        int pw = node->abs_w > 0 ? node->abs_w : 1;
-        int ph = node->abs_h > 0 ? node->abs_h : 1;
-        int color = rect->color & 0xFFFFFF;
-        int color2 = rect->color2 ? (rect->color2 & 0xFFFFFF) : color;
-        int argb = (node_alpha << 24) | color;
-        if( rect->filled )
+        else if( node->kind == UITreeXNodeKind_RSRect )
         {
-            switch( node->fill_mode )
+            struct UITreeXNode_RSRect const* rect = UITreeX_NodeRSRect(node);
+            int px = node->abs_x;
+            int py = node->abs_y;
+            int pw = node->abs_w > 0 ? node->abs_w : 1;
+            int ph = node->abs_h > 0 ? node->abs_h : 1;
+            int color = rect->color & 0xFFFFFF;
+            int color2 = rect->color2 ? (rect->color2 & 0xFFFFFF) : color;
+            int argb = (node_alpha << 24) | color;
+            if( rect->filled )
             {
-            case 1:
-                InterfaceX_FillRectGradientVertical(
-                    pixels, CANVAS_W, px, py, px + pw, py + ph, color, color2, node_alpha);
-                break;
-            case 2:
-            {
-                int trans_bot = node->trans_bot >= 0 ? node->trans_bot : node->trans;
-                int alpha_bot = 255 - trans_bot;
-                InterfaceX_FillRectGradientAlpha(
-                    pixels,
-                    CANVAS_W,
-                    px,
-                    py,
-                    px + pw,
-                    py + ph,
-                    color,
-                    color2,
-                    node_alpha,
-                    alpha_bot);
-                break;
+                switch( node->fill_mode )
+                {
+                case 1:
+                    InterfaceX_FillRectGradientVertical(
+                        pixels, CANVAS_W, px, py, px + pw, py + ph, color, color2, node_alpha);
+                    break;
+                case 2:
+                {
+                    int trans_bot = node->trans_bot >= 0 ? node->trans_bot : node->trans;
+                    int alpha_bot = 255 - trans_bot;
+                    InterfaceX_FillRectGradientAlpha(
+                        pixels,
+                        CANVAS_W,
+                        px,
+                        py,
+                        px + pw,
+                        py + ph,
+                        color,
+                        color2,
+                        node_alpha,
+                        alpha_bot);
+                    break;
+                }
+                default:
+                    InterfaceX_FillRect(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
+                    break;
+                }
             }
-            default:
-                InterfaceX_FillRect(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
-                break;
-            }
+            else
+                InterfaceX_DrawRectOutline(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
         }
-        else
-            InterfaceX_DrawRectOutline(pixels, CANVAS_W, px, py, px + pw, py + ph, argb);
-    }
     }
     else if( node->kind == UITreeXNodeKind_RSText && UITreeX_NodeRSText(node)->text[0] && host )
     {
@@ -11041,35 +10990,80 @@ InterfaceX_ResolveObjIconScene(
     return scene_id;
 }
 
-static struct InterfaceX_ModelSceneCacheEntry*
-InterfaceX_ModelSceneCacheFindBySceneId(
-    struct InterfaceX_VMHost* host,
-    int scene_id)
+static void
+interface_x_bake_model_raster_alpha(
+    int* dest,
+    int dest_stride,
+    int draw_x,
+    int draw_y,
+    int sw,
+    int sh,
+    int node_alpha)
 {
-    for( struct InterfaceX_ModelSceneCacheEntry* it = host->model_scene_cache; it; it = it->next )
+    int x0 = draw_x;
+    int y0 = draw_y;
+    int x1 = draw_x + sw;
+    int y1 = draw_y + sh;
+
+    if( x0 < g_render_clip_x0 )
+        x0 = g_render_clip_x0;
+    if( y0 < g_render_clip_y0 )
+        y0 = g_render_clip_y0;
+    if( x1 > g_render_clip_x1 )
+        x1 = g_render_clip_x1;
+    if( y1 > g_render_clip_y1 )
+        y1 = g_render_clip_y1;
+    if( x0 < 0 )
+        x0 = 0;
+    if( y0 < 0 )
+        y0 = 0;
+    if( x1 > CANVAS_W )
+        x1 = CANVAS_W;
+    if( y1 > CANVAS_H )
+        y1 = CANVAS_H;
+    if( x0 >= x1 || y0 >= y1 )
+        return;
+
+    for( int y = y0; y < y1; y++ )
     {
-        if( it->scene_id == scene_id )
-            return it;
+        for( int x = x0; x < x1; x++ )
+        {
+            int* p = &dest[y * dest_stride + x];
+            uint32_t px = (uint32_t)*p;
+            if( (px & 0xFFFFFFu) == 0 )
+                continue;
+
+            int a = (int)((px >> 24) & 0xFFu);
+            if( a == 0 )
+                a = 255;
+            if( node_alpha < 255 )
+                a = (a * node_alpha) / 255;
+
+            *p = (int)((px & 0x00FFFFFFu) | ((uint32_t)a << 24));
+        }
     }
-    return NULL;
 }
 
-static int
-InterfaceX_ResolveModelScene(
+static void
+InterfaceX_RasterModelNodeToCanvas(
     struct InterfaceX_VMHost* host,
-    struct UITreeXNode const* node)
+    int* dest,
+    int dest_stride,
+    struct UITreeXNode const* node,
+    int node_alpha)
 {
     assert(host);
     assert(node);
+    assert(dest);
 
     if( node->kind != UITreeXNodeKind_RSModel )
-        return -1;
+        return;
 
     struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
     if( model->model_kind != INTERFACEX_MODEL_KIND_PLAIN )
-        return -1;
+        return;
     if( model->model_id < 0 )
-        return -1;
+        return;
 
     int model_id = model->model_id;
     int zoom = model->zoom > 0 ? model->zoom : 2000;
@@ -11080,22 +11074,14 @@ InterfaceX_ResolveModelScene(
     int offset_y = model->offset_y;
     int orthog = model->orthog ? 1 : 0;
 
-    for( struct InterfaceX_ModelSceneCacheEntry* it = host->model_scene_cache; it; it = it->next )
-    {
-        if( it->model_id == model_id && it->zoom == zoom && it->angle_x == angle_x &&
-            it->angle_y == angle_y && it->angle_z == angle_z && it->offset_x == offset_x &&
-            it->offset_y == offset_y && it->orthog == orthog )
-            return it->scene_id;
-    }
-
     struct RSCacheDat2A_Model* dat2a_model = RSCacheDat2A_ModelNewFromCache(host->disk, model_id);
     if( !dat2a_model )
-        return -1;
+        return;
 
     struct ToriDraw_Model* td_model = ToriDraw_ModelNewFromCacheModel(dat2a_model);
     RSCacheDat2A_ModelFree(dat2a_model);
     if( !td_model )
-        return -1;
+        return;
 
     ToriDraw_ModelSetBoundsCylinder(td_model);
 
@@ -11105,7 +11091,11 @@ InterfaceX_ResolveModelScene(
     };
     ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
 
-    struct ToriDraw_ModelExtentsRaster extents = ToriDraw_SpriteNewFromModelRasterExtents(
+    int draw_x = 0;
+    int draw_y = 0;
+    int sw = 0;
+    int sh = 0;
+    bool ok = ToriDraw_RenderModelExtentsAtWidget(
         host->scene,
         hnd,
         zoom,
@@ -11115,50 +11105,30 @@ InterfaceX_ResolveModelScene(
         offset_x,
         offset_y,
         orthog != 0,
-        false);
-    struct ToriDraw_Sprite* spr = extents.sprite;
+        dest,
+        dest_stride,
+        CANVAS_W,
+        CANVAS_H,
+        node->abs_x,
+        node->abs_y,
+        node->abs_w,
+        node->abs_h,
+        g_render_clip_x0,
+        g_render_clip_y0,
+        g_render_clip_x1,
+        g_render_clip_y1,
+        &draw_x,
+        &draw_y,
+        &sw,
+        &sh);
 
     ToriDraw_ModelFree(td_model);
-    if( !spr )
-        return -1;
 
-    for( int i = 0; i < spr->width * spr->height; i++ )
-    {
-        if( spr->pixels_argb[i] != 0 && (spr->pixels_argb[i] >> 24) == 0 )
-            spr->pixels_argb[i] |= 0xFF000000u;
-    }
+    if( !ok || sw <= 0 || sh <= 0 )
+        return;
 
-    int scene_id = host->next_scene_id++;
-    struct ToriDraw_Sprite** sprites = calloc(1, sizeof(struct ToriDraw_Sprite*));
-    if( !sprites )
-    {
-        ToriDraw_SpriteFree(spr);
-        return -1;
-    }
-
-    sprites[0] = spr;
-    ToriDraw_SceneSpriteAdd(host->scene, scene_id, sprites, 1);
-
-    struct InterfaceX_ModelSceneCacheEntry* entry =
-        calloc(1, sizeof(struct InterfaceX_ModelSceneCacheEntry));
-    if( entry )
-    {
-        entry->model_id = model_id;
-        entry->zoom = zoom;
-        entry->angle_x = angle_x;
-        entry->angle_y = angle_y;
-        entry->angle_z = angle_z;
-        entry->offset_x = offset_x;
-        entry->offset_y = offset_y;
-        entry->orthog = orthog;
-        entry->scene_id = scene_id;
-        entry->extent_offset_x = extents.offset_x;
-        entry->extent_offset_y = extents.offset_y;
-        entry->next = host->model_scene_cache;
-        host->model_scene_cache = entry;
-    }
-
-    return scene_id;
+    interface_x_bake_model_raster_alpha(
+        dest, dest_stride, draw_x, draw_y, sw, sh, node_alpha);
 }
 
 static int
@@ -11262,7 +11232,8 @@ InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
     case UITreeXNodeKind_RSModel:
         if( !InterfaceX_ApplyObjToModelNode(host, node, obj_id, count) )
         {
-            fprintf(stderr, "failed to apply obj to model node in CC_SetObjectOnNode: %d\n", obj_id);
+            fprintf(
+                stderr, "failed to apply obj to model node in CC_SetObjectOnNode: %d\n", obj_id);
             return CS2VM_EXECNO_ERROR;
         }
         break;
@@ -15293,8 +15264,8 @@ InterfaceX_LoadInterfaceComponents(
     for( int i = 0; i < file_list->file_count; i++ )
     {
         int packed_id = (interface_id << 16) | (i & 0xFFFF);
-        RSCacheDat2A_Component* component = component_decode_from_bytes(
-            packed_id, file_list->files[i], file_list->file_sizes[i]);
+        RSCacheDat2A_Component* component =
+            component_decode_from_bytes(packed_id, file_list->files[i], file_list->file_sizes[i]);
         if( !component )
         {
             fprintf(stderr, "failed to decode component: %d (file %d)\n", interface_id, i);
@@ -15434,7 +15405,7 @@ main(
     }
 
     struct RSCacheDat2Disk* cache = NULL;
-    struct InterfaceX_LoadedInterface primary = {0};
+    struct InterfaceX_LoadedInterface primary = { 0 };
     struct InterfaceX_LoadedInterface companions[4];
     int companion_count = 0;
     struct UITreeX* tree = NULL;
