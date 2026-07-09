@@ -943,7 +943,14 @@ UITreeX_PrintNode(
     else if( node->kind == UITreeXNodeKind_RSText )
     {
         struct UITreeXNode_RSText const* text = UITreeX_NodeRSText(node);
-        printf(" font=%d color=0x%x text=\"%s\"", text->font_id, text->color, text->text);
+        printf(
+            " font=%d color=0x%x x_align=%d y_align=%d line_h=%d text=\"%s\"",
+            text->font_id,
+            text->color,
+            text->center,
+            text->y_align,
+            text->line_height,
+            text->text);
     }
     else if( node->kind == UITreeXNodeKind_RSLayer )
     {

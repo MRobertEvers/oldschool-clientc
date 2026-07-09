@@ -1,0 +1,43 @@
+uitreex: 41 nodes
+[0] kind=layer trans=0 fill_mode=0 user_id=0x00110000 (17<<16|0) static abs=10,10 1004x748 hidden=0 if3=1 x=0 y=0 xm=1 ym=1
+  [1] kind=layer trans=0 fill_mode=0 user_id=0x00110001 (17<<16|1) static abs=10,10 1004x748 hidden=0 if3=1 x=0 y=0 xm=1 ym=1
+    [19] kind=graphic trans=0 fill_mode=0 user_id=0x00118000 (17<<16|32768) dynamic abs=11,11 1002x746 hidden=0 graphic=297 angle=0 tiling=1 if3=1
+    [20] kind=text trans=0 fill_mode=0 user_id=0x00118001 (17<<16|32769) dynamic abs=16,16 992x23 hidden=0 font=496 color=0xff981f x_align=1 y_align=1 line_h=0 text="Portal Nexus"
+    [21] kind=graphic trans=0 fill_mode=0 user_id=0x00118002 (17<<16|32770) dynamic abs=10,10 32x32 hidden=0 graphic=824 angle=0 tiling=1 if3=1
+    [22] kind=graphic trans=0 fill_mode=0 user_id=0x00118003 (17<<16|32771) dynamic abs=982,10 32x32 hidden=0 graphic=825 angle=0 tiling=1 if3=1
+    [23] kind=graphic trans=0 fill_mode=0 user_id=0x00118004 (17<<16|32772) dynamic abs=10,726 32x32 hidden=0 graphic=826 angle=0 tiling=1 if3=1
+    [24] kind=graphic trans=0 fill_mode=0 user_id=0x00118005 (17<<16|32773) dynamic abs=982,726 32x32 hidden=0 graphic=827 angle=0 tiling=1 if3=1
+    [25] kind=graphic trans=0 fill_mode=0 user_id=0x00118006 (17<<16|32774) dynamic abs=42,-3 940x32 hidden=0 graphic=820 angle=0 tiling=1 if3=1
+    [26] kind=graphic trans=0 fill_mode=0 user_id=0x00118007 (17<<16|32775) dynamic abs=42,738 940x32 hidden=0 graphic=822 angle=0 tiling=1 if3=1
+    [27] kind=graphic trans=0 fill_mode=0 user_id=0x00118008 (17<<16|32776) dynamic abs=-3,42 32x684 hidden=0 graphic=821 angle=0 tiling=1 if3=1
+    [28] kind=graphic trans=0 fill_mode=0 user_id=0x00118009 (17<<16|32777) dynamic abs=994,42 32x684 hidden=0 graphic=823 angle=0 tiling=1 if3=1
+    [29] kind=graphic trans=0 fill_mode=0 user_id=0x0011800a (17<<16|32778) dynamic abs=10,27 32x32 hidden=0 graphic=829 angle=0 tiling=1 if3=1
+    [30] kind=graphic trans=0 fill_mode=0 user_id=0x0011800b (17<<16|32779) dynamic abs=982,27 32x32 hidden=0 graphic=830 angle=0 tiling=1 if3=1
+    [31] kind=graphic trans=0 fill_mode=0 user_id=0x0011800c (17<<16|32780) dynamic abs=21,25 982x32 hidden=0 graphic=828 angle=0 tiling=1 if3=1
+    [32] kind=graphic trans=0 fill_mode=0 user_id=0x0011800d (17<<16|32781) dynamic abs=988,20 16x16 hidden=0 graphic=831 angle=0 tiling=1 if3=1
+  [2] kind=layer trans=0 fill_mode=0 user_id=0x00110002 (17<<16|2) static abs=10,742 1004x1 hidden=0 if3=1 x=0 y=15 xm=1 ym=2
+    [3] kind=model trans=0 fill_mode=0 user_id=0x00110003 (17<<16|3) static abs=692,742 330x0 hidden=0 model=36050 kind=1 zoom=1184 xan=0 yan=0 zan=0
+    [4] kind=text trans=0 fill_mode=0 user_id=0x00110004 (17<<16|4) static abs=346,777 108x82 hidden=0 font=495 color=0xff981f x_align=1 y_align=1 line_h=0 text=""
+    [5] kind=layer trans=0 fill_mode=0 user_id=0x00110005 (17<<16|5) static abs=872,668 145x65 hidden=0 if3=1 x=10 y=10 xm=2 ym=2
+      [10] kind=layer trans=0 fill_mode=0 user_id=0x0011000a (17<<16|10) static abs=882,675 125x51 hidden=0 if3=1 x=0 y=0 xm=1 ym=1
+      [33] kind=graphic trans=0 fill_mode=0 user_id=0x0011800e (17<<16|32782) dynamic abs=872,668 32x32 hidden=0 graphic=846 angle=0 tiling=1 if3=1
+      [34] kind=graphic trans=0 fill_mode=0 user_id=0x0011800f (17<<16|32783) dynamic abs=985,668 32x32 hidden=0 graphic=847 angle=0 tiling=1 if3=1
+      [35] kind=graphic trans=0 fill_mode=0 user_id=0x00118010 (17<<16|32784) dynamic abs=872,701 32x32 hidden=0 graphic=848 angle=0 tiling=1 if3=1
+      [36] kind=graphic trans=0 fill_mode=0 user_id=0x00118011 (17<<16|32785) dynamic abs=985,701 32x32 hidden=0 graphic=849 angle=0 tiling=1 if3=1
+      [37] kind=graphic trans=0 fill_mode=0 user_id=0x00118012 (17<<16|32786) dynamic abs=904,654 81x32 hidden=0 graphic=828 angle=0 tiling=1 if3=1
+      [38] kind=graphic trans=0 fill_mode=0 user_id=0x00118013 (17<<16|32787) dynamic abs=904,713 81x32 hidden=0 graphic=828 angle=0 tiling=1 if3=1
+      [39] kind=graphic trans=0 fill_mode=0 user_id=0x00118014 (17<<16|32788) dynamic abs=858,700 32x1 hidden=0 graphic=841 angle=0 tiling=1 if3=1
+      [40] kind=graphic trans=0 fill_mode=0 user_id=0x00118015 (17<<16|32789) dynamic abs=997,700 32x1 hidden=0 graphic=841 angle=0 tiling=1 if3=1
+    [6] kind=layer trans=0 fill_mode=0 user_id=0x00110006 (17<<16|6) static abs=30,750 809x0 hidden=0 if3=1 x=20 y=8 xm=0 ym=0
+      [7] kind=layer trans=0 fill_mode=0 user_id=0x00110007 (17<<16|7) static abs=30,750 1x1 hidden=0 if3=1 x=0 y=0 xm=0 ym=0
+      [8] kind=layer trans=0 fill_mode=0 user_id=0x00110008 (17<<16|8) static abs=30,750 1x1 hidden=0 if3=1 x=0 y=0 xm=0 ym=0
+      [9] kind=rect trans=0 fill_mode=0 user_id=0x00110009 (17<<16|9) static abs=30,750 809x0 hidden=0 color=0x0 color2=0x0 filled=0
+      [11] kind=layer trans=0 fill_mode=0 user_id=0x0011000b (17<<16|11) static abs=31,751 791x0 hidden=0 if3=1 x=1 y=1 xm=0 ym=0
+        [12] kind=layer trans=0 fill_mode=0 user_id=0x0011000c (17<<16|12) static abs=31,751 791x0 hidden=0 if3=1 x=0 y=0 xm=0 ym=0
+        [13] kind=layer trans=0 fill_mode=0 user_id=0x0011000d (17<<16|13) static abs=31,751 791x0 hidden=0 if3=1 x=0 y=0 xm=0 ym=0
+        [15] kind=layer trans=0 fill_mode=0 user_id=0x0011000f (17<<16|15) static abs=31,751 791x0 hidden=0 if3=1 x=0 y=0 xm=0 ym=0
+        [16] kind=layer trans=0 fill_mode=0 user_id=0x00110010 (17<<16|16) static abs=31,751 791x0 hidden=0 if3=1 x=0 y=0 xm=0 ym=0
+        [17] kind=layer trans=0 fill_mode=0 user_id=0x00110011 (17<<16|17) static abs=31,751 791x0 hidden=0 if3=1 x=0 y=0 xm=0 ym=0
+        [18] kind=layer trans=0 fill_mode=0 user_id=0x00110012 (17<<16|18) static abs=31,751 791x0 hidden=0 if3=1 x=0 y=0 xm=0 ym=0
+      [14] kind=layer trans=0 fill_mode=0 user_id=0x0011000e (17<<16|14) static abs=822,751 16x0 hidden=0 if3=1 x=1 y=1 xm=2 ym=0
+wrote ./interfacex_17-3.bmp (1024x768)

@@ -140,8 +140,14 @@ def heuristic(name: str) -> tuple[int, int, int, int] | None:
     if name.startswith("STOCKMARKET_"):
         return (1, 0, 1, 0)
     if name.startswith("CHAT_"):
-        if "NAME" in name or "HISTORY" in name:
-            return (1, 0, 0, 1) if "NAME" in name else (2, 0, 0, 1)
+        if name == "CHAT_PLAYERNAME":
+            return (0, 0, 0, 1)
+        if "NAME" in name:
+            return (1, 0, 0, 1)
+        if "GETHISTORYLENGTH" in name:
+            return (1, 0, 1, 0)
+        if "HISTORY" in name:
+            return (2, 0, 0, 1)
         return (0, 0, 1, 0)
     if name.startswith("VIEWPORT_GET"):
         return (0, 0, 2, 0)

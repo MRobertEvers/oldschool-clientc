@@ -1550,26 +1550,26 @@ ToriDraw2D_DrawStringBox(
     int const resolved_lh =
         line_height > 0 ? line_height : (font->line_height > 0 ? font->line_height : 1);
     int const logical_w = w > 0 ? w : 1;
+    int const font_ascent = font->line_height > 0 ? font->line_height : resolved_lh;
 
-    int line_min_oy[FONT_DRAW_BOX_MAX_LINES];
-    int line_visual_h[FONT_DRAW_BOX_MAX_LINES];
-    int max_visual_h = 1;
-    for( int i = 0; i < line_count; i++ )
-    {
-        font_line_vertical_extents(font, lines[i], line_lens[i], &line_min_oy[i], &line_visual_h[i]);
-        if( line_visual_h[i] > max_visual_h )
-            max_visual_h = line_visual_h[i];
-    }
+    int max_ascent = resolved_lh;
+    int max_descent = 0;
+    font_get_vertical_metrics(font, &max_ascent, &max_descent);
 
     int const block_h =
-        line_count > 0 ? resolved_lh * (line_count - 1) + max_visual_h : max_visual_h;
+        line_count > 0 ? resolved_lh * (line_count - 1) + max_ascent + max_descent : max_ascent + max_descent;
     int const logical_h = h > 0 ? h : block_h;
 
-    int block_top = y;
+    /* AbstractFont.drawLines vertical alignment (matches reference TextRenderer). */
+    int base_y0 = max_ascent;
     if( y_align == 1 )
-        block_top = y + (logical_h - block_h) / 2;
+    {
+        int const space =
+            logical_h - max_ascent - max_descent - resolved_lh * (line_count - 1);
+        base_y0 = max_ascent + space / 2;
+    }
     else if( y_align == 2 )
-        block_top = y + logical_h - block_h;
+        base_y0 = logical_h - max_descent - resolved_lh * (line_count - 1);
 
     int const cl = view_port->clip_left;
     int const ct = view_port->clip_top;
@@ -1590,7 +1590,7 @@ ToriDraw2D_DrawStringBox(
                 line_x = x + logical_w - tw;
         }
 
-        int const draw_y = block_top + i * resolved_lh - line_min_oy[i];
+        int const draw_y = y + base_y0 + i * resolved_lh - font_ascent;
         if( line_lens[i] <= 0 )
             continue;
 
