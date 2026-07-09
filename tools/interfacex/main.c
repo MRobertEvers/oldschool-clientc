@@ -40,15 +40,15 @@ static char g_cs2_trace_extra[512];
 #define INVENTORY_INTERFACE 630
 #define EQUIPMENT_INTERFACE 387
 
-// #define CANVAS_W (492 + 15)
-// #define CANVAS_H (314 + 15)
+#define CANVAS_W 1024
+#define CANVAS_H 768
 #define CANVAS_BG 0xFF202428
 
 // portal nexus viewport size
 // There is some padding that gets added so we account for that
 // It's either 10 or 9 all the way around.
-#define CANVAS_W (492 + 20)
-#define CANVAS_H (314 + 20)
+// #define CANVAS_W (492 + 20)
+// #define CANVAS_H (314 + 20)
 
 #define INTERFACEX_CONTENT_MINIMAP 1338
 #define INTERFACEX_CONTENT_COMPASS 1339

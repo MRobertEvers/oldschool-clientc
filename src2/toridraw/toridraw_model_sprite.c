@@ -419,7 +419,7 @@ ToriDraw_RenderModelExtentsAtWidget(
         int raster_origin_y = canvas_h / 2;
         for( int i = 0; i < vc; i++ )
         {
-            scene->screen_vertices_x[i] -= raster_origin_x + (widget_w / 2);
+            scene->screen_vertices_x[i] -= raster_origin_x;
             scene->screen_vertices_y[i] -= raster_origin_y;
         }
 
