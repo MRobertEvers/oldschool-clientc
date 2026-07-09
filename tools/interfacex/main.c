@@ -11093,6 +11093,7 @@ InterfaceX_RasterModelNodeToCanvas(
     int angle_z = model->angle_z;
     int orientation = model->offset_x;
     int model_offset = model->offset_y;
+    // int model_offset = 0;
     int orthog = model->orthog ? 1 : 0;
     int fixed_zoom = model->fixed_zoom ? 1 : 0;
 

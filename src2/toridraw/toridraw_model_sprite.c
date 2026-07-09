@@ -419,7 +419,7 @@ ToriDraw_RenderModelExtentsAtWidget(
         int raster_origin_y = canvas_h / 2;
         for( int i = 0; i < vc; i++ )
         {
-            scene->screen_vertices_x[i] -= raster_origin_x;
+            scene->screen_vertices_x[i] -= raster_origin_x + (widget_w / 2);
             scene->screen_vertices_y[i] -= raster_origin_y;
         }
 
@@ -442,8 +442,7 @@ ToriDraw_RenderModelExtentsAtWidget(
         int origin_x = widget_x + (bw / 2) - blit_offset_x;
         int origin_y = widget_y + (bh / 2) - blit_offset_y;
 
-        if( !widget_model_project_vertices(
-                scene, hnd, &xf, sw, sh, blit_offset_x, blit_offset_y) )
+        if( !widget_model_project_vertices(scene, hnd, &xf, sw, sh, blit_offset_x, blit_offset_y) )
             return false;
 
         int vc = ToriDraw_ModelGetVertexCount(hnd);
@@ -549,12 +548,12 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     int height = 0;
     int blit_offset_x = 0;
     int blit_offset_y = 0;
-    if( !widget_model_project_bounds(
-            hnd, &xf, &width, &height, &blit_offset_x, &blit_offset_y) )
+    if( !widget_model_project_bounds(hnd, &xf, &width, &height, &blit_offset_x, &blit_offset_y) )
         return result;
 
     scene->active_hnd = hnd;
-    if( !widget_model_project_vertices(scene, hnd, &xf, width, height, blit_offset_x, blit_offset_y) )
+    if( !widget_model_project_vertices(
+            scene, hnd, &xf, width, height, blit_offset_x, blit_offset_y) )
         return result;
 
     struct ToriDraw_ViewPort view_port = { 0 };

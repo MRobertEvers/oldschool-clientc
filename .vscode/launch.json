@@ -313,7 +313,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/tools/interfacex/interfacex",
       "args": [
-        "26"
+        "19"
       ],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/tools/interfacex",
