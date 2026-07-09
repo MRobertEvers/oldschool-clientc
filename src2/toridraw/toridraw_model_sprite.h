@@ -2,6 +2,7 @@
 #define TORIDRAW_MODEL_SPRITE_H
 
 #include "toridraw_types.h"
+#include "graphics/shared_tables.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -31,6 +32,36 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     int offset_y,
     bool orthographic,
     bool postprocess_outline);
+
+/** Rasterize widget-model extents directly into a canvas buffer via RenderModel2/3.
+ *  out_draw_x/out_draw_y are the canvas top-left of the tight extents raster area. */
+bool
+ToriDraw_RenderModelExtentsAtWidget(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int offset_x,
+    int offset_y,
+    bool orthographic,
+    toripixel_t* pixels,
+    int stride,
+    int canvas_w,
+    int canvas_h,
+    int widget_x,
+    int widget_y,
+    int widget_w,
+    int widget_h,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom,
+    int* out_draw_x,
+    int* out_draw_y,
+    int* out_width,
+    int* out_height);
 
 /** Rasterize a model into a new ToriDraw_Sprite (heap-owned ARGB). Uses widget preview Y placement. */
 struct ToriDraw_Sprite*

@@ -194,6 +194,80 @@ widget_model_project_bounds(
     return true;
 }
 
+/** Perspective projection matching Client.ts Model.objRender:
+ *  origin at widget center, midZ = (eyeY*sinEyePitch + eyeZ*cosEyePitch) >> 16. */
+static bool
+widget_model_project_vertices_objrender(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    const struct WidgetModelTransform* xf,
+    int origin_x,
+    int origin_y,
+    int* out_min_x,
+    int* out_min_y,
+    int* out_max_x,
+    int* out_max_y)
+{
+    int vc = ToriDraw_ModelGetVertexCount(hnd);
+    vertexint_t* vertices_x = ToriDraw_ModelGetVerticesX(hnd);
+    vertexint_t* vertices_y = ToriDraw_ModelGetVerticesY(hnd);
+    vertexint_t* vertices_z = ToriDraw_ModelGetVerticesZ(hnd);
+
+    int mid_z = (xf->var6 * xf->var16 + xf->var7 * xf->var17) >> 16;
+    int min_x = INT_MAX;
+    int min_y = INT_MAX;
+    int max_x = INT_MIN;
+    int max_y = INT_MIN;
+    int z_count = 0;
+
+    for( int i = 0; i < vc; i++ )
+    {
+        int cx;
+        int cy;
+        int cz;
+        widget_model_transform_vertex(
+            xf, vertices_x[i], vertices_y[i], vertices_z[i], &cx, &cy, &cz);
+
+        scene->orthographic_vertices_x[i] = cx;
+        scene->orthographic_vertices_y[i] = cy;
+        scene->orthographic_vertices_z[i] = cz;
+
+        if( cz <= WIDGET_MODEL_NEAR )
+        {
+            scene->screen_vertices_x[i] = WIDGET_MODEL_CLIP_X;
+            scene->screen_vertices_y[i] = 0;
+            scene->screen_vertices_z[i] = cz - mid_z;
+            continue;
+        }
+
+        int px = origin_x + (cx * xf->zoom3d) / cz;
+        int py = origin_y + (cy * xf->zoom3d) / cz;
+
+        scene->screen_vertices_x[i] = px;
+        scene->screen_vertices_y[i] = py;
+        scene->screen_vertices_z[i] = cz - mid_z;
+
+        if( px < min_x )
+            min_x = px;
+        if( px > max_x )
+            max_x = px;
+        if( py < min_y )
+            min_y = py;
+        if( py > max_y )
+            max_y = py;
+        z_count++;
+    }
+
+    if( z_count <= 0 )
+        return false;
+
+    *out_min_x = min_x - TORIDRAW_MODEL_EXTENTS_BORDER;
+    *out_min_y = min_y - TORIDRAW_MODEL_EXTENTS_BORDER;
+    *out_max_x = max_x + TORIDRAW_MODEL_EXTENTS_BORDER;
+    *out_max_y = max_y + TORIDRAW_MODEL_EXTENTS_BORDER;
+    return true;
+}
+
 static bool
 widget_model_project_vertices(
     struct ToriDraw_Scene* scene,
@@ -258,6 +332,126 @@ widget_model_project_vertices(
         scene->screen_vertices_z[i] -= model_mid_z;
 
     return z_count > 0;
+}
+
+bool
+ToriDraw_RenderModelExtentsAtWidget(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int offset_x,
+    int offset_y,
+    bool orthographic,
+    toripixel_t* pixels,
+    int stride,
+    int canvas_w,
+    int canvas_h,
+    int widget_x,
+    int widget_y,
+    int widget_w,
+    int widget_h,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom,
+    int* out_draw_x,
+    int* out_draw_y,
+    int* out_width,
+    int* out_height)
+{
+    assert(scene);
+    assert(hnd.kind == TORIDRAWMK_MODEL);
+    assert(pixels);
+    assert(out_draw_x);
+    assert(out_draw_y);
+    assert(out_width);
+    assert(out_height);
+
+    if( zoom <= 0 )
+        zoom = 2000;
+
+    struct WidgetModelTransform xf;
+    widget_model_init_transform(
+        &xf, zoom, xan, yan, zan, offset_x, offset_y, orthographic);
+
+    int sw = 0;
+    int sh = 0;
+    int draw_x = 0;
+    int draw_y = 0;
+
+    scene->active_hnd = hnd;
+
+    if( !orthographic )
+    {
+        int origin_x = widget_x + (widget_w > 0 ? widget_w / 2 : 0);
+        int origin_y = widget_y + (widget_h > 0 ? widget_h / 2 : 0);
+        int min_x = 0;
+        int min_y = 0;
+        int max_x = 0;
+        int max_y = 0;
+
+        if( !widget_model_project_vertices_objrender(
+                scene, hnd, &xf, origin_x, origin_y, &min_x, &min_y, &max_x, &max_y) )
+            return false;
+
+        draw_x = min_x;
+        draw_y = min_y;
+        sw = max_x - min_x + 1;
+        sh = max_y - min_y + 1;
+        if( sw <= 0 || sh <= 0 )
+            return false;
+    }
+    else
+    {
+        int blit_offset_x = 0;
+        int blit_offset_y = 0;
+        if( !widget_model_project_bounds(hnd, &xf, &sw, &sh, &blit_offset_x, &blit_offset_y) )
+            return false;
+
+        int bw = widget_w > 0 ? widget_w : sw;
+        int bh = widget_h > 0 ? widget_h : sh;
+        int origin_x = widget_x + (bw / 2) - blit_offset_x;
+        int origin_y = widget_y + (bh / 2) - blit_offset_y;
+
+        if( !widget_model_project_vertices(
+                scene, hnd, &xf, sw, sh, blit_offset_x, blit_offset_y) )
+            return false;
+
+        int vc = ToriDraw_ModelGetVertexCount(hnd);
+        for( int i = 0; i < vc; i++ )
+        {
+            scene->screen_vertices_x[i] += origin_x;
+            scene->screen_vertices_y[i] += origin_y;
+        }
+
+        draw_x = widget_x + (bw / 2) - blit_offset_x;
+        draw_y = widget_y + (bh / 2) - blit_offset_y;
+    }
+
+    struct ToriDraw_ViewPort view_port = { 0 };
+    view_port.width = canvas_w;
+    view_port.height = canvas_h;
+    view_port.clip_left = clip_left;
+    view_port.clip_top = clip_top;
+    view_port.clip_right = clip_right;
+    view_port.clip_bottom = clip_bottom;
+    view_port.stride = stride;
+
+    struct ToriDraw_Camera camera = { 0 };
+    camera.near_plane_z = WIDGET_MODEL_NEAR;
+    camera.fov_rpi2048 = 512;
+
+    ToriDraw_RenderModel2SortFaces(hnd, scene);
+    ToriDraw_RenderModel3Raster(scene, &view_port, &camera, pixels, false);
+
+    *out_draw_x = draw_x;
+    *out_draw_y = draw_y;
+    *out_width = sw;
+    *out_height = sh;
+    return true;
 }
 
 void
@@ -357,7 +551,10 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     }
 
     for( size_t i = 0; i < pixel_count; i++ )
-        argb[i] = (uint32_t)pixels[i];
+    {
+        uint32_t rgb = (uint32_t)pixels[i];
+        argb[i] = (rgb & 0xFFFFFFu) ? (rgb | 0xFF000000u) : 0u;
+    }
 
     free(pixels);
 
