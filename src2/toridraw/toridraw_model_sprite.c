@@ -397,6 +397,16 @@ ToriDraw_RenderModelExtentsAtWidget(
                 scene, hnd, &xf, origin_x, origin_y, &min_x, &min_y, &max_x, &max_y) )
             return false;
 
+        /* ToriDraw_Raster adds view_port.width/2 and height/2 to vertex coords. */
+        int vc = ToriDraw_ModelGetVertexCount(hnd);
+        int raster_origin_x = canvas_w / 2;
+        int raster_origin_y = canvas_h / 2;
+        for( int i = 0; i < vc; i++ )
+        {
+            scene->screen_vertices_x[i] -= raster_origin_x;
+            scene->screen_vertices_y[i] -= raster_origin_y;
+        }
+
         draw_x = min_x;
         draw_y = min_y;
         sw = max_x - min_x + 1;
@@ -425,6 +435,15 @@ ToriDraw_RenderModelExtentsAtWidget(
         {
             scene->screen_vertices_x[i] += origin_x;
             scene->screen_vertices_y[i] += origin_y;
+        }
+
+        /* ToriDraw_Raster adds view_port.width/2 and height/2 to vertex coords. */
+        int raster_origin_x = canvas_w / 2;
+        int raster_origin_y = canvas_h / 2;
+        for( int i = 0; i < vc; i++ )
+        {
+            scene->screen_vertices_x[i] -= raster_origin_x;
+            scene->screen_vertices_y[i] -= raster_origin_y;
         }
 
         draw_x = widget_x + (bw / 2) - blit_offset_x;
