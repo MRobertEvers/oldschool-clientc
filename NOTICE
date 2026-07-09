@@ -1,5 +1,0 @@
-3draster
-
-This project includes generated CS2 opcode tables derived from RuneStar/cs2
-(https://github.com/RuneStar/cs2), which is licensed under AGPL-3.0.
-See tools/cs2_gen_opcodes/ and src2/vm/cs2_opcode*.h/c.
