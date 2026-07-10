@@ -3,12 +3,14 @@
 #include "buildcache/dat2_buildcache.h"
 #include "buildcache/dat2_buildcache_ui.h"
 #include "core/tapi/tapi_dat2.h"
+#include "osrs/rscache/dat2a/dat2a_config_npctype.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "platforms/platform_x/cachelib.h"
 #include "platforms/platform_x/cachelib_platform.h"
 #include "platforms/platform_x_io_reactor.h"
+#include "runescape/appearance.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
@@ -1117,6 +1119,118 @@ InterfaceX_HostIO_LoadModel(
         return false;
     }
     return true;
+}
+
+static void
+hostio_load_npc_chathead_models(
+    struct InterfaceX_HostIO* io,
+    int npc_id)
+{
+    struct Dat2BuildCache* bc;
+    struct RSCacheDat2A_ConfigNpctype* npc;
+    int i;
+
+    if( !io || npc_id < 0 )
+        return;
+
+    bc = dat2(io->aux_cache);
+    npc = dat2_buildcache_npctype_get(bc, npc_id);
+    if( !npc || !npc->chathead_models )
+        return;
+
+    for( i = 0; i < npc->chathead_models_count; i++ )
+    {
+        int model_id = npc->chathead_models[i];
+        if( model_id >= 0 )
+            InterfaceX_HostIO_LoadModel(io, model_id);
+    }
+}
+
+bool
+InterfaceX_HostIO_LoadNpctype(
+    struct InterfaceX_HostIO* io,
+    int npc_id)
+{
+    struct Dat2BuildCache* bc;
+
+    if( !io || npc_id < 0 )
+        return false;
+
+    bc = dat2(io->aux_cache);
+    if( !dat2_buildcache_npctype_get(bc, npc_id) )
+    {
+        struct Task_ToriAuxLibCache_NpcAdd* task =
+            Task_ToriAuxLibCache_NpcAdd_New(io->aux_cache, npc_id);
+        if( !task )
+        {
+            fprintf(stderr, "hostio: npctype load alloc failed for npc_id=%d\n", npc_id);
+            return false;
+        }
+
+        hostio_run_task(
+            io, task, Task_ToriAuxLibCache_NpcAdd_Run, (void (*)(void*))Task_ToriAuxLibCache_NpcAdd_Free);
+
+        if( !dat2_buildcache_npctype_get(bc, npc_id) )
+        {
+            fprintf(stderr, "hostio: npctype id=%d failed to populate after IO\n", npc_id);
+            return false;
+        }
+    }
+
+    hostio_load_npc_chathead_models(io, npc_id);
+    return true;
+}
+
+bool
+InterfaceX_HostIO_LoadPlayerAppearance(
+    struct InterfaceX_HostIO* io,
+    const int appearance[12])
+{
+    struct Dat2BuildCache* bc;
+    int model_ids[256];
+    int model_count;
+    int i;
+
+    if( !io || !appearance )
+        return false;
+
+    bc = dat2(io->aux_cache);
+    model_count = runescape_appearance_collect_model_ids_dat2(bc, appearance, model_ids, 256);
+    if( model_count <= 0 )
+    {
+        struct Task_ToriAuxLibCache_PlayerAdd* task = Task_ToriAuxLibCache_PlayerAdd_New(
+            io->aux_cache,
+            appearance,
+            RUNESCAPE_EXAMPLE_PLAYER_READYANIM,
+            RUNESCAPE_EXAMPLE_PLAYER_WALKANIM,
+            RUNESCAPE_EXAMPLE_PLAYER_TURNANIM,
+            RUNESCAPE_EXAMPLE_PLAYER_RUNANIM,
+            RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_B,
+            RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_R,
+            RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_L);
+        if( !task )
+        {
+            fprintf(stderr, "hostio: player appearance load alloc failed\n");
+            return false;
+        }
+
+        hostio_run_task(
+            io,
+            task,
+            Task_ToriAuxLibCache_PlayerAdd_Run,
+            (void (*)(void*))Task_ToriAuxLibCache_PlayerAdd_Free);
+
+        model_count =
+            runescape_appearance_collect_model_ids_dat2(bc, appearance, model_ids, 256);
+    }
+
+    for( i = 0; i < model_count; i++ )
+    {
+        if( !InterfaceX_HostIO_LoadModel(io, model_ids[i]) )
+            return false;
+    }
+
+    return model_count > 0;
 }
 
 bool

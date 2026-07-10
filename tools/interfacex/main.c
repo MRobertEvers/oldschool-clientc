@@ -10,9 +10,11 @@
 #include "interfacex_host_io.h"
 #include "interfacex_opcode_stack.gen.h"
 #include "osrs/rscache/dat2a/dat2a_clientscript.h"
+#include "osrs/rscache/dat2a/dat2a_config_npctype.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat2a/dat2a_sprites.h"
+#include "runescape/appearance.h"
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/c/toriauxlibcache_font_convert.h"
@@ -23,6 +25,7 @@
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_2d.h"
 #include "toridraw/toridraw_font.h"
+#include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model_sprite.h"
 #include "toridraw/toridraw_sprite.h"
@@ -48,15 +51,15 @@ static char g_cs2_trace_extra[512];
 #define INVENTORY_INTERFACE 630
 #define EQUIPMENT_INTERFACE 387
 
-#define CANVAS_W 1024
-#define CANVAS_H 768
+// #define CANVAS_W 1024
+// #define CANVAS_H 768
 #define CANVAS_BG 0xFF202428
 
 // portal nexus viewport size
 // There is some padding that gets added so we account for that
 // It's either 10 or 9 all the way around.
-// #define CANVAS_W (492 + 20)
-// #define CANVAS_H (314 + 20)
+#define CANVAS_W (492 + 20)
+#define CANVAS_H (314 + 20)
 
 // export const ContentType = {
 //     VIEWPORT: 1337, // 3D game viewport
@@ -563,8 +566,8 @@ UITreeXBuilder_AppendChild(
     struct UITreeXNode* child = &tree->nodes[child_idx];
 
     assert(
-        child->link.parent_tree_idx == -1 &&
-        "UITreeXBuilder_AppendChild: child already linked (duplicate ResolvePendingParents entry?)" );
+        child->link.parent_tree_idx == -1 && "UITreeXBuilder_AppendChild: child already linked "
+                                             "(duplicate ResolvePendingParents entry?)");
 
     child->link.parent_tree_idx = parent_idx;
 
@@ -8378,6 +8381,8 @@ struct InterfaceX_VMHost
     int next_scene_id;
     int client_clock;
 
+    int player_appearance[RUNESCAPE_APPEARANCE_SLOT_COUNT];
+
     bool has_pending_host_request;
     struct CS2VM_HostRequest pending_host_request;
 };
@@ -8413,22 +8418,20 @@ UITreeXBuilder_LoadPendingAssets(
             InterfaceX_HostIO_LoadSceneFont(&host->host_io, pending->id);
             break;
         case INTERFACEX_PENDING_MODEL:
-        {
             if( node->kind == UITreeXNodeKind_RSModel )
             {
-                int scene_id = InterfaceX_HostIO_LoadModelScene(
-                    &host->host_io,
-                    pending->id,
-                    pending->id2,
-                    pending->id3,
-                    pending->id4,
-                    node->w > 0 ? node->w : 32,
-                    node->h > 0 ? node->h : 32);
-                if( scene_id >= 0 )
-                    UITreeX_NodeModelMut(node)->scene_id = scene_id;
+                struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
+                if( model->model_kind == INTERFACEX_MODEL_KIND_PLAIN && pending->id >= 0 )
+                    InterfaceX_HostIO_LoadModel(&host->host_io, pending->id);
+                else if( model->model_kind == INTERFACEX_MODEL_KIND_NPC_HEAD && pending->id >= 0 )
+                    InterfaceX_HostIO_LoadNpctype(&host->host_io, pending->id);
+                else if(
+                    model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_HEAD ||
+                    model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_SELF ||
+                    model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD )
+                    InterfaceX_HostIO_LoadPlayerAppearance(&host->host_io, host->player_appearance);
             }
             break;
-        }
         case INTERFACEX_PENDING_OBJ_ICON:
         {
             int scene_id = -1;
@@ -8445,50 +8448,6 @@ UITreeXBuilder_LoadPendingAssets(
             }
             break;
         }
-        }
-    }
-}
-
-static void
-InterfaceX_RasterPendingModelScenes(
-    struct InterfaceX_VMHost* host,
-    struct UITreeX* tree)
-{
-    assert(host);
-    assert(tree);
-
-    for( int i = 0; i < tree->node_count; i++ )
-    {
-        struct UITreeXNode* node = &tree->nodes[i];
-        if( node->user_id < 0 || node->kind != UITreeXNodeKind_RSModel )
-            continue;
-
-        struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(node);
-        if( model->model_id < 0 )
-            continue;
-        if( model->model_kind != INTERFACEX_MODEL_KIND_PLAIN )
-            continue;
-
-        int width = node->w > 0 ? node->w : 32;
-        int height = node->h > 0 ? node->h : 32;
-        int zoom = model->zoom > 0 ? model->zoom : 2000;
-        int scene_id = InterfaceX_HostIO_LoadModelScene(
-            &host->host_io, model->model_id, zoom, model->angle_x, model->angle_y, width, height);
-        if( scene_id >= 0 )
-        {
-            model->scene_id = scene_id;
-        }
-        else
-        {
-            model->scene_id = -1;
-            fprintf(
-                stderr,
-                "interfacex: model scene refresh failed model_id=%d node=0x%08x zoom=%d %dx%d\n",
-                model->model_id,
-                (unsigned)node->user_id,
-                zoom,
-                width,
-                height);
         }
     }
 }
@@ -9056,7 +9015,7 @@ UITreeX_LayoutNode(
     {
         assert(
             steps < tree->node_count &&
-            "UITreeX_LayoutNode: sibling cycle (duplicate AppendChild?)" );
+            "UITreeX_LayoutNode: sibling cycle (duplicate AppendChild?)");
         assert(child >= 0 && child < tree->node_count);
 
         UITreeX_LayoutNode(tree, child, child_px, child_py, child_pw, child_ph, 0, visiting);
@@ -10111,7 +10070,9 @@ UITreeX_RenderNodeImpl(
         else if( node->kind == UITreeXNodeKind_RSModel && host )
         {
             struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
-            if( model->model_kind != INTERFACEX_MODEL_KIND_PLAIN || model->model_id < 0 )
+            if( model->model_kind == INTERFACEX_MODEL_KIND_PLAIN && model->model_id < 0 )
+                goto render_children;
+            if( model->model_kind == INTERFACEX_MODEL_KIND_NPC_HEAD && model->model_id < 0 )
                 goto render_children;
 
             InterfaceX_RasterModelNodeToCanvas(host, pixels, CANVAS_W, node, node_alpha);
@@ -10573,6 +10534,11 @@ InterfaceX_InvStoreSeedDefaults(struct InterfaceX_VMHost* host)
 {
     assert(host);
 
+    memcpy(
+        host->player_appearance,
+        RUNESCAPE_EXAMPLE_PLAYER_APPEARANCE,
+        sizeof(host->player_appearance));
+
     struct InterfaceX_InvContainer* worn =
         InterfaceX_InvContainerGet(host, INTERFACEX_INV_CONTAINER_WORN, true);
     struct InterfaceX_InvContainer* backpack =
@@ -10727,6 +10693,113 @@ interface_x_bake_model_raster_alpha(
     }
 }
 
+static struct ToriDraw_Model*
+InterfaceX_BuildToriDrawModelForNode(
+    struct InterfaceX_VMHost* host,
+    struct UITreeXNode const* node)
+{
+    struct UITreeXNode_RSModel const* model;
+    struct Dat2BuildCache* bc;
+    struct RSCacheDat2A_Model* raw;
+    struct RSCacheDat2A_Model* merged;
+    struct RSCacheDat2A_Model* raw_models[16];
+    int model_count;
+    int i;
+
+    assert(host);
+    assert(node);
+    assert(node->kind == UITreeXNodeKind_RSModel);
+
+    model = UITreeX_NodeModel(node);
+    bc = dat2(InterfaceX_HostIO_Cache(&host->host_io));
+    if( !bc )
+        return NULL;
+
+    switch( model->model_kind )
+    {
+    case INTERFACEX_MODEL_KIND_PLAIN:
+        if( model->model_id < 0 )
+            return NULL;
+        raw = dat2_buildcache_model_get(bc, model->model_id);
+        if( !raw )
+            return NULL;
+        raw = RSCacheDat2A_ModelNewCopy(raw);
+        if( !raw )
+            return NULL;
+        break;
+
+    case INTERFACEX_MODEL_KIND_NPC_HEAD:
+        if( model->model_id < 0 )
+            return NULL;
+        {
+            struct RSCacheDat2A_ConfigNpctype* npc =
+                dat2_buildcache_npctype_get(bc, model->model_id);
+            if( !npc || !npc->chathead_models || npc->chathead_models_count <= 0 )
+                return NULL;
+
+            model_count = 0;
+            for( i = 0; i < npc->chathead_models_count && model_count < 16; i++ )
+            {
+                int model_id = npc->chathead_models[i];
+                if( model_id < 0 )
+                    continue;
+                raw_models[model_count] = dat2_buildcache_model_get(bc, model_id);
+                if( raw_models[model_count] )
+                    model_count++;
+            }
+            if( model_count <= 0 )
+                return NULL;
+
+            merged = RSCacheDat2A_ModelNewMerge(raw_models, model_count);
+            if( !merged )
+                return NULL;
+            raw = merged;
+        }
+        break;
+
+    case INTERFACEX_MODEL_KIND_PLAYER_HEAD:
+    case INTERFACEX_MODEL_KIND_PLAYER_SELF:
+    case INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD:
+    {
+        int model_ids[256];
+        int id_count;
+
+        id_count = runescape_appearance_collect_model_ids_dat2(
+            bc, host->player_appearance, model_ids, 256);
+        if( id_count <= 0 )
+            return NULL;
+
+        model_count = 0;
+        for( i = 0; i < id_count && model_count < 16; i++ )
+        {
+            raw_models[model_count] = dat2_buildcache_model_get(bc, model_ids[i]);
+            if( raw_models[model_count] )
+                model_count++;
+        }
+        if( model_count <= 0 )
+            return NULL;
+
+        merged = RSCacheDat2A_ModelNewMerge(raw_models, model_count);
+        if( !merged )
+            return NULL;
+        raw = merged;
+        break;
+    }
+
+    default:
+        return NULL;
+    }
+
+    {
+        struct ToriDraw_Model* td_model = ToriDraw_ModelNewFromCacheModel(raw);
+        RSCacheDat2A_ModelFree(raw);
+        if( !td_model )
+            return NULL;
+        ToriDraw_ModelSetBoundsCylinder(td_model);
+        return td_model;
+    }
+}
+
 static void
 InterfaceX_RasterModelNodeToCanvas(
     struct InterfaceX_VMHost* host,
@@ -10743,44 +10816,75 @@ InterfaceX_RasterModelNodeToCanvas(
         return;
 
     struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
-    if( model->model_kind != INTERFACEX_MODEL_KIND_PLAIN )
+    if( model->model_kind == INTERFACEX_MODEL_KIND_PLAIN && model->model_id < 0 )
         return;
-    if( model->model_id < 0 )
+    if( model->model_kind == INTERFACEX_MODEL_KIND_NPC_HEAD && model->model_id < 0 )
         return;
 
-    if( model->scene_id >= 0 )
+    int zoom = model->zoom > 0 ? model->zoom : 2000;
+    if( model->item_id >= 0 )
     {
-        int sprite_count = 0;
-        struct ToriDraw_Sprite** sprites =
-            ToriDraw_SceneSpriteGet(host->scene, model->scene_id, &sprite_count);
-        if( sprites && sprite_count > 0 && sprites[0] && sprites[0]->pixels_argb )
-        {
-            struct ToriDraw_Sprite const* spr = sprites[0];
-            int sw = spr->width > 0 ? spr->width : 1;
-            int sh = spr->height > 0 ? spr->height : 1;
-            int bw = node->abs_w > 0 ? node->abs_w : sw;
-            int bh = node->abs_h > 0 ? node->abs_h : sh;
-            struct ToriDraw_ViewPort view_port = InterfaceX_RenderViewPort();
-            if( node_alpha >= 255 )
-            {
-                ToriDraw2D_BlitArgbScaled(
-                    &view_port, node->abs_x, node->abs_y, bw, bh, spr->pixels_argb, sw, sh, dest);
-            }
-            else
-            {
-                size_t pixel_count = (size_t)sw * (size_t)sh;
-                uint32_t* tmp = malloc(pixel_count * sizeof(uint32_t));
-                if( tmp )
-                {
-                    memcpy(tmp, spr->pixels_argb, pixel_count * sizeof(uint32_t));
-                    interface_x_scale_pixel_alpha(tmp, pixel_count, node_alpha);
-                    ToriDraw2D_BlitArgbScaled(
-                        &view_port, node->abs_x, node->abs_y, bw, bh, tmp, sw, sh, dest);
-                    free(tmp);
-                }
-            }
-        }
+        if( node->w_mode != 0 && model->cache_an5957 > 0 )
+            zoom = InterfaceX_NormalizeModelItemZoom(zoom, model->cache_an5957);
+        else if( node->w > 0 )
+            zoom = InterfaceX_NormalizeModelItemZoom(zoom, node->w);
     }
+
+    struct ToriDraw_Model* td_model = InterfaceX_BuildToriDrawModelForNode(host, node);
+    if( !td_model )
+        return;
+
+    struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(
+        (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_MODEL, .u.model.model = td_model });
+    int model_center_y = 0;
+    if( model->item_id >= 0 && bounds )
+        model_center_y = -bounds->min_y / 2;
+
+    struct ToriDraw_ModelHandle hnd = {
+        .kind = TORIDRAWMK_MODEL,
+        .u.model.model = td_model,
+    };
+    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+
+    int draw_x = 0;
+    int draw_y = 0;
+    int sw = 0;
+    int sh = 0;
+    bool ok = ToriDraw_RenderModelExtentsAtWidget(
+        host->scene,
+        hnd,
+        zoom,
+        model->angle_x,
+        model->angle_y,
+        model->angle_z,
+        model->offset_x,
+        model->offset_y,
+        model_center_y,
+        model->orthog != 0,
+        model->fixed_zoom != 0,
+        dest,
+        dest_stride,
+        CANVAS_W,
+        CANVAS_H,
+        node->abs_x,
+        node->abs_y,
+        node->abs_w,
+        node->abs_h,
+        g_render_clip_x0,
+        g_render_clip_y0,
+        g_render_clip_x1,
+        g_render_clip_y1,
+        &draw_x,
+        &draw_y,
+        &sw,
+        &sh);
+
+    ToriDraw_ModelFree(td_model);
+
+    if( !ok || sw <= 0 || sh <= 0 )
+        return;
+
+    interface_x_bake_model_raster_alpha(dest, dest_stride, draw_x, draw_y, sw, sh, node_alpha);
 }
 
 static int
@@ -10902,6 +11006,19 @@ InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
         break;
     }
     case UITreeXNodeKind_RSModel:
+    {
+        int resolved_obj_id =
+            InterfaceX_ResolveObjIconCountVariant(host, obj_id, count > 0 ? count : 1);
+        if( !dat2_buildcache_object_get(
+                dat2(InterfaceX_HostIO_Cache(&host->host_io)), resolved_obj_id) )
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
+            req.u.cc_set_object.component_id = component_id;
+            req.u.cc_set_object.obj_id = obj_id;
+            req.u.cc_set_object.count = count;
+            return InterfaceX_VMHost_Yield(host, &req);
+        }
         if( !InterfaceX_ApplyObjToModelNode(host, node, obj_id, count) )
         {
             fprintf(
@@ -10909,6 +11026,7 @@ InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
             return CS2VM_EXECNO_ERROR;
         }
         break;
+    }
     default:
         fprintf(stderr, "unexpected node kind in CC_SetObjectOnNode: %d\n", node->kind);
         return CS2VM_EXECNO_ERROR;
@@ -11441,10 +11559,40 @@ InterfaceX_VMHost_Load(
             return -1;
         return 0;
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
-    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
+        if( request->u.widget_set_model.model_id < 0 )
+            return 0;
         if( !InterfaceX_HostIO_LoadModel(&host->host_io, request->u.widget_set_model.model_id) )
             return -1;
         return 0;
+    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
+    {
+        enum InterfaceX_ModelKind kind = request->u.widget_set_model_kind.model_kind;
+        int model_id = request->u.widget_set_model_kind.model_id;
+
+        if( kind == INTERFACEX_MODEL_KIND_PLAIN )
+        {
+            if( model_id < 0 )
+                return 0;
+            if( !InterfaceX_HostIO_LoadModel(&host->host_io, model_id) )
+                return -1;
+        }
+        else if( kind == INTERFACEX_MODEL_KIND_NPC_HEAD )
+        {
+            if( model_id < 0 )
+                return 0;
+            if( !InterfaceX_HostIO_LoadNpctype(&host->host_io, model_id) )
+                return -1;
+        }
+        else if(
+            kind == INTERFACEX_MODEL_KIND_PLAYER_HEAD ||
+            kind == INTERFACEX_MODEL_KIND_PLAYER_SELF ||
+            kind == INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD )
+        {
+            if( !InterfaceX_HostIO_LoadPlayerAppearance(&host->host_io, host->player_appearance) )
+                return -1;
+        }
+        return 0;
+    }
     case CS2VM_HOST_REQUEST_CC_CREATE:
         return InterfaceX_VMHost_Load_CC_Create(host, &request->u.cc_create);
     case CS2VM_HOST_REQUEST_CC_FIND:
@@ -15946,8 +16094,6 @@ main(
     InterfaceX_VMHost_FireCacheInvTransmitHooks(
         &vmhost, &vm, primary.components, primary.component_count);
     InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
-
-    InterfaceX_RasterPendingModelScenes(&vmhost, tree);
 
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
     UITreeX_PrintNodes(tree);

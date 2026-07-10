@@ -137,6 +137,16 @@ InterfaceX_HostIO_LoadModel(
     int model_id);
 
 bool
+InterfaceX_HostIO_LoadNpctype(
+    struct InterfaceX_HostIO* io,
+    int npc_id);
+
+bool
+InterfaceX_HostIO_LoadPlayerAppearance(
+    struct InterfaceX_HostIO* io,
+    const int appearance[12]);
+
+bool
 InterfaceX_HostIO_PromoteObjtype(
     struct InterfaceX_HostIO* io,
     int obj_id);
