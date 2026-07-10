@@ -156,4 +156,9 @@ InterfaceX_HostIO_LoadModelScene(
     int width,
     int height);
 
+bool
+InterfaceX_HostIO_LoadInterfaceGroup(
+    struct InterfaceX_HostIO* io,
+    int group_id);
+
 #endif

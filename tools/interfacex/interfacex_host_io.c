@@ -3,6 +3,7 @@
 #include "buildcache/dat2_buildcache.h"
 #include "buildcache/dat2_buildcache_ui.h"
 #include "core/tapi/tapi_dat2.h"
+#include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "platforms/platform_x/cachelib.h"
@@ -64,6 +65,13 @@ struct InterfaceX_TaskModelLoad
     struct pt thread;
     struct ToriAuxLibCache* cache;
     int model_id;
+};
+
+struct InterfaceX_TaskInterfaceLoad
+{
+    struct pt thread;
+    struct ToriAuxLibCache* cache;
+    int group_id;
 };
 
 static const char*
@@ -145,9 +153,7 @@ hostio_sprite_load_run(
         if( !archive )
         {
             fprintf(
-                stderr,
-                "hostio: sprite archive decode failed for sprite_id=%d\n",
-                task->sprite_id);
+                stderr, "hostio: sprite archive decode failed for sprite_id=%d\n", task->sprite_id);
             PT_EXIT(&task->thread);
         }
 
@@ -155,10 +161,7 @@ hostio_sprite_load_run(
             dat2_buildcache_sprite_decode_id_from_archive(archive, task->sprite_id);
         if( !sprite )
         {
-            fprintf(
-                stderr,
-                "hostio: sprite decode failed for sprite_id=%d\n",
-                task->sprite_id);
+            fprintf(stderr, "hostio: sprite decode failed for sprite_id=%d\n", task->sprite_id);
             PT_EXIT(&task->thread);
         }
 
@@ -218,10 +221,7 @@ hostio_font_load_run(
         else if( !dat2_buildcache_font_add_from_archives(
                      bc, task->font_id, font_archive, sprite_archive) )
         {
-            fprintf(
-                stderr,
-                "hostio: font add failed for font_id=%d\n",
-                task->font_id);
+            fprintf(stderr, "hostio: font add failed for font_id=%d\n", task->font_id);
         }
         if( font_archive )
             RSCacheDat2Disk_ArchiveFree(font_archive);
@@ -268,10 +268,7 @@ hostio_model_load_run(
         if( model )
             dat2_buildcache_model_add(bc, task->model_id, model);
         else
-            fprintf(
-                stderr,
-                "hostio: model decode failed for model_id=%d\n",
-                task->model_id);
+            fprintf(stderr, "hostio: model decode failed for model_id=%d\n", task->model_id);
     }
 
     LibToriRS_IOQueueClear(ctx->io);
@@ -506,6 +503,134 @@ InterfaceX_HostIO_Disk(struct InterfaceX_HostIO* io)
     return io && io->cachelib ? cachelib_dat2_disk(io->cachelib) : NULL;
 }
 
+static void
+hostio_interface_load_destroy(void* state)
+{
+    free(state);
+}
+
+static void
+hostio_interface_group_submit(
+    struct InterfaceX_HostIO* io,
+    int group_id)
+{
+    struct Dat2BuildCache* bc;
+    struct Dat2BuildCache_InterfaceArchive* arch;
+    int top_id;
+
+    if( !io || !io->aux_cache || group_id < 0 )
+        return;
+
+    bc = dat2(io->aux_cache);
+    arch = dat2_buildcache_interface_archive_get(bc, group_id);
+    if( !arch )
+        return;
+
+    top_id = group_id << 16;
+    if( ToriAuxLibCore_ComponentHas(io->core, top_id) )
+        return;
+
+    ToriAuxLibCache_SubmitComponentsFromDat2(io->aux_cache, arch);
+}
+
+static int
+hostio_interface_load_run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx)
+{
+    struct InterfaceX_TaskInterfaceLoad* task = task_state;
+    struct Dat2BuildCache* bc = dat2(task->cache);
+    struct RSCacheDat2Disk_ReferenceTable* reference_table = NULL;
+    struct RSCacheDat2Disk_Archive* iface_disk_archive = NULL;
+    struct Dat2BuildCache_InterfaceArchive* iface_archive = NULL;
+
+    PT_BEGIN(&task->thread);
+
+    if( !task->cache || task->group_id < 0 )
+    {
+        fprintf(
+            stderr, "hostio: interface group load skipped (invalid group_id=%d)\n", task->group_id);
+        PT_EXIT(&task->thread);
+    }
+
+    if( dat2_buildcache_interface_archive_has(bc, task->group_id) )
+        PT_EXIT(&task->thread);
+
+    DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->thread, bc, RSCacheDat2Disk_Table_Interfaces);
+
+    IO_REQUEST(ctx, 0, TAPIDat2_FetchInterface(ctx, task->group_id));
+    PT_YIELD(&task->thread);
+
+    reference_table = dat2_buildcache_reference_table_get(bc, RSCacheDat2Disk_Table_Interfaces);
+    if( !reference_table )
+        PT_EXIT(&task->thread);
+
+    iface_disk_archive = TAPIDat2_DecodeInterfaceArchive(ctx, 0, task->group_id);
+    if( !iface_disk_archive )
+    {
+        fprintf(
+            stderr, "hostio: interface archive decode failed for group_id=%d\n", task->group_id);
+        PT_EXIT(&task->thread);
+    }
+
+    iface_archive = dat2_buildcache_component_decode_iface_archive_from_archive(
+        reference_table, iface_disk_archive, task->group_id);
+    iface_disk_archive = NULL;
+    if( !iface_archive )
+    {
+        fprintf(
+            stderr, "hostio: interface component decode failed for group_id=%d\n", task->group_id);
+        PT_EXIT(&task->thread);
+    }
+
+    dat2_buildcache_interface_archive_add(bc, task->group_id, iface_archive);
+    ToriAuxLibCache_SubmitComponentsFromDat2(task->cache, iface_archive);
+
+    LibToriRS_IOQueueClear(ctx->io);
+    PT_END(&task->thread);
+}
+
+bool
+InterfaceX_HostIO_LoadInterfaceGroup(
+    struct InterfaceX_HostIO* io,
+    int group_id)
+{
+    struct Dat2BuildCache* bc;
+    struct InterfaceX_TaskInterfaceLoad* task;
+
+    assert(io);
+    if( group_id < 0 || !io->aux_cache )
+        return false;
+
+    bc = dat2(io->aux_cache);
+    if( dat2_buildcache_interface_archive_has(bc, group_id) )
+    {
+        hostio_interface_group_submit(io, group_id);
+        return true;
+    }
+
+    task = calloc(1, sizeof(*task));
+    if( !task )
+    {
+        fprintf(stderr, "hostio: interface group load alloc failed for group_id=%d\n", group_id);
+        return false;
+    }
+
+    PT_INIT(&task->thread);
+    task->cache = io->aux_cache;
+    task->group_id = group_id;
+    hostio_run_task(io, task, hostio_interface_load_run, hostio_interface_load_destroy);
+
+    if( !dat2_buildcache_interface_archive_has(bc, group_id) )
+    {
+        fprintf(stderr, "hostio: interface group load failed for group_id=%d\n", group_id);
+        return false;
+    }
+
+    hostio_interface_group_submit(io, group_id);
+    return true;
+}
+
 bool
 InterfaceX_HostIO_ConfigEntryReady(
     struct InterfaceX_HostIO* io,
@@ -658,7 +783,8 @@ InterfaceX_HostIO_LoadClientScript(
     struct Task_ClientScriptLoad* task = Task_ClientScriptLoad_New(io->aux_cache, &script_id, 1);
     if( !task )
     {
-        fprintf(stderr, "hostio: clientscript load task alloc failed for script_id=%d\n", script_id);
+        fprintf(
+            stderr, "hostio: clientscript load task alloc failed for script_id=%d\n", script_id);
         return false;
     }
 
@@ -669,10 +795,7 @@ InterfaceX_HostIO_LoadClientScript(
 
     if( !InterfaceX_HostIO_ClientScriptGet(io, script_id) )
     {
-        fprintf(
-            stderr,
-            "hostio: clientscript id=%d failed to populate after IO\n",
-            script_id);
+        fprintf(stderr, "hostio: clientscript id=%d failed to populate after IO\n", script_id);
         return false;
     }
     return true;
@@ -766,10 +889,7 @@ InterfaceX_HostIO_LoadGraphicScene(
     struct InterfaceX_TaskSpriteLoad* task = calloc(1, sizeof(*task));
     if( !task )
     {
-        fprintf(
-            stderr,
-            "hostio: graphic scene load alloc failed for graphic_id=%d\n",
-            graphic_id);
+        fprintf(stderr, "hostio: graphic scene load alloc failed for graphic_id=%d\n", graphic_id);
         return false;
     }
     PT_INIT(&task->thread);
@@ -780,20 +900,14 @@ InterfaceX_HostIO_LoadGraphicScene(
     struct ToriAuxLibCore_Sprite* sprite = ToriAuxLibCore_SpriteGet(io->core, graphic_id);
     if( !sprite )
     {
-        fprintf(
-            stderr,
-            "hostio: graphic sprite missing after IO for graphic_id=%d\n",
-            graphic_id);
+        fprintf(stderr, "hostio: graphic sprite missing after IO for graphic_id=%d\n", graphic_id);
         return false;
     }
 
     int scene_id = -1;
     if( hostio_raster_sprite_to_scene(io, sprite, &scene_id) != 0 )
     {
-        fprintf(
-            stderr,
-            "hostio: graphic scene raster failed for graphic_id=%d\n",
-            graphic_id);
+        fprintf(stderr, "hostio: graphic scene raster failed for graphic_id=%d\n", graphic_id);
         return false;
     }
 
@@ -909,11 +1023,48 @@ InterfaceX_HostIO_LoadObjIconScene(
     }
     ToriAuxLibCache_EnsureObjtype(io->aux_cache, obj_id);
 
+    {
+        struct Dat2BuildCache* bc = dat2(io->aux_cache);
+        struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(bc, obj_id);
+        if( obj && count > 1 )
+        {
+            int countobj_id = -1;
+            for( int i = 0; i < 10; i++ )
+            {
+                if( count >= obj->count_co[i] && obj->count_co[i] != 0 )
+                    countobj_id = obj->count_obj[i];
+            }
+            if( countobj_id >= 0 )
+                obj = dat2_buildcache_object_get(bc, countobj_id);
+        }
+        if( obj && obj->inventory_model_id > 0 )
+        {
+            if( !InterfaceX_HostIO_LoadModel(io, obj->inventory_model_id) )
+            {
+                fprintf(
+                    stderr,
+                    "hostio: obj icon inventory model load failed obj_id=%d model_id=%d\n",
+                    obj_id,
+                    obj->inventory_model_id);
+            }
+        }
+    }
+
     struct ToriAuxLibCore_Sprite* sprite =
         dat2_buildcache_obj_icon_sprite(dat2(io->aux_cache), io->scene, obj_id, count);
     if( !sprite )
     {
-        fprintf(stderr, "hostio: obj icon sprite missing for obj_id=%d count=%d\n", obj_id, count);
+        struct Dat2BuildCache* bc = dat2(io->aux_cache);
+        struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(bc, obj_id);
+        int inventory_model_id = obj ? obj->inventory_model_id : -1;
+        fprintf(
+            stderr,
+            "hostio: obj icon sprite missing for obj_id=%d count=%d inventory_model_id=%d "
+            "model_cached=%d\n",
+            obj_id,
+            count,
+            inventory_model_id,
+            inventory_model_id > 0 && dat2_buildcache_model_get(bc, inventory_model_id) != NULL);
         return false;
     }
 

@@ -2,6 +2,7 @@
 #include "../src2/vm/cs2_opcode.h"
 #include "../src2/vm/cs2_opcode_meta.h"
 #include "bmp.h"
+#include "buildcache/dat2_buildcache.h"
 #include "buildcache/dat2_buildcache_ui.h"
 #include "games/ie_enum_lookup.h"
 #include "games/ie_param_lookup.h"
@@ -16,6 +17,7 @@
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/c/toriauxlibcache_font_convert.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 #include "toriauxlib/td/toridraw_cachemodel.h"
 #include "toridraw/toridraw.h"
@@ -560,9 +562,14 @@ UITreeXBuilder_AppendChild(
     struct UITreeXNode* parent = &tree->nodes[parent_idx];
     struct UITreeXNode* child = &tree->nodes[child_idx];
 
+    assert(
+        child->link.parent_tree_idx == -1 &&
+        "UITreeXBuilder_AppendChild: child already linked (duplicate ResolvePendingParents entry?)" );
+
     child->link.parent_tree_idx = parent_idx;
 
     int last = parent->link.last_child_tree_idx;
+    assert(last != child_idx && "UITreeXBuilder_AppendChild: child already last sibling");
     if( last != -1 )
         tree->nodes[last].link.next_sibling_tree_idx = child_idx;
     else
@@ -623,6 +630,8 @@ UITreeXBuilder_ResolvePendingParents(struct UITreeXBuilder* builder)
 
         UITreeXBuilder_AppendChild(tree, parent_idx, child_idx);
     }
+
+    builder->pending_parent_count = 0;
 }
 
 static void
@@ -8246,6 +8255,7 @@ CS2VMX_RunScript(struct CS2VMX* vm)
 #define INTERFACEX_OBJ_ICON_CACHE_MAX 128
 #define INTERFACEX_INV_CONTAINER_WORN 94
 #define INTERFACEX_INV_CONTAINER_BACKPACK 93
+#define INTERFACEX_MAX_LOADED_GROUPS 64
 
 struct InterfaceX_InvSlot
 {
@@ -8327,15 +8337,27 @@ struct InterfaceX_ObjType
     int param_count;
 };
 
+struct InterfaceX_LoadedInterface
+{
+    int interface_id;
+    int component_count;
+    struct ToriAuxLibCore_Component** components;
+};
+
 struct InterfaceX_VMHost
 {
     struct ToriDraw_Scene* scene;
     struct InterfaceX_HostIO host_io;
+    struct RSCacheDat2Disk* disk_cache;
 
     struct UITreeXBuilder* builder;
     struct UITreeX* tree;
     int interface_id;
     uint16_t next_dynamic_uid;
+
+    struct InterfaceX_LoadedInterface extra_groups[INTERFACEX_MAX_LOADED_GROUPS];
+    int extra_group_ids[INTERFACEX_MAX_LOADED_GROUPS];
+    int extra_group_count;
 
     struct InterfaceX_InvTransmitHook inv_transmit_hooks[INTERFACEX_INV_TRANSMIT_HOOK_MAX];
     int inv_transmit_hook_count;
@@ -8427,6 +8449,50 @@ UITreeXBuilder_LoadPendingAssets(
     }
 }
 
+static void
+InterfaceX_RasterPendingModelScenes(
+    struct InterfaceX_VMHost* host,
+    struct UITreeX* tree)
+{
+    assert(host);
+    assert(tree);
+
+    for( int i = 0; i < tree->node_count; i++ )
+    {
+        struct UITreeXNode* node = &tree->nodes[i];
+        if( node->user_id < 0 || node->kind != UITreeXNodeKind_RSModel )
+            continue;
+
+        struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(node);
+        if( model->model_id < 0 )
+            continue;
+        if( model->model_kind != INTERFACEX_MODEL_KIND_PLAIN )
+            continue;
+
+        int width = node->w > 0 ? node->w : 32;
+        int height = node->h > 0 ? node->h : 32;
+        int zoom = model->zoom > 0 ? model->zoom : 2000;
+        int scene_id = InterfaceX_HostIO_LoadModelScene(
+            &host->host_io, model->model_id, zoom, model->angle_x, model->angle_y, width, height);
+        if( scene_id >= 0 )
+        {
+            model->scene_id = scene_id;
+        }
+        else
+        {
+            model->scene_id = -1;
+            fprintf(
+                stderr,
+                "interfacex: model scene refresh failed model_id=%d node=0x%08x zoom=%d %dx%d\n",
+                model->model_id,
+                (unsigned)node->user_id,
+                zoom,
+                width,
+                height);
+        }
+    }
+}
+
 static int
 InterfaceX_VMHost_Yield(
     struct InterfaceX_VMHost* host,
@@ -8507,6 +8573,52 @@ static void
 InterfaceX_VMHost_DrainScriptQueue(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm);
+
+static bool
+InterfaceX_IsGroupLoaded(
+    struct InterfaceX_VMHost const* host,
+    int group_id);
+
+static bool
+InterfaceX_IntegrateInterfaceGroup(
+    struct InterfaceX_VMHost* host,
+    int group_id);
+
+static int
+InterfaceX_VMHost_LoadInterfaceGroup(
+    struct InterfaceX_VMHost* host,
+    int group_id);
+
+static int
+InterfaceX_VMHost_YieldIfGroupNeeded(
+    struct InterfaceX_VMHost* host,
+    int component_id,
+    struct CS2VM_HostRequest const* request);
+
+static int
+InterfaceX_VMHost_Load_CC_Create(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest_CC_Create const* request);
+
+static int
+InterfaceX_VMHost_Load_CC_Find(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest_CC_Find const* request);
+
+static int
+InterfaceX_VMHost_Load_IF_Find(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest_TargetFind const* request);
+
+static int
+InterfaceX_VMHost_Load_CC_ChildrenFind(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest_CC_ChildrenFind const* request);
+
+static int
+InterfaceX_VMHost_Load_IF_ChildrenFind(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest_IF_ChildrenFind const* request);
 
 static struct InterfaceX_InvContainer*
 InterfaceX_InvContainerGet(
@@ -8882,10 +8994,17 @@ UITreeX_LayoutNode(
     int parent_y,
     int parent_w,
     int parent_h,
-    int is_root)
+    int is_root,
+    int* visiting)
 {
     assert(tree);
+    assert(visiting);
     assert(node_idx >= 0 && node_idx < tree->node_count);
+
+    if( visiting[node_idx] )
+        assert(!"UITreeX_LayoutNode: parent/child cycle");
+
+    visiting[node_idx] = 1;
 
     struct UITreeXNode* node = &tree->nodes[node_idx];
     int w = 0;
@@ -8932,9 +9051,19 @@ UITreeX_LayoutNode(
         child_py -= layer->scroll_y;
     }
 
-    for( int child = node->link.first_child_tree_idx; child != -1;
-         child = tree->nodes[child].link.next_sibling_tree_idx )
-        UITreeX_LayoutNode(tree, child, child_px, child_py, child_pw, child_ph, 0);
+    int first_child = node->link.first_child_tree_idx;
+    for( int child = first_child, steps = 0; child != -1; steps++ )
+    {
+        assert(
+            steps < tree->node_count &&
+            "UITreeX_LayoutNode: sibling cycle (duplicate AppendChild?)" );
+        assert(child >= 0 && child < tree->node_count);
+
+        UITreeX_LayoutNode(tree, child, child_px, child_py, child_pw, child_ph, 0, visiting);
+        child = tree->nodes[child].link.next_sibling_tree_idx;
+    }
+
+    visiting[node_idx] = 0;
 }
 
 static void
@@ -8947,10 +9076,11 @@ UITreeX_LayoutResolve(
 
     UITreeX_InvalidateLayout(tree);
 
+    int visiting[MAX_NODES] = { 0 };
     for( int i = 0; i < tree->node_count; i++ )
     {
         if( UITreeX_NodeIsLiveRoot(&tree->nodes[i]) )
-            UITreeX_LayoutNode(tree, i, 0, 0, root_w, root_h, 1);
+            UITreeX_LayoutNode(tree, i, 0, 0, root_w, root_h, 1, visiting);
     }
 }
 
@@ -11100,6 +11230,116 @@ static int
 InterfaceX_NodeIsGraphicKind(struct UITreeXNode const* node);
 
 static int
+InterfaceX_VMHost_LoadInterfaceGroup(
+    struct InterfaceX_VMHost* host,
+    int group_id)
+{
+    assert(host);
+    if( group_id <= 0 )
+        return -1;
+    if( InterfaceX_IsGroupLoaded(host, group_id) )
+        return 0;
+    if( !InterfaceX_HostIO_LoadInterfaceGroup(&host->host_io, group_id) )
+        return -1;
+    if( !InterfaceX_IntegrateInterfaceGroup(host, group_id) )
+        return -1;
+    return 0;
+}
+
+static int
+InterfaceX_VMHost_Load_CC_Create(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest_CC_Create const* request)
+{
+    int group_id;
+
+    assert(host);
+    assert(request);
+    group_id = (request->parent_id >> 16) & 0xffff;
+    if( request->parent_id <= 0 || group_id <= 0 )
+        return 0;
+    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
+}
+
+static int
+InterfaceX_VMHost_Load_CC_Find(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest_CC_Find const* request)
+{
+    int group_id;
+
+    assert(host);
+    assert(request);
+    group_id = (request->parent_id >> 16) & 0xffff;
+    if( request->parent_id <= 0 || group_id <= 0 )
+        return 0;
+    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
+}
+
+static int
+InterfaceX_VMHost_Load_IF_Find(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest_TargetFind const* request)
+{
+    int group_id;
+
+    assert(host);
+    assert(request);
+    group_id = (request->component_id >> 16) & 0xffff;
+    if( request->component_id <= 0 || group_id <= 0 )
+        return 0;
+    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
+}
+
+static int
+InterfaceX_VMHost_Load_CC_ChildrenFind(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest_CC_ChildrenFind const* request)
+{
+    int group_id;
+
+    assert(host);
+    assert(request);
+    group_id = (request->parent_id >> 16) & 0xffff;
+    if( request->parent_id <= 0 || group_id <= 0 )
+        return 0;
+    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
+}
+
+static int
+InterfaceX_VMHost_Load_IF_ChildrenFind(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest_IF_ChildrenFind const* request)
+{
+    int group_id;
+
+    assert(host);
+    assert(request);
+    group_id = (request->uid >> 16) & 0xffff;
+    if( request->uid <= 0 || group_id <= 0 )
+        return 0;
+    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
+}
+
+static int
+InterfaceX_VMHost_YieldIfGroupNeeded(
+    struct InterfaceX_VMHost* host,
+    int component_id,
+    struct CS2VM_HostRequest const* request)
+{
+    int group_id;
+
+    assert(host);
+    assert(request);
+    group_id = (component_id >> 16) & 0xffff;
+    if( component_id <= 0 || group_id <= 0 )
+        return CS2VM_EXECNO_OK;
+    if( InterfaceX_IsGroupLoaded(host, group_id) )
+        return CS2VM_EXECNO_OK;
+    return InterfaceX_VMHost_Yield(host, request);
+}
+
+static int
 InterfaceX_VMHost_Yield(
     struct InterfaceX_VMHost* host,
     struct CS2VM_HostRequest const* request)
@@ -11122,8 +11362,7 @@ InterfaceX_VMHost_Load(
     switch( request->kind )
     {
     case CS2VM_HOST_REQUEST_PUSHSCRIPT:
-        if( !InterfaceX_HostIO_LoadClientScript(
-                &host->host_io, request->u.push_script.script_id) )
+        if( !InterfaceX_HostIO_LoadClientScript(&host->host_io, request->u.push_script.script_id) )
             return -1;
         return 0;
     case CS2VM_HOST_REQUEST_PARAHEIGHT:
@@ -11198,8 +11437,7 @@ InterfaceX_VMHost_Load(
             return -1;
         return 0;
     case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
-        if( !InterfaceX_HostIO_LoadSceneFont(
-                &host->host_io, request->u.cc_set_text_font.font_id) )
+        if( !InterfaceX_HostIO_LoadSceneFont(&host->host_io, request->u.cc_set_text_font.font_id) )
             return -1;
         return 0;
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
@@ -11207,6 +11445,16 @@ InterfaceX_VMHost_Load(
         if( !InterfaceX_HostIO_LoadModel(&host->host_io, request->u.widget_set_model.model_id) )
             return -1;
         return 0;
+    case CS2VM_HOST_REQUEST_CC_CREATE:
+        return InterfaceX_VMHost_Load_CC_Create(host, &request->u.cc_create);
+    case CS2VM_HOST_REQUEST_CC_FIND:
+        return InterfaceX_VMHost_Load_CC_Find(host, &request->u.cc_find);
+    case CS2VM_HOST_REQUEST_IF_FIND:
+        return InterfaceX_VMHost_Load_IF_Find(host, &request->u.if_find);
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
+        return InterfaceX_VMHost_Load_CC_ChildrenFind(host, &request->u.cc_children_find);
+    case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
+        return InterfaceX_VMHost_Load_IF_ChildrenFind(host, &request->u.if_children_find);
     default:
         fprintf(stderr, "InterfaceX_VMHost_Load: unhandled kind %d\n", (int)request->kind);
         return -1;
@@ -12650,9 +12898,33 @@ InterfaceX_VMHost_Exec_CC_Create(
     int child_index = request.child_index;
     (void)request.is_nested;
 
+    {
+        struct CS2VM_HostRequest yield_req = { 0 };
+        int yield_res;
+
+        yield_req.kind = CS2VM_HOST_REQUEST_CC_CREATE;
+        yield_req.u.cc_create = request;
+        yield_res = InterfaceX_VMHost_YieldIfGroupNeeded(host, parent_id, &yield_req);
+        if( yield_res != CS2VM_EXECNO_OK )
+            return yield_res;
+    }
+
     int parent_idx = UITreeX_FindByUserId(host->tree, parent_id);
     if( parent_idx < 0 )
     {
+        if( parent_id > 0 )
+        {
+            fprintf(
+                stderr,
+                "CC_CREATE: parent not found parent=0x%08x type=%d child=%d active=0x%08x "
+                "dot=0x%08x\n",
+                (unsigned)parent_id,
+                type,
+                child_index,
+                vm ? (unsigned)vm->active_component_id : 0u,
+                vm ? (unsigned)vm->dot_component_id : 0u);
+            return CS2VM_EXECNO_ERROR;
+        }
         /* Tutorial scripts pass parent=0 when disabled; remove the prior dynamic child. */
         if( parent_id <= 0 && vm && child_index >= 0 )
         {
@@ -12806,6 +13078,17 @@ InterfaceX_VMHost_Exec_CC_Find(
 {
     assert(host);
     assert(vm);
+
+    {
+        struct CS2VM_HostRequest yield_req = { 0 };
+        int yield_res;
+
+        yield_req.kind = CS2VM_HOST_REQUEST_CC_FIND;
+        yield_req.u.cc_find = request;
+        yield_res = InterfaceX_VMHost_YieldIfGroupNeeded(host, request.parent_id, &yield_req);
+        if( yield_res != CS2VM_EXECNO_OK )
+            return yield_res;
+    }
 
     int parent_idx = UITreeX_FindByUserId(host->tree, request.parent_id);
     int found = 0;
@@ -13405,6 +13688,17 @@ InterfaceX_VMHost_Exec_CC_ChildrenFind(
     assert(host);
     assert(vm);
 
+    {
+        struct CS2VM_HostRequest yield_req = { 0 };
+        int yield_res;
+
+        yield_req.kind = CS2VM_HOST_REQUEST_CC_CHILDREN_FIND;
+        yield_req.u.cc_children_find = request;
+        yield_res = InterfaceX_VMHost_YieldIfGroupNeeded(host, request.parent_id, &yield_req);
+        if( yield_res != CS2VM_EXECNO_OK )
+            return yield_res;
+    }
+
     CS2VMX_ResetChildrenIter(vm);
     if( host->tree )
     {
@@ -13427,6 +13721,17 @@ InterfaceX_VMHost_Exec_IF_ChildrenFind(
 {
     assert(host);
     assert(vm);
+
+    {
+        struct CS2VM_HostRequest yield_req = { 0 };
+        int yield_res;
+
+        yield_req.kind = CS2VM_HOST_REQUEST_IF_CHILDREN_FIND;
+        yield_req.u.if_children_find = request;
+        yield_res = InterfaceX_VMHost_YieldIfGroupNeeded(host, request.uid, &yield_req);
+        if( yield_res != CS2VM_EXECNO_OK )
+            return yield_res;
+    }
 
     CS2VMX_ResetChildrenIter(vm);
     if( host->tree )
@@ -13494,6 +13799,11 @@ InterfaceX_VMHost_Exec_StructParam(
         return CS2VMX_PushStr(vm, strdup(strval ? strval : ""));
     if( found )
         return CS2VMX_PushInt(vm, intval);
+    fprintf(
+        stderr,
+        "STRUCT_PARAM: key miss struct_id=%d param_id=%d\n",
+        request.struct_id,
+        request.param_id);
     return CS2VMX_PushInt(vm, 0);
 }
 
@@ -13535,11 +13845,25 @@ InterfaceX_VMHost_Exec_IF_Find(
     assert(host);
     assert(vm);
 
-    int found = 0;
-    if( host->tree && UITreeX_FindByUserId(host->tree, request.component_id) >= 0 )
     {
-        CS2VMX_SetTargetComponentId(vm, request.dot_operand, request.component_id);
-        found = 1;
+        struct CS2VM_HostRequest yield_req = { 0 };
+        int yield_res;
+
+        yield_req.kind = CS2VM_HOST_REQUEST_IF_FIND;
+        yield_req.u.if_find = request;
+        yield_res = InterfaceX_VMHost_YieldIfGroupNeeded(host, request.component_id, &yield_req);
+        if( yield_res != CS2VM_EXECNO_OK )
+            return yield_res;
+    }
+
+    int found = 0;
+    if( host->tree && request.component_id >= 0 )
+    {
+        if( UITreeX_FindByUserId(host->tree, request.component_id) >= 0 )
+        {
+            CS2VMX_SetTargetComponentId(vm, request.dot_operand, request.component_id);
+            found = 1;
+        }
     }
     CS2VMX_SetTraceExtra(
         "uid=0x%08x found=%d target=%s",
@@ -15004,13 +15328,6 @@ InterfaceX_DumpComponentRaw(
     return 0;
 }
 
-struct InterfaceX_LoadedInterface
-{
-    int interface_id;
-    int component_count;
-    struct ToriAuxLibCore_Component** components;
-};
-
 static int
 process_component(
     struct UITreeXBuilder* builder,
@@ -15280,6 +15597,110 @@ InterfaceX_FreeLoadedInterface(struct InterfaceX_LoadedInterface* loaded)
     memset(loaded, 0, sizeof(*loaded));
 }
 
+static bool
+InterfaceX_IsGroupLoaded(
+    struct InterfaceX_VMHost const* host,
+    int group_id)
+{
+    if( !host || group_id <= 0 )
+        return false;
+    if( host->interface_id == group_id )
+        return true;
+    for( int i = 0; i < host->extra_group_count; i++ )
+    {
+        if( host->extra_group_ids[i] == group_id )
+            return true;
+    }
+    return false;
+}
+
+static bool
+InterfaceX_IntegrateInterfaceGroup(
+    struct InterfaceX_VMHost* host,
+    int group_id)
+{
+    struct ToriAuxLibCache* aux_cache;
+    struct Dat2BuildCache* bc;
+    struct Dat2BuildCache_InterfaceArchive* arch;
+    struct ToriAuxLibCore* core;
+    int i;
+    int integrated = 0;
+
+    assert(host);
+    assert(host->builder);
+    assert(host->tree);
+
+    if( group_id <= 0 )
+        return false;
+    if( InterfaceX_IsGroupLoaded(host, group_id) )
+        return true;
+    if( host->extra_group_count >= INTERFACEX_MAX_LOADED_GROUPS )
+    {
+        fprintf(stderr, "interface group %d: loaded group cap reached\n", group_id);
+        return false;
+    }
+
+    aux_cache = InterfaceX_HostIO_Cache(&host->host_io);
+    if( !aux_cache )
+    {
+        fprintf(stderr, "interface group %d: aux cache unavailable\n", group_id);
+        return false;
+    }
+
+    bc = dat2(aux_cache);
+    arch = dat2_buildcache_interface_archive_get(bc, group_id);
+    if( !arch || arch->component_count <= 0 )
+    {
+        fprintf(stderr, "interface group %d: buildcache archive missing\n", group_id);
+        return false;
+    }
+
+    core = InterfaceX_HostIO_Core(&host->host_io);
+    for( i = 0; i < arch->component_count; i++ )
+    {
+        int packed_id = (group_id << 16) | (i & 0xFFFF);
+        struct ToriAuxLibCore_Component* component_core =
+            core ? ToriAuxLibCore_ComponentGet(core, packed_id) : NULL;
+        if( !component_core && arch->components[i] )
+        {
+            component_core =
+                ToriAuxLibCache_ComponentNewFromCacheDat2Component(arch->components[i]);
+            if( component_core && core )
+                ToriAuxLibCore_ComponentAdd(core, packed_id, component_core);
+        }
+        if( !component_core )
+        {
+            fprintf(stderr, "interface group %d: missing component file %d\n", group_id, i);
+            return false;
+        }
+
+        process_component(host->builder, component_core);
+        integrated++;
+    }
+
+    UITreeXBuilder_ResolvePendingParents(host->builder);
+    InterfaceX_HideInterfaceRoots(host->tree, group_id);
+
+    host->extra_group_ids[host->extra_group_count] = group_id;
+    memset(&host->extra_groups[host->extra_group_count], 0, sizeof(host->extra_groups[0]));
+    host->extra_groups[host->extra_group_count].interface_id = group_id;
+    host->extra_group_count++;
+
+    fprintf(stderr, "loaded interface group %d (%d components)\n", group_id, integrated);
+    return true;
+}
+
+static void
+InterfaceX_FreeExtraGroups(struct InterfaceX_VMHost* host)
+{
+    if( !host )
+        return;
+
+    for( int i = 0; i < host->extra_group_count; i++ )
+        InterfaceX_FreeLoadedInterface(&host->extra_groups[i]);
+    host->extra_group_count = 0;
+}
+
 static int g_cs2vm_yield_test_host_calls;
 
 static int
@@ -15488,6 +15909,7 @@ main(
     vmhost.builder = builder;
     vmhost.tree = tree;
     vmhost.interface_id = interface_id;
+    vmhost.disk_cache = cache;
     vmhost.scene = scene;
     vmhost.next_scene_id = 1;
     if( !InterfaceX_HostIO_Init(&vmhost.host_io, scene, &vmhost.next_scene_id, CACHE_PATH) )
@@ -15525,6 +15947,8 @@ main(
         &vmhost, &vm, primary.components, primary.component_count);
     InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
 
+    InterfaceX_RasterPendingModelScenes(&vmhost, tree);
+
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
     UITreeX_PrintNodes(tree);
 
@@ -15553,6 +15977,7 @@ main(
     free(pixels);
 
     InterfaceX_FreeLoadedInterface(&primary);
+    InterfaceX_FreeExtraGroups(&vmhost);
 
     free(vmhost.script_queue);
     InterfaceX_HostIO_Free(&vmhost.host_io);
