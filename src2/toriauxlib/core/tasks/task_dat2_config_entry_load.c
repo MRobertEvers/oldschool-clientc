@@ -6,8 +6,27 @@
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/core/tasks/task_dat2_io.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static const char*
+task_dat2_config_kind_name(int config_kind)
+{
+    switch( config_kind )
+    {
+    case RSCacheDat2A_ConfigKind_Params:
+        return "params";
+    case RSCacheDat2A_ConfigKind_Enum:
+        return "enum";
+    case RSCacheDat2A_ConfigKind_Struct:
+        return "struct";
+    case RSCacheDat2A_ConfigKind_Object:
+        return "object";
+    default:
+        return "unknown";
+    }
+}
 
 struct Task_Dat2ConfigEntryLoad*
 Task_Dat2ConfigEntryLoad_New(
@@ -61,7 +80,14 @@ Task_Dat2ConfigEntryLoad_Run(
     PT_BEGIN(&task->thread);
 
     if( !bc || task->config_kind < 0 || task->id_count <= 0 || !task->ids )
+    {
+        fprintf(
+            stderr,
+            "task_dat2_config_entry_load: invalid task (kind=%d id_count=%d)\n",
+            task->config_kind,
+            task->id_count);
         PT_EXIT(&task->thread);
+    }
 
     DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, task->cache);
 
@@ -69,27 +95,39 @@ Task_Dat2ConfigEntryLoad_Run(
     PT_YIELD(&task->thread);
 
     archive = TAPIDat2_DecodeConfigGroup(ctx, 0, task->config_kind);
-    if( archive )
+    if( !archive )
     {
-        switch( task->config_kind )
-        {
-        case RSCacheDat2A_ConfigKind_Params:
-            dat2_buildcache_params_init_from_archive_ids(bc, archive, task->ids, task->id_count);
-            break;
-        case RSCacheDat2A_ConfigKind_Enum:
-            dat2_buildcache_enums_init_from_archive_ids(bc, archive, task->ids, task->id_count);
-            break;
-        case RSCacheDat2A_ConfigKind_Struct:
-            dat2_buildcache_structs_init_from_archive_ids(bc, archive, task->ids, task->id_count);
-            break;
-        case RSCacheDat2A_ConfigKind_Object:
-            dat2_buildcache_objects_init_from_archive(bc, archive, task->ids, task->id_count);
-            break;
-        default:
-            break;
-        }
-        RSCacheDat2Disk_ArchiveFree(archive);
+        fprintf(
+            stderr,
+            "task_dat2_config_entry_load: config %s archive decode failed (id_count=%d)\n",
+            task_dat2_config_kind_name(task->config_kind),
+            task->id_count);
+        LibToriRS_IOQueueClear(ctx->io);
+        PT_EXIT(&task->thread);
     }
+
+    switch( task->config_kind )
+    {
+    case RSCacheDat2A_ConfigKind_Params:
+        dat2_buildcache_params_init_from_archive_ids(bc, archive, task->ids, task->id_count);
+        break;
+    case RSCacheDat2A_ConfigKind_Enum:
+        dat2_buildcache_enums_init_from_archive_ids(bc, archive, task->ids, task->id_count);
+        break;
+    case RSCacheDat2A_ConfigKind_Struct:
+        dat2_buildcache_structs_init_from_archive_ids(bc, archive, task->ids, task->id_count);
+        break;
+    case RSCacheDat2A_ConfigKind_Object:
+        dat2_buildcache_objects_init_from_archive(bc, archive, task->ids, task->id_count);
+        break;
+    default:
+        fprintf(
+            stderr,
+            "task_dat2_config_entry_load: unhandled config kind %d\n",
+            task->config_kind);
+        break;
+    }
+    RSCacheDat2Disk_ArchiveFree(archive);
 
     LibToriRS_IOQueueClear(ctx->io);
     PT_END(&task->thread);

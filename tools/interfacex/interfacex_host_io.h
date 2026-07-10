@@ -66,14 +66,14 @@ InterfaceX_HostIO_ConfigEntryReady(
     int config_kind,
     int id);
 
-void
+bool
 InterfaceX_HostIO_LoadConfigEntries(
     struct InterfaceX_HostIO* io,
     int config_kind,
     const int* ids,
     int id_count);
 
-void
+bool
 InterfaceX_HostIO_LoadConfigEntry(
     struct InterfaceX_HostIO* io,
     int config_kind,
@@ -84,7 +84,7 @@ InterfaceX_HostIO_ClientScriptGet(
     struct InterfaceX_HostIO* io,
     int script_id);
 
-void
+bool
 InterfaceX_HostIO_LoadClientScript(
     struct InterfaceX_HostIO* io,
     int script_id);
@@ -101,7 +101,7 @@ InterfaceX_HostIO_GraphicSceneId(
     int graphic_id,
     int* scene_id_out);
 
-void
+bool
 InterfaceX_HostIO_LoadGraphicScene(
     struct InterfaceX_HostIO* io,
     int graphic_id,
@@ -112,7 +112,7 @@ InterfaceX_HostIO_SceneFontGet(
     struct InterfaceX_HostIO* io,
     int font_id);
 
-void
+bool
 InterfaceX_HostIO_LoadSceneFont(
     struct InterfaceX_HostIO* io,
     int font_id);
@@ -124,14 +124,14 @@ InterfaceX_HostIO_ObjIconSceneId(
     int count,
     int* scene_id_out);
 
-void
+bool
 InterfaceX_HostIO_LoadObjIconScene(
     struct InterfaceX_HostIO* io,
     int obj_id,
     int count,
     int* scene_id_out);
 
-void
+bool
 InterfaceX_HostIO_LoadModel(
     struct InterfaceX_HostIO* io,
     int model_id);
@@ -141,7 +141,7 @@ InterfaceX_HostIO_PromoteObjtype(
     struct InterfaceX_HostIO* io,
     int obj_id);
 
-void
+bool
 InterfaceX_HostIO_LoadObjectConfig(
     struct InterfaceX_HostIO* io,
     int obj_id);

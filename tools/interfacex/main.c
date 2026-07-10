@@ -1347,7 +1347,7 @@ CS2VMX_ClearYieldHalt(struct CS2VMX* vm)
     vm->yield_halt_count = 0;
 }
 
-static void
+static bool
 CS2VMX_CheckYieldHalt(
     struct CS2VMX* vm,
     struct CS2VMX_Frame* frame,
@@ -1379,8 +1379,12 @@ CS2VMX_CheckYieldHalt(
             script_id,
             op_pc,
             vm->frame_sp);
-        abort();
+        vm->last_error_opcode = opcode;
+        vm->last_error_pc = op_pc;
+        vm->last_error_script_id = script_id;
+        return false;
     }
+    return true;
 }
 
 static bool
@@ -8203,7 +8207,8 @@ CS2VMX_RunScript(struct CS2VMX* vm)
                 CS2VMX_ClearYieldHalt(vm);
             break;
         case CS2VM_EXECNO_YIELD:
-            CS2VMX_CheckYieldHalt(vm, frame, op_pc, opcode);
+            if( !CS2VMX_CheckYieldHalt(vm, frame, op_pc, opcode) )
+                return CS2VM_EXECNO_ERROR;
             CS2VMX_RestoreYieldCheckpoint(vm, &yield_cp, op_pc);
             return CS2VM_EXECNO_YIELD;
         default:
@@ -10928,7 +10933,7 @@ InterfaceX_VMHost_DrainScriptQueue(
         host->script_queue_head = (host->script_queue_head + 1) % INTERFACEX_SCRIPT_QUEUE_MAX;
         host->script_queue_count--;
 
-        (void)InterfaceX_RunClientScript(
+        int res = InterfaceX_RunClientScript(
             host,
             vm,
             entry.script_id,
@@ -10937,6 +10942,15 @@ InterfaceX_VMHost_DrainScriptQueue(
             entry.int_arg_count,
             (char const* const*)entry.string_args,
             entry.string_arg_count);
+        if( res != CS2VM_EXECNO_OK )
+        {
+            fprintf(
+                stderr,
+                "script queue: script %d for component 0x%08x returned %d\n",
+                entry.script_id,
+                (unsigned)entry.component_id,
+                res);
+        }
 
         for( int i = 0; i < entry.string_arg_count; i++ )
         {
@@ -10972,7 +10986,11 @@ InterfaceX_RunClientScript(
         InterfaceX_HostIO_ClientScriptGet(&host->host_io, script_id);
     if( !client_script )
     {
-        InterfaceX_HostIO_LoadClientScript(&host->host_io, script_id);
+        if( !InterfaceX_HostIO_LoadClientScript(&host->host_io, script_id) )
+        {
+            fprintf(stderr, "failed to resolve script: %d\n", script_id);
+            return CS2VM_EXECNO_ERROR;
+        }
         client_script = InterfaceX_HostIO_ClientScriptGet(&host->host_io, script_id);
     }
     if( !client_script )
@@ -11104,11 +11122,14 @@ InterfaceX_VMHost_Load(
     switch( request->kind )
     {
     case CS2VM_HOST_REQUEST_PUSHSCRIPT:
-        InterfaceX_HostIO_LoadClientScript(&host->host_io, request->u.push_script.script_id);
+        if( !InterfaceX_HostIO_LoadClientScript(
+                &host->host_io, request->u.push_script.script_id) )
+            return -1;
         return 0;
     case CS2VM_HOST_REQUEST_PARAHEIGHT:
     case CS2VM_HOST_REQUEST_PARAWIDTH:
-        InterfaceX_HostIO_LoadSceneFont(&host->host_io, request->u.para_height.font_id);
+        if( !InterfaceX_HostIO_LoadSceneFont(&host->host_io, request->u.para_height.font_id) )
+            return -1;
         return 0;
     case CS2VM_HOST_REQUEST_CC_SETGRAPHIC:
     case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
@@ -11118,8 +11139,9 @@ InterfaceX_VMHost_Load(
         if( node && InterfaceX_NodeIsGraphicKind(node) )
         {
             int scene_id = -1;
-            InterfaceX_HostIO_LoadGraphicScene(
-                &host->host_io, request->u.cc_set_graphic.graphic_id, &scene_id);
+            if( !InterfaceX_HostIO_LoadGraphicScene(
+                    &host->host_io, request->u.cc_set_graphic.graphic_id, &scene_id) )
+                return -1;
         }
         return 0;
     }
@@ -11127,49 +11149,63 @@ InterfaceX_VMHost_Load(
     case CS2VM_HOST_REQUEST_IF_SETOBJECT:
     {
         int scene_id = -1;
-        InterfaceX_HostIO_LoadObjIconScene(
-            &host->host_io,
-            request->u.cc_set_object.obj_id,
-            request->u.cc_set_object.count,
-            &scene_id);
+        if( !InterfaceX_HostIO_LoadObjIconScene(
+                &host->host_io,
+                request->u.cc_set_object.obj_id,
+                request->u.cc_set_object.count,
+                &scene_id) )
+            return -1;
         return 0;
     }
     case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
-        InterfaceX_HostIO_LoadConfigEntry(
-            &host->host_io, RSCacheDat2A_ConfigKind_Enum, request->u.enum_lookup.enum_id);
+        if( !InterfaceX_HostIO_LoadConfigEntry(
+                &host->host_io, RSCacheDat2A_ConfigKind_Enum, request->u.enum_lookup.enum_id) )
+            return -1;
         return 0;
     case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
-        InterfaceX_HostIO_LoadConfigEntry(
-            &host->host_io,
-            RSCacheDat2A_ConfigKind_Enum,
-            request->u.enum_get_output_count.enum_id);
+        if( !InterfaceX_HostIO_LoadConfigEntry(
+                &host->host_io,
+                RSCacheDat2A_ConfigKind_Enum,
+                request->u.enum_get_output_count.enum_id) )
+            return -1;
         return 0;
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:
-        InterfaceX_HostIO_LoadConfigEntry(
-            &host->host_io, RSCacheDat2A_ConfigKind_Struct, request->u.struct_param.struct_id);
-        InterfaceX_HostIO_LoadConfigEntry(
-            &host->host_io, RSCacheDat2A_ConfigKind_Params, request->u.struct_param.param_id);
+        if( !InterfaceX_HostIO_LoadConfigEntry(
+                &host->host_io, RSCacheDat2A_ConfigKind_Struct, request->u.struct_param.struct_id) )
+            return -1;
+        if( !InterfaceX_HostIO_LoadConfigEntry(
+                &host->host_io, RSCacheDat2A_ConfigKind_Params, request->u.struct_param.param_id) )
+            return -1;
         return 0;
     case CS2VM_HOST_REQUEST_OC_PARAM:
-        InterfaceX_HostIO_LoadObjectConfig(&host->host_io, request->u.oc_param.item_id);
-        InterfaceX_HostIO_LoadConfigEntry(
-            &host->host_io, RSCacheDat2A_ConfigKind_Params, request->u.oc_param.param_id);
+        if( !InterfaceX_HostIO_LoadObjectConfig(&host->host_io, request->u.oc_param.item_id) )
+            return -1;
+        if( !InterfaceX_HostIO_LoadConfigEntry(
+                &host->host_io, RSCacheDat2A_ConfigKind_Params, request->u.oc_param.param_id) )
+            return -1;
         return 0;
     case CS2VM_HOST_REQUEST_OC_NAME:
-        InterfaceX_HostIO_LoadObjectConfig(&host->host_io, request->u.oc_name.item_id);
+        if( !InterfaceX_HostIO_LoadObjectConfig(&host->host_io, request->u.oc_name.item_id) )
+            return -1;
         return 0;
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
-        InterfaceX_HostIO_LoadObjectConfig(&host->host_io, request->u.oc_unplaceholder.item_id);
+        if( !InterfaceX_HostIO_LoadObjectConfig(
+                &host->host_io, request->u.oc_unplaceholder.item_id) )
+            return -1;
         return 0;
     case CS2VM_HOST_REQUEST_OC_INT_PARAM:
-        InterfaceX_HostIO_LoadObjectConfig(&host->host_io, request->u.oc_int_param.item_id);
+        if( !InterfaceX_HostIO_LoadObjectConfig(&host->host_io, request->u.oc_int_param.item_id) )
+            return -1;
         return 0;
     case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
-        InterfaceX_HostIO_LoadSceneFont(&host->host_io, request->u.cc_set_text_font.font_id);
+        if( !InterfaceX_HostIO_LoadSceneFont(
+                &host->host_io, request->u.cc_set_text_font.font_id) )
+            return -1;
         return 0;
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
-        InterfaceX_HostIO_LoadModel(&host->host_io, request->u.widget_set_model.model_id);
+        if( !InterfaceX_HostIO_LoadModel(&host->host_io, request->u.widget_set_model.model_id) )
+            return -1;
         return 0;
     default:
         fprintf(stderr, "InterfaceX_VMHost_Load: unhandled kind %d\n", (int)request->kind);
