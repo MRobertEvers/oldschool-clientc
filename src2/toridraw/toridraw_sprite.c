@@ -4,6 +4,7 @@
 #include "toridraw_math.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -719,6 +720,104 @@ ToriDraw_SpriteFlipVertical(struct ToriDraw_Sprite* sprite)
             p[a] = p[b];
             p[b] = t;
         }
+}
+
+void
+ToriDraw_SpriteTransformPixels(
+    uint32_t** pixels_argb,
+    int* width,
+    int* height,
+    int hflip,
+    int vflip,
+    int angle_r2pi65536)
+{
+    if( !pixels_argb || !*pixels_argb || !width || !height || *width <= 0 || *height <= 0 )
+        return;
+
+    if( hflip || vflip )
+    {
+        struct ToriDraw_Sprite tmp = {
+            .width = *width,
+            .height = *height,
+            .pixels_argb = *pixels_argb,
+        };
+        if( hflip )
+            ToriDraw_SpriteFlipHorizontal(&tmp);
+        if( vflip )
+            ToriDraw_SpriteFlipVertical(&tmp);
+    }
+
+    if( angle_r2pi65536 == 0 )
+        return;
+
+    double rad = ((double)angle_r2pi65536 * 2.0 * 3.141592653589793) /
+                 (double)TORIDRAW_SPRITE_ANGLE_SCALE;
+    double c = cos(rad);
+    double s = sin(rad);
+    int src_w = *width;
+    int src_h = *height;
+    int cx = src_w / 2;
+    int cy = src_h / 2;
+
+    int corners[4][2] = {
+        { -cx,            -cy            },
+        { src_w - 1 - cx, -cy            },
+        { -cx,            src_h - 1 - cy },
+        { src_w - 1 - cx, src_h - 1 - cy },
+    };
+    int min_x = 0;
+    int max_x = 0;
+    int min_y = 0;
+    int max_y = 0;
+    for( int i = 0; i < 4; i++ )
+    {
+        int rx = (int)lround((double)corners[i][0] * c - (double)corners[i][1] * s);
+        int ry = (int)lround((double)corners[i][0] * s + (double)corners[i][1] * c);
+        if( i == 0 )
+        {
+            min_x = max_x = rx;
+            min_y = max_y = ry;
+        }
+        else
+        {
+            if( rx < min_x )
+                min_x = rx;
+            if( rx > max_x )
+                max_x = rx;
+            if( ry < min_y )
+                min_y = ry;
+            if( ry > max_y )
+                max_y = ry;
+        }
+    }
+
+    int dst_w = max_x - min_x + 1;
+    int dst_h = max_y - min_y + 1;
+    if( dst_w <= 0 || dst_h <= 0 )
+        return;
+
+    uint32_t* dst = calloc((size_t)dst_w * (size_t)dst_h, sizeof(uint32_t));
+    if( !dst )
+        return;
+
+    uint32_t const* src = *pixels_argb;
+    for( int dy = 0; dy < dst_h; dy++ )
+    {
+        for( int dx = 0; dx < dst_w; dx++ )
+        {
+            double lx = (double)(dx + min_x);
+            double ly = (double)(dy + min_y);
+            int sx = (int)lround(lx * c + ly * s) + cx;
+            int sy = (int)lround(-lx * s + ly * c) + cy;
+            if( sx >= 0 && sx < src_w && sy >= 0 && sy < src_h )
+                dst[dx + dy * dst_w] = src[sx + sy * src_w];
+        }
+    }
+
+    free(*pixels_argb);
+    *pixels_argb = dst;
+    *width = dst_w;
+    *height = dst_h;
 }
 
 void

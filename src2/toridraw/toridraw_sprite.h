@@ -5,6 +5,9 @@
 
 #include <stdint.h>
 
+/** RS UI widget spriteAngle / CS2 ANGLE_2D: 65536 = one full turn (not 0-2048). */
+#define TORIDRAW_SPRITE_ANGLE_SCALE 65536
+
 struct ToriDraw_PixPalette
 {
     int* palette;
@@ -174,6 +177,18 @@ ToriDraw_SpriteFlipHorizontal(struct ToriDraw_Sprite* sprite);
 
 void
 ToriDraw_SpriteFlipVertical(struct ToriDraw_Sprite* sprite);
+
+/** In-place horizontal/vertical flip and/or rotation of an owned ARGB pixel buffer.
+ *  On rotation, replaces *pixels_argb (frees the old buffer) and updates width and height.
+ *  angle_r2pi65536 uses TORIDRAW_SPRITE_ANGLE_SCALE (65536 = full turn), not 0-2048. */
+void
+ToriDraw_SpriteTransformPixels(
+    uint32_t** pixels_argb,
+    int* width,
+    int* height,
+    int hflip,
+    int vflip,
+    int angle_r2pi65536);
 
 void
 ToriDraw_SpriteFree(struct ToriDraw_Sprite* sprite);

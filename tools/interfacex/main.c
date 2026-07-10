@@ -76,9 +76,6 @@ static char g_cs2_trace_extra[512];
 #define INTERFACEX_CONTENT_WORLDMAP 1400
 #define INTERFACEX_CONTENT_WORLDMAP_OVERVIEW 1401
 
-/* dat2 widget spriteAngle / CS2 ANGLE_2D: 65536 = one full turn */
-#define INTERFACEX_SPRITE_ANGLE_SCALE 65536
-
 /* Current render clip rect (canvas-space, [x0,y0) .. [x1,y1) ), narrowed while recursing
  * into a scrollable RSLayer's children and restored on the way back out. Rendering is a
  * single-threaded, synchronous depth-first walk, so plain save/restore around each
@@ -9796,104 +9793,6 @@ UITreeX_ApplyComponentGeometry(
     }
 }
 
-static void
-interface_x_transform_sprite_pixels(
-    uint32_t** spr_px,
-    int* sw,
-    int* sh,
-    int hflip,
-    int vflip,
-    int angle_2d)
-{
-    if( !spr_px || !*spr_px || *sw <= 0 || *sh <= 0 )
-        return;
-
-    if( hflip || vflip )
-    {
-        struct ToriDraw_Sprite tmp = {
-            .width = *sw,
-            .height = *sh,
-            .pixels_argb = *spr_px,
-        };
-        if( hflip )
-            ToriDraw_SpriteFlipHorizontal(&tmp);
-        if( vflip )
-            ToriDraw_SpriteFlipVertical(&tmp);
-    }
-
-    if( angle_2d == 0 )
-        return;
-
-    double rad =
-        ((double)angle_2d * 2.0 * 3.141592653589793) / (double)INTERFACEX_SPRITE_ANGLE_SCALE;
-    double c = cos(rad);
-    double s = sin(rad);
-    int src_w = *sw;
-    int src_h = *sh;
-    int cx = src_w / 2;
-    int cy = src_h / 2;
-
-    int corners[4][2] = {
-        { -cx,            -cy            },
-        { src_w - 1 - cx, -cy            },
-        { -cx,            src_h - 1 - cy },
-        { src_w - 1 - cx, src_h - 1 - cy },
-    };
-    int min_x = 0;
-    int max_x = 0;
-    int min_y = 0;
-    int max_y = 0;
-    for( int i = 0; i < 4; i++ )
-    {
-        int rx = (int)lround((double)corners[i][0] * c - (double)corners[i][1] * s);
-        int ry = (int)lround((double)corners[i][0] * s + (double)corners[i][1] * c);
-        if( i == 0 )
-        {
-            min_x = max_x = rx;
-            min_y = max_y = ry;
-        }
-        else
-        {
-            if( rx < min_x )
-                min_x = rx;
-            if( rx > max_x )
-                max_x = rx;
-            if( ry < min_y )
-                min_y = ry;
-            if( ry > max_y )
-                max_y = ry;
-        }
-    }
-
-    int dst_w = max_x - min_x + 1;
-    int dst_h = max_y - min_y + 1;
-    if( dst_w <= 0 || dst_h <= 0 )
-        return;
-
-    uint32_t* dst = calloc((size_t)dst_w * (size_t)dst_h, sizeof(uint32_t));
-    if( !dst )
-        return;
-
-    uint32_t const* src = *spr_px;
-    for( int dy = 0; dy < dst_h; dy++ )
-    {
-        for( int dx = 0; dx < dst_w; dx++ )
-        {
-            double lx = (double)(dx + min_x);
-            double ly = (double)(dy + min_y);
-            int sx = (int)lround(lx * c + ly * s) + cx;
-            int sy = (int)lround(-lx * s + ly * c) + cy;
-            if( sx >= 0 && sx < src_w && sy >= 0 && sy < src_h )
-                dst[dx + dy * dst_w] = src[sx + sy * src_w];
-        }
-    }
-
-    free(*spr_px);
-    *spr_px = dst;
-    *sw = dst_w;
-    *sh = dst_h;
-}
-
 static struct ToriDraw_Sprite const*
 interface_x_scene_sprite_at(
     struct InterfaceX_VMHost* host,
@@ -9961,7 +9860,7 @@ InterfaceX_BlitCompassGraphic(
         mask_w,
         mask_h,
         node->angle_2d,
-        INTERFACEX_SPRITE_ANGLE_SCALE,
+        TORIDRAW_SPRITE_ANGLE_SCALE,
         node_alpha,
         pixels);
 }
@@ -10103,7 +10002,7 @@ InterfaceX_BlitSceneSprite(
     /* IF3: stretch nominal sprite to widget bounds (lw x lh). IF1: native-size blit below. */
     if( if3 && !tiling )
     {
-        interface_x_transform_sprite_pixels(&spr_px, &sw, &sh, hflip, vflip, 0);
+        ToriDraw_SpriteTransformPixels(&spr_px, &sw, &sh, hflip, vflip, 0);
 
         uint32_t* clamped =
             interface_x_sprite_clamp_to_nominal(spr_px, sw, sh, ox, oy, nominal_w, nominal_h);
@@ -10117,7 +10016,7 @@ InterfaceX_BlitSceneSprite(
             oy = 0;
         }
 
-        interface_x_transform_sprite_pixels(&spr_px, &sw, &sh, 0, 0, angle_2d);
+        ToriDraw_SpriteTransformPixels(&spr_px, &sw, &sh, 0, 0, angle_2d);
 
         int draw_w = lw > 0 ? lw : sw;
         int draw_h = lh > 0 ? lh : sh;
@@ -10125,7 +10024,7 @@ InterfaceX_BlitSceneSprite(
     }
     else
     {
-        interface_x_transform_sprite_pixels(&spr_px, &sw, &sh, hflip, vflip, angle_2d);
+        ToriDraw_SpriteTransformPixels(&spr_px, &sw, &sh, hflip, vflip, angle_2d);
 
         if( tiling )
             ToriDraw2D_BlitArgbTiled(
