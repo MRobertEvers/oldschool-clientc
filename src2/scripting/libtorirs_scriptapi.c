@@ -23,7 +23,6 @@
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/texture.h"
-#include "toriauxlib/core/tasks/task_dat2_config_meta_load.h"
 #include "toriauxlib/core/tasks/task_dat2_textures_load.h"
 #include "toriauxlib/core/tasks/task_instance_revconfig_load.h"
 #include "toriauxlib/c/toriauxlibcache.h"
@@ -54,12 +53,6 @@ static void
 ui_load_task_destroy(void* state)
 {
     Task_InstanceRevConfigLoad_Free(state);
-}
-
-static void
-dat2_config_meta_load_task_destroy(void* state)
-{
-    Task_Dat2ConfigMetaLoad_Free(state);
 }
 
 static void
@@ -520,20 +513,6 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
         task,
         Task_ToriAuxLibCache_WorldRebuildNormalCenterzone_Run,
         world_rebuild_normal_centerzone_task_destroy);
-
-    if( ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) == TORIAUXLIBCACHE_MODE_DAT2 )
-    {
-        struct Task_Dat2ConfigMetaLoad* meta_task =
-            Task_Dat2ConfigMetaLoad_New(ToriAuxLib_C(instance->toriauxlib));
-        if( meta_task )
-        {
-            LibToriRS_TasksAdd(
-                instance,
-                meta_task,
-                Task_Dat2ConfigMetaLoad_Run,
-                dat2_config_meta_load_task_destroy);
-        }
-    }
 
     {
         char const* config_files[2];

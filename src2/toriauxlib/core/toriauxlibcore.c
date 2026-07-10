@@ -1073,6 +1073,7 @@ ToriAuxLibCore_FontAdd(
     if( !map )
         return;
 
+    gamecache_prepare_hmap_insert(gamecache, map);
     struct MapEntry_Font* entry =
         (struct MapEntry_Font*)ToriDraw_MapSearch(map, &font_id, TORIDRAW_MAP_INSERT);
     if( !entry )
@@ -1138,6 +1139,7 @@ ToriAuxLibCore_ClientScriptAdd(
     if( !map )
         return;
 
+    gamecache_prepare_hmap_insert(gamecache, map);
     struct MapEntry_ClientScript* entry = (struct MapEntry_ClientScript*)ToriDraw_MapSearch(
         map, &script_id, TORIDRAW_MAP_INSERT);
     if( !entry )

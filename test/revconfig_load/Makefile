@@ -17,7 +17,6 @@ LDFLAGS = -Wl,-dead_strip
 
 SRCS = $(TEST_DIR)/main.c \
 	$(TEST_DIR)/stubs.c \
-	$(SRC2_DIR)/ioqueue/libtorirs_ioqueue.c \
 	$(SRC2_DIR)/platforms/platform_x_io_reactor.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/core_task.c \
 	$(SRC2_DIR)/revconfig/revconfig.c \

@@ -1,6 +1,12 @@
 #include "../src/osrs/rscache/rscache.u.c"
 #include "../src2/vm/cs2_opcode.h"
+#include "../src2/vm/cs2_opcode_meta.h"
 #include "bmp.h"
+#include "buildcache/dat2_buildcache_ui.h"
+#include "games/ie_enum_lookup.h"
+#include "games/ie_param_lookup.h"
+#include "games/ie_struct_lookup.h"
+#include "interfacex_host_io.h"
 #include "interfacex_opcode_stack.gen.h"
 #include "osrs/rscache/dat2a/dat2a_clientscript.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
@@ -11,6 +17,7 @@
 #include "toriauxlib/c/toriauxlibcache_font_convert.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
+#include "toriauxlib/td/toridraw_cachemodel.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_2d.h"
 #include "toridraw/toridraw_font.h"
@@ -398,6 +405,24 @@ struct UITreeXBuilder_PendingParent
     int parent_user_id;
 };
 
+enum InterfaceX_PendingAssetKind
+{
+    INTERFACEX_PENDING_GRAPHIC = 0,
+    INTERFACEX_PENDING_MODEL,
+    INTERFACEX_PENDING_FONT,
+    INTERFACEX_PENDING_OBJ_ICON,
+};
+
+struct InterfaceX_PendingAsset
+{
+    int node_idx;
+    enum InterfaceX_PendingAssetKind kind;
+    int id;
+    int id2;
+    int id3;
+    int id4;
+};
+
 struct UITreeXBuilder
 {
     struct UITreeXBuilder_ParentStack parent_stack[36];
@@ -407,6 +432,9 @@ struct UITreeXBuilder
 
     struct UITreeXBuilder_PendingParent pending_parents[MAX_NODES];
     int pending_parent_count;
+
+    struct InterfaceX_PendingAsset pending_assets[MAX_NODES];
+    int pending_asset_count;
 };
 
 void
@@ -595,6 +623,30 @@ UITreeXBuilder_ResolvePendingParents(struct UITreeXBuilder* builder)
 
         UITreeXBuilder_AppendChild(tree, parent_idx, child_idx);
     }
+}
+
+static void
+UITreeXBuilder_RecordPendingAsset(
+    struct UITreeXBuilder* builder,
+    int node_idx,
+    enum InterfaceX_PendingAssetKind kind,
+    int id,
+    int id2,
+    int id3,
+    int id4)
+{
+    assert(builder);
+    if( builder->pending_asset_count >= MAX_NODES )
+        return;
+
+    struct InterfaceX_PendingAsset* entry =
+        &builder->pending_assets[builder->pending_asset_count++];
+    entry->node_idx = node_idx;
+    entry->kind = kind;
+    entry->id = id;
+    entry->id2 = id2;
+    entry->id3 = id3;
+    entry->id4 = id4;
 }
 
 int
@@ -1133,6 +1185,32 @@ struct CS2VMXArray
 #define CS2_OP_CC_CHILDREN_FINDNEXTID 204
 #define CS2_OP_IF_CHILDREN_FIND 205
 #define CS2_OP_IF_CHILDREN_FINDNEXTID 206
+#define CS2_OP_CC_SETGRAPHIC2 1122
+#define CS2_OP_CC_SETTRANSBOT 1124
+#define CS2_OP_CC_SETFILLMODE 1125
+#define CS2_OP_CC_SETARC 1128
+#define CS2_OP_CC_SETPINCH 1308
+#define CS2_OP_CC_SETPLAYERMODEL_SELF 1203
+#define CS2_OP_CC_SETMODEL_PLAYERCHATHEAD 1204
+#define CS2_OP_IF_SETTRANSBOT 2124
+#define CS2_OP_IF_SETFILLMODE 2125
+#define CS2_OP_IF_SETARC 2128
+#define CS2_OP_IF_SETCLICKMASK 2308
+#define CS2_OP_IF_SETPINCH 2309
+#define CS2_OP_IF_SETMODEL_PLAYERCHATHEAD 2203
+#define CS2_OP_CC_INPUT_SETSUBMITMODE 7200
+#define CS2_OP_CC_INPUT_SETSELECTCOLOUR 7201
+#define CS2_OP_CC_INPUT_SETWRAPMODE 7202
+#define CS2_OP_CC_INPUT_SETLINEWRAPPINGWIDTH 7203
+#define CS2_OP_CC_INPUT_SETSELECTBGCOLOUR 7204
+#define CS2_OP_CC_INPUT_SETLINECOUNTLIMIT 7205
+#define CS2_OP_CC_INPUT_SETCURSORCOLOUR 7206
+#define CS2_OP_CC_INPUT_SETCURSORTRANS 7207
+#define CS2_OP_CC_INPUT_SETCURSORWIDTH 7208
+#define CS2_OP_CC_INPUT_SETCURSORHEIGHT 7209
+#define CS2_OP_CC_INPUT_SETCURSOROFFSET 7210
+#define CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT 7211
+#define CS2_OP_CC_INPUT_SETCHARFILTER 7212
 
 static void
 CS2VMX_ClearTraceExtra(void)
@@ -8148,12 +8226,6 @@ CS2VMX_RunScript(struct CS2VMX* vm)
     return CS2VM_EXECNO_ERROR;
 }
 
-struct MapEntry_ClientScript
-{
-    int id;
-    struct ToriAuxLibCore_ClientScript* script;
-};
-
 #define INTERFACEX_SCRIPT_QUEUE_MAX 8192
 #define INTERFACEX_INV_TRANSMIT_HOOK_MAX 32
 #define INTERFACEX_VAR_TRANSMIT_HOOK_MAX 32
@@ -8252,12 +8324,8 @@ struct InterfaceX_ObjType
 
 struct InterfaceX_VMHost
 {
-    struct ToriDraw_Map* scripts;
-
-    unsigned char scripts_buf[65536];
-    struct RSCacheDat2Disk* disk;
-    struct RSCacheDat2Disk_ReferenceTable* clientscript_table;
     struct ToriDraw_Scene* scene;
+    struct InterfaceX_HostIO host_io;
 
     struct UITreeXBuilder* builder;
     struct UITreeX* tree;
@@ -8280,11 +8348,89 @@ struct InterfaceX_VMHost
     int varc_int[INTERFACEX_VARC_INT_MAX];
     char varc_string[INTERFACEX_VARC_STRING_MAX][INTERFACEX_VARC_STRING_LEN];
 
-    struct InterfaceX_ObjIconCacheEntry* obj_icon_cache;
-    struct InterfaceX_GraphicSceneCacheEntry* graphic_scene_cache;
     int next_scene_id;
     int client_clock;
+
+    bool has_pending_host_request;
+    struct CS2VM_HostRequest pending_host_request;
 };
+
+static void
+UITreeXBuilder_LoadPendingAssets(
+    struct InterfaceX_VMHost* host,
+    struct UITreeXBuilder* builder)
+{
+    assert(host);
+    assert(builder);
+
+    for( int i = 0; i < builder->pending_asset_count; i++ )
+    {
+        struct InterfaceX_PendingAsset const* pending = &builder->pending_assets[i];
+        if( pending->node_idx < 0 || pending->node_idx >= builder->tree->node_count )
+            continue;
+
+        struct UITreeXNode* node = &builder->tree->nodes[pending->node_idx];
+
+        switch( pending->kind )
+        {
+        case INTERFACEX_PENDING_GRAPHIC:
+        {
+            int scene_id = -1;
+            if( !InterfaceX_HostIO_GraphicSceneId(&host->host_io, pending->id, &scene_id) )
+                InterfaceX_HostIO_LoadGraphicScene(&host->host_io, pending->id, &scene_id);
+            if( scene_id >= 0 && node->kind == UITreeXNodeKind_RSGraphic )
+                UITreeX_NodeRSGraphicMut(node)->scene_id = scene_id;
+            break;
+        }
+        case INTERFACEX_PENDING_FONT:
+            InterfaceX_HostIO_LoadSceneFont(&host->host_io, pending->id);
+            break;
+        case INTERFACEX_PENDING_MODEL:
+        {
+            if( node->kind == UITreeXNodeKind_RSModel )
+            {
+                int scene_id = InterfaceX_HostIO_LoadModelScene(
+                    &host->host_io,
+                    pending->id,
+                    pending->id2,
+                    pending->id3,
+                    pending->id4,
+                    node->w > 0 ? node->w : 32,
+                    node->h > 0 ? node->h : 32);
+                if( scene_id >= 0 )
+                    UITreeX_NodeModelMut(node)->scene_id = scene_id;
+            }
+            break;
+        }
+        case INTERFACEX_PENDING_OBJ_ICON:
+        {
+            int scene_id = -1;
+            if( !InterfaceX_HostIO_ObjIconSceneId(
+                    &host->host_io, pending->id, pending->id2, &scene_id) )
+                InterfaceX_HostIO_LoadObjIconScene(
+                    &host->host_io, pending->id, pending->id2, &scene_id);
+            if( scene_id >= 0 )
+            {
+                if( node->kind == UITreeXNodeKind_RSObj )
+                    UITreeX_NodeRSObjMut(node)->scene_id = scene_id;
+                else if( node->kind == UITreeXNodeKind_RSGraphic )
+                    UITreeX_NodeRSGraphicMut(node)->scene_id = scene_id;
+            }
+            break;
+        }
+        }
+    }
+}
+
+static int
+InterfaceX_VMHost_Yield(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest const* request);
+
+static int
+InterfaceX_VMHost_Load(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest const* request);
 
 static void
 InterfaceX_RasterModelNodeToCanvas(
@@ -8298,11 +8444,6 @@ static int
 InterfaceX_NormalizeModelItemZoom(
     int zoom2d,
     int widget_width);
-
-struct ToriAuxLibCore_ClientScript*
-InterfaceX_VMHost_ResolveScript(
-    struct InterfaceX_VMHost* host,
-    int script_id);
 
 static void
 CS2VMX_ResetRuntime(struct CS2VMX* vm);
@@ -8329,51 +8470,32 @@ InterfaceX_VMHost_QueueScript(
     int string_arg_count);
 
 static void
-InterfaceX_VMHost_QueueScriptHook(
+InterfaceX_VMHost_QueueCoreScriptHook(
     struct InterfaceX_VMHost* host,
     int component_id,
-    ComponentScriptVar const* hook,
-    int hook_len)
+    struct ToriAuxLibCore_ScriptHook const* hook)
 {
     assert(host);
 
-    if( !hook || hook_len <= 0 || hook[0].type != SCRIPT_VAR_INT )
+    if( !hook || hook->argc <= 0 )
         return;
 
-    int script_id = hook[0].value.i;
+    int script_id = hook->argv[0];
     if( script_id <= 0 )
         return;
 
-    int int_args[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX];
-    char const* string_args[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX];
-    char string_storage[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX][TORIAUXLIBCORE_COMPONENT_TEXT_MAX];
-    int int_arg_count = 0;
-    int string_arg_count = 0;
-
-    for( int i = 1; i < hook_len; i++ )
-    {
-        if( hook[i].type == SCRIPT_VAR_INT )
-        {
-            if( int_arg_count >= TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
-                continue;
-            int_args[int_arg_count++] = hook[i].value.i;
-        }
-        else if( hook[i].type == SCRIPT_VAR_STRING && hook[i].value.s )
-        {
-            if( string_arg_count >= TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
-                continue;
-            strncpy(
-                string_storage[string_arg_count],
-                hook[i].value.s,
-                sizeof(string_storage[string_arg_count]) - 1);
-            string_storage[string_arg_count][sizeof(string_storage[string_arg_count]) - 1] = '\0';
-            string_args[string_arg_count] = string_storage[string_arg_count];
-            string_arg_count++;
-        }
-    }
+    int int_arg_count = hook->argc - 1;
+    if( int_arg_count > TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
+        int_arg_count = TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX;
 
     InterfaceX_VMHost_QueueScript(
-        host, script_id, component_id, int_args, int_arg_count, string_args, string_arg_count);
+        host,
+        script_id,
+        component_id,
+        int_arg_count > 0 ? &hook->argv[1] : NULL,
+        int_arg_count,
+        NULL,
+        0);
 }
 
 static void
@@ -8388,20 +8510,10 @@ InterfaceX_InvContainerGet(
     bool create);
 
 static int
-InterfaceX_ResolveObjIconScene(
+InterfaceX_ResolveObjIconCountVariant(
     struct InterfaceX_VMHost* host,
     int obj_id,
     int count);
-
-static int
-InterfaceX_ResolveGraphicScene(
-    struct InterfaceX_VMHost* host,
-    int graphic_id);
-
-static struct ToriDraw_Font*
-InterfaceX_EnsureSceneFont(
-    struct InterfaceX_VMHost* host,
-    int font_id);
 
 static void
 InterfaceX_ModelNodeInvalidateScene(struct UITreeXNode* node);
@@ -9383,6 +9495,10 @@ UITreeX_ApplyComponentGeometry(
         node->u.rs_model.offset_y = component->model_y_offset;
         node->u.rs_model.orthog = component->model_orthog ? 1 : 0;
         node->u.rs_model.fixed_zoom = component->model_fixed_zoom ? 1 : 0;
+        node->u.rs_model.cache_short50 = component->model_cache_short50;
+        node->u.rs_model.cache_short49 = component->model_cache_short49;
+        node->u.rs_model.cache_an5957 = component->model_cache_an5957;
+        node->u.rs_model.cache_an5920 = component->model_cache_an5920;
         node->u.rs_model.scene_id = -1;
     }
     else if( node->kind == UITreeXNodeKind_RSLine )
@@ -9551,9 +9667,10 @@ InterfaceX_BlitCompassGraphic(
 
     int mask_scene = graphic->scene_id;
     if( mask_scene < 0 )
-        mask_scene = InterfaceX_ResolveGraphicScene(host, mask_id);
+        (void)InterfaceX_HostIO_GraphicSceneId(&host->host_io, mask_id, &mask_scene);
 
-    int content_scene = InterfaceX_ResolveGraphicScene(host, content_id);
+    int content_scene = -1;
+    (void)InterfaceX_HostIO_GraphicSceneId(&host->host_io, content_id, &content_scene);
     struct ToriDraw_Sprite const* mask_spr = interface_x_scene_sprite_at(host, mask_scene);
     struct ToriDraw_Sprite const* content_spr = interface_x_scene_sprite_at(host, content_scene);
     if( !mask_spr || !content_spr )
@@ -9829,7 +9946,7 @@ UITreeX_RenderNodeImpl(
             if( chosen_graphic == graphic->graphic_id && graphic->scene_id >= 0 )
                 scene_id = graphic->scene_id;
             else if( chosen_graphic >= 0 )
-                scene_id = InterfaceX_ResolveGraphicScene(host, chosen_graphic);
+                (void)InterfaceX_HostIO_GraphicSceneId(&host->host_io, chosen_graphic, &scene_id);
 
             if( scene_id < 0 )
                 goto render_children;
@@ -9903,7 +10020,8 @@ UITreeX_RenderNodeImpl(
             struct UITreeXNode_RSObj const* obj = UITreeX_NodeRSObj(node);
             int scene_id = obj->scene_id;
             if( scene_id < 0 )
-                scene_id = InterfaceX_ResolveObjIconScene(host, obj->obj_id, obj->obj_count);
+                (void)InterfaceX_HostIO_ObjIconSceneId(
+                    &host->host_io, obj->obj_id, obj->obj_count, &scene_id);
 
             if( scene_id >= 0 )
             {
@@ -10002,7 +10120,7 @@ UITreeX_RenderNodeImpl(
         if( font_id < 0 )
             font_id = 495;
 
-        struct ToriDraw_Font* font = InterfaceX_EnsureSceneFont(host, font_id);
+        struct ToriDraw_Font* font = InterfaceX_HostIO_SceneFontGet(&host->host_io, font_id);
         if( font )
         {
             struct ToriDraw_ViewPort view_port = InterfaceX_RenderViewPort();
@@ -10157,8 +10275,7 @@ component_decode_from_bytes(
 static int
 process_component(
     struct UITreeXBuilder* builder,
-    struct ToriAuxLibCore_Component* component,
-    RSCacheDat2A_Component const* raw_component)
+    struct ToriAuxLibCore_Component* component)
 {
     assert(builder);
     assert(component);
@@ -10197,28 +10314,40 @@ process_component(
     {
         UITreeX_ApplyComponentGeometry(&builder->tree->nodes[idx], component);
 
-        if( component->type == TORIAUXLIBCORE_COMPONENT_MODEL && raw_component )
-        {
-            struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(&builder->tree->nodes[idx]);
-            model->cache_short50 = raw_component->aShort50;
-            model->cache_short49 = raw_component->aShort49;
-            model->cache_an5957 = raw_component->anInt5957;
-            model->cache_an5920 = raw_component->anInt5920;
-        }
-
         if( component->type == TORIAUXLIBCORE_COMPONENT_GRAPHIC && !component->if3 &&
             component->scripts_count > 0 && component->script_comparator )
         {
             assert(!"interfacex: CS1 getIfActive evaluation is not supported");
         }
+
+        if( component->type == TORIAUXLIBCORE_COMPONENT_GRAPHIC && component->graphic >= 0 )
+        {
+            UITreeXBuilder_RecordPendingAsset(
+                builder, idx, INTERFACEX_PENDING_GRAPHIC, component->graphic, 0, 0, 0);
+        }
+        else if(
+            (component->type == TORIAUXLIBCORE_COMPONENT_TEXT ||
+             component->type == TORIAUXLIBCORE_COMPONENT_INV_TEXT) &&
+            component->font_id > 0 )
+        {
+            UITreeXBuilder_RecordPendingAsset(
+                builder, idx, INTERFACEX_PENDING_FONT, component->font_id, 0, 0, 0);
+        }
+        else if( component->type == TORIAUXLIBCORE_COMPONENT_MODEL && component->model_id > 0 )
+        {
+            UITreeXBuilder_RecordPendingAsset(
+                builder,
+                idx,
+                INTERFACEX_PENDING_MODEL,
+                component->model_id,
+                component->model_zoom > 0 ? component->model_zoom : 2000,
+                component->model_xan,
+                component->model_yan);
+        }
     }
 
     return idx;
 }
-
-/* Resolved-clientscript cache, keyed by script id. Complex onLoad hooks (e.g. the
- * bank's) gosub into dozens of distinct helper scripts, well past the old cap of 64. */
-#define HOST_SCRIPT_MAP_CAP 1024
 
 static struct InterfaceX_InvContainer*
 InterfaceX_InvContainerGet(
@@ -10380,119 +10509,6 @@ fail:
     return NULL;
 }
 
-static struct ToriDraw_Font*
-InterfaceX_EnsureSceneFont(
-    struct InterfaceX_VMHost* host,
-    int font_id)
-{
-    assert(host);
-    assert(host->scene);
-    assert(host->disk);
-    assert(font_id >= 0);
-
-    struct ToriDraw_Font* font = ToriDraw_SceneFontGet(host->scene, font_id);
-    if( font )
-        return font;
-
-    struct RSCacheDat2Disk_Archive* font_archive =
-        RSCacheDat2Disk_ArchiveNewLoad(host->disk, RSCacheDat2Disk_Table_Fonts, font_id);
-    if( !font_archive )
-        return NULL;
-
-    struct RSCacheDat2Disk_Archive* sprite_archive =
-        RSCacheDat2Disk_ArchiveNewLoad(host->disk, RSCacheDat2Disk_Table_Sprites, font_id);
-    if( !sprite_archive )
-    {
-        RSCacheDat2Disk_ArchiveFree(font_archive);
-        return NULL;
-    }
-
-    struct ToriAuxLibCore_Font* core =
-        ToriAuxLibCache_FontNewFromDat2Archives(font_archive, sprite_archive, font_id);
-    RSCacheDat2Disk_ArchiveFree(font_archive);
-    RSCacheDat2Disk_ArchiveFree(sprite_archive);
-    if( !core )
-        return NULL;
-
-    font = InterfaceX_FontNewFromCore(core);
-    ToriAuxLibCore_FontFree(core);
-    if( !font )
-        return NULL;
-
-    ToriDraw_SceneFontAdd(host->scene, font_id, font);
-    return font;
-}
-
-static int
-InterfaceX_ResolveGraphicScene(
-    struct InterfaceX_VMHost* host,
-    int graphic_id)
-{
-    assert(host);
-
-    if( graphic_id < 0 )
-        return -1;
-
-    for( struct InterfaceX_GraphicSceneCacheEntry* it = host->graphic_scene_cache; it;
-         it = it->next )
-    {
-        if( it->graphic_id == graphic_id )
-            return it->scene_id;
-    }
-
-    struct RSCacheDat2A_SpritePack* pack =
-        RSCacheDat2A_SpritePackNewFromCache(host->disk, graphic_id);
-    assert(pack && pack->count > 0 && pack->palette);
-
-    struct RSCacheDat2A_Sprite* frame = &pack->sprites[0];
-    int* spr_px = RSCacheDat2A_SpriteGetPixels(frame, pack->palette, 0);
-    int sw = frame->width;
-    int sh = frame->height;
-    int ox = frame->offset_x;
-    int oy = frame->offset_y;
-    RSCacheDat2A_SpritePackFree(pack);
-    assert(spr_px);
-    assert(sw > 0);
-    assert(sh > 0);
-
-    uint32_t* argb = malloc((size_t)sw * (size_t)sh * sizeof(uint32_t));
-    assert(argb);
-
-    for( int i = 0; i < sw * sh; i++ )
-        argb[i] = (uint32_t)spr_px[i];
-    free(spr_px);
-
-    struct ToriDraw_Sprite* spr = ToriDraw_SpriteNewFromArgbOwned(argb, sw, sh);
-    if( !spr )
-        return -1;
-
-    spr->crop_x = ox;
-    spr->crop_y = oy;
-
-    int scene_id = host->next_scene_id++;
-    struct ToriDraw_Sprite** sprites = calloc(1, sizeof(struct ToriDraw_Sprite*));
-    if( !sprites )
-    {
-        ToriDraw_SpriteFree(spr);
-        return -1;
-    }
-
-    sprites[0] = spr;
-    ToriDraw_SceneSpriteAdd(host->scene, scene_id, sprites, 1);
-
-    struct InterfaceX_GraphicSceneCacheEntry* entry =
-        calloc(1, sizeof(struct InterfaceX_GraphicSceneCacheEntry));
-    if( !entry )
-        return scene_id;
-
-    entry->graphic_id = graphic_id;
-    entry->scene_id = scene_id;
-    entry->next = host->graphic_scene_cache;
-    host->graphic_scene_cache = entry;
-
-    return scene_id;
-}
-
 static int
 InterfaceX_ResolveObjIconCountVariant(
     struct InterfaceX_VMHost* host,
@@ -10501,7 +10517,8 @@ InterfaceX_ResolveObjIconCountVariant(
 {
     assert(host);
 
-    struct RSCacheDat2A_ConfigObject* obj = InterfaceX_LoadObjConfig(host->disk, obj_id);
+    struct RSCacheDat2A_ConfigObject* obj =
+        dat2_buildcache_object_get(dat2(InterfaceX_HostIO_Cache(&host->host_io)), obj_id);
     if( !obj )
         return obj_id;
 
@@ -10518,123 +10535,7 @@ InterfaceX_ResolveObjIconCountVariant(
             resolved = countobj_id;
     }
 
-    RSCacheDat2A_ConfigObjectFree(obj);
     return resolved;
-}
-
-static int
-InterfaceX_ResolveObjIconScene(
-    struct InterfaceX_VMHost* host,
-    int obj_id,
-    int count)
-{
-    assert(host);
-    assert(obj_id >= 0);
-
-    int resolved_obj_id = InterfaceX_ResolveObjIconCountVariant(host, obj_id, count);
-
-    for( struct InterfaceX_ObjIconCacheEntry* it = host->obj_icon_cache; it; it = it->next )
-    {
-        if( it->obj_id == resolved_obj_id )
-            return it->scene_id;
-    }
-
-    struct RSCacheDat2A_ConfigObject* obj = InterfaceX_LoadObjConfig(host->disk, resolved_obj_id);
-    if( !obj )
-        return -1;
-
-    struct ToriAuxLibCore_Objtype* objtype =
-        ToriAuxLibCache_ObjtypeNewFromDat2ConfigObject(obj, resolved_obj_id);
-    RSCacheDat2A_ConfigObjectFree(obj);
-    if( !objtype || objtype->inventory_model_id <= 0 )
-    {
-        if( objtype )
-            ToriAuxLibCore_ObjtypeFree(objtype);
-        return -1;
-    }
-
-    struct RSCacheDat2A_Model* dat2a_model =
-        RSCacheDat2A_ModelNewFromCache(host->disk, objtype->inventory_model_id);
-    if( !dat2a_model )
-    {
-        ToriAuxLibCore_ObjtypeFree(objtype);
-        return -1;
-    }
-
-    struct ToriDraw_Model* td_model = ToriDraw_ModelNewFromCacheModel(dat2a_model);
-    RSCacheDat2A_ModelFree(dat2a_model);
-    if( !td_model )
-    {
-        ToriAuxLibCore_ObjtypeFree(objtype);
-        return -1;
-    }
-
-    if( objtype->resize_x != 128 || objtype->resize_y != 128 || objtype->resize_z != 128 )
-        ToriDraw_ModelScale(td_model, objtype->resize_x, objtype->resize_z, objtype->resize_y);
-
-    for( int i = 0; i < objtype->recolor_count; i++ )
-        ToriDraw_ModelRecolor(td_model, objtype->recolors_from[i], objtype->recolors_to[i]);
-
-    ToriDraw_ModelSetBoundsCylinder(td_model);
-
-    struct ToriDraw_ModelHandle hnd = {
-        .kind = TORIDRAWMK_MODEL,
-        .u.model.model = td_model,
-    };
-    ToriDraw_LightModelDefaultPreScaled(hnd, objtype->contrast, objtype->ambient);
-
-    int zoom = objtype->zoom2d;
-    if( zoom == 0 )
-        zoom = 2000;
-
-    struct ToriDraw_Sprite* spr = ToriDraw_SpriteNewFromObjIconRaster(
-        host->scene,
-        hnd,
-        zoom,
-        objtype->xan2d,
-        objtype->yan2d,
-        objtype->zan2d,
-        objtype->offset_x2d,
-        objtype->offset_y2d,
-        36,
-        32,
-        true);
-
-    ToriDraw_ModelFree(td_model);
-    ToriAuxLibCore_ObjtypeFree(objtype);
-
-    if( !spr )
-        return -1;
-
-    for( int i = 0; i < spr->width * spr->height; i++ )
-    {
-        if( spr->pixels_argb[i] != 0 && (spr->pixels_argb[i] >> 24) == 0 )
-            spr->pixels_argb[i] |= 0xFF000000u;
-    }
-
-    char filename[256];
-    snprintf(filename, sizeof(filename), "obj_icon_%d.bmp", resolved_obj_id);
-    if( g_interfacex_write_bmp )
-        ToriDraw_SpriteWriteBmpFile(spr, filename);
-
-    int scene_id = host->next_scene_id++;
-    struct ToriDraw_Sprite** sprites = calloc(1, sizeof(struct ToriDraw_Sprite*));
-    assert(sprites);
-
-    sprites[0] = spr;
-
-    ToriDraw_SceneSpriteAdd(host->scene, scene_id, sprites, 1);
-
-    struct InterfaceX_ObjIconCacheEntry* entry =
-        calloc(1, sizeof(struct InterfaceX_ObjIconCacheEntry));
-    assert(entry);
-
-    entry->obj_id = resolved_obj_id;
-    entry->scene_id = scene_id;
-    entry->next = host->obj_icon_cache;
-    host->obj_icon_cache = entry;
-
-    return scene_id;
 }
 
 static void
@@ -10712,89 +10613,39 @@ InterfaceX_RasterModelNodeToCanvas(
     if( model->model_id < 0 )
         return;
 
-    int model_id = model->model_id;
-    int zoom = model->zoom > 0 ? model->zoom : 2000;
-    /* OSRS only applies zoom*32/width for item model widgets (CC_SETOBJECT), not plain cache
-     * models. Plain models (e.g. portal nexus 19:5) keep cache modelZoom (1348) and center on the
-     * model node. */
-    if( model->item_id >= 0 )
+    if( model->scene_id >= 0 )
     {
-        if( node->w_mode != 0 && model->cache_an5957 > 0 )
-            zoom = InterfaceX_NormalizeModelItemZoom(zoom, model->cache_an5957);
-        else if( node->w > 0 )
-            zoom = InterfaceX_NormalizeModelItemZoom(zoom, node->w);
+        int sprite_count = 0;
+        struct ToriDraw_Sprite** sprites =
+            ToriDraw_SceneSpriteGet(host->scene, model->scene_id, &sprite_count);
+        if( sprites && sprite_count > 0 && sprites[0] && sprites[0]->pixels_argb )
+        {
+            struct ToriDraw_Sprite const* spr = sprites[0];
+            int sw = spr->width > 0 ? spr->width : 1;
+            int sh = spr->height > 0 ? spr->height : 1;
+            int bw = node->abs_w > 0 ? node->abs_w : sw;
+            int bh = node->abs_h > 0 ? node->abs_h : sh;
+            struct ToriDraw_ViewPort view_port = InterfaceX_RenderViewPort();
+            if( node_alpha >= 255 )
+            {
+                ToriDraw2D_BlitArgbScaled(
+                    &view_port, node->abs_x, node->abs_y, bw, bh, spr->pixels_argb, sw, sh, dest);
+            }
+            else
+            {
+                size_t pixel_count = (size_t)sw * (size_t)sh;
+                uint32_t* tmp = malloc(pixel_count * sizeof(uint32_t));
+                if( tmp )
+                {
+                    memcpy(tmp, spr->pixels_argb, pixel_count * sizeof(uint32_t));
+                    interface_x_scale_pixel_alpha(tmp, pixel_count, node_alpha);
+                    ToriDraw2D_BlitArgbScaled(
+                        &view_port, node->abs_x, node->abs_y, bw, bh, tmp, sw, sh, dest);
+                    free(tmp);
+                }
+            }
+        }
     }
-    int angle_x = model->angle_x;
-    int angle_y = model->angle_y;
-    int angle_z = model->angle_z;
-    int orientation = model->offset_x;
-    int model_offset = model->offset_y;
-    // int model_offset = 0;
-    int orthog = model->orthog ? 1 : 0;
-    int fixed_zoom = model->fixed_zoom ? 1 : 0;
-
-    struct RSCacheDat2A_Model* dat2a_model = RSCacheDat2A_ModelNewFromCache(host->disk, model_id);
-    if( !dat2a_model )
-        return;
-
-    struct ToriDraw_Model* td_model = ToriDraw_ModelNewFromCacheModel(dat2a_model);
-    RSCacheDat2A_ModelFree(dat2a_model);
-    if( !td_model )
-        return;
-
-    ToriDraw_ModelSetBoundsCylinder(td_model);
-
-    struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(
-        (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_MODEL, .u.model.model = td_model });
-    int model_center_y = 0;
-    if( model->item_id != -1 && bounds )
-        model_center_y = -bounds->min_y / 2;
-
-    struct ToriDraw_ModelHandle hnd = {
-        .kind = TORIDRAWMK_MODEL,
-        .u.model.model = td_model,
-    };
-    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
-
-    int draw_x = 0;
-    int draw_y = 0;
-    int sw = 0;
-    int sh = 0;
-    bool ok = ToriDraw_RenderModelExtentsAtWidget(
-        host->scene,
-        hnd,
-        zoom,
-        angle_x,
-        angle_y,
-        angle_z,
-        orientation,
-        model_offset,
-        model_center_y,
-        orthog != 0,
-        fixed_zoom != 0,
-        dest,
-        dest_stride,
-        CANVAS_W,
-        CANVAS_H,
-        node->abs_x,
-        node->abs_y,
-        node->abs_w,
-        node->abs_h,
-        g_render_clip_x0,
-        g_render_clip_y0,
-        g_render_clip_x1,
-        g_render_clip_y1,
-        &draw_x,
-        &draw_y,
-        &sw,
-        &sh);
-
-    ToriDraw_ModelFree(td_model);
-
-    if( !ok || sw <= 0 || sh <= 0 )
-        return;
-
-    interface_x_bake_model_raster_alpha(dest, dest_stride, draw_x, draw_y, sw, sh, node_alpha);
 }
 
 static int
@@ -10822,13 +10673,13 @@ InterfaceX_ApplyObjToModelNode(
         return false;
 
     int resolved_obj_id = InterfaceX_ResolveObjIconCountVariant(host, obj_id, count);
-    struct RSCacheDat2A_ConfigObject* obj = InterfaceX_LoadObjConfig(host->disk, resolved_obj_id);
+    struct RSCacheDat2A_ConfigObject* obj =
+        dat2_buildcache_object_get(dat2(InterfaceX_HostIO_Cache(&host->host_io)), resolved_obj_id);
     if( !obj )
         return false;
 
     struct ToriAuxLibCore_Objtype* objtype =
         ToriAuxLibCache_ObjtypeNewFromDat2ConfigObject(obj, resolved_obj_id);
-    RSCacheDat2A_ConfigObjectFree(obj);
     if( !objtype || objtype->inventory_model_id <= 0 )
     {
         if( objtype )
@@ -10884,7 +10735,17 @@ InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
         struct UITreeXNode_RSObj* obj = UITreeX_NodeRSObjMut(node);
         obj->obj_id = obj_id;
         obj->obj_count = count > 0 ? count : 1;
-        obj->scene_id = InterfaceX_ResolveObjIconScene(host, obj_id, count);
+        int scene_id = -1;
+        if( !InterfaceX_HostIO_ObjIconSceneId(&host->host_io, obj_id, count, &scene_id) )
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
+            req.u.cc_set_object.component_id = component_id;
+            req.u.cc_set_object.obj_id = obj_id;
+            req.u.cc_set_object.count = count;
+            return InterfaceX_VMHost_Yield(host, &req);
+        }
+        obj->scene_id = scene_id;
         break;
     }
     case UITreeXNodeKind_RSGraphic:
@@ -10892,7 +10753,17 @@ InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
         struct UITreeXNode_RSGraphic* graphic = UITreeX_NodeRSGraphicMut(node);
         graphic->graphic_id = obj_id;
         graphic->outline = 0;
-        graphic->scene_id = InterfaceX_ResolveObjIconScene(host, obj_id, count);
+        int scene_id = -1;
+        if( !InterfaceX_HostIO_ObjIconSceneId(&host->host_io, obj_id, count, &scene_id) )
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
+            req.u.cc_set_object.component_id = component_id;
+            req.u.cc_set_object.obj_id = obj_id;
+            req.u.cc_set_object.count = count;
+            return InterfaceX_VMHost_Yield(host, &req);
+        }
+        graphic->scene_id = scene_id;
         break;
     }
     case UITreeXNodeKind_RSModel:
@@ -11076,6 +10947,11 @@ InterfaceX_VMHost_DrainScriptQueue(
 }
 
 static int
+InterfaceX_VMHost_Load(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest const* request);
+
+static int
 InterfaceX_RunClientScript(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
@@ -11093,7 +10969,12 @@ InterfaceX_RunClientScript(
         return CS2VM_EXECNO_OK;
 
     struct ToriAuxLibCore_ClientScript* client_script =
-        InterfaceX_VMHost_ResolveScript(host, script_id);
+        InterfaceX_HostIO_ClientScriptGet(&host->host_io, script_id);
+    if( !client_script )
+    {
+        InterfaceX_HostIO_LoadClientScript(&host->host_io, script_id);
+        client_script = InterfaceX_HostIO_ClientScriptGet(&host->host_io, script_id);
+    }
     if( !client_script )
     {
         fprintf(stderr, "failed to resolve script: %d\n", script_id);
@@ -11138,6 +11019,14 @@ InterfaceX_RunClientScript(
                     (unsigned)component_id);
             return CS2VM_EXECNO_OK;
         case CS2VM_EXECNO_YIELD:
+            if( !host->has_pending_host_request )
+            {
+                fprintf(stderr, "CS2VM: yield without pending host request\n");
+                return CS2VM_EXECNO_ERROR;
+            }
+            if( InterfaceX_VMHost_Load(host, &host->pending_host_request) != 0 )
+                return CS2VM_EXECNO_ERROR;
+            host->has_pending_host_request = false;
             break;
         case CS2VM_EXECNO_ERROR:
             fprintf(
@@ -11171,23 +11060,6 @@ InterfaceX_VMHost_Init(struct InterfaceX_VMHost* host)
 {
     assert(host);
 
-    int entry_size = (int)sizeof(struct MapEntry_ClientScript);
-    int buffer_size = ToriDraw_MapBufferSizeFor(entry_size, HOST_SCRIPT_MAP_CAP);
-    if( buffer_size > (int)sizeof(host->scripts_buf) )
-        return false;
-
-    struct ToriDraw_MapConfig config = {
-        .buffer = host->scripts_buf,
-        .buffer_size = (size_t)buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = (size_t)entry_size,
-        .capacity = HOST_SCRIPT_MAP_CAP,
-    };
-
-    host->scripts = ToriDraw_MapNew(&config, 0);
-    if( !host->scripts )
-        return false;
-
     host->script_queue =
         calloc((size_t)INTERFACEX_SCRIPT_QUEUE_MAX, sizeof(struct InterfaceX_ScriptQueueEntry));
     if( !host->script_queue )
@@ -11206,44 +11078,103 @@ InterfaceX_VMHost_ClientClock(struct CS2VMX* vm)
     return CS2VMX_PushInt(vm, clock);
 }
 
-struct ToriAuxLibCore_ClientScript*
-InterfaceX_VMHost_ResolveScript(
+static int
+InterfaceX_NodeIsGraphicKind(struct UITreeXNode const* node);
+
+static int
+InterfaceX_VMHost_Yield(
     struct InterfaceX_VMHost* host,
-    int script_id)
+    struct CS2VM_HostRequest const* request)
 {
     assert(host);
-    assert(script_id >= 0);
+    assert(request);
+    host->pending_host_request = *request;
+    host->has_pending_host_request = true;
+    return CS2VM_EXECNO_YIELD;
+}
 
-    struct MapEntry_ClientScript* entry =
-        ToriDraw_MapSearch(host->scripts, &script_id, TORIDRAW_MAP_FIND);
+static int
+InterfaceX_VMHost_Load(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest const* request)
+{
+    assert(host);
+    assert(request);
 
-    struct RSCacheDat2Disk_Archive* archive =
-        RSCacheDat2Disk_ArchiveNewLoad(host->disk, RSCacheDat2Disk_Table_Clientscript, script_id);
-    if( !archive )
-        return NULL;
-
-    RSCacheDat2Disk_ArchiveInitMetadataFromTable(host->clientscript_table, archive);
-
-    struct ToriAuxLibCore_ClientScript* loaded = ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
-        archive, script_id, CLIENTSCRIPT_DECODE_TRAILER_LEGACY);
-    if( !loaded )
+    switch( request->kind )
     {
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return NULL;
-    }
-
-    entry = ToriDraw_MapSearch(host->scripts, &script_id, TORIDRAW_MAP_INSERT);
-    if( !entry )
+    case CS2VM_HOST_REQUEST_PUSHSCRIPT:
+        InterfaceX_HostIO_LoadClientScript(&host->host_io, request->u.push_script.script_id);
+        return 0;
+    case CS2VM_HOST_REQUEST_PARAHEIGHT:
+    case CS2VM_HOST_REQUEST_PARAWIDTH:
+        InterfaceX_HostIO_LoadSceneFont(&host->host_io, request->u.para_height.font_id);
+        return 0;
+    case CS2VM_HOST_REQUEST_CC_SETGRAPHIC:
+    case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
     {
-        ToriAuxLibCore_ClientScriptFree(loaded);
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return NULL;
+        struct UITreeXNode* node =
+            UITreeX_NodeByComponentId(host, request->u.cc_set_graphic.component_id);
+        if( node && InterfaceX_NodeIsGraphicKind(node) )
+        {
+            int scene_id = -1;
+            InterfaceX_HostIO_LoadGraphicScene(
+                &host->host_io, request->u.cc_set_graphic.graphic_id, &scene_id);
+        }
+        return 0;
     }
-
-    entry->id = script_id;
-    entry->script = loaded;
-
-    return loaded;
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT:
+    {
+        int scene_id = -1;
+        InterfaceX_HostIO_LoadObjIconScene(
+            &host->host_io,
+            request->u.cc_set_object.obj_id,
+            request->u.cc_set_object.count,
+            &scene_id);
+        return 0;
+    }
+    case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
+        InterfaceX_HostIO_LoadConfigEntry(
+            &host->host_io, RSCacheDat2A_ConfigKind_Enum, request->u.enum_lookup.enum_id);
+        return 0;
+    case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
+        InterfaceX_HostIO_LoadConfigEntry(
+            &host->host_io,
+            RSCacheDat2A_ConfigKind_Enum,
+            request->u.enum_get_output_count.enum_id);
+        return 0;
+    case CS2VM_HOST_REQUEST_STRUCT_PARAM:
+        InterfaceX_HostIO_LoadConfigEntry(
+            &host->host_io, RSCacheDat2A_ConfigKind_Struct, request->u.struct_param.struct_id);
+        InterfaceX_HostIO_LoadConfigEntry(
+            &host->host_io, RSCacheDat2A_ConfigKind_Params, request->u.struct_param.param_id);
+        return 0;
+    case CS2VM_HOST_REQUEST_OC_PARAM:
+        InterfaceX_HostIO_LoadObjectConfig(&host->host_io, request->u.oc_param.item_id);
+        InterfaceX_HostIO_LoadConfigEntry(
+            &host->host_io, RSCacheDat2A_ConfigKind_Params, request->u.oc_param.param_id);
+        return 0;
+    case CS2VM_HOST_REQUEST_OC_NAME:
+        InterfaceX_HostIO_LoadObjectConfig(&host->host_io, request->u.oc_name.item_id);
+        return 0;
+    case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
+        InterfaceX_HostIO_LoadObjectConfig(&host->host_io, request->u.oc_unplaceholder.item_id);
+        return 0;
+    case CS2VM_HOST_REQUEST_OC_INT_PARAM:
+        InterfaceX_HostIO_LoadObjectConfig(&host->host_io, request->u.oc_int_param.item_id);
+        return 0;
+    case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
+        InterfaceX_HostIO_LoadSceneFont(&host->host_io, request->u.cc_set_text_font.font_id);
+        return 0;
+    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
+    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
+        InterfaceX_HostIO_LoadModel(&host->host_io, request->u.widget_set_model.model_id);
+        return 0;
+    default:
+        fprintf(stderr, "InterfaceX_VMHost_Load: unhandled kind %d\n", (int)request->kind);
+        return -1;
+    }
 }
 
 int
@@ -11256,11 +11187,13 @@ InterfaceX_VMHost_Exec_PushScript(
     assert(host->builder);
     struct ToriAuxLibCore_ClientScript* cs;
 
-    cs = InterfaceX_VMHost_ResolveScript(host, script_id);
+    cs = InterfaceX_HostIO_ClientScriptGet(&host->host_io, script_id);
     if( !cs )
     {
-        fprintf(stderr, "failed to resolve script for push: %d\n", script_id);
-        return CS2VM_EXECNO_ERROR;
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_PUSHSCRIPT;
+        req.u.push_script.script_id = script_id;
+        return InterfaceX_VMHost_Yield(host, &req);
     }
 
     return CS2VMX_PushCallScript(vm, &cs->script);
@@ -11369,9 +11302,16 @@ InterfaceX_VMHost_Exec_ParaHeight(
     char const* text = request.text ? request.text : "";
     if( text[0] != '\0' )
     {
-        struct ToriDraw_Font* font = InterfaceX_EnsureSceneFont(host, request.font_id);
-        if( font )
-            lines = ToriDraw2D_WrapLineCount(font, text, request.max_width);
+        struct ToriDraw_Font* font =
+            InterfaceX_HostIO_SceneFontGet(&host->host_io, request.font_id);
+        if( !font )
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_PARAHEIGHT;
+            req.u.para_height = request;
+            return InterfaceX_VMHost_Yield(host, &req);
+        }
+        lines = ToriDraw2D_WrapLineCount(font, text, request.max_width);
     }
 
     CS2VMX_PushInt(vm, lines);
@@ -11391,9 +11331,16 @@ InterfaceX_VMHost_Exec_ParaWidth(
     char const* text = request.text ? request.text : "";
     if( text[0] != '\0' )
     {
-        struct ToriDraw_Font* font = InterfaceX_EnsureSceneFont(host, request.font_id);
-        if( font )
-            width = ToriDraw2D_WrapMaxLineWidth(font, text, request.max_width);
+        struct ToriDraw_Font* font =
+            InterfaceX_HostIO_SceneFontGet(&host->host_io, request.font_id);
+        if( !font )
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_PARAWIDTH;
+            req.u.para_height = request;
+            return InterfaceX_VMHost_Yield(host, &req);
+        }
+        width = ToriDraw2D_WrapMaxLineWidth(font, text, request.max_width);
     }
 
     CS2VMX_PushInt(vm, width);
@@ -11519,17 +11466,25 @@ InterfaceX_VMHost_Exec_EnumLookup(
     assert(host);
     assert(vm);
 
+    struct Dat2BuildCache* bc = dat2(InterfaceX_HostIO_Cache(&host->host_io));
+
+    if( !dat2_buildcache_enum_get(bc, request.enum_id) )
+        return InterfaceX_VMHost_Yield(
+            host,
+            &(struct CS2VM_HostRequest){
+                .kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP,
+                .u.enum_lookup = request,
+            });
+
     if( request.output_type == (int)'s' )
     {
-        char const* value = InterfaceX_EnumLookupString(
-            host->disk, request.input_type, request.output_type, request.enum_id, request.key);
+        char const* value = ie_enum_lookup_string(
+            bc, request.input_type, request.output_type, request.enum_id, request.key);
         return CS2VMX_PushStr(vm, strdup(value ? value : "null"));
     }
 
-    int value = -1;
-    if( host->disk )
-        value = InterfaceX_EnumLookup(
-            host->disk, request.input_type, request.output_type, request.enum_id, request.key);
+    int value =
+        ie_enum_lookup(bc, request.input_type, request.output_type, request.enum_id, request.key);
 
     CS2VMX_PushInt(vm, value);
     return CS2VM_EXECNO_OK;
@@ -11544,9 +11499,17 @@ InterfaceX_VMHost_Exec_EnumGetOutputCount(
     assert(host);
     assert(vm);
 
-    int count = 0;
-    if( host->disk )
-        count = InterfaceX_EnumOutputCount(host->disk, request.enum_id);
+    struct Dat2BuildCache* bc = dat2(InterfaceX_HostIO_Cache(&host->host_io));
+
+    if( !dat2_buildcache_enum_get(bc, request.enum_id) )
+        return InterfaceX_VMHost_Yield(
+            host,
+            &(struct CS2VM_HostRequest){
+                .kind = CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT,
+                .u.enum_get_output_count = request,
+            });
+
+    int count = ie_enum_output_count(bc, request.enum_id);
 
     CS2VMX_PushInt(vm, count);
     return CS2VM_EXECNO_OK;
@@ -12102,11 +12065,12 @@ InterfaceX_NodeIsGraphicKind(struct UITreeXNode const* node)
 }
 
 /* OSRS sets Widget.spriteId on any type; only type-5 widgets draw sprites. */
-static void
+static int
 InterfaceX_NodeStoreGraphicId(
     struct InterfaceX_VMHost* host,
     struct UITreeXNode* node,
-    int graphic_id)
+    int graphic_id,
+    int component_id)
 {
     assert(host);
     assert(node);
@@ -12116,10 +12080,23 @@ InterfaceX_NodeStoreGraphicId(
     if( InterfaceX_NodeIsGraphicKind(node) )
     {
         if( graphic_id >= 0 )
-            graphic->scene_id = InterfaceX_ResolveGraphicScene(host, graphic_id);
+        {
+            int scene_id = -1;
+            if( !InterfaceX_HostIO_GraphicSceneId(&host->host_io, graphic_id, &scene_id) )
+            {
+                struct CS2VM_HostRequest req = { 0 };
+                req.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHIC;
+                req.u.cc_set_graphic.component_id = component_id;
+                req.u.cc_set_graphic.graphic_id = graphic_id;
+                return InterfaceX_VMHost_Yield(host, &req);
+            }
+            graphic->scene_id = scene_id;
+        }
         else
             graphic->scene_id = -1;
     }
+
+    return CS2VM_EXECNO_OK;
 }
 
 int
@@ -12742,7 +12719,8 @@ InterfaceX_VMHost_Exec_CC_Create(
         {
             struct UITreeXNode_RSGraphic const* parent_graphic = UITreeX_NodeRSGraphic(parent_node);
             if( parent_graphic->graphic_id >= 0 )
-                InterfaceX_NodeStoreGraphicId(host, node, parent_graphic->graphic_id);
+                InterfaceX_NodeStoreGraphicId(
+                    host, node, parent_graphic->graphic_id, node->user_id);
             UITreeX_NodeRSGraphicMut(node)->outline = parent_graphic->outline;
             UITreeX_NodeRSGraphicMut(node)->graphic_shadow = parent_graphic->graphic_shadow;
         }
@@ -12891,8 +12869,7 @@ InterfaceX_VMHost_Exec_CC_SetGraphic(
     if( !node )
         return CS2VM_EXECNO_OK;
 
-    InterfaceX_NodeStoreGraphicId(host, node, request.graphic_id);
-    return CS2VM_EXECNO_OK;
+    return InterfaceX_NodeStoreGraphicId(host, node, request.graphic_id, request.component_id);
 }
 
 int
@@ -13464,11 +13441,18 @@ InterfaceX_VMHost_Exec_StructParam(
     int intval = 0;
     char const* strval = NULL;
     bool found = false;
-    if( host->disk )
+    struct Dat2BuildCache* bc = dat2(InterfaceX_HostIO_Cache(&host->host_io));
+    if( !dat2_buildcache_struct_get(bc, request.struct_id) )
     {
-        found = InterfaceX_StructParamLookup(
-            host->disk, request.struct_id, request.param_id, &is_string, &intval, &strval);
+        return InterfaceX_VMHost_Yield(
+            host,
+            &(struct CS2VM_HostRequest){
+                .kind = CS2VM_HOST_REQUEST_STRUCT_PARAM,
+                .u.struct_param = request,
+            });
     }
+    found = ie_struct_param_lookup(
+        bc, request.struct_id, request.param_id, &is_string, &intval, &strval);
 
     if( found && is_string )
         return CS2VMX_PushStr(vm, strdup(strval ? strval : ""));
@@ -13585,7 +13569,16 @@ InterfaceX_VMHost_Exec_OC_IntParam(
     assert(vm);
 
     struct RSCacheDat2A_ConfigObject* obj =
-        host->disk ? InterfaceX_LoadObjConfig(host->disk, request.item_id) : NULL;
+        dat2_buildcache_object_get(dat2(InterfaceX_HostIO_Cache(&host->host_io)), request.item_id);
+    if( !obj )
+    {
+        return InterfaceX_VMHost_Yield(
+            host,
+            &(struct CS2VM_HostRequest){
+                .kind = CS2VM_HOST_REQUEST_OC_INT_PARAM,
+                .u.oc_int_param = request,
+            });
+    }
     int value = 0;
     if( obj )
     {
@@ -13604,7 +13597,6 @@ InterfaceX_VMHost_Exec_OC_IntParam(
             value = obj->_id;
             break;
         }
-        RSCacheDat2A_ConfigObjectFree(obj);
     }
     return CS2VMX_PushInt(vm, value);
 }
@@ -14295,48 +14287,64 @@ InterfaceX_VMHost_Exec_OC_Param(
 
     struct InterfaceX_ParamType param;
     bool have_param = false;
-    struct InterfaceX_ObjType* obj = NULL;
-    struct InterfaceX_ObjTypeParam* val = NULL;
 
-    if( host->disk )
+    struct Dat2BuildCache* bc = dat2(InterfaceX_HostIO_Cache(&host->host_io));
+
+    struct RSCacheDat2A_ConfigObject* decoded = dat2_buildcache_object_get(bc, request.item_id);
+    if( !decoded )
     {
-        have_param = InterfaceX_LoadParamType(host->disk, request.param_id, &param);
-        obj = InterfaceX_LoadObjType(host->disk, request.item_id);
-        val = obj ? InterfaceX_ObjTypeParamGet(obj, request.param_id) : NULL;
+        return InterfaceX_VMHost_Yield(
+            host,
+            &(struct CS2VM_HostRequest){
+                .kind = CS2VM_HOST_REQUEST_OC_PARAM,
+                .u.oc_param = request,
+            });
     }
 
-    if( have_param && obj && obj->params && obj->param_count > 0 )
+    if( !dat2_buildcache_param_get(bc, request.param_id) )
     {
-        if( param.is_string )
-        {
-            char const* pushed = "";
-            if( val && val->is_string && val->str_value )
-                pushed = val->str_value;
-            else if( param.default_string )
-                pushed = param.default_string;
-            CS2VMX_PushStr(vm, (char*)pushed);
-        }
-        else
-        {
-            int pushed = param.default_int;
-            if( val && !val->is_string )
-                pushed = val->int_value;
-            CS2VMX_PushInt(vm, pushed);
-        }
+        return InterfaceX_VMHost_Yield(
+            host,
+            &(struct CS2VM_HostRequest){
+                .kind = CS2VM_HOST_REQUEST_OC_PARAM,
+                .u.oc_param = request,
+            });
+    }
+
+    have_param = ie_param_is_string(bc, request.param_id);
+    if( have_param )
+    {
+        param.is_string = true;
+        param.default_string = ie_param_default_string(bc, request.param_id);
     }
     else
     {
-        if( have_param && param.is_string )
+        param.is_string = false;
+        param.default_int = ie_param_default_int(bc, request.param_id);
+    }
+
+    if( decoded->params.count > 0 )
+    {
+        for( int i = 0; i < decoded->params.count; i++ )
         {
-            CS2VMX_PushStr(vm, param.default_string ? param.default_string : (char*)"");
-        }
-        else
-        {
-            CS2VMX_PushInt(vm, have_param ? param.default_int : 0);
+            if( decoded->params.keys[i] != request.param_id )
+                continue;
+            if( decoded->params.is_string[i] )
+            {
+                char const* pushed = decoded->params.values[i]
+                                         ? (char const*)decoded->params.values[i]
+                                         : (param.default_string ? param.default_string : "");
+                return CS2VMX_PushStr(vm, (char*)pushed);
+            }
+            int pushed =
+                decoded->params.values[i] ? *(int*)decoded->params.values[i] : param.default_int;
+            return CS2VMX_PushInt(vm, pushed);
         }
     }
 
-    return CS2VM_EXECNO_OK;
+    if( have_param && param.is_string )
+        return CS2VMX_PushStr(vm, param.default_string ? param.default_string : (char*)"");
+    return CS2VMX_PushInt(vm, have_param ? param.default_int : 0);
 }
 
 int
@@ -14349,11 +14357,19 @@ InterfaceX_VMHost_Exec_OC_Name(
     assert(vm);
 
     char* name = strdup("null");
-    struct RSCacheDat2A_ConfigObject* obj = InterfaceX_LoadObjConfig(host->disk, request.item_id);
-    assert(obj);
+    struct RSCacheDat2A_ConfigObject* obj =
+        dat2_buildcache_object_get(dat2(InterfaceX_HostIO_Cache(&host->host_io)), request.item_id);
+    if( !obj )
+    {
+        return InterfaceX_VMHost_Yield(
+            host,
+            &(struct CS2VM_HostRequest){
+                .kind = CS2VM_HOST_REQUEST_OC_NAME,
+                .u.oc_name = request,
+            });
+    }
     if( obj->name && obj->name[0] != '\0' )
         name = strdup(obj->name);
-    RSCacheDat2A_ConfigObjectFree(obj);
     return CS2VMX_PushStr(vm, name);
 }
 
@@ -14367,16 +14383,23 @@ InterfaceX_VMHost_Exec_OC_Unplaceholder(
     assert(vm);
 
     int result = request.item_id;
-    if( request.item_id <= 0 || !host->disk )
+    if( request.item_id <= 0 )
         return CS2VMX_PushInt(vm, result);
 
-    struct RSCacheDat2A_ConfigObject* obj = InterfaceX_LoadObjConfig(host->disk, request.item_id);
-    if( obj )
+    struct RSCacheDat2A_ConfigObject* obj =
+        dat2_buildcache_object_get(dat2(InterfaceX_HostIO_Cache(&host->host_io)), request.item_id);
+    if( !obj )
     {
-        if( obj->placeholder_template_id >= 0 && obj->placeholder_id >= 0 )
-            result = obj->placeholder_id;
-        RSCacheDat2A_ConfigObjectFree(obj);
+        return InterfaceX_VMHost_Yield(
+            host,
+            &(struct CS2VM_HostRequest){
+                .kind = CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER,
+                .u.oc_unplaceholder = request,
+            });
     }
+
+    if( obj->placeholder_template_id >= 0 && obj->placeholder_id >= 0 )
+        result = obj->placeholder_id;
 
     return CS2VMX_PushInt(vm, result);
 }
@@ -14950,32 +14973,12 @@ struct InterfaceX_LoadedInterface
     int interface_id;
     int component_count;
     struct ToriAuxLibCore_Component** components;
-    RSCacheDat2A_Component** raw_components;
 };
 
 static int
 process_component(
     struct UITreeXBuilder* builder,
-    struct ToriAuxLibCore_Component* component,
-    RSCacheDat2A_Component const* raw_component);
-
-static int
-InterfaceX_CompanionInterfaceCount(int interface_id)
-{
-    if( interface_id == 17 )
-        return 1;
-    return 0;
-}
-
-static int
-InterfaceX_CompanionInterfaceId(
-    int interface_id,
-    int index)
-{
-    if( interface_id == 17 && index == 0 )
-        return 162;
-    return -1;
-}
+    struct ToriAuxLibCore_Component* component);
 
 static bool
 InterfaceX_LoadInterfaceComponents(
@@ -15021,12 +15024,9 @@ InterfaceX_LoadInterfaceComponents(
 
     loaded->component_count = file_list->file_count;
     loaded->components = calloc(file_list->file_count, sizeof(struct ToriAuxLibCore_Component*));
-    loaded->raw_components = calloc(file_list->file_count, sizeof(RSCacheDat2A_Component*));
-    if( !loaded->components || !loaded->raw_components )
+    if( !loaded->components )
     {
         fprintf(stderr, "failed to allocate component arrays: %d\n", interface_id);
-        free(loaded->components);
-        free(loaded->raw_components);
         RSCacheShared_FileListFree(file_list);
         RSCacheDat2Disk_ArchiveFree(archive);
         return false;
@@ -15045,10 +15045,9 @@ InterfaceX_LoadInterfaceComponents(
             return false;
         }
 
-        loaded->raw_components[i] = component;
-
         struct ToriAuxLibCore_Component* component_core =
             ToriAuxLibCache_ComponentNewFromCacheDat2Component(component);
+        RSCacheDat2A_ComponentFree(component);
         if( !component_core )
         {
             fprintf(stderr, "failed to create component core: %d (file %d)\n", interface_id, i);
@@ -15058,14 +15057,135 @@ InterfaceX_LoadInterfaceComponents(
         }
 
         loaded->components[i] = component_core;
+        process_component(builder, component_core);
     }
-
-    for( int i = 0; i < file_list->file_count; i++ )
-        process_component(builder, loaded->components[i], loaded->raw_components[i]);
 
     RSCacheShared_FileListFree(file_list);
     RSCacheDat2Disk_ArchiveFree(archive);
     return true;
+}
+
+static void
+prefetch_collect_script_id(
+    int script_id,
+    int** script_ids,
+    int* script_count,
+    int* script_cap)
+{
+    if( script_id < 0 )
+        return;
+
+    for( int j = 0; j < *script_count; j++ )
+    {
+        if( (*script_ids)[j] == script_id )
+            return;
+    }
+
+    if( *script_count >= *script_cap )
+    {
+        int new_cap = *script_cap < 8 ? 8 : *script_cap * 2;
+        int* grown = realloc(*script_ids, (size_t)new_cap * sizeof(int));
+        if( !grown )
+            return;
+        *script_ids = grown;
+        *script_cap = new_cap;
+    }
+
+    (*script_ids)[(*script_count)++] = script_id;
+}
+
+static void
+prefetch_collect_core_hook_script_id(
+    struct ToriAuxLibCore_ScriptHook const* hook,
+    int** script_ids,
+    int* script_count,
+    int* script_cap)
+{
+    if( !hook || hook->argc <= 0 )
+        return;
+
+    prefetch_collect_script_id(hook->argv[0], script_ids, script_count, script_cap);
+}
+
+static void
+InterfaceX_PrefetchOnLoadScripts(
+    struct InterfaceX_VMHost* host,
+    struct InterfaceX_LoadedInterface const* loaded)
+{
+    assert(host);
+    assert(loaded);
+
+    int* script_ids = NULL;
+    int script_count = 0;
+    int script_cap = 0;
+
+    for( int i = 0; i < loaded->component_count; i++ )
+    {
+        struct ToriAuxLibCore_Component* component = loaded->components[i];
+        if( !component )
+            continue;
+        prefetch_collect_core_hook_script_id(
+            &component->on_load, &script_ids, &script_count, &script_cap);
+    }
+
+    if( script_count > 0 )
+        InterfaceX_HostIO_LoadClientScripts(&host->host_io, script_ids, script_count);
+
+    free(script_ids);
+}
+
+static void
+InterfaceX_PrefetchOnVarTransmitScripts(
+    struct InterfaceX_VMHost* host,
+    struct InterfaceX_LoadedInterface const* loaded)
+{
+    assert(host);
+    assert(loaded);
+
+    int* script_ids = NULL;
+    int script_count = 0;
+    int script_cap = 0;
+
+    for( int i = 0; i < loaded->component_count; i++ )
+    {
+        struct ToriAuxLibCore_Component* component = loaded->components[i];
+        if( !component || component->varp_triggers_count <= 0 )
+            continue;
+        prefetch_collect_core_hook_script_id(
+            &component->on_varp_transmit, &script_ids, &script_count, &script_cap);
+    }
+
+    if( script_count > 0 )
+        InterfaceX_HostIO_LoadClientScripts(&host->host_io, script_ids, script_count);
+
+    free(script_ids);
+}
+
+static void
+InterfaceX_PrefetchOnInvTransmitScripts(
+    struct InterfaceX_VMHost* host,
+    struct InterfaceX_LoadedInterface const* loaded)
+{
+    assert(host);
+    assert(loaded);
+
+    int* script_ids = NULL;
+    int script_count = 0;
+    int script_cap = 0;
+
+    for( int i = 0; i < loaded->component_count; i++ )
+    {
+        struct ToriAuxLibCore_Component* component = loaded->components[i];
+        if( !component )
+            continue;
+        prefetch_collect_core_hook_script_id(
+            &component->on_inv_transmit, &script_ids, &script_count, &script_cap);
+    }
+
+    if( script_count > 0 )
+        InterfaceX_HostIO_LoadClientScripts(&host->host_io, script_ids, script_count);
+
+    free(script_ids);
 }
 
 static void
@@ -15078,15 +15198,11 @@ InterfaceX_QueueInterfaceOnLoadScripts(
 
     for( int i = 0; i < loaded->component_count; i++ )
     {
-        struct ToriAuxLibCore_Component* component_core = loaded->components[i];
-        RSCacheDat2A_Component* component = loaded->raw_components[i];
-        if( !component_core || !component )
-            continue;
-        if( component->onLoadLen <= 0 || !component->onLoad )
+        struct ToriAuxLibCore_Component* component = loaded->components[i];
+        if( !component || component->on_load.argc <= 0 )
             continue;
 
-        InterfaceX_VMHost_QueueScriptHook(
-            host, component_core->id, component->onLoad, component->onLoadLen);
+        InterfaceX_VMHost_QueueCoreScriptHook(host, component->id, &component->on_load);
     }
 }
 
@@ -15117,13 +15233,6 @@ InterfaceX_FreeLoadedInterface(struct InterfaceX_LoadedInterface* loaded)
 {
     if( !loaded )
         return;
-
-    if( loaded->raw_components )
-    {
-        for( int i = 0; i < loaded->component_count; i++ )
-            RSCacheDat2A_ComponentFree(loaded->raw_components[i]);
-        free(loaded->raw_components);
-    }
 
     if( loaded->components )
     {
@@ -15283,8 +15392,6 @@ main(
 
     struct RSCacheDat2Disk* cache = NULL;
     struct InterfaceX_LoadedInterface primary = { 0 };
-    struct InterfaceX_LoadedInterface companions[4];
-    int companion_count = 0;
     struct UITreeX* tree = NULL;
     struct UITreeXBuilder* builder = NULL;
     struct InterfaceX_VMHost vmhost;
@@ -15322,12 +15429,10 @@ main(
     vm.dot_component_id = -1;
 
     memset(&vmhost, 0, sizeof(vmhost));
-    vmhost.disk = cache;
-    vmhost.clientscript_table = cache->tables[RSCacheDat2Disk_Table_Clientscript];
 
     if( !InterfaceX_VMHost_Init(&vmhost) )
     {
-        fprintf(stderr, "failed to init host script cache\n");
+        fprintf(stderr, "failed to init VM host\n");
         return 1;
     }
 
@@ -15349,29 +15454,24 @@ main(
     vmhost.interface_id = interface_id;
     vmhost.scene = scene;
     vmhost.next_scene_id = 1;
-    InterfaceX_InvStoreSeedDefaults(&vmhost);
-
-    companion_count = InterfaceX_CompanionInterfaceCount(interface_id);
-    if( companion_count > (int)(sizeof(companions) / sizeof(companions[0])) )
-        companion_count = (int)(sizeof(companions) / sizeof(companions[0]));
-
-    for( int i = 0; i < companion_count; i++ )
+    if( !InterfaceX_HostIO_Init(&vmhost.host_io, scene, &vmhost.next_scene_id, CACHE_PATH) )
     {
-        int companion_id = InterfaceX_CompanionInterfaceId(interface_id, i);
-        if( companion_id < 0 )
-            continue;
-        if( !InterfaceX_LoadInterfaceComponents(
-                &vmhost, builder, cache, companion_id, &companions[i]) )
-            return 1;
+        fprintf(stderr, "failed to init host IO\n");
+        return 1;
     }
+    ToriAuxLibCache_SetClientscriptDecodeFlags(
+        InterfaceX_HostIO_Cache(&vmhost.host_io), CLIENTSCRIPT_DECODE_TRAILER_LEGACY);
+    InterfaceX_InvStoreSeedDefaults(&vmhost);
 
     if( !InterfaceX_LoadInterfaceComponents(&vmhost, builder, cache, interface_id, &primary) )
         return 1;
 
     UITreeXBuilder_ResolvePendingParents(builder);
+    UITreeXBuilder_LoadPendingAssets(&vmhost, builder);
+    InterfaceX_PrefetchOnLoadScripts(&vmhost, &primary);
+    InterfaceX_PrefetchOnVarTransmitScripts(&vmhost, &primary);
+    InterfaceX_PrefetchOnInvTransmitScripts(&vmhost, &primary);
 
-    for( int i = 0; i < companion_count; i++ )
-        InterfaceX_QueueInterfaceOnLoadScripts(&vmhost, &companions[i]);
     InterfaceX_QueueInterfaceOnLoadScripts(&vmhost, &primary);
     InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
 
@@ -15388,9 +15488,6 @@ main(
     InterfaceX_VMHost_FireCacheInvTransmitHooks(
         &vmhost, &vm, primary.components, primary.component_count);
     InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
-
-    for( int i = 0; i < companion_count; i++ )
-        InterfaceX_HideInterfaceRoots(tree, companions[i].interface_id);
 
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
     UITreeX_PrintNodes(tree);
@@ -15419,11 +15516,10 @@ main(
 
     free(pixels);
 
-    for( int i = 0; i < companion_count; i++ )
-        InterfaceX_FreeLoadedInterface(&companions[i]);
     InterfaceX_FreeLoadedInterface(&primary);
 
     free(vmhost.script_queue);
+    InterfaceX_HostIO_Free(&vmhost.host_io);
     InterfaceX_ConfigArchiveCacheFreeAll();
     return 0;
 }

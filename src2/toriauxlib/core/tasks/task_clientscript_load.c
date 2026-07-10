@@ -134,12 +134,11 @@ Task_ClientScriptLoad_Run(
     struct Dat2BuildCache* bc = NULL;
     struct RSCacheDat2A_ClientScript* decoded = NULL;
 
+    if( task->cache && ToriAuxLibCache_Mode(task->cache) == TORIAUXLIBCACHE_MODE_DAT2 )
+        bc = dat2(task->cache);
+
     PT_BEGIN(&task->thread);
 
-    if( !task->cache || ToriAuxLibCache_Mode(task->cache) != TORIAUXLIBCACHE_MODE_DAT2 )
-        PT_EXIT(&task->thread);
-
-    bc = dat2(task->cache);
     if( !bc )
         PT_EXIT(&task->thread);
 

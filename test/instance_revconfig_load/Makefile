@@ -18,7 +18,6 @@ LDFLAGS = -Wl,-dead_strip -lm
 
 SRCS = $(TEST_DIR)/main.c \
 	$(TEST_DIR)/stubs.c \
-	$(SRC2_DIR)/ioqueue/libtorirs_ioqueue.c \
 	$(SRC2_DIR)/platforms/platform_x_io_reactor.c \
 	$(SRC2_DIR)/platforms/platform_x/cachelib.c \
 	$(SRC2_DIR)/platforms/platform_x/cachelib_platform.c \

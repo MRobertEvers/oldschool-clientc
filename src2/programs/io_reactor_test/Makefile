@@ -15,7 +15,6 @@ CFLAGS = -Wall -Wextra -g \
 	-I$(SRC_DIR) -I$(SRC2_DIR) -I$(REPO_ROOT)
 
 SRCS = main.c \
-	$(SRC2_DIR)/ioqueue/libtorirs_ioqueue.c \
 	$(PLAT_DIR)/platform_x_io_reactor.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \

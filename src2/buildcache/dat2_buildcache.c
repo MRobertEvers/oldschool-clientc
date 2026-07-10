@@ -202,6 +202,69 @@ dat2_buildcache_map_reset(
     *map_out = dat2_buildcache_map_new(cache, entry_size, capacity);
 }
 
+void
+dat2_buildcache_maybe_grow_hmap(
+    struct Dat2BuildCache* cache,
+    struct ToriDraw_Map* map)
+{
+    uint32_t count;
+    uint32_t capacity;
+    size_t new_capacity;
+    size_t esize;
+    size_t new_buffer_size;
+    size_t old_buffer_size;
+    void* new_buffer;
+    void* old_buffer;
+
+    if( !map )
+        return;
+
+    count = ToriDraw_MapCount(map);
+    capacity = ToriDraw_MapCapacity(map);
+    if( count * 4 <= capacity * 3 )
+        return;
+
+    new_capacity = (size_t)capacity * 2;
+    esize = ToriDraw_MapEntrySize(map);
+    new_buffer_size = ToriDraw_MapBufferSizeFor(esize, new_capacity);
+    new_buffer = malloc(new_buffer_size);
+    if( !new_buffer )
+        return;
+
+    old_buffer_size = dat2_buildcache_map_buffer_size(map);
+    old_buffer = NULL;
+    if( ToriDraw_MapResize(map, new_buffer, new_buffer_size, new_capacity, &old_buffer) !=
+        TORIDRAW_MAP_OK )
+    {
+        free(new_buffer);
+        return;
+    }
+
+    if( cache )
+    {
+        cache->map_buffer_bytes -= old_buffer_size;
+        cache->map_buffer_bytes += new_buffer_size;
+    }
+    free(old_buffer);
+}
+
+void
+dat2_buildcache_prepare_hmap_insert(
+    struct Dat2BuildCache* cache,
+    struct ToriDraw_Map* map)
+{
+    uint32_t count;
+    uint32_t capacity;
+
+    if( !map )
+        return;
+
+    count = ToriDraw_MapCount(map);
+    capacity = ToriDraw_MapCapacity(map);
+    if( capacity > 0 && count * 4 >= capacity * 3 )
+        dat2_buildcache_maybe_grow_hmap(cache, map);
+}
+
 struct RSCacheDat2Disk_ArchiveReference*
 dat2_buildcache_archive_reference_from_table(
     struct RSCacheDat2Disk_ReferenceTable* table,

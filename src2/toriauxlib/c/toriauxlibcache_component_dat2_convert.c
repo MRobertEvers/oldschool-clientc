@@ -270,6 +270,13 @@ ToriAuxLibCache_ComponentNewFromCacheDat2Component(const void* cache_component_p
     dst->model_y_offset = src->modelYOffset;
     dst->model_orthog = src->modelOrthographic ? 1 : 0;
     dst->model_fixed_zoom = src->aBoolean411 ? 1 : 0;
+    if( src->type == COMPONENT_TYPE_MODEL )
+    {
+        dst->model_cache_short50 = src->aShort50;
+        dst->model_cache_short49 = src->aShort49;
+        dst->model_cache_an5957 = src->anInt5957;
+        dst->model_cache_an5920 = src->anInt5920;
+    }
     dst->color = src->color;
     dst->filled = src->fill ? 1 : 0;
     dst->font_id = src->textFont;

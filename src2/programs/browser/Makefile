@@ -23,7 +23,6 @@ SRC   := browser.c \
 	$(SCRIPT_DIR)/libtorirs_scriptapi.c \
 	$(CMD_DIR)/libtorirs_command_queue.c \
 	$(INPUT_DIR)/libtorirs_input.c \
-	$(IOQUEUE_DIR)/libtorirs_ioqueue.c \
 	$(SRC2)/render/libtorirs_render.c \
 	$(SRC2)/toridraw/toridraw_scene.c \
 	$(SRC2)/toridraw/toridraw_intrusive_list.c \

@@ -586,14 +586,35 @@ dat2_buildcache_params_init_from_archive(
     struct RSCacheDat2Disk_Archive* archive);
 
 void
+dat2_buildcache_params_init_from_archive_ids(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* param_ids,
+    int param_count);
+
+void
 dat2_buildcache_enums_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
     struct RSCacheDat2Disk_Archive* archive);
 
 void
+dat2_buildcache_enums_init_from_archive_ids(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* enum_ids,
+    int enum_count);
+
+void
 dat2_buildcache_structs_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
     struct RSCacheDat2Disk_Archive* archive);
+
+void
+dat2_buildcache_structs_init_from_archive_ids(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* struct_ids,
+    int struct_count);
 
 struct RSCacheDat2A_ConfigParam*
 dat2_buildcache_param_get(
@@ -634,6 +655,16 @@ dat2_buildcache_map_reset(
 
 void
 dat2_buildcache_map_free(
+    struct Dat2BuildCache* cache,
+    struct ToriDraw_Map* map);
+
+void
+dat2_buildcache_prepare_hmap_insert(
+    struct Dat2BuildCache* cache,
+    struct ToriDraw_Map* map);
+
+void
+dat2_buildcache_maybe_grow_hmap(
     struct Dat2BuildCache* cache,
     struct ToriDraw_Map* map);
 

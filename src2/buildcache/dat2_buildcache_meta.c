@@ -205,6 +205,7 @@ dat2_buildcache_font_add_from_archives(
         return false;
     }
 
+    dat2_buildcache_prepare_hmap_insert(dat2_buildcache, dat2_buildcache->fonts_hmap);
     entry = (struct MapEntry_Font*)ToriDraw_MapSearch(
         dat2_buildcache->fonts_hmap, &font_id, TORIDRAW_MAP_INSERT);
     if( !entry )
@@ -217,6 +218,7 @@ dat2_buildcache_font_add_from_archives(
         Dat2BuildCache_FontAssetFree(entry->asset);
     entry->id = font_id;
     entry->asset = asset;
+    dat2_buildcache_maybe_grow_hmap(dat2_buildcache, dat2_buildcache->fonts_hmap);
     return true;
 }
 
@@ -256,6 +258,7 @@ dat2_buildcache_clientscript_add(
     if( !dat2_buildcache || !script )
         return;
 
+    dat2_buildcache_prepare_hmap_insert(dat2_buildcache, dat2_buildcache->clientscripts_hmap);
     entry = (struct MapEntry_ClientScript*)ToriDraw_MapSearch(
         dat2_buildcache->clientscripts_hmap, &script_id, TORIDRAW_MAP_INSERT);
     assert(entry && "Clientscript must be inserted into hmap");
@@ -263,6 +266,7 @@ dat2_buildcache_clientscript_add(
         RSCacheDat2A_ClientScriptFree(entry->script);
     entry->id = script_id;
     entry->script = script;
+    dat2_buildcache_maybe_grow_hmap(dat2_buildcache, dat2_buildcache->clientscripts_hmap);
 }
 
 struct RSCacheDat2A_ClientScript*
@@ -313,6 +317,8 @@ dat2_buildcache_config_entries_init_from_archive(
     enum Dat2BuildCache_Kind kind,
     struct ToriDraw_Map* hmap,
     size_t entry_size,
+    const int* wanted_ids,
+    int wanted_count,
     void (*decode_and_insert)(
         struct Dat2BuildCache* bc,
         enum Dat2BuildCache_Kind kind,
@@ -326,6 +332,7 @@ dat2_buildcache_config_entries_init_from_archive(
     struct RSCacheShared_FileList* filelist;
     int i;
 
+    (void)config_kind;
     if( !dat2_buildcache || !archive || !hmap || !decode_and_insert )
         return;
 
@@ -341,6 +348,21 @@ dat2_buildcache_config_entries_init_from_archive(
     for( i = 0; i < filelist->file_count; i++ )
     {
         int id = archive_ref->children.files[i].id;
+        if( wanted_ids && wanted_count > 0 )
+        {
+            int j;
+            bool wanted = false;
+            for( j = 0; j < wanted_count; j++ )
+            {
+                if( wanted_ids[j] == id )
+                {
+                    wanted = true;
+                    break;
+                }
+            }
+            if( !wanted )
+                continue;
+        }
         decode_and_insert(
             dat2_buildcache,
             kind,
@@ -376,6 +398,7 @@ dat2_buildcache_param_decode_insert(
     param->type_char = 'i';
     RSCacheDat2A_ConfigParamDecodeInplace(param, data, data_size);
 
+    dat2_buildcache_prepare_hmap_insert(bc, map);
     entry = (struct MapEntry_Param*)ToriDraw_MapSearch(map, &id, TORIDRAW_MAP_INSERT);
     if( !entry )
     {
@@ -384,6 +407,7 @@ dat2_buildcache_param_decode_insert(
     }
     entry->id = id;
     entry->param = param;
+    dat2_buildcache_maybe_grow_hmap(bc, map);
 }
 
 static void
@@ -409,6 +433,7 @@ dat2_buildcache_enum_decode_insert(
     enum_entry->default_int = -1;
     RSCacheDat2A_ConfigEnumDecodeInplace(enum_entry, data, data_size);
 
+    dat2_buildcache_prepare_hmap_insert(bc, map);
     entry = (struct MapEntry_Enum*)ToriDraw_MapSearch(map, &id, TORIDRAW_MAP_INSERT);
     if( !entry )
     {
@@ -417,6 +442,7 @@ dat2_buildcache_enum_decode_insert(
     }
     entry->id = id;
     entry->entry = enum_entry;
+    dat2_buildcache_maybe_grow_hmap(bc, map);
 }
 
 static void
@@ -441,6 +467,7 @@ dat2_buildcache_struct_decode_insert(
     struct_entry->id = id;
     RSCacheDat2A_ConfigStructDecodeInplace(struct_entry, data, data_size);
 
+    dat2_buildcache_prepare_hmap_insert(bc, map);
     entry = (struct MapEntry_Struct*)ToriDraw_MapSearch(map, &id, TORIDRAW_MAP_INSERT);
     if( !entry )
     {
@@ -449,12 +476,15 @@ dat2_buildcache_struct_decode_insert(
     }
     entry->id = id;
     entry->entry = struct_entry;
+    dat2_buildcache_maybe_grow_hmap(bc, map);
 }
 
 void
-dat2_buildcache_params_init_from_archive(
+dat2_buildcache_params_init_from_archive_ids(
     struct Dat2BuildCache* dat2_buildcache,
-    struct RSCacheDat2Disk_Archive* archive)
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* param_ids,
+    int param_count)
 {
     dat2_buildcache_config_entries_init_from_archive(
         dat2_buildcache,
@@ -463,13 +493,25 @@ dat2_buildcache_params_init_from_archive(
         DAT2_BUILDCACHE_KIND_PARAM,
         dat2_buildcache->params_hmap,
         sizeof(struct MapEntry_Param),
+        param_ids,
+        param_count,
         dat2_buildcache_param_decode_insert);
 }
 
 void
-dat2_buildcache_enums_init_from_archive(
+dat2_buildcache_params_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
     struct RSCacheDat2Disk_Archive* archive)
+{
+    dat2_buildcache_params_init_from_archive_ids(dat2_buildcache, archive, NULL, 0);
+}
+
+void
+dat2_buildcache_enums_init_from_archive_ids(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* enum_ids,
+    int enum_count)
 {
     dat2_buildcache_config_entries_init_from_archive(
         dat2_buildcache,
@@ -478,13 +520,25 @@ dat2_buildcache_enums_init_from_archive(
         DAT2_BUILDCACHE_KIND_ENUM,
         dat2_buildcache->enums_hmap,
         sizeof(struct MapEntry_Enum),
+        enum_ids,
+        enum_count,
         dat2_buildcache_enum_decode_insert);
 }
 
 void
-dat2_buildcache_structs_init_from_archive(
+dat2_buildcache_enums_init_from_archive(
     struct Dat2BuildCache* dat2_buildcache,
     struct RSCacheDat2Disk_Archive* archive)
+{
+    dat2_buildcache_enums_init_from_archive_ids(dat2_buildcache, archive, NULL, 0);
+}
+
+void
+dat2_buildcache_structs_init_from_archive_ids(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk_Archive* archive,
+    const int* struct_ids,
+    int struct_count)
 {
     dat2_buildcache_config_entries_init_from_archive(
         dat2_buildcache,
@@ -493,7 +547,17 @@ dat2_buildcache_structs_init_from_archive(
         DAT2_BUILDCACHE_KIND_STRUCT,
         dat2_buildcache->structs_hmap,
         sizeof(struct MapEntry_Struct),
+        struct_ids,
+        struct_count,
         dat2_buildcache_struct_decode_insert);
+}
+
+void
+dat2_buildcache_structs_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCacheDat2Disk_Archive* archive)
+{
+    dat2_buildcache_structs_init_from_archive_ids(dat2_buildcache, archive, NULL, 0);
 }
 
 struct RSCacheDat2A_ConfigParam*

@@ -451,6 +451,11 @@ struct ToriAuxLibCore_Component
     /** MODEL projection scale: dat2 aBoolean411 (IF3 only).
      *  Deobfuscator Widget.useFixedZoom: 1 = zoom3d = widget zoom (drawModel2DAtZoom); 0 = 512 (drawModel2D). */
     uint8_t model_fixed_zoom;
+    /** MODEL IF3 cache extras (dat2 aShort50 / aShort49 / anInt5957 / anInt5920). */
+    int16_t model_cache_short50;
+    int16_t model_cache_short49;
+    int32_t model_cache_an5957;
+    int32_t model_cache_an5920;
     int color;
     int filled;
     int font_id;

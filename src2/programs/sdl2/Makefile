@@ -98,7 +98,6 @@ COMMON_SRCS := sdl2.c \
 	$(SCRIPT_DIR)/libtorirs_scripting.c \
 	$(SRC2)/commands/libtorirs_command_queue.c \
 	$(SRC2)/input/libtorirs_input.c \
-	$(SRC2)/ioqueue/libtorirs_ioqueue.c \
 	$(SRC2)/render/libtorirs_render.c \
 	$(SRC2)/toridraw/toridraw_scene.c \
 	$(SRC2)/toridraw/toridraw_intrusive_list.c \
@@ -170,7 +169,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toriauxlib/core/tasks/instance_revconfig_context.c \
 	$(SRC2)/toriauxlib/core/tasks/task_rs_component_load.c \
 	$(SRC2)/toriauxlib/core/tasks/task_clientscript_load.c \
-	$(SRC2)/toriauxlib/core/tasks/task_dat2_config_meta_load.c \
+	$(SRC2)/toriauxlib/core/tasks/task_dat2_config_entry_load.c \
 	$(SRC2)/toriauxlib/core/tasks/task_dat2_textures_load.c \
 	$(SRC2)/toriauxlib/core/tasks/task_dat2_anim_io.c \
 	$(SRC2)/toriauxlib/core/tasks/task_rs_inv_load.c \

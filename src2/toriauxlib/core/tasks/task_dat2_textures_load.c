@@ -69,14 +69,12 @@ Task_Dat2TexturesLoad_Run(
     struct RSCacheDat2Disk_ReferenceTable* textures_table = NULL;
     struct RSCacheDat2Disk_ArchiveReference* reference = NULL;
     struct RSCacheDat2Disk_Archive* textures_archive = NULL;
-    int sprite_id = 0;
+
+    if( task->cache && ToriAuxLibCache_Mode(task->cache) == TORIAUXLIBCACHE_MODE_DAT2 )
+        bc = dat2(task->cache);
 
     PT_BEGIN(&task->thread);
 
-    if( !task->cache || ToriAuxLibCache_Mode(task->cache) != TORIAUXLIBCACHE_MODE_DAT2 )
-        PT_EXIT(&task->thread);
-
-    bc = dat2(task->cache);
     if( !bc )
         PT_EXIT(&task->thread);
 
@@ -91,6 +89,11 @@ Task_Dat2TexturesLoad_Run(
 
     IO_REQUEST(ctx, 0, TAPIDat2_FetchArchive(ctx, RSCacheDat2Disk_Table_Textures, 0));
     PT_YIELD(&task->thread);
+
+    textures_table = dat2_buildcache_reference_table_get(bc, RSCacheDat2Disk_Table_Textures);
+    if( !textures_table || textures_table->archive_count <= 0 )
+        PT_EXIT(&task->thread);
+    reference = &textures_table->archives[0];
 
     textures_archive = TAPIDat2_DecodeArchive(ctx, 0, RSCacheDat2Disk_Table_Textures, 0);
     if( !textures_archive )
@@ -108,6 +111,11 @@ Task_Dat2TexturesLoad_Run(
 
     for( ; task->texture_index < task->texture_count; task->texture_index++ )
     {
+        textures_table = dat2_buildcache_reference_table_get(bc, RSCacheDat2Disk_Table_Textures);
+        if( !textures_table || textures_table->archive_count <= 0 )
+            PT_EXIT(&task->thread);
+        reference = &textures_table->archives[0];
+
         if( !task->cur_def )
         {
             task->cur_texture_id = reference->children.files[task->texture_index].id;
@@ -134,15 +142,15 @@ Task_Dat2TexturesLoad_Run(
         for( ; task->cur_def && task->sprite_index < task->cur_def->sprite_ids_count;
              task->sprite_index++ )
         {
-            sprite_id = task->cur_def->sprite_ids[task->sprite_index];
+            int sprite_id = task->cur_def->sprite_ids[task->sprite_index];
             if( task->cur_packs[task->sprite_index] )
                 continue;
 
             IO_REQUEST(ctx, 0, TAPIDat2_FetchSprite(ctx, sprite_id));
             PT_YIELD(&task->thread);
 
-            struct RSCacheDat2Disk_Archive* sprite_archive =
-                TAPIDat2_DecodeSpriteArchive(ctx, 0, sprite_id);
+            struct RSCacheDat2Disk_Archive* sprite_archive = TAPIDat2_DecodeSpriteArchive(
+                ctx, 0, task->cur_def->sprite_ids[task->sprite_index]);
             LibToriRS_IOQueueClear(ctx->io);
             if( !sprite_archive )
                 continue;

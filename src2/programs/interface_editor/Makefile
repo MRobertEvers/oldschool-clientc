@@ -97,7 +97,6 @@ COMMON_SRCS := interface_editor.c \
 	$(SCRIPT_DIR)/libtorirs_scripting.c \
 	$(SRC2)/commands/libtorirs_command_queue.c \
 	$(SRC2)/input/libtorirs_input.c \
-	$(SRC2)/ioqueue/libtorirs_ioqueue.c \
 	$(SRC2)/render/libtorirs_render.c \
 	$(SRC2)/toridraw/toridraw_scene.c \
 	$(SRC2)/toridraw/toridraw_intrusive_list.c \
