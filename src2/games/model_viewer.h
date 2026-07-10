@@ -44,7 +44,7 @@ struct GameModelViewer
 
     struct ToriAuxLibCore* core;
 
-    struct CoreTask* tasks[MV_MAX_TASKS];
+    struct LibToriCoreTask* tasks[MV_MAX_TASKS];
     int task_count;
 
     struct ToriDraw_ViewPort world_view_port;

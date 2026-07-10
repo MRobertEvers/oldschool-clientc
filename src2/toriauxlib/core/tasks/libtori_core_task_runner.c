@@ -1,4 +1,4 @@
-#include "core_task_runner.h"
+#include "libtori_core_task_runner.h"
 
 #include "3rd/minipt.h"
 
@@ -7,29 +7,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct CoreTaskRunnerSlot
-{
-    struct CoreTask* task;
-    int last_res;
-    int wait_run;
-    int next;
-    int prev;
-};
-
-struct CoreTaskRunner
-{
-    struct LibToriRS_IOQueue* io_queue;
-    struct CoreTaskRunnerSlot slots[CORE_TASK_RUNNER_MAX_TASKS];
-    int live_head;
-    int free_head;
-};
-
 static void
 runner_slot_remove(
-    struct CoreTaskRunner* runner,
+    struct LibToriCoreTaskRunner* runner,
     int task_idx)
 {
-    struct CoreTaskRunnerSlot* task = &runner->slots[task_idx];
+    struct LibToriCoreTaskRunnerSlot* task = &runner->slots[task_idx];
 
     if( task->prev != -1 )
         runner->slots[task->prev].next = task->next;
@@ -46,18 +29,19 @@ runner_slot_remove(
     runner->free_head = task_idx;
 }
 
-struct CoreTaskRunner*
-core_task_runner_new(struct LibToriRS_IOQueue* io_queue)
+void
+LibToriCoreTaskRunner_Init(
+    struct LibToriCoreTaskRunner* runner,
+    struct LibToriRS_IOQueue* io_queue)
 {
-    struct CoreTaskRunner* runner = calloc(1, sizeof(struct CoreTaskRunner));
-    if( !runner )
-        return NULL;
+    assert(runner);
+    memset(runner, 0, sizeof(*runner));
 
     runner->io_queue = io_queue;
     runner->live_head = -1;
     runner->free_head = -1;
 
-    for( int i = 0; i < CORE_TASK_RUNNER_MAX_TASKS; i++ )
+    for( int i = 0; i < LIBTORI_CORE_TASK_RUNNER_MAX_TASKS; i++ )
     {
         runner->slots[i].task = NULL;
         runner->slots[i].wait_run = -1;
@@ -65,52 +49,69 @@ core_task_runner_new(struct LibToriRS_IOQueue* io_queue)
         runner->slots[i].next = runner->free_head;
         runner->free_head = i;
     }
-
-    return runner;
 }
 
 void
-core_task_runner_free(struct CoreTaskRunner* runner)
+LibToriCoreTaskRunner_Shutdown(struct LibToriCoreTaskRunner* runner)
 {
     if( !runner )
         return;
 
     while( runner->live_head != -1 )
     {
-        struct CoreTaskRunnerSlot* task = &runner->slots[runner->live_head];
+        struct LibToriCoreTaskRunnerSlot* task = &runner->slots[runner->live_head];
         if( task->task )
-            core_task_free(task->task);
+            LibToriCoreTask_Free(task->task);
         runner_slot_remove(runner, runner->live_head);
     }
+}
 
+struct LibToriCoreTaskRunner*
+LibToriCoreTaskRunner_New(struct LibToriRS_IOQueue* io_queue)
+{
+    struct LibToriCoreTaskRunner* runner = calloc(1, sizeof(struct LibToriCoreTaskRunner));
+    if( !runner )
+        return NULL;
+
+    LibToriCoreTaskRunner_Init(runner, io_queue);
+    return runner;
+}
+
+void
+LibToriCoreTaskRunner_Free(struct LibToriCoreTaskRunner* runner)
+{
+    if( !runner )
+        return;
+
+    LibToriCoreTaskRunner_Shutdown(runner);
     free(runner);
 }
 
 void
-core_task_runner_add(
-    struct CoreTaskRunner* runner,
+LibToriCoreTaskRunner_Add(
+    struct LibToriCoreTaskRunner* runner,
     void* task_state,
-    CoreTaskFunction task_function,
-    CoreTaskDestructor destroy)
+    LibToriCoreTaskFunction task_function,
+    LibToriCoreTaskDestructor destroy)
 {
     assert(runner);
     if( runner->free_head == -1 )
     {
-        fprintf(stderr, "core_task_runner: no free task slots\n");
+        fprintf(stderr, "LibToriCoreTaskRunner: no free task slots\n");
         assert(0);
         return;
     }
 
-    struct CoreTask* task = core_task_new(task_state, task_function, destroy);
+    struct LibToriCoreTask* task = LibToriCoreTask_New(task_state, task_function, destroy);
     if( !task )
     {
-        fprintf(stderr, "core_task_runner: failed to create task\n");
+        fprintf(stderr, "LibToriCoreTaskRunner: failed to create task\n");
         assert(0);
         return;
     }
 
     int task_idx = runner->free_head;
-    struct CoreTaskRunnerSlot* new_task = &runner->slots[task_idx];
+    struct LibToriCoreTaskRunnerSlot* new_task = &runner->slots[task_idx];
     runner->free_head = new_task->next;
 
     new_task->task = task;
@@ -125,7 +126,7 @@ core_task_runner_add(
 }
 
 bool
-core_task_runner_run(struct CoreTaskRunner* runner)
+LibToriCoreTaskRunner_Run(struct LibToriCoreTaskRunner* runner)
 {
     if( !runner || runner->live_head == -1 )
         return false;
@@ -135,7 +136,7 @@ core_task_runner_run(struct CoreTaskRunner* runner)
     };
 
     int task_idx = runner->live_head;
-    struct CoreTaskRunnerSlot* task = &runner->slots[task_idx];
+    struct LibToriCoreTaskRunnerSlot* task = &runner->slots[task_idx];
 
     if( task->wait_run >= 0 && !LibToriRS_IOQueueRunComplete(runner->io_queue, task->wait_run) )
         return true;
@@ -150,7 +151,7 @@ core_task_runner_run(struct CoreTaskRunner* runner)
         break;
     case PT_EXITED:
     case PT_ENDED:
-        core_task_free(task->task);
+        LibToriCoreTask_Free(task->task);
         task->task = NULL;
         task->wait_run = -1;
         runner_slot_remove(runner, task_idx);
@@ -163,13 +164,13 @@ core_task_runner_run(struct CoreTaskRunner* runner)
 }
 
 bool
-core_task_runner_has_live(struct CoreTaskRunner* runner)
+LibToriCoreTaskRunner_HasLive(struct LibToriCoreTaskRunner* runner)
 {
     return runner && runner->live_head != -1;
 }
 
 struct LibToriRS_IOQueue*
-core_task_runner_io_queue(struct CoreTaskRunner* runner)
+LibToriCoreTaskRunner_IOQueue(struct LibToriCoreTaskRunner* runner)
 {
     return runner ? runner->io_queue : NULL;
 }

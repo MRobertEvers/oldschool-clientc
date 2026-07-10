@@ -31,7 +31,7 @@ Runescape_Init (scriptapi)
 
 ## Task / coroutine model
 
-Tasks use **minipt** protothreads (`PT_BEGIN`, `PT_YIELD`, `PT_END`) wrapped in `CoreTask` (`core_task.h`). The instance scheduler (`LibToriRS_TasksRun` in `libtorirs.c`) runs one task step per call; on `PT_YIELDED` it records `wait_run` until all IO items for that run complete.
+Tasks use **minipt** protothreads (`PT_BEGIN`, `PT_YIELD`, `PT_END`) wrapped in `LibToriCoreTask` (`libtori_core_task.h`). The instance scheduler (`LibToriRS_TasksRun` in `libtorirs.c`, backed by `LibToriCoreTaskRunner_Run`) runs one task step per call; on `PT_YIELDED` it records `wait_run` until all IO items for that run complete.
 
 ### TASK_AWAIT
 

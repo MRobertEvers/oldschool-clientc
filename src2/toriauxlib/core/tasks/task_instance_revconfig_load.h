@@ -1,7 +1,7 @@
 #ifndef TASK_INSTANCE_REVCONFIG_LOAD_H
 #define TASK_INSTANCE_REVCONFIG_LOAD_H
 
-#include "core_task.h"
+#include "libtori_core_task.h"
 #include "3rd/minipt.h"
 #include "instance_revconfig_context.h"
 #include "ioqueue/libtorirs_ioqueue.h"
@@ -41,7 +41,7 @@ struct Task_InstanceRevConfigLoad
         struct Task_InstanceOnRCInv on_inv;
     } handler;
 
-    CoreTaskFunction sub_run;
+    LibToriCoreTaskFunction sub_run;
     void* sub_state;
 
     int config_fetch_index;

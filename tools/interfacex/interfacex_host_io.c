@@ -97,9 +97,9 @@ hostio_config_kind_name(int config_kind)
 static void
 hostio_drain_io(struct InterfaceX_HostIO* io)
 {
-    while( core_task_runner_has_live(io->task_runner) )
+    while( LibToriCoreTaskRunner_HasLive(io->task_runner) )
     {
-        while( core_task_runner_run(io->task_runner) )
+        while( LibToriCoreTaskRunner_Run(io->task_runner) )
             LibToriPlatformX_IOReactorProcess(io->io_reactor, io->io_queue);
         LibToriPlatformX_IOReactorProcess(io->io_reactor, io->io_queue);
     }
@@ -114,7 +114,7 @@ hostio_run_task(
         struct LibToriRS_IOContext*),
     void (*destroy_fn)(void*))
 {
-    core_task_runner_add(io->task_runner, task_state, run_fn, destroy_fn);
+    LibToriCoreTaskRunner_Add(io->task_runner, task_state, run_fn, destroy_fn);
     hostio_drain_io(io);
 }
 
@@ -403,7 +403,7 @@ InterfaceX_HostIO_Init(
     if( !io->io_reactor )
         goto fail;
 
-    io->task_runner = core_task_runner_new(io->io_queue);
+    io->task_runner = LibToriCoreTaskRunner_New(io->io_queue);
     if( !io->task_runner )
         goto fail;
 
@@ -421,7 +421,7 @@ InterfaceX_HostIO_Free(struct InterfaceX_HostIO* io)
         return;
 
     if( io->task_runner )
-        core_task_runner_free(io->task_runner);
+        LibToriCoreTaskRunner_Free(io->task_runner);
     if( io->io_reactor )
         LibToriPlatformX_IOReactorFree(io->io_reactor);
     if( io->io_queue )

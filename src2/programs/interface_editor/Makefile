@@ -189,7 +189,8 @@ COMMON_SRCS := interface_editor.c \
 	$(SRC2)/ui/ui_inv_slot_view.c \
 	$(SRC2)/toriauxlib/core/tasks/instance_revconfig_inv_bind.c \
 	$(SRC2)/ui/ui_input_adapter.c \
-	$(SRC2)/toriauxlib/core/tasks/core_task.c \
+	$(SRC2)/toriauxlib/core/tasks/libtori_core_task.c \
+	$(SRC2)/toriauxlib/core/tasks/libtori_core_task_runner.c \
 	$(SRC2)/3rd/ini/ini.c \
 	$(SRC2)/revconfig/revconfig.c \
 	$(SRC2)/revconfig/revconfig_load.c \

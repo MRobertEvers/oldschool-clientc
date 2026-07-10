@@ -71,7 +71,8 @@ SRC   := browser.c \
 	$(SRC2)/runescape/appearance.c \
 	$(SRC2)/runescape/player_body.c \
 	$(SRC_DIR)/osrs/datatypes/appearances.c \
-	$(SRC2)/toriauxlib/core/tasks/core_task.c \
+	$(SRC2)/toriauxlib/core/tasks/libtori_core_task.c \
+	$(SRC2)/toriauxlib/core/tasks/libtori_core_task_runner.c \
 	$(SRC2)/toridraw/toridraw.c \
 	$(SRC2)/toridraw/toridraw_math.c \
 	$(SRC2)/toridraw/toridraw_map.c \

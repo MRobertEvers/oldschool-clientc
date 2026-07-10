@@ -2,7 +2,7 @@
 #define LIBTORIRS_INTERNAL_H
 
 #include "buildcache/dat1_buildcache.h"
-#include "toriauxlib/core/tasks/core_task.h"
+#include "toriauxlib/core/tasks/libtori_core_task_runner.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "games/game_handle.h"
 #include "games/interface_editor.h"
@@ -17,17 +17,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define LIBTORIRS_MAX_TASKS 64
-
-struct LibToriRS_Task
-{
-    struct CoreTask* task;
-    int last_res;
-    int wait_run;
-    int next;
-    int prev;
-};
-
 struct LibToriRS_Instance
 {
     bool running;
@@ -41,9 +30,7 @@ struct LibToriRS_Instance
     struct LibToriRS_ScriptQueue* script_queue;
     struct LibToriRS_Input* input;
 
-    struct LibToriRS_Task tasks[LIBTORIRS_MAX_TASKS];
-    int task_free_head;
-    int task_live_head;
+    struct LibToriCoreTaskRunner task_runner;
 
     struct ToriDraw_Scene* scene;
     struct ToriAuxLib* toriauxlib;

@@ -1,6 +1,6 @@
 #include "libtorirs_scriptapi.h"
 
-#include "toriauxlib/core/tasks/core_task.h"
+#include "toriauxlib/core/tasks/libtori_core_task.h"
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../libtorirs_internal.h"
 #include "buildcache/dat1_buildcache.h"

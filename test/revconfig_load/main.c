@@ -5,7 +5,7 @@
 #include "revconfig/revconfig.h"
 #include "revconfig/revconfig_load.h"
 #include "osrs/minimenu_action.h"
-#include "toriauxlib/core/tasks/core_task.h"
+#include "toriauxlib/core/tasks/libtori_core_task.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -100,7 +100,7 @@ Task_RevConfigIniLoad_Run(
 
 static bool
 run_task_to_completion(
-    struct CoreTask* task,
+    struct LibToriCoreTask* task,
     struct LibToriRS_IOQueue* io,
     struct LibToriPlatformX_IOReactor* reactor)
 {
@@ -272,11 +272,12 @@ run_ini_pair_test(
     load_task.cache_ini = cache_ini;
     load_task.ui_ini = ui_ini;
 
-    struct CoreTask* task = core_task_new(&load_task, Task_RevConfigIniLoad_Run, NULL);
-    TEST_ASSERT(task != NULL, "core_task_new failed");
+    struct LibToriCoreTask* task =
+        LibToriCoreTask_New(&load_task, Task_RevConfigIniLoad_Run, NULL);
+    TEST_ASSERT(task != NULL, "LibToriCoreTask_New failed");
 
     bool finished = run_task_to_completion(task, io, reactor);
-    core_task_free(task);
+    LibToriCoreTask_Free(task);
 
     TEST_ASSERT(finished, "task did not finish");
     TEST_ASSERT(load_task.ok, "task reported failure");

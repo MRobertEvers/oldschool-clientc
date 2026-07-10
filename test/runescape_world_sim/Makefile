@@ -96,7 +96,8 @@ SRCS := main.c \
 	$(SRC2)/toriauxlib/core/tasks/task_instance_on_rc.c \
 	$(SRC2)/toriauxlib/core/tasks/task_instance_revconfig_load.c \
 	$(SRC_DIR)/osrs/revconfig/uitree.c \
-	$(SRC2)/toriauxlib/core/tasks/core_task.c \
+	$(SRC2)/toriauxlib/core/tasks/libtori_core_task.c \
+	$(SRC2)/toriauxlib/core/tasks/libtori_core_task_runner.c \
 	$(SRC_DIR)/3rd/ini/ini.c \
 	$(SRC_DIR)/osrs/revconfig/revconfig.c \
 	$(SRC_DIR)/osrs/revconfig/revconfig_load.c \

@@ -68,8 +68,8 @@ SRCS = $(TOOL_DIR)/main.c \
 	$(SRC2_DIR)/games/ie_enum_lookup.c \
 	$(SRC2_DIR)/games/ie_struct_lookup.c \
 	$(SRC2_DIR)/games/ie_param_lookup.c \
-	$(SRC2_DIR)/toriauxlib/core/tasks/core_task.c \
-	$(SRC2_DIR)/toriauxlib/core/tasks/core_task_runner.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/libtori_core_task.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/libtori_core_task_runner.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/task_clientscript_load.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/task_dat2_config_entry_load.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/task_dat2_anim_io.c \
@@ -178,10 +178,10 @@ $(OBJ_DIR)/ie_struct_lookup.o: $(SRC2_DIR)/games/ie_struct_lookup.c
 $(OBJ_DIR)/ie_param_lookup.o: $(SRC2_DIR)/games/ie_param_lookup.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/core_task.o: $(SRC2_DIR)/toriauxlib/core/tasks/core_task.c
+$(OBJ_DIR)/libtori_core_task.o: $(SRC2_DIR)/toriauxlib/core/tasks/libtori_core_task.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/core_task_runner.o: $(SRC2_DIR)/toriauxlib/core/tasks/core_task_runner.c
+$(OBJ_DIR)/libtori_core_task_runner.o: $(SRC2_DIR)/toriauxlib/core/tasks/libtori_core_task_runner.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/task_clientscript_load.o: $(SRC2_DIR)/toriauxlib/core/tasks/task_clientscript_load.c

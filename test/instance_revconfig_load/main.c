@@ -19,7 +19,7 @@
 #include "revconfig/revconfig.h"
 #include "revconfig/revconfig_load.h"
 #include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/core/tasks/core_task.h"
+#include "toriauxlib/core/tasks/libtori_core_task.h"
 #include "toriauxlib/core/tasks/instance_revconfig_context.h"
 #include "toriauxlib/core/tasks/task_instance_revconfig_load.h"
 #include "toriauxlib/core/toriauxlibcore.h"
@@ -1851,8 +1851,9 @@ run_pipeline_test(
         Task_InstanceRevConfigLoad_New(ToriAuxLib_C(aux), scene, tree, &game, files, 2, "fixed");
     TEST_ASSERT(load_task != NULL, "Task_InstanceRevConfigLoad_New");
 
-    struct CoreTask* task = core_task_new(load_task, Task_InstanceRevConfigLoad_Run, NULL);
-    TEST_ASSERT(task != NULL, "core_task_new");
+    struct LibToriCoreTask* task =
+        LibToriCoreTask_New(load_task, Task_InstanceRevConfigLoad_Run, NULL);
+    TEST_ASSERT(task != NULL, "LibToriCoreTask_New");
 
     bool finished = false;
     struct LibToriRS_IOContext ctx = { .io = io };
@@ -1887,7 +1888,7 @@ run_pipeline_test(
             break;
     }
 
-    core_task_free(task);
+    LibToriCoreTask_Free(task);
 
     TEST_ASSERT(finished, "load task did not finish");
     TEST_ASSERT(Task_InstanceRevConfigLoad_IsReady(load_task), "load task not ready");

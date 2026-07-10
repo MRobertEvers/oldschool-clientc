@@ -1,7 +1,7 @@
 #ifndef LIBTORIRS_H
 #define LIBTORIRS_H
 
-#include "toriauxlib/core/tasks/core_task.h"
+#include "toriauxlib/core/tasks/libtori_core_task.h"
 #include "input/libtorirs_input.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw_scene.h"
@@ -93,8 +93,8 @@ void
 LibToriRS_TasksAdd(
     struct LibToriRS_Instance* instance,
     void* task_state,
-    CoreTaskFunction task_function,
-    CoreTaskDestructor destroy);
+    LibToriCoreTaskFunction task_function,
+    LibToriCoreTaskDestructor destroy);
 
 bool
 LibToriRS_TasksRun(struct LibToriRS_Instance* instance);

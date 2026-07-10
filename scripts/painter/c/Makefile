@@ -92,7 +92,8 @@ CACHE_SRCS := \
 	$(SRC2)/commands/libtorirs_command_queue.c \
 	$(SRC2)/input/libtorirs_input.c \
 	$(SRC2)/render/libtorirs_render.c \
-	$(SRC2)/toriauxlib/core/tasks/core_task.c \
+	$(SRC2)/toriauxlib/core/tasks/libtori_core_task.c \
+	$(SRC2)/toriauxlib/core/tasks/libtori_core_task_runner.c \
 	$(SRC2)/games/runescape.c \
 	$(SRC2)/runescape/appearance.c \
 	$(SRC2)/runescape/player_body.c \

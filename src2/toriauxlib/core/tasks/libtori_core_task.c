@@ -1,18 +1,18 @@
-#include "core_task.h"
+#include "libtori_core_task.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-struct CoreTask*
-core_task_new(
+struct LibToriCoreTask*
+LibToriCoreTask_New(
     void* state,
-    CoreTaskFunction task,
-    CoreTaskDestructor destroy)
+    LibToriCoreTaskFunction task,
+    LibToriCoreTaskDestructor destroy)
 {
-    struct CoreTask* task_state = malloc(sizeof(struct CoreTask));
+    struct LibToriCoreTask* task_state = malloc(sizeof(struct LibToriCoreTask));
     if( !task_state )
         return NULL;
-    memset(task_state, 0, sizeof(struct CoreTask));
+    memset(task_state, 0, sizeof(struct LibToriCoreTask));
     task_state->state = state;
     task_state->task = task;
     task_state->destroy = destroy;
@@ -20,7 +20,7 @@ core_task_new(
 }
 
 void
-core_task_free(struct CoreTask* task)
+LibToriCoreTask_Free(struct LibToriCoreTask* task)
 {
     if( !task )
         return;
