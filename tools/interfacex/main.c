@@ -414,7 +414,6 @@ struct UITreeXBuilder_PendingParent
 enum InterfaceX_PendingAssetKind
 {
     INTERFACEX_PENDING_GRAPHIC = 0,
-    INTERFACEX_PENDING_MODEL,
     INTERFACEX_PENDING_FONT,
     INTERFACEX_PENDING_OBJ_ICON,
 };
@@ -8384,6 +8383,13 @@ struct InterfaceX_VMHost
 
     int player_appearance[RUNESCAPE_APPEARANCE_SLOT_COUNT];
 
+    struct InterfaceX_ModelLoadRequest
+    {
+        int user_id;
+        struct InterfaceX_ModelLoadArg arg;
+    } model_load_queue[MAX_NODES];
+    int model_load_count;
+
     bool has_pending_host_request;
     struct CS2VM_HostRequest pending_host_request;
 };
@@ -8418,8 +8424,6 @@ UITreeXBuilder_LoadPendingAssets(
         case INTERFACEX_PENDING_FONT:
             InterfaceX_HostIO_LoadSceneFont(&host->host_io, pending->id);
             break;
-        case INTERFACEX_PENDING_MODEL:
-            break;
         case INTERFACEX_PENDING_OBJ_ICON:
         {
             int scene_id = -1;
@@ -8440,76 +8444,155 @@ UITreeXBuilder_LoadPendingAssets(
     }
 }
 
-static struct InterfaceX_BatchModelLoad*
-UITreeXBuilder_QueuePendingModelLoads(
+static void
+InterfaceX_ModelNodeInvalidateScene(struct UITreeXNode* node);
+
+static void
+UITreeX_ResolveModelSceneIds(
+    struct UITreeX* tree,
+    struct InterfaceX_BatchModelLoad const* batch);
+
+static bool
+InterfaceX_ModelLoadArgFromNode(
     struct InterfaceX_VMHost* host,
-    struct UITreeXBuilder* builder)
+    struct UITreeXNode const* node,
+    struct InterfaceX_ModelLoadArg* out)
 {
     assert(host);
-    assert(builder);
+    assert(node);
+    assert(out);
 
-    struct InterfaceX_ModelLoadArg args[MAX_NODES];
-    int arg_count = 0;
+    if( node->kind != UITreeXNodeKind_RSModel )
+        return false;
 
-    for( int i = 0; i < builder->tree->node_count; i++ )
+    struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
+
+    memset(out, 0, sizeof(*out));
+    out->user_id = node->user_id;
+
+    if( model->item_id >= 0 )
     {
-        struct UITreeXNode* node = &builder->tree->nodes[i];
-        if( node->kind != UITreeXNodeKind_RSModel )
+        out->kind = INTERFACEX_MLOAD_OBJ;
+        out->u.obj_id = model->item_id;
+    }
+    else if( model->model_kind == INTERFACEX_MODEL_KIND_PLAIN )
+    {
+        if( model->model_id < 0 )
+            return false;
+        out->kind = INTERFACEX_MLOAD_PLAIN;
+        out->u.model_id = model->model_id;
+    }
+    else if( model->model_kind == INTERFACEX_MODEL_KIND_NPC_HEAD )
+    {
+        if( model->model_id < 0 )
+            return false;
+        out->kind = INTERFACEX_MLOAD_NPC;
+        out->u.npc_id = model->model_id;
+    }
+    else if(
+        model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_HEAD ||
+        model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_SELF ||
+        model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD )
+    {
+        out->kind = INTERFACEX_MLOAD_PLAYER;
+        memcpy(
+            out->u.appearance,
+            host->player_appearance,
+            (size_t)RUNESCAPE_APPEARANCE_SLOT_COUNT * sizeof(int));
+    }
+    else
+        return false;
+
+    return true;
+}
+
+static bool
+InterfaceX_ModelLoadArgsEqual(
+    struct InterfaceX_ModelLoadArg const* a,
+    struct InterfaceX_ModelLoadArg const* b)
+{
+    assert(a);
+    assert(b);
+
+    if( a->kind != b->kind )
+        return false;
+
+    switch( a->kind )
+    {
+    case INTERFACEX_MLOAD_PLAIN:
+        return a->u.model_id == b->u.model_id;
+    case INTERFACEX_MLOAD_NPC:
+        return a->u.npc_id == b->u.npc_id;
+    case INTERFACEX_MLOAD_OBJ:
+        return a->u.obj_id == b->u.obj_id;
+    case INTERFACEX_MLOAD_PLAYER:
+        return memcmp(
+                   a->u.appearance,
+                   b->u.appearance,
+                   (size_t)RUNESCAPE_APPEARANCE_SLOT_COUNT * sizeof(int)) == 0;
+    default:
+        return false;
+    }
+}
+
+static void
+InterfaceX_EnqueueModelNodeLoad(
+    struct InterfaceX_VMHost* host,
+    struct UITreeXNode* node)
+{
+    assert(host);
+    assert(node);
+
+    struct InterfaceX_ModelLoadArg arg;
+    if( !InterfaceX_ModelLoadArgFromNode(host, node, &arg) )
+        return;
+
+    for( int i = 0; i < host->model_load_count; i++ )
+    {
+        if( host->model_load_queue[i].user_id != arg.user_id )
             continue;
 
-        struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
-        struct InterfaceX_ModelLoadArg* arg = &args[arg_count];
-
-        arg->user_id = node->user_id;
-
-        if( model->item_id >= 0 )
-        {
-            arg->kind = INTERFACEX_MLOAD_OBJ;
-            arg->u.obj_id = model->item_id;
-        }
-        else if( model->model_kind == INTERFACEX_MODEL_KIND_PLAIN )
-        {
-            if( model->model_id < 0 )
-                continue;
-            arg->kind = INTERFACEX_MLOAD_PLAIN;
-            arg->u.model_id = model->model_id;
-        }
-        else if( model->model_kind == INTERFACEX_MODEL_KIND_NPC_HEAD )
-        {
-            if( model->model_id < 0 )
-                continue;
-            arg->kind = INTERFACEX_MLOAD_NPC;
-            arg->u.npc_id = model->model_id;
-        }
-        else if(
-            model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_HEAD ||
-            model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_SELF ||
-            model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD )
-        {
-            arg->kind = INTERFACEX_MLOAD_PLAYER;
-            memcpy(
-                arg->u.appearance,
-                host->player_appearance,
-                (size_t)RUNESCAPE_APPEARANCE_SLOT_COUNT * sizeof(int));
-        }
-        else
-            continue;
-
-        arg_count++;
-        if( arg_count >= MAX_NODES )
-            break;
+        bool changed =
+            !InterfaceX_ModelLoadArgsEqual(&host->model_load_queue[i].arg, &arg);
+        host->model_load_queue[i].arg = arg;
+        if( changed )
+            InterfaceX_ModelNodeInvalidateScene(node);
+        return;
     }
 
-    if( arg_count <= 0 )
-        return NULL;
+    if( host->model_load_count >= MAX_NODES )
+        return;
+
+    host->model_load_queue[host->model_load_count].user_id = arg.user_id;
+    host->model_load_queue[host->model_load_count].arg = arg;
+    host->model_load_count++;
+    InterfaceX_ModelNodeInvalidateScene(node);
+}
+
+static void
+InterfaceX_FlushModelLoads(struct InterfaceX_VMHost* host)
+{
+    assert(host);
+
+    if( host->model_load_count <= 0 )
+        return;
+
+    struct InterfaceX_ModelLoadArg args[MAX_NODES];
+    for( int i = 0; i < host->model_load_count; i++ )
+        args[i] = host->model_load_queue[i].arg;
+
+    int arg_count = host->model_load_count;
+    host->model_load_count = 0;
 
     struct InterfaceX_BatchModelLoad* batch =
         InterfaceX_BatchModelLoad_New(&host->host_io, args, arg_count);
     if( !batch )
-        return NULL;
+        return;
 
     InterfaceX_BatchModelLoad_Queue(batch, &host->host_io);
-    return batch;
+    InterfaceX_HostIO_DrainTasks(&host->host_io);
+    UITreeX_ResolveModelSceneIds(host->tree, batch);
+    InterfaceX_BatchModelLoad_Destroy(batch);
 }
 
 static void
@@ -8680,9 +8763,6 @@ InterfaceX_ResolveObjIconCountVariant(
     struct InterfaceX_VMHost* host,
     int obj_id,
     int count);
-
-static void
-InterfaceX_ModelNodeInvalidateScene(struct UITreeXNode* node);
 
 static int
 InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
@@ -10460,9 +10540,11 @@ component_decode_from_bytes(
 
 static int
 process_component(
+    struct InterfaceX_VMHost* host,
     struct UITreeXBuilder* builder,
     struct ToriAuxLibCore_Component* component)
 {
+    assert(host);
     assert(builder);
     assert(component);
 
@@ -10519,17 +10601,8 @@ process_component(
             UITreeXBuilder_RecordPendingAsset(
                 builder, idx, INTERFACEX_PENDING_FONT, component->font_id, 0, 0, 0);
         }
-        else if( component->type == TORIAUXLIBCORE_COMPONENT_MODEL && component->model_id > 0 )
-        {
-            UITreeXBuilder_RecordPendingAsset(
-                builder,
-                idx,
-                INTERFACEX_PENDING_MODEL,
-                component->model_id,
-                component->model_zoom > 0 ? component->model_zoom : 2000,
-                component->model_xan,
-                component->model_yan);
-        }
+        else if( component->type == TORIAUXLIBCORE_COMPONENT_MODEL )
+            InterfaceX_EnqueueModelNodeLoad(host, &builder->tree->nodes[idx]);
     }
 
     return idx;
@@ -11045,7 +11118,7 @@ InterfaceX_ApplyObjToModelNode(
     model->zoom = InterfaceX_NormalizeModelItemZoom(objtype->zoom2d, widget_w);
     model->orthog = 1;
     ToriAuxLibCore_ObjtypeFree(objtype);
-    InterfaceX_ModelNodeInvalidateScene(node);
+    InterfaceX_EnqueueModelNodeLoad(host, node);
     return true;
 }
 
@@ -12282,11 +12355,13 @@ InterfaceX_ModelNodeInvalidateScene(struct UITreeXNode* node)
 
 static void
 InterfaceX_ApplySetModel(
+    struct InterfaceX_VMHost* host,
     struct UITreeXNode* node,
     int model_id,
     enum InterfaceX_ModelKind model_kind,
     char const* op_name)
 {
+    assert(host);
     assert(node);
 
     if( node->kind != UITreeXNodeKind_RSModel )
@@ -12298,7 +12373,7 @@ InterfaceX_ApplySetModel(
     struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(node);
     model->model_id = model_id;
     model->model_kind = model_kind;
-    InterfaceX_ModelNodeInvalidateScene(node);
+    InterfaceX_EnqueueModelNodeLoad(host, node);
 }
 
 static char const*
@@ -12488,7 +12563,8 @@ InterfaceX_VMHost_Exec_WidgetSetModel(
     if( !node )
         return CS2VM_EXECNO_OK;
 
-    InterfaceX_ApplySetModel(node, request.model_id, INTERFACEX_MODEL_KIND_PLAIN, "CC_SETMODEL");
+    InterfaceX_ApplySetModel(
+        host, node, request.model_id, INTERFACEX_MODEL_KIND_PLAIN, "CC_SETMODEL");
     return CS2VM_EXECNO_OK;
 }
 
@@ -12551,7 +12627,7 @@ InterfaceX_VMHost_Exec_WidgetSetModelKind(
     model->model_kind = request.model_kind;
     if( request.model_id >= 0 )
         model->model_id = request.model_id;
-    InterfaceX_ModelNodeInvalidateScene(node);
+    InterfaceX_EnqueueModelNodeLoad(host, node);
     return CS2VM_EXECNO_OK;
 }
 
@@ -15575,6 +15651,7 @@ InterfaceX_DumpComponentRaw(
 
 static int
 process_component(
+    struct InterfaceX_VMHost* host,
     struct UITreeXBuilder* builder,
     struct ToriAuxLibCore_Component* component);
 
@@ -15655,7 +15732,7 @@ InterfaceX_LoadInterfaceComponents(
         }
 
         loaded->components[i] = component_core;
-        process_component(builder, component_core);
+        process_component(host, builder, component_core);
     }
 
     RSCacheShared_FileListFree(file_list);
@@ -15919,7 +15996,7 @@ InterfaceX_IntegrateInterfaceGroup(
             return false;
         }
 
-        process_component(host->builder, component_core);
+        process_component(host, host->builder, component_core);
         integrated++;
     }
 
@@ -16192,11 +16269,7 @@ main(
         &vmhost, &vm, primary.components, primary.component_count);
     InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
 
-    struct InterfaceX_BatchModelLoad* model_batch =
-        UITreeXBuilder_QueuePendingModelLoads(&vmhost, builder);
-    InterfaceX_HostIO_DrainTasks(&vmhost.host_io);
-    UITreeX_ResolveModelSceneIds(tree, model_batch);
-    InterfaceX_BatchModelLoad_Destroy(model_batch);
+    InterfaceX_FlushModelLoads(&vmhost);
 
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
     UITreeX_PrintNodes(tree);
