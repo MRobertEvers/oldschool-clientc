@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct pt;
+
 struct CS2VM_HostRequest;
 struct InterfaceX_VMHost;
 struct LibToriPlatformX_IOReactor;
@@ -43,6 +45,10 @@ InterfaceX_HostIO_Free(struct InterfaceX_HostIO* io);
 
 void
 InterfaceX_HostIO_DrainTasks(struct InterfaceX_HostIO* io);
+
+/** One runner step + one reactor pass (emscripten / cooperative pump). */
+void
+InterfaceX_HostIO_Pump(struct InterfaceX_HostIO* io);
 
 void
 InterfaceX_HostIO_RunTask(
@@ -199,6 +205,71 @@ struct InterfaceX_ModelLoadResult
 };
 
 struct InterfaceX_BatchModelLoad;
+
+struct InterfaceX_TaskSpriteLoad;
+struct InterfaceX_TaskFontLoad;
+struct InterfaceX_TaskModelLoad;
+struct InterfaceX_TaskInterfaceLoad;
+
+struct InterfaceX_TaskSpriteLoad*
+InterfaceX_TaskSpriteLoad_New(struct ToriAuxLibCache* cache, int sprite_id);
+
+void
+InterfaceX_TaskSpriteLoad_Free(struct InterfaceX_TaskSpriteLoad* task);
+
+int
+InterfaceX_TaskSpriteLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx);
+
+bool
+InterfaceX_HostIO_FinalizeGraphicScene(
+    struct InterfaceX_HostIO* io,
+    int graphic_id,
+    int* scene_id_out);
+
+struct InterfaceX_TaskFontLoad*
+InterfaceX_TaskFontLoad_New(struct ToriAuxLibCache* cache, int font_id);
+
+void
+InterfaceX_TaskFontLoad_Free(struct InterfaceX_TaskFontLoad* task);
+
+int
+InterfaceX_TaskFontLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx);
+
+bool
+InterfaceX_HostIO_FinalizeSceneFont(struct InterfaceX_HostIO* io, int font_id);
+
+struct InterfaceX_TaskModelLoad*
+InterfaceX_TaskModelLoad_New(struct ToriAuxLibCache* cache, int model_id);
+
+void
+InterfaceX_TaskModelLoad_Free(struct InterfaceX_TaskModelLoad* task);
+
+int
+InterfaceX_TaskModelLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx);
+
+struct InterfaceX_TaskInterfaceLoad*
+InterfaceX_TaskInterfaceLoad_New(struct ToriAuxLibCache* cache, int group_id);
+
+void
+InterfaceX_TaskInterfaceLoad_Free(struct InterfaceX_TaskInterfaceLoad* task);
+
+int
+InterfaceX_TaskInterfaceLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx);
+
+void
+InterfaceX_HostIO_InterfaceGroupSubmit(struct InterfaceX_HostIO* io, int group_id);
+
+bool
+InterfaceX_HostIO_FinalizeObjIconScene(
+    struct InterfaceX_HostIO* io,
+    int obj_id,
+    int count,
+    int* scene_id_out);
+
+int
+InterfaceX_BatchModelLoad_RunAwait(
+    struct InterfaceX_BatchModelLoad* batch,
+    struct LibToriRS_IOContext* ctx);
 
 void
 InterfaceX_HostIO_QueueTask(

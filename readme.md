@@ -2278,26 +2278,30 @@ To rescan: list interface archive ids with `dump_interface_index`, then grep `du
 
 ## IO Loading Loop
 
-A. Primed with interface id.
+Interfacex uses the shared `LibToriCoreTaskRunner` protothread scheduler (same as `Task_InstanceRevConfigLoad`). There is no separate work-queue state machine — cooperative tasks yield on IO and resume via `TASK_AWAIT`.
 
-1. Queue IO to load interface
-2. Pump IO
-3. Queue Work to process interface pack
+**Pump IO** = `InterfaceX_HostIO_DrainTasks` (native CLI) or `InterfaceX_HostIO_Pump` once per frame (emscripten). The runner services `live_head` (LIFO); child tasks awaited from a parent run to completion before the parent resumes.
 
-B. Primed with interface pack.
+### A + B — `Task_InterfaceXOpen` (primed with interface id or pack)
 
-1. Process the tree; Queue IO as "Tree IO Work" (to keep track of which node) as needed
-2. Queue OnLoad, OnInvTransmit, onVarTransmit script loads
-3. Pump IO in same order
-4. Resolve nodes scene_ids
-5. Queue Work to run scripts
+1. `TASK_AWAIT` interface archive IO (`InterfaceX_TaskInterfaceLoad`) if not in buildcache
+2. `InterfaceX_HostIO_InterfaceGroupSubmit` + `InterfaceX_ProcessInterfacePack` (CPU: decode components into UITreeX)
+3. `TASK_AWAIT` tree asset IO (sprites/fonts/obj icons per pending node)
+4. `TASK_AWAIT` script prefetch (`Task_ClientScriptLoad` for onLoad / var / inv hooks)
+5. Resolve `scene_id` on nodes
+6. For each queued onLoad (and root-only var/inv transmit hooks): `TASK_AWAIT Task_InterfaceXRunScript`
+7. `TASK_AWAIT` batch model load flush
 
-// TODO: This combines running CS2 and building the tree...
-C. Primed with run script
+`main` queues one root open task and drains the runner to idle before layout/render.
 
-1. Run CS2VMX until yield
-2. VMHost_Load -> May queue an interface group, may synchronously need to run another VM.
-   ?. Handle build tree like in the top work queue???
-3. Pump IO
+### C — `Task_InterfaceXRunScript` (primed with run script)
 
-Need "CS2VMX" "Batches", for "interrupt" like execution, IF_OPENSUB requires to run onLoad to completion before returning.
+1. `CS2VMX_RunScript` until done, error, or `CS2VM_EXECNO_YIELD`
+2. On yield: dispatch pending `CS2VM_HostRequest` to an awaitable child task (script/config/sprite/font/model load, or `Task_InterfaceXLoadGroup` for CC_CREATE/FIND group loads)
+3. `TASK_AWAIT` child, then retry the rolled-back opcode
+
+Mid-script group loads integrate the pack only (no onLoad hooks), matching prior `IntegrateInterfaceGroup` behavior.
+
+### Nested opens / IF_OPENSUB (next step)
+
+A sub-open that must run onLoad to completion before returning is a child `Task_InterfaceXOpen` awaited from `Task_InterfaceXRunScript` — the runner LIFO stack provides interrupt/batch semantics without a separate batch type.

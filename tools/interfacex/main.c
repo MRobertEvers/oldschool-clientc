@@ -9,6 +9,10 @@
 #include "games/ie_struct_lookup.h"
 #include "interfacex_host_io.h"
 #include "interfacex_opcode_stack.gen.h"
+#include "3rd/minipt.h"
+#include "toriauxlib/core/tasks/core_task_await.h"
+#include "toriauxlib/core/tasks/task_clientscript_load.h"
+#include "toriauxlib/core/tasks/task_dat2_config_entry_load.h"
 #include "osrs/rscache/dat2a/dat2a_clientscript.h"
 #include "osrs/rscache/dat2a/dat2a_config_npctype.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
@@ -8342,6 +8346,7 @@ struct InterfaceX_LoadedInterface
     int interface_id;
     int component_count;
     struct ToriAuxLibCore_Component** components;
+    bool owns_components;
 };
 
 struct InterfaceX_VMHost
@@ -8386,6 +8391,8 @@ struct InterfaceX_VMHost
         struct InterfaceX_ModelLoadArg arg;
     } model_load_queue[MAX_NODES];
     int model_load_count;
+
+    bool primary_pack_integrated;
 
     bool has_pending_host_request;
     struct CS2VM_HostRequest pending_host_request;
@@ -15630,6 +15637,7 @@ InterfaceX_LoadInterfaceComponents(
         }
 
         loaded->components[i] = component_core;
+        loaded->owns_components = true;
         process_component(host, builder, component_core);
     }
 
@@ -15809,8 +15817,11 @@ InterfaceX_FreeLoadedInterface(struct InterfaceX_LoadedInterface* loaded)
 
     if( loaded->components )
     {
-        for( int i = 0; i < loaded->component_count; i++ )
-            ToriAuxLibCore_ComponentFree(loaded->components[i]);
+        if( loaded->owns_components )
+        {
+            for( int i = 0; i < loaded->component_count; i++ )
+                ToriAuxLibCore_ComponentFree(loaded->components[i]);
+        }
         free(loaded->components);
     }
 
@@ -15825,7 +15836,7 @@ InterfaceX_IsGroupLoaded(
     if( !host || group_id <= 0 )
         return false;
     if( host->interface_id == group_id )
-        return true;
+        return host->primary_pack_integrated;
     for( int i = 0; i < host->extra_group_count; i++ )
     {
         if( host->extra_group_ids[i] == group_id )
@@ -15834,80 +15845,14 @@ InterfaceX_IsGroupLoaded(
     return false;
 }
 
+#include "interfacex_tasks.inc.c"
+
 static bool
 InterfaceX_IntegrateInterfaceGroup(
     struct InterfaceX_VMHost* host,
     int group_id)
 {
-    struct ToriAuxLibCache* aux_cache;
-    struct Dat2BuildCache* bc;
-    struct Dat2BuildCache_InterfaceArchive* arch;
-    struct ToriAuxLibCore* core;
-    int i;
-    int integrated = 0;
-
-    assert(host);
-    assert(host->builder);
-    assert(host->tree);
-
-    if( group_id <= 0 )
-        return false;
-    if( InterfaceX_IsGroupLoaded(host, group_id) )
-        return true;
-    if( host->extra_group_count >= INTERFACEX_MAX_LOADED_GROUPS )
-    {
-        fprintf(stderr, "interface group %d: loaded group cap reached\n", group_id);
-        return false;
-    }
-
-    aux_cache = InterfaceX_HostIO_Cache(&host->host_io);
-    if( !aux_cache )
-    {
-        fprintf(stderr, "interface group %d: aux cache unavailable\n", group_id);
-        return false;
-    }
-
-    bc = dat2(aux_cache);
-    arch = dat2_buildcache_interface_archive_get(bc, group_id);
-    if( !arch || arch->component_count <= 0 )
-    {
-        fprintf(stderr, "interface group %d: buildcache archive missing\n", group_id);
-        return false;
-    }
-
-    core = InterfaceX_HostIO_Core(&host->host_io);
-    for( i = 0; i < arch->component_count; i++ )
-    {
-        int packed_id = (group_id << 16) | (i & 0xFFFF);
-        struct ToriAuxLibCore_Component* component_core =
-            core ? ToriAuxLibCore_ComponentGet(core, packed_id) : NULL;
-        if( !component_core && arch->components[i] )
-        {
-            component_core =
-                ToriAuxLibCache_ComponentNewFromCacheDat2Component(arch->components[i]);
-            if( component_core && core )
-                ToriAuxLibCore_ComponentAdd(core, packed_id, component_core);
-        }
-        if( !component_core )
-        {
-            fprintf(stderr, "interface group %d: missing component file %d\n", group_id, i);
-            return false;
-        }
-
-        process_component(host, host->builder, component_core);
-        integrated++;
-    }
-
-    UITreeXBuilder_ResolvePendingParents(host->builder);
-    InterfaceX_HideInterfaceRoots(host->tree, group_id);
-
-    host->extra_group_ids[host->extra_group_count] = group_id;
-    memset(&host->extra_groups[host->extra_group_count], 0, sizeof(host->extra_groups[0]));
-    host->extra_groups[host->extra_group_count].interface_id = group_id;
-    host->extra_group_count++;
-
-    fprintf(stderr, "loaded interface group %d (%d components)\n", group_id, integrated);
-    return true;
+    return InterfaceX_ProcessInterfacePack(host, group_id, NULL);
 }
 
 static void
@@ -16141,33 +16086,27 @@ main(
         InterfaceX_HostIO_Cache(&vmhost.host_io), CLIENTSCRIPT_DECODE_TRAILER_LEGACY);
     InterfaceX_InvStoreSeedDefaults(&vmhost);
 
-    if( !InterfaceX_LoadInterfaceComponents(&vmhost, builder, cache, interface_id, &primary) )
-        return 1;
-
-    UITreeXBuilder_ResolvePendingParents(builder);
-    UITreeXBuilder_LoadPendingAssets(&vmhost, builder);
-    InterfaceX_PrefetchOnLoadScripts(&vmhost, &primary);
-    InterfaceX_PrefetchOnVarTransmitScripts(&vmhost, &primary);
-    InterfaceX_PrefetchOnInvTransmitScripts(&vmhost, &primary);
-
-    InterfaceX_QueueInterfaceOnLoadScripts(&vmhost, &primary);
-    InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
-
-    InterfaceX_VMHost_FireVarTransmitHooks(&vmhost, &vm);
-    InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
-
-    InterfaceX_VMHost_FireCacheVarTransmitHooks(
-        &vmhost, &vm, primary.components, primary.component_count);
-    InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
-
-    InterfaceX_VMHost_FireInvTransmitHooks(&vmhost, &vm);
-    InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
-
-    InterfaceX_VMHost_FireCacheInvTransmitHooks(
-        &vmhost, &vm, primary.components, primary.component_count);
-    InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
-
-    InterfaceX_FlushModelLoads(&vmhost);
+    {
+        struct Task_InterfaceXOpen* open_task =
+            Task_InterfaceXOpen_New(&vmhost, &vm, interface_id, true, &primary);
+        if( !open_task )
+        {
+            fprintf(stderr, "failed to allocate open task\n");
+            return 1;
+        }
+        InterfaceX_HostIO_QueueTask(
+            &vmhost.host_io,
+            open_task,
+            Task_InterfaceXOpen_Run,
+            Task_InterfaceXOpen_Free);
+        InterfaceX_HostIO_DrainTasks(&vmhost.host_io);
+        if( !vmhost.primary_pack_integrated )
+        {
+            fprintf(stderr, "failed to open interface %d\n", interface_id);
+            InterfaceX_FreeLoadedInterface(&primary);
+            return 1;
+        }
+    }
 
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
     UITreeX_PrintNodes(tree);

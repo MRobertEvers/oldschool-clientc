@@ -1,5 +1,6 @@
 #include "interfacex_host_io.h"
 
+#include "3rd/minipt.h"
 #include "buildcache/dat2_buildcache.h"
 #include "buildcache/dat2_buildcache_ui.h"
 #include "core/tapi/tapi_dat2.h"
@@ -52,6 +53,15 @@ struct InterfaceX_HostIOCaches
 
 static struct InterfaceX_HostIOCaches s_host_io_caches;
 
+static struct ToriDraw_Font*
+hostio_font_new_from_core(struct ToriAuxLibCore_Font const* src);
+
+static int
+hostio_raster_sprite_to_scene(
+    struct InterfaceX_HostIO* io,
+    struct ToriAuxLibCore_Sprite* sprite,
+    int* scene_id_out);
+
 struct InterfaceX_TaskSpriteLoad
 {
     struct pt thread;
@@ -78,6 +88,9 @@ struct InterfaceX_TaskInterfaceLoad
     struct pt thread;
     struct ToriAuxLibCache* cache;
     int group_id;
+    struct RSCacheDat2Disk_ReferenceTable* reference_table;
+    struct RSCacheDat2Disk_Archive* iface_disk_archive;
+    struct Dat2BuildCache_InterfaceArchive* iface_archive;
 };
 
 #define INTERFACEX_BATCH_MODEL_IO_CHUNK 64
@@ -164,10 +177,18 @@ hostio_drain_io(struct InterfaceX_HostIO* io)
 {
     while( LibToriCoreTaskRunner_HasLive(io->task_runner) )
     {
-        while( LibToriCoreTaskRunner_Run(io->task_runner) )
-            LibToriPlatformX_IOReactorProcess(io->io_reactor, io->io_queue);
-        LibToriPlatformX_IOReactorProcess(io->io_reactor, io->io_queue);
+        InterfaceX_HostIO_Pump(io);
     }
+}
+
+void
+InterfaceX_HostIO_Pump(struct InterfaceX_HostIO* io)
+{
+    if( !io )
+        return;
+    while( LibToriCoreTaskRunner_Run(io->task_runner) )
+        LibToriPlatformX_IOReactorProcess(io->io_reactor, io->io_queue);
+    LibToriPlatformX_IOReactorProcess(io->io_reactor, io->io_queue);
 }
 
 static void
@@ -186,7 +207,7 @@ hostio_run_task(
 static void
 hostio_sprite_load_destroy(void* state)
 {
-    free(state);
+    InterfaceX_TaskSpriteLoad_Free(state);
 }
 
 static int
@@ -239,10 +260,79 @@ hostio_sprite_load_run(
     PT_END(&task->thread);
 }
 
+struct InterfaceX_TaskSpriteLoad*
+InterfaceX_TaskSpriteLoad_New(
+    struct ToriAuxLibCache* cache,
+    int sprite_id)
+{
+    struct InterfaceX_TaskSpriteLoad* task = calloc(1, sizeof(*task));
+    if( !task )
+        return NULL;
+    PT_INIT(&task->thread);
+    task->cache = cache;
+    task->sprite_id = sprite_id;
+    return task;
+}
+
+void
+InterfaceX_TaskSpriteLoad_Free(struct InterfaceX_TaskSpriteLoad* task)
+{
+    free(task);
+}
+
+int
+InterfaceX_TaskSpriteLoad_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx)
+{
+    return hostio_sprite_load_run(task_state, ctx);
+}
+
+bool
+InterfaceX_HostIO_FinalizeGraphicScene(
+    struct InterfaceX_HostIO* io,
+    int graphic_id,
+    int* scene_id_out)
+{
+    assert(io);
+    assert(graphic_id >= 0);
+    assert(scene_id_out);
+
+    if( InterfaceX_HostIO_GraphicSceneId(io, graphic_id, scene_id_out) )
+        return true;
+
+    struct ToriAuxLibCore_Sprite* sprite = ToriAuxLibCore_SpriteGet(io->core, graphic_id);
+    if( !sprite )
+    {
+        fprintf(stderr, "hostio: graphic sprite missing after IO for graphic_id=%d\n", graphic_id);
+        return false;
+    }
+
+    int scene_id = -1;
+    if( hostio_raster_sprite_to_scene(io, sprite, &scene_id) != 0 )
+    {
+        fprintf(stderr, "hostio: graphic scene raster failed for graphic_id=%d\n", graphic_id);
+        return false;
+    }
+
+    struct InterfaceX_GraphicSceneCacheEntry* entry =
+        calloc(1, sizeof(struct InterfaceX_GraphicSceneCacheEntry));
+    if( entry )
+    {
+        entry->graphic_id = graphic_id;
+        entry->scene_id = scene_id;
+        entry->next = s_host_io_caches.graphic_scene_cache;
+        s_host_io_caches.graphic_scene_cache = entry;
+    }
+
+    *scene_id_out = scene_id;
+    return true;
+}
+
 static void
 hostio_font_load_destroy(void* state)
 {
-    free(state);
+    InterfaceX_TaskFontLoad_Free(state);
 }
 
 static int
@@ -300,10 +390,69 @@ hostio_font_load_run(
     PT_END(&task->thread);
 }
 
+struct InterfaceX_TaskFontLoad*
+InterfaceX_TaskFontLoad_New(
+    struct ToriAuxLibCache* cache,
+    int font_id)
+{
+    struct InterfaceX_TaskFontLoad* task = calloc(1, sizeof(*task));
+    if( !task )
+        return NULL;
+    PT_INIT(&task->thread);
+    task->cache = cache;
+    task->font_id = font_id;
+    return task;
+}
+
+void
+InterfaceX_TaskFontLoad_Free(struct InterfaceX_TaskFontLoad* task)
+{
+    free(task);
+}
+
+int
+InterfaceX_TaskFontLoad_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx)
+{
+    return hostio_font_load_run(task_state, ctx);
+}
+
+bool
+InterfaceX_HostIO_FinalizeSceneFont(
+    struct InterfaceX_HostIO* io,
+    int font_id)
+{
+    assert(io);
+    assert(font_id >= 0);
+
+    if( InterfaceX_HostIO_SceneFontGet(io, font_id) )
+        return true;
+
+    ToriAuxLibCache_SubmitFontFromDat2(io->aux_cache, font_id);
+
+    struct ToriAuxLibCore_Font* core_font = ToriAuxLibCore_FontGet(io->core, font_id);
+    if( !core_font )
+    {
+        fprintf(stderr, "hostio: font missing after IO for font_id=%d\n", font_id);
+        return false;
+    }
+
+    struct ToriDraw_Font* font = hostio_font_new_from_core(core_font);
+    if( !font )
+    {
+        fprintf(stderr, "hostio: font raster failed for font_id=%d\n", font_id);
+        return false;
+    }
+
+    ToriDraw_SceneFontAdd(io->scene, font_id, font);
+    return true;
+}
+
 static void
 hostio_model_load_destroy(void* state)
 {
-    free(state);
+    InterfaceX_TaskModelLoad_Free(state);
 }
 
 static int
@@ -340,6 +489,34 @@ hostio_model_load_run(
 
     LibToriRS_IOQueueClear(ctx->io);
     PT_END(&task->thread);
+}
+
+struct InterfaceX_TaskModelLoad*
+InterfaceX_TaskModelLoad_New(
+    struct ToriAuxLibCache* cache,
+    int model_id)
+{
+    struct InterfaceX_TaskModelLoad* task = calloc(1, sizeof(*task));
+    if( !task )
+        return NULL;
+    PT_INIT(&task->thread);
+    task->cache = cache;
+    task->model_id = model_id;
+    return task;
+}
+
+void
+InterfaceX_TaskModelLoad_Free(struct InterfaceX_TaskModelLoad* task)
+{
+    free(task);
+}
+
+int
+InterfaceX_TaskModelLoad_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx)
+{
+    return hostio_model_load_run(task_state, ctx);
 }
 
 static struct ToriDraw_Font*
@@ -586,7 +763,7 @@ InterfaceX_HostIO_Disk(struct InterfaceX_HostIO* io)
 static void
 hostio_interface_load_destroy(void* state)
 {
-    free(state);
+    InterfaceX_TaskInterfaceLoad_Free(state);
 }
 
 static void
@@ -613,6 +790,14 @@ hostio_interface_group_submit(
     ToriAuxLibCache_SubmitComponentsFromDat2(io->aux_cache, arch);
 }
 
+void
+InterfaceX_HostIO_InterfaceGroupSubmit(
+    struct InterfaceX_HostIO* io,
+    int group_id)
+{
+    hostio_interface_group_submit(io, group_id);
+}
+
 static int
 hostio_interface_load_run(
     void* task_state,
@@ -620,9 +805,6 @@ hostio_interface_load_run(
 {
     struct InterfaceX_TaskInterfaceLoad* task = task_state;
     struct Dat2BuildCache* bc = dat2(task->cache);
-    struct RSCacheDat2Disk_ReferenceTable* reference_table = NULL;
-    struct RSCacheDat2Disk_Archive* iface_disk_archive = NULL;
-    struct Dat2BuildCache_InterfaceArchive* iface_archive = NULL;
 
     PT_BEGIN(&task->thread);
 
@@ -641,33 +823,62 @@ hostio_interface_load_run(
     IO_REQUEST(ctx, 0, TAPIDat2_FetchInterface(ctx, task->group_id));
     PT_YIELD(&task->thread);
 
-    reference_table = dat2_buildcache_reference_table_get(bc, RSCacheDat2Disk_Table_Interfaces);
-    if( !reference_table )
+    task->reference_table =
+        dat2_buildcache_reference_table_get(bc, RSCacheDat2Disk_Table_Interfaces);
+    if( !task->reference_table )
         PT_EXIT(&task->thread);
 
-    iface_disk_archive = TAPIDat2_DecodeInterfaceArchive(ctx, 0, task->group_id);
-    if( !iface_disk_archive )
+    task->iface_disk_archive = TAPIDat2_DecodeInterfaceArchive(ctx, 0, task->group_id);
+    if( !task->iface_disk_archive )
     {
         fprintf(
             stderr, "hostio: interface archive decode failed for group_id=%d\n", task->group_id);
         PT_EXIT(&task->thread);
     }
 
-    iface_archive = dat2_buildcache_component_decode_iface_archive_from_archive(
-        reference_table, iface_disk_archive, task->group_id);
-    iface_disk_archive = NULL;
-    if( !iface_archive )
+    task->iface_archive = dat2_buildcache_component_decode_iface_archive_from_archive(
+        task->reference_table, task->iface_disk_archive, task->group_id);
+    task->iface_disk_archive = NULL;
+    if( !task->iface_archive )
     {
         fprintf(
             stderr, "hostio: interface component decode failed for group_id=%d\n", task->group_id);
         PT_EXIT(&task->thread);
     }
 
-    dat2_buildcache_interface_archive_add(bc, task->group_id, iface_archive);
-    ToriAuxLibCache_SubmitComponentsFromDat2(task->cache, iface_archive);
+    dat2_buildcache_interface_archive_add(bc, task->group_id, task->iface_archive);
+    ToriAuxLibCache_SubmitComponentsFromDat2(task->cache, task->iface_archive);
 
     LibToriRS_IOQueueClear(ctx->io);
     PT_END(&task->thread);
+}
+
+struct InterfaceX_TaskInterfaceLoad*
+InterfaceX_TaskInterfaceLoad_New(
+    struct ToriAuxLibCache* cache,
+    int group_id)
+{
+    struct InterfaceX_TaskInterfaceLoad* task = calloc(1, sizeof(*task));
+    if( !task )
+        return NULL;
+    PT_INIT(&task->thread);
+    task->cache = cache;
+    task->group_id = group_id;
+    return task;
+}
+
+void
+InterfaceX_TaskInterfaceLoad_Free(struct InterfaceX_TaskInterfaceLoad* task)
+{
+    free(task);
+}
+
+int
+InterfaceX_TaskInterfaceLoad_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx)
+{
+    return hostio_interface_load_run(task_state, ctx);
 }
 
 bool
@@ -689,16 +900,13 @@ InterfaceX_HostIO_LoadInterfaceGroup(
         return true;
     }
 
-    task = calloc(1, sizeof(*task));
+    task = InterfaceX_TaskInterfaceLoad_New(io->aux_cache, group_id);
     if( !task )
     {
         fprintf(stderr, "hostio: interface group load alloc failed for group_id=%d\n", group_id);
         return false;
     }
 
-    PT_INIT(&task->thread);
-    task->cache = io->aux_cache;
-    task->group_id = group_id;
     hostio_run_task(io, task, hostio_interface_load_run, hostio_interface_load_destroy);
 
     if( !dat2_buildcache_interface_archive_has(bc, group_id) )
@@ -966,39 +1174,100 @@ InterfaceX_HostIO_LoadGraphicScene(
     if( InterfaceX_HostIO_GraphicSceneId(io, graphic_id, scene_id_out) )
         return true;
 
-    struct InterfaceX_TaskSpriteLoad* task = calloc(1, sizeof(*task));
+    struct InterfaceX_TaskSpriteLoad* task = InterfaceX_TaskSpriteLoad_New(io->aux_cache, graphic_id);
     if( !task )
     {
         fprintf(stderr, "hostio: graphic scene load alloc failed for graphic_id=%d\n", graphic_id);
         return false;
     }
-    PT_INIT(&task->thread);
-    task->cache = io->aux_cache;
-    task->sprite_id = graphic_id;
     hostio_run_task(io, task, hostio_sprite_load_run, hostio_sprite_load_destroy);
 
-    struct ToriAuxLibCore_Sprite* sprite = ToriAuxLibCore_SpriteGet(io->core, graphic_id);
+    return InterfaceX_HostIO_FinalizeGraphicScene(io, graphic_id, scene_id_out);
+}
+
+static bool
+hostio_ensure_obj_icon_deps(
+    struct InterfaceX_HostIO* io,
+    int obj_id,
+    int count)
+{
+    struct Dat2BuildCache* bc = dat2(io->aux_cache);
+    struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(bc, obj_id);
+    if( obj && count > 1 )
+    {
+        int countobj_id = -1;
+        for( int i = 0; i < 10; i++ )
+        {
+            if( count >= obj->count_co[i] && obj->count_co[i] != 0 )
+                countobj_id = obj->count_obj[i];
+        }
+        if( countobj_id >= 0 )
+            obj = dat2_buildcache_object_get(bc, countobj_id);
+    }
+    if( obj && obj->inventory_model_id > 0 )
+    {
+        if( !InterfaceX_HostIO_LoadModel(io, obj->inventory_model_id) )
+        {
+            fprintf(
+                stderr,
+                "hostio: obj icon inventory model load failed obj_id=%d model_id=%d\n",
+                obj_id,
+                obj->inventory_model_id);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool
+InterfaceX_HostIO_FinalizeObjIconScene(
+    struct InterfaceX_HostIO* io,
+    int obj_id,
+    int count,
+    int* scene_id_out)
+{
+    assert(io);
+    assert(obj_id >= 0);
+    assert(scene_id_out);
+
+    if( InterfaceX_HostIO_ObjIconSceneId(io, obj_id, count, scene_id_out) )
+        return true;
+
+    ToriAuxLibCache_EnsureObjtype(io->aux_cache, obj_id);
+
+    struct ToriAuxLibCore_Sprite* sprite =
+        dat2_buildcache_obj_icon_sprite(dat2(io->aux_cache), io->scene, obj_id, count);
     if( !sprite )
     {
-        fprintf(stderr, "hostio: graphic sprite missing after IO for graphic_id=%d\n", graphic_id);
+        struct Dat2BuildCache* bc = dat2(io->aux_cache);
+        struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(bc, obj_id);
+        int inventory_model_id = obj ? obj->inventory_model_id : -1;
+        fprintf(
+            stderr,
+            "hostio: obj icon sprite missing for obj_id=%d count=%d inventory_model_id=%d "
+            "model_cached=%d\n",
+            obj_id,
+            count,
+            inventory_model_id,
+            inventory_model_id > 0 && dat2_buildcache_model_get(bc, inventory_model_id) != NULL);
         return false;
     }
 
     int scene_id = -1;
     if( hostio_raster_sprite_to_scene(io, sprite, &scene_id) != 0 )
     {
-        fprintf(stderr, "hostio: graphic scene raster failed for graphic_id=%d\n", graphic_id);
+        fprintf(stderr, "hostio: obj icon scene raster failed for obj_id=%d\n", obj_id);
         return false;
     }
 
-    struct InterfaceX_GraphicSceneCacheEntry* entry =
-        calloc(1, sizeof(struct InterfaceX_GraphicSceneCacheEntry));
+    struct InterfaceX_ObjIconCacheEntry* entry =
+        calloc(1, sizeof(struct InterfaceX_ObjIconCacheEntry));
     if( entry )
     {
-        entry->graphic_id = graphic_id;
+        entry->obj_id = obj_id;
         entry->scene_id = scene_id;
-        entry->next = s_host_io_caches.graphic_scene_cache;
-        s_host_io_caches.graphic_scene_cache = entry;
+        entry->next = s_host_io_caches.obj_icon_cache;
+        s_host_io_caches.obj_icon_cache = entry;
     }
 
     *scene_id_out = scene_id;
@@ -1026,35 +1295,15 @@ InterfaceX_HostIO_LoadSceneFont(
     if( InterfaceX_HostIO_SceneFontGet(io, font_id) )
         return true;
 
-    struct InterfaceX_TaskFontLoad* task = calloc(1, sizeof(*task));
+    struct InterfaceX_TaskFontLoad* task = InterfaceX_TaskFontLoad_New(io->aux_cache, font_id);
     if( !task )
     {
         fprintf(stderr, "hostio: font load alloc failed for font_id=%d\n", font_id);
         return false;
     }
-    PT_INIT(&task->thread);
-    task->cache = io->aux_cache;
-    task->font_id = font_id;
     hostio_run_task(io, task, hostio_font_load_run, hostio_font_load_destroy);
 
-    ToriAuxLibCache_SubmitFontFromDat2(io->aux_cache, font_id);
-
-    struct ToriAuxLibCore_Font* core_font = ToriAuxLibCore_FontGet(io->core, font_id);
-    if( !core_font )
-    {
-        fprintf(stderr, "hostio: font missing after IO for font_id=%d\n", font_id);
-        return false;
-    }
-
-    struct ToriDraw_Font* font = hostio_font_new_from_core(core_font);
-    if( !font )
-    {
-        fprintf(stderr, "hostio: font raster failed for font_id=%d\n", font_id);
-        return false;
-    }
-
-    ToriDraw_SceneFontAdd(io->scene, font_id, font);
-    return true;
+    return InterfaceX_HostIO_FinalizeSceneFont(io, font_id);
 }
 
 bool
@@ -1101,72 +1350,9 @@ InterfaceX_HostIO_LoadObjIconScene(
         fprintf(stderr, "hostio: object config load failed for obj_id=%d\n", obj_id);
         return false;
     }
-    ToriAuxLibCache_EnsureObjtype(io->aux_cache, obj_id);
+    (void)hostio_ensure_obj_icon_deps(io, obj_id, count);
 
-    {
-        struct Dat2BuildCache* bc = dat2(io->aux_cache);
-        struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(bc, obj_id);
-        if( obj && count > 1 )
-        {
-            int countobj_id = -1;
-            for( int i = 0; i < 10; i++ )
-            {
-                if( count >= obj->count_co[i] && obj->count_co[i] != 0 )
-                    countobj_id = obj->count_obj[i];
-            }
-            if( countobj_id >= 0 )
-                obj = dat2_buildcache_object_get(bc, countobj_id);
-        }
-        if( obj && obj->inventory_model_id > 0 )
-        {
-            if( !InterfaceX_HostIO_LoadModel(io, obj->inventory_model_id) )
-            {
-                fprintf(
-                    stderr,
-                    "hostio: obj icon inventory model load failed obj_id=%d model_id=%d\n",
-                    obj_id,
-                    obj->inventory_model_id);
-            }
-        }
-    }
-
-    struct ToriAuxLibCore_Sprite* sprite =
-        dat2_buildcache_obj_icon_sprite(dat2(io->aux_cache), io->scene, obj_id, count);
-    if( !sprite )
-    {
-        struct Dat2BuildCache* bc = dat2(io->aux_cache);
-        struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(bc, obj_id);
-        int inventory_model_id = obj ? obj->inventory_model_id : -1;
-        fprintf(
-            stderr,
-            "hostio: obj icon sprite missing for obj_id=%d count=%d inventory_model_id=%d "
-            "model_cached=%d\n",
-            obj_id,
-            count,
-            inventory_model_id,
-            inventory_model_id > 0 && dat2_buildcache_model_get(bc, inventory_model_id) != NULL);
-        return false;
-    }
-
-    int scene_id = -1;
-    if( hostio_raster_sprite_to_scene(io, sprite, &scene_id) != 0 )
-    {
-        fprintf(stderr, "hostio: obj icon scene raster failed for obj_id=%d\n", obj_id);
-        return false;
-    }
-
-    struct InterfaceX_ObjIconCacheEntry* entry =
-        calloc(1, sizeof(struct InterfaceX_ObjIconCacheEntry));
-    if( entry )
-    {
-        entry->obj_id = obj_id;
-        entry->scene_id = scene_id;
-        entry->next = s_host_io_caches.obj_icon_cache;
-        s_host_io_caches.obj_icon_cache = entry;
-    }
-
-    *scene_id_out = scene_id;
-    return true;
+    return InterfaceX_HostIO_FinalizeObjIconScene(io, obj_id, count, scene_id_out);
 }
 
 bool
@@ -1180,15 +1366,12 @@ InterfaceX_HostIO_LoadModel(
     if( dat2_buildcache_model_get(dat2(io->aux_cache), model_id) )
         return true;
 
-    struct InterfaceX_TaskModelLoad* task = calloc(1, sizeof(*task));
+    struct InterfaceX_TaskModelLoad* task = InterfaceX_TaskModelLoad_New(io->aux_cache, model_id);
     if( !task )
     {
         fprintf(stderr, "hostio: model load alloc failed for model_id=%d\n", model_id);
         return false;
     }
-    PT_INIT(&task->thread);
-    task->cache = io->aux_cache;
-    task->model_id = model_id;
     hostio_run_task(io, task, hostio_model_load_run, hostio_model_load_destroy);
 
     if( !dat2_buildcache_model_get(dat2(io->aux_cache), model_id) )
@@ -1976,4 +2159,14 @@ InterfaceX_BatchModelLoad_Results(
     if( count_out )
         *count_out = batch->arg_count;
     return batch->task->results;
+}
+
+int
+InterfaceX_BatchModelLoad_RunAwait(
+    struct InterfaceX_BatchModelLoad* batch,
+    struct LibToriRS_IOContext* ctx)
+{
+    if( !batch || !batch->task )
+        return PT_EXITED;
+    return batch_model_load_run(batch->task, ctx);
 }
