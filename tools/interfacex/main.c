@@ -8549,8 +8549,7 @@ InterfaceX_EnqueueModelNodeLoad(
         if( host->model_load_queue[i].user_id != arg.user_id )
             continue;
 
-        bool changed =
-            !InterfaceX_ModelLoadArgsEqual(&host->model_load_queue[i].arg, &arg);
+        bool changed = !InterfaceX_ModelLoadArgsEqual(&host->model_load_queue[i].arg, &arg);
         host->model_load_queue[i].arg = arg;
         if( changed )
             InterfaceX_ModelNodeInvalidateScene(node);

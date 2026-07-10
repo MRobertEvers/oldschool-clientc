@@ -6,6 +6,7 @@
 #include "osrs/rscache/dat2a/dat2a_config_npctype.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "platforms/platform_x/cachelib.h"
 #include "platforms/platform_x/cachelib_platform.h"
@@ -14,16 +15,15 @@
 #include "toriauxlib/c/toriauxlibcache.h"
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/tasks/core_task_await.h"
 #include "toriauxlib/core/tasks/task_clientscript_load.h"
 #include "toriauxlib/core/tasks/task_dat2_config_entry_load.h"
 #include "toriauxlib/core/tasks/task_dat2_io.h"
-#include "toriauxlib/core/tasks/core_task_await.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toridraw_cachemodel.h"
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_sprite.h"
-#include "osrs/rscache/dat2a/dat2a_model.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -1231,8 +1231,8 @@ InterfaceX_HostIO_LoadNpctype(
 {
     struct Dat2BuildCache* bc;
 
-    if( !io || npc_id < 0 )
-        return false;
+    assert(io);
+    assert(npc_id >= 0);
 
     bc = dat2(io->aux_cache);
     if( !dat2_buildcache_npctype_get(bc, npc_id) )
@@ -1246,7 +1246,10 @@ InterfaceX_HostIO_LoadNpctype(
         }
 
         hostio_run_task(
-            io, task, Task_ToriAuxLibCache_NpcAdd_Run, (void (*)(void*))Task_ToriAuxLibCache_NpcAdd_Free);
+            io,
+            task,
+            Task_ToriAuxLibCache_NpcAdd_Run,
+            (void (*)(void*))Task_ToriAuxLibCache_NpcAdd_Free);
 
         if( !dat2_buildcache_npctype_get(bc, npc_id) )
         {
@@ -1298,8 +1301,7 @@ InterfaceX_HostIO_LoadPlayerAppearance(
             Task_ToriAuxLibCache_PlayerAdd_Run,
             (void (*)(void*))Task_ToriAuxLibCache_PlayerAdd_Free);
 
-        model_count =
-            runescape_appearance_collect_model_ids_dat2(bc, appearance, model_ids, 256);
+        model_count = runescape_appearance_collect_model_ids_dat2(bc, appearance, model_ids, 256);
     }
 
     for( i = 0; i < model_count; i++ )
@@ -1431,8 +1433,7 @@ batch_collect_deps_from_args(struct InterfaceX_TaskBatchModelLoad* task)
             bool found = false;
             for( int p = 0; p < task->player_count; p++ )
             {
-                if( batch_player_appearance_eq(
-                        task->player_appearances[p], arg->u.appearance) )
+                if( batch_player_appearance_eq(task->player_appearances[p], arg->u.appearance) )
                 {
                     found = true;
                     break;
@@ -1477,8 +1478,7 @@ batch_collect_model_ids_after_configs(
             break;
         case INTERFACEX_MLOAD_NPC:
         {
-            struct RSCacheDat2A_ConfigNpctype* npc =
-                dat2_buildcache_npctype_get(bc, arg->u.npc_id);
+            struct RSCacheDat2A_ConfigNpctype* npc = dat2_buildcache_npctype_get(bc, arg->u.npc_id);
             if( !npc || !npc->chathead_models )
                 break;
             for( int m = 0; m < npc->chathead_models_count; m++ )
@@ -1493,8 +1493,7 @@ batch_collect_model_ids_after_configs(
         }
         case INTERFACEX_MLOAD_OBJ:
         {
-            struct RSCacheDat2A_ConfigObject* obj =
-                dat2_buildcache_object_get(bc, arg->u.obj_id);
+            struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(bc, arg->u.obj_id);
             if( obj && obj->inventory_model_id > 0 )
             {
                 batch_model_id_list_add(
@@ -1508,8 +1507,8 @@ batch_collect_model_ids_after_configs(
         case INTERFACEX_MLOAD_PLAYER:
         {
             int model_ids[256];
-            int model_count = runescape_appearance_collect_model_ids_dat2(
-                bc, arg->u.appearance, model_ids, 256);
+            int model_count =
+                runescape_appearance_collect_model_ids_dat2(bc, arg->u.appearance, model_ids, 256);
             for( int m = 0; m < model_count; m++ )
             {
                 batch_model_id_list_add(
@@ -1567,8 +1566,7 @@ batch_build_td_model_for_arg(
         if( arg->u.npc_id < 0 )
             return NULL;
         {
-            struct RSCacheDat2A_ConfigNpctype* npc =
-                dat2_buildcache_npctype_get(bc, arg->u.npc_id);
+            struct RSCacheDat2A_ConfigNpctype* npc = dat2_buildcache_npctype_get(bc, arg->u.npc_id);
             if( !npc || !npc->chathead_models || npc->chathead_models_count <= 0 )
                 return NULL;
 
@@ -1596,8 +1594,8 @@ batch_build_td_model_for_arg(
         int model_ids[256];
         int id_count;
 
-        id_count = runescape_appearance_collect_model_ids_dat2(
-            bc, arg->u.appearance, model_ids, 256);
+        id_count =
+            runescape_appearance_collect_model_ids_dat2(bc, arg->u.appearance, model_ids, 256);
         if( id_count <= 0 )
             return NULL;
 
@@ -1734,8 +1732,8 @@ batch_model_load_run(
 
         if( task->npc_child )
             Task_ToriAuxLibCache_NpcAdd_Free(task->npc_child);
-        task->npc_child = Task_ToriAuxLibCache_NpcAdd_New(
-            task->cache, task->npc_ids[task->npc_index]);
+        task->npc_child =
+            Task_ToriAuxLibCache_NpcAdd_New(task->cache, task->npc_ids[task->npc_index]);
         if( !task->npc_child )
         {
             fprintf(
@@ -1756,10 +1754,7 @@ batch_model_load_run(
     while( task->player_index < task->player_count )
     {
         task->player_model_count = runescape_appearance_collect_model_ids_dat2(
-            bc,
-            task->player_appearances[task->player_index],
-            task->player_model_ids,
-            256);
+            bc, task->player_appearances[task->player_index], task->player_model_ids, 256);
         if( task->player_model_count > 0 )
         {
             task->player_index++;
@@ -1837,8 +1832,8 @@ batch_model_load_run(
             if( dat2_buildcache_model_get(bc, task->needed_model_ids[task->init_i]) )
                 continue;
 
-            task->decode_i = LibToriRS_IOBatchAdd(
-                &task->io_batch, task->needed_model_ids[task->init_i]);
+            task->decode_i =
+                LibToriRS_IOBatchAdd(&task->io_batch, task->needed_model_ids[task->init_i]);
             IO_REQUEST(
                 ctx,
                 task->decode_i,
@@ -1858,10 +1853,7 @@ batch_model_load_run(
             struct RSCacheDat2A_Model* model = TAPIDat2_DecodeModel(ctx, task->decode_i);
             if( !model )
             {
-                fprintf(
-                    stderr,
-                    "hostio: batch model decode failed model_id=%d\n",
-                    model_id);
+                fprintf(stderr, "hostio: batch model decode failed model_id=%d\n", model_id);
                 continue;
             }
             dat2_buildcache_model_add(bc, model_id, model);
