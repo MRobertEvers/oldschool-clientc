@@ -17,9 +17,13 @@
 #include "toriauxlib/core/tasks/task_clientscript_load.h"
 #include "toriauxlib/core/tasks/task_dat2_config_entry_load.h"
 #include "toriauxlib/core/tasks/task_dat2_io.h"
+#include "toriauxlib/core/tasks/core_task_await.h"
 #include "toriauxlib/core/toriauxlibcore.h"
+#include "toriauxlib/td/toridraw_cachemodel.h"
 #include "toridraw/toridraw_font.h"
+#include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_sprite.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -75,6 +79,67 @@ struct InterfaceX_TaskInterfaceLoad
     struct ToriAuxLibCache* cache;
     int group_id;
 };
+
+#define INTERFACEX_BATCH_MODEL_IO_CHUNK 64
+#define INTERFACEX_BATCH_MODEL_MAX_IDS 512
+#define INTERFACEX_BATCH_MODEL_MAX_NPC 64
+#define INTERFACEX_BATCH_MODEL_MAX_OBJ 64
+#define INTERFACEX_BATCH_MODEL_MAX_PLAYER 8
+
+struct InterfaceX_TaskBatchModelLoad
+{
+    struct pt thread;
+    struct ToriAuxLibCache* cache;
+    struct ToriDraw_Scene* scene;
+    int* next_scene_id;
+
+    struct InterfaceX_ModelLoadArg* args;
+    int arg_count;
+    struct InterfaceX_ModelLoadResult* results;
+
+    int needed_model_ids[INTERFACEX_BATCH_MODEL_MAX_IDS];
+    int needed_model_count;
+    int prefetch_index;
+
+    int npc_ids[INTERFACEX_BATCH_MODEL_MAX_NPC];
+    int npc_count;
+    int npc_index;
+
+    int obj_ids[INTERFACEX_BATCH_MODEL_MAX_OBJ];
+    int obj_count;
+
+    int player_appearances[INTERFACEX_BATCH_MODEL_MAX_PLAYER][RUNESCAPE_APPEARANCE_SLOT_COUNT];
+    int player_count;
+    int player_index;
+
+    struct LibToriRS_IOBatch io_batch;
+
+    struct Task_ToriAuxLibCache_NpcAdd* npc_child;
+    struct Task_ToriAuxLibCache_PlayerAdd* player_child;
+    struct Task_Dat2ConfigEntryLoad* obj_config_child;
+
+    int scene_build_index;
+    int batch_end;
+    bool need_obj_load;
+    int player_model_count;
+    int player_model_ids[256];
+    int decode_i;
+    int init_i;
+    int scene_id;
+    struct ToriDraw_Model* td_model;
+};
+
+struct InterfaceX_BatchModelLoad
+{
+    struct InterfaceX_TaskBatchModelLoad* task;
+    int arg_count;
+};
+
+static void
+batch_model_load_destroy_runner(void* state)
+{
+    (void)state;
+}
 
 static const char*
 hostio_config_kind_name(int config_kind)
@@ -454,6 +519,19 @@ InterfaceX_HostIO_RunTask(
     void (*destroy_fn)(void*))
 {
     hostio_run_task(io, task_state, run_fn, destroy_fn);
+}
+
+void
+InterfaceX_HostIO_QueueTask(
+    struct InterfaceX_HostIO* io,
+    void* task_state,
+    int (*run_fn)(
+        void*,
+        struct LibToriRS_IOContext*),
+    void (*destroy_fn)(void*))
+{
+    assert(io);
+    LibToriCoreTaskRunner_Add(io->task_runner, task_state, run_fn, destroy_fn);
 }
 
 struct ToriAuxLibCache*
@@ -1285,4 +1363,625 @@ InterfaceX_HostIO_LoadModelScene(
     if( hostio_raster_sprite_to_scene(io, sprite, &scene_id) != 0 )
         return -1;
     return scene_id;
+}
+
+static bool
+batch_model_id_list_contains(
+    int const* ids,
+    int count,
+    int model_id)
+{
+    for( int i = 0; i < count; i++ )
+    {
+        if( ids[i] == model_id )
+            return true;
+    }
+    return false;
+}
+
+static void
+batch_model_id_list_add(
+    int* ids,
+    int* count,
+    int max_count,
+    int model_id)
+{
+    if( model_id < 0 || *count >= max_count )
+        return;
+    if( batch_model_id_list_contains(ids, *count, model_id) )
+        return;
+    ids[(*count)++] = model_id;
+}
+
+static bool
+batch_player_appearance_eq(
+    int const* a,
+    int const* b)
+{
+    return memcmp(a, b, (size_t)RUNESCAPE_APPEARANCE_SLOT_COUNT * sizeof(int)) == 0;
+}
+
+static void
+batch_collect_deps_from_args(struct InterfaceX_TaskBatchModelLoad* task)
+{
+    assert(task);
+
+    task->npc_count = 0;
+    task->obj_count = 0;
+    task->player_count = 0;
+
+    for( int i = 0; i < task->arg_count; i++ )
+    {
+        struct InterfaceX_ModelLoadArg const* arg = &task->args[i];
+
+        switch( arg->kind )
+        {
+        case INTERFACEX_MLOAD_PLAIN:
+            break;
+        case INTERFACEX_MLOAD_NPC:
+            if( arg->u.npc_id >= 0 && task->npc_count < INTERFACEX_BATCH_MODEL_MAX_NPC )
+                task->npc_ids[task->npc_count++] = arg->u.npc_id;
+            break;
+        case INTERFACEX_MLOAD_OBJ:
+            if( arg->u.obj_id >= 0 && task->obj_count < INTERFACEX_BATCH_MODEL_MAX_OBJ )
+                task->obj_ids[task->obj_count++] = arg->u.obj_id;
+            break;
+        case INTERFACEX_MLOAD_PLAYER:
+        {
+            bool found = false;
+            for( int p = 0; p < task->player_count; p++ )
+            {
+                if( batch_player_appearance_eq(
+                        task->player_appearances[p], arg->u.appearance) )
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if( !found && task->player_count < INTERFACEX_BATCH_MODEL_MAX_PLAYER )
+            {
+                memcpy(
+                    task->player_appearances[task->player_count],
+                    arg->u.appearance,
+                    (size_t)RUNESCAPE_APPEARANCE_SLOT_COUNT * sizeof(int));
+                task->player_count++;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+}
+
+static void
+batch_collect_model_ids_after_configs(
+    struct InterfaceX_TaskBatchModelLoad* task,
+    struct Dat2BuildCache* bc)
+{
+    assert(task);
+    assert(bc);
+
+    for( int i = 0; i < task->arg_count; i++ )
+    {
+        struct InterfaceX_ModelLoadArg const* arg = &task->args[i];
+
+        switch( arg->kind )
+        {
+        case INTERFACEX_MLOAD_PLAIN:
+            batch_model_id_list_add(
+                task->needed_model_ids,
+                &task->needed_model_count,
+                INTERFACEX_BATCH_MODEL_MAX_IDS,
+                arg->u.model_id);
+            break;
+        case INTERFACEX_MLOAD_NPC:
+        {
+            struct RSCacheDat2A_ConfigNpctype* npc =
+                dat2_buildcache_npctype_get(bc, arg->u.npc_id);
+            if( !npc || !npc->chathead_models )
+                break;
+            for( int m = 0; m < npc->chathead_models_count; m++ )
+            {
+                batch_model_id_list_add(
+                    task->needed_model_ids,
+                    &task->needed_model_count,
+                    INTERFACEX_BATCH_MODEL_MAX_IDS,
+                    npc->chathead_models[m]);
+            }
+            break;
+        }
+        case INTERFACEX_MLOAD_OBJ:
+        {
+            struct RSCacheDat2A_ConfigObject* obj =
+                dat2_buildcache_object_get(bc, arg->u.obj_id);
+            if( obj && obj->inventory_model_id > 0 )
+            {
+                batch_model_id_list_add(
+                    task->needed_model_ids,
+                    &task->needed_model_count,
+                    INTERFACEX_BATCH_MODEL_MAX_IDS,
+                    obj->inventory_model_id);
+            }
+            break;
+        }
+        case INTERFACEX_MLOAD_PLAYER:
+        {
+            int model_ids[256];
+            int model_count = runescape_appearance_collect_model_ids_dat2(
+                bc, arg->u.appearance, model_ids, 256);
+            for( int m = 0; m < model_count; m++ )
+            {
+                batch_model_id_list_add(
+                    task->needed_model_ids,
+                    &task->needed_model_count,
+                    INTERFACEX_BATCH_MODEL_MAX_IDS,
+                    model_ids[m]);
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+}
+
+static struct ToriDraw_Model*
+batch_build_td_model_for_arg(
+    struct Dat2BuildCache* bc,
+    struct InterfaceX_ModelLoadArg const* arg)
+{
+    struct RSCacheDat2A_Model* raw;
+    struct RSCacheDat2A_Model* merged;
+    struct RSCacheDat2A_Model* raw_models[16];
+    int model_count;
+    int i;
+
+    if( !bc || !arg )
+        return NULL;
+
+    switch( arg->kind )
+    {
+    case INTERFACEX_MLOAD_PLAIN:
+        if( arg->u.model_id < 0 )
+            return NULL;
+        raw = dat2_buildcache_model_get(bc, arg->u.model_id);
+        if( !raw )
+            return NULL;
+        raw = RSCacheDat2A_ModelNewCopy(raw);
+        break;
+
+    case INTERFACEX_MLOAD_OBJ:
+    {
+        struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(bc, arg->u.obj_id);
+        if( !obj || obj->inventory_model_id <= 0 )
+            return NULL;
+        raw = dat2_buildcache_model_get(bc, obj->inventory_model_id);
+        if( !raw )
+            return NULL;
+        raw = RSCacheDat2A_ModelNewCopy(raw);
+        break;
+    }
+
+    case INTERFACEX_MLOAD_NPC:
+        if( arg->u.npc_id < 0 )
+            return NULL;
+        {
+            struct RSCacheDat2A_ConfigNpctype* npc =
+                dat2_buildcache_npctype_get(bc, arg->u.npc_id);
+            if( !npc || !npc->chathead_models || npc->chathead_models_count <= 0 )
+                return NULL;
+
+            model_count = 0;
+            for( i = 0; i < npc->chathead_models_count && model_count < 16; i++ )
+            {
+                int model_id = npc->chathead_models[i];
+                if( model_id < 0 )
+                    continue;
+                raw_models[model_count] = dat2_buildcache_model_get(bc, model_id);
+                if( raw_models[model_count] )
+                    model_count++;
+            }
+            if( model_count <= 0 )
+                return NULL;
+            merged = RSCacheDat2A_ModelNewMerge(raw_models, model_count);
+            if( !merged )
+                return NULL;
+            raw = merged;
+        }
+        break;
+
+    case INTERFACEX_MLOAD_PLAYER:
+    {
+        int model_ids[256];
+        int id_count;
+
+        id_count = runescape_appearance_collect_model_ids_dat2(
+            bc, arg->u.appearance, model_ids, 256);
+        if( id_count <= 0 )
+            return NULL;
+
+        model_count = 0;
+        for( i = 0; i < id_count && model_count < 16; i++ )
+        {
+            raw_models[model_count] = dat2_buildcache_model_get(bc, model_ids[i]);
+            if( raw_models[model_count] )
+                model_count++;
+        }
+        if( model_count <= 0 )
+            return NULL;
+
+        merged = RSCacheDat2A_ModelNewMerge(raw_models, model_count);
+        if( !merged )
+            return NULL;
+        raw = merged;
+        break;
+    }
+
+    default:
+        return NULL;
+    }
+
+    if( !raw )
+        return NULL;
+
+    {
+        struct ToriDraw_Model* td_model = ToriDraw_ModelNewFromCacheModel(raw);
+        RSCacheDat2A_ModelFree(raw);
+        if( !td_model )
+            return NULL;
+        ToriDraw_ModelSetBoundsCylinder(td_model);
+        return td_model;
+    }
+}
+
+static int
+batch_register_scene_model(
+    struct InterfaceX_TaskBatchModelLoad* task,
+    struct InterfaceX_ModelLoadArg const* arg,
+    struct ToriDraw_Model* td_model)
+{
+    struct ToriDraw_ModelHandle hnd;
+
+    assert(task);
+    assert(arg);
+    assert(td_model);
+    assert(task->scene);
+    assert(task->next_scene_id);
+
+    if( arg->kind == INTERFACEX_MLOAD_PLAIN )
+    {
+        int model_id = arg->u.model_id;
+        if( ToriDraw_SceneModelHas(task->scene, model_id) )
+        {
+            ToriDraw_ModelFree(td_model);
+            return model_id;
+        }
+
+        hnd = (struct ToriDraw_ModelHandle){
+            .kind = TORIDRAWMK_MODEL,
+            .u.model.model = td_model,
+        };
+        ToriDraw_SceneModelAdd(task->scene, model_id, hnd);
+        return model_id;
+    }
+
+    {
+        int scene_id = (*task->next_scene_id)++;
+        hnd = (struct ToriDraw_ModelHandle){
+            .kind = TORIDRAWMK_MODEL,
+            .u.model.model = td_model,
+        };
+        ToriDraw_SceneModelAdd(task->scene, scene_id, hnd);
+        return scene_id;
+    }
+}
+
+static void
+batch_model_load_destroy(void* state)
+{
+    struct InterfaceX_TaskBatchModelLoad* task = state;
+    if( !task )
+        return;
+
+    if( task->npc_child )
+        Task_ToriAuxLibCache_NpcAdd_Free(task->npc_child);
+    if( task->player_child )
+        Task_ToriAuxLibCache_PlayerAdd_Free(task->player_child);
+    if( task->obj_config_child )
+        Task_Dat2ConfigEntryLoad_Free(task->obj_config_child);
+
+    free(task->args);
+    free(task->results);
+    free(task);
+}
+
+static int
+batch_model_load_run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx)
+{
+    struct InterfaceX_TaskBatchModelLoad* task = task_state;
+    struct Dat2BuildCache* bc;
+
+    if( !task || !task->cache )
+        return PT_EXITED;
+
+    bc = dat2(task->cache);
+
+    PT_BEGIN(&task->thread);
+
+    if( !task->scene || !task->next_scene_id || task->arg_count <= 0 || !bc )
+        PT_EXIT(&task->thread);
+
+    for( task->init_i = 0; task->init_i < task->arg_count; task->init_i++ )
+    {
+        task->results[task->init_i].user_id = task->args[task->init_i].user_id;
+        task->results[task->init_i].scene_id = -1;
+    }
+
+    task->needed_model_count = 0;
+    batch_collect_deps_from_args(task);
+
+    task->npc_index = 0;
+    while( task->npc_index < task->npc_count )
+    {
+        if( dat2_buildcache_npctype_get(bc, task->npc_ids[task->npc_index]) )
+        {
+            task->npc_index++;
+            continue;
+        }
+
+        if( task->npc_child )
+            Task_ToriAuxLibCache_NpcAdd_Free(task->npc_child);
+        task->npc_child = Task_ToriAuxLibCache_NpcAdd_New(
+            task->cache, task->npc_ids[task->npc_index]);
+        if( !task->npc_child )
+        {
+            fprintf(
+                stderr,
+                "hostio: batch model load npc alloc failed npc_id=%d\n",
+                task->npc_ids[task->npc_index]);
+            task->npc_index++;
+            continue;
+        }
+
+        TASK_AWAIT(&task->thread, Task_ToriAuxLibCache_NpcAdd_Run(task->npc_child, ctx));
+        Task_ToriAuxLibCache_NpcAdd_Free(task->npc_child);
+        task->npc_child = NULL;
+        task->npc_index++;
+    }
+
+    task->player_index = 0;
+    while( task->player_index < task->player_count )
+    {
+        task->player_model_count = runescape_appearance_collect_model_ids_dat2(
+            bc,
+            task->player_appearances[task->player_index],
+            task->player_model_ids,
+            256);
+        if( task->player_model_count > 0 )
+        {
+            task->player_index++;
+            continue;
+        }
+
+        if( task->player_child )
+            Task_ToriAuxLibCache_PlayerAdd_Free(task->player_child);
+        task->player_child = Task_ToriAuxLibCache_PlayerAdd_New(
+            task->cache,
+            task->player_appearances[task->player_index],
+            RUNESCAPE_EXAMPLE_PLAYER_READYANIM,
+            RUNESCAPE_EXAMPLE_PLAYER_WALKANIM,
+            RUNESCAPE_EXAMPLE_PLAYER_TURNANIM,
+            RUNESCAPE_EXAMPLE_PLAYER_RUNANIM,
+            RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_B,
+            RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_R,
+            RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_L);
+        if( !task->player_child )
+        {
+            fprintf(stderr, "hostio: batch model load player alloc failed\n");
+            task->player_index++;
+            continue;
+        }
+
+        TASK_AWAIT(&task->thread, Task_ToriAuxLibCache_PlayerAdd_Run(task->player_child, ctx));
+        Task_ToriAuxLibCache_PlayerAdd_Free(task->player_child);
+        task->player_child = NULL;
+        task->player_index++;
+    }
+
+    task->need_obj_load = false;
+    if( task->obj_count > 0 )
+    {
+        for( task->init_i = 0; task->init_i < task->obj_count; task->init_i++ )
+        {
+            if( !dat2_buildcache_object_get(bc, task->obj_ids[task->init_i]) )
+            {
+                task->need_obj_load = true;
+                break;
+            }
+        }
+
+        if( task->need_obj_load )
+        {
+            if( task->obj_config_child )
+                Task_Dat2ConfigEntryLoad_Free(task->obj_config_child);
+            task->obj_config_child = Task_Dat2ConfigEntryLoad_New(
+                task->cache, RSCacheDat2A_ConfigKind_Object, task->obj_ids, task->obj_count);
+            if( task->obj_config_child )
+            {
+                TASK_AWAIT(
+                    &task->thread, Task_Dat2ConfigEntryLoad_Run(task->obj_config_child, ctx));
+                Task_Dat2ConfigEntryLoad_Free(task->obj_config_child);
+                task->obj_config_child = NULL;
+            }
+        }
+    }
+
+    task->needed_model_count = 0;
+    batch_collect_model_ids_after_configs(task, bc);
+
+    DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->thread, bc, RSCacheDat2Disk_Table_Models);
+
+    task->prefetch_index = 0;
+    while( task->prefetch_index < task->needed_model_count )
+    {
+        task->batch_end = task->prefetch_index + INTERFACEX_BATCH_MODEL_IO_CHUNK;
+        if( task->batch_end > task->needed_model_count )
+            task->batch_end = task->needed_model_count;
+
+        LibToriRS_IOBatchReset(&task->io_batch);
+        for( task->init_i = task->prefetch_index; task->init_i < task->batch_end; task->init_i++ )
+        {
+            if( dat2_buildcache_model_get(bc, task->needed_model_ids[task->init_i]) )
+                continue;
+
+            task->decode_i = LibToriRS_IOBatchAdd(
+                &task->io_batch, task->needed_model_ids[task->init_i]);
+            IO_REQUEST(
+                ctx,
+                task->decode_i,
+                TAPIDat2_FetchModel(ctx, task->needed_model_ids[task->init_i]));
+        }
+        task->prefetch_index = task->batch_end;
+
+        if( LibToriRS_IOBatchEmpty(&task->io_batch) )
+            continue;
+
+        PT_YIELD(&task->thread);
+
+        for( task->decode_i = 0; task->decode_i < LibToriRS_IOBatchCount(&task->io_batch);
+             task->decode_i++ )
+        {
+            int model_id = LibToriRS_IOBatchUser(&task->io_batch, task->decode_i);
+            struct RSCacheDat2A_Model* model = TAPIDat2_DecodeModel(ctx, task->decode_i);
+            if( !model )
+            {
+                fprintf(
+                    stderr,
+                    "hostio: batch model decode failed model_id=%d\n",
+                    model_id);
+                continue;
+            }
+            dat2_buildcache_model_add(bc, model_id, model);
+        }
+        LibToriRS_IOQueueClear(ctx->io);
+    }
+
+    task->scene_build_index = 0;
+    while( task->scene_build_index < task->arg_count )
+    {
+        struct InterfaceX_ModelLoadArg const* arg = &task->args[task->scene_build_index];
+        struct InterfaceX_ModelLoadResult* result = &task->results[task->scene_build_index];
+
+        task->scene_id = -1;
+        if( arg->kind == INTERFACEX_MLOAD_PLAIN &&
+            ToriDraw_SceneModelHas(task->scene, arg->u.model_id) )
+        {
+            task->scene_id = arg->u.model_id;
+        }
+        else
+        {
+            task->td_model = batch_build_td_model_for_arg(bc, arg);
+            if( task->td_model )
+                task->scene_id = batch_register_scene_model(task, arg, task->td_model);
+            else
+            {
+                fprintf(
+                    stderr,
+                    "hostio: batch model scene build failed user_id=0x%x kind=%d\n",
+                    arg->user_id,
+                    (int)arg->kind);
+            }
+        }
+
+        result->scene_id = task->scene_id;
+        task->scene_build_index++;
+    }
+
+    PT_END(&task->thread);
+}
+
+struct InterfaceX_BatchModelLoad*
+InterfaceX_BatchModelLoad_New(
+    struct InterfaceX_HostIO* io,
+    struct InterfaceX_ModelLoadArg const* args,
+    int arg_count)
+{
+    struct InterfaceX_BatchModelLoad* batch;
+    struct InterfaceX_TaskBatchModelLoad* task;
+
+    if( !io || arg_count <= 0 || !args )
+        return NULL;
+
+    batch = calloc(1, sizeof(*batch));
+    if( !batch )
+        return NULL;
+
+    task = calloc(1, sizeof(*task));
+    if( !task )
+    {
+        free(batch);
+        return NULL;
+    }
+
+    task->args = calloc((size_t)arg_count, sizeof(*task->args));
+    task->results = calloc((size_t)arg_count, sizeof(*task->results));
+    if( !task->args || !task->results )
+    {
+        free(task->args);
+        free(task->results);
+        free(task);
+        free(batch);
+        return NULL;
+    }
+
+    memcpy(task->args, args, (size_t)arg_count * sizeof(*task->args));
+    PT_INIT(&task->thread);
+    task->cache = io->aux_cache;
+    task->scene = io->scene;
+    task->next_scene_id = io->next_scene_id;
+    task->arg_count = arg_count;
+
+    batch->task = task;
+    batch->arg_count = arg_count;
+    return batch;
+}
+
+void
+InterfaceX_BatchModelLoad_Destroy(struct InterfaceX_BatchModelLoad* batch)
+{
+    if( !batch )
+        return;
+    if( batch->task )
+        batch_model_load_destroy(batch->task);
+    free(batch);
+}
+
+void
+InterfaceX_BatchModelLoad_Queue(
+    struct InterfaceX_BatchModelLoad* batch,
+    struct InterfaceX_HostIO* io)
+{
+    assert(batch);
+    assert(io);
+    assert(batch->task);
+
+    InterfaceX_HostIO_QueueTask(
+        io, batch->task, batch_model_load_run, batch_model_load_destroy_runner);
+}
+
+struct InterfaceX_ModelLoadResult const*
+InterfaceX_BatchModelLoad_Results(
+    struct InterfaceX_BatchModelLoad const* batch,
+    int* count_out)
+{
+    if( count_out )
+        *count_out = 0;
+    if( !batch || !batch->task || !batch->task->results )
+        return NULL;
+    if( count_out )
+        *count_out = batch->arg_count;
+    return batch->task->results;
 }

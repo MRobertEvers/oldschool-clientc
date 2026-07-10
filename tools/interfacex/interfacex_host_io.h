@@ -171,4 +171,59 @@ InterfaceX_HostIO_LoadInterfaceGroup(
     struct InterfaceX_HostIO* io,
     int group_id);
 
+enum InterfaceX_ModelLoadArgKind
+{
+    INTERFACEX_MLOAD_PLAIN = 1,
+    INTERFACEX_MLOAD_NPC = 2,
+    INTERFACEX_MLOAD_OBJ = 3,
+    INTERFACEX_MLOAD_PLAYER = 4,
+};
+
+struct InterfaceX_ModelLoadArg
+{
+    int user_id;
+    enum InterfaceX_ModelLoadArgKind kind;
+    union
+    {
+        int model_id;
+        int npc_id;
+        int obj_id;
+        int appearance[12];
+    } u;
+};
+
+struct InterfaceX_ModelLoadResult
+{
+    int user_id;
+    int scene_id;
+};
+
+struct InterfaceX_BatchModelLoad;
+
+void
+InterfaceX_HostIO_QueueTask(
+    struct InterfaceX_HostIO* io,
+    void* task_state,
+    int (*run_fn)(void*, struct LibToriRS_IOContext*),
+    void (*destroy_fn)(void*));
+
+struct InterfaceX_BatchModelLoad*
+InterfaceX_BatchModelLoad_New(
+    struct InterfaceX_HostIO* io,
+    struct InterfaceX_ModelLoadArg const* args,
+    int arg_count);
+
+void
+InterfaceX_BatchModelLoad_Destroy(struct InterfaceX_BatchModelLoad* batch);
+
+void
+InterfaceX_BatchModelLoad_Queue(
+    struct InterfaceX_BatchModelLoad* batch,
+    struct InterfaceX_HostIO* io);
+
+struct InterfaceX_ModelLoadResult const*
+InterfaceX_BatchModelLoad_Results(
+    struct InterfaceX_BatchModelLoad const* batch,
+    int* count_out);
+
 #endif

@@ -28,6 +28,7 @@
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model_sprite.h"
+#include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_sprite.h"
 #include "vm/cs2_script.h"
 #include <sys/stat.h>
@@ -8418,19 +8419,6 @@ UITreeXBuilder_LoadPendingAssets(
             InterfaceX_HostIO_LoadSceneFont(&host->host_io, pending->id);
             break;
         case INTERFACEX_PENDING_MODEL:
-            if( node->kind == UITreeXNodeKind_RSModel )
-            {
-                struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
-                if( model->model_kind == INTERFACEX_MODEL_KIND_PLAIN && pending->id >= 0 )
-                    InterfaceX_HostIO_LoadModel(&host->host_io, pending->id);
-                else if( model->model_kind == INTERFACEX_MODEL_KIND_NPC_HEAD && pending->id >= 0 )
-                    InterfaceX_HostIO_LoadNpctype(&host->host_io, pending->id);
-                else if(
-                    model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_HEAD ||
-                    model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_SELF ||
-                    model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD )
-                    InterfaceX_HostIO_LoadPlayerAppearance(&host->host_io, host->player_appearance);
-            }
             break;
         case INTERFACEX_PENDING_OBJ_ICON:
         {
@@ -8449,6 +8437,108 @@ UITreeXBuilder_LoadPendingAssets(
             break;
         }
         }
+    }
+}
+
+static struct InterfaceX_BatchModelLoad*
+UITreeXBuilder_QueuePendingModelLoads(
+    struct InterfaceX_VMHost* host,
+    struct UITreeXBuilder* builder)
+{
+    assert(host);
+    assert(builder);
+
+    struct InterfaceX_ModelLoadArg args[MAX_NODES];
+    int arg_count = 0;
+
+    for( int i = 0; i < builder->tree->node_count; i++ )
+    {
+        struct UITreeXNode* node = &builder->tree->nodes[i];
+        if( node->kind != UITreeXNodeKind_RSModel )
+            continue;
+
+        struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
+        struct InterfaceX_ModelLoadArg* arg = &args[arg_count];
+
+        arg->user_id = node->user_id;
+
+        if( model->item_id >= 0 )
+        {
+            arg->kind = INTERFACEX_MLOAD_OBJ;
+            arg->u.obj_id = model->item_id;
+        }
+        else if( model->model_kind == INTERFACEX_MODEL_KIND_PLAIN )
+        {
+            if( model->model_id < 0 )
+                continue;
+            arg->kind = INTERFACEX_MLOAD_PLAIN;
+            arg->u.model_id = model->model_id;
+        }
+        else if( model->model_kind == INTERFACEX_MODEL_KIND_NPC_HEAD )
+        {
+            if( model->model_id < 0 )
+                continue;
+            arg->kind = INTERFACEX_MLOAD_NPC;
+            arg->u.npc_id = model->model_id;
+        }
+        else if(
+            model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_HEAD ||
+            model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_SELF ||
+            model->model_kind == INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD )
+        {
+            arg->kind = INTERFACEX_MLOAD_PLAYER;
+            memcpy(
+                arg->u.appearance,
+                host->player_appearance,
+                (size_t)RUNESCAPE_APPEARANCE_SLOT_COUNT * sizeof(int));
+        }
+        else
+            continue;
+
+        arg_count++;
+        if( arg_count >= MAX_NODES )
+            break;
+    }
+
+    if( arg_count <= 0 )
+        return NULL;
+
+    struct InterfaceX_BatchModelLoad* batch =
+        InterfaceX_BatchModelLoad_New(&host->host_io, args, arg_count);
+    if( !batch )
+        return NULL;
+
+    InterfaceX_BatchModelLoad_Queue(batch, &host->host_io);
+    return batch;
+}
+
+static void
+UITreeX_ResolveModelSceneIds(
+    struct UITreeX* tree,
+    struct InterfaceX_BatchModelLoad const* batch)
+{
+    assert(tree);
+
+    if( !batch )
+        return;
+
+    int result_count = 0;
+    struct InterfaceX_ModelLoadResult const* results =
+        InterfaceX_BatchModelLoad_Results(batch, &result_count);
+    if( !results || result_count <= 0 )
+        return;
+
+    for( int i = 0; i < result_count; i++ )
+    {
+        int node_idx = UITreeX_FindByUserId(tree, results[i].user_id);
+        if( node_idx < 0 || node_idx >= tree->node_count )
+            continue;
+
+        struct UITreeXNode* node = &tree->nodes[node_idx];
+        if( node->kind != UITreeXNodeKind_RSModel )
+            continue;
+
+        UITreeX_NodeModelMut(node)->scene_id = results[i].scene_id;
     }
 }
 
@@ -10821,6 +10911,31 @@ InterfaceX_RasterModelNodeToCanvas(
     if( model->model_kind == INTERFACEX_MODEL_KIND_NPC_HEAD && model->model_id < 0 )
         return;
 
+    if( model->scene_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "interfacex: model scene missing user_id=0x%x kind=%d model_id=%d scene_id=%d\n",
+            node->user_id,
+            (int)model->model_kind,
+            model->model_id,
+            model->scene_id);
+        return;
+    }
+
+    struct ToriDraw_ModelHandle hnd = ToriDraw_SceneModelGet(host->scene, model->scene_id);
+    if( hnd.kind != TORIDRAWMK_MODEL )
+    {
+        fprintf(
+            stderr,
+            "interfacex: model not in scene user_id=0x%x kind=%d model_id=%d scene_id=%d\n",
+            node->user_id,
+            (int)model->model_kind,
+            model->model_id,
+            model->scene_id);
+        return;
+    }
+
     int zoom = model->zoom > 0 ? model->zoom : 2000;
     if( model->item_id >= 0 )
     {
@@ -10830,20 +10945,11 @@ InterfaceX_RasterModelNodeToCanvas(
             zoom = InterfaceX_NormalizeModelItemZoom(zoom, node->w);
     }
 
-    struct ToriDraw_Model* td_model = InterfaceX_BuildToriDrawModelForNode(host, node);
-    if( !td_model )
-        return;
-
-    struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(
-        (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_MODEL, .u.model.model = td_model });
+    struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
     int model_center_y = 0;
     if( model->item_id >= 0 && bounds )
         model_center_y = -bounds->min_y / 2;
 
-    struct ToriDraw_ModelHandle hnd = {
-        .kind = TORIDRAWMK_MODEL,
-        .u.model.model = td_model,
-    };
     ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
 
     int draw_x = 0;
@@ -10878,8 +10984,6 @@ InterfaceX_RasterModelNodeToCanvas(
         &draw_y,
         &sw,
         &sh);
-
-    ToriDraw_ModelFree(td_model);
 
     if( !ok || sw <= 0 || sh <= 0 )
         return;
@@ -12318,19 +12422,13 @@ InterfaceX_ApplyWidgetSetInt(
         break;
     case CS2VM_WIDGET_INT_MODEL_ORTHOG:
         if( node->kind == UITreeXNodeKind_RSModel )
-        {
             UITreeX_NodeModelMut(node)->orthog = value;
-            InterfaceX_ModelNodeInvalidateScene(node);
-        }
         else
             InterfaceX_ReportOpKindMismatch(node, "model", op_name);
         break;
     case CS2VM_WIDGET_INT_MODEL_TRANSPARENT:
         if( node->kind == UITreeXNodeKind_RSModel )
-        {
             UITreeX_NodeModelMut(node)->transparent = value;
-            InterfaceX_ModelNodeInvalidateScene(node);
-        }
         else
             InterfaceX_ReportOpKindMismatch(node, "model", op_name);
         break;
@@ -12415,7 +12513,6 @@ InterfaceX_VMHost_Exec_WidgetSetModelAngle(
     model->angle_z = request.angle_z;
     if( request.zoom > 0 )
         model->zoom = request.zoom;
-    InterfaceX_ModelNodeInvalidateScene(node);
     return CS2VM_EXECNO_OK;
 }
 
@@ -16094,6 +16191,12 @@ main(
     InterfaceX_VMHost_FireCacheInvTransmitHooks(
         &vmhost, &vm, primary.components, primary.component_count);
     InterfaceX_VMHost_DrainScriptQueue(&vmhost, &vm);
+
+    struct InterfaceX_BatchModelLoad* model_batch =
+        UITreeXBuilder_QueuePendingModelLoads(&vmhost, builder);
+    InterfaceX_HostIO_DrainTasks(&vmhost.host_io);
+    UITreeX_ResolveModelSceneIds(tree, model_batch);
+    InterfaceX_BatchModelLoad_Destroy(model_batch);
 
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
     UITreeX_PrintNodes(tree);
