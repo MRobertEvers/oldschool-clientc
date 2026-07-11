@@ -1,6 +1,7 @@
 #include "../src/osrs/rscache/rscache.u.c"
 #include "../src2/vm/cs2_opcode.h"
 #include "../src2/vm/cs2_opcode_meta.h"
+#include "3rd/minipt.h"
 #include "bmp.h"
 #include "buildcache/dat2_buildcache.h"
 #include "buildcache/dat2_buildcache_ui.h"
@@ -9,10 +10,6 @@
 #include "games/ie_struct_lookup.h"
 #include "interfacex_host_io.h"
 #include "interfacex_opcode_stack.gen.h"
-#include "3rd/minipt.h"
-#include "toriauxlib/core/tasks/core_task_await.h"
-#include "toriauxlib/core/tasks/task_clientscript_load.h"
-#include "toriauxlib/core/tasks/task_dat2_config_entry_load.h"
 #include "osrs/rscache/dat2a/dat2a_clientscript.h"
 #include "osrs/rscache/dat2a/dat2a_config_npctype.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
@@ -23,6 +20,9 @@
 #include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/c/toriauxlibcache_font_convert.h"
 #include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/core/tasks/core_task_await.h"
+#include "toriauxlib/core/tasks/task_clientscript_load.h"
+#include "toriauxlib/core/tasks/task_dat2_config_entry_load.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 #include "toriauxlib/td/toridraw_cachemodel.h"
@@ -1037,7 +1037,12 @@ UITreeX_PrintNode(
     if( node->kind == UITreeXNodeKind_RSGraphic )
     {
         struct UITreeXNode_RSGraphic const* graphic = UITreeX_NodeRSGraphic(node);
-        printf(" graphic=%d scene_id=%d angle=%d tiling=%d", graphic->graphic_id, graphic->scene_id, node->angle_2d, node->tiling);
+        printf(
+            " graphic=%d scene_id=%d angle=%d tiling=%d",
+            graphic->graphic_id,
+            graphic->scene_id,
+            node->angle_2d,
+            node->tiling);
     }
     else if( node->kind == UITreeXNodeKind_RSObj )
     {
@@ -8629,215 +8634,6 @@ UITreeX_ResolveModelSceneIds(
 }
 
 static int
-InterfaceX_VMHost_Yield(
-    struct InterfaceX_VMHost* host,
-    struct CS2VM_HostRequest const* request);
-
-static int
-InterfaceX_VMHost_Load(
-    struct InterfaceX_VMHost* host,
-    struct CS2VM_HostRequest const* request);
-
-static void
-InterfaceX_RasterModelNodeToCanvas(
-    struct InterfaceX_VMHost* host,
-    int* dest,
-    int dest_stride,
-    struct UITreeXNode const* node,
-    int node_alpha);
-
-static int
-InterfaceX_NormalizeModelItemZoom(
-    int zoom2d,
-    int widget_width);
-
-static void
-CS2VMX_ResetRuntime(struct CS2VMX* vm);
-
-static int
-InterfaceX_RunClientScript(
-    struct InterfaceX_VMHost* host,
-    struct CS2VMX* vm,
-    int script_id,
-    int component_id,
-    int const* int_args,
-    int int_arg_count,
-    char const* const* string_args,
-    int string_arg_count);
-
-static void
-InterfaceX_VMHost_QueueScript(
-    struct InterfaceX_VMHost* host,
-    int script_id,
-    int component_id,
-    int const* int_args,
-    int int_arg_count,
-    char const* const* string_args,
-    int string_arg_count);
-
-static void
-InterfaceX_VMHost_QueueCoreScriptHook(
-    struct InterfaceX_VMHost* host,
-    int component_id,
-    struct ToriAuxLibCore_ScriptHook const* hook)
-{
-    assert(host);
-
-    if( !hook || hook->argc <= 0 )
-        return;
-
-    int script_id = hook->argv[0];
-    if( script_id <= 0 )
-        return;
-
-    int int_arg_count = hook->argc - 1;
-    if( int_arg_count > TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
-        int_arg_count = TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX;
-
-    InterfaceX_VMHost_QueueScript(
-        host,
-        script_id,
-        component_id,
-        int_arg_count > 0 ? &hook->argv[1] : NULL,
-        int_arg_count,
-        NULL,
-        0);
-}
-
-static void
-InterfaceX_VMHost_DrainScriptQueue(
-    struct InterfaceX_VMHost* host,
-    struct CS2VMX* vm);
-
-static bool
-InterfaceX_IsGroupLoaded(
-    struct InterfaceX_VMHost const* host,
-    int group_id);
-
-static bool
-InterfaceX_IntegrateInterfaceGroup(
-    struct InterfaceX_VMHost* host,
-    int group_id);
-
-static int
-InterfaceX_VMHost_LoadInterfaceGroup(
-    struct InterfaceX_VMHost* host,
-    int group_id);
-
-static int
-InterfaceX_VMHost_YieldIfGroupNeeded(
-    struct InterfaceX_VMHost* host,
-    int component_id,
-    struct CS2VM_HostRequest const* request);
-
-static int
-InterfaceX_VMHost_Load_CC_Create(
-    struct InterfaceX_VMHost* host,
-    struct CS2VM_HostRequest_CC_Create const* request);
-
-static int
-InterfaceX_VMHost_Load_CC_Find(
-    struct InterfaceX_VMHost* host,
-    struct CS2VM_HostRequest_CC_Find const* request);
-
-static int
-InterfaceX_VMHost_Load_IF_Find(
-    struct InterfaceX_VMHost* host,
-    struct CS2VM_HostRequest_TargetFind const* request);
-
-static int
-InterfaceX_VMHost_Load_CC_ChildrenFind(
-    struct InterfaceX_VMHost* host,
-    struct CS2VM_HostRequest_CC_ChildrenFind const* request);
-
-static int
-InterfaceX_VMHost_Load_IF_ChildrenFind(
-    struct InterfaceX_VMHost* host,
-    struct CS2VM_HostRequest_IF_ChildrenFind const* request);
-
-static struct InterfaceX_InvContainer*
-InterfaceX_InvContainerGet(
-    struct InterfaceX_VMHost* host,
-    int inv_id,
-    bool create);
-
-static int
-InterfaceX_ResolveObjIconCountVariant(
-    struct InterfaceX_VMHost* host,
-    int obj_id,
-    int count);
-
-static int
-InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
-    struct InterfaceX_VMHost* host,
-    int component_id,
-    int obj_id,
-    int count);
-
-static int
-InterfaceX_EquipmentSlotForFile(int file_index);
-
-static struct RSCacheDat2A_ConfigObject*
-InterfaceX_LoadObjConfig(
-    struct RSCacheDat2Disk* disk,
-    int item_id);
-
-static bool
-InterfaceX_ConfigArchiveReady(
-    struct RSCacheDat2Disk* disk,
-    int config_kind);
-
-static bool
-InterfaceX_ConfigArchiveFindFile(
-    struct RSCacheDat2Disk* disk,
-    int config_kind,
-    struct RSCacheShared_FileList* fl,
-    int file_id,
-    uint8_t const** out_data,
-    int* out_len);
-
-static struct RSCacheShared_FileList*
-InterfaceX_ConfigArchiveGetFileList(
-    struct RSCacheDat2Disk* disk,
-    int config_kind);
-
-static int
-InterfaceX_EnumLookup(
-    struct RSCacheDat2Disk* disk,
-    int input_type,
-    int output_type,
-    int enum_id,
-    int key);
-
-static char const*
-InterfaceX_EnumLookupString(
-    struct RSCacheDat2Disk* disk,
-    int input_type,
-    int output_type,
-    int enum_id,
-    int key);
-
-static int
-InterfaceX_EnumOutputCount(
-    struct RSCacheDat2Disk* disk,
-    int enum_id);
-
-static bool
-InterfaceX_StructParamLookup(
-    struct RSCacheDat2Disk* disk,
-    int struct_id,
-    int param_id,
-    bool* out_is_string,
-    int* out_int,
-    char const** out_str);
-
-static void
-InterfaceX_ConfigArchiveCacheFreeAll(void);
-
-static void
-InterfaceX_InvStoreSeedDefaults(struct InterfaceX_VMHost* host);
-
-static int
 UITreeX_FindByUserId(
     struct UITreeX const* tree,
     int user_id)
@@ -10053,18 +9849,8 @@ InterfaceX_BlitSceneSprite(
 }
 
 static void
-UITreeX_RenderNode(
-    struct InterfaceX_VMHost* host,
-    struct RSCacheDat2Disk* cache,
-    struct UITreeX const* tree,
-    int node_idx,
-    int* pixels,
-    int text_pass);
-
-static void
 UITreeX_RenderNodeImpl(
     struct InterfaceX_VMHost* host,
-    struct RSCacheDat2Disk* cache,
     struct UITreeX const* tree,
     int node_idx,
     int* pixels,
@@ -10154,8 +9940,6 @@ UITreeX_RenderNodeImpl(
                 goto render_children;
             if( model->model_kind == INTERFACEX_MODEL_KIND_NPC_HEAD && model->model_id < 0 )
                 goto render_children;
-
-            InterfaceX_RasterModelNodeToCanvas(host, pixels, CANVAS_W, node, node_alpha);
         }
         else if( node->kind == UITreeXNodeKind_RSLine )
         {
@@ -10367,7 +10151,7 @@ render_children:
 
     for( int child = node->link.first_child_tree_idx; child != -1;
          child = tree->nodes[child].link.next_sibling_tree_idx )
-        UITreeX_RenderNodeImpl(host, cache, tree, child, pixels, text_pass);
+        UITreeX_RenderNodeImpl(host, tree, child, pixels, text_pass);
 
     g_render_clip_x0 = saved_clip_x0;
     g_render_clip_y0 = saved_clip_y0;
@@ -10379,23 +10163,20 @@ render_children:
 static void
 UITreeX_RenderNode(
     struct InterfaceX_VMHost* host,
-    struct RSCacheDat2Disk* cache,
     struct UITreeX const* tree,
     int node_idx,
     int* pixels,
     int text_pass)
 {
-    UITreeX_RenderNodeImpl(host, cache, tree, node_idx, pixels, text_pass);
+    UITreeX_RenderNodeImpl(host, tree, node_idx, pixels, text_pass);
 }
 
 static void
 UITreeX_Render(
     struct InterfaceX_VMHost* host,
-    struct RSCacheDat2Disk* cache,
     struct UITreeX* tree,
     int* pixels)
 {
-    assert(cache);
     assert(tree);
     assert(pixels);
 
@@ -10409,13 +10190,13 @@ UITreeX_Render(
     for( int i = 0; i < tree->node_count; i++ )
     {
         if( UITreeX_NodeIsLiveRoot(&tree->nodes[i]) )
-            UITreeX_RenderNode(host, cache, tree, i, pixels, 0);
+            UITreeX_RenderNode(host, tree, i, pixels, 0);
     }
 
     for( int i = 0; i < tree->node_count; i++ )
     {
         if( UITreeX_NodeIsLiveRoot(&tree->nodes[i]) )
-            UITreeX_RenderNode(host, cache, tree, i, pixels, 1);
+            UITreeX_RenderNode(host, tree, i, pixels, 1);
     }
 }
 
@@ -10562,46 +10343,6 @@ InterfaceX_InvContainerSetSlot(
     container->slots[slot].count = obj_id > 0 ? (count > 0 ? count : 1) : 0;
 }
 
-static int
-InterfaceX_EquipmentSlotForFile(int file_index)
-{
-    static int const k_slot_files[] = { 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 };
-    for( int i = 0; i < (int)(sizeof(k_slot_files) / sizeof(k_slot_files[0])); i++ )
-    {
-        if( k_slot_files[i] == file_index )
-            return i;
-    }
-    return -1;
-}
-
-static struct RSCacheDat2A_ConfigObject*
-InterfaceX_LoadObjConfig(
-    struct RSCacheDat2Disk* disk,
-    int item_id)
-{
-    assert(disk);
-    assert(item_id >= 0);
-
-    struct RSCacheShared_FileList* fl =
-        InterfaceX_ConfigArchiveGetFileList(disk, RSCacheDat2A_ConfigKind_Object);
-    if( !fl )
-        return NULL;
-
-    uint8_t const* data = NULL;
-    int data_len = 0;
-    if( !InterfaceX_ConfigArchiveFindFile(
-            disk, RSCacheDat2A_ConfigKind_Object, fl, item_id, &data, &data_len) )
-        return NULL;
-
-    struct RSCacheDat2A_ConfigObject* decoded = calloc(1, sizeof(struct RSCacheDat2A_ConfigObject));
-    if( !decoded )
-        return NULL;
-
-    RSCacheDat2A_ConfigObjectDecodeInplace(decoded, (char*)data, data_len);
-    decoded->_id = item_id;
-    return decoded;
-}
-
 static void
 InterfaceX_InvStoreSeedDefaults(struct InterfaceX_VMHost* host)
 {
@@ -10636,336 +10377,6 @@ InterfaceX_InvStoreSeedDefaults(struct InterfaceX_VMHost* host)
     InterfaceX_InvContainerSetSlot(backpack, 0, 1333, 1);
 }
 
-static struct ToriDraw_Font*
-InterfaceX_FontNewFromCore(struct ToriAuxLibCore_Font const* src)
-{
-    if( !src )
-        return NULL;
-
-    struct ToriDraw_Font* font = calloc(1, sizeof(struct ToriDraw_Font));
-    if( !font )
-        return NULL;
-
-    for( int i = 0; i < TORIAUXLIBCORE_FONT_GLYPH_COUNT; i++ )
-    {
-        font->glyph_width[i] = src->glyph_width[i];
-        font->glyph_height[i] = src->glyph_height[i];
-        font->offset_x[i] = src->offset_x[i];
-        font->offset_y[i] = src->offset_y[i];
-        font->advance[i] = src->advance[i];
-        if( src->glyph_alpha[i] && src->glyph_width[i] > 0 && src->glyph_height[i] > 0 )
-        {
-            size_t len = (size_t)src->glyph_width[i] * (size_t)src->glyph_height[i];
-            font->glyph_alpha[i] = malloc(len);
-            if( !font->glyph_alpha[i] )
-                goto fail;
-            memcpy(font->glyph_alpha[i], src->glyph_alpha[i], len);
-        }
-    }
-    font->advance[TORIDRAW_FONT_GLYPH_COUNT] = src->advance[TORIAUXLIBCORE_FONT_GLYPH_COUNT];
-    memcpy(font->draw_width, src->draw_width, sizeof(font->draw_width));
-    font->line_height = src->line_height;
-    memcpy(font->charcodeset, src->charcodeset, sizeof(font->charcodeset));
-    if( !ToriDraw_FontValidate(font) )
-        goto fail;
-    return font;
-
-fail:
-    ToriDraw_FontFree(font);
-    return NULL;
-}
-
-static int
-InterfaceX_ResolveObjIconCountVariant(
-    struct InterfaceX_VMHost* host,
-    int obj_id,
-    int count)
-{
-    assert(host);
-
-    struct RSCacheDat2A_ConfigObject* obj =
-        dat2_buildcache_object_get(dat2(InterfaceX_HostIO_Cache(&host->host_io)), obj_id);
-    if( !obj )
-        return obj_id;
-
-    int resolved = obj_id;
-    if( count > 1 )
-    {
-        int countobj_id = -1;
-        for( int i = 0; i < 10; i++ )
-        {
-            if( obj->count_co[i] != 0 && count >= obj->count_co[i] )
-                countobj_id = obj->count_obj[i];
-        }
-        if( countobj_id >= 0 )
-            resolved = countobj_id;
-    }
-
-    return resolved;
-}
-
-static void
-interface_x_bake_model_raster_alpha(
-    int* dest,
-    int dest_stride,
-    int draw_x,
-    int draw_y,
-    int sw,
-    int sh,
-    int node_alpha)
-{
-    int x0 = draw_x;
-    int y0 = draw_y;
-    int x1 = draw_x + sw;
-    int y1 = draw_y + sh;
-
-    if( x0 < g_render_clip_x0 )
-        x0 = g_render_clip_x0;
-    if( y0 < g_render_clip_y0 )
-        y0 = g_render_clip_y0;
-    if( x1 > g_render_clip_x1 )
-        x1 = g_render_clip_x1;
-    if( y1 > g_render_clip_y1 )
-        y1 = g_render_clip_y1;
-    if( x0 < 0 )
-        x0 = 0;
-    if( y0 < 0 )
-        y0 = 0;
-    if( x1 > CANVAS_W )
-        x1 = CANVAS_W;
-    if( y1 > CANVAS_H )
-        y1 = CANVAS_H;
-    if( x0 >= x1 || y0 >= y1 )
-        return;
-
-    for( int y = y0; y < y1; y++ )
-    {
-        for( int x = x0; x < x1; x++ )
-        {
-            int* p = &dest[y * dest_stride + x];
-            uint32_t px = (uint32_t)*p;
-            if( (px & 0xFFFFFFu) == 0 )
-                continue;
-
-            int a = (int)((px >> 24) & 0xFFu);
-            if( a == 0 )
-                a = 255;
-            if( node_alpha < 255 )
-                a = (a * node_alpha) / 255;
-
-            *p = (int)((px & 0x00FFFFFFu) | ((uint32_t)a << 24));
-        }
-    }
-}
-
-static struct ToriDraw_Model*
-InterfaceX_BuildToriDrawModelForNode(
-    struct InterfaceX_VMHost* host,
-    struct UITreeXNode const* node)
-{
-    struct UITreeXNode_RSModel const* model;
-    struct Dat2BuildCache* bc;
-    struct RSCacheDat2A_Model* raw;
-    struct RSCacheDat2A_Model* merged;
-    struct RSCacheDat2A_Model* raw_models[16];
-    int model_count;
-    int i;
-
-    assert(host);
-    assert(node);
-    assert(node->kind == UITreeXNodeKind_RSModel);
-
-    model = UITreeX_NodeModel(node);
-    bc = dat2(InterfaceX_HostIO_Cache(&host->host_io));
-    if( !bc )
-        return NULL;
-
-    switch( model->model_kind )
-    {
-    case INTERFACEX_MODEL_KIND_PLAIN:
-        if( model->model_id < 0 )
-            return NULL;
-        raw = dat2_buildcache_model_get(bc, model->model_id);
-        if( !raw )
-            return NULL;
-        raw = RSCacheDat2A_ModelNewCopy(raw);
-        if( !raw )
-            return NULL;
-        break;
-
-    case INTERFACEX_MODEL_KIND_NPC_HEAD:
-        if( model->model_id < 0 )
-            return NULL;
-        {
-            struct RSCacheDat2A_ConfigNpctype* npc =
-                dat2_buildcache_npctype_get(bc, model->model_id);
-            if( !npc || !npc->chathead_models || npc->chathead_models_count <= 0 )
-                return NULL;
-
-            model_count = 0;
-            for( i = 0; i < npc->chathead_models_count && model_count < 16; i++ )
-            {
-                int model_id = npc->chathead_models[i];
-                if( model_id < 0 )
-                    continue;
-                raw_models[model_count] = dat2_buildcache_model_get(bc, model_id);
-                if( raw_models[model_count] )
-                    model_count++;
-            }
-            if( model_count <= 0 )
-                return NULL;
-
-            merged = RSCacheDat2A_ModelNewMerge(raw_models, model_count);
-            if( !merged )
-                return NULL;
-            raw = merged;
-        }
-        break;
-
-    case INTERFACEX_MODEL_KIND_PLAYER_HEAD:
-    case INTERFACEX_MODEL_KIND_PLAYER_SELF:
-    case INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD:
-    {
-        int model_ids[256];
-        int id_count;
-
-        id_count = runescape_appearance_collect_model_ids_dat2(
-            bc, host->player_appearance, model_ids, 256);
-        if( id_count <= 0 )
-            return NULL;
-
-        model_count = 0;
-        for( i = 0; i < id_count && model_count < 16; i++ )
-        {
-            raw_models[model_count] = dat2_buildcache_model_get(bc, model_ids[i]);
-            if( raw_models[model_count] )
-                model_count++;
-        }
-        if( model_count <= 0 )
-            return NULL;
-
-        merged = RSCacheDat2A_ModelNewMerge(raw_models, model_count);
-        if( !merged )
-            return NULL;
-        raw = merged;
-        break;
-    }
-
-    default:
-        return NULL;
-    }
-
-    {
-        struct ToriDraw_Model* td_model = ToriDraw_ModelNewFromCacheModel(raw);
-        RSCacheDat2A_ModelFree(raw);
-        if( !td_model )
-            return NULL;
-        ToriDraw_ModelSetBoundsCylinder(td_model);
-        return td_model;
-    }
-}
-
-static void
-InterfaceX_RasterModelNodeToCanvas(
-    struct InterfaceX_VMHost* host,
-    int* dest,
-    int dest_stride,
-    struct UITreeXNode const* node,
-    int node_alpha)
-{
-    assert(host);
-    assert(node);
-    assert(dest);
-
-    if( node->kind != UITreeXNodeKind_RSModel )
-        return;
-
-    struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
-    if( model->model_kind == INTERFACEX_MODEL_KIND_PLAIN && model->model_id < 0 )
-        return;
-    if( model->model_kind == INTERFACEX_MODEL_KIND_NPC_HEAD && model->model_id < 0 )
-        return;
-
-    if( model->scene_id < 0 )
-    {
-        fprintf(
-            stderr,
-            "interfacex: model scene missing user_id=0x%x kind=%d model_id=%d scene_id=%d\n",
-            node->user_id,
-            (int)model->model_kind,
-            model->model_id,
-            model->scene_id);
-        return;
-    }
-
-    struct ToriDraw_ModelHandle hnd = ToriDraw_SceneModelGet(host->scene, model->scene_id);
-    if( hnd.kind != TORIDRAWMK_MODEL )
-    {
-        fprintf(
-            stderr,
-            "interfacex: model not in scene user_id=0x%x kind=%d model_id=%d scene_id=%d\n",
-            node->user_id,
-            (int)model->model_kind,
-            model->model_id,
-            model->scene_id);
-        return;
-    }
-
-    int zoom = model->zoom > 0 ? model->zoom : 2000;
-    if( model->item_id >= 0 )
-    {
-        if( node->w_mode != 0 && model->cache_an5957 > 0 )
-            zoom = InterfaceX_NormalizeModelItemZoom(zoom, model->cache_an5957);
-        else if( node->w > 0 )
-            zoom = InterfaceX_NormalizeModelItemZoom(zoom, node->w);
-    }
-
-    struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
-    int model_center_y = 0;
-    if( model->item_id >= 0 && bounds )
-        model_center_y = -bounds->min_y / 2;
-
-    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
-
-    int draw_x = 0;
-    int draw_y = 0;
-    int sw = 0;
-    int sh = 0;
-    bool ok = ToriDraw_RenderModelExtentsAtWidget(
-        host->scene,
-        hnd,
-        zoom,
-        model->angle_x,
-        model->angle_y,
-        model->angle_z,
-        model->offset_x,
-        model->offset_y,
-        model_center_y,
-        model->orthog != 0,
-        model->fixed_zoom != 0,
-        dest,
-        dest_stride,
-        CANVAS_W,
-        CANVAS_H,
-        node->abs_x,
-        node->abs_y,
-        node->abs_w,
-        node->abs_h,
-        g_render_clip_x0,
-        g_render_clip_y0,
-        g_render_clip_x1,
-        g_render_clip_y1,
-        &draw_x,
-        &draw_y,
-        &sw,
-        &sh);
-
-    if( !ok || sw <= 0 || sh <= 0 )
-        return;
-
-    interface_x_bake_model_raster_alpha(dest, dest_stride, draw_x, draw_y, sw, sh, node_alpha);
-}
-
 static int
 InterfaceX_NormalizeModelItemZoom(
     int zoom2d,
@@ -10975,53 +10386,6 @@ InterfaceX_NormalizeModelItemZoom(
     int width_units = widget_width > 0 ? widget_width : 32;
     int scaled = (zoom * 32) / width_units;
     return scaled > 0 ? scaled : 1;
-}
-
-static bool
-InterfaceX_ApplyObjToModelNode(
-    struct InterfaceX_VMHost* host,
-    struct UITreeXNode* node,
-    int obj_id,
-    int count)
-{
-    assert(host);
-    assert(node);
-
-    if( node->kind != UITreeXNodeKind_RSModel )
-        return false;
-
-    int resolved_obj_id = InterfaceX_ResolveObjIconCountVariant(host, obj_id, count);
-    struct RSCacheDat2A_ConfigObject* obj =
-        dat2_buildcache_object_get(dat2(InterfaceX_HostIO_Cache(&host->host_io)), resolved_obj_id);
-    if( !obj )
-        return false;
-
-    struct ToriAuxLibCore_Objtype* objtype =
-        ToriAuxLibCache_ObjtypeNewFromDat2ConfigObject(obj, resolved_obj_id);
-    if( !objtype || objtype->inventory_model_id <= 0 )
-    {
-        if( objtype )
-            ToriAuxLibCore_ObjtypeFree(objtype);
-        return false;
-    }
-
-    struct UITreeXNode_RSModel* model = UITreeX_NodeModelMut(node);
-    int widget_w = node->layout_resolved && node->abs_w > 0 ? node->abs_w : node->w;
-
-    model->item_id = obj_id;
-    model->item_count = count > 0 ? count : 1;
-    model->model_id = objtype->inventory_model_id;
-    model->model_kind = INTERFACEX_MODEL_KIND_PLAIN;
-    model->angle_x = objtype->xan2d;
-    model->angle_y = objtype->zan2d;
-    model->angle_z = objtype->yan2d;
-    model->offset_x = objtype->offset_x2d;
-    model->offset_y = objtype->offset_y2d;
-    model->zoom = InterfaceX_NormalizeModelItemZoom(objtype->zoom2d, widget_w);
-    model->orthog = 1;
-    ToriAuxLibCore_ObjtypeFree(objtype);
-    InterfaceX_EnqueueModelNodeLoad(host, node);
-    return true;
 }
 
 static int
@@ -11050,66 +10414,14 @@ InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
     {
     case UITreeXNodeKind_RSObj:
     {
-        struct UITreeXNode_RSObj* obj = UITreeX_NodeRSObjMut(node);
-        obj->obj_id = obj_id;
-        obj->obj_count = count > 0 ? count : 1;
-        if( InterfaceX_HostIO_ObjIconLoadFailed(&host->host_io, obj_id, count) )
-            break;
-        int scene_id = -1;
-        if( !InterfaceX_HostIO_ObjIconSceneId(&host->host_io, obj_id, count, &scene_id) )
-        {
-            obj->scene_id = -1;
-            struct CS2VM_HostRequest req = { 0 };
-            req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
-            req.u.cc_set_object.component_id = component_id;
-            req.u.cc_set_object.obj_id = obj_id;
-            req.u.cc_set_object.count = count;
-            return InterfaceX_VMHost_Yield(host, &req);
-        }
-        obj->scene_id = scene_id;
         break;
     }
     case UITreeXNodeKind_RSGraphic:
     {
-        struct UITreeXNode_RSGraphic* graphic = UITreeX_NodeRSGraphicMut(node);
-        graphic->graphic_id = obj_id;
-        graphic->outline = 0;
-        if( InterfaceX_HostIO_ObjIconLoadFailed(&host->host_io, obj_id, count) )
-            break;
-        int scene_id = -1;
-        if( !InterfaceX_HostIO_ObjIconSceneId(&host->host_io, obj_id, count, &scene_id) )
-        {
-            graphic->scene_id = -1;
-            struct CS2VM_HostRequest req = { 0 };
-            req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
-            req.u.cc_set_object.component_id = component_id;
-            req.u.cc_set_object.obj_id = obj_id;
-            req.u.cc_set_object.count = count;
-            return InterfaceX_VMHost_Yield(host, &req);
-        }
-        graphic->scene_id = scene_id;
         break;
     }
     case UITreeXNodeKind_RSModel:
     {
-        int resolved_obj_id =
-            InterfaceX_ResolveObjIconCountVariant(host, obj_id, count > 0 ? count : 1);
-        if( !dat2_buildcache_object_get(
-                dat2(InterfaceX_HostIO_Cache(&host->host_io)), resolved_obj_id) )
-        {
-            struct CS2VM_HostRequest req = { 0 };
-            req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
-            req.u.cc_set_object.component_id = component_id;
-            req.u.cc_set_object.obj_id = obj_id;
-            req.u.cc_set_object.count = count;
-            return InterfaceX_VMHost_Yield(host, &req);
-        }
-        if( !InterfaceX_ApplyObjToModelNode(host, node, obj_id, count) )
-        {
-            fprintf(
-                stderr, "failed to apply obj to model node in CC_SetObjectOnNode: %d\n", obj_id);
-            return CS2VM_EXECNO_ERROR;
-        }
         break;
     }
     default:
@@ -11124,26 +10436,6 @@ InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
     // node->kind = UITreeXNodeKind_RSObj;
 
     return CS2VM_EXECNO_OK;
-}
-
-static bool
-InterfaceX_RuntimeHookOwnsComponent(
-    struct InterfaceX_VMHost const* host,
-    int component_id)
-{
-    if( !host )
-        return false;
-    for( int i = 0; i < host->inv_transmit_hook_count; i++ )
-    {
-        if( host->inv_transmit_hooks[i].component_id == component_id )
-            return true;
-    }
-    for( int i = 0; i < host->var_transmit_hook_count; i++ )
-    {
-        if( host->var_transmit_hooks[i].component_id == component_id )
-            return true;
-    }
-    return false;
 }
 
 static void
@@ -11250,54 +10542,6 @@ InterfaceX_VMHost_QueueScript(
     host->script_queue_count++;
 }
 
-static void
-InterfaceX_VMHost_DrainScriptQueue(
-    struct InterfaceX_VMHost* host,
-    struct CS2VMX* vm)
-{
-    assert(host);
-    assert(vm);
-
-    host->client_clock++;
-
-    while( host->script_queue_count > 0 )
-    {
-        struct InterfaceX_ScriptQueueEntry entry = host->script_queue[host->script_queue_head];
-        host->script_queue_head = (host->script_queue_head + 1) % INTERFACEX_SCRIPT_QUEUE_MAX;
-        host->script_queue_count--;
-
-        int res = InterfaceX_RunClientScript(
-            host,
-            vm,
-            entry.script_id,
-            entry.component_id,
-            entry.int_args,
-            entry.int_arg_count,
-            (char const* const*)entry.string_args,
-            entry.string_arg_count);
-        if( res != CS2VM_EXECNO_OK )
-        {
-            fprintf(
-                stderr,
-                "script queue: script %d for component 0x%08x returned %d\n",
-                entry.script_id,
-                (unsigned)entry.component_id,
-                res);
-        }
-
-        for( int i = 0; i < entry.string_arg_count; i++ )
-        {
-            free(entry.string_args[i]);
-            entry.string_args[i] = NULL;
-        }
-    }
-}
-
-static int
-InterfaceX_VMHost_Load(
-    struct InterfaceX_VMHost* host,
-    struct CS2VM_HostRequest const* request);
-
 static int
 InterfaceX_RunClientScript(
     struct InterfaceX_VMHost* host,
@@ -11332,7 +10576,6 @@ InterfaceX_RunClientScript(
         return CS2VM_EXECNO_ERROR;
     }
 
-    CS2VMX_ResetRuntime(vm);
     CS2VMX_PushCallScript(vm, &client_script->script);
     {
         struct CS2VMX_Frame* frame = CS2VM_FRAME(vm);
@@ -11375,9 +10618,6 @@ InterfaceX_RunClientScript(
                 fprintf(stderr, "CS2VM: yield without pending host request\n");
                 return CS2VM_EXECNO_ERROR;
             }
-            if( InterfaceX_VMHost_Load(host, &host->pending_host_request) != 0 )
-                return CS2VM_EXECNO_ERROR;
-            host->has_pending_host_request = false;
             break;
         case CS2VM_EXECNO_ERROR:
             fprintf(
@@ -11396,7 +10636,6 @@ InterfaceX_RunClientScript(
                     (unsigned)component_id,
                     vm->last_error_opcode,
                     vm->last_error_pc);
-            CS2VMX_ResetRuntime(vm);
             return CS2VM_EXECNO_ERROR;
         }
     }
@@ -11430,26 +10669,6 @@ InterfaceX_VMHost_ClientClock(struct CS2VMX* vm)
 }
 
 static int
-InterfaceX_NodeIsGraphicKind(struct UITreeXNode const* node);
-
-static int
-InterfaceX_VMHost_LoadInterfaceGroup(
-    struct InterfaceX_VMHost* host,
-    int group_id)
-{
-    assert(host);
-    if( group_id <= 0 )
-        return -1;
-    if( InterfaceX_IsGroupLoaded(host, group_id) )
-        return 0;
-    if( !InterfaceX_HostIO_LoadInterfaceGroup(&host->host_io, group_id) )
-        return -1;
-    if( !InterfaceX_IntegrateInterfaceGroup(host, group_id) )
-        return -1;
-    return 0;
-}
-
-static int
 InterfaceX_VMHost_Load_CC_Create(
     struct InterfaceX_VMHost* host,
     struct CS2VM_HostRequest_CC_Create const* request)
@@ -11461,7 +10680,7 @@ InterfaceX_VMHost_Load_CC_Create(
     group_id = (request->parent_id >> 16) & 0xffff;
     if( request->parent_id <= 0 || group_id <= 0 )
         return 0;
-    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
+    return 0;
 }
 
 static int
@@ -11476,7 +10695,7 @@ InterfaceX_VMHost_Load_CC_Find(
     group_id = (request->parent_id >> 16) & 0xffff;
     if( request->parent_id <= 0 || group_id <= 0 )
         return 0;
-    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
+    return 0;
 }
 
 static int
@@ -11491,7 +10710,7 @@ InterfaceX_VMHost_Load_IF_Find(
     group_id = (request->component_id >> 16) & 0xffff;
     if( request->component_id <= 0 || group_id <= 0 )
         return 0;
-    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
+    return 0;
 }
 
 static int
@@ -11506,7 +10725,7 @@ InterfaceX_VMHost_Load_CC_ChildrenFind(
     group_id = (request->parent_id >> 16) & 0xffff;
     if( request->parent_id <= 0 || group_id <= 0 )
         return 0;
-    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
+    return 0;
 }
 
 static int
@@ -11521,7 +10740,7 @@ InterfaceX_VMHost_Load_IF_ChildrenFind(
     group_id = (request->uid >> 16) & 0xffff;
     if( request->uid <= 0 || group_id <= 0 )
         return 0;
-    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
+    return 0;
 }
 
 static int
@@ -11537,9 +10756,7 @@ InterfaceX_VMHost_YieldIfGroupNeeded(
     group_id = (component_id >> 16) & 0xffff;
     if( component_id <= 0 || group_id <= 0 )
         return CS2VM_EXECNO_OK;
-    if( InterfaceX_IsGroupLoaded(host, group_id) )
-        return CS2VM_EXECNO_OK;
-    return InterfaceX_VMHost_Yield(host, request);
+    return CS2VM_EXECNO_ERROR;
 }
 
 static int
@@ -11576,15 +10793,6 @@ InterfaceX_VMHost_Load(
     case CS2VM_HOST_REQUEST_CC_SETGRAPHIC:
     case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
     {
-        struct UITreeXNode* node =
-            UITreeX_NodeByComponentId(host, request->u.cc_set_graphic.component_id);
-        if( node && InterfaceX_NodeIsGraphicKind(node) )
-        {
-            int scene_id = -1;
-            if( !InterfaceX_HostIO_LoadGraphicScene(
-                    &host->host_io, request->u.cc_set_graphic.graphic_id, &scene_id) )
-                return -1;
-        }
         return 0;
     }
     case CS2VM_HOST_REQUEST_CC_SETOBJECT:
@@ -14204,666 +13412,6 @@ InterfaceX_VMHost_Exec_IF_GetHide(
     return CS2VM_EXECNO_OK;
 }
 
-static bool
-InterfaceX_ConfigArchiveReady(
-    struct RSCacheDat2Disk* disk,
-    int config_kind)
-{
-    assert(disk);
-    assert(config_kind >= 0);
-
-    struct RSCacheDat2Disk_ReferenceTable* table = disk->tables[RSCacheDat2Disk_Table_Configs];
-    if( !table || config_kind >= table->archive_count )
-        return false;
-
-    return true;
-}
-
-static bool
-InterfaceX_ConfigArchiveFindFile(
-    struct RSCacheDat2Disk* disk,
-    int config_kind,
-    struct RSCacheShared_FileList* fl,
-    int file_id,
-    uint8_t const** out_data,
-    int* out_len)
-{
-    assert(disk);
-    assert(fl);
-    assert(file_id >= 0);
-
-    struct RSCacheDat2Disk_ReferenceTable* table = disk->tables[RSCacheDat2Disk_Table_Configs];
-    struct RSCacheDat2Disk_ArchiveReference* ref = NULL;
-    if( table && table->archives )
-        ref = &table->archives[config_kind];
-
-    for( int i = 0; i < fl->file_count; i++ )
-    {
-        int id = (ref && i < ref->children.count) ? ref->children.files[i].id : i;
-        if( id != file_id )
-            continue;
-        if( out_data )
-            *out_data = (uint8_t const*)fl->files[i];
-        if( out_len )
-            *out_len = fl->file_sizes[i];
-        return true;
-    }
-    return false;
-}
-
-#define INTERFACEX_CONFIG_ARCHIVE_CACHE_CAP 4
-
-struct InterfaceX_ConfigArchiveCacheEntry
-{
-    struct RSCacheDat2Disk* disk;
-    int config_kind;
-    struct RSCacheShared_FileList* file_list;
-};
-
-static struct InterfaceX_ConfigArchiveCacheEntry
-    s_config_archive_cache[INTERFACEX_CONFIG_ARCHIVE_CACHE_CAP];
-static int s_config_archive_cache_count = 0;
-
-static void
-InterfaceX_ConfigArchiveCacheFreeAll(void)
-{
-    for( int i = 0; i < s_config_archive_cache_count; i++ )
-        RSCacheShared_FileListFree(s_config_archive_cache[i].file_list);
-    s_config_archive_cache_count = 0;
-}
-
-static struct RSCacheShared_FileList*
-InterfaceX_ConfigArchiveGetFileList(
-    struct RSCacheDat2Disk* disk,
-    int config_kind)
-{
-    if( !disk || config_kind < 0 )
-        return NULL;
-
-    for( int i = 0; i < s_config_archive_cache_count; i++ )
-    {
-        if( s_config_archive_cache[i].disk == disk &&
-            s_config_archive_cache[i].config_kind == config_kind )
-            return s_config_archive_cache[i].file_list;
-    }
-
-    if( !InterfaceX_ConfigArchiveReady(disk, config_kind) )
-        return NULL;
-
-    struct RSCacheDat2Disk_Archive* arch =
-        RSCacheDat2Disk_ArchiveNewLoad(disk, RSCacheDat2Disk_Table_Configs, config_kind);
-    if( !arch )
-        return NULL;
-
-    RSCacheDat2Disk_ArchiveInitMetadata(disk, arch);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
-    RSCacheDat2Disk_ArchiveFree(arch);
-    if( !fl )
-        return NULL;
-
-    if( s_config_archive_cache_count >= INTERFACEX_CONFIG_ARCHIVE_CACHE_CAP )
-    {
-        RSCacheShared_FileListFree(fl);
-        return NULL;
-    }
-
-    s_config_archive_cache[s_config_archive_cache_count].disk = disk;
-    s_config_archive_cache[s_config_archive_cache_count].config_kind = config_kind;
-    s_config_archive_cache[s_config_archive_cache_count].file_list = fl;
-    s_config_archive_cache_count++;
-
-    return fl;
-}
-
-struct InterfaceX_EnumCacheEntry
-{
-    int enum_id;
-    bool output_is_string;
-    int default_int;
-    char* default_string;
-    int* keys;
-    int* int_values;
-    char** string_values;
-    int count;
-};
-
-static struct InterfaceX_EnumCacheEntry* s_enum_cache;
-static int s_enum_cache_count;
-static int s_enum_cache_cap;
-
-static void
-InterfaceX_EnumCacheEntryFree(struct InterfaceX_EnumCacheEntry* entry)
-{
-    if( !entry )
-        return;
-    free(entry->keys);
-    free(entry->int_values);
-    free(entry->default_string);
-    if( entry->string_values )
-    {
-        for( int i = 0; i < entry->count; i++ )
-            free(entry->string_values[i]);
-        free(entry->string_values);
-    }
-    memset(entry, 0, sizeof(*entry));
-}
-
-static void
-InterfaceX_DecodeEnumConfig(
-    uint8_t const* data,
-    int len,
-    struct InterfaceX_EnumCacheEntry* entry)
-{
-    assert(entry);
-    assert(data);
-    assert(len > 0);
-
-    struct RSCacheShared_RSBuffer buf;
-    RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, len);
-
-    int key_cap = 0;
-    int* keys = NULL;
-    int* int_values = NULL;
-    char** string_values = NULL;
-    int count = 0;
-
-    for( ;; )
-    {
-        int opcode = g1(&buf);
-        if( opcode == 0 )
-            break;
-        switch( opcode )
-        {
-        case 1:
-            (void)g1(&buf);
-            break;
-        case 2:
-            entry->output_is_string = g1(&buf) == (int)'s';
-            break;
-        case 3:
-        {
-            char* s = gcstring(&buf);
-            free(entry->default_string);
-            entry->default_string = s;
-            break;
-        }
-        case 4:
-            entry->default_int = g4(&buf);
-            break;
-        case 5:
-        {
-            int size = g2(&buf);
-            for( int i = 0; i < size; i++ )
-            {
-                int key = g4(&buf);
-                char* value = gcstring(&buf);
-                if( count >= key_cap )
-                {
-                    int new_cap = key_cap < 8 ? 8 : key_cap * 2;
-                    int* new_keys = realloc(keys, (size_t)new_cap * sizeof(int));
-                    char** new_strings = realloc(string_values, (size_t)new_cap * sizeof(char*));
-                    if( !new_keys || !new_strings )
-                    {
-                        free(value);
-                        goto decode_fail;
-                    }
-                    keys = new_keys;
-                    string_values = new_strings;
-                    key_cap = new_cap;
-                }
-                keys[count] = key;
-                string_values[count] = value;
-                count++;
-            }
-            break;
-        }
-        case 6:
-        {
-            int size = g2(&buf);
-            for( int i = 0; i < size; i++ )
-            {
-                int key = g4(&buf);
-                int value = g4(&buf);
-                if( count >= key_cap )
-                {
-                    int new_cap = key_cap < 8 ? 8 : key_cap * 2;
-                    int* new_keys = realloc(keys, (size_t)new_cap * sizeof(int));
-                    int* new_values = realloc(int_values, (size_t)new_cap * sizeof(int));
-                    if( !new_keys || !new_values )
-                        goto decode_fail;
-                    keys = new_keys;
-                    int_values = new_values;
-                    key_cap = new_cap;
-                }
-                keys[count] = key;
-                int_values[count] = value;
-                count++;
-            }
-            break;
-        }
-        case 7:
-        {
-            int size = g2(&buf);
-            for( int i = 0; i < size; i++ )
-            {
-                (void)g4(&buf);
-                (void)g8(&buf);
-            }
-            break;
-        }
-        case 8:
-            (void)g8(&buf);
-            break;
-        default:
-            break;
-        }
-    }
-
-    entry->keys = keys;
-    entry->int_values = int_values;
-    entry->string_values = string_values;
-    entry->count = count;
-    return;
-
-decode_fail:
-    free(keys);
-    free(int_values);
-    if( string_values )
-    {
-        for( int i = 0; i < count; i++ )
-            free(string_values[i]);
-        free(string_values);
-    }
-}
-
-static struct InterfaceX_EnumCacheEntry*
-InterfaceX_EnumCacheGet(
-    struct RSCacheDat2Disk* disk,
-    int enum_id)
-{
-    for( int i = 0; i < s_enum_cache_count; i++ )
-    {
-        if( s_enum_cache[i].enum_id == enum_id )
-            return &s_enum_cache[i];
-    }
-
-    struct RSCacheShared_FileList* fl =
-        InterfaceX_ConfigArchiveGetFileList(disk, RSCacheDat2A_ConfigKind_Enum);
-    if( !fl )
-        return NULL;
-
-    uint8_t const* data = NULL;
-    int data_len = 0;
-    if( enum_id >= 0 )
-    {
-        (void)InterfaceX_ConfigArchiveFindFile(
-            disk, RSCacheDat2A_ConfigKind_Enum, fl, enum_id, &data, &data_len);
-    }
-
-    struct InterfaceX_EnumCacheEntry entry = {
-        .enum_id = enum_id,
-        .default_int = -1,
-    };
-    InterfaceX_DecodeEnumConfig(data, data_len, &entry);
-
-    if( s_enum_cache_count >= s_enum_cache_cap )
-    {
-        int new_cap = s_enum_cache_cap < 8 ? 8 : s_enum_cache_cap * 2;
-        struct InterfaceX_EnumCacheEntry* grown =
-            realloc(s_enum_cache, (size_t)new_cap * sizeof(*s_enum_cache));
-        if( !grown )
-        {
-            InterfaceX_EnumCacheEntryFree(&entry);
-            return NULL;
-        }
-        s_enum_cache = grown;
-        s_enum_cache_cap = new_cap;
-    }
-
-    s_enum_cache[s_enum_cache_count++] = entry;
-    return &s_enum_cache[s_enum_cache_count - 1];
-}
-
-static int
-InterfaceX_EnumLookup(
-    struct RSCacheDat2Disk* disk,
-    int input_type,
-    int output_type,
-    int enum_id,
-    int key)
-{
-    (void)input_type;
-    (void)output_type;
-    if( !disk || enum_id < 0 )
-        return -1;
-
-    if( enum_id == 139 && key == 10551394 )
-        return (165 << 16) | 1;
-
-    struct InterfaceX_EnumCacheEntry* entry = InterfaceX_EnumCacheGet(disk, enum_id);
-    if( !entry )
-        return -1;
-    if( entry->output_is_string )
-        return -1;
-    if( !entry->keys || entry->count <= 0 )
-        return entry->default_int;
-
-    for( int i = 0; i < entry->count; i++ )
-    {
-        if( entry->keys[i] == key )
-            return entry->int_values ? entry->int_values[i] : -1;
-    }
-    return entry->default_int;
-}
-
-static char const*
-InterfaceX_EnumLookupString(
-    struct RSCacheDat2Disk* disk,
-    int input_type,
-    int output_type,
-    int enum_id,
-    int key)
-{
-    (void)input_type;
-    (void)output_type;
-    if( !disk || enum_id < 0 )
-        return "null";
-
-    struct InterfaceX_EnumCacheEntry* entry = InterfaceX_EnumCacheGet(disk, enum_id);
-    if( !entry || !entry->output_is_string )
-        return "null";
-    if( !entry->keys || entry->count <= 0 )
-        return entry->default_string ? entry->default_string : "null";
-
-    for( int i = 0; i < entry->count; i++ )
-    {
-        if( entry->keys[i] == key )
-        {
-            if( entry->string_values && entry->string_values[i] )
-                return entry->string_values[i];
-            return entry->default_string ? entry->default_string : "null";
-        }
-    }
-    return entry->default_string ? entry->default_string : "null";
-}
-
-static int
-InterfaceX_EnumOutputCount(
-    struct RSCacheDat2Disk* disk,
-    int enum_id)
-{
-    if( !disk || enum_id < 0 )
-        return 0;
-
-    struct InterfaceX_EnumCacheEntry* entry = InterfaceX_EnumCacheGet(disk, enum_id);
-    return entry ? entry->count : 0;
-}
-
-struct InterfaceX_StructCacheEntry
-{
-    int struct_id;
-    struct RSCacheShared_Params params;
-};
-
-static struct InterfaceX_StructCacheEntry* s_struct_cache;
-static int s_struct_cache_count;
-static int s_struct_cache_cap;
-
-static struct InterfaceX_StructCacheEntry*
-InterfaceX_StructCacheGet(
-    struct RSCacheDat2Disk* disk,
-    int struct_id)
-{
-    for( int i = 0; i < s_struct_cache_count; i++ )
-    {
-        if( s_struct_cache[i].struct_id == struct_id )
-            return &s_struct_cache[i];
-    }
-
-    struct RSCacheShared_FileList* fl =
-        InterfaceX_ConfigArchiveGetFileList(disk, RSCacheDat2A_ConfigKind_Struct);
-    if( !fl )
-        return NULL;
-
-    uint8_t const* data = NULL;
-    int data_len = 0;
-    if( struct_id >= 0 )
-    {
-        (void)InterfaceX_ConfigArchiveFindFile(
-            disk, RSCacheDat2A_ConfigKind_Struct, fl, struct_id, &data, &data_len);
-    }
-
-    struct InterfaceX_StructCacheEntry entry = {
-        .struct_id = struct_id,
-    };
-    if( data && data_len > 0 && !(data_len == 1 && data[0] == 0) )
-    {
-        struct RSCacheShared_RSBuffer buf;
-        RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, (uint32_t)data_len);
-        for( ;; )
-        {
-            int opcode = g1(&buf);
-            if( opcode == 0 )
-                break;
-            if( opcode == 249 )
-                RSCacheShared_RSBufferReadParams(&buf, &entry.params);
-        }
-    }
-
-    if( s_struct_cache_count >= s_struct_cache_cap )
-    {
-        int new_cap = s_struct_cache_cap < 8 ? 8 : s_struct_cache_cap * 2;
-        struct InterfaceX_StructCacheEntry* grown =
-            realloc(s_struct_cache, (size_t)new_cap * sizeof(*s_struct_cache));
-        if( !grown )
-            return NULL;
-        s_struct_cache = grown;
-        s_struct_cache_cap = new_cap;
-    }
-
-    s_struct_cache[s_struct_cache_count++] = entry;
-    return &s_struct_cache[s_struct_cache_count - 1];
-}
-
-static bool
-InterfaceX_StructParamLookup(
-    struct RSCacheDat2Disk* disk,
-    int struct_id,
-    int param_id,
-    bool* out_is_string,
-    int* out_int,
-    char const** out_str)
-{
-    if( out_is_string )
-        *out_is_string = false;
-    if( out_int )
-        *out_int = 0;
-    if( out_str )
-        *out_str = NULL;
-    if( !disk || struct_id < 0 || param_id < 0 )
-        return false;
-
-    struct InterfaceX_StructCacheEntry* entry = InterfaceX_StructCacheGet(disk, struct_id);
-    if( !entry || entry->params.count <= 0 )
-        return false;
-
-    for( int i = 0; i < entry->params.count; i++ )
-    {
-        if( entry->params.keys[i] != param_id )
-            continue;
-        if( entry->params.is_string[i] )
-        {
-            if( out_is_string )
-                *out_is_string = true;
-            if( out_str )
-                *out_str = (char const*)entry->params.values[i];
-            return true;
-        }
-        if( out_int )
-            *out_int = entry->params.values[i] ? *(int*)entry->params.values[i] : 0;
-        return true;
-    }
-    return false;
-}
-
-static char
-InterfaceX_ParamTypeIdToChar(int id)
-{
-    if( id == 36 )
-        return 's';
-    return 'i';
-}
-
-static void
-InterfaceX_DecodeParamType(
-    uint8_t const* data,
-    int len,
-    struct InterfaceX_ParamType* out)
-{
-    if( !out || !data || len <= 0 || (len == 1 && data[0] == 0) )
-        return;
-
-    struct RSCacheShared_RSBuffer buf;
-    RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, (uint32_t)len);
-
-    for( ;; )
-    {
-        int opcode = g1(&buf);
-        if( opcode == 0 )
-            break;
-        switch( opcode )
-        {
-        case 1:
-            out->is_string = g1(&buf) == 's';
-            break;
-        case 8:
-            out->is_string = InterfaceX_ParamTypeIdToChar(g1(&buf)) == 's';
-            break;
-        case 2:
-            out->default_int = g4(&buf);
-            break;
-        case 5:
-            free(out->default_string);
-            out->default_string = gcstring(&buf);
-            break;
-        default:
-            break;
-        }
-    }
-}
-
-static bool
-InterfaceX_LoadParamType(
-    struct RSCacheDat2Disk* disk,
-    int param_id,
-    struct InterfaceX_ParamType* out)
-{
-    assert(out);
-    memset(out, 0, sizeof(*out));
-    out->id = param_id;
-
-    if( !disk || param_id < 0 )
-        return false;
-
-    struct RSCacheShared_FileList* fl =
-        InterfaceX_ConfigArchiveGetFileList(disk, RSCacheDat2A_ConfigKind_Params);
-    if( !fl )
-        return false;
-
-    uint8_t const* data = NULL;
-    int data_len = 0;
-    bool found = InterfaceX_ConfigArchiveFindFile(
-        disk, RSCacheDat2A_ConfigKind_Params, fl, param_id, &data, &data_len);
-
-    if( found )
-        InterfaceX_DecodeParamType(data, data_len, out);
-
-    return found;
-}
-
-static struct InterfaceX_ObjType*
-InterfaceX_LoadObjType(
-    struct RSCacheDat2Disk* disk,
-    int item_id)
-{
-    if( !disk || item_id <= 0 )
-        return NULL;
-
-    struct RSCacheShared_FileList* fl =
-        InterfaceX_ConfigArchiveGetFileList(disk, RSCacheDat2A_ConfigKind_Object);
-    if( !fl )
-        return NULL;
-
-    uint8_t const* data = NULL;
-    int data_len = 0;
-    if( !InterfaceX_ConfigArchiveFindFile(
-            disk, RSCacheDat2A_ConfigKind_Object, fl, item_id, &data, &data_len) )
-        return NULL;
-
-    struct RSCacheDat2A_ConfigObject* decoded = calloc(1, sizeof(struct RSCacheDat2A_ConfigObject));
-    if( !decoded )
-        return NULL;
-
-    RSCacheDat2A_ConfigObjectDecodeInplace(decoded, (char*)data, data_len);
-
-    struct InterfaceX_ObjType* obj = calloc(1, sizeof(struct InterfaceX_ObjType));
-    if( !obj )
-    {
-        RSCacheDat2A_ConfigObjectFree(decoded);
-        return NULL;
-    }
-
-    obj->id = item_id;
-    obj->param_count = decoded->params.count;
-    if( obj->param_count > 0 )
-    {
-        obj->params = calloc((size_t)obj->param_count, sizeof(struct InterfaceX_ObjTypeParam));
-        if( !obj->params )
-        {
-            RSCacheDat2A_ConfigObjectFree(decoded);
-            free(obj);
-            return NULL;
-        }
-
-        for( int i = 0; i < obj->param_count; i++ )
-        {
-            struct InterfaceX_ObjTypeParam* dst = &obj->params[i];
-            dst->key = decoded->params.keys[i];
-            dst->is_string = decoded->params.is_string[i];
-            if( dst->is_string )
-            {
-                char const* src =
-                    decoded->params.values[i] ? (char const*)decoded->params.values[i] : "";
-                dst->str_value = src[0] != '\0' ? strdup(src) : NULL;
-            }
-            else
-            {
-                dst->int_value = decoded->params.values[i] ? *(int*)decoded->params.values[i] : 0;
-            }
-        }
-    }
-
-    RSCacheDat2A_ConfigObjectFree(decoded);
-    return obj;
-}
-
-static struct InterfaceX_ObjTypeParam*
-InterfaceX_ObjTypeParamGet(
-    struct InterfaceX_ObjType const* obj,
-    int param_id)
-{
-    assert(obj);
-    assert(obj->params);
-    assert(obj->param_count > 0);
-
-    for( int i = 0; i < obj->param_count; i++ )
-    {
-        if( obj->params[i].key == param_id )
-            return &obj->params[i];
-    }
-    return NULL;
-}
-
 int
 InterfaceX_VMHost_Exec_OC_Param(
     struct InterfaceX_VMHost* host,
@@ -14874,66 +13422,7 @@ InterfaceX_VMHost_Exec_OC_Param(
     assert(host->builder);
     assert(vm);
 
-    struct InterfaceX_ParamType param;
-    bool have_param = false;
-
-    struct Dat2BuildCache* bc = dat2(InterfaceX_HostIO_Cache(&host->host_io));
-
-    struct RSCacheDat2A_ConfigObject* decoded = dat2_buildcache_object_get(bc, request.item_id);
-    if( !decoded )
-    {
-        return InterfaceX_VMHost_Yield(
-            host,
-            &(struct CS2VM_HostRequest){
-                .kind = CS2VM_HOST_REQUEST_OC_PARAM,
-                .u.oc_param = request,
-            });
-    }
-
-    if( !dat2_buildcache_param_get(bc, request.param_id) )
-    {
-        return InterfaceX_VMHost_Yield(
-            host,
-            &(struct CS2VM_HostRequest){
-                .kind = CS2VM_HOST_REQUEST_OC_PARAM,
-                .u.oc_param = request,
-            });
-    }
-
-    have_param = ie_param_is_string(bc, request.param_id);
-    if( have_param )
-    {
-        param.is_string = true;
-        param.default_string = ie_param_default_string(bc, request.param_id);
-    }
-    else
-    {
-        param.is_string = false;
-        param.default_int = ie_param_default_int(bc, request.param_id);
-    }
-
-    if( decoded->params.count > 0 )
-    {
-        for( int i = 0; i < decoded->params.count; i++ )
-        {
-            if( decoded->params.keys[i] != request.param_id )
-                continue;
-            if( decoded->params.is_string[i] )
-            {
-                char const* pushed = decoded->params.values[i]
-                                         ? (char const*)decoded->params.values[i]
-                                         : (param.default_string ? param.default_string : "");
-                return CS2VMX_PushStr(vm, (char*)pushed);
-            }
-            int pushed =
-                decoded->params.values[i] ? *(int*)decoded->params.values[i] : param.default_int;
-            return CS2VMX_PushInt(vm, pushed);
-        }
-    }
-
-    if( have_param && param.is_string )
-        return CS2VMX_PushStr(vm, param.default_string ? param.default_string : (char*)"");
-    return CS2VMX_PushInt(vm, have_param ? param.default_int : 0);
+    return CS2VM_EXECNO_ERROR;
 }
 
 int
@@ -14944,22 +13433,7 @@ InterfaceX_VMHost_Exec_OC_Name(
 {
     assert(host);
     assert(vm);
-
-    char* name = strdup("null");
-    struct RSCacheDat2A_ConfigObject* obj =
-        dat2_buildcache_object_get(dat2(InterfaceX_HostIO_Cache(&host->host_io)), request.item_id);
-    if( !obj )
-    {
-        return InterfaceX_VMHost_Yield(
-            host,
-            &(struct CS2VM_HostRequest){
-                .kind = CS2VM_HOST_REQUEST_OC_NAME,
-                .u.oc_name = request,
-            });
-    }
-    if( obj->name && obj->name[0] != '\0' )
-        name = strdup(obj->name);
-    return CS2VMX_PushStr(vm, name);
+    return CS2VM_EXECNO_ERROR;
 }
 
 int
@@ -14971,26 +13445,7 @@ InterfaceX_VMHost_Exec_OC_Unplaceholder(
     assert(host);
     assert(vm);
 
-    int result = request.item_id;
-    if( request.item_id <= 0 )
-        return CS2VMX_PushInt(vm, result);
-
-    struct RSCacheDat2A_ConfigObject* obj =
-        dat2_buildcache_object_get(dat2(InterfaceX_HostIO_Cache(&host->host_io)), request.item_id);
-    if( !obj )
-    {
-        return InterfaceX_VMHost_Yield(
-            host,
-            &(struct CS2VM_HostRequest){
-                .kind = CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER,
-                .u.oc_unplaceholder = request,
-            });
-    }
-
-    if( obj->placeholder_template_id >= 0 && obj->placeholder_id >= 0 )
-        result = obj->placeholder_id;
-
-    return CS2VMX_PushInt(vm, result);
+    return CS2VM_EXECNO_ERROR;
 }
 
 int
@@ -15257,156 +13712,6 @@ InterfaceX_VMHost_Exec(
     }
 }
 
-static void
-CS2VMX_ResetRuntime(struct CS2VMX* vm)
-{
-    assert(vm);
-    vm->ints_stack_top = 0;
-    vm->strs_stack_top = 0;
-    vm->frame_sp = 0;
-    CS2VMX_ClearYieldHalt(vm);
-}
-
-static void
-InterfaceX_VMHost_FireVarTransmitHooks(
-    struct InterfaceX_VMHost* host,
-    struct CS2VMX* vm)
-{
-    assert(host);
-    assert(vm);
-
-    for( int i = 0; i < host->var_transmit_hook_count; i++ )
-    {
-        struct InterfaceX_VarTransmitHook const* hook = &host->var_transmit_hooks[i];
-        if( hook->script_id <= 0 )
-            continue;
-        if( hook->trigger_count <= 0 )
-            continue;
-
-        printf(
-            "running onVarTransmit script %d for component %d (args:",
-            hook->script_id,
-            hook->component_id);
-        for( int j = 0; j < hook->int_arg_count; j++ )
-            printf(" %d", hook->int_args[j]);
-        printf(")\n");
-
-        InterfaceX_VMHost_QueueScript(
-            host,
-            hook->script_id,
-            hook->component_id,
-            hook->int_args,
-            hook->int_arg_count,
-            NULL,
-            0);
-    }
-}
-
-static void
-InterfaceX_VMHost_FireCacheVarTransmitHooks(
-    struct InterfaceX_VMHost* host,
-    struct CS2VMX* vm,
-    struct ToriAuxLibCore_Component** components,
-    int component_count)
-{
-    assert(host);
-    assert(vm);
-    if( !components || component_count <= 0 )
-        return;
-
-    for( int i = 0; i < component_count; i++ )
-    {
-        struct ToriAuxLibCore_Component* comp = components[i];
-        if( !comp )
-            continue;
-        if( InterfaceX_RuntimeHookOwnsComponent(host, comp->id) )
-            continue;
-        if( comp->on_varp_transmit.argc <= 0 )
-            continue;
-        if( comp->varp_triggers_count <= 0 )
-            continue;
-
-        int script_id = comp->on_varp_transmit.argv[0];
-        int args[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX];
-        int arg_count = comp->on_varp_transmit.argc - 1;
-        if( arg_count > TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
-            arg_count = TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX;
-        for( int j = 0; j < arg_count; j++ )
-            args[j] = comp->on_varp_transmit.argv[j + 1];
-
-        printf("running cache onVarTransmit script %d for component %d\n", script_id, comp->id);
-        InterfaceX_VMHost_QueueScript(host, script_id, comp->id, args, arg_count, NULL, 0);
-    }
-}
-
-static void
-InterfaceX_VMHost_FireInvTransmitHooks(
-    struct InterfaceX_VMHost* host,
-    struct CS2VMX* vm)
-{
-    assert(host);
-    assert(vm);
-
-    for( int i = 0; i < host->inv_transmit_hook_count; i++ )
-    {
-        struct InterfaceX_InvTransmitHook const* hook = &host->inv_transmit_hooks[i];
-        if( hook->script_id <= 0 )
-            continue;
-
-        printf(
-            "running onInvTransmit script %d for component %d (args:",
-            hook->script_id,
-            hook->component_id);
-        for( int j = 0; j < hook->int_arg_count; j++ )
-            printf(" %d", hook->int_args[j]);
-        printf(")\n");
-
-        InterfaceX_VMHost_QueueScript(
-            host,
-            hook->script_id,
-            hook->component_id,
-            hook->int_args,
-            hook->int_arg_count,
-            NULL,
-            0);
-    }
-}
-
-static void
-InterfaceX_VMHost_FireCacheInvTransmitHooks(
-    struct InterfaceX_VMHost* host,
-    struct CS2VMX* vm,
-    struct ToriAuxLibCore_Component** components,
-    int component_count)
-{
-    assert(host);
-    assert(vm);
-    if( !components || component_count <= 0 )
-        return;
-
-    for( int i = 0; i < component_count; i++ )
-    {
-        struct ToriAuxLibCore_Component* comp = components[i];
-        if( !comp )
-            continue;
-        if( InterfaceX_RuntimeHookOwnsComponent(host, comp->id) )
-            continue;
-        if( comp->on_inv_transmit.argc <= 0 )
-            continue;
-
-        int script_id = comp->on_inv_transmit.argv[0];
-        int args[INTERFACEX_INV_TRANSMIT_INT_ARG_MAX];
-        int arg_count = comp->on_inv_transmit.argc - 1;
-        if( arg_count > INTERFACEX_INV_TRANSMIT_INT_ARG_MAX )
-            arg_count = INTERFACEX_INV_TRANSMIT_INT_ARG_MAX;
-        for( int j = 0; j < arg_count; j++ )
-            args[j] = comp->on_inv_transmit.argv[j + 1];
-
-        printf("running cache onInvTransmit script %d for component %d\n", script_id, comp->id);
-        InterfaceX_VMHost_QueueScript(host, script_id, comp->id, args, arg_count, NULL, 0);
-    }
-}
-
 // dat2 disk
 //   └─ Interfaces index, archive N
 //        └─ RSCacheDat2Disk_Archive (compressed blob + file_count metadata)
@@ -15451,353 +13756,13 @@ InterfaceX_PrintUsage(char const* argv0)
         INVENTORY_INTERFACE);
 }
 
-static RSCacheDat2A_Component*
-component_decode_from_bytes(
-    int packed_id,
-    char* data,
-    int size);
-
-static int
-InterfaceX_DumpComponentRaw(
-    struct RSCacheDat2Disk* cache,
-    int interface_id,
-    int file_index)
-{
-    assert(cache);
-
-    struct RSCacheDat2Disk_Archive* archive =
-        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, interface_id);
-    if( !archive )
-    {
-        fprintf(stderr, "failed to load interface archive %d\n", interface_id);
-        return 1;
-    }
-
-    RSCacheDat2Disk_ArchiveInitMetadataFromTable(
-        cache->tables[RSCacheDat2Disk_Table_Interfaces], archive);
-
-    struct RSCacheShared_FileList* file_list = RSCacheShared_FileListNewFromCacheArchive(archive);
-    if( !file_list || file_index < 0 || file_index >= file_list->file_count )
-    {
-        fprintf(
-            stderr,
-            "invalid file index %d for interface %d (count=%d)\n",
-            file_index,
-            interface_id,
-            file_list ? file_list->file_count : 0);
-        RSCacheShared_FileListFree(file_list);
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return 1;
-    }
-
-    char* data = file_list->files[file_index];
-    int size = file_list->file_sizes[file_index];
-    int packed_id = (interface_id << 16) | (file_index & 0xFFFF);
-
-    printf(
-        "interface=%d file=%d packed_id=0x%08x size=%d cache=%s\n",
-        interface_id,
-        file_index,
-        packed_id,
-        size,
-        CACHE_PATH);
-
-    int dump_len = size < 48 ? size : 48;
-    printf("raw_hex:");
-    for( int i = 0; i < dump_len; i++ )
-        printf(" %02x", (unsigned char)data[i]);
-    if( size > dump_len )
-        printf(" ...");
-    printf("\n");
-
-    RSCacheDat2A_Component* component = component_decode_from_bytes(packed_id, data, size);
-    if( !component )
-    {
-        fprintf(stderr, "failed to decode component\n");
-        RSCacheShared_FileListFree(file_list);
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return 1;
-    }
-
-    printf(
-        "decoded: type=%d baseX=%d baseY=%d baseW=%d baseH=%d wm=%d hm=%d xm=%d ym=%d\n",
-        component->type,
-        component->baseX,
-        component->baseY,
-        component->baseWidth,
-        component->baseHeight,
-        component->widthMode,
-        component->heightMode,
-        component->xMode,
-        component->yMode);
-
-    if( component->type == 6 )
-    {
-        printf(
-            "model: id=%d zoom=%d xan=%d yan=%d zan=%d orient=%d offset=%d orthog=%d fixed_zoom=%d "
-            "short50=%d short49=%d an5957=%d an5920=%d\n",
-            component->modelId,
-            component->modelZoom,
-            component->modelXAngle,
-            component->modelYAngle,
-            component->modelZAngle,
-            component->modelXOffset,
-            component->modelYOffset,
-            component->modelOrthographic,
-            component->aBoolean411,
-            (int)component->aShort50,
-            (int)component->aShort49,
-            component->anInt5957,
-            component->anInt5920);
-    }
-
-    RSCacheDat2A_ComponentFree(component);
-    RSCacheShared_FileListFree(file_list);
-    RSCacheDat2Disk_ArchiveFree(archive);
-    return 0;
-}
-
-static int
-process_component(
-    struct InterfaceX_VMHost* host,
-    struct UITreeXBuilder* builder,
-    struct ToriAuxLibCore_Component* component);
-
-static bool
-InterfaceX_LoadInterfaceComponents(
-    struct InterfaceX_VMHost* host,
-    struct UITreeXBuilder* builder,
-    struct RSCacheDat2Disk* cache,
-    int interface_id,
-    struct InterfaceX_LoadedInterface* loaded)
-{
-    assert(host);
-    assert(builder);
-    assert(cache);
-    assert(loaded);
-
-    memset(loaded, 0, sizeof(*loaded));
-    loaded->interface_id = interface_id;
-
-    struct RSCacheDat2Disk_ReferenceTable* reference_table =
-        cache->tables[RSCacheDat2Disk_Table_Interfaces];
-    if( !reference_table )
-    {
-        fprintf(stderr, "failed to load reference table: %d\n", interface_id);
-        return false;
-    }
-
-    struct RSCacheDat2Disk_Archive* archive =
-        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, interface_id);
-    if( !archive )
-    {
-        fprintf(stderr, "failed to load archive: %d\n", interface_id);
-        return false;
-    }
-
-    RSCacheDat2Disk_ArchiveInitMetadataFromTable(reference_table, archive);
-
-    struct RSCacheShared_FileList* file_list = RSCacheShared_FileListNewFromCacheArchive(archive);
-    if( !file_list )
-    {
-        fprintf(stderr, "failed to create file list: %d\n", interface_id);
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return false;
-    }
-
-    loaded->component_count = file_list->file_count;
-    loaded->components = calloc(file_list->file_count, sizeof(struct ToriAuxLibCore_Component*));
-    if( !loaded->components )
-    {
-        fprintf(stderr, "failed to allocate component arrays: %d\n", interface_id);
-        RSCacheShared_FileListFree(file_list);
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return false;
-    }
-
-    for( int i = 0; i < file_list->file_count; i++ )
-    {
-        int packed_id = (interface_id << 16) | (i & 0xFFFF);
-        RSCacheDat2A_Component* component =
-            component_decode_from_bytes(packed_id, file_list->files[i], file_list->file_sizes[i]);
-        if( !component )
-        {
-            fprintf(stderr, "failed to decode component: %d (file %d)\n", interface_id, i);
-            RSCacheShared_FileListFree(file_list);
-            RSCacheDat2Disk_ArchiveFree(archive);
-            return false;
-        }
-
-        struct ToriAuxLibCore_Component* component_core =
-            ToriAuxLibCache_ComponentNewFromCacheDat2Component(component);
-        RSCacheDat2A_ComponentFree(component);
-        if( !component_core )
-        {
-            fprintf(stderr, "failed to create component core: %d (file %d)\n", interface_id, i);
-            RSCacheShared_FileListFree(file_list);
-            RSCacheDat2Disk_ArchiveFree(archive);
-            return false;
-        }
-
-        loaded->components[i] = component_core;
-        loaded->owns_components = true;
-        process_component(host, builder, component_core);
-    }
-
-    RSCacheShared_FileListFree(file_list);
-    RSCacheDat2Disk_ArchiveFree(archive);
-    return true;
-}
-
-static void
-prefetch_collect_script_id(
-    int script_id,
-    int** script_ids,
-    int* script_count,
-    int* script_cap)
-{
-    if( script_id < 0 )
-        return;
-
-    for( int j = 0; j < *script_count; j++ )
-    {
-        if( (*script_ids)[j] == script_id )
-            return;
-    }
-
-    if( *script_count >= *script_cap )
-    {
-        int new_cap = *script_cap < 8 ? 8 : *script_cap * 2;
-        int* grown = realloc(*script_ids, (size_t)new_cap * sizeof(int));
-        if( !grown )
-            return;
-        *script_ids = grown;
-        *script_cap = new_cap;
-    }
-
-    (*script_ids)[(*script_count)++] = script_id;
-}
-
-static void
-prefetch_collect_core_hook_script_id(
-    struct ToriAuxLibCore_ScriptHook const* hook,
-    int** script_ids,
-    int* script_count,
-    int* script_cap)
-{
-    if( !hook || hook->argc <= 0 )
-        return;
-
-    prefetch_collect_script_id(hook->argv[0], script_ids, script_count, script_cap);
-}
-
-static void
-InterfaceX_PrefetchOnLoadScripts(
-    struct InterfaceX_VMHost* host,
-    struct InterfaceX_LoadedInterface const* loaded)
-{
-    assert(host);
-    assert(loaded);
-
-    int* script_ids = NULL;
-    int script_count = 0;
-    int script_cap = 0;
-
-    for( int i = 0; i < loaded->component_count; i++ )
-    {
-        struct ToriAuxLibCore_Component* component = loaded->components[i];
-        if( !component )
-            continue;
-        prefetch_collect_core_hook_script_id(
-            &component->on_load, &script_ids, &script_count, &script_cap);
-    }
-
-    if( script_count > 0 )
-        InterfaceX_HostIO_LoadClientScripts(&host->host_io, script_ids, script_count);
-
-    free(script_ids);
-}
-
-static void
-InterfaceX_PrefetchOnVarTransmitScripts(
-    struct InterfaceX_VMHost* host,
-    struct InterfaceX_LoadedInterface const* loaded)
-{
-    assert(host);
-    assert(loaded);
-
-    int* script_ids = NULL;
-    int script_count = 0;
-    int script_cap = 0;
-
-    for( int i = 0; i < loaded->component_count; i++ )
-    {
-        struct ToriAuxLibCore_Component* component = loaded->components[i];
-        if( !component || component->varp_triggers_count <= 0 )
-            continue;
-        prefetch_collect_core_hook_script_id(
-            &component->on_varp_transmit, &script_ids, &script_count, &script_cap);
-    }
-
-    if( script_count > 0 )
-        InterfaceX_HostIO_LoadClientScripts(&host->host_io, script_ids, script_count);
-
-    free(script_ids);
-}
-
-static void
-InterfaceX_PrefetchOnInvTransmitScripts(
-    struct InterfaceX_VMHost* host,
-    struct InterfaceX_LoadedInterface const* loaded)
-{
-    assert(host);
-    assert(loaded);
-
-    int* script_ids = NULL;
-    int script_count = 0;
-    int script_cap = 0;
-
-    for( int i = 0; i < loaded->component_count; i++ )
-    {
-        struct ToriAuxLibCore_Component* component = loaded->components[i];
-        if( !component )
-            continue;
-        prefetch_collect_core_hook_script_id(
-            &component->on_inv_transmit, &script_ids, &script_count, &script_cap);
-    }
-
-    if( script_count > 0 )
-        InterfaceX_HostIO_LoadClientScripts(&host->host_io, script_ids, script_count);
-
-    free(script_ids);
-}
-
-static void
-InterfaceX_QueueInterfaceOnLoadScripts(
-    struct InterfaceX_VMHost* host,
-    struct InterfaceX_LoadedInterface const* loaded)
-{
-    assert(host);
-    assert(loaded);
-
-    for( int i = 0; i < loaded->component_count; i++ )
-    {
-        struct ToriAuxLibCore_Component* component = loaded->components[i];
-        if( !component || component->on_load.argc <= 0 )
-            continue;
-
-        InterfaceX_VMHost_QueueCoreScriptHook(host, component->id, &component->on_load);
-    }
-}
-
 static void
 InterfaceX_HideInterfaceRoots(
     struct UITreeX* tree,
     int interface_id)
 {
     assert(tree);
-    if( interface_id < 0 )
-        return;
+    assert(interface_id >= 0);
 
     int iface_prefix = interface_id << 16;
     for( int i = 0; i < tree->node_count; i++ )
@@ -15810,63 +13775,6 @@ InterfaceX_HideInterfaceRoots(
         if( node->link.parent_tree_idx < 0 )
             node->hidden = 1;
     }
-}
-
-static void
-InterfaceX_FreeLoadedInterface(struct InterfaceX_LoadedInterface* loaded)
-{
-    if( !loaded )
-        return;
-
-    if( loaded->components )
-    {
-        if( loaded->owns_components )
-        {
-            for( int i = 0; i < loaded->component_count; i++ )
-                ToriAuxLibCore_ComponentFree(loaded->components[i]);
-        }
-        free(loaded->components);
-    }
-
-    memset(loaded, 0, sizeof(*loaded));
-}
-
-static bool
-InterfaceX_IsGroupLoaded(
-    struct InterfaceX_VMHost const* host,
-    int group_id)
-{
-    if( !host || group_id <= 0 )
-        return false;
-    if( host->interface_id == group_id )
-        return host->primary_pack_integrated;
-    for( int i = 0; i < host->extra_group_count; i++ )
-    {
-        if( host->extra_group_ids[i] == group_id )
-            return true;
-    }
-    return false;
-}
-
-#include "interfacex_tasks.inc.c"
-
-static bool
-InterfaceX_IntegrateInterfaceGroup(
-    struct InterfaceX_VMHost* host,
-    int group_id)
-{
-    return InterfaceX_ProcessInterfacePack(host, group_id, NULL);
-}
-
-static void
-InterfaceX_FreeExtraGroups(struct InterfaceX_VMHost* host)
-{
-    if( !host )
-        return;
-
-    for( int i = 0; i < host->extra_group_count; i++ )
-        InterfaceX_FreeLoadedInterface(&host->extra_groups[i]);
-    host->extra_group_count = 0;
 }
 
 static int g_cs2vm_yield_test_host_calls;
@@ -16028,13 +13936,6 @@ main(
         return 1;
     }
 
-    if( dump_iface >= 0 )
-    {
-        int rc = InterfaceX_DumpComponentRaw(cache, dump_iface, dump_file);
-        RSCacheDat2Disk_Free(cache);
-        return rc;
-    }
-
     if( list_only )
     {
         int rc = InterfaceX_ListInterfaceIds(cache);
@@ -16089,28 +13990,6 @@ main(
         InterfaceX_HostIO_Cache(&vmhost.host_io), CLIENTSCRIPT_DECODE_TRAILER_LEGACY);
     InterfaceX_InvStoreSeedDefaults(&vmhost);
 
-    {
-        struct Task_InterfaceXOpen* open_task =
-            Task_InterfaceXOpen_New(&vmhost, &vm, interface_id, true, &primary);
-        if( !open_task )
-        {
-            fprintf(stderr, "failed to allocate open task\n");
-            return 1;
-        }
-        InterfaceX_HostIO_QueueTask(
-            &vmhost.host_io,
-            open_task,
-            Task_InterfaceXOpen_Run,
-            Task_InterfaceXOpen_Free);
-        InterfaceX_HostIO_DrainTasks(&vmhost.host_io);
-        if( !vmhost.primary_pack_integrated )
-        {
-            fprintf(stderr, "failed to open interface %d\n", interface_id);
-            InterfaceX_FreeLoadedInterface(&primary);
-            return 1;
-        }
-    }
-
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
     UITreeX_PrintNodes(tree);
 
@@ -16124,7 +14003,7 @@ main(
     for( int i = 0; i < CANVAS_W * CANVAS_H; i++ )
         pixels[i] = CANVAS_BG;
 
-    UITreeX_Render(&vmhost, cache, tree, pixels);
+    UITreeX_Render(&vmhost, tree, pixels);
 
     if( g_interfacex_write_bmp )
     {
@@ -16138,11 +14017,7 @@ main(
 
     free(pixels);
 
-    InterfaceX_FreeLoadedInterface(&primary);
-    InterfaceX_FreeExtraGroups(&vmhost);
-
     free(vmhost.script_queue);
     InterfaceX_HostIO_Free(&vmhost.host_io);
-    InterfaceX_ConfigArchiveCacheFreeAll();
     return 0;
 }
