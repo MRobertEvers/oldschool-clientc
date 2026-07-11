@@ -45,10 +45,18 @@ struct InterfaceX_ObjIconCacheEntry
     struct InterfaceX_ObjIconCacheEntry* next;
 };
 
+struct InterfaceX_ObjIconFailedEntry
+{
+    int obj_id;
+    int count;
+    struct InterfaceX_ObjIconFailedEntry* next;
+};
+
 struct InterfaceX_HostIOCaches
 {
     struct InterfaceX_GraphicSceneCacheEntry* graphic_scene_cache;
     struct InterfaceX_ObjIconCacheEntry* obj_icon_cache;
+    struct InterfaceX_ObjIconFailedEntry* obj_icon_failed;
 };
 
 static struct InterfaceX_HostIOCaches s_host_io_caches;
@@ -226,9 +234,17 @@ hostio_sprite_load_run(
         PT_EXIT(&task->thread);
     }
 
-    if( dat2_buildcache_dynamic_sprite_has(bc, task->sprite_id) ||
-        ToriAuxLibCore_SpriteHas(ToriAuxLibCache_Core(task->cache), task->sprite_id) )
+    if( ToriAuxLibCore_SpriteHas(ToriAuxLibCache_Core(task->cache), task->sprite_id) )
         PT_EXIT(&task->thread);
+
+    if( dat2_buildcache_dynamic_sprite_has(bc, task->sprite_id) )
+    {
+        struct ToriAuxLibCore_Sprite* cached_sprite =
+            dat2_buildcache_dynamic_sprite_get(bc, task->sprite_id);
+        if( cached_sprite )
+            ToriAuxLibCache_SubmitSprite(task->cache, task->sprite_id, cached_sprite);
+        PT_EXIT(&task->thread);
+    }
 
     DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->thread, bc, RSCacheDat2Disk_Table_Sprites);
 
@@ -1185,14 +1201,23 @@ InterfaceX_HostIO_LoadGraphicScene(
     return InterfaceX_HostIO_FinalizeGraphicScene(io, graphic_id, scene_id_out);
 }
 
-static bool
-hostio_ensure_obj_icon_deps(
+int
+InterfaceX_HostIO_ObjIconInventoryModelId(
     struct InterfaceX_HostIO* io,
     int obj_id,
     int count)
 {
-    struct Dat2BuildCache* bc = dat2(io->aux_cache);
-    struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(bc, obj_id);
+    struct Dat2BuildCache* bc;
+    struct RSCacheDat2A_ConfigObject* obj;
+
+    if( !io || obj_id < 0 )
+        return -1;
+
+    bc = dat2(io->aux_cache);
+    if( !bc )
+        return -1;
+
+    obj = dat2_buildcache_object_get(bc, obj_id);
     if( obj && count > 1 )
     {
         int countobj_id = -1;
@@ -1204,15 +1229,28 @@ hostio_ensure_obj_icon_deps(
         if( countobj_id >= 0 )
             obj = dat2_buildcache_object_get(bc, countobj_id);
     }
-    if( obj && obj->inventory_model_id > 0 )
+
+    if( !obj || obj->inventory_model_id <= 0 )
+        return -1;
+    return obj->inventory_model_id;
+}
+
+static bool
+hostio_ensure_obj_icon_deps(
+    struct InterfaceX_HostIO* io,
+    int obj_id,
+    int count)
+{
+    int model_id = InterfaceX_HostIO_ObjIconInventoryModelId(io, obj_id, count);
+    if( model_id > 0 )
     {
-        if( !InterfaceX_HostIO_LoadModel(io, obj->inventory_model_id) )
+        if( !InterfaceX_HostIO_LoadModel(io, model_id) )
         {
             fprintf(
                 stderr,
                 "hostio: obj icon inventory model load failed obj_id=%d model_id=%d\n",
                 obj_id,
-                obj->inventory_model_id);
+                model_id);
             return false;
         }
     }
@@ -1329,6 +1367,53 @@ InterfaceX_HostIO_ObjIconSceneId(
     }
 
     return false;
+}
+
+bool
+InterfaceX_HostIO_ObjIconLoadFailed(
+    struct InterfaceX_HostIO* io,
+    int obj_id,
+    int count)
+{
+    (void)io;
+    (void)count;
+
+    if( obj_id < 0 )
+        return false;
+
+    for( struct InterfaceX_ObjIconFailedEntry* it = s_host_io_caches.obj_icon_failed; it;
+         it = it->next )
+    {
+        if( it->obj_id == obj_id )
+            return true;
+    }
+
+    return false;
+}
+
+void
+InterfaceX_HostIO_MarkObjIconLoadFailed(
+    struct InterfaceX_HostIO* io,
+    int obj_id,
+    int count)
+{
+    (void)io;
+
+    if( obj_id < 0 )
+        return;
+
+    if( InterfaceX_HostIO_ObjIconLoadFailed(io, obj_id, count) )
+        return;
+
+    struct InterfaceX_ObjIconFailedEntry* entry =
+        calloc(1, sizeof(struct InterfaceX_ObjIconFailedEntry));
+    if( !entry )
+        return;
+
+    entry->obj_id = obj_id;
+    entry->count = count > 0 ? count : 1;
+    entry->next = s_host_io_caches.obj_icon_failed;
+    s_host_io_caches.obj_icon_failed = entry;
 }
 
 bool

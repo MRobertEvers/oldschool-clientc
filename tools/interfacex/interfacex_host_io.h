@@ -131,11 +131,29 @@ InterfaceX_HostIO_ObjIconSceneId(
     int* scene_id_out);
 
 bool
+InterfaceX_HostIO_ObjIconLoadFailed(
+    struct InterfaceX_HostIO* io,
+    int obj_id,
+    int count);
+
+void
+InterfaceX_HostIO_MarkObjIconLoadFailed(
+    struct InterfaceX_HostIO* io,
+    int obj_id,
+    int count);
+
+bool
 InterfaceX_HostIO_LoadObjIconScene(
     struct InterfaceX_HostIO* io,
     int obj_id,
     int count,
     int* scene_id_out);
+
+int
+InterfaceX_HostIO_ObjIconInventoryModelId(
+    struct InterfaceX_HostIO* io,
+    int obj_id,
+    int count);
 
 bool
 InterfaceX_HostIO_LoadModel(

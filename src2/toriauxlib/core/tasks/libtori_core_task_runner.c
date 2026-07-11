@@ -54,9 +54,7 @@ LibToriCoreTaskRunner_Init(
 void
 LibToriCoreTaskRunner_Shutdown(struct LibToriCoreTaskRunner* runner)
 {
-    if( !runner )
-        return;
-
+    assert(runner);
     while( runner->live_head != -1 )
     {
         struct LibToriCoreTaskRunnerSlot* task = &runner->slots[runner->live_head];
@@ -70,8 +68,7 @@ struct LibToriCoreTaskRunner*
 LibToriCoreTaskRunner_New(struct LibToriRS_IOQueue* io_queue)
 {
     struct LibToriCoreTaskRunner* runner = calloc(1, sizeof(struct LibToriCoreTaskRunner));
-    if( !runner )
-        return NULL;
+    assert(runner);
 
     LibToriCoreTaskRunner_Init(runner, io_queue);
     return runner;
@@ -80,8 +77,7 @@ LibToriCoreTaskRunner_New(struct LibToriRS_IOQueue* io_queue)
 void
 LibToriCoreTaskRunner_Free(struct LibToriCoreTaskRunner* runner)
 {
-    if( !runner )
-        return;
+    assert(runner);
 
     LibToriCoreTaskRunner_Shutdown(runner);
     free(runner);

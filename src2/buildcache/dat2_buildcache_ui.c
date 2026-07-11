@@ -10,6 +10,7 @@
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_model.h"
+#include "toridraw/toridraw_model_sprite.h"
 #include "toridraw/toridraw_scene.h"
 
 #include <stdio.h>
@@ -181,84 +182,37 @@ dat2_buildcache_obj_icon_sprite(
     if( zoom == 0 )
         zoom = 2000;
 
-    int sin_pitch = (ToriDraw_Sin(obj->xan2d) * zoom) >> 16;
-    int cos_pitch = (ToriDraw_Cos(obj->xan2d) * zoom) >> 16;
-
-    struct ToriDraw_ViewPort view_port = { 0 };
-    view_port.width = 32;
-    view_port.height = 32;
-    view_port.clip_left = 0;
-    view_port.clip_top = 0;
-    view_port.clip_right = 32;
-    view_port.clip_bottom = 32;
-    view_port.x_center = 16;
-    view_port.y_center = 16;
-    view_port.stride = 32;
-
-    struct ToriDraw_Camera camera = { 0 };
-    camera.pitch = obj->xan2d;
-    camera.yaw = 0;
-    camera.roll = 0;
-    camera.fov_rpi2048 = 512;
-    camera.near_plane_z = 1;
-
-    struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
-    int model_min_y = bounds ? -bounds->min_y : 0;
-
-    struct ToriDraw_Position position = { 0 };
-    position.pitch = 0;
-    position.yaw = obj->yan2d;
-    position.roll = obj->zan2d;
-    position.x = obj->offset_x2d;
-    position.y = sin_pitch + (model_min_y / 2) + obj->offset_y2d;
-    position.z = cos_pitch + obj->offset_y2d;
-
-    toripixel_t* pixels = calloc(32u * 32u, sizeof(toripixel_t));
-    if( !pixels )
-    {
-        ToriDraw_ModelFree(td_model);
-        return NULL;
-    }
-
-    ToriDraw_RenderModel(hnd, scene, &position, &view_port, &camera, pixels);
-
-    uint32_t* argb = malloc(32u * 32u * sizeof(uint32_t));
-    if( !argb )
-    {
-        free(pixels);
-        ToriDraw_ModelFree(td_model);
-        return NULL;
-    }
-
-    for( int i = 0; i < 32 * 32; i++ )
-        argb[i] = (uint32_t)pixels[i];
-
-    free(pixels);
+    struct ToriDraw_Sprite* td_sprite = ToriDraw_SpriteNewFromModelRaster(
+        scene, hnd, zoom, obj->xan2d, obj->yan2d, 32, 32, true);
     ToriDraw_ModelFree(td_model);
-
-    ToriDraw_SpritePostprocessObjIconOutline(argb, 32, 32);
+    if( !td_sprite )
+        return NULL;
 
     struct ToriAuxLibCore_Sprite* sprite = calloc(1, sizeof(struct ToriAuxLibCore_Sprite));
     if( !sprite )
     {
-        free(argb);
-        return NULL;
-    }
-
-    sprite->frames = calloc(1, sizeof(struct ToriAuxLibCore_SpriteFrame));
-    if( !sprite->frames )
-    {
-        free(argb);
-        free(sprite);
+        ToriDraw_SpriteFree(td_sprite);
         return NULL;
     }
 
     sprite->frame_count = 1;
-    sprite->frames[0].pixels_argb = argb;
-    sprite->frames[0].width = 32;
-    sprite->frames[0].height = 32;
-    sprite->frames[0].crop_width = 32;
-    sprite->frames[0].crop_height = 32;
+    sprite->frames = ToriAuxLibCache_SpriteFrameNewFromToriDrawByMove(td_sprite);
+    if( !sprite->frames )
+    {
+        free(sprite);
+        return NULL;
+    }
+
+    if( sprite->frames[0].pixels_argb )
+    {
+        size_t pixel_count = (size_t)sprite->frames[0].width * (size_t)sprite->frames[0].height;
+        for( size_t i = 0; i < pixel_count; i++ )
+        {
+            uint32_t rgb = sprite->frames[0].pixels_argb[i];
+            sprite->frames[0].pixels_argb[i] = (rgb & 0xFFFFFFu) ? (rgb | 0xFF000000u) : 0u;
+        }
+    }
+
     snprintf(sprite->name, sizeof(sprite->name), "obj:%d", obj_id);
     return sprite;
 }

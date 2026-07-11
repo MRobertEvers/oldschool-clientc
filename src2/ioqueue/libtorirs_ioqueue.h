@@ -100,7 +100,9 @@ LibToriRS_IOBatchReset(struct LibToriRS_IOBatch* batch)
 }
 
 static inline int
-LibToriRS_IOBatchAdd(struct LibToriRS_IOBatch* batch, int user_value)
+LibToriRS_IOBatchAdd(
+    struct LibToriRS_IOBatch* batch,
+    int user_value)
 {
     assert(batch->count < LIBTORIRS_IOBATCH_MAX);
     int slot = batch->count;
@@ -116,7 +118,9 @@ LibToriRS_IOBatchCount(const struct LibToriRS_IOBatch* batch)
 }
 
 static inline int
-LibToriRS_IOBatchUser(const struct LibToriRS_IOBatch* batch, int slot)
+LibToriRS_IOBatchUser(
+    const struct LibToriRS_IOBatch* batch,
+    int slot)
 {
     assert(slot >= 0 && slot < batch->count);
     return batch->user[slot];
@@ -128,13 +132,19 @@ LibToriRS_IOBatchEmpty(const struct LibToriRS_IOBatch* batch)
     return batch->count == 0;
 }
 
-#define IO_REQUEST(ctx, id, expr) \
-    do { (ctx)->io->current_slot = (id); (expr); (ctx)->io->current_slot = -1; } while (0)
+#define IO_REQUEST(ctx, id, expr)                                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        (ctx)->io->current_slot = (id);                                                            \
+        (expr);                                                                                    \
+        (ctx)->io->current_slot = -1;                                                              \
+    } while( 0 )
 
 static inline void
 LibToriRS_IOQueueItemFreeData(struct LibToriRS_IOQueueItem* item)
 {
-    if( !item || !item->data )
+    assert(item);
+    if( !item->data )
         return;
 
     if( item->kind == TORIRSIO_KIND_CONFIG_FILE || item->kind == TORIRSIO_KIND_SCRIPT )
@@ -148,8 +158,7 @@ static inline struct LibToriRS_IOQueue*
 LibToriRS_IOQueueNew(void)
 {
     struct LibToriRS_IOQueue* queue = malloc(sizeof(struct LibToriRS_IOQueue));
-    if( !queue )
-        return NULL;
+    assert(queue);
     memset(queue, 0, sizeof(struct LibToriRS_IOQueue));
     queue->current_slot = -1;
     return queue;
@@ -158,8 +167,7 @@ LibToriRS_IOQueueNew(void)
 static inline void
 LibToriRS_IOQueueClear(struct LibToriRS_IOQueue* queue)
 {
-    if( !queue )
-        return;
+    assert(queue);
 
     for( int i = 0; i < queue->count; i++ )
         LibToriRS_IOQueueItemFreeData(&queue->items[i]);
@@ -173,8 +181,7 @@ LibToriRS_IOQueueClear(struct LibToriRS_IOQueue* queue)
 static inline void
 LibToriRS_IOQueueFree(struct LibToriRS_IOQueue* queue)
 {
-    if( !queue )
-        return;
+    assert(queue);
     LibToriRS_IOQueueClear(queue);
     free(queue);
 }
@@ -182,8 +189,7 @@ LibToriRS_IOQueueFree(struct LibToriRS_IOQueue* queue)
 static inline int
 LibToriRS_IOQueueBeginRun(struct LibToriRS_IOQueue* queue)
 {
-    if( !queue )
-        return 0;
+    assert(queue);
     return ++queue->run_counter;
 }
 
@@ -192,7 +198,8 @@ LibToriRS_IOQueueRunComplete(
     struct LibToriRS_IOQueue* queue,
     int run_id)
 {
-    if( !queue || run_id <= 0 )
+    assert(queue);
+    if( run_id <= 0 )
         return true;
 
     for( int i = 0; i < queue->count; i++ )
@@ -229,10 +236,8 @@ LibToriRS_IOQueuePushCache(
     int archive_id,
     int flags)
 {
-    if( !queue )
-        return;
-    if( queue->count >= LIBTORIRS_IOQUEUE_MAX_SIZE )
-        return;
+    assert(queue);
+    assert(queue->count < LIBTORIRS_IOQUEUE_MAX_SIZE);
 
     struct LibToriRS_IOQueueItem item = { 0 };
     item.kind = TORIRSIO_KIND_CACHE;
@@ -249,10 +254,10 @@ LibToriRS_IOQueuePushConfigFile(
     struct LibToriRS_IOQueue* queue,
     const char* path)
 {
-    if( !queue || !path || path[0] == '\0' )
+    assert(queue);
+    if( !path || path[0] == '\0' )
         return false;
-    if( queue->count >= LIBTORIRS_IOQUEUE_MAX_SIZE )
-        return false;
+    assert(queue->count < LIBTORIRS_IOQUEUE_MAX_SIZE);
 
     struct LibToriRS_IOQueueItem* item = &queue->items[queue->count];
     memset(item, 0, sizeof(struct LibToriRS_IOQueueItem));
@@ -271,10 +276,10 @@ LibToriRS_IOQueuePushScript(
     struct LibToriRS_IOQueue* queue,
     const char* path)
 {
-    if( !queue || !path || path[0] == '\0' )
+    assert(queue);
+    if( !path || path[0] == '\0' )
         return false;
-    if( queue->count >= LIBTORIRS_IOQUEUE_MAX_SIZE )
-        return false;
+    assert(queue->count < LIBTORIRS_IOQUEUE_MAX_SIZE);
 
     struct LibToriRS_IOQueueItem* item = &queue->items[queue->count];
     memset(item, 0, sizeof(struct LibToriRS_IOQueueItem));
@@ -293,10 +298,8 @@ LibToriRS_IOQueuePushReferenceTable(
     struct LibToriRS_IOQueue* queue,
     int table_id)
 {
-    if( !queue )
-        return;
-    if( queue->count >= LIBTORIRS_IOQUEUE_MAX_SIZE )
-        return;
+    assert(queue);
+    assert(queue->count < LIBTORIRS_IOQUEUE_MAX_SIZE);
 
     struct LibToriRS_IOQueueItem item = { 0 };
     item.kind = TORIRSIO_KIND_REFERENCE_TABLE;
@@ -309,8 +312,7 @@ LibToriRS_IOQueuePushReferenceTable(
 static inline bool
 LibToriRS_IOQueueIsEmpty(struct LibToriRS_IOQueue* queue)
 {
-    if( !queue )
-        return true;
+    assert(queue);
     return queue->count == 0;
 }
 
@@ -319,10 +321,9 @@ LibToriRS_IOQueuePopRead(
     struct LibToriRS_IOQueue* queue,
     struct LibToriRS_IOQueueItem* out)
 {
-    if( !queue || !out )
-        return false;
-    if( queue->read_head >= queue->count )
-        return false;
+    assert(queue);
+    assert(out);
+    assert(queue->read_head < queue->count);
 
     struct LibToriRS_IOQueueItem* slot = &queue->items[queue->read_head];
     memcpy(out, slot, sizeof(struct LibToriRS_IOQueueItem));
@@ -351,8 +352,8 @@ LibToriRS_IOQueueFindBySlot(
     struct LibToriRS_IOQueue* queue,
     int slot_id)
 {
-    if( !queue || slot_id < 0 )
-        return NULL;
+    assert(queue);
+    assert(slot_id >= 0);
 
     for( int i = 0; i < queue->count; i++ )
     {
@@ -376,8 +377,8 @@ LibToriRS_IOQueueFindReferenceTable(
     int slot_id,
     int table_id)
 {
-    if( !queue || slot_id < 0 )
-        return NULL;
+    assert(queue);
+    assert(slot_id >= 0);
 
     for( int i = 0; i < queue->count; i++ )
     {

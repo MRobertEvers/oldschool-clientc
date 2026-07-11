@@ -1,11 +1,16 @@
 /* Included from main.c — cooperative interface open / CS2 script tasks. */
 
+#define INTERFACEX_OBJ_ICON_PREFETCH_MAX 32
+
 struct InterfaceX_AwaitPendingAssets
 {
     struct pt thread;
     struct InterfaceX_VMHost* host;
     int index;
     int scene_id;
+    int pending_id;
+    int pending_id2;
+    enum InterfaceX_PendingAssetKind pending_kind;
     struct InterfaceX_TaskSpriteLoad* sprite_child;
     struct InterfaceX_TaskFontLoad* font_child;
     struct InterfaceX_TaskModelLoad* model_child;
@@ -18,6 +23,7 @@ struct Task_InterfaceXLoadGroup
     struct InterfaceX_VMHost* host;
     int group_id;
     struct InterfaceX_TaskInterfaceLoad* iface_child;
+    struct InterfaceX_AwaitPendingAssets* assets_child;
 };
 
 struct Task_InterfaceXRunScript
@@ -44,6 +50,8 @@ struct Task_InterfaceXRunScript
     struct Task_ToriAuxLibCache_PlayerAdd* player_child;
     struct Task_InterfaceXLoadGroup load_group;
     int scene_id;
+    int obj_icon_model_id;
+    int obj_icon_resolved_id;
 };
 
 struct Task_InterfaceXOpen
@@ -66,7 +74,69 @@ struct Task_InterfaceXOpen
     int prefetch_script_count;
     int prefetch_script_cap;
     struct InterfaceX_ScriptQueueEntry script_entry;
+    bool obj_icon_prefetch_initialized;
+    int obj_icon_prefetch_ids[INTERFACEX_OBJ_ICON_PREFETCH_MAX];
+    int obj_icon_prefetch_counts[INTERFACEX_OBJ_ICON_PREFETCH_MAX];
+    int obj_icon_prefetch_count;
+    int obj_icon_prefetch_index;
+    int obj_icon_prefetch_resolved_id;
+    int obj_icon_prefetch_model_id;
+    struct Task_Dat2ConfigEntryLoad* obj_icon_prefetch_config_child;
+    struct InterfaceX_TaskModelLoad* obj_icon_prefetch_model_child;
 };
+
+static void
+InterfaceX_InitObjIconPrefetch(
+    struct InterfaceX_VMHost* host,
+    struct Task_InterfaceXOpen* task)
+{
+    assert(host);
+    assert(task);
+
+    if( task->obj_icon_prefetch_initialized )
+        return;
+
+    task->obj_icon_prefetch_initialized = true;
+    task->obj_icon_prefetch_count = 0;
+    task->obj_icon_prefetch_index = 0;
+
+    struct InterfaceX_InvContainer* containers[2];
+    containers[0] = InterfaceX_InvContainerGet(host, INTERFACEX_INV_CONTAINER_WORN, false);
+    containers[1] = InterfaceX_InvContainerGet(host, INTERFACEX_INV_CONTAINER_BACKPACK, false);
+
+    for( int c = 0; c < 2; c++ )
+    {
+        struct InterfaceX_InvContainer* container = containers[c];
+        if( !container )
+            continue;
+
+        for( int slot = 0; slot < container->size; slot++ )
+        {
+            int obj_id = container->slots[slot].obj_id;
+            if( obj_id <= 0 )
+                continue;
+
+            int count =
+                container->slots[slot].count > 0 ? container->slots[slot].count : 1;
+            bool found = false;
+            for( int i = 0; i < task->obj_icon_prefetch_count; i++ )
+            {
+                if( task->obj_icon_prefetch_ids[i] == obj_id &&
+                    task->obj_icon_prefetch_counts[i] == count )
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if( found || task->obj_icon_prefetch_count >= INTERFACEX_OBJ_ICON_PREFETCH_MAX )
+                continue;
+
+            task->obj_icon_prefetch_ids[task->obj_icon_prefetch_count] = obj_id;
+            task->obj_icon_prefetch_counts[task->obj_icon_prefetch_count] = count;
+            task->obj_icon_prefetch_count++;
+        }
+    }
+}
 
 static void
 InterfaceX_ResolvePendingAssets(
@@ -132,49 +202,57 @@ InterfaceX_AwaitPendingAssets_Run(
         if( pending->node_idx < 0 || pending->node_idx >= builder->tree->node_count )
             continue;
 
-        switch( pending->kind )
-        {
-        case INTERFACEX_PENDING_GRAPHIC:
+        task->pending_kind = pending->kind;
+        task->pending_id = pending->id;
+        task->pending_id2 = pending->id2;
+
+        if( task->pending_kind == INTERFACEX_PENDING_GRAPHIC )
         {
             task->scene_id = -1;
-            if( InterfaceX_HostIO_GraphicSceneId(&host->host_io, pending->id, &task->scene_id) )
-                break;
+            if( InterfaceX_HostIO_GraphicSceneId(
+                    &host->host_io, task->pending_id, &task->scene_id) )
+                continue;
+
             InterfaceX_TaskSpriteLoad_Free(task->sprite_child);
-            task->sprite_child =
-                InterfaceX_TaskSpriteLoad_New(InterfaceX_HostIO_Cache(&host->host_io), pending->id);
+            task->sprite_child = InterfaceX_TaskSpriteLoad_New(
+                InterfaceX_HostIO_Cache(&host->host_io), task->pending_id);
             if( task->sprite_child )
-                TASK_AWAIT(&task->thread, InterfaceX_TaskSpriteLoad_Run(task->sprite_child, ctx));
-            pending = &builder->pending_assets[task->index];
+                TASK_AWAIT(
+                    &task->thread, InterfaceX_TaskSpriteLoad_Run(task->sprite_child, ctx));
+
             InterfaceX_HostIO_FinalizeGraphicScene(
-                &host->host_io, pending->id, &task->scene_id);
-            break;
+                &host->host_io, task->pending_id, &task->scene_id);
         }
-        case INTERFACEX_PENDING_FONT:
-            if( InterfaceX_HostIO_SceneFontGet(&host->host_io, pending->id) )
-                break;
+        else if( task->pending_kind == INTERFACEX_PENDING_FONT )
+        {
+            if( InterfaceX_HostIO_SceneFontGet(&host->host_io, task->pending_id) )
+                continue;
+
             InterfaceX_TaskFontLoad_Free(task->font_child);
-            task->font_child =
-                InterfaceX_TaskFontLoad_New(InterfaceX_HostIO_Cache(&host->host_io), pending->id);
+            task->font_child = InterfaceX_TaskFontLoad_New(
+                InterfaceX_HostIO_Cache(&host->host_io), task->pending_id);
             if( task->font_child )
                 TASK_AWAIT(&task->thread, InterfaceX_TaskFontLoad_Run(task->font_child, ctx));
-            pending = &builder->pending_assets[task->index];
-            InterfaceX_HostIO_FinalizeSceneFont(&host->host_io, pending->id);
-            break;
-        case INTERFACEX_PENDING_OBJ_ICON:
+
+            InterfaceX_HostIO_FinalizeSceneFont(&host->host_io, task->pending_id);
+        }
+        else if( task->pending_kind == INTERFACEX_PENDING_OBJ_ICON )
         {
             task->scene_id = -1;
             if( InterfaceX_HostIO_ObjIconSceneId(
-                    &host->host_io, pending->id, pending->id2, &task->scene_id) )
-                break;
+                    &host->host_io, task->pending_id, task->pending_id2, &task->scene_id) )
+                continue;
+
             if( !InterfaceX_HostIO_ConfigEntryReady(
-                    &host->host_io, RSCacheDat2A_ConfigKind_Object, pending->id) )
+                    &host->host_io, RSCacheDat2A_ConfigKind_Object, task->pending_id) )
             {
-                if( !task->obj_config_child )
-                    task->obj_config_child = Task_Dat2ConfigEntryLoad_New(
-                        InterfaceX_HostIO_Cache(&host->host_io),
-                        RSCacheDat2A_ConfigKind_Object,
-                        &pending->id,
-                        1);
+                if( task->obj_config_child )
+                    Task_Dat2ConfigEntryLoad_Free(task->obj_config_child);
+                task->obj_config_child = Task_Dat2ConfigEntryLoad_New(
+                    InterfaceX_HostIO_Cache(&host->host_io),
+                    RSCacheDat2A_ConfigKind_Object,
+                    &task->pending_id,
+                    1);
                 if( task->obj_config_child )
                 {
                     PT_INIT(&task->obj_config_child->thread);
@@ -183,26 +261,24 @@ InterfaceX_AwaitPendingAssets_Run(
                         Task_Dat2ConfigEntryLoad_Run(task->obj_config_child, ctx));
                 }
             }
-            pending = &builder->pending_assets[task->index];
+
             {
-                struct RSCacheDat2A_ConfigObject* obj =
-                    dat2_buildcache_object_get(bc, pending->id);
-                if( obj && obj->inventory_model_id > 0 &&
-                    !dat2_buildcache_model_get(bc, obj->inventory_model_id) )
+                int model_id = InterfaceX_HostIO_ObjIconInventoryModelId(
+                    &host->host_io, task->pending_id, task->pending_id2);
+                if( model_id > 0 && !dat2_buildcache_model_get(bc, model_id) )
                 {
                     InterfaceX_TaskModelLoad_Free(task->model_child);
                     task->model_child = InterfaceX_TaskModelLoad_New(
-                        InterfaceX_HostIO_Cache(&host->host_io), obj->inventory_model_id);
+                        InterfaceX_HostIO_Cache(&host->host_io), model_id);
                     if( task->model_child )
                         TASK_AWAIT(
-                            &task->thread, InterfaceX_TaskModelLoad_Run(task->model_child, ctx));
+                            &task->thread,
+                            InterfaceX_TaskModelLoad_Run(task->model_child, ctx));
                 }
             }
-            pending = &builder->pending_assets[task->index];
+
             InterfaceX_HostIO_FinalizeObjIconScene(
-                &host->host_io, pending->id, pending->id2, &task->scene_id);
-            break;
-        }
+                &host->host_io, task->pending_id, task->pending_id2, &task->scene_id);
         }
     }
 
@@ -377,6 +453,18 @@ Task_InterfaceXLoadGroup_Run(
     if( !InterfaceX_ProcessInterfacePack(host, group_id, NULL) )
         PT_EXIT(&task->thread);
 
+    if( !task->assets_child )
+    {
+        task->assets_child = calloc(1, sizeof(*task->assets_child));
+        if( task->assets_child )
+        {
+            PT_INIT(&task->assets_child->thread);
+            task->assets_child->host = host;
+        }
+    }
+    if( task->assets_child )
+        TASK_AWAIT(&task->thread, InterfaceX_AwaitPendingAssets_Run(task->assets_child, ctx));
+
     PT_END(&task->thread);
 }
 
@@ -502,6 +590,60 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
         task->sub_state = task->config_child;
         task->sub_run = Task_Dat2ConfigEntryLoad_Run;
         return;
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT:
+    {
+        int obj_id = request->u.cc_set_object.obj_id;
+        int count = request->u.cc_set_object.count;
+        struct Dat2BuildCache* bc = dat2(InterfaceX_HostIO_Cache(&host->host_io));
+
+        if( !InterfaceX_HostIO_ConfigEntryReady(
+                &host->host_io, RSCacheDat2A_ConfigKind_Object, obj_id) )
+        {
+            task->sub_heap = true;
+            task->config_child = Task_Dat2ConfigEntryLoad_New(
+                InterfaceX_HostIO_Cache(&host->host_io),
+                RSCacheDat2A_ConfigKind_Object,
+                &request->u.cc_set_object.obj_id,
+                1);
+            task->sub_state = task->config_child;
+            task->sub_run = Task_Dat2ConfigEntryLoad_Run;
+            return;
+        }
+
+        {
+            task->obj_icon_resolved_id =
+                InterfaceX_ResolveObjIconCountVariant(host, obj_id, count);
+            if( task->obj_icon_resolved_id != obj_id &&
+                !InterfaceX_HostIO_ConfigEntryReady(
+                    &host->host_io,
+                    RSCacheDat2A_ConfigKind_Object,
+                    task->obj_icon_resolved_id) )
+            {
+                task->sub_heap = true;
+                task->config_child = Task_Dat2ConfigEntryLoad_New(
+                    InterfaceX_HostIO_Cache(&host->host_io),
+                    RSCacheDat2A_ConfigKind_Object,
+                    &task->obj_icon_resolved_id,
+                    1);
+                task->sub_state = task->config_child;
+                task->sub_run = Task_Dat2ConfigEntryLoad_Run;
+                return;
+            }
+        }
+
+        task->obj_icon_model_id =
+            InterfaceX_HostIO_ObjIconInventoryModelId(&host->host_io, obj_id, count);
+        if( task->obj_icon_model_id > 0 &&
+            !dat2_buildcache_model_get(bc, task->obj_icon_model_id) )
+        {
+            task->model_child = InterfaceX_TaskModelLoad_New(
+                InterfaceX_HostIO_Cache(&host->host_io), task->obj_icon_model_id);
+            task->sub_state = task->model_child;
+            task->sub_run = InterfaceX_TaskModelLoad_Run;
+        }
+        return;
+    }
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
         if( request->u.widget_set_model.model_id >= 0 )
         {
@@ -556,6 +698,10 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
     case CS2VM_HOST_REQUEST_IF_FIND:
     case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
     case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
+        if( task->load_group.assets_child )
+            InterfaceX_AwaitPendingAssets_Free(task->load_group.assets_child);
+        if( task->load_group.iface_child )
+            InterfaceX_TaskInterfaceLoad_Free(task->load_group.iface_child);
         memset(&task->load_group, 0, sizeof(task->load_group));
         PT_INIT(&task->load_group.thread);
         task->load_group.host = host;
@@ -587,6 +733,11 @@ Task_InterfaceXRunScript_Reset(
     for( i = 0; i < task->string_arg_count; i++ )
         free(task->string_args[i]);
     Task_InterfaceXRunScript_FreeChild(task);
+    if( task->load_group.assets_child )
+    {
+        InterfaceX_AwaitPendingAssets_Free(task->load_group.assets_child);
+        task->load_group.assets_child = NULL;
+    }
     if( task->load_group.iface_child )
     {
         InterfaceX_TaskInterfaceLoad_Free(task->load_group.iface_child);
@@ -759,11 +910,89 @@ Task_InterfaceXRunScript_Run(
             task->pending.kind == CS2VM_HOST_REQUEST_IF_SETOBJECT )
         {
             task->scene_id = -1;
-            InterfaceX_HostIO_FinalizeObjIconScene(
-                &host->host_io,
-                task->pending.u.cc_set_object.obj_id,
-                task->pending.u.cc_set_object.count,
-                &task->scene_id);
+            if( !InterfaceX_HostIO_ObjIconSceneId(
+                    &host->host_io,
+                    task->pending.u.cc_set_object.obj_id,
+                    task->pending.u.cc_set_object.count,
+                    &task->scene_id) )
+            {
+                task->obj_icon_resolved_id = InterfaceX_ResolveObjIconCountVariant(
+                    host,
+                    task->pending.u.cc_set_object.obj_id,
+                    task->pending.u.cc_set_object.count);
+
+                if( task->obj_icon_resolved_id != task->pending.u.cc_set_object.obj_id &&
+                    !InterfaceX_HostIO_ConfigEntryReady(
+                        &host->host_io,
+                        RSCacheDat2A_ConfigKind_Object,
+                        task->obj_icon_resolved_id) )
+                {
+                    task->sub_heap = true;
+                    task->config_child = Task_Dat2ConfigEntryLoad_New(
+                        InterfaceX_HostIO_Cache(&host->host_io),
+                        RSCacheDat2A_ConfigKind_Object,
+                        &task->obj_icon_resolved_id,
+                        1);
+                    if( task->config_child )
+                        TASK_AWAIT(
+                            &task->thread,
+                            Task_Dat2ConfigEntryLoad_Run(task->config_child, ctx));
+                    Task_Dat2ConfigEntryLoad_Free(task->config_child);
+                    task->config_child = NULL;
+                    task->sub_heap = false;
+                }
+
+                task->obj_icon_model_id = InterfaceX_HostIO_ObjIconInventoryModelId(
+                    &host->host_io,
+                    task->pending.u.cc_set_object.obj_id,
+                    task->pending.u.cc_set_object.count);
+                if( task->obj_icon_model_id > 0 &&
+                    !dat2_buildcache_model_get(
+                        dat2(InterfaceX_HostIO_Cache(&host->host_io)), task->obj_icon_model_id) )
+                {
+                    InterfaceX_TaskModelLoad_Free(task->model_child);
+                    task->model_child = InterfaceX_TaskModelLoad_New(
+                        InterfaceX_HostIO_Cache(&host->host_io), task->obj_icon_model_id);
+                    if( task->model_child )
+                        TASK_AWAIT(
+                            &task->thread,
+                            InterfaceX_TaskModelLoad_Run(task->model_child, ctx));
+                    InterfaceX_TaskModelLoad_Free(task->model_child);
+                    task->model_child = NULL;
+                }
+
+                if( !InterfaceX_HostIO_FinalizeObjIconScene(
+                        &host->host_io,
+                        task->pending.u.cc_set_object.obj_id,
+                        task->pending.u.cc_set_object.count,
+                        &task->scene_id) )
+                {
+                    fprintf(
+                        stderr,
+                        "Task_InterfaceXRunScript: obj icon finalize failed obj_id=%d count=%d "
+                        "component=0x%x\n",
+                        task->pending.u.cc_set_object.obj_id,
+                        task->pending.u.cc_set_object.count,
+                        (unsigned)task->pending.u.cc_set_object.component_id);
+                    InterfaceX_HostIO_MarkObjIconLoadFailed(
+                        &host->host_io,
+                        task->pending.u.cc_set_object.obj_id,
+                        task->pending.u.cc_set_object.count);
+                }
+            }
+
+            if( task->scene_id >= 0 )
+            {
+                struct UITreeXNode* node = UITreeX_NodeByComponentId(
+                    host, task->pending.u.cc_set_object.component_id);
+                if( node )
+                {
+                    if( node->kind == UITreeXNodeKind_RSGraphic )
+                        UITreeX_NodeRSGraphicMut(node)->scene_id = task->scene_id;
+                    else if( node->kind == UITreeXNodeKind_RSObj )
+                        UITreeX_NodeRSObjMut(node)->scene_id = task->scene_id;
+                }
+            }
         }
     }
 
@@ -831,6 +1060,8 @@ Task_InterfaceXOpen_Free(void* state)
         InterfaceX_AwaitPendingAssets_Free(task->assets_child);
     if( task->model_batch )
         InterfaceX_BatchModelLoad_Destroy(task->model_batch);
+    Task_Dat2ConfigEntryLoad_Free(task->obj_icon_prefetch_config_child);
+    InterfaceX_TaskModelLoad_Free(task->obj_icon_prefetch_model_child);
     free(task->prefetch_script_ids);
     free(task);
 }
@@ -974,6 +1205,76 @@ Task_InterfaceXOpen_Run(
                 task->script_entry.string_args[i] = NULL;
             }
             TASK_AWAIT(&task->thread, Task_InterfaceXRunScript_Run(&task->run_script, ctx));
+        }
+
+        InterfaceX_InitObjIconPrefetch(host, task);
+        while( task->obj_icon_prefetch_index < task->obj_icon_prefetch_count )
+        {
+            int obj_id = task->obj_icon_prefetch_ids[task->obj_icon_prefetch_index];
+            int count = task->obj_icon_prefetch_counts[task->obj_icon_prefetch_index];
+            int scene_id = -1;
+
+            if( InterfaceX_HostIO_ObjIconSceneId(&host->host_io, obj_id, count, &scene_id) )
+            {
+                task->obj_icon_prefetch_index++;
+                continue;
+            }
+
+            task->obj_icon_prefetch_resolved_id = InterfaceX_ResolveObjIconCountVariant(
+                host, obj_id, count);
+
+            if( task->obj_icon_prefetch_resolved_id != obj_id &&
+                !InterfaceX_HostIO_ConfigEntryReady(
+                    &host->host_io,
+                    RSCacheDat2A_ConfigKind_Object,
+                    task->obj_icon_prefetch_resolved_id) )
+            {
+                if( !task->obj_icon_prefetch_config_child )
+                {
+                    task->obj_icon_prefetch_config_child = Task_Dat2ConfigEntryLoad_New(
+                        InterfaceX_HostIO_Cache(&host->host_io),
+                        RSCacheDat2A_ConfigKind_Object,
+                        &task->obj_icon_prefetch_resolved_id,
+                        1);
+                }
+                if( task->obj_icon_prefetch_config_child )
+                {
+                    TASK_AWAIT(
+                        &task->thread,
+                        Task_Dat2ConfigEntryLoad_Run(task->obj_icon_prefetch_config_child, ctx));
+                }
+                Task_Dat2ConfigEntryLoad_Free(task->obj_icon_prefetch_config_child);
+                task->obj_icon_prefetch_config_child = NULL;
+            }
+
+            task->obj_icon_prefetch_model_id = InterfaceX_HostIO_ObjIconInventoryModelId(
+                &host->host_io, obj_id, count);
+            if( task->obj_icon_prefetch_model_id > 0 &&
+                !dat2_buildcache_model_get(bc, task->obj_icon_prefetch_model_id) )
+            {
+                if( !task->obj_icon_prefetch_model_child )
+                {
+                    task->obj_icon_prefetch_model_child = InterfaceX_TaskModelLoad_New(
+                        InterfaceX_HostIO_Cache(&host->host_io), task->obj_icon_prefetch_model_id);
+                }
+                if( task->obj_icon_prefetch_model_child )
+                {
+                    TASK_AWAIT(
+                        &task->thread,
+                        InterfaceX_TaskModelLoad_Run(task->obj_icon_prefetch_model_child, ctx));
+                }
+                InterfaceX_TaskModelLoad_Free(task->obj_icon_prefetch_model_child);
+                task->obj_icon_prefetch_model_child = NULL;
+            }
+
+            scene_id = -1;
+            if( !InterfaceX_HostIO_FinalizeObjIconScene(
+                    &host->host_io, obj_id, count, &scene_id) )
+            {
+                InterfaceX_HostIO_MarkObjIconLoadFailed(&host->host_io, obj_id, count);
+            }
+
+            task->obj_icon_prefetch_index++;
         }
 
         InterfaceX_VMHost_FireInvTransmitHooks(host, vm);

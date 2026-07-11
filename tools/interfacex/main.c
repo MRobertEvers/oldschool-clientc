@@ -1037,12 +1037,12 @@ UITreeX_PrintNode(
     if( node->kind == UITreeXNodeKind_RSGraphic )
     {
         struct UITreeXNode_RSGraphic const* graphic = UITreeX_NodeRSGraphic(node);
-        printf(" graphic=%d angle=%d tiling=%d", graphic->graphic_id, node->angle_2d, node->tiling);
+        printf(" graphic=%d scene_id=%d angle=%d tiling=%d", graphic->graphic_id, graphic->scene_id, node->angle_2d, node->tiling);
     }
     else if( node->kind == UITreeXNodeKind_RSObj )
     {
         struct UITreeXNode_RSObj const* obj = UITreeX_NodeRSObj(node);
-        printf(" obj=%d count=%d", obj->obj_id, obj->obj_count);
+        printf(" obj=%d count=%d scene_id=%d", obj->obj_id, obj->obj_count, obj->scene_id);
     }
     else if( node->kind == UITreeXNodeKind_RSModel )
     {
@@ -10112,10 +10112,15 @@ UITreeX_RenderNodeImpl(
                 goto render_children;
 
             int scene_id = -1;
-            if( chosen_graphic == graphic->graphic_id && graphic->scene_id >= 0 )
+            if( graphic->scene_id >= 0 )
                 scene_id = graphic->scene_id;
             else if( chosen_graphic >= 0 )
+            {
                 (void)InterfaceX_HostIO_GraphicSceneId(&host->host_io, chosen_graphic, &scene_id);
+                if( scene_id < 0 )
+                    (void)InterfaceX_HostIO_ObjIconSceneId(
+                        &host->host_io, chosen_graphic, 1, &scene_id);
+            }
 
             if( scene_id < 0 )
                 goto render_children;
@@ -10619,24 +10624,16 @@ InterfaceX_InvStoreSeedDefaults(struct InterfaceX_VMHost* host)
     for( int slot = 0; slot < backpack->size; slot++ )
         InterfaceX_InvContainerSetSlot(backpack, slot, -1, 0);
 
-    struct
-    {
-        int file_index;
-        int obj_id;
-    } const k_worn_items[] = {
-        { 15, 1153 },
-        { 18, 1333 },
-        { 19, 1115 },
-        { 21, 1189 },
-        { 23, 1067 },
-    };
-
+    /* Sequential seed matching rev_osrs_ui.ini [inv:worn] / [inv:inventory]. */
+    int const k_worn_items[] = { 1153, 1007, 1725, 1333, 1115, 1201, 1189, 1063, 1067, 2564, 882 };
     for( int i = 0; i < (int)(sizeof(k_worn_items) / sizeof(k_worn_items[0])); i++ )
     {
-        int slot = InterfaceX_EquipmentSlotForFile(k_worn_items[i].file_index);
-        if( slot >= 0 )
-            InterfaceX_InvContainerSetSlot(worn, slot, k_worn_items[i].obj_id, 1);
+        if( i >= worn->size )
+            break;
+        InterfaceX_InvContainerSetSlot(worn, i, k_worn_items[i], 1);
     }
+
+    InterfaceX_InvContainerSetSlot(backpack, 0, 1333, 1);
 }
 
 static struct ToriDraw_Font*
@@ -11056,9 +11053,12 @@ InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
         struct UITreeXNode_RSObj* obj = UITreeX_NodeRSObjMut(node);
         obj->obj_id = obj_id;
         obj->obj_count = count > 0 ? count : 1;
+        if( InterfaceX_HostIO_ObjIconLoadFailed(&host->host_io, obj_id, count) )
+            break;
         int scene_id = -1;
         if( !InterfaceX_HostIO_ObjIconSceneId(&host->host_io, obj_id, count, &scene_id) )
         {
+            obj->scene_id = -1;
             struct CS2VM_HostRequest req = { 0 };
             req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
             req.u.cc_set_object.component_id = component_id;
@@ -11074,9 +11074,12 @@ InterfaceX_VMHost_Exec_CC_SetObjectOnNode(
         struct UITreeXNode_RSGraphic* graphic = UITreeX_NodeRSGraphicMut(node);
         graphic->graphic_id = obj_id;
         graphic->outline = 0;
+        if( InterfaceX_HostIO_ObjIconLoadFailed(&host->host_io, obj_id, count) )
+            break;
         int scene_id = -1;
         if( !InterfaceX_HostIO_ObjIconSceneId(&host->host_io, obj_id, count, &scene_id) )
         {
+            graphic->scene_id = -1;
             struct CS2VM_HostRequest req = { 0 };
             req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
             req.u.cc_set_object.component_id = component_id;
