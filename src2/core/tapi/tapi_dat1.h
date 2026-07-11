@@ -19,7 +19,7 @@ TAPIDat1_FetchModel(
     struct LibToriRS_IOContext* ctx,
     int model_id)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat1_model_fetch(model_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -66,7 +66,7 @@ TAPIDat1_FetchMapChunkTerrain(
     int mapx,
     int mapz)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat1_map_chunk_terrain_fetch(mapx, mapz, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -108,7 +108,7 @@ TAPIDat1_FetchMapChunkScenery(
     int mapx,
     int mapz)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat1_map_chunk_scenery_fetch(mapx, mapz, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -151,7 +151,7 @@ TAPIDat1_DecodeMapChunkScenery(
 static inline void
 TAPIDat1_FetchConfigJagfile(struct LibToriRS_IOContext* ctx)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat1_config_file_fetch(&request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -159,7 +159,7 @@ TAPIDat1_FetchConfigJagfile(struct LibToriRS_IOContext* ctx)
 static inline void
 TAPIDat1_FetchVersionlistJagfile(struct LibToriRS_IOContext* ctx)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat1_versionlist_fetch(&request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -221,7 +221,7 @@ TAPIDat1_FetchAnimations(
     struct LibToriRS_IOContext* ctx,
     int anim_id)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat1_animations_fetch(anim_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -285,7 +285,7 @@ TAPIDat1_FetchConfigArchive(
     struct LibToriRS_IOContext* ctx,
     int archive_id)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     request.table_id = RSCacheDat1Disk_Table_Configs;
     request.archive_id = archive_id;
     request.flags = 0;
@@ -337,7 +337,7 @@ TAPIDat1_DecodeInterfacesJagfile(
 static inline void
 TAPIDat1_FetchTexturesJagfile(struct LibToriRS_IOContext* ctx)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat1_textures_archive_fetch(&request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }

@@ -16,7 +16,7 @@ TAPIDat2_FetchModel(
     struct LibToriRS_IOContext* ctx,
     int model_id)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat2_model_fetch(model_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -60,7 +60,7 @@ TAPIDat2_FetchMapChunkTerrain(
     int mapx,
     int mapz)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat2_map_chunk_terrain_fetch(mapx, mapz, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -101,7 +101,7 @@ TAPIDat2_FetchMapChunkScenery(
     int mapx,
     int mapz)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat2_map_chunk_scenery_fetch(mapx, mapz, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -146,7 +146,7 @@ TAPIDat2_FetchConfigGroup(
     struct LibToriRS_IOContext* ctx,
     int config_kind)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat2_config_group_fetch(config_kind, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -175,7 +175,7 @@ TAPIDat2_FetchSprite(
     struct LibToriRS_IOContext* ctx,
     int sprite_id)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat2_sprite_fetch(sprite_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -204,7 +204,7 @@ TAPIDat2_FetchInterface(
     struct LibToriRS_IOContext* ctx,
     int iface_id)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat2_interface_fetch(iface_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -233,7 +233,7 @@ TAPIDat2_FetchFont(
     struct LibToriRS_IOContext* ctx,
     int font_id)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat2_font_fetch(font_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -262,7 +262,7 @@ TAPIDat2_FetchClientScript(
     struct LibToriRS_IOContext* ctx,
     int script_id)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat2_clientscript_fetch(script_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }
@@ -324,7 +324,7 @@ TAPIDat2_FetchArchive(
     int table_id,
     int archive_id)
 {
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat2_archive_fetch(table_id, archive_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
 }

@@ -5,7 +5,7 @@
 
 struct RSCacheDat2DiskLib;
 
-struct RSCacheDat2DiskLib_IORequest
+struct CacheLib_IORequest
 {
     int table_id;
     int archive_id;

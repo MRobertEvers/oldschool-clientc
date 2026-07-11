@@ -2305,3 +2305,33 @@ Mid-script group loads integrate the pack only (no onLoad hooks), matching prior
 ### Nested opens / IF_OPENSUB (next step)
 
 A sub-open that must run onLoad to completion before returning is a child `Task_InterfaceXOpen` awaited from `Task_InterfaceXRunScript` — the runner LIFO stack provides interrupt/batch semantics without a separate batch type.
+
+## Async Tasks
+
+### Core Types
+
+- ToriAuxLibCore_Model
+- ToriAuxLibCore_ObjectConfig
+- ToriAuxLibCore_NPCConfig
+- ToriAuxLibCore_LocConfig
+- ToriAuxLibCore_Sequence
+
+// toriauxlib2/cache
+Task_AsyncCache_ModelLoad(on_load: (void* user, struct ToriAuxLibCache_Model* model))
+// toriauxlib2/cache/dat1
+-> Task_AsyncCacheDat1_ModelLoad
+{
+// tori
+TAPIDat1_FetchModel
+PT_YIELD
+TAPIDAT1_DecodeModel
+}
+// toriauxlib2/cache/dat2
+-> Task_AsyncCacheDat2_ModelLoad
+
+(looks up the object config then loads the appropriate model)
+Task_AsyncCache_ObjectModelLoad(on_load: (void* user, struct ToriAuxLibCache_Model* model))
+-> Task_AsyncCacheDat1_ObjectModelLoad
+-> Task_AsyncCacheDat2_ObjectModelLoad
+
+Task_InterfaceX_Main()

@@ -77,7 +77,7 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
     if( !instance )
         return;
 
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat1_config_file_fetch(&request);
 
     LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -137,7 +137,7 @@ LibToriRS_ScriptAPI_Dat1_TexturesFetch(
     if( !instance )
         return;
 
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat1_textures_archive_fetch(&request);
 
     LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -320,7 +320,7 @@ LibToriRS_ScriptAPI_Dat1_ModelFetch(
     if( !instance )
         return;
 
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat1_model_fetch(model_id, &request);
 
     LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -371,7 +371,7 @@ LibToriRS_ScriptAPI_Dat1_MapChunkTerrainFetch(
     if( !instance )
         return;
 
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat1_map_chunk_terrain_fetch(mapx, mapz, &request);
 
     LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -388,7 +388,7 @@ LibToriRS_ScriptAPI_Dat1_MapChunkSceneryFetch(
     if( !instance )
         return;
 
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     cachelib_dat1_map_chunk_scenery_fetch(mapx, mapz, &request);
 
     LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -769,7 +769,7 @@ LibToriRS_ScriptAPI_Dat1_VersionListFetch(
 {
     printf("LibToriRS_ScriptAPI_Dat1_VersionListFetch\n");
 
-    // struct RSCacheDat2DiskLib_IORequest request;
+    // struct CacheLib_IORequest request;
     // cachelib_dat1_versionlist_fetch(&request);
 
     // LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);
@@ -821,7 +821,7 @@ LibToriRS_ScriptAPI_Dat1_AnimationsFetch(
 {
     printf("LibToriRS_ScriptAPI_Dat1_AnimationsFetch\n");
 
-    // struct RSCacheDat2DiskLib_IORequest request;
+    // struct CacheLib_IORequest request;
     // cachelib_dat1_animations_fetch(archive_id, &request);
 
     // LibToriRS_IOQueuePushCache(io_queue, request.table_id, request.archive_id, request.flags);

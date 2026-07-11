@@ -1,11 +1,11 @@
 #include "platform_x_cache.h"
 
 #include "../ioqueue/libtorirs_ioqueue.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/shared/shared_xtea_config.h"
 #include "platform_x/cachelib.h"
 #include "platform_x/cachelib_platform.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
-#include "osrs/rscache/dat1disk/dat1disk.h"
-#include "osrs/rscache/shared/shared_xtea_config.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -63,7 +63,7 @@ LibToriPlatformX_CacheLoadIO(
     if( !cache || !io_queue )
         return -1;
 
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     void* data = NULL;
     struct LibToriRS_IOQueueItem* io_item = NULL;
     for( int i = 0; i < io_queue->count; i++ )

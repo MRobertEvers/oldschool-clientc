@@ -1,9 +1,9 @@
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "platforms/platform_x/cachelib.h"
 #include "platforms/platform_x/cachelib_internal.h"
 #include "platforms/platform_x/cachelib_platform.h"
 #include "platforms/platform_x/cachelib_serialized.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
-#include "osrs/rscache/dat1disk/dat1disk.h"
 #include <node_api.h>
 
 #include <stdbool.h>
@@ -208,7 +208,7 @@ cachelib_load_archive(
     }
 
     // Build IO request
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     request.table_id = table_id;
     request.archive_id = archive_id;
     request.flags = flags;
@@ -302,7 +302,7 @@ cachelib_load_archive_serialized(
     }
 
     // Build IO request
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     request.table_id = table_id;
     request.archive_id = archive_id;
     request.flags = flags;
@@ -326,7 +326,7 @@ cachelib_load_archive_serialized(
     {
         struct RSCacheDat1Disk_Archive* archive = (struct RSCacheDat1Disk_Archive*)archive_ptr;
         serialized_size = cachelib_cache_dat_archive_serialized_size(archive);
-        
+
         if( serialized_size < 0 )
         {
             RSCacheDat1Disk_ArchiveFree(archive);
@@ -342,7 +342,8 @@ cachelib_load_archive_serialized(
             return NULL;
         }
 
-        int written = cachelib_cache_dat_archive_serialize_to_buffer(archive, temp_buffer, serialized_size);
+        int written =
+            cachelib_cache_dat_archive_serialize_to_buffer(archive, temp_buffer, serialized_size);
         if( written != serialized_size )
         {
             free(temp_buffer);
@@ -351,7 +352,8 @@ cachelib_load_archive_serialized(
             return NULL;
         }
 
-        NAPI_CALL(env, napi_create_buffer_copy(env, serialized_size, temp_buffer, &buffer_data, &buffer));
+        NAPI_CALL(
+            env, napi_create_buffer_copy(env, serialized_size, temp_buffer, &buffer_data, &buffer));
         free(temp_buffer);
         RSCacheDat1Disk_ArchiveFree(archive);
     }
@@ -359,7 +361,7 @@ cachelib_load_archive_serialized(
     {
         struct RSCacheDat2Disk_Archive* archive = (struct RSCacheDat2Disk_Archive*)archive_ptr;
         serialized_size = cachelib_cache_archive_serialized_size(archive);
-        
+
         if( serialized_size < 0 )
         {
             RSCacheDat2Disk_ArchiveFree(archive);
@@ -375,7 +377,8 @@ cachelib_load_archive_serialized(
             return NULL;
         }
 
-        int written = cachelib_cache_archive_serialize_to_buffer(archive, temp_buffer, serialized_size);
+        int written =
+            cachelib_cache_archive_serialize_to_buffer(archive, temp_buffer, serialized_size);
         if( written != serialized_size )
         {
             free(temp_buffer);
@@ -384,7 +387,8 @@ cachelib_load_archive_serialized(
             return NULL;
         }
 
-        NAPI_CALL(env, napi_create_buffer_copy(env, serialized_size, temp_buffer, &buffer_data, &buffer));
+        NAPI_CALL(
+            env, napi_create_buffer_copy(env, serialized_size, temp_buffer, &buffer_data, &buffer));
         free(temp_buffer);
         RSCacheDat2Disk_ArchiveFree(archive);
     }
@@ -429,7 +433,11 @@ init_addon(
 
     napi_property_descriptor properties[] = {
         { "loadArchive",           NULL, cachelib_load_archive,            NULL, NULL, NULL, napi_default, NULL },
-        { "loadArchiveSerialized", NULL, cachelib_load_archive_serialized, NULL, NULL, NULL, napi_default, NULL },
+        { "loadArchiveSerialized",
+         NULL,                           cachelib_load_archive_serialized,
+         NULL,                                                                   NULL,
+         NULL,                                                                               napi_default,
+         NULL                                                                                                   },
         { "free",                  NULL, cachelib_free_method,             NULL, NULL, NULL, napi_default, NULL }
     };
 

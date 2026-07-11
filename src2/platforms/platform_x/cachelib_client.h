@@ -2,13 +2,13 @@
 #define PLATFORM_X_CACHELIB_CLIENT_H
 
 #include "cachelib.h"
-#include "osrs/rscache/dat1disk/dat1disk.h"
 #include "osrs/rscache/dat1a/dat1a_configs_dat.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
 
 static inline void
-cachelib_dat1_config_file_fetch(struct RSCacheDat2DiskLib_IORequest* out)
+cachelib_dat1_config_file_fetch(struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat1Disk_Table_Configs;
     out->archive_id = RSCacheDat1A_ConfigKind_Configs;
@@ -18,7 +18,7 @@ cachelib_dat1_config_file_fetch(struct RSCacheDat2DiskLib_IORequest* out)
 static inline void
 cachelib_dat1_model_fetch(
     int model_id,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat1Disk_Table_Models;
     out->archive_id = model_id;
@@ -37,7 +37,7 @@ static inline void
 cachelib_dat1_map_chunk_terrain_fetch(
     int mapx,
     int mapz,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat1Disk_Table_Maps;
     out->archive_id = CACHELIB_MAPCHUNK_ID(mapx, mapz);
@@ -48,7 +48,7 @@ static inline void
 cachelib_dat1_map_chunk_scenery_fetch(
     int mapx,
     int mapz,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat1Disk_Table_Maps;
     out->archive_id = CACHELIB_MAPCHUNK_ID(mapx, mapz);
@@ -56,7 +56,7 @@ cachelib_dat1_map_chunk_scenery_fetch(
 }
 
 static inline void
-cachelib_dat1_textures_archive_fetch(struct RSCacheDat2DiskLib_IORequest* out)
+cachelib_dat1_textures_archive_fetch(struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat1Disk_Table_Configs;
     out->archive_id = RSCacheDat1A_ConfigKind_Textures;
@@ -64,7 +64,7 @@ cachelib_dat1_textures_archive_fetch(struct RSCacheDat2DiskLib_IORequest* out)
 }
 
 static inline void
-cachelib_dat1_versionlist_fetch(struct RSCacheDat2DiskLib_IORequest* out)
+cachelib_dat1_versionlist_fetch(struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat1Disk_Table_Configs;
     out->archive_id = RSCacheDat1A_ConfigKind_VersionList;
@@ -72,7 +72,7 @@ cachelib_dat1_versionlist_fetch(struct RSCacheDat2DiskLib_IORequest* out)
 }
 
 static inline void
-cachelib_dat1_interfaces_fetch(struct RSCacheDat2DiskLib_IORequest* out)
+cachelib_dat1_interfaces_fetch(struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat1Disk_Table_Configs;
     out->archive_id = RSCacheDat1A_ConfigKind_Interfaces;
@@ -80,7 +80,7 @@ cachelib_dat1_interfaces_fetch(struct RSCacheDat2DiskLib_IORequest* out)
 }
 
 static inline void
-cachelib_dat1_media_2d_graphics_fetch(struct RSCacheDat2DiskLib_IORequest* out)
+cachelib_dat1_media_2d_graphics_fetch(struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat1Disk_Table_Configs;
     out->archive_id = RSCacheDat1A_ConfigKind_Media2dGraphics;
@@ -90,7 +90,7 @@ cachelib_dat1_media_2d_graphics_fetch(struct RSCacheDat2DiskLib_IORequest* out)
 static inline void
 cachelib_dat1_animations_fetch(
     int archive_id,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat1Disk_Table_Animations;
     out->archive_id = archive_id;
@@ -100,7 +100,7 @@ cachelib_dat1_animations_fetch(
 static inline void
 cachelib_dat2_model_fetch(
     int model_id,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat2Disk_Table_Models;
     out->archive_id = model_id;
@@ -111,7 +111,7 @@ static inline void
 cachelib_dat2_map_chunk_terrain_fetch(
     int mapx,
     int mapz,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat2Disk_Table_Maps;
     out->archive_id = CACHELIB_MAPCHUNK_ID(mapx, mapz);
@@ -122,7 +122,7 @@ static inline void
 cachelib_dat2_map_chunk_scenery_fetch(
     int mapx,
     int mapz,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat2Disk_Table_Maps;
     out->archive_id = CACHELIB_MAPCHUNK_ID(mapx, mapz);
@@ -132,7 +132,7 @@ cachelib_dat2_map_chunk_scenery_fetch(
 static inline void
 cachelib_dat2_config_group_fetch(
     int config_kind,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat2Disk_Table_Configs;
     out->archive_id = config_kind;
@@ -140,7 +140,7 @@ cachelib_dat2_config_group_fetch(
 }
 
 static inline void
-cachelib_dat2_textures_archive_fetch(struct RSCacheDat2DiskLib_IORequest* out)
+cachelib_dat2_textures_archive_fetch(struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat2Disk_Table_Textures;
     out->archive_id = 0;
@@ -150,7 +150,7 @@ cachelib_dat2_textures_archive_fetch(struct RSCacheDat2DiskLib_IORequest* out)
 static inline void
 cachelib_dat2_sprite_fetch(
     int sprite_id,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat2Disk_Table_Sprites;
     out->archive_id = sprite_id;
@@ -160,7 +160,7 @@ cachelib_dat2_sprite_fetch(
 static inline void
 cachelib_dat2_font_fetch(
     int font_id,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat2Disk_Table_Fonts;
     out->archive_id = font_id;
@@ -170,7 +170,7 @@ cachelib_dat2_font_fetch(
 static inline void
 cachelib_dat2_interface_fetch(
     int iface_id,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat2Disk_Table_Interfaces;
     out->archive_id = iface_id;
@@ -180,7 +180,7 @@ cachelib_dat2_interface_fetch(
 static inline void
 cachelib_dat2_clientscript_fetch(
     int script_id,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = RSCacheDat2Disk_Table_Clientscript;
     out->archive_id = script_id;
@@ -191,7 +191,7 @@ static inline void
 cachelib_dat2_archive_fetch(
     int table_id,
     int archive_id,
-    struct RSCacheDat2DiskLib_IORequest* out)
+    struct CacheLib_IORequest* out)
 {
     out->table_id = table_id;
     out->archive_id = archive_id;

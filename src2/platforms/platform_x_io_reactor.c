@@ -1,9 +1,9 @@
 #include "platform_x_io_reactor.h"
 
+#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "platform_x/cachelib.h"
 #include "platform_x/cachelib_internal.h"
 #include "platform_x/cachelib_platform.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -99,7 +99,7 @@ load_cache_item(
         return -1;
     }
 
-    struct RSCacheDat2DiskLib_IORequest request;
+    struct CacheLib_IORequest request;
     request.table_id = item->u.cache.table_id;
     request.archive_id = item->u.cache.archive_id;
     request.flags = item->u.cache.flags;
@@ -197,8 +197,8 @@ load_reference_table_item(
         return -1;
     }
 
-    void* data = RSCacheDat2Disk_ArchiveNewReferenceTableLoad(
-        cache_dat2, item->u.reference_table.table_id);
+    void* data =
+        RSCacheDat2Disk_ArchiveNewReferenceTableLoad(cache_dat2, item->u.reference_table.table_id);
     if( !data )
     {
         item->error_code = -1;

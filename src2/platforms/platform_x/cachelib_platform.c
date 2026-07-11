@@ -2,9 +2,9 @@
 
 #include "cachelib_client.h"
 #include "cachelib_internal.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
-#include "osrs/rscache/dat1disk/dat1disk.h"
 #include "osrs/rscache/dat1a/dat1a_version_list_mapsquare.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
 #include "osrs/rscache/shared/shared_archive.h"
 #include "osrs/rscache/shared/shared_xtea_config.h"
 
@@ -89,7 +89,8 @@ cache_dat1_load_map_chunk(
         return RSCacheDat1Disk_ArchiveNewLoad(
             cache_dat, RSCacheDat1Disk_Table_Maps, map_square->terrain_archive_id);
     case CACHELIB_MAPCHUNK_SCENERY:
-        return RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Maps, map_square->loc_archive_id);
+        return RSCacheDat1Disk_ArchiveNewLoad(
+            cache_dat, RSCacheDat1Disk_Table_Maps, map_square->loc_archive_id);
     default:
         assert(false && "Invalid flag");
         return NULL;
@@ -99,7 +100,7 @@ cache_dat1_load_map_chunk(
 static void*
 cache_dat1_load_io(
     struct RSCacheDat2DiskLib* cache,
-    struct RSCacheDat2DiskLib_IORequest* request)
+    struct CacheLib_IORequest* request)
 {
     struct RSCacheDat1Disk* cache_dat1 = cache->u.cache_dat1;
     void* data = NULL;
@@ -184,7 +185,11 @@ cache_dat2_load_map_chunk(
 
     if( resolved_archive_id == -1 )
     {
-        printf("Failed to resolve dat2 map archive %c%d_%d\n", flag == CACHELIB_MAPCHUNK_TERRAIN ? 'm' : 'l', map_x, map_z);
+        printf(
+            "Failed to resolve dat2 map archive %c%d_%d\n",
+            flag == CACHELIB_MAPCHUNK_TERRAIN ? 'm' : 'l',
+            map_x,
+            map_z);
         return NULL;
     }
 
@@ -202,7 +207,7 @@ cache_dat2_load_map_chunk(
 static void*
 cache_dat2_load_io(
     struct RSCacheDat2DiskLib* cache,
-    struct RSCacheDat2DiskLib_IORequest* request)
+    struct CacheLib_IORequest* request)
 {
     struct RSCacheDat2Disk* cache_dat2 = cache->u.cache_dat2;
     void* data = NULL;
@@ -215,7 +220,8 @@ cache_dat2_load_io(
 
     uint32_t* xtea_key = NULL;
     if( request->table_id == RSCacheDat2Disk_Table_Maps )
-        xtea_key = RSCacheDat2Disk_ArchiveXteaKey(cache_dat2, request->table_id, request->archive_id);
+        xtea_key =
+            RSCacheDat2Disk_ArchiveXteaKey(cache_dat2, request->table_id, request->archive_id);
 
     data = RSCacheDat2Disk_ArchiveNewLoadDecrypted(
         cache_dat2, request->table_id, request->archive_id, xtea_key);
@@ -226,7 +232,7 @@ cache_dat2_load_io(
 void*
 cachelib_platform_load_io(
     struct RSCacheDat2DiskLib* cache,
-    struct RSCacheDat2DiskLib_IORequest* request)
+    struct CacheLib_IORequest* request)
 {
     switch( cache->mode )
     {

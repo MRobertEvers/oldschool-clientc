@@ -12,7 +12,7 @@ Successfully implemented native Node.js bindings for the OSRS cache library as s
    - `index.js` - Module entry point that exports CacheLib class and constants
    - `README.md` - Documentation with usage examples
 
-2. **Native Addon** 
+2. **Native Addon**
    - `cachelib_addon.c` - Node-API implementation wrapping cachelib
      - CacheLib constructor with mode/directory validation
      - loadArchive() method returning Node Buffer
@@ -28,11 +28,11 @@ Successfully implemented native Node.js bindings for the OSRS cache library as s
 The addon provides a high-level JavaScript API:
 
 ```javascript
-const { CacheLib, CACHE_MODE_DAT1, CACHE_MODE_DAT2 } = require('./');
+const { CacheLib, CACHE_MODE_DAT1, CACHE_MODE_DAT2 } = require("./");
 
-const cache = new CacheLib({ 
-  mode: CACHE_MODE_DAT2, 
-  directory: '/path/to/cache' 
+const cache = new CacheLib({
+  mode: CACHE_MODE_DAT2,
+  directory: "/path/to/cache",
 });
 
 const archive = cache.loadArchive(tableId, archiveId); // Returns Buffer
@@ -44,7 +44,7 @@ cache.free(); // Explicit cleanup
 ### Key Implementation Details
 
 1. **Proper Abstraction Layer**
-   - Uses `cachelib_platform_load_io()` with `struct RSCacheDat2DiskLib_IORequest`
+   - Uses `cachelib_platform_load_io()` with `struct CacheLib_IORequest`
    - Avoids direct calls to cache-specific functions
    - Platform layer handles mode-specific loading (DAT1 vs DAT2)
    - Consistent API regardless of cache format
@@ -86,6 +86,7 @@ cache.free(); // Explicit cleanup
 ### Build Warnings
 
 The build produces warnings from pre-existing code in `src/osrs/rscache/tables/model.c`:
+
 - Unused variables (var2, var10000)
 - Pointer signedness mismatches
 
@@ -94,12 +95,14 @@ These are not introduced by the addon and do not affect functionality.
 ## Usage
 
 ### Building
+
 ```bash
 cd src2/programs/cachelib_js
 npm install
 ```
 
 ### Testing
+
 ```bash
 # Basic smoke test
 node test.js
@@ -109,9 +112,10 @@ node example.js /path/to/cache dat2
 ```
 
 ### Integration
+
 ```javascript
-const { CacheLib, CACHE_MODE_DAT2 } = require('cachelib-js');
-const cache = new CacheLib({ mode: CACHE_MODE_DAT2, directory: './cache' });
+const { CacheLib, CACHE_MODE_DAT2 } = require("cachelib-js");
+const cache = new CacheLib({ mode: CACHE_MODE_DAT2, directory: "./cache" });
 const configArchive = cache.loadArchive(2, 0); // Table 2, Archive 0
 cache.free();
 ```
@@ -119,6 +123,7 @@ cache.free();
 ## Next Steps (Optional)
 
 Future enhancements could include:
+
 - Add TypeScript definitions (.d.ts file)
 - Add mode to package.json test script
 - Support for encrypted archives (passing XTEA keys)

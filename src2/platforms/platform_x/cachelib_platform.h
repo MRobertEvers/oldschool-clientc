@@ -11,6 +11,6 @@ cachelib_platform_init(
 void*
 cachelib_platform_load_io(
     struct RSCacheDat2DiskLib* cache,
-    struct RSCacheDat2DiskLib_IORequest* request);
+    struct CacheLib_IORequest* request);
 
 #endif

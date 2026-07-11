@@ -1,12 +1,12 @@
-#include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../ioqueue/libtorirs_io.h"
+#include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../platforms/platform_x/cachelib.h"
 #include "../../platforms/platform_x/cachelib_client.h"
 #include "../../platforms/platform_x/cachelib_platform.h"
 #include "../../platforms/platform_x_io_reactor.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
-#include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "3rd/minipt.h"
+#include "osrs/rscache/dat2a/dat2a_configs.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,7 +39,7 @@ io_reactor_test_task(
 
     if( state->test_cache )
     {
-        struct RSCacheDat2DiskLib_IORequest request;
+        struct CacheLib_IORequest request;
         cachelib_dat1_model_fetch(0, &request);
 
         LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -118,8 +118,7 @@ test_reference_table_slot_collision(
         return -1;
     }
 
-    ref_item = LibToriRS_IOQueueFindReferenceTable(
-        io_queue, 0, RSCacheDat2Disk_Table_Configs);
+    ref_item = LibToriRS_IOQueueFindReferenceTable(io_queue, 0, RSCacheDat2Disk_Table_Configs);
     if( !ref_item || ref_item->error_code != 0 || !ref_item->data )
     {
         fprintf(stderr, "reference table collision test: ref item missing or failed\n");
