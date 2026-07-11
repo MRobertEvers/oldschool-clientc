@@ -7,8 +7,8 @@
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
 #include "core/tapi/tapi_dat1.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toridraw/toridraw_map.h"
 
@@ -127,8 +127,8 @@ Task_Dat1PlayerAdd_Run(
         }
     }
 
-    task->model_count = runescape_appearance_collect_model_ids(
-        dat1_bc, task->appearance, task->model_ids, 256);
+    task->model_count =
+        runescape_appearance_collect_model_ids(dat1_bc, task->appearance, task->model_ids, 256);
 
     for( task->model_index = 0; task->model_index < task->model_count; )
     {

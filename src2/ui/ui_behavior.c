@@ -2,7 +2,7 @@
 
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/varp_varbit_manager.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "ui_debug.h"
 #include "ui_scroll.h"
@@ -150,7 +150,8 @@ uitree_find_hovered_component_id_recursive(
     if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return;
 
-    if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !uitree_point_in_clip(mouse_x, mouse_y, clip) )
+    if( clip && clip->clip_w > 0 && clip->clip_h > 0 &&
+        !uitree_point_in_clip(mouse_x, mouse_y, clip) )
         return;
 
     struct StaticUIComponent const* component = &tree->components[node_index];
@@ -204,13 +205,15 @@ uitree_find_hovered_component_id_recursive(
     if( component->type == UIELEM_RS_LAYER )
     {
         uitree_scroll_intersect_clip(&child_clip, bx, by, bw, bh);
-        if( scroll && uitree_scroll_layer_needs_horizontal(component) && component->component_id >= 0 )
+        if( scroll && uitree_scroll_layer_needs_horizontal(component) &&
+            component->component_id >= 0 )
         {
             int sx = 0;
             uitree_scroll_get_pos(scroll, component->component_id, &sx, NULL);
             child_scroll_x += sx;
         }
-        if( scroll && uitree_scroll_layer_needs_vertical(component) && component->component_id >= 0 )
+        if( scroll && uitree_scroll_layer_needs_vertical(component) &&
+            component->component_id >= 0 )
         {
             int sy = 0;
             uitree_scroll_get_pos(scroll, component->component_id, NULL, &sy);
@@ -266,7 +269,16 @@ uitree_find_hovered_component_id_for_region(
         if( (uint32_t)start_index >= tree->component_count )
             return;
         uitree_find_hovered_component_id_recursive(
-            tree, host, scroll, start_index, mouse_x, mouse_y, 0, 0, NULL, out_hovered_component_id);
+            tree,
+            host,
+            scroll,
+            start_index,
+            mouse_x,
+            mouse_y,
+            0,
+            0,
+            NULL,
+            out_hovered_component_id);
         return;
     }
 
@@ -326,10 +338,8 @@ uitree_behavior_is_active(
         if( !behavior->scripts || !behavior->scripts[i] )
             return false;
 
-        int script_len =
-            behavior->scripts_lengths ? behavior->scripts_lengths[i] : 0;
-        int value =
-            cs1vm_eval_len(host->cs1vm, behavior->scripts[i], &host->cs1host, script_len);
+        int script_len = behavior->scripts_lengths ? behavior->scripts_lengths[i] : 0;
+        int value = cs1vm_eval_len(host->cs1vm, behavior->scripts[i], &host->cs1host, script_len);
 
         int operand = behavior->script_operand[i];
         int comp = behavior->script_comparator[i];
@@ -575,7 +585,9 @@ uitree_behavior_apply_button_click(
         int updated = cleared | ((new_val & mask) << vb->startbit);
         varp_varbit_set_varp_optimistic(mgr, vb->basevar, updated);
     }
-    else if( opcode == 14 && behavior->button_type == COMPONENT_BUTTON_TYPE_SELECT && behavior->script_operand )
+    else if(
+        opcode == 14 && behavior->button_type == COMPONENT_BUTTON_TYPE_SELECT &&
+        behavior->script_operand )
     {
         int varbit_id = script[1];
         int operand = behavior->script_operand[0];

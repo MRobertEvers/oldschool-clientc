@@ -3,8 +3,8 @@
 #include "buildcache/dat2_buildcache.h"
 #include "core/tapi/tapi_dat2.h"
 #include "osrs/rscache/dat2a/dat2a_component.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -156,8 +156,7 @@ Task_ClientScriptLoad_Run(
             continue;
         }
 
-        IO_REQUEST(
-            ctx, 0, TAPIDat2_FetchClientScript(ctx, task->script_ids[task->script_index]));
+        IO_REQUEST(ctx, 0, TAPIDat2_FetchClientScript(ctx, task->script_ids[task->script_index]));
         PT_YIELD(&task->thread);
 
         decoded = dat2_buildcache_clientscript_decode_from_archive(

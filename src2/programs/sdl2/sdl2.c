@@ -2,14 +2,14 @@
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../platforms/platform_sdl2/platform_sdl2.h"
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"
+#include "../../platforms/platform_x/cache_path_resolve.h"
 #include "../../platforms/platform_x/cachelib.h"
 #include "../../platforms/platform_x/cachelib_platform.h"
-#include "../../platforms/platform_x/cache_path_resolve.h"
 #include "../../platforms/platform_x_io_reactor.h"
 #include "../../platforms/platform_x_lua.h"
 #include "../../scripting/libtorirs_scriptapi.h"
 #include "../../scripting/libtorirs_scripting.h"
-#include "../../toriauxlib/c/toriauxlibcache.h"
+#include "../../toriauxlib/cache/toriauxlibcache.h"
 #include "../../toriauxlib/toriauxlib.h"
 
 #if defined(_WIN32)
@@ -114,7 +114,8 @@ main(
     bool const use_dat2 =
         has_flag(argc, argv, "--dat2") || use_kronos || (use_runescape && !use_dat1);
     int const cache_mode = use_dat2 ? CACHE_MODE_DAT2 : CACHE_MODE_DAT1;
-    enum ToriAuxLibCacheMode toriauxlib_mode = use_dat2 ? TORIAUXLIBCACHE_MODE_DAT2 : TORIAUXLIBCACHE_MODE_DAT1;
+    enum ToriAuxLibCacheMode toriauxlib_mode =
+        use_dat2 ? TORIAUXLIBCACHE_MODE_DAT2 : TORIAUXLIBCACHE_MODE_DAT1;
 
     struct LibToriPlatformX_Lua* lua = NULL;
     struct LibToriPlatformX_IOReactor* io_reactor = NULL;

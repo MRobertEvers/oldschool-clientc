@@ -6,11 +6,11 @@
 #include "../../../runescape/appearance.h"
 #include "3rd/minipt.h"
 #include "buildcache/dat2_buildcache.h"
+#include "core/tapi/tapi_dat2.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
-#include "core/tapi/tapi_dat2.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/core_task_await.h"
 #include "toriauxlib/core/tasks/task_dat2_anim_io.h"
 #include "toriauxlib/core/tasks/task_dat2_io.h"
@@ -172,9 +172,11 @@ Task_Dat2PlayerAdd_Run(
         int io_slot = 0;
 
         if( task->need_idk )
-            IO_REQUEST(ctx, io_slot++, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Identkit));
+            IO_REQUEST(
+                ctx, io_slot++, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Identkit));
         if( task->need_obj )
-            IO_REQUEST(ctx, io_slot++, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Object));
+            IO_REQUEST(
+                ctx, io_slot++, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Object));
         PT_YIELD(&task->thread);
 
         DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->thread, task->c);
@@ -187,10 +189,7 @@ Task_Dat2PlayerAdd_Run(
             if( identkit_archive )
             {
                 dat2_buildcache_identkits_init_from_archive(
-                    dat2_bc,
-                    identkit_archive,
-                    task->want_idk_ids,
-                    task->want_idk_count);
+                    dat2_bc, identkit_archive, task->want_idk_ids, task->want_idk_count);
             }
             if( identkit_archive )
                 RSCacheDat2Disk_ArchiveFree(identkit_archive);
@@ -203,10 +202,7 @@ Task_Dat2PlayerAdd_Run(
             if( object_archive )
             {
                 dat2_buildcache_objects_init_from_archive(
-                    dat2_bc,
-                    object_archive,
-                    task->want_obj_ids,
-                    task->want_obj_count);
+                    dat2_bc, object_archive, task->want_obj_ids, task->want_obj_count);
             }
             if( object_archive )
                 RSCacheDat2Disk_ArchiveFree(object_archive);

@@ -16,10 +16,10 @@
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat2a/dat2a_sprites.h"
 #include "runescape/appearance.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
-#include "toriauxlib/c/toriauxlibcache_font_convert.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_clientscript_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_font_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/core_task_await.h"
 #include "toriauxlib/core/tasks/task_clientscript_load.h"
 #include "toriauxlib/core/tasks/task_dat2_config_entry_load.h"
@@ -13861,6 +13861,47 @@ CS2VMX_TestYieldRollback(void)
 
     printf("CS2VM yield rollback test passed\n");
     return 0;
+}
+
+struct Task_InterfaceX_Main
+{
+    struct pt pt;
+
+    int interface_id;
+};
+
+static struct Task_InterfaceX_Main*
+Task_InterfaceX_Main_New(int interface_id)
+{
+    struct Task_InterfaceX_Main* task = calloc(1, sizeof(struct Task_InterfaceX_Main));
+    assert(task);
+    task->interface_id = interface_id;
+    return task;
+}
+
+static int
+Task_InterfaceX_Main_Run(struct Task_InterfaceX_Main* task)
+{
+    assert(task);
+    PT_BEGIN(&task->pt);
+
+    // TASK_AWAIT(InterfaceX);
+
+    // Build the tree
+    // Queue Scripts onload
+
+    // while (script_q)
+    //    script = dequeue(script_q);
+    //    while (res = CS2VMX_RunScript(&vm))
+    //       if (res == CS2VM_EXECNO_YIELD)
+    //           TASK_AWAIT(Task_InterfaceX_CS2VMX_Load);
+    //       else if (res == CS2VM_EXECNO_DONE)
+    //          break;
+    //       else
+    //          return res;
+    //
+
+    PT_END(&task->pt);
 }
 
 int

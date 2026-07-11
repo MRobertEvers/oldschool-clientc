@@ -6,8 +6,8 @@
 #include "games/ie_struct_lookup.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "osrs/rscache/shared/shared_file_list.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 #include "ui/rs_inv_container.h"
 #include "ui/uitree.h"
@@ -649,9 +649,8 @@ interface161_cs2_cache_script(
         return false;
     }
 
-    struct ToriAuxLibCore_ClientScript* loaded =
-        ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
-            archive, script_id, interface161_cs2_resolve_decode_flags());
+    struct ToriAuxLibCore_ClientScript* loaded = ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
+        archive, script_id, interface161_cs2_resolve_decode_flags());
     if( !loaded || loaded->script.op_count <= 0 )
     {
         fprintf(stderr, "interface161_cs2: failed to decode script %d from cache\n", script_id);
@@ -804,8 +803,7 @@ interface161_cs2_build_tree(
     if( !tree || !comps || comp_count <= 0 )
         return -1;
 
-    struct ToriAuxLibCore_Component** core_comps =
-        calloc((size_t)comp_count, sizeof(*core_comps));
+    struct ToriAuxLibCore_Component** core_comps = calloc((size_t)comp_count, sizeof(*core_comps));
     if( !core_comps )
         return -1;
 

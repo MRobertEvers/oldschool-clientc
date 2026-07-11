@@ -1,4 +1,4 @@
-#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "toridraw/toridraw_font.h"

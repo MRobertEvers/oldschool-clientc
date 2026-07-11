@@ -1,8 +1,8 @@
 #include "interface_editor.h"
 
-#include "toriauxlib/c/toriauxlibcache_font_convert.h"
-#include "toriauxlib/c/toriauxlibcache_sprite_convert.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache_font_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_sprite_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_scene.h"

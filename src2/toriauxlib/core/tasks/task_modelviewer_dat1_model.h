@@ -6,8 +6,8 @@
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
 #include "core/tapi/tapi_dat1.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 
 #include <assert.h>
 #include <stdlib.h>

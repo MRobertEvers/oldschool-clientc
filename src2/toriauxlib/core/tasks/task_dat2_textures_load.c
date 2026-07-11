@@ -5,8 +5,8 @@
 #include "osrs/rscache/dat2a/dat2a_sprites.h"
 #include "osrs/rscache/dat2a/dat2a_textures.h"
 #include "osrs/rscache/shared/shared_file_list.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/task_dat2_io.h"
 
 #include <stdio.h>
@@ -78,8 +78,7 @@ Task_Dat2TexturesLoad_Run(
     if( !bc )
         PT_EXIT(&task->thread);
 
-    DAT2_ENSURE_REFERENCE_TABLE(
-        ctx, &task->thread, bc, RSCacheDat2Disk_Table_Textures);
+    DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->thread, bc, RSCacheDat2Disk_Table_Textures);
 
     textures_table = dat2_buildcache_reference_table_get(bc, RSCacheDat2Disk_Table_Textures);
     if( !textures_table || textures_table->archive_count <= 0 )
@@ -149,8 +148,8 @@ Task_Dat2TexturesLoad_Run(
             IO_REQUEST(ctx, 0, TAPIDat2_FetchSprite(ctx, sprite_id));
             PT_YIELD(&task->thread);
 
-            struct RSCacheDat2Disk_Archive* sprite_archive = TAPIDat2_DecodeSpriteArchive(
-                ctx, 0, task->cur_def->sprite_ids[task->sprite_index]);
+            struct RSCacheDat2Disk_Archive* sprite_archive =
+                TAPIDat2_DecodeSpriteArchive(ctx, 0, task->cur_def->sprite_ids[task->sprite_index]);
             LibToriRS_IOQueueClear(ctx->io);
             if( !sprite_archive )
                 continue;
@@ -164,11 +163,12 @@ Task_Dat2TexturesLoad_Run(
 
         if( task->cur_def )
         {
-            struct ToriAuxLibCore_Texture* gc_texture = ToriAuxLibCache_TextureNewFromDat2Definition(
-                task->cur_def,
-                task->cur_packs,
-                task->cur_def->animation_direction,
-                task->cur_def->animation_speed);
+            struct ToriAuxLibCore_Texture* gc_texture =
+                ToriAuxLibCache_TextureNewFromDat2Definition(
+                    task->cur_def,
+                    task->cur_packs,
+                    task->cur_def->animation_direction,
+                    task->cur_def->animation_speed);
             if( gc_texture )
                 ToriAuxLibCache_SubmitTexture(task->cache, task->cur_texture_id, gc_texture);
         }

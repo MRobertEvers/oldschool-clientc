@@ -1,9 +1,9 @@
 #include "cs2_host_ui.h"
 
+#include "buildcache/dat2_buildcache.h"
 #include "cs2_opcode.h"
 #include "cs2_opcode_meta.h"
 #include "cs2vm.h"
-#include "buildcache/dat2_buildcache.h"
 #include "games/ie_enum_lookup.h"
 #include "games/ie_param_lookup.h"
 #include "games/ie_struct_lookup.h"
@@ -11,9 +11,8 @@
 #include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "osrs/varp_varbit_manager.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/vm/toriauxlibvm.h"
 #include "toridraw/toridraw_font.h"
@@ -1930,8 +1929,7 @@ cs2_host_ui_invoke(
             {
                 cs2vm_host_push_string(
                     ctx,
-                    cs2vm_host_alloc_string(
-                        ctx, bc ? ie_param_default_string(bc, param_id) : ""));
+                    cs2vm_host_alloc_string(ctx, bc ? ie_param_default_string(bc, param_id) : ""));
             }
             else
                 cs2vm_host_push_int(ctx, bc ? ie_param_default_int(bc, param_id) : 0);

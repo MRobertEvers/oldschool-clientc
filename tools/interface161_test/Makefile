@@ -29,8 +29,8 @@ SRCS = $(TOOL_DIR)/main.c \
 	$(SRC2_DIR)/toridraw/toridraw_model_sprite.c \
 	$(SRC2_DIR)/toridraw/toridraw_font.c \
 	$(SRC2_DIR)/toriauxlib/td/toridraw_cachemodel.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_clientscript_convert.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_component_dat2_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_clientscript_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_component_dat2_convert.c \
 	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c \
 	$(SRC2_DIR)/ui/uitree.c \
 	$(SRC2_DIR)/ui/uitree_build.c \
@@ -93,10 +93,10 @@ $(OBJ_DIR)/toridraw_font.o: $(SRC2_DIR)/toridraw/toridraw_font.c
 $(OBJ_DIR)/toridraw_cachemodel.o: $(SRC2_DIR)/toriauxlib/td/toridraw_cachemodel.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/toriauxlibcache_clientscript_convert.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_clientscript_convert.c
+$(OBJ_DIR)/toriauxlibcache_clientscript_convert.o: $(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_clientscript_convert.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/toriauxlibcache_component_dat2_convert.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_component_dat2_convert.c
+$(OBJ_DIR)/toriauxlibcache_component_dat2_convert.o: $(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_component_dat2_convert.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/toriauxlibcore_types.o: $(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c

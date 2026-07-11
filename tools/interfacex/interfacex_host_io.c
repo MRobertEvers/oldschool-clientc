@@ -13,9 +13,9 @@
 #include "platforms/platform_x/cachelib_platform.h"
 #include "platforms/platform_x_io_reactor.h"
 #include "runescape/appearance.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_clientscript_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/core_task_await.h"
 #include "toriauxlib/core/tasks/task_clientscript_load.h"
 #include "toriauxlib/core/tasks/task_dat2_config_entry_load.h"
@@ -1190,7 +1190,8 @@ InterfaceX_HostIO_LoadGraphicScene(
     if( InterfaceX_HostIO_GraphicSceneId(io, graphic_id, scene_id_out) )
         return true;
 
-    struct InterfaceX_TaskSpriteLoad* task = InterfaceX_TaskSpriteLoad_New(io->aux_cache, graphic_id);
+    struct InterfaceX_TaskSpriteLoad* task =
+        InterfaceX_TaskSpriteLoad_New(io->aux_cache, graphic_id);
     if( !task )
     {
         fprintf(stderr, "hostio: graphic scene load alloc failed for graphic_id=%d\n", graphic_id);

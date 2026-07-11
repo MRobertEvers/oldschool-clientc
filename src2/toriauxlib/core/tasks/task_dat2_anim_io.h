@@ -4,7 +4,7 @@
 #include "../../../ioqueue/libtorirs_ioqueue.h"
 #include "3rd/minipt.h"
 #include "buildcache/dat2_buildcache.h"
-#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/core/tasks/task_runescape_dat2_anim_load.h"
 
 #define TASK_DAT2_ANIM_RESOLVE_MAX_SEQS 16

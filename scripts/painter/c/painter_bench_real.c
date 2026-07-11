@@ -3,7 +3,6 @@
 #include "painter_fuzz_diff.h"
 #include "painter_fuzz_scene.h"
 #include "painters.h"
-
 #include "platforms/platform_x/cache_path_resolve.h"
 
 #include <stdio.h>
@@ -19,7 +18,7 @@
 #include "../../src2/platforms/platform_x/cachelib_platform.h"
 #include "../../src2/platforms/platform_x_io_reactor.h"
 #include "../../src2/scripting/libtorirs_scriptapi.h"
-#include "../../src2/toriauxlib/c/toriauxlibcache.h"
+#include "../../src2/toriauxlib/cache/toriauxlibcache.h"
 #include "../../src2/toriauxlib/toriauxlib.h"
 #include "../../src2/world/world.h"
 #endif /* FUZZ_WITH_CACHE */

@@ -4,9 +4,9 @@
 #include "3rd/minipt.h"
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "revconfig/revconfig.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "ui/ui_sprite_lookup.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 #include "ui/ui_font_lookup.h"
+#include "ui/ui_sprite_lookup.h"
 #include "ui/uitree.h"
 
 #include <stdbool.h>

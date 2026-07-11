@@ -10,8 +10,8 @@
 #include "instance_revconfig_context.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/dat2a/dat2a_component.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/task_clientscript_load.h"
 #include "toriauxlib/core/tasks/task_dat2_io.h"
 #include "toriauxlib/core/toriauxlibcore.h"
@@ -719,8 +719,7 @@ dat2_component_file_index(
 
     int const file_index = component_id & 0xFFFF;
     if( file_index >= 0 && file_index < archive->component_count &&
-        archive->components[file_index] &&
-        archive->components[file_index]->id == component_id )
+        archive->components[file_index] && archive->components[file_index]->id == component_id )
         return file_index;
 
     for( int i = 0; i < archive->component_count; i++ )
@@ -766,10 +765,8 @@ rs_component_walk_dat2(
     struct Dat2BuildCache_InterfaceArchive* archive,
     int walk_root_id)
 {
-    int const parent_w =
-        task->walk_parent_w > 0 ? task->walk_parent_w : UITREE_LAYOUT_ROOT_W;
-    int const parent_h =
-        task->walk_parent_h > 0 ? task->walk_parent_h : UITREE_LAYOUT_ROOT_H;
+    int const parent_w = task->walk_parent_w > 0 ? task->walk_parent_w : UITREE_LAYOUT_ROOT_W;
+    int const parent_h = task->walk_parent_h > 0 ? task->walk_parent_h : UITREE_LAYOUT_ROOT_H;
 
     uint8_t* visited = NULL;
     if( archive && archive->component_count > 0 )
@@ -836,8 +833,7 @@ rs_component_walk_dat2(
                 continue;
 
             visited[i] = 1;
-            rs_component_process_dat2_node(
-                task, archive, comp, root_w, root_h, walk_root_id);
+            rs_component_process_dat2_node(task, archive, comp, root_w, root_h, walk_root_id);
         }
     }
 
@@ -864,8 +860,7 @@ Task_RSComponentLoad_Run(
     int batch_end = 0;
     bool dat2_iface_resolved = false;
     struct RSCacheDat2Disk_Archive* iface_disk_archive = NULL;
-    char const* owner =
-        task->owner_component[0] != '\0' ? task->owner_component : "(unknown)";
+    char const* owner = task->owner_component[0] != '\0' ? task->owner_component : "(unknown)";
 
     if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
         dat2_iface_resolved = dat2_resolve_iface_and_root(
@@ -935,8 +930,8 @@ Task_RSComponentLoad_Run(
                 task->walk_root_id = mapped;
             else
             {
-                int resolved = instance_revconfig_resolve_walk_root_id(
-                    task->walk_ifaces, task->walk_root_id);
+                int resolved =
+                    instance_revconfig_resolve_walk_root_id(task->walk_ifaces, task->walk_root_id);
                 if( resolved < 0 )
                     PT_EXIT(&task->thread);
                 task->walk_root_id = resolved;
@@ -944,8 +939,8 @@ Task_RSComponentLoad_Run(
         }
         else if( task->walk_root_id >= 0 )
         {
-            int resolved = instance_revconfig_resolve_walk_root_id(
-                task->walk_ifaces, task->walk_root_id);
+            int resolved =
+                instance_revconfig_resolve_walk_root_id(task->walk_ifaces, task->walk_root_id);
             if( resolved < 0 )
                 PT_EXIT(&task->thread);
             task->walk_root_id = resolved;
@@ -959,16 +954,14 @@ Task_RSComponentLoad_Run(
         if( !task->rc_ctx || !task->rc_ctx->dat2_bc || !dat2_iface_resolved )
             PT_EXIT(&task->thread);
 
-        task->iface_archive = dat2_buildcache_interface_archive_get(task->rc_ctx->dat2_bc, task->iface_id);
+        task->iface_archive =
+            dat2_buildcache_interface_archive_get(task->rc_ctx->dat2_bc, task->iface_id);
         if( !task->iface_archive )
         {
             struct RSCacheDat2Disk_ReferenceTable* reference_table = NULL;
 
             DAT2_ENSURE_REFERENCE_TABLE(
-                ctx,
-                &task->thread,
-                task->rc_ctx->dat2_bc,
-                RSCacheDat2Disk_Table_Interfaces);
+                ctx, &task->thread, task->rc_ctx->dat2_bc, RSCacheDat2Disk_Table_Interfaces);
 
             reference_table = dat2_buildcache_reference_table_get(
                 task->rc_ctx->dat2_bc, RSCacheDat2Disk_Table_Interfaces);
@@ -1092,8 +1085,7 @@ Task_RSComponentLoad_Run(
         PT_EXIT(&task->thread);
     }
 
-    task->walk_root =
-        rs_component_get(task->cache_mode, task->walk_ifaces, task->walk_root_id);
+    task->walk_root = rs_component_get(task->cache_mode, task->walk_ifaces, task->walk_root_id);
     if( !task->walk_root )
     {
         if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
@@ -1126,8 +1118,7 @@ Task_RSComponentLoad_Run(
     }
 
     if( task->cache_mode == TORIAUXLIBCACHE_MODE_DAT1 )
-        dat1_collect_needed_models_from_subtree(
-            task, task->walk_ifaces, task->walk_root_id);
+        dat1_collect_needed_models_from_subtree(task, task->walk_ifaces, task->walk_root_id);
     else
         dat2_collect_needed_models_from_archive(task, task->iface_archive);
 

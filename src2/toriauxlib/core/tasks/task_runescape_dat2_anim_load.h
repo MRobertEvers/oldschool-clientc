@@ -3,7 +3,7 @@
 
 #include "buildcache/dat2_buildcache.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
 #include <assert.h>
@@ -178,8 +178,9 @@ dat2_anim_submit_sequence_skeletal(
     if( maya_id < 0 || seq->frame_count != 0 )
         return;
 
-    assert(dat2_buildcache_skeletal_has(dat2_bc, maya_id) &&
-           "skeletal sequence missing animaya in buildcache");
+    assert(
+        dat2_buildcache_skeletal_has(dat2_bc, maya_id) &&
+        "skeletal sequence missing animaya in buildcache");
     ToriAuxLibCache_SubmitSkeletalFromDat2(c, maya_id);
 }
 

@@ -3,7 +3,7 @@
 
 #include "3rd/minipt.h"
 #include "ioqueue/libtorirs_ioqueue.h"
-#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 
 #include <stdbool.h>
 

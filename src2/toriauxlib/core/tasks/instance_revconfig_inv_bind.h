@@ -1,7 +1,7 @@
 #ifndef INSTANCE_REVCONFIG_INV_BIND_H
 #define INSTANCE_REVCONFIG_INV_BIND_H
 
-#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/core/tasks/instance_revconfig_context.h"
 
 struct GameRunescape;

@@ -5,10 +5,11 @@
 #include "buildcache/dat2_buildcache.h"
 #include "buildcache/dat2_buildcache_ui.h"
 #include "games/runescape.h"
+#include "instance_revconfig_inv_bind.h"
 #include "osrs/minimenu_action.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/rscache/dat2a/dat2a_component.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "toridraw/toridraw_scene.h"
@@ -16,7 +17,6 @@
 #include "ui/ui_behavior.h"
 #include "ui/ui_debug.h"
 #include "ui/ui_if3_layout.h"
-#include "instance_revconfig_inv_bind.h"
 #include "ui/ui_inv_data_service.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
@@ -666,8 +666,7 @@ instance_revconfig_bake_rs_component(
             int sid = ui_sprite_lookup_resolve_ref(
                 &ctx->sprite_lookup, info->inv_slot_sprite_ref[si], &inv_bg_ai[si]);
             if( sid < 0 && ctx->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
-                sid = instance_revconfig_dat2_ensure_sprite_ref(
-                    ctx, info->inv_slot_sprite_ref[si]);
+                sid = instance_revconfig_dat2_ensure_sprite_ref(ctx, info->inv_slot_sprite_ref[si]);
             if( sid < 0 )
             {
                 fprintf(
@@ -784,10 +783,8 @@ instance_revconfig_bake_rs_subtree(
         instance_revconfig_rs_subtree_find(ctx, comp->name);
     assert(subtree && subtree->item_count > 0);
 
-    int const panel_w =
-        layout && layout->width > 0 ? layout->width : UITREE_SIDEBAR_PANEL_W;
-    int const panel_h =
-        layout && layout->height > 0 ? layout->height : UITREE_SIDEBAR_PANEL_H;
+    int const panel_w = layout && layout->width > 0 ? layout->width : UITREE_SIDEBAR_PANEL_W;
+    int const panel_h = layout && layout->height > 0 ? layout->height : UITREE_SIDEBAR_PANEL_H;
 
     struct Dat2BuildCache_InterfaceArchive* iface_archive = NULL;
     if( ctx->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 && ctx->dat2_bc && comp->componentno >= 0 )
@@ -821,7 +818,8 @@ instance_revconfig_bake_rs_subtree(
 
         if( iface_archive )
         {
-            RSCacheDat2A_Component* dat2_comp = instance_revconfig_dat2_get_component(iface_archive, component_id);
+            RSCacheDat2A_Component* dat2_comp =
+                instance_revconfig_dat2_get_component(iface_archive, component_id);
             if( dat2_comp )
             {
                 int parent_w = panel_w;

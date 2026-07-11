@@ -5,10 +5,10 @@
 #include "../../../libtorirs.h"
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
-#include "osrs/rscache/dat1a/dat1a_config_npc.h"
 #include "core/tapi/tapi_dat1.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "osrs/rscache/dat1a/dat1a_config_npc.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toridraw/toridraw_map.h"
 

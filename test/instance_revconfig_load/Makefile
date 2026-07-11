@@ -28,13 +28,13 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/toriauxlib/toriauxlib.c \
 	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore.c \
 	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_convert.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_model_convert.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_sprite_convert.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_font_convert.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_clientscript_convert.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_submit.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_model_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_sprite_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_font_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_clientscript_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_submit.c \
 	$(SRC2_DIR)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2_DIR)/buildcache/dat1_buildcache.c \
 	$(SRC2_DIR)/buildcache/dat2_buildcache.c \

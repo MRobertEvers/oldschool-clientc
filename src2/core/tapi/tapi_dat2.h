@@ -348,5 +348,4 @@ TAPIDat2_DecodeArchive(
 
     return item->data;
 }
-
 #endif

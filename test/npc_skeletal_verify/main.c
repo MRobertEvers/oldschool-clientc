@@ -4,11 +4,11 @@
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "osrs/rscache/dat2a/dat2a_config_npctype.h"
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
+#include "platforms/platform_x/cache_path_resolve.h"
 #include "platforms/platform_x/cachelib.h"
 #include "platforms/platform_x/cachelib_platform.h"
-#include "platforms/platform_x/cache_path_resolve.h"
 #include "platforms/platform_x_io_reactor.h"
-#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
 #include <stdio.h>
@@ -16,7 +16,9 @@
 #include <string.h>
 
 static int
-run_npc_skeletal_verify(const char* cache_dir, int npc_id)
+run_npc_skeletal_verify(
+    const char* cache_dir,
+    int npc_id)
 {
     struct RSCacheDat2DiskLib* cache = cachelib_new(CACHE_MODE_DAT2);
     struct LibToriPlatformX_IOReactor* reactor = NULL;
@@ -87,15 +89,11 @@ run_npc_skeletal_verify(const char* cache_dir, int npc_id)
 
     {
         struct Dat2BuildCache* dat2_bc = dat2(tal_c);
-        struct RSCacheDat2A_ConfigNpctype* npc =
-            dat2_buildcache_npctype_get(dat2_bc, npc_id);
+        struct RSCacheDat2A_ConfigNpctype* npc = dat2_buildcache_npctype_get(dat2_bc, npc_id);
         int const anims[] = {
-            npc ? npc->standing_animation : -1,
-            npc ? npc->walking_animation : -1,
-            npc ? npc->rotate180_animation : -1,
-            npc ? npc->run_animation : -1,
-            npc ? npc->idle_rotate_left_animation : -1,
-            npc ? npc->rotate_right_animation : -1,
+            npc ? npc->standing_animation : -1,         npc ? npc->walking_animation : -1,
+            npc ? npc->rotate180_animation : -1,        npc ? npc->run_animation : -1,
+            npc ? npc->idle_rotate_left_animation : -1, npc ? npc->rotate_right_animation : -1,
             npc ? npc->rotate_left_animation : -1,
         };
 
@@ -110,10 +108,7 @@ run_npc_skeletal_verify(const char* cache_dir, int npc_id)
             seq = dat2_buildcache_sequence_get(dat2_bc, seq_id);
             if( !seq )
             {
-                fprintf(
-                    stderr,
-                    "npc_skeletal_verify: seq_id=%d missing from buildcache\n",
-                    seq_id);
+                fprintf(stderr, "npc_skeletal_verify: seq_id=%d missing from buildcache\n", seq_id);
                 failures++;
                 continue;
             }
@@ -147,7 +142,9 @@ done:
 }
 
 int
-main(int argc, char** argv)
+main(
+    int argc,
+    char** argv)
 {
     const char* cache_dir = argc > 1 ? argv[1] : cache_path_resolve_osrs_repo();
     int npc_id = argc > 2 ? atoi(argv[2]) : 12204;

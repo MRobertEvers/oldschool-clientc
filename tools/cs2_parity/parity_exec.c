@@ -3,7 +3,7 @@
 #include "cs2_runner.h"
 #include "games/ie_enum_lookup.h"
 #include "parity_iface.h"
-#include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_clientscript_convert.h"
 #include "ui/uitree.h"
 #include "vm/cs2_host_ui.h"
 #include "vm/cs2_opcode.h"
@@ -35,7 +35,10 @@ static struct CS2_Script k_empty_script = {
 };
 
 static void
-parity_iface_root_size(int iface_id, int* out_w, int* out_h)
+parity_iface_root_size(
+    int iface_id,
+    int* out_w,
+    int* out_h)
 {
     if( iface_id == 387 )
     {
@@ -66,9 +69,8 @@ parity_cache_script(int script_id)
 
     struct RSCacheDat2Disk_Archive* archive =
         RSCacheDat2Disk_ArchiveNewLoad(s_cache, RSCacheDat2Disk_Table_Clientscript, script_id);
-    struct ToriAuxLibCore_ClientScript* loaded =
-        ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
-            archive, script_id, interface161_cs2_clientscript_decode_flags());
+    struct ToriAuxLibCore_ClientScript* loaded = ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
+        archive, script_id, interface161_cs2_clientscript_decode_flags());
     if( !loaded || loaded->script.op_count <= 0 )
         return;
     s_scripts[s_script_count].script_id = script_id;
@@ -77,7 +79,9 @@ parity_cache_script(int script_id)
 }
 
 static struct CS2_Script*
-parity_resolve_script(void* ud, int script_id)
+parity_resolve_script(
+    void* ud,
+    int script_id)
 {
     (void)ud;
     parity_cache_script(script_id);
@@ -147,12 +151,12 @@ parity_build_synthetic_script(
         opcodes[6] = CS2_OP_CC_SETHIDE;
         opcodes[7] = CS2_OP_RETURN;
         operands[0] = parent_component;
-        operands[1] = 5;        /* TYPE_GRAPHIC */
-        operands[2] = 0;        /* child index */
-        operands[3] = 0;        /* is_nested */
-        operands[4] = 1;        /* dot cc_create */
-        operands[5] = 1;        /* hide */
-        operands[6] = 1;        /* dot cc_sethide */
+        operands[1] = 5; /* TYPE_GRAPHIC */
+        operands[2] = 0; /* child index */
+        operands[3] = 0; /* is_nested */
+        operands[4] = 1; /* dot cc_create */
+        operands[5] = 1; /* hide */
+        operands[6] = 1; /* dot cc_sethide */
         operands[7] = 0;
         *op_count = 8;
     }
@@ -162,7 +166,9 @@ parity_build_synthetic_script(
 }
 
 static void
-parity_json_escape(FILE* fp, char const* text)
+parity_json_escape(
+    FILE* fp,
+    char const* text)
 {
     fputc('"', fp);
     if( !text )
@@ -322,14 +328,13 @@ parity_exec_case(
 
         if( strcmp(cs_case->id, "cc_dot_sethide") == 0 && ctx.tree )
         {
-            int32_t const parent_idx =
-                uitree_find_by_component_id(ctx.tree, active_component);
+            int32_t const parent_idx = uitree_find_by_component_id(ctx.tree, active_component);
             int const parent_hide =
                 parent_idx >= 0 ? ctx.tree->components[parent_idx].behavior.hide : -1;
             int32_t const child_idx =
                 parent_idx >= 0
-                ? uitree_find_child_by_subid(ctx.tree, parent_idx, active_component, 0)
-                : -1;
+                    ? uitree_find_child_by_subid(ctx.tree, parent_idx, active_component, 0)
+                    : -1;
             int const child_hide =
                 child_idx >= 0 ? ctx.tree->components[child_idx].behavior.hide : -1;
             if( parent_idx < 0 || parent_hide )

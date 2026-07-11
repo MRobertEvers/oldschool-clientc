@@ -6,7 +6,7 @@
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_webgl1.h"
 #include "../../scripting/libtorirs_scripting.h"
-#include "../../toriauxlib/c/toriauxlibcache.h"
+#include "../../toriauxlib/cache/toriauxlibcache.h"
 
 #include <SDL.h>
 #include <assert.h>
@@ -125,8 +125,7 @@ main(
     if( use_runescape )
         printf("Game: runescape world\n");
 
-    struct LibToriRS_Instance* instance =
-        LibToriRS_InstanceNewWithCacheMode((int)toriauxlib_mode);
+    struct LibToriRS_Instance* instance = LibToriRS_InstanceNewWithCacheMode((int)toriauxlib_mode);
     if( !instance )
     {
         printf("Failed to create instance\n");

@@ -1,21 +1,21 @@
 #include "games/runescape.h"
 #include "osrs/varp_varbit_manager.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/core/toriauxlibcore.h"
+#include "toriauxlib/td/toriauxlibtd.h"
+#include "toriauxlib/td/toridraw_cachemodel.h"
+#include "toriauxlib/vm/toriauxlibvm.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_light_model.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
 #include "toridraw/toridraw_scene.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/td/toridraw_cachemodel.h"
-#include "toriauxlib/td/toriauxlibtd.h"
-#include "toriauxlib/vm/toriauxlibvm.h"
-#include "toriauxlib/core/toriauxlibcore.h"
-#include "ui/ui_input.h"
-#include "ui/ui_minimenu.h"
-#include "ui/ui_behavior.h"
-#include "ui/ui_input_adapter.h"
 #include "ui/rs_inv_container.h"
+#include "ui/ui_behavior.h"
+#include "ui/ui_input.h"
+#include "ui/ui_input_adapter.h"
+#include "ui/ui_minimenu.h"
 #include "vm/cs2_host_ui.h"
 
 #include <stdbool.h>
@@ -96,11 +96,12 @@ ToriDraw_RenderModel(
 
 void
 ToriDraw_Init(void)
-{
-}
+{}
 
 void
-GameRunescape_SetUIInvPool(struct GameRunescape* game, struct UIInventoryPool* pool)
+GameRunescape_SetUIInvPool(
+    struct GameRunescape* game,
+    struct UIInventoryPool* pool)
 {
     (void)game;
     (void)pool;
@@ -116,7 +117,9 @@ GameRunescape_SetTD(
 }
 
 void
-GameRunescape_SetUITreeReady(struct GameRunescape* game, bool ready)
+GameRunescape_SetUITreeReady(
+    struct GameRunescape* game,
+    bool ready)
 {
     (void)game;
     (void)ready;
@@ -154,8 +157,7 @@ GameRunescape_MinimenuPrepareShow(
 
     struct ToriDraw_Font* font =
         game->scene && font_id >= 0 ? ToriDraw_SceneFontGet(game->scene, font_id) : NULL;
-    return ui_minimenu_prepare_show(
-        &game->minimenu, font, out_layout, out_content_width);
+    return ui_minimenu_prepare_show(&game->minimenu, font, out_layout, out_content_width);
 }
 
 void
@@ -217,10 +219,8 @@ stub_world_clip_is_builtin_widget(struct GameRunescape const* game)
 
     int const vw = game->view_port ? game->view_port->width : 765;
     int const vh = game->view_port ? game->view_port->height : 503;
-    int const clip_w =
-        game->world_view_port.clip_right - game->world_view_port.clip_left;
-    int const clip_h =
-        game->world_view_port.clip_bottom - game->world_view_port.clip_top;
+    int const clip_w = game->world_view_port.clip_right - game->world_view_port.clip_left;
+    int const clip_h = game->world_view_port.clip_bottom - game->world_view_port.clip_top;
 
     if( clip_w <= 0 || clip_h <= 0 )
         return false;
@@ -237,10 +237,8 @@ GameRunescape_PointInMainHoverRegion(
 {
     if( game && stub_world_clip_is_builtin_widget(game) )
     {
-        return px >= game->world_view_port.clip_left &&
-               px < game->world_view_port.clip_right &&
-               py >= game->world_view_port.clip_top &&
-               py < game->world_view_port.clip_bottom;
+        return px >= game->world_view_port.clip_left && px < game->world_view_port.clip_right &&
+               py >= game->world_view_port.clip_top && py < game->world_view_port.clip_bottom;
     }
 
     return px > RS_UI_HOVER_MAIN_X && py > RS_UI_HOVER_MAIN_Y &&
@@ -334,8 +332,7 @@ stub_cs2_host_inv_get_obj(
     struct GameRunescape* game = ud;
     if( !game || inv_id < 0 || slot < 0 )
         return 0;
-    struct RSInvContainer const* container =
-        rs_inv_container_find(&game->inv_data.store, inv_id);
+    struct RSInvContainer const* container = rs_inv_container_find(&game->inv_data.store, inv_id);
     if( !container || slot >= container->slot_count )
         return 0;
     return container->obj_id[slot];
@@ -350,8 +347,7 @@ stub_cs2_host_inv_get_num(
     struct GameRunescape* game = ud;
     if( !game || inv_id < 0 || slot < 0 )
         return 0;
-    struct RSInvContainer const* container =
-        rs_inv_container_find(&game->inv_data.store, inv_id);
+    struct RSInvContainer const* container = rs_inv_container_find(&game->inv_data.store, inv_id);
     if( !container || slot >= container->slot_count )
         return 0;
     return container->obj_count[slot];
@@ -365,8 +361,7 @@ stub_cs2_host_inv_size(
     struct GameRunescape* game = ud;
     if( !game || inv_id < 0 )
         return 0;
-    struct RSInvContainer const* container =
-        rs_inv_container_find(&game->inv_data.store, inv_id);
+    struct RSInvContainer const* container = rs_inv_container_find(&game->inv_data.store, inv_id);
     return container ? container->slot_count : 0;
 }
 

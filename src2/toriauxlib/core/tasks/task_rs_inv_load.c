@@ -11,7 +11,7 @@
 #include "osrs/rscache/dat1a/dat1a_config_obj.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/task_dat2_io.h"
 #include "toriauxlib/td/toriauxlibtd.h"
 #include "toridraw/toridraw_map.h"
@@ -26,7 +26,11 @@
 #define INV_LOAD_IO_BATCH 64
 
 static int
-inv_load_model_id_add_unique(int* model_ids, int* model_count, int capacity, int model_id)
+inv_load_model_id_add_unique(
+    int* model_ids,
+    int* model_count,
+    int capacity,
+    int model_id)
 {
     if( model_id < 0 || !model_ids || !model_count || *model_count >= capacity )
         return -1;
@@ -42,7 +46,9 @@ inv_load_model_id_add_unique(int* model_ids, int* model_count, int capacity, int
 }
 
 static int
-inv_load_dat1_obj_model_id(struct Dat1BuildCache* bc, int obj_id)
+inv_load_dat1_obj_model_id(
+    struct Dat1BuildCache* bc,
+    int obj_id)
 {
     struct RSCacheDat1A_ConfigObj* obj = dat1_buildcache_obj_get(bc, obj_id);
     if( !obj || obj->model <= 0 )
@@ -51,7 +57,9 @@ inv_load_dat1_obj_model_id(struct Dat1BuildCache* bc, int obj_id)
 }
 
 static int
-inv_load_dat2_obj_model_id(struct Dat2BuildCache* bc, int obj_id)
+inv_load_dat2_obj_model_id(
+    struct Dat2BuildCache* bc,
+    int obj_id)
 {
     struct RSCacheDat2A_ConfigObject* obj = dat2_buildcache_object_get(bc, obj_id);
     if( !obj || obj->inventory_model_id <= 0 )
@@ -118,7 +126,9 @@ Task_RSInvLoad_Free(struct Task_RSInvLoad* task)
 }
 
 int
-Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
+Task_RSInvLoad_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx)
 {
     struct Task_RSInvLoad* task = task_state;
     struct Dat1BuildCache* dat1_bc = NULL;
@@ -134,7 +144,8 @@ Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
 
     if( !task->rc_ctx || !task->rc_ctx->inv_pool || !task->cache || task->inv_item.name[0] == '\0' )
     {
-        fprintf(stderr,
+        fprintf(
+            stderr,
             "Task_RSInvLoad: invalid task state inv_pool=%p cache=%p name='%s'\n",
             task->rc_ctx ? (void*)task->rc_ctx->inv_pool : NULL,
             (void*)task->cache,
@@ -238,7 +249,8 @@ Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
                 struct RSCacheDat2A_Model* model = TAPIDat1_DecodeModel(ctx, i);
                 if( !model )
                 {
-                    fprintf(stderr,
+                    fprintf(
+                        stderr,
                         "Task_RSInvLoad: failed to decode model_id=%d inv=%s\n",
                         model_id,
                         task->inv.name);
@@ -265,7 +277,8 @@ Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
                     dat1_bc, task->rc_ctx->scene, task->obj_ids[i], 1);
                 if( !icon_sprite )
                 {
-                    fprintf(stderr,
+                    fprintf(
+                        stderr,
                         "Task_RSInvLoad: failed to render icon inv=%s obj_id=%d\n",
                         task->inv.name,
                         task->obj_ids[i]);
@@ -379,7 +392,8 @@ Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
                 struct RSCacheDat2A_Model* model = TAPIDat2_DecodeModel(ctx, i);
                 if( !model )
                 {
-                    fprintf(stderr,
+                    fprintf(
+                        stderr,
                         "Task_RSInvLoad: failed to decode model_id=%d inv=%s\n",
                         model_id,
                         task->inv.name);
@@ -404,7 +418,8 @@ Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
                     dat2_bc, task->rc_ctx->scene, task->obj_ids[i], 1);
                 if( !icon_sprite )
                 {
-                    fprintf(stderr,
+                    fprintf(
+                        stderr,
                         "Task_RSInvLoad: failed to render icon inv=%s obj_id=%d\n",
                         task->inv.name,
                         task->obj_ids[i]);
@@ -425,7 +440,8 @@ Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx)
     for( int i = 0; i < task->inv.item_count; i++ )
     {
         if( task->callbacks.on_slot )
-            task->callbacks.on_slot(task->callbacks.user, task->pool_index, task->inv.items[i].obj_id);
+            task->callbacks.on_slot(
+                task->callbacks.user, task->pool_index, task->inv.items[i].obj_id);
     }
 
     PT_END(&task->thread);

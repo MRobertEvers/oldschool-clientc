@@ -1,14 +1,15 @@
+#include "../../games/interface_editor.h"
+
+#include "../../commands/libtorirs_command_queue.h"
 #include "../../libtorirs.h"
 #include "../../libtorirs_internal.h"
-#include "../../commands/libtorirs_command_queue.h"
-#include "../../games/interface_editor.h"
 #include "../../platforms/platform_sdl2/platform_sdl2.h"
 #include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"
+#include "../../platforms/platform_x/cache_path_resolve.h"
 #include "../../platforms/platform_x/cachelib.h"
 #include "../../platforms/platform_x/cachelib_platform.h"
-#include "../../platforms/platform_x/cache_path_resolve.h"
 #include "../../scripting/libtorirs_scriptapi.h"
-#include "../../toriauxlib/c/toriauxlibcache.h"
+#include "../../toriauxlib/cache/toriauxlibcache.h"
 #include "../../toriauxlib/toriauxlib.h"
 #include "osrs/rscache/dat2a/dat2a_clientscript.h"
 
@@ -19,7 +20,10 @@
 #include <unistd.h>
 
 static bool
-argv_is_cache_path_candidate(int argc, char* argv[], int i)
+argv_is_cache_path_candidate(
+    int argc,
+    char* argv[],
+    int i)
 {
     if( i < 1 || i >= argc || !argv[i] || argv[i][0] == '\0' || argv[i][0] == '-' )
         return false;
@@ -29,7 +33,9 @@ argv_is_cache_path_candidate(int argc, char* argv[], int i)
 }
 
 static char const*
-resolve_cache_dat_path(int argc, char* argv[])
+resolve_cache_dat_path(
+    int argc,
+    char* argv[])
 {
     char const* xrsps = cache_path_resolve_xrsps_osrs237();
     char const* osrs = cache_path_resolve_osrs_repo();
@@ -88,7 +94,9 @@ resolve_cache_dat_path(int argc, char* argv[])
 }
 
 static int
-parse_verify_interface_id(int argc, char* argv[])
+parse_verify_interface_id(
+    int argc,
+    char* argv[])
 {
     for( int i = 1; i + 1 < argc; i++ )
     {
@@ -99,7 +107,9 @@ parse_verify_interface_id(int argc, char* argv[])
 }
 
 static int
-parse_cs2_trailer_flag(int argc, char* argv[])
+parse_cs2_trailer_flag(
+    int argc,
+    char* argv[])
 {
     for( int i = 1; i + 1 < argc; i++ )
     {
@@ -114,7 +124,9 @@ parse_cs2_trailer_flag(int argc, char* argv[])
 }
 
 int
-main(int argc, char* argv[])
+main(
+    int argc,
+    char* argv[])
 {
     (void)argc;
     (void)argv;
@@ -199,9 +211,8 @@ main(int argc, char* argv[])
         goto error_exit;
 
     renderer = LibToriPlatformSDL2_RendererSoft3D_New(IE_WINDOW_W, IE_WINDOW_H);
-    if( !renderer ||
-        !LibToriPlatformSDL2_RendererSoft3D_Init(
-            renderer, LibToriPlatformSDL2_GetWindow(platform)) )
+    if( !renderer || !LibToriPlatformSDL2_RendererSoft3D_Init(
+                         renderer, LibToriPlatformSDL2_GetWindow(platform)) )
         goto error_exit;
 
     command_queue = LibToriRS_CommandQueue_New();

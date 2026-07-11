@@ -18,9 +18,9 @@
 #include "platforms/platform_x_io_reactor.h"
 #include "revconfig/revconfig.h"
 #include "revconfig/revconfig_load.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/core/tasks/libtori_core_task.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/core/tasks/instance_revconfig_context.h"
+#include "toriauxlib/core/tasks/libtori_core_task.h"
 #include "toriauxlib/core/tasks/task_instance_revconfig_load.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/toriauxlib.h"
@@ -1382,7 +1382,9 @@ struct MouseLocationCase
 static int g_test_selected_tab = 3;
 
 static int
-test_host_request(void* user, struct UITreeHostRequest* req)
+test_host_request(
+    void* user,
+    struct UITreeHostRequest* req)
 {
     assert(req);
 
@@ -1408,9 +1410,9 @@ test_host_request(void* user, struct UITreeHostRequest* req)
                    &game->inv_data,
                    req->u.get_inv_source_slot.source_id,
                    req->u.get_inv_source_slot.slot,
-                   req->u.get_inv_source_slot.out) ?
-                   1 :
-                   0;
+                   req->u.get_inv_source_slot.out)
+                   ? 1
+                   : 0;
     }
     default:
         return 0;
@@ -3152,8 +3154,7 @@ test_toridraw_font_parse_hex_color(void)
     TEST_ASSERT(ToriDraw_FontParseHexColor("ff981f", 6) == (int)0xFF981F, "orange hex");
     TEST_ASSERT(ToriDraw_FontParseHexColor("00ffff", 6) == (int)0x00FFFF, "cyan hex");
     TEST_ASSERT(
-        ToriDraw_FontParseHexColor("ffffff00", 8) == (int)0xFFFFFF,
-        "8-digit uses first 6 for rgb");
+        ToriDraw_FontParseHexColor("ffffff00", 8) == (int)0xFFFFFF, "8-digit uses first 6 for rgb");
     TEST_ASSERT(ToriDraw_FontParseHexColor("zzz", 3) == -1, "invalid length");
     TEST_ASSERT(ToriDraw_FontParseHexColor("gggggg", 6) == -1, "invalid hex");
 
@@ -3216,9 +3217,9 @@ test_toridraw_font_col_tag_draw(void)
     int const third = pixels[row * vp.stride + 4];
     TEST_ASSERT(first == (int)(0xFF000000u | (uint32_t)WHITE), "first glyph default color");
     TEST_ASSERT(
-        second == (int)(0xFF000000u | (uint32_t)0x00FFFF),
-        "second glyph cyan from col tag");
-    TEST_ASSERT(third == (int)(0xFF000000u | (uint32_t)WHITE), "third glyph default after close tag");
+        second == (int)(0xFF000000u | (uint32_t)0x00FFFF), "second glyph cyan from col tag");
+    TEST_ASSERT(
+        third == (int)(0xFF000000u | (uint32_t)WHITE), "third glyph default after close tag");
 
     fprintf(stderr, "ok: toridraw font col tag draw\n");
     return 0;

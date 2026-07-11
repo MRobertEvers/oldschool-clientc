@@ -5,13 +5,16 @@
 #include "instance_revconfig_context.h"
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "revconfig/revconfig.h"
-#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 #include "ui/uitree.h"
 
 struct RSInvLoadCallbacks
 {
     void* user;
-    void (*on_slot)(void* user, int slot_index, int obj_id);
+    void (*on_slot)(
+        void* user,
+        int slot_index,
+        int obj_id);
 };
 
 struct Task_RSInvLoad
@@ -44,6 +47,8 @@ void
 Task_RSInvLoad_Free(struct Task_RSInvLoad* task);
 
 int
-Task_RSInvLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx);
+Task_RSInvLoad_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx);
 
 #endif

@@ -125,14 +125,14 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toriauxlib/toriauxlib.c \
 	$(SRC2)/toriauxlib/core/toriauxlibcore.c \
 	$(SRC2)/toriauxlib/core/toriauxlibcore_types.c \
-	$(SRC2)/toriauxlib/c/toriauxlibcache.c \
-	$(SRC2)/toriauxlib/c/toriauxlibcache_convert.c \
-	$(SRC2)/toriauxlib/c/toriauxlibcache_component_dat2_convert.c \
-	$(SRC2)/toriauxlib/c/toriauxlibcache_model_convert.c \
-	$(SRC2)/toriauxlib/c/toriauxlibcache_sprite_convert.c \
-	$(SRC2)/toriauxlib/c/toriauxlibcache_font_convert.c \
-	$(SRC2)/toriauxlib/c/toriauxlibcache_clientscript_convert.c \
-	$(SRC2)/toriauxlib/c/toriauxlibcache_submit.c \
+	$(SRC2)/toriauxlib/cache/toriauxlibcache.c \
+	$(SRC2)/toriauxlib/cache/toriauxlibcache_convert.c \
+	$(SRC2)/toriauxlib/cache/toriauxlibcache_component_dat2_convert.c \
+	$(SRC2)/toriauxlib/cache/toriauxlibcache_model_convert.c \
+	$(SRC2)/toriauxlib/cache/toriauxlibcache_sprite_convert.c \
+	$(SRC2)/toriauxlib/cache/toriauxlibcache_font_convert.c \
+	$(SRC2)/toriauxlib/cache/toriauxlibcache_clientscript_convert.c \
+	$(SRC2)/toriauxlib/cache/toriauxlibcache_submit.c \
 	$(SRC2)/toriauxlib/td/toriauxlibtd.c \
 	$(SRC2)/toriauxlib/core/tasks/task_toriauxlibtd.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachesprite.c \

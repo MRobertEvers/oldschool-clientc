@@ -6,18 +6,19 @@
 #include "osrs/rscache/dat2a/dat2a_frame.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "osrs/rscache/shared/shared_file_list.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/task_dat2_io.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define TASK_DAT2_ANIM_FATAL(...)              \
-    do {                                       \
-        fprintf(stderr, "Task_Dat2AnimResolve: "); \
-        fprintf(stderr, __VA_ARGS__);          \
-        abort();                               \
+#define TASK_DAT2_ANIM_FATAL(...)                                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        fprintf(stderr, "Task_Dat2AnimResolve: ");                                                 \
+        fprintf(stderr, __VA_ARGS__);                                                              \
+        abort();                                                                                   \
     } while( 0 )
 
 static void
@@ -143,8 +144,7 @@ Task_Dat2AnimResolve_Run(
         task->skeletal_animaya_aid = task->skeletal_maya_id >> 16;
         task->skeletal_base_id = -1;
 
-        DAT2_ENSURE_REFERENCE_TABLE(
-            ctx, &task->thread, task->bc, RSCacheDat2Disk_Table_Animayas);
+        DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->thread, task->bc, RSCacheDat2Disk_Table_Animayas);
 
         if( !dat2_buildcache_reference_table_has(task->bc, RSCacheDat2Disk_Table_Animayas) )
         {
@@ -158,15 +158,11 @@ Task_Dat2AnimResolve_Run(
         IO_REQUEST(
             ctx,
             0,
-            TAPIDat2_FetchArchive(
-                ctx, RSCacheDat2Disk_Table_Animayas, task->skeletal_animaya_aid));
+            TAPIDat2_FetchArchive(ctx, RSCacheDat2Disk_Table_Animayas, task->skeletal_animaya_aid));
         PT_YIELD(&task->thread);
 
         animaya_arch = TAPIDat2_DecodeArchive(
-            ctx,
-            0,
-            RSCacheDat2Disk_Table_Animayas,
-            task->skeletal_animaya_aid);
+            ctx, 0, RSCacheDat2Disk_Table_Animayas, task->skeletal_animaya_aid);
         if( !animaya_arch )
         {
             TASK_DAT2_ANIM_FATAL(
@@ -202,8 +198,7 @@ Task_Dat2AnimResolve_Run(
 
         dat2_buildcache_skeletal_add(task->bc, task->skeletal_maya_id, maya);
 
-        if( maya->base_id >= 0 &&
-            !dat2_buildcache_skeletal_base_has(task->bc, maya->base_id) )
+        if( maya->base_id >= 0 && !dat2_buildcache_skeletal_base_has(task->bc, maya->base_id) )
         {
             task->skeletal_base_id = maya->base_id;
             LibToriRS_IOQueueClear(ctx->io);
@@ -237,10 +232,8 @@ Task_Dat2AnimResolve_Run(
         }
     }
 
-    DAT2_ENSURE_REFERENCE_TABLE(
-        ctx, &task->thread, task->bc, RSCacheDat2Disk_Table_Animations);
-    DAT2_ENSURE_REFERENCE_TABLE(
-        ctx, &task->thread, task->bc, RSCacheDat2Disk_Table_Skeletons);
+    DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->thread, task->bc, RSCacheDat2Disk_Table_Animations);
+    DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->thread, task->bc, RSCacheDat2Disk_Table_Skeletons);
 
     for( task->archive_index = 0; task->archive_index < task->aset.count; task->archive_index++ )
     {
@@ -254,12 +247,11 @@ Task_Dat2AnimResolve_Run(
         IO_REQUEST(
             ctx,
             0,
-            TAPIDat2_FetchArchive(
-                ctx, RSCacheDat2Disk_Table_Animations, task->current_aid));
+            TAPIDat2_FetchArchive(ctx, RSCacheDat2Disk_Table_Animations, task->current_aid));
         PT_YIELD(&task->thread);
 
-        task->held_idx0 = TAPIDat2_DecodeArchive(
-            ctx, 0, RSCacheDat2Disk_Table_Animations, task->current_aid);
+        task->held_idx0 =
+            TAPIDat2_DecodeArchive(ctx, 0, RSCacheDat2Disk_Table_Animations, task->current_aid);
         if( !task->held_idx0 )
         {
             TASK_DAT2_ANIM_FATAL(
@@ -299,8 +291,7 @@ Task_Dat2AnimResolve_Run(
             if( dat2_buildcache_framemap_get(task->bc, fmid) )
                 continue;
 
-            IO_REQUEST(
-                ctx, 1, TAPIDat2_FetchArchive(ctx, RSCacheDat2Disk_Table_Skeletons, fmid));
+            IO_REQUEST(ctx, 1, TAPIDat2_FetchArchive(ctx, RSCacheDat2Disk_Table_Skeletons, fmid));
             PT_YIELD(&task->thread);
 
             fmid = task->pending_framemap_ids[task->pending_framemap_index];
@@ -329,8 +320,7 @@ Task_Dat2AnimResolve_Run(
         if( !dat2_buildcache_frames_has(task->bc, task->current_aid) )
         {
             TASK_DAT2_ANIM_FATAL(
-                "frames missing before submit after decode (archive_id=%d)\n",
-                task->current_aid);
+                "frames missing before submit after decode (archive_id=%d)\n", task->current_aid);
         }
         ToriAuxLibCache_SubmitAnimationFromDat2(task->c, task->current_aid);
 

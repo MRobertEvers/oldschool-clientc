@@ -2,8 +2,8 @@
 
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "osrs/varp_varbit_manager.h"
-#include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache_clientscript_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "ui/uitree.h"
 #include "vm/cs1vm.h"
@@ -115,8 +115,7 @@ ToriAuxLibVM_IsActive(
             return false;
 
         int script_len = c->behavior.scripts_lengths ? c->behavior.scripts_lengths[i] : 0;
-        int value =
-            cs1vm_eval_len(vm->cs1vm, c->behavior.scripts[i], &local_cs1host, script_len);
+        int value = cs1vm_eval_len(vm->cs1vm, c->behavior.scripts[i], &local_cs1host, script_len);
 
         int operand = c->behavior.script_operand[i];
         int comp = c->behavior.script_comparator[i];

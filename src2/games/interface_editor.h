@@ -6,15 +6,15 @@
 #include "../scripting/libtorirs_scripting.h"
 #include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
-#include "toridraw/toridraw_scene.h"
-#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
+#include "toriauxlib/vm/toriauxlibvm.h"
+#include "toridraw/toridraw_scene.h"
 #include "ui/ui_inv_data_service.h"
 #include "ui/ui_minimenu.h"
 #include "ui/uitree.h"
 #include "vm/cs2vm.h"
-#include "toriauxlib/vm/toriauxlibvm.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -435,13 +435,19 @@ void
 GameInterfaceEditor_Free(struct GameInterfaceEditor* game);
 
 void
-GameInterfaceEditor_SetCore(struct GameInterfaceEditor* game, struct ToriAuxLibCore* core);
+GameInterfaceEditor_SetCore(
+    struct GameInterfaceEditor* game,
+    struct ToriAuxLibCore* core);
 
 void
-GameInterfaceEditor_SetCache(struct GameInterfaceEditor* game, struct ToriAuxLibCache* cache);
+GameInterfaceEditor_SetCache(
+    struct GameInterfaceEditor* game,
+    struct ToriAuxLibCache* cache);
 
 void
-GameInterfaceEditor_SetTD(struct GameInterfaceEditor* game, struct ToriAuxLibTD* td);
+GameInterfaceEditor_SetTD(
+    struct GameInterfaceEditor* game,
+    struct ToriAuxLibTD* td);
 
 void
 GameInterfaceEditor_SetDat2Cache(
@@ -457,7 +463,9 @@ bool
 GameInterfaceEditor_EnumerateInterfaceGroups(struct GameInterfaceEditor* game);
 
 bool
-GameInterfaceEditor_LoadGroup(struct GameInterfaceEditor* game, int group_id);
+GameInterfaceEditor_LoadGroup(
+    struct GameInterfaceEditor* game,
+    int group_id);
 
 int
 GameInterfaceEditor_CountDynamicCs2Children(struct GameInterfaceEditor* game);
@@ -471,7 +479,9 @@ GameInterfaceEditor_ProcessInput(
     struct LibToriRS_Input* input);
 
 void
-GameInterfaceEditor_FrameBegin(struct GameInterfaceEditor* game, int cycles_elapsed);
+GameInterfaceEditor_FrameBegin(
+    struct GameInterfaceEditor* game,
+    int cycles_elapsed);
 
 bool
 GameInterfaceEditor_FrameNextCommand(

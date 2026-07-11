@@ -1,6 +1,5 @@
 #include "libtorirs_scriptapi.h"
 
-#include "toriauxlib/core/tasks/libtori_core_task.h"
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../libtorirs_internal.h"
 #include "buildcache/dat1_buildcache.h"
@@ -23,10 +22,11 @@
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/texture.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
+#include "toriauxlib/core/tasks/libtori_core_task.h"
 #include "toriauxlib/core/tasks/task_dat2_textures_load.h"
 #include "toriauxlib/core/tasks/task_instance_revconfig_load.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/toriauxlib.h"
 #include "toriauxlib/vm/toriauxlibvm.h"
@@ -231,8 +231,7 @@ LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
     if( !task )
         return false;
 
-    LibToriRS_TasksAdd(
-        instance, task, Task_Dat2TexturesLoad_Run, dat2_textures_load_task_destroy);
+    LibToriRS_TasksAdd(instance, task, Task_Dat2TexturesLoad_Run, dat2_textures_load_task_destroy);
     return true;
 }
 
@@ -522,8 +521,8 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
             config_files[0] = UI_KRONOS_CACHE_INI;
             config_files[1] = UI_KRONOS_UI_INI;
         }
-        else if( ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) ==
-                 TORIAUXLIBCACHE_MODE_DAT2 )
+        else if(
+            ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) == TORIAUXLIBCACHE_MODE_DAT2 )
         {
             config_files[0] = UI_OSRS_CACHE_INI;
             config_files[1] = UI_OSRS_UI_INI;
@@ -542,8 +541,7 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
             config_files,
             2,
             layout_group);
-        LibToriRS_TasksAdd(
-            instance, ui_task, Task_InstanceRevConfigLoad_Run, ui_load_task_destroy);
+        LibToriRS_TasksAdd(instance, ui_task, Task_InstanceRevConfigLoad_Run, ui_load_task_destroy);
     }
 }
 
@@ -553,14 +551,12 @@ LibToriRS_ScriptAPI_Game_InterfaceEditor_Init(struct LibToriRS_Instance* instanc
     if( !instance )
         return;
 
-    instance->interface_editor =
-        GameInterfaceEditor_New(instance->script_queue, instance->scene);
+    instance->interface_editor = GameInterfaceEditor_New(instance->script_queue, instance->scene);
     if( !instance->interface_editor )
         return;
 
     GameInterfaceEditor_SetCore(instance->interface_editor, ToriAuxLib_Core(instance->toriauxlib));
-    GameInterfaceEditor_SetCache(
-        instance->interface_editor, ToriAuxLib_C(instance->toriauxlib));
+    GameInterfaceEditor_SetCache(instance->interface_editor, ToriAuxLib_C(instance->toriauxlib));
     GameInterfaceEditor_SetTD(instance->interface_editor, ToriAuxLib_TD(instance->toriauxlib));
 
     instance->interface_editor_handle.kind = GAME_HANDLE_KIND_INTERFACE_EDITOR;

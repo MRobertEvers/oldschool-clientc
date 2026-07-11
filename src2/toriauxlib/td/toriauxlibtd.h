@@ -1,7 +1,7 @@
 #ifndef TORIAUXLIBTD_H
 #define TORIAUXLIBTD_H
 
-#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/core/toriauxlibcore_types.h"
 #include "toridraw/toridraw_scene.h"
 #include "toridraw/toridraw_types.h"

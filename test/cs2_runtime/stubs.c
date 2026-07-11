@@ -1,8 +1,8 @@
-#include "toriauxlib/vm/toriauxlibvm.h"
-#include "toriauxlib/core/toriauxlibcore.h"
-#include "toriauxlib/c/toriauxlibcache.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 #include "osrs/varp_varbit_manager.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/core/toriauxlibcore.h"
+#include "toriauxlib/vm/toriauxlibvm.h"
 #include "toridraw/toridraw_scene.h"
 
 #include <stddef.h>

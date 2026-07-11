@@ -53,14 +53,14 @@ SRCS = $(TOOL_DIR)/main.c \
 	$(SRC2_DIR)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore.c \
 	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_convert.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_model_convert.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_submit.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_sprite_convert.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_clientscript_convert.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_component_dat2_convert.c \
-	$(SRC2_DIR)/toriauxlib/c/toriauxlibcache_font_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_model_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_submit.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_sprite_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_clientscript_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_component_dat2_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_font_convert.c \
 	$(SRC2_DIR)/buildcache/dat1_buildcache.c \
 	$(SRC2_DIR)/buildcache/dat2_buildcache.c \
 	$(SRC2_DIR)/buildcache/dat2_buildcache_meta.c \
@@ -133,28 +133,28 @@ $(OBJ_DIR)/toriauxlibcore.o: $(SRC2_DIR)/toriauxlib/core/toriauxlibcore.c
 $(OBJ_DIR)/toriauxlibcore_types.o: $(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/toriauxlibcache.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache.c
+$(OBJ_DIR)/toriauxlibcache.o: $(SRC2_DIR)/toriauxlib/cache/toriauxlibcache.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/toriauxlibcache_convert.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_convert.c
+$(OBJ_DIR)/toriauxlibcache_convert.o: $(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_convert.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/toriauxlibcache_model_convert.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_model_convert.c
+$(OBJ_DIR)/toriauxlibcache_model_convert.o: $(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_model_convert.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/toriauxlibcache_submit.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_submit.c
+$(OBJ_DIR)/toriauxlibcache_submit.o: $(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_submit.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/toriauxlibcache_sprite_convert.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_sprite_convert.c
+$(OBJ_DIR)/toriauxlibcache_sprite_convert.o: $(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_sprite_convert.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/toriauxlibcache_clientscript_convert.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_clientscript_convert.c
+$(OBJ_DIR)/toriauxlibcache_clientscript_convert.o: $(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_clientscript_convert.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/toriauxlibcache_component_dat2_convert.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_component_dat2_convert.c
+$(OBJ_DIR)/toriauxlibcache_component_dat2_convert.o: $(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_component_dat2_convert.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/toriauxlibcache_font_convert.o: $(SRC2_DIR)/toriauxlib/c/toriauxlibcache_font_convert.c
+$(OBJ_DIR)/toriauxlibcache_font_convert.o: $(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_font_convert.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/dat1_buildcache.o: $(SRC2_DIR)/buildcache/dat1_buildcache.c

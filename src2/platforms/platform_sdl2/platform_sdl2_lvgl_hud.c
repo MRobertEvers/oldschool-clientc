@@ -3,15 +3,14 @@
 #if defined(TORIRS_ENABLE_LVGL_HUD)
 
 #include "../../libtorirs.h"
-#include "../../toriauxlib/c/toriauxlibcache.h"
+#include "../../toriauxlib/cache/toriauxlibcache.h"
 #include "../../toriauxlib/toriauxlib.h"
+#include "lvgl.h"
 
 #include <SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "lvgl.h"
 
 struct LibToriHud
 {
@@ -139,10 +138,7 @@ LibToriHud_Update(
         {
             char buf[64];
             snprintf(
-                buf,
-                sizeof(buf),
-                "DatX: %.1f MB",
-                (double)report.l1_bytes / (1024.0 * 1024.0));
+                buf, sizeof(buf), "DatX: %.1f MB", (double)report.l1_bytes / (1024.0 * 1024.0));
             lv_label_set_text(hud->label_datx, buf);
             hud->last_l1_bytes = report.l1_bytes;
         }
@@ -151,10 +147,7 @@ LibToriHud_Update(
         {
             char buf[64];
             snprintf(
-                buf,
-                sizeof(buf),
-                "Cache: %.1f MB",
-                (double)report.total_bytes / (1024.0 * 1024.0));
+                buf, sizeof(buf), "Cache: %.1f MB", (double)report.total_bytes / (1024.0 * 1024.0));
             lv_label_set_text(hud->label_cache, buf);
             hud->last_total_bytes = report.total_bytes;
         }
@@ -181,8 +174,7 @@ LibToriHud_CompositeOverARGB8888(
     int hud_w = 0;
     int hud_h = 0;
     int hud_pitch = 0;
-    uint8_t const* src =
-        LibToriHud_PixelsBGRA(hud, &hud_w, &hud_h, &hud_pitch);
+    uint8_t const* src = LibToriHud_PixelsBGRA(hud, &hud_w, &hud_h, &hud_pitch);
     if( !src || hud_w <= 0 || hud_h <= 0 )
         return;
 
@@ -215,8 +207,8 @@ LibToriHud_CompositeOverARGB8888(
 
             if( a == 255 )
             {
-                dst_row[x] = ((uint32_t)a << 24) | ((uint32_t)r << 16) |
-                             ((uint32_t)g << 8) | (uint32_t)b;
+                dst_row[x] =
+                    ((uint32_t)a << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
                 continue;
             }
 
@@ -233,8 +225,7 @@ LibToriHud_CompositeOverARGB8888(
                 (uint8_t)(((uint16_t)g * (uint16_t)a + (uint16_t)dst_g * inv_a) / 255u);
             uint8_t const out_b =
                 (uint8_t)(((uint16_t)b * (uint16_t)a + (uint16_t)dst_b * inv_a) / 255u);
-            uint8_t const out_a =
-                (uint8_t)((uint16_t)a + ((uint16_t)dst_a * inv_a) / 255u);
+            uint8_t const out_a = (uint8_t)((uint16_t)a + ((uint16_t)dst_a * inv_a) / 255u);
 
             dst_row[x] = ((uint32_t)out_a << 24) | ((uint32_t)out_r << 16) |
                          ((uint32_t)out_g << 8) | (uint32_t)out_b;

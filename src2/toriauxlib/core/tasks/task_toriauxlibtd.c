@@ -3,14 +3,14 @@
 #include "../../../ioqueue/libtorirs_ioqueue.h"
 #include "3rd/minipt.h"
 #include "buildcache/dat1_buildcache.h"
+#include "core/tapi/tapi_dat1.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
 #include "osrs/rscache/dat1a/dat1a_config_textures.h"
 #include "osrs/rscache/dat1a/dat1a_configs_dat.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "platforms/platform_x/cachelib_client.h"
-#include "core/tapi/tapi_dat1.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toridraw/toridraw_types.h"
 
 #include <assert.h>

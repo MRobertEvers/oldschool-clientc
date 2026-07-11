@@ -6,18 +6,18 @@
 #include "core/tapi/tapi_dat1.h"
 #include "core/tapi/tapi_dat2.h"
 #include "core_task_await.h"
+#include "games/runescape.h"
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
 #include "task_rs_component_load.h"
 #include "task_rs_inv_load.h"
-#include "osrs/rscache/dat1a/dat1a_config_component.h"
-#include "toriauxlib/c/toriauxlibcache_font_convert.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache_font_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
-#include "ui/ui_font_lookup.h"
-#include "ui/uitree_layout.h"
-#include "games/runescape.h"
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_scene.h"
+#include "ui/ui_font_lookup.h"
+#include "ui/uitree_layout.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -190,18 +190,12 @@ task_on_rc_log_sidebar_inv_load_failure(
             }
             else
             {
-                fprintf(
-                    stderr,
-                    "  rs_subtree[%d]: id=%d core=missing\n",
-                    i,
-                    component_id);
+                fprintf(stderr, "  rs_subtree[%d]: id=%d core=missing\n", i, component_id);
             }
         }
     }
 
-    fprintf(
-        stderr,
-        "  expected at least one TORIAUXLIBCORE_COMPONENT_INV in rs_subtree capture\n");
+    fprintf(stderr, "  expected at least one TORIAUXLIBCORE_COMPONENT_INV in rs_subtree capture\n");
     fprintf(
         stderr,
         "  likely error: inv= requires a COMPONENT_TYPE_INV in the walked RS interface, but none "
@@ -232,8 +226,8 @@ on_rc_uicomponent_rs_loaded(
     struct Task_RSComponentLoad* rs_task = user;
     assert(rs_task && rs_task->rc_ctx && rs_task->owner_component[0] != '\0' && component_id >= 0);
 
-    struct InstanceRevConfigRSSubtree* subtree = instance_revconfig_rs_subtree_get_or_create(
-        rs_task->rc_ctx, rs_task->owner_component);
+    struct InstanceRevConfigRSSubtree* subtree =
+        instance_revconfig_rs_subtree_get_or_create(rs_task->rc_ctx, rs_task->owner_component);
     assert(subtree);
     instance_revconfig_rs_subtree_append(subtree, component_id, parent_id, rel_x, rel_y);
 }
@@ -281,8 +275,7 @@ instance_revconfig_register_core_font(
     if( cache_font_id >= 0 && cache_font_id < TORIDRAW_CACHE_FONT_SLOT_COUNT )
         ToriDraw_SceneCacheFontSet(ctx->scene, cache_font_id, scene_font);
 
-    ui_font_lookup_add(
-        &ctx->font_lookup, lookup_name, font_id, cache_font_id, cache_archive_id);
+    ui_font_lookup_add(&ctx->font_lookup, lookup_name, font_id, cache_font_id, cache_archive_id);
 }
 
 static bool
@@ -445,8 +438,7 @@ Task_InstanceOnRCCacheFont_Run(
         {
             IO_REQUEST(ctx, 0, TAPIDat1_FetchTitleFontsJagfile(ctx));
             PT_YIELD(&task->thread);
-            struct RSCacheShared_FileListDat* title =
-                TAPIDat1_DecodeTitleFontsJagfile(ctx, 0);
+            struct RSCacheShared_FileListDat* title = TAPIDat1_DecodeTitleFontsJagfile(ctx, 0);
             if( title && task->rc_ctx->dat1_bc )
                 dat1_buildcache_set_title_fonts_jagfile(task->rc_ctx->dat1_bc, title);
             LibToriRS_IOQueueClear(ctx->io);
@@ -477,12 +469,7 @@ Task_InstanceOnRCCacheFont_Run(
             dat1_buildcache_font_decode(task->rc_ctx->dat1_bc, font_stem);
         assert(font && "failed to decode revconfig font (check title_fonts jagfile / font stem)");
         instance_revconfig_register_core_font(
-            task->rc_ctx,
-            task->font_id,
-            font,
-            task->item.name,
-            task->item.cache_font_id,
-            -1);
+            task->rc_ctx, task->font_id, font, task->item.name, task->item.cache_font_id, -1);
     }
     else if( ToriAuxLibCache_Mode(task->cache) == TORIAUXLIBCACHE_MODE_DAT2 )
     {
@@ -537,8 +524,8 @@ Task_InstanceOnRCCacheFont_Run(
 
         struct Dat2BuildCache_FontAsset* font_asset =
             dat2_buildcache_font_get(dat2(task->cache), task->item.archive_id);
-        struct ToriAuxLibCore_Font* font = ToriAuxLibCache_FontNewFromDat2FontAsset(
-            font_asset, task->item.archive_id);
+        struct ToriAuxLibCore_Font* font =
+            ToriAuxLibCache_FontNewFromDat2FontAsset(font_asset, task->item.archive_id);
         if( !font )
         {
             fprintf(

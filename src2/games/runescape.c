@@ -3,8 +3,8 @@
 #include "../ioqueue/libtorirs_io.h"
 #include "../runescape/appearance.h"
 #include "../runescape/player_body.h"
-#include "../toriauxlib/c/toriauxlibcache.h"
-#include "../toriauxlib/c/toriauxlibcache_submit.h"
+#include "../toriauxlib/cache/toriauxlibcache.h"
+#include "../toriauxlib/cache/toriauxlibcache_submit.h"
 #include "../toriauxlib/core/toriauxlibcore.h"
 #include "../toriauxlib/td/toriauxlibtd.h"
 #include "../toriauxlib/vm/toriauxlibvm.h"
@@ -23,7 +23,7 @@
 #include "osrs/painters.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/varp_varbit_manager.h"
-#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/core/tasks/instance_revconfig_inv_bind.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
@@ -63,13 +63,21 @@ rs_cs2_host_resolve_obj_icon(
     int* out_atlas_index);
 
 static int
-rs_cs2_host_inv_get_obj(void* ud, int inv_id, int slot);
+rs_cs2_host_inv_get_obj(
+    void* ud,
+    int inv_id,
+    int slot);
 
 static int
-rs_cs2_host_inv_get_num(void* ud, int inv_id, int slot);
+rs_cs2_host_inv_get_num(
+    void* ud,
+    int inv_id,
+    int slot);
 
 static int
-rs_cs2_host_inv_size(void* ud, int inv_id);
+rs_cs2_host_inv_size(
+    void* ud,
+    int inv_id);
 
 static void
 rs_ui_host_run_hooks(
@@ -417,7 +425,9 @@ rs_ui_host_fill_cs1host(
 }
 
 static int
-rs_ui_host_request(void* user, struct UITreeHostRequest* req)
+rs_ui_host_request(
+    void* user,
+    struct UITreeHostRequest* req)
 {
     struct GameRunescape* game = user;
     assert(req);
@@ -433,10 +443,8 @@ rs_ui_host_request(void* user, struct UITreeHostRequest* req)
 
         struct CS1Host cs1host;
         rs_ui_host_fill_cs1host(game, &cs1host);
-        return ToriAuxLibVM_IsActive(
-                   game->vm, &cs1host, (struct StaticUIComponent*)component) ?
-                   1 :
-                   0;
+        return ToriAuxLibVM_IsActive(game->vm, &cs1host, (struct StaticUIComponent*)component) ? 1
+                                                                                               : 0;
     }
     case UITREE_HOST_APPLY_BUTTON_CLICK:
     {
@@ -483,7 +491,8 @@ rs_ui_host_request(void* user, struct UITreeHostRequest* req)
 
         struct UITreeBehaviorHost host;
         rs_ui_build_behavior_host(game, &host);
-        uitree_behavior_run_hook(&host, game->core, cache, core_comp, UITREE_BEHAVIOR_HOOK_ON_CLICK);
+        uitree_behavior_run_hook(
+            &host, game->core, cache, core_comp, UITREE_BEHAVIOR_HOOK_ON_CLICK);
 
         rs_ui_flush_varp_transmits(game);
         return 0;
@@ -595,9 +604,9 @@ rs_ui_host_request(void* user, struct UITreeHostRequest* req)
         return ToriDraw_SceneFontHas(game->scene, req->u.scene_font_has.font_id) ? 1 : 0;
     case UITREE_HOST_SCENE_MODEL_HAS:
         return game && game->scene &&
-                       ToriDraw_SceneModelHas(game->scene, req->u.scene_model_has.model_id) ?
-                   1 :
-                   0;
+                       ToriDraw_SceneModelHas(game->scene, req->u.scene_model_has.model_id)
+                   ? 1
+                   : 0;
     case UITREE_HOST_GET_INV_SOURCE_SLOT:
         if( !game )
             return 0;
@@ -605,9 +614,9 @@ rs_ui_host_request(void* user, struct UITreeHostRequest* req)
                    &game->inv_data,
                    req->u.get_inv_source_slot.source_id,
                    req->u.get_inv_source_slot.slot,
-                   req->u.get_inv_source_slot.out) ?
-                   1 :
-                   0;
+                   req->u.get_inv_source_slot.out)
+                   ? 1
+                   : 0;
     case UITREE_HOST_SET_INV_SOURCE_SLOT:
         if( !game )
             return 0;
@@ -799,8 +808,7 @@ rs_cs2_host_inv_get_obj(
     struct GameRunescape* game = ud;
     if( !game || inv_id < 0 || slot < 0 )
         return 0;
-    struct RSInvContainer const* container =
-        rs_inv_container_find(&game->inv_data.store, inv_id);
+    struct RSInvContainer const* container = rs_inv_container_find(&game->inv_data.store, inv_id);
     if( !container || slot >= container->slot_count )
         return 0;
     return container->obj_id[slot];
@@ -815,8 +823,7 @@ rs_cs2_host_inv_get_num(
     struct GameRunescape* game = ud;
     if( !game || inv_id < 0 || slot < 0 )
         return 0;
-    struct RSInvContainer const* container =
-        rs_inv_container_find(&game->inv_data.store, inv_id);
+    struct RSInvContainer const* container = rs_inv_container_find(&game->inv_data.store, inv_id);
     if( !container || slot >= container->slot_count )
         return 0;
     return container->obj_count[slot];
@@ -830,8 +837,7 @@ rs_cs2_host_inv_size(
     struct GameRunescape* game = ud;
     if( !game || inv_id < 0 )
         return 0;
-    struct RSInvContainer const* container =
-        rs_inv_container_find(&game->inv_data.store, inv_id);
+    struct RSInvContainer const* container = rs_inv_container_find(&game->inv_data.store, inv_id);
     return container ? container->slot_count : 0;
 }
 

@@ -3,7 +3,7 @@
 #include "buildcache/dat2_buildcache.h"
 #include "core/tapi/tapi_dat2.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
-#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/core/tasks/task_dat2_io.h"
 
 #include <stdio.h>
@@ -122,9 +122,7 @@ Task_Dat2ConfigEntryLoad_Run(
         break;
     default:
         fprintf(
-            stderr,
-            "task_dat2_config_entry_load: unhandled config kind %d\n",
-            task->config_kind);
+            stderr, "task_dat2_config_entry_load: unhandled config kind %d\n", task->config_kind);
         break;
     }
     RSCacheDat2Disk_ArchiveFree(archive);

@@ -9,8 +9,8 @@
 #include "osrs/rscache/dat2a/dat2a_config_sequence.h"
 #include "osrs/rscache/dat2a/dat2a_configs.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/core_task_await.h"
 #include "toriauxlib/core/tasks/task_dat2_anim_io.h"
 #include "toriauxlib/core/tasks/task_dat2_io.h"
@@ -85,8 +85,9 @@ task_dat2_npc_assert_classic_sequence_frames(
         int aid = (seq->frame_ids[fi] >> 16) & 0xFFFF;
         if( aid < 0 )
             continue;
-        assert(dat2_anim_classic_frame_archive_loaded(core, dat2_bc, aid) &&
-               "npc classic sequence missing frame archive after IO");
+        assert(
+            dat2_anim_classic_frame_archive_loaded(core, dat2_bc, aid) &&
+            "npc classic sequence missing frame archive after IO");
     }
 }
 
@@ -102,16 +103,16 @@ task_dat2_npc_submit_sequence_assets(
 
     if( seq->anim_maya_id >= 0 && seq->frame_count == 0 )
     {
-        assert(dat2_anim_skeletal_loaded(core, dat2_bc, seq->anim_maya_id) &&
-               "npc skeletal sequence missing animaya after IO");
+        assert(
+            dat2_anim_skeletal_loaded(core, dat2_bc, seq->anim_maya_id) &&
+            "npc skeletal sequence missing animaya after IO");
     }
     else
         task_dat2_npc_assert_classic_sequence_frames(core, dat2_bc, seq);
 
     if( !ToriAuxLibCore_SequenceGet(core, seq_id) )
         ToriAuxLibCache_SubmitSequenceFromDat2(task->c, seq_id);
-    assert(ToriAuxLibCore_SequenceGet(core, seq_id) &&
-           "npc sequence not in core after submit");
+    assert(ToriAuxLibCore_SequenceGet(core, seq_id) && "npc sequence not in core after submit");
 }
 
 struct Task_Dat2NpcAdd*
@@ -167,8 +168,7 @@ Task_Dat2NpcAdd_Run(
         npc_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Npc);
         if( npc_archive )
         {
-            dat2_buildcache_npctypes_init_from_archive(
-                dat2_bc, npc_archive, wanted_npc_ids, 1);
+            dat2_buildcache_npctypes_init_from_archive(dat2_bc, npc_archive, wanted_npc_ids, 1);
         }
         if( npc_archive )
             RSCacheDat2Disk_ArchiveFree(npc_archive);
@@ -260,8 +260,7 @@ Task_Dat2NpcAdd_Run(
                 if( seq_id == -1 )
                     continue;
 
-                dat2_buildcache_sequence_load_from_archive(
-                    dat2_bc, task->sequence_archive, seq_id);
+                dat2_buildcache_sequence_load_from_archive(dat2_bc, task->sequence_archive, seq_id);
 
                 seq = dat2_buildcache_sequence_get(dat2_bc, seq_id);
                 assert(seq && "npc sequence missing after IO");
@@ -275,12 +274,9 @@ Task_Dat2NpcAdd_Run(
             task->anim_resolve_ready = true;
         }
 
-        DAT2_ENSURE_REFERENCE_TABLE(
-            ctx, &task->thread, dat2_bc, RSCacheDat2Disk_Table_Animayas);
-        DAT2_ENSURE_REFERENCE_TABLE(
-            ctx, &task->thread, dat2_bc, RSCacheDat2Disk_Table_Animations);
-        DAT2_ENSURE_REFERENCE_TABLE(
-            ctx, &task->thread, dat2_bc, RSCacheDat2Disk_Table_Skeletons);
+        DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->thread, dat2_bc, RSCacheDat2Disk_Table_Animayas);
+        DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->thread, dat2_bc, RSCacheDat2Disk_Table_Animations);
+        DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->thread, dat2_bc, RSCacheDat2Disk_Table_Skeletons);
 
         TASK_AWAIT(&task->thread, Task_Dat2AnimResolve_Run(&task->anim_resolve, ctx));
         Task_Dat2AnimResolve_Destroy(&task->anim_resolve);

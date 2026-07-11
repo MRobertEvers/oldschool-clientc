@@ -4,11 +4,11 @@
 #include "interface_editor.h"
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_clientscript_convert.h"
-#include "toriauxlib/c/toriauxlibcache_font_convert.h"
-#include "toriauxlib/c/toriauxlibcache_sprite_convert.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_clientscript_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_font_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_sprite_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/td/toridraw_cachemodel.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_font.h"
@@ -311,8 +311,8 @@ ie_push_draw_font(
     snprintf(item->text, sizeof(item->text), "%s", text);
 }
 
-#define ie_push_draw_font_ui(game, x, y, w, h, font_id, text, color, center, shadowed) \
-    ie_push_draw_font(                                                                 \
+#define ie_push_draw_font_ui(game, x, y, w, h, font_id, text, color, center, shadowed)             \
+    ie_push_draw_font(                                                                             \
         (game), (x), (y), (w), (h), (font_id), (text), (color), (center), (shadowed), 0, 0)
 
 static void
@@ -1443,10 +1443,7 @@ ie_cs2_cache_script(
     {
         if( game->cs2_trace_enabled )
         {
-            fprintf(
-                stderr,
-                "ie_cs2: script cache full, cannot load script %d\n",
-                script_id);
+            fprintf(stderr, "ie_cs2: script cache full, cannot load script %d\n", script_id);
         }
         return false;
     }
@@ -1462,17 +1459,13 @@ ie_cs2_cache_script(
         return false;
     }
 
-    struct ToriAuxLibCore_ClientScript* loaded =
-        ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
-            archive, script_id, game->clientscript_decode_flags);
+    struct ToriAuxLibCore_ClientScript* loaded = ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
+        archive, script_id, game->clientscript_decode_flags);
     if( !loaded || loaded->script.op_count <= 0 )
     {
         if( game->cs2_trace_enabled )
         {
-            fprintf(
-                stderr,
-                "ie_cs2: failed to decode script %d from cache\n",
-                script_id);
+            fprintf(stderr, "ie_cs2: failed to decode script %d from cache\n", script_id);
         }
         if( loaded )
         {
@@ -1521,9 +1514,8 @@ ie_cs2_script_arg_counts(
     if( !archive )
         return false;
 
-    struct ToriAuxLibCore_ClientScript* loaded =
-        ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
-            archive, script_id, game->clientscript_decode_flags);
+    struct ToriAuxLibCore_ClientScript* loaded = ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
+        archive, script_id, game->clientscript_decode_flags);
     if( !loaded || loaded->script.op_count <= 0 )
     {
         if( loaded )
@@ -5032,8 +5024,7 @@ ie_draw_cs2_tree_preview(
         bool const visible = !node->behavior.hide;
         if( visible )
             ie_draw_tree_node_preview(game, node, canvas_x, canvas_y, scale);
-        uitree_walk_advance(
-            tree, &current, stack, &stack_top, UITREE_WALK_STACK_MAX, visible);
+        uitree_walk_advance(tree, &current, stack, &stack_top, UITREE_WALK_STACK_MAX, visible);
     }
 
     ie_draw_orphan_widget_graphics(game, canvas_x, canvas_y, scale);
@@ -5126,53 +5117,52 @@ ie_draw_tree_node_preview(
     switch( node->type )
     {
     case UIELEM_RS_RECT:
+    {
+        int alpha = 255 - node->trans;
+        if( alpha < 0 )
+            alpha = 0;
+        else if( alpha > 255 )
+            alpha = 255;
+        int const colour = (alpha << 24) | (node->u.rs_rect.color & 0xFFFFFF);
+        if( node->u.rs_rect.filled )
+            ie_push_draw_fill(game, bx, by, bw, bh, colour);
+        else
         {
-            int alpha = 255 - node->trans;
-            if( alpha < 0 )
-                alpha = 0;
-            else if( alpha > 255 )
-                alpha = 255;
-            int const colour =
-                (alpha << 24) | (node->u.rs_rect.color & 0xFFFFFF);
-            if( node->u.rs_rect.filled )
-                ie_push_draw_fill(game, bx, by, bw, bh, colour);
-            else
-            {
-                int const lw = 1;
-                ie_push_draw_fill(game, bx, by, bw, lw, colour);
-                ie_push_draw_fill(game, bx, by + bh - lw, bw, lw, colour);
-                ie_push_draw_fill(game, bx, by, lw, bh, colour);
-                ie_push_draw_fill(game, bx + bw - lw, by, lw, bh, colour);
-            }
+            int const lw = 1;
+            ie_push_draw_fill(game, bx, by, bw, lw, colour);
+            ie_push_draw_fill(game, bx, by + bh - lw, bw, lw, colour);
+            ie_push_draw_fill(game, bx, by, lw, bh, colour);
+            ie_push_draw_fill(game, bx + bw - lw, by, lw, bh, colour);
         }
-        break;
+    }
+    break;
     case UIELEM_RS_TEXT:
-        {
-            char const* text = node->u.rs_text.text;
-            if( active && node->u.rs_text.text_active && node->u.rs_text.text_active[0] )
-                text = node->u.rs_text.text_active;
-            if( !text || !text[0] )
-                break;
-            int color = node->u.rs_text.color;
-            if( active && node->behavior.active_color != 0 )
-                color = node->behavior.active_color;
-            int font_id = ie_resolve_scene_font(game, node->u.rs_text.font_id);
-            if( font_id >= 0 )
-                ie_push_draw_font(
-                    game,
-                    bx,
-                    by,
-                    bw,
-                    bh,
-                    font_id,
-                    text,
-                    color & 0xFFFFFF,
-                    node->u.rs_text.center,
-                    node->u.rs_text.shadowed,
-                    node->u.rs_text.line_height,
-                    node->u.rs_text.y_align);
-        }
-        break;
+    {
+        char const* text = node->u.rs_text.text;
+        if( active && node->u.rs_text.text_active && node->u.rs_text.text_active[0] )
+            text = node->u.rs_text.text_active;
+        if( !text || !text[0] )
+            break;
+        int color = node->u.rs_text.color;
+        if( active && node->behavior.active_color != 0 )
+            color = node->behavior.active_color;
+        int font_id = ie_resolve_scene_font(game, node->u.rs_text.font_id);
+        if( font_id >= 0 )
+            ie_push_draw_font(
+                game,
+                bx,
+                by,
+                bw,
+                bh,
+                font_id,
+                text,
+                color & 0xFFFFFF,
+                node->u.rs_text.center,
+                node->u.rs_text.shadowed,
+                node->u.rs_text.line_height,
+                node->u.rs_text.y_align);
+    }
+    break;
     case UIELEM_RS_GRAPHIC:
         if( node->item_id > 0 )
             break;
@@ -5205,44 +5195,44 @@ ie_draw_tree_node_preview(
         }
         break;
     case UIELEM_RS_LINE:
+    {
+        int const colour = 0xFF000000 | (node->u.rs_line.color & 0xFFFFFF);
+        int const lw = node->u.rs_line.line_width > 0 ? node->u.rs_line.line_width : 1;
+        int x0 = bx;
+        int y0 = by;
+        int x1 = bx + bw - 1;
+        int y1 = by + bh - 1;
+        if( node->u.rs_line.horizontal )
         {
-            int const colour = 0xFF000000 | (node->u.rs_line.color & 0xFFFFFF);
-            int const lw = node->u.rs_line.line_width > 0 ? node->u.rs_line.line_width : 1;
-            int x0 = bx;
-            int y0 = by;
-            int x1 = bx + bw - 1;
-            int y1 = by + bh - 1;
-            if( node->u.rs_line.horizontal )
+            x1 = bx + bw - 1;
+            y1 = by;
+        }
+        int dx = x1 - x0;
+        int dy = y1 - y0;
+        int sx = dx >= 0 ? 1 : -1;
+        int sy = dy >= 0 ? 1 : -1;
+        dx = dx >= 0 ? dx : -dx;
+        dy = dy >= 0 ? dy : -dy;
+        int err = dx - dy;
+        for( ;; )
+        {
+            ie_push_draw_fill(game, x0, y0, lw, lw, colour);
+            if( x0 == x1 && y0 == y1 )
+                break;
+            int e2 = 2 * err;
+            if( e2 > -dy )
             {
-                x1 = bx + bw - 1;
-                y1 = by;
+                err -= dy;
+                x0 += sx;
             }
-            int dx = x1 - x0;
-            int dy = y1 - y0;
-            int sx = dx >= 0 ? 1 : -1;
-            int sy = dy >= 0 ? 1 : -1;
-            dx = dx >= 0 ? dx : -dx;
-            dy = dy >= 0 ? dy : -dy;
-            int err = dx - dy;
-            for( ;; )
+            if( e2 < dx )
             {
-                ie_push_draw_fill(game, x0, y0, lw, lw, colour);
-                if( x0 == x1 && y0 == y1 )
-                    break;
-                int e2 = 2 * err;
-                if( e2 > -dy )
-                {
-                    err -= dy;
-                    x0 += sx;
-                }
-                if( e2 < dx )
-                {
-                    err += dx;
-                    y0 += sy;
-                }
+                err += dx;
+                y0 += sy;
             }
         }
-        break;
+    }
+    break;
     case UIELEM_INV_GRID:
         ie_draw_inv_slot_grid(
             game,

@@ -1,13 +1,13 @@
 #ifndef TASK_INSTANCE_REVCONFIG_LOAD_H
 #define TASK_INSTANCE_REVCONFIG_LOAD_H
 
-#include "libtori_core_task.h"
 #include "3rd/minipt.h"
 #include "instance_revconfig_context.h"
 #include "ioqueue/libtorirs_ioqueue.h"
+#include "libtori_core_task.h"
 #include "revconfig/revconfig.h"
 #include "task_instance_on_rc.h"
-#include "toriauxlib/c/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
 #include "ui/uitree.h"
 
 #include <stdbool.h>
@@ -65,6 +65,8 @@ bool
 Task_InstanceRevConfigLoad_IsReady(struct Task_InstanceRevConfigLoad* task);
 
 int
-Task_InstanceRevConfigLoad_Run(void* task_state, struct LibToriRS_IOContext* ctx);
+Task_InstanceRevConfigLoad_Run(
+    void* task_state,
+    struct LibToriRS_IOContext* ctx);
 
 #endif

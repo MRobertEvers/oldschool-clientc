@@ -2,13 +2,13 @@
 
 #include "buildcache/dat1_buildcache.h"
 #include "osrs/rscache/dat1a/dat1a_anim_frame.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_animation.h"
+#include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
-#include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_sprite.h"
 
 #include <assert.h>
@@ -243,8 +243,7 @@ ToriAuxLibTD_ModelStealFromCore(struct ToriAuxLibCore_Model* src)
 
     if( src->bounds_cylinder )
     {
-        dst->bounds_cylinder =
-            (struct ToriDraw_BoundsCylinder*)src->bounds_cylinder;
+        dst->bounds_cylinder = (struct ToriDraw_BoundsCylinder*)src->bounds_cylinder;
         src->bounds_cylinder = NULL;
     }
 
@@ -275,8 +274,7 @@ ToriAuxLibTD_ModelNewInstanceFromCore(
     if( !td )
         return NULL;
 
-    if( !ToriAuxLibTD_ModelReady(td, model_id) &&
-        !ToriAuxLibTD_SubmitModelFromDat1(td, model_id) )
+    if( !ToriAuxLibTD_ModelReady(td, model_id) && !ToriAuxLibTD_SubmitModelFromDat1(td, model_id) )
         return NULL;
 
     struct ToriAuxLibCore_Model* core_model = ToriAuxLibCore_ModelGet(td->core, model_id);
@@ -803,13 +801,10 @@ ToriAuxLibTD_ElementSetSequenceId(
         return false;
 
     /* Check if this sequence is Maya-driven */
-    struct ToriAuxLibCore_Sequence* seq =
-        ToriAuxLibCore_SequenceGet(ToriAuxLibTD_Core(td), seq_id);
+    struct ToriAuxLibCore_Sequence* seq = ToriAuxLibCore_SequenceGet(ToriAuxLibTD_Core(td), seq_id);
     if( !seq )
     {
-        fprintf(stderr,
-                "ToriAuxLibTD_ElementSetSequenceId: seq %d not found in core\n",
-                seq_id);
+        fprintf(stderr, "ToriAuxLibTD_ElementSetSequenceId: seq %d not found in core\n", seq_id);
         return false;
     }
 
@@ -820,8 +815,7 @@ ToriAuxLibTD_ElementSetSequenceId(
         if( skeletal )
         {
             ToriDraw_SceneElementSetAnimationSeq(td->scene, element_id, seq_id);
-            struct ToriDraw_SceneElement* el =
-                ToriDraw_SceneElementGet(td->scene, element_id);
+            struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(td->scene, element_id);
             if( el )
             {
                 el->skeletal_animation = skeletal;
@@ -834,20 +828,24 @@ ToriAuxLibTD_ElementSetSequenceId(
             ToriDraw_SceneElementApplyAnimation(td->scene, element_id, true, 0);
             return true;
         }
-        fprintf(stderr,
-                "ToriAuxLibTD_ElementSetSequenceId: seq %d is skeletal "
-                "(anim_maya_id=%d) but skeletal anim not found\n",
-                seq_id, seq->anim_maya_id);
+        fprintf(
+            stderr,
+            "ToriAuxLibTD_ElementSetSequenceId: seq %d is skeletal "
+            "(anim_maya_id=%d) but skeletal anim not found\n",
+            seq_id,
+            seq->anim_maya_id);
         return false;
     }
 
     struct ToriDraw_Animation* resolved = ToriAuxLibTD_SequenceAnimation(td, seq_id);
     if( !resolved )
     {
-        fprintf(stderr,
-                "ToriAuxLibTD_ElementSetSequenceId: seq %d classic resolve failed "
-                "(frame_count=%d)\n",
-                seq_id, seq->frame_count);
+        fprintf(
+            stderr,
+            "ToriAuxLibTD_ElementSetSequenceId: seq %d classic resolve failed "
+            "(frame_count=%d)\n",
+            seq_id,
+            seq->frame_count);
         return false;
     }
 
@@ -866,8 +864,8 @@ tdx_skeletal_new_from_core(const struct ToriAuxLibCore_SkeletalAnim* src)
     if( !dst )
         return NULL;
 
-    dst->id          = src->id;
-    dst->bone_count  = src->bone_count;
+    dst->id = src->id;
+    dst->bone_count = src->bone_count;
     dst->frame_count = src->frame_count;
 
     size_t total = (size_t)src->frame_count * (size_t)src->bone_count * 16;
@@ -890,9 +888,8 @@ ToriAuxLibTD_SkeletalAnimation(
     if( !td || anim_maya_id < 0 )
         return NULL;
 
-    struct MapEntry_SkeletalAnimTD* entry =
-        (struct MapEntry_SkeletalAnimTD*)ToriDraw_MapSearch(
-            td->skeletal_anim_hmap, &anim_maya_id, TORIDRAW_MAP_FIND);
+    struct MapEntry_SkeletalAnimTD* entry = (struct MapEntry_SkeletalAnimTD*)ToriDraw_MapSearch(
+        td->skeletal_anim_hmap, &anim_maya_id, TORIDRAW_MAP_FIND);
     if( entry && entry->skeletal )
         return entry->skeletal;
 
@@ -929,7 +926,8 @@ ToriAuxLibTD_SpriteFrameNewFromCore(const struct ToriAuxLibCore_SpriteFrame* src
         return NULL;
     memcpy(pixels, src->pixels_argb, pixel_count * sizeof(uint32_t));
 
-    struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromArgbOwned(pixels, src->width, src->height);
+    struct ToriDraw_Sprite* sprite =
+        ToriDraw_SpriteNewFromArgbOwned(pixels, src->width, src->height);
     if( !sprite )
         return NULL;
 
@@ -946,7 +944,8 @@ ToriAuxLibTD_SpritePackNewFromCore(const struct ToriAuxLibCore_Sprite* src)
     if( !src || src->frame_count <= 0 || !src->frames )
         return NULL;
 
-    struct ToriDraw_Sprite** sprites = calloc((size_t)src->frame_count, sizeof(struct ToriDraw_Sprite*));
+    struct ToriDraw_Sprite** sprites =
+        calloc((size_t)src->frame_count, sizeof(struct ToriDraw_Sprite*));
     if( !sprites )
         return NULL;
 
@@ -1016,9 +1015,7 @@ ToriAuxLibTD_Sprite(
 {
     if( !td || element_id < 0 )
     {
-        fprintf(stderr,
-            "ToriAuxLibTD_Sprite: invalid td or element_id=%d\n",
-            element_id);
+        fprintf(stderr, "ToriAuxLibTD_Sprite: invalid td or element_id=%d\n", element_id);
         assert(td && element_id >= 0);
         return false;
     }
@@ -1029,9 +1026,7 @@ ToriAuxLibTD_Sprite(
     struct ToriAuxLibCore_Sprite* core_sprite = ToriAuxLibCore_SpriteGet(td->core, element_id);
     if( !core_sprite )
     {
-        fprintf(stderr,
-            "ToriAuxLibTD_Sprite: core sprite missing element_id=%d\n",
-            element_id);
+        fprintf(stderr, "ToriAuxLibTD_Sprite: core sprite missing element_id=%d\n", element_id);
         assert(core_sprite);
         return false;
     }
@@ -1039,7 +1034,8 @@ ToriAuxLibTD_Sprite(
     struct ToriDraw_Sprite** sprites = ToriAuxLibTD_SpritePackNewFromCore(core_sprite);
     if( !sprites )
     {
-        fprintf(stderr,
+        fprintf(
+            stderr,
             "ToriAuxLibTD_Sprite: failed to pack sprite frames element_id=%d\n",
             element_id);
         assert(sprites);

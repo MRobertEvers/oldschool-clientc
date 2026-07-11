@@ -1,7 +1,7 @@
-#include "osrs/varp_varbit_manager.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
-#include "toriauxlib/c/toriauxlibcache.h"
-#include "toriauxlib/c/toriauxlibcache_submit.h"
+#include "osrs/varp_varbit_manager.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/vm/toriauxlibvm.h"
 
