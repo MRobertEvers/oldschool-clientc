@@ -17,8 +17,7 @@ SRCS = $(TOOL_DIR)/main.c \
 	$(PLAT_DIR)/platform_x_io_reactor.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
-	$(PLAT_DIR)/platform_x/cachelib_serialized.c \
-	$(SRC_DIR)/osrs/rscache/unity.c
+	$(PLAT_DIR)/platform_x/cachelib_serialized.c
 
 THIRD_PARTY_SRCS = \
 	$(SRC_DIR)/3rd/bzip/bzip.c \

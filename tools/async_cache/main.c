@@ -1,5 +1,3 @@
-#include "osrs/rscache/dat2disk/dat2disk.h"
-#include "osrs/rscache/dat2disk/dat2disk_reference_table.h"
 #define HMAP_IMPLEMENTATION
 
 #include "../src2/core/tapi/tapi_dat2.h"
@@ -7,10 +5,7 @@
 #include "../src2/platforms/platform_x/cachelib_platform.h"
 #include "../src2/platforms/platform_x_io_reactor.h"
 #include "../src2/toriauxlib/core/tasks/core_task_await.h"
-#include "osrs/rscache/dat2a/dat2a_config_object.h"
-#include "osrs/rscache/dat2a/dat2a_configs.h"
-#include "osrs/rscache/dat2a/dat2a_model.h"
-#include "osrs/rscache/shared/shared_file_list.h"
+#include "osrs/rscache/rscache.u.c"
 #include <3rd/minipt.h>
 #include <datastruct/hmap.h>
 
@@ -152,8 +147,7 @@ object_model_recolor(
     struct RSCacheDat2A_Model* model,
     struct RSCacheDat2A_ConfigObject* config_object)
 {
-    if( !model || !config_object || !model->face_colors || config_object->recolor_count <= 0 )
-        return;
+    assert(model && config_object);
 
     for( int i = 0; i < config_object->recolor_count; i++ )
     {
@@ -198,9 +192,10 @@ object_model_decode_config(
         if( archive_ref->children.files[i].id != object_id )
             continue;
 
+        assert(i == object_id);
+
         config_object = calloc(1, sizeof(struct RSCacheDat2A_ConfigObject));
-        if( !config_object )
-            break;
+        assert(config_object);
 
         RSCacheDat2A_ConfigObjectDecodeInplace(
             config_object, filelist->files[i], filelist->file_sizes[i]);
@@ -394,8 +389,8 @@ struct Task_AsyncCacheDat2_ReferenceTable_Ensure
 {
     struct pt pt;
     int table_id;
-    void* user;
     struct CacheDat2* cachedat2;
+    void* user;
     ReferenceTableLoadCallback callback;
 };
 
