@@ -473,14 +473,7 @@ Task_AsyncCacheDat2_ObjectModel_Load_Run(
     PT_YIELD(&task->pt);
 
     archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Object);
-    if( !archive )
-    {
-        fprintf(
-            stderr,
-            "Task_AsyncCacheDat2_ObjectModel_Load: config group decode failed object_id=%d\n",
-            task->object_id);
-        PT_EXIT(&task->pt);
-    }
+    assert(archive && "DecodeConfigGroup");
 
     task->config_object =
         object_model_decode_config(task->reference_table, archive, task->object_id);
