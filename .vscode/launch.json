@@ -308,6 +308,19 @@
       "MIMode": "lldb"
     },
     {
+      "name": "(lldb) Launch async cache test",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/tools/async_cache/async_cache",
+      "args": [
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/tools/async_cache",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "lldb"
+    },
+    {
       "name": "(lldb) Launch interfacex test",
       "type": "lldb",
       "request": "launch",

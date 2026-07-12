@@ -1,4 +1,5 @@
-#include "hmap.c" /* or #include "hmap.h" and link separately */
+#define HMAP_IMPLEMENTATION
+#include "hmap.h"
 
 #include <assert.h>
 #include <stddef.h>

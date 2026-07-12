@@ -2,10 +2,10 @@
 #define CORE_TAPI_DAT2_H
 
 #include "../../ioqueue/libtorirs_ioqueue.h"
+#include "../../platforms/platform_x/cachelib_client.h"
 #include "osrs/rscache/dat2a/dat2a_maps.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
-#include "platforms/platform_x/cachelib_client.h"
 
 #include <stdio.h>
 #include <stdlib.h>

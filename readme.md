@@ -2310,11 +2310,17 @@ A sub-open that must run onLoad to completion before returning is a child `Task_
 
 ### Core Types
 
-- ToriAuxLibCore_Model
-- ToriAuxLibCore_ObjectConfig
-- ToriAuxLibCore_NPCConfig
-- ToriAuxLibCore_LocConfig
-- ToriAuxLibCore_Sequence
+- Model
+- ObjectConfig
+- NPCConfig
+- LocConfig
+- Sequence
+- Font
+- SpriteFrame
+- Component
+- ComponentPack
+- AnimFrame
+- SkeletalAnim
 
 // toriauxlib2/cache
 Task_AsyncCache_ModelLoad(on_load: (void* user, struct ToriAuxLibCache_Model* model))
