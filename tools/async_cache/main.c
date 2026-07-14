@@ -1,12 +1,10 @@
 #define HMAP_IMPLEMENTATION
 
 #include "../src2/core/tapi/tapi_dat2.h"
-#include "../src2/ioqueue/libtorirs_ioqueue.h"
+#include "../src2/ioqueue/libtorirs_io.h"
 #include "../src2/platforms/platform_x/cachelib_platform.h"
 #include "../src2/platforms/platform_x_io_reactor.h"
-#include "../src2/toriauxlib/core/tasks/core_task_await.h"
 #include "osrs/rscache/rscache.u.c"
-#include <3rd/minipt.h>
 #include <datastruct/hmap.h>
 
 #include <assert.h>
@@ -14,8 +12,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define LIBTORIRS_TASK_RUNNER_MAX_TASKS 1024
 
 struct CacheDat2_ReferenceTable_Entry
 {
@@ -169,105 +165,6 @@ object_model_decode_config(
     RSCacheShared_FileListFree(filelist);
     return config_object;
 }
-struct LibToriRS_Task;
-typedef int (*LibToriRS_TaskRunnerFunction)(
-    struct LibToriRS_Task* task,
-    struct LibToriRS_IOContext* ctx);
-
-typedef void (*LibToriRS_TaskFreeFunction)(struct LibToriRS_Task* task);
-
-struct LibToriRS_TaskVTable
-{
-    LibToriRS_TaskRunnerFunction run_fn;
-    LibToriRS_TaskFreeFunction free_fn;
-};
-
-struct LibToriRS_Task
-{
-    struct LibToriRS_TaskVTable* vtable;
-
-    struct LibToriRS_Task* next;
-};
-
-struct LibToriRS_TaskRunner
-{
-    struct LibToriRS_IOQueue* io;
-    struct LibToriRS_Task* tasks[LIBTORIRS_TASK_RUNNER_MAX_TASKS];
-    int count;
-    int head;
-    int tail;
-    int wait_run;
-};
-
-void
-LibToriRS_TaskRunner_Init(
-    struct LibToriRS_TaskRunner* runner,
-    struct LibToriRS_IOQueue* io)
-{
-    memset(runner, 0, sizeof(struct LibToriRS_TaskRunner));
-    runner->io = io;
-    runner->wait_run = -1;
-}
-
-void
-LibToriRS_TaskRunner_Add(
-    struct LibToriRS_TaskRunner* runner,
-    struct LibToriRS_Task* task)
-{
-    assert(runner->count < LIBTORIRS_TASK_RUNNER_MAX_TASKS);
-
-    runner->tasks[runner->tail] = task;
-    runner->tail++;
-    if( runner->tail == LIBTORIRS_TASK_RUNNER_MAX_TASKS )
-        runner->tail = 0;
-    runner->count++;
-}
-
-static void
-LibToriRS_TaskRunner_Pop(struct LibToriRS_TaskRunner* runner)
-{
-    assert(runner->count > 0);
-
-    runner->tasks[runner->head] = NULL;
-    runner->head++;
-    if( runner->head == LIBTORIRS_TASK_RUNNER_MAX_TASKS )
-        runner->head = 0;
-    runner->count--;
-    runner->wait_run = -1;
-}
-
-bool
-LibToriRS_TaskRunner_Run(struct LibToriRS_TaskRunner* runner)
-{
-    assert(runner && "Runner must be valid");
-
-    if( runner->wait_run >= 0 && !LibToriRS_IOQueueRunComplete(runner->io, runner->wait_run) )
-        return true;
-
-    struct LibToriRS_IOContext ctx = { 0 };
-    ctx.io = runner->io;
-
-    struct LibToriRS_Task* task = runner->tasks[runner->head];
-    int run = LibToriRS_IOQueueBeginRun(runner->io);
-    int res = task->vtable->run_fn(task, &ctx);
-
-    switch( res )
-    {
-    case PT_YIELDED:
-        runner->wait_run = run;
-        break;
-    case PT_EXITED:
-    case PT_ENDED:
-        if( task->vtable->free_fn )
-            task->vtable->free_fn(task);
-        LibToriRS_TaskRunner_Pop(runner);
-        break;
-    default:
-        break;
-    }
-
-    return runner->count > 0;
-}
 
 struct Task_AsyncCacheDat2_Model_Load
 {
@@ -282,7 +179,8 @@ Task_AsyncCacheDat2_Model_Load_Run(
     struct LibToriRS_Task* base,
     struct LibToriRS_IOContext* ctx)
 {
-    struct Task_AsyncCacheDat2_Model_Load* task = (struct Task_AsyncCacheDat2_Model_Load*)base;
+    struct Task_AsyncCacheDat2_Model_Load* task =
+        LibToriRS_container_of(base, struct Task_AsyncCacheDat2_Model_Load, base);
 
     struct RSCacheDat2A_Model* model;
 
@@ -405,7 +303,7 @@ Task_AsyncCacheDat2_ReferenceTable_Ensure_Run(
     struct Task_AsyncCacheDat2_ReferenceTable_Ensure* task;
     struct RSCacheDat2Disk_ReferenceTable* reference_table;
 
-    task = (struct Task_AsyncCacheDat2_ReferenceTable_Ensure*)base;
+    task = LibToriRS_container_of(base, struct Task_AsyncCacheDat2_ReferenceTable_Ensure, base);
 
     PT_BEGIN(&task->pt);
 
@@ -469,7 +367,7 @@ Task_AsyncCacheDat2_ObjectModel_Load_Run(
     struct RSCacheDat2A_Model* model;
     struct RSCacheDat2Disk_Archive* archive;
 
-    task = (struct Task_AsyncCacheDat2_ObjectModel_Load*)base;
+    task = LibToriRS_container_of(base, struct Task_AsyncCacheDat2_ObjectModel_Load, base);
 
     PT_BEGIN(&task->pt);
 

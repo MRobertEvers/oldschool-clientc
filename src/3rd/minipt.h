@@ -6,15 +6,15 @@
  * * Based on the concepts by Adam Dunkels and Simon Tatham.
  */
 
-#ifndef PT_ENABLE_USER_PTR
-#define PT_ENABLE_USER_PTR 1
+#ifndef MINIPT_ENABLE_USER_PTR
+#define MINIPT_ENABLE_USER_PTR 1
 #endif
 
 // The protothread state structure. Only requires 2 bytes.
 struct pt
 {
     unsigned short lc;
-#if PT_ENABLE_USER_PTR == 1
+#if MINIPT_ENABLE_USER_PTR == 1
     void* user;
 #endif
 };

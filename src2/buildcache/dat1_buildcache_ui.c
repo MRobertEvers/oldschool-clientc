@@ -2,8 +2,8 @@
 
 #include "osrs/rscache/dat1a/dat1a_config_obj.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
-#include "toriauxlib/c/toriauxlibcache_font_convert.h"
-#include "toriauxlib/c/toriauxlibcache_sprite_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_font_convert.h"
+#include "toriauxlib/cache/toriauxlibcache_sprite_convert.h"
 #include "toriauxlib/td/toridraw_cachemodel.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_light_model.h"
