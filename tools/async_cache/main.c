@@ -35,6 +35,10 @@ struct CacheDat2_ObjectModel_Entry
     void* data;
 };
 
+typedef void (*ReferenceTableLoadCallback)(
+    void* user,
+    struct RSCacheDat2Disk_ReferenceTable* reference_table);
+
 struct CacheDat2
 {
     struct HMap* reference_tables;
@@ -42,41 +46,12 @@ struct CacheDat2
     struct HMap* object_models;
 };
 
-static void
-CacheDat2_Init(struct CacheDat2* cache)
-{
-    int capacity = 1024;
-    struct HashConfig config;
-
-    memset(cache, 0, sizeof(struct CacheDat2));
-
-    void* models_buffer = malloc(capacity);
-    config = (struct HashConfig){
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct CacheDat2_Model_Entry),
-        .buffer = models_buffer,
-        .buffer_size = capacity,
-    };
-    cache->models = hmap_new(&config, 0);
-
-    void* object_models_buffer = malloc(capacity);
-    config = (struct HashConfig){
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct CacheDat2_ObjectModel_Entry),
-        .buffer = object_models_buffer,
-        .buffer_size = capacity,
-    };
-    cache->object_models = hmap_new(&config, 0);
-
-    void* reference_tables_buffer = malloc(capacity);
-    config = (struct HashConfig){
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct CacheDat2_ReferenceTable_Entry),
-        .buffer = reference_tables_buffer,
-        .buffer_size = capacity,
-    };
-    cache->reference_tables = hmap_new(&config, 0);
-}
+static struct LibToriRS_Task*
+CacheDat2_ReferenceTable_Ensure(
+    struct CacheDat2* cache,
+    int table_id,
+    void* user,
+    ReferenceTableLoadCallback callback);
 
 static void
 CacheDat2_Model_Add(
@@ -171,21 +146,9 @@ object_model_decode_config(
     struct RSCacheShared_FileList* filelist;
     struct RSCacheDat2A_ConfigObject* config_object;
 
-    if( !reference_table || !archive )
-        return NULL;
-
-    if( RSCacheDat2A_ConfigKind_Object < 0 ||
-        RSCacheDat2A_ConfigKind_Object >= reference_table->archive_count )
-        return NULL;
-
+    assert(reference_table && archive && "Reference table and archive must be valid");
     archive_ref = &reference_table->archives[RSCacheDat2A_ConfigKind_Object];
-    if( archive->file_count == 0 )
-        RSCacheDat2Disk_ArchiveInitMetadataFromTable(reference_table, archive);
-
     filelist = RSCacheShared_FileListNewFromCacheArchive(archive);
-    if( !filelist )
-        return NULL;
-
     config_object = NULL;
     for( int i = 0; i < filelist->file_count; i++ )
     {
@@ -206,21 +169,30 @@ object_model_decode_config(
     RSCacheShared_FileListFree(filelist);
     return config_object;
 }
-
+struct LibToriRS_Task;
 typedef int (*LibToriRS_TaskRunnerFunction)(
-    struct LibToriRS_IOContext* ctx,
-    void* user);
+    struct LibToriRS_Task* task,
+    struct LibToriRS_IOContext* ctx);
+
+typedef void (*LibToriRS_TaskFreeFunction)(struct LibToriRS_Task* task);
+
+struct LibToriRS_TaskVTable
+{
+    LibToriRS_TaskRunnerFunction run_fn;
+    LibToriRS_TaskFreeFunction free_fn;
+};
 
 struct LibToriRS_Task
 {
-    LibToriRS_TaskRunnerFunction function;
-    void* user;
+    struct LibToriRS_TaskVTable* vtable;
+
+    struct LibToriRS_Task* next;
 };
 
 struct LibToriRS_TaskRunner
 {
     struct LibToriRS_IOQueue* io;
-    struct LibToriRS_Task tasks[LIBTORIRS_TASK_RUNNER_MAX_TASKS];
+    struct LibToriRS_Task* tasks[LIBTORIRS_TASK_RUNNER_MAX_TASKS];
     int count;
     int head;
     int tail;
@@ -240,14 +212,9 @@ LibToriRS_TaskRunner_Init(
 void
 LibToriRS_TaskRunner_Add(
     struct LibToriRS_TaskRunner* runner,
-    LibToriRS_TaskRunnerFunction function,
-    void* user)
+    struct LibToriRS_Task* task)
 {
     assert(runner->count < LIBTORIRS_TASK_RUNNER_MAX_TASKS);
-
-    struct LibToriRS_Task task = { 0 };
-    task.function = function;
-    task.user = user;
 
     runner->tasks[runner->tail] = task;
     runner->tail++;
@@ -261,7 +228,7 @@ LibToriRS_TaskRunner_Pop(struct LibToriRS_TaskRunner* runner)
 {
     assert(runner->count > 0);
 
-    runner->tasks[runner->head] = (struct LibToriRS_Task){ 0 };
+    runner->tasks[runner->head] = NULL;
     runner->head++;
     if( runner->head == LIBTORIRS_TASK_RUNNER_MAX_TASKS )
         runner->head = 0;
@@ -280,9 +247,9 @@ LibToriRS_TaskRunner_Run(struct LibToriRS_TaskRunner* runner)
     struct LibToriRS_IOContext ctx = { 0 };
     ctx.io = runner->io;
 
-    struct LibToriRS_Task* task = &runner->tasks[runner->head];
+    struct LibToriRS_Task* task = runner->tasks[runner->head];
     int run = LibToriRS_IOQueueBeginRun(runner->io);
-    int res = task->function(&ctx, task->user);
+    int res = task->vtable->run_fn(task, &ctx);
 
     switch( res )
     {
@@ -291,6 +258,8 @@ LibToriRS_TaskRunner_Run(struct LibToriRS_TaskRunner* runner)
         break;
     case PT_EXITED:
     case PT_ENDED:
+        if( task->vtable->free_fn )
+            task->vtable->free_fn(task);
         LibToriRS_TaskRunner_Pop(runner);
         break;
     default:
@@ -302,34 +271,20 @@ LibToriRS_TaskRunner_Run(struct LibToriRS_TaskRunner* runner)
 
 struct Task_AsyncCacheDat2_Model_Load
 {
+    struct LibToriRS_Task base;
     struct pt pt;
     int id;
     struct CacheDat2* cachedat2;
 };
 
-struct Task_AsyncCacheDat2_Model_Load*
-Task_AsyncCacheDat2_Model_Load_New(
-    int id,
-    struct CacheDat2* cachedat2)
-{
-    struct Task_AsyncCacheDat2_Model_Load* task =
-        malloc(sizeof(struct Task_AsyncCacheDat2_Model_Load));
-    memset(task, 0, sizeof(struct Task_AsyncCacheDat2_Model_Load));
-    task->id = id;
-    task->cachedat2 = cachedat2;
-    PT_INIT(&task->pt);
-    return task;
-}
-
 int
 Task_AsyncCacheDat2_Model_Load_Run(
-    struct LibToriRS_IOContext* ctx,
-    void* user)
+    struct LibToriRS_Task* base,
+    struct LibToriRS_IOContext* ctx)
 {
-    struct Task_AsyncCacheDat2_Model_Load* task;
-    struct RSCacheDat2A_Model* model;
+    struct Task_AsyncCacheDat2_Model_Load* task = (struct Task_AsyncCacheDat2_Model_Load*)base;
 
-    task = (struct Task_AsyncCacheDat2_Model_Load*)user;
+    struct RSCacheDat2A_Model* model;
 
     PT_BEGIN(&task->pt);
 
@@ -342,15 +297,41 @@ Task_AsyncCacheDat2_Model_Load_Run(
     PT_END(&task->pt);
 }
 
+static void
+Task_AsyncCacheDat2_Model_Load_Free(struct LibToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct LibToriRS_TaskVTable g_async_cache_dat2_model_load_vtable = {
+    .run_fn = Task_AsyncCacheDat2_Model_Load_Run,
+    .free_fn = Task_AsyncCacheDat2_Model_Load_Free,
+};
+
+struct Task_AsyncCacheDat2_Model_Load*
+Task_AsyncCacheDat2_Model_Load_New(
+    int id,
+    struct CacheDat2* cachedat2)
+{
+    struct Task_AsyncCacheDat2_Model_Load* task =
+        malloc(sizeof(struct Task_AsyncCacheDat2_Model_Load));
+    memset(task, 0, sizeof(struct Task_AsyncCacheDat2_Model_Load));
+    task->base.vtable = &g_async_cache_dat2_model_load_vtable;
+    task->id = id;
+    task->cachedat2 = cachedat2;
+    PT_INIT(&task->pt);
+    return task;
+}
+
 struct Task_AsyncCacheDat2_ObjectModel_Load
 {
+    struct LibToriRS_Task base;
     struct pt pt;
     int object_id;
 
     struct CacheDat2* cachedat2;
 
     // Locals
-    struct Task_AsyncCacheDat2_ReferenceTable_Ensure* reference_table_task;
     struct RSCacheDat2Disk_ReferenceTable* reference_table;
     struct RSCacheDat2A_ConfigObject* config_object;
     int model_id;
@@ -367,6 +348,22 @@ onload_reference_table(
     task->reference_table = reference_table;
 }
 
+int
+Task_AsyncCacheDat2_ObjectModel_Load_Run(
+    struct LibToriRS_Task* base,
+    struct LibToriRS_IOContext* ctx);
+
+static void
+Task_AsyncCacheDat2_ObjectModel_Load_Free(struct LibToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct LibToriRS_TaskVTable g_async_cache_dat2_object_model_load_vtable = {
+    .run_fn = Task_AsyncCacheDat2_ObjectModel_Load_Run,
+    .free_fn = Task_AsyncCacheDat2_ObjectModel_Load_Free,
+};
+
 struct Task_AsyncCacheDat2_ObjectModel_Load*
 Task_AsyncCacheDat2_ObjectModel_Load_New(
     int object_id,
@@ -376,17 +373,17 @@ Task_AsyncCacheDat2_ObjectModel_Load_New(
         malloc(sizeof(struct Task_AsyncCacheDat2_ObjectModel_Load));
     memset(task, 0, sizeof(struct Task_AsyncCacheDat2_ObjectModel_Load));
 
+    task->base.vtable = &g_async_cache_dat2_object_model_load_vtable;
+
     task->object_id = object_id;
     task->cachedat2 = cachedat2;
     PT_INIT(&task->pt);
     return task;
 }
-typedef void (*ReferenceTableLoadCallback)(
-    void* user,
-    struct RSCacheDat2Disk_ReferenceTable* reference_table);
 
 struct Task_AsyncCacheDat2_ReferenceTable_Ensure
 {
+    struct LibToriRS_Task base;
     struct pt pt;
     int table_id;
     struct CacheDat2* cachedat2;
@@ -394,40 +391,21 @@ struct Task_AsyncCacheDat2_ReferenceTable_Ensure
     ReferenceTableLoadCallback callback;
 };
 
-struct Task_AsyncCacheDat2_ReferenceTable_Ensure*
-Task_AsyncCacheDat2_ReferenceTable_Ensure_New(
-    int table_id,
-    struct CacheDat2* cachedat2,
-    void* user,
-    ReferenceTableLoadCallback callback)
-{
-    struct Task_AsyncCacheDat2_ReferenceTable_Ensure* task =
-        malloc(sizeof(struct Task_AsyncCacheDat2_ReferenceTable_Ensure));
-    memset(task, 0, sizeof(struct Task_AsyncCacheDat2_ReferenceTable_Ensure));
-    task->table_id = table_id;
-    task->cachedat2 = cachedat2;
-    task->user = user;
-    task->callback = callback;
-    PT_INIT(&task->pt);
-    return task;
-}
-
 void
-Task_AsyncCacheDat2_ReferenceTable_Ensure_Free(
-    struct Task_AsyncCacheDat2_ReferenceTable_Ensure* task)
+Task_AsyncCacheDat2_ReferenceTable_Ensure_Free(struct LibToriRS_Task* base)
 {
-    free(task);
+    free(base);
 }
 
 int
 Task_AsyncCacheDat2_ReferenceTable_Ensure_Run(
-    struct LibToriRS_IOContext* ctx,
-    void* user)
+    struct LibToriRS_Task* base,
+    struct LibToriRS_IOContext* ctx)
 {
     struct Task_AsyncCacheDat2_ReferenceTable_Ensure* task;
     struct RSCacheDat2Disk_ReferenceTable* reference_table;
 
-    task = (struct Task_AsyncCacheDat2_ReferenceTable_Ensure*)user;
+    task = (struct Task_AsyncCacheDat2_ReferenceTable_Ensure*)base;
 
     PT_BEGIN(&task->pt);
 
@@ -447,27 +425,59 @@ Task_AsyncCacheDat2_ReferenceTable_Ensure_Run(
     PT_END(&task->pt);
 }
 
+static struct LibToriRS_TaskVTable g_async_cache_dat2_reference_table_ensure_vtable = {
+    .run_fn = Task_AsyncCacheDat2_ReferenceTable_Ensure_Run,
+    .free_fn = Task_AsyncCacheDat2_ReferenceTable_Ensure_Free,
+};
+
+struct Task_AsyncCacheDat2_ReferenceTable_Ensure*
+Task_AsyncCacheDat2_ReferenceTable_Ensure_New(
+    int table_id,
+    struct CacheDat2* cachedat2,
+    void* user,
+    ReferenceTableLoadCallback callback)
+{
+    struct Task_AsyncCacheDat2_ReferenceTable_Ensure* task =
+        malloc(sizeof(struct Task_AsyncCacheDat2_ReferenceTable_Ensure));
+    memset(task, 0, sizeof(struct Task_AsyncCacheDat2_ReferenceTable_Ensure));
+    task->base.vtable = &g_async_cache_dat2_reference_table_ensure_vtable;
+
+    task->table_id = table_id;
+    task->cachedat2 = cachedat2;
+    task->user = user;
+    task->callback = callback;
+    PT_INIT(&task->pt);
+    return task;
+}
+
+static struct LibToriRS_Task*
+CacheDat2_ReferenceTable_Ensure(
+    struct CacheDat2* cache,
+    int table_id,
+    void* user,
+    ReferenceTableLoadCallback callback)
+{
+    return &Task_AsyncCacheDat2_ReferenceTable_Ensure_New(table_id, cache, user, callback)->base;
+}
+
 int
 Task_AsyncCacheDat2_ObjectModel_Load_Run(
-    struct LibToriRS_IOContext* ctx,
-    void* user)
+    struct LibToriRS_Task* base,
+    struct LibToriRS_IOContext* ctx)
 {
     struct Task_AsyncCacheDat2_ObjectModel_Load* task;
     struct RSCacheDat2A_Model* model;
     struct RSCacheDat2Disk_Archive* archive;
 
-    task = (struct Task_AsyncCacheDat2_ObjectModel_Load*)user;
+    task = (struct Task_AsyncCacheDat2_ObjectModel_Load*)base;
 
     PT_BEGIN(&task->pt);
 
-    task->reference_table_task = Task_AsyncCacheDat2_ReferenceTable_Ensure_New(
-        RSCacheDat2Disk_Table_Configs, task->cachedat2, task, onload_reference_table);
-
-    TASK_AWAIT(
-        &task->pt, Task_AsyncCacheDat2_ReferenceTable_Ensure_Run(ctx, task->reference_table_task));
-
-    Task_AsyncCacheDat2_ReferenceTable_Ensure_Free(task->reference_table_task);
-    task->reference_table_task = NULL;
+    TASK_AWAITEX(
+        &task->pt,
+        ctx,
+        CacheDat2_ReferenceTable_Ensure(
+            task->cachedat2, RSCacheDat2Disk_Table_Configs, task, onload_reference_table));
 
     IO_REQUEST(ctx, 0, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Object));
     PT_YIELD(&task->pt);
@@ -477,6 +487,7 @@ Task_AsyncCacheDat2_ObjectModel_Load_Run(
 
     task->config_object =
         object_model_decode_config(task->reference_table, archive, task->object_id);
+    assert(task->config_object && "DecodeConfigObject");
     RSCacheDat2Disk_ArchiveFree(archive);
     archive = NULL;
 
@@ -497,6 +508,42 @@ Task_AsyncCacheDat2_ObjectModel_Load_Run(
     CacheDat2_ObjectModel_Add(task->cachedat2, task->object_id, model);
 
     PT_END(&task->pt);
+}
+
+static void
+CacheDat2_Init(struct CacheDat2* cache)
+{
+    int capacity = 1024;
+    struct HashConfig config;
+
+    memset(cache, 0, sizeof(struct CacheDat2));
+
+    void* models_buffer = malloc(capacity);
+    config = (struct HashConfig){
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct CacheDat2_Model_Entry),
+        .buffer = models_buffer,
+        .buffer_size = capacity,
+    };
+    cache->models = hmap_new(&config, 0);
+
+    void* object_models_buffer = malloc(capacity);
+    config = (struct HashConfig){
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct CacheDat2_ObjectModel_Entry),
+        .buffer = object_models_buffer,
+        .buffer_size = capacity,
+    };
+    cache->object_models = hmap_new(&config, 0);
+
+    void* reference_tables_buffer = malloc(capacity);
+    config = (struct HashConfig){
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct CacheDat2_ReferenceTable_Entry),
+        .buffer = reference_tables_buffer,
+        .buffer_size = capacity,
+    };
+    cache->reference_tables = hmap_new(&config, 0);
 }
 
 int
@@ -534,7 +581,7 @@ main(void)
     struct Task_AsyncCacheDat2_ObjectModel_Load* task =
         Task_AsyncCacheDat2_ObjectModel_Load_New(test_object_id, &cache);
 
-    LibToriRS_TaskRunner_Add(&runner, Task_AsyncCacheDat2_ObjectModel_Load_Run, task);
+    LibToriRS_TaskRunner_Add(&runner, &task->base);
 
     while( LibToriRS_TaskRunner_Run(&runner) )
         LibToriPlatformX_IOReactorProcess(reactor, &queue);

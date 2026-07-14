@@ -1,6 +1,8 @@
 #ifndef LIBTORIRS_IOQUEUE_H
 #define LIBTORIRS_IOQUEUE_H
 
+#include <3rd/minipt.h>
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -83,6 +85,7 @@ struct LibToriRS_IOQueue
 struct LibToriRS_IOContext
 {
     struct LibToriRS_IOQueue* io;
+    void* user;
 };
 
 #define LIBTORIRS_IOBATCH_MAX LIBTORIRS_IOQUEUE_MAX_SIZE
