@@ -1,10 +1,11 @@
 #include "ui_inv_selection.h"
+#include <assert.h>
 
 void
 ui_inv_selection_reset(struct UIInvSelection* sel)
 {
-    if( !sel )
-        return;
+    assert(sel);
+
     sel->source_id = -1;
     sel->slot = -1;
 }
@@ -12,8 +13,8 @@ ui_inv_selection_reset(struct UIInvSelection* sel)
 void
 ui_inv_selection_set(struct UIInvSelection* sel, int source_id, int slot)
 {
-    if( !sel )
-        return;
+    assert(sel);
+
     sel->source_id = source_id;
     sel->slot = slot;
 }

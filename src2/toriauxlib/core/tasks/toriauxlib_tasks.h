@@ -10,6 +10,8 @@
 
 struct ToriDraw_Scene;
 struct GameRunescape;
+struct GameRunescapeCS2Host;
+struct CS2VMX;
 struct Dat2BuildCache;
 struct Dat2BuildCache_InterfaceArchive;
 struct ToriAuxLibTD;
@@ -148,6 +150,18 @@ Task_Dat2ClientScriptLoad_New(
     struct ToriAuxLibCache* cache,
     const int* script_ids,
     int script_count);
+
+struct LibToriRS_Task*
+Task_Dat2CS2Run_New(
+    struct GameRunescape* game,
+    struct CS2VMX* vm,
+    struct GameRunescapeCS2Host* host,
+    int script_id,
+    int component_id,
+    int const* int_args,
+    int int_arg_count,
+    char const* const* str_args,
+    int str_arg_count);
 
 struct LibToriRS_Task*
 Task_Dat2ComponentLoad_New(

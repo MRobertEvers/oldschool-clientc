@@ -4,6 +4,7 @@
 #include "uitree_layout.h"
 
 #include <string.h>
+#include <assert.h>
 
 bool
 uitree_scroll_layer_needs_vertical(struct StaticUIComponent const* layer)
@@ -58,7 +59,8 @@ uitree_scroll_get_pos(
         *sx = 0;
     if( sy )
         *sy = 0;
-    if( !scroll || component_id < 0 || component_id >= UITREE_SCROLL_MAX )
+    assert(scroll);
+    if( component_id < 0 || component_id >= UITREE_SCROLL_MAX )
         return;
     if( sx && scroll->scroll_x )
         *sx = scroll->scroll_x[component_id];
@@ -73,7 +75,8 @@ uitree_scroll_set_pos(
     int sx,
     int sy)
 {
-    if( !scroll || component_id < 0 || component_id >= UITREE_SCROLL_MAX )
+    assert(scroll);
+    if( component_id < 0 || component_id >= UITREE_SCROLL_MAX )
         return;
     if( scroll->scroll_x )
         scroll->scroll_x[component_id] = sx;
@@ -174,7 +177,8 @@ uitree_scroll_apply_ancestors(
     int* by,
     struct UITreeScrollClip* clip)
 {
-    if( !tree || !bx || !by || !clip )
+    assert(tree);
+    if( !bx || !by || !clip )
         return;
 
     for( int i = 0; i < ancestor_count; i++ )
@@ -249,7 +253,8 @@ uitree_collect_ancestors(
     int32_t* ancestors,
     int max_ancestors)
 {
-    if( !tree || !ancestors || max_ancestors <= 0 || node_index < 0 )
+    assert(tree);
+    if( !ancestors || max_ancestors <= 0 || node_index < 0 )
         return 0;
 
     int32_t path[64];
@@ -372,7 +377,8 @@ find_scrollbar_recursive(
     int padding,
     struct UITreeScrollbarHitInfo* out)
 {
-    if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return false;
 
     struct StaticUIComponent const* component = &tree->components[node_index];
@@ -471,8 +477,7 @@ find_scrollbar_recursive(
             recurse_children = false;
     }
 
-    if( !recurse_children )
-        return false;
+    assert(recurse_children);
 
     for( int32_t child = component->first_child; child >= 0;
          child = tree->components[child].next_sibling )
@@ -506,7 +511,9 @@ uitree_find_scrollbar_at_padded(
     int padding,
     struct UITreeScrollbarHitInfo* out)
 {
-    if( !tree || !out || tree->root_index < 0 )
+    assert(tree);
+    assert(out);
+    if( tree->root_index < 0 )
         return false;
 
     memset(out, 0, sizeof(*out));
@@ -525,7 +532,9 @@ uitree_scrollbar_hit_for_layer(
     int32_t layer_index,
     struct UITreeScrollbarHitInfo* out)
 {
-    if( !tree || !out || layer_index < 0 || (uint32_t)layer_index >= tree->component_count )
+    assert(tree);
+    assert(out);
+    if( layer_index < 0 || (uint32_t)layer_index >= tree->component_count )
         return false;
 
     struct StaticUIComponent const* layer = &tree->components[layer_index];
@@ -661,7 +670,9 @@ uitree_scrollbar_handle(
     enum UITreeScrollbarAction action,
     int step)
 {
-    if( !tree || !scroll || !hit || hit->kind == UITREE_SCROLLBAR_NONE || hit->layer_index < 0 )
+    assert(tree);
+    assert(scroll);
+    if( !hit || hit->kind == UITREE_SCROLLBAR_NONE || hit->layer_index < 0 )
         return false;
 
     struct StaticUIComponent const* layer = &tree->components[hit->layer_index];

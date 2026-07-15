@@ -11,6 +11,7 @@
 
 #include "platform_x_lua_internal.h"
 
+#include <assert.h>
 #include <stdlib.h>
 
 struct LibToriPlatformX_Lua*
@@ -41,7 +42,8 @@ LibToriPlatformX_LuaNew(struct LibToriRS_Instance* instance)
 static void
 LibToriPlatformX_LuaFinishCoro(struct LibToriPlatformX_Lua* lua)
 {
-    if( !lua || !lua->L_coro )
+    assert(lua);
+    if( !lua->L_coro )
         return;
 
     lua_pop(lua->L, 1);
@@ -75,8 +77,7 @@ LibToriPlatformX_LuaRun(
     struct LibToriPlatformX_Lua* lua,
     struct LibToriRS_Instance* instance)
 {
-    if( !lua )
-        return LIBTORI_PLATFORM_X_LUA_ERROR;
+    assert(lua);
 
     struct LibToriRS_Script* script = LibToriRS_ScriptQueuePop(instance->script_queue);
     if( !script )
@@ -136,8 +137,7 @@ LibToriPlatformX_LuaContinue(
     struct LibToriRS_Instance* instance)
 {
     (void)instance;
-    if( !lua )
-        return LIBTORI_PLATFORM_X_LUA_ERROR;
+    assert(lua);
 
     int nres = 0;
     int rc = lua_resume(lua->L_coro, lua->L, 0, &nres);
@@ -161,8 +161,7 @@ LibToriPlatformX_LuaReadYieldCount(
     struct LibToriRS_Instance* instance)
 {
     (void)instance;
-    if( !lua )
-        return LIBTORI_PLATFORM_X_LUA_ERROR;
+    assert(lua);
 
     return lua_gettop(lua->L_coro);
 }
@@ -174,7 +173,6 @@ LibToriPlatformX_LuaReadYieldValue(
     int index)
 {
     (void)instance;
-    if( !lua )
-        return NULL;
+    assert(lua);
     return (struct LibToriRS_ScriptValue*)lua_touserdata(lua->L_coro, index);
 }

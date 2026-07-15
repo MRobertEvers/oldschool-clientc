@@ -64,7 +64,8 @@ trspk_atlas_init_grid(
     uint32_t            tile_h,
     uint32_t            channels)
 {
-    if( !atlas || !atlas_w || !atlas_h || !tile_w || !tile_h || !channels )
+    assert(atlas);
+    if( !atlas_w || !atlas_h || !tile_w || !tile_h || !channels )
     {
         return false;
     }
@@ -115,7 +116,9 @@ trspk_atlas_grid_tile_for_slot(
     uint32_t                  slot,
     struct TRSPK_AtlasTile*   tile_out)
 {
-    if( !atlas || !tile_out || atlas->mode != TRSPK_ATLAS_MODE_GRID )
+    assert(atlas);
+    assert(tile_out);
+    if( atlas->mode != TRSPK_ATLAS_MODE_GRID )
     {
         return false;
     }
@@ -153,7 +156,8 @@ trspk_atlas_grid_insert_at(
     uint32_t                src_h,
     struct TRSPK_AtlasTile* tile_out)
 {
-    if( !atlas || atlas->mode != TRSPK_ATLAS_MODE_GRID )
+    assert(atlas);
+    if( atlas->mode != TRSPK_ATLAS_MODE_GRID )
     {
         return false;
     }
@@ -196,7 +200,8 @@ trspk_atlas_grid_insert(
     uint32_t                src_h,
     struct TRSPK_AtlasTile* tile_out)
 {
-    if( !atlas || atlas->mode != TRSPK_ATLAS_MODE_GRID )
+    assert(atlas);
+    if( atlas->mode != TRSPK_ATLAS_MODE_GRID )
     {
         return false;
     }
@@ -225,7 +230,8 @@ trspk_atlas_init_binpack(
     uint32_t            atlas_h,
     uint32_t            channels)
 {
-    if( !atlas || !atlas_w || !atlas_h || !channels )
+    assert(atlas);
+    if( !atlas_w || !atlas_h || !channels )
     {
         return false;
     }
@@ -342,14 +348,14 @@ trspk_atlas_binpack_insert(
     uint32_t                src_h,
     struct TRSPK_AtlasTile* tile_out)
 {
-    if( !atlas || atlas->mode != TRSPK_ATLAS_MODE_BINPACK )
+    assert(atlas);
+    if( atlas->mode != TRSPK_ATLAS_MODE_BINPACK )
     {
         return false;
     }
-    if( !src_w || !src_h || !tile_out )
-    {
+    if( !src_w || !src_h )
         return false;
-    }
+    assert(tile_out);
 
     uint32_t best_idx   = UINT32_MAX;
     uint32_t best_score = UINT32_MAX;

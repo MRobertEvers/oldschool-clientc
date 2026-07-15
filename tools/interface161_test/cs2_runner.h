@@ -9,9 +9,7 @@
 #include "toridraw/toridraw.h"
 #include "ui/ui_inv_data_service.h"
 #include "ui/uitree.h"
-
-struct CS2VM;
-struct CS2Host;
+#include "vm/cs2vmx.h"
 
 struct Interface161Cs2Context
 {
@@ -19,8 +17,8 @@ struct Interface161Cs2Context
     struct Dat2BuildCache* dat2_bc;
     bool config_meta_loaded;
     struct UITree* tree;
-    struct CS2VM* cs2vm;
-    struct CS2Host* cs2host;
+    struct CS2VMX cs2vm;
+    int cs2vm_bound;
     struct UIInvDataService inv_data;
     struct ToriDraw_Scene* scene;
     struct Interface161ObjIconCache** obj_icon_cache;
@@ -69,5 +67,14 @@ interface161_cs2_prepare_exec_shell(
     int iface_id,
     int root_w,
     int root_h);
+
+/** Run a decoded CS2_Script on a prepared context (ResetRuntime/Push/Run). */
+int
+interface161_cs2_run_script(
+    struct Interface161Cs2Context* ctx,
+    struct CS2_Script* script,
+    int component_id,
+    int const* int_argv,
+    int int_argc);
 
 #endif

@@ -1,5 +1,6 @@
 #include "ui_resource_queue.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,7 +49,9 @@ ui_resource_queue_push_sprite(
     struct UIResourceQueue* queue,
     const struct UIResourceQueueItem* item)
 {
-    if( !queue || !item || queue->count >= UI_RESOURCE_QUEUE_MAX_SIZE )
+    assert(queue);
+    assert(item);
+    if( queue->count >= UI_RESOURCE_QUEUE_MAX_SIZE )
         return false;
 
     struct UIResourceQueueItem* new_item = &queue->items[queue->count];
@@ -69,7 +72,8 @@ ui_resource_queue_push_rs_component(
     struct UIResourceQueue* queue,
     int component_id)
 {
-    if( !queue || queue->count >= UI_RESOURCE_QUEUE_MAX_SIZE )
+    assert(queue);
+    if( queue->count >= UI_RESOURCE_QUEUE_MAX_SIZE )
         return false;
 
     struct UIResourceQueueItem* new_item = &queue->items[queue->count];
@@ -89,7 +93,8 @@ ui_resource_queue_find_by_name(
     struct UIResourceQueue* queue,
     const char* name)
 {
-    if( !queue || !name )
+    assert(queue);
+    if( !name )
         return NULL;
 
     for( int i = 0; i < queue->count; i++ )

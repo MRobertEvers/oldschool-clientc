@@ -1,6 +1,7 @@
 #include "cs1vm_level.h"
 
 #include <math.h>
+#include <assert.h>
 
 static int g_cs1vm_level_experience[98];
 static int g_cs1vm_level_experience_ready;

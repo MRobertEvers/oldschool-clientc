@@ -482,6 +482,7 @@ ToriDraw_ModelFreeNormals(struct ToriDraw_Model* model)
 void
 ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
 {
+    assert(model);
     size_t const vc = (size_t)model->vertex_count;
     model->original_vertices_x = malloc(vc * sizeof(vertexint_t));
     model->original_vertices_y = malloc(vc * sizeof(vertexint_t));
@@ -503,7 +504,8 @@ ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
 void
 ToriDraw_ModelAnimateReset(struct ToriDraw_Model* model)
 {
-    if( !model || !model->original_vertices_x )
+    assert(model);
+    if( !model->original_vertices_x )
         return;
 
     size_t const vc = (size_t)model->vertex_count;

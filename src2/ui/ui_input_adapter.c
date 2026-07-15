@@ -5,6 +5,7 @@
 #include "vm/cs1vm_host.h"
 
 #include <string.h>
+#include <assert.h>
 
 static int
 ui_adapter_get_varp(
@@ -25,8 +26,8 @@ ui_adapter_get_varbit(
 void
 ui_input_adapter_init(struct UIInputAdapter* adapter)
 {
-    if( !adapter )
-        return;
+    assert(adapter);
+
     adapter->state.hovered = -1;
     adapter->state.pressed = -1;
     adapter->hovered_node = -1;
@@ -46,8 +47,9 @@ ui_input_adapter_process(
         .hover_changed = false,
     };
 
-    if( !adapter || !tree || !input )
-        return last;
+    assert(adapter);
+    assert(tree);
+    assert(input);
 
     struct UIInputEvent move = {
         .kind = UI_INPUT_MOVE,
@@ -100,14 +102,13 @@ void
 ui_input_adapter_init_behavior_host_ex(
     struct UITreeBehaviorHost* host,
     struct ToriAuxLibVM* vm,
-    struct CS2VM* cs2vm,
-    struct CS2Host* cs2host)
+    UITreeBehaviorCS2EnqueueFn cs2_enqueue,
+    void* cs2_enqueue_ud)
 {
-    if( !host )
-        return;
+    assert(host);
 
     memset(host, 0, sizeof(*host));
-    if( !vm && !cs2vm )
+    if( !vm && !cs2_enqueue )
         return;
 
     if( vm )
@@ -117,7 +118,6 @@ ui_input_adapter_init_behavior_host_ex(
         cs1vm_host_fill_varp_varbit(&host->cs1host, vm);
     }
 
-    host->cs2vm = cs2vm;
-    if( cs2host )
-        host->cs2host = *cs2host;
+    host->cs2_enqueue = cs2_enqueue;
+    host->cs2_enqueue_ud = cs2_enqueue_ud;
 }

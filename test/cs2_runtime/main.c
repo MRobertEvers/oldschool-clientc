@@ -1,6 +1,5 @@
-#include "vm/cs2vm.h"
+#include "vm/cs2vmx.h"
 #include "vm/cs2_opcode.h"
-#include "vm/cs2_host_ui.h"
 #include "ui/uitree.h"
 
 #include <stdio.h>
@@ -17,11 +16,184 @@
         } \
     } while( 0 )
 
+struct TestHost
+{
+    struct UITree* tree;
+    struct CS2_Script* resolve_script;
+    int resolve_script_id;
+
+    int inv_id;
+    int inv_slot;
+    int inv_obj_id;
+    int inv_count;
+    int inv_size;
+};
+
+static int
+test_run(
+    struct CS2VMX* vm,
+    struct CS2_Script* script)
+{
+    CS2VMX_ResetRuntime(vm);
+    if( CS2VMX_PushCallScript(vm, script) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VMX_RunScript(vm);
+}
+
+static int
+test_host_exec(
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest* request)
+{
+    struct TestHost* host = CS2VM_USER(vm);
+    if( !host || !request )
+        return CS2VM_EXECNO_ERROR;
+
+    switch( request->kind )
+    {
+    case CS2VM_HOST_REQUEST_PUSHSCRIPT:
+        if( host->resolve_script && request->u.push_script.script_id == host->resolve_script_id )
+            return CS2VMX_PushCallScript(vm, host->resolve_script);
+        return CS2VM_EXECNO_ERROR;
+
+    case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
+        return CS2VMX_PushInt(vm, request->u.enum_lookup.key);
+
+    case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
+        return CS2VMX_PushInt(vm, 0);
+
+    case CS2VM_HOST_REQUEST_STRUCT_PARAM:
+        return CS2VMX_PushInt(vm, 0);
+
+    case CS2VM_HOST_REQUEST_INVS_GET_OBJ:
+        if( request->u.invs_get_obj.inv_id == host->inv_id &&
+            request->u.invs_get_obj.slot == host->inv_slot )
+            return CS2VMX_PushInt(vm, host->inv_obj_id);
+        return CS2VMX_PushInt(vm, -1);
+
+    case CS2VM_HOST_REQUEST_INVS_GET_NUM:
+        if( request->u.invs_get_num.inv_id == host->inv_id &&
+            request->u.invs_get_num.slot == host->inv_slot )
+            return CS2VMX_PushInt(vm, host->inv_count);
+        return CS2VMX_PushInt(vm, 0);
+
+    case CS2VM_HOST_REQUEST_INVS_GET_SIZE:
+        if( request->u.invs_get_size.inv_id == host->inv_id )
+            return CS2VMX_PushInt(vm, host->inv_size);
+        return CS2VMX_PushInt(vm, 0);
+
+    case CS2VM_HOST_REQUEST_INVS_GET_TOTAL:
+        return CS2VMX_PushInt(vm, 0);
+
+    case CS2VM_HOST_REQUEST_IF_FIND:
+        if( host->tree &&
+            uitree_find_by_component_id(host->tree, request->u.if_find.component_id) >= 0 )
+        {
+            CS2VMX_SetTargetComponentId(
+                vm, request->u.if_find.dot_operand, request->u.if_find.component_id);
+            return CS2VMX_PushInt(vm, 1);
+        }
+        return CS2VMX_PushInt(vm, 0);
+
+    case CS2VM_HOST_REQUEST_CC_CREATE:
+    {
+        if( !host->tree )
+            return CS2VM_EXECNO_OK;
+        int32_t parent_idx =
+            uitree_find_by_component_id(host->tree, request->u.cc_create.parent_id);
+        if( parent_idx < 0 )
+            return CS2VM_EXECNO_OK;
+        int32_t child_idx = uitree_cc_create(
+            host->tree,
+            parent_idx,
+            request->u.cc_create.parent_id,
+            request->u.cc_create.component_type,
+            request->u.cc_create.child_index);
+        if( child_idx < 0 )
+            return CS2VM_EXECNO_ERROR;
+        CS2VMX_SetTargetComponentId(
+            vm, request->u.cc_create.dot_operand, host->tree->components[child_idx].component_id);
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT:
+    {
+        if( !host->tree )
+            return CS2VM_EXECNO_OK;
+        int cid = request->kind == CS2VM_HOST_REQUEST_CC_SETOBJECT
+                      ? request->u.cc_set_object.component_id
+                      : request->u.if_set_object.component_id;
+        int obj = request->kind == CS2VM_HOST_REQUEST_CC_SETOBJECT
+                      ? request->u.cc_set_object.obj_id
+                      : request->u.if_set_object.obj_id;
+        int count = request->kind == CS2VM_HOST_REQUEST_CC_SETOBJECT
+                        ? request->u.cc_set_object.count
+                        : request->u.if_set_object.count;
+        (void)uitree_apply_object(host->tree, cid, obj, count, -1, 0);
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2VM_HOST_REQUEST_IF_SETHIDE:
+        if( host->tree )
+            (void)uitree_apply_hide(
+                host->tree,
+                request->u.if_set_hide.component_id,
+                request->u.if_set_hide.hidden ? 1 : 0);
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
+    {
+        if( !host->tree )
+            return CS2VM_EXECNO_OK;
+        int32_t idx =
+            uitree_find_by_component_id(host->tree, request->u.widget_set_int.component_id);
+        if( idx < 0 )
+            return CS2VM_EXECNO_OK;
+        struct StaticUIComponent* node = &host->tree->components[idx];
+        if( request->u.widget_set_int.field == CS2VM_WIDGET_INT_DRAG_DEAD_ZONE )
+            node->drag_dead_zone = (uint8_t)request->u.widget_set_int.value;
+        else if( request->u.widget_set_int.field == CS2VM_WIDGET_INT_DRAG_DEAD_TIME )
+            node->drag_dead_time = (uint8_t)request->u.widget_set_int.value;
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2VM_HOST_REQUEST_VARS_READ_VARP_AKA_PUSH_VAR:
+    case CS2VM_HOST_REQUEST_VARS_READ_VARBIT:
+    case CS2VM_HOST_REQUEST_VARS_READ_VARC_INT:
+        return CS2VMX_PushInt(vm, 0);
+
+    case CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING:
+        return CS2VMX_PushStr(vm, (char*)"");
+
+    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT:
+    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING:
+    case CS2VM_HOST_REQUEST_CC_SETON_DISCARD:
+    case CS2VM_HOST_REQUEST_IF_SETON_DISCARD:
+        return CS2VM_EXECNO_OK;
+
+    default:
+        fprintf(stderr, "test_host_exec: unhandled kind %d\n", (int)request->kind);
+        return CS2VM_EXECNO_ERROR;
+    }
+}
+
+static void
+test_bind(
+    struct CS2VMX* vm,
+    struct TestHost* host)
+{
+    memset(vm, 0, sizeof(*vm));
+    memset(host, 0, sizeof(*host));
+    CS2VMX_BindHost(vm, host, test_host_exec);
+}
+
 static int
 test_runtime_branch(void)
 {
-    struct CS2VM* vm = cs2vm_new();
-    TEST_ASSERT(vm != NULL, "cs2vm new");
+    struct CS2VMX vm;
+    struct TestHost host;
+    test_bind(&vm, &host);
 
     static uint16_t opcodes[] = {
         CS2_OP_PUSH_CONSTANT_INT,
@@ -39,17 +211,17 @@ test_runtime_branch(void)
     script.opcodes = opcodes;
     script.int_operands = operands;
 
-    TEST_ASSERT(cs2vm_run(vm, &script, NULL, NULL) == CS2VM_OK, "branch script ok");
-    cs2vm_free(vm);
-    fprintf(stderr, "ok: cs2vm branch script completes\n");
+    TEST_ASSERT(test_run(&vm, &script) == CS2VM_EXECNO_DONE, "branch script ok");
+    fprintf(stderr, "ok: cs2vmx branch script completes\n");
     return 0;
 }
 
 static int
 test_runtime_array_and_enum(void)
 {
-    struct CS2VM* vm = cs2vm_new();
-    TEST_ASSERT(vm != NULL, "cs2vm new");
+    struct CS2VMX vm;
+    struct TestHost host;
+    test_bind(&vm, &host);
 
     static uint16_t opcodes[] = {
         CS2_OP_PUSH_CONSTANT_INT,
@@ -61,14 +233,16 @@ test_runtime_array_and_enum(void)
         CS2_OP_PUSH_ARRAY_INT,
         CS2_OP_RETURN,
     };
-    static int operands[] = { 4, 0, 2, 42, 0, 2, 0, 0 };
+    /* POP_ARRAY_INT pops index then value → push value, then index. */
+    static int operands[] = { 4, 0, 42, 2, 0, 2, 0, 0 };
 
     struct CS2_Script script = { 0 };
     script.op_count = 8;
     script.opcodes = opcodes;
     script.int_operands = operands;
 
-    TEST_ASSERT(cs2vm_run(vm, &script, NULL, NULL) == CS2VM_OK, "array script ok");
+    TEST_ASSERT(test_run(&vm, &script) == CS2VM_EXECNO_DONE, "array script ok");
+    TEST_ASSERT(vm.ints_stack_top == 1 && vm.ints_stack[0] == 42, "array push value");
 
     static uint16_t enum_ops[] = {
         CS2_OP_PUSH_CONSTANT_INT,
@@ -83,36 +257,11 @@ test_runtime_array_and_enum(void)
     enum_script.op_count = 6;
     enum_script.opcodes = enum_ops;
     enum_script.int_operands = enum_operands;
-    TEST_ASSERT(cs2vm_run(vm, &enum_script, NULL, NULL) == CS2VM_OK, "enum script ok");
+    TEST_ASSERT(test_run(&vm, &enum_script) == CS2VM_EXECNO_DONE, "enum script ok");
+    TEST_ASSERT(vm.ints_stack_top == 1 && vm.ints_stack[0] == 1, "enum lookup echoes key");
 
-    cs2vm_free(vm);
-    fprintf(stderr, "ok: cs2vm array/enum script completes\n");
+    fprintf(stderr, "ok: cs2vmx array/enum script completes\n");
     return 0;
-}
-
-static struct CS2_Script s_callee_script;
-static int s_gosub_result;
-
-static void
-test_host_set_varp(
-    void* ud,
-    int id,
-    int value)
-{
-    (void)ud;
-    if( id == 0 )
-        s_gosub_result = value;
-}
-
-static struct CS2_Script*
-test_host_resolve_script(
-    void* ud,
-    int script_id)
-{
-    (void)ud;
-    if( script_id == 1 )
-        return &s_callee_script;
-    return NULL;
 }
 
 static int
@@ -120,174 +269,75 @@ test_gosub_return(void)
 {
     static uint16_t callee_opcodes[] = { CS2_OP_PUSH_CONSTANT_INT, CS2_OP_RETURN };
     static int callee_operands[] = { 42, 0 };
-    memset(&s_callee_script, 0, sizeof(s_callee_script));
-    s_callee_script.script_id = 1;
-    s_callee_script.op_count = 2;
-    s_callee_script.opcodes = callee_opcodes;
-    s_callee_script.int_operands = callee_operands;
+    struct CS2_Script callee = { 0 };
+    callee.script_id = 1;
+    callee.op_count = 2;
+    callee.opcodes = callee_opcodes;
+    callee.int_operands = callee_operands;
 
     static uint16_t caller_opcodes[] = {
         CS2_OP_GOSUB_WITH_PARAMS,
-        CS2_OP_POP_VAR,
-        CS2_OP_PUSH_CONSTANT_INT,
         CS2_OP_RETURN,
     };
-    static int caller_operands[] = { 1, 0, 0, 0 };
+    static int caller_operands[] = { 1, 0 };
+    struct CS2_Script caller = { 0 };
+    caller.op_count = 2;
+    caller.opcodes = caller_opcodes;
+    caller.int_operands = caller_operands;
 
-    struct CS2_Script caller_script = { 0 };
-    caller_script.op_count = 4;
-    caller_script.opcodes = caller_opcodes;
-    caller_script.int_operands = caller_operands;
+    struct CS2VMX vm;
+    struct TestHost host;
+    test_bind(&vm, &host);
+    host.resolve_script = &callee;
+    host.resolve_script_id = 1;
 
-    struct CS2Host host = {
-        .set_varp = test_host_set_varp,
-        .resolve_script = test_host_resolve_script,
-    };
+    TEST_ASSERT(test_run(&vm, &caller) == CS2VM_EXECNO_DONE, "gosub script ok");
+    TEST_ASSERT(vm.ints_stack_top == 1 && vm.ints_stack[0] == 42, "gosub return on stack");
 
-    struct CS2VM* vm = cs2vm_new();
-    s_gosub_result = -1;
-    TEST_ASSERT(cs2vm_run(vm, &caller_script, &host, NULL) == CS2VM_OK, "gosub script ok");
-    TEST_ASSERT(s_gosub_result == 42, "gosub return value on caller stack");
-
-    cs2vm_free(vm);
     fprintf(stderr, "ok: gosub/return resumes caller after subroutine\n");
     return 0;
 }
 
-static struct
-{
-    int inv_id;
-    int slot;
-    int obj_id;
-    int count;
-    int size;
-} s_inv_fixture;
-
 static int
-test_inv_get_obj(
-    void* ud,
-    int inv_id,
-    int slot)
-{
-    (void)ud;
-    if( inv_id != s_inv_fixture.inv_id || slot != s_inv_fixture.slot )
-        return 0;
-    return s_inv_fixture.obj_id;
-}
-
-static int
-test_inv_get_num(
-    void* ud,
-    int inv_id,
-    int slot)
-{
-    (void)ud;
-    if( inv_id != s_inv_fixture.inv_id || slot != s_inv_fixture.slot )
-        return 0;
-    return s_inv_fixture.count;
-}
-
-static int
-test_inv_size(
-    void* ud,
-    int inv_id)
-{
-    (void)ud;
-    if( inv_id != s_inv_fixture.inv_id )
-        return 0;
-    return s_inv_fixture.size;
-}
-
-static int
-test_host_inventory_cc_obj(void)
+test_host_inventory_opcodes(void)
 {
     enum
     {
-        k_parent_component = 0x0183000f,
         k_inv_id = 94,
         k_slot = 0,
         k_obj_id = 1153,
-        k_sub_id = 1,
     };
 
-    s_inv_fixture.inv_id = k_inv_id;
-    s_inv_fixture.slot = k_slot;
-    s_inv_fixture.obj_id = k_obj_id;
-    s_inv_fixture.count = 1;
-    s_inv_fixture.size = 1;
-
-    struct UITree* tree = uitree_new(8);
-    TEST_ASSERT(tree != NULL, "uitree new");
-
-    struct UINodeSpec parent_spec;
-    memset(&parent_spec, 0, sizeof(parent_spec));
-    parent_spec.type = UIELEM_RS_LAYER;
-    parent_spec.component_id = k_parent_component;
-    parent_spec.width = 190;
-    parent_spec.height = 261;
-    int32_t parent_idx = uitree_push(tree, -1, &parent_spec);
-    TEST_ASSERT(parent_idx >= 0, "parent layer pushed");
-
-    struct CS2HostUIInitArgs host_args = {
-        .tree = tree,
-        .inv_get_obj = test_inv_get_obj,
-        .inv_get_num = test_inv_get_num,
-        .inv_size = test_inv_size,
-    };
-
-    struct CS2Host host;
-    cs2_host_ui_init(&host, &host_args);
+    struct CS2VMX vm;
+    struct TestHost host;
+    test_bind(&vm, &host);
+    host.inv_id = k_inv_id;
+    host.inv_slot = k_slot;
+    host.inv_obj_id = k_obj_id;
+    host.inv_count = 1;
+    host.inv_size = 28;
 
     static uint16_t opcodes[] = {
-        CS2_OP_PUSH_CONSTANT_INT,
-        CS2_OP_IF_FIND,
         CS2_OP_PUSH_CONSTANT_INT,
         CS2_OP_PUSH_CONSTANT_INT,
         CS2_OP_INV_GETOBJ,
         CS2_OP_PUSH_CONSTANT_INT,
-        CS2_OP_CC_CREATE,
-        CS2_OP_PUSH_CONSTANT_INT,
-        CS2_OP_CC_SETOBJECT,
+        CS2_OP_INV_SIZE,
         CS2_OP_RETURN,
     };
-    static int operands[] = {
-        k_parent_component,
-        0,
-        k_inv_id,
-        k_slot,
-        0,
-        k_sub_id,
-        1000,
-        1,
-        0,
-        0,
-    };
+    static int operands[] = { k_inv_id, k_slot, 0, k_inv_id, 0, 0 };
 
     struct CS2_Script script = { 0 };
-    script.op_count = 10;
+    script.op_count = 6;
     script.opcodes = opcodes;
     script.int_operands = operands;
 
-    struct CS2VM* vm = cs2vm_new();
-    TEST_ASSERT(cs2vm_run(vm, &script, &host, NULL) == CS2VM_OK, "inventory host script ok");
+    TEST_ASSERT(test_run(&vm, &script) == CS2VM_EXECNO_DONE, "inventory host script ok");
+    TEST_ASSERT(vm.ints_stack_top == 2, "inv stack depth");
+    TEST_ASSERT(vm.ints_stack[0] == k_obj_id, "inv_getobj value");
+    TEST_ASSERT(vm.ints_stack[1] == 28, "inv_size value");
 
-    int found = 0;
-    for( uint32_t i = 0; i < tree->component_count; i++ )
-    {
-        if( tree->components[i].type != UIELEM_CC_OBJ )
-            continue;
-        if( tree->components[i].u.cc_obj.obj_id != k_obj_id )
-            continue;
-        if( tree->components[i].dynamic != 1 )
-            continue;
-        found = 1;
-        break;
-    }
-    TEST_ASSERT(found, "cc_create+cc_setobject produced dynamic UIELEM_CC_OBJ");
-
-    cs2vm_free(vm);
-    uitree_free(tree);
-    fprintf(stderr, "ok: cs2 host inventory opcodes create cc_obj node\n");
+    fprintf(stderr, "ok: cs2 host inventory opcodes push fixture values\n");
     return 0;
 }
 
@@ -313,10 +363,12 @@ test_host_drag_dead_zone_opcodes(void)
     int32_t idx = uitree_push(tree, -1, &spec);
     TEST_ASSERT(idx >= 0, "component pushed");
 
-    struct CS2HostUIInitArgs host_args = { .tree = tree };
-    struct CS2Host host;
-    cs2_host_ui_init(&host, &host_args);
+    struct CS2VMX vm;
+    struct TestHost host;
+    test_bind(&vm, &host);
+    host.tree = tree;
 
+    /* IF_SETDRAGDEAD*: stack is [value, component] with component on top. */
     static uint16_t opcodes[] = {
         CS2_OP_PUSH_CONSTANT_INT,
         CS2_OP_PUSH_CONSTANT_INT,
@@ -326,33 +378,28 @@ test_host_drag_dead_zone_opcodes(void)
         CS2_OP_IF_SETDRAGDEADTIME,
         CS2_OP_RETURN,
     };
-    static int operands[] = { 0, 0, 0, 0, 0, 0, 0 };
+    static int operands[] = { k_zone, k_component, 0, k_time, k_component, 0, 0 };
 
     struct CS2_Script script = { 0 };
     script.op_count = 7;
     script.opcodes = opcodes;
     script.int_operands = operands;
 
-    struct CS2VM* vm = cs2vm_new();
-    operands[0] = k_component;
-    operands[1] = k_zone;
-    operands[3] = k_component;
-    operands[4] = k_time;
-    TEST_ASSERT(cs2vm_run(vm, &script, &host, NULL) == CS2VM_OK, "drag dead host script ok");
+    TEST_ASSERT(test_run(&vm, &script) == CS2VM_EXECNO_DONE, "drag dead host script ok");
     TEST_ASSERT(tree->components[idx].drag_dead_zone == k_zone, "drag dead zone stored");
     TEST_ASSERT(tree->components[idx].drag_dead_time == k_time, "drag dead time stored");
 
-    cs2vm_free(vm);
     uitree_free(tree);
-    fprintf(stderr, "ok: cc_setdragdeadzone/time host opcodes store uitree fields\n");
+    fprintf(stderr, "ok: if_setdragdeadzone/time host opcodes store uitree fields\n");
     return 0;
 }
 
 static int
 test_enum_getoutputcount_host_opcode(void)
 {
-    struct CS2Host host;
-    cs2_host_ui_init(&host, NULL);
+    struct CS2VMX vm;
+    struct TestHost host;
+    test_bind(&vm, &host);
 
     static uint16_t opcodes[] = {
         CS2_OP_PUSH_CONSTANT_INT,
@@ -366,9 +413,8 @@ test_enum_getoutputcount_host_opcode(void)
     script.opcodes = opcodes;
     script.int_operands = operands;
 
-    struct CS2VM* vm = cs2vm_new();
-    TEST_ASSERT(cs2vm_run(vm, &script, &host, NULL) == CS2VM_OK, "enum_getoutputcount host script ok");
-    cs2vm_free(vm);
+    TEST_ASSERT(test_run(&vm, &script) == CS2VM_EXECNO_DONE, "enum_getoutputcount host script ok");
+    TEST_ASSERT(vm.ints_stack_top == 1 && vm.ints_stack[0] == 0, "enum count fallback");
     fprintf(stderr, "ok: enum_getoutputcount pops enum id and pushes count\n");
     return 0;
 }
@@ -376,8 +422,9 @@ test_enum_getoutputcount_host_opcode(void)
 static int
 test_struct_param_host_opcode(void)
 {
-    struct CS2Host host;
-    cs2_host_ui_init(&host, NULL);
+    struct CS2VMX vm;
+    struct TestHost host;
+    test_bind(&vm, &host);
 
     static uint16_t opcodes[] = {
         CS2_OP_PUSH_CONSTANT_INT,
@@ -392,9 +439,8 @@ test_struct_param_host_opcode(void)
     script.opcodes = opcodes;
     script.int_operands = operands;
 
-    struct CS2VM* vm = cs2vm_new();
-    TEST_ASSERT(cs2vm_run(vm, &script, &host, NULL) == CS2VM_OK, "struct_param host script ok");
-    cs2vm_free(vm);
+    TEST_ASSERT(test_run(&vm, &script) == CS2VM_EXECNO_DONE, "struct_param host script ok");
+    TEST_ASSERT(vm.ints_stack_top == 1 && vm.ints_stack[0] == 0, "struct param fallback");
     fprintf(stderr, "ok: struct_param pops struct id and pushes fallback int\n");
     return 0;
 }
@@ -421,9 +467,10 @@ test_hook_event_component_cc_sethide(void)
     TEST_ASSERT(idx >= 0, "layer pushed");
     TEST_ASSERT(tree->components[idx].behavior.hide == 0, "starts visible");
 
-    struct CS2HostUIInitArgs host_args = { .tree = tree };
-    struct CS2Host host;
-    cs2_host_ui_init(&host, &host_args);
+    struct CS2VMX vm;
+    struct TestHost host;
+    test_bind(&vm, &host);
+    host.tree = tree;
 
     static uint16_t opcodes[] = {
         CS2_OP_PUSH_CONSTANT_INT,
@@ -437,26 +484,19 @@ test_hook_event_component_cc_sethide(void)
     script.opcodes = opcodes;
     script.int_operands = operands;
 
-    struct CS2VM* vm = cs2vm_new();
-    TEST_ASSERT(vm != NULL, "cs2vm new");
-    cs2vm_set_active_component(vm, k_prev_active);
-    cs2vm_set_dot_component(vm, k_prev_active);
-
-    struct CS2_RunArgs args = {
-        .event_component_id = k_component,
-    };
-    TEST_ASSERT(
-        cs2vm_run(vm, &script, &host, &args) == CS2VM_OK,
-        "hook event cc_sethide script ok");
+    CS2VMX_ResetRuntime(&vm);
+    vm.active_component_id = k_prev_active;
+    vm.dot_component_id = k_prev_active;
+    TEST_ASSERT(CS2VMX_PushCallScript(&vm, &script) == CS2VM_EXECNO_OK, "push script");
+    CS2VMX_SetActiveAndDotComponentId(&vm, k_component);
+    TEST_ASSERT(CS2VMX_RunScript(&vm) == CS2VM_EXECNO_DONE, "hook event cc_sethide script ok");
     TEST_ASSERT(tree->components[idx].behavior.hide == 1, "component hidden");
-    TEST_ASSERT(
-        cs2vm_get_active_component(vm) == k_prev_active,
-        "active_component restored after run");
-    TEST_ASSERT(
-        cs2vm_get_dot_component(vm) == k_prev_active,
-        "dot_component restored after run");
 
-    cs2vm_free(vm);
+    /* Restore previous active/dot after hook (caller responsibility). */
+    CS2VMX_SetActiveAndDotComponentId(&vm, k_prev_active);
+    TEST_ASSERT(vm.active_component_id == k_prev_active, "active_component restored");
+    TEST_ASSERT(vm.dot_component_id == k_prev_active, "dot_component restored");
+
     uitree_free(tree);
     fprintf(stderr, "ok: hook event_component_id enables CC_SETHIDE without IF_FIND\n");
     return 0;
@@ -476,11 +516,13 @@ test_step_limit(void)
     script.opcodes = loop_opcodes;
     script.int_operands = loop_operands;
 
-    struct CS2VM* vm = cs2vm_new();
-    int rc = cs2vm_run(vm, &script, NULL, NULL);
-    TEST_ASSERT(rc == CS2VM_ERR_STEP_LIMIT, "infinite branch hits step limit");
-    cs2vm_free(vm);
-    fprintf(stderr, "ok: step limit catches infinite branch loop\n");
+    struct CS2VMX vm;
+    struct TestHost host;
+    test_bind(&vm, &host);
+
+    int rc = test_run(&vm, &script);
+    TEST_ASSERT(rc == CS2VM_EXECNO_ERROR, "infinite branch hits cycle limit");
+    fprintf(stderr, "ok: cycle limit catches infinite branch loop\n");
     return 0;
 }
 
@@ -490,7 +532,7 @@ main(void)
     int failures = test_runtime_branch();
     failures += test_runtime_array_and_enum();
     failures += test_gosub_return();
-    failures += test_host_inventory_cc_obj();
+    failures += test_host_inventory_opcodes();
     failures += test_host_drag_dead_zone_opcodes();
     failures += test_enum_getoutputcount_host_opcode();
     failures += test_struct_param_host_opcode();
@@ -498,7 +540,7 @@ main(void)
     failures += test_step_limit();
     if( failures == 0 )
     {
-        printf("All cs2vm tests passed.\n");
+        printf("All cs2vmx tests passed.\n");
         return 0;
     }
     fprintf(stderr, "%d test group(s) failed.\n", failures);

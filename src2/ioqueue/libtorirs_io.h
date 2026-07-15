@@ -546,6 +546,9 @@ LibToriRS_TaskRunner_Run(struct LibToriRS_TaskRunner* runner)
     if( runner->wait_run >= 0 && !LibToriRS_IOQueueRunComplete(runner->io, runner->wait_run) )
         return true;
 
+    if( runner->count <= 0 )
+        return false;
+
     struct LibToriRS_IOContext ctx = { 0 };
     ctx.io = runner->io;
 

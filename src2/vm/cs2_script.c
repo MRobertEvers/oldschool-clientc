@@ -2,12 +2,14 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 void
 cs2_script_init(struct CS2_Script* script)
 {
     if( !script )
         return;
+
     memset(script, 0, sizeof(*script));
 }
 
@@ -16,6 +18,7 @@ cs2_script_free(struct CS2_Script* script)
 {
     if( !script )
         return;
+
     free(script->signature);
     free(script->opcodes);
     free(script->int_operands);

@@ -17,8 +17,7 @@ toridraw_light_model_default_impl(
         return;
 
     struct ToriDraw_Model* model = ToriDraw_ModelAsFull(hnd);
-    if( !model )
-        return;
+    assert(model);
 
     int light_ambient = 64;
     int light_attenuation = 768;

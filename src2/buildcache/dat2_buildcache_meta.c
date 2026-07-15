@@ -52,8 +52,7 @@ dat2_buildcache_meta_map_new(
 void
 dat2_buildcache_meta_maps_init(struct Dat2BuildCache* dat2_buildcache)
 {
-    if( !dat2_buildcache )
-        return;
+    assert(dat2_buildcache);
 
     dat2_buildcache->fonts_hmap = dat2_buildcache_meta_map_new(
         dat2_buildcache, sizeof(struct MapEntry_Font), 256);
@@ -76,7 +75,9 @@ dat2_buildcache_meta_map_cleanup(
     struct ToriDraw_MapIter* iter;
     void* entry;
 
-    if( !dat2_buildcache || !map_out || !*map_out )
+    assert(dat2_buildcache);
+    assert(map_out);
+    if( !*map_out )
         return;
 
     if( free_entry )
@@ -134,8 +135,7 @@ dat2_buildcache_meta_struct_entry_free(void* entry_void)
 void
 dat2_buildcache_meta_maps_free(struct Dat2BuildCache* dat2_buildcache)
 {
-    if( !dat2_buildcache )
-        return;
+    assert(dat2_buildcache);
 
     dat2_buildcache_meta_map_cleanup(
         dat2_buildcache, &dat2_buildcache->fonts_hmap, dat2_buildcache_meta_font_entry_free);
@@ -172,7 +172,10 @@ dat2_buildcache_font_add_from_archives(
     struct Dat2BuildCache_FontAsset* asset;
     struct MapEntry_Font* entry;
 
-    if( !dat2_buildcache || font_id < 0 || !font_archive || !sprite_archive )
+    assert(dat2_buildcache);
+    assert(font_archive);
+    assert(sprite_archive);
+    if( font_id < 0 )
         return false;
 
     if( dat2_buildcache_font_has(dat2_buildcache, font_id) )
@@ -229,8 +232,7 @@ dat2_buildcache_font_get(
 {
     struct MapEntry_Font* entry;
 
-    if( !dat2_buildcache )
-        return NULL;
+    assert(dat2_buildcache);
 
     entry = (struct MapEntry_Font*)ToriDraw_MapSearch(
         dat2_buildcache->fonts_hmap, &font_id, TORIDRAW_MAP_FIND);
@@ -255,8 +257,8 @@ dat2_buildcache_clientscript_add(
 {
     struct MapEntry_ClientScript* entry;
 
-    if( !dat2_buildcache || !script )
-        return;
+    assert(dat2_buildcache);
+    assert(script);
 
     dat2_buildcache_prepare_hmap_insert(dat2_buildcache, dat2_buildcache->clientscripts_hmap);
     entry = (struct MapEntry_ClientScript*)ToriDraw_MapSearch(
@@ -276,8 +278,7 @@ dat2_buildcache_clientscript_get(
 {
     struct MapEntry_ClientScript* entry;
 
-    if( !dat2_buildcache )
-        return NULL;
+    assert(dat2_buildcache);
 
     entry = (struct MapEntry_ClientScript*)ToriDraw_MapSearch(
         dat2_buildcache->clientscripts_hmap, &script_id, TORIDRAW_MAP_FIND);
@@ -333,8 +334,10 @@ dat2_buildcache_config_entries_init_from_archive(
     int i;
 
     (void)config_kind;
-    if( !dat2_buildcache || !archive || !hmap || !decode_and_insert )
-        return;
+    assert(dat2_buildcache);
+    assert(archive);
+    assert(hmap);
+    assert(decode_and_insert);
 
     configs_table = dat2_buildcache_configs_table(dat2_buildcache);
     archive_ref = dat2_buildcache_archive_reference_from_table(configs_table, archive);
@@ -567,8 +570,7 @@ dat2_buildcache_param_get(
 {
     struct MapEntry_Param* entry;
 
-    if( !dat2_buildcache )
-        return NULL;
+    assert(dat2_buildcache);
 
     entry = (struct MapEntry_Param*)ToriDraw_MapSearch(
         dat2_buildcache->params_hmap, &param_id, TORIDRAW_MAP_FIND);
@@ -584,8 +586,7 @@ dat2_buildcache_enum_get(
 {
     struct MapEntry_Enum* entry;
 
-    if( !dat2_buildcache )
-        return NULL;
+    assert(dat2_buildcache);
 
     entry = (struct MapEntry_Enum*)ToriDraw_MapSearch(
         dat2_buildcache->enums_hmap, &enum_id, TORIDRAW_MAP_FIND);
@@ -601,8 +602,7 @@ dat2_buildcache_struct_get(
 {
     struct MapEntry_Struct* entry;
 
-    if( !dat2_buildcache )
-        return NULL;
+    assert(dat2_buildcache);
 
     entry = (struct MapEntry_Struct*)ToriDraw_MapSearch(
         dat2_buildcache->structs_hmap, &struct_id, TORIDRAW_MAP_FIND);

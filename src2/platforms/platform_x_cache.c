@@ -50,8 +50,7 @@ LibToriPlatformX_CacheFree(struct LibToriPlatformX_Cache* cache)
 int
 LibToriPlatformX_GetMode(struct LibToriPlatformX_Cache* cache)
 {
-    if( !cache )
-        return -1;
+    assert(cache);
     return cachelib_get_mode(cache->cache);
 }
 
@@ -60,8 +59,8 @@ LibToriPlatformX_CacheLoadIO(
     struct LibToriPlatformX_Cache* cache,
     struct LibToriRS_IOQueue* io_queue)
 {
-    if( !cache || !io_queue )
-        return -1;
+    assert(cache);
+    assert(io_queue);
 
     struct CacheLib_IORequest request;
     void* data = NULL;

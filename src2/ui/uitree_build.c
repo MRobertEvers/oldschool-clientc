@@ -1,15 +1,20 @@
 #include "uitree_build.h"
 
+#include "toriauxlib/core/toriauxlibcore.h"
+#include <stdio.h>
+
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 void
 uitree_fill_position_from_component(
     struct StaticUIElemPosition* pos,
     struct ToriAuxLibCore_Component const* comp)
 {
-    if( !pos || !comp )
-        return;
+    assert(pos);
+    assert(comp);
 
     pos->kind = UIPOS_XY;
     pos->x = comp->base_x;
@@ -42,8 +47,8 @@ uitree_push_component(
     int (*resolve_sprite)(void*, int),
     void* resolve_ud)
 {
-    if( !tree || !comp )
-        return -1;
+    assert(tree);
+    assert(comp);
 
     struct UINodeSpec spec;
     memset(&spec, 0, sizeof(spec));
@@ -151,7 +156,9 @@ uitree_build_from_source(
     struct UITree* tree,
     struct UITreeBuildSource const* src)
 {
-    if( !tree || !src || src->count <= 0 || !src->get_component || !src->get_parent_id )
+    assert(tree);
+    assert(src);
+    if( src->count <= 0 || !src->get_component || !src->get_parent_id )
         return -1;
 
     int const comp_count = src->count;
@@ -197,7 +204,8 @@ uitree_build_from_source(
         for( int i = 0; i < comp_count; i++ )
         {
             struct ToriAuxLibCore_Component* comp = src->get_component(src->ud, i);
-            if( !comp || pushed[i] )
+            assert(comp);
+            if( pushed[i] )
                 continue;
             if( parent_idx[i] >= 0 && !pushed[parent_idx[i]] )
                 continue;
@@ -223,4 +231,120 @@ uitree_build_from_source(
     free(parent_idx);
     free(tree_idx);
     return 0;
+}
+
+int
+uitree_build_interface_group(
+    struct UITree* tree,
+    struct ToriAuxLibCore* core,
+    int group_id,
+    int (*resolve_sprite)(void*, int),
+    void* resolve_ud)
+{
+    assert(tree);
+    assert(core);
+    if( group_id <= 0 )
+        return -1;
+
+    /* Probe packed component ids for this group. Cap is generous; skip already-present. */
+    int const max_children = 2048;
+    int added = 0;
+
+    /* Collect present components into a temp list for parent-first multipass. */
+    struct ToriAuxLibCore_Component** comps =
+        calloc((size_t)max_children, sizeof(*comps));
+    int count = 0;
+    assert(comps);
+
+    for( int i = 0; i < max_children; i++ )
+    {
+        int packed = (group_id << 16) | (i & 0xffff);
+        if( !ToriAuxLibCore_ComponentHas(core, packed) )
+        {
+            /* Sparse holes are possible; keep scanning a bit after first miss. */
+            if( count > 0 && i > count + 32 )
+                break;
+            continue;
+        }
+        comps[count++] = ToriAuxLibCore_ComponentGet(core, packed);
+    }
+
+    if( count <= 0 )
+    {
+        free(comps);
+        return 0;
+    }
+
+    int* parent_idx = calloc((size_t)count, sizeof(int));
+    int* tree_idx = calloc((size_t)count, sizeof(int));
+    bool* pushed = calloc((size_t)count, sizeof(bool));
+    if( !parent_idx || !tree_idx || !pushed )
+    {
+        free(comps);
+        free(parent_idx);
+        free(tree_idx);
+        free(pushed);
+        return -1;
+    }
+
+    for( int i = 0; i < count; i++ )
+    {
+        parent_idx[i] = -1;
+        tree_idx[i] = -1;
+        if( !comps[i] )
+            continue;
+        /* Skip if already in tree. */
+        if( uitree_find_by_component_id(tree, comps[i]->id) >= 0 )
+        {
+            pushed[i] = true;
+            tree_idx[i] = uitree_find_by_component_id(tree, comps[i]->id);
+            continue;
+        }
+        int parent_id = comps[i]->parent_id;
+        if( parent_id < 0 )
+            continue;
+        for( int j = 0; j < count; j++ )
+        {
+            if( comps[j] && comps[j]->id == parent_id )
+            {
+                parent_idx[i] = j;
+                break;
+            }
+        }
+    }
+
+    int pushed_count = 0;
+    for( int pass = 0; pass < count && pushed_count < count; pass++ )
+    {
+        for( int i = 0; i < count; i++ )
+        {
+            if( !comps[i] || pushed[i] )
+                continue;
+            if( parent_idx[i] >= 0 && !pushed[parent_idx[i]] )
+                continue;
+
+            int32_t parent_tree = -1;
+            if( parent_idx[i] >= 0 )
+                parent_tree = tree_idx[parent_idx[i]];
+            else if( comps[i]->parent_id >= 0 )
+            {
+                /* Parent may already be in the tree from another group. */
+                parent_tree = uitree_find_by_component_id(tree, comps[i]->parent_id);
+            }
+
+            tree_idx[i] = uitree_push_component(
+                tree, parent_tree, comps[i], resolve_sprite, resolve_ud);
+            if( tree_idx[i] < 0 )
+                continue;
+            pushed[i] = true;
+            pushed_count++;
+            added++;
+        }
+    }
+
+    free(pushed);
+    free(parent_idx);
+    free(tree_idx);
+    free(comps);
+    return added;
 }

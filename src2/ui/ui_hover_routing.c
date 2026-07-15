@@ -1,10 +1,11 @@
 #include "ui_hover_routing.h"
+#include <assert.h>
 
 void
 ui_hover_routing_reset(struct UIHoverRouting* routing)
 {
-    if( !routing )
-        return;
+    assert(routing);
+
     routing->hovered_node = -1;
     routing->over_main_com_id = -1;
     routing->over_side_com_id = -1;
@@ -19,8 +20,8 @@ ui_hover_routing_reset(struct UIHoverRouting* routing)
 void
 ui_hover_routing_begin_frame(struct UIHoverRouting* routing)
 {
-    if( !routing )
-        return;
+    assert(routing);
+
     routing->hovered_node = -1;
     routing->over_main_com_id = -1;
     routing->over_side_com_id = -1;
@@ -30,8 +31,7 @@ ui_hover_routing_begin_frame(struct UIHoverRouting* routing)
 bool
 ui_hover_routing_commit_frame(struct UIHoverRouting* routing)
 {
-    if( !routing )
-        return false;
+    assert(routing);
 
     if( routing->over_main_com_id != routing->over_main_com_id_prev ||
         routing->over_side_com_id != routing->over_side_com_id_prev ||
@@ -53,8 +53,8 @@ ui_hover_routing_to_ids(struct UIHoverRouting const* routing)
         .side_com_id = -1,
         .chat_com_id = -1,
     };
-    if( !routing )
-        return ids;
+    assert(routing);
+
     ids.main_com_id = routing->over_main_com_id;
     ids.side_com_id = routing->over_side_com_id;
     ids.chat_com_id = routing->over_chat_com_id;

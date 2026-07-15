@@ -61,20 +61,11 @@ Task_Dat2InvLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    if( !task->rc_ctx || !task->rc_ctx->inv_pool || !task->cache || task->inv_item.name[0] == '\0' )
-    {
-        fprintf(
-            stderr,
-            "Task_Dat2InvLoad: invalid task state inv_pool=%p cache=%p name='%s'\n",
-            task->rc_ctx ? (void*)task->rc_ctx->inv_pool : NULL,
-            (void*)task->cache,
-            task->inv_item.name);
-        assert(
-            task->rc_ctx && task->rc_ctx->inv_pool && task->cache &&
-            task->inv_item.name[0] != '\0' &&
-            "Task_Dat2InvLoad: missing inv_pool, cache, or inv name");
+    assert(task->rc_ctx);
+    assert(task->rc_ctx->inv_pool);
+    assert(task->cache);
+    if( task->inv_item.name[0] == '\0' )
         PT_EXIT(&task->pt);
-    }
 
     memset(&task->inv, 0, sizeof(task->inv));
     strncpy(task->inv.name, task->inv_item.name, sizeof(task->inv.name) - 1);
@@ -219,7 +210,6 @@ Task_Dat2InvLoad_Run(
                     "Task_Dat2InvLoad: failed to render icon inv=%s obj_id=%d\n",
                     task->inv.name,
                     task->obj_ids[i]);
-                assert(icon_sprite && "Task_Dat2InvLoad: failed to render dat2 inv icon");
                 continue;
             }
 

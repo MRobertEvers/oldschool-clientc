@@ -1,5 +1,6 @@
 #include "toridraw_2d.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdlib.h>
 
@@ -29,8 +30,8 @@ ToriDraw2D_BlendArgbPixel(
     int argb,
     int* pixel_buffer)
 {
-    if( !view_port || !pixel_buffer )
-        return;
+    assert(view_port);
+    assert(pixel_buffer);
 
     int const clip_left = view_port->clip_left;
     int const clip_top = view_port->clip_top;
@@ -74,8 +75,8 @@ ToriDraw2D_FillRect(
     int argb,
     int* pixel_buffer)
 {
-    if( !view_port || !pixel_buffer )
-        return;
+    assert(view_port);
+    assert(pixel_buffer);
 
     int const clip_left = view_port->clip_left;
     int const clip_top = view_port->clip_top;
@@ -117,8 +118,8 @@ ToriDraw2D_FillRectGradientVertical(
     int alpha,
     int* pixel_buffer)
 {
-    if( !view_port || !pixel_buffer )
-        return;
+    assert(view_port);
+    assert(pixel_buffer);
 
     int h = y1 - y0;
     if( h <= 0 )
@@ -148,8 +149,8 @@ ToriDraw2D_FillRectGradientAlpha(
     int alpha_bot,
     int* pixel_buffer)
 {
-    if( !view_port || !pixel_buffer )
-        return;
+    assert(view_port);
+    assert(pixel_buffer);
 
     int h = y1 - y0;
     if( h <= 0 )
@@ -194,8 +195,8 @@ ToriDraw2D_DrawLine(
     int argb,
     int* pixel_buffer)
 {
-    if( !view_port || !pixel_buffer )
-        return;
+    assert(view_port);
+    assert(pixel_buffer);
 
     if( thickness < 1 )
         thickness = 1;
@@ -247,7 +248,10 @@ ToriDraw2D_BlitArgb(
     int src_h,
     int* pixel_buffer)
 {
-    if( !view_port || !pixel_buffer || !src || src_w <= 0 || src_h <= 0 )
+    assert(view_port);
+    assert(pixel_buffer);
+    assert(src);
+    if( src_w <= 0 || src_h <= 0 )
         return;
 
     for( int y = 0; y < src_h; y++ )
@@ -270,7 +274,10 @@ ToriDraw2D_BlitArgbScaled(
     int src_h,
     int* pixel_buffer)
 {
-    if( !view_port || !pixel_buffer || !src || src_w <= 0 || src_h <= 0 || dst_w <= 0 || dst_h <= 0 )
+    assert(view_port);
+    assert(pixel_buffer);
+    assert(src);
+    if( src_w <= 0 || src_h <= 0 || dst_w <= 0 || dst_h <= 0 )
         return;
 
     for( int y = 0; y < dst_h; y++ )
@@ -304,8 +311,10 @@ ToriDraw2D_BlitArgbTiled(
     int origin_y,
     int* pixel_buffer)
 {
-    if( !view_port || !pixel_buffer || !src || src_w <= 0 || src_h <= 0 || rect_w <= 0 ||
-        rect_h <= 0 )
+    assert(view_port);
+    assert(pixel_buffer);
+    assert(src);
+    if( src_w <= 0 || src_h <= 0 || rect_w <= 0 || rect_h <= 0 )
         return;
 
     int const clip_left = view_port->clip_left;
@@ -350,8 +359,12 @@ ToriDraw2D_BlitArgbMasked(
     int mask_h,
     int* pixel_buffer)
 {
-    if( !view_port || !pixel_buffer || !content || !mask || dst_w <= 0 || dst_h <= 0 || mask_w <= 0 ||
-        mask_h <= 0 || content_w <= 0 || content_h <= 0 )
+    assert(view_port);
+    assert(pixel_buffer);
+    assert(content);
+    assert(mask);
+    if( dst_w <= 0 || dst_h <= 0 || mask_w <= 0 || mask_h <= 0 || content_w <= 0 ||
+        content_h <= 0 )
         return;
 
     for( int y = 0; y < dst_h; y++ )
@@ -402,8 +415,12 @@ ToriDraw2D_BlitArgbMaskedInverted(
     int mask_h,
     int* pixel_buffer)
 {
-    if( !view_port || !pixel_buffer || !content || !mask || dst_w <= 0 || dst_h <= 0 || mask_w <= 0 ||
-        mask_h <= 0 || content_w <= 0 || content_h <= 0 )
+    assert(view_port);
+    assert(pixel_buffer);
+    assert(content);
+    assert(mask);
+    if( dst_w <= 0 || dst_h <= 0 || mask_w <= 0 || mask_h <= 0 || content_w <= 0 ||
+        content_h <= 0 )
         return;
 
     for( int y = 0; y < dst_h; y++ )
@@ -457,8 +474,12 @@ ToriDraw2D_BlitArgbRotatedMaskedInverted(
     int alpha,
     int* pixel_buffer)
 {
-    if( !view_port || !pixel_buffer || !content || !mask || mask_w <= 0 || mask_h <= 0 ||
-        content_w <= 0 || content_h <= 0 || mask_sw <= 0 || mask_sh <= 0 )
+    assert(view_port);
+    assert(pixel_buffer);
+    assert(content);
+    assert(mask);
+    if( mask_w <= 0 || mask_h <= 0 || content_w <= 0 || content_h <= 0 || mask_sw <= 0 ||
+        mask_sh <= 0 )
         return;
 
     double rad = 0.0;

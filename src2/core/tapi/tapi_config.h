@@ -3,6 +3,7 @@
 
 #include "../../ioqueue/libtorirs_ioqueue.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -11,6 +12,8 @@ TAPIConfig_FetchRevconfig(
     struct LibToriRS_IOContext* ctx,
     const char* filename)
 {
+    assert(ctx);
+    assert(ctx->io);
     LibToriRS_IOQueuePushConfigFile(ctx->io, filename);
 }
 
@@ -19,6 +22,8 @@ TAPIConfig_DecodeRevconfig(
     struct LibToriRS_IOContext* ctx,
     void** data)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem item;
     if( !LibToriRS_IOQueuePopRead(ctx->io, &item) )
         return 0;

@@ -3,6 +3,7 @@
 #include "toriauxlib/vm/toriauxlibvm.h"
 
 #include <string.h>
+#include <assert.h>
 
 static int
 cs1vm_host_get_varp(
@@ -25,11 +26,11 @@ cs1vm_host_fill_varp_varbit(
     struct CS1Host* out,
     struct ToriAuxLibVM* vm)
 {
-    if( !out )
-        return;
+    assert(out);
+
     memset(out, 0, sizeof(*out));
-    if( !vm )
-        return;
+    assert(vm);
+
     out->get_varp = cs1vm_host_get_varp;
     out->get_varbit = cs1vm_host_get_varbit;
     out->ud = vm;

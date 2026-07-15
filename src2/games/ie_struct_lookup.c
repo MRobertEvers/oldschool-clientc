@@ -1,6 +1,7 @@
 #include "ie_struct_lookup.h"
 
 #include "buildcache/dat2_buildcache.h"
+#include <assert.h>
 
 bool
 ie_struct_param_lookup(
@@ -20,7 +21,8 @@ ie_struct_param_lookup(
         *out_int = 0;
     if( out_str )
         *out_str = NULL;
-    if( !bc || struct_id < 0 || param_id < 0 )
+    assert(bc);
+    if( struct_id < 0 || param_id < 0 )
         return false;
 
     entry = dat2_buildcache_struct_get(bc, struct_id);

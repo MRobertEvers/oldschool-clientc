@@ -239,6 +239,8 @@ revconfig_buffer_push_field(
     enum RevConfigFieldKind kind,
     const char* value)
 {
+    assert(buffer);
+
     if( buffer->field_count >= buffer->field_capacity )
     {
         uint32_t new_capacity = buffer->field_capacity == 0 ? 16 : buffer->field_capacity * 2;
@@ -290,8 +292,7 @@ revconfig_item_buffer_free(struct RevConfigItemBuffer* buffer)
 struct RevConfigItem*
 revconfig_item_buffer_push(struct RevConfigItemBuffer* buffer)
 {
-    if( !buffer )
-        return NULL;
+    assert(buffer);
 
     if( buffer->item_count >= buffer->item_capacity )
     {
@@ -314,8 +315,8 @@ revconfig_item_set_name(
     struct RevConfigItem* item,
     const char* value)
 {
-    if( !item || !value )
-        return;
+    assert(item);
+    assert(value);
 
     switch( item->kind )
     {
@@ -852,7 +853,8 @@ revconfig_item_apply_field(
     enum RevConfigFieldKind kind,
     const char* value)
 {
-    if( !item || item->kind == RCITEM_NONE )
+    assert(item);
+    if( item->kind == RCITEM_NONE )
         return;
 
     switch( item->kind )
@@ -889,7 +891,9 @@ revconfig_item_finish(
     struct RevConfigItem* pending,
     struct RevConfigItemBuffer* out)
 {
-    if( !pending || !out || pending->kind == RCITEM_NONE )
+    assert(pending);
+    assert(out);
+    if( pending->kind == RCITEM_NONE )
         return;
 
     struct RevConfigItem* item = revconfig_item_buffer_push(out);
@@ -905,8 +909,8 @@ revconfig_items_build(
     const struct RevConfigBuffer* fields,
     struct RevConfigItemBuffer* out)
 {
-    if( !fields || !out )
-        return;
+    assert(fields);
+    assert(out);
 
     struct RevConfigItem pending = { 0 };
 

@@ -259,7 +259,8 @@ Task_InstanceOnRCUIComponent_Run(
 
     PT_BEGIN(&task->pt);
 
-    if( !task->rc_ctx || task->item.name[0] == '\0' )
+    assert(task->rc_ctx);
+    if( task->item.name[0] == '\0' )
         PT_EXIT(&task->pt);
 
     if( task->rc_ctx->component_count >= INSTANCE_RC_MAX_COMPONENTS )
@@ -388,7 +389,8 @@ Task_InstanceOnRCUILayout_Run(
 
     PT_BEGIN(&task->pt);
 
-    if( !task->rc_ctx || task->item.component[0] == '\0' )
+    assert(task->rc_ctx);
+    if( task->item.component[0] == '\0' )
         PT_EXIT(&task->pt);
 
     if( task->rc_ctx->layout_count >= INSTANCE_RC_MAX_LAYOUTS )
@@ -437,8 +439,8 @@ Task_InstanceOnRCInv_Run(
 
     PT_BEGIN(&task->pt);
 
-    if( !task->rc_ctx || !task->cache )
-        PT_EXIT(&task->pt);
+    assert(task->rc_ctx);
+    assert(task->cache);
 
     struct RSInvLoadCallbacks inv_cbs = { 0 };
 

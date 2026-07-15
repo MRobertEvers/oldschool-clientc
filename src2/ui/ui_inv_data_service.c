@@ -55,7 +55,8 @@ ui_inv_data_service_container_for_source(
     struct UIInvDataService const* svc,
     int source_id)
 {
-    if( !svc || source_id < 0 || source_id >= svc->source_count )
+    assert(svc);
+    if( source_id < 0 || source_id >= svc->source_count )
         return RS_INV_CONTAINER_NONE;
     if( !svc->sources[source_id].used )
         return RS_INV_CONTAINER_NONE;
@@ -77,14 +78,17 @@ ui_inv_data_service_get_slot(
         out->atlas_index = 0;
     }
 
-    if( !svc || !out || source_id < 0 || source_id >= svc->source_count || slot < 0 )
+    assert(svc);
+    assert(out);
+    if( source_id < 0 || source_id >= svc->source_count || slot < 0 )
         return false;
     if( !svc->sources[source_id].used )
         return false;
 
     int const container_id = svc->sources[source_id].container_id;
     struct RSInvContainer const* container = rs_inv_container_find(&svc->store, container_id);
-    if( !container || slot >= container->slot_count )
+    assert(container);
+    if( slot >= container->slot_count )
         return false;
 
     out->obj_id = container->obj_id[slot];
@@ -101,7 +105,9 @@ ui_inv_data_service_set_slot(
     int slot,
     struct UIInvSlotData const* data)
 {
-    if( !svc || source_id < 0 || source_id >= svc->source_count || slot < 0 || !data )
+    assert(data);
+    assert(svc);
+    if( source_id < 0 || source_id >= svc->source_count || slot < 0 )
         return false;
     if( !svc->sources[source_id].used )
         return false;
@@ -109,8 +115,7 @@ ui_inv_data_service_set_slot(
     int const container_id = svc->sources[source_id].container_id;
     struct RSInvContainer* container = rs_inv_container_get_or_create(
         &svc->store, container_id, svc->sources[source_id].slot_count);
-    if( !container )
-        return false;
+    assert(container);
 
     rs_inv_container_set_slot(
         container,
@@ -130,7 +135,9 @@ ui_inv_data_service_seed_from_pool(
     struct UIInventoryPool const* pool,
     int inv_index)
 {
-    if( !svc || !pool || source_id < 0 || source_id >= svc->source_count )
+    assert(pool);
+    assert(svc);
+    if( source_id < 0 || source_id >= svc->source_count )
         return;
     if( inv_index < 0 || inv_index >= pool->count )
         return;
@@ -138,8 +145,7 @@ ui_inv_data_service_seed_from_pool(
     int const container_id = svc->sources[source_id].container_id;
     struct RSInvContainer* container =
         rs_inv_container_get_or_create(&svc->store, container_id, RS_INV_CONTAINER_MAX_SLOTS);
-    if( !container )
-        return;
+    assert(container);
 
     struct UIInventory const* inv = &pool->inventories[inv_index];
     int const n =
@@ -163,7 +169,8 @@ ui_inv_data_service_mark_dirty(
     struct UIInvDataService* svc,
     int source_id)
 {
-    if( !svc || source_id < 0 || source_id >= svc->source_count )
+    assert(svc);
+    if( source_id < 0 || source_id >= svc->source_count )
         return;
     if( !svc->sources[source_id].used )
         return;
@@ -178,7 +185,8 @@ ui_inv_data_service_ensure_container(
     int slot_count,
     char const* display_name)
 {
-    if( !svc || container_id < 0 )
+    assert(svc);
+    if( container_id < 0 )
         return UI_INV_SOURCE_INVALID;
 
     for( int i = 0; i < svc->source_count; i++ )
@@ -211,8 +219,7 @@ ui_inv_data_service_set_change_callback(
     void (*cb)(void* ud, int container_id),
     void* ud)
 {
-    if( !svc )
-        return;
+    assert(svc);
     svc->on_container_change = cb;
     svc->on_container_change_ud = ud;
 }

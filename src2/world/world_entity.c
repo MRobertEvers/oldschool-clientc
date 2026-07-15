@@ -1,5 +1,6 @@
 #include "world_entity.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -60,7 +61,8 @@ World_EntityPoolGet(
     const struct World_EntityPool* pool,
     int index)
 {
-    if( !pool || index < 0 || index >= pool->count )
+    assert(pool);
+    if( index < 0 || index >= pool->count )
         return NULL;
     return (char*)pool->items + (size_t)index * (size_t)pool->element_size;
 }
@@ -70,7 +72,8 @@ World_EntityPoolAlloc(struct World_EntityPool* pool)
 {
     int index;
 
-    if( !pool || pool->element_size <= 0 )
+    assert(pool);
+    if( pool->element_size <= 0 )
         return WORLD_ENTITY_NIL;
 
     if( pool->free_head != WORLD_ENTITY_NIL )
@@ -113,7 +116,8 @@ World_EntityPoolRelease(
     int prev_idx;
     int next_idx;
 
-    if( !pool || index < 0 || index >= pool->count )
+    assert(pool);
+    if( index < 0 || index >= pool->count )
         return;
     if( !pool->nodes[index].active )
         return;
@@ -143,7 +147,8 @@ World_EntityPoolEnsureSlot(
     struct World_EntityPool* pool,
     int index)
 {
-    if( !pool || pool->element_size <= 0 || index < 0 )
+    assert(pool);
+    if( pool->element_size <= 0 || index < 0 )
         return false;
 
     while( index >= pool->capacity )
@@ -178,7 +183,8 @@ World_EntityPoolReserve(
     struct World_EntityPool* pool,
     int slot_count)
 {
-    if( !pool || pool->element_size <= 0 || slot_count <= 0 )
+    assert(pool);
+    if( pool->element_size <= 0 || slot_count <= 0 )
         return true;
 
     int const last = slot_count - 1;

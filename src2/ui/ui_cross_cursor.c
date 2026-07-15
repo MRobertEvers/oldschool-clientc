@@ -1,10 +1,11 @@
 #include "ui_cross_cursor.h"
+#include <assert.h>
 
 void
 ui_cross_cursor_reset(struct UICrossCursorState* state)
 {
-    if( !state )
-        return;
+    assert(state);
+
     state->x = 0;
     state->y = 0;
     state->mode = UI_CROSS_MODE_OFF;
@@ -18,8 +19,8 @@ ui_cross_cursor_show(
     int x,
     int y)
 {
-    if( !state )
-        return;
+    assert(state);
+
     state->x = x;
     state->y = y;
     state->mode = mode;
@@ -29,7 +30,8 @@ ui_cross_cursor_show(
 void
 ui_cross_cursor_tick(struct UICrossCursorState* state, int delta)
 {
-    if( !state || state->mode == UI_CROSS_MODE_OFF )
+    assert(state);
+    if( state->mode == UI_CROSS_MODE_OFF )
         return;
 
     state->cycle += delta;
@@ -58,7 +60,8 @@ ui_cross_cursor_get_position(
 int
 ui_cross_cursor_atlas_frame(struct UICrossCursorState const* state)
 {
-    if( !state || state->mode == UI_CROSS_MODE_OFF )
+    assert(state);
+    if( state->mode == UI_CROSS_MODE_OFF )
         return 0;
 
     int phase = state->cycle / 100;

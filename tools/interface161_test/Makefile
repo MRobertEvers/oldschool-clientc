@@ -132,6 +132,12 @@ $(OBJ_DIR)/ie_struct_lookup.o: $(SRC2_DIR)/games/ie_struct_lookup.c
 $(OBJ_DIR)/ie_param_lookup.o: $(SRC2_DIR)/games/ie_param_lookup.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(OBJ_DIR)/dat2_buildcache.o: $(SRC2_DIR)/buildcache/dat2_buildcache.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/dat2_buildcache_meta.o: $(SRC2_DIR)/buildcache/dat2_buildcache_meta.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(OBJ_DIR)/bzip.o: $(SRC_DIR)/3rd/bzip/bzip.c
 	$(CC) $(CFLAGS) -c $< -o $@
 

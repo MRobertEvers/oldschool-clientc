@@ -11,6 +11,7 @@
 #include "toridraw/toridraw_model_transform.h"
 #include "toridraw/toridraw_scene.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

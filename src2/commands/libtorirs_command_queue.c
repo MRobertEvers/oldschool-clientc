@@ -9,8 +9,7 @@
 struct LibToriRS_Command*
 emplace_command(struct LibToriRS_CommandQueue* command_queue)
 {
-    if( !command_queue )
-        return NULL;
+    assert(command_queue);
     if( command_queue->count >= LIBTORIRS_COMMAND_QUEUE_MAX_SIZE )
         return NULL;
     return &command_queue->commands[command_queue->count++];
@@ -38,24 +37,21 @@ LibToriRS_CommandQueue_Free(struct LibToriRS_CommandQueue* command_queue)
 void
 LibToriRS_CommandQueue_Clear(struct LibToriRS_CommandQueue* command_queue)
 {
-    if( !command_queue )
-        return;
+    assert(command_queue);
     command_queue->count = 0;
 }
 
 bool
 LibToriRS_CommandQueue_IsQuit(struct LibToriRS_CommandQueue* command_queue)
 {
-    if( !command_queue )
-        return false;
+    assert(command_queue);
     return command_queue->quit;
 }
 
 void
 LibToriRS_CommandQueue_PushQuitEvent(struct LibToriRS_CommandQueue* command_queue)
 {
-    if( !command_queue )
-        return;
+    assert(command_queue);
 
     command_queue->quit = true;
 
@@ -71,8 +67,7 @@ LibToriRS_CommandQueue_PushKeyEvent(
     enum LibToriRS_KeyCode key,
     enum LibToriRS_KeyEventType event_type)
 {
-    if( !command_queue )
-        return;
+    assert(command_queue);
     struct LibToriRS_Command* command = emplace_command(command_queue);
     if( !command )
         return;
@@ -102,8 +97,7 @@ LibToriRS_CommandQueue_PushMouseButtonEvent(
     int mouse_x,
     int mouse_y)
 {
-    if( !command_queue )
-        return;
+    assert(command_queue);
     struct LibToriRS_Command* command = emplace_command(command_queue);
     if( !command )
         return;
@@ -138,8 +132,7 @@ LibToriRS_CommandQueue_PushMouseMoveEvent(
     int xrel,
     int yrel)
 {
-    if( !command_queue )
-        return;
+    assert(command_queue);
     struct LibToriRS_Command* command = emplace_command(command_queue);
     if( !command )
         return;
@@ -157,8 +150,7 @@ LibToriRS_CommandQueue_PushMouseWheelEvent(
     int mouse_x,
     int mouse_y)
 {
-    if( !command_queue )
-        return;
+    assert(command_queue);
     struct LibToriRS_Command* command = emplace_command(command_queue);
     if( !command )
         return;

@@ -194,8 +194,7 @@ static bool
 ui_loader_resource_queue_has_incomplete(struct UILoaderState* state)
 {
     struct UIResourceQueue* rq = state->queue;
-    if( !rq )
-        return false;
+    assert(rq);
 
     for( int i = 0; i < rq->count; i++ )
     {
@@ -519,8 +518,8 @@ ui_loader_decode_sprite(
     const struct UIResourceQueueItem* item,
     int atlas_index)
 {
-    if( !filelist || !item )
-        return NULL;
+    assert(filelist);
+    assert(item);
 
     int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, item->index_filename);
     int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, item->data_filename);
@@ -645,8 +644,8 @@ ui_loader_decode_interfaces_from_archive(
     struct RSCacheShared_FileListDat* filelist;
     int data_idx;
 
-    if( !archive || !out_list )
-        return false;
+    assert(archive);
+    assert(out_list);
 
     filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
     if( !filelist )
@@ -670,7 +669,8 @@ ui_loader_get_interface_component(
     struct RSCacheDat1A_ConfigComponentList* interfaces,
     int component_id)
 {
-    if( !interfaces || component_id < 0 || component_id >= interfaces->components_count )
+    assert(interfaces);
+    if( component_id < 0 || component_id >= interfaces->components_count )
         return NULL;
     return interfaces->components[component_id];
 }
@@ -687,7 +687,10 @@ ui_loader_acquire_rs_sprite(
     struct ToriDraw_Sprite** row;
     int scene_id;
 
-    if( !state || !scene || !media || !sprite_ref || !sprite_ref[0] )
+    assert(state);
+    assert(scene);
+    assert(media);
+    if( !sprite_ref || !sprite_ref[0] )
         return -1;
 
     sm = dashmap_search(state->sprite_map, sprite_ref, DASHMAP_FIND);
@@ -735,8 +738,7 @@ ui_loader_ensure_font_id(
     int fidx = font_idx;
     if( fidx < 0 || fidx > 3 )
         fidx = 1;
-    if( !scene )
-        return -1;
+    assert(scene);
     return ui_scene_font_find_id(scene, font_names[fidx]);
 }
 
@@ -759,8 +761,12 @@ ui_loader_bake_rs_subtree(
     int bg_sid[UI_INV_SLOT_OFFSET_MAX];
     int bg_ai[UI_INV_SLOT_OFFSET_MAX];
 
-    if( !state || !tree || !scene || !media || !comp || !interfaces )
-        return;
+    assert(state);
+    assert(tree);
+    assert(scene);
+    assert(media);
+    assert(comp);
+    assert(interfaces);
 
     if( comp->hide && comp->type != COMPONENT_TYPE_LAYER )
         return;
@@ -951,8 +957,9 @@ ui_loader_collect_rs_deps_from_component(
     struct RSCacheDat1A_ConfigComponentList* interfaces,
     struct RSCacheDat1A_ConfigComponent* comp)
 {
-    if( !state || !comp || !interfaces )
-        return;
+    assert(state);
+    assert(comp);
+    assert(interfaces);
 
     if( comp->type == COMPONENT_TYPE_TEXT || comp->type == COMPONENT_TYPE_INV_TEXT )
         state->need_fonts = true;
@@ -983,8 +990,8 @@ ui_loader_queue_pending_models(
     struct UILoaderState* state,
     struct LibToriRS_IOQueue* io_queue)
 {
-    if( !state || !io_queue )
-        return false;
+    assert(state);
+    assert(io_queue);
 
     for( int i = 0; i < state->pending_model_count; i++ )
     {
@@ -1029,7 +1036,8 @@ ui_loader_all_pending_models_received(struct UILoaderState* state)
 static bool
 ui_loader_fonts_ready(struct UILoaderState* state)
 {
-    if( !state || !state->need_fonts )
+    assert(state);
+    if( !state->need_fonts )
         return true;
     return state->fonts_received;
 }
@@ -1045,13 +1053,14 @@ ui_loader_bake_rs_roots(
     struct RSCacheDat1A_ConfigComponentList* interfaces;
     struct RSCacheShared_FileListDat* media;
 
-    if( !state || !tree || !scene )
-        return;
+    assert(state);
+    assert(tree);
+    assert(scene);
 
     queue = state->queue;
     buildcache = state->buildcache;
-    if( !queue || !buildcache )
-        return;
+    assert(queue);
+    assert(buildcache);
 
     interfaces = dat1_buildcache_get_interfaces(buildcache);
     media = dat1_buildcache_get_media_2d_graphics_jagfile(buildcache);
@@ -1168,8 +1177,11 @@ ui_loader_decode_item(
     struct UILoaderState* state,
     struct UIResourceQueueItem* item)
 {
-    struct Dat1BuildCache* buildcache = state ? state->buildcache : NULL;
+    struct Dat1BuildCache* buildcache = state->buildcache;
     struct RSCacheShared_FileListDat* filelist;
+
+    assert(state);
+    assert(buildcache);
 
     filelist = dat1_buildcache_get_media_2d_graphics_jagfile(buildcache);
     if( !filelist )
@@ -1232,7 +1244,9 @@ ui_loader_step_sprite(
     struct UIResourceQueueItem* item,
     struct LibToriRS_IOQueue* io_queue)
 {
-    struct Dat1BuildCache* buildcache = state ? state->buildcache : NULL;
+    struct Dat1BuildCache* buildcache = state->buildcache;
+    assert(state);
+    assert(buildcache);
 
     switch( item->state )
     {
@@ -1312,20 +1326,15 @@ ui_loader_step_rs_component(
     struct UIResourceQueueItem* item,
     struct LibToriRS_IOQueue* io_queue)
 {
-    struct Dat1BuildCache* buildcache = state ? state->buildcache : NULL;
+    struct Dat1BuildCache* buildcache = state->buildcache;
     struct RSCacheDat1A_ConfigComponentList* interfaces;
     struct RSCacheDat1A_ConfigComponent* comp;
 
+    assert(state);
+    assert(buildcache);
+
     if( item->state == UIRES_STATE_DONE || item->state == UIRES_STATE_FAILED )
         return;
-
-    if( !buildcache )
-    {
-        item->status = UIRES_ERROR;
-        item->error_code = -9;
-        item->state = UIRES_STATE_FAILED;
-        return;
-    }
 
     switch( item->state )
     {
@@ -1459,8 +1468,7 @@ ui_loader_process_revconfig(
     struct LibToriRS_IOQueue* io_queue)
 {
     struct UIResourceQueue* rq = state->queue;
-    if( !rq )
-        return;
+    assert(rq);
 
     state->pending_archive_count = 0;
     state->pending_model_count = 0;
@@ -1480,8 +1488,7 @@ ui_loader_process_resource_queue(
     struct LibToriRS_IOQueue* io_queue)
 {
     struct UIResourceQueue* rq = state->queue;
-    if( !rq )
-        return;
+    assert(rq);
 
     for( int i = 0; i < rq->count; i++ )
         ui_loader_step_item(state, &rq->items[i], io_queue);
@@ -1492,10 +1499,11 @@ ui_loader_consume_resolved_cache_io(
     struct UILoaderState* state,
     struct LibToriRS_IOQueue* io_queue)
 {
-    struct Dat1BuildCache* buildcache = state ? state->buildcache : NULL;
+    struct Dat1BuildCache* buildcache = state->buildcache;
 
-    if( !state || !io_queue || !buildcache )
-        return;
+    assert(state);
+    assert(io_queue);
+    assert(buildcache);
 
     for( int i = io_queue->read_head; i < io_queue->count; i++ )
     {
@@ -1626,8 +1634,9 @@ ui_loader_process(
 {
     enum UILoaderWorkKind work_kind;
 
-    if( !state || !io_queue || !state->buildcache )
-        return;
+    assert(state);
+    assert(io_queue);
+    assert(state->buildcache);
 
     ui_loader_consume_resolved_cache_io(state, io_queue);
     io_queue->read_head = io_queue->count;
@@ -1731,8 +1740,7 @@ ui_loader_state_free(struct UILoaderState* state)
 void
 ui_loader_reset(struct UILoaderState* state)
 {
-    if( !state )
-        return;
+    assert(state);
 
     ui_loader_revconfig_reset(state);
     if( state->queue )
@@ -1756,8 +1764,7 @@ ui_loader_revconfig(struct UILoaderState* state)
 void
 ui_loader_revconfig_reset(struct UILoaderState* state)
 {
-    if( !state )
-        return;
+    assert(state);
     if( state->revconfig )
         revconfig_buffer_free(state->revconfig);
     state->revconfig = revconfig_buffer_new(4096);
@@ -1774,8 +1781,7 @@ ui_loader_set_buildcache(
     struct UILoaderState* state,
     struct Dat1BuildCache* buildcache)
 {
-    if( !state )
-        return;
+    assert(state);
     state->buildcache = buildcache;
 }
 
@@ -1784,8 +1790,7 @@ ui_loader_set_gamecache(
     struct UILoaderState* state,
     struct ToriAuxLibCore* gamecache)
 {
-    if( !state )
-        return;
+    assert(state);
     state->core = gamecache;
 }
 
@@ -1794,8 +1799,7 @@ ui_loader_set_ui_scene(
     struct UILoaderState* state,
     struct UIScene* scene)
 {
-    if( !state )
-        return;
+    assert(state);
     state->ui_scene = scene;
 }
 
@@ -1804,8 +1808,8 @@ ui_loader_queue_rs_component(
     struct UILoaderState* state,
     int component_id)
 {
-    if( !state || !state->queue )
-        return;
+    assert(state);
+    assert(state->queue);
 
     if( !ui_resource_queue_push_rs_component(state->queue, component_id) )
     {
@@ -1892,7 +1896,12 @@ ui_loader_submit(
 {
     struct UIResourceQueue* queue;
 
+    assert(state);
+    assert(tree);
+    assert(scene);
+
     queue = state->queue;
+    assert(queue);
 
     tree->component_count = 0;
     tree->root_index = -1;

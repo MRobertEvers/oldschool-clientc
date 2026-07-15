@@ -37,8 +37,8 @@ gamecache_mem_track_add(
     enum ToriAuxLibCore_Kind kind,
     size_t bytes)
 {
-    if( !gamecache || kind >= TORIAUXLIBCORE_KIND_COUNT )
-        return;
+    assert(gamecache);
+    assert(kind < TORIAUXLIBCORE_KIND_COUNT);
     gamecache->asset_bytes[kind] += bytes;
 }
 
@@ -48,8 +48,8 @@ gamecache_mem_track_sub(
     enum ToriAuxLibCore_Kind kind,
     size_t bytes)
 {
-    if( !gamecache || kind >= TORIAUXLIBCORE_KIND_COUNT )
-        return;
+    assert(gamecache);
+    assert(kind < TORIAUXLIBCORE_KIND_COUNT);
     gamecache->asset_bytes[kind] -= bytes;
 }
 
@@ -246,8 +246,8 @@ gamecache_map_ptr(
     int entry_size,
     int initial_capacity)
 {
-    if( !gamecache || !slot )
-        return NULL;
+    assert(gamecache);
+    assert(slot);
     if( !*slot )
         *slot = gamecache_map_new(gamecache, entry_size, initial_capacity);
     return *slot;
@@ -772,7 +772,8 @@ ToriAuxLibCore_ModelGet(
     struct ToriAuxLibCore* gamecache,
     int model_id)
 {
-    if( !gamecache || !gamecache->models_hmap )
+    assert(gamecache);
+    if( !gamecache->models_hmap )
         return NULL;
 
     struct MapEntry_Model* entry = (struct MapEntry_Model*)ToriDraw_MapSearch(
@@ -827,7 +828,8 @@ ToriAuxLibCore_IdkModelGet(
     struct ToriAuxLibCore* gamecache,
     int idk_id)
 {
-    if( !gamecache || !gamecache->idk_models_hmap )
+    assert(gamecache);
+    if( !gamecache->idk_models_hmap )
         return NULL;
 
     struct MapEntry_IdkModel* entry = (struct MapEntry_IdkModel*)ToriDraw_MapSearch(
@@ -883,7 +885,8 @@ ToriAuxLibCore_ObjModelGet(
     struct ToriAuxLibCore* gamecache,
     int obj_id)
 {
-    if( !gamecache || !gamecache->obj_models_hmap )
+    assert(gamecache);
+    if( !gamecache->obj_models_hmap )
         return NULL;
 
     struct MapEntry_ObjModel* entry = (struct MapEntry_ObjModel*)ToriDraw_MapSearch(
@@ -906,7 +909,8 @@ ToriAuxLibCore_ModelRemove(
     struct ToriAuxLibCore* gamecache,
     int model_id)
 {
-    if( !gamecache || !gamecache->models_hmap )
+    assert(gamecache);
+    if( !gamecache->models_hmap )
         return NULL;
 
     struct MapEntry_Model* entry = (struct MapEntry_Model*)ToriDraw_MapSearch(
@@ -922,7 +926,8 @@ ToriAuxLibCore_ModelRemove(
 void
 ToriAuxLibCore_ModelsClearAll(struct ToriAuxLibCore* gamecache)
 {
-    if( !gamecache || !gamecache->models_hmap )
+    assert(gamecache);
+    if( !gamecache->models_hmap )
         return;
 
     ToriAuxLibCore_Free_models(gamecache, gamecache->models_hmap);
@@ -968,7 +973,8 @@ ToriAuxLibCore_TextureGet(
     struct ToriAuxLibCore* gamecache,
     int texture_id)
 {
-    if( !gamecache || !gamecache->textures_hmap )
+    assert(gamecache);
+    if( !gamecache->textures_hmap )
         return NULL;
 
     struct MapEntry_Texture* entry = (struct MapEntry_Texture*)ToriDraw_MapSearch(
@@ -989,7 +995,8 @@ ToriAuxLibCore_TextureHas(
 void
 ToriAuxLibCore_TexturesClearAll(struct ToriAuxLibCore* gamecache)
 {
-    if( !gamecache || !gamecache->textures_hmap )
+    assert(gamecache);
+    if( !gamecache->textures_hmap )
         return;
 
     ToriAuxLibCore_Free_textures(gamecache, gamecache->textures_hmap);
@@ -1033,7 +1040,8 @@ ToriAuxLibCore_SpriteGet(
     struct ToriAuxLibCore* gamecache,
     int sprite_id)
 {
-    if( !gamecache || !gamecache->sprites_hmap )
+    assert(gamecache);
+    if( !gamecache->sprites_hmap )
         return NULL;
 
     struct MapEntry_Sprite* entry = (struct MapEntry_Sprite*)ToriDraw_MapSearch(
@@ -1054,7 +1062,8 @@ ToriAuxLibCore_SpriteHas(
 void
 ToriAuxLibCore_SpritesClearAll(struct ToriAuxLibCore* gamecache)
 {
-    if( !gamecache || !gamecache->sprites_hmap )
+    assert(gamecache);
+    if( !gamecache->sprites_hmap )
         return;
 
     ToriAuxLibCore_Free_sprites(gamecache, gamecache->sprites_hmap);
@@ -1097,7 +1106,8 @@ ToriAuxLibCore_FontGet(
     struct ToriAuxLibCore* gamecache,
     int font_id)
 {
-    if( !gamecache || !gamecache->fonts_hmap )
+    assert(gamecache);
+    if( !gamecache->fonts_hmap )
         return NULL;
 
     struct MapEntry_Font* entry = (struct MapEntry_Font*)ToriDraw_MapSearch(
@@ -1118,7 +1128,8 @@ ToriAuxLibCore_FontHas(
 void
 ToriAuxLibCore_FontsClearAll(struct ToriAuxLibCore* gamecache)
 {
-    if( !gamecache || !gamecache->fonts_hmap )
+    assert(gamecache);
+    if( !gamecache->fonts_hmap )
         return;
 
     ToriAuxLibCore_Free_fonts(gamecache, gamecache->fonts_hmap);
@@ -1166,7 +1177,8 @@ ToriAuxLibCore_ClientScriptGet(
     struct ToriAuxLibCore* gamecache,
     int script_id)
 {
-    if( !gamecache || !gamecache->clientscripts_hmap )
+    assert(gamecache);
+    if( !gamecache->clientscripts_hmap )
         return NULL;
 
     struct MapEntry_ClientScript* entry = (struct MapEntry_ClientScript*)ToriDraw_MapSearch(
@@ -1187,7 +1199,8 @@ ToriAuxLibCore_ClientScriptHas(
 void
 ToriAuxLibCore_ClientScriptsClearAll(struct ToriAuxLibCore* gamecache)
 {
-    if( !gamecache || !gamecache->clientscripts_hmap )
+    assert(gamecache);
+    if( !gamecache->clientscripts_hmap )
         return;
 
     ToriAuxLibCore_Free_clientscripts(gamecache, gamecache->clientscripts_hmap);
@@ -1239,7 +1252,8 @@ ToriAuxLibCore_ComponentGet(
     struct ToriAuxLibCore* gamecache,
     int component_id)
 {
-    if( !gamecache || !gamecache->components_hmap )
+    assert(gamecache);
+    if( !gamecache->components_hmap )
         return NULL;
 
     struct MapEntry_Component* entry = (struct MapEntry_Component*)ToriDraw_MapSearch(
@@ -1260,7 +1274,8 @@ ToriAuxLibCore_ComponentHas(
 void
 ToriAuxLibCore_ComponentsClearAll(struct ToriAuxLibCore* gamecache)
 {
-    if( !gamecache || !gamecache->components_hmap )
+    assert(gamecache);
+    if( !gamecache->components_hmap )
         return;
 
     ToriAuxLibCore_Free_components(gamecache, gamecache->components_hmap);
@@ -1274,7 +1289,8 @@ ToriAuxLibCore_ComponentsClearAll(struct ToriAuxLibCore* gamecache)
 void
 ToriAuxLibCore_SequencesClearAll(struct ToriAuxLibCore* gamecache)
 {
-    if( !gamecache || !gamecache->sequences_hmap )
+    assert(gamecache);
+    if( !gamecache->sequences_hmap )
         return;
 
     ToriAuxLibCore_Free_sequences(gamecache, gamecache->sequences_hmap);
@@ -1285,7 +1301,8 @@ ToriAuxLibCore_SequencesClearAll(struct ToriAuxLibCore* gamecache)
 void
 ToriAuxLibCore_AnimationsClearAll(struct ToriAuxLibCore* gamecache)
 {
-    if( !gamecache || !gamecache->animations_hmap )
+    assert(gamecache);
+    if( !gamecache->animations_hmap )
         return;
 
     ToriAuxLibCore_Free_animations(gamecache, gamecache->animations_hmap);
@@ -1301,7 +1318,8 @@ ToriAuxLibCore_AnimationsClearAll(struct ToriAuxLibCore* gamecache)
 void
 ToriAuxLibCore_LocationsClearAll(struct ToriAuxLibCore* gamecache)
 {
-    if( !gamecache || !gamecache->config_loc_hmap )
+    assert(gamecache);
+    if( !gamecache->config_loc_hmap )
         return;
 
     ToriAuxLibCore_Free_locations(gamecache, gamecache->config_loc_hmap);
@@ -1366,7 +1384,8 @@ ToriAuxLibCore_MapTerrainGet(
     struct ToriAuxLibCore* gamecache,
     int map_id)
 {
-    if( !gamecache || !gamecache->map_terrain_hmap )
+    assert(gamecache);
+    if( !gamecache->map_terrain_hmap )
         return NULL;
 
     struct MapEntry_MapTerrain* entry = (struct MapEntry_MapTerrain*)ToriDraw_MapSearch(
@@ -1422,7 +1441,8 @@ ToriAuxLibCore_MapSceneryGet(
     struct ToriAuxLibCore* gamecache,
     int map_id)
 {
-    if( !gamecache || !gamecache->map_scenery_hmap )
+    assert(gamecache);
+    if( !gamecache->map_scenery_hmap )
         return NULL;
 
     struct MapEntry_MapScenery* entry = (struct MapEntry_MapScenery*)ToriDraw_MapSearch(
@@ -1460,7 +1480,8 @@ ToriAuxLibCore_MapTerrainClearExcept(
     const int* keep_map_ids,
     int keep_count)
 {
-    if( !gamecache || !gamecache->map_terrain_hmap || !keep_map_ids || keep_count <= 0 )
+    assert(gamecache);
+    if( !gamecache->map_terrain_hmap || !keep_map_ids || keep_count <= 0 )
         return;
 
     int remove_cap = 64;
@@ -1510,7 +1531,8 @@ ToriAuxLibCore_MapSceneryClearExcept(
     const int* keep_map_ids,
     int keep_count)
 {
-    if( !gamecache || !gamecache->map_scenery_hmap || !keep_map_ids || keep_count <= 0 )
+    assert(gamecache);
+    if( !gamecache->map_scenery_hmap || !keep_map_ids || keep_count <= 0 )
         return;
 
     int remove_cap = 64;
@@ -1583,7 +1605,8 @@ ToriAuxLibCore_FlotypeGet(
     struct ToriAuxLibCore* gamecache,
     int flo_id)
 {
-    if( !gamecache || !gamecache->flotype_hmap )
+    assert(gamecache);
+    if( !gamecache->flotype_hmap )
         return NULL;
 
     struct MapEntry_Flotype* entry = (struct MapEntry_Flotype*)ToriDraw_MapSearch(
@@ -1636,7 +1659,8 @@ ToriAuxLibCore_UnderlayGet(
     struct ToriAuxLibCore* gamecache,
     int underlay_id)
 {
-    if( !gamecache || !gamecache->underlay_hmap )
+    assert(gamecache);
+    if( !gamecache->underlay_hmap )
         return NULL;
 
     struct MapEntry_Flotype* entry = (struct MapEntry_Flotype*)ToriDraw_MapSearch(
@@ -1692,7 +1716,8 @@ ToriAuxLibCore_LocationGet(
     struct ToriAuxLibCore* gamecache,
     int loc_id)
 {
-    if( !gamecache || !gamecache->config_loc_hmap )
+    assert(gamecache);
+    if( !gamecache->config_loc_hmap )
         return NULL;
 
     struct MapEntry_Location* entry = (struct MapEntry_Location*)ToriDraw_MapSearch(
@@ -1748,7 +1773,8 @@ ToriAuxLibCore_NpctypeGet(
     struct ToriAuxLibCore* gamecache,
     int npc_id)
 {
-    if( !gamecache || !gamecache->npctype_hmap )
+    assert(gamecache);
+    if( !gamecache->npctype_hmap )
         return NULL;
 
     struct MapEntry_Npctype* entry = (struct MapEntry_Npctype*)ToriDraw_MapSearch(
@@ -1804,7 +1830,8 @@ ToriAuxLibCore_ObjtypeGet(
     struct ToriAuxLibCore* gamecache,
     int obj_id)
 {
-    if( !gamecache || !gamecache->objtype_hmap )
+    assert(gamecache);
+    if( !gamecache->objtype_hmap )
         return NULL;
 
     struct MapEntry_Objtype* entry = (struct MapEntry_Objtype*)ToriDraw_MapSearch(
@@ -1860,7 +1887,8 @@ ToriAuxLibCore_SequenceGet(
     struct ToriAuxLibCore* gamecache,
     int seq_id)
 {
-    if( !gamecache || !gamecache->sequences_hmap )
+    assert(gamecache);
+    if( !gamecache->sequences_hmap )
         return NULL;
 
     struct MapEntry_Sequence* entry = (struct MapEntry_Sequence*)ToriDraw_MapSearch(
@@ -1924,7 +1952,8 @@ ToriAuxLibCore_AnimationGet(
     struct ToriAuxLibCore* gamecache,
     int anim_id)
 {
-    if( !gamecache || !gamecache->animations_hmap )
+    assert(gamecache);
+    if( !gamecache->animations_hmap )
         return NULL;
 
     struct MapEntry_Animation* entry = (struct MapEntry_Animation*)ToriDraw_MapSearch(
@@ -2138,8 +2167,8 @@ ToriAuxLibCore_SkeletalAnimAdd(
     int anim_maya_id,
     struct ToriAuxLibCore_SkeletalAnim* skeletal)
 {
-    if( !gamecache || !skeletal )
-        return;
+    assert(gamecache);
+    assert(skeletal);
 
     struct ToriDraw_Map* map = gamecache_map_ptr(
         gamecache,
@@ -2173,7 +2202,8 @@ ToriAuxLibCore_SkeletalAnimGet(
     struct ToriAuxLibCore* gamecache,
     int anim_maya_id)
 {
-    if( !gamecache || !gamecache->skeletal_hmap )
+    assert(gamecache);
+    if( !gamecache->skeletal_hmap )
         return NULL;
 
     struct MapEntry_SkeletalAnim* entry = (struct MapEntry_SkeletalAnim*)ToriDraw_MapSearch(
@@ -2196,11 +2226,9 @@ ToriAuxLibCore_MemBytes(
     struct ToriAuxLibCore* gamecache,
     struct ToriAuxLibCore_MemReport* out)
 {
-    if( !out )
-        return;
+    assert(out);
+    assert(gamecache);
     memset(out, 0, sizeof(*out));
-    if( !gamecache )
-        return;
 
     out->map_buffer_bytes = gamecache->map_buffer_bytes;
     for( int i = 0; i < TORIAUXLIBCORE_KIND_COUNT; i++ )

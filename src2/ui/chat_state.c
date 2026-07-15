@@ -2,12 +2,13 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 void
 chat_state_reset(struct ChatState* state)
 {
-    if( !state )
-        return;
+    assert(state);
+
     memset(state, 0, sizeof(*state));
 }
 
@@ -18,8 +19,7 @@ chat_state_add_line(
     char const* username,
     int type)
 {
-    if( !state )
-        return;
+    assert(state);
 
     if( state->line_count >= CHAT_STATE_LINE_MAX )
     {
@@ -43,7 +43,9 @@ chat_state_add_line(
 bool
 chat_state_is_friend(struct ChatState const* state, char const* username)
 {
-    if( !state || !username || username[0] == '\0' )
+    assert(state);
+    assert(username);
+    if( username[0] == '\0' )
         return false;
 
     for( int i = 0; i < state->friend_count; i++ )
@@ -57,7 +59,9 @@ chat_state_is_friend(struct ChatState const* state, char const* username)
 bool
 chat_state_add_friend(struct ChatState* state, char const* username)
 {
-    if( !state || !username || username[0] == '\0' )
+    assert(state);
+    assert(username);
+    if( username[0] == '\0' )
         return false;
     if( chat_state_is_friend(state, username) )
         return false;
@@ -76,7 +80,9 @@ chat_state_add_friend(struct ChatState* state, char const* username)
 bool
 chat_state_remove_friend(struct ChatState* state, char const* username)
 {
-    if( !state || !username || username[0] == '\0' )
+    assert(state);
+    assert(username);
+    if( username[0] == '\0' )
         return false;
 
     for( int i = 0; i < state->friend_count; i++ )
@@ -100,24 +106,24 @@ chat_state_remove_friend(struct ChatState* state, char const* username)
 void
 chat_state_cycle_public_mode(struct ChatState* state)
 {
-    if( !state )
-        return;
+    assert(state);
+
     state->public_mode = (state->public_mode + 1) % 4;
 }
 
 void
 chat_state_cycle_private_mode(struct ChatState* state)
 {
-    if( !state )
-        return;
+    assert(state);
+
     state->private_mode = (state->private_mode + 1) % 3;
 }
 
 void
 chat_state_cycle_trade_mode(struct ChatState* state)
 {
-    if( !state )
-        return;
+    assert(state);
+
     state->trade_mode = (state->trade_mode + 1) % 3;
 }
 
@@ -128,8 +134,8 @@ chat_state_set_filter_modes(
     int private_mode,
     int trade_mode)
 {
-    if( !state )
-        return;
+    assert(state);
+
     state->public_mode = public_mode;
     state->private_mode = private_mode;
     state->trade_mode = trade_mode;

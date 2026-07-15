@@ -43,15 +43,15 @@ cachelib_free(struct RSCacheDat2DiskLib* cache)
 int
 cachelib_get_mode(struct RSCacheDat2DiskLib* cache)
 {
-    if( !cache )
-        return -1;
+    assert(cache);
     return cache->mode;
 }
 
 struct RSCacheDat2Disk*
 cachelib_dat2_disk(struct RSCacheDat2DiskLib* cache)
 {
-    if( !cache || cache->mode != CACHE_MODE_DAT2 )
+    assert(cache);
+    if( cache->mode != CACHE_MODE_DAT2 )
         return NULL;
     return cache->u.cache_dat2;
 }
@@ -59,7 +59,8 @@ cachelib_dat2_disk(struct RSCacheDat2DiskLib* cache)
 struct RSCacheDat1Disk*
 cachelib_dat1_disk(struct RSCacheDat2DiskLib* cache)
 {
-    if( !cache || cache->mode != CACHE_MODE_DAT1 )
+    assert(cache);
+    if( cache->mode != CACHE_MODE_DAT1 )
         return NULL;
     return cache->u.cache_dat1;
 }

@@ -2,12 +2,13 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 static void
 rs_cs2_invoke_free_strs(struct GameRunescapeCS2Invoke* inv)
 {
-    if( !inv )
-        return;
+    assert(inv);
+
     for( int i = 0; i < inv->str_arg_count; i++ )
     {
         free(inv->str_args[i]);

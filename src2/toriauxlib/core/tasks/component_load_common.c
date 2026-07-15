@@ -114,7 +114,9 @@ inv_load_model_id_add_unique(
     int capacity,
     int model_id)
 {
-    if( model_id < 0 || !model_ids || !model_count || *model_count >= capacity )
+    assert(model_ids);
+    assert(model_count);
+    if( model_id < 0 || *model_count >= capacity )
         return -1;
 
     for( int i = 0; i < *model_count; i++ )
@@ -133,7 +135,9 @@ inv_load_ensure_objtypes(
     int const* obj_ids,
     int count)
 {
-    if( !cache || !obj_ids || count <= 0 )
+    assert(cache);
+    assert(obj_ids);
+    if( count <= 0 )
         return;
 
     for( int i = 0; i < count; i++ )
@@ -148,8 +152,11 @@ inv_load_register_obj_sprite(
     struct InstanceRevConfigContext* rc_ctx,
     struct ToriAuxLibCore_Sprite* sprite)
 {
-    if( !rc_ctx || !rc_ctx->cache || !sprite || !rc_ctx->game || !rc_ctx->game->td )
-        return -1;
+    assert(rc_ctx);
+    assert(rc_ctx->cache);
+    assert(sprite);
+    assert(rc_ctx->game);
+    assert(rc_ctx->game->td);
 
     int element_id = rc_ctx->next_element_id++;
     ToriAuxLibCache_SubmitSprite(rc_ctx->cache, element_id, sprite);

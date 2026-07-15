@@ -1,5 +1,6 @@
 #include "libtorirs_input.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -76,8 +77,7 @@ LibToriRS_Input_Init(
     struct LibToriRS_Input* input,
     uint64_t time)
 {
-    if( !input )
-        return NULL;
+    assert(input);
     memset(input, 0, sizeof(struct LibToriRS_Input));
     input->curr.time = time;
     input->prev.time = time;
@@ -93,8 +93,7 @@ LibToriRS_Input_SetDragThresholds(
     uint64_t zone_pixels,
     uint64_t time_ms)
 {
-    if( !input )
-        return;
+    assert(input);
     input->drag_deadzone_pixels = zone_pixels;
     input->drag_dead_time_ms = time_ms;
 }
@@ -113,8 +112,7 @@ LibToriRS_Input_Begin(
     struct LibToriRS_Input* input,
     uint64_t time)
 {
-    if( !input )
-        return;
+    assert(input);
     input->prev = input->curr;
     input->curr = (struct LibToriRS_Input_State){ 0 };
 
@@ -128,8 +126,7 @@ LibToriRS_Input_Begin(
 void
 LibToriRS_Input_End(struct LibToriRS_Input* input)
 {
-    if( !input )
-        return;
+    assert(input);
 
     input->mouse_dx = input->curr.mouse_x - input->prev.mouse_x;
     input->mouse_dy = input->curr.mouse_y - input->prev.mouse_y;
@@ -151,8 +148,7 @@ LibToriRS_Input_PushKeyDown(
     struct LibToriRS_Input* input,
     enum LibToriRS_KeyCode key)
 {
-    if( !input )
-        return;
+    assert(input);
     input->curr.key_down[key] = 1;
 }
 
@@ -161,8 +157,7 @@ LibToriRS_Input_PushKeyUp(
     struct LibToriRS_Input* input,
     enum LibToriRS_KeyCode key)
 {
-    if( !input )
-        return;
+    assert(input);
     input->curr.key_up[key] = 1;
 }
 
@@ -173,7 +168,8 @@ LibToriRS_Input_PushMouseDown(
     int x,
     int y)
 {
-    if( !input || button <= TORIRSM_UNKNOWN || button >= TORIRSM_COUNT )
+    assert(input);
+    if( button <= TORIRSM_UNKNOWN || button >= TORIRSM_COUNT )
         return;
     input->curr.mouse_x = x;
     input->curr.mouse_y = y;
@@ -193,7 +189,8 @@ LibToriRS_Input_PushMouseUp(
     int x,
     int y)
 {
-    if( !input || button <= TORIRSM_UNKNOWN || button >= TORIRSM_COUNT )
+    assert(input);
+    if( button <= TORIRSM_UNKNOWN || button >= TORIRSM_COUNT )
         return;
     input->curr.mouse_x = x;
     input->curr.mouse_y = y;
@@ -237,8 +234,7 @@ LibToriRS_Input_PushMouseMove(
     int x,
     int y)
 {
-    if( !input )
-        return;
+    assert(input);
     input->curr.mouse_x = x;
     input->curr.mouse_y = y;
     for( int b = TORIRSM_LEFT; b < TORIRSM_COUNT; b++ )
@@ -250,7 +246,6 @@ LibToriRS_Input_PushMouseWheel(
     struct LibToriRS_Input* input,
     int wheel_y)
 {
-    if( !input )
-        return;
+    assert(input);
     input->curr.mouse_wheel_y += wheel_y;
 }

@@ -195,6 +195,7 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_textures_load.c \
 	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_config_entry_load.c \
 	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_clientscript_load.c \
+	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_cs2_run.c \
 	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_component_load.c \
 	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_inv_load.c \
 	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_sprite_load.c \
@@ -224,7 +225,10 @@ COMMON_SRCS := sdl2.c \
 	$(SRC2)/revconfig/revconfig_load.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC2)/games/runescape.c \
+	$(SRC2)/games/runescape_cs2_host.c \
+	$(SRC2)/games/runescape_cs2_queue.c \
 	$(SRC2)/games/game_interface_editor.c \
+	$(SRC2)/games/game_interface_editor_cs2_host.c \
 	$(SRC2)/games/ie_enum_lookup.c \
 	$(SRC2)/games/ie_struct_lookup.c \
 	$(SRC2)/games/ie_param_lookup.c \

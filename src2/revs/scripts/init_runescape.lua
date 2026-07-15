@@ -1,7 +1,5 @@
 print("Initializing RuneScape world (Lua)")
 
-Game.Runescape_Init()
-
 local io_queue = Platform.GetIOQueue()
 
 if Game.GetCacheMode() == "dat2" then
@@ -35,6 +33,9 @@ else
     Game.Dat1_SubmitTextures()
     print("Textures submitted")
 end
+
+-- Revconfig/UI inventory icons raster models against submitted textures.
+Game.Runescape_Init()
 
 while not Game.RunTasks() do
     Platform.LoadIO(io_queue)

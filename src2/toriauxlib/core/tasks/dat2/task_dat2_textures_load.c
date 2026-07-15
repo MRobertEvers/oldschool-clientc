@@ -8,6 +8,7 @@
 #include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/dat2/task_dat2_io.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,8 +30,7 @@ struct Task_Dat2TexturesLoad
 static void
 task_dat2_textures_clear_current(struct Task_Dat2TexturesLoad* task)
 {
-    if( !task )
-        return;
+    assert(task);
 
     if( task->cur_packs && task->cur_def )
     {

@@ -188,7 +188,10 @@ COMMON_SRCS := interface_editor.c \
 	$(SRC2)/revconfig/revconfig_load.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC2)/games/runescape.c \
+	$(SRC2)/games/runescape_cs2_host.c \
+	$(SRC2)/games/runescape_cs2_queue.c \
 	$(SRC2)/games/game_interface_editor.c \
+	$(SRC2)/games/game_interface_editor_cs2_host.c \
 	$(SRC2)/games/ie_enum_lookup.c \
 	$(SRC2)/games/ie_struct_lookup.c \
 	$(SRC2)/games/ie_param_lookup.c \
@@ -201,6 +204,11 @@ COMMON_SRCS := interface_editor.c \
 	$(SRC_DIR)/osrs/palette.c \
 	$(SRC_DIR)/osrs/painters.c \
 	$(SRC_DIR)/osrs/texture.c \
+	$(SRC_DIR)/bmp.c \
+	$(SRC_DIR)/osrs/rscache/dat2a/dat2a_config_enum.c \
+	$(SRC_DIR)/osrs/rscache/dat2a/dat2a_config_struct.c \
+	$(SRC_DIR)/osrs/rscache/dat2a/dat2a_config_param.c \
+	$(SRC_DIR)/osrs/rscache/dat2a/dat2a_cs2_script.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c \
 	$(SRC_DIR)/osrs/rscache/unity.c \

@@ -10,6 +10,7 @@
 #include "osrs/rscache/shared/shared_file_list.h"
 #include "platforms/platform_x/cachelib_client.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +20,8 @@ TAPIDat1_FetchModel(
     struct LibToriRS_IOContext* ctx,
     int model_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat1_model_fetch(model_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -29,6 +32,8 @@ TAPIDat1_DecodeModel(
     struct LibToriRS_IOContext* ctx,
     int slot_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct RSCacheDat1Disk_Archive* archive = NULL;
     struct RSCacheDat2A_Model* model = NULL;
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
@@ -66,6 +71,8 @@ TAPIDat1_FetchMapChunkTerrain(
     int mapx,
     int mapz)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat1_map_chunk_terrain_fetch(mapx, mapz, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -77,6 +84,8 @@ TAPIDat1_DecodeMapChunkTerrain(
     int slot_id,
     struct RSCacheDat2A_MapTerrain** terrain_out)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     *terrain_out = NULL;
     if( !item )
@@ -108,6 +117,8 @@ TAPIDat1_FetchMapChunkScenery(
     int mapx,
     int mapz)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat1_map_chunk_scenery_fetch(mapx, mapz, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -119,6 +130,8 @@ TAPIDat1_DecodeMapChunkScenery(
     int slot_id,
     struct RSCacheDat2A_MapLocs** locs_out)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     *locs_out = NULL;
     if( !item )
@@ -151,6 +164,8 @@ TAPIDat1_DecodeMapChunkScenery(
 static inline void
 TAPIDat1_FetchConfigJagfile(struct LibToriRS_IOContext* ctx)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat1_config_file_fetch(&request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -159,6 +174,8 @@ TAPIDat1_FetchConfigJagfile(struct LibToriRS_IOContext* ctx)
 static inline void
 TAPIDat1_FetchVersionlistJagfile(struct LibToriRS_IOContext* ctx)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat1_versionlist_fetch(&request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -169,6 +186,8 @@ TAPIDat1_DecodeConfigJagfile(
     struct LibToriRS_IOContext* ctx,
     int slot_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     if( !item )
         return NULL;
@@ -195,6 +214,8 @@ TAPIDat1_DecodeVersionlistJagfile(
     struct LibToriRS_IOContext* ctx,
     int slot_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     if( !item )
         return NULL;
@@ -232,6 +253,8 @@ TAPIDat1_DecodeAnimations(
     int slot_id,
     struct RSCacheDat1A_AnimBaseFrames** abf_out)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     *abf_out = NULL;
     if( !item )
@@ -259,6 +282,8 @@ TAPIDat1_DecodeJagfileKind(
     int slot_id,
     int expected_archive_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     if( !item )
         return NULL;
@@ -285,6 +310,8 @@ TAPIDat1_FetchConfigArchive(
     struct LibToriRS_IOContext* ctx,
     int archive_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     request.table_id = RSCacheDat1Disk_Table_Configs;
     request.archive_id = archive_id;
@@ -337,6 +364,8 @@ TAPIDat1_DecodeInterfacesJagfile(
 static inline void
 TAPIDat1_FetchTexturesJagfile(struct LibToriRS_IOContext* ctx)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat1_textures_archive_fetch(&request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);

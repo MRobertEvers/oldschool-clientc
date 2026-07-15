@@ -14,6 +14,7 @@
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_types.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,7 +28,8 @@ get_component(
     struct RSCacheDat1A_ConfigComponentList* ifaces,
     int component_id)
 {
-    if( !ifaces || component_id < 0 || component_id >= ifaces->components_count )
+    assert(ifaces);
+    if( component_id < 0 || component_id >= ifaces->components_count )
         return NULL;
     return ifaces->components[component_id];
 }
@@ -191,8 +193,7 @@ dat1_interface_init(
     struct Dat1_Interface* iface,
     int component_id)
 {
-    if( !iface )
-        return;
+    assert(iface);
     memset(iface, 0, sizeof(*iface));
     iface->state = DAT1_STATE_NEED_ARCHIVE;
     iface->component_id = component_id;
@@ -206,8 +207,11 @@ dat1_interface_step(
     struct UIScene* scene,
     struct DashMap* sprite_map)
 {
-    if( !iface || !buildcache || !core || !scene || !sprite_map )
-        return;
+    assert(iface);
+    assert(buildcache);
+    assert(core);
+    assert(scene);
+    assert(sprite_map);
 
 reswitch:
     switch( iface->state )

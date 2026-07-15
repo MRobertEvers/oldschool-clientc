@@ -14,8 +14,8 @@ game_modelviewer_translate_gc_event(
     const struct ToriDraw_Event* ev,
     struct LibToriRS_RenderCommand* command)
 {
-    if( !ev || !command )
-        return false;
+    assert(ev);
+    assert(command);
 
     memset(command, 0, sizeof(*command));
 
@@ -94,8 +94,7 @@ game_modelviewer_new(
     struct ToriDraw_Scene* scene)
 {
     struct GameModelViewer* mv = calloc(1, sizeof(struct GameModelViewer));
-    if( !mv )
-        return NULL;
+    assert(mv);
 
     mv->script_queue = script_queue;
     mv->scene = scene;
@@ -154,8 +153,7 @@ game_modelviewer_new(
 void
 game_modelviewer_free(struct GameModelViewer* mv)
 {
-    if( !mv )
-        return;
+    assert(mv);
 
     free(mv->camera_position);
     free(mv->camera);
@@ -186,8 +184,7 @@ game_modelviewer_next(
     struct GameModelViewer* mv,
     int step)
 {
-    if( !mv )
-        return;
+    assert(mv);
 
     int model_id = mv->current_model_id + step;
     if( model_id < 0 )
@@ -207,8 +204,7 @@ game_modelviewer_set_core(
     struct GameModelViewer* mv,
     struct ToriAuxLibCore* core)
 {
-    if( !mv )
-        return;
+    assert(mv);
     mv->core = core;
 }
 
@@ -222,7 +218,8 @@ game_modelviewer_set_model(
 
     (void)model_id;
 
-    if( !mv || !mv->scene )
+    assert(mv);
+    if( !mv->scene )
         return;
 
     if( mv->current_element_id != TORIDRAW_SCENE_INVALID_ELEMENT_ID )
@@ -340,8 +337,7 @@ void
 game_modelviewer_frame_begin(struct GameModelViewer* mv, int cycles_elapsed)
 {
     (void)cycles_elapsed;
-    if( !mv )
-        return;
+    assert(mv);
 
     mv->frame.phase = MV_FRAME_PHASE_GC_EVENTS;
     mv->frame.event_index = 0;
@@ -356,8 +352,8 @@ game_modelviewer_frame_next_command(
     struct GameModelViewer* mv,
     struct LibToriRS_RenderCommand* command)
 {
-    if( !mv || !command )
-        return false;
+    assert(command);
+    assert(mv);
 
     memset(command, 0, sizeof(*command));
 
@@ -464,8 +460,7 @@ game_modelviewer_frame_next_command(
 void
 game_modelviewer_frame_end(struct GameModelViewer* mv)
 {
-    if( !mv )
-        return;
+    assert(mv);
 
     if( mv->scene )
         ToriDraw_SceneFrameEnd(mv->scene);

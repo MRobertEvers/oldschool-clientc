@@ -5,6 +5,7 @@
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/vm/toriauxlibvm.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 
 int
@@ -65,6 +66,26 @@ ToriAuxLibCache_ClientScriptResolve(
     return NULL;
 }
 
+struct ToriAuxLibCore_Component*
+ToriAuxLibCore_ComponentGet(
+    struct ToriAuxLibCore* core,
+    int component_id)
+{
+    (void)core;
+    (void)component_id;
+    return NULL;
+}
+
+bool
+ToriAuxLibCore_ComponentHas(
+    struct ToriAuxLibCore* core,
+    int component_id)
+{
+    (void)core;
+    (void)component_id;
+    return false;
+}
+
 int
 varp_varbit_get_varp(
     struct VarPVarBitManager const* mgr,
@@ -84,4 +105,20 @@ varp_varbit_set_varp_optimistic(
     (void)mgr;
     (void)id;
     (void)value;
+}
+
+int
+varp_varbit_resolve_transform(
+    const struct VarPVarBitManager* mgr,
+    const int* transforms,
+    int transform_count,
+    int transform_varbit,
+    int transform_varp)
+{
+    (void)mgr;
+    (void)transforms;
+    (void)transform_count;
+    (void)transform_varbit;
+    (void)transform_varp;
+    return -1;
 }

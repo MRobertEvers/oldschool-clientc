@@ -58,7 +58,8 @@ dat2_get_component(
     struct Dat2BuildCache_InterfaceArchive* archive,
     int component_id)
 {
-    if( !archive || component_id < 0 )
+    assert(archive);
+    if( component_id < 0 )
         return NULL;
 
     int file_index = component_id & 0xFFFF;
@@ -108,8 +109,8 @@ dat2_component_sync_to_core(
     int height,
     int parent_id)
 {
-    if( !cache || !comp )
-        return;
+    assert(cache);
+    assert(comp);
 
     struct ToriAuxLibCore* core = ToriAuxLibCache_Core(cache);
     int comp_id = comp->id;
@@ -254,8 +255,8 @@ dat2_component_acquire_inv_slot_sprites(
     struct InstanceRevConfigContext* ctx,
     RSCacheDat2A_Component* comp)
 {
-    if( !ctx || !comp )
-        return;
+    assert(ctx);
+    assert(comp);
     if( comp->type != COMPONENT_TYPE_INV || !comp->invSlotGraphicId )
         return;
 
@@ -271,8 +272,8 @@ dat2_component_acquire_dynamic_sprites(
     struct InstanceRevConfigContext* ctx,
     RSCacheDat2A_Component* comp)
 {
-    if( !ctx || !comp )
-        return;
+    assert(ctx);
+    assert(comp);
 
     if( comp->graphic >= 0 )
         instance_revconfig_dat2_ensure_sprite_id(ctx, comp->graphic);
@@ -306,7 +307,8 @@ dat2_component_file_index(
     struct Dat2BuildCache_InterfaceArchive* archive,
     int component_id)
 {
-    if( !archive || component_id < 0 )
+    assert(archive);
+    if( component_id < 0 )
         return -1;
 
     int const file_index = component_id & 0xFFFF;
@@ -453,8 +455,6 @@ Task_Dat2ComponentLoad_Run(
     assert(
         task->rc_ctx && task->rc_ctx->dat2_bc && dat2_iface_resolved &&
         "Task_Dat2ComponentLoad: missing rc_ctx, dat2_bc, or invalid dat2 root");
-    if( !task->rc_ctx || !task->rc_ctx->dat2_bc || !dat2_iface_resolved )
-        PT_EXIT(&task->pt);
 
     task->iface_archive =
         dat2_buildcache_interface_archive_get(task->rc_ctx->dat2_bc, task->iface_id);

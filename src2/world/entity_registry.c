@@ -1,5 +1,6 @@
 #include "entity_registry.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -29,7 +30,8 @@ entity_registry_free(struct EntityRegistry* reg)
 struct EntityRecord*
 entity_registry_find(struct EntityRegistry* reg, int entity_id)
 {
-    if( !reg || !reg->records )
+    assert(reg);
+    if( !reg->records )
         return NULL;
 
     for( int i = 0; i < reg->count; i++ )
@@ -55,8 +57,7 @@ entity_registry_register(
 {
     struct EntityRecord* existing;
 
-    if( !reg )
-        return false;
+    assert(reg);
 
     existing = entity_registry_find(reg, entity_id);
     if( existing )

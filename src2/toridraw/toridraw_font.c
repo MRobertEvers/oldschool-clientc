@@ -617,7 +617,9 @@ font_wrap_segment_max_width(
     int len,
     int max_width)
 {
-    if( !font || !text || len <= 0 )
+    assert(font);
+    assert(text);
+    if( len <= 0 )
         return 0;
     if( max_width <= 0 )
         return font_measure_range(font, text, len);
@@ -703,7 +705,9 @@ font_wrap_segment_line_count(
     int len,
     int max_width)
 {
-    if( !font || !text || len <= 0 )
+    assert(font);
+    assert(text);
+    if( len <= 0 )
         return 0;
 
     if( max_width <= 0 )

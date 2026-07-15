@@ -10,14 +10,15 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 #define CLIENT_CODE_REPORT_INPUT 600
 
 int32_t
 uitree_find_chat_builtin_node(struct UITree const* tree)
 {
-    if( !tree )
-        return -1;
+    assert(tree);
+
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         if( tree->components[i].type == UIELEM_BUILTIN_CHAT )
@@ -33,7 +34,8 @@ ui_chat_minimenu_format_template(
     char const* tmpl,
     char const* sender)
 {
-    if( !out || out_len == 0 )
+    assert(out);
+    if( out_len == 0 )
         return;
     out[0] = '\0';
     if( !tmpl || tmpl[0] == '\0' )
@@ -69,7 +71,8 @@ ui_chat_minimenu_add_template_row(
     int priority,
     char const* sender)
 {
-    if( !menu || !tmpl || tmpl[0] == '\0' || action == 0 )
+    assert(menu);
+    if( !tmpl || tmpl[0] == '\0' || action == 0 )
         return;
 
     char text[UI_MINIMENU_OPTION_LEN];
@@ -145,7 +148,9 @@ ui_chat_minimenu_add_social_rows(
     char const* sender,
     int priority)
 {
-    if( !game || !config || !menu || !sender || sender[0] == '\0' )
+    assert(game);
+    assert(menu);
+    if( !config || !sender || sender[0] == '\0' )
         return;
 
     if( game->chat.staff_mod_level >= 1 && config->op_report_abuse[0] != '\0' )
@@ -195,8 +200,8 @@ ui_chat_minimenu_resolve_config(struct GameRunescape* game)
         .op_accept_duel_action = MINIMENU_ACTION_OPPLAYER_DUELREQ,
     };
 
-    if( !game || !game->ui_tree )
-        return &k_defaults;
+    assert(game);
+    assert(game);
 
     int32_t chat_idx = game->ui_hover.chat_node;
     if( chat_idx < 0 || (uint32_t)chat_idx >= game->ui_tree->component_count ||
@@ -220,7 +225,9 @@ ui_chat_minimenu_add_private_strip(
     int mouse_y,
     struct UIMinimenuState* menu)
 {
-    if( !game || !menu || game->chat.split_private_chat == 0 )
+    assert(game);
+    assert(menu);
+    if( game->chat.split_private_chat == 0 )
         return;
 
     struct StaticUIChatMinimenuConfig const* config = ui_chat_minimenu_resolve_config(game);
@@ -258,8 +265,8 @@ ui_chat_minimenu_add_main_box(
     struct StaticUIChatMinimenuConfig const* config,
     struct UIMinimenuState* menu)
 {
-    if( !game || !menu )
-        return;
+    assert(game);
+    assert(menu);
 
     if( !config )
         config = ui_chat_minimenu_resolve_config(game);
@@ -343,8 +350,8 @@ ui_chat_button_active_mode(
     struct GameRunescape const* game,
     enum StaticUIChatButtonFilter filter)
 {
-    if( !game )
-        return 0;
+    assert(game);
+
     switch( filter )
     {
     case STATIC_UI_CHAT_BUTTON_PUBLIC:
@@ -361,7 +368,8 @@ ui_chat_button_active_mode(
 int
 ui_chat_button_emit_step_count(struct StaticUIComponent const* component)
 {
-    if( !component || component->type != UIELEM_BUILTIN_CHAT_BUTTON )
+    assert(component);
+    if( component->type != UIELEM_BUILTIN_CHAT_BUTTON )
         return 0;
     if( component->u.chat_button.filter == STATIC_UI_CHAT_BUTTON_REPORT )
         return 1;
@@ -377,7 +385,10 @@ ui_chat_button_emit(
     char* text_scratch,
     size_t text_scratch_size)
 {
-    if( !game || !component || !command || component->type != UIELEM_BUILTIN_CHAT_BUTTON )
+    assert(game);
+    assert(component);
+    assert(command);
+    if( component->type != UIELEM_BUILTIN_CHAT_BUTTON )
         return false;
 
     struct StaticUIChatButtonConfig const* cfg = &component->u.chat_button;
@@ -395,8 +406,7 @@ ui_chat_button_emit(
         font_id = 1;
 
     struct ToriDraw_Font* font = game->scene ? ToriDraw_SceneFontGet(game->scene, font_id) : NULL;
-    if( !font )
-        return false;
+    assert(font);
 
     int const lh = font->line_height > 0 ? font->line_height : 1;
     int draw_x = bx;
@@ -427,7 +437,8 @@ ui_chat_button_emit(
         return false;
     }
 
-    if( !text || text[0] == '\0' )
+    assert(text);
+    if( text[0] == '\0' )
         return false;
 
     if( text_scratch && text_scratch_size > 0 )
@@ -456,8 +467,8 @@ ui_chat_button_emit(
 static void
 ui_chat_button_open_report_abuse(struct GameRunescape* game)
 {
-    if( !game || !game->ui_tree )
-        return;
+    assert(game);
+    assert(game);
 
     for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
     {
@@ -476,7 +487,9 @@ ui_chat_button_handle_click(
     struct GameRunescape* game,
     struct StaticUIComponent const* component)
 {
-    if( !game || !component || component->type != UIELEM_BUILTIN_CHAT_BUTTON )
+    assert(game);
+    assert(component);
+    if( component->type != UIELEM_BUILTIN_CHAT_BUTTON )
         return;
 
     struct StaticUIChatButtonConfig const* cfg = &component->u.chat_button;

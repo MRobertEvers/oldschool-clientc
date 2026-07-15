@@ -13,6 +13,7 @@
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_scene.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -116,8 +117,7 @@ LibToriRS_InstanceSetClientKronos(
     struct LibToriRS_Instance* instance,
     bool kronos)
 {
-    if( !instance )
-        return;
+    assert(instance);
     instance->client_kronos = kronos;
     if( instance->toriauxlib )
     {
@@ -170,8 +170,7 @@ LibToriRS_InitTime(
     struct LibToriRS_Instance* instance,
     uint64_t time)
 {
-    if( !instance )
-        return;
+    assert(instance);
     LibToriRS_Input_Init(instance->input, time);
     instance->last_frame_ms = time;
     instance->input_accumulator_ms = 0;
@@ -182,16 +181,14 @@ LibToriRS_InitTime(
 struct LibToriRS_ScriptQueue*
 LibToriRS_GetScriptQueue(struct LibToriRS_Instance* instance)
 {
-    if( !instance )
-        return NULL;
+    assert(instance);
     return instance->script_queue;
 }
 
 struct LibToriRS_IOQueue*
 LibToriRS_GetIOQueue(struct LibToriRS_Instance* instance)
 {
-    if( !instance )
-        return NULL;
+    assert(instance);
     return instance->io_queue;
 }
 
@@ -201,8 +198,8 @@ LibToriRS_ProcessCommandQueue(
     struct LibToriRS_CommandQueue* command_queue,
     uint64_t time)
 {
-    if( !instance )
-        return;
+    assert(instance);
+    assert(command_queue);
 
     LibToriRS_Input_Begin(instance->input, time);
 
@@ -258,8 +255,8 @@ LibToriRS_TickInput(
     struct LibToriRS_CommandQueue* command_queue,
     uint64_t time_ms)
 {
-    if( !instance || !command_queue )
-        return;
+    assert(instance);
+    assert(command_queue);
 
     instance->input_accumulator_ms += time_ms - instance->last_frame_ms;
     instance->anim_accumulator_ms += time_ms - instance->anim_last_tick_ms;
@@ -287,8 +284,7 @@ LibToriRS_TickInput(
 void
 LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
 {
-    if( !instance )
-        return;
+    assert(instance);
 
     struct LibToriRS_Input* input = instance->input;
 
@@ -507,8 +503,7 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
 void
 LibToriRS_FrameBegin(struct LibToriRS_Instance* instance)
 {
-    if( !instance )
-        return;
+    assert(instance);
 
     int cycles_elapsed = 0;
     while( instance->anim_accumulator_ms >= LIBTORIRS_ANIM_SAMPLE_MS &&
@@ -541,6 +536,7 @@ LibToriRS_FrameBegin(struct LibToriRS_Instance* instance)
 uint64_t
 LibToriRS_GetAnimationClock(struct LibToriRS_Instance* instance)
 {
+    assert(instance);
     return instance->anim_cycle_count;
 }
 
@@ -549,6 +545,7 @@ LibToriRS_FrameNextCommand(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_RenderCommand* command)
 {
+    assert(instance);
     switch( instance->active_game_kind )
     {
     case GAME_HANDLE_KIND_MODEL_VIEWER:
@@ -574,8 +571,7 @@ LibToriRS_FrameNextCommand(
 void
 LibToriRS_FrameEnd(struct LibToriRS_Instance* instance)
 {
-    if( !instance )
-        return;
+    assert(instance);
     switch( instance->active_game_kind )
     {
     case GAME_HANDLE_KIND_MODEL_VIEWER:
@@ -598,24 +594,21 @@ LibToriRS_FrameEnd(struct LibToriRS_Instance* instance)
 bool
 LibToriRS_IsRunning(struct LibToriRS_Instance* instance)
 {
-    if( !instance )
-        return false;
+    assert(instance);
     return instance->running;
 }
 
 struct ToriDraw_Scene*
 LibToriRS_GetCurrentToriDrawScene(struct LibToriRS_Instance* instance)
 {
-    if( !instance )
-        return NULL;
+    assert(instance);
     return instance->scene;
 }
 
 struct ToriAuxLib*
 LibToriRS_GetToriAuxLib(struct LibToriRS_Instance* instance)
 {
-    if( !instance )
-        return NULL;
+    assert(instance);
     return instance->toriauxlib;
 }
 
@@ -657,8 +650,8 @@ LibToriRS_TasksAdd(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_Task* task)
 {
-    if( !instance || !task )
-        return;
+    assert(instance);
+    assert(task);
     LibToriRS_TaskRunner_Add(&instance->task_runner, task);
 }
 
@@ -671,8 +664,7 @@ LibToriRS_TasksAddLegacy(
 {
     struct LibToriRS_LegacyTaskAdapter* adapter = NULL;
 
-    if( !instance )
-        return;
+    assert(instance);
 
     adapter = calloc(1, sizeof(struct LibToriRS_LegacyTaskAdapter));
     if( !adapter )
@@ -688,15 +680,35 @@ LibToriRS_TasksAddLegacy(
 bool
 LibToriRS_TasksRun(struct LibToriRS_Instance* instance)
 {
-    if( !instance )
-        return false;
+    assert(instance);
     return LibToriRS_TaskRunner_Run(&instance->task_runner);
 }
 
 bool
 LibToriRS_TasksHasLive(struct LibToriRS_Instance* instance)
 {
-    if( !instance )
-        return false;
+    assert(instance);
     return instance->task_runner.count > 0;
+}
+
+void
+LibToriRS_FramePrepare(struct LibToriRS_Instance* instance)
+{
+    assert(instance);
+    if( instance->active_game_kind == GAME_HANDLE_KIND_RUNESCAPE && instance->runescape )
+        (void)GameRunescape_CS2FlushQueueToTasks(instance->runescape, instance);
+    /* Interface editor CS2 flush can be added when editor is ported. */
+}
+
+bool
+LibToriRS_TasksSettled(struct LibToriRS_Instance* instance)
+{
+    assert(instance);
+    if( instance->active_game_kind == GAME_HANDLE_KIND_RUNESCAPE && instance->runescape )
+    {
+        (void)GameRunescape_CS2FlushQueueToTasks(instance->runescape, instance);
+        if( !GameRunescape_CS2IsIdle(instance->runescape) )
+            return false;
+    }
+    return !LibToriRS_TasksHasLive(instance);
 }

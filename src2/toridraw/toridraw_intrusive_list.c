@@ -1,5 +1,6 @@
 #include "toridraw_intrusive_list.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -50,8 +51,7 @@ ToriDraw_IntrusiveListAlloc(
 {
     int index;
 
-    if( !list )
-        return TORIDRAW_INTRUSIVE_NIL;
+    assert(list);
 
     if( list->free_head != TORIDRAW_INTRUSIVE_NIL )
     {
@@ -89,7 +89,8 @@ ToriDraw_IntrusiveListRelease(
     int prev_idx;
     int next_idx;
 
-    if( !list || index < 0 || index >= list->count )
+    assert(list);
+    if( index < 0 || index >= list->count )
         return;
     if( list->nodes[index].prev == TORIDRAW_INTRUSIVE_FREE )
         return;

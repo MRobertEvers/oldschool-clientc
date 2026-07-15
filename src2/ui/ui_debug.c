@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 bool
 ui_hover_debug_enabled(void)
@@ -26,7 +27,8 @@ ui_hover_debug_log(
     char const* fmt,
     ...)
 {
-    if( !ui_hover_debug_enabled() || !fmt )
+    assert(fmt);
+    if( !ui_hover_debug_enabled() )
         return;
 
     va_list args;
@@ -54,7 +56,8 @@ ui_active_debug_log(
     char const* fmt,
     ...)
 {
-    if( !ui_active_debug_enabled() || !fmt )
+    assert(fmt);
+    if( !ui_active_debug_enabled() )
         return;
 
     va_list args;
@@ -82,7 +85,8 @@ ui_minimenu_debug_log(
     char const* fmt,
     ...)
 {
-    if( !ui_minimenu_debug_enabled() || !fmt )
+    assert(fmt);
+    if( !ui_minimenu_debug_enabled() )
         return;
 
     va_list args;
@@ -150,7 +154,8 @@ ui_minimenu_debug_append_ops(
     char const* prefix,
     char const ops[UITREE_MENU_OPTION_SLOTS][UITREE_MENU_OPTION_LEN])
 {
-    if( !out || out_size == 0 )
+    assert(out);
+    if( out_size == 0 )
         return;
 
     out[0] = '\0';
@@ -239,7 +244,8 @@ ui_minimenu_debug_append_inv_item_opcodes(
     size_t out_size,
     struct ToriAuxLibCore_Objtype const* obj)
 {
-    if( !out || out_size == 0 )
+    assert(out);
+    if( out_size == 0 )
         return;
 
     out[0] = '\0';
@@ -293,7 +299,8 @@ ui_minimenu_debug_append_inv_item_opcodes(
 
     for( int op = 2; op >= 0; op-- )
     {
-        if( !obj || obj->inv_actions[op][0] == '\0' )
+        assert(obj);
+        if( obj->inv_actions[op][0] == '\0' )
             continue;
 
         ui_minimenu_debug_format_inv_item_option(
@@ -326,7 +333,8 @@ ui_minimenu_debug_append_inv_container_opcodes(
     struct StaticUIMenuOptions const* opts,
     char const* obj_name)
 {
-    if( !out || out_size == 0 || !opts )
+    assert(out);
+    if( out_size == 0 || !opts )
         return;
 
     out[0] = '\0';

@@ -76,16 +76,16 @@ uitree_component_visible_host(
 
     if( component->type == UIELEM_BUILTIN_CROSS )
     {
-        if( !host )
-            return false;
+        assert(host);
+
         struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_CROSS_ACTIVE };
         return uitree_host(host, &req) != 0;
     }
 
     if( component->type == UIELEM_BUILTIN_MINIMENU )
     {
-        if( !host )
-            return false;
+        assert(host);
+
         struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
         return uitree_host(host, &req) != 0;
     }
@@ -114,10 +114,9 @@ uitree_component_is_active_host(
     struct UITreeHost const* host,
     struct StaticUIComponent const* component)
 {
-    if( !component || !component->behavior.script_comparator )
-        return false;
-    if( !host )
-        return false;
+    assert(component);
+    assert(component);
+    assert(host);
 
     struct UITreeHostRequest req = {
         .kind = UITREE_HOST_IS_ACTIVE,
@@ -131,7 +130,8 @@ uitree_component_text_source_host(
     struct UITreeHost const* host,
     struct StaticUIComponent const* component)
 {
-    if( !component || component->type != UIELEM_RS_TEXT )
+    assert(component);
+    if( component->type != UIELEM_RS_TEXT )
         return NULL;
 
     bool active = uitree_component_is_active_host(host, component);
@@ -147,8 +147,7 @@ uitree_component_text_color_host(
     struct UITreeHost const* host,
     int base_color)
 {
-    if( !component )
-        return base_color;
+    assert(component);
 
     int color = base_color;
     bool hovered = uitree_component_hovered_by_ids(component->component_id, hover_ids);
@@ -215,8 +214,7 @@ uitree_component_rect_color_host(
 static int
 uitree_sidebar_componentno_for_tab(struct UITree const* tree, int tabno)
 {
-    if( !tree )
-        return -1;
+    assert(tree);
 
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
@@ -298,7 +296,8 @@ uitree_expand_text_host(
     assert(scratch_size > 0);
 
     char const* src = uitree_component_text_source_host(host, component);
-    if( !src || src[0] == '\0' )
+    assert(src);
+    if( src[0] == '\0' )
         return src;
 
     if( component->type != UIELEM_RS_TEXT )

@@ -275,7 +275,8 @@ revconfig_load_fields_from_ini_bytes(
     uint32_t size,
     struct RevConfigBuffer* revconfig_buffer)
 {
-    if( !data || size == 0 || !revconfig_buffer )
+    assert(revconfig_buffer);
+    if( !data || size == 0 )
         return;
 
     s_ini_item_type[0] = '\0';

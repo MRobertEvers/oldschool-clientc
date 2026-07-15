@@ -1,5 +1,7 @@
 #include "minimenu_pickset.h"
 
+#include <assert.h>
+
 #include "games/runescape.h"
 #include "world/world.h"
 #include "world/world_pickset.h"
@@ -9,8 +11,8 @@
 void
 minimenu_pickset_reset(struct MinimenuPickSet* set)
 {
-    if( !set )
-        return;
+    assert(set);
+
     memset(set, 0, sizeof(*set));
 }
 
@@ -23,7 +25,8 @@ minimenu_pickset_add(
     int tertiary_id,
     int quaternary_id)
 {
-    if( !set || set->count >= MINIMENU_PICKSET_MAX )
+    assert(set);
+    if( set->count >= MINIMENU_PICKSET_MAX )
         return false;
 
     for( int i = 0; i < set->count; i++ )
@@ -49,8 +52,8 @@ runescape_scenery_loc_id_for_element(
     struct GameRunescape* game,
     int element_id)
 {
-    if( !game || !game->world )
-        return -1;
+    assert(game);
+    assert(game);
 
     for( int i = 0; i < game->world->scenery_pick_count; i++ )
     {
@@ -66,8 +69,8 @@ runescape_entity_id_for_element(
     struct GameRunescape* game,
     int element_id)
 {
-    if( !game || !game->entities.records )
-        return -1;
+    assert(game);
+    assert(game);
 
     for( int i = 0; i < game->entities.count; i++ )
     {
@@ -83,12 +86,10 @@ world_pickset_to_minimenu_pickset(
     struct GameRunescape* game,
     struct MinimenuPickSet* out)
 {
-    if( !out )
-        return;
+    assert(out);
 
     minimenu_pickset_reset(out);
-    if( !game )
-        return;
+    assert(game);
 
     for( int i = 0; i < game->world_pick.pickset.count; i++ )
     {
@@ -140,8 +141,7 @@ inv_slot_to_minimenu_pickset(
     int32_t component_index,
     struct MinimenuPickSet* out)
 {
-    if( !out )
-        return;
+    assert(out);
 
     minimenu_pickset_reset(out);
     minimenu_pickset_add(
@@ -153,8 +153,7 @@ ui_component_to_minimenu_pickset(
     int32_t component_index,
     struct MinimenuPickSet* out)
 {
-    if( !out )
-        return;
+    assert(out);
 
     minimenu_pickset_reset(out);
     minimenu_pickset_add(out, MINIMENU_PICK_UI, component_index, 0, 0, 0);

@@ -18,16 +18,17 @@
 #include "ui/uitree_build.h"
 #include "ui/uitree_layout.h"
 #include "vm/cs1vm_host.h"
-#include "vm/cs2_host_ui.h"
 #include "vm/cs2_opcode.h"
 #include "vm/cs2_opcode_meta.h"
 #include "vm/cs2_script.h"
-#include "vm/cs2_trigger_args.h"
+#include "vm/cs2vmx.h"
+#include "games/game_interface_editor_cs2_host.h"
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 /** Active game during CS2 script resolution callbacks. */
 static struct GameInterfaceEditor* s_ie_cs2_game;
@@ -58,8 +59,8 @@ ie_push_script_error(
     char const* fmt,
     ...)
 {
-    if( !game || !fmt )
-        return;
+    assert(game);
+    assert(fmt);
 
     char buf[IE_SCRIPT_ERROR_LEN];
     va_list ap;
@@ -88,8 +89,8 @@ ie_on_cc_create_notify(
     (void)parent_component_id;
     (void)sub_id;
     struct GameInterfaceEditor* game = ud;
-    if( !game )
-        return;
+    assert(game);
+
     if( ok )
         game->diag_cc_create_ok++;
     else
@@ -291,7 +292,8 @@ ie_push_draw_font(
     int line_height,
     int y_align)
 {
-    if( !text || !text[0] || game->draw_count >= IE_MAX_DRAW_ITEMS )
+    assert(text);
+    if( !text[0] || game->draw_count >= IE_MAX_DRAW_ITEMS )
         return;
     if( font_id < 0 )
         return;
@@ -409,8 +411,8 @@ ie_panel_scroll_metrics(
     enum InterfaceEditorScrollTarget target,
     struct IEPanelScrollMetrics* out)
 {
-    if( !game || !out )
-        return false;
+    assert(game);
+    assert(out);
 
     int const content_y = IE_TOOLBAR_H;
     int const content_h = IE_WINDOW_H - IE_TOOLBAR_H;
@@ -501,8 +503,9 @@ ie_push_vertical_scrollbar(
     enum InterfaceEditorScrollTarget target,
     struct IEVerticalScrollbarGeom const* geom)
 {
-    if( !game || !geom || !geom->visible )
-        return;
+    assert(game);
+    assert(geom);
+    assert(geom);
 
     ie_push_draw_fill(
         game, geom->track_x, geom->track_y, geom->track_w, geom->track_h, IE_SCROLLBAR_TRACK_ARGB);
@@ -649,8 +652,8 @@ ie_scrollbar_drag_update(
     struct GameInterfaceEditor* game,
     struct LibToriRS_Input* input)
 {
-    if( !game || !input )
-        return;
+    assert(game);
+    assert(input);
 
     if( !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
     {
@@ -658,8 +661,7 @@ ie_scrollbar_drag_update(
         return;
     }
 
-    if( !game->scrollbar_drag_active )
-        return;
+    assert(game);
 
     struct IEPanelScrollMetrics metrics;
     if( !ie_panel_scroll_metrics(game, game->scrollbar_drag_target, &metrics) )
@@ -704,7 +706,8 @@ ie_resolve_scene_font(
     struct GameInterfaceEditor* game,
     int rs_font_id)
 {
-    if( !game || rs_font_id < 0 )
+    assert(game);
+    if( rs_font_id < 0 )
         return ie_default_ui_font_id(game);
 
     for( int i = 0; i < game->font_cache_count; i++ )
@@ -730,8 +733,7 @@ ie_resolve_scene_font(
 
     struct ToriAuxLibCore_Font* core_font =
         ToriAuxLibCache_FontNewFromDat2Archives(font_archive, sprite_archive, rs_font_id);
-    if( !core_font )
-        return ie_default_ui_font_id(game);
+    assert(core_font);
 
     int scene_font_id = game->next_element_id++;
     ToriAuxLibCache_SubmitFont(game->cache, scene_font_id, core_font);
@@ -751,7 +753,10 @@ ie_resolve_sprite(
     int* out_element_id,
     int* out_frame_count)
 {
-    if( !game || cache_sprite_id < 0 || !out_element_id || !out_frame_count )
+    assert(game);
+    assert(out_element_id);
+    assert(out_frame_count);
+    if( cache_sprite_id < 0 )
         return false;
 
     for( int i = 0; i < game->sprite_cache_count; i++ )
@@ -769,13 +774,11 @@ ie_resolve_sprite(
 
     struct RSCacheDat2Disk_Archive* archive = RSCacheDat2Disk_ArchiveNewLoad(
         game->dat2_cache, RSCacheDat2Disk_Table_Sprites, cache_sprite_id);
-    if( !archive )
-        return false;
+    assert(archive);
 
     struct ToriAuxLibCore_Sprite* sprite =
         ToriAuxLibCache_SpriteNewFromDat2ArchiveId(archive, cache_sprite_id);
-    if( !sprite )
-        return false;
+    assert(sprite);
 
     int element_id = game->next_element_id++;
     ToriAuxLibCache_SubmitSprite(game->cache, element_id, sprite);
@@ -799,7 +802,8 @@ ie_decode_component(
     int group_id,
     int file_index)
 {
-    if( !data || size <= 0 )
+    assert(data);
+    if( size <= 0 )
         return -1;
     struct RSCacheShared_RSBuffer buf;
     RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, size);
@@ -1048,7 +1052,8 @@ ie_cs2_layout_root_size(
 static void
 ie_cs2_relayout_preview(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->scripts_ran || !game->cs2_tree )
+    assert(game);
+    if( !game->scripts_ran || !game->cs2_tree )
         return;
     int root_w = IE_PREVIEW_ROOT_W;
     int root_h = IE_PREVIEW_ROOT_H;
@@ -1061,8 +1066,8 @@ ie_fill_cs1_host(
     struct GameInterfaceEditor* game,
     struct CS1Host* out)
 {
-    if( !out )
-        return;
+    assert(out);
+
     memset(out, 0, sizeof(*out));
     if( game && game->cs1vm_wrap )
         cs1vm_host_fill_varp_varbit(out, game->cs1vm_wrap);
@@ -1071,8 +1076,8 @@ ie_fill_cs1_host(
 static void
 ie_runtime_hooks_reset(struct GameInterfaceEditor* game)
 {
-    if( !game )
-        return;
+    assert(game);
+
     game->runtime_inv_hook_count = 0;
     game->runtime_hook_count = 0;
     memset(game->runtime_hooks, 0, sizeof(game->runtime_hooks));
@@ -1089,7 +1094,8 @@ ie_runtime_store_hook(
     int trigger_count,
     int const* triggers)
 {
-    if( !game || target_component_id < 0 || event < 0 || event >= IE_SETON_EVENT_COUNT )
+    assert(game);
+    if( target_component_id < 0 || event < 0 || event >= IE_SETON_EVENT_COUNT )
         return;
 
     if( script_id < 0 )
@@ -1097,8 +1103,7 @@ ie_runtime_store_hook(
         for( int i = 0; i < game->runtime_hook_count; i++ )
         {
             struct InterfaceEditorRuntimeHook* hook = &game->runtime_hooks[i];
-            if( !hook->used )
-                continue;
+            assert(hook);
             if( hook->target_component_id != target_component_id || hook->event != event )
                 continue;
             for( int j = i + 1; j < game->runtime_hook_count; j++ )
@@ -1113,8 +1118,7 @@ ie_runtime_store_hook(
     for( int i = 0; i < game->runtime_hook_count; i++ )
     {
         struct InterfaceEditorRuntimeHook* hook = &game->runtime_hooks[i];
-        if( !hook->used )
-            continue;
+        assert(hook);
         if( hook->target_component_id != target_component_id || hook->event != event )
             continue;
         hook->script_id = script_id;
@@ -1146,8 +1150,8 @@ ie_runtime_find_hook(
     int target_component_id,
     enum InterfaceEditorSetonEvent event)
 {
-    if( !game )
-        return NULL;
+    assert(game);
+
     for( int i = 0; i < game->runtime_hook_count; i++ )
     {
         struct InterfaceEditorRuntimeHook* hook = &game->runtime_hooks[i];
@@ -1155,62 +1159,6 @@ ie_runtime_find_hook(
             return hook;
     }
     return NULL;
-}
-
-static bool
-ie_cs2_opcode_to_seton_event(
-    int opcode,
-    enum InterfaceEditorSetonEvent* out_event)
-{
-    int idx = -1;
-    if( opcode >= CS2_OP_CC_SETONCLICK && opcode <= CS2_OP_CC_SETONCLANCHANNELTRANSMIT )
-        idx = opcode - CS2_OP_CC_SETONCLICK;
-    else if( opcode >= CS2_OP_IF_SETONCLICK && opcode <= CS2_OP_IF_SETONCLANCHANNELTRANSMIT )
-        idx = opcode - CS2_OP_IF_SETONCLICK;
-    else
-        return false;
-
-    if( idx < 0 || idx >= IE_SETON_EVENT_COUNT )
-        return false;
-    if( out_event )
-        *out_event = (enum InterfaceEditorSetonEvent)idx;
-    return true;
-}
-
-static void
-ie_cs2_apply_seton_trigger(
-    struct GameInterfaceEditor* game,
-    struct CS2_InvokeCtx* ctx,
-    int target_component_id,
-    enum InterfaceEditorSetonEvent event)
-{
-    struct CS2TriggerArgs args;
-    if( !cs2_trigger_args_parse(ctx, &args) || !args.ok )
-        return;
-    if( args.is_clear )
-        ie_runtime_store_hook(game, target_component_id, event, -1, 0, NULL, 0, NULL);
-    else
-        ie_runtime_store_hook(
-            game,
-            target_component_id,
-            event,
-            args.script_id,
-            args.argc,
-            args.argv,
-            args.trigger_count,
-            args.triggers);
-
-    if( event == IE_SETON_ON_INVTRANSMIT && !args.is_clear )
-        ie_runtime_store_inv_hook(
-            game,
-            target_component_id,
-            args.script_id,
-            args.argc,
-            args.argv,
-            args.trigger_count,
-            args.triggers);
-    else if( event == IE_SETON_ON_INVTRANSMIT && args.is_clear )
-        ie_runtime_clear_inv_hook(game, target_component_id);
 }
 
 static void
@@ -1229,7 +1177,8 @@ ie_runtime_store_inv_hook(
     int trigger_count,
     int const* triggers)
 {
-    if( !game || target_component_id < 0 || script_id < 0 )
+    assert(game);
+    if( target_component_id < 0 || script_id < 0 )
         return;
 
     for( int i = 0; i < game->runtime_inv_hook_count; i++ )
@@ -1268,8 +1217,8 @@ ie_runtime_clear_inv_hook(
     struct GameInterfaceEditor* game,
     int target_component_id)
 {
-    if( !game )
-        return;
+    assert(game);
+
     for( int i = 0; i < game->runtime_inv_hook_count; i++ )
     {
         if( game->runtime_inv_hooks[i].target_component_id != target_component_id )
@@ -1281,35 +1230,13 @@ ie_runtime_clear_inv_hook(
     }
 }
 
-static void
-ie_cs2_host_invoke(
-    void* ud,
-    struct CS2_InvokeCtx* ctx)
-{
-    struct GameInterfaceEditor* game = s_ie_cs2_game;
-    enum InterfaceEditorSetonEvent event = IE_SETON_ON_CLICK;
-    if( ie_cs2_opcode_to_seton_event(ctx->opcode, &event) )
-    {
-        int target_component_id = ctx->active_component;
-        if( ctx->opcode >= CS2_OP_IF_SETONCLICK &&
-            ctx->opcode <= CS2_OP_IF_SETONCLANCHANNELTRANSMIT )
-        {
-            if( !cs2vm_host_try_pop_int(ctx, &target_component_id) )
-                return;
-        }
-        ie_cs2_apply_seton_trigger(game, ctx, target_component_id, event);
-        return;
-    }
-
-    cs2_host_ui_invoke(ud, ctx);
-}
-
 static bool
 ie_runtime_hook_watches_container(
     struct InterfaceEditorRuntimeInvHook const* hook,
     int container_id)
 {
-    if( !hook || container_id < 0 )
+    assert(hook);
+    if( container_id < 0 )
         return false;
     if( hook->trigger_count <= 0 )
         return true;
@@ -1330,7 +1257,8 @@ ie_cs2_inv_get_obj(
     struct GameInterfaceEditor* game = ud;
     struct RSInvContainer const* c =
         game ? rs_inv_container_find(&game->inv_data.store, inv_id) : NULL;
-    if( !c || slot < 0 || slot >= c->slot_count )
+    assert(c);
+    if( slot < 0 || slot >= c->slot_count )
         return -1;
     int const obj_id = c->obj_id[slot];
     return obj_id > 0 ? obj_id : -1;
@@ -1345,7 +1273,8 @@ ie_cs2_inv_get_num(
     struct GameInterfaceEditor* game = ud;
     struct RSInvContainer const* c =
         game ? rs_inv_container_find(&game->inv_data.store, inv_id) : NULL;
-    if( !c || slot < 0 || slot >= c->slot_count )
+    assert(c);
+    if( slot < 0 || slot >= c->slot_count )
         return 0;
     return c->obj_count[slot];
 }
@@ -1359,7 +1288,8 @@ ie_cs2_inv_total(
     struct GameInterfaceEditor* game = ud;
     struct RSInvContainer const* c =
         game ? rs_inv_container_find(&game->inv_data.store, inv_id) : NULL;
-    if( !c || item_id <= 0 )
+    assert(c);
+    if( item_id <= 0 )
         return 0;
 
     int total = 0;
@@ -1411,7 +1341,8 @@ ie_cs2_resolve_obj_icon(
         *out_scene_id = -1;
     if( out_atlas_index )
         *out_atlas_index = 0;
-    if( !game || obj_id <= 0 )
+    assert(game);
+    if( obj_id <= 0 )
         return false;
 
     int scene_id = ie_resolve_obj_icon_sprite(game, obj_id);
@@ -1430,7 +1361,8 @@ ie_cs2_cache_script(
     struct GameInterfaceEditor* game,
     int script_id)
 {
-    if( !game || !game->dat2_cache || script_id < 0 )
+    assert(game);
+    if( !game->dat2_cache || script_id < 0 )
         return false;
 
     for( int i = 0; i < game->script_cache_count; i++ )
@@ -1490,7 +1422,9 @@ ie_cs2_script_arg_counts(
 {
     (void)ud;
     struct GameInterfaceEditor* game = s_ie_cs2_game;
-    if( !out_int_args || !out_str_args || script_id < 0 )
+    assert(out_int_args);
+    assert(out_str_args);
+    if( script_id < 0 )
         return false;
 
     if( game )
@@ -1506,13 +1440,12 @@ ie_cs2_script_arg_counts(
         }
     }
 
-    if( !game || !game->dat2_cache )
-        return false;
+    assert(game);
+    assert(game);
 
     struct RSCacheDat2Disk_Archive* archive = RSCacheDat2Disk_ArchiveNewLoad(
         game->dat2_cache, RSCacheDat2Disk_Table_Clientscript, script_id);
-    if( !archive )
-        return false;
+    assert(archive);
 
     struct ToriAuxLibCore_ClientScript* loaded = ToriAuxLibCache_ClientScriptNewFromDat2Archive2(
         archive, script_id, game->clientscript_decode_flags);
@@ -1540,8 +1473,7 @@ ie_cs2_resolve_script(
 {
     (void)ud;
     struct GameInterfaceEditor* game = s_ie_cs2_game;
-    if( !game )
-        return NULL;
+    assert(game);
 
     for( int i = 0; i < game->script_cache_count; i++ )
     {
@@ -1572,8 +1504,8 @@ ie_cs2_enum_lookup_cb(
 {
     (void)ud;
     struct GameInterfaceEditor* game = s_ie_cs2_game;
-    if( !game || !game->cache )
-        return -1;
+    assert(game);
+    assert(game);
     return ie_enum_lookup(dat2(game->cache), input_type, output_type, enum_id, key);
 }
 
@@ -1587,8 +1519,8 @@ ie_cs2_enum_lookup_string_cb(
 {
     (void)ud;
     struct GameInterfaceEditor* game = s_ie_cs2_game;
-    if( !game || !game->cache )
-        return NULL;
+    assert(game);
+    assert(game);
     return ie_enum_lookup_string(dat2(game->cache), input_type, output_type, enum_id, key);
 }
 
@@ -1598,8 +1530,8 @@ ie_cs2_enum_output_count_cb(
     int enum_id)
 {
     struct GameInterfaceEditor* game = ud;
-    if( !game || !game->cache )
-        return 0;
+    assert(game);
+    assert(game);
     return ie_enum_output_count(dat2(game->cache), enum_id);
 }
 
@@ -1613,8 +1545,8 @@ ie_cs2_struct_param_cb(
     char const** out_str)
 {
     struct GameInterfaceEditor* game = ud;
-    if( !game || !game->cache )
-        return false;
+    assert(game);
+    assert(game);
     return ie_struct_param_lookup(
         dat2(game->cache), struct_id, param_id, out_is_string, out_int, out_str);
 }
@@ -1626,7 +1558,10 @@ ie_cs2_run_component_hook(
     ComponentScriptVar* hook,
     int hook_len)
 {
-    if( !game || !comp || !hook || hook_len <= 0 || hook[0].type != SCRIPT_VAR_INT )
+    assert(game);
+    assert(comp);
+    assert(hook);
+    if( hook_len <= 0 || hook[0].type != SCRIPT_VAR_INT )
         return true;
 
     int script_id = hook[0].value.i;
@@ -1635,57 +1570,94 @@ ie_cs2_run_component_hook(
 
     ie_cs2_cache_script(game, script_id);
     struct CS2_Script* script = ie_cs2_resolve_script(game, script_id);
-    if( !script )
-        return true;
+    assert(script);
 
     int argv[16];
     int argc = hook_len - 1;
     if( argc > 16 )
         argc = 16;
-    struct CS2_ScriptArgSubstitute const sub = { .component_id = comp->id };
     for( int i = 0; i < argc; i++ )
     {
+        int argi = 0;
         if( hook[i + 1].type == SCRIPT_VAR_INT )
-            argv[i] = cs2_script_arg_substitute_int(hook[i + 1].value.i, &sub);
-        else
+            argi = hook[i + 1].value.i;
+        switch( argi )
+        {
+        case CS2VM_SCRIPT_ARG_WIDGET_ID:
+            argv[i] = comp->id;
+            break;
+        case CS2VM_SCRIPT_ARG_MOUSE_X:
+        case CS2VM_SCRIPT_ARG_MOUSE_Y:
+        case CS2VM_SCRIPT_ARG_OP_INDEX:
+        case CS2VM_SCRIPT_ARG_WIDGET_CHILD_INDEX:
+        case CS2VM_SCRIPT_ARG_DRAG_TARGET_ID:
+        case CS2VM_SCRIPT_ARG_DRAG_TARGET_CHILD_INDEX:
+        case CS2VM_SCRIPT_ARG_KEY_TYPED:
+        case CS2VM_SCRIPT_ARG_KEY_PRESSED:
+        case CS2VM_SCRIPT_ARG_OP_SUBINDEX:
             argv[i] = 0;
+            break;
+        default:
+            argv[i] = argi;
+            break;
+        }
     }
 
-    struct CS2_RunArgs args = {
-        .int_argc = argc,
-        .int_argv = argc > 0 ? argv : NULL,
-        .string_argc = 0,
-        .string_argv = NULL,
-        .event_component_id = comp->id,
-    };
-
-    if( !game->cs2vm )
-        return true;
-
-    int const rc = cs2vm_run(game->cs2vm, script, &game->cs2host, &args);
-    if( rc != CS2VM_OK )
-    {
-        int err_opcode = -1;
-        int err_pc = -1;
-        int err_script_id = -1;
-        cs2vm_get_error_info(game->cs2vm, &err_opcode, &err_pc, &err_script_id);
-        char const* op_name = "?";
-        if( err_opcode >= 0 )
-        {
-            const struct CS2_OpcodeMeta* meta = cs2_opcode_meta_lookup((uint16_t)err_opcode);
-            if( meta && meta->name )
-                op_name = meta->name;
-        }
-        game->diag_onload_failed++;
-        ie_push_script_error(
-            game,
-            "script %d comp 0x%x: %s at %s pc %d",
-            script_id,
-            comp->id,
-            cs2vm_err_name(rc),
-            op_name,
-            err_pc);
+    CS2VMX_ResetRuntime(&game->cs2vm);
+    if( CS2VMX_PushCallScript(&game->cs2vm, script) != CS2VM_EXECNO_OK )
         return false;
+
+    {
+        struct CS2VMX_Frame* frame = CS2VM_FRAME(&game->cs2vm);
+        for( int i = 0; i < argc; i++ )
+            CS2VMX_SetIntCurrentFrameLocal(&game->cs2vm, i, argv[i]);
+        (void)frame;
+    }
+    CS2VMX_SetActiveAndDotComponentId(&game->cs2vm, comp->id);
+
+    for( ;; )
+    {
+        int const rc = CS2VMX_RunScript(&game->cs2vm);
+        if( rc == CS2VM_EXECNO_DONE || rc == CS2VM_EXECNO_OK )
+            break;
+        if( rc == CS2VM_EXECNO_YIELD )
+        {
+            /* Editor has no async pump; soft-fail and stop this script. */
+            fprintf(
+                stderr,
+                "ie_cs2: script %d yielded (soft-fail) for comp 0x%x kind=%d\n",
+                script_id,
+                comp->id,
+                game->cs2_host.has_pending ? (int)game->cs2_host.pending.kind : -1);
+            game->cs2_host.has_pending = false;
+            CS2VMX_ResetRuntime(&game->cs2vm);
+            game->diag_onload_failed++;
+            ie_push_script_error(game, "script %d comp 0x%x: yield soft-fail", script_id, comp->id);
+            return false;
+        }
+        if( rc == CS2VM_EXECNO_ERROR )
+        {
+            int err_opcode = game->cs2vm.last_error_opcode;
+            int err_pc = game->cs2vm.last_error_pc;
+            char const* op_name = "?";
+            if( err_opcode >= 0 )
+            {
+                const struct CS2_OpcodeMeta* meta = cs2_opcode_meta_lookup((uint16_t)err_opcode);
+                if( meta && meta->name )
+                    op_name = meta->name;
+            }
+            game->diag_onload_failed++;
+            ie_push_script_error(
+                game,
+                "script %d comp 0x%x: ERROR at %s pc %d",
+                script_id,
+                comp->id,
+                op_name,
+                err_pc);
+            CS2VMX_ResetRuntime(&game->cs2vm);
+            return false;
+        }
+        break;
     }
     return true;
 }
@@ -1695,7 +1667,8 @@ ie_component_watches_container(
     RSCacheDat2A_Component* comp,
     int container_id)
 {
-    if( !comp || comp->onInvTransmitLen <= 0 )
+    assert(comp);
+    if( comp->onInvTransmitLen <= 0 )
         return false;
     if( comp->inventoryTriggersLen <= 0 )
         return true;
@@ -1712,7 +1685,9 @@ ie_cs2_run_runtime_inv_hook(
     struct GameInterfaceEditor* game,
     struct InterfaceEditorRuntimeInvHook const* hook)
 {
-    if( !game || !hook || hook->script_id < 0 )
+    assert(game);
+    assert(hook);
+    if( hook->script_id < 0 )
         return;
 
     ComponentScriptVar hookv[17];
@@ -1752,8 +1727,8 @@ ie_find_component_by_id(
     struct GameInterfaceEditor* game,
     int component_id)
 {
-    if( !game )
-        return NULL;
+    assert(game);
+
     for( int i = 0; i < game->widget_count; i++ )
     {
         if( game->widgets[i].data.id == component_id )
@@ -1767,7 +1742,9 @@ ie_cs2_run_runtime_hook(
     struct GameInterfaceEditor* game,
     struct InterfaceEditorRuntimeHook const* hook)
 {
-    if( !game || !hook || !hook->used || hook->script_id < 0 )
+    assert(game);
+    assert(hook);
+    if( !hook->used || hook->script_id < 0 )
         return true;
 
     ComponentScriptVar hookv[17];
@@ -1798,7 +1775,8 @@ ie_widget_parent_index(
     struct GameInterfaceEditor* game,
     int widget_index)
 {
-    if( !game || widget_index < 0 || widget_index >= game->widget_count )
+    assert(game);
+    if( widget_index < 0 || widget_index >= game->widget_count )
         return -1;
     int const layer = game->widgets[widget_index].is_editor_added
                           ? game->widgets[widget_index].parent_uid
@@ -1870,7 +1848,8 @@ ie_collect_widget_children(
 static void
 ie_trigger_onload_dfs(struct GameInterfaceEditor* game)
 {
-    if( !game || game->widget_count <= 0 )
+    assert(game);
+    if( game->widget_count <= 0 )
         return;
 
     int roots[IE_MAX_WIDGETS];
@@ -1910,8 +1889,7 @@ ie_trigger_onload_dfs(struct GameInterfaceEditor* game)
 static void
 ie_trigger_inv_transmit_initial(struct GameInterfaceEditor* game)
 {
-    if( !game )
-        return;
+    assert(game);
 
     for( int h = 0; h < game->runtime_inv_hook_count; h++ )
     {
@@ -1949,8 +1927,8 @@ ie_cs2_run_script_pass(
     struct GameInterfaceEditor* game,
     bool fire_inv_transmit)
 {
-    if( !game || !game->cs2_tree )
-        return;
+    assert(game);
+    assert(game);
 
     int root_w = IE_PREVIEW_ROOT_W;
     int root_h = IE_PREVIEW_ROOT_H;
@@ -1973,7 +1951,9 @@ ie_component_watches_any_changed_inv(
     RSCacheDat2A_Component* comp,
     struct InterfaceEditorTransmitCycles const* cycles)
 {
-    if( !comp || comp->onInvTransmitLen <= 0 || !cycles )
+    assert(comp);
+    assert(cycles);
+    if( comp->onInvTransmitLen <= 0 )
         return false;
     if( comp->inventoryTriggersLen <= 0 )
         return cycles->transmit_dirty;
@@ -1995,7 +1975,8 @@ ie_mark_var_transmit(
     struct GameInterfaceEditor* game,
     int varp_id)
 {
-    if( !game || varp_id < 0 )
+    assert(game);
+    if( varp_id < 0 )
         return;
 
     struct InterfaceEditorTransmitCycles* cycles = &game->transmit_cycles;
@@ -2017,7 +1998,8 @@ ie_mark_inv_transmit(
     struct GameInterfaceEditor* game,
     int container_id)
 {
-    if( !game || container_id < 0 )
+    assert(game);
+    if( container_id < 0 )
         return;
 
     struct InterfaceEditorTransmitCycles* cycles = &game->transmit_cycles;
@@ -2040,7 +2022,9 @@ ie_runtime_hook_inv_changed(
     struct InterfaceEditorRuntimeHook const* hook,
     struct InterfaceEditorTransmitCycles const* cycles)
 {
-    if( !hook || !cycles || hook->trigger_count <= 0 )
+    assert(hook);
+    assert(cycles);
+    if( hook->trigger_count <= 0 )
         return false;
 
     int const start = cycles->changed_inv_count > IE_TRANSMIT_RING_SIZE
@@ -2061,8 +2045,8 @@ ie_runtime_hook_inv_changed(
 static void
 ie_process_widget_timers(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->scripts_ran )
-        return;
+    assert(game);
+    assert(game);
 
     for( int i = 0; i < game->widget_count; i++ )
     {
@@ -2085,8 +2069,8 @@ ie_process_widget_timers(struct GameInterfaceEditor* game)
 static void
 ie_process_widget_transmits(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->scripts_ran )
-        return;
+    assert(game);
+    assert(game);
     if( !game->transmit_cycles.transmit_dirty && !game->transmit_cycles.widgets_loaded_dirty )
         return;
 
@@ -2177,8 +2161,7 @@ ie_process_widget_transmits(struct GameInterfaceEditor* game)
                     break;
             }
         }
-        if( !should_fire )
-            continue;
+        assert(should_fire);
 
         (void)ie_cs2_run_component_hook(game, comp, comp->onVarpTransmit, comp->onVarpTransmitLen);
     }
@@ -2192,10 +2175,10 @@ ie_process_widget_transmits(struct GameInterfaceEditor* game)
 static void
 ie_script_tick(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->scripts_ran )
-        return;
+    assert(game);
+    assert(game);
     game->transmit_cycles.cycle_cntr++;
-    cs2_host_ui_tick(&game->cs2host);
+    GameInterfaceEditor_CS2HostTick(&game->cs2_host);
     ie_process_widget_timers(game);
     ie_process_widget_transmits(game);
 }
@@ -2207,7 +2190,8 @@ ie_handle_canvas_click_scripts(
     int click_x,
     int click_y)
 {
-    if( !game || !game->scripts_ran || component_uid < 0 )
+    assert(game);
+    if( !game->scripts_ran || component_uid < 0 )
         return;
 
     RSCacheDat2A_Component* comp = NULL;
@@ -2219,8 +2203,7 @@ ie_handle_canvas_click_scripts(
             break;
         }
     }
-    if( !comp )
-        return;
+    assert(comp);
 
     (void)click_x;
     (void)click_y;
@@ -2284,8 +2267,8 @@ ie_restore_drag_thresholds(
     struct GameInterfaceEditor* game,
     struct LibToriRS_Input* input)
 {
-    if( !game || !input )
-        return;
+    assert(game);
+    assert(input);
     LibToriRS_Input_SetDragThresholds(input, game->saved_drag_zone_px, game->saved_drag_time_ms);
     game->canvas_drag_uid = -1;
 }
@@ -2296,7 +2279,9 @@ ie_begin_canvas_drag_press(
     struct LibToriRS_Input* input,
     int component_uid)
 {
-    if( !game || !input || component_uid < 0 )
+    assert(game);
+    assert(input);
+    if( component_uid < 0 )
         return;
 
     uint8_t zone = 0;
@@ -2320,7 +2305,8 @@ ie_handle_canvas_drag_scripts(
     int mouse_y,
     bool drag_complete)
 {
-    if( !game || !game->scripts_ran || component_uid < 0 )
+    assert(game);
+    if( !game->scripts_ran || component_uid < 0 )
         return;
 
     RSCacheDat2A_Component* comp = NULL;
@@ -2332,8 +2318,7 @@ ie_handle_canvas_drag_scripts(
             break;
         }
     }
-    if( !comp )
-        return;
+    assert(comp);
 
     (void)mouse_x;
     (void)mouse_y;
@@ -2361,7 +2346,8 @@ ie_cs2_build_get_component(
     int index)
 {
     struct IeCs2BuildContext* ctx = ud;
-    if( !ctx || !ctx->game || index < 0 || index >= ctx->game->widget_count )
+    assert(ctx);
+    if( !ctx->game || index < 0 || index >= ctx->game->widget_count )
         return NULL;
     return ctx->core_comps[index];
 }
@@ -2372,7 +2358,8 @@ ie_cs2_build_get_parent_id(
     int index)
 {
     struct IeCs2BuildContext* ctx = ud;
-    if( !ctx || !ctx->game || index < 0 || index >= ctx->game->widget_count )
+    assert(ctx);
+    if( !ctx->game || index < 0 || index >= ctx->game->widget_count )
         return -1;
     return ctx->game->widgets[index].is_editor_added ? ctx->game->widgets[index].parent_uid
                                                      : ctx->game->widgets[index].data.layer;
@@ -2386,7 +2373,8 @@ ie_cs2_resolve_sprite_for_build(
     struct GameInterfaceEditor* game = ud;
     int element_id = -1;
     int frame_count = 0;
-    if( !game || !ie_resolve_sprite(game, graphic_id, &element_id, &frame_count) )
+    assert(game);
+    if( !ie_resolve_sprite(game, graphic_id, &element_id, &frame_count) )
         return -1;
     return element_id;
 }
@@ -2394,13 +2382,12 @@ ie_cs2_resolve_sprite_for_build(
 static int
 ie_cs2_build_tree(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->cs2_tree )
-        return -1;
+    assert(game);
+    assert(game);
 
     int const n = game->widget_count;
     struct ToriAuxLibCore_Component** core_comps = calloc((size_t)n, sizeof(*core_comps));
-    if( !core_comps )
-        return -1;
+    assert(core_comps);
 
     for( int i = 0; i < n; i++ )
     {
@@ -2431,25 +2418,23 @@ ie_load_object_config(
     struct GameInterfaceEditor* game,
     int obj_id)
 {
-    if( !game || obj_id < 0 || !game->cache )
+    assert(game);
+    if( obj_id < 0 || !game->cache )
         return NULL;
 
     struct Dat2BuildCache* bc = dat2(game->cache);
-    if( !bc )
-        return NULL;
+    assert(bc);
 
     struct RSCacheDat2A_ConfigObject* cached = dat2_buildcache_object_get(bc, obj_id);
     if( cached )
         return cached;
 
     struct RSCacheDat2Disk* cache = game->dat2_cache;
-    if( !cache )
-        return NULL;
+    assert(cache);
 
     struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(
         cache, RSCacheDat2Disk_Table_Configs, RSCacheDat2A_ConfigKind_Object);
-    if( !arch )
-        return NULL;
+    assert(arch);
 
     RSCacheDat2Disk_ArchiveInitMetadata(cache, arch);
     struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
@@ -2472,8 +2457,7 @@ ie_load_object_config(
             continue;
 
         out = calloc(1, sizeof(struct RSCacheDat2A_ConfigObject));
-        if( !out )
-            break;
+        assert(out);
 
         RSCacheDat2A_ConfigObjectDecodeInplace(out, fl->files[i], fl->file_sizes[i]);
         out->_id = obj_id;
@@ -2494,7 +2478,8 @@ ie_resolve_obj_icon_sprite(
     struct GameInterfaceEditor* game,
     int obj_id)
 {
-    if( !game || obj_id <= 0 )
+    assert(game);
+    if( obj_id <= 0 )
         return -1;
 
     for( int i = 0; i < game->obj_icon_cache_count; i++ )
@@ -2509,7 +2494,8 @@ ie_resolve_obj_icon_sprite(
         return -1;
 
     struct RSCacheDat2A_ConfigObject* obj = ie_load_object_config(game, obj_id);
-    if( !obj || obj->inventory_model_id <= 0 )
+    assert(obj);
+    if( obj->inventory_model_id <= 0 )
         return -1;
 
     int const inventory_model_id = obj->inventory_model_id;
@@ -2568,8 +2554,7 @@ ie_resolve_obj_icon_sprite(
 
     struct ToriDraw_Model* td_model = ToriDraw_ModelNewFromCacheModel(copy);
     RSCacheDat2A_ModelFree(copy);
-    if( !td_model )
-        return -1;
+    assert(td_model);
 
     ToriDraw_ModelSetBoundsCylinder(td_model);
 
@@ -2585,8 +2570,7 @@ ie_resolve_obj_icon_sprite(
 
     struct ToriDraw_Sprite* td_sprite =
         ToriDraw_SpriteNewFromModelRaster(game->scene, hnd, zoom, xan2d, yan2d, 32, 32, true);
-    if( !td_sprite )
-        return -1;
+    assert(td_sprite);
 
     struct ToriAuxLibCore_Sprite* sprite = calloc(1, sizeof(struct ToriAuxLibCore_Sprite));
     if( !sprite )
@@ -2621,7 +2605,8 @@ ie_set_container_slot(
     int obj_id,
     int obj_count)
 {
-    if( !game || source_id < 0 || slot < 0 )
+    assert(game);
+    if( source_id < 0 || slot < 0 )
         return;
 
     int scene_id = -1;
@@ -2641,19 +2626,15 @@ ie_set_container_slot(
 void
 GameInterfaceEditor_FreeScripts(struct GameInterfaceEditor* game)
 {
-    if( !game )
-        return;
+    assert(game);
 
     if( game->cs2_tree )
     {
         uitree_free(game->cs2_tree);
         game->cs2_tree = NULL;
     }
-    if( game->cs2vm )
-    {
-        cs2vm_free(game->cs2vm);
-        game->cs2vm = NULL;
-    }
+    memset(&game->cs2vm, 0, sizeof(game->cs2vm));
+    memset(&game->cs2_host, 0, sizeof(game->cs2_host));
 
     for( int i = 0; i < game->script_cache_count; i++ )
     {
@@ -2673,7 +2654,8 @@ GameInterfaceEditor_FreeScripts(struct GameInterfaceEditor* game)
 void
 GameInterfaceEditor_RunScripts(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->dat2_cache || game->widget_count <= 0 )
+    assert(game);
+    if( !game->dat2_cache || game->widget_count <= 0 )
         return;
 
     GameInterfaceEditor_FreeScripts(game);
@@ -2689,8 +2671,7 @@ GameInterfaceEditor_RunScripts(struct GameInterfaceEditor* game)
     game->transmit_cycles.widgets_loaded_dirty = true;
 
     game->cs2_tree = uitree_new(64);
-    game->cs2vm = cs2vm_new();
-    if( !game->cs2_tree || !game->cs2vm )
+    if( !game->cs2_tree )
     {
         GameInterfaceEditor_FreeScripts(game);
         snprintf(game->script_error, sizeof(game->script_error), "failed to allocate CS2 tree/vm");
@@ -2709,38 +2690,16 @@ GameInterfaceEditor_RunScripts(struct GameInterfaceEditor* game)
     int root_w = IE_PREVIEW_ROOT_W;
     int root_h = IE_PREVIEW_ROOT_H;
     ie_cs2_layout_root_size(game, &root_w, &root_h);
-    struct CS2HostUIInitArgs args = {
-        .core = game->core,
-        .cache = game->cache,
-        .vm = game->cs1vm_wrap,
-        .tree = game->cs2_tree,
-        .resolve_obj_icon = ie_cs2_resolve_obj_icon,
-        .resolve_obj_icon_ud = game,
-        .inv_get_obj = ie_cs2_inv_get_obj,
-        .inv_get_num = ie_cs2_inv_get_num,
-        .inv_size = ie_cs2_inv_size,
-        .inv_ud = game,
-        .enum_output_count = ie_cs2_enum_output_count_cb,
-        .enum_output_count_ud = game,
-        .struct_param = ie_cs2_struct_param_cb,
-        .struct_param_ud = game,
-        .scene = game->scene,
-        .on_varp_change = ie_on_varp_change,
-        .on_varp_change_ud = game,
-        .cc_create_notify = ie_on_cc_create_notify,
-        .cc_create_notify_ud = game,
-        .viewport_w = root_w,
-        .viewport_h = root_h,
-        .window_mode = 1,
-    };
-    cs2_host_ui_init(&game->cs2host, &args);
-    game->cs2host.resolve_script = ie_cs2_resolve_script;
-    game->cs2host.script_arg_counts = ie_cs2_script_arg_counts;
-    game->cs2host.enum_lookup = ie_cs2_enum_lookup_cb;
-    game->cs2host.enum_lookup_string = ie_cs2_enum_lookup_string_cb;
-    game->cs2host.invoke = ie_cs2_host_invoke;
 
-    cs2vm_set_trace(game->cs2_trace_enabled);
+    GameInterfaceEditor_CS2HostInit(&game->cs2_host, game);
+    game->cs2_host.viewport_w = root_w;
+    game->cs2_host.viewport_h = root_h;
+    memset(&game->cs2vm, 0, sizeof(game->cs2vm));
+    CS2VMX_BindHost(&game->cs2vm, &game->cs2_host, GameInterfaceEditor_CS2HostExec);
+    game->cs2vm.canvas_w = root_w;
+    game->cs2vm.canvas_h = root_h;
+
+    g_cs2_trace_mode = game->cs2_trace_enabled ? 2 : 0;
 
     ie_cs2_run_script_pass(game, false);
     ie_cs2_run_script_pass(game, true);
@@ -2793,8 +2752,8 @@ ie_load_group(
     struct GameInterfaceEditor* game,
     int group_id)
 {
-    if( !game || !game->dat2_cache )
-        return false;
+    assert(game);
+    assert(game);
 
     ie_free_widgets(game);
     game->loaded_group_id = group_id;
@@ -2803,14 +2762,12 @@ ie_load_group(
 
     struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(
         game->dat2_cache, RSCacheDat2Disk_Table_Interfaces, group_id);
-    if( !arch )
-        return false;
+    assert(arch);
 
     RSCacheDat2Disk_ArchiveInitMetadata(game->dat2_cache, arch);
     struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
     RSCacheDat2Disk_ArchiveFree(arch);
-    if( !fl )
-        return false;
+    assert(fl);
 
     for( int fi = 0; fi < fl->file_count && game->widget_count < IE_MAX_WIDGETS; fi++ )
     {
@@ -2855,8 +2812,8 @@ GameInterfaceEditor_LoadGroup(
 int
 GameInterfaceEditor_CountDynamicCs2Children(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->cs2_tree )
-        return 0;
+    assert(game);
+    assert(game);
 
     int count = 0;
     for( uint32_t i = 0; i < game->cs2_tree->component_count; i++ )
@@ -2870,14 +2827,13 @@ GameInterfaceEditor_CountDynamicCs2Children(struct GameInterfaceEditor* game)
 void
 GameInterfaceEditor_PrintDynamicCs2Children(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->cs2_tree )
-        return;
+    assert(game);
+    assert(game);
 
     for( uint32_t i = 0; i < game->cs2_tree->component_count; i++ )
     {
         struct StaticUIComponent const* node = &game->cs2_tree->components[i];
-        if( !node->dynamic )
-            continue;
+        assert(node);
         int const parent_id =
             node->parent >= 0 ? game->cs2_tree->components[node->parent].component_id : -1;
         fprintf(
@@ -2948,7 +2904,8 @@ ie_add_dynamic_widget(
     int type,
     int sprite_id)
 {
-    if( !game || game->widget_count >= IE_MAX_WIDGETS )
+    assert(game);
+    if( game->widget_count >= IE_MAX_WIDGETS )
         return false;
 
     int child_id = game->next_dynamic_child++;
@@ -3020,7 +2977,9 @@ ie_property_value_string(
     char* out,
     size_t out_size)
 {
-    if( !widget || !out || out_size == 0 )
+    assert(widget);
+    assert(out);
+    if( out_size == 0 )
         return;
     RSCacheDat2A_Component* c = &widget->data;
     switch( property_id )
@@ -3118,7 +3077,8 @@ ie_parse_int(
     char const* text,
     int fallback)
 {
-    if( !text || !text[0] )
+    assert(text);
+    if( !text[0] )
         return fallback;
     return atoi(text);
 }
@@ -3243,7 +3203,9 @@ ie_sync_preview_inventory(
     struct GameInterfaceEditor* game,
     struct InterfaceEditorWidget* w)
 {
-    if( !game || !w || w->data.type != 2 || w->preview_inv_id < 0 )
+    assert(game);
+    assert(w);
+    if( w->data.type != 2 || w->preview_inv_id < 0 )
         return;
 
     int source_id = -1;
@@ -3297,7 +3259,8 @@ ie_obj_display_name(
     char* buf,
     size_t buf_len)
 {
-    if( !buf || buf_len == 0 )
+    assert(buf);
+    if( buf_len == 0 )
         return "";
     if( obj_id <= 0 )
     {
@@ -3323,7 +3286,8 @@ ie_format_script_binding(
     ComponentScriptVar* hook,
     int hook_len)
 {
-    if( !out || out_len == 0 )
+    assert(out);
+    if( out_len == 0 )
         return;
     if( !hook || hook_len <= 0 || hook[0].type != SCRIPT_VAR_INT )
     {
@@ -3336,8 +3300,7 @@ ie_format_script_binding(
 static void
 ie_commit_text_field(struct GameInterfaceEditor* game)
 {
-    if( !game->text_field.active )
-        return;
+    assert(game);
 
     if( game->text_field.kind == IE_FIELD_PROPERTY )
     {
@@ -3390,8 +3353,7 @@ ie_handle_text_input(
     struct GameInterfaceEditor* game,
     struct LibToriRS_Input* input)
 {
-    if( !game->text_field.active )
-        return;
+    assert(game);
 
     for( int k = TORIRSK_SPACE; k < TORIRSK_COUNT; k++ )
     {
@@ -3610,8 +3572,8 @@ ie_handle_hit(
     case IEHIT_PROPERTY_CHECKBOX:
     {
         struct InterfaceEditorWidget* w = ie_find_widget(game, game->selected_uid);
-        if( !w )
-            break;
+        assert(w);
+
         switch( h->param0 )
         {
         case 1:
@@ -3709,7 +3671,7 @@ ie_handle_hit(
         break;
     case IEHIT_TOOLBAR_TRACE:
         game->cs2_trace_enabled = !game->cs2_trace_enabled;
-        cs2vm_set_trace(game->cs2_trace_enabled);
+        g_cs2_trace_mode = game->cs2_trace_enabled ? 2 : 0;
         fprintf(stderr, "ie_cs2: trace %s\n", game->cs2_trace_enabled ? "enabled" : "disabled");
         break;
     case IEHIT_TAB_PROPERTIES:
@@ -4375,7 +4337,8 @@ ie_cs2_tree_find_by_component_id(
     struct UITree const* tree,
     int component_id)
 {
-    if( !tree || component_id < 0 )
+    assert(tree);
+    if( component_id < 0 )
         return -1;
 
     for( uint32_t i = 0; i < tree->component_count; i++ )
@@ -4391,7 +4354,8 @@ ie_cs2_tree_has_dynamic_child(
     struct UITree const* tree,
     int32_t parent_index)
 {
-    if( !tree || parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
+    assert(tree);
+    if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
         return false;
 
     for( int32_t child = tree->components[parent_index].first_child; child >= 0;
@@ -4414,7 +4378,8 @@ ie_build_dynamic_tree_rows(
     int depth,
     int* y_cursor)
 {
-    if( !game || !game->scripts_ran || !game->cs2_tree )
+    assert(game);
+    if( !game->scripts_ran || !game->cs2_tree )
         return;
 
     int32_t const parent_index =
@@ -4426,8 +4391,7 @@ ie_build_dynamic_tree_rows(
          child = game->cs2_tree->components[child].next_sibling )
     {
         struct StaticUIComponent const* node = &game->cs2_tree->components[child];
-        if( !node->dynamic )
-            continue;
+        assert(node);
 
         int const uid = node->component_id;
         int row_y = *y_cursor - game->tree_scroll;
@@ -4806,7 +4770,8 @@ ie_draw_inv_slot_grid(
     int const* bg_scene_id,
     int const* bg_atlas_index)
 {
-    if( !game || cols <= 0 || rows <= 0 )
+    assert(game);
+    if( cols <= 0 || rows <= 0 )
         return;
 
     int const pitch = (int)(UI_INV_SLOT_ICON_SIZE * scale);
@@ -5011,7 +4976,8 @@ ie_draw_cs2_tree_preview(
     int canvas_y,
     float scale)
 {
-    if( !game || !game->cs2_tree || game->cs2_tree->component_count == 0 )
+    assert(game);
+    if( !game->cs2_tree || game->cs2_tree->component_count == 0 )
         return;
 
     struct UITree* tree = game->cs2_tree;
@@ -5043,8 +5009,7 @@ ie_draw_orphan_widget_graphics(
     int off_y,
     float scale)
 {
-    if( !game )
-        return;
+    assert(game);
 
     for( int i = 0; i < game->widget_count; i++ )
     {
@@ -5078,7 +5043,9 @@ ie_draw_tree_node_preview(
     int off_y,
     float scale)
 {
-    if( !game || !node || node->behavior.hide )
+    assert(game);
+    assert(node);
+    if( node->behavior.hide )
         return;
 
     int bx = off_x + (int)(node->position.abs_x * scale);
@@ -5141,7 +5108,8 @@ ie_draw_tree_node_preview(
         char const* text = node->u.rs_text.text;
         if( active && node->u.rs_text.text_active && node->u.rs_text.text_active[0] )
             text = node->u.rs_text.text_active;
-        if( !text || !text[0] )
+        assert(text);
+        if( !text[0] )
             break;
         int color = node->u.rs_text.color;
         if( active && node->behavior.active_color != 0 )
@@ -5617,8 +5585,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
 static void
 ie_build_dropdown(struct GameInterfaceEditor* game)
 {
-    if( !game->dropdown.visible )
-        return;
+    assert(game);
 
     ie_push_draw_fill(
         game,
@@ -5793,8 +5760,8 @@ ie_translate_gc_event(
     struct ToriDraw_Event const* ev,
     struct LibToriRS_RenderCommand* command)
 {
-    if( !ev || !command )
-        return false;
+    assert(ev);
+    assert(command);
     memset(command, 0, sizeof(*command));
     switch( ev->kind )
     {
@@ -5820,8 +5787,8 @@ GameInterfaceEditor_New(
     struct ToriDraw_Scene* scene)
 {
     struct GameInterfaceEditor* game = calloc(1, sizeof(*game));
-    if( !game )
-        return NULL;
+    assert(game);
+
     game->script_queue = script_queue;
     game->scene = scene;
     game->loaded_group_id = -1;
@@ -5861,8 +5828,8 @@ GameInterfaceEditor_New(
 void
 GameInterfaceEditor_Free(struct GameInterfaceEditor* game)
 {
-    if( !game )
-        return;
+    assert(game);
+
     GameInterfaceEditor_FreeScripts(game);
     if( game->cs1vm_wrap )
         ToriAuxLibVM_Free(game->cs1vm_wrap);
@@ -5904,8 +5871,8 @@ GameInterfaceEditor_SetDat2Cache(
     struct GameInterfaceEditor* game,
     struct RSCacheDat2Disk* dat2_cache)
 {
-    if( !game )
-        return;
+    assert(game);
+
     game->dat2_cache = dat2_cache;
     if( dat2_cache && game->font_cache_count == 0 )
         (void)ie_resolve_scene_font(game, 495);
@@ -5925,8 +5892,8 @@ GameInterfaceEditor_SetClientscriptDecodeFlags(
 bool
 GameInterfaceEditor_EnumerateInterfaceGroups(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->dat2_cache )
-        return false;
+    assert(game);
+    assert(game);
 
     free(game->group_ids);
     game->group_ids = NULL;
@@ -5934,14 +5901,12 @@ GameInterfaceEditor_EnumerateInterfaceGroups(struct GameInterfaceEditor* game)
 
     struct RSCacheDat2Disk_Archive* table_archive = RSCacheDat2Disk_ArchiveNewReferenceTableLoad(
         game->dat2_cache, RSCacheDat2Disk_Table_Interfaces);
-    if( !table_archive )
-        return false;
+    assert(table_archive);
 
     struct RSCacheDat2Disk_ReferenceTable* table =
         RSCacheDat2Disk_ReferenceTableNewDecode(table_archive->data, table_archive->data_size);
     RSCacheDat2Disk_ArchiveFree(table_archive);
-    if( !table )
-        return false;
+    assert(table);
 
     game->group_ids = calloc((size_t)table->id_count, sizeof(int));
     if( !game->group_ids )
@@ -5979,8 +5944,8 @@ GameInterfaceEditor_EnumerateInterfaceGroups(struct GameInterfaceEditor* game)
 static bool
 ie_enumerate_sprite_ids(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->dat2_cache )
-        return false;
+    assert(game);
+    assert(game);
 
     free(game->sprite_ids);
     game->sprite_ids = NULL;
@@ -5988,14 +5953,12 @@ ie_enumerate_sprite_ids(struct GameInterfaceEditor* game)
 
     struct RSCacheDat2Disk_Archive* table_archive = RSCacheDat2Disk_ArchiveNewReferenceTableLoad(
         game->dat2_cache, RSCacheDat2Disk_Table_Sprites);
-    if( !table_archive )
-        return false;
+    assert(table_archive);
 
     struct RSCacheDat2Disk_ReferenceTable* table =
         RSCacheDat2Disk_ReferenceTableNewDecode(table_archive->data, table_archive->data_size);
     RSCacheDat2Disk_ArchiveFree(table_archive);
-    if( !table )
-        return false;
+    assert(table);
 
     game->sprite_ids = calloc((size_t)table->id_count, sizeof(int));
     if( !game->sprite_ids )
@@ -6035,8 +5998,8 @@ GameInterfaceEditor_ProcessInput(
     struct GameInterfaceEditor* game,
     struct LibToriRS_Input* input)
 {
-    if( !game || !input )
-        return;
+    assert(game);
+    assert(input);
 
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_ESCAPE) )
     {
@@ -6115,8 +6078,8 @@ GameInterfaceEditor_FrameBegin(
     struct GameInterfaceEditor* game,
     int cycles_elapsed)
 {
-    if( !game )
-        return;
+    assert(game);
+
     game->script_tick_accum_ms += cycles_elapsed > 0 ? cycles_elapsed : 1;
     while( game->script_tick_accum_ms >= 20 )
     {
@@ -6134,8 +6097,8 @@ GameInterfaceEditor_FrameNextCommand(
     struct GameInterfaceEditor* game,
     struct LibToriRS_RenderCommand* command)
 {
-    if( !game || !command )
-        return false;
+    assert(game);
+    assert(command);
     memset(command, 0, sizeof(*command));
 
     for( ;; )
@@ -6213,7 +6176,7 @@ GameInterfaceEditor_FrameNextCommand(
 void
 GameInterfaceEditor_FrameEnd(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->scene )
-        return;
+    assert(game);
+    assert(game);
     ToriDraw_SceneFrameEnd(game->scene);
 }

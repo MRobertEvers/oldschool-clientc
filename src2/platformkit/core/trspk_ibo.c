@@ -140,8 +140,7 @@ trspk_ibo_reserve(
     struct TRSPK_IBO* ibo,
     uint32_t index_count)
 {
-    if( ibo == NULL )
-        return false;
+    assert(ibo);
 
     if( index_count == 0u )
         return true;

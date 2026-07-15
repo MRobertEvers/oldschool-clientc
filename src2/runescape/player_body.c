@@ -14,6 +14,8 @@
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_model_transform.h"
 
+#include <assert.h>
+
 static struct ToriDraw_ModelHandle
 scene_model_from_cache(
     struct GameRunescape* game,
@@ -76,12 +78,11 @@ runescape_npc_animation_from_config(
         .walkanim_l = -1,
     };
 
-    if( !game || !game->td )
-        return animation;
+    assert(game);
+    assert(game->td);
 
     c = ToriAuxLibTD_C(game->td);
-    if( !c )
-        return animation;
+    assert(c);
 
     if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT1 )
     {
@@ -119,12 +120,11 @@ runescape_npc_size_from_config(
 {
     struct ToriAuxLibCache* c;
 
-    if( !game || !game->td )
-        return 1;
+    assert(game);
+    assert(game->td);
 
     c = ToriAuxLibTD_C(game->td);
-    if( !c )
-        return 1;
+    assert(c);
 
     if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT1 )
     {
@@ -154,17 +154,18 @@ runescape_npc_body_build(
     struct ToriDraw_ModelHandle hnd;
     int i;
 
-    if( !game || !game->td )
-        return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
+    assert(game);
+    assert(game->td);
 
     c = ToriAuxLibTD_C(game->td);
-    if( !c )
-        return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
+    assert(c);
 
     if( ToriAuxLibCache_Mode(c) == TORIAUXLIBCACHE_MODE_DAT1 )
     {
         struct RSCacheDat1A_ConfigNpc* npc = dat1_buildcache_npc_get(dat1(c), npc_id);
-        if( !npc || npc->models_count <= 0 )
+        if( !npc )
+            return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
+        if( npc->models_count <= 0 )
             return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
 
         for( i = 0; i < npc->models_count && piece_count < 64; i++ )
@@ -196,7 +197,9 @@ runescape_npc_body_build(
         int width_scale;
         int height_scale;
 
-        if( !npc || npc->models_count <= 0 )
+        if( !npc )
+            return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
+        if( npc->models_count <= 0 )
             return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
 
         for( i = 0; i < npc->models_count && piece_count < 64; i++ )
@@ -255,13 +258,14 @@ runescape_player_body_build(
     uint16_t slots[RUNESCAPE_APPEARANCE_SLOT_COUNT];
     int slot;
 
-    if( !game || !game->td || !appearance )
-        return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
+    assert(game);
+    assert(game->td);
+    assert(appearance);
 
     c = ToriAuxLibTD_C(game->td);
     core = ToriAuxLibTD_Core(game->td);
-    if( !c || !core )
-        return (struct ToriDraw_ModelHandle){ .kind = TORIDRAWMK_NONE };
+    assert(c);
+    assert(core);
 
     for( slot = 0; slot < RUNESCAPE_APPEARANCE_SLOT_COUNT; slot++ )
         slots[slot] = (uint16_t)appearance[slot];

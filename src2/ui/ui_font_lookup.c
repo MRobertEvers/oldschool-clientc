@@ -63,7 +63,8 @@ ui_font_lookup_find_by_cache_font_id(
     struct UIFontLookup const* lookup,
     int cache_font_id)
 {
-    if( !lookup || cache_font_id < 0 )
+    assert(lookup);
+    if( cache_font_id < 0 )
         return -1;
 
     for( int i = 0; i < lookup->count; i++ )
@@ -79,7 +80,8 @@ ui_font_lookup_find_by_archive_id(
     struct UIFontLookup const* lookup,
     int cache_archive_id)
 {
-    if( !lookup || cache_archive_id < 0 )
+    assert(lookup);
+    if( cache_archive_id < 0 )
         return -1;
 
     for( int i = 0; i < lookup->count; i++ )
@@ -96,7 +98,8 @@ ui_font_lookup_resolve_cache_font_index(
     int cache_font_idx)
 {
     static char const* const cache_font_names[] = { "p11", "p12", "b12", "q8" };
-    if( !lookup || cache_font_idx < 0 || cache_font_idx >= 4 )
+    assert(lookup);
+    if( cache_font_idx < 0 || cache_font_idx >= 4 )
         return -1;
 
     int font_id = ui_font_lookup_find_by_cache_font_id(lookup, cache_font_idx);

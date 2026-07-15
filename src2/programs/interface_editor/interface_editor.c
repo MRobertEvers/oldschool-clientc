@@ -8,6 +8,7 @@
 #include "../../platforms/platform_x/cache_path_resolve.h"
 #include "../../platforms/platform_x/cachelib.h"
 #include "../../platforms/platform_x/cachelib_platform.h"
+#include "../../platforms/platform_x_io_reactor.h"
 #include "../../scripting/libtorirs_scriptapi.h"
 #include "../../toriauxlib/cache/toriauxlibcache.h"
 #include "../../toriauxlib/toriauxlib.h"
@@ -136,6 +137,7 @@ main(
     struct LibToriPlatformSDL2_RendererSoft3D* renderer = NULL;
     struct LibToriRS_CommandQueue* command_queue = NULL;
     struct LibToriRS_Instance* instance = NULL;
+    struct LibToriPlatformX_IOReactor* io_reactor = NULL;
 
     char const* cache_dat_path = resolve_cache_dat_path(argc, argv);
     if( !cache_dat_path )
@@ -174,6 +176,14 @@ main(
     }
 
     GameInterfaceEditor_SetDat2Cache(instance->interface_editor, dat2_disk);
+
+    io_reactor = LibToriPlatformX_IOReactorNew(cache);
+    if( !io_reactor )
+    {
+        fprintf(stderr, "Failed to create IO reactor\n");
+        goto error_exit;
+    }
+
     int const cs2_trailer_flags = parse_cs2_trailer_flag(argc, argv);
     GameInterfaceEditor_SetClientscriptDecodeFlags(instance->interface_editor, cs2_trailer_flags);
     ToriAuxLibCache_SetClientscriptDecodeFlags(
@@ -229,6 +239,19 @@ main(
         LibToriRS_TickInput(instance, command_queue, time);
         if( !LibToriRS_IsRunning(instance) )
             break;
+
+        LibToriRS_FramePrepare(instance);
+        for( ;; )
+        {
+            bool ran = LibToriRS_TasksRun(instance);
+            LibToriPlatformX_IOReactorProcess(io_reactor, LibToriRS_GetIOQueue(instance));
+            if( LibToriRS_TasksSettled(instance) && !ran )
+                break;
+            if( !ran && !LibToriRS_TasksHasLive(instance) )
+                break;
+        }
+        LibToriRS_IOQueueClear(LibToriRS_GetIOQueue(instance));
+
         LibToriPlatformSDL2_RendererSoft3D_Render(renderer, instance, NULL);
         SDL_Delay(1);
     }
@@ -236,6 +259,8 @@ main(
     LibToriRS_CommandQueue_Free(command_queue);
     LibToriPlatformSDL2_RendererSoft3D_Free(renderer);
     LibToriPlatformSDL2_Free(platform);
+    if( io_reactor )
+        LibToriPlatformX_IOReactorFree(io_reactor);
     cachelib_free(cache);
     LibToriRS_InstanceFree(instance);
     return 0;
@@ -247,6 +272,8 @@ error_exit:
         LibToriPlatformSDL2_RendererSoft3D_Free(renderer);
     if( platform )
         LibToriPlatformSDL2_Free(platform);
+    if( io_reactor )
+        LibToriPlatformX_IOReactorFree(io_reactor);
     if( cache )
         cachelib_free(cache);
     if( instance )

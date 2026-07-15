@@ -1,6 +1,7 @@
 #include "ui_scroll_runtime.h"
 
 #include <string.h>
+#include <assert.h>
 
 static bool
 ui_scroll_runtime_drag_kind_is_grip(enum UITreeScrollbarHitKind kind)
@@ -20,8 +21,7 @@ ui_scroll_runtime_drag_kind_is_grip(enum UITreeScrollbarHitKind kind)
 void
 ui_scroll_runtime_reset(struct UIScrollRuntime* rt)
 {
-    if( !rt )
-        return;
+    assert(rt);
     memset(rt->scroll_x, 0, sizeof(rt->scroll_x));
     memset(rt->scroll_y, 0, sizeof(rt->scroll_y));
     rt->drag_layer_id = -1;
@@ -36,8 +36,7 @@ struct UITreeScrollState
 ui_scroll_runtime_view(struct UIScrollRuntime const* rt)
 {
     struct UITreeScrollState view = { 0 };
-    if( !rt )
-        return view;
+    assert(rt);
     view.scroll_x = (int*)rt->scroll_x;
     view.scroll_y = (int*)rt->scroll_y;
     return view;
@@ -50,8 +49,7 @@ ui_scroll_runtime_begin_drag(
     enum UITreeScrollbarHitKind kind,
     int anchor)
 {
-    if( !rt )
-        return;
+    assert(rt);
     rt->drag_layer_id = layer_id;
     rt->drag_kind = kind;
     rt->drag_anchor = anchor;
@@ -61,8 +59,7 @@ ui_scroll_runtime_begin_drag(
 void
 ui_scroll_runtime_end_drag(struct UIScrollRuntime* rt)
 {
-    if( !rt )
-        return;
+    assert(rt);
     rt->drag_layer_id = -1;
     rt->drag_kind = UITREE_SCROLLBAR_NONE;
     rt->drag_anchor = 0;

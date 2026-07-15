@@ -15,16 +15,16 @@
 bool
 uitree_component_is_clickable(struct StaticUIComponent const* component)
 {
-    if( !component )
-        return false;
+    assert(component);
+
     return component->behavior.button_type != 0 || component->behavior.client_code > 0;
 }
 
 bool
 uitree_component_has_menu_options(struct StaticUIComponent const* component)
 {
-    if( !component )
-        return false;
+    assert(component);
+
     if( component->menu_options.option[0] != '\0' )
         return true;
     for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
@@ -38,8 +38,7 @@ uitree_component_has_menu_options(struct StaticUIComponent const* component)
 bool
 uitree_component_expects_minimenu_rows(struct StaticUIComponent const* component)
 {
-    if( !component )
-        return false;
+    assert(component);
 
     switch( component->type )
     {
@@ -82,10 +81,9 @@ uitree_component_visible_by_id(
     struct StaticUIComponent const* component,
     int hovered_component_id)
 {
-    if( !component )
-        return false;
-    if( !component->behavior.hide )
-        return true;
+    assert(component);
+
+    assert(component);
     if( component->component_id < 0 )
         return true;
     return hovered_component_id == component->component_id;
@@ -96,7 +94,8 @@ uitree_component_hovered_by_ids(
     int component_id,
     struct UITreeHoverIds const* hover_ids)
 {
-    if( component_id < 0 || !hover_ids )
+    assert(hover_ids);
+    if( component_id < 0 )
         return false;
     return component_id == hover_ids->main_com_id || component_id == hover_ids->side_com_id ||
            component_id == hover_ids->chat_com_id;
@@ -107,10 +106,9 @@ uitree_component_visible_by_hover_ids(
     struct StaticUIComponent const* component,
     struct UITreeHoverIds const* hover_ids)
 {
-    if( !component )
-        return false;
-    if( !component->behavior.hide )
-        return true;
+    assert(component);
+
+    assert(component);
     if( component->component_id < 0 )
         return true;
     return uitree_component_hovered_by_ids(component->component_id, hover_ids);
@@ -147,7 +145,8 @@ uitree_find_hovered_component_id_recursive(
     struct UITreeScrollClip const* clip,
     int* out_hovered_component_id)
 {
-    if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return;
 
     if( clip && clip->clip_w > 0 && clip->clip_h > 0 &&
@@ -195,8 +194,7 @@ uitree_find_hovered_component_id_recursive(
             recurse_children = false;
     }
 
-    if( !recurse_children )
-        return;
+    assert(recurse_children);
 
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;
@@ -252,8 +250,8 @@ uitree_find_hovered_component_id_for_region(
     int32_t start_index,
     int* out_hovered_component_id)
 {
-    if( !tree || !out_hovered_component_id )
-        return;
+    assert(tree);
+    assert(out_hovered_component_id);
 
     *out_hovered_component_id = -1;
 
@@ -320,13 +318,12 @@ uitree_behavior_is_active(
     struct UITreeBehaviorHost const* host,
     struct StaticUIBehavior const* behavior)
 {
-    if( !host || !behavior || !behavior->script_comparator || !behavior->script_operand )
+    assert(host);
+    assert(behavior);
+    if( !behavior->script_comparator || !behavior->script_operand )
         return false;
 
     if( behavior->script_kind == CS1VM_SCRIPT_KIND_CS2 )
-        return false;
-
-    if( !host->cs1vm )
         return false;
 
     int count = behavior->scripts_count;
@@ -354,8 +351,7 @@ uitree_behavior_hook_slot(
     struct ToriAuxLibCore_Component const* component,
     enum UITreeBehaviorHookKind hook_kind)
 {
-    if( !component )
-        return NULL;
+    assert(component);
 
     switch( hook_kind )
     {
@@ -380,43 +376,24 @@ uitree_behavior_run_hook(
     struct ToriAuxLibCore_Component const* component,
     enum UITreeBehaviorHookKind hook_kind)
 {
-    if( !host || !host->cs2vm || !component )
-        return;
+    (void)core;
+    (void)cache;
+    assert(host);
+    assert(component);
+    assert(host);
 
     struct ToriAuxLibCore_ScriptHook const* hook = uitree_behavior_hook_slot(component, hook_kind);
-    if( !hook || hook->argc <= 0 )
+    assert(hook);
+    if( hook->argc <= 0 )
         return;
 
     int script_id = hook->argv[0];
     if( script_id < 0 )
         return;
 
-    struct ToriAuxLibCore_ClientScript* script = NULL;
-    if( core )
-        script = ToriAuxLibCore_ClientScriptGet(core, script_id);
-    if( !script && cache )
-        script = ToriAuxLibCache_ClientScriptResolve(cache, script_id);
-    if( !script || script->script.op_count <= 0 )
-        return;
-
-    struct CS2_RunArgs args = {
-        .int_argc = hook->argc > 1 ? hook->argc - 1 : 0,
-        .int_argv = hook->argc > 1 ? &hook->argv[1] : NULL,
-        .string_argc = 0,
-        .string_argv = NULL,
-        .event_component_id = component->id,
-    };
-    int rc = cs2vm_run(host->cs2vm, &script->script, &host->cs2host, &args);
-    if( rc != CS2VM_OK )
-    {
-        fprintf(
-            stderr,
-            "uitree_behavior_run_hook: cs2vm_run failed script_id=%d hook=%d rc=%d\n",
-            script_id,
-            (int)hook_kind,
-            rc);
-        assert(rc == CS2VM_OK);
-    }
+    int const* int_args = hook->argc > 1 ? &hook->argv[1] : NULL;
+    int int_argc = hook->argc > 1 ? hook->argc - 1 : 0;
+    host->cs2_enqueue(host->cs2_enqueue_ud, script_id, component->id, int_args, int_argc);
 }
 
 static bool
@@ -424,7 +401,8 @@ uitree_behavior_component_watches_container(
     struct ToriAuxLibCore_Component const* component,
     int container_id)
 {
-    if( !component || container_id < 0 || component->on_inv_transmit.argc <= 0 )
+    assert(component);
+    if( container_id < 0 || component->on_inv_transmit.argc <= 0 )
         return false;
     if( component->inventory_triggers_count <= 0 )
         return true;
@@ -441,7 +419,8 @@ uitree_behavior_component_watches_varp(
     struct ToriAuxLibCore_Component const* component,
     int varp_id)
 {
-    if( !component || varp_id < 0 || component->on_varp_transmit.argc <= 0 )
+    assert(component);
+    if( varp_id < 0 || component->on_varp_transmit.argc <= 0 )
         return false;
     if( component->varp_triggers_count <= 0 )
         return true;
@@ -461,7 +440,10 @@ uitree_behavior_dispatch_inv_transmit(
     struct UITree const* tree,
     int container_id)
 {
-    if( !host || !host->cs2vm || !core || !tree || container_id < 0 )
+    assert(host);
+    assert(core);
+    assert(tree);
+    if( !host->cs2_enqueue || container_id < 0 )
         return;
 
     for( uint32_t i = 0; i < tree->component_count; i++ )
@@ -473,6 +455,7 @@ uitree_behavior_dispatch_inv_transmit(
             ToriAuxLibCore_ComponentGet(core, node->component_id);
         if( !component )
             continue;
+
         if( !uitree_behavior_component_watches_container(component, container_id) )
             continue;
         uitree_behavior_run_hook(
@@ -488,7 +471,10 @@ uitree_behavior_dispatch_varp_transmit(
     struct UITree const* tree,
     int varp_id)
 {
-    if( !host || !host->cs2vm || !core || !tree || varp_id < 0 )
+    assert(host);
+    assert(core);
+    assert(tree);
+    if( !host->cs2_enqueue || varp_id < 0 )
         return;
 
     for( uint32_t i = 0; i < tree->component_count; i++ )
@@ -500,6 +486,7 @@ uitree_behavior_dispatch_varp_transmit(
             ToriAuxLibCore_ComponentGet(core, node->component_id);
         if( !component )
             continue;
+
         if( !uitree_behavior_component_watches_varp(component, varp_id) )
             continue;
         uitree_behavior_run_hook(
@@ -514,8 +501,7 @@ uitree_component_rect_color(
     struct UITreeBehaviorHost const* host,
     int base_color)
 {
-    if( !component )
-        return base_color;
+    assert(component);
 
     int color = base_color;
     bool hovered = uitree_component_hovered_by_ids(component->component_id, hover_ids);
@@ -539,8 +525,9 @@ uitree_behavior_apply_button_click(
     struct UITreeBehaviorHost* host,
     struct StaticUIBehavior const* behavior)
 {
-    if( !host || !host->varp_varbit || !behavior )
-        return;
+    assert(host);
+    assert(behavior);
+    assert(host);
 
     if( !behavior->scripts || behavior->scripts_count < 1 || !behavior->scripts[0] )
         return;
@@ -619,8 +606,10 @@ uitree_behavior_handle_input_result(
     struct UITree const* tree,
     struct UIInputResult const* result)
 {
-    if( !host || !tree || !result || result->clicked < 0 ||
-        (uint32_t)result->clicked >= tree->component_count )
+    assert(host);
+    assert(tree);
+    assert(result);
+    if( result->clicked < 0 || (uint32_t)result->clicked >= tree->component_count )
         return;
 
     struct StaticUIComponent* component = &tree->components[result->clicked];

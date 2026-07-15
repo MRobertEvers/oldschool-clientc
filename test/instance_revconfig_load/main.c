@@ -38,7 +38,7 @@
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
 #include "vm/cs1vm.h"
-#include "vm/cs2vm.h"
+#include "vm/cs2vmx.h"
 #include "world/minimap.h"
 #include "world/world.h"
 #include "world/world_pickset.h"

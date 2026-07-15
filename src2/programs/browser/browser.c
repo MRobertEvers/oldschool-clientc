@@ -72,7 +72,9 @@ browser_main_loop(void)
             return;
         }
 
-        if( LibToriRS_TasksHasLive(g_instance) )
+        LibToriRS_FramePrepare(g_instance);
+
+        if( !LibToriRS_TasksSettled(g_instance) )
         {
             g_state = BROWSER_MAIN_LOOP_STATE_WAITING_FOR_TASKS;
             LibToriPlatformJS_CAPI_EmscriptenHost_TasksMainLoop();

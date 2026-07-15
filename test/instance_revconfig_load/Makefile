@@ -107,6 +107,8 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/games/ie_enum_lookup.c \
 	$(SRC2_DIR)/games/ie_struct_lookup.c \
 	$(SRC2_DIR)/games/ie_param_lookup.c \
+	$(SRC2_DIR)/games/runescape_cs2_host.c \
+	$(SRC2_DIR)/games/runescape_cs2_queue.c \
 	$(TEST_DIR)/font_td_shim.c \
 	$(SRC2_DIR)/toridraw/toridraw_scene.c \
 	$(SRC2_DIR)/toridraw/toridraw_intrusive_list.c \

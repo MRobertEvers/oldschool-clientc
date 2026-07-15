@@ -1,4 +1,5 @@
 #include "ui_inv_slot_view.h"
+#include <assert.h>
 
 void
 ui_inv_slot_view_grid_rect(
@@ -89,8 +90,7 @@ ui_inv_slot_view_grid_hit_test(
     int px,
     int py)
 {
-    if( !layout )
-        return -1;
+    assert(layout);
 
     int const limit = ui_inv_slot_view_grid_slot_limit(layout);
     for( int slot = 0; slot < limit; slot++ )
@@ -109,8 +109,8 @@ ui_inv_slot_view_grid_hit_test(
 int
 ui_inv_slot_view_grid_slot_limit(struct UIInvGridLayout const* layout)
 {
-    if( !layout )
-        return 0;
+    assert(layout);
+
     int cols = layout->cols > 0 ? layout->cols : 4;
     int rows = layout->rows > 0 ? layout->rows : 7;
     int total = cols * rows;

@@ -60,7 +60,8 @@ ToriAuxLibCore_FlotypeFree(struct ToriAuxLibCore_Flotype* flotype)
 static void
 ToriAuxLibCore_LocationFree_models(struct ToriAuxLibCore_Location* loc)
 {
-    if( !loc || !loc->models )
+    assert(loc);
+    if( !loc->models )
         return;
     for( int i = 0; i < loc->shapes_and_model_count; i++ )
         free(loc->models[i]);
@@ -71,7 +72,8 @@ ToriAuxLibCore_LocationFree_models(struct ToriAuxLibCore_Location* loc)
 static size_t
 toriauxlibcore_location_models_sizeof(const struct ToriAuxLibCore_Location* loc)
 {
-    if( !loc || !loc->models )
+    assert(loc);
+    if( !loc->models )
         return 0;
 
     size_t bytes = (size_t)loc->shapes_and_model_count * sizeof(*loc->models);
@@ -682,8 +684,7 @@ ToriAuxLibCore_ComponentApplyWalkLayout(
     int rel_x,
     int rel_y)
 {
-    if( !component )
-        return;
+    assert(component);
     component->parent_id = parent_id;
     component->rel_x = rel_x;
     component->rel_y = rel_y;
@@ -692,8 +693,7 @@ ToriAuxLibCore_ComponentApplyWalkLayout(
 size_t
 ToriAuxLibCore_ComponentSizeOf(const struct ToriAuxLibCore_Component* component)
 {
-    if( !component )
-        return 0;
+    assert(component);
 
     size_t bytes = sizeof(*component);
     if( component->scripts )

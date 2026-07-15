@@ -5,6 +5,7 @@
 #include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/cache/toriauxlibcache_submit.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -78,8 +79,9 @@ toriauxlibcache_collect_component_hook_script_ids(
         *script_ids_out = NULL;
     if( script_count_out )
         *script_count_out = 0;
-    if( !iface || !script_ids_out || !script_count_out )
-        return 0;
+    assert(iface);
+    assert(script_ids_out);
+    assert(script_count_out);
 
     for( i = 0; i < iface->component_count; i++ )
     {

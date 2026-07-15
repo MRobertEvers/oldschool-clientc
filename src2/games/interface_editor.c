@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 static int const k_addable_types[] = { 0, 2, 3, 4, 5, 6, 9 };
 static int const k_addable_type_count = 7;
@@ -138,7 +139,8 @@ ie_push_draw_font(
     int center,
     int shadowed)
 {
-    if( !text || !text[0] || game->draw_count >= IE_MAX_DRAW_ITEMS )
+    assert(text);
+    if( !text[0] || game->draw_count >= IE_MAX_DRAW_ITEMS )
         return;
     struct InterfaceEditorDrawItem* item = &game->draw_list[game->draw_count++];
     memset(item, 0, sizeof(*item));
@@ -217,7 +219,8 @@ ie_resolve_scene_font(
     struct GameInterfaceEditor* game,
     int rs_font_id)
 {
-    if( !game || rs_font_id < 0 )
+    assert(game);
+    if( rs_font_id < 0 )
         return ie_default_ui_font_id(game);
 
     for( int i = 0; i < game->font_cache_count; i++ )
@@ -242,8 +245,7 @@ ie_resolve_scene_font(
 
     struct ToriAuxLibCore_Font* core_font =
         ToriAuxLibCache_FontNewFromDat2Archives(font_archive, sprite_archive, rs_font_id);
-    if( !core_font )
-        return ie_default_ui_font_id(game);
+    assert(core_font);
 
     int scene_font_id = game->next_element_id++;
     ToriAuxLibCache_SubmitFont(game->cache, scene_font_id, core_font);
@@ -262,7 +264,10 @@ ie_resolve_sprite(
     int* out_element_id,
     int* out_frame_count)
 {
-    if( !game || cache_sprite_id < 0 || !out_element_id || !out_frame_count )
+    assert(game);
+    assert(out_element_id);
+    assert(out_frame_count);
+    if( cache_sprite_id < 0 )
         return false;
 
     for( int i = 0; i < game->sprite_cache_count; i++ )
@@ -280,13 +285,11 @@ ie_resolve_sprite(
 
     struct RSCacheDat2Disk_Archive* archive = RSCacheDat2Disk_ArchiveNewLoad(
         game->dat2_cache, RSCacheDat2Disk_Table_Sprites, cache_sprite_id);
-    if( !archive )
-        return false;
+    assert(archive);
 
     struct ToriAuxLibCore_Sprite* sprite =
         ToriAuxLibCache_SpriteNewFromDat2ArchiveId(archive, cache_sprite_id);
-    if( !sprite )
-        return false;
+    assert(sprite);
 
     int element_id = game->next_element_id++;
     ToriAuxLibCache_SubmitSprite(game->cache, element_id, sprite);
@@ -310,7 +313,8 @@ ie_decode_component(
     int group_id,
     int file_index)
 {
-    if( !data || size <= 0 )
+    assert(data);
+    if( size <= 0 )
         return -1;
     struct RSCacheShared_RSBuffer buf;
     RSCacheShared_RSBufferInit(&buf, (int8_t*)data, size);
@@ -529,8 +533,8 @@ ie_load_group(
     struct GameInterfaceEditor* game,
     int group_id)
 {
-    if( !game || !game->dat2_cache )
-        return false;
+    assert(game);
+    assert(game);
 
     ie_free_widgets(game);
     game->loaded_group_id = group_id;
@@ -539,14 +543,12 @@ ie_load_group(
 
     struct RSCacheDat2Disk_Archive* arch = RSCacheDat2Disk_ArchiveNewLoad(
         game->dat2_cache, RSCacheDat2Disk_Table_Interfaces, group_id);
-    if( !arch )
-        return false;
+    assert(arch);
 
     RSCacheDat2Disk_ArchiveInitMetadata(game->dat2_cache, arch);
     struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
     RSCacheDat2Disk_ArchiveFree(arch);
-    if( !fl )
-        return false;
+    assert(fl);
 
     for( int fi = 0; fi < fl->file_count && game->widget_count < IE_MAX_WIDGETS; fi++ )
     {
@@ -627,7 +629,8 @@ ie_add_dynamic_widget(
     int type,
     int sprite_id)
 {
-    if( !game || game->widget_count >= IE_MAX_WIDGETS )
+    assert(game);
+    if( game->widget_count >= IE_MAX_WIDGETS )
         return false;
 
     int child_id = game->next_dynamic_child++;
@@ -707,7 +710,9 @@ ie_property_value_string(
     char* out,
     size_t out_size)
 {
-    if( !widget || !out || out_size == 0 )
+    assert(widget);
+    assert(out);
+    if( out_size == 0 )
         return;
     RSCacheDat2A_Component* c = &widget->data;
     switch( property_id )
@@ -805,7 +810,8 @@ ie_parse_int(
     char const* text,
     int fallback)
 {
-    if( !text || !text[0] )
+    assert(text);
+    if( !text[0] )
         return fallback;
     return atoi(text);
 }
@@ -918,8 +924,7 @@ ie_apply_property(
 static void
 ie_commit_text_field(struct GameInterfaceEditor* game)
 {
-    if( !game->text_field.active )
-        return;
+    assert(game);
 
     if( game->text_field.kind == IE_FIELD_PROPERTY )
     {
@@ -940,8 +945,7 @@ ie_handle_text_input(
     struct GameInterfaceEditor* game,
     struct LibToriRS_Input* input)
 {
-    if( !game->text_field.active )
-        return;
+    assert(game);
 
     for( int k = TORIRSK_SPACE; k < TORIRSK_COUNT; k++ )
     {
@@ -1116,8 +1120,8 @@ ie_handle_hit(
     case IEHIT_PROPERTY_CHECKBOX:
     {
         struct InterfaceEditorWidget* w = ie_find_widget(game, game->selected_uid);
-        if( !w )
-            break;
+        assert(w);
+
         switch( h->param0 )
         {
         case 1:
@@ -1899,8 +1903,7 @@ ie_build_add_dialog(struct GameInterfaceEditor* game)
 static void
 ie_build_dropdown(struct GameInterfaceEditor* game)
 {
-    if( !game->dropdown.visible )
-        return;
+    assert(game);
 
     ie_push_draw_fill(
         game,
@@ -1983,8 +1986,8 @@ ie_translate_gc_event(
     struct ToriDraw_Event const* ev,
     struct LibToriRS_RenderCommand* command)
 {
-    if( !ev || !command )
-        return false;
+    assert(ev);
+    assert(command);
     memset(command, 0, sizeof(*command));
     switch( ev->kind )
     {
@@ -2010,8 +2013,8 @@ GameInterfaceEditor_New(
     struct ToriDraw_Scene* scene)
 {
     struct GameInterfaceEditor* game = calloc(1, sizeof(*game));
-    if( !game )
-        return NULL;
+    assert(game);
+
     game->script_queue = script_queue;
     game->scene = scene;
     game->loaded_group_id = -1;
@@ -2028,8 +2031,8 @@ GameInterfaceEditor_New(
 void
 GameInterfaceEditor_Free(struct GameInterfaceEditor* game)
 {
-    if( !game )
-        return;
+    assert(game);
+
     ie_free_widgets(game);
     free(game->group_ids);
     free(game);
@@ -2074,8 +2077,8 @@ GameInterfaceEditor_SetDat2Cache(
 bool
 GameInterfaceEditor_EnumerateInterfaceGroups(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->dat2_cache )
-        return false;
+    assert(game);
+    assert(game);
 
     free(game->group_ids);
     game->group_ids = NULL;
@@ -2083,14 +2086,12 @@ GameInterfaceEditor_EnumerateInterfaceGroups(struct GameInterfaceEditor* game)
 
     struct RSCacheDat2Disk_Archive* table_archive = RSCacheDat2Disk_ArchiveNewReferenceTableLoad(
         game->dat2_cache, RSCacheDat2Disk_Table_Interfaces);
-    if( !table_archive )
-        return false;
+    assert(table_archive);
 
     struct RSCacheDat2Disk_ReferenceTable* table =
         RSCacheDat2Disk_ReferenceTableNewDecode(table_archive->data, table_archive->data_size);
     RSCacheDat2Disk_ArchiveFree(table_archive);
-    if( !table )
-        return false;
+    assert(table);
 
     game->group_ids = calloc((size_t)table->id_count, sizeof(int));
     if( !game->group_ids )
@@ -2130,8 +2131,8 @@ GameInterfaceEditor_ProcessInput(
     struct GameInterfaceEditor* game,
     struct LibToriRS_Input* input)
 {
-    if( !game || !input )
-        return;
+    assert(game);
+    assert(input);
 
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_ESCAPE) )
     {
@@ -2171,8 +2172,8 @@ GameInterfaceEditor_FrameBegin(
     int cycles_elapsed)
 {
     (void)cycles_elapsed;
-    if( !game )
-        return;
+    assert(game);
+
     game->frame.phase = IE_FRAME_GC_EVENTS;
     game->frame.event_index = 0;
     game->frame.draw_index = 0;
@@ -2184,8 +2185,8 @@ GameInterfaceEditor_FrameNextCommand(
     struct GameInterfaceEditor* game,
     struct LibToriRS_RenderCommand* command)
 {
-    if( !game || !command )
-        return false;
+    assert(game);
+    assert(command);
     memset(command, 0, sizeof(*command));
 
     for( ;; )
@@ -2268,7 +2269,7 @@ GameInterfaceEditor_FrameNextCommand(
 void
 GameInterfaceEditor_FrameEnd(struct GameInterfaceEditor* game)
 {
-    if( !game || !game->scene )
-        return;
+    assert(game);
+    assert(game);
     ToriDraw_SceneFrameEnd(game->scene);
 }

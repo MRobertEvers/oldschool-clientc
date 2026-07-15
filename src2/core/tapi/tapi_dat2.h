@@ -7,6 +7,7 @@
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/dat2disk/dat2disk.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +17,8 @@ TAPIDat2_FetchModel(
     struct LibToriRS_IOContext* ctx,
     int model_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat2_model_fetch(model_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -26,6 +29,8 @@ TAPIDat2_DecodeModel(
     struct LibToriRS_IOContext* ctx,
     int slot_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct RSCacheDat2Disk_Archive* archive = NULL;
     struct RSCacheDat2A_Model* model = NULL;
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
@@ -60,6 +65,8 @@ TAPIDat2_FetchMapChunkTerrain(
     int mapx,
     int mapz)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat2_map_chunk_terrain_fetch(mapx, mapz, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -71,6 +78,8 @@ TAPIDat2_DecodeMapChunkTerrain(
     int slot_id,
     struct RSCacheDat2A_MapTerrain** terrain_out)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     *terrain_out = NULL;
     if( !item )
@@ -101,6 +110,8 @@ TAPIDat2_FetchMapChunkScenery(
     int mapx,
     int mapz)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat2_map_chunk_scenery_fetch(mapx, mapz, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -112,6 +123,8 @@ TAPIDat2_DecodeMapChunkScenery(
     int slot_id,
     struct RSCacheDat2A_MapLocs** locs_out)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     *locs_out = NULL;
     if( !item )
@@ -146,6 +159,8 @@ TAPIDat2_FetchConfigGroup(
     struct LibToriRS_IOContext* ctx,
     int config_kind)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat2_config_group_fetch(config_kind, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -157,6 +172,8 @@ TAPIDat2_DecodeConfigGroup(
     int slot_id,
     int expected_config_kind)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     if( !item )
         return NULL;
@@ -175,6 +192,8 @@ TAPIDat2_FetchSprite(
     struct LibToriRS_IOContext* ctx,
     int sprite_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat2_sprite_fetch(sprite_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -186,6 +205,8 @@ TAPIDat2_DecodeSpriteArchive(
     int slot_id,
     int expected_sprite_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     if( !item )
         return NULL;
@@ -204,6 +225,8 @@ TAPIDat2_FetchInterface(
     struct LibToriRS_IOContext* ctx,
     int iface_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat2_interface_fetch(iface_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -215,6 +238,8 @@ TAPIDat2_DecodeInterfaceArchive(
     int slot_id,
     int expected_iface_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     if( !item )
         return NULL;
@@ -233,6 +258,8 @@ TAPIDat2_FetchFont(
     struct LibToriRS_IOContext* ctx,
     int font_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat2_font_fetch(font_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -244,6 +271,8 @@ TAPIDat2_DecodeFontArchive(
     int slot_id,
     int expected_font_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     if( !item )
         return NULL;
@@ -262,6 +291,8 @@ TAPIDat2_FetchClientScript(
     struct LibToriRS_IOContext* ctx,
     int script_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat2_clientscript_fetch(script_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -273,6 +304,8 @@ TAPIDat2_DecodeClientScriptArchive(
     int slot_id,
     int expected_script_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     if( !item )
         return NULL;
@@ -291,6 +324,8 @@ TAPIDat2_FetchReferenceTable(
     struct LibToriRS_IOContext* ctx,
     int table_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     LibToriRS_IOQueuePushReferenceTable(ctx->io, table_id);
 }
 
@@ -300,6 +335,8 @@ TAPIDat2_DecodeReferenceTable(
     int slot_id,
     int expected_table_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item =
         LibToriRS_IOQueueFindReferenceTable(ctx->io, slot_id, expected_table_id);
     if( !item )
@@ -324,6 +361,8 @@ TAPIDat2_FetchArchive(
     int table_id,
     int archive_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct CacheLib_IORequest request;
     cachelib_dat2_archive_fetch(table_id, archive_id, &request);
     LibToriRS_IOQueuePushCache(ctx->io, request.table_id, request.archive_id, request.flags);
@@ -336,6 +375,8 @@ TAPIDat2_DecodeArchive(
     int expected_table_id,
     int expected_archive_id)
 {
+    assert(ctx);
+    assert(ctx->io);
     struct LibToriRS_IOQueueItem* item = LibToriRS_IOQueueFindBySlot(ctx->io, slot_id);
     if( !item )
         return NULL;

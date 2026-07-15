@@ -14,7 +14,8 @@
 #include "ui/ui_inv_data_service.h"
 #include "ui/ui_minimenu.h"
 #include "ui/uitree.h"
-#include "vm/cs2vm.h"
+#include "games/game_interface_editor_cs2_host.h"
+#include "vm/cs2vmx.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -380,8 +381,8 @@ struct GameInterfaceEditor
     struct GameInterfaceEditor_FrameState frame;
 
     struct UITree* cs2_tree;
-    struct CS2VM* cs2vm;
-    struct CS2Host cs2host;
+    struct CS2VMX cs2vm;
+    struct GameInterfaceEditorCS2Host cs2_host;
     struct ToriAuxLibVM* cs1vm_wrap;
     bool scripts_ran;
     char script_error[IE_SCRIPT_ERROR_LEN];

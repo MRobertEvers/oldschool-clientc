@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 struct CS1VM
 {
@@ -192,8 +193,7 @@ cs1vm_skip_opcode_operands(int opcode, int const* script, int* pc)
 int
 cs1vm_script_length(int const* script)
 {
-    if( !script )
-        return 0;
+    assert(script);
 
     int pc = 0;
     while( 1 )
@@ -228,8 +228,7 @@ cs1vm_eval_len(
     int script_len)
 {
     (void)vm;
-    if( !script )
-        return -1;
+    assert(script);
 
     int acc = 0;
     int pc = 0;

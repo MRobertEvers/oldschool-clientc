@@ -23,7 +23,9 @@
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
 #include "ui/ui_inv_data_service.h"
-#include "vm/cs2vm.h"
+#include "vm/cs2vmx.h"
+#include "games/runescape_cs2_host.h"
+#include "games/runescape_cs2_queue.h"
 #include "world/entity_registry.h"
 
 #include <stdbool.h>
@@ -32,9 +34,9 @@
 struct ToriAuxLibCore;
 struct ToriDraw_Scene;
 struct ToriAuxLibTD;
+struct LibToriRS_Instance;
 struct LibToriRS_IOContext;
-struct CS2VM;
-struct CS2Host;
+struct CS2VMX;
 
 /** Click cross overlay (walk/interact cursor). Prefer UI_CROSS_MODE_* from ui_cross_cursor.h. */
 #define RUNESCAPE_CROSS_MODE_OFF UI_CROSS_MODE_OFF
@@ -184,8 +186,10 @@ struct GameRunescape
     /** Active sidebar tab index (Client.ts selectedTab). */
     int selected_tab;
     struct ToriAuxLibVM* vm;
-    struct CS2VM* cs2vm;
-    struct CS2Host cs2host;
+    struct CS2VMX cs2vm;
+    struct GameRunescapeCS2Host cs2_host;
+    struct GameRunescapeCS2Queue cs2_queue;
+    bool cs2_vm_bound;
     struct UIHoverRouting ui_hover;
     struct UIScrollRuntime ui_scroll;
     /** Scratch buffer for per-frame UI text emission (avoids stack large strings). */
@@ -538,5 +542,27 @@ int
 Task_GameRunescape_WorldEntityAddProjectile_Run(
     void* task_state,
     struct LibToriRS_IOContext* ctx);
+
+
+/** Enqueue a CS2 script invocation (non-blocking). Drained into Task_Dat2CS2Run by pump. */
+bool
+GameRunescape_CS2Enqueue(
+    struct GameRunescape* game,
+    int script_id,
+    int component_id,
+    int const* int_args,
+    int int_arg_count,
+    char const* const* str_args,
+    int str_arg_count);
+
+/** Push queued CS2 invokes onto the instance task runner. Returns true if any added. */
+bool
+GameRunescape_CS2FlushQueueToTasks(
+    struct GameRunescape* game,
+    struct LibToriRS_Instance* instance);
+
+/** True when the CS2 invoke queue has no pending scripts. */
+bool
+GameRunescape_CS2IsIdle(struct GameRunescape const* game);
 
 #endif

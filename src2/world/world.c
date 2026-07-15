@@ -91,8 +91,7 @@ world_reset_scene_alloc(
 void
 world_terrain_reset(struct World* world)
 {
-    if( !world )
-        return;
+    assert(world);
     World_EntityPoolReset(&world->entities.terrain);
 }
 
@@ -104,8 +103,7 @@ world_terrain_set(
     int z,
     int level)
 {
-    if( !world )
-        return;
+    assert(world);
 
     int idx = world_terrain_tile_idx(world, x, z, level);
     struct World_EntityPool* pool = &world->entities.terrain;
@@ -202,8 +200,7 @@ world_set_painters_cullmap(
     struct World* world,
     struct PaintersCullMap* cm)
 {
-    if( !world )
-        return;
+    assert(world);
     if( world->cullmap )
         painters_cullmap_free(world->cullmap);
     world->cullmap = cm;
@@ -218,8 +215,7 @@ world_terrain_element_at(
     int z,
     int level)
 {
-    if( !world )
-        return -1;
+    assert(world);
     if( x < 0 || z < 0 || level < 0 )
         return -1;
     if( x >= world->_scene_size || z >= world->_scene_size || level >= WORLD_MAP_TERRAIN_LEVELS )
@@ -525,8 +521,7 @@ world_projectile_despawn(
     struct World_EntityPool* pool;
     struct WorldEntity_Projectile* p;
 
-    if( !world )
-        return;
+    assert(world);
 
     pool = &world->entities.projectile;
     if( !World_EntityPoolIsActive(pool, idx) )
@@ -591,8 +586,7 @@ world_spotanim_despawn(
     struct World_EntityPool* pool;
     struct WorldEntity_Spotanim* s;
 
-    if( !world )
-        return;
+    assert(world);
 
     pool = &world->entities.spotanim;
     if( !World_EntityPoolIsActive(pool, idx) )
@@ -626,7 +620,8 @@ world_events_peek(
     struct World* world,
     int i)
 {
-    if( !world || i < 0 || i >= world->event_count )
+    assert(world);
+    if( i < 0 || i >= world->event_count )
         return NULL;
     return &world->events[i];
 }
@@ -634,8 +629,7 @@ world_events_peek(
 void
 world_events_clear(struct World* world)
 {
-    if( !world )
-        return;
+    assert(world);
     world->event_count = 0;
 }
 
@@ -644,7 +638,8 @@ world_cycle(
     struct World* world,
     int cycles_elapsed)
 {
-    if( !world || !world->painter || !world->load_complete )
+    assert(world);
+    if( !world->painter || !world->load_complete )
         return;
 
     painter_reset_to_static(world->painter);
@@ -835,7 +830,8 @@ world_scenery_register(
     struct WorldEntity_Scenery* scenery;
     int idx;
 
-    if( !world || element_id < 0 || loc_id < 0 )
+    assert(world);
+    if( element_id < 0 || loc_id < 0 )
         return -1;
 
     pool = &world->entities.scenery;
@@ -878,7 +874,8 @@ world_scenery_get_by_element_id(
     struct World_EntityPool* pool;
     int idx;
 
-    if( !world || element_id < 0 )
+    assert(world);
+    if( element_id < 0 )
         return NULL;
 
     pool = &world->entities.scenery;
@@ -900,7 +897,8 @@ world_register_scenery_pick(
     int element_id,
     int loc_id)
 {
-    if( !world || element_id < 0 || loc_id < 0 )
+    assert(world);
+    if( element_id < 0 || loc_id < 0 )
         return;
     if( world->scenery_pick_count >= WORLD_SCENERY_PICK_MAX )
         return;

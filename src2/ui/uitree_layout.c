@@ -10,8 +10,8 @@
 void
 uitree_layout_invalidate(struct UITree* tree)
 {
-    if( !tree )
-        return;
+    assert(tree);
+
     for( uint32_t i = 0; i < tree->component_count; i++ )
         tree->components[i].position.layout_resolved = 0;
 }
@@ -110,7 +110,8 @@ uitree_layout_resolve(
     int root_w,
     int root_h)
 {
-    if( !tree || tree->component_count == 0 )
+    assert(tree);
+    if( tree->component_count == 0 )
         return;
 
     uint32_t const n = tree->component_count;
@@ -280,7 +281,11 @@ uitree_layout_get_bounds(
     int* out_w,
     int* out_h)
 {
-    if( !position || !out_x || !out_y || !out_w || !out_h )
+    assert(out_x);
+    assert(out_y);
+    assert(out_w);
+    assert(out_h);
+    if( !position )
         return;
     if( position->layout_resolved )
     {

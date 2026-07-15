@@ -36,6 +36,62 @@ has_flag(
     return false;
 }
 
+static bool
+flag_value(
+    int argc,
+    char* argv[],
+    char const* flag,
+    char const** out_value)
+{
+    size_t const flag_len = strlen(flag);
+
+    for( int i = 1; i < argc; i++ )
+    {
+        char const* arg = argv[i];
+        if( !arg )
+            continue;
+        if( strncmp(arg, flag, flag_len) != 0 )
+            continue;
+        if( arg[flag_len] == '=' )
+        {
+            *out_value = arg + flag_len + 1;
+            return true;
+        }
+        if( arg[flag_len] == '\0' && i + 1 < argc && argv[i + 1] && argv[i + 1][0] != '-' )
+        {
+            *out_value = argv[i + 1];
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
+resolve_use_runescape(
+    int argc,
+    char* argv[])
+{
+    if( has_flag(argc, argv, "--runescape") )
+        return true;
+
+    char const* game = NULL;
+    if( flag_value(argc, argv, "--game", &game) && game && strcmp(game, "runescape") == 0 )
+        return true;
+    return false;
+}
+
+static bool
+is_positional_cache_path_arg(
+    char* argv[],
+    int i)
+{
+    if( i <= 1 || !argv[i] || argv[i][0] == '-' )
+        return false;
+    if( argv[i - 1] && strcmp(argv[i - 1], "--game") == 0 )
+        return false;
+    return true;
+}
+
 static char const*
 resolve_cache_dat_path(
     int argc,
@@ -62,9 +118,7 @@ resolve_cache_dat_path(
 
     for( int i = 1; i < argc; i++ )
     {
-        if( !argv[i] || argv[i][0] == '\0' )
-            continue;
-        if( argv[i][0] == '-' )
+        if( !is_positional_cache_path_arg(argv, i) )
             continue;
         return argv[i];
     }
@@ -108,7 +162,7 @@ main(
     printf("Hello from main!\n");
 
     bool const use_soft3d = has_flag(argc, argv, "--soft3d");
-    bool const use_runescape = has_flag(argc, argv, "--runescape");
+    bool const use_runescape = resolve_use_runescape(argc, argv);
     bool const use_kronos = has_flag(argc, argv, "--kronos");
     bool const use_dat1 = has_flag(argc, argv, "--dat1");
     bool const use_dat2 =
@@ -284,9 +338,17 @@ main(
         if( !LibToriRS_IsRunning(instance) )
             break;
 
-        while( LibToriRS_TasksRun(instance) )
+        LibToriRS_FramePrepare(instance);
+
+        /* Pump tasks + IO until the game settles (CS2 yields may re-queue work). */
+        for( ;; )
         {
+            bool ran = LibToriRS_TasksRun(instance);
             LibToriPlatformX_IOReactorProcess(io_reactor, LibToriRS_GetIOQueue(instance));
+            if( LibToriRS_TasksSettled(instance) && !ran )
+                break;
+            if( !ran && !LibToriRS_TasksHasLive(instance) )
+                break;
         }
 
         while( !LibToriRS_ScriptQueueIsEmpty(LibToriRS_GetScriptQueue(instance)) )

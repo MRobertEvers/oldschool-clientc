@@ -81,7 +81,9 @@ dat1_acquire_dynamic_sprite(
     struct InstanceRevConfigContext* ctx,
     char const* sprite_ref)
 {
-    if( !ctx || !sprite_ref || !sprite_ref[0] || !ctx->dat1_bc )
+    assert(ctx);
+    assert(ctx->dat1_bc);
+    if( !sprite_ref || !sprite_ref[0] )
         return -1;
 
     int atlas = 0;
@@ -115,8 +117,8 @@ dat1_component_sync_to_core(
     int height,
     int parent_id)
 {
-    if( !cache || !comp )
-        return;
+    assert(cache);
+    assert(comp);
 
     struct ToriAuxLibCore* core = ToriAuxLibCache_Core(cache);
     int comp_id = comp->id;
@@ -243,8 +245,8 @@ dat1_component_acquire_inv_slot_sprites(
     struct InstanceRevConfigContext* ctx,
     struct RSCacheDat1A_ConfigComponent* comp)
 {
-    if( !ctx || !comp )
-        return;
+    assert(ctx);
+    assert(comp);
     if( comp->type != COMPONENT_TYPE_INV || !comp->invSlotGraphic )
         return;
 
@@ -261,8 +263,8 @@ dat1_component_acquire_dynamic_sprites(
     struct InstanceRevConfigContext* ctx,
     struct RSCacheDat1A_ConfigComponent* comp)
 {
-    if( !ctx || !comp )
-        return;
+    assert(ctx);
+    assert(comp);
 
     if( comp->graphic && comp->graphic[0] != '\0' )
         dat1_acquire_dynamic_sprite(ctx, comp->graphic);
@@ -451,8 +453,6 @@ Task_Dat1ComponentLoad_Run(
     assert(
         task->rc_ctx && task->rc_ctx->dat1_bc &&
         "Task_Dat1ComponentLoad: missing rc_ctx or dat1_bc");
-    if( !task->rc_ctx || !task->rc_ctx->dat1_bc )
-        PT_EXIT(&task->pt);
 
     instance_revconfig_resolve_panel_roots(task->rc_ctx);
 
@@ -460,8 +460,6 @@ Task_Dat1ComponentLoad_Run(
     assert(
         task->walk_ifaces &&
         "Task_Dat1ComponentLoad: dat1 interfaces unavailable after fetch/decode");
-    if( !task->walk_ifaces )
-        PT_EXIT(&task->pt);
 
     task->walk_root_id_before_remap = task->root_component_id;
     task->walk_root_id = task->root_component_id;

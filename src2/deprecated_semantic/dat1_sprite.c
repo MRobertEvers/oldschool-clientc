@@ -11,6 +11,7 @@
 #include "osrs/rscache/dat1a/dat1a_pix8.h"
 #include "toridraw/toridraw_sprite.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,8 +47,8 @@ sprite_decode_from_filelist(
     const struct Dat1_Sprite* s,
     int atlas_index)
 {
-    if( !filelist || !s )
-        return NULL;
+    assert(filelist);
+    assert(s);
 
     int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, s->index_filename);
     int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, s->data_filename);
@@ -173,8 +174,7 @@ dat1_sprite_decode_media_ref(
 void
 dat1_sprite_init(struct Dat1_Sprite* s)
 {
-    if( !s )
-        return;
+    assert(s);
     memset(s, 0, sizeof(*s));
     s->state = DAT1_STATE_NEED_ARCHIVE;
     s->scene_id = -1;
@@ -187,8 +187,10 @@ dat1_sprite_step(
     struct UIScene* scene,
     struct DashMap* sprite_map)
 {
-    if( !s || !buildcache || !scene || !sprite_map )
-        return;
+    assert(s);
+    assert(buildcache);
+    assert(scene);
+    assert(sprite_map);
 
     switch( s->state )
     {

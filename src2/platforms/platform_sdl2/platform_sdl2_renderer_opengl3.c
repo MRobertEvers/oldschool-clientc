@@ -2985,8 +2985,8 @@ LibToriPlatformSDL2_RendererGL3_Render(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     struct LibToriRS_Instance* instance)
 {
-    if( !renderer || !instance )
-        return;
+    assert(renderer);
+    assert(instance);
 
     SDL_GL_MakeCurrent(renderer->window, renderer->gl_context);
 
@@ -3045,8 +3045,8 @@ LibToriPlatformSDL2_RendererGL3_MemStats(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     struct LibToriPlatformSDL2_RendererGL3_MemStats* out)
 {
-    if( !renderer || !out )
-        return;
+    assert(renderer);
+    assert(out);
 
     memset(out, 0, sizeof(*out));
 

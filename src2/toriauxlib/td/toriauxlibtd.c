@@ -145,8 +145,7 @@ ToriAuxLibTD_Scene(struct ToriAuxLibTD* td)
 static struct ToriDraw_Bones*
 tdx_bones_new_from_core(const struct ToriAuxLibCore_Bones* src)
 {
-    if( !src )
-        return NULL;
+    assert(src);
 
     struct ToriDraw_Bones* bones = calloc(1, sizeof(struct ToriDraw_Bones));
     if( !bones )
@@ -184,8 +183,7 @@ tdx_bones_new_from_core(const struct ToriAuxLibCore_Bones* src)
 static struct ToriDraw_Bones*
 tdx_bones_steal_from_core(struct ToriAuxLibCore_Bones* src)
 {
-    if( !src )
-        return NULL;
+    assert(src);
 
     struct ToriDraw_Bones* bones = calloc(1, sizeof(struct ToriDraw_Bones));
     if( !bones )
@@ -203,8 +201,7 @@ tdx_bones_steal_from_core(struct ToriAuxLibCore_Bones* src)
 struct ToriDraw_Model*
 ToriAuxLibTD_ModelStealFromCore(struct ToriAuxLibCore_Model* src)
 {
-    if( !src )
-        return NULL;
+    assert(src);
 
     struct ToriDraw_Model* dst = calloc(1, sizeof(struct ToriDraw_Model));
     if( !dst )
@@ -271,8 +268,7 @@ ToriAuxLibTD_ModelNewInstanceFromCore(
     struct ToriAuxLibTD* td,
     int model_id)
 {
-    if( !td )
-        return NULL;
+    assert(td);
 
     if( !ToriAuxLibTD_ModelReady(td, model_id) && !ToriAuxLibTD_SubmitModelFromDat1(td, model_id) )
         return NULL;
@@ -287,8 +283,7 @@ ToriAuxLibTD_ModelNewInstanceFromCore(
 struct ToriDraw_Model*
 ToriAuxLibTD_ModelNewFromCore(const struct ToriAuxLibCore_Model* src)
 {
-    if( !src )
-        return NULL;
+    assert(src);
 
     struct ToriDraw_Model* dst = ToriDraw_ModelNew(src->vertex_count, src->face_count, src->flags);
     if( !dst )
@@ -614,8 +609,7 @@ ToriAuxLibTD_ModelReady(
     struct ToriAuxLibTD* td,
     int model_id)
 {
-    if( !td )
-        return false;
+    assert(td);
     if( ToriDraw_SceneModelHas(td->scene, model_id) )
         return true;
     return ToriAuxLibCore_ModelHas(ToriAuxLibTD_Core(td), model_id);
@@ -642,8 +636,7 @@ ToriAuxLibTD_Model(
     int model_id)
 {
     struct ToriDraw_ModelHandle none = { .kind = TORIDRAWMK_NONE };
-    if( !td )
-        return none;
+    assert(td);
 
     struct ToriDraw_ModelHandle existing = ToriDraw_SceneModelGet(td->scene, model_id);
     if( existing.kind == TORIDRAWMK_MODEL )
@@ -670,8 +663,7 @@ ToriAuxLibTD_Animation(
     struct ToriAuxLibTD* td,
     int anim_id)
 {
-    if( !td )
-        return NULL;
+    assert(td);
 
     struct ToriDraw_Animation* existing = ToriDraw_SceneAnimationGet(td->scene, anim_id);
     if( existing )
@@ -695,8 +687,7 @@ ToriAuxLibTD_SequenceAnimation(
     struct ToriAuxLibTD* td,
     int seq_id)
 {
-    if( !td )
-        return NULL;
+    assert(td);
 
     struct MapEntry_SequenceAnim* entry = (struct MapEntry_SequenceAnim*)ToriDraw_MapSearch(
         td->sequence_anim_hmap, &seq_id, TORIDRAW_MAP_FIND);
@@ -729,7 +720,8 @@ ToriAuxLibTD_Texture(
     struct ToriAuxLibTD* td,
     int texture_id)
 {
-    if( !td || texture_id < 0 || texture_id >= 256 )
+    assert(td);
+    if( texture_id < 0 || texture_id >= 256 )
         return NULL;
 
     struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(td->scene);
@@ -756,8 +748,7 @@ ToriAuxLibTD_ElementAddModel(
     struct ToriAuxLibTD* td,
     int model_id)
 {
-    if( !td )
-        return -1;
+    assert(td);
 
     struct ToriDraw_ModelHandle hnd = ToriAuxLibTD_Model(td, model_id);
     if( hnd.kind != TORIDRAWMK_MODEL )
@@ -777,8 +768,7 @@ ToriAuxLibTD_ElementSetModelId(
     int element_id,
     int model_id)
 {
-    if( !td )
-        return false;
+    assert(td);
 
     struct ToriDraw_ModelHandle hnd = ToriAuxLibTD_Model(td, model_id);
     if( hnd.kind != TORIDRAWMK_MODEL )
@@ -797,7 +787,8 @@ ToriAuxLibTD_ElementSetSequenceId(
     int element_id,
     int seq_id)
 {
-    if( !td || !ToriDraw_SceneElementIsLive(td->scene, element_id) )
+    assert(td);
+    if( !ToriDraw_SceneElementIsLive(td->scene, element_id) )
         return false;
 
     /* Check if this sequence is Maya-driven */
@@ -885,7 +876,8 @@ ToriAuxLibTD_SkeletalAnimation(
     struct ToriAuxLibTD* td,
     int anim_maya_id)
 {
-    if( !td || anim_maya_id < 0 )
+    assert(td);
+    if( anim_maya_id < 0 )
         return NULL;
 
     struct MapEntry_SkeletalAnimTD* entry = (struct MapEntry_SkeletalAnimTD*)ToriDraw_MapSearch(
@@ -972,8 +964,7 @@ ToriAuxLibTD_SpritePackNewFromCore(const struct ToriAuxLibCore_Sprite* src)
 struct ToriDraw_Font*
 ToriAuxLibTD_FontNewFromCore(const struct ToriAuxLibCore_Font* src)
 {
-    if( !src )
-        return NULL;
+    assert(src);
 
     struct ToriDraw_Font* font = calloc(1, sizeof(struct ToriDraw_Font));
     if( !font )
@@ -1013,10 +1004,10 @@ ToriAuxLibTD_Sprite(
     struct ToriAuxLibTD* td,
     int element_id)
 {
-    if( !td || element_id < 0 )
+    assert(td);
+    if( element_id < 0 )
     {
-        fprintf(stderr, "ToriAuxLibTD_Sprite: invalid td or element_id=%d\n", element_id);
-        assert(td && element_id >= 0);
+        fprintf(stderr, "ToriAuxLibTD_Sprite: invalid element_id=%d\n", element_id);
         return false;
     }
 
@@ -1051,7 +1042,8 @@ ToriAuxLibTD_Font(
     struct ToriAuxLibTD* td,
     int font_id)
 {
-    if( !td || font_id < 0 )
+    assert(td);
+    if( font_id < 0 )
         return false;
 
     if( ToriDraw_SceneFontHas(td->scene, font_id) )

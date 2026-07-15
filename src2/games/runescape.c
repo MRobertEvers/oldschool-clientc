@@ -13,8 +13,10 @@
 #include "../vm/cs1vm_host.h"
 #include "../vm/cs1vm_level.h"
 #include "../vm/cs1vm_opcode.h"
-#include "../vm/cs2_host_ui.h"
-#include "../vm/cs2vm.h"
+#include "runescape_cs2_host.h"
+#include "runescape_cs2_queue.h"
+#include "../toriauxlib/core/tasks/dat2/task_dat2_cs2_run.h"
+#include "../libtorirs.h"
 #include "../world/heightmap.h"
 #include "../world/minimap.h"
 #include "../world/world_builder.h"
@@ -100,7 +102,8 @@ rs_ui_note_varp_change(
     struct GameRunescape* game,
     int varp_id)
 {
-    if( !game || varp_id < 0 )
+    assert(game);
+    if( varp_id < 0 )
         return;
     for( int i = 0; i < game->varp_change_count; i++ )
     {
@@ -121,27 +124,32 @@ rs_ui_on_cs2_varp_change(
 }
 
 static void
+rs_ui_cs2_enqueue(
+    void* ud,
+    int script_id,
+    int component_id,
+    int const* int_args,
+    int int_arg_count)
+{
+    GameRunescape_CS2Enqueue(
+        (struct GameRunescape*)ud, script_id, component_id, int_args, int_arg_count, NULL, 0);
+}
+
+static void
 rs_ui_init_cs2_host(struct GameRunescape* game)
 {
-    if( !game )
-        return;
-    struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
-    struct CS2HostUIInitArgs args = {
-        .core = game->core,
-        .cache = cache,
-        .vm = game->vm,
-        .tree = game->ui_tree,
-        .on_varp_change = rs_ui_on_cs2_varp_change,
-        .on_varp_change_ud = game,
-        .resolve_obj_icon = rs_cs2_host_resolve_obj_icon,
-        .resolve_obj_icon_ud = game,
-        .inv_get_obj = rs_cs2_host_inv_get_obj,
-        .inv_get_num = rs_cs2_host_inv_get_num,
-        .inv_size = rs_cs2_host_inv_size,
-        .inv_ud = game,
-        .scene = game->scene,
-    };
-    cs2_host_ui_init(&game->cs2host, &args);
+    assert(game);
+
+    if( !game->cs2_vm_bound )
+    {
+        GameRunescape_CS2HostInit(&game->cs2_host, game);
+        GameRunescape_CS2QueueInit(&game->cs2_queue);
+        memset(&game->cs2vm, 0, sizeof(game->cs2vm));
+        CS2VMX_BindHost(&game->cs2vm, &game->cs2_host, GameRunescape_CS2HostExec);
+        game->cs2vm.canvas_w = UITREE_LAYOUT_ROOT_W;
+        game->cs2vm.canvas_h = UITREE_LAYOUT_ROOT_H;
+        game->cs2_vm_bound = true;
+    }
 }
 
 static void
@@ -149,10 +157,10 @@ rs_ui_build_behavior_host(
     struct GameRunescape* game,
     struct UITreeBehaviorHost* out)
 {
-    if( !game || !out )
-        return;
+    assert(game);
+    assert(out);
     rs_ui_init_cs2_host(game);
-    ui_input_adapter_init_behavior_host_ex(out, game->vm, game->cs2vm, &game->cs2host);
+    ui_input_adapter_init_behavior_host_ex(out, game->vm, rs_ui_cs2_enqueue, game);
 }
 
 static void
@@ -160,7 +168,7 @@ rs_ui_flush_varp_transmits(struct GameRunescape* game)
 {
     assert(game);
     assert(game->core);
-    assert(game->cs2vm);
+    assert(game->cs2_vm_bound);
     assert(game->ui_tree);
 
     struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
@@ -183,7 +191,7 @@ GameRunescape_DispatchInvTransmit(
     struct GameRunescape* game,
     int container_id)
 {
-    if( !game || !game->core || !game->cs2vm || !game->ui_tree ||
+    if( !game || !game->core || !game->cs2_vm_bound || !game->ui_tree ||
         game->ui_tree->component_count == 0 || container_id < 0 )
         return;
 
@@ -199,7 +207,7 @@ GameRunescape_DispatchInvTransmit(
 void
 GameRunescape_RunOnLoadHooks(struct GameRunescape* game)
 {
-    if( !game || game->ui_on_load_hooks_ran || !game->core || !game->cs2vm || !game->ui_tree ||
+    if( !game || game->ui_on_load_hooks_ran || !game->core || !game->cs2_vm_bound || !game->ui_tree ||
         game->ui_tree->component_count == 0 )
         return;
 
@@ -212,12 +220,14 @@ GameRunescape_ObjDisplayName(
     struct GameRunescape* game,
     int obj_id)
 {
-    if( !game || obj_id <= 0 )
+    assert(game);
+    if( obj_id <= 0 )
         return NULL;
 
     struct ToriAuxLibCore_Objtype* obj =
         game->core ? ToriAuxLibCore_ObjtypeGet(game->core, obj_id) : NULL;
-    if( !obj || obj->name[0] == '\0' )
+    assert(obj);
+    if( obj->name[0] == '\0' )
         return "item";
     return obj->name;
 }
@@ -225,8 +235,7 @@ GameRunescape_ObjDisplayName(
 static int
 GameRunescape_UIInvGridSlotLimit(struct StaticUIComponent const* component)
 {
-    if( !component )
-        return 0;
+    assert(component);
 
     int cols = 0;
     int rows = 0;
@@ -288,8 +297,8 @@ rs_cs1vm_get_inv_count(
 {
     (void)iface_id;
     struct GameRunescape* game = ud;
-    if( !game )
-        return 0;
+    assert(game);
+
     return rs_cs1vm_inv_count_in_service(&game->inv_data, obj_id);
 }
 
@@ -301,8 +310,8 @@ rs_cs1vm_inv_contains(
 {
     (void)iface_id;
     struct GameRunescape* game = ud;
-    if( !game )
-        return 0;
+    assert(game);
+
     return rs_cs1vm_inv_contains_in_service(&game->inv_data, obj_id) ? CS1VM_INV_CONTAINS_PRESENT
                                                                      : 0;
 }
@@ -384,8 +393,8 @@ static int
 rs_cs1vm_get_coord_x(void* ud)
 {
     struct GameRunescape* game = ud;
-    if( !game || !game->camera_position )
-        return 0;
+    assert(game);
+    assert(game);
     return game->camera_position->x / 128;
 }
 
@@ -393,8 +402,8 @@ static int
 rs_cs1vm_get_coord_z(void* ud)
 {
     struct GameRunescape* game = ud;
-    if( !game || !game->camera_position )
-        return 0;
+    assert(game);
+    assert(game);
     return game->camera_position->z / 128;
 }
 
@@ -403,11 +412,11 @@ rs_ui_host_fill_cs1host(
     struct GameRunescape* game,
     struct CS1Host* out)
 {
-    if( !out )
-        return;
+    assert(out);
+
     memset(out, 0, sizeof(*out));
-    if( !game || !game->vm )
-        return;
+    assert(game);
+    assert(game);
 
     cs1vm_host_fill_varp_varbit(out, game->vm);
     out->ud = game;
@@ -481,7 +490,7 @@ rs_ui_host_request(
         if( game->ui_tree )
             uitree_mark_all_dirty(game->ui_tree);
 
-        if( !game->core || !game->cs2vm || component->component_id < 0 )
+        if( !game->core || !game->cs2_vm_bound || component->component_id < 0 )
             return 0;
 
         struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
@@ -609,8 +618,8 @@ rs_ui_host_request(
                    ? 1
                    : 0;
     case UITREE_HOST_GET_INV_SOURCE_SLOT:
-        if( !game )
-            return 0;
+        assert(game);
+
         return ui_inv_data_service_get_slot(
                    &game->inv_data,
                    req->u.get_inv_source_slot.source_id,
@@ -619,8 +628,8 @@ rs_ui_host_request(
                    ? 1
                    : 0;
     case UITREE_HOST_SET_INV_SOURCE_SLOT:
-        if( !game )
-            return 0;
+        assert(game);
+
         if( !ui_inv_data_service_set_slot(
                 &game->inv_data,
                 req->u.set_inv_source_slot.source_id,
@@ -644,7 +653,7 @@ rs_ui_host_run_hooks(
 {
     assert(game);
     assert(game->core);
-    assert(game->cs2vm);
+    assert(game->cs2_vm_bound);
     assert(game->ui_tree);
 
     struct ToriAuxLibCache* cache = game->td ? ToriAuxLibTD_C(game->td) : NULL;
@@ -766,8 +775,7 @@ GameRunescape_MinimenuPrepareShow(
     struct UIMinimenuLayout* out_layout,
     int* out_content_width)
 {
-    if( !game )
-        return false;
+    assert(game);
 
     int font_id = -1;
     if( game->ui_tree && game->ui_hover.minimenu_node >= 0 )
@@ -807,10 +815,12 @@ rs_cs2_host_inv_get_obj(
     int slot)
 {
     struct GameRunescape* game = ud;
-    if( !game || inv_id < 0 || slot < 0 )
+    assert(game);
+    if( inv_id < 0 || slot < 0 )
         return 0;
     struct RSInvContainer const* container = rs_inv_container_find(&game->inv_data.store, inv_id);
-    if( !container || slot >= container->slot_count )
+    assert(container);
+    if( slot >= container->slot_count )
         return 0;
     return container->obj_id[slot];
 }
@@ -822,10 +832,12 @@ rs_cs2_host_inv_get_num(
     int slot)
 {
     struct GameRunescape* game = ud;
-    if( !game || inv_id < 0 || slot < 0 )
+    assert(game);
+    if( inv_id < 0 || slot < 0 )
         return 0;
     struct RSInvContainer const* container = rs_inv_container_find(&game->inv_data.store, inv_id);
-    if( !container || slot >= container->slot_count )
+    assert(container);
+    if( slot >= container->slot_count )
         return 0;
     return container->obj_count[slot];
 }
@@ -836,7 +848,8 @@ rs_cs2_host_inv_size(
     int inv_id)
 {
     struct GameRunescape* game = ud;
-    if( !game || inv_id < 0 )
+    assert(game);
+    if( inv_id < 0 )
         return 0;
     struct RSInvContainer const* container = rs_inv_container_find(&game->inv_data.store, inv_id);
     return container ? container->slot_count : 0;
@@ -854,7 +867,8 @@ rs_cs2_host_resolve_obj_icon(
         *out_scene_id = -1;
     if( out_atlas_index )
         *out_atlas_index = 0;
-    if( !game || obj_id <= 0 )
+    assert(game);
+    if( obj_id <= 0 )
         return false;
 
     for( int src = 0; src < game->inv_data.source_count; src++ )
@@ -864,8 +878,8 @@ rs_cs2_host_resolve_obj_icon(
         int const container_id = game->inv_data.sources[src].container_id;
         struct RSInvContainer const* container =
             rs_inv_container_find(&game->inv_data.store, container_id);
-        if( !container )
-            continue;
+        assert(container);
+
         for( int slot = 0; slot < container->slot_count; slot++ )
         {
             if( container->obj_id[slot] != obj_id )
@@ -905,13 +919,12 @@ rs_cs2_host_resolve_obj_icon(
 static void
 GameRunescape_FindSpecialUINodes(struct GameRunescape* game)
 {
-    if( !game )
-        return;
+    assert(game);
+
     game->ui_hover.minimenu_node = -1;
     game->ui_hover.chat_node = -1;
     game->ui_hover.chat_node = -1;
-    if( !game->ui_tree )
-        return;
+    assert(game);
 
     for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
     {
@@ -925,8 +938,8 @@ GameRunescape_FindSpecialUINodes(struct GameRunescape* game)
 static void
 GameRunescape_InitUIHost(struct GameRunescape* game)
 {
-    if( !game )
-        return;
+    assert(game);
+
     uitree_host_init(&game->ui_host);
     game->ui_host.user = game;
     game->ui_host.request = rs_ui_host_request;
@@ -940,7 +953,7 @@ GameRunescape_InitUIHost(struct GameRunescape* game)
     interaction_state_reset(&game->interaction);
     interaction_state_reset(&game->click_target);
     ui_minimenu_reset(&game->minimenu);
-    game->cs2vm = cs2vm_new();
+    rs_ui_init_cs2_host(game);
 }
 
 enum RsPhaseResult
@@ -962,8 +975,8 @@ clamp_terrain_level(int level)
 int
 GameRunescape_CameraTerrainLevel(const struct GameRunescape* game)
 {
-    if( !game || !game->camera_position )
-        return 0;
+    assert(game);
+    assert(game);
     return clamp_terrain_level(game->camera_position->y / 240);
 }
 
@@ -1112,8 +1125,8 @@ rs_classify_dynamic_pick_type(
     struct GameRunescape* game,
     int element_id)
 {
-    if( !game || !game->entities.records )
-        return WORLD_PICK_PROJECTILE;
+    assert(game);
+    assert(game);
 
     for( int i = 0; i < game->entities.count; i++ )
     {
@@ -1165,8 +1178,7 @@ game_runescape_project_and_pick_element(
     if( element->anim_seq_id != -1 )
         ToriDraw_SceneElementApplyAnimation(game->scene, element_id, true, element->anim_frame);
 
-    if( !game->scene )
-        return false;
+    assert(game);
 
     const int cull = ToriDraw_RenderModel1Project(
         element->model, game->scene, &rel_pos, &game->world_view_port, game->camera);
@@ -1330,8 +1342,8 @@ GameRunescape_New(
 void
 GameRunescape_Free(struct GameRunescape* game)
 {
-    if( !game )
-        return;
+    assert(game);
+
     if( game->painter_buffer )
     {
         free(game->painter_buffer->commands);
@@ -1343,8 +1355,7 @@ GameRunescape_Free(struct GameRunescape* game)
         uitree_free(game->ui_tree);
     if( game->ui_inv_pool )
         uitree_inv_pool_free(game->ui_inv_pool);
-    if( game->cs2vm )
-        cs2vm_free(game->cs2vm);
+    GameRunescape_CS2QueueFree(&game->cs2_queue);
     entity_registry_free(&game->entities);
     free(game->camera_position);
     free(game->camera);
@@ -1357,8 +1368,8 @@ GameRunescape_SetCore(
     struct GameRunescape* game,
     struct ToriAuxLibCore* gamecache)
 {
-    if( !game )
-        return;
+    assert(game);
+
     game->core = gamecache;
 }
 
@@ -1367,8 +1378,8 @@ GameRunescape_SetTD(
     struct GameRunescape* game,
     struct ToriAuxLibTD* td)
 {
-    if( !game )
-        return;
+    assert(game);
+
     game->td = td;
 }
 
@@ -1377,15 +1388,16 @@ GameRunescape_SetVM(
     struct GameRunescape* game,
     struct ToriAuxLibVM* vm)
 {
-    if( !game )
-        return;
+    assert(game);
+
     game->vm = vm;
 }
 
 static void
 GameRunescape_AttachWorldMapToUITree(struct GameRunescape* game)
 {
-    if( !game || game->world_map.world_map_scene_id < 0 || !game->ui_tree )
+    assert(game);
+    if( game->world_map.world_map_scene_id < 0 || !game->ui_tree )
         return;
 
     for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
@@ -1403,8 +1415,8 @@ GameRunescape_SetUITree(
     struct GameRunescape* game,
     struct UITree* ui_tree)
 {
-    if( !game )
-        return;
+    assert(game);
+
     game->ui_tree = ui_tree;
     GameRunescape_AttachWorldMapToUITree(game);
     GameRunescape_FindSpecialUINodes(game);
@@ -1420,12 +1432,13 @@ GameRunescape_IF3InvSetContainerSlot(
     int scene_id,
     int atlas_index)
 {
-    if( !game || container_id < 0 )
+    assert(game);
+    if( container_id < 0 )
         return;
     struct RSInvContainer* container =
         rs_inv_container_get_or_create(&game->inv_data.store, container_id, 0);
-    if( !container )
-        return;
+    assert(container);
+
     rs_inv_container_set_slot(container, slot, obj_id, obj_count, scene_id, atlas_index);
     instance_revconfig_inv_mark_dirty(game, UI_INV_SOURCE_INVALID);
     GameRunescape_DispatchInvTransmit(game, container_id);
@@ -1439,12 +1452,13 @@ GameRunescape_IF3InvApplyFull(
     int const* obj_counts,
     int count)
 {
-    if( !game || container_id < 0 )
+    assert(game);
+    if( container_id < 0 )
         return;
     struct RSInvContainer* container =
         rs_inv_container_get_or_create(&game->inv_data.store, container_id, 0);
-    if( !container )
-        return;
+    assert(container);
+
     rs_inv_container_apply_full(container, obj_ids, obj_counts, count);
     if( game->ui_tree )
         uitree_mark_all_dirty(game->ui_tree);
@@ -1460,12 +1474,13 @@ GameRunescape_IF3InvApplyPartial(
     int const* obj_counts,
     int count)
 {
-    if( !game || container_id < 0 )
+    assert(game);
+    if( container_id < 0 )
         return;
     struct RSInvContainer* container =
         rs_inv_container_get_or_create(&game->inv_data.store, container_id, 0);
-    if( !container )
-        return;
+    assert(container);
+
     rs_inv_container_apply_partial(container, slots, obj_ids, obj_counts, count);
     if( game->ui_tree )
         uitree_mark_all_dirty(game->ui_tree);
@@ -1477,8 +1492,8 @@ GameRunescape_SetUIInvPool(
     struct GameRunescape* game,
     struct UIInventoryPool* pool)
 {
-    if( !game )
-        return;
+    assert(game);
+
     if( game->ui_inv_pool && game->ui_inv_pool != pool )
         uitree_inv_pool_free(game->ui_inv_pool);
     game->ui_inv_pool = pool;
@@ -1487,8 +1502,8 @@ GameRunescape_SetUIInvPool(
 void
 GameRunescape_SyncUISpritesFromScene(struct GameRunescape* game)
 {
-    if( !game || !game->scene )
-        return;
+    assert(game);
+    assert(game);
     ToriDraw_SceneSpritesReemitLoads(game->scene);
     game->ui_sprites_synced = true;
 }
@@ -1498,8 +1513,8 @@ GameRunescape_SetUITreeReady(
     struct GameRunescape* game,
     bool ready)
 {
-    if( !game )
-        return;
+    assert(game);
+
     game->ui_tree_ready = ready;
     if( ready )
     {
@@ -1549,7 +1564,8 @@ game_runescape_clear_gamecache_map_chunks_except(
     struct ToriAuxLibCore* core,
     struct World* world)
 {
-    if( !core || !world )
+    assert(core);
+    if( !world )
         return;
 
     int const width = world->_chunk_ne_x - world->_chunk_sw_x + 1;
@@ -1664,8 +1680,8 @@ GameRunescape_UIHoverIds(struct GameRunescape const* game)
 int32_t
 GameRunescape_UISelectedSidebarIndex(struct GameRunescape const* game)
 {
-    if( !game || !game->ui_tree )
-        return -1;
+    assert(game);
+    assert(game);
 
     int const tab = game->selected_tab;
     for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
@@ -1680,8 +1696,7 @@ GameRunescape_UISelectedSidebarIndex(struct GameRunescape const* game)
 static bool
 game_runescape_world_clip_is_builtin_widget(struct GameRunescape const* game)
 {
-    if( !game )
-        return false;
+    assert(game);
 
     int const vw = game->view_port ? game->view_port->width : UITREE_LAYOUT_ROOT_W;
     int const vh = game->view_port ? game->view_port->height : UITREE_LAYOUT_ROOT_H;
@@ -1737,7 +1752,8 @@ GameRunescape_UITreeIndexForComponentId(
     struct GameRunescape const* game,
     int component_id)
 {
-    if( !game || !game->ui_tree || component_id < 0 )
+    assert(game);
+    if( !game->ui_tree || component_id < 0 )
         return -1;
 
     for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
@@ -1837,8 +1853,8 @@ GameRunescape_UIHitTest(
     int px,
     int py)
 {
-    if( !game || !game->ui_tree )
-        return -1;
+    assert(game);
+    assert(game);
     struct UITreeScrollState scroll = {
         .scroll_x = game->ui_scroll.scroll_x,
         .scroll_y = game->ui_scroll.scroll_y,
@@ -1853,8 +1869,8 @@ GameRunescape_GetScrollPos(
     int* sx,
     int* sy)
 {
-    if( !game )
-        return;
+    assert(game);
+
     struct UITreeScrollState scroll = {
         .scroll_x = (int*)game->ui_scroll.scroll_x,
         .scroll_y = (int*)game->ui_scroll.scroll_y,
@@ -1867,7 +1883,8 @@ GameRunescape_ClampScroll(
     struct GameRunescape* game,
     struct StaticUIComponent const* layer)
 {
-    if( !game || !layer || layer->component_id < 0 )
+    assert(game);
+    if( !layer || layer->component_id < 0 )
         return;
     struct UITreeScrollState scroll = {
         .scroll_x = game->ui_scroll.scroll_x,
@@ -1881,8 +1898,8 @@ GameRunescape_ClampScroll(
 static void
 GameRunescape_UIScrollDragClear(struct GameRunescape* game)
 {
-    if( !game )
-        return;
+    assert(game);
+
     ui_scroll_runtime_end_drag(&game->ui_scroll);
     game->frame.ui_scroll_cycle = 0;
 }
@@ -1892,7 +1909,8 @@ GameRunescape_UIFindLayerIndexById(
     struct GameRunescape const* game,
     int component_id)
 {
-    if( !game || !game->ui_tree || component_id < 0 )
+    assert(game);
+    if( !game->ui_tree || component_id < 0 )
         return -1;
 
     for( uint32_t i = 0; i < game->ui_tree->component_count; i++ )
@@ -1909,7 +1927,8 @@ GameRunescape_ProcessUIScroll(
     struct GameRunescape* game,
     struct LibToriRS_Input* input)
 {
-    if( !game || !game->ui_tree || !game->ui_tree_ready )
+    assert(game);
+    if( !game->ui_tree || !game->ui_tree_ready )
         return false;
 
     bool const mouse_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
@@ -2111,8 +2130,8 @@ GameRunescape_DrainWorldEvents(struct GameRunescape* game)
     for( int i = 0; i < count; i++ )
     {
         const struct WorldEvent* ev = world_events_peek(world, i);
-        if( !ev )
-            continue;
+        assert(ev);
+
         if( ev->kind == WORLD_EVENT_ENTITY_REMOVED && ev->element_id >= 0 )
             ToriDraw_SceneElementRemove(game->scene, ev->element_id);
     }
@@ -2148,8 +2167,7 @@ GameRunescape_SyncProjectilesToScene(struct GameRunescape* game)
 static void
 GameRunescape_TickAnimations(struct GameRunescape* game)
 {
-    if( !game->scene )
-        return;
+    assert(game);
 
     int slot_count = ToriDraw_SceneElementSlotCount(game->scene);
     for( int element_id = 0; element_id < slot_count; element_id++ )
@@ -2223,7 +2241,8 @@ GameRunescape_ApplyScissorToSprite(
     struct LibToriRS_RenderCommand* command,
     struct UITreeScrollClip const* clip)
 {
-    if( !command || !clip || clip->clip_w <= 0 || clip->clip_h <= 0 )
+    assert(command);
+    if( !clip || clip->clip_w <= 0 || clip->clip_h <= 0 )
         return;
     command->u.sprite.scissor_x = clip->clip_x;
     command->u.sprite.scissor_y = clip->clip_y;
@@ -2236,7 +2255,8 @@ GameRunescape_ApplyScissorToFillRect(
     struct LibToriRS_RenderCommand* command,
     struct UITreeScrollClip const* clip)
 {
-    if( !command || !clip || clip->clip_w <= 0 || clip->clip_h <= 0 )
+    assert(command);
+    if( !clip || clip->clip_w <= 0 || clip->clip_h <= 0 )
         return;
     command->u.fill_rect.scissor_x = clip->clip_x;
     command->u.fill_rect.scissor_y = clip->clip_y;
@@ -2249,7 +2269,8 @@ GameRunescape_ApplyScissorToFont(
     struct LibToriRS_RenderCommand* command,
     struct UITreeScrollClip const* clip)
 {
-    if( !command || !clip || clip->clip_w <= 0 || clip->clip_h <= 0 )
+    assert(command);
+    if( !clip || clip->clip_w <= 0 || clip->clip_h <= 0 )
         return;
     command->u.font.scissor_x = clip->clip_x;
     command->u.font.scissor_y = clip->clip_y;
@@ -2273,7 +2294,8 @@ GameRunescape_UIGetAncestors(
     int32_t* ancestors,
     int max_ancestors)
 {
-    if( !game || !ancestors || max_ancestors <= 0 )
+    assert(game);
+    if( !ancestors || max_ancestors <= 0 )
         return 0;
 
     int count = 0;
@@ -2464,7 +2486,8 @@ GameRunescape_EmitLayerScrollbars(
     int step,
     struct LibToriRS_RenderCommand* command)
 {
-    if( !layer || layer->type != UIELEM_RS_LAYER || !command )
+    assert(command);
+    if( !layer || layer->type != UIELEM_RS_LAYER )
         return false;
 
     bool vscroll = uitree_scroll_layer_needs_vertical(layer);
@@ -2888,8 +2911,7 @@ GameRunescape_EmitUIComponent(
     }
     case UIELEM_BUILTIN_MINIMENU:
     {
-        if( !game->minimenu.visible )
-            return false;
+        assert(game);
 
         int const mx = game->minimenu.x;
         int const my = game->minimenu.y;
@@ -3327,8 +3349,7 @@ GameRunescape_EmitUIComponent(
         GameRunescape_AssertSceneFontReady(game, component->u.rs_inv_text.font_id, "rs_inv_text");
         struct ToriDraw_Font* font =
             ToriDraw_SceneFontGet(game->scene, component->u.rs_inv_text.font_id);
-        if( !font )
-            return false;
+        assert(font);
 
         int const lh = font->line_height > 0 ? font->line_height : RUNESCAPE_INV_TEXT_CELL_H;
         int draw_x = slot_x;
@@ -3568,7 +3589,8 @@ GameRunescape_RefreshPicksetAtMouse(
     int saved_mouse_y;
     bool saved_mouse_in_viewport;
 
-    if( !game || !game->scene || !game->world )
+    assert(game);
+    if( !game->scene || !game->world )
         return;
 
     world = game->world;
@@ -3825,16 +3847,16 @@ GameRunescape_ApplyChatFilterSettings(
     int private_mode,
     int trade_mode)
 {
-    if( !game )
-        return;
+    assert(game);
+
     chat_state_set_filter_modes(&game->chat, public_mode, private_mode, trade_mode);
 }
 
 void
 GameRunescape_SendChatSetMode(struct GameRunescape* game)
 {
-    if( !game )
-        return;
+    assert(game);
+
     (void)game;
     /* Outbound PKTOUT_LC245_2_CHAT_SETMODE when live connection is wired. */
 }
@@ -3878,7 +3900,7 @@ GameRunescape_FrameBegin(
     for( int i = 0; i < cycles_elapsed; i++ )
     {
         GameRunescape_TickAnimations(game);
-        cs2_host_ui_tick(&game->cs2host);
+        GameRunescape_CS2HostTick(&game->cs2_host);
     }
     GameRunescape_SyncProjectilesToScene(game);
     GameRunescape_UpdateWorldViewport(game);
@@ -4020,7 +4042,8 @@ GameRunescape_ApplyEntityAnimation(
 {
     struct ToriDraw_Animation* resolved;
 
-    if( !game || !game->td || !game->scene )
+    assert(game);
+    if( !game->td || !game->scene )
         return false;
     if( !ToriDraw_SceneElementIsLive(game->scene, element_id) )
         return false;
@@ -4074,7 +4097,8 @@ GameRunescape_WorldEntityAddPlayer(
     int player_idx;
     int world_y;
 
-    if( !game || !game->world || !game->scene || !game->td )
+    assert(game);
+    if( !game->world || !game->scene || !game->td )
         return -1;
     if( RS_ENTITY_KIND_OF(entity_id) != RS_ENTITY_KIND_PLAYER )
         return -1;
@@ -4142,7 +4166,8 @@ GameRunescape_WorldEntityAnimate(
 {
     struct EntityRecord* record;
 
-    if( !game || RS_ENTITY_KIND_OF(entity_id) == RS_ENTITY_KIND_NONE )
+    assert(game);
+    if( RS_ENTITY_KIND_OF(entity_id) == RS_ENTITY_KIND_NONE )
         return false;
 
     record = GameRunescape_EntityFind(game, entity_id);
@@ -4175,7 +4200,8 @@ GameRunescape_WorldEntityAddProjectile(
     int element_id;
     int projectile_idx;
 
-    if( !game || !game->world || !game->scene || !game->td )
+    assert(game);
+    if( !game->world || !game->scene || !game->td )
         return -1;
     if( RS_ENTITY_KIND_OF(entity_id) != RS_ENTITY_KIND_PROJECTILE )
         return -1;
@@ -4709,4 +4735,74 @@ Task_GameRunescape_WorldEntityAddProjectile_Run(
     (void)result;
 
     PT_END(&task->thread);
+}
+
+
+bool
+GameRunescape_CS2Enqueue(
+    struct GameRunescape* game,
+    int script_id,
+    int component_id,
+    int const* int_args,
+    int int_arg_count,
+    char const* const* str_args,
+    int str_arg_count)
+{
+    assert(game);
+    if( script_id <= 0 )
+        return false;
+    rs_ui_init_cs2_host(game);
+    return GameRunescape_CS2QueueEnqueue(
+        &game->cs2_queue,
+        script_id,
+        component_id,
+        int_args,
+        int_arg_count,
+        str_args,
+        str_arg_count);
+}
+
+bool
+GameRunescape_CS2FlushQueueToTasks(
+    struct GameRunescape* game,
+    struct LibToriRS_Instance* instance)
+{
+    assert(game);
+    if( !instance )
+        return false;
+    bool added = false;
+    while( game->cs2_queue.count > 0 )
+    {
+        struct GameRunescapeCS2Invoke const* inv = GameRunescape_CS2QueuePeek(&game->cs2_queue);
+        assert(inv);
+
+        struct LibToriRS_Task* task = Task_Dat2CS2Run_New(
+            game,
+            &game->cs2vm,
+            &game->cs2_host,
+            inv->script_id,
+            inv->component_id,
+            inv->int_args,
+            inv->int_arg_count,
+            (char const* const*)inv->str_args,
+            inv->str_arg_count);
+        if( !task )
+        {
+            fprintf(stderr, "GameRunescape_CS2FlushQueueToTasks: Task_Dat2CS2Run_New failed\n");
+            GameRunescape_CS2QueuePop(&game->cs2_queue);
+            continue;
+        }
+        LibToriRS_TasksAdd(instance, task);
+        GameRunescape_CS2QueuePop(&game->cs2_queue);
+        added = true;
+    }
+    return added;
+}
+
+bool
+GameRunescape_CS2IsIdle(struct GameRunescape const* game)
+{
+    assert(game);
+
+    return game->cs2_queue.count == 0;
 }

@@ -3,7 +3,7 @@
 
 #include "ui_input.h"
 #include "vm/cs1vm.h"
-#include "vm/cs2vm.h"
+
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -16,13 +16,21 @@ struct ToriAuxLibCore;
 struct ToriAuxLibCache;
 struct ToriAuxLibCore_Component;
 
+typedef void (*UITreeBehaviorCS2EnqueueFn)(
+    void* ud,
+    int script_id,
+    int component_id,
+    int const* int_args,
+    int int_arg_count);
+
 struct UITreeBehaviorHost
 {
     struct CS1VM* cs1vm;
     struct CS1Host cs1host;
-    struct CS2VM* cs2vm;
-    struct CS2Host cs2host;
     struct VarPVarBitManager* varp_varbit;
+    /** Optional: enqueue CS2 script (non-blocking). */
+    UITreeBehaviorCS2EnqueueFn cs2_enqueue;
+    void* cs2_enqueue_ud;
 };
 
 bool

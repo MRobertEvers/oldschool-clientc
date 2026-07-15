@@ -1,6 +1,7 @@
 #ifndef TORIDRAW_INTRUSIVE_LIST_H
 #define TORIDRAW_INTRUSIVE_LIST_H
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -45,7 +46,8 @@ ToriDraw_IntrusiveListGet(
     const struct ToriDraw_IntrusiveList* list,
     int index)
 {
-    if( !list || index < 0 || index >= list->count )
+    assert(list);
+    if( index < 0 || index >= list->count )
         return NULL;
     return list->nodes[index].data;
 }
@@ -55,7 +57,8 @@ ToriDraw_IntrusiveListIsLive(
     const struct ToriDraw_IntrusiveList* list,
     int index)
 {
-    if( !list || index < 0 || index >= list->count )
+    assert(list);
+    if( index < 0 || index >= list->count )
         return false;
     return list->nodes[index].prev != TORIDRAW_INTRUSIVE_FREE;
 }

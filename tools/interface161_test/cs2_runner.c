@@ -13,11 +13,10 @@
 #include "ui/uitree.h"
 #include "ui/uitree_build.h"
 #include "ui/uitree_layout.h"
-#include "vm/cs2_host_ui.h"
 #include "vm/cs2_opcode.h"
 #include "vm/cs2_script.h"
-#include "vm/cs2_trigger_args.h"
-#include "vm/cs2vm.h"
+#include "vm/cs2vmx.h"
+#include "vm/cs2vmx_host.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -42,7 +41,6 @@ struct Interface161Cs2RunnerState
     struct RSCacheDat2Disk* disk;
     struct Interface161Cs2ScriptEntry scripts[CS2_RUNNER_SCRIPT_CACHE_MAX];
     int script_count;
-    struct CS2Host host;
 };
 
 static struct Interface161Cs2RunnerState s_runner;
@@ -157,73 +155,40 @@ interface161_runtime_clear_inv_hook(int target_component_id)
     }
 }
 
-static void
-interface161_parse_inv_transmit_trigger(
-    struct CS2_InvokeCtx* ctx,
-    int target_component_id)
-{
-    struct CS2TriggerArgs args;
-    if( !cs2_trigger_args_parse(ctx, &args) || !args.ok )
-        return;
-    if( args.is_clear )
-    {
-        interface161_runtime_clear_inv_hook(target_component_id);
-        return;
-    }
-
-    interface161_runtime_store_inv_hook(
-        target_component_id,
-        args.script_id,
-        args.argc,
-        args.argv,
-        args.trigger_count,
-        args.triggers);
-}
-
-static bool
-interface161_opcode_is_seton(
-    int opcode,
-    bool* out_if_target)
-{
-    if( opcode >= CS2_OP_CC_SETONCLICK && opcode <= CS2_OP_CC_SETONCLANCHANNELTRANSMIT )
-    {
-        if( out_if_target )
-            *out_if_target = false;
-        return true;
-    }
-    if( opcode >= CS2_OP_IF_SETONCLICK && opcode <= CS2_OP_IF_SETONCLANCHANNELTRANSMIT )
-    {
-        if( out_if_target )
-            *out_if_target = true;
-        return true;
-    }
-    return false;
-}
-
-static void
-interface161_host_invoke(
+static struct CS2_Script* interface161_cs2_resolve_script(void* ud, int script_id);
+static int interface161_cs2_inv_get_obj(void* ud, int inv_id, int slot);
+static int interface161_cs2_inv_get_num(void* ud, int inv_id, int slot);
+static int interface161_cs2_inv_size(void* ud, int inv_id);
+static int interface161_cs2_enum_lookup(
     void* ud,
-    struct CS2_InvokeCtx* ctx)
-{
-    bool if_target = false;
-    if( interface161_opcode_is_seton(ctx->opcode, &if_target) )
-    {
-        int target_component_id = ctx->active_component;
-        if( if_target && !cs2vm_host_try_pop_int(ctx, &target_component_id) )
-            return;
+    int input_type,
+    int output_type,
+    int enum_id,
+    int key);
+static char const* interface161_cs2_enum_lookup_string(
+    void* ud,
+    int input_type,
+    int output_type,
+    int enum_id,
+    int key);
+static int interface161_cs2_enum_output_count(void* ud, int enum_id);
+static bool interface161_cs2_struct_param(
+    void* ud,
+    int struct_id,
+    int param_id,
+    bool* out_is_string,
+    int* out_int,
+    char const** out_str);
+static bool interface161_cs2_resolve_obj_icon(
+    void* ud,
+    int obj_id,
+    int* out_scene_id,
+    int* out_atlas_index);
 
-        if( ctx->opcode == CS2_OP_IF_SETONINVTRANSMIT || ctx->opcode == CS2_OP_CC_SETONINVTRANSMIT )
-            interface161_parse_inv_transmit_trigger(ctx, target_component_id);
-        else
-        {
-            struct CS2TriggerArgs args;
-            (void)cs2_trigger_args_parse(ctx, &args);
-        }
-        return;
-    }
-
-    cs2_host_ui_invoke(ud, ctx);
-}
+static int
+interface161_cs2_host_exec(
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest* request);
 
 static bool
 interface161_runtime_hook_watches_container(
@@ -689,6 +654,333 @@ interface161_cs2_resolve_script(
     return NULL;
 }
 
+
+static int
+interface161_cs2_host_exec(
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest* request)
+{
+    struct Interface161Cs2Context* ctx = s_runner.ctx;
+    struct UITree* tree = ctx ? ctx->tree : NULL;
+    struct StaticUIComponent* node = NULL;
+
+    if( !request )
+        return CS2VM_EXECNO_ERROR;
+
+    switch( request->kind )
+    {
+    case CS2VM_HOST_REQUEST_PUSHSCRIPT:
+    {
+        struct CS2_Script* script =
+            interface161_cs2_resolve_script(ctx, request->u.push_script.script_id);
+        if( !script )
+        {
+            fprintf(
+                stderr,
+                "interface161_cs2: unresolved gosub script %d\n",
+                request->u.push_script.script_id);
+            return CS2VM_EXECNO_ERROR;
+        }
+        return CS2VMX_PushCallScript(vm, script);
+    }
+
+    case CS2VM_HOST_REQUEST_INVS_GET_SIZE:
+        return CS2VMX_PushInt(vm, interface161_cs2_inv_size(ctx, request->u.invs_get_size.inv_id));
+
+    case CS2VM_HOST_REQUEST_INVS_GET_OBJ:
+        return CS2VMX_PushInt(
+            vm,
+            interface161_cs2_inv_get_obj(
+                ctx, request->u.invs_get_obj.inv_id, request->u.invs_get_obj.slot));
+
+    case CS2VM_HOST_REQUEST_INVS_GET_NUM:
+        return CS2VMX_PushInt(
+            vm,
+            interface161_cs2_inv_get_num(
+                ctx, request->u.invs_get_num.inv_id, request->u.invs_get_num.slot));
+
+    case CS2VM_HOST_REQUEST_INVS_GET_TOTAL:
+        return CS2VMX_PushInt(vm, 0);
+
+    case CS2VM_HOST_REQUEST_VARS_READ_VARP_AKA_PUSH_VAR:
+    case CS2VM_HOST_REQUEST_VARS_READ_VARBIT:
+    case CS2VM_HOST_REQUEST_VARS_READ_VARC_INT:
+        return CS2VMX_PushInt(vm, 0);
+
+    case CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING:
+        return CS2VMX_PushStr(vm, (char*)"");
+
+    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT:
+    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING:
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
+    {
+        int input_type = request->u.enum_lookup.input_type;
+        int output_type = request->u.enum_lookup.output_type;
+        int enum_id = request->u.enum_lookup.enum_id;
+        int key = request->u.enum_lookup.key;
+        if( output_type == (int)'s' )
+        {
+            char const* s =
+                interface161_cs2_enum_lookup_string(ctx, input_type, output_type, enum_id, key);
+            return CS2VMX_PushStr(vm, strdup(s ? s : "null"));
+        }
+        return CS2VMX_PushInt(
+            vm, interface161_cs2_enum_lookup(ctx, input_type, output_type, enum_id, key));
+    }
+
+    case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
+        return CS2VMX_PushInt(
+            vm, interface161_cs2_enum_output_count(ctx, request->u.enum_get_output_count.enum_id));
+
+    case CS2VM_HOST_REQUEST_STRUCT_PARAM:
+    {
+        bool is_string = false;
+        int intval = 0;
+        char const* strval = NULL;
+        if( interface161_cs2_struct_param(
+                ctx,
+                request->u.struct_param.struct_id,
+                request->u.struct_param.param_id,
+                &is_string,
+                &intval,
+                &strval) )
+        {
+            if( is_string )
+                return CS2VMX_PushStr(vm, strdup(strval ? strval : ""));
+            return CS2VMX_PushInt(vm, intval);
+        }
+        return CS2VMX_PushInt(vm, 0);
+    }
+
+    case CS2VM_HOST_REQUEST_IF_FIND:
+        if( tree && uitree_find_by_component_id(tree, request->u.if_find.component_id) >= 0 )
+        {
+            CS2VMX_SetTargetComponentId(
+                vm, request->u.if_find.dot_operand, request->u.if_find.component_id);
+            return CS2VMX_PushInt(vm, 1);
+        }
+        return CS2VMX_PushInt(vm, 0);
+
+    case CS2VM_HOST_REQUEST_CC_CREATE:
+    {
+        if( !tree )
+            return CS2VM_EXECNO_OK;
+        int32_t parent_idx = uitree_find_by_component_id(tree, request->u.cc_create.parent_id);
+        if( parent_idx < 0 )
+            return CS2VM_EXECNO_OK;
+        int32_t child_idx = uitree_cc_create(
+            tree,
+            parent_idx,
+            request->u.cc_create.parent_id,
+            request->u.cc_create.component_type,
+            request->u.cc_create.child_index);
+        if( child_idx < 0 )
+            return CS2VM_EXECNO_ERROR;
+        CS2VMX_SetTargetComponentId(
+            vm, request->u.cc_create.dot_operand, tree->components[child_idx].component_id);
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2VM_HOST_REQUEST_CC_FIND:
+    {
+        int found = 0;
+        if( tree )
+        {
+            int32_t parent_idx = uitree_find_by_component_id(tree, request->u.cc_find.parent_id);
+            if( parent_idx >= 0 )
+            {
+                int32_t child_idx = uitree_find_child_by_subid(
+                    tree, parent_idx, request->u.cc_find.parent_id, request->u.cc_find.sub_id);
+                if( child_idx >= 0 )
+                {
+                    CS2VMX_SetTargetComponentId(
+                        vm,
+                        request->u.cc_find.dot_operand,
+                        tree->components[child_idx].component_id);
+                    found = 1;
+                }
+            }
+        }
+        return CS2VMX_PushInt(vm, found);
+    }
+
+    case CS2VM_HOST_REQUEST_CC_DELETEALL:
+    {
+        if( tree )
+        {
+            int32_t parent_idx =
+                uitree_find_by_component_id(tree, request->u.cc_delete_all.component_id);
+            if( parent_idx >= 0 )
+                uitree_cc_delete_all(tree, parent_idx);
+        }
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT:
+    {
+        if( !tree )
+            return CS2VM_EXECNO_OK;
+        int cid = request->kind == CS2VM_HOST_REQUEST_CC_SETOBJECT
+                      ? request->u.cc_set_object.component_id
+                      : request->u.if_set_object.component_id;
+        int obj = request->kind == CS2VM_HOST_REQUEST_CC_SETOBJECT
+                      ? request->u.cc_set_object.obj_id
+                      : request->u.if_set_object.obj_id;
+        int count = request->kind == CS2VM_HOST_REQUEST_CC_SETOBJECT
+                        ? request->u.cc_set_object.count
+                        : request->u.if_set_object.count;
+        int scene_id = -1;
+        int atlas_index = 0;
+        if( obj > 0 )
+            (void)interface161_cs2_resolve_obj_icon(ctx, obj, &scene_id, &atlas_index);
+        (void)uitree_apply_object(tree, cid, obj, count, scene_id, atlas_index);
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2VM_HOST_REQUEST_IF_SETHIDE:
+        if( tree )
+            (void)uitree_apply_hide(
+                tree, request->u.if_set_hide.component_id, request->u.if_set_hide.hidden ? 1 : 0);
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_IF_SETONINVTRANSMIT:
+    {
+        struct CS2VM_HostRequest_IF_SetOnInvTransmit const* r = &request->u.if_set_on_inv_transmit;
+        if( r->script_id < 0 )
+        {
+            interface161_runtime_clear_inv_hook(r->component_id);
+            return CS2VM_EXECNO_OK;
+        }
+        interface161_runtime_store_inv_hook(
+            r->component_id,
+            r->script_id,
+            r->int_arg_count,
+            r->int_args,
+            r->trigger_count,
+            r->trigger_ids);
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
+    {
+        if( !tree )
+            return CS2VM_EXECNO_OK;
+        int32_t idx = uitree_find_by_component_id(tree, request->u.widget_set_int.component_id);
+        if( idx < 0 )
+            return CS2VM_EXECNO_OK;
+        node = &tree->components[idx];
+        if( request->u.widget_set_int.field == CS2VM_WIDGET_INT_DRAG_DEAD_ZONE )
+            node->drag_dead_zone = (uint8_t)request->u.widget_set_int.value;
+        else if( request->u.widget_set_int.field == CS2VM_WIDGET_INT_DRAG_DEAD_TIME )
+            node->drag_dead_time = (uint8_t)request->u.widget_set_int.value;
+        return CS2VM_EXECNO_OK;
+    }
+
+    case CS2VM_HOST_REQUEST_CC_SETON_DISCARD:
+    case CS2VM_HOST_REQUEST_IF_SETON_DISCARD:
+    case CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT:
+    case CS2VM_HOST_REQUEST_IF_SETONOP:
+    case CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER:
+    case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
+    case CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT:
+    case CS2VM_HOST_REQUEST_IF_SETONTIMER:
+    case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
+    case CS2VM_HOST_REQUEST_IF_SETONKEY:
+    case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
+    case CS2VM_HOST_REQUEST_CC_SETONCLICK:
+    case CS2VM_HOST_REQUEST_CC_SETONHOLD:
+    case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
+    case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
+    case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
+    case CS2VM_HOST_REQUEST_CC_SETONDRAG:
+    case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
+    case CS2VM_HOST_REQUEST_CC_SETONKEY:
+    case CS2VM_HOST_REQUEST_CC_SETONOP:
+    case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
+    case CS2VM_HOST_REQUEST_WIDGET_SET_INT2:
+    case CS2VM_HOST_REQUEST_WIDGET_SET_ARC:
+    case CS2VM_HOST_REQUEST_WIDGET_INPUT_INT:
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_CLIENTCLOCK:
+        return CS2VMX_PushInt(vm, 0);
+
+    case CS2VM_HOST_REQUEST_IF_GETWIDTH:
+    case CS2VM_HOST_REQUEST_IF_GETHEIGHT:
+    case CS2VM_HOST_REQUEST_IF_GETY:
+    case CS2VM_HOST_REQUEST_IF_GETX:
+    case CS2VM_HOST_REQUEST_IF_GETLAYER:
+    case CS2VM_HOST_REQUEST_IF_GETTOP:
+    case CS2VM_HOST_REQUEST_IF_GETSCROLLX:
+    case CS2VM_HOST_REQUEST_IF_GETSCROLLY:
+    case CS2VM_HOST_REQUEST_IF_GETSCROLLHEIGHT:
+    case CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH:
+    case CS2VM_HOST_REQUEST_IF_GETHIDE:
+    case CS2VM_HOST_REQUEST_CC_GETID:
+    case CS2VM_HOST_REQUEST_CC_GETX:
+    case CS2VM_HOST_REQUEST_CC_GETY:
+    case CS2VM_HOST_REQUEST_CC_GETWIDTH:
+    case CS2VM_HOST_REQUEST_CC_GETHEIGHT:
+    case CS2VM_HOST_REQUEST_CC_GETHIDE:
+    case CS2VM_HOST_REQUEST_CC_GETTRANS:
+    case CS2VM_HOST_REQUEST_OC_INT_PARAM:
+    case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
+    case CS2VM_HOST_REQUEST_PARAHEIGHT:
+    case CS2VM_HOST_REQUEST_PARAWIDTH:
+        return CS2VMX_PushInt(vm, 0);
+
+    case CS2VM_HOST_REQUEST_IF_GETTEXT:
+    case CS2VM_HOST_REQUEST_CC_GETTEXT:
+    case CS2VM_HOST_REQUEST_OC_NAME:
+        return CS2VMX_PushStr(vm, strdup(""));
+
+    default:
+        /* Soft-fail unknown mutators so interface scripts keep going. */
+        return CS2VM_EXECNO_OK;
+    }
+}
+
+int
+interface161_cs2_run_script(
+    struct Interface161Cs2Context* ctx,
+    struct CS2_Script* script,
+    int component_id,
+    int const* int_argv,
+    int int_argc)
+{
+    if( !ctx || !ctx->cs2vm_bound || !script )
+        return CS2VM_EXECNO_ERROR;
+
+    CS2VMX_ResetRuntime(&ctx->cs2vm);
+    if( CS2VMX_PushCallScript(&ctx->cs2vm, script) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    if( int_argv && int_argc > 0 )
+    {
+        for( int i = 0; i < int_argc; i++ )
+            CS2VMX_SetIntCurrentFrameLocal(&ctx->cs2vm, i, int_argv[i]);
+    }
+    if( component_id > 0 )
+        CS2VMX_SetActiveAndDotComponentId(&ctx->cs2vm, component_id);
+
+    for( ;; )
+    {
+        int const rc = CS2VMX_RunScript(&ctx->cs2vm);
+        if( rc == CS2VM_EXECNO_DONE || rc == CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_DONE;
+        if( rc == CS2VM_EXECNO_YIELD )
+        {
+            fprintf(stderr, "interface161_cs2: script yielded (soft-fail)\n");
+            CS2VMX_ResetRuntime(&ctx->cs2vm);
+            return CS2VM_EXECNO_YIELD;
+        }
+        return rc;
+    }
+}
+
 static void
 interface161_cs2_run_component_hook(
     struct Interface161Cs2Context* ctx,
@@ -718,35 +1010,43 @@ interface161_cs2_run_component_hook(
     int argc = hook_len - 1;
     if( argc > 16 )
         argc = 16;
-    struct CS2_ScriptArgSubstitute const sub = { .component_id = comp->id };
     for( int i = 0; i < argc; i++ )
     {
+        int argi = 0;
         if( hook[i + 1].type == SCRIPT_VAR_INT )
-            argv[i] = cs2_script_arg_substitute_int(hook[i + 1].value.i, &sub);
-        else
+            argi = hook[i + 1].value.i;
+        switch( argi )
+        {
+        case CS2VM_SCRIPT_ARG_WIDGET_ID:
+            argv[i] = comp->id;
+            break;
+        case CS2VM_SCRIPT_ARG_MOUSE_X:
+        case CS2VM_SCRIPT_ARG_MOUSE_Y:
+        case CS2VM_SCRIPT_ARG_OP_INDEX:
+        case CS2VM_SCRIPT_ARG_WIDGET_CHILD_INDEX:
+        case CS2VM_SCRIPT_ARG_DRAG_TARGET_ID:
+        case CS2VM_SCRIPT_ARG_DRAG_TARGET_CHILD_INDEX:
+        case CS2VM_SCRIPT_ARG_KEY_TYPED:
+        case CS2VM_SCRIPT_ARG_KEY_PRESSED:
+        case CS2VM_SCRIPT_ARG_OP_SUBINDEX:
             argv[i] = 0;
+            break;
+        default:
+            argv[i] = argi;
+            break;
+        }
     }
 
-    struct CS2_RunArgs args = {
-        .int_argc = argc,
-        .int_argv = argc > 0 ? argv : NULL,
-        .string_argc = 0,
-        .string_argv = NULL,
-        .event_component_id = comp->id,
-    };
-
-    if( ctx->cs2vm )
+    int const rc = interface161_cs2_run_script(
+        ctx, script, comp->id, argc > 0 ? argv : NULL, argc);
+    if( rc != CS2VM_EXECNO_DONE && rc != CS2VM_EXECNO_OK )
     {
-        int const rc = cs2vm_run(ctx->cs2vm, script, &s_runner.host, &args);
-        if( rc != CS2VM_OK )
-        {
-            fprintf(
-                stderr,
-                "interface161_cs2: script %d for comp 0x%x failed rc=%d\n",
-                script_id,
-                comp->id,
-                rc);
-        }
+        fprintf(
+            stderr,
+            "interface161_cs2: script %d for comp 0x%x failed rc=%d\n",
+            script_id,
+            comp->id,
+            rc);
     }
 }
 
@@ -852,8 +1152,7 @@ interface161_cs2_context_free(struct Interface161Cs2Context* ctx)
     ctx->dat2_bc = NULL;
     if( ctx->tree )
         uitree_free(ctx->tree);
-    if( ctx->cs2vm )
-        cs2vm_free(ctx->cs2vm);
+    ctx->cs2vm_bound = 0;
     for( int i = 0; i < s_runner.script_count; i++ )
     {
         if( s_runner.scripts[i].loaded )
@@ -882,8 +1181,7 @@ interface161_cs2_init_host_shell(
     s_runner.ctx = ctx;
     s_runner.disk = ctx->cache;
     ctx->tree = uitree_new(64);
-    ctx->cs2vm = cs2vm_new();
-    if( !ctx->tree || !ctx->cs2vm )
+    if( !ctx->tree )
         return -1;
 
     ui_inv_data_service_init(&ctx->inv_data);
@@ -901,32 +1199,11 @@ interface161_cs2_init_host_shell(
 
     uitree_layout_resolve(ctx->tree, 0, 0, ctx->root_w, ctx->root_h);
 
-    struct CS2HostUIInitArgs args = {
-        .core = NULL,
-        .cache = NULL,
-        .vm = NULL,
-        .tree = ctx->tree,
-        .resolve_obj_icon = interface161_cs2_resolve_obj_icon,
-        .resolve_obj_icon_ud = ctx,
-        .inv_get_obj = interface161_cs2_inv_get_obj,
-        .inv_get_num = interface161_cs2_inv_get_num,
-        .inv_size = interface161_cs2_inv_size,
-        .inv_ud = ctx,
-        .enum_output_count = interface161_cs2_enum_output_count,
-        .enum_output_count_ud = ctx,
-        .struct_param = interface161_cs2_struct_param,
-        .struct_param_ud = ctx,
-        .viewport_w = ctx->root_w,
-        .viewport_h = ctx->root_h,
-        .client_type = 80,
-        .window_mode = 1,
-    };
-    cs2_host_ui_init(&s_runner.host, &args);
-    s_runner.host.resolve_script = interface161_cs2_resolve_script;
-    s_runner.host.enum_lookup = interface161_cs2_enum_lookup;
-    s_runner.host.enum_lookup_string = interface161_cs2_enum_lookup_string;
-    s_runner.host.invoke = interface161_host_invoke;
-    ctx->cs2host = &s_runner.host;
+    memset(&ctx->cs2vm, 0, sizeof(ctx->cs2vm));
+    ctx->cs2vm.canvas_w = ctx->root_w;
+    ctx->cs2vm.canvas_h = ctx->root_h;
+    CS2VMX_BindHost(&ctx->cs2vm, ctx, interface161_cs2_host_exec);
+    ctx->cs2vm_bound = 1;
     return 0;
 }
 

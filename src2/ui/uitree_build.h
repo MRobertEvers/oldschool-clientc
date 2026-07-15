@@ -4,6 +4,8 @@
 #include "toriauxlib/core/toriauxlibcore_types.h"
 #include "uitree.h"
 
+struct ToriAuxLibCore;
+
 struct UITreeBuildSource
 {
     int count;
@@ -31,5 +33,18 @@ int
 uitree_build_from_source(
     struct UITree* tree,
     struct UITreeBuildSource const* src);
+
+/**
+ * Build (or append) all core components belonging to interface group_id
+ * (component_id >> 16) into the tree. Skips components already present.
+ * Returns number of nodes added, or -1 on error.
+ */
+int
+uitree_build_interface_group(
+    struct UITree* tree,
+    struct ToriAuxLibCore* core,
+    int group_id,
+    int (*resolve_sprite)(void*, int),
+    void* resolve_ud);
 
 #endif

@@ -212,8 +212,7 @@ static void
 revconfig_build_queue(struct RevConfigLoaderState* state)
 {
     struct RevConfigBuffer* rc = state->revconfig;
-    if( !rc )
-        return;
+    assert(rc);
 
     struct BuildCtx ctx = { 0 };
 
@@ -390,8 +389,9 @@ revconfig_route_resolved_io(
     struct RevConfigLoaderState* state,
     struct LibToriRS_IOQueue* io_queue)
 {
-    if( !state || !io_queue || !state->buildcache )
-        return;
+    assert(state);
+    assert(io_queue);
+    assert(state->buildcache);
 
     for( int i = io_queue->read_head; i < io_queue->count; i++ )
     {
@@ -581,8 +581,8 @@ bake_rs_subtree(
     int abs_x,
     int abs_y)
 {
-    if( !comp || !ifaces )
-        return;
+    assert(comp);
+    assert(ifaces);
     if( comp->hide && comp->type != COMPONENT_TYPE_LAYER )
         return;
 
@@ -994,8 +994,7 @@ uitree_build(
     tree->root_index = -1;
 
     struct RevConfigBuffer* rc = state->revconfig;
-    if( !rc )
-        return;
+    assert(rc);
 
     struct BakePassCtx ctx = { 0 };
     ctx.current_type = BUILD_NONE;
@@ -1122,8 +1121,7 @@ revconfig_loader_state_free(struct RevConfigLoaderState* state)
 void
 revconfig_loader_reset(struct RevConfigLoaderState* state)
 {
-    if( !state )
-        return;
+    assert(state);
     revconfig_loader_revconfig_reset(state);
     memset(state->items, 0, sizeof(state->items));
     state->item_count = 0;
@@ -1180,8 +1178,7 @@ revconfig_loader_revconfig(struct RevConfigLoaderState* state)
 void
 revconfig_loader_revconfig_reset(struct RevConfigLoaderState* state)
 {
-    if( !state )
-        return;
+    assert(state);
     if( state->revconfig )
         revconfig_buffer_free(state->revconfig);
     state->revconfig = revconfig_buffer_new(4096);
@@ -1237,8 +1234,8 @@ revconfig_loader_submit(
     struct RevConfigLoaderState* state,
     struct UITree* tree)
 {
-    if( !state || !tree )
-        return false;
+    assert(state);
+    assert(tree);
     uitree_build(tree, state);
     return true;
 }

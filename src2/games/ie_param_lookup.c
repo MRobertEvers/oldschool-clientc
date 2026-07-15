@@ -1,6 +1,7 @@
 #include "ie_param_lookup.h"
 
 #include "buildcache/dat2_buildcache.h"
+#include <assert.h>
 
 bool
 ie_param_is_string(

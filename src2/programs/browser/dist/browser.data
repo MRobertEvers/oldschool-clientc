@@ -56,14 +56,15 @@ end
 Game.ModelViewer_RenderModelNativeInt(model_load)
 print("Initializing RuneScape world (Lua)")
 
-Game.Runescape_Init()
-
 local io_queue = Platform.GetIOQueue()
 
 if Game.GetCacheMode() == "dat2" then
     if not Game.Dat2_TexturesLoad() then
         print("Dat2 textures load failed")
         return
+    end
+    while not Game.RunTasks() do
+        Platform.LoadIO(io_queue)
     end
     print("Dat2 textures loaded")
     Game.Dat2_SubmitTextures()
@@ -88,6 +89,9 @@ else
     Game.Dat1_SubmitTextures()
     print("Textures submitted")
 end
+
+-- Revconfig/UI inventory icons raster models against submitted textures.
+Game.Runescape_Init()
 
 while not Game.RunTasks() do
     Platform.LoadIO(io_queue)

@@ -154,7 +154,8 @@ ToriDraw_TextureMapSet(
     int id,
     struct ToriDraw_Texture* texture)
 {
-    if( !map || id < 0 || id >= 256 )
+    assert(map);
+    if( id < 0 || id >= 256 )
         return;
     if( map->textures[id] )
         ToriDraw_TextureFree(map->textures[id]);

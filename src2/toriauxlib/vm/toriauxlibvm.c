@@ -93,7 +93,9 @@ ToriAuxLibVM_IsActive(
     struct CS1Host const* cs1host,
     struct StaticUIComponent const* c)
 {
-    if( !vm || !c || !c->behavior.script_comparator || !c->behavior.script_operand )
+    assert(vm);
+    assert(c);
+    if( !c->behavior.script_comparator || !c->behavior.script_operand )
         return false;
 
     if( c->behavior.script_kind == CS1VM_SCRIPT_KIND_CS2 )
@@ -130,8 +132,7 @@ ToriAuxLibVM_GetVarp(
     struct ToriAuxLibVM* vm,
     int id)
 {
-    if( !vm )
-        return 0;
+    assert(vm);
     return varp_varbit_get_varp(&vm->varp_varbit, id);
 }
 
@@ -140,8 +141,7 @@ ToriAuxLibVM_GetVarbit(
     struct ToriAuxLibVM* vm,
     int id)
 {
-    if( !vm )
-        return 0;
+    assert(vm);
     return varp_varbit_get_varbit(&vm->varp_varbit, id);
 }
 
@@ -151,8 +151,7 @@ ToriAuxLibVM_SetVarpOptimistic(
     int id,
     int value)
 {
-    if( !vm )
-        return;
+    assert(vm);
     varp_varbit_set_varp_optimistic(&vm->varp_varbit, id, value);
 }
 
@@ -161,8 +160,7 @@ ToriAuxLibVM_LoadConfig(
     struct ToriAuxLibVM* vm,
     struct RSCacheShared_FileListDat* config_jagfile)
 {
-    if( !vm )
-        return false;
+    assert(vm);
     return varp_varbit_load_from_config_jagfile(&vm->varp_varbit, config_jagfile);
 }
 
@@ -171,7 +169,8 @@ ToriAuxLibVM_ApplyButtonClickOptimistic(
     struct ToriAuxLibVM* vm,
     struct StaticUIComponent const* c)
 {
-    assert(!(!vm || !c));
+    assert(vm);
+    assert(c);
 
     struct StaticUIBehavior const* b = &c->behavior;
     assert(b->scripts);

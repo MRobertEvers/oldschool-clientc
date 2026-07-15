@@ -2,6 +2,7 @@
 
 #include "libtorirs.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,8 +44,7 @@ LibToriPlatformSDL2_InitForSoft3D(
     int screen_width,
     int screen_height)
 {
-    if( !platform )
-        return false;
+    assert(platform);
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         printf("SDL_Init failed: %s\n", SDL_GetError());
@@ -77,8 +77,7 @@ LibToriPlatformSDL2_InitForOpenGL3(
     int screen_width,
     int screen_height)
 {
-    if( !platform )
-        return false;
+    assert(platform);
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         printf("SDL_Init failed: %s\n", SDL_GetError());
@@ -125,6 +124,7 @@ LibToriPlatformSDL2_InitForWebGL1(
     int screen_width,
     int screen_height)
 {
+    assert(platform);
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         printf("SDL_Init failed: %s\n", SDL_GetError());
@@ -161,8 +161,7 @@ LibToriPlatformSDL2_InitForD3D9(
     int screen_width,
     int screen_height)
 {
-    if( !platform )
-        return false;
+    assert(platform);
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         printf("SDL_Init failed: %s\n", SDL_GetError());
@@ -193,8 +192,7 @@ LibToriPlatformSDL2_InitForD3D9(
 SDL_Window*
 LibToriPlatformSDL2_GetWindow(struct LibToriPlatformSDL2* platform)
 {
-    if( !platform )
-        return NULL;
+    assert(platform);
     return platform->window;
 }
 
@@ -203,8 +201,7 @@ LibToriPlatformSDL2_PollEvents(
     struct LibToriPlatformSDL2* platform,
     struct LibToriRS_CommandQueue* command_queue)
 {
-    if( !platform )
-        return;
+    assert(platform);
     SDL_Event event;
     while( SDL_PollEvent(&event) )
     {

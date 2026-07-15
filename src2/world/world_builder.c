@@ -32,8 +32,7 @@
 static void
 world_builder_free_transient_maps(struct WorldBuilder* builder)
 {
-    if( !builder )
-        return;
+    assert(builder);
     if( builder->blendmap )
         blendmap_free(builder->blendmap);
     if( builder->overlaymap )

@@ -20,7 +20,7 @@
 #include "ui/ui_inv_data_service.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
-#include "vm/cs2vm.h"
+#include "instance_revconfig_context.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -61,7 +61,8 @@ instance_revconfig_rs_subtree_find(
     struct InstanceRevConfigContext* ctx,
     char const* owner_component)
 {
-    if( !ctx || !owner_component || owner_component[0] == '\0' )
+    assert(ctx);
+    if( !owner_component || owner_component[0] == '\0' )
         return NULL;
     for( int i = 0; i < ctx->rs_subtree_count; i++ )
     {
@@ -187,7 +188,8 @@ instance_revconfig_dat2_sprite_ref_from_id(
     char* out,
     size_t out_size)
 {
-    if( !out || out_size == 0 )
+    assert(out);
+    if( out_size == 0 )
         return;
     if( sprite_id < 0 )
     {
@@ -219,7 +221,8 @@ instance_revconfig_dat2_ensure_sprite_ref(
     struct InstanceRevConfigContext* ctx,
     char const* sprite_ref)
 {
-    if( !ctx || !sprite_ref || !sprite_ref[0] )
+    assert(ctx);
+    if( !sprite_ref || !sprite_ref[0] )
         return -1;
 
     int atlas = 0;
@@ -259,7 +262,8 @@ instance_revconfig_dat2_get_component(
     struct Dat2BuildCache_InterfaceArchive* archive,
     int component_id)
 {
-    if( !archive || component_id < 0 )
+    assert(archive);
+    if( component_id < 0 )
         return NULL;
 
     int file_index = component_id & 0xFFFF;
@@ -987,8 +991,8 @@ instance_revconfig_attach_scrollbar_sprites(
     struct InstanceRevConfigContext* ctx,
     struct GameRunescape* game)
 {
-    if( !ctx || !game )
-        return;
+    assert(ctx);
+    assert(game);
 
     int atlas = 0;
     int id = ui_sprite_lookup_resolve_ref(&ctx->sprite_lookup, "scrollbar0", &atlas);
@@ -1236,7 +1240,8 @@ dat1_ifaces_get_component(
     struct RSCacheDat1A_ConfigComponentList* list,
     int component_id)
 {
-    if( !list || component_id < 0 )
+    assert(list);
+    if( component_id < 0 )
         return NULL;
 
     if( component_id < list->components_count && list->components[component_id] )
@@ -1361,8 +1366,8 @@ instance_revconfig_apply_chat_template(
     size_t dst_len,
     int* out_action)
 {
-    if( !dst || !out_action )
-        return;
+    assert(dst);
+    assert(out_action);
     if( src && src[0] != '\0' )
     {
         strncpy(dst, src, dst_len - 1);

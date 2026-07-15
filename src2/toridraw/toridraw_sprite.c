@@ -40,8 +40,8 @@ ToriDraw_SpriteNewFromPix8(
     struct ToriDraw_Pix8* pix8,
     struct ToriDraw_PixPalette* palette)
 {
-    if( !pix8 || !palette )
-        return NULL;
+    assert(pix8);
+    assert(palette);
     struct ToriDraw_Sprite* sprite = (struct ToriDraw_Sprite*)malloc(sizeof(struct ToriDraw_Sprite));
     if( !sprite )
         return NULL;
@@ -60,8 +60,8 @@ ToriDraw_SpriteNewFromPix8(
 struct ToriDraw_Sprite*
 ToriDraw_SpriteNewFromPix32(struct ToriDraw_Pix32* pix32)
 {
-    if( !pix32 || !pix32->pixels )
-        return NULL;
+    assert(pix32);
+    assert(pix32->pixels);
     struct ToriDraw_Sprite* sprite = (struct ToriDraw_Sprite*)malloc(sizeof(struct ToriDraw_Sprite));
     if( !sprite )
         return NULL;
@@ -116,7 +116,8 @@ ToriDraw_SpriteNewFromArgbOwned(
     int width,
     int height)
 {
-    if( !pixels_argb || width <= 0 || height <= 0 )
+    assert(pixels_argb);
+    if( width <= 0 || height <= 0 )
         return NULL;
     struct ToriDraw_Sprite* sprite = (struct ToriDraw_Sprite*)malloc(sizeof(struct ToriDraw_Sprite));
     if( !sprite )
@@ -156,8 +157,9 @@ ToriDraw2D_BlitSprite(
     int y_offset,
     int* pixel_buffer)
 {
-    if( !sprite || !view_port || !pixel_buffer )
-        return;
+    assert(sprite);
+    assert(view_port);
+    assert(pixel_buffer);
     ToriDraw2D_BlitSprite_subrect(
         sprite,
         view_port,
@@ -213,8 +215,10 @@ ToriDraw2D_BlitSpriteAlpha(
     int alpha,
     int* pixel_buffer)
 {
-    if( !sprite || !sprite->pixels_argb || !view_port || !pixel_buffer )
-        return;
+    assert(sprite);
+    assert(sprite->pixels_argb);
+    assert(view_port);
+    assert(pixel_buffer);
     if( alpha >= 255 )
     {
         ToriDraw2D_BlitSprite(sprite, view_port, x_offset, y_offset, pixel_buffer);
@@ -267,7 +271,11 @@ ToriDraw2D_BlitSprite_subrect(
     int src_h,
     int* pixel_buffer)
 {
-    if( !sprite || !sprite->pixels_argb || !view_port || !pixel_buffer || src_w <= 0 || src_h <= 0 )
+    assert(sprite);
+    assert(sprite->pixels_argb);
+    assert(view_port);
+    assert(pixel_buffer);
+    if( src_w <= 0 || src_h <= 0 )
         return;
     if( src_x < 0 || src_y < 0 || src_x + src_w > sprite->width || src_y + src_h > sprite->height )
         return;
@@ -320,7 +328,11 @@ ToriDraw2D_BlitSpriteRotatedEx(
     int rotation_r2pi2048,
     int* pixel_buffer)
 {
-    if( !sprite || !sprite->pixels_argb || !view_port || !pixel_buffer || dst_w <= 0 || dst_h <= 0 )
+    assert(sprite);
+    assert(sprite->pixels_argb);
+    assert(view_port);
+    assert(pixel_buffer);
+    if( dst_w <= 0 || dst_h <= 0 )
         return;
 
     int src_crop_x = sprite->crop_x;
@@ -390,8 +402,10 @@ ToriDraw2D_BlitSpriteTiled(
     int origin_y,
     int* pixel_buffer)
 {
-    if( !sprite || !sprite->pixels_argb || !view_port || !pixel_buffer )
-        return;
+    assert(sprite);
+    assert(sprite->pixels_argb);
+    assert(view_port);
+    assert(pixel_buffer);
 
     int const sw = sprite->width;
     int const sh = sprite->height;
@@ -447,8 +461,10 @@ ToriDraw2D_BlitSpriteRotated(
     int rotation_r2pi2048,
     int* pixel_buffer)
 {
-    if( !sprite || !sprite->pixels_argb || !view_port || !pixel_buffer )
-        return;
+    assert(sprite);
+    assert(sprite->pixels_argb);
+    assert(view_port);
+    assert(pixel_buffer);
     if( width <= 0 )
         width = sprite->width;
     if( height <= 0 )
@@ -515,9 +531,12 @@ ToriDraw2D_BlitSpriteMasked(
     int y,
     int* pixel_buffer)
 {
-    if( !sprite || !sprite->pixels_argb || !mask_sprite || !mask_sprite->pixels_argb || !view_port ||
-        !pixel_buffer )
-        return;
+    assert(sprite);
+    assert(sprite->pixels_argb);
+    assert(mask_sprite);
+    assert(mask_sprite->pixels_argb);
+    assert(view_port);
+    assert(pixel_buffer);
 
     x += sprite->crop_x;
     y += sprite->crop_y;
@@ -687,7 +706,9 @@ ToriDraw_SpriteNewGraphicShadow(
 void
 ToriDraw_SpriteFlipHorizontal(struct ToriDraw_Sprite* sprite)
 {
-    if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
+    assert(sprite);
+    assert(sprite->pixels_argb);
+    if( sprite->width <= 0 || sprite->height <= 0 )
         return;
     int w = sprite->width;
     int h = sprite->height;
@@ -706,7 +727,9 @@ ToriDraw_SpriteFlipHorizontal(struct ToriDraw_Sprite* sprite)
 void
 ToriDraw_SpriteFlipVertical(struct ToriDraw_Sprite* sprite)
 {
-    if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
+    assert(sprite);
+    assert(sprite->pixels_argb);
+    if( sprite->width <= 0 || sprite->height <= 0 )
         return;
     int w = sprite->width;
     int h = sprite->height;
@@ -731,7 +754,11 @@ ToriDraw_SpriteTransformPixels(
     int vflip,
     int angle_r2pi65536)
 {
-    if( !pixels_argb || !*pixels_argb || !width || !height || *width <= 0 || *height <= 0 )
+    assert(pixels_argb);
+    assert(*pixels_argb);
+    assert(width);
+    assert(height);
+    if( *width <= 0 || *height <= 0 )
         return;
 
     if( hflip || vflip )
@@ -834,7 +861,10 @@ ToriDraw_SpriteWriteBmpFile(
     struct ToriDraw_Sprite const* sprite,
     char const* path)
 {
-    if( !sprite || !sprite->pixels_argb || !path || sprite->width <= 0 || sprite->height <= 0 )
+    assert(sprite);
+    assert(sprite->pixels_argb);
+    assert(path);
+    if( sprite->width <= 0 || sprite->height <= 0 )
         return -1;
 
     int src_x = 0;

@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 struct UIMinimenuLayout
 ui_minimenu_layout_from_line_height(int line_height)
@@ -34,7 +35,8 @@ ui_minimenu_prepare_show(
     struct UIMinimenuLayout* out_layout,
     int* out_content_width)
 {
-    if( !menu || !out_layout || !out_content_width || menu->option_count <= 0 )
+    assert(menu);
+    if( !out_layout || !out_content_width || menu->option_count <= 0 )
         return false;
 
     *out_layout = ui_minimenu_layout_from_line_height(font ? font->line_height : 0);
@@ -73,7 +75,8 @@ ui_minimenu_height(
     struct UIMinimenuLayout const* layout,
     int option_count)
 {
-    if( !layout || option_count < 0 )
+    assert(layout);
+    if( option_count < 0 )
         return 0;
     return option_count * layout->row_stride + layout->chrome_h;
 }
@@ -83,7 +86,8 @@ ui_minimenu_option_y(
     struct UIMinimenuState const* menu,
     int option_index)
 {
-    if( !menu || option_index < 0 || option_index >= menu->option_count )
+    assert(menu);
+    if( option_index < 0 || option_index >= menu->option_count )
         return menu ? menu->y : 0;
 
     int const row =
@@ -94,8 +98,7 @@ ui_minimenu_option_y(
 void
 ui_minimenu_reset(struct UIMinimenuState* menu)
 {
-    if( !menu )
-        return;
+    assert(menu);
     memset(menu, 0, sizeof(*menu));
     menu->hovered_option = -1;
 }
@@ -103,8 +106,7 @@ ui_minimenu_reset(struct UIMinimenuState* menu)
 void
 ui_minimenu_hide(struct UIMinimenuState* menu)
 {
-    if( !menu )
-        return;
+    assert(menu);
     menu->visible = false;
     menu->option_count = 0;
     menu->hovered_option = -1;
@@ -122,7 +124,9 @@ ui_minimenu_add_option_with_pick(
     int pick_tertiary_id,
     int pick_quaternary_id)
 {
-    if( !menu || !text || menu->option_count >= UI_MINIMENU_MAX_OPTIONS )
+    assert(text);
+    assert(menu);
+    if( menu->option_count >= UI_MINIMENU_MAX_OPTIONS )
         return false;
 
     int idx = menu->option_count++;
@@ -158,7 +162,8 @@ ui_minimenu_show_at(
     int viewport_w,
     int viewport_h)
 {
-    if( !menu || menu->option_count <= 0 )
+    assert(menu);
+    if( menu->option_count <= 0 )
         return;
 
     int width = content_width > 0 ? content_width : 120;
@@ -190,7 +195,8 @@ ui_minimenu_hit_option(
     int click_x,
     int click_y)
 {
-    if( !menu || !menu->visible )
+    assert(menu);
+    if( !menu->visible )
         return -1;
 
     for( int i = 0; i < menu->option_count; i++ )
@@ -215,7 +221,8 @@ ui_minimenu_update_hover(
     int mouse_x,
     int mouse_y)
 {
-    if( !menu || !menu->visible )
+    assert(menu);
+    if( !menu->visible )
         return;
 
     menu->hovered_option = ui_minimenu_hit_option(menu, mouse_x, mouse_y);

@@ -100,8 +100,8 @@ struct UIInventoryPool*
 uitree_inv_pool_new(int capacity)
 {
     struct UIInventoryPool* pool = malloc(sizeof(struct UIInventoryPool));
-    if( !pool )
-        return NULL;
+    assert(pool);
+
     memset(pool, 0, sizeof(struct UIInventoryPool));
     pool->capacity = capacity > 0 ? capacity : 8;
     pool->inventories = calloc((size_t)pool->capacity, sizeof(struct UIInventory));
@@ -116,8 +116,8 @@ uitree_inv_pool_new(int capacity)
 void
 uitree_inv_pool_free(struct UIInventoryPool* pool)
 {
-    if( !pool )
-        return;
+    assert(pool);
+
     free(pool->inventories);
     free(pool);
 }
@@ -127,7 +127,9 @@ uitree_inv_pool_find_by_name(
     struct UIInventoryPool* pool,
     char const* name)
 {
-    if( !pool || !name || name[0] == '\0' )
+    assert(pool);
+    assert(name);
+    if( name[0] == '\0' )
         return -1;
     for( int i = 0; i < pool->count; i++ )
     {
@@ -142,15 +144,15 @@ uitree_inv_pool_append(
     struct UIInventoryPool* pool,
     struct UIInventory const* inv)
 {
-    if( !pool || !inv )
-        return -1;
+    assert(pool);
+    assert(inv);
     if( pool->count >= pool->capacity )
     {
         int new_cap = pool->capacity * 2;
         struct UIInventory* ni =
             realloc(pool->inventories, (size_t)new_cap * sizeof(struct UIInventory));
-        if( !ni )
-            return -1;
+        assert(ni);
+
         pool->inventories = ni;
         pool->capacity = new_cap;
     }
@@ -214,8 +216,8 @@ uitree_new(uint32_t hint)
 {
     (void)hint;
     struct UITree* tree = malloc(sizeof(struct UITree));
-    if( !tree )
-        return NULL;
+    assert(tree);
+
     memset(tree, 0, sizeof(struct UITree));
     tree->root_index = -1;
     return tree;
@@ -224,8 +226,8 @@ uitree_new(uint32_t hint)
 void
 uitree_free(struct UITree* tree)
 {
-    if( !tree )
-        return;
+    assert(tree);
+
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         struct StaticUIComponent* c = &tree->components[i];
@@ -251,8 +253,8 @@ uitree_free(struct UITree* tree)
 void
 uitree_mark_all_dirty(struct UITree* tree)
 {
-    if( !tree )
-        return;
+    assert(tree);
+
     for( uint32_t i = 0; i < tree->component_count; i++ )
         tree->components[i].is_dirty = 1;
 }
@@ -262,7 +264,8 @@ uitree_mark_node_dirty(
     struct UITree* tree,
     int32_t idx)
 {
-    if( !tree || idx < 0 || (uint32_t)idx >= tree->component_count )
+    assert(tree);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
         return;
     tree->components[idx].is_dirty = 1;
 }
@@ -272,7 +275,8 @@ uitree_find_by_component_id(
     struct UITree const* tree,
     int component_id)
 {
-    if( !tree || component_id < 0 || !tree->components )
+    assert(tree);
+    if( component_id < 0 || !tree->components )
         return -1;
     int32_t fallback = -1;
     for( uint32_t i = 0; i < tree->component_count; i++ )
@@ -292,8 +296,7 @@ uitree_allocate_dynamic_component_id(
     struct UITree* tree,
     int iface_id)
 {
-    if( !tree )
-        return -1;
+    assert(tree);
 
     uint16_t next = tree->next_dynamic_uid;
     if( next < 0x8000u )
@@ -344,7 +347,9 @@ uitree_walk_advance(
     int stack_max,
     bool current_visible)
 {
-    if( !tree || !io_current || *io_current < 0 )
+    assert(tree);
+    assert(io_current);
+    if( *io_current < 0 )
         return;
 
     struct StaticUIComponent const* c = &tree->components[*io_current];
@@ -420,8 +425,8 @@ uitree_apply_text(
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_TEXT )
         return false;
     char* copy = strdup(text ? text : "");
-    if( !copy )
-        return false;
+    assert(copy);
+
     free((void*)tree->components[idx].u.rs_text.text);
     tree->components[idx].u.rs_text.text = copy;
     uitree_mark_node_dirty(tree, idx);
@@ -631,7 +636,8 @@ uitree_find_dynamic_child_by_index(
     int32_t parent_idx,
     int dynamic_index)
 {
-    if( !tree || parent_idx < 0 || (uint32_t)parent_idx >= tree->component_count )
+    assert(tree);
+    if( parent_idx < 0 || (uint32_t)parent_idx >= tree->component_count )
         return -1;
 
     int child_index = 0;
@@ -760,10 +766,12 @@ uitree_get_op(
     char* out_buf,
     int out_len)
 {
-    if( !out_buf || out_len <= 0 )
+    assert(out_buf);
+    if( out_len <= 0 )
         return false;
     out_buf[0] = '\0';
-    if( !tree || index < 1 || index > UITREE_MENU_OPTION_SLOTS )
+    assert(tree);
+    if( index < 1 || index > UITREE_MENU_OPTION_SLOTS )
         return false;
     int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
     if( idx < 0 )
@@ -781,11 +789,12 @@ uitree_get_op_base(
     char* out_buf,
     int out_len)
 {
-    if( !out_buf || out_len <= 0 )
+    assert(out_buf);
+    if( out_len <= 0 )
         return false;
     out_buf[0] = '\0';
-    if( !tree )
-        return false;
+    assert(tree);
+
     int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
     if( idx < 0 )
         return false;
@@ -800,8 +809,8 @@ uitree_clear_ops(
     int component_id,
     int active_component)
 {
-    if( !tree )
-        return false;
+    assert(tree);
+
     int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
     if( idx < 0 )
         return false;
@@ -821,7 +830,8 @@ uitree_apply_op_submenu(
     int sub_index,
     char const* text)
 {
-    if( !tree || op_index < 0 || op_index >= UITREE_SUBMENU_OP_SLOTS || sub_index < 0 ||
+    assert(tree);
+    if( op_index < 0 || op_index >= UITREE_SUBMENU_OP_SLOTS || sub_index < 0 ||
         sub_index >= UITREE_SUBMENU_ENTRY_SLOTS )
         return false;
     int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
@@ -841,7 +851,8 @@ uitree_clear_op_submenu(
     int active_component,
     int op_index)
 {
-    if( !tree || op_index < 0 || op_index >= UITREE_SUBMENU_OP_SLOTS )
+    assert(tree);
+    if( op_index < 0 || op_index >= UITREE_SUBMENU_OP_SLOTS )
         return false;
     int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
     if( idx < 0 )
@@ -860,11 +871,12 @@ uitree_get_text(
     char* out_buf,
     int out_len)
 {
-    if( !out_buf || out_len <= 0 )
+    assert(out_buf);
+    if( out_len <= 0 )
         return false;
     out_buf[0] = '\0';
-    if( !tree )
-        return false;
+    assert(tree);
+
     int32_t idx = uitree_resolve_component_target(tree, component_id, active_component);
     if( idx < 0 )
         return false;
@@ -884,7 +896,8 @@ uitree_find_child_by_subid(
     int sub_id)
 {
     (void)parent_component_id;
-    if( !tree || parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
+    assert(tree);
+    if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
         return -1;
 
     for( int32_t child = tree->components[parent_index].first_child; child >= 0;
@@ -941,7 +954,8 @@ uitree_cc_create(
     int widget_type,
     int sub_id)
 {
-    if( !tree || parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
+    assert(tree);
+    if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
         return -1;
 
     int const iface_id = parent_component_id >= 0 ? (parent_component_id >> 16) : 0;
@@ -986,7 +1000,8 @@ uitree_cc_delete_all(
     struct UITree* tree,
     int32_t parent_index)
 {
-    if( !tree || parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
+    assert(tree);
+    if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
         return;
 
     struct StaticUIComponent* parent = &tree->components[parent_index];
@@ -1014,13 +1029,195 @@ uitree_cc_delete_all(
     tree->generation++;
 }
 
+int
+uitree_collect_dynamic_child_indices(
+    struct UITree const* tree,
+    int parent_component_id,
+    int start_index,
+    int* out_indices,
+    int out_cap)
+{
+    assert(tree);
+    assert(out_indices);
+    if( parent_component_id < 0 || out_cap <= 0 )
+        return 0;
+
+    int32_t parent_idx = uitree_find_by_component_id(tree, parent_component_id);
+    if( parent_idx < 0 )
+        return 0;
+
+    int count = 0;
+    for( int32_t child = tree->components[parent_idx].first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        struct StaticUIComponent const* c = &tree->components[child];
+        assert(c);
+        if( c->dynamic_child_index <= start_index )
+            continue;
+        if( count < out_cap )
+            out_indices[count++] = c->dynamic_child_index;
+    }
+
+    for( int i = 1; i < count; i++ )
+    {
+        int key = out_indices[i];
+        int j = i - 1;
+        while( j >= 0 && out_indices[j] > key )
+        {
+            out_indices[j + 1] = out_indices[j];
+            j--;
+        }
+        out_indices[j + 1] = key;
+    }
+    return count;
+}
+
+static struct StaticUIComponent*
+uitree_mut_by_id(
+    struct UITree* tree,
+    int component_id)
+{
+    assert(tree);
+    if( component_id < 0 )
+        return NULL;
+    int32_t idx = uitree_find_by_component_id(tree, component_id);
+    if( idx < 0 )
+        return NULL;
+    return &tree->components[idx];
+}
+
+bool
+uitree_apply_scroll_pos(
+    struct UITree* tree,
+    int component_id,
+    int scroll_x,
+    int scroll_y)
+{
+    struct StaticUIComponent* c = uitree_mut_by_id(tree, component_id);
+    assert(c);
+
+    c->scroll_x = scroll_x;
+    c->scroll_y = scroll_y;
+    c->is_dirty = 1;
+    return true;
+}
+
+bool
+uitree_apply_text_font(
+    struct UITree* tree,
+    int component_id,
+    int font_id)
+{
+    struct StaticUIComponent* c = uitree_mut_by_id(tree, component_id);
+    assert(c);
+    if( c->type != UIELEM_RS_TEXT )
+        return false;
+    c->u.rs_text.font_id = font_id;
+    c->is_dirty = 1;
+    return true;
+}
+
+bool
+uitree_apply_text_align(
+    struct UITree* tree,
+    int component_id,
+    int h_align,
+    int v_align,
+    int line_height)
+{
+    struct StaticUIComponent* c = uitree_mut_by_id(tree, component_id);
+    assert(c);
+    if( c->type != UIELEM_RS_TEXT )
+        return false;
+    c->u.rs_text.center = h_align;
+    c->u.rs_text.y_align = v_align;
+    c->u.rs_text.line_height = line_height;
+    c->is_dirty = 1;
+    return true;
+}
+
+bool
+uitree_apply_text_shadow(
+    struct UITree* tree,
+    int component_id,
+    int shadowed)
+{
+    struct StaticUIComponent* c = uitree_mut_by_id(tree, component_id);
+    assert(c);
+    if( c->type != UIELEM_RS_TEXT )
+        return false;
+    c->u.rs_text.shadowed = shadowed ? 1 : 0;
+    c->is_dirty = 1;
+    return true;
+}
+
+bool
+uitree_apply_model_angle(
+    struct UITree* tree,
+    int component_id,
+    int xan,
+    int yan,
+    int zoom)
+{
+    struct StaticUIComponent* c = uitree_mut_by_id(tree, component_id);
+    assert(c);
+    if( c->type != UIELEM_RS_MODEL )
+        return false;
+    c->u.rs_model.xan = xan;
+    c->u.rs_model.yan = yan;
+    if( zoom > 0 )
+        c->u.rs_model.zoom = zoom;
+    c->is_dirty = 1;
+    return true;
+}
+
+bool
+uitree_apply_target_priority(
+    struct UITree* tree,
+    int component_id,
+    int priority)
+{
+    struct StaticUIComponent* c = uitree_mut_by_id(tree, component_id);
+    assert(c);
+
+    c->target_priority = priority;
+    return true;
+}
+
+bool
+uitree_apply_runtime_hook(
+    struct UITree* tree,
+    int component_id,
+    struct UITreeRuntimeScriptHook* slot,
+    int script_id,
+    int const* argv,
+    int argc)
+{
+    (void)tree;
+    (void)component_id;
+    assert(slot);
+
+    memset(slot, 0, sizeof(*slot));
+    slot->script_id = script_id;
+    if( argc > 16 )
+        argc = 16;
+    if( argc < 0 )
+        argc = 0;
+    slot->argc = argc;
+    if( argv && argc > 0 )
+        memcpy(slot->argv, argv, (size_t)argc * sizeof(int));
+    return true;
+}
+
 void
 uitree_set_behavior(
     struct UITree* tree,
     int32_t idx,
     struct StaticUIBehavior const* src)
 {
-    if( !tree || idx < 0 || (uint32_t)idx >= tree->component_count || !src )
+    assert(tree);
+    assert(src);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
         return;
 
     struct StaticUIComponent* c = &tree->components[idx];
@@ -1219,8 +1416,8 @@ uitree_push(
     int32_t parent_index,
     struct UINodeSpec const* spec)
 {
-    if( !tree || !spec )
-        return -1;
+    assert(tree);
+    assert(spec);
 
     char* text_owned = NULL;
     char* text_active_owned = NULL;
@@ -1463,7 +1660,8 @@ uitree_clear_sidebar_children(
     struct UITree* tree,
     int32_t sidebar_idx)
 {
-    if( !tree || sidebar_idx < 0 || (uint32_t)sidebar_idx >= tree->component_count )
+    assert(tree);
+    if( sidebar_idx < 0 || (uint32_t)sidebar_idx >= tree->component_count )
         return;
     struct StaticUIComponent* c = &tree->components[sidebar_idx];
     if( c->type != UIELEM_BUILTIN_SIDEBAR )

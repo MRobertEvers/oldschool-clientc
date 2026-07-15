@@ -31,7 +31,8 @@ CS2VMX_SetTraceExtra(
     char const* fmt,
     ...)
 {
-    if( !g_cs2_trace_mode || !fmt )
+    assert(fmt);
+    if( !g_cs2_trace_mode )
         return;
 
     va_list ap;
@@ -542,10 +543,14 @@ int
 CS2VMX_Op_PushConstantString(
     struct CS2VMX* vm,
     struct CS2VMX_Frame* frame,
-    char* value)
+    char const* value)
 {
     assert(vm);
-    return CS2VMX_PushStr(vm, value);
+    (void)frame;
+    char* copy = value ? strdup(value) : strdup("");
+    assert(copy);
+
+    return CS2VMX_PushStr(vm, copy);
 }
 
 int
@@ -629,8 +634,7 @@ CS2VMX_Op_JoinString(
     }
 
     char** parts = calloc((size_t)count, sizeof(char*));
-    if( !parts )
-        return CS2VM_EXECNO_ERROR;
+    assert(parts);
 
     for( int i = count - 1; i >= 0; i-- )
     {
@@ -686,8 +690,7 @@ CS2VMX_Op_ToString(
     snprintf(buf, sizeof(buf), "%d", value);
 
     char* str = strdup(buf);
-    if( !str )
-        return CS2VM_EXECNO_ERROR;
+    assert(str);
 
     return CS2VMX_PushStr(vm, str);
 }
@@ -712,8 +715,7 @@ CS2VMX_Op_Append(
     snprintf(buf, sizeof(buf), "%s%s", dest ? dest : "", src ? src : "");
 
     char* result = strdup(buf);
-    if( !result )
-        return CS2VM_EXECNO_ERROR;
+    assert(result);
 
     return CS2VMX_PushStr(vm, result);
 }
@@ -739,8 +741,7 @@ CS2VMX_Op_AppendNum(
     snprintf(buf, sizeof(buf), "%s%d", str ? str : "", num);
 
     char* result = strdup(buf);
-    if( !result )
-        return CS2VM_EXECNO_ERROR;
+    assert(result);
 
     return CS2VMX_PushStr(vm, result);
 }
@@ -766,8 +767,7 @@ CS2VMX_Op_AppendSignNum(
     snprintf(buf, sizeof(buf), "%s%s%d", str ? str : "", num >= 0 ? "+" : "", num);
 
     char* result = strdup(buf);
-    if( !result )
-        return CS2VM_EXECNO_ERROR;
+    assert(result);
 
     return CS2VMX_PushStr(vm, result);
 }
@@ -799,8 +799,7 @@ CS2VMX_Op_AppendChar(
     buf[len + 1] = '\0';
 
     char* result = strdup(buf);
-    if( !result )
-        return CS2VM_EXECNO_ERROR;
+    assert(result);
 
     return CS2VMX_PushStr(vm, result);
 }
@@ -2646,8 +2645,8 @@ CS2VMX_Op_IF_SetOnEventHandler(
         if( trigger_count > 0 )
         {
             trigger_ids = calloc((size_t)trigger_count, sizeof(int));
-            if( !trigger_ids )
-                return CS2VM_EXECNO_ERROR;
+            assert(trigger_ids);
+
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
                 if( CS2VMX_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
@@ -2757,8 +2756,8 @@ CS2VMX_Op_CC_SetOnEventHandler(
         if( trigger_count > 0 )
         {
             trigger_ids = calloc((size_t)trigger_count, sizeof(int));
-            if( !trigger_ids )
-                return CS2VM_EXECNO_ERROR;
+            assert(trigger_ids);
+
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
                 if( CS2VMX_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
@@ -2998,8 +2997,8 @@ CS2VMX_Op_IF_SetOnVarTransmit(
         if( trigger_count > 0 )
         {
             trigger_ids = calloc((size_t)trigger_count, sizeof(int));
-            if( !trigger_ids )
-                return CS2VM_EXECNO_ERROR;
+            assert(trigger_ids);
+
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
                 if( CS2VMX_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
@@ -3109,8 +3108,8 @@ CS2VMX_Op_IF_SetOnInvTransmit(
         if( trigger_count > 0 )
         {
             trigger_ids = calloc((size_t)trigger_count, sizeof(int));
-            if( !trigger_ids )
-                return CS2VM_EXECNO_ERROR;
+            assert(trigger_ids);
+
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
                 if( CS2VMX_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
@@ -3221,8 +3220,8 @@ CS2VMX_Op_IF_SetOnOp(
         if( trigger_count > 0 )
         {
             trigger_ids = calloc((size_t)trigger_count, sizeof(int));
-            if( !trigger_ids )
-                return CS2VM_EXECNO_ERROR;
+            assert(trigger_ids);
+
             for( int i = trigger_count - 1; i >= 0; i-- )
             {
                 if( CS2VMX_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
@@ -4524,8 +4523,7 @@ CS2VMX_Op_Substring(
     if( CS2VMX_PopStr(vm, &text) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    if( !text )
-        return CS2VMX_PushStr(vm, strdup(""));
+    assert(text);
 
     int len = (int)strlen(text);
     if( start < 0 )
@@ -4537,8 +4535,8 @@ CS2VMX_Op_Substring(
 
     int out_len = end - start;
     char* out = malloc((size_t)out_len + 1u);
-    if( !out )
-        return CS2VM_EXECNO_ERROR;
+    assert(out);
+
     if( out_len > 0 )
         memcpy(out, text + start, (size_t)out_len);
     out[out_len] = '\0';
@@ -5414,7 +5412,7 @@ CS2VMX_RunOp(
     struct CS2VMX_Frame* frame,
     int opcode,
     int operand,
-    char* str_operand)
+    char const* str_operand)
 {
     assert(vm);
     assert(frame);

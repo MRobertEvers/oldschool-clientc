@@ -86,8 +86,9 @@ void
 world_builder_apply_wall_decor_offsets(struct WorldBuilder* builder)
 {
     struct World* world = builder->world;
-    if( !world || !builder->decor_buildmap || !builder->scene )
-        return;
+    assert(world);
+    assert(builder->decor_buildmap);
+    assert(builder->scene);
 
     int scene_size = world->_scene_size;
     for( int sx = 0; sx < scene_size; sx++ )

@@ -572,8 +572,9 @@ minimap_bake_argb(
     int* out_width,
     int* out_height)
 {
-    if( !minimap || !out_width || !out_height )
-        return NULL;
+    assert(minimap);
+    assert(out_width);
+    assert(out_height);
 
     const int pw = minimap->width * 4;
     const int ph = minimap->height * 4;
@@ -639,13 +640,13 @@ minimap_compute_camera_src_anchor(
     int* out_src_anchor_x,
     int* out_src_anchor_y)
 {
-    if( out_src_anchor_x )
-        *out_src_anchor_x = 0;
-    if( out_src_anchor_y )
-        *out_src_anchor_y = 0;
-    if( !out_src_anchor_x || !out_src_anchor_y || sprite_w <= 0 || sprite_h <= 0 || map_tile_w <= 0 ||
-        map_tile_h <= 0 )
+    assert(out_src_anchor_x);
+    assert(out_src_anchor_y);
+    if( sprite_w <= 0 || sprite_h <= 0 || map_tile_w <= 0 || map_tile_h <= 0 )
         return;
+
+    *out_src_anchor_x = 0;
+    *out_src_anchor_y = 0;
 
     int const px_per_tile_x = sprite_w / map_tile_w;
     int const px_per_tile_z = sprite_h / map_tile_h;

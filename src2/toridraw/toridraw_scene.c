@@ -82,7 +82,8 @@ td_scene_map_reset(
     int entry_size,
     int capacity)
 {
-    if( !map_out || !*map_out )
+    assert(map_out);
+    if( !*map_out )
         return;
 
     td_scene_map_free(*map_out);
@@ -92,8 +93,7 @@ td_scene_map_reset(
 static void
 td_scene_maybe_grow_hmap(struct ToriDraw_Map* map)
 {
-    if( !map )
-        return;
+    assert(map);
 
     uint32_t count = ToriDraw_MapCount(map);
     uint32_t capacity = ToriDraw_MapCapacity(map);
@@ -117,8 +117,7 @@ td_scene_maybe_grow_hmap(struct ToriDraw_Map* map)
 static void
 td_scene_prepare_hmap_insert(struct ToriDraw_Map* map)
 {
-    if( !map )
-        return;
+    assert(map);
 
     uint32_t count = ToriDraw_MapCount(map);
     uint32_t capacity = ToriDraw_MapCapacity(map);
@@ -150,8 +149,7 @@ td_scene_emit(
 {
     struct ToriDraw_Event event;
 
-    if( !scene )
-        return;
+    assert(scene);
     if( scene->event_queue.count >= TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE )
         return;
 
@@ -185,7 +183,8 @@ td_scene_emit_sprite(
 {
     struct ToriDraw_Event event;
 
-    if( !scene || scene->event_queue.count >= TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE )
+    assert(scene);
+    if( scene->event_queue.count >= TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE )
         return;
 
     memset(&event, 0, sizeof(event));
@@ -205,7 +204,8 @@ td_scene_emit_font(
 {
     struct ToriDraw_Event event;
 
-    if( !scene || scene->event_queue.count >= TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE )
+    assert(scene);
+    if( scene->event_queue.count >= TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE )
         return;
 
     memset(&event, 0, sizeof(event));
@@ -220,8 +220,8 @@ td_scene_retain_pending_pose(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_Model* model)
 {
-    if( !scene || !model )
-        return;
+    assert(scene);
+    assert(model);
 
     if( scene->pending_pose_count >= scene->pending_pose_cap )
     {
@@ -242,8 +242,7 @@ td_scene_element_valid(
     const struct ToriDraw_Scene* scene,
     int element_id)
 {
-    if( !scene )
-        return false;
+    assert(scene);
     if( element_id < 0 || element_id >= TORIDRAW_SCENE_MAX_ELEMENTS )
         return false;
     return ToriDraw_IntrusiveListIsLive(&scene->elements, element_id);
@@ -262,8 +261,7 @@ td_scene_element_ptr(
 static void
 td_scene_reset_element(struct ToriDraw_SceneElement* element)
 {
-    if( !element )
-        return;
+    assert(element);
     int scene_id = element->scene_id;
     memset(element, 0, sizeof(*element));
     element->scene_id = scene_id;
@@ -276,8 +274,7 @@ td_scene_allocate_element_id(struct ToriDraw_Scene* scene)
     struct ToriDraw_SceneElement* element;
     int id;
 
-    if( !scene )
-        return -1;
+    assert(scene);
 
     if( scene->elements.free_head != TORIDRAW_INTRUSIVE_NIL )
         element = (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListGet(
@@ -308,8 +305,7 @@ td_scene_allocate_element_id(struct ToriDraw_Scene* scene)
 static void
 td_scene_dispose_element_model(struct ToriDraw_SceneElement* element)
 {
-    if( !element )
-        return;
+    assert(element);
     if( element->model.kind == TORIDRAWMK_MODEL && element->model.u.model.model )
         ToriDraw_ModelFree(element->model.u.model.model);
     element->model.kind = TORIDRAWMK_NONE;
@@ -420,8 +416,7 @@ td_scene_free_all_elements(struct ToriDraw_Scene* scene)
 bool
 ToriDraw_SceneGraphInit(struct ToriDraw_Scene* scene)
 {
-    if( !scene )
-        return false;
+    assert(scene);
 
     scene->models_hmap = td_scene_map_new(sizeof(struct MapEntry_ToriModel), 1024);
     scene->animation_hmap = td_scene_map_new(sizeof(struct MapEntry_Animation), 512);
@@ -508,7 +503,9 @@ ToriDraw_SceneSpriteAdd(
     struct ToriDraw_Sprite** sprites,
     int count)
 {
-    if( !scene || element_id < 0 || !sprites || count <= 0 )
+    assert(scene);
+    assert(sprites);
+    if( element_id < 0 || count <= 0 )
         return;
 
     td_scene_prepare_hmap_insert(scene->sprites_hmap);
@@ -541,8 +538,7 @@ ToriDraw_SceneSpriteGet(
 {
     if( out_count )
         *out_count = 0;
-    if( !scene )
-        return NULL;
+    assert(scene);
 
     struct MapEntry_Sprite* entry = (struct MapEntry_Sprite*)ToriDraw_MapSearch(
         scene->sprites_hmap, &element_id, TORIDRAW_MAP_FIND);
@@ -567,7 +563,9 @@ ToriDraw_SceneFontAdd(
     int font_id,
     struct ToriDraw_Font* font)
 {
-    if( !scene || font_id < 0 || !font )
+    assert(scene);
+    assert(font);
+    if( font_id < 0 )
         return;
 
     td_scene_prepare_hmap_insert(scene->fonts_hmap);
@@ -593,8 +591,7 @@ ToriDraw_SceneFontGet(
     struct ToriDraw_Scene* scene,
     int font_id)
 {
-    if( !scene )
-        return NULL;
+    assert(scene);
 
     struct MapEntry_Font* entry =
         (struct MapEntry_Font*)ToriDraw_MapSearch(scene->fonts_hmap, &font_id, TORIDRAW_MAP_FIND);
@@ -617,7 +614,8 @@ ToriDraw_SceneCacheFontSet(
     int cache_font_id,
     struct ToriDraw_Font* font)
 {
-    if( !scene || cache_font_id < 0 || cache_font_id >= TORIDRAW_CACHE_FONT_SLOT_COUNT )
+    assert(scene);
+    if( cache_font_id < 0 || cache_font_id >= TORIDRAW_CACHE_FONT_SLOT_COUNT )
         return;
     scene->cache_fonts[cache_font_id] = font;
 }
@@ -627,7 +625,8 @@ ToriDraw_SceneCacheFontGet(
     struct ToriDraw_Scene* scene,
     int cache_font_id)
 {
-    if( !scene || cache_font_id < 0 || cache_font_id >= TORIDRAW_CACHE_FONT_SLOT_COUNT )
+    assert(scene);
+    if( cache_font_id < 0 || cache_font_id >= TORIDRAW_CACHE_FONT_SLOT_COUNT )
         return NULL;
     return scene->cache_fonts[cache_font_id];
 }
@@ -678,8 +677,7 @@ ToriDraw_SceneModelRemove(
     int model_id)
 {
     struct ToriDraw_ModelHandle none = { .kind = TORIDRAWMK_NONE };
-    if( !scene )
-        return none;
+    assert(scene);
 
     struct MapEntry_ToriModel* entry = (struct MapEntry_ToriModel*)ToriDraw_MapSearch(
         scene->models_hmap, &model_id, TORIDRAW_MAP_REMOVE);
@@ -692,8 +690,8 @@ ToriDraw_SceneModelRemove(
 void
 ToriDraw_SceneModelsClearAll(struct ToriDraw_Scene* scene)
 {
-    if( !scene || !scene->models_hmap )
-        return;
+    assert(scene);
+    assert(scene->models_hmap);
 
     td_scene_free_models_map(scene->models_hmap);
     td_scene_map_reset(&scene->models_hmap, sizeof(struct MapEntry_ToriModel), 1024);
@@ -745,7 +743,8 @@ ToriDraw_SceneSetTexture(
     int id,
     struct ToriDraw_Texture* texture)
 {
-    if( !scene || id < 0 || id >= 256 )
+    assert(scene);
+    if( id < 0 || id >= 256 )
         return;
 
     struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(scene);
@@ -1258,8 +1257,8 @@ ToriDraw_SceneEvents(struct ToriDraw_Scene* scene)
 void
 ToriDraw_SceneSpritesReemitLoads(struct ToriDraw_Scene* scene)
 {
-    if( !scene || !scene->sprites_hmap )
-        return;
+    assert(scene);
+    assert(scene->sprites_hmap);
 
     struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(scene->sprites_hmap);
     struct MapEntry_Sprite* entry = NULL;
@@ -1277,8 +1276,8 @@ ToriDraw_SceneSpritesReemitLoads(struct ToriDraw_Scene* scene)
 void
 ToriDraw_SceneFontsReemitLoads(struct ToriDraw_Scene* scene)
 {
-    if( !scene || !scene->fonts_hmap )
-        return;
+    assert(scene);
+    assert(scene->fonts_hmap);
 
     struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(scene->fonts_hmap);
     struct MapEntry_Font* entry = NULL;

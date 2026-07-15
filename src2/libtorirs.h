@@ -108,4 +108,18 @@ LibToriRS_TasksRun(struct LibToriRS_Instance* instance);
 bool
 LibToriRS_TasksHasLive(struct LibToriRS_Instance* instance);
 
+/**
+ * Enqueue pending GameRunescape CS2 invokes as tasks, then true when the
+ * task runner is empty and the CS2 queue is idle (game has settled).
+ */
+bool
+LibToriRS_TasksSettled(struct LibToriRS_Instance* instance);
+
+/**
+ * Frame-prep before the IO pump: flush CS2 invoke queue into tasks.
+ * Call after TickInput and before pumping TasksRun + IOReactor.
+ */
+void
+LibToriRS_FramePrepare(struct LibToriRS_Instance* instance);
+
 #endif

@@ -1,6 +1,7 @@
 #include "rs_inv_container.h"
 
 #include <string.h>
+#include <assert.h>
 
 struct RSInvContainer*
 rs_inv_container_get_or_create(
@@ -57,7 +58,8 @@ rs_inv_container_set_slot(
     int scene_id,
     int atlas_index)
 {
-    if( !container || slot < 0 || slot >= RS_INV_CONTAINER_MAX_SLOTS )
+    assert(container);
+    if( slot < 0 || slot >= RS_INV_CONTAINER_MAX_SLOTS )
         return;
     if( slot >= container->slot_count )
         container->slot_count = slot + 1;
@@ -82,8 +84,8 @@ rs_inv_container_apply_full(
     int const* obj_counts,
     int count)
 {
-    if( !container )
-        return;
+    assert(container);
+
     if( count < 0 )
         count = 0;
     if( count > RS_INV_CONTAINER_MAX_SLOTS )
@@ -112,7 +114,8 @@ rs_inv_container_apply_partial(
     int const* obj_counts,
     int count)
 {
-    if( !container || !slots || count <= 0 )
+    assert(container);
+    if( !slots || count <= 0 )
         return;
     for( int i = 0; i < count; i++ )
     {

@@ -13,6 +13,7 @@
 #include "toridraw/toridraw_model_sprite.h"
 #include "toridraw/toridraw_scene.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -136,7 +137,9 @@ dat2_buildcache_obj_icon_sprite(
     int obj_id,
     int count)
 {
-    if( !buildcache || !scene || obj_id < 0 )
+    assert(buildcache);
+    assert(scene);
+    if( obj_id < 0 )
         return NULL;
 
     struct RSCacheDat2A_ConfigObject* obj = obj_icon_resolve_obj(buildcache, obj_id, count);
@@ -274,11 +277,8 @@ dat2_buildcache_component_decode_iface_file_from_archive(
     int file_index,
     int* out_size)
 {
-    if( !cache || !archive )
-    {
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return NULL;
-    }
+    assert(cache);
+    assert(archive);
 
     RSCacheDat2Disk_ArchiveInitMetadata(cache, archive);
     struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(archive);
@@ -307,11 +307,8 @@ dat2_buildcache_component_decode_iface_archive_from_archive(
     struct RSCacheDat2Disk_Archive* archive,
     int iface_id)
 {
-    if( !reference_table || !archive )
-    {
-        RSCacheDat2Disk_ArchiveFree(archive);
-        return NULL;
-    }
+    assert(reference_table);
+    assert(archive);
 
     RSCacheDat2Disk_ArchiveInitMetadataFromTable(reference_table, archive);
     struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(archive);

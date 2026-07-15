@@ -1,5 +1,6 @@
 #include "toridraw_vec.h"
 
+#include <assert.h>
 #include <string.h>
 
 struct ToriDraw_Vec
@@ -81,8 +82,7 @@ ToriDraw_VecReserve(
     struct ToriDraw_Vec* v,
     size_t new_capacity)
 {
-    if( !v )
-        return TORIDRAW_VEC_BADARG;
+    assert(v);
 
     if( new_capacity <= v->capacity )
         return TORIDRAW_VEC_OK;
@@ -102,8 +102,7 @@ ToriDraw_VecResize(
     struct ToriDraw_Vec* v,
     size_t new_size)
 {
-    if( !v )
-        return TORIDRAW_VEC_BADARG;
+    assert(v);
 
     if( new_size > v->capacity )
     {
@@ -125,8 +124,7 @@ ToriDraw_VecResize(
 int
 ToriDraw_VecShrinkToFit(struct ToriDraw_Vec* v)
 {
-    if( !v )
-        return TORIDRAW_VEC_BADARG;
+    assert(v);
 
     if( v->size == v->capacity )
         return TORIDRAW_VEC_OK;
@@ -172,7 +170,8 @@ ToriDraw_VecGet(
     const struct ToriDraw_Vec* v,
     size_t index)
 {
-    if( !v || index >= v->size )
+    assert(v);
+    if( index >= v->size )
         return NULL;
 
     return ToriDraw_VecElementAt(v, index);
@@ -184,7 +183,9 @@ ToriDraw_VecSet(
     size_t index,
     const void* element)
 {
-    if( !v || index >= v->size || !element )
+    assert(v);
+    assert(element);
+    if( index >= v->size )
         return TORIDRAW_VEC_BADARG;
 
     memcpy(ToriDraw_VecElementAt(v, index), element, v->element_size);
@@ -196,8 +197,8 @@ ToriDraw_VecPush(
     struct ToriDraw_Vec* v,
     const void* element)
 {
-    if( !v || !element )
-        return TORIDRAW_VEC_BADARG;
+    assert(v);
+    assert(element);
 
     int status = ToriDraw_VecEnsureCapacity(v, v->size + 1);
     if( status != TORIDRAW_VEC_OK )
@@ -214,7 +215,8 @@ ToriDraw_VecPop(
     struct ToriDraw_Vec* v,
     void* out_element)
 {
-    if( !v || v->size == 0 )
+    assert(v);
+    if( v->size == 0 )
         return TORIDRAW_VEC_BADARG;
 
     v->size--;
@@ -231,7 +233,9 @@ ToriDraw_VecInsert(
     size_t index,
     const void* element)
 {
-    if( !v || index > v->size || !element )
+    assert(v);
+    assert(element);
+    if( index > v->size )
         return TORIDRAW_VEC_BADARG;
 
     int status = ToriDraw_VecEnsureCapacity(v, v->size + 1);
@@ -258,7 +262,8 @@ ToriDraw_VecRemove(
     size_t index,
     void* out_element)
 {
-    if( !v || index >= v->size )
+    assert(v);
+    if( index >= v->size )
         return TORIDRAW_VEC_BADARG;
 
     if( out_element )
@@ -289,7 +294,9 @@ ToriDraw_VecAppend(
     const void* elements,
     size_t count)
 {
-    if( !v || !elements || count == 0 )
+    assert(v);
+    assert(elements);
+    if( count == 0 )
         return TORIDRAW_VEC_BADARG;
 
     int status = ToriDraw_VecEnsureCapacity(v, v->size + count);
@@ -307,8 +314,8 @@ ToriDraw_VecCopy(
     const struct ToriDraw_Vec* src,
     struct ToriDraw_Vec* dst)
 {
-    if( !src || !dst )
-        return TORIDRAW_VEC_BADARG;
+    assert(src);
+    assert(dst);
 
     if( src->element_size != dst->element_size )
         return TORIDRAW_VEC_BADARG;
@@ -338,8 +345,7 @@ struct ToriDraw_VecIter
 struct ToriDraw_VecIter*
 ToriDraw_VecIterNew(struct ToriDraw_Vec* v)
 {
-    if( !v )
-        return NULL;
+    assert(v);
 
     struct ToriDraw_VecIter* it = malloc(sizeof(struct ToriDraw_VecIter));
     if( !it )
@@ -359,7 +365,9 @@ ToriDraw_VecIterFree(struct ToriDraw_VecIter* it)
 void*
 ToriDraw_VecIterNext(struct ToriDraw_VecIter* it)
 {
-    if( !it || !it->vec || it->index >= it->vec->size )
+    assert(it);
+    assert(it->vec);
+    if( it->index >= it->vec->size )
         return NULL;
 
     void* element = ToriDraw_VecElementAt(it->vec, it->index);

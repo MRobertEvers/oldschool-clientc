@@ -127,8 +127,8 @@ dat2_anim_set_add_sequence_archives(
     struct Dat2AnimArchiveSet* set,
     const struct RSCacheDat2A_ConfigSequence* seq)
 {
-    if( !set || !seq )
-        return;
+    assert(set);
+    assert(seq);
 
     for( int fi = 0; fi < seq->frame_count; fi++ )
     {

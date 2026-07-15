@@ -175,7 +175,8 @@ load_reference_table_item(
 {
     struct RSCacheDat2Disk* cache_dat2;
 
-    if( !reactor || !reactor->cache )
+    assert(reactor);
+    if( !reactor->cache )
     {
         item->error_code = -1;
         item->status = TORIRSIO_STAT_DONE;
@@ -217,8 +218,7 @@ LibToriPlatformX_IOReactorLoadItem(
     struct LibToriPlatformX_IOReactor* reactor,
     struct LibToriRS_IOQueueItem* item)
 {
-    if( !item )
-        return -1;
+    assert(item);
 
     item->data = NULL;
     item->data_size = 0;
@@ -247,8 +247,7 @@ LibToriPlatformX_IOReactorProcess(
     struct LibToriPlatformX_IOReactor* reactor,
     struct LibToriRS_IOQueue* queue)
 {
-    if( !queue )
-        return -1;
+    assert(queue);
 
     int processed = 0;
     for( int i = queue->read_head; i < queue->count; i++ )

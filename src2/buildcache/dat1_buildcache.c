@@ -153,8 +153,7 @@ dat1_buildcache_new(void)
 void
 dat1_buildRSCacheDat2Disk_Free(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache )
-        return;
+    assert(dat1_buildcache);
 
     if( dat1_buildcache->fromconfigtable_config_jagfile )
         RSCacheShared_FileListDatFree(dat1_buildcache->fromconfigtable_config_jagfile);
@@ -321,8 +320,7 @@ dat1_buildcache_set_fromconfigtable_config_jagfile(
 void
 dat1_buildcache_clear_config_jagfile(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache )
-        return;
+    assert(dat1_buildcache);
     if( dat1_buildcache->fromconfigtable_config_jagfile )
         RSCacheShared_FileListDatFree(dat1_buildcache->fromconfigtable_config_jagfile);
     dat1_buildcache->fromconfigtable_config_jagfile = NULL;
@@ -342,8 +340,7 @@ dat1_buildcache_set_versionlist_jagfile(
 void
 dat1_buildcache_clear_versionlist_jagfile(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache )
-        return;
+    assert(dat1_buildcache);
     if( dat1_buildcache->versionlist_jagfile )
         RSCacheShared_FileListDatFree(dat1_buildcache->versionlist_jagfile);
     dat1_buildcache->versionlist_jagfile = NULL;
@@ -354,8 +351,7 @@ dat1_buildcache_set_media_2d_graphics_jagfile(
     struct Dat1BuildCache* dat1_buildcache,
     struct RSCacheShared_FileListDat* media_2d_graphics_jagfile)
 {
-    if( !dat1_buildcache )
-        return;
+    assert(dat1_buildcache);
 
     if( dat1_buildcache->media_2d_graphics_jagfile )
         RSCacheShared_FileListDatFree(dat1_buildcache->media_2d_graphics_jagfile);
@@ -366,8 +362,7 @@ dat1_buildcache_set_media_2d_graphics_jagfile(
 struct RSCacheShared_FileListDat*
 dat1_buildcache_get_media_2d_graphics_jagfile(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache )
-        return NULL;
+    assert(dat1_buildcache);
     return dat1_buildcache->media_2d_graphics_jagfile;
 }
 
@@ -376,8 +371,7 @@ dat1_buildcache_set_title_fonts_jagfile(
     struct Dat1BuildCache* dat1_buildcache,
     struct RSCacheShared_FileListDat* title_fonts_jagfile)
 {
-    if( !dat1_buildcache )
-        return;
+    assert(dat1_buildcache);
 
     if( dat1_buildcache->title_fonts_jagfile )
         RSCacheShared_FileListDatFree(dat1_buildcache->title_fonts_jagfile);
@@ -388,8 +382,7 @@ dat1_buildcache_set_title_fonts_jagfile(
 struct RSCacheShared_FileListDat*
 dat1_buildcache_get_title_fonts_jagfile(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache )
-        return NULL;
+    assert(dat1_buildcache);
     return dat1_buildcache->title_fonts_jagfile;
 }
 
@@ -398,8 +391,7 @@ dat1_buildcache_set_interfaces(
     struct Dat1BuildCache* dat1_buildcache,
     struct RSCacheDat1A_ConfigComponentList* interfaces)
 {
-    if( !dat1_buildcache )
-        return;
+    assert(dat1_buildcache);
 
     if( dat1_buildcache->interfaces )
         dat1_buildcache_interfaces_free(dat1_buildcache->interfaces);
@@ -410,8 +402,7 @@ dat1_buildcache_set_interfaces(
 struct RSCacheDat1A_ConfigComponentList*
 dat1_buildcache_get_interfaces(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache )
-        return NULL;
+    assert(dat1_buildcache);
     return dat1_buildcache->interfaces;
 }
 
@@ -446,8 +437,7 @@ dat1_buildcache_model_remove(
     struct Dat1BuildCache* dat1_buildcache,
     int model_id)
 {
-    if( !dat1_buildcache )
-        return;
+    assert(dat1_buildcache);
 
     struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)ToriDraw_MapSearch(
         dat1_buildcache->models_hmap, &model_id, TORIDRAW_MAP_REMOVE);
@@ -532,7 +522,8 @@ dat1_buildcache_texture_set(
     int index,
     struct ToriDraw_Texture* texture)
 {
-    if( !dat1_buildcache || index < 0 || index >= DAT1_TEXTURE_COUNT )
+    assert(dat1_buildcache);
+    if( index < 0 || index >= DAT1_TEXTURE_COUNT )
         return;
 
     if( dat1_buildcache->textures[index] )
@@ -551,7 +542,8 @@ dat1_buildcache_texture_get(
     struct Dat1BuildCache* dat1_buildcache,
     int index)
 {
-    if( !dat1_buildcache || index < 0 || index >= DAT1_TEXTURE_COUNT )
+    assert(dat1_buildcache);
+    if( index < 0 || index >= DAT1_TEXTURE_COUNT )
         return NULL;
     return dat1_buildcache->textures[index];
 }
@@ -559,8 +551,7 @@ dat1_buildcache_texture_get(
 void
 dat1_buildcache_texture_clear(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache )
-        return;
+    assert(dat1_buildcache);
 
     for( int i = 0; i < DAT1_TEXTURE_COUNT; i++ )
     {
@@ -1051,7 +1042,8 @@ dat1_buildcache_npcs_reset(struct Dat1BuildCache* dat1_buildcache)
 void
 dat1_buildcache_map_terrain_cleanup(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache || !dat1_buildcache->map_terrain_hmap )
+    assert(dat1_buildcache);
+    if( !dat1_buildcache->map_terrain_hmap )
         return;
 
     struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->map_terrain_hmap);
@@ -1068,7 +1060,8 @@ dat1_buildcache_map_terrain_cleanup(struct Dat1BuildCache* dat1_buildcache)
 void
 dat1_buildcache_map_scenery_cleanup(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache || !dat1_buildcache->map_scenery_hmap )
+    assert(dat1_buildcache);
+    if( !dat1_buildcache->map_scenery_hmap )
         return;
 
     struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->map_scenery_hmap);
@@ -1085,7 +1078,8 @@ dat1_buildcache_map_scenery_cleanup(struct Dat1BuildCache* dat1_buildcache)
 void
 dat1_buildcache_sequences_cleanup(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache || !dat1_buildcache->sequences_hmap )
+    assert(dat1_buildcache);
+    if( !dat1_buildcache->sequences_hmap )
         return;
 
     struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->sequences_hmap);
@@ -1158,7 +1152,8 @@ dat1_buildcache_animbaseframes_cleanup(struct Dat1BuildCache* dat1_buildcache)
 void
 dat1_buildcache_idks_cleanup(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache || !dat1_buildcache->idk_hmap )
+    assert(dat1_buildcache);
+    if( !dat1_buildcache->idk_hmap )
         return;
 
     struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->idk_hmap);
@@ -1175,7 +1170,8 @@ dat1_buildcache_idks_cleanup(struct Dat1BuildCache* dat1_buildcache)
 void
 dat1_buildcache_objs_cleanup(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache || !dat1_buildcache->obj_hmap )
+    assert(dat1_buildcache);
+    if( !dat1_buildcache->obj_hmap )
         return;
 
     struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->obj_hmap);
@@ -1192,7 +1188,8 @@ dat1_buildcache_objs_cleanup(struct Dat1BuildCache* dat1_buildcache)
 void
 dat1_buildcache_npcs_cleanup(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache || !dat1_buildcache->npc_hmap )
+    assert(dat1_buildcache);
+    if( !dat1_buildcache->npc_hmap )
         return;
 
     struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->npc_hmap);
@@ -1209,7 +1206,8 @@ dat1_buildcache_npcs_cleanup(struct Dat1BuildCache* dat1_buildcache)
 void
 dat1_buildcache_models_cleanup(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache || !dat1_buildcache->models_hmap )
+    assert(dat1_buildcache);
+    if( !dat1_buildcache->models_hmap )
         return;
 
     struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->models_hmap);
@@ -1235,8 +1233,7 @@ dat1_buildcache_map_prune(
 void
 dat1_buildcache_prune(struct Dat1BuildCache* dat1_buildcache)
 {
-    if( !dat1_buildcache )
-        return;
+    assert(dat1_buildcache);
 
     dat1_buildcache_map_terrain_cleanup(dat1_buildcache);
     dat1_buildcache_map_scenery_cleanup(dat1_buildcache);
@@ -1411,8 +1408,7 @@ dat1_buildcache_get_all_unique_scenery_model_ids(
     int** model_ids_out)
 {
     *model_ids_out = NULL;
-    if( !dat1_buildcache )
-        return 0;
+    assert(dat1_buildcache);
 
     int loc_capacity = 512;
     int loc_count = 0;
@@ -1517,8 +1513,9 @@ dat1_buildcache_foreach_sequence(
     Dat1BuildCacheSequenceCallback callback,
     void* user_data)
 {
-    if( !dat1_buildcache || !callback || !dat1_buildcache->sequences_hmap )
-        return;
+    assert(dat1_buildcache);
+    assert(callback);
+    assert(dat1_buildcache->sequences_hmap);
 
     struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->sequences_hmap);
     struct MapEntry_Sequence* entry = NULL;
@@ -1536,8 +1533,9 @@ dat1_buildcache_foreach_flotype(
     Dat1BuildCacheFlotypeCallback callback,
     void* user_data)
 {
-    if( !dat1_buildcache || !callback || !dat1_buildcache->flotype_hmap )
-        return;
+    assert(dat1_buildcache);
+    assert(callback);
+    assert(dat1_buildcache->flotype_hmap);
 
     struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->flotype_hmap);
     struct MapEntry_Flotype* entry = NULL;
@@ -1555,8 +1553,9 @@ dat1_buildcache_foreach_config_loc(
     Dat1BuildCacheLocationCallback callback,
     void* user_data)
 {
-    if( !dat1_buildcache || !callback || !dat1_buildcache->config_loc_hmap )
-        return;
+    assert(dat1_buildcache);
+    assert(callback);
+    assert(dat1_buildcache->config_loc_hmap);
 
     struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(dat1_buildcache->config_loc_hmap);
     struct MapEntry_ConfigLoc* entry = NULL;
@@ -1580,8 +1579,7 @@ size_t
 dat1_buildcache_bytes_total(struct Dat1BuildCache* dat1_buildcache)
 {
     size_t bytes = 0;
-    if( !dat1_buildcache )
-        return 0;
+    assert(dat1_buildcache);
 
     if( dat1_buildcache->models_hmap )
     {

@@ -39,8 +39,7 @@ world_apply_shade(
     int zmin,
     int zmax)
 {
-    if( !builder->shademap )
-        return;
+    assert(builder->shademap);
 
     assert(xboundmin <= xmin);
     assert(xboundmax >= xmax);

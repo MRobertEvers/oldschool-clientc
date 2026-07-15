@@ -16,6 +16,7 @@
 #include <SDL_opengl.h>
 
 #include <math.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -345,8 +346,7 @@ ogl3_compile_shader(
 static uint32_t
 ogl3_create_world_program(OGL3WorldShaderLocs* locs)
 {
-    if( !locs )
-        return 0u;
+    assert(locs);
     memset(locs, -1, sizeof(*locs));
 
     const char* vs =
@@ -488,7 +488,8 @@ ogl3_bind_world_attribs(
     const OGL3WorldShaderLocs* locs,
     uint32_t mesh_vbo)
 {
-    if( !locs || mesh_vbo == 0u )
+    assert(locs);
+    if( mesh_vbo == 0u )
         return;
     const GLsizei stride = (GLsizei)sizeof(TRSPK_VertexWebGL1);
     ogl3_glBindBuffer(GL_ARRAY_BUFFER, mesh_vbo);
@@ -531,7 +532,8 @@ ogl3_world_vao_setup(
     uint32_t mesh_vbo,
     uint32_t ibo)
 {
-    if( !locs || vao == 0u || mesh_vbo == 0u || ibo == 0u )
+    assert(locs);
+    if( vao == 0u || mesh_vbo == 0u || ibo == 0u )
         return;
     ogl3_glBindVertexArray(vao);
     ogl3_bind_world_attribs(locs, mesh_vbo);
@@ -541,7 +543,8 @@ ogl3_world_vao_setup(
 static bool
 ogl3_ensure_atlas_initialized(struct LibToriPlatformSDL2_RendererGL3* r)
 {
-    if( !r || !r->cache )
+    assert(r);
+    if( !r->cache )
         return false;
     if( trspk_resource_cache_get_atlas_pixels(r->cache) )
         return true;
@@ -554,7 +557,9 @@ ogl3_load_texture(
     int texture_id,
     struct ToriDraw_Texture* tex)
 {
-    if( !r || !r->cache || !tex || !tex->texels || texture_id < 0 || texture_id >= 256 )
+    assert(r);
+    assert(tex);
+    if( !r->cache || !tex->texels || texture_id < 0 || texture_id >= 256 )
         return false;
 
     if( !ogl3_ensure_atlas_initialized(r) )
@@ -586,7 +591,8 @@ ogl3_unload_texture(
     struct LibToriPlatformSDL2_RendererGL3* r,
     int texture_id)
 {
-    if( !r || !r->cache || texture_id < 0 || texture_id >= 256 )
+    assert(r);
+    if( !r->cache || texture_id < 0 || texture_id >= 256 )
         return false;
     if( !trspk_resource_cache_unload_texture_128(r->cache, (TRSPK_TextureId)texture_id) )
         return false;
@@ -606,7 +612,8 @@ ogl3_unload_texture(
 static void
 ogl3_refresh_atlas(struct LibToriPlatformSDL2_RendererGL3* r)
 {
-    if( !r || !r->cache )
+    assert(r);
+    if( !r->cache )
         return;
     const uint8_t* pixels = trspk_resource_cache_get_atlas_pixels(r->cache);
     const uint32_t width = trspk_resource_cache_get_atlas_width(r->cache);
@@ -640,7 +647,8 @@ ogl3_batch_submit(
     struct LibToriPlatformSDL2_RendererGL3* r,
     TRSPK_BatchId batch_id)
 {
-    if( !r || !r->batch_staging || !r->cache )
+    assert(r);
+    if( !r->batch_staging || !r->cache )
         return;
 
     const void* vertices = NULL;
@@ -701,7 +709,8 @@ ogl3_batch_clear(
     struct LibToriPlatformSDL2_RendererGL3* r,
     TRSPK_BatchId batch_id)
 {
-    if( !r || !r->cache )
+    assert(r);
+    if( !r->cache )
         return;
     trspk_resource_cache_invalidate_poses_for_batch(r->cache, batch_id);
     TRSPK_BatchResource old = trspk_resource_cache_batch_clear(r->cache, batch_id);
@@ -729,7 +738,9 @@ ogl3_ring_upload_model(
     TRSPK_ModelId model_id,
     const TRSPK_BakeTransform* bake)
 {
-    if( !r || !model || !r->batch_staging || !r->cache || (uint32_t)model_id >= TRSPK_MAX_MODELS )
+    assert(r);
+    assert(model);
+    if( !r->batch_staging || !r->cache || (uint32_t)model_id >= TRSPK_MAX_MODELS )
         return;
 
     OGL3_DynamicRing* ring = &r->dynamic_ring;
@@ -864,7 +875,8 @@ ogl3_bind_world_attribs_at_offset(
     uint32_t mesh_vbo,
     uint32_t vbo_byte_offset)
 {
-    if( !locs || mesh_vbo == 0u )
+    assert(locs);
+    if( mesh_vbo == 0u )
         return;
     const GLsizei stride = (GLsizei)sizeof(TRSPK_VertexWebGL1);
     const uintptr_t base = (uintptr_t)vbo_byte_offset;
@@ -933,7 +945,9 @@ ogl3_frame_state_compute_pass_matrices(
     struct LibToriPlatformSDL2_RendererGL3* r,
     OGL3_FrameState* fs)
 {
-    if( !r || !fs || !fs->has_3d )
+    assert(r);
+    assert(fs);
+    if( !fs->has_3d )
         return;
 
     const struct ToriDraw_Position* cam_pos = &fs->cur_3d.camera_position;
@@ -956,8 +970,7 @@ ogl3_frame_state_compute_pass_matrices(
 static void
 ogl3_frame_state_init(OGL3_FrameState* fs)
 {
-    if( !fs )
-        return;
+    assert(fs);
     memset(fs, 0, sizeof(*fs));
 }
 
@@ -966,7 +979,9 @@ ogl3_ensure_world_gl(
     struct LibToriPlatformSDL2_RendererGL3* r,
     OGL3_FrameState* fs)
 {
-    if( !r || !fs || fs->world_gl_ready )
+    assert(r);
+    assert(fs);
+    if( fs->world_gl_ready )
         return;
 
     fs->world_gl_ready = true;
@@ -993,8 +1008,9 @@ ogl3_handle_render_command(
     const struct LibToriRS_RenderCommand* cmd,
     OGL3_FrameState* fs)
 {
-    if( !r || !cmd || !fs )
-        return;
+    assert(r);
+    assert(cmd);
+    assert(fs);
 
     switch( cmd->kind )
     {
@@ -1151,7 +1167,9 @@ ogl3_flush_pending_draws(
     struct LibToriPlatformSDL2_RendererGL3* r,
     const OGL3_FrameState* fs)
 {
-    if( !r || !fs || fs->pending_count <= 0 )
+    assert(r);
+    assert(fs);
+    if( fs->pending_count <= 0 )
         return;
 
     ogl3_upload_uniforms(r, fs->view, fs->proj);
@@ -1242,8 +1260,8 @@ LibToriPlatformSDL2_RendererGL3_Init(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     SDL_Window* window)
 {
-    if( !renderer || !window )
-        return false;
+    assert(renderer);
+    assert(window);
 
     renderer->window = window;
     renderer->gl_context = SDL_GL_CreateContext(window);
@@ -1315,8 +1333,10 @@ LibToriPlatformSDL2_RendererGL3_Render(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     struct LibToriRS_Instance* instance)
 {
-    if( !renderer || !renderer->ready || !renderer->window || !instance )
-        return;
+    assert(renderer);
+    assert(renderer->ready);
+    assert(renderer->window);
+    assert(instance);
 
     if( SDL_GL_MakeCurrent(renderer->window, renderer->gl_context) != 0 )
         return;

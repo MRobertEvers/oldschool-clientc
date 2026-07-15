@@ -1770,8 +1770,9 @@ LibToriPlatformSDL2_RendererD3D9_Render(
     struct LibToriPlatformSDL2_RendererD3D9* renderer,
     struct LibToriRS_Instance* instance)
 {
-    if( !renderer || !instance || !renderer->device )
-        return;
+    assert(renderer);
+    assert(instance);
+    assert(renderer->device);
 
     SDL_GetWindowSize(renderer->window, &renderer->width, &renderer->height);
 

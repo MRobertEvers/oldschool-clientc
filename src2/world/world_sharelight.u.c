@@ -74,8 +74,7 @@ static int g_vertex_b_merge_index[10000] = { 0 };
 static int*
 ToriDraw_ModelFaceInfosEnsureZero(struct ToriDraw_Model* model)
 {
-    if( !model )
-        return NULL;
+    assert(model);
     if( !model->face_infos && model->face_count > 0 )
         model->face_infos = calloc((size_t)model->face_count, sizeof(int));
     return model->face_infos;
@@ -474,8 +473,7 @@ apply_and_free_column(
 static void
 world_build_lighting(struct WorldBuilder* builder)
 {
-    if( !builder->sharelight_map )
-        return;
+    assert(builder->sharelight_map);
 
     int scene_size = builder->sharelight_map->width;
 

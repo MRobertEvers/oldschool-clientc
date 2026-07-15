@@ -1,12 +1,13 @@
 #include "interaction_state.h"
 
 #include <string.h>
+#include <assert.h>
 
 void
 interaction_state_reset(struct InteractionState* state)
 {
-    if( !state )
-        return;
+    assert(state);
+
     memset(state, 0, sizeof(*state));
     state->kind = INTERACTION_TARGET_NONE;
     state->ui_component_index = -1;
@@ -25,8 +26,8 @@ interaction_state_set_ui(
     struct InteractionState* state,
     int32_t component_index)
 {
-    if( !state )
-        return;
+    assert(state);
+
     interaction_state_reset(state);
     state->kind = INTERACTION_TARGET_UI_COMPONENT;
     state->ui_component_index = component_index;
@@ -39,8 +40,8 @@ interaction_state_set_inv_slot(
     int slot,
     int obj_id)
 {
-    if( !state )
-        return;
+    assert(state);
+
     interaction_state_reset(state);
     state->kind = INTERACTION_TARGET_INV_SLOT;
     state->inv_source_id = inv_source_id;
@@ -55,8 +56,8 @@ interaction_state_set_world_tile(
     int tile_z,
     int tile_level)
 {
-    if( !state )
-        return;
+    assert(state);
+
     interaction_state_reset(state);
     state->kind = INTERACTION_TARGET_WORLD_TILE;
     state->tile_x = tile_x;
@@ -69,8 +70,8 @@ interaction_state_set_npc(
     struct InteractionState* state,
     int entity_id)
 {
-    if( !state )
-        return;
+    assert(state);
+
     interaction_state_reset(state);
     state->kind = INTERACTION_TARGET_NPC;
     state->entity_id = entity_id;
@@ -82,8 +83,8 @@ interaction_state_set_scenery(
     int element_id,
     int loc_id)
 {
-    if( !state )
-        return;
+    assert(state);
+
     interaction_state_reset(state);
     state->kind = INTERACTION_TARGET_SCENERY;
     state->scenery_element_id = element_id;

@@ -178,8 +178,8 @@ LibToriPlatformSDL2_RendererSoft3D_Init(
     struct LibToriPlatformSDL2_RendererSoft3D* renderer,
     SDL_Window* window)
 {
-    if( !renderer || !window )
-        return false;
+    assert(renderer);
+    assert(window);
 
     renderer->window = window;
 

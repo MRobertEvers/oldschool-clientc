@@ -9,8 +9,6 @@
 
 struct LibToriRS_Input;
 struct ToriAuxLibVM;
-struct CS2VM;
-struct CS2Host;
 
 struct UIInputAdapter
 {
@@ -37,7 +35,7 @@ void
 ui_input_adapter_init_behavior_host_ex(
     struct UITreeBehaviorHost* host,
     struct ToriAuxLibVM* vm,
-    struct CS2VM* cs2vm,
-    struct CS2Host* cs2host);
+    UITreeBehaviorCS2EnqueueFn cs2_enqueue,
+    void* cs2_enqueue_ud);
 
 #endif

@@ -69,7 +69,9 @@ Task_Dat2FontLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    if( !task->rc_ctx || !task->cache || task->item.name[0] == '\0' )
+    assert(task->rc_ctx);
+    assert(task->cache);
+    if( task->item.name[0] == '\0' )
         PT_EXIT(&task->pt);
 
     if( task->item.cache_font_id >= 0 &&

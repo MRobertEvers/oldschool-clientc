@@ -1,10 +1,12 @@
 ---
 description: Assert programming errors; never silently return on invariant violations
 globs: "{src,src2,tools,test}/**/*.{c,h}"
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Assert Invariants (C/C)
+
+**Never add defensive NULL checks or silent returns for required pointers or internal invariants. A crash is strictly better than a silently wrong program. Do not pessimize hot paths with redundant guards.**
 
 Distinguish **programming errors** (assert) from **expected runtime outcomes** (handle explicitly).
 

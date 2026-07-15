@@ -1,6 +1,7 @@
 #include "ie_enum_lookup.h"
 
 #include "buildcache/dat2_buildcache.h"
+#include <assert.h>
 
 int
 ie_enum_lookup(
@@ -15,7 +16,8 @@ ie_enum_lookup(
 
     (void)input_type;
     (void)output_type;
-    if( !bc || enum_id < 0 )
+    assert(bc);
+    if( enum_id < 0 )
         return -1;
 
     if( enum_id == 139 && key == 10551394 )
@@ -50,7 +52,8 @@ ie_enum_lookup_string(
 
     (void)input_type;
     (void)output_type;
-    if( !bc || enum_id < 0 )
+    assert(bc);
+    if( enum_id < 0 )
         return NULL;
 
     entry = dat2_buildcache_enum_get(bc, enum_id);
@@ -74,7 +77,8 @@ ie_enum_output_count(
 {
     struct RSCacheDat2A_ConfigEnum* entry;
 
-    if( !bc || enum_id < 0 )
+    assert(bc);
+    if( enum_id < 0 )
         return 0;
 
     entry = dat2_buildcache_enum_get(bc, enum_id);

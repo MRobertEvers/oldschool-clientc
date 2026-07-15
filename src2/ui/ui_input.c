@@ -3,6 +3,7 @@
 #include "ui_scroll.h"
 #include "uitree_host.h"
 #include "uitree_layout.h"
+#include <assert.h>
 
 bool
 uitree_point_in_component(
@@ -43,8 +44,7 @@ uitree_component_is_pass_through(
     struct StaticUIComponent const* component,
     struct UITreeHost const* host)
 {
-    if( !component )
-        return true;
+    assert(component);
 
     switch( component->type )
     {
@@ -55,15 +55,15 @@ uitree_component_is_pass_through(
         return true;
     case UIELEM_BUILTIN_CROSS:
     {
-        if( !host )
-            return true;
+        assert(host);
+
         struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_CROSS_ACTIVE };
         return uitree_host(host, &req) == 0;
     }
     case UIELEM_BUILTIN_MINIMENU:
     {
-        if( !host )
-            return true;
+        assert(host);
+
         struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
         return uitree_host(host, &req) == 0;
     }
@@ -94,7 +94,8 @@ uitree_hit_test_interactive_recursive(
     int scroll_off_y,
     struct UITreeScrollClip const* clip)
 {
-    if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return -1;
 
     if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !uitree_point_in_clip(px, py, clip) )
@@ -165,7 +166,8 @@ uitree_hit_test_recursive(
     int px,
     int py)
 {
-    if( !tree || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return -1;
 
     struct StaticUIComponent const* component = &tree->components[node_index];
@@ -191,7 +193,8 @@ uitree_hit_test(
     int px,
     int py)
 {
-    if( !tree || tree->root_index < 0 )
+    assert(tree);
+    if( tree->root_index < 0 )
         return -1;
 
     int32_t hit = -1;
@@ -213,7 +216,8 @@ uitree_hit_test_interactive(
     int px,
     int py)
 {
-    if( !tree || tree->root_index < 0 )
+    assert(tree);
+    if( tree->root_index < 0 )
         return -1;
 
     int32_t hit = -1;
@@ -241,8 +245,8 @@ uitree_input_update(
         .hover_changed = false,
     };
 
-    if( !state || !tree )
-        return result;
+    assert(state);
+    assert(tree);
 
     int32_t const prev_hovered = state->hovered;
 

@@ -1,5 +1,6 @@
 #include "ui_scene.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -94,7 +95,8 @@ ui_scene_free(struct UIScene* scene)
 static struct UISceneElement*
 ui_scene_take_free(struct UIScene* scene)
 {
-    if( !scene || !scene->free_list )
+    assert(scene);
+    if( !scene->free_list )
         return NULL;
 
     struct UISceneElement* el = scene->free_list;
@@ -148,7 +150,8 @@ ui_scene_element_at(
     struct UIScene* scene,
     int element_id)
 {
-    if( !scene || element_id < 0 || element_id >= scene->elements_count )
+    assert(scene);
+    if( element_id < 0 || element_id >= scene->elements_count )
         return NULL;
     return &scene->elements[element_id];
 }
@@ -156,8 +159,7 @@ ui_scene_element_at(
 struct UISceneEventQueue*
 ui_scene_get_event_queue(struct UIScene* scene)
 {
-    if( !scene )
-        return NULL;
+    assert(scene);
     return &scene->events;
 }
 
@@ -166,7 +168,8 @@ ui_scene_font_find_id(
     struct UIScene* scene,
     const char* name)
 {
-    if( !scene || !name || !name[0] )
+    assert(scene);
+    if( !name || !name[0] )
         return -1;
     for( int i = 0; i < scene->font_count; i++ )
     {

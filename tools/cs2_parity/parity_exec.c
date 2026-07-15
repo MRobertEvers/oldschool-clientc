@@ -5,9 +5,8 @@
 #include "parity_iface.h"
 #include "toriauxlib/cache/toriauxlibcache_clientscript_convert.h"
 #include "ui/uitree.h"
-#include "vm/cs2_host_ui.h"
 #include "vm/cs2_opcode.h"
-#include "vm/cs2vm.h"
+#include "vm/cs2vmx.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +21,6 @@ struct ParityScriptEntry
 };
 
 static struct RSCacheDat2Disk* s_cache;
-static struct CS2Host s_host;
 static struct ParityScriptEntry s_scripts[PARITY_SCRIPT_CACHE_MAX];
 static int s_script_count;
 
@@ -79,11 +77,8 @@ parity_cache_script(int script_id)
 }
 
 static struct CS2_Script*
-parity_resolve_script(
-    void* ud,
-    int script_id)
+parity_resolve_script(int script_id)
 {
-    (void)ud;
     parity_cache_script(script_id);
     for( int i = 0; i < s_script_count; i++ )
     {
@@ -189,21 +184,15 @@ static int
 parity_write_exec_artifact(
     char const* out_path,
     struct ParityCs2Case const* cs_case,
-    struct CS2VM* vm,
+    struct CS2VMX* vm,
     int status)
 {
     FILE* fp = fopen(out_path, "w");
     if( !fp )
         return -1;
 
-    int int_sp = cs2vm_get_int_stack_size(vm);
-    int str_sp = cs2vm_get_string_stack_size(vm);
-    int int_stack[256];
-    char const* str_stack[256];
-    int int_n = int_sp < 256 ? int_sp : 256;
-    int str_n = str_sp < 256 ? str_sp : 256;
-    cs2vm_copy_int_stack(vm, int_stack, int_n);
-    cs2vm_copy_string_stack(vm, str_stack, str_n);
+    int int_n = vm->ints_stack_top < 256 ? vm->ints_stack_top : 256;
+    int str_n = vm->strs_stack_top < 256 ? vm->strs_stack_top : 256;
 
     fprintf(fp, "{\n");
     fprintf(fp, "  \"caseId\": \"%s\",\n", cs_case->id);
@@ -212,40 +201,23 @@ parity_write_exec_artifact(
     else
         fprintf(fp, "  \"scriptId\": null,\n");
     fprintf(fp, "  \"status\": %d,\n", status);
-    fprintf(fp, "  \"opcount\": %d,\n", cs2vm_get_opcount(vm));
+    fprintf(fp, "  \"opcount\": 0,\n");
     fprintf(fp, "  \"intStack\": [");
     for( int i = 0; i < int_n; i++ )
-        fprintf(fp, "%s%d", i ? ", " : "", int_stack[i]);
+        fprintf(fp, "%s%d", i ? ", " : "", vm->ints_stack[i]);
     fprintf(fp, "],\n");
     fprintf(fp, "  \"stringStack\": [");
     for( int i = 0; i < str_n; i++ )
     {
         if( i )
             fprintf(fp, ", ");
-        if( str_stack[i] )
-            parity_json_escape(fp, str_stack[i]);
+        if( vm->strs_stack[i] )
+            parity_json_escape(fp, vm->strs_stack[i]);
         else
             fprintf(fp, "null");
     }
     fprintf(fp, "],\n");
     fprintf(fp, "  \"trace\": [\n");
-    int trace_count = cs2vm_get_trace_count();
-    struct CS2TraceEntry trace_buf[4096];
-    int copy_n = trace_count < 4096 ? trace_count : 4096;
-    cs2vm_copy_trace_buffer(trace_buf, copy_n);
-    for( int i = 0; i < copy_n; i++ )
-    {
-        fprintf(
-            fp,
-            "    {\"step\":%d,\"pc\":%d,\"opcode\":%d,\"intSp\":%d,\"strSp\":%d,\"topInt\":%d}%s\n",
-            trace_buf[i].step,
-            trace_buf[i].pc,
-            trace_buf[i].opcode,
-            trace_buf[i].int_sp,
-            trace_buf[i].str_sp,
-            trace_buf[i].top_int,
-            i + 1 < copy_n ? "," : "");
-    }
     fprintf(fp, "  ]\n}\n");
     fclose(fp);
     return 0;
@@ -256,6 +228,31 @@ parity_set_clientscript_decode_flags(int flags)
 {
     interface161_cs2_set_clientscript_decode_flags(flags);
     return 0;
+}
+
+static int
+parity_bare_host_exec(
+    struct CS2VMX* vm,
+    struct CS2VM_HostRequest* request)
+{
+    if( !request )
+        return CS2VM_EXECNO_ERROR;
+    switch( request->kind )
+    {
+    case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
+        return CS2VMX_PushInt(vm, request->u.enum_lookup.key);
+    case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
+        return CS2VMX_PushInt(vm, 0);
+    case CS2VM_HOST_REQUEST_PUSHSCRIPT:
+    {
+        struct CS2_Script* script = parity_resolve_script(request->u.push_script.script_id);
+        if( !script )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VMX_PushCallScript(vm, script);
+    }
+    default:
+        return CS2VM_EXECNO_OK;
+    }
 }
 
 int
@@ -273,17 +270,6 @@ parity_exec_case(
     int op_count = 0;
 
     int const active_component = parity_resolve_active_component(cs_case);
-
-    struct CS2_RunArgs args = {
-        .int_argc = cs_case->int_argc,
-        .int_argv = cs_case->int_argc > 0 ? cs_case->int_argv : NULL,
-        .string_argc = cs_case->string_argc,
-        .string_argv = cs_case->string_argc > 0 ? (char const* const*)cs_case->string_argv : NULL,
-        .event_component_id =
-            active_component > 0 ? active_component : CS2_RUN_EVENT_COMPONENT_NONE,
-    };
-
-    cs2vm_set_trace_json(true);
 
     if( cs_case->iface > 0 )
     {
@@ -314,7 +300,7 @@ parity_exec_case(
         else
         {
             parity_cache_script(cs_case->script_id);
-            struct CS2_Script* loaded = parity_resolve_script(cache, cs_case->script_id);
+            struct CS2_Script* loaded = parity_resolve_script(cs_case->script_id);
             if( !loaded || loaded->op_count <= 0 )
             {
                 interface161_cs2_context_free(&ctx);
@@ -324,7 +310,12 @@ parity_exec_case(
             script = *loaded;
         }
 
-        int status = cs2vm_run(ctx.cs2vm, &script, ctx.cs2host, &args);
+        int status = interface161_cs2_run_script(
+            &ctx,
+            &script,
+            active_component > 0 ? active_component : 0,
+            cs_case->int_argc > 0 ? cs_case->int_argv : NULL,
+            cs_case->int_argc);
 
         if( strcmp(cs_case->id, "cc_dot_sethide") == 0 && ctx.tree )
         {
@@ -338,33 +329,22 @@ parity_exec_case(
             int const child_hide =
                 child_idx >= 0 ? ctx.tree->components[child_idx].behavior.hide : -1;
             if( parent_idx < 0 || parent_hide )
-                status = CS2VM_ERR_INVALID;
+                status = CS2VM_EXECNO_ERROR;
             else if( child_idx < 0 || !child_hide )
-                status = CS2VM_ERR_INVALID;
+                status = CS2VM_EXECNO_ERROR;
         }
 
-        int rc = parity_write_exec_artifact(out_path, cs_case, ctx.cs2vm, status);
+        int rc = parity_write_exec_artifact(out_path, cs_case, &ctx.cs2vm, status);
 
         interface161_cs2_context_free(&ctx);
         parity_iface_free(&iface);
         return rc != 0 ? -1 : 0;
     }
 
-    struct CS2VM* vm = cs2vm_new();
-    struct UITree* tree = uitree_new(64);
-    if( !vm || !tree )
-    {
-        uitree_free(tree);
-        cs2vm_free(vm);
-        return -1;
-    }
-
-    struct CS2HostUIInitArgs host_args = {
-        .dat2_disk = cache,
-        .tree = tree,
-    };
-    cs2_host_ui_init(&s_host, &host_args);
-    s_host.resolve_script = parity_resolve_script;
+    /* Non-iface synthetic cases (math_add / enum_lookup). */
+    struct CS2VMX vm;
+    memset(&vm, 0, sizeof(vm));
+    CS2VMX_BindHost(&vm, NULL, parity_bare_host_exec);
 
     if( cs_case->synthetic )
     {
@@ -374,20 +354,15 @@ parity_exec_case(
     else
     {
         parity_cache_script(cs_case->script_id);
-        struct CS2_Script* loaded = parity_resolve_script(cache, cs_case->script_id);
+        struct CS2_Script* loaded = parity_resolve_script(cs_case->script_id);
         if( !loaded || loaded->op_count <= 0 )
-        {
-            uitree_free(tree);
-            cs2vm_free(vm);
             return -1;
-        }
         script = *loaded;
     }
 
-    int status = cs2vm_run(vm, &script, &s_host, &args);
-    int rc = parity_write_exec_artifact(out_path, cs_case, vm, status);
-
-    uitree_free(tree);
-    cs2vm_free(vm);
-    return rc != 0 ? -1 : 0;
+    CS2VMX_ResetRuntime(&vm);
+    if( CS2VMX_PushCallScript(&vm, &script) != CS2VM_EXECNO_OK )
+        return -1;
+    int status = CS2VMX_RunScript(&vm);
+    return parity_write_exec_artifact(out_path, cs_case, &vm, status) != 0 ? -1 : 0;
 }

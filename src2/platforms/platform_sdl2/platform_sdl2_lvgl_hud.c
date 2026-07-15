@@ -8,6 +8,7 @@
 #include "lvgl.h"
 
 #include <SDL.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -125,8 +126,8 @@ LibToriHud_Update(
     struct LibToriHud* hud,
     struct LibToriRS_Instance* instance)
 {
-    if( !hud || !instance )
-        return;
+    assert(hud);
+    assert(instance);
 
     struct ToriAuxLib* tal = LibToriRS_GetToriAuxLib(instance);
     if( tal )
@@ -168,7 +169,9 @@ LibToriHud_CompositeOverARGB8888(
     int dest_w,
     int dest_h)
 {
-    if( !hud || !dest || dest_stride <= 0 || dest_w <= 0 || dest_h <= 0 )
+    assert(hud);
+    assert(dest);
+    if( dest_stride <= 0 || dest_w <= 0 || dest_h <= 0 )
         return;
 
     int hud_w = 0;
@@ -240,8 +243,7 @@ LibToriHud_PixelsBGRA(
     int* out_height,
     int* out_pitch_bytes)
 {
-    if( !hud )
-        return NULL;
+    assert(hud);
 
     if( out_width )
         *out_width = hud->width;

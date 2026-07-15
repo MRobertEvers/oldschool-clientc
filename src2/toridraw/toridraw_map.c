@@ -135,7 +135,9 @@ ToriDraw_MapInit(
     ToriDraw_MapIterableFn iterable_fn,
     void* arg)
 {
-    if( !m || !buffer || entry_size == 0 || key_size == 0 )
+    assert(m);
+    assert(buffer);
+    if( entry_size == 0 || key_size == 0 )
         return TORIDRAW_MAP_BADARG;
 
     if( hash_fn == NULL )
@@ -249,11 +251,9 @@ ToriDraw_MapSearch(
     const void* key,
     enum ToriDraw_MapAction action)
 {
-    if( !m || !m->entries || !key )
-    {
-        assert(action != TORIDRAW_MAP_INSERT && "ToriDraw_Map insert: null map, entries, or key");
-        return NULL;
-    }
+    assert(m);
+    assert(m->entries);
+    assert(key);
 
     if( m->capacity == 0 )
     {
@@ -354,7 +354,10 @@ ToriDraw_MapResize(
     size_t new_capacity,
     void** old_buffer_out)
 {
-    if( !m || !new_buffer || !old_buffer_out || new_capacity == 0 )
+    assert(m);
+    assert(new_buffer);
+    assert(old_buffer_out);
+    if( new_capacity == 0 )
         return TORIDRAW_MAP_BADARG;
 
     struct ToriDraw_Map old = *m;
@@ -435,8 +438,9 @@ ToriDraw_MapIterFree(struct ToriDraw_MapIter* it)
 void*
 ToriDraw_MapIterNext(struct ToriDraw_MapIter* it)
 {
-    if( !it || !it->m || !it->m->entries )
-        return NULL;
+    assert(it);
+    assert(it->m);
+    assert(it->m->entries);
 
     while( it->idx < it->m->capacity )
     {

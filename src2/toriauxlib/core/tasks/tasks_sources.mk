@@ -30,6 +30,7 @@ TORIAUXLIB_TASK_SOURCES = \
 	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_textures_load.c \
 	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_config_entry_load.c \
 	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_clientscript_load.c \
+	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_cs2_run.c \
 	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_component_load.c \
 	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_inv_load.c \
 	$(SRC2)/toriauxlib/core/tasks/dat2/task_dat2_sprite_load.c \

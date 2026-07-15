@@ -53,7 +53,8 @@ uitree_inv_grid_hit_test_slot(
 {
     if( out_slot )
         *out_slot = -1;
-    if( !component || component->type != UIELEM_INV_GRID )
+    assert(component);
+    if( component->type != UIELEM_INV_GRID )
         return;
 
     int bx = 0;
@@ -91,7 +92,8 @@ uitree_inv_pick_at_point_recursive(
     struct UITreeScrollClip const* clip,
     struct UITreeInvPick* pick)
 {
-    if( !tree || !pick || node_index < 0 || (uint32_t)node_index >= tree->component_count )
+    assert(tree);
+    if( !pick || node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return;
 
     if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !uitree_point_in_clip(px, py, clip) )
@@ -224,8 +226,8 @@ uitree_inv_pick_at_point(
     int py,
     struct UITreeInvPick* out)
 {
-    if( !tree || !out )
-        return false;
+    assert(tree);
+    assert(out);
 
     out->component_index = -1;
     out->inv_source_id = UI_INV_SOURCE_INVALID;
@@ -261,8 +263,8 @@ game_set_cross(
     int y,
     int mode)
 {
-    if( !game )
-        return;
+    assert(game);
+
     ui_cross_cursor_show(&game->cross, (enum UICrossCursorMode)mode, x, y);
 }
 
@@ -271,7 +273,8 @@ interaction_state_set_from_minimenu_pick(
     struct InteractionState* state,
     struct MinimenuPick const* pick)
 {
-    if( !state || !pick )
+    assert(state);
+    if( !pick )
         return;
 
     switch( pick->kind )
@@ -351,10 +354,10 @@ ui_click_npc_for_entity(
 {
     int world_index;
 
-    if( !game || !game->world || RS_ENTITY_KIND_OF(entity_id) != RS_ENTITY_KIND_NPC )
+    assert(game);
+    if( !game->world || RS_ENTITY_KIND_OF(entity_id) != RS_ENTITY_KIND_NPC )
         return NULL;
-    if( !game->entities.records )
-        return NULL;
+    assert(game);
 
     for( int i = 0; i < game->entities.count; i++ )
     {
@@ -372,7 +375,8 @@ ui_click_npc_for_entity(
 static void
 ui_minimenu_sort_priority_actions(struct UIMinimenuState* menu)
 {
-    if( !menu || menu->option_count < 2 )
+    assert(menu);
+    if( menu->option_count < 2 )
         return;
 
     bool sorted = false;
@@ -506,7 +510,8 @@ ui_click_ensure_objtype(
     struct GameRunescape* game,
     int obj_id)
 {
-    if( !game || !game->td || obj_id <= 0 )
+    assert(game);
+    if( !game->td || obj_id <= 0 )
         return;
     ToriAuxLibCache_EnsureObjtype(ToriAuxLibTD_C(game->td), obj_id);
 }
@@ -523,7 +528,9 @@ ui_click_add_npc_options(
     char actions[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN];
     int player_level;
 
-    if( !game || !pick || !menu )
+    assert(game);
+    assert(menu);
+    if( !pick )
         return;
 
     npc = ui_click_npc_for_entity(game, pick->id);
@@ -609,7 +616,9 @@ ui_click_add_scenery_options(
     char text[UI_MINIMENU_OPTION_LEN];
     char actions[TORIAUXLIBCORE_MENU_ACTION_SLOTS][TORIAUXLIBCORE_MENU_ACTION_LEN];
 
-    if( !game || !pick || !menu || !game->world )
+    assert(game);
+    assert(menu);
+    if( !pick || !game->world )
         return;
 
     scenery = world_scenery_get_by_element_id(game->world, pick->id);
@@ -706,7 +715,8 @@ ui_click_add_menu_ops_rows(
     int pick_quaternary_id,
     char const* inv_obj_name)
 {
-    if( !menu || !opts )
+    assert(menu);
+    if( !opts )
         return 0;
 
     int const before = menu->option_count;
@@ -845,8 +855,9 @@ ui_click_add_social_options(
     int32_t component_index,
     struct UIMinimenuState* menu)
 {
-    if( !game || !component || !menu )
-        return false;
+    assert(game);
+    assert(component);
+    assert(menu);
 
     int client_code = component->behavior.client_code;
     if( client_code_is_friend_list_entry(client_code) )
@@ -1002,7 +1013,8 @@ ui_click_find_interface_root(
     struct UITreeHost const* host,
     int32_t hit_idx)
 {
-    if( !tree || hit_idx < 0 || (uint32_t)hit_idx >= tree->component_count )
+    assert(tree);
+    if( hit_idx < 0 || (uint32_t)hit_idx >= tree->component_count )
         return -1;
 
     int32_t idx = hit_idx;
@@ -1038,7 +1050,9 @@ ui_click_add_rs_interface_options_recursive(
     struct UITreeScrollClip const* clip,
     struct UIMinimenuState* menu)
 {
-    if( !tree || !menu || node_idx < 0 || (uint32_t)node_idx >= tree->component_count )
+    assert(tree);
+    assert(menu);
+    if( node_idx < 0 || (uint32_t)node_idx >= tree->component_count )
         return;
 
     if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !uitree_point_in_clip(px, py, clip) )
@@ -1189,8 +1203,8 @@ ui_click_point_in_chat_main_lines(
     int px,
     int py)
 {
-    if( !game || !game->ui_tree )
-        return false;
+    assert(game);
+    assert(game);
 
     int32_t chat_idx = game->ui_hover.chat_node;
     if( chat_idx < 0 || (uint32_t)chat_idx >= game->ui_tree->component_count ||
@@ -1224,7 +1238,8 @@ ui_click_point_expects_ui_rows_recursive(
     int scroll_off_y,
     struct UITreeScrollClip const* clip)
 {
-    if( !tree || node_idx < 0 || (uint32_t)node_idx >= tree->component_count )
+    assert(tree);
+    if( node_idx < 0 || (uint32_t)node_idx >= tree->component_count )
         return false;
 
     if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !uitree_point_in_clip(px, py, clip) )
@@ -1391,7 +1406,9 @@ ui_click_add_pick_options(
     struct MinimenuPick const* pick,
     struct UIMinimenuState* menu)
 {
-    if( !game || !pick || !menu )
+    assert(game);
+    assert(menu);
+    if( !pick )
         return;
 
     switch( pick->kind )
@@ -1422,8 +1439,7 @@ ui_click_build_minimenu_from_pickset(
     bool include_walk,
     struct UIMinimenuState* menu)
 {
-    if( !menu )
-        return;
+    assert(menu);
 
     ui_minimenu_reset(menu);
     if( !picks )
@@ -1491,7 +1507,8 @@ ui_click_use_minimenu_option(
     int click_x,
     int click_y)
 {
-    if( !game || option_index < 0 || option_index >= game->minimenu.option_count )
+    assert(game);
+    if( option_index < 0 || option_index >= game->minimenu.option_count )
         return;
 
     struct UIMinimenuOption const* opt = &game->minimenu.options[option_index];
@@ -1576,7 +1593,8 @@ ui_click_apply_default_pick(
     int click_x,
     int click_y)
 {
-    if( !game || !pick )
+    assert(game);
+    if( !pick )
         return;
 
     interaction_state_set_from_minimenu_pick(&game->click_target, pick);
@@ -1605,8 +1623,8 @@ game_try_inv_click(
     bool right_click,
     struct MinimenuPickSet* out_picks)
 {
-    if( !game || !game->ui_tree )
-        return false;
+    assert(game);
+    assert(game);
 
     struct UITreeScrollState scroll = {
         .scroll_x = game->ui_scroll.scroll_x,
@@ -1708,7 +1726,8 @@ ui_click_handle_left(
     int click_y)
 {
     (void)input;
-    if( !game || !game->ui_tree || !game->ui_tree_ready )
+    assert(game);
+    if( !game->ui_tree || !game->ui_tree_ready )
         return;
 
     if( game->minimenu.visible )
@@ -1775,8 +1794,7 @@ ui_click_append_world_options_to_menu(
     struct MinimenuPickSet const* picks,
     struct UIMinimenuState* menu)
 {
-    if( !menu )
-        return;
+    assert(menu);
 
     struct MinimenuPick const* terrain = minimenu_pickset_first_terrain(picks);
     if( terrain )
@@ -1797,7 +1815,8 @@ ui_click_append_world_options_to_menu(
         ui_minimenu_add_option(menu, "Walk here", MINIMENU_ACTION_WALK, 0);
     }
 
-    if( !game || !picks )
+    assert(game);
+    if( !picks )
         return;
 
     for( int i = 0; i < picks->count; i++ )
@@ -1940,8 +1959,7 @@ ui_click_handle_right(
     int click_y)
 {
     (void)input;
-    if( !game )
-        return;
+    assert(game);
 
     bool const tree_ready = game->ui_tree && game->ui_tree_ready;
     bool const world_ready = game->world && game->world->load_complete;

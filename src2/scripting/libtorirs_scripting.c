@@ -1,5 +1,6 @@
 #include "libtorirs_scripting.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -16,7 +17,7 @@ LibToriRS_ScriptQueueNew(void)
 void
 LibToriRS_ScriptQueueFree(struct LibToriRS_ScriptQueue* queue)
 {
-    if( queue )
+    if( !queue )
         return;
     free(queue);
     queue = NULL;
@@ -27,8 +28,7 @@ LibToriRS_ScriptQueueEmplace(
     struct LibToriRS_ScriptQueue* queue,
     const char* name)
 {
-    if( !queue )
-        return NULL;
+    assert(queue);
     if( queue->count >= LIBTORIRS_SCRIPT_QUEUE_MAX_SIZE )
         return NULL;
     if( !name )
@@ -47,8 +47,7 @@ LibToriRS_ScriptQueueEmplace(
 struct LibToriRS_Script*
 LibToriRS_ScriptQueuePop(struct LibToriRS_ScriptQueue* queue)
 {
-    if( !queue )
-        return NULL;
+    assert(queue);
     if( queue->count == 0 )
         return NULL;
     struct LibToriRS_Script* script = &queue->values[queue->head];
@@ -60,16 +59,14 @@ LibToriRS_ScriptQueuePop(struct LibToriRS_ScriptQueue* queue)
 bool
 LibToriRS_ScriptQueueIsEmpty(struct LibToriRS_ScriptQueue* queue)
 {
-    if( !queue )
-        return true;
+    assert(queue);
     return queue->count == 0;
 }
 
 void
 LibToriRS_ScriptQueueClear(struct LibToriRS_ScriptQueue* queue)
 {
-    if( !queue )
-        return;
+    assert(queue);
     queue->count = 0;
     queue->head = 0;
     queue->tail = 0;
@@ -78,16 +75,14 @@ LibToriRS_ScriptQueueClear(struct LibToriRS_ScriptQueue* queue)
 struct LibToriRS_ScriptArgs*
 LibToriRS_ScriptGetArgs(struct LibToriRS_Script* script)
 {
-    if( !script )
-        return NULL;
+    assert(script);
     return &script->args;
 }
 
 void
 LibToriRS_ScriptArgsReset(struct LibToriRS_ScriptArgs* args)
 {
-    if( !args )
-        return;
+    assert(args);
     memset(args, 0, sizeof(struct LibToriRS_ScriptArgs));
     args->count = 0;
 }
@@ -97,8 +92,7 @@ LibToriRS_ScriptPushArg_Int(
     struct LibToriRS_Script* script,
     int value)
 {
-    if( !script )
-        return;
+    assert(script);
     if( script->args.count >= LIBTORIRS_SCRIPT_MAX_ARGS )
         return;
     struct LibToriRS_ScriptValue* script_value = &script->args.values[script->args.count];

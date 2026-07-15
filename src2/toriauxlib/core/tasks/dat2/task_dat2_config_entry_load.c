@@ -5,6 +5,7 @@
 #include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/core/tasks/dat2/task_dat2_io.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

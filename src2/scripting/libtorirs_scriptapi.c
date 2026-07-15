@@ -60,8 +60,7 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
     struct LibToriRS_IOQueue* io_queue)
 {
     printf("LibToriRS_ScriptAPI_Dat1_ConfigFileFetch\n");
-    if( !instance )
-        return;
+    assert(instance);
 
     struct CacheLib_IORequest request;
     cachelib_dat1_config_file_fetch(&request);
@@ -75,8 +74,7 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(
     struct LibToriRS_IOQueue* io_queue)
 {
     printf("LibToriRS_ScriptAPI_Dat1_ConfigFileLoad\n");
-    if( !instance )
-        return false;
+    assert(instance);
 
     struct LibToriRS_IOQueueItem item = { 0 };
     if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
@@ -120,8 +118,7 @@ LibToriRS_ScriptAPI_Dat1_TexturesFetch(
     struct LibToriRS_IOQueue* io_queue)
 {
     printf("LibToriRS_ScriptAPI_Dat1_TexturesFetch\n");
-    if( !instance )
-        return;
+    assert(instance);
 
     struct CacheLib_IORequest request;
     cachelib_dat1_textures_archive_fetch(&request);
@@ -135,8 +132,7 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
     struct LibToriRS_IOQueue* io_queue)
 {
     printf("LibToriRS_ScriptAPI_Dat1_TexturesLoad\n");
-    if( !instance )
-        return false;
+    assert(instance);
 
     struct LibToriRS_IOQueueItem item = { 0 };
     if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
@@ -206,8 +202,8 @@ bool
 LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_Dat2_TexturesLoad\n");
-    if( !instance || !instance->toriauxlib )
-        return false;
+    assert(instance);
+    assert(instance->toriauxlib);
 
     struct ToriAuxLibCache* c = ToriAuxLib_C(instance->toriauxlib);
     if( !c || ToriAuxLibCache_Mode(c) != TORIAUXLIBCACHE_MODE_DAT2 )
@@ -225,13 +221,13 @@ void
 LibToriRS_ScriptAPI_Dat2_SubmitTextures(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_Dat2_SubmitTextures\n");
-    if( !instance || !instance->toriauxlib )
-        return;
+    assert(instance);
+    assert(instance->toriauxlib);
 
     struct ToriAuxLibTD* td = ToriAuxLib_TD(instance->toriauxlib);
     struct ToriAuxLibCore* core = ToriAuxLib_Core(instance->toriauxlib);
-    if( !td || !core )
-        return;
+    assert(td);
+    assert(core);
 
     int submitted_count = 0;
     for( int i = 0; i < 256; i++ )
@@ -248,8 +244,8 @@ LibToriRS_ScriptAPI_Dat2_SubmitTextures(struct LibToriRS_Instance* instance)
 const char*
 LibToriRS_ScriptAPI_GetCacheMode(struct LibToriRS_Instance* instance)
 {
-    if( !instance || !instance->toriauxlib )
-        return "dat1";
+    assert(instance);
+    assert(instance->toriauxlib);
 
     if( ToriAuxLibCache_Mode(ToriAuxLib_C(instance->toriauxlib)) == TORIAUXLIBCACHE_MODE_DAT2 )
         return "dat2";
@@ -271,8 +267,7 @@ LibToriRS_ScriptAPI_Dat1_ModelCacheAdd(
     void* data)
 {
     printf("LibToriRS_ScriptAPI_Dat1_ModelCacheAdd\n");
-    if( !instance )
-        return;
+    assert(instance);
     if( !data )
         return;
 
@@ -289,8 +284,8 @@ LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(
     int model_id)
 {
     printf("LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel\n");
-    if( !instance || !ToriAuxLib_TD(instance->toriauxlib) )
-        return;
+    assert(instance);
+    assert(ToriAuxLib_TD(instance->toriauxlib));
 
     ToriAuxLibTD_SubmitModelFromDat1(ToriAuxLib_TD(instance->toriauxlib), model_id);
     ToriAuxLibTD_Model(ToriAuxLib_TD(instance->toriauxlib), model_id);
@@ -303,8 +298,7 @@ LibToriRS_ScriptAPI_Dat1_ModelFetch(
     struct LibToriRS_IOQueue* io_queue)
 {
     printf("LibToriRS_ScriptAPI_Dat1_ModelFetch\n");
-    if( !instance )
-        return;
+    assert(instance);
 
     struct CacheLib_IORequest request;
     cachelib_dat1_model_fetch(model_id, &request);
@@ -354,8 +348,7 @@ LibToriRS_ScriptAPI_Dat1_MapChunkTerrainFetch(
     struct LibToriRS_IOQueue* io_queue)
 {
     printf("LibToriRS_ScriptAPI_Dat1_MapChunkTerrainFetch\n");
-    if( !instance )
-        return;
+    assert(instance);
 
     struct CacheLib_IORequest request;
     cachelib_dat1_map_chunk_terrain_fetch(mapx, mapz, &request);
@@ -371,8 +364,7 @@ LibToriRS_ScriptAPI_Dat1_MapChunkSceneryFetch(
     struct LibToriRS_IOQueue* io_queue)
 {
     printf("LibToriRS_ScriptAPI_Dat1_MapChunkSceneryFetch\n");
-    if( !instance )
-        return;
+    assert(instance);
 
     struct CacheLib_IORequest request;
     cachelib_dat1_map_chunk_scenery_fetch(mapx, mapz, &request);
@@ -458,8 +450,7 @@ void
 LibToriRS_ScriptAPI_Game_ModelViewer_Init(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_Game_ModelViewer_Init\n");
-    if( !instance )
-        return;
+    assert(instance);
 
     instance->model_viewer = game_modelviewer_new(instance->script_queue, instance->scene);
     if( !instance->model_viewer )
@@ -476,8 +467,7 @@ void
 LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_Game_Runescape_Init\n");
-    if( !instance )
-        return;
+    assert(instance);
 
     assert(instance->scene);
     instance->runescape = GameRunescape_New(instance->script_queue, instance->scene);
@@ -529,8 +519,7 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
 void
 LibToriRS_ScriptAPI_Game_InterfaceEditor_Init(struct LibToriRS_Instance* instance)
 {
-    if( !instance )
-        return;
+    assert(instance);
 
     instance->interface_editor = GameInterfaceEditor_New(instance->script_queue, instance->scene);
     if( !instance->interface_editor )
@@ -583,7 +572,8 @@ LibToriRS_ScriptAPI_Game_Runescape_BuildWorldChunkList(
 struct GameHandle*
 LibToriRS_ScriptAPI_Game_ModelViewer_GetGameHandle(struct LibToriRS_Instance* instance)
 {
-    if( !instance || !instance->model_viewer )
+    assert(instance);
+    if( !instance->model_viewer )
         return NULL;
 
     return &instance->model_viewer_handle;
@@ -595,8 +585,8 @@ LibToriRS_ScriptAPI_CoreTask_Dat1LoadModel(
     struct GameHandle* game,
     int model_id)
 {
-    if( !instance || !game )
-        return;
+    assert(instance);
+    assert(game);
     if( game->kind != GAME_HANDLE_KIND_MODEL_VIEWER )
         return;
     if( !game->u.model_viewer )
@@ -660,8 +650,8 @@ LibToriRS_ScriptAPI_CoreTask_RevConfigLoad(
 bool
 LibToriRS_ScriptAPI_RunTasks(struct LibToriRS_Instance* instance)
 {
-    if( !instance || !instance->io_queue )
-        return true;
+    assert(instance);
+    assert(instance->io_queue);
 
     struct LibToriRS_IOContext ctx = {
         .io = instance->io_queue,
@@ -704,8 +694,7 @@ LibToriRS_ScriptAPI_Dat1_ModelCleanup(
     int model_id)
 {
     printf("LibToriRS_ScriptAPI_Dat1_ModelCleanup\n");
-    if( !instance )
-        return;
+    assert(instance);
 
     dat1_buildcache_model_remove(dat1(ToriAuxLib_C(instance->toriauxlib)), model_id);
 }
@@ -714,8 +703,7 @@ void
 LibToriRS_ScriptAPI_Dat1_TexturesCleanup(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_Dat1_TexturesCleanup\n");
-    if( !instance )
-        return;
+    assert(instance);
 
     ToriAuxLibCore_TexturesClearAll(ToriAuxLib_Core(instance->toriauxlib));
 }
@@ -724,8 +712,8 @@ void
 LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_Dat1_SubmitTextures\n");
-    if( !instance || !ToriAuxLib_TD(instance->toriauxlib) )
-        return;
+    assert(instance);
+    assert(ToriAuxLib_TD(instance->toriauxlib));
 
     for( int i = 0; i < DAT1_TEXTURE_COUNT; i++ )
         ToriAuxLibTD_Texture(ToriAuxLib_TD(instance->toriauxlib), i);
@@ -735,8 +723,7 @@ void
 LibToriRS_ScriptAPI_GameCache_ModelsClearAll(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_GameCache_ModelsClearAll\n");
-    if( !instance )
-        return;
+    assert(instance);
 
     if( instance->scene )
         ToriDraw_SceneModelsClearAll(instance->scene);
@@ -949,40 +936,40 @@ LibToriRS_ScriptAPI_Dat1_AnimationsCleanup(struct LibToriRS_Instance* instance)
 void
 LibToriRS_ScriptAPI_GameCache_SequencesClearAll(struct LibToriRS_Instance* instance)
 {
-    if( !instance || !instance->toriauxlib )
-        return;
+    assert(instance);
+    assert(instance->toriauxlib);
     ToriAuxLibCore_SequencesClearAll(ToriAuxLib_Core(instance->toriauxlib));
 }
 
 void
 LibToriRS_ScriptAPI_GameCache_FloortypesClearAll(struct LibToriRS_Instance* instance)
 {
-    if( !instance || !instance->toriauxlib )
-        return;
+    assert(instance);
+    assert(instance->toriauxlib);
     ToriAuxLibCore_FlotypesClearAll(ToriAuxLib_Core(instance->toriauxlib));
 }
 
 void
 LibToriRS_ScriptAPI_GameCache_SceneryConfigsClearAll(struct LibToriRS_Instance* instance)
 {
-    if( !instance || !instance->toriauxlib )
-        return;
+    assert(instance);
+    assert(instance->toriauxlib);
     ToriAuxLibCore_LocationsClearAll(ToriAuxLib_Core(instance->toriauxlib));
 }
 
 void
 LibToriRS_ScriptAPI_GameCache_AnimationsClearAll(struct LibToriRS_Instance* instance)
 {
-    if( !instance || !instance->toriauxlib )
-        return;
+    assert(instance);
+    assert(instance->toriauxlib);
     ToriAuxLibCore_AnimationsClearAll(ToriAuxLib_Core(instance->toriauxlib));
 }
 
 void
 LibToriRS_ScriptAPI_GameCache_MemReport(struct LibToriRS_Instance* instance)
 {
-    if( !instance || !instance->toriauxlib )
-        return;
+    assert(instance);
+    assert(instance->toriauxlib);
 
     struct ToriAuxLibCache_MemReport report;
     ToriAuxLibCache_MemReport(ToriAuxLib_C(instance->toriauxlib), &report);
