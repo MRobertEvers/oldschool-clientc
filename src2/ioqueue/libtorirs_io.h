@@ -83,6 +83,7 @@ struct LibToriRS_Task
         if( _child->vtable->free_fn )                                                              \
             _child->vtable->free_fn(_child);                                                       \
         (pt)->user = NULL;                                                                         \
+        free((pt)->user);                                                                          \
     }                                                                                              \
     } while( 0 )
 

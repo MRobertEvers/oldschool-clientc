@@ -9,11 +9,15 @@ PLAT_DIR  := $(SRC2_DIR)/platforms
 TOOL_DIR  := $(REPO_ROOT)/tools/async_cache
 
 CFLAGS = -std=c11 -Wall -Wextra -g \
-	-I$(SRC_DIR) -I$(SRC2_DIR) -I$(REPO_ROOT)
+	-I$(SRC_DIR) -I$(SRC2_DIR) -I$(REPO_ROOT) -I$(TOOL_DIR)
 
 LDFLAGS = -lm
 
 SRCS = $(TOOL_DIR)/main.c \
+	$(TOOL_DIR)/cachedat2.c \
+	$(TOOL_DIR)/async/dat2_model_load.c \
+	$(TOOL_DIR)/async/dat2_object_model_load.c \
+	$(TOOL_DIR)/async/dat2_reference_table_ensure.c \
 	$(PLAT_DIR)/platform_x_io_reactor.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
