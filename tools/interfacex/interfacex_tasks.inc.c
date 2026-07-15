@@ -14,7 +14,6 @@ struct InterfaceX_AwaitPendingAssets
     struct InterfaceX_TaskSpriteLoad* sprite_child;
     struct InterfaceX_TaskFontLoad* font_child;
     struct InterfaceX_TaskModelLoad* model_child;
-    struct Task_Dat2ConfigEntryLoad* obj_config_child;
 };
 
 struct Task_InterfaceXLoadGroup
@@ -44,10 +43,6 @@ struct Task_InterfaceXRunScript
     struct InterfaceX_TaskSpriteLoad* sprite_child;
     struct InterfaceX_TaskFontLoad* font_child;
     struct InterfaceX_TaskModelLoad* model_child;
-    struct Task_ClientScriptLoad* scripts_child;
-    struct Task_Dat2ConfigEntryLoad* config_child;
-    struct Task_ToriAuxLibCache_NpcAdd* npc_child;
-    struct Task_ToriAuxLibCache_PlayerAdd* player_child;
     struct Task_InterfaceXLoadGroup load_group;
     int scene_id;
     int obj_icon_model_id;
@@ -66,7 +61,6 @@ struct Task_InterfaceX_Main
     bool ui_ready;
     bool failed;
     struct InterfaceX_TaskInterfaceLoad* iface_child;
-    struct Task_ClientScriptLoad* scripts_child;
     struct InterfaceX_AwaitPendingAssets* assets_child;
     struct Task_InterfaceXRunScript run_script;
     struct InterfaceX_BatchModelLoad* model_batch;
@@ -81,7 +75,6 @@ struct Task_InterfaceX_Main
     int obj_icon_prefetch_index;
     int obj_icon_prefetch_resolved_id;
     int obj_icon_prefetch_model_id;
-    struct Task_Dat2ConfigEntryLoad* obj_icon_prefetch_config_child;
     struct InterfaceX_TaskModelLoad* obj_icon_prefetch_model_child;
 };
 
@@ -246,20 +239,14 @@ InterfaceX_AwaitPendingAssets_Run(
             if( !InterfaceX_HostIO_ConfigEntryReady(
                     &host->host_io, RSCacheDat2A_ConfigKind_Object, task->pending_id) )
             {
-                if( task->obj_config_child )
-                    Task_Dat2ConfigEntryLoad_Free(task->obj_config_child);
-                task->obj_config_child = Task_Dat2ConfigEntryLoad_New(
-                    InterfaceX_HostIO_Cache(&host->host_io),
-                    RSCacheDat2A_ConfigKind_Object,
-                    &task->pending_id,
-                    1);
-                if( task->obj_config_child )
-                {
-                    PT_INIT(&task->obj_config_child->thread);
-                    TASK_AWAIT(
-                        &task->thread,
-                        Task_Dat2ConfigEntryLoad_Run(task->obj_config_child, ctx));
-                }
+                TASK_AWAITEX(
+                    &task->thread,
+                    ctx,
+                    Task_CacheConfigEntryLoad_New(
+                        InterfaceX_HostIO_Cache(&host->host_io),
+                        RSCacheDat2A_ConfigKind_Object,
+                        &task->pending_id,
+                        1));
             }
 
             {
@@ -295,8 +282,13 @@ InterfaceX_AwaitPendingAssets_Free(void* state)
     InterfaceX_TaskSpriteLoad_Free(task->sprite_child);
     InterfaceX_TaskFontLoad_Free(task->font_child);
     InterfaceX_TaskModelLoad_Free(task->model_child);
-    if( task->obj_config_child )
-        Task_Dat2ConfigEntryLoad_Free(task->obj_config_child);
+    if( task->thread.user )
+    {
+        struct LibToriRS_Task* child = task->thread.user;
+        if( child->vtable && child->vtable->free_fn )
+            child->vtable->free_fn(child);
+        task->thread.user = NULL;
+    }
     free(task);
 }
 
@@ -473,33 +465,19 @@ Task_InterfaceXRunScript_FreeChild(struct Task_InterfaceXRunScript* task)
 {
     if( !task )
         return;
-    if( task->sub_heap )
-    {
-        if( task->sub_run == Task_ClientScriptLoad_Run )
-            Task_ClientScriptLoad_Free(task->scripts_child);
-        else if( task->sub_run == Task_Dat2ConfigEntryLoad_Run )
-            Task_Dat2ConfigEntryLoad_Free(task->config_child);
-        else if( task->sub_run == Task_ToriAuxLibCache_NpcAdd_Run )
-            Task_ToriAuxLibCache_NpcAdd_Free(task->npc_child);
-        else if( task->sub_run == Task_ToriAuxLibCache_PlayerAdd_Run )
-            Task_ToriAuxLibCache_PlayerAdd_Free(task->player_child);
-    }
-    else
-    {
-        InterfaceX_TaskSpriteLoad_Free(task->sprite_child);
-        InterfaceX_TaskFontLoad_Free(task->font_child);
-        InterfaceX_TaskModelLoad_Free(task->model_child);
-    }
+    InterfaceX_TaskSpriteLoad_Free(task->sprite_child);
+    InterfaceX_TaskFontLoad_Free(task->font_child);
+    InterfaceX_TaskModelLoad_Free(task->model_child);
     task->sprite_child = NULL;
     task->font_child = NULL;
     task->model_child = NULL;
-    task->scripts_child = NULL;
-    task->config_child = NULL;
-    task->npc_child = NULL;
-    task->player_child = NULL;
-    task->sub_run = NULL;
-    task->sub_state = NULL;
-    task->sub_heap = false;
+    if( task->thread.user )
+    {
+        struct LibToriRS_Task* child = task->thread.user;
+        if( child->vtable && child->vtable->free_fn )
+            child->vtable->free_fn(child);
+        task->thread.user = NULL;
+    }
 }
 
 static void
@@ -518,23 +496,22 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
         if( !InterfaceX_HostIO_ClientScriptGet(
                 &host->host_io, request->u.push_script.script_id) )
         {
-            task->sub_heap = true;
-            task->scripts_child = Task_ClientScriptLoad_New(
+            task->thread.user = Task_CacheClientScriptLoad_New(
                 InterfaceX_HostIO_Cache(&host->host_io),
                 &request->u.push_script.script_id,
                 1);
-            task->sub_state = task->scripts_child;
-            task->sub_run = Task_ClientScriptLoad_Run;
         }
         return;
     case CS2VM_HOST_REQUEST_PARAHEIGHT:
     case CS2VM_HOST_REQUEST_PARAWIDTH:
+        InterfaceX_TaskFontLoad_Free(task->font_child);
         task->font_child = InterfaceX_TaskFontLoad_New(
             InterfaceX_HostIO_Cache(&host->host_io), request->u.para_height.font_id);
         task->sub_state = task->font_child;
         task->sub_run = InterfaceX_TaskFontLoad_Run;
         return;
     case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
+        InterfaceX_TaskFontLoad_Free(task->font_child);
         task->font_child = InterfaceX_TaskFontLoad_New(
             InterfaceX_HostIO_Cache(&host->host_io), request->u.cc_set_text_font.font_id);
         task->sub_state = task->font_child;
@@ -542,53 +519,42 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
         return;
     case CS2VM_HOST_REQUEST_CC_SETGRAPHIC:
     case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
+        InterfaceX_TaskSpriteLoad_Free(task->sprite_child);
         task->sprite_child = InterfaceX_TaskSpriteLoad_New(
             InterfaceX_HostIO_Cache(&host->host_io), request->u.cc_set_graphic.graphic_id);
         task->sub_state = task->sprite_child;
         task->sub_run = InterfaceX_TaskSpriteLoad_Run;
         return;
     case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
-        task->sub_heap = true;
-        task->config_child = Task_Dat2ConfigEntryLoad_New(
+        task->thread.user = Task_CacheConfigEntryLoad_New(
             InterfaceX_HostIO_Cache(&host->host_io),
             RSCacheDat2A_ConfigKind_Enum,
             &request->u.enum_lookup.enum_id,
             1);
-        task->sub_state = task->config_child;
-        task->sub_run = Task_Dat2ConfigEntryLoad_Run;
         return;
     case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
-        task->sub_heap = true;
-        task->config_child = Task_Dat2ConfigEntryLoad_New(
+        task->thread.user = Task_CacheConfigEntryLoad_New(
             InterfaceX_HostIO_Cache(&host->host_io),
             RSCacheDat2A_ConfigKind_Enum,
             &request->u.enum_get_output_count.enum_id,
             1);
-        task->sub_state = task->config_child;
-        task->sub_run = Task_Dat2ConfigEntryLoad_Run;
         return;
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:
-        task->sub_heap = true;
-        task->config_child = Task_Dat2ConfigEntryLoad_New(
+        task->thread.user = Task_CacheConfigEntryLoad_New(
             InterfaceX_HostIO_Cache(&host->host_io),
             RSCacheDat2A_ConfigKind_Struct,
             &request->u.struct_param.struct_id,
             1);
-        task->sub_state = task->config_child;
-        task->sub_run = Task_Dat2ConfigEntryLoad_Run;
         return;
     case CS2VM_HOST_REQUEST_OC_PARAM:
     case CS2VM_HOST_REQUEST_OC_NAME:
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
     case CS2VM_HOST_REQUEST_OC_INT_PARAM:
-        task->sub_heap = true;
-        task->config_child = Task_Dat2ConfigEntryLoad_New(
+        task->thread.user = Task_CacheConfigEntryLoad_New(
             InterfaceX_HostIO_Cache(&host->host_io),
             RSCacheDat2A_ConfigKind_Object,
             &request->u.oc_param.item_id,
             1);
-        task->sub_state = task->config_child;
-        task->sub_run = Task_Dat2ConfigEntryLoad_Run;
         return;
     case CS2VM_HOST_REQUEST_CC_SETOBJECT:
     case CS2VM_HOST_REQUEST_IF_SETOBJECT:
@@ -600,43 +566,32 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
         if( !InterfaceX_HostIO_ConfigEntryReady(
                 &host->host_io, RSCacheDat2A_ConfigKind_Object, obj_id) )
         {
-            task->sub_heap = true;
-            task->config_child = Task_Dat2ConfigEntryLoad_New(
+            task->thread.user = Task_CacheConfigEntryLoad_New(
                 InterfaceX_HostIO_Cache(&host->host_io),
                 RSCacheDat2A_ConfigKind_Object,
                 &request->u.cc_set_object.obj_id,
                 1);
-            task->sub_state = task->config_child;
-            task->sub_run = Task_Dat2ConfigEntryLoad_Run;
             return;
         }
 
+        task->obj_icon_resolved_id = InterfaceX_ResolveObjIconCountVariant(host, obj_id, count);
+        if( task->obj_icon_resolved_id != obj_id &&
+            !InterfaceX_HostIO_ConfigEntryReady(
+                &host->host_io, RSCacheDat2A_ConfigKind_Object, task->obj_icon_resolved_id) )
         {
-            task->obj_icon_resolved_id =
-                InterfaceX_ResolveObjIconCountVariant(host, obj_id, count);
-            if( task->obj_icon_resolved_id != obj_id &&
-                !InterfaceX_HostIO_ConfigEntryReady(
-                    &host->host_io,
-                    RSCacheDat2A_ConfigKind_Object,
-                    task->obj_icon_resolved_id) )
-            {
-                task->sub_heap = true;
-                task->config_child = Task_Dat2ConfigEntryLoad_New(
-                    InterfaceX_HostIO_Cache(&host->host_io),
-                    RSCacheDat2A_ConfigKind_Object,
-                    &task->obj_icon_resolved_id,
-                    1);
-                task->sub_state = task->config_child;
-                task->sub_run = Task_Dat2ConfigEntryLoad_Run;
-                return;
-            }
+            task->thread.user = Task_CacheConfigEntryLoad_New(
+                InterfaceX_HostIO_Cache(&host->host_io),
+                RSCacheDat2A_ConfigKind_Object,
+                &task->obj_icon_resolved_id,
+                1);
+            return;
         }
 
         task->obj_icon_model_id =
             InterfaceX_HostIO_ObjIconInventoryModelId(&host->host_io, obj_id, count);
-        if( task->obj_icon_model_id > 0 &&
-            !dat2_buildcache_model_get(bc, task->obj_icon_model_id) )
+        if( task->obj_icon_model_id > 0 && !dat2_buildcache_model_get(bc, task->obj_icon_model_id) )
         {
+            InterfaceX_TaskModelLoad_Free(task->model_child);
             task->model_child = InterfaceX_TaskModelLoad_New(
                 InterfaceX_HostIO_Cache(&host->host_io), task->obj_icon_model_id);
             task->sub_state = task->model_child;
@@ -647,6 +602,7 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
         if( request->u.widget_set_model.model_id >= 0 )
         {
+            InterfaceX_TaskModelLoad_Free(task->model_child);
             task->model_child = InterfaceX_TaskModelLoad_New(
                 InterfaceX_HostIO_Cache(&host->host_io), request->u.widget_set_model.model_id);
             task->sub_state = task->model_child;
@@ -659,6 +615,7 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
         int model_id = request->u.widget_set_model_kind.model_id;
         if( kind == INTERFACEX_MODEL_KIND_PLAIN && model_id >= 0 )
         {
+            InterfaceX_TaskModelLoad_Free(task->model_child);
             task->model_child =
                 InterfaceX_TaskModelLoad_New(InterfaceX_HostIO_Cache(&host->host_io), model_id);
             task->sub_state = task->model_child;
@@ -666,19 +623,15 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
         }
         else if( kind == INTERFACEX_MODEL_KIND_NPC_HEAD && model_id >= 0 )
         {
-            task->sub_heap = true;
-            task->npc_child =
-                Task_ToriAuxLibCache_NpcAdd_New(InterfaceX_HostIO_Cache(&host->host_io), model_id);
-            task->sub_state = task->npc_child;
-            task->sub_run = Task_ToriAuxLibCache_NpcAdd_Run;
+            task->thread.user =
+                Task_CacheNpcAdd_New(InterfaceX_HostIO_Cache(&host->host_io), model_id);
         }
         else if(
             kind == INTERFACEX_MODEL_KIND_PLAYER_HEAD ||
             kind == INTERFACEX_MODEL_KIND_PLAYER_SELF ||
             kind == INTERFACEX_MODEL_KIND_PLAYER_CHATHEAD )
         {
-            task->sub_heap = true;
-            task->player_child = Task_ToriAuxLibCache_PlayerAdd_New(
+            task->thread.user = Task_CachePlayerAdd_New(
                 InterfaceX_HostIO_Cache(&host->host_io),
                 host->player_appearance,
                 RUNESCAPE_EXAMPLE_PLAYER_READYANIM,
@@ -688,8 +641,6 @@ Task_InterfaceXRunScript_SelectLoadChild(struct Task_InterfaceXRunScript* task)
                 RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_B,
                 RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_R,
                 RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_L);
-            task->sub_state = task->player_child;
-            task->sub_run = Task_ToriAuxLibCache_PlayerAdd_Run;
         }
         return;
     }
@@ -785,7 +736,9 @@ Task_InterfaceXRunScript_Run(
         task->pending.kind = CS2VM_HOST_REQUEST_PUSHSCRIPT;
         task->pending.u.push_script.script_id = task->script_id;
         Task_InterfaceXRunScript_SelectLoadChild(task);
-        if( task->sub_run )
+        if( task->thread.user )
+            TASK_AWAITEX(&task->thread, ctx, task->thread.user);
+        else if( task->sub_run )
             TASK_AWAIT(&task->thread, task->sub_run(task->sub_state, ctx));
         Task_InterfaceXRunScript_FreeChild(task);
         if( !InterfaceX_HostIO_ClientScriptGet(&host->host_io, task->script_id) )
@@ -842,7 +795,9 @@ Task_InterfaceXRunScript_Run(
         task->pending = host->pending_host_request;
         host->has_pending_host_request = false;
         Task_InterfaceXRunScript_SelectLoadChild(task);
-        if( task->sub_run )
+        if( task->thread.user )
+            TASK_AWAITEX(&task->thread, ctx, task->thread.user);
+        else if( task->sub_run )
             TASK_AWAIT(&task->thread, task->sub_run(task->sub_state, ctx));
         Task_InterfaceXRunScript_FreeChild(task);
 
@@ -872,18 +827,14 @@ Task_InterfaceXRunScript_Run(
                 RSCacheDat2A_ConfigKind_Params,
                 task->pending.u.struct_param.param_id) )
         {
-            task->sub_heap = true;
-            task->config_child = Task_Dat2ConfigEntryLoad_New(
-                InterfaceX_HostIO_Cache(&host->host_io),
-                RSCacheDat2A_ConfigKind_Params,
-                &task->pending.u.struct_param.param_id,
-                1);
-            if( task->config_child )
-                TASK_AWAIT(
-                    &task->thread, Task_Dat2ConfigEntryLoad_Run(task->config_child, ctx));
-            Task_Dat2ConfigEntryLoad_Free(task->config_child);
-            task->config_child = NULL;
-            task->sub_heap = false;
+            TASK_AWAITEX(
+                &task->thread,
+                ctx,
+                Task_CacheConfigEntryLoad_New(
+                    InterfaceX_HostIO_Cache(&host->host_io),
+                    RSCacheDat2A_ConfigKind_Params,
+                    &task->pending.u.struct_param.param_id,
+                    1));
         }
         else if(
             task->pending.kind == CS2VM_HOST_REQUEST_OC_PARAM &&
@@ -892,18 +843,14 @@ Task_InterfaceXRunScript_Run(
                 RSCacheDat2A_ConfigKind_Params,
                 task->pending.u.oc_param.param_id) )
         {
-            task->sub_heap = true;
-            task->config_child = Task_Dat2ConfigEntryLoad_New(
-                InterfaceX_HostIO_Cache(&host->host_io),
-                RSCacheDat2A_ConfigKind_Params,
-                &task->pending.u.oc_param.param_id,
-                1);
-            if( task->config_child )
-                TASK_AWAIT(
-                    &task->thread, Task_Dat2ConfigEntryLoad_Run(task->config_child, ctx));
-            Task_Dat2ConfigEntryLoad_Free(task->config_child);
-            task->config_child = NULL;
-            task->sub_heap = false;
+            TASK_AWAITEX(
+                &task->thread,
+                ctx,
+                Task_CacheConfigEntryLoad_New(
+                    InterfaceX_HostIO_Cache(&host->host_io),
+                    RSCacheDat2A_ConfigKind_Params,
+                    &task->pending.u.oc_param.param_id,
+                    1));
         }
         else if(
             task->pending.kind == CS2VM_HOST_REQUEST_CC_SETOBJECT ||
@@ -927,19 +874,14 @@ Task_InterfaceXRunScript_Run(
                         RSCacheDat2A_ConfigKind_Object,
                         task->obj_icon_resolved_id) )
                 {
-                    task->sub_heap = true;
-                    task->config_child = Task_Dat2ConfigEntryLoad_New(
-                        InterfaceX_HostIO_Cache(&host->host_io),
-                        RSCacheDat2A_ConfigKind_Object,
-                        &task->obj_icon_resolved_id,
-                        1);
-                    if( task->config_child )
-                        TASK_AWAIT(
-                            &task->thread,
-                            Task_Dat2ConfigEntryLoad_Run(task->config_child, ctx));
-                    Task_Dat2ConfigEntryLoad_Free(task->config_child);
-                    task->config_child = NULL;
-                    task->sub_heap = false;
+                    TASK_AWAITEX(
+                        &task->thread,
+                        ctx,
+                        Task_CacheConfigEntryLoad_New(
+                            InterfaceX_HostIO_Cache(&host->host_io),
+                            RSCacheDat2A_ConfigKind_Object,
+                            &task->obj_icon_resolved_id,
+                            1));
                 }
 
                 task->obj_icon_model_id = InterfaceX_HostIO_ObjIconInventoryModelId(
@@ -1054,14 +996,18 @@ Task_InterfaceX_Main_Free(void* state)
     if( !task )
         return;
     InterfaceX_TaskInterfaceLoad_Free(task->iface_child);
-    if( task->scripts_child )
-        Task_ClientScriptLoad_Free(task->scripts_child);
     if( task->assets_child )
         InterfaceX_AwaitPendingAssets_Free(task->assets_child);
     if( task->model_batch )
         InterfaceX_BatchModelLoad_Destroy(task->model_batch);
-    Task_Dat2ConfigEntryLoad_Free(task->obj_icon_prefetch_config_child);
     InterfaceX_TaskModelLoad_Free(task->obj_icon_prefetch_model_child);
+    if( task->thread.user )
+    {
+        struct LibToriRS_Task* child = task->thread.user;
+        if( child->vtable && child->vtable->free_fn )
+            child->vtable->free_fn(child);
+        task->thread.user = NULL;
+    }
     free(task->prefetch_script_ids);
     free(task);
 }
@@ -1119,13 +1065,13 @@ Task_InterfaceX_Main_Run(
             &task->prefetch_script_cap);
         if( task->prefetch_script_count > 0 )
         {
-            task->scripts_child = Task_ClientScriptLoad_New(
-                InterfaceX_HostIO_Cache(&host->host_io),
-                task->prefetch_script_ids,
-                task->prefetch_script_count);
-            if( task->scripts_child )
-                TASK_AWAIT(
-                    &task->thread, Task_ClientScriptLoad_Run(task->scripts_child, ctx));
+            TASK_AWAITEX(
+                &task->thread,
+                ctx,
+                Task_CacheClientScriptLoad_New(
+                    InterfaceX_HostIO_Cache(&host->host_io),
+                    task->prefetch_script_ids,
+                    task->prefetch_script_count));
         }
     }
 
@@ -1229,22 +1175,14 @@ Task_InterfaceX_Main_Run(
                     RSCacheDat2A_ConfigKind_Object,
                     task->obj_icon_prefetch_resolved_id) )
             {
-                if( !task->obj_icon_prefetch_config_child )
-                {
-                    task->obj_icon_prefetch_config_child = Task_Dat2ConfigEntryLoad_New(
+                TASK_AWAITEX(
+                    &task->thread,
+                    ctx,
+                    Task_CacheConfigEntryLoad_New(
                         InterfaceX_HostIO_Cache(&host->host_io),
                         RSCacheDat2A_ConfigKind_Object,
                         &task->obj_icon_prefetch_resolved_id,
-                        1);
-                }
-                if( task->obj_icon_prefetch_config_child )
-                {
-                    TASK_AWAIT(
-                        &task->thread,
-                        Task_Dat2ConfigEntryLoad_Run(task->obj_icon_prefetch_config_child, ctx));
-                }
-                Task_Dat2ConfigEntryLoad_Free(task->obj_icon_prefetch_config_child);
-                task->obj_icon_prefetch_config_child = NULL;
+                        1));
             }
 
             task->obj_icon_prefetch_model_id = InterfaceX_HostIO_ObjIconInventoryModelId(

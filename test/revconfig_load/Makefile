@@ -18,7 +18,6 @@ LDFLAGS = -Wl,-dead_strip
 SRCS = $(TEST_DIR)/main.c \
 	$(TEST_DIR)/stubs.c \
 	$(SRC2_DIR)/platforms/platform_x_io_reactor.c \
-	$(SRC2_DIR)/toriauxlib/core/tasks/libtori_core_task.c \
 	$(SRC2_DIR)/revconfig/revconfig.c \
 	$(SRC2_DIR)/revconfig/revconfig_load.c \
 	$(SRC2_DIR)/3rd/ini/ini.c \

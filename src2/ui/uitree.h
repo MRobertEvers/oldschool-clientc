@@ -106,6 +106,32 @@ struct StaticUIElemPosition
     uint8_t layout_resolved;
 };
 
+/** Runtime CS2 hooks installed by IF_SETON* / CC_SETON* (not cache bake-time hooks). */
+struct UITreeRuntimeScriptHook
+{
+    int script_id;
+    int argc;
+    int argv[16];
+};
+
+struct StaticUIRuntimeHooks
+{
+    struct UITreeRuntimeScriptHook on_click;
+    struct UITreeRuntimeScriptHook on_hold;
+    struct UITreeRuntimeScriptHook on_mouse_over;
+    struct UITreeRuntimeScriptHook on_mouse_leave;
+    struct UITreeRuntimeScriptHook on_mouse_repeat;
+    struct UITreeRuntimeScriptHook on_drag;
+    struct UITreeRuntimeScriptHook on_drag_complete;
+    struct UITreeRuntimeScriptHook on_scroll_wheel;
+    struct UITreeRuntimeScriptHook on_key;
+    struct UITreeRuntimeScriptHook on_op;
+    struct UITreeRuntimeScriptHook on_timer;
+    struct UITreeRuntimeScriptHook on_var_transmit;
+    struct UITreeRuntimeScriptHook on_inv_transmit;
+    struct UITreeRuntimeScriptHook on_misc_transmit;
+};
+
 struct StaticUIBehavior
 {
     /** Number of embedded CS1/CS2 scripts (Client.ts scripts[]). */
@@ -241,6 +267,13 @@ struct StaticUIComponent
     uint8_t model_transparent;
 
     struct StaticUIBehavior behavior;
+    /** CS2 runtime hooks (CC_/IF_SETON*); empty script_id means unset. */
+    struct StaticUIRuntimeHooks runtime_hooks;
+    /** IF_SETTARGETPRIORITY / target priority for combat targeting UI. */
+    int target_priority;
+    /** Scroll position (runtime; distinct from scroll_width/height size). */
+    int scroll_x;
+    int scroll_y;
     struct StaticUIElemPosition position;
     struct StaticUIMenuOptions menu_options;
     union
@@ -797,6 +830,65 @@ void
 uitree_cc_delete_all(
     struct UITree* tree,
     int32_t parent_index);
+
+/** Collect dynamic child_index values under parent (sorted ascending). Returns count. */
+int
+uitree_collect_dynamic_child_indices(
+    struct UITree const* tree,
+    int parent_component_id,
+    int start_index,
+    int* out_indices,
+    int out_cap);
+
+bool
+uitree_apply_scroll_pos(
+    struct UITree* tree,
+    int component_id,
+    int scroll_x,
+    int scroll_y);
+
+bool
+uitree_apply_text_font(
+    struct UITree* tree,
+    int component_id,
+    int font_id);
+
+bool
+uitree_apply_text_align(
+    struct UITree* tree,
+    int component_id,
+    int h_align,
+    int v_align,
+    int line_height);
+
+bool
+uitree_apply_text_shadow(
+    struct UITree* tree,
+    int component_id,
+    int shadowed);
+
+bool
+uitree_apply_model_angle(
+    struct UITree* tree,
+    int component_id,
+    int xan,
+    int yan,
+    int zoom);
+
+bool
+uitree_apply_target_priority(
+    struct UITree* tree,
+    int component_id,
+    int priority);
+
+bool
+uitree_apply_runtime_hook(
+    struct UITree* tree,
+    int component_id,
+    struct UITreeRuntimeScriptHook* slot,
+    int script_id,
+    int const* argv,
+    int argc);
 
 /** Deep-copies script arrays from src into tree->components[idx].behavior. */
 void

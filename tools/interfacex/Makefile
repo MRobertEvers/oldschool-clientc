@@ -24,7 +24,7 @@ ifdef ASAN
 endif
 ENABLE_ASAN ?= 0
 
-CFLAGS = -std=c11 -Wall -Wextra -g \
+CFLAGS = -std=c11 -Wall -Wextra -g -DTORIAUXLIBCACHE_NO_LEGACY_TASK_HEADERS \
 	-I$(TOOL_DIR) -I$(SRC2_DIR)/toridraw -I$(SRC2_DIR)/toriauxlib/td -I$(SRC2_DIR) -I$(SRC_DIR) -I$(REPO_ROOT)
 
 LDFLAGS = -lm
@@ -40,6 +40,32 @@ ifeq ($(ENABLE_ASAN),1)
 endif
 
 ASAN_DYLD_SHIM ?=
+
+TASKS_DIR := $(SRC2_DIR)/toriauxlib/core/tasks
+DAT1_TASKS_DIR := $(TASKS_DIR)/dat1
+DAT2_TASKS_DIR := $(TASKS_DIR)/dat2
+
+TASK_SRCS = $(TASKS_DIR)/task_cache_wrappers.c \
+	$(DAT1_TASKS_DIR)/task_dat1_animate.c \
+	$(DAT1_TASKS_DIR)/task_dat1_model_load.c \
+	$(DAT1_TASKS_DIR)/task_dat1_npc_add.c \
+	$(DAT1_TASKS_DIR)/task_dat1_player_add.c \
+	$(DAT1_TASKS_DIR)/task_dat1_projectile_add.c \
+	$(DAT1_TASKS_DIR)/task_dat1_world_rebuild_centerzone.c \
+	$(DAT1_TASKS_DIR)/task_dat1_world_rebuild_chunk_list.c \
+	$(DAT1_TASKS_DIR)/task_dat1_world_rebuild_core.c \
+	$(DAT2_TASKS_DIR)/task_dat2_animate.c \
+	$(DAT2_TASKS_DIR)/task_dat2_anim_resolve.c \
+	$(DAT2_TASKS_DIR)/task_dat2_clientscript_load.c \
+	$(DAT2_TASKS_DIR)/task_dat2_config_entry_load.c \
+	$(DAT2_TASKS_DIR)/task_dat2_model_load.c \
+	$(DAT2_TASKS_DIR)/task_dat2_npc_add.c \
+	$(DAT2_TASKS_DIR)/task_dat2_player_add.c \
+	$(DAT2_TASKS_DIR)/task_dat2_projectile_add.c \
+	$(DAT2_TASKS_DIR)/task_dat2_textures_load.c \
+	$(DAT2_TASKS_DIR)/task_dat2_world_rebuild_centerzone.c \
+	$(DAT2_TASKS_DIR)/task_dat2_world_rebuild_chunk_list.c \
+	$(DAT2_TASKS_DIR)/task_dat2_world_rebuild_core.c
 
 SRCS = $(TOOL_DIR)/main.c \
 	$(TOOL_DIR)/interfacex_host_io.c \
@@ -68,11 +94,7 @@ SRCS = $(TOOL_DIR)/main.c \
 	$(SRC2_DIR)/games/ie_enum_lookup.c \
 	$(SRC2_DIR)/games/ie_struct_lookup.c \
 	$(SRC2_DIR)/games/ie_param_lookup.c \
-	$(SRC2_DIR)/toriauxlib/core/tasks/libtori_core_task.c \
-	$(SRC2_DIR)/toriauxlib/core/tasks/libtori_core_task_runner.c \
-	$(SRC2_DIR)/toriauxlib/core/tasks/task_clientscript_load.c \
-	$(SRC2_DIR)/toriauxlib/core/tasks/task_dat2_config_entry_load.c \
-	$(SRC2_DIR)/toriauxlib/core/tasks/task_dat2_anim_io.c \
+	$(TASK_SRCS) \
 	$(SRC2_DIR)/runescape/appearance.c \
 	$(SRC_DIR)/osrs/varp_varbit_manager.c \
 	$(SRC2_DIR)/platforms/platform_x_io_reactor.c \
@@ -81,6 +103,7 @@ SRCS = $(TOOL_DIR)/main.c \
 	$(SRC2_DIR)/platforms/platform_x/cachelib_serialized.c \
 	$(SRC2_DIR)/vm/cs2_script.c \
 	$(SRC2_DIR)/vm/cs2_opcode_meta.c \
+	$(SRC2_DIR)/vm/cs2vmx.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c
 
@@ -178,20 +201,12 @@ $(OBJ_DIR)/ie_struct_lookup.o: $(SRC2_DIR)/games/ie_struct_lookup.c
 $(OBJ_DIR)/ie_param_lookup.o: $(SRC2_DIR)/games/ie_param_lookup.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/libtori_core_task.o: $(SRC2_DIR)/toriauxlib/core/tasks/libtori_core_task.c
-	$(CC) $(CFLAGS) -c $< -o $@
+define make-task-goal
+$(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
+	$(CC) $(CFLAGS) -c $(1) -o $$@
+endef
 
-$(OBJ_DIR)/libtori_core_task_runner.o: $(SRC2_DIR)/toriauxlib/core/tasks/libtori_core_task_runner.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/task_clientscript_load.o: $(SRC2_DIR)/toriauxlib/core/tasks/task_clientscript_load.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/task_dat2_config_entry_load.o: $(SRC2_DIR)/toriauxlib/core/tasks/task_dat2_config_entry_load.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/task_dat2_anim_io.o: $(SRC2_DIR)/toriauxlib/core/tasks/task_dat2_anim_io.c
-	$(CC) $(CFLAGS) -c $< -o $@
+$(foreach src,$(TASK_SRCS),$(eval $(call make-task-goal,$(src))))
 
 $(OBJ_DIR)/appearance.o: $(SRC2_DIR)/runescape/appearance.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -218,6 +233,9 @@ $(OBJ_DIR)/cs2_script.o: $(SRC2_DIR)/vm/cs2_script.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/cs2_opcode_meta.o: $(SRC2_DIR)/vm/cs2_opcode_meta.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/cs2vmx.o: $(SRC2_DIR)/vm/cs2vmx.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/bzip.o: $(SRC_DIR)/3rd/bzip/bzip.c

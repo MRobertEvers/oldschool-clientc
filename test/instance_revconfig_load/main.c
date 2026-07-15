@@ -1,5 +1,5 @@
 #include "3rd/minipt.h"
-#include "core_task_await.h"
+#include "ioqueue/libtorirs_io.h"
 #include "games/runescape.h"
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "osrs/colors.h"
@@ -20,8 +20,7 @@
 #include "revconfig/revconfig_load.h"
 #include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/core/tasks/instance_revconfig_context.h"
-#include "toriauxlib/core/tasks/libtori_core_task.h"
-#include "toriauxlib/core/tasks/task_instance_revconfig_load.h"
+#include "toriauxlib/core/tasks/toriauxlib_tasks.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/toriauxlib.h"
 #include "toridraw/toridraw_font.h"
@@ -1849,13 +1848,12 @@ run_pipeline_test(
     GameRunescape_SetTD(&game, ToriAuxLib_TD(aux));
 
     char const* files[2] = { cache_ini, ui_ini };
-    struct Task_InstanceRevConfigLoad* load_task =
+    struct LibToriRS_Task* load_task_base =
         Task_InstanceRevConfigLoad_New(ToriAuxLib_C(aux), scene, tree, &game, files, 2, "fixed");
-    TEST_ASSERT(load_task != NULL, "Task_InstanceRevConfigLoad_New");
-
-    struct LibToriCoreTask* task =
-        LibToriCoreTask_New(load_task, Task_InstanceRevConfigLoad_Run, NULL);
-    TEST_ASSERT(task != NULL, "LibToriCoreTask_New");
+    TEST_ASSERT(load_task_base != NULL, "Task_InstanceRevConfigLoad_New");
+    struct Task_InstanceRevConfigLoad* load_task =
+        Task_InstanceRevConfigLoad_FromTask(load_task_base);
+    TEST_ASSERT(load_task != NULL, "Task_InstanceRevConfigLoad_FromTask");
 
     bool finished = false;
     struct LibToriRS_IOContext ctx = { .io = io };
@@ -1871,7 +1869,7 @@ run_pipeline_test(
         }
 
         int run = LibToriRS_IOQueueBeginRun(io);
-        last_res = task->task(task->state, &ctx);
+        last_res = load_task_base->vtable->run_fn(load_task_base, &ctx);
         switch( last_res )
         {
         case PT_YIELDED:
@@ -1890,10 +1888,10 @@ run_pipeline_test(
             break;
     }
 
-    LibToriCoreTask_Free(task);
+    Task_InstanceRevConfigLoad_Free(load_task_base);
 
     TEST_ASSERT(finished, "load task did not finish");
-    TEST_ASSERT(Task_InstanceRevConfigLoad_IsReady(load_task), "load task not ready");
+    TEST_ASSERT(Task_InstanceRevConfigLoad_IsReady(load_task_base), "load task not ready");
 
     TEST_ASSERT(load_task->items != NULL, "items buffer missing");
     TEST_ASSERT(load_task->items->item_count > 0, "no items parsed");
@@ -2084,7 +2082,7 @@ run_pipeline_test(
         tree ? tree->component_count : 0u,
         load_task->rc_ctx.sprite_lookup.count);
 
-    Task_InstanceRevConfigLoad_Free(load_task);
+    Task_InstanceRevConfigLoad_Free(load_task_base);
     uitree_free(tree);
     ToriAuxLib_Free(aux);
     ToriDraw_SceneFree(scene);

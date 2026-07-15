@@ -8,7 +8,7 @@
 #include "platforms/platform_x/cachelib.h"
 #include "platforms/platform_x/cachelib_platform.h"
 #include "platforms/platform_x_io_reactor.h"
-#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/core/tasks/toriauxlib_tasks.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 
 #include <stdio.h>
@@ -24,7 +24,7 @@ run_npc_skeletal_verify(
     struct LibToriPlatformX_IOReactor* reactor = NULL;
     struct ToriAuxLibCore* core = NULL;
     struct ToriAuxLibCache* tal_c = NULL;
-    struct Task_ToriAuxLibCache_NpcAdd* load = NULL;
+    struct LibToriRS_Task* load = NULL;
     struct LibToriRS_IOQueue io_queue;
     struct LibToriRS_IOContext ctx;
     int load_state = PT_WAITING;
@@ -46,7 +46,7 @@ run_npc_skeletal_verify(
         goto done;
     }
 
-    load = Task_ToriAuxLibCache_NpcAdd_New(tal_c, npc_id);
+    load = Task_CacheNpcAdd_New(tal_c, npc_id);
     if( !load )
     {
         fprintf(stderr, "npc_skeletal_verify: NpcAdd_New failed\n");
@@ -69,7 +69,7 @@ run_npc_skeletal_verify(
             }
 
             int run = LibToriRS_IOQueueBeginRun(&io_queue);
-            load_state = Task_ToriAuxLibCache_NpcAdd_Run(load, &ctx);
+            load_state = load->vtable->run_fn(load, &ctx);
             if( load_state == PT_YIELDED || load_state == PT_WAITING )
                 wait_run = run;
             else
@@ -133,7 +133,8 @@ run_npc_skeletal_verify(
         printf("npc_skeletal_verify: npc %d OK (skeletal anims in core)\n", npc_id);
 
 done:
-    Task_ToriAuxLibCache_NpcAdd_Free(load);
+    if( load && load->vtable->free_fn )
+        load->vtable->free_fn(load);
     ToriAuxLibCache_Free(tal_c);
     ToriAuxLibCore_Free(core);
     LibToriPlatformX_IOReactorFree(reactor);

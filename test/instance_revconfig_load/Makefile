@@ -24,12 +24,12 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/platforms/platform_x/cachelib_serialized.c \
 	$(SRC2_DIR)/platforms/platform_x/cache_path_resolve.c \
 	$(SRC2_DIR)/platforms/platform_x_cache.c \
-	$(SRC2_DIR)/toriauxlib/core/tasks/libtori_core_task.c \
 	$(SRC2_DIR)/toriauxlib/toriauxlib.c \
 	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore.c \
 	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c \
 	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache.c \
 	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_component_dat2_convert.c \
 	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_model_convert.c \
 	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_sprite_convert.c \
 	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_font_convert.c \
@@ -38,6 +38,7 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2_DIR)/buildcache/dat1_buildcache.c \
 	$(SRC2_DIR)/buildcache/dat2_buildcache.c \
+	$(SRC2_DIR)/buildcache/dat2_buildcache_meta.c \
 	$(SRC2_DIR)/buildcache/dat1_buildcache_ui.c \
 	$(SRC2_DIR)/buildcache/dat2_buildcache_ui.c \
 	$(SRC2_DIR)/ui/ui_sprite_lookup.c \
@@ -71,10 +72,41 @@ SRCS = $(TEST_DIR)/main.c \
 	$(SRC2_DIR)/vm/cs2vm_unity.c \
 	$(SRC2_DIR)/toriauxlib/vm/toriauxlibvm.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/instance_revconfig_context.c \
-	$(SRC2_DIR)/toriauxlib/core/tasks/task_rs_component_load.c \
-	$(SRC2_DIR)/toriauxlib/core/tasks/task_rs_inv_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/component_load_common.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/task_cache_wrappers.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_component_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_inv_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_sprite_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_font_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_model_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_animate.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_npc_add.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_player_add.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_projectile_add.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_world_rebuild_core.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_world_rebuild_centerzone.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_world_rebuild_chunk_list.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_model_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_animate.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_npc_add.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_player_add.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_projectile_add.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_world_rebuild_core.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_world_rebuild_centerzone.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_world_rebuild_chunk_list.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_textures_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_config_entry_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_component_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_inv_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_sprite_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_font_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_clientscript_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_anim_resolve.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/task_instance_on_rc.c \
 	$(SRC2_DIR)/toriauxlib/core/tasks/task_instance_revconfig_load.c \
+	$(SRC2_DIR)/games/ie_enum_lookup.c \
+	$(SRC2_DIR)/games/ie_struct_lookup.c \
+	$(SRC2_DIR)/games/ie_param_lookup.c \
 	$(TEST_DIR)/font_td_shim.c \
 	$(SRC2_DIR)/toridraw/toridraw_scene.c \
 	$(SRC2_DIR)/toridraw/toridraw_intrusive_list.c \

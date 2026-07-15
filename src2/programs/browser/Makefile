@@ -8,6 +8,7 @@
 EMCC  ?= emcc
 REPO_ROOT := ../../..
 SRC2  := $(REPO_ROOT)/src2
+include $(SRC2)/toriauxlib/core/tasks/tasks_sources.mk
 SRC_DIR := $(REPO_ROOT)/src
 SCRIPT_DIR := $(SRC2)/scripting
 PLAT_DIR := $(SRC2)/platforms
@@ -55,7 +56,6 @@ SRC   := browser.c \
 	$(SRC2)/toriauxlib/cache/toriauxlibcache_clientscript_convert.c \
 	$(SRC2)/toriauxlib/cache/toriauxlibcache_submit.c \
 	$(SRC2)/toriauxlib/td/toriauxlibtd.c \
-	$(SRC2)/toriauxlib/core/tasks/task_toriauxlibtd.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachemodel.c \
 	$(SRC2)/vm/cs1vm.c \
@@ -71,8 +71,7 @@ SRC   := browser.c \
 	$(SRC2)/runescape/appearance.c \
 	$(SRC2)/runescape/player_body.c \
 	$(SRC_DIR)/osrs/datatypes/appearances.c \
-	$(SRC2)/toriauxlib/core/tasks/libtori_core_task.c \
-	$(SRC2)/toriauxlib/core/tasks/libtori_core_task_runner.c \
+	$(TORIAUXLIB_TASK_SOURCES) \
 	$(SRC2)/toridraw/toridraw.c \
 	$(SRC2)/toridraw/toridraw_math.c \
 	$(SRC2)/toridraw/toridraw_map.c \
@@ -94,12 +93,6 @@ SRC   := browser.c \
 	$(SRC2)/ui/ui_click.c \
 	$(SRC2)/ui/ui_chat_minimenu.c \
 	$(SRC2)/ui/ui_debug.c \
-	$(SRC2)/toriauxlib/core/tasks/instance_revconfig_context.c \
-	$(SRC2)/toriauxlib/core/tasks/task_rs_component_load.c \
-	$(SRC2)/toriauxlib/core/tasks/task_dat2_anim_io.c \
-	$(SRC2)/toriauxlib/core/tasks/task_rs_inv_load.c \
-	$(SRC2)/toriauxlib/core/tasks/task_instance_on_rc.c \
-	$(SRC2)/toriauxlib/core/tasks/task_instance_revconfig_load.c \
 	$(SRC2)/ui/uitree.c \
 	$(SRC2)/ui/uitree_layout.c \
 	$(SRC2)/ui/uitree_host.c \
@@ -114,7 +107,6 @@ SRC   := browser.c \
 	$(SRC2)/ui/rs_inv_container.c \
 	$(SRC2)/ui/ui_inv_data_service.c \
 	$(SRC2)/ui/ui_inv_slot_view.c \
-	$(SRC2)/toriauxlib/core/tasks/instance_revconfig_inv_bind.c \
 	$(SRC2)/ui/ui_behavior.c \
 	$(SRC2)/ui/ui_input_adapter.c \
 	$(SRC2)/3rd/ini/ini.c \

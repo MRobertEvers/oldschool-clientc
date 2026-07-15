@@ -24,6 +24,7 @@
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/varp_varbit_manager.h"
 #include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/core/tasks/toriauxlib_tasks.h"
 #include "toriauxlib/core/tasks/instance_revconfig_inv_bind.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
@@ -4358,7 +4359,6 @@ struct Task_GameRunescape_WorldEntityAddPlayer
     int walkanim_b;
     int walkanim_r;
     int walkanim_l;
-    struct Task_ToriAuxLibCache_PlayerAdd* load;
 };
 
 struct Task_GameRunescape_WorldEntityAddPlayer*
@@ -4396,30 +4396,12 @@ Task_GameRunescape_WorldEntityAddPlayer_New(
     task->walkanim_b = walkanim_b;
     task->walkanim_r = walkanim_r;
     task->walkanim_l = walkanim_l;
-    task->load = Task_ToriAuxLibCache_PlayerAdd_New(
-        ToriAuxLibTD_C(game->td),
-        appearance,
-        readyanim,
-        walkanim,
-        turnanim,
-        runanim,
-        walkanim_b,
-        walkanim_r,
-        walkanim_l);
-    if( !task->load )
-    {
-        free(task);
-        return NULL;
-    }
     return task;
 }
 
 void
 Task_GameRunescape_WorldEntityAddPlayer_Free(struct Task_GameRunescape_WorldEntityAddPlayer* task)
 {
-    if( !task )
-        return;
-    Task_ToriAuxLibCache_PlayerAdd_Free(task->load);
     free(task);
 }
 
@@ -4431,22 +4413,24 @@ Task_GameRunescape_WorldEntityAddPlayer_Run(
     struct Task_GameRunescape_WorldEntityAddPlayer* task =
         (struct Task_GameRunescape_WorldEntityAddPlayer*)task_state;
     int result;
-    int load_state;
 
     PT_BEGIN(&task->thread);
 
-    assert(!(!task->game || !task->game->td || !task->game->world || !task->load));
+    assert(task->game && task->game->td && task->game->world);
 
-    for( ;; )
-    {
-        load_state = Task_ToriAuxLibCache_PlayerAdd_Run(task->load, ctx);
-        if( load_state == PT_ENDED || load_state == PT_EXITED )
-            break;
-        PT_YIELD(&task->thread);
-    }
-
-    if( load_state == PT_EXITED )
-        PT_EXIT(&task->thread);
+    TASK_AWAITEX(
+        &task->thread,
+        ctx,
+        Task_CachePlayerAdd_New(
+            ToriAuxLibTD_C(task->game->td),
+            task->appearance,
+            task->readyanim,
+            task->walkanim,
+            task->turnanim,
+            task->runanim,
+            task->walkanim_b,
+            task->walkanim_r,
+            task->walkanim_l));
 
     {
         runescape_preload_idle_animations(
@@ -4490,7 +4474,6 @@ struct Task_GameRunescape_WorldEntityAddNPC
     int x;
     int z;
     int level;
-    struct Task_ToriAuxLibCache_NpcAdd* load;
 };
 
 struct Task_GameRunescape_WorldEntityAddNPC*
@@ -4513,21 +4496,12 @@ Task_GameRunescape_WorldEntityAddNPC_New(
     task->x = x;
     task->z = z;
     task->level = level;
-    task->load = Task_ToriAuxLibCache_NpcAdd_New(ToriAuxLibTD_C(game->td), npc_id);
-    if( !task->load )
-    {
-        free(task);
-        return NULL;
-    }
     return task;
 }
 
 void
 Task_GameRunescape_WorldEntityAddNPC_Free(struct Task_GameRunescape_WorldEntityAddNPC* task)
 {
-    if( !task )
-        return;
-    Task_ToriAuxLibCache_NpcAdd_Free(task->load);
     free(task);
 }
 
@@ -4540,24 +4514,15 @@ Task_GameRunescape_WorldEntityAddNPC_Run(
         (struct Task_GameRunescape_WorldEntityAddNPC*)task_state;
     struct WorldEntityFacet_IdleAnimations idle_animations;
     int result;
-    int load_state;
 
     PT_BEGIN(&task->thread);
 
-    assert(!(!task->game || !task->game->td || !task->game->world || !task->load));
+    assert(task->game && task->game->td && task->game->world);
 
-    for( ;; )
-    {
-        load_state = Task_ToriAuxLibCache_NpcAdd_Run(task->load, ctx);
-        if( load_state == PT_ENDED || load_state == PT_EXITED )
-            break;
-        PT_YIELD(&task->thread);
-    }
-
-    if( load_state == PT_EXITED )
-        PT_EXIT(&task->thread);
-
-    assert(load_state == PT_ENDED && "npc cache load task exited without completing");
+    TASK_AWAITEX(
+        &task->thread,
+        ctx,
+        Task_CacheNpcAdd_New(ToriAuxLibTD_C(task->game->td), task->npc_id));
 
     idle_animations = runescape_npc_animation_from_config(task->game, task->npc_id);
     runescape_preload_idle_animations(task->game, &idle_animations);
@@ -4576,7 +4541,6 @@ struct Task_GameRunescape_WorldEntityAnimate
     int entity_id;
     int anim_id;
     int primary_secondary;
-    struct Task_ToriAuxLibCache_Animate* load;
 };
 
 struct Task_GameRunescape_WorldEntityAnimate*
@@ -4595,21 +4559,12 @@ Task_GameRunescape_WorldEntityAnimate_New(
     task->entity_id = entity_id;
     task->anim_id = anim_id;
     task->primary_secondary = primary_secondary;
-    task->load = Task_ToriAuxLibCache_Animate_New(ToriAuxLibTD_C(game->td), anim_id);
-    if( !task->load )
-    {
-        free(task);
-        return NULL;
-    }
     return task;
 }
 
 void
 Task_GameRunescape_WorldEntityAnimate_Free(struct Task_GameRunescape_WorldEntityAnimate* task)
 {
-    if( !task )
-        return;
-    Task_ToriAuxLibCache_Animate_Free(task->load);
     free(task);
 }
 
@@ -4621,22 +4576,15 @@ Task_GameRunescape_WorldEntityAnimate_Run(
     struct Task_GameRunescape_WorldEntityAnimate* task =
         (struct Task_GameRunescape_WorldEntityAnimate*)task_state;
     bool ok;
-    int load_state;
 
     PT_BEGIN(&task->thread);
 
-    assert(!(!task->game || !task->game->td || !task->load));
+    assert(task->game && task->game->td);
 
-    for( ;; )
-    {
-        load_state = Task_ToriAuxLibCache_Animate_Run(task->load, ctx);
-        if( load_state == PT_ENDED || load_state == PT_EXITED )
-            break;
-        PT_YIELD(&task->thread);
-    }
-
-    if( load_state == PT_EXITED )
-        PT_EXIT(&task->thread);
+    TASK_AWAITEX(
+        &task->thread,
+        ctx,
+        Task_CacheAnimate_New(ToriAuxLibTD_C(task->game->td), task->anim_id));
 
     if( task->anim_id != -1 )
         (void)ToriAuxLibTD_SequenceAnimation(task->game->td, task->anim_id);
@@ -4667,7 +4615,6 @@ struct Task_GameRunescape_WorldEntityAddProjectile
     int length;
     int offset;
     int step;
-    struct Task_ToriAuxLibCache_ProjectileAdd* load;
 };
 
 struct Task_GameRunescape_WorldEntityAddProjectile*
@@ -4710,13 +4657,6 @@ Task_GameRunescape_WorldEntityAddProjectile_New(
     task->length = length;
     task->offset = offset;
     task->step = step;
-    task->load =
-        Task_ToriAuxLibCache_ProjectileAdd_New(ToriAuxLibTD_C(game->td), projectile_id, anim_id);
-    if( !task->load )
-    {
-        free(task);
-        return NULL;
-    }
     return task;
 }
 
@@ -4724,9 +4664,6 @@ void
 Task_GameRunescape_WorldEntityAddProjectile_Free(
     struct Task_GameRunescape_WorldEntityAddProjectile* task)
 {
-    if( !task )
-        return;
-    Task_ToriAuxLibCache_ProjectileAdd_Free(task->load);
     free(task);
 }
 
@@ -4738,22 +4675,16 @@ Task_GameRunescape_WorldEntityAddProjectile_Run(
     struct Task_GameRunescape_WorldEntityAddProjectile* task =
         (struct Task_GameRunescape_WorldEntityAddProjectile*)task_state;
     int result;
-    int load_state;
 
     PT_BEGIN(&task->thread);
 
-    assert(!(!task->game || !task->game->td || !task->game->world || !task->load));
+    assert(task->game && task->game->td && task->game->world);
 
-    for( ;; )
-    {
-        load_state = Task_ToriAuxLibCache_ProjectileAdd_Run(task->load, ctx);
-        if( load_state == PT_ENDED || load_state == PT_EXITED )
-            break;
-        PT_YIELD(&task->thread);
-    }
-
-    if( load_state == PT_EXITED )
-        PT_EXIT(&task->thread);
+    TASK_AWAITEX(
+        &task->thread,
+        ctx,
+        Task_CacheProjectileAdd_New(
+            ToriAuxLibTD_C(task->game->td), task->projectile_id, task->anim_id));
 
     if( task->anim_id != -1 )
         (void)ToriAuxLibTD_SequenceAnimation(task->game->td, task->anim_id);

@@ -3,7 +3,11 @@
 #include <stdio.h>
 
 void
-bmp_write_file(const char* filename, int* pixels, int width, int height)
+bmp_write_file(
+    const char* filename,
+    int* pixels,
+    int width,
+    int height)
 {
     FILE* file = fopen(filename, "wb");
     if( !file )

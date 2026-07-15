@@ -14,6 +14,7 @@
 REPO_ROOT := ../../..
 SRC_DIR   := $(REPO_ROOT)/src
 SRC2      := $(REPO_ROOT)/src2
+include $(SRC2)/toriauxlib/core/tasks/tasks_sources.mk
 PLAT_DIR  := $(SRC2)/platforms
 SCRIPT_DIR := $(SRC2)/scripting
 
@@ -92,8 +93,6 @@ CACHE_SRCS := \
 	$(SRC2)/commands/libtorirs_command_queue.c \
 	$(SRC2)/input/libtorirs_input.c \
 	$(SRC2)/render/libtorirs_render.c \
-	$(SRC2)/toriauxlib/core/tasks/libtori_core_task.c \
-	$(SRC2)/toriauxlib/core/tasks/libtori_core_task_runner.c \
 	$(SRC2)/games/runescape.c \
 	$(SRC2)/runescape/appearance.c \
 	$(SRC2)/runescape/player_body.c \
@@ -142,7 +141,6 @@ CACHE_SRCS := \
 	$(SRC2)/toriauxlib/cache/toriauxlibcache_font_convert.c \
 	$(SRC2)/toriauxlib/cache/toriauxlibcache_submit.c \
 	$(SRC2)/toriauxlib/td/toriauxlibtd.c \
-	$(SRC2)/toriauxlib/core/tasks/task_toriauxlibtd.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachesprite.c \
 	$(SRC2)/toriauxlib/td/toridraw_cachemodel.c \
 	$(SRC2)/toriauxlib/vm/toriauxlibvm.c \
@@ -151,11 +149,7 @@ CACHE_SRCS := \
 	$(SRC2)/buildcache/dat2_buildcache.c \
 	$(SRC2)/buildcache/dat1_buildcache_ui.c \
 	$(SRC2)/ui/ui_sprite_lookup.c \
-	$(SRC2)/toriauxlib/core/tasks/instance_revconfig_context.c \
-	$(SRC2)/toriauxlib/core/tasks/task_rs_component_load.c \
-	$(SRC2)/toriauxlib/core/tasks/task_rs_inv_load.c \
-	$(SRC2)/toriauxlib/core/tasks/task_instance_on_rc.c \
-	$(SRC2)/toriauxlib/core/tasks/task_instance_revconfig_load.c \
+	$(TORIAUXLIB_TASK_SOURCES) \
 	$(SRC2)/ui/uitree.c \
 	$(SRC2)/ui/ui_input.c \
 	$(SRC2)/ui/ui_behavior.c \

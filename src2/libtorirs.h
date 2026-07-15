@@ -1,7 +1,7 @@
 #ifndef LIBTORIRS_H
 #define LIBTORIRS_H
 
-#include "toriauxlib/core/tasks/libtori_core_task.h"
+#include "ioqueue/libtorirs_io.h"
 #include "input/libtorirs_input.h"
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw_scene.h"
@@ -88,13 +88,19 @@ LibToriRS_GetCurrentToriDrawScene(struct LibToriRS_Instance* instance);
 struct ToriAuxLib*
 LibToriRS_GetToriAuxLib(struct LibToriRS_Instance* instance);
 
-/* Caller must pass a destroy callback that frees task_state (may be NULL). */
+/* Add a heap-allocated LibToriRS_Task (ownership transfers to the runner). */
 void
 LibToriRS_TasksAdd(
     struct LibToriRS_Instance* instance,
+    struct LibToriRS_Task* task);
+
+/* Legacy shim for protothread tasks not yet on the vtable (state freed by destroy). */
+void
+LibToriRS_TasksAddLegacy(
+    struct LibToriRS_Instance* instance,
     void* task_state,
-    LibToriCoreTaskFunction task_function,
-    LibToriCoreTaskDestructor destroy);
+    int (*run_fn)(void*, struct LibToriRS_IOContext*),
+    void (*destroy_fn)(void*));
 
 bool
 LibToriRS_TasksRun(struct LibToriRS_Instance* instance);

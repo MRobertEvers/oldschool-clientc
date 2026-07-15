@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
-void bmp_write_file(const char* filename, int* pixels, int width, int height);
+void
+bmp_write_file(
+    const char* filename,
+    int* pixels,
+    int width,
+    int height);
 
 #endif

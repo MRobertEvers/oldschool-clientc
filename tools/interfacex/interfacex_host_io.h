@@ -1,7 +1,7 @@
 #ifndef INTERFACEX_HOST_IO_H
 #define INTERFACEX_HOST_IO_H
 
-#include "toriauxlib/core/tasks/libtori_core_task_runner.h"
+#include "ioqueue/libtorirs_io.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -28,7 +28,7 @@ struct InterfaceX_HostIO
     struct ToriAuxLibCore* core;
     struct LibToriRS_IOQueue* io_queue;
     struct LibToriPlatformX_IOReactor* io_reactor;
-    struct LibToriCoreTaskRunner* task_runner;
+    struct LibToriRS_TaskRunner task_runner;
     struct ToriDraw_Scene* scene;
     int* next_scene_id;
 };

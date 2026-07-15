@@ -102,7 +102,7 @@ LibToriRS_InstanceNewWithCacheMode(int cache_mode)
         return NULL;
     }
 
-    LibToriCoreTaskRunner_Init(&instance->task_runner, instance->io_queue);
+    LibToriRS_TaskRunner_Init(&instance->task_runner, instance->io_queue);
 
     instance->running = true;
 
@@ -138,7 +138,13 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return;
-    LibToriCoreTaskRunner_Shutdown(&instance->task_runner);
+    while( instance->task_runner.count > 0 )
+    {
+        struct LibToriRS_Task* task = instance->task_runner.tasks[instance->task_runner.head];
+        if( task && task->vtable && task->vtable->free_fn )
+            task->vtable->free_fn(task);
+        LibToriRS_TaskRunner_Pop(&instance->task_runner);
+    }
     if( instance->io_queue )
         LibToriRS_IOQueueFree(instance->io_queue);
     if( instance->script_queue )
@@ -399,7 +405,7 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                         RUNESCAPE_PROJECTILE_STEP);
                 if( task )
                 {
-                    LibToriRS_TasksAdd(
+                    LibToriRS_TasksAddLegacy(
                         instance,
                         task,
                         Task_GameRunescape_WorldEntityAddProjectile_Run,
@@ -443,7 +449,7 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                         RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_L);
                 if( task )
                 {
-                    LibToriRS_TasksAdd(
+                    LibToriRS_TasksAddLegacy(
                         instance,
                         task,
                         Task_GameRunescape_WorldEntityAddPlayer_Run,
@@ -480,7 +486,7 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                         game, entity_id, npc_id, sx, sz, level);
                 if( task )
                 {
-                    LibToriRS_TasksAdd(
+                    LibToriRS_TasksAddLegacy(
                         instance,
                         task,
                         Task_GameRunescape_WorldEntityAddNPC_Run,
@@ -613,16 +619,70 @@ LibToriRS_GetToriAuxLib(struct LibToriRS_Instance* instance)
     return instance->toriauxlib;
 }
 
+struct LibToriRS_LegacyTaskAdapter
+{
+    struct LibToriRS_Task base;
+    void* state;
+    int (*run_fn)(void*, struct LibToriRS_IOContext*);
+    void (*destroy_fn)(void*);
+};
+
+static int
+libtorirs_legacy_task_run(
+    struct LibToriRS_Task* base,
+    struct LibToriRS_IOContext* ctx)
+{
+    struct LibToriRS_LegacyTaskAdapter* adapter =
+        LibToriRS_container_of(base, struct LibToriRS_LegacyTaskAdapter, base);
+    return adapter->run_fn(adapter->state, ctx);
+}
+
+static void
+libtorirs_legacy_task_free(struct LibToriRS_Task* base)
+{
+    struct LibToriRS_LegacyTaskAdapter* adapter =
+        LibToriRS_container_of(base, struct LibToriRS_LegacyTaskAdapter, base);
+    if( adapter->destroy_fn )
+        adapter->destroy_fn(adapter->state);
+    free(adapter);
+}
+
+static struct LibToriRS_TaskVTable g_legacy_task_vtable = {
+    .run_fn = libtorirs_legacy_task_run,
+    .free_fn = libtorirs_legacy_task_free,
+};
+
 void
 LibToriRS_TasksAdd(
     struct LibToriRS_Instance* instance,
-    void* task_state,
-    LibToriCoreTaskFunction task_function,
-    LibToriCoreTaskDestructor destroy)
+    struct LibToriRS_Task* task)
 {
+    if( !instance || !task )
+        return;
+    LibToriRS_TaskRunner_Add(&instance->task_runner, task);
+}
+
+void
+LibToriRS_TasksAddLegacy(
+    struct LibToriRS_Instance* instance,
+    void* task_state,
+    int (*run_fn)(void*, struct LibToriRS_IOContext*),
+    void (*destroy_fn)(void*))
+{
+    struct LibToriRS_LegacyTaskAdapter* adapter = NULL;
+
     if( !instance )
         return;
-    LibToriCoreTaskRunner_Add(&instance->task_runner, task_state, task_function, destroy);
+
+    adapter = calloc(1, sizeof(struct LibToriRS_LegacyTaskAdapter));
+    if( !adapter )
+        return;
+
+    adapter->base.vtable = &g_legacy_task_vtable;
+    adapter->state = task_state;
+    adapter->run_fn = run_fn;
+    adapter->destroy_fn = destroy_fn;
+    LibToriRS_TaskRunner_Add(&instance->task_runner, &adapter->base);
 }
 
 bool
@@ -630,7 +690,7 @@ LibToriRS_TasksRun(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return false;
-    return LibToriCoreTaskRunner_Run(&instance->task_runner);
+    return LibToriRS_TaskRunner_Run(&instance->task_runner);
 }
 
 bool
@@ -638,5 +698,5 @@ LibToriRS_TasksHasLive(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return false;
-    return LibToriCoreTaskRunner_HasLive(&instance->task_runner);
+    return instance->task_runner.count > 0;
 }

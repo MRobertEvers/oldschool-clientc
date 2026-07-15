@@ -1750,7 +1750,7 @@ instance_revconfig_build_tree(struct InstanceRevConfigContext* ctx)
 
     assert(built == active_count && "instance_revconfig_build_tree: incomplete layout build");
 
-    if( built == active_count && ctx->game )
+    if( built == active_count && ctx->game && ctx->cache_mode == TORIAUXLIBCACHE_MODE_DAT2 )
         instance_revconfig_inv_setup_after_build(ctx->game, ctx);
 
     return built == active_count;

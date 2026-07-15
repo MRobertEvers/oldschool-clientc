@@ -4,6 +4,7 @@
 #include "toridraw/toridraw_font.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_scene.h"
+#include "toridraw/toridraw_sprite.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -142,14 +143,70 @@ ToriAuxLibTD_Font(
     return true;
 }
 
+static struct ToriDraw_Sprite*
+font_td_shim_sprite_frame_from_core(const struct ToriAuxLibCore_SpriteFrame* src)
+{
+    if( !src || !src->pixels_argb || src->width <= 0 || src->height <= 0 )
+        return NULL;
+
+    size_t pixel_count = (size_t)src->width * (size_t)src->height;
+    uint32_t* pixels = malloc(pixel_count * sizeof(uint32_t));
+    if( !pixels )
+        return NULL;
+    memcpy(pixels, src->pixels_argb, pixel_count * sizeof(uint32_t));
+
+    struct ToriDraw_Sprite* sprite =
+        ToriDraw_SpriteNewFromArgbOwned(pixels, src->width, src->height);
+    if( !sprite )
+        return NULL;
+
+    sprite->crop_x = src->crop_x;
+    sprite->crop_y = src->crop_y;
+    sprite->crop_width = src->crop_width > 0 ? src->crop_width : src->width;
+    sprite->crop_height = src->crop_height > 0 ? src->crop_height : src->height;
+    return sprite;
+}
+
 bool
 ToriAuxLibTD_Sprite(
     struct ToriAuxLibTD* td,
     int element_id)
 {
-    (void)td;
-    (void)element_id;
-    return false;
+    if( !td || element_id < 0 )
+        return false;
+
+    if( ToriDraw_SceneSpriteHas(td->scene, element_id) )
+        return true;
+
+    struct ToriAuxLibCore_Sprite* core_sprite = ToriAuxLibCore_SpriteGet(td->core, element_id);
+    if( !core_sprite || core_sprite->frame_count <= 0 || !core_sprite->frames )
+        return false;
+
+    struct ToriDraw_Sprite** sprites =
+        calloc((size_t)core_sprite->frame_count, sizeof(struct ToriDraw_Sprite*));
+    if( !sprites )
+        return false;
+
+    int loaded = 0;
+    for( int i = 0; i < core_sprite->frame_count; i++ )
+    {
+        sprites[i] = font_td_shim_sprite_frame_from_core(&core_sprite->frames[i]);
+        if( sprites[i] )
+            loaded++;
+        else
+            break;
+    }
+
+    if( loaded != core_sprite->frame_count )
+    {
+        for( int i = 0; i < loaded; i++ )
+            ToriDraw_SpriteFree(sprites[i]);
+        free(sprites);
+        return false;
+    }
+
+    ToriDraw_SceneSpriteAdd(td->scene, element_id, sprites, core_sprite->frame_count);
+    return true;
 }
 
 struct ToriDraw_ModelHandle

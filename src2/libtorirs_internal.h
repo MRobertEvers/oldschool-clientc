@@ -2,7 +2,7 @@
 #define LIBTORIRS_INTERNAL_H
 
 #include "buildcache/dat1_buildcache.h"
-#include "toriauxlib/core/tasks/libtori_core_task_runner.h"
+#include "ioqueue/libtorirs_io.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "games/game_handle.h"
 #include "games/interface_editor.h"
@@ -30,7 +30,7 @@ struct LibToriRS_Instance
     struct LibToriRS_ScriptQueue* script_queue;
     struct LibToriRS_Input* input;
 
-    struct LibToriCoreTaskRunner task_runner;
+    struct LibToriRS_TaskRunner task_runner;
 
     struct ToriDraw_Scene* scene;
     struct ToriAuxLib* toriauxlib;

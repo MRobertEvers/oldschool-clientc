@@ -16,10 +16,9 @@
 #include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/cache/toriauxlibcache_clientscript_convert.h"
 #include "toriauxlib/cache/toriauxlibcache_submit.h"
-#include "toriauxlib/core/tasks/core_task_await.h"
-#include "toriauxlib/core/tasks/task_clientscript_load.h"
-#include "toriauxlib/core/tasks/task_dat2_config_entry_load.h"
-#include "toriauxlib/core/tasks/task_dat2_io.h"
+#include "ioqueue/libtorirs_io.h"
+#include "toriauxlib/core/tasks/toriauxlib_tasks.h"
+#include "toriauxlib/core/tasks/dat2/task_dat2_io.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toridraw_cachemodel.h"
 #include "toridraw/toridraw_font.h"
@@ -30,6 +29,36 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+struct InterfaceX_HostIOLegacyTaskAdapter
+{
+    struct LibToriRS_Task base;
+    void* state;
+    int (*run_fn)(void*, struct LibToriRS_IOContext*);
+    void (*destroy_fn)(void*);
+};
+
+static struct LibToriRS_TaskVTable g_hostio_legacy_task_vtable;
+
+static int
+hostio_legacy_task_run(
+    struct LibToriRS_Task* base,
+    struct LibToriRS_IOContext* ctx)
+{
+    struct InterfaceX_HostIOLegacyTaskAdapter* adapter =
+        LibToriRS_container_of(base, struct InterfaceX_HostIOLegacyTaskAdapter, base);
+    return adapter->run_fn(adapter->state, ctx);
+}
+
+static void
+hostio_legacy_task_free(struct LibToriRS_Task* base)
+{
+    struct InterfaceX_HostIOLegacyTaskAdapter* adapter =
+        LibToriRS_container_of(base, struct InterfaceX_HostIOLegacyTaskAdapter, base);
+    if( adapter->destroy_fn )
+        adapter->destroy_fn(adapter->state);
+    free(adapter);
+}
 
 struct InterfaceX_GraphicSceneCacheEntry
 {
@@ -135,10 +164,6 @@ struct InterfaceX_TaskBatchModelLoad
 
     struct LibToriRS_IOBatch io_batch;
 
-    struct Task_ToriAuxLibCache_NpcAdd* npc_child;
-    struct Task_ToriAuxLibCache_PlayerAdd* player_child;
-    struct Task_Dat2ConfigEntryLoad* obj_config_child;
-
     int scene_build_index;
     int batch_end;
     bool need_obj_load;
@@ -183,7 +208,7 @@ hostio_config_kind_name(int config_kind)
 static void
 hostio_drain_io(struct InterfaceX_HostIO* io)
 {
-    while( LibToriCoreTaskRunner_HasLive(io->task_runner) )
+    while( io->task_runner.count > 0 )
     {
         InterfaceX_HostIO_Pump(io);
     }
@@ -194,7 +219,7 @@ InterfaceX_HostIO_Pump(struct InterfaceX_HostIO* io)
 {
     if( !io )
         return;
-    while( LibToriCoreTaskRunner_Run(io->task_runner) )
+    while( LibToriRS_TaskRunner_Run(&io->task_runner) )
         LibToriPlatformX_IOReactorProcess(io->io_reactor, io->io_queue);
     LibToriPlatformX_IOReactorProcess(io->io_reactor, io->io_queue);
 }
@@ -208,7 +233,26 @@ hostio_run_task(
         struct LibToriRS_IOContext*),
     void (*destroy_fn)(void*))
 {
-    LibToriCoreTaskRunner_Add(io->task_runner, task_state, run_fn, destroy_fn);
+    struct InterfaceX_HostIOLegacyTaskAdapter* adapter = calloc(1, sizeof(*adapter));
+    if( !adapter )
+        return;
+
+    adapter->base.vtable = &g_hostio_legacy_task_vtable;
+    adapter->state = task_state;
+    adapter->run_fn = run_fn;
+    adapter->destroy_fn = destroy_fn;
+    LibToriRS_TaskRunner_Add(&io->task_runner, &adapter->base);
+    hostio_drain_io(io);
+}
+
+static void
+hostio_run_rs_task(
+    struct InterfaceX_HostIO* io,
+    struct LibToriRS_Task* task)
+{
+    if( !io || !task )
+        return;
+    LibToriRS_TaskRunner_Add(&io->task_runner, task);
     hostio_drain_io(io);
 }
 
@@ -661,9 +705,9 @@ InterfaceX_HostIO_Init(
     if( !io->io_reactor )
         goto fail;
 
-    io->task_runner = LibToriCoreTaskRunner_New(io->io_queue);
-    if( !io->task_runner )
-        goto fail;
+    g_hostio_legacy_task_vtable.run_fn = hostio_legacy_task_run;
+    g_hostio_legacy_task_vtable.free_fn = hostio_legacy_task_free;
+    LibToriRS_TaskRunner_Init(&io->task_runner, io->io_queue);
 
     return true;
 
@@ -678,8 +722,6 @@ InterfaceX_HostIO_Free(struct InterfaceX_HostIO* io)
     if( !io )
         return;
 
-    if( io->task_runner )
-        LibToriCoreTaskRunner_Free(io->task_runner);
     if( io->io_reactor )
         LibToriPlatformX_IOReactorFree(io->io_reactor);
     if( io->io_queue )
@@ -724,7 +766,15 @@ InterfaceX_HostIO_QueueTask(
     void (*destroy_fn)(void*))
 {
     assert(io);
-    LibToriCoreTaskRunner_Add(io->task_runner, task_state, run_fn, destroy_fn);
+    struct InterfaceX_HostIOLegacyTaskAdapter* adapter = calloc(1, sizeof(*adapter));
+    if( !adapter )
+        return;
+
+    adapter->base.vtable = &g_hostio_legacy_task_vtable;
+    adapter->state = task_state;
+    adapter->run_fn = run_fn;
+    adapter->destroy_fn = destroy_fn;
+    LibToriRS_TaskRunner_Add(&io->task_runner, &adapter->base);
 }
 
 struct ToriAuxLibCache*
@@ -1012,8 +1062,8 @@ InterfaceX_HostIO_LoadConfigEntries(
 
     if( pending_count > 0 )
     {
-        struct Task_Dat2ConfigEntryLoad* task =
-            Task_Dat2ConfigEntryLoad_New(io->aux_cache, config_kind, pending, pending_count);
+        struct LibToriRS_Task* task =
+            Task_CacheConfigEntryLoad_New(io->aux_cache, config_kind, pending, pending_count);
         if( !task )
         {
             fprintf(
@@ -1025,11 +1075,7 @@ InterfaceX_HostIO_LoadConfigEntries(
         }
         else
         {
-            hostio_run_task(
-                io,
-                task,
-                Task_Dat2ConfigEntryLoad_Run,
-                (void (*)(void*))Task_Dat2ConfigEntryLoad_Free);
+            hostio_run_rs_task(io, task);
         }
     }
 
@@ -1084,7 +1130,7 @@ InterfaceX_HostIO_LoadClientScript(
     if( InterfaceX_HostIO_ClientScriptGet(io, script_id) )
         return true;
 
-    struct Task_ClientScriptLoad* task = Task_ClientScriptLoad_New(io->aux_cache, &script_id, 1);
+    struct LibToriRS_Task* task = Task_CacheClientScriptLoad_New(io->aux_cache, &script_id, 1);
     if( !task )
     {
         fprintf(
@@ -1092,8 +1138,7 @@ InterfaceX_HostIO_LoadClientScript(
         return false;
     }
 
-    hostio_run_task(
-        io, task, Task_ClientScriptLoad_Run, (void (*)(void*))Task_ClientScriptLoad_Free);
+    hostio_run_rs_task(io, task);
 
     hostio_load_clientscript_sync(io, script_id);
 
@@ -1140,13 +1185,10 @@ InterfaceX_HostIO_LoadClientScripts(
 
     if( pending_count > 0 )
     {
-        struct Task_ClientScriptLoad* task =
-            Task_ClientScriptLoad_New(io->aux_cache, pending, pending_count);
+        struct LibToriRS_Task* task =
+            Task_CacheClientScriptLoad_New(io->aux_cache, pending, pending_count);
         if( task )
-        {
-            hostio_run_task(
-                io, task, Task_ClientScriptLoad_Run, (void (*)(void*))Task_ClientScriptLoad_Free);
-        }
+            hostio_run_rs_task(io, task);
     }
 
     for( int i = 0; i < pending_count; i++ )
@@ -1506,19 +1548,14 @@ InterfaceX_HostIO_LoadNpctype(
     bc = dat2(io->aux_cache);
     if( !dat2_buildcache_npctype_get(bc, npc_id) )
     {
-        struct Task_ToriAuxLibCache_NpcAdd* task =
-            Task_ToriAuxLibCache_NpcAdd_New(io->aux_cache, npc_id);
+        struct LibToriRS_Task* task = Task_CacheNpcAdd_New(io->aux_cache, npc_id);
         if( !task )
         {
             fprintf(stderr, "hostio: npctype load alloc failed for npc_id=%d\n", npc_id);
             return false;
         }
 
-        hostio_run_task(
-            io,
-            task,
-            Task_ToriAuxLibCache_NpcAdd_Run,
-            (void (*)(void*))Task_ToriAuxLibCache_NpcAdd_Free);
+        hostio_run_rs_task(io, task);
 
         if( !dat2_buildcache_npctype_get(bc, npc_id) )
         {
@@ -1548,7 +1585,7 @@ InterfaceX_HostIO_LoadPlayerAppearance(
     model_count = runescape_appearance_collect_model_ids_dat2(bc, appearance, model_ids, 256);
     if( model_count <= 0 )
     {
-        struct Task_ToriAuxLibCache_PlayerAdd* task = Task_ToriAuxLibCache_PlayerAdd_New(
+        struct LibToriRS_Task* task = Task_CachePlayerAdd_New(
             io->aux_cache,
             appearance,
             RUNESCAPE_EXAMPLE_PLAYER_READYANIM,
@@ -1564,11 +1601,7 @@ InterfaceX_HostIO_LoadPlayerAppearance(
             return false;
         }
 
-        hostio_run_task(
-            io,
-            task,
-            Task_ToriAuxLibCache_PlayerAdd_Run,
-            (void (*)(void*))Task_ToriAuxLibCache_PlayerAdd_Free);
+        hostio_run_rs_task(io, task);
 
         model_count = runescape_appearance_collect_model_ids_dat2(bc, appearance, model_ids, 256);
     }
@@ -1951,12 +1984,13 @@ batch_model_load_destroy(void* state)
     if( !task )
         return;
 
-    if( task->npc_child )
-        Task_ToriAuxLibCache_NpcAdd_Free(task->npc_child);
-    if( task->player_child )
-        Task_ToriAuxLibCache_PlayerAdd_Free(task->player_child);
-    if( task->obj_config_child )
-        Task_Dat2ConfigEntryLoad_Free(task->obj_config_child);
+    if( task->thread.user )
+    {
+        struct LibToriRS_Task* child = task->thread.user;
+        if( child->vtable && child->vtable->free_fn )
+            child->vtable->free_fn(child);
+        task->thread.user = NULL;
+    }
 
     free(task->args);
     free(task->results);
@@ -1999,23 +2033,10 @@ batch_model_load_run(
             continue;
         }
 
-        if( task->npc_child )
-            Task_ToriAuxLibCache_NpcAdd_Free(task->npc_child);
-        task->npc_child =
-            Task_ToriAuxLibCache_NpcAdd_New(task->cache, task->npc_ids[task->npc_index]);
-        if( !task->npc_child )
-        {
-            fprintf(
-                stderr,
-                "hostio: batch model load npc alloc failed npc_id=%d\n",
-                task->npc_ids[task->npc_index]);
-            task->npc_index++;
-            continue;
-        }
-
-        TASK_AWAIT(&task->thread, Task_ToriAuxLibCache_NpcAdd_Run(task->npc_child, ctx));
-        Task_ToriAuxLibCache_NpcAdd_Free(task->npc_child);
-        task->npc_child = NULL;
+        TASK_AWAITEX(
+            &task->thread,
+            ctx,
+            Task_CacheNpcAdd_New(task->cache, task->npc_ids[task->npc_index]));
         task->npc_index++;
     }
 
@@ -2030,28 +2051,19 @@ batch_model_load_run(
             continue;
         }
 
-        if( task->player_child )
-            Task_ToriAuxLibCache_PlayerAdd_Free(task->player_child);
-        task->player_child = Task_ToriAuxLibCache_PlayerAdd_New(
-            task->cache,
-            task->player_appearances[task->player_index],
-            RUNESCAPE_EXAMPLE_PLAYER_READYANIM,
-            RUNESCAPE_EXAMPLE_PLAYER_WALKANIM,
-            RUNESCAPE_EXAMPLE_PLAYER_TURNANIM,
-            RUNESCAPE_EXAMPLE_PLAYER_RUNANIM,
-            RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_B,
-            RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_R,
-            RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_L);
-        if( !task->player_child )
-        {
-            fprintf(stderr, "hostio: batch model load player alloc failed\n");
-            task->player_index++;
-            continue;
-        }
-
-        TASK_AWAIT(&task->thread, Task_ToriAuxLibCache_PlayerAdd_Run(task->player_child, ctx));
-        Task_ToriAuxLibCache_PlayerAdd_Free(task->player_child);
-        task->player_child = NULL;
+        TASK_AWAITEX(
+            &task->thread,
+            ctx,
+            Task_CachePlayerAdd_New(
+                task->cache,
+                task->player_appearances[task->player_index],
+                RUNESCAPE_EXAMPLE_PLAYER_READYANIM,
+                RUNESCAPE_EXAMPLE_PLAYER_WALKANIM,
+                RUNESCAPE_EXAMPLE_PLAYER_TURNANIM,
+                RUNESCAPE_EXAMPLE_PLAYER_RUNANIM,
+                RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_B,
+                RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_R,
+                RUNESCAPE_EXAMPLE_PLAYER_WALKANIM_L));
         task->player_index++;
     }
 
@@ -2069,17 +2081,11 @@ batch_model_load_run(
 
         if( task->need_obj_load )
         {
-            if( task->obj_config_child )
-                Task_Dat2ConfigEntryLoad_Free(task->obj_config_child);
-            task->obj_config_child = Task_Dat2ConfigEntryLoad_New(
-                task->cache, RSCacheDat2A_ConfigKind_Object, task->obj_ids, task->obj_count);
-            if( task->obj_config_child )
-            {
-                TASK_AWAIT(
-                    &task->thread, Task_Dat2ConfigEntryLoad_Run(task->obj_config_child, ctx));
-                Task_Dat2ConfigEntryLoad_Free(task->obj_config_child);
-                task->obj_config_child = NULL;
-            }
+            TASK_AWAITEX(
+                &task->thread,
+                ctx,
+                Task_CacheConfigEntryLoad_New(
+                    task->cache, RSCacheDat2A_ConfigKind_Object, task->obj_ids, task->obj_count));
         }
     }
 

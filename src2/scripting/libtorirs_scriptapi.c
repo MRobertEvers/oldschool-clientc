@@ -24,9 +24,7 @@
 #include "src/osrs/texture.h"
 #include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/cache/toriauxlibcache_submit.h"
-#include "toriauxlib/core/tasks/libtori_core_task.h"
-#include "toriauxlib/core/tasks/task_dat2_textures_load.h"
-#include "toriauxlib/core/tasks/task_instance_revconfig_load.h"
+#include "toriauxlib/core/tasks/toriauxlib_tasks.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/toriauxlib.h"
 #include "toriauxlib/vm/toriauxlibvm.h"
@@ -44,21 +42,9 @@
 #include <string.h>
 
 static void
-world_rebuild_normal_centerzone_task_destroy(void* state)
-{
-    Task_ToriAuxLibCache_WorldRebuildNormalCenterzone_Free(state);
-}
-
-static void
 ui_load_task_destroy(void* state)
 {
     Task_InstanceRevConfigLoad_Free(state);
-}
-
-static void
-dat2_textures_load_task_destroy(void* state)
-{
-    Task_Dat2TexturesLoad_Free(state);
 }
 
 #define UI_DAT1_CACHE_INI "rev_245_2/rev_245_2_dat1_cache.ini"
@@ -227,11 +213,11 @@ LibToriRS_ScriptAPI_Dat2_TexturesLoad(struct LibToriRS_Instance* instance)
     if( !c || ToriAuxLibCache_Mode(c) != TORIAUXLIBCACHE_MODE_DAT2 )
         return false;
 
-    struct Task_Dat2TexturesLoad* task = Task_Dat2TexturesLoad_New(c);
+    struct LibToriRS_Task* task = Task_CacheTexturesLoad_New(c);
     if( !task )
         return false;
 
-    LibToriRS_TasksAdd(instance, task, Task_Dat2TexturesLoad_Run, dat2_textures_load_task_destroy);
+    LibToriRS_TasksAdd(instance, task);
     return true;
 }
 
@@ -504,14 +490,9 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
     instance->runescape_handle.u.runescape = instance->runescape;
     instance->active_game_kind = GAME_HANDLE_KIND_RUNESCAPE;
 
-    struct Task_ToriAuxLibCache_WorldRebuildNormalCenterzone* task =
-        Task_ToriAuxLibCache_WorldRebuildNormalCenterzone_New(
-            ToriAuxLib_C(instance->toriauxlib), RUNESCAPE_ZONE_CENTER_X, RUNESCAPE_ZONE_CENTER_Z);
-    LibToriRS_TasksAdd(
-        instance,
-        task,
-        Task_ToriAuxLibCache_WorldRebuildNormalCenterzone_Run,
-        world_rebuild_normal_centerzone_task_destroy);
+    struct LibToriRS_Task* task = Task_CacheWorldRebuildNormalCenterzone_New(
+        ToriAuxLib_C(instance->toriauxlib), RUNESCAPE_ZONE_CENTER_X, RUNESCAPE_ZONE_CENTER_Z);
+    LibToriRS_TasksAdd(instance, task);
 
     {
         char const* config_files[2];
@@ -533,7 +514,7 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
             config_files[1] = UI_DAT1_UI_INI;
         }
 
-        struct Task_InstanceRevConfigLoad* ui_task = Task_InstanceRevConfigLoad_New(
+        struct LibToriRS_Task* ui_task = Task_InstanceRevConfigLoad_New(
             ToriAuxLib_C(instance->toriauxlib),
             instance->scene,
             instance->runescape->ui_tree,
@@ -541,7 +522,7 @@ LibToriRS_ScriptAPI_Game_Runescape_Init(struct LibToriRS_Instance* instance)
             config_files,
             2,
             layout_group);
-        LibToriRS_TasksAdd(instance, ui_task, Task_InstanceRevConfigLoad_Run, ui_load_task_destroy);
+        LibToriRS_TasksAdd(instance, ui_task);
     }
 }
 

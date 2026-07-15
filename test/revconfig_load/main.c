@@ -5,7 +5,6 @@
 #include "revconfig/revconfig.h"
 #include "revconfig/revconfig_load.h"
 #include "osrs/minimenu_action.h"
-#include "toriauxlib/core/tasks/libtori_core_task.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -100,11 +99,13 @@ Task_RevConfigIniLoad_Run(
 
 static bool
 run_task_to_completion(
-    struct LibToriCoreTask* task,
+    void* task_state,
+    int (*run_fn)(void*, struct LibToriRS_IOContext*),
     struct LibToriRS_IOQueue* io,
     struct LibToriPlatformX_IOReactor* reactor)
 {
-    assert(task);
+    assert(task_state);
+    assert(run_fn);
     assert(io);
     assert(reactor);
 
@@ -124,7 +125,7 @@ run_task_to_completion(
         }
 
         int run = LibToriRS_IOQueueBeginRun(io);
-        last_res = task->task(task->state, &ctx);
+        last_res = run_fn(task_state, &ctx);
 
         switch( last_res )
         {
@@ -272,12 +273,8 @@ run_ini_pair_test(
     load_task.cache_ini = cache_ini;
     load_task.ui_ini = ui_ini;
 
-    struct LibToriCoreTask* task =
-        LibToriCoreTask_New(&load_task, Task_RevConfigIniLoad_Run, NULL);
-    TEST_ASSERT(task != NULL, "LibToriCoreTask_New failed");
-
-    bool finished = run_task_to_completion(task, io, reactor);
-    LibToriCoreTask_Free(task);
+    bool finished =
+        run_task_to_completion(&load_task, Task_RevConfigIniLoad_Run, io, reactor);
 
     TEST_ASSERT(finished, "task did not finish");
     TEST_ASSERT(load_task.ok, "task reported failure");

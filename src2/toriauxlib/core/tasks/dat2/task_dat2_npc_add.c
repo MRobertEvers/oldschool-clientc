@@ -1,0 +1,320 @@
+#include "ioqueue/libtorirs_io.h"
+#include "buildcache/dat2_buildcache.h"
+#include "core/tapi/tapi_dat2.h"
+#include "osrs/rscache/dat2a/dat2a_config_npctype.h"
+#include "osrs/rscache/dat2a/dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/dat2a_configs.h"
+#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "toriauxlib/cache/toriauxlibcache.h"
+#include "toriauxlib/cache/toriauxlibcache_submit.h"
+#include "toriauxlib/core/tasks/dat2/dat2_anim_load.h"
+#include "toriauxlib/core/tasks/dat2/task_dat2_io.h"
+#include "toriauxlib/core/toriauxlibcore.h"
+
+#include <assert.h>
+#include <stdbool.h>
+#include <stdlib.h>
+
+#define TASK_DAT2_NPC_IO_BATCH 64
+
+struct LibToriRS_Task*
+Task_Dat2AnimResolve_New(
+    struct ToriAuxLibCache* c,
+    struct Dat2BuildCache* bc,
+    const int* seq_ids,
+    int seq_count);
+
+struct Task_Dat2NpcAdd
+{
+    struct LibToriRS_Task base;
+    struct pt pt;
+    struct ToriAuxLibCache* c;
+    int npc_id;
+    struct LibToriRS_IOBatch io_batch;
+    int model_ids[256];
+    int model_count;
+    int model_index;
+    int npc_anims[7];
+    int resolve_seq_ids[7];
+    int resolve_seq_count;
+    struct RSCacheDat2Disk_Archive* sequence_archive;
+};
+
+static bool
+task_dat2_npc_anim_resolve_needed(
+    struct ToriAuxLibCache* c,
+    struct Dat2BuildCache* dat2_bc,
+    const int* anims,
+    int count)
+{
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(c);
+
+    for( int i = 0; i < count; i++ )
+    {
+        int seq_id = anims[i];
+        struct RSCacheDat2A_ConfigSequence* bc_seq;
+        struct ToriAuxLibCore_Sequence* core_seq;
+
+        if( seq_id == -1 )
+            continue;
+
+        core_seq = ToriAuxLibCore_SequenceGet(core, seq_id);
+        bc_seq = dat2_buildcache_sequence_get(dat2_bc, seq_id);
+
+        if( !core_seq )
+            return true;
+
+        if( dat2_anim_sequence_assets_missing(core, dat2_bc, bc_seq, core_seq) )
+            return true;
+    }
+
+    return false;
+}
+
+static void
+task_dat2_npc_assert_classic_sequence_frames(
+    struct ToriAuxLibCore* core,
+    struct Dat2BuildCache* dat2_bc,
+    struct RSCacheDat2A_ConfigSequence* seq)
+{
+    assert(core && dat2_bc && seq);
+
+    if( seq->anim_maya_id >= 0 && seq->frame_count == 0 )
+        return;
+
+    for( int fi = 0; fi < seq->frame_count; fi++ )
+    {
+        int aid = (seq->frame_ids[fi] >> 16) & 0xFFFF;
+        if( aid < 0 )
+            continue;
+        assert(
+            dat2_anim_classic_frame_archive_loaded(core, dat2_bc, aid) &&
+            "npc classic sequence missing frame archive after IO");
+    }
+}
+
+static void
+task_dat2_npc_submit_sequence_assets(
+    struct Task_Dat2NpcAdd* task,
+    struct Dat2BuildCache* dat2_bc,
+    struct ToriAuxLibCore* core,
+    int seq_id,
+    struct RSCacheDat2A_ConfigSequence* seq)
+{
+    assert(task && dat2_bc && core && seq);
+
+    if( seq->anim_maya_id >= 0 && seq->frame_count == 0 )
+    {
+        assert(
+            dat2_anim_skeletal_loaded(core, dat2_bc, seq->anim_maya_id) &&
+            "npc skeletal sequence missing animaya after IO");
+    }
+    else
+        task_dat2_npc_assert_classic_sequence_frames(core, dat2_bc, seq);
+
+    if( !ToriAuxLibCore_SequenceGet(core, seq_id) )
+        ToriAuxLibCache_SubmitSequenceFromDat2(task->c, seq_id);
+    assert(ToriAuxLibCore_SequenceGet(core, seq_id) && "npc sequence not in core after submit");
+}
+
+static int
+Task_Dat2NpcAdd_Run(
+    struct LibToriRS_Task* base,
+    struct LibToriRS_IOContext* ctx)
+{
+    struct Task_Dat2NpcAdd* task = LibToriRS_container_of(base, struct Task_Dat2NpcAdd, base);
+    struct Dat2BuildCache* dat2_bc = dat2(task->c);
+    struct ToriAuxLibCore* core = ToriAuxLibCache_Core(task->c);
+    struct RSCacheDat2Disk_Archive* npc_archive = NULL;
+    struct RSCacheDat2A_ConfigNpctype* npc;
+    int const wanted_npc_ids[] = { task->npc_id };
+
+    PT_BEGIN(&task->pt);
+
+    assert(task->c && dat2_bc && core);
+
+    if( !dat2_buildcache_npctype_get(dat2_bc, task->npc_id) )
+    {
+        DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->pt, task->c);
+
+        IO_REQUEST(ctx, 0, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Npc));
+        PT_YIELD(&task->pt);
+
+        npc_archive = TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Npc);
+        if( npc_archive )
+        {
+            dat2_buildcache_npctypes_init_from_archive(dat2_bc, npc_archive, wanted_npc_ids, 1);
+        }
+        if( npc_archive )
+            RSCacheDat2Disk_ArchiveFree(npc_archive);
+        npc_archive = NULL;
+        LibToriRS_IOQueueClear(ctx->io);
+    }
+
+    npc = dat2_buildcache_npctype_get(dat2_bc, task->npc_id);
+    assert(npc && "npctype missing after IO");
+
+    task->npc_anims[0] = npc->standing_animation;
+    task->npc_anims[1] = npc->walking_animation;
+    task->npc_anims[2] = npc->rotate180_animation;
+    task->npc_anims[3] = npc->run_animation;
+    task->npc_anims[4] = npc->idle_rotate_left_animation;
+    task->npc_anims[5] = npc->rotate_right_animation;
+    task->npc_anims[6] = npc->rotate_left_animation;
+
+    task->model_count = 0;
+    for( int i = 0; i < npc->models_count && task->model_count < 256; i++ )
+        task->model_ids[task->model_count++] = npc->models[i];
+
+    for( task->model_index = 0; task->model_index < task->model_count; )
+    {
+        LibToriRS_IOBatchReset(&task->io_batch);
+        int batch_end = task->model_index + TASK_DAT2_NPC_IO_BATCH;
+        if( batch_end > task->model_count )
+            batch_end = task->model_count;
+
+        for( ; task->model_index < batch_end; task->model_index++ )
+        {
+            int model_id = task->model_ids[task->model_index];
+            if( !dat2_buildcache_model_get(dat2_bc, model_id) )
+            {
+                int slot = LibToriRS_IOBatchAdd(&task->io_batch, model_id);
+                IO_REQUEST(ctx, slot, TAPIDat2_FetchModel(ctx, model_id));
+            }
+        }
+
+        if( LibToriRS_IOBatchEmpty(&task->io_batch) )
+            continue;
+
+        PT_YIELD(&task->pt);
+
+        for( int i = 0; i < LibToriRS_IOBatchCount(&task->io_batch); i++ )
+        {
+            struct RSCacheDat2A_Model* model = TAPIDat2_DecodeModel(ctx, i);
+            if( model )
+            {
+                int model_id = LibToriRS_IOBatchUser(&task->io_batch, i);
+                dat2_buildcache_model_add(dat2_bc, model_id, model);
+            }
+        }
+        LibToriRS_IOQueueClear(ctx->io);
+    }
+
+    for( int i = 0; i < task->model_count; i++ )
+    {
+        int model_id = task->model_ids[i];
+        assert(dat2_buildcache_model_get(dat2_bc, model_id) && "npc model missing after IO");
+        ToriAuxLibCache_SubmitModelFromDat2(task->c, model_id);
+        assert(ToriAuxLibCore_ModelHas(core, model_id) && "npc model not in core after submit");
+    }
+
+    if( task_dat2_npc_anim_resolve_needed(task->c, dat2_bc, task->npc_anims, 7) )
+    {
+        DAT2_ENSURE_CONFIGS_REFERENCE_TABLE(ctx, &task->pt, task->c);
+
+        IO_REQUEST(ctx, 0, TAPIDat2_FetchConfigGroup(ctx, RSCacheDat2A_ConfigKind_Sequence));
+        PT_YIELD(&task->pt);
+
+        task->sequence_archive =
+            TAPIDat2_DecodeConfigGroup(ctx, 0, RSCacheDat2A_ConfigKind_Sequence);
+        assert(task->sequence_archive && "npc sequence config group missing after IO");
+
+        task->resolve_seq_count = 0;
+        for( int ai = 0; ai < 7; ai++ )
+        {
+            int seq_id = task->npc_anims[ai];
+            struct RSCacheDat2A_ConfigSequence* seq;
+
+            if( seq_id == -1 )
+                continue;
+
+            dat2_buildcache_sequence_load_from_archive(dat2_bc, task->sequence_archive, seq_id);
+
+            seq = dat2_buildcache_sequence_get(dat2_bc, seq_id);
+            assert(seq && "npc sequence missing after IO");
+
+            task->resolve_seq_ids[task->resolve_seq_count++] = seq_id;
+        }
+
+        if( task->resolve_seq_count > 0 )
+        {
+            DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->pt, dat2_bc, RSCacheDat2Disk_Table_Animayas);
+            DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->pt, dat2_bc, RSCacheDat2Disk_Table_Animations);
+            DAT2_ENSURE_REFERENCE_TABLE(ctx, &task->pt, dat2_bc, RSCacheDat2Disk_Table_Skeletons);
+
+            TASK_AWAITEX(
+                &task->pt,
+                ctx,
+                Task_Dat2AnimResolve_New(
+                    task->c, dat2_bc, task->resolve_seq_ids, task->resolve_seq_count));
+            dat2_anim_submit_all_skeletal(task->c, dat2_bc);
+        }
+
+        for( int ai = 0; ai < 7; ai++ )
+        {
+            int seq_id = task->npc_anims[ai];
+            struct RSCacheDat2A_ConfigSequence* seq;
+
+            if( seq_id == -1 )
+                continue;
+
+            seq = dat2_buildcache_sequence_get(dat2_bc, seq_id);
+            assert(seq && "npc sequence missing after anim resolve");
+
+            task_dat2_npc_submit_sequence_assets(task, dat2_bc, core, seq_id, seq);
+        }
+
+        if( task->sequence_archive )
+        {
+            RSCacheDat2Disk_ArchiveFree(task->sequence_archive);
+            task->sequence_archive = NULL;
+        }
+        LibToriRS_IOQueueClear(ctx->io);
+    }
+
+    npc = dat2_buildcache_npctype_get(dat2_bc, task->npc_id);
+    assert(npc && "npctype missing after IO");
+    if( !ToriAuxLibCore_NpctypeHas(core, task->npc_id) )
+    {
+        struct ToriAuxLibCore_Npctype* neutral =
+            ToriAuxLibCache_NpctypeNewFromDat2ConfigNpctype(npc, task->npc_id);
+        assert(neutral && "npc npctype core conversion failed");
+        ToriAuxLibCore_NpctypeAdd(core, task->npc_id, neutral);
+    }
+
+    PT_END(&task->pt);
+}
+
+static void
+Task_Dat2NpcAdd_Free(struct LibToriRS_Task* base)
+{
+    struct Task_Dat2NpcAdd* task = LibToriRS_container_of(base, struct Task_Dat2NpcAdd, base);
+
+    if( task->sequence_archive )
+    {
+        RSCacheDat2Disk_ArchiveFree(task->sequence_archive);
+        task->sequence_archive = NULL;
+    }
+    free(task);
+}
+
+static struct LibToriRS_TaskVTable g_task_dat2_npc_add_vtable = {
+    .run_fn = Task_Dat2NpcAdd_Run,
+    .free_fn = Task_Dat2NpcAdd_Free,
+};
+
+struct LibToriRS_Task*
+Task_Dat2NpcAdd_New(
+    struct ToriAuxLibCache* c,
+    int npc_id)
+{
+    struct Task_Dat2NpcAdd* task = calloc(1, sizeof(struct Task_Dat2NpcAdd));
+    if( !task )
+        return NULL;
+
+    task->base.vtable = &g_task_dat2_npc_add_vtable;
+    task->c = c;
+    task->npc_id = npc_id;
+    PT_INIT(&task->pt);
+    return &task->base;
+}
