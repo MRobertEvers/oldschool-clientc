@@ -10542,6 +10542,35 @@ InterfaceX_VMHost_QueueScript(
     host->script_queue_count++;
 }
 
+static void
+InterfaceX_VMHost_QueueCoreScriptHook(
+    struct InterfaceX_VMHost* host,
+    int component_id,
+    struct ToriAuxLibCore_ScriptHook const* hook)
+{
+    assert(host);
+
+    if( !hook || hook->argc <= 0 )
+        return;
+
+    int script_id = hook->argv[0];
+    if( script_id <= 0 )
+        return;
+
+    int int_arg_count = hook->argc - 1;
+    if( int_arg_count > TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
+        int_arg_count = TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX;
+
+    InterfaceX_VMHost_QueueScript(
+        host,
+        script_id,
+        component_id,
+        int_arg_count > 0 ? &hook->argv[1] : NULL,
+        int_arg_count,
+        NULL,
+        0);
+}
+
 static int
 InterfaceX_RunClientScript(
     struct InterfaceX_VMHost* host,
@@ -10659,6 +10688,33 @@ InterfaceX_VMHost_Init(struct InterfaceX_VMHost* host)
     return true;
 }
 
+static bool
+InterfaceX_IsGroupLoaded(
+    struct InterfaceX_VMHost const* host,
+    int group_id);
+
+static bool
+InterfaceX_IntegrateInterfaceGroup(
+    struct InterfaceX_VMHost* host,
+    int group_id);
+
+static int
+InterfaceX_VMHost_LoadInterfaceGroup(
+    struct InterfaceX_VMHost* host,
+    int group_id)
+{
+    assert(host);
+    if( group_id <= 0 )
+        return -1;
+    if( InterfaceX_IsGroupLoaded(host, group_id) )
+        return 0;
+    if( !InterfaceX_HostIO_LoadInterfaceGroup(&host->host_io, group_id) )
+        return -1;
+    if( !InterfaceX_IntegrateInterfaceGroup(host, group_id) )
+        return -1;
+    return 0;
+}
+
 static int
 InterfaceX_VMHost_ClientClock(struct CS2VMX* vm)
 {
@@ -10680,7 +10736,7 @@ InterfaceX_VMHost_Load_CC_Create(
     group_id = (request->parent_id >> 16) & 0xffff;
     if( request->parent_id <= 0 || group_id <= 0 )
         return 0;
-    return 0;
+    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
 }
 
 static int
@@ -10695,7 +10751,7 @@ InterfaceX_VMHost_Load_CC_Find(
     group_id = (request->parent_id >> 16) & 0xffff;
     if( request->parent_id <= 0 || group_id <= 0 )
         return 0;
-    return 0;
+    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
 }
 
 static int
@@ -10710,7 +10766,7 @@ InterfaceX_VMHost_Load_IF_Find(
     group_id = (request->component_id >> 16) & 0xffff;
     if( request->component_id <= 0 || group_id <= 0 )
         return 0;
-    return 0;
+    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
 }
 
 static int
@@ -10725,7 +10781,7 @@ InterfaceX_VMHost_Load_CC_ChildrenFind(
     group_id = (request->parent_id >> 16) & 0xffff;
     if( request->parent_id <= 0 || group_id <= 0 )
         return 0;
-    return 0;
+    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
 }
 
 static int
@@ -10740,7 +10796,19 @@ InterfaceX_VMHost_Load_IF_ChildrenFind(
     group_id = (request->uid >> 16) & 0xffff;
     if( request->uid <= 0 || group_id <= 0 )
         return 0;
-    return 0;
+    return InterfaceX_VMHost_LoadInterfaceGroup(host, group_id);
+}
+
+static int
+InterfaceX_VMHost_Yield(
+    struct InterfaceX_VMHost* host,
+    struct CS2VM_HostRequest const* request)
+{
+    assert(host);
+    assert(request);
+    host->pending_host_request = *request;
+    host->has_pending_host_request = true;
+    return CS2VM_EXECNO_YIELD;
 }
 
 static int
@@ -10756,19 +10824,9 @@ InterfaceX_VMHost_YieldIfGroupNeeded(
     group_id = (component_id >> 16) & 0xffff;
     if( component_id <= 0 || group_id <= 0 )
         return CS2VM_EXECNO_OK;
-    return CS2VM_EXECNO_ERROR;
-}
-
-static int
-InterfaceX_VMHost_Yield(
-    struct InterfaceX_VMHost* host,
-    struct CS2VM_HostRequest const* request)
-{
-    assert(host);
-    assert(request);
-    host->pending_host_request = *request;
-    host->has_pending_host_request = true;
-    return CS2VM_EXECNO_YIELD;
+    if( InterfaceX_IsGroupLoaded(host, group_id) )
+        return CS2VM_EXECNO_OK;
+    return InterfaceX_VMHost_Yield(host, request);
 }
 
 static int
@@ -13756,13 +13814,273 @@ InterfaceX_PrintUsage(char const* argv0)
         INVENTORY_INTERFACE);
 }
 
+static int
+InterfaceX_ResolveObjIconCountVariant(
+    struct InterfaceX_VMHost* host,
+    int obj_id,
+    int count)
+{
+    assert(host);
+
+    struct RSCacheDat2A_ConfigObject* obj =
+        dat2_buildcache_object_get(dat2(InterfaceX_HostIO_Cache(&host->host_io)), obj_id);
+    if( !obj )
+        return obj_id;
+
+    int resolved = obj_id;
+    if( count > 1 )
+    {
+        int countobj_id = -1;
+        for( int i = 0; i < 10; i++ )
+        {
+            if( obj->count_co[i] != 0 && count >= obj->count_co[i] )
+                countobj_id = obj->count_obj[i];
+        }
+        if( countobj_id >= 0 )
+            resolved = countobj_id;
+    }
+
+    return resolved;
+}
+
+static void
+CS2VMX_ResetRuntime(struct CS2VMX* vm)
+{
+    assert(vm);
+    vm->ints_stack_top = 0;
+    vm->strs_stack_top = 0;
+    vm->frame_sp = 0;
+    CS2VMX_ClearYieldHalt(vm);
+}
+
+static bool
+InterfaceX_RuntimeHookOwnsComponent(
+    struct InterfaceX_VMHost const* host,
+    int component_id)
+{
+    if( !host )
+        return false;
+    for( int i = 0; i < host->inv_transmit_hook_count; i++ )
+    {
+        if( host->inv_transmit_hooks[i].component_id == component_id )
+            return true;
+    }
+    for( int i = 0; i < host->var_transmit_hook_count; i++ )
+    {
+        if( host->var_transmit_hooks[i].component_id == component_id )
+            return true;
+    }
+    return false;
+}
+
+static void
+InterfaceX_VMHost_FireVarTransmitHooks(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm)
+{
+    assert(host);
+    assert(vm);
+
+    for( int i = 0; i < host->var_transmit_hook_count; i++ )
+    {
+        struct InterfaceX_VarTransmitHook const* hook = &host->var_transmit_hooks[i];
+        if( hook->script_id <= 0 )
+            continue;
+        if( hook->trigger_count <= 0 )
+            continue;
+
+        printf(
+            "running onVarTransmit script %d for component %d (args:",
+            hook->script_id,
+            hook->component_id);
+        for( int j = 0; j < hook->int_arg_count; j++ )
+            printf(" %d", hook->int_args[j]);
+        printf(")\n");
+
+        InterfaceX_VMHost_QueueScript(
+            host,
+            hook->script_id,
+            hook->component_id,
+            hook->int_args,
+            hook->int_arg_count,
+            NULL,
+            0);
+    }
+}
+
+static void
+InterfaceX_VMHost_FireCacheVarTransmitHooks(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct ToriAuxLibCore_Component** components,
+    int component_count)
+{
+    assert(host);
+    assert(vm);
+    if( !components || component_count <= 0 )
+        return;
+
+    for( int i = 0; i < component_count; i++ )
+    {
+        struct ToriAuxLibCore_Component* comp = components[i];
+        if( !comp )
+            continue;
+        if( InterfaceX_RuntimeHookOwnsComponent(host, comp->id) )
+            continue;
+        if( comp->on_varp_transmit.argc <= 0 )
+            continue;
+        if( comp->varp_triggers_count <= 0 )
+            continue;
+
+        int script_id = comp->on_varp_transmit.argv[0];
+        int args[TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX];
+        int arg_count = comp->on_varp_transmit.argc - 1;
+        if( arg_count > TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX )
+            arg_count = TORIAUXLIBCORE_COMPONENT_HOOK_ARG_MAX;
+        for( int j = 0; j < arg_count; j++ )
+            args[j] = comp->on_varp_transmit.argv[j + 1];
+
+        printf("running cache onVarTransmit script %d for component %d\n", script_id, comp->id);
+        InterfaceX_VMHost_QueueScript(host, script_id, comp->id, args, arg_count, NULL, 0);
+    }
+}
+
+static void
+InterfaceX_VMHost_FireInvTransmitHooks(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm)
+{
+    assert(host);
+    assert(vm);
+
+    for( int i = 0; i < host->inv_transmit_hook_count; i++ )
+    {
+        struct InterfaceX_InvTransmitHook const* hook = &host->inv_transmit_hooks[i];
+        if( hook->script_id <= 0 )
+            continue;
+
+        printf(
+            "running onInvTransmit script %d for component %d (args:",
+            hook->script_id,
+            hook->component_id);
+        for( int j = 0; j < hook->int_arg_count; j++ )
+            printf(" %d", hook->int_args[j]);
+        printf(")\n");
+
+        InterfaceX_VMHost_QueueScript(
+            host,
+            hook->script_id,
+            hook->component_id,
+            hook->int_args,
+            hook->int_arg_count,
+            NULL,
+            0);
+    }
+}
+
+static void
+InterfaceX_VMHost_FireCacheInvTransmitHooks(
+    struct InterfaceX_VMHost* host,
+    struct CS2VMX* vm,
+    struct ToriAuxLibCore_Component** components,
+    int component_count)
+{
+    assert(host);
+    assert(vm);
+    if( !components || component_count <= 0 )
+        return;
+
+    for( int i = 0; i < component_count; i++ )
+    {
+        struct ToriAuxLibCore_Component* comp = components[i];
+        if( !comp )
+            continue;
+        if( InterfaceX_RuntimeHookOwnsComponent(host, comp->id) )
+            continue;
+        if( comp->on_inv_transmit.argc <= 0 )
+            continue;
+
+        int script_id = comp->on_inv_transmit.argv[0];
+        int args[INTERFACEX_INV_TRANSMIT_INT_ARG_MAX];
+        int arg_count = comp->on_inv_transmit.argc - 1;
+        if( arg_count > INTERFACEX_INV_TRANSMIT_INT_ARG_MAX )
+            arg_count = INTERFACEX_INV_TRANSMIT_INT_ARG_MAX;
+        for( int j = 0; j < arg_count; j++ )
+            args[j] = comp->on_inv_transmit.argv[j + 1];
+
+        printf("running cache onInvTransmit script %d for component %d\n", script_id, comp->id);
+        InterfaceX_VMHost_QueueScript(host, script_id, comp->id, args, arg_count, NULL, 0);
+    }
+}
+
+static void
+prefetch_collect_script_id(
+    int script_id,
+    int** script_ids,
+    int* script_count,
+    int* script_cap)
+{
+    if( script_id < 0 )
+        return;
+
+    for( int j = 0; j < *script_count; j++ )
+    {
+        if( (*script_ids)[j] == script_id )
+            return;
+    }
+
+    if( *script_count >= *script_cap )
+    {
+        int new_cap = *script_cap < 8 ? 8 : *script_cap * 2;
+        int* grown = realloc(*script_ids, (size_t)new_cap * sizeof(int));
+        if( !grown )
+            return;
+        *script_ids = grown;
+        *script_cap = new_cap;
+    }
+
+    (*script_ids)[(*script_count)++] = script_id;
+}
+
+static void
+prefetch_collect_core_hook_script_id(
+    struct ToriAuxLibCore_ScriptHook const* hook,
+    int** script_ids,
+    int* script_count,
+    int* script_cap)
+{
+    if( !hook || hook->argc <= 0 )
+        return;
+
+    prefetch_collect_script_id(hook->argv[0], script_ids, script_count, script_cap);
+}
+
+static void
+InterfaceX_QueueInterfaceOnLoadScripts(
+    struct InterfaceX_VMHost* host,
+    struct InterfaceX_LoadedInterface const* loaded)
+{
+    assert(host);
+    assert(loaded);
+
+    for( int i = 0; i < loaded->component_count; i++ )
+    {
+        struct ToriAuxLibCore_Component* component = loaded->components[i];
+        if( !component || component->on_load.argc <= 0 )
+            continue;
+
+        InterfaceX_VMHost_QueueCoreScriptHook(host, component->id, &component->on_load);
+    }
+}
+
 static void
 InterfaceX_HideInterfaceRoots(
     struct UITreeX* tree,
     int interface_id)
 {
     assert(tree);
-    assert(interface_id >= 0);
+    if( interface_id < 0 )
+        return;
 
     int iface_prefix = interface_id << 16;
     for( int i = 0; i < tree->node_count; i++ )
@@ -13775,6 +14093,63 @@ InterfaceX_HideInterfaceRoots(
         if( node->link.parent_tree_idx < 0 )
             node->hidden = 1;
     }
+}
+
+static void
+InterfaceX_FreeLoadedInterface(struct InterfaceX_LoadedInterface* loaded)
+{
+    if( !loaded )
+        return;
+
+    if( loaded->components )
+    {
+        if( loaded->owns_components )
+        {
+            for( int i = 0; i < loaded->component_count; i++ )
+                ToriAuxLibCore_ComponentFree(loaded->components[i]);
+        }
+        free(loaded->components);
+    }
+
+    memset(loaded, 0, sizeof(*loaded));
+}
+
+static bool
+InterfaceX_IsGroupLoaded(
+    struct InterfaceX_VMHost const* host,
+    int group_id)
+{
+    if( !host || group_id <= 0 )
+        return false;
+    if( host->interface_id == group_id )
+        return host->primary_pack_integrated;
+    for( int i = 0; i < host->extra_group_count; i++ )
+    {
+        if( host->extra_group_ids[i] == group_id )
+            return true;
+    }
+    return false;
+}
+
+#include "interfacex_tasks.inc.c"
+
+static bool
+InterfaceX_IntegrateInterfaceGroup(
+    struct InterfaceX_VMHost* host,
+    int group_id)
+{
+    return InterfaceX_ProcessInterfacePack(host, group_id, NULL);
+}
+
+static void
+InterfaceX_FreeExtraGroups(struct InterfaceX_VMHost* host)
+{
+    if( !host )
+        return;
+
+    for( int i = 0; i < host->extra_group_count; i++ )
+        InterfaceX_FreeLoadedInterface(&host->extra_groups[i]);
+    host->extra_group_count = 0;
 }
 
 static int g_cs2vm_yield_test_host_calls;
@@ -13861,47 +14236,6 @@ CS2VMX_TestYieldRollback(void)
 
     printf("CS2VM yield rollback test passed\n");
     return 0;
-}
-
-struct Task_InterfaceX_Main
-{
-    struct pt pt;
-
-    int interface_id;
-};
-
-static struct Task_InterfaceX_Main*
-Task_InterfaceX_Main_New(int interface_id)
-{
-    struct Task_InterfaceX_Main* task = calloc(1, sizeof(struct Task_InterfaceX_Main));
-    assert(task);
-    task->interface_id = interface_id;
-    return task;
-}
-
-static int
-Task_InterfaceX_Main_Run(struct Task_InterfaceX_Main* task)
-{
-    assert(task);
-    PT_BEGIN(&task->pt);
-
-    // TASK_AWAIT(InterfaceX);
-
-    // Build the tree
-    // Queue Scripts onload
-
-    // while (script_q)
-    //    script = dequeue(script_q);
-    //    while (res = CS2VMX_RunScript(&vm))
-    //       if (res == CS2VM_EXECNO_YIELD)
-    //           TASK_AWAIT(Task_InterfaceX_CS2VMX_Load);
-    //       else if (res == CS2VM_EXECNO_DONE)
-    //          break;
-    //       else
-    //          return res;
-    //
-
-    PT_END(&task->pt);
 }
 
 int
@@ -14031,6 +14365,28 @@ main(
         InterfaceX_HostIO_Cache(&vmhost.host_io), CLIENTSCRIPT_DECODE_TRAILER_LEGACY);
     InterfaceX_InvStoreSeedDefaults(&vmhost);
 
+    {
+        struct Task_InterfaceX_Main* open_task =
+            Task_InterfaceX_Main_New(&vmhost, &vm, interface_id, true, &primary);
+        if( !open_task )
+        {
+            fprintf(stderr, "failed to allocate open task\n");
+            return 1;
+        }
+        InterfaceX_HostIO_QueueTask(
+            &vmhost.host_io,
+            open_task,
+            Task_InterfaceX_Main_Run,
+            Task_InterfaceX_Main_Free);
+        InterfaceX_HostIO_DrainTasks(&vmhost.host_io);
+        if( !vmhost.primary_pack_integrated )
+        {
+            fprintf(stderr, "failed to open interface %d\n", interface_id);
+            InterfaceX_FreeLoadedInterface(&primary);
+            return 1;
+        }
+    }
+
     UITreeX_LayoutResolve(tree, CANVAS_W, CANVAS_H);
     UITreeX_PrintNodes(tree);
 
@@ -14059,6 +14415,8 @@ main(
     free(pixels);
 
     free(vmhost.script_queue);
+    InterfaceX_FreeLoadedInterface(&primary);
+    InterfaceX_FreeExtraGroups(&vmhost);
     InterfaceX_HostIO_Free(&vmhost.host_io);
     return 0;
 }

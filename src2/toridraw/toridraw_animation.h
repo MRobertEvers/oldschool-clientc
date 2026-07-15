@@ -40,9 +40,9 @@ ToriDraw_AnimationFree(struct ToriDraw_Animation* anim);
  */
 struct ToriDraw_SkeletalAnim
 {
-    int    id;
-    int    bone_count;
-    int    frame_count;
+    int id;
+    int bone_count;
+    int frame_count;
     float* matrices; /* [frame_count * bone_count * 16] */
 };
 

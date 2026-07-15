@@ -97,8 +97,8 @@ asan_dyld_shim.dylib: $(PLAT_DIR)/asan_dyld_shim.c
 $(TARGET): $(OBJS) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(ASAN_DYLD_SHIM)
 
-check_cache_revision: check_cache_revision.c $(SRC_DIR)/osrs/rscache/rscache.u.c $(SRC2_DIR)/vm/cs2_script.c $(SRC2_DIR)/vm/cs2_opcode_meta.c $(SRC_DIR)/3rd/bzip/bzip.c $(SRC_DIR)/3rd/miniz/miniz.c
-	$(CC) $(CFLAGS) -w -o $@ check_cache_revision.c $(SRC_DIR)/osrs/rscache/rscache.u.c $(SRC2_DIR)/vm/cs2_script.c $(SRC2_DIR)/vm/cs2_opcode_meta.c $(SRC_DIR)/3rd/bzip/bzip.c $(SRC_DIR)/3rd/miniz/miniz.c $(LDFLAGS)
+check_cache_revision: check_cache_revision.c $(SRC_DIR)/osrs/rscache/rscache_unity.h $(SRC2_DIR)/vm/cs2_script.c $(SRC2_DIR)/vm/cs2_opcode_meta.c $(SRC_DIR)/3rd/bzip/bzip.c $(SRC_DIR)/3rd/miniz/miniz.c
+	$(CC) $(CFLAGS) -w -o $@ check_cache_revision.c -include $(SRC_DIR)/osrs/rscache/rscache_unity.h $(SRC2_DIR)/vm/cs2_script.c $(SRC2_DIR)/vm/cs2_opcode_meta.c $(SRC_DIR)/3rd/bzip/bzip.c $(SRC_DIR)/3rd/miniz/miniz.c $(LDFLAGS)
 
 $(OBJ_DIR)/main.o: $(TOOL_DIR)/main.c
 	$(CC) $(CFLAGS) -c $< -o $@

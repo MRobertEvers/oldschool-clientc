@@ -47,7 +47,9 @@ int
 ToriDraw_FontEvaluateColorTag(char const tag[3]);
 
 int
-ToriDraw_FontParseHexColor(char const* hex, int len);
+ToriDraw_FontParseHexColor(
+    char const* hex,
+    int len);
 
 typedef void (*ToriDraw_FontGlyphCallback)(
     void* ctx,

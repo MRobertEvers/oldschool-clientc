@@ -591,10 +591,7 @@ bucket_sort_by_average_depth_small(
     }
     scene->sm_depth_offset[depth_levels] = total;
 
-    memcpy(
-        scene->sm_depth_cursor,
-        scene->sm_depth_offset,
-        (size_t)depth_levels * sizeof(int));
+    memcpy(scene->sm_depth_cursor, scene->sm_depth_offset, (size_t)depth_levels * sizeof(int));
 
     for( int f = 0; f < num_faces; f++ )
     {
@@ -719,8 +716,7 @@ sort_face_draw_order_small(
     {
         for( int i = 0; i < counts[prio]; i++ )
         {
-            face_draw_order[order_index++] =
-                scene->sm_prio_faces[prio * max_faces + i];
+            face_draw_order[order_index++] = scene->sm_prio_faces[prio * max_faces + i];
         }
     }
 
@@ -736,8 +732,7 @@ sort_face_draw_order_small(
     {
         for( int i = 0; i < counts[prio]; i++ )
         {
-            face_draw_order[order_index++] =
-                scene->sm_prio_faces[prio * max_faces + i];
+            face_draw_order[order_index++] = scene->sm_prio_faces[prio * max_faces + i];
         }
     }
 
@@ -753,8 +748,7 @@ sort_face_draw_order_small(
     {
         for( int i = 0; i < counts[prio]; i++ )
         {
-            face_draw_order[order_index++] =
-                scene->sm_prio_faces[prio * max_faces + i];
+            face_draw_order[order_index++] = scene->sm_prio_faces[prio * max_faces + i];
         }
     }
 
@@ -823,8 +817,7 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
     if( !face_priorities )
     {
         int order_index = 0;
-        for( int depth = model_max_depth;
-             depth < scene->depth_levels && depth >= model_min_depth;
+        for( int depth = model_max_depth; depth < scene->depth_levels && depth >= model_min_depth;
              depth-- )
         {
             int start = scene->sm_depth_offset[depth];
@@ -837,11 +830,7 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
     }
 
     parition_faces_by_priority_small(
-        scene,
-        face_count,
-        face_priorities,
-        model_min_depth,
-        model_max_depth);
+        scene, face_count, face_priorities, model_min_depth, model_max_depth);
 
     scene->tmp_face_order_count = sort_face_draw_order_small(
         scene,
