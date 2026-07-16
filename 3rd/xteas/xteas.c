@@ -27,7 +27,7 @@ write_32(
 }
 
 void
-XTEAS_Decrypt(
+xteas_decrypt(
     char* data,
     int length,
     int32_t* key)

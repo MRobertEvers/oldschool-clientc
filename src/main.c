@@ -1,5 +1,6 @@
 #include "3rd/minipt.h"
 #include "asyncio.h"
+#include "cache/rscache_io.h"
 #include "platform/platform_x_io.h"
 
 #include <rscache.h>
@@ -21,10 +22,18 @@ Task_Dummy_Run(
     struct ToriRS_IO* io)
 {
     struct Task_Dummy* dummy = (struct Task_Dummy*)task;
+    struct RSCache_Model* model = NULL;
+    struct RSCache_Dat2ComponentPack* component = NULL;
     printf("Task_Dummy_Run\n");
     PT_BEGIN(&(dummy->pt));
+    RSCache_IO_ModelLoad(io, 0, 1);
+    RSCache_IO_Dat2ComponentPackLoad(io, 1, 26);
     printf("Task_Dummy_Run 1\n");
     PT_YIELD(&(dummy->pt));
+    model = RSCache_IO_ModelDecode(io, 0);
+    component = RSCache_IO_Dat2ComponentPackDecode(io, 1);
+    printf("model: %p\n", model);
+    printf("component: %p\n", component);
     printf("Task_Dummy_Run 2\n");
     PT_YIELD(&(dummy->pt));
     printf("Task_Dummy_Run 3\n");
@@ -60,11 +69,13 @@ main(
 
     struct ToriRS_IO* io = ToriRS_IO_New();
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
-    struct RSCache_Disk* disk = RSCache_DiskNewFromDirectory(cache_dir);
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     assert(disk != NULL);
-
-    struct PlatformX_IO* px = PlatformX_IO_New(disk, config_dir, script_dir);
+    struct PlatformX_IO* px = PlatformX_IO_New();
     assert(px != NULL);
+    PlatformX_IO_InitDat2Disk(px, disk);
+    PlatformX_IO_InitConfigPath(px, config_dir);
+    PlatformX_IO_InitScriptPath(px, script_dir);
 
     struct ToriRS_Task* task = Task_Dummy_New();
     assert(task != NULL);
@@ -79,7 +90,7 @@ main(
     ToriRS_TaskQueue_Free(queue);
     ToriRS_IO_Free(io);
     PlatformX_IO_Free(px);
-    RSCache_DiskFree(disk);
+    RSCache_Dat2DiskFree(disk);
 
     return 0;
 }

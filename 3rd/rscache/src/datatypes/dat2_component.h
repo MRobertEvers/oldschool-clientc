@@ -1,6 +1,7 @@
 #ifndef RSCACHE_DATATYPES_DAT2_COMPONENT_H
 #define RSCACHE_DATATYPES_DAT2_COMPONENT_H
 
+#include "../dat2disk.h"
 #include "../filelist.h"
 
 #include <stdbool.h>
@@ -236,7 +237,13 @@ struct RSCache_Dat2Component
     int32_t opCursorsLen;
 };
 
-/** All decoded widgets from one interfaces archive (idx=iface_id). */
+/**
+ * All decoded widgets from one interfaces archive (idx=iface_id).
+ * Dat2 stores interfaces in a single archive. Several components are packed together. The "ID" of a
+ * single component is calculated by packing the interface ID and the component index. (interface_id
+ * << 16) | (component_index & 0xFFFF)
+ * Where the component index is the index of the component in the filelist.
+ */
 struct RSCache_Dat2ComponentPack
 {
     struct RSCache_Dat2Component** components;
@@ -280,10 +287,8 @@ RSCache_Dat2ComponentPackNewFromFileList(
     int interface_id);
 
 struct RSCache_Dat2ComponentPack*
-RSCache_Dat2ComponentPackNewFromDecode(
-    char* data,
-    int data_size,
-    int num_files,
+RSCache_Dat2ComponentPackNewFromArchive(
+    struct RSCache_Dat2DiskArchive* archive,
     int interface_id);
 
 #endif

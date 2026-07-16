@@ -148,20 +148,20 @@ RSCache_ModelBonesNewDecode(
     const uint8_t* packed_bone_groups,
     int packed_bone_groups_count);
 
-struct RSCache_Disk;
-struct RSCache_DiskArchive;
+struct RSCache_Dat2Disk;
+struct RSCache_Dat2DiskArchive;
 struct RSCache_Model*
 RSCache_ModelNewFromCache(
-    struct RSCache_Disk* cache,
+    struct RSCache_Dat2Disk* cache,
     int model_id);
 
 struct RSCache_Model*
 RSCache_ModelNewFromArchive(
-    struct RSCache_DiskArchive* archive,
+    struct RSCache_Dat2DiskArchive* archive,
     int model_id);
 struct RSCache_Model*
 RSCache_ModelNewFromDatArchive(
-    struct RSCache_DiskArchive* archive,
+    struct RSCache_Dat2DiskArchive* archive,
     int model_id);
 struct RSCache_Model*
 RSCache_ModelNewDecode(

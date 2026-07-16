@@ -24,10 +24,15 @@ struct RSCache
 // Unity
 // clang-format off
 #include "rsbuffer.h"
-#include "disk.h"
+#include "archive.h"
+#include "reference_table.h"
+#include "xtea_config.h"
+#include "dat2disk.h"
+#include "dat1disk.h"
 #include "filelist.h"
 #include "datatypes/model.h"
 #include "datatypes/dat2_component.h"
+#include "datatypes/mapsquares.h"
 // clang-format on
 
 #endif

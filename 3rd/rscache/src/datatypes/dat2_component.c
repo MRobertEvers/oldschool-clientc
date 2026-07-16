@@ -743,13 +743,13 @@ RSCache_Dat2ComponentPackNewFromFileList(
 }
 
 struct RSCache_Dat2ComponentPack*
-RSCache_Dat2ComponentPackNewFromDecode(
-    char* data,
-    int data_size,
-    int num_files,
+RSCache_Dat2ComponentPackNewFromArchive(
+    struct RSCache_Dat2DiskArchive* archive,
     int interface_id)
 {
-    struct RSCache_FileList* filelist = RSCache_FileListNewFromDecode(data, data_size, num_files);
+    assert(archive != NULL);
+    struct RSCache_FileList* filelist =
+        RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
     assert(filelist != NULL);
 
     struct RSCache_Dat2ComponentPack* pack =

@@ -18,7 +18,8 @@
 
 enum ToriRS_IOKind
 {
-    TORIRS_IOK_CACHE = 0,
+    TORIRS_IOK_NONE = 0,
+    TORIRS_IOK_CACHE,
     TORIRS_IOK_CONFIG_FILE,
     TORIRS_IOK_SCRIPT,
     TORIRS_IOK_REFERENCE_TABLE,
@@ -78,8 +79,8 @@ struct ToriRS_IOItem
 struct ToriRS_IO
 {
     struct ToriRS_IOItem io_slots[TORIRS_IO_MAX_ITEMS];
-    int live_no;
-    int current_slot;
+    int active[TORIRS_IO_MAX_ITEMS];
+    int active_count;
 };
 
 struct ToriRS_TaskVTable;
@@ -126,18 +127,31 @@ task_run(
     return task->vtable->run(task, io);
 }
 
+static inline void
+push_active(
+    struct ToriRS_IO* io,
+    int slot_id)
+{
+    assert(io != NULL);
+    assert(slot_id >= 0);
+    assert(slot_id < TORIRS_IO_MAX_ITEMS);
+    io->active[io->active_count++] = slot_id;
+}
+
 static inline struct ToriRS_IO*
 ToriRS_IO_New(void)
 {
     struct ToriRS_IO* io = malloc(sizeof(struct ToriRS_IO));
     assert(io != NULL);
     memset(io, 0, sizeof(struct ToriRS_IO));
+    io->active_count = 0;
     return io;
 }
 
 static inline void
-ToriRS_IO_PushCache(
+ToriRS_IO_QueueCache(
     struct ToriRS_IO* io,
+    int slot_id,
     int epoch,
     int table_id,
     int archive_id,
@@ -147,60 +161,63 @@ ToriRS_IO_PushCache(
     assert(table_id >= 0);
     assert(archive_id >= 0);
     assert(flags >= 0);
-    struct ToriRS_IOItem* item = &io->io_slots[io->live_no];
+    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
     memset(item, 0, sizeof(struct ToriRS_IOItem));
-    io->live_no++;
 
     item->kind = TORIRS_IOK_CACHE;
     item->u.cache.epoch = epoch;
     item->u.cache.table_id = table_id;
     item->u.cache.archive_id = archive_id;
     item->u.cache.flags = flags;
+    push_active(io, slot_id);
 }
 
 static inline void
-ToriRS_IO_PushConfigFile(
+ToriRS_IO_QueueConfigFile(
     struct ToriRS_IO* io,
+    int slot_id,
     const char* path)
 {
     assert(io != NULL);
     assert(path != NULL);
-    struct ToriRS_IOItem* item = &io->io_slots[io->live_no];
+    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
     memset(item, 0, sizeof(struct ToriRS_IOItem));
-    io->live_no++;
 
     item->kind = TORIRS_IOK_CONFIG_FILE;
     strcpy(item->u.config_file.path, path);
+    push_active(io, slot_id);
 }
 
 static inline void
-ToriRS_IO_PushScript(
+ToriRS_IO_QueueScript(
     struct ToriRS_IO* io,
+    int slot_id,
     const char* path)
 {
     assert(io != NULL);
     assert(path != NULL);
-    struct ToriRS_IOItem* item = &io->io_slots[io->live_no];
+    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
     memset(item, 0, sizeof(struct ToriRS_IOItem));
-    io->live_no++;
 
     item->kind = TORIRS_IOK_SCRIPT;
     strcpy(item->u.script.path, path);
+    push_active(io, slot_id);
 }
 
 static inline void
-ToriRS_IO_PushReferenceTable(
+ToriRS_IO_QueueReferenceTable(
     struct ToriRS_IO* io,
+    int slot_id,
     int table_id)
 {
     assert(io != NULL);
     assert(table_id >= 0);
-    struct ToriRS_IOItem* item = &io->io_slots[io->live_no];
+    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
     memset(item, 0, sizeof(struct ToriRS_IOItem));
-    io->live_no++;
 
     item->kind = TORIRS_IOK_REFERENCE_TABLE;
     item->u.reference_table.table_id = table_id;
+    push_active(io, slot_id);
 }
 
 static inline void
@@ -208,6 +225,25 @@ ToriRS_IO_Free(struct ToriRS_IO* io)
 {
     assert(io != NULL);
     free(io);
+}
+
+static inline void
+ToriRS_IO_ClearItem(struct ToriRS_IOItem* item)
+{
+    assert(item != NULL);
+    item->kind = TORIRS_IOK_NONE;
+    free(item->data);
+    item->error_code = 0;
+    item->data = NULL;
+    item->data_size = 0;
+}
+
+static inline void
+ToriRS_IO_ResetActive(struct ToriRS_IO* io)
+{
+    assert(io != NULL);
+    memset(io->active, 0, io->active_count * sizeof(int));
+    io->active_count = 0;
 }
 
 static inline struct ToriRS_TaskQueue*

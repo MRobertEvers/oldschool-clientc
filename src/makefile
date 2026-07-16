@@ -16,7 +16,8 @@ RSCACHE_CFLAGS = -std=c11 -g \
 	-I$(RSCACHE_DIR)/src \
 	-I$(RSCACHE_DIR) \
 	-I$(REPO_ROOT)/3rd/bzip \
-	-I$(REPO_ROOT)/3rd/miniz
+	-I$(REPO_ROOT)/3rd/miniz \
+	-I$(REPO_ROOT)/3rd/xteas
 
 LDFLAGS = -lm -Wl,-dead_strip
 

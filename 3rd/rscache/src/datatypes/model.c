@@ -1592,12 +1592,12 @@ decode_version3__osrs_material(
 
 struct RSCache_Model*
 RSCache_ModelNewFromCache(
-    struct RSCache_Disk* cache,
+    struct RSCache_Dat2Disk* cache,
     int model_id)
 {
     struct RSCache_Model* model = NULL;
-    struct RSCache_DiskArchive* archive =
-        RSCache_DiskArchiveNewLoad(cache, RSCACHE_DISK_TABLE_MODELS, model_id);
+    struct RSCache_Dat2DiskArchive* archive =
+        RSCache_Dat2DiskArchiveNewLoad(cache, RSCACHE_DAT2_DISK_TABLE_MODELS, model_id);
     if( !archive )
     {
         printf("Failed to load model %d\n", model_id);
@@ -1606,14 +1606,14 @@ RSCache_ModelNewFromCache(
 
     model = RSCache_ModelNewDecode((uint8_t*)archive->data, archive->data_size);
 
-    RSCache_DiskArchiveFree(archive);
+    RSCache_Dat2DiskArchiveFree(archive);
 
     return model;
 }
 
 struct RSCache_Model*
 RSCache_ModelNewFromArchive(
-    struct RSCache_DiskArchive* archive,
+    struct RSCache_Dat2DiskArchive* archive,
     int model_id_nullable)
 {
     (void)model_id_nullable;
@@ -1622,7 +1622,7 @@ RSCache_ModelNewFromArchive(
 
 struct RSCache_Model*
 RSCache_ModelNewFromDatArchive(
-    struct RSCache_DiskArchive* archive,
+    struct RSCache_Dat2DiskArchive* archive,
     int model_id_nullable)
 {
     (void)model_id_nullable;

@@ -1,46 +1,68 @@
 #include "platform_x_io.h"
 
 #include "asyncio.h"
-#include <rscache.h>
 
 #include <assert.h>
+#include <rscache.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 struct PlatformX_IO
 {
-    struct RSCache_Disk* disk;
+    struct RSCache_Dat2Disk* dat2_disk;
+    struct RSCache_Dat1Disk* dat1_disk;
     char* config_dir;
     char* script_dir;
 };
 
 struct PlatformX_IO*
-PlatformX_IO_New(
-    struct RSCache_Disk* disk,
-    const char* config_dir,
-    const char* script_dir)
+PlatformX_IO_New(void)
 {
-    assert(disk);
-    assert(config_dir);
-    assert(script_dir);
-
     struct PlatformX_IO* px = malloc(sizeof(struct PlatformX_IO));
-    if( !px )
-        return NULL;
-
-    px->disk = disk;
-    px->config_dir = strdup(config_dir);
-    px->script_dir = strdup(script_dir);
-    if( !px->config_dir || !px->script_dir )
-    {
-        free(px->config_dir);
-        free(px->script_dir);
-        free(px);
-        return NULL;
-    }
-
+    assert(px);
+    memset(px, 0, sizeof(struct PlatformX_IO));
     return px;
+}
+
+void
+PlatformX_IO_InitDat2Disk(
+    struct PlatformX_IO* px,
+    struct RSCache_Dat2Disk* disk)
+{
+    assert(px);
+    assert(disk);
+    px->dat2_disk = disk;
+}
+
+void
+PlatformX_IO_InitDat1Disk(
+    struct PlatformX_IO* px,
+    struct RSCache_Dat1Disk* disk)
+{
+    assert(px);
+    assert(disk);
+    px->dat1_disk = disk;
+}
+
+void
+PlatformX_IO_InitConfigPath(
+    struct PlatformX_IO* px,
+    const char* config_path)
+{
+    assert(px);
+    assert(config_path);
+    px->config_dir = strdup(config_path);
+}
+
+void
+PlatformX_IO_InitScriptPath(
+    struct PlatformX_IO* px,
+    const char* script_path)
+{
+    assert(px);
+    assert(script_path);
+    px->script_dir = strdup(script_path);
 }
 
 void
@@ -130,7 +152,8 @@ load_file_item(
 static int
 cache_table_supported(int table_id)
 {
-    return table_id == RSCACHE_DISK_TABLE_MODELS || table_id == RSCACHE_DISK_TABLE_INTERFACES;
+    return table_id == RSCACHE_DAT2_DISK_TABLE_MODELS ||
+           table_id == RSCACHE_DAT2_DISK_TABLE_INTERFACES;
 }
 
 static int
@@ -138,7 +161,7 @@ load_cache_item(
     struct PlatformX_IO* px,
     struct ToriRS_IOItem* item)
 {
-    assert(px->disk);
+    assert(px->dat2_disk);
 
     int table_id = item->u.cache.table_id;
     int archive_id = item->u.cache.archive_id;
@@ -149,30 +172,19 @@ load_cache_item(
         return -1;
     }
 
-    struct RSCache_DiskArchive* archive =
-        RSCache_DiskArchiveNewLoad(px->disk, table_id, archive_id);
+    struct RSCache_Dat2DiskArchive* archive =
+        RSCache_Dat2DiskArchiveNewLoad(px->dat2_disk, table_id, archive_id);
     if( !archive )
     {
         item->error_code = -1;
         return -1;
     }
 
-    void* data = malloc((size_t)archive->data_size);
-    if( !data )
-    {
-        RSCache_DiskArchiveFree(archive);
-        item->error_code = -1;
-        return -1;
-    }
+    RSCache_Dat2DiskArchiveInitMetadataFromTable(px->dat2_disk->tables[table_id], archive);
 
-    if( archive->data_size > 0 )
-        memcpy(data, archive->data, (size_t)archive->data_size);
+    item->data = archive;
+    item->data_size = sizeof(struct RSCache_Dat2DiskArchive);
 
-    item->data = data;
-    item->data_size = archive->data_size;
-    item->error_code = 0;
-
-    RSCache_DiskArchiveFree(archive);
     return 0;
 }
 
@@ -211,15 +223,15 @@ PlatformX_IO_Process(
     assert(io);
 
     int processed = 0;
-    for( int i = 0; i < io->live_no; i++ )
+    for( int i = 0; i < io->active_count; i++ )
     {
-        struct ToriRS_IOItem* item = &io->io_slots[i];
-        if( item->data != NULL || item->error_code != 0 )
-            continue;
+        struct ToriRS_IOItem* item = &io->io_slots[io->active[i]];
 
         if( PlatformX_IO_LoadItem(px, item) == 0 )
             processed++;
     }
+
+    ToriRS_IO_ResetActive(io);
 
     return processed;
 }

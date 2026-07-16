@@ -1,7 +1,10 @@
 #include "filelist.h"
 
+#include "archive.h"
+#include "compression.h"
 #include "rsbuffer.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,10 +16,10 @@ RSCache_FileListNewFromDecode(
     int num_files)
 {
     struct RSCache_FileList* filelist = malloc(sizeof(struct RSCache_FileList));
-    if( !filelist )
-        return NULL;
+    assert(filelist != NULL);
 
-    struct RSCache_Buffer buffer = { .data = (uint8_t*)data, .position = 0, .size = (uint32_t)data_size };
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, data, data_size);
 
     filelist->files = malloc(num_files * sizeof(char*));
     filelist->file_sizes = malloc(num_files * sizeof(int));
@@ -142,4 +145,182 @@ RSCache_FileListFree(struct RSCache_FileList* filelist)
     free(filelist->files);
     free(filelist->file_sizes);
     free(filelist);
+}
+
+struct RSCache_FileListDat*
+RSCache_FileListDatNewFromDecode(
+    char* data,
+    int data_size)
+{
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, data, data_size);
+    struct RSCache_FileListDat* filelist = NULL;
+    int actual_size = g3(&buffer);
+    int size = g3(&buffer);
+
+    bool is_compressed = actual_size != size;
+
+    char* decompressed_archive = NULL;
+    struct RSCache_Buffer data_buffer;
+    struct RSCache_Buffer meta_buffer;
+
+    if( is_compressed )
+    {
+        char* compressed_data = malloc(size);
+        if( !compressed_data )
+            return NULL;
+
+        int bytes_read = greadto(&buffer, compressed_data, size, size);
+        if( bytes_read < size )
+        {
+            free(compressed_data);
+            return NULL;
+        }
+
+        decompressed_archive = malloc(actual_size);
+        if( !decompressed_archive )
+        {
+            free(compressed_data);
+            return NULL;
+        }
+
+        int decompressed_size = RSCache_CompressionBzipDecompress(
+            (uint8_t*)decompressed_archive, actual_size, (uint8_t*)compressed_data, size);
+        assert(decompressed_size == actual_size);
+        free(compressed_data);
+
+        data_buffer.data = (uint8_t*)decompressed_archive;
+        data_buffer.size = (uint32_t)actual_size;
+        data_buffer.position = 0;
+
+        meta_buffer = data_buffer;
+    }
+    else
+    {
+        data_buffer.data = (uint8_t*)data;
+        data_buffer.size = (uint32_t)data_size;
+        data_buffer.position = buffer.position;
+
+        meta_buffer = data_buffer;
+    }
+
+    int file_count = g2(&meta_buffer);
+    data_buffer.position = meta_buffer.position + (uint32_t)file_count * 10u;
+
+    filelist = malloc(sizeof(struct RSCache_FileListDat));
+    if( !filelist )
+    {
+        free(decompressed_archive);
+        return NULL;
+    }
+
+    filelist->files = malloc(file_count * sizeof(char*));
+    filelist->file_sizes = malloc(file_count * sizeof(int));
+    filelist->file_name_hashes = malloc(file_count * sizeof(int));
+    if( !filelist->files || !filelist->file_sizes || !filelist->file_name_hashes )
+        goto error;
+
+    memset(filelist->files, 0, file_count * sizeof(char*));
+    memset(filelist->file_sizes, 0, file_count * sizeof(int));
+    memset(filelist->file_name_hashes, 0, file_count * sizeof(int));
+    filelist->file_count = file_count;
+
+    for( int i = 0; i < file_count; i++ )
+    {
+        int name_hash = g4(&meta_buffer);
+        int file_actual_size = g3(&meta_buffer);
+        int file_size = g3(&meta_buffer);
+
+        char* file_data = NULL;
+
+        if( is_compressed )
+        {
+            file_data = malloc(file_size);
+            if( !file_data )
+                goto error;
+
+            int bytes_read = greadto(&data_buffer, file_data, file_size, file_size);
+            if( bytes_read < file_size )
+            {
+                free(file_data);
+                goto error;
+            }
+        }
+        else
+        {
+            char* compressed_file_data = malloc(file_size);
+            if( !compressed_file_data )
+                goto error;
+
+            int bytes_read = greadto(&data_buffer, compressed_file_data, file_size, file_size);
+            if( bytes_read < file_size )
+            {
+                free(compressed_file_data);
+                goto error;
+            }
+
+            file_data = malloc(file_actual_size);
+            if( !file_data )
+            {
+                free(compressed_file_data);
+                goto error;
+            }
+
+            RSCache_CompressionBzipDecompress(
+                (uint8_t*)file_data, file_actual_size, (uint8_t*)compressed_file_data, file_size);
+            free(compressed_file_data);
+        }
+
+        filelist->files[i] = file_data;
+        filelist->file_sizes[i] = is_compressed ? file_size : file_actual_size;
+        filelist->file_name_hashes[i] = name_hash;
+    }
+
+    free(decompressed_archive);
+    return filelist;
+
+error:
+    if( filelist )
+    {
+        for( int i = 0; i < file_count; i++ )
+        {
+            if( filelist->files && filelist->files[i] )
+                free(filelist->files[i]);
+        }
+        free(filelist->files);
+        free(filelist->file_sizes);
+        free(filelist->file_name_hashes);
+        free(filelist);
+    }
+    free(decompressed_archive);
+    return NULL;
+}
+
+void
+RSCache_FileListDatFree(struct RSCache_FileListDat* filelist)
+{
+    if( !filelist )
+        return;
+
+    for( int i = 0; i < filelist->file_count; i++ )
+        free(filelist->files[i]);
+
+    free(filelist->files);
+    free(filelist->file_sizes);
+    free(filelist->file_name_hashes);
+    free(filelist);
+}
+
+int
+RSCache_FileListDatFindFileByName(
+    struct RSCache_FileListDat* filelist,
+    const char* name)
+{
+    int name_hash = RSCache_ArchiveNameHashDat(name);
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        if( filelist->file_name_hashes[i] == name_hash )
+            return i;
+    }
+    return -1;
 }
