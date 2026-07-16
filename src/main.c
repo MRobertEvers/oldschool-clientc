@@ -32,9 +32,7 @@ Task_Dummy_Run(
 }
 void
 Task_Dummy_Free(struct ToriRS_Task* task)
-{
-    free(task);
-}
+{}
 
 static struct ToriRS_TaskVTable Task_Dummy_VTable = {
     .run = Task_Dummy_Run,
@@ -77,6 +75,7 @@ main(
         PlatformX_IO_Process(px, io);
     }
 
+    printf("Task_Dummy_Run done\n");
     ToriRS_TaskQueue_Free(queue);
     ToriRS_IO_Free(io);
     PlatformX_IO_Free(px);

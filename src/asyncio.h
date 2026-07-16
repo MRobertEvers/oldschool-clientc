@@ -255,6 +255,11 @@ ToriRS_TaskQueue_Remove(
     if( task->next != NULL )
         task->next->prev = task->prev;
 
+    if( queue->head == task )
+        queue->head = task->next;
+    if( queue->tail == task )
+        queue->tail = task->prev;
+
     task_free(task);
 }
 
@@ -271,12 +276,20 @@ ToriRS_TaskQueue_Run(
         task = queue->head;
         res = task_run(task, io);
 
+        // Return states for the protothread functions
+        // #define PT_WAITING 0
+        // #define PT_YIELDED 1
+        // #define PT_EXITED 2
+        // #define PT_ENDED 3
         switch( res )
         {
-        case TORIRS_ASYNCIO_STAT_YIELD:
+        case PT_YIELDED:
+            res = TORIRS_ASYNCIO_STAT_YIELD;
             goto done_loop;
             break;
-        case TORIRS_ASYNCIO_STAT_DONE:
+        case PT_EXITED:
+        case PT_ENDED:
+            res = TORIRS_ASYNCIO_STAT_DONE;
             ToriRS_TaskQueue_Remove(queue, task);
             goto done_loop;
             break;

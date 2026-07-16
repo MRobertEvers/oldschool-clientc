@@ -651,8 +651,7 @@ RSCache_Dat2ComponentSetOp(
     int32_t i,
     const char* op)
 {
-    if( i < 0 )
-        return;
+    assert(i >= 0);
     int32_t need = i + 1;
     if( !self->ops || need > self->opsLen )
     {

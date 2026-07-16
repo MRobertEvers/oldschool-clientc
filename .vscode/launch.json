@@ -335,13 +335,13 @@
       "MIMode": "lldb"
     },
     {
-      "name": "(lldb) Launch ioreactor test",
-      "type": "cppdbg",
+      "name": "(lldb) Launch src",
+      "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/src2/programs/io_reactor_test/io_reactor_test",
-      "args": ["${workspaceFolder}/cache254"],
+      "program": "${workspaceFolder}/src/torirs",
+      "args": ["${workspaceFolder}/cache.jan2026", "${workspaceFolder}/config", "${workspaceFolder}/script"],
       "stopAtEntry": false,
-      "cwd": "${workspaceFolder}/src2/programs/io_reactor_test",
+      "cwd": "${workspaceFolder}/src",
       "environment": [],
       "externalConsole": false,
       "MIMode": "lldb"
