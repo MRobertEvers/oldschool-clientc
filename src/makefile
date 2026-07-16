@@ -4,12 +4,15 @@ CC ?= cc
 OBJ_DIR = build
 TARGET = torirs
 
-REPO_ROOT   := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
-SRC_DIR     := $(REPO_ROOT)/src
-RSCACHE_DIR := $(REPO_ROOT)/3rd/rscache
+REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
+SRC_DIR      := $(REPO_ROOT)/src
+RSCACHE_DIR  := $(REPO_ROOT)/3rd/rscache
+TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
+BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 
 CFLAGS = -std=c11 -Wall -Wextra -g \
-	-I$(SRC_DIR) -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src
+	-I$(SRC_DIR) -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
+	-I$(TORIDRAW_DIR) -I$(BMP_DIR)
 
 RSCACHE_CFLAGS = -std=c11 -g \
 	-I$(RSCACHE_DIR)/include \
@@ -19,6 +22,10 @@ RSCACHE_CFLAGS = -std=c11 -g \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas
 
+TORIDRAW_CFLAGS = -std=c11 -g \
+	-I$(TORIDRAW_DIR) \
+	-I$(BMP_DIR)
+
 LDFLAGS = -lm -Wl,-dead_strip
 
 ifeq ($(ENABLE_ASAN),1)
@@ -26,9 +33,11 @@ CFLAGS += -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS += -fsanitize=address
 endif
 
-SRCS = main.c platform/platform_x_io.c
-UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
-OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/rscache_unity.o
+SRCS = main.c platform/platform_x_io.c $(BMP_DIR)/bmp.c
+RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
+TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
+OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/bmp.o \
+	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o
 
 .PHONY: all clean run
 
@@ -47,8 +56,11 @@ endef
 
 $(foreach src,$(SRCS),$(eval $(call make-goal,$(src))))
 
-$(OBJ_DIR)/rscache_unity.o: $(UNITY_SRC)
-	$(CC) $(RSCACHE_CFLAGS) -w -c $(UNITY_SRC) -o $@
+$(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC)
+	$(CC) $(RSCACHE_CFLAGS) -w -c $(RSCACHE_UNITY_SRC) -o $@
+
+$(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC)
+	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_UNITY_SRC) -o $@
 
 run: $(TARGET)
 	./$(TARGET)
