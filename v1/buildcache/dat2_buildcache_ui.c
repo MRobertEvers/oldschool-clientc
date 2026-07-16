@@ -1,5 +1,7 @@
 #include "dat2_buildcache_ui.h"
 
+#include "datatypes/dat2_component.h"
+
 #include "osrs/rscache/dat2a/dat2a_config_object.h"
 #include "osrs/rscache/dat2a/dat2a_model.h"
 #include "osrs/rscache/shared/shared_file_list.h"
@@ -288,12 +290,15 @@ dat2_buildcache_component_decode_iface_archive_from_archive(
     assert(archive);
 
     RSCacheDat2Disk_ArchiveInitMetadataFromTable(reference_table, archive);
-    struct Dat2BuildCache_InterfaceArchive* iface_archive =
-        RSCache_Dat2ComponentPackNewFromDecode(
-            archive->data,
-            archive->data_size,
-            archive->file_count,
-            iface_id);
+    struct RSCache_FileList* filelist = RSCache_FileListNewFromDecode(
+        (uint8_t*)archive->data, archive->data_size, archive->file_count);
     RSCacheDat2Disk_ArchiveFree(archive);
+    if( !filelist )
+        return NULL;
+
+    struct Dat2BuildCache_InterfaceArchive* iface_archive =
+        (struct Dat2BuildCache_InterfaceArchive*)RSCache_Dat2ComponentPackNewFromFileList(
+            filelist, iface_id);
+    RSCache_FileListFree(filelist);
     return iface_archive;
 }

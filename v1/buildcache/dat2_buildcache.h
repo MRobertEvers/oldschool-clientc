@@ -1,7 +1,7 @@
 #ifndef DAT2_BUILDCACHE_H
 #define DAT2_BUILDCACHE_H
 
-#include "rscache.h"
+#include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat2a/dat2a_config_enum.h"
 #include "osrs/rscache/dat2a/dat2a_config_param.h"
 #include "osrs/rscache/dat2a/dat2a_config_struct.h"
@@ -17,6 +17,7 @@
 #include <stdint.h>
 
 struct ToriAuxLibCore_Sprite;
+struct RSCache_Dat2Component;
 
 enum Dat2BuildCache_Kind
 {
@@ -80,8 +81,8 @@ struct Dat2BuildCache_FontAsset
 struct Dat2BuildCache_FramesArchive
 {
     struct RSCacheDat2A_Framemap* framemap;
-    struct RSCacheDat2A_Frame**   frames;
-    int                           frame_count;
+    struct RSCacheDat2A_Frame** frames;
+    int frame_count;
 };
 
 void
@@ -90,10 +91,14 @@ Dat2BuildCache_FramesArchiveFree(struct Dat2BuildCache_FramesArchive* fa);
 /**
  * All decoded widgets from one interfaces archive (idx=iface_id).
  */
-typedef struct RSCache_Dat2ComponentPack Dat2BuildCache_InterfaceArchive;
+struct Dat2BuildCache_InterfaceArchive
+{
+    struct RSCache_Dat2Component** components;
+    int component_count;
+};
 
 void
-Dat2BuildCache_InterfaceArchiveFree(Dat2BuildCache_InterfaceArchive* archive);
+Dat2BuildCache_InterfaceArchiveFree(struct Dat2BuildCache_InterfaceArchive* archive);
 
 struct Dat2BuildCache
 {
@@ -104,9 +109,9 @@ struct Dat2BuildCache
     struct ToriDraw_Map* flotype_hmap;
     struct ToriDraw_Map* underlay_hmap;
     struct ToriDraw_Map* config_loc_hmap;
-    struct ToriDraw_Map* frames_hmap;     /* archive_id -> Dat2BuildCache_FramesArchive* */
-    struct ToriDraw_Map* framemap_hmap;   /* framemap_id -> RSCacheDat2A_Framemap*       */
-    struct ToriDraw_Map* skeletal_hmap;   /* anim_maya_id -> RSCacheDat2A_AnimMaya*      */
+    struct ToriDraw_Map* frames_hmap;        /* archive_id -> Dat2BuildCache_FramesArchive* */
+    struct ToriDraw_Map* framemap_hmap;      /* framemap_id -> RSCacheDat2A_Framemap*       */
+    struct ToriDraw_Map* skeletal_hmap;      /* anim_maya_id -> RSCacheDat2A_AnimMaya*      */
     struct ToriDraw_Map* skeletal_base_hmap; /* base_id -> RSCacheDat2A_SkeletalBase*    */
     struct ToriDraw_Map* identkit_hmap;
     struct ToriDraw_Map* object_hmap;

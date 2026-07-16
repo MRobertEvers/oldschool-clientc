@@ -7,7 +7,7 @@
 #include "games/runescape.h"
 #include "toriauxlib/core/tasks/instance_revconfig_context.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
-#include "rscache.h"
+#include "datatypes/dat2_component.h"
 #include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/toriauxlib_tasks.h"

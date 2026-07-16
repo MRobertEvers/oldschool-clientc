@@ -3,8 +3,13 @@ OBJ_DIR = build
 TARGET = interfacex
 
 REPO_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
-SRC_DIR   := $(REPO_ROOT)/src
-SRC2_DIR  := $(REPO_ROOT)/src2
+SRC_DIR   := $(REPO_ROOT)/v0
+SRC2_DIR  := $(REPO_ROOT)/v1
+BMP_DIR   := $(REPO_ROOT)/3rd/bmp
+RSCACHE_DIR := $(REPO_ROOT)/3rd/rscache
+BZIP_DIR    := $(REPO_ROOT)/3rd/bzip
+MINIZ_DIR   := $(REPO_ROOT)/3rd/miniz
+XTEAS_DIR   := $(REPO_ROOT)/3rd/xteas
 PLAT_DIR  := $(SRC2_DIR)/platforms
 TOOL_DIR  := $(REPO_ROOT)/tools/interfacex
 
@@ -25,7 +30,12 @@ endif
 ENABLE_ASAN ?= 0
 
 CFLAGS = -std=c11 -Wall -Wextra -g -DTORIAUXLIBCACHE_NO_LEGACY_TASK_HEADERS \
-	-I$(TOOL_DIR) -I$(SRC2_DIR)/toridraw -I$(SRC2_DIR)/toriauxlib/td -I$(SRC2_DIR) -I$(SRC_DIR) -I$(REPO_ROOT)
+	-I$(TOOL_DIR) -I$(SRC2_DIR)/toridraw -I$(SRC2_DIR)/toriauxlib/td -I$(SRC2_DIR) -I$(SRC_DIR) -I$(REPO_ROOT) -I$(BMP_DIR) \
+	-I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src
+
+RSCACHE_CFLAGS = -std=c11 -g -w \
+	-I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src -I$(RSCACHE_DIR) \
+	-I$(BZIP_DIR) -I$(MINIZ_DIR) -I$(XTEAS_DIR)
 
 LDFLAGS = -lm
 
@@ -71,7 +81,7 @@ SRCS = $(TOOL_DIR)/main.c \
 	$(TOOL_DIR)/interfacex_host_io.c \
 	$(TOOL_DIR)/stubs.c \
 	$(PLAT_DIR)/asan_compat.c \
-	$(SRC_DIR)/bmp.c \
+	$(BMP_DIR)/bmp.c \
 	$(SRC2_DIR)/toridraw/toridraw_unity.c \
 	$(SRC2_DIR)/toridraw/toridraw_model_sprite.c \
 	$(SRC2_DIR)/toridraw/toridraw_font.c \
@@ -104,8 +114,7 @@ SRCS = $(TOOL_DIR)/main.c \
 	$(SRC2_DIR)/vm/cs2_script.c \
 	$(SRC2_DIR)/vm/cs2_opcode_meta.c \
 	$(SRC2_DIR)/vm/cs2vmx.c \
-	$(SRC_DIR)/3rd/bzip/bzip.c \
-	$(SRC_DIR)/3rd/miniz/miniz.c
+	$(TOOL_DIR)/rscache_component_unity.c
 
 OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o)))
 
@@ -129,7 +138,7 @@ $(OBJ_DIR)/main.o: $(TOOL_DIR)/main.c
 $(OBJ_DIR)/interfacex_host_io.o: $(TOOL_DIR)/interfacex_host_io.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/bmp.o: $(SRC_DIR)/bmp.c
+$(OBJ_DIR)/bmp.o: $(BMP_DIR)/bmp.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/stubs.o: $(TOOL_DIR)/stubs.c
@@ -238,11 +247,8 @@ $(OBJ_DIR)/cs2_opcode_meta.o: $(SRC2_DIR)/vm/cs2_opcode_meta.c
 $(OBJ_DIR)/cs2vmx.o: $(SRC2_DIR)/vm/cs2vmx.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/bzip.o: $(SRC_DIR)/3rd/bzip/bzip.c
-	$(CC) $(CFLAGS) -w -c $< -o $@
-
-$(OBJ_DIR)/miniz.o: $(SRC_DIR)/3rd/miniz/miniz.c
-	$(CC) $(CFLAGS) -w -c $< -o $@
+$(OBJ_DIR)/rscache_component_unity.o: $(TOOL_DIR)/rscache_component_unity.c
+	$(CC) $(RSCACHE_CFLAGS) -c $< -o $@
 
 clean:
 	rm -rf $(OBJ_DIR) $(TARGET) asan_dyld_shim.dylib

@@ -1049,7 +1049,8 @@ UITreeX_PrintNode(
     {
         struct UITreeXNode_RSModel const* model = UITreeX_NodeModel(node);
         printf(
-            " model=%d kind=%d scene_id=%d zoom=%d xan=%d yan=%d zan=%d orient=%d offset=%d orthog=%d "
+            " model=%d kind=%d scene_id=%d zoom=%d xan=%d yan=%d zan=%d orient=%d offset=%d "
+            "orthog=%d "
             "fixed_zoom=%d short50=%d short49=%d an5957=%d an5920=%d",
             model->model_id,
             (int)model->model_kind,
@@ -1136,7 +1137,6 @@ UITreeX_PrintNodes(struct UITreeX const* tree)
 //     KEY_PRESSED: -2147483639, // Integer.MIN_VALUE + 9
 //     OP_SUBINDEX: -2147483638, // Integer.MIN_VALUE + 10
 // } as const;
-
 
 #define CACHE_PATH "/Users/matthewevers/Documents/git_repos/3draster/cache"
 
@@ -1555,7 +1555,6 @@ UITreeX_ParentComponentId(
 
     return tree->nodes[parent_idx].user_id;
 }
-
 
 /* Host-side: collect dynamic child indices (was CS2VMX helper). */
 static int

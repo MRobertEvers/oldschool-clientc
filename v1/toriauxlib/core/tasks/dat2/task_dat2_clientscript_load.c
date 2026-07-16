@@ -1,7 +1,7 @@
 #include "ioqueue/libtorirs_io.h"
 #include "buildcache/dat2_buildcache.h"
 #include "core/tapi/tapi_dat2.h"
-#include "rscache.h"
+#include "datatypes/dat2_component.h"
 #include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/cache/toriauxlibcache_submit.h"
 

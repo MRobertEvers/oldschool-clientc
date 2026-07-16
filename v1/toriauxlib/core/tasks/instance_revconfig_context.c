@@ -8,7 +8,7 @@
 #include "instance_revconfig_inv_bind.h"
 #include "osrs/minimenu_action.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
-#include "rscache.h"
+#include "datatypes/dat2_component.h"
 #include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"

@@ -324,8 +324,12 @@ Task_Dummy_Run(
     printf("Task_Dummy_Run\n");
     PT_BEGIN(&(dummy->pt));
 
+#define SLOT_MACHINE_IF_ID 26
+#define BANK_SLOT_MACHINE_IF_ID 12
+#define RESIZEABLE_LAYOUT_IF_ID 161
+
     // RSCache_IO_ClientScriptLoad(io, 0, DUMMY_CLIENTSCRIPT_ID);
-    RSCache_IO_Dat2ComponentPackLoad(io, 0, 26);
+    RSCache_IO_Dat2ComponentPackLoad(io, 0, RESIZEABLE_LAYOUT_IF_ID);
 
     PT_YIELD(&(dummy->pt));
     // dummy->decoded = RSCache_IO_ClientScriptDecode(io, 0, DUMMY_CLIENTSCRIPT_ID);

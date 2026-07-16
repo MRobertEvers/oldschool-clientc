@@ -185,10 +185,13 @@ CS2VM2_TraceOpcode(
         (unsigned)vm->dot_component_id);
     if( g_cs2_trace_extra[0] != '\0' )
         fprintf(stderr, " %s", g_cs2_trace_extra);
-    if( result != CS2VM_EXECNO_OK )
+    if( result == CS2VM_EXECNO_YIELD )
+        fprintf(stderr, " result=yield");
+    else if( result != CS2VM_EXECNO_OK )
         fprintf(stderr, " result=error");
     fprintf(stderr, "\n");
-    CS2VM2_ClearTraceExtra();
+    if( result != CS2VM_EXECNO_YIELD )
+        CS2VM2_ClearTraceExtra();
 }
 
 void
