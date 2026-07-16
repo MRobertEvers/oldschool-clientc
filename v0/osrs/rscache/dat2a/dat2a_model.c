@@ -290,7 +290,8 @@ decode_ob2(
 
         if( has_vertex_labels == 1 )
         {
-            uint8_t vertexLabel = RSCacheShared_RSBufferG1At(inputData, &offsetOfPackedVertexGroups);
+            uint8_t vertexLabel =
+                RSCacheShared_RSBufferG1At(inputData, &offsetOfPackedVertexGroups);
             model->vertex_bone_map[i] = vertexLabel;
         }
     }
@@ -375,21 +376,26 @@ decode_ob2(
 
         if( compressionType == 1 )
         {
-            previousIndex1 = RSCacheShared_RSBufferReadShortSmartAt(inputData, &offset) + previousIndex3;
-            previousIndex2 = RSCacheShared_RSBufferReadShortSmartAt(inputData, &offset) + previousIndex1;
-            previousIndex3 = RSCacheShared_RSBufferReadShortSmartAt(inputData, &offset) + previousIndex2;
+            previousIndex1 =
+                RSCacheShared_RSBufferReadShortSmartAt(inputData, &offset) + previousIndex3;
+            previousIndex2 =
+                RSCacheShared_RSBufferReadShortSmartAt(inputData, &offset) + previousIndex1;
+            previousIndex3 =
+                RSCacheShared_RSBufferReadShortSmartAt(inputData, &offset) + previousIndex2;
             previousIndex3Copy = previousIndex3; // Store copy for next iteration
         }
         else if( compressionType == 2 )
         {
             previousIndex2 = previousIndex3;
-            previousIndex3 = RSCacheShared_RSBufferReadShortSmartAt(inputData, &offset) + previousIndex3Copy;
+            previousIndex3 =
+                RSCacheShared_RSBufferReadShortSmartAt(inputData, &offset) + previousIndex3Copy;
             previousIndex3Copy = previousIndex3; // Store copy for next iteration
         }
         else if( compressionType == 3 )
         {
             previousIndex1 = previousIndex3;
-            previousIndex3 = RSCacheShared_RSBufferReadShortSmartAt(inputData, &offset) + previousIndex3Copy;
+            previousIndex3 =
+                RSCacheShared_RSBufferReadShortSmartAt(inputData, &offset) + previousIndex3Copy;
             previousIndex3Copy = previousIndex3; // Store copy for next iteration
         }
         else if( compressionType == 4 )
@@ -397,7 +403,8 @@ decode_ob2(
             int temp = previousIndex1;
             previousIndex1 = previousIndex2;
             previousIndex2 = temp;
-            previousIndex3 = RSCacheShared_RSBufferReadShortSmartAt(inputData, &offset) + previousIndex3Copy;
+            previousIndex3 =
+                RSCacheShared_RSBufferReadShortSmartAt(inputData, &offset) + previousIndex3Copy;
             previousIndex3Copy = previousIndex3; // Store copy for next iteration
         }
 
@@ -485,352 +492,6 @@ decode_ob2(
     return model;
 }
 
-// void decodeType1(ModelDefinition def, byte[] var1)
-// 	{
-// 		InputStream var2 = new InputStream(var1);
-// 		InputStream var3 = new InputStream(var1);
-// 		InputStream var4 = new InputStream(var1);
-// 		InputStream var5 = new InputStream(var1);
-// 		InputStream var6 = new InputStream(var1);
-// 		InputStream var7 = new InputStream(var1);
-// 		InputStream var8 = new InputStream(var1);
-// 		var2.setOffset(var1.length - 23);
-// 		int var9 = var2.readUnsignedShort();
-// 		int var10 = var2.readUnsignedShort();
-// 		int var11 = var2.readUnsignedByte();
-// 		int var12 = var2.readUnsignedByte();
-// 		int var13 = var2.readUnsignedByte();
-// 		int var14 = var2.readUnsignedByte();
-// 		int var15 = var2.readUnsignedByte();
-// 		int var16 = var2.readUnsignedByte();
-// 		int var17 = var2.readUnsignedByte();
-// 		int var18 = var2.readUnsignedShort();
-// 		int var19 = var2.readUnsignedShort();
-// 		int var20 = var2.readUnsignedShort();
-// 		int var21 = var2.readUnsignedShort();
-// 		int var22 = var2.readUnsignedShort();
-// 		int var23 = 0;
-// 		int var24 = 0;
-// 		int var25 = 0;
-// 		int var26;
-// 		if (var11 > 0)
-// 		{
-// 			def.textureRenderTypes = new byte[var11];
-// 			var2.setOffset(0);
-
-// 			for (var26 = 0; var26 < var11; ++var26)
-// 			{
-// 				byte var27 = def.textureRenderTypes[var26] = var2.readByte();
-// 				if (var27 == 0)
-// 				{
-// 					++var23;
-// 				}
-
-// 				if (var27 >= 1 && var27 <= 3)
-// 				{
-// 					++var24;
-// 				}
-
-// 				if (var27 == 2)
-// 				{
-// 					++var25;
-// 				}
-// 			}
-// 		}
-
-// 		var26 = var11 + var9;
-// 		int var56 = var26;
-// 		if (var12 == 1)
-// 		{
-// 			var26 += var10;
-// 		}
-
-// 		int var28 = var26;
-// 		var26 += var10;
-// 		int var29 = var26;
-// 		if (var13 == 255)
-// 		{
-// 			var26 += var10;
-// 		}
-
-// 		int var30 = var26;
-// 		if (var15 == 1)
-// 		{
-// 			var26 += var10;
-// 		}
-
-// 		int var31 = var26;
-// 		if (var17 == 1)
-// 		{
-// 			var26 += var9;
-// 		}
-
-// 		int var32 = var26;
-// 		if (var14 == 1)
-// 		{
-// 			var26 += var10;
-// 		}
-
-// 		int var33 = var26;
-// 		var26 += var21;
-// 		int var34 = var26;
-// 		if (var16 == 1)
-// 		{
-// 			var26 += var10 * 2;
-// 		}
-
-// 		int var35 = var26;
-// 		var26 += var22;
-// 		int var36 = var26;
-// 		var26 += var10 * 2;
-// 		int var37 = var26;
-// 		var26 += var18;
-// 		int var38 = var26;
-// 		var26 += var19;
-// 		int var39 = var26;
-// 		var26 += var20;
-// 		int var40 = var26;
-// 		var26 += var23 * 6;
-// 		int var41 = var26;
-// 		var26 += var24 * 6;
-// 		int var42 = var26;
-// 		var26 += var24 * 6;
-// 		int var43 = var26;
-// 		var26 += var24 * 2;
-// 		int var44 = var26;
-// 		var26 += var24;
-// 		int var45 = var26;
-// 		var26 = var26 + var24 * 2 + var25 * 2;
-// 		def.vertexCount = var9;
-// 		def.faceCount = var10;
-// 		def.numTextureFaces = var11;
-// 		def.vertexX = new int[var9];
-// 		def.vertexY = new int[var9];
-// 		def.vertexZ = new int[var9];
-// 		def.faceIndices1 = new int[var10];
-// 		def.faceIndices2 = new int[var10];
-// 		def.faceIndices3 = new int[var10];
-// 		if (var17 == 1)
-// 		{
-// 			def.packedVertexGroups = new int[var9];
-// 		}
-
-// 		if (var12 == 1)
-// 		{
-// 			def.faceRenderTypes = new byte[var10];
-// 		}
-
-// 		if (var13 == 255)
-// 		{
-// 			def.faceRenderPriorities = new byte[var10];
-// 		}
-// 		else
-// 		{
-// 			def.priority = (byte) var13;
-// 		}
-
-// 		if (var14 == 1)
-// 		{
-// 			def.faceTransparencies = new byte[var10];
-// 		}
-
-// 		if (var15 == 1)
-// 		{
-// 			def.packedTransparencyVertexGroups = new int[var10];
-// 		}
-
-// 		if (var16 == 1)
-// 		{
-// 			def.faceTextures = new short[var10];
-// 		}
-
-// 		if (var16 == 1 && var11 > 0)
-// 		{
-// 			def.textureCoords = new byte[var10];
-// 		}
-
-// 		def.faceColors = new short[var10];
-// 		if (var11 > 0)
-// 		{
-// 			def.texIndices1 = new short[var11];
-// 			def.texIndices2 = new short[var11];
-// 			def.texIndices3 = new short[var11];
-// 		}
-
-// 		var2.setOffset(var11);
-// 		var3.setOffset(var37);
-// 		var4.setOffset(var38);
-// 		var5.setOffset(var39);
-// 		var6.setOffset(var31);
-// 		int var46 = 0;
-// 		int var47 = 0;
-// 		int var48 = 0;
-
-// 		int var49;
-// 		int var50;
-// 		int var51;
-// 		int var52;
-// 		int var53;
-// 		for (var49 = 0; var49 < var9; ++var49)
-// 		{
-// 			var50 = var2.readUnsignedByte();
-// 			var51 = 0;
-// 			if ((var50 & 1) != 0)
-// 			{
-// 				var51 = var3.readShortSmart();
-// 			}
-
-// 			var52 = 0;
-// 			if ((var50 & 2) != 0)
-// 			{
-// 				var52 = var4.readShortSmart();
-// 			}
-
-// 			var53 = 0;
-// 			if ((var50 & 4) != 0)
-// 			{
-// 				var53 = var5.readShortSmart();
-// 			}
-
-// 			def.vertexX[var49] = var46 + var51;
-// 			def.vertexY[var49] = var47 + var52;
-// 			def.vertexZ[var49] = var48 + var53;
-// 			var46 = def.vertexX[var49];
-// 			var47 = def.vertexY[var49];
-// 			var48 = def.vertexZ[var49];
-// 			if (var17 == 1)
-// 			{
-// 				def.packedVertexGroups[var49] = var6.readUnsignedByte();
-// 			}
-// 		}
-
-// 		var2.setOffset(var36);
-// 		var3.setOffset(var56);
-// 		var4.setOffset(var29);
-// 		var5.setOffset(var32);
-// 		var6.setOffset(var30);
-// 		var7.setOffset(var34);
-// 		var8.setOffset(var35);
-
-// 		for (var49 = 0; var49 < var10; ++var49)
-// 		{
-// 			def.faceColors[var49] = (short) var2.readUnsignedShort();
-// 			if (var12 == 1)
-// 			{
-// 				def.faceRenderTypes[var49] = var3.readByte();
-// 			}
-
-// 			if (var13 == 255)
-// 			{
-// 				def.faceRenderPriorities[var49] = var4.readByte();
-// 			}
-
-// 			if (var14 == 1)
-// 			{
-// 				def.faceTransparencies[var49] = var5.readByte();
-// 			}
-
-// 			if (var15 == 1)
-// 			{
-// 				def.packedTransparencyVertexGroups[var49] = var6.readUnsignedByte();
-// 			}
-
-// 			if (var16 == 1)
-// 			{
-// 				def.faceTextures[var49] = (short) (var7.readUnsignedShort() - 1);
-// 			}
-
-// 			if (def.textureCoords != null && def.faceTextures[var49] != -1)
-// 			{
-// 				def.textureCoords[var49] = (byte) (var8.readUnsignedByte() - 1);
-// 			}
-// 		}
-
-// 		var2.setOffset(var33);
-// 		var3.setOffset(var28);
-// 		var49 = 0;
-// 		var50 = 0;
-// 		var51 = 0;
-// 		var52 = 0;
-
-// 		int var54;
-// 		for (var53 = 0; var53 < var10; ++var53)
-// 		{
-// 			var54 = var3.readUnsignedByte();
-// 			if (var54 == 1)
-// 			{
-// 				var49 = var2.readShortSmart() + var52;
-// 				var50 = var2.readShortSmart() + var49;
-// 				var51 = var2.readShortSmart() + var50;
-// 				var52 = var51;
-// 				def.faceIndices1[var53] = var49;
-// 				def.faceIndices2[var53] = var50;
-// 				def.faceIndices3[var53] = var51;
-// 			}
-
-// 			if (var54 == 2)
-// 			{
-// 				var50 = var51;
-// 				var51 = var2.readShortSmart() + var52;
-// 				var52 = var51;
-// 				def.faceIndices1[var53] = var49;
-// 				def.faceIndices2[var53] = var50;
-// 				def.faceIndices3[var53] = var51;
-// 			}
-
-// 			if (var54 == 3)
-// 			{
-// 				var49 = var51;
-// 				var51 = var2.readShortSmart() + var52;
-// 				var52 = var51;
-// 				def.faceIndices1[var53] = var49;
-// 				def.faceIndices2[var53] = var50;
-// 				def.faceIndices3[var53] = var51;
-// 			}
-
-// 			if (var54 == 4)
-// 			{
-// 				int var55 = var49;
-// 				var49 = var50;
-// 				var50 = var55;
-// 				var51 = var2.readShortSmart() + var52;
-// 				var52 = var51;
-// 				def.faceIndices1[var53] = var49;
-// 				def.faceIndices2[var53] = var55;
-// 				def.faceIndices3[var53] = var51;
-// 			}
-// 		}
-
-// 		var2.setOffset(var40);
-// 		var3.setOffset(var41);
-// 		var4.setOffset(var42);
-// 		var5.setOffset(var43);
-// 		var6.setOffset(var44);
-// 		var7.setOffset(var45);
-
-// 		for (var53 = 0; var53 < var11; ++var53)
-// 		{
-// 			var54 = def.textureRenderTypes[var53] & 255;
-// 			if (var54 == 0)
-// 			{
-// 				def.texIndices1[var53] = (short) var2.readUnsignedShort();
-// 				def.texIndices2[var53] = (short) var2.readUnsignedShort();
-// 				def.texIndices3[var53] = (short) var2.readUnsignedShort();
-// 			}
-// 		}
-
-// 		var2.setOffset(var26);
-// 		var53 = var2.readUnsignedByte();
-// 		if (var53 != 0)
-// 		{
-// 			var2.readUnsignedShort();
-// 			var2.readUnsignedShort();
-// 			var2.readUnsignedShort();
-// 			var2.readInt();
-// 		}
-
-// 	}
-
 static struct RSCacheDat2A_Model*
 decode_ob3(
     const unsigned char* var1,
@@ -853,13 +514,13 @@ decode_ob3(
     // Read header information
     int var9 = RSCacheShared_RSBufferG2At(var1, &var2_offset);  // vertexCount
     int var10 = RSCacheShared_RSBufferG2At(var1, &var2_offset); // faceCount
-    int var11 = RSCacheShared_RSBufferG1At(var1, &var2_offset);        // textureCount
-    int var12 = RSCacheShared_RSBufferG1At(var1, &var2_offset);        // hasFaceRenderTypes
-    int var13 = RSCacheShared_RSBufferG1At(var1, &var2_offset);        // faceRenderPriority
-    int var14 = RSCacheShared_RSBufferG1At(var1, &var2_offset);        // hasFaceTransparencies
-    int var15 = RSCacheShared_RSBufferG1At(var1, &var2_offset);        // hasPackedTransparencyVertexGroups
-    int var16 = RSCacheShared_RSBufferG1At(var1, &var2_offset);        // hasFaceTextures
-    int var17 = RSCacheShared_RSBufferG1At(var1, &var2_offset);        // hasPackedVertexGroups
+    int var11 = RSCacheShared_RSBufferG1At(var1, &var2_offset); // textureCount
+    int var12 = RSCacheShared_RSBufferG1At(var1, &var2_offset); // hasFaceRenderTypes
+    int var13 = RSCacheShared_RSBufferG1At(var1, &var2_offset); // faceRenderPriority
+    int var14 = RSCacheShared_RSBufferG1At(var1, &var2_offset); // hasFaceTransparencies
+    int var15 = RSCacheShared_RSBufferG1At(var1, &var2_offset); // hasPackedTransparencyVertexGroups
+    int var16 = RSCacheShared_RSBufferG1At(var1, &var2_offset); // hasFaceTextures
+    int var17 = RSCacheShared_RSBufferG1At(var1, &var2_offset); // hasPackedVertexGroups
     int var18 = RSCacheShared_RSBufferG2At(var1, &var2_offset); // vertexXDataByteCount
     int var19 = RSCacheShared_RSBufferG2At(var1, &var2_offset); // vertexYDataByteCount
     int var20 = RSCacheShared_RSBufferG2At(var1, &var2_offset); // vertexZDataByteCount
@@ -1247,13 +908,13 @@ decode_version2__osrs_extended(
     // Read header information
     int var9 = RSCacheShared_RSBufferG2At(var1, &var4_offset);  // vertexCount
     int var10 = RSCacheShared_RSBufferG2At(var1, &var4_offset); // faceCount
-    int var11 = RSCacheShared_RSBufferG1At(var1, &var4_offset);        // numTextureFaces
-    int var12 = RSCacheShared_RSBufferG1At(var1, &var4_offset);        // hasFaceRenderTypes
-    int var13 = RSCacheShared_RSBufferG1At(var1, &var4_offset);        // faceRenderPriority
-    int var14 = RSCacheShared_RSBufferG1At(var1, &var4_offset);        // hasFaceTransparencies
-    int var15 = RSCacheShared_RSBufferG1At(var1, &var4_offset);        // hasPackedTransparencyVertexGroups
-    int var16 = RSCacheShared_RSBufferG1At(var1, &var4_offset);        // hasPackedVertexGroups
-    int var17 = RSCacheShared_RSBufferG1At(var1, &var4_offset);        // hasAnimayaGroups
+    int var11 = RSCacheShared_RSBufferG1At(var1, &var4_offset); // numTextureFaces
+    int var12 = RSCacheShared_RSBufferG1At(var1, &var4_offset); // hasFaceRenderTypes
+    int var13 = RSCacheShared_RSBufferG1At(var1, &var4_offset); // faceRenderPriority
+    int var14 = RSCacheShared_RSBufferG1At(var1, &var4_offset); // hasFaceTransparencies
+    int var15 = RSCacheShared_RSBufferG1At(var1, &var4_offset); // hasPackedTransparencyVertexGroups
+    int var16 = RSCacheShared_RSBufferG1At(var1, &var4_offset); // hasPackedVertexGroups
+    int var17 = RSCacheShared_RSBufferG1At(var1, &var4_offset); // hasAnimayaGroups
     int var18 = RSCacheShared_RSBufferG2At(var1, &var4_offset); // vertexXDataByteCount
     int var19 = RSCacheShared_RSBufferG2At(var1, &var4_offset); // vertexYDataByteCount
     int var20 = RSCacheShared_RSBufferG2At(var1, &var4_offset); // vertexZDataByteCount
@@ -1369,8 +1030,8 @@ decode_version2__osrs_extended(
     {
         def->animaya_vertex_count = var9;
         def->animaya_group_counts = calloc((size_t)var9, sizeof(uint8_t));
-        def->animaya_groups       = calloc((size_t)var9, sizeof(uint8_t*));
-        def->animaya_scales       = calloc((size_t)var9, sizeof(uint8_t*));
+        def->animaya_groups = calloc((size_t)var9, sizeof(uint8_t*));
+        def->animaya_scales = calloc((size_t)var9, sizeof(uint8_t*));
     }
 
     // Allocate face colors
@@ -1392,7 +1053,7 @@ decode_version2__osrs_extended(
     for( int i = 0; i < var9; ++i )
     {
         var41 = RSCacheShared_RSBufferG1At(var1, &var4_offset); // vertex flags
-        var42 = 0;                                      // delta X
+        var42 = 0;                                              // delta X
         if( (var41 & 1) != 0 )
         {
             var42 = RSCacheShared_RSBufferReadShortSmartAt(var1, &var5_offset);
@@ -1438,7 +1099,7 @@ decode_version2__osrs_extended(
             }
             for( int j = 0; j < var41; ++j )
             {
-                uint8_t grp   = (uint8_t)RSCacheShared_RSBufferG1At(var1, &var8_offset);
+                uint8_t grp = (uint8_t)RSCacheShared_RSBufferG1At(var1, &var8_offset);
                 uint8_t scale = (uint8_t)RSCacheShared_RSBufferG1At(var1, &var8_offset);
                 if( def->animaya_groups && def->animaya_groups[i] )
                     def->animaya_groups[i][j] = grp;
@@ -1997,7 +1658,8 @@ decode_version3__osrs_material(
 
         for( int var28 = 0; var28 < texTriangleCount; ++var28 )
         {
-            unsigned char var29 = def->textureRenderTypes[var28] = RSCacheShared_RSBufferG1At(var1, &var2_offset);
+            unsigned char var29 = def->textureRenderTypes[var28] =
+                RSCacheShared_RSBufferG1At(var1, &var2_offset);
             if( var29 == 0 )
             {
                 ++var25;
@@ -2144,8 +1806,8 @@ decode_version3__osrs_material(
     {
         def->animaya_vertex_count = vertexCount;
         def->animaya_group_counts = calloc((size_t)vertexCount, sizeof(uint8_t));
-        def->animaya_groups       = calloc((size_t)vertexCount, sizeof(uint8_t*));
-        def->animaya_scales       = calloc((size_t)vertexCount, sizeof(uint8_t*));
+        def->animaya_groups = calloc((size_t)vertexCount, sizeof(uint8_t*));
+        def->animaya_scales = calloc((size_t)vertexCount, sizeof(uint8_t*));
     }
 
     // Allocate face colors
@@ -2222,7 +1884,7 @@ decode_version3__osrs_material(
             }
             for( var53 = 0; var53 < var52; ++var53 )
             {
-                uint8_t grp   = (uint8_t)RSCacheShared_RSBufferG1At(var1, &var6_offset);
+                uint8_t grp = (uint8_t)RSCacheShared_RSBufferG1At(var1, &var6_offset);
                 uint8_t scale = (uint8_t)RSCacheShared_RSBufferG1At(var1, &var6_offset);
                 if( def->animaya_groups && def->animaya_groups[var51] )
                     def->animaya_groups[var51][var53] = grp;
@@ -2647,8 +2309,8 @@ RSCacheDat2A_ModelNewCopy(struct RSCacheDat2A_Model* model)
 
     copy->rotated = model->rotated;
 
-    if( model->animaya_vertex_count > 0 && model->animaya_group_counts &&
-        model->animaya_groups && model->animaya_scales )
+    if( model->animaya_vertex_count > 0 && model->animaya_group_counts && model->animaya_groups &&
+        model->animaya_scales )
     {
         int vc = model->animaya_vertex_count;
         copy->animaya_vertex_count = vc;
@@ -2705,8 +2367,8 @@ copy_vertex(
         model->vertices_z[new_vertex_count] = vert_z;
 
         // Vertex skins (animaya)
-        if( model->animaya_group_counts && other->animaya_group_counts &&
-            other->animaya_groups && other->animaya_scales )
+        if( model->animaya_group_counts && other->animaya_group_counts && other->animaya_groups &&
+            other->animaya_scales )
         {
             int cnt = (int)other->animaya_group_counts[vertex_index];
             model->animaya_group_counts[new_vertex_count] = (uint8_t)cnt;
@@ -2714,14 +2376,12 @@ copy_vertex(
             {
                 model->animaya_groups[new_vertex_count] = (uint8_t*)malloc((size_t)cnt);
                 model->animaya_scales[new_vertex_count] = (uint8_t*)malloc((size_t)cnt);
-                if( model->animaya_groups[new_vertex_count] &&
-                    other->animaya_groups[vertex_index] )
+                if( model->animaya_groups[new_vertex_count] && other->animaya_groups[vertex_index] )
                     memcpy(
                         model->animaya_groups[new_vertex_count],
                         other->animaya_groups[vertex_index],
                         (size_t)cnt);
-                if( model->animaya_scales[new_vertex_count] &&
-                    other->animaya_scales[vertex_index] )
+                if( model->animaya_scales[new_vertex_count] && other->animaya_scales[vertex_index] )
                     memcpy(
                         model->animaya_scales[new_vertex_count],
                         other->animaya_scales[vertex_index],
@@ -2943,8 +2603,8 @@ RSCacheDat2A_ModelNewMerge(
     {
         model->animaya_vertex_count = vertex_count;
         model->animaya_group_counts = animaya_group_counts;
-        model->animaya_groups       = animaya_groups;
-        model->animaya_scales       = animaya_scales;
+        model->animaya_groups = animaya_groups;
+        model->animaya_scales = animaya_scales;
     }
 
     for( int i = 0; i < model_count; i++ )

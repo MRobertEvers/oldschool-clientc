@@ -1,7 +1,7 @@
 #ifndef UI_IF3_LAYOUT_H
 #define UI_IF3_LAYOUT_H
 
-#include "osrs/rscache/dat2a/dat2a_component.h"
+#include "rscache.h"
 #include "uitree_layout.h"
 
 #include <stdint.h>
@@ -139,7 +139,7 @@ ui_if3_component_parent_relative_layout(
 
 static inline void
 ui_if3_dat2_component_parent_relative_layout(
-    RSCacheDat2A_Component const* comp,
+    struct RSCache_Dat2Component const* comp,
     int parent_w,
     int parent_h,
     int* out_rel_x,

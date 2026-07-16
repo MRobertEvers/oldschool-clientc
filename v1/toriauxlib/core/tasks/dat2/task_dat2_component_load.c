@@ -7,7 +7,7 @@
 #include "games/runescape.h"
 #include "toriauxlib/core/tasks/instance_revconfig_context.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
-#include "osrs/rscache/dat2a/dat2a_component.h"
+#include "rscache.h"
 #include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/tasks/toriauxlib_tasks.h"
@@ -53,7 +53,7 @@ struct Task_Dat2ComponentLoad
     int walk_parent_h;
 };
 
-static RSCacheDat2A_Component*
+static struct RSCache_Dat2Component*
 dat2_get_component(
     struct Dat2BuildCache_InterfaceArchive* archive,
     int component_id)
@@ -69,7 +69,7 @@ dat2_get_component(
 
     for( int i = 0; i < archive->component_count; i++ )
     {
-        RSCacheDat2A_Component* c = archive->components[i];
+        struct RSCache_Dat2Component* c = archive->components[i];
         if( c && c->id == component_id )
             return c;
     }
@@ -102,7 +102,7 @@ dat2_resolve_iface_and_root(
 static void
 dat2_component_sync_to_core(
     struct ToriAuxLibCache* cache,
-    RSCacheDat2A_Component* comp,
+    struct RSCache_Dat2Component* comp,
     int rel_x,
     int rel_y,
     int width,
@@ -181,7 +181,7 @@ dat2_collect_needed_models_from_archive(
 
     for( int i = 0; i < archive->component_count; i++ )
     {
-        RSCacheDat2A_Component* comp = archive->components[i];
+        struct RSCache_Dat2Component* comp = archive->components[i];
         if( !comp )
             continue;
         if( comp->type == COMPONENT_TYPE_MODEL && comp->modelType == 1 && comp->modelId > 0 )
@@ -237,7 +237,7 @@ dat2_collect_needed_sprites_from_archive(
 
     for( int i = 0; i < archive->component_count; i++ )
     {
-        RSCacheDat2A_Component* comp = archive->components[i];
+        struct RSCache_Dat2Component* comp = archive->components[i];
         if( !comp )
             continue;
         dat2_needed_sprite_append(task, comp->graphic);
@@ -253,7 +253,7 @@ dat2_collect_needed_sprites_from_archive(
 static void
 dat2_component_acquire_inv_slot_sprites(
     struct InstanceRevConfigContext* ctx,
-    RSCacheDat2A_Component* comp)
+    struct RSCache_Dat2Component* comp)
 {
     assert(ctx);
     assert(comp);
@@ -270,7 +270,7 @@ dat2_component_acquire_inv_slot_sprites(
 static void
 dat2_component_acquire_dynamic_sprites(
     struct InstanceRevConfigContext* ctx,
-    RSCacheDat2A_Component* comp)
+    struct RSCache_Dat2Component* comp)
 {
     assert(ctx);
     assert(comp);
@@ -286,7 +286,7 @@ static void
 dat2_component_push_children(
     struct Task_Dat2ComponentLoad* task,
     struct Dat2BuildCache_InterfaceArchive* archive,
-    RSCacheDat2A_Component* dat2_comp,
+    struct RSCache_Dat2Component* dat2_comp,
     int parent_w,
     int parent_h)
 {
@@ -295,7 +295,7 @@ dat2_component_push_children(
 
     for( int i = archive->component_count - 1; i >= 0; i-- )
     {
-        RSCacheDat2A_Component* child = archive->components[i];
+        struct RSCache_Dat2Component* child = archive->components[i];
         if( !child || child->layer != dat2_comp->id )
             continue;
         rs_component_stack_push(&task->walk_stack, child->id, parent_w, parent_h, dat2_comp->id);
@@ -328,7 +328,7 @@ static void
 dat2_component_process_node(
     struct Task_Dat2ComponentLoad* task,
     struct Dat2BuildCache_InterfaceArchive* archive,
-    RSCacheDat2A_Component* comp,
+    struct RSCache_Dat2Component* comp,
     int parent_w,
     int parent_h,
     int parent_id)
@@ -398,7 +398,7 @@ dat2_component_walk(
         if( file_index >= 0 && visited )
             visited[file_index] = 1;
 
-        RSCacheDat2A_Component* comp = dat2_get_component(archive, comp_id);
+        struct RSCache_Dat2Component* comp = dat2_get_component(archive, comp_id);
         if( !comp )
         {
             fprintf(
@@ -411,7 +411,7 @@ dat2_component_walk(
             task, archive, comp, stack_parent_w, stack_parent_h, parent_id);
     }
 
-    RSCacheDat2A_Component* root = dat2_get_component(archive, walk_root_id);
+    struct RSCache_Dat2Component* root = dat2_get_component(archive, walk_root_id);
     if( root && visited )
     {
         int root_w = 0;
@@ -423,7 +423,7 @@ dat2_component_walk(
 
         for( int i = 0; i < archive->component_count; i++ )
         {
-            RSCacheDat2A_Component* comp = archive->components[i];
+            struct RSCache_Dat2Component* comp = archive->components[i];
             if( !comp || visited[i] || comp->id == walk_root_id || comp->layer >= 0 )
                 continue;
 

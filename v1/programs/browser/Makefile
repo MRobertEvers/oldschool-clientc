@@ -8,6 +8,7 @@
 EMCC  ?= emcc
 REPO_ROOT := ../../..
 SRC2  := $(REPO_ROOT)/src2
+RSCACHE_DIR := $(REPO_ROOT)/3rd/rscache
 include $(SRC2)/toriauxlib/core/tasks/tasks_sources.mk
 SRC_DIR := $(REPO_ROOT)/src
 SCRIPT_DIR := $(SRC2)/scripting
@@ -140,6 +141,9 @@ SRC   := browser.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
 	$(PLAT_DIR)/platform_x/cachelib_serialized.c \
 	$(SRC_DIR)/osrs/rscache/unity.c \
+	$(RSCACHE_DIR)/src/rsbuffer.c \
+	$(RSCACHE_DIR)/src/filelist.c \
+	$(RSCACHE_DIR)/src/datatypes/dat2_component.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c
 
@@ -174,6 +178,7 @@ EMFLAGS := $(EFLAGS) -gsource-map -Wall -Wextra -sENVIRONMENT=web -sUSE_SDL=2 \
 	-DTORIRS_ENABLE_LVGL_HUD=1 -DLV_CONF_INCLUDE_SIMPLE \
 	-I$(SRC2)/toridraw -I$(SRC2) -I$(SRC2)/3rd -I$(LVGL_DIR) \
 	-I$(SCRIPT_DIR) -I$(PLAT_DIR) -I$(SRC_DIR) -I$(REPO_ROOT) \
+	-I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-sEXPORTED_RUNTIME_METHODS=$(EXPORTED_RUNTIME_METHODS) \
 	-sFORCE_FILESYSTEM=1 \
 	--preload-file $(REVS_SCRIPTS)@/revs/scripts \

@@ -1,7 +1,7 @@
 #ifndef DAT2_BUILDCACHE_H
 #define DAT2_BUILDCACHE_H
 
-#include "osrs/rscache/dat2a/dat2a_component.h"
+#include "rscache.h"
 #include "osrs/rscache/dat2a/dat2a_config_enum.h"
 #include "osrs/rscache/dat2a/dat2a_config_param.h"
 #include "osrs/rscache/dat2a/dat2a_config_struct.h"
@@ -90,14 +90,10 @@ Dat2BuildCache_FramesArchiveFree(struct Dat2BuildCache_FramesArchive* fa);
 /**
  * All decoded widgets from one interfaces archive (idx=iface_id).
  */
-struct Dat2BuildCache_InterfaceArchive
-{
-    RSCacheDat2A_Component** components;
-    int component_count;
-};
+typedef struct RSCache_Dat2ComponentPack Dat2BuildCache_InterfaceArchive;
 
 void
-Dat2BuildCache_InterfaceArchiveFree(struct Dat2BuildCache_InterfaceArchive* archive);
+Dat2BuildCache_InterfaceArchiveFree(Dat2BuildCache_InterfaceArchive* archive);
 
 struct Dat2BuildCache
 {

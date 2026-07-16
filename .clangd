@@ -12,6 +12,7 @@ CompileFlags:
     - -Isrc
     - -Isrc2
     - -Isrc2/scripting
+    - -I3rd/rscache/include
   Remove:
     - -W*
     - -w
@@ -50,6 +51,25 @@ Hover:
 Completion:
   AllScopes: Yes
 
+---
+# 3rd/rscache is a unity-built library — not in CMake compile_commands.json.
+If:
+  PathMatch: 3rd/rscache/.*\.(c|h)$
+CompileFlags:
+  CompilationDatabase: 3rd/rscache/
+  Add:
+    - -I3rd/rscache/include
+    - -I3rd/rscache/src
+    - -I3rd/rscache
+    - -I3rd/bzip
+    - -I3rd/miniz
+    - -std=c11
+---
+# src/ is built via Makefile, not CMake — use src/compile_flags.txt.
+If:
+  PathMatch: src/.*\.(c|h)$
+CompileFlags:
+  CompilationDatabase: src/
 ---
 # src2/ is built via Makefile, not CMake — use src2/compile_flags.txt, not build-winxp/.
 If:

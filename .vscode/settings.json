@@ -81,13 +81,13 @@
     "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
     "clangd.arguments": [
       "--background-index",
-      "--clang-tidy",
       "--header-insertion=never",
       "--query-driver=/usr/bin/**,/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/**,/opt/homebrew/opt/llvm/bin/**"
     ],
     "clangd.fallbackFlags": [
       "-std=gnu11",
       "-I${workspaceFolder}",
+      "-I${workspaceFolder}/3rd/rscache/include",
       "-I${workspaceFolder}/src",
       "-I${workspaceFolder}/src2",
       "-I/opt/homebrew/include/SDL2"

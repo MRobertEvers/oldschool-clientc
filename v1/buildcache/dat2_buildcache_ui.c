@@ -245,31 +245,7 @@ dat2_buildcache_font_decode_from_archive(
     return ToriAuxLibCache_FontNewFromDat2Archives(font_archive, sprite_archive, font_id);
 }
 
-static RSCacheDat2A_Component*
-component_decode_from_bytes(
-    int packed_id,
-    char* data,
-    int size)
-{
-    if( !data || size <= 0 )
-        return NULL;
-
-    RSCacheDat2A_Component* comp = calloc(1, sizeof(RSCacheDat2A_Component));
-    if( !comp )
-        return NULL;
-
-    struct RSCacheShared_RSBuffer buf;
-    RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, size);
-    RSCacheDat2A_ComponentInit(comp);
-    comp->id = packed_id;
-    if( (unsigned char)data[0] == (unsigned char)255 )
-        RSCacheDat2A_ComponentDecodeIf3(comp, &buf);
-    else
-        RSCacheDat2A_ComponentDecodeIf1(comp, &buf);
-    return comp;
-}
-
-RSCacheDat2A_Component*
+struct RSCache_Dat2Component*
 dat2_buildcache_component_decode_iface_file_from_archive(
     struct RSCacheDat2Disk* cache,
     struct RSCacheDat2Disk_Archive* archive,
@@ -292,7 +268,8 @@ dat2_buildcache_component_decode_iface_file_from_archive(
     char* data = fl->files[file_index];
     int size = fl->file_sizes[file_index];
     int packed_id = (iface_id << 16) | (file_index & 0xFFFF);
-    RSCacheDat2A_Component* comp = component_decode_from_bytes(packed_id, data, size);
+    struct RSCache_Dat2Component* comp =
+        RSCache_Dat2ComponentNewDecode((uint8_t*)data, size, packed_id);
 
     if( out_size )
         *out_size = size;
@@ -311,38 +288,12 @@ dat2_buildcache_component_decode_iface_archive_from_archive(
     assert(archive);
 
     RSCacheDat2Disk_ArchiveInitMetadataFromTable(reference_table, archive);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(archive);
-    RSCacheDat2Disk_ArchiveFree(archive);
-    if( !fl || fl->file_count <= 0 )
-    {
-        RSCacheShared_FileListFree(fl);
-        return NULL;
-    }
-
     struct Dat2BuildCache_InterfaceArchive* iface_archive =
-        calloc(1, sizeof(struct Dat2BuildCache_InterfaceArchive));
-    if( !iface_archive )
-    {
-        RSCacheShared_FileListFree(fl);
-        return NULL;
-    }
-
-    iface_archive->component_count = fl->file_count;
-    iface_archive->components = calloc((size_t)fl->file_count, sizeof(RSCacheDat2A_Component*));
-    if( !iface_archive->components )
-    {
-        free(iface_archive);
-        RSCacheShared_FileListFree(fl);
-        return NULL;
-    }
-
-    for( int i = 0; i < fl->file_count; i++ )
-    {
-        int packed_id = (iface_id << 16) | (i & 0xFFFF);
-        iface_archive->components[i] =
-            component_decode_from_bytes(packed_id, fl->files[i], fl->file_sizes[i]);
-    }
-
-    RSCacheShared_FileListFree(fl);
+        RSCache_Dat2ComponentPackNewFromDecode(
+            archive->data,
+            archive->data_size,
+            archive->file_count,
+            iface_id);
+    RSCacheDat2Disk_ArchiveFree(archive);
     return iface_archive;
 }

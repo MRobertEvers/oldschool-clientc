@@ -3,6 +3,7 @@
 REPO_ROOT := ../../..
 SRC_DIR   := $(REPO_ROOT)/src
 SRC2      := $(REPO_ROOT)/src2
+RSCACHE_DIR := $(REPO_ROOT)/3rd/rscache
 PLAT_DIR  := $(SRC2)/platforms
 SCRIPT_DIR := $(SRC2)/scripting
 TRSPK_DIR := $(SRC_DIR)/platforms/ToriRSPlatformKit
@@ -55,7 +56,8 @@ CFLAGS   ?= -O0 -Wall -Wextra -Werror -g
 CFLAGS   += -Wno-implicit-fallthrough -Wno-unused-function -Wno-unused-variable \
 	-Wno-unused-parameter
 CPPFLAGS += -I$(SRC2)/toridraw -I$(SRC_DIR) -I$(SRC2) -I$(SCRIPT_DIR) -I$(REPO_ROOT) \
-	-I$(TRSPK_DIR)/include -I$(TRSPK_DIR)/src
+	-I$(TRSPK_DIR)/include -I$(TRSPK_DIR)/src \
+	-I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src
 
 # Vendored Lua — embed library, not lua/luac interpreters.
 LUA_SRC := $(filter-out $(SRC_DIR)/3rd/lua/lua.c $(SRC_DIR)/3rd/lua/luac.c,\
@@ -245,6 +247,9 @@ COMMON_SRCS := sdl2.c \
 	$(SRC_DIR)/bmp.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c \
 	$(SRC_DIR)/osrs/rscache/unity.c \
+	$(RSCACHE_DIR)/src/rsbuffer.c \
+	$(RSCACHE_DIR)/src/filelist.c \
+	$(RSCACHE_DIR)/src/datatypes/dat2_component.c \
 	$(PLAT_DIR)/platform_x_cache.c \
 	$(SRC2)/libtorirs.c \
 	$(LUA_SRC)

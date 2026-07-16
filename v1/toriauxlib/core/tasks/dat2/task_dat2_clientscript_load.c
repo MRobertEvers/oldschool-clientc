@@ -1,7 +1,7 @@
 #include "ioqueue/libtorirs_io.h"
 #include "buildcache/dat2_buildcache.h"
 #include "core/tapi/tapi_dat2.h"
-#include "osrs/rscache/dat2a/dat2a_component.h"
+#include "rscache.h"
 #include "toriauxlib/cache/toriauxlibcache.h"
 #include "toriauxlib/cache/toriauxlibcache_submit.h"
 
@@ -85,7 +85,7 @@ toriauxlibcache_collect_component_hook_script_ids(
 
     for( i = 0; i < iface->component_count; i++ )
     {
-        RSCacheDat2A_Component* comp = iface->components[i];
+        struct RSCache_Dat2Component* comp = iface->components[i];
         if( !comp )
             continue;
         toriauxlibcache_collect_hook_script_id(comp->onLoad, comp->onLoadLen, &ids, &count, &cap);

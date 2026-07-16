@@ -8,7 +8,7 @@
 #include "instance_revconfig_inv_bind.h"
 #include "osrs/minimenu_action.h"
 #include "osrs/rscache/dat1a/dat1a_config_component.h"
-#include "osrs/rscache/dat2a/dat2a_component.h"
+#include "rscache.h"
 #include "toriauxlib/cache/toriauxlibcache_submit.h"
 #include "toriauxlib/core/toriauxlibcore.h"
 #include "toriauxlib/td/toriauxlibtd.h"
@@ -257,7 +257,7 @@ instance_revconfig_dat2_ensure_sprite_ref(
     return element_id;
 }
 
-static RSCacheDat2A_Component*
+static struct RSCache_Dat2Component*
 instance_revconfig_dat2_get_component(
     struct Dat2BuildCache_InterfaceArchive* archive,
     int component_id)
@@ -273,7 +273,7 @@ instance_revconfig_dat2_get_component(
 
     for( int i = 0; i < archive->component_count; i++ )
     {
-        RSCacheDat2A_Component* c = archive->components[i];
+        struct RSCache_Dat2Component* c = archive->components[i];
         if( c && c->id == component_id )
             return c;
     }
@@ -822,7 +822,7 @@ instance_revconfig_bake_rs_subtree(
 
         if( iface_archive )
         {
-            RSCacheDat2A_Component* dat2_comp =
+            struct RSCache_Dat2Component* dat2_comp =
                 instance_revconfig_dat2_get_component(iface_archive, component_id);
             if( dat2_comp )
             {

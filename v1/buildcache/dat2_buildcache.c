@@ -2,7 +2,6 @@
 
 #include "osrs/rscache/dat2a/dat2a_animaya.h"
 #include "osrs/rscache/dat2a/dat2a_skeletalbase.h"
-#include "osrs/rscache/dat2a/dat2a_component.h"
 #include "osrs/rscache/dat2a/dat2a_config_floortype.h"
 #include "osrs/rscache/dat2a/dat2a_config_idk.h"
 #include "osrs/rscache/dat2a/dat2a_config_locs.h"
@@ -598,24 +597,9 @@ Dat2BuildCache_FramesArchiveSizeOf(const struct Dat2BuildCache_FramesArchive* fa
 }
 
 void
-Dat2BuildCache_InterfaceArchiveFree(struct Dat2BuildCache_InterfaceArchive* archive)
+Dat2BuildCache_InterfaceArchiveFree(Dat2BuildCache_InterfaceArchive* archive)
 {
-    if( !archive )
-        return;
-
-    if( archive->components )
-    {
-        for( int i = 0; i < archive->component_count; i++ )
-        {
-            if( archive->components[i] )
-            {
-                RSCacheDat2A_ComponentFree(archive->components[i]);
-                free(archive->components[i]);
-            }
-        }
-        free(archive->components);
-    }
-    free(archive);
+    RSCache_Dat2ComponentPackFree(archive);
 }
 
 void
