@@ -1,5 +1,6 @@
 -std=c11
 -I.
 -I..
+-I../3rd/hmap
 -I../3rd/rscache/include
 -I../3rd/rscache/src

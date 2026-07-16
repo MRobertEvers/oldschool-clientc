@@ -9,10 +9,11 @@ SRC_DIR      := $(REPO_ROOT)/src
 RSCACHE_DIR  := $(REPO_ROOT)/3rd/rscache
 TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
 BMP_DIR      := $(REPO_ROOT)/3rd/bmp
+HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
 
 CFLAGS = -std=c11 -Wall -Wextra -g \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
-	-I$(TORIDRAW_DIR) -I$(BMP_DIR)
+	-I$(TORIDRAW_DIR) -I$(BMP_DIR) -I$(HMAP_DIR)
 
 RSCACHE_CFLAGS = -std=c11 -g \
 	-I$(RSCACHE_DIR)/include \
@@ -41,7 +42,7 @@ TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/bmp.o \
 	$(OBJ_DIR)/cs2vm2.o $(OBJ_DIR)/cs2vm2_script.o $(OBJ_DIR)/cs2vm2_trigger_args.o \
 	$(OBJ_DIR)/cs2_opcode_meta.o $(OBJ_DIR)/cs2vm2_script_from_rscache.o \
-	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o
+	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o
 
 .PHONY: all clean run
 
@@ -59,6 +60,9 @@ $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
 endef
 
 $(foreach src,$(SRCS),$(eval $(call make-goal,$(src))))
+
+$(OBJ_DIR)/hmap.o: $(HMAP_DIR)/hmap.c
+	$(CC) $(CFLAGS) -c $(HMAP_DIR)/hmap.c -o $@
 
 $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC)
 	$(CC) $(RSCACHE_CFLAGS) -w -c $(RSCACHE_UNITY_SRC) -o $@

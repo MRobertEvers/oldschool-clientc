@@ -4,6 +4,7 @@
  */
 
 #include "cs2vm2.h"
+
 #include "cs2_opcode.h"
 #include "cs2_opcode_meta.h"
 #include "cs2vm2_opcode_stack.gen.h"
@@ -5780,11 +5781,9 @@ CS2VM2_RunOp(
     case CS2_OP_CC_SETNPCHEAD:
         return CS2VM2_Op_CC_SetModelKind(vm, frame, operand, CS2VM_MODEL_KIND_NPC_HEAD, true);
     case CS2_OP_CC_SETPLAYERHEAD_SELF:
-        return CS2VM2_Op_CC_SetModelKind(
-            vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_SELF, false);
+        return CS2VM2_Op_CC_SetModelKind(vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_SELF, false);
     case CS2_OP_CC_SETPLAYERMODEL_SELF:
-        return CS2VM2_Op_CC_SetModelKind(
-            vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_SELF, true);
+        return CS2VM2_Op_CC_SetModelKind(vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_SELF, true);
     case CS2_OP_CC_SETMODEL_PLAYERCHATHEAD:
         return CS2VM2_Op_CC_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_CHATHEAD, true);
@@ -5859,8 +5858,7 @@ CS2VM2_RunOp(
     case CS2_OP_IF_SETNPCHEAD:
         return CS2VM2_Op_IF_SetModelKind(vm, frame, operand, CS2VM_MODEL_KIND_NPC_HEAD, true);
     case CS2_OP_IF_SETPLAYERHEAD_SELF:
-        return CS2VM2_Op_IF_SetModelKind(
-            vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_SELF, false);
+        return CS2VM2_Op_IF_SetModelKind(vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_SELF, false);
     case CS2_OP_IF_SETMODEL_PLAYERCHATHEAD:
         return CS2VM2_Op_IF_SetModelKind(
             vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_CHATHEAD, true);
@@ -6653,11 +6651,5 @@ CS2VM2_ThreadRun(
     struct CS2VM2_ThreadError* err_out)
 {
     assert(thread);
-    for( ;; )
-    {
-        enum CS2VM2_ThreadStatus st = CS2VM2_ThreadResume(thread, err_out);
-        if( st != CS2VM2_THREAD_YIELDED )
-            return st;
-    }
+    return CS2VM2_ThreadResume(thread, err_out);
 }
-

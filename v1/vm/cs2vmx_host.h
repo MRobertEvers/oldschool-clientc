@@ -1,8 +1,8 @@
 #ifndef CS2VMX_HOST_H
 #define CS2VMX_HOST_H
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 struct CS2VMX;
 
@@ -736,7 +736,6 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_OC_IntParam oc_int_param;
     } u;
 };
-
 
 typedef int (*CS2VMX_HostExec_Fn)(
     struct CS2VMX* vm,
