@@ -1,6 +1,7 @@
 #include "asyncio.h"
 #include "cache/rscache_io.h"
 #include "cs2vm2/cs2vm2.h"
+#include "cs2vm2/cs2vm2_host.h"
 #include "cs2vm2/cs2vm2_script.h"
 #include "datatypes/dat2_component.h"
 #include "engine/cs2vm2_script_from_rscache.h"
@@ -146,6 +147,9 @@ noop_host_pushes_int(enum CS2VM_HostRequestKind kind)
     case CS2VM_HOST_REQUEST_PARAWIDTH:
     case CS2VM_HOST_REQUEST_OC_INT_PARAM:
     case CS2VM_HOST_REQUEST_CLIENTCLOCK:
+        return true;
+    case CS2VM_HOST_REQUEST_CC_CREATE:
+        printf("CC_CREATE\n");
         return true;
     default:
         return false;
@@ -311,6 +315,22 @@ struct Task_Dummy
     bool vm_started;
 };
 
+/* onLoad[0] is the clientscript id only when typed INT.
+ * STRING entries are script string parameters (or a non-runnable hook if [0]
+ * itself is a string). Reading .value.i on a STRING is a heap pointer — do not. */
+static int
+Component_OnLoadScriptId(struct RSCache_Dat2Component* component)
+{
+    assert(component);
+    if( !component->onLoad || component->onLoadLen <= 0 )
+        return 0;
+    if( component->onLoad[0].type != RSCACHE_DAT2_COMPONENT_SCRIPT_VAR_INT )
+        return 0;
+    if( component->onLoad[0].value.i <= 0 )
+        return 0;
+    return component->onLoad[0].value.i;
+}
+
 int
 Task_Dummy_Run(
     struct ToriRS_Task* task,
@@ -342,24 +362,25 @@ Task_Dummy_Run(
     {
         component = dummy->pack->components[dummy->pack_index];
         printf("component %d: id=%d\n", dummy->pack_index, component->id);
-        if( component->onLoadLen != 0 && component->onLoad != NULL )
+        script_id = Component_OnLoadScriptId(component);
+        if( script_id == 0 )
+            continue;
+
+        printf("onLoad script_id=%d\n", script_id);
+        entry = (struct ScriptEntry*)hmap_search(dummy->scripts, &script_id, HMAP_FIND);
+        if( !entry )
         {
-            printf("onLoad");
-            script_id = component->onLoad[0].value.i;
-            entry = (struct ScriptEntry*)hmap_search(dummy->scripts, &script_id, HMAP_FIND);
-            if( !entry )
-            {
-                RSCache_IO_ClientScriptLoad(io, 0, script_id);
-                PT_YIELD(&(dummy->pt));
+            RSCache_IO_ClientScriptLoad(io, 0, script_id);
+            PT_YIELD(&(dummy->pt));
 
-                component = dummy->pack->components[dummy->pack_index];
-                script_id = component->onLoad[0].value.i;
-                rscache_script = RSCache_IO_ClientScriptDecode(io, 0, script_id);
-                entry = ScriptCache_Store(dummy->scripts, script_id, rscache_script);
-            }
-
-            TASK_AWAITEX(&(dummy->pt), io, Task_CS2ScriptExec_New(entry->script, dummy->scripts));
+            component = dummy->pack->components[dummy->pack_index];
+            script_id = Component_OnLoadScriptId(component);
+            assert(script_id != 0);
+            rscache_script = RSCache_IO_ClientScriptDecode(io, 0, script_id);
+            entry = ScriptCache_Store(dummy->scripts, script_id, rscache_script);
         }
+
+        TASK_AWAITEX(&(dummy->pt), io, Task_CS2ScriptExec_New(entry->script, dummy->scripts));
     }
 
     PT_END(&(dummy->pt));
