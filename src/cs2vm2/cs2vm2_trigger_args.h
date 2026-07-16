@@ -20,7 +20,7 @@ struct CS2TriggerArgs
     bool ok;
 };
 
-/** Pop OSRS trigger-hook stack layout from a CS2VMX int/string stack. */
+/** Pop OSRS trigger-hook stack layout from a CS2VM2 int/string stack. */
 bool
 CS2VM2_TriggerArgsParse(
     struct CS2VM2_Thread* thread,

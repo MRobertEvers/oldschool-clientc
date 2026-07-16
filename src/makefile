@@ -11,7 +11,7 @@ TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
 BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 
 CFLAGS = -std=c11 -Wall -Wextra -g \
-	-I$(SRC_DIR) -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
+	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(BMP_DIR)
 
 RSCACHE_CFLAGS = -std=c11 -g \
@@ -33,10 +33,14 @@ CFLAGS += -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS += -fsanitize=address
 endif
 
-SRCS = main.c platform/platform_x_io.c $(BMP_DIR)/bmp.c
+SRCS = main.c platform/platform_x_io.c $(BMP_DIR)/bmp.c \
+	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
+	cs2vm2/cs2_opcode_meta.c engine/cs2vm2_script_from_rscache.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/bmp.o \
+	$(OBJ_DIR)/cs2vm2.o $(OBJ_DIR)/cs2vm2_script.o $(OBJ_DIR)/cs2vm2_trigger_args.o \
+	$(OBJ_DIR)/cs2_opcode_meta.o $(OBJ_DIR)/cs2vm2_script_from_rscache.o \
 	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o
 
 .PHONY: all clean run

@@ -33,6 +33,9 @@ struct RSCache
 #include "datatypes/model.h"
 #include "datatypes/dat2_component.h"
 #include "datatypes/mapsquares.h"
+#include "datatypes/cs2_script.h"
+#include "datatypes/cs2_opcode_decode.h"
+#include "datatypes/clientscript.h"
 // clang-format on
 
 #endif

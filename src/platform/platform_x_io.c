@@ -153,7 +153,8 @@ static int
 cache_table_supported(int table_id)
 {
     return table_id == RSCACHE_DAT2_DISK_TABLE_MODELS ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_INTERFACES;
+           table_id == RSCACHE_DAT2_DISK_TABLE_INTERFACES ||
+           table_id == RSCACHE_DAT2_DISK_TABLE_CLIENTSCRIPT;
 }
 
 static int

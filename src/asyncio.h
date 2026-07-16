@@ -5,6 +5,7 @@
 #include <3rd/minipt.h>
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -88,6 +89,7 @@ struct ToriRS_TaskVTable;
 struct ToriRS_Task
 {
     struct ToriRS_TaskVTable* vtable;
+    char name[32];
 
     struct ToriRS_Task* next;
     struct ToriRS_Task* prev;
@@ -112,7 +114,8 @@ task_free(struct ToriRS_Task* task)
 {
     if( task->vtable->free )
         task->vtable->free(task);
-    free(task);
+    else
+        free(task);
 }
 
 static inline int
@@ -326,10 +329,12 @@ ToriRS_TaskQueue_Run(
         case PT_EXITED:
         case PT_ENDED:
             res = TORIRS_ASYNCIO_STAT_DONE;
+            fprintf(stderr, "Task %s exited\n", task->name);
             ToriRS_TaskQueue_Remove(queue, task);
             goto done_loop;
             break;
         default:
+            fprintf(stderr, "Task %s exited with unknown result\n", task->name);
             assert(0);
             break;
         }

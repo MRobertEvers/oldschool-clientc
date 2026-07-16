@@ -1,19 +1,20 @@
-#include "cs2_trigger_args.h"
+#include "cs2vm2_trigger_args.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
 bool
-cs2_trigger_args_parse(
-    struct CS2VMX* vm,
+CS2VM2_TriggerArgsParse(
+    struct CS2VM2_Thread* thread,
     struct CS2TriggerArgs* out)
 {
-    assert(vm && out);
+    assert(thread && out);
     memset(out, 0, sizeof(*out));
 
     char* raw_signature = NULL;
-    if( CS2VMX_PopStr(vm, &raw_signature) != CS2VM_EXECNO_OK || !raw_signature )
+    if( CS2VM2_PopStr(thread, &raw_signature) != CS2VM_EXECNO_OK || !raw_signature )
         return false;
 
     char signature_buf[64];
@@ -28,13 +29,13 @@ cs2_trigger_args_parse(
     if( sig_len > 0 && signature[sig_len - 1] == 'Y' )
     {
         signature[sig_len - 1] = '\0';
-        if( CS2VMX_PopInt(vm, &trigger_count) != CS2VM_EXECNO_OK )
+        if( CS2VM2_PopInt(thread, &trigger_count) != CS2VM_EXECNO_OK )
             return false;
         if( trigger_count > CS2_TRIGGER_COUNT_MAX )
             trigger_count = CS2_TRIGGER_COUNT_MAX;
         for( int i = trigger_count - 1; i >= 0; i-- )
         {
-            if( CS2VMX_PopInt(vm, &triggers[i]) != CS2VM_EXECNO_OK )
+            if( CS2VM2_PopInt(thread, &triggers[i]) != CS2VM_EXECNO_OK )
                 return false;
         }
     }
@@ -47,20 +48,20 @@ cs2_trigger_args_parse(
     {
         if( signature[i] == 'i' )
         {
-            if( CS2VMX_PopInt(vm, &argv[i]) != CS2VM_EXECNO_OK )
+            if( CS2VM2_PopInt(thread, &argv[i]) != CS2VM_EXECNO_OK )
                 return false;
         }
         else
         {
             char* ignored = NULL;
-            if( CS2VMX_PopStr(vm, &ignored) != CS2VM_EXECNO_OK )
+            if( CS2VM2_PopStr(thread, &ignored) != CS2VM_EXECNO_OK )
                 return false;
             free(ignored);
         }
     }
 
     int script_id = 0;
-    if( CS2VMX_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
+    if( CS2VM2_PopInt(thread, &script_id) != CS2VM_EXECNO_OK )
         return false;
 
     out->script_id = script_id;

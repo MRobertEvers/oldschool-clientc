@@ -3,6 +3,7 @@
 
 #include "cs2_opcode.h"
 #include "cs2vm2_host.h"
+#include "cs2vm2_script.h"
 
 #include <stdint.h>
 
@@ -18,7 +19,7 @@
 #define CS2VM_SCRIPT_ARG_OP_SUBINDEX -2147483638
 
 /* On CS2VM_EXECNO_YIELD the host must not partially mutate VM state; the opcode
- * checkpoint in CS2VMX_RunScript rolls back stack, frames, and pc so RunScript can
+ * checkpoint in CS2VM2_RunScript rolls back stack, frames, and pc so RunScript can
  * be re-entered after external host work. */
 #define CS2VM_EXECNO_YIELD -2
 #define CS2VM_EXECNO_ERROR -1
@@ -27,8 +28,10 @@
 
 #define CS2VM_STACK_MAX 1024
 
-#define CS2VM_USER(vm) ((struct CS2VMX*)(vm))->user
-#define CS2VM_FRAME(vm) &((struct CS2VMX*)(vm))->frames[((struct CS2VMX*)(vm))->frame_sp - 1]
+struct CS2VM2;
+
+#define CS2VM_USER(thread) ((struct CS2VM2_Thread*)(thread))->vm->user
+#define CS2VM_FRAME(thread) &((struct CS2VM2_Thread*)(thread))->frames[((struct CS2VM2_Thread*)(thread))->frame_sp - 1]
 #define CS2VM_MAX_LOCALS 1024
 struct CS2VM2_Frame
 {
@@ -47,17 +50,17 @@ struct CS2VM2_Frame
 
 #define CS2VM_MAX_FRAMES 32
 #define CS2VM_MAX_CYCLES 1000000
-#define CS2VMX_MAX_ARRAYS 128
-#define CS2VMX_ARRAY_CAPACITY 256
+#define CS2VM2_MAX_ARRAYS 128
+#define CS2VM2_ARRAY_CAPACITY 256
 
-struct CS2VMXArray
+struct CS2VM2_Array
 {
-    int values[CS2VMX_ARRAY_CAPACITY];
+    int values[CS2VM2_ARRAY_CAPACITY];
     int size;
     int defined;
 };
 
-#define CS2VMX_CHILDREN_ITER_MAX 256
+#define CS2VM2_CHILDREN_ITER_MAX 256
 
 /* Opcodes missing from cs2_opcode.h but used by gameframe scripts. */
 #define CS2_OP_CC_CREATECHILD 106
@@ -107,6 +110,8 @@ struct CS2VM2_YieldCheckpoint
 #define CS2VM2_MAX_THREADS 4
 struct CS2VM2_Thread
 {
+    struct CS2VM2* vm;
+
     struct CS2VM2_Frame frames[CS2VM_MAX_FRAMES];
 
     int ints_stack[CS2VM_STACK_MAX];
@@ -130,11 +135,11 @@ struct CS2VM2_Thread
     int yield_halt_pc;
     int yield_halt_count;
 
-    int children_iter_indices[CS2VMX_CHILDREN_ITER_MAX];
+    int children_iter_indices[CS2VM2_CHILDREN_ITER_MAX];
     int children_iter_count;
     int children_iter_index;
 
-    struct CS2VMXArray arrays[CS2VMX_MAX_ARRAYS];
+    struct CS2VM2_Array arrays[CS2VM2_MAX_ARRAYS];
 
     /* Host-provided canvas size for GETCANVASSIZE / viewport ops. */
     int canvas_w;
@@ -150,4 +155,125 @@ struct CS2VM2
     void* user;
 };
 
-#endif
+enum CS2VM2_ThreadStatus
+{
+    CS2VM2_THREAD_DONE,    /* script finished (maps EXECNO_DONE/OK) */
+    CS2VM2_THREAD_YIELDED, /* host work pending (maps EXECNO_YIELD) */
+    CS2VM2_THREAD_ERROR,   /* runtime error (maps EXECNO_ERROR/other) */
+};
+
+struct CS2VM2_ThreadError
+{
+    int opcode;
+    int pc;
+    int script_id;
+};
+
+/* Trace controls (0=off, 1=targeting ops, 2=all). */
+extern int g_cs2_trace_mode;
+extern char g_cs2_trace_extra[512];
+
+void
+CS2VM2_Init(struct CS2VM2* vm);
+
+void
+CS2VM2_Free(struct CS2VM2* vm);
+
+void
+CS2VM2_BindHost(
+    struct CS2VM2* vm,
+    void* user,
+    CS2VM2_HostExec_Fn host_exec);
+
+void
+CS2VM2_Run(struct CS2VM2* vm);
+
+int
+CS2VM2_DotOrActiveComponentId(
+    struct CS2VM2_Thread* thread,
+    int operand);
+
+void
+CS2VM2_SetTargetComponentId(
+    struct CS2VM2_Thread* thread,
+    int operand,
+    int component_id);
+
+void
+CS2VM2_SetTraceExtra(
+    char const* fmt,
+    ...);
+
+void
+CS2VM2_ResetChildrenIter(struct CS2VM2_Thread* thread);
+
+int
+CS2VM2_PopInt(
+    struct CS2VM2_Thread* thread,
+    int* operand);
+
+int
+CS2VM2_PushInt(
+    struct CS2VM2_Thread* thread,
+    int operand);
+
+int
+CS2VM2_PopStr(
+    struct CS2VM2_Thread* thread,
+    char** operand);
+
+int
+CS2VM2_PushStr(
+    struct CS2VM2_Thread* thread,
+    char* operand);
+
+int
+CS2VM2_PushCallScript(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM2_Script* script);
+
+int
+CS2VM2_SetActiveAndDotComponentId(
+    struct CS2VM2_Thread* thread,
+    int component_id);
+
+int
+CS2VM2_SetIntCurrentFrameLocal(
+    struct CS2VM2_Thread* thread,
+    int local,
+    int value);
+
+int
+CS2VM2_RunScript(struct CS2VM2_Thread* thread);
+
+void
+CS2VM2_ResetRuntime(struct CS2VM2_Thread* thread);
+
+void
+CS2VM2_ClearYieldHalt(struct CS2VM2_Thread* thread);
+
+struct CS2VM2_Thread*
+CS2VM2_ThreadMain(struct CS2VM2* vm);
+
+void
+CS2VM2_ThreadSetCanvas(
+    struct CS2VM2_Thread* thread,
+    int w,
+    int h);
+
+int
+CS2VM2_ThreadStart(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM2_Script* script);
+
+enum CS2VM2_ThreadStatus
+CS2VM2_ThreadResume(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM2_ThreadError* err_out);
+
+enum CS2VM2_ThreadStatus
+CS2VM2_ThreadRun(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM2_ThreadError* err_out);
+
+#endif /* CS2VM2_H */

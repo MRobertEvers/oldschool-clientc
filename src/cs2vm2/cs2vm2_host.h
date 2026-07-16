@@ -1,5 +1,5 @@
-#ifndef CS2VMX_HOST_H
-#define CS2VMX_HOST_H
+#ifndef CS2VM2_HOST_H
+#define CS2VM2_HOST_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -741,4 +741,4 @@ typedef int (*CS2VM2_HostExec_Fn)(
     struct CS2VM2_Thread* thread,
     struct CS2VM_HostRequest* request);
 
-#endif /* CS2VMX_HOST_H */
+#endif /* CS2VM2_HOST_H */
