@@ -23,8 +23,27 @@ struct MapEntry_Scenery
     struct RSCache_MapLocs* locs;
 };
 
+struct MapEntry_ConfigObj
+{
+    int id;
+    struct RSCache_Dat1ConfigObj* obj;
+};
+
+struct MapEntry_ConfigNpc
+{
+    int id;
+    struct RSCache_Dat1ConfigNpc* npc;
+};
+
+struct MapEntry_ConfigIdk
+{
+    int id;
+    struct RSCache_Dat1ConfigIdk* idk;
+};
+
 #define DAT1_MODEL_MAP_CAPACITY 8192
 #define DAT1_MAP_REGION_CAPACITY 512
+#define DAT1_CONFIG_MAP_CAPACITY 4096
 
 static size_t
 dat1_hmap_buffer_bytes(
@@ -130,6 +149,9 @@ static struct CacheProviderVTable dat1_vtable = {
     .Task_ModelLoad = CreateTask_Dat1ModelLoad,
     .Task_ComponentPackLoad = CreateTask_Dat1ComponentPackLoad,
     .Task_ClientScriptLoad = CreateTask_Dat1ClientScriptLoad,
+    .Task_ObjLoad = CreateTask_Dat1ObjLoad,
+    .Task_NpcLoad = CreateTask_Dat1NpcLoad,
+    .Task_IdkLoad = CreateTask_Dat1IdkLoad,
 };
 
 struct Dat1BuildCache*
@@ -142,6 +164,12 @@ dat1_buildcache_new(void)
     CacheProvider_InitEngineCaches(&dat1_buildcache->base);
     dat1_buildcache->models_hmap =
         dat1_hmap_new(sizeof(struct MapEntry_CacheModel), DAT1_MODEL_MAP_CAPACITY);
+    dat1_buildcache->obj_hmap =
+        dat1_hmap_new(sizeof(struct MapEntry_ConfigObj), DAT1_CONFIG_MAP_CAPACITY);
+    dat1_buildcache->npc_hmap =
+        dat1_hmap_new(sizeof(struct MapEntry_ConfigNpc), DAT1_CONFIG_MAP_CAPACITY);
+    dat1_buildcache->idk_hmap =
+        dat1_hmap_new(sizeof(struct MapEntry_ConfigIdk), DAT1_CONFIG_MAP_CAPACITY);
     dat1_buildcache->map_terrain_hmap =
         dat1_hmap_new(sizeof(struct MapEntry_Terrain), DAT1_MAP_REGION_CAPACITY);
     dat1_buildcache->map_scenery_hmap =
@@ -172,10 +200,16 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
     dat1_jagfile_clear(&dat1_buildcache->title_fonts_jagfile);
 
     dat1_buildcache_models_cleanup(dat1_buildcache);
+    dat1_buildcache_objs_cleanup(dat1_buildcache);
+    dat1_buildcache_npcs_cleanup(dat1_buildcache);
+    dat1_buildcache_idks_cleanup(dat1_buildcache);
     dat1_buildcache_map_terrain_cleanup(dat1_buildcache);
     dat1_buildcache_map_scenery_cleanup(dat1_buildcache);
 
     dat1_hmap_free(dat1_buildcache->models_hmap);
+    dat1_hmap_free(dat1_buildcache->obj_hmap);
+    dat1_hmap_free(dat1_buildcache->npc_hmap);
+    dat1_hmap_free(dat1_buildcache->idk_hmap);
     dat1_hmap_free(dat1_buildcache->map_terrain_hmap);
     dat1_hmap_free(dat1_buildcache->map_scenery_hmap);
     CacheProvider_FreeEngineCaches(&dat1_buildcache->base);
@@ -502,6 +536,348 @@ dat1_buildcache_prune(struct Dat1BuildCache* dat1_buildcache)
     assert(dat1_buildcache);
 
     dat1_buildcache_models_cleanup(dat1_buildcache);
+    dat1_buildcache_objs_cleanup(dat1_buildcache);
+    dat1_buildcache_npcs_cleanup(dat1_buildcache);
+    dat1_buildcache_idks_cleanup(dat1_buildcache);
     dat1_buildcache_map_terrain_cleanup(dat1_buildcache);
     dat1_buildcache_map_scenery_cleanup(dat1_buildcache);
+}
+
+void
+dat1_buildcache_obj_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int obj_id,
+    struct RSCache_Dat1ConfigObj* obj)
+{
+    struct MapEntry_ConfigObj* entry;
+
+    assert(dat1_buildcache);
+    assert(obj);
+
+    dat1_hmap_prepare_insert(&dat1_buildcache->obj_hmap);
+    entry = (struct MapEntry_ConfigObj*)hmap_search(
+        dat1_buildcache->obj_hmap, &obj_id, HMAP_INSERT);
+    assert(entry && "Obj must be inserted into hmap");
+
+    if( entry->obj )
+        RSCache_Dat1ConfigObjFree(entry->obj);
+
+    entry->id = obj_id;
+    entry->obj = obj;
+}
+
+struct RSCache_Dat1ConfigObj*
+dat1_buildcache_obj_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int obj_id)
+{
+    struct MapEntry_ConfigObj* entry;
+
+    assert(dat1_buildcache);
+
+    entry = (struct MapEntry_ConfigObj*)hmap_search(
+        dat1_buildcache->obj_hmap, &obj_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->obj;
+}
+
+bool
+dat1_buildcache_obj_has(
+    struct Dat1BuildCache* dat1_buildcache,
+    int obj_id)
+{
+    return dat1_buildcache_obj_get(dat1_buildcache, obj_id) != NULL;
+}
+
+void
+dat1_buildcache_objs_cleanup(struct Dat1BuildCache* dat1_buildcache)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ConfigObj* entry;
+
+    assert(dat1_buildcache);
+    if( !dat1_buildcache->obj_hmap )
+        return;
+
+    iter = hmap_iter_new(dat1_buildcache->obj_hmap);
+    while( (entry = (struct MapEntry_ConfigObj*)hmap_iter_next(iter)) )
+    {
+        if( entry->obj )
+            RSCache_Dat1ConfigObjFree(entry->obj);
+    }
+    hmap_iter_free(iter);
+
+    dat1_hmap_reset(
+        &dat1_buildcache->obj_hmap, sizeof(struct MapEntry_ConfigObj), DAT1_CONFIG_MAP_CAPACITY);
+}
+
+struct RSCache_Dat1ConfigObj*
+dat1_buildcache_obj_load_from_config_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    int obj_id)
+{
+    struct RSCache_FileListDat* config_jagfile;
+    struct RSCache_Dat1ConfigObj* existing;
+    struct RSCache_FileListDatIndexed* filelist_indexed;
+    struct RSCache_Dat1ConfigObj* obj;
+    int data_file_idx;
+    int index_file_idx;
+
+    assert(dat1_buildcache);
+
+    if( obj_id < 0 )
+        return NULL;
+
+    existing = dat1_buildcache_obj_get(dat1_buildcache, obj_id);
+    if( existing )
+        return existing;
+
+    config_jagfile = dat1_buildcache->config_jagfile;
+    if( !config_jagfile )
+        return NULL;
+
+    data_file_idx = RSCache_FileListDatFindFileByName(config_jagfile, "obj.dat");
+    index_file_idx = RSCache_FileListDatFindFileByName(config_jagfile, "obj.idx");
+    if( data_file_idx == -1 || index_file_idx == -1 )
+        return NULL;
+
+    filelist_indexed = RSCache_FileListDatIndexedNewFromDecode(
+        config_jagfile->files[index_file_idx],
+        config_jagfile->file_sizes[index_file_idx],
+        config_jagfile->files[data_file_idx],
+        config_jagfile->file_sizes[data_file_idx]);
+    if( !filelist_indexed || obj_id >= filelist_indexed->offset_count )
+    {
+        RSCache_FileListDatIndexedFree(filelist_indexed);
+        return NULL;
+    }
+
+    obj = RSCache_Dat1ConfigObjDecodeOne(
+        filelist_indexed->data + filelist_indexed->offsets[obj_id],
+        filelist_indexed->data_size - filelist_indexed->offsets[obj_id]);
+    if( obj )
+        dat1_buildcache_obj_add(dat1_buildcache, obj_id, obj);
+
+    RSCache_FileListDatIndexedFree(filelist_indexed);
+    return obj;
+}
+
+void
+dat1_buildcache_npc_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id,
+    struct RSCache_Dat1ConfigNpc* npc)
+{
+    struct MapEntry_ConfigNpc* entry;
+
+    assert(dat1_buildcache);
+    assert(npc);
+
+    dat1_hmap_prepare_insert(&dat1_buildcache->npc_hmap);
+    entry = (struct MapEntry_ConfigNpc*)hmap_search(
+        dat1_buildcache->npc_hmap, &npc_id, HMAP_INSERT);
+    assert(entry && "Npc must be inserted into hmap");
+
+    if( entry->npc )
+        RSCache_Dat1ConfigNpcFree(entry->npc);
+
+    entry->id = npc_id;
+    entry->npc = npc;
+}
+
+struct RSCache_Dat1ConfigNpc*
+dat1_buildcache_npc_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id)
+{
+    struct MapEntry_ConfigNpc* entry;
+
+    assert(dat1_buildcache);
+
+    entry = (struct MapEntry_ConfigNpc*)hmap_search(
+        dat1_buildcache->npc_hmap, &npc_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->npc;
+}
+
+bool
+dat1_buildcache_npc_has(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id)
+{
+    return dat1_buildcache_npc_get(dat1_buildcache, npc_id) != NULL;
+}
+
+void
+dat1_buildcache_npcs_cleanup(struct Dat1BuildCache* dat1_buildcache)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ConfigNpc* entry;
+
+    assert(dat1_buildcache);
+    if( !dat1_buildcache->npc_hmap )
+        return;
+
+    iter = hmap_iter_new(dat1_buildcache->npc_hmap);
+    while( (entry = (struct MapEntry_ConfigNpc*)hmap_iter_next(iter)) )
+    {
+        if( entry->npc )
+            RSCache_Dat1ConfigNpcFree(entry->npc);
+    }
+    hmap_iter_free(iter);
+
+    dat1_hmap_reset(
+        &dat1_buildcache->npc_hmap, sizeof(struct MapEntry_ConfigNpc), DAT1_CONFIG_MAP_CAPACITY);
+}
+
+struct RSCache_Dat1ConfigNpc*
+dat1_buildcache_npc_load_from_config_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id)
+{
+    struct RSCache_FileListDat* config_jagfile;
+    struct RSCache_Dat1ConfigNpc* existing;
+    struct RSCache_FileListDatIndexed* filelist_indexed;
+    struct RSCache_Buffer buffer;
+    struct RSCache_Dat1ConfigNpc* npc;
+    int data_file_idx;
+    int index_file_idx;
+
+    assert(dat1_buildcache);
+
+    if( npc_id < 0 )
+        return NULL;
+
+    existing = dat1_buildcache_npc_get(dat1_buildcache, npc_id);
+    if( existing )
+        return existing;
+
+    config_jagfile = dat1_buildcache->config_jagfile;
+    if( !config_jagfile )
+        return NULL;
+
+    data_file_idx = RSCache_FileListDatFindFileByName(config_jagfile, "npc.dat");
+    index_file_idx = RSCache_FileListDatFindFileByName(config_jagfile, "npc.idx");
+    if( data_file_idx == -1 || index_file_idx == -1 )
+        return NULL;
+
+    filelist_indexed = RSCache_FileListDatIndexedNewFromDecode(
+        config_jagfile->files[index_file_idx],
+        config_jagfile->file_sizes[index_file_idx],
+        config_jagfile->files[data_file_idx],
+        config_jagfile->file_sizes[data_file_idx]);
+    if( !filelist_indexed || npc_id >= filelist_indexed->offset_count )
+    {
+        RSCache_FileListDatIndexedFree(filelist_indexed);
+        return NULL;
+    }
+
+    RSCache_BufferInit(
+        &buffer,
+        (uint8_t*)(filelist_indexed->data + filelist_indexed->offsets[npc_id]),
+        (uint32_t)(filelist_indexed->data_size - filelist_indexed->offsets[npc_id]));
+
+    npc = RSCache_Dat1ConfigNpcDecodeOne(&buffer);
+    if( npc )
+        dat1_buildcache_npc_add(dat1_buildcache, npc_id, npc);
+
+    RSCache_FileListDatIndexedFree(filelist_indexed);
+    return npc;
+}
+
+void
+dat1_buildcache_idk_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int idk_id,
+    struct RSCache_Dat1ConfigIdk* idk)
+{
+    struct MapEntry_ConfigIdk* entry;
+
+    assert(dat1_buildcache);
+    assert(idk);
+
+    dat1_hmap_prepare_insert(&dat1_buildcache->idk_hmap);
+    entry = (struct MapEntry_ConfigIdk*)hmap_search(
+        dat1_buildcache->idk_hmap, &idk_id, HMAP_INSERT);
+    assert(entry && "Idk must be inserted into hmap");
+
+    if( entry->idk )
+        RSCache_Dat1ConfigIdkFree(entry->idk);
+
+    entry->id = idk_id;
+    entry->idk = idk;
+}
+
+struct RSCache_Dat1ConfigIdk*
+dat1_buildcache_idk_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int idk_id)
+{
+    struct MapEntry_ConfigIdk* entry;
+
+    assert(dat1_buildcache);
+
+    entry = (struct MapEntry_ConfigIdk*)hmap_search(
+        dat1_buildcache->idk_hmap, &idk_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->idk;
+}
+
+bool
+dat1_buildcache_idk_has(
+    struct Dat1BuildCache* dat1_buildcache,
+    int idk_id)
+{
+    return dat1_buildcache_idk_get(dat1_buildcache, idk_id) != NULL;
+}
+
+void
+dat1_buildcache_idks_cleanup(struct Dat1BuildCache* dat1_buildcache)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ConfigIdk* entry;
+
+    assert(dat1_buildcache);
+    if( !dat1_buildcache->idk_hmap )
+        return;
+
+    iter = hmap_iter_new(dat1_buildcache->idk_hmap);
+    while( (entry = (struct MapEntry_ConfigIdk*)hmap_iter_next(iter)) )
+    {
+        if( entry->idk )
+            RSCache_Dat1ConfigIdkFree(entry->idk);
+    }
+    hmap_iter_free(iter);
+
+    dat1_hmap_reset(
+        &dat1_buildcache->idk_hmap, sizeof(struct MapEntry_ConfigIdk), DAT1_CONFIG_MAP_CAPACITY);
+}
+
+void
+dat1_buildcache_idks_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache)
+{
+    struct RSCache_FileListDat* config_jagfile;
+    struct RSCache_Dat1ConfigIdkList* idk_list;
+    int data_file_idx;
+
+    assert(dat1_buildcache);
+
+    config_jagfile = dat1_buildcache->config_jagfile;
+    assert(config_jagfile);
+
+    data_file_idx = RSCache_FileListDatFindFileByName(config_jagfile, "idk.dat");
+    assert(data_file_idx != -1);
+
+    idk_list = RSCache_Dat1ConfigIdkListNewDecode(
+        config_jagfile->files[data_file_idx], config_jagfile->file_sizes[data_file_idx]);
+    assert(idk_list);
+
+    for( int i = 0; i < idk_list->idks_count; i++ )
+        dat1_buildcache_idk_add(dat1_buildcache, i, idk_list->idks[i]);
+
+    free(idk_list->idks);
+    free(idk_list);
 }

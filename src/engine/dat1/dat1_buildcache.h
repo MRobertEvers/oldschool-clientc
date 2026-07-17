@@ -11,6 +11,9 @@ struct Dat1BuildCache
 {
     struct CacheProvider base;
     struct HMap* models_hmap;
+    struct HMap* obj_hmap;
+    struct HMap* npc_hmap;
+    struct HMap* idk_hmap;
     struct HMap* map_terrain_hmap;
     struct HMap* map_scenery_hmap;
     struct RSCache_FileListDat* config_jagfile;
@@ -90,6 +93,76 @@ dat1_buildcache_model_remove(
 
 void
 dat1_buildcache_models_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_obj_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int obj_id,
+    struct RSCache_Dat1ConfigObj* obj);
+
+struct RSCache_Dat1ConfigObj*
+dat1_buildcache_obj_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int obj_id);
+
+bool
+dat1_buildcache_obj_has(
+    struct Dat1BuildCache* dat1_buildcache,
+    int obj_id);
+
+void
+dat1_buildcache_objs_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+struct RSCache_Dat1ConfigObj*
+dat1_buildcache_obj_load_from_config_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    int obj_id);
+
+void
+dat1_buildcache_npc_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id,
+    struct RSCache_Dat1ConfigNpc* npc);
+
+struct RSCache_Dat1ConfigNpc*
+dat1_buildcache_npc_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id);
+
+bool
+dat1_buildcache_npc_has(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id);
+
+void
+dat1_buildcache_npcs_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+struct RSCache_Dat1ConfigNpc*
+dat1_buildcache_npc_load_from_config_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    int npc_id);
+
+void
+dat1_buildcache_idk_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int idk_id,
+    struct RSCache_Dat1ConfigIdk* idk);
+
+struct RSCache_Dat1ConfigIdk*
+dat1_buildcache_idk_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int idk_id);
+
+bool
+dat1_buildcache_idk_has(
+    struct Dat1BuildCache* dat1_buildcache,
+    int idk_id);
+
+void
+dat1_buildcache_idks_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_idks_init_from_config_jagfile(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_map_terrain_add(

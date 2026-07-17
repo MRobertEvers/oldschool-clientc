@@ -154,7 +154,8 @@ dat2_cache_table_supported(int table_id)
 {
     return table_id == RSCACHE_DAT2_DISK_TABLE_MODELS ||
            table_id == RSCACHE_DAT2_DISK_TABLE_INTERFACES ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_CLIENTSCRIPT;
+           table_id == RSCACHE_DAT2_DISK_TABLE_CLIENTSCRIPT ||
+           table_id == RSCACHE_DAT2_DISK_TABLE_CONFIGS;
 }
 
 static int
@@ -200,7 +201,8 @@ load_cache_item_dat1(
 
     assert(px->dat1_disk);
 
-    if( table_id != RSCACHE_DAT1_DISK_TABLE_MODELS )
+    if( table_id != RSCACHE_DAT1_DISK_TABLE_MODELS &&
+        table_id != RSCACHE_DAT1_DISK_TABLE_CONFIGS )
     {
         item->error_code = -1;
         return -1;

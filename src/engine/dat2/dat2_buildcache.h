@@ -12,6 +12,9 @@ struct Dat2BuildCache
     struct CacheProvider base;
     struct HMap* models_hmap;
     struct HMap* componentpacks_hmap;
+    struct HMap* object_hmap;
+    struct HMap* npctype_hmap;
+    struct HMap* identkit_hmap;
     struct HMap* map_terrain_hmap;
     struct HMap* map_scenery_hmap;
     struct HMap* clientscripts_hmap;
@@ -106,6 +109,84 @@ dat2_buildcache_componentpack_has(
 
 void
 dat2_buildcache_componentpacks_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_object_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int obj_id,
+    struct RSCache_Dat2ConfigObj* object);
+
+struct RSCache_Dat2ConfigObj*
+dat2_buildcache_object_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int obj_id);
+
+bool
+dat2_buildcache_object_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int obj_id);
+
+void
+dat2_buildcache_objects_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_objects_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCache_Dat2DiskArchive* archive,
+    const int* wanted_ids,
+    int wanted_count);
+
+void
+dat2_buildcache_npctype_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int npc_id,
+    struct RSCache_Dat2ConfigNpc* npc);
+
+struct RSCache_Dat2ConfigNpc*
+dat2_buildcache_npctype_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int npc_id);
+
+bool
+dat2_buildcache_npctype_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int npc_id);
+
+void
+dat2_buildcache_npctypes_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_npctypes_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCache_Dat2DiskArchive* archive,
+    const int* wanted_ids,
+    int wanted_count);
+
+void
+dat2_buildcache_identkit_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int idk_id,
+    struct RSCache_Dat2ConfigIdk* idk);
+
+struct RSCache_Dat2ConfigIdk*
+dat2_buildcache_identkit_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int idk_id);
+
+bool
+dat2_buildcache_identkit_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int idk_id);
+
+void
+dat2_buildcache_identkits_cleanup(struct Dat2BuildCache* dat2_buildcache);
+
+void
+dat2_buildcache_identkits_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCache_Dat2DiskArchive* archive,
+    const int* wanted_ids,
+    int wanted_count);
 
 void
 dat2_buildcache_clientscript_add(

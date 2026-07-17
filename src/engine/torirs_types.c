@@ -121,13 +121,43 @@ ToriRS_LocationFree(struct ToriRS_Location* loc)
 void
 ToriRS_NpctypeFree(struct ToriRS_Npctype* npctype)
 {
+    if( !npctype )
+        return;
+    free(npctype->models);
     free(npctype);
 }
 
 size_t
 ToriRS_NpctypeSizeOf(const struct ToriRS_Npctype* npctype)
 {
-    return npctype ? sizeof(*npctype) : 0;
+    if( !npctype )
+        return 0;
+
+    size_t bytes = sizeof(*npctype);
+    if( npctype->models )
+        bytes += (size_t)npctype->models_count * sizeof(*npctype->models);
+    return bytes;
+}
+
+void
+ToriRS_IdkFree(struct ToriRS_Idk* idk)
+{
+    if( !idk )
+        return;
+    free(idk->model_ids);
+    free(idk);
+}
+
+size_t
+ToriRS_IdkSizeOf(const struct ToriRS_Idk* idk)
+{
+    if( !idk )
+        return 0;
+
+    size_t bytes = sizeof(*idk);
+    if( idk->model_ids )
+        bytes += (size_t)idk->model_ids_count * sizeof(*idk->model_ids);
+    return bytes;
 }
 
 void

@@ -687,6 +687,16 @@ RSCache_Dat2DiskArchiveInitMetadataFromTable(
     struct RSCache_ReferenceTableArchive* archive_reference = &table->archives[archive->archive_id];
     archive->revision = archive_reference->version;
     archive->file_count = archive_reference->children.count;
+
+    free(archive->file_ids);
+    archive->file_ids = NULL;
+    if( archive->file_count > 0 )
+    {
+        archive->file_ids = malloc((size_t)archive->file_count * sizeof(int));
+        assert(archive->file_ids);
+        for( int i = 0; i < archive->file_count; i++ )
+            archive->file_ids[i] = archive_reference->children.files[i].id;
+    }
 }
 
 void
@@ -773,5 +783,6 @@ RSCache_Dat2DiskArchiveFree(struct RSCache_Dat2DiskArchive* archive)
     if( archive->data )
         free(archive->data);
 
+    free(archive->file_ids);
     free(archive);
 }

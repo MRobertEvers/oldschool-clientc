@@ -39,10 +39,16 @@ SRCS = main.c platform/platform_x_io.c game/task_cs2_script_exec.c $(BMP_DIR)/bm
 	cs2vm2/cs2_opcode_meta.c engine/cache_provider.c engine/cs2vm2_script_from_rscache.c \
 	engine/torirs_types.c engine/torirs_model_from_rscache.c \
 	engine/torirs_component_from_rscache.c \
+	engine/torirs_objtype_from_rscache.c engine/torirs_npctype_from_rscache.c \
+	engine/torirs_idk_from_rscache.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
 	engine/dat1/task_dat1_component_pack_load.c engine/dat1/task_dat1_clientscript_load.c \
+	engine/dat1/task_dat1_obj_load.c engine/dat1/task_dat1_npc_load.c \
+	engine/dat1/task_dat1_idk_load.c \
 	engine/dat2/dat2_buildcache.c engine/dat2/task_dat2_model_load.c \
-	engine/dat2/task_dat2_component_pack_load.c engine/dat2/task_dat2_clientscript_load.c
+	engine/dat2/task_dat2_component_pack_load.c engine/dat2/task_dat2_clientscript_load.c \
+	engine/dat2/task_dat2_obj_load.c engine/dat2/task_dat2_npc_load.c \
+	engine/dat2/task_dat2_idk_load.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/task_cs2_script_exec.o $(OBJ_DIR)/bmp.o \
@@ -50,10 +56,16 @@ OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/task_cs2_script_e
 	$(OBJ_DIR)/cs2_opcode_meta.o $(OBJ_DIR)/cache_provider.o $(OBJ_DIR)/cs2vm2_script_from_rscache.o \
 	$(OBJ_DIR)/torirs_types.o $(OBJ_DIR)/torirs_model_from_rscache.o \
 	$(OBJ_DIR)/torirs_component_from_rscache.o \
+	$(OBJ_DIR)/torirs_objtype_from_rscache.o $(OBJ_DIR)/torirs_npctype_from_rscache.o \
+	$(OBJ_DIR)/torirs_idk_from_rscache.o \
 	$(OBJ_DIR)/dat1_buildcache.o $(OBJ_DIR)/task_dat1_model_load.o \
 	$(OBJ_DIR)/task_dat1_component_pack_load.o $(OBJ_DIR)/task_dat1_clientscript_load.o \
+	$(OBJ_DIR)/task_dat1_obj_load.o $(OBJ_DIR)/task_dat1_npc_load.o \
+	$(OBJ_DIR)/task_dat1_idk_load.o \
 	$(OBJ_DIR)/dat2_buildcache.o $(OBJ_DIR)/task_dat2_model_load.o \
 	$(OBJ_DIR)/task_dat2_component_pack_load.o $(OBJ_DIR)/task_dat2_clientscript_load.o \
+	$(OBJ_DIR)/task_dat2_obj_load.o $(OBJ_DIR)/task_dat2_npc_load.o \
+	$(OBJ_DIR)/task_dat2_idk_load.o \
 	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o
 
 .PHONY: all clean run

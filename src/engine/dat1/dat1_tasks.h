@@ -18,4 +18,19 @@ CreateTask_Dat1ClientScriptLoad(
     struct CacheProvider* provider,
     int script_id);
 
+struct ToriRS_Task*
+CreateTask_Dat1ObjLoad(
+    struct CacheProvider* provider,
+    int obj_id);
+
+struct ToriRS_Task*
+CreateTask_Dat1NpcLoad(
+    struct CacheProvider* provider,
+    int npc_id);
+
+struct ToriRS_Task*
+CreateTask_Dat1IdkLoad(
+    struct CacheProvider* provider,
+    int idk_id);
+
 #endif

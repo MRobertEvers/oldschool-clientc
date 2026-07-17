@@ -31,6 +31,7 @@ struct RSCache_Dat2DiskArchive
     int table_id;
     int revision;
     int file_count;
+    int* file_ids;
 };
 
 enum RSCache_Dat2DiskTable

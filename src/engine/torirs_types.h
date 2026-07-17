@@ -221,6 +221,20 @@ struct ToriRS_Npctype
     char actions[TORIRS_MENU_ACTION_SLOTS][TORIRS_MENU_ACTION_LEN];
     int combat_level;
     int size;
+    int* models;
+    int models_count;
+};
+
+struct ToriRS_Idk
+{
+    int id;
+    int body_part_id;
+    int* model_ids;
+    int model_ids_count;
+    bool not_selectable;
+    int recolors_from[10];
+    int recolors_to[10];
+    int heads[10];
 };
 
 struct ToriRS_Objtype
@@ -538,6 +552,9 @@ void
 ToriRS_NpctypeFree(struct ToriRS_Npctype* npctype);
 
 void
+ToriRS_IdkFree(struct ToriRS_Idk* idk);
+
+void
 ToriRS_ObjtypeFree(struct ToriRS_Objtype* objtype);
 
 void
@@ -594,6 +611,9 @@ ToriRS_LocationSizeOf(const struct ToriRS_Location* loc);
 
 size_t
 ToriRS_NpctypeSizeOf(const struct ToriRS_Npctype* npctype);
+
+size_t
+ToriRS_IdkSizeOf(const struct ToriRS_Idk* idk);
 
 size_t
 ToriRS_ObjtypeSizeOf(const struct ToriRS_Objtype* objtype);
