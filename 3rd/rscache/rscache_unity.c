@@ -16,6 +16,8 @@
 #include "src/dat1disk.c"
 #include "src/filelist.c"
 #include "src/datatypes/mapsquares.c"
+#include "src/datatypes/noise.c"
+#include "src/datatypes/maps.c"
 #include "src/datatypes/model.c"
 #include "src/datatypes/dat2_component.c"
 #include "src/datatypes/cs2_opcode_decode.c"

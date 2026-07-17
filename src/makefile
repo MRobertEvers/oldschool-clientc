@@ -36,12 +36,14 @@ endif
 
 SRCS = main.c platform/platform_x_io.c $(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
-	cs2vm2/cs2_opcode_meta.c engine/cs2vm2_script_from_rscache.c
+	cs2vm2/cs2_opcode_meta.c engine/cs2vm2_script_from_rscache.c \
+	engine/dat1/dat1_buildcache.c engine/dat2/dat2_buildcache.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/bmp.o \
 	$(OBJ_DIR)/cs2vm2.o $(OBJ_DIR)/cs2vm2_script.o $(OBJ_DIR)/cs2vm2_trigger_args.o \
 	$(OBJ_DIR)/cs2_opcode_meta.o $(OBJ_DIR)/cs2vm2_script_from_rscache.o \
+	$(OBJ_DIR)/dat1_buildcache.o $(OBJ_DIR)/dat2_buildcache.o \
 	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o
 
 .PHONY: all clean run
