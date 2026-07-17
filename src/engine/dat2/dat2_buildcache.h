@@ -10,6 +10,8 @@
 struct Dat2BuildCache
 {
     struct CacheProvider base;
+    struct HMap* models_hmap;
+    struct HMap* componentpacks_hmap;
     struct HMap* map_terrain_hmap;
     struct HMap* map_scenery_hmap;
     struct HMap* clientscripts_hmap;

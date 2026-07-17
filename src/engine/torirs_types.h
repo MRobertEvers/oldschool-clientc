@@ -574,6 +574,12 @@ ToriRS_FontFree(struct ToriRS_Font* font);
 void
 ToriRS_ComponentFree(struct ToriRS_Component* component);
 
+void
+ToriRS_ComponentPackFree(struct ToriRS_ComponentPack* pack);
+
+size_t
+ToriRS_ComponentPackSizeOf(const struct ToriRS_ComponentPack* pack);
+
 size_t
 ToriRS_MapTerrainSizeOf(const struct ToriRS_MapTerrain* terrain);
 

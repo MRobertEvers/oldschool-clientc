@@ -1,8 +1,10 @@
 #include "engine/dat2/dat2_buildcache.h"
 
+#include "engine/dat2/dat2_tasks.h"
+
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 struct MapEntry_CacheModel
 {
@@ -163,25 +165,10 @@ dat2_buildcache_prepare_hmap_insert(
         dat2_buildcache_maybe_grow_hmap(cache, map_out);
 }
 
-static struct ToriRS_Task*
-Dat2BuildCache_Task_ModelLoad(
-    struct CacheProvider* provider,
-    int model_id,
-    struct ToriRS_Model** out_model)
-{
-    struct Dat2BuildCache* dat2_buildcache;
-
-    assert(provider);
-    assert(out_model);
-
-    dat2_buildcache = (struct Dat2BuildCache*)provider;
-    (void)dat2_buildcache_model_get(dat2_buildcache, model_id);
-    *out_model = NULL;
-    return NULL;
-}
-
 static struct CacheProviderVTable dat2_vtable = {
-    .Task_ModelLoad = Dat2BuildCache_Task_ModelLoad,
+    .Task_ModelLoad = CreateTask_Dat2ModelLoad,
+    .Task_ComponentPackLoad = CreateTask_Dat2ComponentPackLoad,
+    .Task_ClientScriptLoad = CreateTask_Dat2ClientScriptLoad,
 };
 
 struct Dat2BuildCache*
@@ -191,15 +178,15 @@ dat2_buildcache_new(void)
     assert(dat2_buildcache);
 
     dat2_buildcache->base.vtable = &dat2_vtable;
-    dat2_buildcache->base.model_cache =
-        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_CacheModel), DAT2_MODEL_MAP_CAPACITY);
-    dat2_buildcache->base.sprite_cache = NULL;
-    dat2_buildcache->base.componentpack_cache = dat2_buildcache_map_new(
+    CacheProvider_InitEngineCaches(&dat2_buildcache->base);
+    dat2_buildcache->models_hmap = dat2_buildcache_map_new(
+        dat2_buildcache, sizeof(struct MapEntry_CacheModel), DAT2_MODEL_MAP_CAPACITY);
+    dat2_buildcache->componentpacks_hmap = dat2_buildcache_map_new(
         dat2_buildcache, sizeof(struct MapEntry_ComponentPack), DAT2_INTERFACE_MAP_CAPACITY);
-    dat2_buildcache->map_terrain_hmap =
-        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_Terrain), DAT2_MAP_REGION_CAPACITY);
-    dat2_buildcache->map_scenery_hmap =
-        dat2_buildcache_map_new(dat2_buildcache, sizeof(struct MapEntry_Scenery), DAT2_MAP_REGION_CAPACITY);
+    dat2_buildcache->map_terrain_hmap = dat2_buildcache_map_new(
+        dat2_buildcache, sizeof(struct MapEntry_Terrain), DAT2_MAP_REGION_CAPACITY);
+    dat2_buildcache->map_scenery_hmap = dat2_buildcache_map_new(
+        dat2_buildcache, sizeof(struct MapEntry_Scenery), DAT2_MAP_REGION_CAPACITY);
     dat2_buildcache->clientscripts_hmap = dat2_buildcache_map_new(
         dat2_buildcache, sizeof(struct MapEntry_ClientScript), DAT2_CLIENTSCRIPT_MAP_CAPACITY);
 
@@ -220,11 +207,12 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_clientscripts_cleanup(dat2_buildcache);
     dat2_buildcache_reference_tables_cleanup(dat2_buildcache);
 
-    dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->base.model_cache);
-    dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->base.componentpack_cache);
+    dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->models_hmap);
+    dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->componentpacks_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->map_terrain_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->map_scenery_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->clientscripts_hmap);
+    CacheProvider_FreeEngineCaches(&dat2_buildcache->base);
 
     for( table_id = 0; table_id < RSCACHE_DAT2_DISK_TABLE_COUNT; table_id++ )
         dat2_buildcache->reference_tables[table_id] = NULL;
@@ -257,9 +245,9 @@ dat2_buildcache_model_add(
     assert(dat2_buildcache);
     assert(model);
 
-    dat2_buildcache_prepare_hmap_insert(dat2_buildcache, &dat2_buildcache->base.model_cache);
+    dat2_buildcache_prepare_hmap_insert(dat2_buildcache, &dat2_buildcache->models_hmap);
     entry = (struct MapEntry_CacheModel*)hmap_search(
-        dat2_buildcache->base.model_cache, &model_id, HMAP_INSERT);
+        dat2_buildcache->models_hmap, &model_id, HMAP_INSERT);
     assert(entry && "Model must be inserted into hmap");
 
     entry->id = model_id;
@@ -276,7 +264,7 @@ dat2_buildcache_model_get(
     assert(dat2_buildcache);
 
     entry = (struct MapEntry_CacheModel*)hmap_search(
-        dat2_buildcache->base.model_cache, &model_id, HMAP_FIND);
+        dat2_buildcache->models_hmap, &model_id, HMAP_FIND);
     if( !entry )
         return NULL;
     return entry->model;
@@ -292,7 +280,7 @@ dat2_buildcache_model_remove(
     assert(dat2_buildcache);
 
     entry = (struct MapEntry_CacheModel*)hmap_search(
-        dat2_buildcache->base.model_cache, &model_id, HMAP_REMOVE);
+        dat2_buildcache->models_hmap, &model_id, HMAP_REMOVE);
     if( !entry || !entry->model )
         return;
 
@@ -307,10 +295,10 @@ dat2_buildcache_models_cleanup(struct Dat2BuildCache* dat2_buildcache)
     struct MapEntry_CacheModel* entry;
 
     assert(dat2_buildcache);
-    if( !dat2_buildcache->base.model_cache )
+    if( !dat2_buildcache->models_hmap )
         return;
 
-    iter = hmap_iter_new(dat2_buildcache->base.model_cache);
+    iter = hmap_iter_new(dat2_buildcache->models_hmap);
     while( (entry = (struct MapEntry_CacheModel*)hmap_iter_next(iter)) )
     {
         if( entry->model )
@@ -320,7 +308,7 @@ dat2_buildcache_models_cleanup(struct Dat2BuildCache* dat2_buildcache)
 
     dat2_buildcache_map_reset(
         dat2_buildcache,
-        &dat2_buildcache->base.model_cache,
+        &dat2_buildcache->models_hmap,
         sizeof(struct MapEntry_CacheModel),
         DAT2_MODEL_MAP_CAPACITY);
 }
@@ -474,9 +462,9 @@ dat2_buildcache_componentpack_add(
     assert(dat2_buildcache);
     assert(pack);
 
-    dat2_buildcache_prepare_hmap_insert(dat2_buildcache, &dat2_buildcache->base.componentpack_cache);
+    dat2_buildcache_prepare_hmap_insert(dat2_buildcache, &dat2_buildcache->componentpacks_hmap);
     entry = (struct MapEntry_ComponentPack*)hmap_search(
-        dat2_buildcache->base.componentpack_cache, &iface_id, HMAP_INSERT);
+        dat2_buildcache->componentpacks_hmap, &iface_id, HMAP_INSERT);
     assert(entry && "Component pack must be inserted into hmap");
 
     entry->id = iface_id;
@@ -493,7 +481,7 @@ dat2_buildcache_componentpack_get(
     assert(dat2_buildcache);
 
     entry = (struct MapEntry_ComponentPack*)hmap_search(
-        dat2_buildcache->base.componentpack_cache, &iface_id, HMAP_FIND);
+        dat2_buildcache->componentpacks_hmap, &iface_id, HMAP_FIND);
     if( !entry )
         return NULL;
     return entry->pack;
@@ -514,10 +502,10 @@ dat2_buildcache_componentpacks_cleanup(struct Dat2BuildCache* dat2_buildcache)
     struct MapEntry_ComponentPack* entry;
 
     assert(dat2_buildcache);
-    if( !dat2_buildcache->base.componentpack_cache )
+    if( !dat2_buildcache->componentpacks_hmap )
         return;
 
-    iter = hmap_iter_new(dat2_buildcache->base.componentpack_cache);
+    iter = hmap_iter_new(dat2_buildcache->componentpacks_hmap);
     while( (entry = (struct MapEntry_ComponentPack*)hmap_iter_next(iter)) )
     {
         if( entry->pack )
@@ -527,7 +515,7 @@ dat2_buildcache_componentpacks_cleanup(struct Dat2BuildCache* dat2_buildcache)
 
     dat2_buildcache_map_reset(
         dat2_buildcache,
-        &dat2_buildcache->base.componentpack_cache,
+        &dat2_buildcache->componentpacks_hmap,
         sizeof(struct MapEntry_ComponentPack),
         DAT2_INTERFACE_MAP_CAPACITY);
 }

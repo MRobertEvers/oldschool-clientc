@@ -12,4 +12,10 @@ CS2VM2_ScriptFromRSCache(
     struct RSCache_CS2_Script* src,
     struct CS2VM2_Script* dst);
 
+/** Deep-copies src into dst; src is unchanged. Returns false if op_count <= 0. */
+bool
+CS2VM2_ScriptCopyFromRSCache(
+    const struct RSCache_CS2_Script* src,
+    struct CS2VM2_Script* dst);
+
 #endif

@@ -1,8 +1,9 @@
 #include "engine/dat1/dat1_buildcache.h"
 
+#include "engine/dat1/dat1_tasks.h"
+
 #include <assert.h>
 #include <stdlib.h>
-#include <string.h>
 
 struct MapEntry_CacheModel
 {
@@ -125,25 +126,10 @@ dat1_jagfile_clear(struct RSCache_FileListDat** slot)
     *slot = NULL;
 }
 
-static struct ToriRS_Task*
-Dat1BuildCache_Task_ModelLoad(
-    struct CacheProvider* provider,
-    int model_id,
-    struct ToriRS_Model** out_model)
-{
-    struct Dat1BuildCache* dat1_buildcache;
-
-    assert(provider);
-    assert(out_model);
-
-    dat1_buildcache = (struct Dat1BuildCache*)provider;
-    (void)dat1_buildcache_model_get(dat1_buildcache, model_id);
-    *out_model = NULL;
-    return NULL;
-}
-
 static struct CacheProviderVTable dat1_vtable = {
-    .Task_ModelLoad = Dat1BuildCache_Task_ModelLoad,
+    .Task_ModelLoad = CreateTask_Dat1ModelLoad,
+    .Task_ComponentPackLoad = CreateTask_Dat1ComponentPackLoad,
+    .Task_ClientScriptLoad = CreateTask_Dat1ClientScriptLoad,
 };
 
 struct Dat1BuildCache*
@@ -153,10 +139,9 @@ dat1_buildcache_new(void)
     assert(dat1_buildcache);
 
     dat1_buildcache->base.vtable = &dat1_vtable;
-    dat1_buildcache->base.model_cache =
+    CacheProvider_InitEngineCaches(&dat1_buildcache->base);
+    dat1_buildcache->models_hmap =
         dat1_hmap_new(sizeof(struct MapEntry_CacheModel), DAT1_MODEL_MAP_CAPACITY);
-    dat1_buildcache->base.sprite_cache = NULL;
-    dat1_buildcache->base.componentpack_cache = NULL;
     dat1_buildcache->map_terrain_hmap =
         dat1_hmap_new(sizeof(struct MapEntry_Terrain), DAT1_MAP_REGION_CAPACITY);
     dat1_buildcache->map_scenery_hmap =
@@ -190,9 +175,10 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
     dat1_buildcache_map_terrain_cleanup(dat1_buildcache);
     dat1_buildcache_map_scenery_cleanup(dat1_buildcache);
 
-    dat1_hmap_free(dat1_buildcache->base.model_cache);
+    dat1_hmap_free(dat1_buildcache->models_hmap);
     dat1_hmap_free(dat1_buildcache->map_terrain_hmap);
     dat1_hmap_free(dat1_buildcache->map_scenery_hmap);
+    CacheProvider_FreeEngineCaches(&dat1_buildcache->base);
 
     free(dat1_buildcache);
 }
@@ -307,9 +293,9 @@ dat1_buildcache_model_add(
     assert(dat1_buildcache);
     assert(model);
 
-    dat1_hmap_prepare_insert(&dat1_buildcache->base.model_cache);
+    dat1_hmap_prepare_insert(&dat1_buildcache->models_hmap);
     entry = (struct MapEntry_CacheModel*)hmap_search(
-        dat1_buildcache->base.model_cache, &model_id, HMAP_INSERT);
+        dat1_buildcache->models_hmap, &model_id, HMAP_INSERT);
     assert(entry && "Model must be inserted into hmap");
 
     entry->id = model_id;
@@ -326,7 +312,7 @@ dat1_buildcache_model_get(
     assert(dat1_buildcache);
 
     entry = (struct MapEntry_CacheModel*)hmap_search(
-        dat1_buildcache->base.model_cache, &model_id, HMAP_FIND);
+        dat1_buildcache->models_hmap, &model_id, HMAP_FIND);
     if( !entry )
         return NULL;
     return entry->model;
@@ -342,7 +328,7 @@ dat1_buildcache_model_remove(
     assert(dat1_buildcache);
 
     entry = (struct MapEntry_CacheModel*)hmap_search(
-        dat1_buildcache->base.model_cache, &model_id, HMAP_REMOVE);
+        dat1_buildcache->models_hmap, &model_id, HMAP_REMOVE);
     if( !entry || !entry->model )
         return;
 
@@ -357,10 +343,10 @@ dat1_buildcache_models_cleanup(struct Dat1BuildCache* dat1_buildcache)
     struct MapEntry_CacheModel* entry;
 
     assert(dat1_buildcache);
-    if( !dat1_buildcache->base.model_cache )
+    if( !dat1_buildcache->models_hmap )
         return;
 
-    iter = hmap_iter_new(dat1_buildcache->base.model_cache);
+    iter = hmap_iter_new(dat1_buildcache->models_hmap);
     while( (entry = (struct MapEntry_CacheModel*)hmap_iter_next(iter)) )
     {
         if( entry->model )
@@ -369,7 +355,7 @@ dat1_buildcache_models_cleanup(struct Dat1BuildCache* dat1_buildcache)
     hmap_iter_free(iter);
 
     dat1_hmap_reset(
-        &dat1_buildcache->base.model_cache,
+        &dat1_buildcache->models_hmap,
         sizeof(struct MapEntry_CacheModel),
         DAT1_MODEL_MAP_CAPACITY);
 }

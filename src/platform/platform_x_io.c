@@ -150,7 +150,7 @@ load_file_item(
 }
 
 static int
-cache_table_supported(int table_id)
+dat2_cache_table_supported(int table_id)
 {
     return table_id == RSCACHE_DAT2_DISK_TABLE_MODELS ||
            table_id == RSCACHE_DAT2_DISK_TABLE_INTERFACES ||
@@ -158,23 +158,23 @@ cache_table_supported(int table_id)
 }
 
 static int
-load_cache_item(
+load_cache_item_dat2(
     struct PlatformX_IO* px,
     struct ToriRS_IOItem* item)
 {
-    assert(px->dat2_disk);
-
     int table_id = item->u.cache.table_id;
     int archive_id = item->u.cache.archive_id;
+    struct RSCache_Dat2DiskArchive* archive = NULL;
 
-    if( !cache_table_supported(table_id) )
+    assert(px->dat2_disk);
+
+    if( !dat2_cache_table_supported(table_id) )
     {
         item->error_code = -1;
         return -1;
     }
 
-    struct RSCache_Dat2DiskArchive* archive =
-        RSCache_Dat2DiskArchiveNewLoad(px->dat2_disk, table_id, archive_id);
+    archive = RSCache_Dat2DiskArchiveNewLoad(px->dat2_disk, table_id, archive_id);
     if( !archive )
     {
         item->error_code = -1;
@@ -185,8 +185,48 @@ load_cache_item(
 
     item->data = archive;
     item->data_size = sizeof(struct RSCache_Dat2DiskArchive);
-
+    item->error_code = 0;
     return 0;
+}
+
+static int
+load_cache_item_dat1(
+    struct PlatformX_IO* px,
+    struct ToriRS_IOItem* item)
+{
+    int table_id = item->u.cache.table_id;
+    int archive_id = item->u.cache.archive_id;
+    struct RSCache_Dat1DiskArchive* archive = NULL;
+
+    assert(px->dat1_disk);
+
+    if( table_id != RSCACHE_DAT1_DISK_TABLE_MODELS )
+    {
+        item->error_code = -1;
+        return -1;
+    }
+
+    archive = RSCache_Dat1DiskArchiveNewLoad(px->dat1_disk, table_id, archive_id);
+    if( !archive )
+    {
+        item->error_code = -1;
+        return -1;
+    }
+
+    item->data = archive;
+    item->data_size = sizeof(struct RSCache_Dat1DiskArchive);
+    item->error_code = 0;
+    return 0;
+}
+
+static int
+load_cache_item(
+    struct PlatformX_IO* px,
+    struct ToriRS_IOItem* item)
+{
+    if( item->u.cache.flags == TORIRS_IO_CACHE_DAT1 )
+        return load_cache_item_dat1(px, item);
+    return load_cache_item_dat2(px, item);
 }
 
 int

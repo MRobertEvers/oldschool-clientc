@@ -671,23 +671,64 @@ ToriRS_ComponentSizeOf(const struct ToriRS_Component* component)
     return bytes;
 }
 
+static void
+torirs_component_release_owned(struct ToriRS_Component* component)
+{
+    if( !component || !component->scripts_lengths )
+        return;
+
+    if( component->scripts )
+    {
+        for( int i = 0; i < component->scripts_count; i++ )
+            free(component->scripts[i]);
+        free(component->scripts);
+        component->scripts = NULL;
+    }
+    free(component->scripts_lengths);
+    component->scripts_lengths = NULL;
+    free(component->script_comparator);
+    component->script_comparator = NULL;
+    free(component->script_operand);
+    component->script_operand = NULL;
+}
+
 void
 ToriRS_ComponentFree(struct ToriRS_Component* component)
 {
     if( !component )
         return;
 
-    if( component->scripts_lengths )
-    {
-        if( component->scripts )
-        {
-            for( int i = 0; i < component->scripts_count; i++ )
-                free(component->scripts[i]);
-            free(component->scripts);
-        }
-        free(component->scripts_lengths);
-        free(component->script_comparator);
-        free(component->script_operand);
-    }
+    torirs_component_release_owned(component);
     free(component);
+}
+
+void
+ToriRS_ComponentPackFree(struct ToriRS_ComponentPack* pack)
+{
+    if( !pack )
+        return;
+
+    if( pack->components )
+    {
+        for( int i = 0; i < pack->component_count; i++ )
+            torirs_component_release_owned(&pack->components[i]);
+        free(pack->components);
+    }
+    free(pack);
+}
+
+size_t
+ToriRS_ComponentPackSizeOf(const struct ToriRS_ComponentPack* pack)
+{
+    if( !pack )
+        return 0;
+
+    size_t bytes = sizeof(*pack);
+    if( pack->components )
+    {
+        bytes += (size_t)pack->component_count * sizeof(*pack->components);
+        for( int i = 0; i < pack->component_count; i++ )
+            bytes += ToriRS_ComponentSizeOf(&pack->components[i]);
+    }
+    return bytes;
 }

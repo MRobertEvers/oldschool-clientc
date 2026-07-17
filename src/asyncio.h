@@ -17,6 +17,9 @@
 #define TORIRS_ASYNCIO_STAT_YIELD 0
 #define TORIRS_ASYNCIO_STAT_DONE 1
 
+#define TORIRS_IO_CACHE_DAT2 0
+#define TORIRS_IO_CACHE_DAT1 1
+
 enum ToriRS_IOKind
 {
     TORIRS_IOK_NONE = 0,
@@ -387,5 +390,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
         (expr);                                                                                    \
         (ctx)->io->current_slot = -1;                                                              \
     } while( 0 )
+
+#define TASK_AWAITSELF(expr) TASK_AWAITEX(&(self->pt), io, expr)
 
 #endif // ASYNCIO_H

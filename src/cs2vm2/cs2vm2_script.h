@@ -1,6 +1,7 @@
 #ifndef CS2_SCRIPT_H
 #define CS2_SCRIPT_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define CS2VM2_SCRIPT_MAX_SWITCHES 32
@@ -46,5 +47,10 @@ CS2VM2_ScriptInit(struct CS2VM2_Script* script);
 
 void
 CS2VM2_ScriptFree(struct CS2VM2_Script* script);
+
+bool
+CS2VM2_ScriptCopy(
+    const struct CS2VM2_Script* src,
+    struct CS2VM2_Script* dst);
 
 #endif
