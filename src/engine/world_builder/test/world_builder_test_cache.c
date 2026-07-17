@@ -247,6 +247,16 @@ test_world_builder_cache_render(void)
         dat2_buildcache_free(bc);
         return;
     }
+    {
+        char xtea_path[1024];
+        snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cache_dir);
+        int xtea_n = RSCache_XteaConfigLoadKeys(xtea_path);
+        if( xtea_n <= 0 )
+            printf("warning: no xtea keys loaded from %s\n", xtea_path);
+        else
+            printf("loaded %d xtea keys\n", xtea_n);
+    }
+
     struct PlatformX_IO* px = PlatformX_IO_New();
     PlatformX_IO_InitDat2Disk(px, disk);
 

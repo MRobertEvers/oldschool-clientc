@@ -179,7 +179,14 @@ load_cache_item_dat2(
         return -1;
     }
 
-    archive = RSCache_Dat2DiskArchiveNewLoad(px->dat2_disk, table_id, archive_id);
+    {
+        uint32_t* xtea_key = NULL;
+        /* Loc (lX_Z) map archives are XTEA-encrypted; terrain (mX_Z) keys are null. */
+        if( table_id == RSCACHE_DAT2_DISK_TABLE_MAPS )
+            xtea_key = RSCache_Dat2DiskArchiveXteaKey(px->dat2_disk, table_id, archive_id);
+        archive = RSCache_Dat2DiskArchiveNewLoadDecrypted(
+            px->dat2_disk, table_id, archive_id, xtea_key);
+    }
     if( !archive )
     {
         item->error_code = -1;
