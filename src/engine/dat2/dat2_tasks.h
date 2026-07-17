@@ -33,4 +33,61 @@ CreateTask_Dat2IdkLoad(
     struct CacheProvider* provider,
     int idk_id);
 
+struct ToriRS_Task*
+CreateTask_Dat2MapTerrainLoad(
+    struct CacheProvider* provider,
+    int map_x,
+    int map_z);
+
+struct ToriRS_Task*
+CreateTask_Dat2MapSceneryLoad(
+    struct CacheProvider* provider,
+    int map_x,
+    int map_z);
+
+struct ToriRS_Task*
+CreateTask_Dat2LocLoad(
+    struct CacheProvider* provider,
+    int loc_id);
+
+struct ToriRS_Task*
+CreateTask_Dat2FlotypeLoad(
+    struct CacheProvider* provider,
+    int flo_id);
+
+struct ToriRS_Task*
+CreateTask_Dat2UnderlayLoad(
+    struct CacheProvider* provider,
+    int underlay_id);
+
+struct ToriRS_Task*
+CreateTask_Dat2TextureLoad(
+    struct CacheProvider* provider,
+    int texture_id);
+
+struct ToriRS_Task*
+CreateTask_Dat2SpriteLoad(
+    struct CacheProvider* provider,
+    int sprite_id);
+
+struct ToriRS_Task*
+CreateTask_Dat2FontLoad(
+    struct CacheProvider* provider,
+    int font_id);
+
+struct ToriRS_Task*
+CreateTask_Dat2EnumLoad(
+    struct CacheProvider* provider,
+    int enum_id);
+
+struct ToriRS_Task*
+CreateTask_Dat2StructLoad(
+    struct CacheProvider* provider,
+    int struct_id);
+
+struct ToriRS_Task*
+CreateTask_Dat2ComponentLoad(
+    struct CacheProvider* provider,
+    int packed_component_id);
+
 #endif

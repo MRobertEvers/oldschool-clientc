@@ -18,6 +18,7 @@ main(
 {
     init_sin_table();
     init_cos_table();
+    init_tan_table();
 
 #ifdef FUZZ_WITH_CACHE
     if( argc >= 2 && strcmp(argv[1], "cache") == 0 )

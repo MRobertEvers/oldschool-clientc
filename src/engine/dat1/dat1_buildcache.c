@@ -152,6 +152,11 @@ static struct CacheProviderVTable dat1_vtable = {
     .Task_ObjLoad = CreateTask_Dat1ObjLoad,
     .Task_NpcLoad = CreateTask_Dat1NpcLoad,
     .Task_IdkLoad = CreateTask_Dat1IdkLoad,
+    .Task_SpriteLoad = CreateTask_Dat1SpriteLoad,
+    .Task_FontLoad = CreateTask_Dat1FontLoad,
+    .Task_EnumLoad = NULL,
+    .Task_StructLoad = NULL,
+    .Task_ComponentLoad = CreateTask_Dat1ComponentLoad,
 };
 
 struct Dat1BuildCache*

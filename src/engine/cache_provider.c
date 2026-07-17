@@ -6,16 +6,50 @@
 #include <stdlib.h>
 
 #define CACHE_PROVIDER_MODEL_CAPACITY 8192
+#define CACHE_PROVIDER_SPRITE_CAPACITY 4096
+#define CACHE_PROVIDER_FONT_CAPACITY 256
+#define CACHE_PROVIDER_ENUM_CAPACITY 2048
+#define CACHE_PROVIDER_STRUCT_CAPACITY 2048
 #define CACHE_PROVIDER_COMPONENTPACK_CAPACITY 512
 #define CACHE_PROVIDER_CLIENTSCRIPT_CAPACITY 4096
 #define CACHE_PROVIDER_OBJTYPE_CAPACITY 4096
 #define CACHE_PROVIDER_NPCTYPE_CAPACITY 4096
 #define CACHE_PROVIDER_IDK_CAPACITY 512
+#define CACHE_PROVIDER_MAP_TERRAIN_CAPACITY 512
+#define CACHE_PROVIDER_MAP_SCENERY_CAPACITY 512
+#define CACHE_PROVIDER_LOCATION_CAPACITY 4096
+#define CACHE_PROVIDER_FLOTYPE_CAPACITY 512
+#define CACHE_PROVIDER_UNDERLAY_CAPACITY 512
+#define CACHE_PROVIDER_TEXTURE_CAPACITY 512
 
 struct MapEntry_ProviderModel
 {
     int id;
     struct ToriRS_Model* model;
+};
+
+struct MapEntry_ProviderSprite
+{
+    int id;
+    struct ToriRS_Sprite* sprite;
+};
+
+struct MapEntry_ProviderFont
+{
+    int id;
+    struct ToriRS_Font* font;
+};
+
+struct MapEntry_ProviderEnum
+{
+    int id;
+    struct ToriRS_Enum* e;
+};
+
+struct MapEntry_ProviderStruct
+{
+    int id;
+    struct ToriRS_Struct* s;
 };
 
 struct MapEntry_ProviderComponentPack
@@ -46,6 +80,36 @@ struct MapEntry_ProviderIdk
 {
     int id;
     struct ToriRS_Idk* idk;
+};
+
+struct MapEntry_ProviderMapTerrain
+{
+    int id;
+    struct ToriRS_MapTerrain* terrain;
+};
+
+struct MapEntry_ProviderMapScenery
+{
+    int id;
+    struct ToriRS_MapLocs* locs;
+};
+
+struct MapEntry_ProviderLocation
+{
+    int id;
+    struct ToriRS_Location* location;
+};
+
+struct MapEntry_ProviderFlotype
+{
+    int id;
+    struct ToriRS_Flotype* flotype;
+};
+
+struct MapEntry_ProviderTexture
+{
+    int id;
+    struct ToriRS_Texture* texture;
 };
 
 static size_t
@@ -135,7 +199,14 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
 
     provider->model_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderModel), CACHE_PROVIDER_MODEL_CAPACITY);
-    provider->sprite_cache = NULL;
+    provider->sprite_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderSprite), CACHE_PROVIDER_SPRITE_CAPACITY);
+    provider->font_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderFont), CACHE_PROVIDER_FONT_CAPACITY);
+    provider->enum_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderEnum), CACHE_PROVIDER_ENUM_CAPACITY);
+    provider->struct_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderStruct), CACHE_PROVIDER_STRUCT_CAPACITY);
     provider->componentpack_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderComponentPack), CACHE_PROVIDER_COMPONENTPACK_CAPACITY);
     provider->clientscript_cache = cache_provider_hmap_new(
@@ -146,6 +217,18 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderNpctype), CACHE_PROVIDER_NPCTYPE_CAPACITY);
     provider->idk_cache =
         cache_provider_hmap_new(sizeof(struct MapEntry_ProviderIdk), CACHE_PROVIDER_IDK_CAPACITY);
+    provider->map_terrain_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderMapTerrain), CACHE_PROVIDER_MAP_TERRAIN_CAPACITY);
+    provider->map_scenery_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderMapScenery), CACHE_PROVIDER_MAP_SCENERY_CAPACITY);
+    provider->location_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderLocation), CACHE_PROVIDER_LOCATION_CAPACITY);
+    provider->flotype_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderFlotype), CACHE_PROVIDER_FLOTYPE_CAPACITY);
+    provider->underlay_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderFlotype), CACHE_PROVIDER_UNDERLAY_CAPACITY);
+    provider->texture_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderTexture), CACHE_PROVIDER_TEXTURE_CAPACITY);
 }
 
 void
@@ -154,14 +237,32 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     assert(provider);
 
     CacheProvider_ModelsCleanup(provider);
+    CacheProvider_SpritesCleanup(provider);
+    CacheProvider_FontsCleanup(provider);
+    CacheProvider_EnumsCleanup(provider);
+    CacheProvider_StructsCleanup(provider);
     CacheProvider_ComponentPacksCleanup(provider);
     CacheProvider_ClientScriptsCleanup(provider);
     CacheProvider_ObjtypesCleanup(provider);
     CacheProvider_NpctypesCleanup(provider);
     CacheProvider_IdksCleanup(provider);
+    CacheProvider_MapTerrainsCleanup(provider);
+    CacheProvider_MapSceneryCleanup(provider);
+    CacheProvider_LocationsCleanup(provider);
+    CacheProvider_FlotypesCleanup(provider);
+    CacheProvider_UnderlaysCleanup(provider);
+    CacheProvider_TexturesCleanup(provider);
 
     cache_provider_hmap_free(provider->model_cache);
     provider->model_cache = NULL;
+    cache_provider_hmap_free(provider->sprite_cache);
+    provider->sprite_cache = NULL;
+    cache_provider_hmap_free(provider->font_cache);
+    provider->font_cache = NULL;
+    cache_provider_hmap_free(provider->enum_cache);
+    provider->enum_cache = NULL;
+    cache_provider_hmap_free(provider->struct_cache);
+    provider->struct_cache = NULL;
     cache_provider_hmap_free(provider->componentpack_cache);
     provider->componentpack_cache = NULL;
     cache_provider_hmap_free(provider->clientscript_cache);
@@ -172,8 +273,18 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->npctype_cache = NULL;
     cache_provider_hmap_free(provider->idk_cache);
     provider->idk_cache = NULL;
-    cache_provider_hmap_free(provider->sprite_cache);
-    provider->sprite_cache = NULL;
+    cache_provider_hmap_free(provider->map_terrain_cache);
+    provider->map_terrain_cache = NULL;
+    cache_provider_hmap_free(provider->map_scenery_cache);
+    provider->map_scenery_cache = NULL;
+    cache_provider_hmap_free(provider->location_cache);
+    provider->location_cache = NULL;
+    cache_provider_hmap_free(provider->flotype_cache);
+    provider->flotype_cache = NULL;
+    cache_provider_hmap_free(provider->underlay_cache);
+    provider->underlay_cache = NULL;
+    cache_provider_hmap_free(provider->texture_cache);
+    provider->texture_cache = NULL;
 }
 
 void
@@ -244,6 +355,272 @@ CacheProvider_ModelsCleanup(struct CacheProvider* provider)
 }
 
 void
+CacheProvider_SpriteAdd(
+    struct CacheProvider* provider,
+    int sprite_id,
+    struct ToriRS_Sprite* sprite)
+{
+    struct MapEntry_ProviderSprite* entry;
+
+    assert(provider);
+    assert(sprite);
+
+    cache_provider_hmap_prepare_insert(&provider->sprite_cache);
+    entry = (struct MapEntry_ProviderSprite*)hmap_search(
+        provider->sprite_cache, &sprite_id, HMAP_INSERT);
+    assert(entry && "Sprite must be inserted into hmap");
+
+    entry->id = sprite_id;
+    entry->sprite = sprite;
+}
+
+struct ToriRS_Sprite*
+CacheProvider_SpriteGet(
+    struct CacheProvider* provider,
+    int sprite_id)
+{
+    struct MapEntry_ProviderSprite* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderSprite*)hmap_search(
+        provider->sprite_cache, &sprite_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->sprite;
+}
+
+bool
+CacheProvider_SpriteHas(
+    struct CacheProvider* provider,
+    int sprite_id)
+{
+    return CacheProvider_SpriteGet(provider, sprite_id) != NULL;
+}
+
+void
+CacheProvider_SpritesCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderSprite* entry;
+
+    assert(provider);
+    if( !provider->sprite_cache )
+        return;
+
+    iter = hmap_iter_new(provider->sprite_cache);
+    while( (entry = (struct MapEntry_ProviderSprite*)hmap_iter_next(iter)) )
+    {
+        if( entry->sprite )
+            ToriRS_SpriteFree(entry->sprite);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->sprite_cache);
+    provider->sprite_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderSprite), CACHE_PROVIDER_SPRITE_CAPACITY);
+}
+
+void
+CacheProvider_FontAdd(
+    struct CacheProvider* provider,
+    int font_id,
+    struct ToriRS_Font* font)
+{
+    struct MapEntry_ProviderFont* entry;
+
+    assert(provider);
+    assert(font);
+
+    cache_provider_hmap_prepare_insert(&provider->font_cache);
+    entry =
+        (struct MapEntry_ProviderFont*)hmap_search(provider->font_cache, &font_id, HMAP_INSERT);
+    assert(entry && "Font must be inserted into hmap");
+
+    entry->id = font_id;
+    entry->font = font;
+}
+
+struct ToriRS_Font*
+CacheProvider_FontGet(
+    struct CacheProvider* provider,
+    int font_id)
+{
+    struct MapEntry_ProviderFont* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderFont*)hmap_search(provider->font_cache, &font_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->font;
+}
+
+bool
+CacheProvider_FontHas(
+    struct CacheProvider* provider,
+    int font_id)
+{
+    return CacheProvider_FontGet(provider, font_id) != NULL;
+}
+
+void
+CacheProvider_FontsCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderFont* entry;
+
+    assert(provider);
+    if( !provider->font_cache )
+        return;
+
+    iter = hmap_iter_new(provider->font_cache);
+    while( (entry = (struct MapEntry_ProviderFont*)hmap_iter_next(iter)) )
+    {
+        if( entry->font )
+            ToriRS_FontFree(entry->font);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->font_cache);
+    provider->font_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderFont), CACHE_PROVIDER_FONT_CAPACITY);
+}
+
+void
+CacheProvider_EnumAdd(
+    struct CacheProvider* provider,
+    int enum_id,
+    struct ToriRS_Enum* e)
+{
+    struct MapEntry_ProviderEnum* entry;
+
+    assert(provider);
+    assert(e);
+
+    cache_provider_hmap_prepare_insert(&provider->enum_cache);
+    entry =
+        (struct MapEntry_ProviderEnum*)hmap_search(provider->enum_cache, &enum_id, HMAP_INSERT);
+    assert(entry && "Enum must be inserted into hmap");
+
+    entry->id = enum_id;
+    entry->e = e;
+}
+
+struct ToriRS_Enum*
+CacheProvider_EnumGet(
+    struct CacheProvider* provider,
+    int enum_id)
+{
+    struct MapEntry_ProviderEnum* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderEnum*)hmap_search(provider->enum_cache, &enum_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->e;
+}
+
+bool
+CacheProvider_EnumHas(
+    struct CacheProvider* provider,
+    int enum_id)
+{
+    return CacheProvider_EnumGet(provider, enum_id) != NULL;
+}
+
+void
+CacheProvider_EnumsCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderEnum* entry;
+
+    assert(provider);
+    if( !provider->enum_cache )
+        return;
+
+    iter = hmap_iter_new(provider->enum_cache);
+    while( (entry = (struct MapEntry_ProviderEnum*)hmap_iter_next(iter)) )
+    {
+        if( entry->e )
+            ToriRS_EnumFree(entry->e);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->enum_cache);
+    provider->enum_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderEnum), CACHE_PROVIDER_ENUM_CAPACITY);
+}
+
+void
+CacheProvider_StructAdd(
+    struct CacheProvider* provider,
+    int struct_id,
+    struct ToriRS_Struct* s)
+{
+    struct MapEntry_ProviderStruct* entry;
+
+    assert(provider);
+    assert(s);
+
+    cache_provider_hmap_prepare_insert(&provider->struct_cache);
+    entry = (struct MapEntry_ProviderStruct*)hmap_search(
+        provider->struct_cache, &struct_id, HMAP_INSERT);
+    assert(entry && "Struct must be inserted into hmap");
+
+    entry->id = struct_id;
+    entry->s = s;
+}
+
+struct ToriRS_Struct*
+CacheProvider_StructGet(
+    struct CacheProvider* provider,
+    int struct_id)
+{
+    struct MapEntry_ProviderStruct* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderStruct*)hmap_search(
+        provider->struct_cache, &struct_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->s;
+}
+
+bool
+CacheProvider_StructHas(
+    struct CacheProvider* provider,
+    int struct_id)
+{
+    return CacheProvider_StructGet(provider, struct_id) != NULL;
+}
+
+void
+CacheProvider_StructsCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderStruct* entry;
+
+    assert(provider);
+    if( !provider->struct_cache )
+        return;
+
+    iter = hmap_iter_new(provider->struct_cache);
+    while( (entry = (struct MapEntry_ProviderStruct*)hmap_iter_next(iter)) )
+    {
+        if( entry->s )
+            ToriRS_StructFree(entry->s);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->struct_cache);
+    provider->struct_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderStruct), CACHE_PROVIDER_STRUCT_CAPACITY);
+}
+
+void
 CacheProvider_ComponentPackAdd(
     struct CacheProvider* provider,
     int iface_id,
@@ -308,6 +685,61 @@ CacheProvider_ComponentPacksCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->componentpack_cache);
     provider->componentpack_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderComponentPack), CACHE_PROVIDER_COMPONENTPACK_CAPACITY);
+}
+
+struct ToriRS_Component*
+CacheProvider_ComponentGet(
+    struct CacheProvider* provider,
+    int packed_id)
+{
+    int iface;
+    int child;
+    struct ToriRS_ComponentPack* pack;
+    int i;
+
+    assert(provider);
+
+    iface = packed_id >> 16;
+    child = packed_id & 0xFFFF;
+    pack = CacheProvider_ComponentPackGet(provider, iface);
+    if( !pack )
+        return NULL;
+
+    if( child >= 0 && child < pack->component_count )
+    {
+        struct ToriRS_Component* by_index = &pack->components[child];
+        if( by_index->id == packed_id )
+            return by_index;
+    }
+
+    for( i = 0; i < pack->component_count; i++ )
+    {
+        if( pack->components[i].id == packed_id )
+            return &pack->components[i];
+    }
+
+    /* Fallback when id encoding differs: treat low 16 bits as child index. */
+    if( child >= 0 && child < pack->component_count )
+        return &pack->components[child];
+
+    return NULL;
+}
+
+bool
+CacheProvider_ComponentHas(
+    struct CacheProvider* provider,
+    int packed_id)
+{
+    return CacheProvider_ComponentGet(provider, packed_id) != NULL;
+}
+
+bool
+CacheProvider_ComponentPackHasForComponent(
+    struct CacheProvider* provider,
+    int packed_id)
+{
+    assert(provider);
+    return CacheProvider_ComponentPackHas(provider, packed_id >> 16);
 }
 
 void
@@ -574,4 +1006,406 @@ CacheProvider_IdksCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->idk_cache);
     provider->idk_cache =
         cache_provider_hmap_new(sizeof(struct MapEntry_ProviderIdk), CACHE_PROVIDER_IDK_CAPACITY);
+}
+
+void
+CacheProvider_MapTerrainAdd(
+    struct CacheProvider* provider,
+    int map_id,
+    struct ToriRS_MapTerrain* terrain)
+{
+    struct MapEntry_ProviderMapTerrain* entry;
+
+    assert(provider);
+    assert(terrain);
+
+    cache_provider_hmap_prepare_insert(&provider->map_terrain_cache);
+    entry = (struct MapEntry_ProviderMapTerrain*)hmap_search(
+        provider->map_terrain_cache, &map_id, HMAP_INSERT);
+    assert(entry && "Map terrain must be inserted into hmap");
+
+    entry->id = map_id;
+    entry->terrain = terrain;
+}
+
+struct ToriRS_MapTerrain*
+CacheProvider_MapTerrainGet(
+    struct CacheProvider* provider,
+    int map_id)
+{
+    struct MapEntry_ProviderMapTerrain* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderMapTerrain*)hmap_search(
+        provider->map_terrain_cache, &map_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->terrain;
+}
+
+bool
+CacheProvider_MapTerrainHas(
+    struct CacheProvider* provider,
+    int map_id)
+{
+    return CacheProvider_MapTerrainGet(provider, map_id) != NULL;
+}
+
+void
+CacheProvider_MapTerrainsCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderMapTerrain* entry;
+
+    assert(provider);
+    if( !provider->map_terrain_cache )
+        return;
+
+    iter = hmap_iter_new(provider->map_terrain_cache);
+    while( (entry = (struct MapEntry_ProviderMapTerrain*)hmap_iter_next(iter)) )
+    {
+        if( entry->terrain )
+            ToriRS_MapTerrainFree(entry->terrain);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->map_terrain_cache);
+    provider->map_terrain_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderMapTerrain), CACHE_PROVIDER_MAP_TERRAIN_CAPACITY);
+}
+
+void
+CacheProvider_MapSceneryAdd(
+    struct CacheProvider* provider,
+    int map_id,
+    struct ToriRS_MapLocs* locs)
+{
+    struct MapEntry_ProviderMapScenery* entry;
+
+    assert(provider);
+    assert(locs);
+
+    cache_provider_hmap_prepare_insert(&provider->map_scenery_cache);
+    entry = (struct MapEntry_ProviderMapScenery*)hmap_search(
+        provider->map_scenery_cache, &map_id, HMAP_INSERT);
+    assert(entry && "Map scenery must be inserted into hmap");
+
+    entry->id = map_id;
+    entry->locs = locs;
+}
+
+struct ToriRS_MapLocs*
+CacheProvider_MapSceneryGet(
+    struct CacheProvider* provider,
+    int map_id)
+{
+    struct MapEntry_ProviderMapScenery* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderMapScenery*)hmap_search(
+        provider->map_scenery_cache, &map_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->locs;
+}
+
+bool
+CacheProvider_MapSceneryHas(
+    struct CacheProvider* provider,
+    int map_id)
+{
+    return CacheProvider_MapSceneryGet(provider, map_id) != NULL;
+}
+
+void
+CacheProvider_MapSceneryCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderMapScenery* entry;
+
+    assert(provider);
+    if( !provider->map_scenery_cache )
+        return;
+
+    iter = hmap_iter_new(provider->map_scenery_cache);
+    while( (entry = (struct MapEntry_ProviderMapScenery*)hmap_iter_next(iter)) )
+    {
+        if( entry->locs )
+            ToriRS_MapLocsFree(entry->locs);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->map_scenery_cache);
+    provider->map_scenery_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderMapScenery), CACHE_PROVIDER_MAP_SCENERY_CAPACITY);
+}
+
+void
+CacheProvider_LocationAdd(
+    struct CacheProvider* provider,
+    int loc_id,
+    struct ToriRS_Location* location)
+{
+    struct MapEntry_ProviderLocation* entry;
+
+    assert(provider);
+    assert(location);
+
+    cache_provider_hmap_prepare_insert(&provider->location_cache);
+    entry = (struct MapEntry_ProviderLocation*)hmap_search(
+        provider->location_cache, &loc_id, HMAP_INSERT);
+    assert(entry && "Location must be inserted into hmap");
+
+    entry->id = loc_id;
+    entry->location = location;
+}
+
+struct ToriRS_Location*
+CacheProvider_LocationGet(
+    struct CacheProvider* provider,
+    int loc_id)
+{
+    struct MapEntry_ProviderLocation* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderLocation*)hmap_search(
+        provider->location_cache, &loc_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->location;
+}
+
+bool
+CacheProvider_LocationHas(
+    struct CacheProvider* provider,
+    int loc_id)
+{
+    return CacheProvider_LocationGet(provider, loc_id) != NULL;
+}
+
+void
+CacheProvider_LocationsCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderLocation* entry;
+
+    assert(provider);
+    if( !provider->location_cache )
+        return;
+
+    iter = hmap_iter_new(provider->location_cache);
+    while( (entry = (struct MapEntry_ProviderLocation*)hmap_iter_next(iter)) )
+    {
+        if( entry->location )
+            ToriRS_LocationFree(entry->location);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->location_cache);
+    provider->location_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderLocation), CACHE_PROVIDER_LOCATION_CAPACITY);
+}
+
+void
+CacheProvider_FlotypeAdd(
+    struct CacheProvider* provider,
+    int flo_id,
+    struct ToriRS_Flotype* flotype)
+{
+    struct MapEntry_ProviderFlotype* entry;
+
+    assert(provider);
+    assert(flotype);
+
+    cache_provider_hmap_prepare_insert(&provider->flotype_cache);
+    entry = (struct MapEntry_ProviderFlotype*)hmap_search(
+        provider->flotype_cache, &flo_id, HMAP_INSERT);
+    assert(entry && "Flotype must be inserted into hmap");
+
+    entry->id = flo_id;
+    entry->flotype = flotype;
+}
+
+struct ToriRS_Flotype*
+CacheProvider_FlotypeGet(
+    struct CacheProvider* provider,
+    int flo_id)
+{
+    struct MapEntry_ProviderFlotype* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderFlotype*)hmap_search(
+        provider->flotype_cache, &flo_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->flotype;
+}
+
+bool
+CacheProvider_FlotypeHas(
+    struct CacheProvider* provider,
+    int flo_id)
+{
+    return CacheProvider_FlotypeGet(provider, flo_id) != NULL;
+}
+
+void
+CacheProvider_FlotypesCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderFlotype* entry;
+
+    assert(provider);
+    if( !provider->flotype_cache )
+        return;
+
+    iter = hmap_iter_new(provider->flotype_cache);
+    while( (entry = (struct MapEntry_ProviderFlotype*)hmap_iter_next(iter)) )
+    {
+        if( entry->flotype )
+            ToriRS_FlotypeFree(entry->flotype);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->flotype_cache);
+    provider->flotype_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderFlotype), CACHE_PROVIDER_FLOTYPE_CAPACITY);
+}
+
+void
+CacheProvider_UnderlayAdd(
+    struct CacheProvider* provider,
+    int underlay_id,
+    struct ToriRS_Flotype* underlay)
+{
+    struct MapEntry_ProviderFlotype* entry;
+
+    assert(provider);
+    assert(underlay);
+
+    cache_provider_hmap_prepare_insert(&provider->underlay_cache);
+    entry = (struct MapEntry_ProviderFlotype*)hmap_search(
+        provider->underlay_cache, &underlay_id, HMAP_INSERT);
+    assert(entry && "Underlay must be inserted into hmap");
+
+    entry->id = underlay_id;
+    entry->flotype = underlay;
+}
+
+struct ToriRS_Flotype*
+CacheProvider_UnderlayGet(
+    struct CacheProvider* provider,
+    int underlay_id)
+{
+    struct MapEntry_ProviderFlotype* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderFlotype*)hmap_search(
+        provider->underlay_cache, &underlay_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->flotype;
+}
+
+bool
+CacheProvider_UnderlayHas(
+    struct CacheProvider* provider,
+    int underlay_id)
+{
+    return CacheProvider_UnderlayGet(provider, underlay_id) != NULL;
+}
+
+void
+CacheProvider_UnderlaysCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderFlotype* entry;
+
+    assert(provider);
+    if( !provider->underlay_cache )
+        return;
+
+    iter = hmap_iter_new(provider->underlay_cache);
+    while( (entry = (struct MapEntry_ProviderFlotype*)hmap_iter_next(iter)) )
+    {
+        if( entry->flotype )
+            ToriRS_FlotypeFree(entry->flotype);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->underlay_cache);
+    provider->underlay_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderFlotype), CACHE_PROVIDER_UNDERLAY_CAPACITY);
+}
+
+void
+CacheProvider_TextureAdd(
+    struct CacheProvider* provider,
+    int texture_id,
+    struct ToriRS_Texture* texture)
+{
+    struct MapEntry_ProviderTexture* entry;
+
+    assert(provider);
+    assert(texture);
+
+    cache_provider_hmap_prepare_insert(&provider->texture_cache);
+    entry = (struct MapEntry_ProviderTexture*)hmap_search(
+        provider->texture_cache, &texture_id, HMAP_INSERT);
+    assert(entry && "Texture must be inserted into hmap");
+
+    entry->id = texture_id;
+    entry->texture = texture;
+}
+
+struct ToriRS_Texture*
+CacheProvider_TextureGet(
+    struct CacheProvider* provider,
+    int texture_id)
+{
+    struct MapEntry_ProviderTexture* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderTexture*)hmap_search(
+        provider->texture_cache, &texture_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->texture;
+}
+
+bool
+CacheProvider_TextureHas(
+    struct CacheProvider* provider,
+    int texture_id)
+{
+    return CacheProvider_TextureGet(provider, texture_id) != NULL;
+}
+
+void
+CacheProvider_TexturesCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderTexture* entry;
+
+    assert(provider);
+    if( !provider->texture_cache )
+        return;
+
+    iter = hmap_iter_new(provider->texture_cache);
+    while( (entry = (struct MapEntry_ProviderTexture*)hmap_iter_next(iter)) )
+    {
+        if( entry->texture )
+            ToriRS_TextureFree(entry->texture);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->texture_cache);
+    provider->texture_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderTexture), CACHE_PROVIDER_TEXTURE_CAPACITY);
 }

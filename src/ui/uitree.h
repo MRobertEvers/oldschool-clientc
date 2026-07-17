@@ -1,0 +1,798 @@
+#ifndef SRC_UITREE_H
+#define SRC_UITREE_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#define UI_INV_SLOT_OFFSET_MAX 20
+#define UITREE_MENU_OPTION_SLOTS 5
+#define UITREE_MENU_OPTION_LEN 32
+#define UITREE_SUBMENU_OP_SLOTS 10
+#define UITREE_SUBMENU_ENTRY_SLOTS 32
+#define UITREE_CHAT_OP_TEMPLATE_LEN 64
+#define UITREE_WALK_STACK_MAX 64
+#define UITREE_INV_SOURCE_INVALID (-1)
+
+#define UITREE_RELATIVE_FLAG_LEFT 1
+#define UITREE_RELATIVE_FLAG_TOP 2
+#define UITREE_RELATIVE_FLAG_RIGHT 4
+#define UITREE_RELATIVE_FLAG_BOTTOM 8
+
+/** Client.ts overMainComId / overSideComId / overChatComId. -1 = none. */
+struct UITreeHoverIds
+{
+    int main_com_id;
+    int side_com_id;
+    int chat_com_id;
+};
+
+enum UITreeComponentType
+{
+    UIELEM_BUILTIN_COMPASS = 1,
+    UIELEM_BUILTIN_MINIMAP = 2,
+    UIELEM_BUILTIN_SIDEBAR = 3,
+    UIELEM_BUILTIN_CHAT = 4,
+    UIELEM_BUILTIN_WORLD = 6,
+    UIELEM_BUILTIN_SPRITE = 7,
+    UIELEM_BUILTIN_REDSTONE_TAB = 8,
+    UIELEM_BUILTIN_TAB_ICONS = 9,
+    UIELEM_BUILTIN_CROSS = 10,
+    UIELEM_BUILTIN_MINIMENU = 11,
+    UIELEM_BUILTIN_CHAT_BUTTON = 12,
+    UIELEM_RS_TEXT = 14,
+    UIELEM_RS_GRAPHIC = 15,
+    UIELEM_RS_MODEL = 16,
+    UIELEM_INV_GRID = 17,
+    UIELEM_RS_LAYER = 18,
+    UIELEM_RS_RECT = 19,
+    UIELEM_RS_LINE = 20,
+    UIELEM_RS_INV_TEXT = 21,
+    UIELEM_INV_SLOT = 22,
+    UIELEM_CC_OBJ = 23,
+};
+
+enum UITreeElemPositionKind
+{
+    UIPOS_XY = 1,
+    UIPOS_RELATIVE = 2,
+};
+
+struct UITreeElemPosition
+{
+    enum UITreeElemPositionKind kind;
+    int x;
+    int y;
+
+    int relative_flags;
+    int anchor_x;
+    int anchor_y;
+    int left;
+    int top;
+    int right;
+    int bottom;
+    int width;
+    int height;
+
+    int8_t x_mode;
+    int8_t y_mode;
+    int8_t width_mode;
+    int8_t height_mode;
+    int aspect_w;
+    int aspect_h;
+
+    int abs_x;
+    int abs_y;
+    int abs_w;
+    int abs_h;
+    uint8_t layout_resolved;
+};
+
+struct UITreeRuntimeScriptHook
+{
+    int script_id;
+    int argc;
+    int argv[16];
+};
+
+struct UITreeRuntimeHooks
+{
+    struct UITreeRuntimeScriptHook on_click;
+    struct UITreeRuntimeScriptHook on_hold;
+    struct UITreeRuntimeScriptHook on_mouse_over;
+    struct UITreeRuntimeScriptHook on_mouse_leave;
+    struct UITreeRuntimeScriptHook on_mouse_repeat;
+    struct UITreeRuntimeScriptHook on_drag;
+    struct UITreeRuntimeScriptHook on_drag_complete;
+    struct UITreeRuntimeScriptHook on_scroll_wheel;
+    struct UITreeRuntimeScriptHook on_key;
+    struct UITreeRuntimeScriptHook on_op;
+    struct UITreeRuntimeScriptHook on_timer;
+    struct UITreeRuntimeScriptHook on_var_transmit;
+    struct UITreeRuntimeScriptHook on_inv_transmit;
+    struct UITreeRuntimeScriptHook on_misc_transmit;
+};
+
+struct UITreeBehavior
+{
+    int scripts_count;
+    int** scripts;
+    int* scripts_lengths;
+    int* script_comparator;
+    int* script_operand;
+    uint8_t hide;
+    uint8_t script_kind;
+    int button_type;
+    int client_code;
+    int32_t click_mask;
+    int over_layer_id;
+    int over_color;
+    int active_color;
+    int active_over_color;
+};
+
+struct UITreeMenuSubmenuOptions
+{
+    char ops[UITREE_SUBMENU_OP_SLOTS][UITREE_SUBMENU_ENTRY_SLOTS][UITREE_MENU_OPTION_LEN];
+};
+
+struct UITreeMenuOptions
+{
+    char option[UITREE_MENU_OPTION_LEN];
+    char ops[UITREE_MENU_OPTION_SLOTS][UITREE_MENU_OPTION_LEN];
+    int option_action;
+    int op_actions[UITREE_MENU_OPTION_SLOTS];
+    struct UITreeMenuSubmenuOptions submenus;
+};
+
+struct UITreeChatMinimenuConfig
+{
+    char op_report_abuse[UITREE_CHAT_OP_TEMPLATE_LEN];
+    int op_report_abuse_action;
+    char op_add_ignore[UITREE_CHAT_OP_TEMPLATE_LEN];
+    int op_add_ignore_action;
+    char op_add_friend[UITREE_CHAT_OP_TEMPLATE_LEN];
+    int op_add_friend_action;
+    char op_accept_trade[UITREE_CHAT_OP_TEMPLATE_LEN];
+    int op_accept_trade_action;
+    char op_accept_duel[UITREE_CHAT_OP_TEMPLATE_LEN];
+    int op_accept_duel_action;
+};
+
+enum UITreeChatButtonFilter
+{
+    UITREE_CHAT_BUTTON_PUBLIC = 0,
+    UITREE_CHAT_BUTTON_PRIVATE,
+    UITREE_CHAT_BUTTON_TRADE,
+    UITREE_CHAT_BUTTON_REPORT,
+};
+
+struct UITreeChatButtonConfig
+{
+    enum UITreeChatButtonFilter filter;
+    char label[64];
+    int label_y;
+    int mode_y;
+    int font_id;
+    int center;
+    int shadowed;
+    char mode_label[4][16];
+    int mode_color[4];
+};
+
+struct UITreeComponent
+{
+    enum UITreeComponentType type;
+    uint8_t always_dirty;
+    uint8_t is_dirty;
+    int32_t parent;
+    int32_t first_child;
+    int32_t next_sibling;
+    int component_id;
+    uint8_t dynamic;
+    int dynamic_child_index;
+
+    int item_id;
+    int item_count;
+    int item_scene_id;
+    int item_atlas_index;
+
+    int trans;
+    uint8_t no_click_through;
+    uint8_t draggable;
+    int drag_behavior;
+    uint8_t drag_dead_zone;
+    uint8_t drag_dead_time;
+    uint8_t model_transparent;
+
+    struct UITreeBehavior behavior;
+    struct UITreeRuntimeHooks runtime_hooks;
+    int target_priority;
+    int scroll_x;
+    int scroll_y;
+    struct UITreeElemPosition position;
+    struct UITreeMenuOptions menu_options;
+    union
+    {
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+        } sprite;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int scene_id_active;
+            int atlas_index_active;
+            int tabno;
+        } redstone_tab;
+        struct
+        {
+            int scene_id;
+        } minimap;
+        struct
+        {
+            uint8_t level_mask;
+        } world;
+        struct
+        {
+            int tabno;
+            int componentno;
+            int inv_source_id;
+        } sidebar;
+        struct
+        {
+            int font_id;
+            int color;
+            int center;
+            int y_align;
+            int line_height;
+            int shadowed;
+            char const* text;
+            char const* text_active;
+        } rs_text;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int scene_id_active;
+            int atlas_index_active;
+            uint8_t graphic_hitbox_only;
+            uint8_t tiled;
+            int outline;
+            int graphic_shadow;
+            uint8_t flip_h;
+            uint8_t flip_v;
+        } rs_graphic;
+        struct
+        {
+            int gamecache_model_id;
+            int zoom;
+            int xan;
+            int yan;
+        } rs_model;
+        struct
+        {
+            int color;
+            int filled;
+        } rs_rect;
+        struct
+        {
+            int inv_source_id;
+            int cols;
+            int rows;
+            int margin_x;
+            int margin_y;
+            int inv_slot_offset_x[UI_INV_SLOT_OFFSET_MAX];
+            int inv_slot_offset_y[UI_INV_SLOT_OFFSET_MAX];
+            int inv_slot_bg_scene_id[UI_INV_SLOT_OFFSET_MAX];
+            int inv_slot_bg_atlas_index[UI_INV_SLOT_OFFSET_MAX];
+        } inv_grid;
+        struct
+        {
+            int inv_source_id;
+            int slot;
+            uint8_t center_icon;
+        } inv_slot;
+        struct
+        {
+            int obj_id;
+            int obj_count;
+            int scene_id;
+            int atlas_index;
+            uint8_t center_icon;
+        } cc_obj;
+        struct
+        {
+            int scroll_height;
+            int scroll_width;
+        } rs_layer;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int tabno;
+        } tab_icon;
+        struct
+        {
+            int font_id;
+        } minimenu;
+        struct
+        {
+            struct UITreeChatMinimenuConfig minimenu;
+        } chat;
+        struct UITreeChatButtonConfig chat_button;
+        struct
+        {
+            int color;
+            int line_width;
+            int horizontal;
+        } rs_line;
+        struct
+        {
+            int inv_source_id;
+            int cols;
+            int rows;
+            int margin_x;
+            int margin_y;
+            int font_id;
+            int color;
+            int center;
+            int shadowed;
+        } rs_inv_text;
+    } u;
+};
+
+struct UITree
+{
+    struct UITreeComponent* components;
+    uint32_t component_count;
+    uint32_t component_capacity;
+    int32_t root_index;
+    uint32_t generation;
+    uint16_t next_dynamic_uid;
+};
+
+struct UITreeNodeSpec
+{
+    enum UITreeComponentType type;
+    int component_id;
+
+    int x;
+    int y;
+    int width;
+    int height;
+    int anchor_x;
+    int anchor_y;
+
+    uint8_t always_dirty;
+    uint8_t dynamic;
+    int dynamic_child_index;
+    uint8_t has_position;
+    struct UITreeElemPosition position;
+    struct UITreeBehavior const* behavior;
+
+    union
+    {
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+        } sprite;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int scene_id_active;
+            int atlas_index_active;
+            int tabno;
+        } redstone_tab;
+        struct
+        {
+            int scene_id;
+        } minimap;
+        struct
+        {
+            uint8_t level_mask;
+        } world;
+        struct
+        {
+            int tabno;
+            int componentno;
+            int inv_source_id;
+        } sidebar;
+        struct
+        {
+            int font_id;
+            int color;
+            int center;
+            int y_align;
+            int line_height;
+            int shadowed;
+            char const* text;
+            char const* text_active;
+        } rs_text;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int scene_id_active;
+            int atlas_index_active;
+            uint8_t graphic_hitbox_only;
+            uint8_t tiled;
+            int outline;
+            int graphic_shadow;
+            uint8_t flip_h;
+            uint8_t flip_v;
+        } rs_graphic;
+        struct
+        {
+            int gamecache_model_id;
+            int zoom;
+            int xan;
+            int yan;
+        } rs_model;
+        struct
+        {
+            int color;
+            int filled;
+        } rs_rect;
+        struct
+        {
+            int inv_source_id;
+            int cols;
+            int rows;
+            int margin_x;
+            int margin_y;
+            int const* inv_slot_offset_x;
+            int const* inv_slot_offset_y;
+            int const* inv_slot_bg_scene_id;
+            int const* inv_slot_bg_atlas_index;
+        } inv_grid;
+        struct
+        {
+            int inv_source_id;
+            int slot;
+            uint8_t center_icon;
+        } inv_slot;
+        struct
+        {
+            int obj_id;
+            int obj_count;
+            int scene_id;
+            int atlas_index;
+            uint8_t center_icon;
+        } cc_obj;
+        struct
+        {
+            int scroll_height;
+            int scroll_width;
+        } rs_layer;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int tabno;
+        } tab_icon;
+        struct
+        {
+            int font_id;
+        } minimenu;
+        struct
+        {
+            struct UITreeChatMinimenuConfig minimenu;
+        } chat;
+        struct UITreeChatButtonConfig chat_button;
+        struct
+        {
+            int color;
+            int line_width;
+            int horizontal;
+        } rs_line;
+        struct
+        {
+            int inv_source_id;
+            int cols;
+            int rows;
+            int margin_x;
+            int margin_y;
+            int font_id;
+            int color;
+            int center;
+            int shadowed;
+        } rs_inv_text;
+    } u;
+    struct UITreeMenuOptions menu_options;
+};
+
+char const*
+UITree_ComponentTypeStr(enum UITreeComponentType type);
+
+struct UITree*
+UITree_New(uint32_t hint);
+
+void
+UITree_Free(struct UITree* tree);
+
+void
+UITree_MarkAllDirty(struct UITree* tree);
+
+void
+UITree_MarkNodeDirty(
+    struct UITree* tree,
+    int32_t idx);
+
+/** Clear dirty after a successful emit (always_dirty nodes stay emit-eligible). */
+void
+UITree_ClearNodeDirty(
+    struct UITree* tree,
+    int32_t idx);
+
+/** True if node should emit this frame: is_dirty || always_dirty. */
+bool
+UITree_NodeNeedsEmit(struct UITreeComponent const* component);
+
+/** Force dirty on types that redraw every frame (world/minimap/compass/cross/minimenu). */
+void
+UITree_MarkFrameAlwaysDirtyTypes(struct UITree* tree);
+
+int32_t
+UITree_FindByComponentId(
+    struct UITree const* tree,
+    int component_id);
+
+void
+UITree_WalkAdvance(
+    struct UITree const* tree,
+    int32_t* io_current,
+    int32_t* stack,
+    int* io_stack_top,
+    int stack_max,
+    bool current_visible);
+
+void
+UITree_SetBehavior(
+    struct UITree* tree,
+    int32_t idx,
+    struct UITreeBehavior const* src);
+
+int32_t
+UITree_Push(
+    struct UITree* tree,
+    int32_t parent_index,
+    struct UITreeNodeSpec const* spec);
+
+void
+UITree_ClearSidebarChildren(
+    struct UITree* tree,
+    int32_t sidebar_idx);
+
+int32_t
+UITree_FindChildBySubid(
+    struct UITree const* tree,
+    int32_t parent_index,
+    int parent_component_id,
+    int sub_id);
+
+int32_t
+UITree_CcCreate(
+    struct UITree* tree,
+    int32_t parent_index,
+    int parent_component_id,
+    int widget_type,
+    int sub_id);
+
+void
+UITree_CcDeleteAll(
+    struct UITree* tree,
+    int32_t parent_index);
+
+int
+UITree_CollectDynamicChildIndices(
+    struct UITree const* tree,
+    int parent_component_id,
+    int start_index,
+    int* out_indices,
+    int out_cap);
+
+bool
+UITree_ApplyHide(
+    struct UITree* tree,
+    int component_id,
+    int hide);
+
+bool
+UITree_ApplyClickMask(
+    struct UITree* tree,
+    int component_id,
+    int32_t click_mask);
+
+bool
+UITree_ApplyText(
+    struct UITree* tree,
+    int component_id,
+    char const* text);
+
+bool
+UITree_ApplyGraphic(
+    struct UITree* tree,
+    int component_id,
+    int scene_id,
+    int atlas_index);
+
+bool
+UITree_ApplyColour(
+    struct UITree* tree,
+    int component_id,
+    int colour);
+
+bool
+UITree_ApplyPosition(
+    struct UITree* tree,
+    int component_id,
+    int x,
+    int y);
+
+bool
+UITree_ApplySize(
+    struct UITree* tree,
+    int component_id,
+    int width,
+    int height);
+
+bool
+UITree_ApplyPositionModes(
+    struct UITree* tree,
+    int component_id,
+    int x,
+    int y,
+    int x_mode,
+    int y_mode);
+
+bool
+UITree_ApplySizeModes(
+    struct UITree* tree,
+    int component_id,
+    int width,
+    int height,
+    int width_mode,
+    int height_mode);
+
+bool
+UITree_ApplyGraphicTiled(
+    struct UITree* tree,
+    int component_id,
+    int tiled);
+
+bool
+UITree_ApplyGraphicOutline(
+    struct UITree* tree,
+    int component_id,
+    int outline);
+
+bool
+UITree_ApplyGraphicShadow(
+    struct UITree* tree,
+    int component_id,
+    int shadow_colour);
+
+bool
+UITree_ApplyScrollSize(
+    struct UITree* tree,
+    int component_id,
+    int scroll_width,
+    int scroll_height);
+
+bool
+UITree_ApplyScrollPos(
+    struct UITree* tree,
+    int component_id,
+    int scroll_x,
+    int scroll_y);
+
+bool
+UITree_ApplyObject(
+    struct UITree* tree,
+    int component_id,
+    int obj_id,
+    int obj_count,
+    int scene_id,
+    int atlas_index);
+
+bool
+UITree_ApplyModel(
+    struct UITree* tree,
+    int component_id,
+    int model_id);
+
+bool
+UITree_ApplyModelTransparent(
+    struct UITree* tree,
+    int component_id,
+    int transparent);
+
+bool
+UITree_ApplyModelAngle(
+    struct UITree* tree,
+    int component_id,
+    int xan,
+    int yan,
+    int zoom);
+
+bool
+UITree_ApplyTextFont(
+    struct UITree* tree,
+    int component_id,
+    int font_id);
+
+bool
+UITree_ApplyTextAlign(
+    struct UITree* tree,
+    int component_id,
+    int h_align,
+    int v_align,
+    int line_height);
+
+bool
+UITree_ApplyTextShadow(
+    struct UITree* tree,
+    int component_id,
+    int shadowed);
+
+bool
+UITree_ApplyTargetPriority(
+    struct UITree* tree,
+    int component_id,
+    int priority);
+
+bool
+UITree_ApplyRuntimeHook(
+    struct UITree* tree,
+    int component_id,
+    struct UITreeRuntimeScriptHook* slot,
+    int script_id,
+    int const* argv,
+    int argc);
+
+bool
+UITree_ApplyOpBase(
+    struct UITree* tree,
+    int component_id,
+    char const* text);
+
+int
+UITree_GetLayoutWidth(
+    struct UITree const* tree,
+    int component_id);
+
+int
+UITree_GetLayoutHeight(
+    struct UITree const* tree,
+    int component_id);
+
+/** Client.ts hide: only hide nodes are gated on hover id match. */
+bool
+UITree_ComponentVisibleById(
+    struct UITreeComponent const* component,
+    int hovered_component_id);
+
+bool
+UITree_ComponentHoveredByIds(
+    int component_id,
+    struct UITreeHoverIds const* hover_ids);
+
+bool
+UITree_ComponentVisibleByHoverIds(
+    struct UITreeComponent const* component,
+    struct UITreeHoverIds const* hover_ids);
+
+bool
+UITree_ComponentIsClickable(struct UITreeComponent const* component);
+
+bool
+UITree_ComponentHasMenuOptions(struct UITreeComponent const* component);
+
+bool
+UITree_TypeIsAlwaysDirtyFrame(enum UITreeComponentType type);
+
+#endif

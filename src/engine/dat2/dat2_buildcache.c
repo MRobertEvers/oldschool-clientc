@@ -54,6 +54,30 @@ struct MapEntry_ConfigIdentkit
     struct RSCache_Dat2ConfigIdk* idk;
 };
 
+struct MapEntry_ConfigLoc
+{
+    int id;
+    struct RSCache_Dat2ConfigLoc* loc;
+};
+
+struct MapEntry_ConfigUnderlay
+{
+    int id;
+    struct RSCache_Dat2ConfigUnderlay* underlay;
+};
+
+struct MapEntry_ConfigOverlay
+{
+    int id;
+    struct RSCache_Dat2ConfigOverlay* overlay;
+};
+
+struct MapEntry_Texture
+{
+    int id;
+    struct RSCache_Dat2Texture* texture;
+};
+
 #define DAT2_MODEL_MAP_CAPACITY 8192
 #define DAT2_MAP_REGION_CAPACITY 512
 #define DAT2_INTERFACE_MAP_CAPACITY 512
@@ -191,6 +215,17 @@ static struct CacheProviderVTable dat2_vtable = {
     .Task_ObjLoad = CreateTask_Dat2ObjLoad,
     .Task_NpcLoad = CreateTask_Dat2NpcLoad,
     .Task_IdkLoad = CreateTask_Dat2IdkLoad,
+    .Task_MapTerrainLoad = CreateTask_Dat2MapTerrainLoad,
+    .Task_MapSceneryLoad = CreateTask_Dat2MapSceneryLoad,
+    .Task_LocLoad = CreateTask_Dat2LocLoad,
+    .Task_FlotypeLoad = CreateTask_Dat2FlotypeLoad,
+    .Task_UnderlayLoad = CreateTask_Dat2UnderlayLoad,
+    .Task_TextureLoad = CreateTask_Dat2TextureLoad,
+    .Task_SpriteLoad = CreateTask_Dat2SpriteLoad,
+    .Task_FontLoad = CreateTask_Dat2FontLoad,
+    .Task_EnumLoad = CreateTask_Dat2EnumLoad,
+    .Task_StructLoad = CreateTask_Dat2StructLoad,
+    .Task_ComponentLoad = CreateTask_Dat2ComponentLoad,
 };
 
 struct Dat2BuildCache*
@@ -215,6 +250,14 @@ dat2_buildcache_new(void)
         dat2_buildcache, sizeof(struct MapEntry_Terrain), DAT2_MAP_REGION_CAPACITY);
     dat2_buildcache->map_scenery_hmap = dat2_buildcache_map_new(
         dat2_buildcache, sizeof(struct MapEntry_Scenery), DAT2_MAP_REGION_CAPACITY);
+    dat2_buildcache->loc_hmap = dat2_buildcache_map_new(
+        dat2_buildcache, sizeof(struct MapEntry_ConfigLoc), DAT2_CONFIG_MAP_CAPACITY);
+    dat2_buildcache->underlay_hmap = dat2_buildcache_map_new(
+        dat2_buildcache, sizeof(struct MapEntry_ConfigUnderlay), DAT2_CONFIG_MAP_CAPACITY);
+    dat2_buildcache->overlay_hmap = dat2_buildcache_map_new(
+        dat2_buildcache, sizeof(struct MapEntry_ConfigOverlay), DAT2_CONFIG_MAP_CAPACITY);
+    dat2_buildcache->texture_hmap = dat2_buildcache_map_new(
+        dat2_buildcache, sizeof(struct MapEntry_Texture), DAT2_CONFIG_MAP_CAPACITY);
     dat2_buildcache->clientscripts_hmap = dat2_buildcache_map_new(
         dat2_buildcache, sizeof(struct MapEntry_ClientScript), DAT2_CLIENTSCRIPT_MAP_CAPACITY);
 
@@ -231,6 +274,10 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_models_cleanup(dat2_buildcache);
     dat2_buildcache_map_terrain_cleanup(dat2_buildcache);
     dat2_buildcache_map_scenery_cleanup(dat2_buildcache);
+    dat2_buildcache_locs_cleanup(dat2_buildcache);
+    dat2_buildcache_underlays_cleanup(dat2_buildcache);
+    dat2_buildcache_overlays_cleanup(dat2_buildcache);
+    dat2_buildcache_textures_cleanup(dat2_buildcache);
     dat2_buildcache_componentpacks_cleanup(dat2_buildcache);
     dat2_buildcache_objects_cleanup(dat2_buildcache);
     dat2_buildcache_npctypes_cleanup(dat2_buildcache);
@@ -245,6 +292,10 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->identkit_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->map_terrain_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->map_scenery_hmap);
+    dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->loc_hmap);
+    dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->underlay_hmap);
+    dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->overlay_hmap);
+    dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->texture_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->clientscripts_hmap);
     CacheProvider_FreeEngineCaches(&dat2_buildcache->base);
 
@@ -1058,6 +1109,450 @@ dat2_buildcache_identkits_init_from_archive(
 }
 
 void
+dat2_buildcache_loc_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int loc_id,
+    struct RSCache_Dat2ConfigLoc* loc)
+{
+    struct MapEntry_ConfigLoc* entry;
+
+    assert(dat2_buildcache);
+    assert(loc);
+
+    dat2_buildcache_prepare_hmap_insert(dat2_buildcache, &dat2_buildcache->loc_hmap);
+    entry = (struct MapEntry_ConfigLoc*)hmap_search(
+        dat2_buildcache->loc_hmap, &loc_id, HMAP_INSERT);
+    assert(entry && "Loc must be inserted into hmap");
+
+    if( entry->loc )
+        RSCache_Dat2ConfigLocFree(entry->loc);
+
+    entry->id = loc_id;
+    entry->loc = loc;
+}
+
+struct RSCache_Dat2ConfigLoc*
+dat2_buildcache_loc_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int loc_id)
+{
+    struct MapEntry_ConfigLoc* entry;
+
+    assert(dat2_buildcache);
+
+    entry = (struct MapEntry_ConfigLoc*)hmap_search(
+        dat2_buildcache->loc_hmap, &loc_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->loc;
+}
+
+bool
+dat2_buildcache_loc_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int loc_id)
+{
+    return dat2_buildcache_loc_get(dat2_buildcache, loc_id) != NULL;
+}
+
+void
+dat2_buildcache_locs_cleanup(struct Dat2BuildCache* dat2_buildcache)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ConfigLoc* entry;
+
+    assert(dat2_buildcache);
+    if( !dat2_buildcache->loc_hmap )
+        return;
+
+    iter = hmap_iter_new(dat2_buildcache->loc_hmap);
+    while( (entry = (struct MapEntry_ConfigLoc*)hmap_iter_next(iter)) )
+    {
+        if( entry->loc )
+            RSCache_Dat2ConfigLocFree(entry->loc);
+    }
+    hmap_iter_free(iter);
+
+    dat2_buildcache_map_reset(
+        dat2_buildcache,
+        &dat2_buildcache->loc_hmap,
+        sizeof(struct MapEntry_ConfigLoc),
+        DAT2_CONFIG_MAP_CAPACITY);
+}
+
+void
+dat2_buildcache_locs_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCache_Dat2DiskArchive* archive,
+    const int* wanted_ids,
+    int wanted_count)
+{
+    struct RSCache_FileList* filelist;
+
+    assert(dat2_buildcache);
+    assert(archive);
+    assert(archive->file_ids);
+
+    filelist = RSCache_FileListNewFromDecode(
+        archive->data, archive->data_size, archive->file_count);
+    if( !filelist )
+        return;
+
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = archive->file_ids[i];
+        struct RSCache_Dat2ConfigLoc* loc;
+
+        if( !dat2_id_wanted(id, wanted_ids, wanted_count) )
+            continue;
+        if( dat2_buildcache_loc_get(dat2_buildcache, id) )
+            continue;
+
+        loc = RSCache_Dat2ConfigLocNewDecode(filelist->files[i], filelist->file_sizes[i]);
+        if( !loc )
+            continue;
+
+        loc->_id = id;
+        dat2_buildcache_loc_add(dat2_buildcache, id, loc);
+    }
+
+    RSCache_FileListFree(filelist);
+}
+
+void
+dat2_buildcache_underlay_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int underlay_id,
+    struct RSCache_Dat2ConfigUnderlay* underlay)
+{
+    struct MapEntry_ConfigUnderlay* entry;
+
+    assert(dat2_buildcache);
+    assert(underlay);
+
+    dat2_buildcache_prepare_hmap_insert(dat2_buildcache, &dat2_buildcache->underlay_hmap);
+    entry = (struct MapEntry_ConfigUnderlay*)hmap_search(
+        dat2_buildcache->underlay_hmap, &underlay_id, HMAP_INSERT);
+    assert(entry && "Underlay must be inserted into hmap");
+
+    if( entry->underlay )
+        RSCache_Dat2ConfigUnderlayFree(entry->underlay);
+
+    entry->id = underlay_id;
+    entry->underlay = underlay;
+}
+
+struct RSCache_Dat2ConfigUnderlay*
+dat2_buildcache_underlay_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int underlay_id)
+{
+    struct MapEntry_ConfigUnderlay* entry;
+
+    assert(dat2_buildcache);
+
+    entry = (struct MapEntry_ConfigUnderlay*)hmap_search(
+        dat2_buildcache->underlay_hmap, &underlay_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->underlay;
+}
+
+bool
+dat2_buildcache_underlay_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int underlay_id)
+{
+    return dat2_buildcache_underlay_get(dat2_buildcache, underlay_id) != NULL;
+}
+
+void
+dat2_buildcache_underlays_cleanup(struct Dat2BuildCache* dat2_buildcache)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ConfigUnderlay* entry;
+
+    assert(dat2_buildcache);
+    if( !dat2_buildcache->underlay_hmap )
+        return;
+
+    iter = hmap_iter_new(dat2_buildcache->underlay_hmap);
+    while( (entry = (struct MapEntry_ConfigUnderlay*)hmap_iter_next(iter)) )
+    {
+        if( entry->underlay )
+            RSCache_Dat2ConfigUnderlayFree(entry->underlay);
+    }
+    hmap_iter_free(iter);
+
+    dat2_buildcache_map_reset(
+        dat2_buildcache,
+        &dat2_buildcache->underlay_hmap,
+        sizeof(struct MapEntry_ConfigUnderlay),
+        DAT2_CONFIG_MAP_CAPACITY);
+}
+
+void
+dat2_buildcache_underlays_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCache_Dat2DiskArchive* archive,
+    const int* wanted_ids,
+    int wanted_count)
+{
+    struct RSCache_FileList* filelist;
+
+    assert(dat2_buildcache);
+    assert(archive);
+    assert(archive->file_ids);
+
+    filelist = RSCache_FileListNewFromDecode(
+        archive->data, archive->data_size, archive->file_count);
+    if( !filelist )
+        return;
+
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = archive->file_ids[i];
+        struct RSCache_Dat2ConfigUnderlay* underlay;
+
+        if( !dat2_id_wanted(id, wanted_ids, wanted_count) )
+            continue;
+        if( dat2_buildcache_underlay_get(dat2_buildcache, id) )
+            continue;
+
+        underlay = RSCache_Dat2ConfigUnderlayNewDecode(filelist->files[i], filelist->file_sizes[i]);
+        if( !underlay )
+            continue;
+
+        underlay->_id = id;
+        dat2_buildcache_underlay_add(dat2_buildcache, id, underlay);
+    }
+
+    RSCache_FileListFree(filelist);
+}
+
+void
+dat2_buildcache_overlay_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int overlay_id,
+    struct RSCache_Dat2ConfigOverlay* overlay)
+{
+    struct MapEntry_ConfigOverlay* entry;
+
+    assert(dat2_buildcache);
+    assert(overlay);
+
+    dat2_buildcache_prepare_hmap_insert(dat2_buildcache, &dat2_buildcache->overlay_hmap);
+    entry = (struct MapEntry_ConfigOverlay*)hmap_search(
+        dat2_buildcache->overlay_hmap, &overlay_id, HMAP_INSERT);
+    assert(entry && "Overlay must be inserted into hmap");
+
+    if( entry->overlay )
+        RSCache_Dat2ConfigOverlayFree(entry->overlay);
+
+    entry->id = overlay_id;
+    entry->overlay = overlay;
+}
+
+struct RSCache_Dat2ConfigOverlay*
+dat2_buildcache_overlay_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int overlay_id)
+{
+    struct MapEntry_ConfigOverlay* entry;
+
+    assert(dat2_buildcache);
+
+    entry = (struct MapEntry_ConfigOverlay*)hmap_search(
+        dat2_buildcache->overlay_hmap, &overlay_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->overlay;
+}
+
+bool
+dat2_buildcache_overlay_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int overlay_id)
+{
+    return dat2_buildcache_overlay_get(dat2_buildcache, overlay_id) != NULL;
+}
+
+void
+dat2_buildcache_overlays_cleanup(struct Dat2BuildCache* dat2_buildcache)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ConfigOverlay* entry;
+
+    assert(dat2_buildcache);
+    if( !dat2_buildcache->overlay_hmap )
+        return;
+
+    iter = hmap_iter_new(dat2_buildcache->overlay_hmap);
+    while( (entry = (struct MapEntry_ConfigOverlay*)hmap_iter_next(iter)) )
+    {
+        if( entry->overlay )
+            RSCache_Dat2ConfigOverlayFree(entry->overlay);
+    }
+    hmap_iter_free(iter);
+
+    dat2_buildcache_map_reset(
+        dat2_buildcache,
+        &dat2_buildcache->overlay_hmap,
+        sizeof(struct MapEntry_ConfigOverlay),
+        DAT2_CONFIG_MAP_CAPACITY);
+}
+
+void
+dat2_buildcache_overlays_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCache_Dat2DiskArchive* archive,
+    const int* wanted_ids,
+    int wanted_count)
+{
+    struct RSCache_FileList* filelist;
+
+    assert(dat2_buildcache);
+    assert(archive);
+    assert(archive->file_ids);
+
+    filelist = RSCache_FileListNewFromDecode(
+        archive->data, archive->data_size, archive->file_count);
+    if( !filelist )
+        return;
+
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = archive->file_ids[i];
+        struct RSCache_Dat2ConfigOverlay* overlay;
+
+        if( !dat2_id_wanted(id, wanted_ids, wanted_count) )
+            continue;
+        if( dat2_buildcache_overlay_get(dat2_buildcache, id) )
+            continue;
+
+        overlay = RSCache_Dat2ConfigOverlayNewDecode(filelist->files[i], filelist->file_sizes[i]);
+        if( !overlay )
+            continue;
+
+        overlay->_id = id;
+        dat2_buildcache_overlay_add(dat2_buildcache, id, overlay);
+    }
+
+    RSCache_FileListFree(filelist);
+}
+
+void
+dat2_buildcache_texture_add(
+    struct Dat2BuildCache* dat2_buildcache,
+    int texture_id,
+    struct RSCache_Dat2Texture* texture)
+{
+    struct MapEntry_Texture* entry;
+
+    assert(dat2_buildcache);
+    assert(texture);
+
+    dat2_buildcache_prepare_hmap_insert(dat2_buildcache, &dat2_buildcache->texture_hmap);
+    entry = (struct MapEntry_Texture*)hmap_search(
+        dat2_buildcache->texture_hmap, &texture_id, HMAP_INSERT);
+    assert(entry && "Texture must be inserted into hmap");
+
+    if( entry->texture )
+        RSCache_Dat2TextureFree(entry->texture);
+
+    entry->id = texture_id;
+    entry->texture = texture;
+}
+
+struct RSCache_Dat2Texture*
+dat2_buildcache_texture_get(
+    struct Dat2BuildCache* dat2_buildcache,
+    int texture_id)
+{
+    struct MapEntry_Texture* entry;
+
+    assert(dat2_buildcache);
+
+    entry = (struct MapEntry_Texture*)hmap_search(
+        dat2_buildcache->texture_hmap, &texture_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->texture;
+}
+
+bool
+dat2_buildcache_texture_has(
+    struct Dat2BuildCache* dat2_buildcache,
+    int texture_id)
+{
+    return dat2_buildcache_texture_get(dat2_buildcache, texture_id) != NULL;
+}
+
+void
+dat2_buildcache_textures_cleanup(struct Dat2BuildCache* dat2_buildcache)
+{
+    struct HMapIter* iter;
+    struct MapEntry_Texture* entry;
+
+    assert(dat2_buildcache);
+    if( !dat2_buildcache->texture_hmap )
+        return;
+
+    iter = hmap_iter_new(dat2_buildcache->texture_hmap);
+    while( (entry = (struct MapEntry_Texture*)hmap_iter_next(iter)) )
+    {
+        if( entry->texture )
+            RSCache_Dat2TextureFree(entry->texture);
+    }
+    hmap_iter_free(iter);
+
+    dat2_buildcache_map_reset(
+        dat2_buildcache,
+        &dat2_buildcache->texture_hmap,
+        sizeof(struct MapEntry_Texture),
+        DAT2_CONFIG_MAP_CAPACITY);
+}
+
+void
+dat2_buildcache_textures_init_from_archive(
+    struct Dat2BuildCache* dat2_buildcache,
+    struct RSCache_Dat2DiskArchive* archive,
+    const int* wanted_ids,
+    int wanted_count)
+{
+    struct RSCache_FileList* filelist;
+
+    assert(dat2_buildcache);
+    assert(archive);
+    assert(archive->file_ids);
+
+    filelist = RSCache_FileListNewFromDecode(
+        archive->data, archive->data_size, archive->file_count);
+    if( !filelist )
+        return;
+
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        int id = archive->file_ids[i];
+        struct RSCache_Dat2Texture* texture;
+
+        if( !dat2_id_wanted(id, wanted_ids, wanted_count) )
+            continue;
+        if( dat2_buildcache_texture_get(dat2_buildcache, id) )
+            continue;
+
+        texture = RSCache_Dat2TextureNewDecode(filelist->files[i], filelist->file_sizes[i]);
+        if( !texture )
+            continue;
+
+        texture->_id = id;
+        dat2_buildcache_texture_add(dat2_buildcache, id, texture);
+    }
+
+    RSCache_FileListFree(filelist);
+}
+
+void
 dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache)
 {
     assert(dat2_buildcache);
@@ -1065,6 +1560,10 @@ dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_models_cleanup(dat2_buildcache);
     dat2_buildcache_map_terrain_cleanup(dat2_buildcache);
     dat2_buildcache_map_scenery_cleanup(dat2_buildcache);
+    dat2_buildcache_locs_cleanup(dat2_buildcache);
+    dat2_buildcache_underlays_cleanup(dat2_buildcache);
+    dat2_buildcache_overlays_cleanup(dat2_buildcache);
+    dat2_buildcache_textures_cleanup(dat2_buildcache);
     dat2_buildcache_componentpacks_cleanup(dat2_buildcache);
     dat2_buildcache_objects_cleanup(dat2_buildcache);
     dat2_buildcache_npctypes_cleanup(dat2_buildcache);

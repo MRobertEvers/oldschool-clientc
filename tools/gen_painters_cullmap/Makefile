@@ -6,11 +6,19 @@
 #   node batch_cullmaps.mjs -j8
 
 REPO := $(abspath ../..)
+SRC_DIR := $(REPO)/src
+TORIDRAW_DIR := $(REPO)/3rd/toridraw
 
 CC ?= cc
-CFLAGS += -Wall -Wextra -O2 -I$(REPO)/src
+CFLAGS += -Wall -Wextra -O2 \
+	-I$(SRC_DIR) \
+	-I$(SRC_DIR)/painters \
+	-I$(TORIDRAW_DIR)
 
-SRCS := main.c $(REPO)/src/graphics/shared_tables.c
+SRCS := main.c \
+	$(SRC_DIR)/painters/painters.c \
+	$(SRC_DIR)/painters/painters_cull_project.c \
+	$(TORIDRAW_DIR)/graphics/shared_tables.c
 
 # libm for sin/cos/tan in shared_tables (not needed on typical Windows link lines)
 LIBS :=

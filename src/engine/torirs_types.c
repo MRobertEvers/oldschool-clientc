@@ -668,6 +668,41 @@ ToriRS_FontFree(struct ToriRS_Font* font)
 }
 
 void
+ToriRS_EnumFree(struct ToriRS_Enum* e)
+{
+    int i;
+
+    if( !e )
+        return;
+    free(e->default_string);
+    free(e->keys);
+    free(e->int_values);
+    if( e->string_values )
+    {
+        for( i = 0; i < e->count; i++ )
+            free(e->string_values[i]);
+        free(e->string_values);
+    }
+    free(e);
+}
+
+void
+ToriRS_StructFree(struct ToriRS_Struct* s)
+{
+    int i;
+
+    if( !s )
+        return;
+    if( s->params )
+    {
+        for( i = 0; i < s->param_count; i++ )
+            free(s->params[i].string_value);
+        free(s->params);
+    }
+    free(s);
+}
+
+void
 ToriRS_ComponentApplyWalkLayout(
     struct ToriRS_Component* component,
     int parent_id,

@@ -231,8 +231,44 @@ project(
     return projected_vertex;
 }
 
+static inline int
+ToriDraw_TrigSinFromShared(
+    int angle_r2pi2048,
+    void* user)
+{
+    (void)user;
+    return g_sin_table[angle_r2pi2048];
+}
+
+static inline int
+ToriDraw_TrigCosFromShared(
+    int angle_r2pi2048,
+    void* user)
+{
+    (void)user;
+    return RSCacheDat2A_NoiseCosTable[angle_r2pi2048];
+}
+
+static inline int
+ToriDraw_TrigTanFromShared(
+    int angle_r2pi2048,
+    void* user)
+{
+    (void)user;
+    return g_tan_table[angle_r2pi2048];
+}
+
 static inline void
-project_orthographic_fast(
+ToriDraw_TrigFnsFromShared(struct ToriDrawTrigFns* out)
+{
+    out->sin = ToriDraw_TrigSinFromShared;
+    out->cos = ToriDraw_TrigCosFromShared;
+    out->tan = ToriDraw_TrigTanFromShared;
+    out->user = NULL;
+}
+
+static inline void
+project_orthographic_fast_trig(
     struct ProjectedVertex* projected_vertex,
     int x,
     int y,
@@ -242,19 +278,22 @@ project_orthographic_fast(
     int scene_y,
     int scene_z,
     int camera_pitch,
-    int camera_yaw)
+    int camera_yaw,
+    const struct ToriDrawTrigFns* trig)
 {
-    int cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
-    int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
-    int sin_camera_yaw = g_sin_table[camera_yaw];
+    assert(trig && trig->sin && trig->cos);
+
+    int cos_camera_pitch = trig->cos(camera_pitch, trig->user);
+    int sin_camera_pitch = trig->sin(camera_pitch, trig->user);
+    int cos_camera_yaw = trig->cos(camera_yaw, trig->user);
+    int sin_camera_yaw = trig->sin(camera_yaw, trig->user);
 
     int x_rotated = x;
     int z_rotated = z;
     if( yaw != 0 )
     {
-        int sin_yaw = g_sin_table[yaw];
-        int cos_yaw = RSCacheDat2A_NoiseCosTable[yaw];
+        int sin_yaw = trig->sin(yaw, trig->user);
+        int cos_yaw = trig->cos(yaw, trig->user);
         x_rotated = x * cos_yaw + z * sin_yaw;
         x_rotated >>= 16;
         z_rotated = z * cos_yaw - x * sin_yaw;
@@ -282,6 +321,35 @@ project_orthographic_fast(
     projected_vertex->x = x_scene;
     projected_vertex->y = y_scene;
     projected_vertex->z = z_final_scene;
+}
+
+static inline void
+project_orthographic_fast(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw)
+{
+    struct ToriDrawTrigFns trig;
+    ToriDraw_TrigFnsFromShared(&trig);
+    project_orthographic_fast_trig(
+        projected_vertex,
+        x,
+        y,
+        z,
+        yaw,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_pitch,
+        camera_yaw,
+        &trig);
 }
 
 static inline void
@@ -419,14 +487,17 @@ project_divide(
  * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
  */
 static inline void
-project_perspective_fast(
+project_perspective_fast_trig(
     struct ProjectedVertex* projected_vertex,
     int x,
     int y,
     int z,
     int fov, // FOV in units of (2π/2048) radians
-    int near_clip)
+    int near_clip,
+    const struct ToriDrawTrigFns* trig)
 {
+    assert(trig && trig->tan);
+
     // Perspective projection with FOV
 
     // z is the distance from the camera.
@@ -470,7 +541,7 @@ project_perspective_fast(
     // cot(x) = tan(pi/2 - x)
     // cot(x + pi) = cot(x)
     // assert(fov_half < 1536);
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = trig->tan(1536 - fov_half, trig->user);
 
     static const int scale_angle = 1;
     int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
@@ -508,6 +579,21 @@ project_perspective_fast(
     projected_vertex->y = screen_y;
     projected_vertex->z = z;
     projected_vertex->clipped = 0;
+}
+
+static inline void
+project_perspective_fast(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int fov, // FOV in units of (2π/2048) radians
+    int near_clip)
+{
+    struct ToriDrawTrigFns trig;
+    ToriDraw_TrigFnsFromShared(&trig);
+    project_perspective_fast_trig(
+        projected_vertex, x, y, z, fov, near_clip, &trig);
 }
 
 static inline int
@@ -572,6 +658,49 @@ project_perspective_fast_fov2(
 }
 
 static inline void
+project_fast_trig(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int yaw_r2pi2048,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch_r2pi2048,
+    int camera_yaw_r2pi2048,
+    int fov_r2pi2048,
+    int near_clip,
+    int screen_width,
+    int screen_height,
+    const struct ToriDrawTrigFns* trig)
+{
+    (void)screen_width;
+    (void)screen_height;
+    project_orthographic_fast_trig(
+        projected_vertex,
+        x,
+        y,
+        z,
+        yaw_r2pi2048,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_pitch_r2pi2048,
+        camera_yaw_r2pi2048,
+        trig);
+
+    project_perspective_fast_trig(
+        projected_vertex,
+        projected_vertex->x,
+        projected_vertex->y,
+        projected_vertex->z,
+        fov_r2pi2048,
+        near_clip,
+        trig);
+}
+
+static inline void
 project_fast(
     struct ProjectedVertex* projected_vertex,
     int x,
@@ -588,7 +717,9 @@ project_fast(
     int screen_width,
     int screen_height)
 {
-    project_orthographic_fast(
+    struct ToriDrawTrigFns trig;
+    ToriDraw_TrigFnsFromShared(&trig);
+    project_fast_trig(
         projected_vertex,
         x,
         y,
@@ -598,15 +729,12 @@ project_fast(
         scene_y,
         scene_z,
         camera_pitch_r2pi2048,
-        camera_yaw_r2pi2048);
-
-    project_perspective_fast(
-        projected_vertex,
-        projected_vertex->x,
-        projected_vertex->y,
-        projected_vertex->z,
+        camera_yaw_r2pi2048,
         fov_r2pi2048,
-        near_clip);
+        near_clip,
+        screen_width,
+        screen_height,
+        &trig);
 }
 
 static inline void

@@ -1,0 +1,484 @@
+#include "varp_manager.h"
+
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct DatCursor
+{
+    const uint8_t* data;
+    size_t size;
+    size_t pos;
+};
+
+static int
+dat_g1(struct DatCursor* c)
+{
+    assert(c->pos < c->size);
+    return c->data[c->pos++];
+}
+
+static int
+dat_g2(struct DatCursor* c)
+{
+    assert(c->pos + 1 < c->size);
+    int hi = c->data[c->pos++];
+    int lo = c->data[c->pos++];
+    return (hi << 8) | lo;
+}
+
+static int
+dat_g4(struct DatCursor* c)
+{
+    assert(c->pos + 3 < c->size);
+    int b0 = c->data[c->pos++];
+    int b1 = c->data[c->pos++];
+    int b2 = c->data[c->pos++];
+    int b3 = c->data[c->pos++];
+    return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+}
+
+static void
+dat_skip_cstring(struct DatCursor* c)
+{
+    while( c->pos < c->size )
+    {
+        if( c->data[c->pos++] == 0 || c->data[c->pos - 1] == '\n' )
+            break;
+    }
+}
+
+static void
+notify_change(
+    struct VarPManager* mgr,
+    int varp_id)
+{
+    if( mgr->change_fn )
+        mgr->change_fn(mgr->change_userdata, varp_id);
+}
+
+static bool
+alloc_var_arrays(
+    struct VarPManager* mgr,
+    int count)
+{
+    free(mgr->var);
+    free(mgr->var_serv);
+    mgr->var = NULL;
+    mgr->var_serv = NULL;
+
+    if( count <= 0 )
+        return true;
+
+    mgr->var = calloc((size_t)count, sizeof(int));
+    mgr->var_serv = calloc((size_t)count, sizeof(int));
+    if( !mgr->var || !mgr->var_serv )
+    {
+        free(mgr->var);
+        free(mgr->var_serv);
+        mgr->var = NULL;
+        mgr->var_serv = NULL;
+        return false;
+    }
+    return true;
+}
+
+static void
+apply_varp_value(
+    struct VarPManager* mgr,
+    int variable,
+    int value)
+{
+    if( variable < 0 || variable >= mgr->varp_count )
+        return;
+
+    mgr->var_serv[variable] = value;
+
+    if( mgr->var[variable] != value )
+    {
+        mgr->var[variable] = value;
+        notify_change(mgr, variable);
+    }
+}
+
+static void
+decode_varp_type(
+    struct VarPType* out,
+    struct DatCursor* c)
+{
+    memset(out, 0, sizeof(*out));
+
+    while( 1 )
+    {
+        int opcode = dat_g1(c);
+        if( opcode == 0 )
+            break;
+
+        switch( opcode )
+        {
+        case 1:
+        case 2:
+            (void)dat_g1(c);
+            break;
+        case 3:
+        case 4:
+        case 6:
+        case 8:
+        case 11:
+            break;
+        case 5:
+            out->clientcode = dat_g2(c);
+            break;
+        case 7:
+            (void)dat_g4(c);
+            break;
+        case 10:
+            dat_skip_cstring(c);
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+static void
+decode_varbit_type(
+    struct VarBitType* out,
+    struct DatCursor* c)
+{
+    memset(out, 0, sizeof(*out));
+    out->basevar = -1;
+
+    while( 1 )
+    {
+        int opcode = dat_g1(c);
+        if( opcode == 0 )
+            break;
+
+        switch( opcode )
+        {
+        case 1:
+            out->basevar = dat_g2(c);
+            out->startbit = dat_g1(c);
+            out->endbit = dat_g1(c);
+            break;
+        case 10:
+            dat_skip_cstring(c);
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+void
+VarPManager_Init(struct VarPManager* mgr)
+{
+    assert(mgr);
+    memset(mgr, 0, sizeof(*mgr));
+
+    for( int i = 0; i < VARP_MANAGER_READBIT_MAX; i++ )
+        mgr->readbit[i] = (1 << i) - 1;
+}
+
+void
+VarPManager_Free(struct VarPManager* mgr)
+{
+    if( !mgr )
+        return;
+
+    free(mgr->varp_types);
+    mgr->varp_types = NULL;
+    mgr->varp_count = 0;
+
+    free(mgr->varbit_types);
+    mgr->varbit_types = NULL;
+    mgr->varbit_count = 0;
+
+    free(mgr->var);
+    mgr->var = NULL;
+
+    free(mgr->var_serv);
+    mgr->var_serv = NULL;
+
+    mgr->change_fn = NULL;
+    mgr->change_userdata = NULL;
+}
+
+bool
+VarPManager_SetVarpTypes(
+    struct VarPManager* mgr,
+    const struct VarPType* types,
+    int count)
+{
+    assert(mgr);
+    assert(count >= 0);
+    assert(count == 0 || types);
+
+    free(mgr->varp_types);
+    mgr->varp_types = NULL;
+    mgr->varp_count = 0;
+
+    if( count == 0 )
+    {
+        if( !alloc_var_arrays(mgr, 0) )
+            return false;
+        return true;
+    }
+
+    mgr->varp_types = malloc((size_t)count * sizeof(struct VarPType));
+    if( !mgr->varp_types )
+        return false;
+
+    memcpy(mgr->varp_types, types, (size_t)count * sizeof(struct VarPType));
+    mgr->varp_count = count;
+
+    if( !alloc_var_arrays(mgr, count) )
+    {
+        free(mgr->varp_types);
+        mgr->varp_types = NULL;
+        mgr->varp_count = 0;
+        return false;
+    }
+    return true;
+}
+
+bool
+VarPManager_SetVarbitTypes(
+    struct VarPManager* mgr,
+    const struct VarBitType* types,
+    int count)
+{
+    assert(mgr);
+    assert(count >= 0);
+    assert(count == 0 || types);
+
+    free(mgr->varbit_types);
+    mgr->varbit_types = NULL;
+    mgr->varbit_count = 0;
+
+    if( count == 0 )
+        return true;
+
+    mgr->varbit_types = malloc((size_t)count * sizeof(struct VarBitType));
+    if( !mgr->varbit_types )
+        return false;
+
+    memcpy(mgr->varbit_types, types, (size_t)count * sizeof(struct VarBitType));
+    mgr->varbit_count = count;
+    return true;
+}
+
+bool
+VarPManager_LoadVarpDat(
+    struct VarPManager* mgr,
+    const uint8_t* data,
+    size_t size)
+{
+    assert(mgr);
+    assert(data);
+
+    struct DatCursor c = { .data = data, .size = size, .pos = 0 };
+    int count = dat_g2(&c);
+
+    struct VarPType* types = NULL;
+    if( count > 0 )
+    {
+        types = calloc((size_t)count, sizeof(struct VarPType));
+        if( !types )
+            return false;
+
+        for( int i = 0; i < count; i++ )
+            decode_varp_type(&types[i], &c);
+    }
+
+    bool ok = VarPManager_SetVarpTypes(mgr, types, count);
+    free(types);
+    return ok;
+}
+
+bool
+VarPManager_LoadVarbitDat(
+    struct VarPManager* mgr,
+    const uint8_t* data,
+    size_t size)
+{
+    assert(mgr);
+    assert(data);
+
+    struct DatCursor c = { .data = data, .size = size, .pos = 0 };
+    int count = dat_g2(&c);
+
+    struct VarBitType* types = NULL;
+    if( count > 0 )
+    {
+        types = calloc((size_t)count, sizeof(struct VarBitType));
+        if( !types )
+            return false;
+
+        for( int i = 0; i < count; i++ )
+            decode_varbit_type(&types[i], &c);
+    }
+
+    bool ok = VarPManager_SetVarbitTypes(mgr, types, count);
+    free(types);
+    return ok;
+}
+
+int
+VarPManager_GetVarp(
+    const struct VarPManager* mgr,
+    int id)
+{
+    assert(mgr);
+    if( id < 0 || id >= mgr->varp_count )
+        return 0;
+    return mgr->var[id];
+}
+
+int
+VarPManager_GetVarbit(
+    const struct VarPManager* mgr,
+    int id)
+{
+    assert(mgr);
+    if( id < 0 || id >= mgr->varbit_count )
+        return 0;
+
+    const struct VarBitType* vb = &mgr->varbit_types[id];
+    if( vb->basevar < 0 || vb->basevar >= mgr->varp_count )
+        return 0;
+
+    int bit_count = vb->endbit - vb->startbit;
+    if( bit_count <= 0 || bit_count >= VARP_MANAGER_READBIT_MAX )
+        return 0;
+
+    int mask = mgr->readbit[bit_count];
+    return (mgr->var[vb->basevar] >> vb->startbit) & mask;
+}
+
+int
+VarPManager_GetClientcode(
+    const struct VarPManager* mgr,
+    int id)
+{
+    assert(mgr);
+    if( id < 0 || id >= mgr->varp_count )
+        return 0;
+    return mgr->varp_types[id].clientcode;
+}
+
+void
+VarPManager_SetChangeCallback(
+    struct VarPManager* mgr,
+    VarPManager_ChangeFn fn,
+    void* userdata)
+{
+    assert(mgr);
+    mgr->change_fn = fn;
+    mgr->change_userdata = userdata;
+}
+
+void
+VarPManager_ApplySmall(
+    struct VarPManager* mgr,
+    int variable,
+    int value)
+{
+    assert(mgr);
+    apply_varp_value(mgr, variable, value);
+}
+
+void
+VarPManager_ApplyLarge(
+    struct VarPManager* mgr,
+    int variable,
+    int value)
+{
+    assert(mgr);
+    apply_varp_value(mgr, variable, value);
+}
+
+void
+VarPManager_SetVarpOptimistic(
+    struct VarPManager* mgr,
+    int variable,
+    int value)
+{
+    assert(mgr);
+    if( variable < 0 || variable >= mgr->varp_count )
+        return;
+
+    if( mgr->var[variable] != value )
+    {
+        mgr->var[variable] = value;
+        notify_change(mgr, variable);
+    }
+}
+
+void
+VarPManager_SetVarbitOptimistic(
+    struct VarPManager* mgr,
+    int varbit_id,
+    int value)
+{
+    assert(mgr);
+    if( varbit_id < 0 || varbit_id >= mgr->varbit_count )
+        return;
+
+    const struct VarBitType* vb = &mgr->varbit_types[varbit_id];
+    if( vb->basevar < 0 || vb->basevar >= mgr->varp_count )
+        return;
+
+    int bit_count = vb->endbit - vb->startbit;
+    if( bit_count <= 0 || bit_count >= VARP_MANAGER_READBIT_MAX )
+        return;
+
+    int mask = mgr->readbit[bit_count];
+    int base_val = mgr->var[vb->basevar];
+    int cleared = base_val & ~(mask << vb->startbit);
+    int updated = cleared | ((value & mask) << vb->startbit);
+    VarPManager_SetVarpOptimistic(mgr, vb->basevar, updated);
+}
+
+void
+VarPManager_ApplySync(struct VarPManager* mgr)
+{
+    assert(mgr);
+
+    for( int i = 0; i < mgr->varp_count; i++ )
+    {
+        if( mgr->var[i] != mgr->var_serv[i] )
+        {
+            mgr->var[i] = mgr->var_serv[i];
+            notify_change(mgr, i);
+        }
+    }
+}
+
+int
+VarPManager_ResolveTransform(
+    const struct VarPManager* mgr,
+    const int* transforms,
+    int transform_count,
+    int transform_varbit,
+    int transform_varp)
+{
+    assert(mgr);
+
+    if( !transforms || transform_count <= 0 )
+        return -1;
+
+    int transform_index = -1;
+
+    if( transform_varbit != -1 )
+        transform_index = VarPManager_GetVarbit(mgr, transform_varbit);
+    else if( transform_varp != -1 )
+        transform_index = VarPManager_GetVarp(mgr, transform_varp);
+
+    if( transform_index >= 0 && transform_index < transform_count - 1 &&
+        transforms[transform_index] != -1 )
+        return transforms[transform_index];
+
+    return transforms[transform_count - 1];
+}

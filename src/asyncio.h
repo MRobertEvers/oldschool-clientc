@@ -383,6 +383,30 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
     }                                                                                              \
     } while( 0 )
 
+/**
+ * Like TASK_AWAITEX, but skip when child_expr evaluates to NULL
+ * (CreateTask_*Load returns NULL when already cached).
+ */
+#define TASK_AWAITEX_IF(pt, ctx, expr)                                                             \
+    do                                                                                             \
+    {                                                                                              \
+        (pt)->lc = __LINE__;                                                                       \
+        if( !(pt)->user )                                                                          \
+            (pt)->user = (expr);                                                                   \
+    case __LINE__:                                                                                 \
+    {                                                                                              \
+        struct ToriRS_Task* _child = (pt)->user;                                                   \
+        if( _child )                                                                               \
+        {                                                                                          \
+            int _await_res = task_run(_child, ctx);                                                \
+            if( _await_res != PT_ENDED && _await_res != PT_EXITED )                                \
+                return _await_res;                                                                 \
+            task_free(_child);                                                                     \
+        }                                                                                          \
+        (pt)->user = NULL;                                                                         \
+    }                                                                                              \
+    } while( 0 )
+
 #define TASK_REQUEST(pt, ctx, id, expr)                                                            \
     do                                                                                             \
     {                                                                                              \
@@ -392,5 +416,11 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
     } while( 0 )
 
 #define TASK_AWAITSELF(expr) TASK_AWAITEX(&(self->pt), io, expr)
+
+/**
+ * Like TASK_AWAITSELF, but skip when child_expr evaluates to NULL
+ * (CreateTask_*Load returns NULL when already cached).
+ */
+#define TASK_AWAITSELF_IF(expr) TASK_AWAITEX_IF(&(self->pt), io, expr)
 
 #endif // ASYNCIO_H

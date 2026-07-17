@@ -45,6 +45,12 @@ struct RSCache
 #include "datatypes/dat2_config_obj.h"
 #include "datatypes/dat2_config_idk.h"
 #include "datatypes/dat2_config_npc.h"
+#include "datatypes/dat2_config_loc.h"
+#include "datatypes/dat2_config_flo.h"
+#include "datatypes/dat2_texture.h"
+#include "datatypes/dat2_sprites.h"
+#include "datatypes/dat2_config_enum.h"
+#include "datatypes/dat2_config_struct.h"
 // clang-format on
 
 #endif

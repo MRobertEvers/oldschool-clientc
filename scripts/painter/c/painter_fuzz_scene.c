@@ -1,5 +1,9 @@
 #include "painter_fuzz_scene.h"
 
+#include "graphics/projection.h"
+#include "graphics/shared_tables.h"
+#include "painters/painters_cull_project.h"
+
 #include <string.h>
 
 static uint32_t
@@ -101,7 +105,14 @@ painter_fuzz_build_scene(
     struct PaintersCullMap* cm = NULL;
     if( cfg->use_cullmap )
     {
-        cm = painters_cullmap_build(25, 512, 512, 384);
+        struct ToriDrawTrigTables tables = {
+            .sin = ToriDraw_GetSinTable(),
+            .cos = ToriDraw_GetCosTable(),
+            .tan = ToriDraw_GetTanTable(),
+        };
+        struct ToriDrawTrigFns trig;
+        ToriDraw_TrigFnsFromTables(&trig, &tables);
+        cm = painters_cullmap_build_toridraw(25, 512, 512, 384, &trig);
         if( !cm )
         {
             painter_free(painter);

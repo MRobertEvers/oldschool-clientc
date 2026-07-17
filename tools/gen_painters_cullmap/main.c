@@ -11,10 +11,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "painters/painters_cull_project.h"
 #include "graphics/shared_tables.h"
-
-/* Resolves nested includes from src/osrs (projection.u.c, etc.). */
-#include "../../src/osrs/painters_cullmap.u.c"
+#include "graphics/projection.h"
+#include "painters/painters.h"
 
 static void
 usage(const char* argv0)
@@ -22,7 +22,7 @@ usage(const char* argv0)
     fprintf(
         stderr,
         "usage: %s --radius R --near Z --width W --height H [--blob] [-o outpath]\n"
-        "  Builds cullmap with painters_cullmap_build.\n"
+        "  Builds cullmap with painters_cullmap_build_toridraw.\n"
         "  Default: C source (.c). With --blob: raw visibility bytes (.bin).\n"
         "  Default output: painters_cullmap_baked_r{R}_f{Z}_w{W}_h{H}.c or .bin\n",
         argv0);
@@ -115,16 +115,7 @@ emit_c_file(
     fprintf(f, "#include <stdint.h>\n");
     fprintf(f, "#include <stdlib.h>\n");
     fprintf(f, "#include <string.h>\n\n");
-    fprintf(f, "#include \"osrs/painters.h\"\n\n");
-    fprintf(f, "/* Must match struct PaintersCullMap in painters_cullmap.u.c */\n");
-    fprintf(f, "struct PaintersCullMap {\n");
-    fprintf(f, "    uint8_t* visibility;\n");
-    fprintf(f, "    int radius;\n");
-    fprintf(f, "    int pitch_levels;\n");
-    fprintf(f, "    int yaw_levels;\n");
-    fprintf(f, "    int grid_side;\n");
-    fprintf(f, "    int all_visible;\n");
-    fprintf(f, "};\n\n");
+    fprintf(f, "#include \"painters/painters.h\"\n\n");
 
     fprintf(f, "static const uint8_t painters_cullmap_baked_bytes_%s[] = {\n", suffix);
     for( size_t i = 0; i < nbytes; i++ )
@@ -255,10 +246,19 @@ main(int argc, char** argv)
     init_cos_table();
     init_tan_table();
 
-    struct PaintersCullMap* cm = painters_cullmap_build(radius, near_z, width, height);
+    struct ToriDrawTrigTables tables = {
+        .sin = ToriDraw_GetSinTable(),
+        .cos = ToriDraw_GetCosTable(),
+        .tan = ToriDraw_GetTanTable(),
+    };
+    struct ToriDrawTrigFns trig;
+    ToriDraw_TrigFnsFromTables(&trig, &tables);
+
+    struct PaintersCullMap* cm =
+        painters_cullmap_build_toridraw(radius, near_z, width, height, &trig);
     if( !cm )
     {
-        fprintf(stderr, "gen_painters_cullmap: painters_cullmap_build failed\n");
+        fprintf(stderr, "gen_painters_cullmap: painters_cullmap_build_toridraw failed\n");
         return 1;
     }
 

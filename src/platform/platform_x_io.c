@@ -155,7 +155,11 @@ dat2_cache_table_supported(int table_id)
     return table_id == RSCACHE_DAT2_DISK_TABLE_MODELS ||
            table_id == RSCACHE_DAT2_DISK_TABLE_INTERFACES ||
            table_id == RSCACHE_DAT2_DISK_TABLE_CLIENTSCRIPT ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_CONFIGS;
+           table_id == RSCACHE_DAT2_DISK_TABLE_CONFIGS ||
+           table_id == RSCACHE_DAT2_DISK_TABLE_MAPS ||
+           table_id == RSCACHE_DAT2_DISK_TABLE_TEXTURES ||
+           table_id == RSCACHE_DAT2_DISK_TABLE_SPRITES ||
+           table_id == RSCACHE_DAT2_DISK_TABLE_FONTS;
 }
 
 static int
@@ -231,6 +235,38 @@ load_cache_item(
     return load_cache_item_dat2(px, item);
 }
 
+static int
+load_reference_table_item(
+    struct PlatformX_IO* px,
+    struct ToriRS_IOItem* item)
+{
+    int table_id = item->u.reference_table.table_id;
+    struct RSCache_Dat2DiskArchive* archive = NULL;
+    struct RSCache_ReferenceTable* table = NULL;
+
+    assert(px->dat2_disk);
+
+    archive = RSCache_Dat2DiskArchiveNewReferenceTableLoad(px->dat2_disk, table_id);
+    if( !archive )
+    {
+        item->error_code = -1;
+        return -1;
+    }
+
+    table = RSCache_ReferenceTableNewDecode(archive->data, archive->data_size);
+    RSCache_Dat2DiskArchiveFree(archive);
+    if( !table )
+    {
+        item->error_code = -1;
+        return -1;
+    }
+
+    item->data = table;
+    item->data_size = sizeof(struct RSCache_ReferenceTable);
+    item->error_code = 0;
+    return 0;
+}
+
 int
 PlatformX_IO_LoadItem(
     struct PlatformX_IO* px,
@@ -251,6 +287,8 @@ PlatformX_IO_LoadItem(
         return load_file_item(item, px->config_dir, item->u.config_file.path);
     case TORIRS_IOK_SCRIPT:
         return load_file_item(item, px->script_dir, item->u.script.path);
+    case TORIRS_IOK_REFERENCE_TABLE:
+        return load_reference_table_item(px, item);
     default:
         item->error_code = -1;
         return -1;

@@ -8,6 +8,10 @@
 
 struct CS2VM2_Script;
 struct CacheProviderVTable;
+struct ToriRS_Sprite;
+struct ToriRS_Font;
+struct ToriRS_Enum;
+struct ToriRS_Struct;
 
 struct CacheProvider
 {
@@ -16,12 +20,30 @@ struct CacheProvider
 
     struct HMap* model_cache;
     struct HMap* sprite_cache;
+    struct HMap* font_cache;
+    struct HMap* enum_cache;
+    struct HMap* struct_cache;
     struct HMap* componentpack_cache;
     struct HMap* clientscript_cache;
     struct HMap* objtype_cache;
     struct HMap* npctype_cache;
     struct HMap* idk_cache;
+    struct HMap* map_terrain_cache;
+    struct HMap* map_scenery_cache;
+    struct HMap* location_cache;
+    struct HMap* flotype_cache;
+    struct HMap* underlay_cache;
+    struct HMap* texture_cache;
 };
+
+/** World-builder map key: encodes a map square (map_x, map_z) into a single int. */
+static inline int
+CacheProvider_MapId(
+    int map_x,
+    int map_z)
+{
+    return (map_x << 16) | (map_z & 0xFFFF);
+}
 
 struct CacheProviderVTable
 {
@@ -43,6 +65,41 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_IdkLoad)(
         struct CacheProvider* provider,
         int idk_id);
+    struct ToriRS_Task* (*Task_MapTerrainLoad)(
+        struct CacheProvider* provider,
+        int map_x,
+        int map_z);
+    struct ToriRS_Task* (*Task_MapSceneryLoad)(
+        struct CacheProvider* provider,
+        int map_x,
+        int map_z);
+    struct ToriRS_Task* (*Task_LocLoad)(
+        struct CacheProvider* provider,
+        int loc_id);
+    struct ToriRS_Task* (*Task_FlotypeLoad)(
+        struct CacheProvider* provider,
+        int flo_id);
+    struct ToriRS_Task* (*Task_UnderlayLoad)(
+        struct CacheProvider* provider,
+        int underlay_id);
+    struct ToriRS_Task* (*Task_TextureLoad)(
+        struct CacheProvider* provider,
+        int texture_id);
+    struct ToriRS_Task* (*Task_SpriteLoad)(
+        struct CacheProvider* provider,
+        int sprite_id);
+    struct ToriRS_Task* (*Task_FontLoad)(
+        struct CacheProvider* provider,
+        int font_id);
+    struct ToriRS_Task* (*Task_EnumLoad)(
+        struct CacheProvider* provider,
+        int enum_id);
+    struct ToriRS_Task* (*Task_StructLoad)(
+        struct CacheProvider* provider,
+        int struct_id);
+    struct ToriRS_Task* (*Task_ComponentLoad)(
+        struct CacheProvider* provider,
+        int packed_component_id);
 };
 
 void
@@ -71,6 +128,82 @@ void
 CacheProvider_ModelsCleanup(struct CacheProvider* provider);
 
 void
+CacheProvider_SpriteAdd(
+    struct CacheProvider* provider,
+    int sprite_id,
+    struct ToriRS_Sprite* sprite);
+
+struct ToriRS_Sprite*
+CacheProvider_SpriteGet(
+    struct CacheProvider* provider,
+    int sprite_id);
+
+bool
+CacheProvider_SpriteHas(
+    struct CacheProvider* provider,
+    int sprite_id);
+
+void
+CacheProvider_SpritesCleanup(struct CacheProvider* provider);
+
+void
+CacheProvider_FontAdd(
+    struct CacheProvider* provider,
+    int font_id,
+    struct ToriRS_Font* font);
+
+struct ToriRS_Font*
+CacheProvider_FontGet(
+    struct CacheProvider* provider,
+    int font_id);
+
+bool
+CacheProvider_FontHas(
+    struct CacheProvider* provider,
+    int font_id);
+
+void
+CacheProvider_FontsCleanup(struct CacheProvider* provider);
+
+void
+CacheProvider_EnumAdd(
+    struct CacheProvider* provider,
+    int enum_id,
+    struct ToriRS_Enum* e);
+
+struct ToriRS_Enum*
+CacheProvider_EnumGet(
+    struct CacheProvider* provider,
+    int enum_id);
+
+bool
+CacheProvider_EnumHas(
+    struct CacheProvider* provider,
+    int enum_id);
+
+void
+CacheProvider_EnumsCleanup(struct CacheProvider* provider);
+
+void
+CacheProvider_StructAdd(
+    struct CacheProvider* provider,
+    int struct_id,
+    struct ToriRS_Struct* s);
+
+struct ToriRS_Struct*
+CacheProvider_StructGet(
+    struct CacheProvider* provider,
+    int struct_id);
+
+bool
+CacheProvider_StructHas(
+    struct CacheProvider* provider,
+    int struct_id);
+
+void
+CacheProvider_StructsCleanup(struct CacheProvider* provider);
+
+void
 CacheProvider_ComponentPackAdd(
     struct CacheProvider* provider,
     int iface_id,
@@ -88,6 +221,23 @@ CacheProvider_ComponentPackHas(
 
 void
 CacheProvider_ComponentPacksCleanup(struct CacheProvider* provider);
+
+/** packed_id = (iface_id << 16) | (child & 0xFFFF). Resolves into pack cache. */
+struct ToriRS_Component*
+CacheProvider_ComponentGet(
+    struct CacheProvider* provider,
+    int packed_id);
+
+bool
+CacheProvider_ComponentHas(
+    struct CacheProvider* provider,
+    int packed_id);
+
+/** True if the iface pack containing packed_id is loaded. */
+bool
+CacheProvider_ComponentPackHasForComponent(
+    struct CacheProvider* provider,
+    int packed_id);
 
 void
 CacheProvider_ClientScriptAdd(
@@ -165,6 +315,120 @@ CacheProvider_IdkHas(
 void
 CacheProvider_IdksCleanup(struct CacheProvider* provider);
 
+void
+CacheProvider_MapTerrainAdd(
+    struct CacheProvider* provider,
+    int map_id,
+    struct ToriRS_MapTerrain* terrain);
+
+struct ToriRS_MapTerrain*
+CacheProvider_MapTerrainGet(
+    struct CacheProvider* provider,
+    int map_id);
+
+bool
+CacheProvider_MapTerrainHas(
+    struct CacheProvider* provider,
+    int map_id);
+
+void
+CacheProvider_MapTerrainsCleanup(struct CacheProvider* provider);
+
+void
+CacheProvider_MapSceneryAdd(
+    struct CacheProvider* provider,
+    int map_id,
+    struct ToriRS_MapLocs* locs);
+
+struct ToriRS_MapLocs*
+CacheProvider_MapSceneryGet(
+    struct CacheProvider* provider,
+    int map_id);
+
+bool
+CacheProvider_MapSceneryHas(
+    struct CacheProvider* provider,
+    int map_id);
+
+void
+CacheProvider_MapSceneryCleanup(struct CacheProvider* provider);
+
+void
+CacheProvider_LocationAdd(
+    struct CacheProvider* provider,
+    int loc_id,
+    struct ToriRS_Location* location);
+
+struct ToriRS_Location*
+CacheProvider_LocationGet(
+    struct CacheProvider* provider,
+    int loc_id);
+
+bool
+CacheProvider_LocationHas(
+    struct CacheProvider* provider,
+    int loc_id);
+
+void
+CacheProvider_LocationsCleanup(struct CacheProvider* provider);
+
+void
+CacheProvider_FlotypeAdd(
+    struct CacheProvider* provider,
+    int flo_id,
+    struct ToriRS_Flotype* flotype);
+
+struct ToriRS_Flotype*
+CacheProvider_FlotypeGet(
+    struct CacheProvider* provider,
+    int flo_id);
+
+bool
+CacheProvider_FlotypeHas(
+    struct CacheProvider* provider,
+    int flo_id);
+
+void
+CacheProvider_FlotypesCleanup(struct CacheProvider* provider);
+
+void
+CacheProvider_UnderlayAdd(
+    struct CacheProvider* provider,
+    int underlay_id,
+    struct ToriRS_Flotype* underlay);
+
+struct ToriRS_Flotype*
+CacheProvider_UnderlayGet(
+    struct CacheProvider* provider,
+    int underlay_id);
+
+bool
+CacheProvider_UnderlayHas(
+    struct CacheProvider* provider,
+    int underlay_id);
+
+void
+CacheProvider_UnderlaysCleanup(struct CacheProvider* provider);
+
+void
+CacheProvider_TextureAdd(
+    struct CacheProvider* provider,
+    int texture_id,
+    struct ToriRS_Texture* texture);
+
+struct ToriRS_Texture*
+CacheProvider_TextureGet(
+    struct CacheProvider* provider,
+    int texture_id);
+
+bool
+CacheProvider_TextureHas(
+    struct CacheProvider* provider,
+    int texture_id);
+
+void
+CacheProvider_TexturesCleanup(struct CacheProvider* provider);
+
 static inline struct ToriRS_Task*
 CreateTask_ModelLoad(
     struct CacheProvider* provider,
@@ -211,6 +475,96 @@ CreateTask_IdkLoad(
     int idk_id)
 {
     return provider->vtable->Task_IdkLoad(provider, idk_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_MapTerrainLoad(
+    struct CacheProvider* provider,
+    int map_x,
+    int map_z)
+{
+    return provider->vtable->Task_MapTerrainLoad(provider, map_x, map_z);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_MapSceneryLoad(
+    struct CacheProvider* provider,
+    int map_x,
+    int map_z)
+{
+    return provider->vtable->Task_MapSceneryLoad(provider, map_x, map_z);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_LocLoad(
+    struct CacheProvider* provider,
+    int loc_id)
+{
+    return provider->vtable->Task_LocLoad(provider, loc_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_FlotypeLoad(
+    struct CacheProvider* provider,
+    int flo_id)
+{
+    return provider->vtable->Task_FlotypeLoad(provider, flo_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_UnderlayLoad(
+    struct CacheProvider* provider,
+    int underlay_id)
+{
+    return provider->vtable->Task_UnderlayLoad(provider, underlay_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_TextureLoad(
+    struct CacheProvider* provider,
+    int texture_id)
+{
+    return provider->vtable->Task_TextureLoad(provider, texture_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_SpriteLoad(
+    struct CacheProvider* provider,
+    int sprite_id)
+{
+    return provider->vtable->Task_SpriteLoad(provider, sprite_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_FontLoad(
+    struct CacheProvider* provider,
+    int font_id)
+{
+    return provider->vtable->Task_FontLoad(provider, font_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_EnumLoad(
+    struct CacheProvider* provider,
+    int enum_id)
+{
+    return provider->vtable->Task_EnumLoad(provider, enum_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_StructLoad(
+    struct CacheProvider* provider,
+    int struct_id)
+{
+    return provider->vtable->Task_StructLoad(provider, struct_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_ComponentLoad(
+    struct CacheProvider* provider,
+    int packed_component_id)
+{
+    return provider->vtable->Task_ComponentLoad(provider, packed_component_id);
 }
 
 #endif

@@ -350,6 +350,32 @@ struct ToriRS_Font
     char charcodeset[256];
 };
 
+struct ToriRS_Enum
+{
+    int id;
+    bool output_is_string;
+    int default_int;
+    char* default_string;
+    int* keys;
+    int* int_values;
+    char** string_values;
+    int count;
+};
+
+struct ToriRS_Param
+{
+    int key;
+    int int_value;
+    char* string_value; /* NULL if int */
+};
+
+struct ToriRS_Struct
+{
+    int id;
+    struct ToriRS_Param* params;
+    int param_count;
+};
+
 enum ToriRS_ComponentType
 {
     TORIRS_COMPONENT_LAYER = 0,
@@ -587,6 +613,12 @@ ToriRS_SpriteFree(struct ToriRS_Sprite* sprite);
 
 void
 ToriRS_FontFree(struct ToriRS_Font* font);
+
+void
+ToriRS_EnumFree(struct ToriRS_Enum* e);
+
+void
+ToriRS_StructFree(struct ToriRS_Struct* s);
 
 void
 ToriRS_ComponentFree(struct ToriRS_Component* component);

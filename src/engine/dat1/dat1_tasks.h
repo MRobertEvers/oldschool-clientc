@@ -33,4 +33,19 @@ CreateTask_Dat1IdkLoad(
     struct CacheProvider* provider,
     int idk_id);
 
+struct ToriRS_Task*
+CreateTask_Dat1SpriteLoad(
+    struct CacheProvider* provider,
+    int sprite_id);
+
+struct ToriRS_Task*
+CreateTask_Dat1FontLoad(
+    struct CacheProvider* provider,
+    int font_id);
+
+struct ToriRS_Task*
+CreateTask_Dat1ComponentLoad(
+    struct CacheProvider* provider,
+    int packed_component_id);
+
 #endif

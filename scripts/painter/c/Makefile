@@ -23,7 +23,7 @@ CFLAGS ?= -O3 -Wall -Wextra -Wno-unused-parameter
 LDFLAGS ?= -lm
 BENCH_ITERS ?= 100
 
-CPPFLAGS += -I$(SRC_DIR) -I$(SRC_DIR)/osrs -I$(SRC_DIR)/graphics
+CPPFLAGS += -I$(SRC_DIR) -I$(SRC_DIR)/painters -I$(REPO_ROOT)/3rd/toridraw
 
 SOURCES = bench.c painter_common.c painter_bucket.c painter_world3d.c
 
@@ -31,8 +31,9 @@ REAL_COMMON = \
 	painter_fuzz_scene.c \
 	painter_fuzz_diff.c \
 	painter_bench_real.c \
-	$(SRC_DIR)/osrs/painters.c \
-	$(SRC_DIR)/graphics/shared_tables.c
+	$(SRC_DIR)/painters/painters.c \
+	$(SRC_DIR)/painters/painters_cull_project.c \
+	$(REPO_ROOT)/3rd/toridraw/graphics/shared_tables.c
 
 FUZZ_SOURCES = fuzz_real.c $(REAL_COMMON)
 REAL_BENCH_SOURCES = bench_real.c $(REAL_COMMON)
@@ -159,7 +160,8 @@ CACHE_SRCS := \
 	$(SRC2)/revconfig/revconfig.c \
 	$(SRC2)/revconfig/revconfig_load.c \
 	$(SRC2)/3rd/ini/ini.c \
-	$(SRC_DIR)/osrs/painters.c \
+	$(SRC_DIR)/painters/painters.c \
+	$(SRC_DIR)/painters/painters_cull_project.c \
 	$(SRC_DIR)/osrs/palette.c \
 	$(SRC_DIR)/osrs/texture.c \
 	$(SRC_DIR)/osrs/varp_varbit_manager.c \
@@ -171,7 +173,7 @@ CACHE_SRCS := \
 	$(LUA_SRC)
 
 CACHE_CPPFLAGS := \
-	-I$(SRC2)/toridraw -I$(SRC_DIR) -I$(SRC_DIR)/osrs -I$(SRC_DIR)/graphics \
+	-I$(SRC2)/toridraw -I$(SRC_DIR) -I$(SRC_DIR)/painters -I$(REPO_ROOT)/3rd/toridraw \
 	-I$(SRC2) -I$(SCRIPT_DIR) -I$(REPO_ROOT)
 
 CACHE_CFLAGS := -O2 -Wall -Wextra -Wno-unused-parameter \
@@ -184,10 +186,10 @@ endif
 
 THIRD_PARTY_OBJS_WARN := -w
 
-CACHE_SRCS_NPAINTERS := $(filter-out $(SRC_DIR)/osrs/painters.c,$(CACHE_SRCS))
+CACHE_SRCS_NPAINTERS := $(filter-out $(SRC_DIR)/painters/painters.c $(SRC_DIR)/painters/painters_cull_project.c,$(CACHE_SRCS))
 
-# Cache builds use toridraw shared_tables (via CACHE_CPPFLAGS -I order), not src/graphics.
-REAL_COMMON_NSHARED := $(filter-out $(SRC_DIR)/graphics/shared_tables.c,$(REAL_COMMON))
+# Cache builds use toridraw shared_tables (via CACHE_CPPFLAGS -I order), not duplicated here.
+REAL_COMMON_NSHARED := $(filter-out $(REPO_ROOT)/3rd/toridraw/graphics/shared_tables.c,$(REAL_COMMON))
 
 bench_real_cache: bench_real.c $(REAL_COMMON_NSHARED) $(CACHE_SRCS_NPAINTERS) Makefile
 	$(CC) $(CACHE_CFLAGS) $(CACHE_CPPFLAGS) -DFUZZ_WITH_CACHE \
@@ -212,7 +214,7 @@ fuzz_cache_run: fuzz_cache
 # Windows cross-compile: shared base flags
 # ---------------------------------------------------------------------------
 BASE_CFLAGS   := -O3 -Wall -Wextra -Wno-unused-parameter
-BASE_CPPFLAGS := -I$(SRC_DIR) -I$(SRC_DIR)/osrs -I$(SRC_DIR)/graphics
+BASE_CPPFLAGS := -I$(SRC_DIR) -I$(SRC_DIR)/painters -I$(REPO_ROOT)/3rd/toridraw
 
 # 32-bit cross toolchain — defaults to the system MinGW-w64 i686 wrapper.
 # Override with WINXP_CC=/path/to/mingw32/bin/gcc.exe for a vendored winlibs build.
