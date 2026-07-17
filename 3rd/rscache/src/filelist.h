@@ -16,7 +16,7 @@ RSCache_FileListNewFromDecode(
 
 void
 RSCache_FileListFree(struct RSCache_FileList* filelist);
-
+// Refered to as "JagFile" in many rsps codebases.
 struct RSCache_FileListDat
 {
     char** files;
@@ -37,5 +37,25 @@ int
 RSCache_FileListDatFindFileByName(
     struct RSCache_FileListDat* filelist,
     const char* name);
+
+/** ".dat" + ".idx" files inside the config table config archive. */
+struct RSCache_FileListDatIndexed
+{
+    char* data;
+    int data_size;
+
+    int* offsets;
+    int offset_count;
+};
+
+struct RSCache_FileListDatIndexed*
+RSCache_FileListDatIndexedNewFromDecode(
+    char* index_data,
+    int index_data_size,
+    char* data,
+    int data_size);
+
+void
+RSCache_FileListDatIndexedFree(struct RSCache_FileListDatIndexed* filelist);
 
 #endif

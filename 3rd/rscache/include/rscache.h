@@ -38,6 +38,13 @@ struct RSCache
 #include "datatypes/cs2_script.h"
 #include "datatypes/cs2_opcode_decode.h"
 #include "datatypes/clientscript.h"
+#include "datatypes/dat2_configs.h"
+#include "datatypes/dat1_config_obj.h"
+#include "datatypes/dat1_config_idk.h"
+#include "datatypes/dat1_config_npc.h"
+#include "datatypes/dat2_config_obj.h"
+#include "datatypes/dat2_config_idk.h"
+#include "datatypes/dat2_config_npc.h"
 // clang-format on
 
 #endif

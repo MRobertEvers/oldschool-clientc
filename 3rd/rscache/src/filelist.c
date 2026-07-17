@@ -324,3 +324,58 @@ RSCache_FileListDatFindFileByName(
     }
     return -1;
 }
+
+struct RSCache_FileListDatIndexed*
+RSCache_FileListDatIndexedNewFromDecode(
+    char* index_data,
+    int index_data_size,
+    char* data,
+    int data_size)
+{
+    struct RSCache_FileListDatIndexed* filelist = malloc(sizeof(struct RSCache_FileListDatIndexed));
+    if( !filelist )
+        return NULL;
+
+    struct RSCache_Buffer index_buffer;
+    RSCache_BufferInit(&index_buffer, (uint8_t*)index_data, (uint32_t)index_data_size);
+    int index_count = g2(&index_buffer);
+
+    filelist->offsets = malloc(index_count * sizeof(int));
+    filelist->offset_count = index_count;
+    if( !filelist->offsets )
+    {
+        free(filelist);
+        return NULL;
+    }
+
+    int offset = 2;
+    for( int i = 0; i < index_count; i++ )
+    {
+        filelist->offsets[i] = offset;
+
+        int delta = g2(&index_buffer);
+        offset += delta;
+    }
+
+    filelist->data = malloc(data_size);
+    if( !filelist->data )
+    {
+        free(filelist->offsets);
+        free(filelist);
+        return NULL;
+    }
+    memcpy(filelist->data, data, (size_t)data_size);
+    filelist->data_size = data_size;
+
+    return filelist;
+}
+
+void
+RSCache_FileListDatIndexedFree(struct RSCache_FileListDatIndexed* filelist)
+{
+    if( !filelist )
+        return;
+    free(filelist->offsets);
+    free(filelist->data);
+    free(filelist);
+}

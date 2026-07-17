@@ -23,4 +23,10 @@
 #include "src/datatypes/cs2_opcode_decode.c"
 #include "src/datatypes/cs2_script.c"
 #include "src/datatypes/clientscript.c"
+#include "src/datatypes/dat1_config_obj.c"
+#include "src/datatypes/dat1_config_idk.c"
+#include "src/datatypes/dat1_config_npc.c"
+#include "src/datatypes/dat2_config_obj.c"
+#include "src/datatypes/dat2_config_idk.c"
+#include "src/datatypes/dat2_config_npc.c"
 // clang-format on
