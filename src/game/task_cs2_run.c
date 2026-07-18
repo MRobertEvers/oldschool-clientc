@@ -5,6 +5,7 @@
 #include "cs2vm2/cs2vm2_script.h"
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
+#include "engine/uitree_builder/task_pack_assets_load.h"
 #include "engine/uitree_from_component.h"
 #include "game/rs_cs2_host.h"
 
@@ -267,6 +268,7 @@ Task_CS2Run_Run(
             if( self->await_id > 0 )
             {
                 TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->await_id));
+                TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->await_id));
                 /* Bake loaded pack into the tree so the host retry can find nodes.
                  * Identity resolvers: cache sprite/font ids stored as scene_id until a
                  * scene layer exists. */
@@ -550,6 +552,105 @@ CreateTask_CS2InvTransmitDispatch(
     strcpy(self->task.name, "CS2InvTransmitDispatch");
     self->host = host;
     self->container_id = container_id;
+    PT_INIT(&self->pt);
+    return &self->task;
+}
+
+/* =========================================================================
+ * Var-transmit dispatch
+ * ========================================================================= */
+
+struct Task_CS2VarTransmitDispatch
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+
+    struct RS_CS2Host* host;
+    int var_id;
+    int hook_index;
+};
+
+static int
+hook_matches_var(
+    struct RS_CS2VarTransmitHook const* hook,
+    int var_id)
+{
+    int i;
+    assert(hook);
+    if( var_id < 0 )
+        return 1;
+    if( hook->trigger_count <= 0 )
+        return 1;
+    for( i = 0; i < hook->trigger_count; i++ )
+    {
+        if( hook->trigger_ids[i] == var_id )
+            return 1;
+    }
+    return 0;
+}
+
+static int
+Task_CS2VarTransmitDispatch_Run(
+    struct ToriRS_Task* task,
+    struct ToriRS_IO* io)
+{
+    struct Task_CS2VarTransmitDispatch* self = (struct Task_CS2VarTransmitDispatch*)task;
+    struct RS_CS2VarTransmitHook const* hook;
+
+    PT_BEGIN(&self->pt);
+
+    assert(self->host);
+
+    for( self->hook_index = 0; self->hook_index < self->host->var_transmit_hook_count;
+         self->hook_index++ )
+    {
+        hook = &self->host->var_transmit_hooks[self->hook_index];
+        if( !hook_matches_var(hook, self->var_id) )
+            continue;
+        if( hook->script_id <= 0 )
+            continue;
+
+        TASK_AWAITSELF(CreateTask_CS2Run(
+            self->host,
+            hook->script_id,
+            hook->component_id,
+            hook->component_id,
+            hook->int_args,
+            hook->int_arg_count));
+    }
+
+    PT_END(&self->pt);
+    return 0;
+}
+
+static void
+Task_CS2VarTransmitDispatch_Free(struct ToriRS_Task* task)
+{
+    struct Task_CS2VarTransmitDispatch* self = (struct Task_CS2VarTransmitDispatch*)task;
+    assert(self);
+    free(self);
+}
+
+static struct ToriRS_TaskVTable Task_CS2VarTransmitDispatch_VTable = {
+    .run = Task_CS2VarTransmitDispatch_Run,
+    .free = Task_CS2VarTransmitDispatch_Free,
+};
+
+struct ToriRS_Task*
+CreateTask_CS2VarTransmitDispatch(
+    struct RS_CS2Host* host,
+    int var_id)
+{
+    struct Task_CS2VarTransmitDispatch* self;
+
+    assert(host);
+
+    self = calloc(1, sizeof(*self));
+    assert(self);
+    self->task.vtable = &Task_CS2VarTransmitDispatch_VTable;
+    strcpy(self->task.name, "CS2VarTransmitDispatch");
+    self->host = host;
+    self->var_id = var_id;
     PT_INIT(&self->pt);
     return &self->task;
 }

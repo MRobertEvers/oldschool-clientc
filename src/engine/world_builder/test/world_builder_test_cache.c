@@ -116,6 +116,28 @@ count_nonzero(
     return nonzero;
 }
 
+/* CacheProvider textures now include texels, but this test does not upload them
+ * into ToriDraw_TextureMap. Strip face texture ids so soft-raster uses
+ * flat/gouraud paths instead of asserting on a missing scene texture. */
+static void
+strip_scene_face_textures(struct ToriDraw_Scene* scene)
+{
+    int slot_count = ToriDraw_SceneElementSlotCount(scene);
+    for( int element_id = 0; element_id < slot_count; element_id++ )
+    {
+        if( !ToriDraw_SceneElementIsLive(scene, element_id) )
+            continue;
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(scene, element_id);
+        if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
+            continue;
+        struct ToriDraw_Model* model = el->model.u.model.model;
+        if( !model->face_textures )
+            continue;
+        for( int f = 0; f < model->face_count; f++ )
+            model->face_textures[f] = (faceint_t)-1;
+    }
+}
+
 static int
 render_scene(
     struct World* world,
@@ -377,6 +399,8 @@ test_world_builder_cache_render(void)
     TEST_ASSERT(
         world->entities.terrain.active_count > 0 || world->entities.scenery.active_count > 0,
         "rebuild produced terrain or scenery elements");
+
+    strip_scene_face_textures(scene);
 
     /* --- paint --- */
     struct PaintersBuffer* pbuf = painter_buffer_new();

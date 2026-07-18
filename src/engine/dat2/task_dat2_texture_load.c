@@ -1,12 +1,13 @@
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
-#include "engine/torirs_texture_from_rscache.h"
+#include "engine/torirs_texture_bake.h"
 
 #include "asyncio.h"
 #include "cache/rscache_io.h"
 
 #include <assert.h>
+#include <rscache.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,7 +18,31 @@ struct Task_Dat2TextureLoad
     struct pt pt;
     struct Dat2BuildCache* bc;
     int texture_id;
+    struct RSCache_Dat2Texture* def;
+    struct RSCache_Dat2SpritePack** packs;
+    int sprite_index;
 };
+
+static void
+task_dat2_texture_load_clear_packs(struct Task_Dat2TextureLoad* task)
+{
+    int i;
+
+    assert(task);
+
+    if( task->packs && task->def )
+    {
+        for( i = 0; i < task->def->sprite_ids_count; i++ )
+        {
+            if( task->packs[i] )
+                RSCache_Dat2SpritePackFree(task->packs[i]);
+        }
+    }
+    free(task->packs);
+    task->packs = NULL;
+    task->def = NULL;
+    task->sprite_index = 0;
+}
 
 static int
 Task_Dat2TextureLoad_Run(
@@ -26,9 +51,9 @@ Task_Dat2TextureLoad_Run(
 {
     struct Task_Dat2TextureLoad* task = (struct Task_Dat2TextureLoad*)task_base;
     struct RSCache_Dat2DiskArchive* archive = NULL;
-    struct RSCache_Dat2Texture* rscache_texture = NULL;
     struct ToriRS_Texture* torirs_texture = NULL;
-    int wanted_id = task->texture_id;
+    struct ToriRS_TextureLayer* layers = NULL;
+    int i;
 
     PT_BEGIN(&task->pt);
 
@@ -42,20 +67,100 @@ Task_Dat2TextureLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    dat2_buildcache_textures_init_from_archive(task->bc, archive, &wanted_id, 1);
+    dat2_buildcache_textures_init_from_archive(task->bc, archive, &task->texture_id, 1);
     RSCache_Dat2DiskArchiveFree(archive);
 
-    rscache_texture = dat2_buildcache_texture_get(task->bc, task->texture_id);
-    if( !rscache_texture )
+    task->def = dat2_buildcache_texture_get(task->bc, task->texture_id);
+    if( !task->def )
     {
         fprintf(stderr, "Failed to load dat2 texture %d\n", task->texture_id);
         PT_EXIT(&task->pt);
     }
 
-    torirs_texture = ToriRS_TextureFromRSCache(task->texture_id, rscache_texture);
+    if( task->def->sprite_ids_count <= 0 )
+    {
+        fprintf(stderr, "Dat2 texture %d has no sprite layers\n", task->texture_id);
+        PT_EXIT(&task->pt);
+    }
+
+    task->packs = calloc((size_t)task->def->sprite_ids_count, sizeof(*task->packs));
+    if( !task->packs )
+    {
+        fprintf(stderr, "Failed to allocate sprite packs for texture %d\n", task->texture_id);
+        PT_EXIT(&task->pt);
+    }
+    task->sprite_index = 0;
+
+    for( ; task->sprite_index < task->def->sprite_ids_count; task->sprite_index++ )
+    {
+        RSCache_IO_Dat2SpriteLoad(io, 0, task->def->sprite_ids[task->sprite_index]);
+        PT_YIELD(&task->pt);
+
+        archive = RSCache_IO_Dat2SpriteDecode(io, 0);
+        if( !archive )
+        {
+            fprintf(
+                stderr,
+                "Failed to decode sprite %d for texture %d\n",
+                task->def->sprite_ids[task->sprite_index],
+                task->texture_id);
+            task_dat2_texture_load_clear_packs(task);
+            PT_EXIT(&task->pt);
+        }
+
+        task->packs[task->sprite_index] = RSCache_Dat2SpritePackNewDecode(
+            (const unsigned char*)archive->data,
+            archive->data_size,
+            RSCACHE_SPRITELOAD_FLAG_NORMALIZE);
+        RSCache_Dat2DiskArchiveFree(archive);
+        if( !task->packs[task->sprite_index] || task->packs[task->sprite_index]->count <= 0 )
+        {
+            fprintf(
+                stderr,
+                "Failed to decode sprite pack %d for texture %d\n",
+                task->def->sprite_ids[task->sprite_index],
+                task->texture_id);
+            task_dat2_texture_load_clear_packs(task);
+            PT_EXIT(&task->pt);
+        }
+    }
+
+    layers = calloc((size_t)task->def->sprite_ids_count, sizeof(*layers));
+    if( !layers )
+    {
+        fprintf(stderr, "Failed to allocate bake layers for texture %d\n", task->texture_id);
+        task_dat2_texture_load_clear_packs(task);
+        PT_EXIT(&task->pt);
+    }
+
+    for( i = 0; i < task->def->sprite_ids_count; i++ )
+    {
+        struct RSCache_Dat2SpritePack* pack = task->packs[i];
+        struct RSCache_Dat2Sprite* sprite = &pack->sprites[0];
+
+        layers[i].palette_pixels = sprite->palette_pixels;
+        layers[i].width = sprite->width;
+        layers[i].height = sprite->height;
+        layers[i].palette = pack->palette;
+        layers[i].palette_length = pack->palette_length;
+        layers[i].blend_type = 0;
+        if( i > 0 && task->def->sprite_types )
+            layers[i].blend_type = task->def->sprite_types[i - 1];
+    }
+
+    torirs_texture = ToriRS_TextureBake(
+        layers,
+        task->def->sprite_ids_count,
+        128,
+        task->def->animation_direction,
+        task->def->animation_speed,
+        task->def->average_hsl);
+    free(layers);
+    task_dat2_texture_load_clear_packs(task);
+
     if( !torirs_texture )
     {
-        fprintf(stderr, "Failed to convert dat2 texture %d\n", task->texture_id);
+        fprintf(stderr, "Failed to bake dat2 texture %d\n", task->texture_id);
         PT_EXIT(&task->pt);
     }
 
@@ -67,7 +172,9 @@ Task_Dat2TextureLoad_Run(
 static void
 Task_Dat2TextureLoad_Free(struct ToriRS_Task* task_base)
 {
-    free(task_base);
+    struct Task_Dat2TextureLoad* task = (struct Task_Dat2TextureLoad*)task_base;
+    task_dat2_texture_load_clear_packs(task);
+    free(task);
 }
 
 static struct ToriRS_TaskVTable Task_Dat2TextureLoad_VTable = {

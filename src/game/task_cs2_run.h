@@ -39,4 +39,13 @@ CreateTask_CS2InvTransmitDispatch(
     struct RS_CS2Host* host,
     int container_id);
 
+/**
+ * Run registered var-transmit hooks whose triggers match var_id
+ * (or all hooks when var_id < 0).
+ */
+struct ToriRS_Task*
+CreateTask_CS2VarTransmitDispatch(
+    struct RS_CS2Host* host,
+    int var_id);
+
 #endif /* TASK_CS2_RUN_H */

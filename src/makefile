@@ -42,7 +42,7 @@ SRCS = main.c platform/platform_x_io.c game/task_cs2_script_exec.c $(BMP_DIR)/bm
 	engine/torirs_objtype_from_rscache.c engine/torirs_npctype_from_rscache.c \
 	engine/torirs_idk_from_rscache.c \
 	engine/torirs_map_from_rscache.c engine/torirs_location_from_rscache.c \
-	engine/torirs_flotype_from_rscache.c engine/torirs_texture_from_rscache.c \
+	engine/torirs_flotype_from_rscache.c engine/torirs_texture_bake.c \
 	engine/torirs_sprite_from_rscache.c engine/torirs_font_from_rscache.c \
 	engine/torirs_enum_from_rscache.c engine/torirs_struct_from_rscache.c \
 	engine/uitree_from_component.c \
@@ -67,6 +67,8 @@ SRCS = main.c platform/platform_x_io.c game/task_cs2_script_exec.c $(BMP_DIR)/bm
 	engine/uitree_builder/uitree_builder_inv.c \
 	engine/uitree_builder/task_uibuilder_assets_load.c \
 	engine/uitree_builder/task_uitree_build.c \
+	engine/uitree_builder/task_pack_assets_load.c \
+	engine/uitree_builder/task_interface_open.c \
 	game/rs_cs2_host.c game/task_cs2_run.c \
 	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
@@ -88,7 +90,7 @@ OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/task_cs2_script_e
 	$(OBJ_DIR)/torirs_objtype_from_rscache.o $(OBJ_DIR)/torirs_npctype_from_rscache.o \
 	$(OBJ_DIR)/torirs_idk_from_rscache.o \
 	$(OBJ_DIR)/torirs_map_from_rscache.o $(OBJ_DIR)/torirs_location_from_rscache.o \
-	$(OBJ_DIR)/torirs_flotype_from_rscache.o $(OBJ_DIR)/torirs_texture_from_rscache.o \
+	$(OBJ_DIR)/torirs_flotype_from_rscache.o $(OBJ_DIR)/torirs_texture_bake.o \
 	$(OBJ_DIR)/torirs_sprite_from_rscache.o $(OBJ_DIR)/torirs_font_from_rscache.o \
 	$(OBJ_DIR)/torirs_enum_from_rscache.o $(OBJ_DIR)/torirs_struct_from_rscache.o \
 	$(OBJ_DIR)/uitree_from_component.o \
@@ -113,6 +115,8 @@ OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/task_cs2_script_e
 	$(OBJ_DIR)/uitree_builder_inv.o \
 	$(OBJ_DIR)/task_uibuilder_assets_load.o \
 	$(OBJ_DIR)/task_uitree_build.o \
+	$(OBJ_DIR)/task_pack_assets_load.o \
+	$(OBJ_DIR)/task_interface_open.o \
 	$(OBJ_DIR)/rs_cs2_host.o $(OBJ_DIR)/task_cs2_run.o \
 	$(OBJ_DIR)/uitree.o $(OBJ_DIR)/uitree_layout.o $(OBJ_DIR)/uitree_build.o \
 	$(OBJ_DIR)/uitree_host.o $(OBJ_DIR)/uitree_input.o $(OBJ_DIR)/uitree_hover.o \
