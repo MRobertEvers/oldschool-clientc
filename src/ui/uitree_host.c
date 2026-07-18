@@ -38,6 +38,8 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_SELECTED_TAB:
     case UITREE_HOST_GET_CAMERA_YAW:
         return 0;
+    case UITREE_HOST_GET_SCROLLBAR_SCENE:
+        return -1;
     }
     return 0;
 }

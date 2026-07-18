@@ -159,8 +159,12 @@ def heuristic(name: str) -> tuple[int, int, int, int] | None:
         return (2, 0, 0, 0)
     if name == "VIEWPORT_CLAMPFOV":
         return (4, 0, 0, 0)
-    if name in ("MES", "IF_CLOSE", "SOUND_SYNTH"):
+    if name == "MES":
         return (0, 1, 0, 0)
+    if name == "IF_CLOSE":
+        return (0, 0, 0, 0)
+    if name == "SOUND_SYNTH":
+        return (3, 0, 0, 0)
     if name.startswith("SET") and "SETON" not in name:
         return (1, 0, 0, 0)
     if "SETON" in name or name == "CC_SETTARGETVERB":

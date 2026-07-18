@@ -21,6 +21,9 @@ struct UITreeSceneBridge
     struct HMap* model_map;
     /** (obj_id, count) → scene_id for rasterized inventory icons */
     struct HMap* obj_icon_map;
+
+    /** IF1 scrollbar arrow pack (atlas 0=up/left, 1=down/right); -1 if unloaded. */
+    int scrollbar_scene_id;
 };
 
 void
@@ -37,6 +40,19 @@ int
 UITreeSceneBridge_EnsureSprite(
     struct UITreeSceneBridge* bridge,
     int cache_graphic_id);
+
+/**
+ * Bind IF1 scrollbar chrome from an already-loaded cache sprite archive
+ * (frames 0/1 = arrows). Returns scene_id or -1.
+ */
+int
+UITreeSceneBridge_EnsureScrollbar(
+    struct UITreeSceneBridge* bridge,
+    int cache_graphic_id);
+
+/** Scene id of scrollbar arrow pack, or -1. */
+int
+UITreeSceneBridge_ScrollbarSceneId(struct UITreeSceneBridge const* bridge);
 
 /** Ensure font in scene keyed by cache_font_id. Returns font scene id or -1. */
 int

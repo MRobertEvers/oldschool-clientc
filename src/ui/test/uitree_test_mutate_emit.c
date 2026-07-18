@@ -35,7 +35,7 @@ test_mutate_emit(void)
 
         struct UITreeEmitBuffer buf;
         UITree_EmitBufferInit(&buf);
-        UITree_EmitWalk(tree, &host, &buf);
+        UITree_EmitWalk(tree, &host, &buf, -1);
         TEST_ASSERT(buf.count == 0, "hidden subtree emits nothing");
         UITree_EmitBufferFree(&buf);
 
@@ -46,8 +46,16 @@ test_mutate_emit(void)
     TEST_ASSERT(dyn >= 0, "cc_create");
     TEST_ASSERT(tree->components[dyn].dynamic == 1, "dynamic");
     TEST_ASSERT(tree->components[dyn].type == UIELEM_RS_RECT, "cc type rect for widget 3");
+    TEST_ASSERT(tree->components[dyn].if3 == 0, "cc inherits if3=0 from parent");
     TEST_ASSERT(tree->components[layer].is_dirty == 1 || tree->components[dyn].is_dirty == 1,
                 "cc dirties");
+
+    tree->components[layer].if3 = 1;
+    int32_t dyn_if3 = UITree_CcCreate(tree, layer, 400, 5, 2);
+    TEST_ASSERT(dyn_if3 >= 0, "cc_create graphic under if3 parent");
+    TEST_ASSERT(tree->components[dyn_if3].if3 == 1, "cc inherits if3=1 from parent");
+    TEST_ASSERT(tree->components[dyn_if3].type == UIELEM_RS_GRAPHIC, "cc type graphic for widget 5");
+    tree->components[layer].if3 = 0;
 
     int indices[8];
     int n = UITree_CollectDynamicChildIndices(tree, 400, 0, indices, 8);
@@ -118,6 +126,20 @@ test_mutate_emit(void)
                     "sidebar no emit");
         TEST_ASSERT(!UITree_EmitFill(tree, &host, &tree->components[layer], layer, &desc),
                     "layer no emit without scrollbar");
+
+        tree->components[layer].u.rs_layer.scroll_height = 400;
+        tree->components[layer].if3 = 0;
+        UITree_TestResolve(tree);
+        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[layer], layer, &desc),
+                    "layer emits scrollbar when scroll_height > height");
+        TEST_ASSERT(desc.kind == UITREE_EMIT_SCROLLBAR_V, "kind scrollbar_v");
+        TEST_ASSERT(desc.scroll_content == 400, "scroll_content height");
+        TEST_ASSERT(desc.w == 16, "scrollbar thickness");
+
+        tree->components[layer].scroll_y = 50;
+        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[layer], layer, &desc),
+                    "scrollbar emit with scroll_y");
+        TEST_ASSERT(desc.scroll_off_y == 50, "scroll_off_y from component");
     }
 
     TEST_ASSERT(UITree_ApplyColour(tree, 501, 0x99), "apply colour");

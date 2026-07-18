@@ -75,6 +75,7 @@ struct UIBuildComponent
     uint8_t hide;
     int button_type;
     int client_code;
+    int32_t click_mask;
     int over_layer_id;
     int over_color;
     int active_color;

@@ -520,6 +520,8 @@ struct ToriRS_Component
     uint8_t hide;
     int button_type;
     int client_code;
+    /** IF1/IF3 clickMask / serverActiveProperties.events. */
+    int32_t click_mask;
     /** Client.ts overLayerId. dat1 overlayer / dat2 linkedComponentId. -1 = none. */
     int over_layer_id;
     /** Client.ts colourOver: hover tint when inactive. 0 = none. */
@@ -536,6 +538,9 @@ struct ToriRS_Component
     uint8_t script_kind;
     struct ToriRS_ScriptHook on_load;
     struct ToriRS_ScriptHook on_click;
+    struct ToriRS_ScriptHook on_op;
+    struct ToriRS_ScriptHook on_mouse_over;
+    struct ToriRS_ScriptHook on_mouse_leave;
     struct ToriRS_ScriptHook on_varp_transmit;
     struct ToriRS_ScriptHook on_inv_transmit;
     int inventory_triggers_count;

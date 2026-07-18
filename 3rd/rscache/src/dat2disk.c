@@ -364,7 +364,6 @@ RSCache_Dat2DiskIndexFileReadRecord(
     {
         ret = ferror(file);
         printf("failed to seek index record err: %d\n", ret);
-        assert(false);
         return -1;
     }
 

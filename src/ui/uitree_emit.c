@@ -1,11 +1,88 @@
 #include "uitree_emit.h"
 
 #include "uitree_layout.h"
+#include "uitree_scroll.h"
 
 #include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+
+static int
+host_scrollbar_scene(struct UITreeHost const* host)
+{
+    struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SCROLLBAR_SCENE };
+    int scene_id = UITree_Host(host, &req);
+    return scene_id > 0 ? scene_id : -1;
+}
+
+static bool
+layer_needs_scroll_offset(struct UITreeComponent const* c)
+{
+    if( !c || c->type != UIELEM_RS_LAYER )
+        return false;
+    return UITree_ScrollLayerNeedsVertical(c) || UITree_ScrollLayerNeedsHorizontal(c);
+}
+
+static bool
+layer_is_if1_scrollbar(struct UITreeComponent const* c)
+{
+    return layer_needs_scroll_offset(c) && !c->if3;
+}
+
+static void
+fill_scrollbar_v(
+    struct UITreeComponent const* component,
+    int32_t node_index,
+    int x,
+    int y,
+    int w,
+    int h,
+    int scrollbar_scene,
+    struct UITreeEmitDesc* out)
+{
+    memset(out, 0, sizeof(*out));
+    out->kind = UITREE_EMIT_SCROLLBAR_V;
+    out->node_index = node_index;
+    out->component_id = component->component_id;
+    out->x = x + w;
+    out->y = y;
+    out->w = UITREE_SCROLLBAR_THICKNESS;
+    out->h = UITree_ScrollLayerNeedsHorizontal(component) ? h - UITREE_SCROLLBAR_THICKNESS : h;
+    out->scroll_off_x = component->scroll_x;
+    out->scroll_off_y = component->scroll_y;
+    out->scroll_content = component->u.rs_layer.scroll_height;
+    out->scene_id = scrollbar_scene;
+    out->atlas_index = 0;
+    out->if3 = 0;
+}
+
+static void
+fill_scrollbar_h(
+    struct UITreeComponent const* component,
+    int32_t node_index,
+    int x,
+    int y,
+    int w,
+    int h,
+    int scrollbar_scene,
+    struct UITreeEmitDesc* out)
+{
+    memset(out, 0, sizeof(*out));
+    out->kind = UITREE_EMIT_SCROLLBAR_H;
+    out->node_index = node_index;
+    out->component_id = component->component_id;
+    out->x = x;
+    out->y = y + h - UITREE_SCROLLBAR_THICKNESS;
+    out->w = UITree_ScrollLayerNeedsVertical(component) ? w - UITREE_SCROLLBAR_THICKNESS : w;
+    out->h = UITREE_SCROLLBAR_THICKNESS;
+    out->scroll_off_x = component->scroll_x;
+    out->scroll_off_y = component->scroll_y;
+    out->scroll_content = component->u.rs_layer.scroll_width;
+    out->scene_id = scrollbar_scene;
+    out->atlas_index = 0;
+    out->if3 = 0;
+}
 
 bool
 UITree_EmitFill(
@@ -103,6 +180,8 @@ UITree_EmitFill(
     case UIELEM_RS_LINE:
         out->kind = UITREE_EMIT_LINE;
         out->color = component->u.rs_line.color;
+        out->line_width = component->u.rs_line.line_width;
+        out->line_direction = component->u.rs_line.horizontal ? 1 : 0;
         return true;
 
     case UIELEM_RS_MODEL:
@@ -157,6 +236,28 @@ UITree_EmitFill(
         return true;
 
     case UIELEM_RS_LAYER:
+    {
+        int sb_scene;
+        struct UITreeComponent* layer_mut;
+        if( component->if3 )
+            return false;
+        if( !UITree_ScrollLayerNeedsVertical(component) &&
+            !UITree_ScrollLayerNeedsHorizontal(component) )
+            return false;
+        /* Clamp scroll position for thumb math (IF1). */
+        layer_mut = (struct UITreeComponent*)component;
+        UITree_ScrollClampComponent(layer_mut);
+        sb_scene = host_scrollbar_scene(host);
+        /* Prefer vertical when both axes need chrome (EmitWalk emits H after children). */
+        if( UITree_ScrollLayerNeedsVertical(component) )
+        {
+            fill_scrollbar_v(component, node_index, x, y, w, h, sb_scene, out);
+            return true;
+        }
+        fill_scrollbar_h(component, node_index, x, y, w, h, sb_scene, out);
+        return true;
+    }
+
     case UIELEM_BUILTIN_SIDEBAR:
     case UIELEM_BUILTIN_CHAT:
     case UIELEM_BUILTIN_CHAT_BUTTON:
@@ -267,42 +368,120 @@ emit_kind_is_text(enum UITreeEmitKind kind)
 }
 
 static void
+emit_append_layer_scrollbars(
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent* layer,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    int sb_scene;
+    int vscroll;
+    int hscroll;
+    struct UITreeEmitDesc desc;
+    struct UITreeEmitClip bar_clip;
+
+    assert(layer && out && parent_clip);
+    assert(layer->type == UIELEM_RS_LAYER && !layer->if3);
+
+    UITree_ScrollClampComponent(layer);
+    sb_scene = host_scrollbar_scene(host);
+    vscroll = UITree_ScrollLayerNeedsVertical(layer);
+    hscroll = UITree_ScrollLayerNeedsHorizontal(layer);
+
+    if( vscroll )
+    {
+        int bar_h = hscroll ? h - UITREE_SCROLLBAR_THICKNESS : h;
+        fill_scrollbar_v(layer, idx, x, y, w, h, sb_scene, &desc);
+        if( clip_intersect(
+                &bar_clip, parent_clip, x + w, y, UITREE_SCROLLBAR_THICKNESS, bar_h) )
+        {
+            desc.clip = bar_clip;
+            emit_buffer_append(out, &desc);
+        }
+    }
+    if( hscroll )
+    {
+        int bar_w = vscroll ? w - UITREE_SCROLLBAR_THICKNESS : w;
+        fill_scrollbar_h(layer, idx, x, y, w, h, sb_scene, &desc);
+        if( clip_intersect(
+                &bar_clip,
+                parent_clip,
+                x,
+                y + h - UITREE_SCROLLBAR_THICKNESS,
+                bar_w,
+                UITREE_SCROLLBAR_THICKNESS) )
+        {
+            desc.clip = bar_clip;
+            emit_buffer_append(out, &desc);
+        }
+    }
+}
+
+static void
 emit_walk_node(
     struct UITree const* tree,
     struct UITreeHost const* host,
     struct UITreeEmitBuffer* out,
     int32_t idx,
     struct UITreeEmitClip const* parent_clip,
-    int text_pass)
+    int scroll_off_x,
+    int scroll_off_y,
+    int text_pass,
+    int hovered_component_id)
 {
-    struct UITreeComponent const* c;
+    struct UITreeComponent* c;
     struct UITreeEmitDesc desc;
     struct UITreeEmitClip layer_clip;
     struct UITreeEmitClip const* child_clip;
     int x = 0, y = 0, w = 0, h = 0;
     int32_t child;
+    int if1_bar;
+    int scroll_layer;
+    int child_scroll_x;
+    int child_scroll_y;
 
     assert(tree && out && parent_clip);
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
         return;
 
     c = &tree->components[idx];
-    /* Match interfacex: hidden skips self draw and the entire subtree. */
-    if( c->behavior.hide )
+    /* Hide-gated layers stay invisible unless their component_id is hovered. */
+    if( c->behavior.hide && !UITree_ComponentVisibleById(c, hovered_component_id) )
         return;
 
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
 
+    scroll_layer = layer_needs_scroll_offset(c);
+    if1_bar = layer_is_if1_scrollbar(c);
+    if( scroll_layer )
+        UITree_ScrollClampComponent(c);
+
+    child_scroll_x = scroll_off_x;
+    child_scroll_y = scroll_off_y;
+    if( scroll_layer )
+    {
+        if( UITree_ScrollLayerNeedsHorizontal(c) )
+            child_scroll_x += c->scroll_x;
+        if( UITree_ScrollLayerNeedsVertical(c) )
+            child_scroll_y += c->scroll_y;
+    }
+
     child_clip = parent_clip;
     if( component_is_layer_clip(c) && w > 0 && h > 0 )
     {
-        if( clip_intersect(&layer_clip, parent_clip, x, y, w, h) )
+        if( clip_intersect(&layer_clip, parent_clip, x - scroll_off_x, y - scroll_off_y, w, h) )
             child_clip = &layer_clip;
         /* If the layer itself is outside the canvas, still walk children with the
          * parent clip — IF3 roots can sit off-origin while children are in view. */
     }
 
-    if( UITree_EmitFill(tree, host, c, idx, &desc) )
+    /* IF1 scroll chrome is emitted after children so it sits above content. */
+    if( !if1_bar && UITree_EmitFill(tree, host, c, idx, &desc) )
     {
         int is_text = emit_kind_is_text(desc.kind);
         if( (text_pass && is_text) || (!text_pass && !is_text) )
@@ -310,6 +489,10 @@ emit_walk_node(
             if( desc.kind != UITREE_EMIT_WORLD && desc.kind != UITREE_EMIT_MINIMAP &&
                 desc.kind != UITREE_EMIT_COMPASS )
             {
+                desc.x -= scroll_off_x;
+                desc.y -= scroll_off_y;
+                desc.scroll_off_x = scroll_off_x;
+                desc.scroll_off_y = scroll_off_y;
                 desc.clip = *parent_clip;
                 emit_buffer_append(out, &desc);
             }
@@ -317,7 +500,24 @@ emit_walk_node(
     }
 
     for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
-        emit_walk_node(tree, host, out, child, child_clip, text_pass);
+    {
+        emit_walk_node(
+            tree,
+            host,
+            out,
+            child,
+            child_clip,
+            child_scroll_x,
+            child_scroll_y,
+            text_pass,
+            hovered_component_id);
+    }
+
+    if( if1_bar && !text_pass )
+    {
+        emit_append_layer_scrollbars(
+            host, out, c, idx, parent_clip, x - scroll_off_x, y - scroll_off_y, w, h);
+    }
 }
 
 static void
@@ -327,7 +527,8 @@ emit_walk_pass(
     struct UITreeEmitBuffer* out,
     int text_pass,
     int canvas_w,
-    int canvas_h)
+    int canvas_h,
+    int hovered_component_id)
 {
     struct UITreeEmitClip root_clip;
     int32_t root;
@@ -339,17 +540,23 @@ emit_walk_pass(
     root_clip.h = canvas_h;
 
     for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
-        emit_walk_node(tree, host, out, root, &root_clip, text_pass);
+    {
+        emit_walk_node(
+            tree, host, out, root, &root_clip, 0, 0, text_pass, hovered_component_id);
+    }
 }
 
 void
 UITree_EmitWalk(
     struct UITree const* tree,
     struct UITreeHost const* host,
-    struct UITreeEmitBuffer* out)
+    struct UITreeEmitBuffer* out,
+    int hovered_component_id)
 {
     assert(tree);
     assert(out);
-    emit_walk_pass(tree, host, out, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    emit_walk_pass(tree, host, out, 1, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    emit_walk_pass(
+        tree, host, out, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id);
+    emit_walk_pass(
+        tree, host, out, 1, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id);
 }

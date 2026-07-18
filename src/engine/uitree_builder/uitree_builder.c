@@ -1,6 +1,7 @@
 #include "uitree_builder.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -155,7 +156,15 @@ UITreeBuilder_AddOnLoad(
     e->component_id = component_id;
     e->script_id = script_id;
     if( argc > UITREE_BUILDER_ONLOAD_ARGV_MAX )
+    {
+        fprintf(
+            stderr,
+            "UITreeBuilder: onload argc %d truncated to %d (component 0x%x)\n",
+            argc,
+            UITREE_BUILDER_ONLOAD_ARGV_MAX,
+            (unsigned)component_id);
         argc = UITREE_BUILDER_ONLOAD_ARGV_MAX;
+    }
     if( argc < 0 )
         argc = 0;
     e->argc = argc;

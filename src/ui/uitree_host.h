@@ -21,6 +21,8 @@ enum UITreeHostRequestKind
     UITREE_HOST_SCENE_MODEL_HAS,
     UITREE_HOST_GET_INV_SOURCE_SLOT,
     UITREE_HOST_SET_INV_SOURCE_SLOT,
+    /** Returns scene_id of scrollbar sprite pack (frames 0=up/left, 1=down/right), or -1. */
+    UITREE_HOST_GET_SCROLLBAR_SCENE,
 };
 
 struct UIInvSlotData

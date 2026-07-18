@@ -84,6 +84,33 @@ UITree_ScrollSetPos(
 }
 
 void
+UITree_ScrollClampComponent(struct UITreeComponent* layer)
+{
+    int sx;
+    int sy;
+    int max_x;
+    int max_y;
+
+    assert(layer);
+    assert(layer->type == UIELEM_RS_LAYER);
+
+    max_x = UITree_ScrollMaxX(layer);
+    max_y = UITree_ScrollMaxY(layer);
+    sx = layer->scroll_x;
+    sy = layer->scroll_y;
+    if( sx < 0 )
+        sx = 0;
+    if( sx > max_x )
+        sx = max_x;
+    if( sy < 0 )
+        sy = 0;
+    if( sy > max_y )
+        sy = max_y;
+    layer->scroll_x = sx;
+    layer->scroll_y = sy;
+}
+
+void
 UITree_ScrollClampPos(
     struct UITreeComponent const* layer,
     struct UITreeScrollState const* scroll,

@@ -1,11 +1,75 @@
 #include "uitree_from_component.h"
 
 #include "torirs_types.h"
+#include "ui/uitree.h"
 #include "ui/uitree_build.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+static void
+bake_runtime_hook_from_torirs(
+    struct UITree* tree,
+    int component_id,
+    struct UITreeRuntimeScriptHook* slot,
+    struct ToriRS_ScriptHook const* src)
+{
+    int script_id;
+    int const* args;
+    int arg_count;
+
+    assert(tree);
+    assert(slot);
+    if( !src || src->argc <= 0 )
+        return;
+
+    script_id = src->argv[0];
+    if( script_id <= 0 )
+        return;
+
+    if( src->argc > 1 )
+    {
+        args = src->argv + 1;
+        arg_count = src->argc - 1;
+    }
+    else
+    {
+        args = NULL;
+        arg_count = 0;
+    }
+    (void)UITree_ApplyRuntimeHook(tree, component_id, slot, script_id, args, arg_count);
+}
+
+static void
+bake_pack_runtime_hooks(
+    struct UITree* tree,
+    struct ToriRS_ComponentPack const* pack)
+{
+    int i;
+
+    assert(tree);
+    assert(pack);
+
+    for( i = 0; i < pack->component_count; i++ )
+    {
+        struct ToriRS_Component const* src = &pack->components[i];
+        int32_t idx = UITree_FindByComponentId(tree, src->id);
+        struct UITreeComponent* node;
+
+        if( idx < 0 )
+            continue;
+        node = &tree->components[idx];
+        bake_runtime_hook_from_torirs(
+            tree, src->id, &node->runtime_hooks.on_click, &src->on_click);
+        bake_runtime_hook_from_torirs(
+            tree, src->id, &node->runtime_hooks.on_op, &src->on_op);
+        bake_runtime_hook_from_torirs(
+            tree, src->id, &node->runtime_hooks.on_mouse_over, &src->on_mouse_over);
+        bake_runtime_hook_from_torirs(
+            tree, src->id, &node->runtime_hooks.on_mouse_leave, &src->on_mouse_leave);
+    }
+}
 
 void
 UITree_FillBuildFromToriRS(
@@ -106,6 +170,7 @@ UITree_FillBuildFromToriRS(
     dst->hide = src->hide;
     dst->button_type = src->button_type;
     dst->client_code = src->client_code;
+    dst->click_mask = src->click_mask;
     dst->over_layer_id = src->over_layer_id;
     dst->over_color = src->over_color;
     dst->active_color = src->active_color;
@@ -208,6 +273,8 @@ UITree_BuildFromComponentPack(
     source.ud = &ctx;
 
     int result = UITree_BuildFromSource(tree, &source);
+    if( result >= 0 )
+        bake_pack_runtime_hooks(tree, pack);
     free(build_cache);
     return result;
 }

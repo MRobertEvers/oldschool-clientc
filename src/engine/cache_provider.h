@@ -34,6 +34,8 @@ struct CacheProvider
     struct HMap* flotype_cache;
     struct HMap* underlay_cache;
     struct HMap* texture_cache;
+    /** name_hash (ArchiveNameHashDat2) → sprite archive id */
+    struct HMap* sprite_name_cache;
 };
 
 /** World-builder map key: encodes a map square (map_x, map_z) into a single int. */
@@ -88,6 +90,10 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_SpriteLoad)(
         struct CacheProvider* provider,
         int sprite_id);
+    /** Resolve + load a sprites-table archive by name (e.g. "scrollbar"). */
+    struct ToriRS_Task* (*Task_SpriteLoadByName)(
+        struct CacheProvider* provider,
+        char const* archive_name);
     struct ToriRS_Task* (*Task_FontLoad)(
         struct CacheProvider* provider,
         int font_id);
@@ -142,6 +148,21 @@ bool
 CacheProvider_SpriteHas(
     struct CacheProvider* provider,
     int sprite_id);
+
+/**
+ * Record / look up a sprites-table archive id by cache-native name
+ * (e.g. "scrollbar"). Returns -1 if unknown.
+ */
+void
+CacheProvider_SpriteNameMapPut(
+    struct CacheProvider* provider,
+    char const* archive_name,
+    int sprite_id);
+
+int
+CacheProvider_SpriteIdByName(
+    struct CacheProvider* provider,
+    char const* archive_name);
 
 void
 CacheProvider_SpritesCleanup(struct CacheProvider* provider);
@@ -533,6 +554,16 @@ CreateTask_SpriteLoad(
     int sprite_id)
 {
     return provider->vtable->Task_SpriteLoad(provider, sprite_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_SpriteLoadByName(
+    struct CacheProvider* provider,
+    char const* archive_name)
+{
+    if( !provider || !provider->vtable || !provider->vtable->Task_SpriteLoadByName )
+        return NULL;
+    return provider->vtable->Task_SpriteLoadByName(provider, archive_name);
 }
 
 static inline struct ToriRS_Task*

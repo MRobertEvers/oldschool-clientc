@@ -12,12 +12,14 @@
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
 
+#include "asyncio.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define INTERFACE_OPEN_ONLOAD_ARGV_MAX 16
+#define INTERFACE_OPEN_ONLOAD_ARGV_MAX TORIRS_COMPONENT_HOOK_ARG_MAX
 #define INTERFACE_OPEN_ONLOAD_MAX 256
 #define INTERFACE_OPEN_SEED_OBJ_MAX 32
 
@@ -124,7 +126,15 @@ collect_onloads(
         hook->script_id = script_id;
         hook->argc = src->on_load.argc;
         if( hook->argc > INTERFACE_OPEN_ONLOAD_ARGV_MAX )
+        {
+            fprintf(
+                stderr,
+                "InterfaceOpen: onload argc %d truncated to %d (component 0x%x)\n",
+                hook->argc,
+                INTERFACE_OPEN_ONLOAD_ARGV_MAX,
+                (unsigned)src->id);
             hook->argc = INTERFACE_OPEN_ONLOAD_ARGV_MAX;
+        }
         memcpy(hook->argv, src->on_load.argv, (size_t)hook->argc * sizeof(int));
     }
 }
@@ -187,6 +197,14 @@ Task_InterfaceOpen_Run(
 
     /* 2. Prefetch pack sprites / fonts / models. */
     TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->interface_id));
+
+    /* 2b. IF1 scrollbar arrow sprites (archive "scrollbar", frames 0/1). */
+    TASK_AWAITSELF_IF(CreateTask_SpriteLoadByName(self->provider, "scrollbar"));
+    {
+        int scrollbar_id = CacheProvider_SpriteIdByName(self->provider, "scrollbar");
+        if( scrollbar_id >= 0 )
+            (void)UITreeSceneBridge_EnsureScrollbar(self->bridge, scrollbar_id);
+    }
 
     /* 3. Load seeded inv objs + inventory models, then rasterize icons. */
     collect_seed_objs(self);

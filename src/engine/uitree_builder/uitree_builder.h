@@ -12,7 +12,7 @@ struct RS_CS2Host;
 struct UIBuilderManifest;
 
 #define UITREE_BUILDER_NAME_MAX 64
-#define UITREE_BUILDER_ONLOAD_ARGV_MAX 16
+#define UITREE_BUILDER_ONLOAD_ARGV_MAX 64
 
 struct UIBuilderSpriteEntry
 {

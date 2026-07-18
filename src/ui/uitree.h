@@ -788,6 +788,18 @@ UITree_GetLayoutHeight(
     struct UITree const* tree,
     int component_id);
 
+/** Parent-relative X for CC_GETX / IF_GETX (interfacex UITreeX_GetPosX). */
+int
+UITree_GetRelativeX(
+    struct UITree const* tree,
+    int component_id);
+
+/** Parent-relative Y for CC_GETY / IF_GETY (interfacex UITreeX_GetPosY). */
+int
+UITree_GetRelativeY(
+    struct UITree const* tree,
+    int component_id);
+
 /** Client.ts hide: only hide nodes are gated on hover id match. */
 bool
 UITree_ComponentVisibleById(

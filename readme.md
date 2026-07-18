@@ -1543,6 +1543,11 @@ and are limited to that special logic for 20 slots. Consider the equipment scree
 The 20 slots can have special offsets and "null" graphics. Higher than that,
 they cannot.
 
+## UITree
+
+How UITree is built (including RevConfig), laid out, walked, and rendered — see
+[src/ui/README.md](src/ui/README.md).
+
 ## Revision Config
 
 Organization

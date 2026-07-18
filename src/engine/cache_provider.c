@@ -3,7 +3,9 @@
 #include "cs2vm2/cs2vm2_script.h"
 
 #include <assert.h>
+#include <rscache.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define CACHE_PROVIDER_MODEL_CAPACITY 8192
 #define CACHE_PROVIDER_SPRITE_CAPACITY 4096
@@ -21,6 +23,7 @@
 #define CACHE_PROVIDER_FLOTYPE_CAPACITY 512
 #define CACHE_PROVIDER_UNDERLAY_CAPACITY 512
 #define CACHE_PROVIDER_TEXTURE_CAPACITY 512
+#define CACHE_PROVIDER_SPRITE_NAME_CAPACITY 256
 
 struct MapEntry_ProviderModel
 {
@@ -32,6 +35,12 @@ struct MapEntry_ProviderSprite
 {
     int id;
     struct ToriRS_Sprite* sprite;
+};
+
+struct MapEntry_ProviderSpriteName
+{
+    int name_hash;
+    int sprite_id;
 };
 
 struct MapEntry_ProviderFont
@@ -229,6 +238,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderFlotype), CACHE_PROVIDER_UNDERLAY_CAPACITY);
     provider->texture_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderTexture), CACHE_PROVIDER_TEXTURE_CAPACITY);
+    provider->sprite_name_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderSpriteName), CACHE_PROVIDER_SPRITE_NAME_CAPACITY);
 }
 
 void
@@ -285,6 +296,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->underlay_cache = NULL;
     cache_provider_hmap_free(provider->texture_cache);
     provider->texture_cache = NULL;
+    cache_provider_hmap_free(provider->sprite_name_cache);
+    provider->sprite_name_cache = NULL;
 }
 
 void
@@ -396,6 +409,64 @@ CacheProvider_SpriteHas(
     int sprite_id)
 {
     return CacheProvider_SpriteGet(provider, sprite_id) != NULL;
+}
+
+static int
+sprite_name_hash(char const* archive_name)
+{
+    char buf[64];
+    size_t n;
+
+    assert(archive_name);
+    n = strlen(archive_name);
+    if( n >= sizeof(buf) )
+        n = sizeof(buf) - 1;
+    memcpy(buf, archive_name, n);
+    buf[n] = '\0';
+    return RSCache_ArchiveNameHashDat2(buf);
+}
+
+void
+CacheProvider_SpriteNameMapPut(
+    struct CacheProvider* provider,
+    char const* archive_name,
+    int sprite_id)
+{
+    struct MapEntry_ProviderSpriteName* entry;
+    int name_hash;
+
+    assert(provider);
+    assert(archive_name);
+    assert(provider->sprite_name_cache);
+    if( sprite_id < 0 )
+        return;
+
+    name_hash = sprite_name_hash(archive_name);
+    cache_provider_hmap_prepare_insert(&provider->sprite_name_cache);
+    entry = (struct MapEntry_ProviderSpriteName*)hmap_search(
+        provider->sprite_name_cache, &name_hash, HMAP_INSERT);
+    assert(entry && "Sprite name must be inserted into hmap");
+    entry->name_hash = name_hash;
+    entry->sprite_id = sprite_id;
+}
+
+int
+CacheProvider_SpriteIdByName(
+    struct CacheProvider* provider,
+    char const* archive_name)
+{
+    struct MapEntry_ProviderSpriteName* entry;
+    int name_hash;
+
+    assert(provider);
+    if( !archive_name || !provider->sprite_name_cache )
+        return -1;
+    name_hash = sprite_name_hash(archive_name);
+    entry = (struct MapEntry_ProviderSpriteName*)hmap_search(
+        provider->sprite_name_cache, &name_hash, HMAP_FIND);
+    if( !entry )
+        return -1;
+    return entry->sprite_id;
 }
 
 void

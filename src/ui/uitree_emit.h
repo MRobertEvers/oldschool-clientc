@@ -45,6 +45,8 @@ struct UITreeEmitDesc
     struct UITreeEmitClip clip;
     int scroll_off_x;
     int scroll_off_y;
+    /** For SCROLLBAR_*: content scroll_height (V) or scroll_width (H). */
+    int scroll_content;
     int scene_id;
     int atlas_index;
     int font_id;
@@ -77,6 +79,9 @@ struct UITreeEmitDesc
     int trans;
     uint8_t flip_h;
     uint8_t flip_v;
+    /* Type-9 LINE: cache lineWidth + lineDirection (stored as rs_line.horizontal). */
+    int line_width;
+    uint8_t line_direction;
 };
 
 /** Fill a single emit descriptor for a node. Returns false if nothing to draw. */
@@ -104,11 +109,13 @@ UITree_EmitBufferFree(struct UITreeEmitBuffer* buf);
 /**
  * Full DFS walk: fill clip, EmitFill, append drawable cmds.
  * Two passes (non-text then text). No asset backends — scene_ids only.
+ * @param hovered_component_id component id that makes hide-gated nodes visible (-1 = none).
  */
 void
 UITree_EmitWalk(
     struct UITree const* tree,
     struct UITreeHost const* host,
-    struct UITreeEmitBuffer* out);
+    struct UITreeEmitBuffer* out,
+    int hovered_component_id);
 
 #endif

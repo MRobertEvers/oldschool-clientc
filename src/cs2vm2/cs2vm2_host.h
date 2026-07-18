@@ -92,6 +92,7 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT,
     CS2VM_HOST_REQUEST_IF_SETONINVTRANSMIT,
     CS2VM_HOST_REQUEST_IF_SETONOP,
+    CS2VM_HOST_REQUEST_IF_SETONCLICK,
     CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER,
     CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE,
     CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT,
@@ -311,6 +312,8 @@ struct CS2VM_HostRequest_IF_SetOnOp
     char* signature;
     int* trigger_ids;
     int trigger_count;
+    int int_args[16];
+    int int_arg_count;
 };
 
 struct CS2VM_HostRequest_CC_SetOnOp
@@ -319,6 +322,8 @@ struct CS2VM_HostRequest_CC_SetOnOp
     char* signature;
     int* trigger_ids;
     int trigger_count;
+    int int_args[16];
+    int int_arg_count;
 };
 
 struct CS2VM_HostRequest_IF_ClearOps
@@ -698,6 +703,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_SetOnVarTransmit if_set_on_var_transmit;
         struct CS2VM_HostRequest_IF_SetOnInvTransmit if_set_on_inv_transmit;
         struct CS2VM_HostRequest_IF_SetOnOp if_set_on_op;
+        struct CS2VM_HostRequest_IF_SetOnOp if_set_on_click;
         struct CS2VM_HostRequest_IF_SetOnOp if_set_on_mouse_over;
         struct CS2VM_HostRequest_IF_SetOnOp if_set_on_mouse_leave;
         struct CS2VM_HostRequest_IF_SetOnOp if_set_on_mouse_repeat;

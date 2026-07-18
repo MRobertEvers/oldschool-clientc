@@ -811,7 +811,7 @@
 #define CS2_OP_IF_SETTRANS 2103
 #define CS2_OP_IF_SETLINEWID 2104
 /* IF_SETGRAPHIC — Set graphic.
- * int stack in:   component, graphic_id  (graphic_id = top)
+ * int stack in:   graphic_id, component  (component = top)
  * str stack in:   -                    
  * int stack out:  -                    
  * str stack out:  -                    

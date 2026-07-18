@@ -14,6 +14,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef UITREE_CLICK_DEBUG
+#define UITREE_CLICK_DEBUG 1
+#endif
+
 /* =========================================================================
  * Helpers
  * ========================================================================= */
@@ -1016,6 +1020,16 @@ exec_cc_create(
     if( child_idx < 0 )
         return CS2VM_EXECNO_ERROR;
 
+#if UITREE_CLICK_DEBUG
+    fprintf(
+        stderr,
+        "uitree_click: CC_CREATE parent_id=%d child_id=%d type=%d idx=%d\n",
+        parent_id,
+        tree->components[child_idx].component_id,
+        request.component_type,
+        (int)child_idx);
+#endif
+
     rs_cs2_set_cc_target(vm, request.dot_operand, tree->components[child_idx].component_id);
     return CS2VM_EXECNO_OK;
 }
@@ -1326,6 +1340,155 @@ exec_set_on_var_transmit(
     return CS2VM_EXECNO_OK;
 }
 
+static struct UITreeRuntimeScriptHook*
+rs_cs2_runtime_hook_slot(
+    struct UITreeComponent* node,
+    enum CS2VM_HostRequestKind kind)
+{
+    assert(node);
+    switch( kind )
+    {
+    case CS2VM_HOST_REQUEST_IF_SETONCLICK:
+    case CS2VM_HOST_REQUEST_CC_SETONCLICK:
+        return &node->runtime_hooks.on_click;
+    case CS2VM_HOST_REQUEST_IF_SETONOP:
+    case CS2VM_HOST_REQUEST_CC_SETONOP:
+        return &node->runtime_hooks.on_op;
+    case CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER:
+    case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
+        return &node->runtime_hooks.on_mouse_over;
+    case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
+    case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
+        return &node->runtime_hooks.on_mouse_leave;
+    default:
+        return NULL;
+    }
+}
+
+#if UITREE_CLICK_DEBUG
+static char const*
+rs_cs2_seton_kind_str(enum CS2VM_HostRequestKind kind)
+{
+    switch( kind )
+    {
+    case CS2VM_HOST_REQUEST_IF_SETONCLICK:
+        return "IF_SETONCLICK";
+    case CS2VM_HOST_REQUEST_IF_SETONOP:
+        return "IF_SETONOP";
+    case CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER:
+        return "IF_SETONMOUSEOVER";
+    case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
+        return "IF_SETONMOUSELEAVE";
+    case CS2VM_HOST_REQUEST_CC_SETONCLICK:
+        return "CC_SETONCLICK";
+    case CS2VM_HOST_REQUEST_CC_SETONOP:
+        return "CC_SETONOP";
+    case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
+        return "CC_SETONMOUSEOVER";
+    case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
+        return "CC_SETONMOUSELEAVE";
+    default:
+        return "SETON?";
+    }
+}
+#endif
+
+static int
+exec_set_on_if_event(
+    struct RS_CS2Host* host,
+    enum CS2VM_HostRequestKind kind,
+    struct CS2VM_HostRequest_IF_SetOnOp const* request)
+{
+    struct UITree* tree;
+    struct UITreeComponent* node;
+    struct UITreeRuntimeScriptHook* slot;
+
+    assert(host);
+    if( !request )
+        return CS2VM_EXECNO_OK;
+
+    tree = rs_cs2_tree(host);
+    if( !tree )
+        return CS2VM_EXECNO_OK;
+
+    node = rs_cs2_node(host, request->component_id);
+    if( !node )
+        return CS2VM_EXECNO_OK;
+
+    slot = rs_cs2_runtime_hook_slot(node, kind);
+    if( !slot )
+        return CS2VM_EXECNO_OK;
+
+#if UITREE_CLICK_DEBUG
+    fprintf(
+        stderr,
+        "uitree_click: SETON %s component_id=%d script_id=%d argc=%d\n",
+        rs_cs2_seton_kind_str(kind),
+        request->component_id,
+        request->script_id,
+        request->int_arg_count);
+#endif
+
+    (void)UITree_ApplyRuntimeHook(
+        tree,
+        request->component_id,
+        slot,
+        request->script_id,
+        request->int_arg_count > 0 ? request->int_args : NULL,
+        request->int_arg_count);
+    return CS2VM_EXECNO_OK;
+}
+
+static int
+exec_set_on_cc_event(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    enum CS2VM_HostRequestKind kind,
+    struct CS2VM_HostRequest_CC_SetOnOp const* request)
+{
+    struct UITree* tree;
+    struct UITreeComponent* node;
+    struct UITreeRuntimeScriptHook* slot;
+    int component_id;
+
+    assert(host);
+    assert(vm);
+    if( !request )
+        return CS2VM_EXECNO_OK;
+
+    tree = rs_cs2_tree(host);
+    if( !tree )
+        return CS2VM_EXECNO_OK;
+
+    component_id = vm->active_component_id;
+    node = rs_cs2_node(host, component_id);
+    if( !node )
+        return CS2VM_EXECNO_OK;
+
+    slot = rs_cs2_runtime_hook_slot(node, kind);
+    if( !slot )
+        return CS2VM_EXECNO_OK;
+
+#if UITREE_CLICK_DEBUG
+    fprintf(
+        stderr,
+        "uitree_click: SETON %s component_id=%d script_id=%d argc=%d\n",
+        rs_cs2_seton_kind_str(kind),
+        component_id,
+        request->script_id,
+        request->int_arg_count);
+#endif
+
+    (void)UITree_ApplyRuntimeHook(
+        tree,
+        component_id,
+        slot,
+        request->script_id,
+        request->int_arg_count > 0 ? request->int_args : NULL,
+        request->int_arg_count);
+    return CS2VM_EXECNO_OK;
+}
+
 /* =========================================================================
  * Main dispatcher
  * ========================================================================= */
@@ -1465,12 +1628,12 @@ RS_CS2Host_Exec(
             vm, tree ? UITree_GetLayoutHeight(tree, request->u.if_get_height.component_id) : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETX:
-        node = rs_cs2_node(host, request->u.if_getx.component_id);
-        return CS2VM2_PushInt(vm, node ? node->position.abs_x : 0);
+        return CS2VM2_PushInt(
+            vm, tree ? UITree_GetRelativeX(tree, request->u.if_getx.component_id) : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETY:
-        node = rs_cs2_node(host, request->u.if_get_width.component_id);
-        return CS2VM2_PushInt(vm, node ? node->position.abs_y : 0);
+        return CS2VM2_PushInt(
+            vm, tree ? UITree_GetRelativeY(tree, request->u.if_get_width.component_id) : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETLAYER:
     {
@@ -1516,8 +1679,17 @@ RS_CS2Host_Exec(
     /* ---- IF / CC mutators ---- */
     case CS2VM_HOST_REQUEST_IF_SETHIDE:
         if( tree )
+        {
+#if UITREE_CLICK_DEBUG
+            fprintf(
+                stderr,
+                "uitree_click: IF_SETHIDE component_id=%d hide=%d\n",
+                request->u.if_set_hide.component_id,
+                request->u.if_set_hide.hidden ? 1 : 0);
+#endif
             (void)UITree_ApplyHide(
                 tree, request->u.if_set_hide.component_id, request->u.if_set_hide.hidden ? 1 : 0);
+        }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_SETPOSITION:
@@ -1808,12 +1980,12 @@ RS_CS2Host_Exec(
         return CS2VM2_PushInt(vm, node->dynamic ? node->dynamic_child_index : -1);
 
     case CS2VM_HOST_REQUEST_CC_GETX:
-        node = rs_cs2_node(host, request->u.cc_get_id.component_id);
-        return CS2VM2_PushInt(vm, node ? node->position.abs_x : 0);
+        return CS2VM2_PushInt(
+            vm, tree ? UITree_GetRelativeX(tree, request->u.cc_get_id.component_id) : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETY:
-        node = rs_cs2_node(host, request->u.cc_get_id.component_id);
-        return CS2VM2_PushInt(vm, node ? node->position.abs_y : 0);
+        return CS2VM2_PushInt(
+            vm, tree ? UITree_GetRelativeY(tree, request->u.cc_get_id.component_id) : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETWIDTH:
         return CS2VM2_PushInt(
@@ -1888,22 +2060,29 @@ RS_CS2Host_Exec(
         return exec_set_on_inv_transmit(host, &request->u.if_set_on_inv_transmit);
 
     case CS2VM_HOST_REQUEST_IF_SETONOP:
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+    case CS2VM_HOST_REQUEST_IF_SETONCLICK:
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER:
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT:
     case CS2VM_HOST_REQUEST_IF_SETONTIMER:
     case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
+        return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
-    case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
+    case CS2VM_HOST_REQUEST_CC_SETONOP:
+        return exec_set_on_cc_event(host, vm, request->kind, &request->u.cc_set_on_op);
+    case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
     case CS2VM_HOST_REQUEST_CC_SETONDRAG:
     case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
-    case CS2VM_HOST_REQUEST_CC_SETONOP:
     case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
         return CS2VM_EXECNO_OK;
 

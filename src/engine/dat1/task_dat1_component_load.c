@@ -30,6 +30,16 @@ CreateTask_Dat1SpriteLoad(
 }
 
 struct ToriRS_Task*
+CreateTask_Dat1SpriteLoadByName(
+    struct CacheProvider* provider,
+    char const* archive_name)
+{
+    (void)provider;
+    (void)archive_name;
+    return NULL;
+}
+
+struct ToriRS_Task*
 CreateTask_Dat1FontLoad(
     struct CacheProvider* provider,
     int font_id)

@@ -39,6 +39,11 @@ CreateTask_Dat1SpriteLoad(
     int sprite_id);
 
 struct ToriRS_Task*
+CreateTask_Dat1SpriteLoadByName(
+    struct CacheProvider* provider,
+    char const* archive_name);
+
+struct ToriRS_Task*
 CreateTask_Dat1FontLoad(
     struct CacheProvider* provider,
     int font_id);

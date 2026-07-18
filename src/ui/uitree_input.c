@@ -29,6 +29,8 @@ rs_node_is_decorative_passthrough(struct UITreeComponent const* component)
 {
     if( component->behavior.button_type != 0 || component->behavior.client_code != 0 )
         return false;
+    if( component->behavior.click_mask != 0 )
+        return false;
     if( component->menu_options.option[0] != '\0' )
         return false;
     for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
@@ -45,6 +47,12 @@ UITree_ComponentIsPassThrough(
     struct UITreeHost const* host)
 {
     assert(component);
+
+    /* Runtime click/op hooks make the node a real click target even if it is a
+     * layer or decorative graphic. */
+    if( component->runtime_hooks.on_click.script_id > 0 ||
+        component->runtime_hooks.on_op.script_id > 0 )
+        return false;
 
     switch( component->type )
     {
@@ -100,6 +108,10 @@ hit_test_interactive_recursive(
         return -1;
 
     struct UITreeComponent const* component = &tree->components[node_index];
+
+    /* Match emit: hidden subtrees are not interactive. */
+    if( component->behavior.hide )
+        return -1;
 
     int bx = 0;
     int by = 0;
@@ -173,8 +185,15 @@ UITree_HitTestRecursive(
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
+    /* Match emit: hidden subtrees are not interactive. */
+    if( component->behavior.hide )
+        return -1;
+
     int32_t hit = -1;
-    if( UITree_PointInComponent(&component->position, px, py) )
+    /* Layers are containers only — do not claim the hit themselves. Empty overlay
+     * layers otherwise steal clicks from hooked widgets underneath. */
+    if( component->type != UIELEM_RS_LAYER &&
+        UITree_PointInComponent(&component->position, px, py) )
         hit = node_index;
 
     for( int32_t child = component->first_child; child >= 0;

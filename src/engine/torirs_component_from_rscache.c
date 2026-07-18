@@ -210,6 +210,9 @@ torirs_component_copy_dat2_hooks(
 
     torirs_copy_script_hook(&dst->on_load, src->onLoad, src->onLoadLen);
     torirs_copy_script_hook(&dst->on_click, src->onClick, src->onClickLen);
+    torirs_copy_script_hook(&dst->on_op, src->onOp, src->onOpLen);
+    torirs_copy_script_hook(&dst->on_mouse_over, src->onMouseOver, src->onMouseOverLen);
+    torirs_copy_script_hook(&dst->on_mouse_leave, src->onMouseLeave, src->onMouseLeaveLen);
     torirs_copy_script_hook(&dst->on_varp_transmit, src->onVarpTransmit, src->onVarpTransmitLen);
     torirs_copy_script_hook(&dst->on_inv_transmit, src->onInvTransmit, src->onInvTransmitLen);
 
@@ -234,8 +237,9 @@ torirs_component_copy_dat2_hooks(
     }
 
     if( dst->scripts_count <= 0 &&
-        (dst->on_load.argc > 0 || dst->on_click.argc > 0 || dst->on_varp_transmit.argc > 0 ||
-         dst->on_inv_transmit.argc > 0) )
+        (dst->on_load.argc > 0 || dst->on_click.argc > 0 || dst->on_op.argc > 0 ||
+         dst->on_mouse_over.argc > 0 || dst->on_mouse_leave.argc > 0 ||
+         dst->on_varp_transmit.argc > 0 || dst->on_inv_transmit.argc > 0) )
         dst->script_kind = 1;
 }
 
@@ -287,6 +291,7 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
     dst->hide = src->hidden ? 1 : 0;
     dst->button_type = src->buttonType;
     dst->client_code = src->clientCode;
+    dst->click_mask = src->clickMask;
     dst->over_color = src->overColour;
     dst->active_color = src->activeColour;
     dst->active_over_color = src->activeOverColour;

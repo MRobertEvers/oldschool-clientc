@@ -140,10 +140,12 @@ RSCache_Dat2SpritePackNewDecode(
             }
             else
             {
-                for( j = 0; j < sprite->width; j++ )
+                /* Same crop-sized layout as palette indices — memory width/height
+                 * would OOB-write the crop buffer and corrupt the heap. */
+                for( j = 0; j < sprite->crop_width; j++ )
                 {
-                    for( k = 0; k < sprite->height; k++ )
-                        pixel_alpha[sprite->width * k + j] = (uint8_t)g1(&buffer);
+                    for( k = 0; k < sprite->crop_height; k++ )
+                        pixel_alpha[sprite->crop_width * k + j] = (uint8_t)g1(&buffer);
                 }
             }
         }
@@ -240,7 +242,11 @@ RSCache_Dat2SpriteGetPixels(
     assert(palette);
     (void)brightness;
 
-    pixel_count = sprite->width * sprite->height;
+    /* Pixel buffers are always crop-sized (normalize expands crop to memory size). */
+    pixel_count = sprite->crop_width * sprite->crop_height;
+    if( pixel_count <= 0 )
+        return NULL;
+
     pixels = calloc((size_t)pixel_count, sizeof(int));
     if( !pixels )
         return NULL;

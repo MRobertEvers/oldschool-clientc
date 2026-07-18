@@ -945,7 +945,13 @@ UITree_CcCreate(
         break;
     }
 
-    return UITree_Push(tree, parent_index, &spec);
+    int32_t idx = UITree_Push(tree, parent_index, &spec);
+    if( idx < 0 )
+        return -1;
+    /* Soft3D stretches IF3 graphics to layout size; CC_CREATE children must
+     * inherit the parent's if3 flag (interfacex forces if3=1 on create). */
+    tree->components[idx].if3 = tree->components[parent_index].if3;
+    return idx;
 }
 
 void
@@ -1491,6 +1497,50 @@ UITree_GetLayoutHeight(
     if( pos->layout_resolved && pos->abs_h > 0 )
         return pos->abs_h;
     return pos->height > 0 ? pos->height : 0;
+}
+
+int
+UITree_GetRelativeX(
+    struct UITree const* tree,
+    int component_id)
+{
+    int32_t idx;
+    int32_t parent_idx;
+    struct UITreeComponent const* node;
+
+    assert(tree);
+    idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 )
+        return 0;
+    node = &tree->components[idx];
+    if( !node->position.layout_resolved )
+        return node->position.x;
+    parent_idx = node->parent;
+    if( parent_idx < 0 || (uint32_t)parent_idx >= tree->component_count )
+        return node->position.abs_x;
+    return node->position.abs_x - tree->components[parent_idx].position.abs_x;
+}
+
+int
+UITree_GetRelativeY(
+    struct UITree const* tree,
+    int component_id)
+{
+    int32_t idx;
+    int32_t parent_idx;
+    struct UITreeComponent const* node;
+
+    assert(tree);
+    idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 )
+        return 0;
+    node = &tree->components[idx];
+    if( !node->position.layout_resolved )
+        return node->position.y;
+    parent_idx = node->parent;
+    if( parent_idx < 0 || (uint32_t)parent_idx >= tree->component_count )
+        return node->position.abs_y;
+    return node->position.abs_y - tree->components[parent_idx].position.abs_y;
 }
 
 bool

@@ -2,9 +2,11 @@
 
 #include "toridraw_lighting.h"
 #include "toridraw_model.h"
+#include "toridraw_types.h"
 
 #include <assert.h>
 #include <math.h>
+#include <string.h>
 
 static void
 toridraw_light_model_default_impl(
@@ -39,6 +41,16 @@ toridraw_light_model_default_impl(
     ToriDraw_ModelAllocNormals(model);
     struct ToriDraw_Normals* nm = model->normals;
     assert(nm);
+
+    /* CalculateVertexNormals accumulates; clear so re-lighting is idempotent. */
+    if( model->vertex_count > 0 && nm->vertex_normals )
+        memset(
+            nm->vertex_normals,
+            0,
+            (size_t)model->vertex_count * sizeof(struct ToriDraw_Normal));
+    if( model->face_count > 0 && nm->face_normals )
+        memset(
+            nm->face_normals, 0, (size_t)model->face_count * sizeof(struct ToriDraw_Normal));
 
     ToriDraw_CalculateVertexNormals(
         nm->vertex_normals,

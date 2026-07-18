@@ -1880,9 +1880,9 @@ CS2VM2_Op_IF_SetGraphic(
 
     int graphic_id, component_id;
 
-    if( CS2VM2_PopInt(vm, &graphic_id) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &graphic_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2663,63 +2663,79 @@ CS2VM2_Op_IF_SetOnEventHandler(
         signature_parse_len = signature_len - 1;
     }
 
-    if( signature && signature_parse_len > 0 )
     {
-        for( int i = signature_parse_len - 1; i >= 0; i-- )
+        int int_args[16] = { 0 };
+        int int_arg_count = 0;
+
+        if( signature && signature_parse_len > 0 )
         {
-            char c = signature[i];
-            if( c == 's' || c == 'W' || c == 'X' )
+            for( int i = signature_parse_len - 1; i >= 0; i-- )
             {
-                char* v = NULL;
-                if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
+                char c = signature[i];
+                if( c == 's' || c == 'W' || c == 'X' )
                 {
-                    free(trigger_ids);
-                    return CS2VM_EXECNO_ERROR;
+                    char* v = NULL;
+                    if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
+                    {
+                        free(trigger_ids);
+                        return CS2VM_EXECNO_ERROR;
+                    }
                 }
-            }
-            else
-            {
-                int v = 0;
-                if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
+                else
                 {
-                    free(trigger_ids);
-                    return CS2VM_EXECNO_ERROR;
+                    int v = 0;
+                    if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
+                    {
+                        free(trigger_ids);
+                        return CS2VM_EXECNO_ERROR;
+                    }
+                    if( i < (int)(sizeof(int_args) / sizeof(int_args[0])) )
+                    {
+                        int_args[i] = v;
+                        if( i + 1 > int_arg_count )
+                            int_arg_count = i + 1;
+                    }
                 }
             }
         }
+
+        if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
+        {
+            free(trigger_ids);
+            return CS2VM_EXECNO_ERROR;
+        }
+
+        if( script_id == -1 )
+        {
+            free(trigger_ids);
+            return CS2VM_EXECNO_OK;
+        }
+
+        memset(out_request, 0, sizeof(*out_request));
+        out_request->component_id = widget_uid;
+        out_request->script_id = script_id;
+        out_request->signature = signature;
+        out_request->trigger_ids = trigger_ids;
+        out_request->trigger_count = trigger_count;
+        out_request->int_arg_count = int_arg_count;
+        if( int_arg_count > 0 )
+            memcpy(out_request->int_args, int_args, (size_t)int_arg_count * sizeof(int));
     }
 
-    if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
-        free(trigger_ids);
-        return CS2VM_EXECNO_ERROR;
-    }
+        struct CS2VM_HostRequest request;
+        memset(&request, 0, sizeof(request));
+        request.kind = kind;
+        request.u.if_set_on_op = *out_request;
 
-    if( script_id == -1 )
-    {
+        int result = vm->vm->host_exec(vm, &request);
         free(trigger_ids);
+        out_request->trigger_ids = NULL;
+        if( result != CS2VM_EXECNO_OK )
+            return result;
+
         return CS2VM_EXECNO_OK;
     }
-
-    memset(out_request, 0, sizeof(*out_request));
-    out_request->component_id = widget_uid;
-    out_request->script_id = script_id;
-    out_request->signature = signature;
-    out_request->trigger_ids = trigger_ids;
-    out_request->trigger_count = trigger_count;
-
-    struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
-    request.kind = kind;
-    request.u.if_set_on_op = *out_request;
-
-    int result = vm->vm->host_exec(vm, &request);
-    free(trigger_ids);
-    out_request->trigger_ids = NULL;
-    if( result != CS2VM_EXECNO_OK )
-        return result;
-
-    return CS2VM_EXECNO_OK;
 }
 
 /**
@@ -2774,62 +2790,78 @@ CS2VM2_Op_CC_SetOnEventHandler(
         signature_parse_len = signature_len - 1;
     }
 
-    if( signature && signature_parse_len > 0 )
     {
-        for( int i = signature_parse_len - 1; i >= 0; i-- )
+        int int_args[16] = { 0 };
+        int int_arg_count = 0;
+
+        if( signature && signature_parse_len > 0 )
         {
-            char c = signature[i];
-            if( c == 's' || c == 'W' || c == 'X' )
+            for( int i = signature_parse_len - 1; i >= 0; i-- )
             {
-                char* v = NULL;
-                if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
+                char c = signature[i];
+                if( c == 's' || c == 'W' || c == 'X' )
                 {
-                    free(trigger_ids);
-                    return CS2VM_EXECNO_ERROR;
+                    char* v = NULL;
+                    if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
+                    {
+                        free(trigger_ids);
+                        return CS2VM_EXECNO_ERROR;
+                    }
                 }
-            }
-            else
-            {
-                int v = 0;
-                if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
+                else
                 {
-                    free(trigger_ids);
-                    return CS2VM_EXECNO_ERROR;
+                    int v = 0;
+                    if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
+                    {
+                        free(trigger_ids);
+                        return CS2VM_EXECNO_ERROR;
+                    }
+                    if( i < (int)(sizeof(int_args) / sizeof(int_args[0])) )
+                    {
+                        int_args[i] = v;
+                        if( i + 1 > int_arg_count )
+                            int_arg_count = i + 1;
+                    }
                 }
             }
         }
+
+        if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
+        {
+            free(trigger_ids);
+            return CS2VM_EXECNO_ERROR;
+        }
+
+        if( script_id == -1 )
+        {
+            free(trigger_ids);
+            return CS2VM_EXECNO_OK;
+        }
+
+        memset(out_request, 0, sizeof(*out_request));
+        out_request->script_id = script_id;
+        out_request->signature = signature;
+        out_request->trigger_ids = trigger_ids;
+        out_request->trigger_count = trigger_count;
+        out_request->int_arg_count = int_arg_count;
+        if( int_arg_count > 0 )
+            memcpy(out_request->int_args, int_args, (size_t)int_arg_count * sizeof(int));
     }
 
-    if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
-        free(trigger_ids);
-        return CS2VM_EXECNO_ERROR;
-    }
+        struct CS2VM_HostRequest request;
+        memset(&request, 0, sizeof(request));
+        request.kind = kind;
+        request.u.cc_set_on_op = *out_request;
 
-    if( script_id == -1 )
-    {
+        int result = vm->vm->host_exec(vm, &request);
         free(trigger_ids);
+        out_request->trigger_ids = NULL;
+        if( result != CS2VM_EXECNO_OK )
+            return result;
+
         return CS2VM_EXECNO_OK;
     }
-
-    memset(out_request, 0, sizeof(*out_request));
-    out_request->script_id = script_id;
-    out_request->signature = signature;
-    out_request->trigger_ids = trigger_ids;
-    out_request->trigger_count = trigger_count;
-
-    struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
-    request.kind = kind;
-    request.u.cc_set_on_op = *out_request;
-
-    int result = vm->vm->host_exec(vm, &request);
-    free(trigger_ids);
-    out_request->trigger_ids = NULL;
-    if( result != CS2VM_EXECNO_OK )
-        return result;
-
-    return CS2VM_EXECNO_OK;
 }
 
 int
@@ -3291,6 +3323,21 @@ CS2VM2_Op_IF_SetOnOp(
         return result;
 
     return CS2VM_EXECNO_OK;
+}
+
+int
+CS2VM2_Op_IF_SetOnClick(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICK, &request);
 }
 
 int
@@ -5675,6 +5722,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetOnInvTransmit(vm, frame, operand);
     case CS2_OP_IF_SETONOP:
         return CS2VM2_Op_IF_SetOnOp(vm, frame, operand);
+    case CS2_OP_IF_SETONCLICK:
+        return CS2VM2_Op_IF_SetOnClick(vm, frame, operand);
     case CS2_OP_IF_SETONMOUSEOVER:
         return CS2VM2_Op_IF_SetOnMouseOver(vm, frame, operand);
     case CS2_OP_IF_SETONMOUSELEAVE:
@@ -5886,7 +5935,6 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_GetText(vm, frame, operand);
     case CS2_OP_CC_GETTRANS:
         return CS2VM2_Op_CC_GetTrans(vm, frame, operand);
-    case CS2_OP_IF_SETONCLICK:
     case CS2_OP_IF_SETONHOLD:
     case CS2_OP_IF_SETONRELEASE:
     case CS2_OP_IF_SETONDRAG:
@@ -5948,6 +5996,34 @@ CS2VM2_RunOp(
         request.kind = CS2VM_HOST_REQUEST_CLIENTCLOCK;
         return vm->vm->host_exec(vm, &request);
     }
+    case CS2_OP_SOUND_SYNTH:
+    {
+        /* id, loops, delay — audio not implemented; discard args. */
+        int discard;
+        if( CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM_EXECNO_OK;
+    }
+    case CS2_OP_SOUND_SONG:
+    {
+        int discard;
+        if( CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM_EXECNO_OK;
+    }
+    case CS2_OP_SOUND_JINGLE:
+    {
+        int discard;
+        if( CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM_EXECNO_OK;
+    }
+    case CS2_OP_IF_CLOSE:
+        /* No stack args. Generated meta wrongly treats this like MES (1 string). */
+        return CS2VM_EXECNO_OK;
     default:
         return CS2VM2_Op_StackMetaStub(vm, frame, opcode, operand);
     }

@@ -102,6 +102,7 @@ UITreeSceneBridge_Init(
     bridge->model_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
     bridge->obj_icon_map = bridge_hmap_new_keyed(
         sizeof(int) * 2, sizeof(struct MapEntry_ObjIcon), BRIDGE_OBJ_ICON_MAP_CAP);
+    bridge->scrollbar_scene_id = -1;
     assert(bridge->sprite_map && bridge->model_map && bridge->obj_icon_map);
 }
 
@@ -183,6 +184,30 @@ UITreeSceneBridge_EnsureSprite(
 }
 
 int
+UITreeSceneBridge_EnsureScrollbar(
+    struct UITreeSceneBridge* bridge,
+    int cache_graphic_id)
+{
+    int scene_id;
+
+    assert(bridge);
+    if( bridge->scrollbar_scene_id > 0 )
+        return bridge->scrollbar_scene_id;
+
+    scene_id = UITreeSceneBridge_EnsureSprite(bridge, cache_graphic_id);
+    if( scene_id > 0 )
+        bridge->scrollbar_scene_id = scene_id;
+    return scene_id;
+}
+
+int
+UITreeSceneBridge_ScrollbarSceneId(struct UITreeSceneBridge const* bridge)
+{
+    assert(bridge);
+    return bridge->scrollbar_scene_id;
+}
+
+int
 UITreeSceneBridge_EnsureFont(
     struct UITreeSceneBridge* bridge,
     int cache_font_id)
@@ -256,6 +281,7 @@ UITreeSceneBridge_EnsureModel(
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = model;
+    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
     ToriDraw_SceneModelAdd(bridge->scene, cache_model_id, hnd);
     bridge_map_put(bridge->model_map, cache_model_id, cache_model_id);
     return cache_model_id;
@@ -334,12 +360,10 @@ UITreeSceneBridge_EnsureObjIcon(
         return -1;
 
     rs_model = CacheProvider_ModelGet(bridge->provider, obj->inventory_model_id);
-    if( !rs_model )
-        return -1;
+    assert(rs_model != NULL && "ModelGet failed");
 
     model = ToriDraw_ModelFromToriRS(rs_model);
-    if( !model )
-        return -1;
+    assert(model != NULL && "ModelFromToriRS failed");
 
     for( i = 0; i < obj->recolor_count; i++ )
         ToriDraw_ModelRecolor(model, obj->recolors_from[i], obj->recolors_to[i]);

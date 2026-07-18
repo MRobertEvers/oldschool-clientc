@@ -11,6 +11,16 @@
 #define UITREE_SCROLLBAR_THICKNESS 16
 #define UITREE_SCROLLBAR_ARROW_DELTA 4
 
+/* Client.ts / widgets-gl.ts SCROLLBAR_* colors (ARGB). */
+#define UITREE_SCROLLBAR_TRACK_ARGB 0xFF23201B
+#define UITREE_SCROLLBAR_GRIP_ARGB 0xFF4D4233
+#define UITREE_SCROLLBAR_GRIP_HI_ARGB 0xFF766654
+#define UITREE_SCROLLBAR_GRIP_LO_ARGB 0xFF332D25
+
+/* Phased draw steps per scrollbar axis (see Client.ts drawScrollbar / v1). */
+#define UITREE_SCROLLBAR_V_DRAW_STEPS 9
+#define UITREE_SCROLLBAR_H_DRAW_STEPS 9
+
 struct UITreeScrollState
 {
     int* scroll_x;
@@ -88,6 +98,10 @@ UITree_ScrollClampPos(
     struct UITreeComponent const* layer,
     struct UITreeScrollState const* scroll,
     int component_id);
+
+/** Clamp UITreeComponent.scroll_x/y into valid range for an IF1 scroll layer. */
+void
+UITree_ScrollClampComponent(struct UITreeComponent* layer);
 
 void
 UITree_ScrollIntersectClip(

@@ -27,14 +27,29 @@ TORIDRAW_CFLAGS = -std=c11 -g \
 	-I$(TORIDRAW_DIR) \
 	-I$(BMP_DIR)
 
-LDFLAGS = -lm -Wl,-dead_strip
+SDL_CFLAGS := $(shell pkg-config --cflags sdl2 2>/dev/null)
+SDL_LIBS   := $(shell pkg-config --libs   sdl2 2>/dev/null)
+ifeq ($(strip $(SDL_CFLAGS)$(SDL_LIBS)),)
+  SDL_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
+  SDL_LIBS   := $(shell sdl2-config --libs 2>/dev/null)
+endif
+ifeq ($(strip $(SDL_CFLAGS)$(SDL_LIBS)),)
+  SDL_CFLAGS := -I/opt/homebrew/include/SDL2 -I/usr/local/include/SDL2
+  SDL_LIBS   := -L/opt/homebrew/lib -L/usr/local/lib -lSDL2
+endif
+
+CFLAGS += $(SDL_CFLAGS)
+LDFLAGS = -lm -Wl,-dead_strip $(SDL_LIBS)
 
 ifeq ($(ENABLE_ASAN),1)
 CFLAGS += -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS += -fsanitize=address
 endif
 
-SRCS = main.c platform/platform_x_io.c game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
+SRCS = main.c platform/platform_x_io.c platform/platform_sdl2.c \
+	platform/platform_sdl2_renderer_soft3d.c render/torirs_frame.c \
+	input/torirs_input.c \
+	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
 	cs2vm2/cs2_opcode_meta.c engine/cache_provider.c engine/cs2vm2_script_from_rscache.c \
 	engine/torirs_types.c engine/torirs_model_from_rscache.c \
@@ -88,7 +103,9 @@ SRCS = main.c platform/platform_x_io.c game/task_cs2_script_exec.c $(BMP_DIR)/bm
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
-OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/task_cs2_script_exec.o $(OBJ_DIR)/bmp.o \
+OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/platform_sdl2.o \
+	$(OBJ_DIR)/platform_sdl2_renderer_soft3d.o $(OBJ_DIR)/torirs_frame.o \
+	$(OBJ_DIR)/torirs_input.o $(OBJ_DIR)/task_cs2_script_exec.o $(OBJ_DIR)/bmp.o \
 	$(OBJ_DIR)/cs2vm2.o $(OBJ_DIR)/cs2vm2_script.o $(OBJ_DIR)/cs2vm2_trigger_args.o \
 	$(OBJ_DIR)/cs2_opcode_meta.o $(OBJ_DIR)/cache_provider.o $(OBJ_DIR)/cs2vm2_script_from_rscache.o \
 	$(OBJ_DIR)/torirs_types.o $(OBJ_DIR)/torirs_model_from_rscache.o \

@@ -4,6 +4,16 @@
 struct ToriDraw_Scene;
 struct UITreeEmitDesc;
 
+/** Raster emit commands into a caller-owned ARGB pixel buffer. */
+void
+UITreeCmd_RenderToPixels(
+    struct ToriDraw_Scene* scene,
+    struct UITreeEmitDesc const* cmds,
+    int cmd_count,
+    int* pixels,
+    int width,
+    int height);
+
 /** Raster emit commands using scene_id lookups into scene → BMP file. */
 int
 UITreeCmd_WriteBmp(
