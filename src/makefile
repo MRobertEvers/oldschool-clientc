@@ -42,7 +42,7 @@ SRCS = main.c platform/platform_x_io.c game/task_cs2_script_exec.c $(BMP_DIR)/bm
 	engine/torirs_objtype_from_rscache.c engine/torirs_npctype_from_rscache.c \
 	engine/torirs_idk_from_rscache.c \
 	engine/torirs_map_from_rscache.c engine/torirs_location_from_rscache.c \
-	engine/torirs_flotype_from_rscache.c engine/torirs_texture_bake.c \
+	engine/torirs_flotype_from_rscache.c \
 	engine/torirs_sprite_from_rscache.c engine/torirs_font_from_rscache.c \
 	engine/torirs_enum_from_rscache.c engine/torirs_struct_from_rscache.c \
 	engine/uitree_from_component.c \
@@ -69,6 +69,11 @@ SRCS = main.c platform/platform_x_io.c game/task_cs2_script_exec.c $(BMP_DIR)/bm
 	engine/uitree_builder/task_uitree_build.c \
 	engine/uitree_builder/task_pack_assets_load.c \
 	engine/uitree_builder/task_interface_open.c \
+	engine/uitree_scene_bridge.c \
+	engine/uitree_cmd_render.c \
+	engine/toridraw_sprite_from_torirs.c \
+	engine/toridraw_font_from_torirs.c \
+	engine/toridraw_model_from_torirs.c \
 	game/rs_cs2_host.c game/task_cs2_run.c \
 	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
@@ -90,7 +95,7 @@ OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/task_cs2_script_e
 	$(OBJ_DIR)/torirs_objtype_from_rscache.o $(OBJ_DIR)/torirs_npctype_from_rscache.o \
 	$(OBJ_DIR)/torirs_idk_from_rscache.o \
 	$(OBJ_DIR)/torirs_map_from_rscache.o $(OBJ_DIR)/torirs_location_from_rscache.o \
-	$(OBJ_DIR)/torirs_flotype_from_rscache.o $(OBJ_DIR)/torirs_texture_bake.o \
+	$(OBJ_DIR)/torirs_flotype_from_rscache.o \
 	$(OBJ_DIR)/torirs_sprite_from_rscache.o $(OBJ_DIR)/torirs_font_from_rscache.o \
 	$(OBJ_DIR)/torirs_enum_from_rscache.o $(OBJ_DIR)/torirs_struct_from_rscache.o \
 	$(OBJ_DIR)/uitree_from_component.o \
@@ -117,6 +122,11 @@ OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/task_cs2_script_e
 	$(OBJ_DIR)/task_uitree_build.o \
 	$(OBJ_DIR)/task_pack_assets_load.o \
 	$(OBJ_DIR)/task_interface_open.o \
+	$(OBJ_DIR)/uitree_scene_bridge.o \
+	$(OBJ_DIR)/uitree_cmd_render.o \
+	$(OBJ_DIR)/toridraw_sprite_from_torirs.o \
+	$(OBJ_DIR)/toridraw_font_from_torirs.o \
+	$(OBJ_DIR)/toridraw_model_from_torirs.o \
 	$(OBJ_DIR)/rs_cs2_host.o $(OBJ_DIR)/task_cs2_run.o \
 	$(OBJ_DIR)/uitree.o $(OBJ_DIR)/uitree_layout.o $(OBJ_DIR)/uitree_build.o \
 	$(OBJ_DIR)/uitree_host.o $(OBJ_DIR)/uitree_input.o $(OBJ_DIR)/uitree_hover.o \
@@ -130,7 +140,8 @@ OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/task_cs2_script_e
 	$(OBJ_DIR)/painters.o \
 	$(OBJ_DIR)/minimap.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
-	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o
+	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o
 
 # World builder pipeline objects (compiled as standalone objects; world_builder.c is a single
 # translation unit that #includes its .u.c units). Built via the `world-builder` target.
@@ -192,8 +203,6 @@ $(OBJ_DIR)/collision_map.o: $(WB_DIR)/collision_map.c
 	$(CC) $(CFLAGS) -c $(WB_DIR)/collision_map.c -o $@
 $(OBJ_DIR)/wb_minimap.o: $(WB_DIR)/minimap.c
 	$(CC) $(CFLAGS) -c $(WB_DIR)/minimap.c -o $@
-$(OBJ_DIR)/toridraw_model_from_torirs.o: engine/toridraw_model_from_torirs.c
-	$(CC) $(CFLAGS) -c engine/toridraw_model_from_torirs.c -o $@
 
 world-builder: $(OBJ_DIR) $(WB_OBJS)
 
@@ -224,6 +233,12 @@ $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC)
 
 $(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC)
 	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_UNITY_SRC) -o $@
+
+$(OBJ_DIR)/toridraw_font.o: $(TORIDRAW_DIR)/toridraw_font.c
+	$(CC) $(TORIDRAW_CFLAGS) -I$(REPO_ROOT)/v0 -w -c $(TORIDRAW_DIR)/toridraw_font.c -o $@
+
+$(OBJ_DIR)/toridraw_model_sprite.o: $(TORIDRAW_DIR)/toridraw_model_sprite.c
+	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_DIR)/toridraw_model_sprite.c -o $@
 
 run: $(TARGET)
 	./$(TARGET)

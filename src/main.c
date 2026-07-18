@@ -2,11 +2,18 @@
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/uitree_builder/task_interface_open.h"
+#include "engine/uitree_cmd_render.h"
+#include "engine/uitree_scene_bridge.h"
 #include "game/rs_cs2_host.h"
 #include "inv/inv_manager.h"
 #include "platform/platform_x_io.h"
+#include "toridraw.h"
+#include "toridraw_scene.h"
 #include "ui/uitree.h"
+#include "ui/uitree_emit.h"
+#include "ui/uitree_layout.h"
 #include "varp/varp_manager.h"
+#include <sys/stat.h>
 
 #include <assert.h>
 #include <rscache.h>
@@ -66,6 +73,8 @@ main(
         }
     }
 
+    ToriDraw_Init();
+
     struct ToriRS_IO* io = ToriRS_IO_New();
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
     struct Dat2BuildCache* bc = dat2_buildcache_new();
@@ -78,6 +87,9 @@ main(
     PlatformX_IO_InitConfigPath(px, config_dir);
     PlatformX_IO_InitScriptPath(px, script_dir);
 
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0);
+    assert(scene);
+
     struct UITree* tree = UITree_New(256);
     assert(tree);
     struct InvManager invs;
@@ -87,14 +99,18 @@ main(
 
     seed_inv_defaults(&invs);
 
+    struct UITreeSceneBridge bridge;
+    UITreeSceneBridge_Init(&bridge, scene, provider);
+
     struct RS_CS2Host host;
     RS_CS2Host_Init(&host, tree, provider, &invs, &varps);
+    RS_CS2Host_SetBridge(&host, &bridge);
 
     struct InterfaceOpenStats stats;
     memset(&stats, 0, sizeof(stats));
 
     struct ToriRS_Task* task =
-        CreateTask_InterfaceOpen(provider, tree, &host, &invs, interface_id, &stats);
+        CreateTask_InterfaceOpen(provider, tree, &host, &invs, &bridge, interface_id, &stats);
     assert(task != NULL);
     ToriRS_TaskQueue_Add(queue, task);
 
@@ -113,6 +129,22 @@ main(
         host.inv_transmit_hook_count,
         host.var_transmit_hook_count);
 
+    {
+        struct UITreeEmitBuffer buf;
+        char path[256];
+        UITree_EmitBufferInit(&buf);
+        UITree_EmitWalk(tree, NULL, &buf);
+        snprintf(path, sizeof(path), "build/interface_%d.bmp", interface_id);
+        if( UITreeCmd_WriteBmp(
+                scene, buf.cmds, buf.count, path, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) == 0 )
+            printf("wrote %s (%d cmds)\n", path, buf.count);
+        else
+            fprintf(stderr, "failed to write %s\n", path);
+        UITree_EmitBufferFree(&buf);
+    }
+
+    UITreeSceneBridge_Free(&bridge);
+    ToriDraw_SceneFree(scene);
     UITree_Free(tree);
     InvManager_Free(&invs);
     VarPManager_Free(&varps);

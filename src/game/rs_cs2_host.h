@@ -10,6 +10,7 @@ struct CacheProvider;
 struct InvManager;
 struct VarPManager;
 struct CS2VM2_Thread;
+struct UITreeSceneBridge;
 
 #define RS_CS2_HOST_VARC_INT_MAX 256
 #define RS_CS2_HOST_VARC_STRING_MAX 64
@@ -45,7 +46,8 @@ struct RS_CS2Host
     struct UITree* tree;
     struct CacheProvider* provider;
     struct InvManager* invs;
-    struct VarPManager* varps; /* may be NULL */
+    struct VarPManager* varps;        /* may be NULL */
+    struct UITreeSceneBridge* bridge; /* may be NULL until set */
 
     bool has_pending;
     struct CS2VM_HostRequest pending;
@@ -73,6 +75,11 @@ RS_CS2Host_Init(
     struct CacheProvider* provider,
     struct InvManager* invs,
     struct VarPManager* varps);
+
+void
+RS_CS2Host_SetBridge(
+    struct RS_CS2Host* host,
+    struct UITreeSceneBridge* bridge);
 
 /** Advance CLIENTCLOCK once per game tick. */
 void

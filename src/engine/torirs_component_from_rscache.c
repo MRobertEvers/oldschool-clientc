@@ -36,6 +36,8 @@ torirs_component_type_from_raw(int type)
     {
     case TORIRS_COMPONENT_LAYER:
         return TORIRS_COMPONENT_LAYER;
+    case TORIRS_COMPONENT_UNUSED:
+        return TORIRS_COMPONENT_UNUSED;
     case TORIRS_COMPONENT_INV:
         return TORIRS_COMPONENT_INV;
     case TORIRS_COMPONENT_RECT:

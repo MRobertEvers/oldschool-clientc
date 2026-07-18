@@ -4,6 +4,7 @@
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
 #include "engine/uitree_from_component.h"
+#include "engine/uitree_scene_bridge.h"
 #include "game/rs_cs2_host.h"
 #include "game/task_cs2_run.h"
 #include "inv/inv_manager.h"
@@ -36,6 +37,7 @@ struct Task_InterfaceOpen
     struct UITree* tree;
     struct RS_CS2Host* host;
     struct InvManager* invs;
+    struct UITreeSceneBridge* bridge;
     int interface_id;
     struct InterfaceOpenStats* stats;
 
@@ -55,15 +57,14 @@ open_resolve_sprite(
     int graphic_id)
 {
     struct Task_InterfaceOpen* self = (struct Task_InterfaceOpen*)ud;
-    assert(self && self->provider);
+    int scene_id;
+    assert(self && self->bridge);
     if( graphic_id <= 0 )
         return -1;
-    if( !CacheProvider_SpriteHas(self->provider, graphic_id) )
-    {
-        fprintf(stderr, "InterfaceOpen: RS sprite %d not loaded\n", graphic_id);
-        return -1;
-    }
-    return graphic_id;
+    scene_id = UITreeSceneBridge_EnsureSprite(self->bridge, graphic_id);
+    if( scene_id < 0 )
+        fprintf(stderr, "InterfaceOpen: RS sprite %d not in scene\n", graphic_id);
+    return scene_id;
 }
 
 static int
@@ -71,10 +72,34 @@ open_resolve_font(
     void* ud,
     int font_id)
 {
-    (void)ud;
+    struct Task_InterfaceOpen* self = (struct Task_InterfaceOpen*)ud;
+    assert(self && self->bridge);
     if( font_id < 0 )
         return -1;
-    return font_id;
+    return UITreeSceneBridge_EnsureFont(self->bridge, font_id);
+}
+
+static void
+upload_model_nodes(
+    struct UITree* tree,
+    struct UITreeSceneBridge* bridge)
+{
+    uint32_t i;
+    assert(tree && bridge);
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent* c = &tree->components[i];
+        int cache_id;
+        int scene_id;
+        if( c->type != UIELEM_RS_MODEL )
+            continue;
+        cache_id = c->u.rs_model.gamecache_model_id;
+        if( cache_id < 0 )
+            continue;
+        scene_id = UITreeSceneBridge_EnsureModel(bridge, cache_id);
+        if( scene_id >= 0 )
+            c->u.rs_model.gamecache_model_id = scene_id;
+    }
 }
 
 static void
@@ -164,6 +189,7 @@ Task_InterfaceOpen_Run(
     assert(self->tree);
     assert(self->host);
     assert(self->invs);
+    assert(self->bridge);
     assert(self->interface_id > 0);
 
     PT_BEGIN(&self->pt);
@@ -187,7 +213,7 @@ Task_InterfaceOpen_Run(
             TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, model_id));
     }
 
-    /* 4. Bake pack into UITree + collect on_load hooks. */
+    /* 4. Bake pack into UITree + collect on_load hooks (scene ids via bridge). */
     {
         struct ToriRS_ComponentPack* pack =
             CacheProvider_ComponentPackGet(self->provider, self->interface_id);
@@ -195,6 +221,7 @@ Task_InterfaceOpen_Run(
         collect_onloads(self, pack);
         (void)UITree_BuildFromComponentPack(
             self->tree, pack, open_resolve_sprite, open_resolve_font, self);
+        upload_model_nodes(self->tree, self->bridge);
     }
 
     /* 5. Layout. */
@@ -266,6 +293,7 @@ CreateTask_InterfaceOpen(
     struct UITree* tree,
     struct RS_CS2Host* host,
     struct InvManager* invs,
+    struct UITreeSceneBridge* bridge,
     int interface_id,
     struct InterfaceOpenStats* stats)
 {
@@ -273,6 +301,7 @@ CreateTask_InterfaceOpen(
     assert(tree);
     assert(host);
     assert(invs);
+    assert(bridge);
     assert(interface_id > 0);
 
     struct Task_InterfaceOpen* task = calloc(1, sizeof(*task));
@@ -283,6 +312,7 @@ CreateTask_InterfaceOpen(
     task->tree = tree;
     task->host = host;
     task->invs = invs;
+    task->bridge = bridge;
     task->interface_id = interface_id;
     task->stats = stats;
     PT_INIT(&task->pt);

@@ -7,6 +7,7 @@ struct CacheProvider;
 struct UITree;
 struct RS_CS2Host;
 struct InvManager;
+struct UITreeSceneBridge;
 
 struct InterfaceOpenStats
 {
@@ -18,7 +19,7 @@ struct InterfaceOpenStats
 
 /**
  * Open one cache interface pack: load pack → prefetch sprites/fonts/models →
- * bake UITree → layout → onLoad CS2 → inv/var transmit.
+ * bake UITree (scene ids via bridge) → layout → onLoad CS2 → inv/var transmit.
  * stats may be NULL; when non-NULL filled after the task completes.
  */
 struct ToriRS_Task*
@@ -27,6 +28,7 @@ CreateTask_InterfaceOpen(
     struct UITree* tree,
     struct RS_CS2Host* host,
     struct InvManager* invs,
+    struct UITreeSceneBridge* bridge,
     int interface_id,
     struct InterfaceOpenStats* stats);
 

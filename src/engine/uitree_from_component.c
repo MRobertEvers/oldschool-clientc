@@ -36,6 +36,7 @@ UITree_FillBuildFromToriRS(
     switch( src->type )
     {
     case TORIRS_COMPONENT_LAYER:
+    case TORIRS_COMPONENT_UNUSED:
         dst->type = UIBUILD_LAYER;
         break;
     case TORIRS_COMPONENT_INV:

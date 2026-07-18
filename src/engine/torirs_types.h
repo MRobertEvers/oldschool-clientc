@@ -378,14 +378,16 @@ struct ToriRS_Struct
 
 enum ToriRS_ComponentType
 {
+    /* Wire values from IF1/IF3 (dat1/dat2) — must match cache decode. */
     TORIRS_COMPONENT_LAYER = 0,
-    TORIRS_COMPONENT_INV,
-    TORIRS_COMPONENT_RECT,
-    TORIRS_COMPONENT_TEXT,
-    TORIRS_COMPONENT_GRAPHIC,
-    TORIRS_COMPONENT_MODEL,
-    TORIRS_COMPONENT_INV_TEXT,
-    TORIRS_COMPONENT_LINE,
+    TORIRS_COMPONENT_UNUSED = 1,
+    TORIRS_COMPONENT_INV = 2,
+    TORIRS_COMPONENT_RECT = 3,
+    TORIRS_COMPONENT_TEXT = 4,
+    TORIRS_COMPONENT_GRAPHIC = 5,
+    TORIRS_COMPONENT_MODEL = 6,
+    TORIRS_COMPONENT_INV_TEXT = 7,
+    TORIRS_COMPONENT_LINE = 9,
 };
 
 /* Some interface onLoad hooks (e.g. the bank's) declare 30+ int script params

@@ -7,7 +7,9 @@
 #include "engine/torirs_types.h"
 #include "engine/uitree_builder/task_pack_assets_load.h"
 #include "engine/uitree_from_component.h"
+#include "engine/uitree_scene_bridge.h"
 #include "game/rs_cs2_host.h"
+#include "ui/uitree.h"
 
 #include <3rd/minipt.h>
 
@@ -17,6 +19,28 @@
 #include <string.h>
 
 #define TASK_CS2_RUN_INT_ARGS_MAX 64
+
+static int
+task_cs2_resolve_sprite(
+    void* ud,
+    int graphic_id)
+{
+    struct UITreeSceneBridge* bridge = (struct UITreeSceneBridge*)ud;
+    if( !bridge || graphic_id <= 0 )
+        return -1;
+    return UITreeSceneBridge_EnsureSprite(bridge, graphic_id);
+}
+
+static int
+task_cs2_resolve_font(
+    void* ud,
+    int font_id)
+{
+    struct UITreeSceneBridge* bridge = (struct UITreeSceneBridge*)ud;
+    if( !bridge || font_id < 0 )
+        return -1;
+    return UITreeSceneBridge_EnsureFont(bridge, font_id);
+}
 
 struct Task_CS2Run
 {
@@ -269,9 +293,7 @@ Task_CS2Run_Run(
             {
                 TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->await_id));
                 TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->await_id));
-                /* Bake loaded pack into the tree so the host retry can find nodes.
-                 * Identity resolvers: cache sprite/font ids stored as scene_id until a
-                 * scene layer exists. */
+                /* Bake loaded pack into the tree so the host retry can find nodes. */
                 if( self->host->tree &&
                     CacheProvider_ComponentPackHas(self->provider, self->await_id) )
                 {
@@ -279,8 +301,39 @@ Task_CS2Run_Run(
                         CacheProvider_ComponentPackGet(self->provider, self->await_id);
                     if( pack )
                     {
+                        int (*resolve_sprite)(void*, int) = NULL;
+                        int (*resolve_font)(void*, int) = NULL;
+                        void* resolve_ud = NULL;
+                        /* Prefer scene-bridge resolvers when available. */
+                        if( self->host->bridge )
+                        {
+                            /* Inline via Ensure* through small static helpers would need ud;
+                             * store bridge on host and use cache ids only if bridge missing.
+                             * Build with NULL then upload models/sprites in a follow-up is
+                             * weaker; call Ensure via bridge from host fields. */
+                            resolve_ud = self->host->bridge;
+                            resolve_sprite = task_cs2_resolve_sprite;
+                            resolve_font = task_cs2_resolve_font;
+                        }
                         (void)UITree_BuildFromComponentPack(
-                            self->host->tree, pack, NULL, NULL, NULL);
+                            self->host->tree, pack, resolve_sprite, resolve_font, resolve_ud);
+                        if( self->host->bridge )
+                        {
+                            uint32_t mi;
+                            for( mi = 0; mi < self->host->tree->component_count; mi++ )
+                            {
+                                struct UITreeComponent* c = &self->host->tree->components[mi];
+                                if( c->type != UIELEM_RS_MODEL )
+                                    continue;
+                                if( c->u.rs_model.gamecache_model_id >= 0 )
+                                {
+                                    int sid = UITreeSceneBridge_EnsureModel(
+                                        self->host->bridge, c->u.rs_model.gamecache_model_id);
+                                    if( sid >= 0 )
+                                        c->u.rs_model.gamecache_model_id = sid;
+                                }
+                            }
+                        }
                     }
                 }
             }

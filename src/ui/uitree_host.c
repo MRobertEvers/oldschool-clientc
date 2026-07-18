@@ -164,10 +164,11 @@ UITree_ComponentSpriteRotation(
     struct UITreeHost const* host)
 {
     assert(component);
-    assert(host);
 
     if( component->type == UIELEM_BUILTIN_COMPASS || component->type == UIELEM_BUILTIN_MINIMAP )
     {
+        if( !host )
+            return 0;
         struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_CAMERA_YAW };
         return UITree_Host(host, &req);
     }

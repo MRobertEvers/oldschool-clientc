@@ -339,7 +339,7 @@
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/src/torirs",
-      "args": ["${workspaceFolder}/cache.jan2026", "${workspaceFolder}/config", "${workspaceFolder}/script"],
+      "args": ["${workspaceFolder}/cache.jan2026", "161"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/src",
       "environment": [],

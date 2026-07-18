@@ -3,6 +3,7 @@
 #include "cs2vm2/cs2vm2.h"
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
+#include "engine/uitree_scene_bridge.h"
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
 #include "ui/uitree_scroll.h"
@@ -452,6 +453,16 @@ RS_CS2Host_Init(
     host->client_type = 80;
     host->viewport_w = 765;
     host->viewport_h = 503;
+    host->bridge = NULL;
+}
+
+void
+RS_CS2Host_SetBridge(
+    struct RS_CS2Host* host,
+    struct UITreeSceneBridge* bridge)
+{
+    assert(host);
+    host->bridge = bridge;
 }
 
 void
@@ -765,8 +776,13 @@ exec_set_graphic(
         return rs_cs2_yield(host, &req);
     }
 
-    /* Store cache sprite id in scene_id until a scene layer exists. */
-    (void)UITree_ApplyGraphic(tree, request.component_id, request.graphic_id, 0);
+    /* Upload to scene then store scene element id on the node. */
+    {
+        int scene_id = request.graphic_id;
+        if( host->bridge && request.graphic_id >= 0 && request.graphic_id < 1000000 )
+            scene_id = UITreeSceneBridge_EnsureSprite(host->bridge, request.graphic_id);
+        (void)UITree_ApplyGraphic(tree, request.component_id, scene_id, 0);
+    }
     return CS2VM_EXECNO_OK;
 }
 
@@ -824,7 +840,12 @@ exec_set_text_font(
         return rs_cs2_yield(host, &req);
     }
 
-    (void)UITree_ApplyTextFont(rs_cs2_tree(host), request.component_id, request.font_id);
+    {
+        int font_id = request.font_id;
+        if( host->bridge && font_id >= 0 )
+            font_id = UITreeSceneBridge_EnsureFont(host->bridge, font_id);
+        (void)UITree_ApplyTextFont(rs_cs2_tree(host), request.component_id, font_id);
+    }
     return CS2VM_EXECNO_OK;
 }
 
@@ -1000,7 +1021,12 @@ exec_widget_set_model(
         return rs_cs2_yield(host, &req);
     }
     if( rs_cs2_tree(host) )
-        (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, request.model_id);
+    {
+        int scene_model = request.model_id;
+        if( host->bridge && scene_model >= 0 )
+            scene_model = UITreeSceneBridge_EnsureModel(host->bridge, scene_model);
+        (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
+    }
     return CS2VM_EXECNO_OK;
 }
 
@@ -1020,10 +1046,20 @@ exec_widget_set_model_kind(
         return rs_cs2_yield(host, &req);
     }
     if( request.model_kind == CS2VM_MODEL_KIND_PLAIN && rs_cs2_tree(host) )
-        (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, request.model_id);
+    {
+        int scene_model = request.model_id;
+        if( host->bridge && scene_model >= 0 )
+            scene_model = UITreeSceneBridge_EnsureModel(host->bridge, scene_model);
+        (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
+    }
     /* NPC/player heads: apply model_id when present; full appearance load is task-layer. */
     else if( rs_cs2_tree(host) && request.model_id >= 0 )
-        (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, request.model_id);
+    {
+        int scene_model = request.model_id;
+        if( host->bridge && request.model_kind == CS2VM_MODEL_KIND_PLAIN )
+            scene_model = UITreeSceneBridge_EnsureModel(host->bridge, scene_model);
+        (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
+    }
     return CS2VM_EXECNO_OK;
 }
 

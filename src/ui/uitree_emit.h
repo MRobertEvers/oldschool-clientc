@@ -74,4 +74,27 @@ UITree_EmitFill(
     int32_t node_index,
     struct UITreeEmitDesc* out);
 
+struct UITreeEmitBuffer
+{
+    struct UITreeEmitDesc* cmds;
+    int count;
+    int cap;
+};
+
+void
+UITree_EmitBufferInit(struct UITreeEmitBuffer* buf);
+
+void
+UITree_EmitBufferFree(struct UITreeEmitBuffer* buf);
+
+/**
+ * Full DFS walk: fill clip, EmitFill, append drawable cmds.
+ * Two passes (non-text then text). No asset backends — scene_ids only.
+ */
+void
+UITree_EmitWalk(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out);
+
 #endif
