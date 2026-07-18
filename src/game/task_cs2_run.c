@@ -4,13 +4,14 @@
 #include "cs2vm2/cs2vm2_host.h"
 #include "cs2vm2/cs2vm2_script.h"
 #include "engine/cache_provider.h"
+#include "engine/task_obj_model_load.h"
 #include "engine/torirs_types.h"
 #include "engine/uitree_builder/task_pack_assets_load.h"
 #include "engine/uitree_from_component.h"
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_cs2_host.h"
 #include "ui/uitree.h"
-
+#include "ui/uitree_layout.h"
 #include <3rd/minipt.h>
 
 #include <assert.h>
@@ -20,27 +21,21 @@
 
 #define TASK_CS2_RUN_INT_ARGS_MAX 64
 
-static int
-task_cs2_resolve_sprite(
-    void* ud,
-    int graphic_id)
+enum TaskCS2YieldPlan
 {
-    struct UITreeSceneBridge* bridge = (struct UITreeSceneBridge*)ud;
-    if( !bridge || graphic_id <= 0 )
-        return -1;
-    return UITreeSceneBridge_EnsureSprite(bridge, graphic_id);
-}
-
-static int
-task_cs2_resolve_font(
-    void* ud,
-    int font_id)
-{
-    struct UITreeSceneBridge* bridge = (struct UITreeSceneBridge*)ud;
-    if( !bridge || font_id < 0 )
-        return -1;
-    return UITreeSceneBridge_EnsureFont(bridge, font_id);
-}
+    TASK_CS2_YIELD_NONE = 0,
+    TASK_CS2_YIELD_SCRIPT,
+    TASK_CS2_YIELD_ENUM,
+    TASK_CS2_YIELD_STRUCT,
+    TASK_CS2_YIELD_OBJ,
+    TASK_CS2_YIELD_COMPONENT,
+    TASK_CS2_YIELD_MODEL,
+    TASK_CS2_YIELD_NPC,
+    TASK_CS2_YIELD_SETOBJECT,
+    TASK_CS2_YIELD_SPRITE,
+    TASK_CS2_YIELD_FONT,
+    TASK_CS2_YIELD_ABORT,
+};
 
 struct Task_CS2Run
 {
@@ -59,11 +54,36 @@ struct Task_CS2Run
     int int_arg_count;
 
     struct CS2VM_HostRequest pending;
+    enum TaskCS2YieldPlan yield_plan;
     int await_id;
     int yield_obj_id;
     int yield_obj_count;
     int started;
 };
+
+static int
+task_cs2_resolve_sprite(
+    void* ud,
+    int graphic_id)
+{
+    struct UITreeSceneBridge* bridge = (struct UITreeSceneBridge*)ud;
+    assert(bridge);
+    if( graphic_id <= 0 )
+        return -1;
+    return UITreeSceneBridge_EnsureSprite(bridge, graphic_id);
+}
+
+static int
+task_cs2_resolve_font(
+    void* ud,
+    int font_id)
+{
+    struct UITreeSceneBridge* bridge = (struct UITreeSceneBridge*)ud;
+    assert(bridge);
+    if( font_id < 0 )
+        return -1;
+    return UITreeSceneBridge_EnsureFont(bridge, font_id);
+}
 
 static void
 task_cs2_set_int_local(
@@ -114,41 +134,439 @@ task_cs2_group_id_from_request(struct CS2VM_HostRequest const* request)
     }
 }
 
+/** Parent component id that triggered a missing-group yield, or -1. */
 static int
-task_cs2_obj_inventory_model_id(
-    struct CacheProvider* provider,
-    int obj_id,
-    int count)
+task_cs2_mount_parent_id_from_request(struct CS2VM_HostRequest const* request)
 {
-    struct ToriRS_Objtype* obj;
-    int i;
-    int countobj_id = -1;
-
-    if( !provider || obj_id < 0 )
-        return -1;
-
-    obj = CacheProvider_ObjtypeGet(provider, obj_id);
-    if( !obj )
-        return -1;
-
-    if( count > 1 )
+    switch( request->kind )
     {
-        for( i = 0; i < 10; i++ )
-        {
-            if( count >= obj->count_co[i] && obj->count_co[i] != 0 )
-                countobj_id = obj->count_obj[i];
-        }
-        if( countobj_id >= 0 )
-        {
-            obj = CacheProvider_ObjtypeGet(provider, countobj_id);
-            if( !obj )
-                return -1;
-        }
+    case CS2VM_HOST_REQUEST_CC_CREATE:
+        return request->u.cc_create.parent_id;
+    case CS2VM_HOST_REQUEST_CC_FIND:
+        return request->u.cc_find.parent_id;
+    case CS2VM_HOST_REQUEST_IF_FIND:
+        return request->u.if_find.component_id;
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
+        return request->u.cc_children_find.parent_id;
+    case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
+        return request->u.if_children_find.uid;
+    default:
+        return -1;
+    }
+}
+
+static void
+task_cs2_bake_pack(struct Task_CS2Run* self)
+{
+    struct ToriRS_ComponentPack* pack;
+    struct UITree* tree;
+    int (*resolve_sprite)(void*, int) = NULL;
+    int (*resolve_font)(void*, int) = NULL;
+    void* resolve_ud = NULL;
+    int pack_root_id;
+    int32_t pack_root_idx;
+    int mount_parent_id;
+    int mount_group;
+
+    assert(self);
+    assert(self->host);
+    assert(self->host->tree);
+    assert(self->await_id > 0);
+
+    tree = self->host->tree;
+
+    if( !CacheProvider_ComponentPackHas(self->provider, self->await_id) )
+    {
+        fprintf(
+            stderr,
+            "Task_CS2Run: component pack %d missing after load (script %d)\n",
+            self->await_id,
+            self->script_id);
+        return;
     }
 
-    if( obj->inventory_model_id <= 0 )
-        return -1;
-    return obj->inventory_model_id;
+    pack = CacheProvider_ComponentPackGet(self->provider, self->await_id);
+    assert(pack);
+
+    if( self->host->bridge )
+    {
+        resolve_ud = self->host->bridge;
+        resolve_sprite = task_cs2_resolve_sprite;
+        resolve_font = task_cs2_resolve_font;
+    }
+    (void)UITree_BuildFromComponentPack(
+        tree, pack, resolve_sprite, resolve_font, resolve_ud);
+
+    /* If the yield parent lives on another already-baked group, mount this pack
+     * root under it (sub-interface style). Same-group parents (e.g. CC_CREATE
+     * under 728:6 while loading 728) are already linked inside the pack. */
+    pack_root_id = (self->await_id << 16) | 0;
+    pack_root_idx = UITree_FindByComponentId(tree, pack_root_id);
+    mount_parent_id = task_cs2_mount_parent_id_from_request(&self->pending);
+    mount_group = (mount_parent_id >> 16) & 0xffff;
+    if( pack_root_idx >= 0 && mount_group > 0 && mount_group != self->await_id )
+    {
+        int32_t mount_idx = UITree_FindByComponentId(tree, mount_parent_id);
+        if( mount_idx >= 0 )
+            UITree_Reparent(tree, pack_root_idx, mount_idx);
+    }
+
+    UITree_LayoutResolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+
+    if( self->host->bridge )
+    {
+        uint32_t mi;
+        for( mi = 0; mi < tree->component_count; mi++ )
+        {
+            struct UITreeComponent* c = &tree->components[mi];
+            if( c->type != UIELEM_RS_MODEL )
+                continue;
+            if( c->u.rs_model.gamecache_model_id >= 0 )
+            {
+                int sid = UITreeSceneBridge_EnsureModel(
+                    self->host->bridge, c->u.rs_model.gamecache_model_id);
+                if( sid >= 0 )
+                    c->u.rs_model.gamecache_model_id = sid;
+            }
+        }
+    }
+}
+
+static void
+task_cs2_plan_pushscript(struct Task_CS2Run* self)
+{
+    self->await_id = self->pending.u.push_script.script_id;
+    assert(self->await_id > 0);
+    self->yield_plan = TASK_CS2_YIELD_SCRIPT;
+}
+
+static void
+task_cs2_plan_enum(struct Task_CS2Run* self)
+{
+    if( self->pending.kind == CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT )
+        self->await_id = self->pending.u.enum_get_output_count.enum_id;
+    else
+        self->await_id = self->pending.u.enum_lookup.enum_id;
+    assert(self->await_id >= 0);
+    self->yield_plan = TASK_CS2_YIELD_ENUM;
+}
+
+static void
+task_cs2_plan_struct(struct Task_CS2Run* self)
+{
+    self->await_id = self->pending.u.struct_param.struct_id;
+    assert(self->await_id >= 0);
+    self->yield_plan = TASK_CS2_YIELD_STRUCT;
+}
+
+static void
+task_cs2_plan_obj(struct Task_CS2Run* self)
+{
+    switch( self->pending.kind )
+    {
+    case CS2VM_HOST_REQUEST_OC_PARAM:
+        self->await_id = self->pending.u.oc_param.item_id;
+        break;
+    case CS2VM_HOST_REQUEST_OC_NAME:
+        self->await_id = self->pending.u.oc_name.item_id;
+        break;
+    case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
+        self->await_id = self->pending.u.oc_unplaceholder.item_id;
+        break;
+    case CS2VM_HOST_REQUEST_OC_INT_PARAM:
+        self->await_id = self->pending.u.oc_int_param.item_id;
+        break;
+    default:
+        assert(0 && "task_cs2_plan_obj: unexpected kind");
+        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        return;
+    }
+    assert(self->await_id >= 0);
+    self->yield_plan = TASK_CS2_YIELD_OBJ;
+}
+
+static void
+task_cs2_plan_component(struct Task_CS2Run* self)
+{
+    self->await_id = task_cs2_group_id_from_request(&self->pending);
+    assert(self->await_id > 0 && "component yield must carry a valid group id");
+    self->yield_plan = TASK_CS2_YIELD_COMPONENT;
+}
+
+static void
+task_cs2_plan_widget_set_model(struct Task_CS2Run* self)
+{
+    self->await_id = self->pending.u.widget_set_model.model_id;
+    if( self->await_id < 0 )
+    {
+        self->yield_plan = TASK_CS2_YIELD_NONE;
+        return;
+    }
+    self->yield_plan = TASK_CS2_YIELD_MODEL;
+}
+
+static void
+task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
+{
+    int model_id = self->pending.u.widget_set_model_kind.model_id;
+    enum CS2VM_ModelKind kind = self->pending.u.widget_set_model_kind.model_kind;
+
+    if( kind == CS2VM_MODEL_KIND_PLAIN )
+    {
+        if( model_id < 0 )
+        {
+            self->yield_plan = TASK_CS2_YIELD_NONE;
+            return;
+        }
+        self->await_id = model_id;
+        self->yield_plan = TASK_CS2_YIELD_MODEL;
+        return;
+    }
+    if( kind == CS2VM_MODEL_KIND_NPC_HEAD )
+    {
+        if( model_id < 0 )
+        {
+            self->yield_plan = TASK_CS2_YIELD_NONE;
+            return;
+        }
+        self->await_id = model_id;
+        self->yield_plan = TASK_CS2_YIELD_NPC;
+        return;
+    }
+    if( kind == CS2VM_MODEL_KIND_PLAYER_HEAD || kind == CS2VM_MODEL_KIND_PLAYER_SELF ||
+        kind == CS2VM_MODEL_KIND_PLAYER_CHATHEAD )
+    {
+        fprintf(
+            stderr,
+            "Task_CS2Run: player model kind %d not implemented (script %d)\n",
+            (int)kind,
+            self->script_id);
+        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        return;
+    }
+    fprintf(
+        stderr, "Task_CS2Run: unhandled model kind %d (script %d)\n", (int)kind, self->script_id);
+    self->yield_plan = TASK_CS2_YIELD_ABORT;
+}
+
+static void
+task_cs2_plan_setobject(struct Task_CS2Run* self)
+{
+    if( self->pending.kind == CS2VM_HOST_REQUEST_IF_SETOBJECT )
+    {
+        self->yield_obj_id = self->pending.u.if_set_object.obj_id;
+        self->yield_obj_count = self->pending.u.if_set_object.count;
+    }
+    else
+    {
+        self->yield_obj_id = self->pending.u.cc_set_object.obj_id;
+        self->yield_obj_count = self->pending.u.cc_set_object.count;
+    }
+
+    /* obj_id <= 0 clears the slot — no load. */
+    if( self->yield_obj_id <= 0 )
+    {
+        self->yield_plan = TASK_CS2_YIELD_NONE;
+        return;
+    }
+    self->await_id = self->yield_obj_id;
+    self->yield_plan = TASK_CS2_YIELD_SETOBJECT;
+}
+
+static void
+task_cs2_plan_setgraphic(struct Task_CS2Run* self)
+{
+    self->await_id = self->pending.u.cc_set_graphic.graphic_id;
+    if( self->await_id < 0 )
+    {
+        self->yield_plan = TASK_CS2_YIELD_NONE;
+        return;
+    }
+    self->yield_plan = TASK_CS2_YIELD_SPRITE;
+}
+
+static void
+task_cs2_plan_font(struct Task_CS2Run* self)
+{
+    if( self->pending.kind == CS2VM_HOST_REQUEST_CC_SETTEXTFONT )
+        self->await_id = self->pending.u.cc_set_text_font.font_id;
+    else
+        self->await_id = self->pending.u.para_height.font_id;
+    if( self->await_id < 0 )
+    {
+        self->yield_plan = TASK_CS2_YIELD_NONE;
+        return;
+    }
+    self->yield_plan = TASK_CS2_YIELD_FONT;
+}
+
+static void
+task_cs2_plan_yield(struct Task_CS2Run* self)
+{
+    assert(self);
+
+    self->yield_plan = TASK_CS2_YIELD_NONE;
+    self->await_id = -1;
+
+    switch( self->pending.kind )
+    {
+    case CS2VM_HOST_REQUEST_PUSHSCRIPT:
+        task_cs2_plan_pushscript(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
+    case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
+        task_cs2_plan_enum(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_STRUCT_PARAM:
+        task_cs2_plan_struct(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_OC_PARAM:
+    case CS2VM_HOST_REQUEST_OC_NAME:
+    case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
+    case CS2VM_HOST_REQUEST_OC_INT_PARAM:
+        task_cs2_plan_obj(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_CC_CREATE:
+    case CS2VM_HOST_REQUEST_CC_FIND:
+    case CS2VM_HOST_REQUEST_IF_FIND:
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
+    case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
+        task_cs2_plan_component(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
+        task_cs2_plan_widget_set_model(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
+        task_cs2_plan_widget_set_model_kind(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT:
+        task_cs2_plan_setobject(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_CC_SETGRAPHIC:
+    case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
+        task_cs2_plan_setgraphic(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_PARAHEIGHT:
+    case CS2VM_HOST_REQUEST_PARAWIDTH:
+    case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
+        task_cs2_plan_font(self);
+        break;
+
+    /* Sync-only: host never yields these for cache loads. Leave YIELD_NONE. */
+    case CS2VM_HOST_REQUEST_INVS_GET_SIZE:
+    case CS2VM_HOST_REQUEST_INVS_GET_OBJ:
+    case CS2VM_HOST_REQUEST_INVS_GET_NUM:
+    case CS2VM_HOST_REQUEST_INVS_GET_TOTAL:
+    case CS2VM_HOST_REQUEST_VARS_READ_VARP_AKA_PUSH_VAR:
+    case CS2VM_HOST_REQUEST_VARS_READ_VARBIT:
+    case CS2VM_HOST_REQUEST_VARS_READ_VARC_INT:
+    case CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING:
+    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT:
+    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING:
+    case CS2VM_HOST_REQUEST_CC_DELETEALL:
+    case CS2VM_HOST_REQUEST_CC_SETPOSITION:
+    case CS2VM_HOST_REQUEST_CC_SETSIZE:
+    case CS2VM_HOST_REQUEST_CC_SETGRAPHIC2:
+    case CS2VM_HOST_REQUEST_CC_SETTILING:
+    case CS2VM_HOST_REQUEST_CC_SETOUTLINE:
+    case CS2VM_HOST_REQUEST_CC_SETGRAPHICSHADOW:
+    case CS2VM_HOST_REQUEST_CC_SETCOLOUR:
+    case CS2VM_HOST_REQUEST_CC_SETFILL:
+    case CS2VM_HOST_REQUEST_CC_SETTRANS:
+    case CS2VM_HOST_REQUEST_CC_SETNOCLICKTHROUGH:
+    case CS2VM_HOST_REQUEST_CC_SETTEXT:
+    case CS2VM_HOST_REQUEST_CC_SETTEXTALIGN:
+    case CS2VM_HOST_REQUEST_CC_SETTEXTSHADOW:
+    case CS2VM_HOST_REQUEST_CC_SETDRAGGABLE:
+    case CS2VM_HOST_REQUEST_CC_SETDRAGGABLEBEHAVIOR:
+    case CS2VM_HOST_REQUEST_CC_SETDRAGDEADZONE:
+    case CS2VM_HOST_REQUEST_CC_SETDRAGDEADTIME:
+    case CS2VM_HOST_REQUEST_CC_SETOP:
+    case CS2VM_HOST_REQUEST_CC_GETID:
+    case CS2VM_HOST_REQUEST_CC_GETX:
+    case CS2VM_HOST_REQUEST_CC_GETY:
+    case CS2VM_HOST_REQUEST_CC_GETWIDTH:
+    case CS2VM_HOST_REQUEST_CC_GETHEIGHT:
+    case CS2VM_HOST_REQUEST_CC_GETHIDE:
+    case CS2VM_HOST_REQUEST_CC_GETTEXT:
+    case CS2VM_HOST_REQUEST_CC_GETTRANS:
+    case CS2VM_HOST_REQUEST_CC_SETONCLICK:
+    case CS2VM_HOST_REQUEST_CC_SETONHOLD:
+    case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
+    case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
+    case CS2VM_HOST_REQUEST_CC_SETONDRAG:
+    case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
+    case CS2VM_HOST_REQUEST_CC_SETONKEY:
+    case CS2VM_HOST_REQUEST_CC_SETONOP:
+    case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
+    case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
+    case CS2VM_HOST_REQUEST_CC_SETON_DISCARD:
+    case CS2VM_HOST_REQUEST_CC_SETSCROLLPOS:
+    case CS2VM_HOST_REQUEST_CC_SETSCROLLSIZE:
+    case CS2VM_HOST_REQUEST_CC_FINDROOT:
+    case CS2VM_HOST_REQUEST_CC_RESOLVE_PARENT:
+    case CS2VM_HOST_REQUEST_IF_GETWIDTH:
+    case CS2VM_HOST_REQUEST_IF_GETHEIGHT:
+    case CS2VM_HOST_REQUEST_IF_GETY:
+    case CS2VM_HOST_REQUEST_IF_GETLAYER:
+    case CS2VM_HOST_REQUEST_IF_GETTOP:
+    case CS2VM_HOST_REQUEST_IF_GETSCROLLX:
+    case CS2VM_HOST_REQUEST_IF_GETSCROLLY:
+    case CS2VM_HOST_REQUEST_IF_GETSCROLLHEIGHT:
+    case CS2VM_HOST_REQUEST_IF_GETHIDE:
+    case CS2VM_HOST_REQUEST_IF_GETX:
+    case CS2VM_HOST_REQUEST_IF_GETTEXT:
+    case CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH:
+    case CS2VM_HOST_REQUEST_IF_SETHIDE:
+    case CS2VM_HOST_REQUEST_IF_SETPOSITION:
+    case CS2VM_HOST_REQUEST_IF_SETSIZE:
+    case CS2VM_HOST_REQUEST_IF_SETSCROLLPOS:
+    case CS2VM_HOST_REQUEST_IF_SETSCROLLSIZE:
+    case CS2VM_HOST_REQUEST_IF_SETTEXT:
+    case CS2VM_HOST_REQUEST_IF_SETOUTLINE:
+    case CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT:
+    case CS2VM_HOST_REQUEST_IF_SETONINVTRANSMIT:
+    case CS2VM_HOST_REQUEST_IF_SETONOP:
+    case CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER:
+    case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
+    case CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT:
+    case CS2VM_HOST_REQUEST_IF_SETONTIMER:
+    case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
+    case CS2VM_HOST_REQUEST_IF_SETONKEY:
+    case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
+    case CS2VM_HOST_REQUEST_IF_SETON_DISCARD:
+    case CS2VM_HOST_REQUEST_IF_SETOP:
+    case CS2VM_HOST_REQUEST_IF_SETOPBASE:
+    case CS2VM_HOST_REQUEST_IF_SETOPSUBMENU:
+    case CS2VM_HOST_REQUEST_IF_SETTARGETPRIORITY:
+    case CS2VM_HOST_REQUEST_IF_CLEAROPS:
+    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
+    case CS2VM_HOST_REQUEST_WIDGET_SET_INT2:
+    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_ANGLE:
+    case CS2VM_HOST_REQUEST_WIDGET_SET_ARC:
+    case CS2VM_HOST_REQUEST_WIDGET_INPUT_INT:
+    case CS2VM_HOST_REQUEST_CLIENTCLOCK:
+        break;
+
+    default:
+        fprintf(
+            stderr,
+            "Task_CS2Run: unhandled yield kind %d (script %d)\n",
+            (int)self->pending.kind,
+            self->script_id);
+        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        break;
+    }
 }
 
 static int
@@ -169,7 +587,10 @@ Task_CS2Run_Run(
     self->provider = self->host->provider;
 
     if( !self->script && self->script_id <= 0 )
+    {
+        fprintf(stderr, "Task_CS2Run: no script to run\n");
         PT_EXIT(&self->pt);
+    }
 
     if( !self->script )
     {
@@ -198,8 +619,7 @@ Task_CS2Run_Run(
         CS2VM2_ThreadStart(thread, self->script);
 
         for( j = 0; j < self->int_arg_count; j++ )
-            task_cs2_set_int_local(
-                thread, j, self->int_args[j], self->active_component_id);
+            task_cs2_set_int_local(thread, j, self->int_args[j], self->active_component_id);
 
         CS2VM2_SetActiveAndDotComponentId(thread, self->active_component_id);
         if( self->dot_component_id != self->active_component_id )
@@ -240,184 +660,67 @@ Task_CS2Run_Run(
         self->pending = self->host->pending;
         self->host->has_pending = false;
 
-        /* if/else only — protothreads cannot nest switch with PT_YIELD. */
-        if( self->pending.kind == CS2VM_HOST_REQUEST_PUSHSCRIPT )
-        {
-            self->await_id = self->pending.u.push_script.script_id;
-            TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
-        }
-        else if( self->pending.kind == CS2VM_HOST_REQUEST_ENUM_LOOKUP )
-        {
-            self->await_id = self->pending.u.enum_lookup.enum_id;
-            TASK_AWAITSELF_IF(CreateTask_EnumLoad(self->provider, self->await_id));
-        }
-        else if( self->pending.kind == CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT )
-        {
-            self->await_id = self->pending.u.enum_get_output_count.enum_id;
-            TASK_AWAITSELF_IF(CreateTask_EnumLoad(self->provider, self->await_id));
-        }
-        else if( self->pending.kind == CS2VM_HOST_REQUEST_STRUCT_PARAM )
-        {
-            self->await_id = self->pending.u.struct_param.struct_id;
-            TASK_AWAITSELF_IF(CreateTask_StructLoad(self->provider, self->await_id));
-        }
-        else if( self->pending.kind == CS2VM_HOST_REQUEST_OC_PARAM )
-        {
-            self->await_id = self->pending.u.oc_param.item_id;
-            TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->await_id));
-        }
-        else if( self->pending.kind == CS2VM_HOST_REQUEST_OC_NAME )
-        {
-            self->await_id = self->pending.u.oc_name.item_id;
-            TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->await_id));
-        }
-        else if( self->pending.kind == CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER )
-        {
-            self->await_id = self->pending.u.oc_unplaceholder.item_id;
-            TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->await_id));
-        }
-        else if( self->pending.kind == CS2VM_HOST_REQUEST_OC_INT_PARAM )
-        {
-            self->await_id = self->pending.u.oc_int_param.item_id;
-            TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->await_id));
-        }
-        else if(
-            self->pending.kind == CS2VM_HOST_REQUEST_CC_CREATE ||
-            self->pending.kind == CS2VM_HOST_REQUEST_CC_FIND ||
-            self->pending.kind == CS2VM_HOST_REQUEST_IF_FIND ||
-            self->pending.kind == CS2VM_HOST_REQUEST_CC_CHILDREN_FIND ||
-            self->pending.kind == CS2VM_HOST_REQUEST_IF_CHILDREN_FIND )
-        {
-            self->await_id = task_cs2_group_id_from_request(&self->pending);
-            if( self->await_id > 0 )
-            {
-                TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->await_id));
-                TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->await_id));
-                /* Bake loaded pack into the tree so the host retry can find nodes. */
-                if( self->host->tree &&
-                    CacheProvider_ComponentPackHas(self->provider, self->await_id) )
-                {
-                    struct ToriRS_ComponentPack* pack =
-                        CacheProvider_ComponentPackGet(self->provider, self->await_id);
-                    if( pack )
-                    {
-                        int (*resolve_sprite)(void*, int) = NULL;
-                        int (*resolve_font)(void*, int) = NULL;
-                        void* resolve_ud = NULL;
-                        /* Prefer scene-bridge resolvers when available. */
-                        if( self->host->bridge )
-                        {
-                            /* Inline via Ensure* through small static helpers would need ud;
-                             * store bridge on host and use cache ids only if bridge missing.
-                             * Build with NULL then upload models/sprites in a follow-up is
-                             * weaker; call Ensure via bridge from host fields. */
-                            resolve_ud = self->host->bridge;
-                            resolve_sprite = task_cs2_resolve_sprite;
-                            resolve_font = task_cs2_resolve_font;
-                        }
-                        (void)UITree_BuildFromComponentPack(
-                            self->host->tree, pack, resolve_sprite, resolve_font, resolve_ud);
-                        if( self->host->bridge )
-                        {
-                            uint32_t mi;
-                            for( mi = 0; mi < self->host->tree->component_count; mi++ )
-                            {
-                                struct UITreeComponent* c = &self->host->tree->components[mi];
-                                if( c->type != UIELEM_RS_MODEL )
-                                    continue;
-                                if( c->u.rs_model.gamecache_model_id >= 0 )
-                                {
-                                    int sid = UITreeSceneBridge_EnsureModel(
-                                        self->host->bridge, c->u.rs_model.gamecache_model_id);
-                                    if( sid >= 0 )
-                                        c->u.rs_model.gamecache_model_id = sid;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        else if( self->pending.kind == CS2VM_HOST_REQUEST_WIDGET_SET_MODEL )
-        {
-            self->await_id = self->pending.u.widget_set_model.model_id;
-            if( self->await_id >= 0 )
-                TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->await_id));
-        }
-        else if( self->pending.kind == CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND )
-        {
-            if( self->pending.u.widget_set_model_kind.model_kind == CS2VM_MODEL_KIND_PLAIN )
-            {
-                self->await_id = self->pending.u.widget_set_model_kind.model_id;
-                if( self->await_id >= 0 )
-                    TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->await_id));
-            }
-            else if(
-                self->pending.u.widget_set_model_kind.model_kind == CS2VM_MODEL_KIND_NPC_HEAD )
-            {
-                self->await_id = self->pending.u.widget_set_model_kind.model_id;
-                if( self->await_id >= 0 )
-                    TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
-            }
-            /* Player model kinds: soft-skip for now. */
-        }
-        else if(
-            self->pending.kind == CS2VM_HOST_REQUEST_CC_SETOBJECT ||
-            self->pending.kind == CS2VM_HOST_REQUEST_IF_SETOBJECT )
-        {
-            if( self->pending.kind == CS2VM_HOST_REQUEST_IF_SETOBJECT )
-            {
-                self->yield_obj_id = self->pending.u.if_set_object.obj_id;
-                self->yield_obj_count = self->pending.u.if_set_object.count;
-            }
-            else
-            {
-                self->yield_obj_id = self->pending.u.cc_set_object.obj_id;
-                self->yield_obj_count = self->pending.u.cc_set_object.count;
-            }
+        /* Flat switch (no PT) then linear awaits — protothreads cannot nest switch. */
+        task_cs2_plan_yield(self);
 
-            if( self->yield_obj_id > 0 )
-            {
-                self->await_id = self->yield_obj_id;
-                TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->await_id));
-                self->await_id = task_cs2_obj_inventory_model_id(
-                    self->provider, self->yield_obj_id, self->yield_obj_count);
-                if( self->await_id > 0 )
-                    TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->await_id));
-            }
-        }
-        else if(
-            self->pending.kind == CS2VM_HOST_REQUEST_CC_SETGRAPHIC ||
-            self->pending.kind == CS2VM_HOST_REQUEST_IF_SETGRAPHIC )
+        if( self->yield_plan == TASK_CS2_YIELD_ABORT )
         {
-            self->await_id = self->pending.u.cc_set_graphic.graphic_id;
-            /* Reject obviously invalid ids (e.g. widget-local placeholders). */
-            if( self->await_id >= 0 && self->await_id < 1000000 )
-                TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->provider, self->await_id));
-        }
-        else if(
-            self->pending.kind == CS2VM_HOST_REQUEST_PARAHEIGHT ||
-            self->pending.kind == CS2VM_HOST_REQUEST_PARAWIDTH ||
-            self->pending.kind == CS2VM_HOST_REQUEST_CC_SETTEXTFONT )
-        {
-            if( self->pending.kind == CS2VM_HOST_REQUEST_CC_SETTEXTFONT )
-                self->await_id = self->pending.u.cc_set_text_font.font_id;
-            else
-                self->await_id = self->pending.u.para_height.font_id;
-            if( self->await_id >= 0 )
-                TASK_AWAITSELF_IF(CreateTask_FontLoad(self->provider, self->await_id));
-        }
-        else
-        {
-            fprintf(
-                stderr,
-                "Task_CS2Run: unhandled yield kind %d (script %d)\n",
-                (int)self->pending.kind,
-                self->script_id);
             CS2VM2_ResetRuntime(CS2VM2_ThreadMain(&self->vm));
             PT_EXIT(&self->pt);
         }
-        /* Re-enter ThreadRun; CS2VM2 restores the opcode site so the host succeeds. */
+        else if( self->yield_plan == TASK_CS2_YIELD_SCRIPT )
+        {
+            TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_ENUM )
+        {
+            TASK_AWAITSELF_IF(CreateTask_EnumLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_STRUCT )
+        {
+            TASK_AWAITSELF_IF(CreateTask_StructLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_OBJ )
+        {
+            TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_COMPONENT )
+        {
+            assert(self->host->tree);
+            TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->await_id));
+            TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->await_id));
+            task_cs2_bake_pack(self);
+            if( !CacheProvider_ComponentPackHas(self->provider, self->await_id) )
+            {
+                CS2VM2_ResetRuntime(CS2VM2_ThreadMain(&self->vm));
+                PT_EXIT(&self->pt);
+            }
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_MODEL )
+        {
+            TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_NPC )
+        {
+            TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_SETOBJECT )
+        {
+            int ids[1];
+            int counts[1];
+            ids[0] = self->yield_obj_id;
+            counts[0] = self->yield_obj_count;
+            TASK_AWAITSELF_IF(CreateTask_ObjModelLoad(self->provider, ids, counts, 1));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_SPRITE )
+        {
+            TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_FONT )
+        {
+            TASK_AWAITSELF_IF(CreateTask_FontLoad(self->provider, self->await_id));
+        }
+        /* TASK_CS2_YIELD_NONE: expected no-op (clear ids). Re-enter ThreadRun. */
     }
 
     PT_END(&self->pt);

@@ -52,6 +52,11 @@ struct RS_CS2Host
     bool has_pending;
     struct CS2VM_HostRequest pending;
 
+    /** Graphic/font/obj id we already yielded a load for; avoids re-yield after miss. */
+    int sprite_yield_id;
+    int font_yield_id;
+    int setobject_yield_obj_id;
+
     int varc_int[RS_CS2_HOST_VARC_INT_MAX];
     char varc_string[RS_CS2_HOST_VARC_STRING_MAX][RS_CS2_HOST_VARC_STRING_LEN];
 

@@ -260,6 +260,8 @@ struct ToriRS_Objtype
     int* recolors_from;
     int* recolors_to;
     int recolor_count;
+    struct ToriRS_Param* params;
+    int param_count;
 };
 
 struct ToriRS_Sequence

@@ -230,32 +230,16 @@ bake_pack_under_owner(
     for( int i = 0; i < pack->component_count; i++ )
         index_map[i] = -1;
 
+    /* Pass 1: insert under owner so forward pack-internal parents can be resolved
+     * after every index_map slot is filled. */
     for( int i = 0; i < pack->component_count; i++ )
     {
         struct ToriRS_Component const* src = &pack->components[i];
         struct UIBuildComponent build;
         UITree_FillBuildFromToriRS(&build, src);
 
-        int32_t parent_idx = owner_idx;
-        if( src->parent_id >= 0 )
-        {
-            parent_idx = -1;
-            for( int j = 0; j < i; j++ )
-            {
-                if( pack->components[j].id == src->parent_id )
-                {
-                    parent_idx = index_map[j];
-                    break;
-                }
-            }
-            if( parent_idx < 0 )
-                parent_idx = UITree_FindByComponentId(tree, src->parent_id);
-            if( parent_idx < 0 )
-                parent_idx = owner_idx;
-        }
-
         int32_t idx = UITree_PushBuildComponent(
-            tree, parent_idx, &build, bake_resolve_sprite, bake_resolve_font, builder);
+            tree, owner_idx, &build, bake_resolve_sprite, bake_resolve_font, builder);
         assert(idx >= 0);
         index_map[i] = idx;
 
@@ -270,6 +254,35 @@ bake_pack_under_owner(
         }
 
         collect_onload(builder, src);
+    }
+
+    /* Pass 2: reparent using full pack id scan (forward layer refs). */
+    for( int i = 0; i < pack->component_count; i++ )
+    {
+        if( index_map[i] < 0 )
+            continue;
+
+        struct ToriRS_Component const* src = &pack->components[i];
+        int32_t parent_idx = owner_idx;
+        if( src->parent_id >= 0 )
+        {
+            parent_idx = -1;
+            for( int j = 0; j < pack->component_count; j++ )
+            {
+                if( pack->components[j].id == src->parent_id )
+                {
+                    parent_idx = index_map[j];
+                    break;
+                }
+            }
+            if( parent_idx < 0 )
+                parent_idx = UITree_FindByComponentId(tree, src->parent_id);
+            if( parent_idx < 0 )
+                parent_idx = owner_idx;
+        }
+
+        if( tree->components[index_map[i]].parent != parent_idx )
+            UITree_Reparent(tree, index_map[i], parent_idx);
     }
 
     free(index_map);

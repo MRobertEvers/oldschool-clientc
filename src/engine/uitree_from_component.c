@@ -1,7 +1,7 @@
 #include "uitree_from_component.h"
 
-#include "ui/uitree_build.h"
 #include "torirs_types.h"
+#include "ui/uitree_build.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -84,6 +84,11 @@ UITree_FillBuildFromToriRS(
     dst->model_zoom = src->model_zoom;
     dst->model_xan = src->model_xan;
     dst->model_yan = src->model_yan;
+    dst->model_zan = src->model_zan;
+    dst->model_x_offset = src->model_x_offset;
+    dst->model_y_offset = src->model_y_offset;
+    dst->model_orthog = src->model_orthog;
+    dst->model_fixed_zoom = src->model_fixed_zoom;
     dst->inv_cols = src->inv_cols;
     dst->inv_rows = src->inv_rows;
     dst->margin_x = src->margin_x;
@@ -113,13 +118,19 @@ struct pack_adapter_ctx
 {
     struct ToriRS_ComponentPack const* pack;
     struct UIBuildComponent* build_cache;
-    int (*resolve_sprite)(void*, int);
-    int (*resolve_font)(void*, int);
+    int (*resolve_sprite)(
+        void*,
+        int);
+    int (*resolve_font)(
+        void*,
+        int);
     void* ud;
 };
 
 static struct UIBuildComponent const*
-pack_get_component(void* ud, int index)
+pack_get_component(
+    void* ud,
+    int index)
 {
     struct pack_adapter_ctx* ctx = (struct pack_adapter_ctx*)ud;
     assert(index >= 0 && index < ctx->pack->component_count);
@@ -128,14 +139,18 @@ pack_get_component(void* ud, int index)
 }
 
 static int
-pack_get_parent_id(void* ud, int index)
+pack_get_parent_id(
+    void* ud,
+    int index)
 {
     struct pack_adapter_ctx* ctx = (struct pack_adapter_ctx*)ud;
     return ctx->pack->components[index].parent_id;
 }
 
 static int
-pack_resolve_sprite(void* ud, int graphic_id)
+pack_resolve_sprite(
+    void* ud,
+    int graphic_id)
 {
     struct pack_adapter_ctx* ctx = (struct pack_adapter_ctx*)ud;
     if( ctx->resolve_sprite )
@@ -144,7 +159,9 @@ pack_resolve_sprite(void* ud, int graphic_id)
 }
 
 static int
-pack_resolve_font(void* ud, int font_id)
+pack_resolve_font(
+    void* ud,
+    int font_id)
 {
     struct pack_adapter_ctx* ctx = (struct pack_adapter_ctx*)ud;
     if( ctx->resolve_font )
@@ -156,8 +173,12 @@ int
 UITree_BuildFromComponentPack(
     struct UITree* tree,
     struct ToriRS_ComponentPack const* pack,
-    int (*resolve_sprite)(void*, int),
-    int (*resolve_font)(void*, int),
+    int (*resolve_sprite)(
+        void*,
+        int),
+    int (*resolve_font)(
+        void*,
+        int),
     void* ud)
 {
     assert(tree);
@@ -166,10 +187,9 @@ UITree_BuildFromComponentPack(
     if( pack->component_count <= 0 )
         return 0;
 
-    struct UIBuildComponent* build_cache =
-        (struct UIBuildComponent*)calloc((size_t)pack->component_count, sizeof(struct UIBuildComponent));
-    if( !build_cache )
-        return -1;
+    struct UIBuildComponent* build_cache = (struct UIBuildComponent*)calloc(
+        (size_t)pack->component_count, sizeof(struct UIBuildComponent));
+    assert(build_cache);
 
     struct pack_adapter_ctx ctx;
     ctx.pack = pack;

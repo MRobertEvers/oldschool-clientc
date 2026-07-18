@@ -19,6 +19,8 @@ struct UITreeSceneBridge
     struct HMap* sprite_map;
     /** cache_model_id → scene_id (usually same as cache id) */
     struct HMap* model_map;
+    /** (obj_id, count) → scene_id for rasterized inventory icons */
+    struct HMap* obj_icon_map;
 };
 
 void
@@ -47,5 +49,16 @@ int
 UITreeSceneBridge_EnsureModel(
     struct UITreeSceneBridge* bridge,
     int cache_model_id);
+
+/**
+ * Rasterize an inventory/obj icon into the scene (32x32).
+ * Requires objtype + inventory model already in CacheProvider.
+ * Returns scene sprite id or -1.
+ */
+int
+UITreeSceneBridge_EnsureObjIcon(
+    struct UITreeSceneBridge* bridge,
+    int obj_id,
+    int count);
 
 #endif

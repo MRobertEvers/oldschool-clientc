@@ -1,13 +1,14 @@
 #include "task_interface_open.h"
-#include "task_pack_assets_load.h"
 
 #include "engine/cache_provider.h"
+#include "engine/task_obj_model_load.h"
 #include "engine/torirs_types.h"
 #include "engine/uitree_from_component.h"
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_cs2_host.h"
 #include "game/task_cs2_run.h"
 #include "inv/inv_manager.h"
+#include "task_pack_assets_load.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
 
@@ -166,20 +167,6 @@ collect_seed_objs(struct Task_InterfaceOpen* self)
 }
 
 static int
-seed_obj_inventory_model_id(
-    struct CacheProvider* provider,
-    int obj_id)
-{
-    struct ToriRS_Objtype* obj;
-    if( !provider || obj_id <= 0 )
-        return -1;
-    obj = CacheProvider_ObjtypeGet(provider, obj_id);
-    if( !obj || obj->inventory_model_id <= 0 )
-        return -1;
-    return obj->inventory_model_id;
-}
-
-static int
 Task_InterfaceOpen_Run(
     struct ToriRS_Task* base,
     struct ToriRS_IO* io)
@@ -201,16 +188,38 @@ Task_InterfaceOpen_Run(
     /* 2. Prefetch pack sprites / fonts / models. */
     TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->interface_id));
 
-    /* 3. Load seeded inv objs + inventory models. */
+    /* 3. Load seeded inv objs + inventory models, then rasterize icons. */
     collect_seed_objs(self);
-    for( self->i = 0; self->i < self->seed_obj_count; self->i++ )
+    TASK_AWAITSELF_IF(
+        CreateTask_ObjModelLoad(self->provider, self->seed_obj_ids, NULL, self->seed_obj_count));
     {
-        int obj_id = self->seed_obj_ids[self->i];
-        int model_id;
-        TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, obj_id));
-        model_id = seed_obj_inventory_model_id(self->provider, obj_id);
-        if( model_id > 0 )
-            TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, model_id));
+        static int const k_containers[] = {
+            INV_MANAGER_CONTAINER_WORN,
+            INV_MANAGER_CONTAINER_BACKPACK,
+        };
+        int ci;
+        for( ci = 0; ci < (int)(sizeof(k_containers) / sizeof(k_containers[0])); ci++ )
+        {
+            struct InvContainer* c = InvManager_GetContainer(self->invs, k_containers[ci]);
+            int slot;
+            if( !c )
+                continue;
+            for( slot = 0; slot < c->slot_count; slot++ )
+            {
+                int oid = c->slots[slot].obj_id;
+                int count = c->slots[slot].obj_count;
+                int scene_id;
+                if( oid <= 0 )
+                    continue;
+                scene_id =
+                    UITreeSceneBridge_EnsureObjIcon(self->bridge, oid, count > 0 ? count : 1);
+                if( scene_id >= 0 )
+                {
+                    c->slots[slot].scene_id = scene_id;
+                    c->slots[slot].atlas_index = 0;
+                }
+            }
+        }
     }
 
     /* 4. Bake pack into UITree + collect on_load hooks (scene ids via bridge). */
@@ -225,8 +234,7 @@ Task_InterfaceOpen_Run(
     }
 
     /* 5. Layout. */
-    UITree_LayoutResolve(
-        self->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    UITree_LayoutResolve(self->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 
     /* 6. Run IF3 on_load hooks. */
     for( self->i = 0; self->i < self->onload_count; self->i++ )
@@ -251,17 +259,30 @@ Task_InterfaceOpen_Run(
         }
 
         TASK_AWAITSELF_IF(CreateTask_CS2Run(
-            self->host,
-            self->script_id,
-            hook->component_id,
-            hook->component_id,
-            args,
-            arg_count));
+            self->host, self->script_id, hook->component_id, hook->component_id, args, arg_count));
     }
 
     /* 7. Inv + var transmit hooks registered during on_load. */
     TASK_AWAITSELF_IF(CreateTask_CS2InvTransmitDispatch(self->host, -1));
     TASK_AWAITSELF_IF(CreateTask_CS2VarTransmitDispatch(self->host, -1));
+
+    /* 8. Re-layout after CS2 onloads (nested pack bakes + IF_SET* mutations). */
+    UITree_LayoutResolve(self->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+
+    /* Nested packs loaded only to satisfy CC_CREATE/FIND (e.g. world map 728
+     * during 161 onload) stay as sibling roots. Keep them hidden so their
+     * chrome does not paint over the opened interface until explicitly opened. */
+    {
+        int32_t root;
+        for( root = self->tree->root_index; root >= 0;
+             root = self->tree->components[root].next_sibling )
+        {
+            int cid = self->tree->components[root].component_id;
+            int group = (cid >> 16) & 0xffff;
+            if( cid >= 0 && group > 0 && group != self->interface_id )
+                self->tree->components[root].behavior.hide = 1;
+        }
+    }
 
     if( self->stats )
     {

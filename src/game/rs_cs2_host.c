@@ -391,6 +391,43 @@ rs_cs2_enum_lookup_string(
 }
 
 static bool
+rs_cs2_obj_param_lookup(
+    struct ToriRS_Objtype const* obj,
+    int param_id,
+    bool* out_is_string,
+    int* out_int,
+    char const** out_str)
+{
+    int i;
+    if( out_is_string )
+        *out_is_string = false;
+    if( out_int )
+        *out_int = 0;
+    if( out_str )
+        *out_str = NULL;
+    assert(obj);
+    if( param_id < 0 || !obj->params || obj->param_count <= 0 )
+        return false;
+    for( i = 0; i < obj->param_count; i++ )
+    {
+        if( obj->params[i].key != param_id )
+            continue;
+        if( obj->params[i].string_value )
+        {
+            if( out_is_string )
+                *out_is_string = true;
+            if( out_str )
+                *out_str = obj->params[i].string_value;
+            return true;
+        }
+        if( out_int )
+            *out_int = obj->params[i].int_value;
+        return true;
+    }
+    return false;
+}
+
+static bool
 rs_cs2_struct_param_lookup(
     struct ToriRS_Struct const* s,
     int param_id,
@@ -454,6 +491,9 @@ RS_CS2Host_Init(
     host->viewport_w = 765;
     host->viewport_h = 503;
     host->bridge = NULL;
+    host->sprite_yield_id = -1;
+    host->font_yield_id = -1;
+    host->setobject_yield_obj_id = -1;
 }
 
 void
@@ -674,6 +714,36 @@ exec_struct_param(
     return CS2VM2_PushInt(thread, 0);
 }
 
+static int
+exec_oc_param(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_OC_Param request)
+{
+    bool is_string = false;
+    int intval = 0;
+    char const* strval = NULL;
+    bool found;
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_Objtype* obj =
+        provider ? CacheProvider_ObjtypeGet(provider, request.item_id) : NULL;
+
+    if( !obj )
+    {
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_OC_PARAM;
+        req.u.oc_param = request;
+        return rs_cs2_yield(host, &req);
+    }
+
+    found = rs_cs2_obj_param_lookup(obj, request.param_id, &is_string, &intval, &strval);
+    if( found && is_string )
+        return CS2VM2_PushStr(thread, strdup(strval ? strval : ""));
+    if( found )
+        return CS2VM2_PushInt(thread, intval);
+    return CS2VM2_PushInt(thread, 0);
+}
+
 
 static int
 exec_oc_int_param(
@@ -770,11 +840,22 @@ exec_set_graphic(
 
     if( request.graphic_id >= 0 && !rs_cs2_sprite_ready(host, request.graphic_id) )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHIC;
-        req.u.cc_set_graphic = request;
-        return rs_cs2_yield(host, &req);
+        /* After a failed SpriteLoad the id is still missing — do not re-yield. */
+        if( host->sprite_yield_id == request.graphic_id )
+        {
+            host->sprite_yield_id = -1;
+            (void)UITree_ApplyGraphic(tree, request.component_id, -1, 0);
+            return CS2VM_EXECNO_OK;
+        }
+        host->sprite_yield_id = request.graphic_id;
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHIC;
+            req.u.cc_set_graphic = request;
+            return rs_cs2_yield(host, &req);
+        }
     }
+    host->sprite_yield_id = -1;
 
     /* Upload to scene then store scene element id on the node. */
     {
@@ -809,16 +890,54 @@ exec_set_object(
 
     if( !provider || !CacheProvider_ObjtypeHas(provider, obj_id) )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
-        req.u.cc_set_object.component_id = component_id;
-        req.u.cc_set_object.obj_id = obj_id;
-        req.u.cc_set_object.count = count;
-        return rs_cs2_yield(host, &req);
+        if( host->setobject_yield_obj_id == obj_id )
+        {
+            host->setobject_yield_obj_id = -1;
+            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0);
+            return CS2VM_EXECNO_OK;
+        }
+        host->setobject_yield_obj_id = obj_id;
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
+            req.u.cc_set_object.component_id = component_id;
+            req.u.cc_set_object.obj_id = obj_id;
+            req.u.cc_set_object.count = count;
+            return rs_cs2_yield(host, &req);
+        }
     }
 
-    /* Prefer inv-rasterized icon if present; else leave scene_id unset (no scene yet). */
-    (void)rs_cs2_resolve_obj_icon(host, obj_id, &scene_id, &atlas_index);
+    if( host->bridge )
+    {
+        scene_id = UITreeSceneBridge_EnsureObjIcon(host->bridge, obj_id, count);
+        if( scene_id < 0 )
+        {
+            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(provider, obj_id);
+            int model_id = obj ? obj->inventory_model_id : -1;
+            if( model_id > 0 && !CacheProvider_ModelHas(provider, model_id) )
+            {
+                if( host->setobject_yield_obj_id == obj_id )
+                {
+                    host->setobject_yield_obj_id = -1;
+                    (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0);
+                    return CS2VM_EXECNO_OK;
+                }
+                host->setobject_yield_obj_id = obj_id;
+                {
+                    struct CS2VM_HostRequest req = { 0 };
+                    req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
+                    req.u.cc_set_object.component_id = component_id;
+                    req.u.cc_set_object.obj_id = obj_id;
+                    req.u.cc_set_object.count = count;
+                    return rs_cs2_yield(host, &req);
+                }
+            }
+        }
+    }
+    else
+        (void)rs_cs2_resolve_obj_icon(host, obj_id, &scene_id, &atlas_index);
+
+    host->setobject_yield_obj_id = -1;
     (void)UITree_ApplyObject(tree, component_id, obj_id, count, scene_id, atlas_index);
     return CS2VM_EXECNO_OK;
 }
@@ -834,11 +953,21 @@ exec_set_text_font(
 
     if( request.font_id >= 0 && !rs_cs2_font_ready(host, request.font_id) )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_CC_SETTEXTFONT;
-        req.u.cc_set_text_font = request;
-        return rs_cs2_yield(host, &req);
+        if( host->font_yield_id == request.font_id )
+        {
+            host->font_yield_id = -1;
+            (void)UITree_ApplyTextFont(rs_cs2_tree(host), request.component_id, -1);
+            return CS2VM_EXECNO_OK;
+        }
+        host->font_yield_id = request.font_id;
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_CC_SETTEXTFONT;
+            req.u.cc_set_text_font = request;
+            return rs_cs2_yield(host, &req);
+        }
     }
+    host->font_yield_id = -1;
 
     {
         int font_id = request.font_id;
@@ -1311,12 +1440,7 @@ RS_CS2Host_Exec(
         return exec_oc_unplaceholder(host, vm, request->u.oc_unplaceholder);
 
     case CS2VM_HOST_REQUEST_OC_PARAM:
-        fprintf(
-            stderr,
-            "RS_CS2Host_Exec: OC_PARAM not implemented (item=%d param=%d)\n",
-            request->u.oc_param.item_id,
-            request->u.oc_param.param_id);
-        return CS2VM_EXECNO_ERROR;
+        return exec_oc_param(host, vm, request->u.oc_param);
 
     case CS2VM_HOST_REQUEST_PARAHEIGHT:
         return exec_para_height(host, vm, request->u.para_height, 0);

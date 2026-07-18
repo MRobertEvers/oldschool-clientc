@@ -90,6 +90,35 @@ ToriRS_ObjtypeFromRSCacheDat1(
     return objtype;
 }
 
+static void
+torirs_objtype_copy_params(
+    struct ToriRS_Objtype* dst,
+    struct RSCache_Params const* src)
+{
+    int i;
+    assert(dst);
+    if( !src || src->count <= 0 )
+        return;
+
+    dst->param_count = src->count;
+    dst->params = calloc((size_t)src->count, sizeof(*dst->params));
+    assert(dst->params);
+    for( i = 0; i < src->count; i++ )
+    {
+        dst->params[i].key = src->keys[i];
+        if( src->is_string && src->is_string[i] )
+        {
+            char const* s = (char const*)src->values[i];
+            dst->params[i].string_value = strdup(s ? s : "");
+            assert(dst->params[i].string_value);
+        }
+        else if( src->values[i] )
+        {
+            dst->params[i].int_value = *(int*)src->values[i];
+        }
+    }
+}
+
 struct ToriRS_Objtype*
 ToriRS_ObjtypeFromRSCacheDat2(
     int obj_id,
@@ -129,6 +158,8 @@ ToriRS_ObjtypeFromRSCacheDat2(
     if( src->recolor_count > 0 )
         torirs_objtype_copy_recolors(
             objtype, src->recolors_from, src->recolors_to, src->recolor_count);
+
+    torirs_objtype_copy_params(objtype, &src->params);
 
     return objtype;
 }

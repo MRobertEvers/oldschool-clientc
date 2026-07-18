@@ -17,6 +17,31 @@ test_mutate_emit(void)
     TEST_ASSERT(UITree_ComponentVisibleById(&tree->components[layer], 400), "hide shown when hovered");
     TEST_ASSERT(UITree_ApplyHide(tree, 400, 0), "unhide");
 
+    /* EmitWalk hard-skips hidden node and its children (interfacex semantics). */
+    {
+        struct UITreeNodeSpec child;
+        memset(&child, 0, sizeof(child));
+        child.type = UIELEM_RS_RECT;
+        child.component_id = 450;
+        child.width = 10;
+        child.height = 10;
+        child.u.rs_rect.color = 0xabcdef;
+        child.u.rs_rect.filled = 1;
+        int32_t ci = UITree_Push(tree, layer, &child);
+        TEST_ASSERT(ci >= 0, "push child under layer");
+
+        UITree_TestResolve(tree);
+        TEST_ASSERT(UITree_ApplyHide(tree, 400, 1), "hide layer for emit walk");
+
+        struct UITreeEmitBuffer buf;
+        UITree_EmitBufferInit(&buf);
+        UITree_EmitWalk(tree, &host, &buf);
+        TEST_ASSERT(buf.count == 0, "hidden subtree emits nothing");
+        UITree_EmitBufferFree(&buf);
+
+        TEST_ASSERT(UITree_ApplyHide(tree, 400, 0), "unhide layer after emit walk");
+    }
+
     int32_t dyn = UITree_CcCreate(tree, layer, 400, 3, 1);
     TEST_ASSERT(dyn >= 0, "cc_create");
     TEST_ASSERT(tree->components[dyn].dynamic == 1, "dynamic");

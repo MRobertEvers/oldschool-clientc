@@ -163,10 +163,17 @@ ToriRS_IdkSizeOf(const struct ToriRS_Idk* idk)
 void
 ToriRS_ObjtypeFree(struct ToriRS_Objtype* objtype)
 {
+    int i;
     if( !objtype )
         return;
     free(objtype->recolors_from);
     free(objtype->recolors_to);
+    if( objtype->params )
+    {
+        for( i = 0; i < objtype->param_count; i++ )
+            free(objtype->params[i].string_value);
+        free(objtype->params);
+    }
     free(objtype);
 }
 

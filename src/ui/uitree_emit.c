@@ -27,6 +27,10 @@ UITree_EmitFill(
             return false;
     }
 
+    /* Fully transparent: skip self content; children still walked by emit_walk_node. */
+    if( component->trans >= 255 )
+        return false;
+
     int x = 0, y = 0, w = 0, h = 0;
     UITree_LayoutGetBounds(&component->position, &x, &y, &w, &h);
 
@@ -36,6 +40,8 @@ UITree_EmitFill(
     out->y = y;
     out->w = w;
     out->h = h;
+    out->if3 = component->if3;
+    out->trans = component->trans;
 
     switch( component->type )
     {
@@ -49,8 +55,24 @@ UITree_EmitFill(
         }
         else
         {
+            /* Match interfacex: world/minimap/compass placeholders are not blitted
+             * as ordinary sprites (minimap mask would draw as opaque black). */
+            switch( component->behavior.client_code )
+            {
+            case 1337: /* CONTENT_WORLD */
+            case 1338: /* CONTENT_MINIMAP */
+            case 1339: /* CONTENT_COMPASS */
+                return false;
+            default:
+                break;
+            }
             out->scene_id = component->u.rs_graphic.scene_id;
             out->atlas_index = component->u.rs_graphic.atlas_index;
+            out->tiled = component->u.rs_graphic.tiled;
+            out->outline = component->u.rs_graphic.outline;
+            out->graphic_shadow = component->u.rs_graphic.graphic_shadow;
+            out->flip_h = component->u.rs_graphic.flip_h;
+            out->flip_v = component->u.rs_graphic.flip_v;
             if( component->u.rs_graphic.graphic_hitbox_only )
                 return false;
         }
@@ -67,6 +89,7 @@ UITree_EmitFill(
         out->font_id = component->u.rs_text.font_id;
         out->color = component->u.rs_text.color;
         out->text_center = component->u.rs_text.center;
+        out->text_y_align = component->u.rs_text.y_align;
         out->text_shadowed = component->u.rs_text.shadowed;
         out->text_line_height = component->u.rs_text.line_height;
         return true;
@@ -90,6 +113,11 @@ UITree_EmitFill(
         out->model_zoom = component->u.rs_model.zoom;
         out->model_xan = component->u.rs_model.xan;
         out->model_yan = component->u.rs_model.yan;
+        out->model_zan = component->u.rs_model.zan;
+        out->model_x_offset = component->u.rs_model.x_offset;
+        out->model_y_offset = component->u.rs_model.y_offset;
+        out->model_orthog = component->u.rs_model.orthog;
+        out->model_fixed_zoom = component->u.rs_model.fixed_zoom;
         return true;
 
     case UIELEM_CC_OBJ:
@@ -259,6 +287,10 @@ emit_walk_node(
         return;
 
     c = &tree->components[idx];
+    /* Match interfacex: hidden skips self draw and the entire subtree. */
+    if( c->behavior.hide )
+        return;
+
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
 
     child_clip = parent_clip;

@@ -67,8 +67,7 @@ push_element(
 {
     if( tree->component_count >= tree->component_capacity )
     {
-        uint32_t new_capacity =
-            tree->component_capacity == 0 ? 16 : tree->component_capacity * 2;
+        uint32_t new_capacity = tree->component_capacity == 0 ? 16 : tree->component_capacity * 2;
         struct UITreeComponent* new_components =
             realloc(tree->components, new_capacity * sizeof(struct UITreeComponent));
         if( !new_components )
@@ -145,8 +144,7 @@ UITree_UnlinkChild(
     int32_t parent_index,
     int32_t child_index)
 {
-    if( parent_index < 0 || child_index < 0 ||
-        (uint32_t)parent_index >= tree->component_count ||
+    if( parent_index < 0 || child_index < 0 || (uint32_t)parent_index >= tree->component_count ||
         (uint32_t)child_index >= tree->component_count )
         return;
 
@@ -171,6 +169,103 @@ UITree_UnlinkChild(
         prev = walk;
         walk = tree->components[walk].next_sibling;
     }
+}
+
+static void
+UITree_UnlinkFromRootList(
+    struct UITree* tree,
+    int32_t child_index)
+{
+    assert(tree);
+    assert(child_index >= 0 && (uint32_t)child_index < tree->component_count);
+
+    if( tree->root_index < 0 )
+        return;
+
+    if( tree->root_index == child_index )
+    {
+        tree->root_index = tree->components[child_index].next_sibling;
+        tree->components[child_index].next_sibling = -1;
+        tree->components[child_index].parent = -1;
+        tree->generation++;
+        return;
+    }
+
+    int32_t prev = tree->root_index;
+    int32_t walk = tree->components[prev].next_sibling;
+    while( walk >= 0 )
+    {
+        if( walk == child_index )
+        {
+            tree->components[prev].next_sibling = tree->components[walk].next_sibling;
+            tree->components[walk].next_sibling = -1;
+            tree->components[walk].parent = -1;
+            tree->generation++;
+            return;
+        }
+        prev = walk;
+        walk = tree->components[walk].next_sibling;
+    }
+}
+
+void
+UITree_Reparent(
+    struct UITree* tree,
+    int32_t child_index,
+    int32_t new_parent_index)
+{
+    assert(tree);
+    assert(child_index >= 0 && (uint32_t)child_index < tree->component_count);
+    if( new_parent_index >= 0 )
+        assert((uint32_t)new_parent_index < tree->component_count);
+    assert(child_index != new_parent_index);
+
+    struct UITreeComponent* child = &tree->components[child_index];
+    int32_t old_parent = child->parent;
+    if( old_parent == new_parent_index )
+        return;
+
+    if( old_parent >= 0 )
+        UITree_UnlinkChild(tree, old_parent, child_index);
+    else
+        UITree_UnlinkFromRootList(tree, child_index);
+
+    /* Preserve first_child subtree; only splice into new sibling list. */
+    child->parent = new_parent_index;
+    child->next_sibling = -1;
+    child->is_dirty = 1;
+
+    if( new_parent_index < 0 )
+    {
+        if( tree->root_index < 0 )
+        {
+            tree->root_index = child_index;
+        }
+        else
+        {
+            int32_t walk = tree->root_index;
+            while( tree->components[walk].next_sibling >= 0 )
+                walk = tree->components[walk].next_sibling;
+            tree->components[walk].next_sibling = child_index;
+        }
+    }
+    else
+    {
+        struct UITreeComponent* p = &tree->components[new_parent_index];
+        if( p->first_child < 0 )
+        {
+            p->first_child = child_index;
+        }
+        else
+        {
+            int32_t walk = p->first_child;
+            while( tree->components[walk].next_sibling >= 0 )
+                walk = tree->components[walk].next_sibling;
+            tree->components[walk].next_sibling = child_index;
+        }
+        p->is_dirty = 1;
+    }
+    tree->generation++;
 }
 
 static int32_t
@@ -251,8 +346,7 @@ UITree_New(uint32_t hint)
 {
     (void)hint;
     struct UITree* tree = malloc(sizeof(struct UITree));
-    if( !tree )
-        return NULL;
+    assert(tree);
 
     memset(tree, 0, sizeof(struct UITree));
     tree->root_index = -1;
@@ -327,10 +421,8 @@ UITree_NodeNeedsEmit(struct UITreeComponent const* component)
 bool
 UITree_TypeIsAlwaysDirtyFrame(enum UITreeComponentType type)
 {
-    return type == UIELEM_BUILTIN_WORLD ||
-           type == UIELEM_BUILTIN_MINIMAP ||
-           type == UIELEM_BUILTIN_COMPASS ||
-           type == UIELEM_BUILTIN_CROSS ||
+    return type == UIELEM_BUILTIN_WORLD || type == UIELEM_BUILTIN_MINIMAP ||
+           type == UIELEM_BUILTIN_COMPASS || type == UIELEM_BUILTIN_CROSS ||
            type == UIELEM_BUILTIN_MINIMENU;
 }
 
@@ -469,9 +561,8 @@ UITree_SetBehavior(
     {
         if( !src->scripts[i] )
             continue;
-        int len = (src->scripts_lengths && src->scripts_lengths[i] > 0)
-                      ? src->scripts_lengths[i]
-                      : 0;
+        int len =
+            (src->scripts_lengths && src->scripts_lengths[i] > 0) ? src->scripts_lengths[i] : 0;
         if( len <= 0 )
             continue;
         dst->scripts[i] = malloc((size_t)len * sizeof(int));
@@ -497,10 +588,7 @@ UITree_SetBehavior(
         dst->script_operand = malloc((size_t)src->scripts_count * sizeof(int));
         if( !dst->script_operand )
             goto fail;
-        memcpy(
-            dst->script_operand,
-            src->script_operand,
-            (size_t)src->scripts_count * sizeof(int));
+        memcpy(dst->script_operand, src->script_operand, (size_t)src->scripts_count * sizeof(int));
     }
     return;
 
@@ -673,6 +761,11 @@ UITree_Push(
         component->u.rs_model.zoom = spec->u.rs_model.zoom;
         component->u.rs_model.xan = spec->u.rs_model.xan;
         component->u.rs_model.yan = spec->u.rs_model.yan;
+        component->u.rs_model.zan = spec->u.rs_model.zan;
+        component->u.rs_model.x_offset = spec->u.rs_model.x_offset;
+        component->u.rs_model.y_offset = spec->u.rs_model.y_offset;
+        component->u.rs_model.orthog = spec->u.rs_model.orthog;
+        component->u.rs_model.fixed_zoom = spec->u.rs_model.fixed_zoom;
         break;
 
     case UIELEM_INV_GRID:
@@ -1366,9 +1459,7 @@ UITree_ApplyOpBase(
     if( idx < 0 )
         return false;
     strncpy(
-        tree->components[idx].menu_options.option,
-        text ? text : "",
-        UITREE_MENU_OPTION_LEN - 1);
+        tree->components[idx].menu_options.option, text ? text : "", UITREE_MENU_OPTION_LEN - 1);
     tree->components[idx].menu_options.option[UITREE_MENU_OPTION_LEN - 1] = '\0';
     UITree_MarkNodeDirty(tree, idx);
     return true;
@@ -1421,8 +1512,7 @@ UITree_ComponentHoveredByIds(
     struct UITreeHoverIds const* hover_ids)
 {
     assert(hover_ids);
-    return hover_ids->main_com_id == component_id ||
-           hover_ids->side_com_id == component_id ||
+    return hover_ids->main_com_id == component_id || hover_ids->side_com_id == component_id ||
            hover_ids->chat_com_id == component_id;
 }
 

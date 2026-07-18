@@ -123,6 +123,60 @@ test_layout_build(void)
         UITree_Free(tree);
     }
 
+    /* BuildFromSource forward parent (child before parent in source order) */
+    {
+        struct UIBuildComponent comps[3];
+        memset(comps, 0, sizeof(comps));
+        /* Child first — parent id 200 appears later as comps[2]. */
+        comps[0].id = 201;
+        comps[0].type = UIBUILD_RECT;
+        comps[0].parent_id = 200;
+        comps[0].base_x = 5;
+        comps[0].base_y = 7;
+        comps[0].base_width = 10;
+        comps[0].base_height = 10;
+        comps[0].color = 0x112233;
+        comps[0].filled = 1;
+        comps[1].id = 202;
+        comps[1].type = UIBUILD_GRAPHIC;
+        comps[1].parent_id = 200;
+        comps[1].base_x = 1;
+        comps[1].base_y = 2;
+        comps[1].graphic = 9;
+        comps[2].id = 200;
+        comps[2].type = UIBUILD_LAYER;
+        comps[2].parent_id = -1;
+        comps[2].base_x = 40;
+        comps[2].base_y = 50;
+        comps[2].base_width = 100;
+        comps[2].base_height = 80;
+
+        g_build_comps = comps;
+        g_build_count = 3;
+
+        struct UITree* tree = UITree_New(8);
+        struct UITreeBuildSource src = {
+            .count = 3,
+            .get_component = get_comp,
+            .get_parent_id = get_parent_id,
+            .resolve_sprite = resolve_sprite,
+            .resolve_font = NULL,
+            .ud = NULL,
+        };
+        TEST_ASSERT(UITree_BuildFromSource(tree, &src) == 3, "forward parent build");
+        int32_t layer = UITree_FindByComponentId(tree, 200);
+        int32_t rect = UITree_FindByComponentId(tree, 201);
+        int32_t gfx = UITree_FindByComponentId(tree, 202);
+        TEST_ASSERT(layer >= 0 && rect >= 0 && gfx >= 0, "forward nodes found");
+        TEST_ASSERT(tree->components[rect].parent == layer, "rect under forward layer");
+        TEST_ASSERT(tree->components[gfx].parent == layer, "gfx under forward layer");
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[rect].position.abs_x == 45, "forward rect abs_x");
+        TEST_ASSERT(tree->components[rect].position.abs_y == 57, "forward rect abs_y");
+        TEST_ASSERT(tree->components[gfx].position.abs_x == 41, "forward gfx abs_x");
+        UITree_Free(tree);
+    }
+
     /* Scrollbar hit on tall layer */
     {
         struct UITree* tree = UITree_New(4);

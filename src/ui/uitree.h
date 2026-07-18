@@ -197,6 +197,7 @@ struct UITreeComponent
     int item_atlas_index;
 
     int trans;
+    uint8_t if3;
     uint8_t no_click_through;
     uint8_t draggable;
     int drag_behavior;
@@ -270,6 +271,11 @@ struct UITreeComponent
             int zoom;
             int xan;
             int yan;
+            int zan;
+            int x_offset;
+            int y_offset;
+            uint8_t orthog;
+            uint8_t fixed_zoom;
         } rs_model;
         struct
         {
@@ -431,6 +437,11 @@ struct UITreeNodeSpec
             int zoom;
             int xan;
             int yan;
+            int zan;
+            int x_offset;
+            int y_offset;
+            uint8_t orthog;
+            uint8_t fixed_zoom;
         } rs_model;
         struct
         {
@@ -561,6 +572,13 @@ UITree_Push(
     struct UITree* tree,
     int32_t parent_index,
     struct UITreeNodeSpec const* spec);
+
+/** Move child_index under new_parent_index (-1 = root list). Preserves child's subtree. */
+void
+UITree_Reparent(
+    struct UITree* tree,
+    int32_t child_index,
+    int32_t new_parent_index);
 
 void
 UITree_ClearSidebarChildren(

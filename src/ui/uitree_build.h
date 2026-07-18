@@ -58,6 +58,11 @@ struct UIBuildComponent
     int model_zoom;
     int model_xan;
     int model_yan;
+    int model_zan;
+    int model_x_offset;
+    int model_y_offset;
+    uint8_t model_orthog;
+    uint8_t model_fixed_zoom;
     int inv_cols;
     int inv_rows;
     int margin_x;

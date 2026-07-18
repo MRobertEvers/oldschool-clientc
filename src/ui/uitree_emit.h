@@ -55,14 +55,28 @@ struct UITreeEmitDesc
     int model_zoom;
     int model_xan;
     int model_yan;
+    int model_zan;
+    int model_x_offset;
+    int model_y_offset;
+    uint8_t model_orthog;
+    uint8_t model_fixed_zoom;
     int inv_source_id;
     int inv_slot;
     int obj_id;
     int obj_count;
     char const* text;
-    int text_center;
+    int text_center;      /* h_align 0/1/2 */
+    int text_y_align;     /* v_align 0/1/2 */
     int text_shadowed;
     int text_line_height;
+    /* Sprite blit params (interfacex-aligned). */
+    uint8_t if3;
+    uint8_t tiled;
+    int outline;
+    int graphic_shadow;
+    int trans;
+    uint8_t flip_h;
+    uint8_t flip_v;
 };
 
 /** Fill a single emit descriptor for a node. Returns false if nothing to draw. */
