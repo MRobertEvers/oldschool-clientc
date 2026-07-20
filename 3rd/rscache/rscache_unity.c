@@ -35,4 +35,9 @@
 #include "src/datatypes/dat2_sprites.c"
 #include "src/datatypes/dat2_config_enum.c"
 #include "src/datatypes/dat2_config_struct.c"
+#include "src/datatypes/dat2_framemap.c"
+#include "src/datatypes/dat2_frame.c"
+#include "src/datatypes/dat2_config_sequence.c"
+#include "src/datatypes/dat2_animaya.c"
+#include "src/datatypes/dat1_anim_frame.c"
 // clang-format on
