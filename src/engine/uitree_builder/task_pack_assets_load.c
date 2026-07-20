@@ -1,6 +1,7 @@
 #include "task_pack_assets_load.h"
 
 #include "engine/cache_provider.h"
+#include "engine/player_appearance.h"
 #include "engine/torirs_types.h"
 
 #include <assert.h>
@@ -30,6 +31,8 @@ struct Task_PackAssetsLoad
     int* npc_ids;
     int npc_count;
     int npc_cap;
+
+    int needs_player; /* pack has a local-player model widget (clientCode 327/328) */
 
     int i;
 };
@@ -90,6 +93,10 @@ collect_from_pack(
             unique_id_add(&self->model_ids, &self->model_count, &self->model_cap, c->model_id);
         else if( c->model_type == 2 && c->model_id >= 0 )
             unique_id_add(&self->npc_ids, &self->npc_count, &self->npc_cap, c->model_id);
+        /* Local-player / player-design preview widgets have no cache model id;
+         * they are composited from the default appearance. */
+        if( c->client_code == 327 || c->client_code == 328 )
+            self->needs_player = 1;
     }
 }
 
@@ -121,6 +128,9 @@ Task_PackAssetsLoad_Run(
 
     for( self->i = 0; self->i < self->npc_count; self->i++ )
         TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->npc_ids[self->i]));
+
+    if( self->needs_player )
+        TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(self->provider));
 
     PT_END(&self->pt);
 }

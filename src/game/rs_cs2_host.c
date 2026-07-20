@@ -1296,8 +1296,16 @@ exec_widget_set_int(
         (void)UITree_ApplyModelTransparent(
             rs_cs2_tree(host), request.component_id, request.value);
         break;
-    case CS2VM_WIDGET_INT_MODEL_ORTHOG:
     case CS2VM_WIDGET_INT_MODEL_ANIM:
+        /* Sequence id for a model widget. The client tick driver loads the
+         * sequence and advances/applies frames to the model. -1 clears. */
+        if( node->type == UIELEM_RS_MODEL )
+        {
+            node->u.rs_model.anim_seq_id = request.value;
+            node->u.rs_model.anim_frame = 0;
+        }
+        break;
+    case CS2VM_WIDGET_INT_MODEL_ORTHOG:
     case CS2VM_WIDGET_INT_ANGLE_2D:
     case CS2VM_WIDGET_INT_FILL_MODE:
     case CS2VM_WIDGET_INT_TRANS_BOT:
@@ -1427,6 +1435,9 @@ rs_cs2_runtime_hook_slot(
     case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
         return &node->runtime_hooks.on_mouse_leave;
+    case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
+    case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
+        return &node->runtime_hooks.on_scroll_wheel;
     case CS2VM_HOST_REQUEST_IF_SETONDRAG:
     case CS2VM_HOST_REQUEST_CC_SETONDRAG:
         return &node->runtime_hooks.on_drag;
@@ -2198,10 +2209,10 @@ RS_CS2Host_Exec(
     case CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE:
     case CS2VM_HOST_REQUEST_IF_SETONRESIZE:
     case CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE:
+    case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT:
     case CS2VM_HOST_REQUEST_IF_SETONTIMER:
-    case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
         return CS2VM_EXECNO_OK;
@@ -2213,10 +2224,10 @@ RS_CS2Host_Exec(
     case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
     case CS2VM_HOST_REQUEST_CC_SETONRESIZE:
     case CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE:
+    case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
         return exec_set_on_cc_event(host, vm, request->kind, &request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
-    case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
         return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_SETANTIDRAG:

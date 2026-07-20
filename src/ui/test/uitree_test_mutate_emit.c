@@ -110,34 +110,34 @@ test_mutate_emit(void)
         UITree_TestResolve(tree);
 
         struct UITreeEmitDesc desc;
-        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[ri], ri, &desc), "emit rect");
+        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[ri], ri, -1, &desc), "emit rect");
         TEST_ASSERT(desc.kind == UITREE_EMIT_RECT, "kind rect");
         TEST_ASSERT(desc.color == 0x112233, "rect color");
 
-        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[ti], ti, &desc), "emit text");
+        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[ti], ti, -1, &desc), "emit text");
         TEST_ASSERT(desc.kind == UITREE_EMIT_TEXT, "kind text");
         TEST_ASSERT(desc.text && desc.text[0] == 'o', "text ptr");
 
-        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[gi], gi, &desc), "emit graphic");
+        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[gi], gi, -1, &desc), "emit graphic");
         TEST_ASSERT(desc.kind == UITREE_EMIT_SPRITE, "kind sprite");
         TEST_ASSERT(desc.scene_id == 9, "sprite scene_id");
 
-        TEST_ASSERT(!UITree_EmitFill(tree, &host, &tree->components[si], si, &desc),
+        TEST_ASSERT(!UITree_EmitFill(tree, &host, &tree->components[si], si, -1, &desc),
                     "sidebar no emit");
-        TEST_ASSERT(!UITree_EmitFill(tree, &host, &tree->components[layer], layer, &desc),
+        TEST_ASSERT(!UITree_EmitFill(tree, &host, &tree->components[layer], layer, -1, &desc),
                     "layer no emit without scrollbar");
 
         tree->components[layer].u.rs_layer.scroll_height = 400;
         tree->components[layer].if3 = 0;
         UITree_TestResolve(tree);
-        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[layer], layer, &desc),
+        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[layer], layer, -1, &desc),
                     "layer emits scrollbar when scroll_height > height");
         TEST_ASSERT(desc.kind == UITREE_EMIT_SCROLLBAR_V, "kind scrollbar_v");
         TEST_ASSERT(desc.scroll_content == 400, "scroll_content height");
         TEST_ASSERT(desc.w == 16, "scrollbar thickness");
 
         tree->components[layer].scroll_y = 50;
-        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[layer], layer, &desc),
+        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[layer], layer, -1, &desc),
                     "scrollbar emit with scroll_y");
         TEST_ASSERT(desc.scroll_off_y == 50, "scroll_off_y from component");
     }

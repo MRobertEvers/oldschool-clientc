@@ -19,6 +19,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Standard human idle sequence for the player preview (clientCode 327/328). */
+#ifndef INTERFACE_PLAYER_IDLE_SEQ
+#define INTERFACE_PLAYER_IDLE_SEQ 808
+#endif
+
 #define INTERFACE_OPEN_ONLOAD_ARGV_MAX TORIRS_COMPONENT_HOOK_ARG_MAX
 #define INTERFACE_OPEN_ONLOAD_MAX 256
 #define INTERFACE_OPEN_RUNTIME_HOOK_MAX 512
@@ -112,7 +117,23 @@ upload_model_nodes(
             continue;
         cache_id = c->u.rs_model.gamecache_model_id;
         if( cache_id < 0 )
+        {
+            /* Local-player / player-design preview: composite the default avatar. */
+            if( c->behavior.client_code == 327 || c->behavior.client_code == 328 )
+            {
+                scene_id = UITreeSceneBridge_EnsurePlayerModel(bridge);
+                if( scene_id >= 0 )
+                {
+                    c->u.rs_model.gamecache_model_id = scene_id;
+                    /* Idle the preview. The server appearance's readyanim is not
+                     * decoded here, so use the standard human idle sequence; the
+                     * tick driver loads it and disables gracefully if absent. */
+                    if( c->u.rs_model.anim_seq_id < 0 )
+                        c->u.rs_model.anim_seq_id = INTERFACE_PLAYER_IDLE_SEQ;
+                }
+            }
             continue;
+        }
         scene_id = UITreeSceneBridge_EnsureModel(bridge, cache_id);
         if( scene_id >= 0 )
             c->u.rs_model.gamecache_model_id = scene_id;

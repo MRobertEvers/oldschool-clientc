@@ -108,5 +108,6 @@ void test_walk_topology(void);
 void test_hover_input(void);
 void test_layout_build(void);
 void test_mutate_emit(void);
+void test_drag_composite(void);
 
 #endif

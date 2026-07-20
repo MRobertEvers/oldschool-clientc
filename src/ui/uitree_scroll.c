@@ -299,18 +299,20 @@ hit_vertical_scrollbar(
     if( py >= ly + vh - UITREE_SCROLLBAR_THICKNESS )
         return UITREE_SCROLLBAR_V_DOWN;
 
-    int sy = 0;
-    if( layer->component_id >= 0 )
-        UITree_ScrollGetPos(scroll, layer->component_id, NULL, &sy);
+    /* Canonical scroll offset lives on the component (emit + CS2 opcodes use it);
+     * the UITreeScrollState arrays are dead for real (group<<16) ids. Grip math
+     * must mirror the drawn grip in torirs_frame.c vertical_scrollbar_grip. */
+    (void)scroll;
+    int sy = layer->scroll_y;
     int track_h = vh - 32;
     if( track_h <= 0 )
         return UITREE_SCROLLBAR_V_GRIP;
-    int grip_size = (track_h * lh) / layer->u.rs_layer.scroll_height;
+    int grip_size = (track_h * vh) / layer->u.rs_layer.scroll_height;
     if( grip_size < 8 )
         grip_size = 8;
     if( grip_size > track_h )
         grip_size = track_h;
-    int range = UITree_ScrollMaxY(layer);
+    int range = layer->u.rs_layer.scroll_height - vh;
     int grip_y = range > 0 ? ((track_h - grip_size) * sy) / range : 0;
     int grip_y0 = ly + UITREE_SCROLLBAR_THICKNESS + grip_y;
     if( py >= grip_y0 && py < grip_y0 + grip_size )
@@ -343,18 +345,18 @@ hit_horizontal_scrollbar(
     if( px >= lx + sw - UITREE_SCROLLBAR_THICKNESS )
         return UITREE_SCROLLBAR_H_RIGHT;
 
-    int sx = 0;
-    if( layer->component_id >= 0 )
-        UITree_ScrollGetPos(scroll, layer->component_id, &sx, NULL);
+    /* Canonical scroll offset on the component; mirror horizontal_scrollbar_grip. */
+    (void)scroll;
+    int sx = layer->scroll_x;
     int track_w = sw - 32;
     if( track_w <= 0 )
         return UITREE_SCROLLBAR_H_GRIP;
-    int grip_size = (track_w * lw) / layer->u.rs_layer.scroll_width;
+    int grip_size = (track_w * sw) / layer->u.rs_layer.scroll_width;
     if( grip_size < 8 )
         grip_size = 8;
     if( grip_size > track_w )
         grip_size = track_w;
-    int range = UITree_ScrollMaxX(layer);
+    int range = layer->u.rs_layer.scroll_width - sw;
     int grip_x = range > 0 ? ((track_w - grip_size) * sx) / range : 0;
     int grip_x0 = lx + UITREE_SCROLLBAR_THICKNESS + grip_x;
     if( px >= grip_x0 && px < grip_x0 + grip_size )
@@ -422,18 +424,12 @@ find_scrollbar_recursive(
 
         int child_scroll_x = scroll_off_x;
         int child_scroll_y = scroll_off_y;
-        if( UITree_ScrollLayerNeedsHorizontal(component) && component->component_id >= 0 )
-        {
-            int sx = 0;
-            UITree_ScrollGetPos(scroll, component->component_id, &sx, NULL);
-            child_scroll_x += sx;
-        }
-        if( UITree_ScrollLayerNeedsVertical(component) && component->component_id >= 0 )
-        {
-            int sy = 0;
-            UITree_ScrollGetPos(scroll, component->component_id, NULL, &sy);
-            child_scroll_y += sy;
-        }
+        /* Descend using the canonical component scroll offset so the strip hitbox
+         * lines up with emit (which also offsets children by component->scroll_*). */
+        if( UITree_ScrollLayerNeedsHorizontal(component) )
+            child_scroll_x += component->scroll_x;
+        if( UITree_ScrollLayerNeedsVertical(component) )
+            child_scroll_y += component->scroll_y;
 
         for( int32_t child = component->first_child; child >= 0;
              child = tree->components[child].next_sibling )
@@ -507,7 +503,7 @@ scrollbar_apply_vertical_grip(
     int track_h = vh - 32;
     if( track_h <= 0 )
         return false;
-    int grip_size = (track_h * hit->layer_h) / hit->scroll_height;
+    int grip_size = (track_h * vh) / hit->scroll_height;
     if( grip_size < 8 )
         grip_size = 8;
     if( grip_size > track_h )
@@ -533,11 +529,12 @@ scrollbar_apply_horizontal_grip(
     int* sx)
 {
     int sw = hit->layer_w;
-    (void)layer;
+    if( UITree_ScrollLayerNeedsVertical(layer) )
+        sw -= UITREE_SCROLLBAR_THICKNESS;
     int track_w = sw - 32;
     if( track_w <= 0 )
         return false;
-    int grip_size = (track_w * hit->layer_w) / hit->scroll_width;
+    int grip_size = (track_w * sw) / hit->scroll_width;
     if( grip_size < 8 )
         grip_size = 8;
     if( grip_size > track_w )
@@ -569,13 +566,16 @@ UITree_ScrollbarHandle(
     if( !hit || hit->kind == UITREE_SCROLLBAR_NONE || hit->layer_index < 0 )
         return false;
 
-    struct UITreeComponent const* layer = &tree->components[hit->layer_index];
+    /* Write the canonical component scroll offset (what emit + CS2 opcodes read).
+     * tree is const-qualified for the read-only hit path; the layer index came
+     * from FindScrollbarAt on this same tree, so mutating it here is sound. */
+    struct UITreeComponent* layer = &tree->components[hit->layer_index];
     if( layer->component_id < 0 )
         return false;
+    (void)scroll;
 
-    int sx = 0;
-    int sy = 0;
-    UITree_ScrollGetPos(scroll, layer->component_id, &sx, &sy);
+    int sx = layer->scroll_x;
+    int sy = layer->scroll_y;
     int max_x = UITree_ScrollMaxX(layer);
     int max_y = UITree_ScrollMaxY(layer);
     int const delta = step > 0 ? step : UITREE_SCROLLBAR_ARROW_DELTA;
@@ -628,7 +628,8 @@ UITree_ScrollbarHandle(
         sx = max_x;
     if( sy > max_y )
         sy = max_y;
-    UITree_ScrollSetPos(scroll, layer->component_id, sx, sy);
+    layer->scroll_x = sx;
+    layer->scroll_y = sy;
     return true;
 }
 

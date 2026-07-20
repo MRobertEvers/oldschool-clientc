@@ -10,6 +10,7 @@ main(void)
     test_hover_input();
     test_layout_build();
     test_mutate_emit();
+    test_drag_composite();
 
     if( g_failures )
     {

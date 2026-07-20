@@ -303,6 +303,10 @@ struct UITreeComponent
             int y_offset;
             uint8_t orthog;
             uint8_t fixed_zoom;
+            /* Model animation sequence set via IF/CC_SETMODELANIM, or -1 = none.
+             * anim_frame is advanced by the client tick driver. */
+            int anim_seq_id;
+            int anim_frame;
         } rs_model;
         struct
         {
@@ -476,6 +480,10 @@ struct UITreeNodeSpec
             int y_offset;
             uint8_t orthog;
             uint8_t fixed_zoom;
+            /* Model animation sequence set via IF/CC_SETMODELANIM, or -1 = none.
+             * anim_frame is advanced by the client tick driver. */
+            int anim_seq_id;
+            int anim_frame;
         } rs_model;
         struct
         {

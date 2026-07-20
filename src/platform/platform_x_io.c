@@ -159,7 +159,12 @@ dat2_cache_table_supported(int table_id)
            table_id == RSCACHE_DAT2_DISK_TABLE_MAPS ||
            table_id == RSCACHE_DAT2_DISK_TABLE_TEXTURES ||
            table_id == RSCACHE_DAT2_DISK_TABLE_SPRITES ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_FONTS;
+           table_id == RSCACHE_DAT2_DISK_TABLE_FONTS ||
+           /* Animation tables: sequence frames (idx0), framemaps/skeletons (idx1),
+            * skeletal AnimMaya (idx22). */
+           table_id == RSCACHE_DAT2_DISK_TABLE_ANIMATIONS ||
+           table_id == RSCACHE_DAT2_DISK_TABLE_SKELETONS ||
+           table_id == RSCACHE_DAT2_DISK_TABLE_ANIMAYAS;
 }
 
 static int

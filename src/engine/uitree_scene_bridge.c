@@ -1,6 +1,7 @@
 #include "uitree_scene_bridge.h"
 
 #include "engine/cache_provider.h"
+#include "engine/player_appearance.h"
 #include "engine/toridraw_font_from_torirs.h"
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/toridraw_sprite_from_torirs.h"
@@ -103,6 +104,7 @@ UITreeSceneBridge_Init(
     bridge->obj_icon_map = bridge_hmap_new_keyed(
         sizeof(int) * 2, sizeof(struct MapEntry_ObjIcon), BRIDGE_OBJ_ICON_MAP_CAP);
     bridge->scrollbar_scene_id = -1;
+    bridge->player_scene_id = -1;
     assert(bridge->sprite_map && bridge->model_map && bridge->obj_icon_map);
 }
 
@@ -282,9 +284,107 @@ UITreeSceneBridge_EnsureModel(
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = model;
     ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+    /* Rest-pose snapshot enables IF/CC_SETMODELANIM sequence playback on widgets. */
+    ToriDraw_ModelCaptureOriginalVertices(model);
     ToriDraw_SceneModelAdd(bridge->scene, cache_model_id, hnd);
     bridge_map_put(bridge->model_map, cache_model_id, cache_model_id);
     return cache_model_id;
+}
+
+#define BRIDGE_PLAYER_PART_MODELS_MAX (PLAYER_APPEARANCE_PARTS * 8)
+
+int
+UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge)
+{
+    struct PlayerAppearance app;
+    struct ToriDraw_Model* parts[BRIDGE_PLAYER_PART_MODELS_MAX];
+    struct ToriDraw_Model* merged;
+    struct ToriDraw_ModelHandle hnd;
+    int part_count = 0;
+    int p;
+
+    assert(bridge && bridge->scene && bridge->provider);
+
+    if( bridge->player_scene_id > 0 )
+        return bridge->player_scene_id;
+    if( ToriDraw_SceneModelHas(bridge->scene, UITREE_SCENE_PLAYER_MODEL_ID) )
+    {
+        bridge->player_scene_id = UITREE_SCENE_PLAYER_MODEL_ID;
+        return bridge->player_scene_id;
+    }
+
+    if( PlayerAppearance_ResolveDefaultMale(bridge->provider, &app) <= 0 )
+        return -1;
+
+    /* Compose body parts 0..6: one merged, kit-recolored model per IdentityKit. */
+    for( p = 0; p < PLAYER_APPEARANCE_PARTS; p++ )
+    {
+        struct ToriRS_Idk* idk;
+        int m;
+        if( app.kits[p] < 0 )
+            continue;
+        idk = CacheProvider_IdkGet(bridge->provider, app.kits[p]);
+        if( !idk )
+            continue;
+        for( m = 0; m < idk->model_ids_count; m++ )
+        {
+            struct ToriRS_Model* rs;
+            struct ToriDraw_Model* model;
+            int mid = idk->model_ids[m];
+            int r;
+            if( mid < 0 || !CacheProvider_ModelHas(bridge->provider, mid) )
+                continue;
+            rs = CacheProvider_ModelGet(bridge->provider, mid);
+            if( !rs )
+                continue;
+            model = ToriDraw_ModelFromToriRS(rs);
+            if( !model )
+                continue;
+            /* Kit recolors applied per part before merge (mirrors PlayerComposition). */
+            for( r = 0; r < 10; r++ )
+            {
+                if( idk->recolors_from[r] != 0 || idk->recolors_to[r] != 0 )
+                    ToriDraw_ModelRecolor(model, idk->recolors_from[r], idk->recolors_to[r]);
+            }
+            if( part_count < BRIDGE_PLAYER_PART_MODELS_MAX )
+                parts[part_count++] = model;
+            else
+                ToriDraw_ModelFree(model);
+        }
+    }
+
+    if( part_count == 0 )
+        return -1;
+
+    /* ModelNewMerge copies geometry, so the part models must be freed after. */
+    merged = ToriDraw_ModelNewMerge(parts, part_count);
+    for( p = 0; p < part_count; p++ )
+        ToriDraw_ModelFree(parts[p]);
+    if( !merged )
+        return -1;
+
+    /* Default-appearance body recolors (colors all 0 → mostly identity). */
+    {
+        int c;
+        for( c = 0; c < PlayerAppearance_DefaultBodyRecolorCount(); c++ )
+        {
+            int from = PlayerAppearance_DefaultBodyRecolorFrom(c);
+            if( from != -1 )
+                ToriDraw_ModelRecolor(merged, from, PlayerAppearance_DefaultBodyRecolorTo(c));
+        }
+    }
+
+    ToriDraw_ModelSetBoundsCylinder(merged);
+    /* Snapshot the rest pose so sequence frames can be applied/reset each tick. */
+    ToriDraw_ModelCaptureOriginalVertices(merged);
+
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = merged;
+    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+    ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_PLAYER_MODEL_ID, hnd);
+    bridge->player_scene_id = UITREE_SCENE_PLAYER_MODEL_ID;
+    return bridge->player_scene_id;
 }
 
 static struct ToriRS_Objtype*

@@ -90,6 +90,7 @@ UITree_EmitFill(
     struct UITreeHost const* host,
     struct UITreeComponent const* component,
     int32_t node_index,
+    int hovered_component_id,
     struct UITreeEmitDesc* out)
 {
     assert(tree);
@@ -97,6 +98,13 @@ UITree_EmitFill(
     assert(out);
 
     memset(out, 0, sizeof(*out));
+
+    /* TS Client draw: components swap to their "active" (getIfActive) or "over"
+     * (hovered) colour / text / sprite variant. Active is host-evaluated; hover
+     * matches this component's own id. */
+    bool const hovered =
+        hovered_component_id >= 0 && component->component_id == hovered_component_id;
+    bool const active = host ? UITree_ComponentIsActiveHost(host, component) : false;
 
     if( host )
     {
@@ -162,6 +170,17 @@ UITree_EmitFill(
                 out->flip_h = component->u.rs_graphic.flip_h;
                 out->flip_v = component->u.rs_graphic.flip_v;
             }
+            else if( active && component->u.rs_graphic.scene_id_active > 0 )
+            {
+                /* getIfActive -> graphic2 (TS Client TYPE_GRAPHIC draw). */
+                out->scene_id = component->u.rs_graphic.scene_id_active;
+                out->atlas_index = component->u.rs_graphic.atlas_index_active;
+                out->tiled = component->u.rs_graphic.tiled;
+                out->outline = component->u.rs_graphic.outline;
+                out->graphic_shadow = component->u.rs_graphic.graphic_shadow;
+                out->flip_h = component->u.rs_graphic.flip_h;
+                out->flip_v = component->u.rs_graphic.flip_v;
+            }
             else
             {
                 out->scene_id = component->u.rs_graphic.scene_id;
@@ -181,23 +200,54 @@ UITree_EmitFill(
         return true;
 
     case UIELEM_RS_TEXT:
-        if( !component->u.rs_text.text || component->u.rs_text.text[0] == '\0' )
+    {
+        char const* text = component->u.rs_text.text;
+        int color = component->u.rs_text.color;
+        /* TS Client TYPE_TEXT: active -> colour2 (+ text2); else colour. Either way
+         * a hover overrides to the matching *Over colour when non-zero. */
+        if( active )
+        {
+            color = component->behavior.active_color;
+            if( hovered && component->behavior.active_over_color != 0 )
+                color = component->behavior.active_over_color;
+            if( component->u.rs_text.text_active && component->u.rs_text.text_active[0] )
+                text = component->u.rs_text.text_active;
+        }
+        else if( hovered && component->behavior.over_color != 0 )
+        {
+            color = component->behavior.over_color;
+        }
+        if( !text || text[0] == '\0' )
             return false;
         out->kind = UITREE_EMIT_TEXT;
-        out->text = component->u.rs_text.text;
+        out->text = text;
         out->font_id = component->u.rs_text.font_id;
-        out->color = component->u.rs_text.color;
+        out->color = color;
         out->text_center = component->u.rs_text.center;
         out->text_y_align = component->u.rs_text.y_align;
         out->text_shadowed = component->u.rs_text.shadowed;
         out->text_line_height = component->u.rs_text.line_height;
         return true;
+    }
 
     case UIELEM_RS_RECT:
+    {
+        int color = component->u.rs_rect.color;
+        if( active )
+        {
+            color = component->behavior.active_color;
+            if( hovered && component->behavior.active_over_color != 0 )
+                color = component->behavior.active_over_color;
+        }
+        else if( hovered && component->behavior.over_color != 0 )
+        {
+            color = component->behavior.over_color;
+        }
         out->kind = UITREE_EMIT_RECT;
-        out->color = component->u.rs_rect.color;
+        out->color = color;
         out->filled = component->u.rs_rect.filled;
         return true;
+    }
 
     case UIELEM_RS_LINE:
         out->kind = UITREE_EMIT_LINE;
@@ -494,7 +544,11 @@ emit_walk_node(
     int scroll_off_y,
     int text_pass,
     int hovered_component_id,
-    int drag_pass)
+    int drag_pass,
+    int in_drag,
+    int drag_dx,
+    int drag_dy,
+    int in_deferred)
 {
     struct UITreeComponent* c;
     struct UITreeEmitDesc desc;
@@ -506,7 +560,6 @@ emit_walk_node(
     int scroll_layer;
     int child_scroll_x;
     int child_scroll_y;
-    int defer_drag;
 
     assert(tree && out && parent_clip);
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
@@ -518,39 +571,51 @@ emit_walk_node(
         return;
 
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
+
+    /* A drag source begins a screen-space translation that carries to its whole
+     * subtree, so a composite widget (e.g. a scrollbar thumb built from cap +
+     * middle sprites) moves as one unit rather than only its own drawn content.
+     * drag_visual_x/y are screen coords (mouse - pickup), so the delta is taken
+     * against this node's pre-drag screen position (abs - scroll offset). */
     if( c->drag_active )
     {
-        x = c->drag_visual_x;
-        y = c->drag_visual_y;
+        drag_dx = c->drag_visual_x - (x - scroll_off_x);
+        drag_dy = c->drag_visual_y - (y - scroll_off_y);
+        in_drag = 1;
+        /* Picked-up drags (behavior != 1) defer the whole subtree to the top
+         * drag pass; scrollbar-style drags (behavior 1) stay in place. */
+        in_deferred = (c->drag_behavior != 1);
     }
 
-    /* Non-scrollbar drag sources: emit only on deferred top pass. */
-    defer_drag = c->drag_active && c->drag_behavior != 1;
-    if( defer_drag && !drag_pass )
+    if( in_deferred )
     {
-        /* Still walk children under normal pass; self content deferred. */
-    }
-    else if( !defer_drag && drag_pass )
-    {
-        /* Only deferred drag sources (and their content) on drag pass. */
-        if( !c->drag_active )
-        {
-            for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
-            {
-                emit_walk_node(
-                    tree,
-                    host,
-                    out,
-                    child,
-                    parent_clip,
-                    scroll_off_x,
-                    scroll_off_y,
-                    text_pass,
-                    hovered_component_id,
-                    drag_pass);
-            }
+        /* A deferred drag subtree draws only on the drag pass. */
+        if( !drag_pass )
             return;
+    }
+    else if( drag_pass )
+    {
+        /* On the drag pass, non-deferred nodes only descend to reach any
+         * deferred drag source deeper in the tree; they do not draw here. */
+        for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
+        {
+            emit_walk_node(
+                tree,
+                host,
+                out,
+                child,
+                parent_clip,
+                scroll_off_x,
+                scroll_off_y,
+                text_pass,
+                hovered_component_id,
+                drag_pass,
+                in_drag,
+                drag_dx,
+                drag_dy,
+                in_deferred);
         }
+        return;
     }
 
     scroll_layer = layer_needs_scroll_offset(c);
@@ -571,11 +636,13 @@ emit_walk_node(
     child_clip = parent_clip;
     if( component_is_layer_clip(c) && w > 0 && h > 0 )
     {
-        if( clip_intersect(&layer_clip, parent_clip, x - scroll_off_x, y - scroll_off_y, w, h) )
+        int clip_x = x - scroll_off_x + (in_drag ? drag_dx : 0);
+        int clip_y = y - scroll_off_y + (in_drag ? drag_dy : 0);
+        if( clip_intersect(&layer_clip, parent_clip, clip_x, clip_y, w, h) )
             child_clip = &layer_clip;
     }
 
-    if( !(defer_drag && !drag_pass) && !if1_bar && UITree_EmitFill(tree, host, c, idx, &desc) )
+    if( !if1_bar && UITree_EmitFill(tree, host, c, idx, hovered_component_id, &desc) )
     {
         int is_text = emit_kind_is_text(desc.kind);
         if( (text_pass && is_text) || (!text_pass && !is_text) )
@@ -583,22 +650,22 @@ emit_walk_node(
             if( desc.kind != UITREE_EMIT_WORLD && desc.kind != UITREE_EMIT_MINIMAP &&
                 desc.kind != UITREE_EMIT_COMPASS )
             {
-                if( c->drag_active )
+                desc.x -= scroll_off_x;
+                desc.y -= scroll_off_y;
+                if( in_drag )
                 {
-                    desc.x = c->drag_visual_x;
-                    desc.y = c->drag_visual_y;
-                    if( c->drag_behavior != 1 )
-                    {
-                        if( c->drag_visual_trans >= 0 )
-                            desc.trans = c->drag_visual_trans;
-                        else if( desc.trans < 128 )
-                            desc.trans = 128;
-                    }
+                    /* Shift the whole picked-up subtree by the drag delta. */
+                    desc.x += drag_dx;
+                    desc.y += drag_dy;
                 }
-                else
+                if( in_deferred )
                 {
-                    desc.x -= scroll_off_x;
-                    desc.y -= scroll_off_y;
+                    /* Ghost the picked-up widget (source uses its own trans;
+                     * children fall back to a translucent default). */
+                    if( c->drag_visual_trans >= 0 )
+                        desc.trans = c->drag_visual_trans;
+                    else if( desc.trans < 128 )
+                        desc.trans = 128;
                 }
                 desc.scroll_off_x = scroll_off_x;
                 desc.scroll_off_y = scroll_off_y;
@@ -628,7 +695,11 @@ emit_walk_node(
             sy,
             text_pass,
             hovered_component_id,
-            drag_pass);
+            drag_pass,
+            in_drag,
+            drag_dx,
+            drag_dy,
+            in_deferred);
     }
 
     if( if1_bar && !text_pass && !drag_pass )
@@ -670,7 +741,11 @@ emit_walk_pass(
             0,
             text_pass,
             hovered_component_id,
-            drag_pass);
+            drag_pass,
+            0,
+            0,
+            0,
+            0);
     }
 }
 

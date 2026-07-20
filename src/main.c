@@ -1,6 +1,7 @@
 #include "asyncio.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "engine/dat2/task_dat2_sequence_load.h"
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_cmd_render.h"
 #include "engine/uitree_scene_bridge.h"
@@ -13,6 +14,8 @@
 #include "platform/platform_x_io.h"
 #include "render/torirs_frame.h"
 #include "toridraw.h"
+#include "toridraw_animation.h"
+#include "toridraw_model.h"
 #include "toridraw_scene.h"
 #include "ui/uitree.h"
 #include "ui/uitree_emit.h"
@@ -20,6 +23,7 @@
 #include "ui/uitree_hover.h"
 #include "ui/uitree_input.h"
 #include "ui/uitree_layout.h"
+#include "ui/uitree_scroll.h"
 #include "varp/varp_manager.h"
 
 #include <SDL.h>
@@ -145,6 +149,81 @@ pump_task_queue(
     assert(px);
     while( ToriRS_TaskQueue_Run(queue, io) == TORIRS_ASYNCIO_STAT_YIELD )
         PlatformX_IO_Process(px, io);
+}
+
+/*
+ * Drive model-widget animations: for every RS_MODEL node with a sequence set
+ * (IF/CC_SETMODELANIM, or the player preview), lazily load the sequence into the
+ * scene, then reset the model to its rest pose and apply the current frame.
+ * `advance` steps each node to its next frame (call once per rendered tick).
+ * Returns non-zero if any animation was applied (so the caller can redraw).
+ */
+static int
+drive_widget_animations(
+    struct UITree* tree,
+    struct ToriDraw_Scene* scene,
+    struct CacheProvider* provider,
+    struct ToriRS_TaskQueue* queue,
+    struct ToriRS_IO* io,
+    struct PlatformX_IO* px,
+    int advance)
+{
+    int applied = 0;
+    uint32_t i;
+    assert(tree && scene);
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent* c = &tree->components[i];
+        int seq;
+        int model_id;
+        struct ToriDraw_Animation* anim;
+        struct ToriDraw_ModelHandle hnd;
+        if( c->type != UIELEM_RS_MODEL )
+            continue;
+        seq = c->u.rs_model.anim_seq_id;
+        model_id = c->u.rs_model.gamecache_model_id;
+        if( seq < 0 || model_id < 0 )
+            continue;
+
+        anim = ToriDraw_SceneAnimationGet(scene, seq);
+        if( !anim )
+        {
+            struct ToriRS_Task* task = CreateTask_Dat2SequenceLoad(provider, scene, seq);
+            if( task )
+            {
+                ToriRS_TaskQueue_Add(queue, task);
+                pump_task_queue(queue, io, px);
+            }
+            anim = ToriDraw_SceneAnimationGet(scene, seq);
+            if( !anim )
+            {
+                /* Sequence unavailable in this cache — disable so we don't retry
+                 * the load every tick. */
+                c->u.rs_model.anim_seq_id = -1;
+                continue;
+            }
+        }
+        if( !anim->base || anim->frame_count <= 0 )
+            continue;
+
+        hnd = ToriDraw_SceneModelGet(scene, model_id);
+        if( hnd.kind != TORIDRAWMK_MODEL || !hnd.u.model.model )
+            continue;
+
+        {
+            int fr = c->u.rs_model.anim_frame % anim->frame_count;
+            if( fr < 0 )
+                fr = 0;
+            ToriDraw_ModelAnimateReset(hnd.u.model.model);
+            /* An empty frame (no translators) is the rest pose — reset only. */
+            if( anim->frames[fr].length > 0 )
+                ToriDraw_ModelAnimateFrame(hnd.u.model.model, anim->base, &anim->frames[fr]);
+            applied = 1;
+            if( advance )
+                c->u.rs_model.anim_frame = (fr + 1) % anim->frame_count;
+        }
+    }
+    return applied;
 }
 
 static void
@@ -364,6 +443,45 @@ find_hover_component_id(
         UITREE_LAYOUT_ROOT_H);
 }
 
+/* Innermost vertically-scrollable RS_LAYER whose bounds contain (mx,my), by
+ * smallest area (most specific). Wheel scrolls whatever layer is under the
+ * cursor even over empty content, unlike the geometric leaf hit-test. */
+static int32_t
+find_wheel_scroll_layer(
+    struct UITree const* tree,
+    int mx,
+    int my)
+{
+    int32_t best = -1;
+    int best_area = 0;
+    uint32_t i;
+
+    assert(tree);
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        int bx = 0, by = 0, bw = 0, bh = 0;
+        if( c->type != UIELEM_RS_LAYER || c->behavior.hide )
+            continue;
+        if( !UITree_ScrollLayerNeedsVertical(c) )
+            continue;
+        UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
+        if( bw <= 0 || bh <= 0 )
+            continue;
+        if( mx < bx || my < by || mx >= bx + bw || my >= by + bh )
+            continue;
+        {
+            int area = bw * bh;
+            if( best < 0 || area < best_area )
+            {
+                best = (int32_t)i;
+                best_area = area;
+            }
+        }
+    }
+    return best;
+}
+
 static void
 update_window_title(
     struct PlatformSDL2* sdl,
@@ -507,34 +625,6 @@ main(
         host.var_transmit_hook_count,
         tree->interface_parent_count);
 
-    if( getenv("DUMP_LAYOUT") )
-    {
-        for( uint32_t i = 0; i < tree->component_count; i++ )
-        {
-            struct UITreeComponent* dc = &tree->components[i];
-            int dx = 0, dy = 0, dw = 0, dh = 0;
-            UITree_LayoutGetBounds(&dc->position, &dx, &dy, &dw, &dh);
-            fprintf(
-                stderr,
-                "LAY file=%d type=%d abs=(%d,%d,%d,%d) base=(%d,%d,%d,%d) "
-                "mode=(x%d,y%d,w%d,h%d)\n",
-                dc->component_id & 0xFFFF,
-                (int)dc->type,
-                dx,
-                dy,
-                dw,
-                dh,
-                dc->position.x,
-                dc->position.y,
-                dc->position.width,
-                dc->position.height,
-                (int)dc->position.x_mode,
-                (int)dc->position.y_mode,
-                (int)dc->position.width_mode,
-                (int)dc->position.height_mode);
-        }
-    }
-
 #if UITREE_CLICK_DEBUG
     {
         int hook_on_click = 0;
@@ -547,6 +637,10 @@ main(
             hook_on_op);
     }
 #endif
+
+    /* Load model-widget sequences and apply the first frame before the initial
+     * render; the interactive loop below advances frames each tick. */
+    drive_widget_animations(tree, scene, provider, queue, io, px, /*advance=*/0);
 
     struct UITreeEmitBuffer buf;
     struct UITreeHost ui_host;
@@ -581,6 +675,11 @@ main(
         int hover_com_id = -1;
         int prev_hover_com_id = -1;
         int need_redraw = 1;
+        /* IF1 scrollbar grip-drag capture: once a grip/track is pressed, the mouse
+         * owns that bar until release (mirrors TS scrollGrabbed) so a press on the
+         * strip never leaks into the generic object-drag / click path. */
+        struct UITreeScrollbarHitInfo sb_drag_hit;
+        int sb_dragging = 0;
         char title[64];
 
         assert(sdl);
@@ -609,18 +708,117 @@ main(
         {
             int ran_cs2 = 0;
             int clicked_com_id = -1;
+            int sb_consumed_press = 0;
 
             LibToriRS_Input_Begin(input, SDL_GetTicks64());
             PlatformSDL2_PollInput(sdl, input);
             LibToriRS_Input_End(input);
 
-            ui_result = bridge_input_to_uitree(&ui_state, tree, &ui_host, input);
+            /* IF1 scrollbars are emit-drawn (not draggable components), so they
+             * have no place in the generic input path. Intercept the bar strip
+             * here — before bridge_input_to_uitree can hand the press to the
+             * object-drag system — and drive component->scroll_x/y directly. */
+            {
+                int mx = input->curr.mouse_x;
+                int my = input->curr.mouse_y;
+                int left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+
+                if( sb_dragging )
+                {
+                    sb_consumed_press = 1;
+                    if( left_held )
+                    {
+                        if( UITree_ScrollbarHandle(
+                                tree, NULL, &sb_drag_hit, mx, my,
+                                UITREE_SCROLLBAR_ACTION_GRIP_DRAG, 0) )
+                            need_redraw = 1;
+                    }
+                    else
+                        sb_dragging = 0;
+                }
+                else if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+                {
+                    struct UITreeScrollbarHitInfo hit;
+                    if( UITree_FindScrollbarAt(tree, &ui_host, NULL, mx, my, &hit) )
+                    {
+                        /* Never let this press become an object-drag source. */
+                        ui_state.drag_source_idx = -1;
+                        ui_state.drag_source_id = -1;
+                        ui_state.pressed = -1;
+                        sb_consumed_press = 1;
+                        if( UITree_ScrollbarIsArrowKind(hit.kind) )
+                        {
+                            if( UITree_ScrollbarHandle(
+                                    tree, NULL, &hit, mx, my,
+                                    UITREE_SCROLLBAR_ACTION_ARROW_STEP, 0) )
+                                need_redraw = 1;
+                            sb_dragging = 0;
+                        }
+                        else if( UITree_ScrollbarIsGripKind(hit.kind) )
+                        {
+                            sb_drag_hit = hit;
+                            sb_dragging = 1;
+                            if( UITree_ScrollbarHandle(
+                                    tree, NULL, &sb_drag_hit, mx, my,
+                                    UITREE_SCROLLBAR_ACTION_GRIP_DRAG, 0) )
+                                need_redraw = 1;
+                        }
+                    }
+                }
+            }
+
+            /* While a scrollbar owns the mouse, keep the generic hover/click/drag
+             * path from seeing this press at all. */
+            if( sb_dragging || sb_consumed_press )
+            {
+                memset(&ui_result, 0, sizeof(ui_result));
+                ui_result.hovered = ui_state.hovered;
+                ui_result.prev_hovered = ui_state.hovered;
+                ui_result.clicked = -1;
+                ui_result.drag_source_idx = -1;
+                ui_result.drag_source_id = -1;
+                ui_result.drag_target_id = -1;
+            }
+            else
+                ui_result = bridge_input_to_uitree(&ui_state, tree, &ui_host, input);
+
+            /* Mouse wheel: scroll the layer under the cursor. Prefer its CS2
+             * on_scroll_wheel handler; otherwise step component->scroll_y. */
+            if( input->curr.mouse_wheel_y != 0 )
+            {
+                int32_t layer_idx = find_wheel_scroll_layer(
+                    tree, input->curr.mouse_x, input->curr.mouse_y);
+                if( layer_idx >= 0 )
+                {
+                    struct UITreeComponent* layer = &tree->components[layer_idx];
+                    if( layer->runtime_hooks.on_scroll_wheel.script_id > 0 )
+                    {
+                        run_runtime_hook(
+                            &host,
+                            queue,
+                            io,
+                            px,
+                            layer->component_id,
+                            &layer->runtime_hooks.on_scroll_wheel);
+                        ran_cs2 = 1;
+                    }
+                    else
+                    {
+                        /* Wheel up (positive) scrolls content up -> scroll_y down. */
+                        layer->scroll_y -=
+                            input->curr.mouse_wheel_y * UITREE_SCROLLBAR_WHEEL_STEP;
+                        UITree_ScrollClampComponent(layer);
+                    }
+                    need_redraw = 1;
+                }
+            }
 
             /* Drag tick while held (deadzone+deadtime); fire onDrag / onDragComplete. */
             {
                 int left_held = LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) ||
                                 LibToriRS_Input_IsDragging(input, TORIRSM_LEFT);
-                if( ui_state.drag_source_idx >= 0 && left_held )
+                if( !sb_dragging && !sb_consumed_press && ui_state.drag_source_idx >= 0 &&
+                    left_held )
                 {
                     int drag_ch = UITree_InputDragTick(
                         &ui_state,
@@ -860,6 +1058,18 @@ main(
             }
 
             update_window_title(sdl, interface_id, hover_com_id, clicked_com_id);
+
+            /* Advance model-widget animations at roughly the OSRS anim tick. */
+            {
+                static uint64_t last_anim_ms = 0;
+                uint64_t now_ms = SDL_GetTicks64();
+                if( now_ms - last_anim_ms >= 30 )
+                {
+                    last_anim_ms = now_ms;
+                    if( drive_widget_animations(tree, scene, provider, queue, io, px, 1) )
+                        need_redraw = 1;
+                }
+            }
 
             if( need_redraw )
             {

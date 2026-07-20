@@ -108,16 +108,18 @@ find_hovered_recursive(
     bool const mouse_in_bounds = UITree_PointInScrolledBounds(
         mouse_x, mouse_y, bx, by, bw, bh, scroll_off_x, scroll_off_y);
 
-    if( mouse_in_bounds )
+    if( mouse_in_bounds && component->component_id >= 0 )
     {
-        if( component->component_id >= 0 &&
-            (component->behavior.over_layer_id >= 0 || component->behavior.over_color != 0) )
-        {
-            int const hover_id = component->behavior.over_layer_id >= 0
-                                     ? component->behavior.over_layer_id
-                                     : component->component_id;
-            *out_hovered_component_id = hover_id;
-        }
+        /* IF1 over-layer / colourOver redirect (TS addComponentOptions). */
+        if( component->behavior.over_layer_id >= 0 )
+            *out_hovered_component_id = component->behavior.over_layer_id;
+        else if( component->behavior.over_color != 0 )
+            *out_hovered_component_id = component->component_id;
+        /* CS2/IF3 addition: components with hover scripts must also report as
+         * hovered so on_mouse_over / on_mouse_leave dispatch (main loop). */
+        else if( component->runtime_hooks.on_mouse_over.script_id > 0 ||
+                 component->runtime_hooks.on_mouse_leave.script_id > 0 )
+            *out_hovered_component_id = component->component_id;
     }
 
     bool recurse_children = mouse_in_bounds;

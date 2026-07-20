@@ -86,6 +86,9 @@ SRCS = main.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/uitree_builder/task_interface_open.c \
 	engine/task_obj_model_load.c \
 	engine/uitree_scene_bridge.c \
+	engine/player_appearance.c \
+	engine/toridraw_animation_from_rscache.c \
+	engine/dat2/task_dat2_sequence_load.c \
 	engine/uitree_cmd_render.c \
 	engine/toridraw_sprite_from_torirs.c \
 	engine/toridraw_font_from_torirs.c \
@@ -142,6 +145,9 @@ OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/platform_sdl2.o \
 	$(OBJ_DIR)/task_interface_open.o \
 	$(OBJ_DIR)/task_obj_model_load.o \
 	$(OBJ_DIR)/uitree_scene_bridge.o \
+	$(OBJ_DIR)/player_appearance.o \
+	$(OBJ_DIR)/toridraw_animation_from_rscache.o \
+	$(OBJ_DIR)/task_dat2_sequence_load.o \
 	$(OBJ_DIR)/uitree_cmd_render.o \
 	$(OBJ_DIR)/toridraw_sprite_from_torirs.o \
 	$(OBJ_DIR)/toridraw_font_from_torirs.o \

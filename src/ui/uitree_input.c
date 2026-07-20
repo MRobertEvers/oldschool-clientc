@@ -131,6 +131,17 @@ hit_test_interactive_recursive(
     int bh = 0;
     UITree_LayoutGetBounds(&component->position, &bx, &by, &bw, &bh);
 
+    /* A drag in progress moves the widget (and its whole subtree) on screen but
+     * leaves position.abs_* untouched (emit applies the same translation). Fold
+     * the drag delta into the scroll offset — PointInScrolledBounds tests against
+     * bx - scroll_off, so subtracting the delta shifts the hitbox to match what
+     * is drawn. This keeps a dragged item's hitbox under the cursor. */
+    if( component->drag_active )
+    {
+        scroll_off_x -= component->drag_visual_x - (bx - scroll_off_x);
+        scroll_off_y -= component->drag_visual_y - (by - scroll_off_y);
+    }
+
     bool const point_in_self =
         UITree_PointInScrolledBounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y);
 

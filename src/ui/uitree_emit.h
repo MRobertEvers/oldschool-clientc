@@ -84,13 +84,16 @@ struct UITreeEmitDesc
     uint8_t line_direction;
 };
 
-/** Fill a single emit descriptor for a node. Returns false if nothing to draw. */
+/** Fill a single emit descriptor for a node. Returns false if nothing to draw.
+ * @param hovered_component_id id currently hovered (-1 = none). Selects over_*
+ *        colour/text/sprite variants for the matching component (TS Client draw). */
 bool
 UITree_EmitFill(
     struct UITree const* tree,
     struct UITreeHost const* host,
     struct UITreeComponent const* component,
     int32_t node_index,
+    int hovered_component_id,
     struct UITreeEmitDesc* out);
 
 struct UITreeEmitBuffer

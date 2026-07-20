@@ -24,7 +24,13 @@ struct UITreeSceneBridge
 
     /** IF1 scrollbar arrow pack (atlas 0=up/left, 1=down/right); -1 if unloaded. */
     int scrollbar_scene_id;
+
+    /** Composited default player avatar model; -1 until first built. */
+    int player_scene_id;
 };
+
+/* Reserved scene model id for the composited player avatar (out of cache range). */
+#define UITREE_SCENE_PLAYER_MODEL_ID 0x40000000
 
 void
 UITreeSceneBridge_Init(
@@ -65,6 +71,15 @@ int
 UITreeSceneBridge_EnsureModel(
     struct UITreeSceneBridge* bridge,
     int cache_model_id);
+
+/**
+ * Composite the default player avatar (IdentityKit body parts merged + recolored)
+ * and register it in the scene. Requires the appearance idks + models already in
+ * the provider (see CreateTask_PlayerAppearanceLoad). Built once, then cached.
+ * Returns the scene model id or -1 if the kits/models are unavailable.
+ */
+int
+UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge);
 
 /**
  * Rasterize an inventory/obj icon into the scene (32x32).

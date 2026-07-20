@@ -10,6 +10,8 @@
 #define UITREE_SCROLL_MAX 8192
 #define UITREE_SCROLLBAR_THICKNESS 16
 #define UITREE_SCROLLBAR_ARROW_DELTA 4
+/** Pixels of vertical scroll per mouse-wheel notch (no reference; feel-tuned). */
+#define UITREE_SCROLLBAR_WHEEL_STEP 30
 
 /* Client.ts / widgets-gl.ts SCROLLBAR_* colors (ARGB). */
 #define UITREE_SCROLLBAR_TRACK_ARGB 0xFF23201B
