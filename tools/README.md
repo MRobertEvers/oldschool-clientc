@@ -96,15 +96,21 @@ See `src/osrs/revconfig/configs/cullmaps/README.md` for options. Keep `BAKE_*` /
 
 Human-readable dump of dat1/dat2 interface widgets (types, layout, INV slot graphics, ops).
 
-**Build** (standalone — avoids CMake ASAN hang on macOS):
+**Build:**
 
 ```bash
+# CMake (dump targets are built without sanitizers even if the tree has ASAN)
+cmake --build build --target dump_interface
+# binary: build/dump_interface
+
+# Standalone (no CMake required)
 make -C tools/dump_interface
 # binary: tools/dump_interface/dump_interface
 ```
 
-CMake `build/dump_interface` is also available but may hang if the project was configured with
-`-DCMAKE_C_FLAGS="-fsanitize=address"`; use the standalone Makefile for cache dump tools.
+CMake wires dump tools through a dedicated non-sanitized `rscache_dump` library so
+`build/dump_interface` does not hang on macOS when the project was configured with
+`-DCMAKE_C_FLAGS="-fsanitize=address"`.
 
 **Usage:**
 

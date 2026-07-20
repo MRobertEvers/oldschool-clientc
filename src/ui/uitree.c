@@ -1,5 +1,7 @@
 #include "uitree.h"
 
+#include "uitree_layout.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,7 +15,8 @@ link_under_parent(
 {
     struct UITreeComponent* new_c = &tree->components[new_index];
     new_c->parent = parent_index;
-    new_c->first_child = -1;
+    /* Preserve first_child (bake may attach children before the parent is
+     * linked into the root list). */
     new_c->next_sibling = -1;
 
     if( parent_index >= 0 && (uint32_t)parent_index >= tree->component_count )
@@ -34,13 +37,20 @@ link_under_parent(
         if( tree->root_index < 0 )
         {
             tree->root_index = new_index;
+            tree->last_root_index = new_index;
         }
         else
         {
-            int32_t walk = tree->root_index;
-            while( tree->components[walk].next_sibling >= 0 )
-                walk = tree->components[walk].next_sibling;
+            int32_t walk = tree->last_root_index;
+            if( walk < 0 || (uint32_t)walk >= tree->component_count ||
+                tree->components[walk].parent >= 0 )
+            {
+                walk = tree->root_index;
+                while( tree->components[walk].next_sibling >= 0 )
+                    walk = tree->components[walk].next_sibling;
+            }
             tree->components[walk].next_sibling = new_index;
+            tree->last_root_index = new_index;
         }
         return new_index;
     }
@@ -60,10 +70,21 @@ link_under_parent(
     return new_index;
 }
 
-static int32_t
-push_element(
+void
+UITree_LinkUnderParent(
     struct UITree* tree,
-    int32_t parent_index)
+    int32_t parent_index,
+    int32_t child_index)
+{
+    assert(tree);
+    assert(child_index >= 0 && (uint32_t)child_index < tree->component_count);
+    if( parent_index == UITREE_PARENT_UNLINKED )
+        return;
+    link_under_parent(tree, parent_index, child_index);
+}
+
+static int32_t
+push_element_unlinked(struct UITree* tree)
 {
     if( tree->component_count >= tree->component_capacity )
     {
@@ -84,10 +105,25 @@ push_element(
     component->next_sibling = -1;
     component->component_id = -1;
     component->behavior.over_layer_id = -1;
+    component->drag_render_area_uid = -1;
+    component->drag_render_area_child_index = -1;
+    component->drag_visual_trans = -1;
     component->is_dirty = 1;
-
-    link_under_parent(tree, parent_index, idx);
     tree->generation++;
+    return idx;
+}
+
+static int32_t
+push_element(
+    struct UITree* tree,
+    int32_t parent_index)
+{
+    int32_t idx = push_element_unlinked(tree);
+    if( idx < 0 )
+        return -1;
+    if( parent_index == UITREE_PARENT_UNLINKED )
+        return idx;
+    link_under_parent(tree, parent_index, idx);
     return idx;
 }
 
@@ -185,6 +221,8 @@ UITree_UnlinkFromRootList(
     if( tree->root_index == child_index )
     {
         tree->root_index = tree->components[child_index].next_sibling;
+        if( tree->last_root_index == child_index )
+            tree->last_root_index = tree->root_index;
         tree->components[child_index].next_sibling = -1;
         tree->components[child_index].parent = -1;
         tree->generation++;
@@ -198,6 +236,8 @@ UITree_UnlinkFromRootList(
         if( walk == child_index )
         {
             tree->components[prev].next_sibling = tree->components[walk].next_sibling;
+            if( tree->last_root_index == child_index )
+                tree->last_root_index = prev;
             tree->components[walk].next_sibling = -1;
             tree->components[walk].parent = -1;
             tree->generation++;
@@ -240,13 +280,20 @@ UITree_Reparent(
         if( tree->root_index < 0 )
         {
             tree->root_index = child_index;
+            tree->last_root_index = child_index;
         }
         else
         {
-            int32_t walk = tree->root_index;
-            while( tree->components[walk].next_sibling >= 0 )
-                walk = tree->components[walk].next_sibling;
+            int32_t walk = tree->last_root_index;
+            if( walk < 0 || (uint32_t)walk >= tree->component_count ||
+                tree->components[walk].parent >= 0 )
+            {
+                walk = tree->root_index;
+                while( tree->components[walk].next_sibling >= 0 )
+                    walk = tree->components[walk].next_sibling;
+            }
             tree->components[walk].next_sibling = child_index;
+            tree->last_root_index = child_index;
         }
     }
     else
@@ -317,6 +364,8 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "redstone_tab";
     case UIELEM_BUILTIN_TAB_ICONS:
         return "tab_icons";
+    case UIELEM_BUILTIN_PLAYERMODEL:
+        return "playermodel";
     case UIELEM_RS_TEXT:
         return "rs_text";
     case UIELEM_RS_GRAPHIC:
@@ -350,6 +399,7 @@ UITree_New(uint32_t hint)
 
     memset(tree, 0, sizeof(struct UITree));
     tree->root_index = -1;
+    tree->last_root_index = -1;
     return tree;
 }
 
@@ -1300,6 +1350,16 @@ UITree_ApplyObject(
             c->u.cc_obj.scene_id = -1;
             c->u.cc_obj.atlas_index = 0;
         }
+        /* RS_GRAPHIC: clear item overlay only — leave rs_graphic.scene_id
+         * (SETGRAPHIC chrome / silhouette) intact. */
+        /* Equipment slots: d2 is the empty silhouette; scripts often leave it
+         * hidden after InvTransmit — show it when the overlay is cleared. */
+        if( c->dynamic && c->parent >= 0 )
+        {
+            int32_t sil_idx = UITree_FindDynamicChildByIndex(tree, c->parent, 2);
+            if( sil_idx >= 0 )
+                (void)UITree_ApplyHide(tree, tree->components[sil_idx].component_id, 0);
+        }
         UITree_MarkNodeDirty(tree, idx);
         return true;
     }
@@ -1317,9 +1377,18 @@ UITree_ApplyObject(
         c->u.cc_obj.atlas_index = atlas_index;
         c->u.cc_obj.center_icon = 1;
     }
+    /* RS_GRAPHIC: item lives in item_id/item_scene_id; do not overwrite
+     * rs_graphic.scene_id (SETGRAPHIC chrome). Emit prefers item when set. */
 
     if( c->behavior.hide )
         c->behavior.hide = 0;
+    /* Hide silhouette sibling while an item occupies the slot. */
+    if( c->dynamic && c->parent >= 0 )
+    {
+        int32_t sil_idx = UITree_FindDynamicChildByIndex(tree, c->parent, 2);
+        if( sil_idx >= 0 )
+            (void)UITree_ApplyHide(tree, tree->components[sil_idx].component_id, 1);
+    }
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -1445,8 +1514,8 @@ UITree_ApplyRuntimeHook(
 
     memset(slot, 0, sizeof(*slot));
     slot->script_id = script_id;
-    if( argc > 16 )
-        argc = 16;
+    if( argc > 32 )
+        argc = 32;
     if( argc < 0 )
         argc = 0;
     slot->argc = argc;
@@ -1597,4 +1666,220 @@ UITree_ComponentHasMenuOptions(struct UITreeComponent const* component)
             return true;
     }
     return false;
+}
+
+int
+UITree_InterfaceParentFind(
+    struct UITree const* tree,
+    int container_uid)
+{
+    int i;
+    assert(tree);
+    for( i = 0; i < tree->interface_parent_count; i++ )
+    {
+        if( tree->interface_parents[i].container_uid == container_uid )
+            return i;
+    }
+    return -1;
+}
+
+int
+UITree_InterfaceParentSet(
+    struct UITree* tree,
+    int container_uid,
+    int group_id,
+    int type)
+{
+    int idx;
+    assert(tree);
+    assert(container_uid >= 0);
+    assert(group_id > 0);
+
+    idx = UITree_InterfaceParentFind(tree, container_uid);
+    if( idx < 0 )
+    {
+        assert(tree->interface_parent_count < UITREE_INTERFACE_PARENT_MAX);
+        idx = tree->interface_parent_count++;
+    }
+    tree->interface_parents[idx].container_uid = container_uid;
+    tree->interface_parents[idx].group_id = group_id;
+    tree->interface_parents[idx].type = type;
+    return idx;
+}
+
+void
+UITree_InterfaceParentClear(
+    struct UITree* tree,
+    int container_uid)
+{
+    int idx;
+    int last;
+    assert(tree);
+    idx = UITree_InterfaceParentFind(tree, container_uid);
+    if( idx < 0 )
+        return;
+    last = tree->interface_parent_count - 1;
+    if( idx != last )
+        tree->interface_parents[idx] = tree->interface_parents[last];
+    tree->interface_parent_count--;
+}
+
+int
+UITree_InterfaceParentIsMountedGroup(
+    struct UITree const* tree,
+    int group_id)
+{
+    int i;
+    assert(tree);
+    for( i = 0; i < tree->interface_parent_count; i++ )
+    {
+        if( tree->interface_parents[i].group_id == group_id )
+            return 1;
+    }
+    return 0;
+}
+
+int
+UITree_ComponentIsDraggable(struct UITreeComponent const* c)
+{
+    assert(c);
+    if( UITree_ClickMaskDragDepth(c->behavior.click_mask) != 0 )
+        return 1;
+    if( c->drag_render_area_uid >= 0 )
+        return 1;
+    if( c->draggable )
+        return 1;
+    if( c->runtime_hooks.on_drag.script_id > 0 )
+        return 1;
+    return 0;
+}
+
+int
+UITree_ComponentIsDropTarget(struct UITreeComponent const* c)
+{
+    assert(c);
+    if( (c->behavior.click_mask & UITREE_FLAG_DRAG_ON) != 0 )
+        return 1;
+    if( c->runtime_hooks.on_drag.script_id > 0 )
+        return 1;
+    if( c->runtime_hooks.on_drag_complete.script_id > 0 )
+        return 1;
+    if( c->runtime_hooks.on_op.script_id > 0 )
+        return 1;
+    if( c->runtime_hooks.on_click.script_id > 0 )
+        return 1;
+    return 0;
+}
+
+int
+UITree_ComponentOrAncestorHidden(
+    struct UITree const* tree,
+    int component_id)
+{
+    int32_t idx;
+    assert(tree);
+    idx = UITree_FindByComponentId(tree, component_id);
+    while( idx >= 0 && (uint32_t)idx < tree->component_count )
+    {
+        if( tree->components[idx].behavior.hide )
+            return 1;
+        idx = tree->components[idx].parent;
+    }
+    return 0;
+}
+
+static int
+drop_target_pick_in_subtree(
+    struct UITree const* tree,
+    int32_t idx,
+    int px,
+    int py,
+    int exclude_component_id,
+    int* best_id,
+    int* best_depth,
+    int depth)
+{
+    struct UITreeComponent const* c;
+    int32_t child;
+    int x, y, w, h;
+    int hit;
+
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
+        return 0;
+    c = &tree->components[idx];
+    if( c->behavior.hide )
+        return 0;
+    if( c->component_id == exclude_component_id )
+        return 0;
+
+    UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
+    hit = (w > 0 && h > 0 && px >= x && px < x + w && py >= y && py < y + h);
+
+    for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
+    {
+        drop_target_pick_in_subtree(
+            tree, child, px, py, exclude_component_id, best_id, best_depth, depth + 1);
+    }
+
+    /* InterfaceParent mounts drawn/hit last under this container. */
+    {
+        int mi;
+        for( mi = 0; mi < tree->interface_parent_count; mi++ )
+        {
+            struct UITreeInterfaceParent const* ip = &tree->interface_parents[mi];
+            int32_t root;
+            if( ip->container_uid != c->component_id )
+                continue;
+            for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
+            {
+                int cid = tree->components[root].component_id;
+                int group = (cid >> 16) & 0xffff;
+                if( group != ip->group_id )
+                    continue;
+                /* Mounted roots may be reparented; still walk from pack roots. */
+                if( tree->components[root].parent >= 0 &&
+                    tree->components[tree->components[root].parent].component_id ==
+                        ip->container_uid )
+                {
+                    drop_target_pick_in_subtree(
+                        tree,
+                        root,
+                        px,
+                        py,
+                        exclude_component_id,
+                        best_id,
+                        best_depth,
+                        depth + 1);
+                }
+            }
+        }
+    }
+
+    if( hit && UITree_ComponentIsDropTarget(c) && depth >= *best_depth )
+    {
+        *best_depth = depth;
+        *best_id = c->component_id;
+    }
+    return *best_id >= 0;
+}
+
+int
+UITree_FindDropTarget(
+    struct UITree const* tree,
+    int px,
+    int py,
+    int exclude_component_id)
+{
+    int32_t root;
+    int best_id = -1;
+    int best_depth = -1;
+    assert(tree);
+    for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
+    {
+        if( tree->components[root].behavior.hide )
+            continue;
+        drop_target_pick_in_subtree(
+            tree, root, px, py, exclude_component_id, &best_id, &best_depth, 0);
+    }
+    return best_id;
 }

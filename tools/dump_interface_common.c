@@ -230,7 +230,7 @@ dump_iface_resolve_layout(
         int rel_y = 0;
         int w = 0;
         int h = 0;
-        ui_if3_component_parent_relative_layout(
+        UITree_If3ComponentParentRelativeLayout(
             1,
             comps[i].widthMode,
             comps[i].heightMode,

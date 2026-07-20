@@ -18,9 +18,9 @@ struct InterfaceOpenStats
 };
 
 /**
- * Open one cache interface pack: load pack → prefetch sprites/fonts/models →
- * bake UITree (scene ids via bridge) → layout → onLoad CS2 → inv/var transmit.
- * stats may be NULL; when non-NULL filled after the task completes.
+ * Open one cache interface pack as a root (TS setRootInterface):
+ * load → bake → layout → onLoad → layout → inv/var transmit → layout.
+ * Spillover sibling groups that are not InterfaceParent-mounted are hidden.
  */
 struct ToriRS_Task*
 CreateTask_InterfaceOpen(
@@ -30,6 +30,24 @@ CreateTask_InterfaceOpen(
     struct InvManager* invs,
     struct UITreeSceneBridge* bridge,
     int interface_id,
+    struct InterfaceOpenStats* stats);
+
+/**
+ * Open a pack as a sub-interface mounted under target_uid (TS openSubInterface):
+ * load → bake → reparent under target → layout(host) → onLoad → layout →
+ * onResize → layout → onSubChange → inv/var transmit → layout.
+ * type: 0 modal, 1 overlay, 3 tab/sidemodal.
+ */
+struct ToriRS_Task*
+CreateTask_InterfaceOpenSub(
+    struct CacheProvider* provider,
+    struct UITree* tree,
+    struct RS_CS2Host* host,
+    struct InvManager* invs,
+    struct UITreeSceneBridge* bridge,
+    int target_uid,
+    int interface_id,
+    int type,
     struct InterfaceOpenStats* stats);
 
 #endif

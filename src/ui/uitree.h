@@ -39,6 +39,7 @@ enum UITreeComponentType
     UIELEM_BUILTIN_CROSS = 10,
     UIELEM_BUILTIN_MINIMENU = 11,
     UIELEM_BUILTIN_CHAT_BUTTON = 12,
+    UIELEM_BUILTIN_PLAYERMODEL = 13,
     UIELEM_RS_TEXT = 14,
     UIELEM_RS_GRAPHIC = 15,
     UIELEM_RS_MODEL = 16,
@@ -91,7 +92,7 @@ struct UITreeRuntimeScriptHook
 {
     int script_id;
     int argc;
-    int argv[16];
+    int argv[32];
 };
 
 struct UITreeRuntimeHooks
@@ -110,6 +111,24 @@ struct UITreeRuntimeHooks
     struct UITreeRuntimeScriptHook on_var_transmit;
     struct UITreeRuntimeScriptHook on_inv_transmit;
     struct UITreeRuntimeScriptHook on_misc_transmit;
+    struct UITreeRuntimeScriptHook on_resize;
+    struct UITreeRuntimeScriptHook on_sub_change;
+};
+
+/** click_mask / events bits (OSRS WidgetFlags). */
+#define UITREE_FLAG_DRAG_DEPTH_SHIFT 17
+#define UITREE_FLAG_DRAG_DEPTH_MASK 0x7
+#define UITREE_FLAG_DRAG_ON (1 << 20)
+
+#define UITREE_INTERFACE_PARENT_MAX 32
+/** parent_index for UITree_Push: allocate node without linking into the tree. */
+#define UITREE_PARENT_UNLINKED (-2)
+
+struct UITreeInterfaceParent
+{
+    int container_uid;
+    int group_id;
+    int type; /* 0 modal, 1 overlay, 3 tab/sidemodal */
 };
 
 struct UITreeBehavior
@@ -204,6 +223,14 @@ struct UITreeComponent
     uint8_t drag_dead_zone;
     uint8_t drag_dead_time;
     uint8_t model_transparent;
+    /** CC/IF_SETDRAGGABLE render-area parent uid (-1 = none). */
+    int drag_render_area_uid;
+    int drag_render_area_child_index;
+    /** Visual-only overrides while dragging (do not mutate position.abs_*). */
+    uint8_t drag_active;
+    int drag_visual_x;
+    int drag_visual_y;
+    int drag_visual_trans; /* -1 = use component trans; else forced (e.g. 128) */
 
     struct UITreeBehavior behavior;
     struct UITreeRuntimeHooks runtime_hooks;
@@ -355,8 +382,15 @@ struct UITree
     uint32_t component_count;
     uint32_t component_capacity;
     int32_t root_index;
+    /** Tail of root sibling list — O(1) append while baking large packs. */
+    int32_t last_root_index;
     uint32_t generation;
     uint16_t next_dynamic_uid;
+    /** Mounted sub-interfaces (TS WidgetManager.interfaceParents). */
+    struct UITreeInterfaceParent interface_parents[UITREE_INTERFACE_PARENT_MAX];
+    int interface_parent_count;
+    /** SETANTIDRAG — suppress new drag initiation while set. */
+    uint8_t anti_drag;
 };
 
 struct UITreeNodeSpec
@@ -572,6 +606,13 @@ UITree_Push(
     struct UITree* tree,
     int32_t parent_index,
     struct UITreeNodeSpec const* spec);
+
+/** Link an existing unlinked component under parent (-1 = root). */
+void
+UITree_LinkUnderParent(
+    struct UITree* tree,
+    int32_t parent_index,
+    int32_t child_index);
 
 /** Move child_index under new_parent_index (-1 = root list). Preserves child's subtree. */
 void
@@ -824,5 +865,61 @@ UITree_ComponentHasMenuOptions(struct UITreeComponent const* component);
 
 bool
 UITree_TypeIsAlwaysDirtyFrame(enum UITreeComponentType type);
+
+/** InterfaceParent mount table (TS WidgetManager.interfaceParents). */
+int
+UITree_InterfaceParentFind(
+    struct UITree const* tree,
+    int container_uid);
+
+int
+UITree_InterfaceParentSet(
+    struct UITree* tree,
+    int container_uid,
+    int group_id,
+    int type);
+
+void
+UITree_InterfaceParentClear(
+    struct UITree* tree,
+    int container_uid);
+
+int
+UITree_InterfaceParentIsMountedGroup(
+    struct UITree const* tree,
+    int group_id);
+
+/** click_mask bits 17–19. */
+static inline int
+UITree_ClickMaskDragDepth(int32_t click_mask)
+{
+    return (click_mask >> UITREE_FLAG_DRAG_DEPTH_SHIFT) & UITREE_FLAG_DRAG_DEPTH_MASK;
+}
+
+/** True if widget can start a drag (TS isWidgetDraggable). */
+int
+UITree_ComponentIsDraggable(struct UITreeComponent const* c);
+
+/** True if node is a valid drop target (FLAG_DRAG_ON or drag/op handlers). */
+int
+UITree_ComponentIsDropTarget(struct UITreeComponent const* c);
+
+/**
+ * Hit-test for drop under (px,py), excluding exclude_component_id.
+ * Visits InterfaceParent mounts after normal children (draw/hit order).
+ * Returns component_id or -1.
+ */
+int
+UITree_FindDropTarget(
+    struct UITree const* tree,
+    int px,
+    int py,
+    int exclude_component_id);
+
+/** Ancestor hide check for InvTransmit gating. */
+int
+UITree_ComponentOrAncestorHidden(
+    struct UITree const* tree,
+    int component_id);
 
 #endif

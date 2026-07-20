@@ -100,6 +100,17 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL,
     CS2VM_HOST_REQUEST_IF_SETONKEY,
     CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT,
+    CS2VM_HOST_REQUEST_IF_SETONDRAG,
+    CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE,
+    CS2VM_HOST_REQUEST_IF_SETONRESIZE,
+    CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE,
+    CS2VM_HOST_REQUEST_CC_SETONRESIZE,
+    CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE,
+    CS2VM_HOST_REQUEST_IF_SETDRAGGABLE,
+    CS2VM_HOST_REQUEST_IF_SETDRAGGABLEBEHAVIOR,
+    CS2VM_HOST_REQUEST_IF_DRAGPICKUP,
+    CS2VM_HOST_REQUEST_CC_DRAGPICKUP,
+    CS2VM_HOST_REQUEST_SETANTIDRAG,
     CS2VM_HOST_REQUEST_IF_SETOP,
     CS2VM_HOST_REQUEST_IF_SETOPBASE,
     CS2VM_HOST_REQUEST_IF_SETOPSUBMENU,
@@ -290,7 +301,7 @@ struct CS2VM_HostRequest_IF_SetOnVarTransmit
     char* signature;
     int* trigger_ids;
     int trigger_count;
-    int int_args[16];
+    int int_args[32];
     int int_arg_count;
 };
 
@@ -301,7 +312,7 @@ struct CS2VM_HostRequest_IF_SetOnInvTransmit
     char* signature;
     int* trigger_ids;
     int trigger_count;
-    int int_args[16];
+    int int_args[32];
     int int_arg_count;
 };
 
@@ -312,7 +323,7 @@ struct CS2VM_HostRequest_IF_SetOnOp
     char* signature;
     int* trigger_ids;
     int trigger_count;
-    int int_args[16];
+    int int_args[32];
     int int_arg_count;
 };
 
@@ -322,7 +333,7 @@ struct CS2VM_HostRequest_CC_SetOnOp
     char* signature;
     int* trigger_ids;
     int trigger_count;
-    int int_args[16];
+    int int_args[32];
     int int_arg_count;
 };
 

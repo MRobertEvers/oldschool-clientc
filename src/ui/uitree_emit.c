@@ -143,13 +143,35 @@ UITree_EmitFill(
             default:
                 break;
             }
-            out->scene_id = component->u.rs_graphic.scene_id;
-            out->atlas_index = component->u.rs_graphic.atlas_index;
-            out->tiled = component->u.rs_graphic.tiled;
-            out->outline = component->u.rs_graphic.outline;
-            out->graphic_shadow = component->u.rs_graphic.graphic_shadow;
-            out->flip_h = component->u.rs_graphic.flip_h;
-            out->flip_v = component->u.rs_graphic.flip_v;
+            /* SETOBJECT on type-5 stores the icon in item_*; SETGRAPHIC chrome
+             * stays in rs_graphic.scene_id. Prefer the item overlay when set. */
+            if( component->item_id > 0 && component->item_scene_id > 0 )
+            {
+                /* Inventory icons are 32x32; IF3-stretching to the 36x32 slot
+                 * thickens the baked outline. Native blit + center like OSRS. */
+                out->scene_id = component->item_scene_id;
+                out->atlas_index = component->item_atlas_index;
+                out->if3 = 0;
+                out->w = 0;
+                out->h = 0;
+                out->x = x + (w - 32) / 2;
+                out->y = y + (h - 32) / 2;
+                out->tiled = 0;
+                out->outline = 0;
+                out->graphic_shadow = 0;
+                out->flip_h = component->u.rs_graphic.flip_h;
+                out->flip_v = component->u.rs_graphic.flip_v;
+            }
+            else
+            {
+                out->scene_id = component->u.rs_graphic.scene_id;
+                out->atlas_index = component->u.rs_graphic.atlas_index;
+                out->tiled = component->u.rs_graphic.tiled;
+                out->outline = component->u.rs_graphic.outline;
+                out->graphic_shadow = component->u.rs_graphic.graphic_shadow;
+                out->flip_h = component->u.rs_graphic.flip_h;
+                out->flip_v = component->u.rs_graphic.flip_v;
+            }
             if( component->u.rs_graphic.graphic_hitbox_only )
                 return false;
         }
@@ -184,9 +206,28 @@ UITree_EmitFill(
         out->line_direction = component->u.rs_line.horizontal ? 1 : 0;
         return true;
 
+    case UIELEM_BUILTIN_PLAYERMODEL:
+        /* Builtin player preview placeholder — same stub as clientCode 328. */
+        out->kind = UITREE_EMIT_RECT;
+        out->color = 0x2a2a2a;
+        out->filled = 1;
+        return true;
+
     case UIELEM_RS_MODEL:
+        /* clientCode 328 = local player preview; cache often has modelId=-1. */
         if( component->u.rs_model.gamecache_model_id < 0 )
+        {
+            if( component->behavior.client_code == 328 )
+            {
+                /* Explicit stub until appearance compositing exists — visible fill
+                 * so the preview slot is not silently dropped from the emit list. */
+                out->kind = UITREE_EMIT_RECT;
+                out->color = 0x2a2a2a;
+                out->filled = 1;
+                return true;
+            }
             return false;
+        }
         out->kind = UITREE_EMIT_MODEL;
         out->model_id = component->u.rs_model.gamecache_model_id;
         out->model_zoom = component->u.rs_model.zoom;
@@ -422,6 +463,26 @@ emit_append_layer_scrollbars(
     }
 }
 
+static int
+child_is_interface_parent_mount(
+    struct UITree const* tree,
+    int container_uid,
+    struct UITreeComponent const* child)
+{
+    int mi;
+    int group;
+    if( !child || container_uid < 0 )
+        return 0;
+    group = (child->component_id >> 16) & 0xffff;
+    for( mi = 0; mi < tree->interface_parent_count; mi++ )
+    {
+        if( tree->interface_parents[mi].container_uid == container_uid &&
+            tree->interface_parents[mi].group_id == group )
+            return 1;
+    }
+    return 0;
+}
+
 static void
 emit_walk_node(
     struct UITree const* tree,
@@ -432,7 +493,8 @@ emit_walk_node(
     int scroll_off_x,
     int scroll_off_y,
     int text_pass,
-    int hovered_component_id)
+    int hovered_component_id,
+    int drag_pass)
 {
     struct UITreeComponent* c;
     struct UITreeEmitDesc desc;
@@ -444,6 +506,7 @@ emit_walk_node(
     int scroll_layer;
     int child_scroll_x;
     int child_scroll_y;
+    int defer_drag;
 
     assert(tree && out && parent_clip);
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
@@ -455,6 +518,40 @@ emit_walk_node(
         return;
 
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
+    if( c->drag_active )
+    {
+        x = c->drag_visual_x;
+        y = c->drag_visual_y;
+    }
+
+    /* Non-scrollbar drag sources: emit only on deferred top pass. */
+    defer_drag = c->drag_active && c->drag_behavior != 1;
+    if( defer_drag && !drag_pass )
+    {
+        /* Still walk children under normal pass; self content deferred. */
+    }
+    else if( !defer_drag && drag_pass )
+    {
+        /* Only deferred drag sources (and their content) on drag pass. */
+        if( !c->drag_active )
+        {
+            for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
+            {
+                emit_walk_node(
+                    tree,
+                    host,
+                    out,
+                    child,
+                    parent_clip,
+                    scroll_off_x,
+                    scroll_off_y,
+                    text_pass,
+                    hovered_component_id,
+                    drag_pass);
+            }
+            return;
+        }
+    }
 
     scroll_layer = layer_needs_scroll_offset(c);
     if1_bar = layer_is_if1_scrollbar(c);
@@ -476,12 +573,9 @@ emit_walk_node(
     {
         if( clip_intersect(&layer_clip, parent_clip, x - scroll_off_x, y - scroll_off_y, w, h) )
             child_clip = &layer_clip;
-        /* If the layer itself is outside the canvas, still walk children with the
-         * parent clip — IF3 roots can sit off-origin while children are in view. */
     }
 
-    /* IF1 scroll chrome is emitted after children so it sits above content. */
-    if( !if1_bar && UITree_EmitFill(tree, host, c, idx, &desc) )
+    if( !(defer_drag && !drag_pass) && !if1_bar && UITree_EmitFill(tree, host, c, idx, &desc) )
     {
         int is_text = emit_kind_is_text(desc.kind);
         if( (text_pass && is_text) || (!text_pass && !is_text) )
@@ -489,8 +583,23 @@ emit_walk_node(
             if( desc.kind != UITREE_EMIT_WORLD && desc.kind != UITREE_EMIT_MINIMAP &&
                 desc.kind != UITREE_EMIT_COMPASS )
             {
-                desc.x -= scroll_off_x;
-                desc.y -= scroll_off_y;
+                if( c->drag_active )
+                {
+                    desc.x = c->drag_visual_x;
+                    desc.y = c->drag_visual_y;
+                    if( c->drag_behavior != 1 )
+                    {
+                        if( c->drag_visual_trans >= 0 )
+                            desc.trans = c->drag_visual_trans;
+                        else if( desc.trans < 128 )
+                            desc.trans = 128;
+                    }
+                }
+                else
+                {
+                    desc.x -= scroll_off_x;
+                    desc.y -= scroll_off_y;
+                }
                 desc.scroll_off_x = scroll_off_x;
                 desc.scroll_off_y = scroll_off_y;
                 desc.clip = *parent_clip;
@@ -501,19 +610,28 @@ emit_walk_node(
 
     for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
     {
+        int sx = child_scroll_x;
+        int sy = child_scroll_y;
+        /* InterfaceParent mounts: no scroll offset (TS widgets-gl). */
+        if( child_is_interface_parent_mount(tree, c->component_id, &tree->components[child]) )
+        {
+            sx = scroll_off_x;
+            sy = scroll_off_y;
+        }
         emit_walk_node(
             tree,
             host,
             out,
             child,
             child_clip,
-            child_scroll_x,
-            child_scroll_y,
+            sx,
+            sy,
             text_pass,
-            hovered_component_id);
+            hovered_component_id,
+            drag_pass);
     }
 
-    if( if1_bar && !text_pass )
+    if( if1_bar && !text_pass && !drag_pass )
     {
         emit_append_layer_scrollbars(
             host, out, c, idx, parent_clip, x - scroll_off_x, y - scroll_off_y, w, h);
@@ -528,7 +646,8 @@ emit_walk_pass(
     int text_pass,
     int canvas_w,
     int canvas_h,
-    int hovered_component_id)
+    int hovered_component_id,
+    int drag_pass)
 {
     struct UITreeEmitClip root_clip;
     int32_t root;
@@ -542,7 +661,16 @@ emit_walk_pass(
     for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         emit_walk_node(
-            tree, host, out, root, &root_clip, 0, 0, text_pass, hovered_component_id);
+            tree,
+            host,
+            out,
+            root,
+            &root_clip,
+            0,
+            0,
+            text_pass,
+            hovered_component_id,
+            drag_pass);
     }
 }
 
@@ -555,8 +683,13 @@ UITree_EmitWalk(
 {
     assert(tree);
     assert(out);
+    /* Non-text, then text, then deferred drag sources on top. */
     emit_walk_pass(
-        tree, host, out, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id);
+        tree, host, out, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 0);
     emit_walk_pass(
-        tree, host, out, 1, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id);
+        tree, host, out, 1, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 0);
+    emit_walk_pass(
+        tree, host, out, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
+    emit_walk_pass(
+        tree, host, out, 1, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
 }

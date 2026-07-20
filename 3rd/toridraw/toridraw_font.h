@@ -30,13 +30,6 @@ struct ToriDraw_Font
     char charcodeset[256];
 };
 
-struct ToriDraw_Font*
-ToriDraw_FontNewFromRSBytes(
-    void* data,
-    int data_size,
-    void* index_data,
-    int index_data_size);
-
 void
 ToriDraw_FontFree(struct ToriDraw_Font* font);
 

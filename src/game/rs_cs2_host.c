@@ -15,7 +15,7 @@
 #include <string.h>
 
 #ifndef UITREE_CLICK_DEBUG
-#define UITREE_CLICK_DEBUG 1
+#define UITREE_CLICK_DEBUG 0
 #endif
 
 /* =========================================================================
@@ -866,6 +866,14 @@ exec_set_graphic(
         int scene_id = request.graphic_id;
         if( host->bridge && request.graphic_id >= 0 && request.graphic_id < 1000000 )
             scene_id = UITreeSceneBridge_EnsureSprite(host->bridge, request.graphic_id);
+#if UITREE_CLICK_DEBUG
+        fprintf(
+            stderr,
+            "uitree_click: SETGRAPHIC component_id=%d graphic_id=%d scene_id=%d\n",
+            request.component_id,
+            request.graphic_id,
+            scene_id);
+#endif
         (void)UITree_ApplyGraphic(tree, request.component_id, scene_id, 0);
     }
     return CS2VM_EXECNO_OK;
@@ -888,6 +896,14 @@ exec_set_object(
 
     if( obj_id <= 0 )
     {
+#if UITREE_CLICK_DEBUG
+        fprintf(
+            stderr,
+            "uitree_click: SETOBJECT component_id=%d obj_id=%d count=%d (clear)\n",
+            component_id,
+            obj_id,
+            count);
+#endif
         (void)UITree_ApplyObject(tree, component_id, 0, 0, -1, 0);
         return CS2VM_EXECNO_OK;
     }
@@ -942,6 +958,15 @@ exec_set_object(
         (void)rs_cs2_resolve_obj_icon(host, obj_id, &scene_id, &atlas_index);
 
     host->setobject_yield_obj_id = -1;
+#if UITREE_CLICK_DEBUG
+    fprintf(
+        stderr,
+        "uitree_click: SETOBJECT component_id=%d obj_id=%d count=%d scene_id=%d\n",
+        component_id,
+        obj_id,
+        count,
+        scene_id);
+#endif
     (void)UITree_ApplyObject(tree, component_id, obj_id, count, scene_id, atlas_index);
     return CS2VM_EXECNO_OK;
 }
@@ -1020,14 +1045,20 @@ exec_cc_create(
     if( child_idx < 0 )
         return CS2VM_EXECNO_ERROR;
 
+    /* Leave size 0; scripts call CC_SETSIZE when needed. Soft3D uses native
+     * sprite size when layout w/h are 0 — do not stretch 32x32 icons to the
+     * parent slot (that thickens obj-icon outlines). */
+
 #if UITREE_CLICK_DEBUG
     fprintf(
         stderr,
-        "uitree_click: CC_CREATE parent_id=%d child_id=%d type=%d idx=%d\n",
+        "uitree_click: CC_CREATE parent_id=%d child_id=%d type=%d idx=%d size=%dx%d\n",
         parent_id,
         tree->components[child_idx].component_id,
         request.component_type,
-        (int)child_idx);
+        (int)child_idx,
+        tree->components[child_idx].position.width,
+        tree->components[child_idx].position.height);
 #endif
 
     rs_cs2_set_cc_target(vm, request.dot_operand, tree->components[child_idx].component_id);
@@ -1180,6 +1211,14 @@ exec_widget_set_model_kind(
     struct CS2VM_HostRequest_WidgetSetModelKind request)
 {
     (void)vm;
+#if UITREE_CLICK_DEBUG
+    fprintf(
+        stderr,
+        "uitree_click: SET_MODEL_KIND component_id=%d kind=%d model_id=%d\n",
+        request.component_id,
+        (int)request.model_kind,
+        request.model_id);
+#endif
     if( request.model_kind == CS2VM_MODEL_KIND_PLAIN && request.model_id >= 0 &&
         !rs_cs2_model_ready(host, request.model_id) )
     {
@@ -1203,6 +1242,7 @@ exec_widget_set_model_kind(
             scene_model = UITreeSceneBridge_EnsureModel(host->bridge, scene_model);
         (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
     }
+    /* PLAYER_SELF / heads with model_id < 0: no-op OK (clientCode 328 draws separately). */
     return CS2VM_EXECNO_OK;
 }
 
@@ -1297,8 +1337,17 @@ exec_set_on_inv_transmit(
 {
     struct RS_CS2InvTransmitHook* hook;
     assert(host);
+    assert(request);
     if( host->inv_transmit_hook_count >= RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX )
+    {
+        fprintf(
+            stderr,
+            "rs_cs2_host: inv_transmit_hooks full (%d), dropping script_id=%d component_id=%d\n",
+            RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX,
+            request->script_id,
+            request->component_id);
         return CS2VM_EXECNO_OK;
+    }
     hook = &host->inv_transmit_hooks[host->inv_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
     hook->component_id = request->component_id;
@@ -1312,6 +1361,24 @@ exec_set_on_inv_transmit(
         hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
     if( request->trigger_ids && hook->trigger_count > 0 )
         memcpy(hook->trigger_ids, request->trigger_ids, (size_t)hook->trigger_count * sizeof(int));
+#if UITREE_CLICK_DEBUG
+    fprintf(
+        stderr,
+        "uitree_click: SETON IF_SETONINVTRANSMIT component_id=%d script_id=%d argc=%d "
+        "triggers=%d",
+        request->component_id,
+        request->script_id,
+        request->int_arg_count,
+        request->trigger_count);
+    {
+        int ti;
+        for( ti = 0; ti < hook->trigger_count; ti++ )
+            fprintf(stderr, "%s%d", ti == 0 ? " [" : ",", hook->trigger_ids[ti]);
+        if( hook->trigger_count > 0 )
+            fprintf(stderr, "]");
+    }
+    fprintf(stderr, "\n");
+#endif
     return CS2VM_EXECNO_OK;
 }
 
@@ -1360,6 +1427,18 @@ rs_cs2_runtime_hook_slot(
     case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
         return &node->runtime_hooks.on_mouse_leave;
+    case CS2VM_HOST_REQUEST_IF_SETONDRAG:
+    case CS2VM_HOST_REQUEST_CC_SETONDRAG:
+        return &node->runtime_hooks.on_drag;
+    case CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE:
+    case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
+        return &node->runtime_hooks.on_drag_complete;
+    case CS2VM_HOST_REQUEST_IF_SETONRESIZE:
+    case CS2VM_HOST_REQUEST_CC_SETONRESIZE:
+        return &node->runtime_hooks.on_resize;
+    case CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE:
+    case CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE:
+        return &node->runtime_hooks.on_sub_change;
     default:
         return NULL;
     }
@@ -1387,6 +1466,22 @@ rs_cs2_seton_kind_str(enum CS2VM_HostRequestKind kind)
         return "CC_SETONMOUSEOVER";
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
         return "CC_SETONMOUSELEAVE";
+    case CS2VM_HOST_REQUEST_IF_SETONDRAG:
+        return "IF_SETONDRAG";
+    case CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE:
+        return "IF_SETONDRAGCOMPLETE";
+    case CS2VM_HOST_REQUEST_IF_SETONRESIZE:
+        return "IF_SETONRESIZE";
+    case CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE:
+        return "IF_SETONSUBCHANGE";
+    case CS2VM_HOST_REQUEST_CC_SETONDRAG:
+        return "CC_SETONDRAG";
+    case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
+        return "CC_SETONDRAGCOMPLETE";
+    case CS2VM_HOST_REQUEST_CC_SETONRESIZE:
+        return "CC_SETONRESIZE";
+    case CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE:
+        return "CC_SETONSUBCHANGE";
     default:
         return "SETON?";
     }
@@ -1680,6 +1775,8 @@ RS_CS2Host_Exec(
     case CS2VM_HOST_REQUEST_IF_SETHIDE:
         if( tree )
         {
+            int was_hidden = 0;
+            int32_t hide_idx;
 #if UITREE_CLICK_DEBUG
             fprintf(
                 stderr,
@@ -1687,8 +1784,17 @@ RS_CS2Host_Exec(
                 request->u.if_set_hide.component_id,
                 request->u.if_set_hide.hidden ? 1 : 0);
 #endif
+            hide_idx = UITree_FindByComponentId(tree, request->u.if_set_hide.component_id);
+            if( hide_idx >= 0 )
+                was_hidden = tree->components[hide_idx].behavior.hide ? 1 : 0;
             (void)UITree_ApplyHide(
                 tree, request->u.if_set_hide.component_id, request->u.if_set_hide.hidden ? 1 : 0);
+            /* Unhide → pending transmits (TS markWidgetsLoaded / processWidgetTransmits). */
+            if( was_hidden && !request->u.if_set_hide.hidden )
+            {
+                host->pending_inv_transmit_redispatch = 1;
+                host->pending_var_transmit_redispatch = 1;
+            }
         }
         return CS2VM_EXECNO_OK;
 
@@ -1707,6 +1813,17 @@ RS_CS2Host_Exec(
     case CS2VM_HOST_REQUEST_IF_SETSIZE:
     case CS2VM_HOST_REQUEST_CC_SETSIZE:
         if( tree )
+        {
+#if UITREE_CLICK_DEBUG
+            fprintf(
+                stderr,
+                "uitree_click: SETSIZE component_id=%d size=%dx%d modes=%d,%d\n",
+                request->u.cc_set_size.component_id,
+                request->u.cc_set_size.width,
+                request->u.cc_set_size.height,
+                request->u.cc_set_size.wmode,
+                request->u.cc_set_size.hmode);
+#endif
             (void)UITree_ApplySizeModes(
                 tree,
                 request->u.cc_set_size.component_id,
@@ -1714,6 +1831,7 @@ RS_CS2Host_Exec(
                 request->u.cc_set_size.height,
                 request->u.cc_set_size.wmode,
                 request->u.cc_set_size.hmode);
+        }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_SETSCROLLPOS:
@@ -1766,6 +1884,13 @@ RS_CS2Host_Exec(
 
     case CS2VM_HOST_REQUEST_IF_SETTEXT:
     case CS2VM_HOST_REQUEST_CC_SETTEXT:
+#if UITREE_CLICK_DEBUG
+        fprintf(
+            stderr,
+            "uitree_click: SETTEXT component_id=%d text=\"%.48s\"\n",
+            request->u.cc_set_text.component_id,
+            request->u.cc_set_text.text ? request->u.cc_set_text.text : "");
+#endif
         if( tree )
             (void)UITree_ApplyText(
                 tree, request->u.cc_set_text.component_id, request->u.cc_set_text.text);
@@ -1855,18 +1980,20 @@ RS_CS2Host_Exec(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETDRAGGABLE:
+    case CS2VM_HOST_REQUEST_IF_SETDRAGGABLE:
         node = rs_cs2_node(host, request->u.cc_set_draggable.component_id);
         if( node )
         {
             node->draggable = 1;
-            (void)request->u.cc_set_draggable.parent_uid;
-            (void)request->u.cc_set_draggable.child_index;
+            node->drag_render_area_uid = request->u.cc_set_draggable.parent_uid;
+            node->drag_render_area_child_index = request->u.cc_set_draggable.child_index;
             UITree_MarkNodeDirty(
                 tree, rs_cs2_find_node(host, request->u.cc_set_draggable.component_id));
         }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETDRAGGABLEBEHAVIOR:
+    case CS2VM_HOST_REQUEST_IF_SETDRAGGABLEBEHAVIOR:
         node = rs_cs2_node(host, request->u.cc_set_draggable_behavior.component_id);
         if( node )
         {
@@ -2067,6 +2194,11 @@ RS_CS2Host_Exec(
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+    case CS2VM_HOST_REQUEST_IF_SETONDRAG:
+    case CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE:
+    case CS2VM_HOST_REQUEST_IF_SETONRESIZE:
+    case CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE:
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT:
     case CS2VM_HOST_REQUEST_IF_SETONTIMER:
     case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
@@ -2077,13 +2209,30 @@ RS_CS2Host_Exec(
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
     case CS2VM_HOST_REQUEST_CC_SETONOP:
+    case CS2VM_HOST_REQUEST_CC_SETONDRAG:
+    case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
+    case CS2VM_HOST_REQUEST_CC_SETONRESIZE:
+    case CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE:
         return exec_set_on_cc_event(host, vm, request->kind, &request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
-    case CS2VM_HOST_REQUEST_CC_SETONDRAG:
     case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
-    case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_SETANTIDRAG:
+        if( tree )
+            tree->anti_drag = request->u.widget_set_int.value ? 1 : 0;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_IF_DRAGPICKUP:
+    case CS2VM_HOST_REQUEST_CC_DRAGPICKUP:
+        /* Demo: mark component drag_active; full pickup offsets applied by input loop. */
+        node = rs_cs2_node(host, request->u.widget_set_int.component_id);
+        if( node )
+        {
+            node->draggable = 1;
+            node->drag_active = 1;
+            UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, request->u.widget_set_int.component_id));
+        }
         return CS2VM_EXECNO_OK;
 
     /* ---- Widget extras ---- */

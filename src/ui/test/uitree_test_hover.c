@@ -143,19 +143,24 @@ test_hover_input(void)
     {
         struct UIInputState st = { .hovered = -1, .pressed = -1 };
         struct UIInputResult r = UITree_InputUpdate(
-            &st, tree, (struct UIInputEvent){ .kind = UI_INPUT_MOVE, .x = 20, .y = 20 });
+            &st, tree, &host, NULL,
+            (struct UIInputEvent){ .kind = UI_INPUT_MOVE, .x = 20, .y = 20 });
         TEST_ASSERT(r.hovered == button || r.hovered == graphic || r.hovered == layer, "move hover");
         r = UITree_InputUpdate(
-            &st, tree, (struct UIInputEvent){ .kind = UI_INPUT_DOWN, .x = 20, .y = 20 });
+            &st, tree, &host, NULL,
+            (struct UIInputEvent){ .kind = UI_INPUT_DOWN, .x = 20, .y = 20 });
         int32_t pressed = st.pressed;
         TEST_ASSERT(pressed >= 0, "down presses");
         r = UITree_InputUpdate(
-            &st, tree, (struct UIInputEvent){ .kind = UI_INPUT_UP, .x = 20, .y = 20 });
+            &st, tree, &host, NULL,
+            (struct UIInputEvent){ .kind = UI_INPUT_UP, .x = 20, .y = 20 });
         TEST_ASSERT(r.clicked == pressed, "click when same node");
         r = UITree_InputUpdate(
-            &st, tree, (struct UIInputEvent){ .kind = UI_INPUT_DOWN, .x = 20, .y = 20 });
+            &st, tree, &host, NULL,
+            (struct UIInputEvent){ .kind = UI_INPUT_DOWN, .x = 20, .y = 20 });
         r = UITree_InputUpdate(
-            &st, tree, (struct UIInputEvent){ .kind = UI_INPUT_UP, .x = 350, .y = 250 });
+            &st, tree, &host, NULL,
+            (struct UIInputEvent){ .kind = UI_INPUT_UP, .x = 350, .y = 250 });
         TEST_ASSERT(r.clicked < 0, "no click when release elsewhere");
     }
 

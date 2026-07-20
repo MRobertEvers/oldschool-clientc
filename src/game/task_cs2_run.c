@@ -19,6 +19,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef UITREE_CLICK_DEBUG
+#define UITREE_CLICK_DEBUG 0
+#endif
+
 #define TASK_CS2_RUN_INT_ARGS_MAX 64
 
 enum TaskCS2YieldPlan
@@ -87,22 +91,43 @@ task_cs2_resolve_font(
 
 static void
 task_cs2_set_int_local(
+    struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
     int local_idx,
     int argi,
     int active_component_id)
 {
+    assert(host);
     switch( argi )
     {
     case CS2VM_SCRIPT_ARG_WIDGET_ID:
         CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, active_component_id);
         break;
-    case CS2VM_SCRIPT_ARG_MOUSE_X:
-    case CS2VM_SCRIPT_ARG_MOUSE_Y:
     case CS2VM_SCRIPT_ARG_OP_INDEX:
+        /* Primary left-click op index for on_op handlers. */
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, 1);
+        break;
+    case CS2VM_SCRIPT_ARG_MOUSE_X:
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_mouse_x);
+        break;
+    case CS2VM_SCRIPT_ARG_MOUSE_Y:
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_mouse_y);
+        break;
     case CS2VM_SCRIPT_ARG_WIDGET_CHILD_INDEX:
+    {
+        int32_t idx = UITree_FindByComponentId(host->tree, active_component_id);
+        int child = -1;
+        if( idx >= 0 && host->tree->components[idx].dynamic )
+            child = host->tree->components[idx].dynamic_child_index;
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, child);
+        break;
+    }
     case CS2VM_SCRIPT_ARG_DRAG_TARGET_ID:
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_drag_target_id);
+        break;
     case CS2VM_SCRIPT_ARG_DRAG_TARGET_CHILD_INDEX:
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_drag_target_child_index);
+        break;
     case CS2VM_SCRIPT_ARG_KEY_TYPED:
     case CS2VM_SCRIPT_ARG_KEY_PRESSED:
     case CS2VM_SCRIPT_ARG_OP_SUBINDEX:
@@ -336,12 +361,14 @@ task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
     if( kind == CS2VM_MODEL_KIND_PLAYER_HEAD || kind == CS2VM_MODEL_KIND_PLAYER_SELF ||
         kind == CS2VM_MODEL_KIND_PLAYER_CHATHEAD )
     {
+        /* No appearance compositor yet — do not abort; let the script continue
+         * (e.g. IF_SETTEXT for equipment bonuses). clientCode 328 emit handles preview. */
         fprintf(
             stderr,
-            "Task_CS2Run: player model kind %d not implemented (script %d)\n",
+            "Task_CS2Run: player model kind %d no-op (script %d)\n",
             (int)kind,
             self->script_id);
-        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        self->yield_plan = TASK_CS2_YIELD_NONE;
         return;
     }
     fprintf(
@@ -619,7 +646,8 @@ Task_CS2Run_Run(
         CS2VM2_ThreadStart(thread, self->script);
 
         for( j = 0; j < self->int_arg_count; j++ )
-            task_cs2_set_int_local(thread, j, self->int_args[j], self->active_component_id);
+            task_cs2_set_int_local(
+                self->host, thread, j, self->int_args[j], self->active_component_id);
 
         CS2VM2_SetActiveAndDotComponentId(thread, self->active_component_id);
         if( self->dot_component_id != self->active_component_id )
@@ -866,6 +894,19 @@ Task_CS2InvTransmitDispatch_Run(
             continue;
         if( hook->script_id <= 0 )
             continue;
+        if( UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id) )
+            continue;
+
+#if UITREE_CLICK_DEBUG
+        fprintf(
+            stderr,
+            "uitree_click: InvTransmitDispatch script_id=%d component_id=%d argc=%d "
+            "container_filter=%d\n",
+            hook->script_id,
+            hook->component_id,
+            hook->int_arg_count,
+            self->container_id);
+#endif
 
         TASK_AWAITSELF(CreateTask_CS2Run(
             self->host,
@@ -964,6 +1005,8 @@ Task_CS2VarTransmitDispatch_Run(
         if( !hook_matches_var(hook, self->var_id) )
             continue;
         if( hook->script_id <= 0 )
+            continue;
+        if( UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id) )
             continue;
 
         TASK_AWAITSELF(CreateTask_CS2Run(

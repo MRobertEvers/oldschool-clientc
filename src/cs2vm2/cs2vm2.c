@@ -2664,7 +2664,7 @@ CS2VM2_Op_IF_SetOnEventHandler(
     }
 
     {
-        int int_args[16] = { 0 };
+        int int_args[32] = { 0 };
         int int_arg_count = 0;
 
         if( signature && signature_parse_len > 0 )
@@ -2791,7 +2791,7 @@ CS2VM2_Op_CC_SetOnEventHandler(
     }
 
     {
-        int int_args[16] = { 0 };
+        int int_args[32] = { 0 };
         int int_arg_count = 0;
 
         if( signature && signature_parse_len > 0 )
@@ -3005,6 +3005,129 @@ CS2VM2_Op_CC_SetOnDragComplete(
 }
 
 int
+CS2VM2_Op_CC_SetOnResize(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    struct CS2VM_HostRequest_CC_SetOnOp request;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONRESIZE, &request);
+}
+
+int
+CS2VM2_Op_CC_SetOnSubChange(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    struct CS2VM_HostRequest_CC_SetOnOp request;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE, &request);
+}
+
+int
+CS2VM2_Op_IF_SetDraggable(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int child_index;
+    int parent_uid;
+    int component_id;
+
+    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &parent_uid) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_SETDRAGGABLE;
+    request.u.cc_set_draggable.component_id = component_id;
+    request.u.cc_set_draggable.parent_uid = parent_uid;
+    request.u.cc_set_draggable.child_index = child_index;
+    return vm->vm->host_exec(vm, &request);
+}
+
+int
+CS2VM2_Op_IF_SetDraggableBehavior(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int behavior;
+    int component_id;
+    if( CS2VM2_PopInt(vm, &behavior) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_SETDRAGGABLEBEHAVIOR;
+    request.u.cc_set_draggable_behavior.component_id = component_id;
+    request.u.cc_set_draggable_behavior.behavior = behavior;
+    return vm->vm->host_exec(vm, &request);
+}
+
+int
+CS2VM2_Op_DragPickup(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand,
+    enum CS2VM_HostRequestKind kind)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = kind;
+    request.u.widget_set_int.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    request.u.widget_set_int.value = 1;
+    return vm->vm->host_exec(vm, &request);
+}
+
+int
+CS2VM2_Op_SetAntiDrag(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int value;
+    if( CS2VM2_PopInt(vm, &value) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_SETANTIDRAG;
+    request.u.widget_set_int.value = value;
+    return vm->vm->host_exec(vm, &request);
+}
+
+int
 CS2VM2_Op_IF_SetOnVarTransmit(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
@@ -3047,7 +3170,7 @@ CS2VM2_Op_IF_SetOnVarTransmit(
         signature_parse_len = signature_len - 1;
     }
 
-    int int_args[16] = { 0 };
+    int int_args[32] = { 0 };
     int int_arg_count = 0;
 
     if( signature && signature_parse_len > 0 )
@@ -3158,7 +3281,7 @@ CS2VM2_Op_IF_SetOnInvTransmit(
         signature_parse_len = signature_len - 1;
     }
 
-    int int_args[16] = { 0 };
+    int int_args[32] = { 0 };
     int int_arg_count = 0;
 
     if( signature && signature_parse_len > 0 )
@@ -3237,92 +3360,9 @@ CS2VM2_Op_IF_SetOnOp(
     assert(frame);
     (void)operand;
 
-    int widget_uid, script_id, trigger_count = 0;
-    int* trigger_ids = NULL;
-    char* signature = NULL;
-
-    if( CS2VM2_PopInt(vm, &widget_uid) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-
-    if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-
-    int signature_len = signature ? (int)strlen(signature) : 0;
-    int signature_parse_len = signature_len;
-    if( signature_len > 0 && signature[signature_len - 1] == 'Y' )
-    {
-        if( CS2VM2_PopInt(vm, &trigger_count) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
-        if( trigger_count > 0 )
-        {
-            trigger_ids = calloc((size_t)trigger_count, sizeof(int));
-            assert(trigger_ids);
-
-            for( int i = trigger_count - 1; i >= 0; i-- )
-            {
-                if( CS2VM2_PopInt(vm, &trigger_ids[i]) != CS2VM_EXECNO_OK )
-                {
-                    free(trigger_ids);
-                    return CS2VM_EXECNO_ERROR;
-                }
-            }
-        }
-        signature_parse_len = signature_len - 1;
-    }
-
-    if( signature && signature_parse_len > 0 )
-    {
-        for( int i = signature_parse_len - 1; i >= 0; i-- )
-        {
-            char c = signature[i];
-            if( c == 's' || c == 'W' || c == 'X' )
-            {
-                char* v = NULL;
-                if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
-                {
-                    free(trigger_ids);
-                    return CS2VM_EXECNO_ERROR;
-                }
-            }
-            else
-            {
-                int v = 0;
-                if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
-                {
-                    free(trigger_ids);
-                    return CS2VM_EXECNO_ERROR;
-                }
-            }
-        }
-    }
-
-    if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
-    {
-        free(trigger_ids);
-        return CS2VM_EXECNO_ERROR;
-    }
-
-    if( script_id == -1 )
-    {
-        free(trigger_ids);
-        return CS2VM_EXECNO_OK;
-    }
-
-    struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
-    request.kind = CS2VM_HOST_REQUEST_IF_SETONOP;
-    request.u.if_set_on_op.component_id = widget_uid;
-    request.u.if_set_on_op.script_id = script_id;
-    request.u.if_set_on_op.signature = signature;
-    request.u.if_set_on_op.trigger_ids = trigger_ids;
-    request.u.if_set_on_op.trigger_count = trigger_count;
-
-    int result = vm->vm->host_exec(vm, &request);
-    free(trigger_ids);
-    if( result != CS2VM_EXECNO_OK )
-        return result;
-
-    return CS2VM_EXECNO_OK;
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONOP, &request);
 }
 
 int
@@ -3368,6 +3408,66 @@ CS2VM2_Op_IF_SetOnMouseLeave(
     struct CS2VM_HostRequest_IF_SetOnOp request;
     return CS2VM2_Op_IF_SetOnEventHandler(
         vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE, &request);
+}
+
+int
+CS2VM2_Op_IF_SetOnDrag(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAG, &request);
+}
+
+int
+CS2VM2_Op_IF_SetOnDragComplete(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE, &request);
+}
+
+int
+CS2VM2_Op_IF_SetOnResize(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONRESIZE, &request);
+}
+
+int
+CS2VM2_Op_IF_SetOnSubChange(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE, &request);
 }
 
 int
@@ -3815,7 +3915,36 @@ CS2VM2_Op_Enum(
     if( result != CS2VM_EXECNO_OK )
         return result;
 
+
     return CS2VM_EXECNO_OK;
+}
+
+/* enum_string(enum, key)(string) — key then enum_id on int stack (top = key). */
+int
+CS2VM2_Op_EnumString(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int key, enum_id;
+    if( CS2VM2_PopInt(vm, &key) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &enum_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP;
+    request.u.enum_lookup.input_type = (int)'i';
+    request.u.enum_lookup.output_type = (int)'s';
+    request.u.enum_lookup.enum_id = enum_id;
+    request.u.enum_lookup.key = key;
+
+    return vm->vm->host_exec(vm, &request);
 }
 
 int
@@ -5526,6 +5655,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_PopIntDiscard(vm, frame, operand);
     case CS2_OP_POP_STRING_DISCARD:
         return CS2VM2_Op_PopStrDiscard(vm, frame, operand);
+    case CS2_OP_ENUM_STRING:
+        return CS2VM2_Op_EnumString(vm, frame, operand);
     case CS2_OP_ENUM:
         return CS2VM2_Op_Enum(vm, frame, operand);
     case CS2_OP_ENUM_GETOUTPUTCOUNT:
@@ -5682,6 +5813,10 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetOnOp(vm, frame, operand);
     case CS2_OP_CC_SETONDRAGCOMPLETE:
         return CS2VM2_Op_CC_SetOnDragComplete(vm, frame, operand);
+    case CS2_OP_CC_SETONRESIZE:
+        return CS2VM2_Op_CC_SetOnResize(vm, frame, operand);
+    case CS2_OP_CC_SETONSUBCHANGE:
+        return CS2VM2_Op_CC_SetOnSubChange(vm, frame, operand);
     case CS2_OP_IF_GETWIDTH:
         return CS2VM2_Op_IF_GetWidth(vm, frame, operand);
     case CS2_OP_IF_GETHEIGHT:
@@ -5937,19 +6072,33 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_GetTrans(vm, frame, operand);
     case CS2_OP_IF_SETONHOLD:
     case CS2_OP_IF_SETONRELEASE:
-    case CS2_OP_IF_SETONDRAG:
     case CS2_OP_IF_SETONTARGETLEAVE:
-    case CS2_OP_IF_SETONDRAGCOMPLETE:
     case CS2_OP_IF_SETONSTATTRANSMIT:
     case CS2_OP_IF_SETONTARGETENTER:
     case CS2_OP_IF_SETONFRIENDTRANSMIT:
     case CS2_OP_IF_SETONCLANTRANSMIT:
     case CS2_OP_IF_SETONDIALOGABORT:
-    case CS2_OP_IF_SETONSUBCHANGE:
-    case CS2_OP_IF_SETONRESIZE:
     case CS2_OP_IF_SETONCLANSETTINGSTRANSMIT:
     case CS2_OP_IF_SETONCLANCHANNELTRANSMIT:
         return CS2VM2_Op_IF_SetOnEventDiscard(vm, frame, operand);
+    case CS2_OP_IF_SETONDRAG:
+        return CS2VM2_Op_IF_SetOnDrag(vm, frame, operand);
+    case CS2_OP_IF_SETONDRAGCOMPLETE:
+        return CS2VM2_Op_IF_SetOnDragComplete(vm, frame, operand);
+    case CS2_OP_IF_SETONSUBCHANGE:
+        return CS2VM2_Op_IF_SetOnSubChange(vm, frame, operand);
+    case CS2_OP_IF_SETONRESIZE:
+        return CS2VM2_Op_IF_SetOnResize(vm, frame, operand);
+    case CS2_OP_IF_SETDRAGGABLE:
+        return CS2VM2_Op_IF_SetDraggable(vm, frame, operand);
+    case CS2_OP_IF_SETDRAGGABLEBEHAVIOR:
+        return CS2VM2_Op_IF_SetDraggableBehavior(vm, frame, operand);
+    case CS2_OP_IF_DRAGPICKUP:
+        return CS2VM2_Op_DragPickup(vm, frame, operand, CS2VM_HOST_REQUEST_IF_DRAGPICKUP);
+    case CS2_OP_CC_DRAGPICKUP:
+        return CS2VM2_Op_DragPickup(vm, frame, operand, CS2VM_HOST_REQUEST_CC_DRAGPICKUP);
+    case CS2_OP_SETANTIDRAG:
+        return CS2VM2_Op_SetAntiDrag(vm, frame, operand);
     case CS2_OP_IF_GETX:
         return CS2VM2_Op_IF_GetX(vm, frame, operand);
     case CS2_OP_IF_GETTEXT:

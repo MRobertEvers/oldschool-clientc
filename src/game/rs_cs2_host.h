@@ -19,7 +19,8 @@ struct UITreeSceneBridge;
 #define RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX 128
 #define RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX 128
 #define RS_CS2_HOST_TRANSMIT_TRIGGER_MAX 32
-#define RS_CS2_HOST_TRANSMIT_INT_ARG_MAX 16
+/* Must match CS2VM_HostRequest_IF_SetOnInvTransmit.int_args[32]. */
+#define RS_CS2_HOST_TRANSMIT_INT_ARG_MAX 32
 
 struct RS_CS2InvTransmitHook
 {
@@ -71,6 +72,16 @@ struct RS_CS2Host
 
     struct RS_CS2VarTransmitHook var_transmit_hooks[RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX];
     int var_transmit_hook_count;
+
+    /** Set when IF_SETHIDE unhides a subtree — re-dispatch transmits after CS2. */
+    int pending_inv_transmit_redispatch;
+    int pending_var_transmit_redispatch;
+
+    /** Live CS2 event locals for script arg substitution (drag / mouse). */
+    int event_mouse_x;
+    int event_mouse_y;
+    int event_drag_target_id;
+    int event_drag_target_child_index;
 };
 
 void

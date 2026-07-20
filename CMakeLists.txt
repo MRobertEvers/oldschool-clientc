@@ -185,37 +185,41 @@ set(COMMON_SOURCES
 
 # --- RSCache library (unity build) ---
 add_library(rscache STATIC
-    src/osrs/rscache/unity.c
-    src/3rd/bzip/bzip.c
-    src/3rd/miniz/miniz.c
+    v0/osrs/rscache/unity.c
+    v0/3rd/bzip/bzip.c
+    v0/3rd/miniz/miniz.c
 )
-target_include_directories(rscache PUBLIC src src/osrs/rscache)
+target_include_directories(rscache PUBLIC v0 v0/osrs/rscache)
 set_target_properties(rscache PROPERTIES C_STANDARD 11)
 
 if(NOT EMSCRIPTEN)
+    # Non-sanitized rscache for offline dump tools. Global CMAKE_C_FLAGS with
+    # -fsanitize=address hangs dat2 interface decode on macOS; the game keeps
+    # the shared ASAN-capable rscache above.
+    add_library(rscache_dump STATIC
+        v0/osrs/rscache/unity.c
+        v0/3rd/bzip/bzip.c
+        v0/3rd/miniz/miniz.c
+    )
+    target_include_directories(rscache_dump PUBLIC v0 v0/osrs/rscache)
+    set_target_properties(rscache_dump PROPERTIES C_STANDARD 11)
+
     add_library(dump_interface_common STATIC
         tools/dump_interface_common.c
     )
-    target_link_libraries(dump_interface_common PUBLIC rscache)
-    target_include_directories(dump_interface_common PUBLIC src src2 tools)
+    target_link_libraries(dump_interface_common PUBLIC rscache_dump)
+    target_include_directories(dump_interface_common PUBLIC v0 v0/osrs/rscache src tools)
     set_target_properties(dump_interface_common PROPERTIES C_STANDARD 11)
 
     add_executable(dump_interface_layout tools/dump_interface_layout/main.c)
     target_link_libraries(dump_interface_layout dump_interface_common)
-    target_include_directories(dump_interface_layout PRIVATE src src2 tools)
+    target_include_directories(dump_interface_layout PRIVATE v0 v0/osrs/rscache src tools)
     set_target_properties(dump_interface_layout PROPERTIES C_STANDARD 11)
 
     add_executable(dump_interface tools/dump_interface/main.c)
     target_link_libraries(dump_interface dump_interface_common)
-    target_include_directories(dump_interface PRIVATE src src2 tools)
+    target_include_directories(dump_interface PRIVATE v0 v0/osrs/rscache src tools)
     set_target_properties(dump_interface PROPERTIES C_STANDARD 11)
-    # ASAN on global CMAKE_C_FLAGS hangs dat2 interface decode on macOS; force-disable here.
-    if(CMAKE_C_FLAGS MATCHES "sanitize" OR ENABLE_ASAN)
-        target_compile_options(dump_interface PRIVATE -fno-sanitize=address -fno-sanitize=undefined)
-        target_link_options(dump_interface PRIVATE -fno-sanitize=address -fno-sanitize=undefined)
-        target_compile_options(dump_interface_layout PRIVATE -fno-sanitize=address -fno-sanitize=undefined)
-        target_link_options(dump_interface_layout PRIVATE -fno-sanitize=address -fno-sanitize=undefined)
-    endif()
 
     add_executable(dump_map_index tools/dump_map_index/main.c)
     target_link_libraries(dump_map_index rscache)
@@ -223,9 +227,27 @@ if(NOT EMSCRIPTEN)
     set_target_properties(dump_map_index PROPERTIES C_STANDARD 11)
 
     add_executable(dump_interface_index tools/dump_interface_index/main.c)
-    target_link_libraries(dump_interface_index rscache)
-    target_include_directories(dump_interface_index PRIVATE src)
+    target_link_libraries(dump_interface_index rscache_dump)
+    target_include_directories(dump_interface_index PRIVATE v0 v0/osrs/rscache src)
     set_target_properties(dump_interface_index PROPERTIES C_STANDARD 11)
+
+    # Strip sanitizers from the full dump-tool chain (overrides global flags).
+    set(_dump_sanitizer_flags_active FALSE)
+    if(CMAKE_C_FLAGS MATCHES "sanitize" OR CMAKE_CXX_FLAGS MATCHES "sanitize"
+       OR CMAKE_EXE_LINKER_FLAGS MATCHES "sanitize"
+       OR ENABLE_ASAN OR ENABLE_UBSAN)
+        set(_dump_sanitizer_flags_active TRUE)
+    endif()
+    if(_dump_sanitizer_flags_active)
+        foreach(_dump_tgt rscache_dump dump_interface_common dump_interface
+                          dump_interface_layout dump_interface_index)
+            target_compile_options(${_dump_tgt} PRIVATE
+                -fno-sanitize=address -fno-sanitize=undefined)
+            target_link_options(${_dump_tgt} PRIVATE
+                -fno-sanitize=address -fno-sanitize=undefined)
+        endforeach()
+    endif()
+    unset(_dump_sanitizer_flags_active)
 
     add_executable(match_dat2_interface tools/match_dat2_interface/main.c)
     target_link_libraries(match_dat2_interface rscache)

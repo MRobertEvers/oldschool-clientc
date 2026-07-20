@@ -21,6 +21,7 @@
 
 #define INTERFACE_OPEN_ONLOAD_ARGV_MAX TORIRS_COMPONENT_HOOK_ARG_MAX
 #define INTERFACE_OPEN_ONLOAD_MAX 256
+#define INTERFACE_OPEN_RUNTIME_HOOK_MAX 512
 #define INTERFACE_OPEN_SEED_OBJ_MAX 32
 
 struct InterfaceOpenOnLoad
@@ -29,6 +30,14 @@ struct InterfaceOpenOnLoad
     int script_id;
     int argc;
     int argv[INTERFACE_OPEN_ONLOAD_ARGV_MAX];
+};
+
+struct InterfaceOpenRuntimeHook
+{
+    int component_id;
+    int script_id;
+    int argc;
+    int argv[32];
 };
 
 struct Task_InterfaceOpen
@@ -42,10 +51,15 @@ struct Task_InterfaceOpen
     struct InvManager* invs;
     struct UITreeSceneBridge* bridge;
     int interface_id;
+    int target_uid; /* -1 = root open */
+    int mount_type;
     struct InterfaceOpenStats* stats;
 
     struct InterfaceOpenOnLoad onloads[INTERFACE_OPEN_ONLOAD_MAX];
     int onload_count;
+
+    struct InterfaceOpenRuntimeHook runtime_hooks[INTERFACE_OPEN_RUNTIME_HOOK_MAX];
+    int runtime_hook_count;
 
     int seed_obj_ids[INTERFACE_OPEN_SEED_OBJ_MAX];
     int seed_obj_count;
@@ -176,6 +190,105 @@ collect_seed_objs(struct Task_InterfaceOpen* self)
     }
 }
 
+static void
+layout_tree(struct Task_InterfaceOpen* self)
+{
+    /* Always full client canvas. Host size for openSub flows through the
+     * mount parent's abs_w/h after reparent — do not shrink root_w/h or
+     * toplevel + bank abs collapse to the top-left. */
+    UITree_LayoutResolve(
+        self->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+}
+
+static void
+mount_pack_under_target(struct Task_InterfaceOpen* self)
+{
+    int32_t mount_idx;
+    int32_t root;
+    int32_t next;
+    assert(self->target_uid >= 0);
+    mount_idx = UITree_FindByComponentId(self->tree, self->target_uid);
+    assert(mount_idx >= 0 && "openSub target must exist");
+
+    (void)UITree_InterfaceParentSet(
+        self->tree, self->target_uid, self->interface_id, self->mount_type);
+
+    for( root = self->tree->root_index; root >= 0; root = next )
+    {
+        int cid = self->tree->components[root].component_id;
+        int group = (cid >> 16) & 0xffff;
+        next = self->tree->components[root].next_sibling;
+        if( group != self->interface_id )
+            continue;
+        if( self->tree->components[root].parent == mount_idx )
+            continue;
+        UITree_Reparent(self->tree, root, mount_idx);
+    }
+}
+
+static void
+hide_unmounted_spillover(struct Task_InterfaceOpen* self)
+{
+    int32_t root;
+    for( root = self->tree->root_index; root >= 0;
+         root = self->tree->components[root].next_sibling )
+    {
+        int cid = self->tree->components[root].component_id;
+        int group = (cid >> 16) & 0xffff;
+        if( cid < 0 || group <= 0 )
+            continue;
+        if( group == self->interface_id )
+            continue;
+        if( UITree_InterfaceParentIsMountedGroup(self->tree, group) )
+            continue;
+        /* Keep already-mounted groups and chrome that parents them. */
+        if( self->tree->components[root].parent >= 0 )
+            continue;
+        /* Never hide the active toplevel root group (e.g. 161) while subs are
+         * mounted into it — only hide accidental sibling spillover packs. */
+        if( self->target_uid >= 0 )
+        {
+            int host_group = (self->target_uid >> 16) & 0xffff;
+            if( group == host_group )
+                continue;
+        }
+        self->tree->components[root].behavior.hide = 1;
+    }
+}
+
+static void
+collect_runtime_hooks_kind(
+    struct Task_InterfaceOpen* self,
+    int use_resize)
+{
+    uint32_t i;
+    self->runtime_hook_count = 0;
+    for( i = 0; i < self->tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &self->tree->components[i];
+        struct UITreeRuntimeScriptHook const* slot =
+            use_resize ? &c->runtime_hooks.on_resize : &c->runtime_hooks.on_sub_change;
+        struct InterfaceOpenRuntimeHook* dst;
+        if( slot->script_id <= 0 )
+            continue;
+        if( use_resize )
+        {
+            int group = (c->component_id >> 16) & 0xffff;
+            if( group != self->interface_id && self->target_uid >= 0 )
+                continue;
+        }
+        assert(self->runtime_hook_count < INTERFACE_OPEN_RUNTIME_HOOK_MAX);
+        dst = &self->runtime_hooks[self->runtime_hook_count++];
+        dst->component_id = c->component_id;
+        dst->script_id = slot->script_id;
+        dst->argc = slot->argc;
+        if( dst->argc > 32 )
+            dst->argc = 32;
+        if( dst->argc > 0 )
+            memcpy(dst->argv, slot->argv, (size_t)dst->argc * sizeof(int));
+    }
+}
+
 static int
 Task_InterfaceOpen_Run(
     struct ToriRS_Task* base,
@@ -251,8 +364,29 @@ Task_InterfaceOpen_Run(
         upload_model_nodes(self->tree, self->bridge);
     }
 
-    /* 5. Layout. */
-    UITree_LayoutResolve(self->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    if( self->target_uid >= 0 )
+    {
+        /* Close existing mount at target, then reparent. */
+        {
+            int old = UITree_InterfaceParentFind(self->tree, self->target_uid);
+            if( old >= 0 )
+            {
+                int old_group = self->tree->interface_parents[old].group_id;
+                int32_t r;
+                for( r = self->tree->root_index; r >= 0; r = self->tree->components[r].next_sibling )
+                {
+                    int cid = self->tree->components[r].component_id;
+                    if( ((cid >> 16) & 0xffff) == old_group )
+                        self->tree->components[r].behavior.hide = 1;
+                }
+                UITree_InterfaceParentClear(self->tree, self->target_uid);
+            }
+        }
+        mount_pack_under_target(self);
+    }
+
+    /* 5. Layout at full client canvas (host size via parent abs after reparent). */
+    layout_tree(self);
 
     /* 6. Run IF3 on_load hooks. */
     for( self->i = 0; self->i < self->onload_count; self->i++ )
@@ -280,27 +414,50 @@ Task_InterfaceOpen_Run(
             self->host, self->script_id, hook->component_id, hook->component_id, args, arg_count));
     }
 
-    /* 7. Inv + var transmit hooks registered during on_load. */
+    /* 7. Re-layout after onLoad. */
+    layout_tree(self);
+
+    /* 8. Sub-only: onResize → layout → onSubChange. */
+    if( self->target_uid >= 0 )
+    {
+        collect_runtime_hooks_kind(self, 1);
+        for( self->i = 0; self->i < self->runtime_hook_count; self->i++ )
+        {
+            struct InterfaceOpenRuntimeHook const* hook = &self->runtime_hooks[self->i];
+            TASK_AWAITSELF_IF(CreateTask_CS2Run(
+                self->host,
+                hook->script_id,
+                hook->component_id,
+                hook->component_id,
+                hook->argc > 0 ? hook->argv : NULL,
+                hook->argc));
+        }
+        layout_tree(self);
+
+        collect_runtime_hooks_kind(self, 0);
+        for( self->i = 0; self->i < self->runtime_hook_count; self->i++ )
+        {
+            struct InterfaceOpenRuntimeHook const* hook = &self->runtime_hooks[self->i];
+            TASK_AWAITSELF_IF(CreateTask_CS2Run(
+                self->host,
+                hook->script_id,
+                hook->component_id,
+                hook->component_id,
+                hook->argc > 0 ? hook->argv : NULL,
+                hook->argc));
+        }
+        layout_tree(self);
+    }
+
+    /* 9. Inv + var transmit hooks registered during on_load/resize. */
     TASK_AWAITSELF_IF(CreateTask_CS2InvTransmitDispatch(self->host, -1));
     TASK_AWAITSELF_IF(CreateTask_CS2VarTransmitDispatch(self->host, -1));
 
-    /* 8. Re-layout after CS2 onloads (nested pack bakes + IF_SET* mutations). */
-    UITree_LayoutResolve(self->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    /* 10. Final layout. */
+    layout_tree(self);
 
-    /* Nested packs loaded only to satisfy CC_CREATE/FIND (e.g. world map 728
-     * during 161 onload) stay as sibling roots. Keep them hidden so their
-     * chrome does not paint over the opened interface until explicitly opened. */
-    {
-        int32_t root;
-        for( root = self->tree->root_index; root >= 0;
-             root = self->tree->components[root].next_sibling )
-        {
-            int cid = self->tree->components[root].component_id;
-            int group = (cid >> 16) & 0xffff;
-            if( cid >= 0 && group > 0 && group != self->interface_id )
-                self->tree->components[root].behavior.hide = 1;
-        }
-    }
+    /* Spillover sibling roots (not InterfaceParent-mounted) stay hidden. */
+    hide_unmounted_spillover(self);
 
     if( self->stats )
     {
@@ -326,6 +483,45 @@ static struct ToriRS_TaskVTable Task_InterfaceOpen_VTable = {
     .free = Task_InterfaceOpen_Free,
 };
 
+static struct ToriRS_Task*
+create_interface_open_common(
+    struct CacheProvider* provider,
+    struct UITree* tree,
+    struct RS_CS2Host* host,
+    struct InvManager* invs,
+    struct UITreeSceneBridge* bridge,
+    int interface_id,
+    int target_uid,
+    int mount_type,
+    struct InterfaceOpenStats* stats,
+    char const* name)
+{
+    struct Task_InterfaceOpen* task;
+
+    assert(provider);
+    assert(tree);
+    assert(host);
+    assert(invs);
+    assert(bridge);
+    assert(interface_id > 0);
+
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_InterfaceOpen_VTable;
+    strncpy(task->task.name, name, sizeof(task->task.name) - 1);
+    task->provider = provider;
+    task->tree = tree;
+    task->host = host;
+    task->invs = invs;
+    task->bridge = bridge;
+    task->interface_id = interface_id;
+    task->target_uid = target_uid;
+    task->mount_type = mount_type;
+    task->stats = stats;
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
 struct ToriRS_Task*
 CreateTask_InterfaceOpen(
     struct CacheProvider* provider,
@@ -336,24 +532,32 @@ CreateTask_InterfaceOpen(
     int interface_id,
     struct InterfaceOpenStats* stats)
 {
-    assert(provider);
-    assert(tree);
-    assert(host);
-    assert(invs);
-    assert(bridge);
-    assert(interface_id > 0);
+    return create_interface_open_common(
+        provider, tree, host, invs, bridge, interface_id, -1, 0, stats, "InterfaceOpen");
+}
 
-    struct Task_InterfaceOpen* task = calloc(1, sizeof(*task));
-    assert(task);
-    task->task.vtable = &Task_InterfaceOpen_VTable;
-    strncpy(task->task.name, "InterfaceOpen", sizeof(task->task.name) - 1);
-    task->provider = provider;
-    task->tree = tree;
-    task->host = host;
-    task->invs = invs;
-    task->bridge = bridge;
-    task->interface_id = interface_id;
-    task->stats = stats;
-    PT_INIT(&task->pt);
-    return &task->task;
+struct ToriRS_Task*
+CreateTask_InterfaceOpenSub(
+    struct CacheProvider* provider,
+    struct UITree* tree,
+    struct RS_CS2Host* host,
+    struct InvManager* invs,
+    struct UITreeSceneBridge* bridge,
+    int target_uid,
+    int interface_id,
+    int type,
+    struct InterfaceOpenStats* stats)
+{
+    assert(target_uid >= 0);
+    return create_interface_open_common(
+        provider,
+        tree,
+        host,
+        invs,
+        bridge,
+        interface_id,
+        target_uid,
+        type,
+        stats,
+        "InterfaceOpenSub");
 }

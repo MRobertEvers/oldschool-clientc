@@ -502,9 +502,11 @@ ToriDraw_SpritePostprocessObjIconOutline(
             if( pixels[idx] != 0 )
                 continue;
 
-            if( (x > 0 && pixels[idx - 1] > 1) || (y > 0 && pixels[idx - w] > 1) ||
-                (x < w - 1 && pixels[idx + 1] > 1) || (y < h - 1 && pixels[idx + w] > 1) )
-                pixels[idx] = 1;
+            if( (x > 0 && (pixels[idx - 1] & 0x00FFFFFFu) > 1) ||
+                (y > 0 && (pixels[idx - w] & 0x00FFFFFFu) > 1) ||
+                (x < w - 1 && (pixels[idx + 1] & 0x00FFFFFFu) > 1) ||
+                (y < h - 1 && (pixels[idx + w] & 0x00FFFFFFu) > 1) )
+                pixels[idx] = 0xFF000001u;
         }
     }
 
@@ -513,8 +515,10 @@ ToriDraw_SpritePostprocessObjIconOutline(
         for( int y = h - 1; y >= 0; y-- )
         {
             int idx = x + y * w;
-            if( pixels[idx] == 0 && x > 0 && y > 0 && pixels[idx - 1 - w] > 0 )
-                pixels[idx] = 1;
+            /* Client-TS outlineRgb==0: diagonal shadow is 3153952 (0x301010). */
+            if( pixels[idx] == 0 && x > 0 && y > 0 &&
+                (pixels[idx - 1 - w] & 0x00FFFFFFu) > 0 )
+                pixels[idx] = 0xFF301010u;
         }
     }
 }
@@ -666,7 +670,10 @@ ToriDraw_SpriteNewFromModelRaster(
     }
 
     for( size_t i = 0; i < pixel_count; i++ )
-        argb[i] = (uint32_t)pixels[i];
+    {
+        uint32_t rgb = (uint32_t)pixels[i] & 0xFFFFFFu;
+        argb[i] = rgb ? (rgb | 0xFF000000u) : 0u;
+    }
 
     free(pixels);
 
@@ -766,13 +773,20 @@ ToriDraw_SpriteNewFromObjIconRaster(
         for( int y = 0; y < height; y++ )
         {
             for( int x = 0; x < width; x++ )
-                argb[x + y * width] = (uint32_t)render_pixels[(x + crop_x) + y * render_w];
+            {
+                uint32_t rgb =
+                    (uint32_t)render_pixels[(x + crop_x) + y * render_w] & 0xFFFFFFu;
+                argb[x + y * width] = rgb ? (rgb | 0xFF000000u) : 0u;
+            }
         }
     }
     else
     {
         for( size_t i = 0; i < out_pixel_count; i++ )
-            argb[i] = (uint32_t)render_pixels[i];
+        {
+            uint32_t rgb = (uint32_t)render_pixels[i] & 0xFFFFFFu;
+            argb[i] = rgb ? (rgb | 0xFF000000u) : 0u;
+        }
     }
 
     free(render_pixels);

@@ -1,7 +1,6 @@
 #include "toridraw_font.h"
 
 #include "osrs/colors.h"
-#include "osrs/rscache/shared/shared_rs_buffer.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -292,113 +291,6 @@ void
 ToriDraw_FontInitCharcodeset(struct ToriDraw_Font* font)
 {
     font_init_charcodeset(font);
-}
-
-struct ToriDraw_Font*
-ToriDraw_FontNewFromRSBytes(
-    void* data,
-    int data_size,
-    void* index_data,
-    int index_data_size)
-{
-    assert(data && index_data && data_size > 0 && index_data_size > 0);
-
-    struct ToriDraw_Font* font = calloc(1, sizeof(struct ToriDraw_Font));
-    assert(font);
-
-    font_init_charcodeset(font);
-
-    struct RSCacheShared_RSBuffer databuf = { .data = (uint8_t*)(data),
-                                              .size = (uint32_t)(data_size) };
-    struct RSCacheShared_RSBuffer indexbuf = { .data = (uint8_t*)(index_data),
-                                               .size = (uint32_t)(index_data_size) };
-
-    indexbuf.position = g2(&databuf) + 4;
-    int off = g1(&indexbuf);
-    if( off > 0 )
-        indexbuf.position += (off - 1) * 3;
-
-    font->line_height = 0;
-    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
-    {
-        font->offset_x[i] = g1(&indexbuf);
-        font->offset_y[i] = g1(&indexbuf);
-
-        int w = g2(&indexbuf);
-        int h = g2(&indexbuf);
-        font->glyph_width[i] = w;
-        font->glyph_height[i] = h;
-        if( h > font->line_height )
-            font->line_height = h;
-
-        int type = g1(&indexbuf);
-        int len = w * h;
-
-        if( len > 0 )
-        {
-            font->glyph_alpha[i] = malloc((size_t)len);
-            if( !font->glyph_alpha[i] )
-                goto fail;
-            memset(font->glyph_alpha[i], 0, (size_t)len);
-            if( type == 0 )
-            {
-                for( int j = 0; j < len; j++ )
-                    font->glyph_alpha[i][j] = (uint8_t)g1b(&databuf);
-            }
-            else if( type == 1 )
-            {
-                for( int x = 0; x < w; x++ )
-                {
-                    for( int y = 0; y < h; y++ )
-                        font->glyph_alpha[i][x + y * w] = (uint8_t)g1b(&databuf);
-                }
-            }
-        }
-
-        font->offset_x[i] = 1;
-        font->advance[i] = w + 2;
-
-        if( w > 0 && h > 0 && font->glyph_alpha[i] )
-        {
-            int space = 0;
-            for( int y = (h / 7) | 0; y < h; y++ )
-                space += font->glyph_alpha[i][y * w];
-
-            if( space <= ((h / 7) | 0) )
-            {
-                font->advance[i]--;
-                font->offset_x[i] = 0;
-            }
-
-            space = 0;
-            for( int y = (h / 7) | 0; y < h; y++ )
-                space += font->glyph_alpha[i][w + y * w - 1];
-
-            if( space <= ((h / 7) | 0) )
-                font->advance[i]--;
-        }
-    }
-
-    if( font->line_height <= 0 )
-    {
-        for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
-        {
-            if( font->glyph_height[i] > font->line_height )
-                font->line_height = font->glyph_height[i];
-        }
-    }
-
-    if( font->advance[93] < 4 )
-        font->advance[93] = font->advance[8];
-    ToriDraw_FontFinishDrawWidths(font);
-
-    if( !ToriDraw_FontValidate(font) )
-        goto fail;
-    return font;
-
-fail:
-    ToriDraw_FontFree(font);
-    return NULL;
 }
 
 void

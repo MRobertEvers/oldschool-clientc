@@ -12,6 +12,18 @@ struct UIInputState
 {
     int32_t hovered;
     int32_t pressed;
+    /** Drag gesture (TS OsrsClient widget drag). */
+    int drag_active;
+    int32_t drag_source_idx;
+    int drag_source_id;
+    int drag_target_id;
+    int drag_pickup_x;
+    int drag_pickup_y;
+    int drag_click_x;
+    int drag_click_y;
+    int drag_duration;
+    int deferred_click; /* 1 = fire click on mouseup if drag never started */
+    int thresholds_set;
 };
 
 enum UIInputEventKind
@@ -35,6 +47,13 @@ struct UIInputResult
     int32_t prev_hovered;
     int32_t clicked;
     bool hover_changed;
+    int drag_started;
+    int drag_moved;
+    int drag_ended;
+    int32_t drag_source_idx;
+    int drag_source_id;
+    int drag_target_id;
+    int deferred_click_fired;
 };
 
 bool
@@ -72,7 +91,23 @@ UITree_HitTestInteractive(
 struct UIInputResult
 UITree_InputUpdate(
     struct UIInputState* state,
-    struct UITree const* tree,
+    struct UITree* tree,
+    struct UITreeHost const* host,
+    struct UITreeScrollState const* scroll,
     struct UIInputEvent event);
+
+/**
+ * Advance drag while left button held. Call each frame after InputUpdate.
+ * Uses per-component deadzone/deadtime; sets visual overrides on source.
+ * Returns non-zero if drag state changed (started/moved/ended visuals).
+ */
+int
+UITree_InputDragTick(
+    struct UIInputState* state,
+    struct UITree* tree,
+    struct UITreeHost const* host,
+    int mouse_x,
+    int mouse_y,
+    int left_held);
 
 #endif

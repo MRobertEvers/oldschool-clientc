@@ -35,14 +35,7 @@
 #define CONFIG_DIR "/Users/matthewevers/Documents/git_repos/3draster/config"
 #define SCRIPT_DIR "/Users/matthewevers/Documents/git_repos/3draster/script"
 #define DEFAULT_INTERFACE_ID 630
-#define UITREE_CLICK_DEBUG 1
-
-/* Interface 12 bank view panels / posit buttons (file index = component_id & 0xffff). */
-#define IFACE12_PANEL_BANK_INV 10
-#define IFACE12_PANEL_OTHER 54
-#define IFACE12_PANEL_WORN 79
-#define IFACE12_POSIT_INV 44
-#define IFACE12_POSIT_WORN 46
+#define UITREE_CLICK_DEBUG 0
 
 static int
 demo_uitree_host_request(void* user, struct UITreeHostRequest* req)
@@ -64,6 +57,11 @@ seed_inv_defaults(struct InvManager* invs)
     static int const k_worn_items[] = { 1153, 1007, 1725, 1333, 1115, 1201,
                                         1189, 1063, 1067, 2564, 882 };
     static int const k_backpack_items[] = { 1333 };
+    /* Bank contents so interface 12 renders its item grid + tab row. */
+    static int const k_bank_items[] = {
+        995,  1333, 1153, 1007, 1725, 1115, 1201, 1189, 1063, 1067, 2564, 882,
+        4151, 1305, 1319, 1215, 1231, 1147, 1163, 1079, 1093, 861,  1163, 1704,
+        2550, 6585, 1725, 3105, 1387, 1275, 1291, 4587, 1215, 1333, 995,  1038 };
 
     assert(invs);
     assert(InvManager_ResolveSource(invs, INV_MANAGER_SOURCE_NAME_WORN) >= 0);
@@ -81,12 +79,20 @@ seed_inv_defaults(struct InvManager* invs)
         k_backpack_items,
         NULL,
         (int)(sizeof(k_backpack_items) / sizeof(k_backpack_items[0]))));
+    assert(InvManager_EnsureContainer(invs, INV_MANAGER_CONTAINER_BANK, 800, "bank") >= 0);
+    assert(InvManager_ApplyFull(
+        invs,
+        INV_MANAGER_CONTAINER_BANK,
+        k_bank_items,
+        NULL,
+        (int)(sizeof(k_bank_items) / sizeof(k_bank_items[0]))));
 }
 
 static struct UIInputResult
 bridge_input_to_uitree(
     struct UIInputState* ui_state,
     struct UITree* tree,
+    struct UITreeHost const* host,
     struct LibToriRS_Input* input)
 {
     struct UIInputResult last;
@@ -101,7 +107,7 @@ bridge_input_to_uitree(
     assert(tree);
     assert(input);
 
-    last = UITree_InputUpdate(ui_state, tree, move);
+    last = UITree_InputUpdate(ui_state, tree, host, NULL, move);
 
     if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
     {
@@ -111,7 +117,7 @@ bridge_input_to_uitree(
             .y = input->curr.mouse_y,
             .button = TORIRSM_LEFT,
         };
-        last = UITree_InputUpdate(ui_state, tree, down);
+        last = UITree_InputUpdate(ui_state, tree, host, NULL, down);
     }
 
     if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
@@ -122,7 +128,7 @@ bridge_input_to_uitree(
             .y = input->last_click_y[TORIRSM_LEFT],
             .button = TORIRSM_LEFT,
         };
-        last = UITree_InputUpdate(ui_state, tree, up);
+        last = UITree_InputUpdate(ui_state, tree, host, NULL, up);
     }
 
     return last;
@@ -198,6 +204,22 @@ run_runtime_hook(
     }
     ToriRS_TaskQueue_Add(queue, task);
     pump_task_queue(queue, io, px);
+    if( host->pending_inv_transmit_redispatch )
+    {
+        host->pending_inv_transmit_redispatch = 0;
+        task = CreateTask_CS2InvTransmitDispatch(host, -1);
+        assert(task);
+        ToriRS_TaskQueue_Add(queue, task);
+        pump_task_queue(queue, io, px);
+    }
+    if( host->pending_var_transmit_redispatch )
+    {
+        host->pending_var_transmit_redispatch = 0;
+        task = CreateTask_CS2VarTransmitDispatch(host, -1);
+        assert(task);
+        ToriRS_TaskQueue_Add(queue, task);
+        pump_task_queue(queue, io, px);
+    }
 }
 
 static struct UITreeRuntimeScriptHook const*
@@ -230,6 +252,13 @@ pick_on_mouse_leave(struct UITreeComponent const* node)
     return &node->runtime_hooks.on_mouse_leave;
 }
 
+static struct UITreeRuntimeScriptHook const*
+pick_on_drag_complete(struct UITreeComponent const* node)
+{
+    return &node->runtime_hooks.on_drag_complete;
+}
+
+#if UITREE_CLICK_DEBUG
 static void
 count_runtime_hooks(
     struct UITree const* tree,
@@ -255,6 +284,7 @@ count_runtime_hooks(
     *out_on_click = on_click;
     *out_on_op = on_op;
 }
+#endif
 
 /* Prefer on_op, else on_click. Walk parents from leaf until a hooked node is found. */
 static struct UITreeRuntimeScriptHook const*
@@ -312,63 +342,6 @@ resolve_click_hook(
     fprintf(stderr, "uitree_click: walk found no on_op/on_click ancestor\n");
 #endif
     return NULL;
-}
-
-/* Offline stand-in for server IF_SETHIDE when posit inventory/worn buttons are clicked. */
-static int
-try_iface12_equip_view_stub(
-    struct UITree* tree,
-    int interface_id,
-    int component_id)
-{
-    int file;
-    int bank_id;
-    int worn_id;
-    int other_id;
-
-    assert(tree);
-    if( interface_id != 12 || component_id < 0 )
-        return 0;
-
-    file = component_id & 0xffff;
-    if( (component_id >> 16) != 12 )
-        return 0;
-    /* Decorative overlay on posit inventory (file 45) maps to the button (44). */
-    if( file == 45 )
-        file = IFACE12_POSIT_INV;
-    if( file != IFACE12_POSIT_INV && file != IFACE12_POSIT_WORN )
-        return 0;
-
-    bank_id = (12 << 16) | IFACE12_PANEL_BANK_INV;
-    worn_id = (12 << 16) | IFACE12_PANEL_WORN;
-    other_id = (12 << 16) | IFACE12_PANEL_OTHER;
-
-    if( file == IFACE12_POSIT_WORN )
-    {
-#if UITREE_CLICK_DEBUG
-        fprintf(
-            stderr,
-            "uitree_click: equip view stub worn — hide bank=%d show worn=%d\n",
-            bank_id,
-            worn_id);
-#endif
-        (void)UITree_ApplyHide(tree, bank_id, 1);
-        (void)UITree_ApplyHide(tree, other_id, 1);
-        (void)UITree_ApplyHide(tree, worn_id, 0);
-        return 1;
-    }
-
-#if UITREE_CLICK_DEBUG
-    fprintf(
-        stderr,
-        "uitree_click: equip view stub inventory — show bank=%d hide worn=%d\n",
-        bank_id,
-        worn_id);
-#endif
-    (void)UITree_ApplyHide(tree, worn_id, 1);
-    (void)UITree_ApplyHide(tree, other_id, 1);
-    (void)UITree_ApplyHide(tree, bank_id, 0);
-    return 1;
 }
 
 static int
@@ -511,75 +484,67 @@ main(
     struct InterfaceOpenStats stats;
     memset(&stats, 0, sizeof(stats));
 
-    struct ToriRS_Task* task =
-        CreateTask_InterfaceOpen(provider, tree, &host, &invs, &bridge, interface_id, &stats);
-    assert(task != NULL);
-    ToriRS_TaskQueue_Add(queue, task);
-
-    while( ToriRS_TaskQueue_Run(queue, io) == TORIRS_ASYNCIO_STAT_YIELD )
+    /* Open the requested interface directly as the tree root (TS parity:
+     * WidgetManager.setRootInterface(groupId) — any group can be the root; no
+     * hardcoded 161 chrome required). */
     {
-        PlatformX_IO_Process(px, io);
+        struct ToriRS_Task* root_task = CreateTask_InterfaceOpen(
+            provider, tree, &host, &invs, &bridge, interface_id, &stats);
+        assert(root_task != NULL);
+        ToriRS_TaskQueue_Add(queue, root_task);
+        while( ToriRS_TaskQueue_Run(queue, io) == TORIRS_ASYNCIO_STAT_YIELD )
+            PlatformX_IO_Process(px, io);
     }
 
     printf(
         "InterfaceOpen done: iface=%d pack_components=%d tree_components=%u onloads=%d "
-        "inv_hooks=%d var_hooks=%d\n",
+        "inv_hooks=%d var_hooks=%d mounts=%d\n",
         stats.interface_id,
         stats.pack_component_count,
         tree->component_count,
         stats.onload_count,
         host.inv_transmit_hook_count,
-        host.var_transmit_hook_count);
+        host.var_transmit_hook_count,
+        tree->interface_parent_count);
+
+    if( getenv("DUMP_LAYOUT") )
+    {
+        for( uint32_t i = 0; i < tree->component_count; i++ )
+        {
+            struct UITreeComponent* dc = &tree->components[i];
+            int dx = 0, dy = 0, dw = 0, dh = 0;
+            UITree_LayoutGetBounds(&dc->position, &dx, &dy, &dw, &dh);
+            fprintf(
+                stderr,
+                "LAY file=%d type=%d abs=(%d,%d,%d,%d) base=(%d,%d,%d,%d) "
+                "mode=(x%d,y%d,w%d,h%d)\n",
+                dc->component_id & 0xFFFF,
+                (int)dc->type,
+                dx,
+                dy,
+                dw,
+                dh,
+                dc->position.x,
+                dc->position.y,
+                dc->position.width,
+                dc->position.height,
+                (int)dc->position.x_mode,
+                (int)dc->position.y_mode,
+                (int)dc->position.width_mode,
+                (int)dc->position.height_mode);
+        }
+    }
 
 #if UITREE_CLICK_DEBUG
     {
         int hook_on_click = 0;
         int hook_on_op = 0;
-        int32_t idx44;
-        int32_t idx46;
-        int32_t idx10;
-        int32_t idx79;
         count_runtime_hooks(tree, &hook_on_click, &hook_on_op);
         fprintf(
             stderr,
             "uitree_click: runtime hooks on_click=%d on_op=%d\n",
             hook_on_click,
             hook_on_op);
-
-        idx44 = UITree_FindByComponentId(tree, (12 << 16) | IFACE12_POSIT_INV);
-        idx46 = UITree_FindByComponentId(tree, (12 << 16) | IFACE12_POSIT_WORN);
-        idx10 = UITree_FindByComponentId(tree, (12 << 16) | IFACE12_PANEL_BANK_INV);
-        idx79 = UITree_FindByComponentId(tree, (12 << 16) | IFACE12_PANEL_WORN);
-        if( idx44 >= 0 && idx46 >= 0 && idx10 >= 0 && idx79 >= 0 )
-        {
-            fprintf(
-                stderr,
-                "uitree_click: equip bake 44 mask=0x%x 46 mask=0x%x bank_hide=%u worn_hide=%u\n",
-                (unsigned)tree->components[idx44].behavior.click_mask,
-                (unsigned)tree->components[idx46].behavior.click_mask,
-                (unsigned)tree->components[idx10].behavior.hide,
-                (unsigned)tree->components[idx79].behavior.hide);
-            if( try_iface12_equip_view_stub(tree, 12, (12 << 16) | IFACE12_POSIT_WORN) )
-            {
-                fprintf(
-                    stderr,
-                    "uitree_click: after worn stub bank_hide=%u worn_hide=%u\n",
-                    (unsigned)tree->components[idx10].behavior.hide,
-                    (unsigned)tree->components[idx79].behavior.hide);
-                (void)try_iface12_equip_view_stub(
-                    tree, 12, (12 << 16) | IFACE12_POSIT_INV);
-            }
-        }
-        else
-        {
-            fprintf(
-                stderr,
-                "uitree_click: equip bake miss idx44=%d idx46=%d idx10=%d idx79=%d\n",
-                (int)idx44,
-                (int)idx46,
-                (int)idx10,
-                (int)idx79);
-        }
     }
 #endif
 
@@ -649,7 +614,100 @@ main(
             PlatformSDL2_PollInput(sdl, input);
             LibToriRS_Input_End(input);
 
-            ui_result = bridge_input_to_uitree(&ui_state, tree, input);
+            ui_result = bridge_input_to_uitree(&ui_state, tree, &ui_host, input);
+
+            /* Drag tick while held (deadzone+deadtime); fire onDrag / onDragComplete. */
+            {
+                int left_held = LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) ||
+                                LibToriRS_Input_IsDragging(input, TORIRSM_LEFT);
+                if( ui_state.drag_source_idx >= 0 && left_held )
+                {
+                    int drag_ch = UITree_InputDragTick(
+                        &ui_state,
+                        tree,
+                        &ui_host,
+                        input->curr.mouse_x,
+                        input->curr.mouse_y,
+                        1);
+                    if( ui_state.drag_active )
+                    {
+                        struct UITreeComponent* src =
+                            &tree->components[ui_state.drag_source_idx];
+                        int parent_x = 0, parent_y = 0, parent_w = 0, parent_h = 0;
+                        int32_t parent_idx = src->parent;
+                        if( src->drag_render_area_uid >= 0 )
+                            parent_idx =
+                                UITree_FindByComponentId(tree, src->drag_render_area_uid);
+                        if( parent_idx >= 0 )
+                            UITree_LayoutGetBounds(
+                                &tree->components[parent_idx].position,
+                                &parent_x,
+                                &parent_y,
+                                &parent_w,
+                                &parent_h);
+                        host.event_mouse_x =
+                            src->drag_visual_x - parent_x +
+                            (parent_idx >= 0 ? tree->components[parent_idx].scroll_x : 0);
+                        host.event_mouse_y =
+                            src->drag_visual_y - parent_y +
+                            (parent_idx >= 0 ? tree->components[parent_idx].scroll_y : 0);
+                        host.event_drag_target_id = ui_state.drag_target_id;
+                        host.event_drag_target_child_index = -1;
+                        if( ui_state.drag_target_id >= 0 )
+                        {
+                            int32_t tidx =
+                                UITree_FindByComponentId(tree, ui_state.drag_target_id);
+                            if( tidx >= 0 && tree->components[tidx].dynamic )
+                                host.event_drag_target_child_index =
+                                    tree->components[tidx].dynamic_child_index;
+                        }
+                        run_runtime_hook(
+                            &host,
+                            queue,
+                            io,
+                            px,
+                            ui_state.drag_source_id,
+                            &src->runtime_hooks.on_drag);
+                        ran_cs2 = 1;
+                        need_redraw = 1;
+                    }
+                    else if( drag_ch )
+                        need_redraw = 1;
+                }
+                if( ui_result.drag_ended )
+                {
+                    host.event_drag_target_id = ui_result.drag_target_id;
+                    host.event_drag_target_child_index = -1;
+                    if( ui_result.drag_target_id >= 0 )
+                    {
+                        int32_t tidx =
+                            UITree_FindByComponentId(tree, ui_result.drag_target_id);
+                        if( tidx >= 0 && tree->components[tidx].dynamic )
+                            host.event_drag_target_child_index =
+                                tree->components[tidx].dynamic_child_index;
+                    }
+                    if( ui_result.drag_source_id >= 0 )
+                    {
+                        run_runtime_hook(
+                            &host,
+                            queue,
+                            io,
+                            px,
+                            ui_result.drag_source_id,
+                            component_runtime_hook(
+                                tree, ui_result.drag_source_id, pick_on_drag_complete));
+                        ran_cs2 = 1;
+                    }
+#if UITREE_CLICK_DEBUG
+                    fprintf(
+                        stderr,
+                        "uitree_drag: complete source=%d target=%d\n",
+                        ui_result.drag_source_id,
+                        ui_result.drag_target_id);
+#endif
+                    need_redraw = 1;
+                }
+            }
 
 #if UITREE_CLICK_DEBUG
             if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) || ui_result.clicked >= 0 )
@@ -788,10 +846,6 @@ main(
                         &host, queue, io, px, hook_com_id, click_hook);
                     ran_cs2 = 1;
                 }
-                else if( try_iface12_equip_view_stub(tree, interface_id, clicked_com_id) )
-                {
-                    ran_cs2 = 1;
-                }
                 else
                 {
                     run_runtime_hook(
@@ -801,7 +855,9 @@ main(
             }
 
             if( ran_cs2 )
+            {
                 UITree_LayoutResolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            }
 
             update_window_title(sdl, interface_id, hover_com_id, clicked_com_id);
 

@@ -68,6 +68,10 @@ bake_pack_runtime_hooks(
             tree, src->id, &node->runtime_hooks.on_mouse_over, &src->on_mouse_over);
         bake_runtime_hook_from_torirs(
             tree, src->id, &node->runtime_hooks.on_mouse_leave, &src->on_mouse_leave);
+        bake_runtime_hook_from_torirs(
+            tree, src->id, &node->runtime_hooks.on_drag, &src->on_drag);
+        bake_runtime_hook_from_torirs(
+            tree, src->id, &node->runtime_hooks.on_drag_complete, &src->on_drag_complete);
     }
 }
 

@@ -541,6 +541,8 @@ struct ToriRS_Component
     struct ToriRS_ScriptHook on_op;
     struct ToriRS_ScriptHook on_mouse_over;
     struct ToriRS_ScriptHook on_mouse_leave;
+    struct ToriRS_ScriptHook on_drag;
+    struct ToriRS_ScriptHook on_drag_complete;
     struct ToriRS_ScriptHook on_varp_transmit;
     struct ToriRS_ScriptHook on_inv_transmit;
     int inventory_triggers_count;

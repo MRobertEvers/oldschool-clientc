@@ -213,6 +213,8 @@ torirs_component_copy_dat2_hooks(
     torirs_copy_script_hook(&dst->on_op, src->onOp, src->onOpLen);
     torirs_copy_script_hook(&dst->on_mouse_over, src->onMouseOver, src->onMouseOverLen);
     torirs_copy_script_hook(&dst->on_mouse_leave, src->onMouseLeave, src->onMouseLeaveLen);
+    torirs_copy_script_hook(&dst->on_drag, src->onDrag, src->onDragLen);
+    torirs_copy_script_hook(&dst->on_drag_complete, src->onDragComplete, src->onDragCompleteLen);
     torirs_copy_script_hook(&dst->on_varp_transmit, src->onVarpTransmit, src->onVarpTransmitLen);
     torirs_copy_script_hook(&dst->on_inv_transmit, src->onInvTransmit, src->onInvTransmitLen);
 

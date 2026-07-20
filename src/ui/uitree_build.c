@@ -209,9 +209,8 @@ UITree_BuildFromSource(
     for( int i = 0; i < src->count; i++ )
         index_map[i] = -1;
 
-    /* Pass 1: insert every component as a root so forward layer parents exist in
-     * index_map before linking (iface packs often parent earlier files to later
-     * layers, e.g. 161 file 57 → layer 97). */
+    /* Pass 1: allocate every component unlinked so forward parents exist in
+     * index_map without O(n^2) root-list walks (large packs like 161). */
     for( int i = 0; i < src->count; i++ )
     {
         struct UIBuildComponent const* comp = src->get_component(src->ud, i);
@@ -219,7 +218,12 @@ UITree_BuildFromSource(
             continue;
 
         int32_t idx = UITree_PushBuildComponent(
-            tree, -1, comp, src->resolve_sprite, src->resolve_font, src->ud);
+            tree,
+            UITREE_PARENT_UNLINKED,
+            comp,
+            src->resolve_sprite,
+            src->resolve_font,
+            src->ud);
         index_map[i] = idx;
     }
 
@@ -249,6 +253,19 @@ UITree_BuildFromSource(
             continue;
 
         UITree_Reparent(tree, index_map[i], parent_tree_idx);
+    }
+
+    /* Pass 3: link remaining orphans as roots (O(n) appends via last_root). */
+    for( int i = 0; i < src->count; i++ )
+    {
+        int32_t idx = index_map[i];
+        if( idx < 0 )
+            continue;
+        if( tree->components[idx].parent >= 0 )
+            continue;
+        /* Not yet on the root list (unlinked alloc). */
+        tree->components[idx].next_sibling = -1;
+        UITree_LinkUnderParent(tree, -1, idx);
     }
 
     free(index_map);
