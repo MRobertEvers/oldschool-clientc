@@ -43,6 +43,12 @@ struct MapEntry_ConfigIdk
     struct RSCache_Dat1ConfigIdk* idk;
 };
 
+struct MapEntry_AnimBaseFrames
+{
+    int id;
+    struct RSCache_Dat1AnimBaseFrames* animbaseframes;
+};
+
 #define DAT1_MODEL_MAP_CAPACITY 8192
 #define DAT1_MAP_REGION_CAPACITY 512
 #define DAT1_CONFIG_MAP_CAPACITY 4096
@@ -154,6 +160,13 @@ static struct CacheProviderVTable dat1_vtable = {
     .Task_ObjLoad = CreateTask_Dat1ObjLoad,
     .Task_NpcLoad = CreateTask_Dat1NpcLoad,
     .Task_IdkLoad = CreateTask_Dat1IdkLoad,
+    .Task_MapTerrainLoad = CreateTask_Dat1MapTerrainLoad,
+    .Task_MapSceneryLoad = CreateTask_Dat1MapSceneryLoad,
+    .Task_LocLoad = CreateTask_Dat1LocLoad,
+    .Task_FlotypeLoad = CreateTask_Dat1FlotypeLoad,
+    .Task_UnderlayLoad = CreateTask_Dat1UnderlayLoad,
+    .Task_TextureLoad = CreateTask_Dat1TextureLoad,
+    .Task_SequenceLoad = CreateTask_Dat1SequenceLoad,
     .Task_SpriteLoad = CreateTask_Dat1SpriteLoad,
     .Task_SpriteLoadByName = CreateTask_Dat1SpriteLoadByName,
     .Task_SpriteLoadFromSource = CreateTask_Dat1SpriteLoadFromSource,
@@ -185,6 +198,8 @@ dat1_buildcache_new(void)
         dat1_hmap_new(sizeof(struct MapEntry_Terrain), DAT1_MAP_REGION_CAPACITY);
     dat1_buildcache->map_scenery_hmap =
         dat1_hmap_new(sizeof(struct MapEntry_Scenery), DAT1_MAP_REGION_CAPACITY);
+    dat1_buildcache->animbaseframes_hmap =
+        dat1_hmap_new(sizeof(struct MapEntry_AnimBaseFrames), DAT1_CONFIG_MAP_CAPACITY);
 
     return dat1_buildcache;
 }
@@ -209,6 +224,12 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
     dat1_jagfile_clear(&dat1_buildcache->versionlist_jagfile);
     dat1_jagfile_clear(&dat1_buildcache->media_2d_graphics_jagfile);
     dat1_jagfile_clear(&dat1_buildcache->title_fonts_jagfile);
+    dat1_jagfile_clear(&dat1_buildcache->textures_jagfile);
+    if( dat1_buildcache->loc_index )
+    {
+        RSCache_FileListDatIndexedFree(dat1_buildcache->loc_index);
+        dat1_buildcache->loc_index = NULL;
+    }
     if( dat1_buildcache->interfaces_list )
     {
         RSCache_Dat1ConfigComponentListFree(dat1_buildcache->interfaces_list);
@@ -221,7 +242,14 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
     dat1_buildcache_idks_cleanup(dat1_buildcache);
     dat1_buildcache_map_terrain_cleanup(dat1_buildcache);
     dat1_buildcache_map_scenery_cleanup(dat1_buildcache);
+    dat1_buildcache_animbaseframes_cleanup(dat1_buildcache);
+    if( dat1_buildcache->seq_list )
+    {
+        RSCache_Dat1ConfigSeqListFree(dat1_buildcache->seq_list);
+        dat1_buildcache->seq_list = NULL;
+    }
 
+    dat1_hmap_free(dat1_buildcache->animbaseframes_hmap);
     dat1_hmap_free(dat1_buildcache->models_hmap);
     dat1_hmap_free(dat1_buildcache->obj_hmap);
     dat1_hmap_free(dat1_buildcache->npc_hmap);
@@ -284,6 +312,135 @@ dat1_buildcache_get_versionlist_jagfile(struct Dat1BuildCache* dat1_buildcache)
 {
     assert(dat1_buildcache);
     return dat1_buildcache->versionlist_jagfile;
+}
+
+void
+dat1_buildcache_set_textures_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct RSCache_FileListDat* textures_jagfile)
+{
+    assert(dat1_buildcache);
+    dat1_jagfile_set(&dat1_buildcache->textures_jagfile, textures_jagfile);
+}
+
+struct RSCache_FileListDat*
+dat1_buildcache_get_textures_jagfile(struct Dat1BuildCache* dat1_buildcache)
+{
+    assert(dat1_buildcache);
+    return dat1_buildcache->textures_jagfile;
+}
+
+struct RSCache_FileListDatIndexed*
+dat1_buildcache_get_loc_index(struct Dat1BuildCache* dat1_buildcache)
+{
+    struct RSCache_FileListDat* config_jagfile;
+    int data_idx;
+    int index_idx;
+
+    assert(dat1_buildcache);
+    if( dat1_buildcache->loc_index )
+        return dat1_buildcache->loc_index;
+
+    config_jagfile = dat1_buildcache->config_jagfile;
+    if( !config_jagfile )
+        return NULL;
+
+    data_idx = RSCache_FileListDatFindFileByName(config_jagfile, "loc.dat");
+    index_idx = RSCache_FileListDatFindFileByName(config_jagfile, "loc.idx");
+    if( data_idx < 0 || index_idx < 0 )
+        return NULL;
+
+    dat1_buildcache->loc_index = RSCache_FileListDatIndexedNewFromDecode(
+        config_jagfile->files[index_idx],
+        config_jagfile->file_sizes[index_idx],
+        config_jagfile->files[data_idx],
+        config_jagfile->file_sizes[data_idx]);
+    return dat1_buildcache->loc_index;
+}
+
+struct RSCache_Dat1ConfigSeqList*
+dat1_buildcache_get_seq_list(struct Dat1BuildCache* dat1_buildcache)
+{
+    struct RSCache_FileListDat* config_jagfile;
+    int data_idx;
+
+    assert(dat1_buildcache);
+    if( dat1_buildcache->seq_list )
+        return dat1_buildcache->seq_list;
+
+    config_jagfile = dat1_buildcache->config_jagfile;
+    if( !config_jagfile )
+        return NULL;
+
+    data_idx = RSCache_FileListDatFindFileByName(config_jagfile, "seq.dat");
+    if( data_idx < 0 )
+        return NULL;
+
+    dat1_buildcache->seq_list = RSCache_Dat1ConfigSeqListNewDecode(
+        config_jagfile->files[data_idx], config_jagfile->file_sizes[data_idx]);
+    return dat1_buildcache->seq_list;
+}
+
+void
+dat1_buildcache_animbaseframes_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int animbaseframes_id,
+    struct RSCache_Dat1AnimBaseFrames* animbaseframes)
+{
+    struct MapEntry_AnimBaseFrames* entry;
+
+    assert(dat1_buildcache);
+    assert(animbaseframes);
+
+    dat1_hmap_prepare_insert(&dat1_buildcache->animbaseframes_hmap);
+    entry = (struct MapEntry_AnimBaseFrames*)hmap_search(
+        dat1_buildcache->animbaseframes_hmap, &animbaseframes_id, HMAP_INSERT);
+    assert(entry && "AnimBaseFrames must be inserted into hmap");
+
+    if( entry->animbaseframes )
+        RSCache_Dat1AnimBaseFramesFree(entry->animbaseframes);
+    entry->id = animbaseframes_id;
+    entry->animbaseframes = animbaseframes;
+}
+
+struct RSCache_Dat1AnimBaseFrames*
+dat1_buildcache_animbaseframes_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int animbaseframes_id)
+{
+    struct MapEntry_AnimBaseFrames* entry;
+
+    assert(dat1_buildcache);
+
+    entry = (struct MapEntry_AnimBaseFrames*)hmap_search(
+        dat1_buildcache->animbaseframes_hmap, &animbaseframes_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->animbaseframes;
+}
+
+void
+dat1_buildcache_animbaseframes_cleanup(struct Dat1BuildCache* dat1_buildcache)
+{
+    struct HMapIter* iter;
+    struct MapEntry_AnimBaseFrames* entry;
+
+    assert(dat1_buildcache);
+    if( !dat1_buildcache->animbaseframes_hmap )
+        return;
+
+    iter = hmap_iter_new(dat1_buildcache->animbaseframes_hmap);
+    while( (entry = (struct MapEntry_AnimBaseFrames*)hmap_iter_next(iter)) )
+    {
+        if( entry->animbaseframes )
+            RSCache_Dat1AnimBaseFramesFree(entry->animbaseframes);
+        entry->animbaseframes = NULL;
+    }
+    hmap_iter_free(iter);
+    dat1_hmap_reset(
+        &dat1_buildcache->animbaseframes_hmap,
+        sizeof(struct MapEntry_AnimBaseFrames),
+        DAT1_CONFIG_MAP_CAPACITY);
 }
 
 void

@@ -1,6 +1,7 @@
 #include "engine/dat2/dat2_buildcache.h"
 
 #include "engine/dat2/dat2_tasks.h"
+#include "engine/dat2/task_dat2_sequence_load.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -221,6 +222,7 @@ static struct CacheProviderVTable dat2_vtable = {
     .Task_FlotypeLoad = CreateTask_Dat2FlotypeLoad,
     .Task_UnderlayLoad = CreateTask_Dat2UnderlayLoad,
     .Task_TextureLoad = CreateTask_Dat2TextureLoad,
+    .Task_SequenceLoad = CreateTask_Dat2SequenceLoad,
     .Task_SpriteLoad = CreateTask_Dat2SpriteLoad,
     .Task_SpriteLoadByName = CreateTask_Dat2SpriteLoadByName,
     .Task_FontLoad = CreateTask_Dat2FontLoad,

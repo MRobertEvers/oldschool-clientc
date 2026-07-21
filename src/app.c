@@ -1,8 +1,8 @@
 #include "app.h"
 
 #include "cs2vm2/cs2vm2.h"
+#include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat2/dat2_buildcache.h"
-#include "engine/dat2/task_dat2_sequence_load.h"
 #include "engine/player_appearance.h"
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/uitree_cmd_render.h"
@@ -267,25 +267,56 @@ App_Init(
      * other phase loads through. */
     app->runner.io = ToriRS_IO_New();
     app->runner.queue = ToriRS_TaskQueue_New();
-    app->disk = RSCache_Dat2DiskNewFromDirectory(cfg->cache_dir);
-    assert(app->disk != NULL);
-    /* Map archives are xtea-encrypted; keys load into the rscache global
-     * table the disk layer consults on archive fetch. */
-    {
-        char xtea_path[1024];
-        snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cfg->cache_dir);
-        if( RSCache_XteaConfigLoadKeys(xtea_path) <= 0 )
-            fprintf(stderr, "app: no xtea keys at %s (world maps may fail)\n", xtea_path);
-    }
     app->runner.px = PlatformX_IO_New();
     assert(app->runner.px != NULL);
-    PlatformX_IO_InitDat2Disk(app->runner.px, app->disk);
+
+    if( cfg->cache_kind == APP_CACHE_DAT1 )
+    {
+        app->dat1_disk = RSCache_Dat1DiskNewFromDirectory(cfg->cache_dir);
+        if( !app->dat1_disk )
+            fprintf(
+                stderr,
+                "app: no dat1 cache at %s (expected main_file_cache.dat; pass --dat2 for a "
+                "js5 cache)\n",
+                cfg->cache_dir);
+        assert(app->dat1_disk != NULL);
+        PlatformX_IO_InitDat1Disk(app->runner.px, app->dat1_disk);
+        /* No xtea step: dat1 archives are not encrypted. */
+    }
+    else
+    {
+        app->dat2_disk = RSCache_Dat2DiskNewFromDirectory(cfg->cache_dir);
+        if( !app->dat2_disk )
+            fprintf(
+                stderr,
+                "app: no dat2 cache at %s (expected main_file_cache.dat2; pass --dat1 for a "
+                "317-era cache)\n",
+                cfg->cache_dir);
+        assert(app->dat2_disk != NULL);
+        /* Map archives are xtea-encrypted; keys load into the rscache global
+         * table the disk layer consults on archive fetch. */
+        {
+            char xtea_path[1024];
+            snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cfg->cache_dir);
+            if( RSCache_XteaConfigLoadKeys(xtea_path) <= 0 )
+                fprintf(stderr, "app: no xtea keys at %s (world maps may fail)\n", xtea_path);
+        }
+        PlatformX_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
+    }
     PlatformX_IO_InitConfigPath(app->runner.px, cfg->config_dir);
     PlatformX_IO_InitScriptPath(app->runner.px, cfg->script_dir);
 
     /* Phase 2: asset pipeline (provider is a view over the build cache). */
-    app->bc = dat2_buildcache_new();
-    app->provider = dat2_buildcache_as_provider(app->bc);
+    if( cfg->cache_kind == APP_CACHE_DAT1 )
+    {
+        app->dat1_bc = dat1_buildcache_new();
+        app->provider = dat1_buildcache_as_provider(app->dat1_bc);
+    }
+    else
+    {
+        app->dat2_bc = dat2_buildcache_new();
+        app->provider = dat2_buildcache_as_provider(app->dat2_bc);
+    }
 
     /* Phase 3: renderer scene + id bridge (bridge needs scene + provider). */
     app->scene = ToriDraw_SceneNew(0);
@@ -355,34 +386,49 @@ App_Shutdown(struct App* app)
     VarPManager_Free(&app->varps);
     InvManager_Free(&app->invs);
     UITree_Free(app->tree);
+    if( app->builder_active )
+        UITreeBuilder_Free(&app->builder);
     UITreeSceneBridge_Free(&app->bridge);
     ToriDraw_SceneFree(app->scene);
-    dat2_buildcache_free(app->bc);
+    /* Only the pair matching cfg.cache_kind was ever created; both frees assert
+     * on NULL, so the unused side must not be handed to them. */
+    if( app->dat2_bc )
+        dat2_buildcache_free(app->dat2_bc);
+    if( app->dat1_bc )
+        dat1_buildcache_free(app->dat1_bc);
     PlatformX_IO_Free(app->runner.px);
-    RSCache_Dat2DiskFree(app->disk);
+    if( app->dat2_disk )
+        RSCache_Dat2DiskFree(app->dat2_disk);
+    if( app->dat1_disk )
+        RSCache_Dat1DiskFree(app->dat1_disk);
     ToriRS_TaskQueue_Free(app->runner.queue);
     ToriRS_IO_Free(app->runner.io);
 }
 
 /* Scene font id for the minimenu (reference uses bold-12; dat2 fonts-table
- * archive 496 in this cache era, e.g. bank title font). Falls back to any
- * text node's already-resolved scene font when b12 cannot load. */
+ * archive 496 in this cache era, e.g. bank title font). Dat1 has no fonts
+ * table: its fonts live in the title jagfile and are pinned at cache-font
+ * slots 0-3 by RevConfig, where b12 is slot 2. Falls back to any text node's
+ * already-resolved scene font when b12 cannot load. */
 static int
 app_minimenu_font_scene_id(struct App* app)
 {
     enum
     {
         APP_FONT_B12_CACHE_ID = 496,
+        APP_FONT_B12_DAT1_SLOT = 2,
     };
-    int scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, APP_FONT_B12_CACHE_ID);
+    int font_cache_id = app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_B12_DAT1_SLOT
+                                                              : APP_FONT_B12_CACHE_ID;
+    int scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
     if( scene_id <= 0 )
     {
-        struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, APP_FONT_B12_CACHE_ID);
+        struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
         if( task )
         {
             ToriRS_TaskQueue_Add(app->runner.queue, task);
             TaskRunner_Drain(&app->runner);
-            scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, APP_FONT_B12_CACHE_ID);
+            scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
         }
     }
     if( scene_id <= 0 )
@@ -595,10 +641,41 @@ App_OpenRootInterface(
     if( getenv("TORIRS_CS2_TRACE") )
         g_cs2_trace_mode = 2;
 
-    /* Open the requested interface directly as the tree root (TS parity:
-     * WidgetManager.setRootInterface(groupId) — any group can be the root; no
-     * hardcoded 161 chrome required). */
+    if( app->cfg.revconfig_ui_ini && app->cfg.revconfig_ui_ini[0] )
     {
+        /* RevConfig build: the INI names the whole gameframe (chrome widgets
+         * plus the cache interface packs mounted under them), so it replaces
+         * the interface open rather than wrapping it. The CS2 host is passed
+         * only for dat2 — dat1 interface packs carry IF1 scripts, which the
+         * CS1 host evaluates on the tick instead. */
+        UITreeBuilder_InitEx(
+            &app->builder,
+            app->provider,
+            app->tree,
+            &app->invs,
+            app->cfg.cache_kind == APP_CACHE_DAT1 ? NULL : &app->host,
+            app->cfg.revconfig_ui_ini,
+            app->cfg.revconfig_cache_ini);
+        /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
+        app->builder.bridge = &app->bridge;
+        app->builder_active = 1;
+
+        ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_UITreeBuild(&app->builder));
+        TaskRunner_Drain(&app->runner);
+
+        printf(
+            "RevConfigBuild done: ui=%s tree_components=%u sprites=%d fonts=%d onloads=%d\n",
+            app->cfg.revconfig_ui_ini,
+            app->tree->component_count,
+            app->builder.sprite_count,
+            app->builder.font_count,
+            app->builder.onload_count);
+    }
+    else
+    {
+        /* Open the requested interface directly as the tree root (TS parity:
+         * WidgetManager.setRootInterface(groupId) — any group can be the root;
+         * no hardcoded 161 chrome required). */
         struct ToriRS_Task* root_task = CreateTask_InterfaceOpen(
             app->provider,
             app->tree,
@@ -610,18 +687,18 @@ App_OpenRootInterface(
         assert(root_task != NULL);
         ToriRS_TaskQueue_Add(app->runner.queue, root_task);
         TaskRunner_Drain(&app->runner);
-    }
 
-    printf(
-        "InterfaceOpen done: iface=%d pack_components=%d tree_components=%u onloads=%d "
-        "inv_hooks=%d var_hooks=%d mounts=%d\n",
-        app->open_stats.interface_id,
-        app->open_stats.pack_component_count,
-        app->tree->component_count,
-        app->open_stats.onload_count,
-        app->host.inv_transmit_hook_count,
-        app->host.var_transmit_hook_count,
-        app->tree->interface_parent_count);
+        printf(
+            "InterfaceOpen done: iface=%d pack_components=%d tree_components=%u onloads=%d "
+            "inv_hooks=%d var_hooks=%d mounts=%d\n",
+            app->open_stats.interface_id,
+            app->open_stats.pack_component_count,
+            app->tree->component_count,
+            app->open_stats.onload_count,
+            app->host.inv_transmit_hook_count,
+            app->host.var_transmit_hook_count,
+            app->tree->interface_parent_count);
+    }
 
     if( getenv("TORIRS_ANIM_DEBUG") )
     {
@@ -1122,7 +1199,7 @@ app_world_apply_seq(
 
     if( seq_id < 0 )
         return;
-    task = CreateTask_Dat2SequenceLoad(app->provider, app->scene, seq_id);
+    task = CreateTask_SequenceLoad(app->provider, app->scene, seq_id);
     if( task )
     {
         ToriRS_TaskQueue_Add(app->runner.queue, task);
@@ -1142,13 +1219,26 @@ app_world_apply_seq(
     }
 }
 
-/* Load (via tasks) + convert + merge + light one drawable model from cache
- * model ids. Returns an owned model or NULL. */
+/* Config-driven color/texture swaps for a built model (npc/loc style). NULL
+ * where the caller has none. */
+struct AppModelRecolorSpec
+{
+    const int* recolors_from;
+    const int* recolors_to;
+    int recolor_count;
+    const int* retextures_from;
+    const int* retextures_to;
+    int retexture_count;
+};
+
+/* Load (via tasks) + convert + merge + recolor + light one drawable model from
+ * cache model ids. Returns an owned model or NULL. */
 static struct ToriDraw_Model*
 app_world_build_model(
     struct App* app,
     const int* model_ids,
-    int count)
+    int count,
+    const struct AppModelRecolorSpec* recolors)
 {
     struct ToriDraw_Model* parts[16];
     struct ToriDraw_Model* model = NULL;
@@ -1187,6 +1277,17 @@ app_world_build_model(
         model = parts[0];
     if( !model )
         return NULL;
+
+    /* Recolor before lighting: lighting bakes face colors into per-vertex
+     * shaded colors, so a swap afterwards would be a no-op (same order as
+     * scenery apply_transforms and the obj icon path in the scene bridge). */
+    if( recolors )
+    {
+        for( int i = 0; i < recolors->recolor_count; i++ )
+            ToriDraw_ModelRecolor(model, recolors->recolors_from[i], recolors->recolors_to[i]);
+        for( int i = 0; i < recolors->retexture_count; i++ )
+            ToriDraw_ModelRetexture(model, recolors->retextures_from[i], recolors->retextures_to[i]);
+    }
 
     {
         struct ToriDraw_ModelHandle hnd;
@@ -1304,7 +1405,17 @@ app_world_spawn_npc(
         return;
     }
 
-    model = app_world_build_model(app, npctype->models, npctype->models_count);
+    {
+        struct AppModelRecolorSpec recolors = {
+            .recolors_from = npctype->recolors_from,
+            .recolors_to = npctype->recolors_to,
+            .recolor_count = npctype->recolor_count,
+            .retextures_from = npctype->retextures_from,
+            .retextures_to = npctype->retextures_to,
+            .retexture_count = npctype->retexture_count,
+        };
+        model = app_world_build_model(app, npctype->models, npctype->models_count, &recolors);
+    }
     if( !model )
     {
         fprintf(stderr, "spawn_npc: npc %d models failed to load\n", npc_id);
@@ -1346,13 +1457,15 @@ app_world_spawn_npc(
     }
     fprintf(
         stderr,
-        "spawn_npc: npc=%d element=%d tile=%d,%d level=%d size=%d\n",
+        "spawn_npc: npc=%d element=%d tile=%d,%d level=%d size=%d recolors=%d retextures=%d\n",
         npc_id,
         element_id,
         tile_x,
         tile_z,
         level,
-        size);
+        size,
+        npctype->recolor_count,
+        npctype->retexture_count);
     app_sync_textures(app);
     app->need_redraw = 1;
 }
@@ -1396,7 +1509,7 @@ app_world_spawn_projectile(
             model_id = (int)strtol(env, NULL, 0);
     }
     model_ids[0] = model_id;
-    model = app_world_build_model(app, model_ids, 1);
+    model = app_world_build_model(app, model_ids, 1, NULL);
     if( !model )
     {
         fprintf(stderr, "spawn_projectile: model %d failed to load\n", model_id);

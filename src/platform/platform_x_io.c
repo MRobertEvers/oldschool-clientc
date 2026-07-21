@@ -346,6 +346,30 @@ load_cache_item_dat2(
     return 0;
 }
 
+/* Region -> map archive id, from the versionlist map_index the disk decoded at
+ * open (LostCity OnDemand). Returns -1 for a square the cache does not ship —
+ * legitimate at the edges of the built world, so callers report rather than
+ * assert. */
+static int
+dat1_map_archive_id(
+    struct PlatformX_IO* px,
+    int map_square_id,
+    int want_scenery)
+{
+    struct RSCache_MapSquares* squares = px->dat1_disk ? px->dat1_disk->map_squares : NULL;
+
+    if( !squares )
+        return -1;
+    for( int i = 0; i < squares->squares_count; i++ )
+    {
+        if( squares->squares[i].map_id != map_square_id )
+            continue;
+        return want_scenery ? squares->squares[i].loc_archive_id
+                            : squares->squares[i].terrain_archive_id;
+    }
+    return -1;
+}
+
 static int
 load_cache_item_dat1(
     struct PlatformX_IO* px,
@@ -353,12 +377,25 @@ load_cache_item_dat1(
 {
     int table_id = item->u.cache.table_id;
     int archive_id = item->u.cache.archive_id;
+    int flags = item->u.cache.flags;
     struct RSCache_Dat1DiskArchive* archive = NULL;
 
     assert(px->dat1_disk);
 
-    if( table_id != RSCACHE_DAT1_DISK_TABLE_MODELS &&
-        table_id != RSCACHE_DAT1_DISK_TABLE_CONFIGS )
+    if( flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN || flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY )
+    {
+        archive_id = dat1_map_archive_id(
+            px, archive_id, flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY);
+        if( archive_id < 0 )
+        {
+            item->error_code = -1;
+            return -1;
+        }
+    }
+    else if(
+        table_id != RSCACHE_DAT1_DISK_TABLE_MODELS &&
+        table_id != RSCACHE_DAT1_DISK_TABLE_CONFIGS &&
+        table_id != RSCACHE_DAT1_DISK_TABLE_ANIMATIONS )
     {
         item->error_code = -1;
         return -1;
@@ -382,7 +419,9 @@ load_cache_item(
     struct PlatformX_IO* px,
     struct ToriRS_IOItem* item)
 {
-    if( item->u.cache.flags == TORIRS_IO_CACHE_DAT1 )
+    if( item->u.cache.flags == TORIRS_IO_CACHE_DAT1 ||
+        item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN ||
+        item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY )
         return load_cache_item_dat1(px, item);
     return load_cache_item_dat2(px, item);
 }

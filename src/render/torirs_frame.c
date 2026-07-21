@@ -777,12 +777,25 @@ translate_ui_cmd(
         out->u.sprite.y = desc->y;
         out->u.sprite.w = desc->w;
         out->u.sprite.h = desc->h;
-        /* Clip to the widget box, not the parent layer: the map always
-         * over-fills its frame. */
-        out->u.sprite.scissor_x = desc->x;
-        out->u.sprite.scissor_y = desc->y;
-        out->u.sprite.scissor_w = desc->w;
-        out->u.sprite.scissor_h = desc->h;
+        /* Clip to the widget box intersected with the node's own clip rect:
+         * the map always over-fills its frame, so the box is what bounds it —
+         * but a box that sticks out past its parent (or the canvas) must not
+         * paint there, which the plain box alone would allow. */
+        {
+            int box_right = desc->x + desc->w;
+            int box_bottom = desc->y + desc->h;
+            int clip_right = desc->clip.x + desc->clip.w;
+            int clip_bottom = desc->clip.y + desc->clip.h;
+            int left = desc->x > desc->clip.x ? desc->x : desc->clip.x;
+            int top = desc->y > desc->clip.y ? desc->y : desc->clip.y;
+            int right = box_right < clip_right ? box_right : clip_right;
+            int bottom = box_bottom < clip_bottom ? box_bottom : clip_bottom;
+
+            out->u.sprite.scissor_x = left;
+            out->u.sprite.scissor_y = top;
+            out->u.sprite.scissor_w = right > left ? right - left : 0;
+            out->u.sprite.scissor_h = bottom > top ? bottom - top : 0;
+        }
         out->u.sprite.if3 = 0;
         /* The pack's mask placeholder clips the over-filled map to its round
          * window (inverted: map shows where the mask is transparent). */

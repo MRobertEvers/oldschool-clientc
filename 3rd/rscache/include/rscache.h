@@ -59,6 +59,7 @@ struct RSCache
 #include "datatypes/dat2_config_sequence.h"
 #include "datatypes/dat2_animaya.h"
 #include "datatypes/dat1_anim_frame.h"
+#include "datatypes/dat1_config_seq.h"
 #include "datatypes/dat1_pix8.h"
 #include "datatypes/dat1_pix32.h"
 #include "datatypes/dat1_pix_font.h"

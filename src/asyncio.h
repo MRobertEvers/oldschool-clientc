@@ -19,6 +19,15 @@
 
 #define TORIRS_IO_CACHE_DAT2 0
 #define TORIRS_IO_CACHE_DAT1 1
+/*
+ * Dat1 map chunks. A dat1 cache addresses map archives through the versionlist
+ * "map_index" (region -> terrain/loc archive id), which only the disk layer
+ * holds, so these two flags carry a map square id in archive_id and let the
+ * platform resolve the real archive. Dat2 needs no equivalent: its map archive
+ * ids come from the maps reference table, which tasks can read themselves.
+ */
+#define TORIRS_IO_CACHE_DAT1_MAP_TERRAIN 2
+#define TORIRS_IO_CACHE_DAT1_MAP_SCENERY 3
 
 enum ToriRS_IOKind
 {

@@ -4,6 +4,8 @@
 struct ToriDraw_Animation;
 struct RSCache_Dat2Framemap;
 struct RSCache_Dat2Frame;
+struct RSCache_Dat1AnimBase;
+struct RSCache_Dat1AnimFrame;
 
 /*
  * Assemble a render-ready classic ToriDraw_Animation from a decoded framemap
@@ -16,6 +18,20 @@ struct ToriDraw_Animation*
 ToriDraw_AnimationFromRSCache(
     struct RSCache_Dat2Framemap const* framemap,
     struct RSCache_Dat2Frame const* const* frames,
+    int const* delays,
+    int frame_count,
+    int frame_step);
+
+/*
+ * Same assembly from dat1 inputs. A dat1 animation archive already pairs its
+ * frames with the base they were built against (dat2 splits those into a
+ * separate framemap group), so the caller passes the base plus the frames the
+ * sequence selected, in sequence order.
+ */
+struct ToriDraw_Animation*
+ToriDraw_AnimationFromRSCacheDat1(
+    struct RSCache_Dat1AnimBase const* base,
+    struct RSCache_Dat1AnimFrame const* const* frames,
     int const* delays,
     int frame_count,
     int frame_step);

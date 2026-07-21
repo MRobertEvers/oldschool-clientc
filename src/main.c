@@ -12,8 +12,13 @@
 #include <string.h>
 
 /* Repo-relative defaults (run from the repo root); pass an explicit cache dir
- * as argv[1] from anywhere else. */
-#define CACHE_DIR "cache.jan2026"
+ * as argv[1] from anywhere else. The default boot is the 254-era dat1 cache
+ * driven by the rev_245_2 RevConfig; --dat2 switches to the js5 cache, where
+ * an interface id is opened directly instead. */
+#define DAT1_CACHE_DIR "cache254"
+#define DAT2_CACHE_DIR "cache.jan2026"
+#define DEFAULT_REVCONFIG_UI "v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_ui.ini"
+#define DEFAULT_REVCONFIG_CACHE "v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_cache.ini"
 #define CONFIG_DIR "config"
 #define SCRIPT_DIR "script"
 #define DEFAULT_INTERFACE_ID 84
@@ -240,12 +245,14 @@ main(
     char** argv)
 {
     struct AppConfig cfg = {
-        .cache_dir = CACHE_DIR,
+        .cache_dir = NULL, /* resolved from cache_kind below */
         .config_dir = CONFIG_DIR,
         .script_dir = SCRIPT_DIR,
         .interface_id = DEFAULT_INTERFACE_ID,
+        .cache_kind = APP_CACHE_DAT1,
     };
     static struct App app;
+    static char derived_cache_ini[512];
     int write_bmp = 0;
     int positional = 0;
     int argi;
@@ -257,13 +264,33 @@ main(
             write_bmp = 1;
             continue;
         }
-        if( positional == 0 )
+        if( strcmp(argv[argi], "--dat1") == 0 )
+        {
+            cfg.cache_kind = APP_CACHE_DAT1;
+            continue;
+        }
+        if( strcmp(argv[argi], "--dat2") == 0 )
+        {
+            cfg.cache_kind = APP_CACHE_DAT2;
+            continue;
+        }
+        if( strcmp(argv[argi], "--revconfig") == 0 && argi + 1 < argc )
+        {
+            cfg.revconfig_ui_ini = argv[++argi];
+            continue;
+        }
+        if( strcmp(argv[argi], "--revconfig-cache") == 0 && argi + 1 < argc )
+        {
+            cfg.revconfig_cache_ini = argv[++argi];
+            continue;
+        }
+        if( positional == 0 && argv[argi][0] != '-' )
         {
             cfg.cache_dir = argv[argi];
             positional++;
             continue;
         }
-        if( positional == 1 )
+        if( positional == 1 && argv[argi][0] != '-' )
         {
             cfg.interface_id = atoi(argv[argi]);
             if( cfg.interface_id <= 0 )
@@ -274,9 +301,67 @@ main(
             positional++;
             continue;
         }
-        fprintf(stderr, "usage: %s [cache_dir] [interface_id] [--bmp]\n", argv[0]);
+        fprintf(
+            stderr,
+            "usage: %s [cache_dir] [interface_id] [--dat1|--dat2] "
+            "[--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] [--bmp]\n",
+            argv[0]);
         return 1;
     }
+
+    /* Kind-specific defaults, applied only where the command line was silent.
+     * A dat1 cache has no gameframe interface to open, so it always needs a
+     * RevConfig; dat2 keeps opening interface_id unless one is given. */
+    if( !cfg.cache_dir )
+        cfg.cache_dir = cfg.cache_kind == APP_CACHE_DAT1 ? DAT1_CACHE_DIR : DAT2_CACHE_DIR;
+    if( !cfg.revconfig_ui_ini && cfg.cache_kind == APP_CACHE_DAT1 )
+    {
+        cfg.revconfig_ui_ini = DEFAULT_REVCONFIG_UI;
+        if( !cfg.revconfig_cache_ini )
+            cfg.revconfig_cache_ini = DEFAULT_REVCONFIG_CACHE;
+    }
+    /* An explicit --revconfig usually has a sibling sprite/font INI named by
+     * the same stem. Derive it, but only adopt it if it actually exists —
+     * UITreeBuilder treats an empty path as "no cache INI". */
+    if( cfg.revconfig_ui_ini && !cfg.revconfig_cache_ini )
+    {
+        size_t len = strlen(cfg.revconfig_ui_ini);
+        char const* suffix = "_ui.ini";
+        size_t suffix_len = strlen(suffix);
+        if( len > suffix_len && strcmp(cfg.revconfig_ui_ini + len - suffix_len, suffix) == 0 &&
+            len - suffix_len + strlen("_cache.ini") < sizeof(derived_cache_ini) )
+        {
+            FILE* probe;
+            snprintf(
+                derived_cache_ini,
+                sizeof(derived_cache_ini),
+                "%.*s_cache.ini",
+                (int)(len - suffix_len),
+                cfg.revconfig_ui_ini);
+            probe = fopen(derived_cache_ini, "rb");
+            if( probe )
+            {
+                fclose(probe);
+                cfg.revconfig_cache_ini = derived_cache_ini;
+            }
+        }
+    }
+
+    if( cfg.revconfig_ui_ini )
+        fprintf(
+            stderr,
+            "torirs: %s cache=%s revconfig=%s cache_ini=%s\n",
+            cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
+            cfg.cache_dir,
+            cfg.revconfig_ui_ini,
+            cfg.revconfig_cache_ini ? cfg.revconfig_cache_ini : "(none)");
+    else
+        fprintf(
+            stderr,
+            "torirs: %s cache=%s iface=%d\n",
+            cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
+            cfg.cache_dir,
+            cfg.interface_id);
 
     /* TORIRS_ROOT_SIZE=WxH: host the interface at the gameframe slot the client
      * would give it instead of the full canvas. Interfaces size themselves from
@@ -703,7 +788,11 @@ main(
     if( write_bmp )
     {
         char path[256];
-        snprintf(path, sizeof(path), "build/interface_%d.bmp", cfg.interface_id);
+        /* A RevConfig run has no single interface id to name the file after. */
+        if( cfg.revconfig_ui_ini )
+            snprintf(path, sizeof(path), "build/revconfig.bmp");
+        else
+            snprintf(path, sizeof(path), "build/interface_%d.bmp", cfg.interface_id);
         if( App_WriteBmp(&app, path, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) == 0 )
             printf("wrote %s (%d cmds)\n", path, app.emit.count);
         else

@@ -26,6 +26,18 @@ struct Dat1BuildCache
     struct RSCache_FileListDat* title_fonts_jagfile;
     /** Decoded INTERFACES jagfile "data" file; loaded once by pack-load tasks. */
     struct RSCache_Dat1ConfigComponentList* interfaces_list;
+    /** "loc.idx" + "loc.dat" paired into id -> offset lookups. Held here
+     * because building it copies the whole loc.dat, which must not happen once
+     * per requested loc id. */
+    struct RSCache_FileListDatIndexed* loc_index;
+    /** Decoded TEXTURES jagfile; every dat1 texture comes out of this one. */
+    struct RSCache_FileListDat* textures_jagfile;
+    /** Whole decoded "seq.dat" table (entries are sequentially addressable). */
+    struct RSCache_Dat1ConfigSeqList* seq_list;
+    /** ANIMATIONS-table archives, keyed by archive id: one archive holds a
+     * frame set plus its shared base, and several sequences reuse the same
+     * archive. */
+    struct HMap* animbaseframes_hmap;
     int next_sprite_id;
 };
 
@@ -81,6 +93,38 @@ dat1_buildcache_clear_title_fonts_jagfile(struct Dat1BuildCache* dat1_buildcache
 
 struct RSCache_FileListDat*
 dat1_buildcache_get_title_fonts_jagfile(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_set_textures_jagfile(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct RSCache_FileListDat* textures_jagfile);
+
+struct RSCache_FileListDat*
+dat1_buildcache_get_textures_jagfile(struct Dat1BuildCache* dat1_buildcache);
+
+/** Build (once) the loc.idx/loc.dat pair from the config jagfile. Returns NULL
+ * when either file is missing. */
+struct RSCache_FileListDatIndexed*
+dat1_buildcache_get_loc_index(struct Dat1BuildCache* dat1_buildcache);
+
+/** Decode (once) the whole seq.dat table from the config jagfile. NULL when
+ * seq.dat is missing. */
+struct RSCache_Dat1ConfigSeqList*
+dat1_buildcache_get_seq_list(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_animbaseframes_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int animbaseframes_id,
+    struct RSCache_Dat1AnimBaseFrames* animbaseframes);
+
+struct RSCache_Dat1AnimBaseFrames*
+dat1_buildcache_animbaseframes_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int animbaseframes_id);
+
+void
+dat1_buildcache_animbaseframes_cleanup(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_model_add(

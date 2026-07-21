@@ -1,14 +1,13 @@
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "engine/texture_palette_bake.h"
 #include "engine/torirs_types.h"
 
 #include "asyncio.h"
 #include "cache/rscache_io.h"
-#include "osrs/palette.h"
 
 #include <assert.h>
-#include <math.h>
 #include <rscache.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,44 +53,6 @@ task_dat2_texture_load_clear_packs(struct Task_Dat2TextureLoad* task)
     task->packs = NULL;
     task->def = NULL;
     task->sprite_index = 0;
-}
-
-static int
-gamma_blend(
-    int rgb,
-    double gamma)
-{
-    double r = (rgb >> 16) / 256.0;
-    double g = ((rgb >> 8) & 255) / 256.0;
-    double b = (rgb & 255) / 256.0;
-    r = pow(r, gamma);
-    g = pow(g, gamma);
-    b = pow(b, gamma);
-    return ((int)(r * 256.0) << 16) | ((int)(g * 256.0) << 8) | (int)(b * 256.0);
-}
-
-static int
-average_hsl_from_texels(
-    const int* texels,
-    int width,
-    int height)
-{
-    int red = 0;
-    int green = 0;
-    int blue = 0;
-    int colour_count = width * height;
-    int i;
-
-    assert(texels && width > 0 && height > 0);
-
-    for( i = 0; i < colour_count; i++ )
-    {
-        red += (texels[i] >> 16) & 0xff;
-        green += (texels[i] >> 8) & 0xff;
-        blue += texels[i] & 0xff;
-    }
-    return palette_rgb_to_hsl16(
-        ((red / colour_count) << 16) + ((green / colour_count) << 8) + (blue / colour_count));
 }
 
 static struct ToriRS_Texture*
@@ -142,7 +103,7 @@ texture_bake(
             int alpha = 0xff;
             if( (layer->palette[pi] & 0xf8f8ff) == 0 )
                 alpha = 0;
-            adjusted_palette[pi] = (alpha << 24) | gamma_blend(layer->palette[pi], 0.8);
+            adjusted_palette[pi] = (alpha << 24) | ToriRS_TextureGammaBlend(layer->palette[pi], 0.8);
         }
 
         for( pixel_index = 0; pixel_index < layer->width * layer->height; pixel_index++ )
@@ -224,7 +185,7 @@ texture_bake(
     texture->animation_speed = animation_speed;
     texture->average_hsl = average_hsl;
     if( texture->average_hsl == 0 )
-        texture->average_hsl = average_hsl_from_texels(pixels, dest_size, dest_size);
+        texture->average_hsl = ToriRS_TextureAverageHsl(pixels, dest_size, dest_size);
 
     return texture;
 }

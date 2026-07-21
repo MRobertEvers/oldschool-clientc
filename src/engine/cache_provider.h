@@ -8,6 +8,7 @@
 
 struct CS2VM2_Script;
 struct CacheProviderVTable;
+struct ToriDraw_Scene;
 struct ToriRS_Sprite;
 struct ToriRS_Font;
 struct ToriRS_Enum;
@@ -115,6 +116,12 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_TextureLoad)(
         struct CacheProvider* provider,
         int texture_id);
+    /** Build the scene animation for a sequence id (frames + framemap/base are
+     * cache-format specific). NULL on providers without animation data. */
+    struct ToriRS_Task* (*Task_SequenceLoad)(
+        struct CacheProvider* provider,
+        struct ToriDraw_Scene* scene,
+        int seq_id);
     struct ToriRS_Task* (*Task_SpriteLoad)(
         struct CacheProvider* provider,
         int sprite_id);
@@ -546,11 +553,20 @@ CacheProvider_TextureHas(
 void
 CacheProvider_TexturesCleanup(struct CacheProvider* provider);
 
+/*
+ * Every CreateTask_* below returns NULL when the provider leaves that vtable
+ * slot unset: cache formats differ in what they can serve at all (a dat1 cache
+ * has no world map table; a dat2 cache has no name-keyed media sprites), and
+ * callers already treat NULL as "nothing to await". Degrading to "asset absent"
+ * is the only safe behaviour — calling through the slot would jump to NULL.
+ */
 static inline struct ToriRS_Task*
 CreateTask_ModelLoad(
     struct CacheProvider* provider,
     int model_id)
 {
+    if( !provider->vtable->Task_ModelLoad )
+        return NULL;
     return provider->vtable->Task_ModelLoad(provider, model_id);
 }
 
@@ -559,6 +575,8 @@ CreateTask_ComponentPackLoad(
     struct CacheProvider* provider,
     int iface_id)
 {
+    if( !provider->vtable->Task_ComponentPackLoad )
+        return NULL;
     return provider->vtable->Task_ComponentPackLoad(provider, iface_id);
 }
 
@@ -567,6 +585,8 @@ CreateTask_ClientScriptLoad(
     struct CacheProvider* provider,
     int script_id)
 {
+    if( !provider->vtable->Task_ClientScriptLoad )
+        return NULL;
     return provider->vtable->Task_ClientScriptLoad(provider, script_id);
 }
 
@@ -575,6 +595,8 @@ CreateTask_ObjLoad(
     struct CacheProvider* provider,
     int obj_id)
 {
+    if( !provider->vtable->Task_ObjLoad )
+        return NULL;
     return provider->vtable->Task_ObjLoad(provider, obj_id);
 }
 
@@ -583,6 +605,8 @@ CreateTask_NpcLoad(
     struct CacheProvider* provider,
     int npc_id)
 {
+    if( !provider->vtable->Task_NpcLoad )
+        return NULL;
     return provider->vtable->Task_NpcLoad(provider, npc_id);
 }
 
@@ -591,6 +615,8 @@ CreateTask_IdkLoad(
     struct CacheProvider* provider,
     int idk_id)
 {
+    if( !provider->vtable->Task_IdkLoad )
+        return NULL;
     return provider->vtable->Task_IdkLoad(provider, idk_id);
 }
 
@@ -600,6 +626,8 @@ CreateTask_MapTerrainLoad(
     int map_x,
     int map_z)
 {
+    if( !provider->vtable->Task_MapTerrainLoad )
+        return NULL;
     return provider->vtable->Task_MapTerrainLoad(provider, map_x, map_z);
 }
 
@@ -609,6 +637,8 @@ CreateTask_MapSceneryLoad(
     int map_x,
     int map_z)
 {
+    if( !provider->vtable->Task_MapSceneryLoad )
+        return NULL;
     return provider->vtable->Task_MapSceneryLoad(provider, map_x, map_z);
 }
 
@@ -617,6 +647,8 @@ CreateTask_LocLoad(
     struct CacheProvider* provider,
     int loc_id)
 {
+    if( !provider->vtable->Task_LocLoad )
+        return NULL;
     return provider->vtable->Task_LocLoad(provider, loc_id);
 }
 
@@ -625,6 +657,8 @@ CreateTask_FlotypeLoad(
     struct CacheProvider* provider,
     int flo_id)
 {
+    if( !provider->vtable->Task_FlotypeLoad )
+        return NULL;
     return provider->vtable->Task_FlotypeLoad(provider, flo_id);
 }
 
@@ -633,6 +667,8 @@ CreateTask_UnderlayLoad(
     struct CacheProvider* provider,
     int underlay_id)
 {
+    if( !provider->vtable->Task_UnderlayLoad )
+        return NULL;
     return provider->vtable->Task_UnderlayLoad(provider, underlay_id);
 }
 
@@ -641,7 +677,23 @@ CreateTask_TextureLoad(
     struct CacheProvider* provider,
     int texture_id)
 {
+    if( !provider->vtable->Task_TextureLoad )
+        return NULL;
     return provider->vtable->Task_TextureLoad(provider, texture_id);
+}
+
+/** Decode sequence `seq_id` into scene animation `seq_id` (no-op when already
+ * registered). The frame/framemap layout is cache-format specific, so this goes
+ * through the provider rather than a dat2 entry point. */
+static inline struct ToriRS_Task*
+CreateTask_SequenceLoad(
+    struct CacheProvider* provider,
+    struct ToriDraw_Scene* scene,
+    int seq_id)
+{
+    if( !provider->vtable->Task_SequenceLoad )
+        return NULL;
+    return provider->vtable->Task_SequenceLoad(provider, scene, seq_id);
 }
 
 static inline struct ToriRS_Task*
@@ -649,6 +701,8 @@ CreateTask_SpriteLoad(
     struct CacheProvider* provider,
     int sprite_id)
 {
+    if( !provider->vtable->Task_SpriteLoad )
+        return NULL;
     return provider->vtable->Task_SpriteLoad(provider, sprite_id);
 }
 
@@ -677,6 +731,8 @@ CreateTask_FontLoad(
     struct CacheProvider* provider,
     int font_id)
 {
+    if( !provider->vtable->Task_FontLoad )
+        return NULL;
     return provider->vtable->Task_FontLoad(provider, font_id);
 }
 
@@ -696,6 +752,8 @@ CreateTask_EnumLoad(
     struct CacheProvider* provider,
     int enum_id)
 {
+    if( !provider->vtable->Task_EnumLoad )
+        return NULL;
     return provider->vtable->Task_EnumLoad(provider, enum_id);
 }
 
@@ -704,6 +762,8 @@ CreateTask_StructLoad(
     struct CacheProvider* provider,
     int struct_id)
 {
+    if( !provider->vtable->Task_StructLoad )
+        return NULL;
     return provider->vtable->Task_StructLoad(provider, struct_id);
 }
 
@@ -712,6 +772,8 @@ CreateTask_ParamLoad(
     struct CacheProvider* provider,
     int param_id)
 {
+    if( !provider->vtable->Task_ParamLoad )
+        return NULL;
     return provider->vtable->Task_ParamLoad(provider, param_id);
 }
 
@@ -720,12 +782,11 @@ CreateTask_ComponentLoad(
     struct CacheProvider* provider,
     int packed_component_id)
 {
+    if( !provider->vtable->Task_ComponentLoad )
+        return NULL;
     return provider->vtable->Task_ComponentLoad(provider, packed_component_id);
 }
 
-/* Null-checked, unlike the loaders above: a dat1 cache has no world map table
- * at all, and the world map scripts must degrade to "not loaded" there rather
- * than call through a NULL vtable slot. */
 static inline struct ToriRS_Task*
 CreateTask_WorldMapLoad(struct CacheProvider* provider)
 {

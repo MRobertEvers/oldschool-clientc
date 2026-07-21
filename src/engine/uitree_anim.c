@@ -1,6 +1,6 @@
 #include "uitree_anim.h"
 
-#include "engine/dat2/task_dat2_sequence_load.h"
+#include "engine/cache_provider.h"
 #include "toridraw_animation.h"
 #include "toridraw_model.h"
 
@@ -49,7 +49,7 @@ UITreeAnim_RequestMissing(
         if( tracker_has(tracker, seq) )
             continue;
         {
-            struct ToriRS_Task* task = CreateTask_Dat2SequenceLoad(provider, scene, seq);
+            struct ToriRS_Task* task = CreateTask_SequenceLoad(provider, scene, seq);
             if( !task )
                 continue;
             ToriRS_TaskQueue_Add(queue, task);

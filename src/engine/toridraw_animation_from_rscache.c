@@ -1,5 +1,6 @@
 #include "engine/toridraw_animation_from_rscache.h"
 
+#include "datatypes/dat1_anim_frame.h"
 #include "datatypes/dat2_frame.h"
 #include "datatypes/dat2_framemap.h"
 #include "toridraw_animation.h"
@@ -100,6 +101,108 @@ ToriDraw_AnimationFromRSCache(
     }
     for( i = 0; i < frame_count; i++ )
         anim_frame_from_rscache(&anim->frames[i], frames[i], delays ? delays[i] : 0);
+
+    return anim;
+}
+
+static struct ToriDraw_AnimBase*
+anim_base_from_dat1(struct RSCache_Dat1AnimBase const* src)
+{
+    struct ToriDraw_AnimBase* base;
+    int len = src->length;
+    int i;
+
+    base = calloc(1, sizeof(*base));
+    if( !base )
+        return NULL;
+    base->length = len;
+    base->types = len > 0 ? calloc((size_t)len, sizeof(uint8_t)) : NULL;
+    base->bone_groups = len > 0 ? calloc((size_t)len, sizeof(uint8_t*)) : NULL;
+    base->bone_group_lengths = len > 0 ? calloc((size_t)len, sizeof(uint16_t)) : NULL;
+
+    for( i = 0; i < len; i++ )
+    {
+        /* dat1 calls these "labels"; they are the same per-transform vertex
+         * group lists dat2 stores in the framemap. */
+        int glen = src->label_counts ? src->label_counts[i] : 0;
+        int j;
+        if( base->types )
+            base->types[i] = src->types ? src->types[i] : 0;
+        if( base->bone_group_lengths )
+            base->bone_group_lengths[i] = (uint16_t)glen;
+        if( base->bone_groups )
+        {
+            base->bone_groups[i] = glen > 0 ? calloc((size_t)glen, sizeof(uint8_t)) : NULL;
+            for( j = 0; j < glen && base->bone_groups[i] && src->labels && src->labels[i]; j++ )
+                base->bone_groups[i][j] = src->labels[i][j];
+        }
+    }
+    return base;
+}
+
+static void
+anim_frame_from_dat1(
+    struct ToriDraw_AnimFrame* out,
+    struct RSCache_Dat1AnimFrame const* src,
+    int delay)
+{
+    int len = src ? src->length : 0;
+    int i;
+
+    memset(out, 0, sizeof(*out));
+    out->id = src ? src->id : 0;
+    out->length = len;
+    /* The frame's own delay is the animation's cadence; the sequence's per-frame
+     * delay only overrides it when non-zero (reference SeqType.delay). */
+    out->delay = delay > 0 ? delay : (src ? src->delay : 0);
+    if( len <= 0 )
+        return;
+
+    out->groups = calloc((size_t)len, sizeof(int16_t));
+    out->x = calloc((size_t)len, sizeof(int16_t));
+    out->y = calloc((size_t)len, sizeof(int16_t));
+    out->z = calloc((size_t)len, sizeof(int16_t));
+    for( i = 0; i < len; i++ )
+    {
+        if( out->groups )
+            out->groups[i] = src->groups ? src->groups[i] : 0;
+        if( out->x )
+            out->x[i] = src->x ? src->x[i] : 0;
+        if( out->y )
+            out->y[i] = src->y ? src->y[i] : 0;
+        if( out->z )
+            out->z[i] = src->z ? src->z[i] : 0;
+    }
+}
+
+struct ToriDraw_Animation*
+ToriDraw_AnimationFromRSCacheDat1(
+    struct RSCache_Dat1AnimBase const* base,
+    struct RSCache_Dat1AnimFrame const* const* frames,
+    int const* delays,
+    int frame_count,
+    int frame_step)
+{
+    struct ToriDraw_Animation* anim;
+    int i;
+
+    if( !base || !frames || frame_count <= 0 )
+        return NULL;
+
+    anim = calloc(1, sizeof(*anim));
+    if( !anim )
+        return NULL;
+    anim->base = anim_base_from_dat1(base);
+    anim->frame_count = frame_count;
+    anim->frame_step = frame_step;
+    anim->frames = calloc((size_t)frame_count, sizeof(struct ToriDraw_AnimFrame));
+    if( !anim->base || !anim->frames )
+    {
+        ToriDraw_AnimationFree(anim);
+        return NULL;
+    }
+    for( i = 0; i < frame_count; i++ )
+        anim_frame_from_dat1(&anim->frames[i], frames[i], delays ? delays[i] : 0);
 
     return anim;
 }

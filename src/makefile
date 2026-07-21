@@ -71,13 +71,16 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/torirs_enum_from_rscache.c engine/torirs_struct_from_rscache.c \
 	engine/torirs_paramtype_from_rscache.c \
 	engine/torirs_worldmap_from_rscache.c \
-	engine/uitree_from_component.c \
+	engine/uitree_from_component.c engine/texture_palette_bake.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
 	engine/dat1/task_dat1_component_pack_load.c engine/dat1/task_dat1_clientscript_load.c \
 	engine/dat1/task_dat1_obj_load.c engine/dat1/task_dat1_npc_load.c \
 	engine/dat1/task_dat1_idk_load.c \
 	engine/dat1/task_dat1_component_load.c \
 	engine/dat1/task_dat1_sprite_load.c engine/dat1/task_dat1_font_load.c \
+	engine/dat1/task_dat1_map_load.c engine/dat1/task_dat1_loc_load.c \
+	engine/dat1/task_dat1_flotype_load.c engine/dat1/task_dat1_texture_load.c \
+	engine/dat1/task_dat1_sequence_load.c \
 	engine/dat2/dat2_buildcache.c engine/dat2/task_dat2_model_load.c \
 	engine/dat2/task_dat2_component_pack_load.c engine/dat2/task_dat2_clientscript_load.c \
 	engine/dat2/task_dat2_obj_load.c engine/dat2/task_dat2_npc_load.c \

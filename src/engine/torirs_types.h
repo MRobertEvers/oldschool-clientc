@@ -228,6 +228,12 @@ struct ToriRS_Npctype
     int size;
     int* models;
     int models_count;
+    int* recolors_from;
+    int* recolors_to;
+    int recolor_count;
+    int* retextures_from;
+    int* retextures_to;
+    int retexture_count;
 };
 
 struct ToriRS_Idk

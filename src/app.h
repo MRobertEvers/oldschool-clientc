@@ -5,6 +5,7 @@
 #include "engine/cache_provider.h"
 #include "engine/uitree_anim.h"
 #include "engine/uitree_builder/task_interface_open.h"
+#include "engine/uitree_builder/uitree_builder.h"
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_cs1_host.h"
 #include "game/rs_cs2_host.h"
@@ -28,6 +29,9 @@
 struct World;
 struct WorldBuilder;
 struct PaintersBuffer;
+struct RSCache_Dat1Disk;
+struct Dat1BuildCache;
+struct Dat2BuildCache;
 
 /*
  * Application shell: owns every subsystem and the update loop body, with no
@@ -47,24 +51,45 @@ enum
     APP_COM_ID_HOVERTEXT = (0x7FFE << 16) | 2,
 };
 
+/* Which on-disk cache format cache_dir holds. dat2 is the js5-era cache
+ * (main_file_cache.dat2 + reference tables); dat1 is the 317/254-era one
+ * (main_file_cache.dat + jagfile archives). They differ in every decoder, so
+ * the whole asset pipeline is selected from this. */
+enum AppCacheKind
+{
+    APP_CACHE_DAT2 = 0,
+    APP_CACHE_DAT1 = 1,
+};
+
 struct AppConfig
 {
     char const* cache_dir;
     char const* config_dir;
     char const* script_dir;
     int interface_id;
+    enum AppCacheKind cache_kind;
+    /** RevConfig layout INI. When set, the tree is built from it instead of
+     * opening interface_id out of the cache (the only path a dat1 cache has:
+     * its interfaces have no gameframe root). NULL/"" = open interface_id. */
+    char const* revconfig_ui_ini;
+    /** Companion RevConfig sprite/font INI. NULL/"" = none. */
+    char const* revconfig_cache_ini;
 };
 
 struct App
 {
     struct AppConfig cfg;
 
-    /* Phase 1: task runtime + disk (created first, freed last). */
+    /* Phase 1: task runtime + disk (created first, freed last). Exactly one of
+     * the two disks is live, per cfg.cache_kind. */
     struct TaskRunner runner; /* owns queue + io + px */
-    struct RSCache_Dat2Disk* disk;
+    struct RSCache_Dat2Disk* dat2_disk;
+    struct RSCache_Dat1Disk* dat1_disk;
 
-    /* Phase 2: asset pipeline. */
-    struct Dat2BuildCache* bc;
+    /* Phase 2: asset pipeline. The build cache matching the live disk backs
+     * `provider`; everything downstream sees only the provider. */
+    struct Dat2BuildCache* dat2_bc;
+    struct Dat1BuildCache* dat1_bc;
     struct CacheProvider* provider;
 
     /* Phase 3: scene + bridge. */
@@ -108,6 +133,12 @@ struct App
     int proj_src_tile_x; /* -1 = unarmed */
     int proj_src_tile_z;
     int proj_src_tile_level;
+
+    /* RevConfig tree builder: alive for the process, not just the build task —
+     * it owns the sprite/font name registries bake resolved through. Unused
+     * (builder_active == 0) when the tree came from a cache interface open. */
+    struct UITreeBuilder builder;
+    int builder_active;
 
     /* Phase 4: game state. */
     struct UITree* tree;

@@ -14,21 +14,38 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Emitted scissor -> raster clip rect, intersected with the pixel buffer.
+ *
+ * The clip an emitter produces is whatever the layout says (a RevConfig node
+ * box, an IF3 parent's box); nothing guarantees it lies inside the canvas —
+ * chrome anchored to a screen edge routinely extends past it. Every draw kind
+ * funnels through here, so this is the one place that can promise a command
+ * cannot write outside the buffer.
+ */
 static struct ToriDraw_ViewPort
 viewport_from_scissor(
+    struct ToriRS_Soft3D const* soft,
     int scissor_x,
     int scissor_y,
     int scissor_w,
-    int scissor_h,
-    int stride)
+    int scissor_h)
 {
     struct ToriDraw_ViewPort vp;
+    int right = scissor_x + scissor_w;
+    int bottom = scissor_y + scissor_h;
+
     memset(&vp, 0, sizeof(vp));
-    vp.stride = stride;
-    vp.clip_left = scissor_x;
-    vp.clip_top = scissor_y;
-    vp.clip_right = scissor_x + scissor_w;
-    vp.clip_bottom = scissor_y + scissor_h;
+    vp.stride = soft->stride;
+    vp.clip_left = scissor_x < 0 ? 0 : scissor_x;
+    vp.clip_top = scissor_y < 0 ? 0 : scissor_y;
+    vp.clip_right = right > soft->width ? soft->width : right;
+    vp.clip_bottom = bottom > soft->height ? soft->height : bottom;
+    /* An entirely off-canvas box collapses to empty rather than inverting. */
+    if( vp.clip_right < vp.clip_left )
+        vp.clip_right = vp.clip_left;
+    if( vp.clip_bottom < vp.clip_top )
+        vp.clip_bottom = vp.clip_top;
     return vp;
 }
 
@@ -133,7 +150,7 @@ soft3d_draw_sprite(
         return;
 
     vp = viewport_from_scissor(
-        cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h, soft->stride);
+        soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
 
     /* Chrome rotated by camera yaw (compass, minimap, scrollbar arrows): inverse-map
      * the destination box through the anchor pair instead of growing a pixel buffer.
@@ -322,7 +339,7 @@ soft3d_draw_font(
         return;
 
     vp = viewport_from_scissor(
-        cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h, soft->stride);
+        soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
     (void)ToriDraw2D_DrawStringBox(
         font,
         &vp,
@@ -353,7 +370,7 @@ soft3d_draw_fill_rect(
     assert(soft);
     assert(cmd);
     vp = viewport_from_scissor(
-        cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h, soft->stride);
+        soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
     x0 = cmd->x;
     y0 = cmd->y;
     x1 = cmd->x + cmd->w;
@@ -377,7 +394,7 @@ soft3d_draw_clear_rect(
 
     assert(soft);
     assert(cmd);
-    vp = viewport_from_scissor(0, 0, soft->width, soft->height, soft->stride);
+    vp = viewport_from_scissor(soft, 0, 0, soft->width, soft->height);
     x0 = cmd->x;
     y0 = cmd->y;
     x1 = cmd->x + cmd->w;
@@ -400,7 +417,7 @@ soft3d_draw_line(
     assert(soft);
     assert(cmd);
     vp = viewport_from_scissor(
-        cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h, soft->stride);
+        soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
     thickness = cmd->line_width > 0 ? cmd->line_width : 1;
 
     if( cmd->line_direction )

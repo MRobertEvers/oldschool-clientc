@@ -1,7 +1,6 @@
 #include "task_world_load.h"
 
 #include "engine/cache_provider.h"
-#include "engine/dat2/task_dat2_sequence_load.h"
 #include "engine/torirs_types.h"
 #include "engine/world_builder/world_builder.h"
 #include "world/world.h"
@@ -303,7 +302,7 @@ Task_WorldLoad_Run(
 
     /* 4d. Sequences for animated locs — registered in the scene animation
      * registry so scenery_load_animation can bind them during the rebuild.
-     * CreateTask_Dat2SequenceLoad no-ops (NULL) when already registered. */
+     * CreateTask_SequenceLoad no-ops (NULL) when already registered. */
     for( self->i = 0; self->i < self->locs.count; self->i++ )
     {
         struct ToriRS_Location* loc = CacheProvider_LocationGet(p, self->locs.items[self->i]);
@@ -312,7 +311,7 @@ Task_WorldLoad_Run(
     }
     for( self->i = 0; self->i < self->seqs.count; self->i++ )
         TASK_AWAITSELF_IF(
-            CreateTask_Dat2SequenceLoad(p, self->builder->scene, self->seqs.items[self->i]));
+            CreateTask_SequenceLoad(p, self->builder->scene, self->seqs.items[self->i]));
 
     fprintf(
         stderr,
