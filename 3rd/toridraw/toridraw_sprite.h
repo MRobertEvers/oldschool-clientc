@@ -143,6 +143,25 @@ ToriDraw2D_BlitSpriteRotatedEx(
     int rotation_r2pi2048,
     int* pixel_buffer);
 
+/** BlitSpriteRotatedEx plus an axis-aligned mask sampled over the dest box
+ *  (the mask never rotates with the content). Inverted polarity per the
+ *  compass reference: content shows only where the mask is transparent. */
+void
+ToriDraw2D_BlitSpriteRotatedMaskedEx(
+    struct ToriDraw_Sprite* sprite,
+    struct ToriDraw_Sprite* mask_sprite,
+    struct ToriDraw_ViewPort* view_port,
+    int dst_x,
+    int dst_y,
+    int dst_w,
+    int dst_h,
+    int dst_anchor_x,
+    int dst_anchor_y,
+    int src_anchor_x,
+    int src_anchor_y,
+    int rotation_r2pi2048,
+    int* pixel_buffer);
+
 void
 ToriDraw2D_BlitSpriteMasked(
     struct ToriDraw_Sprite* sprite,
