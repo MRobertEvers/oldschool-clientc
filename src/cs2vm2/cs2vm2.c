@@ -491,6 +491,28 @@ CS2VM2_Op_PushVarbit(
     return CS2VM_EXECNO_OK;
 }
 
+/* KEYHELD / KEYPRESSED: pop an OSRS internal key code, host pushes 0/1. */
+static int
+CS2VM2_Op_KeyQuery(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    enum CS2VM_HostRequestKind kind)
+{
+    assert(vm);
+    assert(frame);
+
+    int key_code;
+    if( CS2VM2_PopInt(vm, &key_code) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = kind;
+    request.u.key_query.key_code = key_code;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
 int
 CS2VM2_Op_PushVarcInt(
     struct CS2VM2_Thread* vm,
@@ -2057,6 +2079,146 @@ CS2VM2_Op_CC_SetOpBase(
         return result;
 
     return CS2VM_EXECNO_OK;
+}
+
+/*
+ * CC/IF_SETOPKEY family. Stack layouts (bottom -> top), from the reference
+ * WidgetOps.ts:2864-3060:
+ *
+ *   CC_SETOPKEY   opindex, then 5 (keychar, keycode) pairs
+ *   CC_SETOPTKEY  keychar, keycode                      (op slot 10 implied)
+ *   IF_SETOPKEY   opindex, keychar, keycode, component  (component on top)
+ *   IF_SETOPTKEY  keychar, keycode, component
+ *
+ * The CC form always reserves all five pairs on the stack but stops reading at
+ * the first negative keychar; the IF form carries only one pair.
+ */
+static int
+CS2VM2_Op_SetOpKey(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand,
+    int is_if,
+    int is_typed)
+{
+    struct CS2VM_HostRequest request;
+    int raw[2 * CS2VM_OPKEY_PAIR_MAX];
+    int available_pairs = (!is_if && !is_typed) ? CS2VM_OPKEY_PAIR_MAX : 1;
+    int component_id = 0;
+    int op_index = CS2VM_OPKEY_TYPED_SLOT;
+    int pair_count = 0;
+
+    assert(vm);
+    assert(frame);
+
+    if( is_if )
+    {
+        if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+
+    /* Pop the pair block top-down so raw[] ends up in push order. */
+    for( int i = (2 * available_pairs) - 1; i >= 0; i-- )
+        if( CS2VM2_PopInt(vm, &raw[i]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+
+    if( !is_typed )
+    {
+        if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+
+    for( int i = 0; i < available_pairs; i++ )
+    {
+        if( raw[i * 2] < 0 )
+            break;
+        pair_count++;
+    }
+
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY;
+    request.u.widget_set_opkey.component_id =
+        is_if ? component_id : CS2VM2_DotOrActiveComponentId(vm, operand);
+    request.u.widget_set_opkey.op_index = op_index;
+    request.u.widget_set_opkey.pair_count = pair_count;
+    for( int i = 0; i < pair_count; i++ )
+    {
+        request.u.widget_set_opkey.key_chars[i] = raw[i * 2];
+        request.u.widget_set_opkey.key_codes[i] = raw[(i * 2) + 1];
+    }
+
+    return vm->vm->host_exec(vm, &request);
+}
+
+/*
+ * CC/IF_SETOPKEYRATE and SETOPKEYIGNOREHELD.
+ *
+ *   CC_SETOPKEYRATE          opindex, keyrate, tickrate
+ *   CC_SETOPTKEYRATE         tickrate, keyrate      (reversed in the reference;
+ *                                                    values are unused, so only
+ *                                                    the count matters)
+ *   CC_SETOPKEYIGNOREHELD    opindex
+ *   CC_SETOPTKEYIGNOREHELD   -
+ * IF variants append the component uid on top.
+ */
+static int
+CS2VM2_Op_SetOpKeyRate(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand,
+    int is_if,
+    int is_typed,
+    int is_ignore_held)
+{
+    struct CS2VM_HostRequest request;
+    int component_id = 0;
+    int op_index = CS2VM_OPKEY_TYPED_SLOT;
+    int rate = 0;
+    int tick_rate = 0;
+
+    assert(vm);
+    assert(frame);
+
+    if( is_if )
+    {
+        if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+
+    if( !is_ignore_held )
+    {
+        if( is_typed )
+        {
+            if( CS2VM2_PopInt(vm, &rate) != CS2VM_EXECNO_OK )
+                return CS2VM_EXECNO_ERROR;
+            if( CS2VM2_PopInt(vm, &tick_rate) != CS2VM_EXECNO_OK )
+                return CS2VM_EXECNO_ERROR;
+        }
+        else
+        {
+            if( CS2VM2_PopInt(vm, &tick_rate) != CS2VM_EXECNO_OK )
+                return CS2VM_EXECNO_ERROR;
+            if( CS2VM2_PopInt(vm, &rate) != CS2VM_EXECNO_OK )
+                return CS2VM_EXECNO_ERROR;
+        }
+    }
+
+    if( !is_typed )
+    {
+        if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY_RATE;
+    request.u.widget_set_opkey_rate.component_id =
+        is_if ? component_id : CS2VM2_DotOrActiveComponentId(vm, operand);
+    request.u.widget_set_opkey_rate.op_index = op_index;
+    request.u.widget_set_opkey_rate.rate = rate;
+    request.u.widget_set_opkey_rate.enabled = tick_rate != 0;
+    request.u.widget_set_opkey_rate.ignore_held = is_ignore_held ? 1 : 0;
+
+    return vm->vm->host_exec(vm, &request);
 }
 
 int
@@ -5210,6 +5372,10 @@ CS2VM2_Op_StackMetaStub(
         char* discard;
         if( CS2VM2_PopStr(vm, &discard) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
+        /* PopStr transfers ownership and every string on the stack is heap
+         * allocated, so the stub owns the only reference to a value it is
+         * about to throw away. */
+        free(discard);
     }
     for( int i = 0; i < meta.int_out; i++ )
     {
@@ -6254,6 +6420,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_SUBMITMODE);
     case CS2_OP_CC_INPUT_SETSELECTCOLOUR:
         return CS2VM2_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_SELECTCOLOUR);
+    case CS2_OP_CC_INPUT_SETACCEPTMODE:
+        return CS2VM2_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_ACCEPTMODE);
     case CS2_OP_CC_INPUT_SETWRAPMODE:
         return CS2VM2_Op_CC_InputInt(vm, frame, operand, CS2VM_WIDGET_INPUT_WRAPMODE);
     case CS2_OP_CC_INPUT_SETLINEWRAPPINGWIDTH:
@@ -6325,6 +6493,35 @@ CS2VM2_RunOp(
             vm, frame, operand, CS2VM_MODEL_KIND_PLAYER_CHATHEAD, true);
     case CS2_OP_IF_RESUME_PAUSEBUTTON:
         return CS2VM2_Op_IF_WidgetInt(vm, frame, operand, CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON);
+    /* Op-key bindings. Args are (is_if, is_typed[, is_ignore_held]). */
+    case CS2_OP_CC_SETOPKEY:
+        return CS2VM2_Op_SetOpKey(vm, frame, operand, 0, 0);
+    case CS2_OP_CC_SETOPTKEY:
+        return CS2VM2_Op_SetOpKey(vm, frame, operand, 0, 1);
+    case CS2_OP_IF_SETOPKEY:
+        return CS2VM2_Op_SetOpKey(vm, frame, operand, 1, 0);
+    case CS2_OP_IF_SETOPTKEY:
+        return CS2VM2_Op_SetOpKey(vm, frame, operand, 1, 1);
+    case CS2_OP_CC_SETOPKEYRATE:
+        return CS2VM2_Op_SetOpKeyRate(vm, frame, operand, 0, 0, 0);
+    case CS2_OP_CC_SETOPTKEYRATE:
+        return CS2VM2_Op_SetOpKeyRate(vm, frame, operand, 0, 1, 0);
+    case CS2_OP_IF_SETOPKEYRATE:
+        return CS2VM2_Op_SetOpKeyRate(vm, frame, operand, 1, 0, 0);
+    case CS2_OP_IF_SETOPTKEYRATE:
+        return CS2VM2_Op_SetOpKeyRate(vm, frame, operand, 1, 1, 0);
+    case CS2_OP_CC_SETOPKEYIGNOREHELD:
+        return CS2VM2_Op_SetOpKeyRate(vm, frame, operand, 0, 0, 1);
+    case CS2_OP_CC_SETOPTKEYIGNOREHELD:
+        return CS2VM2_Op_SetOpKeyRate(vm, frame, operand, 0, 1, 1);
+    case CS2_OP_IF_SETOPKEYIGNOREHELD:
+        return CS2VM2_Op_SetOpKeyRate(vm, frame, operand, 1, 0, 1);
+    case CS2_OP_IF_SETOPTKEYIGNOREHELD:
+        return CS2VM2_Op_SetOpKeyRate(vm, frame, operand, 1, 1, 1);
+    case CS2_OP_KEYHELD:
+        return CS2VM2_Op_KeyQuery(vm, frame, CS2VM_HOST_REQUEST_KEYHELD);
+    case CS2_OP_KEYPRESSED:
+        return CS2VM2_Op_KeyQuery(vm, frame, CS2VM_HOST_REQUEST_KEYPRESSED);
     case CS2_OP_DEFINE_ARRAY:
         return CS2VM2_Op_DefineArray(vm, frame, operand);
     case CS2_OP_PUSH_ARRAY_INT:
@@ -6333,8 +6530,10 @@ CS2VM2_RunOp(
         return CS2VM2_Op_PopArrayInt(vm, frame, operand);
     case CS2_OP_IF_FIND:
         return CS2VM2_Op_IF_Find(vm, frame, operand);
-    case CS2_OP_CC_SETTARGETVERB:
-        return CS2VM_EXECNO_OK;
+    /* CC_SETTARGETVERB has no model yet, but it takes a string argument. An
+     * explicit no-op case would leave that string on the stack and desync
+     * every later opcode, so let it fall through to the stack-meta stub, which
+     * pops (and frees) per the doc comment. IF_SETTARGETVERB already does. */
     case CS2_OP_CC_SETONVARTRANSMIT:
         return CS2VM2_Op_CC_SetOnVarTransmit(vm, frame, operand);
     case CS2_OP_CC_SETONTIMER:
@@ -6342,7 +6541,27 @@ CS2VM2_RunOp(
     case CS2_OP_CC_SETONINVTRANSMIT:
         return CS2VM2_Op_CC_SetOnInvTransmit(vm, frame, operand);
     case CS2_OP_CC_SETONSTATTRANSMIT:
-        /* No stat model in the editor yet; parse + discard keeps the stack sane. */
+    /* No model for these events yet. They MUST still be parsed: the handler
+     * signature string drives how many operands to pop, so the static stack
+     * table cannot describe them and the StackMetaStub fallback would pop
+     * nothing and desync the operand stack for every later opcode. */
+    case CS2_OP_CC_SETONRELEASE:
+    case CS2_OP_CC_SETONTARGETLEAVE:
+    case CS2_OP_CC_SETONTARGETENTER:
+    case CS2_OP_CC_SETONCLICKREPEAT:
+    case CS2_OP_CC_SETONCHATTRANSMIT:
+    case CS2_OP_CC_SETONCLANTRANSMIT:
+    case CS2_OP_CC_SETONMISCTRANSMIT:
+    case CS2_OP_CC_SETONDIALOGABORT:
+    case CS2_OP_CC_SETONSTOCKTRANSMIT:
+    case CS2_OP_CC_SETONCLANSETTINGSTRANSMIT:
+    case CS2_OP_CC_SETONCLANCHANNELTRANSMIT:
+    /* Input-field listeners: no text-entry model yet, but signature-driven
+     * operand counts mean they must be parsed, not stubbed. */
+    case CS2_OP_CC_INPUT_SETONSUBMIT:
+    case CS2_OP_CC_INPUT_SETONABORT:
+    case CS2_OP_CC_INPUT_SETONFOCUSCHANGED:
+    case CS2_OP_CC_INPUT_SETONUPDATE:
         return CS2VM2_Op_CC_SetOnEventDiscard(vm, frame, operand);
     case CS2_OP_CC_GETTEXT:
         return CS2VM2_Op_CC_GetText(vm, frame, operand);
@@ -6359,6 +6578,15 @@ CS2VM2_RunOp(
     case CS2_OP_IF_SETONDIALOGABORT:
     case CS2_OP_IF_SETONCLANSETTINGSTRANSMIT:
     case CS2_OP_IF_SETONCLANCHANNELTRANSMIT:
+    /* Same reasoning as the CC_SETON* discard group above: signature-driven
+     * operand counts, so they must be parsed rather than left to the stub. */
+    case CS2_OP_IF_SETONCLICKREPEAT:
+    case CS2_OP_IF_SETONCHATTRANSMIT:
+    case CS2_OP_IF_SETONSTOCKTRANSMIT:
+    case CS2_OP_IF_INPUT_SETONSUBMIT:
+    case CS2_OP_IF_INPUT_SETONABORT:
+    case CS2_OP_IF_INPUT_SETONFOCUSCHANGED:
+    case CS2_OP_IF_INPUT_SETONUPDATE:
         return CS2VM2_Op_IF_SetOnEventDiscard(vm, frame, operand);
     case CS2_OP_IF_SETONDRAG:
         return CS2VM2_Op_IF_SetOnDrag(vm, frame, operand);

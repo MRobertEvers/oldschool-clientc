@@ -544,7 +544,8 @@ translate_ui_cmd(
         out->u.font.y_align = desc->text_y_align;
         out->u.font.line_height = desc->text_line_height;
         out->u.font.shadowed = desc->text_shadowed;
-        out->u.font.text = desc->text;
+        /* CS1 %N expansion supersedes the raw cache text when present. */
+        out->u.font.text = desc->text_formatted[0] ? desc->text_formatted : desc->text;
         out->u.font.scissor_x = desc->clip.x;
         out->u.font.scissor_y = desc->clip.y;
         out->u.font.scissor_w = desc->clip.w;
@@ -615,9 +616,29 @@ translate_ui_cmd(
     case UITREE_EMIT_SCROLLBAR_H:
         return translate_scrollbar_h_step(desc, frame->scrollbar_step, out);
 
-    case UITREE_EMIT_MINIMAP:
     case UITREE_EMIT_COMPASS:
-        /* Stubs for this pass — Soft3D no-ops unknown 2D placeholders. */
+        /* Native-size blit rotated by camera yaw (desc->rotation), like the
+         * scrollbar arrows: chrome, never IF3-stretched. */
+        if( desc->scene_id <= 0 )
+            return false;
+        out->kind = TORIRSRC_SPRITE;
+        out->u.sprite.scene_id = desc->scene_id;
+        out->u.sprite.atlas_index = desc->atlas_index;
+        out->u.sprite.x = desc->x;
+        out->u.sprite.y = desc->y;
+        out->u.sprite.w = desc->w;
+        out->u.sprite.h = desc->h;
+        out->u.sprite.scissor_x = desc->clip.x;
+        out->u.sprite.scissor_y = desc->clip.y;
+        out->u.sprite.scissor_w = desc->clip.w;
+        out->u.sprite.scissor_h = desc->clip.h;
+        out->u.sprite.rotation = desc->rotation;
+        out->u.sprite.trans = desc->trans;
+        out->u.sprite.if3 = 0;
+        return true;
+
+    case UITREE_EMIT_MINIMAP:
+        /* Minimap terrain is rendered by the minimap module, not a 2D blit. */
         return false;
 
     case UITREE_EMIT_WORLD:

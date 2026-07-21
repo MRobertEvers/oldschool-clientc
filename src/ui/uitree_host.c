@@ -24,7 +24,11 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     {
     case UITREE_HOST_IS_ACTIVE:
     case UITREE_HOST_GET_CROSS_ACTIVE:
+    case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
+    case UITREE_HOST_GET_CROSS_POSITION:
     case UITREE_HOST_GET_MINIMENU_VISIBLE:
+    case UITREE_HOST_GET_MINIMENU_STATE:
+    case UITREE_HOST_MEASURE_TEXT:
     case UITREE_HOST_SCENE_SPRITE_HAS:
     case UITREE_HOST_SCENE_FONT_HAS:
     case UITREE_HOST_SCENE_MODEL_HAS:
@@ -39,6 +43,7 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_CAMERA_YAW:
         return 0;
     case UITREE_HOST_GET_SCROLLBAR_SCENE:
+    case UITREE_HOST_GET_STATIC_SPRITE_SCENE:
         return -1;
     }
     return 0;

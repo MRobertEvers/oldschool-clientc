@@ -765,6 +765,7 @@ UITree_SetBehavior(
     dst->active_color = src->active_color;
     dst->active_over_color = src->active_over_color;
     dst->scripts_count = src->scripts_count;
+    dst->comparator_count = src->comparator_count;
     dst->script_kind = src->script_kind;
 
     if( src->scripts_count <= 0 || !src->scripts )
@@ -790,23 +791,25 @@ UITree_SetBehavior(
         dst->scripts_lengths[i] = len;
     }
 
-    if( src->script_comparator && src->scripts_count > 0 )
+    /* Comparator arrays are sized by their own count, not scripts_count. */
+    if( src->script_comparator && src->comparator_count > 0 )
     {
-        dst->script_comparator = malloc((size_t)src->scripts_count * sizeof(int));
+        dst->script_comparator = malloc((size_t)src->comparator_count * sizeof(int));
         if( !dst->script_comparator )
             goto fail;
         memcpy(
             dst->script_comparator,
             src->script_comparator,
-            (size_t)src->scripts_count * sizeof(int));
+            (size_t)src->comparator_count * sizeof(int));
     }
 
-    if( src->script_operand && src->scripts_count > 0 )
+    if( src->script_operand && src->comparator_count > 0 )
     {
-        dst->script_operand = malloc((size_t)src->scripts_count * sizeof(int));
+        dst->script_operand = malloc((size_t)src->comparator_count * sizeof(int));
         if( !dst->script_operand )
             goto fail;
-        memcpy(dst->script_operand, src->script_operand, (size_t)src->scripts_count * sizeof(int));
+        memcpy(
+            dst->script_operand, src->script_operand, (size_t)src->comparator_count * sizeof(int));
     }
     return;
 
@@ -1249,6 +1252,10 @@ UITree_CcCopy(
     dst->position = src.position;
     dst->menu_options = src.menu_options;
     dst->runtime_hooks = src.runtime_hooks;
+    /* Plain data, but it must be listed explicitly: this function copies field
+     * by field rather than by struct assignment, so a template row that binds
+     * op keys would silently lose them on copy. */
+    dst->op_keys = src.op_keys;
 
     /* cs1 behavior scripts stay uncopied: dynamic children are driven by cs2
      * hooks, and the script arrays are owned per node. */
@@ -1822,6 +1829,106 @@ UITree_ApplyOpBase(
         tree->components[idx].menu_options.option, text ? text : "", UITREE_MENU_OPTION_LEN - 1);
     tree->components[idx].menu_options.option[UITREE_MENU_OPTION_LEN - 1] = '\0';
     UITree_MarkNodeDirty(tree, idx);
+    return true;
+}
+
+/* Op-key bindings have no visual effect, so unlike the op/text mutators these
+ * deliberately do not mark the node dirty. */
+static struct UITreeOpKeyBinding*
+uitree_opkey_slot(
+    struct UITree* tree,
+    int component_id,
+    int op_index,
+    struct UITreeComponent** out_node)
+{
+    int32_t idx;
+
+    if( op_index < 1 || op_index > UITREE_OPKEY_SLOTS )
+        return NULL;
+    idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 )
+        return NULL;
+    if( out_node )
+        *out_node = &tree->components[idx];
+    return &tree->components[idx].op_keys.slots[op_index - 1];
+}
+
+static void
+uitree_opkey_refresh_has_bindings(struct UITreeComponent* node)
+{
+    node->op_keys.has_bindings = 0;
+    for( int i = 0; i < UITREE_OPKEY_SLOTS; i++ )
+        if( node->op_keys.slots[i].bound )
+        {
+            node->op_keys.has_bindings = 1;
+            return;
+        }
+}
+
+bool
+UITree_ApplyOpKey(
+    struct UITree* tree,
+    int component_id,
+    int op_index,
+    int const* key_chars,
+    int const* key_codes,
+    int pair_count)
+{
+    struct UITreeComponent* node = NULL;
+    struct UITreeOpKeyBinding* slot = uitree_opkey_slot(tree, component_id, op_index, &node);
+
+    if( !slot )
+        return false;
+
+    if( pair_count > UITREE_OPKEY_PAIR_MAX )
+        pair_count = UITREE_OPKEY_PAIR_MAX;
+
+    /* Reference: a negative first keychar clears the slot rather than binding. */
+    if( pair_count <= 0 || !key_chars || !key_codes || key_chars[0] < 0 )
+    {
+        memset(slot, 0, sizeof(*slot));
+        uitree_opkey_refresh_has_bindings(node);
+        return true;
+    }
+
+    memset(slot, 0, sizeof(*slot));
+    slot->bound = 1;
+    slot->pair_count = (uint8_t)pair_count;
+    for( int i = 0; i < pair_count; i++ )
+    {
+        slot->key_chars[i] = key_chars[i];
+        slot->key_codes[i] = key_codes[i];
+    }
+    node->op_keys.has_bindings = 1;
+    return true;
+}
+
+bool
+UITree_ApplyOpKeyRate(
+    struct UITree* tree,
+    int component_id,
+    int op_index,
+    int rate,
+    int enabled)
+{
+    struct UITreeOpKeyBinding* slot = uitree_opkey_slot(tree, component_id, op_index, NULL);
+    if( !slot )
+        return false;
+    slot->rate = rate;
+    slot->rate_enabled = enabled ? 1 : 0;
+    return true;
+}
+
+bool
+UITree_ApplyOpKeyIgnoreHeld(
+    struct UITree* tree,
+    int component_id,
+    int op_index)
+{
+    struct UITreeOpKeyBinding* slot = uitree_opkey_slot(tree, component_id, op_index, NULL);
+    if( !slot )
+        return false;
+    slot->ignore_held = 1;
     return true;
 }
 

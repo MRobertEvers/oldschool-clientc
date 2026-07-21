@@ -4,6 +4,8 @@
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/uitree_cmd_render.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/rs_minimenu_build.h"
+#include "game/task_cs1_run.h"
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 #include "toridraw.h"
@@ -34,6 +36,35 @@ app_host_request(void* user, struct UITreeHostRequest* req)
     {
     case UITREE_HOST_GET_SCROLLBAR_SCENE:
         return UITreeSceneBridge_ScrollbarSceneId(&app->bridge);
+    case UITREE_HOST_GET_STATIC_SPRITE_SCENE:
+        return UITreeSceneBridge_StaticSpriteSceneId(
+            &app->bridge, (enum StaticSpriteSlot)req->u.static_sprite.slot);
+    case UITREE_HOST_GET_CROSS_ACTIVE:
+        return UICross_IsActive(&app->cross) ? 1 : 0;
+    case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
+        return UICross_AtlasFrame(&app->cross);
+    case UITREE_HOST_GET_CROSS_POSITION:
+        if( req->u.get_cross_position.out_x )
+            *req->u.get_cross_position.out_x = app->cross.x;
+        if( req->u.get_cross_position.out_y )
+            *req->u.get_cross_position.out_y = app->cross.y;
+        return 1;
+    case UITREE_HOST_GET_MINIMENU_VISIBLE:
+        return app->interact.minimenu.visible ? 1 : 0;
+    case UITREE_HOST_GET_MINIMENU_STATE:
+        assert(req->u.get_minimenu_state.out);
+        *req->u.get_minimenu_state.out = &app->interact.minimenu;
+        return 1;
+    case UITREE_HOST_MEASURE_TEXT:
+    {
+        struct ToriDraw_Font* font =
+            ToriDraw_SceneFontGet(app->scene, req->u.measure_text.font_id);
+        if( !font || !req->u.measure_text.text )
+            return 0;
+        return ToriDraw2D_MeasureString(font, req->u.measure_text.text);
+    }
+    /* UITREE_HOST_GET_CAMERA_YAW falls through to 0 until App owns a world
+     * camera; the compass rotation plumbing reads it through here. */
     case UITREE_HOST_GET_INV_SOURCE_SLOT:
         assert(req->u.get_inv_source_slot.out);
         if( !InvManager_GetSlot(
@@ -47,6 +78,19 @@ app_host_request(void* user, struct UITreeHostRequest* req)
         req->u.get_inv_source_slot.out->scene_id = slot.scene_id;
         req->u.get_inv_source_slot.out->atlas_index = slot.atlas_index;
         return 1;
+    /* CS1 answers come from the per-tick evaluation cached on each node, so
+     * drawing never runs the VM and never has to handle a mid-frame yield. */
+    case UITREE_HOST_IS_ACTIVE:
+        if( !req->u.is_active.component )
+            return 0;
+        return req->u.is_active.component->cs1_active ? 1 : 0;
+    case UITREE_HOST_EVAL_TEXT_PLACEHOLDER:
+        if( !req->u.eval_text_placeholder.component ||
+            req->u.eval_text_placeholder.script_idx < 0 ||
+            req->u.eval_text_placeholder.script_idx >= UITREE_CS1_VALUE_MAX )
+            return 0;
+        return req->u.eval_text_placeholder.component
+            ->cs1_values[req->u.eval_text_placeholder.script_idx];
     default:
         return 0;
     }
@@ -89,6 +133,24 @@ seed_inv_defaults(struct InvManager* invs)
         k_bank_items,
         NULL,
         (int)(sizeof(k_bank_items) / sizeof(k_bank_items[0]))));
+}
+
+/* Run one CS1 evaluation pass over the tree. Drains synchronously like
+ * app_sync_textures: the pass is short, and any pack load it needs is serviced
+ * inside the task before it retries the component. Returns nonzero when a
+ * cached result changed, so the caller redraws. */
+static int
+app_run_cs1_eval(struct App* app)
+{
+    struct ToriRS_Task* task = CreateTask_CS1Eval(&app->cs1_host);
+    if( !task )
+        return 0;
+
+    app->cs1_host.eval_dirty = false;
+    ToriRS_TaskQueue_Add(app->runner.queue, task);
+    TaskRunner_Drain(&app->runner);
+
+    return app->cs1_host.eval_dirty ? 1 : 0;
 }
 
 /* Scene models reference textures by face id, but the ToriDraw texture map
@@ -165,6 +227,9 @@ App_Init(
     seed_inv_defaults(&app->invs);
     RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps);
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
+    RS_PlayerStats_Init(&app->stats);
+    RS_CS1Host_Init(
+        &app->cs1_host, app->tree, app->provider, &app->invs, &app->varps, &app->stats);
 
     /* Phase 5: frame state. */
     UITree_EmitBufferInit(&app->emit);
@@ -192,6 +257,67 @@ App_Shutdown(struct App* app)
     RSCache_Dat2DiskFree(app->disk);
     ToriRS_TaskQueue_Free(app->runner.queue);
     ToriRS_IO_Free(app->runner.io);
+}
+
+/* Scene font id for the minimenu (reference uses bold-12; dat2 fonts-table
+ * archive 496 in this cache era, e.g. bank title font). Falls back to any
+ * text node's already-resolved scene font when b12 cannot load. */
+static int
+app_minimenu_font_scene_id(struct App* app)
+{
+    enum
+    {
+        APP_FONT_B12_CACHE_ID = 496,
+    };
+    int scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, APP_FONT_B12_CACHE_ID);
+    if( scene_id <= 0 )
+    {
+        struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, APP_FONT_B12_CACHE_ID);
+        if( task )
+        {
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            TaskRunner_Drain(&app->runner);
+            scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, APP_FONT_B12_CACHE_ID);
+        }
+    }
+    if( scene_id <= 0 )
+    {
+        for( uint32_t i = 0; i < app->tree->component_count; i++ )
+        {
+            struct UITreeComponent const* node = &app->tree->components[i];
+            if( !node->freed && node->type == UIELEM_RS_TEXT && node->u.rs_text.font_id > 0 )
+            {
+                scene_id = node->u.rs_text.font_id;
+                break;
+            }
+        }
+    }
+    return scene_id;
+}
+
+/* Overlay chrome the interface pack does not provide: the click cross and the
+ * minimenu popup live as late root siblings (drawn/hit-tested above the
+ * interface) and stay invisible until the host reports them active. */
+static void
+app_push_builtin_overlay_nodes(struct App* app)
+{
+    struct UITreeNodeSpec spec;
+    int font_id = app_minimenu_font_scene_id(app);
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_BUILTIN_CROSS;
+    spec.component_id = APP_COM_ID_CROSS;
+    spec.width = 16;
+    spec.height = 16;
+    assert(UITree_Push(app->tree, -1, &spec) >= 0);
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_BUILTIN_MINIMENU;
+    spec.component_id = APP_COM_ID_MINIMENU;
+    spec.u.minimenu.font_id = font_id;
+    assert(UITree_Push(app->tree, -1, &spec) >= 0);
+
+    app->interact.minimenu.font_id = font_id;
 }
 
 void
@@ -249,6 +375,8 @@ App_OpenRootInterface(
         }
     }
 
+    app_push_builtin_overlay_nodes(app);
+
     /* Load model-widget sequences and apply the first frame before the
      * initial render; App_RunOnce advances frames each tick. */
     UITreeAnim_RequestMissing(
@@ -301,6 +429,13 @@ app_logic_tick(struct App* app)
      * Early-outs unless a widget was unhidden this tick; per-hook serial gating
      * means already-fired hooks run nothing. */
     RS_CS2_PumpTransmits(&app->host, &app->runner);
+
+    /* CS1 (IF1) value scripts drive active state and %N text. The reference
+     * re-evaluates them at draw time; here a task does it once per tick so the
+     * VM's asset yields can be serviced asynchronously, and the emit pass just
+     * reads the cached results. */
+    if( app_run_cs1_eval(app) )
+        redraw = 1;
 
     /* TORIRS_STATS=1: periodic growth diagnostics — component_count must stay
      * flat under the CC_DELETEALL/CC_CREATE rebuild pattern (reclamation). */
@@ -356,7 +491,133 @@ app_logic_tick(struct App* app)
     /* CS2 hooks this tick may have ensured new textured models. */
     app_sync_textures(app);
 
+    if( UICross_IsActive(&app->cross) )
+    {
+        UICross_Tick(&app->cross, APP_LOGIC_TICK_MS);
+        redraw = 1;
+    }
+
     return redraw;
+}
+
+static int
+app_measure_text_cb(void* user, int font_id, char const* text)
+{
+    struct App* app = (struct App*)user;
+    struct ToriDraw_Font* font = ToriDraw_SceneFontGet(app->scene, font_id);
+    if( !font || !text )
+        return 0;
+    return ToriDraw2D_MeasureString(font, text);
+}
+
+/* Build + show the minimenu for a right click (reference openMenu: width from
+ * the widest row, centered on the click, clamped to the canvas). The tree
+ * node stays unpositioned — emit and the interact gesture read the model. */
+static void
+app_minimenu_open(struct App* app, int click_x, int click_y)
+{
+    struct RS_MinimenuBuildCtx mctx = {
+        .tree = app->tree,
+        .ui_host = &app->ui_host,
+        .provider = app->provider,
+        .runner = &app->runner,
+        .invs = &app->invs,
+        .chat = NULL,
+    };
+    struct UIMinimenu* menu = &app->interact.minimenu;
+    struct UIMinimenuLayout layout;
+    int content_w = 0;
+    int line_height = 0;
+
+    RS_Minimenu_Build(&mctx, click_x, click_y, menu);
+
+    {
+        struct ToriDraw_Font* font = ToriDraw_SceneFontGet(app->scene, menu->font_id);
+        if( font )
+            line_height = font->line_height;
+    }
+    if( UIMinimenu_PrepareShow(
+            menu, line_height, app_measure_text_cb, app, &layout, &content_w) )
+    {
+        UIMinimenu_ShowAt(
+            menu,
+            layout,
+            content_w,
+            click_x,
+            click_y,
+            UITREE_LAYOUT_ROOT_W,
+            UITREE_LAYOUT_ROOT_H);
+        app->need_redraw = 1;
+    }
+}
+
+/* Execute one selected (or defaulted) menu row: cross feedback + hook
+ * dispatch with the row's op index (v1 ui_click_use_minimenu_option; cross
+ * rule per scope decision — WALK yellow, other actions red, Cancel off;
+ * OSRS-accurate world-only crosses land with world picking). Returns nonzero
+ * when a CS2 hook was dispatched. */
+static int
+app_minimenu_use_option(struct App* app, int option_index, int click_x, int click_y)
+{
+    struct UIMinimenu* menu = &app->interact.minimenu;
+    struct UIMinimenuOption opt;
+
+    if( option_index < 0 || option_index >= menu->option_count )
+        return 0;
+    opt = menu->options[option_index];
+    UIMinimenu_Hide(menu);
+    app->need_redraw = 1;
+
+    if( opt.action == REVCONFIG_MINIMENU_CANCEL )
+    {
+        UICross_Reset(&app->cross);
+        return 0;
+    }
+
+    UICross_Show(
+        &app->cross,
+        opt.action == REVCONFIG_MINIMENU_WALK ? UI_CROSS_WALK : UI_CROSS_INTERACT,
+        click_x,
+        click_y);
+
+    switch( opt.pick.kind )
+    {
+    case UI_MINIMENU_PICK_UI:
+    case UI_MINIMENU_PICK_INV_SLOT:
+    {
+        int32_t idx = UITree_FindByComponentId(app->tree, opt.pick.id);
+        struct UITreeRuntimeScriptHook const* hook;
+        struct UITreeRuntimeScriptHook hook_copy;
+        int hook_com_id = -1;
+
+        if( idx < 0 )
+            return 0;
+        hook = UITree_ResolveClickHook(app->tree, idx, &hook_com_id);
+        if( !hook || hook->script_id <= 0 )
+        {
+            /* IF1-style static buttons have no CS2 hook; the button engine
+             * (APPLY_BUTTON_CLICK) is not implemented in src/main yet. */
+            fprintf(
+                stderr,
+                "minimenu: no hook for com=0x%x action=%d op=%d\n",
+                opt.pick.id,
+                opt.action,
+                opt.action_index);
+            return 0;
+        }
+        hook_copy = *hook;
+        RS_CS2_SetEventOp(&app->host, opt.action_index >= 0 ? opt.action_index + 1 : 1, 0);
+        RS_CS2_SetEventMouse(&app->host, click_x, click_y);
+        RS_CS2_DispatchHook(&app->host, &app->runner, hook_com_id, &hook_copy);
+        RS_CS2_SetEventOp(&app->host, 1, 0);
+        RS_CS2_PumpTransmits(&app->host, &app->runner);
+        return 1;
+    }
+    default:
+        /* World pick kinds are the seam for the world hit-test task. */
+        fprintf(stderr, "minimenu: unhandled pick kind %d\n", (int)opt.pick.kind);
+        return 0;
+    }
 }
 
 int
@@ -394,8 +655,74 @@ App_RunOnce(
 
     /* Per-frame interaction: returns intents; the app applies event context
      * and dispatches each hook through the game layer. */
+    /* Publish this frame's key state before any hook runs, so KEYHELD and
+     * KEYPRESSED answer about the frame the script is reacting to. */
+    RS_CS2_SyncKeyState(&app->host, input);
+
     UITree_InteractFrame(
         &app->interact, app->tree, &app->ui_host, input, now_ms, &out);
+
+    /* Minimenu gesture results (see interact_minimenu): option selected on
+     * mousedown -> dispatch; right press with no menu open -> build + show. */
+    if( out.minimenu_select >= 0 )
+    {
+        if( app_minimenu_use_option(
+                app, out.minimenu_select, input->curr.mouse_x, input->curr.mouse_y) )
+            ran_cs2 = 1;
+    }
+    if( out.right_click )
+        app_minimenu_open(app, out.right_click_x, out.right_click_y);
+
+    /* Left click executes the DEFAULT menu entry (reference
+     * chooseDefaultMenuEntry): build the same menu the right click would show
+     * and run its top normal-priority row, suppressing the legacy click
+     * intent. Components with no menu rows keep the legacy hook path — for
+     * them the scratch menu is Cancel-only and default_idx is -1. */
+    if( out.clicked_com_id >= 0 && !out.minimenu_closed && out.minimenu_select < 0 )
+    {
+        struct RS_MinimenuBuildCtx mctx = {
+            .tree = app->tree,
+            .ui_host = &app->ui_host,
+            .provider = app->provider,
+            .runner = &app->runner,
+            .invs = &app->invs,
+            .chat = NULL,
+        };
+        struct UIMinimenu scratch;
+        int default_idx;
+
+        UIMinimenu_Reset(&scratch);
+        scratch.font_id = app->interact.minimenu.font_id;
+        RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
+        default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
+        if( default_idx >= 0 )
+        {
+            /* Steal the row set: use_option consumes interact.minimenu. */
+            struct UIMinimenu saved = app->interact.minimenu;
+            app->interact.minimenu = scratch;
+            if( app_minimenu_use_option(app, default_idx, out.clicked_x, out.clicked_y) )
+                ran_cs2 = 1;
+            app->interact.minimenu = saved;
+
+            /* Drop the legacy click intent (the only intent kind carrying
+             * neither event-mouse nor drag context) so the hook does not run
+             * twice; hover/wheel/hold intents pass through untouched. */
+            {
+                int kept = 0;
+                for( int i = 0; i < out.intent_count; i++ )
+                {
+                    struct UIIntent const* intent = &out.intents[i];
+                    if( !intent->has_event_mouse && !intent->has_drag_target &&
+                        (intent->component_id == out.clicked_com_id ||
+                         intent->component_id < 0) )
+                        continue;
+                    out.intents[kept++] = out.intents[i];
+                }
+                out.intent_count = kept;
+            }
+        }
+    }
+
     app->hover_com_id = out.hover_com_id;
     if( out.clicked_com_id >= 0 )
         app->clicked_com_id = out.clicked_com_id;
@@ -414,6 +741,11 @@ App_RunOnce(
         for( int i = 0; i < out.intent_count; i++ )
         {
             struct UIIntent const* intent = &out.intents[i];
+            /* Set the op index explicitly per intent rather than relying on the
+             * host default, so one intent's op cannot leak into the next.
+             * Unset (0) means the primary left-click op, which is what every
+             * mouse-driven dispatch reports; op-key matches carry their own. */
+            RS_CS2_SetEventOp(&app->host, intent->op_index > 0 ? intent->op_index : 1, 0);
             if( intent->has_event_mouse )
                 RS_CS2_SetEventMouse(&app->host, intent->event_mouse_x, intent->event_mouse_y);
             if( intent->has_drag_target )
@@ -427,10 +759,52 @@ App_RunOnce(
         }
     }
 
+    /* Keyboard broadcast: every event this frame times every visible onKey
+     * handler (reference OsrsClient key dispatch). Unlike the intent loop above
+     * this re-resolves each component id immediately before dispatching it
+     * rather than snapshotting hooks up front -- a broadcast runs many scripts
+     * in one frame, and an earlier one can CC_CREATE (realloc components[]) or
+     * CC_DELETEALL (reclaim the slot), so a target collected during the scan may
+     * be gone by its turn. Same reasoning as the on_timer loop. */
+    for( int e = 0; e < out.key_event_count; e++ )
+    {
+        for( int t = 0; t < out.key_target_count; t++ )
+        {
+            struct UIKeyTarget const* target = &out.key_targets[t];
+            int32_t idx = UITree_FindByComponentId(app->tree, target->component_id);
+            if( idx < 0 )
+                continue;
+            /* Re-check the hook too: the id may have been reclaimed and handed
+             * to a different node since collection. */
+            if( app->tree->components[idx].runtime_hooks.on_key.script_id <= 0 )
+                continue;
+            RS_CS2_SetEventMouse(
+                &app->host,
+                out.key_mouse_x - target->abs_x,
+                out.key_mouse_y - target->abs_y);
+            RS_CS2_SetEventKey(
+                &app->host, out.key_events[e].key_typed, out.key_events[e].key_pressed);
+            if( getenv("TORIRS_KEY_DEBUG") )
+                fprintf(
+                    stderr,
+                    "key_dispatch: com=0x%08x script=%d typed=%d pressed=%d\n",
+                    target->component_id,
+                    app->tree->components[idx].runtime_hooks.on_key.script_id,
+                    out.key_events[e].key_typed,
+                    out.key_events[e].key_pressed);
+            RS_CS2_DispatchHook(
+                &app->host,
+                &app->runner,
+                target->component_id,
+                &app->tree->components[idx].runtime_hooks.on_key);
+            ran_cs2 = 1;
+        }
+    }
+
     /* Click handlers can unhide tabs; pump immediately so the freshly visible
      * widgets populate this frame instead of one tick later. Early-outs when
      * nothing was unhidden. */
-    if( out.intent_count > 0 )
+    if( out.intent_count > 0 || out.key_target_count > 0 )
         RS_CS2_PumpTransmits(&app->host, &app->runner);
 
     if( ran_cs2 )

@@ -82,6 +82,7 @@ read_component_body(
     {
         if( store )
         {
+            component->comparator_count = comparatorCount;
             component->scriptComparator = calloc(comparatorCount, sizeof(int));
             component->scriptOperand = calloc(comparatorCount, sizeof(int));
         }

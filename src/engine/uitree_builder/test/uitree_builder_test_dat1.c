@@ -7,6 +7,7 @@
  */
 #include "engine/cache_provider.h"
 #include "engine/dat1/dat1_buildcache.h"
+#include "engine/static_sprites.h"
 #include "engine/torirs_types.h"
 #include "engine/uitree_builder/uitree_builder.h"
 #include "engine/uitree_cmd_render.h"
@@ -42,17 +43,21 @@ static int g_failures = 0;
         }                                                      \
     } while( 0 )
 
-/* Minimal host: inventory tab selected, everything else defaulted. */
+/* Minimal host: inventory tab selected, static sprites off the bridge. */
 static int
 test_host_request(
     void* user,
     struct UITreeHostRequest* req)
 {
-    (void)user;
+    struct UITreeSceneBridge* bridge = (struct UITreeSceneBridge*)user;
+
     if( req->kind == UITREE_HOST_GET_SELECTED_TAB )
         return 3;
     if( req->kind == UITREE_HOST_GET_SCROLLBAR_SCENE )
-        return -1;
+        return UITreeSceneBridge_ScrollbarSceneId(bridge);
+    if( req->kind == UITREE_HOST_GET_STATIC_SPRITE_SCENE )
+        return UITreeSceneBridge_StaticSpriteSceneId(
+            bridge, (enum StaticSpriteSlot)req->u.static_sprite.slot);
     return 0;
 }
 
@@ -158,15 +163,49 @@ main(
 
     CHECK(tree->component_count > 30, "baked tree has chrome nodes");
 
+    /* Client-hardcoded sprites bound to bridge slots (no owning INI node).
+     * mapmarker/mapdots are absent from the RevConfig INI, so they exercise the
+     * dat1 media-jagfile load path inside CreateTask_StaticSpritesLoad. */
+    {
+        static enum StaticSpriteSlot const k_expect[] = {
+            STATIC_SPRITE_COMPASS,  STATIC_SPRITE_MAPEDGE, STATIC_SPRITE_MAPSCENE,
+            STATIC_SPRITE_MAPFUNCTION, STATIC_SPRITE_HEADICONS, STATIC_SPRITE_HITMARKS,
+            STATIC_SPRITE_MAPMARKER, STATIC_SPRITE_CROSS,   STATIC_SPRITE_MAPDOTS,
+            STATIC_SPRITE_SCROLLBAR,
+        };
+        for( size_t i = 0; i < sizeof(k_expect) / sizeof(k_expect[0]); i++ )
+        {
+            char msg[80];
+            snprintf(
+                msg, sizeof(msg), "static sprite '%s' bound",
+                StaticSprite_SlotName(k_expect[i]));
+            CHECK(UITreeSceneBridge_StaticSpriteSceneId(&bridge, k_expect[i]) > 0, msg);
+        }
+        /* dat2-only archives stay unbound on a dat1 cache. */
+        CHECK(
+            UITreeSceneBridge_StaticSpriteSceneId(&bridge, STATIC_SPRITE_MOD_ICONS) < 0,
+            "dat2-only mod_icons unbound on dat1");
+    }
+
     /* Emit + render the fixed chrome to a BMP for visual inspection. */
     {
         struct UITreeHost ui_host;
         struct UITreeEmitBuffer emit;
         UITree_HostInit(&ui_host);
+        ui_host.user = &bridge;
         ui_host.request = test_host_request;
         UITree_EmitBufferInit(&emit);
         UITree_EmitWalk(tree, &ui_host, &emit, -1);
         CHECK(emit.count > 0, "emit walk produced commands");
+
+        int compass_cmds = 0;
+        for( int i = 0; i < emit.count; i++ )
+        {
+            if( emit.cmds[i].kind == UITREE_EMIT_COMPASS && emit.cmds[i].scene_id > 0 )
+                compass_cmds++;
+        }
+        CHECK(compass_cmds > 0, "compass emitted with a scene id");
+
         int wrote = UITreeCmd_WriteBmp(
             scene,
             emit.cmds,

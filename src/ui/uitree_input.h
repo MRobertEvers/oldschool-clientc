@@ -87,6 +87,23 @@ UITree_HitTestInteractive(
     int px,
     int py);
 
+/**
+ * Collect every menu-relevant node under (px,py), TOP-MOST FIRST: interactive
+ * nodes plus RS_INV/RS_INV_TEXT grids (whose rows come from inventory slots).
+ * Applies the same visibility / clip / scroll / no_click_through rules as
+ * UITree_HitTestInteractive (a blocking panel discards nodes drawn under it —
+ * reference collectWidgetsAtPoint noClickThrough slice). Returns the count
+ * written to out_nodes (node indices), clamped to max_nodes.
+ */
+int
+UITree_CollectNodesAt(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py,
+    int32_t* out_nodes,
+    int max_nodes);
+
 struct UIInputResult
 UITree_InputUpdate(
     struct UIInputState* state,

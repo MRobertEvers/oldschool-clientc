@@ -1,6 +1,8 @@
 #ifndef UITREE_SCENE_BRIDGE_H
 #define UITREE_SCENE_BRIDGE_H
 
+#include "engine/static_sprites.h"
+
 struct ToriDraw_Scene;
 struct CacheProvider;
 struct HMap;
@@ -22,8 +24,12 @@ struct UITreeSceneBridge
     /** (obj_id, count) → scene_id for rasterized inventory icons */
     struct HMap* obj_icon_map;
 
-    /** IF1 scrollbar arrow pack (atlas 0=up/left, 1=down/right); -1 if unloaded. */
-    int scrollbar_scene_id;
+    /**
+     * Client-hardcoded sprites (compass, hitmarks, cross, scrollbar arrows, …)
+     * keyed by StaticSpriteSlot; -1 until loaded. These have no owning tree
+     * node, so emit/draw fetch them through the host.
+     */
+    int static_sprite_scene[STATIC_SPRITE_COUNT];
 
     /** Composited default player avatar model; -1 until first built. */
     int player_scene_id;
@@ -57,15 +63,27 @@ UITreeSceneBridge_SpriteCacheIdForScene(
     int scene_id);
 
 /**
- * Bind IF1 scrollbar chrome from an already-loaded cache sprite archive
- * (frames 0/1 = arrows). Returns scene_id or -1.
+ * Bind a client-hardcoded sprite from an already-loaded cache archive into its
+ * slot (memoized). Returns scene_id or -1.
  */
+int
+UITreeSceneBridge_EnsureStaticSprite(
+    struct UITreeSceneBridge* bridge,
+    enum StaticSpriteSlot slot,
+    int cache_graphic_id);
+
+/** Scene id bound to a static sprite slot, or -1. */
+int
+UITreeSceneBridge_StaticSpriteSceneId(
+    struct UITreeSceneBridge const* bridge,
+    enum StaticSpriteSlot slot);
+
+/** Scrollbar chrome (frames 0/1 = arrows) — STATIC_SPRITE_SCROLLBAR shorthand. */
 int
 UITreeSceneBridge_EnsureScrollbar(
     struct UITreeSceneBridge* bridge,
     int cache_graphic_id);
 
-/** Scene id of scrollbar arrow pack, or -1. */
 int
 UITreeSceneBridge_ScrollbarSceneId(struct UITreeSceneBridge const* bridge);
 

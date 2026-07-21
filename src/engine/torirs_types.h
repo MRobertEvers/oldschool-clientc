@@ -170,7 +170,8 @@ struct ToriRS_Flotype
 
 #define TORIRS_MENU_ACTION_SLOTS 5
 #define TORIRS_NAME_MAX 32
-#define TORIRS_MENU_ACTION_LEN 32
+/* 64: matches UITREE_MENU_OPTION_LEN; col-tagged labels exceed 32 chars. */
+#define TORIRS_MENU_ACTION_LEN 64
 
 struct ToriRS_Location
 {
@@ -555,6 +556,8 @@ struct ToriRS_Component
     int scripts_count;
     int** scripts;
     int* scripts_lengths;
+    /** Sized independently of scripts_count in the cache format. */
+    int comparator_count;
     int* script_comparator;
     int* script_operand;
     uint8_t script_kind;
@@ -565,6 +568,13 @@ struct ToriRS_Component
     struct ToriRS_ScriptHook on_mouse_leave;
     struct ToriRS_ScriptHook on_drag;
     struct ToriRS_ScriptHook on_drag_complete;
+    /* These four are dispatched at runtime but used to be dropped here, so a
+     * cache-authored handler could never fire -- only a CS2 SETON* call could
+     * populate them. See uitree_interact.c (hold/repeat/wheel) and app.c (timer). */
+    struct ToriRS_ScriptHook on_hold;
+    struct ToriRS_ScriptHook on_mouse_repeat;
+    struct ToriRS_ScriptHook on_scroll_wheel;
+    struct ToriRS_ScriptHook on_timer;
     struct ToriRS_ScriptHook on_varp_transmit;
     struct ToriRS_ScriptHook on_inv_transmit;
     int inventory_triggers_count;

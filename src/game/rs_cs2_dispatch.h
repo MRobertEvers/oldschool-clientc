@@ -2,6 +2,7 @@
 #define SRC_GAME_RS_CS2_DISPATCH_H
 
 #include "game/rs_cs2_host.h"
+#include "input/torirs_input.h"
 #include "task_runner.h"
 #include "ui/uitree.h"
 
@@ -39,5 +40,22 @@ RS_CS2_SetEventDragTarget(
     struct RS_CS2Host* host,
     struct UITree const* tree,
     int target_id);
+
+/** Set the script-visible key event. See struct LibToriRS_KeyEvent for why
+ *  key_typed carries the key CODE and key_pressed the CHARACTER. */
+void
+RS_CS2_SetEventKey(struct RS_CS2Host* host, int key_typed, int key_pressed);
+
+/** Set the script-visible op index (1..10) for the next hook dispatch. Pass
+ *  op_index 1 to restore the primary left-click default. */
+void
+RS_CS2_SetEventOp(struct RS_CS2Host* host, int op_index, int op_subindex);
+
+/** Refresh the KEYHELD / KEYPRESSED snapshot from this frame's input. Call once
+ *  per App_RunOnce, before any hook is dispatched. */
+void
+RS_CS2_SyncKeyState(
+    struct RS_CS2Host* host,
+    struct LibToriRS_Input const* input);
 
 #endif

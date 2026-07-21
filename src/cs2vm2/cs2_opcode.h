@@ -523,11 +523,53 @@
 #define CS2_OP_CC_CLEAROPS 1307
 #define CS2_OP__1308 1308
 #define CS2_OP__1309 1309
+/* CC_SETOPKEY — Bind up to 5 (keychar, keycode) pairs to an op slot on the active child.
+ * int stack in:   opindex, k0_char, k0_code, k1_char, k1_code, k2_char, k2_code, k3_char, k3_code, k4_char, k4_code
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: opindex is 1-based (1..10). Pairs are read bottom-up and stop at the
+ *        first negative keychar; a negative k0_char clears the slot.
+ */
 #define CS2_OP_CC_SETOPKEY 1350
+/* CC_SETOPTKEY — Bind one (keychar, keycode) pair to the typed-key slot (op 10).
+ * int stack in:   keychar, keycode
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_CC_SETOPTKEY 1351
+/* CC_SETOPKEYRATE — Set auto-repeat rate for an op key slot.
+ * int stack in:   opindex, keyrate, tickrate
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: tickrate == 0 disables repeat.
+ */
 #define CS2_OP_CC_SETOPKEYRATE 1352
+/* CC_SETOPTKEYRATE — Set auto-repeat rate for the typed-key slot (op 10).
+ * int stack in:   tickrate, keyrate
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: reference pops these in the opposite order to CC_SETOPKEYRATE. The
+ *        values are unused downstream, so only the count matters; mirrored
+ *        rather than "corrected" without a real-cache trace.
+ */
 #define CS2_OP_CC_SETOPTKEYRATE 1353
+/* CC_SETOPKEYIGNOREHELD — Suppress auto-repeat while the key is held.
+ * int stack in:   opindex
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_CC_SETOPKEYIGNOREHELD 1354
+/* CC_SETOPTKEYIGNOREHELD — Suppress auto-repeat on the typed-key slot (op 10).
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_CC_SETOPTKEYIGNOREHELD 1355
 /* CC_SETONCLICK — Set onClick handler on active child.
  * operand: 0 = active component, 1 = dot component
@@ -639,6 +681,126 @@
 #define CS2_OP_CC_SETONRESIZE 1427
 #define CS2_OP_CC_SETONCLANSETTINGSTRANSMIT 1428
 #define CS2_OP_CC_SETONCLANCHANNELTRANSMIT 1429
+
+/*
+ * Input-field (widget type 16) listeners. Signature-driven operand counts like
+ * the other SETON* opcodes, so they are dispatched to the parse-and-discard
+ * helpers rather than described here; the counts below are placeholders the
+ * generator ignores for SETON names.
+ */
+#define CS2_OP_CC_INPUT_SETONSUBMIT 1436
+#define CS2_OP_CC_INPUT_SETONABORT 1437
+#define CS2_OP_CC_INPUT_SETONFOCUSCHANGED 1438
+#define CS2_OP_CC_INPUT_SETONUPDATE 1439
+#define CS2_OP_IF_INPUT_SETONSUBMIT 2436
+#define CS2_OP_IF_INPUT_SETONABORT 2437
+#define CS2_OP_IF_INPUT_SETONFOCUSCHANGED 2438
+#define CS2_OP_IF_INPUT_SETONUPDATE 2439
+
+/*
+ * IF_ variants of the input-field config setters. No UITree model for these
+ * fields yet, so they are left to the stack-meta stub -- but they must still be
+ * described, or the stub pops nothing and desyncs the operand stack. Each takes
+ * the component uid on top of the value.
+ */
+/* IF_INPUT_SETSUBMITMODE
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETSUBMITMODE 2133
+/* IF_INPUT_SETSELECTCOLOUR
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETSELECTCOLOUR 2134
+/* IF_INPUT_SETACCEPTMODE
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETACCEPTMODE 2135
+/* IF_INPUT_SETWRAPMODE
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETWRAPMODE 2136
+/* IF_INPUT_SETLINEWRAPPINGWIDTH
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETLINEWRAPPINGWIDTH 2137
+/* IF_INPUT_SETSELECTBGCOLOUR
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETSELECTBGCOLOUR 2138
+/* IF_INPUT_SETLINECOUNTLIMIT
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETLINECOUNTLIMIT 2139
+/* IF_INPUT_SETCURSORCOLOUR
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETCURSORCOLOUR 2140
+/* IF_INPUT_SETCURSORTRANS
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETCURSORTRANS 2141
+/* IF_INPUT_SETCURSORWIDTH
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETCURSORWIDTH 2142
+/* IF_INPUT_SETCURSORHEIGHT
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETCURSORHEIGHT 2143
+/* IF_INPUT_SETCURSOROFFSET
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETCURSOROFFSET 2144
+/* IF_INPUT_SETLINEWIDTHLIMIT
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETLINEWIDTHLIMIT 2145
+/* IF_INPUT_SETCHARFILTER
+ * int stack in:   value, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_INPUT_SETCHARFILTER 2146
 /* CC_GETX — Get relative X of child component.
  * operand: 0 = active component, 1 = dot component
  * int stack in:   -
@@ -994,11 +1156,49 @@
  * str stack out:  -                  
  */
 #define CS2_OP_IF_SETTARGETPRIORITY 2312
+/* IF_SETOPKEY — Bind one (keychar, keycode) pair to an op slot by component uid.
+ * int stack in:   opindex, keychar, keycode, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: component is on top (popped first). opindex is 1-based (1..10).
+ */
 #define CS2_OP_IF_SETOPKEY 2350
+/* IF_SETOPTKEY — Bind one (keychar, keycode) pair to the typed-key slot (op 10).
+ * int stack in:   keychar, keycode, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_IF_SETOPTKEY 2351
+/* IF_SETOPKEYRATE — Set auto-repeat rate for an op key slot by component uid.
+ * int stack in:   opindex, keyrate, tickrate, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: tickrate == 0 disables repeat.
+ */
 #define CS2_OP_IF_SETOPKEYRATE 2352
+/* IF_SETOPTKEYRATE — Set auto-repeat rate for the typed-key slot (op 10).
+ * int stack in:   tickrate, keyrate, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_IF_SETOPTKEYRATE 2353
+/* IF_SETOPKEYIGNOREHELD — Suppress auto-repeat while the key is held.
+ * int stack in:   opindex, component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_IF_SETOPKEYIGNOREHELD 2354
+/* IF_SETOPTKEYIGNOREHELD — Suppress auto-repeat on the typed-key slot (op 10).
+ * int stack in:   component
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_IF_SETOPTKEYIGNOREHELD 2355
 #define CS2_OP_IF_SETONCLICK 2400
 #define CS2_OP_IF_SETONHOLD 2401
@@ -1202,7 +1402,13 @@
 #define CS2_OP_SETSHOWLOADINGMESSAGES 3126
 #define CS2_OP_SETTAPTODROP 3127
 #define CS2_OP_GETTAPTODROP 3128
-#define CS2_OP__3129 3129
+/* SETKEYINPUTENABLED — Enable/disable keyboard capture (no-op here).
+ * int stack in:   enabled
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_SETKEYINPUTENABLED 3129
 #define CS2_OP__3130 3130
 #define CS2_OP__3131 3131
 #define CS2_OP_GETCANVASSIZE 3132
@@ -1211,9 +1417,31 @@
 #define CS2_OP_MOBILE_OPENSTORECATEGORY 3135
 #define CS2_OP__3136 3136
 #define CS2_OP__3137 3137
-#define CS2_OP__3138 3138
-#define CS2_OP__3139 3139
-#define CS2_OP__3140 3140
+/* SETKEYINPUTMODE_ALL — Release keyboard capture (input dialog type 0).
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: takes no args despite the SET prefix — the doc comment is required to
+ *        stop the generator's "SET* pops one" heuristic guessing wrong.
+ */
+#define CS2_OP_SETKEYINPUTMODE_ALL 3138
+/* SETKEYINPUTMODE_KEYBOARD — Capture keyboard for a dialog (input dialog type 1).
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: takes no args despite the SET prefix (see SETKEYINPUTMODE_ALL).
+ */
+#define CS2_OP_SETKEYINPUTMODE_KEYBOARD 3139
+/* GETKEYINPUTMODE — Current keyboard capture mode.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  mode
+ * str stack out:  -
+ * notes: 0 none, 1 keyboard, 2 interface-scoped, 3 widget-scoped.
+ */
+#define CS2_OP_GETKEYINPUTMODE 3140
 #define CS2_OP_SETHIDEUSERNAME 3141
 #define CS2_OP_GETHIDEUSERNAME 3142
 #define CS2_OP_SETREMEMBERUSERNAME 3143
@@ -1322,6 +1550,22 @@
 #define CS2_OP_MOUSE_GETX 3326
 #define CS2_OP_MOUSE_GETY 3327
 #define CS2_OP__3330 3330
+/* KEYHELD — Is the given key currently held down?
+ * int stack in:   keycode
+ * str stack in:   -
+ * int stack out:  held
+ * str stack out:  -
+ * notes: keycode is an OSRS internal key code (see torirs_keymap.h), not ASCII.
+ */
+#define CS2_OP_KEYHELD 3500
+/* KEYPRESSED — Was the given key pressed during this frame?
+ * int stack in:   keycode
+ * str stack in:   -
+ * int stack out:  pressed
+ * str stack out:  -
+ * notes: edge-triggered; cleared each frame. OSRS internal key code.
+ */
+#define CS2_OP_KEYPRESSED 3501
 #define CS2_OP_ENUM_STRING 3400
 /* ENUM — Enum lookup.
  * int stack in:   input_type, output_type, enum_id, key  (key = top)

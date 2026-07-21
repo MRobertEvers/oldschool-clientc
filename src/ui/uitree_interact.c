@@ -15,6 +15,7 @@ UIInteraction_Init(struct UIInteraction* interact)
     interact->input_state.pressed = -1;
     interact->hover_com_id = -1;
     interact->prev_hover_com_id = -1;
+    UIMinimenu_Reset(&interact->minimenu);
 }
 
 static void
@@ -141,6 +142,55 @@ find_wheel_hook_component(
         }
     }
     return best;
+}
+
+/* Every visible component carrying a CS2 onKey handler, with its screen-space
+ * drawn origin. Reference collectWidgetsWithKeyHandlers plus the OsrsClient key
+ * block: a BROADCAST, not a hit test. There is no focused-widget concept for
+ * onKey, so unlike find_wheel_hook_component above there is deliberately no
+ * point-in-bounds test and no zero-size skip -- off-screen and empty handlers
+ * still receive keys, and scripts self-gate on varcs.
+ *
+ * The flat array scan is equivalent to the reference's DFS for membership:
+ * UITree_ComponentOrAncestorHidden encodes the same "hidden subtree is pruned"
+ * rule, mounted sub-interfaces are reparented into this same array (so they need
+ * no separate pass as they do in the reference), and an array scan cannot
+ * produce the duplicates the reference has to dedupe. Only enumeration ORDER
+ * differs -- build order rather than DFS pre-order, diverging once CC_CREATE
+ * appends or reuses slots -- so onKey scripts must not depend on relative
+ * ordering. tree->layout_order is the cached pre-order if exact parity is ever
+ * needed. Returns the number collected, clamped to max_targets. */
+static int
+collect_key_targets(
+    struct UITree const* tree,
+    struct UIKeyTarget* out_targets,
+    int max_targets)
+{
+    int count = 0;
+    uint32_t i;
+
+    assert(tree);
+    assert(out_targets);
+
+    for( i = 0; i < tree->component_count && count < max_targets; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        int bx = 0, by = 0, bw = 0, bh = 0;
+        int offx = 0, offy = 0;
+        if( c->freed || c->component_id < 0 )
+            continue;
+        if( c->runtime_hooks.on_key.script_id <= 0 )
+            continue;
+        if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
+            continue;
+        UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
+        UITree_AccumScrollOffset(tree, (int32_t)i, &offx, &offy);
+        out_targets[count].component_id = c->component_id;
+        out_targets[count].abs_x = bx - offx;
+        out_targets[count].abs_y = by - offy;
+        count++;
+    }
+    return count;
 }
 
 /* Reference event ctx passes mouse coords relative to the component's drawn
@@ -560,6 +610,66 @@ interact_hover(
     out->hover_com_id = interact->hover_com_id;
 }
 
+/*
+ * Right-click minimenu gesture (reference choose-option): while the popup is
+ * visible it owns the mouse completely — rows select on MOUSEDOWN (either
+ * button), pressing outside closes (and a right press reopens at the new
+ * point), and no other interaction runs. When no menu is open, a right press
+ * asks the app to build + show one. Returns 1 while the menu owns the mouse.
+ */
+static int
+interact_minimenu(
+    struct UIInteraction* interact,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut* out)
+{
+    struct UIMinimenu* menu = &interact->minimenu;
+
+    if( !menu->visible )
+    {
+        if( LibToriRS_Input_IsMouseDown(input, TORIRSM_RIGHT) )
+        {
+            out->right_click = 1;
+            out->right_click_x = input->curr.mouse_x;
+            out->right_click_y = input->curr.mouse_y;
+        }
+        return 0;
+    }
+
+    if( UIMinimenu_UpdateHover(menu, input->curr.mouse_x, input->curr.mouse_y) )
+        out->need_redraw = 1;
+
+    {
+        int const left_down = LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT);
+        int const right_down = LibToriRS_Input_IsMouseDown(input, TORIRSM_RIGHT);
+        if( left_down || right_down )
+        {
+            int const mx = input->curr.mouse_x;
+            int const my = input->curr.mouse_y;
+            int const hit = UIMinimenu_HitOption(menu, mx, my);
+            if( hit >= 0 )
+            {
+                /* App dispatches, then hides. */
+                out->minimenu_select = hit;
+            }
+            else if( hit == -2 )
+            {
+                UIMinimenu_Hide(menu);
+                out->minimenu_closed = 1;
+                out->need_redraw = 1;
+                if( right_down )
+                {
+                    out->right_click = 1;
+                    out->right_click_x = mx;
+                    out->right_click_y = my;
+                }
+            }
+            /* hit == -1: chrome / close margin — swallow the press. */
+        }
+    }
+    return 1;
+}
+
 static void
 interact_click(
     struct UITree* tree,
@@ -592,6 +702,8 @@ interact_click(
         : (ihit >= 0 && (uint32_t)ihit < tree->component_count
                ? tree->components[ihit].component_id
                : tree->components[ui_result->clicked].component_id);
+    out->clicked_x = click_x;
+    out->clicked_y = click_y;
 
     {
         struct UIIntent intent = {
@@ -600,6 +712,118 @@ interact_click(
         };
         intent_push(out, &intent);
     }
+    out->need_redraw = 1;
+}
+
+/* Does this key event trigger the binding in `slot`?
+ *
+ * A binding stores up to five (keychar, keycode) alternatives, and an event
+ * carries exactly one of the two forms, so compare against whichever the event
+ * actually has. */
+static int
+opkey_slot_matches(
+    struct UITreeOpKeyBinding const* slot,
+    struct LibToriRS_KeyEvent const* event)
+{
+    if( !slot->bound )
+        return 0;
+    /* SETOPKEYIGNOREHELD: fire once per physical press, ignoring OS repeat. */
+    if( slot->ignore_held && event->is_repeat )
+        return 0;
+    for( int i = 0; i < slot->pair_count; i++ )
+    {
+        if( event->key_typed >= 0 )
+        {
+            if( slot->key_codes[i] == event->key_typed )
+                return 1;
+        }
+        else if( event->key_pressed > 0 && slot->key_chars[i] == event->key_pressed )
+            return 1;
+    }
+    return 0;
+}
+
+/* Op-key bindings: fire a component's on_op as if its op had been picked from
+ * the menu. This goes BEYOND the reference, which stores opKeys and never reads
+ * them back (hasKeyBindings is written and never tested), so F-key tab switching
+ * and Escape-to-close do not work there. Without a real op index threaded
+ * through, on_op would always report op 1. */
+static void
+interact_op_keys(
+    struct UITree* tree,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut* out)
+{
+    uint32_t i;
+
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* node = &tree->components[i];
+        if( node->freed || node->component_id < 0 || !node->op_keys.has_bindings )
+            continue;
+        if( node->runtime_hooks.on_op.script_id <= 0 )
+            continue;
+        if( UITree_ComponentOrAncestorHidden(tree, node->component_id) )
+            continue;
+
+        for( int ev = 0; ev < input->key_event_count; ev++ )
+        {
+            for( int slot = 0; slot < UITREE_OPKEY_SLOTS; slot++ )
+            {
+                if( !opkey_slot_matches(&node->op_keys.slots[slot], &input->key_events[ev]) )
+                    continue;
+                {
+                    struct UIIntent intent = {
+                        .component_id = node->component_id,
+                        .hook = &node->runtime_hooks.on_op,
+                        .op_index = slot + 1,
+                    };
+                    intent_push(out, &intent);
+                    out->need_redraw = 1;
+                }
+                break; /* one op per component per event */
+            }
+        }
+    }
+}
+
+/* Keyboard. The reference dispatches keys LAST, at the tail of handleUiInput
+ * after all mouse handling, broadcasting every event to every visible onKey
+ * handler. Emits component ids plus snapshotted screen origins rather than
+ * UIIntents -- see UI_KEY_TARGET_MAX in uitree_interact.h for why. */
+static void
+interact_keys(
+    struct UITree* tree,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut* out)
+{
+    int target_count;
+    int event_count;
+
+    assert(tree);
+    assert(input);
+    assert(out);
+
+    if( input->key_event_count <= 0 )
+        return;
+
+    /* Op-key bindings resolve to on_op intents, so they run through the normal
+     * intent list rather than the key broadcast below. */
+    interact_op_keys(tree, input, out);
+
+    target_count = collect_key_targets(tree, out->key_targets, UI_KEY_TARGET_MAX);
+    if( target_count <= 0 )
+        return;
+
+    event_count = input->key_event_count;
+    if( event_count > LIBTORIRS_KEY_EVENT_MAX )
+        event_count = LIBTORIRS_KEY_EVENT_MAX;
+
+    out->key_target_count = target_count;
+    out->key_event_count = event_count;
+    memcpy(out->key_events, input->key_events, (size_t)event_count * sizeof(out->key_events[0]));
+    out->key_mouse_x = input->curr.mouse_x;
+    out->key_mouse_y = input->curr.mouse_y;
     out->need_redraw = 1;
 }
 
@@ -623,6 +847,12 @@ UITree_InteractFrame(
     memset(out, 0, sizeof(*out));
     out->hover_com_id = -1;
     out->clicked_com_id = -1;
+    out->minimenu_select = -1;
+
+    /* An open minimenu owns the whole pointer: no scrollbars, drags, hover, or
+     * clicks reach the tree until it closes (reference choose-option). */
+    if( interact_minimenu(interact, input, out) )
+        return;
 
     sb_owns_mouse = interact_scrollbars(interact, tree, ui_host, input, out);
 
@@ -646,4 +876,5 @@ UITree_InteractFrame(
     interact_hold(interact, tree, input, sb_owns_mouse, out);
     interact_hover(interact, tree, input, now_ms, out);
     interact_click(tree, ui_host, input, &ui_result, out);
+    interact_keys(tree, input, out);
 }

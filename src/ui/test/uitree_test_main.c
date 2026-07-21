@@ -16,6 +16,8 @@ main(void)
     test_drag_scrolled();
     test_emit_icons();
     test_emit_golden();
+    test_key_dispatch();
+    test_minimenu();
 
     if( g_failures )
     {

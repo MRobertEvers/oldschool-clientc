@@ -1,5 +1,7 @@
 #include "task_interface_open.h"
 
+#include "task_static_sprites_load.h"
+
 #include "engine/cache_provider.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/torirs_types.h"
@@ -383,13 +385,8 @@ Task_InterfaceOpen_Run(
     /* 2. Prefetch pack sprites / fonts / models. */
     TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->interface_id));
 
-    /* 2b. IF1 scrollbar arrow sprites (archive "scrollbar", frames 0/1). */
-    TASK_AWAITSELF_IF(CreateTask_SpriteLoadByName(self->provider, "scrollbar"));
-    {
-        int scrollbar_id = CacheProvider_SpriteIdByName(self->provider, "scrollbar");
-        if( scrollbar_id >= 0 )
-            (void)UITreeSceneBridge_EnsureScrollbar(self->bridge, scrollbar_id);
-    }
+    /* 2b. Client-hardcoded sprites (scrollbar arrows, compass, cross, …). */
+    TASK_AWAITSELF_IF(CreateTask_StaticSpritesLoad(self->provider, self->bridge));
 
     /* 3. Load seeded inv objs + inventory models, then rasterize icons. */
     collect_seed_objs(self);

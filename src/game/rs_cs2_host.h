@@ -2,6 +2,7 @@
 #define RS_CS2_HOST_H
 
 #include "cs2vm2/cs2vm2_host.h"
+#include "input/torirs_keymap.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -14,7 +15,9 @@ struct CS2VM2_Thread;
 struct UITreeSceneBridge;
 
 #define RS_CS2_HOST_VARC_INT_MAX 256
-#define RS_CS2_HOST_VARC_STRING_MAX 64
+/* The chatbox input dialog mirrors its string into VarC string 335, so a cap of
+ * 64 silently dropped every read and write of it. */
+#define RS_CS2_HOST_VARC_STRING_MAX 512
 #define RS_CS2_HOST_VARC_STRING_LEN 128
 
 #define RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX 128
@@ -108,6 +111,26 @@ struct RS_CS2Host
     int event_mouse_y;
     int event_drag_target_id;
     int event_drag_target_child_index;
+
+    /**
+     * Live onKey event locals. The naming follows the reference and is INVERTED
+     * relative to canonical OSRS clientscript naming: event_key_typed carries
+     * the OSRS internal KEY CODE (-1 when the event is a typed character), and
+     * event_key_pressed carries the CHARACTER code (0 when it is a key code).
+     * See struct LibToriRS_KeyEvent -- both ends must stay inverted together.
+     */
+    int event_key_typed;
+    int event_key_pressed;
+
+    /** Op index (1..10) for the hook being dispatched; 1 is the primary
+     *  left-click op, which is what every mouse-driven dispatch uses. */
+    int event_op_index;
+    int event_op_subindex;
+
+    /** Per-frame key state snapshot, indexed by OSRS internal code, backing the
+     *  KEYHELD and KEYPRESSED opcodes. Refreshed by RS_CS2_SyncKeyState. */
+    unsigned char osrs_key_held[TORIRS_OSRSKEY_COUNT];
+    unsigned char osrs_key_pressed[TORIRS_OSRSKEY_COUNT];
 };
 
 void

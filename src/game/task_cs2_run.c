@@ -115,8 +115,7 @@ task_cs2_set_int_local(
         CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, active_component_id);
         break;
     case CS2VM_SCRIPT_ARG_OP_INDEX:
-        /* Primary left-click op index for on_op handlers. */
-        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, 1);
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_op_index);
         break;
     case CS2VM_SCRIPT_ARG_MOUSE_X:
         CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_mouse_x);
@@ -139,10 +138,17 @@ task_cs2_set_int_local(
     case CS2VM_SCRIPT_ARG_DRAG_TARGET_CHILD_INDEX:
         CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_drag_target_child_index);
         break;
+    /* See struct LibToriRS_KeyEvent: key_typed is the OSRS key CODE and
+     * key_pressed the typed CHARACTER, inverted vs canonical OSRS naming but
+     * consistent with the reference at both ends. */
     case CS2VM_SCRIPT_ARG_KEY_TYPED:
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_key_typed);
+        break;
     case CS2VM_SCRIPT_ARG_KEY_PRESSED:
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_key_pressed);
+        break;
     case CS2VM_SCRIPT_ARG_OP_SUBINDEX:
-        /* Leave unset / zero — no live input binding in this task. */
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_op_subindex);
         break;
     default:
         CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, argi);
@@ -528,6 +534,8 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_VARS_READ_VARP_AKA_PUSH_VAR:
     case CS2VM_HOST_REQUEST_VARS_READ_VARBIT:
     case CS2VM_HOST_REQUEST_VARS_READ_VARC_INT:
+    case CS2VM_HOST_REQUEST_KEYHELD:
+    case CS2VM_HOST_REQUEST_KEYPRESSED:
     case CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING:
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT:
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING:
@@ -611,6 +619,8 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_IF_SETOPSUBMENU:
     case CS2VM_HOST_REQUEST_IF_SETTARGETPRIORITY:
     case CS2VM_HOST_REQUEST_IF_CLEAROPS:
+    case CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY:
+    case CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY_RATE:
     case CS2VM_HOST_REQUEST_WIDGET_SET_INT2:
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_ANGLE:
     case CS2VM_HOST_REQUEST_WIDGET_SET_ARC:

@@ -115,10 +115,12 @@ torirs_component_copy_scripts(
     int scripts_count,
     int** scripts,
     int* scripts_lengths,
+    int comparator_count,
     int* script_comparator,
     int* script_operand)
 {
     dst->scripts_count = scripts_count;
+    dst->comparator_count = comparator_count;
     if( scripts_count <= 0 || !scripts )
         return;
 
@@ -142,18 +144,24 @@ torirs_component_copy_scripts(
         dst->scripts_lengths[i] = len;
     }
 
+    /* The cache sizes the comparator arrays by their own count, which can differ
+     * from scripts_count — copying scripts_count entries would over-read. */
+    if( comparator_count <= 0 )
+        return;
+
     if( script_comparator )
     {
-        dst->script_comparator = malloc((size_t)scripts_count * sizeof(int));
+        dst->script_comparator = malloc((size_t)comparator_count * sizeof(int));
         if( dst->script_comparator )
-            memcpy(dst->script_comparator, script_comparator, (size_t)scripts_count * sizeof(int));
+            memcpy(
+                dst->script_comparator, script_comparator, (size_t)comparator_count * sizeof(int));
     }
 
     if( script_operand )
     {
-        dst->script_operand = malloc((size_t)scripts_count * sizeof(int));
+        dst->script_operand = malloc((size_t)comparator_count * sizeof(int));
         if( dst->script_operand )
-            memcpy(dst->script_operand, script_operand, (size_t)scripts_count * sizeof(int));
+            memcpy(dst->script_operand, script_operand, (size_t)comparator_count * sizeof(int));
     }
 }
 
@@ -211,6 +219,7 @@ torirs_component_copy_dat2_cs1_scripts(
         src->cs1ScriptsLen,
         src->cs1Scripts,
         src->cs1ScriptsLengths,
+        src->cs1ComparisonLen,
         src->cs1ComparisonOpcodes,
         src->cs1ComparisonOperands);
     dst->script_kind = 0;
@@ -231,6 +240,10 @@ torirs_component_copy_dat2_hooks(
     torirs_copy_script_hook(&dst->on_mouse_leave, src->onMouseLeave, src->onMouseLeaveLen);
     torirs_copy_script_hook(&dst->on_drag, src->onDrag, src->onDragLen);
     torirs_copy_script_hook(&dst->on_drag_complete, src->onDragComplete, src->onDragCompleteLen);
+    torirs_copy_script_hook(&dst->on_hold, src->onHold, src->onHoldLen);
+    torirs_copy_script_hook(&dst->on_mouse_repeat, src->onMouseRepeat, src->onMouseRepeatLen);
+    torirs_copy_script_hook(&dst->on_scroll_wheel, src->onScrollWheel, src->onScrollWheelLen);
+    torirs_copy_script_hook(&dst->on_timer, src->onTimer, src->onTimerLen);
     torirs_copy_script_hook(&dst->on_varp_transmit, src->onVarpTransmit, src->onVarpTransmitLen);
     torirs_copy_script_hook(&dst->on_inv_transmit, src->onInvTransmit, src->onInvTransmitLen);
 
@@ -473,6 +486,7 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
         src->scripts_count,
         src->scripts,
         src->scripts_lengths,
+        src->comparator_count,
         src->scriptComparator,
         src->scriptOperand);
     dst->script_kind = 0;

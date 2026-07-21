@@ -38,26 +38,38 @@ def parse_stack_line(line: str) -> int:
     return len(parts)
 
 
-def parse_opcode_h() -> dict[int, tuple[int, int, int, int]]:
+def parse_opcode_h() -> tuple[dict[int, tuple[int, int, int, int]], set[int]]:
+    """Returns (entries, documented). `documented` is every opcode carrying a
+    stack doc comment, including ones whose counts are all zero — those are
+    otherwise indistinguishable from "no comment at all" and would be handed to
+    the name heuristics, which guess wrong for e.g. SETKEYINPUTMODE_ALL."""
     text = OPCODE_H.read_text()
     entries: dict[int, tuple[int, int, int, int]] = {}
+    documented: set[int] = set()
     pattern = re.compile(r"/\*(.*?)\*/\s*#define\s+CS2_OP_[A-Z0-9_]+\s+(\d+)", re.DOTALL)
     for m in pattern.finditer(text):
         comment, num_s = m.group(1), m.group(2)
         num = int(num_s)
         int_in = str_in = int_out = str_out = 0
+        saw_stack_line = False
         for line in comment.split("\n"):
             line = line.strip().lstrip("*").strip()
             if line.startswith("int stack in:"):
                 int_in = parse_stack_line(line)
+                saw_stack_line = True
             elif line.startswith("str stack in:"):
                 str_in = parse_stack_line(line)
+                saw_stack_line = True
             elif line.startswith("int stack out:"):
                 int_out = parse_stack_line(line)
+                saw_stack_line = True
             elif line.startswith("str stack out:"):
                 str_out = parse_stack_line(line)
+                saw_stack_line = True
         entries[num] = (int_in, str_in, int_out, str_out)
-    return entries
+        if saw_stack_line:
+            documented.add(num)
+    return entries, documented
 
 
 def parse_meta_names() -> dict[int, str]:
@@ -177,13 +189,16 @@ def heuristic(name: str) -> tuple[int, int, int, int] | None:
 
 
 def main() -> None:
-    entries = parse_opcode_h()
+    entries, documented = parse_opcode_h()
     names = parse_meta_names()
 
     for op, stack in MANUAL_STACK.items():
         entries[op] = stack
+        documented.add(op)
 
     for op, name in names.items():
+        if op in documented:
+            continue
         if op in entries and any(entries[op]):
             continue
         h = heuristic(name)

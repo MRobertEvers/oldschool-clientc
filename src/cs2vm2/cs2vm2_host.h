@@ -25,6 +25,10 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_VARS_READ_VARP_AKA_PUSH_VAR,
     CS2VM_HOST_REQUEST_VARS_READ_VARBIT,
     CS2VM_HOST_REQUEST_VARS_READ_VARC_INT,
+    CS2VM_HOST_REQUEST_KEYHELD,
+    CS2VM_HOST_REQUEST_KEYPRESSED,
+    CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY,
+    CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY_RATE,
     CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING,
     CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT,
     CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING,
@@ -210,6 +214,38 @@ struct CS2VM_HostRequest_VarsReadVarcInt
 struct CS2VM_HostRequest_VarsReadVarcString
 {
     int varc_id;
+};
+
+/** KEYHELD / KEYPRESSED: key_code is an OSRS internal code, not ASCII. */
+struct CS2VM_HostRequest_KeyQuery
+{
+    int key_code;
+};
+
+#define CS2VM_OPKEY_PAIR_MAX 5
+/** The SETOPTKEY ("typed key") opcode variants target this op slot implicitly. */
+#define CS2VM_OPKEY_TYPED_SLOT 10
+
+/** CC/IF_SETOPKEY and the OPT variants. op_index is 1..10 (10 = typed key);
+ *  pair_count == 0 clears the slot. */
+struct CS2VM_HostRequest_WidgetSetOpKey
+{
+    int component_id;
+    int op_index;
+    int pair_count;
+    int key_chars[CS2VM_OPKEY_PAIR_MAX];
+    int key_codes[CS2VM_OPKEY_PAIR_MAX];
+};
+
+/** CC/IF_SETOPKEYRATE and SETOPKEYIGNOREHELD share one payload. */
+struct CS2VM_HostRequest_WidgetSetOpKeyRate
+{
+    int component_id;
+    int op_index;
+    int rate;
+    int enabled;
+    /** 1 = also set ignore-held; 0 = leave unchanged. */
+    int ignore_held;
 };
 
 struct CS2VM_HostRequest_VarsWriteVarcInt
@@ -590,6 +626,7 @@ enum CS2VM_WidgetInputField
 {
     CS2VM_WIDGET_INPUT_SUBMITMODE,
     CS2VM_WIDGET_INPUT_SELECTCOLOUR,
+    CS2VM_WIDGET_INPUT_ACCEPTMODE,
     CS2VM_WIDGET_INPUT_WRAPMODE,
     CS2VM_WIDGET_INPUT_LINEWRAPPINGWIDTH,
     CS2VM_WIDGET_INPUT_SELECTBGCOLOUR,
@@ -701,6 +738,9 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_VarsReadVarp vars_read_varp;
         struct CS2VM_HostRequest_VarsReadVarbit vars_read_varbit;
         struct CS2VM_HostRequest_VarsReadVarcInt vars_read_varc_int;
+        struct CS2VM_HostRequest_KeyQuery key_query;
+        struct CS2VM_HostRequest_WidgetSetOpKey widget_set_opkey;
+        struct CS2VM_HostRequest_WidgetSetOpKeyRate widget_set_opkey_rate;
         struct CS2VM_HostRequest_VarsReadVarcString vars_read_varc_string;
         struct CS2VM_HostRequest_VarsWriteVarcInt vars_write_varc_int;
         struct CS2VM_HostRequest_VarsWriteVarcString vars_write_varc_string;

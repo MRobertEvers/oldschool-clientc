@@ -16,6 +16,39 @@ RS_CS2_SetEventMouse(
 }
 
 void
+RS_CS2_SetEventKey(
+    struct RS_CS2Host* host,
+    int key_typed,
+    int key_pressed)
+{
+    assert(host);
+    host->event_key_typed = key_typed;
+    host->event_key_pressed = key_pressed;
+}
+
+void
+RS_CS2_SetEventOp(
+    struct RS_CS2Host* host,
+    int op_index,
+    int op_subindex)
+{
+    assert(host);
+    host->event_op_index = op_index;
+    host->event_op_subindex = op_subindex;
+}
+
+void
+RS_CS2_SyncKeyState(
+    struct RS_CS2Host* host,
+    struct LibToriRS_Input const* input)
+{
+    assert(host);
+    assert(input);
+    memcpy(host->osrs_key_held, input->osrs_key_held, sizeof(host->osrs_key_held));
+    memcpy(host->osrs_key_pressed, input->osrs_key_pressed, sizeof(host->osrs_key_pressed));
+}
+
+void
 RS_CS2_SetEventDragTarget(
     struct RS_CS2Host* host,
     struct UITree const* tree,

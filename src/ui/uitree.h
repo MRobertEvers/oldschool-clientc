@@ -6,7 +6,8 @@
 
 #define UI_INV_SLOT_OFFSET_MAX 20
 #define UITREE_MENU_OPTION_SLOTS 5
-#define UITREE_MENU_OPTION_LEN 32
+/* 64: option labels carry <col=...>name</col> tags well past 32 chars. */
+#define UITREE_MENU_OPTION_LEN 64
 #define UITREE_SUBMENU_OP_SLOTS 10
 #define UITREE_SUBMENU_ENTRY_SLOTS 32
 #define UITREE_CHAT_OP_TEMPLATE_LEN 64
@@ -54,7 +55,7 @@ enum UITreeComponentType
     UIELEM_RS_RECT = 19,     /* TYPE_RECT */
     UIELEM_RS_LINE = 20,     /* TYPE_LINE */
     UIELEM_RS_INV_TEXT = 21, /* TYPE_INV_TEXT */
-    /* 22 was UIELEM_INV_SLOT (removed; grid expands at emit) */
+    // Dynamic object created by CS2.
     UIELEM_CC_OBJ = 23, /* CS2 cc_create / if_setobject objbox */
 };
 
@@ -95,6 +96,11 @@ struct UITreeElemPosition
 };
 
 #define UITREE_HOOK_ARG_MAX 32
+
+/** %1..%5 are the placeholders the reference client substitutes in text. */
+#define UITREE_CS1_VALUE_MAX 5
+/** CS1 "infinity" (inv-contains sentinel); rendered as "*" in text. */
+#define UITREE_CS1_VALUE_INFINITY 999999999
 #define UITREE_HOOK_STR_ARG_MAX 4
 #define UITREE_HOOK_STR_ARG_LEN 80
 
@@ -148,9 +154,13 @@ struct UITreeInterfaceParent
 
 struct UITreeBehavior
 {
+    /** CS1 (IF1) value scripts: scripts[i] is compared against script_operand[i]
+     *  using script_comparator[i] to decide the component's active state. */
     int scripts_count;
     int** scripts;
     int* scripts_lengths;
+    /** Sized independently of scripts_count in the cache format. */
+    int comparator_count;
     int* script_comparator;
     int* script_operand;
     uint8_t hide;
@@ -176,6 +186,35 @@ struct UITreeMenuOptions
     int option_action;
     int op_actions[UITREE_MENU_OPTION_SLOTS];
     struct UITreeMenuSubmenuOptions submenus;
+};
+
+/* Op slots 1..10; index 9 is the "typed key" slot the OPT opcode variants use. */
+#define UITREE_OPKEY_SLOTS 10
+#define UITREE_OPKEY_PAIR_MAX 5
+
+/**
+ * Keyboard shortcut bound to one of a component's ops, set by CC/IF_SETOPKEY.
+ *
+ * A binding matches when a key event carries either the bound character
+ * (key_chars[i]) or the bound OSRS key code (key_codes[i]); the reference stores
+ * up to five alternatives per slot so one op can answer to several keys.
+ */
+struct UITreeOpKeyBinding
+{
+    uint8_t bound;
+    uint8_t pair_count;
+    uint8_t ignore_held;
+    uint8_t rate_enabled;
+    int rate;
+    int key_chars[UITREE_OPKEY_PAIR_MAX];
+    int key_codes[UITREE_OPKEY_PAIR_MAX];
+};
+
+struct UITreeOpKeys
+{
+    struct UITreeOpKeyBinding slots[UITREE_OPKEY_SLOTS];
+    /** Mirrors the reference hasKeyBindings: lets the match pass skip nodes. */
+    uint8_t has_bindings;
 };
 
 struct UITreeChatMinimenuConfig
@@ -252,12 +291,18 @@ struct UITreeComponent
     int drag_visual_trans; /* -1 = use component trans; else forced (e.g. 128) */
 
     struct UITreeBehavior behavior;
+    /** Last CS1 evaluation, written by the CS1 eval task and read by the emit
+     *  host: emit stays synchronous while the VM's asset yields are serviced by
+     *  the task layer. */
+    uint8_t cs1_active;
+    int cs1_values[UITREE_CS1_VALUE_MAX];
     struct UITreeRuntimeHooks runtime_hooks;
     int target_priority;
     int scroll_x;
     int scroll_y;
     struct UITreeElemPosition position;
     struct UITreeMenuOptions menu_options;
+    struct UITreeOpKeys op_keys;
     union
     {
         struct
@@ -884,6 +929,36 @@ UITree_ApplyOpBase(
     struct UITree* tree,
     int component_id,
     char const* text);
+
+/**
+ * CC/IF_SETOPKEY and the SETOPTKEY variants. op_index is 1..10, where 10 is the
+ * typed-key slot. pair_count == 0, or a negative first key_char, clears the
+ * slot. Returns false when the component or op_index is out of range.
+ */
+bool
+UITree_ApplyOpKey(
+    struct UITree* tree,
+    int component_id,
+    int op_index,
+    int const* key_chars,
+    int const* key_codes,
+    int pair_count);
+
+/** CC/IF_SETOPKEYRATE and the OPT variants. enabled mirrors tick_rate != 0. */
+bool
+UITree_ApplyOpKeyRate(
+    struct UITree* tree,
+    int component_id,
+    int op_index,
+    int rate,
+    int enabled);
+
+/** CC/IF_SETOPKEYIGNOREHELD and the OPT variants. */
+bool
+UITree_ApplyOpKeyIgnoreHeld(
+    struct UITree* tree,
+    int component_id,
+    int op_index);
 
 int
 UITree_GetLayoutWidth(

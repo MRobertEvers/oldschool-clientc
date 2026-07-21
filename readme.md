@@ -2358,3 +2358,46 @@ Task_AsyncCache_ObjectModelLoad(on_load: (void* user, struct ToriAuxLibCache_Mod
 -> Task_AsyncCacheDat2_ObjectModelLoad
 
 Task_InterfaceX_Main()
+
+# Plans
+
+1. World Rendering, compass and minimap.
+2. Test Dat1
+3. Sounds?
+4. Minimenu, keyboard input
+
+Prompt minimenu:
+In src/main, you need to implement mouse clicking, and the minimenu selection.
+Look to v0 and v1 for inspiration on how to implement the minimenu.
+The source of truth for the minimenu implementation is here: /Users/matthewevers/Documents/git_repos/xrsps-typescript.
+
+You will need to identify the mouse click sprites, be able to animate it and show it in the UI Tree. You will need to identify how to draw the minimenu, populate it's entries, sort it's entries and the show it in the UI Tree.
+
+Look at the reference for what determines a "red" click vs a "yellow" click.
+
+Additionally, for any elements in the UI Tree that have options, you will need to thread the options through from the object config and other interface configs.
+
+Prompt keyboard:
+Some UI Tree nodes still need to accept keyboard input. You need to plumb through keyboard input events to the UI Tree and manage the state of components that accept keyboard input. The source of truth for the implementation is here: /Users/matthewevers/Documents/git_repos/xrsps-typescript.
+
+Make sure all keyboard behavior is decoded from the cache, and that any builtin keyboard behavior from the reference implementation is implemented.
+
+Prompt World:
+Port the world rendering from v0,v1 to src/main.
+The source of truth for the implementation is here but keep in mind it is quite different: /Users/matthewevers/Documents/git_repos/xrsps-typescript.
+
+Critical: All cache, network, and file IO must be done through a task system. There is already a plumbed through test for the world builder.
+You will have to make use of the task system heavily.
+
+The World itself is a pure simulation engine and only references assets and other things via integer ids. Use the world builder to keep the world state in sync with the scene and other subsystems.
+
+Like v0 and v1, plumb the keyboard into manipulating the world camera, and like v1, provide hotkeys to test loading and adding elements to the world and scene.
+
+You must also implement the mouse hittesting for the world efficiently.
+Only hittest the world if the mouse is over the world element, additionally you must use that hittest to populate the world pickset, which will be used to populate minimenu options. Refer to the reference for how that hittest should work.
+
+You must include hotkeys for:
+
+1. Adding a default player model on the tile that the mouse is hovering
+2. Adding an npc model on the tile that the mouse is hovering
+3. Launching a projectile between two tiles.

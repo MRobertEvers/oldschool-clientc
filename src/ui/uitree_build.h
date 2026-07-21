@@ -75,6 +75,11 @@ struct UIBuildComponent
     int line_width;
     uint8_t line_horizontal;
     uint8_t hide;
+    /** Right-click verb strings decoded from the cache component (IF3 ops /
+     * INV objOps) plus the left-click option label; copied onto the node's
+     * menu_options for minimenu row population. */
+    char option[UITREE_MENU_OPTION_LEN];
+    char ops[UITREE_MENU_OPTION_SLOTS][UITREE_MENU_OPTION_LEN];
     int button_type;
     int client_code;
     int32_t click_mask;
@@ -84,6 +89,14 @@ struct UIBuildComponent
     int active_over_color;
     uint8_t drag_dead_zone;
     uint8_t drag_dead_time;
+    /** CS1 (IF1) value scripts, borrowed: UITree_SetBehavior deep-copies them. */
+    int scripts_count;
+    int** scripts;
+    int* scripts_lengths;
+    int comparator_count;
+    int* script_comparator;
+    int* script_operand;
+    uint8_t script_kind;
 };
 
 struct UITreeBuildSource

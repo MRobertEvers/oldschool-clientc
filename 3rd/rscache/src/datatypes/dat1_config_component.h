@@ -47,6 +47,8 @@ struct RSCache_Dat1ConfigComponent
     int overlayer;
     int* scriptComparator;
     int* scriptOperand;
+    /** Sized independently of scripts_count in the cache format. */
+    int comparator_count;
     int* invSlotObjId;
     int* invSlotObjCount;
     int seqFrame;

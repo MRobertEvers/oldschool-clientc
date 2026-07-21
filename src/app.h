@@ -6,13 +6,16 @@
 #include "engine/uitree_anim.h"
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_scene_bridge.h"
+#include "game/rs_cs1_host.h"
 #include "game/rs_cs2_host.h"
+#include "game/rs_player_stats.h"
 #include "input/torirs_input.h"
 #include "inv/inv_manager.h"
 #include "platform/platform_x_io.h"
 #include "task_runner.h"
 #include "toridraw_scene.h"
 #include "ui/uitree.h"
+#include "ui/uitree_cross.h"
 #include "ui/uitree_emit.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_interact.h"
@@ -26,6 +29,16 @@
  * WASM shell. The platform layer polls input, calls App_RunOnce once per
  * frame, and blits App_Render's pixels.
  */
+
+/*
+ * Component ids for the app-pushed overlay nodes (click cross, minimenu).
+ * High interface group 0x7FFE keeps them outside any cache interface id.
+ */
+enum
+{
+    APP_COM_ID_CROSS = (0x7FFE << 16) | 0,
+    APP_COM_ID_MINIMENU = (0x7FFE << 16) | 1,
+};
 
 struct AppConfig
 {
@@ -55,7 +68,9 @@ struct App
     struct UITree* tree;
     struct InvManager invs;
     struct VarPManager varps;
+    struct RS_PlayerStats stats;
     struct RS_CS2Host host;
+    struct RS_CS1Host cs1_host;
 
     /* Phase 5: frame state. */
     struct UITreeHost ui_host;
@@ -63,6 +78,7 @@ struct App
     struct UIInteraction interact;
     struct SeqLoadTracker seq_loads;
     struct InterfaceOpenStats open_stats;
+    struct UICross cross;
     uint64_t last_logic_ms;
     int hover_com_id;
     int clicked_com_id;

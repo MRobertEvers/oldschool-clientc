@@ -8,6 +8,7 @@
 #include "uitree_hover.h"
 #include "uitree_input.h"
 #include "uitree_layout.h"
+#include "uitree_minimenu.h"
 #include "uitree_scroll.h"
 
 #include <stdio.h>
@@ -29,7 +30,13 @@ struct TestHostState
 {
     int selected_tab;
     int cross_active;
+    int cross_atlas_frame;
+    int cross_x;
+    int cross_y;
     int minimenu_visible;
+    /** When set, GET_MINIMENU_STATE returns it (visible flag comes from the
+     * model itself; minimenu_visible only answers GET_MINIMENU_VISIBLE). */
+    struct UIMinimenu const* minimenu_state;
     int camera_yaw;
     /* Optional stub slots for UITREE_HOST_GET_INV_SOURCE_SLOT (tests). */
     int inv_source_id;
@@ -52,6 +59,19 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
         return st->cross_active;
     case UITREE_HOST_GET_MINIMENU_VISIBLE:
         return st->minimenu_visible;
+    case UITREE_HOST_GET_MINIMENU_STATE:
+        if( !st->minimenu_state || !req->u.get_minimenu_state.out )
+            return 0;
+        *req->u.get_minimenu_state.out = st->minimenu_state;
+        return 1;
+    case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
+        return st->cross_atlas_frame;
+    case UITREE_HOST_GET_CROSS_POSITION:
+        if( req->u.get_cross_position.out_x )
+            *req->u.get_cross_position.out_x = st->cross_x;
+        if( req->u.get_cross_position.out_y )
+            *req->u.get_cross_position.out_y = st->cross_y;
+        return 1;
     case UITREE_HOST_GET_CAMERA_YAW:
         return st->camera_yaw;
     case UITREE_HOST_IS_ACTIVE:
@@ -130,5 +150,7 @@ void test_scroll_hit(void);
 void test_drag_scrolled(void);
 void test_emit_icons(void);
 void test_emit_golden(void);
+void test_minimenu(void);
+void test_key_dispatch(void);
 
 #endif

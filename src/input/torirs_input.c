@@ -120,6 +120,9 @@ LibToriRS_Input_Begin(
     input->curr.mouse_y = input->prev.mouse_y;
 
     clear_gesture_oneshots(input);
+
+    input->key_event_count = 0;
+    memset(input->osrs_key_pressed, 0, sizeof(input->osrs_key_pressed));
 }
 
 void
@@ -158,6 +161,49 @@ LibToriRS_Input_PushKeyUp(
 {
     assert(input);
     input->curr.key_up[key] = 1;
+}
+
+void
+LibToriRS_Input_PushKeyEvent(
+    struct LibToriRS_Input* input,
+    int key_typed,
+    int key_pressed,
+    int is_repeat)
+{
+    assert(input);
+    if( input->key_event_count >= LIBTORIRS_KEY_EVENT_MAX )
+        return;
+    input->key_events[input->key_event_count].key_typed = key_typed;
+    input->key_events[input->key_event_count].key_pressed = key_pressed;
+    input->key_events[input->key_event_count].is_repeat = is_repeat ? 1 : 0;
+    input->key_event_count++;
+}
+
+void
+LibToriRS_Input_SetOsrsKeyState(
+    struct LibToriRS_Input* input,
+    int osrs_key,
+    int down,
+    int pressed_edge)
+{
+    assert(input);
+    if( osrs_key < 0 || osrs_key >= TORIRS_OSRSKEY_COUNT )
+        return;
+    input->osrs_key_held[osrs_key] = down ? 1 : 0;
+    if( down && pressed_edge )
+        input->osrs_key_pressed[osrs_key] = 1;
+}
+
+void
+LibToriRS_Input_ClearKeys(struct LibToriRS_Input* input)
+{
+    assert(input);
+    input->key_event_count = 0;
+    memset(input->key_held, 0, sizeof(input->key_held));
+    memset(input->curr.key_down, 0, sizeof(input->curr.key_down));
+    memset(input->curr.key_up, 0, sizeof(input->curr.key_up));
+    memset(input->osrs_key_held, 0, sizeof(input->osrs_key_held));
+    memset(input->osrs_key_pressed, 0, sizeof(input->osrs_key_pressed));
 }
 
 void

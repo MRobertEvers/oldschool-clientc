@@ -53,9 +53,11 @@ endif
 
 SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	platform/platform_sdl2_renderer_soft3d.c render/torirs_frame.c \
-	input/torirs_input.c \
+	input/torirs_input.c input/torirs_keymap.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
+	cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
+	game/rs_player_stats.c game/rs_cs1_host.c game/task_cs1_run.c \
 	cs2vm2/cs2_opcode_meta.c engine/cache_provider.c engine/cs2vm2_script_from_rscache.c \
 	engine/torirs_types.c engine/torirs_model_from_rscache.c \
 	engine/torirs_component_from_rscache.c \
@@ -94,6 +96,8 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/uitree_builder/task_interface_open.c \
 	engine/task_obj_model_load.c \
 	engine/uitree_scene_bridge.c \
+	engine/static_sprites.c \
+	engine/uitree_builder/task_static_sprites_load.c \
 	engine/player_appearance.c \
 	engine/toridraw_animation_from_rscache.c \
 	engine/dat2/task_dat2_sequence_load.c \
@@ -101,11 +105,11 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/toridraw_sprite_from_torirs.c \
 	engine/toridraw_font_from_torirs.c \
 	engine/toridraw_model_from_torirs.c \
-	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c \
+	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/rs_minimenu_build.c \
 	engine/uitree_anim.c \
 	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
-	ui/uitree_inv_view.c \
+	ui/uitree_inv_view.c ui/uitree_cross.c ui/uitree_minimenu.c \
 	ui/uitree_interact.c \
 	varp/varp_manager.c \
 	inv/inv_manager.c \
@@ -135,7 +139,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-world-builder test-minimap world-builder
+.PHONY: all clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-world-builder test-minimap test-cs1vm world-builder
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -236,6 +240,12 @@ test-varp: $(OBJ_DIR) varp/varp_manager.c varp/varp_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varp_manager_test varp/varp_manager.c varp/varp_manager_test.c
 	./$(OBJ_DIR)/varp_manager_test
 
+# CS1 VM core is engine-agnostic, so the suite links only the VM sources.
+test-cs1vm: $(OBJ_DIR) cs1vm/cs1vm.c cs1vm/cs1vm_script.c cs1vm/test/cs1vm_test.c
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/cs1vm -o $(OBJ_DIR)/cs1vm_test \
+		cs1vm/cs1vm.c cs1vm/cs1vm_script.c cs1vm/test/cs1vm_test.c
+	./$(OBJ_DIR)/cs1vm_test
+
 test-inv: $(OBJ_DIR) inv/inv_manager.c inv/inv_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/inv_manager_test inv/inv_manager.c inv/inv_manager_test.c
 	./$(OBJ_DIR)/inv_manager_test
@@ -254,13 +264,15 @@ test-uitree: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
 		ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
-		ui/uitree_inv_view.c \
+		ui/uitree_inv_view.c ui/uitree_cross.c ui/uitree_minimenu.c \
+		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
 		ui/test/uitree_test_drag.c ui/test/uitree_test_scroll_hit.c \
 		ui/test/uitree_test_drag_scrolled.c ui/test/uitree_test_emit_icons.c \
-		ui/test/uitree_test_emit_golden.c
+		ui/test/uitree_test_emit_golden.c \
+		ui/test/uitree_test_minimenu.c ui/test/uitree_test_keys.c
 	./$(OBJ_DIR)/uitree_test
 
 test-uitree-builder: $(OBJ_DIR)

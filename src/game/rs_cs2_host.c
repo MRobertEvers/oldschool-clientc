@@ -536,6 +536,13 @@ RS_CS2Host_Init(
     host->varps = varps;
     host->client_clock = 100;
     host->client_type = 80;
+    /* Op 1 is the primary left-click op, which is what every mouse-driven
+     * dispatch reports. Must not be left at the memset 0: on_op handlers read
+     * this through the CS2VM_SCRIPT_ARG_OP_INDEX sentinel. */
+    host->event_op_index = 1;
+    /* No key event in flight: a key CODE of -1 means "this is a character
+     * event", so 0 (a real code) would be a lie. */
+    host->event_key_typed = -1;
     host->viewport_w = 765;
     host->viewport_h = 503;
     host->bridge = NULL;
@@ -1773,6 +1780,9 @@ rs_cs2_runtime_hook_slot(
     case CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE:
     case CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE:
         return &node->runtime_hooks.on_sub_change;
+    case CS2VM_HOST_REQUEST_IF_SETONKEY:
+    case CS2VM_HOST_REQUEST_CC_SETONKEY:
+        return &node->runtime_hooks.on_key;
     default:
         return NULL;
     }
@@ -1792,6 +1802,10 @@ rs_cs2_seton_kind_str(enum CS2VM_HostRequestKind kind)
         return "IF_SETONMOUSEOVER";
     case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
         return "IF_SETONMOUSELEAVE";
+    case CS2VM_HOST_REQUEST_IF_SETONKEY:
+        return "IF_SETONKEY";
+    case CS2VM_HOST_REQUEST_CC_SETONKEY:
+        return "CC_SETONKEY";
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
         return "CC_SETONCLICK";
     case CS2VM_HOST_REQUEST_CC_SETONOP:
@@ -2024,6 +2038,19 @@ rs_cs2_host_exec_dispatch(
         int value = 0;
         if( id >= 0 && id < RS_CS2_HOST_VARC_INT_MAX )
             value = host->varc_int[id];
+        return CS2VM2_PushInt(vm, value);
+    }
+
+    case CS2VM_HOST_REQUEST_KEYHELD:
+    case CS2VM_HOST_REQUEST_KEYPRESSED:
+    {
+        int key_code = request->u.key_query.key_code;
+        unsigned char const* state = request->kind == CS2VM_HOST_REQUEST_KEYHELD
+                                         ? host->osrs_key_held
+                                         : host->osrs_key_pressed;
+        int value = 0;
+        if( key_code >= 0 && key_code < TORIRS_OSRSKEY_COUNT )
+            value = state[key_code] ? 1 : 0;
         return CS2VM2_PushInt(vm, value);
     }
 
@@ -2569,6 +2596,35 @@ rs_cs2_host_exec_dispatch(
                 request->u.if_set_target_priority.priority);
         return CS2VM_EXECNO_OK;
 
+    case CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY:
+        if( tree )
+            (void)UITree_ApplyOpKey(
+                tree,
+                request->u.widget_set_opkey.component_id,
+                request->u.widget_set_opkey.op_index,
+                request->u.widget_set_opkey.key_chars,
+                request->u.widget_set_opkey.key_codes,
+                request->u.widget_set_opkey.pair_count);
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY_RATE:
+        if( tree )
+        {
+            if( request->u.widget_set_opkey_rate.ignore_held )
+                (void)UITree_ApplyOpKeyIgnoreHeld(
+                    tree,
+                    request->u.widget_set_opkey_rate.component_id,
+                    request->u.widget_set_opkey_rate.op_index);
+            else
+                (void)UITree_ApplyOpKeyRate(
+                    tree,
+                    request->u.widget_set_opkey_rate.component_id,
+                    request->u.widget_set_opkey_rate.op_index,
+                    request->u.widget_set_opkey_rate.rate,
+                    request->u.widget_set_opkey_rate.enabled);
+        }
+        return CS2VM_EXECNO_OK;
+
     case CS2VM_HOST_REQUEST_IF_CLEAROPS:
         if( tree )
             rs_cs2_clear_ops(tree, request->u.if_clear_ops.component_id);
@@ -2601,6 +2657,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_IF_SETONTIMER:
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
         return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
@@ -2615,12 +2672,11 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
     case CS2VM_HOST_REQUEST_CC_SETONTIMER:
+    case CS2VM_HOST_REQUEST_CC_SETONKEY:
         return exec_set_on_cc_event(host, vm, request->kind, &request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT:
     case CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT:
         return exec_set_on_cc_transmit(host, vm, request->kind, &request->u.cc_set_on_op);
-    case CS2VM_HOST_REQUEST_CC_SETONKEY:
-        return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_SETANTIDRAG:
         if( tree )
             tree->anti_drag = request->u.widget_set_int.value ? 1 : 0;

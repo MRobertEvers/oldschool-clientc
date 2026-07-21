@@ -16,6 +16,10 @@ struct PlatformSDL2
     int width;
     int height;
     bool quit;
+    /* Escape is OSRS key 13 and the UI needs it (cancel dialog, close
+     * interface), so it no longer quits by default. TORIRS_ESC_QUIT=1 restores
+     * the old behaviour for headless and dev runs. */
+    bool esc_quits;
 };
 
 static enum LibToriRS_KeyCode
@@ -134,6 +138,116 @@ sdl_keycode_to_torirs(SDL_Keycode key_code)
     }
 }
 
+/*
+ * SDL keysym -> Java KeyEvent.VK_* / DOM keyCode, for the OSRS key table.
+ *
+ * Deliberately separate from sdl_keycode_to_torirs: that one feeds the
+ * platform-neutral edge/held arrays and only covers the subset the camera and
+ * debug paths use, while this one must cover everything OSRS_KEY_MAP maps
+ * (F-keys, numpad, alt, home/end) without growing TORIRSK_COUNT, which sizes
+ * two arrays inside both the prev and curr input snapshots.
+ */
+static int
+sdl_keycode_to_vk(SDL_Keycode key_code)
+{
+    if( key_code >= SDLK_a && key_code <= SDLK_z )
+        return 65 + (key_code - SDLK_a); /* VK_A .. VK_Z */
+    if( key_code >= SDLK_0 && key_code <= SDLK_9 )
+        return 48 + (key_code - SDLK_0); /* VK_0 .. VK_9 */
+    if( key_code >= SDLK_F1 && key_code <= SDLK_F12 )
+        return 112 + (key_code - SDLK_F1); /* VK_F1 .. VK_F12 */
+
+    switch( key_code )
+    {
+    case SDLK_BACKSPACE:
+        return TORIRS_VK_BACKSPACE;
+    case SDLK_TAB:
+        return TORIRS_VK_TAB;
+    case SDLK_RETURN:
+    case SDLK_KP_ENTER:
+        return TORIRS_VK_ENTER;
+    case SDLK_LSHIFT:
+    case SDLK_RSHIFT:
+        return TORIRS_VK_SHIFT;
+    case SDLK_LCTRL:
+    case SDLK_RCTRL:
+        return TORIRS_VK_CTRL;
+    case SDLK_LALT:
+    case SDLK_RALT:
+        return TORIRS_VK_ALT;
+    case SDLK_ESCAPE:
+        return TORIRS_VK_ESCAPE;
+    case SDLK_SPACE:
+        return TORIRS_VK_SPACE;
+    case SDLK_PAGEUP:
+        return 33;
+    case SDLK_PAGEDOWN:
+        return 34;
+    case SDLK_END:
+        return 35;
+    case SDLK_HOME:
+        return 36;
+    case SDLK_LEFT:
+        return 37;
+    case SDLK_UP:
+        return 38;
+    case SDLK_RIGHT:
+        return 39;
+    case SDLK_DOWN:
+        return 40;
+    case SDLK_KP_0:
+        return 96;
+    case SDLK_KP_1:
+        return 97;
+    case SDLK_KP_2:
+        return 98;
+    case SDLK_KP_3:
+        return 99;
+    case SDLK_KP_4:
+        return 100;
+    case SDLK_KP_5:
+        return 101;
+    case SDLK_KP_6:
+        return 102;
+    case SDLK_KP_7:
+        return 103;
+    case SDLK_KP_8:
+        return 104;
+    case SDLK_KP_9:
+        return 105;
+    case SDLK_KP_MULTIPLY:
+        return 106;
+    case SDLK_KP_PLUS:
+        return 107;
+    case SDLK_KP_MINUS:
+        return 109;
+    case SDLK_KP_PERIOD:
+        return 110;
+    case SDLK_KP_DIVIDE:
+        return 111;
+    case SDLK_DELETE:
+        return TORIRS_VK_DELETE;
+    default:
+        return -1;
+    }
+}
+
+/* First codepoint of a UTF-8 SDL_TEXTINPUT payload, or -1. */
+static int
+utf8_first_codepoint(char const* text)
+{
+    unsigned char const* bytes = (unsigned char const*)text;
+    if( !bytes || !bytes[0] )
+        return -1;
+    if( bytes[0] < 0x80 )
+        return bytes[0];
+    if( (bytes[0] & 0xE0) == 0xC0 && (bytes[1] & 0xC0) == 0x80 )
+        return ((bytes[0] & 0x1F) << 6) | (bytes[1] & 0x3F);
+    if( (bytes[0] & 0xF0) == 0xE0 && (bytes[1] & 0xC0) == 0x80 && (bytes[2] & 0xC0) == 0x80 )
+        return ((bytes[0] & 0x0F) << 12) | ((bytes[1] & 0x3F) << 6) | (bytes[2] & 0x3F);
+    return -1;
+}
+
 static enum LibToriRS_MouseButton
 sdl_mouse_button_to_torirs(int mouse_button)
 {
@@ -212,6 +326,8 @@ PlatformSDL2_Init(
         return false;
     }
 
+    platform->esc_quits = getenv("TORIRS_ESC_QUIT") != NULL;
+
     platform->window = SDL_CreateWindow(
         title ? title : "torirs",
         SDL_WINDOWPOS_UNDEFINED,
@@ -268,6 +384,12 @@ PlatformSDL2_Init(
         return false;
     }
     memset(platform->pixels, 0, pixel_count * sizeof(int));
+
+    /* SDL_TEXTINPUT is how we get layout-resolved, shift-applied characters;
+     * deriving them from keysyms would mean reimplementing shift tables per
+     * keyboard layout. On by default on most desktop backends, but not
+     * guaranteed. */
+    SDL_StartTextInput();
 
     platform->width = width;
     platform->height = height;
@@ -395,6 +517,20 @@ PlatformSDL2_PollInput(
     int ly;
     enum LibToriRS_KeyCode key;
     enum LibToriRS_MouseButton button;
+    /*
+     * The reference emits exactly one key event per keypress: a character event
+     * when the key produces a printable char, otherwise a key-code event, never
+     * both (InputManager.onKeyDown). SDL instead splits one keypress into
+     * SDL_KEYDOWN followed -- only sometimes -- by SDL_TEXTINPUT, guaranteed in
+     * that order within a poll batch. So hold the key-code event back until we
+     * know whether a character followed: a printable SDL_TEXTINPUT cancels it,
+     * anything else flushes it. Since the pending event is flushed at the top of
+     * every KEYDOWN and once more after the loop, and nothing else in the loop
+     * pushes key events, arrival order is preserved exactly.
+     */
+    int pending_osrs = -1;
+    int pending_mods = 0;
+    int pending_repeat = 0;
 
     assert(platform);
     assert(input);
@@ -407,15 +543,72 @@ PlatformSDL2_PollInput(
             platform->quit = true;
             break;
         case SDL_KEYDOWN:
-            if( event.key.repeat )
-                break;
+        {
+            int vk;
+            int osrs;
+
+            if( pending_osrs >= 0 )
+            {
+                LibToriRS_Input_PushKeyEvent(input, pending_osrs, 0, pending_repeat);
+                pending_osrs = -1;
+            }
+
             key = sdl_keycode_to_torirs(event.key.keysym.sym);
-            if( key == TORIRSK_ESCAPE )
+            if( platform->esc_quits && key == TORIRSK_ESCAPE )
                 platform->quit = true;
-            LibToriRS_Input_PushKeyDown(input, key);
+
+            /* OS auto-repeat feeds the event queue -- that is what makes a held
+             * backspace delete repeatedly, matching the reference, which does
+             * not filter repeats. The key_down[] edge array stays a true edge. */
+            if( !event.key.repeat )
+                LibToriRS_Input_PushKeyDown(input, key);
+
+            vk = sdl_keycode_to_vk(event.key.keysym.sym);
+            osrs = LibToriRS_OsrsKeyFromVk(vk);
+            if( osrs >= 0 )
+            {
+                LibToriRS_Input_SetOsrsKeyState(input, osrs, 1, !event.key.repeat);
+                pending_osrs = osrs;
+                pending_mods = event.key.keysym.mod;
+                pending_repeat = event.key.repeat ? 1 : 0;
+            }
             break;
+        }
+        case SDL_TEXTINPUT:
+        {
+            int codepoint = utf8_first_codepoint(event.text.text);
+            /* Reference guard: a character is only produced when no ctrl/alt/meta
+             * modifier is active, so Ctrl+S stays a key-code event. */
+            if( pending_mods & (KMOD_CTRL | KMOD_ALT | KMOD_GUI) )
+                break;
+            /* Clamped to latin-1: RS fonts have no glyphs beyond it. The
+             * reference passes charCodeAt(0) unclamped, so this is a deliberate
+             * divergence rather than an oversight. */
+            if( codepoint >= 32 && codepoint <= 255 )
+            {
+                pending_osrs = -1; /* the character event replaces the code event */
+                LibToriRS_Input_PushKeyEvent(input, -1, codepoint, pending_repeat);
+            }
+            pending_mods = 0;
+            break;
+        }
         case SDL_KEYUP:
+        {
+            int osrs = LibToriRS_OsrsKeyFromVk(sdl_keycode_to_vk(event.key.keysym.sym));
             LibToriRS_Input_PushKeyUp(input, sdl_keycode_to_torirs(event.key.keysym.sym));
+            if( osrs >= 0 )
+                LibToriRS_Input_SetOsrsKeyState(input, osrs, 0, 0);
+            break;
+        }
+        case SDL_WINDOWEVENT:
+            /* Focus loss: the OS stops delivering key-ups, so anything held now
+             * would latch forever. Reference InputManager.onFocusOut. */
+            if( event.window.event == SDL_WINDOWEVENT_FOCUS_LOST )
+            {
+                pending_osrs = -1;
+                pending_mods = 0;
+                LibToriRS_Input_ClearKeys(input);
+            }
             break;
         case SDL_MOUSEBUTTONDOWN:
             PlatformSDL2_MapMouse(platform, event.button.x, event.button.y, &lx, &ly);
@@ -443,6 +636,11 @@ PlatformSDL2_PollInput(
             break;
         }
     }
+
+    /* No SDL_TEXTINPUT arrived for the last keydown, so it was a non-character
+     * key after all. */
+    if( pending_osrs >= 0 )
+        LibToriRS_Input_PushKeyEvent(input, pending_osrs, 0, pending_repeat);
 }
 
 void

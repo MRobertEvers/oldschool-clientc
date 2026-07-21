@@ -144,7 +144,8 @@ UITreeSceneBridge_Init(
     bridge->model_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
     bridge->obj_icon_map = bridge_hmap_new_keyed(
         sizeof(int) * 2, sizeof(struct MapEntry_ObjIcon), BRIDGE_OBJ_ICON_MAP_CAP);
-    bridge->scrollbar_scene_id = -1;
+    for( int slot = 0; slot < STATIC_SPRITE_COUNT; slot++ )
+        bridge->static_sprite_scene[slot] = -1;
     bridge->player_scene_id = -1;
     assert(bridge->sprite_map && bridge->model_map && bridge->obj_icon_map);
 }
@@ -252,27 +253,47 @@ UITreeSceneBridge_EnsureSprite(
 }
 
 int
-UITreeSceneBridge_EnsureScrollbar(
+UITreeSceneBridge_EnsureStaticSprite(
     struct UITreeSceneBridge* bridge,
+    enum StaticSpriteSlot slot,
     int cache_graphic_id)
 {
     int scene_id;
 
     assert(bridge);
-    if( bridge->scrollbar_scene_id > 0 )
-        return bridge->scrollbar_scene_id;
+    assert(slot >= 0 && slot < STATIC_SPRITE_COUNT);
+    if( bridge->static_sprite_scene[slot] > 0 )
+        return bridge->static_sprite_scene[slot];
 
     scene_id = UITreeSceneBridge_EnsureSprite(bridge, cache_graphic_id);
     if( scene_id > 0 )
-        bridge->scrollbar_scene_id = scene_id;
+        bridge->static_sprite_scene[slot] = scene_id;
     return scene_id;
+}
+
+int
+UITreeSceneBridge_StaticSpriteSceneId(
+    struct UITreeSceneBridge const* bridge,
+    enum StaticSpriteSlot slot)
+{
+    assert(bridge);
+    assert(slot >= 0 && slot < STATIC_SPRITE_COUNT);
+    return bridge->static_sprite_scene[slot];
+}
+
+int
+UITreeSceneBridge_EnsureScrollbar(
+    struct UITreeSceneBridge* bridge,
+    int cache_graphic_id)
+{
+    return UITreeSceneBridge_EnsureStaticSprite(
+        bridge, STATIC_SPRITE_SCROLLBAR, cache_graphic_id);
 }
 
 int
 UITreeSceneBridge_ScrollbarSceneId(struct UITreeSceneBridge const* bridge)
 {
-    assert(bridge);
-    return bridge->scrollbar_scene_id;
+    return UITreeSceneBridge_StaticSpriteSceneId(bridge, STATIC_SPRITE_SCROLLBAR);
 }
 
 int

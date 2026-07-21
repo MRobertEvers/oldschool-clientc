@@ -83,19 +83,28 @@ struct CS2VM2_Array
 #define CS2_OP_IF_SETCLICKMASK 2308
 #define CS2_OP_IF_SETPINCH 2309
 #define CS2_OP_IF_SETMODEL_PLAYERCHATHEAD 2203
-#define CS2_OP_CC_INPUT_SETSUBMITMODE 7200
-#define CS2_OP_CC_INPUT_SETSELECTCOLOUR 7201
-#define CS2_OP_CC_INPUT_SETWRAPMODE 7202
-#define CS2_OP_CC_INPUT_SETLINEWRAPPINGWIDTH 7203
-#define CS2_OP_CC_INPUT_SETSELECTBGCOLOUR 7204
-#define CS2_OP_CC_INPUT_SETLINECOUNTLIMIT 7205
-#define CS2_OP_CC_INPUT_SETCURSORCOLOUR 7206
-#define CS2_OP_CC_INPUT_SETCURSORTRANS 7207
-#define CS2_OP_CC_INPUT_SETCURSORWIDTH 7208
-#define CS2_OP_CC_INPUT_SETCURSORHEIGHT 7209
-#define CS2_OP_CC_INPUT_SETCURSOROFFSET 7210
-#define CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT 7211
-#define CS2_OP_CC_INPUT_SETCHARFILTER 7212
+/*
+ * Input-field (widget type 16) configuration. These were previously numbered
+ * 7200-7212, which is outside the real opcode space -- no cache script could
+ * ever reach those handlers, while the real opcodes sat in the table as
+ * "_unknown" with {0,0,0,0} stack metadata and desynced the operand stack.
+ * SETACCEPTMODE was also missing entirely, which shifted every entry after
+ * SETSELECTCOLOUR by one. Numbering per the reference (Opcodes.ts:119-132).
+ */
+#define CS2_OP_CC_INPUT_SETSUBMITMODE 1133
+#define CS2_OP_CC_INPUT_SETSELECTCOLOUR 1134
+#define CS2_OP_CC_INPUT_SETACCEPTMODE 1135
+#define CS2_OP_CC_INPUT_SETWRAPMODE 1136
+#define CS2_OP_CC_INPUT_SETLINEWRAPPINGWIDTH 1137
+#define CS2_OP_CC_INPUT_SETSELECTBGCOLOUR 1138
+#define CS2_OP_CC_INPUT_SETLINECOUNTLIMIT 1139
+#define CS2_OP_CC_INPUT_SETCURSORCOLOUR 1140
+#define CS2_OP_CC_INPUT_SETCURSORTRANS 1141
+#define CS2_OP_CC_INPUT_SETCURSORWIDTH 1142
+#define CS2_OP_CC_INPUT_SETCURSORHEIGHT 1143
+#define CS2_OP_CC_INPUT_SETCURSOROFFSET 1144
+#define CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT 1145
+#define CS2_OP_CC_INPUT_SETCHARFILTER 1146
 
 /* A yield rolls the VM back to the start of the opcode that yielded. Per the
  * CS2VM_EXECNO_YIELD contract (see above), a yielding host op must not have mutated

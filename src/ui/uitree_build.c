@@ -45,6 +45,11 @@ UITree_PushBuildComponent(
     UITree_FillPositionFromBuild(&spec.position, comp);
     spec.has_position = 1;
 
+    /* Cache-decoded verb strings ride onto the node; op_actions stay 0 so the
+     * menu builder derives default action ids from the slot index. */
+    memcpy(spec.menu_options.option, comp->option, sizeof(spec.menu_options.option));
+    memcpy(spec.menu_options.ops, comp->ops, sizeof(spec.menu_options.ops));
+
     int scene_id = -1;
     int scene_id_active = -1;
 
@@ -175,14 +180,28 @@ UITree_PushBuildComponent(
         return -1;
 
     struct UITreeComponent* node = &tree->components[idx];
-    node->behavior.hide = comp->hide;
-    node->behavior.button_type = comp->button_type;
-    node->behavior.client_code = comp->client_code;
-    node->behavior.click_mask = comp->click_mask;
-    node->behavior.over_layer_id = comp->over_layer_id;
-    node->behavior.over_color = comp->over_color;
-    node->behavior.active_color = comp->active_color;
-    node->behavior.active_over_color = comp->active_over_color;
+
+    /* Routed through UITree_SetBehavior rather than poking fields directly so
+     * the CS1 script arrays get its deep copy — the node owns them. */
+    struct UITreeBehavior behavior;
+    memset(&behavior, 0, sizeof(behavior));
+    behavior.hide = comp->hide;
+    behavior.button_type = comp->button_type;
+    behavior.client_code = comp->client_code;
+    behavior.click_mask = comp->click_mask;
+    behavior.over_layer_id = comp->over_layer_id;
+    behavior.over_color = comp->over_color;
+    behavior.active_color = comp->active_color;
+    behavior.active_over_color = comp->active_over_color;
+    behavior.scripts_count = comp->scripts_count;
+    behavior.scripts = comp->scripts;
+    behavior.scripts_lengths = comp->scripts_lengths;
+    behavior.comparator_count = comp->comparator_count;
+    behavior.script_comparator = comp->script_comparator;
+    behavior.script_operand = comp->script_operand;
+    behavior.script_kind = comp->script_kind;
+    UITree_SetBehavior(tree, idx, &behavior);
+
     node->trans = comp->transparency;
     node->if3 = comp->if3 ? 1 : 0;
     node->drag_dead_zone = comp->drag_dead_zone;

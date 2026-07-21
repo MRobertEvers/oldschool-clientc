@@ -7,6 +7,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/** Buffer for text after CS1 %N placeholder substitution. */
+#define UITREE_EMIT_TEXT_FMT_MAX 128
+
 /** Draw descriptors produced by a UITree walk. Game resolves scene_ids. */
 enum UITreeEmitKind
 {
@@ -66,6 +69,10 @@ struct UITreeEmitDesc
     int obj_id;
     int obj_count;
     char const* text;
+    /** %N substitution result. Descs are copied by value into the emit buffer,
+     *  so the expansion is stored inline rather than behind a pointer. When the
+     *  first byte is non-zero this supersedes `text`. */
+    char text_formatted[UITREE_EMIT_TEXT_FMT_MAX];
     int text_center;      /* h_align 0/1/2 */
     int text_y_align;     /* v_align 0/1/2 */
     int text_shadowed;

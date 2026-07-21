@@ -86,6 +86,14 @@ bake_pack_runtime_hooks(
             tree, src->id, &node->runtime_hooks.on_drag, &src->on_drag);
         bake_runtime_hook_from_torirs(
             tree, src->id, &node->runtime_hooks.on_drag_complete, &src->on_drag_complete);
+        bake_runtime_hook_from_torirs(
+            tree, src->id, &node->runtime_hooks.on_hold, &src->on_hold);
+        bake_runtime_hook_from_torirs(
+            tree, src->id, &node->runtime_hooks.on_mouse_repeat, &src->on_mouse_repeat);
+        bake_runtime_hook_from_torirs(
+            tree, src->id, &node->runtime_hooks.on_scroll_wheel, &src->on_scroll_wheel);
+        bake_runtime_hook_from_torirs(
+            tree, src->id, &node->runtime_hooks.on_timer, &src->on_timer);
     }
 }
 
@@ -187,6 +195,11 @@ UITree_FillBuildFromToriRS(
     }
 
     dst->hide = src->hide;
+    _Static_assert(
+        sizeof(dst->option) == sizeof(src->option) && sizeof(dst->ops) == sizeof(src->ops),
+        "ui menu option mirrors out of sync with torirs");
+    memcpy(dst->option, src->option, sizeof(dst->option));
+    memcpy(dst->ops, src->ops, sizeof(dst->ops));
     dst->button_type = src->button_type;
     dst->client_code = src->client_code;
     dst->click_mask = src->click_mask;
@@ -196,6 +209,15 @@ UITree_FillBuildFromToriRS(
     dst->active_over_color = src->active_over_color;
     dst->drag_dead_zone = src->drag_dead_zone;
     dst->drag_dead_time = src->drag_dead_time;
+
+    /* CS1 value scripts pass through as borrowed views; the tree deep-copies. */
+    dst->scripts_count = src->scripts_count;
+    dst->scripts = src->scripts;
+    dst->scripts_lengths = src->scripts_lengths;
+    dst->comparator_count = src->comparator_count;
+    dst->script_comparator = src->script_comparator;
+    dst->script_operand = src->script_operand;
+    dst->script_kind = src->script_kind;
 }
 
 struct pack_adapter_ctx

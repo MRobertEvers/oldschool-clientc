@@ -2,6 +2,8 @@
 #include "uitree_builder_bake.h"
 #include "uitree_builder_manifest.h"
 
+#include "task_static_sprites_load.h"
+
 #include "game/rs_cs2_host.h"
 #include "game/task_cs2_run.h"
 #include "ui/uitree_layout.h"
@@ -42,6 +44,11 @@ Task_UITreeBuild_Run(
 
     /* 2. Load every cache asset the manifest needs. */
     TASK_AWAITSELF(CreateTask_UIBuilderAssetsLoad(self->builder, &self->manifest));
+
+    /* 2b. Client-hardcoded sprites (compass, cross, hitmarks, …) — no INI node
+     * owns these, so they bind to bridge slots instead of tree nodes. */
+    TASK_AWAITSELF_IF(
+        CreateTask_StaticSpritesLoad(self->builder->provider, self->builder->bridge));
 
     /* 3. Bake the tree (synchronous; provider is fully populated). */
     uitree_builder_bake(

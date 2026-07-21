@@ -163,6 +163,25 @@ and upload fonts, so the baked tree renders directly — see
 `test-uitree-builder-dat1`. With no bridge, nodes keep raw provider ids
 (interface-open always uses the scene bridge).
 
+### Client-hardcoded sprites
+
+Some chrome the client knows by name rather than through interface data —
+compass, minimap icons (`mapscene`/`mapfunction`/`mapdots`/`mapmarker`/
+`mapedge`), `hitmarks`, `headicons`, click `cross`, `scrollbar` arrows,
+`mod_icons`. These have no owning `[component:]` node, so their scene ids live
+in bridge slots rather than on tree nodes:
+
+`engine/static_sprites.h` (slot enum + per-era name/format table, mirroring the
+reference client’s graphic defaults) → `CreateTask_StaticSpritesLoad`
+(dat2 loads by archive name, dat1 by media-jagfile stem; missing archives leave
+the slot at -1) → `UITreeSceneBridge.static_sprite_scene[]` →
+`UITREE_HOST_GET_STATIC_SPRITE_SCENE`.
+
+Emit uses a slot only as a fallback: the compass prefers its node’s `sprite=`
+binding and drops to the static slot when unbound. `ui/` mirrors the slot
+values it needs in `enum UITreeStaticSpriteSlot` (static-asserted in
+`engine/static_sprites.c`) to stay leaf.
+
 ### Example INI
 
 ```ini

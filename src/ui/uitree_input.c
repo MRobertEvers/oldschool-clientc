@@ -266,6 +266,141 @@ UITree_HitTest(
     return hit;
 }
 
+struct collect_nodes_ctx
+{
+    int32_t* out;
+    int max;
+    int count;
+    /** Entries below this index were drawn under a no_click_through panel. */
+    int barrier;
+};
+
+/* Same traversal rules as hit_test_interactive_recursive, but appends every
+ * menu-relevant containing node in RENDER order (under -> top); the caller
+ * slices at the barrier and reverses for top-most-first. */
+static void
+collect_nodes_recursive(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t node_index,
+    int px,
+    int py,
+    int scroll_off_x,
+    int scroll_off_y,
+    struct UITreeScrollClip const* clip,
+    struct collect_nodes_ctx* ctx)
+{
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return;
+
+    if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !UITree_PointInClip(px, py, clip) )
+        return;
+
+    struct UITreeComponent const* component = &tree->components[node_index];
+
+    if( component->behavior.hide )
+        return;
+
+    int bx = 0;
+    int by = 0;
+    int bw = 0;
+    int bh = 0;
+    UITree_LayoutGetBounds(&component->position, &bx, &by, &bw, &bh);
+
+    if( component->drag_active )
+    {
+        scroll_off_x -= component->drag_visual_x - (bx - scroll_off_x);
+        scroll_off_y -= component->drag_visual_y - (by - scroll_off_y);
+    }
+
+    bool const point_in_self =
+        UITree_PointInScrolledBounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y);
+
+    /* A blocking panel discards everything rendered under it — including
+     * entries already collected — but keeps itself and its subtree. */
+    if( point_in_self && component->no_click_through && ctx->count > ctx->barrier )
+        ctx->barrier = ctx->count;
+
+    if( point_in_self && UITree_ComponentHitTestVisibleHost(component, -1, host) )
+    {
+        bool const inv_grid =
+            component->type == UIELEM_RS_INV || component->type == UIELEM_RS_INV_TEXT;
+        /* Op-bearing containers (e.g. an IF3 layer with cache ops but no CS2
+         * hook yet) are menu targets even though the click path treats them as
+         * pass-through (reference collects any widget with option strings).
+         * Chat panels carry social-op templates in their chat config. */
+        bool const has_ops = UITree_ComponentHasMenuOptions(component) ||
+                             component->menu_options.option[0] != '\0' ||
+                             component->type == UIELEM_BUILTIN_CHAT;
+        if( (inv_grid || has_ops || !UITree_ComponentIsPassThrough(component, host)) &&
+            ctx->count < ctx->max )
+            ctx->out[ctx->count++] = node_index;
+    }
+
+    int child_scroll_x = scroll_off_x;
+    int child_scroll_y = scroll_off_y;
+    struct UITreeScrollClip child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
+
+    if( UITree_ComponentClipsChildren(component) && bw > 0 && bh > 0 )
+        UITree_ScrollIntersectClip(
+            &child_clip, bx - scroll_off_x, by - scroll_off_y, bw, bh);
+    if( component->type == UIELEM_RS_LAYER )
+    {
+        if( UITree_ScrollLayerNeedsHorizontal(component) )
+            child_scroll_x += component->scroll_x;
+        if( UITree_ScrollLayerNeedsVertical(component) )
+            child_scroll_y += component->scroll_y;
+    }
+
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
+    {
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        if( UITree_Host(host, &req) != component->u.sidebar.tabno )
+            return;
+    }
+
+    for( int32_t child = component->first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        collect_nodes_recursive(
+            tree, host, child, px, py, child_scroll_x, child_scroll_y, &child_clip, ctx);
+    }
+}
+
+int
+UITree_CollectNodesAt(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py,
+    int32_t* out_nodes,
+    int max_nodes)
+{
+    struct collect_nodes_ctx ctx = { .out = out_nodes, .max = max_nodes };
+
+    assert(tree);
+    assert(out_nodes);
+
+    for( int32_t root = tree->root_index; root >= 0;
+         root = tree->components[root].next_sibling )
+        collect_nodes_recursive(tree, host, root, px, py, 0, 0, NULL, &ctx);
+
+    /* Slice below the top-most blocking panel, then reverse to top-most-first. */
+    {
+        int kept = ctx.count - ctx.barrier;
+        for( int i = 0; i < kept / 2; i++ )
+        {
+            int32_t tmp = out_nodes[ctx.barrier + i];
+            out_nodes[ctx.barrier + i] = out_nodes[ctx.count - 1 - i];
+            out_nodes[ctx.count - 1 - i] = tmp;
+        }
+        if( ctx.barrier > 0 && kept > 0 )
+            memmove(out_nodes, out_nodes + ctx.barrier, (size_t)kept * sizeof(out_nodes[0]));
+        return kept;
+    }
+}
+
 int32_t
 UITree_HitTestInteractive(
     struct UITree const* tree,

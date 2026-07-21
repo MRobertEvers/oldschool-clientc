@@ -2,10 +2,12 @@
 
 #include "uitree_inv_view.h"
 #include "uitree_layout.h"
+#include "uitree_minimenu.h"
 #include "uitree_scroll.h"
 
 #include <assert.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -14,6 +16,21 @@ host_scrollbar_scene(struct UITreeHost const* host)
 {
     struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SCROLLBAR_SCENE };
     int scene_id = UITree_Host(host, &req);
+    return scene_id > 0 ? scene_id : -1;
+}
+
+/** Scene id of a client-hardcoded sprite (no owning node), or -1. */
+static int
+host_static_sprite_scene(
+    struct UITreeHost const* host,
+    enum UITreeStaticSpriteSlot slot)
+{
+    struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_STATIC_SPRITE_SCENE };
+    int scene_id;
+    if( !host )
+        return -1;
+    req.u.static_sprite.slot = (int)slot;
+    scene_id = UITree_Host(host, &req);
     return scene_id > 0 ? scene_id : -1;
 }
 
@@ -83,6 +100,62 @@ fill_scrollbar_h(
     out->scene_id = scrollbar_scene;
     out->atlas_index = 0;
     out->if3 = 0;
+}
+
+/**
+ * Expand CS1 %1..%5 placeholders into out->text_formatted.
+ *
+ * The reference client substitutes the value of the component's Nth value
+ * script, rendering anything at or above CS1's "infinity" as "*" (the
+ * inv-contains sentinel). Values come from the host, which serves them from
+ * the last evaluation pass — drawing never runs the VM.
+ */
+static void
+uitree_emit_format_placeholders(
+    struct UITreeComponent const* component,
+    struct UITreeHost const* host,
+    char const* text,
+    struct UITreeEmitDesc* out)
+{
+    assert(component);
+    assert(text);
+    assert(out);
+
+    out->text_formatted[0] = '\0';
+    if( component->behavior.scripts_count <= 0 || !strchr(text, '%') )
+        return;
+
+    size_t written = 0;
+    for( char const* src = text; *src && written + 1 < sizeof(out->text_formatted); )
+    {
+        if( src[0] == '%' && src[1] >= '1' && src[1] <= '0' + UITREE_CS1_VALUE_MAX )
+        {
+            struct UITreeHostRequest req;
+            memset(&req, 0, sizeof(req));
+            req.kind = UITREE_HOST_EVAL_TEXT_PLACEHOLDER;
+            req.u.eval_text_placeholder.component = component;
+            req.u.eval_text_placeholder.script_idx = src[1] - '1';
+
+            int value = UITree_Host(host, &req);
+
+            char buf[16];
+            int len;
+            if( value < UITREE_CS1_VALUE_INFINITY )
+                len = snprintf(buf, sizeof(buf), "%d", value);
+            else
+                len = snprintf(buf, sizeof(buf), "*");
+
+            for( int i = 0; i < len && written + 1 < sizeof(out->text_formatted); i++ )
+                out->text_formatted[written++] = buf[i];
+
+            src += 2;
+            continue;
+        }
+
+        out->text_formatted[written++] = *src++;
+    }
+
+    out->text_formatted[written] = '\0';
 }
 
 bool
@@ -217,6 +290,7 @@ UITree_EmitFill(
             return false;
         out->kind = UITREE_EMIT_TEXT;
         out->text = text;
+        uitree_emit_format_placeholders(component, host, text, out);
         out->font_id = component->u.rs_text.font_id;
         out->color = color;
         out->text_center = component->u.rs_text.center;
@@ -309,6 +383,12 @@ UITree_EmitFill(
         out->kind = UITREE_EMIT_COMPASS;
         out->scene_id = component->u.sprite.scene_id;
         out->atlas_index = component->u.sprite.atlas_index;
+        /* No RevConfig sprite= binding (interface-open path): fall back to the
+         * client-hardcoded compass the host loaded. */
+        if( out->scene_id <= 0 )
+            out->scene_id = host_static_sprite_scene(host, UITREE_STATIC_SPRITE_COMPASS);
+        if( out->scene_id <= 0 )
+            return false;
         out->rotation = UITree_ComponentSpriteRotation(component, host);
         return true;
 
@@ -335,12 +415,40 @@ UITree_EmitFill(
         return true;
     }
 
+    case UIELEM_BUILTIN_CROSS:
+    {
+        /* Reference drawMinimenu-adjacent cross draw: 8-frame pack centered on
+         * the click point (Client.ts plots cross[cycle/100] at crossX-8). */
+        int cx = 0;
+        int cy = 0;
+        struct UITreeHostRequest pos_req = {
+            .kind = UITREE_HOST_GET_CROSS_POSITION,
+            .u.get_cross_position.out_x = &cx,
+            .u.get_cross_position.out_y = &cy,
+        };
+        if( !UITree_Host(host, &pos_req) )
+            return false;
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = host_static_sprite_scene(host, UITREE_STATIC_SPRITE_CROSS);
+        if( out->scene_id <= 0 )
+            return false;
+        {
+            struct UITreeHostRequest frame_req = { .kind =
+                                                       UITREE_HOST_GET_CROSS_ATLAS_FRAME };
+            out->atlas_index = UITree_Host(host, &frame_req);
+        }
+        out->x = cx - 8;
+        out->y = cy - 8;
+        out->w = 16;
+        out->h = 16;
+        return true;
+    }
+
     case UIELEM_BUILTIN_SIDEBAR:
     case UIELEM_BUILTIN_CHAT:
     case UIELEM_BUILTIN_CHAT_BUTTON:
     case UIELEM_BUILTIN_REDSTONE_TAB:
     case UIELEM_BUILTIN_TAB_ICONS:
-    case UIELEM_BUILTIN_CROSS:
     case UIELEM_BUILTIN_MINIMENU:
     case UIELEM_RS_INV:
     case UIELEM_RS_INV_TEXT:
@@ -370,6 +478,173 @@ static void
 emit_buffer_append(
     struct UITreeEmitBuffer* buf,
     struct UITreeEmitDesc const* desc);
+
+static void
+emit_minimenu_rect(
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* clip,
+    int x,
+    int y,
+    int w,
+    int h,
+    int color)
+{
+    struct UITreeEmitDesc desc;
+    memset(&desc, 0, sizeof(desc));
+    desc.kind = UITREE_EMIT_RECT;
+    desc.node_index = idx;
+    desc.component_id = c->component_id;
+    desc.x = x;
+    desc.y = y;
+    desc.w = w;
+    desc.h = h;
+    desc.color = color;
+    desc.filled = 1;
+    desc.clip = *clip;
+    emit_buffer_append(out, &desc);
+}
+
+static void
+emit_minimenu_text(
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* clip,
+    int x,
+    int y,
+    int w,
+    int h,
+    int font_id,
+    int color,
+    int shadowed,
+    char const* text)
+{
+    struct UITreeEmitDesc desc;
+    memset(&desc, 0, sizeof(desc));
+    desc.kind = UITREE_EMIT_TEXT;
+    desc.node_index = idx;
+    desc.component_id = c->component_id;
+    desc.x = x;
+    desc.y = y;
+    desc.w = w;
+    desc.h = h;
+    desc.font_id = font_id;
+    desc.color = color;
+    desc.text_shadowed = shadowed;
+    desc.text = text;
+    desc.clip = *clip;
+    emit_buffer_append(out, &desc);
+}
+
+/*
+ * Expand the minimenu node into the reference "Choose Option" popup: body
+ * fill, black title bar + border strips, title, then one row per option
+ * (hover yellow / white, shadowed) drawn bottom-to-top. Model comes from the
+ * host so the ui layer stays leaf (reference Client.drawMinimenu; geometry
+ * mirrors v1 runescape.c minimenu steps).
+ */
+static void
+emit_minimenu(
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip)
+{
+    struct UIMinimenu const* menu = NULL;
+
+    assert(c && c->type == UIELEM_BUILTIN_MINIMENU);
+    assert(out && parent_clip);
+
+    if( !host )
+        return;
+    /* Same host gate EmitFill applies to every other node type. */
+    if( !UITree_ComponentShouldEmit(c, host) )
+        return;
+    {
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_MINIMENU_STATE,
+            .u.get_minimenu_state.out = &menu,
+        };
+        if( !UITree_Host(host, &req) || !menu )
+            return;
+    }
+    if( !menu->visible || menu->option_count <= 0 )
+        return;
+
+    int const mx = menu->x;
+    int const my = menu->y;
+    int const mw = menu->width;
+    int const mh = menu->height;
+    struct UIMinimenuLayout const* layout = &menu->layout;
+    int font_id = c->u.minimenu.font_id > 0 ? c->u.minimenu.font_id : menu->font_id;
+
+    /* Body + title bar + separator / bottom / left / right border strips. */
+    emit_minimenu_rect(out, c, idx, parent_clip, mx, my, mw, mh, UITREE_MINIMENU_COLOR_BODY);
+    emit_minimenu_rect(
+        out, c, idx, parent_clip, mx + 1, my + 1, mw - 2, layout->header_bar_h, 0x000000);
+    emit_minimenu_rect(
+        out, c, idx, parent_clip, mx + 1, my + layout->separator_y, mw - 2, 1, 0x000000);
+    emit_minimenu_rect(out, c, idx, parent_clip, mx + 1, my + mh - 2, mw - 2, 1, 0x000000);
+    emit_minimenu_rect(
+        out,
+        c,
+        idx,
+        parent_clip,
+        mx + 1,
+        my + layout->separator_y,
+        1,
+        mh - layout->border_inset,
+        0x000000);
+    emit_minimenu_rect(
+        out,
+        c,
+        idx,
+        parent_clip,
+        mx + mw - 2,
+        my + layout->separator_y,
+        1,
+        mh - layout->border_inset,
+        0x000000);
+
+    /* Title baseline sits at y+14 in the reference (drawString x+3,y+14);
+     * DrawStringBox places the baseline at box_y + ascent, so the box starts
+     * just under the border. */
+    emit_minimenu_text(
+        out,
+        c,
+        idx,
+        parent_clip,
+        mx + 3,
+        my + 2,
+        mw - 6,
+        layout->header_bar_h,
+        font_id,
+        UITREE_MINIMENU_COLOR_BODY,
+        0,
+        "Choose Option");
+
+    for( int i = 0; i < menu->option_count; i++ )
+    {
+        int const row_baseline = UIMinimenu_OptionY(menu, i);
+        int const hovered = menu->hovered_option == i;
+        emit_minimenu_text(
+            out,
+            c,
+            idx,
+            parent_clip,
+            mx + 3,
+            row_baseline - layout->line_height + 2,
+            mw - 6,
+            layout->row_stride + 2,
+            font_id,
+            hovered ? 0xFFFF00 : 0xFFFFFF,
+            1,
+            menu->options[i].text);
+    }
+}
 
 /** Expand TYPE_INV grid into per-slot sprites via host GET_INV_SOURCE_SLOT. */
 static void
@@ -764,8 +1039,16 @@ emit_walk_node(
             in_deferred,
             parent_clip);
     }
+    else if( !if1_bar && c->type == UIELEM_BUILTIN_MINIMENU )
+    {
+        /* Screen-anchored popup chrome: multi-desc expansion, never scrolled
+         * or dragged (same shape as the RS_INV slot expansion above). */
+        emit_minimenu(host, out, c, idx, parent_clip);
+    }
     else if( !if1_bar && UITree_EmitFill(tree, host, c, idx, hovered_component_id, &desc) )
     {
+        /* World/minimap/compass are screen-anchored chrome: they still emit,
+         * but never take the scroll/drag translation. */
         if( desc.kind != UITREE_EMIT_WORLD && desc.kind != UITREE_EMIT_MINIMAP &&
             desc.kind != UITREE_EMIT_COMPASS )
         {
@@ -786,11 +1069,11 @@ emit_walk_node(
                 else if( desc.trans < 128 )
                     desc.trans = 128;
             }
-            desc.scroll_off_x = scroll_off_x;
-            desc.scroll_off_y = scroll_off_y;
-            desc.clip = *parent_clip;
-            emit_buffer_append(out, &desc);
         }
+        desc.scroll_off_x = scroll_off_x;
+        desc.scroll_off_y = scroll_off_y;
+        desc.clip = *parent_clip;
+        emit_buffer_append(out, &desc);
     }
 
     /* Sweep 0 draws the container's own children, sweep 1 the InterfaceParent

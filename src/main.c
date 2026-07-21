@@ -332,6 +332,166 @@ main(
         }
     }
 
+    /* TORIRS_SIM_MOUSE_CLICK=x,y[,right]: press+release a real mouse button
+     * through the input layer and run App_RunOnce ticks — headless repro for
+     * pointer-driven paths (click cross, minimenu open/select). Repeatable:
+     * "x,y;x2,y2,right" runs each click in order. */
+    {
+        char const* sim_mc = getenv("TORIRS_SIM_MOUSE_CLICK");
+        struct LibToriRS_Input mc_input_storage;
+        struct LibToriRS_Input* mc_input = NULL;
+        uint64_t mc_ms = 1;
+        while( sim_mc && *sim_mc && app.tree )
+        {
+            char* sep = NULL;
+            int mcx = (int)strtol(sim_mc, &sep, 0);
+            int mcy = sep && *sep == ',' ? (int)strtol(sep + 1, &sep, 0) : 0;
+            enum LibToriRS_MouseButton button = TORIRSM_LEFT;
+            if( sep && *sep == ',' && strncmp(sep + 1, "right", 5) == 0 )
+            {
+                button = TORIRSM_RIGHT;
+                sep += 1 + 5;
+            }
+            sim_mc = (sep && *sep == ';') ? sep + 1 : NULL;
+
+            if( !mc_input )
+                mc_input = LibToriRS_Input_Init(&mc_input_storage, 0);
+
+            fprintf(
+                stderr,
+                "sim_mouse_click: %s at %d,%d\n",
+                button == TORIRSM_RIGHT ? "right" : "left",
+                mcx,
+                mcy);
+            LibToriRS_Input_Begin(mc_input, mc_ms);
+            LibToriRS_Input_PushMouseMove(mc_input, mcx, mcy);
+            LibToriRS_Input_PushMouseDown(mc_input, button, mcx, mcy);
+            LibToriRS_Input_End(mc_input);
+            (void)App_RunOnce(&app, mc_ms, mc_input);
+            mc_ms += 20;
+
+            LibToriRS_Input_Begin(mc_input, mc_ms);
+            LibToriRS_Input_PushMouseUp(mc_input, button, mcx, mcy);
+            LibToriRS_Input_End(mc_input);
+            (void)App_RunOnce(&app, mc_ms, mc_input);
+            mc_ms += 20;
+
+            {
+                int mc_ticks = getenv("TORIRS_SIM_TICKS")
+                                   ? (int)strtol(getenv("TORIRS_SIM_TICKS"), NULL, 0)
+                                   : 5;
+                for( int t = 0; t < mc_ticks; t++ )
+                {
+                    LibToriRS_Input_Begin(mc_input, mc_ms);
+                    LibToriRS_Input_End(mc_input);
+                    (void)App_RunOnce(&app, mc_ms, mc_input);
+                    mc_ms += 20;
+                }
+            }
+        }
+    }
+
+    /* TORIRS_SIM_KEYS=c49,c50,k85: feed one key event per simulated tick through
+     * the real InteractFrame -> onKey broadcast path. Tokens are `k<n>` for an
+     * OSRS internal key code (so output lines up with script sources and
+     * TORIRS_DUMP_HOOKS) and `c<n>` for a character code — see
+     * struct LibToriRS_KeyEvent for why those are two distinct event shapes.
+     * Headless repro for onKey handlers; pair with TORIRS_DUMP_HOOKS=1 to find
+     * components carrying one. */
+    if( getenv("TORIRS_SIM_KEYS") && app.tree )
+    {
+        char const* sk_cursor = getenv("TORIRS_SIM_KEYS");
+        struct LibToriRS_Input sk_storage;
+        struct LibToriRS_Input* sk_input = LibToriRS_Input_Init(&sk_storage, 0);
+        uint64_t sk_ms = 1;
+        /* onKey scripts commonly re-register hooks and queue transmits that only
+         * settle on later logic ticks, so keep ticking after the last key. */
+        int sk_tail_ticks =
+            getenv("TORIRS_SIM_TICKS") ? (int)strtol(getenv("TORIRS_SIM_TICKS"), NULL, 0) : 10;
+
+        for( ;; )
+        {
+            LibToriRS_Input_Begin(sk_input, sk_ms);
+            if( sk_cursor && *sk_cursor )
+            {
+                char kind = *sk_cursor++;
+                char* sk_end = NULL;
+                long val = strtol(sk_cursor, &sk_end, 0);
+                sk_cursor = (sk_end && *sk_end == ',') ? sk_end + 1 : NULL;
+                if( kind == 'c' )
+                    LibToriRS_Input_PushKeyEvent(sk_input, -1, (int)val, 0);
+                else
+                    LibToriRS_Input_PushKeyEvent(sk_input, (int)val, 0, 0);
+                fprintf(stderr, "sim_keys: %c%ld\n", kind, val);
+            }
+            else if( sk_tail_ticks-- <= 0 )
+                break;
+            LibToriRS_Input_End(sk_input);
+            (void)App_RunOnce(&app, sk_ms, sk_input);
+            sk_ms += 20;
+        }
+        fprintf(stderr, "sim_keys: done\n");
+    }
+
+    /* TORIRS_DUMP_OPKEYS=1: print every op-key binding CS2 installed, so a
+     * keyboard shortcut that does not fire can be traced to either a missing
+     * binding or a missing match. */
+    if( getenv("TORIRS_DUMP_OPKEYS") && app.tree )
+    {
+        for( uint32_t ki = 0; ki < app.tree->component_count; ki++ )
+        {
+            struct UITreeComponent const* c = &app.tree->components[ki];
+            if( c->freed || !c->op_keys.has_bindings )
+                continue;
+            for( int slot = 0; slot < UITREE_OPKEY_SLOTS; slot++ )
+            {
+                struct UITreeOpKeyBinding const* b = &c->op_keys.slots[slot];
+                if( !b->bound )
+                    continue;
+                fprintf(
+                    stderr,
+                    "OPKEYDUMP com=0x%08x op=%d pairs=%d key0=(char=%d,code=%d) "
+                    "rate=%d/%d ignore_held=%d on_op=%d\n",
+                    c->component_id,
+                    slot + 1,
+                    b->pair_count,
+                    b->key_chars[0],
+                    b->key_codes[0],
+                    b->rate,
+                    b->rate_enabled,
+                    b->ignore_held,
+                    c->runtime_hooks.on_op.script_id);
+            }
+        }
+    }
+
+    /* TORIRS_DUMP_OPS=1: print every node carrying menu option/op strings —
+     * verifies cache-config option threading onto the tree. */
+    if( getenv("TORIRS_DUMP_OPS") && app.tree )
+    {
+        for( uint32_t oi = 0; oi < app.tree->component_count; oi++ )
+        {
+            struct UITreeComponent const* c = &app.tree->components[oi];
+            struct UITreeMenuOptions const* mo = &c->menu_options;
+            int has_ops = mo->option[0] != '\0';
+            for( int s = 0; s < UITREE_MENU_OPTION_SLOTS; s++ )
+                if( mo->ops[s][0] != '\0' )
+                    has_ops = 1;
+            if( c->freed || !has_ops )
+                continue;
+            fprintf(
+                stderr,
+                "OPSDUMP com=0x%08x option=\"%s\" ops=[\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"]\n",
+                c->component_id,
+                mo->option,
+                mo->ops[0],
+                mo->ops[1],
+                mo->ops[2],
+                mo->ops[3],
+                mo->ops[4]);
+        }
+    }
+
     if( getenv("TORIRS_DUMP_TREE") && app.tree )
         dump_tree(&app, cfg.interface_id);
 
