@@ -1,4 +1,5 @@
 #include "app.h"
+#include "game/rs_cs2_dispatch.h"
 #include "input/torirs_input.h"
 #include "platform/platform_sdl2.h"
 #include "ui/uitree_layout.h"
@@ -193,13 +194,6 @@ dump_tree(
     while( root >= 0 )
     {
         struct UITreeComponent const* c = &app->tree->components[root];
-        fprintf(
-            stderr,
-            "DUMPTREE root idx=%d id=0x%08x freed=%d type=%d\n",
-            root,
-            (unsigned)c->component_id,
-            c->freed,
-            (int)c->type);
         if( !c->freed && ((c->component_id >> 16) & 0xFFFF) == group_id )
             dump_tree_node(app, root, 0);
         root = c->next_sibling;
@@ -270,6 +264,40 @@ main(
 
     App_Init(&app, &cfg);
     App_OpenRootInterface(&app, cfg.interface_id);
+
+    /* TORIRS_SIM_CLICK=<component_id>: dispatch that component's on_click hook
+     * right after open — headless repro for click-triggered scripts. */
+    if( getenv("TORIRS_SIM_CLICK") && app.tree )
+    {
+        int com_id = (int)strtol(getenv("TORIRS_SIM_CLICK"), NULL, 0);
+        int32_t idx = UITree_FindByComponentId(app.tree, com_id);
+        if( idx >= 0 )
+        {
+            struct UITreeRuntimeScriptHook hook = app.tree->components[idx].runtime_hooks.on_click;
+            if( hook.script_id <= 0 )
+                hook = app.tree->components[idx].runtime_hooks.on_op;
+            fprintf(stderr, "sim_click: com=0x%x script=%d\n", com_id, hook.script_id);
+            RS_CS2_DispatchHook(&app.host, &app.runner, com_id, &hook);
+        }
+        else
+            fprintf(stderr, "sim_click: component 0x%x not found\n", com_id);
+
+        /* Post-click processing mirrors App_RunOnce: transmit pump + logic
+         * ticks, where scripts queued by the click actually run. */
+        {
+            struct LibToriRS_Input sim_input_storage;
+            struct LibToriRS_Input* sim_input = LibToriRS_Input_Init(&sim_input_storage, 0);
+            uint64_t sim_ms = 1;
+            for( int t = 0; t < 25; t++ )
+            {
+                LibToriRS_Input_Begin(sim_input, sim_ms);
+                LibToriRS_Input_End(sim_input);
+                (void)App_RunOnce(&app, sim_ms, sim_input);
+                sim_ms += 20;
+            }
+            fprintf(stderr, "sim_click: post-click ticks done\n");
+        }
+    }
 
     if( getenv("TORIRS_DUMP_TREE") && app.tree )
         dump_tree(&app, cfg.interface_id);

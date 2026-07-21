@@ -301,6 +301,12 @@ struct CS2VM_HostRequest_IF_SetOutline
     int outline;
 };
 
+/* Hook string args ('s'/'W'/'X' signature chars). str_arg_mask bit i marks
+ * signature position i as a string; strings fill str_args[] in position order
+ * (k-th set bit -> str_args[k]). int_args[i] is unused at string positions. */
+#define CS2VM_SETON_STR_ARG_MAX 4
+#define CS2VM_SETON_STR_ARG_LEN 80
+
 struct CS2VM_HostRequest_IF_SetOnVarTransmit
 {
     int component_id;
@@ -310,6 +316,9 @@ struct CS2VM_HostRequest_IF_SetOnVarTransmit
     int trigger_count;
     int int_args[32];
     int int_arg_count;
+    uint32_t str_arg_mask;
+    int str_arg_count;
+    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
 };
 
 struct CS2VM_HostRequest_IF_SetOnInvTransmit
@@ -321,13 +330,10 @@ struct CS2VM_HostRequest_IF_SetOnInvTransmit
     int trigger_count;
     int int_args[32];
     int int_arg_count;
+    uint32_t str_arg_mask;
+    int str_arg_count;
+    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
 };
-
-/* Hook string args ('s'/'W'/'X' signature chars). str_arg_mask bit i marks
- * signature position i as a string; strings fill str_args[] in position order
- * (k-th set bit -> str_args[k]). int_args[i] is unused at string positions. */
-#define CS2VM_SETON_STR_ARG_MAX 4
-#define CS2VM_SETON_STR_ARG_LEN 80
 
 struct CS2VM_HostRequest_IF_SetOnOp
 {

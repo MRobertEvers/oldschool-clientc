@@ -674,7 +674,7 @@ RSCache_Dat2DiskArchiveNewLoad(
     return RSCache_Dat2DiskArchiveNewLoadDecrypted(disk, table_id, archive_id, NULL);
 }
 
-void
+bool
 RSCache_Dat2DiskArchiveInitMetadataFromTable(
     struct RSCache_ReferenceTable* table,
     struct RSCache_Dat2DiskArchive* archive)
@@ -682,7 +682,12 @@ RSCache_Dat2DiskArchiveInitMetadataFromTable(
     assert(table != NULL);
     assert(archive != NULL);
 
-    assert(archive->archive_id < table->archive_count);
+    /* Hand-patched caches (e.g. cache.kronos) carry idx records for archives
+     * the reference table doesn't list — past its max id or in an id gap
+     * (index == -1). Report failure instead of indexing out of bounds. */
+    if( archive->archive_id < 0 || archive->archive_id >= table->archive_count ||
+        table->archives[archive->archive_id].index < 0 )
+        return false;
     struct RSCache_ReferenceTableArchive* archive_reference = &table->archives[archive->archive_id];
     archive->revision = archive_reference->version;
     archive->file_count = archive_reference->children.count;
@@ -696,9 +701,10 @@ RSCache_Dat2DiskArchiveInitMetadataFromTable(
         for( int i = 0; i < archive->file_count; i++ )
             archive->file_ids[i] = archive_reference->children.files[i].id;
     }
+    return true;
 }
 
-void
+bool
 RSCache_Dat2DiskArchiveInitMetadata(
     struct RSCache_Dat2Disk* disk,
     struct RSCache_Dat2DiskArchive* archive)
@@ -708,10 +714,10 @@ RSCache_Dat2DiskArchiveInitMetadata(
     if( !table )
     {
         printf("Failed to load reference table for table %d\n", archive->table_id);
-        return;
+        return false;
     }
 
-    RSCache_Dat2DiskArchiveInitMetadataFromTable(table, archive);
+    return RSCache_Dat2DiskArchiveInitMetadataFromTable(table, archive);
 }
 
 struct RSCache_Dat2DiskArchive*

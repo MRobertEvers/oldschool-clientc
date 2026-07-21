@@ -131,11 +131,15 @@ RSCache_Dat2DiskArchiveNewLoadDecrypted(
     int table_id,
     int archive_id,
     uint32_t* xtea_key_nullable);
-void
+/** Fill revision/file_count/file_ids from the table's reference entry.
+ *  Returns false (archive metadata untouched) when the reference table does
+ *  not list the archive id — possible in hand-patched caches whose idx files
+ *  carry records the master index never learned about. */
+bool
 RSCache_Dat2DiskArchiveInitMetadata(
     struct RSCache_Dat2Disk* disk,
     struct RSCache_Dat2DiskArchive* archive);
-void
+bool
 RSCache_Dat2DiskArchiveInitMetadataFromTable(
     struct RSCache_ReferenceTable* table,
     struct RSCache_Dat2DiskArchive* archive);

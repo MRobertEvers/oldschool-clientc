@@ -4,9 +4,6 @@
 #include "rscache.h"
 
 // clang-format off
-#include "../bzip/bzip.c"
-#include "../miniz/miniz.c"
-#include "../xteas/xteas.c"
 #include "src/compression.c"
 #include "src/rsbuffer.c"
 #include "src/archive.c"

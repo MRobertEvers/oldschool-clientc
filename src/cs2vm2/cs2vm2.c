@@ -3280,6 +3280,8 @@ CS2VM2_Op_IF_SetOnVarTransmit(
 
     int int_args[32] = { 0 };
     int int_arg_count = 0;
+    char* str_by_pos[32] = { 0 };
+    uint32_t str_arg_mask = 0;
 
     if( signature && signature_parse_len > 0 )
     {
@@ -3291,8 +3293,21 @@ CS2VM2_Op_IF_SetOnVarTransmit(
                 char* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
+                    for( int k = 0; k < 32; k++ )
+                        free(str_by_pos[k]);
                     free(trigger_ids);
                     return CS2VM_EXECNO_ERROR;
+                }
+                if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
+                {
+                    str_by_pos[i] = v;
+                    str_arg_mask |= (uint32_t)1 << i;
+                    if( i + 1 > int_arg_count )
+                        int_arg_count = i + 1;
+                }
+                else
+                {
+                    free(v);
                 }
             }
             else
@@ -3300,6 +3315,8 @@ CS2VM2_Op_IF_SetOnVarTransmit(
                 int v = 0;
                 if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                 {
+                    for( int k = 0; k < 32; k++ )
+                        free(str_by_pos[k]);
                     free(trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
@@ -3315,12 +3332,16 @@ CS2VM2_Op_IF_SetOnVarTransmit(
 
     if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
+        for( int k = 0; k < 32; k++ )
+            free(str_by_pos[k]);
         free(trigger_ids);
         return CS2VM_EXECNO_ERROR;
     }
 
     if( script_id == -1 )
     {
+        for( int k = 0; k < 32; k++ )
+            free(str_by_pos[k]);
         free(trigger_ids);
         return CS2VM_EXECNO_OK;
     }
@@ -3338,6 +3359,24 @@ CS2VM2_Op_IF_SetOnVarTransmit(
         int_args,
         sizeof(request.u.if_set_on_var_transmit.int_args));
     request.u.if_set_on_var_transmit.int_arg_count = int_arg_count;
+    request.u.if_set_on_var_transmit.str_arg_mask = str_arg_mask;
+    for( int i = 0; i < 32; i++ )
+    {
+        if( !(str_arg_mask & ((uint32_t)1 << i)) )
+            continue;
+        if( request.u.if_set_on_var_transmit.str_arg_count < CS2VM_SETON_STR_ARG_MAX )
+        {
+            char* dst = request.u.if_set_on_var_transmit
+                            .str_args[request.u.if_set_on_var_transmit.str_arg_count];
+            strncpy(dst, str_by_pos[i] ? str_by_pos[i] : "", CS2VM_SETON_STR_ARG_LEN - 1);
+            dst[CS2VM_SETON_STR_ARG_LEN - 1] = '\0';
+        }
+        request.u.if_set_on_var_transmit.str_arg_count++;
+    }
+    if( request.u.if_set_on_var_transmit.str_arg_count > CS2VM_SETON_STR_ARG_MAX )
+        request.u.if_set_on_var_transmit.str_arg_count = CS2VM_SETON_STR_ARG_MAX;
+    for( int k = 0; k < 32; k++ )
+        free(str_by_pos[k]);
 
     int result = vm->vm->host_exec(vm, &request);
     free(trigger_ids);
@@ -3391,6 +3430,8 @@ CS2VM2_Op_IF_SetOnInvTransmit(
 
     int int_args[32] = { 0 };
     int int_arg_count = 0;
+    char* str_by_pos[32] = { 0 };
+    uint32_t str_arg_mask = 0;
 
     if( signature && signature_parse_len > 0 )
     {
@@ -3402,8 +3443,21 @@ CS2VM2_Op_IF_SetOnInvTransmit(
                 char* v = NULL;
                 if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                 {
+                    for( int k = 0; k < 32; k++ )
+                        free(str_by_pos[k]);
                     free(trigger_ids);
                     return CS2VM_EXECNO_ERROR;
+                }
+                if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
+                {
+                    str_by_pos[i] = v;
+                    str_arg_mask |= (uint32_t)1 << i;
+                    if( i + 1 > int_arg_count )
+                        int_arg_count = i + 1;
+                }
+                else
+                {
+                    free(v);
                 }
             }
             else
@@ -3411,6 +3465,8 @@ CS2VM2_Op_IF_SetOnInvTransmit(
                 int v = 0;
                 if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                 {
+                    for( int k = 0; k < 32; k++ )
+                        free(str_by_pos[k]);
                     free(trigger_ids);
                     return CS2VM_EXECNO_ERROR;
                 }
@@ -3426,12 +3482,16 @@ CS2VM2_Op_IF_SetOnInvTransmit(
 
     if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
+        for( int k = 0; k < 32; k++ )
+            free(str_by_pos[k]);
         free(trigger_ids);
         return CS2VM_EXECNO_ERROR;
     }
 
     if( script_id == -1 )
     {
+        for( int k = 0; k < 32; k++ )
+            free(str_by_pos[k]);
         free(trigger_ids);
         return CS2VM_EXECNO_OK;
     }
@@ -3449,6 +3509,24 @@ CS2VM2_Op_IF_SetOnInvTransmit(
         int_args,
         sizeof(request.u.if_set_on_inv_transmit.int_args));
     request.u.if_set_on_inv_transmit.int_arg_count = int_arg_count;
+    request.u.if_set_on_inv_transmit.str_arg_mask = str_arg_mask;
+    for( int i = 0; i < 32; i++ )
+    {
+        if( !(str_arg_mask & ((uint32_t)1 << i)) )
+            continue;
+        if( request.u.if_set_on_inv_transmit.str_arg_count < CS2VM_SETON_STR_ARG_MAX )
+        {
+            char* dst = request.u.if_set_on_inv_transmit
+                            .str_args[request.u.if_set_on_inv_transmit.str_arg_count];
+            strncpy(dst, str_by_pos[i] ? str_by_pos[i] : "", CS2VM_SETON_STR_ARG_LEN - 1);
+            dst[CS2VM_SETON_STR_ARG_LEN - 1] = '\0';
+        }
+        request.u.if_set_on_inv_transmit.str_arg_count++;
+    }
+    if( request.u.if_set_on_inv_transmit.str_arg_count > CS2VM_SETON_STR_ARG_MAX )
+        request.u.if_set_on_inv_transmit.str_arg_count = CS2VM_SETON_STR_ARG_MAX;
+    for( int k = 0; k < 32; k++ )
+        free(str_by_pos[k]);
 
     int result = vm->vm->host_exec(vm, &request);
     free(trigger_ids);

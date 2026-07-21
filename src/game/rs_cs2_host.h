@@ -29,6 +29,11 @@ struct RS_CS2InvTransmitHook
     int script_id;
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
+    /** String args by arg position (see CS2VM_HostRequest str_arg_mask docs).
+     *  Replayed into the hook script's string locals on dispatch. */
+    uint32_t str_arg_mask;
+    int str_arg_count;
+    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
     int trigger_ids[RS_CS2_HOST_TRANSMIT_TRIGGER_MAX];
     int trigger_count;
     /** inv_change_serial this hook last fired for (0 = never fired). Hooks fire
@@ -43,6 +48,10 @@ struct RS_CS2VarTransmitHook
     int script_id;
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
+    /** String args by arg position (see CS2VM_HostRequest str_arg_mask docs). */
+    uint32_t str_arg_mask;
+    int str_arg_count;
+    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
     int trigger_ids[RS_CS2_HOST_TRANSMIT_TRIGGER_MAX];
     int trigger_count;
     /** var_change_serial this hook last fired for (0 = never fired). */

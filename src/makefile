@@ -15,10 +15,15 @@ CFLAGS = -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(BMP_DIR) -I$(HMAP_DIR)
 
-RSCACHE_CFLAGS = -std=c11 -O3 -fno-omit-frame-pointer -g -MMD -MP \
+RSCACHE_CFLAGS = -std=c11 -O0 -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(RSCACHE_DIR)/include \
 	-I$(RSCACHE_DIR)/src \
 	-I$(RSCACHE_DIR) \
+	-I$(REPO_ROOT)/3rd/bzip \
+	-I$(REPO_ROOT)/3rd/miniz \
+	-I$(REPO_ROOT)/3rd/xteas
+
+COMPRESS_CFLAGS = -std=c11 -O3 -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(REPO_ROOT)/3rd/bzip \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas
@@ -115,7 +120,8 @@ TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 OBJS = $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
 	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
-	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o
+	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
+	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 
 # World builder pipeline objects (compiled as standalone objects; world_builder.c is a single
 # translation unit that #includes its .u.c units). Built via the `world-builder` target.
@@ -204,6 +210,13 @@ $(OBJ_DIR)/ini.o: $(INI_SRC)
 
 $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC)
 	$(CC) $(RSCACHE_CFLAGS) -w -c $(RSCACHE_UNITY_SRC) -o $@
+
+$(OBJ_DIR)/bzip.o: $(REPO_ROOT)/3rd/bzip/bzip.c
+	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
+$(OBJ_DIR)/miniz.o: $(REPO_ROOT)/3rd/miniz/miniz.c
+	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
+$(OBJ_DIR)/xteas.o: $(REPO_ROOT)/3rd/xteas/xteas.c
+	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC)
 	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_UNITY_SRC) -o $@

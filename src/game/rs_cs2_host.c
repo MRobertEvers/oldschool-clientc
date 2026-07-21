@@ -538,11 +538,17 @@ rs_cs2_inv_size(struct RS_CS2Host* host, int inv_id)
 static int
 rs_cs2_inv_get_obj(struct RS_CS2Host* host, int inv_id, int slot)
 {
+    int obj;
     assert(host);
     assert(host->invs);
     if( inv_id < 0 || slot < 0 )
         return -1;
-    return InvManager_GetObj(host->invs, inv_id, slot);
+    obj = InvManager_GetObj(host->invs, inv_id, slot);
+    /* Scripts expect -1 for empty (reference INV_GETOBJ pushes -1 when the
+     * inv or slot has no item); InvManager's empty sentinel is 0. */
+    if( obj <= INV_MANAGER_EMPTY_OBJ_ID )
+        return -1;
+    return obj;
 }
 
 static int
@@ -1277,7 +1283,24 @@ exec_widget_set_int(
     struct UITreeComponent* node = rs_cs2_node(host, request.component_id);
     int32_t idx;
     (void)vm;
-    assert(node);
+
+    if( !node )
+    {
+        /* Scripts set properties on other groups (e.g. interface 100's search
+         * button targets chatbox 162:36). Yield to sub-mount the group; once
+         * its root is baked, a still-missing child is a no-op (reference
+         * tolerates sets on absent widgets). */
+        int group_id = (request.component_id >> 16) & 0xffff;
+        if( request.component_id > 0 && group_id > 0 &&
+            rs_cs2_find_node(host, group_id << 16) < 0 )
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_WIDGET_SET_INT;
+            req.u.widget_set_int = request;
+            return rs_cs2_yield(host, &req);
+        }
+        return CS2VM_EXECNO_OK;
+    }
 
     idx = rs_cs2_find_node(host, request.component_id);
 
@@ -1453,6 +1476,18 @@ rs_cs2_acquire_var_transmit_hook(
     return hook;
 }
 
+/* Copy hook string args (mask + fixed buffers) from a SetOn request. Both
+ * request and hook use the CS2VM_SETON_STR_ARG_* layout. */
+#define RS_CS2_COPY_HOOK_STR_ARGS(hook, request)                                 \
+    do                                                                           \
+    {                                                                            \
+        (hook)->str_arg_mask = (request)->str_arg_mask;                          \
+        (hook)->str_arg_count = (request)->str_arg_count;                        \
+        if( (hook)->str_arg_count > CS2VM_SETON_STR_ARG_MAX )                    \
+            (hook)->str_arg_count = CS2VM_SETON_STR_ARG_MAX;                     \
+        memcpy((hook)->str_args, (request)->str_args, sizeof((hook)->str_args)); \
+    } while( 0 )
+
 static int
 exec_set_on_inv_transmit(
     struct RS_CS2Host* host,
@@ -1478,6 +1513,7 @@ exec_set_on_inv_transmit(
     if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
         hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
     memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+    RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
     hook->trigger_count = request->trigger_count;
     if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
         hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
@@ -1520,6 +1556,7 @@ exec_set_on_var_transmit(
     if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
         hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
     memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+    RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
     hook->trigger_count = request->trigger_count;
     if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
         hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
@@ -1573,6 +1610,7 @@ exec_set_on_cc_transmit(
         if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
             hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
         memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+        RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
         hook->trigger_count = request->trigger_count;
         if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
             hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
@@ -1596,6 +1634,7 @@ exec_set_on_cc_transmit(
         if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
             hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
         memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+        RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
         hook->trigger_count = request->trigger_count;
         if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
             hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;

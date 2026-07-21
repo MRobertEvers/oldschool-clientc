@@ -163,6 +163,8 @@ task_cs2_group_id_from_request(struct CS2VM_HostRequest const* request)
         return (request->u.cc_children_find.parent_id >> 16) & 0xffff;
     case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
         return (request->u.if_children_find.uid >> 16) & 0xffff;
+    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
+        return (request->u.widget_set_int.component_id >> 16) & 0xffff;
     default:
         return -1;
     }
@@ -184,6 +186,8 @@ task_cs2_mount_parent_id_from_request(struct CS2VM_HostRequest const* request)
         return request->u.cc_children_find.parent_id;
     case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
         return request->u.if_children_find.uid;
+    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
+        return request->u.widget_set_int.component_id;
     default:
         return -1;
     }
@@ -483,6 +487,9 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_IF_FIND:
     case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
     case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
+    /* Set-ops yield only when their target's group isn't baked yet (e.g.
+     * search targeting the chatbox group); load + mount it like a find. */
+    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
         task_cs2_plan_component(self);
         break;
 
@@ -601,7 +608,6 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_IF_SETOPSUBMENU:
     case CS2VM_HOST_REQUEST_IF_SETTARGETPRIORITY:
     case CS2VM_HOST_REQUEST_IF_CLEAROPS:
-    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
     case CS2VM_HOST_REQUEST_WIDGET_SET_INT2:
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_ANGLE:
     case CS2VM_HOST_REQUEST_WIDGET_SET_ARC:
@@ -1059,13 +1065,24 @@ Task_CS2InvTransmitDispatch_Run(
             self->container_id);
 #endif
 
-        TASK_AWAITSELF(CreateTask_CS2Run(
-            self->host,
-            hook->script_id,
-            hook->component_id,
-            hook->component_id,
-            hook->int_args,
-            hook->int_arg_count));
+        {
+            char const* str_ptrs[CS2VM_SETON_STR_ARG_MAX];
+            int si;
+            for( si = 0; si < CS2VM_SETON_STR_ARG_MAX; si++ )
+                str_ptrs[si] = hook->str_args[si];
+            /* CreateTask copies the strings immediately, so the locals need
+             * not survive the protothread yield. */
+            TASK_AWAITSELF(CreateTask_CS2RunMixed(
+                self->host,
+                hook->script_id,
+                hook->component_id,
+                hook->component_id,
+                hook->int_args,
+                hook->int_arg_count,
+                hook->str_arg_mask,
+                str_ptrs,
+                hook->str_arg_count));
+        }
     }
 
     PT_END(&self->pt);
@@ -1172,13 +1189,24 @@ Task_CS2VarTransmitDispatch_Run(
             continue;
         hook->last_seen_serial = self->host->var_change_serial;
 
-        TASK_AWAITSELF(CreateTask_CS2Run(
-            self->host,
-            hook->script_id,
-            hook->component_id,
-            hook->component_id,
-            hook->int_args,
-            hook->int_arg_count));
+        {
+            char const* str_ptrs[CS2VM_SETON_STR_ARG_MAX];
+            int si;
+            for( si = 0; si < CS2VM_SETON_STR_ARG_MAX; si++ )
+                str_ptrs[si] = hook->str_args[si];
+            /* CreateTask copies the strings immediately, so the locals need
+             * not survive the protothread yield. */
+            TASK_AWAITSELF(CreateTask_CS2RunMixed(
+                self->host,
+                hook->script_id,
+                hook->component_id,
+                hook->component_id,
+                hook->int_args,
+                hook->int_arg_count,
+                hook->str_arg_mask,
+                str_ptrs,
+                hook->str_arg_count));
+        }
     }
 
     PT_END(&self->pt);

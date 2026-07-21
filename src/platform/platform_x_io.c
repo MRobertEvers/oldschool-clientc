@@ -318,7 +318,19 @@ load_cache_item_dat2(
         return -1;
     }
 
-    RSCache_Dat2DiskArchiveInitMetadataFromTable(px->dat2_disk->tables[table_id], archive);
+    /* An idx record with no reference-table entry (hand-patched cache) is a
+     * missing archive, not a fatal error. */
+    if( !RSCache_Dat2DiskArchiveInitMetadataFromTable(px->dat2_disk->tables[table_id], archive) )
+    {
+        fprintf(
+            stderr,
+            "dat2 archive %d in table %d absent from reference table\n",
+            archive_id,
+            table_id);
+        RSCache_Dat2DiskArchiveFree(archive);
+        item->error_code = -1;
+        return -1;
+    }
 
     {
         struct RSCache_Dat2DiskArchive* master = dat2_archive_clone(archive);

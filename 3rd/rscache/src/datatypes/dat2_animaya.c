@@ -793,7 +793,8 @@ RSCache_Dat2AnimMayaNewFromArchive(
 
     if( table )
     {
-        RSCache_Dat2DiskArchiveInitMetadataFromTable(table, archive);
+        if( !RSCache_Dat2DiskArchiveInitMetadataFromTable(table, archive) )
+            return NULL;
         if( archive_id >= 0 && archive_id < table->archive_count )
             archive_ref = &table->archives[archive_id];
     }
