@@ -100,6 +100,7 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL,
     CS2VM_HOST_REQUEST_IF_SETONKEY,
     CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT,
+    CS2VM_HOST_REQUEST_IF_SETONHOLD,
     CS2VM_HOST_REQUEST_IF_SETONDRAG,
     CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE,
     CS2VM_HOST_REQUEST_IF_SETONRESIZE,
@@ -335,6 +336,10 @@ struct CS2VM_HostRequest_IF_SetOnOp
 
 struct CS2VM_HostRequest_CC_SetOnOp
 {
+    /* Target child: dot ops (operand 1) bind the dot register, plain ops the
+     * active register. Resolved at op-execution time in the VM — the host must
+     * not re-read a register that later ops may have retargeted. */
+    int component_id;
     int script_id;
     char* signature;
     int* trigger_ids;

@@ -482,6 +482,8 @@ struct ToriRS_Component
     int model_type;
     /** Widget/NPC/item model index when type==MODEL; meaning depends on model_type. */
     int model_id;
+    /** MODEL cache sequence (dat2 modelSeqId); -1 = none. Reference widget.sequenceId. */
+    int model_seq_id;
     /** MODEL preview camera: dat2 modelZoom / dat1 zoom. */
     int model_zoom;
     /** MODEL preview pitch: dat2 modelXAngle / dat1 xan. */

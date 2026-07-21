@@ -13,6 +13,18 @@ UITree_LayoutInvalidate(struct UITree* tree)
 
     for( uint32_t i = 0; i < tree->component_count; i++ )
         tree->components[i].position.layout_resolved = 0;
+    tree->layout_stale = 1;
+}
+
+void
+UITree_EnsureLayout(struct UITree const* tree)
+{
+    /* Lazy JIT re-layout for CS2 getters (reference ensureLayout). The resolve
+     * does not change logical state, so mutate through the const handle. */
+    struct UITree* t = (struct UITree*)tree;
+    if( !t || !t->layout_stale )
+        return;
+    UITree_LayoutResolve(t, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 }
 
 static int
@@ -270,6 +282,7 @@ UITree_LayoutResolve(
         pos->abs_h = abs_h[i];
         pos->layout_resolved = 1;
     }
+    tree->layout_stale = 0;
     /* Scratch buffers are owned by the tree and reused; freed in UITree_Free. */
 }
 

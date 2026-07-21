@@ -55,6 +55,8 @@ struct UIBuildComponent
     char const* text;
     char const* text_active;
     int model_id;
+    /** Cache-defined model sequence (dat2 modelSeqId); -1 = none, 0 is a valid seq. */
+    int model_seq_id;
     int model_zoom;
     int model_xan;
     int model_yan;

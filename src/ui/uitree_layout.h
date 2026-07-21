@@ -19,6 +19,12 @@ UITree_MulShift14(int a, int b)
 void
 UITree_LayoutInvalidate(struct UITree* tree);
 
+/** Re-resolve at root dims if any layout was invalidated since the last
+ *  resolve (reference WidgetManager.ensureLayout — CS2 getters must not read
+ *  stale geometry mid-script). No-op when layout is current. */
+void
+UITree_EnsureLayout(struct UITree const* tree);
+
 void
 UITree_LayoutResolve(
     struct UITree* tree,

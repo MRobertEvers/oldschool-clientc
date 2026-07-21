@@ -11,11 +11,11 @@ TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
 BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
 
-CFLAGS = -std=c11 -O2 -fno-omit-frame-pointer -Wall -Wextra -g \
+CFLAGS = -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(BMP_DIR) -I$(HMAP_DIR)
 
-RSCACHE_CFLAGS = -std=c11 -O2 -fno-omit-frame-pointer -g \
+RSCACHE_CFLAGS = -std=c11 -O0 -fno-omit-frame-pointer -g \
 	-I$(RSCACHE_DIR)/include \
 	-I$(RSCACHE_DIR)/src \
 	-I$(RSCACHE_DIR) \
@@ -23,7 +23,7 @@ RSCACHE_CFLAGS = -std=c11 -O2 -fno-omit-frame-pointer -g \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas
 
-TORIDRAW_CFLAGS = -std=c11 -O2 -fno-omit-frame-pointer -g \
+TORIDRAW_CFLAGS = -std=c11 -O0 -fno-omit-frame-pointer -g \
 	-I$(TORIDRAW_DIR) \
 	-I$(BMP_DIR)
 

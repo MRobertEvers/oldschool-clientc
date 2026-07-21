@@ -4,6 +4,7 @@
 #include "input/torirs_input.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 struct PlatformSDL2;
 
@@ -54,5 +55,11 @@ PlatformSDL2_PollInput(
 
 void
 PlatformSDL2_Present(struct PlatformSDL2* platform);
+
+uint64_t
+PlatformSDL2_Ticks64(void);
+
+void
+PlatformSDL2_Delay(uint32_t ms);
 
 #endif

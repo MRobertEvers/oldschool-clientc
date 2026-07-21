@@ -2413,11 +2413,12 @@ CS2VM2_Op_IF_SetScrollPos(
     int scroll_x;
     int scroll_y;
 
+    /* Stack (bottom to top): [scroll_x, scroll_y, uid] — pop in reverse. */
     if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &scroll_x) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &scroll_y) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &scroll_x) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2448,11 +2449,12 @@ CS2VM2_Op_IF_SetScrollSize(
     int scroll_width;
     int scroll_height;
 
+    /* Stack (bottom to top): [width, height, uid] — pop in reverse. */
     if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &scroll_width) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &scroll_height) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &scroll_width) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -2762,7 +2764,6 @@ CS2VM2_Op_CC_SetOnEventHandler(
     assert(vm);
     assert(frame);
     assert(out_request);
-    (void)operand;
 
     int script_id, trigger_count = 0;
     int* trigger_ids = NULL;
@@ -2836,13 +2837,10 @@ CS2VM2_Op_CC_SetOnEventHandler(
             return CS2VM_EXECNO_ERROR;
         }
 
-        if( script_id == -1 )
-        {
-            free(trigger_ids);
-            return CS2VM_EXECNO_OK;
-        }
-
+        /* script_id -1 still reaches the host: it clears the stored hook
+         * (reference: setting a null handler removes the listener). */
         memset(out_request, 0, sizeof(*out_request));
+        out_request->component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
         out_request->script_id = script_id;
         out_request->signature = signature;
         out_request->trigger_ids = trigger_ids;
@@ -3382,6 +3380,21 @@ CS2VM2_Op_IF_SetOnClick(
     struct CS2VM_HostRequest_IF_SetOnOp request;
     return CS2VM2_Op_IF_SetOnEventHandler(
         vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICK, &request);
+}
+
+int
+CS2VM2_Op_IF_SetOnHold(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONHOLD, &request);
 }
 
 int
@@ -6112,6 +6125,7 @@ CS2VM2_RunOp(
     case CS2_OP_CC_GETTRANS:
         return CS2VM2_Op_CC_GetTrans(vm, frame, operand);
     case CS2_OP_IF_SETONHOLD:
+        return CS2VM2_Op_IF_SetOnHold(vm, frame, operand);
     case CS2_OP_IF_SETONRELEASE:
     case CS2_OP_IF_SETONTARGETLEAVE:
     case CS2_OP_IF_SETONSTATTRANSMIT:

@@ -486,3 +486,15 @@ PlatformSDL2_Present(struct PlatformSDL2* platform)
     SDL_RenderCopy(platform->renderer, platform->texture, NULL, &dst);
     SDL_RenderPresent(platform->renderer);
 }
+
+uint64_t
+PlatformSDL2_Ticks64(void)
+{
+    return SDL_GetTicks64();
+}
+
+void
+PlatformSDL2_Delay(uint32_t ms)
+{
+    SDL_Delay(ms);
+}

@@ -60,9 +60,10 @@ UITree_ResolveClickHook(
     return NULL;
 }
 
-/* Innermost vertically-scrollable RS_LAYER whose bounds contain (mx,my), by
+/* Innermost vertically-scrollable IF1 RS_LAYER whose bounds contain (mx,my), by
  * smallest area (most specific). Wheel scrolls whatever layer is under the
- * cursor even over empty content, unlike the geometric leaf hit-test. */
+ * cursor even over empty content, unlike the geometric leaf hit-test.
+ * IF1-only: reference handleIf1Scrollbars gates native wheel on isIf3===false. */
 static int32_t
 find_wheel_scroll_layer(
     struct UITree const* tree,
@@ -78,7 +79,7 @@ find_wheel_scroll_layer(
     {
         struct UITreeComponent const* c = &tree->components[i];
         int bx = 0, by = 0, bw = 0, bh = 0;
-        if( c->type != UIELEM_RS_LAYER || c->behavior.hide )
+        if( c->type != UIELEM_RS_LAYER || c->behavior.hide || c->if3 || c->freed )
             continue;
         if( !UITree_ScrollLayerNeedsVertical(c) )
             continue;
@@ -86,6 +87,49 @@ find_wheel_scroll_layer(
         if( bw <= 0 || bh <= 0 )
             continue;
         if( mx < bx || my < by || mx >= bx + bw || my >= by + bh )
+            continue;
+        {
+            int area = bw * bh;
+            if( best < 0 || area < best_area )
+            {
+                best = (int32_t)i;
+                best_area = area;
+            }
+        }
+    }
+    return best;
+}
+
+/* Innermost component under (mx,my) with a CS2 onScroll handler (reference
+ * OsrsClient wheel dispatch: top-most hit widget with an onScroll handler).
+ * Screen-space test: ancestor scroll offsets shift drawn positions. */
+static int32_t
+find_wheel_hook_component(
+    struct UITree const* tree,
+    int mx,
+    int my)
+{
+    int32_t best = -1;
+    int best_area = 0;
+    uint32_t i;
+
+    assert(tree);
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        int bx = 0, by = 0, bw = 0, bh = 0;
+        int offx = 0, offy = 0;
+        if( c->freed || c->component_id < 0 )
+            continue;
+        if( c->runtime_hooks.on_scroll_wheel.script_id <= 0 )
+            continue;
+        if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
+            continue;
+        UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
+        if( bw <= 0 || bh <= 0 )
+            continue;
+        UITree_AccumScrollOffset(tree, (int32_t)i, &offx, &offy);
+        if( !UITree_PointInScrolledBounds(mx, my, bx, by, bw, bh, offx, offy) )
             continue;
         {
             int area = bw * bh;
@@ -265,38 +309,57 @@ interact_scrollbars(
     return interact->sb_dragging || consumed;
 }
 
-/* Mouse wheel: scroll the layer under the cursor. Prefer its CS2
- * on_scroll_wheel handler; otherwise step component->scroll_y. */
+/* Mouse wheel. IF1: natively step scroll_y of the layer under the cursor.
+ * IF3: dispatch the innermost CS2 onScroll handler under the cursor with
+ * event mouse = (mx relative to the component, +/-1 wheel step) — reference
+ * OsrsClient wheel dispatch, scrollCtx mouseY = wheelStep. */
 static void
 interact_wheel(
     struct UITree* tree,
     struct LibToriRS_Input* input,
     struct UIInteractOut* out)
 {
+    int const mx = input->curr.mouse_x;
+    int const my = input->curr.mouse_y;
     int32_t layer_idx;
+    int32_t hook_idx;
 
     if( input->curr.mouse_wheel_y == 0 )
         return;
-    layer_idx = find_wheel_scroll_layer(tree, input->curr.mouse_x, input->curr.mouse_y);
-    if( layer_idx < 0 )
+
+    /* IF1 native wheel first (reference order: handleIf1Scrollbars, then the
+     * onScroll dispatch over remaining wheel delta). */
+    layer_idx = find_wheel_scroll_layer(tree, mx, my);
+    if( layer_idx >= 0 )
+    {
+        struct UITreeComponent* layer = &tree->components[layer_idx];
+        /* Wheel up (positive) scrolls content up -> scroll_y down. */
+        layer->scroll_y -= input->curr.mouse_wheel_y * UITREE_SCROLLBAR_WHEEL_STEP;
+        UITree_ScrollClampComponent(layer);
+        out->need_redraw = 1;
+        return;
+    }
+
+    hook_idx = find_wheel_hook_component(tree, mx, my);
+    if( hook_idx < 0 )
         return;
 
     {
-        struct UITreeComponent* layer = &tree->components[layer_idx];
-        if( layer->runtime_hooks.on_scroll_wheel.script_id > 0 )
-        {
-            struct UIIntent intent = {
-                .component_id = layer->component_id,
-                .hook = &layer->runtime_hooks.on_scroll_wheel,
-            };
-            intent_push(out, &intent);
-        }
-        else
-        {
-            /* Wheel up (positive) scrolls content up -> scroll_y down. */
-            layer->scroll_y -= input->curr.mouse_wheel_y * UITREE_SCROLLBAR_WHEEL_STEP;
-            UITree_ScrollClampComponent(layer);
-        }
+        struct UITreeComponent* c = &tree->components[hook_idx];
+        int bx = 0, by = 0, bw = 0, bh = 0;
+        int offx = 0, offy = 0;
+        struct UIIntent intent = {
+            .component_id = c->component_id,
+            .hook = &c->runtime_hooks.on_scroll_wheel,
+        };
+        UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
+        UITree_AccumScrollOffset(tree, hook_idx, &offx, &offy);
+        intent.has_event_mouse = 1;
+        intent.event_mouse_x = mx - (bx - offx);
+        /* Our wheel-up is positive; reference wheelStep is +1 for wheel-down
+         * (browser deltaY > 0). */
+        intent.event_mouse_y = input->curr.mouse_wheel_y > 0 ? -1 : 1;
+        intent_push(out, &intent);
         out->need_redraw = 1;
     }
 }
@@ -367,6 +430,46 @@ interact_drag(
             };
             intent_push(out, &intent);
         }
+        out->need_redraw = 1;
+    }
+}
+
+/* onHold fires every tick while a widget stays pressed and no drag is active
+ * (reference OsrsClient: clickedWidget && isHolding && !isDraggingWidget;
+ * holdCtx mouse is relative to the widget's drawn position). Scrollbar arrows
+ * hold-scroll through this. */
+static void
+interact_hold(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct LibToriRS_Input* input,
+    int sb_owns_mouse,
+    struct UIInteractOut* out)
+{
+    struct UIInputState* st = &interact->input_state;
+    int left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+
+    if( sb_owns_mouse || !left_held || st->drag_active )
+        return;
+    if( st->pressed < 0 || (uint32_t)st->pressed >= tree->component_count )
+        return;
+
+    {
+        struct UITreeComponent* c = &tree->components[st->pressed];
+        int bx = 0, by = 0, bw = 0, bh = 0;
+        int offx = 0, offy = 0;
+        struct UIIntent intent = {
+            .component_id = c->component_id,
+            .hook = &c->runtime_hooks.on_hold,
+        };
+        if( c->runtime_hooks.on_hold.script_id <= 0 )
+            return;
+        UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
+        UITree_AccumScrollOffset(tree, st->pressed, &offx, &offy);
+        intent.has_event_mouse = 1;
+        intent.event_mouse_x = input->curr.mouse_x - (bx - offx);
+        intent.event_mouse_y = input->curr.mouse_y - (by - offy);
+        intent_push(out, &intent);
         out->need_redraw = 1;
     }
 }
@@ -515,6 +618,7 @@ UITree_InteractFrame(
 
     interact_wheel(tree, input, out);
     interact_drag(interact, tree, ui_host, input, sb_owns_mouse, &ui_result, out);
+    interact_hold(interact, tree, input, sb_owns_mouse, out);
     interact_hover(interact, tree, input, now_ms, out);
     interact_click(tree, ui_host, input, &ui_result, out);
 }

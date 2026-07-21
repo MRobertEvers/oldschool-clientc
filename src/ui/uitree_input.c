@@ -49,10 +49,11 @@ UITree_ComponentIsPassThrough(
 {
     assert(component);
 
-    /* Runtime click/op/drag hooks make the node a real click target even if it is a
-     * layer or decorative graphic. */
+    /* Runtime click/op/hold/drag hooks make the node a real click target even
+     * if it is a layer or decorative graphic (scrollbar arrows are hold-only). */
     if( component->runtime_hooks.on_click.script_id > 0 ||
         component->runtime_hooks.on_op.script_id > 0 ||
+        component->runtime_hooks.on_hold.script_id > 0 ||
         component->runtime_hooks.on_drag.script_id > 0 ||
         UITree_ComponentIsDraggable(component) )
         return false;

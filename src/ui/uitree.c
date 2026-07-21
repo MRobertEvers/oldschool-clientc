@@ -290,6 +290,8 @@ UITree_Reparent(
     child->parent = new_parent_index;
     child->next_sibling = -1;
     child->is_dirty = 1;
+    child->position.layout_resolved = 0;
+    tree->layout_stale = 1;
 
     if( new_parent_index < 0 )
     {
@@ -911,6 +913,7 @@ UITree_Push(
         component->position.width_mode = -1;
         component->position.height_mode = -1;
     }
+    tree->layout_stale = 1;
 
     switch( spec->type )
     {
@@ -1007,6 +1010,8 @@ UITree_Push(
         component->u.rs_model.y_offset = spec->u.rs_model.y_offset;
         component->u.rs_model.orthog = spec->u.rs_model.orthog;
         component->u.rs_model.fixed_zoom = spec->u.rs_model.fixed_zoom;
+        component->u.rs_model.anim_seq_id = spec->u.rs_model.anim_seq_id;
+        component->u.rs_model.anim_frame = spec->u.rs_model.anim_frame;
         component->u.rs_model.anim_frame_cycle = 0;
         break;
 
@@ -1377,6 +1382,7 @@ UITree_ApplyPosition(
     tree->components[idx].position.x = x;
     tree->components[idx].position.y = y;
     tree->components[idx].position.layout_resolved = 0;
+    tree->layout_stale = 1;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -1394,6 +1400,7 @@ UITree_ApplySize(
     tree->components[idx].position.width = width;
     tree->components[idx].position.height = height;
     tree->components[idx].position.layout_resolved = 0;
+    tree->layout_stale = 1;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -1415,6 +1422,7 @@ UITree_ApplyPositionModes(
     tree->components[idx].position.x_mode = (int8_t)x_mode;
     tree->components[idx].position.y_mode = (int8_t)y_mode;
     tree->components[idx].position.layout_resolved = 0;
+    tree->layout_stale = 1;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -1436,6 +1444,7 @@ UITree_ApplySizeModes(
     tree->components[idx].position.width_mode = (int8_t)width_mode;
     tree->components[idx].position.height_mode = (int8_t)height_mode;
     tree->components[idx].position.layout_resolved = 0;
+    tree->layout_stale = 1;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -1745,6 +1754,7 @@ UITree_GetLayoutWidth(
     struct UITree const* tree,
     int component_id)
 {
+    UITree_EnsureLayout(tree);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return 0;
@@ -1759,6 +1769,7 @@ UITree_GetLayoutHeight(
     struct UITree const* tree,
     int component_id)
 {
+    UITree_EnsureLayout(tree);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return 0;
@@ -1778,6 +1789,7 @@ UITree_GetRelativeX(
     struct UITreeComponent const* node;
 
     assert(tree);
+    UITree_EnsureLayout(tree);
     idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return 0;
@@ -1800,6 +1812,7 @@ UITree_GetRelativeY(
     struct UITreeComponent const* node;
 
     assert(tree);
+    UITree_EnsureLayout(tree);
     idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return 0;

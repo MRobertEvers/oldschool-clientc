@@ -149,6 +149,7 @@ UITree_FillBuildFromToriRS(
     dst->text = src->text[0] ? src->text : NULL;
     dst->text_active = src->active_text[0] ? src->active_text : NULL;
     dst->model_id = src->model_id;
+    dst->model_seq_id = src->model_seq_id;
     dst->model_zoom = src->model_zoom;
     dst->model_xan = src->model_xan;
     dst->model_yan = src->model_yan;

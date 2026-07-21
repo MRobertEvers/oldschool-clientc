@@ -25,6 +25,8 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     6203: (0, 0, 2, 0),  # VIEWPORT_GETEFFECTIVESIZE
     6204: (0, 0, 2, 0),  # VIEWPORT_GETZOOM
     6205: (0, 0, 2, 0),  # VIEWPORT_GETFOV
+    3328: (0, 0, 1, 0),  # idle-time getter (script 5327 logout warning polls it)
+    7253: (0, 0, 1, 0),  # getter polled by toplevel cc_setontimer scripts (7052)
 }
 
 

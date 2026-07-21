@@ -6,6 +6,7 @@
 #include "engine/uitree_scene_bridge.h"
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
+#include "ui/uitree_layout.h"
 #include "ui/uitree_scroll.h"
 #include "varp/varp_manager.h"
 
@@ -1545,7 +1546,9 @@ exec_set_on_cc_transmit(
     if( !request )
         return CS2VM_EXECNO_OK;
 
-    component_id = vm->active_component_id;
+    /* Dot vs active register — resolved at op time in the VM (see
+     * exec_set_on_cc_event). */
+    component_id = request->component_id;
     if( component_id < 0 )
         return CS2VM_EXECNO_OK;
 
@@ -1618,6 +1621,9 @@ rs_cs2_runtime_hook_slot(
     case CS2VM_HOST_REQUEST_IF_SETONCLICK:
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
         return &node->runtime_hooks.on_click;
+    case CS2VM_HOST_REQUEST_IF_SETONHOLD:
+    case CS2VM_HOST_REQUEST_CC_SETONHOLD:
+        return &node->runtime_hooks.on_hold;
     case CS2VM_HOST_REQUEST_IF_SETONOP:
     case CS2VM_HOST_REQUEST_CC_SETONOP:
         return &node->runtime_hooks.on_op;
@@ -1764,7 +1770,10 @@ exec_set_on_cc_event(
     if( !tree )
         return CS2VM_EXECNO_OK;
 
-    component_id = vm->active_component_id;
+    /* Target resolved at op time in the VM (dot vs active register — the
+     * scrollbar/dropdown procs attach handlers to several dot children in a
+     * row, so re-reading the active register here binds the wrong child). */
+    component_id = request->component_id;
     node = rs_cs2_node(host, component_id);
     if( !node )
         return CS2VM_EXECNO_OK;
@@ -2051,6 +2060,9 @@ RS_CS2Host_Exec(
         node = rs_cs2_node(host, cid);
         if( node && node->type == UIELEM_RS_LAYER )
         {
+            /* Clamp against current computed bounds (reference ensureWidgetLayout
+             * before the scroll clamp). */
+            UITree_EnsureLayout(tree);
             int max_x = UITree_ScrollMaxX(node);
             int max_y = UITree_ScrollMaxY(node);
             if( sx < 0 )
@@ -2068,12 +2080,22 @@ RS_CS2Host_Exec(
 
     case CS2VM_HOST_REQUEST_IF_SETSCROLLSIZE:
     case CS2VM_HOST_REQUEST_CC_SETSCROLLSIZE:
-        if( tree )
-            (void)UITree_ApplyScrollSize(
+        if( tree &&
+            UITree_ApplyScrollSize(
                 tree,
                 request->u.if_set_scroll_size.component_id,
                 request->u.if_set_scroll_size.scroll_width,
-                request->u.if_set_scroll_size.scroll_height);
+                request->u.if_set_scroll_size.scroll_height) )
+        {
+            /* Reference revalidateWidgetScroll: re-clamp scroll offsets after
+             * the scroll area changes. */
+            node = rs_cs2_node(host, request->u.if_set_scroll_size.component_id);
+            if( node && node->type == UIELEM_RS_LAYER )
+            {
+                UITree_EnsureLayout(tree);
+                UITree_ScrollClampComponent(node);
+            }
+        }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
@@ -2398,6 +2420,8 @@ RS_CS2Host_Exec(
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONCLICK:
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+    case CS2VM_HOST_REQUEST_IF_SETONHOLD:
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER:
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
@@ -2415,6 +2439,7 @@ RS_CS2Host_Exec(
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
         return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
+    case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
     case CS2VM_HOST_REQUEST_CC_SETONOP:
@@ -2429,7 +2454,6 @@ RS_CS2Host_Exec(
     case CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT:
     case CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT:
         return exec_set_on_cc_transmit(host, vm, request->kind, &request->u.cc_set_on_op);
-    case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
         return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_SETANTIDRAG:

@@ -196,7 +196,10 @@ hit_vertical_scrollbar(
     int px,
     int py)
 {
-    if( !UITree_ScrollLayerNeedsVertical(layer) )
+    /* Native scrollbar chrome is IF1-only (reference handleIf1Scrollbars gates
+     * on isIf3 === false); IF3 scrollbars are CS2-built child components that
+     * take input through the generic hit/drag path. */
+    if( layer->if3 || !UITree_ScrollLayerNeedsVertical(layer) )
         return UITREE_SCROLLBAR_NONE;
 
     int sb_x = lx + lw;
@@ -240,7 +243,8 @@ hit_horizontal_scrollbar(
     int px,
     int py)
 {
-    if( !UITree_ScrollLayerNeedsHorizontal(layer) )
+    /* IF1-only, as above. */
+    if( layer->if3 || !UITree_ScrollLayerNeedsHorizontal(layer) )
         return UITREE_SCROLLBAR_NONE;
 
     int vscroll = UITree_ScrollLayerNeedsVertical(layer);

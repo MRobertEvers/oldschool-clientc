@@ -114,7 +114,17 @@ Task_Dat2SequenceLoad_Run(
         }
     }
     if( !self->seq || self->seq->frame_count <= 0 || !self->seq->frame_ids )
+    {
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(
+                stderr,
+                "seq_load: seq=%d FAILED seq=%p frame_count=%d frame_ids=%p\n",
+                self->seq_id,
+                (void*)self->seq,
+                self->seq ? self->seq->frame_count : -1,
+                self->seq ? (void*)self->seq->frame_ids : NULL);
         PT_EXIT(&self->pt);
+    }
 
     self->frame_count = self->seq->frame_count;
     self->frames = calloc((size_t)self->frame_count, sizeof(struct RSCache_Dat2Frame*));
@@ -182,6 +192,21 @@ Task_Dat2SequenceLoad_Run(
                 self->frame_filelist->file_sizes[self->cur_file_pos]);
 
         seq_drop_frame_temporaries(self);
+    }
+
+    if( getenv("TORIRS_ANIM_DEBUG") )
+    {
+        int decoded = 0;
+        for( int i = 0; i < self->frame_count; i++ )
+            if( self->frames[i] )
+                decoded++;
+        fprintf(
+            stderr,
+            "seq_load: seq=%d frames=%d decoded=%d framemap=%p\n",
+            self->seq_id,
+            self->frame_count,
+            decoded,
+            (void*)self->framemap);
     }
 
     /* 3. Assemble render-ready animation and register it in the scene. */

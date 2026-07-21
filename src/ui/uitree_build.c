@@ -111,7 +111,7 @@ UITree_PushBuildComponent(
         spec.u.rs_model.y_offset = comp->model_y_offset;
         spec.u.rs_model.orthog = comp->model_orthog;
         spec.u.rs_model.fixed_zoom = comp->model_fixed_zoom;
-        spec.u.rs_model.anim_seq_id = -1;
+        spec.u.rs_model.anim_seq_id = comp->model_seq_id;
         spec.u.rs_model.anim_frame = 0;
         break;
 

@@ -425,6 +425,12 @@ struct UITree
     int interface_parent_count;
     /** SETANTIDRAG — suppress new drag initiation while set. */
     uint8_t anti_drag;
+    /** Set when any node's layout is invalidated (position/size/topology
+     *  mutation); cleared by UITree_LayoutResolve. Lets CS2 geometry getters
+     *  lazily re-resolve mid-script (reference WidgetManager.ensureLayout —
+     *  scripts read computed dims immediately after if_setsize/if_setposition,
+     *  e.g. dropdown scrollbar dragger sizing). */
+    uint8_t layout_stale;
 };
 
 struct UITreeNodeSpec

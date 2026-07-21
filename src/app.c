@@ -1,5 +1,6 @@
 #include "app.h"
 
+#include "cs2vm2/cs2vm2.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/uitree_cmd_render.h"
 #include "game/rs_cs2_dispatch.h"
@@ -152,6 +153,9 @@ App_OpenRootInterface(
     assert(app);
     memset(&app->open_stats, 0, sizeof(app->open_stats));
 
+    if( getenv("TORIRS_CS2_TRACE") )
+        g_cs2_trace_mode = 2;
+
     /* Open the requested interface directly as the tree root (TS parity:
      * WidgetManager.setRootInterface(groupId) — any group can be the root; no
      * hardcoded 161 chrome required). */
@@ -179,6 +183,22 @@ App_OpenRootInterface(
         app->host.inv_transmit_hook_count,
         app->host.var_transmit_hook_count,
         app->tree->interface_parent_count);
+
+    if( getenv("TORIRS_ANIM_DEBUG") )
+    {
+        for( uint32_t i = 0; i < app->tree->component_count; i++ )
+        {
+            struct UITreeComponent const* node = &app->tree->components[i];
+            if( node->freed || node->type != UIELEM_RS_MODEL )
+                continue;
+            fprintf(
+                stderr,
+                "anim_debug: com=0x%x model=%d seq=%d\n",
+                node->component_id,
+                node->u.rs_model.gamecache_model_id,
+                node->u.rs_model.anim_seq_id);
+        }
+    }
 
     /* Load model-widget sequences and apply the first frame before the
      * initial render; App_RunOnce advances frames each tick. */
@@ -247,6 +267,31 @@ app_logic_tick(struct App* app)
                 app->tree->free_head,
                 app->host.inv_transmit_hook_count,
                 app->host.var_transmit_hook_count);
+    }
+
+    {
+        static int anim_dbg = -1;
+        static int anim_dbg_tick = 0;
+        if( anim_dbg < 0 )
+            anim_dbg = getenv("TORIRS_ANIM_DEBUG") != NULL;
+        if( anim_dbg && ++anim_dbg_tick % 25 == 0 )
+        {
+            for( uint32_t i = 0; i < app->tree->component_count; i++ )
+            {
+                struct UITreeComponent const* node = &app->tree->components[i];
+                if( node->freed || node->type != UIELEM_RS_MODEL )
+                    continue;
+                if( node->u.rs_model.anim_seq_id < 0 )
+                    continue;
+                fprintf(
+                    stderr,
+                    "anim_tick t=%d com=0x%x seq=%d frame=%d\n",
+                    anim_dbg_tick,
+                    node->component_id,
+                    node->u.rs_model.anim_seq_id,
+                    node->u.rs_model.anim_frame);
+            }
+        }
     }
 
     /* Animations: request missing sequences (async), apply what's loaded.

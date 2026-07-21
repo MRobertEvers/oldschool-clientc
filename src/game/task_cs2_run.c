@@ -1,5 +1,6 @@
 #include "game/task_cs2_run.h"
 
+#include "cs2vm2/cs2_opcode_meta.h"
 #include "cs2vm2/cs2vm2.h"
 #include "cs2vm2/cs2vm2_host.h"
 #include "cs2vm2/cs2vm2_script.h"
@@ -689,6 +690,40 @@ Task_CS2Run_Run(
                 thread->last_error_pc,
                 self->script_id,
                 (unsigned)self->active_component_id);
+            /* Bytecode window around the failing pc — unknown/mis-stubbed
+             * opcodes only surface as underflows a few ops later. */
+            {
+                struct CS2VM2_Script* dbg =
+                    CacheProvider_ClientScriptGet(self->provider, thread->last_error_script_id);
+                if( dbg )
+                {
+                    int pci;
+                    fprintf(
+                        stderr,
+                        "  script %d: int_args=%d str_args=%d int_locals=%d str_locals=%d "
+                        "ops=%d\n",
+                        dbg->script_id,
+                        dbg->int_argument_count,
+                        dbg->string_argument_count,
+                        dbg->local_int_count,
+                        dbg->local_string_count,
+                        dbg->op_count);
+                    pci = thread->last_error_pc - 24;
+                    if( pci < 0 )
+                        pci = 0;
+                    for( ; pci < dbg->op_count && pci <= thread->last_error_pc + 2; pci++ )
+                        fprintf(
+                            stderr,
+                            "  pc=%d op=%d %s operand=%d str=%s\n",
+                            pci,
+                            dbg->opcodes[pci],
+                            CS2_OpCode_String(dbg->opcodes[pci]),
+                            dbg->int_operands ? dbg->int_operands[pci] : 0,
+                            (dbg->string_operands && dbg->string_operands[pci])
+                                ? dbg->string_operands[pci]
+                                : "(null)");
+                }
+            }
             CS2VM2_ResetRuntime(thread);
             break;
         }

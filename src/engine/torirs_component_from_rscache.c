@@ -261,6 +261,7 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
     dst->height = src->baseHeight;
     dst->model_type = src->modelType;
     dst->model_id = src->modelId;
+    dst->model_seq_id = src->modelSeqId;
     dst->model_zoom = src->modelZoom;
     dst->model_xan = src->modelXAngle;
     dst->model_yan = src->modelYAngle;
