@@ -139,7 +139,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-world-builder test-minimap test-cs1vm world-builder
+.PHONY: all clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-world-builder test-minimap test-cs1vm test-cs1 world-builder
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -245,6 +245,19 @@ test-cs1vm: $(OBJ_DIR) cs1vm/cs1vm.c cs1vm/cs1vm_script.c cs1vm/test/cs1vm_test.
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/cs1vm -o $(OBJ_DIR)/cs1vm_test \
 		cs1vm/cs1vm.c cs1vm/cs1vm_script.c cs1vm/test/cs1vm_test.c
 	./$(OBJ_DIR)/cs1vm_test
+
+# CS1 end-to-end: build path -> tree -> game host -> emit. Links the ui + state
+# managers the host reads, but no cache/provider (it never touches disk).
+test-cs1: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs1_integration_test \
+		cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
+		game/rs_cs1_host.c game/rs_player_stats.c \
+		inv/inv_manager.c varp/varp_manager.c \
+		ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+		ui/uitree_scroll.c ui/uitree_emit.c ui/uitree_inv_view.c \
+		ui/uitree_cross.c ui/uitree_minimenu.c \
+		cs1vm/test/cs1_integration_test.c -lm
+	./$(OBJ_DIR)/cs1_integration_test
 
 test-inv: $(OBJ_DIR) inv/inv_manager.c inv/inv_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/inv_manager_test inv/inv_manager.c inv/inv_manager_test.c

@@ -7,7 +7,6 @@
 
 #include "rs_cs1_host.h"
 
-#include "engine/cache_provider.h"
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
 #include "varp/varp_manager.h"
