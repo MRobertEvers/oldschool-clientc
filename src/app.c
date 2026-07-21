@@ -24,15 +24,32 @@ enum
 static int
 app_host_request(void* user, struct UITreeHostRequest* req)
 {
-    struct UITreeSceneBridge* bridge = (struct UITreeSceneBridge*)user;
+    struct App* app = (struct App*)user;
+    struct InvSlot slot;
 
     assert(req);
-    if( req->kind == UITREE_HOST_GET_SCROLLBAR_SCENE )
+    assert(app);
+
+    switch( req->kind )
     {
-        assert(bridge);
-        return UITreeSceneBridge_ScrollbarSceneId(bridge);
+    case UITREE_HOST_GET_SCROLLBAR_SCENE:
+        return UITreeSceneBridge_ScrollbarSceneId(&app->bridge);
+    case UITREE_HOST_GET_INV_SOURCE_SLOT:
+        assert(req->u.get_inv_source_slot.out);
+        if( !InvManager_GetSlot(
+                &app->invs,
+                req->u.get_inv_source_slot.source_id,
+                req->u.get_inv_source_slot.slot,
+                &slot) )
+            return 0;
+        req->u.get_inv_source_slot.out->obj_id = slot.obj_id;
+        req->u.get_inv_source_slot.out->obj_count = slot.obj_count;
+        req->u.get_inv_source_slot.out->scene_id = slot.scene_id;
+        req->u.get_inv_source_slot.out->atlas_index = slot.atlas_index;
+        return 1;
+    default:
+        return 0;
     }
-    return 0;
 }
 
 /* Demo content until real state sync exists: seed the worn/backpack/bank
@@ -152,7 +169,7 @@ App_Init(
     /* Phase 5: frame state. */
     UITree_EmitBufferInit(&app->emit);
     UITree_HostInit(&app->ui_host);
-    app->ui_host.user = &app->bridge;
+    app->ui_host.user = app;
     app->ui_host.request = app_host_request;
     UIInteraction_Init(&app->interact);
     app->hover_com_id = -1;

@@ -77,8 +77,7 @@ UITree_ComponentIsPassThrough(
         struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
         return UITree_Host(host, &req) == 0;
     }
-    case UIELEM_INV_GRID:
-    case UIELEM_INV_SLOT:
+    case UIELEM_RS_INV:
     case UIELEM_RS_INV_TEXT:
         return true;
     case UIELEM_RS_GRAPHIC:

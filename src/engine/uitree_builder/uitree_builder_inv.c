@@ -58,7 +58,7 @@ uitree_builder_inv_bind_tree(
     assert(manifest);
     assert(invs);
 
-    /* Re-bind any inv_grid / sidebar that still has an inv name on the matching tree op. */
+    /* Re-bind any rs_inv / sidebar that still has an inv name on the matching tree op. */
     for( int oi = 0; oi < manifest->op_count; oi++ )
     {
         struct UIBuilderTreeOp const* op = &manifest->ops[oi];
@@ -75,9 +75,9 @@ uitree_builder_inv_bind_tree(
             {
                 c->u.sidebar.inv_source_id = source_id;
             }
-            else if( c->type == UIELEM_INV_GRID && c->component_id == op->componentno )
+            else if( c->type == UIELEM_RS_INV && c->component_id == op->componentno )
             {
-                c->u.inv_grid.inv_source_id = source_id;
+                c->u.rs_inv.inv_source_id = source_id;
             }
         }
     }

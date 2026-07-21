@@ -198,7 +198,7 @@ test_hover_input(void)
      * the emit walk. */
     {
         struct UITree* ct = UITree_New(8);
-        int32_t grid = UITree_TestPushXy(ct, -1, UIELEM_INV_GRID, 70, 50, 50, 60, 60);
+        int32_t grid = UITree_TestPushXy(ct, -1, UIELEM_RS_INV, 70, 50, 50, 60, 60);
         int32_t spill = UITree_TestPushXy(ct, grid, UIELEM_RS_RECT, 71, 40, 10, 60, 20);
         ct->components[spill].behavior.button_type = 1;
         UITree_TestResolve(ct);

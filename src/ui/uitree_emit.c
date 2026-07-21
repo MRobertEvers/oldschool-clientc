@@ -1,5 +1,6 @@
 #include "uitree_emit.h"
 
+#include "uitree_inv_view.h"
 #include "uitree_layout.h"
 #include "uitree_scroll.h"
 
@@ -295,33 +296,6 @@ UITree_EmitFill(
         out->atlas_index = component->u.cc_obj.atlas_index;
         return true;
 
-    case UIELEM_INV_SLOT:
-        out->kind = UITREE_EMIT_INV_SLOT;
-        out->inv_source_id = component->u.inv_slot.inv_source_id;
-        out->inv_slot = component->u.inv_slot.slot;
-        out->scene_id = component->item_scene_id;
-        out->atlas_index = component->item_atlas_index;
-        out->obj_id = component->item_id;
-        out->obj_count = component->item_count;
-        /* Native 36x32 icon blit at the slot origin plus the parent grid's
-         * per-slot cache offsets (invSlotOffsetX/Y in the reference). */
-        out->w = 0;
-        out->h = 0;
-        out->if3 = 0;
-        if( component->parent >= 0 &&
-            (uint32_t)component->parent < tree->component_count )
-        {
-            struct UITreeComponent const* grid = &tree->components[component->parent];
-            int const slot = component->u.inv_slot.slot;
-            if( grid->type == UIELEM_INV_GRID && slot >= 0 &&
-                slot < UI_INV_SLOT_OFFSET_MAX )
-            {
-                out->x += grid->u.inv_grid.inv_slot_offset_x[slot];
-                out->y += grid->u.inv_grid.inv_slot_offset_y[slot];
-            }
-        }
-        return true;
-
     case UIELEM_BUILTIN_WORLD:
         out->kind = UITREE_EMIT_WORLD;
         return true;
@@ -368,7 +342,7 @@ UITree_EmitFill(
     case UIELEM_BUILTIN_TAB_ICONS:
     case UIELEM_BUILTIN_CROSS:
     case UIELEM_BUILTIN_MINIMENU:
-    case UIELEM_INV_GRID:
+    case UIELEM_RS_INV:
     case UIELEM_RS_INV_TEXT:
         return false;
     }
@@ -390,6 +364,132 @@ UITree_EmitBufferFree(struct UITreeEmitBuffer* buf)
         return;
     free(buf->cmds);
     memset(buf, 0, sizeof(*buf));
+}
+
+static void
+emit_buffer_append(
+    struct UITreeEmitBuffer* buf,
+    struct UITreeEmitDesc const* desc);
+
+/** Expand TYPE_INV grid into per-slot sprites via host GET_INV_SOURCE_SLOT. */
+static void
+emit_rs_inv_slots(
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    int x,
+    int y,
+    int scroll_off_x,
+    int scroll_off_y,
+    int in_drag,
+    int drag_dx,
+    int drag_dy,
+    int in_deferred,
+    struct UITreeEmitClip const* parent_clip)
+{
+    struct UITreeInvGridLayout layout;
+    int slot_limit;
+    int slot;
+
+    assert(c && c->type == UIELEM_RS_INV);
+    assert(out && parent_clip);
+
+    layout.cols = c->u.rs_inv.cols;
+    layout.rows = c->u.rs_inv.rows;
+    layout.margin_x = c->u.rs_inv.margin_x;
+    layout.margin_y = c->u.rs_inv.margin_y;
+    layout.offset_x = c->u.rs_inv.inv_slot_offset_x;
+    layout.offset_y = c->u.rs_inv.inv_slot_offset_y;
+    slot_limit = UITree_InvViewGridSlotLimit(&layout);
+
+    for( slot = 0; slot < slot_limit; slot++ )
+    {
+        struct UIInvSlotData slot_data;
+        struct UITreeEmitDesc desc;
+        int slot_x = 0;
+        int slot_y = 0;
+        int slot_w = 0;
+        int slot_h = 0;
+        int scene_id = -1;
+        int atlas_index = 0;
+        int obj_id = 0;
+        int obj_count = 0;
+
+        UITree_InvViewGridRect(x, y, &layout, slot, &slot_x, &slot_y, &slot_w, &slot_h);
+
+        memset(&slot_data, 0, sizeof(slot_data));
+        {
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_GET_INV_SOURCE_SLOT,
+                .u.get_inv_source_slot.source_id = c->u.rs_inv.inv_source_id,
+                .u.get_inv_source_slot.slot = slot,
+                .u.get_inv_source_slot.out = &slot_data,
+            };
+            if( UITree_Host(host, &req) )
+            {
+                obj_id = slot_data.obj_id;
+                obj_count = slot_data.obj_count;
+                scene_id = slot_data.scene_id;
+                atlas_index = slot_data.atlas_index;
+            }
+        }
+
+        if( obj_id > 0 && scene_id >= 0 )
+        {
+            /* keep item icon */
+        }
+        else if( slot < UI_INV_SLOT_OFFSET_MAX )
+        {
+            int bg_scene = c->u.rs_inv.inv_slot_bg_scene_id[slot];
+            int bg_atlas = c->u.rs_inv.inv_slot_bg_atlas_index[slot];
+            if( bg_scene < 0 )
+                continue;
+            scene_id = bg_scene;
+            atlas_index = bg_atlas;
+            obj_id = 0;
+            obj_count = 0;
+        }
+        else
+        {
+            continue;
+        }
+
+        memset(&desc, 0, sizeof(desc));
+        desc.kind = UITREE_EMIT_SPRITE;
+        desc.node_index = idx;
+        desc.component_id = c->component_id;
+        desc.x = slot_x;
+        desc.y = slot_y;
+        desc.w = slot_w;
+        desc.h = slot_h;
+        desc.scene_id = scene_id;
+        desc.atlas_index = atlas_index;
+        desc.obj_id = obj_id;
+        desc.obj_count = obj_count;
+        desc.inv_source_id = c->u.rs_inv.inv_source_id;
+        desc.inv_slot = slot;
+        desc.if3 = 0;
+
+        desc.x -= scroll_off_x;
+        desc.y -= scroll_off_y;
+        if( in_drag )
+        {
+            desc.x += drag_dx;
+            desc.y += drag_dy;
+        }
+        if( in_deferred )
+        {
+            if( c->drag_visual_trans >= 0 )
+                desc.trans = c->drag_visual_trans;
+            else if( desc.trans < 128 )
+                desc.trans = 128;
+        }
+        desc.scroll_off_x = scroll_off_x;
+        desc.scroll_off_y = scroll_off_y;
+        desc.clip = *parent_clip;
+        emit_buffer_append(out, &desc);
+    }
 }
 
 static void
@@ -647,7 +747,24 @@ emit_walk_node(
             child_clip = &layer_clip;
     }
 
-    if( !if1_bar && UITree_EmitFill(tree, host, c, idx, hovered_component_id, &desc) )
+    if( !if1_bar && c->type == UIELEM_RS_INV )
+    {
+        emit_rs_inv_slots(
+            host,
+            out,
+            c,
+            idx,
+            x,
+            y,
+            scroll_off_x,
+            scroll_off_y,
+            in_drag,
+            drag_dx,
+            drag_dy,
+            in_deferred,
+            parent_clip);
+    }
+    else if( !if1_bar && UITree_EmitFill(tree, host, c, idx, hovered_component_id, &desc) )
     {
         if( desc.kind != UITREE_EMIT_WORLD && desc.kind != UITREE_EMIT_MINIMAP &&
             desc.kind != UITREE_EMIT_COMPASS )

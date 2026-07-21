@@ -15,7 +15,7 @@ UITree_ComponentClipsChildren(struct UITreeComponent const* component)
     case UIELEM_RS_LAYER:
     case UIELEM_BUILTIN_SIDEBAR:
     case UIELEM_BUILTIN_CHAT:
-    case UIELEM_INV_GRID:
+    case UIELEM_RS_INV:
         return true;
     default:
         return false;

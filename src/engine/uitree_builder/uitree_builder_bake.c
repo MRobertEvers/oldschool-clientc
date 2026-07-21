@@ -46,7 +46,7 @@ type_from_string(char const* type)
     if( strcmp(type, "rs_model") == 0 )
         return UIELEM_RS_MODEL;
     if( strcmp(type, "rs_inv") == 0 )
-        return UIELEM_INV_GRID;
+        return UIELEM_RS_INV;
     if( strcmp(type, "rs_line") == 0 )
         return UIELEM_RS_LINE;
     if( strcmp(type, "rs_graphic") == 0 )
@@ -267,8 +267,8 @@ bake_pack_under_owner(
             (build.type == UIBUILD_INV || build.type == UIBUILD_INV_TEXT) )
         {
             struct UITreeComponent* node = &tree->components[idx];
-            if( node->type == UIELEM_INV_GRID )
-                node->u.inv_grid.inv_source_id = inv_source_id;
+            if( node->type == UIELEM_RS_INV )
+                node->u.rs_inv.inv_source_id = inv_source_id;
             else if( node->type == UIELEM_RS_INV_TEXT )
                 node->u.rs_inv_text.inv_source_id = inv_source_id;
         }
@@ -515,14 +515,14 @@ push_builtin_op(
         spec.u.rs_model.gamecache_model_id = op->componentno >= 0 ? op->componentno : 0;
         spec.u.rs_model.zoom = 100;
         break;
-    case UIELEM_INV_GRID:
+    case UIELEM_RS_INV:
     {
         int inv_source_id = UITREE_INV_SOURCE_INVALID;
         if( op->inv_name[0] && invs )
             inv_source_id = InvManager_ResolveSource(invs, op->inv_name);
-        spec.u.inv_grid.inv_source_id = inv_source_id;
-        spec.u.inv_grid.cols = op->width > 0 ? op->width : 4;
-        spec.u.inv_grid.rows = op->height > 0 ? op->height : 7;
+        spec.u.rs_inv.inv_source_id = inv_source_id;
+        spec.u.rs_inv.cols = op->width > 0 ? op->width : 4;
+        spec.u.rs_inv.rows = op->height > 0 ? op->height : 7;
         break;
     }
     case UIELEM_RS_LINE:

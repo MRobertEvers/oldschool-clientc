@@ -26,7 +26,7 @@ dump_widget_type(struct UITreeComponent const* c)
     {
     case UIELEM_RS_LAYER:
         return 0;
-    case UIELEM_INV_GRID:
+    case UIELEM_RS_INV:
         return 2;
     case UIELEM_RS_RECT:
         return 3;
@@ -52,7 +52,7 @@ dump_kind(struct UITreeComponent const* c)
     {
     case UIELEM_RS_LAYER:
         return "layer";
-    case UIELEM_INV_GRID:
+    case UIELEM_RS_INV:
         return "inventory";
     case UIELEM_RS_RECT:
         return "rectangle";

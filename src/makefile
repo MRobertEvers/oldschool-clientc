@@ -105,6 +105,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/uitree_anim.c \
 	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
+	ui/uitree_inv_view.c \
 	ui/uitree_interact.c \
 	varp/varp_manager.c \
 	inv/inv_manager.c \
@@ -253,6 +254,7 @@ test-uitree: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
 		ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
+		ui/uitree_inv_view.c \
 		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \

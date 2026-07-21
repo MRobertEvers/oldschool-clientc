@@ -26,8 +26,14 @@ struct UITreeHoverIds
     int chat_com_id;
 };
 
+/**
+ * "builtin" components are historically components that would've been
+ * hardcoded into the client. RS_* map to cache IF1/IF3 widget types
+ * (see ToriRS_ComponentType). CC_OBJ is a CS2-created dynamic child.
+ */
 enum UITreeComponentType
 {
+    /* Historically things that were hardcoded into the client. */
     UIELEM_BUILTIN_COMPASS = 1,
     UIELEM_BUILTIN_MINIMAP = 2,
     UIELEM_BUILTIN_SIDEBAR = 3,
@@ -40,16 +46,16 @@ enum UITreeComponentType
     UIELEM_BUILTIN_MINIMENU = 11,
     UIELEM_BUILTIN_CHAT_BUTTON = 12,
     UIELEM_BUILTIN_PLAYERMODEL = 13,
-    UIELEM_RS_TEXT = 14,
-    UIELEM_RS_GRAPHIC = 15,
-    UIELEM_RS_MODEL = 16,
-    UIELEM_INV_GRID = 17,
-    UIELEM_RS_LAYER = 18,
-    UIELEM_RS_RECT = 19,
-    UIELEM_RS_LINE = 20,
-    UIELEM_RS_INV_TEXT = 21,
-    UIELEM_INV_SLOT = 22,
-    UIELEM_CC_OBJ = 23,
+    UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
+    UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
+    UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */
+    UIELEM_RS_INV = 17,      /* TYPE_INV — multi-slot inventory grid */
+    UIELEM_RS_LAYER = 18,    /* TYPE_LAYER */
+    UIELEM_RS_RECT = 19,     /* TYPE_RECT */
+    UIELEM_RS_LINE = 20,     /* TYPE_LINE */
+    UIELEM_RS_INV_TEXT = 21, /* TYPE_INV_TEXT */
+    /* 22 was UIELEM_INV_SLOT (removed; grid expands at emit) */
+    UIELEM_CC_OBJ = 23, /* CS2 cc_create / if_setobject objbox */
 };
 
 enum UITreeElemPositionKind
@@ -339,12 +345,7 @@ struct UITreeComponent
             int inv_slot_offset_y[UI_INV_SLOT_OFFSET_MAX];
             int inv_slot_bg_scene_id[UI_INV_SLOT_OFFSET_MAX];
             int inv_slot_bg_atlas_index[UI_INV_SLOT_OFFSET_MAX];
-        } inv_grid;
-        struct
-        {
-            int inv_source_id;
-            int slot;
-        } inv_slot;
+        } rs_inv;
         struct
         {
             int obj_id;
@@ -548,12 +549,7 @@ struct UITreeNodeSpec
             int const* inv_slot_offset_y;
             int const* inv_slot_bg_scene_id;
             int const* inv_slot_bg_atlas_index;
-        } inv_grid;
-        struct
-        {
-            int inv_source_id;
-            int slot;
-        } inv_slot;
+        } rs_inv;
         struct
         {
             int obj_id;

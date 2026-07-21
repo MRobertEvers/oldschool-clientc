@@ -31,6 +31,10 @@ struct TestHostState
     int cross_active;
     int minimenu_visible;
     int camera_yaw;
+    /* Optional stub slots for UITREE_HOST_GET_INV_SOURCE_SLOT (tests). */
+    int inv_source_id;
+    struct UIInvSlotData inv_slots[UI_INV_SLOT_OFFSET_MAX];
+    uint8_t inv_slot_valid[UI_INV_SLOT_OFFSET_MAX];
 };
 
 static inline int
@@ -55,6 +59,18 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
     case UITREE_HOST_SET_SELECTED_TAB:
         st->selected_tab = req->u.set_selected_tab.tabno;
         return 0;
+    case UITREE_HOST_GET_INV_SOURCE_SLOT:
+    {
+        int slot = req->u.get_inv_source_slot.slot;
+        if( !req->u.get_inv_source_slot.out )
+            return 0;
+        if( req->u.get_inv_source_slot.source_id != st->inv_source_id )
+            return 0;
+        if( slot < 0 || slot >= UI_INV_SLOT_OFFSET_MAX || !st->inv_slot_valid[slot] )
+            return 0;
+        *req->u.get_inv_source_slot.out = st->inv_slots[slot];
+        return 1;
+    }
     default:
         return 0;
     }

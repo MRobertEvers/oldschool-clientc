@@ -117,14 +117,14 @@ UITree_PushBuildComponent(
 
     case UIBUILD_INV:
     {
-        spec.type = UIELEM_INV_GRID;
-        spec.u.inv_grid.inv_source_id = comp->id;
-        spec.u.inv_grid.cols = comp->inv_cols;
-        spec.u.inv_grid.rows = comp->inv_rows;
-        spec.u.inv_grid.margin_x = comp->margin_x;
-        spec.u.inv_grid.margin_y = comp->margin_y;
-        spec.u.inv_grid.inv_slot_offset_x = comp->inv_slot_offset_x;
-        spec.u.inv_grid.inv_slot_offset_y = comp->inv_slot_offset_y;
+        spec.type = UIELEM_RS_INV;
+        spec.u.rs_inv.inv_source_id = comp->id;
+        spec.u.rs_inv.cols = comp->inv_cols;
+        spec.u.rs_inv.rows = comp->inv_rows;
+        spec.u.rs_inv.margin_x = comp->margin_x;
+        spec.u.rs_inv.margin_y = comp->margin_y;
+        spec.u.rs_inv.inv_slot_offset_x = comp->inv_slot_offset_x;
+        spec.u.rs_inv.inv_slot_offset_y = comp->inv_slot_offset_y;
 
         int slot_bg_scene[UI_INV_SLOT_OFFSET_MAX];
         int slot_bg_atlas[UI_INV_SLOT_OFFSET_MAX];
@@ -136,8 +136,8 @@ UITree_PushBuildComponent(
                 slot_bg_scene[i] = -1;
             slot_bg_atlas[i] = 0;
         }
-        spec.u.inv_grid.inv_slot_bg_scene_id = slot_bg_scene;
-        spec.u.inv_grid.inv_slot_bg_atlas_index = slot_bg_atlas;
+        spec.u.rs_inv.inv_slot_bg_scene_id = slot_bg_scene;
+        spec.u.rs_inv.inv_slot_bg_atlas_index = slot_bg_atlas;
         break;
     }
 

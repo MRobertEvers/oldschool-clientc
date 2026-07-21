@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -817,6 +818,14 @@ RSCache_Dat2ComponentPackNewFromFileList(
     {
         int file_id = file_ids ? file_ids[i] : i;
         int packed_id = (interface_id << 16) | (file_id & 0xFFFF);
+        if( getenv("RSCACHE_DUMP_COMPONENT_BYTES") )
+        {
+            int dump_n = filelist->file_sizes[i] < 26 ? filelist->file_sizes[i] : 26;
+            fprintf(stderr, "RAWBYTES iface=%d file=%d:", interface_id, file_id);
+            for( int db = 0; db < dump_n; db++ )
+                fprintf(stderr, " %02x", (unsigned char)filelist->files[i][db]);
+            fprintf(stderr, "\n");
+        }
         pack->components[i] = RSCache_Dat2ComponentNewDecode(
             (uint8_t*)filelist->files[i], filelist->file_sizes[i], packed_id, rev);
         assert(pack->components[i] != NULL);

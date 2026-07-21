@@ -28,8 +28,8 @@ Interface 387 is an IF3 **shell**: `TYPE_LAYER` slot hitboxes plus `TYPE_GRAPHIC
 
 The old client faked icons by:
 
-1. Baking eleven `UIELEM_INV_SLOT` nodes from a hardcoded file-index table in C.
-2. Injecting a synthetic backpack `UIELEM_INV_GRID` for tab 149 in C.
+1. Baking eleven inventory-slot leaf nodes from a hardcoded file-index table in C.
+2. Injecting a synthetic backpack `UIELEM_RS_INV` for tab 149 in C.
 3. Reading container 94 only at **emit** time when slot data happened to be seeded.
 
 CS2 `onInvTransmit` scripts (`cc_deleteall` + `cc_create` + `cc_setobject` + `inv_getobj`)
@@ -76,7 +76,7 @@ when `obj_id > 0`.
 
 ### What was removed
 
-- `k_equipment_387_slot_files` and equipment-slot → `UIELEM_INV_SLOT` bake in `instance_revconfig_context.c`
+- Hardcoded equipment-slot leaf bake in `instance_revconfig_context.c`
 - Synthetic `uitree_push_backpack_grid` for tab 149 in `instance_revconfig_inv_bind.c`
 - Per-tab hardcoded `DispatchInvTransmit` — replaced by generic per-source dispatch after load
 

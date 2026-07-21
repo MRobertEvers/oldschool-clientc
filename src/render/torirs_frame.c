@@ -507,7 +507,6 @@ translate_ui_cmd(
     {
     case UITREE_EMIT_SPRITE:
     case UITREE_EMIT_CC_OBJ:
-    case UITREE_EMIT_INV_SLOT:
         if( desc->scene_id <= 0 )
             return false;
         out->kind = TORIRSRC_SPRITE;

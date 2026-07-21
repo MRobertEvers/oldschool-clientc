@@ -294,8 +294,9 @@ Gating summary:
 | `hovered_component_id` | selects over/active colour, text and sprite variants |
 
 Emit kinds map to draw paths: `SPRITE`, `TEXT`, `RECT`, `LINE`, `MODEL`,
-`INV_SLOT`, `CC_OBJ`, `SCROLLBAR_V/H` (expanded to arrows + track + thumb +
-bevels), and `WORLD`/`MINIMAP`/`COMPASS` placeholders.
+`CC_OBJ`, `SCROLLBAR_V/H` (expanded to arrows + track + thumb +
+bevels), `RS_INV` (expanded to per-slot sprites via host inv query), and
+`WORLD`/`MINIMAP`/`COMPASS` placeholders.
 
 ---
 

@@ -1,9 +1,10 @@
 #include "test_harness.h"
+#include "uitree_inv_view.h"
 
 /*
  * Obj icon emit placement. Reference (widgets-gl type-5 itemId path) draws the
- * 36x32 item icon at the widget rect with no draw-time centering; INV_SLOT
- * blits native at the slot origin plus the parent grid's per-slot offsets.
+ * 36x32 item icon at the widget rect with no draw-time centering; RS_INV expands
+ * slots at emit (host GET_INV_SOURCE_SLOT) at grid_rect + per-slot offsets.
  */
 
 static int
@@ -11,6 +12,15 @@ find_desc_idx(struct UITreeEmitBuffer const* buf, int component_id)
 {
     for( int i = 0; i < buf->count; i++ )
         if( buf->cmds[i].component_id == component_id )
+            return i;
+    return -1;
+}
+
+static int
+find_inv_slot_desc(struct UITreeEmitBuffer const* buf, int component_id, int slot)
+{
+    for( int i = 0; i < buf->count; i++ )
+        if( buf->cmds[i].component_id == component_id && buf->cmds[i].inv_slot == slot )
             return i;
     return -1;
 }
@@ -41,25 +51,24 @@ test_emit_icons(void)
     tree->components[gi].item_scene_id = 42;
     tree->components[gi].item_atlas_index = 0;
 
-    /* Inv grid with per-slot offsets; slot 1 child at (10,10). */
-    int32_t grid = UITree_TestPushXy(tree, -1, UIELEM_INV_GRID, 901, 200, 0, 100, 100);
-    tree->components[grid].u.inv_grid.inv_slot_offset_x[1] = 5;
-    tree->components[grid].u.inv_grid.inv_slot_offset_y[1] = 3;
+    /* RS_INV grid: slot 1 at col1/row0 with per-slot offsets. */
+    int32_t grid = UITree_TestPushXy(tree, -1, UIELEM_RS_INV, 901, 200, 0, 100, 100);
+    tree->components[grid].u.rs_inv.inv_source_id = 1;
+    tree->components[grid].u.rs_inv.cols = 4;
+    tree->components[grid].u.rs_inv.rows = 7;
+    tree->components[grid].u.rs_inv.margin_x = 0;
+    tree->components[grid].u.rs_inv.margin_y = 0;
+    tree->components[grid].u.rs_inv.inv_slot_offset_x[1] = 5;
+    tree->components[grid].u.rs_inv.inv_slot_offset_y[1] = 3;
+    for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX; i++ )
+        tree->components[grid].u.rs_inv.inv_slot_bg_scene_id[i] = -1;
 
-    struct UITreeNodeSpec slot;
-    memset(&slot, 0, sizeof(slot));
-    slot.type = UIELEM_INV_SLOT;
-    slot.component_id = 902;
-    slot.x = 10;
-    slot.y = 10;
-    slot.width = 36;
-    slot.height = 32;
-    slot.u.inv_slot.inv_source_id = 1;
-    slot.u.inv_slot.slot = 1;
-    int32_t si = UITree_Push(tree, grid, &slot);
-    tree->components[si].item_id = 995;
-    tree->components[si].item_count = 1000;
-    tree->components[si].item_scene_id = 43;
+    hs.inv_source_id = 1;
+    hs.inv_slots[1].obj_id = 995;
+    hs.inv_slots[1].obj_count = 1000;
+    hs.inv_slots[1].scene_id = 43;
+    hs.inv_slots[1].atlas_index = 0;
+    hs.inv_slot_valid[1] = 1;
 
     UITree_TestResolve(tree);
 
@@ -79,15 +88,21 @@ test_emit_icons(void)
         TEST_ASSERT(buf.cmds[di].w == 36 && buf.cmds[di].h == 32, "item overlay widget size");
     }
 
-    /* INV_SLOT: native blit at slot origin + per-slot grid offsets. */
-    int siD = find_desc_idx(&buf, 902);
-    TEST_ASSERT(siD >= 0, "inv slot emitted");
+    /* RS_INV: host-backed slot 1 at grid_rect + offsets (no INV_SLOT child). */
+    int siD = find_inv_slot_desc(&buf, 901, 1);
+    TEST_ASSERT(siD >= 0, "rs_inv slot 1 emitted");
     if( siD >= 0 )
     {
-        TEST_ASSERT(buf.cmds[siD].kind == UITREE_EMIT_INV_SLOT, "inv slot kind");
-        TEST_ASSERT(buf.cmds[siD].x == 200 + 10 + 5, "slot x + offset_x[1]");
-        TEST_ASSERT(buf.cmds[siD].y == 0 + 10 + 3, "slot y + offset_y[1]");
-        TEST_ASSERT(buf.cmds[siD].w == 0 && buf.cmds[siD].h == 0, "native blit");
+        int expect_x = 200 + UITREE_INV_SLOT_ICON_SIZE + 5; /* col1 * 32 + offset */
+        int expect_y = 0 + 3;
+        TEST_ASSERT(buf.cmds[siD].kind == UITREE_EMIT_SPRITE, "inv cell is sprite");
+        TEST_ASSERT(buf.cmds[siD].scene_id == 43, "inv cell scene");
+        TEST_ASSERT(buf.cmds[siD].x == expect_x, "slot x + offset_x[1]");
+        TEST_ASSERT(buf.cmds[siD].y == expect_y, "slot y + offset_y[1]");
+        TEST_ASSERT(
+            buf.cmds[siD].w == UITREE_INV_SLOT_ICON_SIZE &&
+                buf.cmds[siD].h == UITREE_INV_SLOT_ICON_SIZE,
+            "32x32 icon");
     }
 
     UITree_EmitBufferFree(&buf);

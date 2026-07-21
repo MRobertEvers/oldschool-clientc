@@ -57,7 +57,7 @@ ids `≤ 0xFFFF` pack as `(iface << 16)`; already-packed ids pass through
 (`uibuilder_pack_component_id`). Child widgets use the low 16 bits.
 
 **Type map.** `TORIRS_COMPONENT_*` → `UIBUILD_*` → `UIELEM_RS_*` /
-`UIELEM_INV_GRID` (e.g. LAYER → `UIELEM_RS_LAYER`, GRAPHIC → `UIELEM_RS_GRAPHIC`).
+`UIELEM_RS_INV` (e.g. LAYER → `UIELEM_RS_LAYER`, GRAPHIC → `UIELEM_RS_GRAPHIC`).
 
 ### Interface open
 
@@ -145,7 +145,7 @@ load archives, load unique inv obj ids, load each requested component pack.
 2. For each layout op (parent-name order): push the owner node; if RS subtree,
    expand the cache pack under that owner (`bake_pack_under_owner`) and collect
    IF3 `on_load` hooks
-3. `uitree_builder_inv_bind_tree` — bind sidebar / inv_grid nodes to named invs
+3. `uitree_builder_inv_bind_tree` — bind sidebar / rs_inv nodes to named invs
 4. Layout resolve; optional CS2 if `builder->host` is set
 
 ### Chrome builtins vs RS subtrees
@@ -270,7 +270,7 @@ nodes, inactive sidebars).
 
 1. Two full DFS passes over the forest: **non-text**, then **text** (text on top)
 2. Per node: skip if `behavior.hide` (self **and** children); for clip layers
-   (`RS_LAYER`, sidebar, chat, inv_grid) intersect clip with node bounds before
+   (`RS_LAYER`, sidebar, chat, rs_inv) intersect clip with node bounds before
    descending; `UITree_EmitFill` → append `UITreeEmitDesc` when drawable
 3. Children walked in sibling order
 
@@ -299,7 +299,7 @@ shadow `0xFF332D25`.
 
 Containers that emit nothing themselves (unless IF1-scrollable layer):
 sidebar, chat, chat button, redstone tab, tab icons, cross, minimenu,
-inv_grid, inv_text. IF3 scroll layers do not get procedural chrome (CS2 sprite
+rs_inv, inv_text. IF3 scroll layers do not get procedural chrome (CS2 sprite
 trees handle those).
 
 ---
@@ -317,7 +317,7 @@ trees handle those).
 | `RECT` | Fill or outline |
 | `LINE` | `ToriDraw2D_DrawLine` |
 | `MODEL` | Scene model + widget extents (zoom/angles/ortho) |
-| `INV_SLOT` / `CC_OBJ` | Sprite blit when `scene_id > 0` |
+| `RS_INV` (emit expand) / `CC_OBJ` | Sprite blit when `scene_id > 0` |
 | `SCROLLBAR_V` / `SCROLLBAR_H` | Expanded to arrows + track + thumb + bevel fills |
 | `WORLD` / `MINIMAP` / `COMPASS` | Filled by `EmitFill`; Soft3D stubs ignore 2D placeholders |
 
@@ -351,7 +351,7 @@ Soft3D frame → `PlatformSDL2_Present`); optional `--bmp`.
 | `behavior` | Hide, scripts, button/client codes, colors |
 | `runtime_hooks` | CS2 event hooks (click, transmit, …) |
 | `scroll_x` / `scroll_y` | Layer scroll offsets |
-| `u` | Type-specific payload (sprite, text, graphic, model, inv_grid, …) |
+| `u` | Type-specific payload (sprite, text, graphic, model, rs_inv, …) |
 | `is_dirty` / `always_dirty` | Emit eligibility (incremental path) |
 
 **`UITreeElemPosition`** — geometry: `UIPOS_XY` or `UIPOS_RELATIVE`, IF3 modes,
@@ -367,7 +367,7 @@ key, op, timer, and var/inv/misc transmit scripts.
 
 **`UITreeComponentType`** — builtins (`COMPASS`, `MINIMAP`, `SIDEBAR`, `CHAT`,
 `WORLD`, `SPRITE`, …) and RS (`RS_TEXT`, `RS_GRAPHIC`, `RS_MODEL`, `RS_LAYER`,
-`RS_RECT`, `RS_LINE`, `INV_GRID`, `INV_SLOT`, `CC_OBJ`, …).
+`RS_RECT`, `RS_LINE`, `RS_INV`, `CC_OBJ`, …).
 
 ### Build (`uitree_build.h`, `torirs_types.h`)
 
@@ -406,7 +406,7 @@ interface-open / pack bake, not the RevConfig registry path.
 
 ### Emit / render (`uitree_emit.h`, `uitree_host.h`)
 
-**`UITreeEmitKind`** — `SPRITE`, `TEXT`, `RECT`, `LINE`, `MODEL`, `INV_SLOT`,
+**`UITreeEmitKind`** — `SPRITE`, `TEXT`, `RECT`, `LINE`, `MODEL`, `CC_OBJ`,
 `CC_OBJ`, scrollbars, `WORLD` / `MINIMAP` / `COMPASS`.
 
 **`UITreeEmitDesc`** — one draw command: kind, node/component ids, bounds, clip,

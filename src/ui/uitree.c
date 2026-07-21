@@ -368,8 +368,8 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "rs_graphic";
     case UIELEM_RS_MODEL:
         return "rs_model";
-    case UIELEM_INV_GRID:
-        return "inv_grid";
+    case UIELEM_RS_INV:
+        return "rs_inv";
     case UIELEM_RS_LAYER:
         return "rs_layer";
     case UIELEM_RS_RECT:
@@ -378,8 +378,6 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "rs_line";
     case UIELEM_RS_INV_TEXT:
         return "rs_inv_text";
-    case UIELEM_INV_SLOT:
-        return "inv_slot";
     case UIELEM_CC_OBJ:
         return "cc_obj";
     }
@@ -993,47 +991,42 @@ UITree_Push(
         component->u.rs_model.anim_frame_cycle = 0;
         break;
 
-    case UIELEM_INV_GRID:
-        component->u.inv_grid.inv_source_id = spec->u.inv_grid.inv_source_id;
-        component->u.inv_grid.cols = spec->u.inv_grid.cols;
-        component->u.inv_grid.rows = spec->u.inv_grid.rows;
-        component->u.inv_grid.margin_x = spec->u.inv_grid.margin_x;
-        component->u.inv_grid.margin_y = spec->u.inv_grid.margin_y;
-        if( spec->u.inv_grid.inv_slot_offset_x && spec->u.inv_grid.inv_slot_offset_y )
+    case UIELEM_RS_INV:
+        component->u.rs_inv.inv_source_id = spec->u.rs_inv.inv_source_id;
+        component->u.rs_inv.cols = spec->u.rs_inv.cols;
+        component->u.rs_inv.rows = spec->u.rs_inv.rows;
+        component->u.rs_inv.margin_x = spec->u.rs_inv.margin_x;
+        component->u.rs_inv.margin_y = spec->u.rs_inv.margin_y;
+        if( spec->u.rs_inv.inv_slot_offset_x && spec->u.rs_inv.inv_slot_offset_y )
         {
             memcpy(
-                component->u.inv_grid.inv_slot_offset_x,
-                spec->u.inv_grid.inv_slot_offset_x,
+                component->u.rs_inv.inv_slot_offset_x,
+                spec->u.rs_inv.inv_slot_offset_x,
                 (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
             memcpy(
-                component->u.inv_grid.inv_slot_offset_y,
-                spec->u.inv_grid.inv_slot_offset_y,
+                component->u.rs_inv.inv_slot_offset_y,
+                spec->u.rs_inv.inv_slot_offset_y,
                 (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
         }
-        if( spec->u.inv_grid.inv_slot_bg_scene_id && spec->u.inv_grid.inv_slot_bg_atlas_index )
+        if( spec->u.rs_inv.inv_slot_bg_scene_id && spec->u.rs_inv.inv_slot_bg_atlas_index )
         {
             memcpy(
-                component->u.inv_grid.inv_slot_bg_scene_id,
-                spec->u.inv_grid.inv_slot_bg_scene_id,
+                component->u.rs_inv.inv_slot_bg_scene_id,
+                spec->u.rs_inv.inv_slot_bg_scene_id,
                 (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
             memcpy(
-                component->u.inv_grid.inv_slot_bg_atlas_index,
-                spec->u.inv_grid.inv_slot_bg_atlas_index,
+                component->u.rs_inv.inv_slot_bg_atlas_index,
+                spec->u.rs_inv.inv_slot_bg_atlas_index,
                 (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
         }
         else
         {
             for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX; i++ )
             {
-                component->u.inv_grid.inv_slot_bg_scene_id[i] = -1;
-                component->u.inv_grid.inv_slot_bg_atlas_index[i] = 0;
+                component->u.rs_inv.inv_slot_bg_scene_id[i] = -1;
+                component->u.rs_inv.inv_slot_bg_atlas_index[i] = 0;
             }
         }
-        break;
-
-    case UIELEM_INV_SLOT:
-        component->u.inv_slot.inv_source_id = spec->u.inv_slot.inv_source_id;
-        component->u.inv_slot.slot = spec->u.inv_slot.slot;
         break;
 
     case UIELEM_CC_OBJ:
