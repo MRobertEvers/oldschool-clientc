@@ -34,17 +34,15 @@ UITreeAnim_RequestMissing(
 
 /**
  * Advance every animated RS_MODEL by `cycles` 50hz client cycles (0 =
- * (re)apply current frame). queue_idle tells the driver the task queue has
- * drained: a requested sequence still absent then is unavailable in this
- * cache and is disabled so it is not re-requested every tick.
+ * (re)apply current frame). A sequence not yet registered in the scene is
+ * still loading (rest pose); the load task registers an empty sentinel for
+ * sequences unavailable in this cache, which advance skips permanently.
  * Returns non-zero if any animation was applied (caller should redraw).
  */
 int
 UITreeAnim_Advance(
     struct UITree* tree,
     struct ToriDraw_Scene* scene,
-    struct SeqLoadTracker* tracker,
-    int cycles,
-    int queue_idle);
+    int cycles);
 
 #endif

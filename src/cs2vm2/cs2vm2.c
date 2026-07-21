@@ -3048,11 +3048,12 @@ CS2VM2_Op_IF_SetDraggable(
     int parent_uid;
     int component_id;
 
+    /* Stack (bottom to top): [parentUid, childIndex, uid] — pop in reverse. */
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &parent_uid) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;

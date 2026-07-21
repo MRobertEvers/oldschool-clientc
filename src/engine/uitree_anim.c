@@ -64,14 +64,12 @@ int
 UITreeAnim_Advance(
     struct UITree* tree,
     struct ToriDraw_Scene* scene,
-    struct SeqLoadTracker* tracker,
-    int cycles,
-    int queue_idle)
+    int cycles)
 {
     int applied = 0;
     uint32_t i;
 
-    assert(tree && scene && tracker);
+    assert(tree && scene);
     for( i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent* c = &tree->components[i];
@@ -87,17 +85,9 @@ UITreeAnim_Advance(
             continue;
 
         anim = ToriDraw_SceneAnimationGet(scene, seq);
-        if( !anim )
-        {
-            /* Load requested but the queue has drained without producing it:
-             * the sequence is unavailable in this cache — disable so we don't
-             * re-request every tick. Otherwise it's still in flight; rest
-             * pose until it lands. */
-            if( queue_idle && tracker_has(tracker, seq) )
-                c->u.rs_model.anim_seq_id = -1;
-            continue;
-        }
-        if( !anim->base || anim->frame_count <= 0 )
+        /* Not registered: load still in flight — rest pose until it lands.
+         * Registered but empty: the load task's unavailable sentinel — skip. */
+        if( !anim || !anim->base || anim->frame_count <= 0 )
             continue;
 
         hnd = ToriDraw_SceneModelGet(scene, model_id);

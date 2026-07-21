@@ -205,7 +205,7 @@ App_OpenRootInterface(
     UITreeAnim_RequestMissing(
         app->tree, app->scene, app->provider, app->runner.queue, &app->seq_loads);
     TaskRunner_Drain(&app->runner);
-    UITreeAnim_Advance(app->tree, app->scene, &app->seq_loads, 0, 1);
+    UITreeAnim_Advance(app->tree, app->scene, 0);
 
     app->emit.count = 0;
     UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, -1);
@@ -299,12 +299,7 @@ app_logic_tick(struct App* app)
     UITreeAnim_RequestMissing(
         app->tree, app->scene, app->provider, app->runner.queue, &app->seq_loads);
     TaskRunner_Drain(&app->runner);
-    if( UITreeAnim_Advance(
-            app->tree,
-            app->scene,
-            &app->seq_loads,
-            1,
-            app->runner.queue->head == NULL) )
+    if( UITreeAnim_Advance(app->tree, app->scene, 1) )
         redraw = 1;
 
     return redraw;

@@ -58,6 +58,41 @@ seq_file_pos_for_id(struct RSCache_Dat2DiskArchive const* archive, int file_id)
     return -1;
 }
 
+/*
+ * Register what was produced — or, when decode failed, an empty sentinel
+ * animation. The sentinel makes ToriDraw_SceneAnimationGet non-NULL so the
+ * tick driver (UITreeAnim) can tell "unavailable" (registered, no frames)
+ * apart from "still loading" (not registered) without guessing from queue
+ * state, and UITreeAnim_RequestMissing never re-requests the sequence.
+ */
+static void
+seq_register_result(struct Task_Dat2SequenceLoad* self)
+{
+    struct ToriDraw_Animation* anim = NULL;
+
+    if( self->framemap && self->frames )
+        anim = ToriDraw_AnimationFromRSCache(
+            self->framemap,
+            (struct RSCache_Dat2Frame const* const*)self->frames,
+            self->delays,
+            self->frame_count,
+            self->seq ? self->seq->frame_step : 0);
+    if( !anim )
+    {
+        anim = calloc(1, sizeof(*anim));
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(
+                stderr,
+                "seq_load: seq=%d unavailable (config=%p frame_count=%d framemap=%p)\n",
+                self->seq_id,
+                (void*)self->seq,
+                self->seq ? self->seq->frame_count : -1,
+                (void*)self->framemap);
+    }
+    if( anim )
+        ToriDraw_SceneAnimationAdd(self->scene, self->seq_id, anim);
+}
+
 static struct RSCache_Dat2DiskArchive*
 seq_take_archive(struct ToriRS_IO* io, int slot)
 {
@@ -115,14 +150,7 @@ Task_Dat2SequenceLoad_Run(
     }
     if( !self->seq || self->seq->frame_count <= 0 || !self->seq->frame_ids )
     {
-        if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "seq_load: seq=%d FAILED seq=%p frame_count=%d frame_ids=%p\n",
-                self->seq_id,
-                (void*)self->seq,
-                self->seq ? self->seq->frame_count : -1,
-                self->seq ? (void*)self->seq->frame_ids : NULL);
+        seq_register_result(self);
         PT_EXIT(&self->pt);
     }
 
@@ -194,30 +222,8 @@ Task_Dat2SequenceLoad_Run(
         seq_drop_frame_temporaries(self);
     }
 
-    if( getenv("TORIRS_ANIM_DEBUG") )
-    {
-        int decoded = 0;
-        for( int i = 0; i < self->frame_count; i++ )
-            if( self->frames[i] )
-                decoded++;
-        fprintf(
-            stderr,
-            "seq_load: seq=%d frames=%d decoded=%d framemap=%p\n",
-            self->seq_id,
-            self->frame_count,
-            decoded,
-            (void*)self->framemap);
-    }
-
     /* 3. Assemble render-ready animation and register it in the scene. */
-    if( self->framemap )
-    {
-        struct ToriDraw_Animation* anim = ToriDraw_AnimationFromRSCache(
-            self->framemap, (struct RSCache_Dat2Frame const* const*)self->frames, self->delays,
-            self->frame_count, self->seq ? self->seq->frame_step : 0);
-        if( anim )
-            ToriDraw_SceneAnimationAdd(self->scene, self->seq_id, anim);
-    }
+    seq_register_result(self);
 
     PT_END(&self->pt);
 }
