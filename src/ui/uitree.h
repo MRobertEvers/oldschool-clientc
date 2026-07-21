@@ -940,6 +940,16 @@ UITree_ClickMaskDragDepth(int32_t click_mask)
     return (click_mask >> UITREE_FLAG_DRAG_DEPTH_SHIFT) & UITREE_FLAG_DRAG_DEPTH_MASK;
 }
 
+/**
+ * Node index of src's drag render area (clamp + script coordinate space), or
+ * -1 when the widget drags freely. cc_setdraggable(parentUid, childIndex)
+ * targets parent.children[childIndex]; falls back to the parent.
+ */
+int32_t
+UITree_ResolveDragRenderArea(
+    struct UITree const* tree,
+    struct UITreeComponent const* src);
+
 /** True if widget can start a drag (TS isWidgetDraggable). */
 int
 UITree_ComponentIsDraggable(struct UITreeComponent const* c);

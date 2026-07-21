@@ -17,6 +17,7 @@
 #include "toridraw_types.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -313,8 +314,15 @@ UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge)
         return bridge->player_scene_id;
     }
 
-    if( PlayerAppearance_ResolveDefaultMale(bridge->provider, &app) <= 0 )
-        return -1;
+    {
+        int resolved = PlayerAppearance_ResolveDefaultMale(bridge->provider, &app);
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(stderr, "EnsurePlayerModel: resolved=%d kits=[%d,%d,%d,%d,%d,%d,%d]\n",
+                resolved, app.kits[0], app.kits[1], app.kits[2], app.kits[3],
+                app.kits[4], app.kits[5], app.kits[6]);
+        if( resolved <= 0 )
+            return -1;
+    }
 
     /* Compose body parts 0..6: one merged, kit-recolored model per IdentityKit. */
     for( p = 0; p < PLAYER_APPEARANCE_PARTS; p++ )

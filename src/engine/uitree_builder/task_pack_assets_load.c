@@ -5,6 +5,7 @@
 #include "engine/torirs_types.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -115,6 +116,18 @@ Task_PackAssetsLoad_Run(
             CacheProvider_ComponentPackGet(self->provider, self->iface_id);
         assert(pack && "PackAssetsLoad requires ComponentPack already loaded");
         collect_from_pack(self, pack);
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(
+                stderr,
+                "PackAssetsLoad: iface=%d components=%d sprites=%d fonts=%d models=%d "
+                "npcs=%d needs_player=%d\n",
+                self->iface_id,
+                pack->component_count,
+                self->sprite_count,
+                self->font_count,
+                self->model_count,
+                self->npc_count,
+                self->needs_player);
     }
 
     for( self->i = 0; self->i < self->sprite_count; self->i++ )

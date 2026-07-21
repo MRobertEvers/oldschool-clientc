@@ -326,29 +326,26 @@ ToriRS_TaskQueue_Run(
         switch( res )
         {
         case PT_YIELDED:
-            res = TORIRS_ASYNCIO_STAT_YIELD;
-            goto done_loop;
-            break;
+            /* Head is blocked on IO — hand control back so the platform can
+             * satisfy the request; the next pass resumes this task. */
+            return TORIRS_ASYNCIO_STAT_YIELD;
         case PT_ENDED:
             /* Clean completion (reached PT_END). This is the normal, healthy
              * path for every task; it is only logged when task tracing is on
              * (set TORIRS_TASK_LOG) so the console is not spammed. A task that
-             * failed prints its own diagnostic before exiting. */
-            res = TORIRS_ASYNCIO_STAT_DONE;
+             * failed prints its own diagnostic before exiting. Keep running —
+             * DONE means the whole queue drained, not just one task. */
             if( getenv("TORIRS_TASK_LOG") )
                 fprintf(stderr, "Task %s completed\n", task->name);
             ToriRS_TaskQueue_Remove(queue, task);
-            goto done_loop;
             break;
         case PT_EXITED:
             /* Early return via PT_EXIT. Some are benign guard clauses; others
              * follow an error the task already logged. Distinguished from a
              * clean end and gated behind the same trace flag. */
-            res = TORIRS_ASYNCIO_STAT_DONE;
             if( getenv("TORIRS_TASK_LOG") )
                 fprintf(stderr, "Task %s exited early (PT_EXIT)\n", task->name);
             ToriRS_TaskQueue_Remove(queue, task);
-            goto done_loop;
             break;
         default:
             fprintf(stderr, "Task %s exited with unknown result\n", task->name);
@@ -357,8 +354,7 @@ ToriRS_TaskQueue_Run(
         }
     }
 
-done_loop:
-    return res;
+    return TORIRS_ASYNCIO_STAT_DONE;
 }
 
 static inline void

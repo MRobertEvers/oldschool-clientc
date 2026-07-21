@@ -396,13 +396,23 @@ interact_drag(
                 .drag_target_id = st->drag_target_id,
             };
             if( src->drag_render_area_uid >= 0 )
-                parent_idx = UITree_FindByComponentId(tree, src->drag_render_area_uid);
+                parent_idx = UITree_ResolveDragRenderArea(tree, src);
             if( parent_idx >= 0 )
+            {
+                int poffx = 0, poffy = 0;
                 UITree_LayoutGetBounds(
                     &tree->components[parent_idx].position,
                     &parent_x, &parent_y, &parent_w, &parent_h);
-            /* Script-space mouse: drag visual relative to the drag parent,
-             * folded back into content space via the parent's scroll. */
+                /* Screen-space origin of the coordinate space: the area may
+                 * itself sit inside a scrolled layer (reference uses the
+                 * render area's _absX/_absY). */
+                UITree_AccumScrollOffset(tree, parent_idx, &poffx, &poffy);
+                parent_x -= poffx;
+                parent_y -= poffy;
+            }
+            /* Script-space mouse: drag visual relative to the drag render
+             * area (the track for a scrollbar dragger), folded back into
+             * content space via the area's scroll. */
             intent.has_event_mouse = 1;
             intent.event_mouse_x =
                 src->drag_visual_x - parent_x +

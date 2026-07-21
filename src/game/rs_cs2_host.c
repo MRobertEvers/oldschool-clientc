@@ -2017,6 +2017,15 @@ RS_CS2Host_Exec(
 
     case CS2VM_HOST_REQUEST_IF_SETPOSITION:
     case CS2VM_HOST_REQUEST_CC_SETPOSITION:
+        if( getenv("TORIRS_POS_TRACE") )
+            fprintf(
+                stderr,
+                "SETPOS id=%d xy=(%d,%d) modes=(%d,%d)\n",
+                request->u.cc_set_position.component_id,
+                request->u.cc_set_position.x,
+                request->u.cc_set_position.y,
+                request->u.cc_set_position.xmode,
+                request->u.cc_set_position.ymode);
         if( tree )
             (void)UITree_ApplyPositionModes(
                 tree,

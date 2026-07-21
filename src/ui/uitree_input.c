@@ -461,7 +461,7 @@ UITree_InputDragTick(
         int depth = UITree_ClickMaskDragDepth(src->behavior.click_mask);
         int32_t clamp_idx = -1;
         if( src->drag_render_area_uid >= 0 )
-            clamp_idx = UITree_FindByComponentId(tree, src->drag_render_area_uid);
+            clamp_idx = UITree_ResolveDragRenderArea(tree, src);
         else if( depth > 0 )
         {
             int d;
@@ -472,21 +472,26 @@ UITree_InputDragTick(
         if( clamp_idx >= 0 && (uint32_t)clamp_idx < tree->component_count )
         {
             int cx, cy, cw, ch;
+            int sw = 0, sh = 0;
             int coffx = 0, coffy = 0;
             UITree_LayoutGetBounds(&tree->components[clamp_idx].position, &cx, &cy, &cw, &ch);
+            UITree_LayoutGetBounds(&src->position, NULL, NULL, &sw, &sh);
             /* Clamp rect in screen space: the render area itself may sit
              * inside a scrolled layer. */
             UITree_AccumScrollOffset(tree, clamp_idx, &coffx, &coffy);
             cx -= coffx;
             cy -= coffy;
+            /* Keep the whole widget inside the area (reference: targetAbs +
+             * widget size <= parentAbs + parent size) — a full-width dragger
+             * then cannot wiggle horizontally at all. */
+            if( cw > 0 && target_x + sw > cx + cw )
+                target_x = cx + cw - sw;
+            if( ch > 0 && target_y + sh > cy + ch )
+                target_y = cy + ch - sh;
             if( target_x < cx )
                 target_x = cx;
             if( target_y < cy )
                 target_y = cy;
-            if( cw > 0 && target_x > cx + cw - 1 )
-                target_x = cx + cw - 1;
-            if( ch > 0 && target_y > cy + ch - 1 )
-                target_y = cy + ch - 1;
         }
     }
 

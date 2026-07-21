@@ -116,12 +116,21 @@ upload_model_nodes(
         if( c->type != UIELEM_RS_MODEL )
             continue;
         cache_id = c->u.rs_model.gamecache_model_id;
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(
+                stderr,
+                "upload_model_nodes: com=0x%x cache_id=%d client_code=%d\n",
+                (unsigned)c->component_id,
+                cache_id,
+                c->behavior.client_code);
         if( cache_id < 0 )
         {
             /* Local-player / player-design preview: composite the default avatar. */
             if( c->behavior.client_code == 327 || c->behavior.client_code == 328 )
             {
                 scene_id = UITreeSceneBridge_EnsurePlayerModel(bridge);
+                if( getenv("TORIRS_ANIM_DEBUG") )
+                    fprintf(stderr, "  EnsurePlayerModel -> %d\n", scene_id);
                 if( scene_id >= 0 )
                 {
                     c->u.rs_model.gamecache_model_id = scene_id;

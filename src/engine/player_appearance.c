@@ -5,6 +5,7 @@
 #include "engine/torirs_types.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -129,6 +130,20 @@ Task_PlayerAppearanceLoad_Run(
             TASK_AWAITSELF_IF(CreateTask_IdkLoad(self->provider, self->scan_i));
         player_try_record_kit(self, self->scan_i);
     }
+
+    if( getenv("TORIRS_ANIM_DEBUG") )
+        fprintf(
+            stderr,
+            "PlayerAppearanceLoad: scanned=%d found=%d kits=[%d,%d,%d,%d,%d,%d,%d]\n",
+            self->scan_i,
+            self->found,
+            self->kits[0],
+            self->kits[1],
+            self->kits[2],
+            self->kits[3],
+            self->kits[4],
+            self->kits[5],
+            self->kits[6]);
 
     /* Load every model referenced by the chosen kits. */
     for( self->model_part = 0; self->model_part < PLAYER_APPEARANCE_PARTS; self->model_part++ )

@@ -1952,6 +1952,37 @@ UITree_InterfaceParentIsMountedGroup(
     return 0;
 }
 
+int32_t
+UITree_ResolveDragRenderArea(
+    struct UITree const* tree,
+    struct UITreeComponent const* src)
+{
+    int32_t parent_idx;
+
+    assert(tree);
+    assert(src);
+    if( src->drag_render_area_uid < 0 )
+        return -1;
+    parent_idx = UITree_FindByComponentId(tree, src->drag_render_area_uid);
+    if( parent_idx < 0 )
+        return -1;
+    /* cc_setdraggable(parentUid, childIndex): the render area is the child at
+     * childIndex within the parent (reference WidgetOps CC_SETDRAGGABLE — e.g.
+     * the scrollbar dragger clamps to child 0, the track, not the whole bar).
+     * Fall back to the parent when the child cannot be resolved. */
+    if( src->drag_render_area_child_index >= 0 )
+    {
+        int32_t child = UITree_FindChildBySubid(
+            tree,
+            parent_idx,
+            src->drag_render_area_uid,
+            src->drag_render_area_child_index);
+        if( child >= 0 )
+            return child;
+    }
+    return parent_idx;
+}
+
 int
 UITree_ComponentIsDraggable(struct UITreeComponent const* c)
 {
