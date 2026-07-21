@@ -168,7 +168,7 @@ Task_Dat2SequenceLoad_Run(
     {
         struct ToriDraw_Animation* anim = ToriDraw_AnimationFromRSCache(
             self->framemap, (struct RSCache_Dat2Frame const* const*)self->frames, self->delays,
-            self->frame_count);
+            self->frame_count, self->seq ? self->seq->frame_step : 0);
         if( anim )
             ToriDraw_SceneAnimationAdd(self->scene, self->seq_id, anim);
     }

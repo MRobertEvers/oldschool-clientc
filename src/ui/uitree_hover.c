@@ -77,7 +77,6 @@ static void
 find_hovered_recursive(
     struct UITree const* tree,
     struct UITreeHost const* host,
-    struct UITreeScrollState const* scroll,
     int32_t node_index,
     int mouse_x,
     int mouse_y,
@@ -116,9 +115,11 @@ find_hovered_recursive(
         else if( component->behavior.over_color != 0 )
             *out_hovered_component_id = component->component_id;
         /* CS2/IF3 addition: components with hover scripts must also report as
-         * hovered so on_mouse_over / on_mouse_leave dispatch (main loop). */
+         * hovered so on_mouse_over / on_mouse_leave / on_mouse_repeat dispatch
+         * (main loop). */
         else if( component->runtime_hooks.on_mouse_over.script_id > 0 ||
-                 component->runtime_hooks.on_mouse_leave.script_id > 0 )
+                 component->runtime_hooks.on_mouse_leave.script_id > 0 ||
+                 component->runtime_hooks.on_mouse_repeat.script_id > 0 )
             *out_hovered_component_id = component->component_id;
     }
 
@@ -140,20 +141,12 @@ find_hovered_recursive(
     if( component->type == UIELEM_RS_LAYER )
     {
         UITree_ScrollIntersectClip(&child_clip, bx, by, bw, bh);
-        if( scroll && UITree_ScrollLayerNeedsHorizontal(component) &&
-            component->component_id >= 0 )
-        {
-            int sx = 0;
-            UITree_ScrollGetPos(scroll, component->component_id, &sx, NULL);
-            child_scroll_x += sx;
-        }
-        if( scroll && UITree_ScrollLayerNeedsVertical(component) &&
-            component->component_id >= 0 )
-        {
-            int sy = 0;
-            UITree_ScrollGetPos(scroll, component->component_id, NULL, &sy);
-            child_scroll_y += sy;
-        }
+        /* Canonical scroll offset lives on the component (emit + CS2 opcodes
+         * and the scrollbar hit path all read it). */
+        if( UITree_ScrollLayerNeedsHorizontal(component) )
+            child_scroll_x += component->scroll_x;
+        if( UITree_ScrollLayerNeedsVertical(component) )
+            child_scroll_y += component->scroll_y;
     }
 
     for( int32_t child = component->first_child; child >= 0;
@@ -162,7 +155,6 @@ find_hovered_recursive(
         find_hovered_recursive(
             tree,
             host,
-            scroll,
             child,
             mouse_x,
             mouse_y,
@@ -177,7 +169,6 @@ int
 UITree_FindHoveredComponentIdForRegion(
     struct UITree const* tree,
     struct UITreeHost const* host,
-    struct UITreeScrollState const* scroll,
     int32_t root_index,
     int mouse_x,
     int mouse_y,
@@ -202,7 +193,7 @@ UITree_FindHoveredComponentIdForRegion(
         if( (uint32_t)root_index >= tree->component_count )
             return -1;
         find_hovered_recursive(
-            tree, host, scroll, root_index,
+            tree, host, root_index,
             mouse_x, mouse_y, 0, 0, NULL,
             &hovered_component_id);
         return hovered_component_id;
@@ -215,7 +206,7 @@ UITree_FindHoveredComponentIdForRegion(
          root = tree->components[root].next_sibling )
     {
         find_hovered_recursive(
-            tree, host, scroll, root,
+            tree, host, root,
             mouse_x, mouse_y, 0, 0, NULL,
             &hovered_component_id);
     }

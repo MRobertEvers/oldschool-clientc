@@ -152,18 +152,13 @@ UITree_EmitFill(
                 break;
             }
             /* SETOBJECT on type-5 stores the icon in item_*; SETGRAPHIC chrome
-             * stays in rs_graphic.scene_id. Prefer the item overlay when set. */
+             * stays in rs_graphic.scene_id. Prefer the item overlay when set.
+             * Reference draws the 36x32 icon at the widget rect with no
+             * draw-time centering (widgets-gl type-5 itemId path). */
             if( component->item_id > 0 && component->item_scene_id > 0 )
             {
-                /* Inventory icons are 32x32; IF3-stretching to the 36x32 slot
-                 * thickens the baked outline. Native blit + center like OSRS. */
                 out->scene_id = component->item_scene_id;
                 out->atlas_index = component->item_atlas_index;
-                out->if3 = 0;
-                out->w = 0;
-                out->h = 0;
-                out->x = x + (w - 32) / 2;
-                out->y = y + (h - 32) / 2;
                 out->tiled = 0;
                 out->outline = 0;
                 out->graphic_shadow = 0;
@@ -308,6 +303,23 @@ UITree_EmitFill(
         out->atlas_index = component->item_atlas_index;
         out->obj_id = component->item_id;
         out->obj_count = component->item_count;
+        /* Native 36x32 icon blit at the slot origin plus the parent grid's
+         * per-slot cache offsets (invSlotOffsetX/Y in the reference). */
+        out->w = 0;
+        out->h = 0;
+        out->if3 = 0;
+        if( component->parent >= 0 &&
+            (uint32_t)component->parent < tree->component_count )
+        {
+            struct UITreeComponent const* grid = &tree->components[component->parent];
+            int const slot = component->u.inv_slot.slot;
+            if( grid->type == UIELEM_INV_GRID && slot >= 0 &&
+                slot < UI_INV_SLOT_OFFSET_MAX )
+            {
+                out->x += grid->u.inv_grid.inv_slot_offset_x[slot];
+                out->y += grid->u.inv_grid.inv_slot_offset_y[slot];
+            }
+        }
         return true;
 
     case UIELEM_BUILTIN_WORLD:

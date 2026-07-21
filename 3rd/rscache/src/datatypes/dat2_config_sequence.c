@@ -714,6 +714,10 @@ decode_sequence_226_plus(
             def->anim_maya_start = g2(buffer);
             def->anim_maya_end = g2(buffer);
             break;
+        case 16:
+            /* rev226+: vertical offset (single signed byte). RuneLite/xrsps SeqType. */
+            def->vertical_offset = (int8_t)g1(buffer);
+            break;
         case 17:
         {
             def->anim_maya_masks = calloc(256, sizeof(bool));
@@ -727,6 +731,18 @@ decode_sequence_226_plus(
         case 18:
             def->debug_name = gcstring(buffer);
             break;
+        case 100:
+        {
+            /* rev226+: per-frame blend table (frame, interval pairs). Parsed to keep
+             * the stream aligned; not used by playback. */
+            int var3 = g1(buffer);
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                (void)g2(buffer); /* frame */
+                (void)g2(buffer); /* interval */
+            }
+            break;
+        }
         default:
             printf("Unrecognized opcode %d\n", opcode);
             break;

@@ -77,7 +77,8 @@ ToriDraw_AnimationFromRSCache(
     struct RSCache_Dat2Framemap const* framemap,
     struct RSCache_Dat2Frame const* const* frames,
     int const* delays,
-    int frame_count)
+    int frame_count,
+    int frame_step)
 {
     struct ToriDraw_Animation* anim;
     int i;
@@ -90,6 +91,7 @@ ToriDraw_AnimationFromRSCache(
         return NULL;
     anim->base = anim_base_from_framemap(framemap);
     anim->frame_count = frame_count;
+    anim->frame_step = frame_step;
     anim->frames = calloc((size_t)frame_count, sizeof(struct ToriDraw_AnimFrame));
     if( !anim->base || !anim->frames )
     {

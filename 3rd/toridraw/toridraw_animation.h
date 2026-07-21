@@ -27,6 +27,10 @@ struct ToriDraw_Animation
     struct ToriDraw_AnimBase* base;
     struct ToriDraw_AnimFrame* frames;
     int frame_count;
+    /* Sequence loop-back offset (config opcode 2). At end of playback the frame
+     * index becomes (frame_count - frame_step), clamped to 0 if out of range.
+     * -1 or 0 => full loop to frame 0. */
+    int frame_step;
 };
 
 void

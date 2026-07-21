@@ -1303,6 +1303,7 @@ exec_widget_set_int(
         {
             node->u.rs_model.anim_seq_id = request.value;
             node->u.rs_model.anim_frame = 0;
+            node->u.rs_model.anim_frame_cycle = 0;
         }
         break;
     case CS2VM_WIDGET_INT_MODEL_ORTHOG:

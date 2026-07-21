@@ -140,6 +140,34 @@ upload_model_nodes(
     }
 }
 
+/*
+ * Drive the player-preview components (client_code 327/328) from the player idle,
+ * mirroring the TS client (widgets-gl.ts): the local-player model widget is not
+ * animated by whatever sequence an onLoad script happens to set — it plays the
+ * player's readyanim/idle. We have no live player entity here, so use the default
+ * unarmed human idle. Runs AFTER onLoad so a spurious CC/IF_SETMODELANIM (e.g. a
+ * facial/head sequence like seq 0) does not leave only the head animating.
+ */
+static void
+reassert_player_idle_anim(struct UITree* tree)
+{
+    uint32_t i;
+    assert(tree);
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent* c = &tree->components[i];
+        if( c->type != UIELEM_RS_MODEL )
+            continue;
+        if( c->behavior.client_code != 327 && c->behavior.client_code != 328 )
+            continue;
+        if( c->u.rs_model.gamecache_model_id != UITREE_SCENE_PLAYER_MODEL_ID )
+            continue;
+        c->u.rs_model.anim_seq_id = INTERFACE_PLAYER_IDLE_SEQ;
+        c->u.rs_model.anim_frame = 0;
+        c->u.rs_model.anim_frame_cycle = 0;
+    }
+}
+
 static void
 collect_onloads(
     struct Task_InterfaceOpen* self,
@@ -473,6 +501,10 @@ Task_InterfaceOpen_Run(
     /* 9. Inv + var transmit hooks registered during on_load/resize. */
     TASK_AWAITSELF_IF(CreateTask_CS2InvTransmitDispatch(self->host, -1));
     TASK_AWAITSELF_IF(CreateTask_CS2VarTransmitDispatch(self->host, -1));
+
+    /* 9b. Player-preview components idle with the player readyanim, not whatever
+     * sequence an onLoad script set (TS parity — see reassert_player_idle_anim). */
+    reassert_player_idle_anim(self->tree);
 
     /* 10. Final layout. */
     layout_tree(self);

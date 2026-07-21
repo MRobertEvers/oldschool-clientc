@@ -40,6 +40,7 @@ struct RSCache_Dat2ConfigSequence
     int anim_maya_id;
     int anim_maya_start;
     int anim_maya_end;
+    int vertical_offset; /* rev226+ opcode 16 */
     int* interleave_leave;
     int* chat_frame_ids;
     bool* anim_maya_masks;

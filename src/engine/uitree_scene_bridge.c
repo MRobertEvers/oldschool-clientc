@@ -476,6 +476,9 @@ UITreeSceneBridge_EnsureObjIcon(
     ToriDraw_LightModelDefault(hnd, obj->contrast, obj->ambient);
 
     zoom = obj->zoom2d > 0 ? obj->zoom2d : 2000;
+    /* Reference icon raster is 36x32 with the 3D projection center at (16,16)
+     * (ItemIconRenderer.OSRS_SPRITE_W/H); rasterizing 32x32 shifts every icon
+     * ~2px and clips the right edge. */
     sprite = ToriDraw_SpriteNewFromObjIconRaster(
         bridge->scene,
         hnd,
@@ -485,7 +488,7 @@ UITreeSceneBridge_EnsureObjIcon(
         obj->zan2d,
         obj->offset_x2d,
         obj->offset_y2d,
-        32,
+        36,
         32,
         true);
     ToriDraw_ModelFree(model);

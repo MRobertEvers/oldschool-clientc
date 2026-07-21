@@ -11,6 +11,9 @@ main(void)
     test_layout_build();
     test_mutate_emit();
     test_drag_composite();
+    test_scroll_hit();
+    test_drag_scrolled();
+    test_emit_icons();
 
     if( g_failures )
     {

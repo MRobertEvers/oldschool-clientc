@@ -189,21 +189,14 @@ test_layout_build(void)
         UITree_TestResolve(tree);
         TEST_ASSERT(UITree_ScrollLayerNeedsVertical(&tree->components[L]), "needs vertical scroll");
 
-        int* sx = calloc((size_t)UITREE_SCROLL_MAX, sizeof(int));
-        int* sy = calloc((size_t)UITREE_SCROLL_MAX, sizeof(int));
-        TEST_ASSERT(sx && sy, "scroll alloc");
-        struct UITreeScrollState scroll = { .scroll_x = sx, .scroll_y = sy };
-
         struct UITreeScrollbarHitInfo hit;
         memset(&hit, 0, sizeof(hit));
         /* Vertical bar is to the right of layer: x in [100, 116) */
-        bool found = UITree_FindScrollbarAt(tree, &host, &scroll, 108, 40, &hit);
+        bool found = UITree_FindScrollbarAt(tree, &host, 108, 40, &hit);
         TEST_ASSERT(found, "scrollbar hit found");
         TEST_ASSERT(hit.layer_index == L, "scrollbar layer index");
         TEST_ASSERT(hit.kind != UITREE_SCROLLBAR_NONE, "scrollbar kind set");
 
-        free(sx);
-        free(sy);
         UITree_Free(tree);
     }
 }

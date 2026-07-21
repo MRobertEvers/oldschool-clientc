@@ -101,7 +101,6 @@ static int32_t
 hit_test_interactive_recursive(
     struct UITree const* tree,
     struct UITreeHost const* host,
-    struct UITreeScrollState const* scroll,
     int32_t node_index,
     int px,
     int py,
@@ -161,20 +160,12 @@ hit_test_interactive_recursive(
     if( component->type == UIELEM_RS_LAYER )
     {
         UITree_ScrollIntersectClip(&child_clip, bx, by, bw, bh);
-        if( scroll && UITree_ScrollLayerNeedsHorizontal(component) &&
-            component->component_id >= 0 )
-        {
-            int sx = 0;
-            UITree_ScrollGetPos(scroll, component->component_id, &sx, NULL);
-            child_scroll_x += sx;
-        }
-        if( scroll && UITree_ScrollLayerNeedsVertical(component) &&
-            component->component_id >= 0 )
-        {
-            int sy = 0;
-            UITree_ScrollGetPos(scroll, component->component_id, NULL, &sy);
-            child_scroll_y += sy;
-        }
+        /* Canonical scroll offset lives on the component (emit + CS2 opcodes
+         * and the scrollbar hit path all read it). */
+        if( UITree_ScrollLayerNeedsHorizontal(component) )
+            child_scroll_x += component->scroll_x;
+        if( UITree_ScrollLayerNeedsVertical(component) )
+            child_scroll_y += component->scroll_y;
     }
 
     bool recurse_children = true;
@@ -192,7 +183,7 @@ hit_test_interactive_recursive(
         {
             int child_blocks = 0;
             int32_t child_hit = hit_test_interactive_recursive(
-                tree, host, scroll, child, px, py,
+                tree, host, child, px, py,
                 child_scroll_x, child_scroll_y, &child_clip, &child_blocks);
             /* Later siblings render on top. A blocking child also discards this
              * node's own hit and earlier siblings. */
@@ -272,7 +263,6 @@ int32_t
 UITree_HitTestInteractive(
     struct UITree const* tree,
     struct UITreeHost const* host,
-    struct UITreeScrollState const* scroll,
     int px,
     int py)
 {
@@ -286,7 +276,7 @@ UITree_HitTestInteractive(
     {
         int root_blocks = 0;
         int32_t root_hit = hit_test_interactive_recursive(
-            tree, host, scroll, root, px, py, 0, 0, NULL, &root_blocks);
+            tree, host, root, px, py, 0, 0, NULL, &root_blocks);
         /* Later roots render on top. A no_click_through root captures the point
          * and discards hits from roots underneath (even if it has no hit itself). */
         if( root_blocks )
@@ -303,7 +293,6 @@ UITree_InputUpdate(
     struct UIInputState* state,
     struct UITree* tree,
     struct UITreeHost const* host,
-    struct UITreeScrollState const* scroll,
     struct UIInputEvent event)
 {
     struct UIInputResult result;
@@ -323,11 +312,11 @@ UITree_InputUpdate(
     switch( event.kind )
     {
     case UI_INPUT_MOVE:
-        state->hovered = UITree_HitTestInteractive(tree, host, scroll, event.x, event.y);
+        state->hovered = UITree_HitTestInteractive(tree, host, event.x, event.y);
         break;
 
     case UI_INPUT_DOWN:
-        state->hovered = UITree_HitTestInteractive(tree, host, scroll, event.x, event.y);
+        state->hovered = UITree_HitTestInteractive(tree, host, event.x, event.y);
         state->pressed = state->hovered;
         state->drag_active = 0;
         state->drag_source_idx = -1;
@@ -342,9 +331,16 @@ UITree_InputUpdate(
         {
             struct UITreeComponent const* c = &tree->components[state->pressed];
             int bx = 0, by = 0, bw = 0, bh = 0;
+            int offx = 0, offy = 0;
             UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
-            state->drag_pickup_x = event.x - bx;
-            state->drag_pickup_y = event.y - by;
+            /* Pickup offset is against the DRAWN position: ancestor scroll
+             * offsets shift the widget on screen while abs_* stays in content
+             * space. Without this, grabbing a widget inside a scrolled layer
+             * makes it jump by the scroll amount (reference records
+             * _dragPickupOffset against screen coords, OsrsClient ~7407). */
+            UITree_AccumScrollOffset(tree, state->pressed, &offx, &offy);
+            state->drag_pickup_x = event.x - (bx - offx);
+            state->drag_pickup_y = event.y - (by - offy);
             if( !tree->anti_drag && UITree_ComponentIsDraggable(c) )
             {
                 /* Defer click until mouseup if drag never starts. */
@@ -357,7 +353,7 @@ UITree_InputUpdate(
 
     case UI_INPUT_UP:
     {
-        int32_t const up_hit = UITree_HitTestInteractive(tree, host, scroll, event.x, event.y);
+        int32_t const up_hit = UITree_HitTestInteractive(tree, host, event.x, event.y);
         state->hovered = up_hit;
         if( state->drag_active )
         {
@@ -475,7 +471,13 @@ UITree_InputDragTick(
         if( clamp_idx >= 0 && (uint32_t)clamp_idx < tree->component_count )
         {
             int cx, cy, cw, ch;
+            int coffx = 0, coffy = 0;
             UITree_LayoutGetBounds(&tree->components[clamp_idx].position, &cx, &cy, &cw, &ch);
+            /* Clamp rect in screen space: the render area itself may sit
+             * inside a scrolled layer. */
+            UITree_AccumScrollOffset(tree, clamp_idx, &coffx, &coffy);
+            cx -= coffx;
+            cy -= coffy;
             if( target_x < cx )
                 target_x = cx;
             if( target_y < cy )
@@ -494,29 +496,6 @@ UITree_InputDragTick(
 
     state->drag_target_id =
         UITree_FindDropTarget(tree, mouse_x, mouse_y, state->drag_source_id);
-
-    /* Script mouse coords: position relative to drag parent + scroll. */
-    {
-        int32_t parent_idx = src->parent;
-        int px = 0, py = 0, pw = 0, ph = 0;
-        int scroll_x = 0, scroll_y = 0;
-        if( src->drag_render_area_uid >= 0 )
-            parent_idx = UITree_FindByComponentId(tree, src->drag_render_area_uid);
-        if( parent_idx >= 0 && (uint32_t)parent_idx < tree->component_count )
-        {
-            UITree_LayoutGetBounds(
-                &tree->components[parent_idx].position, &px, &py, &pw, &ph);
-            scroll_x = tree->components[parent_idx].scroll_x;
-            scroll_y = tree->components[parent_idx].scroll_y;
-        }
-        tree->components[state->drag_source_idx].drag_visual_x = target_x;
-        /* Store script-space mouse on the tree via unused fields? Host sets these in main. */
-        (void)scroll_x;
-        (void)scroll_y;
-        (void)px;
-        (void)py;
-        state->drag_click_x = state->drag_click_x; /* keep original press for threshold */
-    }
 
     return changed || state->drag_active;
 }

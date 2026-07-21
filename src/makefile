@@ -292,7 +292,9 @@ test-uitree: $(OBJ_DIR)
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_hover.c \
-		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c
+		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
+		ui/test/uitree_test_drag.c ui/test/uitree_test_scroll_hit.c \
+		ui/test/uitree_test_drag_scrolled.c ui/test/uitree_test_emit_icons.c
 	./$(OBJ_DIR)/uitree_test
 
 test-uitree-builder: $(OBJ_DIR)

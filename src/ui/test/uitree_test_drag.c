@@ -80,11 +80,11 @@ test_drag_composite(void)
     UITree_EmitBufferFree(&buf);
 
     /* Hitbox follows the drag: the dragged location hits the thumb... */
-    int32_t hit = UITree_HitTestInteractive(tree, &host, NULL, px0 + 50 + 5, py0 + 40 + 5);
+    int32_t hit = UITree_HitTestInteractive(tree, &host, px0 + 50 + 5, py0 + 40 + 5);
     TEST_ASSERT(hit >= 0 && tree->components[hit].component_id == 700,
                 "dragged hitbox is under the cursor");
     /* ...and the original (vacated) location no longer hits the thumb. */
-    int32_t hit_old = UITree_HitTestInteractive(tree, &host, NULL, px0 + 5, py0 + 5);
+    int32_t hit_old = UITree_HitTestInteractive(tree, &host, px0 + 5, py0 + 5);
     TEST_ASSERT(hit_old < 0 || tree->components[hit_old].component_id != 700,
                 "vacated location no longer hits thumb");
 

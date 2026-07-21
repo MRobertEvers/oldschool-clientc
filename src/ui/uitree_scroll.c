@@ -48,42 +48,6 @@ UITree_ScrollMaxY(struct UITreeComponent const* layer)
 }
 
 void
-UITree_ScrollGetPos(
-    struct UITreeScrollState const* scroll,
-    int component_id,
-    int* sx,
-    int* sy)
-{
-    if( sx )
-        *sx = 0;
-    if( sy )
-        *sy = 0;
-    assert(scroll);
-    if( component_id < 0 || component_id >= UITREE_SCROLL_MAX )
-        return;
-    if( sx && scroll->scroll_x )
-        *sx = scroll->scroll_x[component_id];
-    if( sy && scroll->scroll_y )
-        *sy = scroll->scroll_y[component_id];
-}
-
-void
-UITree_ScrollSetPos(
-    struct UITreeScrollState const* scroll,
-    int component_id,
-    int sx,
-    int sy)
-{
-    assert(scroll);
-    if( component_id < 0 || component_id >= UITREE_SCROLL_MAX )
-        return;
-    if( scroll->scroll_x )
-        scroll->scroll_x[component_id] = sx;
-    if( scroll->scroll_y )
-        scroll->scroll_y[component_id] = sy;
-}
-
-void
 UITree_ScrollClampComponent(struct UITreeComponent* layer)
 {
     int sx;
@@ -108,28 +72,6 @@ UITree_ScrollClampComponent(struct UITreeComponent* layer)
         sy = max_y;
     layer->scroll_x = sx;
     layer->scroll_y = sy;
-}
-
-void
-UITree_ScrollClampPos(
-    struct UITreeComponent const* layer,
-    struct UITreeScrollState const* scroll,
-    int component_id)
-{
-    int sx = 0;
-    int sy = 0;
-    UITree_ScrollGetPos(scroll, component_id, &sx, &sy);
-    int max_x = UITree_ScrollMaxX(layer);
-    int max_y = UITree_ScrollMaxY(layer);
-    if( sx < 0 )
-        sx = 0;
-    if( sy < 0 )
-        sy = 0;
-    if( sx > max_x )
-        sx = max_x;
-    if( sy > max_y )
-        sy = max_y;
-    UITree_ScrollSetPos(scroll, component_id, sx, sy);
 }
 
 void
@@ -194,84 +136,54 @@ UITree_PointInScrolledBounds(
 }
 
 void
-UITree_ScrollApplyAncestors(
-    struct UITree const* tree,
-    struct UITreeScrollState const* scroll,
-    int32_t const* ancestors,
-    int ancestor_count,
-    int* bx,
-    int* by,
-    struct UITreeScrollClip* clip)
-{
-    assert(tree);
-    if( !bx || !by || !clip )
-        return;
-
-    for( int i = 0; i < ancestor_count; i++ )
-    {
-        int32_t idx = ancestors[i];
-        if( idx < 0 || (uint32_t)idx >= tree->component_count )
-            continue;
-
-        struct UITreeComponent const* layer = &tree->components[idx];
-        if( layer->type != UIELEM_RS_LAYER && layer->type != UIELEM_BUILTIN_SIDEBAR )
-            continue;
-
-        int ax = 0;
-        int ay = 0;
-        int aw = 0;
-        int ah = 0;
-        UITree_LayoutGetBounds(&layer->position, &ax, &ay, &aw, &ah);
-        UITree_ScrollIntersectClip(clip, ax, ay, aw, ah);
-
-        if( layer->type != UIELEM_RS_LAYER )
-            continue;
-
-        bool vscroll = UITree_ScrollLayerNeedsVertical(layer);
-        bool hscroll = UITree_ScrollLayerNeedsHorizontal(layer);
-        if( !vscroll && !hscroll )
-            continue;
-
-        int sx = 0;
-        int sy = 0;
-        if( layer->component_id >= 0 )
-            UITree_ScrollGetPos(scroll, layer->component_id, &sx, &sy);
-
-        if( hscroll )
-            *bx -= sx;
-        if( vscroll )
-            *by -= sy;
-    }
-}
-
-int
-UITree_CollectAncestors(
+UITree_AccumScrollOffset(
     struct UITree const* tree,
     int32_t node_index,
-    int32_t* ancestors,
-    int max_ancestors)
+    int* off_x,
+    int* off_y)
 {
     assert(tree);
-    if( !ancestors || max_ancestors <= 0 || node_index < 0 )
-        return 0;
-    if( (uint32_t)node_index >= tree->component_count )
-        return 0;
+    if( off_x )
+        *off_x = 0;
+    if( off_y )
+        *off_y = 0;
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return;
 
-    int count = 0;
     int32_t cur = tree->components[node_index].parent;
-    while( cur >= 0 && (uint32_t)cur < tree->component_count && count < max_ancestors )
+    int32_t child = node_index;
+    while( cur >= 0 && (uint32_t)cur < tree->component_count )
     {
-        ancestors[count++] = cur;
-        cur = tree->components[cur].parent;
-    }
+        struct UITreeComponent const* layer = &tree->components[cur];
 
-    for( int i = 0, j = count - 1; i < j; i++, j-- )
-    {
-        int32_t tmp = ancestors[i];
-        ancestors[i] = ancestors[j];
-        ancestors[j] = tmp;
+        /* An InterfaceParent mount lives in its container's viewport space:
+         * the container's own scroll does not apply to it, but outer
+         * ancestors' offsets still do (matches emit_walk_node's
+         * child_is_interface_parent_mount rule). */
+        int mounted = 0;
+        {
+            int const child_group = (tree->components[child].component_id >> 16) & 0xffff;
+            for( int mi = 0; mi < tree->interface_parent_count; mi++ )
+            {
+                if( tree->interface_parents[mi].container_uid == layer->component_id &&
+                    tree->interface_parents[mi].group_id == child_group )
+                {
+                    mounted = 1;
+                    break;
+                }
+            }
+        }
+
+        if( !mounted && layer->type == UIELEM_RS_LAYER )
+        {
+            if( off_x && UITree_ScrollLayerNeedsHorizontal(layer) )
+                *off_x += layer->scroll_x;
+            if( off_y && UITree_ScrollLayerNeedsVertical(layer) )
+                *off_y += layer->scroll_y;
+        }
+        child = cur;
+        cur = layer->parent;
     }
-    return count;
 }
 
 static enum UITreeScrollbarHitKind
@@ -281,7 +193,6 @@ hit_vertical_scrollbar(
     int ly,
     int lw,
     int lh,
-    struct UITreeScrollState const* scroll,
     int px,
     int py)
 {
@@ -299,10 +210,9 @@ hit_vertical_scrollbar(
     if( py >= ly + vh - UITREE_SCROLLBAR_THICKNESS )
         return UITREE_SCROLLBAR_V_DOWN;
 
-    /* Canonical scroll offset lives on the component (emit + CS2 opcodes use it);
-     * the UITreeScrollState arrays are dead for real (group<<16) ids. Grip math
-     * must mirror the drawn grip in torirs_frame.c vertical_scrollbar_grip. */
-    (void)scroll;
+    /* Canonical scroll offset lives on the component (emit + CS2 opcodes use it).
+     * Grip math must mirror the drawn grip in torirs_frame.c
+     * vertical_scrollbar_grip. */
     int sy = layer->scroll_y;
     int track_h = vh - 32;
     if( track_h <= 0 )
@@ -327,7 +237,6 @@ hit_horizontal_scrollbar(
     int ly,
     int lw,
     int lh,
-    struct UITreeScrollState const* scroll,
     int px,
     int py)
 {
@@ -346,7 +255,6 @@ hit_horizontal_scrollbar(
         return UITREE_SCROLLBAR_H_RIGHT;
 
     /* Canonical scroll offset on the component; mirror horizontal_scrollbar_grip. */
-    (void)scroll;
     int sx = layer->scroll_x;
     int track_w = sw - 32;
     if( track_w <= 0 )
@@ -368,7 +276,6 @@ static bool
 find_scrollbar_recursive(
     struct UITree const* tree,
     struct UITreeHost const* host,
-    struct UITreeScrollState const* scroll,
     int32_t node_index,
     int scroll_off_x,
     int scroll_off_y,
@@ -393,7 +300,7 @@ find_scrollbar_recursive(
         int const hit_by = by - scroll_off_y;
 
         enum UITreeScrollbarHitKind vhit = hit_vertical_scrollbar(
-            component, hit_bx, hit_by, bw, bh, scroll, px, py);
+            component, hit_bx, hit_by, bw, bh, px, py);
         if( vhit != UITREE_SCROLLBAR_NONE )
         {
             out->kind = vhit;
@@ -408,7 +315,7 @@ find_scrollbar_recursive(
         }
 
         enum UITreeScrollbarHitKind hhit = hit_horizontal_scrollbar(
-            component, hit_bx, hit_by, bw, bh, scroll, px, py);
+            component, hit_bx, hit_by, bw, bh, px, py);
         if( hhit != UITREE_SCROLLBAR_NONE )
         {
             out->kind = hhit;
@@ -435,7 +342,7 @@ find_scrollbar_recursive(
              child = tree->components[child].next_sibling )
         {
             if( find_scrollbar_recursive(
-                    tree, host, scroll, child, child_scroll_x, child_scroll_y, px, py, out) )
+                    tree, host, child, child_scroll_x, child_scroll_y, px, py, out) )
                 return true;
         }
         return false;
@@ -459,7 +366,7 @@ find_scrollbar_recursive(
          child = tree->components[child].next_sibling )
     {
         if( find_scrollbar_recursive(
-                tree, host, scroll, child, scroll_off_x, scroll_off_y, px, py, out) )
+                tree, host, child, scroll_off_x, scroll_off_y, px, py, out) )
             return true;
     }
     return false;
@@ -469,7 +376,6 @@ bool
 UITree_FindScrollbarAt(
     struct UITree const* tree,
     struct UITreeHost const* host,
-    struct UITreeScrollState const* scroll,
     int px,
     int py,
     struct UITreeScrollbarHitInfo* out)
@@ -483,7 +389,7 @@ UITree_FindScrollbarAt(
     for( int32_t root = tree->root_index; root >= 0;
          root = tree->components[root].next_sibling )
     {
-        if( find_scrollbar_recursive(tree, host, scroll, root, 0, 0, px, py, out) )
+        if( find_scrollbar_recursive(tree, host, root, 0, 0, px, py, out) )
             return true;
     }
     return false;
@@ -554,7 +460,6 @@ scrollbar_apply_horizontal_grip(
 bool
 UITree_ScrollbarHandle(
     struct UITree const* tree,
-    struct UITreeScrollState const* scroll,
     struct UITreeScrollbarHitInfo const* hit,
     int px,
     int py,
@@ -562,7 +467,6 @@ UITree_ScrollbarHandle(
     int step)
 {
     assert(tree);
-    assert(scroll);
     if( !hit || hit->kind == UITREE_SCROLLBAR_NONE || hit->layer_index < 0 )
         return false;
 
@@ -572,7 +476,6 @@ UITree_ScrollbarHandle(
     struct UITreeComponent* layer = &tree->components[hit->layer_index];
     if( layer->component_id < 0 )
         return false;
-    (void)scroll;
 
     int sx = layer->scroll_x;
     int sy = layer->scroll_y;

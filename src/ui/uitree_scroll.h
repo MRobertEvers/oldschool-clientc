@@ -7,11 +7,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define UITREE_SCROLL_MAX 8192
 #define UITREE_SCROLLBAR_THICKNESS 16
 #define UITREE_SCROLLBAR_ARROW_DELTA 4
-/** Pixels of vertical scroll per mouse-wheel notch (no reference; feel-tuned). */
-#define UITREE_SCROLLBAR_WHEEL_STEP 30
+/** Pixels of vertical scroll per mouse-wheel notch (reference:
+ * OsrsClient.handleIf1Scrollbars scrollY += wheelDeltaY * 45). */
+#define UITREE_SCROLLBAR_WHEEL_STEP 45
 
 /* Client.ts / widgets-gl.ts SCROLLBAR_* colors (ARGB). */
 #define UITREE_SCROLLBAR_TRACK_ARGB 0xFF23201B
@@ -22,12 +22,6 @@
 /* Phased draw steps per scrollbar axis (see Client.ts drawScrollbar / v1). */
 #define UITREE_SCROLLBAR_V_DRAW_STEPS 9
 #define UITREE_SCROLLBAR_H_DRAW_STEPS 9
-
-struct UITreeScrollState
-{
-    int* scroll_x;
-    int* scroll_y;
-};
 
 struct UITreeScrollClip
 {
@@ -81,26 +75,6 @@ UITree_ScrollMaxX(struct UITreeComponent const* layer);
 int
 UITree_ScrollMaxY(struct UITreeComponent const* layer);
 
-void
-UITree_ScrollGetPos(
-    struct UITreeScrollState const* scroll,
-    int component_id,
-    int* sx,
-    int* sy);
-
-void
-UITree_ScrollSetPos(
-    struct UITreeScrollState const* scroll,
-    int component_id,
-    int sx,
-    int sy);
-
-void
-UITree_ScrollClampPos(
-    struct UITreeComponent const* layer,
-    struct UITreeScrollState const* scroll,
-    int component_id);
-
 /** Clamp UITreeComponent.scroll_x/y into valid range for an IF1 scroll layer. */
 void
 UITree_ScrollClampComponent(struct UITreeComponent* layer);
@@ -127,28 +101,23 @@ UITree_PointInScrolledBounds(
     int scroll_off_x,
     int scroll_off_y);
 
+/**
+ * Sum the canonical scroll offsets of all scrollable RS_LAYER ancestors of
+ * node_index (excluding the node itself). Converts a resolved content-space
+ * position to its drawn/screen position: drawn = abs - off. Accumulation stops
+ * at InterfaceParent mount boundaries, matching emit_walk_node.
+ */
 void
-UITree_ScrollApplyAncestors(
-    struct UITree const* tree,
-    struct UITreeScrollState const* scroll,
-    int32_t const* ancestors,
-    int ancestor_count,
-    int* bx,
-    int* by,
-    struct UITreeScrollClip* clip);
-
-int
-UITree_CollectAncestors(
+UITree_AccumScrollOffset(
     struct UITree const* tree,
     int32_t node_index,
-    int32_t* ancestors,
-    int max_ancestors);
+    int* off_x,
+    int* off_y);
 
 bool
 UITree_FindScrollbarAt(
     struct UITree const* tree,
     struct UITreeHost const* host,
-    struct UITreeScrollState const* scroll,
     int px,
     int py,
     struct UITreeScrollbarHitInfo* out);
@@ -156,7 +125,6 @@ UITree_FindScrollbarAt(
 bool
 UITree_ScrollbarHandle(
     struct UITree const* tree,
-    struct UITreeScrollState const* scroll,
     struct UITreeScrollbarHitInfo const* hit,
     int px,
     int py,

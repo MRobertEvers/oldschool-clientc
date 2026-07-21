@@ -1,6 +1,7 @@
 #include "uitree.h"
 
 #include "uitree_layout.h"
+#include "uitree_scroll.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -816,6 +817,7 @@ UITree_Push(
         component->u.rs_model.y_offset = spec->u.rs_model.y_offset;
         component->u.rs_model.orthog = spec->u.rs_model.orthog;
         component->u.rs_model.fixed_zoom = spec->u.rs_model.fixed_zoom;
+        component->u.rs_model.anim_frame_cycle = 0;
         break;
 
     case UIELEM_INV_GRID:
@@ -859,7 +861,6 @@ UITree_Push(
     case UIELEM_INV_SLOT:
         component->u.inv_slot.inv_source_id = spec->u.inv_slot.inv_source_id;
         component->u.inv_slot.slot = spec->u.inv_slot.slot;
-        component->u.inv_slot.center_icon = spec->u.inv_slot.center_icon;
         break;
 
     case UIELEM_CC_OBJ:
@@ -867,7 +868,6 @@ UITree_Push(
         component->u.cc_obj.obj_count = spec->u.cc_obj.obj_count;
         component->u.cc_obj.scene_id = spec->u.cc_obj.scene_id;
         component->u.cc_obj.atlas_index = spec->u.cc_obj.atlas_index;
-        component->u.cc_obj.center_icon = spec->u.cc_obj.center_icon;
         break;
 
     case UIELEM_BUILTIN_TAB_ICONS:
@@ -1375,7 +1375,6 @@ UITree_ApplyObject(
         c->u.cc_obj.obj_count = c->item_count;
         c->u.cc_obj.scene_id = scene_id;
         c->u.cc_obj.atlas_index = atlas_index;
-        c->u.cc_obj.center_icon = 1;
     }
     /* RS_GRAPHIC: item lives in item_id/item_scene_id; do not overwrite
      * rs_graphic.scene_id (SETGRAPHIC chrome). Emit prefers item when set. */
@@ -1795,6 +1794,9 @@ drop_target_pick_in_subtree(
     int px,
     int py,
     int exclude_component_id,
+    int scroll_off_x,
+    int scroll_off_y,
+    struct UITreeScrollClip const* clip,
     int* best_id,
     int* best_depth,
     int depth)
@@ -1803,6 +1805,9 @@ drop_target_pick_in_subtree(
     int32_t child;
     int x, y, w, h;
     int hit;
+    int child_scroll_x;
+    int child_scroll_y;
+    struct UITreeScrollClip child_clip;
 
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
         return 0;
@@ -1812,13 +1817,32 @@ drop_target_pick_in_subtree(
     if( c->component_id == exclude_component_id )
         return 0;
 
+    if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !UITree_PointInClip(px, py, clip) )
+        return 0;
+
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
-    hit = (w > 0 && h > 0 && px >= x && px < x + w && py >= y && py < y + h);
+    /* Drop targets are picked at DRAWN positions: offset by ancestor scroll
+     * (canonical component->scroll_x/y, same as emit and hit-testing). */
+    hit = UITree_PointInScrolledBounds(px, py, x, y, w, h, scroll_off_x, scroll_off_y);
+
+    child_scroll_x = scroll_off_x;
+    child_scroll_y = scroll_off_y;
+    child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
+    if( c->type == UIELEM_RS_LAYER )
+    {
+        UITree_ScrollIntersectClip(
+            &child_clip, x - scroll_off_x, y - scroll_off_y, w, h);
+        if( UITree_ScrollLayerNeedsHorizontal(c) )
+            child_scroll_x += c->scroll_x;
+        if( UITree_ScrollLayerNeedsVertical(c) )
+            child_scroll_y += c->scroll_y;
+    }
 
     for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
     {
         drop_target_pick_in_subtree(
-            tree, child, px, py, exclude_component_id, best_id, best_depth, depth + 1);
+            tree, child, px, py, exclude_component_id,
+            child_scroll_x, child_scroll_y, &child_clip, best_id, best_depth, depth + 1);
     }
 
     /* InterfaceParent mounts drawn/hit last under this container. */
@@ -1841,12 +1865,17 @@ drop_target_pick_in_subtree(
                     tree->components[tree->components[root].parent].component_id ==
                         ip->container_uid )
                 {
+                    /* Mounted sub-interfaces live in the container's viewport
+                     * space: reset scroll accumulation (matches emit). */
                     drop_target_pick_in_subtree(
                         tree,
                         root,
                         px,
                         py,
                         exclude_component_id,
+                        scroll_off_x,
+                        scroll_off_y,
+                        &child_clip,
                         best_id,
                         best_depth,
                         depth + 1);
@@ -1879,7 +1908,7 @@ UITree_FindDropTarget(
         if( tree->components[root].behavior.hide )
             continue;
         drop_target_pick_in_subtree(
-            tree, root, px, py, exclude_component_id, &best_id, &best_depth, 0);
+            tree, root, px, py, exclude_component_id, 0, 0, NULL, &best_id, &best_depth, 0);
     }
     return best_id;
 }

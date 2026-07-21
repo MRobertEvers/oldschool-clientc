@@ -304,9 +304,11 @@ struct UITreeComponent
             uint8_t orthog;
             uint8_t fixed_zoom;
             /* Model animation sequence set via IF/CC_SETMODELANIM, or -1 = none.
-             * anim_frame is advanced by the client tick driver. */
+             * anim_frame is advanced by the client tick driver; anim_frame_cycle
+             * accumulates elapsed 50hz cycles toward the current frame's length. */
             int anim_seq_id;
             int anim_frame;
+            int anim_frame_cycle;
         } rs_model;
         struct
         {
@@ -329,7 +331,6 @@ struct UITreeComponent
         {
             int inv_source_id;
             int slot;
-            uint8_t center_icon;
         } inv_slot;
         struct
         {
@@ -337,7 +338,6 @@ struct UITreeComponent
             int obj_count;
             int scene_id;
             int atlas_index;
-            uint8_t center_icon;
         } cc_obj;
         struct
         {
@@ -481,9 +481,11 @@ struct UITreeNodeSpec
             uint8_t orthog;
             uint8_t fixed_zoom;
             /* Model animation sequence set via IF/CC_SETMODELANIM, or -1 = none.
-             * anim_frame is advanced by the client tick driver. */
+             * anim_frame is advanced by the client tick driver; anim_frame_cycle
+             * accumulates elapsed 50hz cycles toward the current frame's length. */
             int anim_seq_id;
             int anim_frame;
+            int anim_frame_cycle;
         } rs_model;
         struct
         {
@@ -506,7 +508,6 @@ struct UITreeNodeSpec
         {
             int inv_source_id;
             int slot;
-            uint8_t center_icon;
         } inv_slot;
         struct
         {
@@ -514,7 +515,6 @@ struct UITreeNodeSpec
             int obj_count;
             int scene_id;
             int atlas_index;
-            uint8_t center_icon;
         } cc_obj;
         struct
         {

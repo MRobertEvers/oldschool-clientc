@@ -1,0 +1,99 @@
+#include "test_harness.h"
+
+/*
+ * Real-client configuration regression tests: component ids are packed
+ * (group<<16)|file uids and NO UITreeScrollState is available — hover and
+ * hit-testing must follow the canonical UITreeComponent.scroll_x/scroll_y
+ * offsets that emit and the scrollbar math already use. The shipping client
+ * always ran this configuration while the old tests exercised the dead
+ * UITreeScrollState arrays with small ids.
+ */
+
+#define TG 550
+#define TUID(file) ((TG << 16) | (file))
+
+void
+test_scroll_hit(void)
+{
+    printf("TEST: scroll-aware hit/hover (real ids, canonical offsets)\n");
+
+    struct UITree* tree = UITree_New(16);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    UITree_TestHostInit(&host, &hs);
+
+    /* Scrollable layer: viewport 100x100 at origin, content 400 tall. */
+    int32_t layer = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, TUID(3), 0, 0, 100, 100);
+    tree->components[layer].u.rs_layer.scroll_height = 400;
+
+    /* Interactive + hoverable button at content y=250 (below the viewport
+     * until the layer scrolls down). */
+    int32_t button = UITree_TestPushXy(tree, layer, UIELEM_RS_RECT, TUID(7), 10, 250, 60, 30);
+    tree->components[button].behavior.button_type = 1;
+    tree->components[button].behavior.over_color = 0xFFFFFF;
+
+    UITree_TestResolve(tree);
+
+    /* Unscrolled: the button's content position is outside the viewport. */
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, 20, 60) < 0,
+        "button not hit before scroll");
+
+    /* Scroll down 200: button now drawn at y = 250 - 200 = 50..80. */
+    tree->components[layer].scroll_y = 200;
+
+    int32_t hit = UITree_HitTestInteractive(tree, &host, 20, 60);
+    TEST_ASSERT(hit == button, "button hit at drawn position after scroll");
+
+    /* The unscrolled position is outside the layer clip — must miss. */
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, 20, 260) < 0,
+        "unscrolled position does not hit after scroll");
+
+    /* Hover follows the drawn position too. */
+    int hover = UITree_FindHoveredComponentIdForRegion(
+        tree, &host, tree->root_index, 20, 60, 0, 0, 400, 300);
+    TEST_ASSERT(hover == TUID(7), "hover reports button at drawn position");
+
+    int hover_unscrolled = UITree_FindHoveredComponentIdForRegion(
+        tree, &host, tree->root_index, 20, 260, 0, 0, 400, 300);
+    TEST_ASSERT(hover_unscrolled < 0, "no hover at unscrolled position");
+
+    /* A child scrolled fully out of the viewport must not be hit: place a
+     * second button near the top of the content space. */
+    int32_t above = UITree_TestPushXy(tree, layer, UIELEM_RS_RECT, TUID(8), 10, 10, 60, 30);
+    tree->components[above].behavior.button_type = 1;
+    UITree_TestResolve(tree);
+    tree->components[layer].scroll_y = 200; /* re-assert after resolve */
+    /* Drawn y would be 10 - 200 = -190: off-screen above the clip. */
+    int32_t above_hit = UITree_HitTestInteractive(tree, &host, 20, 20);
+    TEST_ASSERT(above_hit != above, "child scrolled out of viewport not hit");
+
+    /*
+     * Scrollbar classification must stay consistent with the drawn grip math
+     * (torirs_frame.c vertical_scrollbar_grip): vh=100, track=vh-32=68,
+     * grip=track*vh/content=68*100/400=17, range=300,
+     * grip_y=(68-17)*200/300=34 → grip pixels ly+16+34=50..67.
+     */
+    {
+        struct UITreeScrollbarHitInfo sb;
+        TEST_ASSERT(
+            UITree_FindScrollbarAt(tree, &host, 108, 55, &sb) &&
+                sb.kind == UITREE_SCROLLBAR_V_GRIP,
+            "grip classified at drawn grip position");
+        TEST_ASSERT(
+            UITree_FindScrollbarAt(tree, &host, 108, 30, &sb) &&
+                sb.kind == UITREE_SCROLLBAR_V_TRACK,
+            "track above grip");
+        TEST_ASSERT(
+            UITree_FindScrollbarAt(tree, &host, 108, 8, &sb) &&
+                sb.kind == UITREE_SCROLLBAR_V_UP,
+            "up arrow");
+        TEST_ASSERT(
+            UITree_FindScrollbarAt(tree, &host, 108, 90, &sb) &&
+                sb.kind == UITREE_SCROLLBAR_V_DOWN,
+            "down arrow");
+    }
+
+    UITree_Free(tree);
+}

@@ -38,7 +38,6 @@ int
 UITree_FindHoveredComponentIdForRegion(
     struct UITree const* tree,
     struct UITreeHost const* host,
-    struct UITreeScrollState const* scroll,
     int32_t root_index,
     int mouse_x,
     int mouse_y,

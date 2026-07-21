@@ -111,7 +111,7 @@ bridge_input_to_uitree(
     assert(tree);
     assert(input);
 
-    last = UITree_InputUpdate(ui_state, tree, host, NULL, move);
+    last = UITree_InputUpdate(ui_state, tree, host, move);
 
     if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
     {
@@ -121,7 +121,7 @@ bridge_input_to_uitree(
             .y = input->curr.mouse_y,
             .button = TORIRSM_LEFT,
         };
-        last = UITree_InputUpdate(ui_state, tree, host, NULL, down);
+        last = UITree_InputUpdate(ui_state, tree, host, down);
     }
 
     if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
@@ -132,7 +132,7 @@ bridge_input_to_uitree(
             .y = input->last_click_y[TORIRSM_LEFT],
             .button = TORIRSM_LEFT,
         };
-        last = UITree_InputUpdate(ui_state, tree, host, NULL, up);
+        last = UITree_InputUpdate(ui_state, tree, host, up);
     }
 
     return last;
@@ -155,7 +155,12 @@ pump_task_queue(
  * Drive model-widget animations: for every RS_MODEL node with a sequence set
  * (IF/CC_SETMODELANIM, or the player preview), lazily load the sequence into the
  * scene, then reset the model to its rest pose and apply the current frame.
- * `advance` steps each node to its next frame (call once per rendered tick).
+ *
+ * `cycles` is the number of 50hz (20ms) client cycles elapsed since the last
+ * call. Each frame is shown for `frames[frame].delay` cycles (OSRS frameLengths);
+ * when the accumulator exceeds that, the frame advances, looping back via the
+ * sequence's `frame_step`. Pass 0 to (re)apply the current frame without stepping.
+ * Mirrors the TS client's WidgetManager.tickModelAnimations.
  * Returns non-zero if any animation was applied (so the caller can redraw).
  */
 static int
@@ -166,7 +171,7 @@ drive_widget_animations(
     struct ToriRS_TaskQueue* queue,
     struct ToriRS_IO* io,
     struct PlatformX_IO* px,
-    int advance)
+    int cycles)
 {
     int applied = 0;
     uint32_t i;
@@ -211,16 +216,40 @@ drive_widget_animations(
             continue;
 
         {
-            int fr = c->u.rs_model.anim_frame % anim->frame_count;
-            if( fr < 0 )
+            int fr = c->u.rs_model.anim_frame;
+            int cyc = c->u.rs_model.anim_frame_cycle + cycles;
+
+            if( fr < 0 || fr >= anim->frame_count )
                 fr = 0;
+
+            /* Advance frames while the accumulated cycles exceed the current
+             * frame's on-screen length. A non-positive delay is clamped to 1 so
+             * the loop always terminates. */
+            while( 1 )
+            {
+                int delay = anim->frames[fr].delay;
+                if( delay <= 0 )
+                    delay = 1;
+                if( cyc <= delay )
+                    break;
+                cyc -= delay;
+                fr++;
+                if( fr >= anim->frame_count )
+                {
+                    fr -= anim->frame_step;
+                    if( fr < 0 || fr >= anim->frame_count )
+                        fr = 0;
+                }
+            }
+
+            c->u.rs_model.anim_frame = fr;
+            c->u.rs_model.anim_frame_cycle = cyc;
+
             ToriDraw_ModelAnimateReset(hnd.u.model.model);
             /* An empty frame (no translators) is the rest pose — reset only. */
             if( anim->frames[fr].length > 0 )
                 ToriDraw_ModelAnimateFrame(hnd.u.model.model, anim->base, &anim->frames[fr]);
             applied = 1;
-            if( advance )
-                c->u.rs_model.anim_frame = (fr + 1) % anim->frame_count;
         }
     }
     return applied;
@@ -332,6 +361,39 @@ pick_on_mouse_leave(struct UITreeComponent const* node)
 }
 
 static struct UITreeRuntimeScriptHook const*
+pick_on_mouse_repeat(struct UITreeComponent const* node)
+{
+    return &node->runtime_hooks.on_mouse_repeat;
+}
+
+/* Reference event ctx passes mouse coords relative to the component's drawn
+ * (screen) position (OsrsClient hover dispatch, coords relative to _absX/Y). */
+static void
+set_hover_event_coords(
+    struct RS_CS2Host* host,
+    struct UITree* tree,
+    int component_id,
+    int mouse_x,
+    int mouse_y)
+{
+    int32_t idx;
+    int bx = 0, by = 0, bw = 0, bh = 0;
+    int offx = 0, offy = 0;
+
+    assert(host);
+    assert(tree);
+    if( component_id < 0 )
+        return;
+    idx = UITree_FindByComponentId(tree, component_id);
+    if( idx < 0 )
+        return;
+    UITree_LayoutGetBounds(&tree->components[idx].position, &bx, &by, &bw, &bh);
+    UITree_AccumScrollOffset(tree, idx, &offx, &offy);
+    host->event_mouse_x = mouse_x - (bx - offx);
+    host->event_mouse_y = mouse_y - (by - offy);
+}
+
+static struct UITreeRuntimeScriptHook const*
 pick_on_drag_complete(struct UITreeComponent const* node)
 {
     return &node->runtime_hooks.on_drag_complete;
@@ -432,7 +494,6 @@ find_hover_component_id(
     assert(tree);
     return UITree_FindHoveredComponentIdForRegion(
         tree,
-        NULL,
         NULL,
         -1,
         mouse_x,
@@ -640,7 +701,7 @@ main(
 
     /* Load model-widget sequences and apply the first frame before the initial
      * render; the interactive loop below advances frames each tick. */
-    drive_widget_animations(tree, scene, provider, queue, io, px, /*advance=*/0);
+    drive_widget_animations(tree, scene, provider, queue, io, px, /*cycles=*/0);
 
     struct UITreeEmitBuffer buf;
     struct UITreeHost ui_host;
@@ -729,7 +790,7 @@ main(
                     if( left_held )
                     {
                         if( UITree_ScrollbarHandle(
-                                tree, NULL, &sb_drag_hit, mx, my,
+                                tree, &sb_drag_hit, mx, my,
                                 UITREE_SCROLLBAR_ACTION_GRIP_DRAG, 0) )
                             need_redraw = 1;
                     }
@@ -739,7 +800,7 @@ main(
                 else if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
                 {
                     struct UITreeScrollbarHitInfo hit;
-                    if( UITree_FindScrollbarAt(tree, &ui_host, NULL, mx, my, &hit) )
+                    if( UITree_FindScrollbarAt(tree, &ui_host, mx, my, &hit) )
                     {
                         /* Never let this press become an object-drag source. */
                         ui_state.drag_source_idx = -1;
@@ -749,7 +810,7 @@ main(
                         if( UITree_ScrollbarIsArrowKind(hit.kind) )
                         {
                             if( UITree_ScrollbarHandle(
-                                    tree, NULL, &hit, mx, my,
+                                    tree, &hit, mx, my,
                                     UITREE_SCROLLBAR_ACTION_ARROW_STEP, 0) )
                                 need_redraw = 1;
                             sb_dragging = 0;
@@ -759,7 +820,7 @@ main(
                             sb_drag_hit = hit;
                             sb_dragging = 1;
                             if( UITree_ScrollbarHandle(
-                                    tree, NULL, &sb_drag_hit, mx, my,
+                                    tree, &sb_drag_hit, mx, my,
                                     UITREE_SCROLLBAR_ACTION_GRIP_DRAG, 0) )
                                 need_redraw = 1;
                         }
@@ -915,7 +976,7 @@ main(
                 int32_t geo_idx = ui_result.clicked >= 0 ? ui_result.clicked
                                                          : UITree_HitTest(tree, click_x, click_y);
                 int32_t ihit =
-                    UITree_HitTestInteractive(tree, &ui_host, NULL, click_x, click_y);
+                    UITree_HitTestInteractive(tree, &ui_host, click_x, click_y);
                 fprintf(
                     stderr,
                     "uitree_click: IsClick=%d clicked=%d mouse=(%d,%d)\n",
@@ -969,6 +1030,9 @@ main(
             {
                 if( prev_hover_com_id >= 0 )
                 {
+                    set_hover_event_coords(
+                        &host, tree, prev_hover_com_id,
+                        input->curr.mouse_x, input->curr.mouse_y);
                     run_runtime_hook(
                         &host,
                         queue,
@@ -980,6 +1044,9 @@ main(
                 }
                 if( hover_com_id >= 0 )
                 {
+                    set_hover_event_coords(
+                        &host, tree, hover_com_id,
+                        input->curr.mouse_x, input->curr.mouse_y);
                     run_runtime_hook(
                         &host,
                         queue,
@@ -993,6 +1060,28 @@ main(
                 need_redraw = 1;
             }
 
+            /* onMouseRepeat fires for the still-hovered component once per
+             * client cycle (reference gates on cycleCntr; 20ms game tick). */
+            if( hover_com_id >= 0 )
+            {
+                static uint64_t last_hover_repeat_ms = 0;
+                uint64_t now_ms = SDL_GetTicks64();
+                if( now_ms - last_hover_repeat_ms >= 20 )
+                {
+                    struct UITreeRuntimeScriptHook const* repeat_hook =
+                        component_runtime_hook(tree, hover_com_id, pick_on_mouse_repeat);
+                    last_hover_repeat_ms = now_ms;
+                    if( repeat_hook && repeat_hook->script_id > 0 )
+                    {
+                        set_hover_event_coords(
+                            &host, tree, hover_com_id,
+                            input->curr.mouse_x, input->curr.mouse_y);
+                        run_runtime_hook(&host, queue, io, px, hover_com_id, repeat_hook);
+                        ran_cs2 = 1;
+                    }
+                }
+            }
+
             if( ui_result.clicked >= 0 &&
                 (uint32_t)ui_result.clicked < tree->component_count )
             {
@@ -1003,7 +1092,7 @@ main(
                 int click_x = input->last_click_x[TORIRSM_LEFT];
                 int click_y = input->last_click_y[TORIRSM_LEFT];
                 int32_t ihit =
-                    UITree_HitTestInteractive(tree, &ui_host, NULL, click_x, click_y);
+                    UITree_HitTestInteractive(tree, &ui_host, click_x, click_y);
 
                 /* Prefer interactive hit so clickMask targets beat decorative overlays. */
                 if( ihit >= 0 && (uint32_t)ihit < tree->component_count )
@@ -1059,14 +1148,23 @@ main(
 
             update_window_title(sdl, interface_id, hover_com_id, clicked_com_id);
 
-            /* Advance model-widget animations at roughly the OSRS anim tick. */
+            /* Advance model-widget animations on the 50hz client tick (20ms per
+             * cycle). Convert elapsed wall-clock into whole cycles and hand the
+             * count to the driver, capping catch-up after a stall (TS parity). */
             {
+                enum { CLIENT_TICK_MS = 20, MAX_CATCHUP_CYCLES = 50 };
                 static uint64_t last_anim_ms = 0;
                 uint64_t now_ms = SDL_GetTicks64();
-                if( now_ms - last_anim_ms >= 30 )
-                {
+                int cycles;
+                if( last_anim_ms == 0 )
                     last_anim_ms = now_ms;
-                    if( drive_widget_animations(tree, scene, provider, queue, io, px, 1) )
+                cycles = (int)((now_ms - last_anim_ms) / CLIENT_TICK_MS);
+                if( cycles > 0 )
+                {
+                    last_anim_ms += (uint64_t)cycles * CLIENT_TICK_MS;
+                    if( cycles > MAX_CATCHUP_CYCLES )
+                        cycles = MAX_CATCHUP_CYCLES;
+                    if( drive_widget_animations(tree, scene, provider, queue, io, px, cycles) )
                         need_redraw = 1;
                 }
             }

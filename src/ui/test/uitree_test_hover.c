@@ -52,13 +52,13 @@ test_hover_input(void)
     int32_t hit_btn_area = UITree_HitTest(tree, 20, 20);
     TEST_ASSERT(hit_btn_area == button || hit_btn_area == graphic, "hit in overlap graphic/button");
     /* Interactive: skip pass-through layer+decorative graphic → button */
-    int32_t ihit = UITree_HitTestInteractive(tree, &host, NULL, 20, 20);
+    int32_t ihit = UITree_HitTestInteractive(tree, &host, 20, 20);
     TEST_ASSERT(ihit == button, "interactive hits button not layer/graphic");
 
     int32_t hit_top = UITree_HitTest(tree, 60, 60);
     TEST_ASSERT(hit_top == top, "later sibling wins overlap");
 
-    int32_t miss = UITree_HitTestInteractive(tree, &host, NULL, 350, 250);
+    int32_t miss = UITree_HitTestInteractive(tree, &host, 350, 250);
     TEST_ASSERT(miss < 0, "interactive miss outside interactive nodes");
 
     /* hide visibility */
@@ -68,7 +68,7 @@ test_hover_input(void)
     TEST_ASSERT(UITree_ComponentVisibleById(&tree->components[button], 12), "hide visible when id matches");
     tree->components[button].behavior.hide = 0;
 
-    /* Scroll-aware hit */
+    /* Scroll-aware hit (canonical component scroll offset) */
     {
         struct UITree* st = UITree_New(8);
         int32_t L = UITree_TestPushXy(st, -1, UIELEM_RS_LAYER, 50, 0, 0, 100, 50);
@@ -77,38 +77,42 @@ test_hover_input(void)
         st->components[child].behavior.button_type = 1;
         UITree_TestResolve(st);
 
-        int* sx = calloc((size_t)UITREE_SCROLL_MAX, sizeof(int));
-        int* sy = calloc((size_t)UITREE_SCROLL_MAX, sizeof(int));
-        TEST_ASSERT(sx && sy, "scroll alloc hover");
-        struct UITreeScrollState scroll = { .scroll_x = sx, .scroll_y = sy };
-
         /* Child at content y=100; viewport 50 tall — without scroll, point (10,20) is in layer but not child */
-        int32_t before = UITree_HitTestInteractive(st, &host, &scroll, 10, 20);
+        int32_t before = UITree_HitTestInteractive(st, &host, 10, 20);
         TEST_ASSERT(before != child, "child not hit before scroll");
 
-        UITree_ScrollSetPos(&scroll, 50, 0, 100);
-        int32_t after = UITree_HitTestInteractive(st, &host, &scroll, 10, 20);
+        st->components[L].scroll_y = 100;
+        int32_t after = UITree_HitTestInteractive(st, &host, 10, 20);
         TEST_ASSERT(after == child, "child hit after scroll_y");
-        free(sx);
-        free(sy);
         UITree_Free(st);
     }
 
     /* Region hover: outside → -1; inside deepest id; over_layer_id redirect */
     {
         int outside = UITree_FindHoveredComponentIdForRegion(
-            tree, &host, NULL, tree->root_index, 900, 900, 0, 0, 400, 300);
+            tree, &host, tree->root_index, 900, 900, 0, 0, 400, 300);
         TEST_ASSERT(outside < 0, "hover outside region");
 
         int inside = UITree_FindHoveredComponentIdForRegion(
-            tree, &host, NULL, tree->root_index, 60, 60, 0, 0, 400, 300);
+            tree, &host, tree->root_index, 60, 60, 0, 0, 400, 300);
         TEST_ASSERT(inside == 13, "hover deepest component_id is top rect");
 
         tree->components[top].behavior.over_layer_id = 99;
         int redirected = UITree_FindHoveredComponentIdForRegion(
-            tree, &host, NULL, tree->root_index, 60, 60, 0, 0, 400, 300);
+            tree, &host, tree->root_index, 60, 60, 0, 0, 400, 300);
         TEST_ASSERT(redirected == 99, "over_layer_id redirect");
         tree->components[top].behavior.over_layer_id = -1;
+    }
+
+    /* A component whose only hover script is on_mouse_repeat must still be
+     * reported hovered so the dispatcher can fire it. */
+    {
+        int32_t rep = UITree_TestPushXy(tree, layer, UIELEM_RS_RECT, 14, 200, 10, 30, 30);
+        tree->components[rep].runtime_hooks.on_mouse_repeat.script_id = 5;
+        UITree_TestResolve(tree);
+        int id = UITree_FindHoveredComponentIdForRegion(
+            tree, &host, tree->root_index, 210, 20, 0, 0, 400, 300);
+        TEST_ASSERT(id == 14, "on_mouse_repeat-only component reports hovered");
     }
 
     /* Out-of-region deep branch must not steal hover id */
@@ -120,7 +124,7 @@ test_hover_input(void)
         UITree_TestResolve(tree);
 
         int id = UITree_FindHoveredComponentIdForRegion(
-            tree, &host, NULL, layer, 20, 20, 0, 0, 400, 300);
+            tree, &host, layer, 20, 20, 0, 0, 400, 300);
         TEST_ASSERT(id == 12, "region hover stays on in-region button");
         TEST_ASSERT(id != 81 + 4, "far deep leaf not reported");
     }
@@ -143,23 +147,23 @@ test_hover_input(void)
     {
         struct UIInputState st = { .hovered = -1, .pressed = -1 };
         struct UIInputResult r = UITree_InputUpdate(
-            &st, tree, &host, NULL,
+            &st, tree, &host,
             (struct UIInputEvent){ .kind = UI_INPUT_MOVE, .x = 20, .y = 20 });
         TEST_ASSERT(r.hovered == button || r.hovered == graphic || r.hovered == layer, "move hover");
         r = UITree_InputUpdate(
-            &st, tree, &host, NULL,
+            &st, tree, &host,
             (struct UIInputEvent){ .kind = UI_INPUT_DOWN, .x = 20, .y = 20 });
         int32_t pressed = st.pressed;
         TEST_ASSERT(pressed >= 0, "down presses");
         r = UITree_InputUpdate(
-            &st, tree, &host, NULL,
+            &st, tree, &host,
             (struct UIInputEvent){ .kind = UI_INPUT_UP, .x = 20, .y = 20 });
         TEST_ASSERT(r.clicked == pressed, "click when same node");
         r = UITree_InputUpdate(
-            &st, tree, &host, NULL,
+            &st, tree, &host,
             (struct UIInputEvent){ .kind = UI_INPUT_DOWN, .x = 20, .y = 20 });
         r = UITree_InputUpdate(
-            &st, tree, &host, NULL,
+            &st, tree, &host,
             (struct UIInputEvent){ .kind = UI_INPUT_UP, .x = 350, .y = 250 });
         TEST_ASSERT(r.clicked < 0, "no click when release elsewhere");
     }

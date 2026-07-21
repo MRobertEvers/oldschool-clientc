@@ -84,7 +84,6 @@ int32_t
 UITree_HitTestInteractive(
     struct UITree const* tree,
     struct UITreeHost const* host,
-    struct UITreeScrollState const* scroll,
     int px,
     int py);
 
@@ -93,7 +92,6 @@ UITree_InputUpdate(
     struct UIInputState* state,
     struct UITree* tree,
     struct UITreeHost const* host,
-    struct UITreeScrollState const* scroll,
     struct UIInputEvent event);
 
 /**
