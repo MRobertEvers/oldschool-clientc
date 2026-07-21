@@ -88,11 +88,20 @@ struct UITreeElemPosition
     uint8_t layout_resolved;
 };
 
+#define UITREE_HOOK_ARG_MAX 32
+#define UITREE_HOOK_STR_ARG_MAX 4
+#define UITREE_HOOK_STR_ARG_LEN 80
+
 struct UITreeRuntimeScriptHook
 {
     int script_id;
     int argc;
-    int argv[32];
+    int argv[UITREE_HOOK_ARG_MAX];
+    /* Bit i set = arg position i is a string arg; strings fill strv[] in
+     * position order (k-th set bit -> strv[k]). argv[i] unused there. */
+    uint32_t str_mask;
+    int str_argc;
+    char strv[UITREE_HOOK_STR_ARG_MAX][UITREE_HOOK_STR_ARG_LEN];
 };
 
 struct UITreeRuntimeHooks
@@ -848,6 +857,8 @@ UITree_ApplyTargetPriority(
     int component_id,
     int priority);
 
+/** str_mask bit i marks arg position i as a string; strs[0..str_argc) are the
+ * string values in position order. Pass 0/NULL/0 for int-only hooks. */
 bool
 UITree_ApplyRuntimeHook(
     struct UITree* tree,
@@ -855,7 +866,10 @@ UITree_ApplyRuntimeHook(
     struct UITreeRuntimeScriptHook* slot,
     int script_id,
     int const* argv,
-    int argc);
+    int argc,
+    uint32_t str_mask,
+    char const* const* strs,
+    int str_argc);
 
 bool
 UITree_ApplyOpBase(

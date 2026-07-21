@@ -35,6 +35,11 @@ struct InterfaceOpenOnLoad
     int script_id;
     int argc;
     int argv[INTERFACE_OPEN_ONLOAD_ARGV_MAX];
+    /* Positional string args (see ToriRS_ScriptHook): bit i of str_mask marks
+     * argv[i] as a string; strings fill strv[] in position order. */
+    uint64_t str_mask;
+    int str_argc;
+    char strv[TORIRS_COMPONENT_HOOK_STR_MAX][TORIRS_COMPONENT_HOOK_STR_LEN];
 };
 
 struct InterfaceOpenRuntimeHook
@@ -43,6 +48,9 @@ struct InterfaceOpenRuntimeHook
     int script_id;
     int argc;
     int argv[32];
+    uint32_t str_mask;
+    int str_argc;
+    char strv[UITREE_HOOK_STR_ARG_MAX][UITREE_HOOK_STR_ARG_LEN];
 };
 
 struct Task_InterfaceOpen
@@ -208,6 +216,9 @@ collect_onloads(
             hook->argc = INTERFACE_OPEN_ONLOAD_ARGV_MAX;
         }
         memcpy(hook->argv, src->on_load.argv, (size_t)hook->argc * sizeof(int));
+        hook->str_mask = src->on_load.str_mask;
+        hook->str_argc = src->on_load.str_argc;
+        memcpy(hook->strv, src->on_load.strv, sizeof(hook->strv));
     }
 }
 
@@ -344,6 +355,9 @@ collect_runtime_hooks_kind(
             dst->argc = 32;
         if( dst->argc > 0 )
             memcpy(dst->argv, slot->argv, (size_t)dst->argc * sizeof(int));
+        dst->str_mask = slot->str_mask;
+        dst->str_argc = slot->str_argc;
+        memcpy(dst->strv, slot->strv, sizeof(dst->strv));
     }
 }
 
@@ -468,8 +482,22 @@ Task_InterfaceOpen_Run(
             arg_count = 0;
         }
 
-        TASK_AWAITSELF_IF(CreateTask_CS2Run(
-            self->host, self->script_id, hook->component_id, hook->component_id, args, arg_count));
+        {
+            /* argv[0] is the script id (always int) — args drop it, shift mask. */
+            char const* strp[TORIRS_COMPONENT_HOOK_STR_MAX];
+            for( int si = 0; si < TORIRS_COMPONENT_HOOK_STR_MAX; si++ )
+                strp[si] = hook->strv[si];
+            TASK_AWAITSELF_IF(CreateTask_CS2RunMixed(
+                self->host,
+                self->script_id,
+                hook->component_id,
+                hook->component_id,
+                args,
+                arg_count,
+                hook->str_mask >> 1,
+                strp,
+                hook->str_argc));
+        }
     }
 
     /* 7. Re-layout after onLoad. */
@@ -482,13 +510,19 @@ Task_InterfaceOpen_Run(
         for( self->i = 0; self->i < self->runtime_hook_count; self->i++ )
         {
             struct InterfaceOpenRuntimeHook const* hook = &self->runtime_hooks[self->i];
-            TASK_AWAITSELF_IF(CreateTask_CS2Run(
+            char const* strp[UITREE_HOOK_STR_ARG_MAX];
+            for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
+                strp[si] = hook->strv[si];
+            TASK_AWAITSELF_IF(CreateTask_CS2RunMixed(
                 self->host,
                 hook->script_id,
                 hook->component_id,
                 hook->component_id,
                 hook->argc > 0 ? hook->argv : NULL,
-                hook->argc));
+                hook->argc,
+                hook->str_mask,
+                strp,
+                hook->str_argc));
         }
         layout_tree(self);
 
@@ -496,13 +530,19 @@ Task_InterfaceOpen_Run(
         for( self->i = 0; self->i < self->runtime_hook_count; self->i++ )
         {
             struct InterfaceOpenRuntimeHook const* hook = &self->runtime_hooks[self->i];
-            TASK_AWAITSELF_IF(CreateTask_CS2Run(
+            char const* strp[UITREE_HOOK_STR_ARG_MAX];
+            for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
+                strp[si] = hook->strv[si];
+            TASK_AWAITSELF_IF(CreateTask_CS2RunMixed(
                 self->host,
                 hook->script_id,
                 hook->component_id,
                 hook->component_id,
                 hook->argc > 0 ? hook->argv : NULL,
-                hook->argc));
+                hook->argc,
+                hook->str_mask,
+                strp,
+                hook->str_argc));
         }
         layout_tree(self);
     }

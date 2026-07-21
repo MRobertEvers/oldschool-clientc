@@ -278,18 +278,24 @@ Task_Dat2TextureLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2TextureGroupLoad(io, 0);
-    PT_YIELD(&task->pt);
-
-    archive = RSCache_IO_Dat2TextureGroupDecode(io, 0);
-    if( !archive )
+    /* All texture defs decode on first touch; later tasks skip the archive
+     * load entirely instead of re-decompressing it per texture. */
+    if( !dat2_buildcache_texture_get(task->bc, task->texture_id) )
     {
-        fprintf(stderr, "Failed to decode dat2 texture group for texture %d\n", task->texture_id);
-        PT_EXIT(&task->pt);
-    }
+        RSCache_IO_Dat2TextureGroupLoad(io, 0);
+        PT_YIELD(&task->pt);
 
-    dat2_buildcache_textures_init_from_archive(task->bc, archive, &task->texture_id, 1);
-    RSCache_Dat2DiskArchiveFree(archive);
+        archive = RSCache_IO_Dat2TextureGroupDecode(io, 0);
+        if( !archive )
+        {
+            fprintf(
+                stderr, "Failed to decode dat2 texture group for texture %d\n", task->texture_id);
+            PT_EXIT(&task->pt);
+        }
+
+        dat2_buildcache_textures_init_from_archive(task->bc, archive, NULL, 0);
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
 
     task->def = dat2_buildcache_texture_get(task->bc, task->texture_id);
     if( !task->def )

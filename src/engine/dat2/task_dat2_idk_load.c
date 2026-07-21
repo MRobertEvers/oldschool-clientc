@@ -28,22 +28,27 @@ Task_Dat2IdkLoad_Run(
     struct RSCache_Dat2DiskArchive* archive = NULL;
     struct RSCache_Dat2ConfigIdk* rscache_idk = NULL;
     struct ToriRS_Idk* torirs_idk = NULL;
-    int wanted_id = task->idk_id;
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_IDENTKIT);
-    PT_YIELD(&task->pt);
-
-    archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_IDENTKIT);
-    if( !archive )
+    /* The whole group decodes on first touch; later tasks skip the archive
+     * load entirely instead of re-decompressing it per id. */
+    if( !dat2_buildcache_identkit_get(task->bc, task->idk_id) )
     {
-        fprintf(stderr, "Failed to decode dat2 identkit config group for idk %d\n", task->idk_id);
-        PT_EXIT(&task->pt);
-    }
+        RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_IDENTKIT);
+        PT_YIELD(&task->pt);
 
-    dat2_buildcache_identkits_init_from_archive(task->bc, archive, &wanted_id, 1);
-    RSCache_Dat2DiskArchiveFree(archive);
+        archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_IDENTKIT);
+        if( !archive )
+        {
+            fprintf(
+                stderr, "Failed to decode dat2 identkit config group for idk %d\n", task->idk_id);
+            PT_EXIT(&task->pt);
+        }
+
+        dat2_buildcache_identkits_init_from_archive(task->bc, archive, NULL, 0);
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
 
     rscache_idk = dat2_buildcache_identkit_get(task->bc, task->idk_id);
     if( !rscache_idk )

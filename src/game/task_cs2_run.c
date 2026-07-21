@@ -25,6 +25,8 @@
 #endif
 
 #define TASK_CS2_RUN_INT_ARGS_MAX 64
+#define TASK_CS2_RUN_STR_ARGS_MAX 4
+#define TASK_CS2_RUN_STR_ARG_LEN 80
 
 enum TaskCS2YieldPlan
 {
@@ -58,6 +60,11 @@ struct Task_CS2Run
     int dot_component_id;
     int int_args[TASK_CS2_RUN_INT_ARGS_MAX];
     int int_arg_count;
+    /* Bit i set = arg position i is a string; strings fill str_args[] in
+     * position order. Positions past the pool cap degrade to "". */
+    uint64_t str_mask;
+    int str_arg_count;
+    char str_args[TASK_CS2_RUN_STR_ARGS_MAX][TASK_CS2_RUN_STR_ARG_LEN];
 
     struct CS2VM_HostRequest pending;
     enum TaskCS2YieldPlan yield_plan;
@@ -662,9 +669,32 @@ Task_CS2Run_Run(
             self->host->viewport_h > 0 ? self->host->viewport_h : 503);
         CS2VM2_ThreadStart(thread, self->script);
 
-        for( j = 0; j < self->int_arg_count; j++ )
-            task_cs2_set_int_local(
-                self->host, thread, j, self->int_args[j], self->active_component_id);
+        {
+            /* Mixed positional args: ints fill int locals in order, strings
+             * fill string locals in order (OSRS ScriptEvent semantics). */
+            int int_i = 0;
+            int str_i = 0;
+            for( j = 0; j < self->int_arg_count; j++ )
+            {
+                if( j < 64 && (self->str_mask & ((uint64_t)1 << j)) )
+                {
+                    char const* s =
+                        str_i < self->str_arg_count ? self->str_args[str_i] : "";
+                    (void)CS2VM2_SetStringCurrentFrameLocal(thread, str_i, s);
+                    str_i++;
+                }
+                else
+                {
+                    task_cs2_set_int_local(
+                        self->host,
+                        thread,
+                        int_i,
+                        self->int_args[j],
+                        self->active_component_id);
+                    int_i++;
+                }
+            }
+        }
 
         CS2VM2_SetActiveAndDotComponentId(thread, self->active_component_id);
         if( self->dot_component_id != self->active_component_id )
@@ -832,7 +862,10 @@ task_cs2_run_new(
     int active_component_id,
     int dot_component_id,
     int const* int_args,
-    int int_arg_count)
+    int int_arg_count,
+    uint64_t str_mask,
+    char const* const* str_args,
+    int str_arg_count)
 {
     struct Task_CS2Run* self;
 
@@ -859,6 +892,18 @@ task_cs2_run_new(
     if( int_arg_count > 0 && int_args )
         memcpy(self->int_args, int_args, (size_t)int_arg_count * sizeof(int));
 
+    self->str_mask = str_mask;
+    if( str_arg_count > TASK_CS2_RUN_STR_ARGS_MAX )
+        str_arg_count = TASK_CS2_RUN_STR_ARGS_MAX;
+    if( str_arg_count < 0 || !str_args )
+        str_arg_count = 0;
+    self->str_arg_count = str_arg_count;
+    for( int i = 0; i < str_arg_count; i++ )
+    {
+        strncpy(self->str_args[i], str_args[i] ? str_args[i] : "", TASK_CS2_RUN_STR_ARG_LEN - 1);
+        self->str_args[i][TASK_CS2_RUN_STR_ARG_LEN - 1] = '\0';
+    }
+
     PT_INIT(&self->pt);
     return &self->task;
 }
@@ -873,7 +918,41 @@ CreateTask_CS2Run(
     int int_arg_count)
 {
     return task_cs2_run_new(
-        host, script_id, NULL, active_component_id, dot_component_id, int_args, int_arg_count);
+        host,
+        script_id,
+        NULL,
+        active_component_id,
+        dot_component_id,
+        int_args,
+        int_arg_count,
+        0,
+        NULL,
+        0);
+}
+
+struct ToriRS_Task*
+CreateTask_CS2RunMixed(
+    struct RS_CS2Host* host,
+    int script_id,
+    int active_component_id,
+    int dot_component_id,
+    int const* args,
+    int arg_count,
+    uint64_t str_mask,
+    char const* const* str_args,
+    int str_arg_count)
+{
+    return task_cs2_run_new(
+        host,
+        script_id,
+        NULL,
+        active_component_id,
+        dot_component_id,
+        args,
+        arg_count,
+        str_mask,
+        str_args,
+        str_arg_count);
 }
 
 struct ToriRS_Task*
@@ -893,7 +972,10 @@ CreateTask_CS2RunScript(
         active_component_id,
         dot_component_id,
         int_args,
-        int_arg_count);
+        int_arg_count,
+        0,
+        NULL,
+        0);
 }
 
 /* =========================================================================

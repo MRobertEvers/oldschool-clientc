@@ -74,13 +74,22 @@ Task_UITreeBuild_Run(
                 arg_count = 0;
             }
 
-            TASK_AWAITSELF_IF(CreateTask_CS2Run(
-                self->builder->host,
-                self->script_id,
-                hook->component_id,
-                hook->component_id,
-                args,
-                arg_count));
+            {
+                /* argv[0] is the script id (always int) — args drop it, shift mask. */
+                char const* strp[UITREE_BUILDER_ONLOAD_STR_MAX];
+                for( int si = 0; si < UITREE_BUILDER_ONLOAD_STR_MAX; si++ )
+                    strp[si] = hook->strv[si];
+                TASK_AWAITSELF_IF(CreateTask_CS2RunMixed(
+                    self->builder->host,
+                    self->script_id,
+                    hook->component_id,
+                    hook->component_id,
+                    args,
+                    arg_count,
+                    hook->str_mask >> 1,
+                    strp,
+                    hook->str_argc));
+            }
         }
 
         /* 5. Dispatch initial inv-transmit hooks registered by on_load. */

@@ -244,6 +244,21 @@ bridge_input_to_uitree(
         };
         last = UITree_InputUpdate(ui_state, tree, host, up);
     }
+    else if( LibToriRS_Input_IsDragEnd(input, TORIRSM_LEFT) )
+    {
+        /* A release that ended a drag sets drag_end, NOT is_click. The UP must
+         * still reach the UI state machine: it fires onDragComplete and clears
+         * the source's drag_active — otherwise the widget keeps rendering at
+         * its stale drag visual (scrollbar body frozen while the CS2 script
+         * moves the caps). */
+        struct UIInputEvent up = {
+            .kind = UI_INPUT_UP,
+            .x = input->curr.mouse_x,
+            .y = input->curr.mouse_y,
+            .button = TORIRSM_LEFT,
+        };
+        last = UITree_InputUpdate(ui_state, tree, host, up);
+    }
 
     return last;
 }

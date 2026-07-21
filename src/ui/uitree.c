@@ -1715,7 +1715,10 @@ UITree_ApplyRuntimeHook(
     struct UITreeRuntimeScriptHook* slot,
     int script_id,
     int const* argv,
-    int argc)
+    int argc,
+    uint32_t str_mask,
+    char const* const* strs,
+    int str_argc)
 {
     (void)tree;
     (void)component_id;
@@ -1723,13 +1726,24 @@ UITree_ApplyRuntimeHook(
 
     memset(slot, 0, sizeof(*slot));
     slot->script_id = script_id;
-    if( argc > 32 )
-        argc = 32;
+    if( argc > UITREE_HOOK_ARG_MAX )
+        argc = UITREE_HOOK_ARG_MAX;
     if( argc < 0 )
         argc = 0;
     slot->argc = argc;
     if( argv && argc > 0 )
         memcpy(slot->argv, argv, (size_t)argc * sizeof(int));
+    slot->str_mask = str_mask;
+    if( str_argc > UITREE_HOOK_STR_ARG_MAX )
+        str_argc = UITREE_HOOK_STR_ARG_MAX;
+    if( str_argc < 0 || !strs )
+        str_argc = 0;
+    slot->str_argc = str_argc;
+    for( int i = 0; i < str_argc; i++ )
+    {
+        strncpy(slot->strv[i], strs[i] ? strs[i] : "", UITREE_HOOK_STR_ARG_LEN - 1);
+        slot->strv[i][UITREE_HOOK_STR_ARG_LEN - 1] = '\0';
+    }
     return true;
 }
 

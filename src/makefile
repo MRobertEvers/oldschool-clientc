@@ -15,7 +15,7 @@ CFLAGS = -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(BMP_DIR) -I$(HMAP_DIR)
 
-RSCACHE_CFLAGS = -std=c11 -O0 -fno-omit-frame-pointer -g -MMD -MP \
+RSCACHE_CFLAGS = -std=c11 -O3 -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(RSCACHE_DIR)/include \
 	-I$(RSCACHE_DIR)/src \
 	-I$(RSCACHE_DIR) \

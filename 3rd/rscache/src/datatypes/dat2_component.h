@@ -250,6 +250,19 @@ struct RSCache_Dat2ComponentPack
     int component_count;
 };
 
+/** IF3 field-layout revision. The layouts differ only in the type-5 and
+ *  type-6 blocks: 643-era files carry a trailing colour int on type 5
+ *  (flips ordered H,V) and aShort49+aBoolean411 on type 6 with each size
+ *  override short gated on its own mode; OSRS-era files omit all of those,
+ *  order the type-5 flips V,H, and carry both type-6 override shorts
+ *  whenever either size mode is dynamic. cache, cache.jan2026 and
+ *  cache.kronos all verify 100% exact-consumption as OSRS. */
+enum RSCache_Dat2ComponentDecodeRev
+{
+    RSCACHE_DAT2_COMPONENT_DECODE_REV_OSRS = 0,
+    RSCACHE_DAT2_COMPONENT_DECODE_REV_643,
+};
+
 void
 RSCache_Dat2ComponentInit(struct RSCache_Dat2Component* c);
 
@@ -264,7 +277,8 @@ RSCache_Dat2ComponentDecodeIf1(
 void
 RSCache_Dat2ComponentDecodeIf3(
     struct RSCache_Dat2Component* self,
-    struct RSCache_Buffer* buffer);
+    struct RSCache_Buffer* buffer,
+    enum RSCache_Dat2ComponentDecodeRev rev);
 
 void
 RSCache_Dat2ComponentSetOp(
@@ -279,16 +293,19 @@ struct RSCache_Dat2Component*
 RSCache_Dat2ComponentNewDecode(
     uint8_t* data,
     int data_size,
-    int packed_id);
+    int packed_id,
+    enum RSCache_Dat2ComponentDecodeRev rev);
 
 struct RSCache_Dat2ComponentPack*
 RSCache_Dat2ComponentPackNewFromFileList(
     struct RSCache_FileList* filelist,
-    int interface_id);
+    int interface_id,
+    enum RSCache_Dat2ComponentDecodeRev rev);
 
 struct RSCache_Dat2ComponentPack*
 RSCache_Dat2ComponentPackNewFromArchive(
     struct RSCache_Dat2DiskArchive* archive,
-    int interface_id);
+    int interface_id,
+    enum RSCache_Dat2ComponentDecodeRev rev);
 
 #endif

@@ -209,8 +209,20 @@ collect_onload(
     int script_id = src->on_load.argv[0];
     if( script_id <= 0 )
         return;
-    UITreeBuilder_AddOnLoad(
-        builder, src->id, script_id, src->on_load.argv, src->on_load.argc);
+    {
+        char const* strp[TORIRS_COMPONENT_HOOK_STR_MAX];
+        for( int i = 0; i < TORIRS_COMPONENT_HOOK_STR_MAX; i++ )
+            strp[i] = src->on_load.strv[i];
+        UITreeBuilder_AddOnLoad(
+            builder,
+            src->id,
+            script_id,
+            src->on_load.argv,
+            src->on_load.argc,
+            src->on_load.str_mask,
+            strp,
+            src->on_load.str_argc);
+    }
 }
 
 static void

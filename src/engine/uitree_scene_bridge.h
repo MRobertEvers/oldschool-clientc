@@ -27,6 +27,9 @@ struct UITreeSceneBridge
 
     /** Composited default player avatar model; -1 until first built. */
     int player_scene_id;
+
+    /** Texture ids whose load already failed; never re-requested. */
+    unsigned char texture_failed[256];
 };
 
 /* Reserved scene model id for the composited player avatar (out of cache range). */
@@ -46,6 +49,12 @@ int
 UITreeSceneBridge_EnsureSprite(
     struct UITreeSceneBridge* bridge,
     int cache_graphic_id);
+
+/** Reverse lookup: cache graphic id for a sprite scene_id, or -1 (debug dumps). */
+int
+UITreeSceneBridge_SpriteCacheIdForScene(
+    struct UITreeSceneBridge const* bridge,
+    int scene_id);
 
 /**
  * Bind IF1 scrollbar chrome from an already-loaded cache sprite archive
@@ -91,5 +100,29 @@ UITreeSceneBridge_EnsureObjIcon(
     struct UITreeSceneBridge* bridge,
     int obj_id,
     int count);
+
+/**
+ * Collect texture ids referenced by scene model faces that are not yet in the
+ * scene texture map (and not marked failed). Returns the number written to
+ * out_ids. The host loads these via CreateTask_TextureLoad, then calls
+ * UITreeSceneBridge_PublishTextures; while missing, the raster skips the face
+ * (reference parity: textures pop in once loaded).
+ */
+int
+UITreeSceneBridge_CollectMissingTextures(
+    struct UITreeSceneBridge* bridge,
+    int* out_ids,
+    int max_ids);
+
+/**
+ * Upload provider textures into the scene texture map for each id in ids;
+ * ids the provider still lacks are marked failed so they are never
+ * re-requested. Returns the number uploaded.
+ */
+int
+UITreeSceneBridge_PublishTextures(
+    struct UITreeSceneBridge* bridge,
+    const int* ids,
+    int id_count);
 
 #endif

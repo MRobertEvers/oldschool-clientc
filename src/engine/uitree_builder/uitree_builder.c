@@ -143,7 +143,10 @@ UITreeBuilder_AddOnLoad(
     int component_id,
     int script_id,
     int const* argv,
-    int argc)
+    int argc,
+    uint64_t str_mask,
+    char const* const* strs,
+    int str_argc)
 {
     assert(builder);
     if( script_id <= 0 )
@@ -170,6 +173,17 @@ UITreeBuilder_AddOnLoad(
     e->argc = argc;
     if( argv && argc > 0 )
         memcpy(e->argv, argv, (size_t)argc * sizeof(int));
+    e->str_mask = str_mask;
+    if( str_argc > UITREE_BUILDER_ONLOAD_STR_MAX )
+        str_argc = UITREE_BUILDER_ONLOAD_STR_MAX;
+    if( str_argc < 0 || !strs )
+        str_argc = 0;
+    e->str_argc = str_argc;
+    for( int i = 0; i < str_argc; i++ )
+    {
+        strncpy(e->strv[i], strs[i] ? strs[i] : "", UITREE_BUILDER_ONLOAD_STR_LEN - 1);
+        e->strv[i][UITREE_BUILDER_ONLOAD_STR_LEN - 1] = '\0';
+    }
 }
 
 int

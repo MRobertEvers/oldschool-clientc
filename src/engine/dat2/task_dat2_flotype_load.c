@@ -28,22 +28,27 @@ Task_Dat2FlotypeLoad_Run(
     struct RSCache_Dat2DiskArchive* archive = NULL;
     struct RSCache_Dat2ConfigOverlay* rscache_overlay = NULL;
     struct ToriRS_Flotype* torirs_flotype = NULL;
-    int wanted_id = task->flo_id;
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_OVERLAY);
-    PT_YIELD(&task->pt);
-
-    archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_OVERLAY);
-    if( !archive )
+    /* The whole group decodes on first touch; later tasks skip the archive
+     * load entirely instead of re-decompressing it per id. */
+    if( !dat2_buildcache_overlay_get(task->bc, task->flo_id) )
     {
-        fprintf(stderr, "Failed to decode dat2 overlay config group for flo %d\n", task->flo_id);
-        PT_EXIT(&task->pt);
-    }
+        RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_OVERLAY);
+        PT_YIELD(&task->pt);
 
-    dat2_buildcache_overlays_init_from_archive(task->bc, archive, &wanted_id, 1);
-    RSCache_Dat2DiskArchiveFree(archive);
+        archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_OVERLAY);
+        if( !archive )
+        {
+            fprintf(
+                stderr, "Failed to decode dat2 overlay config group for flo %d\n", task->flo_id);
+            PT_EXIT(&task->pt);
+        }
+
+        dat2_buildcache_overlays_init_from_archive(task->bc, archive, NULL, 0);
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
 
     rscache_overlay = dat2_buildcache_overlay_get(task->bc, task->flo_id);
     if( !rscache_overlay )

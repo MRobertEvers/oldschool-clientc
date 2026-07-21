@@ -413,6 +413,9 @@ hmap_search(
             void* entry = hmap_slot_entry_ptr(m, idx);
             void* ekey = hmap_entry_key_ptr(m, entry);
 
+            /* Fresh entries must read as empty: callers test value fields
+             * (e.g. `if (entry->object)`) to decide whether to free. */
+            memset(entry, 0, m->entry_size);
             memcpy(ekey, key, m->key_size);
             m->size++;
 
@@ -461,6 +464,7 @@ hmap_search(
         void* entry = hmap_slot_entry_ptr(m, t);
         void* ekey = hmap_entry_key_ptr(m, entry);
 
+        memset(entry, 0, m->entry_size);
         memcpy(ekey, key, m->key_size);
         m->size++;
 

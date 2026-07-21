@@ -1739,13 +1739,21 @@ exec_set_on_if_event(
         request->int_arg_count);
 #endif
 
-    (void)UITree_ApplyRuntimeHook(
-        tree,
-        request->component_id,
-        slot,
-        request->script_id,
-        request->int_arg_count > 0 ? request->int_args : NULL,
-        request->int_arg_count);
+    {
+        char const* strp[CS2VM_SETON_STR_ARG_MAX];
+        for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
+            strp[i] = request->str_args[i];
+        (void)UITree_ApplyRuntimeHook(
+            tree,
+            request->component_id,
+            slot,
+            request->script_id,
+            request->int_arg_count > 0 ? request->int_args : NULL,
+            request->int_arg_count,
+            request->str_arg_mask,
+            strp,
+            request->str_arg_count);
+    }
     return CS2VM_EXECNO_OK;
 }
 
@@ -1792,13 +1800,21 @@ exec_set_on_cc_event(
         request->int_arg_count);
 #endif
 
-    (void)UITree_ApplyRuntimeHook(
-        tree,
-        component_id,
-        slot,
-        request->script_id,
-        request->int_arg_count > 0 ? request->int_args : NULL,
-        request->int_arg_count);
+    {
+        char const* strp[CS2VM_SETON_STR_ARG_MAX];
+        for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
+            strp[i] = request->str_args[i];
+        (void)UITree_ApplyRuntimeHook(
+            tree,
+            component_id,
+            slot,
+            request->script_id,
+            request->int_arg_count > 0 ? request->int_args : NULL,
+            request->int_arg_count,
+            request->str_arg_mask,
+            strp,
+            request->str_arg_count);
+    }
     return CS2VM_EXECNO_OK;
 }
 
@@ -2017,15 +2033,6 @@ RS_CS2Host_Exec(
 
     case CS2VM_HOST_REQUEST_IF_SETPOSITION:
     case CS2VM_HOST_REQUEST_CC_SETPOSITION:
-        if( getenv("TORIRS_POS_TRACE") )
-            fprintf(
-                stderr,
-                "SETPOS id=%d xy=(%d,%d) modes=(%d,%d)\n",
-                request->u.cc_set_position.component_id,
-                request->u.cc_set_position.x,
-                request->u.cc_set_position.y,
-                request->u.cc_set_position.xmode,
-                request->u.cc_set_position.ymode);
         if( tree )
             (void)UITree_ApplyPositionModes(
                 tree,

@@ -28,24 +28,29 @@ Task_Dat2UnderlayLoad_Run(
     struct RSCache_Dat2DiskArchive* archive = NULL;
     struct RSCache_Dat2ConfigUnderlay* rscache_underlay = NULL;
     struct ToriRS_Flotype* torirs_underlay = NULL;
-    int wanted_id = task->underlay_id;
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_UNDERLAY);
-    PT_YIELD(&task->pt);
-
-    archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_UNDERLAY);
-    if( !archive )
+    /* The whole group decodes on first touch; later tasks skip the archive
+     * load entirely instead of re-decompressing it per id. */
+    if( !dat2_buildcache_underlay_get(task->bc, task->underlay_id) )
     {
-        fprintf(
-            stderr, "Failed to decode dat2 underlay config group for underlay %d\n",
-            task->underlay_id);
-        PT_EXIT(&task->pt);
-    }
+        RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_UNDERLAY);
+        PT_YIELD(&task->pt);
 
-    dat2_buildcache_underlays_init_from_archive(task->bc, archive, &wanted_id, 1);
-    RSCache_Dat2DiskArchiveFree(archive);
+        archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_UNDERLAY);
+        if( !archive )
+        {
+            fprintf(
+                stderr,
+                "Failed to decode dat2 underlay config group for underlay %d\n",
+                task->underlay_id);
+            PT_EXIT(&task->pt);
+        }
+
+        dat2_buildcache_underlays_init_from_archive(task->bc, archive, NULL, 0);
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
 
     rscache_underlay = dat2_buildcache_underlay_get(task->bc, task->underlay_id);
     if( !rscache_underlay )

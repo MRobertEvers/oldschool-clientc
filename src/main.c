@@ -15,6 +15,197 @@
 #define SCRIPT_DIR "script"
 #define DEFAULT_INTERFACE_ID 84
 
+/* TORIRS_DUMP_TREE=1: print the widget tree in the reference client's
+ * widgetTreeDump.ts format (interface editor parity diffing). */
+
+static int
+dump_widget_type(struct UITreeComponent const* c)
+{
+    switch( c->type )
+    {
+    case UIELEM_RS_LAYER:
+        return 0;
+    case UIELEM_INV_GRID:
+        return 2;
+    case UIELEM_RS_RECT:
+        return 3;
+    case UIELEM_RS_TEXT:
+        return 4;
+    case UIELEM_RS_GRAPHIC:
+        return 5;
+    case UIELEM_RS_MODEL:
+        return 6;
+    case UIELEM_RS_LINE:
+        return 9;
+    case UIELEM_RS_INV_TEXT:
+        return 8;
+    default:
+        return -(int)c->type;
+    }
+}
+
+static char const*
+dump_kind(struct UITreeComponent const* c)
+{
+    switch( c->type )
+    {
+    case UIELEM_RS_LAYER:
+        return "layer";
+    case UIELEM_INV_GRID:
+        return "inventory";
+    case UIELEM_RS_RECT:
+        return "rectangle";
+    case UIELEM_RS_TEXT:
+        return "text";
+    case UIELEM_RS_GRAPHIC:
+        return "graphic";
+    case UIELEM_RS_MODEL:
+        return "model";
+    case UIELEM_RS_LINE:
+        return "line";
+    default:
+        return UITree_ComponentTypeStr(c->type);
+    }
+}
+
+static int
+dump_file_id(struct UITreeComponent const* c)
+{
+    return c->dynamic ? -1 : (c->component_id & 0xFFFF);
+}
+
+static int
+dump_index(struct UITreeComponent const* c)
+{
+    return c->dynamic ? c->dynamic_child_index : (c->component_id & 0xFFFF);
+}
+
+struct DumpChildRef
+{
+    int32_t idx;
+    int file_id;
+    int child_index;
+};
+
+static int
+dump_child_cmp(void const* va, void const* vb)
+{
+    struct DumpChildRef const* a = (struct DumpChildRef const*)va;
+    struct DumpChildRef const* b = (struct DumpChildRef const*)vb;
+    if( a->file_id != b->file_id )
+        return a->file_id - b->file_id;
+    return a->child_index - b->child_index;
+}
+
+static int
+dump_node_hidden(
+    struct UITree const* tree,
+    int32_t idx)
+{
+    while( idx >= 0 )
+    {
+        if( tree->components[idx].behavior.hide )
+            return 1;
+        idx = tree->components[idx].parent;
+    }
+    return 0;
+}
+
+static void
+dump_tree_node(
+    struct App* app,
+    int32_t idx,
+    int depth)
+{
+    struct UITree const* tree = app->tree;
+    struct UITreeComponent const* c = &tree->components[idx];
+    char const* kind = dump_kind(c);
+    int i;
+
+    for( i = 0; i < depth; i++ )
+        printf("  ");
+    printf(
+        "[%d] kind=%s widget_type=%d trans=%d fill_mode=0 user_id=0x%08x (%d<<16|%d) %s",
+        dump_index(c),
+        kind,
+        dump_widget_type(c),
+        c->trans,
+        (unsigned)c->component_id,
+        (c->component_id >> 16) & 0xFFFF,
+        c->component_id & 0xFFFF,
+        c->dynamic ? "dynamic" : "static");
+
+    if( c->type == UIELEM_RS_GRAPHIC )
+        printf(
+            " graphic=%d",
+            UITreeSceneBridge_SpriteCacheIdForScene(&app->bridge, c->u.rs_graphic.scene_id));
+    else if( c->type == UIELEM_RS_TEXT )
+        printf(
+            " font=%d color=0x%x text=\"%s\"",
+            c->u.rs_text.font_id,
+            (unsigned)c->u.rs_text.color,
+            c->u.rs_text.text ? c->u.rs_text.text : "");
+    else if( c->type == UIELEM_RS_LINE )
+        printf(
+            " color=0x%x width=%d dir=%d",
+            (unsigned)c->u.rs_line.color,
+            c->u.rs_line.line_width,
+            c->u.rs_line.horizontal ? 1 : 0);
+
+    if( c->type != UIELEM_RS_LAYER )
+        printf(
+            " abs=%d,%d %dx%d hidden=%d",
+            c->position.abs_x,
+            c->position.abs_y,
+            c->position.abs_w,
+            c->position.abs_h,
+            dump_node_hidden(tree, idx));
+    printf("\n");
+
+    {
+        struct DumpChildRef refs[512];
+        int count = 0;
+        int32_t child = c->first_child;
+        while( child >= 0 && count < 512 )
+        {
+            struct UITreeComponent const* cc = &tree->components[child];
+            if( !cc->freed )
+            {
+                refs[count].idx = child;
+                refs[count].file_id = dump_file_id(cc);
+                refs[count].child_index = cc->dynamic ? cc->dynamic_child_index : 0;
+                count++;
+            }
+            child = cc->next_sibling;
+        }
+        qsort(refs, (size_t)count, sizeof(refs[0]), dump_child_cmp);
+        for( i = 0; i < count; i++ )
+            dump_tree_node(app, refs[i].idx, depth + 1);
+    }
+}
+
+static void
+dump_tree(
+    struct App* app,
+    int group_id)
+{
+    int32_t root = app->tree ? app->tree->root_index : -1;
+    while( root >= 0 )
+    {
+        struct UITreeComponent const* c = &app->tree->components[root];
+        fprintf(
+            stderr,
+            "DUMPTREE root idx=%d id=0x%08x freed=%d type=%d\n",
+            root,
+            (unsigned)c->component_id,
+            c->freed,
+            (int)c->type);
+        if( !c->freed && ((c->component_id >> 16) & 0xFFFF) == group_id )
+            dump_tree_node(app, root, 0);
+        root = c->next_sibling;
+    }
+}
+
 static void
 update_window_title(
     struct PlatformSDL2* sdl,
@@ -80,145 +271,39 @@ main(
     App_Init(&app, &cfg);
     App_OpenRootInterface(&app, cfg.interface_id);
 
-    /* TEMP (scrollbar/dropdown verification, removed when done): DRAG_SIM runs
-     * ';'-separated gestures headlessly: "x0,y0,x1,y1" drags (degenerate =
-     * click), "w<x>,<y>,<d>" wheel. Prints scroll state; BMP per segment. */
+    if( getenv("TORIRS_DUMP_TREE") && app.tree )
+        dump_tree(&app, cfg.interface_id);
+
+    /* TEMP DEBUG: dump runtime hook script ids (TORIRS_DUMP_HOOKS=1) */
+    if( getenv("TORIRS_DUMP_HOOKS") && app.tree )
     {
-        char const* dsim = getenv("DRAG_SIM");
-        if( dsim )
+        static char const* const hook_names[] = {
+            "on_click",         "on_hold",       "on_mouse_over", "on_mouse_leave",
+            "on_mouse_repeat",  "on_drag",       "on_drag_complete", "on_scroll_wheel",
+            "on_key",           "on_op",         "on_timer",      "on_var_transmit",
+            "on_inv_transmit",  "on_misc_transmit", "on_resize",  "on_sub_change",
+        };
+        int i;
+        for( i = 0; i < app.tree->component_count; i++ )
         {
-            int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
-            struct LibToriRS_Input sim_input_storage;
-            struct LibToriRS_Input* sim_input = LibToriRS_Input_Init(&sim_input_storage, 0);
-            int* sim_pixels =
-                malloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H * sizeof(int));
-            uint64_t tick_ms = 0;
-            int const drag_ticks = 20;
-            char const* seg = dsim;
-            int seg_no = 0;
-
-            assert(sim_pixels);
-            UITree_LayoutResolve(app.tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-
-            while( seg && *seg )
+            struct UITreeComponent* c = &app.tree->components[i];
+            struct UITreeRuntimeScriptHook* hooks =
+                (struct UITreeRuntimeScriptHook*)&c->runtime_hooks;
+            int h;
+            if( c->freed )
+                continue;
+            for( h = 0; h < 16; h++ )
             {
-                char bmp_path[128];
-                int wheel_amt = 0;
-                int is_wheel = (*seg == 'w');
-                if( is_wheel )
-                {
-                    if( sscanf(seg + 1, "%d,%d,%d", &x0, &y0, &wheel_amt) != 3 )
-                        break;
-                    x1 = x0;
-                    y1 = y0;
-                }
-                else if( sscanf(seg, "%d,%d,%d,%d", &x0, &y0, &x1, &y1) != 4 )
-                    break;
-                seg_no++;
+                if( hooks[h].script_id == 0 )
+                    continue;
                 fprintf(
                     stderr,
-                    "DRAG_SIM seg %d (%d,%d)->(%d,%d) wheel=%d\n",
-                    seg_no, x0, y0, x1, y1, wheel_amt);
-
-                for( int t = 1; t <= drag_ticks + 14; t++ )
-                {
-                    tick_ms += 20;
-                    LibToriRS_Input_Begin(sim_input, tick_ms);
-                    if( t == 2 )
-                        LibToriRS_Input_PushMouseMove(sim_input, x0, y0);
-                    if( is_wheel && t >= 3 && t <= 6 )
-                        LibToriRS_Input_PushMouseWheel(sim_input, wheel_amt);
-                    if( !is_wheel )
-                    {
-                        if( t == 4 )
-                            LibToriRS_Input_PushMouseDown(sim_input, TORIRSM_LEFT, x0, y0);
-                        if( t > 4 && t <= 4 + drag_ticks )
-                            LibToriRS_Input_PushMouseMove(
-                                sim_input,
-                                x0 + ((x1 - x0) * (t - 4)) / drag_ticks,
-                                y0 + ((y1 - y0) * (t - 4)) / drag_ticks);
-                        if( t == 4 + drag_ticks + 2 )
-                            LibToriRS_Input_PushMouseUp(sim_input, TORIRSM_LEFT, x1, y1);
-                    }
-                    LibToriRS_Input_End(sim_input);
-                    if( App_RunOnce(&app, tick_ms, sim_input) )
-                        App_Render(&app, sim_pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-
-                    for( uint32_t ci = 0; ci < app.tree->component_count; ci++ )
-                    {
-                        struct UITreeComponent const* c = &app.tree->components[ci];
-                        if( c->freed || c->type != UIELEM_RS_LAYER )
-                            continue;
-                        if( c->u.rs_layer.scroll_height <= 0 )
-                            continue;
-                        fprintf(
-                            stderr,
-                            "DRAG_SIM t=%d layer id=%d scroll=(%d,%d)\n",
-                            t, c->component_id, c->scroll_x, c->scroll_y);
-                    }
-                    if( !is_wheel && t == 4 + drag_ticks / 2 )
-                    {
-                        App_Render(&app, sim_pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-                        snprintf(
-                            bmp_path, sizeof(bmp_path), "build/drag_sim_%d_mid.bmp", seg_no);
-                        App_WriteBmp(&app, bmp_path, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-                    }
-                }
-                /* Mid-drag snapshot support: a trailing segment "d..." not
-                 * needed — the release happens before the ticks run out. */
-                snprintf(bmp_path, sizeof(bmp_path), "build/drag_sim_%d.bmp", seg_no);
-                App_WriteBmp(&app, bmp_path, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-                seg = strchr(seg, ';');
-                if( seg )
-                    seg++;
+                    "HOOKDUMP com=0x%08x %s script=%d argc=%d\n",
+                    c->component_id,
+                    hook_names[h],
+                    hooks[h].script_id,
+                    hooks[h].argc);
             }
-
-            /* Post-run dump: every live component with box + visual fields, for
-             * dropdown/scrollbar inspection. */
-            if( getenv("DRAG_SIM_DUMP") )
-            {
-                for( int ei = 0; ei < app.emit.count; ei++ )
-                {
-                    struct UITreeEmitDesc const* d = &app.emit.cmds[ei];
-                    if( d->x < 595 || d->x > 640 )
-                        continue;
-                    fprintf(
-                        stderr,
-                        "EMIT kind=%d id=%d box=(%d,%d %dx%d) scene=%d\n",
-                        (int)d->kind, d->component_id, d->x, d->y, d->w, d->h, d->scene_id);
-                }
-                for( uint32_t ci = 0; ci < app.tree->component_count; ci++ )
-                {
-                    struct UITreeComponent const* c = &app.tree->components[ci];
-                    struct UITreeElemPosition const* p = &c->position;
-                    if( c->freed || c->component_id < 0 )
-                        continue;
-                    fprintf(
-                        stderr,
-                        "DUMP id=%d idx=%u type=%d box=(%d,%d %dx%d) hide=%d trans=%d "
-                        "dyn=%d subid=%d parent_id=%d",
-                        c->component_id, ci, (int)c->type,
-                        p->abs_x, p->abs_y, p->abs_w, p->abs_h,
-                        (int)c->behavior.hide, c->trans,
-                        (int)c->dynamic, c->dynamic_child_index,
-                        c->parent >= 0 ? app.tree->components[c->parent].component_id : -1);
-                    if( c->type == UIELEM_RS_RECT )
-                        fprintf(
-                            stderr, " rect color=0x%x filled=%d",
-                            c->u.rs_rect.color, c->u.rs_rect.filled);
-                    if( c->type == UIELEM_RS_GRAPHIC )
-                        fprintf(
-                            stderr, " gfx scene=%d tiled=%d",
-                            c->u.rs_graphic.scene_id, (int)c->u.rs_graphic.tiled);
-                    if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text )
-                        fprintf(stderr, " text=\"%.24s\"", c->u.rs_text.text);
-                    fprintf(stderr, "\n");
-                }
-            }
-            free(sim_pixels);
-            fprintf(stderr, "DRAG_SIM complete\n");
-            App_Shutdown(&app);
-            return 0;
         }
     }
 

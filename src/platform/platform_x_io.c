@@ -4,9 +4,25 @@
 
 #include <assert.h>
 #include <rscache.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/*
+ * LRU of decompressed dat2 archives. Group archives (configs, texture defs)
+ * are requested once per contained id; without this every request re-runs
+ * bzip2 on the whole group (interface 100 spent ~6s decompressing the obj
+ * config group 219 times). Hits return a deep copy because callers own and
+ * free the archive they receive.
+ */
+#define DAT2_ARCHIVE_CACHE_SLOTS 32
+
+struct Dat2ArchiveCacheSlot
+{
+    struct RSCache_Dat2DiskArchive* archive;
+    uint64_t last_used;
+};
 
 struct PlatformX_IO
 {
@@ -14,6 +30,9 @@ struct PlatformX_IO
     struct RSCache_Dat1Disk* dat1_disk;
     char* config_dir;
     char* script_dir;
+
+    struct Dat2ArchiveCacheSlot archive_cache[DAT2_ARCHIVE_CACHE_SLOTS];
+    uint64_t archive_cache_clock;
 };
 
 struct PlatformX_IO*
@@ -71,9 +90,84 @@ PlatformX_IO_Free(struct PlatformX_IO* io)
     if( !io )
         return;
 
+    for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
+        RSCache_Dat2DiskArchiveFree(io->archive_cache[i].archive);
     free(io->config_dir);
     free(io->script_dir);
     free(io);
+}
+
+static struct RSCache_Dat2DiskArchive*
+dat2_archive_clone(const struct RSCache_Dat2DiskArchive* src)
+{
+    struct RSCache_Dat2DiskArchive* dst = malloc(sizeof(*dst));
+    if( !dst )
+        return NULL;
+    *dst = *src;
+    dst->data = NULL;
+    dst->file_ids = NULL;
+
+    if( src->data && src->data_size > 0 )
+    {
+        dst->data = malloc((size_t)src->data_size);
+        if( !dst->data )
+            goto error;
+        memcpy(dst->data, src->data, (size_t)src->data_size);
+    }
+    if( src->file_ids && src->file_count > 0 )
+    {
+        dst->file_ids = malloc((size_t)src->file_count * sizeof(int));
+        if( !dst->file_ids )
+            goto error;
+        memcpy(dst->file_ids, src->file_ids, (size_t)src->file_count * sizeof(int));
+    }
+    return dst;
+
+error:
+    RSCache_Dat2DiskArchiveFree(dst);
+    return NULL;
+}
+
+static struct RSCache_Dat2DiskArchive*
+dat2_archive_cache_get(
+    struct PlatformX_IO* px,
+    int table_id,
+    int archive_id)
+{
+    for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
+    {
+        struct Dat2ArchiveCacheSlot* slot = &px->archive_cache[i];
+        if( slot->archive && slot->archive->table_id == table_id &&
+            slot->archive->archive_id == archive_id )
+        {
+            slot->last_used = ++px->archive_cache_clock;
+            return slot->archive;
+        }
+    }
+    return NULL;
+}
+
+/* Takes ownership of `archive` (evicting the LRU slot's entry if needed). */
+static void
+dat2_archive_cache_put(
+    struct PlatformX_IO* px,
+    struct RSCache_Dat2DiskArchive* archive)
+{
+    struct Dat2ArchiveCacheSlot* lru = &px->archive_cache[0];
+    for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
+    {
+        struct Dat2ArchiveCacheSlot* slot = &px->archive_cache[i];
+        if( !slot->archive )
+        {
+            lru = slot;
+            break;
+        }
+        if( slot->last_used < lru->last_used )
+            lru = slot;
+    }
+    RSCache_Dat2DiskArchiveFree(lru->archive);
+    lru->archive = archive;
+    lru->last_used = ++px->archive_cache_clock;
 }
 
 static int
@@ -185,6 +279,32 @@ load_cache_item_dat2(
     }
 
     {
+        static int trace_enabled = -1;
+        if( trace_enabled < 0 )
+            trace_enabled = getenv("TORIRS_IO_TRACE") != NULL;
+        if( trace_enabled )
+            fprintf(stderr, "io_trace: dat2 table=%d archive=%d\n", table_id, archive_id);
+    }
+
+    {
+        struct RSCache_Dat2DiskArchive* cached =
+            dat2_archive_cache_get(px, table_id, archive_id);
+        if( cached )
+        {
+            archive = dat2_archive_clone(cached);
+            if( !archive )
+            {
+                item->error_code = -1;
+                return -1;
+            }
+            item->data = archive;
+            item->data_size = sizeof(struct RSCache_Dat2DiskArchive);
+            item->error_code = 0;
+            return 0;
+        }
+    }
+
+    {
         uint32_t* xtea_key = NULL;
         /* Loc (lX_Z) map archives are XTEA-encrypted; terrain (mX_Z) keys are null. */
         if( table_id == RSCACHE_DAT2_DISK_TABLE_MAPS )
@@ -199,6 +319,12 @@ load_cache_item_dat2(
     }
 
     RSCache_Dat2DiskArchiveInitMetadataFromTable(px->dat2_disk->tables[table_id], archive);
+
+    {
+        struct RSCache_Dat2DiskArchive* master = dat2_archive_clone(archive);
+        if( master )
+            dat2_archive_cache_put(px, master);
+    }
 
     item->data = archive;
     item->data_size = sizeof(struct RSCache_Dat2DiskArchive);

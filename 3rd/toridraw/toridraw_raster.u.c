@@ -142,8 +142,14 @@ ToriDraw_RasterModelFace(
     if( texture_id != -1 )
     {
         // gamma 0.8 is the default in os1
-        texture = ToriDraw_TextureMapGet(ctx->texture_map, texture_id);
-        assert(texture != NULL);
+        texture = (texture_id >= 0 && texture_id < 256)
+                      ? ToriDraw_TextureMapGet(ctx->texture_map, texture_id)
+                      : NULL;
+        // Texture not loaded (yet): skip the face. Textured faces store 0-127
+        // lightness in colors_a/b/c, not HSL16, so a gouraud fallback would
+        // draw garbage; the reference skips the face too.
+        if( texture == NULL )
+            return;
 
         texels = texture->texels;
         texture_size = texture->width;

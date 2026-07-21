@@ -74,6 +74,38 @@ seed_inv_defaults(struct InvManager* invs)
         (int)(sizeof(k_bank_items) / sizeof(k_bank_items[0]))));
 }
 
+/* Scene models reference textures by face id, but the ToriDraw texture map
+ * starts empty (reference: textures load on demand and faces skip-render
+ * until they land). Collect ids the scene is missing, load them through the
+ * async pipeline, and publish into the scene. Ids that fail stay marked in
+ * the bridge and are never re-requested. */
+static void
+app_sync_textures(struct App* app)
+{
+    int ids[256];
+    int id_count;
+    int queued = 0;
+
+    id_count = UITreeSceneBridge_CollectMissingTextures(&app->bridge, ids, 256);
+    if( id_count == 0 )
+        return;
+
+    for( int i = 0; i < id_count; i++ )
+    {
+        struct ToriRS_Task* task = CreateTask_TextureLoad(app->provider, ids[i]);
+        if( task )
+        {
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            queued++;
+        }
+    }
+    if( queued )
+        TaskRunner_Drain(&app->runner);
+
+    if( UITreeSceneBridge_PublishTextures(&app->bridge, ids, id_count) )
+        app->need_redraw = 1;
+}
+
 void
 App_Init(
     struct App* app,
@@ -207,6 +239,8 @@ App_OpenRootInterface(
     TaskRunner_Drain(&app->runner);
     UITreeAnim_Advance(app->tree, app->scene, 0);
 
+    app_sync_textures(app);
+
     app->emit.count = 0;
     UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, -1);
     app->need_redraw = 1;
@@ -301,6 +335,9 @@ app_logic_tick(struct App* app)
     TaskRunner_Drain(&app->runner);
     if( UITreeAnim_Advance(app->tree, app->scene, 1) )
         redraw = 1;
+
+    /* CS2 hooks this tick may have ensured new textured models. */
+    app_sync_textures(app);
 
     return redraw;
 }

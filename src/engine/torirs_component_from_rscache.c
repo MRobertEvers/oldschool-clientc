@@ -176,10 +176,26 @@ torirs_copy_script_hook(
     for( int i = 0; i < n; i++ )
     {
         if( src[i].type == RSCACHE_DAT2_COMPONENT_SCRIPT_VAR_INT )
+        {
             dst->argv[i] = src[i].value.i;
+        }
         else
+        {
             dst->argv[i] = 0;
+            dst->str_mask |= (uint64_t)1 << i;
+            if( dst->str_argc < TORIRS_COMPONENT_HOOK_STR_MAX )
+            {
+                char* out = dst->strv[dst->str_argc];
+                strncpy(out, src[i].value.s ? src[i].value.s : "", TORIRS_COMPONENT_HOOK_STR_LEN - 1);
+                out[TORIRS_COMPONENT_HOOK_STR_LEN - 1] = '\0';
+            }
+            /* Past the pool cap the position stays marked in str_mask so int/
+             * string local alignment holds; the value degrades to "". */
+            dst->str_argc++;
+        }
     }
+    if( dst->str_argc > TORIRS_COMPONENT_HOOK_STR_MAX )
+        dst->str_argc = TORIRS_COMPONENT_HOOK_STR_MAX;
 }
 
 static void

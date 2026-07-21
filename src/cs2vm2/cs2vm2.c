@@ -189,6 +189,18 @@ CS2VM2_TraceOpcode(
         (unsigned)vm->dot_component_id);
     if( g_cs2_trace_extra[0] != '\0' )
         fprintf(stderr, " %s", g_cs2_trace_extra);
+    /* TEMP DEBUG: top-of-stack values for parity diffing (mode 2 only). */
+    if( g_cs2_trace_mode == 2 )
+    {
+        if( vm->ints_stack_top > 0 )
+            fprintf(stderr, " itop=%d", vm->ints_stack[vm->ints_stack_top - 1]);
+        if( vm->strs_stack_top > 0 )
+            fprintf(
+                stderr,
+                " stop=\"%s\"",
+                vm->strs_stack[vm->strs_stack_top - 1] ? vm->strs_stack[vm->strs_stack_top - 1]
+                                                       : "(null)");
+    }
     if( result == CS2VM_EXECNO_YIELD )
         fprintf(stderr, " result=yield");
     else if( result != CS2VM_EXECNO_OK )
@@ -329,6 +341,21 @@ CS2VM2_SetIntCurrentFrameLocal(
 }
 
 int
+CS2VM2_SetStringCurrentFrameLocal(
+    struct CS2VM2_Thread* vm,
+    int idx,
+    char const* value)
+{
+    struct CS2VM2_Frame* frame;
+    assert(vm);
+    if( idx < 0 || idx >= CS2VM_MAX_LOCALS )
+        return CS2VM_EXECNO_ERROR;
+    frame = CS2VM_FRAME(vm);
+    frame->str_locals[idx] = value ? strdup(value) : NULL;
+    return CS2VM_EXECNO_OK;
+}
+
+int
 CS2VM2_PushIntFrameLocal(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
@@ -403,7 +430,11 @@ CS2VM2_PushStrFrameLocal(
     assert(vm);
     assert(frame);
 
-    return CS2VM2_PushStr(vm, frame->str_locals[idx]);
+    /* Stack strings are owned by the stack (consumers free them); pushing the
+     * local's pointer directly lets a consumer free the local's storage and
+     * leave every alias dangling (e.g. IF_SETON* hook args). Push a copy. */
+    return CS2VM2_PushStr(
+        vm, frame->str_locals[idx] ? strdup(frame->str_locals[idx]) : NULL);
 }
 
 int
@@ -2672,6 +2703,8 @@ CS2VM2_Op_IF_SetOnEventHandler(
     {
         int int_args[32] = { 0 };
         int int_arg_count = 0;
+        char* str_by_pos[32] = { 0 };
+        uint32_t str_arg_mask = 0;
 
         if( signature && signature_parse_len > 0 )
         {
@@ -2683,8 +2716,21 @@ CS2VM2_Op_IF_SetOnEventHandler(
                     char* v = NULL;
                     if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                     {
+                        for( int k = 0; k < 32; k++ )
+                            free(str_by_pos[k]);
                         free(trigger_ids);
                         return CS2VM_EXECNO_ERROR;
+                    }
+                    if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
+                    {
+                        str_by_pos[i] = v;
+                        str_arg_mask |= (uint32_t)1 << i;
+                        if( i + 1 > int_arg_count )
+                            int_arg_count = i + 1;
+                    }
+                    else
+                    {
+                        free(v);
                     }
                 }
                 else
@@ -2692,6 +2738,8 @@ CS2VM2_Op_IF_SetOnEventHandler(
                     int v = 0;
                     if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                     {
+                        for( int k = 0; k < 32; k++ )
+                            free(str_by_pos[k]);
                         free(trigger_ids);
                         return CS2VM_EXECNO_ERROR;
                     }
@@ -2707,12 +2755,16 @@ CS2VM2_Op_IF_SetOnEventHandler(
 
         if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
         {
+            for( int k = 0; k < 32; k++ )
+                free(str_by_pos[k]);
             free(trigger_ids);
             return CS2VM_EXECNO_ERROR;
         }
 
         if( script_id == -1 )
         {
+            for( int k = 0; k < 32; k++ )
+                free(str_by_pos[k]);
             free(trigger_ids);
             return CS2VM_EXECNO_OK;
         }
@@ -2726,6 +2778,23 @@ CS2VM2_Op_IF_SetOnEventHandler(
         out_request->int_arg_count = int_arg_count;
         if( int_arg_count > 0 )
             memcpy(out_request->int_args, int_args, (size_t)int_arg_count * sizeof(int));
+        out_request->str_arg_mask = str_arg_mask;
+        for( int i = 0; i < 32; i++ )
+        {
+            if( !(str_arg_mask & ((uint32_t)1 << i)) )
+                continue;
+            if( out_request->str_arg_count < CS2VM_SETON_STR_ARG_MAX )
+            {
+                char* dst = out_request->str_args[out_request->str_arg_count];
+                strncpy(dst, str_by_pos[i] ? str_by_pos[i] : "", CS2VM_SETON_STR_ARG_LEN - 1);
+                dst[CS2VM_SETON_STR_ARG_LEN - 1] = '\0';
+            }
+            out_request->str_arg_count++;
+        }
+        if( out_request->str_arg_count > CS2VM_SETON_STR_ARG_MAX )
+            out_request->str_arg_count = CS2VM_SETON_STR_ARG_MAX;
+        for( int k = 0; k < 32; k++ )
+            free(str_by_pos[k]);
     }
 
     {
@@ -2798,6 +2867,8 @@ CS2VM2_Op_CC_SetOnEventHandler(
     {
         int int_args[32] = { 0 };
         int int_arg_count = 0;
+        char* str_by_pos[32] = { 0 };
+        uint32_t str_arg_mask = 0;
 
         if( signature && signature_parse_len > 0 )
         {
@@ -2809,8 +2880,21 @@ CS2VM2_Op_CC_SetOnEventHandler(
                     char* v = NULL;
                     if( CS2VM2_PopStr(vm, &v) != CS2VM_EXECNO_OK )
                     {
+                        for( int k = 0; k < 32; k++ )
+                            free(str_by_pos[k]);
                         free(trigger_ids);
                         return CS2VM_EXECNO_ERROR;
+                    }
+                    if( i < (int)(sizeof(str_by_pos) / sizeof(str_by_pos[0])) )
+                    {
+                        str_by_pos[i] = v;
+                        str_arg_mask |= (uint32_t)1 << i;
+                        if( i + 1 > int_arg_count )
+                            int_arg_count = i + 1;
+                    }
+                    else
+                    {
+                        free(v);
                     }
                 }
                 else
@@ -2818,6 +2902,8 @@ CS2VM2_Op_CC_SetOnEventHandler(
                     int v = 0;
                     if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
                     {
+                        for( int k = 0; k < 32; k++ )
+                            free(str_by_pos[k]);
                         free(trigger_ids);
                         return CS2VM_EXECNO_ERROR;
                     }
@@ -2833,6 +2919,8 @@ CS2VM2_Op_CC_SetOnEventHandler(
 
         if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
         {
+            for( int k = 0; k < 32; k++ )
+                free(str_by_pos[k]);
             free(trigger_ids);
             return CS2VM_EXECNO_ERROR;
         }
@@ -2848,6 +2936,23 @@ CS2VM2_Op_CC_SetOnEventHandler(
         out_request->int_arg_count = int_arg_count;
         if( int_arg_count > 0 )
             memcpy(out_request->int_args, int_args, (size_t)int_arg_count * sizeof(int));
+        out_request->str_arg_mask = str_arg_mask;
+        for( int i = 0; i < 32; i++ )
+        {
+            if( !(str_arg_mask & ((uint32_t)1 << i)) )
+                continue;
+            if( out_request->str_arg_count < CS2VM_SETON_STR_ARG_MAX )
+            {
+                char* dst = out_request->str_args[out_request->str_arg_count];
+                strncpy(dst, str_by_pos[i] ? str_by_pos[i] : "", CS2VM_SETON_STR_ARG_LEN - 1);
+                dst[CS2VM_SETON_STR_ARG_LEN - 1] = '\0';
+            }
+            out_request->str_arg_count++;
+        }
+        if( out_request->str_arg_count > CS2VM_SETON_STR_ARG_MAX )
+            out_request->str_arg_count = CS2VM_SETON_STR_ARG_MAX;
+        for( int k = 0; k < 32; k++ )
+            free(str_by_pos[k]);
     }
 
     {

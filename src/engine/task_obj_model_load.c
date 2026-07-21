@@ -19,6 +19,7 @@ struct Task_ObjModelLoad
     int i;
     int count_obj_id;
     int model_id;
+    int tex_f;
 };
 
 static int
@@ -67,6 +68,38 @@ obj_model_resolve_inventory_model_id(
     return obj->inventory_model_id;
 }
 
+/* Texture id for face `face` of the model, or -1 if none/out of range. */
+static int
+obj_model_face_texture(
+    struct CacheProvider* provider,
+    int model_id,
+    int face)
+{
+    struct ToriRS_Model* model;
+
+    if( model_id <= 0 || !CacheProvider_ModelHas(provider, model_id) )
+        return -1;
+    model = CacheProvider_ModelGet(provider, model_id);
+    if( !model || !model->face_textures || face < 0 || face >= model->face_count )
+        return -1;
+    return (int)model->face_textures[face];
+}
+
+static int
+obj_model_face_count(
+    struct CacheProvider* provider,
+    int model_id)
+{
+    struct ToriRS_Model* model;
+
+    if( model_id <= 0 || !CacheProvider_ModelHas(provider, model_id) )
+        return 0;
+    model = CacheProvider_ModelGet(provider, model_id);
+    if( !model || !model->face_textures )
+        return 0;
+    return model->face_count;
+}
+
 static int
 obj_model_needs_work(
     struct CacheProvider* provider,
@@ -75,6 +108,8 @@ obj_model_needs_work(
 {
     int count_obj_id;
     int model_id;
+    int face_count;
+    int f;
 
     assert(provider);
     if( obj_id <= 0 )
@@ -89,6 +124,15 @@ obj_model_needs_work(
     model_id = obj_model_resolve_inventory_model_id(provider, obj_id, count_obj_id);
     if( model_id > 0 && !CacheProvider_ModelHas(provider, model_id) )
         return 1;
+
+    /* Icon raster reads face textures; they load with the model batch. */
+    face_count = obj_model_face_count(provider, model_id);
+    for( f = 0; f < face_count; f++ )
+    {
+        int texture_id = obj_model_face_texture(provider, model_id, f);
+        if( texture_id >= 0 && !CacheProvider_TextureHas(provider, texture_id) )
+            return 1;
+    }
     return 0;
 }
 
@@ -141,6 +185,18 @@ Task_ObjModelLoad_Run(
             obj_model_resolve_inventory_model_id(self->provider, obj_id, self->count_obj_id);
         if( self->model_id > 0 )
             TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->model_id));
+
+        /* One attempt per face: a texture whose load fails stays missing and
+         * the icon raster skips those faces instead of looping here. */
+        for( self->tex_f = 0;
+             self->tex_f < obj_model_face_count(self->provider, self->model_id);
+             self->tex_f++ )
+        {
+            int texture_id =
+                obj_model_face_texture(self->provider, self->model_id, self->tex_f);
+            if( texture_id >= 0 && !CacheProvider_TextureHas(self->provider, texture_id) )
+                TASK_AWAITSELF_IF(CreateTask_TextureLoad(self->provider, texture_id));
+        }
     }
 
     PT_END(&self->pt);

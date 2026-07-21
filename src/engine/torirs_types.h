@@ -412,10 +412,20 @@ enum ToriRS_ComponentType
 #define TORIRS_INVENTORY_TRIGGER_MAX 8
 #define TORIRS_VARP_TRIGGER_MAX 8
 
+/** Hook string args (e.g. button labels passed to onLoad procs) are rare and
+ * short — keep a small inline pool so hooks stay memcpy-safe PODs. */
+#define TORIRS_COMPONENT_HOOK_STR_MAX 4
+#define TORIRS_COMPONENT_HOOK_STR_LEN 80
+
 struct ToriRS_ScriptHook
 {
     int argc;
     int argv[TORIRS_COMPONENT_HOOK_ARG_MAX];
+    /* Bit i set = arg position i is a string; strings fill strv[] in position
+     * order (k-th set bit -> strv[k]). argv[i] is unused at string positions. */
+    uint64_t str_mask;
+    int str_argc;
+    char strv[TORIRS_COMPONENT_HOOK_STR_MAX][TORIRS_COMPONENT_HOOK_STR_LEN];
 };
 
 struct ToriRS_Component

@@ -28,22 +28,27 @@ Task_Dat2ObjLoad_Run(
     struct RSCache_Dat2DiskArchive* archive = NULL;
     struct RSCache_Dat2ConfigObj* rscache_obj = NULL;
     struct ToriRS_Objtype* torirs_obj = NULL;
-    int wanted_id = task->obj_id;
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_OBJECT);
-    PT_YIELD(&task->pt);
-
-    archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_OBJECT);
-    if( !archive )
+    /* The whole group decodes on first touch; later tasks skip the archive
+     * load entirely instead of re-decompressing it per id. */
+    if( !dat2_buildcache_object_get(task->bc, task->obj_id) )
     {
-        fprintf(stderr, "Failed to decode dat2 object config group for obj %d\n", task->obj_id);
-        PT_EXIT(&task->pt);
-    }
+        RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_OBJECT);
+        PT_YIELD(&task->pt);
 
-    dat2_buildcache_objects_init_from_archive(task->bc, archive, &wanted_id, 1);
-    RSCache_Dat2DiskArchiveFree(archive);
+        archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_OBJECT);
+        if( !archive )
+        {
+            fprintf(
+                stderr, "Failed to decode dat2 object config group for obj %d\n", task->obj_id);
+            PT_EXIT(&task->pt);
+        }
+
+        dat2_buildcache_objects_init_from_archive(task->bc, archive, NULL, 0);
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
 
     rscache_obj = dat2_buildcache_object_get(task->bc, task->obj_id);
     if( !rscache_obj )

@@ -47,13 +47,21 @@ RS_CS2_DispatchHook(
     if( !hook || hook->script_id <= 0 || component_id < 0 )
         return;
 
-    task = CreateTask_CS2Run(
-        host,
-        hook->script_id,
-        component_id,
-        component_id,
-        hook->argc > 0 ? hook->argv : NULL,
-        hook->argc);
+    {
+        char const* strp[UITREE_HOOK_STR_ARG_MAX];
+        for( int i = 0; i < UITREE_HOOK_STR_ARG_MAX; i++ )
+            strp[i] = hook->strv[i];
+        task = CreateTask_CS2RunMixed(
+            host,
+            hook->script_id,
+            component_id,
+            component_id,
+            hook->argc > 0 ? hook->argv : NULL,
+            hook->argc,
+            hook->str_mask,
+            strp,
+            hook->str_argc);
+    }
     if( !task )
         return;
     ToriRS_TaskQueue_Add(runner->queue, task);

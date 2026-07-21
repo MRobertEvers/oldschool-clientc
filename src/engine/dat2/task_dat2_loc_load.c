@@ -28,22 +28,26 @@ Task_Dat2LocLoad_Run(
     struct RSCache_Dat2DiskArchive* archive = NULL;
     struct RSCache_Dat2ConfigLoc* rscache_loc = NULL;
     struct ToriRS_Location* torirs_loc = NULL;
-    int wanted_id = task->loc_id;
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_LOCS);
-    PT_YIELD(&task->pt);
-
-    archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_LOCS);
-    if( !archive )
+    /* The whole group decodes on first touch; later tasks skip the archive
+     * load entirely instead of re-decompressing it per id. */
+    if( !dat2_buildcache_loc_get(task->bc, task->loc_id) )
     {
-        fprintf(stderr, "Failed to decode dat2 loc config group for loc %d\n", task->loc_id);
-        PT_EXIT(&task->pt);
-    }
+        RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_LOCS);
+        PT_YIELD(&task->pt);
 
-    dat2_buildcache_locs_init_from_archive(task->bc, archive, &wanted_id, 1);
-    RSCache_Dat2DiskArchiveFree(archive);
+        archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_LOCS);
+        if( !archive )
+        {
+            fprintf(stderr, "Failed to decode dat2 loc config group for loc %d\n", task->loc_id);
+            PT_EXIT(&task->pt);
+        }
+
+        dat2_buildcache_locs_init_from_archive(task->bc, archive, NULL, 0);
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
 
     rscache_loc = dat2_buildcache_loc_get(task->bc, task->loc_id);
     if( !rscache_loc )

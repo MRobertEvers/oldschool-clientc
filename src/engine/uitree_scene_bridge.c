@@ -25,6 +25,46 @@
 #define BRIDGE_MODEL_MAP_CAP 4096
 #define BRIDGE_OBJ_ICON_MAP_CAP 4096
 
+static struct ToriDraw_Texture*
+bridge_texture_from_torirs(const struct ToriRS_Texture* rs);
+
+/* Upload provider textures referenced by rs_model's faces into the scene
+ * texture map; the raster reads only the scene map. Ids the provider lacks
+ * are left alone (raster skips those faces). */
+static void
+bridge_publish_model_textures(
+    struct UITreeSceneBridge* bridge,
+    const struct ToriRS_Model* rs_model)
+{
+    struct ToriDraw_TextureState* tex_state;
+
+    if( !rs_model || !rs_model->face_textures )
+        return;
+    tex_state = ToriDraw_SceneTexState(bridge->scene);
+    if( !tex_state )
+        return;
+
+    for( int f = 0; f < rs_model->face_count; f++ )
+    {
+        int texture_id = (int)rs_model->face_textures[f];
+        struct ToriRS_Texture* rs;
+        struct ToriDraw_Texture* texture;
+
+        if( texture_id < 0 || texture_id >= 256 )
+            continue;
+        if( tex_state->texture_map.textures[texture_id] )
+            continue;
+
+        rs = CacheProvider_TextureGet(bridge->provider, texture_id);
+        if( !rs )
+            continue;
+        texture = bridge_texture_from_torirs(rs);
+        if( !texture )
+            continue;
+        ToriDraw_SceneSetTexture(bridge->scene, texture_id, texture);
+    }
+}
+
 struct MapEntry_BridgeId
 {
     int cache_id;
@@ -146,6 +186,31 @@ bridge_map_put(
     assert(entry);
     entry->cache_id = cache_id;
     entry->scene_id = scene_id;
+}
+
+int
+UITreeSceneBridge_SpriteCacheIdForScene(
+    struct UITreeSceneBridge const* bridge,
+    int scene_id)
+{
+    struct HMapIter* iter;
+    struct MapEntry_BridgeId* entry;
+    int cache_id = -1;
+
+    if( !bridge || !bridge->sprite_map || scene_id < 0 )
+        return -1;
+
+    iter = hmap_iter_new(bridge->sprite_map);
+    while( (entry = (struct MapEntry_BridgeId*)hmap_iter_next(iter)) )
+    {
+        if( entry->scene_id == scene_id )
+        {
+            cache_id = entry->cache_id;
+            break;
+        }
+    }
+    hmap_iter_free(iter);
+    return cache_id;
 }
 
 int
@@ -470,6 +535,8 @@ UITreeSceneBridge_EnsureObjIcon(
     rs_model = CacheProvider_ModelGet(bridge->provider, obj->inventory_model_id);
     assert(rs_model != NULL && "ModelGet failed");
 
+    bridge_publish_model_textures(bridge, rs_model);
+
     model = ToriDraw_ModelFromToriRS(rs_model);
     assert(model != NULL && "ModelFromToriRS failed");
 
@@ -520,4 +587,123 @@ UITreeSceneBridge_EnsureObjIcon(
     entry->count = count;
     entry->scene_id = scene_id;
     return scene_id;
+}
+
+int
+UITreeSceneBridge_CollectMissingTextures(
+    struct UITreeSceneBridge* bridge,
+    int* out_ids,
+    int max_ids)
+{
+    unsigned char seen[256] = { 0 };
+    struct ToriDraw_TextureState* tex_state;
+    int count = 0;
+    int slot_count;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(out_ids);
+
+    tex_state = ToriDraw_SceneTexState(bridge->scene);
+    if( !tex_state )
+        return 0;
+
+    slot_count = ToriDraw_SceneElementSlotCount(bridge->scene);
+    for( int element_id = 0; element_id < slot_count; element_id++ )
+    {
+        struct ToriDraw_SceneElement* el;
+        struct ToriDraw_Model* model;
+
+        if( !ToriDraw_SceneElementIsLive(bridge->scene, element_id) )
+            continue;
+        el = ToriDraw_SceneElementGet(bridge->scene, element_id);
+        if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
+            continue;
+        model = el->model.u.model.model;
+        if( !model->face_textures )
+            continue;
+        for( int f = 0; f < model->face_count && count < max_ids; f++ )
+        {
+            int texture_id = (int)model->face_textures[f];
+            if( texture_id < 0 || texture_id >= 256 )
+                continue;
+            if( seen[texture_id] || bridge->texture_failed[texture_id] )
+                continue;
+            seen[texture_id] = 1;
+            if( tex_state->texture_map.textures[texture_id] )
+                continue;
+            out_ids[count++] = texture_id;
+        }
+    }
+    return count;
+}
+
+static struct ToriDraw_Texture*
+bridge_texture_from_torirs(const struct ToriRS_Texture* rs)
+{
+    struct ToriDraw_Texture* texture;
+    size_t texel_bytes;
+
+    if( !rs || !rs->texels || rs->width <= 0 || rs->height <= 0 )
+        return NULL;
+
+    texture = calloc(1, sizeof(*texture));
+    if( !texture )
+        return NULL;
+
+    texel_bytes = (size_t)rs->width * (size_t)rs->height * sizeof(int);
+    texture->texels = malloc(texel_bytes);
+    if( !texture->texels )
+    {
+        free(texture);
+        return NULL;
+    }
+    memcpy(texture->texels, rs->texels, texel_bytes);
+    texture->width = rs->width;
+    texture->height = rs->height;
+    texture->opaque = rs->opaque;
+    texture->animation_direction = rs->animation_direction;
+    texture->animation_speed = rs->animation_speed;
+    return texture;
+}
+
+int
+UITreeSceneBridge_PublishTextures(
+    struct UITreeSceneBridge* bridge,
+    const int* ids,
+    int id_count)
+{
+    int published = 0;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(bridge->provider);
+
+    for( int i = 0; i < id_count; i++ )
+    {
+        int texture_id = ids[i];
+        struct ToriRS_Texture* rs;
+        struct ToriDraw_Texture* texture;
+
+        if( texture_id < 0 || texture_id >= 256 )
+            continue;
+
+        rs = CacheProvider_TextureGet(bridge->provider, texture_id);
+        if( !rs )
+        {
+            bridge->texture_failed[texture_id] = 1;
+            continue;
+        }
+
+        texture = bridge_texture_from_torirs(rs);
+        if( !texture )
+        {
+            bridge->texture_failed[texture_id] = 1;
+            continue;
+        }
+
+        ToriDraw_SceneSetTexture(bridge->scene, texture_id, texture);
+        published++;
+    }
+    return published;
 }

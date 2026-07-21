@@ -28,22 +28,26 @@ Task_Dat2NpcLoad_Run(
     struct RSCache_Dat2DiskArchive* archive = NULL;
     struct RSCache_Dat2ConfigNpc* rscache_npc = NULL;
     struct ToriRS_Npctype* torirs_npc = NULL;
-    int wanted_id = task->npc_id;
 
     PT_BEGIN(&task->pt);
 
-    RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_NPC);
-    PT_YIELD(&task->pt);
-
-    archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_NPC);
-    if( !archive )
+    /* The whole group decodes on first touch; later tasks skip the archive
+     * load entirely instead of re-decompressing it per id. */
+    if( !dat2_buildcache_npctype_get(task->bc, task->npc_id) )
     {
-        fprintf(stderr, "Failed to decode dat2 npc config group for npc %d\n", task->npc_id);
-        PT_EXIT(&task->pt);
-    }
+        RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_NPC);
+        PT_YIELD(&task->pt);
 
-    dat2_buildcache_npctypes_init_from_archive(task->bc, archive, &wanted_id, 1);
-    RSCache_Dat2DiskArchiveFree(archive);
+        archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_NPC);
+        if( !archive )
+        {
+            fprintf(stderr, "Failed to decode dat2 npc config group for npc %d\n", task->npc_id);
+            PT_EXIT(&task->pt);
+        }
+
+        dat2_buildcache_npctypes_init_from_archive(task->bc, archive, NULL, 0);
+        RSCache_Dat2DiskArchiveFree(archive);
+    }
 
     rscache_npc = dat2_buildcache_npctype_get(task->bc, task->npc_id);
     if( !rscache_npc )

@@ -248,6 +248,12 @@ CS2VM2_SetIntCurrentFrameLocal(
     int value);
 
 int
+CS2VM2_SetStringCurrentFrameLocal(
+    struct CS2VM2_Thread* thread,
+    int local,
+    char const* value);
+
+int
 CS2VM2_RunScript(struct CS2VM2_Thread* thread);
 
 void

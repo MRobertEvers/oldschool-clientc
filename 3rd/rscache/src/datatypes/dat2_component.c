@@ -487,7 +487,8 @@ decode_if3_hook(
 void
 RSCache_Dat2ComponentDecodeIf3(
     struct RSCache_Dat2Component* self,
-    struct RSCache_Buffer* buf)
+    struct RSCache_Buffer* buf,
+    enum RSCache_Dat2ComponentDecodeRev rev)
 {
     self->if3 = true;
     g1(buf); // Skips the 255 marker
@@ -538,9 +539,17 @@ RSCache_Dat2ComponentDecodeIf3(
         self->transparency = g1(buf);
         self->outline = g1(buf);
         self->graphicShadow = (int32_t)g4(buf);
-        self->horizontalFlip = (g1(buf) == 1);
-        self->verticalFlip = (g1(buf) == 1);
-        self->color = (int32_t)g4(buf);
+        if( rev == RSCACHE_DAT2_COMPONENT_DECODE_REV_643 )
+        {
+            self->horizontalFlip = (g1(buf) == 1);
+            self->verticalFlip = (g1(buf) == 1);
+            self->color = (int32_t)g4(buf);
+        }
+        else
+        {
+            self->verticalFlip = (g1(buf) == 1);
+            self->horizontalFlip = (g1(buf) == 1);
+        }
     }
     if( self->type == 6 )
     {
@@ -559,12 +568,27 @@ RSCache_Dat2ComponentDecodeIf3(
             self->modelSeqId = -1;
         self->modelOrthographic = (g1(buf) == 1);
         self->aShort50 = (int16_t)g2(buf);
-        self->aShort49 = (int16_t)g2(buf);
-        self->aBoolean411 = (g1(buf) == 1);
-        if( self->widthMode != 0 )
-            self->anInt5957 = g2(buf);
-        if( self->heightMode != 0 )
-            self->anInt5920 = g2(buf);
+        if( rev == RSCACHE_DAT2_COMPONENT_DECODE_REV_643 )
+        {
+            self->aShort49 = (int16_t)g2(buf);
+            self->aBoolean411 = (g1(buf) == 1);
+            if( self->widthMode != 0 )
+                self->anInt5957 = g2(buf);
+            if( self->heightMode != 0 )
+                self->anInt5920 = g2(buf);
+        }
+        else
+        {
+            /* OSRS: both override shorts are present whenever either size
+             * mode is dynamic — cache data has wm=1,hm=0 files carrying both
+             * (e.g. interface 272 file 4); gating the second on heightMode
+             * misaligns the rest of the file. */
+            if( self->widthMode != 0 || self->heightMode != 0 )
+            {
+                self->anInt5957 = g2(buf);
+                self->anInt5920 = g2(buf);
+            }
+        }
     }
     if( self->type == 4 )
     {
@@ -676,7 +700,8 @@ struct RSCache_Dat2Component*
 RSCache_Dat2ComponentNewDecode(
     uint8_t* data,
     int data_size,
-    int packed_id)
+    int packed_id,
+    enum RSCache_Dat2ComponentDecodeRev rev)
 {
     assert(data != NULL);
     assert(data_size > 0);
@@ -689,7 +714,7 @@ RSCache_Dat2ComponentNewDecode(
     RSCache_Dat2ComponentInit(comp);
     comp->id = packed_id;
     if( (unsigned char)data[0] == (unsigned char)255 )
-        RSCache_Dat2ComponentDecodeIf3(comp, &buf);
+        RSCache_Dat2ComponentDecodeIf3(comp, &buf, rev);
     else
         RSCache_Dat2ComponentDecodeIf1(comp, &buf);
     return comp;
@@ -719,7 +744,8 @@ RSCache_Dat2ComponentPackFree(struct RSCache_Dat2ComponentPack* pack)
 struct RSCache_Dat2ComponentPack*
 RSCache_Dat2ComponentPackNewFromFileList(
     struct RSCache_FileList* filelist,
-    int interface_id)
+    int interface_id,
+    enum RSCache_Dat2ComponentDecodeRev rev)
 {
     assert(filelist != NULL);
     assert(filelist->file_count > 0);
@@ -735,7 +761,7 @@ RSCache_Dat2ComponentPackNewFromFileList(
     {
         int packed_id = (interface_id << 16) | (i & 0xFFFF);
         pack->components[i] = RSCache_Dat2ComponentNewDecode(
-            (uint8_t*)filelist->files[i], filelist->file_sizes[i], packed_id);
+            (uint8_t*)filelist->files[i], filelist->file_sizes[i], packed_id, rev);
         assert(pack->components[i] != NULL);
     }
 
@@ -745,7 +771,8 @@ RSCache_Dat2ComponentPackNewFromFileList(
 struct RSCache_Dat2ComponentPack*
 RSCache_Dat2ComponentPackNewFromArchive(
     struct RSCache_Dat2DiskArchive* archive,
-    int interface_id)
+    int interface_id,
+    enum RSCache_Dat2ComponentDecodeRev rev)
 {
     assert(archive != NULL);
     struct RSCache_FileList* filelist =
@@ -753,7 +780,7 @@ RSCache_Dat2ComponentPackNewFromArchive(
     assert(filelist != NULL);
 
     struct RSCache_Dat2ComponentPack* pack =
-        RSCache_Dat2ComponentPackNewFromFileList(filelist, interface_id);
+        RSCache_Dat2ComponentPackNewFromFileList(filelist, interface_id, rev);
     RSCache_FileListFree(filelist);
     return pack;
 }

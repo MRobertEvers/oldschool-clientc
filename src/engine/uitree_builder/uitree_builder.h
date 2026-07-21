@@ -13,6 +13,9 @@ struct UIBuilderManifest;
 
 #define UITREE_BUILDER_NAME_MAX 64
 #define UITREE_BUILDER_ONLOAD_ARGV_MAX 64
+/* Mirrors TORIRS_COMPONENT_HOOK_STR_MAX/LEN (hook string-arg pool). */
+#define UITREE_BUILDER_ONLOAD_STR_MAX 4
+#define UITREE_BUILDER_ONLOAD_STR_LEN 80
 
 struct UIBuilderSpriteEntry
 {
@@ -35,6 +38,11 @@ struct UIBuilderOnLoadEntry
     int script_id;
     int argc;
     int argv[UITREE_BUILDER_ONLOAD_ARGV_MAX];
+    /* Bit i set = argv[i] is a string arg; strings fill strv[] in position
+     * order (k-th set bit -> strv[k]). */
+    uint64_t str_mask;
+    int str_argc;
+    char strv[UITREE_BUILDER_ONLOAD_STR_MAX][UITREE_BUILDER_ONLOAD_STR_LEN];
 };
 
 struct UITreeBuilder
@@ -104,7 +112,10 @@ UITreeBuilder_AddOnLoad(
     int component_id,
     int script_id,
     int const* argv,
-    int argc);
+    int argc,
+    uint64_t str_mask,
+    char const* const* strs,
+    int str_argc);
 
 /** Resolve `name` or `name[index]` → archive/scene id. Returns -1 on miss. */
 int

@@ -3,6 +3,8 @@
 
 #include "asyncio.h"
 
+#include <stdint.h>
+
 struct RS_CS2Host;
 struct CS2VM2_Script;
 
@@ -19,6 +21,24 @@ CreateTask_CS2Run(
     int dot_component_id,
     int const* int_args,
     int int_arg_count);
+
+/**
+ * CS2Run with mixed positional hook args. args/arg_count is the full positional
+ * list; str_mask bit i marks position i as a string arg whose value comes from
+ * str_args[] (position order, k-th set bit -> str_args[k]). Ints fill the
+ * script's int locals in order, strings its string locals in order.
+ */
+struct ToriRS_Task*
+CreateTask_CS2RunMixed(
+    struct RS_CS2Host* host,
+    int script_id,
+    int active_component_id,
+    int dot_component_id,
+    int const* args,
+    int arg_count,
+    uint64_t str_mask,
+    char const* const* str_args,
+    int str_arg_count);
 
 /** Same as CreateTask_CS2Run but starts from an already-loaded script pointer. */
 struct ToriRS_Task*

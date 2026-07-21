@@ -18,6 +18,8 @@ bake_runtime_hook_from_torirs(
     int script_id;
     int const* args;
     int arg_count;
+    char const* strp[TORIRS_COMPONENT_HOOK_STR_MAX];
+    int i;
 
     assert(tree);
     assert(slot);
@@ -38,7 +40,19 @@ bake_runtime_hook_from_torirs(
         args = NULL;
         arg_count = 0;
     }
-    (void)UITree_ApplyRuntimeHook(tree, component_id, slot, script_id, args, arg_count);
+    for( i = 0; i < TORIRS_COMPONENT_HOOK_STR_MAX; i++ )
+        strp[i] = src->strv[i];
+    /* argv[0] is the script id (always int) — args drop it, so shift str_mask. */
+    (void)UITree_ApplyRuntimeHook(
+        tree,
+        component_id,
+        slot,
+        script_id,
+        args,
+        arg_count,
+        (uint32_t)(src->str_mask >> 1),
+        strp,
+        src->str_argc);
 }
 
 static void
