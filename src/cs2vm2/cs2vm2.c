@@ -4913,6 +4913,39 @@ CS2VM2_Op_CC_SetOnEventDiscard(
 }
 
 static int
+CS2VM2_Op_CC_SetOnTimer(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_CC_SetOnOp req;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTIMER, &req);
+}
+
+static int
+CS2VM2_Op_CC_SetOnVarTransmit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_CC_SetOnOp req;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT, &req);
+}
+
+static int
+CS2VM2_Op_CC_SetOnInvTransmit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_CC_SetOnOp req;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT, &req);
+}
+
+static int
 CS2VM2_Op_StackMetaStub(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
@@ -6062,9 +6095,13 @@ CS2VM2_RunOp(
     case CS2_OP_CC_SETTARGETVERB:
         return CS2VM_EXECNO_OK;
     case CS2_OP_CC_SETONVARTRANSMIT:
+        return CS2VM2_Op_CC_SetOnVarTransmit(vm, frame, operand);
     case CS2_OP_CC_SETONTIMER:
+        return CS2VM2_Op_CC_SetOnTimer(vm, frame, operand);
     case CS2_OP_CC_SETONINVTRANSMIT:
+        return CS2VM2_Op_CC_SetOnInvTransmit(vm, frame, operand);
     case CS2_OP_CC_SETONSTATTRANSMIT:
+        /* No stat model in the editor yet; parse + discard keeps the stack sane. */
         return CS2VM2_Op_CC_SetOnEventDiscard(vm, frame, operand);
     case CS2_OP_CC_GETTEXT:
         return CS2VM2_Op_CC_GetText(vm, frame, operand);

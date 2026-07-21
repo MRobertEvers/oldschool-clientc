@@ -13,6 +13,7 @@
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "platform/platform_x_io.h"
 #include "render/torirs_frame.h"
+#include "task_runner.h"
 #include "toridraw.h"
 #include "toridraw_animation.h"
 #include "toridraw_model.h"
@@ -35,9 +36,11 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#define CACHE_DIR "/Users/matthewevers/Documents/git_repos/3draster/cache.jan2026"
-#define CONFIG_DIR "/Users/matthewevers/Documents/git_repos/3draster/config"
-#define SCRIPT_DIR "/Users/matthewevers/Documents/git_repos/3draster/script"
+/* Repo-relative defaults (run from the repo root); pass an explicit cache dir
+ * as argv[1] from anywhere else. */
+#define CACHE_DIR "cache.jan2026"
+#define CONFIG_DIR "config"
+#define SCRIPT_DIR "script"
 #define DEFAULT_INTERFACE_ID 630
 #define UITREE_CLICK_DEBUG 0
 
@@ -144,11 +147,8 @@ pump_task_queue(
     struct ToriRS_IO* io,
     struct PlatformX_IO* px)
 {
-    assert(queue);
-    assert(io);
-    assert(px);
-    while( ToriRS_TaskQueue_Run(queue, io) == TORIRS_ASYNCIO_STAT_YIELD )
-        PlatformX_IO_Process(px, io);
+    struct TaskRunner runner = { .queue = queue, .io = io, .px = px };
+    TaskRunner_Drain(&runner);
 }
 
 /*
@@ -364,6 +364,12 @@ static struct UITreeRuntimeScriptHook const*
 pick_on_mouse_repeat(struct UITreeComponent const* node)
 {
     return &node->runtime_hooks.on_mouse_repeat;
+}
+
+static struct UITreeRuntimeScriptHook const*
+pick_on_timer(struct UITreeComponent const* node)
+{
+    return &node->runtime_hooks.on_timer;
 }
 
 /* Reference event ctx passes mouse coords relative to the component's drawn
@@ -1058,6 +1064,41 @@ main(
                 }
                 prev_hover_com_id = hover_com_id;
                 need_redraw = 1;
+            }
+
+            /* onTimer fires once per 20ms client tick for every component
+             * with a timer hook (reference processWidgetTimers). Component
+             * ids are snapshotted first because a hook can CC_CREATE children
+             * and realloc the component array mid-walk. */
+            {
+                static uint64_t last_timer_ms = 0;
+                uint64_t now_ms = SDL_GetTicks64();
+                if( now_ms - last_timer_ms >= 20 )
+                {
+                    int timer_ids[256];
+                    int timer_n = 0;
+                    last_timer_ms = now_ms;
+                    for( uint32_t ti = 0;
+                         ti < tree->component_count && timer_n < 256;
+                         ti++ )
+                    {
+                        struct UITreeComponent const* tc = &tree->components[ti];
+                        if( tc->component_id >= 0 &&
+                            tc->runtime_hooks.on_timer.script_id > 0 )
+                            timer_ids[timer_n++] = tc->component_id;
+                    }
+                    for( int i = 0; i < timer_n; i++ )
+                    {
+                        run_runtime_hook(
+                            &host,
+                            queue,
+                            io,
+                            px,
+                            timer_ids[i],
+                            component_runtime_hook(tree, timer_ids[i], pick_on_timer));
+                        ran_cs2 = 1;
+                    }
+                }
             }
 
             /* onMouseRepeat fires for the still-hovered component once per

@@ -1416,6 +1416,88 @@ exec_set_on_var_transmit(
     return CS2VM_EXECNO_OK;
 }
 
+/* CC-level transmit hooks: same registration as the IF-level ones, but the
+ * component is the VM's active child and args/triggers arrive in the CC
+ * request shape. Previously these opcodes were silently discarded, so
+ * dynamically-built lists never refreshed on inv/var changes. */
+static int
+exec_set_on_cc_transmit(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    enum CS2VM_HostRequestKind kind,
+    struct CS2VM_HostRequest_CC_SetOnOp const* request)
+{
+    int component_id;
+
+    assert(host);
+    assert(vm);
+    if( !request )
+        return CS2VM_EXECNO_OK;
+
+    component_id = vm->active_component_id;
+    if( component_id < 0 )
+        return CS2VM_EXECNO_OK;
+
+    if( kind == CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT )
+    {
+        struct RS_CS2InvTransmitHook* hook;
+        if( host->inv_transmit_hook_count >= RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX )
+        {
+            fprintf(
+                stderr,
+                "rs_cs2_host: inv_transmit_hooks full (%d), dropping cc script_id=%d "
+                "component_id=%d\n",
+                RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX,
+                request->script_id,
+                component_id);
+            return CS2VM_EXECNO_OK;
+        }
+        hook = &host->inv_transmit_hooks[host->inv_transmit_hook_count++];
+        memset(hook, 0, sizeof(*hook));
+        hook->component_id = component_id;
+        hook->script_id = request->script_id;
+        hook->int_arg_count = request->int_arg_count;
+        if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
+            hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
+        memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+        hook->trigger_count = request->trigger_count;
+        if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
+            hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
+        if( request->trigger_ids && hook->trigger_count > 0 )
+            memcpy(
+                hook->trigger_ids,
+                request->trigger_ids,
+                (size_t)hook->trigger_count * sizeof(int));
+        return CS2VM_EXECNO_OK;
+    }
+
+    if( kind == CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT )
+    {
+        struct RS_CS2VarTransmitHook* hook;
+        if( host->var_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
+            return CS2VM_EXECNO_OK;
+        hook = &host->var_transmit_hooks[host->var_transmit_hook_count++];
+        memset(hook, 0, sizeof(*hook));
+        hook->component_id = component_id;
+        hook->script_id = request->script_id;
+        hook->int_arg_count = request->int_arg_count;
+        if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
+            hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
+        memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+        hook->trigger_count = request->trigger_count;
+        if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
+            hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
+        if( request->trigger_ids && hook->trigger_count > 0 )
+            memcpy(
+                hook->trigger_ids,
+                request->trigger_ids,
+                (size_t)hook->trigger_count * sizeof(int));
+        return CS2VM_EXECNO_OK;
+    }
+
+    return CS2VM_EXECNO_OK;
+}
+
 static struct UITreeRuntimeScriptHook*
 rs_cs2_runtime_hook_slot(
     struct UITreeComponent* node,
@@ -1436,6 +1518,12 @@ rs_cs2_runtime_hook_slot(
     case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
         return &node->runtime_hooks.on_mouse_leave;
+    case CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT:
+    case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
+        return &node->runtime_hooks.on_mouse_repeat;
+    case CS2VM_HOST_REQUEST_IF_SETONTIMER:
+    case CS2VM_HOST_REQUEST_CC_SETONTIMER:
+        return &node->runtime_hooks.on_timer;
     case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
     case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
         return &node->runtime_hooks.on_scroll_wheel;
@@ -2214,6 +2302,7 @@ RS_CS2Host_Exec(
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT:
     case CS2VM_HOST_REQUEST_IF_SETONTIMER:
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
         return CS2VM_EXECNO_OK;
@@ -2226,9 +2315,13 @@ RS_CS2Host_Exec(
     case CS2VM_HOST_REQUEST_CC_SETONRESIZE:
     case CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE:
     case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
-        return exec_set_on_cc_event(host, vm, request->kind, &request->u.cc_set_on_op);
-    case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
+    case CS2VM_HOST_REQUEST_CC_SETONTIMER:
+        return exec_set_on_cc_event(host, vm, request->kind, &request->u.cc_set_on_op);
+    case CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT:
+    case CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT:
+        return exec_set_on_cc_transmit(host, vm, request->kind, &request->u.cc_set_on_op);
+    case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
         return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_SETANTIDRAG:
