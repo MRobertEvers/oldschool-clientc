@@ -112,8 +112,84 @@ fill_rect_cmd(
     out->u.fill_rect.filled = 1;
 }
 
+/* Centre of a scene sprite's cropped sub-rect (the pivot BlitSpriteRotatedEx
+ * samples around). Leaves the outs untouched when the sprite is not resident. */
+static void
+sprite_src_center(
+    struct ToriRS_Frame* frame,
+    int scene_id,
+    int atlas_index,
+    int* out_cx,
+    int* out_cy)
+{
+    int count = 0;
+    struct ToriDraw_Sprite** sprites;
+    struct ToriDraw_Sprite* sprite;
+
+    assert(frame);
+    assert(frame->scene);
+
+    sprites = ToriDraw_SceneSpriteGet(frame->scene, scene_id, &count);
+    if( !sprites || atlas_index < 0 || atlas_index >= count )
+        return;
+    sprite = sprites[atlas_index];
+    if( !sprite )
+        return;
+    *out_cx = (sprite->crop_width > 0 ? sprite->crop_width : sprite->width) / 2;
+    *out_cy = (sprite->crop_height > 0 ? sprite->crop_height : sprite->height) / 2;
+}
+
+/* Canvas size of a scene sprite (crop dims when trimmed, else pixel dims).
+ * Leaves the outs untouched when the sprite is not resident. */
+static void
+sprite_canvas_dims(
+    struct ToriRS_Frame* frame,
+    int scene_id,
+    int atlas_index,
+    int* out_w,
+    int* out_h)
+{
+    int count = 0;
+    struct ToriDraw_Sprite** sprites;
+    struct ToriDraw_Sprite* sprite;
+
+    assert(frame);
+    assert(frame->scene);
+
+    sprites = ToriDraw_SceneSpriteGet(frame->scene, scene_id, &count);
+    if( !sprites || atlas_index < 0 || atlas_index >= count )
+        return;
+    sprite = sprites[atlas_index];
+    if( !sprite )
+        return;
+    *out_w = sprite->crop_width > 0 ? sprite->crop_width : sprite->width;
+    *out_h = sprite->crop_height > 0 ? sprite->crop_height : sprite->height;
+}
+
+/* Arm the inverse-mapped rotated blit. Rotation is in camera-yaw units (2048 =
+ * full turn); zero leaves the command on the plain blit path. */
+static void
+sprite_set_rotated(
+    struct ToriRS_RenderCommand_Sprite* sprite,
+    int rotation_r2pi2048,
+    int dst_anchor_x,
+    int dst_anchor_y,
+    int src_anchor_x,
+    int src_anchor_y)
+{
+    if( rotation_r2pi2048 == 0 )
+        return;
+    sprite->rotated = 1;
+    sprite->rotation_r2pi2048 = rotation_r2pi2048;
+    sprite->dst_anchor_x = dst_anchor_x;
+    sprite->dst_anchor_y = dst_anchor_y;
+    sprite->src_anchor_x = src_anchor_x;
+    sprite->src_anchor_y = src_anchor_y;
+}
+
 static void
 sprite_cmd(
+    struct ToriRS_Frame* frame,
     struct ToriRS_RenderCommand* out,
     int scene_id,
     int atlas,
@@ -121,9 +197,12 @@ sprite_cmd(
     int y,
     int w,
     int h,
-    int rotation,
+    int rotation_r2pi2048,
     struct UITreeEmitClip const* clip)
 {
+    int src_cx = w / 2;
+    int src_cy = h / 2;
+
     memset(out, 0, sizeof(*out));
     out->kind = TORIRSRC_SPRITE;
     out->u.sprite.scene_id = scene_id;
@@ -136,7 +215,11 @@ sprite_cmd(
     out->u.sprite.scissor_y = clip->y;
     out->u.sprite.scissor_w = clip->w;
     out->u.sprite.scissor_h = clip->h;
-    out->u.sprite.rotation = rotation;
+    /* Chrome pivots on the box centre; the source pivot is the sprite's own
+     * centre, which need not match the box (arrows are drawn at native size). */
+    if( rotation_r2pi2048 != 0 )
+        sprite_src_center(frame, scene_id, atlas, &src_cx, &src_cy);
+    sprite_set_rotated(&out->u.sprite, rotation_r2pi2048, w / 2, h / 2, src_cx, src_cy);
     out->u.sprite.if3 = 0;
 }
 
@@ -192,6 +275,7 @@ horizontal_scrollbar_grip(
 
 static bool
 translate_scrollbar_v_step(
+    struct ToriRS_Frame* frame,
     struct UITreeEmitDesc const* desc,
     int step,
     struct ToriRS_RenderCommand* out)
@@ -210,6 +294,7 @@ translate_scrollbar_v_step(
     case 0:
         if( desc->scene_id > 0 )
             sprite_cmd(
+                frame,
                 out,
                 desc->scene_id,
                 0,
@@ -232,6 +317,7 @@ translate_scrollbar_v_step(
     case 1:
         if( desc->scene_id > 0 )
             sprite_cmd(
+                frame,
                 out,
                 desc->scene_id,
                 1,
@@ -345,6 +431,7 @@ translate_scrollbar_v_step(
 
 static bool
 translate_scrollbar_h_step(
+    struct ToriRS_Frame* frame,
     struct UITreeEmitDesc const* desc,
     int step,
     struct ToriRS_RenderCommand* out)
@@ -364,6 +451,7 @@ translate_scrollbar_h_step(
     case 0:
         if( desc->scene_id > 0 )
             sprite_cmd(
+                frame,
                 out,
                 desc->scene_id,
                 0,
@@ -386,6 +474,7 @@ translate_scrollbar_h_step(
     case 1:
         if( desc->scene_id > 0 )
             sprite_cmd(
+                frame,
                 out,
                 desc->scene_id,
                 1,
@@ -520,7 +609,6 @@ translate_ui_cmd(
         out->u.sprite.scissor_y = desc->clip.y;
         out->u.sprite.scissor_w = desc->clip.w;
         out->u.sprite.scissor_h = desc->clip.h;
-        out->u.sprite.rotation = desc->rotation;
         out->u.sprite.outline = desc->outline;
         out->u.sprite.graphic_shadow = desc->graphic_shadow;
         out->u.sprite.trans = desc->trans;
@@ -611,35 +699,101 @@ translate_ui_cmd(
     }
 
     case UITREE_EMIT_SCROLLBAR_V:
-        return translate_scrollbar_v_step(desc, frame->scrollbar_step, out);
+        return translate_scrollbar_v_step(frame, desc, frame->scrollbar_step, out);
 
     case UITREE_EMIT_SCROLLBAR_H:
-        return translate_scrollbar_h_step(desc, frame->scrollbar_step, out);
+        return translate_scrollbar_h_step(frame, desc, frame->scrollbar_step, out);
 
     case UITREE_EMIT_COMPASS:
-        /* Native-size blit rotated by camera yaw (desc->rotation), like the
-         * scrollbar arrows: chrome, never IF3-stretched. */
+    {
+        /* Native-size blit rotated by camera yaw: chrome, never IF3-stretched.
+         * Both pivots are centres, so the needle spins in place. Matching the
+         * reference (widgets-gl drawTextureRotatedMasked): when the pack's
+         * placeholder graphic is resident it is the inverted circular mask,
+         * and the draw box takes the mask's size centred in the node box. */
+        int box_x = desc->x;
+        int box_y = desc->y;
+        int box_w = desc->w;
+        int box_h = desc->h;
+        int src_cx = desc->w / 2;
+        int src_cy = desc->h / 2;
+        int mask_scene_id = 0;
         if( desc->scene_id <= 0 )
             return false;
+        sprite_src_center(frame, desc->scene_id, desc->atlas_index, &src_cx, &src_cy);
+        if( desc->mask_scene_id > 0 )
+        {
+            int mask_w = 0;
+            int mask_h = 0;
+            sprite_canvas_dims(
+                frame, desc->mask_scene_id, desc->mask_atlas_index, &mask_w, &mask_h);
+            if( mask_w > 0 && mask_h > 0 )
+            {
+                box_x = desc->x + (desc->w - mask_w) / 2;
+                box_y = desc->y + (desc->h - mask_h) / 2;
+                box_w = mask_w;
+                box_h = mask_h;
+                mask_scene_id = desc->mask_scene_id;
+            }
+        }
         out->kind = TORIRSRC_SPRITE;
         out->u.sprite.scene_id = desc->scene_id;
         out->u.sprite.atlas_index = desc->atlas_index;
-        out->u.sprite.x = desc->x;
-        out->u.sprite.y = desc->y;
-        out->u.sprite.w = desc->w;
-        out->u.sprite.h = desc->h;
+        out->u.sprite.x = box_x;
+        out->u.sprite.y = box_y;
+        out->u.sprite.w = box_w;
+        out->u.sprite.h = box_h;
         out->u.sprite.scissor_x = desc->clip.x;
         out->u.sprite.scissor_y = desc->clip.y;
         out->u.sprite.scissor_w = desc->clip.w;
         out->u.sprite.scissor_h = desc->clip.h;
-        out->u.sprite.rotation = desc->rotation;
         out->u.sprite.trans = desc->trans;
         out->u.sprite.if3 = 0;
+        out->u.sprite.mask_scene_id = mask_scene_id;
+        out->u.sprite.mask_atlas_index = desc->mask_atlas_index;
+        /* Rotation 0 (camera facing north) still needs the anchored blit:
+         * the plain path would draw the padded canvas top-left-anchored. */
+        out->u.sprite.rotated = 1;
+        out->u.sprite.rotation_r2pi2048 = desc->rotation_r2pi2048;
+        out->u.sprite.dst_anchor_x = box_w / 2;
+        out->u.sprite.dst_anchor_y = box_h / 2;
+        out->u.sprite.src_anchor_x = src_cx;
+        out->u.sprite.src_anchor_y = src_cy;
         return true;
+    }
 
     case UITREE_EMIT_MINIMAP:
-        /* Minimap terrain is rendered by the minimap module, not a 2D blit. */
-        return false;
+        /* The baked world map is far larger than the widget: the source pivot
+         * follows the camera position while the destination pivot stays at the
+         * box centre, so the map scrolls and spins under a fixed frame. */
+        if( desc->scene_id <= 0 )
+            return false;
+        out->kind = TORIRSRC_SPRITE;
+        out->u.sprite.scene_id = desc->scene_id;
+        out->u.sprite.atlas_index = 0;
+        out->u.sprite.x = desc->x;
+        out->u.sprite.y = desc->y;
+        out->u.sprite.w = desc->w;
+        out->u.sprite.h = desc->h;
+        /* Clip to the widget box, not the parent layer: the map always
+         * over-fills its frame. */
+        out->u.sprite.scissor_x = desc->x;
+        out->u.sprite.scissor_y = desc->y;
+        out->u.sprite.scissor_w = desc->w;
+        out->u.sprite.scissor_h = desc->h;
+        out->u.sprite.if3 = 0;
+        /* The pack's mask placeholder clips the over-filled map to its round
+         * window (inverted: map shows where the mask is transparent). */
+        out->u.sprite.mask_scene_id = desc->mask_scene_id;
+        out->u.sprite.mask_atlas_index = desc->mask_atlas_index;
+        /* Rotation 0 (camera facing north) still needs the anchored blit. */
+        out->u.sprite.rotated = 1;
+        out->u.sprite.rotation_r2pi2048 = desc->rotation_r2pi2048;
+        out->u.sprite.dst_anchor_x = desc->w / 2;
+        out->u.sprite.dst_anchor_y = desc->h / 2;
+        out->u.sprite.src_anchor_x = desc->src_anchor_x;
+        out->u.sprite.src_anchor_y = desc->src_anchor_y;
+        return true;
 
     case UITREE_EMIT_WORLD:
     case UITREE_EMIT_NONE:

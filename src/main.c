@@ -2,6 +2,7 @@
 #include "game/rs_cs2_dispatch.h"
 #include "input/torirs_input.h"
 #include "platform/platform_sdl2.h"
+#include "toridraw_math.h"
 #include "ui/uitree_layout.h"
 
 #include <assert.h>
@@ -558,6 +559,32 @@ main(
                     swk_ms += 20;
                 }
             }
+        }
+    }
+
+    /* TORIRS_SIM_CAMERA_YAW=<0..2047>: park the camera at a yaw and run a frame,
+     * so the compass/minimap can be screenshotted at known angles. The in-app
+     * yaw keys are the arrows, which the key sim above cannot send. */
+    if( getenv("TORIRS_SIM_CAMERA_YAW") )
+    {
+        struct LibToriRS_Input yaw_storage;
+        struct LibToriRS_Input* yaw_input = LibToriRS_Input_Init(&yaw_storage, 0);
+        uint64_t yaw_ms = 1;
+        /* First frame lands the lazy world load, which resets the camera; only
+         * then is it worth parking the yaw. */
+        for( int frame = 0; frame < 2; frame++ )
+        {
+            if( frame == 1 )
+            {
+                app.world_camera.yaw = ToriDraw_NormalizeAngle(
+                    (int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
+                fprintf(stderr, "sim_camera_yaw: %d\n", app.world_camera.yaw);
+            }
+            LibToriRS_Input_Begin(yaw_input, yaw_ms);
+            LibToriRS_Input_End(yaw_input);
+            if( App_RunOnce(&app, yaw_ms, yaw_input) )
+                sim_render_frame(&app);
+            yaw_ms += 20;
         }
     }
 

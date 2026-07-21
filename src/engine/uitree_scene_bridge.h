@@ -41,6 +41,10 @@ struct UITreeSceneBridge
 /* Reserved scene model id for the composited player avatar (out of cache range). */
 #define UITREE_SCENE_PLAYER_MODEL_ID 0x40000000
 
+/* Reserved scene sprite id for the baked world map the minimap blits from
+ * (out of the bridge's next_scene_id range, which counts up from 1). */
+#define UITREE_SCENE_WORLD_MAP_SPRITE_ID 0x40000001
+
 void
 UITreeSceneBridge_Init(
     struct UITreeSceneBridge* bridge,

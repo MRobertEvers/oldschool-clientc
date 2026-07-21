@@ -175,15 +175,35 @@ UITree_PushBuildComponent(
         break;
     }
 
-    /* Content-slot clientCodes outrank the widget type: the pack ships the
-     * viewport as an empty layer, and that layer's box IS where the 3D draws.
-     * Everything else about the node survives (hide, hooks, options, layout),
-     * so a script hiding the viewport also stops the world. */
-    if( comp->client_code == UITREE_CLIENT_CODE_CONTENT_WORLD )
+    /* Content-slot clientCodes outrank the widget type: the pack ships these as
+     * empty layers / placeholder graphics, and their box is where the builtin
+     * draws. Everything else about the node survives (hide, hooks, options,
+     * layout), so a script hiding the slot also stops the builtin.
+     *
+     * Minimap and compass keep scene_id 0: the pack graphic is a mask/placeholder
+     * (see the client-code guard in UITree_EmitFill), so the compass falls back
+     * to the host's client-hardcoded sprite and the minimap to the world map the
+     * host bakes. The compass keeps the pack graphic as its circular alpha mask
+     * (drawn inverted: content shows where the mask is transparent). */
+    switch( comp->client_code )
     {
+    case UITREE_CLIENT_CODE_CONTENT_WORLD:
         spec.type = UIELEM_BUILTIN_WORLD;
         memset(&spec.u, 0, sizeof(spec.u));
         spec.u.world.level_mask = 0xF;
+        break;
+    case UITREE_CLIENT_CODE_CONTENT_MINIMAP:
+        spec.type = UIELEM_BUILTIN_MINIMAP;
+        memset(&spec.u, 0, sizeof(spec.u));
+        spec.u.minimap.mask_scene_id = scene_id > 0 ? scene_id : 0;
+        break;
+    case UITREE_CLIENT_CODE_CONTENT_COMPASS:
+        spec.type = UIELEM_BUILTIN_COMPASS;
+        memset(&spec.u, 0, sizeof(spec.u));
+        spec.u.sprite.mask_scene_id = scene_id > 0 ? scene_id : 0;
+        break;
+    default:
+        break;
     }
 
     int32_t idx = UITree_Push(tree, parent_index, &spec);

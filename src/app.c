@@ -5,6 +5,7 @@
 #include "engine/uitree_cmd_render.h"
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_minimenu_build.h"
+#include "game/rs_minimenu_cross.h"
 #include "game/task_cs1_run.h"
 #include "engine/dat2/task_dat2_sequence_load.h"
 #include "engine/player_appearance.h"
@@ -62,6 +63,10 @@ app_host_request(void* user, struct UITreeHostRequest* req)
         assert(req->u.get_minimenu_state.out);
         *req->u.get_minimenu_state.out = &app->interact.minimenu;
         return 1;
+    case UITREE_HOST_GET_HOVERTEXT_STATE:
+        assert(req->u.get_hovertext_state.out);
+        *req->u.get_hovertext_state.out = &app->hover_text;
+        return 1;
     case UITREE_HOST_MEASURE_TEXT:
     {
         struct ToriDraw_Font* font =
@@ -70,8 +75,25 @@ app_host_request(void* user, struct UITreeHostRequest* req)
             return 0;
         return ToriDraw2D_MeasureString(font, req->u.measure_text.text);
     }
-    /* UITREE_HOST_GET_CAMERA_YAW falls through to 0 until App owns a world
-     * camera; the compass rotation plumbing reads it through here. */
+    /* Compass/minimap rotation, in the 0..2047 units the rotated sprite blit
+     * takes. Normalized because ToriDraw_Sin/Cos assert that range. */
+    case UITREE_HOST_GET_CAMERA_YAW:
+        return ToriDraw_NormalizeAngle(app->world_camera.yaw);
+    /* Minimap: the baked world map plus the camera's pivot inside it. The
+     * widget box is fixed, so the map scrolls by moving this source anchor. */
+    case UITREE_HOST_GET_MINIMAP_STATE:
+        if( app->world_map_scene_id <= 0 || !app->world || !app->world->minimap )
+            return -1;
+        minimap_compute_camera_src_anchor(
+            app->world_camera_pos.x,
+            app->world_camera_pos.z,
+            app->world_map_w,
+            app->world_map_h,
+            app->world->minimap->width,
+            app->world->minimap->height,
+            req->u.get_minimap_state.out_src_anchor_x,
+            req->u.get_minimap_state.out_src_anchor_y);
+        return app->world_map_scene_id;
     case UITREE_HOST_GET_INV_SOURCE_SLOT:
         assert(req->u.get_inv_source_slot.out);
         if( !InvManager_GetSlot(
@@ -285,6 +307,7 @@ App_Init(
     app->world_hover_tile_x = -1;
     app->world_hover_tile_z = -1;
     app->world_hover_tile_level = 0;
+    app->world_map_scene_id = -1;
     app->proj_src_tile_x = -1;
     app->proj_src_tile_z = -1;
     app->proj_src_tile_level = 0;
@@ -302,6 +325,7 @@ App_Init(
     app->ui_host.user = app;
     app->ui_host.request = app_host_request;
     UIInteraction_Init(&app->interact);
+    UIHoverText_Reset(&app->hover_text);
     app->hover_com_id = -1;
     app->clicked_com_id = -1;
     app->need_redraw = 1;
@@ -383,6 +407,15 @@ app_push_builtin_overlay_nodes(struct App* app)
     spec.height = 16;
     assert(UITree_Push(app->tree, -1, &spec) >= 0);
 
+    /* Pushed before the minimenu so the popup draws over the hover line — the
+     * two are never both up (4726 returns early on minimenu_isopen), but the
+     * ordering keeps that invariant from mattering. */
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_BUILTIN_HOVERTEXT;
+    spec.component_id = APP_COM_ID_HOVERTEXT;
+    spec.u.hovertext.font_id = font_id;
+    assert(UITree_Push(app->tree, -1, &spec) >= 0);
+
     memset(&spec, 0, sizeof(spec));
     spec.type = UIELEM_BUILTIN_MINIMENU;
     spec.component_id = APP_COM_ID_MINIMENU;
@@ -390,6 +423,7 @@ app_push_builtin_overlay_nodes(struct App* app)
     assert(UITree_Push(app->tree, -1, &spec) >= 0);
 
     app->interact.minimenu.font_id = font_id;
+    app->hover_text.font_id = font_id;
 }
 
 /* World_HeightFn: projectiles/movers track terrain height (world units). */
@@ -404,6 +438,49 @@ app_world_height(
     if( !app->world || !app->world->heightmap )
         return 0;
     return heightmap_get_interpolated(app->world->heightmap, world_x, world_z, level);
+}
+
+/* Bake the loaded world's minimap tiles into a single scene sprite the minimap
+ * widget blits from (v1 GameRunescape_RebuildWorldMap). SceneSpriteAdd frees any
+ * previous entry, so the reload hotkey just overwrites in place. */
+static void
+app_rebuild_world_map(struct App* app)
+{
+    int pixel_w = 0;
+    int pixel_h = 0;
+    uint32_t* argb;
+    struct ToriDraw_Sprite* sprite;
+    struct ToriDraw_Sprite** sprites;
+
+    assert(app);
+    assert(app->world);
+
+    if( !app->world->minimap )
+        return;
+
+    argb = minimap_bake_argb(app->world->minimap, &pixel_w, &pixel_h);
+    if( !argb )
+        return;
+
+    sprite = ToriDraw_SpriteNewFromArgbOwned(argb, pixel_w, pixel_h);
+    if( !sprite )
+    {
+        free(argb);
+        return;
+    }
+
+    sprites = malloc(sizeof(*sprites));
+    if( !sprites )
+    {
+        ToriDraw_SpriteFree(sprite);
+        return;
+    }
+    sprites[0] = sprite;
+
+    ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_SPRITE_ID, sprites, 1);
+    app->world_map_scene_id = UITREE_SCENE_WORLD_MAP_SPRITE_ID;
+    app->world_map_w = pixel_w;
+    app->world_map_h = pixel_h;
 }
 
 /* Queue Task_WorldLoad for the configured chunk list and drain it. Reused by
@@ -441,6 +518,7 @@ app_world_load(struct App* app)
         /* World scenery models reference textures; the bridge scan walks the
          * scene elements the rebuild just created. */
         app_sync_textures(app);
+        app_rebuild_world_map(app);
     }
     else
     {
@@ -1420,9 +1498,11 @@ app_minimenu_open(struct App* app, int click_x, int click_y, int click_in_world)
 }
 
 /* Execute one selected (or defaulted) menu row: cross feedback + hook
- * dispatch with the row's op index (v1 ui_click_use_minimenu_option; cross
- * rule per scope decision — WALK yellow, other actions red, Cancel off;
- * OSRS-accurate world-only crosses land with world picking). Returns nonzero
+ * dispatch with the row's op index (v1 ui_click_use_minimenu_option). The
+ * cross colour comes from the action alone (RS_Minimenu_CrossModeForAction,
+ * reference doAction) and is decided once: an action the reference gives no
+ * cross — UI buttons, inventory ops, Examine, Cancel — leaves a cross already
+ * in flight running rather than clearing or recolouring it. Returns nonzero
  * when a CS2 hook was dispatched. */
 static int
 app_minimenu_use_option(struct App* app, int option_index, int click_x, int click_y)
@@ -1436,17 +1516,16 @@ app_minimenu_use_option(struct App* app, int option_index, int click_x, int clic
     UIMinimenu_Hide(menu);
     app->need_redraw = 1;
 
+    /* Reference doAction has no CANCEL branch at all: dismissing the menu is
+     * not an interaction and must not disturb a running cross. */
     if( opt.action == REVCONFIG_MINIMENU_CANCEL )
-    {
-        UICross_Reset(&app->cross);
         return 0;
-    }
 
-    UICross_Show(
-        &app->cross,
-        opt.action == REVCONFIG_MINIMENU_WALK ? UI_CROSS_WALK : UI_CROSS_INTERACT,
-        click_x,
-        click_y);
+    {
+        enum UICrossMode cross_mode = RS_Minimenu_CrossModeForAction(opt.action);
+        if( cross_mode != UI_CROSS_OFF )
+            UICross_Show(&app->cross, cross_mode, click_x, click_y);
+    }
 
     switch( opt.pick.kind )
     {

@@ -51,10 +51,18 @@ struct UITreeEmitDesc
     int scroll_content;
     int scene_id;
     int atlas_index;
+    /** COMPASS: inverted circular alpha mask (the pack's placeholder graphic);
+     *  0 = draw unmasked. Sampled axis-aligned, never rotates with content. */
+    int mask_scene_id;
+    int mask_atlas_index;
     int font_id;
     int color;
     int filled;
-    int rotation;
+    /** Camera-yaw rotation for compass/minimap chrome (2048 = full turn). */
+    int rotation_r2pi2048;
+    /** MINIMAP: pivot inside the baked map texture for the camera position. */
+    int src_anchor_x;
+    int src_anchor_y;
     int model_id;
     int model_zoom;
     int model_xan;

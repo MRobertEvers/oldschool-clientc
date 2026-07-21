@@ -17,6 +17,7 @@
 #include "ui/uitree.h"
 #include "ui/uitree_cross.h"
 #include "ui/uitree_emit.h"
+#include "ui/uitree_hovertext.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_interact.h"
 #include "varp/varp_manager.h"
@@ -43,6 +44,7 @@ enum
 {
     APP_COM_ID_CROSS = (0x7FFE << 16) | 0,
     APP_COM_ID_MINIMENU = (0x7FFE << 16) | 1,
+    APP_COM_ID_HOVERTEXT = (0x7FFE << 16) | 2,
 };
 
 struct AppConfig
@@ -80,6 +82,13 @@ struct App
     /* Latches the lazy load so a map that fails is not re-queued every frame. */
     int world_load_attempted;
 
+    /* Baked world map the minimap widget blits (rebaked on every world load).
+     * scene_id is -1 until the first bake; w/h are the sprite's pixel size,
+     * which minimap_compute_camera_src_anchor needs to place the camera. */
+    int world_map_scene_id;
+    int world_map_w;
+    int world_map_h;
+
     /* World picking: the full pickset refreshes as part of every rendered
      * frame (App_Render hittests visible models at world_mouse_x/y); click
      * handlers consume the last rendered set. world_emit_desc caches the
@@ -115,6 +124,9 @@ struct App
     struct SeqLoadTracker seq_loads;
     struct InterfaceOpenStats open_stats;
     struct UICross cross;
+    /** Mouseover text under the pointer, rebuilt every frame (reference: CS2
+     * script 4726 rebuilds it every client cycle). */
+    struct UIHoverText hover_text;
     uint64_t last_logic_ms;
     int hover_com_id;
     int clicked_com_id;

@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 struct UIMinimenu;
+struct UIHoverText;
 
 enum UITreeHostRequestKind
 {
@@ -24,6 +25,8 @@ enum UITreeHostRequestKind
     UITREE_HOST_GET_MINIMENU_VISIBLE,
     /** Writes the live minimenu model pointer to u.get_minimenu_state.out. */
     UITREE_HOST_GET_MINIMENU_STATE,
+    /** Writes the live mouseover-text model to u.get_hovertext_state.out. */
+    UITREE_HOST_GET_HOVERTEXT_STATE,
     /** Returns pixel width of u.measure_text.text in font_id, or 0. */
     UITREE_HOST_MEASURE_TEXT,
     UITREE_HOST_SCENE_SPRITE_HAS,
@@ -38,6 +41,11 @@ enum UITreeHostRequestKind
      * StaticSpriteSlot; ui stays leaf so it travels as an int), or -1.
      */
     UITREE_HOST_GET_STATIC_SPRITE_SCENE,
+    /**
+     * Returns scene_id of the baked world map sprite (-1 while no world is
+     * loaded) and writes the camera's pivot inside it to u.get_minimap_state.
+     */
+    UITREE_HOST_GET_MINIMAP_STATE,
 };
 
 /*
@@ -115,8 +123,17 @@ struct UITreeHostRequest
         } get_cross_position;
         struct
         {
+            int* out_src_anchor_x;
+            int* out_src_anchor_y;
+        } get_minimap_state;
+        struct
+        {
             struct UIMinimenu const** out;
         } get_minimenu_state;
+        struct
+        {
+            struct UIHoverText const** out;
+        } get_hovertext_state;
         struct
         {
             int font_id;

@@ -1,5 +1,6 @@
 #include "uitree_emit.h"
 
+#include "uitree_hovertext.h"
 #include "uitree_inv_view.h"
 #include "uitree_layout.h"
 #include "uitree_minimenu.h"
@@ -215,12 +216,14 @@ UITree_EmitFill(
         else
         {
             /* Match interfacex: world/minimap/compass placeholders are not blitted
-             * as ordinary sprites (minimap mask would draw as opaque black). */
+             * as ordinary sprites (minimap mask would draw as opaque black).
+             * uitree_build.c retypes these to their builtin, so this only catches
+             * content slots that reached the tree some other way (CS2 dynamics). */
             switch( component->behavior.client_code )
             {
-            case 1337: /* CONTENT_WORLD */
-            case 1338: /* CONTENT_MINIMAP */
-            case 1339: /* CONTENT_COMPASS */
+            case UITREE_CLIENT_CODE_CONTENT_WORLD:
+            case UITREE_CLIENT_CODE_CONTENT_MINIMAP:
+            case UITREE_CLIENT_CODE_CONTENT_COMPASS:
                 return false;
             default:
                 break;
@@ -265,7 +268,6 @@ UITree_EmitFill(
         }
         if( out->scene_id <= 0 )
             return false;
-        out->rotation = UITree_ComponentSpriteRotation(component, host);
         return true;
 
     case UIELEM_RS_TEXT:
@@ -376,9 +378,25 @@ UITree_EmitFill(
         return true;
 
     case UIELEM_BUILTIN_MINIMAP:
+    {
+        /* The pack graphic is only a mask placeholder; the drawable is the world
+         * map the host bakes, which also owns the camera pivot inside it. */
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_MINIMAP_STATE,
+            .u.get_minimap_state.out_src_anchor_x = &out->src_anchor_x,
+            .u.get_minimap_state.out_src_anchor_y = &out->src_anchor_y,
+        };
         out->kind = UITREE_EMIT_MINIMAP;
-        out->scene_id = component->u.minimap.scene_id;
+        out->scene_id = UITree_Host(host, &req);
+        if( out->scene_id <= 0 )
+            return false;
+        /* That mask placeholder clips the over-filled map to its round window
+         * (inverted: map shows where the mask is transparent). */
+        out->mask_scene_id = component->u.minimap.mask_scene_id;
+        out->mask_atlas_index = component->u.minimap.mask_atlas_index;
+        out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
         return true;
+    }
 
     case UIELEM_BUILTIN_COMPASS:
         out->kind = UITREE_EMIT_COMPASS;
@@ -390,7 +408,10 @@ UITree_EmitFill(
             out->scene_id = host_static_sprite_scene(host, UITREE_STATIC_SPRITE_COMPASS);
         if( out->scene_id <= 0 )
             return false;
-        out->rotation = UITree_ComponentSpriteRotation(component, host);
+        /* The pack's placeholder graphic doubles as the circular clip. */
+        out->mask_scene_id = component->u.sprite.mask_scene_id;
+        out->mask_atlas_index = component->u.sprite.mask_atlas_index;
+        out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
         return true;
 
     case UIELEM_RS_LAYER:
@@ -451,6 +472,7 @@ UITree_EmitFill(
     case UIELEM_BUILTIN_REDSTONE_TAB:
     case UIELEM_BUILTIN_TAB_ICONS:
     case UIELEM_BUILTIN_MINIMENU:
+    case UIELEM_BUILTIN_HOVERTEXT:
     case UIELEM_RS_INV:
     case UIELEM_RS_INV_TEXT:
         return false;
@@ -644,6 +666,61 @@ emit_minimenu(
             hovered ? 0xFFFF00 : 0xFFFFFF,
             1,
             menu->options[i].text);
+    }
+}
+
+/*
+ * Expand the mouseover-text node into the single top-left line the reference
+ * builds from CS2 (script 4726 -> proc 4727: one cc_create'd TEXT child,
+ * font 496, shadow on, colour 0xD8D8D8). Model comes from the host, and the
+ * app owns placement, so this is one TEXT desc and nothing else.
+ */
+static void
+emit_hovertext(
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip)
+{
+    struct UIHoverText const* hover = NULL;
+
+    assert(c && c->type == UIELEM_BUILTIN_HOVERTEXT);
+    assert(out && parent_clip);
+
+    if( !host )
+        return;
+    if( !UITree_ComponentShouldEmit(c, host) )
+        return;
+    {
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_HOVERTEXT_STATE,
+            .u.get_hovertext_state.out = &hover,
+        };
+        if( !UITree_Host(host, &req) || !hover )
+            return;
+    }
+    if( !hover->visible || hover->text[0] == '\0' )
+        return;
+
+    {
+        int const font_id = c->u.hovertext.font_id > 0 ? c->u.hovertext.font_id : hover->font_id;
+        struct UITreeEmitDesc desc;
+        memset(&desc, 0, sizeof(desc));
+        desc.kind = UITREE_EMIT_TEXT;
+        desc.node_index = idx;
+        desc.component_id = c->component_id;
+        desc.x = hover->x;
+        desc.y = hover->y;
+        /* Left-aligned single line; the app sizes the box from the viewport. */
+        desc.w = hover->w;
+        desc.h = hover->h > 0 ? hover->h : UITREE_HOVERTEXT_BOX_H;
+        desc.font_id = font_id;
+        desc.color = UITREE_HOVERTEXT_COLOR;
+        desc.text_shadowed = 1;
+        desc.text = hover->text;
+        desc.clip = *parent_clip;
+        emit_buffer_append(out, &desc);
     }
 }
 
@@ -1045,6 +1122,10 @@ emit_walk_node(
         /* Screen-anchored popup chrome: multi-desc expansion, never scrolled
          * or dragged (same shape as the RS_INV slot expansion above). */
         emit_minimenu(host, out, c, idx, parent_clip);
+    }
+    else if( !if1_bar && c->type == UIELEM_BUILTIN_HOVERTEXT )
+    {
+        emit_hovertext(host, out, c, idx, parent_clip);
     }
     else if( !if1_bar && UITree_EmitFill(tree, host, c, idx, hovered_component_id, &desc) )
     {

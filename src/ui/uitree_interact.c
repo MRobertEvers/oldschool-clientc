@@ -627,6 +627,11 @@ interact_minimenu(
 
     if( !menu->visible )
     {
+        /* A left press the popup never saw starts a fresh gesture: drop any
+         * stale latch so a swallowed press whose release went missing (focus
+         * loss, drag) cannot eat this click. */
+        if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+            interact->swallow_left_click = 0;
         if( LibToriRS_Input_IsMouseDown(input, TORIRSM_RIGHT) )
         {
             out->right_click = 1;
@@ -647,6 +652,10 @@ interact_minimenu(
             int const mx = input->curr.mouse_x;
             int const my = input->curr.mouse_y;
             int const hit = UIMinimenu_HitOption(menu, mx, my);
+            /* Whatever this press does — select, close, or bounce off chrome —
+             * the popup consumed it, so its release belongs to the popup too. */
+            if( left_down )
+                interact->swallow_left_click = 1;
             if( hit >= 0 )
             {
                 /* App dispatches, then hides. */
@@ -838,6 +847,7 @@ UITree_InteractFrame(
 {
     struct UIInputResult ui_result;
     int sb_owns_mouse;
+    int swallow_click;
 
     assert(interact);
     assert(tree);
@@ -853,6 +863,14 @@ UITree_InteractFrame(
      * clicks reach the tree until it closes (reference choose-option). */
     if( interact_minimenu(interact, input, out) )
         return;
+
+    /* The popup closed on the press edge of a click it consumed; this is the
+     * matching release. Retire the latch and let nothing downstream treat it
+     * as a click — the action already ran on the press. */
+    swallow_click =
+        interact->swallow_left_click && LibToriRS_Input_IsClick(input, TORIRSM_LEFT);
+    if( swallow_click )
+        interact->swallow_left_click = 0;
 
     sb_owns_mouse = interact_scrollbars(interact, tree, ui_host, input, out);
 
@@ -875,14 +893,16 @@ UITree_InteractFrame(
     interact_drag(interact, tree, ui_host, input, sb_owns_mouse, &ui_result, out);
     interact_hold(interact, tree, input, sb_owns_mouse, out);
     interact_hover(interact, tree, input, now_ms, out);
-    interact_click(tree, ui_host, input, &ui_result, out);
+    if( !swallow_click )
+        interact_click(tree, ui_host, input, &ui_result, out);
     interact_keys(tree, input, out);
 
     /* Left click that hit no component at all: pass-through elements (the
      * world viewport) sit under it, so the app runs its world hittest. The
      * minimenu early-return above already swallows clicks while a menu is
      * open, and scrollbar ownership zeroes ui_result. */
-    if( !sb_owns_mouse && ui_result.clicked < 0 && LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
+    if( !sb_owns_mouse && !swallow_click && ui_result.clicked < 0 &&
+        LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
     {
         out->left_click_miss = 1;
         out->left_click_miss_x = input->last_click_x[TORIRSM_LEFT];

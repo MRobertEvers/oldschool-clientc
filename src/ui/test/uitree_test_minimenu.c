@@ -1,5 +1,7 @@
 #include "test_harness.h"
+#include "game/rs_minimenu_cross.h"
 #include "uitree_cross.h"
+#include "uitree_interact.h"
 
 #include <string.h>
 
@@ -210,13 +212,142 @@ test_cross_model(void)
     TEST_ASSERT(UICross_AtlasFrame(&cross) == 7, "interact last frame 7");
 }
 
+/* Cross colour is a pure function of the action (reference doAction): yellow
+ * for Walk, red for world-entity ops, nothing at all for UI actions, Examine
+ * and Cancel — so those leave a running cross untouched. */
+static void
+test_cross_action_policy(void)
+{
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_WALK) == UI_CROSS_WALK,
+        "walk is yellow");
+
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_OPNPC1) == UI_CROSS_INTERACT,
+        "opnpc1 is red");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_OPNPC5) == UI_CROSS_INTERACT,
+        "opnpc5 is red");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_OPLOC3) == UI_CROSS_INTERACT,
+        "oploc3 is red");
+
+    /* Examine rows carry the op6 ids and get no cross in the reference. */
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_OPNPC6) == UI_CROSS_OFF,
+        "examine npc has no cross");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_OPLOC6) == UI_CROSS_OFF,
+        "examine loc has no cross");
+
+    /* Everything driven purely through the UI. */
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_OPHELD1) == UI_CROSS_OFF,
+        "inventory op has no cross");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_OPHELDT_START) == UI_CROSS_OFF,
+        "\"Use\" has no cross");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_INV_BUTTON1) == UI_CROSS_OFF,
+        "inv button has no cross");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_IF_BUTTON) == UI_CROSS_OFF,
+        "if button has no cross");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_CLOSE_MODAL) == UI_CROSS_OFF,
+        "close has no cross");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_MESSAGE_PRIVATE) == UI_CROSS_OFF,
+        "social row has no cross");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_CANCEL) == UI_CROSS_OFF,
+        "cancel has no cross");
+
+    /* Deprioritized rows keep their colour (reference strips _PRIORITY first). */
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(
+            UIMinimenu_ActionDeprioritize(REVCONFIG_MINIMENU_OPNPC1)) == UI_CROSS_INTERACT,
+        "deprioritized opnpc1 still red");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(
+            UIMinimenu_ActionDeprioritize(REVCONFIG_MINIMENU_WALK)) == UI_CROSS_WALK,
+        "deprioritized walk still yellow");
+}
+
+/* A left press the popup consumed owns its release too: the mouseup edge must
+ * not escape into the normal click path and run a second action (which would
+ * repaint the cross a different colour mid-animation). */
+static void
+test_minimenu_release_swallow(void)
+{
+    struct UIMinimenuLayout layout = UIMinimenu_LayoutFromLineHeight(14);
+    struct UITree* tree = UITree_New(8);
+    struct UITreeHost host;
+    struct TestHostState host_state;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int row_x;
+    int row_y;
+
+    UITree_TestHostInit(&host, &host_state);
+    UITree_TestResolve(tree);
+    UIInteraction_Init(&interact);
+
+    UIMinimenu_AddOption(&interact.minimenu, "Cancel", TEST_ACTION_CANCEL, -1, pick_none());
+    UIMinimenu_AddOption(&interact.minimenu, "Op one", TEST_ACTION_OP1, 0, pick_none());
+    UIMinimenu_ShowAt(&interact.minimenu, layout, 120, 300, 200, 765, 503);
+    row_x = interact.minimenu.x + 10;
+    row_y = UIMinimenu_OptionY(&interact.minimenu, 1) - 2;
+
+    input = LibToriRS_Input_Init(&input_storage, 0);
+
+    /* Press on a row: selects, and the app hides the menu straight after. */
+    LibToriRS_Input_Begin(input, 0);
+    LibToriRS_Input_PushMouseMove(input, row_x, row_y);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, row_x, row_y);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+    TEST_ASSERT(out.minimenu_select == 1, "row selected on press");
+    TEST_ASSERT(interact.swallow_left_click, "release latched");
+    UIMinimenu_Hide(&interact.minimenu);
+
+    /* Release at the same point: menu is gone, but nothing may fire. */
+    LibToriRS_Input_Begin(input, 20);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, row_x, row_y);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 20, &out);
+    TEST_ASSERT(!out.left_click_miss, "release does not reach the world");
+    TEST_ASSERT(out.clicked_com_id < 0, "release does not click a component");
+    TEST_ASSERT(out.minimenu_select < 0, "release selects nothing");
+    TEST_ASSERT(!interact.swallow_left_click, "latch retired after one release");
+
+    /* The next click is a fresh gesture and passes through normally. */
+    LibToriRS_Input_Begin(input, 2000);
+    LibToriRS_Input_PushMouseMove(input, row_x, row_y);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, row_x, row_y);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 2000, &out);
+    LibToriRS_Input_Begin(input, 2020);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, row_x, row_y);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 2020, &out);
+    TEST_ASSERT(out.left_click_miss, "later click still reaches the world");
+
+    UITree_Free(tree);
+}
+
 void
 test_minimenu(void)
 {
+    printf("TEST: minimenu / cross\n");
     test_minimenu_layout_math();
     test_minimenu_clamping();
     test_minimenu_sort();
     test_minimenu_hit_and_hover();
     test_minimenu_emit();
     test_cross_model();
+    test_cross_action_policy();
+    test_minimenu_release_swallow();
 }

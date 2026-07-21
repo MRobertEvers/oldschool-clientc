@@ -344,6 +344,8 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "cross";
     case UIELEM_BUILTIN_MINIMENU:
         return "minimenu";
+    case UIELEM_BUILTIN_HOVERTEXT:
+        return "hovertext";
     case UIELEM_BUILTIN_MINIMAP:
         return "minimap";
     case UIELEM_BUILTIN_WORLD:
@@ -527,7 +529,7 @@ UITree_TypeIsAlwaysDirtyFrame(enum UITreeComponentType type)
 {
     return type == UIELEM_BUILTIN_WORLD || type == UIELEM_BUILTIN_MINIMAP ||
            type == UIELEM_BUILTIN_COMPASS || type == UIELEM_BUILTIN_CROSS ||
-           type == UIELEM_BUILTIN_MINIMENU;
+           type == UIELEM_BUILTIN_MINIMENU || type == UIELEM_BUILTIN_HOVERTEXT;
 }
 
 void
@@ -901,10 +903,16 @@ UITree_Push(
     case UIELEM_BUILTIN_CROSS:
         component->u.sprite.scene_id = spec->u.sprite.scene_id;
         component->u.sprite.atlas_index = spec->u.sprite.atlas_index;
+        component->u.sprite.mask_scene_id = spec->u.sprite.mask_scene_id;
+        component->u.sprite.mask_atlas_index = spec->u.sprite.mask_atlas_index;
         break;
 
     case UIELEM_BUILTIN_MINIMENU:
         component->u.minimenu.font_id = spec->u.minimenu.font_id;
+        break;
+
+    case UIELEM_BUILTIN_HOVERTEXT:
+        component->u.hovertext.font_id = spec->u.hovertext.font_id;
         break;
 
     case UIELEM_BUILTIN_CHAT:
@@ -926,6 +934,8 @@ UITree_Push(
 
     case UIELEM_BUILTIN_MINIMAP:
         component->u.minimap.scene_id = spec->u.minimap.scene_id;
+        component->u.minimap.mask_scene_id = spec->u.minimap.mask_scene_id;
+        component->u.minimap.mask_atlas_index = spec->u.minimap.mask_atlas_index;
         break;
 
     case UIELEM_BUILTIN_WORLD:

@@ -44,6 +44,7 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
         return 0;
     case UITREE_HOST_GET_SCROLLBAR_SCENE:
     case UITREE_HOST_GET_STATIC_SPRITE_SCENE:
+    case UITREE_HOST_GET_MINIMAP_STATE:
         return -1;
     }
     return 0;

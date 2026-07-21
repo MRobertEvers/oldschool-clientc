@@ -161,10 +161,29 @@ struct ToriRS_RenderCommand_Sprite
     int scissor_y;
     int scissor_w;
     int scissor_h;
-    int rotation;
+    /**
+     * Chrome rotation in camera-yaw units (2048 = full turn), consumed by
+     * ToriDraw2D_BlitSpriteRotatedEx. Only read when `rotated` is set.
+     * Distinct from the IF3 spriteAngle scale (65536 = full turn) the
+     * SpriteTransformPixels path below uses.
+     */
+    int rotation_r2pi2048;
+    /** Inverse-mapped rotated blit: pivot in the dst box / source sub-rect. */
+    int dst_anchor_x;
+    int dst_anchor_y;
+    int src_anchor_x;
+    int src_anchor_y;
+    /** COMPASS: inverted circular alpha mask sampled axis-aligned over the dst
+     *  box (never rotates with the content). 0 = unmasked. Only read when
+     *  `rotated` is set. */
+    int mask_scene_id;
+    int mask_atlas_index;
+    /** IF3 component spriteAngle (65536 = full turn); ignored when `rotated`. */
+    int sprite_angle_r2pi65536;
     int outline;
     int graphic_shadow;
     int trans;
+    uint8_t rotated;
     uint8_t if3;
     uint8_t tiled;
     uint8_t flip_h;

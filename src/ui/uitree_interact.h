@@ -31,6 +31,13 @@ struct UIInteraction
     /* Right-click popup: while visible it owns the mouse (all other
      * interaction is suppressed; select on mousedown; click-away closes). */
     struct UIMinimenu minimenu;
+    /* A left press the popup consumed also owns its release. The reference's
+     * mouseClickButton is a single-shot event raised and consumed inside one
+     * mouseLoop, but here select fires on the mousedown edge and the popup is
+     * hidden immediately, so without this latch the mouseup edge escapes into
+     * the normal click path (IsClick -> left_click_miss) and runs a second
+     * action at the menu-row position. */
+    int swallow_left_click;
 };
 
 #define UI_INTENT_MAX 16

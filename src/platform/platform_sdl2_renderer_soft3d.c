@@ -135,6 +135,53 @@ soft3d_draw_sprite(
     vp = viewport_from_scissor(
         cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h, soft->stride);
 
+    /* Chrome rotated by camera yaw (compass, minimap, scrollbar arrows): inverse-map
+     * the destination box through the anchor pair instead of growing a pixel buffer.
+     * Units here are 0..2047, not the IF3 spriteAngle scale used further down. */
+    if( cmd->rotated )
+    {
+        struct ToriDraw_Sprite* mask_spr = NULL;
+        if( cmd->mask_scene_id > 0 )
+        {
+            int mask_count = 0;
+            struct ToriDraw_Sprite** mask_sprites =
+                ToriDraw_SceneSpriteGet(soft->scene, cmd->mask_scene_id, &mask_count);
+            if( mask_sprites && cmd->mask_atlas_index >= 0 &&
+                cmd->mask_atlas_index < mask_count )
+                mask_spr = mask_sprites[cmd->mask_atlas_index];
+        }
+        if( mask_spr && mask_spr->pixels_argb )
+            ToriDraw2D_BlitSpriteRotatedMaskedEx(
+                spr,
+                mask_spr,
+                &vp,
+                cmd->x,
+                cmd->y,
+                cmd->w > 0 ? cmd->w : spr->width,
+                cmd->h > 0 ? cmd->h : spr->height,
+                cmd->dst_anchor_x,
+                cmd->dst_anchor_y,
+                cmd->src_anchor_x,
+                cmd->src_anchor_y,
+                cmd->rotation_r2pi2048,
+                soft->pixels);
+        else
+            ToriDraw2D_BlitSpriteRotatedEx(
+                spr,
+                &vp,
+                cmd->x,
+                cmd->y,
+                cmd->w > 0 ? cmd->w : spr->width,
+                cmd->h > 0 ? cmd->h : spr->height,
+                cmd->dst_anchor_x,
+                cmd->dst_anchor_y,
+                cmd->src_anchor_x,
+                cmd->src_anchor_y,
+                cmd->rotation_r2pi2048,
+                soft->pixels);
+        return;
+    }
+
     nominal_w = spr->width;
     nominal_h = spr->height;
     sw = nominal_w;
@@ -187,7 +234,7 @@ soft3d_draw_sprite(
         alpha = 255;
     soft3d_scale_pixel_alpha(spr_px, (size_t)sw * (size_t)sh, alpha);
 
-    angle_2d = cmd->rotation;
+    angle_2d = cmd->sprite_angle_r2pi65536;
     pre_rot_sw = sw;
     pre_rot_sh = sh;
     pre_rot_ox = ox;

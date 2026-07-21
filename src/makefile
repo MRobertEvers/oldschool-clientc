@@ -301,6 +301,12 @@ test-minimap: $(OBJ_DIR)
 		engine/minimap/minimap_test.c
 	./$(OBJ_DIR)/minimap_test
 
+# Angle-unit guard for the compass/minimap rotated blit (camera yaw, 2048/turn).
+test-rotate-blit: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+	$(CC) $(CFLAGS) -lm -Wl,-dead_strip -o $(OBJ_DIR)/rotate_blit_test \
+		render/test/rotate_blit_test.c $(OBJ_DIR)/toridraw_unity.o
+	./$(OBJ_DIR)/rotate_blit_test
+
 # End-to-end dat1 RevConfig build against a dat1 cache (default ../cache254).
 # Links the app objects (minus main) since the build task reaches CS2/game code.
 DAT1_CACHE ?= ../cache254

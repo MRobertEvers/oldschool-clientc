@@ -39,6 +39,7 @@ enum UITreeComponentType
     UIELEM_BUILTIN_MINIMAP = 2,
     UIELEM_BUILTIN_SIDEBAR = 3,
     UIELEM_BUILTIN_CHAT = 4,
+    UIELEM_BUILTIN_HOVERTEXT = 5,
     UIELEM_BUILTIN_WORLD = 6,
     UIELEM_BUILTIN_SPRITE = 7,
     UIELEM_BUILTIN_REDSTONE_TAB = 8,
@@ -332,6 +333,11 @@ struct UITreeComponent
         {
             int scene_id;
             int atlas_index;
+            /* COMPASS only: the pack's placeholder graphic, kept as the
+             * circular alpha mask (inverted; content shows where it is
+             * transparent). 0 = no mask (dat1 RevConfig path). */
+            int mask_scene_id;
+            int mask_atlas_index;
         } sprite;
         struct
         {
@@ -344,6 +350,10 @@ struct UITreeComponent
         struct
         {
             int scene_id;
+            /* The pack's placeholder graphic, kept as the inverted alpha mask
+             * (map shows where it is transparent). 0 = draw unmasked. */
+            int mask_scene_id;
+            int mask_atlas_index;
         } minimap;
         struct
         {
@@ -436,6 +446,10 @@ struct UITreeComponent
         {
             int font_id;
         } minimenu;
+        struct
+        {
+            int font_id;
+        } hovertext;
         struct
         {
             struct UITreeChatMinimenuConfig minimenu;
@@ -536,6 +550,9 @@ struct UITreeNodeSpec
         {
             int scene_id;
             int atlas_index;
+            /* COMPASS only: inverted circular mask, see UITreeComponent. */
+            int mask_scene_id;
+            int mask_atlas_index;
         } sprite;
         struct
         {
@@ -548,6 +565,10 @@ struct UITreeNodeSpec
         struct
         {
             int scene_id;
+            /* The pack's placeholder graphic, kept as the inverted alpha mask
+             * (map shows where it is transparent). 0 = draw unmasked. */
+            int mask_scene_id;
+            int mask_atlas_index;
         } minimap;
         struct
         {
@@ -640,6 +661,10 @@ struct UITreeNodeSpec
         {
             int font_id;
         } minimenu;
+        struct
+        {
+            int font_id;
+        } hovertext;
         struct
         {
             struct UITreeChatMinimenuConfig minimenu;
