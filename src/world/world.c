@@ -613,6 +613,27 @@ World_SceneryGetByElementId(
     return NULL;
 }
 
+struct WorldEntity_NPC*
+World_NpcGetByElementId(
+    struct World* world,
+    int element_id,
+    int* out_index)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        if( npc && npc->element_id == element_id )
+        {
+            if( out_index )
+                *out_index = i;
+            return npc;
+        }
+    }
+    return NULL;
+}
+
 void
 World_ClearSceneryPicks(struct World* world)
 {

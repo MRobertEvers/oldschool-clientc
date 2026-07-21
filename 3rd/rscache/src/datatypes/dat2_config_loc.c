@@ -20,8 +20,25 @@ decode_loc(
     int data_size,
     int flags);
 
+/* Empirical (TORIRS_LOC_SCAN exact-consumption over the jan2026 OSRS cache,
+ * 60601/60601 files): OSRS >= 220 payload shapes apply, model ids stay plain
+ * u16 (LARGE_MODEL_IDS made 15k files misalign — OSRS locs do not big-smart).
+ * The loc group "revision" in modern caches is a unix timestamp; any value
+ * past this threshold is a modern OSRS cache. */
+#define REV_LOC_OSRS_220_ARCHIVE_REV 2000
+
+int
+RSCache_Dat2ConfigLocFlagsForRevision(int revision)
+{
+    int flags = RSCACHE_CONFIG_LOC_DECODE_DAT2;
+    if( revision >= REV_LOC_OSRS_220_ARCHIVE_REV )
+        flags |= RSCACHE_CONFIG_LOC_DECODE_OSRS_220;
+    return flags;
+}
+
 struct RSCache_Dat2ConfigLoc*
 RSCache_Dat2ConfigLocNewDecode(
+    int revision,
     char* buffer,
     int buffer_size)
 {
@@ -29,7 +46,7 @@ RSCache_Dat2ConfigLocNewDecode(
     assert(loc);
     memset(loc, 0, sizeof(struct RSCache_Dat2ConfigLoc));
 
-    decode_loc(loc, buffer, buffer_size, RSCACHE_CONFIG_LOC_DECODE_DAT2);
+    decode_loc(loc, buffer, buffer_size, RSCache_Dat2ConfigLocFlagsForRevision(revision));
 
     return loc;
 }
@@ -214,7 +231,7 @@ decode_loc(
             for( int i = 0; i < count; i++ )
             {
                 loc->models[i] = (int*)malloc(1 * sizeof(int));
-                loc->models[i][0] = g2(&buffer);
+                loc->models[i][0] = LOC_READ_MODEL_ID(&buffer, flags);
                 loc->shapes[i] = g1(&buffer);
                 loc->lengths[i] = 1;
             }
@@ -246,7 +263,7 @@ decode_loc(
             loc->lengths[0] = count;
             for( int i = 0; i < count; i++ )
             {
-                int model_id = g2(&buffer);
+                int model_id = LOC_READ_MODEL_ID(&buffer, flags);
                 loc->models[0][i] = model_id;
             }
             break;
@@ -279,7 +296,7 @@ decode_loc(
             break;
         case 24:
         {
-            int seq_id = g2(&buffer);
+            int seq_id = LOC_READ_MODEL_ID(&buffer, flags);
             if( seq_id == 65535 )
             {
                 seq_id = -1;
@@ -491,14 +508,13 @@ decode_loc(
             break;
         case 88:
         case 90:
-        case 91:
-        case 96:
         case 97:
         case 98:
         case 103:
         case 105:
         case 168:
         case 169:
+        case 176:
         case 177:
         case 189:
             // Boolean flags - skip for now
@@ -506,10 +522,25 @@ decode_loc(
         case 89:
             loc->seq_random_start = false;
             break;
+        case 91:
+            // soundDistanceFadeCurve (LocType.ts:433) - skip
+            g1(&buffer);
+            break;
         case 93:
         {
-            loc->contour_ground_type = 3;
-            loc->contour_ground_param = g2b(&buffer);
+            if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
+            {
+                // OSRS >= 220: sound fade in/out curve + duration (LocType.ts:436-440)
+                g1(&buffer);
+                g2(&buffer);
+                g1(&buffer);
+                g2(&buffer);
+            }
+            else
+            {
+                loc->contour_ground_type = 3;
+                loc->contour_ground_param = g2b(&buffer);
+            }
             break;
         }
         case 94:
@@ -517,11 +548,23 @@ decode_loc(
             break;
         case 95:
         {
-            loc->contour_ground_type = 5;
-            // TODO: Check cache info for contour_ground_param
-            g2(&buffer);
+            if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
+            {
+                // OSRS: crossworldsound byte (LocType.ts:448-449) - skip
+                g1(&buffer);
+            }
+            else
+            {
+                loc->contour_ground_type = 5;
+                // TODO: Check cache info for contour_ground_param
+                g2(&buffer);
+            }
             break;
         }
+        case 96:
+            if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
+                g1(&buffer); // OSRS: thickness byte (LocType.ts:459-460) - skip
+            break;
         case 99:
         case 100:
         case 101:
@@ -562,6 +605,12 @@ decode_loc(
             else if( opcode == 170 || opcode == 171 )
             {
                 gushortsmart(&buffer);
+            }
+            else if( opcode == 190 || opcode == 191 )
+            {
+                // deferredAmbientSwap / resetAmbientOnLoopRestart bytes
+                // (LocType.ts:550-553) - skip
+                g1(&buffer);
             }
             break;
         case 102:
@@ -629,9 +678,14 @@ decode_loc(
                 "RSCache_Dat2ConfigLocDecode: unimplemented opcode %d at offset %d\n",
                 opcode,
                 buffer.position - 1);
-            break;
+            /* Unknown payload length: the stream is misaligned from here on;
+             * stop rather than churn garbage into later fields. */
+            goto decode_done;
         }
     }
+
+decode_done:
+    loc->_consumed = (int)buffer.position;
 
     if( loc->break_routefinding )
     {

@@ -6,10 +6,17 @@
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_minimenu_build.h"
 #include "game/task_cs1_run.h"
+#include "engine/dat2/task_dat2_sequence_load.h"
+#include "engine/player_appearance.h"
+#include "engine/toridraw_model_from_torirs.h"
+#include "engine/world_builder/task_world_load.h"
+#include "engine/world_builder/world_builder.h"
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
+#include "render/torirs_pick.h"
 #include "toridraw.h"
 #include "ui/uitree_layout.h"
+#include "world/world.h"
 
 #include <assert.h>
 #include <rscache.h>
@@ -183,6 +190,34 @@ app_sync_textures(struct App* app)
 
     if( UITreeSceneBridge_PublishTextures(&app->bridge, ids, id_count) )
         app->need_redraw = 1;
+
+    if( getenv("TORIRS_TEX_DEBUG") )
+    {
+        for( int i = 0; i < id_count; i++ )
+        {
+            struct ToriDraw_Texture* scene_tex = ToriDraw_TextureMapGet(
+                &ToriDraw_SceneTexState(app->scene)->texture_map, ids[i]);
+            int nonzero = 0;
+            int total = 0;
+            if( scene_tex && scene_tex->texels )
+            {
+                total = scene_tex->width * scene_tex->height;
+                for( int t = 0; t < total; t++ )
+                    if( scene_tex->texels[t] != 0 )
+                        nonzero++;
+            }
+            fprintf(
+                stderr,
+                "tex_sync: id=%d provider=%d scene=%d failed=%d opaque=%d texels=%d/%d\n",
+                ids[i],
+                CacheProvider_TextureHas(app->provider, ids[i]) ? 1 : 0,
+                scene_tex != NULL ? 1 : 0,
+                (ids[i] >= 0 && ids[i] < 256) ? (int)app->bridge.texture_failed[ids[i]] : -1,
+                scene_tex ? (int)scene_tex->opaque : -1,
+                nonzero,
+                total);
+        }
+    }
 }
 
 void
@@ -203,6 +238,14 @@ App_Init(
     app->runner.queue = ToriRS_TaskQueue_New();
     app->disk = RSCache_Dat2DiskNewFromDirectory(cfg->cache_dir);
     assert(app->disk != NULL);
+    /* Map archives are xtea-encrypted; keys load into the rscache global
+     * table the disk layer consults on archive fetch. */
+    {
+        char xtea_path[1024];
+        snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cfg->cache_dir);
+        if( RSCache_XteaConfigLoadKeys(xtea_path) <= 0 )
+            fprintf(stderr, "app: no xtea keys at %s (world maps may fail)\n", xtea_path);
+    }
     app->runner.px = PlatformX_IO_New();
     assert(app->runner.px != NULL);
     PlatformX_IO_InitDat2Disk(app->runner.px, app->disk);
@@ -224,6 +267,28 @@ App_Init(
     assert(app->tree);
     InvManager_Init(&app->invs);
     VarPManager_Init(&app->varps);
+
+    /* Phase 4b: world sim + builder. The World is a pure simulation that
+     * references scene elements/assets by integer id; the builder keeps it in
+     * sync with the shared scene from cache data. */
+    app->world = World_New();
+    assert(app->world);
+    app->world_builder = WorldBuilder_New(app->world, app->provider, app->scene, &app->varps);
+    assert(app->world_builder);
+    app->painter_buffer = painter_buffer_new();
+    assert(app->painter_buffer);
+    /* v1 GameRunescape camera defaults; repositioned on world load complete. */
+    app->world_camera.fov_rpi2048 = 512;
+    app->world_camera.near_plane_z = 50;
+    app->world_camera.pitch = 148;
+    app->world_camera_pos.z = -800;
+    app->world_hover_tile_x = -1;
+    app->world_hover_tile_z = -1;
+    app->world_hover_tile_level = 0;
+    app->proj_src_tile_x = -1;
+    app->proj_src_tile_z = -1;
+    app->proj_src_tile_level = 0;
+
     seed_inv_defaults(&app->invs);
     RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps);
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
@@ -247,6 +312,13 @@ App_Shutdown(struct App* app)
 {
     assert(app);
     UITree_EmitBufferFree(&app->emit);
+    if( app->painter_buffer )
+    {
+        free(app->painter_buffer->commands);
+        free(app->painter_buffer);
+    }
+    WorldBuilder_Free(app->world_builder);
+    World_Free(app->world);
     VarPManager_Free(&app->varps);
     InvManager_Free(&app->invs);
     UITree_Free(app->tree);
@@ -320,6 +392,78 @@ app_push_builtin_overlay_nodes(struct App* app)
     app->interact.minimenu.font_id = font_id;
 }
 
+/* World_HeightFn: projectiles/movers track terrain height (world units). */
+static int
+app_world_height(
+    void* userdata,
+    int world_x,
+    int world_z,
+    int level)
+{
+    struct App* app = (struct App*)userdata;
+    if( !app->world || !app->world->heightmap )
+        return 0;
+    return heightmap_get_interpolated(app->world->heightmap, world_x, world_z, level);
+}
+
+/* Queue Task_WorldLoad for the configured chunk list and drain it. Reused by
+ * the reload hotkey; assets already cached make a reload near-instant. */
+static void
+app_world_load(struct App* app)
+{
+    int chunks[2] = { 50, 50 };
+    struct ToriRS_Task* task;
+
+    {
+        char const* env = getenv("TORIRS_WORLD_MAP");
+        if( env && sscanf(env, "%d,%d", &chunks[0], &chunks[1]) != 2 )
+        {
+            chunks[0] = 50;
+            chunks[1] = 50;
+        }
+    }
+
+    task = CreateTask_WorldLoad(app->provider, app->world_builder, chunks, 1);
+    ToriRS_TaskQueue_Add(app->runner.queue, task);
+    TaskRunner_Drain(&app->runner);
+
+    if( app->world->load_complete )
+    {
+        app->world_active = 1;
+        World_SetHeightFn(app->world, app_world_height, app);
+        /* v1 scene-reset camera: scene center, above ground, looking down. */
+        app->world_camera_pos.x = app->world->_scene_size / 2 * 128 + 64;
+        app->world_camera_pos.z = app->world->_scene_size / 2 * 128 + 64;
+        app->world_camera_pos.y = -2000;
+        app->world_camera.pitch = 450;
+        app->world_camera.yaw = 0;
+        /* World scenery models reference textures; the bridge scan walks the
+         * scene elements the rebuild just created. */
+        app_sync_textures(app);
+    }
+    else
+    {
+        fprintf(stderr, "app: world load incomplete (map %d,%d)\n", chunks[0], chunks[1]);
+    }
+    app->need_redraw = 1;
+}
+
+/* The interface pack provides no world viewport node; push one as the first
+ * root child so the 3D world draws before (behind) every interface layer. */
+static void
+app_push_world_node(struct App* app)
+{
+    struct UITreeNodeSpec spec;
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_BUILTIN_WORLD;
+    spec.component_id = APP_COM_ID_WORLD;
+    spec.width = UITREE_LAYOUT_ROOT_W;
+    spec.height = UITREE_LAYOUT_ROOT_H;
+    spec.u.world.level_mask = 0xF;
+    assert(UITree_Push(app->tree, -1, &spec) >= 0);
+}
+
 void
 App_OpenRootInterface(
     struct App* app,
@@ -330,6 +474,8 @@ App_OpenRootInterface(
 
     if( getenv("TORIRS_CS2_TRACE") )
         g_cs2_trace_mode = 2;
+
+    app_push_world_node(app);
 
     /* Open the requested interface directly as the tree root (TS parity:
      * WidgetManager.setRootInterface(groupId) — any group can be the root; no
@@ -385,6 +531,8 @@ App_OpenRootInterface(
     UITreeAnim_Advance(app->tree, app->scene, 0);
 
     app_sync_textures(app);
+
+    app_world_load(app);
 
     app->emit.count = 0;
     UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, -1);
@@ -500,6 +648,711 @@ app_logic_tick(struct App* app)
     return redraw;
 }
 
+/* Movers (players/npcs) and in-flight projectiles push their sim positions
+ * into the scene elements the frame emitter draws (v1 synced projectiles;
+ * movers were spawn-time only there because nothing pathed them). */
+static void
+app_world_sync_positions(struct App* app)
+{
+    struct World* world = app->world;
+    struct World_EntityPool* pool;
+
+    pool = &world->entities.player;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+        if( !player || player->element_id < 0 )
+            continue;
+        int wx = (int)player->draw_position.x;
+        int wz = (int)player->draw_position.z;
+        int wy = app_world_height(app, wx, wz, player->grid_position.level);
+        ToriDraw_SceneElementSetPosition(
+            app->scene, player->element_id, wx, wy, wz, player->orientation.yaw);
+    }
+
+    pool = &world->entities.npc;
+    for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
+         ni = World_EntityPoolNext(pool, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+        if( !npc || npc->element_id < 0 )
+            continue;
+        int wx = (int)npc->draw_position.x;
+        int wz = (int)npc->draw_position.z;
+        int wy = app_world_height(app, wx, wz, npc->grid_position.level);
+        ToriDraw_SceneElementSetPosition(
+            app->scene, npc->element_id, wx, wy, wz, npc->orientation.yaw);
+    }
+
+    pool = &world->entities.projectile;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Projectile* proj = World_EntityPoolGet(pool, i);
+        if( !proj || proj->element_id < 0 || !proj->launched )
+            continue;
+        ToriDraw_SceneElementSetPositionPitchYaw(
+            app->scene,
+            proj->element_id,
+            (int)proj->x,
+            (int)proj->y,
+            (int)proj->z,
+            proj->orientation.pitch,
+            proj->orientation.yaw);
+    }
+}
+
+/* One client tick of scene-element animation frames. UITreeAnim only advances
+ * UI model widgets; world scene elements (scenery + entities) advance here
+ * (v1 GameRunescape_TickAnimations, both classic and skeletal branches). */
+static void
+app_world_tick_animations(struct App* app)
+{
+    int slot_count = ToriDraw_SceneElementSlotCount(app->scene);
+    for( int element_id = 0; element_id < slot_count; element_id++ )
+    {
+        struct ToriDraw_SceneElement* element;
+
+        if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+            continue;
+        element = ToriDraw_SceneElementGet(app->scene, element_id);
+        if( !element || element->anim_seq_id == -1 )
+            continue;
+
+        if( element->is_skeletal )
+        {
+            const struct ToriDraw_SkeletalAnim* skeletal = element->skeletal_animation;
+            int play_frames;
+            if( !skeletal || skeletal->frame_count <= 0 )
+                continue;
+            play_frames = element->skeletal_play_frames;
+            if( play_frames <= 0 || play_frames > skeletal->frame_count )
+                play_frames = skeletal->frame_count;
+            element->anim_cycle++;
+            if( element->anim_cycle >= 1 )
+            {
+                element->anim_frame = (element->anim_frame + 1) % play_frames;
+                element->anim_cycle = 0;
+            }
+        }
+        else
+        {
+            const struct ToriDraw_Animation* anim = element->animation;
+            if( !anim || anim->frame_count <= 0 || !anim->frames )
+                continue;
+            element->anim_cycle++;
+            if( element->anim_cycle >= anim->frames[element->anim_frame].delay )
+            {
+                element->anim_frame = (element->anim_frame + 1) % anim->frame_count;
+                element->anim_cycle = 0;
+            }
+        }
+    }
+}
+
+enum
+{
+    APP_CAMERA_MOVEMENT_SPEED = 70, /* v1 RUNESCAPE_CAMERA_MOVEMENT_SPEED */
+    APP_CAMERA_ROTATION_SPEED = 10,
+};
+
+static int
+app_world_drawable(struct App* app)
+{
+    return app->world && app->world->load_complete && app->world->painter &&
+           app->painter_buffer;
+}
+
+/* Fill the painter buffer for the current camera. Called by App_Render once
+ * per frame (painter_paint_bucket resets command_count, so repainting is
+ * safe). */
+static void
+app_world_paint(struct App* app)
+{
+    int cam_sx = app->world_camera_pos.x / 128;
+    int cam_sz = app->world_camera_pos.z / 128;
+    int cam_slevel = app->world_camera_pos.y / 240;
+    if( cam_slevel < 0 )
+        cam_slevel = 0;
+    if( cam_slevel > 3 )
+        cam_slevel = 3;
+    painter_set_camera_angles(app->world->painter, app->world_camera.pitch, app->world_camera.yaw);
+    painter_set_level_mask(app->world->painter, 0xF);
+    painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
+}
+
+/* Cache the WORLD node's emit desc: the mouse gate rect and the viewport the
+ * frame emitter draws with (pick/render parity comes from sharing it). Uses
+ * the previous frame's emit buffer — the world box only changes on relayout. */
+static void
+app_update_world_viewport(struct App* app)
+{
+    app->world_view_valid = 0;
+    for( int i = 0; i < app->emit.count; i++ )
+    {
+        if( app->emit.cmds[i].kind == UITREE_EMIT_WORLD )
+        {
+            app->world_emit_desc = app->emit.cmds[i];
+            app->world_view_valid = 1;
+            return;
+        }
+    }
+}
+
+/* "Only hittest the world if the mouse is over the world element": inside the
+ * world emit clip rect with no interactive UI hovered on top (the world node
+ * itself is pass-through, so hover_com_id < 0 over bare world). */
+static int
+app_world_mouse_gate(struct App* app, int mouse_x, int mouse_y, int hover_com_id)
+{
+    struct UITreeEmitClip const* clip;
+
+    if( !app->world_active || !app->world_view_valid || hover_com_id >= 0 )
+        return 0;
+    clip = &app->world_emit_desc.clip;
+    return mouse_x >= clip->x && mouse_x < clip->x + clip->w && mouse_y >= clip->y &&
+           mouse_y < clip->y + clip->h;
+}
+
+/* Classify the raw hits the render pass collected into the app pickset +
+ * hover tile. Runs after ToriRS_Soft3D_RenderFrame when the pick was armed. */
+static void
+app_world_pick_finish(struct App* app, struct ToriRS_PickHits const* hits)
+{
+    struct ToriRS_PickResult result;
+
+    ToriRS_PickHitsClassify(app->world, hits, &app->world_pickset, &result);
+    if( result.hover_tile_valid )
+    {
+        app->world_hover_tile_x = result.hover_tile_x;
+        app->world_hover_tile_z = result.hover_tile_z;
+        app->world_hover_tile_level = result.hover_tile_level;
+    }
+    else
+    {
+        app->world_hover_tile_x = -1;
+        app->world_hover_tile_z = -1;
+    }
+
+    if( getenv("TORIRS_WORLD_PICK_DEBUG") )
+    {
+        fprintf(
+            stderr,
+            "world_pick: mouse=%d,%d count=%d hover_tile=%d,%d,%d\n",
+            app->world_mouse_x,
+            app->world_mouse_y,
+            app->world_pickset.count,
+            result.hover_tile_valid ? result.hover_tile_x : -1,
+            result.hover_tile_valid ? result.hover_tile_z : -1,
+            result.hover_tile_valid ? result.hover_tile_level : -1);
+        for( int i = 0; i < app->world_pickset.count; i++ )
+            fprintf(
+                stderr,
+                "world_pick:  [%d] element=%d type=%d tile=%d,%d,%d\n",
+                i,
+                app->world_pickset.items[i].element_id,
+                (int)app->world_pickset.items[i].type,
+                app->world_pickset.items[i].tile_x,
+                app->world_pickset.items[i].tile_z,
+                app->world_pickset.items[i].tile_level);
+    }
+}
+
+static void
+app_camera_move_forward(struct App* app, int amount)
+{
+    int direction_x = ToriDraw_Sin(app->world_camera.yaw);
+    int direction_z = ToriDraw_Cos(app->world_camera.yaw);
+    app->world_camera_pos.x -= (direction_x * amount) >> 16;
+    app->world_camera_pos.z += (direction_z * amount) >> 16;
+}
+
+static void
+app_camera_move_left(struct App* app, int amount)
+{
+    int direction_x = ToriDraw_Cos(app->world_camera.yaw);
+    int direction_z = ToriDraw_Sin(app->world_camera.yaw);
+    app->world_camera_pos.x += (direction_x * amount) >> 16;
+    app->world_camera_pos.z += (direction_z * amount) >> 16;
+}
+
+/* World camera keys (v1 mapping): W/S forward/back, A/D strafe, R/F up/down,
+ * arrows yaw/pitch. Suppressed while any visible onKey target wanted the
+ * keyboard this frame, so typing in the UI never flies the camera. */
+static void
+app_world_camera_keys(
+    struct App* app,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut const* out)
+{
+    const int move = APP_CAMERA_MOVEMENT_SPEED;
+    const int rotate = APP_CAMERA_ROTATION_SPEED;
+
+    /* No key_target gating: the reference broadcasts every key to onKey
+     * scripts AND moves the camera in the same frame; there is no focused
+     * text-input concept to defer to yet. */
+    if( !app->world_active )
+        return;
+    (void)out;
+
+    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_W) )
+        app_camera_move_forward(app, move);
+    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_S) )
+        app_camera_move_forward(app, -move);
+    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_A) )
+        app_camera_move_left(app, -move);
+    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_D) )
+        app_camera_move_left(app, move);
+    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_R) )
+        app->world_camera_pos.y -= move;
+    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
+        app->world_camera_pos.y += move;
+    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT) )
+        app->world_camera.yaw = ToriDraw_AddAngle(app->world_camera.yaw, rotate);
+    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
+        app->world_camera.yaw = ToriDraw_AddAngle(app->world_camera.yaw, -rotate);
+    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP) )
+        app->world_camera.pitch = ToriDraw_AddAngle(app->world_camera.pitch, rotate);
+    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN) )
+        app->world_camera.pitch = ToriDraw_AddAngle(app->world_camera.pitch, -rotate);
+
+    /* M: reload the world through the task system (assets cached -> fast;
+     * rebuild clears world scene elements incl. spawned entities). */
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_M) )
+        app_world_load(app);
+}
+
+/* Classic human animation set (players; INTERFACE_PLAYER_IDLE_SEQ parity). */
+enum
+{
+    APP_PLAYER_SEQ_READY = 808,
+    APP_PLAYER_SEQ_WALK = 819,
+    APP_PLAYER_SEQ_WALK_B = 820,
+    APP_PLAYER_SEQ_WALK_L = 821,
+    APP_PLAYER_SEQ_WALK_R = 822,
+    APP_PLAYER_SEQ_TURN = 823,
+    APP_PLAYER_SEQ_RUN = 824,
+};
+
+/* Wrap a freshly built (owned) model in a new dynamic scene element. The
+ * element owns the model from here (SceneElementRemove frees it), which is
+ * why spawns copy registry models instead of sharing handles. */
+static int
+app_world_scene_element_create(
+    struct App* app,
+    struct ToriDraw_Model* model,
+    int world_x,
+    int world_y,
+    int world_z)
+{
+    struct ToriDraw_ModelHandle hnd;
+    int element_id = ToriDraw_SceneElementAdd(app->scene);
+
+    if( element_id < 0 )
+    {
+        ToriDraw_ModelFree(model);
+        return -1;
+    }
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = model;
+    ToriDraw_SceneElementSetModel(app->scene, element_id, hnd);
+    ToriDraw_SceneElementSetPosition(app->scene, element_id, world_x, world_y, world_z, 0);
+    {
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
+        if( el )
+            el->dynamic = true;
+    }
+    return element_id;
+}
+
+/* Load a sequence through the task system (no-op when cached) and attach it. */
+static void
+app_world_apply_seq(struct App* app, int element_id, int seq_id)
+{
+    struct ToriRS_Task* task;
+
+    if( seq_id < 0 )
+        return;
+    task = CreateTask_Dat2SequenceLoad(app->provider, app->scene, seq_id);
+    if( task )
+    {
+        ToriRS_TaskQueue_Add(app->runner.queue, task);
+        TaskRunner_Drain(&app->runner);
+    }
+    if( ToriDraw_SceneAnimationHas(app->scene, seq_id) )
+    {
+        /* Bind the resolved animation onto the element — the tick loop and
+         * frame emitter read element->animation, which SetAnimationSeq alone
+         * leaves NULL. Skip the empty sentinel (failed / maya-only seqs). */
+        struct ToriDraw_Animation* anim = ToriDraw_SceneAnimationGet(app->scene, seq_id);
+        if( anim && anim->frame_count > 0 && anim->frames && anim->base )
+        {
+            ToriDraw_SceneElementSetAnimationSeq(app->scene, element_id, seq_id);
+            ToriDraw_SceneElementSetAnimation(app->scene, element_id, anim, true);
+        }
+    }
+}
+
+/* Load (via tasks) + convert + merge + light one drawable model from cache
+ * model ids. Returns an owned model or NULL. */
+static struct ToriDraw_Model*
+app_world_build_model(struct App* app, const int* model_ids, int count)
+{
+    struct ToriDraw_Model* parts[16];
+    struct ToriDraw_Model* model = NULL;
+    int part_count = 0;
+    int queued = 0;
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, model_ids[i]);
+        if( task )
+        {
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            queued++;
+        }
+    }
+    if( queued )
+        TaskRunner_Drain(&app->runner);
+
+    for( int i = 0; i < count && part_count < 16; i++ )
+    {
+        struct ToriRS_Model* rs = CacheProvider_ModelGet(app->provider, model_ids[i]);
+        struct ToriDraw_Model* part = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
+        if( part )
+            parts[part_count++] = part;
+    }
+    if( part_count == 0 )
+        return NULL;
+
+    if( part_count > 1 )
+    {
+        model = ToriDraw_ModelMerge(parts, part_count);
+        for( int i = 0; i < part_count; i++ )
+            ToriDraw_ModelFree(parts[i]);
+    }
+    else
+        model = parts[0];
+    if( !model )
+        return NULL;
+
+    {
+        struct ToriDraw_ModelHandle hnd;
+        memset(&hnd, 0, sizeof(hnd));
+        hnd.kind = TORIDRAWMK_MODEL;
+        hnd.u.model.model = model;
+        ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+    }
+    ToriDraw_ModelSetBoundsCylinder(model);
+    ToriDraw_ModelCaptureOriginalVertices(model);
+    return model;
+}
+
+/* Hotkey 9: default player model on the hovered tile. */
+static void
+app_world_spawn_player(struct App* app, int tile_x, int tile_z, int level)
+{
+    int scene_model_id;
+    struct ToriDraw_ModelHandle reg;
+    struct ToriDraw_Model* copy;
+    int world_x = tile_x * 128 + 64;
+    int world_z = tile_z * 128 + 64;
+    int world_y;
+    int element_id;
+
+    {
+        struct ToriRS_Task* task = CreateTask_PlayerAppearanceLoad(app->provider);
+        if( task )
+        {
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            TaskRunner_Drain(&app->runner);
+        }
+    }
+    scene_model_id = UITreeSceneBridge_EnsurePlayerModel(&app->bridge);
+    if( scene_model_id <= 0 )
+    {
+        fprintf(stderr, "spawn_player: player model unavailable\n");
+        return;
+    }
+    reg = ToriDraw_SceneModelGet(app->scene, scene_model_id);
+    if( reg.kind != TORIDRAWMK_MODEL || !reg.u.model.model )
+        return;
+    copy = ToriDraw_ModelCopy(reg.u.model.model);
+    if( !copy )
+        return;
+    ToriDraw_ModelSetBoundsCylinder(copy);
+    ToriDraw_ModelCaptureOriginalVertices(copy);
+
+    world_y = app_world_height(app, world_x, world_z, level);
+    element_id = app_world_scene_element_create(app, copy, world_x, world_y, world_z);
+    if( element_id < 0 )
+        return;
+    app_world_apply_seq(app, element_id, APP_PLAYER_SEQ_READY);
+
+    {
+        struct WorldEntityFacet_IdleAnimations idle = {
+            .readyanim = APP_PLAYER_SEQ_READY,
+            .walkanim = APP_PLAYER_SEQ_WALK,
+            .turnanim = APP_PLAYER_SEQ_TURN,
+            .runanim = APP_PLAYER_SEQ_RUN,
+            .walkanim_b = APP_PLAYER_SEQ_WALK_B,
+            .walkanim_r = APP_PLAYER_SEQ_WALK_R,
+            .walkanim_l = APP_PLAYER_SEQ_WALK_L,
+        };
+        World_PlayerSpawn(app->world, element_id, level, tile_x, tile_z, idle);
+    }
+    fprintf(
+        stderr, "spawn_player: element=%d tile=%d,%d level=%d\n", element_id, tile_x, tile_z, level);
+    app_sync_textures(app);
+    app->need_redraw = 1;
+}
+
+/* Hotkey 8: npc on the hovered tile (TORIRS_SPAWN_NPC=<id> override). */
+static void
+app_world_spawn_npc(struct App* app, int tile_x, int tile_z, int level)
+{
+    int npc_id = 3106; /* OSRS-era "Man" */
+    struct ToriRS_Npctype* npctype;
+    struct ToriDraw_Model* model;
+    int size;
+    int world_x, world_z, world_y;
+    int element_id;
+    int idx;
+
+    {
+        char const* env = getenv("TORIRS_SPAWN_NPC");
+        if( env )
+            npc_id = (int)strtol(env, NULL, 0);
+    }
+    {
+        struct ToriRS_Task* task = CreateTask_NpcLoad(app->provider, npc_id);
+        if( task )
+        {
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+            TaskRunner_Drain(&app->runner);
+        }
+    }
+    npctype = CacheProvider_NpctypeGet(app->provider, npc_id);
+    if( !npctype || npctype->models_count <= 0 )
+    {
+        fprintf(stderr, "spawn_npc: npc %d unavailable\n", npc_id);
+        return;
+    }
+
+    model = app_world_build_model(app, npctype->models, npctype->models_count);
+    if( !model )
+    {
+        fprintf(stderr, "spawn_npc: npc %d models failed to load\n", npc_id);
+        return;
+    }
+
+    size = npctype->size > 0 ? npctype->size : 1;
+    world_x = tile_x * 128 + size * 64;
+    world_z = tile_z * 128 + size * 64;
+    world_y = app_world_height(app, world_x, world_z, level);
+    element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
+    if( element_id < 0 )
+        return;
+
+    {
+        struct WorldEntityFacet_IdleAnimations idle = {
+            .readyanim = -1,
+            .walkanim = -1,
+            .turnanim = -1,
+            .runanim = -1,
+            .walkanim_b = -1,
+            .walkanim_r = -1,
+            .walkanim_l = -1,
+        };
+        idx = World_NpcSpawn(app->world, element_id, npc_id, level, tile_x, tile_z, size, idle);
+    }
+    /* Spawn does not carry menu data; the minimenu rows read it off the
+     * entity, so copy name/actions/level from the config here. */
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, idx);
+        if( npc )
+        {
+            npc->combat_level = npctype->combat_level;
+            snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
+            for( int i = 0; i < 5; i++ )
+                snprintf(
+                    npc->actions[i].name,
+                    sizeof(npc->actions[i].name),
+                    "%s",
+                    npctype->actions[i]);
+        }
+    }
+    fprintf(
+        stderr,
+        "spawn_npc: npc=%d element=%d tile=%d,%d level=%d size=%d\n",
+        npc_id,
+        element_id,
+        tile_x,
+        tile_z,
+        level,
+        size);
+    app_sync_textures(app);
+    app->need_redraw = 1;
+}
+
+/* Hotkey 0, two-press latch: first press marks the hovered tile as source,
+ * second launches source -> hovered (same-tile press clears the latch).
+ * Arc math lives in World_ProjectileSetTarget/Move (TS reference parity). */
+static void
+app_world_spawn_projectile(struct App* app, int tile_x, int tile_z, int level)
+{
+    int model_id = 3081; /* v0 spawn-test model fallback */
+    int model_ids[1];
+    struct ToriDraw_Model* model;
+    int src_x, src_z, dst_x, dst_z, src_y;
+    int range, t2;
+    int element_id;
+
+    if( app->proj_src_tile_x < 0 )
+    {
+        app->proj_src_tile_x = tile_x;
+        app->proj_src_tile_z = tile_z;
+        app->proj_src_tile_level = level;
+        fprintf(stderr, "spawn_projectile: source latched at %d,%d\n", tile_x, tile_z);
+        return;
+    }
+    if( app->proj_src_tile_x == tile_x && app->proj_src_tile_z == tile_z )
+    {
+        app->proj_src_tile_x = -1;
+        app->proj_src_tile_z = -1;
+        fprintf(stderr, "spawn_projectile: latch cleared\n");
+        return;
+    }
+
+    {
+        char const* env = getenv("TORIRS_SPAWN_PROJ_MODEL");
+        if( env )
+            model_id = (int)strtol(env, NULL, 0);
+    }
+    model_ids[0] = model_id;
+    model = app_world_build_model(app, model_ids, 1);
+    if( !model )
+    {
+        fprintf(stderr, "spawn_projectile: model %d failed to load\n", model_id);
+        return;
+    }
+
+    src_x = app->proj_src_tile_x * 128 + 64;
+    src_z = app->proj_src_tile_z * 128 + 64;
+    dst_x = tile_x * 128 + 64;
+    dst_z = tile_z * 128 + 64;
+    /* World y is negative-up: start slightly above the source ground. */
+    src_y = app_world_height(app, src_x, src_z, app->proj_src_tile_level) - 160;
+
+    range = abs(tile_x - app->proj_src_tile_x);
+    if( abs(tile_z - app->proj_src_tile_z) > range )
+        range = abs(tile_z - app->proj_src_tile_z);
+    t2 = 60 + range * 5; /* ticks: base flight + per-tile stretch */
+
+    element_id = app_world_scene_element_create(app, model, src_x, src_y, src_z);
+    if( element_id < 0 )
+        return;
+
+    World_ProjectileSpawn(
+        app->world,
+        element_id,
+        app->proj_src_tile_level,
+        src_x,
+        src_z,
+        dst_x,
+        dst_z,
+        src_y,
+        144, /* end height above target ground (36 * 4) */
+        0,
+        t2,
+        15, /* launch slope (1/2048 circle units) */
+        64);
+    fprintf(
+        stderr,
+        "spawn_projectile: element=%d %d,%d -> %d,%d t2=%d\n",
+        element_id,
+        app->proj_src_tile_x,
+        app->proj_src_tile_z,
+        tile_x,
+        tile_z,
+        t2);
+    app->proj_src_tile_x = -1;
+    app->proj_src_tile_z = -1;
+    app_sync_textures(app);
+    app->need_redraw = 1;
+}
+
+/* Spawn test hotkeys (readme): 9 player, 8 npc, 0 projectile — all act on the
+ * tile under the mouse, so they no-op when nothing is hovered. */
+static void
+app_world_hotkeys(
+    struct App* app,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut const* out)
+{
+    /* Spawn hotkeys gate on the hovered world tile, not on onKey targets —
+     * under the real gameframe there is always some visible onKey component
+     * and gating on it made every press suppress itself. */
+    (void)out;
+    if( !app->world_active )
+        return;
+    if( app->world_hover_tile_x < 0 || app->world_hover_tile_z < 0 )
+        return;
+
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_9) )
+        app_world_spawn_player(
+            app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_8) )
+        app_world_spawn_npc(
+            app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_0) )
+        app_world_spawn_projectile(
+            app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
+}
+
+/* Per-frame world step: sim cycles, event drain (entity removals -> scene),
+ * position sync, animation ticks. Runs every frame (cycles may be 0) so the
+ * painter dynamic set stays fresh, and forces a redraw while active. */
+static void
+app_world_frame(struct App* app, int cycles)
+{
+    struct World* world = app->world;
+
+    if( !app->world_active || !world )
+        return;
+
+    World_Cycle(world, cycles);
+
+    {
+        int count = World_EventsCount(world);
+        for( int i = 0; i < count; i++ )
+        {
+            const struct World_Event* ev = World_EventsPeek(world, i);
+            if( ev->kind == WorldEventKind_EntityRemoved && ev->element_id >= 0 )
+                ToriDraw_SceneElementRemove(app->scene, ev->element_id);
+        }
+        World_EventsClear(world);
+    }
+
+    app_world_sync_positions(app);
+
+    for( int c = 0; c < cycles; c++ )
+        app_world_tick_animations(app);
+
+    /* Texture scroll (water/lava): dat2 texture defs carry direction/speed;
+     * the map advances them per elapsed cycle (v1 runescape.c:3893). */
+    if( cycles > 0 )
+    {
+        struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(app->scene);
+        if( tex_state )
+            ToriDraw_TextureMapAnimate(&tex_state->texture_map, cycles);
+    }
+
+    app->need_redraw = 1;
+}
+
 static int
 app_measure_text_cb(void* user, int font_id, char const* text)
 {
@@ -514,7 +1367,7 @@ app_measure_text_cb(void* user, int font_id, char const* text)
  * the widest row, centered on the click, clamped to the canvas). The tree
  * node stays unpositioned — emit and the interact gesture read the model. */
 static void
-app_minimenu_open(struct App* app, int click_x, int click_y)
+app_minimenu_open(struct App* app, int click_x, int click_y, int click_in_world)
 {
     struct RS_MinimenuBuildCtx mctx = {
         .tree = app->tree,
@@ -523,6 +1376,9 @@ app_minimenu_open(struct App* app, int click_x, int click_y)
         .runner = &app->runner,
         .invs = &app->invs,
         .chat = NULL,
+        .world = app->world,
+        .world_pickset = &app->world_pickset,
+        .click_in_world = click_in_world != 0,
     };
     struct UIMinimenu* menu = &app->interact.minimenu;
     struct UIMinimenuLayout layout;
@@ -613,8 +1469,47 @@ app_minimenu_use_option(struct App* app, int option_index, int click_x, int clic
         RS_CS2_PumpTransmits(&app->host, &app->runner);
         return 1;
     }
+    case UI_MINIMENU_PICK_TERRAIN:
+        /* Walk here: pathe the first spawned player (the closest thing to a
+         * local player until state sync exists), else just the cross. */
+        if( app->world )
+        {
+            struct World_EntityPool* pool = &app->world->entities.player;
+            int head = World_EntityPoolHead(pool);
+            if( head != WORLD_ENTITY_NIL )
+                World_PlayerPathJump(
+                    app->world, head, false, opt.pick.secondary_id, opt.pick.tertiary_id);
+            else
+                fprintf(
+                    stderr,
+                    "minimenu: walk %d,%d level=%d (no player)\n",
+                    opt.pick.secondary_id,
+                    opt.pick.tertiary_id,
+                    opt.pick.quaternary_id);
+        }
+        return 0;
+    case UI_MINIMENU_PICK_NPC:
+        /* No interaction sim yet: face the walking player at it and log. */
+        fprintf(
+            stderr,
+            "minimenu: opnpc%d npc_id=%d element=%d tile=%d,%d\n",
+            opt.action_index + 1,
+            opt.pick.secondary_id,
+            opt.pick.id,
+            opt.pick.tertiary_id,
+            opt.pick.quaternary_id);
+        return 0;
+    case UI_MINIMENU_PICK_SCENERY:
+        fprintf(
+            stderr,
+            "minimenu: oploc%d loc_id=%d element=%d tile=%d,%d\n",
+            opt.action_index + 1,
+            opt.pick.secondary_id,
+            opt.pick.id,
+            opt.pick.tertiary_id,
+            opt.pick.quaternary_id);
+        return 0;
     default:
-        /* World pick kinds are the seam for the world hit-test task. */
         fprintf(stderr, "minimenu: unhandled pick kind %d\n", (int)opt.pick.kind);
         return 0;
     }
@@ -651,6 +1546,13 @@ App_RunOnce(
                 }
             }
         }
+        else
+        {
+            ticks = 0;
+        }
+
+        /* World sim cycles == client 20ms ticks (v1 world_cycle cadence). */
+        app_world_frame(app, ticks);
     }
 
     /* Per-frame interaction: returns intents; the app applies event context
@@ -662,6 +1564,23 @@ App_RunOnce(
     UITree_InteractFrame(
         &app->interact, app->tree, &app->ui_host, input, now_ms, &out);
 
+    /* World hover: gate on the mouse being over the world element. The pick
+     * itself runs inside App_Render (hittest right after each visible model
+     * projects), so here we only latch the mouse point the next render picks
+     * at; hover tile and pickset are the last rendered frame's (world frames
+     * always mark need_redraw, so at most one frame stale). */
+    app_update_world_viewport(app);
+    app->world_mouse_in_viewport = app_world_mouse_gate(
+        app, input->curr.mouse_x, input->curr.mouse_y, out.hover_com_id);
+    app->world_mouse_x = input->curr.mouse_x;
+    app->world_mouse_y = input->curr.mouse_y;
+    if( !app->world_mouse_in_viewport )
+    {
+        app->world_hover_tile_x = -1;
+        app->world_hover_tile_z = -1;
+        World_PickSetReset(&app->world_pickset);
+    }
+
     /* Minimenu gesture results (see interact_minimenu): option selected on
      * mousedown -> dispatch; right press with no menu open -> build + show. */
     if( out.minimenu_select >= 0 )
@@ -671,7 +1590,15 @@ App_RunOnce(
             ran_cs2 = 1;
     }
     if( out.right_click )
-        app_minimenu_open(app, out.right_click_x, out.right_click_y);
+    {
+        /* The menu ctx reads app->world_pickset — the set the last rendered
+         * frame hittested at the hover point (v1-style pickset-during-draw). */
+        int click_in_world = app_world_mouse_gate(
+            app, out.right_click_x, out.right_click_y, out.hover_com_id);
+        if( !click_in_world || !app_world_drawable(app) )
+            World_PickSetReset(&app->world_pickset);
+        app_minimenu_open(app, out.right_click_x, out.right_click_y, click_in_world);
+    }
 
     /* Left click executes the DEFAULT menu entry (reference
      * chooseDefaultMenuEntry): build the same menu the right click would show
@@ -687,6 +1614,9 @@ App_RunOnce(
             .runner = &app->runner,
             .invs = &app->invs,
             .chat = NULL,
+            .world = app->world,
+            .world_pickset = NULL, /* UI hit: mouse was over a component */
+            .click_in_world = false,
         };
         struct UIMinimenu scratch;
         int default_idx;
@@ -720,6 +1650,42 @@ App_RunOnce(
                 }
                 out.intent_count = kept;
             }
+        }
+    }
+
+    /* Left click over bare world (no UI component hit): run the default menu
+     * entry from world rows only — Walk here / nearest entity op (reference
+     * chooseDefaultMenuEntry over the last rendered frame's pickset). */
+    if( out.left_click_miss && !out.minimenu_closed && out.minimenu_select < 0 &&
+        app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y, out.hover_com_id) &&
+        app_world_drawable(app) )
+    {
+        struct RS_MinimenuBuildCtx mctx = {
+            .tree = app->tree,
+            .ui_host = &app->ui_host,
+            .provider = app->provider,
+            .runner = &app->runner,
+            .invs = &app->invs,
+            .chat = NULL,
+            .world = app->world,
+            .world_pickset = &app->world_pickset,
+            .click_in_world = true,
+        };
+        struct UIMinimenu scratch;
+        int default_idx;
+
+        UIMinimenu_Reset(&scratch);
+        scratch.font_id = app->interact.minimenu.font_id;
+        RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
+        default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
+        if( default_idx >= 0 )
+        {
+            struct UIMinimenu saved = app->interact.minimenu;
+            app->interact.minimenu = scratch;
+            if( app_minimenu_use_option(
+                    app, default_idx, out.left_click_miss_x, out.left_click_miss_y) )
+                ran_cs2 = 1;
+            app->interact.minimenu = saved;
         }
     }
 
@@ -807,6 +1773,9 @@ App_RunOnce(
     if( out.intent_count > 0 || out.key_target_count > 0 )
         RS_CS2_PumpTransmits(&app->host, &app->runner);
 
+    app_world_camera_keys(app, input, &out);
+    app_world_hotkeys(app, input, &out);
+
     if( ran_cs2 )
         UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 
@@ -837,8 +1806,35 @@ App_Render(
     ToriRS_FrameSetScene(&frame, app->scene);
     ToriRS_FrameSetCanvas(&frame, width, height);
     ToriRS_FrameSetEmitBuffer(&frame, &app->emit);
+
+    /* World pass: paint the visibility-ordered command list for the current
+     * camera and attach it so UITREE_EMIT_WORLD opens the 3D pass. */
+    if( app_world_drawable(app) )
+    {
+        app_world_paint(app);
+        ToriRS_FrameSetWorld(
+            &frame,
+            app->world,
+            app->painter_buffer,
+            &app->world_camera,
+            app->world_camera_pos.x,
+            app->world_camera_pos.y,
+            app->world_camera_pos.z);
+    }
+
     ToriRS_Soft3D_Init(&soft, app->scene, pixels, width, height);
+
+    /* World hittest rides the render: each visible model is tested against
+     * the mouse point right after it projects (the only window where the
+     * scene scratch holds its projection), then the raw hits classify into
+     * the pickset + hover tile the click/hotkey paths consume next frame. */
+    if( app_world_drawable(app) && app->world_mouse_in_viewport )
+        ToriRS_Soft3D_SetPick(&soft, app->world_mouse_x, app->world_mouse_y);
+
     ToriRS_Soft3D_RenderFrame(&soft, &frame);
+
+    if( soft.pick_enabled )
+        app_world_pick_finish(app, &soft.pick_hits);
 }
 
 int

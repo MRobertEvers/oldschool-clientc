@@ -20,8 +20,13 @@
 #include "ui/uitree_host.h"
 #include "ui/uitree_interact.h"
 #include "varp/varp_manager.h"
+#include "world/world_pickset.h"
 
 #include <stdint.h>
+
+struct World;
+struct WorldBuilder;
+struct PaintersBuffer;
 
 /*
  * Application shell: owns every subsystem and the update loop body, with no
@@ -38,6 +43,7 @@ enum
 {
     APP_COM_ID_CROSS = (0x7FFE << 16) | 0,
     APP_COM_ID_MINIMENU = (0x7FFE << 16) | 1,
+    APP_COM_ID_WORLD = (0x7FFE << 16) | 2,
 };
 
 struct AppConfig
@@ -63,6 +69,35 @@ struct App
     /* Phase 3: scene + bridge. */
     struct ToriDraw_Scene* scene;
     struct UITreeSceneBridge bridge;
+
+    /* Phase 4b: world sim + builder (needs provider + scene + varps; the
+     * World references assets and scene elements by integer id only). */
+    struct World* world;
+    struct WorldBuilder* world_builder;
+    struct PaintersBuffer* painter_buffer;
+    struct ToriDraw_Camera world_camera;
+    struct ToriDraw_Position world_camera_pos;
+    int world_active; /* 1 once Task_WorldLoad completed */
+
+    /* World picking: the full pickset refreshes as part of every rendered
+     * frame (App_Render hittests visible models at world_mouse_x/y); click
+     * handlers consume the last rendered set. world_emit_desc caches the
+     * WORLD node's emit desc — the gate rect and the exact viewport the
+     * render pass draws with. */
+    struct World_PickSet world_pickset;
+    struct UITreeEmitDesc world_emit_desc;
+    int world_view_valid;
+    int world_mouse_in_viewport;
+    int world_mouse_x; /* last input mouse, canvas coords */
+    int world_mouse_y;
+    int world_hover_tile_x; /* scene tile, -1 = none */
+    int world_hover_tile_z;
+    int world_hover_tile_level;
+
+    /* Projectile hotkey latch: first press = src tile, second = dst + fire. */
+    int proj_src_tile_x; /* -1 = unarmed */
+    int proj_src_tile_z;
+    int proj_src_tile_level;
 
     /* Phase 4: game state. */
     struct UITree* tree;

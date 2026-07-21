@@ -80,6 +80,14 @@ struct ToriRS_RenderCommand_Model
     int anim_index;
     int anim_frame;
     bool dynamic;
+
+    /* World-emitter models only: the executor may mouse-hittest the model in
+     * the window right after projection (see torirs_pick.h). */
+    bool pickable;
+    bool pick_terrain;
+    int pick_tile_x; /* -1 for non-terrain */
+    int pick_tile_z;
+    int pick_tile_level;
 };
 
 struct ToriRS_RenderCommand_ModelWidget

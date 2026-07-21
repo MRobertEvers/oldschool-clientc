@@ -1033,6 +1033,13 @@ ToriDraw_SceneElementApplyAnimation(
             return;
         if( frame < 0 || frame >= animation->frame_count )
             frame = 0;
+        /* A sequence can carry hole frames (frame archive missing or zero
+         * translators); hold the rest pose for those instead of asserting. */
+        if( animation->frames[frame].length <= 0 )
+        {
+            ToriDraw_ModelAnimateReset(model);
+            return;
+        }
         ToriDraw_ModelAnimateReset(model);
         ToriDraw_ModelAnimateFrame(model, animation->base, &animation->frames[frame]);
     }

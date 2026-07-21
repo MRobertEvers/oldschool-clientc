@@ -877,4 +877,15 @@ UITree_InteractFrame(
     interact_hover(interact, tree, input, now_ms, out);
     interact_click(tree, ui_host, input, &ui_result, out);
     interact_keys(tree, input, out);
+
+    /* Left click that hit no component at all: pass-through elements (the
+     * world viewport) sit under it, so the app runs its world hittest. The
+     * minimenu early-return above already swallows clicks while a menu is
+     * open, and scrollbar ownership zeroes ui_result. */
+    if( !sb_owns_mouse && ui_result.clicked < 0 && LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
+    {
+        out->left_click_miss = 1;
+        out->left_click_miss_x = input->last_click_x[TORIRSM_LEFT];
+        out->left_click_miss_y = input->last_click_y[TORIRSM_LEFT];
+    }
 }

@@ -7,14 +7,47 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Same "modern cache" threshold convention as the loc decoder: modern js5
+ * archive revisions are unix timestamps, far above any classic revision. */
+#define REV_TEXTURE_SIMPLIFIED_ARCHIVE_REV 2000
+
+static struct RSCache_Dat2Texture*
+texture_decode_simplified(
+    struct RSCache_Dat2Texture* def,
+    char* data,
+    int length)
+{
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)length);
+
+    int sprite_id = g2(&buffer);
+    def->average_hsl = g2(&buffer);
+    def->opaque = g1(&buffer) == 1;
+    def->animation_direction = g1(&buffer);
+    def->animation_speed = g1(&buffer);
+
+    def->sprite_ids_count = 1;
+    def->sprite_ids = malloc(sizeof(int));
+    assert(def->sprite_ids);
+    def->sprite_ids[0] = sprite_id;
+    def->sprite_types = NULL;
+    def->transforms = NULL;
+
+    return def;
+}
+
 struct RSCache_Dat2Texture*
 RSCache_Dat2TextureNewDecode(
+    int revision,
     char* data,
     int length)
 {
     struct RSCache_Dat2Texture* def = malloc(sizeof(struct RSCache_Dat2Texture));
     assert(def);
     memset(def, 0, sizeof(struct RSCache_Dat2Texture));
+
+    if( revision >= REV_TEXTURE_SIMPLIFIED_ARCHIVE_REV )
+        return texture_decode_simplified(def, data, length);
 
     return RSCache_Dat2TextureDecodeInplace(def, data, length);
 }

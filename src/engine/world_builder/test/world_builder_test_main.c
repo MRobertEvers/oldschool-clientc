@@ -1,27 +1,8 @@
 #include "test_harness.h"
 
 #include <stdio.h>
-#include <stdlib.h>
-
-#include <toridraw_font.h>
 
 int g_failures = 0;
-
-/* toridraw_font.c is not part of the current toridraw build, but ToriDraw_SceneClear /
- * ToriDraw_SceneGraphShutdown reference ToriDraw_FontFree. Provide a matching implementation
- * so the scene graph links; our tests never register fonts, so it is effectively a no-op. */
-void
-ToriDraw_FontFree(struct ToriDraw_Font* font)
-{
-    if( !font )
-        return;
-    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
-    {
-        free(font->glyph_alpha[i]);
-        font->glyph_alpha[i] = NULL;
-    }
-    free(font);
-}
 
 int
 main(void)

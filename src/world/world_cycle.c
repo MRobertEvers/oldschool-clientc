@@ -342,6 +342,125 @@ World_CycleUpdateSpotanims(
     }
 }
 
+#define WORLD_PROJECTILE_PAINTER_PADDING 60
+
+struct World_PainterFootprint
+{
+    int sx;
+    int sz;
+    int size_x;
+    int size_z;
+};
+
+/* A projectile draws between tiles, so it registers over the tile span its
+ * padded position covers rather than a single grid cell (v1 parity). */
+static void
+World_ProjectilePainterFootprint(
+    int pos_x,
+    int pos_z,
+    int draw_padding,
+    int scene_size,
+    struct World_PainterFootprint* out)
+{
+    int x0 = (pos_x - draw_padding) / 128;
+    int z0 = (pos_z - draw_padding) / 128;
+    int x1 = (pos_x + draw_padding) / 128;
+    int z1 = (pos_z + draw_padding) / 128;
+
+    if( x0 < 0 )
+        x0 = 0;
+    if( z0 < 0 )
+        z0 = 0;
+    if( x1 >= scene_size )
+        x1 = scene_size - 1;
+    if( z1 >= scene_size )
+        z1 = scene_size - 1;
+
+    out->sx = x0;
+    out->sz = z0;
+    out->size_x = x1 - x0 + 1;
+    out->size_z = z1 - z0 + 1;
+}
+
+/* Dynamic entities re-register with the painter every cycle on top of the
+ * static terrain/scenery set; without this pass they never produce
+ * PNTR_CMD_ELEMENT commands and never draw (v1 world_cycle). */
+static void
+World_CycleRegisterPainterDynamics(struct World* world)
+{
+    struct World_EntityPool* pool;
+
+    painter_reset_to_static(world->painter);
+
+    pool = &world->entities.player;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+        if( !player || player->element_id < 0 )
+            continue;
+        int grid_x = player->grid_position.x;
+        int grid_z = player->grid_position.z;
+        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
+            grid_z >= world->_scene_size )
+            continue;
+        painter_add_normal_scenery(
+            world->painter, grid_x, grid_z, player->grid_position.level, player->element_id, 1, 1);
+    }
+
+    pool = &world->entities.npc;
+    for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
+         ni = World_EntityPoolNext(pool, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+        if( !npc || npc->element_id < 0 )
+            continue;
+        int size = npc->size > 0 ? npc->size : 1;
+        int grid_x = npc->grid_position.x;
+        int grid_z = npc->grid_position.z;
+        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
+            grid_z >= world->_scene_size )
+            continue;
+        painter_add_normal_scenery(
+            world->painter, grid_x, grid_z, npc->grid_position.level, npc->element_id, size, size);
+    }
+
+    pool = &world->entities.projectile;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, i);
+        if( !p || p->element_id < 0 || p->cycle < p->t1 )
+            continue;
+        struct World_PainterFootprint footprint;
+        World_ProjectilePainterFootprint(
+            (int)p->x, (int)p->z, WORLD_PROJECTILE_PAINTER_PADDING, world->_scene_size, &footprint);
+        painter_add_normal_scenery(
+            world->painter,
+            footprint.sx,
+            footprint.sz,
+            p->level,
+            p->element_id,
+            footprint.size_x,
+            footprint.size_z);
+    }
+
+    pool = &world->entities.spotanim;
+    for( int si = World_EntityPoolHead(pool); si != WORLD_ENTITY_NIL;
+         si = World_EntityPoolNext(pool, si) )
+    {
+        struct WorldEntity_Spotanim* s = World_EntityPoolGet(pool, si);
+        if( !s || s->element_id < 0 || !s->active )
+            continue;
+        int grid_x = (int)(s->draw_position.x >> 7);
+        int grid_z = (int)(s->draw_position.z >> 7);
+        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
+            grid_z >= world->_scene_size )
+            continue;
+        painter_add_normal_scenery(world->painter, grid_x, grid_z, s->level, s->element_id, 1, 1);
+    }
+}
+
 void
 World_Cycle(
     struct World* world,
@@ -355,4 +474,7 @@ World_Cycle(
     World_CycleUpdateNpcs(world, cycles_elapsed);
     World_CycleUpdateProjectiles(world, cycles_elapsed);
     World_CycleUpdateSpotanims(world, cycles_elapsed);
+
+    if( world->painter )
+        World_CycleRegisterPainterDynamics(world);
 }

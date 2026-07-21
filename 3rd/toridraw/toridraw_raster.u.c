@@ -149,7 +149,23 @@ ToriDraw_RasterModelFace(
         // lightness in colors_a/b/c, not HSL16, so a gouraud fallback would
         // draw garbage; the reference skips the face too.
         if( texture == NULL )
+        {
+            /* TORIRS_RASTER_TEX_DEBUG=1: tally skipped textured faces. */
+            static int skip_tally[256];
+            static int skip_total = 0;
+            if( texture_id >= 0 && texture_id < 256 && getenv("TORIRS_RASTER_TEX_DEBUG") )
+            {
+                skip_tally[texture_id]++;
+                if( ++skip_total % 500 == 1 )
+                    fprintf(
+                        stderr,
+                        "raster_tex_skip: total=%d id=%d (count=%d)\n",
+                        skip_total,
+                        texture_id,
+                        skip_tally[texture_id]);
+            }
             return;
+        }
 
         texels = texture->texels;
         texture_size = texture->width;

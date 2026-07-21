@@ -308,6 +308,10 @@ hide_unmounted_spillover(struct Task_InterfaceOpen* self)
         int group = (cid >> 16) & 0xffff;
         if( cid < 0 || group <= 0 )
             continue;
+        /* App-pushed chrome (world viewport, cross, minimenu) lives in the
+         * reserved group 0x7FFE — never interface spillover. */
+        if( group == 0x7FFE )
+            continue;
         if( group == self->interface_id )
             continue;
         if( UITree_InterfaceParentIsMountedGroup(self->tree, group) )

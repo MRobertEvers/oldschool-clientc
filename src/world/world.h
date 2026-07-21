@@ -245,6 +245,14 @@ World_SceneryGetByElementId(
     struct World* world,
     int element_id);
 
+/** Pool walk; out_index (optional) receives the npc pool index for the
+ * face/path mutators. */
+struct WorldEntity_NPC*
+World_NpcGetByElementId(
+    struct World* world,
+    int element_id,
+    int* out_index);
+
 void
 World_ClearSceneryPicks(struct World* world);
 

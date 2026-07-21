@@ -9,6 +9,11 @@
 #include "ui/uitree_host.h"
 #include "ui/uitree_minimenu.h"
 
+#include <stdbool.h>
+
+struct World;
+struct World_PickSet;
+
 /*
  * Minimenu population (reference buildMinimenu, v1 ui_click builders): walks
  * the UI hit stack under the click and turns component ops / inventory-slot
@@ -33,6 +38,12 @@ struct RS_MinimenuBuildCtx
     struct TaskRunner* runner;
     struct InvManager* invs;
     struct RS_MinimenuChatSource const* chat; /* NULL = no chat lines yet */
+
+    /* World hittest results for this click (NULL/false = no world rows). The
+     * pickset must have been refreshed at the click point by the caller. */
+    struct World* world;
+    struct World_PickSet const* world_pickset;
+    bool click_in_world;
 };
 
 /** Build the full menu for a right click at (click_x, click_y): Cancel row,

@@ -53,6 +53,7 @@ endif
 
 SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	platform/platform_sdl2_renderer_soft3d.c render/torirs_frame.c \
+	render/torirs_pick.c \
 	input/torirs_input.c input/torirs_keymap.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
@@ -106,6 +107,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/toridraw_font_from_torirs.c \
 	engine/toridraw_model_from_torirs.c \
 	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/rs_minimenu_build.c \
+	game/rs_minimenu_world.c \
 	engine/uitree_anim.c \
 	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
@@ -116,18 +118,21 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	revconfig/revconfig.c revconfig/revconfig_load.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
-	painters/painters.c \
-	engine/minimap/minimap.c
+	engine/world_builder/task_world_load.c \
+	painters/painters.c
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 # Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the
-# out-of-tree/unity extras that have their own rules below.
-OBJS = $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
+# out-of-tree/unity extras that have their own rules below. The world_builder
+# pipeline ($(WB_OBJS), incl. wb_minimap.o — the Minimap world.h is written
+# against) links into the app; $(sort) dedupes objects shared with WB_OBJS.
+OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
 	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
-	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+	$(WB_OBJS))
 
 # World builder pipeline objects (compiled as standalone objects; world_builder.c is a single
 # translation unit that #includes its .u.c units). Built via the `world-builder` target.
@@ -154,13 +159,10 @@ $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
 	$(CC) $(CFLAGS) -c $(1) -o $$@
 endef
 
-$(foreach src,$(filter-out painters/painters.c engine/minimap/minimap.c,$(SRCS)),$(eval $(call make-goal,$(src))))
+$(foreach src,$(filter-out painters/painters.c,$(SRCS)),$(eval $(call make-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -c painters/painters.c -o $@
-
-$(OBJ_DIR)/minimap.o: engine/minimap/minimap.c
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/minimap -c engine/minimap/minimap.c -o $@
 
 # --- World builder pipeline object rules ---------------------------------
 $(OBJ_DIR)/world_builder.o: $(WB_DIR)/world_builder.c
@@ -192,10 +194,8 @@ $(OBJ_DIR)/wb_minimap.o: $(WB_DIR)/minimap.c
 
 world-builder: $(OBJ_DIR) $(WB_OBJS)
 
-# Reuse the main link set, but swap the engine minimap for the world_builder minimap
-# (world.h / world_builder are written against engine/world_builder/minimap.h) and add the
-# world_builder pipeline objects. $(sort) dedupes objects shared by OBJS and WB_OBJS.
-WB_TEST_OBJS = $(sort $(filter-out $(OBJ_DIR)/main.o $(OBJ_DIR)/minimap.o,$(OBJS)) $(WB_OBJS))
+# Reuse the main link set (which now includes the world_builder pipeline) minus main.o.
+WB_TEST_OBJS = $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 WB_TEST_SRCS = engine/world_builder/test/world_builder_test_unit.c \
 	engine/world_builder/test/world_builder_test_cache.c \
 	engine/world_builder/test/world_builder_test_main.c

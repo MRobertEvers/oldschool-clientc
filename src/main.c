@@ -5,6 +5,7 @@
 #include "ui/uitree_layout.h"
 
 #include <assert.h>
+#include <bmp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -218,6 +219,20 @@ update_window_title(
     PlatformSDL2_SetTitle(sdl, title);
 }
 
+/* Headless sim frames must render like the real loop does: the world pickset
+ * and hover tile refresh inside App_Render, so every RunOnce that reports a
+ * redraw is followed by a render into a scratch canvas. */
+static void
+sim_render_frame(struct App* app)
+{
+    static int* sim_pixels = NULL;
+
+    if( !sim_pixels )
+        sim_pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+    assert(sim_pixels);
+    App_Render(app, sim_pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+}
+
 int
 main(
     int argc,
@@ -284,6 +299,32 @@ main(
     App_Init(&app, &cfg);
     App_OpenRootInterface(&app, cfg.interface_id);
 
+    /* TORIRS_WORLD_NODE_DEBUG=1: world viewport node state + root sibling
+     * chain (the emit walk draws the chain in order; world must be first). */
+    if( getenv("TORIRS_WORLD_NODE_DEBUG") )
+    {
+        int32_t widx = UITree_FindByComponentId(app.tree, APP_COM_ID_WORLD);
+        fprintf(stderr, "world node idx=%d\n", widx);
+        if( widx >= 0 )
+        {
+            struct UITreeComponent const* wc = &app.tree->components[widx];
+            fprintf(
+                stderr,
+                "world node: type=%d hide=%d trans=%d freed=%d parent=%d next_sib=%d\n",
+                (int)wc->type,
+                (int)wc->behavior.hide,
+                (int)wc->trans,
+                (int)wc->freed,
+                wc->parent,
+                wc->next_sibling);
+        }
+        fprintf(stderr, "root chain:");
+        for( int32_t r = app.tree->root_index; r >= 0;
+             r = app.tree->components[r].next_sibling )
+            fprintf(stderr, " 0x%08x", app.tree->components[r].component_id);
+        fprintf(stderr, "\n");
+    }
+
     /* TORIRS_SIM_CLICK=<component_id>: dispatch that component's on_click hook
      * right after open — headless repro for click-triggered scripts. */
     char const* sim_click_cursor = getenv("TORIRS_SIM_CLICK");
@@ -325,7 +366,8 @@ main(
                     LibToriRS_Input_PushMouseMove(sim_input, (int)mx, (int)my);
                 }
                 LibToriRS_Input_End(sim_input);
-                (void)App_RunOnce(&app, sim_ms, sim_input);
+                if( App_RunOnce(&app, sim_ms, sim_input) )
+                    sim_render_frame(&app);
                 sim_ms += 20;
             }
             fprintf(stderr, "sim_click: post-click ticks done\n");
@@ -367,13 +409,15 @@ main(
             LibToriRS_Input_PushMouseMove(mc_input, mcx, mcy);
             LibToriRS_Input_PushMouseDown(mc_input, button, mcx, mcy);
             LibToriRS_Input_End(mc_input);
-            (void)App_RunOnce(&app, mc_ms, mc_input);
+            if( App_RunOnce(&app, mc_ms, mc_input) )
+                sim_render_frame(&app);
             mc_ms += 20;
 
             LibToriRS_Input_Begin(mc_input, mc_ms);
             LibToriRS_Input_PushMouseUp(mc_input, button, mcx, mcy);
             LibToriRS_Input_End(mc_input);
-            (void)App_RunOnce(&app, mc_ms, mc_input);
+            if( App_RunOnce(&app, mc_ms, mc_input) )
+                sim_render_frame(&app);
             mc_ms += 20;
 
             {
@@ -384,7 +428,8 @@ main(
                 {
                     LibToriRS_Input_Begin(mc_input, mc_ms);
                     LibToriRS_Input_End(mc_input);
-                    (void)App_RunOnce(&app, mc_ms, mc_input);
+                    if( App_RunOnce(&app, mc_ms, mc_input) )
+                        sim_render_frame(&app);
                     mc_ms += 20;
                 }
             }
@@ -431,6 +476,84 @@ main(
             sk_ms += 20;
         }
         fprintf(stderr, "sim_keys: done\n");
+    }
+
+    /* TORIRS_SIM_WORLD_KEY=x,y,<char>[;...]: move the mouse to (x,y), run a
+     * couple frames so the world hover pick latches the tile, then press the
+     * key (letters/digits) through the real input layer. '!' right-clicks and
+     * '.' left-clicks instead of pressing a key, so one run can spawn (9/8/0)
+     * and then open/use the world minimenu on the result. Headless driver for
+     * the hover-gated world hotkeys. */
+    {
+        char const* swk = getenv("TORIRS_SIM_WORLD_KEY");
+        struct LibToriRS_Input swk_storage;
+        struct LibToriRS_Input* swk_input = NULL;
+        uint64_t swk_ms = 1;
+        while( swk && *swk && app.tree )
+        {
+            char* sep = NULL;
+            int wkx = (int)strtol(swk, &sep, 0);
+            int wky = sep && *sep == ',' ? (int)strtol(sep + 1, &sep, 0) : 0;
+            char key_char = (sep && *sep == ',') ? sep[1] : '\0';
+            enum LibToriRS_KeyCode key = TORIRSK_UNKNOWN;
+            if( key_char >= 'a' && key_char <= 'z' )
+                key = (enum LibToriRS_KeyCode)(TORIRSK_A + (key_char - 'a'));
+            else if( key_char >= '0' && key_char <= '9' )
+                key = (enum LibToriRS_KeyCode)(TORIRSK_0 + (key_char - '0'));
+            sep = key_char ? sep + 2 : sep;
+            swk = (sep && *sep == ';') ? sep + 1 : NULL;
+
+            if( !swk_input )
+                swk_input = LibToriRS_Input_Init(&swk_storage, 0);
+
+            fprintf(stderr, "sim_world_key: '%c' at %d,%d\n", key_char ? key_char : '?', wkx, wky);
+            for( int t = 0; t < 2; t++ )
+            {
+                LibToriRS_Input_Begin(swk_input, swk_ms);
+                LibToriRS_Input_PushMouseMove(swk_input, wkx, wky);
+                LibToriRS_Input_End(swk_input);
+                if( App_RunOnce(&app, swk_ms, swk_input) )
+                    sim_render_frame(&app);
+                swk_ms += 20;
+            }
+            {
+                enum LibToriRS_MouseButton btn = key_char == '!'   ? TORIRSM_RIGHT
+                                                 : key_char == '.' ? TORIRSM_LEFT
+                                                                   : TORIRSM_UNKNOWN;
+                LibToriRS_Input_Begin(swk_input, swk_ms);
+                if( key != TORIRSK_UNKNOWN )
+                    LibToriRS_Input_PushKeyDown(swk_input, key);
+                if( btn != TORIRSM_UNKNOWN )
+                    LibToriRS_Input_PushMouseDown(swk_input, btn, wkx, wky);
+                LibToriRS_Input_End(swk_input);
+                if( App_RunOnce(&app, swk_ms, swk_input) )
+                    sim_render_frame(&app);
+                swk_ms += 20;
+                LibToriRS_Input_Begin(swk_input, swk_ms);
+                if( key != TORIRSK_UNKNOWN )
+                    LibToriRS_Input_PushKeyUp(swk_input, key);
+                if( btn != TORIRSM_UNKNOWN )
+                    LibToriRS_Input_PushMouseUp(swk_input, btn, wkx, wky);
+                LibToriRS_Input_End(swk_input);
+                if( App_RunOnce(&app, swk_ms, swk_input) )
+                    sim_render_frame(&app);
+                swk_ms += 20;
+            }
+            {
+                int wk_ticks = getenv("TORIRS_SIM_TICKS")
+                                   ? (int)strtol(getenv("TORIRS_SIM_TICKS"), NULL, 0)
+                                   : 5;
+                for( int t = 0; t < wk_ticks; t++ )
+                {
+                    LibToriRS_Input_Begin(swk_input, swk_ms);
+                    LibToriRS_Input_PushMouseMove(swk_input, wkx, wky);
+                    LibToriRS_Input_End(swk_input);
+                    if( App_RunOnce(&app, swk_ms, swk_input) )
+                        sim_render_frame(&app);
+                    swk_ms += 20;
+                }
+            }
+        }
     }
 
     /* TORIRS_DUMP_OPKEYS=1: print every op-key binding CS2 installed, so a
@@ -664,6 +787,21 @@ main(
                 i, (int)d->kind, d->component_id, d->x, d->y, d->w, d->h, d->scene_id,
                 d->color, d->filled, d->trans, d->tiled);
         }
+    }
+
+    /* TORIRS_WORLD_BMP=1: full App_Render frame (App_WriteBmp is 2D-only, so
+     * the 3D world pass never reaches it) to build/world.bmp, then exit —
+     * headless end-to-end check of the world load + render pipeline. */
+    if( getenv("TORIRS_WORLD_BMP") )
+    {
+        int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+        assert(pixels);
+        App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        bmp_write_file("build/world.bmp", pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        printf("wrote build/world.bmp (%d emit cmds)\n", app.emit.count);
+        free(pixels);
+        App_Shutdown(&app);
+        return 0;
     }
 
     {

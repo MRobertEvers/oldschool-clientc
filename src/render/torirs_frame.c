@@ -649,6 +649,28 @@ translate_ui_cmd(
     return false;
 }
 
+void
+ToriRS_Frame_BuildWorldViewPort(
+    struct UITreeEmitDesc const* desc,
+    int canvas_w,
+    int canvas_h,
+    struct ToriDraw_ViewPort* out)
+{
+    assert(desc);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    out->width = canvas_w;
+    out->height = canvas_h;
+    out->stride = canvas_w;
+    out->x_center = desc->x + desc->w / 2;
+    out->y_center = desc->y + desc->h / 2;
+    out->clip_left = desc->clip.x;
+    out->clip_top = desc->clip.y;
+    out->clip_right = desc->clip.x + desc->clip.w;
+    out->clip_bottom = desc->clip.y + desc->clip.h;
+}
+
 static void
 build_begin_3d_from_world_emit(
     struct ToriRS_Frame* frame,
@@ -660,15 +682,7 @@ build_begin_3d_from_world_emit(
     assert(out);
 
     memset(out, 0, sizeof(*out));
-    out->view_port.width = frame->canvas_w;
-    out->view_port.height = frame->canvas_h;
-    out->view_port.stride = frame->canvas_w;
-    out->view_port.x_center = desc->x + desc->w / 2;
-    out->view_port.y_center = desc->y + desc->h / 2;
-    out->view_port.clip_left = desc->clip.x;
-    out->view_port.clip_top = desc->clip.y;
-    out->view_port.clip_right = desc->clip.x + desc->clip.w;
-    out->view_port.clip_bottom = desc->clip.y + desc->clip.h;
+    ToriRS_Frame_BuildWorldViewPort(desc, frame->canvas_w, frame->canvas_h, &out->view_port);
 
     if( frame->has_world_camera )
     {
@@ -736,7 +750,22 @@ try_emit_world_draw_model(
         out->u.model.world_position = el->world_position;
         out->u.model.element_id = element_id;
         out->u.model.animation = el->animation;
-        out->u.model.dynamic = false;
+        out->u.model.anim_frame = el->anim_frame;
+        out->u.model.dynamic = el->dynamic;
+        out->u.model.pickable = true;
+        if( cmd->_bf_kind == PNTR_CMD_TERRAIN )
+        {
+            out->u.model.pick_terrain = true;
+            out->u.model.pick_tile_x = (int)cmd->_terrain._bf_terrain_x;
+            out->u.model.pick_tile_z = (int)cmd->_terrain._bf_terrain_z;
+            out->u.model.pick_tile_level = (int)cmd->_terrain._bf_terrain_y;
+        }
+        else
+        {
+            out->u.model.pick_tile_x = -1;
+            out->u.model.pick_tile_z = -1;
+            out->u.model.pick_tile_level = -1;
+        }
         return true;
     }
 

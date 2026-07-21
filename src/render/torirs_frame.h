@@ -77,6 +77,15 @@ ToriRS_FrameSetCanvas(
     int width,
     int height);
 
+/** Viewport for a UITREE_EMIT_WORLD desc — shared by the render pass and the
+ * pick pass so hittest and drawn pixels always agree. */
+void
+ToriRS_Frame_BuildWorldViewPort(
+    struct UITreeEmitDesc const* desc,
+    int canvas_w,
+    int canvas_h,
+    struct ToriDraw_ViewPort* out);
+
 /** Optional world draw inputs for UITREE_EMIT_WORLD. */
 void
 ToriRS_FrameSetWorld(

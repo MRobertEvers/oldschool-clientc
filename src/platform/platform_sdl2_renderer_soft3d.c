@@ -442,6 +442,21 @@ soft3d_draw_model(
             cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d) !=
         TORIDRAW_CULL_VISIBLE )
         return;
+
+    /* Hittest before the face sort: the scene scratch holds this model's
+     * projection only until the next model projects, and a model whose faces
+     * all sort away must still pick. */
+    if( soft->pick_enabled && cmd->pickable && cmd->element_id >= 0 &&
+        ToriDraw_ProjectedModelContainsPoint(
+            soft->scene, cmd->model, &soft->view_port_3d, soft->pick_mouse_x, soft->pick_mouse_y) )
+        ToriRS_PickHitsAdd(
+            &soft->pick_hits,
+            cmd->element_id,
+            cmd->pick_terrain,
+            cmd->pick_tile_x,
+            cmd->pick_tile_z,
+            cmd->pick_tile_level);
+
     if( ToriDraw_RenderModel2SortFaces(cmd->model, soft->scene) <= 0 )
         return;
     ToriDraw_RenderModel3Raster(
@@ -466,6 +481,19 @@ ToriRS_Soft3D_Init(
     soft->width = width;
     soft->height = height;
     soft->stride = width;
+}
+
+void
+ToriRS_Soft3D_SetPick(
+    struct ToriRS_Soft3D* soft,
+    int mouse_x,
+    int mouse_y)
+{
+    assert(soft);
+    soft->pick_enabled = true;
+    soft->pick_mouse_x = mouse_x;
+    soft->pick_mouse_y = mouse_y;
+    ToriRS_PickHitsReset(&soft->pick_hits);
 }
 
 void

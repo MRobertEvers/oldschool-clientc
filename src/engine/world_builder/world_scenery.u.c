@@ -299,16 +299,19 @@ scenery_load_model(
         }
         models[i] = ToriDraw_ModelFromToriRS(rs_model);
         assert(models[i] && "scenery_load_model: failed to convert model instance");
-        /* Cache textures are metadata-only; clear before merge/transforms. */
-        if( models[i]->face_textures )
+        /* Face textures/UVs are kept: Task_WorldLoad preloads the referenced
+         * texture ids and app_sync_textures publishes them into the scene
+         * texture map; the raster skips faces whose texture is absent.
+         * TORIRS_STRIP_TEXTURES=1 restores the old stripped behavior (A/B
+         * debugging aid for texture regressions). */
+        if( getenv("TORIRS_STRIP_TEXTURES") )
         {
-            for( int f = 0; f < models[i]->face_count; f++ )
-                models[i]->face_textures[f] = (faceint_t)-1;
-        }
-        if( models[i]->face_texture_coords )
-        {
-            for( int f = 0; f < models[i]->face_count; f++ )
-                models[i]->face_texture_coords[f] = (faceint_t)-1;
+            if( models[i]->face_textures )
+                for( int f = 0; f < models[i]->face_count; f++ )
+                    models[i]->face_textures[f] = (faceint_t)-1;
+            if( models[i]->face_texture_coords )
+                for( int f = 0; f < models[i]->face_count; f++ )
+                    models[i]->face_texture_coords[f] = (faceint_t)-1;
         }
     }
 
@@ -322,7 +325,9 @@ scenery_load_model(
     else
         model = models[0];
 
-    apply_transforms(config_loc, model, rotation, true);
+    /* old_revision=false: the dat1-era hack retextures with *recolor* pairs,
+     * which would corrupt real dat2 texture ids now that faces keep them. */
+    apply_transforms(config_loc, model, rotation, false);
 
     if( model->vertex_count <= 0 || model->face_count <= 0 )
     {
@@ -335,17 +340,25 @@ scenery_load_model(
     int element_id = ToriDraw_SceneElementAdd(builder->scene);
     assert(element_id >= 0 && "world_load_scenery_model: invalid element_id");
 
-    World_SceneryRegister(
-        world,
-        element_id,
-        map_tile->loc_id,
-        scene_x,
-        scene_z,
-        map_tile->chunk_pos_level,
-        size_x,
-        size_z,
-        config_loc->name,
-        config_loc->actions);
+    /* ToriRS actions are [5][64]; the entity facet stores [5][32]. Repack at
+     * the matching stride — passing the loc array directly reads slots 1-4 at
+     * wrong offsets (garbled menu action names). */
+    {
+        char actions32[5][32];
+        for( int a = 0; a < 5; a++ )
+            snprintf(actions32[a], sizeof(actions32[a]), "%s", config_loc->actions[a]);
+        World_SceneryRegister(
+            world,
+            element_id,
+            map_tile->loc_id,
+            scene_x,
+            scene_z,
+            map_tile->chunk_pos_level,
+            size_x,
+            size_z,
+            config_loc->name,
+            actions32);
+    }
 
     struct ToriDraw_ModelHandle hnd = {
         .kind = TORIDRAWMK_MODEL,
@@ -400,11 +413,21 @@ scenery_load_animation(
     int element_id,
     int seq_id)
 {
-    /* Sequence-driven scene element animation (v1 ToriAuxLibTD_ElementSetSequenceId) is not yet
-     * ported to the CacheProvider/ToriDraw_Scene path; skip animation wiring for now. */
-    (void)builder;
-    (void)element_id;
-    (void)seq_id;
+    /* v1 ToriAuxLibTD_ElementSetSequenceId: bind the preloaded animation onto
+     * the element. Task_WorldLoad registers each referenced loc sequence in
+     * the scene before the rebuild; a NULL lookup means "not preloaded" and
+     * the calloc'd empty sentinel means "decode failed / maya-only" — skip
+     * both. SetAnimationSeq captures original vertices; SetAnimation supplies
+     * the frames the tick loop and frame emitter read. */
+    struct ToriDraw_Animation* anim;
+
+    if( element_id < 0 || seq_id < 0 )
+        return;
+    anim = ToriDraw_SceneAnimationGet(builder->scene, seq_id);
+    if( !anim || anim->frame_count <= 0 || !anim->frames || !anim->base )
+        return;
+    ToriDraw_SceneElementSetAnimationSeq(builder->scene, element_id, seq_id);
+    ToriDraw_SceneElementSetAnimation(builder->scene, element_id, anim, true);
 }
 
 static void

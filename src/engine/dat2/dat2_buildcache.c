@@ -1200,6 +1200,54 @@ dat2_buildcache_locs_init_from_archive(
     if( !filelist )
         return;
 
+    /* TORIRS_LOC_SCAN=1: exact-consumption scan — decode every file under
+     * each era-flag combination and report how many consume the file exactly.
+     * Pins the correct payload flags for this cache empirically (misaligned
+     * decodes stop early or overrun). */
+    if( getenv("TORIRS_LOC_SCAN") )
+    {
+        static const struct
+        {
+            char const* name;
+            int flags;
+        } combos[] = {
+            { "plain", RSCACHE_CONFIG_LOC_DECODE_DAT2 },
+            { "large_ids", RSCACHE_CONFIG_LOC_DECODE_LARGE_MODEL_IDS },
+            { "osrs220", RSCACHE_CONFIG_LOC_DECODE_OSRS_220 },
+            { "large_ids+osrs220",
+              RSCACHE_CONFIG_LOC_DECODE_LARGE_MODEL_IDS | RSCACHE_CONFIG_LOC_DECODE_OSRS_220 },
+        };
+        fprintf(
+            stderr,
+            "loc_scan: archive revision=%d files=%d (flags for revision: 0x%x)\n",
+            archive->revision,
+            filelist->file_count,
+            RSCache_Dat2ConfigLocFlagsForRevision(archive->revision));
+        for( size_t c = 0; c < sizeof(combos) / sizeof(combos[0]); c++ )
+        {
+            int exact = 0;
+            int first_bad = -1;
+            for( int i = 0; i < filelist->file_count; i++ )
+            {
+                struct RSCache_Dat2ConfigLoc scan_loc;
+                RSCache_Dat2ConfigLocDecodeInplace(
+                    &scan_loc, filelist->files[i], filelist->file_sizes[i], combos[c].flags);
+                if( scan_loc._consumed == filelist->file_sizes[i] )
+                    exact++;
+                else if( first_bad < 0 )
+                    first_bad = archive->file_ids[i];
+                RSCache_Dat2ConfigLocFreeInplace(&scan_loc);
+            }
+            fprintf(
+                stderr,
+                "loc_scan: %-18s exact=%d/%d first_mismatch_id=%d\n",
+                combos[c].name,
+                exact,
+                filelist->file_count,
+                first_bad);
+        }
+    }
+
     for( int i = 0; i < filelist->file_count; i++ )
     {
         int id = archive->file_ids[i];
@@ -1210,7 +1258,8 @@ dat2_buildcache_locs_init_from_archive(
         if( dat2_buildcache_loc_get(dat2_buildcache, id) )
             continue;
 
-        loc = RSCache_Dat2ConfigLocNewDecode(filelist->files[i], filelist->file_sizes[i]);
+        loc = RSCache_Dat2ConfigLocNewDecode(
+            archive->revision, filelist->files[i], filelist->file_sizes[i]);
         if( !loc )
             continue;
 
@@ -1543,7 +1592,8 @@ dat2_buildcache_textures_init_from_archive(
         if( dat2_buildcache_texture_get(dat2_buildcache, id) )
             continue;
 
-        texture = RSCache_Dat2TextureNewDecode(filelist->files[i], filelist->file_sizes[i]);
+        texture = RSCache_Dat2TextureNewDecode(
+            archive->revision, filelist->files[i], filelist->file_sizes[i]);
         if( !texture )
             continue;
 

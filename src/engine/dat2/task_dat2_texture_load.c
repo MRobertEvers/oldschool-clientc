@@ -153,6 +153,17 @@ texture_bake(
                 opaque = false;
         }
 
+        if( getenv("TORIRS_TEX_DEBUG") )
+            fprintf(
+                stderr,
+                "tex_bake: layer=%d blend=%d w=%d h=%d palette_len=%d dest=%d\n",
+                i,
+                layer->blend_type,
+                layer->width,
+                layer->height,
+                layer->palette_length,
+                dest_size);
+
         /* Only blend_type 0 (replace) is implemented, matching legacy decode. */
         if( layer->blend_type == 0 )
         {

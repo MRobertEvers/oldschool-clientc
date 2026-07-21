@@ -422,14 +422,24 @@ ToriDraw_ModelNewMerge(
             }
         }
         if( has_face_alphas )
-            out->face_alphas = (alphaint_t*)malloc((size_t)total_faces * sizeof(alphaint_t));
+            /* Zeroed: faces from alpha-less inputs must stay opaque (raster
+             * inverts stored alpha, 0 -> 0xFF). */
+            out->face_alphas = (alphaint_t*)calloc((size_t)total_faces, sizeof(alphaint_t));
         if( has_face_infos )
             out->face_infos = (int*)calloc((size_t)total_faces, sizeof(int));
         if( has_face_priorities )
             out->face_priorities =
                 (uint8_t*)calloc(ToriDraw_FacePrioritiesByteCount(total_faces), 1);
         if( has_tex_coords )
+        {
             out->face_texture_coords = (faceint_t*)malloc((size_t)total_faces * sizeof(faceint_t));
+            if( out->face_texture_coords )
+            {
+                /* Faces from coord-less inputs must read untextured. */
+                for( int fi = 0; fi < total_faces; fi++ )
+                    out->face_texture_coords[fi] = (faceint_t)-1;
+            }
+        }
     }
 
     if( total_textured_faces > 0 && has_textured_coords )
@@ -526,7 +536,13 @@ ToriDraw_ModelNewMerge(
                 ToriDraw_SetFacePriority(
                     out->face_priorities, dst, ToriDraw_GetFacePriority(m->face_priorities, f));
             if( out->face_texture_coords && m->face_texture_coords )
-                out->face_texture_coords[dst] = m->face_texture_coords[f];
+            {
+                /* Coord indices point into the source model's textured p/m/n
+                 * tables; those concatenate at tex_face_off in the merge. */
+                faceint_t coord = m->face_texture_coords[f];
+                out->face_texture_coords[dst] =
+                    coord >= 0 ? (faceint_t)(coord + tex_face_off) : (faceint_t)-1;
+            }
         }
 
         for( int t = 0; t < m->textured_face_count; t++ )

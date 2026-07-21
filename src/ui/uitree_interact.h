@@ -93,6 +93,11 @@ struct UIInteractOut
     int right_click;
     int right_click_x;
     int right_click_y;
+    /** Left click hit no UI component this frame (the world element is
+     * pass-through): the app's world hittest owns it. */
+    int left_click_miss;
+    int left_click_miss_x;
+    int left_click_miss_y;
     /** Menu option index selected this frame (mousedown), or -1. */
     int minimenu_select;
     /** Menu was closed by clicking away this frame. */

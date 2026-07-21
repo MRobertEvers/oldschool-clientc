@@ -1,5 +1,7 @@
 #include "rs_minimenu_build.h"
 
+#include "rs_minimenu_world.h"
+
 #include "revconfig/revconfig.h"
 #include "ui/uitree_input.h"
 #include "ui/uitree_inv_view.h"
@@ -459,8 +461,7 @@ RS_Minimenu_Build(
         -1,
         (struct UIMinimenuPick){ .kind = UI_MINIMENU_PICK_NONE });
 
-    /* World pickset rows insert here once world hit-testing exists
-     * (v1 ui_click_append_world_options_to_menu: Walk here + NPC/loc rows). */
+    RS_Minimenu_AddWorldRows(ctx, out);
 
     hit_count =
         UITree_CollectNodesAt(ctx->tree, ctx->ui_host, click_x, click_y, hits, RS_MINIMENU_HIT_STACK_MAX);

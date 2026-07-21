@@ -20,7 +20,15 @@ World_PickSetAdd(
     int tile_level)
 {
     assert(pickset);
-    assert(pickset->count < WORLD_PICKSET_MAX);
+
+    /* The painter can emit one entity from several tiles; a pick pass over
+     * that buffer must not produce duplicate menu targets. Overflow drops
+     * silently — a huge bucket is not a programming error. */
+    for( int i = 0; i < pickset->count; i++ )
+        if( pickset->items[i].element_id == element_id )
+            return;
+    if( pickset->count >= WORLD_PICKSET_MAX )
+        return;
 
     pickset->items[pickset->count].element_id = element_id;
     pickset->items[pickset->count].type = type;

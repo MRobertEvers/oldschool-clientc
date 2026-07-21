@@ -35,8 +35,14 @@ struct RSCache_Dat2Texture
     int animation_speed;
 };
 
+/** revision is the js5 archive revision of the textures group. Modern OSRS
+ * (rev >= 233; archive revisions are unix timestamps there) uses a simplified
+ * single-sprite definition: spriteId u16, averageHsl u16, opaque u8,
+ * animationDirection u8, animationSpeed u8 (xrsps SpriteTextureLoader
+ * decodeSimplified). Older caches use the multi-sprite layout. */
 struct RSCache_Dat2Texture*
 RSCache_Dat2TextureNewDecode(
+    int revision,
     char* buffer,
     int buffer_size);
 void

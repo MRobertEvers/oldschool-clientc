@@ -163,6 +163,10 @@ struct RSCache_Dat2ConfigLoc
     int campaign_id_count;
 
     struct RSCache_Params params;
+
+    /** Bytes consumed by the last decode (diagnostic: exact-consumption
+     * scans compare this against the file size to detect misalignment). */
+    int _consumed;
 };
 
 #define RSCACHE_CONFIG_LOC_DECODE_DAT2 0
@@ -170,9 +174,19 @@ struct RSCache_Dat2ConfigLoc
 #define RSCACHE_CONFIG_LOC_DECODE_LARGE_MODEL_IDS 2
 /** Kronos client: opcode 78/79 omit ambient_sound_retain G1 after distance. */
 #define RSCACHE_CONFIG_LOC_DECODE_KRONOS 4
+/** OSRS rev >= 220 payloads: opcode 93 is sound fades (not contour), 95/96
+ * carry a byte, etc. (xrsps LocType.ts cacheInfo.revision >= 220 branches). */
+#define RSCACHE_CONFIG_LOC_DECODE_OSRS_220 8
 
+/** Era payload flags for a loc config group's js5 archive revision. */
+int
+RSCache_Dat2ConfigLocFlagsForRevision(int revision);
+
+/** revision is the js5 archive revision of the loc config group; it selects
+ * era payload flags (mirrors RSCache_Dat2ConfigNpcNewDecode). */
 struct RSCache_Dat2ConfigLoc*
 RSCache_Dat2ConfigLocNewDecode(
+    int revision,
     char* buffer,
     int buffer_size);
 void
