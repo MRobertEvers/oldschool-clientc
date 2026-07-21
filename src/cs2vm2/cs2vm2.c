@@ -4531,10 +4531,13 @@ CS2VM2_Op_CoordY(
     assert(frame);
     (void)operand;
 
+    /* "y" is the plane, not the second tile axis — RuneScript names the axes
+     * x/y/z with y as the level. Script 1715 (world map coord search) walks
+     * planes with coordy()/movecoord() and only terminates with this reading. */
     int packed;
     if( CS2VM2_PopInt(vm, &packed) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, packed & 0x3fff);
+    return CS2VM2_PushInt(vm, (packed >> 28) & 0x3);
 }
 
 int
@@ -4550,7 +4553,33 @@ CS2VM2_Op_CoordZ(
     int packed;
     if( CS2VM2_PopInt(vm, &packed) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, (packed >> 28) & 0x3);
+    return CS2VM2_PushInt(vm, packed & 0x3fff);
+}
+
+int
+CS2VM2_Op_MoveCoord(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int packed;
+    int off_x;
+    int off_plane;
+    int off_z;
+
+    /* Args are (x, y, z) in RuneScript order, where y is the plane. Offsets add
+     * in packed space, so a tile offset carries into the field above it exactly
+     * as the reference client's arithmetic does. */
+    if( CS2VM2_PopInt(vm, &off_z) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &off_plane) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &off_x) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &packed) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(vm, packed + ((off_plane << 28) | (off_x << 14) | off_z));
 }
 
 int
@@ -5390,6 +5419,53 @@ CS2VM2_Op_StackMetaStub(
     return CS2VM_EXECNO_OK;
 }
 
+/**
+ * World map (6600..6640) and map element config (6693..6699). Both families
+ * read one host-side state object, so each gets a single request kind carrying
+ * its opcode instead of forty near-identical kinds. Argument counts come from
+ * the generated stack table, so the doc comments in cs2_opcode.h stay the one
+ * place a signature is written down; the host pushes the results.
+ */
+static int
+CS2VM2_Op_WorldMapFamily(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    struct CS2VM_HostRequest request;
+    int args[2] = { 0, 0 };
+    int int_in;
+
+    assert(vm);
+    assert(opcode >= 0 && opcode < CS2VM2_OPCODE_STACK_MAX);
+
+    int_in = g_cs2vm2_opcode_stack[opcode].int_in;
+    assert(int_in <= (int)(sizeof(args) / sizeof(args[0])));
+
+    /* Popping runs last-pushed first, so fill backwards to hand the host its
+     * args in source order. */
+    for( int i = int_in - 1; i >= 0; i-- )
+    {
+        if( CS2VM2_PopInt(vm, &args[i]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+
+    memset(&request, 0, sizeof(request));
+    if( opcode >= CS2_OP_MEC_TEXT && opcode <= CS2_OP_MEC_SPRITE )
+    {
+        request.kind = CS2VM_HOST_REQUEST_MEC;
+        request.u.mec.opcode = opcode;
+        request.u.mec.mec_id = args[0];
+    }
+    else
+    {
+        request.kind = CS2VM_HOST_REQUEST_WORLDMAP;
+        request.u.worldmap.opcode = opcode;
+        request.u.worldmap.arg0 = args[0];
+        request.u.worldmap.arg1 = args[1];
+    }
+    return vm->vm->host_exec(vm, &request);
+}
+
 // OC is object config
 int
 CS2VM2_Op_OC_Param(
@@ -6125,6 +6201,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CoordY(vm, frame, operand);
     case CS2_OP_COORDZ:
         return CS2VM2_Op_CoordZ(vm, frame, operand);
+    case CS2_OP_MOVECOORD:
+        return CS2VM2_Op_MoveCoord(vm, frame, operand);
     case CS2_OP_RUNWEIGHT_VISIBLE:
         return CS2VM2_Op_RunWeightVisible(vm, frame, operand);
     case CS2_OP_INV_SIZE:
@@ -6692,6 +6770,10 @@ CS2VM2_RunOp(
         /* No stack args. Generated meta wrongly treats this like MES (1 string). */
         return CS2VM_EXECNO_OK;
     default:
+        /* Contiguous families, matched by range rather than forty case labels. */
+        if( (opcode >= CS2_OP_WORLDMAP_INIT && opcode <= CS2_OP_WORLDMAP_LISTELEMENT_NEXT) ||
+            (opcode >= CS2_OP_MEC_TEXT && opcode <= CS2_OP_WORLDMAP_ELEMENTCOORD) )
+            return CS2VM2_Op_WorldMapFamily(vm, opcode);
         return CS2VM2_Op_StackMetaStub(vm, frame, opcode, operand);
     }
 }

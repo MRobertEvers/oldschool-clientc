@@ -158,6 +158,11 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH,
     CS2VM_HOST_REQUEST_OC_INT_PARAM,
     CS2VM_HOST_REQUEST_CLIENTCLOCK,
+    /* The whole 6600..6640 world map family and the 6693..6699 map element
+     * family go through one kind each: they share a single state object, so
+     * forty request kinds would only spread one switch across three files. */
+    CS2VM_HOST_REQUEST_WORLDMAP,
+    CS2VM_HOST_REQUEST_MEC,
 };
 
 enum CS2VM_OC_IntField
@@ -724,6 +729,22 @@ struct CS2VM_HostRequest_OC_IntParam
     enum CS2VM_OC_IntField field;
 };
 
+/** Any 6600..6640 opcode. `arg0`/`arg1` hold its popped int args in push
+ *  order (arg0 pushed first), unused ones left at 0. */
+struct CS2VM_HostRequest_WorldMap
+{
+    int opcode;
+    int arg0;
+    int arg1;
+};
+
+/** Any 6693..6699 map element config opcode. */
+struct CS2VM_HostRequest_MEC
+{
+    int opcode;
+    int mec_id;
+};
+
 struct CS2VM_HostRequest
 {
     enum CS2VM_HostRequestKind kind;
@@ -826,6 +847,8 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_GetWidth if_gettext;
         struct CS2VM_HostRequest_IF_GetWidth if_getscrollwidth;
         struct CS2VM_HostRequest_OC_IntParam oc_int_param;
+        struct CS2VM_HostRequest_WorldMap worldmap;
+        struct CS2VM_HostRequest_MEC mec;
     } u;
 };
 

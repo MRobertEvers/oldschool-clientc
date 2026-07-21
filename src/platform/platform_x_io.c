@@ -258,7 +258,9 @@ dat2_cache_table_supported(int table_id)
             * skeletal AnimMaya (idx22). */
            table_id == RSCACHE_DAT2_DISK_TABLE_ANIMATIONS ||
            table_id == RSCACHE_DAT2_DISK_TABLE_SKELETONS ||
-           table_id == RSCACHE_DAT2_DISK_TABLE_ANIMAYAS;
+           table_id == RSCACHE_DAT2_DISK_TABLE_ANIMAYAS ||
+           /* World map area configs ("details" / "compositemap"). */
+           table_id == RSCACHE_DAT2_DISK_TABLE_WORLDMAP;
 }
 
 static int

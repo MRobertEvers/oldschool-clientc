@@ -48,7 +48,10 @@ struct CS2VM2_Frame
     int return_ints[8];
 };
 
-#define CS2VM_MAX_FRAMES 32
+/* Matches the reference client's Interpreter_frames[50]. Recursive scripts do
+ * exist — the world map's label sort (1491) recurses once per element — so a
+ * shallower stack turns a legal script into an error. */
+#define CS2VM_MAX_FRAMES 50
 #define CS2VM_MAX_CYCLES 1000000
 #define CS2VM2_MAX_ARRAYS 128
 #define CS2VM2_ARRAY_CAPACITY 256

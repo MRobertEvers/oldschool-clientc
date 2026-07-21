@@ -100,4 +100,12 @@ CreateTask_Dat2ComponentLoad(
     struct CacheProvider* provider,
     int packed_component_id);
 
+struct ToriRS_Task*
+CreateTask_Dat2WorldMapLoad(struct CacheProvider* provider);
+
+struct ToriRS_Task*
+CreateTask_Dat2MapElementLoad(
+    struct CacheProvider* provider,
+    int element_id);
+
 #endif

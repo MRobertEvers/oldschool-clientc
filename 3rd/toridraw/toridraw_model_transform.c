@@ -146,6 +146,7 @@ ToriDraw_ModelMoveArrays(
     dst->vertex_count = src->vertex_count;
     dst->face_count = src->face_count;
     dst->textured_face_count = src->textured_face_count;
+    dst->model_priority = src->model_priority;
 
 #define MODEL_MOVE(field) TORIDRAW_MODEL_MOVE(dst, field, src->field)
 
@@ -269,6 +270,8 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
         memcpy(dst->face_priorities, src->face_priorities, nbytes);
     }
 
+    dst->model_priority = src->model_priority;
+
     dst->vertex_bones = ToriDraw_BonesCopy(src->vertex_bones);
     dst->face_bones = ToriDraw_BonesCopy(src->face_bones);
 
@@ -362,7 +365,10 @@ ToriDraw_ModelNewMerge(
             has_face_alphas = true;
         if( m->face_infos )
             has_face_infos = true;
-        if( m->face_priorities )
+        /* A source with a uniform model_priority needs the merged array too: without it its faces
+         * fall to priority 0 and the depth sort interleaves parts that must stay layered (the
+         * classic case is a loc whose base and body are separate models). */
+        if( m->face_priorities || m->model_priority )
             has_face_priorities = true;
         if( m->face_texture_coords )
             has_tex_coords = true;
@@ -532,9 +538,12 @@ ToriDraw_ModelNewMerge(
                 out->face_alphas[dst] = m->face_alphas[f];
             if( out->face_infos && m->face_infos )
                 out->face_infos[dst] = m->face_infos[f];
-            if( out->face_priorities && m->face_priorities )
+            if( out->face_priorities )
                 ToriDraw_SetFacePriority(
-                    out->face_priorities, dst, ToriDraw_GetFacePriority(m->face_priorities, f));
+                    out->face_priorities,
+                    dst,
+                    m->face_priorities ? ToriDraw_GetFacePriority(m->face_priorities, f)
+                                       : m->model_priority);
             if( out->face_texture_coords && m->face_texture_coords )
             {
                 /* Coord indices point into the source model's textured p/m/n

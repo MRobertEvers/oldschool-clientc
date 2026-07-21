@@ -82,7 +82,54 @@ struct Task_WorldLoad
     /* Protothread loop cursors (locals do not survive yields). */
     int c;
     int i;
+    int pass;
+    int added;
 };
+
+/*
+ * Pull every varbit/varp morph target into `locs`.
+ *
+ * world_builder_resolve_loc swaps a loc config for transforms[VarPManager_GetVarbit(...)] at
+ * rebuild time, but the map only names the *base* ids. Against the lazy CacheProvider the
+ * resolved id is then absent, resolve returns NULL, and the whole loc is dropped from the scene
+ * (its models would be missing too). v1 avoided this by converting the entire cache up front;
+ * here we preload the closure instead.
+ *
+ * The scan runs off a snapshot: idset_add inserts in sorted position, so appending while walking
+ * the live array by index would shift entries under the cursor. Returns how many ids are new, so
+ * the caller can iterate until the closure is complete (transform targets may themselves morph).
+ */
+static int
+world_load_collect_loc_transforms(
+    struct CacheProvider* provider,
+    struct WorldLoadIdSet* locs)
+{
+    int* snapshot;
+    int snapshot_count = locs->count;
+    int before = locs->count;
+
+    if( snapshot_count <= 0 )
+        return 0;
+
+    snapshot = malloc((size_t)snapshot_count * sizeof(int));
+    assert(snapshot);
+    memcpy(snapshot, locs->items, (size_t)snapshot_count * sizeof(int));
+
+    for( int i = 0; i < snapshot_count; i++ )
+    {
+        struct ToriRS_Location* loc = CacheProvider_LocationGet(provider, snapshot[i]);
+        if( !loc || loc->transform_count <= 0 || !loc->transforms )
+            continue;
+
+        /* -1 is a legal entry meaning "nothing here in this state" — not an id. */
+        for( int ti = 0; ti < loc->transform_count; ti++ )
+            if( loc->transforms[ti] >= 0 )
+                idset_add(locs, loc->transforms[ti]);
+    }
+
+    free(snapshot);
+    return locs->count - before;
+}
 
 static void
 world_load_collect_loc_models(
@@ -200,6 +247,22 @@ Task_WorldLoad_Run(
             CacheProvider_LocationHas(p, self->locs.items[self->i])
                 ? NULL
                 : CreateTask_LocLoad(p, self->locs.items[self->i]));
+
+    /* 4b. Morph closure: a loc the map names may resolve to a transform target at rebuild time,
+     * and that target can morph again. Collect (CPU only) then load, until nothing new appears.
+     * The bound is a guard against a self-referential transform table in a bad cache. */
+    for( self->pass = 0; self->pass < 4; self->pass++ )
+    {
+        self->added = world_load_collect_loc_transforms(p, &self->locs);
+        if( self->added <= 0 )
+            break;
+
+        for( self->i = 0; self->i < self->locs.count; self->i++ )
+            TASK_AWAITSELF_IF(
+                CacheProvider_LocationHas(p, self->locs.items[self->i])
+                    ? NULL
+                    : CreateTask_LocLoad(p, self->locs.items[self->i]));
+    }
 
     for( self->i = 0; self->i < self->locs.count; self->i++ )
         world_load_collect_loc_models(

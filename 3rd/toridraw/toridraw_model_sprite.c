@@ -398,6 +398,22 @@ ToriDraw_RenderModelExtentsAtWidget(
     int draw_x = 0;
     int draw_y = 0;
 
+    /* ToriDraw_Raster draws relative to the center of the clip rect (that is
+     * where the perspective texture kernels anchor their uv basis too), with
+     * the pixel buffer advanced to the clip origin. Absolute canvas coords
+     * below are rebased onto that origin. Mirrors the clamping in
+     * context_from_handle. */
+    int raster_clip_left = clip_left < 0 ? 0 : clip_left;
+    int raster_clip_top = clip_top < 0 ? 0 : clip_top;
+    int raster_clip_right = clip_right > 0 ? clip_right : canvas_w;
+    int raster_clip_bottom = clip_bottom > 0 ? clip_bottom : canvas_h;
+    if( raster_clip_right < raster_clip_left )
+        raster_clip_right = raster_clip_left;
+    if( raster_clip_bottom < raster_clip_top )
+        raster_clip_bottom = raster_clip_top;
+    int raster_origin_x = raster_clip_left + ((raster_clip_right - raster_clip_left) >> 1);
+    int raster_origin_y = raster_clip_top + ((raster_clip_bottom - raster_clip_top) >> 1);
+
     scene->active_hnd = hnd;
 
     if( !orthographic )
@@ -413,10 +429,7 @@ ToriDraw_RenderModelExtentsAtWidget(
                 scene, hnd, &xf, origin_x, origin_y, &min_x, &min_y, &max_x, &max_y) )
             return false;
 
-        /* ToriDraw_Raster adds view_port.width/2 and height/2 to vertex coords. */
         int vc = ToriDraw_ModelGetVertexCount(hnd);
-        int raster_origin_x = canvas_w / 2;
-        int raster_origin_y = canvas_h / 2;
         for( int i = 0; i < vc; i++ )
         {
             scene->screen_vertices_x[i] -= raster_origin_x;
@@ -452,9 +465,6 @@ ToriDraw_RenderModelExtentsAtWidget(
             scene->screen_vertices_y[i] += origin_y;
         }
 
-        /* ToriDraw_Raster adds view_port.width/2 and height/2 to vertex coords. */
-        int raster_origin_x = canvas_w / 2;
-        int raster_origin_y = canvas_h / 2;
         for( int i = 0; i < vc; i++ )
         {
             scene->screen_vertices_x[i] -= raster_origin_x;

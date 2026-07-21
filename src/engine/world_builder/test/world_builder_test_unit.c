@@ -42,6 +42,77 @@ test_painters_smoke(void)
     painter_free(painter);
 }
 
+/* Index of the first PNTR_CMD_ELEMENT command carrying `entity`, or -1. */
+static int
+command_index_of_entity(
+    const struct PaintersBuffer* buffer,
+    int entity)
+{
+    for( int i = 0; i < buffer->command_count; i++ )
+    {
+        const struct PaintersElementCommand* cmd = &buffer->commands[i];
+        if( cmd->_bf_kind == PNTR_CMD_ELEMENT && (int)cmd->_entity._bf_entity == entity )
+            return i;
+    }
+    return -1;
+}
+
+/*
+ * Locs sharing a tile must draw in the order they were added -- the reference client walks the
+ * tile's loc array 0..count-1, and the map file's loc order is what decides which loc sits on top.
+ * Regression guard for the prepend-linked-list scenery chain, which reversed this.
+ */
+void
+test_painters_tile_order(void)
+{
+    struct Painter* painter = painter_new(32, 32, 4, PAINTER_NEW_CTX_BUCKET);
+    TEST_ASSERT(painter != NULL, "painter_new (tile order)");
+    if( !painter )
+        return;
+
+    /* Three 1x1 statics on the same tile, added in ascending entity order. */
+    painter_add_normal_scenery(painter, 16, 16, 0, 101, 1, 1);
+    painter_add_normal_scenery(painter, 16, 16, 0, 102, 1, 1);
+    painter_add_normal_scenery(painter, 16, 16, 0, 103, 1, 1);
+
+    painter_mark_static_count(painter);
+
+    painter_set_level_mask(painter, 0xF);
+    painter_set_camera_angles(painter, 128, 0);
+
+    struct PaintersBuffer* buffer = painter_buffer_new();
+    TEST_ASSERT(buffer != NULL, "painter_buffer_new (tile order)");
+    if( !buffer )
+    {
+        painter_free(painter);
+        return;
+    }
+
+    painter_paint_bucket(painter, buffer, 16, 16, 0);
+
+    int i101 = command_index_of_entity(buffer, 101);
+    int i102 = command_index_of_entity(buffer, 102);
+    int i103 = command_index_of_entity(buffer, 103);
+
+    TEST_ASSERT(i101 >= 0 && i102 >= 0 && i103 >= 0, "all same-tile statics emitted");
+    TEST_ASSERT(i101 < i102 && i102 < i103, "same-tile statics draw in add order");
+
+    /* Dynamics (players/npcs) re-register every cycle after painter_reset_to_static; they must
+     * land after the tile's statics, not in front of them. */
+    painter_reset_to_static(painter);
+    painter_add_normal_scenery(painter, 16, 16, 0, 900, 1, 1);
+    painter_paint_bucket(painter, buffer, 16, 16, 0);
+
+    int i900 = command_index_of_entity(buffer, 900);
+    i103 = command_index_of_entity(buffer, 103);
+    TEST_ASSERT(i900 >= 0 && i103 >= 0, "dynamic and static both emitted");
+    TEST_ASSERT(i103 < i900, "dynamic scenery draws after the tile's statics");
+
+    free(buffer->commands);
+    free(buffer);
+    painter_free(painter);
+}
+
 void
 test_builder_lifecycle(void)
 {

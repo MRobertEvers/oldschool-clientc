@@ -13,6 +13,7 @@ struct InvManager;
 struct VarPManager;
 struct CS2VM2_Thread;
 struct UITreeSceneBridge;
+struct RS_WorldMapState;
 
 #define RS_CS2_HOST_VARC_INT_MAX 256
 /* The chatbox input dialog mirrors its string into VarC string 335, so a cap of
@@ -131,6 +132,9 @@ struct RS_CS2Host
      *  KEYHELD and KEYPRESSED opcodes. Refreshed by RS_CS2_SyncKeyState. */
     unsigned char osrs_key_held[TORIRS_OSRSKEY_COUNT];
     unsigned char osrs_key_pressed[TORIRS_OSRSKEY_COUNT];
+
+    /** World map view state, backing the WORLDMAP_* opcodes. Owned here. */
+    struct RS_WorldMapState* worldmap;
 };
 
 void
@@ -149,6 +153,11 @@ RS_CS2Host_SetBridge(
 /** Advance CLIENTCLOCK once per game tick. */
 void
 RS_CS2Host_Tick(struct RS_CS2Host* host);
+
+/** Releases what the host owns (the world map state); the host itself is the
+ *  caller's storage. */
+void
+RS_CS2Host_Free(struct RS_CS2Host* host);
 
 /**
  * CS2VM2 host_exec callback. Expects CS2VM_USER(thread) == RS_CS2Host*.

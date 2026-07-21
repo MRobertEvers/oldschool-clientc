@@ -1,6 +1,7 @@
 #include "test_harness.h"
 #include "game/rs_minimenu_cross.h"
 #include "uitree_cross.h"
+#include "uitree_hovertext.h"
 #include "uitree_interact.h"
 
 #include <string.h>
@@ -338,10 +339,64 @@ test_minimenu_release_swallow(void)
     UITree_Free(tree);
 }
 
+/*
+ * Mouseover text composition (reference proc 4727): top row verbatim, plus
+ * "</col> / N more options" once more than one actionable row exists, and
+ * nothing at all for a Cancel-only menu (minimenu_numops == 0).
+ */
+static void
+test_hovertext_compose(void)
+{
+    struct UIHoverText hover;
+    struct UIMinimenu menu;
+
+    UIHoverText_Reset(&hover);
+    TEST_ASSERT(!hover.visible, "reset hides");
+    TEST_ASSERT(hover.h == UITREE_HOVERTEXT_BOX_H, "reset seeds the line box");
+
+    /* Cancel only: numops 0 -> no line. */
+    UIMinimenu_Reset(&menu);
+    UIMinimenu_AddOption(&menu, "Cancel", TEST_ACTION_CANCEL, -1, pick_none());
+    UIMinimenu_SortPriorityActions(&menu);
+    TEST_ASSERT(!UIHoverText_Compose(&menu, &hover), "cancel-only composes nothing");
+    TEST_ASSERT(!hover.visible, "cancel-only hides");
+    TEST_ASSERT(hover.text[0] == '\0', "cancel-only clears text");
+
+    /* One actionable row: bare text, no suffix. */
+    UIMinimenu_Reset(&menu);
+    UIMinimenu_AddOption(&menu, "Cancel", TEST_ACTION_CANCEL, -1, pick_none());
+    UIMinimenu_AddOption(&menu, "Walk here", TEST_ACTION_WALK, -1, pick_none());
+    UIMinimenu_SortPriorityActions(&menu);
+    TEST_ASSERT(UIHoverText_Compose(&menu, &hover), "single row composes");
+    TEST_ASSERT(hover.visible, "single row visible");
+    TEST_ASSERT(strcmp(hover.text, "Walk here") == 0, "single row is verbatim");
+
+    /* Three actionable rows: top row (last after the priority bubble) wins and
+     * the remaining two are summarised. */
+    UIMinimenu_Reset(&menu);
+    UIMinimenu_AddOption(&menu, "Cancel", TEST_ACTION_CANCEL, -1, pick_none());
+    UIMinimenu_AddOption(&menu, "Walk here", TEST_ACTION_WALK, -1, pick_none());
+    UIMinimenu_AddOption(&menu, "Examine @yel@Goblin", TEST_ACTION_EXAMINE, 5, pick_none());
+    UIMinimenu_AddOption(&menu, "Attack @yel@Goblin", TEST_ACTION_OP1, 0, pick_none());
+    UIMinimenu_SortPriorityActions(&menu);
+    TEST_ASSERT(UIHoverText_Compose(&menu, &hover), "multi row composes");
+    TEST_ASSERT(
+        strcmp(hover.text, "Attack @yel@Goblin</col> / 2 more options") == 0,
+        "top row + N-more suffix");
+
+    /* Compose leaves placement alone — the app owns x/y/w. */
+    hover.x = 11;
+    hover.y = 22;
+    hover.w = 33;
+    UIHoverText_Compose(&menu, &hover);
+    TEST_ASSERT(hover.x == 11 && hover.y == 22 && hover.w == 33, "compose keeps placement");
+}
+
 void
 test_minimenu(void)
 {
     printf("TEST: minimenu / cross\n");
+    test_hovertext_compose();
     test_minimenu_layout_math();
     test_minimenu_clamping();
     test_minimenu_sort();

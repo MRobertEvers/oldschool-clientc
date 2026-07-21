@@ -95,6 +95,8 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
             goto fail;
     }
 
+    dst->model_priority = src->model_priority;
+
     dst->vertex_bones = bones_from_torirs(src->vertex_bones);
     dst->face_bones = bones_from_torirs(src->face_bones);
 

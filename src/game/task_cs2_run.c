@@ -41,6 +41,8 @@ enum TaskCS2YieldPlan
     TASK_CS2_YIELD_SETOBJECT,
     TASK_CS2_YIELD_SPRITE,
     TASK_CS2_YIELD_FONT,
+    TASK_CS2_YIELD_WORLDMAP,
+    TASK_CS2_YIELD_MAPELEMENT,
     TASK_CS2_YIELD_ABORT,
 };
 
@@ -301,6 +303,22 @@ task_cs2_plan_enum(struct Task_CS2Run* self)
     self->yield_plan = TASK_CS2_YIELD_ENUM;
 }
 
+/* The world map is one object for the whole cache, so there is no id to wait
+ * on — the load task itself is the wait. */
+static void
+task_cs2_plan_worldmap(struct Task_CS2Run* self)
+{
+    self->await_id = -1;
+    self->yield_plan = TASK_CS2_YIELD_WORLDMAP;
+}
+
+static void
+task_cs2_plan_mapelement(struct Task_CS2Run* self)
+{
+    self->await_id = self->pending.u.mec.mec_id;
+    self->yield_plan = self->await_id >= 0 ? TASK_CS2_YIELD_MAPELEMENT : TASK_CS2_YIELD_NONE;
+}
+
 /* A struct param answer needs the struct *and* the ParamType behind it; either
  * may be the missing one, so the single yield loads both. struct -1 ("no
  * struct", what a missed enum lookup pushes) is not loadable — the ParamType
@@ -482,6 +500,14 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
 
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:
         task_cs2_plan_struct(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_WORLDMAP:
+        task_cs2_plan_worldmap(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_MEC:
+        task_cs2_plan_mapelement(self);
         break;
 
     case CS2VM_HOST_REQUEST_OC_PARAM:
@@ -803,6 +829,14 @@ Task_CS2Run_Run(
         else if( self->yield_plan == TASK_CS2_YIELD_ENUM )
         {
             TASK_AWAITSELF_IF(CreateTask_EnumLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_WORLDMAP )
+        {
+            TASK_AWAITSELF_IF(CreateTask_WorldMapLoad(self->provider));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_MAPELEMENT )
+        {
+            TASK_AWAITSELF_IF(CreateTask_MapElementLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_STRUCT )
         {

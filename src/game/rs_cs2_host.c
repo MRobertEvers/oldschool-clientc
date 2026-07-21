@@ -5,6 +5,8 @@
 #include "engine/task_obj_model_load.h"
 #include "engine/torirs_types.h"
 #include "engine/uitree_scene_bridge.h"
+#include "engine/torirs_worldmap_from_rscache.h"
+#include "game/rs_worldmap.h"
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
@@ -551,6 +553,15 @@ RS_CS2Host_Init(
      * first dispatch after registration (widget-loaded parity). */
     host->var_change_serial = 1;
     host->inv_change_serial = 1;
+    host->worldmap = RS_WorldMap_New(provider);
+}
+
+void
+RS_CS2Host_Free(struct RS_CS2Host* host)
+{
+    assert(host);
+    RS_WorldMap_Free(host->worldmap);
+    host->worldmap = NULL;
 }
 
 void
@@ -741,6 +752,296 @@ exec_enum_lookup(
     return CS2VM2_PushInt(thread, rs_cs2_enum_lookup_int(e, request.key));
 }
 
+/* =========================================================================
+ * World map (interface 595)
+ * ========================================================================= */
+
+/* Pushing two ints for a getter that returns a pair: the script pops them in
+ * reverse, so push order is (first, second). */
+static int
+rs_cs2_push_pair(
+    struct CS2VM2_Thread* thread,
+    int first,
+    int second)
+{
+    int result = CS2VM2_PushInt(thread, first);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+    return CS2VM2_PushInt(thread, second);
+}
+
+static int
+exec_worldmap(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_WorldMap request)
+{
+    struct RS_WorldMapState* map = host->worldmap;
+    struct ToriRS_WorldMapArea* area;
+    int first = -1;
+    int second = -1;
+
+    if( !map )
+        return CS2VM_EXECNO_ERROR;
+
+    /* The areas load once for the whole cache. Yield for that load the first
+     * time any world map opcode runs; if they are still missing on the retry,
+     * this cache has no world map and every getter answers "nothing". */
+    if( !RS_WorldMap_Sync(map) )
+    {
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_WORLDMAP;
+        req.u.worldmap = request;
+        if( !rs_cs2_await_spent(host, req.kind, -1, -1) )
+            return rs_cs2_yield_load(host, &req, -1, -1);
+    }
+
+    switch( request.opcode )
+    {
+    case CS2_OP_WORLDMAP_INIT:
+        RS_WorldMap_Init(map);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_GETMAPNAME:
+        area = RS_WorldMap_Area(map, request.arg0);
+        return CS2VM2_PushStr(
+            thread, strdup(area && area->external_name ? area->external_name : ""));
+
+    case CS2_OP_WORLDMAP_SETMAP:
+        RS_WorldMap_SetCurrentMapId(map, request.arg0);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_GETZOOM:
+        return CS2VM2_PushInt(thread, RS_WorldMap_Zoom(map));
+
+    case CS2_OP_WORLDMAP_SETZOOM:
+        RS_WorldMap_SetZoom(map, request.arg0);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_ISLOADED:
+        return CS2VM2_PushInt(thread, RS_WorldMap_IsLoaded(map) ? 1 : 0);
+
+    case CS2_OP_WORLDMAP_JUMPTODISPLAYCOORD:
+        RS_WorldMap_JumpToDisplayCoord(map, request.arg0, false);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_JUMPTODISPLAYCOORD_INSTANT:
+        RS_WorldMap_JumpToDisplayCoord(map, request.arg0, true);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_JUMPTOSOURCECOORD:
+        RS_WorldMap_JumpToSourceCoord(map, request.arg0, false);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_JUMPTOSOURCECOORD_INSTANT:
+        RS_WorldMap_JumpToSourceCoord(map, request.arg0, true);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_GETDISPLAYPOSITION:
+        RS_WorldMap_DisplayPosition(map, &first, &second);
+        return rs_cs2_push_pair(thread, first, second);
+
+    case CS2_OP_WORLDMAP_GETCONFIGORIGIN:
+        area = RS_WorldMap_Area(map, request.arg0);
+        return CS2VM2_PushInt(thread, area ? area->origin : 0);
+
+    case CS2_OP_WORLDMAP_GETCONFIGSIZE:
+        area = RS_WorldMap_Area(map, request.arg0);
+        return rs_cs2_push_pair(
+            thread,
+            ToriRS_WorldMapArea_WidthTiles(area),
+            ToriRS_WorldMapArea_HeightTiles(area));
+
+    case CS2_OP_WORLDMAP_GETCONFIGBOUNDS:
+    {
+        int min_x = 0;
+        int min_y = 0;
+        int max_x = 0;
+        int max_y = 0;
+        int result;
+
+        area = RS_WorldMap_Area(map, request.arg0);
+        ToriRS_WorldMapArea_Bounds(area, &min_x, &min_y, &max_x, &max_y);
+        result = rs_cs2_push_pair(thread, min_x, min_y);
+        if( result != CS2VM_EXECNO_OK )
+            return result;
+        return rs_cs2_push_pair(thread, max_x, max_y);
+    }
+
+    case CS2_OP_WORLDMAP_GETCONFIGZOOM:
+        area = RS_WorldMap_Area(map, request.arg0);
+        return CS2VM2_PushInt(thread, area ? area->zoom : -1);
+
+    case CS2_OP_WORLDMAP_GETDISPLAYCOORD_CURRENT:
+        if( !RS_WorldMap_DisplayCoord(map, &first, &second) )
+        {
+            first = -1;
+            second = -1;
+        }
+        return rs_cs2_push_pair(thread, first, second);
+
+    case CS2_OP_WORLDMAP_GETCURRENTMAP:
+        return CS2VM2_PushInt(thread, RS_WorldMap_CurrentMapId(map));
+
+    case CS2_OP_WORLDMAP_GETDISPLAYCOORD:
+        if( !RS_WorldMap_SourceToDisplay(map, request.arg0, &first, &second) )
+        {
+            first = -1;
+            second = -1;
+        }
+        return rs_cs2_push_pair(thread, first, second);
+
+    case CS2_OP_WORLDMAP_GETSOURCECOORD:
+        return CS2VM2_PushInt(thread, RS_WorldMap_DisplayToSource(map, request.arg0));
+
+    case CS2_OP_WORLDMAP_JUMPTOMAP:
+        RS_WorldMap_JumpToMap(map, request.arg0, request.arg1, false);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_JUMPTOMAP_INSTANT:
+        RS_WorldMap_JumpToMap(map, request.arg0, request.arg1, true);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_COORDINMAP:
+        return CS2VM2_PushInt(
+            thread, RS_WorldMap_CoordInMap(map, request.arg0, request.arg1) ? 1 : 0);
+
+    case CS2_OP_WORLDMAP_GETSIZE:
+        RS_WorldMap_DisplaySize(map, &first, &second);
+        return rs_cs2_push_pair(thread, first, second);
+
+    case CS2_OP_WORLDMAP_GETMAP:
+        return CS2VM2_PushInt(thread, RS_WorldMap_MapAtCoord(map, request.arg0));
+
+    case CS2_OP_WORLDMAP_SETMAXFLASHCOUNT:
+        RS_WorldMap_SetMaxFlashCount(map, request.arg0);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_RESETMAXFLASHCOUNT:
+        RS_WorldMap_ResetMaxFlashCount(map);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_SETCYCLESPERFLASH:
+        RS_WorldMap_SetCyclesPerFlash(map, request.arg0);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_RESETCYCLESPERFLASH:
+        RS_WorldMap_ResetCyclesPerFlash(map);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_GETNEARESTICON:
+        return CS2VM2_PushInt(
+            thread, RS_WorldMap_NearestIcon(map, request.arg0, request.arg1));
+
+    case CS2_OP_WORLDMAP_PERPETUALFLASH:
+        RS_WorldMap_SetPerpetualFlash(map, request.arg0 == 1);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_FLASHELEMENT:
+        RS_WorldMap_FlashElement(map, request.arg0);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_FLASHELEMENTCATEGORY:
+        RS_WorldMap_FlashCategory(map, request.arg0);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_STOPCURRENTFLASHES:
+        RS_WorldMap_StopCurrentFlashes(map);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_DISABLEELEMENTS:
+        RS_WorldMap_SetElementsEnabled(map, request.arg0 == 1);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_DISABLEELEMENT:
+        RS_WorldMap_SetElementEnabled(map, request.arg0, request.arg1 == 1);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_DISABLEELEMENTCATEGORY:
+        RS_WorldMap_SetCategoryEnabled(map, request.arg0, request.arg1 == 1);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_WORLDMAP_GETDISABLEELEMENTS:
+        return CS2VM2_PushInt(thread, RS_WorldMap_ElementsEnabled(map) ? 1 : 0);
+
+    case CS2_OP_WORLDMAP_GETDISABLEELEMENT:
+        return CS2VM2_PushInt(thread, RS_WorldMap_IsElementEnabled(map, request.arg0) ? 1 : 0);
+
+    case CS2_OP_WORLDMAP_GETDISABLEELEMENTCATEGORY:
+        return CS2VM2_PushInt(thread, RS_WorldMap_IsCategoryEnabled(map, request.arg0) ? 1 : 0);
+
+    case CS2_OP_WORLDMAP_LISTELEMENT_START:
+        if( !RS_WorldMap_IconStart(map, &first, &second) )
+        {
+            first = -1;
+            second = -1;
+        }
+        return rs_cs2_push_pair(thread, first, second);
+
+    case CS2_OP_WORLDMAP_LISTELEMENT_NEXT:
+        if( !RS_WorldMap_IconNext(map, &first, &second) )
+        {
+            first = -1;
+            second = -1;
+        }
+        return rs_cs2_push_pair(thread, first, second);
+
+    case CS2_OP_WORLDMAP_ELEMENT:
+        return CS2VM2_PushInt(thread, map->event_element);
+
+    case CS2_OP_WORLDMAP_ELEMENTCOORD1:
+        return CS2VM2_PushInt(thread, map->event_coord1);
+
+    case CS2_OP_WORLDMAP_ELEMENTCOORD:
+        return CS2VM2_PushInt(thread, map->event_coord2);
+
+    default:
+        fprintf(stderr, "exec_worldmap: unhandled opcode %d\n", request.opcode);
+        return CS2VM_EXECNO_ERROR;
+    }
+}
+
+static int
+exec_mec(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_MEC request)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_MapElement* element =
+        provider ? CacheProvider_MapElementGet(provider, request.mec_id) : NULL;
+
+    if( !element )
+    {
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_MEC;
+        req.u.mec = request;
+        if( !rs_cs2_await_spent(host, req.kind, request.mec_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.mec_id, -1);
+        /* Still missing after its load: answer as the reference does for an
+         * absent map element config. */
+        if( request.opcode == CS2_OP_MEC_TEXT )
+            return CS2VM2_PushStr(thread, strdup(""));
+        if( request.opcode == CS2_OP_MEC_TEXTSIZE )
+            return CS2VM2_PushInt(thread, 0);
+        return CS2VM2_PushInt(thread, -1);
+    }
+
+    switch( request.opcode )
+    {
+    case CS2_OP_MEC_TEXT:
+        return CS2VM2_PushStr(thread, strdup(element->name ? element->name : ""));
+    case CS2_OP_MEC_TEXTSIZE:
+        return CS2VM2_PushInt(thread, element->text_size);
+    case CS2_OP_MEC_CATEGORY:
+        return CS2VM2_PushInt(thread, element->category);
+    case CS2_OP_MEC_SPRITE:
+        return CS2VM2_PushInt(thread, element->sprite_id);
+    default:
+        fprintf(stderr, "exec_mec: unhandled opcode %d\n", request.opcode);
+        return CS2VM_EXECNO_ERROR;
+    }
+}
 
 static int
 exec_enum_output_count(
@@ -2116,6 +2417,12 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_CLIENTCLOCK:
         return CS2VM2_PushInt(vm, host->client_clock);
+
+    case CS2VM_HOST_REQUEST_WORLDMAP:
+        return exec_worldmap(host, vm, request->u.worldmap);
+
+    case CS2VM_HOST_REQUEST_MEC:
+        return exec_mec(host, vm, request->u.mec);
 
     case CS2VM_HOST_REQUEST_IF_SETON_DISCARD:
     case CS2VM_HOST_REQUEST_CC_SETON_DISCARD:

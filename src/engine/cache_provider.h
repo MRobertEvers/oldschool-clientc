@@ -36,8 +36,12 @@ struct CacheProvider
     struct HMap* flotype_cache;
     struct HMap* underlay_cache;
     struct HMap* texture_cache;
+    struct HMap* mapelement_cache;
     /** name_hash (ArchiveNameHashDat2) → sprite archive id */
     struct HMap* sprite_name_cache;
+    /** Every world map area, loaded as one object (cache table 19). NULL until
+     *  the load task runs, and on caches that have no world map at all. */
+    struct ToriRS_WorldMapAreas* worldmap_areas;
 };
 
 /** World-builder map key: encodes a map square (map_x, map_z) into a single int. */
@@ -142,6 +146,11 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_ComponentLoad)(
         struct CacheProvider* provider,
         int packed_component_id);
+    /** Loads every world map area in one go; NULL on caches without one. */
+    struct ToriRS_Task* (*Task_WorldMapLoad)(struct CacheProvider* provider);
+    struct ToriRS_Task* (*Task_MapElementLoad)(
+        struct CacheProvider* provider,
+        int element_id);
 };
 
 void
@@ -278,6 +287,38 @@ CacheProvider_ParamHas(
 
 void
 CacheProvider_ParamsCleanup(struct CacheProvider* provider);
+
+/**
+ * World map areas are one object for the whole cache, so there is no id: the
+ * provider owns whatever the load task decoded, and NULL means "not loaded yet
+ * or this cache has no world map".
+ */
+void
+CacheProvider_WorldMapSet(
+    struct CacheProvider* provider,
+    struct ToriRS_WorldMapAreas* areas);
+
+struct ToriRS_WorldMapAreas*
+CacheProvider_WorldMapGet(struct CacheProvider* provider);
+
+void
+CacheProvider_MapElementAdd(
+    struct CacheProvider* provider,
+    int element_id,
+    struct ToriRS_MapElement* element);
+
+struct ToriRS_MapElement*
+CacheProvider_MapElementGet(
+    struct CacheProvider* provider,
+    int element_id);
+
+bool
+CacheProvider_MapElementHas(
+    struct CacheProvider* provider,
+    int element_id);
+
+void
+CacheProvider_MapElementsCleanup(struct CacheProvider* provider);
 
 void
 CacheProvider_ComponentPackAdd(
@@ -680,6 +721,27 @@ CreateTask_ComponentLoad(
     int packed_component_id)
 {
     return provider->vtable->Task_ComponentLoad(provider, packed_component_id);
+}
+
+/* Null-checked, unlike the loaders above: a dat1 cache has no world map table
+ * at all, and the world map scripts must degrade to "not loaded" there rather
+ * than call through a NULL vtable slot. */
+static inline struct ToriRS_Task*
+CreateTask_WorldMapLoad(struct CacheProvider* provider)
+{
+    if( !provider->vtable->Task_WorldMapLoad )
+        return NULL;
+    return provider->vtable->Task_WorldMapLoad(provider);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_MapElementLoad(
+    struct CacheProvider* provider,
+    int element_id)
+{
+    if( !provider->vtable->Task_MapElementLoad )
+        return NULL;
+    return provider->vtable->Task_MapElementLoad(provider, element_id);
 }
 
 #endif

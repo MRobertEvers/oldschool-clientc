@@ -52,6 +52,8 @@ struct RSCache
 #include "datatypes/dat2_config_enum.h"
 #include "datatypes/dat2_config_struct.h"
 #include "datatypes/dat2_config_param.h"
+#include "datatypes/dat2_config_mapelement.h"
+#include "datatypes/dat2_worldmap.h"
 #include "datatypes/dat2_framemap.h"
 #include "datatypes/dat2_frame.h"
 #include "datatypes/dat2_config_sequence.h"

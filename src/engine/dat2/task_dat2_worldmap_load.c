@@ -1,0 +1,221 @@
+#include "engine/cache_provider.h"
+#include "engine/dat2/dat2_buildcache.h"
+#include "engine/dat2/dat2_tasks.h"
+#include "engine/torirs_worldmap_from_rscache.h"
+
+#include "asyncio.h"
+#include "cache/rscache_io.h"
+
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/*
+ * The world map lives in two archives of table 19: "details" holds one file per
+ * map area, "compositemap" holds that area's map element icons. Both list the
+ * same file ids, so icons attach by id. Loading is all-or-nothing — the scripts
+ * ask "is the world map loaded", not "is area N loaded".
+ */
+struct Task_Dat2WorldMapLoad
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct Dat2BuildCache* bc;
+    /* Locals do not survive a protothread yield, so the details archive waits
+     * here while the compositemap archive loads. */
+    struct RSCache_Dat2DiskArchive* details;
+    int composite_archive_id;
+};
+
+static int
+task_dat2_worldmap_resolve_archive_id(
+    struct RSCache_ReferenceTable* table,
+    char const* name)
+{
+    int name_hash;
+
+    assert(table);
+
+    name_hash = RSCache_ArchiveNameHashDat2((char*)name);
+    for( int i = 0; i < table->archive_count; i++ )
+    {
+        if( table->archives[i].identifier == name_hash )
+            return table->archives[i].index;
+    }
+    return -1;
+}
+
+static struct ToriRS_WorldMapAreas*
+task_dat2_worldmap_decode(
+    struct RSCache_Dat2DiskArchive* details,
+    struct RSCache_Dat2DiskArchive* composite)
+{
+    struct RSCache_FileList* details_files = NULL;
+    struct RSCache_FileList* composite_files = NULL;
+    struct RSCache_WorldMapArea* entries = NULL;
+    struct ToriRS_WorldMapAreas* areas = NULL;
+    int count = 0;
+
+    assert(details);
+
+    details_files =
+        RSCache_FileListNewFromDecode(details->data, details->data_size, details->file_count);
+    if( !details_files || details_files->file_count <= 0 || !details->file_ids )
+    {
+        fprintf(stderr, "worldmap: failed to split the details archive\n");
+        RSCache_FileListFree(details_files);
+        return NULL;
+    }
+
+    if( composite && composite->file_ids )
+    {
+        composite_files = RSCache_FileListNewFromDecode(
+            composite->data, composite->data_size, composite->file_count);
+    }
+
+    entries = calloc((size_t)details_files->file_count, sizeof(*entries));
+    assert(entries);
+
+    for( int i = 0; i < details_files->file_count; i++ )
+    {
+        int file_id = details->file_ids[i];
+
+        if( !RSCache_WorldMapAreaDecodeInplace(
+                &entries[count], file_id, details_files->files[i], details_files->file_sizes[i]) )
+        {
+            fprintf(stderr, "worldmap: failed to decode area %d\n", file_id);
+            RSCache_WorldMapAreaFreeInplace(&entries[count]);
+            continue;
+        }
+
+        if( composite_files )
+        {
+            for( int j = 0; j < composite_files->file_count; j++ )
+            {
+                if( composite->file_ids[j] != file_id )
+                    continue;
+                RSCache_WorldMapAreaDecodeIconsInplace(
+                    &entries[count], composite_files->files[j], composite_files->file_sizes[j]);
+                break;
+            }
+        }
+        count++;
+    }
+
+    areas = ToriRS_WorldMapAreasFromRSCacheDat2(entries, count);
+
+    for( int i = 0; i < count; i++ )
+        RSCache_WorldMapAreaFreeInplace(&entries[i]);
+    free(entries);
+    RSCache_FileListFree(composite_files);
+    RSCache_FileListFree(details_files);
+    return areas;
+}
+
+static int
+Task_Dat2WorldMapLoad_Run(
+    struct ToriRS_Task* task_base,
+    struct ToriRS_IO* io)
+{
+    struct Task_Dat2WorldMapLoad* task = (struct Task_Dat2WorldMapLoad*)task_base;
+    struct RSCache_ReferenceTable* table = NULL;
+    struct RSCache_Dat2DiskArchive* composite = NULL;
+    struct ToriRS_WorldMapAreas* areas = NULL;
+    int details_archive_id = -1;
+
+    PT_BEGIN(&task->pt);
+
+    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_DISK_TABLE_WORLDMAP) )
+    {
+        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_DISK_TABLE_WORLDMAP);
+        PT_YIELD(&task->pt);
+
+        table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
+        if( !table )
+        {
+            fprintf(stderr, "worldmap: no reference table (cache has no world map)\n");
+            PT_EXIT(&task->pt);
+        }
+        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_DISK_TABLE_WORLDMAP, table);
+    }
+
+    table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_DISK_TABLE_WORLDMAP);
+    assert(table);
+
+    details_archive_id = task_dat2_worldmap_resolve_archive_id(table, "details");
+    if( details_archive_id < 0 )
+    {
+        fprintf(stderr, "worldmap: no \"details\" archive in the world map table\n");
+        PT_EXIT(&task->pt);
+    }
+    task->composite_archive_id = task_dat2_worldmap_resolve_archive_id(table, "compositemap");
+
+    RSCache_IO_Dat2WorldMapArchiveLoad(io, 0, details_archive_id);
+    PT_YIELD(&task->pt);
+
+    task->details = RSCache_IO_Dat2WorldMapArchiveDecode(io, 0);
+    if( !task->details )
+    {
+        fprintf(stderr, "worldmap: failed to load the \"details\" archive\n");
+        PT_EXIT(&task->pt);
+    }
+
+    /* Icons are optional: an area without them still pans and reports bounds. */
+    if( task->composite_archive_id >= 0 )
+    {
+        RSCache_IO_Dat2WorldMapArchiveLoad(io, 0, task->composite_archive_id);
+        PT_YIELD(&task->pt);
+        composite = RSCache_IO_Dat2WorldMapArchiveDecode(io, 0);
+    }
+
+    areas = task_dat2_worldmap_decode(task->details, composite);
+    RSCache_Dat2DiskArchiveFree(composite);
+    RSCache_Dat2DiskArchiveFree(task->details);
+    task->details = NULL;
+
+    if( !areas )
+    {
+        fprintf(stderr, "worldmap: no areas decoded\n");
+        PT_EXIT(&task->pt);
+    }
+
+    CacheProvider_WorldMapSet(&task->bc->base, areas);
+
+    PT_END(&task->pt);
+}
+
+static void
+Task_Dat2WorldMapLoad_Free(struct ToriRS_Task* task_base)
+{
+    struct Task_Dat2WorldMapLoad* task = (struct Task_Dat2WorldMapLoad*)task_base;
+
+    /* Only set when the task is killed between the two archive loads. */
+    RSCache_Dat2DiskArchiveFree(task->details);
+    free(task_base);
+}
+
+static struct ToriRS_TaskVTable Task_Dat2WorldMapLoad_VTable = {
+    .run = Task_Dat2WorldMapLoad_Run,
+    .free = Task_Dat2WorldMapLoad_Free,
+};
+
+struct ToriRS_Task*
+CreateTask_Dat2WorldMapLoad(struct CacheProvider* provider)
+{
+    struct Task_Dat2WorldMapLoad* task;
+
+    assert(provider);
+
+    if( CacheProvider_WorldMapGet(provider) )
+        return NULL;
+
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_Dat2WorldMapLoad_VTable;
+    strcpy(task->task.name, "Dat2WorldMapLoad");
+    task->bc = (struct Dat2BuildCache*)provider;
+    task->composite_archive_id = -1;
+    PT_INIT(&task->pt);
+    return &task->task;
+}

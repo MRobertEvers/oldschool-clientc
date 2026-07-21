@@ -595,10 +595,17 @@ context_from_handle(
                 clip_right = clip_left;
             if( clip_bottom < clip_top )
                 clip_bottom = clip_top;
-            ctx->offset_x = (view_port->width >> 1) - clip_left;
-            ctx->offset_y = (view_port->height >> 1) - clip_top;
             ctx->screen_width = clip_right - clip_left;
             ctx->screen_height = clip_bottom - clip_top;
+            /* Projection origin = center of the (rebased) clip rect. The
+             * perspective texture kernels anchor their uv basis at
+             * screen_width/2, screen_height/2 with no way to shift it, so the
+             * geometry has to use that same origin or every textured face is
+             * skewed by the difference. Full-surface viewports (clip == the
+             * whole target) are unaffected: there the clip center already is
+             * width/2, height/2. */
+            ctx->offset_x = ctx->screen_width >> 1;
+            ctx->offset_y = ctx->screen_height >> 1;
         }
         ctx->near_plane_z = camera->near_plane_z;
         ctx->stride = view_port->stride ? view_port->stride : view_port->width;

@@ -74,6 +74,10 @@ struct ToriRS_Model
     gc_alphaint_t* face_alphas;
     int* face_infos;
     uint8_t* face_priorities;
+    /* Uniform priority for models that carry no per-face array (header priority != 255). Only
+     * meaningful when merging: the merged model's faces inherit it, which is what keeps a loc's
+     * parts layered (e.g. a statue drawn over the plinth it stands on). */
+    uint8_t model_priority;
     gc_hsl16_t* face_colors;
     int textured_face_count;
     gc_faceint_t* textured_p_coordinate;
@@ -387,6 +391,92 @@ struct ToriRS_ParamType
     long long default_long;
     int is_string;
     char* default_string;
+};
+
+/** One rectangle of a world map area: a piece of the real world (source
+ *  plane/region) blitted to a piece of the map surface (display region).
+ *  The four cache section types differ only in which fields are present, so
+ *  they decode into one struct — chunk granularity is 8 tiles, region 64. */
+enum ToriRS_WorldMapSectionKind
+{
+    /* Cache type byte 0. Rectangle of regions -> rectangle of regions. */
+    TORIRS_WORLDMAP_SECTION_REGION_RANGE = 0,
+    /* Cache type byte 1. Single region -> single region. */
+    TORIRS_WORLDMAP_SECTION_REGION = 1,
+    /* Cache type byte 2. Chunk range inside one region, with a plane span. */
+    TORIRS_WORLDMAP_SECTION_CHUNK_RANGE = 2,
+    /* Cache type byte 3. Single chunk -> single chunk. */
+    TORIRS_WORLDMAP_SECTION_CHUNK = 3,
+};
+
+struct ToriRS_WorldMapSection
+{
+    enum ToriRS_WorldMapSectionKind kind;
+    int min_plane;
+    int planes;
+    /* Source (world) side. */
+    int src_region_x;
+    int src_region_y;
+    int src_region_x_end;
+    int src_region_y_end;
+    int src_chunk_x;
+    int src_chunk_y;
+    int src_chunk_x_end;
+    int src_chunk_y_end;
+    /* Display (map surface) side. */
+    int dst_region_x;
+    int dst_region_y;
+    int dst_region_x_end;
+    int dst_region_y_end;
+    int dst_chunk_x;
+    int dst_chunk_y;
+    int dst_chunk_x_end;
+    int dst_chunk_y_end;
+};
+
+/** A map element placement from the "compositemap" archive. */
+struct ToriRS_WorldMapIcon
+{
+    int element; /* map element (MEC) config id */
+    int coord;   /* packed source coord: plane<<28 | x<<14 | y */
+    int hidden;
+};
+
+struct ToriRS_WorldMapArea
+{
+    int id;
+    char* internal_name;
+    char* external_name;
+    int origin; /* packed coord */
+    int background_colour;
+    int is_main;
+    int zoom;
+    struct ToriRS_WorldMapSection* sections;
+    int section_count;
+    struct ToriRS_WorldMapIcon* icons;
+    int icon_count;
+    /* Display-side region bounds, filled from the sections at decode time. */
+    int region_low_x;
+    int region_high_x;
+    int region_low_y;
+    int region_high_y;
+};
+
+/** Every world map area in the cache — one object, loaded once. */
+struct ToriRS_WorldMapAreas
+{
+    struct ToriRS_WorldMapArea* areas;
+    int count;
+};
+
+/** Map element config ("mapFunctions", config group 35). */
+struct ToriRS_MapElement
+{
+    int id;
+    char* name;
+    int text_size;
+    int category;
+    int sprite_id;
 };
 
 enum ToriRS_ComponentType

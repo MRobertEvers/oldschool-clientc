@@ -1,0 +1,145 @@
+#include "dat2_config_mapelement.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static void
+rscache_mapelement_skip_params(struct RSCache_Buffer* buffer)
+{
+    struct RSCache_Params params = { 0 };
+
+    RSCache_BufferReadParams(buffer, &params);
+    if( params.values )
+    {
+        for( int i = 0; i < params.count; i++ )
+            free(params.values[i]);
+    }
+    free(params.values);
+    free(params.keys);
+    free(params.is_string);
+}
+
+void
+RSCache_MapElementDecodeInplace(
+    struct RSCache_MapElement* entry,
+    const void* data,
+    int data_size)
+{
+    struct RSCache_Buffer buffer;
+
+    if( !entry || !data || data_size <= 0 )
+        return;
+
+    entry->sprite_id = -1;
+    entry->category = -1;
+
+    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
+
+    for( ;; )
+    {
+        int opcode = RSCache_BufferG1(&buffer);
+        if( opcode == 0 )
+            return;
+
+        switch( opcode )
+        {
+        case 1:
+            entry->sprite_id = RSCache_BufferReadBigSmart(&buffer);
+            break;
+        case 2:
+            (void)RSCache_BufferReadBigSmart(&buffer); /* hover sprite */
+            break;
+        case 3:
+            free(entry->name);
+            entry->name = RSCache_BufferReadStringNullTerminated(&buffer);
+            break;
+        case 4:
+        case 5:
+            (void)RSCache_BufferG3(&buffer); /* text / hover text colour */
+            break;
+        case 6:
+            entry->text_size = RSCache_BufferG1(&buffer);
+            break;
+        case 7:  /* visibility flags */
+        case 8:  /* randomize position */
+        case 28: /* unused byte */
+            (void)RSCache_BufferG1(&buffer);
+            break;
+        case 9:  /* primary visibility varbit/varp + value range */
+        case 20: /* secondary visibility varbit/varp + value range */
+            (void)RSCache_BufferG2(&buffer);
+            (void)RSCache_BufferG2(&buffer);
+            (void)RSCache_BufferG4(&buffer);
+            (void)RSCache_BufferG4(&buffer);
+            break;
+        case 10: /* ops 1..5 */
+        case 11:
+        case 12:
+        case 13:
+        case 14:
+        case 17: /* target name */
+            free(RSCache_BufferReadStringNullTerminated(&buffer));
+            break;
+        case 15:
+        {
+            int count = RSCache_BufferG1(&buffer);
+            for( int i = 0; i < count * 2; i++ )
+                (void)RSCache_BufferG2(&buffer);
+            (void)RSCache_BufferG4(&buffer);
+            int extra = RSCache_BufferG1(&buffer);
+            for( int i = 0; i < extra; i++ )
+                (void)RSCache_BufferG4(&buffer);
+            for( int i = 0; i < count; i++ )
+                (void)RSCache_BufferG1(&buffer);
+            break;
+        }
+        case 16: /* flag with no payload */
+            break;
+        case 18:
+        case 25:
+            (void)RSCache_BufferReadBigSmart(&buffer);
+            break;
+        case 19:
+            entry->category = RSCache_BufferG2(&buffer);
+            break;
+        case 21:
+        case 22:
+            (void)RSCache_BufferG4(&buffer);
+            break;
+        case 23:
+            (void)RSCache_BufferG1(&buffer);
+            (void)RSCache_BufferG1(&buffer);
+            (void)RSCache_BufferG1(&buffer);
+            break;
+        case 24:
+            (void)RSCache_BufferG2(&buffer);
+            (void)RSCache_BufferG2(&buffer);
+            break;
+        case 29: /* horizontal alignment */
+        case 30: /* vertical alignment */
+            (void)RSCache_BufferG1(&buffer);
+            break;
+        case 249:
+            rscache_mapelement_skip_params(&buffer);
+            break;
+        default:
+            /* Everything after an unknown opcode is misaligned, so stop rather
+             * than decode garbage into the fields already read. */
+            printf(
+                "RSCache_MapElementDecodeInplace: map element %d unknown opcode %d\n",
+                entry->id,
+                opcode);
+            return;
+        }
+    }
+}
+
+void
+RSCache_MapElementFreeInplace(struct RSCache_MapElement* entry)
+{
+    if( !entry )
+        return;
+    free(entry->name);
+    memset(entry, 0, sizeof(*entry));
+}

@@ -59,6 +59,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
 	cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 	game/rs_player_stats.c game/rs_cs1_host.c game/task_cs1_run.c \
+	game/rs_worldmap.c \
 	cs2vm2/cs2_opcode_meta.c engine/cache_provider.c engine/cs2vm2_script_from_rscache.c \
 	engine/torirs_types.c engine/torirs_model_from_rscache.c \
 	engine/torirs_component_from_rscache.c \
@@ -69,6 +70,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/torirs_sprite_from_rscache.c engine/torirs_font_from_rscache.c \
 	engine/torirs_enum_from_rscache.c engine/torirs_struct_from_rscache.c \
 	engine/torirs_paramtype_from_rscache.c \
+	engine/torirs_worldmap_from_rscache.c \
 	engine/uitree_from_component.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
 	engine/dat1/task_dat1_component_pack_load.c engine/dat1/task_dat1_clientscript_load.c \
@@ -87,6 +89,8 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/dat2/task_dat2_enum_load.c engine/dat2/task_dat2_struct_load.c \
 	engine/dat2/task_dat2_param_load.c \
 	engine/dat2/task_dat2_component_load.c \
+	engine/dat2/task_dat2_worldmap_load.c \
+	engine/dat2/task_dat2_mapelement_load.c \
 	engine/uitree_builder/uitree_builder.c \
 	engine/uitree_builder/uitree_builder_manifest.c \
 	engine/uitree_builder/uitree_builder_bake.c \
@@ -112,6 +116,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_cross.c ui/uitree_minimenu.c \
+	ui/uitree_hovertext.c \
 	ui/uitree_interact.c \
 	varp/varp_manager.c \
 	inv/inv_manager.c \
@@ -255,7 +260,7 @@ test-cs1: $(OBJ_DIR)
 		inv/inv_manager.c varp/varp_manager.c \
 		ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 		ui/uitree_scroll.c ui/uitree_emit.c ui/uitree_inv_view.c \
-		ui/uitree_cross.c ui/uitree_minimenu.c \
+		ui/uitree_cross.c ui/uitree_minimenu.c ui/uitree_hovertext.c \
 		cs1vm/test/cs1_integration_test.c -lm
 	./$(OBJ_DIR)/cs1_integration_test
 
@@ -278,6 +283,7 @@ test-uitree: $(OBJ_DIR)
 		ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 		ui/uitree_inv_view.c ui/uitree_cross.c ui/uitree_minimenu.c \
+		ui/uitree_hovertext.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_hover.c \

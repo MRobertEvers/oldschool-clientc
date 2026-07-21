@@ -105,6 +105,9 @@ struct ToriDraw_Model
     int* face_infos;
     /** Two 4-bit priorities per byte (low nibble = even face index). Values 0–12. */
     uint8_t* face_priorities;
+    /* Uniform priority for models with no per-face array; consumed by ToriDraw_ModelNewMerge so
+     * merged parts keep their layering. See ToriRS_Model.model_priority. */
+    uint8_t model_priority;
     hsl16_t* face_colors;
 
     int textured_face_count;

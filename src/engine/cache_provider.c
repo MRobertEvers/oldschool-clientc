@@ -1,6 +1,7 @@
 #include "engine/cache_provider.h"
 
 #include "cs2vm2/cs2vm2_script.h"
+#include "engine/torirs_worldmap_from_rscache.h"
 
 #include <assert.h>
 #include <rscache.h>
@@ -25,6 +26,7 @@
 #define CACHE_PROVIDER_UNDERLAY_CAPACITY 512
 #define CACHE_PROVIDER_TEXTURE_CAPACITY 512
 #define CACHE_PROVIDER_SPRITE_NAME_CAPACITY 256
+#define CACHE_PROVIDER_MAPELEMENT_CAPACITY 1024
 
 struct MapEntry_ProviderModel
 {
@@ -66,6 +68,12 @@ struct MapEntry_ProviderParamType
 {
     int id;
     struct ToriRS_ParamType* param;
+};
+
+struct MapEntry_ProviderMapElement
+{
+    int id;
+    struct ToriRS_MapElement* element;
 };
 
 struct MapEntry_ProviderComponentPack
@@ -249,6 +257,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderTexture), CACHE_PROVIDER_TEXTURE_CAPACITY);
     provider->sprite_name_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderSpriteName), CACHE_PROVIDER_SPRITE_NAME_CAPACITY);
+    provider->mapelement_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderMapElement), CACHE_PROVIDER_MAPELEMENT_CAPACITY);
 }
 
 void
@@ -273,6 +283,10 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     CacheProvider_FlotypesCleanup(provider);
     CacheProvider_UnderlaysCleanup(provider);
     CacheProvider_TexturesCleanup(provider);
+    CacheProvider_MapElementsCleanup(provider);
+
+    ToriRS_WorldMapAreasFree(provider->worldmap_areas);
+    provider->worldmap_areas = NULL;
 
     cache_provider_hmap_free(provider->model_cache);
     provider->model_cache = NULL;
@@ -310,6 +324,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->texture_cache = NULL;
     cache_provider_hmap_free(provider->sprite_name_cache);
     provider->sprite_name_cache = NULL;
+    cache_provider_hmap_free(provider->mapelement_cache);
+    provider->mapelement_cache = NULL;
 }
 
 void
@@ -768,6 +784,96 @@ CacheProvider_ParamsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->param_cache);
     provider->param_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderParamType), CACHE_PROVIDER_PARAM_CAPACITY);
+}
+
+void
+CacheProvider_WorldMapSet(
+    struct CacheProvider* provider,
+    struct ToriRS_WorldMapAreas* areas)
+{
+    assert(provider);
+
+    if( provider->worldmap_areas == areas )
+        return;
+    ToriRS_WorldMapAreasFree(provider->worldmap_areas);
+    provider->worldmap_areas = areas;
+}
+
+struct ToriRS_WorldMapAreas*
+CacheProvider_WorldMapGet(struct CacheProvider* provider)
+{
+    assert(provider);
+    return provider->worldmap_areas;
+}
+
+void
+CacheProvider_MapElementAdd(
+    struct CacheProvider* provider,
+    int element_id,
+    struct ToriRS_MapElement* element)
+{
+    struct MapEntry_ProviderMapElement* entry;
+
+    assert(provider);
+    assert(provider->mapelement_cache);
+    assert(element);
+
+    cache_provider_hmap_prepare_insert(&provider->mapelement_cache);
+    entry = (struct MapEntry_ProviderMapElement*)hmap_search(
+        provider->mapelement_cache, &element_id, HMAP_INSERT);
+    assert(entry && "Map element must be inserted into hmap");
+
+    entry->id = element_id;
+    entry->element = element;
+}
+
+struct ToriRS_MapElement*
+CacheProvider_MapElementGet(
+    struct CacheProvider* provider,
+    int element_id)
+{
+    struct MapEntry_ProviderMapElement* entry;
+
+    assert(provider);
+    if( !provider->mapelement_cache )
+        return NULL;
+
+    entry = (struct MapEntry_ProviderMapElement*)hmap_search(
+        provider->mapelement_cache, &element_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->element;
+}
+
+bool
+CacheProvider_MapElementHas(
+    struct CacheProvider* provider,
+    int element_id)
+{
+    return CacheProvider_MapElementGet(provider, element_id) != NULL;
+}
+
+void
+CacheProvider_MapElementsCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderMapElement* entry;
+
+    assert(provider);
+    if( !provider->mapelement_cache )
+        return;
+
+    iter = hmap_iter_new(provider->mapelement_cache);
+    while( (entry = (struct MapEntry_ProviderMapElement*)hmap_iter_next(iter)) )
+    {
+        if( entry->element )
+            ToriRS_MapElementFree(entry->element);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->mapelement_cache);
+    provider->mapelement_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderMapElement), CACHE_PROVIDER_MAPELEMENT_CAPACITY);
 }
 
 void

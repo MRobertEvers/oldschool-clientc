@@ -677,6 +677,7 @@ painter_paint_bucket(
         }
     }
 
+    painter_dump_command_order(painter, buffer);
     return 0;
 }
 

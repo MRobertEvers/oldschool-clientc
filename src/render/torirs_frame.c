@@ -8,6 +8,8 @@
 #include "toridraw_scene.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static void
@@ -813,9 +815,16 @@ ToriRS_Frame_BuildWorldViewPort(
     assert(desc);
     assert(out);
 
+    /* width/height are the *world box*, not the canvas (v1
+     * GameRunescape_UpdateWorldViewport). The raster centers the projection at
+     * width/2 while the perspective texture kernel anchors its uv basis at the
+     * center of the clip rect; feeding the canvas size here moved the geometry
+     * center to the canvas center and left the texture basis on the box center,
+     * skewing every textured face by that difference. Only `stride` stays the
+     * canvas width — the pixel buffer is still the full frame. */
     memset(out, 0, sizeof(*out));
-    out->width = canvas_w;
-    out->height = canvas_h;
+    out->width = desc->w > 0 ? desc->w : canvas_w;
+    out->height = desc->h > 0 ? desc->h : canvas_h;
     out->stride = canvas_w;
     out->x_center = desc->x + desc->w / 2;
     out->y_center = desc->y + desc->h / 2;
@@ -823,6 +832,19 @@ ToriRS_Frame_BuildWorldViewPort(
     out->clip_top = desc->clip.y;
     out->clip_right = desc->clip.x + desc->clip.w;
     out->clip_bottom = desc->clip.y + desc->clip.h;
+    /* TORIRS_VP_DEBUG=1: the raster/texture origin is the clip-rect center;
+     * it must land on x_center/y_center or textured faces skew. */
+    if( getenv("TORIRS_VP_DEBUG") )
+        fprintf(
+            stderr,
+            "world_vp: desc=(%d,%d %dx%d) clip=(%d,%d %dx%d) canvas=%dx%d "
+            "-> w=%d h=%d center=(%d,%d) raster_origin=(%d,%d)\n",
+            desc->x, desc->y, desc->w, desc->h,
+            desc->clip.x, desc->clip.y, desc->clip.w, desc->clip.h,
+            canvas_w, canvas_h,
+            out->width, out->height, out->x_center, out->y_center,
+            out->clip_left + ((out->clip_right - out->clip_left) >> 1),
+            out->clip_top + ((out->clip_bottom - out->clip_top) >> 1));
 }
 
 static void

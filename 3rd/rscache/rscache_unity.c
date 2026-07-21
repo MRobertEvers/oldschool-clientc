@@ -33,6 +33,8 @@
 #include "src/datatypes/dat2_config_enum.c"
 #include "src/datatypes/dat2_config_struct.c"
 #include "src/datatypes/dat2_config_param.c"
+#include "src/datatypes/dat2_config_mapelement.c"
+#include "src/datatypes/dat2_worldmap.c"
 #include "src/datatypes/dat2_framemap.c"
 #include "src/datatypes/dat2_frame.c"
 #include "src/datatypes/dat2_config_sequence.c"

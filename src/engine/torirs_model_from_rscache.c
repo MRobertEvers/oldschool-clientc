@@ -277,6 +277,8 @@ torirs_model_move_from_rscache(
         src->face_priorities = NULL;
     }
 
+    dst->model_priority = src->model_priority;
+
     int tfc = src->textured_face_count;
     const bool had_per_face_tex_coords = (fc > 0 && src->face_texture_coords != NULL);
     if( tfc > 0 && src->textured_p_coordinate && src->textured_m_coordinate &&

@@ -1515,7 +1515,21 @@
  * str stack out:  -                      
  */
 #define CS2_OP_COORDX 3309
+/* COORDY — Extract the plane from packed coord. RuneScript's axes are x/y/z
+ * with y as the level, so "y" here is the plane and COORDZ is the second tile
+ * axis — not the other way round.
+ * int stack in:   packed
+ * str stack in:   -
+ * int stack out:  (packed >> 28) & 0x3
+ * str stack out:  -
+ */
 #define CS2_OP_COORDY 3310
+/* COORDZ — Extract Z (the second tile axis) from packed coord.
+ * int stack in:   packed
+ * str stack in:   -
+ * int stack out:  packed & 0x3FFF
+ * str stack out:  -
+ */
 #define CS2_OP_COORDZ 3311
 /* MAP_MEMBERS — Is members world (stub).
  * int stack in:   -
@@ -1546,6 +1560,12 @@
 #define CS2_OP_RUNWEIGHT_VISIBLE 3322
 #define CS2_OP_PLAYERMOD 3323
 #define CS2_OP_WORLDFLAGS 3324
+/* MOVECOORD — Offset a packed coord by (x, y, z), where y is the plane.
+ * int stack in:   packed, x, plane, z
+ * str stack in:   -
+ * int stack out:  packed + ((plane << 28) | (x << 14) | z)
+ * str stack out:  -
+ */
 #define CS2_OP_MOVECOORD 3325
 #define CS2_OP_MOUSE_GETX 3326
 #define CS2_OP_MOUSE_GETY 3327
@@ -2017,53 +2037,347 @@
  */
 #define CS2_OP_MOBILE_WIFIAVAILABLE 6526
 #define CS2_OP__6527 6527
-#define CS2_OP__6600 6600
+/* World map (interface 595). Coords are packed as plane<<28 | x<<14 | y; a
+ * "display" coord is a position on the map surface, a "source" coord is a real
+ * world coord. Map ids index the worldmap "details" archive (cache table 19).
+ */
+/* WORLDMAP_INIT — Select the map area containing the player and centre on it.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_WORLDMAP_INIT 6600
+/* WORLDMAP_GETMAPNAME — External (display) name of a map area.
+ * int stack in:   mapId
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  name
+ */
 #define CS2_OP_WORLDMAP_GETMAPNAME 6601
+/* WORLDMAP_SETMAP — Make a map area current (resets zoom + position).
+ * int stack in:   mapId
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_SETMAP 6602
+/* WORLDMAP_GETZOOM — Current zoom percentage (25/37/50/75/100/200).
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  zoom
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_GETZOOM 6603
+/* WORLDMAP_SETZOOM — Set the zoom percentage.
+ * int stack in:   zoom
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_SETZOOM 6604
+/* WORLDMAP_ISLOADED — Are the world map area configs available.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  loaded
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_ISLOADED 6605
+/* WORLDMAP_JUMPTODISPLAYCOORD — Pan towards a display coord.
+ * int stack in:   coord
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_JUMPTODISPLAYCOORD 6606
+/* WORLDMAP_JUMPTODISPLAYCOORD_INSTANT — Snap to a display coord.
+ * int stack in:   coord
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_JUMPTODISPLAYCOORD_INSTANT 6607
+/* WORLDMAP_JUMPTOSOURCECOORD — Pan towards a world coord.
+ * int stack in:   coord
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_JUMPTOSOURCECOORD 6608
+/* WORLDMAP_JUMPTOSOURCECOORD_INSTANT — Snap to a world coord.
+ * int stack in:   coord
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_JUMPTOSOURCECOORD_INSTANT 6609
+/* WORLDMAP_GETDISPLAYPOSITION — Centre of the view, in display tiles.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  x, y
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_GETDISPLAYPOSITION 6610
+/* WORLDMAP_GETCONFIGORIGIN — Packed origin coord of a map area.
+ * int stack in:   mapId
+ * str stack in:   -
+ * int stack out:  coord
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_GETCONFIGORIGIN 6611
+/* WORLDMAP_GETCONFIGSIZE — Size of a map area in tiles.
+ * int stack in:   mapId
+ * str stack in:   -
+ * int stack out:  width, height
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_GETCONFIGSIZE 6612
+/* WORLDMAP_GETCONFIGBOUNDS — Tile bounds of a map area.
+ * int stack in:   mapId
+ * str stack in:   -
+ * int stack out:  minX, minY, maxX, maxY
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_GETCONFIGBOUNDS 6613
+/* WORLDMAP_GETCONFIGZOOM — Default zoom percentage of a map area.
+ * int stack in:   mapId
+ * str stack in:   -
+ * int stack out:  zoom
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_GETCONFIGZOOM 6614
-#define CS2_OP__6615 6615
+/* WORLDMAP_GETDISPLAYCOORD_CURRENT — World coord under the view centre.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  x, y
+ * str stack out:  -
+ */
+#define CS2_OP_WORLDMAP_GETDISPLAYCOORD_CURRENT 6615
+/* WORLDMAP_GETCURRENTMAP — Id of the current map area (-1 when none).
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  mapId
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_GETCURRENTMAP 6616
+/* WORLDMAP_GETDISPLAYCOORD — Map a world coord to a display position.
+ * int stack in:   coord
+ * str stack in:   -
+ * int stack out:  x, y
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_GETDISPLAYCOORD 6617
-#define CS2_OP__6618 6618
-#define CS2_OP__6619 6619
-#define CS2_OP__6620 6620
+/* WORLDMAP_GETSOURCECOORD — Map a display coord back to a world coord.
+ * int stack in:   coord
+ * str stack in:   -
+ * int stack out:  coord
+ * str stack out:  -
+ */
+#define CS2_OP_WORLDMAP_GETSOURCECOORD 6618
+/* WORLDMAP_JUMPTOMAP — Switch map area, panning to the player when it is in
+ * range and to the fallback coord otherwise.
+ * int stack in:   mapId, fallbackCoord
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_WORLDMAP_JUMPTOMAP 6619
+/* WORLDMAP_JUMPTOMAP_INSTANT — JUMPTOMAP, always using the fallback coord.
+ * int stack in:   mapId, fallbackCoord
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_WORLDMAP_JUMPTOMAP_INSTANT 6620
+/* WORLDMAP_COORDINMAP — Does a map area cover a world coord.
+ * int stack in:   mapId, coord
+ * str stack in:   -
+ * int stack out:  inMap
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_COORDINMAP 6621
+/* WORLDMAP_GETSIZE — Visible size of the map surface, in tiles.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  width, height
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_GETSIZE 6622
-#define CS2_OP__6623 6623
-#define CS2_OP__6624 6624
-#define CS2_OP__6625 6625
-#define CS2_OP__6626 6626
-#define CS2_OP__6627 6627
+/* WORLDMAP_GETMAP — Map area covering a world coord (-1 when none).
+ * int stack in:   coord
+ * str stack in:   -
+ * int stack out:  mapId
+ * str stack out:  -
+ */
+#define CS2_OP_WORLDMAP_GETMAP 6623
+/* WORLDMAP_SETMAXFLASHCOUNT — How many times a flashing element blinks.
+ * int stack in:   count
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_WORLDMAP_SETMAXFLASHCOUNT 6624
+/* WORLDMAP_RESETMAXFLASHCOUNT — Restore the default flash count.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_WORLDMAP_RESETMAXFLASHCOUNT 6625
+/* WORLDMAP_SETCYCLESPERFLASH — Client cycles between flash toggles.
+ * int stack in:   cycles
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_WORLDMAP_SETCYCLESPERFLASH 6626
+/* WORLDMAP_RESETCYCLESPERFLASH — Restore the default flash rate.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_WORLDMAP_RESETCYCLESPERFLASH 6627
+/* WORLDMAP_PERPETUALFLASH — Flash forever instead of maxFlashCount times.
+ * int stack in:   enabled
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_PERPETUALFLASH 6628
+/* WORLDMAP_FLASHELEMENT — Start flashing one map element.
+ * int stack in:   elementId
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_FLASHELEMENT 6629
+/* WORLDMAP_FLASHELEMENTCATEGORY — Start flashing an element category.
+ * int stack in:   categoryId
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_FLASHELEMENTCATEGORY 6630
+/* WORLDMAP_STOPCURRENTFLASHES — Clear every active flash.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_STOPCURRENTFLASHES 6631
+/* WORLDMAP_DISABLEELEMENTS — Master switch for drawing map elements.
+ * int stack in:   enabled
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_DISABLEELEMENTS 6632
+/* WORLDMAP_DISABLEELEMENT — Enable/disable a single element.
+ * int stack in:   elementId, enabled
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_DISABLEELEMENT 6633
+/* WORLDMAP_DISABLEELEMENTCATEGORY — Enable/disable an element category.
+ * int stack in:   categoryId, enabled
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_DISABLEELEMENTCATEGORY 6634
+/* WORLDMAP_GETDISABLEELEMENTS — Is element drawing enabled.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  enabled
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_GETDISABLEELEMENTS 6635
+/* WORLDMAP_GETDISABLEELEMENT — Is one element enabled.
+ * int stack in:   elementId
+ * str stack in:   -
+ * int stack out:  enabled
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_GETDISABLEELEMENT 6636
+/* WORLDMAP_GETDISABLEELEMENTCATEGORY — Is an element category enabled.
+ * int stack in:   categoryId
+ * str stack in:   -
+ * int stack out:  enabled
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_GETDISABLEELEMENTCATEGORY 6637
-#define CS2_OP__6638 6638
+/* WORLDMAP_GETNEARESTICON — Display coord of the nearest icon of an element.
+ * int stack in:   elementId, sourceCoord
+ * str stack in:   -
+ * int stack out:  coord
+ * str stack out:  -
+ */
+#define CS2_OP_WORLDMAP_GETNEARESTICON 6638
+/* WORLDMAP_LISTELEMENT_START — Begin iterating visible icons.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  element, coord
+ * str stack out:  -
+ * notes: yields (-1, -1) when the iteration is exhausted.
+ */
 #define CS2_OP_WORLDMAP_LISTELEMENT_START 6639
+/* WORLDMAP_LISTELEMENT_NEXT — Continue iterating visible icons.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  element, coord
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_LISTELEMENT_NEXT 6640
+/* MEC_TEXT — Map element label.
+ * int stack in:   mecId
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  text
+ */
 #define CS2_OP_MEC_TEXT 6693
+/* MEC_TEXTSIZE — Map element label size.
+ * int stack in:   mecId
+ * str stack in:   -
+ * int stack out:  size
+ * str stack out:  -
+ */
 #define CS2_OP_MEC_TEXTSIZE 6694
+/* MEC_CATEGORY — Map element category (-1 when uncategorised).
+ * int stack in:   mecId
+ * str stack in:   -
+ * int stack out:  category
+ * str stack out:  -
+ */
 #define CS2_OP_MEC_CATEGORY 6695
+/* MEC_SPRITE — Map element icon sprite id (-1 when none).
+ * int stack in:   mecId
+ * str stack in:   -
+ * int stack out:  spriteId
+ * str stack out:  -
+ */
 #define CS2_OP_MEC_SPRITE 6696
+/* WORLDMAP_ELEMENT — Element id of the map element event being handled.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  elementId
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_ELEMENT 6697
-#define CS2_OP__6698 6698
+/* WORLDMAP_ELEMENTCOORD1 — First coord of the map element event.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  coord
+ * str stack out:  -
+ */
+#define CS2_OP_WORLDMAP_ELEMENTCOORD1 6698
+/* WORLDMAP_ELEMENTCOORD — Second coord of the map element event.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  coord
+ * str stack out:  -
+ */
 #define CS2_OP_WORLDMAP_ELEMENTCOORD 6699
 #define CS2_OP__6700 6700
 #define CS2_OP__6701 6701

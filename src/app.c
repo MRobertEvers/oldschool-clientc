@@ -2,16 +2,18 @@
 
 #include "cs2vm2/cs2vm2.h"
 #include "engine/dat2/dat2_buildcache.h"
-#include "engine/uitree_cmd_render.h"
-#include "game/rs_cs2_dispatch.h"
-#include "game/rs_minimenu_build.h"
-#include "game/rs_minimenu_cross.h"
-#include "game/task_cs1_run.h"
 #include "engine/dat2/task_dat2_sequence_load.h"
 #include "engine/player_appearance.h"
 #include "engine/toridraw_model_from_torirs.h"
+#include "engine/uitree_cmd_render.h"
 #include "engine/world_builder/task_world_load.h"
 #include "engine/world_builder/world_builder.h"
+#include "game/rs_cs2_dispatch.h"
+#include "game/rs_minimenu_build.h"
+#include "game/rs_worldmap.h"
+#include "game/rs_minimenu_cross.h"
+#include "game/task_cs1_run.h"
+#include "painters/painters.h"
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
@@ -29,10 +31,18 @@ enum
 {
     APP_LOGIC_TICK_MS = 20,
     APP_MAX_CATCHUP_TICKS = 5,
+    /* Mouseover text origin inside the viewport. The reference container puts
+     * its text child at (0,0); the classic client drew the same line at
+     * (4, 15) — one padded cell in, with the baseline a line down. Ours is a
+     * text box, so the baseline offset comes from the font ascent. */
+    APP_HOVERTEXT_INSET_X = 4,
+    APP_HOVERTEXT_INSET_Y = 2,
 };
 
 static int
-app_host_request(void* user, struct UITreeHostRequest* req)
+app_host_request(
+    void* user,
+    struct UITreeHostRequest* req)
 {
     struct App* app = (struct App*)user;
     struct InvSlot slot;
@@ -69,8 +79,7 @@ app_host_request(void* user, struct UITreeHostRequest* req)
         return 1;
     case UITREE_HOST_MEASURE_TEXT:
     {
-        struct ToriDraw_Font* font =
-            ToriDraw_SceneFontGet(app->scene, req->u.measure_text.font_id);
+        struct ToriDraw_Font* font = ToriDraw_SceneFontGet(app->scene, req->u.measure_text.font_id);
         if( !font || !req->u.measure_text.text )
             return 0;
         return ToriDraw2D_MeasureString(font, req->u.measure_text.text);
@@ -134,10 +143,10 @@ seed_inv_defaults(struct InvManager* invs)
                                         1189, 1063, 1067, 2564, 882 };
     static int const k_backpack_items[] = { 1333 };
     /* Bank contents so interface 12 renders its item grid + tab row. */
-    static int const k_bank_items[] = {
-        995,  1333, 1153, 1007, 1725, 1115, 1201, 1189, 1063, 1067, 2564, 882,
-        4151, 1305, 1319, 1215, 1231, 1147, 1163, 1079, 1093, 861,  1163, 1704,
-        2550, 6585, 1725, 3105, 1387, 1275, 1291, 4587, 1215, 1333, 995,  1038 };
+    static int const k_bank_items[] = { 995,  1333, 1153, 1007, 1725, 1115, 1201, 1189, 1063,
+                                        1067, 2564, 882,  4151, 1305, 1319, 1215, 1231, 1147,
+                                        1163, 1079, 1093, 861,  1163, 1704, 2550, 6585, 1725,
+                                        3105, 1387, 1275, 1291, 4587, 1215, 1333, 995,  1038 };
 
     assert(invs);
     assert(InvManager_ResolveSource(invs, INV_MANAGER_SOURCE_NAME_WORN) >= 0);
@@ -217,8 +226,8 @@ app_sync_textures(struct App* app)
     {
         for( int i = 0; i < id_count; i++ )
         {
-            struct ToriDraw_Texture* scene_tex = ToriDraw_TextureMapGet(
-                &ToriDraw_SceneTexState(app->scene)->texture_map, ids[i]);
+            struct ToriDraw_Texture* scene_tex =
+                ToriDraw_TextureMapGet(&ToriDraw_SceneTexState(app->scene)->texture_map, ids[i]);
             int nonzero = 0;
             int total = 0;
             if( scene_tex && scene_tex->texels )
@@ -316,8 +325,7 @@ App_Init(
     RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps);
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
     RS_PlayerStats_Init(&app->stats);
-    RS_CS1Host_Init(
-        &app->cs1_host, app->tree, app->provider, &app->invs, &app->varps, &app->stats);
+    RS_CS1Host_Init(&app->cs1_host, app->tree, app->provider, &app->invs, &app->varps, &app->stats);
 
     /* Phase 5: frame state. */
     UITree_EmitBufferInit(&app->emit);
@@ -336,6 +344,7 @@ App_Shutdown(struct App* app)
 {
     assert(app);
     UITree_EmitBufferFree(&app->emit);
+    RS_CS2Host_Free(&app->host);
     if( app->painter_buffer )
     {
         free(app->painter_buffer->commands);
@@ -515,6 +524,22 @@ app_world_load(struct App* app)
         app->world_camera_pos.y = -2000;
         app->world_camera.pitch = 450;
         app->world_camera.yaw = 0;
+        /* TORIRS_WORLD_CAM=x,y,z,pitch,yaw: place the camera explicitly (scene coords, y negative
+         * above ground). The startup camera looks near-straight down, where same-tile locs barely
+         * overlap, so the headless BMP path cannot otherwise reproduce an oblique view — the sim
+         * harness only injects letters/digits and pitch is bound to the arrow keys. */
+        {
+            char const* cam = getenv("TORIRS_WORLD_CAM");
+            int cx, cy, cz, cpitch, cyaw;
+            if( cam && sscanf(cam, "%d,%d,%d,%d,%d", &cx, &cy, &cz, &cpitch, &cyaw) == 5 )
+            {
+                app->world_camera_pos.x = cx;
+                app->world_camera_pos.y = cy;
+                app->world_camera_pos.z = cz;
+                app->world_camera.pitch = cpitch;
+                app->world_camera.yaw = cyaw;
+            }
+        }
         /* World scenery models reference textures; the bridge scan walks the
          * scene elements the rebuild just created. */
         app_sync_textures(app);
@@ -645,6 +670,11 @@ app_logic_tick(struct App* app)
     int redraw = 0;
 
     RS_CS2Host_Tick(&app->host);
+
+    /* World map panning and element flashing advance on the client tick, the
+     * same clock the map's own onTimer scripts run on. */
+    if( RS_WorldMap_Cycle(app->host.worldmap) )
+        redraw = 1;
 
     /* onTimer fires once per client tick for every component with a timer
      * hook (reference processWidgetTimers). Component ids are snapshotted
@@ -885,6 +915,7 @@ app_world_paint(struct App* app)
         level_mask = 0xF;
     painter_set_camera_angles(app->world->painter, app->world_camera.pitch, app->world_camera.yaw);
     painter_set_level_mask(app->world->painter, level_mask);
+
     painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
 }
 
@@ -892,7 +923,11 @@ app_world_paint(struct App* app)
  * world emit clip rect with no interactive UI hovered on top (the world node
  * itself is pass-through, so hover_com_id < 0 over bare world). */
 static int
-app_world_mouse_gate(struct App* app, int mouse_x, int mouse_y, int hover_com_id)
+app_world_mouse_gate(
+    struct App* app,
+    int mouse_x,
+    int mouse_y,
+    int hover_com_id)
 {
     struct UITreeEmitClip const* clip;
 
@@ -906,7 +941,9 @@ app_world_mouse_gate(struct App* app, int mouse_x, int mouse_y, int hover_com_id
 /* Classify the raw hits the render pass collected into the app pickset +
  * hover tile. Runs after ToriRS_Soft3D_RenderFrame when the pick was armed. */
 static void
-app_world_pick_finish(struct App* app, struct ToriRS_PickHits const* hits)
+app_world_pick_finish(
+    struct App* app,
+    struct ToriRS_PickHits const* hits)
 {
     struct ToriRS_PickResult result;
 
@@ -935,20 +972,36 @@ app_world_pick_finish(struct App* app, struct ToriRS_PickHits const* hits)
             result.hover_tile_valid ? result.hover_tile_z : -1,
             result.hover_tile_valid ? result.hover_tile_level : -1);
         for( int i = 0; i < app->world_pickset.count; i++ )
+        {
+            /* Loc id/name/footprint turn an element id into something you can look up in the
+             * cache — the difference between "element 4345 draws late" and "the plinth is a
+             * separate 1x1 loc one tile nearer than the statue". */
+            struct WorldEntity_Scenery* scenery =
+                World_SceneryGetByElementId(app->world, app->world_pickset.items[i].element_id);
             fprintf(
                 stderr,
-                "world_pick:  [%d] element=%d type=%d tile=%d,%d,%d\n",
+                "world_pick:  [%d] element=%d type=%d tile=%d,%d,%d loc=%d size=%dx%d origin=%d,%d,%d '%s'\n",
                 i,
                 app->world_pickset.items[i].element_id,
                 (int)app->world_pickset.items[i].type,
                 app->world_pickset.items[i].tile_x,
                 app->world_pickset.items[i].tile_z,
-                app->world_pickset.items[i].tile_level);
+                app->world_pickset.items[i].tile_level,
+                scenery ? scenery->loc_id : -1,
+                scenery ? scenery->size_x : -1,
+                scenery ? scenery->size_z : -1,
+                scenery ? scenery->grid_position.x : -1,
+                scenery ? scenery->grid_position.z : -1,
+                scenery ? scenery->grid_position.level : -1,
+                scenery ? scenery->name : "");
+        }
     }
 }
 
 static void
-app_camera_move_forward(struct App* app, int amount)
+app_camera_move_forward(
+    struct App* app,
+    int amount)
 {
     int direction_x = ToriDraw_Sin(app->world_camera.yaw);
     int direction_z = ToriDraw_Cos(app->world_camera.yaw);
@@ -957,7 +1010,9 @@ app_camera_move_forward(struct App* app, int amount)
 }
 
 static void
-app_camera_move_left(struct App* app, int amount)
+app_camera_move_left(
+    struct App* app,
+    int amount)
 {
     int direction_x = ToriDraw_Cos(app->world_camera.yaw);
     int direction_z = ToriDraw_Sin(app->world_camera.yaw);
@@ -1058,7 +1113,10 @@ app_world_scene_element_create(
 
 /* Load a sequence through the task system (no-op when cached) and attach it. */
 static void
-app_world_apply_seq(struct App* app, int element_id, int seq_id)
+app_world_apply_seq(
+    struct App* app,
+    int element_id,
+    int seq_id)
 {
     struct ToriRS_Task* task;
 
@@ -1087,7 +1145,10 @@ app_world_apply_seq(struct App* app, int element_id, int seq_id)
 /* Load (via tasks) + convert + merge + light one drawable model from cache
  * model ids. Returns an owned model or NULL. */
 static struct ToriDraw_Model*
-app_world_build_model(struct App* app, const int* model_ids, int count)
+app_world_build_model(
+    struct App* app,
+    const int* model_ids,
+    int count)
 {
     struct ToriDraw_Model* parts[16];
     struct ToriDraw_Model* model = NULL;
@@ -1141,7 +1202,11 @@ app_world_build_model(struct App* app, const int* model_ids, int count)
 
 /* Hotkey 9: default player model on the hovered tile. */
 static void
-app_world_spawn_player(struct App* app, int tile_x, int tile_z, int level)
+app_world_spawn_player(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level)
 {
     int scene_model_id;
     struct ToriDraw_ModelHandle reg;
@@ -1193,14 +1258,23 @@ app_world_spawn_player(struct App* app, int tile_x, int tile_z, int level)
         World_PlayerSpawn(app->world, element_id, level, tile_x, tile_z, idle);
     }
     fprintf(
-        stderr, "spawn_player: element=%d tile=%d,%d level=%d\n", element_id, tile_x, tile_z, level);
+        stderr,
+        "spawn_player: element=%d tile=%d,%d level=%d\n",
+        element_id,
+        tile_x,
+        tile_z,
+        level);
     app_sync_textures(app);
     app->need_redraw = 1;
 }
 
 /* Hotkey 8: npc on the hovered tile (TORIRS_SPAWN_NPC=<id> override). */
 static void
-app_world_spawn_npc(struct App* app, int tile_x, int tile_z, int level)
+app_world_spawn_npc(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level)
 {
     int npc_id = 3106; /* OSRS-era "Man" */
     struct ToriRS_Npctype* npctype;
@@ -1267,10 +1341,7 @@ app_world_spawn_npc(struct App* app, int tile_x, int tile_z, int level)
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )
                 snprintf(
-                    npc->actions[i].name,
-                    sizeof(npc->actions[i].name),
-                    "%s",
-                    npctype->actions[i]);
+                    npc->actions[i].name, sizeof(npc->actions[i].name), "%s", npctype->actions[i]);
         }
     }
     fprintf(
@@ -1290,7 +1361,11 @@ app_world_spawn_npc(struct App* app, int tile_x, int tile_z, int level)
  * second launches source -> hovered (same-tile press clears the latch).
  * Arc math lives in World_ProjectileSetTarget/Move (TS reference parity). */
 static void
-app_world_spawn_projectile(struct App* app, int tile_x, int tile_z, int level)
+app_world_spawn_projectile(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level)
 {
     int model_id = 3081; /* v0 spawn-test model fallback */
     int model_ids[1];
@@ -1406,7 +1481,9 @@ app_world_hotkeys(
  * painter dynamic set stays fresh, and forces a redraw while active — but only
  * while a viewport is actually on screen; an unshown world does not tick. */
 static void
-app_world_frame(struct App* app, int cycles)
+app_world_frame(
+    struct App* app,
+    int cycles)
 {
     struct World* world = app->world;
 
@@ -1444,7 +1521,10 @@ app_world_frame(struct App* app, int cycles)
 }
 
 static int
-app_measure_text_cb(void* user, int font_id, char const* text)
+app_measure_text_cb(
+    void* user,
+    int font_id,
+    char const* text)
 {
     struct App* app = (struct App*)user;
     struct ToriDraw_Font* font = ToriDraw_SceneFontGet(app->scene, font_id);
@@ -1453,11 +1533,89 @@ app_measure_text_cb(void* user, int font_id, char const* text)
     return ToriDraw2D_MeasureString(font, text);
 }
 
+/*
+ * Mouseover text, rebuilt every frame from a scratch menu at the pointer.
+ *
+ * This is the client half of what the reference gets from the cache: script
+ * 4726 (re-armed each cycle by 4725) bails on minimenu_isopen, reads
+ * minimenu_entry / _numops / _type, and has proc 4727 draw one line. Building
+ * the same menu the right click would show is exactly what those opcodes
+ * report, so both the line drawn here and the CS2 snapshot come from one pass.
+ */
+static void
+app_hover_text_update(
+    struct App* app,
+    int mouse_x,
+    int mouse_y,
+    int hover_com_id)
+{
+    struct UIMinimenu scratch;
+    char prev[UITREE_HOVERTEXT_LEN];
+    bool const prev_visible = app->hover_text.visible;
+    int click_in_world;
+
+    snprintf(prev, sizeof(prev), "%s", app->hover_text.text);
+
+    /* 4726's first gate: no hover line while the Choose Option popup is up. */
+    if( app->interact.minimenu.visible || mouse_x < 0 || mouse_y < 0 ||
+        mouse_x >= UITREE_LAYOUT_ROOT_W || mouse_y >= UITREE_LAYOUT_ROOT_H )
+    {
+        app->hover_text.visible = false;
+        app->hover_text.text[0] = '\0';
+    }
+    else
+    {
+        click_in_world =
+            app_world_mouse_gate(app, mouse_x, mouse_y, hover_com_id) && app_world_drawable(app);
+        {
+            struct RS_MinimenuBuildCtx mctx = {
+                .tree = app->tree,
+                .ui_host = &app->ui_host,
+                .provider = app->provider,
+                .runner = &app->runner,
+                .invs = &app->invs,
+                .chat = NULL,
+                .world = app->world,
+                /* Same rule the click paths use: world rows only when the
+                 * pointer is over bare viewport. */
+                .world_pickset = click_in_world ? &app->world_pickset : NULL,
+                .click_in_world = click_in_world != 0,
+            };
+            UIMinimenu_Reset(&scratch);
+            scratch.font_id = app->hover_text.font_id;
+            RS_Minimenu_Build(&mctx, mouse_x, mouse_y, &scratch);
+        }
+        UIHoverText_Compose(&scratch, &app->hover_text);
+    }
+
+    /* Anchor at the world viewport's top-left (4726's container origin), or
+     * the canvas when no viewport is on screen. */
+    if( app->world_view_valid )
+    {
+        app->hover_text.x = app->world_emit_desc.clip.x + APP_HOVERTEXT_INSET_X;
+        app->hover_text.y = app->world_emit_desc.clip.y + APP_HOVERTEXT_INSET_Y;
+        app->hover_text.w = app->world_emit_desc.clip.w - APP_HOVERTEXT_INSET_X;
+    }
+    else
+    {
+        app->hover_text.x = APP_HOVERTEXT_INSET_X;
+        app->hover_text.y = APP_HOVERTEXT_INSET_Y;
+        app->hover_text.w = UITREE_LAYOUT_ROOT_W - APP_HOVERTEXT_INSET_X;
+    }
+
+    if( app->hover_text.visible != prev_visible || strcmp(app->hover_text.text, prev) != 0 )
+        app->need_redraw = 1;
+}
+
 /* Build + show the minimenu for a right click (reference openMenu: width from
  * the widest row, centered on the click, clamped to the canvas). The tree
  * node stays unpositioned — emit and the interact gesture read the model. */
 static void
-app_minimenu_open(struct App* app, int click_x, int click_y, int click_in_world)
+app_minimenu_open(
+    struct App* app,
+    int click_x,
+    int click_y,
+    int click_in_world)
 {
     struct RS_MinimenuBuildCtx mctx = {
         .tree = app->tree,
@@ -1482,17 +1640,10 @@ app_minimenu_open(struct App* app, int click_x, int click_y, int click_in_world)
         if( font )
             line_height = font->line_height;
     }
-    if( UIMinimenu_PrepareShow(
-            menu, line_height, app_measure_text_cb, app, &layout, &content_w) )
+    if( UIMinimenu_PrepareShow(menu, line_height, app_measure_text_cb, app, &layout, &content_w) )
     {
         UIMinimenu_ShowAt(
-            menu,
-            layout,
-            content_w,
-            click_x,
-            click_y,
-            UITREE_LAYOUT_ROOT_W,
-            UITREE_LAYOUT_ROOT_H);
+            menu, layout, content_w, click_x, click_y, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         app->need_redraw = 1;
     }
 }
@@ -1505,7 +1656,11 @@ app_minimenu_open(struct App* app, int click_x, int click_y, int click_in_world)
  * in flight running rather than clearing or recolouring it. Returns nonzero
  * when a CS2 hook was dispatched. */
 static int
-app_minimenu_use_option(struct App* app, int option_index, int click_x, int click_y)
+app_minimenu_use_option(
+    struct App* app,
+    int option_index,
+    int click_x,
+    int click_y)
 {
     struct UIMinimenu* menu = &app->interact.minimenu;
     struct UIMinimenuOption opt;
@@ -1652,8 +1807,7 @@ App_RunOnce(
      * KEYPRESSED answer about the frame the script is reacting to. */
     RS_CS2_SyncKeyState(&app->host, input);
 
-    UITree_InteractFrame(
-        &app->interact, app->tree, &app->ui_host, input, now_ms, &out);
+    UITree_InteractFrame(&app->interact, app->tree, &app->ui_host, input, now_ms, &out);
 
     /* World hover: gate on the mouse being over the world element. The pick
      * itself runs inside App_Render (hittest right after each visible model
@@ -1666,8 +1820,8 @@ App_RunOnce(
      * world element, never eagerly. */
     if( app->world_view_valid && !app->world_load_attempted )
         app_world_load(app);
-    app->world_mouse_in_viewport = app_world_mouse_gate(
-        app, input->curr.mouse_x, input->curr.mouse_y, out.hover_com_id);
+    app->world_mouse_in_viewport =
+        app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y, out.hover_com_id);
     app->world_mouse_x = input->curr.mouse_x;
     app->world_mouse_y = input->curr.mouse_y;
     if( !app->world_mouse_in_viewport )
@@ -1676,6 +1830,10 @@ App_RunOnce(
         app->world_hover_tile_z = -1;
         World_PickSetReset(&app->world_pickset);
     }
+
+    /* Mouseover text before any click handling: the reference recomputes it
+     * every cycle from the same menu the click paths build. */
+    app_hover_text_update(app, input->curr.mouse_x, input->curr.mouse_y, out.hover_com_id);
 
     /* Minimenu gesture results (see interact_minimenu): option selected on
      * mousedown -> dispatch; right press with no menu open -> build + show. */
@@ -1689,8 +1847,8 @@ App_RunOnce(
     {
         /* The menu ctx reads app->world_pickset — the set the last rendered
          * frame hittested at the hover point (v1-style pickset-during-draw). */
-        int click_in_world = app_world_mouse_gate(
-            app, out.right_click_x, out.right_click_y, out.hover_com_id);
+        int click_in_world =
+            app_world_mouse_gate(app, out.right_click_x, out.right_click_y, out.hover_com_id);
         if( !click_in_world || !app_world_drawable(app) )
             World_PickSetReset(&app->world_pickset);
         app_minimenu_open(app, out.right_click_x, out.right_click_y, click_in_world);
@@ -1739,8 +1897,7 @@ App_RunOnce(
                 {
                     struct UIIntent const* intent = &out.intents[i];
                     if( !intent->has_event_mouse && !intent->has_drag_target &&
-                        (intent->component_id == out.clicked_com_id ||
-                         intent->component_id < 0) )
+                        (intent->component_id == out.clicked_com_id || intent->component_id < 0) )
                         continue;
                     out.intents[kept++] = out.intents[i];
                 }
@@ -1841,9 +1998,7 @@ App_RunOnce(
             if( app->tree->components[idx].runtime_hooks.on_key.script_id <= 0 )
                 continue;
             RS_CS2_SetEventMouse(
-                &app->host,
-                out.key_mouse_x - target->abs_x,
-                out.key_mouse_y - target->abs_y);
+                &app->host, out.key_mouse_x - target->abs_x, out.key_mouse_y - target->abs_y);
             RS_CS2_SetEventKey(
                 &app->host, out.key_events[e].key_typed, out.key_events[e].key_pressed);
             if( getenv("TORIRS_KEY_DEBUG") )
@@ -1941,6 +2096,5 @@ App_WriteBmp(
     int height)
 {
     assert(app);
-    return UITreeCmd_WriteBmp(
-        app->scene, app->emit.cmds, app->emit.count, path, width, height);
+    return UITreeCmd_WriteBmp(app->scene, app->emit.cmds, app->emit.count, path, width, height);
 }

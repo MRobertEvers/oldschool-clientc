@@ -324,8 +324,15 @@ scenery_pool_ensure(
     painter->scenery_pool_capacity = cap;
 }
 
+/*
+ * Append at the tail: every consumer walks scenery_head -> next, so tail insertion is what makes
+ * the per-tile draw order equal the add order (locs come in map-file order; dynamics re-added
+ * after painter_reset_to_static land after the statics on their tile). Prepending here reversed
+ * both. Chains are a handful of nodes, so the walk is cheaper than carrying a tail index in the
+ * hot PaintersTile struct that painter_tile_copyto memcpy's wholesale.
+ */
 static void
-scenery_prepend(
+scenery_append(
     struct Painter* painter,
     struct PaintersTile* tile,
     int16_t element_idx,
@@ -336,9 +343,21 @@ scenery_prepend(
     painter->scenery_pool[idx] = (struct SceneryNode){
         .element_idx = element_idx,
         .span = span_flags,
-        .next = tile->scenery_head,
+        .next = -1,
     };
-    tile->scenery_head = idx;
+
+    if( tile->scenery_head == -1 )
+    {
+        tile->scenery_head = idx;
+    }
+    else
+    {
+        int32_t tail = tile->scenery_head;
+        while( painter->scenery_pool[tail].next != -1 )
+            tail = painter->scenery_pool[tail].next;
+        painter->scenery_pool[tail].next = idx;
+    }
+
     tile->spans |= span_flags;
 }
 
@@ -772,7 +791,7 @@ compute_normal_scenery_spans(
             }
 
             tile = painter_tile_at(painter, x, z, loc_level);
-            scenery_prepend(painter, tile, (int16_t)element, (uint8_t)span_flags);
+            scenery_append(painter, tile, (int16_t)element, (uint8_t)span_flags);
         }
     }
 }
@@ -1221,6 +1240,99 @@ seed_gen_next(
         }
     }
     return 0;
+}
+
+/*
+ * TORIRS_PAINTER_DUMP=1: print the emitted draw order, grouped by the tile each element sits on,
+ * for every tile contributing more than one element. Diagnosing "this loc should be under that
+ * one" needs the per-tile sequence and each element's slot, neither of which survives into
+ * PaintersElementCommand (it carries only the scene entity id).
+ *
+ * TORIRS_PAINTER_DUMP_TILE=sx,sz restricts output to a single tile column.
+ */
+static const char*
+painter_element_kind_name(enum PaintersElementKind kind)
+{
+    switch( kind )
+    {
+    case PNTRELEM_GROUND: return "GROUND";
+    case PNTRELEM_SCENERY: return "SCENERY";
+    case PNTRELEM_WALL_A: return "WALL_A";
+    case PNTRELEM_WALL_B: return "WALL_B";
+    case PNTRELEM_GROUND_DECOR: return "GROUND_DECOR";
+    case PNTRELEM_WALL_DECOR: return "WALL_DECOR";
+    case PNTRELEM_GROUND_OBJECT: return "GROUND_OBJECT";
+    default: return "INVALID";
+    }
+}
+
+static void
+painter_dump_command_order(
+    struct Painter* painter,
+    struct PaintersBuffer* buffer)
+{
+    /* Resolved once: this sits in the per-frame paint path. */
+    static int enabled = -1;
+    static int only_sx = -1;
+    static int only_sz = -1;
+
+    if( enabled < 0 )
+    {
+        char const* tile_env;
+        enabled = getenv("TORIRS_PAINTER_DUMP") != NULL;
+        tile_env = getenv("TORIRS_PAINTER_DUMP_TILE");
+        if( !tile_env || sscanf(tile_env, "%d,%d", &only_sx, &only_sz) != 2 )
+        {
+            only_sx = -1;
+            only_sz = -1;
+        }
+    }
+
+    if( !enabled )
+        return;
+
+    /* entity id -> element index. Elements are few and this only runs when the env is set, so a
+     * linear scan per command beats threading the element index through the command encoding. */
+    for( int ci = 0; ci < buffer->command_count; ci++ )
+    {
+        struct PaintersElementCommand* cmd = &buffer->commands[ci];
+        if( cmd->_bf_kind != PNTR_CMD_ELEMENT )
+            continue;
+
+        for( int ei = 0; ei < painter->element_count; ei++ )
+        {
+            struct PaintersElement* el = &painter->elements[ei];
+            int entity = -1;
+
+            switch( el->kind )
+            {
+            case PNTRELEM_SCENERY: entity = el->_scenery.entity; break;
+            case PNTRELEM_WALL_A:
+            case PNTRELEM_WALL_B: entity = el->_wall.entity; break;
+            case PNTRELEM_GROUND_DECOR: entity = el->_ground_decor.entity; break;
+            case PNTRELEM_WALL_DECOR: entity = el->_wall_decor.entity; break;
+            case PNTRELEM_GROUND_OBJECT: entity = el->_ground_object.entity; break;
+            default: continue;
+            }
+
+            if( entity != (int)cmd->_entity._bf_entity )
+                continue;
+            if( only_sx >= 0 && (el->sx != (uint16_t)only_sx || el->sz != (uint16_t)only_sz) )
+                break;
+
+            printf(
+                "PDUMP cmd=%d tile=(%d,%d,L%d) %s entity=%d elem=%d\n",
+                ci,
+                (int)el->sx,
+                (int)el->sz,
+                (int)el->source_level,
+                painter_element_kind_name(el->kind),
+                entity,
+                ei);
+            break;
+        }
+    }
+    fflush(stdout);
 }
 
 // clang-format off
