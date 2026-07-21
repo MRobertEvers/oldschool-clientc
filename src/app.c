@@ -423,6 +423,7 @@ app_world_load(struct App* app)
         }
     }
 
+    app->world_load_attempted = 1;
     task = CreateTask_WorldLoad(app->provider, app->world_builder, chunks, 1);
     ToriRS_TaskQueue_Add(app->runner.queue, task);
     TaskRunner_Drain(&app->runner);
@@ -448,20 +449,36 @@ app_world_load(struct App* app)
     app->need_redraw = 1;
 }
 
-/* The interface pack provides no world viewport node; push one as the first
- * root child so the 3D world draws before (behind) every interface layer. */
+/* Cache the WORLD node's emit desc: the mouse gate rect and the viewport the
+ * frame emitter draws with (pick/render parity comes from sharing it). Also the
+ * "is a world on screen this frame" flag every world subsystem gates on. Uses
+ * the previous frame's emit buffer — the world box only changes on relayout. */
 static void
-app_push_world_node(struct App* app)
+app_update_world_viewport(struct App* app)
 {
-    struct UITreeNodeSpec spec;
+    app->world_view_valid = 0;
+    for( int i = 0; i < app->emit.count; i++ )
+    {
+        if( app->emit.cmds[i].kind == UITREE_EMIT_WORLD )
+        {
+            app->world_emit_desc = app->emit.cmds[i];
+            app->world_view_valid = 1;
+            return;
+        }
+    }
+}
 
-    memset(&spec, 0, sizeof(spec));
-    spec.type = UIELEM_BUILTIN_WORLD;
-    spec.component_id = APP_COM_ID_WORLD;
-    spec.width = UITREE_LAYOUT_ROOT_W;
-    spec.height = UITREE_LAYOUT_ROOT_H;
-    spec.u.world.level_mask = 0xF;
-    assert(UITree_Push(app->tree, -1, &spec) >= 0);
+int32_t
+App_WorldNodeIndex(struct App const* app)
+{
+    assert(app);
+    for( uint32_t i = 0; i < app->tree->component_count; i++ )
+    {
+        struct UITreeComponent const* node = &app->tree->components[i];
+        if( !node->freed && node->type == UIELEM_BUILTIN_WORLD )
+            return (int32_t)i;
+    }
+    return -1;
 }
 
 void
@@ -474,8 +491,6 @@ App_OpenRootInterface(
 
     if( getenv("TORIRS_CS2_TRACE") )
         g_cs2_trace_mode = 2;
-
-    app_push_world_node(app);
 
     /* Open the requested interface directly as the tree root (TS parity:
      * WidgetManager.setRootInterface(groupId) — any group can be the root; no
@@ -532,10 +547,16 @@ App_OpenRootInterface(
 
     app_sync_textures(app);
 
-    app_world_load(app);
+    /* No viewport component in the opened interface -> no map at all. Trees
+     * that grow one later (a mounted interface) load lazily in App_RunOnce. */
+    if( App_WorldNodeIndex(app) >= 0 )
+        app_world_load(app);
 
     app->emit.count = 0;
     UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, -1);
+    /* Prime the viewport cache so the first App_Render can draw the world
+     * without waiting for a App_RunOnce pass to latch it. */
+    app_update_world_viewport(app);
     app->need_redraw = 1;
 }
 
@@ -760,8 +781,10 @@ enum
 static int
 app_world_drawable(struct App* app)
 {
-    return app->world && app->world->load_complete && app->world->painter &&
-           app->painter_buffer;
+    /* world_view_valid == a WORLD desc survived the last emit walk, so a hidden
+     * or absent viewport component costs nothing: no paint, no 3D, no pick. */
+    return app->world_view_valid && app->world && app->world->load_complete &&
+           app->world->painter && app->painter_buffer;
 }
 
 /* Fill the painter buffer for the current camera. Called by App_Render once
@@ -773,31 +796,18 @@ app_world_paint(struct App* app)
     int cam_sx = app->world_camera_pos.x / 128;
     int cam_sz = app->world_camera_pos.z / 128;
     int cam_slevel = app->world_camera_pos.y / 240;
+    /* The viewport component owns the level mask (RevConfig `levels=`); older
+     * nodes leave it 0, which would draw nothing — treat that as all levels. */
+    uint8_t level_mask = app->world_emit_desc.world_level_mask;
     if( cam_slevel < 0 )
         cam_slevel = 0;
     if( cam_slevel > 3 )
         cam_slevel = 3;
+    if( !level_mask )
+        level_mask = 0xF;
     painter_set_camera_angles(app->world->painter, app->world_camera.pitch, app->world_camera.yaw);
-    painter_set_level_mask(app->world->painter, 0xF);
+    painter_set_level_mask(app->world->painter, level_mask);
     painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
-}
-
-/* Cache the WORLD node's emit desc: the mouse gate rect and the viewport the
- * frame emitter draws with (pick/render parity comes from sharing it). Uses
- * the previous frame's emit buffer — the world box only changes on relayout. */
-static void
-app_update_world_viewport(struct App* app)
-{
-    app->world_view_valid = 0;
-    for( int i = 0; i < app->emit.count; i++ )
-    {
-        if( app->emit.cmds[i].kind == UITREE_EMIT_WORLD )
-        {
-            app->world_emit_desc = app->emit.cmds[i];
-            app->world_view_valid = 1;
-            return;
-        }
-    }
 }
 
 /* "Only hittest the world if the mouse is over the world element": inside the
@@ -891,8 +901,9 @@ app_world_camera_keys(
 
     /* No key_target gating: the reference broadcasts every key to onKey
      * scripts AND moves the camera in the same frame; there is no focused
-     * text-input concept to defer to yet. */
-    if( !app->world_active )
+     * text-input concept to defer to yet. The viewport still has to be on
+     * screen — with no world drawn these keys belong to the interface. */
+    if( !app->world_active || !app->world_view_valid )
         return;
     (void)out;
 
@@ -919,7 +930,7 @@ app_world_camera_keys(
 
     /* M: reload the world through the task system (assets cached -> fast;
      * rebuild clears world scene elements incl. spawned entities). */
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_M) )
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_M) && App_WorldNodeIndex(app) >= 0 )
         app_world_load(app);
 }
 
@@ -1296,7 +1307,7 @@ app_world_hotkeys(
      * under the real gameframe there is always some visible onKey component
      * and gating on it made every press suppress itself. */
     (void)out;
-    if( !app->world_active )
+    if( !app->world_active || !app->world_view_valid )
         return;
     if( app->world_hover_tile_x < 0 || app->world_hover_tile_z < 0 )
         return;
@@ -1314,13 +1325,14 @@ app_world_hotkeys(
 
 /* Per-frame world step: sim cycles, event drain (entity removals -> scene),
  * position sync, animation ticks. Runs every frame (cycles may be 0) so the
- * painter dynamic set stays fresh, and forces a redraw while active. */
+ * painter dynamic set stays fresh, and forces a redraw while active — but only
+ * while a viewport is actually on screen; an unshown world does not tick. */
 static void
 app_world_frame(struct App* app, int cycles)
 {
     struct World* world = app->world;
 
-    if( !app->world_active || !world )
+    if( !app->world_active || !app->world_view_valid || !world )
         return;
 
     World_Cycle(world, cycles);
@@ -1570,6 +1582,11 @@ App_RunOnce(
      * at; hover tile and pickset are the last rendered frame's (world frames
      * always mark need_redraw, so at most one frame stale). */
     app_update_world_viewport(app);
+    /* A viewport that only appeared now (mounted interface, unhidden layer)
+     * pulls the map in on first sight — the map is loaded iff the tree has a
+     * world element, never eagerly. */
+    if( app->world_view_valid && !app->world_load_attempted )
+        app_world_load(app);
     app->world_mouse_in_viewport = app_world_mouse_gate(
         app, input->curr.mouse_x, input->curr.mouse_y, out.hover_com_id);
     app->world_mouse_x = input->curr.mouse_x;

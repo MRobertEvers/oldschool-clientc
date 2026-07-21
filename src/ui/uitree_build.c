@@ -175,6 +175,17 @@ UITree_PushBuildComponent(
         break;
     }
 
+    /* Content-slot clientCodes outrank the widget type: the pack ships the
+     * viewport as an empty layer, and that layer's box IS where the 3D draws.
+     * Everything else about the node survives (hide, hooks, options, layout),
+     * so a script hiding the viewport also stops the world. */
+    if( comp->client_code == UITREE_CLIENT_CODE_CONTENT_WORLD )
+    {
+        spec.type = UIELEM_BUILTIN_WORLD;
+        memset(&spec.u, 0, sizeof(spec.u));
+        spec.u.world.level_mask = 0xF;
+    }
+
     int32_t idx = UITree_Push(tree, parent_index, &spec);
     if( idx < 0 )
         return -1;

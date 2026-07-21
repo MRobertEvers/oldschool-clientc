@@ -300,17 +300,22 @@ main(
     App_OpenRootInterface(&app, cfg.interface_id);
 
     /* TORIRS_WORLD_NODE_DEBUG=1: world viewport node state + root sibling
-     * chain (the emit walk draws the chain in order; world must be first). */
+     * chain (the emit walk draws the chain in order). idx=-1 means the opened
+     * interface has no viewport, so the world is intentionally not loaded;
+     * client_code=1337 confirms a cache CONTENT_WORLD layer was the source. */
     if( getenv("TORIRS_WORLD_NODE_DEBUG") )
     {
-        int32_t widx = UITree_FindByComponentId(app.tree, APP_COM_ID_WORLD);
+        int32_t widx = App_WorldNodeIndex(&app);
         fprintf(stderr, "world node idx=%d\n", widx);
         if( widx >= 0 )
         {
             struct UITreeComponent const* wc = &app.tree->components[widx];
             fprintf(
                 stderr,
-                "world node: type=%d hide=%d trans=%d freed=%d parent=%d next_sib=%d\n",
+                "world node: com=0x%08x client_code=%d type=%d hide=%d trans=%d freed=%d "
+                "parent=%d next_sib=%d\n",
+                wc->component_id,
+                wc->behavior.client_code,
                 (int)wc->type,
                 (int)wc->behavior.hide,
                 (int)wc->trans,

@@ -372,6 +372,7 @@ UITree_EmitFill(
 
     case UIELEM_BUILTIN_WORLD:
         out->kind = UITREE_EMIT_WORLD;
+        out->world_level_mask = component->u.world.level_mask;
         return true;
 
     case UIELEM_BUILTIN_MINIMAP:

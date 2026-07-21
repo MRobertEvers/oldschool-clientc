@@ -43,7 +43,6 @@ enum
 {
     APP_COM_ID_CROSS = (0x7FFE << 16) | 0,
     APP_COM_ID_MINIMENU = (0x7FFE << 16) | 1,
-    APP_COM_ID_WORLD = (0x7FFE << 16) | 2,
 };
 
 struct AppConfig
@@ -78,6 +77,8 @@ struct App
     struct ToriDraw_Camera world_camera;
     struct ToriDraw_Position world_camera_pos;
     int world_active; /* 1 once Task_WorldLoad completed */
+    /* Latches the lazy load so a map that fails is not re-queued every frame. */
+    int world_load_attempted;
 
     /* World picking: the full pickset refreshes as part of every rendered
      * frame (App_Render hittests visible models at world_mouse_x/y); click
@@ -149,5 +150,13 @@ App_Render(struct App* app, int* pixels, int width, int height);
 /** Write the current emit buffer to a BMP. Returns 0 on success. */
 int
 App_WriteBmp(struct App* app, char const* path, int width, int height);
+
+/** Index of the tree's 3D viewport component, or -1 when the open interface has
+ * none. The world is a UI element like any other: no viewport in the tree means
+ * no map load, no sim, no 3D pass. Two sources feed it — a RevConfig INI
+ * `type=world` node, or a cache component with clientCode
+ * UITREE_CLIENT_CODE_CONTENT_WORLD (baked in uitree_build.c). */
+int32_t
+App_WorldNodeIndex(struct App const* app);
 
 #endif

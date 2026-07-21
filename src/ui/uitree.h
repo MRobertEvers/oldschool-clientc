@@ -59,6 +59,29 @@ enum UITreeComponentType
     UIELEM_CC_OBJ = 23, /* CS2 cc_create / if_setobject objbox */
 };
 
+/**
+ * Content-slot clientCodes: cache components that mark where a builtin surface
+ * belongs, because the pack format has no widget type for it. The gameframes
+ * (16, 80, 161, 164, 548, 601) place them as empty layers/graphics.
+ *
+ *   1336 CONTENT_CHAT              layer     161, 164, 548, 601
+ *   1337 CONTENT_WORLD (viewport)  layer     16, 80, 161, 164, 548, 601
+ *   1338 CONTENT_MINIMAP           graphic   161, 164, 548, 601
+ *   1339 CONTENT_COMPASS           graphic   161, 164, 548, 601, 898
+ *   1354 CONTENT_XP_DROPS          layer     80, 161, 164, 548, 601
+ *   1400 CONTENT_WORLDMAP          layer     595
+ *   1401 CONTENT_WORLDMAP_OVERVIEW layer     595
+ *
+ * The three that have a builtin behind them are mapped in uitree_build.c; the
+ * rest stay plain cache components until their builtin has somewhere to draw.
+ */
+enum
+{
+    UITREE_CLIENT_CODE_CONTENT_WORLD = 1337,
+    UITREE_CLIENT_CODE_CONTENT_MINIMAP = 1338,
+    UITREE_CLIENT_CODE_CONTENT_COMPASS = 1339,
+};
+
 enum UITreeElemPositionKind
 {
     UIPOS_XY = 1,

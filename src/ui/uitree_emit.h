@@ -88,6 +88,8 @@ struct UITreeEmitDesc
     /* Type-9 LINE: cache lineWidth + lineDirection (stored as rs_line.horizontal). */
     int line_width;
     uint8_t line_direction;
+    /* WORLD: scene levels the painter may draw (bit per level). */
+    uint8_t world_level_mask;
 };
 
 /** Fill a single emit descriptor for a node. Returns false if nothing to draw.
