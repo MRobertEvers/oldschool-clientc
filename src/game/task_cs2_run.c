@@ -31,6 +31,7 @@ enum TaskCS2YieldPlan
     TASK_CS2_YIELD_SCRIPT,
     TASK_CS2_YIELD_ENUM,
     TASK_CS2_YIELD_STRUCT,
+    TASK_CS2_YIELD_PARAM,
     TASK_CS2_YIELD_OBJ,
     TASK_CS2_YIELD_COMPONENT,
     TASK_CS2_YIELD_MODEL,
@@ -285,6 +286,14 @@ task_cs2_plan_struct(struct Task_CS2Run* self)
 }
 
 static void
+task_cs2_plan_param(struct Task_CS2Run* self)
+{
+    self->await_id = self->pending.u.oc_param.param_id;
+    assert(self->await_id >= 0);
+    self->yield_plan = TASK_CS2_YIELD_PARAM;
+}
+
+static void
 task_cs2_plan_obj(struct Task_CS2Run* self)
 {
     switch( self->pending.kind )
@@ -448,6 +457,10 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
 
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:
         task_cs2_plan_struct(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_PARAM_TYPE:
+        task_cs2_plan_param(self);
         break;
 
     case CS2VM_HOST_REQUEST_OC_PARAM:
@@ -710,6 +723,10 @@ Task_CS2Run_Run(
         else if( self->yield_plan == TASK_CS2_YIELD_STRUCT )
         {
             TASK_AWAITSELF_IF(CreateTask_StructLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_PARAM )
+        {
+            TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_OBJ )
         {

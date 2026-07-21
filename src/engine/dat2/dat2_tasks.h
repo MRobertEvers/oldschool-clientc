@@ -91,6 +91,11 @@ CreateTask_Dat2StructLoad(
     int struct_id);
 
 struct ToriRS_Task*
+CreateTask_Dat2ParamLoad(
+    struct CacheProvider* provider,
+    int param_id);
+
+struct ToriRS_Task*
 CreateTask_Dat2ComponentLoad(
     struct CacheProvider* provider,
     int packed_component_id);

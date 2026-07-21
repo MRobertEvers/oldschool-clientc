@@ -11,11 +11,11 @@ TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
 BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
 
-CFLAGS = -std=c11 -Wall -Wextra -g \
+CFLAGS = -std=c11 -O2 -fno-omit-frame-pointer -Wall -Wextra -g \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(BMP_DIR) -I$(HMAP_DIR)
 
-RSCACHE_CFLAGS = -std=c11 -g \
+RSCACHE_CFLAGS = -std=c11 -O2 -fno-omit-frame-pointer -g \
 	-I$(RSCACHE_DIR)/include \
 	-I$(RSCACHE_DIR)/src \
 	-I$(RSCACHE_DIR) \
@@ -23,7 +23,7 @@ RSCACHE_CFLAGS = -std=c11 -g \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas
 
-TORIDRAW_CFLAGS = -std=c11 -g \
+TORIDRAW_CFLAGS = -std=c11 -O2 -fno-omit-frame-pointer -g \
 	-I$(TORIDRAW_DIR) \
 	-I$(BMP_DIR)
 
@@ -60,6 +60,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/torirs_flotype_from_rscache.c \
 	engine/torirs_sprite_from_rscache.c engine/torirs_font_from_rscache.c \
 	engine/torirs_enum_from_rscache.c engine/torirs_struct_from_rscache.c \
+	engine/torirs_paramtype_from_rscache.c \
 	engine/uitree_from_component.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
 	engine/dat1/task_dat1_component_pack_load.c engine/dat1/task_dat1_clientscript_load.c \
@@ -75,6 +76,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/dat2/task_dat2_texture_load.c \
 	engine/dat2/task_dat2_sprite_load.c engine/dat2/task_dat2_font_load.c \
 	engine/dat2/task_dat2_enum_load.c engine/dat2/task_dat2_struct_load.c \
+	engine/dat2/task_dat2_param_load.c \
 	engine/dat2/task_dat2_component_load.c \
 	engine/uitree_builder/uitree_builder.c \
 	engine/uitree_builder/uitree_builder_manifest.c \

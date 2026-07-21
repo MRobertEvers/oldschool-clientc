@@ -12,6 +12,7 @@
 #define CACHE_PROVIDER_FONT_CAPACITY 256
 #define CACHE_PROVIDER_ENUM_CAPACITY 2048
 #define CACHE_PROVIDER_STRUCT_CAPACITY 2048
+#define CACHE_PROVIDER_PARAM_CAPACITY 2048
 #define CACHE_PROVIDER_COMPONENTPACK_CAPACITY 512
 #define CACHE_PROVIDER_CLIENTSCRIPT_CAPACITY 4096
 #define CACHE_PROVIDER_OBJTYPE_CAPACITY 4096
@@ -59,6 +60,12 @@ struct MapEntry_ProviderStruct
 {
     int id;
     struct ToriRS_Struct* s;
+};
+
+struct MapEntry_ProviderParamType
+{
+    int id;
+    struct ToriRS_ParamType* param;
 };
 
 struct MapEntry_ProviderComponentPack
@@ -216,6 +223,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderEnum), CACHE_PROVIDER_ENUM_CAPACITY);
     provider->struct_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderStruct), CACHE_PROVIDER_STRUCT_CAPACITY);
+    provider->param_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderParamType), CACHE_PROVIDER_PARAM_CAPACITY);
     provider->componentpack_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderComponentPack), CACHE_PROVIDER_COMPONENTPACK_CAPACITY);
     provider->clientscript_cache = cache_provider_hmap_new(
@@ -252,6 +261,7 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     CacheProvider_FontsCleanup(provider);
     CacheProvider_EnumsCleanup(provider);
     CacheProvider_StructsCleanup(provider);
+    CacheProvider_ParamsCleanup(provider);
     CacheProvider_ComponentPacksCleanup(provider);
     CacheProvider_ClientScriptsCleanup(provider);
     CacheProvider_ObjtypesCleanup(provider);
@@ -274,6 +284,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->enum_cache = NULL;
     cache_provider_hmap_free(provider->struct_cache);
     provider->struct_cache = NULL;
+    cache_provider_hmap_free(provider->param_cache);
+    provider->param_cache = NULL;
     cache_provider_hmap_free(provider->componentpack_cache);
     provider->componentpack_cache = NULL;
     cache_provider_hmap_free(provider->clientscript_cache);
@@ -689,6 +701,73 @@ CacheProvider_StructsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->struct_cache);
     provider->struct_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderStruct), CACHE_PROVIDER_STRUCT_CAPACITY);
+}
+
+void
+CacheProvider_ParamAdd(
+    struct CacheProvider* provider,
+    int param_id,
+    struct ToriRS_ParamType* param)
+{
+    struct MapEntry_ProviderParamType* entry;
+
+    assert(provider);
+    assert(param);
+
+    cache_provider_hmap_prepare_insert(&provider->param_cache);
+    entry = (struct MapEntry_ProviderParamType*)hmap_search(
+        provider->param_cache, &param_id, HMAP_INSERT);
+    assert(entry && "Param must be inserted into hmap");
+
+    entry->id = param_id;
+    entry->param = param;
+}
+
+struct ToriRS_ParamType*
+CacheProvider_ParamGet(
+    struct CacheProvider* provider,
+    int param_id)
+{
+    struct MapEntry_ProviderParamType* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderParamType*)hmap_search(
+        provider->param_cache, &param_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->param;
+}
+
+bool
+CacheProvider_ParamHas(
+    struct CacheProvider* provider,
+    int param_id)
+{
+    return CacheProvider_ParamGet(provider, param_id) != NULL;
+}
+
+void
+CacheProvider_ParamsCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderParamType* entry;
+
+    assert(provider);
+    if( !provider->param_cache )
+        return;
+
+    iter = hmap_iter_new(provider->param_cache);
+    while( (entry = (struct MapEntry_ProviderParamType*)hmap_iter_next(iter)) )
+    {
+        if( entry->param )
+            ToriRS_ParamTypeFree(entry->param);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->param_cache);
+    provider->param_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderParamType), CACHE_PROVIDER_PARAM_CAPACITY);
 }
 
 void

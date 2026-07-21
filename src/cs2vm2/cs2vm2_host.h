@@ -151,6 +151,9 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_GETTEXT,
     CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH,
     CS2VM_HOST_REQUEST_OC_INT_PARAM,
+    /* Internal yield signal: the ParamType (config kind 11) for an OC_PARAM
+     * lookup is not loaded yet. Reuses the oc_param request payload. */
+    CS2VM_HOST_REQUEST_PARAM_TYPE,
     CS2VM_HOST_REQUEST_CLIENTCLOCK,
 };
 

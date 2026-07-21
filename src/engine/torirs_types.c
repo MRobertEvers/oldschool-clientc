@@ -710,6 +710,15 @@ ToriRS_StructFree(struct ToriRS_Struct* s)
 }
 
 void
+ToriRS_ParamTypeFree(struct ToriRS_ParamType* p)
+{
+    if( !p )
+        return;
+    free(p->default_string);
+    free(p);
+}
+
+void
 ToriRS_ComponentApplyWalkLayout(
     struct ToriRS_Component* component,
     int parent_id,

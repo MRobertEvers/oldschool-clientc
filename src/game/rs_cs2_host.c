@@ -498,6 +498,10 @@ RS_CS2Host_Init(
     host->sprite_yield_id = -1;
     host->font_yield_id = -1;
     host->setobject_yield_obj_id = -1;
+    /* Serials start at 1 so fresh hooks (last_seen_serial=0) fire once on the
+     * first dispatch after registration (widget-loaded parity). */
+    host->var_change_serial = 1;
+    host->inv_change_serial = 1;
 }
 
 void
@@ -731,6 +735,8 @@ exec_oc_param(
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_Objtype* obj =
         provider ? CacheProvider_ObjtypeGet(provider, request.item_id) : NULL;
+    struct ToriRS_ParamType* param =
+        provider ? CacheProvider_ParamGet(provider, request.param_id) : NULL;
 
     if( !obj )
     {
@@ -740,12 +746,27 @@ exec_oc_param(
         return rs_cs2_yield(host, &req);
     }
 
+    /* The ParamType config decides string-vs-int and supplies the default the
+     * obj may not carry. Load it before deciding what to push. */
+    if( !param && request.param_id >= 0 )
+    {
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_PARAM_TYPE;
+        req.u.oc_param = request;
+        return rs_cs2_yield(host, &req);
+    }
+
     found = rs_cs2_obj_param_lookup(obj, request.param_id, &is_string, &intval, &strval);
-    if( found && is_string )
-        return CS2VM2_PushStr(thread, strdup(strval ? strval : ""));
+    if( param && param->is_string )
+    {
+        if( found && strval )
+            return CS2VM2_PushStr(thread, strdup(strval));
+        return CS2VM2_PushStr(
+            thread, strdup(param->default_string ? param->default_string : ""));
+    }
     if( found )
         return CS2VM2_PushInt(thread, intval);
-    return CS2VM2_PushInt(thread, 0);
+    return CS2VM2_PushInt(thread, param ? param->default_int : 0);
 }
 
 
@@ -1889,12 +1910,11 @@ RS_CS2Host_Exec(
                 was_hidden = tree->components[hide_idx].behavior.hide ? 1 : 0;
             (void)UITree_ApplyHide(
                 tree, request->u.if_set_hide.component_id, request->u.if_set_hide.hidden ? 1 : 0);
-            /* Unhide → pending transmits (TS markWidgetsLoaded / processWidgetTransmits). */
+            /* Unhide → mark widgets-loaded (TS markWidgetsLoaded). Consumed once per
+             * logic tick by RS_CS2_PumpTransmits; per-hook serials keep already-fired
+             * hooks from re-running, so this no longer re-dispatches everything. */
             if( was_hidden && !request->u.if_set_hide.hidden )
-            {
-                host->pending_inv_transmit_redispatch = 1;
-                host->pending_var_transmit_redispatch = 1;
-            }
+                host->widgets_loaded_dirty = 1;
         }
         return CS2VM_EXECNO_OK;
 

@@ -12,6 +12,7 @@ struct ToriRS_Sprite;
 struct ToriRS_Font;
 struct ToriRS_Enum;
 struct ToriRS_Struct;
+struct ToriRS_ParamType;
 
 struct CacheProvider
 {
@@ -23,6 +24,7 @@ struct CacheProvider
     struct HMap* font_cache;
     struct HMap* enum_cache;
     struct HMap* struct_cache;
+    struct HMap* param_cache;
     struct HMap* componentpack_cache;
     struct HMap* clientscript_cache;
     struct HMap* objtype_cache;
@@ -103,6 +105,9 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_StructLoad)(
         struct CacheProvider* provider,
         int struct_id);
+    struct ToriRS_Task* (*Task_ParamLoad)(
+        struct CacheProvider* provider,
+        int param_id);
     struct ToriRS_Task* (*Task_ComponentLoad)(
         struct CacheProvider* provider,
         int packed_component_id);
@@ -223,6 +228,25 @@ CacheProvider_StructHas(
 
 void
 CacheProvider_StructsCleanup(struct CacheProvider* provider);
+
+void
+CacheProvider_ParamAdd(
+    struct CacheProvider* provider,
+    int param_id,
+    struct ToriRS_ParamType* param);
+
+struct ToriRS_ParamType*
+CacheProvider_ParamGet(
+    struct CacheProvider* provider,
+    int param_id);
+
+bool
+CacheProvider_ParamHas(
+    struct CacheProvider* provider,
+    int param_id);
+
+void
+CacheProvider_ParamsCleanup(struct CacheProvider* provider);
 
 void
 CacheProvider_ComponentPackAdd(
@@ -588,6 +612,14 @@ CreateTask_StructLoad(
     int struct_id)
 {
     return provider->vtable->Task_StructLoad(provider, struct_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_ParamLoad(
+    struct CacheProvider* provider,
+    int param_id)
+{
+    return provider->vtable->Task_ParamLoad(provider, param_id);
 }
 
 static inline struct ToriRS_Task*

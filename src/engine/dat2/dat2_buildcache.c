@@ -226,6 +226,7 @@ static struct CacheProviderVTable dat2_vtable = {
     .Task_FontLoad = CreateTask_Dat2FontLoad,
     .Task_EnumLoad = CreateTask_Dat2EnumLoad,
     .Task_StructLoad = CreateTask_Dat2StructLoad,
+    .Task_ParamLoad = CreateTask_Dat2ParamLoad,
     .Task_ComponentLoad = CreateTask_Dat2ComponentLoad,
 };
 

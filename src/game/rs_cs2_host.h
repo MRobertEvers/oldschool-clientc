@@ -4,6 +4,7 @@
 #include "cs2vm2/cs2vm2_host.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 struct UITree;
 struct CacheProvider;
@@ -30,6 +31,10 @@ struct RS_CS2InvTransmitHook
     int int_arg_count;
     int trigger_ids[RS_CS2_HOST_TRANSMIT_TRIGGER_MAX];
     int trigger_count;
+    /** inv_change_serial this hook last fired for (0 = never fired). Hooks fire
+     *  once when first dispatched visible, then only when the serial advances
+     *  (TS parity: node.lastChangedInvCount vs cycles.changedInvCount). */
+    uint32_t last_seen_serial;
 };
 
 struct RS_CS2VarTransmitHook
@@ -40,6 +45,8 @@ struct RS_CS2VarTransmitHook
     int int_arg_count;
     int trigger_ids[RS_CS2_HOST_TRANSMIT_TRIGGER_MAX];
     int trigger_count;
+    /** var_change_serial this hook last fired for (0 = never fired). */
+    uint32_t last_seen_serial;
 };
 
 struct RS_CS2Host
@@ -73,9 +80,15 @@ struct RS_CS2Host
     struct RS_CS2VarTransmitHook var_transmit_hooks[RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX];
     int var_transmit_hook_count;
 
-    /** Set when IF_SETHIDE unhides a subtree — re-dispatch transmits after CS2. */
-    int pending_inv_transmit_redispatch;
-    int pending_var_transmit_redispatch;
+    /** Set when IF_SETHIDE unhides a subtree (TS markWidgetsLoaded). Consumed once
+     *  per logic tick by RS_CS2_PumpTransmits; per-hook last_seen_serial gating
+     *  keeps already-fired hooks from re-running. */
+    int widgets_loaded_dirty;
+    /** Bumped when a var/inv value actually changes (none do yet in this port —
+     *  future server integration bumps these at the write site). Start at 1 so
+     *  freshly registered hooks (last_seen_serial=0) fire once on first dispatch. */
+    uint32_t var_change_serial;
+    uint32_t inv_change_serial;
 
     /** Live CS2 event locals for script arg substitution (drag / mouse). */
     int event_mouse_x;

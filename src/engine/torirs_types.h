@@ -378,6 +378,16 @@ struct ToriRS_Struct
     int param_count;
 };
 
+struct ToriRS_ParamType
+{
+    int id;
+    char type;
+    int default_int;
+    long long default_long;
+    int is_string;
+    char* default_string;
+};
+
 enum ToriRS_ComponentType
 {
     /* Wire values from IF1/IF3 (dat1/dat2) — must match cache decode. */
@@ -630,6 +640,9 @@ ToriRS_EnumFree(struct ToriRS_Enum* e);
 
 void
 ToriRS_StructFree(struct ToriRS_Struct* s);
+
+void
+ToriRS_ParamTypeFree(struct ToriRS_ParamType* p);
 
 void
 ToriRS_ComponentFree(struct ToriRS_Component* component);
