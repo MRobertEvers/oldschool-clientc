@@ -147,6 +147,7 @@ CS2VM2_IsTargetingOpcode(int opcode)
     case CS2_OP_IF_CHILDREN_FIND:
     case CS2_OP_IF_CHILDREN_FINDNEXTID:
     case CS2_OP_CC_CREATE:
+    case CS2_OP_CC_COPY:
     case CS2_OP_CC_CREATECHILD:
     case CS2_OP_CC_CREATESIBLING:
     case CS2_OP_IF_SETOP:
@@ -1000,6 +1001,37 @@ CS2VM2_Op_CC_DeleteAll(
         return result;
 
     return CS2VM_EXECNO_OK;
+}
+
+// CC_COPY: clone dynamic child src_sub of parent into slot dst_sub.
+// Stack (bottom->top): [parent_id, src_sub, dst_sub]. Sets active/dot to the copy.
+int
+CS2VM2_Op_CC_Copy(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    int dst_sub, src_sub, parent_id;
+
+    if( CS2VM2_PopInt(vm, &dst_sub) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &src_sub) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &parent_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_COPY;
+    request.u.cc_copy.parent_id = parent_id;
+    request.u.cc_copy.src_sub_id = src_sub;
+    request.u.cc_copy.dst_sub_id = dst_sub;
+    request.u.cc_copy.dot_operand = operand;
+
+    return vm->vm->host_exec(vm, &request);
 }
 
 int
@@ -5935,6 +5967,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_DeleteAll(vm, frame);
     case CS2_OP_CC_CREATE:
         return CS2VM2_Op_CC_Create(vm, frame, operand);
+    case CS2_OP_CC_COPY:
+        return CS2VM2_Op_CC_Copy(vm, frame, operand);
     case CS2_OP_CC_FIND:
         return CS2VM2_Op_CC_Find(vm, frame, operand);
     case CS2_OP_CC_CREATECHILD:
@@ -6384,6 +6418,17 @@ CS2VM2_RunOp(
         request.kind = CS2VM_HOST_REQUEST_CLIENTCLOCK;
         return vm->vm->host_exec(vm, &request);
     }
+    /* Mobile device queries — we are a desktop client: full battery, on mains,
+     * unmetered connection. Pushing nothing here underflows the next opcode. */
+    case CS2_OP_MOBILE_BATTERYLEVEL:
+        return CS2VM2_PushInt(vm, 100);
+    case CS2_OP_MOBILE_BATTERYCHARGING:
+        return CS2VM2_PushInt(vm, 1);
+    case CS2_OP_MOBILE_WIFIAVAILABLE:
+        return CS2VM2_PushInt(vm, 1);
+    case CS2_OP_MOBILE_KEYBOARDHIDE:
+        /* No soft keyboard to hide. */
+        return CS2VM_EXECNO_OK;
     case CS2_OP_SOUND_SYNTH:
     {
         /* id, loops, delay — audio not implemented; discard args. */
@@ -6442,6 +6487,9 @@ CS2VM2_OpArgCounts(
         return 0;
     case CS2_OP_CC_CREATE:
         *int_args = 4;
+        return 0;
+    case CS2_OP_CC_COPY:
+        *int_args = 3;
         return 0;
     case CS2_OP_CC_FIND:
         *int_args = 2;

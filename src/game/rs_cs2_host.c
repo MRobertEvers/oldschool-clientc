@@ -745,7 +745,9 @@ exec_oc_param(
     struct ToriRS_ParamType* param =
         provider ? CacheProvider_ParamGet(provider, request.param_id) : NULL;
 
-    if( !obj )
+    /* item -1 (empty slot) is a valid script input: never yield for it — the
+     * yield planner requires a loadable id — just push the param default. */
+    if( !obj && request.item_id >= 0 )
     {
         struct CS2VM_HostRequest req = { 0 };
         req.kind = CS2VM_HOST_REQUEST_OC_PARAM;
@@ -763,7 +765,7 @@ exec_oc_param(
         return rs_cs2_yield(host, &req);
     }
 
-    found = rs_cs2_obj_param_lookup(obj, request.param_id, &is_string, &intval, &strval);
+    found = obj && rs_cs2_obj_param_lookup(obj, request.param_id, &is_string, &intval, &strval);
     if( param && param->is_string )
     {
         if( found && strval )
@@ -787,6 +789,9 @@ exec_oc_int_param(
     struct ToriRS_Objtype* obj =
         provider ? CacheProvider_ObjtypeGet(provider, request.item_id) : NULL;
     int value = 0;
+
+    if( request.item_id < 0 )
+        return CS2VM2_PushInt(thread, 0);
 
     if( !obj )
     {
@@ -828,6 +833,9 @@ exec_oc_name(
         provider ? CacheProvider_ObjtypeGet(provider, request.item_id) : NULL;
     char const* name = "null";
 
+    if( request.item_id < 0 )
+        return CS2VM2_PushStr(thread, strdup(name));
+
     if( !obj )
     {
         struct CS2VM_HostRequest req = { 0 };
@@ -849,7 +857,11 @@ exec_oc_unplaceholder(
     struct CS2VM_HostRequest_OC_Unplaceholder request)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
-    if( provider && CacheProvider_ObjtypeHas(provider, request.item_id) )
+
+    /* item -1 (empty slot) is a valid script input: never yield for it — the
+     * yield planner requires a loadable id — and there is nothing to resolve,
+     * so pass the id straight through. */
+    if( request.item_id < 0 || (provider && CacheProvider_ObjtypeHas(provider, request.item_id)) )
         return CS2VM2_PushInt(thread, request.item_id);
 
     {
@@ -1035,6 +1047,47 @@ exec_set_text_font(
     return CS2VM_EXECNO_OK;
 }
 
+
+/* CC_COPY clones an existing dynamic child into another slot. The bank tab
+ * strip (script 505) builds tab 0 with CC_CREATE then copies it into slots
+ * 1..9; without this the whole strip collapses onto the one created tab. */
+static int
+exec_cc_copy(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest_CC_Copy request)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    int const parent_id = request.parent_id;
+    int32_t parent_idx;
+    int32_t child_idx;
+    int yield_res;
+    struct CS2VM_HostRequest yield_req = { 0 };
+
+    yield_req.kind = CS2VM_HOST_REQUEST_CC_COPY;
+    yield_req.u.cc_copy = request;
+    yield_res = rs_cs2_yield_if_group_missing(host, parent_id, &yield_req);
+    if( yield_res != CS2VM_EXECNO_OK )
+        return yield_res;
+
+    assert(tree);
+
+    parent_idx = UITree_FindByComponentId(tree, parent_id);
+    if( parent_idx < 0 )
+    {
+        if( parent_id > 0 )
+            return rs_cs2_yield(host, &yield_req);
+        return CS2VM_EXECNO_OK;
+    }
+
+    child_idx = UITree_CcCopy(
+        tree, parent_idx, parent_id, request.src_sub_id, request.dst_sub_id);
+    if( child_idx < 0 )
+        return CS2VM_EXECNO_ERROR;
+
+    rs_cs2_set_cc_target(vm, request.dot_operand, tree->components[child_idx].component_id);
+    return CS2VM_EXECNO_OK;
+}
 
 static int
 exec_cc_create(
@@ -2335,6 +2388,8 @@ RS_CS2Host_Exec(
 
     case CS2VM_HOST_REQUEST_CC_CREATE:
         return exec_cc_create(host, vm, request->u.cc_create);
+    case CS2VM_HOST_REQUEST_CC_COPY:
+        return exec_cc_copy(host, vm, request->u.cc_copy);
 
     case CS2VM_HOST_REQUEST_CC_FIND:
         return exec_cc_find(host, vm, request->u.cc_find);

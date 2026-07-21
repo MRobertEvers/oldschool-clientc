@@ -212,10 +212,50 @@ RSCache_Dat2ComponentFree(struct RSCache_Dat2Component* c)
     free(c->opCursors);
 }
 
+struct RSCache_Dat2ComponentDecodeRev
+RSCache_Dat2ComponentDecodeRevOsrs(int32_t index_revision)
+{
+    struct RSCache_Dat2ComponentDecodeRev rev = {
+        .era = RSCACHE_DAT2_COMPONENT_DECODE_ERA_OSRS,
+        .index_revision = index_revision,
+    };
+    return rev;
+}
+
+struct RSCache_Dat2ComponentDecodeRev
+RSCache_Dat2ComponentDecodeRev643(void)
+{
+    struct RSCache_Dat2ComponentDecodeRev rev = {
+        .era = RSCACHE_DAT2_COMPONENT_DECODE_ERA_643,
+        .index_revision = RSCACHE_DAT2_COMPONENT_INDEX_REVISION_UNKNOWN,
+    };
+    return rev;
+}
+
+static bool
+rev_is_643(struct RSCache_Dat2ComponentDecodeRev rev)
+{
+    return rev.era == RSCACHE_DAT2_COMPONENT_DECODE_ERA_643;
+}
+
+/* OSRS 237 widened the type-6 model ids from u16-with-65535-sentinel to i32.
+ * An unknown index revision keeps the narrow reads, which is what every cache
+ * in this repo needs. */
+static bool
+rev_has_int_model_ids(struct RSCache_Dat2ComponentDecodeRev rev)
+{
+    if( rev.era != RSCACHE_DAT2_COMPONENT_DECODE_ERA_OSRS )
+        return false;
+    if( rev.index_revision == RSCACHE_DAT2_COMPONENT_INDEX_REVISION_UNKNOWN )
+        return false;
+    return rev.index_revision > RSCACHE_DAT2_COMPONENT_INDEX_REVISION_237;
+}
+
 void
 RSCache_Dat2ComponentDecodeIf1(
     struct RSCache_Dat2Component* self,
-    struct RSCache_Buffer* buf)
+    struct RSCache_Buffer* buf,
+    struct RSCache_Dat2ComponentDecodeRev rev)
 {
     self->if3 = false;
     self->clickMask = 0;
@@ -377,13 +417,21 @@ RSCache_Dat2ComponentDecodeIf1(
     if( self->type == 6 )
     {
         self->modelType = 1;
-        self->modelId = g2(buf);
         self->anInt5909 = 1;
-        if( self->modelId == 65535 )
-            self->modelId = -1;
-        self->activeModelId = g2(buf);
-        if( self->activeModelId == 65535 )
-            self->activeModelId = -1;
+        if( rev_has_int_model_ids(rev) )
+        {
+            self->modelId = (int32_t)g4(buf);
+            self->activeModelId = (int32_t)g4(buf);
+        }
+        else
+        {
+            self->modelId = g2(buf);
+            if( self->modelId == 65535 )
+                self->modelId = -1;
+            self->activeModelId = g2(buf);
+            if( self->activeModelId == 65535 )
+                self->activeModelId = -1;
+        }
         self->modelSeqId = g2(buf);
         if( self->modelSeqId == 65535 )
             self->modelSeqId = -1;
@@ -488,7 +536,7 @@ void
 RSCache_Dat2ComponentDecodeIf3(
     struct RSCache_Dat2Component* self,
     struct RSCache_Buffer* buf,
-    enum RSCache_Dat2ComponentDecodeRev rev)
+    struct RSCache_Dat2ComponentDecodeRev rev)
 {
     self->if3 = true;
     g1(buf); // Skips the 255 marker
@@ -539,7 +587,7 @@ RSCache_Dat2ComponentDecodeIf3(
         self->transparency = g1(buf);
         self->outline = g1(buf);
         self->graphicShadow = (int32_t)g4(buf);
-        if( rev == RSCACHE_DAT2_COMPONENT_DECODE_REV_643 )
+        if( rev_is_643(rev) )
         {
             self->horizontalFlip = (g1(buf) == 1);
             self->verticalFlip = (g1(buf) == 1);
@@ -554,9 +602,16 @@ RSCache_Dat2ComponentDecodeIf3(
     if( self->type == 6 )
     {
         self->modelType = 1;
-        self->modelId = g2(buf);
-        if( self->modelId == 65535 )
-            self->modelId = -1;
+        if( rev_has_int_model_ids(rev) )
+        {
+            self->modelId = (int32_t)g4(buf);
+        }
+        else
+        {
+            self->modelId = g2(buf);
+            if( self->modelId == 65535 )
+                self->modelId = -1;
+        }
         self->modelXOffset = g2b(buf);
         self->modelYOffset = g2b(buf);
         self->modelXAngle = g2(buf);
@@ -568,7 +623,7 @@ RSCache_Dat2ComponentDecodeIf3(
             self->modelSeqId = -1;
         self->modelOrthographic = (g1(buf) == 1);
         self->aShort50 = (int16_t)g2(buf);
-        if( rev == RSCACHE_DAT2_COMPONENT_DECODE_REV_643 )
+        if( rev_is_643(rev) )
         {
             self->aShort49 = (int16_t)g2(buf);
             self->aBoolean411 = (g1(buf) == 1);
@@ -701,7 +756,7 @@ RSCache_Dat2ComponentNewDecode(
     uint8_t* data,
     int data_size,
     int packed_id,
-    enum RSCache_Dat2ComponentDecodeRev rev)
+    struct RSCache_Dat2ComponentDecodeRev rev)
 {
     assert(data != NULL);
     assert(data_size > 0);
@@ -716,7 +771,7 @@ RSCache_Dat2ComponentNewDecode(
     if( (unsigned char)data[0] == (unsigned char)255 )
         RSCache_Dat2ComponentDecodeIf3(comp, &buf, rev);
     else
-        RSCache_Dat2ComponentDecodeIf1(comp, &buf);
+        RSCache_Dat2ComponentDecodeIf1(comp, &buf, rev);
     return comp;
 }
 
@@ -745,7 +800,7 @@ struct RSCache_Dat2ComponentPack*
 RSCache_Dat2ComponentPackNewFromFileList(
     struct RSCache_FileList* filelist,
     int interface_id,
-    enum RSCache_Dat2ComponentDecodeRev rev)
+    struct RSCache_Dat2ComponentDecodeRev rev)
 {
     assert(filelist != NULL);
     assert(filelist->file_count > 0);
@@ -772,7 +827,7 @@ struct RSCache_Dat2ComponentPack*
 RSCache_Dat2ComponentPackNewFromArchive(
     struct RSCache_Dat2DiskArchive* archive,
     int interface_id,
-    enum RSCache_Dat2ComponentDecodeRev rev)
+    struct RSCache_Dat2ComponentDecodeRev rev)
 {
     assert(archive != NULL);
     struct RSCache_FileList* filelist =

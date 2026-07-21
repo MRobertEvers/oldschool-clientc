@@ -155,6 +155,8 @@ task_cs2_group_id_from_request(struct CS2VM_HostRequest const* request)
     {
     case CS2VM_HOST_REQUEST_CC_CREATE:
         return (request->u.cc_create.parent_id >> 16) & 0xffff;
+    case CS2VM_HOST_REQUEST_CC_COPY:
+        return (request->u.cc_copy.parent_id >> 16) & 0xffff;
     case CS2VM_HOST_REQUEST_CC_FIND:
         return (request->u.cc_find.parent_id >> 16) & 0xffff;
     case CS2VM_HOST_REQUEST_IF_FIND:
@@ -178,6 +180,8 @@ task_cs2_mount_parent_id_from_request(struct CS2VM_HostRequest const* request)
     {
     case CS2VM_HOST_REQUEST_CC_CREATE:
         return request->u.cc_create.parent_id;
+    case CS2VM_HOST_REQUEST_CC_COPY:
+        return request->u.cc_copy.parent_id;
     case CS2VM_HOST_REQUEST_CC_FIND:
         return request->u.cc_find.parent_id;
     case CS2VM_HOST_REQUEST_IF_FIND:

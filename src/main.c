@@ -267,10 +267,14 @@ main(
 
     /* TORIRS_SIM_CLICK=<component_id>: dispatch that component's on_click hook
      * right after open — headless repro for click-triggered scripts. */
-    if( getenv("TORIRS_SIM_CLICK") && app.tree )
+    char const* sim_click_cursor = getenv("TORIRS_SIM_CLICK");
+    while( sim_click_cursor && *sim_click_cursor && app.tree )
     {
-        int com_id = (int)strtol(getenv("TORIRS_SIM_CLICK"), NULL, 0);
-        int32_t idx = UITree_FindByComponentId(app.tree, com_id);
+        char* sim_click_end = NULL;
+        int com_id = (int)strtol(sim_click_cursor, &sim_click_end, 0);
+        int32_t idx;
+        sim_click_cursor = (sim_click_end && *sim_click_end == ',') ? sim_click_end + 1 : NULL;
+        idx = UITree_FindByComponentId(app.tree, com_id);
         if( idx >= 0 )
         {
             struct UITreeRuntimeScriptHook hook = app.tree->components[idx].runtime_hooks.on_click;
@@ -288,9 +292,19 @@ main(
             struct LibToriRS_Input sim_input_storage;
             struct LibToriRS_Input* sim_input = LibToriRS_Input_Init(&sim_input_storage, 0);
             uint64_t sim_ms = 1;
-            for( int t = 0; t < 25; t++ )
+            int sim_ticks = getenv("TORIRS_SIM_TICKS")
+                                ? (int)strtol(getenv("TORIRS_SIM_TICKS"), NULL, 0)
+                                : 25;
+            for( int t = 0; t < sim_ticks; t++ )
             {
                 LibToriRS_Input_Begin(sim_input, sim_ms);
+                if( getenv("TORIRS_SIM_MOUSE") )
+                {
+                    char* mouse_sep = NULL;
+                    long mx = strtol(getenv("TORIRS_SIM_MOUSE"), &mouse_sep, 0);
+                    long my = mouse_sep && *mouse_sep == ',' ? strtol(mouse_sep + 1, NULL, 0) : 0;
+                    LibToriRS_Input_PushMouseMove(sim_input, (int)mx, (int)my);
+                }
                 LibToriRS_Input_End(sim_input);
                 (void)App_RunOnce(&app, sim_ms, sim_input);
                 sim_ms += 20;
@@ -335,6 +349,23 @@ main(
         }
     }
 
+    /* TORIRS_EMIT_SKIP=<component_id>: drop that component's draw commands from
+     * the frame before rasterizing — diffing the two BMPs shows exactly which
+     * pixels it owns (or that it is fully overdrawn). */
+    if( getenv("TORIRS_EMIT_SKIP") )
+    {
+        int skip_com = (int)strtol(getenv("TORIRS_EMIT_SKIP"), NULL, 0);
+        int kept = 0;
+        for( int i = 0; i < app.emit.count; i++ )
+        {
+            if( app.emit.cmds[i].component_id == skip_com )
+                continue;
+            app.emit.cmds[kept++] = app.emit.cmds[i];
+        }
+        fprintf(stderr, "emit_skip: com=0x%x dropped %d cmds\n", skip_com, app.emit.count - kept);
+        app.emit.count = kept;
+    }
+
     if( write_bmp )
     {
         char path[256];
@@ -343,6 +374,61 @@ main(
             printf("wrote %s (%d cmds)\n", path, app.emit.count);
         else
             fprintf(stderr, "failed to write %s\n", path);
+    }
+
+    /* TORIRS_DUMP_ORDER=1: walk every parent's child list in LINK order (which is
+     * what emit/draw uses) and flag where dynamic_child_index goes backwards —
+     * those are the places creation order and OSRS childIndex order disagree. */
+    if( getenv("TORIRS_DUMP_ORDER") && app.tree )
+    {
+        for( uint32_t p = 0; p < app.tree->component_count; p++ )
+        {
+            struct UITreeComponent const* parent = &app.tree->components[p];
+            int32_t child;
+            int prev_sub = -1;
+            int inverted = 0;
+            if( parent->freed || parent->first_child < 0 )
+                continue;
+            for( child = parent->first_child; child >= 0;
+                 child = app.tree->components[child].next_sibling )
+            {
+                struct UITreeComponent const* cc = &app.tree->components[child];
+                if( !cc->dynamic )
+                    continue;
+                if( cc->dynamic_child_index < prev_sub )
+                    inverted = 1;
+                prev_sub = cc->dynamic_child_index;
+            }
+            if( !inverted )
+                continue;
+            fprintf(stderr, "ORDER parent=0x%08x link order:", parent->component_id);
+            for( child = parent->first_child; child >= 0;
+                 child = app.tree->components[child].next_sibling )
+            {
+                struct UITreeComponent const* cc = &app.tree->components[child];
+                fprintf(
+                    stderr,
+                    " %s(0x%08x,sub=%d)",
+                    cc->dynamic ? "dyn" : "sta",
+                    cc->component_id,
+                    cc->dynamic ? cc->dynamic_child_index : -1);
+            }
+            fprintf(stderr, "\n");
+        }
+    }
+
+    if( getenv("TORIRS_DUMP_EMIT") )
+    {
+        for( int i = 0; i < app.emit.count; i++ )
+        {
+            struct UITreeEmitDesc* d = &app.emit.cmds[i];
+            fprintf(
+                stderr,
+                "EMIT[%d] kind=%d com=0x%08x x=%d y=%d w=%d h=%d scene=%d color=0x%06x "
+                "filled=%d trans=%d tiled=%d\n",
+                i, (int)d->kind, d->component_id, d->x, d->y, d->w, d->h, d->scene_id,
+                d->color, d->filled, d->trans, d->tiled);
+        }
     }
 
     {

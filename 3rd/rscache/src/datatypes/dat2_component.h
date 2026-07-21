@@ -250,18 +250,53 @@ struct RSCache_Dat2ComponentPack
     int component_count;
 };
 
-/** IF3 field-layout revision. The layouts differ only in the type-5 and
+/** IF3 field-layout family. The layouts differ only in the type-5 and
  *  type-6 blocks: 643-era files carry a trailing colour int on type 5
  *  (flips ordered H,V) and aShort49+aBoolean411 on type 6 with each size
  *  override short gated on its own mode; OSRS-era files omit all of those,
  *  order the type-5 flips V,H, and carry both type-6 override shorts
  *  whenever either size mode is dynamic. cache, cache.jan2026 and
- *  cache.kronos all verify 100% exact-consumption as OSRS. */
-enum RSCache_Dat2ComponentDecodeRev
+ *  cache.kronos all verify 100% exact-consumption as OSRS.
+ *
+ *  The two families cannot be told apart from the index revision alone:
+ *  643-era caches number their reference tables in the same small-integer
+ *  range OSRS used before it switched to unix-timestamp revisions. */
+enum RSCache_Dat2ComponentDecodeEra
 {
-    RSCACHE_DAT2_COMPONENT_DECODE_REV_OSRS = 0,
-    RSCACHE_DAT2_COMPONENT_DECODE_REV_643,
+    RSCACHE_DAT2_COMPONENT_DECODE_ERA_OSRS = 0,
+    RSCACHE_DAT2_COMPONENT_DECODE_ERA_643,
 };
+
+/** Interfaces reference-table version at which OSRS revision 237 widened the
+ *  type-6 model ids from u16 to i32 (if1 reads two, if3 one). RuneLite gates
+ *  the same field off the same value — InterfaceLoader.configureForRevision()
+ *  fed from Index.getRevision(), commit c2e1eb3 "cache: update 237"
+ *  (2026-03-15). Local caches: cache.kronos=997, cache=1193,
+ *  cache.jan2026=1767694604 — all below the threshold. */
+#define RSCACHE_DAT2_COMPONENT_INDEX_REVISION_237 1773137432
+
+/** Unknown interfaces revision: decode with the pre-237 field widths. */
+#define RSCACHE_DAT2_COMPONENT_INDEX_REVISION_UNKNOWN (-1)
+
+/** What the decoder needs to pick field widths and field order: which layout
+ *  family the cache belongs to, plus its interfaces reference-table version
+ *  (RSCache_ReferenceTable.version) for the revision-gated fields within the
+ *  OSRS family. */
+struct RSCache_Dat2ComponentDecodeRev
+{
+    enum RSCache_Dat2ComponentDecodeEra era;
+    int32_t index_revision;
+};
+
+/** OSRS-family layout at `index_revision` (pass
+ *  RSCACHE_DAT2_COMPONENT_INDEX_REVISION_UNKNOWN when the caller has no
+ *  reference table on hand). */
+struct RSCache_Dat2ComponentDecodeRev
+RSCache_Dat2ComponentDecodeRevOsrs(int32_t index_revision);
+
+/** 643-era layout; index revisions are not meaningful across families. */
+struct RSCache_Dat2ComponentDecodeRev
+RSCache_Dat2ComponentDecodeRev643(void);
 
 void
 RSCache_Dat2ComponentInit(struct RSCache_Dat2Component* c);
@@ -272,13 +307,14 @@ RSCache_Dat2ComponentFree(struct RSCache_Dat2Component* c);
 void
 RSCache_Dat2ComponentDecodeIf1(
     struct RSCache_Dat2Component* self,
-    struct RSCache_Buffer* buffer);
+    struct RSCache_Buffer* buffer,
+    struct RSCache_Dat2ComponentDecodeRev rev);
 
 void
 RSCache_Dat2ComponentDecodeIf3(
     struct RSCache_Dat2Component* self,
     struct RSCache_Buffer* buffer,
-    enum RSCache_Dat2ComponentDecodeRev rev);
+    struct RSCache_Dat2ComponentDecodeRev rev);
 
 void
 RSCache_Dat2ComponentSetOp(
@@ -294,18 +330,18 @@ RSCache_Dat2ComponentNewDecode(
     uint8_t* data,
     int data_size,
     int packed_id,
-    enum RSCache_Dat2ComponentDecodeRev rev);
+    struct RSCache_Dat2ComponentDecodeRev rev);
 
 struct RSCache_Dat2ComponentPack*
 RSCache_Dat2ComponentPackNewFromFileList(
     struct RSCache_FileList* filelist,
     int interface_id,
-    enum RSCache_Dat2ComponentDecodeRev rev);
+    struct RSCache_Dat2ComponentDecodeRev rev);
 
 struct RSCache_Dat2ComponentPack*
 RSCache_Dat2ComponentPackNewFromArchive(
     struct RSCache_Dat2DiskArchive* archive,
     int interface_id,
-    enum RSCache_Dat2ComponentDecodeRev rev);
+    struct RSCache_Dat2ComponentDecodeRev rev);
 
 #endif

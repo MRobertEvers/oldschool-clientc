@@ -278,6 +278,14 @@
 #define CS2_OP_CC_DELETE 101
 #define CS2_OP__103 103
 #define CS2_OP__104 104
+/* CC_COPY — Clone a dynamic child into another slot under the same parent.
+ * int stack in:   parent, src_sub, dst_sub        (dst_sub = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: sets active to the copy; used by the bank tab strip builder
+ */
+#define CS2_OP_CC_COPY 105
 /* CC_DELETEALL — Delete all dynamic children of active parent.
  * int stack in:   -
  * str stack in:   -
@@ -1740,8 +1748,29 @@
 #define CS2_OP_MOBILE_KEYBOARDHIDE 6521
 #define CS2_OP__6522 6522
 #define CS2_OP__6523 6523
+/* MOBILE_BATTERYLEVEL — Battery charge percentage (0..100).
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  percent
+ * str stack out:  -
+ * notes: Desktop has no battery; we report a full charge.
+ */
 #define CS2_OP_MOBILE_BATTERYLEVEL 6524
+/* MOBILE_BATTERYCHARGING — Is the device charging.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  charging
+ * str stack out:  -
+ * notes: Desktop is always on mains power.
+ */
 #define CS2_OP_MOBILE_BATTERYCHARGING 6525
+/* MOBILE_WIFIAVAILABLE — Is a wifi (non-metered) connection available.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  available
+ * str stack out:  -
+ * notes: Desktop is treated as an unmetered connection.
+ */
 #define CS2_OP_MOBILE_WIFIAVAILABLE 6526
 #define CS2_OP__6527 6527
 #define CS2_OP__6600 6600

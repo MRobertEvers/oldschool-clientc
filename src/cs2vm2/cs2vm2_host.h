@@ -33,6 +33,7 @@ enum CS2VM_HostRequestKind
     // CC Child component
     CS2VM_HOST_REQUEST_CC_DELETEALL,
     CS2VM_HOST_REQUEST_CC_CREATE,
+    CS2VM_HOST_REQUEST_CC_COPY,
     CS2VM_HOST_REQUEST_CC_FIND,
     CS2VM_HOST_REQUEST_CC_SETPOSITION,
     CS2VM_HOST_REQUEST_CC_SETSIZE,
@@ -250,6 +251,15 @@ struct CS2VM_HostRequest_CC_Create
     int component_type;
     int child_index;
     int is_nested;
+    int dot_operand;
+};
+
+/** CC_COPY: clone dynamic child src_sub_id of parent_id into dst_sub_id. */
+struct CS2VM_HostRequest_CC_Copy
+{
+    int parent_id;
+    int src_sub_id;
+    int dst_sub_id;
     int dot_operand;
 };
 
@@ -701,6 +711,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_EnumGetOutputCount enum_get_output_count;
         struct CS2VM_HostRequest_CC_DeleteAll cc_delete_all;
         struct CS2VM_HostRequest_CC_Create cc_create;
+        struct CS2VM_HostRequest_CC_Copy cc_copy;
         struct CS2VM_HostRequest_CC_Find cc_find;
         struct CS2VM_HostRequest_CC_SetPosition cc_set_position;
         struct CS2VM_HostRequest_CC_SetSize cc_set_size;

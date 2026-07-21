@@ -1206,6 +1206,87 @@ UITree_CcCreate(
     return idx;
 }
 
+int32_t
+UITree_CcCopy(
+    struct UITree* tree,
+    int32_t parent_index,
+    int parent_component_id,
+    int src_sub_id,
+    int dst_sub_id)
+{
+    assert(tree);
+    if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
+        return -1;
+    if( src_sub_id == dst_sub_id )
+        return -1;
+
+    int32_t const src_idx =
+        UITree_FindChildBySubid(tree, parent_index, parent_component_id, src_sub_id);
+    if( src_idx < 0 )
+        return -1;
+
+    /* Copy the payload out before any push/reclaim: both can move or free the
+     * components array. Owned strings are re-duplicated below, never shared. */
+    struct UITreeComponent const src = tree->components[src_idx];
+
+    int const iface_id = parent_component_id >= 0 ? (parent_component_id >> 16) : 0;
+
+    int32_t existing =
+        UITree_FindChildBySubid(tree, parent_index, parent_component_id, dst_sub_id);
+    if( existing >= 0 && tree->components[existing].dynamic )
+    {
+        UITree_UnlinkChild(tree, parent_index, existing);
+        uitree_reclaim_subtree(tree, existing);
+    }
+
+    struct UITreeNodeSpec spec;
+    memset(&spec, 0, sizeof(spec));
+    spec.type = src.type;
+    spec.component_id = UITree_AllocateDynamicComponentId(tree, iface_id);
+    spec.dynamic = 1;
+    spec.dynamic_child_index = dst_sub_id;
+    spec.always_dirty = 1;
+
+    int32_t const idx = UITree_Push(tree, parent_index, &spec);
+    if( idx < 0 )
+        return -1;
+
+    struct UITreeComponent* dst = &tree->components[idx];
+
+    dst->u = src.u;
+    if( src.type == UIELEM_RS_TEXT )
+    {
+        /* Push allocated nothing for text (spec carried none); own fresh copies. */
+        dst->u.rs_text.text = src.u.rs_text.text ? strdup(src.u.rs_text.text) : NULL;
+        dst->u.rs_text.text_active =
+            src.u.rs_text.text_active ? strdup(src.u.rs_text.text_active) : NULL;
+    }
+
+    dst->trans = src.trans;
+    dst->if3 = src.if3;
+    dst->no_click_through = src.no_click_through;
+    dst->draggable = src.draggable;
+    dst->drag_behavior = src.drag_behavior;
+    dst->drag_dead_zone = src.drag_dead_zone;
+    dst->drag_dead_time = src.drag_dead_time;
+    dst->model_transparent = src.model_transparent;
+    dst->item_id = src.item_id;
+    dst->item_count = src.item_count;
+    dst->item_scene_id = src.item_scene_id;
+    dst->item_atlas_index = src.item_atlas_index;
+    dst->target_priority = src.target_priority;
+    dst->position = src.position;
+    dst->menu_options = src.menu_options;
+    dst->runtime_hooks = src.runtime_hooks;
+
+    /* cs1 behavior scripts stay uncopied: dynamic children are driven by cs2
+     * hooks, and the script arrays are owned per node. */
+
+    dst->is_dirty = 1;
+    tree->generation++;
+    return idx;
+}
+
 void
 UITree_CcDeleteAll(
     struct UITree* tree,

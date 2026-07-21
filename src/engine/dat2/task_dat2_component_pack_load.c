@@ -26,13 +26,32 @@ Task_Dat2ComponentPackLoad_Run(
     struct Task_Dat2ComponentPackLoad* task = (struct Task_Dat2ComponentPackLoad*)task_base;
     struct RSCache_Dat2ComponentPack* rscache_pack = NULL;
     struct ToriRS_ComponentPack* torirs_pack = NULL;
+    struct RSCache_ReferenceTable* table = NULL;
 
     PT_BEGIN(&task->pt);
+
+    /* The interfaces table version is the cache revision the if1/if3 field
+     * layout is keyed on (see RSCACHE_DAT2_COMPONENT_INDEX_REVISION_237). */
+    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_DISK_TABLE_INTERFACES) )
+    {
+        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_DISK_TABLE_INTERFACES);
+        PT_YIELD(&task->pt);
+
+        table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
+        if( !table )
+        {
+            fprintf(stderr, "Failed to load interfaces reference table\n");
+            PT_EXIT(&task->pt);
+        }
+        dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_DISK_TABLE_INTERFACES, table);
+    }
 
     RSCache_IO_Dat2ComponentPackLoad(io, 0, task->iface_id);
     PT_YIELD(&task->pt);
 
-    rscache_pack = RSCache_IO_Dat2ComponentPackDecode(io, 0);
+    table = dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_DISK_TABLE_INTERFACES);
+    rscache_pack = RSCache_IO_Dat2ComponentPackDecode(
+        io, 0, table ? table->version : RSCACHE_DAT2_COMPONENT_INDEX_REVISION_UNKNOWN);
     if( !rscache_pack )
     {
         fprintf(stderr, "Failed to decode dat2 component pack %d\n", task->iface_id);

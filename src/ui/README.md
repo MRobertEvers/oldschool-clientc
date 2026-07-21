@@ -1,5 +1,10 @@
 # UITree
 
+> For the end-to-end live pipeline (load → layout → emit → input → CS2 scripts),
+> the per-frame ordering rules, and the catalogue of bugs that were fixed along
+> the way, see [docs/UI_RENDERER_ARCHITECTURE.md](../../docs/UI_RENDERER_ARCHITECTURE.md).
+> This file is the module reference for `src/ui/` and the RevConfig bake path.
+
 UITree is a flat array of linked nodes representing RS interface widgets and
 client chrome (compass, minimap, sidebar slots, etc.). Nodes store integers only
 (`scene_id`, `font_id`, `model_id`); pixel assets live in `ToriDraw_Scene`.

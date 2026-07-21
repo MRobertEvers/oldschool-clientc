@@ -47,6 +47,7 @@ const val CC_DELETE = 101
 const val _103 = 103
 const val _104 = 104
 const val CC_DELETEALL = 102
+const val CC_COPY = 105
 const val CC_FIND = 200
 const val IF_FIND = 201
 const val _202 = 202

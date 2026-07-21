@@ -694,6 +694,18 @@ UITree_CcCreate(
     int widget_type,
     int sub_id);
 
+/** CC_COPY: clone the dynamic child at src_sub_id into slot dst_sub_id under the
+ *  same parent (replace-in-slot, like UITree_CcCreate). Only the widget's own
+ *  payload is cloned — the copy starts with no children. Returns the new node
+ *  index, or -1 when the source slot is empty. */
+int32_t
+UITree_CcCopy(
+    struct UITree* tree,
+    int32_t parent_index,
+    int parent_component_id,
+    int src_sub_id,
+    int dst_sub_id);
+
 void
 UITree_CcDeleteAll(
     struct UITree* tree,
