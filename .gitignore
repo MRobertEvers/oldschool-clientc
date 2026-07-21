@@ -50,3 +50,7 @@ tools/memtrace/bins/
 
 # ui_tree test BMP output
 test/ui_tree/output/
+
+# Compiled editor binary + BMP snapshots (rebuilt in place)
+/src/torirs
+/interfacex_*.bmp

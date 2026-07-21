@@ -389,6 +389,26 @@ struct UITree
     /** Tail of root sibling list — O(1) append while baking large packs. */
     int32_t last_root_index;
     uint32_t generation;
+    /** Lazy id->index acceleration for UITree_FindByComponentId. Open-addressed,
+     *  power-of-two, load factor <= 0.5. Rebuilt whenever `generation` changes.
+     *  Preserves the dynamic-wins / lowest-index tie-break of the linear scan. */
+    int32_t* id_index_keys; /* component_id per slot, -1 = empty */
+    int32_t* id_index_vals; /* winning component index for that id */
+    uint32_t id_index_cap;  /* slot count (power of two, 0 = unallocated) */
+    uint32_t id_index_gen;  /* generation the map was last built for */
+    uint8_t id_index_valid; /* 0 until first successful build */
+    /** Cached layout scratch (see UITree_LayoutResolve). `order`/`depth` depend
+     *  only on tree topology and are recomputed only when `generation` changes;
+     *  the abs_* buffers are reused across calls to avoid per-frame calloc/free. */
+    int* layout_order;
+    int* layout_depth;
+    int* layout_abs_x;
+    int* layout_abs_y;
+    int* layout_abs_w;
+    int* layout_abs_h;
+    uint32_t layout_cap;       /* allocated length of each layout buffer */
+    uint32_t layout_order_gen; /* generation order/depth were computed for */
+    uint8_t layout_order_valid;
     uint16_t next_dynamic_uid;
     /** Mounted sub-interfaces (TS WidgetManager.interfaceParents). */
     struct UITreeInterfaceParent interface_parents[UITREE_INTERFACE_PARENT_MAX];

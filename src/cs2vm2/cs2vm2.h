@@ -97,6 +97,11 @@ struct CS2VM2_Array
 #define CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT 7211
 #define CS2_OP_CC_INPUT_SETCHARFILTER 7212
 
+/* A yield rolls the VM back to the start of the opcode that yielded. Per the
+ * CS2VM_EXECNO_YIELD contract (see above), a yielding host op must not have mutated
+ * frame contents or pushed/popped frames — only operand-stack tops. So the checkpoint
+ * only records the stack/frame pointers (plus the active/dot ids and, implicitly, the
+ * pc which is reset on restore); the ~12 KB-per-frame `frames` array is never copied. */
 struct CS2VM2_YieldCheckpoint
 {
     int ints_stack_top;
@@ -104,7 +109,6 @@ struct CS2VM2_YieldCheckpoint
     int frame_sp;
     int active_component_id;
     int dot_component_id;
-    struct CS2VM2_Frame frames[CS2VM_MAX_FRAMES];
 };
 
 #define CS2VM2_MAX_THREADS 4

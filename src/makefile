@@ -46,7 +46,7 @@ CFLAGS += -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS += -fsanitize=address
 endif
 
-SRCS = main.c platform/platform_x_io.c platform/platform_sdl2.c \
+SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	platform/platform_sdl2_renderer_soft3d.c render/torirs_frame.c \
 	input/torirs_input.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
@@ -93,9 +93,11 @@ SRCS = main.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/toridraw_sprite_from_torirs.c \
 	engine/toridraw_font_from_torirs.c \
 	engine/toridraw_model_from_torirs.c \
-	game/rs_cs2_host.c game/task_cs2_run.c \
+	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c \
+	engine/uitree_anim.c \
 	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
+	ui/uitree_interact.c \
 	varp/varp_manager.c \
 	inv/inv_manager.c \
 	revconfig/revconfig.c revconfig/revconfig_load.c \
@@ -106,65 +108,10 @@ SRCS = main.c platform/platform_x_io.c platform/platform_sdl2.c \
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
-OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/platform_x_io.o $(OBJ_DIR)/platform_sdl2.o \
-	$(OBJ_DIR)/platform_sdl2_renderer_soft3d.o $(OBJ_DIR)/torirs_frame.o \
-	$(OBJ_DIR)/torirs_input.o $(OBJ_DIR)/task_cs2_script_exec.o $(OBJ_DIR)/bmp.o \
-	$(OBJ_DIR)/cs2vm2.o $(OBJ_DIR)/cs2vm2_script.o $(OBJ_DIR)/cs2vm2_trigger_args.o \
-	$(OBJ_DIR)/cs2_opcode_meta.o $(OBJ_DIR)/cache_provider.o $(OBJ_DIR)/cs2vm2_script_from_rscache.o \
-	$(OBJ_DIR)/torirs_types.o $(OBJ_DIR)/torirs_model_from_rscache.o \
-	$(OBJ_DIR)/torirs_component_from_rscache.o \
-	$(OBJ_DIR)/torirs_objtype_from_rscache.o $(OBJ_DIR)/torirs_npctype_from_rscache.o \
-	$(OBJ_DIR)/torirs_idk_from_rscache.o \
-	$(OBJ_DIR)/torirs_map_from_rscache.o $(OBJ_DIR)/torirs_location_from_rscache.o \
-	$(OBJ_DIR)/torirs_flotype_from_rscache.o \
-	$(OBJ_DIR)/torirs_sprite_from_rscache.o $(OBJ_DIR)/torirs_font_from_rscache.o \
-	$(OBJ_DIR)/torirs_enum_from_rscache.o $(OBJ_DIR)/torirs_struct_from_rscache.o \
-	$(OBJ_DIR)/uitree_from_component.o \
-	$(OBJ_DIR)/dat1_buildcache.o $(OBJ_DIR)/task_dat1_model_load.o \
-	$(OBJ_DIR)/task_dat1_component_pack_load.o $(OBJ_DIR)/task_dat1_clientscript_load.o \
-	$(OBJ_DIR)/task_dat1_obj_load.o $(OBJ_DIR)/task_dat1_npc_load.o \
-	$(OBJ_DIR)/task_dat1_idk_load.o \
-	$(OBJ_DIR)/task_dat1_component_load.o \
-	$(OBJ_DIR)/dat2_buildcache.o $(OBJ_DIR)/task_dat2_model_load.o \
-	$(OBJ_DIR)/task_dat2_component_pack_load.o $(OBJ_DIR)/task_dat2_clientscript_load.o \
-	$(OBJ_DIR)/task_dat2_obj_load.o $(OBJ_DIR)/task_dat2_npc_load.o \
-	$(OBJ_DIR)/task_dat2_idk_load.o \
-	$(OBJ_DIR)/task_dat2_map_load.o $(OBJ_DIR)/task_dat2_loc_load.o \
-	$(OBJ_DIR)/task_dat2_flotype_load.o $(OBJ_DIR)/task_dat2_underlay_load.o \
-	$(OBJ_DIR)/task_dat2_texture_load.o \
-	$(OBJ_DIR)/task_dat2_sprite_load.o $(OBJ_DIR)/task_dat2_font_load.o \
-	$(OBJ_DIR)/task_dat2_enum_load.o $(OBJ_DIR)/task_dat2_struct_load.o \
-	$(OBJ_DIR)/task_dat2_component_load.o \
-	$(OBJ_DIR)/uitree_builder.o \
-	$(OBJ_DIR)/uitree_builder_manifest.o \
-	$(OBJ_DIR)/uitree_builder_bake.o \
-	$(OBJ_DIR)/uitree_builder_inv.o \
-	$(OBJ_DIR)/task_uibuilder_assets_load.o \
-	$(OBJ_DIR)/task_uitree_build.o \
-	$(OBJ_DIR)/task_pack_assets_load.o \
-	$(OBJ_DIR)/task_interface_open.o \
-	$(OBJ_DIR)/task_obj_model_load.o \
-	$(OBJ_DIR)/uitree_scene_bridge.o \
-	$(OBJ_DIR)/player_appearance.o \
-	$(OBJ_DIR)/toridraw_animation_from_rscache.o \
-	$(OBJ_DIR)/task_dat2_sequence_load.o \
-	$(OBJ_DIR)/uitree_cmd_render.o \
-	$(OBJ_DIR)/toridraw_sprite_from_torirs.o \
-	$(OBJ_DIR)/toridraw_font_from_torirs.o \
-	$(OBJ_DIR)/toridraw_model_from_torirs.o \
-	$(OBJ_DIR)/rs_cs2_host.o $(OBJ_DIR)/task_cs2_run.o \
-	$(OBJ_DIR)/uitree.o $(OBJ_DIR)/uitree_layout.o $(OBJ_DIR)/uitree_build.o \
-	$(OBJ_DIR)/uitree_host.o $(OBJ_DIR)/uitree_input.o $(OBJ_DIR)/uitree_hover.o \
-	$(OBJ_DIR)/uitree_scroll.o $(OBJ_DIR)/uitree_emit.o \
-	$(OBJ_DIR)/varp_manager.o \
-	$(OBJ_DIR)/inv_manager.o \
-	$(OBJ_DIR)/revconfig.o $(OBJ_DIR)/revconfig_load.o $(OBJ_DIR)/ini.o \
-	$(OBJ_DIR)/entity_pool.o $(OBJ_DIR)/world_entity.o $(OBJ_DIR)/entity_pathing.o \
-	$(OBJ_DIR)/entity_registry.o $(OBJ_DIR)/world_pickset.o $(OBJ_DIR)/world.o \
-	$(OBJ_DIR)/world_cycle.o \
-	$(OBJ_DIR)/painters.o \
-	$(OBJ_DIR)/minimap.o \
-	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
+# Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the
+# out-of-tree/unity extras that have their own rules below.
+OBJS = $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
+	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
 	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o
 
@@ -294,7 +241,8 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_walk.c ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
 		ui/test/uitree_test_drag.c ui/test/uitree_test_scroll_hit.c \
-		ui/test/uitree_test_drag_scrolled.c ui/test/uitree_test_emit_icons.c
+		ui/test/uitree_test_drag_scrolled.c ui/test/uitree_test_emit_icons.c \
+		ui/test/uitree_test_emit_golden.c
 	./$(OBJ_DIR)/uitree_test
 
 test-uitree-builder: $(OBJ_DIR)

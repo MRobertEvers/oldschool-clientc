@@ -1,0 +1,10 @@
+kind=3 id=32768010 xy=14,-30 wh=180,40 clip=10,30,200,120 scene=0 atlas=0 color=0x101010 filled=1 if3=0 trans=0 scroll=0,60
+kind=3 id=32768011 xy=14,18 wh=180,40 clip=10,30,200,120 scene=0 atlas=0 color=0x202020 filled=1 if3=0 trans=0 scroll=0,60
+kind=3 id=32768012 xy=14,66 wh=180,40 clip=10,30,200,120 scene=0 atlas=0 color=0x303030 filled=1 if3=0 trans=0 scroll=0,60
+kind=3 id=32768013 xy=14,114 wh=180,40 clip=10,30,200,120 scene=0 atlas=0 color=0x404040 filled=1 if3=0 trans=0 scroll=0,60
+kind=3 id=32768014 xy=14,162 wh=180,40 clip=10,30,200,120 scene=0 atlas=0 color=0x505050 filled=1 if3=0 trans=0 scroll=0,60
+kind=3 id=32768015 xy=14,210 wh=180,40 clip=10,30,200,120 scene=0 atlas=0 color=0x606060 filled=1 if3=0 trans=0 scroll=0,60
+kind=8 id=32768002 xy=210,30 wh=16,120 clip=210,30,16,120 scene=-1 atlas=0 color=0x0 filled=0 if3=0 trans=0 scroll=0,60
+kind=1 id=32768020 xy=250,40 wh=36,32 clip=0,0,400,300 scene=42 atlas=0 color=0x0 filled=0 if3=0 trans=0 scroll=0,0
+kind=2 id=32768001 xy=10,4 wh=380,20 clip=0,0,400,300 scene=0 atlas=0 color=0xff981f filled=0 if3=0 trans=0 scroll=0,0 text="Golden Interface" font=1 center=1
+kind=1 id=32768030 xy=320,180 wh=40,40 clip=0,0,765,503 scene=6 atlas=0 color=0x0 filled=0 if3=0 trans=128 scroll=0,0

@@ -9,6 +9,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Split a group's payload into its member files.
+ *
+ * IMPORTANT: the returned `files`/`file_sizes` arrays are indexed by POSITION
+ * (0..num_files-1), in the order the files appear in the group — NOT by the
+ * files' actual cache IDs. Many groups happen to be 0-based and dense (config
+ * tables: sequences, objs, npcs, …) so indexing by ID coincidentally works, but
+ * that is not guaranteed. In particular, ANIMATION frame archives number their
+ * files 1-based (1..N) and may be sparse. To fetch a file by its ID, first map
+ * the ID to a position using RSCache_Dat2DiskArchive.file_ids[] (file_ids[pos] is
+ * the real ID of position `pos`), then index files[pos]. Using files[id] directly
+ * on such a group reads the wrong file and runs off the end for the last frame.
+ * See seq_file_pos_for_id() in src/engine/dat2/task_dat2_sequence_load.c.
+ */
 struct RSCache_FileList*
 RSCache_FileListNewFromDecode(
     char* data,

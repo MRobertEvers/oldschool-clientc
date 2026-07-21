@@ -55,7 +55,8 @@ CS2VM2_SaveYieldCheckpoint(
     cp->frame_sp = vm->frame_sp;
     cp->active_component_id = vm->active_component_id;
     cp->dot_component_id = vm->dot_component_id;
-    memcpy(cp->frames, vm->frames, (size_t)vm->frame_sp * sizeof(struct CS2VM2_Frame));
+    /* No frame copy: a yielding op leaves frame contents untouched (see the
+     * CS2VM_EXECNO_YIELD contract), so restore is a pure pointer rollback. */
 }
 
 static void
@@ -68,6 +69,10 @@ CS2VM2_RestoreYieldCheckpoint(
     assert(cp);
     assert(cp->frame_sp > 0);
 
+    /* Defensive: if a (contract-violating) op grew the frame stack before yielding,
+     * clear the now-abandoned frames. Under the invariant frame_sp is unchanged and
+     * this loop does nothing. Frame contents at/below cp->frame_sp are untouched by a
+     * yielding op, so no frame copy is needed — only the pointers and pc are rolled back. */
     for( int i = cp->frame_sp; i < vm->frame_sp; i++ )
         memset(&vm->frames[i], 0, sizeof(struct CS2VM2_Frame));
 
@@ -76,7 +81,6 @@ CS2VM2_RestoreYieldCheckpoint(
     vm->frame_sp = cp->frame_sp;
     vm->active_component_id = cp->active_component_id;
     vm->dot_component_id = cp->dot_component_id;
-    memcpy(vm->frames, cp->frames, (size_t)cp->frame_sp * sizeof(struct CS2VM2_Frame));
     vm->frames[vm->frame_sp - 1].pc = op_pc;
 }
 
@@ -3620,6 +3624,9 @@ CS2VM2_Op_IF_SetOpSubmenu(
 
     int component_id, sub_index, op_index;
     char* text;
+    if( getenv("CS2DBG") )
+        fprintf(stderr, "CS2DBG SETOPSUBMENU entry ints_top=%d strs_top=%d operand=%d\n",
+                vm->ints_stack_top, vm->strs_stack_top, operand);
     if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &sub_index) != CS2VM_EXECNO_OK )
@@ -3627,7 +3634,12 @@ CS2VM2_Op_IF_SetOpSubmenu(
     if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+    {
+        if( getenv("CS2DBG") )
+            fprintf(stderr, "CS2DBG SETOPSUBMENU STR UNDERFLOW comp=%d sub=%d op=%d strs_top=%d\n",
+                    component_id, sub_index, op_index, vm->strs_stack_top);
         return CS2VM_EXECNO_ERROR;
+    }
 
     struct CS2VM_HostRequest request;
     memset(&request, 0, sizeof(request));

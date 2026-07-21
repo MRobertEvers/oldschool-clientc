@@ -1,0 +1,520 @@
+#include "uitree_interact.h"
+
+#include "uitree_hover.h"
+#include "uitree_layout.h"
+
+#include <assert.h>
+#include <string.h>
+
+void
+UIInteraction_Init(struct UIInteraction* interact)
+{
+    assert(interact);
+    memset(interact, 0, sizeof(*interact));
+    interact->input_state.hovered = -1;
+    interact->input_state.pressed = -1;
+    interact->hover_com_id = -1;
+    interact->prev_hover_com_id = -1;
+}
+
+static void
+intent_push(
+    struct UIInteractOut* out,
+    struct UIIntent const* intent)
+{
+    if( out->intent_count >= UI_INTENT_MAX )
+        return;
+    out->intents[out->intent_count++] = *intent;
+}
+
+struct UITreeRuntimeScriptHook const*
+UITree_ResolveClickHook(
+    struct UITree* tree,
+    int32_t leaf_index,
+    int* out_component_id)
+{
+    int32_t idx;
+
+    assert(tree);
+    assert(out_component_id);
+
+    *out_component_id = -1;
+
+    if( leaf_index < 0 || (uint32_t)leaf_index >= tree->component_count )
+        return NULL;
+
+    for( idx = leaf_index; idx >= 0; idx = tree->components[idx].parent )
+    {
+        struct UITreeComponent const* node = &tree->components[idx];
+        if( node->runtime_hooks.on_op.script_id > 0 )
+        {
+            *out_component_id = node->component_id;
+            return &node->runtime_hooks.on_op;
+        }
+        if( node->runtime_hooks.on_click.script_id > 0 )
+        {
+            *out_component_id = node->component_id;
+            return &node->runtime_hooks.on_click;
+        }
+    }
+    return NULL;
+}
+
+/* Innermost vertically-scrollable RS_LAYER whose bounds contain (mx,my), by
+ * smallest area (most specific). Wheel scrolls whatever layer is under the
+ * cursor even over empty content, unlike the geometric leaf hit-test. */
+static int32_t
+find_wheel_scroll_layer(
+    struct UITree const* tree,
+    int mx,
+    int my)
+{
+    int32_t best = -1;
+    int best_area = 0;
+    uint32_t i;
+
+    assert(tree);
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        int bx = 0, by = 0, bw = 0, bh = 0;
+        if( c->type != UIELEM_RS_LAYER || c->behavior.hide )
+            continue;
+        if( !UITree_ScrollLayerNeedsVertical(c) )
+            continue;
+        UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
+        if( bw <= 0 || bh <= 0 )
+            continue;
+        if( mx < bx || my < by || mx >= bx + bw || my >= by + bh )
+            continue;
+        {
+            int area = bw * bh;
+            if( best < 0 || area < best_area )
+            {
+                best = (int32_t)i;
+                best_area = area;
+            }
+        }
+    }
+    return best;
+}
+
+/* Reference event ctx passes mouse coords relative to the component's drawn
+ * (screen) position (OsrsClient hover dispatch, coords relative to _absX/Y). */
+static void
+hover_event_coords(
+    struct UITree* tree,
+    int component_id,
+    int mouse_x,
+    int mouse_y,
+    struct UIIntent* intent)
+{
+    int32_t idx;
+    int bx = 0, by = 0, bw = 0, bh = 0;
+    int offx = 0, offy = 0;
+
+    idx = UITree_FindByComponentId(tree, component_id);
+    if( idx < 0 )
+        return;
+    UITree_LayoutGetBounds(&tree->components[idx].position, &bx, &by, &bw, &bh);
+    UITree_AccumScrollOffset(tree, idx, &offx, &offy);
+    intent->has_event_mouse = 1;
+    intent->event_mouse_x = mouse_x - (bx - offx);
+    intent->event_mouse_y = mouse_y - (by - offy);
+}
+
+static struct UITreeRuntimeScriptHook const*
+hook_by_component_id(
+    struct UITree* tree,
+    int component_id,
+    struct UITreeRuntimeScriptHook const* (*pick)(struct UITreeComponent const*))
+{
+    int32_t idx;
+    if( component_id < 0 )
+        return NULL;
+    idx = UITree_FindByComponentId(tree, component_id);
+    if( idx < 0 )
+        return NULL;
+    return pick(&tree->components[idx]);
+}
+
+static struct UITreeRuntimeScriptHook const*
+pick_on_mouse_over(struct UITreeComponent const* node)
+{
+    return &node->runtime_hooks.on_mouse_over;
+}
+
+static struct UITreeRuntimeScriptHook const*
+pick_on_mouse_leave(struct UITreeComponent const* node)
+{
+    return &node->runtime_hooks.on_mouse_leave;
+}
+
+static struct UITreeRuntimeScriptHook const*
+pick_on_mouse_repeat(struct UITreeComponent const* node)
+{
+    return &node->runtime_hooks.on_mouse_repeat;
+}
+
+static struct UITreeRuntimeScriptHook const*
+pick_on_drag_complete(struct UITreeComponent const* node)
+{
+    return &node->runtime_hooks.on_drag_complete;
+}
+
+static struct UIInputResult
+bridge_input_to_uitree(
+    struct UIInputState* ui_state,
+    struct UITree* tree,
+    struct UITreeHost const* host,
+    struct LibToriRS_Input* input)
+{
+    struct UIInputResult last;
+    struct UIInputEvent move = {
+        .kind = UI_INPUT_MOVE,
+        .x = input->curr.mouse_x,
+        .y = input->curr.mouse_y,
+        .button = 0,
+    };
+
+    last = UITree_InputUpdate(ui_state, tree, host, move);
+
+    if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+    {
+        struct UIInputEvent down = {
+            .kind = UI_INPUT_DOWN,
+            .x = input->curr.mouse_x,
+            .y = input->curr.mouse_y,
+            .button = TORIRSM_LEFT,
+        };
+        last = UITree_InputUpdate(ui_state, tree, host, down);
+    }
+
+    if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
+    {
+        struct UIInputEvent up = {
+            .kind = UI_INPUT_UP,
+            .x = input->last_click_x[TORIRSM_LEFT],
+            .y = input->last_click_y[TORIRSM_LEFT],
+            .button = TORIRSM_LEFT,
+        };
+        last = UITree_InputUpdate(ui_state, tree, host, up);
+    }
+
+    return last;
+}
+
+/* IF1 scrollbars are emit-drawn (not draggable components), so they have no
+ * place in the generic input path. Intercept the bar strip before the pointer
+ * bridge can hand the press to the object-drag system and drive
+ * component->scroll_x/y directly. Returns 1 while the bar owns the mouse. */
+static int
+interact_scrollbars(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct UITreeHost const* ui_host,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut* out)
+{
+    int mx = input->curr.mouse_x;
+    int my = input->curr.mouse_y;
+    int left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+    int consumed = 0;
+
+    if( interact->sb_dragging )
+    {
+        consumed = 1;
+        if( left_held )
+        {
+            if( UITree_ScrollbarHandle(
+                    tree, &interact->sb_drag_hit, mx, my,
+                    UITREE_SCROLLBAR_ACTION_GRIP_DRAG, 0) )
+                out->need_redraw = 1;
+        }
+        else
+            interact->sb_dragging = 0;
+    }
+    else if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+    {
+        struct UITreeScrollbarHitInfo hit;
+        if( UITree_FindScrollbarAt(tree, ui_host, mx, my, &hit) )
+        {
+            /* Never let this press become an object-drag source. */
+            interact->input_state.drag_source_idx = -1;
+            interact->input_state.drag_source_id = -1;
+            interact->input_state.pressed = -1;
+            consumed = 1;
+            if( UITree_ScrollbarIsArrowKind(hit.kind) )
+            {
+                if( UITree_ScrollbarHandle(
+                        tree, &hit, mx, my, UITREE_SCROLLBAR_ACTION_ARROW_STEP, 0) )
+                    out->need_redraw = 1;
+                interact->sb_dragging = 0;
+            }
+            else if( UITree_ScrollbarIsGripKind(hit.kind) )
+            {
+                interact->sb_drag_hit = hit;
+                interact->sb_dragging = 1;
+                if( UITree_ScrollbarHandle(
+                        tree, &interact->sb_drag_hit, mx, my,
+                        UITREE_SCROLLBAR_ACTION_GRIP_DRAG, 0) )
+                    out->need_redraw = 1;
+            }
+        }
+    }
+    return interact->sb_dragging || consumed;
+}
+
+/* Mouse wheel: scroll the layer under the cursor. Prefer its CS2
+ * on_scroll_wheel handler; otherwise step component->scroll_y. */
+static void
+interact_wheel(
+    struct UITree* tree,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut* out)
+{
+    int32_t layer_idx;
+
+    if( input->curr.mouse_wheel_y == 0 )
+        return;
+    layer_idx = find_wheel_scroll_layer(tree, input->curr.mouse_x, input->curr.mouse_y);
+    if( layer_idx < 0 )
+        return;
+
+    {
+        struct UITreeComponent* layer = &tree->components[layer_idx];
+        if( layer->runtime_hooks.on_scroll_wheel.script_id > 0 )
+        {
+            struct UIIntent intent = {
+                .component_id = layer->component_id,
+                .hook = &layer->runtime_hooks.on_scroll_wheel,
+            };
+            intent_push(out, &intent);
+        }
+        else
+        {
+            /* Wheel up (positive) scrolls content up -> scroll_y down. */
+            layer->scroll_y -= input->curr.mouse_wheel_y * UITREE_SCROLLBAR_WHEEL_STEP;
+            UITree_ScrollClampComponent(layer);
+        }
+        out->need_redraw = 1;
+    }
+}
+
+/* Drag tick while held (deadzone+deadtime); emits onDrag / onDragComplete
+ * intents with drag-target and script-space mouse context. */
+static void
+interact_drag(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct UITreeHost const* ui_host,
+    struct LibToriRS_Input* input,
+    int sb_owns_mouse,
+    struct UIInputResult const* ui_result,
+    struct UIInteractOut* out)
+{
+    struct UIInputState* st = &interact->input_state;
+    int left_held = LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) ||
+                    LibToriRS_Input_IsDragging(input, TORIRSM_LEFT);
+
+    if( !sb_owns_mouse && st->drag_source_idx >= 0 && left_held )
+    {
+        int drag_ch = UITree_InputDragTick(
+            st, tree, ui_host, input->curr.mouse_x, input->curr.mouse_y, 1);
+        if( st->drag_active )
+        {
+            struct UITreeComponent* src = &tree->components[st->drag_source_idx];
+            int parent_x = 0, parent_y = 0, parent_w = 0, parent_h = 0;
+            int32_t parent_idx = src->parent;
+            struct UIIntent intent = {
+                .component_id = st->drag_source_id,
+                .hook = &src->runtime_hooks.on_drag,
+                .has_drag_target = 1,
+                .drag_target_id = st->drag_target_id,
+            };
+            if( src->drag_render_area_uid >= 0 )
+                parent_idx = UITree_FindByComponentId(tree, src->drag_render_area_uid);
+            if( parent_idx >= 0 )
+                UITree_LayoutGetBounds(
+                    &tree->components[parent_idx].position,
+                    &parent_x, &parent_y, &parent_w, &parent_h);
+            /* Script-space mouse: drag visual relative to the drag parent,
+             * folded back into content space via the parent's scroll. */
+            intent.has_event_mouse = 1;
+            intent.event_mouse_x =
+                src->drag_visual_x - parent_x +
+                (parent_idx >= 0 ? tree->components[parent_idx].scroll_x : 0);
+            intent.event_mouse_y =
+                src->drag_visual_y - parent_y +
+                (parent_idx >= 0 ? tree->components[parent_idx].scroll_y : 0);
+            intent_push(out, &intent);
+            out->need_redraw = 1;
+        }
+        else if( drag_ch )
+            out->need_redraw = 1;
+    }
+
+    if( ui_result->drag_ended )
+    {
+        if( ui_result->drag_source_id >= 0 )
+        {
+            struct UIIntent intent = {
+                .component_id = ui_result->drag_source_id,
+                .hook = hook_by_component_id(
+                    tree, ui_result->drag_source_id, pick_on_drag_complete),
+                .has_drag_target = 1,
+                .drag_target_id = ui_result->drag_target_id,
+            };
+            intent_push(out, &intent);
+        }
+        out->need_redraw = 1;
+    }
+}
+
+static void
+interact_hover(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct LibToriRS_Input* input,
+    uint64_t now_ms,
+    struct UIInteractOut* out)
+{
+    int mx = input->curr.mouse_x;
+    int my = input->curr.mouse_y;
+
+    interact->hover_com_id = UITree_FindHoveredComponentIdForRegion(
+        tree, NULL, -1, mx, my, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+
+    if( interact->hover_com_id != interact->prev_hover_com_id )
+    {
+        if( interact->prev_hover_com_id >= 0 )
+        {
+            struct UIIntent intent = {
+                .component_id = interact->prev_hover_com_id,
+                .hook = hook_by_component_id(
+                    tree, interact->prev_hover_com_id, pick_on_mouse_leave),
+            };
+            hover_event_coords(tree, interact->prev_hover_com_id, mx, my, &intent);
+            intent_push(out, &intent);
+        }
+        if( interact->hover_com_id >= 0 )
+        {
+            struct UIIntent intent = {
+                .component_id = interact->hover_com_id,
+                .hook = hook_by_component_id(
+                    tree, interact->hover_com_id, pick_on_mouse_over),
+            };
+            hover_event_coords(tree, interact->hover_com_id, mx, my, &intent);
+            intent_push(out, &intent);
+        }
+        interact->prev_hover_com_id = interact->hover_com_id;
+        out->need_redraw = 1;
+    }
+
+    /* onMouseRepeat fires for the still-hovered component once per client
+     * cycle (reference gates on cycleCntr; 20ms game tick). */
+    if( interact->hover_com_id >= 0 && now_ms - interact->last_repeat_ms >= 20 )
+    {
+        struct UITreeRuntimeScriptHook const* repeat_hook = hook_by_component_id(
+            tree, interact->hover_com_id, pick_on_mouse_repeat);
+        interact->last_repeat_ms = now_ms;
+        if( repeat_hook && repeat_hook->script_id > 0 )
+        {
+            struct UIIntent intent = {
+                .component_id = interact->hover_com_id,
+                .hook = repeat_hook,
+            };
+            hover_event_coords(tree, interact->hover_com_id, mx, my, &intent);
+            intent_push(out, &intent);
+        }
+    }
+
+    out->hover_com_id = interact->hover_com_id;
+}
+
+static void
+interact_click(
+    struct UITree* tree,
+    struct UITreeHost const* ui_host,
+    struct LibToriRS_Input* input,
+    struct UIInputResult const* ui_result,
+    struct UIInteractOut* out)
+{
+    struct UITreeRuntimeScriptHook const* click_hook = NULL;
+    int hook_com_id = -1;
+    int32_t ihit;
+    int click_x;
+    int click_y;
+
+    if( ui_result->clicked < 0 || (uint32_t)ui_result->clicked >= tree->component_count )
+        return;
+
+    click_x = input->last_click_x[TORIRSM_LEFT];
+    click_y = input->last_click_y[TORIRSM_LEFT];
+    ihit = UITree_HitTestInteractive(tree, ui_host, click_x, click_y);
+
+    /* Prefer interactive hit so clickMask targets beat decorative overlays. */
+    if( ihit >= 0 && (uint32_t)ihit < tree->component_count )
+        click_hook = UITree_ResolveClickHook(tree, ihit, &hook_com_id);
+    if( !click_hook )
+        click_hook = UITree_ResolveClickHook(tree, ui_result->clicked, &hook_com_id);
+
+    out->clicked_com_id =
+        hook_com_id >= 0 ? hook_com_id
+        : (ihit >= 0 && (uint32_t)ihit < tree->component_count
+               ? tree->components[ihit].component_id
+               : tree->components[ui_result->clicked].component_id);
+
+    {
+        struct UIIntent intent = {
+            .component_id = hook_com_id,
+            .hook = click_hook,
+        };
+        intent_push(out, &intent);
+    }
+    out->need_redraw = 1;
+}
+
+void
+UITree_InteractFrame(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct UITreeHost const* ui_host,
+    struct LibToriRS_Input* input,
+    uint64_t now_ms,
+    struct UIInteractOut* out)
+{
+    struct UIInputResult ui_result;
+    int sb_owns_mouse;
+
+    assert(interact);
+    assert(tree);
+    assert(input);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    out->hover_com_id = -1;
+    out->clicked_com_id = -1;
+
+    sb_owns_mouse = interact_scrollbars(interact, tree, ui_host, input, out);
+
+    /* While a scrollbar owns the mouse, keep the generic hover/click/drag path
+     * from seeing this press at all. */
+    if( sb_owns_mouse )
+    {
+        memset(&ui_result, 0, sizeof(ui_result));
+        ui_result.hovered = interact->input_state.hovered;
+        ui_result.prev_hovered = interact->input_state.hovered;
+        ui_result.clicked = -1;
+        ui_result.drag_source_idx = -1;
+        ui_result.drag_source_id = -1;
+        ui_result.drag_target_id = -1;
+    }
+    else
+        ui_result = bridge_input_to_uitree(&interact->input_state, tree, ui_host, input);
+
+    interact_wheel(tree, input, out);
+    interact_drag(interact, tree, ui_host, input, sb_owns_mouse, &ui_result, out);
+    interact_hover(interact, tree, input, now_ms, out);
+    interact_click(tree, ui_host, input, &ui_result, out);
+}

@@ -83,54 +83,87 @@ UITree_LayoutResolve(
         return;
 
     uint32_t const n = tree->component_count;
-    int* depth = calloc((size_t)n, sizeof(int));
-    int* order = calloc((size_t)n, sizeof(int));
-    int* abs_x = calloc((size_t)n, sizeof(int));
-    int* abs_y = calloc((size_t)n, sizeof(int));
-    int* abs_w = calloc((size_t)n, sizeof(int));
-    int* abs_h = calloc((size_t)n, sizeof(int));
-    if( !depth || !order || !abs_x || !abs_y || !abs_w || !abs_h )
+
+    /* Grow the cached scratch buffers if needed. component_count only ever grows,
+     * and any growth bumps `generation`, so a larger n always forces the order
+     * recompute below. */
+    if( tree->layout_cap < n )
     {
-        free(depth);
-        free(order);
-        free(abs_x);
-        free(abs_y);
-        free(abs_w);
-        free(abs_h);
-        return;
+        uint32_t cap = tree->layout_cap ? tree->layout_cap : 16;
+        while( cap < n )
+            cap <<= 1;
+        int* new_order = realloc(tree->layout_order, (size_t)cap * sizeof(int));
+        int* new_depth = realloc(tree->layout_depth, (size_t)cap * sizeof(int));
+        int* new_abs_x = realloc(tree->layout_abs_x, (size_t)cap * sizeof(int));
+        int* new_abs_y = realloc(tree->layout_abs_y, (size_t)cap * sizeof(int));
+        int* new_abs_w = realloc(tree->layout_abs_w, (size_t)cap * sizeof(int));
+        int* new_abs_h = realloc(tree->layout_abs_h, (size_t)cap * sizeof(int));
+        if( new_order )
+            tree->layout_order = new_order;
+        if( new_depth )
+            tree->layout_depth = new_depth;
+        if( new_abs_x )
+            tree->layout_abs_x = new_abs_x;
+        if( new_abs_y )
+            tree->layout_abs_y = new_abs_y;
+        if( new_abs_w )
+            tree->layout_abs_w = new_abs_w;
+        if( new_abs_h )
+            tree->layout_abs_h = new_abs_h;
+        if( !new_order || !new_depth || !new_abs_x || !new_abs_y || !new_abs_w || !new_abs_h )
+            return; /* out of memory: skip this frame rather than crash */
+        tree->layout_cap = cap;
+        tree->layout_order_valid = 0;
     }
 
-    for( uint32_t i = 0; i < n; i++ )
-    {
-        int d = 0;
-        int32_t cur = (int32_t)i;
-        while( cur >= 0 && (uint32_t)cur < n )
-        {
-            int32_t const parent = tree->components[cur].parent;
-            if( parent < 0 )
-                break;
-            if( (uint32_t)parent >= n )
-                break;
-            cur = parent;
-            d++;
-            if( d > (int)n )
-                break;
-        }
-        depth[i] = d;
-        order[i] = (int)i;
-    }
+    int* const depth = tree->layout_depth;
+    int* const order = tree->layout_order;
+    int* const abs_x = tree->layout_abs_x;
+    int* const abs_y = tree->layout_abs_y;
+    int* const abs_w = tree->layout_abs_w;
+    int* const abs_h = tree->layout_abs_h;
 
-    for( uint32_t a = 0; a < n; a++ )
+    /* depth/order are a pure function of tree topology (parent links). Recompute
+     * only when the topology changed; otherwise reuse the cached ordering. This
+     * removes the O(n^2) sort and O(n*depth) walk from the common per-frame path
+     * where only position values (not the tree shape) changed. */
+    if( !tree->layout_order_valid || tree->layout_order_gen != tree->generation )
     {
-        for( uint32_t b = a + 1; b < n; b++ )
+        for( uint32_t i = 0; i < n; i++ )
         {
-            if( depth[order[b]] < depth[order[a]] )
+            int d = 0;
+            int32_t cur = (int32_t)i;
+            while( cur >= 0 && (uint32_t)cur < n )
             {
-                int t = order[a];
-                order[a] = order[b];
-                order[b] = t;
+                int32_t const parent = tree->components[cur].parent;
+                if( parent < 0 )
+                    break;
+                if( (uint32_t)parent >= n )
+                    break;
+                cur = parent;
+                d++;
+                if( d > (int)n )
+                    break;
+            }
+            depth[i] = d;
+            order[i] = (int)i;
+        }
+
+        for( uint32_t a = 0; a < n; a++ )
+        {
+            for( uint32_t b = a + 1; b < n; b++ )
+            {
+                if( depth[order[b]] < depth[order[a]] )
+                {
+                    int t = order[a];
+                    order[a] = order[b];
+                    order[b] = t;
+                }
             }
         }
+
+        tree->layout_order_gen = tree->generation;
+        tree->layout_order_valid = 1;
     }
 
     for( uint32_t k = 0; k < n; k++ )
@@ -222,13 +255,7 @@ UITree_LayoutResolve(
         pos->abs_h = abs_h[i];
         pos->layout_resolved = 1;
     }
-
-    free(depth);
-    free(order);
-    free(abs_x);
-    free(abs_y);
-    free(abs_w);
-    free(abs_h);
+    /* Scratch buffers are owned by the tree and reused; freed in UITree_Free. */
 }
 
 void

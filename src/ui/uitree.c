@@ -427,6 +427,14 @@ UITree_Free(struct UITree* tree)
         free(b->script_comparator);
         free(b->script_operand);
     }
+    free(tree->id_index_keys);
+    free(tree->id_index_vals);
+    free(tree->layout_order);
+    free(tree->layout_depth);
+    free(tree->layout_abs_x);
+    free(tree->layout_abs_y);
+    free(tree->layout_abs_w);
+    free(tree->layout_abs_h);
     free(tree->components);
     free(tree);
 }
@@ -494,14 +502,13 @@ UITree_MarkFrameAlwaysDirtyTypes(struct UITree* tree)
     }
 }
 
-int32_t
-UITree_FindByComponentId(
+/* Original O(n) semantics, kept as the allocation-failure fallback and (when
+ * UITREE_ID_INDEX_VERIFY is defined) as the correctness oracle for the index. */
+static int32_t
+UITree_FindByComponentId_Linear(
     struct UITree const* tree,
     int component_id)
 {
-    assert(tree);
-    if( component_id < 0 || !tree->components )
-        return -1;
     int32_t fallback = -1;
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
@@ -513,6 +520,120 @@ UITree_FindByComponentId(
             fallback = (int32_t)i;
     }
     return fallback;
+}
+
+static inline uint32_t
+uitree_id_hash(int component_id)
+{
+    /* Fibonacci hashing; the low bits are masked to the table size by the caller. */
+    return (uint32_t)component_id * 2654435761u;
+}
+
+/* Insert (or resolve a tie for) one component into the open-addressed map.
+ * Entries are inserted in ascending array-index order, so the linear-scan
+ * winner is reproduced by: a dynamic node replaces a stored non-dynamic node;
+ * otherwise the first-stored entry (lowest index of its class) wins. */
+static void
+uitree_id_index_put(struct UITree* tree, int component_id, int32_t idx)
+{
+    uint32_t const mask = tree->id_index_cap - 1;
+    uint32_t h = uitree_id_hash(component_id) & mask;
+    for( ;; )
+    {
+        int32_t const k = tree->id_index_keys[h];
+        if( k < 0 )
+        {
+            tree->id_index_keys[h] = component_id;
+            tree->id_index_vals[h] = idx;
+            return;
+        }
+        if( k == component_id )
+        {
+            int32_t const cur = tree->id_index_vals[h];
+            if( tree->components[idx].dynamic && !tree->components[cur].dynamic )
+                tree->id_index_vals[h] = idx;
+            return;
+        }
+        h = (h + 1) & mask;
+    }
+}
+
+/* Rebuild the id->index map from the current component array. Returns false if
+ * the backing storage could not be (re)allocated, in which case callers fall
+ * back to the linear scan. */
+static bool
+UITree_RebuildIdIndex(struct UITree* tree)
+{
+    uint32_t cap = tree->id_index_cap ? tree->id_index_cap : 16;
+    while( cap < tree->component_count * 2u )
+        cap <<= 1;
+
+    if( cap != tree->id_index_cap || !tree->id_index_keys )
+    {
+        int32_t* keys = realloc(tree->id_index_keys, cap * sizeof(int32_t));
+        int32_t* vals = realloc(tree->id_index_vals, cap * sizeof(int32_t));
+        if( keys )
+            tree->id_index_keys = keys;
+        if( vals )
+            tree->id_index_vals = vals;
+        if( !keys || !vals )
+            return false;
+        tree->id_index_cap = cap;
+    }
+
+    for( uint32_t i = 0; i < tree->id_index_cap; i++ )
+        tree->id_index_keys[i] = -1;
+
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        int const id = tree->components[i].component_id;
+        if( id >= 0 )
+            uitree_id_index_put(tree, id, (int32_t)i);
+    }
+
+    tree->id_index_gen = tree->generation;
+    tree->id_index_valid = 1;
+    return true;
+}
+
+int32_t
+UITree_FindByComponentId(
+    struct UITree const* tree,
+    int component_id)
+{
+    assert(tree);
+    if( component_id < 0 || !tree->components )
+        return -1;
+
+    /* The map is a cache; refreshing it does not change the tree's logical state,
+     * so mutate through the const handle. */
+    struct UITree* t = (struct UITree*)tree;
+    if( !t->id_index_valid || t->id_index_gen != t->generation )
+    {
+        if( !UITree_RebuildIdIndex(t) )
+            return UITree_FindByComponentId_Linear(tree, component_id);
+    }
+
+    int32_t result = -1;
+    uint32_t const mask = t->id_index_cap - 1;
+    uint32_t h = uitree_id_hash(component_id) & mask;
+    for( ;; )
+    {
+        int32_t const k = t->id_index_keys[h];
+        if( k < 0 )
+            break;
+        if( k == component_id )
+        {
+            result = t->id_index_vals[h];
+            break;
+        }
+        h = (h + 1) & mask;
+    }
+
+#ifdef UITREE_ID_INDEX_VERIFY
+    assert(result == UITree_FindByComponentId_Linear(tree, component_id));
+#endif
+    return result;
 }
 
 void

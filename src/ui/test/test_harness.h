@@ -112,5 +112,6 @@ void test_drag_composite(void);
 void test_scroll_hit(void);
 void test_drag_scrolled(void);
 void test_emit_icons(void);
+void test_emit_golden(void);
 
 #endif

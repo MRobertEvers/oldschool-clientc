@@ -37,8 +37,26 @@ struct Task_Dat2SequenceLoad
     struct RSCache_FileList* frame_filelist;
     int cur_frame_id;
     int cur_file_id;
+    int cur_file_pos; /* filelist array position of cur_file_id (IDs are not 0-based) */
     int cur_framemap_id;
 };
+
+/*
+ * Map a file ID to its position in the archive's filelist. Animation archives
+ * number their frame files 1-based (and can be sparse), while the filelist stores
+ * files densely at positions 0..file_count-1; archive->file_ids[pos] holds each
+ * position's actual ID. Returns -1 if the ID is not present.
+ */
+static int
+seq_file_pos_for_id(struct RSCache_Dat2DiskArchive const* archive, int file_id)
+{
+    if( !archive || !archive->file_ids )
+        return -1;
+    for( int pos = 0; pos < archive->file_count; pos++ )
+        if( archive->file_ids[pos] == file_id )
+            return pos;
+    return -1;
+}
 
 static struct RSCache_Dat2DiskArchive*
 seq_take_archive(struct ToriRS_IO* io, int slot)
@@ -123,15 +141,18 @@ Task_Dat2SequenceLoad_Run(
             self->frame_archive->data, self->frame_archive->data_size,
             self->frame_archive->file_count);
         self->cur_file_id = self->cur_frame_id & 0xFFFF;
-        if( !self->frame_filelist || self->cur_file_id >= self->frame_filelist->file_count ||
-            !self->frame_filelist->files[self->cur_file_id] )
+        /* Frame file IDs are not 0-based/dense — resolve to the filelist position. */
+        self->cur_file_pos = seq_file_pos_for_id(self->frame_archive, self->cur_file_id);
+        if( !self->frame_filelist || self->cur_file_pos < 0 ||
+            self->cur_file_pos >= self->frame_filelist->file_count ||
+            !self->frame_filelist->files[self->cur_file_pos] )
         {
             seq_drop_frame_temporaries(self);
             continue;
         }
         self->cur_framemap_id = RSCache_Dat2FrameFramemapIdFromFile(
-            self->frame_filelist->files[self->cur_file_id],
-            self->frame_filelist->file_sizes[self->cur_file_id]);
+            self->frame_filelist->files[self->cur_file_pos],
+            self->frame_filelist->file_sizes[self->cur_file_pos]);
 
         /* Framemap (SKELETONS table). All frames of a seq share one; load once. */
         if( self->cur_framemap_id != self->loaded_framemap_id )
@@ -157,8 +178,8 @@ Task_Dat2SequenceLoad_Run(
         if( self->framemap )
             self->frames[self->frame_i] = RSCache_Dat2FrameNewDecode2(
                 self->cur_frame_id, self->framemap,
-                self->frame_filelist->files[self->cur_file_id],
-                self->frame_filelist->file_sizes[self->cur_file_id]);
+                self->frame_filelist->files[self->cur_file_pos],
+                self->frame_filelist->file_sizes[self->cur_file_pos]);
 
         seq_drop_frame_temporaries(self);
     }

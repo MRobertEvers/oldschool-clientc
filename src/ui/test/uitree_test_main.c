@@ -14,6 +14,7 @@ main(void)
     test_scroll_hit();
     test_drag_scrolled();
     test_emit_icons();
+    test_emit_golden();
 
     if( g_failures )
     {
