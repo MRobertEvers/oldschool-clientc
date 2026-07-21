@@ -10,6 +10,7 @@ struct UITree;
 struct InvManager;
 struct RS_CS2Host;
 struct UIBuilderManifest;
+struct UITreeSceneBridge;
 
 #define UITREE_BUILDER_NAME_MAX 64
 #define UITREE_BUILDER_ONLOAD_ARGV_MAX 64
@@ -51,6 +52,10 @@ struct UITreeBuilder
     struct UITree* tree;
     struct InvManager* invs;
     struct RS_CS2Host* host; /* may be NULL — parent task skips CS2 */
+    /** Optional: when set, bake remaps sprite ids to scene ids (EnsureSprite)
+     * and uploads fonts (EnsureFont) so the tree renders directly. NULL keeps
+     * raw provider/cache ids on the nodes. */
+    struct UITreeSceneBridge* bridge;
     char ini_path[512];
     /** Optional second RevConfig file (sprites/fonts). Empty = unused. */
     char cache_ini_path[512];

@@ -69,10 +69,14 @@ struct RS_CS2Host
     bool has_pending;
     struct CS2VM_HostRequest pending;
 
-    /** Graphic/font/obj id we already yielded a load for; avoids re-yield after miss. */
-    int sprite_yield_id;
-    int font_yield_id;
-    int setobject_yield_obj_id;
+    /* What the last yield parked for a cache load. A handler whose resource is
+     * still missing after this exact wait must complete with a default instead
+     * of yielding again: one opcode, one yield. Cleared in RS_CS2Host_Exec on
+     * any non-yield return. */
+    bool has_awaited;
+    enum CS2VM_HostRequestKind awaited_kind;
+    int awaited_id;
+    int awaited_id2; /* second resource of a two-resource request, else -1 */
 
     int varc_int[RS_CS2_HOST_VARC_INT_MAX];
     char varc_string[RS_CS2_HOST_VARC_STRING_MAX][RS_CS2_HOST_VARC_STRING_LEN];

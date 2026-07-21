@@ -2156,7 +2156,7 @@ Without layer clipping the line extends ~11px past the vertical border. With cli
 
 ### Parity references
 
-- Production: `uitree_scroll_intersect_clip` / `uitree_scroll_apply_ancestors` in `src2/ui/ui_scroll.c` (always intersects layer ancestor bounds).
+- Production: `UITree_ComponentClipsChildren` in `src/ui/uitree_scroll.c` is the shared container-clip predicate. The emit walk (`emit_walk_node` in `src/ui/uitree_emit.c`) intersects the child clip for every positive-size container; the hit/hover/drop walks (`src/ui/uitree_input.c`, `src/ui/uitree_hover.c`, `drop_target_pick_in_subtree` in `src/ui/uitree.c`) apply the same predicate via `UITree_ScrollIntersectClip` at screen coords so hitboxes match drawn pixels.
 - TypeScript reference: container child clip in `xrsps-typescript/src/ui/gl/widgets-gl.ts` ("ALL type 0/11 containers clip their children, not just scrollable ones").
 
 ## Nonzero `clientCode` values in the dat2 cache

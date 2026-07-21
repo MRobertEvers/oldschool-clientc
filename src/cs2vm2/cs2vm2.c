@@ -94,6 +94,11 @@ CS2VM2_ClearYieldHalt(struct CS2VM2_Thread* vm)
     vm->yield_halt_count = 0;
 }
 
+/**
+ * One opcode, one yield: the host must load everything a request needs in that
+ * single round-trip and complete on the retry (with defaults if a load failed).
+ * A second yield at the same site means a host handler broke that contract.
+ */
 static bool
 CS2VM2_CheckYieldHalt(
     struct CS2VM2_Thread* vm,
@@ -129,6 +134,7 @@ CS2VM2_CheckYieldHalt(
         vm->last_error_opcode = opcode;
         vm->last_error_pc = op_pc;
         vm->last_error_script_id = script_id;
+        assert(0 && "host yielded twice for one opcode");
         return false;
     }
     return true;

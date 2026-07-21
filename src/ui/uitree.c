@@ -2168,10 +2168,13 @@ drop_target_pick_in_subtree(
     child_scroll_x = scroll_off_x;
     child_scroll_y = scroll_off_y;
     child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
-    if( c->type == UIELEM_RS_LAYER )
-    {
+    /* Every positive-size container clips its children (same predicate as the
+     * emit walk, so drop targets match drawn pixels). */
+    if( UITree_ComponentClipsChildren(c) && w > 0 && h > 0 )
         UITree_ScrollIntersectClip(
             &child_clip, x - scroll_off_x, y - scroll_off_y, w, h);
+    if( c->type == UIELEM_RS_LAYER )
+    {
         if( UITree_ScrollLayerNeedsHorizontal(c) )
             child_scroll_x += c->scroll_x;
         if( UITree_ScrollLayerNeedsVertical(c) )

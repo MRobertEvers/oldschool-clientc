@@ -168,6 +168,73 @@ test_hover_input(void)
         TEST_ASSERT(r.clicked < 0, "no click when release elsewhere");
     }
 
+    /* Every positive-size container clips its children — hit/hover must match
+     * the drawn (clipped) pixels, including for non-scrollable layers. */
+    {
+        struct UITree* ct = UITree_New(8);
+        /* Non-scrollable layer 100x40 at (100,100); child rect overhangs both
+         * edges (rel x=-20, w=200 → abs 80..280 vs layer 100..200). */
+        int32_t lay = UITree_TestPushXy(ct, -1, UIELEM_RS_LAYER, 60, 100, 100, 100, 40);
+        int32_t wide = UITree_TestPushXy(ct, lay, UIELEM_RS_RECT, 61, -20, 10, 200, 20);
+        ct->components[wide].behavior.button_type = 1;
+        ct->components[wide].behavior.over_color = 0xFFFFFF;
+        UITree_TestResolve(ct);
+
+        int32_t in_both = UITree_HitTestInteractive(ct, &host, 150, 115);
+        TEST_ASSERT(in_both == wide, "overhang child hit inside layer bounds");
+        int32_t in_overhang = UITree_HitTestInteractive(ct, &host, 230, 115);
+        TEST_ASSERT(in_overhang != wide, "overhang clipped: no hit past layer edge");
+
+        int hov_in = UITree_FindHoveredComponentIdForRegion(
+            ct, &host, ct->root_index, 150, 115, 0, 0, 400, 300);
+        TEST_ASSERT(hov_in == 61, "overhang child hovers inside layer bounds");
+        int hov_out = UITree_FindHoveredComponentIdForRegion(
+            ct, &host, ct->root_index, 230, 115, 0, 0, 400, 300);
+        TEST_ASSERT(hov_out != 61, "overhang clipped: no hover past layer edge");
+        UITree_Free(ct);
+    }
+
+    /* Non-layer containers (inv grid) clip children with the same predicate as
+     * the emit walk. */
+    {
+        struct UITree* ct = UITree_New(8);
+        int32_t grid = UITree_TestPushXy(ct, -1, UIELEM_INV_GRID, 70, 50, 50, 60, 60);
+        int32_t spill = UITree_TestPushXy(ct, grid, UIELEM_RS_RECT, 71, 40, 10, 60, 20);
+        ct->components[spill].behavior.button_type = 1;
+        UITree_TestResolve(ct);
+
+        TEST_ASSERT(
+            UITree_HitTestInteractive(ct, &host, 100, 65) == spill,
+            "inv-grid child hit inside grid bounds");
+        TEST_ASSERT(
+            UITree_HitTestInteractive(ct, &host, 130, 65) != spill,
+            "inv-grid clips child hit past grid edge");
+        UITree_Free(ct);
+    }
+
+    /* Clip rect must sit at SCREEN coords: a clipping layer inside a scrolled
+     * ancestor keeps its hitbox where it is drawn (emit places the clip at
+     * x - scroll_off). */
+    {
+        struct UITree* ct = UITree_New(8);
+        int32_t outer = UITree_TestPushXy(ct, -1, UIELEM_RS_LAYER, 90, 0, 0, 100, 100);
+        ct->components[outer].u.rs_layer.scroll_height = 300;
+        /* Inner layer at content y=120 draws at y=20 once scrolled by 100. */
+        int32_t inner = UITree_TestPushXy(ct, outer, UIELEM_RS_LAYER, 91, 0, 120, 80, 40);
+        int32_t item = UITree_TestPushXy(ct, inner, UIELEM_RS_RECT, 92, -10, 0, 120, 40);
+        ct->components[item].behavior.button_type = 1;
+        UITree_TestResolve(ct);
+        ct->components[outer].scroll_y = 100;
+
+        TEST_ASSERT(
+            UITree_HitTestInteractive(ct, &host, 40, 30) == item,
+            "scrolled inner-layer child hit at drawn position");
+        TEST_ASSERT(
+            UITree_HitTestInteractive(ct, &host, 90, 30) != item,
+            "scrolled inner-layer clip still cuts overhang");
+        UITree_Free(ct);
+    }
+
     (void)graphic;
     UITree_Free(tree);
 }

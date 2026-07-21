@@ -29,6 +29,8 @@ struct UIBuilderFontReq
     char name[64];
     int archive_id;
     int cache_font_id;
+    /* dat1: title-jagfile stem (e.g. "b12"); defaults to the section name. */
+    char font_name[64];
 };
 
 struct UIBuilderComponentReq

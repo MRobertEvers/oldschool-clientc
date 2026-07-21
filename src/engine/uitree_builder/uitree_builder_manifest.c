@@ -191,6 +191,10 @@ add_font(
     strncpy(f->name, font->name, sizeof(f->name) - 1);
     f->archive_id = font->archive_id;
     f->cache_font_id = font->cache_font_id;
+    strncpy(
+        f->font_name,
+        font->font_name[0] != '\0' ? font->font_name : font->name,
+        sizeof(f->font_name) - 1);
 }
 
 static void

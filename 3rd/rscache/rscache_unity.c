@@ -38,4 +38,8 @@
 #include "src/datatypes/dat2_config_sequence.c"
 #include "src/datatypes/dat2_animaya.c"
 #include "src/datatypes/dat1_anim_frame.c"
+#include "src/datatypes/dat1_pix8.c"
+#include "src/datatypes/dat1_pix32.c"
+#include "src/datatypes/dat1_pix_font.c"
+#include "src/datatypes/dat1_config_component.c"
 // clang-format on

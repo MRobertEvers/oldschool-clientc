@@ -5,8 +5,23 @@
 
 #include <stdint.h>
 
-#define UITREE_LAYOUT_ROOT_W 765
-#define UITREE_LAYOUT_ROOT_H 503
+/** Host size the root interface is laid out against — the client canvas in the
+ *  standalone viewer, the gameframe slot in the real client. Interfaces read it
+ *  back through if_getwidth/if_getheight on their own root (which is
+ *  widthMode/heightMode 1, i.e. "fill my parent") and size themselves from it,
+ *  so a viewer that always hands over the full canvas makes any interface whose
+ *  page mixes centred (yMode 1) and absolute (yMode 0) children lay out wrong —
+ *  e.g. bank 12's settings page in cache.jan2026, which is authored for the
+ *  fixed-mode modal slot. Runtime-settable so the viewer can host an interface
+ *  at the size the client would. */
+extern int UITree_LayoutRootWidth;
+extern int UITree_LayoutRootHeight;
+
+void
+UITree_LayoutSetRootSize(int width, int height);
+
+#define UITREE_LAYOUT_ROOT_W (UITree_LayoutRootWidth)
+#define UITREE_LAYOUT_ROOT_H (UITree_LayoutRootHeight)
 #define UITREE_SIDEBAR_PANEL_W 190
 #define UITREE_SIDEBAR_PANEL_H 261
 

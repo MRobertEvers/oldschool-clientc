@@ -44,9 +44,20 @@ CreateTask_Dat1SpriteLoadByName(
     char const* archive_name);
 
 struct ToriRS_Task*
+CreateTask_Dat1SpriteLoadFromSource(
+    struct CacheProvider* provider,
+    struct CacheProviderSpriteSource const* source);
+
+struct ToriRS_Task*
 CreateTask_Dat1FontLoad(
     struct CacheProvider* provider,
     int font_id);
+
+struct ToriRS_Task*
+CreateTask_Dat1FontLoadByName(
+    struct CacheProvider* provider,
+    char const* font_name,
+    int cache_font_id);
 
 struct ToriRS_Task*
 CreateTask_Dat1ComponentLoad(

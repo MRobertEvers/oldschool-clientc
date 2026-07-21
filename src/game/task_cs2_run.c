@@ -34,7 +34,6 @@ enum TaskCS2YieldPlan
     TASK_CS2_YIELD_SCRIPT,
     TASK_CS2_YIELD_ENUM,
     TASK_CS2_YIELD_STRUCT,
-    TASK_CS2_YIELD_PARAM,
     TASK_CS2_YIELD_OBJ,
     TASK_CS2_YIELD_COMPONENT,
     TASK_CS2_YIELD_MODEL,
@@ -69,6 +68,9 @@ struct Task_CS2Run
     struct CS2VM_HostRequest pending;
     enum TaskCS2YieldPlan yield_plan;
     int await_id;
+    /* Second config a request needs alongside await_id (the ParamType behind a
+     * struct/obj param lookup), or -1. One yield loads both. */
+    int await_id2;
     int yield_obj_id;
     int yield_obj_count;
     int started;
@@ -293,20 +295,17 @@ task_cs2_plan_enum(struct Task_CS2Run* self)
     self->yield_plan = TASK_CS2_YIELD_ENUM;
 }
 
+/* A struct param answer needs the struct *and* the ParamType behind it; either
+ * may be the missing one, so the single yield loads both. struct -1 ("no
+ * struct", what a missed enum lookup pushes) is not loadable — the ParamType
+ * default answers it. */
 static void
 task_cs2_plan_struct(struct Task_CS2Run* self)
 {
     self->await_id = self->pending.u.struct_param.struct_id;
-    assert(self->await_id >= 0);
+    self->await_id2 = self->pending.u.struct_param.param_id;
+    assert(self->await_id >= 0 || self->await_id2 >= 0);
     self->yield_plan = TASK_CS2_YIELD_STRUCT;
-}
-
-static void
-task_cs2_plan_param(struct Task_CS2Run* self)
-{
-    self->await_id = self->pending.u.oc_param.param_id;
-    assert(self->await_id >= 0);
-    self->yield_plan = TASK_CS2_YIELD_PARAM;
 }
 
 static void
@@ -315,7 +314,9 @@ task_cs2_plan_obj(struct Task_CS2Run* self)
     switch( self->pending.kind )
     {
     case CS2VM_HOST_REQUEST_OC_PARAM:
+        /* Same pairing as task_cs2_plan_struct: objtype + ParamType. */
         self->await_id = self->pending.u.oc_param.item_id;
+        self->await_id2 = self->pending.u.oc_param.param_id;
         break;
     case CS2VM_HOST_REQUEST_OC_NAME:
         self->await_id = self->pending.u.oc_name.item_id;
@@ -331,7 +332,8 @@ task_cs2_plan_obj(struct Task_CS2Run* self)
         self->yield_plan = TASK_CS2_YIELD_ABORT;
         return;
     }
-    assert(self->await_id >= 0);
+    /* item -1 (empty slot) with a missing ParamType is a valid wait. */
+    assert(self->await_id >= 0 || self->await_id2 >= 0);
     self->yield_plan = TASK_CS2_YIELD_OBJ;
 }
 
@@ -459,6 +461,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
 
     self->yield_plan = TASK_CS2_YIELD_NONE;
     self->await_id = -1;
+    self->await_id2 = -1;
 
     switch( self->pending.kind )
     {
@@ -473,10 +476,6 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
 
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:
         task_cs2_plan_struct(self);
-        break;
-
-    case CS2VM_HOST_REQUEST_PARAM_TYPE:
-        task_cs2_plan_param(self);
         break;
 
     case CS2VM_HOST_REQUEST_OC_PARAM:
@@ -797,15 +796,17 @@ Task_CS2Run_Run(
         }
         else if( self->yield_plan == TASK_CS2_YIELD_STRUCT )
         {
-            TASK_AWAITSELF_IF(CreateTask_StructLoad(self->provider, self->await_id));
-        }
-        else if( self->yield_plan == TASK_CS2_YIELD_PARAM )
-        {
-            TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id));
+            if( self->await_id >= 0 )
+                TASK_AWAITSELF_IF(CreateTask_StructLoad(self->provider, self->await_id));
+            if( self->await_id2 >= 0 )
+                TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_OBJ )
         {
-            TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->await_id));
+            if( self->await_id >= 0 )
+                TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->await_id));
+            if( self->await_id2 >= 0 )
+                TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_COMPONENT )
         {

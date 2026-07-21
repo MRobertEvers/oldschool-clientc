@@ -7,6 +7,7 @@
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
 #include "engine/uitree_from_component.h"
+#include "engine/uitree_scene_bridge.h"
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
 #include "ui/uitree_build.h"
@@ -166,9 +167,10 @@ resolve_sprite_required(
     }
     int atlas = 0;
     int id = UITreeBuilder_ResolveSpriteRef(builder, ref, &atlas);
-    /* archive_id < 0 is dat1 name-only; numeric load not available yet. */
     if( out_atlas )
         *out_atlas = atlas;
+    if( builder->bridge && id >= 0 )
+        id = UITreeSceneBridge_EnsureSprite(builder->bridge, id);
     return id;
 }
 
@@ -185,6 +187,8 @@ bake_resolve_sprite(void* ud, int graphic_id)
         fprintf(stderr, "uitree_builder_bake: RS sprite %d not loaded\n", graphic_id);
         return -1;
     }
+    if( builder->bridge )
+        return UITreeSceneBridge_EnsureSprite(builder->bridge, graphic_id);
     return graphic_id;
 }
 
@@ -195,7 +199,11 @@ bake_resolve_font(void* ud, int font_id)
     assert(builder);
     if( font_id < 0 )
         return -1;
-    return UITreeBuilder_ResolveFontArchive(builder, font_id);
+    int resolved = UITreeBuilder_ResolveFontArchive(builder, font_id);
+    /* Scene font ids equal cache font ids; Ensure is an upload side effect. */
+    if( builder->bridge && resolved >= 0 )
+        UITreeSceneBridge_EnsureFont(builder->bridge, resolved);
+    return resolved;
 }
 
 static void

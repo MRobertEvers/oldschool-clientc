@@ -17,4 +17,16 @@ CreateTask_ObjModelLoad(
     int const* counts,
     int n);
 
+/**
+ * True if CreateTask_ObjModelLoad would still have work to do for this obj —
+ * objtype, count-variant, inventory model or a face texture missing. Lets a
+ * caller decide in one shot whether it must wait, instead of discovering each
+ * missing piece a load at a time.
+ */
+int
+ObjModelLoad_NeedsWork(
+    struct CacheProvider* provider,
+    int obj_id,
+    int count);
+
 #endif

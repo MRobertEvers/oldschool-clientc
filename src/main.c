@@ -262,6 +262,25 @@ main(
         return 1;
     }
 
+    /* TORIRS_ROOT_SIZE=WxH: host the interface at the gameframe slot the client
+     * would give it instead of the full canvas. Interfaces size themselves from
+     * if_getheight() on their own root, so e.g. bank 12's settings page only
+     * lays out correctly at the fixed-mode modal slot (~334 tall) — at the full
+     * 503 canvas its centred rows slide down onto its absolute-positioned
+     * buttons. Must be set before App_Init: the open path lays out immediately. */
+    if( getenv("TORIRS_ROOT_SIZE") )
+    {
+        char* root_size_sep = NULL;
+        long root_w = strtol(getenv("TORIRS_ROOT_SIZE"), &root_size_sep, 10);
+        long root_h = root_size_sep && *root_size_sep ? strtol(root_size_sep + 1, NULL, 10) : 0;
+        UITree_LayoutSetRootSize((int)root_w, (int)root_h);
+        fprintf(
+            stderr,
+            "root_size: %dx%d\n",
+            UITREE_LAYOUT_ROOT_W,
+            UITREE_LAYOUT_ROOT_H);
+    }
+
     App_Init(&app, &cfg);
     App_OpenRootInterface(&app, cfg.interface_id);
 
@@ -374,6 +393,62 @@ main(
             printf("wrote %s (%d cmds)\n", path, app.emit.count);
         else
             fprintf(stderr, "failed to write %s\n", path);
+    }
+
+    /* TORIRS_DUMP_LAYOUT=1: raw layout inputs + resolved box per component.
+     * Neither our dump_tree nor the reference widgetTreeDump prints abs= for
+     * layers, so this is the only way to see where a container's resolved box
+     * (and therefore every mode-!=0 child under it) goes wrong. Deliberately a
+     * separate format so dump_tree stays byte-comparable with the reference. */
+    if( getenv("TORIRS_DUMP_LAYOUT") && app.tree )
+    {
+        for( uint32_t li = 0; li < app.tree->component_count; li++ )
+        {
+            struct UITreeComponent const* c = &app.tree->components[li];
+            struct UITreeElemPosition const* pos = &c->position;
+            int parent_w = UITREE_LAYOUT_ROOT_W;
+            int parent_h = UITREE_LAYOUT_ROOT_H;
+            int parent_id = -1;
+            if( c->freed )
+                continue;
+            if( c->parent >= 0 && (uint32_t)c->parent < app.tree->component_count )
+            {
+                struct UITreeComponent const* parent = &app.tree->components[c->parent];
+                parent_id = parent->component_id;
+                parent_w = parent->position.abs_w;
+                parent_h = parent->position.abs_h;
+                /* Same scroll-content substitution UITree_LayoutResolve applies. */
+                if( parent->type == UIELEM_RS_LAYER )
+                {
+                    if( parent->u.rs_layer.scroll_width > 0 )
+                        parent_w = parent->u.rs_layer.scroll_width;
+                    if( parent->u.rs_layer.scroll_height > 0 )
+                        parent_h = parent->u.rs_layer.scroll_height;
+                }
+            }
+            fprintf(
+                stderr,
+                "LAYOUT com=0x%08x type=%d if3=%d parent=0x%08x pwh=%dx%d "
+                "raw=%d,%d %dx%d modes=x%d,y%d,w%d,h%d abs=%d,%d %dx%d\n",
+                c->component_id,
+                (int)c->type,
+                (int)c->if3,
+                parent_id,
+                parent_w,
+                parent_h,
+                pos->x,
+                pos->y,
+                pos->width,
+                pos->height,
+                (int)pos->x_mode,
+                (int)pos->y_mode,
+                (int)pos->width_mode,
+                (int)pos->height_mode,
+                pos->abs_x,
+                pos->abs_y,
+                pos->abs_w,
+                pos->abs_h);
+        }
     }
 
     /* TORIRS_DUMP_ORDER=1: walk every parent's child list in LINK order (which is

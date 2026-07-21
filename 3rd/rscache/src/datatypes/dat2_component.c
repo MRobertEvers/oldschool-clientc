@@ -800,7 +800,8 @@ struct RSCache_Dat2ComponentPack*
 RSCache_Dat2ComponentPackNewFromFileList(
     struct RSCache_FileList* filelist,
     int interface_id,
-    struct RSCache_Dat2ComponentDecodeRev rev)
+    struct RSCache_Dat2ComponentDecodeRev rev,
+    int const* file_ids)
 {
     assert(filelist != NULL);
     assert(filelist->file_count > 0);
@@ -814,7 +815,8 @@ RSCache_Dat2ComponentPackNewFromFileList(
 
     for( int i = 0; i < filelist->file_count; i++ )
     {
-        int packed_id = (interface_id << 16) | (i & 0xFFFF);
+        int file_id = file_ids ? file_ids[i] : i;
+        int packed_id = (interface_id << 16) | (file_id & 0xFFFF);
         pack->components[i] = RSCache_Dat2ComponentNewDecode(
             (uint8_t*)filelist->files[i], filelist->file_sizes[i], packed_id, rev);
         assert(pack->components[i] != NULL);
@@ -834,8 +836,10 @@ RSCache_Dat2ComponentPackNewFromArchive(
         RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
     assert(filelist != NULL);
 
+    /* archive->file_ids comes from the table's reference entry, so it carries the
+     * real (possibly sparse) file ids that the uid must be built from. */
     struct RSCache_Dat2ComponentPack* pack =
-        RSCache_Dat2ComponentPackNewFromFileList(filelist, interface_id, rev);
+        RSCache_Dat2ComponentPackNewFromFileList(filelist, interface_id, rev, archive->file_ids);
     RSCache_FileListFree(filelist);
     return pack;
 }

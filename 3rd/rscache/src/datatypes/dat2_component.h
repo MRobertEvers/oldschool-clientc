@@ -332,11 +332,18 @@ RSCache_Dat2ComponentNewDecode(
     int packed_id,
     struct RSCache_Dat2ComponentDecodeRev rev);
 
+/** @param file_ids archive file id per filelist slot, or NULL when the archive's
+ *  ids are known to be 0..file_count-1. Interface archives can be sparse (Jagex
+ *  removes a widget without renumbering the rest), and a component's uid is
+ *  (interface_id << 16) | file_id — NOT its position in the list. Using the
+ *  position shifts every uid after a gap, which silently reparents widgets and
+ *  hands them each other's geometry. */
 struct RSCache_Dat2ComponentPack*
 RSCache_Dat2ComponentPackNewFromFileList(
     struct RSCache_FileList* filelist,
     int interface_id,
-    struct RSCache_Dat2ComponentDecodeRev rev);
+    struct RSCache_Dat2ComponentDecodeRev rev,
+    int const* file_ids);
 
 struct RSCache_Dat2ComponentPack*
 RSCache_Dat2ComponentPackNewFromArchive(

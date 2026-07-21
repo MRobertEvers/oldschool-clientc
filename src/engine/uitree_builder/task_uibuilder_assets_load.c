@@ -2,6 +2,7 @@
 #include "uitree_builder_manifest.h"
 
 #include "engine/cache_provider.h"
+#include "engine/uitree_builder/task_pack_assets_load.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -85,7 +86,42 @@ Task_UIBuilderAssetsLoad_Run(
     {
         struct UIBuilderSpriteReq const* req = &self->manifest->sprites[self->i];
         if( req->archive_id >= 0 )
+        {
             TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->builder->provider, req->archive_id));
+        }
+        else if( req->format[0] != '\0' && req->data_filename[0] != '\0' )
+        {
+            /* Dat1 name-keyed sprite: the local descriptor is fully consumed by
+             * the creator before any yield; only self->i persists. */
+            struct CacheProviderSpriteSource src = {
+                .name = req->name,
+                .format = req->format,
+                .data_filename = req->data_filename,
+                .index_filename = req->index_filename,
+                .atlas_index = req->atlas_index,
+                .atlas_count = req->atlas_count,
+                .crop_x = req->crop_x,
+                .crop_y = req->crop_y,
+                .crop_width = req->crop_width,
+                .crop_height = req->crop_height,
+                .transform = (char const(*)[64])req->transform,
+                .transform_count = req->transform_count,
+            };
+            TASK_AWAITSELF_IF(CreateTask_SpriteLoadFromSource(self->builder->provider, &src));
+        }
+    }
+    /* Re-register dat1 sprites with their assigned provider ids so bake's
+     * UITreeBuilder_ResolveSpriteRef returns a loadable id. */
+    for( self->i = 0; self->i < self->manifest->sprite_count; self->i++ )
+    {
+        struct UIBuilderSpriteReq const* req = &self->manifest->sprites[self->i];
+        if( req->archive_id < 0 )
+        {
+            int assigned = CacheProvider_SpriteIdByName(self->builder->provider, req->name);
+            if( assigned >= 0 )
+                UITreeBuilder_RegisterSprite(
+                    self->builder, req->name, assigned, req->atlas_index, req->atlas_count);
+        }
     }
 
     /* Fonts */
@@ -100,6 +136,9 @@ Task_UIBuilderAssetsLoad_Run(
         struct UIBuilderFontReq const* req = &self->manifest->fonts[self->i];
         if( req->archive_id >= 0 )
             TASK_AWAITSELF_IF(CreateTask_FontLoad(self->builder->provider, req->archive_id));
+        else if( req->cache_font_id >= 0 && req->font_name[0] != '\0' )
+            TASK_AWAITSELF_IF(CreateTask_FontLoadByName(
+                self->builder->provider, req->font_name, req->cache_font_id));
     }
 
     /* Unique inv objs */
@@ -110,12 +149,16 @@ Task_UIBuilderAssetsLoad_Run(
             CreateTask_ObjLoad(self->builder->provider, self->unique_objs[self->i]));
     }
 
-    /* Components / packs */
+    /* Components / packs. Locals do not survive the yields between the two
+     * awaits — index through self each time. */
     for( self->i = 0; self->i < self->manifest->component_count; self->i++ )
     {
-        struct UIBuilderComponentReq const* req = &self->manifest->components[self->i];
-        TASK_AWAITSELF_IF(
-            CreateTask_ComponentLoad(self->builder->provider, req->packed_id));
+        TASK_AWAITSELF_IF(CreateTask_ComponentLoad(
+            self->builder->provider, self->manifest->components[self->i].packed_id));
+        /* Prefetch pack-referenced assets (MODEL widgets especially; dat1 sprite
+         * refs resolve during the pack load itself, so those awaits no-op). */
+        TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(
+            self->builder->provider, self->manifest->components[self->i].iface_id));
     }
 
     PT_END(&self->pt);

@@ -375,6 +375,224 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
     return dst;
 }
 
+struct ToriRS_Component*
+ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
+{
+    if( !src )
+        return NULL;
+
+    struct ToriRS_Component* dst = calloc(1, sizeof(struct ToriRS_Component));
+    if( !dst )
+        return NULL;
+
+    dst->id = src->id;
+    dst->type = torirs_component_type_from_raw(src->type);
+    dst->width = src->width;
+    dst->height = src->height;
+    dst->if3 = 0;
+    dst->transparency = src->alpha;
+    dst->over_layer_id = src->overlayer;
+    dst->hide = src->hide ? 1 : 0;
+    dst->button_type = src->buttonType;
+    dst->client_code = src->clientCode;
+    dst->click_mask = src->targetMask;
+    dst->parent_id = src->layer;
+
+    if( src->type == RSCACHE_DAT1_COMPONENT_TYPE_LAYER )
+        dst->scroll_height = src->scroll;
+
+    dst->color = src->colour;
+    dst->active_color = src->activeColour;
+    dst->over_color = src->overColour;
+    dst->active_over_color = src->activeOverColour;
+    dst->filled = src->fill ? 1 : 0;
+
+    /* Dat1 font is a title-font slot 0-3 (not an archive id); the builder's
+     * ResolveFontArchive passes unmatched ids through unchanged. */
+    dst->font_id = src->font;
+    dst->center = src->center ? 1 : 0;
+    dst->shadowed = src->shadowed ? 1 : 0;
+    dst->text_h_align = src->center ? 1 : 0;
+
+    if( src->text )
+        strncpy(dst->text, src->text, sizeof(dst->text) - 1);
+    if( src->activeText )
+        strncpy(dst->active_text, src->activeText, sizeof(dst->active_text) - 1);
+    if( src->option )
+        strncpy(dst->option, src->option, sizeof(dst->option) - 1);
+
+    /* Sprite refs stay names; ids resolve at dat1 pack load. */
+    dst->graphic = -1;
+    dst->graphic_active = -1;
+    if( src->graphic )
+        strncpy(dst->sprite_ref, src->graphic, sizeof(dst->sprite_ref) - 1);
+    if( src->activeGraphic )
+        strncpy(dst->sprite_active_ref, src->activeGraphic, sizeof(dst->sprite_active_ref) - 1);
+
+    dst->model_type = src->modelType;
+    dst->model_id = src->model;
+    dst->model_seq_id = src->anim;
+    dst->model_zoom = src->zoom;
+    dst->model_xan = src->xan;
+    dst->model_yan = src->yan;
+
+    dst->margin_x = src->marginX;
+    dst->margin_y = src->marginY;
+    if( src->type == RSCACHE_DAT1_COMPONENT_TYPE_INV ||
+        src->type == RSCACHE_DAT1_COMPONENT_TYPE_INV_TEXT )
+    {
+        dst->inv_cols = src->width;
+        dst->inv_rows = src->height;
+        for( int i = 0; i < TORIRS_INV_SLOT_MAX; i++ )
+        {
+            dst->inv_slot_graphic_id[i] = -1;
+            if( src->invSlotOffsetX )
+                dst->inv_slot_offset_x[i] = src->invSlotOffsetX[i];
+            if( src->invSlotOffsetY )
+                dst->inv_slot_offset_y[i] = src->invSlotOffsetY[i];
+            if( src->invSlotGraphic && src->invSlotGraphic[i] )
+                strncpy(
+                    dst->inv_slot_sprite_ref[i],
+                    src->invSlotGraphic[i],
+                    sizeof(dst->inv_slot_sprite_ref[i]) - 1);
+        }
+    }
+
+    if( src->type == RSCACHE_DAT1_COMPONENT_TYPE_LINE )
+    {
+        dst->line_width = 1;
+        /* Dat1 LINE direction has no INI/cache flag; fill mirrors the dat2 mapping. */
+        dst->line_horizontal = src->fill ? 1 : 0;
+    }
+
+    torirs_copy_menu_actions(dst->ops, src->iop, 5);
+
+    torirs_component_apply_graphic_hitbox_only(dst);
+    torirs_component_copy_scripts(
+        dst,
+        src->scripts_count,
+        src->scripts,
+        src->scripts_lengths,
+        src->scriptComparator,
+        src->scriptOperand);
+    dst->script_kind = 0;
+
+    return dst;
+}
+
+struct ToriRS_ComponentPack*
+ToriRS_ComponentPackFromRSCacheDat1(
+    const struct RSCache_Dat1ConfigComponentList* list,
+    int root_id)
+{
+    struct ToriRS_ComponentPack* pack;
+    struct RSCache_Dat1ConfigComponent const* root;
+    uint8_t* visited;
+    int* stack;
+    int* parent_of;
+    int* rel_x_of;
+    int* rel_y_of;
+    int* order;
+    int stack_top;
+    int order_count;
+
+    if( !list || !list->components || root_id < 0 || root_id >= list->components_count )
+        return NULL;
+    root = list->components[root_id];
+    if( !root )
+        return NULL;
+
+    visited = calloc((size_t)list->components_count, sizeof(uint8_t));
+    stack = calloc((size_t)list->components_count, sizeof(int));
+    parent_of = calloc((size_t)list->components_count, sizeof(int));
+    rel_x_of = calloc((size_t)list->components_count, sizeof(int));
+    rel_y_of = calloc((size_t)list->components_count, sizeof(int));
+    order = calloc((size_t)list->components_count, sizeof(int));
+    if( !visited || !stack || !parent_of || !rel_x_of || !rel_y_of || !order )
+    {
+        free(visited);
+        free(stack);
+        free(parent_of);
+        free(rel_x_of);
+        free(rel_y_of);
+        free(order);
+        return NULL;
+    }
+
+    /* Preorder DFS with an explicit stack; children pushed reversed so they pop
+     * in declaration order (v1 dat1_component_walk). */
+    stack_top = 0;
+    order_count = 0;
+    stack[stack_top++] = root_id;
+    parent_of[root_id] = -1;
+    rel_x_of[root_id] = root->x;
+    rel_y_of[root_id] = root->y;
+    visited[root_id] = 1;
+
+    while( stack_top > 0 )
+    {
+        int comp_id = stack[--stack_top];
+        struct RSCache_Dat1ConfigComponent const* comp = list->components[comp_id];
+        if( !comp )
+            continue;
+
+        order[order_count++] = comp_id;
+
+        if( comp->type == RSCACHE_DAT1_COMPONENT_TYPE_LAYER && comp->children )
+        {
+            for( int i = comp->children_count - 1; i >= 0; i-- )
+            {
+                int child_id = comp->children[i];
+                struct RSCache_Dat1ConfigComponent const* child;
+                if( child_id < 0 || child_id >= list->components_count )
+                    continue;
+                child = list->components[child_id];
+                if( !child || visited[child_id] )
+                    continue;
+                visited[child_id] = 1;
+                parent_of[child_id] = comp_id;
+                rel_x_of[child_id] = comp->childX[i] + child->x;
+                rel_y_of[child_id] = comp->childY[i] + child->y;
+                stack[stack_top++] = child_id;
+            }
+        }
+    }
+
+    pack = calloc(1, sizeof(struct ToriRS_ComponentPack));
+    if( !pack )
+        goto cleanup;
+    pack->component_count = order_count;
+    pack->components = calloc((size_t)order_count, sizeof(struct ToriRS_Component));
+    if( !pack->components )
+    {
+        free(pack);
+        pack = NULL;
+        goto cleanup;
+    }
+
+    for( int i = 0; i < order_count; i++ )
+    {
+        int comp_id = order[i];
+        struct ToriRS_Component* converted =
+            ToriRS_ComponentFromRSCacheDat1(list->components[comp_id]);
+        if( !converted )
+            continue;
+        pack->components[i] = *converted;
+        free(converted);
+        ToriRS_ComponentApplyWalkLayout(
+            &pack->components[i], parent_of[comp_id], rel_x_of[comp_id], rel_y_of[comp_id]);
+    }
+
+cleanup:
+    free(visited);
+    free(stack);
+    free(parent_of);
+    free(rel_x_of);
+    free(rel_y_of);
+    free(order);
+    return pack;
+}
+
 static void
 torirs_component_pack_apply_layout(
     struct ToriRS_ComponentPack* pack,

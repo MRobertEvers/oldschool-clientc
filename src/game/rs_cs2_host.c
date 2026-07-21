@@ -2,6 +2,7 @@
 
 #include "cs2vm2/cs2vm2.h"
 #include "engine/cache_provider.h"
+#include "engine/task_obj_model_load.h"
 #include "engine/torirs_types.h"
 #include "engine/uitree_scene_bridge.h"
 #include "inv/inv_manager.h"
@@ -73,7 +74,50 @@ rs_cs2_yield(
     return CS2VM_EXECNO_YIELD;
 }
 
-/** Yield when an interface group should exist but its component is not in the UITree yet. */
+/**
+ * One opcode, one yield. `rs_cs2_yield_load` parks a request for the task layer
+ * and records what it is waiting for; `rs_cs2_await_spent` tells the handler on
+ * the retry that this exact wait already happened, so a resource that is still
+ * missing is genuinely absent and the handler must complete with a default
+ * rather than yield again (which the VM's yield-halt guard treats as a bug).
+ *
+ * `id2` carries the second resource of a two-resource request (obj + param
+ * type, struct + param type); pass -1 when there is only one.
+ */
+static bool
+rs_cs2_await_spent(
+    struct RS_CS2Host* host,
+    enum CS2VM_HostRequestKind kind,
+    int id,
+    int id2)
+{
+    assert(host);
+    return host->has_awaited && host->awaited_kind == kind && host->awaited_id == id &&
+           host->awaited_id2 == id2;
+}
+
+static int
+rs_cs2_yield_load(
+    struct RS_CS2Host* host,
+    struct CS2VM_HostRequest const* request,
+    int id,
+    int id2)
+{
+    assert(host);
+    assert(request);
+    host->awaited_kind = request->kind;
+    host->awaited_id = id;
+    host->awaited_id2 = id2;
+    host->has_awaited = true;
+    return rs_cs2_yield(host, request);
+}
+
+/**
+ * Yield when the target's interface group is not mounted yet. The test is the
+ * group *root* (`group<<16`), never the exact component: the task layer loads
+ * and bakes a whole pack, so once the root is present a still-missing child
+ * cannot be conjured by loading again — the caller treats it as not-found.
+ */
 static int
 rs_cs2_yield_if_group_missing(
     struct RS_CS2Host* host,
@@ -81,7 +125,6 @@ rs_cs2_yield_if_group_missing(
     struct CS2VM_HostRequest const* request)
 {
     int group_id;
-    struct CacheProvider* provider;
 
     assert(host);
     assert(request);
@@ -90,13 +133,13 @@ rs_cs2_yield_if_group_missing(
     if( component_id <= 0 || group_id <= 0 )
         return CS2VM_EXECNO_OK;
 
-    if( rs_cs2_find_node(host, component_id) >= 0 )
+    if( rs_cs2_find_node(host, group_id << 16) >= 0 )
         return CS2VM_EXECNO_OK;
 
-    provider = rs_cs2_provider(host);
-    (void)provider;
-    /* Component may already be cached but not baked into the tree yet — still yield. */
-    return rs_cs2_yield(host, request);
+    if( rs_cs2_await_spent(host, request->kind, group_id, -1) )
+        return CS2VM_EXECNO_OK;
+
+    return rs_cs2_yield_load(host, request, group_id, -1);
 }
 
 static bool
@@ -496,9 +539,7 @@ RS_CS2Host_Init(
     host->viewport_w = 765;
     host->viewport_h = 503;
     host->bridge = NULL;
-    host->sprite_yield_id = -1;
-    host->font_yield_id = -1;
-    host->setobject_yield_obj_id = -1;
+    host->has_awaited = false;
     /* Serials start at 1 so fresh hooks (last_seen_serial=0) fire once on the
      * first dispatch after registration (widget-loaded parity). */
     host->var_change_serial = 1;
@@ -591,7 +632,14 @@ exec_push_script(
         struct CS2VM_HostRequest req = { 0 };
         req.kind = CS2VM_HOST_REQUEST_PUSHSCRIPT;
         req.u.push_script.script_id = script_id;
-        return rs_cs2_yield(host, &req);
+        if( rs_cs2_await_spent(host, req.kind, script_id, -1) )
+        {
+            /* No degrade possible: the caller expects this script's return
+             * values on the stack and we cannot synthesise them. */
+            fprintf(stderr, "RS_CS2Host: script %d failed to load\n", script_id);
+            return CS2VM_EXECNO_ERROR;
+        }
+        return rs_cs2_yield_load(host, &req, script_id, -1);
     }
     return CS2VM2_PushCallScript(thread, script);
 }
@@ -616,10 +664,13 @@ exec_para_height(
             struct CS2VM_HostRequest req = { 0 };
             req.kind = is_width ? CS2VM_HOST_REQUEST_PARAWIDTH : CS2VM_HOST_REQUEST_PARAHEIGHT;
             req.u.para_height = request;
-            return rs_cs2_yield(host, &req);
+            /* Font still missing after its load: measure as 0. */
+            if( !rs_cs2_await_spent(host, req.kind, request.font_id, -1) )
+                return rs_cs2_yield_load(host, &req, request.font_id, -1);
         }
-        result = is_width ? rs_cs2_font_wrap_max_line_width(font, text, request.max_width)
-                          : rs_cs2_font_wrap_line_count(font, text, request.max_width);
+        else
+            result = is_width ? rs_cs2_font_wrap_max_line_width(font, text, request.max_width)
+                              : rs_cs2_font_wrap_line_count(font, text, request.max_width);
     }
     return CS2VM2_PushInt(thread, result);
 }
@@ -665,7 +716,12 @@ exec_enum_lookup(
         struct CS2VM_HostRequest req = { 0 };
         req.kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP;
         req.u.enum_lookup = request;
-        return rs_cs2_yield(host, &req);
+        if( !rs_cs2_await_spent(host, req.kind, request.enum_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.enum_id, -1);
+        /* Enum still missing after its load: answer like a key that misses. */
+        if( request.output_type == (int)'s' )
+            return CS2VM2_PushStr(thread, strdup("null"));
+        return CS2VM2_PushInt(thread, -1);
     }
 
     (void)request.input_type;
@@ -693,7 +749,10 @@ exec_enum_output_count(
         struct CS2VM_HostRequest req = { 0 };
         req.kind = CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT;
         req.u.enum_get_output_count = request;
-        return rs_cs2_yield(host, &req);
+        if( !rs_cs2_await_spent(host, req.kind, request.enum_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.enum_id, -1);
+        /* Enum still missing after its load: an empty enum has no outputs. */
+        return CS2VM2_PushInt(thread, 0);
     }
     return CS2VM2_PushInt(thread, e->count);
 }
@@ -712,21 +771,37 @@ exec_struct_param(
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_Struct* s =
         provider ? CacheProvider_StructGet(provider, request.struct_id) : NULL;
+    struct ToriRS_ParamType* param =
+        provider ? CacheProvider_ParamGet(provider, request.param_id) : NULL;
 
-    if( !s )
+    /* Both configs are needed: the struct carries the value, the ParamType
+     * decides string-vs-int and supplies the default the struct may omit. One
+     * yield loads both. struct -1 ("no struct") is a valid script input — an
+     * enum lookup that misses pushes -1 straight into struct_param — so it is
+     * never awaited, it just falls through to the param default. */
+    if( (!s && request.struct_id >= 0) || (!param && request.param_id >= 0) )
     {
         struct CS2VM_HostRequest req = { 0 };
         req.kind = CS2VM_HOST_REQUEST_STRUCT_PARAM;
         req.u.struct_param = request;
-        return rs_cs2_yield(host, &req);
+        if( !rs_cs2_await_spent(host, req.kind, request.struct_id, request.param_id) )
+            return rs_cs2_yield_load(host, &req, request.struct_id, request.param_id);
+        /* Still missing after the load: complete with whatever did arrive. */
     }
 
-    found = rs_cs2_struct_param_lookup(s, request.param_id, &is_string, &intval, &strval);
+    found = s && rs_cs2_struct_param_lookup(s, request.param_id, &is_string, &intval, &strval);
+    if( param && param->is_string )
+    {
+        if( found && strval )
+            return CS2VM2_PushStr(thread, strdup(strval));
+        return CS2VM2_PushStr(
+            thread, strdup(param->default_string ? param->default_string : ""));
+    }
     if( found && is_string )
         return CS2VM2_PushStr(thread, strdup(strval ? strval : ""));
     if( found )
         return CS2VM2_PushInt(thread, intval);
-    return CS2VM2_PushInt(thread, 0);
+    return CS2VM2_PushInt(thread, param ? param->default_int : 0);
 }
 
 static int
@@ -745,24 +820,17 @@ exec_oc_param(
     struct ToriRS_ParamType* param =
         provider ? CacheProvider_ParamGet(provider, request.param_id) : NULL;
 
-    /* item -1 (empty slot) is a valid script input: never yield for it — the
-     * yield planner requires a loadable id — just push the param default. */
-    if( !obj && request.item_id >= 0 )
+    /* Objtype and ParamType both feed the answer, so one yield loads both (see
+     * exec_struct_param). item -1 (empty slot) is a valid script input and is
+     * never awaited — the param default answers it. */
+    if( (!obj && request.item_id >= 0) || (!param && request.param_id >= 0) )
     {
         struct CS2VM_HostRequest req = { 0 };
         req.kind = CS2VM_HOST_REQUEST_OC_PARAM;
         req.u.oc_param = request;
-        return rs_cs2_yield(host, &req);
-    }
-
-    /* The ParamType config decides string-vs-int and supplies the default the
-     * obj may not carry. Load it before deciding what to push. */
-    if( !param && request.param_id >= 0 )
-    {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_PARAM_TYPE;
-        req.u.oc_param = request;
-        return rs_cs2_yield(host, &req);
+        if( !rs_cs2_await_spent(host, req.kind, request.item_id, request.param_id) )
+            return rs_cs2_yield_load(host, &req, request.item_id, request.param_id);
+        /* Still missing after the load: complete with whatever did arrive. */
     }
 
     found = obj && rs_cs2_obj_param_lookup(obj, request.param_id, &is_string, &intval, &strval);
@@ -798,7 +866,10 @@ exec_oc_int_param(
         struct CS2VM_HostRequest req = { 0 };
         req.kind = CS2VM_HOST_REQUEST_OC_INT_PARAM;
         req.u.oc_int_param = request;
-        return rs_cs2_yield(host, &req);
+        if( !rs_cs2_await_spent(host, req.kind, request.item_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.item_id, -1);
+        /* Objtype still missing after its load: answer like the empty slot. */
+        return CS2VM2_PushInt(thread, 0);
     }
 
     switch( request.field )
@@ -841,7 +912,10 @@ exec_oc_name(
         struct CS2VM_HostRequest req = { 0 };
         req.kind = CS2VM_HOST_REQUEST_OC_NAME;
         req.u.oc_name = request;
-        return rs_cs2_yield(host, &req);
+        if( !rs_cs2_await_spent(host, req.kind, request.item_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.item_id, -1);
+        /* Objtype still missing after its load: the reference "null" name. */
+        return CS2VM2_PushStr(thread, strdup(name));
     }
 
     if( obj->name[0] != '\0' )
@@ -868,7 +942,10 @@ exec_oc_unplaceholder(
         struct CS2VM_HostRequest req = { 0 };
         req.kind = CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER;
         req.u.oc_unplaceholder = request;
-        return rs_cs2_yield(host, &req);
+        if( !rs_cs2_await_spent(host, req.kind, request.item_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.item_id, -1);
+        /* Objtype still missing after its load: pass the id through unresolved. */
+        return CS2VM2_PushInt(thread, request.item_id);
     }
 }
 
@@ -884,22 +961,15 @@ exec_set_graphic(
 
     if( request.graphic_id >= 0 && !rs_cs2_sprite_ready(host, request.graphic_id) )
     {
-        /* After a failed SpriteLoad the id is still missing — do not re-yield. */
-        if( host->sprite_yield_id == request.graphic_id )
-        {
-            host->sprite_yield_id = -1;
-            (void)UITree_ApplyGraphic(tree, request.component_id, -1, 0);
-            return CS2VM_EXECNO_OK;
-        }
-        host->sprite_yield_id = request.graphic_id;
-        {
-            struct CS2VM_HostRequest req = { 0 };
-            req.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHIC;
-            req.u.cc_set_graphic = request;
-            return rs_cs2_yield(host, &req);
-        }
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHIC;
+        req.u.cc_set_graphic = request;
+        if( !rs_cs2_await_spent(host, req.kind, request.graphic_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.graphic_id, -1);
+        /* Sprite still missing after its load: clear the graphic. */
+        (void)UITree_ApplyGraphic(tree, request.component_id, -1, 0);
+        return CS2VM_EXECNO_OK;
     }
-    host->sprite_yield_id = -1;
 
     /* Upload to scene then store scene element id on the node. */
     {
@@ -948,56 +1018,32 @@ exec_set_object(
         return CS2VM_EXECNO_OK;
     }
 
-    if( !provider || !CacheProvider_ObjtypeHas(provider, obj_id) )
+    /* The icon needs the objtype, its count variant, the inventory model and
+     * that model's textures. Task_ObjModelLoad fetches all of them, so ask it
+     * once whether anything is missing rather than yielding per piece. */
+    if( !provider || ObjModelLoad_NeedsWork(provider, obj_id, count) )
     {
-        if( host->setobject_yield_obj_id == obj_id )
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
+        req.u.cc_set_object.component_id = component_id;
+        req.u.cc_set_object.obj_id = obj_id;
+        req.u.cc_set_object.count = count;
+        if( provider && !rs_cs2_await_spent(host, req.kind, obj_id, count) )
+            return rs_cs2_yield_load(host, &req, obj_id, count);
+        if( !provider )
         {
-            host->setobject_yield_obj_id = -1;
             (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0);
             return CS2VM_EXECNO_OK;
         }
-        host->setobject_yield_obj_id = obj_id;
-        {
-            struct CS2VM_HostRequest req = { 0 };
-            req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
-            req.u.cc_set_object.component_id = component_id;
-            req.u.cc_set_object.obj_id = obj_id;
-            req.u.cc_set_object.count = count;
-            return rs_cs2_yield(host, &req);
-        }
+        /* Still incomplete after the load — a texture that failed, say. Build
+         * the icon from what did arrive; the raster skips missing faces. */
     }
 
     if( host->bridge )
-    {
         scene_id = UITreeSceneBridge_EnsureObjIcon(host->bridge, obj_id, count);
-        if( scene_id < 0 )
-        {
-            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(provider, obj_id);
-            int model_id = obj ? obj->inventory_model_id : -1;
-            if( model_id > 0 && !CacheProvider_ModelHas(provider, model_id) )
-            {
-                if( host->setobject_yield_obj_id == obj_id )
-                {
-                    host->setobject_yield_obj_id = -1;
-                    (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0);
-                    return CS2VM_EXECNO_OK;
-                }
-                host->setobject_yield_obj_id = obj_id;
-                {
-                    struct CS2VM_HostRequest req = { 0 };
-                    req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
-                    req.u.cc_set_object.component_id = component_id;
-                    req.u.cc_set_object.obj_id = obj_id;
-                    req.u.cc_set_object.count = count;
-                    return rs_cs2_yield(host, &req);
-                }
-            }
-        }
-    }
     else
         (void)rs_cs2_resolve_obj_icon(host, obj_id, &scene_id, &atlas_index);
 
-    host->setobject_yield_obj_id = -1;
 #if UITREE_CLICK_DEBUG
     fprintf(
         stderr,
@@ -1022,21 +1068,15 @@ exec_set_text_font(
 
     if( request.font_id >= 0 && !rs_cs2_font_ready(host, request.font_id) )
     {
-        if( host->font_yield_id == request.font_id )
-        {
-            host->font_yield_id = -1;
-            (void)UITree_ApplyTextFont(rs_cs2_tree(host), request.component_id, -1);
-            return CS2VM_EXECNO_OK;
-        }
-        host->font_yield_id = request.font_id;
-        {
-            struct CS2VM_HostRequest req = { 0 };
-            req.kind = CS2VM_HOST_REQUEST_CC_SETTEXTFONT;
-            req.u.cc_set_text_font = request;
-            return rs_cs2_yield(host, &req);
-        }
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_CC_SETTEXTFONT;
+        req.u.cc_set_text_font = request;
+        if( !rs_cs2_await_spent(host, req.kind, request.font_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.font_id, -1);
+        /* Font still missing after its load: leave the node without one. */
+        (void)UITree_ApplyTextFont(rs_cs2_tree(host), request.component_id, -1);
+        return CS2VM_EXECNO_OK;
     }
-    host->font_yield_id = -1;
 
     {
         int font_id = request.font_id;
@@ -1072,13 +1112,10 @@ exec_cc_copy(
 
     assert(tree);
 
+    /* Group is mounted; a parent that still isn't there cannot be loaded in. */
     parent_idx = UITree_FindByComponentId(tree, parent_id);
     if( parent_idx < 0 )
-    {
-        if( parent_id > 0 )
-            return rs_cs2_yield(host, &yield_req);
         return CS2VM_EXECNO_OK;
-    }
 
     child_idx = UITree_CcCopy(
         tree, parent_idx, parent_id, request.src_sub_id, request.dst_sub_id);
@@ -1110,16 +1147,10 @@ exec_cc_create(
 
     assert(tree);
 
+    /* Group is mounted; a parent that still isn't there cannot be loaded in. */
     parent_idx = UITree_FindByComponentId(tree, parent_id);
     if( parent_idx < 0 )
-    {
-        if( parent_id > 0 )
-        {
-            /* Group claimed ready earlier but parent still missing — yield again. */
-            return rs_cs2_yield(host, &yield_req);
-        }
         return CS2VM_EXECNO_OK;
-    }
 
     child_idx = UITree_CcCreate(
         tree, parent_idx, parent_id, request.component_type, request.child_index);
@@ -1177,8 +1208,7 @@ exec_cc_find(
                 found = 1;
             }
         }
-        else if( request.parent_id > 0 )
-            return rs_cs2_yield(host, &yield_req);
+        /* Group is mounted; an absent parent means not-found, not another load. */
     }
 
     return CS2VM2_PushInt(vm, found);
@@ -1200,13 +1230,12 @@ exec_if_find(
     if( yield_res != CS2VM_EXECNO_OK )
         return yield_res;
 
+    /* Group is mounted; an absent component means not-found, not another load. */
     if( rs_cs2_find_node(host, request.component_id) >= 0 )
     {
         rs_cs2_set_cc_target(vm, request.dot_operand, request.component_id);
         found = 1;
     }
-    else if( request.component_id > 0 )
-        return rs_cs2_yield(host, &yield_req);
 
     return CS2VM2_PushInt(vm, found);
 }
@@ -1242,12 +1271,10 @@ exec_children_find(
     if( yield_res != CS2VM_EXECNO_OK )
         return yield_res;
 
+    /* Group is mounted; an absent parent simply has no children to iterate. */
     CS2VM2_ResetChildrenIter(vm);
     if( tree )
     {
-        if( UITree_FindByComponentId(tree, parent_id) < 0 && parent_id > 0 )
-            return rs_cs2_yield(host, &yield_req);
-
         vm->children_iter_count = UITree_CollectDynamicChildIndices(
             tree,
             parent_id,
@@ -1273,7 +1300,10 @@ exec_widget_set_model(
         struct CS2VM_HostRequest req = { 0 };
         req.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL;
         req.u.widget_set_model = request;
-        return rs_cs2_yield(host, &req);
+        if( !rs_cs2_await_spent(host, req.kind, request.model_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.model_id, -1);
+        /* Model still missing after its load: leave the widget as it was. */
+        return CS2VM_EXECNO_OK;
     }
     if( rs_cs2_tree(host) )
     {
@@ -1306,7 +1336,10 @@ exec_widget_set_model_kind(
         struct CS2VM_HostRequest req = { 0 };
         req.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND;
         req.u.widget_set_model_kind = request;
-        return rs_cs2_yield(host, &req);
+        if( !rs_cs2_await_spent(host, req.kind, request.model_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.model_id, -1);
+        /* Model still missing after its load: leave the widget as it was. */
+        return CS2VM_EXECNO_OK;
     }
     if( request.model_kind == CS2VM_MODEL_KIND_PLAIN && rs_cs2_tree(host) )
     {
@@ -1340,19 +1373,13 @@ exec_widget_set_int(
     if( !node )
     {
         /* Scripts set properties on other groups (e.g. interface 100's search
-         * button targets chatbox 162:36). Yield to sub-mount the group; once
-         * its root is baked, a still-missing child is a no-op (reference
-         * tolerates sets on absent widgets). */
-        int group_id = (request.component_id >> 16) & 0xffff;
-        if( request.component_id > 0 && group_id > 0 &&
-            rs_cs2_find_node(host, group_id << 16) < 0 )
-        {
-            struct CS2VM_HostRequest req = { 0 };
-            req.kind = CS2VM_HOST_REQUEST_WIDGET_SET_INT;
-            req.u.widget_set_int = request;
-            return rs_cs2_yield(host, &req);
-        }
-        return CS2VM_EXECNO_OK;
+         * button targets chatbox 162:36). Sub-mount the group; once it is
+         * baked, a still-missing child is a no-op (reference tolerates sets on
+         * absent widgets). */
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_WIDGET_SET_INT;
+        req.u.widget_set_int = request;
+        return rs_cs2_yield_if_group_missing(host, request.component_id, &req);
     }
 
     idx = rs_cs2_find_node(host, request.component_id);
@@ -1914,8 +1941,36 @@ exec_set_on_cc_event(
  * Main dispatcher
  * ========================================================================= */
 
+static int
+rs_cs2_host_exec_dispatch(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest* request);
+
 int
 RS_CS2Host_Exec(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest* request)
+{
+    struct RS_CS2Host* host;
+    int result;
+
+    assert(vm);
+    assert(request);
+
+    host = (struct RS_CS2Host*)CS2VM_USER(vm);
+    assert(host && "CS2VM_USER(thread) must be RS_CS2Host*");
+
+    result = rs_cs2_host_exec_dispatch(vm, request);
+    /* The await record only spans the yield -> load -> retry window: a request
+     * that completes retires it, so a resource evicted later can be awaited
+     * again. */
+    if( result != CS2VM_EXECNO_YIELD )
+        host->has_awaited = false;
+    return result;
+}
+
+static int
+rs_cs2_host_exec_dispatch(
     struct CS2VM2_Thread* vm,
     struct CS2VM_HostRequest* request)
 {

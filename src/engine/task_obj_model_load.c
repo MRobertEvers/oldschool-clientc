@@ -100,8 +100,8 @@ obj_model_face_count(
     return model->face_count;
 }
 
-static int
-obj_model_needs_work(
+int
+ObjModelLoad_NeedsWork(
     struct CacheProvider* provider,
     int obj_id,
     int count)
@@ -149,7 +149,7 @@ obj_model_batch_needs_work(
     for( i = 0; i < n; i++ )
     {
         int count = counts ? counts[i] : 1;
-        if( obj_model_needs_work(provider, obj_ids[i], count) )
+        if( ObjModelLoad_NeedsWork(provider, obj_ids[i], count) )
             return 1;
     }
     return 0;

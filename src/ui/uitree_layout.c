@@ -6,6 +6,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Fixed-mode client canvas — the historical default. */
+int UITree_LayoutRootWidth = 765;
+int UITree_LayoutRootHeight = 503;
+
+void
+UITree_LayoutSetRootSize(int width, int height)
+{
+    if( width > 0 )
+        UITree_LayoutRootWidth = width;
+    if( height > 0 )
+        UITree_LayoutRootHeight = height;
+}
+
 void
 UITree_LayoutInvalidate(struct UITree* tree)
 {

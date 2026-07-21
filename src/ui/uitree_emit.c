@@ -447,29 +447,6 @@ clip_intersect(
     return 1;
 }
 
-static int
-component_is_layer_clip(struct UITreeComponent const* c)
-{
-    if( !c )
-        return 0;
-    switch( c->type )
-    {
-    case UIELEM_RS_LAYER:
-    case UIELEM_BUILTIN_SIDEBAR:
-    case UIELEM_BUILTIN_CHAT:
-    case UIELEM_INV_GRID:
-        return 1;
-    default:
-        return 0;
-    }
-}
-
-static int
-emit_kind_is_text(enum UITreeEmitKind kind)
-{
-    return kind == UITREE_EMIT_TEXT;
-}
-
 static void
 emit_append_layer_scrollbars(
     struct UITreeHost const* host,
@@ -554,7 +531,6 @@ emit_walk_node(
     struct UITreeEmitClip const* parent_clip,
     int scroll_off_x,
     int scroll_off_y,
-    int text_pass,
     int hovered_component_id,
     int drag_pass,
     int in_drag,
@@ -582,6 +558,16 @@ emit_walk_node(
     if( c->behavior.hide && !UITree_ComponentVisibleById(c, hovered_component_id) )
         return;
 
+    /* Inactive sidebar tabs prune their whole mounted subtree (same gate as
+     * UITree_ComponentVisibleHost; ShouldEmit only skips the container's own
+     * draw, not its children). */
+    if( c->type == UIELEM_BUILTIN_SIDEBAR && host )
+    {
+        struct UITreeHostRequest tab_req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        if( UITree_Host(host, &tab_req) != c->u.sidebar.tabno )
+            return;
+    }
+
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
 
     /* A drag source begins a screen-space translation that carries to its whole
@@ -608,24 +594,31 @@ emit_walk_node(
     else if( drag_pass )
     {
         /* On the drag pass, non-deferred nodes only descend to reach any
-         * deferred drag source deeper in the tree; they do not draw here. */
-        for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
+         * deferred drag source deeper in the tree; they do not draw here.
+         * Same mount-last sweep as the draw path so both agree on order. */
+        for( int mount_sweep = 0; mount_sweep < 2; mount_sweep++ )
         {
-            emit_walk_node(
-                tree,
-                host,
-                out,
-                child,
-                parent_clip,
-                scroll_off_x,
-                scroll_off_y,
-                text_pass,
-                hovered_component_id,
-                drag_pass,
-                in_drag,
-                drag_dx,
-                drag_dy,
-                in_deferred);
+            for( child = c->first_child; child >= 0;
+                 child = tree->components[child].next_sibling )
+            {
+                if( child_is_interface_parent_mount(
+                        tree, c->component_id, &tree->components[child]) != mount_sweep )
+                    continue;
+                emit_walk_node(
+                    tree,
+                    host,
+                    out,
+                    child,
+                    parent_clip,
+                    scroll_off_x,
+                    scroll_off_y,
+                    hovered_component_id,
+                    drag_pass,
+                    in_drag,
+                    drag_dx,
+                    drag_dy,
+                    in_deferred);
+            }
         }
         return;
     }
@@ -646,7 +639,7 @@ emit_walk_node(
     }
 
     child_clip = parent_clip;
-    if( component_is_layer_clip(c) && w > 0 && h > 0 )
+    if( UITree_ComponentClipsChildren(c) && w > 0 && h > 0 )
     {
         int clip_x = x - scroll_off_x + (in_drag ? drag_dx : 0);
         int clip_y = y - scroll_off_y + (in_drag ? drag_dy : 0);
@@ -656,65 +649,73 @@ emit_walk_node(
 
     if( !if1_bar && UITree_EmitFill(tree, host, c, idx, hovered_component_id, &desc) )
     {
-        int is_text = emit_kind_is_text(desc.kind);
-        if( (text_pass && is_text) || (!text_pass && !is_text) )
+        if( desc.kind != UITREE_EMIT_WORLD && desc.kind != UITREE_EMIT_MINIMAP &&
+            desc.kind != UITREE_EMIT_COMPASS )
         {
-            if( desc.kind != UITREE_EMIT_WORLD && desc.kind != UITREE_EMIT_MINIMAP &&
-                desc.kind != UITREE_EMIT_COMPASS )
+            desc.x -= scroll_off_x;
+            desc.y -= scroll_off_y;
+            if( in_drag )
             {
-                desc.x -= scroll_off_x;
-                desc.y -= scroll_off_y;
-                if( in_drag )
-                {
-                    /* Shift the whole picked-up subtree by the drag delta. */
-                    desc.x += drag_dx;
-                    desc.y += drag_dy;
-                }
-                if( in_deferred )
-                {
-                    /* Ghost the picked-up widget (source uses its own trans;
-                     * children fall back to a translucent default). */
-                    if( c->drag_visual_trans >= 0 )
-                        desc.trans = c->drag_visual_trans;
-                    else if( desc.trans < 128 )
-                        desc.trans = 128;
-                }
-                desc.scroll_off_x = scroll_off_x;
-                desc.scroll_off_y = scroll_off_y;
-                desc.clip = *parent_clip;
-                emit_buffer_append(out, &desc);
+                /* Shift the whole picked-up subtree by the drag delta. */
+                desc.x += drag_dx;
+                desc.y += drag_dy;
             }
+            if( in_deferred )
+            {
+                /* Ghost the picked-up widget (source uses its own trans;
+                 * children fall back to a translucent default). */
+                if( c->drag_visual_trans >= 0 )
+                    desc.trans = c->drag_visual_trans;
+                else if( desc.trans < 128 )
+                    desc.trans = 128;
+            }
+            desc.scroll_off_x = scroll_off_x;
+            desc.scroll_off_y = scroll_off_y;
+            desc.clip = *parent_clip;
+            emit_buffer_append(out, &desc);
         }
     }
 
-    for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
+    /* Sweep 0 draws the container's own children, sweep 1 the InterfaceParent
+     * mounts — reference widgets-gl renders mounted interface roots LAST, on top
+     * of the container's own children. Mounts are ordinary children here
+     * (task_cs2_run reparents the pack root under the container) and
+     * link_under_parent appends, so without this they only stay on top until the
+     * container gains another child. */
+    for( int mount_sweep = 0; mount_sweep < 2; mount_sweep++ )
     {
-        int sx = child_scroll_x;
-        int sy = child_scroll_y;
-        /* InterfaceParent mounts: no scroll offset (TS widgets-gl). */
-        if( child_is_interface_parent_mount(tree, c->component_id, &tree->components[child]) )
+        for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
         {
-            sx = scroll_off_x;
-            sy = scroll_off_y;
+            int sx = child_scroll_x;
+            int sy = child_scroll_y;
+            int const is_mount =
+                child_is_interface_parent_mount(tree, c->component_id, &tree->components[child]);
+            if( is_mount != mount_sweep )
+                continue;
+            /* InterfaceParent mounts: no scroll offset (TS widgets-gl). */
+            if( is_mount )
+            {
+                sx = scroll_off_x;
+                sy = scroll_off_y;
+            }
+            emit_walk_node(
+                tree,
+                host,
+                out,
+                child,
+                child_clip,
+                sx,
+                sy,
+                hovered_component_id,
+                drag_pass,
+                in_drag,
+                drag_dx,
+                drag_dy,
+                in_deferred);
         }
-        emit_walk_node(
-            tree,
-            host,
-            out,
-            child,
-            child_clip,
-            sx,
-            sy,
-            text_pass,
-            hovered_component_id,
-            drag_pass,
-            in_drag,
-            drag_dx,
-            drag_dy,
-            in_deferred);
     }
 
-    if( if1_bar && !text_pass && !drag_pass )
+    if( if1_bar && !drag_pass )
     {
         emit_append_layer_scrollbars(
             host, out, c, idx, parent_clip, x - scroll_off_x, y - scroll_off_y, w, h);
@@ -726,7 +727,6 @@ emit_walk_pass(
     struct UITree const* tree,
     struct UITreeHost const* host,
     struct UITreeEmitBuffer* out,
-    int text_pass,
     int canvas_w,
     int canvas_h,
     int hovered_component_id,
@@ -751,7 +751,6 @@ emit_walk_pass(
             &root_clip,
             0,
             0,
-            text_pass,
             hovered_component_id,
             drag_pass,
             0,
@@ -770,13 +769,13 @@ UITree_EmitWalk(
 {
     assert(tree);
     assert(out);
-    /* Non-text, then text, then deferred drag sources on top. */
+    /* Single interleaved pass in tree order (reference widgets-gl drawNode emits a
+     * widget's own fill/sprite/text inline, then descends into children), then
+     * deferred drag sources on top. Splitting text into its own pass put every
+     * text in the tree above every non-text, so a widget group that should cover
+     * an earlier one — an open dropdown over a label — drew under its text. */
     emit_walk_pass(
-        tree, host, out, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 0);
+        tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 0);
     emit_walk_pass(
-        tree, host, out, 1, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 0);
-    emit_walk_pass(
-        tree, host, out, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
-    emit_walk_pass(
-        tree, host, out, 1, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
+        tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
 }

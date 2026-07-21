@@ -72,6 +72,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/dat1/task_dat1_obj_load.c engine/dat1/task_dat1_npc_load.c \
 	engine/dat1/task_dat1_idk_load.c \
 	engine/dat1/task_dat1_component_load.c \
+	engine/dat1/task_dat1_sprite_load.c engine/dat1/task_dat1_font_load.c \
 	engine/dat2/dat2_buildcache.c engine/dat2/task_dat2_model_load.c \
 	engine/dat2/task_dat2_component_pack_load.c engine/dat2/task_dat2_clientscript_load.c \
 	engine/dat2/task_dat2_obj_load.c engine/dat2/task_dat2_npc_load.c \
@@ -133,7 +134,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all clean run test-varp test-inv test-world test-uitree test-uitree-builder test-revconfig test-world-builder test-minimap world-builder
+.PHONY: all clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-world-builder test-minimap world-builder
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -272,6 +273,15 @@ test-minimap: $(OBJ_DIR)
 		engine/minimap/minimap.c engine/torirs_types.c $(BMP_DIR)/bmp.c \
 		engine/minimap/minimap_test.c
 	./$(OBJ_DIR)/minimap_test
+
+# End-to-end dat1 RevConfig build against a dat1 cache (default ../cache254).
+# Links the app objects (minus main) since the build task reaches CS2/game code.
+DAT1_CACHE ?= ../cache254
+test-uitree-builder-dat1: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_builder_dat1_test \
+		engine/uitree_builder/test/uitree_builder_test_dat1.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_builder_dat1_test $(DAT1_CACHE)
 
 test-revconfig: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/revconfig -I$(SRC_DIR)/revconfig/test -o $(OBJ_DIR)/revconfig_test \

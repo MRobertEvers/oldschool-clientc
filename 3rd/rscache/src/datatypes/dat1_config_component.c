@@ -1,0 +1,633 @@
+#include "dat1_config_component.h"
+
+#include "../rsbuffer.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+static void
+init_component(struct RSCache_Dat1ConfigComponent* component)
+{
+    memset(component, 0, sizeof(struct RSCache_Dat1ConfigComponent));
+    component->id = -1;
+    component->layer = -1;
+    component->type = -1;
+    component->buttonType = -1;
+    component->overlayer = -1;
+    component->anim = -1;
+    component->activeAnim = -1;
+    component->targetMask = -1;
+}
+
+static int
+read_component_id(
+    struct RSCache_Buffer* inb,
+    int* layer_inout)
+{
+    int id = g2(inb);
+    if( id == 65535 )
+    {
+        *layer_inout = g2(inb);
+        id = g2(inb);
+    }
+    return id;
+}
+
+static void
+read_component_body(
+    struct RSCache_Buffer* inb,
+    struct RSCache_Dat1ConfigComponent* component,
+    int id,
+    int layer)
+{
+    const bool store = component != NULL;
+
+    if( store )
+    {
+        component->id = id;
+        component->layer = layer;
+    }
+
+    int type = g1(inb);
+    int buttonType = g1(inb);
+    int clientCode = g2(inb);
+    int width = g2(inb);
+    int height = g2(inb);
+    int alpha = g1(inb);
+
+    if( store )
+    {
+        component->type = type;
+        component->buttonType = buttonType;
+        component->clientCode = clientCode;
+        component->width = width;
+        component->height = height;
+        component->alpha = alpha;
+    }
+
+    int overlayer = g1(inb);
+    if( overlayer == 0 )
+    {
+        overlayer = -1;
+    }
+    else
+    {
+        overlayer = ((overlayer - 1) << 8) + g1(inb);
+    }
+    if( store )
+        component->overlayer = overlayer;
+
+    int comparatorCount = g1(inb);
+    if( comparatorCount > 0 )
+    {
+        if( store )
+        {
+            component->scriptComparator = calloc(comparatorCount, sizeof(int));
+            component->scriptOperand = calloc(comparatorCount, sizeof(int));
+        }
+
+        for( int i = 0; i < comparatorCount; i++ )
+        {
+            int cmp = g1(inb);
+            int op = g2(inb);
+            if( store )
+            {
+                component->scriptComparator[i] = cmp;
+                component->scriptOperand[i] = op;
+            }
+        }
+    }
+
+    int scriptCount = g1(inb);
+    if( scriptCount > 0 )
+    {
+        if( store )
+        {
+            component->scripts_count = scriptCount;
+            component->scripts = calloc(scriptCount, sizeof(int*));
+            component->scripts_lengths = calloc(scriptCount, sizeof(int));
+        }
+
+        for( int i = 0; i < scriptCount; i++ )
+        {
+            int opcodeCount = g2(inb);
+            if( store )
+            {
+                component->scripts_lengths[i] = opcodeCount;
+                component->scripts[i] = calloc(opcodeCount, sizeof(int));
+            }
+
+            for( int j = 0; j < opcodeCount; j++ )
+            {
+                int opcode = g2(inb);
+                if( store )
+                    component->scripts[i][j] = opcode;
+            }
+        }
+    }
+
+    if( type == RSCACHE_DAT1_COMPONENT_TYPE_LAYER )
+    {
+        int scroll = g2(inb);
+        bool hide = g1(inb) == 1;
+        int childCount = g2(inb);
+
+        if( store )
+        {
+            component->scroll = scroll;
+            component->hide = hide;
+            component->children_count = childCount;
+            component->children = calloc(childCount, sizeof(int));
+            component->childX = calloc(childCount, sizeof(int));
+            component->childY = calloc(childCount, sizeof(int));
+        }
+
+        for( int i = 0; i < childCount; i++ )
+        {
+            int child = g2(inb);
+            int child_x = g2b(inb);
+            int child_y = g2b(inb);
+            if( store )
+            {
+                component->children[i] = child;
+                component->childX[i] = child_x;
+                component->childY[i] = child_y;
+            }
+        }
+    }
+
+    if( type == RSCACHE_DAT1_COMPONENT_TYPE_UNUSED )
+    {
+        inb->position += 3;
+    }
+
+    if( type == RSCACHE_DAT1_COMPONENT_TYPE_INV )
+    {
+        if( store )
+        {
+            component->invSlotObjId = calloc(width * height, sizeof(int));
+            component->invSlotObjCount = calloc(width * height, sizeof(int));
+        }
+
+        bool draggable = g1(inb) == 1;
+        bool interactable = g1(inb) == 1;
+        bool usable = g1(inb) == 1;
+        bool swappable = g1(inb) == 1;
+        int marginX = g1(inb);
+        int marginY = g1(inb);
+
+        if( store )
+        {
+            component->draggable = draggable;
+            component->interactable = interactable;
+            component->usable = usable;
+            component->swappable = swappable;
+            component->marginX = marginX;
+            component->marginY = marginY;
+            component->invSlotOffsetX = calloc(20, sizeof(int));
+            component->invSlotOffsetY = calloc(20, sizeof(int));
+            component->invSlotGraphic = calloc(20, sizeof(char*));
+        }
+
+        for( int i = 0; i < 20; i++ )
+        {
+            if( g1(inb) == 1 )
+            {
+                int off_x = g2b(inb);
+                int off_y = g2b(inb);
+                char* graphic = gstringnewline(inb);
+                if( store )
+                {
+                    component->invSlotOffsetX[i] = off_x;
+                    component->invSlotOffsetY[i] = off_y;
+                    component->invSlotGraphic[i] = graphic;
+                    if( component->invSlotGraphic[i] != NULL &&
+                        strlen(component->invSlotGraphic[i]) == 0 )
+                    {
+                        free(component->invSlotGraphic[i]);
+                        component->invSlotGraphic[i] = NULL;
+                    }
+                }
+                else
+                {
+                    free(graphic);
+                }
+            }
+        }
+
+        if( store )
+            component->iop = calloc(5, sizeof(char*));
+
+        for( int i = 0; i < 5; i++ )
+        {
+            char* iop = gstringnewline(inb);
+            if( store )
+            {
+                component->iop[i] = iop;
+                if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
+                {
+                    free(component->iop[i]);
+                    component->iop[i] = NULL;
+                }
+            }
+            else
+            {
+                free(iop);
+            }
+        }
+    }
+
+    if( type == RSCACHE_DAT1_COMPONENT_TYPE_RECT )
+    {
+        bool fill = g1(inb) == 1;
+        if( store )
+            component->fill = fill;
+    }
+
+    if( type == RSCACHE_DAT1_COMPONENT_TYPE_TEXT || type == RSCACHE_DAT1_COMPONENT_TYPE_UNUSED )
+    {
+        bool center = g1(inb) == 1;
+        int font = g1(inb);
+        bool shadowed = g1(inb) == 1;
+        if( store )
+        {
+            component->center = center;
+            component->font = font;
+            component->shadowed = shadowed;
+        }
+    }
+
+    if( type == RSCACHE_DAT1_COMPONENT_TYPE_TEXT )
+    {
+        char* text = gstringnewline(inb);
+        char* activeText = gstringnewline(inb);
+        if( store )
+        {
+            component->text = text;
+            component->activeText = activeText;
+        }
+        else
+        {
+            free(text);
+            free(activeText);
+        }
+    }
+
+    if( type == RSCACHE_DAT1_COMPONENT_TYPE_UNUSED || type == RSCACHE_DAT1_COMPONENT_TYPE_RECT ||
+        type == RSCACHE_DAT1_COMPONENT_TYPE_TEXT )
+    {
+        int colour = g4(inb);
+        if( store )
+            component->colour = colour;
+    }
+
+    if( type == RSCACHE_DAT1_COMPONENT_TYPE_RECT || type == RSCACHE_DAT1_COMPONENT_TYPE_TEXT )
+    {
+        int activeColour = g4(inb);
+        int overColour = g4(inb);
+        int activeOverColour = g4(inb);
+        if( store )
+        {
+            component->activeColour = activeColour;
+            component->overColour = overColour;
+            component->activeOverColour = activeOverColour;
+        }
+    }
+
+    if( type == RSCACHE_DAT1_COMPONENT_TYPE_GRAPHIC )
+    {
+        char* graphic = gstringnewline(inb);
+        char* activeGraphic = gstringnewline(inb);
+        if( store )
+        {
+            component->graphic = graphic;
+            component->activeGraphic = activeGraphic;
+        }
+        else
+        {
+            free(graphic);
+            free(activeGraphic);
+        }
+    }
+
+    if( type == RSCACHE_DAT1_COMPONENT_TYPE_MODEL )
+    {
+        int model = g1(inb);
+        int modelType = 0;
+        int modelId = 0;
+        if( model != 0 )
+        {
+            modelType = 1;
+            modelId = ((model - 1) << 8) + g1(inb);
+        }
+
+        int activeModel = g1(inb);
+        int activeModelType = 0;
+        int activeModelId = 0;
+        if( activeModel != 0 )
+        {
+            activeModelType = 1;
+            activeModelId = ((activeModel - 1) << 8) + g1(inb);
+        }
+
+        int anim = g1(inb);
+        if( anim == 0 )
+        {
+            anim = -1;
+        }
+        else
+        {
+            anim = ((anim - 1) << 8) + g1(inb);
+        }
+
+        int activeAnim = g1(inb);
+        if( activeAnim == 0 )
+        {
+            activeAnim = -1;
+        }
+        else
+        {
+            activeAnim = ((activeAnim - 1) << 8) + g1(inb);
+        }
+
+        int zoom = g2(inb);
+        int xan = g2(inb);
+        int yan = g2(inb);
+
+        if( store )
+        {
+            component->modelType = modelType;
+            component->model = modelId;
+            component->activeModelType = activeModelType;
+            component->activeModel = activeModelId;
+            component->anim = anim;
+            component->activeAnim = activeAnim;
+            component->zoom = zoom;
+            component->xan = xan;
+            component->yan = yan;
+        }
+    }
+
+    if( type == RSCACHE_DAT1_COMPONENT_TYPE_INV_TEXT )
+    {
+        if( store )
+        {
+            component->invSlotObjId = calloc(width * height, sizeof(int));
+            component->invSlotObjCount = calloc(width * height, sizeof(int));
+        }
+
+        bool center = g1(inb) == 1;
+        int font = g1(inb);
+        bool shadowed = g1(inb) == 1;
+        int colour = g4(inb);
+        int marginX = g2b(inb);
+        int marginY = g2b(inb);
+        bool interactable = g1(inb) == 1;
+
+        if( store )
+        {
+            component->center = center;
+            component->font = font;
+            component->shadowed = shadowed;
+            component->colour = colour;
+            component->marginX = marginX;
+            component->marginY = marginY;
+            component->interactable = interactable;
+            component->iop = calloc(5, sizeof(char*));
+        }
+
+        for( int i = 0; i < 5; i++ )
+        {
+            char* iop = gstringnewline(inb);
+            if( store )
+            {
+                component->iop[i] = iop;
+                if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
+                {
+                    free(component->iop[i]);
+                    component->iop[i] = NULL;
+                }
+            }
+            else
+            {
+                free(iop);
+            }
+        }
+    }
+
+    if( buttonType == RSCACHE_DAT1_COMPONENT_BUTTON_TYPE_TARGET ||
+        type == RSCACHE_DAT1_COMPONENT_TYPE_INV )
+    {
+        char* targetVerb = gstringnewline(inb);
+        char* targetText = gstringnewline(inb);
+        int targetMask = g2(inb);
+        if( store )
+        {
+            component->targetVerb = targetVerb;
+            component->targetText = targetText;
+            component->targetMask = targetMask;
+        }
+        else
+        {
+            free(targetVerb);
+            free(targetText);
+        }
+    }
+
+    if( buttonType == RSCACHE_DAT1_COMPONENT_BUTTON_TYPE_OK ||
+        buttonType == RSCACHE_DAT1_COMPONENT_BUTTON_TYPE_TOGGLE ||
+        buttonType == RSCACHE_DAT1_COMPONENT_BUTTON_TYPE_SELECT ||
+        buttonType == RSCACHE_DAT1_COMPONENT_BUTTON_TYPE_CONTINUE )
+    {
+        char* option = gstringnewline(inb);
+        if( store )
+        {
+            component->option = option;
+            if( component->option != NULL && strlen(component->option) == 0 )
+            {
+                free(component->option);
+                if( buttonType == RSCACHE_DAT1_COMPONENT_BUTTON_TYPE_OK )
+                    component->option = strdup("Ok");
+                else if( buttonType == RSCACHE_DAT1_COMPONENT_BUTTON_TYPE_TOGGLE )
+                    component->option = strdup("Select");
+                else if( buttonType == RSCACHE_DAT1_COMPONENT_BUTTON_TYPE_SELECT )
+                    component->option = strdup("Select");
+                else if( buttonType == RSCACHE_DAT1_COMPONENT_BUTTON_TYPE_CONTINUE )
+                    component->option = strdup("Continue");
+            }
+        }
+        else
+        {
+            free(option);
+        }
+    }
+}
+
+static struct RSCache_Dat1ConfigComponentList*
+config_component_list_new_decode_impl(
+    void* data,
+    int size,
+    bool* needed,
+    int needed_count)
+{
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)size);
+
+    struct RSCache_Dat1ConfigComponentList* component_list =
+        malloc(sizeof(struct RSCache_Dat1ConfigComponentList));
+    if( !component_list )
+        return NULL;
+    memset(component_list, 0, sizeof(struct RSCache_Dat1ConfigComponentList));
+
+    int component_count = g2(&buffer);
+
+    component_list->components =
+        calloc(component_count, sizeof(struct RSCache_Dat1ConfigComponent*));
+    if( !component_list->components )
+    {
+        free(component_list);
+        return NULL;
+    }
+
+    component_list->components_count = component_count;
+
+    int layer = -1;
+    while( buffer.position < buffer.size )
+    {
+        int id = read_component_id(&buffer, &layer);
+        bool want = !needed;
+        if( needed )
+            want = id >= 0 && id < needed_count && needed[id];
+
+        struct RSCache_Dat1ConfigComponent* comp = NULL;
+        if( want )
+        {
+            comp = malloc(sizeof(struct RSCache_Dat1ConfigComponent));
+            if( !comp )
+            {
+                RSCache_Dat1ConfigComponentListFree(component_list);
+                return NULL;
+            }
+            init_component(comp);
+            read_component_body(&buffer, comp, id, layer);
+        }
+        else
+        {
+            read_component_body(&buffer, NULL, id, layer);
+        }
+
+        if( comp )
+        {
+            if( needed && comp->type == RSCACHE_DAT1_COMPONENT_TYPE_LAYER && comp->children )
+            {
+                for( int i = 0; i < comp->children_count; i++ )
+                {
+                    int child = comp->children[i];
+                    if( child >= 0 && child < needed_count )
+                        needed[child] = true;
+                }
+            }
+
+            if( comp->id >= 0 && comp->id < component_count )
+                component_list->components[comp->id] = comp;
+            else
+                RSCache_Dat1ConfigComponentFree(comp);
+        }
+    }
+
+    return component_list;
+}
+
+struct RSCache_Dat1ConfigComponentList*
+RSCache_Dat1ConfigComponentListNewDecode(
+    void* data,
+    int size)
+{
+    return config_component_list_new_decode_impl(data, size, NULL, 0);
+}
+
+struct RSCache_Dat1ConfigComponentList*
+RSCache_Dat1ConfigComponentListNewDecodeFiltered(
+    void* data,
+    int size,
+    bool* needed,
+    int needed_count)
+{
+    return config_component_list_new_decode_impl(data, size, needed, needed_count);
+}
+
+int
+RSCache_Dat1ConfigComponentListPeekCount(
+    void* data,
+    int size)
+{
+    if( !data || size < 2 )
+        return 0;
+
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)size);
+    return g2(&buffer);
+}
+
+void
+RSCache_Dat1ConfigComponentFree(struct RSCache_Dat1ConfigComponent* c)
+{
+    if( !c )
+        return;
+
+    free(c->scriptComparator);
+    free(c->scriptOperand);
+
+    if( c->scripts )
+    {
+        for( int i = 0; i < c->scripts_count; i++ )
+            free(c->scripts[i]);
+        free(c->scripts);
+    }
+    free(c->scripts_lengths);
+
+    free(c->invSlotObjId);
+    free(c->invSlotObjCount);
+
+    free(c->children);
+    free(c->childX);
+    free(c->childY);
+
+    free(c->invSlotOffsetX);
+    free(c->invSlotOffsetY);
+
+    if( c->invSlotGraphic )
+    {
+        for( int i = 0; i < 20; i++ )
+            free(c->invSlotGraphic[i]);
+        free(c->invSlotGraphic);
+    }
+
+    if( c->iop )
+    {
+        for( int i = 0; i < 5; i++ )
+            free(c->iop[i]);
+        free(c->iop);
+    }
+
+    free(c->targetVerb);
+    free(c->targetText);
+    free(c->option);
+    free(c->text);
+    free(c->activeText);
+    free(c->graphic);
+    free(c->activeGraphic);
+
+    free(c);
+}
+
+void
+RSCache_Dat1ConfigComponentListFree(struct RSCache_Dat1ConfigComponentList* list)
+{
+    if( !list )
+        return;
+    for( int i = 0; i < list->components_count; i++ )
+        RSCache_Dat1ConfigComponentFree(list->components[i]);
+    free(list->components);
+    free(list);
+}

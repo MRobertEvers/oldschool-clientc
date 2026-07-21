@@ -7,6 +7,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+/* Synthetic provider ids for name-keyed dat1 media sprites. Above any plausible
+ * dat2-style numeric archive id and font slot; monotonic per buildcache. */
+#define DAT1_SPRITE_ID_BASE 0x100000
+
 struct Dat1BuildCache
 {
     struct CacheProvider base;
@@ -20,6 +24,9 @@ struct Dat1BuildCache
     struct RSCache_FileListDat* versionlist_jagfile;
     struct RSCache_FileListDat* media_2d_graphics_jagfile;
     struct RSCache_FileListDat* title_fonts_jagfile;
+    /** Decoded INTERFACES jagfile "data" file; loaded once by pack-load tasks. */
+    struct RSCache_Dat1ConfigComponentList* interfaces_list;
+    int next_sprite_id;
 };
 
 struct Dat1BuildCache*
@@ -204,5 +211,26 @@ dat1_buildcache_map_scenery_cleanup(struct Dat1BuildCache* dat1_buildcache);
 
 void
 dat1_buildcache_prune(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_set_interfaces_list(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct RSCache_Dat1ConfigComponentList* interfaces_list);
+
+struct RSCache_Dat1ConfigComponentList*
+dat1_buildcache_get_interfaces_list(struct Dat1BuildCache* dat1_buildcache);
+
+int
+dat1_buildcache_sprite_id_alloc(struct Dat1BuildCache* dat1_buildcache);
+
+/**
+ * Resolve a dat1 sprite name ref ("name" / "name,idx") to a provider sprite id,
+ * decoding it from the media jagfile and registering name -> id on first use.
+ * Returns -1 when the media jagfile is absent or the ref fails to decode.
+ */
+int
+dat1_buildcache_sprite_ref_acquire(
+    struct Dat1BuildCache* dat1_buildcache,
+    char const* ref);
 
 #endif

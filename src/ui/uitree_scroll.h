@@ -63,6 +63,16 @@ struct UITreeScrollbarHitInfo
     int scroll_width;
 };
 
+/**
+ * OSRS clips every positive-size layer/container to its own bounds before
+ * drawing children — not only scrollable layers (readme "interfacex — layer
+ * clipping"). True for the container types whose children are clipped; the
+ * positive-size check stays at the call site. Shared by the emit walk and the
+ * hit/hover/drop walks so drawn pixels and hitboxes agree.
+ */
+bool
+UITree_ComponentClipsChildren(struct UITreeComponent const* component);
+
 bool
 UITree_ScrollLayerNeedsVertical(struct UITreeComponent const* layer);
 

@@ -138,9 +138,14 @@ find_hovered_recursive(
     int child_scroll_y = scroll_off_y;
     struct UITreeScrollClip child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
 
+    /* Every positive-size container clips its children (same predicate as the
+     * emit walk, so hover matches drawn pixels). Intersect at SCREEN coords —
+     * emit places the clip at x - scroll_off (uitree_emit.c emit_walk_node). */
+    if( UITree_ComponentClipsChildren(component) && bw > 0 && bh > 0 )
+        UITree_ScrollIntersectClip(
+            &child_clip, bx - scroll_off_x, by - scroll_off_y, bw, bh);
     if( component->type == UIELEM_RS_LAYER )
     {
-        UITree_ScrollIntersectClip(&child_clip, bx, by, bw, bh);
         /* Canonical scroll offset lives on the component (emit + CS2 opcodes
          * and the scrollbar hit path all read it). */
         if( UITree_ScrollLayerNeedsHorizontal(component) )

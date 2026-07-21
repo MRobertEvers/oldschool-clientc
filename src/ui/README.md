@@ -93,7 +93,7 @@ around (and under) those packs.
 | File | Sections |
 |------|----------|
 | `*_ui.ini` | `[component:]`, `[layout:]`, `[inv:]` |
-| `*_cache.ini` | `[sprite:]`, `[font:]` archive bindings |
+| `*_cache.ini` | `[sprite:]`, `[font:]` archive bindings (dat2 `archive_id=`, or dat1 jagfile `filename=`/`format=`/`font_name=`) |
 
 Examples: `v0/osrs/revconfig/configs/rev_245_2/rev_osrs_ui.ini`,
 `rev_osrs_ui_cache.ini`, `v1/revs/configs/ui_min.ini`.
@@ -156,8 +156,12 @@ load archives, load unique inv obj ids, load each requested component pack.
 | When | compass, minimap, world, sprite, redstone_tab, tab_icon, … | `componentno >= 0` and type is sidebar / chat / `rs_*` |
 | Bake | Single `UITree_Push` from INI fields | Owner push **plus** full `ToriRS_ComponentPack` children |
 
-RevConfig does not use `UITreeSceneBridge` today; sprite ids come from the
-builder’s name registry (cache/archive ids). Interface-open uses the scene bridge.
+RevConfig sprite ids come from the builder’s name registry (cache/archive ids;
+dat1 names get synthetic provider ids assigned at load). Setting the optional
+`UITreeBuilder.bridge` makes bake remap sprite ids to scene ids (EnsureSprite)
+and upload fonts, so the baked tree renders directly — see
+`test-uitree-builder-dat1`. With no bridge, nodes keep raw provider ids
+(interface-open always uses the scene bridge).
 
 ### Example INI
 

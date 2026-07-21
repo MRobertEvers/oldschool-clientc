@@ -1,0 +1,155 @@
+#include "dat1_pix_font.h"
+
+#include "../rsbuffer.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+// UTF16 because '£' compiles to 0x00A3, which is 2 bytes wide even in a char array.
+// RuneScape only compares the low byte of each code point ('£' -> 0xA3, non-ascii,
+// so there is no collision with the ascii entries).
+static const uint16_t CHARSET[] = {
+    'A', 'B',  'C', 'D', 'E',  'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+    'N', 'O',  'P', 'Q', 'R',  'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+    'a', 'b',  'c', 'd', 'e',  'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+    'n', 'o',  'p', 'q', 'r',  's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+    '0', '1',  '2', '3', '4',  '5', '6', '7', '8', '9', '!', '"', 0x00A3 /*'£'*/,
+    '$', '%',  '^', '&', '*',  '(', ')', '-', '_', '=', '+', '[', '{',
+    ']', '}',  ';', ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/',
+    '?', '\\', '|', ' '
+};
+
+static int
+index_of_char(uint8_t c)
+{
+    for( int i = 0; i < RSCACHE_DAT1_PIXFONT_CHAR_COUNT; i++ )
+    {
+        if( (CHARSET[i] & 0xFF) == c )
+            return i;
+    }
+    return -1;
+}
+
+static void
+pixfont_init_charcodeset(struct RSCache_Dat1PixFont* pixfont)
+{
+    for( int i = 0; i < 256; i++ )
+    {
+        int c = index_of_char((uint8_t)i);
+        if( c == -1 )
+            c = index_of_char(' ');
+        pixfont->charcodeset[i] = (char)c;
+    }
+}
+
+struct RSCache_Dat1PixFont*
+RSCache_Dat1PixFontNewDecode(
+    void* data,
+    int data_size,
+    void* index_data,
+    int index_data_size)
+{
+    struct RSCache_Dat1PixFont* pixfont = malloc(sizeof(struct RSCache_Dat1PixFont));
+    if( !pixfont )
+        return NULL;
+    memset(pixfont, 0, sizeof(struct RSCache_Dat1PixFont));
+    pixfont_init_charcodeset(pixfont);
+
+    struct RSCache_Buffer databuf;
+    struct RSCache_Buffer indexbuf;
+    RSCache_BufferInit(&databuf, (uint8_t*)data, (uint32_t)data_size);
+    RSCache_BufferInit(&indexbuf, (uint8_t*)index_data, (uint32_t)index_data_size);
+
+    // skip cropW and cropH
+    indexbuf.position = g2(&databuf) + 4;
+    int off = g1(&indexbuf);
+    if( off > 0 )
+        // skip palette
+        indexbuf.position += (off - 1) * 3;
+
+    for( int i = 0; i < RSCACHE_DAT1_PIXFONT_CHAR_COUNT; i++ )
+    {
+        pixfont->char_offset_x[i] = g1(&indexbuf);
+        pixfont->char_offset_y[i] = g1(&indexbuf);
+
+        int w = g2(&indexbuf);
+        int h = g2(&indexbuf);
+        pixfont->char_mask_width[i] = w;
+        pixfont->char_mask_height[i] = h;
+
+        int type = g1(&indexbuf);
+        int len = w * h;
+
+        pixfont->char_mask[i] = malloc(len * sizeof(int));
+        if( !pixfont->char_mask[i] )
+        {
+            RSCache_Dat1PixFontFree(pixfont);
+            return NULL;
+        }
+        memset(pixfont->char_mask[i], 0, len * sizeof(int));
+        if( type == 0 )
+        {
+            for( int j = 0; j < len; j++ )
+                pixfont->char_mask[i][j] = g1b(&databuf);
+        }
+        else if( type == 1 )
+        {
+            for( int x = 0; x < w; x++ )
+            {
+                for( int y = 0; y < h; y++ )
+                    pixfont->char_mask[i][x + y * w] = g1b(&databuf);
+            }
+        }
+
+        pixfont->char_offset_x[i] = 1;
+        pixfont->char_advance[i] = w + 2;
+
+        int space = 0;
+        for( int y = h / 7; y < h; y++ )
+        {
+            space += pixfont->char_mask[i][y * w];
+        }
+
+        if( space <= h / 7 )
+        {
+            pixfont->char_advance[i]--;
+            pixfont->char_offset_x[i] = 0;
+        }
+
+        space = 0;
+        for( int y = h / 7; y < h; y++ )
+        {
+            space += pixfont->char_mask[i][w + y * w - 1];
+        }
+
+        if( space <= h / 7 )
+        {
+            pixfont->char_advance[i]--;
+        }
+    }
+
+    // Space is the 94th char (index 93). It often has an empty/small mask so advance can
+    // become 0; ensure space advances at least as much as digit '8' so spaces are visible.
+    if( pixfont->char_advance[93] < 4 )
+        pixfont->char_advance[93] = pixfont->char_advance[8];
+    pixfont->char_advance[RSCACHE_DAT1_PIXFONT_CHAR_COUNT] = pixfont->char_advance[8];
+    for( int i = 0; i < 256; i++ )
+    {
+        pixfont->draw_width[i] =
+            pixfont->char_advance[(unsigned char)pixfont->charcodeset[i]];
+    }
+
+    return pixfont;
+}
+
+void
+RSCache_Dat1PixFontFree(struct RSCache_Dat1PixFont* pixfont)
+{
+    if( !pixfont )
+        return;
+    for( int i = 0; i < RSCACHE_DAT1_PIXFONT_CHAR_COUNT; i++ )
+    {
+        free(pixfont->char_mask[i]);
+    }
+    free(pixfont);
+}

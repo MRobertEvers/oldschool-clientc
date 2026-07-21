@@ -131,6 +131,17 @@ build_reference_tree(struct UITree* tree, struct UITreeHost* host)
     tree->components[gi].item_count = 1;
     tree->components[gi].item_scene_id = 42;
 
+    /* Non-scrollable layer with an oversized child: every positive-size layer
+     * clips its children, not only scrollable ones (readme "interfacex — layer
+     * clipping", bank divider 488x0 in a 478x40 layer). The child keeps its
+     * full width; the emitted clip is the layer's bounds. */
+    int32_t frame =
+        UITree_TestPushXy(tree, root, UIELEM_RS_LAYER, (500 << 16) | 40, 240, 140, 100, 40);
+    int32_t divider = UITree_TestPushXy(
+        tree, frame, UIELEM_RS_RECT, (500 << 16) | 41, -10, 10, 150, 8);
+    tree->components[divider].u.rs_rect.color = 0x704A2C;
+    tree->components[divider].u.rs_rect.filled = 1;
+
     /* A dragged widget rendered on the deferred pass. */
     struct UITreeNodeSpec drag;
     memset(&drag, 0, sizeof(drag));

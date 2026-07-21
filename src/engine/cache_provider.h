@@ -49,6 +49,28 @@ CacheProvider_MapId(
     return (map_x << 16) | (map_z & 0xFFFF);
 }
 
+/**
+ * Descriptor for a name-keyed dat1 media-jagfile sprite load (from a RevConfig
+ * [sprite:] section). Neutral so cache_provider stays decoupled from
+ * uitree_builder_manifest. All pointers borrowed for the CreateTask call only —
+ * the task deep-copies.
+ */
+struct CacheProviderSpriteSource
+{
+    char const* name;           /* registry key, e.g. "sideicons" */
+    char const* format;         /* "pix8" | "pix32" */
+    char const* data_filename;  /* "sideicons.dat" */
+    char const* index_filename; /* "index.dat" */
+    int atlas_index;
+    int atlas_count; /* <= 0: single frame at atlas_index */
+    int crop_x;
+    int crop_y;
+    int crop_width;
+    int crop_height;
+    char const (*transform)[64]; /* "flip_h"/"flip_v" entries */
+    int transform_count;
+};
+
 struct CacheProviderVTable
 {
     struct ToriRS_Task* (*Task_ModelLoad)(
@@ -96,9 +118,18 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_SpriteLoadByName)(
         struct CacheProvider* provider,
         char const* archive_name);
+    /** Dat1: load a named media-jagfile sprite; id assigned + name-mapped. NULL for dat2. */
+    struct ToriRS_Task* (*Task_SpriteLoadFromSource)(
+        struct CacheProvider* provider,
+        struct CacheProviderSpriteSource const* source);
     struct ToriRS_Task* (*Task_FontLoad)(
         struct CacheProvider* provider,
         int font_id);
+    /** Dat1: load a title-jagfile font (e.g. "b12") into slot cache_font_id. NULL for dat2. */
+    struct ToriRS_Task* (*Task_FontLoadByName)(
+        struct CacheProvider* provider,
+        char const* font_name,
+        int cache_font_id);
     struct ToriRS_Task* (*Task_EnumLoad)(
         struct CacheProvider* provider,
         int enum_id);
@@ -591,11 +622,32 @@ CreateTask_SpriteLoadByName(
 }
 
 static inline struct ToriRS_Task*
+CreateTask_SpriteLoadFromSource(
+    struct CacheProvider* provider,
+    struct CacheProviderSpriteSource const* source)
+{
+    if( !provider || !provider->vtable || !provider->vtable->Task_SpriteLoadFromSource )
+        return NULL;
+    return provider->vtable->Task_SpriteLoadFromSource(provider, source);
+}
+
+static inline struct ToriRS_Task*
 CreateTask_FontLoad(
     struct CacheProvider* provider,
     int font_id)
 {
     return provider->vtable->Task_FontLoad(provider, font_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_FontLoadByName(
+    struct CacheProvider* provider,
+    char const* font_name,
+    int cache_font_id)
+{
+    if( !provider || !provider->vtable || !provider->vtable->Task_FontLoadByName )
+        return NULL;
+    return provider->vtable->Task_FontLoadByName(provider, font_name, cache_font_id);
 }
 
 static inline struct ToriRS_Task*

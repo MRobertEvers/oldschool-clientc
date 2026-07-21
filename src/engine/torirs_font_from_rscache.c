@@ -157,6 +157,101 @@ font_new_from_dat2_metrics_and_sprite_pack(
 }
 
 struct ToriRS_Font*
+ToriRS_FontFromDat1Jagfile(
+    struct RSCache_FileListDat* title_jagfile,
+    char const* font_name)
+{
+    struct RSCache_Dat1PixFont* pixfont;
+    struct ToriRS_Font* font;
+    char data_filename[80];
+    int data_file_idx;
+    int index_file_idx;
+    int gi;
+
+    assert(title_jagfile);
+    assert(font_name);
+    if( font_name[0] == '\0' )
+        return NULL;
+
+    snprintf(data_filename, sizeof(data_filename), "%s.dat", font_name);
+    data_file_idx = RSCache_FileListDatFindFileByName(title_jagfile, data_filename);
+    index_file_idx = RSCache_FileListDatFindFileByName(title_jagfile, "index.dat");
+    if( data_file_idx == -1 || index_file_idx == -1 )
+    {
+        fprintf(
+            stderr, "ToriRS_FontFromDat1Jagfile: missing %s/index.dat in title jagfile\n",
+            data_filename);
+        return NULL;
+    }
+
+    pixfont = RSCache_Dat1PixFontNewDecode(
+        title_jagfile->files[data_file_idx],
+        title_jagfile->file_sizes[data_file_idx],
+        title_jagfile->files[index_file_idx],
+        title_jagfile->file_sizes[index_file_idx]);
+    if( !pixfont )
+        return NULL;
+
+    font = calloc(1, sizeof(*font));
+    if( !font )
+    {
+        RSCache_Dat1PixFontFree(pixfont);
+        return NULL;
+    }
+
+    font_init_charcodeset(font);
+
+    /* Dat1 pixfont glyphs share the 94-char CHARSET order used here. */
+    for( gi = 0; gi < TORIRS_FONT_GLYPH_COUNT && gi < RSCACHE_DAT1_PIXFONT_CHAR_COUNT; gi++ )
+    {
+        int gw = pixfont->char_mask_width[gi];
+        int gh = pixfont->char_mask_height[gi];
+        size_t len;
+        size_t j;
+
+        font->advance[gi] = pixfont->char_advance[gi];
+
+        if( gw <= 0 || gh <= 0 || !pixfont->char_mask[gi] )
+            continue;
+
+        len = (size_t)gw * (size_t)gh;
+        font->glyph_alpha[gi] = malloc(len);
+        if( !font->glyph_alpha[gi] )
+        {
+            RSCache_Dat1PixFontFree(pixfont);
+            ToriRS_FontFree(font);
+            return NULL;
+        }
+        for( j = 0; j < len; j++ )
+            font->glyph_alpha[gi][j] = pixfont->char_mask[gi][j] != 0 ? (uint8_t)255 : (uint8_t)0;
+
+        font->glyph_width[gi] = gw;
+        font->glyph_height[gi] = gh;
+        font->offset_x[gi] = pixfont->char_offset_x[gi];
+        font->offset_y[gi] = pixfont->char_offset_y[gi];
+    }
+    font->advance[FONT_ADVANCE_ONLY_GLYPH] =
+        pixfont->char_advance[RSCACHE_DAT1_PIXFONT_CHAR_COUNT];
+
+    for( gi = 0; gi < TORIRS_FONT_GLYPH_COUNT; gi++ )
+    {
+        if( font->glyph_height[gi] > font->line_height )
+            font->line_height = font->glyph_height[gi];
+    }
+
+    font_finish_draw_widths(font);
+    RSCache_Dat1PixFontFree(pixfont);
+
+    if( !font_has_any_glyph(font) )
+    {
+        ToriRS_FontFree(font);
+        return NULL;
+    }
+    snprintf(font->name, sizeof(font->name), "%s", font_name);
+    return font;
+}
+
+struct ToriRS_Font*
 ToriRS_FontFromDat2Archives(
     struct RSCache_Dat2DiskArchive* font_archive,
     struct RSCache_Dat2DiskArchive* sprite_archive,

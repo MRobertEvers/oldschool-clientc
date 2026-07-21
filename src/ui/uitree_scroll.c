@@ -6,6 +6,23 @@
 #include <string.h>
 
 bool
+UITree_ComponentClipsChildren(struct UITreeComponent const* component)
+{
+    if( !component )
+        return false;
+    switch( component->type )
+    {
+    case UIELEM_RS_LAYER:
+    case UIELEM_BUILTIN_SIDEBAR:
+    case UIELEM_BUILTIN_CHAT:
+    case UIELEM_INV_GRID:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool
 UITree_ScrollLayerNeedsVertical(struct UITreeComponent const* layer)
 {
     if( !layer || layer->type != UIELEM_RS_LAYER )

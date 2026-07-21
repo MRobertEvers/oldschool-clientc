@@ -1,6 +1,8 @@
 #include "engine/dat1/dat1_buildcache.h"
 
 #include "engine/dat1/dat1_tasks.h"
+#include "engine/torirs_sprite_from_rscache.h"
+#include "engine/torirs_types.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -154,7 +156,9 @@ static struct CacheProviderVTable dat1_vtable = {
     .Task_IdkLoad = CreateTask_Dat1IdkLoad,
     .Task_SpriteLoad = CreateTask_Dat1SpriteLoad,
     .Task_SpriteLoadByName = CreateTask_Dat1SpriteLoadByName,
+    .Task_SpriteLoadFromSource = CreateTask_Dat1SpriteLoadFromSource,
     .Task_FontLoad = CreateTask_Dat1FontLoad,
+    .Task_FontLoadByName = CreateTask_Dat1FontLoadByName,
     .Task_EnumLoad = NULL,
     .Task_StructLoad = NULL,
     .Task_ComponentLoad = CreateTask_Dat1ComponentLoad,
@@ -166,6 +170,7 @@ dat1_buildcache_new(void)
     struct Dat1BuildCache* dat1_buildcache = calloc(1, sizeof(*dat1_buildcache));
     assert(dat1_buildcache);
 
+    dat1_buildcache->next_sprite_id = DAT1_SPRITE_ID_BASE;
     dat1_buildcache->base.vtable = &dat1_vtable;
     CacheProvider_InitEngineCaches(&dat1_buildcache->base);
     dat1_buildcache->models_hmap =
@@ -204,6 +209,11 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
     dat1_jagfile_clear(&dat1_buildcache->versionlist_jagfile);
     dat1_jagfile_clear(&dat1_buildcache->media_2d_graphics_jagfile);
     dat1_jagfile_clear(&dat1_buildcache->title_fonts_jagfile);
+    if( dat1_buildcache->interfaces_list )
+    {
+        RSCache_Dat1ConfigComponentListFree(dat1_buildcache->interfaces_list);
+        dat1_buildcache->interfaces_list = NULL;
+    }
 
     dat1_buildcache_models_cleanup(dat1_buildcache);
     dat1_buildcache_objs_cleanup(dat1_buildcache);
@@ -860,6 +870,60 @@ dat1_buildcache_idks_cleanup(struct Dat1BuildCache* dat1_buildcache)
 
     dat1_hmap_reset(
         &dat1_buildcache->idk_hmap, sizeof(struct MapEntry_ConfigIdk), DAT1_CONFIG_MAP_CAPACITY);
+}
+
+void
+dat1_buildcache_set_interfaces_list(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct RSCache_Dat1ConfigComponentList* interfaces_list)
+{
+    assert(dat1_buildcache);
+    if( dat1_buildcache->interfaces_list )
+        RSCache_Dat1ConfigComponentListFree(dat1_buildcache->interfaces_list);
+    dat1_buildcache->interfaces_list = interfaces_list;
+}
+
+struct RSCache_Dat1ConfigComponentList*
+dat1_buildcache_get_interfaces_list(struct Dat1BuildCache* dat1_buildcache)
+{
+    assert(dat1_buildcache);
+    return dat1_buildcache->interfaces_list;
+}
+
+int
+dat1_buildcache_sprite_id_alloc(struct Dat1BuildCache* dat1_buildcache)
+{
+    assert(dat1_buildcache);
+    return dat1_buildcache->next_sprite_id++;
+}
+
+int
+dat1_buildcache_sprite_ref_acquire(
+    struct Dat1BuildCache* dat1_buildcache,
+    char const* ref)
+{
+    struct ToriRS_Sprite* sprite;
+    int sprite_id;
+
+    assert(dat1_buildcache);
+    if( !ref || ref[0] == '\0' )
+        return -1;
+
+    sprite_id = CacheProvider_SpriteIdByName(&dat1_buildcache->base, ref);
+    if( sprite_id >= 0 && CacheProvider_SpriteHas(&dat1_buildcache->base, sprite_id) )
+        return sprite_id;
+
+    if( !dat1_buildcache->media_2d_graphics_jagfile )
+        return -1;
+
+    sprite = ToriRS_SpriteFromDat1Ref(dat1_buildcache->media_2d_graphics_jagfile, ref);
+    if( !sprite )
+        return -1;
+
+    sprite_id = dat1_buildcache_sprite_id_alloc(dat1_buildcache);
+    CacheProvider_SpriteAdd(&dat1_buildcache->base, sprite_id, sprite);
+    CacheProvider_SpriteNameMapPut(&dat1_buildcache->base, ref, sprite_id);
+    return sprite_id;
 }
 
 void

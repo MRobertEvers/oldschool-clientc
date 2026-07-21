@@ -119,5 +119,44 @@ test_walk_topology(void)
         TEST_ASSERT(found == dyn, "find prefers dynamic uid");
     }
 
+    /* InterfaceParent mounts emit LAST under their container, even when the
+     * container gains children after the mount was linked (reference widgets-gl
+     * renders mounted interface roots on top of the container's own children). */
+    {
+        int const container_uid = (500 << 16) | 0;
+        int const mount_uid = (600 << 16) | 0;
+        int const late_uid = (500 << 16) | 9;
+        struct TestHostState hs;
+        struct UITreeHost host;
+        struct UITreeEmitBuffer buf;
+        int mount_at = -1;
+        int late_at = -1;
+        struct UITree* mt = UITree_New(16);
+        int32_t container =
+            UITree_TestPushXy(mt, -1, UIELEM_RS_LAYER, container_uid, 0, 0, 200, 200);
+
+        /* Mount linked first, then an ordinary child appended after it. */
+        (void)UITree_TestPushXy(mt, container, UIELEM_RS_RECT, mount_uid, 0, 0, 50, 50);
+        (void)UITree_InterfaceParentSet(mt, container_uid, 600, 1);
+        (void)UITree_TestPushXy(mt, container, UIELEM_RS_RECT, late_uid, 0, 0, 50, 50);
+
+        UITree_TestHostInit(&host, &hs);
+        UITree_TestResolve(mt);
+        UITree_EmitBufferInit(&buf);
+        UITree_EmitWalk(mt, &host, &buf, -1);
+        for( int i = 0; i < buf.count; i++ )
+        {
+            if( buf.cmds[i].component_id == mount_uid )
+                mount_at = i;
+            else if( buf.cmds[i].component_id == late_uid )
+                late_at = i;
+        }
+        TEST_ASSERT(mount_at >= 0 && late_at >= 0, "mount and late child both emit");
+        TEST_ASSERT(mount_at > late_at, "mounted interface root emits after sibling children");
+
+        UITree_EmitBufferFree(&buf);
+        UITree_Free(mt);
+    }
+
     UITree_Free(tree);
 }
