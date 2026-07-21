@@ -148,3 +148,67 @@ test_mutate_emit(void)
 
     UITree_Free(tree);
 }
+
+void
+test_apply_object_silhouette(void)
+{
+    printf("TEST: ApplyObject silhouette vs bank grid\n");
+
+    struct UITree* tree = UITree_New(16);
+
+    /* Bank/grid: many CC_OBJ siblings under one parent. SETOBJECT on 0/1 must
+     * not hide sibling sub_id 2 (that was the IF 12 / IF 605 3rd-icon bug). */
+    {
+        int32_t parent = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 100, 0, 0, 200, 200);
+        int32_t c0 = UITree_CcCreate(tree, parent, 100, 2, 0);
+        int32_t c1 = UITree_CcCreate(tree, parent, 100, 2, 1);
+        int32_t c2 = UITree_CcCreate(tree, parent, 100, 2, 2);
+        TEST_ASSERT(c0 >= 0 && c1 >= 0 && c2 >= 0, "bank cc_create 0/1/2");
+        TEST_ASSERT(tree->components[c0].type == UIELEM_CC_OBJ, "c0 is cc_obj");
+        TEST_ASSERT(tree->components[c1].dynamic_child_index == 1, "c1 sub_id 1");
+        TEST_ASSERT(tree->components[c2].dynamic_child_index == 2, "c2 sub_id 2");
+
+        TEST_ASSERT(
+            UITree_ApplyObject(tree, tree->components[c0].component_id, 995, 1, 10, 0),
+            "setobject bank slot 0");
+        TEST_ASSERT(
+            UITree_ApplyObject(tree, tree->components[c1].component_id, 1333, 1, 11, 0),
+            "setobject bank slot 1");
+        TEST_ASSERT(!tree->components[c2].behavior.hide, "bank child 2 not hidden by siblings");
+
+        TEST_ASSERT(
+            UITree_ApplyObject(tree, tree->components[c2].component_id, 1153, 1, 12, 0),
+            "setobject bank slot 2");
+        TEST_ASSERT(!tree->components[c2].behavior.hide, "bank child 2 stays visible");
+        TEST_ASSERT(tree->components[c2].item_id == 1153, "bank child 2 item set");
+        TEST_ASSERT(tree->components[c2].item_scene_id == 12, "bank child 2 scene_id");
+    }
+
+    /* Equipment slot: d1 overlay + d2 silhouette — SETOBJECT on overlay hides
+     * silhouette; clear unhides it. */
+    {
+        int32_t slot = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 200, 0, 0, 36, 32);
+        int32_t overlay = UITree_CcCreate(tree, slot, 200, 2, 1);
+        int32_t sil = UITree_CcCreate(tree, slot, 200, 5, 2);
+        TEST_ASSERT(overlay >= 0 && sil >= 0, "equipment d1/d2 create");
+        TEST_ASSERT(tree->components[sil].type == UIELEM_RS_GRAPHIC, "d2 is graphic");
+
+        TEST_ASSERT(
+            UITree_ApplyObject(tree, tree->components[overlay].component_id, 1153, 1, 20, 0),
+            "setobject equipment overlay");
+        TEST_ASSERT(tree->components[sil].behavior.hide == 1, "silhouette hidden while occupied");
+        TEST_ASSERT(!tree->components[overlay].behavior.hide, "overlay visible");
+
+        TEST_ASSERT(
+            UITree_ApplyObject(tree, tree->components[overlay].component_id, -1, 0, -1, 0),
+            "clear equipment overlay");
+        TEST_ASSERT(tree->components[sil].behavior.hide == 0, "silhouette shown when cleared");
+
+        /* SETOBJECT on static parent redirects to d1 overlay. */
+        TEST_ASSERT(UITree_ApplyObject(tree, 200, 1725, 1, 21, 0), "setobject via static parent");
+        TEST_ASSERT(tree->components[overlay].item_id == 1725, "redirect set overlay item");
+        TEST_ASSERT(tree->components[sil].behavior.hide == 1, "silhouette hidden after redirect");
+    }
+
+    UITree_Free(tree);
+}

@@ -333,28 +333,6 @@ UITree_Reparent(
     tree->generation++;
 }
 
-static int32_t
-UITree_FindDynamicChildByIndex(
-    struct UITree* tree,
-    int32_t parent_idx,
-    int dynamic_index)
-{
-    assert(tree);
-    if( parent_idx < 0 || (uint32_t)parent_idx >= tree->component_count )
-        return -1;
-
-    int child_index = 0;
-    for( int32_t child = tree->components[parent_idx].first_child; child >= 0;
-         child = tree->components[child].next_sibling, child_index++ )
-    {
-        if( !tree->components[child].dynamic )
-            continue;
-        if( child_index == dynamic_index )
-            return child;
-    }
-    return -1;
-}
-
 char const*
 UITree_ComponentTypeStr(enum UITreeComponentType type)
 {
@@ -1620,13 +1598,19 @@ UITree_ApplyObject(
     struct UITreeComponent* c = &tree->components[idx];
     if( obj_id > 0 && !c->dynamic && c->first_child >= 0 )
     {
-        int32_t overlay_idx = UITree_FindDynamicChildByIndex(tree, idx, 1);
+        int32_t overlay_idx = UITree_FindChildBySubid(tree, idx, c->component_id, 1);
         if( overlay_idx >= 0 )
         {
             idx = overlay_idx;
             c = &tree->components[idx];
         }
     }
+
+    /* Equipment slots: d1 = item overlay, d2 = empty silhouette graphic.
+     * Only toggle silhouette when applying to the overlay and d2 is chrome
+     * (not another CC_OBJ) — bank/grid items share one parent with sub_ids
+     * 0,1,2,… and must not treat sibling 2 as a silhouette. */
+    int const is_equipment_overlay = c->dynamic && c->dynamic_child_index == 1;
 
     if( obj_id <= 0 )
     {
@@ -1643,12 +1627,14 @@ UITree_ApplyObject(
         }
         /* RS_GRAPHIC: clear item overlay only — leave rs_graphic.scene_id
          * (SETGRAPHIC chrome / silhouette) intact. */
-        /* Equipment slots: d2 is the empty silhouette; scripts often leave it
-         * hidden after InvTransmit — show it when the overlay is cleared. */
-        if( c->dynamic && c->parent >= 0 )
+        /* Scripts often leave d2 hidden after InvTransmit — show it when the
+         * overlay is cleared. */
+        if( is_equipment_overlay && c->parent >= 0 )
         {
-            int32_t sil_idx = UITree_FindDynamicChildByIndex(tree, c->parent, 2);
-            if( sil_idx >= 0 )
+            int32_t parent_idx = c->parent;
+            int32_t sil_idx = UITree_FindChildBySubid(
+                tree, parent_idx, tree->components[parent_idx].component_id, 2);
+            if( sil_idx >= 0 && tree->components[sil_idx].type == UIELEM_RS_GRAPHIC )
                 (void)UITree_ApplyHide(tree, tree->components[sil_idx].component_id, 0);
         }
         UITree_MarkNodeDirty(tree, idx);
@@ -1672,11 +1658,13 @@ UITree_ApplyObject(
 
     if( c->behavior.hide )
         c->behavior.hide = 0;
-    /* Hide silhouette sibling while an item occupies the slot. */
-    if( c->dynamic && c->parent >= 0 )
+    /* Hide silhouette sibling while an item occupies the equipment slot. */
+    if( is_equipment_overlay && c->parent >= 0 )
     {
-        int32_t sil_idx = UITree_FindDynamicChildByIndex(tree, c->parent, 2);
-        if( sil_idx >= 0 )
+        int32_t parent_idx = c->parent;
+        int32_t sil_idx = UITree_FindChildBySubid(
+            tree, parent_idx, tree->components[parent_idx].component_id, 2);
+        if( sil_idx >= 0 && tree->components[sil_idx].type == UIELEM_RS_GRAPHIC )
             (void)UITree_ApplyHide(tree, tree->components[sil_idx].component_id, 1);
     }
     UITree_MarkNodeDirty(tree, idx);

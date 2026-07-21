@@ -10,6 +10,7 @@ main(void)
     test_hover_input();
     test_layout_build();
     test_mutate_emit();
+    test_apply_object_silhouette();
     test_drag_composite();
     test_scroll_hit();
     test_drag_scrolled();
