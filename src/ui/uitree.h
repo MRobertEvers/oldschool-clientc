@@ -203,6 +203,10 @@ struct UITreeComponent
     enum UITreeComponentType type;
     uint8_t always_dirty;
     uint8_t is_dirty;
+    /** Slot is on the tree free-list (CC_DELETEALL reclaim); skipped by array
+     *  walks and reused by the next push. */
+    uint8_t freed;
+    int32_t free_next;
     int32_t parent;
     int32_t first_child;
     int32_t next_sibling;
@@ -389,8 +393,13 @@ struct UITree
     /** Tail of root sibling list — O(1) append while baking large packs. */
     int32_t last_root_index;
     uint32_t generation;
+    /** Bumped only when a component_id is assigned or cleared (reclaim) — the id
+     *  index depends on ids alone, so topology churn must not invalidate it. */
+    uint32_t id_generation;
+    /** Head of the reclaimed-slot free-list (chained via component free_next). */
+    int32_t free_head;
     /** Lazy id->index acceleration for UITree_FindByComponentId. Open-addressed,
-     *  power-of-two, load factor <= 0.5. Rebuilt whenever `generation` changes.
+     *  power-of-two, load factor <= 0.5. Rebuilt whenever `id_generation` changes.
      *  Preserves the dynamic-wins / lowest-index tie-break of the linear scan. */
     int32_t* id_index_keys; /* component_id per slot, -1 = empty */
     int32_t* id_index_vals; /* winning component index for that id */
@@ -406,8 +415,9 @@ struct UITree
     int* layout_abs_y;
     int* layout_abs_w;
     int* layout_abs_h;
-    uint32_t layout_cap;       /* allocated length of each layout buffer */
-    uint32_t layout_order_gen; /* generation order/depth were computed for */
+    uint32_t layout_cap;         /* allocated length of each layout buffer */
+    uint32_t layout_order_count; /* live (non-freed) entries in layout_order */
+    uint32_t layout_order_gen;   /* generation order/depth were computed for */
     uint8_t layout_order_valid;
     uint16_t next_dynamic_uid;
     /** Mounted sub-interfaces (TS WidgetManager.interfaceParents). */

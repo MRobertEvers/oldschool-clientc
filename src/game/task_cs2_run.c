@@ -900,7 +900,7 @@ Task_CS2InvTransmitDispatch_Run(
     struct ToriRS_IO* io)
 {
     struct Task_CS2InvTransmitDispatch* self = (struct Task_CS2InvTransmitDispatch*)task;
-    struct RS_CS2InvTransmitHook const* hook;
+    struct RS_CS2InvTransmitHook* hook;
 
     PT_BEGIN(&self->pt);
 
@@ -914,8 +914,22 @@ Task_CS2InvTransmitDispatch_Run(
             continue;
         if( hook->script_id <= 0 )
             continue;
+        /* Dead hook (component reclaimed): mark seen so it never fires — a missing
+         * component reads as "not hidden" below. */
+        if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
+        {
+            hook->last_seen_serial = self->host->inv_change_serial;
+            continue;
+        }
+        /* Hidden: skip WITHOUT advancing so the hook fires once when unhidden
+         * (TS parity: hidden nodes are skipped before counter sync). */
         if( UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id) )
             continue;
+        /* Already fired for the current inv state — the per-hook serial gate that
+         * makes widgets-loaded re-traversals free (TS lastChangedInvCount). */
+        if( hook->last_seen_serial >= self->host->inv_change_serial )
+            continue;
+        hook->last_seen_serial = self->host->inv_change_serial;
 
 #if UITREE_CLICK_DEBUG
         fprintf(
@@ -1012,7 +1026,7 @@ Task_CS2VarTransmitDispatch_Run(
     struct ToriRS_IO* io)
 {
     struct Task_CS2VarTransmitDispatch* self = (struct Task_CS2VarTransmitDispatch*)task;
-    struct RS_CS2VarTransmitHook const* hook;
+    struct RS_CS2VarTransmitHook* hook;
 
     PT_BEGIN(&self->pt);
 
@@ -1026,8 +1040,20 @@ Task_CS2VarTransmitDispatch_Run(
             continue;
         if( hook->script_id <= 0 )
             continue;
+        /* Dead hook (component reclaimed): mark seen so it never fires — a missing
+         * component reads as "not hidden" below. */
+        if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
+        {
+            hook->last_seen_serial = self->host->var_change_serial;
+            continue;
+        }
+        /* Hidden: skip WITHOUT advancing so the hook fires once when unhidden. */
         if( UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id) )
             continue;
+        /* Already fired for the current var state (TS lastChangedVarpCount gate). */
+        if( hook->last_seen_serial >= self->host->var_change_serial )
+            continue;
+        hook->last_seen_serial = self->host->var_change_serial;
 
         TASK_AWAITSELF(CreateTask_CS2Run(
             self->host,

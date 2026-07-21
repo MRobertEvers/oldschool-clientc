@@ -87,23 +87,38 @@ UITree_LinkUnderParent(
 static int32_t
 push_element_unlinked(struct UITree* tree)
 {
-    if( tree->component_count >= tree->component_capacity )
+    int32_t idx;
+
+    /* Reuse a reclaimed slot before growing — keeps the array bounded under the
+     * CC_DELETEALL + CC_CREATE rebuild pattern (TS parity: deleted widgets leave
+     * the uid map and their storage is recycled). */
+    if( tree->free_head >= 0 )
     {
-        uint32_t new_capacity = tree->component_capacity == 0 ? 16 : tree->component_capacity * 2;
-        struct UITreeComponent* new_components =
-            realloc(tree->components, new_capacity * sizeof(struct UITreeComponent));
-        if( !new_components )
-            return -1;
-        tree->components = new_components;
-        tree->component_capacity = new_capacity;
+        idx = tree->free_head;
+        tree->free_head = tree->components[idx].free_next;
+    }
+    else
+    {
+        if( tree->component_count >= tree->component_capacity )
+        {
+            uint32_t new_capacity =
+                tree->component_capacity == 0 ? 16 : tree->component_capacity * 2;
+            struct UITreeComponent* new_components =
+                realloc(tree->components, new_capacity * sizeof(struct UITreeComponent));
+            if( !new_components )
+                return -1;
+            tree->components = new_components;
+            tree->component_capacity = new_capacity;
+        }
+        idx = (int32_t)tree->component_count++;
     }
 
-    int32_t idx = (int32_t)tree->component_count++;
     struct UITreeComponent* component = &tree->components[idx];
     memset(component, 0, sizeof(struct UITreeComponent));
     component->parent = -1;
     component->first_child = -1;
     component->next_sibling = -1;
+    component->free_next = -1;
     component->component_id = -1;
     component->behavior.over_layer_id = -1;
     component->drag_render_area_uid = -1;
@@ -401,7 +416,75 @@ UITree_New(uint32_t hint)
     memset(tree, 0, sizeof(struct UITree));
     tree->root_index = -1;
     tree->last_root_index = -1;
+    tree->free_head = -1;
     return tree;
+}
+
+/* Free a component's heap-owned resources and NULL the pointers so the slot is
+ * safe to reuse and UITree_Free cannot double-free. */
+static void
+uitree_component_free_owned(struct UITreeComponent* c)
+{
+    if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text )
+    {
+        free((void*)c->u.rs_text.text);
+        c->u.rs_text.text = NULL;
+    }
+    if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text_active )
+    {
+        free((void*)c->u.rs_text.text_active);
+        c->u.rs_text.text_active = NULL;
+    }
+    struct UITreeBehavior* b = &c->behavior;
+    if( b->scripts )
+    {
+        for( int s = 0; s < b->scripts_count; s++ )
+            free(b->scripts[s]);
+        free(b->scripts);
+        b->scripts = NULL;
+    }
+    free(b->scripts_lengths);
+    b->scripts_lengths = NULL;
+    free(b->script_comparator);
+    b->script_comparator = NULL;
+    free(b->script_operand);
+    b->script_operand = NULL;
+    b->scripts_count = 0;
+}
+
+/* Reclaim an already-unlinked component and its entire subtree: free owned
+ * resources, clear the slot (component_id=-1 removes it from id lookups and
+ * frees its uid for reuse), and push it onto the tree free-list. */
+static void
+uitree_reclaim_subtree(
+    struct UITree* tree,
+    int32_t idx)
+{
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
+        return;
+
+    struct UITreeComponent* c = &tree->components[idx];
+    if( c->freed )
+        return;
+
+    int32_t child = c->first_child;
+    while( child >= 0 )
+    {
+        int32_t const next = tree->components[child].next_sibling;
+        uitree_reclaim_subtree(tree, child);
+        child = next;
+    }
+
+    uitree_component_free_owned(c);
+    memset(c, 0, sizeof(*c));
+    c->parent = -1;
+    c->first_child = -1;
+    c->next_sibling = -1;
+    c->component_id = -1;
+    c->freed = 1;
+    c->free_next = tree->free_head;
+    tree->free_head = idx;
+    tree->id_generation++;
 }
 
 void
@@ -410,23 +493,7 @@ UITree_Free(struct UITree* tree)
     assert(tree);
 
     for( uint32_t i = 0; i < tree->component_count; i++ )
-    {
-        struct UITreeComponent* c = &tree->components[i];
-        if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text )
-            free((void*)c->u.rs_text.text);
-        if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text_active )
-            free((void*)c->u.rs_text.text_active);
-        struct UITreeBehavior* b = &c->behavior;
-        if( b->scripts )
-        {
-            for( int s = 0; s < b->scripts_count; s++ )
-                free(b->scripts[s]);
-            free(b->scripts);
-        }
-        free(b->scripts_lengths);
-        free(b->script_comparator);
-        free(b->script_operand);
-    }
+        uitree_component_free_owned(&tree->components[i]);
     free(tree->id_index_keys);
     free(tree->id_index_vals);
     free(tree->layout_order);
@@ -591,7 +658,7 @@ UITree_RebuildIdIndex(struct UITree* tree)
             uitree_id_index_put(tree, id, (int32_t)i);
     }
 
-    tree->id_index_gen = tree->generation;
+    tree->id_index_gen = tree->id_generation;
     tree->id_index_valid = 1;
     return true;
 }
@@ -606,9 +673,10 @@ UITree_FindByComponentId(
         return -1;
 
     /* The map is a cache; refreshing it does not change the tree's logical state,
-     * so mutate through the const handle. */
+     * so mutate through the const handle. Keyed on id_generation (id assignments
+     * and reclaims only) — topology churn does not invalidate id lookups. */
     struct UITree* t = (struct UITree*)tree;
-    if( !t->id_index_valid || t->id_index_gen != t->generation )
+    if( !t->id_index_valid || t->id_index_gen != t->id_generation )
     {
         if( !UITree_RebuildIdIndex(t) )
             return UITree_FindByComponentId_Linear(tree, component_id);
@@ -815,6 +883,7 @@ UITree_Push(
     struct UITreeComponent* component = &tree->components[idx];
     component->type = spec->type;
     component->component_id = spec->component_id;
+    tree->id_generation++;
     component->dynamic = spec->dynamic ? 1 : 0;
     component->dynamic_child_index = spec->dynamic ? spec->dynamic_child_index : -1;
     component->menu_options = spec->menu_options;
@@ -1083,11 +1152,18 @@ UITree_CcCreate(
         return -1;
 
     int const iface_id = parent_component_id >= 0 ? (parent_component_id >> 16) : 0;
-    int const child_component_id = UITree_AllocateDynamicComponentId(tree, iface_id);
 
+    /* Replace-in-slot semantics: reclaim any existing dynamic child with this
+     * sub_id BEFORE allocating a uid, so the freed slot and uid are immediately
+     * reusable and repeated rebuild scripts don't grow the array. */
     int32_t existing = UITree_FindChildBySubid(tree, parent_index, parent_component_id, sub_id);
     if( existing >= 0 && tree->components[existing].dynamic )
+    {
         UITree_UnlinkChild(tree, parent_index, existing);
+        uitree_reclaim_subtree(tree, existing);
+    }
+
+    int const child_component_id = UITree_AllocateDynamicComponentId(tree, iface_id);
 
     struct UITreeNodeSpec spec;
     memset(&spec, 0, sizeof(spec));
@@ -1148,6 +1224,10 @@ UITree_CcDeleteAll(
                 tree->components[prev].next_sibling = next;
             tree->components[child].parent = -1;
             tree->components[child].next_sibling = -1;
+            /* Really delete (TS unregisterWidgetTree parity): recycle the slot
+             * and free the uid instead of leaking an orphan that lookups,
+             * layout, and uid allocation would keep paying for. */
+            uitree_reclaim_subtree(tree, child);
         }
         else
         {

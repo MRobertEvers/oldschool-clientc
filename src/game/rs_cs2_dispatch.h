@@ -7,10 +7,10 @@
 
 /*
  * The game layer's single entry point for executing component script hooks.
- * Owns the "how CS2 hooks run" policy: enqueue the script task, drive it to
- * completion (native drain), then chase any pending inv/var transmit
- * redispatch the script requested. UI code returns intents; the application
- * layer applies event context and calls this.
+ * Owns the "how CS2 hooks run" policy: enqueue the script task and drive it to
+ * completion (native drain). UI code returns intents; the application layer
+ * applies event context and calls this. Widget-loaded transmit traversal is
+ * coalesced into RS_CS2_PumpTransmits, run once per logic tick.
  */
 
 /** Run one hook to completion. No-op if hook is NULL or unset. */
@@ -20,6 +20,14 @@ RS_CS2_DispatchHook(
     struct TaskRunner* runner,
     int component_id,
     struct UITreeRuntimeScriptHook const* hook);
+
+/** Once per logic tick: if any widget was unhidden since the last pump, run the
+ *  inv/var transmit traversals (per-hook serial gating makes quiet passes free).
+ *  TS parity: processWidgetTransmits gated by widgetsLoadedDirty. */
+void
+RS_CS2_PumpTransmits(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner);
 
 /** Set the script-visible event mouse coordinates. */
 void

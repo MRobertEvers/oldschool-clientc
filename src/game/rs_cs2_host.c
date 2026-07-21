@@ -1360,6 +1360,98 @@ exec_widget_set_model_angle(
     return CS2VM_EXECNO_OK;
 }
 
+/* Acquire the inv-transmit hook slot for component_id. Re-registration for the
+ * same component reuses its entry (the new script supersedes the old) while
+ * preserving last_seen_serial — a transmit script re-registering itself must not
+ * re-arm and re-fire every pump (TS parity: reassigning node.onInvTransmit does
+ * not reset lastChangedInvCount). When the array is full, entries whose
+ * component no longer exists are purged first. Returns NULL when genuinely
+ * full; the returned slot is zeroed except last_seen_serial. */
+static struct RS_CS2InvTransmitHook*
+rs_cs2_acquire_inv_transmit_hook(
+    struct RS_CS2Host* host,
+    int component_id)
+{
+    int i;
+    struct RS_CS2InvTransmitHook* hook;
+
+    for( i = 0; i < host->inv_transmit_hook_count; i++ )
+    {
+        hook = &host->inv_transmit_hooks[i];
+        if( hook->component_id == component_id )
+        {
+            uint32_t const last_seen = hook->last_seen_serial;
+            memset(hook, 0, sizeof(*hook));
+            hook->last_seen_serial = last_seen;
+            return hook;
+        }
+    }
+
+    if( host->inv_transmit_hook_count >= RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX )
+    {
+        int w = 0;
+        for( i = 0; i < host->inv_transmit_hook_count; i++ )
+        {
+            if( UITree_FindByComponentId(host->tree, host->inv_transmit_hooks[i].component_id) <
+                0 )
+                continue;
+            if( w != i )
+                host->inv_transmit_hooks[w] = host->inv_transmit_hooks[i];
+            w++;
+        }
+        host->inv_transmit_hook_count = w;
+        if( host->inv_transmit_hook_count >= RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX )
+            return NULL;
+    }
+
+    hook = &host->inv_transmit_hooks[host->inv_transmit_hook_count++];
+    memset(hook, 0, sizeof(*hook));
+    return hook;
+}
+
+/* Var-transmit counterpart of rs_cs2_acquire_inv_transmit_hook. */
+static struct RS_CS2VarTransmitHook*
+rs_cs2_acquire_var_transmit_hook(
+    struct RS_CS2Host* host,
+    int component_id)
+{
+    int i;
+    struct RS_CS2VarTransmitHook* hook;
+
+    for( i = 0; i < host->var_transmit_hook_count; i++ )
+    {
+        hook = &host->var_transmit_hooks[i];
+        if( hook->component_id == component_id )
+        {
+            uint32_t const last_seen = hook->last_seen_serial;
+            memset(hook, 0, sizeof(*hook));
+            hook->last_seen_serial = last_seen;
+            return hook;
+        }
+    }
+
+    if( host->var_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
+    {
+        int w = 0;
+        for( i = 0; i < host->var_transmit_hook_count; i++ )
+        {
+            if( UITree_FindByComponentId(host->tree, host->var_transmit_hooks[i].component_id) <
+                0 )
+                continue;
+            if( w != i )
+                host->var_transmit_hooks[w] = host->var_transmit_hooks[i];
+            w++;
+        }
+        host->var_transmit_hook_count = w;
+        if( host->var_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
+            return NULL;
+    }
+
+    hook = &host->var_transmit_hooks[host->var_transmit_hook_count++];
+    memset(hook, 0, sizeof(*hook));
+    return hook;
+}
+
 static int
 exec_set_on_inv_transmit(
     struct RS_CS2Host* host,
@@ -1368,7 +1460,8 @@ exec_set_on_inv_transmit(
     struct RS_CS2InvTransmitHook* hook;
     assert(host);
     assert(request);
-    if( host->inv_transmit_hook_count >= RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX )
+    hook = rs_cs2_acquire_inv_transmit_hook(host, request->component_id);
+    if( !hook )
     {
         fprintf(
             stderr,
@@ -1378,8 +1471,6 @@ exec_set_on_inv_transmit(
             request->component_id);
         return CS2VM_EXECNO_OK;
     }
-    hook = &host->inv_transmit_hooks[host->inv_transmit_hook_count++];
-    memset(hook, 0, sizeof(*hook));
     hook->component_id = request->component_id;
     hook->script_id = request->script_id;
     hook->int_arg_count = request->int_arg_count;
@@ -1419,10 +1510,9 @@ exec_set_on_var_transmit(
 {
     struct RS_CS2VarTransmitHook* hook;
     assert(host);
-    if( host->var_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
+    hook = rs_cs2_acquire_var_transmit_hook(host, request->component_id);
+    if( !hook )
         return CS2VM_EXECNO_OK;
-    hook = &host->var_transmit_hooks[host->var_transmit_hook_count++];
-    memset(hook, 0, sizeof(*hook));
     hook->component_id = request->component_id;
     hook->script_id = request->script_id;
     hook->int_arg_count = request->int_arg_count;
@@ -1462,7 +1552,8 @@ exec_set_on_cc_transmit(
     if( kind == CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT )
     {
         struct RS_CS2InvTransmitHook* hook;
-        if( host->inv_transmit_hook_count >= RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX )
+        hook = rs_cs2_acquire_inv_transmit_hook(host, component_id);
+        if( !hook )
         {
             fprintf(
                 stderr,
@@ -1473,8 +1564,6 @@ exec_set_on_cc_transmit(
                 component_id);
             return CS2VM_EXECNO_OK;
         }
-        hook = &host->inv_transmit_hooks[host->inv_transmit_hook_count++];
-        memset(hook, 0, sizeof(*hook));
         hook->component_id = component_id;
         hook->script_id = request->script_id;
         hook->int_arg_count = request->int_arg_count;
@@ -1495,10 +1584,9 @@ exec_set_on_cc_transmit(
     if( kind == CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT )
     {
         struct RS_CS2VarTransmitHook* hook;
-        if( host->var_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
+        hook = rs_cs2_acquire_var_transmit_hook(host, component_id);
+        if( !hook )
             return CS2VM_EXECNO_OK;
-        hook = &host->var_transmit_hooks[host->var_transmit_hook_count++];
-        memset(hook, 0, sizeof(*hook));
         hook->component_id = component_id;
         hook->script_id = request->script_id;
         hook->int_arg_count = request->int_arg_count;

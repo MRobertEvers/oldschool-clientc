@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <rscache.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 enum
@@ -225,6 +226,29 @@ app_logic_tick(struct App* app)
         }
     }
 
+    /* Widgets-loaded transmit traversal, once per tick (TS processWidgetTransmits).
+     * Early-outs unless a widget was unhidden this tick; per-hook serial gating
+     * means already-fired hooks run nothing. */
+    RS_CS2_PumpTransmits(&app->host, &app->runner);
+
+    /* TORIRS_STATS=1: periodic growth diagnostics — component_count must stay
+     * flat under the CC_DELETEALL/CC_CREATE rebuild pattern (reclamation). */
+    {
+        static int stats_enabled = -1;
+        static int stats_tick = 0;
+        if( stats_enabled < 0 )
+            stats_enabled = getenv("TORIRS_STATS") != NULL;
+        if( stats_enabled && ++stats_tick % 250 == 0 )
+            fprintf(
+                stderr,
+                "torirs_stats: tick=%d components=%u free_head=%d inv_hooks=%d var_hooks=%d\n",
+                stats_tick,
+                app->tree->component_count,
+                app->tree->free_head,
+                app->host.inv_transmit_hook_count,
+                app->host.var_transmit_hook_count);
+    }
+
     /* Animations: request missing sequences (async), apply what's loaded.
      * In-flight sequences render at rest pose until they land. */
     UITreeAnim_RequestMissing(
@@ -284,16 +308,36 @@ App_RunOnce(
     if( out.need_redraw )
         app->need_redraw = 1;
 
-    for( int i = 0; i < out.intent_count; i++ )
+    /* Snapshot hooks by value before dispatching anything: intent->hook points
+     * into tree->components[], and an earlier intent's script can CC_CREATE
+     * (realloc) or CC_DELETEALL (reclaim/reuse the slot), dangling the pointer. */
     {
-        struct UIIntent const* intent = &out.intents[i];
-        if( intent->has_event_mouse )
-            RS_CS2_SetEventMouse(&app->host, intent->event_mouse_x, intent->event_mouse_y);
-        if( intent->has_drag_target )
-            RS_CS2_SetEventDragTarget(&app->host, app->tree, intent->drag_target_id);
-        RS_CS2_DispatchHook(&app->host, &app->runner, intent->component_id, intent->hook);
-        ran_cs2 = 1;
+        struct UITreeRuntimeScriptHook hook_copies[UI_INTENT_MAX];
+        for( int i = 0; i < out.intent_count; i++ )
+            if( out.intents[i].hook )
+                hook_copies[i] = *out.intents[i].hook;
+
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            struct UIIntent const* intent = &out.intents[i];
+            if( intent->has_event_mouse )
+                RS_CS2_SetEventMouse(&app->host, intent->event_mouse_x, intent->event_mouse_y);
+            if( intent->has_drag_target )
+                RS_CS2_SetEventDragTarget(&app->host, app->tree, intent->drag_target_id);
+            RS_CS2_DispatchHook(
+                &app->host,
+                &app->runner,
+                intent->component_id,
+                intent->hook ? &hook_copies[i] : NULL);
+            ran_cs2 = 1;
+        }
     }
+
+    /* Click handlers can unhide tabs; pump immediately so the freshly visible
+     * widgets populate this frame instead of one tick later. Early-outs when
+     * nothing was unhidden. */
+    if( out.intent_count > 0 )
+        RS_CS2_PumpTransmits(&app->host, &app->runner);
 
     if( ran_cs2 )
         UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);

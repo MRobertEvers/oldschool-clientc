@@ -58,21 +58,33 @@ RS_CS2_DispatchHook(
         return;
     ToriRS_TaskQueue_Add(runner->queue, task);
     TaskRunner_Drain(runner);
+}
 
-    if( host->pending_inv_transmit_redispatch )
-    {
-        host->pending_inv_transmit_redispatch = 0;
-        task = CreateTask_CS2InvTransmitDispatch(host, -1);
-        assert(task);
-        ToriRS_TaskQueue_Add(runner->queue, task);
-        TaskRunner_Drain(runner);
-    }
-    if( host->pending_var_transmit_redispatch )
-    {
-        host->pending_var_transmit_redispatch = 0;
-        task = CreateTask_CS2VarTransmitDispatch(host, -1);
-        assert(task);
-        ToriRS_TaskQueue_Add(runner->queue, task);
-        TaskRunner_Drain(runner);
-    }
+void
+RS_CS2_PumpTransmits(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner)
+{
+    struct ToriRS_Task* task;
+
+    assert(host);
+    assert(runner);
+
+    /* Once per logic tick (TS processWidgetTransmits parity): traverse the transmit
+     * hooks only when a widget was unhidden this tick. The per-hook last_seen_serial
+     * gate inside the dispatch tasks keeps up-to-date hooks from re-firing, so a
+     * quiet tick runs zero scripts. */
+    if( !host->widgets_loaded_dirty )
+        return;
+    host->widgets_loaded_dirty = 0;
+
+    task = CreateTask_CS2InvTransmitDispatch(host, -1);
+    assert(task);
+    ToriRS_TaskQueue_Add(runner->queue, task);
+    TaskRunner_Drain(runner);
+
+    task = CreateTask_CS2VarTransmitDispatch(host, -1);
+    assert(task);
+    ToriRS_TaskQueue_Add(runner->queue, task);
+    TaskRunner_Drain(runner);
 }

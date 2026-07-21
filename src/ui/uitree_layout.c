@@ -124,13 +124,21 @@ UITree_LayoutResolve(
     int* const abs_h = tree->layout_abs_h;
 
     /* depth/order are a pure function of tree topology (parent links). Recompute
-     * only when the topology changed; otherwise reuse the cached ordering. This
-     * removes the O(n^2) sort and O(n*depth) walk from the common per-frame path
-     * where only position values (not the tree shape) changed. */
+     * only when the topology changed; otherwise reuse the cached ordering. The
+     * parent-before-child order is built with an O(n) counting sort by depth
+     * (within a depth level order is irrelevant: a node only reads its parent's
+     * abs box, and parents always have strictly smaller depth). Freed
+     * (reclaimed) slots are excluded entirely. */
     if( !tree->layout_order_valid || tree->layout_order_gen != tree->generation )
     {
+        int max_depth = 0;
         for( uint32_t i = 0; i < n; i++ )
         {
+            if( tree->components[i].freed )
+            {
+                depth[i] = -1;
+                continue;
+            }
             int d = 0;
             int32_t cur = (int32_t)i;
             while( cur >= 0 && (uint32_t)cur < n )
@@ -146,27 +154,34 @@ UITree_LayoutResolve(
                     break;
             }
             depth[i] = d;
-            order[i] = (int)i;
+            if( d > max_depth )
+                max_depth = d;
         }
 
-        for( uint32_t a = 0; a < n; a++ )
+        int* counts = calloc((size_t)max_depth + 1, sizeof(int));
+        if( !counts )
+            return; /* out of memory: skip this frame */
+        for( uint32_t i = 0; i < n; i++ )
+            if( depth[i] >= 0 )
+                counts[depth[i]]++;
+        int total = 0;
+        for( int d = 0; d <= max_depth; d++ )
         {
-            for( uint32_t b = a + 1; b < n; b++ )
-            {
-                if( depth[order[b]] < depth[order[a]] )
-                {
-                    int t = order[a];
-                    order[a] = order[b];
-                    order[b] = t;
-                }
-            }
+            int const c = counts[d];
+            counts[d] = total;
+            total += c;
         }
+        for( uint32_t i = 0; i < n; i++ )
+            if( depth[i] >= 0 )
+                order[counts[depth[i]]++] = (int)i;
+        free(counts);
 
+        tree->layout_order_count = (uint32_t)total;
         tree->layout_order_gen = tree->generation;
         tree->layout_order_valid = 1;
     }
 
-    for( uint32_t k = 0; k < n; k++ )
+    for( uint32_t k = 0; k < tree->layout_order_count; k++ )
     {
         int i = order[k];
         struct UITreeComponent* c = &tree->components[i];
