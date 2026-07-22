@@ -5,6 +5,7 @@
 #include "platform/platform_sdl2.h"
 #include "platform/platform_socket.h"
 #include "toridraw_math.h"
+#include "ui/uitree_hover.h"
 #include "ui/uitree_layout.h"
 
 #include <assert.h>
@@ -554,6 +555,35 @@ main(
                     mc_ms += 20;
                 }
             }
+        }
+    }
+
+    /* TORIRS_HOVER_PROBE="x0,y0,x1,y1[,step]": sweep the rect and print the
+     * component id the hover walk resolves at each point (the IF1 overlayer
+     * redirect included). Pair with TORIRS_SIM_MOUSE_CLICK to open the tab
+     * first — this is how you measure a hitbox instead of eyeballing it. */
+    if( getenv("TORIRS_HOVER_PROBE") && app.tree )
+    {
+        char* hp_sep = NULL;
+        char const* hp = getenv("TORIRS_HOVER_PROBE");
+        int hx0 = (int)strtol(hp, &hp_sep, 0);
+        int hy0 = hp_sep && *hp_sep == ',' ? (int)strtol(hp_sep + 1, &hp_sep, 0) : 0;
+        int hx1 = hp_sep && *hp_sep == ',' ? (int)strtol(hp_sep + 1, &hp_sep, 0) : hx0;
+        int hy1 = hp_sep && *hp_sep == ',' ? (int)strtol(hp_sep + 1, &hp_sep, 0) : hy0;
+        int hstep = hp_sep && *hp_sep == ',' ? (int)strtol(hp_sep + 1, &hp_sep, 0) : 1;
+        if( hstep < 1 )
+            hstep = 1;
+        for( int hy = hy0; hy <= hy1; hy += hstep )
+        {
+            fprintf(stderr, "hover_probe y=%3d:", hy);
+            for( int hx = hx0; hx <= hx1; hx += hstep )
+                fprintf(
+                    stderr,
+                    " %d",
+                    UITree_FindHoveredComponentIdForRegion(
+                        app.tree, &app.ui_host, -1, hx, hy, 0, 0, UITREE_LAYOUT_ROOT_W,
+                        UITREE_LAYOUT_ROOT_H));
+            fprintf(stderr, "\n");
         }
     }
 
@@ -1201,6 +1231,26 @@ main(
                             c->parent);
                     }
                 }
+            }
+            /* TORIRS_SIM_HOVER=x,y: park the pointer there for one real
+             * interact frame first, so the dump captures hover-dependent
+             * chrome (IF1 overlayer tooltips, over-colour swaps) instead of
+             * whatever the last main-loop event left behind. */
+            if( getenv("TORIRS_SIM_HOVER") )
+            {
+                struct LibToriRS_Input hov_storage;
+                struct LibToriRS_Input* hov_input = LibToriRS_Input_Init(&hov_storage, 0);
+                char* hov_sep = NULL;
+                int hov_x = (int)strtol(getenv("TORIRS_SIM_HOVER"), &hov_sep, 0);
+                int hov_y = hov_sep && *hov_sep == ',' ? (int)strtol(hov_sep + 1, NULL, 0) : 0;
+                for( int t = 0; t < 4; t++ )
+                {
+                    LibToriRS_Input_Begin(hov_input, (uint64_t)(t + 1) * 20);
+                    LibToriRS_Input_PushMouseMove(hov_input, hov_x, hov_y);
+                    LibToriRS_Input_End(hov_input);
+                    App_RunOnce(&app, (uint64_t)(t + 1) * 20, hov_input);
+                }
+                fprintf(stderr, "sim_hover: parked at %d,%d\n", hov_x, hov_y);
             }
             int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
             assert(pixels);

@@ -392,6 +392,48 @@ test_hovertext_compose(void)
     TEST_ASSERT(hover.x == 11 && hover.y == 22 && hover.w == 33, "compose keeps placement");
 }
 
+/* The hover half of InteractFrame must hand the host down to the hover walk:
+ * without it the sidebar-tab gate cannot run and an unselected tab's
+ * components win the (last-match-wins) hover, which is what shrank the stats
+ * tab's per-stat tooltip hitbox to a few pixels. */
+static void
+test_interact_hover_uses_host(void)
+{
+    struct UITree* tree = UITree_New(16);
+    struct UITreeHost host;
+    struct TestHostState host_state;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+
+    UITree_TestHostInit(&host, &host_state);
+    UIInteraction_Init(&interact);
+
+    {
+        int32_t shown = UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_SIDEBAR, 400, 0, 0, 200, 200);
+        tree->components[shown].u.sidebar.tabno = 1;
+        int32_t shown_cell = UITree_TestPushXy(tree, shown, UIELEM_RS_LAYER, 401, 0, 0, 64, 32);
+        tree->components[shown_cell].behavior.over_layer_id = 900;
+
+        int32_t other = UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_SIDEBAR, 410, 0, 0, 200, 200);
+        tree->components[other].u.sidebar.tabno = 2;
+        int32_t other_cell = UITree_TestPushXy(tree, other, UIELEM_RS_LAYER, 411, 0, 0, 64, 32);
+        tree->components[other_cell].behavior.over_layer_id = 911;
+    }
+    UITree_TestResolve(tree);
+    host_state.selected_tab = 1;
+
+    input = LibToriRS_Input_Init(&input_storage, 0);
+    LibToriRS_Input_Begin(input, 0);
+    LibToriRS_Input_PushMouseMove(input, 30, 16);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+
+    TEST_ASSERT(out.hover_com_id == 900, "interact hover uses the selected tab");
+    UITree_Free(tree);
+}
+
 void
 test_minimenu(void)
 {
@@ -405,4 +447,5 @@ test_minimenu(void)
     test_cross_model();
     test_cross_action_policy();
     test_minimenu_release_swallow();
+    test_interact_hover_uses_host();
 }

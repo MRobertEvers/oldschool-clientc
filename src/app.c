@@ -1504,9 +1504,44 @@ app_world_load_finish(struct App* app)
  * frame emitter draws with (pick/render parity comes from sharing it). Also the
  * "is a world on screen this frame" flag every world subsystem gates on. Uses
  * the previous frame's emit buffer — the world box only changes on relayout. */
+/* TORIRS_POS_DEBUG=1: the local player's authoritative tile in every frame of
+ * reference at once — scene tile, absolute world tile (compare against the
+ * server's ::getcoord), fine draw position, and the camera the painter used.
+ * The one-liner for "is the player where the server thinks it is". */
+static void
+app_debug_log_position(struct App* app)
+{
+    struct WorldEntity_Player* local;
+
+    if( !getenv("TORIRS_POS_DEBUG") || !app->world )
+        return;
+    local = app_local_player(app);
+    if( !local )
+        return;
+    fprintf(
+        stderr,
+        "pos: scene=%d,%d route0=%d,%d abs=%d,%d level=%d draw=%u,%u cam=%d,%d,%d "
+        "yaw=%d pitch=%d\n",
+        local->grid_position.x,
+        local->grid_position.z,
+        local->pathing.route_x[0],
+        local->pathing.route_z[0],
+        app->world->_base_tile_x + local->pathing.route_x[0],
+        app->world->_base_tile_z + local->pathing.route_z[0],
+        local->grid_position.level,
+        local->draw_position.x,
+        local->draw_position.z,
+        app->world_camera_pos.x,
+        app->world_camera_pos.y,
+        app->world_camera_pos.z,
+        app->world_camera.yaw,
+        app->world_camera.pitch);
+}
+
 static void
 app_update_world_viewport(struct App* app)
 {
+    app_debug_log_position(app);
     app->world_view_valid = 0;
     app->minimap_view_valid = 0;
     for( int i = 0; i < app->emit.count; i++ )

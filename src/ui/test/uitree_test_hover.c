@@ -129,6 +129,66 @@ test_hover_input(void)
         TEST_ASSERT(id != 81 + 4, "far deep leaf not reported");
     }
 
+    /* Regression: the hover walk MUST be given the host.
+     *
+     * Without it the sidebar-tab gate cannot run, so the walk descends into
+     * every tab's subtree — and because it is last-match-wins, a component
+     * from a tab that is not even on screen overrides the visible one. Live
+     * symptom: stats-tab cells had a hover box a few pixels tall because rows
+     * from another tab kept winning. */
+    {
+        struct UITree* st = UITree_New(16);
+        int32_t vis_tab = UITree_TestPushXy(st, -1, UIELEM_BUILTIN_SIDEBAR, 200, 0, 0, 200, 200);
+        st->components[vis_tab].u.sidebar.tabno = 1;
+        int32_t vis_cell = UITree_TestPushXy(st, vis_tab, UIELEM_RS_LAYER, 201, 0, 0, 64, 32);
+        st->components[vis_cell].behavior.over_layer_id = 900;
+
+        /* Same screen box, but parked on a tab that is not selected, and
+         * pushed later so it wins any last-match-wins tie. */
+        int32_t hidden_tab = UITree_TestPushXy(st, -1, UIELEM_BUILTIN_SIDEBAR, 210, 0, 0, 200, 200);
+        st->components[hidden_tab].u.sidebar.tabno = 2;
+        int32_t hidden_cell =
+            UITree_TestPushXy(st, hidden_tab, UIELEM_RS_LAYER, 211, 0, 0, 64, 32);
+        st->components[hidden_cell].behavior.over_layer_id = 911;
+        UITree_TestResolve(st);
+
+        hs.selected_tab = 1;
+        int with_host = UITree_FindHoveredComponentIdForRegion(
+            st, &host, -1, 30, 16, 0, 0, 400, 300);
+        TEST_ASSERT(with_host == 900, "hover respects the selected sidebar tab");
+
+        /* The whole 64x32 cell resolves to the same overlayer id — the actual
+         * user-visible property (a stat box tooltip covers the box). */
+        TEST_ASSERT(
+            UITree_FindHoveredComponentIdForRegion(st, &host, -1, 1, 1, 0, 0, 400, 300) == 900 &&
+                UITree_FindHoveredComponentIdForRegion(st, &host, -1, 63, 31, 0, 0, 400, 300) ==
+                    900,
+            "overlayer hover covers the whole cell");
+
+        int no_host =
+            UITree_FindHoveredComponentIdForRegion(st, NULL, -1, 30, 16, 0, 0, 400, 300);
+        TEST_ASSERT(no_host == 911, "without a host the unselected tab leaks through");
+        UITree_Free(st);
+    }
+
+    /* Regression: app-pushed decorative overlays are late root siblings, and
+     * UITree_HitTestInteractive lets a later root win — so a non-passthrough
+     * one shadows the entire interface, not just the world. */
+    {
+        struct UITree* st = UITree_New(8);
+        int32_t panel = UITree_TestPushXy(st, -1, UIELEM_RS_RECT, 300, 0, 0, 100, 100);
+        st->components[panel].behavior.button_type = 1;
+        /* Pushed after the panel, unsized — exactly how app.c pushes them. */
+        int32_t overlay = UITree_TestPushXy(st, -1, UIELEM_BUILTIN_ENTITY_OVERLAY, 301, 0, 0, 0, 0);
+        (void)overlay;
+        UITree_TestResolve(st);
+
+        TEST_ASSERT(
+            UITree_HitTestInteractive(st, &host, 50, 50) == panel,
+            "entity overlay never eats clicks");
+        UITree_Free(st);
+    }
+
     /* Hover routing commit edge */
     {
         struct UIHoverRouting routing;

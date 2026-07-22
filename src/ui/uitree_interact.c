@@ -553,6 +553,7 @@ static void
 interact_hover(
     struct UIInteraction* interact,
     struct UITree* tree,
+    struct UITreeHost const* ui_host,
     struct LibToriRS_Input* input,
     uint64_t now_ms,
     struct UIInteractOut* out)
@@ -560,8 +561,14 @@ interact_hover(
     int mx = input->curr.mouse_x;
     int my = input->curr.mouse_y;
 
+    /* The host is load-bearing, not optional: without it the hover walk cannot
+     * ask which sidebar tab is selected, so it descends into EVERY tab's
+     * subtree. Because the walk is last-match-wins (reference
+     * addComponentOptions), components from tabs that are not even on screen
+     * then override the visible ones — which showed up as stat cells having a
+     * hover box a few pixels tall. */
     interact->hover_com_id = UITree_FindHoveredComponentIdForRegion(
-        tree, NULL, -1, mx, my, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        tree, ui_host, -1, mx, my, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 
     if( interact->hover_com_id != interact->prev_hover_com_id )
     {
@@ -944,7 +951,7 @@ UITree_InteractFrame(
     interact_wheel(tree, input, out);
     interact_drag(interact, tree, ui_host, input, sb_owns_mouse, &ui_result, out);
     interact_hold(interact, tree, input, sb_owns_mouse, out);
-    interact_hover(interact, tree, input, now_ms, out);
+    interact_hover(interact, tree, ui_host, input, now_ms, out);
     if( !swallow_click )
         interact_click(tree, ui_host, input, &ui_result, out);
     interact_keys(tree, input, out);

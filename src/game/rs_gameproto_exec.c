@@ -296,6 +296,8 @@ RS_GameProto_Exec(
     case PKT_NAME_MESSAGE_GAME:
         if( ctx->chat )
             RS_Chat_AddMessage(ctx->chat, RS_CHAT_TYPE_GAME, NULL, packet->_message_game.text);
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(stderr, "message_game: %s\n", packet->_message_game.text);
         break;
 
     /* ---- world rebuild ---- */

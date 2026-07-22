@@ -78,8 +78,15 @@ UITree_ComponentIsPassThrough(
         return UITree_Host(host, &req) == 0;
     }
     case UIELEM_BUILTIN_HOVERTEXT:
-        /* Purely decorative overlay (the "Walk here /..." line); it must
-         * never eat world clicks. */
+    case UIELEM_BUILTIN_ENTITY_OVERLAY:
+        /* Purely decorative overlays (the "Walk here /..." line; health bars
+         * and hitsplats); they must never eat world clicks.
+         *
+         * These are pushed as *late* root siblings, and UITree_HitTestInteractive
+         * lets a later root's hit win over earlier ones — so a non-passthrough
+         * unsized overlay node here does not just shadow the world, it shadows
+         * the entire interface. Anything added to app_push_builtin_overlay_nodes
+         * needs an entry in this switch. */
         return true;
     case UIELEM_RS_INV:
     case UIELEM_RS_INV_TEXT:

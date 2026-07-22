@@ -632,3 +632,69 @@ New pieces:
 
 Not ported: overhead chat text and headicons (the other two `drawEntities`
 overlays), and hint arrows.
+
+---
+
+## 13. Two hover/hit-test regressions found after §9-12
+
+Both are torirs-only infrastructure bugs, not reference-parity gaps, but they
+are the kind that present as something else entirely — worth recording because
+the symptom pointed nowhere near the cause.
+
+### "Nothing is clickable, including the 2D interface"
+
+The `UIELEM_BUILTIN_ENTITY_OVERLAY` node added in §12 was pushed as a root
+sibling but never added to `UITree_ComponentIsPassThrough`, so it fell into
+`default: return false` — a real click target. Two properties combine to make
+that catastrophic rather than local:
+
+- The node is pushed **unsized**, and an unsized node lays out covering the
+  canvas (the same reason `UIELEM_BUILTIN_HOVERTEXT` carries an explicit "must
+  never eat world clicks" pass-through case).
+- `UITree_HitTestInteractive` walks root siblings in order and lets a **later**
+  root's hit win. `app_push_builtin_overlay_nodes` appends after the interface,
+  so the overlay shadowed the entire UI, not just the world.
+
+Fix: one `case` in `uitree_input.c`. Anything added to
+`app_push_builtin_overlay_nodes` needs an entry there. Regression test:
+`uitree_test_hover.c` "entity overlay never eats clicks" (verified to fail
+without the case).
+
+This also explains the reported "player/world renders in the wrong location":
+with every click swallowed, click-to-walk and minimap-click sent nothing, so
+the player never left its login tile. Position itself was never wrong — a
+`TORIRS_POS_DEBUG=1` run reports `abs=3220,3304`, and the server's `::getcoord`
+answers `0,50,51,20,40` = the same tile.
+
+### Stats-tab hover hitbox a few pixels tall
+
+`interact_hover` called `UITree_FindHoveredComponentIdForRegion(tree, NULL, ...)`.
+The host is load-bearing there: it is the only way the walk can ask
+`UITREE_HOST_GET_SELECTED_TAB`, and without it the walk descends into **every**
+sidebar tab's subtree. Since the hover walk is last-match-wins (matching the
+reference's `addComponentOptions`, Client.ts:9876), components from tabs that
+were not even on screen kept overriding the visible ones — leaving only the
+narrow bands where no off-screen node happened to overlap.
+
+`stats.if` gives each stat cell a `type=layer` 64x32 child carrying
+`overlayer=com_NNN`; the hover walk returns that overlayer id, and
+`UITree_ComponentVisibleById` unhides the matching hidden tooltip layer during
+emit. With the host wired, a `TORIRS_HOVER_PROBE` sweep of the panel resolves
+to clean 64x32 blocks (one id per cell) and the "Attack XP: 0 / Next level
+at: 83" tooltip renders. Regression tests in `uitree_test_hover.c` and
+`uitree_test_minimenu.c` (the latter through `UITree_InteractFrame`, i.e. the
+actual call site; both verified to fail without the fix).
+
+### Debug helpers added while chasing these
+
+- `TORIRS_HOVER_PROBE="x0,y0,x1,y1[,step]"` — sweep a rect and print the
+  hover-resolved component id per point. Measures a hitbox instead of
+  eyeballing it; pair with `TORIRS_SIM_MOUSE_CLICK` to open a tab first.
+- `TORIRS_SIM_HOVER="x,y"` — park the pointer for one real interact frame
+  immediately before the `TORIRS_EXIT_BMP` dump, so hover-dependent chrome
+  (overlayer tooltips, over-colour swaps) actually appears in the screenshot.
+- `TORIRS_POS_DEBUG=1` — the local player's tile in every frame of reference at
+  once (scene, route[0], absolute, fine draw position, camera). The absolute
+  pair is directly comparable to the server's `::getcoord`.
+- `message_game:` lines under `TORIRS_NET_DEBUG=1` — needed to read
+  `::getcoord`'s reply headlessly.
