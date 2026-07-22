@@ -700,6 +700,47 @@ interact_click(
     click_y = input->last_click_y[TORIRSM_LEFT];
     ihit = UITree_HitTestInteractive(tree, ui_host, click_x, click_y);
 
+    /* Gameframe chrome gestures resolve here, before hooks: a click on a tab
+     * icon (or its redstone) switches the sidebar tab (reference tab hit-boxes
+     * in gameLoop; ours come from the INI layout), and a privacy-bar button
+     * cycles its chat filter mode. Both consume the click. */
+    if( ihit >= 0 && (uint32_t)ihit < tree->component_count && ui_host )
+    {
+        struct UITreeComponent const* hit_c = &tree->components[ihit];
+        int tabno = -1;
+        if( hit_c->type == UIELEM_BUILTIN_TAB_ICONS )
+            tabno = hit_c->u.tab_icon.tabno;
+        else if( hit_c->type == UIELEM_BUILTIN_REDSTONE_TAB )
+            tabno = hit_c->u.redstone_tab.tabno;
+        if( tabno >= 0 )
+        {
+            struct UITreeHostRequest enabled_req = {
+                .kind = UITREE_HOST_GET_TAB_ENABLED,
+                .u.tab_enabled.tabno = tabno,
+            };
+            if( UITree_Host(ui_host, &enabled_req) )
+            {
+                struct UITreeHostRequest set_req = {
+                    .kind = UITREE_HOST_SET_SELECTED_TAB,
+                    .u.set_selected_tab.tabno = tabno,
+                };
+                UITree_Host(ui_host, &set_req);
+                out->need_redraw = 1;
+            }
+            return;
+        }
+        if( hit_c->type == UIELEM_BUILTIN_CHAT_BUTTON )
+        {
+            struct UITreeHostRequest cycle_req = {
+                .kind = UITREE_HOST_CYCLE_CHAT_FILTER_MODE,
+                .u.chat_filter.filter = (int)hit_c->u.chat_button.filter,
+            };
+            UITree_Host(ui_host, &cycle_req);
+            out->need_redraw = 1;
+            return;
+        }
+    }
+
     /* Prefer interactive hit so clickMask targets beat decorative overlays. */
     if( ihit >= 0 && (uint32_t)ihit < tree->component_count )
         click_hook = UITree_ResolveClickHook(tree, ihit, &hook_com_id);

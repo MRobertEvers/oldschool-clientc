@@ -1,0 +1,552 @@
+#include "gameproto_parse.h"
+
+#include "net/wordpack.h"
+#include "packetin.h"
+
+#include <assert.h>
+#include <rsbuffer.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int
+gameproto_parse_lc245_2(
+    int packet_type,
+    uint8_t* data,
+    int data_size,
+    struct RevPacket_LC245_2* packet)
+{
+    struct RSCache_Buffer buffer;
+    RSCache_BufferInit(&buffer, data, data_size);
+
+    packet->packet_type = packet_type;
+
+    switch( packet_type )
+    {
+    case PKTIN_LC245_2_REBUILD_NORMAL:
+    {
+        printf("PKTIN_LC245_2_REBUILD_NORMAL\n");
+        packet->_map_rebuild.zonex = g2(&buffer);
+        packet->_map_rebuild.zonez = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_NPC_INFO:
+    {
+        printf("PKTIN_LC245_2_NPC_INFO\n");
+        uint8_t* commandstream = malloc(data_size);
+        memcpy(commandstream, data, data_size);
+        packet->_npc_info.length = data_size;
+        packet->_npc_info.data = commandstream;
+        return 1;
+    }
+    case PKTIN_LC245_2_PLAYER_INFO:
+    {
+        printf("PKTIN_LC245_2_PLAYER_INFO\n");
+        uint8_t* commandstream = malloc(data_size);
+        memcpy(commandstream, data, data_size);
+        packet->_player_info.length = data_size;
+        packet->_player_info.data = commandstream;
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_INV_FULL:
+    {
+        printf("PKTIN_LC245_2_UPDATE_INV_FULL\n");
+        packet->_update_inv_full.component_id = g2(&buffer);
+        packet->_update_inv_full.size = g1(&buffer);
+
+        // Allocate arrays for obj_ids and obj_counts
+        packet->_update_inv_full.obj_ids = malloc(packet->_update_inv_full.size * sizeof(int));
+        packet->_update_inv_full.obj_counts = malloc(packet->_update_inv_full.size * sizeof(int));
+
+        for( int i = 0; i < packet->_update_inv_full.size; i++ )
+        {
+            packet->_update_inv_full.obj_ids[i] = g2(&buffer);
+
+            int count = g1(&buffer);
+            if( count == 255 )
+            {
+                count = g4(&buffer);
+            }
+            packet->_update_inv_full.obj_counts[i] = count;
+        }
+
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETTAB:
+    {
+        packet->_if_settab.component_id = g2(&buffer);
+        packet->_if_settab.tab_id = g1(&buffer);
+        printf(
+            "PKTIN_LC245_2_IF_SETTAB: component_id=%d, tab_id=%d\n",
+            packet->_if_settab.component_id,
+            packet->_if_settab.tab_id);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_OPENCHAT:
+    {
+        packet->_if_openchat.component_id = g2(&buffer);
+        printf("PKTIN_LC245_2_IF_OPENCHAT: component_id=%d\n", packet->_if_openchat.component_id);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_CLOSE:
+    {
+        printf("PKTIN_LC245_2_IF_CLOSE\n");
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETTAB_ACTIVE:
+    {
+        packet->_if_settab_active.tab_id = g1(&buffer);
+        printf("PKTIN_LC245_2_IF_SETTAB_ACTIVE: tab_id=%d\n", packet->_if_settab_active.tab_id);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_VARP_SMALL:
+    {
+        packet->_varp_small.variable = g2(&buffer);
+        packet->_varp_small.value = g1b(&buffer);
+        printf(
+            "PKTIN_LC245_2_VARP_SMALL: variable=%d value=%d\n",
+            packet->_varp_small.variable,
+            packet->_varp_small.value);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_VARP_LARGE:
+    {
+        packet->_varp_large.variable = g2(&buffer);
+        packet->_varp_large.value = g4(&buffer);
+        printf(
+            "PKTIN_LC245_2_VARP_LARGE: variable=%d value=%d\n",
+            packet->_varp_large.variable,
+            packet->_varp_large.value);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_RESET_CLIENT_VARCACHE:
+        /* VARP_SYNC: no payload, sync all vars to server authoritative set */
+        return 1;
+    case PKTIN_LC245_2_UPDATE_STAT:
+    {
+        packet->_update_stat.stat = g1(&buffer);
+        packet->_update_stat.xp = g4(&buffer);
+        packet->_update_stat.level = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_RUNENERGY:
+    {
+        packet->_update_run_energy.run_energy = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETCOLOUR:
+    {
+        packet->_if_setcolour.component_id = g2(&buffer);
+        packet->_if_setcolour.colour = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETHIDE:
+    {
+        packet->_if_sethide.component_id = g2(&buffer);
+        packet->_if_sethide.hide = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETOBJECT:
+    {
+        packet->_if_setobject.component_id = g2(&buffer);
+        packet->_if_setobject.obj_id = g2(&buffer);
+        packet->_if_setobject.zoom = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETMODEL:
+    {
+        packet->_if_setmodel.component_id = g2(&buffer);
+        packet->_if_setmodel.model_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETANIM:
+    {
+        packet->_if_setanim.component_id = g2(&buffer);
+        packet->_if_setanim.anim_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETPLAYERHEAD:
+    {
+        packet->_if_setplayerhead.component_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETTEXT:
+    {
+        packet->_if_settext.component_id = g2(&buffer);
+        packet->_if_settext.text = gstringnewline(&buffer);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETNPCHEAD:
+    {
+        packet->_if_setnpchead.component_id = g2(&buffer);
+        packet->_if_setnpchead.npc_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETPOSITION:
+    {
+        packet->_if_setposition.component_id = g2(&buffer);
+        packet->_if_setposition.x = g2b(&buffer);
+        packet->_if_setposition.z = g2b(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETSCROLLPOS:
+    {
+        packet->_if_setscrollpos.component_id = g2(&buffer);
+        packet->_if_setscrollpos.pos = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_MESSAGE_GAME:
+    {
+        packet->_message_game.text = gstringnewline(&buffer);
+        return 1;
+    }
+    case PKTIN_LC245_2_MESSAGE_PRIVATE:
+    {
+        if( data_size < 13 )
+            return 0;
+        packet->_message_private.from = g8(&buffer);
+        packet->_message_private.message_id = g4(&buffer);
+        packet->_message_private.staff_mod = g1(&buffer);
+        packet->_message_private.text = wordpack_unpack(&buffer, data_size - 13);
+        if( !packet->_message_private.text )
+            return 0;
+        return 1;
+    }
+    case PKTIN_LC245_2_CHAT_FILTER_SETTINGS:
+    {
+        packet->_chat_filter_settings.chat_public_mode = g1(&buffer);
+        packet->_chat_filter_settings.chat_private_mode = g1(&buffer);
+        packet->_chat_filter_settings.chat_trade_mode = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS:
+    {
+        printf("PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS\n");
+        packet->_update_zone_partial_follows.base_x = g1(&buffer);
+        packet->_update_zone_partial_follows.base_z = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS:
+    {
+        printf("PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS\n");
+        packet->_update_zone_full_follows.base_x = g1(&buffer);
+        packet->_update_zone_full_follows.base_z = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_LOC_ADD_CHANGE:
+    {
+        printf("PKTIN_LC245_2_LOC_ADD_CHANGE\n");
+        packet->_loc_add_change.pos = g1(&buffer);
+        packet->_loc_add_change.info = g1(&buffer);
+        packet->_loc_add_change.loc_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_LOC_DEL:
+    {
+        printf("PKTIN_LC245_2_LOC_DEL\n");
+        packet->_loc_del.pos = g1(&buffer);
+        packet->_loc_del.info = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_LOC_ANIM:
+    {
+        printf("PKTIN_LC245_2_LOC_ANIM\n");
+        packet->_loc_anim.pos = g1(&buffer);
+        packet->_loc_anim.info = g1(&buffer);
+        packet->_loc_anim.seq_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_OBJ_ADD:
+    {
+        packet->_obj_add.pos = g1(&buffer);
+        packet->_obj_add.obj_id = g2(&buffer);
+        packet->_obj_add.count = g2(&buffer);
+        printf(
+            "PKTIN_LC245_2_OBJ_ADD: pos=%d, obj_id=%d, count=%d\n",
+            packet->_obj_add.pos,
+            packet->_obj_add.obj_id,
+            packet->_obj_add.count);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_OBJ_DEL:
+    {
+        packet->_obj_del.pos = g1(&buffer);
+        packet->_obj_del.obj_id = g2(&buffer);
+        printf(
+            "PKTIN_LC245_2_OBJ_DEL: pos=%d, obj_id=%d\n",
+            packet->_obj_del.pos,
+            packet->_obj_del.obj_id);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_OBJ_REVEAL:
+    {
+        packet->_obj_reveal.pos = g1(&buffer);
+        packet->_obj_reveal.obj_id = g2(&buffer);
+        packet->_obj_reveal.count = g2(&buffer);
+        packet->_obj_reveal.receiver = g2(&buffer);
+        printf(
+            "PKTIN_LC245_2_OBJ_REVEAL: pos=%d, obj_id=%d, count=%d, receiver=%d\n",
+            packet->_obj_reveal.pos,
+            packet->_obj_reveal.obj_id,
+            packet->_obj_reveal.count,
+            packet->_obj_reveal.receiver);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_OBJ_COUNT:
+    {
+        packet->_obj_count.pos = g1(&buffer);
+        packet->_obj_count.obj_id = g2(&buffer);
+        packet->_obj_count.old_count = g2(&buffer);
+        packet->_obj_count.new_count = g2(&buffer);
+        printf(
+            "PKTIN_LC245_2_OBJ_COUNT: pos=%d, obj_id=%d, old_count=%d, new_count=%d\n",
+            packet->_obj_count.pos,
+            packet->_obj_count.obj_id,
+            packet->_obj_count.old_count,
+            packet->_obj_count.new_count);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_LOC_MERGE:
+    {
+        printf("PKTIN_LC245_2_LOC_MERGE\n");
+        packet->_loc_merge.pos = g1(&buffer);
+        packet->_loc_merge.info = g1(&buffer);
+        packet->_loc_merge.loc_id = g2(&buffer);
+        packet->_loc_merge.start = g2(&buffer);
+        packet->_loc_merge.end = g2(&buffer);
+        packet->_loc_merge.pid = g2(&buffer);
+        packet->_loc_merge.east = g1b(&buffer);
+        packet->_loc_merge.south = g1b(&buffer);
+        packet->_loc_merge.west = g1b(&buffer);
+        packet->_loc_merge.north = g1b(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_MAP_PROJANIM:
+    {
+        printf("PKTIN_LC245_2_MAP_PROJANIM\n");
+        packet->_map_projanim.pos = g1(&buffer);
+        packet->_map_projanim.dx_offset = g1b(&buffer);
+        packet->_map_projanim.dz_offset = g1b(&buffer);
+        packet->_map_projanim.target = g2b(&buffer);
+        packet->_map_projanim.spotanim = g2(&buffer);
+        packet->_map_projanim.src_height = g1(&buffer);
+        packet->_map_projanim.dst_height = g1(&buffer);
+        packet->_map_projanim.start_delay = g2(&buffer);
+        packet->_map_projanim.end_delay = g2(&buffer);
+        packet->_map_projanim.peak = g1(&buffer);
+        packet->_map_projanim.arc = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_MAP_ANIM:
+    {
+        printf("PKTIN_LC245_2_MAP_ANIM\n");
+        packet->_map_anim.pos = g1(&buffer);
+        packet->_map_anim.id = g2(&buffer);
+        packet->_map_anim.height = g1(&buffer);
+        packet->_map_anim.delay = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_CAM_LOOKAT:
+    {
+        packet->_cam_lookat.local_x = g2(&buffer);
+        packet->_cam_lookat.local_z = g2(&buffer);
+        packet->_cam_lookat.height = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_CAM_MOVETO:
+    {
+        packet->_cam_moveto.local_x = g2(&buffer);
+        packet->_cam_moveto.local_z = g2(&buffer);
+        packet->_cam_moveto.height = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_CAM_SHAKE:
+    {
+        packet->_cam_shake.axis = g1(&buffer);
+        packet->_cam_shake.amplitude = g1(&buffer);
+        packet->_cam_shake.frequency = g1(&buffer);
+        packet->_cam_shake.speed = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_CAM_RESET:
+        /* no payload */
+        return 1;
+    case PKTIN_LC245_2_IF_OPENMAIN:
+    {
+        packet->_if_openmain.component_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_OPENSIDE:
+    {
+        packet->_if_openside.component_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_OPENMAIN_SIDE:
+    {
+        packet->_if_openmain_side.main_component_id = g2(&buffer);
+        packet->_if_openmain_side.side_component_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_HINT_ARROW:
+    {
+        packet->_hint_arrow.type = g1(&buffer);
+        packet->_hint_arrow.id = g2(&buffer);
+        if( packet->_hint_arrow.type >= 3 )
+        {
+            packet->_hint_arrow.z = g2(&buffer);
+            packet->_hint_arrow.height = g1(&buffer);
+        }
+        return 1;
+    }
+    case PKTIN_LC245_2_RESET_ANIMS:
+        /* no payload */
+        return 1;
+    case PKTIN_LC245_2_UPDATE_PID:
+    {
+        packet->_update_pid.local_player_index = g2(&buffer);
+        packet->_update_pid.unused = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_RUNWEIGHT:
+    {
+        packet->_update_runweight.run_weight = g2b(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UNSET_MAP_FLAG:
+        /* no payload */
+        return 1;
+    case PKTIN_LC245_2_UPDATE_INV_STOP_TRANSMIT:
+    {
+        packet->_update_inv_stop_transmit.component_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_INV_PARTIAL:
+    {
+        packet->_update_inv_partial.component_id = g2(&buffer);
+        /* count is derived from remaining bytes; allocate conservatively */
+        int max_entries = (data_size - 2) / 5 + 1;
+        packet->_update_inv_partial.entries =
+            (struct PktUpdateInvPartialEntry*)malloc(max_entries * sizeof(struct PktUpdateInvPartialEntry));
+        int n = 0;
+        while( buffer.position < data_size )
+        {
+            int slot = g1(&buffer);
+            int obj_id_raw = g2(&buffer);
+            int count = g1(&buffer);
+            if( count == 255 )
+                count = g4(&buffer);
+            packet->_update_inv_partial.entries[n].slot = slot;
+            packet->_update_inv_partial.entries[n].obj_id = obj_id_raw - 1;
+            packet->_update_inv_partial.entries[n].count = count;
+            n++;
+        }
+        packet->_update_inv_partial.count = n;
+        return 1;
+    }
+    case PKTIN_LC245_2_SET_MULTIWAY:
+    {
+        packet->_set_multiway.multiway = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED:
+    {
+        /* Contains sub-zone packets; store the zone base like partial_follows. */
+        packet->_update_zone_partial_follows.base_x = g1(&buffer);
+        packet->_update_zone_partial_follows.base_z = g1(&buffer);
+        return 1;
+    }
+    default:
+        printf("[gameproto_parse_lc245_2] Unknown packet type: %d\n", packet_type);
+        break;
+    }
+
+    return 0;
+}
+
+void
+gameproto_free_lc245_2(struct RevPacket_LC245_2* p)
+{
+    if( !p )
+        return;
+
+    switch( p->packet_type )
+    {
+    case PKTIN_LC245_2_NPC_INFO:
+        free(p->_npc_info.data);
+        p->_npc_info.data = NULL;
+        p->_npc_info.length = 0;
+        break;
+    case PKTIN_LC245_2_PLAYER_INFO:
+        free(p->_player_info.data);
+        p->_player_info.data = NULL;
+        p->_player_info.length = 0;
+        break;
+    case PKTIN_LC245_2_UPDATE_INV_FULL:
+        free(p->_update_inv_full.obj_ids);
+        free(p->_update_inv_full.obj_counts);
+        p->_update_inv_full.obj_ids = NULL;
+        p->_update_inv_full.obj_counts = NULL;
+        p->_update_inv_full.size = 0;
+        break;
+    case PKTIN_LC245_2_IF_SETTEXT:
+        free(p->_if_settext.text);
+        p->_if_settext.text = NULL;
+        break;
+    case PKTIN_LC245_2_MESSAGE_GAME:
+        free(p->_message_game.text);
+        p->_message_game.text = NULL;
+        break;
+    case PKTIN_LC245_2_MESSAGE_PRIVATE:
+        free(p->_message_private.text);
+        p->_message_private.text = NULL;
+        break;
+    case PKTIN_LC245_2_UPDATE_INV_PARTIAL:
+        free(p->_update_inv_partial.entries);
+        p->_update_inv_partial.entries = NULL;
+        p->_update_inv_partial.count = 0;
+        break;
+    default:
+        break;
+    }
+}

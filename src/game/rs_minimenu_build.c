@@ -396,6 +396,12 @@ if_button_action_for_type(int button_type)
     }
 }
 
+int
+RS_Minimenu_IfButtonActionForType(int button_type)
+{
+    return if_button_action_for_type(button_type);
+}
+
 /* Generic component rows: social first, else op rows (with the component's
  * option label as the row target — reference "<op> <target>") or, for
  * op-less buttons, a single label row. Port of v1

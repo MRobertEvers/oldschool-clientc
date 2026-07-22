@@ -1,0 +1,251 @@
+#include "loginproto.h"
+
+#include "jbase37.h"
+
+#include <assert.h>
+#include <rsbuffer.h>
+#include <stdlib.h>
+#include <string.h>
+
+static int
+rsbuf_rsaenc(
+    struct RSCache_Buffer* buffer,
+    const struct rsa* rsa)
+{
+    int8_t* temp = malloc(buffer->position);
+    memcpy(temp, buffer->data, buffer->position);
+
+    int enclen = rsa_crypt(
+        (struct rsa*)rsa, temp, buffer->position, buffer->data + 1, buffer->size);
+    free(temp);
+
+    buffer->data[0] = enclen;
+    buffer->position = enclen + 1;
+
+    return enclen;
+}
+
+static void
+default_seed_fn(
+    void* user,
+    int32_t* seed)
+{
+    (void)user;
+    seed[0] = (rand() % 99999999);
+    seed[1] = (rand() % 99999999);
+    /* seed[2] and seed[3] come from the server seed. */
+}
+
+struct LoginProto*
+loginproto_new(
+    struct Isaac* random_in,
+    struct Isaac* random_out,
+    struct rsa const* rsa,
+    struct GameProtoRevTable const* rev,
+    char const* username,
+    char const* password)
+{
+    struct LoginProto* loginproto = malloc(sizeof(struct LoginProto));
+    assert(loginproto);
+    assert(rev);
+    memset(loginproto, 0, sizeof(struct LoginProto));
+
+    loginproto->random_in = random_in;
+    loginproto->random_out = random_out;
+    memcpy(&loginproto->rsa, rsa, sizeof(struct rsa));
+    loginproto->rev = rev;
+
+    loginproto->out = ringbuf_new(512);
+    loginproto->in = ringbuf_new(8192);
+
+    loginproto->username = username;
+    loginproto->password = password;
+
+    loginproto->seed_fn = default_seed_fn;
+    loginproto->seed_user = NULL;
+
+    loginproto->state = LOGINPROTO_SEND_CONNECT;
+    return loginproto;
+}
+
+void
+loginproto_set_seed_fn(
+    struct LoginProto* loginproto,
+    loginproto_seed_fn seed_fn,
+    void* user)
+{
+    assert(loginproto);
+    loginproto->seed_fn = seed_fn ? seed_fn : default_seed_fn;
+    loginproto->seed_user = user;
+}
+
+void
+loginproto_free(struct LoginProto* loginproto)
+{
+    if( !loginproto )
+        return;
+    if( loginproto->out )
+    {
+        ringbuf_free(loginproto->out);
+        loginproto->out = NULL;
+    }
+    if( loginproto->in )
+    {
+        ringbuf_free(loginproto->in);
+        loginproto->in = NULL;
+    }
+    free(loginproto);
+}
+
+int
+loginproto_recv(
+    struct LoginProto* loginproto,
+    uint8_t* data,
+    int size)
+{
+    if( !loginproto || !data || size <= 0 )
+        return 0;
+
+    {
+        int to_read_cnt = loginproto->await_recv_cnt > size ? size : loginproto->await_recv_cnt;
+        ringbuf_write(loginproto->in, data, to_read_cnt);
+        loginproto->await_recv_cnt -= to_read_cnt;
+        return to_read_cnt;
+    }
+}
+
+int
+loginproto_send(
+    struct LoginProto* loginproto,
+    uint8_t* out,
+    int out_size)
+{
+    assert(out_size >= ringbuf_avail(loginproto->out));
+    return ringbuf_read(loginproto->out, out, out_size);
+}
+
+int
+loginproto_poll(struct LoginProto* loginproto)
+{
+    struct RSCache_Buffer in;
+    struct RSCache_Buffer out;
+    struct RSCache_Buffer out_encrypted;
+
+    if( ringbuf_used(loginproto->out) != 0 )
+        return LOGINPROTO_AWAIT_SEND;
+
+    switch( loginproto->state )
+    {
+    case LOGINPROTO_SEND_CONNECT:
+    {
+        RSCache_BufferInit(&out, loginproto->tempout, sizeof(loginproto->tempout));
+
+        uint64_t username37 = strtobase37(loginproto->username);
+        int login_server = (int)((username37 >> 16) & 0x1F);
+
+        p1(&out, 14);
+        p1(&out, login_server);
+
+        ringbuf_write(loginproto->out, loginproto->tempout, out.position);
+
+        loginproto->await_recv_cnt = 9 + 8;
+        loginproto->state = LOGINPROTO_SEND_CREDENTIALS;
+        return LOGINPROTO_AWAIT_RECV;
+    }
+    case LOGINPROTO_SEND_CREDENTIALS:
+    {
+        RSCache_BufferInit(&out, loginproto->tempout, sizeof(loginproto->tempout));
+        RSCache_BufferInit(&in, loginproto->tempin, sizeof(loginproto->tempin));
+
+        /* The server sends 9 bytes that don't matter, then the 8-byte seed. */
+        if( ringbuf_used(loginproto->in) < 9 + 8 )
+            return LOGINPROTO_AWAIT_RECV;
+
+        ringbuf_read(loginproto->in, loginproto->tempin, 9 + 8);
+
+        in.position = 9;
+        uint64_t server_seed = g8(&in);
+
+        loginproto->seed_fn(loginproto->seed_user, loginproto->seed);
+        loginproto->seed[2] = (int32_t)(server_seed >> 32);
+        loginproto->seed[3] = (int32_t)(server_seed & 0xFFFFFFFF);
+
+        RSCache_BufferInit(
+            &out_encrypted, loginproto->tempencrypt, sizeof(loginproto->tempencrypt));
+        p1(&out_encrypted, 10);
+        p4(&out_encrypted, loginproto->seed[0]);
+        p4(&out_encrypted, loginproto->seed[1]);
+        p4(&out_encrypted, loginproto->seed[2]);
+        p4(&out_encrypted, loginproto->seed[3]);
+        p4(&out_encrypted, 1337); /* uid */
+        pjstr(&out_encrypted, loginproto->username, '\n');
+        pjstr(&out_encrypted, loginproto->password, '\n');
+
+        if( rsbuf_rsaenc(&out_encrypted, &loginproto->rsa) < 0 )
+        {
+            loginproto->state = LOGINPROTO_ERROR;
+            return -1;
+        }
+
+        {
+            int encrypted_len = out_encrypted.position;
+            int low_memory = 0;
+            RSCache_BufferInit(&out, loginproto->tempout, sizeof(loginproto->tempout));
+
+            /* 18 = reconnect (not implemented), 16 = fresh login. */
+            p1(&out, 16);
+
+            p1(&out, encrypted_len + 36 + 1 + 1);
+            p1(&out, loginproto->rev->client_version);
+            p1(&out, low_memory ? 1 : 0);
+
+            for( int i = 0; i < 9; i++ )
+                p4(&out, loginproto->rev->jag_checksum[i]);
+
+            pbuf(&out, out_encrypted.data, encrypted_len);
+
+            ringbuf_write(loginproto->out, loginproto->tempout, out.position);
+        }
+
+        isaac_seed(loginproto->random_out, (int*)loginproto->seed, 4);
+
+        {
+            int32_t seed_in[4];
+            for( int i = 0; i < 4; i++ )
+                seed_in[i] = loginproto->seed[i] + 50;
+            isaac_seed(loginproto->random_in, (int*)seed_in, 4);
+        }
+
+        loginproto->state = LOGINPROTO_LOGIN_RESPONSE;
+        loginproto->await_recv_cnt = 1;
+        return LOGINPROTO_AWAIT_SEND;
+    }
+    case LOGINPROTO_LOGIN_RESPONSE:
+    {
+        RSCache_BufferInit(&in, loginproto->tempin, sizeof(loginproto->tempin));
+        if( ringbuf_used(loginproto->in) < 1 )
+            return LOGINPROTO_AWAIT_RECV;
+
+        ringbuf_read(loginproto->in, in.data, 1);
+
+        {
+            int reply_byte = g1(&in);
+
+            loginproto->await_recv_cnt = 0;
+            if( reply_byte == 2 || reply_byte == 18 || reply_byte == 19 )
+            {
+                loginproto->state = LOGINPROTO_SUCCESS;
+                return LOGINPROTO_SUCCESS;
+            }
+            loginproto->state = LOGINPROTO_ERROR;
+            return LOGINPROTO_AWAIT_RECV;
+        }
+    }
+    case LOGINPROTO_SUCCESS:
+        return LOGINPROTO_SUCCESS;
+    case LOGINPROTO_ERROR:
+        return LOGINPROTO_ERROR;
+    }
+
+    return LOGINPROTO_ERROR;
+}

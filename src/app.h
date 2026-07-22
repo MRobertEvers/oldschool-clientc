@@ -7,9 +7,14 @@
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_builder/uitree_builder.h"
 #include "engine/uitree_scene_bridge.h"
+#include "game/rs_chat.h"
 #include "game/rs_cs1_host.h"
+#include "game/rs_minimenu_build.h"
 #include "game/rs_cs2_host.h"
+#include "game/rs_if1_buttons.h"
 #include "game/rs_player_stats.h"
+#include "game/rs_social.h"
+#include "game/rs_ui_slots.h"
 #include "input/torirs_input.h"
 #include "inv/inv_manager.h"
 #include "platform/platform_x_io.h"
@@ -32,6 +37,8 @@ struct PaintersBuffer;
 struct RSCache_Dat1Disk;
 struct Dat1BuildCache;
 struct Dat2BuildCache;
+struct ToriRS_CmdBus;
+struct ToriRS_Network;
 
 /*
  * Application shell: owns every subsystem and the update loop body, with no
@@ -74,6 +81,10 @@ struct AppConfig
     char const* revconfig_ui_ini;
     /** Companion RevConfig sprite/font INI. NULL/"" = none. */
     char const* revconfig_cache_ini;
+    /** --connect target "host[:port]". NULL/"" = offline (no networking). */
+    char const* connect_target;
+    char const* connect_user;
+    char const* connect_pass;
 };
 
 struct App
@@ -147,6 +158,25 @@ struct App
     struct RS_PlayerStats stats;
     struct RS_CS2Host host;
     struct RS_CS1Host cs1_host;
+    /** Runtime interface slots (tabs, modals, chat) — reference Client-TS
+     *  mainModalId/sideOverlayId/sideTab fields. */
+    struct RS_UISlots slots;
+    /** Friends/ignores store feeding the clientCode row pass. */
+    struct RS_Social social;
+    /** Chat message ring + input state, and its per-frame flattened draw
+     *  model (the host hands chat_view to the emit walk). */
+    struct RS_Chat chat;
+    struct UIChatView chat_view;
+    /** Minimenu chat-line seam (points at app_chat_line_at). */
+    struct RS_MinimenuChatSource chat_source;
+    /** Server-notify callbacks for IF1 button clicks (NULL until net). */
+    struct RS_IF1ButtonSink button_sink;
+    /** Client ticks since boot (reference loopCycle; drives design preview). */
+    uint64_t logic_cycle;
+    /** Networking subsystem; NULL until --connect enables it. Owned heap
+     *  pointer so app.h need not include the net headers. */
+    struct ToriRS_Network* net;
+    int net_enabled;
 
     /* Phase 5: frame state. */
     struct UITreeHost ui_host;
@@ -179,12 +209,33 @@ void
 App_OpenRootInterface(struct App* app, int interface_id);
 
 /**
+ * Drain the command bus, routing each command to its subsystem: the single
+ * command loop of the unified input path. TORIRS_CMD_INPUT_* commands apply to
+ * `input` (ToriRS_Input); TORIRS_CMD_NET_* commands go to the network
+ * subsystem once one is attached (ignored until then); TORIRS_CMD_FRAME is a
+ * record/replay delimiter and is skipped. Call between LibToriRS_Input_Begin
+ * and _End, before App_RunOnce.
+ */
+void
+App_DrainCommands(
+    struct App* app,
+    struct ToriRS_CmdBus* bus,
+    struct LibToriRS_Input* input);
+
+/**
  * One loop-body iteration: pump tasks, run pending 20ms logic ticks
  * (client clock, widget timers, animations), then the per-frame interaction
  * pass and emit rebuild. Returns non-zero when the frame needs re-rendering.
  */
 int
 App_RunOnce(struct App* app, uint64_t now_ms, struct LibToriRS_Input* input);
+
+/**
+ * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree
+ * mutation (slot mounts, packet-driven component changes).
+ */
+void
+App_RefreshAfterTreeMutation(struct App* app);
 
 /** Rasterize the current emit buffer into pixels (width x height ARGB). */
 void

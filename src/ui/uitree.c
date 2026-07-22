@@ -870,6 +870,7 @@ UITree_Push(
     component->dynamic = spec->dynamic ? 1 : 0;
     component->dynamic_child_index = spec->dynamic ? spec->dynamic_child_index : -1;
     component->menu_options = spec->menu_options;
+    component->slot_tag = spec->slot_tag;
 
     if( spec->has_position )
     {
@@ -917,6 +918,7 @@ UITree_Push(
 
     case UIELEM_BUILTIN_CHAT:
         component->u.chat.minimenu = spec->u.chat.minimenu;
+        component->u.chat.font_id = spec->u.chat.font_id;
         break;
 
     case UIELEM_BUILTIN_CHAT_BUTTON:
@@ -946,6 +948,7 @@ UITree_Push(
         component->u.sidebar.tabno = spec->u.sidebar.tabno;
         component->u.sidebar.componentno = spec->u.sidebar.componentno;
         component->u.sidebar.inv_source_id = spec->u.sidebar.inv_source_id;
+        component->u.sidebar.selected = spec->u.sidebar.selected;
         break;
 
     case UIELEM_RS_LAYER:
@@ -1096,9 +1099,20 @@ UITree_ClearSidebarChildren(
     assert(tree);
     if( sidebar_idx < 0 || (uint32_t)sidebar_idx >= tree->component_count )
         return;
-    struct UITreeComponent* c = &tree->components[sidebar_idx];
-    if( c->type != UIELEM_BUILTIN_SIDEBAR )
+    if( tree->components[sidebar_idx].type != UIELEM_BUILTIN_SIDEBAR )
         return;
+    UITree_ClearChildren(tree, sidebar_idx);
+}
+
+void
+UITree_ClearChildren(
+    struct UITree* tree,
+    int32_t owner_idx)
+{
+    assert(tree);
+    if( owner_idx < 0 || (uint32_t)owner_idx >= tree->component_count )
+        return;
+    struct UITreeComponent* c = &tree->components[owner_idx];
     c->first_child = -1;
     c->is_dirty = 1;
     tree->generation++;

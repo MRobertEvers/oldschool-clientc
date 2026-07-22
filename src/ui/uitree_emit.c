@@ -1,10 +1,20 @@
 #include "uitree_emit.h"
 
+#include "uitree_chatview.h"
 #include "uitree_hovertext.h"
 #include "uitree_inv_view.h"
 #include "uitree_layout.h"
 #include "uitree_minimenu.h"
 #include "uitree_scroll.h"
+
+static int
+clip_intersect(
+    struct UITreeEmitClip* out,
+    struct UITreeEmitClip const* parent,
+    int x,
+    int y,
+    int w,
+    int h);
 
 #include <assert.h>
 #include <stdbool.h>
@@ -466,11 +476,41 @@ UITree_EmitFill(
         return true;
     }
 
+    case UIELEM_BUILTIN_TAB_ICONS:
+    {
+        /* Icons draw only for tabs with an interface assigned (reference
+         * drawSidebarIcons gates on sideOverlayId[n] != -1). */
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TAB_ENABLED,
+            .u.tab_enabled.tabno = component->u.tab_icon.tabno,
+        };
+        if( host && !UITree_Host(host, &req) )
+            return false;
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = component->u.tab_icon.scene_id;
+        out->atlas_index = component->u.tab_icon.atlas_index;
+        if( out->scene_id <= 0 )
+            return false;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_REDSTONE_TAB:
+        /* ShouldEmit already gated on this being the selected tab; the node
+         * carries both variants and the highlight is the active one. */
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = component->u.redstone_tab.scene_id_active > 0
+                            ? component->u.redstone_tab.scene_id_active
+                            : component->u.redstone_tab.scene_id;
+        out->atlas_index = component->u.redstone_tab.scene_id_active > 0
+                               ? component->u.redstone_tab.atlas_index_active
+                               : component->u.redstone_tab.atlas_index;
+        if( out->scene_id <= 0 )
+            return false;
+        return true;
+
     case UIELEM_BUILTIN_SIDEBAR:
     case UIELEM_BUILTIN_CHAT:
     case UIELEM_BUILTIN_CHAT_BUTTON:
-    case UIELEM_BUILTIN_REDSTONE_TAB:
-    case UIELEM_BUILTIN_TAB_ICONS:
     case UIELEM_BUILTIN_MINIMENU:
     case UIELEM_BUILTIN_HOVERTEXT:
     case UIELEM_RS_INV:
@@ -721,6 +761,314 @@ emit_hovertext(
         desc.text = hover->text;
         desc.clip = *parent_clip;
         emit_buffer_append(out, &desc);
+    }
+}
+
+static void
+emit_chat_span(
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* clip,
+    int x,
+    int baseline_y,
+    int w,
+    int font_id,
+    int color,
+    int centered,
+    char const* text)
+{
+    struct UITreeEmitDesc desc;
+    memset(&desc, 0, sizeof(desc));
+    desc.kind = UITREE_EMIT_TEXT;
+    desc.node_index = idx;
+    desc.component_id = c->component_id;
+    desc.x = x;
+    /* Baseline semantics: box top = baseline - line height (p12 ascent 12). */
+    desc.y = baseline_y - 12;
+    desc.w = w;
+    desc.h = 14;
+    desc.font_id = font_id;
+    desc.color = color;
+    desc.text_center = centered;
+    desc.text = text;
+    desc.clip = *clip;
+    emit_buffer_append(out, &desc);
+}
+
+/*
+ * Expand the chat panel into TEXT descs from the host's flattened draw model
+ * (reference drawChat; layout math lives game-side in rs_chat.c). Clips the
+ * message area to the region so scrolled lines never bleed into the input
+ * line or outside the chatback.
+ */
+static void
+emit_chat(
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip)
+{
+    struct UIChatView const* view = NULL;
+    int x = 0, y = 0, w = 0, h = 0;
+
+    assert(c && c->type == UIELEM_BUILTIN_CHAT);
+    assert(out && parent_clip);
+
+    if( !host )
+        return;
+    {
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_CHAT_STATE,
+            .u.get_chat_state.out = &view,
+        };
+        if( !UITree_Host(host, &req) || !view )
+            return;
+    }
+    if( !view->visible )
+        return;
+
+    UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
+
+    if( view->centered )
+    {
+        for( int i = 0; i < view->center_count; i++ )
+        {
+            struct UIChatViewLine const* line = &view->center_lines[i];
+            for( int s = 0; s < line->span_count; s++ )
+                emit_chat_span(
+                    out,
+                    c,
+                    idx,
+                    parent_clip,
+                    x,
+                    y + line->baseline_y,
+                    w,
+                    view->font_id,
+                    line->spans[s].color,
+                    1,
+                    line->spans[s].text);
+        }
+        return;
+    }
+
+    {
+        /* Message window clip (reference setClipping(0,0,463,77)). */
+        struct UITreeEmitClip msg_clip;
+        if( !clip_intersect(&msg_clip, parent_clip, x, y, w < 463 ? w : 463, 77) )
+            msg_clip = *parent_clip;
+        for( int i = 0; i < view->line_count; i++ )
+        {
+            struct UIChatViewLine const* line = &view->lines[i];
+            for( int s = 0; s < line->span_count; s++ )
+                emit_chat_span(
+                    out,
+                    c,
+                    idx,
+                    &msg_clip,
+                    x + line->spans[s].x,
+                    y + line->baseline_y,
+                    w - line->spans[s].x,
+                    view->font_id,
+                    line->spans[s].color,
+                    0,
+                    line->spans[s].text);
+        }
+    }
+
+    if( view->has_input_line )
+    {
+        struct UIChatViewLine const* line = &view->input_line;
+        for( int s = 0; s < line->span_count; s++ )
+            emit_chat_span(
+                out,
+                c,
+                idx,
+                parent_clip,
+                x + line->spans[s].x,
+                y + line->baseline_y,
+                w - line->spans[s].x,
+                view->font_id,
+                line->spans[s].color,
+                0,
+                line->spans[s].text);
+        /* Separator above the input line (reference hline at y 77). */
+        {
+            struct UITreeEmitDesc desc;
+            memset(&desc, 0, sizeof(desc));
+            desc.kind = UITREE_EMIT_RECT;
+            desc.node_index = idx;
+            desc.component_id = c->component_id;
+            desc.x = x;
+            desc.y = y + 77;
+            desc.w = w;
+            desc.h = 1;
+            desc.color = 0x000000;
+            desc.filled = 1;
+            desc.clip = *parent_clip;
+            emit_buffer_append(out, &desc);
+        }
+    }
+}
+
+/*
+ * Expand a privacy-bar button into its two lines (reference
+ * redrawPrivacySettings: label centered in WHITE, current mode centered in the
+ * mode's colour, both shadowed). All geometry, labels, and colours come from
+ * the node's INI-decoded config; the live mode comes from the host.
+ */
+static void
+emit_chat_button(
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip)
+{
+    struct UITreeChatButtonConfig const* cfg;
+    int x = 0, y = 0, w = 0, h = 0;
+    int mode = 0;
+
+    assert(c && c->type == UIELEM_BUILTIN_CHAT_BUTTON);
+    assert(out && parent_clip);
+
+    if( !host )
+        return;
+    cfg = &c->u.chat_button;
+    UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
+
+    {
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_CHAT_FILTER_MODE,
+            .u.chat_filter.filter = (int)cfg->filter,
+        };
+        mode = UITree_Host(host, &req);
+        if( mode < 0 || mode >= 4 )
+            mode = 0;
+    }
+
+    if( cfg->label[0] )
+    {
+        struct UITreeEmitDesc desc;
+        memset(&desc, 0, sizeof(desc));
+        desc.kind = UITREE_EMIT_TEXT;
+        desc.node_index = idx;
+        desc.component_id = c->component_id;
+        desc.x = x;
+        desc.y = y + cfg->label_y;
+        desc.w = w;
+        desc.h = h;
+        desc.font_id = cfg->font_id;
+        desc.color = 0xFFFFFF;
+        desc.text_center = cfg->center;
+        desc.text_shadowed = cfg->shadowed;
+        desc.text = cfg->label;
+        desc.clip = *parent_clip;
+        emit_buffer_append(out, &desc);
+    }
+
+    if( cfg->mode_label[mode][0] )
+    {
+        struct UITreeEmitDesc desc;
+        memset(&desc, 0, sizeof(desc));
+        desc.kind = UITREE_EMIT_TEXT;
+        desc.node_index = idx;
+        desc.component_id = c->component_id;
+        desc.x = x;
+        desc.y = y + cfg->mode_y;
+        desc.w = w;
+        desc.h = h;
+        desc.font_id = cfg->font_id;
+        desc.color = cfg->mode_color[mode];
+        desc.text_center = cfg->center;
+        desc.text_shadowed = cfg->shadowed;
+        desc.text = cfg->mode_label[mode];
+        desc.clip = *parent_clip;
+        emit_buffer_append(out, &desc);
+    }
+}
+
+/*
+ * Expand TYPE_INV_TEXT into per-slot obj-name lines (reference drawInterface
+ * TYPE_INV_TEXT: "name" or "name xN" for stacks, grid stride marginX+115 /
+ * marginY+12, y is the text baseline).
+ */
+static void
+emit_rs_inv_text_slots(
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    int x,
+    int y,
+    int scroll_off_x,
+    int scroll_off_y,
+    struct UITreeEmitClip const* clip)
+{
+    int slot = 0;
+
+    assert(c && c->type == UIELEM_RS_INV_TEXT);
+    if( !host || c->u.rs_inv_text.inv_source_id < 0 )
+        return;
+
+    for( int row = 0; row < c->u.rs_inv_text.rows; row++ )
+    {
+        for( int col = 0; col < c->u.rs_inv_text.cols; col++, slot++ )
+        {
+            struct UIInvSlotData data = { 0 };
+            char name[64] = { 0 };
+            int stackable = 0;
+            struct UITreeEmitDesc desc;
+
+            {
+                struct UITreeHostRequest req = {
+                    .kind = UITREE_HOST_GET_INV_SOURCE_SLOT,
+                    .u.get_inv_source_slot.source_id = c->u.rs_inv_text.inv_source_id,
+                    .u.get_inv_source_slot.slot = slot,
+                    .u.get_inv_source_slot.out = &data,
+                };
+                if( !UITree_Host(host, &req) || data.obj_id <= 0 )
+                    continue;
+            }
+            {
+                struct UITreeHostRequest req = {
+                    .kind = UITREE_HOST_GET_OBJ_NAME,
+                    .u.get_obj_name.obj_id = data.obj_id,
+                    .u.get_obj_name.out = name,
+                    .u.get_obj_name.cap = (int)sizeof(name),
+                    .u.get_obj_name.out_stackable = &stackable,
+                };
+                if( !UITree_Host(host, &req) || !name[0] )
+                    continue;
+            }
+
+            memset(&desc, 0, sizeof(desc));
+            desc.kind = UITREE_EMIT_TEXT;
+            desc.node_index = idx;
+            desc.component_id = c->component_id;
+            desc.x = x + col * (c->u.rs_inv_text.margin_x + 115) - scroll_off_x;
+            /* Reference y is the baseline; our text box top sits one line up. */
+            desc.y = y + row * (c->u.rs_inv_text.margin_y + 12) - 12 - scroll_off_y;
+            desc.w = 115;
+            desc.h = 14;
+            desc.font_id = c->u.rs_inv_text.font_id;
+            desc.color = c->u.rs_inv_text.color;
+            desc.text_center = c->u.rs_inv_text.center;
+            desc.text_shadowed = c->u.rs_inv_text.shadowed;
+            if( stackable || data.obj_count != 1 )
+                snprintf(
+                    desc.text_formatted,
+                    sizeof(desc.text_formatted),
+                    "%s x%d",
+                    name,
+                    data.obj_count);
+            else
+                snprintf(desc.text_formatted, sizeof(desc.text_formatted), "%s", name);
+            desc.text = ""; /* renderer uses text_formatted when set */
+            desc.clip = *clip;
+            emit_buffer_append(out, &desc);
+        }
     }
 }
 
@@ -1126,6 +1474,20 @@ emit_walk_node(
     else if( !if1_bar && c->type == UIELEM_BUILTIN_HOVERTEXT )
     {
         emit_hovertext(host, out, c, idx, parent_clip);
+    }
+    else if( !if1_bar && c->type == UIELEM_BUILTIN_CHAT_BUTTON )
+    {
+        /* Fixed chrome: multi-desc expansion, never scrolled or dragged. */
+        emit_chat_button(host, out, c, idx, parent_clip);
+    }
+    else if( !if1_bar && c->type == UIELEM_BUILTIN_CHAT )
+    {
+        emit_chat(host, out, c, idx, parent_clip);
+    }
+    else if( !if1_bar && c->type == UIELEM_RS_INV_TEXT )
+    {
+        emit_rs_inv_text_slots(
+            host, out, c, idx, x, y, scroll_off_x, scroll_off_y, parent_clip);
     }
     else if( !if1_bar && UITree_EmitFill(tree, host, c, idx, hovered_component_id, &desc) )
     {

@@ -639,6 +639,13 @@ revconfig_item_apply_uicomponent_field(
     case RCFIELD_UICOMPONENT_TABNO:
         comp->tabno = atoi(value);
         break;
+    case RCFIELD_UICOMPONENT_SELECTED:
+        comp->selected = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
+        break;
+    case RCFIELD_UICOMPONENT_SLOT:
+        strncpy(comp->slot, value, sizeof(comp->slot) - 1);
+        comp->slot[sizeof(comp->slot) - 1] = '\0';
+        break;
     case RCFIELD_UICOMPONENT_SPRITE_ACTIVE:
         strncpy(comp->sprite_active, value, sizeof(comp->sprite_active) - 1);
         break;

@@ -62,4 +62,9 @@ RS_Minimenu_Build(
 int
 RS_Minimenu_DefaultOptionIndex(struct UIMinimenu const* menu);
 
+/** Minimenu action for a bare IF1 buttonType (OK/TOGGLE/SELECT/CONTINUE/
+ * CLOSE) — the default action when a button is clicked outside a menu. */
+int
+RS_Minimenu_IfButtonActionForType(int button_type);
+
 #endif

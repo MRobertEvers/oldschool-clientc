@@ -255,6 +255,8 @@ fill_tree_op_from_component(
     if( comp->has_font_ref )
         strncpy(op->font_ref, comp->font_ref, sizeof(op->font_ref) - 1);
     op->tabno = comp->tabno;
+    op->selected = comp->selected;
+    strncpy(op->slot, comp->slot, sizeof(op->slot) - 1);
     op->level_mask = parse_paint_levels_mask(comp->paint_levels);
     op->color = comp->color;
     op->filled = comp->filled;

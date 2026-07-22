@@ -152,6 +152,8 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE1_COLOR,
     RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE2_COLOR,
     RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE3_COLOR,
+    RCFIELD_UICOMPONENT_SELECTED,
+    RCFIELD_UICOMPONENT_SLOT,
     RCFIELD_INV_ITEM,
     RCFIELD_UILAYOUT_COMPONENT,
     RCFIELD_UILAYOUT_X,
@@ -397,6 +399,20 @@ struct RevConfigUIComponentItem
      * Tab index for sidebar, redstone_tab, and tab_icon owners.
      */
     int tabno;
+
+    /*
+     * INI: selected= (true/1)
+     * type=sidebar: this tab is the boot-time selection (reference sideTab
+     * default 3; kept in the INI so C code never hardcodes a tab number).
+     */
+    int selected;
+
+    /*
+     * INI: slot=main_modal|main_overlay|side_modal|chat|tut
+     * Marks this chrome node as a runtime interface mount region (reference
+     * mainModalId/sideModalId/chatComId surfaces). Empty = not a slot.
+     */
+    char slot[24];
 
     /*
      * INI: componentno=  (default -1 when section opens)

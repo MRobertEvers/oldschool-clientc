@@ -1,0 +1,145 @@
+#ifndef SRC_NET_NET_H
+#define SRC_NET_NET_H
+
+/*
+ * ToriRS_Network: the networking subsystem the command bus feeds. Owns the
+ * hierarchical state machine (DISCONNECTED -> LOGIN -> GAME), the ISAAC
+ * ciphers, RSA key, login machine, and packet frame reader; ported from
+ * v0/tori_rs_net.u.c with the GGame fields folded into this struct.
+ *
+ * Raw received bytes arrive via ToriRS_Network_HandleCmd (TORIRS_CMD_NET_RECV
+ * on the bus); parsed game packets accumulate in a FIFO the exec layer drains
+ * with PopPacket. Outbound bytes (CONNECT / SEND_DATA) go to `out`, which the
+ * socket layer or mock server drains — this direction is not on the
+ * serialized command bus.
+ */
+
+#include "cmd/cmdring.h"
+#include "isaac.h"
+#include "loginproto.h"
+#include "packetbuffer.h"
+#include "rev/gameproto_revisions.h"
+#include "rev/lc245_2/revpacket_lc245_2.h"
+#include "rsa.h"
+
+#include <stdint.h>
+
+enum ToriRS_NetState
+{
+    TORIRS_NET_DISCONNECTED = 0,
+    TORIRS_NET_LOGIN,
+    TORIRS_NET_GAME,
+};
+
+/** Mirrors the platform-side connection status (v0 ToriRSNetConnectionStatus). */
+enum ToriRS_NetConnStatus
+{
+    TORIRS_NET_STATUS_DISCONNECTED = 0,
+    TORIRS_NET_STATUS_CONNECTING = 1,
+    TORIRS_NET_STATUS_CONNECTED = 2,
+    TORIRS_NET_STATUS_FAILED = 3,
+};
+
+/** Outbound message types the socket layer consumes (v0 net message types). */
+enum ToriRS_NetOutType
+{
+    TORIRS_NET_OUT_CONNECT = 1,   /* payload "host:port" */
+    TORIRS_NET_OUT_SEND_DATA = 2, /* raw bytes to the socket */
+};
+
+struct RevPacket_LC245_2_Item;
+
+struct ToriRS_Network
+{
+    enum ToriRS_NetState state;
+    struct GameProtoRevTable const* rev;
+
+    struct Isaac* random_in;
+    struct Isaac* random_out;
+    struct rsa rsa;
+    int rsa_ready;
+
+    struct LoginProto* loginproto;   /* live only in LOGIN */
+    struct PacketBuffer packet_buffer; /* live only in GAME */
+
+    /** game -> platform: CONNECT / SEND_DATA frames (not on the command bus). */
+    struct ToriRS_CmdRing out;
+
+    /** Parsed inbound packets, oldest first. */
+    struct RevPacket_LC245_2_Item* packets_head;
+    struct RevPacket_LC245_2_Item* packets_tail;
+
+    int conn_status;
+
+    char host[128];
+    char username[64];
+    char password[64];
+
+    loginproto_seed_fn seed_fn;
+    void* seed_user;
+};
+
+/** Initialize with a revision table and RSA key (hex exponent/modulus). */
+void
+ToriRS_Network_Init(
+    struct ToriRS_Network* net,
+    struct GameProtoRevTable const* rev,
+    char const* rsa_exp_hex,
+    char const* rsa_mod_hex);
+
+void
+ToriRS_Network_Free(struct ToriRS_Network* net);
+
+/** Deterministic client seed (tests / record-replay). */
+void
+ToriRS_Network_SetSeedFn(
+    struct ToriRS_Network* net,
+    loginproto_seed_fn seed_fn,
+    void* user);
+
+/** Begin the login handshake: enter LOGIN and push a CONNECT to `out`. */
+void
+ToriRS_Network_ConnectLogin(
+    struct ToriRS_Network* net,
+    char const* host,
+    char const* username,
+    char const* password);
+
+/**
+ * Handle one TORIRS_CMD_NET_* command (raw-byte semantics):
+ *   NET_RECV   -> drain bytes through the active state machine
+ *   NET_STATUS -> update conn status; disconnect on FAILED/DISCONNECTED
+ *   NET_CONNECT is a producer-only echo and is ignored here.
+ */
+void
+ToriRS_Network_HandleCmd(
+    struct ToriRS_Network* net,
+    uint32_t cmd_type,
+    uint8_t const* data,
+    int len);
+
+/** Queue raw bytes to the socket (SEND_DATA). */
+void
+ToriRS_Network_SendRaw(
+    struct ToriRS_Network* net,
+    uint8_t const* data,
+    int len);
+
+/** Pop the oldest parsed packet into `out` (shallow copy; heap fields
+ *  transfer to the caller, which must free with gameproto_free_lc245_2).
+ *  Returns 1 when a packet was popped. */
+int
+ToriRS_Network_PopPacket(
+    struct ToriRS_Network* net,
+    struct RevPacket_LC245_2* out);
+
+/** Drain the outbound ring into a socket-facing consumer. Returns 1 and
+ *  fills header/payload when a frame was popped. payload must hold
+ *  TORIRS_CMD_MAX_PAYLOAD bytes. */
+int
+ToriRS_Network_PopOut(
+    struct ToriRS_Network* net,
+    struct ToriRS_CmdHeader* header,
+    uint8_t* payload);
+
+#endif

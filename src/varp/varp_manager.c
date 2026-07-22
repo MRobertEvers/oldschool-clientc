@@ -83,13 +83,59 @@ alloc_var_arrays(
     return true;
 }
 
+/*
+ * Untyped mode: with no VarpType table loaded (dat1 boot path), the var
+ * arrays grow on demand so button toggles and VARP packets still land.
+ * With types loaded, ids beyond the table stay rejected as before.
+ */
+static bool
+ensure_untyped_var_capacity(
+    struct VarPManager* mgr,
+    int variable)
+{
+    int grown;
+    int* var;
+    int* var_serv;
+
+    if( variable < mgr->varp_count )
+        return true;
+    if( mgr->varp_types )
+        return false;
+
+    grown = mgr->varp_count == 0 ? 64 : mgr->varp_count;
+    while( grown <= variable )
+        grown *= 2;
+
+    var = calloc((size_t)grown, sizeof(int));
+    var_serv = calloc((size_t)grown, sizeof(int));
+    if( !var || !var_serv )
+    {
+        free(var);
+        free(var_serv);
+        return false;
+    }
+    if( mgr->varp_count > 0 )
+    {
+        memcpy(var, mgr->var, (size_t)mgr->varp_count * sizeof(int));
+        memcpy(var_serv, mgr->var_serv, (size_t)mgr->varp_count * sizeof(int));
+    }
+    free(mgr->var);
+    free(mgr->var_serv);
+    mgr->var = var;
+    mgr->var_serv = var_serv;
+    mgr->varp_count = grown;
+    return true;
+}
+
 static void
 apply_varp_value(
     struct VarPManager* mgr,
     int variable,
     int value)
 {
-    if( variable < 0 || variable >= mgr->varp_count )
+    if( variable < 0 )
+        return;
+    if( variable >= mgr->varp_count && !ensure_untyped_var_capacity(mgr, variable) )
         return;
 
     mgr->var_serv[variable] = value;
@@ -406,7 +452,9 @@ VarPManager_SetVarpOptimistic(
     int value)
 {
     assert(mgr);
-    if( variable < 0 || variable >= mgr->varp_count )
+    if( variable < 0 )
+        return;
+    if( variable >= mgr->varp_count && !ensure_untyped_var_capacity(mgr, variable) )
         return;
 
     if( mgr->var[variable] != value )

@@ -60,6 +60,25 @@ type_from_string(char const* type)
     return UIELEM_BUILTIN_SPRITE;
 }
 
+static enum UITreeSlotTag
+slot_tag_from_string(char const* slot)
+{
+    if( !slot || !slot[0] )
+        return UITREE_SLOT_NONE;
+    if( strcmp(slot, "main_modal") == 0 )
+        return UITREE_SLOT_MAIN_MODAL;
+    if( strcmp(slot, "main_overlay") == 0 )
+        return UITREE_SLOT_MAIN_OVERLAY;
+    if( strcmp(slot, "side_modal") == 0 )
+        return UITREE_SLOT_SIDE_MODAL;
+    if( strcmp(slot, "chat") == 0 )
+        return UITREE_SLOT_CHAT;
+    if( strcmp(slot, "tut") == 0 )
+        return UITREE_SLOT_TUT;
+    fprintf(stderr, "revconfig: unknown slot tag '%s'\n", slot);
+    return UITREE_SLOT_NONE;
+}
+
 static void
 apply_layout_position(
     struct UIBuilderTreeOp const* op,
@@ -233,8 +252,8 @@ collect_onload(
     }
 }
 
-static void
-bake_pack_under_owner(
+void
+uitree_builder_bake_pack_under_owner(
     struct UITree* tree,
     struct UITreeBuilder* builder,
     struct ToriRS_ComponentPack const* pack,
@@ -342,6 +361,7 @@ push_builtin_op(
     spec.component_id = op->componentno;
     apply_layout_position(op, &spec.position);
     spec.has_position = 1;
+    spec.slot_tag = (uint8_t)slot_tag_from_string(op->slot);
     if( op->dirty )
         spec.always_dirty = 1;
     copy_menu_options(op, &spec.menu_options);
@@ -396,6 +416,12 @@ push_builtin_op(
         spec.u.minimap.scene_id = sprite_id;
         break;
     case UIELEM_BUILTIN_CHAT:
+        if( op->has_font_ref && op->font_ref[0] )
+        {
+            int font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);
+            assert(font_id >= 0 && "chat font missing");
+            spec.u.chat.font_id = font_id;
+        }
         strncpy(
             spec.u.chat.minimenu.op_report_abuse,
             op->chat_op_report_abuse,
@@ -479,6 +505,7 @@ push_builtin_op(
         spec.u.sidebar.tabno = op->tabno;
         spec.u.sidebar.componentno = op->componentno;
         spec.u.sidebar.inv_source_id = inv_source_id;
+        spec.u.sidebar.selected = op->selected ? 1 : 0;
         break;
     }
     case UIELEM_RS_GRAPHIC:
@@ -560,7 +587,7 @@ bake_rs_subtree_for_op(
     if( op->inv_name[0] && invs )
         inv_source_id = InvManager_ResolveSource(invs, op->inv_name);
 
-    bake_pack_under_owner(tree, builder, pack, owner_idx, inv_source_id);
+    uitree_builder_bake_pack_under_owner(tree, builder, pack, owner_idx, inv_source_id);
 }
 
 void

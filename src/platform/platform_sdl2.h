@@ -1,12 +1,11 @@
 #ifndef SRC_PLATFORM_PLATFORM_SDL2_H
 #define SRC_PLATFORM_PLATFORM_SDL2_H
 
-#include "input/torirs_input.h"
-
 #include <stdbool.h>
 #include <stdint.h>
 
 struct PlatformSDL2;
+struct ToriRS_CmdBus;
 
 struct PlatformSDL2*
 PlatformSDL2_New(void);
@@ -47,11 +46,15 @@ PlatformSDL2_MapMouse(
     int* out_x,
     int* out_y);
 
-/** Poll SDL events into input (mouse coords already mapped to logical space). */
+/**
+ * Poll SDL events into the command bus as TORIRS_CMD_INPUT_* commands (mouse
+ * coords already mapped to logical space, so recordings are window-size
+ * independent). Window-level events (quit, esc-quit) stay platform state.
+ */
 void
-PlatformSDL2_PollInput(
+PlatformSDL2_PollCommands(
     struct PlatformSDL2* platform,
-    struct LibToriRS_Input* input);
+    struct ToriRS_CmdBus* bus);
 
 void
 PlatformSDL2_Present(struct PlatformSDL2* platform);

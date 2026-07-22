@@ -8,6 +8,7 @@
 
 struct UIMinimenu;
 struct UIHoverText;
+struct UIChatView;
 
 enum UITreeHostRequestKind
 {
@@ -46,6 +47,23 @@ enum UITreeHostRequestKind
      * loaded) and writes the camera's pivot inside it to u.get_minimap_state.
      */
     UITREE_HOST_GET_MINIMAP_STATE,
+    /**
+     * Returns nonzero when u.tab_enabled.tabno has an interface assigned
+     * (reference sideOverlayId[n] != -1) — gates tab icon draw + tab clicks.
+     */
+    UITREE_HOST_GET_TAB_ENABLED,
+    /** Returns the current mode (0..3) of u.chat_filter.filter
+     *  (enum UITreeChatButtonFilter). */
+    UITREE_HOST_GET_CHAT_FILTER_MODE,
+    /** Advance u.chat_filter.filter to its next mode (user click). */
+    UITREE_HOST_CYCLE_CHAT_FILTER_MODE,
+    /** Writes the flattened chat draw model to u.get_chat_state.out. */
+    UITREE_HOST_GET_CHAT_STATE,
+    /**
+     * Writes an obj's display name to u.get_obj_name.out (cap bytes) and its
+     * stackable flag to *out_stackable. Returns 1 when the obj is known.
+     */
+    UITREE_HOST_GET_OBJ_NAME,
 };
 
 /*
@@ -88,6 +106,14 @@ struct UITreeHostRequest
         {
             int tabno;
         } set_selected_tab;
+        struct
+        {
+            int tabno;
+        } tab_enabled;
+        struct
+        {
+            int filter; /* enum UITreeChatButtonFilter */
+        } chat_filter;
         struct
         {
             int scene_id;
@@ -134,6 +160,17 @@ struct UITreeHostRequest
         {
             struct UIHoverText const** out;
         } get_hovertext_state;
+        struct
+        {
+            struct UIChatView const** out;
+        } get_chat_state;
+        struct
+        {
+            int obj_id;
+            char* out;
+            int cap;
+            int* out_stackable;
+        } get_obj_name;
         struct
         {
             int font_id;

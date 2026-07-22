@@ -1,0 +1,409 @@
+#ifndef PKT_LC245_2_H
+#define PKT_LC245_2_H
+
+#include "packetin.h"
+#include "pkt_map_rebuild.h"
+
+// Player info packet is more of a command stream
+// than a fixed format packet
+struct PktNpcInfoLC245_2
+{
+    int length;
+    uint8_t* data;
+};
+
+struct PktPlayerInfoLC245_2
+{
+    int length;
+    uint8_t* data;
+};
+
+struct PktUpdateInvFull
+{
+    int component_id;
+    int size;
+    // These are 1-indexed, e.g. 841 is shortbow. Over the
+    // network, it's sent as 842.
+    int* obj_ids;
+    int* obj_counts;
+};
+
+struct PktIfSetTab
+{
+    int component_id;
+    int tab_id;
+};
+
+struct PktIfOpenChat
+{
+    int component_id; /* g2: chat interface component to show */
+};
+
+struct PktIfClose
+{
+    /* No payload - closes sidebar, chat, viewport */
+    uint8_t _torirs_empty; /* C requires a member; keep 1-byte layout */
+};
+
+struct PktIfSetTabActive
+{
+    int tab_id;
+};
+
+struct PktVarpSmall
+{
+    int variable;
+    int value; /* g1b signed byte */
+};
+
+struct PktVarpLarge
+{
+    int variable;
+    int value; /* g4 */
+};
+
+struct PktUpdateStat
+{
+    int stat;   /* g1: 0-22 */
+    int xp;     /* g4 */
+    int level;  /* g1: effective level */
+};
+
+struct PktUpdateRunEnergy
+{
+    int run_energy; /* g1: 0-100 */
+};
+
+struct PktIfSetColour
+{
+    int component_id; /* g2 */
+    int colour;       /* g2: 15-bit (r<<10|g<<5|b) */
+};
+
+struct PktIfSetHide
+{
+    int component_id; /* g2 */
+    int hide;        /* g1: 1=hide */
+};
+
+struct PktIfSetObject
+{
+    int component_id; /* g2 */
+    int obj_id;      /* g2 */
+    int zoom;        /* g2 */
+};
+
+struct PktIfSetModel
+{
+    int component_id; /* g2 */
+    int model_id;     /* g2 */
+};
+
+struct PktIfSetAnim
+{
+    int component_id; /* g2 */
+    int anim_id;      /* g2 */
+};
+
+struct PktIfSetPlayerHead
+{
+    int component_id; /* g2 */
+};
+
+struct PktIfSetText
+{
+    int component_id; /* g2 */
+    char* text;       /* gjstr / newline-terminated */
+};
+
+struct PktIfSetNpcHead
+{
+    int component_id; /* g2 */
+    int npc_id;       /* g2 */
+};
+
+struct PktIfSetPosition
+{
+    int component_id; /* g2 */
+    int x;            /* g2b */
+    int z;            /* g2b */
+};
+
+struct PktIfSetScrollPos
+{
+    int component_id; /* g2 */
+    int pos;          /* g2 */
+};
+
+struct PktMessageGame
+{
+    char* text; /* gjstr / newline-terminated */
+};
+
+struct PktMessagePrivate
+{
+    int64_t from;       /* g8: base37 username */
+    int message_id;    /* g4 */
+    int staff_mod;     /* g1 */
+    char* text;        /* WordPack.unpack(psize-13) */
+};
+
+struct PktChatFilterSettings
+{
+    int chat_public_mode;  /* g1 */
+    int chat_private_mode; /* g1 */
+    int chat_trade_mode;   /* g1 */
+};
+
+/* Zone packets: position = base_x + (pos>>4)&7, base_z + pos&7. Base set by UPDATE_ZONE_* */
+struct PktUpdateZonePartialFollows
+{
+    int base_x; /* g1: zone base for subsequent zone packets */
+    int base_z; /* g1 */
+};
+
+struct PktUpdateZoneFullFollows
+{
+    int base_x; /* g1 */
+    int base_z; /* g1 */
+};
+
+struct PktLocAddChange
+{
+    int pos;   /* g1: x = base_x + (pos>>4)&7, z = base_z + pos&7 */
+    int info;  /* g1: shape = info>>2, angle = info&3 */
+    int loc_id; /* g2 */
+};
+
+struct PktLocDel
+{
+    int pos;  /* g1 */
+    int info; /* g1: shape = info>>2, angle = info&3 */
+};
+
+struct PktLocAnim
+{
+    int pos;    /* g1 */
+    int info;   /* g1 */
+    int seq_id; /* g2 */
+};
+
+struct PktObjAdd
+{
+    int pos;   /* g1 */
+    int obj_id; /* g2 */
+    int count;  /* g2 */
+};
+
+struct PktObjDel
+{
+    int pos;    /* g1 */
+    int obj_id; /* g2 */
+};
+
+struct PktObjReveal
+{
+    int pos;       /* g1 */
+    int obj_id;    /* g2 */
+    int count;     /* g2 */
+    int receiver;  /* g2: player index, skip if != local */
+};
+
+struct PktObjCount
+{
+    int pos;       /* g1 */
+    int obj_id;    /* g2 */
+    int old_count; /* g2 */
+    int new_count; /* g2 */
+};
+
+struct PktLocMerge
+{
+    int pos;   /* g1 */
+    int info;  /* g1 */
+    int loc_id; /* g2 */
+    int start;  /* g2 */
+    int end;    /* g2 */
+    int pid;    /* g2 */
+    int east;   /* g1b */
+    int south;  /* g1b */
+    int west;   /* g1b */
+    int north;  /* g1b */
+};
+
+struct PktMapProjAnim
+{
+    int pos;         /* g1 */
+    int dx_offset;   /* g1b: dx = x + dx_offset */
+    int dz_offset;   /* g1b: dz = z + dz_offset */
+    int target;      /* g2b */
+    int spotanim;    /* g2 */
+    int src_height;  /* g1 */
+    int dst_height;  /* g1 */
+    int start_delay; /* g2 */
+    int end_delay;   /* g2 */
+    int peak;        /* g1 */
+    int arc;         /* g1 */
+};
+
+struct PktMapAnim
+{
+    int pos;    /* g1 */
+    int id;     /* g2 */
+    int height; /* g1 */
+    int delay;  /* g2 */
+};
+
+struct PktCamLookAt
+{
+    int local_x; /* g2 */
+    int local_z; /* g2 */
+    int height;  /* g2 */
+};
+
+struct PktCamMoveTo
+{
+    int local_x; /* g2 */
+    int local_z; /* g2 */
+    int height;  /* g2 */
+};
+
+struct PktCamShake
+{
+    int axis;      /* g1 */
+    int amplitude; /* g1 */
+    int frequency; /* g1 */
+    int speed;     /* g1 */
+};
+
+struct PktIfOpenMain
+{
+    int component_id; /* g2 */
+};
+
+struct PktIfOpenSide
+{
+    int component_id; /* g2 */
+};
+
+struct PktIfOpenOverlay
+{
+    int component_id; /* g2 */
+};
+
+struct PktIfOpenMainSide
+{
+    int main_component_id; /* g2 */
+    int side_component_id; /* g2 */
+};
+
+struct PktHintArrow
+{
+    int type; /* g1: 1=NPC 2=player 3+=tile */
+    int id;   /* g2: entity id or tile x/z depending on type */
+    int z;    /* g2 (tile target only) */
+    int height; /* g1 (tile target only) */
+};
+
+struct PktUpdatePid
+{
+    int local_player_index; /* g2 */
+    int unused;             /* g1 */
+};
+
+struct PktUpdateRunWeight
+{
+    int run_weight; /* g2s: weight in grams */
+};
+
+struct PktUpdateInvStopTransmit
+{
+    int component_id; /* g2 */
+};
+
+struct PktUpdateInvPartialEntry
+{
+    int slot;   /* g1 or g2 (varies) */
+    int obj_id; /* g2 */
+    int count;  /* g1 or g4 */
+};
+
+struct PktUpdateInvPartial
+{
+    int component_id;
+    int count;
+    struct PktUpdateInvPartialEntry* entries; /* heap-allocated, count entries */
+};
+
+struct PktSetMultiway
+{
+    int multiway; /* g1: 1=in multicombat zone */
+};
+
+struct RevPacket_LC245_2
+{
+    enum PacketInType_LC245_2 packet_type;
+
+    union
+    {
+        struct PktMapRebuild _map_rebuild;
+        struct PktNpcInfoLC245_2 _npc_info;
+        struct PktPlayerInfoLC245_2 _player_info;
+        struct PktUpdateInvFull _update_inv_full;
+        struct PktIfSetTab _if_settab;
+        struct PktIfOpenChat _if_openchat;
+        struct PktIfClose _if_close;
+        struct PktIfSetTabActive _if_settab_active;
+        struct PktVarpSmall _varp_small;
+        struct PktVarpLarge _varp_large;
+        struct PktUpdateStat _update_stat;
+        struct PktUpdateRunEnergy _update_run_energy;
+        struct PktIfSetColour _if_setcolour;
+        struct PktIfSetHide _if_sethide;
+        struct PktIfSetObject _if_setobject;
+        struct PktIfSetModel _if_setmodel;
+        struct PktIfSetAnim _if_setanim;
+        struct PktIfSetPlayerHead _if_setplayerhead;
+        struct PktIfSetText _if_settext;
+        struct PktIfSetNpcHead _if_setnpchead;
+        struct PktIfSetPosition _if_setposition;
+        struct PktIfSetScrollPos _if_setscrollpos;
+        struct PktMessageGame _message_game;
+        struct PktMessagePrivate _message_private;
+        struct PktChatFilterSettings _chat_filter_settings;
+        struct PktUpdateZonePartialFollows _update_zone_partial_follows;
+        struct PktUpdateZoneFullFollows _update_zone_full_follows;
+        struct PktLocAddChange _loc_add_change;
+        struct PktLocDel _loc_del;
+        struct PktLocAnim _loc_anim;
+        struct PktObjAdd _obj_add;
+        struct PktObjDel _obj_del;
+        struct PktObjReveal _obj_reveal;
+        struct PktObjCount _obj_count;
+        struct PktLocMerge _loc_merge;
+        struct PktMapProjAnim _map_projanim;
+        struct PktMapAnim _map_anim;
+        struct PktCamLookAt _cam_lookat;
+        struct PktCamMoveTo _cam_moveto;
+        struct PktCamShake _cam_shake;
+        struct PktIfOpenMain _if_openmain;
+        struct PktIfOpenSide _if_openside;
+        struct PktIfOpenOverlay _if_openoverlay;
+        struct PktIfOpenMainSide _if_openmain_side;
+        struct PktHintArrow _hint_arrow;
+        struct PktUpdatePid _update_pid;
+        struct PktUpdateRunWeight _update_runweight;
+        struct PktUpdateInvStopTransmit _update_inv_stop_transmit;
+        struct PktUpdateInvPartial _update_inv_partial;
+        struct PktSetMultiway _set_multiway;
+    };
+};
+
+/** FIFO node for parsed packets awaiting exec (v0 packets_lc245_2 list). */
+struct RevPacket_LC245_2_Item
+{
+    struct RevPacket_LC245_2 packet;
+    struct RevPacket_LC245_2_Item* next_nullable;
+};
+
+#endif

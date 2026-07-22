@@ -1,7 +1,9 @@
 #include "app.h"
+#include "cmd/cmdbus.h"
 #include "game/rs_cs2_dispatch.h"
 #include "input/torirs_input.h"
 #include "platform/platform_sdl2.h"
+#include "platform/platform_socket.h"
 #include "toridraw_math.h"
 #include "ui/uitree_layout.h"
 
@@ -96,7 +98,9 @@ struct DumpChildRef
 };
 
 static int
-dump_child_cmp(void const* va, void const* vb)
+dump_child_cmp(
+    void const* va,
+    void const* vb)
 {
     struct DumpChildRef const* a = (struct DumpChildRef const*)va;
     struct DumpChildRef const* b = (struct DumpChildRef const*)vb;
@@ -284,6 +288,21 @@ main(
             cfg.revconfig_cache_ini = argv[++argi];
             continue;
         }
+        if( strcmp(argv[argi], "--connect") == 0 && argi + 1 < argc )
+        {
+            cfg.connect_target = argv[++argi];
+            continue;
+        }
+        if( strcmp(argv[argi], "--user") == 0 && argi + 1 < argc )
+        {
+            cfg.connect_user = argv[++argi];
+            continue;
+        }
+        if( strcmp(argv[argi], "--pass") == 0 && argi + 1 < argc )
+        {
+            cfg.connect_pass = argv[++argi];
+            continue;
+        }
         if( positional == 0 && argv[argi][0] != '-' )
         {
             cfg.cache_dir = argv[argi];
@@ -304,7 +323,8 @@ main(
         fprintf(
             stderr,
             "usage: %s [cache_dir] [interface_id] [--dat1|--dat2] "
-            "[--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] [--bmp]\n",
+            "[--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] [--bmp] "
+            "[--connect host[:port]] [--user U] [--pass P]\n",
             argv[0]);
         return 1;
     }
@@ -375,11 +395,7 @@ main(
         long root_w = strtol(getenv("TORIRS_ROOT_SIZE"), &root_size_sep, 10);
         long root_h = root_size_sep && *root_size_sep ? strtol(root_size_sep + 1, NULL, 10) : 0;
         UITree_LayoutSetRootSize((int)root_w, (int)root_h);
-        fprintf(
-            stderr,
-            "root_size: %dx%d\n",
-            UITREE_LAYOUT_ROOT_W,
-            UITREE_LAYOUT_ROOT_H);
+        fprintf(stderr, "root_size: %dx%d\n", UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     }
 
     App_Init(&app, &cfg);
@@ -410,8 +426,7 @@ main(
                 wc->next_sibling);
         }
         fprintf(stderr, "root chain:");
-        for( int32_t r = app.tree->root_index; r >= 0;
-             r = app.tree->components[r].next_sibling )
+        for( int32_t r = app.tree->root_index; r >= 0; r = app.tree->components[r].next_sibling )
             fprintf(stderr, " 0x%08x", app.tree->components[r].component_id);
         fprintf(stderr, "\n");
     }
@@ -443,9 +458,8 @@ main(
             struct LibToriRS_Input sim_input_storage;
             struct LibToriRS_Input* sim_input = LibToriRS_Input_Init(&sim_input_storage, 0);
             uint64_t sim_ms = 1;
-            int sim_ticks = getenv("TORIRS_SIM_TICKS")
-                                ? (int)strtol(getenv("TORIRS_SIM_TICKS"), NULL, 0)
-                                : 25;
+            int sim_ticks =
+                getenv("TORIRS_SIM_TICKS") ? (int)strtol(getenv("TORIRS_SIM_TICKS"), NULL, 0) : 25;
             for( int t = 0; t < sim_ticks; t++ )
             {
                 LibToriRS_Input_Begin(sim_input, sim_ms);
@@ -661,8 +675,8 @@ main(
         {
             if( frame == 1 )
             {
-                app.world_camera.yaw = ToriDraw_NormalizeAngle(
-                    (int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
+                app.world_camera.yaw =
+                    ToriDraw_NormalizeAngle((int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
                 fprintf(stderr, "sim_camera_yaw: %d\n", app.world_camera.yaw);
             }
             LibToriRS_Input_Begin(yaw_input, yaw_ms);
@@ -739,10 +753,14 @@ main(
     if( getenv("TORIRS_DUMP_HOOKS") && app.tree )
     {
         static char const* const hook_names[] = {
-            "on_click",         "on_hold",       "on_mouse_over", "on_mouse_leave",
-            "on_mouse_repeat",  "on_drag",       "on_drag_complete", "on_scroll_wheel",
-            "on_key",           "on_op",         "on_timer",      "on_var_transmit",
-            "on_inv_transmit",  "on_misc_transmit", "on_resize",  "on_sub_change",
+            "on_click",         "on_hold",
+            "on_mouse_over",    "on_mouse_leave",
+            "on_mouse_repeat",  "on_drag",
+            "on_drag_complete", "on_scroll_wheel",
+            "on_key",           "on_op",
+            "on_timer",         "on_var_transmit",
+            "on_inv_transmit",  "on_misc_transmit",
+            "on_resize",        "on_sub_change",
         };
         int i;
         for( i = 0; i < app.tree->component_count; i++ )
@@ -905,8 +923,18 @@ main(
                 stderr,
                 "EMIT[%d] kind=%d com=0x%08x x=%d y=%d w=%d h=%d scene=%d color=0x%06x "
                 "filled=%d trans=%d tiled=%d\n",
-                i, (int)d->kind, d->component_id, d->x, d->y, d->w, d->h, d->scene_id,
-                d->color, d->filled, d->trans, d->tiled);
+                i,
+                (int)d->kind,
+                d->component_id,
+                d->x,
+                d->y,
+                d->w,
+                d->h,
+                d->scene_id,
+                d->color,
+                d->filled,
+                d->trans,
+                d->tiled);
         }
     }
 
@@ -929,6 +957,10 @@ main(
         struct PlatformSDL2* sdl = PlatformSDL2_New();
         struct LibToriRS_Input input_storage;
         struct LibToriRS_Input* input;
+        /* Static: the ring is 128KB and there is exactly one bus per process. */
+        static struct ToriRS_CmdBus bus;
+        FILE* replay = NULL;
+        uint64_t replay_now = 0;
         char title[64];
 
         snprintf(title, sizeof(title), "torirs iface=%d", cfg.interface_id);
@@ -940,26 +972,104 @@ main(
             return 1;
         }
 
+        CmdBus_Init(&bus);
+
+        /* TORIRS_CMD_RECORD=file: tee every pushed command to a replayable
+         * .trscmd file. TORIRS_CMD_REPLAY=file: drive the loop from a prior
+         * recording instead of SDL events, timestamps included. */
+        if( getenv("TORIRS_CMD_RECORD") )
+        {
+            if( !CmdBus_RecordOpen(&bus, getenv("TORIRS_CMD_RECORD")) )
+                fprintf(
+                    stderr, "cmdbus: cannot record to %s\n", getenv("TORIRS_CMD_RECORD"));
+        }
+        if( getenv("TORIRS_CMD_REPLAY") )
+        {
+            replay = CmdReplay_Open(getenv("TORIRS_CMD_REPLAY"));
+            if( !replay )
+            {
+                fprintf(
+                    stderr, "cmdbus: cannot replay %s\n", getenv("TORIRS_CMD_REPLAY"));
+                PlatformSDL2_Free(sdl);
+                App_Shutdown(&app);
+                return 1;
+            }
+        }
+
         input = LibToriRS_Input_Init(&input_storage, PlatformSDL2_Ticks64());
 
         App_Render(&app, PlatformSDL2_Pixels(sdl), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         PlatformSDL2_Present(sdl);
 
+        /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
+         * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */
+        long max_frames = getenv("TORIRS_MAX_FRAMES") ? atol(getenv("TORIRS_MAX_FRAMES")) : 0;
+        long frame_count = 0;
+
+        /* Socket transport is created only when --connect enabled networking;
+         * it bridges the net subsystem's out ring to a TCP socket and pushes
+         * received bytes onto the bus as NET_RECV commands. */
+        struct PlatformSocket* sock = app.net ? PlatformSocket_New(43594) : NULL;
+
         while( !PlatformSDL2_QuitRequested(sdl) )
         {
-            LibToriRS_Input_Begin(input, PlatformSDL2_Ticks64());
-            PlatformSDL2_PollInput(sdl, input);
+            uint64_t now;
+
+            if( max_frames > 0 && frame_count++ >= max_frames )
+                break;
+
+            if( replay )
+            {
+                if( !CmdReplay_PumpFrame(replay, &bus, &replay_now) )
+                    break; /* recording exhausted */
+                now = replay_now;
+            }
+            else
+            {
+                now = PlatformSDL2_Ticks64();
+                CmdBus_PushFrame(&bus, now);
+                PlatformSDL2_PollCommands(sdl, &bus);
+                if( sock )
+                    PlatformSocket_Poll(sock, app.net, &bus);
+            }
+
+            LibToriRS_Input_Begin(input, now);
+            App_DrainCommands(&app, &bus, input);
             LibToriRS_Input_End(input);
 
-            if( App_RunOnce(&app, PlatformSDL2_Ticks64(), input) )
+            if( App_RunOnce(&app, now, input) )
                 App_Render(
                     &app, PlatformSDL2_Pixels(sdl), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 
             update_window_title(sdl, &app, cfg.interface_id);
             PlatformSDL2_Present(sdl);
-            PlatformSDL2_Delay(1);
+            if( !replay )
+                PlatformSDL2_Delay(1);
         }
 
+        if( replay )
+        {
+            fclose(replay);
+            /* TORIRS_REPLAY_BMP=path: dump the final replayed frame for golden
+             * comparison against the recorded session. */
+            if( getenv("TORIRS_REPLAY_BMP") )
+            {
+                int* pixels =
+                    calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+                assert(pixels);
+                App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+                bmp_write_file(
+                    getenv("TORIRS_REPLAY_BMP"),
+                    pixels,
+                    UITREE_LAYOUT_ROOT_W,
+                    UITREE_LAYOUT_ROOT_H);
+                printf("wrote %s\n", getenv("TORIRS_REPLAY_BMP"));
+                free(pixels);
+            }
+        }
+        CmdBus_RecordClose(&bus);
+
+        PlatformSocket_Free(sock);
         PlatformSDL2_Free(sdl);
     }
 

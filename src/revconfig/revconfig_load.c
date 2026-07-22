@@ -114,6 +114,10 @@ push_field_from_ini_kv(
     }
     else if( strcmp(key, "tabno") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_TABNO;
+    else if( strcmp(key, "selected") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_SELECTED;
+    else if( strcmp(key, "slot") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_SLOT;
     else if( strcmp(key, "componentno") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_COMPONENTNO;
     else if( strcmp(key, "inv") == 0 && strcmp(s_ini_item_type, "component") == 0 )

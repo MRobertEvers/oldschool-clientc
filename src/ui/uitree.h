@@ -83,6 +83,22 @@ enum
     UITREE_CLIENT_CODE_CONTENT_COMPASS = 1339,
 };
 
+/**
+ * Interface-slot tag (INI slot=): marks a chrome node as the mount region for
+ * a runtime-openable interface (reference mainModalId / sideModalId /
+ * chatComId surfaces). The slot manager finds mount nodes by this tag, never
+ * by coordinates, so the geometry stays entirely in RevConfig.
+ */
+enum UITreeSlotTag
+{
+    UITREE_SLOT_NONE = 0,
+    UITREE_SLOT_MAIN_MODAL,
+    UITREE_SLOT_MAIN_OVERLAY,
+    UITREE_SLOT_SIDE_MODAL,
+    UITREE_SLOT_CHAT,
+    UITREE_SLOT_TUT,
+};
+
 enum UITreeElemPositionKind
 {
     UIPOS_XY = 1,
@@ -322,6 +338,8 @@ struct UITreeComponent
     int cs1_values[UITREE_CS1_VALUE_MAX];
     struct UITreeRuntimeHooks runtime_hooks;
     int target_priority;
+    /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
+    uint8_t slot_tag;
     int scroll_x;
     int scroll_y;
     struct UITreeElemPosition position;
@@ -364,6 +382,9 @@ struct UITreeComponent
             int tabno;
             int componentno;
             int inv_source_id;
+            /** INI selected= — this tab is the boot-time selection (reference
+             *  sideTab default 3, kept in RevConfig rather than C). */
+            uint8_t selected;
         } sidebar;
         struct
         {
@@ -453,6 +474,7 @@ struct UITreeComponent
         struct
         {
             struct UITreeChatMinimenuConfig minimenu;
+            int font_id; /* INI font= (message + input line font, e.g. p12) */
         } chat;
         struct UITreeChatButtonConfig chat_button;
         struct
@@ -541,6 +563,7 @@ struct UITreeNodeSpec
     uint8_t dynamic;
     int dynamic_child_index;
     uint8_t has_position;
+    uint8_t slot_tag; /* enum UITreeSlotTag */
     struct UITreeElemPosition position;
     struct UITreeBehavior const* behavior;
 
@@ -579,6 +602,7 @@ struct UITreeNodeSpec
             int tabno;
             int componentno;
             int inv_source_id;
+            uint8_t selected; /* INI selected= (see UITreeComponent) */
         } sidebar;
         struct
         {
@@ -668,6 +692,7 @@ struct UITreeNodeSpec
         struct
         {
             struct UITreeChatMinimenuConfig minimenu;
+            int font_id;
         } chat;
         struct UITreeChatButtonConfig chat_button;
         struct
@@ -767,6 +792,12 @@ void
 UITree_ClearSidebarChildren(
     struct UITree* tree,
     int32_t sidebar_idx);
+
+/** Detach every child of `owner_idx` (slot mounts: clear before re-bake). */
+void
+UITree_ClearChildren(
+    struct UITree* tree,
+    int32_t owner_idx);
 
 int32_t
 UITree_FindChildBySubid(

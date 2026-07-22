@@ -54,11 +54,13 @@ endif
 SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	platform/platform_sdl2_renderer_soft3d.c render/torirs_frame.c \
 	render/torirs_pick.c \
-	input/torirs_input.c input/torirs_keymap.c \
+	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
 	cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 	game/rs_player_stats.c game/rs_cs1_host.c game/task_cs1_run.c \
+	game/rs_ui_slots.c game/rs_social.c game/rs_clientcode.c game/rs_if1_buttons.c \
+	game/rs_chat.c game/rs_gameproto_exec.c \
 	game/rs_worldmap.c \
 	cs2vm2/cs2_opcode_meta.c engine/cache_provider.c engine/cs2vm2_script_from_rscache.c \
 	engine/torirs_types.c engine/torirs_model_from_rscache.c \
@@ -102,6 +104,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/uitree_builder/task_uitree_build.c \
 	engine/uitree_builder/task_pack_assets_load.c \
 	engine/uitree_builder/task_interface_open.c \
+	engine/uitree_builder/task_slot_mount.c \
 	engine/task_obj_model_load.c \
 	engine/uitree_scene_bridge.c \
 	engine/static_sprites.c \
@@ -123,6 +126,11 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	ui/uitree_interact.c \
 	varp/varp_manager.c \
 	inv/inv_manager.c \
+	cmd/cmdring.c cmd/cmdbus.c \
+	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c \
+	net/loginproto.c net/packetbuffer.c net/net.c net/net_out.c \
+	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc245_2/gameproto_parse.c \
+	platform/sockstream.c platform/platform_socket.c \
 	revconfig/revconfig.c revconfig/revconfig_load.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
@@ -140,6 +148,7 @@ OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+	$(OBJ_DIR)/tommath.o \
 	$(WB_OBJS))
 
 # World builder pipeline objects (compiled as standalone objects; world_builder.c is a single
@@ -152,7 +161,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-world-builder test-minimap test-cs1vm test-cs1 world-builder
+.PHONY: all clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots world-builder
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -167,10 +176,21 @@ $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
 	$(CC) $(CFLAGS) -c $(1) -o $$@
 endef
 
-$(foreach src,$(filter-out painters/painters.c,$(SRCS)),$(eval $(call make-goal,$(src))))
+NET_LC245_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc245_2/gameproto_parse.c
+$(foreach src,$(filter-out painters/painters.c $(NET_LC245_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -c painters/painters.c -o $@
+
+# lc245_2 protocol table + parser include their own dir for packetin.h etc.
+$(OBJ_DIR)/gameproto_rev_lc245_2.o: net/rev/lc245_2/gameproto_rev_lc245_2.c
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -c $< -o $@
+$(OBJ_DIR)/gameproto_parse.o: net/rev/lc245_2/gameproto_parse.c
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -c $< -o $@
+
+# tommath amalgam for RSA (login block exptmod).
+$(OBJ_DIR)/tommath.o: $(REPO_ROOT)/3rd/tommath/mpi.c
+	$(CC) -std=c11 -O2 -w -I$(REPO_ROOT)/3rd/tommath -c $< -o $@
 
 # --- World builder pipeline object rules ---------------------------------
 $(OBJ_DIR)/world_builder.o: $(WB_DIR)/world_builder.c
@@ -267,6 +287,28 @@ test-cs1: $(OBJ_DIR)
 		cs1vm/test/cs1_integration_test.c -lm
 	./$(OBJ_DIR)/cs1_integration_test
 
+test-cmdbus: $(OBJ_DIR) cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cmdbus_test cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
+	./$(OBJ_DIR)/cmdbus_test
+
+# Login handshake + packet framing, deterministic (fixed seed + tommath RSA).
+NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
+	$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/wordpack.o $(OBJ_DIR)/loginproto.o \
+	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_lc245_2.o \
+	$(OBJ_DIR)/gameproto_parse.o $(OBJ_DIR)/tommath.o \
+	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_login_test \
+		net/test/net_login_test.c $(NET_CORE_OBJS) -lm
+	./$(OBJ_DIR)/net_login_test
+
+# Full login -> GAME -> parsed-packet pipeline through a scripted mock server.
+test-net-loopback: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_loopback_test \
+		net/test/net_loopback_test.c net/mock/mock_server.c \
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
+	./$(OBJ_DIR)/net_loopback_test
+
 test-inv: $(OBJ_DIR) inv/inv_manager.c inv/inv_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/inv_manager_test inv/inv_manager.c inv/inv_manager_test.c
 	./$(OBJ_DIR)/inv_manager_test
@@ -315,6 +357,22 @@ test-rotate-blit: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 	$(CC) $(CFLAGS) -lm -Wl,-dead_strip -o $(OBJ_DIR)/rotate_blit_test \
 		render/test/rotate_blit_test.c $(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/rotate_blit_test
+
+# Packet exec seam against bare managers (no cache/disk). Links the app
+# object set (exec calls into RS_UISlots which references App) minus main.
+test-net-exec: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_exec_test \
+		game/test/rs_gameproto_exec_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/net_exec_test
+
+# Runtime interface-slot API contract test (IF_OPENMAIN/IF_OPENSIDE/IF_SETTAB
+# surface) against the real dat1 cache + rev_245_2 RevConfig build.
+test-ui-slots: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_ui_slots_test \
+		game/test/rs_ui_slots_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rs_ui_slots_test $(DAT1_CACHE)
 
 # End-to-end dat1 RevConfig build against a dat1 cache (default ../cache254).
 # Links the app objects (minus main) since the build task reaches CS2/game code.

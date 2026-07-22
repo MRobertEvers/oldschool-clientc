@@ -78,6 +78,8 @@ struct UIBuilderTreeOp
     int font;
     uint8_t has_font_ref;
     int tabno;
+    int selected;
+    char slot[24];
     int dirty;
     int level_mask;
     int color;

@@ -1,5 +1,8 @@
 #include "platform/platform_sdl2.h"
 
+#include "cmd/cmdbus.h"
+#include "input/torirs_input.h"
+
 #include <SDL.h>
 
 #include <assert.h>
@@ -343,6 +346,10 @@ PlatformSDL2_Init(
     }
 
     platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_ACCELERATED);
+    /* Headless backends (SDL_VIDEODRIVER=dummy) have no accelerated driver;
+     * fall back to whatever is available so record/replay smoke runs work. */
+    if( !platform->renderer )
+        platform->renderer = SDL_CreateRenderer(platform->window, -1, 0);
     if( !platform->renderer )
     {
         fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
@@ -508,9 +515,9 @@ PlatformSDL2_MapMouse(
 }
 
 void
-PlatformSDL2_PollInput(
+PlatformSDL2_PollCommands(
     struct PlatformSDL2* platform,
-    struct LibToriRS_Input* input)
+    struct ToriRS_CmdBus* bus)
 {
     SDL_Event event;
     int lx;
@@ -526,14 +533,16 @@ PlatformSDL2_PollInput(
      * know whether a character followed: a printable SDL_TEXTINPUT cancels it,
      * anything else flushes it. Since the pending event is flushed at the top of
      * every KEYDOWN and once more after the loop, and nothing else in the loop
-     * pushes key events, arrival order is preserved exactly.
+     * pushes key events, arrival order is preserved exactly. The resolution
+     * happens here, before encoding, so the bus (and therefore recordings)
+     * carries only resolved key events.
      */
     int pending_osrs = -1;
     int pending_mods = 0;
     int pending_repeat = 0;
 
     assert(platform);
-    assert(input);
+    assert(bus);
 
     while( SDL_PollEvent(&event) )
     {
@@ -549,7 +558,7 @@ PlatformSDL2_PollInput(
 
             if( pending_osrs >= 0 )
             {
-                LibToriRS_Input_PushKeyEvent(input, pending_osrs, 0, pending_repeat);
+                CmdBus_PushKeyEvent(bus, pending_osrs, 0, pending_repeat);
                 pending_osrs = -1;
             }
 
@@ -561,13 +570,13 @@ PlatformSDL2_PollInput(
              * backspace delete repeatedly, matching the reference, which does
              * not filter repeats. The key_down[] edge array stays a true edge. */
             if( !event.key.repeat )
-                LibToriRS_Input_PushKeyDown(input, key);
+                CmdBus_PushKey(bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)key);
 
             vk = sdl_keycode_to_vk(event.key.keysym.sym);
             osrs = LibToriRS_OsrsKeyFromVk(vk);
             if( osrs >= 0 )
             {
-                LibToriRS_Input_SetOsrsKeyState(input, osrs, 1, !event.key.repeat);
+                CmdBus_PushOsrsKey(bus, osrs, 1, !event.key.repeat);
                 pending_osrs = osrs;
                 pending_mods = event.key.keysym.mod;
                 pending_repeat = event.key.repeat ? 1 : 0;
@@ -587,7 +596,7 @@ PlatformSDL2_PollInput(
             if( codepoint >= 32 && codepoint <= 255 )
             {
                 pending_osrs = -1; /* the character event replaces the code event */
-                LibToriRS_Input_PushKeyEvent(input, -1, codepoint, pending_repeat);
+                CmdBus_PushKeyEvent(bus, -1, codepoint, pending_repeat);
             }
             pending_mods = 0;
             break;
@@ -595,9 +604,10 @@ PlatformSDL2_PollInput(
         case SDL_KEYUP:
         {
             int osrs = LibToriRS_OsrsKeyFromVk(sdl_keycode_to_vk(event.key.keysym.sym));
-            LibToriRS_Input_PushKeyUp(input, sdl_keycode_to_torirs(event.key.keysym.sym));
+            CmdBus_PushKey(
+                bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)sdl_keycode_to_torirs(event.key.keysym.sym));
             if( osrs >= 0 )
-                LibToriRS_Input_SetOsrsKeyState(input, osrs, 0, 0);
+                CmdBus_PushOsrsKey(bus, osrs, 0, 0);
             break;
         }
         case SDL_WINDOWEVENT:
@@ -607,29 +617,31 @@ PlatformSDL2_PollInput(
             {
                 pending_osrs = -1;
                 pending_mods = 0;
-                LibToriRS_Input_ClearKeys(input);
+                CmdBus_Push(bus, TORIRS_CMD_INPUT_CLEAR_KEYS, NULL, 0);
             }
             break;
         case SDL_MOUSEBUTTONDOWN:
             PlatformSDL2_MapMouse(platform, event.button.x, event.button.y, &lx, &ly);
             button = sdl_mouse_button_to_torirs(event.button.button);
-            LibToriRS_Input_PushMouseDown(input, button, lx, ly);
+            CmdBus_PushMouseButton(
+                bus, TORIRS_CMD_INPUT_MOUSE_DOWN, (uint8_t)button, (int16_t)lx, (int16_t)ly);
             break;
         case SDL_MOUSEBUTTONUP:
             PlatformSDL2_MapMouse(platform, event.button.x, event.button.y, &lx, &ly);
             button = sdl_mouse_button_to_torirs(event.button.button);
-            LibToriRS_Input_PushMouseUp(input, button, lx, ly);
+            CmdBus_PushMouseButton(
+                bus, TORIRS_CMD_INPUT_MOUSE_UP, (uint8_t)button, (int16_t)lx, (int16_t)ly);
             break;
         case SDL_MOUSEMOTION:
             PlatformSDL2_MapMouse(platform, event.motion.x, event.motion.y, &lx, &ly);
-            LibToriRS_Input_PushMouseMove(input, lx, ly);
+            CmdBus_PushMouseMove(bus, (int16_t)lx, (int16_t)ly);
             break;
         case SDL_MOUSEWHEEL:
         {
             int wheel_y = event.wheel.y;
             if( event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED )
                 wheel_y = -wheel_y;
-            LibToriRS_Input_PushMouseWheel(input, wheel_y);
+            CmdBus_PushMouseWheel(bus, (int16_t)wheel_y);
             break;
         }
         default:
@@ -640,7 +652,7 @@ PlatformSDL2_PollInput(
     /* No SDL_TEXTINPUT arrived for the last keydown, so it was a non-character
      * key after all. */
     if( pending_osrs >= 0 )
-        LibToriRS_Input_PushKeyEvent(input, pending_osrs, 0, pending_repeat);
+        CmdBus_PushKeyEvent(bus, pending_osrs, 0, pending_repeat);
 }
 
 void

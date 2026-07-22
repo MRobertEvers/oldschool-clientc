@@ -1,5 +1,6 @@
 #include "app.h"
 
+#include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -8,11 +9,17 @@
 #include "engine/uitree_cmd_render.h"
 #include "engine/world_builder/task_world_load.h"
 #include "engine/world_builder/world_builder.h"
+#include "game/rs_clientcode.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/rs_gameproto_exec.h"
 #include "game/rs_minimenu_build.h"
+#include "net/net.h"
+#include "net/net_out.h"
+#include "net/rev/lc245_2/gameproto_parse.h"
 #include "game/rs_worldmap.h"
 #include "game/rs_minimenu_cross.h"
 #include "game/task_cs1_run.h"
+#include "input/torirs_input_cmd.h"
 #include "painters/painters.h"
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
@@ -38,6 +45,105 @@ enum
     APP_HOVERTEXT_INSET_X = 4,
     APP_HOVERTEXT_INSET_Y = 2,
 };
+
+static struct RS_ChatFilters
+app_chat_filters(struct App const* app)
+{
+    struct RS_ChatFilters filters = {
+        .public_mode = app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC],
+        .private_mode = app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE],
+        .trade_mode = app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_TRADE],
+        .social = &app->social,
+    };
+    return filters;
+}
+
+/* Chat node geometry + font, resolved through the slot index so nothing here
+ * names coordinates or interface ids. Returns 0 when no chat region exists. */
+static int
+app_chat_region(
+    struct App const* app,
+    int* out_x,
+    int* out_y,
+    int* out_font_id)
+{
+    struct UITreeComponent const* node;
+    int x = 0, y = 0, w = 0, h = 0;
+
+    if( app->slots.chat_index < 0 )
+        return 0;
+    node = &app->tree->components[app->slots.chat_index];
+    UITree_LayoutGetBounds(&node->position, &x, &y, &w, &h);
+    if( out_x )
+        *out_x = x;
+    if( out_y )
+        *out_y = y;
+    if( out_font_id )
+        *out_font_id = node->u.chat.font_id > 0 ? node->u.chat.font_id : 1;
+    return 1;
+}
+
+/* Rebuild the flattened chat draw model (called before every emit). */
+static void
+app_chat_build_view(struct App* app)
+{
+    struct RS_ChatFilters filters = app_chat_filters(app);
+    int font_id = 1;
+
+    if( !app_chat_region(app, NULL, NULL, &font_id) )
+    {
+        memset(&app->chat_view, 0, sizeof(app->chat_view));
+        return;
+    }
+    RS_Chat_BuildView(
+        &app->chat,
+        &filters,
+        &app->ui_host,
+        font_id,
+        app->slots.chat_com_id != -1,
+        &app->chat_view);
+}
+
+/* RS_MinimenuChatSource seam: sender under a canvas-space click. */
+static int
+app_chat_line_at(
+    void* user,
+    int x,
+    int y,
+    char* out_sender,
+    int sender_cap,
+    int* out_chat_type)
+{
+    struct App* app = (struct App*)user;
+    struct RS_ChatFilters filters = app_chat_filters(app);
+    int rx = 0;
+    int ry = 0;
+
+    if( !app_chat_region(app, &rx, &ry, NULL) )
+        return 0;
+    return RS_Chat_LineAt(
+        &app->chat, &filters, x - rx, y - ry, out_sender, sender_cap, out_chat_type);
+}
+
+static void
+app_send_if_button(void* user, int com_id);
+static void
+app_send_resume_pausebutton(void* user, int com_id);
+
+/* Send an outbound packet built by a net_out_* builder, gated on networking.
+ * The builder writes into a scratch buffer using the game out-cipher; the
+ * bytes then queue to the socket via the subsystem's SEND_DATA ring. */
+#define APP_NET_SEND(app, builder_call)                                                          \
+    do                                                                                           \
+    {                                                                                            \
+        if( (app)->net && (app)->net->state == TORIRS_NET_GAME )                                 \
+        {                                                                                        \
+            uint8_t _nsbuf[512];                                                                 \
+            int _nslen = builder_call;                                                           \
+            if( _nslen > 0 )                                                                     \
+                ToriRS_Network_SendRaw((app)->net, _nsbuf, _nslen);                              \
+        }                                                                                        \
+    } while( 0 )
 
 static int
 app_host_request(
@@ -129,6 +235,53 @@ app_host_request(
             return 0;
         return req->u.eval_text_placeholder.component
             ->cs1_values[req->u.eval_text_placeholder.script_idx];
+    /* Tab + privacy-bar state lives on RS_UISlots (reference sideTab /
+     * sideOverlayId / chat*Mode). A side modal suppresses the tab subtree by
+     * answering -1, which no sidebar tabno matches. */
+    case UITREE_HOST_GET_SELECTED_TAB:
+        if( app->slots.side_modal_id != -1 )
+            return -1;
+        return app->slots.side_tab;
+    case UITREE_HOST_SET_SELECTED_TAB:
+        if( app->slots.side_tab != req->u.set_selected_tab.tabno )
+        {
+            app->slots.side_tab = req->u.set_selected_tab.tabno;
+            app->need_redraw = 1;
+        }
+        return 1;
+    case UITREE_HOST_GET_TAB_ENABLED:
+        return RS_UISlots_TabEnabled(&app->slots, req->u.tab_enabled.tabno);
+    case UITREE_HOST_GET_CHAT_FILTER_MODE:
+        if( req->u.chat_filter.filter < 0 || req->u.chat_filter.filter >= RS_UI_CHAT_FILTER_COUNT )
+            return 0;
+        return app->slots.chat_filter_mode[req->u.chat_filter.filter];
+    case UITREE_HOST_CYCLE_CHAT_FILTER_MODE:
+        app->need_redraw = 1;
+        return RS_UISlots_CycleChatFilter(&app->slots, req->u.chat_filter.filter);
+    case UITREE_HOST_APPLY_BUTTON_CLICK:
+        if( !req->u.apply_button_click.component )
+            return 0;
+        return RS_IF1_ApplyButtonClick(
+            app,
+            req->u.apply_button_click.component->component_id,
+            RS_Minimenu_IfButtonActionForType(
+                req->u.apply_button_click.component->behavior.button_type));
+    case UITREE_HOST_GET_CHAT_STATE:
+        assert(req->u.get_chat_state.out);
+        *req->u.get_chat_state.out = &app->chat_view;
+        return 1;
+    case UITREE_HOST_GET_OBJ_NAME:
+    {
+        struct ToriRS_Objtype const* obj =
+            CacheProvider_ObjtypeGet(app->provider, req->u.get_obj_name.obj_id);
+        if( !obj || !req->u.get_obj_name.out || req->u.get_obj_name.cap <= 0 )
+            return 0;
+        strncpy(req->u.get_obj_name.out, obj->name, (size_t)req->u.get_obj_name.cap - 1);
+        req->u.get_obj_name.out[req->u.get_obj_name.cap - 1] = '\0';
+        if( req->u.get_obj_name.out_stackable )
+            *req->u.get_obj_name.out_stackable = obj->stackable ? 1 : 0;
+        return 1;
+    }
     default:
         return 0;
     }
@@ -353,6 +506,13 @@ App_Init(
     app->proj_src_tile_level = 0;
 
     seed_inv_defaults(&app->invs);
+    RS_Social_Init(&app->social);
+    RS_Social_SeedDefaults(&app->social);
+    RS_Chat_Init(&app->chat, "Player");
+    RS_Chat_AddMessage(
+        &app->chat, RS_CHAT_TYPE_GAME, NULL, "Welcome to RuneScape");
+    app->chat_source.line_at = app_chat_line_at;
+    app->chat_source.user = app;
     RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps);
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
     RS_PlayerStats_Init(&app->stats);
@@ -368,12 +528,47 @@ App_Init(
     app->hover_com_id = -1;
     app->clicked_com_id = -1;
     app->need_redraw = 1;
+
+    /* Phase 6: networking (opt-in). The default RSA key is the rev_245_2 Lost
+     * City pair (v0 tori_rs_init); TORIRS_RSA_EXP/MOD override it. */
+    if( cfg->connect_target && cfg->connect_target[0] )
+    {
+        char const* rsa_e = getenv("TORIRS_RSA_EXP");
+        char const* rsa_n = getenv("TORIRS_RSA_MOD");
+        if( !rsa_e )
+            rsa_e = "81f390b2cf8ca7039ee507975951d5a0b15a87bf8b3f99c966834118c50fd94d";
+        if( !rsa_n )
+            rsa_n =
+                "88c38748a58228f7261cdc340b5691d7d0975dee0ecdb717609e6bf971eb3fe723ef9d130e468"
+                "6813739768ad9472eb46d8bfcc042c1a5fcb05e931f632eea5d";
+
+        app->net = calloc(1, sizeof(struct ToriRS_Network));
+        assert(app->net);
+        ToriRS_Network_Init(app->net, GameProtoRev_LC245_2(), rsa_e, rsa_n);
+        app->net_enabled = 1;
+        /* IF1 button clicks now notify the server (reference IF_BUTTON /
+         * RESUME_PAUSEBUTTON). */
+        app->button_sink.user = app;
+        app->button_sink.if_button = app_send_if_button;
+        app->button_sink.resume_pausebutton = app_send_resume_pausebutton;
+        ToriRS_Network_ConnectLogin(
+            app->net,
+            cfg->connect_target,
+            cfg->connect_user ? cfg->connect_user : "guest",
+            cfg->connect_pass ? cfg->connect_pass : "");
+    }
 }
 
 void
 App_Shutdown(struct App* app)
 {
     assert(app);
+    if( app->net )
+    {
+        ToriRS_Network_Free(app->net);
+        free(app->net);
+        app->net = NULL;
+    }
     UITree_EmitBufferFree(&app->emit);
     RS_CS2Host_Free(&app->host);
     if( app->painter_buffer )
@@ -718,6 +913,10 @@ App_OpenRootInterface(
 
     app_push_builtin_overlay_nodes(app);
 
+    /* Tab/interface-slot state seeds from the baked tree (INI componentno= and
+     * selected= drive it; nothing here is hardcoded). */
+    RS_UISlots_InitFromTree(&app->slots, app->tree);
+
     /* Load model-widget sequences and apply the first frame before the
      * initial render; App_RunOnce advances frames each tick. */
     UITreeAnim_RequestMissing(
@@ -732,6 +931,7 @@ App_OpenRootInterface(
     if( App_WorldNodeIndex(app) >= 0 )
         app_world_load(app);
 
+    app_chat_build_view(app);
     app->emit.count = 0;
     UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, -1);
     /* Prime the viewport cache so the first App_Render can draw the world
@@ -746,7 +946,42 @@ app_logic_tick(struct App* app)
 {
     int redraw = 0;
 
+    app->logic_cycle++;
+
+    /* Drain up to 5 parsed server packets per tick (reference tcpIn cadence)
+     * into the exec seam, which mutates App state (varps, invs, stats,
+     * interfaces, chat). */
+    if( app->net )
+    {
+        struct RS_GameProtoCtx ctx = {
+            .tree = app->tree,
+            .invs = &app->invs,
+            .varps = &app->varps,
+            .stats = &app->stats,
+            .chat = &app->chat,
+            .app = app,
+        };
+        struct RevPacket_LC245_2 packet;
+        for( int i = 0; i < 5 && ToriRS_Network_PopPacket(app->net, &packet); i++ )
+        {
+            RS_GameProto_Exec(&ctx, &packet);
+            gameproto_free_lc245_2(&packet);
+            redraw = 1;
+        }
+
+        /* Keepalive once per tick while in the game world (reference sends
+         * NO_TIMEOUT to keep the connection from idling out). */
+        if( app->net->state == TORIRS_NET_GAME )
+            APP_NET_SEND(app, net_out_no_timeout(app->net->random_out, _nsbuf, sizeof(_nsbuf)));
+    }
+
     RS_CS2Host_Tick(&app->host);
+
+    /* clientCode-populated components (friends rows, list sizes, design
+     * preview) refresh from live state each tick (reference clientComponent
+     * runs inside the draw; ours is a tick pass so emit stays pure). */
+    if( RS_ClientCode_Tick(app->tree, &app->social, app->logic_cycle) )
+        redraw = 1;
 
     /* World map panning and element flashing advance on the client tick, the
      * same clock the map's own onTimer scripts run on. */
@@ -1687,7 +1922,7 @@ app_hover_text_update(
                 .provider = app->provider,
                 .runner = &app->runner,
                 .invs = &app->invs,
-                .chat = NULL,
+                .chat = &app->chat_source,
                 .world = app->world,
                 /* Same rule the click paths use: world rows only when the
                  * pointer is over bare viewport. */
@@ -1736,7 +1971,7 @@ app_minimenu_open(
         .provider = app->provider,
         .runner = &app->runner,
         .invs = &app->invs,
-        .chat = NULL,
+        .chat = &app->chat_source,
         .world = app->world,
         .world_pickset = &app->world_pickset,
         .click_in_world = click_in_world != 0,
@@ -1810,8 +2045,11 @@ app_minimenu_use_option(
         hook = UITree_ResolveClickHook(app->tree, idx, &hook_com_id);
         if( !hook || hook->script_id <= 0 )
         {
-            /* IF1-style static buttons have no CS2 hook; the button engine
-             * (APPLY_BUTTON_CLICK) is not implemented in src/main yet. */
+            /* IF1-style static buttons have no CS2 hook — the button engine
+             * applies buttonType/varp semantics locally (+ server notify via
+             * the sink once networking attaches). */
+            if( RS_IF1_ApplyButtonClick(app, opt.pick.id, opt.action) )
+                return 0;
             fprintf(
                 stderr,
                 "minimenu: no hook for com=0x%x action=%d op=%d\n",
@@ -1829,8 +2067,18 @@ app_minimenu_use_option(
         return 1;
     }
     case UI_MINIMENU_PICK_TERRAIN:
-        /* Walk here: pathe the first spawned player (the closest thing to a
-         * local player until state sync exists), else just the cross. */
+        /* Walk here: tell the server (reference MOVE_GAMECLICK), and locally
+         * path the first spawned player as immediate feedback until PID/
+         * player-info sync owns the local player. */
+        APP_NET_SEND(
+            app,
+            net_out_move_gameclick(
+                app->net->random_out,
+                _nsbuf,
+                sizeof(_nsbuf),
+                opt.pick.secondary_id,
+                opt.pick.tertiary_id,
+                0));
         if( app->world )
         {
             struct World_EntityPool* pool = &app->world->entities.player;
@@ -1838,7 +2086,7 @@ app_minimenu_use_option(
             if( head != WORLD_ENTITY_NIL )
                 World_PlayerPathJump(
                     app->world, head, false, opt.pick.secondary_id, opt.pick.tertiary_id);
-            else
+            else if( !app->net_enabled )
                 fprintf(
                     stderr,
                     "minimenu: walk %d,%d level=%d (no player)\n",
@@ -1871,6 +2119,41 @@ app_minimenu_use_option(
     default:
         fprintf(stderr, "minimenu: unhandled pick kind %d\n", (int)opt.pick.kind);
         return 0;
+    }
+}
+
+void
+App_DrainCommands(
+    struct App* app,
+    struct ToriRS_CmdBus* bus,
+    struct LibToriRS_Input* input)
+{
+    struct ToriRS_CmdHeader header;
+    static uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+
+    assert(app);
+    assert(bus);
+    assert(input);
+
+    while( CmdBus_Pop(bus, &header, payload) )
+    {
+        if( ToriRS_Input_ApplyCmd(input, &header, payload) )
+            continue;
+
+        switch( header.type )
+        {
+        case TORIRS_CMD_FRAME:
+            break; /* record/replay delimiter only */
+        case TORIRS_CMD_NET_CONNECT:
+        case TORIRS_CMD_NET_RECV:
+        case TORIRS_CMD_NET_STATUS:
+            if( app->net )
+                ToriRS_Network_HandleCmd(app->net, header.type, payload, header.length);
+            break;
+        default:
+            fprintf(stderr, "cmdbus: unhandled command type %u\n", header.type);
+            break;
+        }
     }
 }
 
@@ -1980,7 +2263,7 @@ App_RunOnce(
             .provider = app->provider,
             .runner = &app->runner,
             .invs = &app->invs,
-            .chat = NULL,
+            .chat = &app->chat_source,
             .world = app->world,
             .world_pickset = NULL, /* UI hit: mouse was over a component */
             .click_in_world = false,
@@ -2032,7 +2315,7 @@ App_RunOnce(
             .provider = app->provider,
             .runner = &app->runner,
             .invs = &app->invs,
-            .chat = NULL,
+            .chat = &app->chat_source,
             .world = app->world,
             .world_pickset = &app->world_pickset,
             .click_in_world = true,
@@ -2131,6 +2414,61 @@ App_RunOnce(
         }
     }
 
+    /* Chat input: typed characters/backspace/return feed whichever chat
+     * input line is open (reference handleInputKey — typing goes to the chat
+     * line even while op-key bindings also fire). Only when a chat region
+     * exists (dat1 gameframe). */
+    if( app->slots.chat_index >= 0 )
+    {
+        /* Straight from the input queue: out.key_events only fills when some
+         * component carries an onKey hook, but chat typing must work without
+         * any (the dat1 packs have none). A public-chat message submitted this
+         * frame (input line empties, a new PUBLIC message from us appears at
+         * the front) is forwarded to the server. */
+        for( int e = 0; e < input->key_event_count; e++ )
+        {
+            int had_input = app->chat.input[0] != '\0';
+            if( RS_Chat_HandleKey(
+                    &app->chat,
+                    &app->social,
+                    input->key_events[e].key_typed,
+                    input->key_events[e].key_pressed) )
+            {
+                app->need_redraw = 1;
+                if( had_input && app->chat.input[0] == '\0' && app->chat.message_count > 0 &&
+                    app->chat.messages[0].type == RS_CHAT_TYPE_PUBLIC )
+                    APP_NET_SEND(
+                        app,
+                        net_out_message_public(
+                            app->net->random_out,
+                            _nsbuf,
+                            sizeof(_nsbuf),
+                            app->chat.messages[0].text));
+            }
+        }
+
+        /* Wheel over the chat region scrolls the message history. */
+        if( input->curr.mouse_wheel_y != 0 )
+        {
+            int rx = 0;
+            int ry = 0;
+            if( app_chat_region(app, &rx, &ry, NULL) )
+            {
+                struct UITreeComponent const* node =
+                    &app->tree->components[app->slots.chat_index];
+                int bx = 0, by = 0, bw = 0, bh = 0;
+                UITree_LayoutGetBounds(&node->position, &bx, &by, &bw, &bh);
+                if( input->curr.mouse_x >= bx && input->curr.mouse_x < bx + bw &&
+                    input->curr.mouse_y >= by && input->curr.mouse_y < by + bh )
+                {
+                    struct RS_ChatFilters filters = app_chat_filters(app);
+                    RS_Chat_Scroll(&app->chat, &filters, input->curr.mouse_wheel_y);
+                    app->need_redraw = 1;
+                }
+            }
+        }
+    }
+
     /* Click handlers can unhide tabs; pump immediately so the freshly visible
      * widgets populate this frame instead of one tick later. Early-outs when
      * nothing was unhidden. */
@@ -2145,12 +2483,37 @@ App_RunOnce(
 
     if( app->need_redraw )
     {
+        app_chat_build_view(app);
         app->emit.count = 0;
         UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->hover_com_id);
         app->need_redraw = 0;
         return 1;
     }
     return 0;
+}
+
+static void
+app_send_if_button(void* user, int com_id)
+{
+    struct App* app = (struct App*)user;
+    APP_NET_SEND(app, net_out_if_button(app->net->random_out, _nsbuf, sizeof(_nsbuf), com_id));
+}
+
+static void
+app_send_resume_pausebutton(void* user, int com_id)
+{
+    struct App* app = (struct App*)user;
+    APP_NET_SEND(
+        app, net_out_resume_pausebutton(app->net->random_out, _nsbuf, sizeof(_nsbuf), com_id));
+}
+
+void
+App_RefreshAfterTreeMutation(struct App* app)
+{
+    assert(app);
+    UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    app_run_cs1_eval(app);
+    app->need_redraw = 1;
 }
 
 void
