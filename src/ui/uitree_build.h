@@ -80,6 +80,10 @@ struct UIBuildComponent
      * menu_options for minimenu row population. */
     char option[UITREE_MENU_OPTION_LEN];
     char ops[UITREE_MENU_OPTION_SLOTS][UITREE_MENU_OPTION_LEN];
+    /** BUTTON_TARGET spell verb + base ("Cast" / "Wind Strike"); empty for
+     * non-spell components. Copied onto the node behavior for target-mode. */
+    char target_verb[UITREE_MENU_OPTION_LEN];
+    char target_base[UITREE_MENU_OPTION_LEN];
     int button_type;
     int client_code;
     int32_t click_mask;

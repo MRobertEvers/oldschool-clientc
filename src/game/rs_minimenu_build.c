@@ -192,6 +192,46 @@ ensure_objtype(struct RS_MinimenuBuildCtx const* ctx, int obj_id)
     return CacheProvider_ObjtypeGet(ctx->provider, obj_id);
 }
 
+/* "Use <held> with <this item>" / "<spell> <this item>" row for an inventory
+ * slot while a select mode is armed (reference addComponentOptions useMode/
+ * targetMode inv branch). Returns true when a mode was active (so the caller
+ * skips the normal op rows). The reference skips the row for the very item that
+ * armed use-mode. */
+static bool
+add_inv_slot_select_row(
+    struct RS_MinimenuSelection const* sel,
+    struct UIMinimenuPick pick,
+    int com_id,
+    int slot,
+    char const* obj_name,
+    struct UIMinimenu* menu)
+{
+    char text[UITREE_MINIMENU_OPTION_LEN];
+
+    if( sel->mode == RS_MINIMENU_SELECT_USE_ITEM )
+    {
+        if( com_id == sel->obj_com_id && slot == sel->obj_slot )
+            return true; /* can't use an item on itself */
+        snprintf(
+            text,
+            sizeof(text),
+            "Use %s with @lre@ %s",
+            sel->obj_name[0] ? sel->obj_name : "item",
+            obj_name);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_USEHELD_ONHELD, 0, pick);
+        return true;
+    }
+    if( sel->mode == RS_MINIMENU_SELECT_TARGET )
+    {
+        if( (sel->target_mask & 0x10) == 0 )
+            return true; /* spell does not target held items */
+        snprintf(text, sizeof(text), "%s @lre@ %s", sel->target_op, obj_name);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_HELD, 0, pick);
+        return true;
+    }
+    return false;
+}
+
 /* Inventory grid node: resolve the slot under the click (content coords fold
  * ancestor scroll back in) and emit held-item + component-op rows. */
 static int
@@ -233,6 +273,10 @@ add_inv_slot_rows(
             pick_inv_slot(node->component_id, slot, inv_slot.obj_id);
         char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
         char suffix[UITREE_MINIMENU_OPTION_LEN];
+
+        if( add_inv_slot_select_row(
+                &ctx->selection, pick, node->component_id, slot, obj_name, menu) )
+            return menu->option_count - before;
 
         add_inv_obj_rows(menu, pick, obj);
         snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
@@ -401,6 +445,36 @@ RS_Minimenu_IfButtonActionForType(int button_type)
     return if_button_action_for_type(button_type);
 }
 
+/* "<verb> @gre@<base>" spell/prayer row for a BUTTON_TARGET component when no
+ * mode is armed (reference addComponentOptions BUTTON_TARGET branch, targetMode
+ * === 0). Clicking it arms target mode. The verb is the first word of
+ * targetVerb (reference splits on the first space). */
+static bool
+add_target_button_row(
+    struct UITreeComponent const* node,
+    struct UIMinimenu* menu)
+{
+    struct UITreeMenuOptions const* opts = &node->menu_options;
+    struct UIMinimenuPick pick = pick_ui(node->component_id);
+    char text[UITREE_MINIMENU_OPTION_LEN];
+    char verb[UITREE_MENU_OPTION_LEN];
+    char const* space;
+
+    if( node->behavior.button_type != REVCONFIG_BUTTON_TYPE_TARGET )
+        return false;
+    if( opts->target_verb[0] == '\0' )
+        return false;
+
+    snprintf(verb, sizeof(verb), "%s", opts->target_verb);
+    space = strchr(verb, ' ');
+    if( space )
+        verb[space - verb] = '\0';
+
+    snprintf(text, sizeof(text), "%s @gre@%s", verb, opts->target_base);
+    UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, 0, pick);
+    return true;
+}
+
 /* Generic component rows: social first, else op rows (with the component's
  * option label as the row target — reference "<op> <target>") or, for
  * op-less buttons, a single label row. Port of v1
@@ -408,6 +482,7 @@ RS_Minimenu_IfButtonActionForType(int button_type)
 static int
 add_component_rows(
     struct UITreeComponent const* node,
+    enum RS_MinimenuSelectMode select_mode,
     struct UIMinimenu* menu)
 {
     int const before = menu->option_count;
@@ -417,6 +492,12 @@ add_component_rows(
     char const* label = NULL;
 
     if( add_social_rows(node, menu) )
+        return menu->option_count - before;
+
+    /* A spell/prayer button turns into a "Cast <spell>" target-select row
+     * rather than its op rows — but only when nothing is already armed
+     * (reference gates the BUTTON_TARGET branch on targetMode === 0). */
+    if( select_mode == RS_MINIMENU_SELECT_NONE && add_target_button_row(node, menu) )
         return menu->option_count - before;
 
     ops_added = add_menu_ops_rows(
@@ -481,7 +562,7 @@ RS_Minimenu_Build(
         else if( node->type == UIELEM_BUILTIN_CHAT )
             add_chat_rows(ctx, node, click_x, click_y, out);
         else
-            add_component_rows(node, out);
+            add_component_rows(node, ctx->selection.mode, out);
     }
 
     UIMinimenu_SortPriorityActions(out);

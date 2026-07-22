@@ -73,6 +73,8 @@ World_SetLoadComplete(
 {
     assert(world);
     world->load_complete = complete;
+    if( complete )
+        world->load_seq++;
 }
 
 static void
@@ -102,6 +104,11 @@ World_ResetSceneAlloc(
     }
 
     World_TerrainReset(world);
+    /* Scenery records mirror the builder's static scene elements, which the
+     * rebuild frees and recreates — stale records would alias the new
+     * elements' reused ids. Movers/objstacks stay: the rebuild shift
+     * relocates them (Client-TS keeps entity slots across a rebuild). */
+    World_EntityPoolReset(&world->entities.scenery);
     world->scenery_pick_count = 0;
     world->event_count = 0;
     world->mapfunc_count = 0;
@@ -563,6 +570,152 @@ World_SpotanimDespawn(
     assert(s);
     World_EmitEntityRemoved(world, s->element_id);
     World_EntityPoolRelease(pool, idx);
+}
+
+/* --- REBUILD_NORMAL scene-base relocation (Client-TS rebuild handler) ---
+ *
+ * The new scene origin moved by (dx, dz) tiles, so every kept entity's
+ * scene-local coordinates move by the negation (routeX -= dx, x -= dx*128).
+ * Entities that land outside the scene must stay tracked — the server
+ * addresses its PLAYER/NPC_INFO lists by position, so the client cannot drop
+ * them — but are parked on tile 255, outside any scene we build, which the
+ * painter registration and position-sync bounds checks already skip. The
+ * server's next info packet removes them properly. */
+
+static uint8_t
+world_shift_route_coord(
+    int coord,
+    int delta)
+{
+    int shifted = coord - delta;
+    if( shifted < 0 || shifted > 255 )
+        return 255;
+    return (uint8_t)shifted;
+}
+
+static void
+world_shift_mover(
+    struct WorldEntityFacet_GridPosition* grid,
+    struct WorldEntityFacet_DrawPosition* draw,
+    struct WorldEntityFacet_Pathing* pathing,
+    struct WorldEntityFacet_ExactMove* exact,
+    int dx,
+    int dz)
+{
+    for( int j = 0; j < 10; j++ )
+    {
+        pathing->route_x[j] = world_shift_route_coord(pathing->route_x[j], dx);
+        pathing->route_z[j] = world_shift_route_coord(pathing->route_z[j], dz);
+    }
+    grid->x = pathing->route_x[0];
+    grid->z = pathing->route_z[0];
+
+    if( pathing->route_x[0] == 255 || pathing->route_z[0] == 255 )
+    {
+        /* Parked out-of-scene: pin the draw position to the parked tile so
+         * nothing interpolates across the scene if the entity comes back. */
+        pathing->route_length = 0;
+        draw->x = (uint32_t)(pathing->route_x[0] * 128 + 64);
+        draw->z = (uint32_t)(pathing->route_z[0] * 128 + 64);
+    }
+    else
+    {
+        int fine_x = (int)draw->x - dx * 128;
+        int fine_z = (int)draw->z - dz * 128;
+        if( fine_x < 0 )
+            fine_x = pathing->route_x[0] * 128 + 64;
+        if( fine_z < 0 )
+            fine_z = pathing->route_z[0] * 128 + 64;
+        draw->x = (uint32_t)fine_x;
+        draw->z = (uint32_t)fine_z;
+    }
+
+    if( exact && (exact->move_start != 0 || exact->move_end != 0) )
+    {
+        exact->start_x = world_shift_route_coord(exact->start_x, dx);
+        exact->start_z = world_shift_route_coord(exact->start_z, dz);
+        exact->end_x = world_shift_route_coord(exact->end_x, dx);
+        exact->end_z = world_shift_route_coord(exact->end_z, dz);
+    }
+}
+
+void
+World_ShiftEntities(
+    struct World* world,
+    int dx,
+    int dz)
+{
+    struct World_EntityPool* pool;
+
+    assert(world);
+    if( dx == 0 && dz == 0 )
+        return;
+
+    pool = &world->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
+        if( player )
+            world_shift_mover(
+                &player->grid_position,
+                &player->draw_position,
+                &player->pathing,
+                &player->exact_move,
+                dx,
+                dz);
+    }
+
+    pool = &world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        if( npc )
+            world_shift_mover(
+                &npc->grid_position, &npc->draw_position, &npc->pathing, NULL, dx, dz);
+    }
+
+    pool = &world->entities.obj_stack;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, i);
+        int sx, sz;
+        if( !stack )
+            continue;
+        sx = stack->grid_position.x - dx;
+        sz = stack->grid_position.z - dz;
+        /* Out-of-scene stacks are deleted by the caller (App layer, which
+         * also owns the element reposition); park them at 255 like movers. */
+        stack->grid_position.x = (sx < 0 || sx > 255) ? 255 : sx;
+        stack->grid_position.z = (sz < 0 || sz > 255) ? 255 : sz;
+        stack->draw_position.x = (uint32_t)(stack->grid_position.x * 128 + 64);
+        stack->draw_position.z = (uint32_t)(stack->grid_position.z * 128 + 64);
+    }
+}
+
+void
+World_ClearProjectilesAndSpotanims(struct World* world)
+{
+    struct World_EntityPool* pool;
+    int next;
+
+    assert(world);
+
+    pool = &world->entities.projectile;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = next )
+    {
+        next = World_EntityPoolNext(pool, i);
+        World_ProjectileDespawn(world, i);
+    }
+
+    pool = &world->entities.spotanim;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = next )
+    {
+        next = World_EntityPoolNext(pool, i);
+        World_SpotanimDespawn(world, i);
+    }
 }
 
 static void

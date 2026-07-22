@@ -68,6 +68,7 @@ struct World_MapFunctionIcon
 {
     int x;
     int z;
+    int level;
     int func;
 };
 
@@ -84,6 +85,12 @@ struct World
     int _scene_size;
 
     bool load_complete;
+    /** Bumped every time a rebuild finishes (World_SetLoadComplete(true)).
+     * `load_complete` alone cannot tell a caller "the load I started has
+     * landed": the scene reset that clears it happens inside the *synchronous
+     * tail* of Task_WorldLoad, so the flag stays true for the whole async
+     * asset-fetch phase of the next load. Poll this counter instead. */
+    unsigned load_seq;
 
     /** Client cycle counter (reference loopCycle): advanced by World_Cycle,
      * stamps exact-move windows / spotanim delays / hitmark expiry. */
@@ -579,6 +586,24 @@ void
 World_SceneryRemove(
     struct World* world,
     int idx);
+
+/** REBUILD_NORMAL relocation (Client-TS rebuild handler): the scene base
+ * moved by (dx, dz) tiles; shift every player/npc/objstack's scene-local
+ * coords by the negation (routes, grid, fine draw positions, exact-move).
+ * Entities landing outside the scene are parked on tile 255 — still tracked
+ * (the server addresses info lists by position) but skipped by the painter
+ * bounds checks until the server removes them. */
+void
+World_ShiftEntities(
+    struct World* world,
+    int dx,
+    int dz);
+
+/** Despawn every projectile + spotanim (reference mapBuild clears both when
+ * the new scene lands; their trajectories are scene-local). Emits
+ * EntityRemoved events for their elements. */
+void
+World_ClearProjectilesAndSpotanims(struct World* world);
 
 int
 World_EventsCount(struct World* world);

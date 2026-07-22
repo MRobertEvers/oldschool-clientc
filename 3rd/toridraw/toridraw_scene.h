@@ -131,11 +131,34 @@ ToriDraw_SceneCacheFontGet(
 
 /* Scene elements */
 
+/* Element clear groups. STATIC is the world-builder's terrain/scenery set —
+ * torn down and rebuilt wholesale on every map rebuild (batches belong to
+ * this pool). DYNAMIC holds app-spawned entity elements (players, npcs,
+ * ground objs, projectiles) whose element ids must stay stable across a
+ * rebuild. ToriDraw_SceneClear still frees both. */
+#define TORIDRAW_SCENE_POOL_STATIC 0
+#define TORIDRAW_SCENE_POOL_DYNAMIC 1
+
 void
 ToriDraw_SceneClear(struct ToriDraw_Scene* scene);
 
+/** Free only the elements tagged with `pool`. Freed ids return to the shared
+ *  free list; live elements in other pools are untouched. Clearing the
+ *  STATIC pool also resets batch bookkeeping (batches are static-only). */
+void
+ToriDraw_SceneClearPool(
+    struct ToriDraw_Scene* scene,
+    int pool);
+
 int
 ToriDraw_SceneElementAdd(struct ToriDraw_Scene* scene);
+
+/** ToriDraw_SceneElementAdd tags TORIDRAW_SCENE_POOL_STATIC; this variant
+ *  picks the pool explicitly. */
+int
+ToriDraw_SceneElementAddPool(
+    struct ToriDraw_Scene* scene,
+    int pool);
 
 int
 ToriDraw_SceneElementRemove(

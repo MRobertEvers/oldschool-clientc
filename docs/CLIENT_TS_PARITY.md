@@ -180,6 +180,42 @@ Still not done: NPC `minimap`-visible flag (all NPCs dot for now), friend
 dots (needs social lookup), hint arrows (`minimapDrawArrow` ring clamping),
 and the anticheat `macroMinimapAngle/Zoom` wobble (angle/zoom sent as 0).
 
+**Three fixes this session (the "minimap always shows Lumbridge" bug):**
+
+1. **Stale bake — the headline symptom.** The load-completion poll
+   (`app_async_polls`) gated on `world->load_complete`, but that flag is set
+   *true* inside the synchronous tail of `Task_WorldLoad` and only cleared by
+   the *next* load's `World_ResetScene` — so it reads true for the entire
+   async asset-fetch phase of the following load. The poll therefore ran
+   `app_world_load_finish` (which re-bakes the minimap) one frame after the
+   load *started*, against the previous scene, and the REBUILD_NORMAL that
+   moved the player never triggered a fresh bake. The map stayed on the boot
+   scene (Lumbridge 50,50) forever. Fix: `World.load_seq`, bumped by
+   `World_SetLoadComplete(true)`; `app_world_load_begin` samples it into
+   `world_load_seq_at_begin` and the poll fires only once the counter *moves*
+   (same key §14's rebuild branch already documented). Verified live:
+   `::tele` to Varrock rebakes the map to Varrock.
+
+2. **Per-level bake + VisBelow composition.** `minimap_bake_argb` took no
+   level and only level-0 tiles/walls/shapes were ever recorded
+   (`world_terrain.u.c` guarded on `level == 0`), so an upstairs floor showed
+   the ground floor's map. The `Minimap` now stores tiles/walls per level
+   (`MINIMAP_LEVELS`), terrain/wall/mapfunction gather record every level, and
+   the bake is a line port of `minimapBuildBuffer(minusedlevel)`: draw the
+   requested level unless its tile is `VisBelow`/`ForceHighDetail`, then
+   overlay the level above wherever *it* is `VisBelow` (bridge decks, upstairs
+   balconies). `app_world_map_poll` rebakes when the local player changes
+   floor (reference `minimapLevel` mismatch). Verified live at Varrock level 1
+   (upstairs bank): the map switches to the first-floor layout.
+
+3. **Widget rect / player-square offset.** The minimap component was sized
+   213×190 at screen (570,9); the reference blits into a 146×151 rect and
+   `minimapLoop` hit-tests exactly that, so the white player square (the box
+   centre) sat ~28px right / ~21px down of the hole in the `mapback` frame
+   art. Fixed to `w=146 h=151 anchor 73,75` at (575,9) — the box now IS the
+   reference blit rect, which the dot overlay, the click un-rotate and the map
+   pivot all key off. The player square lands in the frame's window.
+
 ---
 
 ## 4. Roof hiding — ✅
@@ -698,3 +734,190 @@ actual call site; both verified to fail without the fix).
   pair is directly comparable to the server's `::getcoord`.
 - `message_game:` lines under `TORIRS_NET_DEBUG=1` — needed to read
   `::getcoord`'s reply headlessly.
+
+---
+
+## 14. World rebuild: entity relocation + stable scene ids — ✅
+
+### Client-TS
+
+Two-phase design. **At the REBUILD_NORMAL packet** (`Client.ts:7043`):
+compute `dx = mapBuildBaseX - mapBuildPrevBaseX` (and dz), then shift every
+tracked entity *without dropping any* — the server addresses its
+PLAYER/NPC_INFO lists by position, so client-side removal would desync them:
+
+- all 16384 npc slots + all player slots: `routeX[j] -= dx` (10 entries),
+  `x -= dx * 128` (fine);
+- the `groundObj[level][x][z]` grid is block-copied by (dx, dz) with
+  direction-aware iteration; entries shifted off the grid become null;
+- `locChanges` entries shift and unlink when out of range;
+- `minimapFlagX/Z -= dx/dz`; `awaitingPlayerInfo = true` gates the scene
+  swap until the first post-rebuild PLAYER_INFO lands.
+
+**At scene build** (`mapBuild`, `Client.ts:5378`): `spotanims.clear()` +
+`projectiles.clear()` (their trajectories are scene-local), map/loc state
+reset. Player/npc objects and their slots survive both phases untouched.
+
+### torirs — the two root causes
+
+1. **Scene ids shuffled.** `WorldBuilder_Rebuild*Begin` called
+   `ToriDraw_SceneClear`, freeing *every* scene element — including entity
+   elements — onto the shared free list; the new terrain/scenery then reused
+   those ids, so every element id held by an entity/esync record silently
+   aliased a random wall. Fix: **scene element pools**
+   (`3rd/toridraw/toridraw_scene.h`): elements are tagged
+   `TORIDRAW_SCENE_POOL_STATIC` (builder terrain/scenery/batches — default)
+   or `TORIDRAW_SCENE_POOL_DYNAMIC` (`ToriDraw_SceneElementAddPool`, used by
+   `app_world_scene_element_create`, i.e. every entity element), and the
+   builder now clears with `ToriDraw_SceneClearPool(scene, STATIC)` — dynamic
+   ids survive a rebuild untouched, so the esync registry stays valid.
+   `World_ResetSceneAlloc` also resets the **scenery pool** (records mirror
+   static elements and are re-registered by the builder) — previously stale
+   records accumulated across rebuilds with dead element ids.
+2. **Nobody relocated entities.** `Task_GameProtoExec`'s REBUILD branch now
+   captures `world->_base_tile_x/z` before awaiting `Task_WorldLoad` and,
+   right after the load's synchronous scene swap (same task drain — no frame
+   renders in between), calls `App_WorldRebuildShift(app, dx, dz)`:
+   - `World_ShiftEntities` (`world/world.c`): players + npcs shift routes
+     (all 10 entries), grid, fine draw positions and active exact-moves;
+     obj stacks shift grid + draw. Entities that land outside the scene are
+     **parked on tile 255** rather than despawned (tracked-list parity, see
+     above) — route coords are `uint8_t`, so true negatives are saturated to
+     255, which every painter/pos-sync bounds check skips; the server's next
+     info packet removes them properly. `app_world_sync_positions` gained
+     the matching bounds guard (the heightmap has no data out there).
+   - `World_ClearProjectilesAndSpotanims` — the mapBuild parity clear.
+   - obj-stack elements get repositioned against the new heightmap;
+     out-of-scene stacks are deleted (`World_ObjStackDel`).
+   - `minimap_flag_x/z` shift (cleared when out of scene).
+   Face-coords (`facing.square_x/z`) intentionally do **not** shift — they
+   are stored in the wire's absolute half-tile form and converted against
+   the *current* base at consumption (`world_cycle.c:216`).
+
+The serial packet FIFO stands in for `awaitingPlayerInfo`: every post-rebuild
+PLAYER/NPC_INFO is queued behind the rebuild task, so nothing reads the new
+scene before the shift runs. The load-completion frame poll keys off
+`world->load_seq` advancing past a sample taken when the load is queued
+(`world_load_seq_at_begin`) — `load_complete` alone stays true from the old
+scene during the whole asset-fetch phase; the REBUILD branch samples it too.
+
+Tests: `test_rebuild_shift` (`world/test/world_test_unit.c`, `make -C src
+test-world`) — in-scene shift of player/npc/stack routes+grid+draw, park-at-
+255 for out-of-scene entities (kept, route dropped), far-stack marked for
+deletion, projectile/spotanim clear events, scenery-pool reset with movers
+surviving `World_ResetScene`. Verified live (LostCity, `::tele 0,52,52,32,32`
+two regions away): `rebuild_shift: dx=128 dz=128` fires after the 9-chunk
+load, `TORIRS_POS_DEBUG` settles at `abs=3360,3360` = the tele target with a
+consistent scene tile, world + minimap render at the destination, zero
+error/dropped lines. The login rebuild (`dx=-64`) exercises the in-scene
+shift path on the boot world's entities.
+
+Follow-ons: temporary loc changes (`locChanges` revert list) still have no
+torirs equivalent (LOC_ADD_CHANGE is remove-only, §9), and a mid-walk local
+player crossing the boundary keeps its interpolated draw position only when
+it stays in scene — the parked case relies on the immediate PLAYER_INFO
+teleport, same as the reference's awaitingPlayerInfo window.
+
+---
+
+## 15. Bridge tiles: entities stand on the deck, not the underpass — ✅
+
+### Client-TS
+
+`getAvH` (`Client.ts:5288`), the height under any fine (x,z) the client
+queries for a mover/camera/projectile, bumps the sample level on a bridge:
+
+```ts
+let realLevel = level;
+if (level < 3 && (this.mapl[1][tileX][tileZ] & MapFlag.LinkBelow) !== 0) {
+    realLevel = level + 1;
+}
+```
+
+The scene build's `pushDown` moves a `LinkBelow` column's *geometry* from
+cache level 1 down into paint level 0 (so the deck renders under a level-0
+camera), but `groundh` keeps raw cache levels — so a mover standing on the
+bridge has to read `level + 1` or it snaps to the underpass floor below.
+`changeLoc`/`setDecor`/collision all consult the same `LinkBelow` bit.
+
+### torirs
+
+`app_world_height` (the `World_HeightFn` every mover/projectile/camera height
+query flows through) was a bare `heightmap_get_interpolated(level)`. It now
+ports the `getAvH` bridge clause: when `World_TileFlagGet(x>>7, z>>7, 1) &
+RSCACHE_FLOFLAG_LINK_BELOW`, sample `level + 1`. `World.tile_flags` was
+already persisted for roof-hiding (§4), so the bit is in hand — v0/v1 baked
+the same bump into build-time heights, but torirs keeps raw levels and applies
+it at query time, matching the reference exactly. Verified live: `::tele
+0,50,50,45,25` onto the Lumbridge bridge deck reports `flags=01/02`
+(LinkBelow on level 1) and `y=-336` (deck height) instead of `y=0` (the
+water/underpass floor); the player model renders on top of the bridge, not
+inside the arch. Debug: `TORIRS_BRIDGE_DEBUG=1` lists every LinkBelow column
+with its level-0/level-1 heights, and `TORIRS_POS_DEBUG` now prints `y=` and
+`flags=<level>/<level1>` for the player's column.
+
+---
+
+## 16. "Use" / "Use On" items + spell-on-target (spellbook) — ✅
+
+### Client-TS
+
+Two mutually-exclusive select modes drive the whole menu build
+(`addWorldOptions` / `addComponentOptions`, `Client.ts:9511`+):
+
+- **`useMode`** — armed by `USEHELD_START` (102, the "Use" row on an inventory
+  item, `objSelected*` set). While set, every target is offered a single
+  `Use <objSelectedName> with <colour><name>` row instead of its own ops:
+  `USEHELD_ONLOC` 810 / `USEHELD_ONNPC` 829 / `USEHELD_ONOBJ` 111 /
+  `USEHELD_ONHELD` 398 (inv, skips the armed slot). "Walk here" is suppressed.
+- **`targetMode`** — armed by `TGT_BUTTON` (274) on a `BUTTON_TARGET`
+  component (a spell/prayer). `targetOp` is built from the component's
+  `targetVerb`/`targetBase` ("Cast" + "Wind Strike" → "Cast Wind Strike"),
+  and `targetMask` bits gate which kinds are valid (0x1 obj, 0x2 npc, 0x4 loc,
+  0x8 player, 0x10 held). Rows: `TGT_LOC` 899 / `TGT_NPC` 240 / `TGT_OBJ` 370
+  / `TGT_HELD` 563. Wire: `OPLOCU/OPNPCU/OPOBJU/OPHELDU` carry the used item's
+  `slot`+`comId`; `OPLOCT/OPNPCT/OPOBJT/OPHELDT` carry the spell `targetComId`.
+
+### torirs
+
+The *wire builders* (`net_out_op{loc,npc,obj,held}{u,t}`) and the
+`objsel`-completion path already existed but the *menu presentation* did not —
+right-clicking a tree while "Use" was armed still showed "Chop down Tree".
+Now:
+
+- `struct RS_MinimenuSelection` (mode + obj name/slot/com + target op/mask) is
+  snapshotted from `app->objsel` / new `app->targetsel` by
+  `app_minimenu_selection` and threaded into `RS_MinimenuBuildCtx`. Every menu
+  builder branches on it: `add_world_select_row` (loc/npc/obj),
+  `add_inv_slot_select_row` (held), and the Walk-here suppression all mirror
+  the reference exactly. A spell button becomes a "Cast <spell>" row
+  (`add_target_button_row`, first word of `targetVerb` + `@gre@` base), gated
+  on `targetMode == 0`.
+- `target_verb`/`target_base` are newly plumbed end to end: dat1 + dat2
+  decoders already carried `targetVerb`/`targetText`, now copied through
+  `ToriRS_Component` → `UIBuildComponent` → `UITreeMenuOptions` (the node's
+  `menu_options`, next to `option`/`ops`). `targetMask` was already `click_mask`.
+- Execution (`app_minimenu_use_option`): a dedicated block before the pick
+  switch handles all `USEHELD_ON*` / `TGT_*` (world) via
+  `oplocu/opnpcu/opobju` and `oploct/opnpct/opobjt`, `TGT_HELD`/`USEHELD_ONHELD`
+  via `app_minimenu_inv_action` (`opheldu`/`opheldt`), and `TGT_BUTTON` arms
+  `targetsel` from the clicked node's `target_verb`/`target_base`/`click_mask`.
+  Arming either mode clears the other. `rs_minimenu_cross.h` gives the
+  world-walking variants (`USEHELD_ON{LOC,NPC,OBJ}`, `TGT_{LOC,NPC,OBJ}`) the
+  red interact cross; the held/button variants get none — reference parity,
+  unit-tested in `uitree_test_minimenu.c` ("minimenu / cross").
+
+Verified: the normal world right-click is unchanged (live: `Examine @cya@
+Bush` / `Walk here`), the new action ids resolve to the right crosses, and the
+full test suite (`test-world`, `test-uitree`, `test-uitree-builder`,
+`test-revconfig`) passes. **Live end-to-end of the *inventory* Use/Cast UI is
+blocked by a separate, pre-existing gap**: the fixed-frame sidebar mounts its
+tab overlays (`rs_ui_slots: settab tab=3 iface=3213`) but never renders the
+tab *content* (the 28-slot inventory grid, the spellbook), so there is no live
+item/spell to right-click yet — that panel-content mount is the natural next
+task to make this feature observable in the running client.
+
+Still not done: player right-click options (`addPlayerOptions` /
+`USEHELD_ONPLAYER` / `TGT_PLAYER`), and an explicit "deselect" for an armed
+mode (reference clears `useMode`/`targetMode` on several other actions; torirs
+clears them only on completion).

@@ -709,6 +709,11 @@ struct ToriRS_Component
     uint8_t tiled;
     char option[TORIRS_MENU_ACTION_LEN];
     char ops[TORIRS_MENU_ACTION_SLOTS][TORIRS_MENU_ACTION_LEN];
+    /** BUTTON_TARGET spell strings (dat1 targetVerb/targetText, dat2
+     * targetVerb/targetText): "Cast" + "Wind Strike" form the "Cast Wind
+     * Strike ..." target-mode verb. Empty when the component is not a spell. */
+    char target_verb[TORIRS_MENU_ACTION_LEN];
+    char target_base[TORIRS_MENU_ACTION_LEN];
 };
 
 struct ToriRS_ComponentPack

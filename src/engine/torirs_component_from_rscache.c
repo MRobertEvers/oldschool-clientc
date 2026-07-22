@@ -379,6 +379,10 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
         torirs_copy_menu_actions(dst->ops, src->objOps, 5);
     else
         torirs_copy_menu_actions(dst->ops, src->ops, src->opsLen);
+    if( src->targetVerb )
+        strncpy(dst->target_verb, src->targetVerb, sizeof(dst->target_verb) - 1);
+    if( src->targetText )
+        strncpy(dst->target_base, src->targetText, sizeof(dst->target_base) - 1);
 
     torirs_component_apply_graphic_hitbox_only(dst);
     torirs_component_copy_inv_slots_dat2(dst, src);
@@ -479,6 +483,10 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
     }
 
     torirs_copy_menu_actions(dst->ops, src->iop, 5);
+    if( src->targetVerb )
+        strncpy(dst->target_verb, src->targetVerb, sizeof(dst->target_verb) - 1);
+    if( src->targetText )
+        strncpy(dst->target_base, src->targetText, sizeof(dst->target_base) - 1);
 
     torirs_component_apply_graphic_hitbox_only(dst);
     torirs_component_copy_scripts(

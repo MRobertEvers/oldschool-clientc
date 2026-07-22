@@ -49,6 +49,10 @@ UITree_PushBuildComponent(
      * menu builder derives default action ids from the slot index. */
     memcpy(spec.menu_options.option, comp->option, sizeof(spec.menu_options.option));
     memcpy(spec.menu_options.ops, comp->ops, sizeof(spec.menu_options.ops));
+    memcpy(
+        spec.menu_options.target_verb, comp->target_verb, sizeof(spec.menu_options.target_verb));
+    memcpy(
+        spec.menu_options.target_base, comp->target_base, sizeof(spec.menu_options.target_base));
 
     int scene_id = -1;
     int scene_id_active = -1;

@@ -30,6 +30,31 @@ struct RS_MinimenuChatSource
     void* user;
 };
 
+/* Active "select-a-target" mode (reference Client.useMode / targetMode). While
+ * one is set the whole menu is rebuilt as "<verb> <target>" rows instead of the
+ * targets' own ops — a held item picks a use-on target, a spell/prayer button
+ * picks a cast target. NONE is the normal menu. */
+enum RS_MinimenuSelectMode
+{
+    RS_MINIMENU_SELECT_NONE = 0,
+    RS_MINIMENU_SELECT_USE_ITEM = 1, /* objSelected: "Use <obj> with ..." */
+    RS_MINIMENU_SELECT_TARGET = 2,   /* spell on: "<targetOp> ..." */
+};
+
+struct RS_MinimenuSelection
+{
+    enum RS_MinimenuSelectMode mode;
+    /* USE_ITEM: the armed inventory item (reference objSelected*). */
+    char obj_name[40];
+    int obj_slot;
+    int obj_com_id;
+    /* TARGET: the spell verb ("Cast Wind Strike") + which target kinds it
+     * accepts (reference targetOp / targetMask bits: 0x1 obj, 0x2 npc, 0x4 loc,
+     * 0x8 player, 0x10 held). */
+    char target_op[64];
+    int target_mask;
+};
+
 struct RS_MinimenuBuildCtx
 {
     struct UITree* tree;
@@ -38,6 +63,9 @@ struct RS_MinimenuBuildCtx
     struct TaskRunner* runner;
     struct InvManager* invs;
     struct RS_MinimenuChatSource const* chat; /* NULL = no chat lines yet */
+
+    /* Held-item / spell targeting mode (reference useMode/targetMode). */
+    struct RS_MinimenuSelection selection;
 
     /* World hittest results for this click (NULL/false = no world rows). The
      * pickset must have been refreshed at the click point by the caller. */

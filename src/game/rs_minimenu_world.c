@@ -10,9 +10,50 @@
 #include <string.h>
 #include <strings.h>
 
+/* True and emits the single use/target row when a select mode is active for
+ * this target kind (reference addWorldOptions useMode/targetMode branches):
+ * "Use <obj> with <colour><name>" or "<targetOp> <colour><name>". mask_bit is
+ * the target's targetMask bit (0x1 obj / 0x2 npc / 0x4 loc). */
+static bool
+add_world_select_row(
+    struct UIMinimenu* menu,
+    struct RS_MinimenuSelection const* sel,
+    struct UIMinimenuPick pick,
+    char const* colour,
+    char const* name,
+    int mask_bit,
+    int use_action,
+    int tgt_action)
+{
+    char text[UITREE_MINIMENU_OPTION_LEN];
+
+    if( sel->mode == RS_MINIMENU_SELECT_USE_ITEM )
+    {
+        snprintf(
+            text,
+            sizeof(text),
+            "Use %s with %s%s",
+            sel->obj_name[0] ? sel->obj_name : "item",
+            colour,
+            name);
+        UIMinimenu_AddOption(menu, text, use_action, 0, pick);
+        return true;
+    }
+    if( sel->mode == RS_MINIMENU_SELECT_TARGET )
+    {
+        if( (sel->target_mask & mask_bit) == 0 )
+            return true; /* mode active but this kind is not a valid target */
+        snprintf(text, sizeof(text), "%s %s%s", sel->target_op, colour, name);
+        UIMinimenu_AddOption(menu, text, tgt_action, 0, pick);
+        return true;
+    }
+    return false;
+}
+
 static void
 add_npc_rows(
     struct UIMinimenu* menu,
+    struct RS_MinimenuSelection const* sel,
     struct WorldEntity_NPC const* npc,
     struct World_Picked const* picked)
 {
@@ -35,6 +76,11 @@ add_npc_rows(
             npc->combat_level);
     else
         snprintf(tooltip, sizeof(tooltip), "%s", npc->name[0] ? npc->name : "NPC");
+
+    if( add_world_select_row(
+            menu, sel, pick, "@yel@ ", tooltip, 0x2, REVCONFIG_MINIMENU_USEHELD_ONNPC,
+            REVCONFIG_MINIMENU_TGT_NPC) )
+        return;
 
     /* Non-attack ops first, then attack, so attack draws below by insertion
      * order (v1 parity; the level-based deprioritize needs player stats the
@@ -65,6 +111,7 @@ add_npc_rows(
 static void
 add_scenery_rows(
     struct UIMinimenu* menu,
+    struct RS_MinimenuSelection const* sel,
     struct WorldEntity_Scenery const* scenery,
     struct World_Picked const* picked)
 {
@@ -77,6 +124,11 @@ add_scenery_rows(
         .tertiary_id = picked->tile_x,
         .quaternary_id = picked->tile_z,
     };
+
+    if( add_world_select_row(
+            menu, sel, pick, "@cya@", name, 0x4, REVCONFIG_MINIMENU_USEHELD_ONLOC,
+            REVCONFIG_MINIMENU_TGT_LOC) )
+        return;
 
     for( int i = 4; i >= 0; i-- )
     {
@@ -96,6 +148,7 @@ add_scenery_rows(
 static void
 add_obj_rows(
     struct UIMinimenu* menu,
+    struct RS_MinimenuSelection const* sel,
     struct WorldEntity_ObjStack const* stack,
     struct World_Picked const* picked)
 {
@@ -108,6 +161,11 @@ add_obj_rows(
         .tertiary_id = picked->tile_x,
         .quaternary_id = picked->tile_z,
     };
+
+    if( add_world_select_row(
+            menu, sel, pick, "@lre@ ", name, 0x1, REVCONFIG_MINIMENU_USEHELD_ONOBJ,
+            REVCONFIG_MINIMENU_TGT_OBJ) )
+        return;
 
     for( int i = 4; i >= 0; i-- )
     {
@@ -133,6 +191,7 @@ RS_Minimenu_AddWorldRows(
     struct UIMinimenu* menu)
 {
     struct World_PickSet const* picks;
+    struct RS_MinimenuSelection const* sel = &ctx->selection;
 
     assert(ctx && menu);
     if( !ctx->click_in_world || !ctx->world || !ctx->world_pickset )
@@ -141,7 +200,9 @@ RS_Minimenu_AddWorldRows(
 
     /* Walk here targets the nearest picked tile — the painter walks
      * back-to-front, so that is the LAST terrain item (matches the hover
-     * tile the click cross and spawn hotkeys use). */
+     * tile the click cross and spawn hotkeys use). Suppressed while a use/
+     * target mode is armed (reference gates it on useMode==0 && targetMode==0). */
+    if( sel->mode == RS_MINIMENU_SELECT_NONE )
     {
         struct World_Picked const* terrain = NULL;
         for( int i = 0; i < picks->count; i++ )
@@ -179,7 +240,7 @@ RS_Minimenu_AddWorldRows(
             struct WorldEntity_NPC* npc =
                 World_NpcGetByElementId(ctx->world, picked->element_id, NULL);
             if( npc )
-                add_npc_rows(menu, npc, picked);
+                add_npc_rows(menu, sel, npc, picked);
             break;
         }
         case WORLD_PICK_SCENERY:
@@ -187,7 +248,7 @@ RS_Minimenu_AddWorldRows(
             struct WorldEntity_Scenery* scenery =
                 World_SceneryGetByElementId(ctx->world, picked->element_id);
             if( scenery )
-                add_scenery_rows(menu, scenery, picked);
+                add_scenery_rows(menu, sel, scenery, picked);
             break;
         }
         case WORLD_PICK_OBJSTACK:
@@ -195,7 +256,7 @@ RS_Minimenu_AddWorldRows(
             struct WorldEntity_ObjStack* stack =
                 World_ObjStackGetByElementId(ctx->world, picked->element_id);
             if( stack )
-                add_obj_rows(menu, stack, picked);
+                add_obj_rows(menu, sel, stack, picked);
             break;
         }
         case WORLD_PICK_TERRAIN:    /* Walk here only (above). */

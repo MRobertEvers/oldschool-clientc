@@ -48,10 +48,22 @@ struct MinimapLoc
     enum MinimapLocType type;
 };
 
+/** Cache land-settings bits the bake composition reads (Client-TS MapFlag);
+ * the same values RSCACHE_FLOFLAG_* uses, redeclared so this stays leaf. */
+enum MinimapTileFlag
+{
+    MINIMAP_FLAG_VIS_BELOW = 0x08,
+    MINIMAP_FLAG_FORCE_HIGH_DETAIL = 0x10,
+};
+
+/** Terrain levels stored per tile (matches WORLD_MAP_TERRAIN_LEVELS). */
+#define MINIMAP_LEVELS 4
+
 struct Minimap
 {
     int width;
     int height;
+    int levels;
 
     struct MinimapTile* tiles;
     int tiles_count;
@@ -125,6 +137,7 @@ minimap_add_tile_wall(
     struct Minimap* minimap,
     int sx,
     int sz,
+    int level,
     enum MinimapWallFlag wall);
 
 #define MINIMAP_FOREGROUND 1
@@ -135,25 +148,29 @@ minimap_tile_rgb(
     struct Minimap* minimap,
     int sx,
     int sz,
+    int level,
     int is_foreground);
 
 int
 minimap_tile_wall(
     struct Minimap* minimap,
     int sx,
-    int sz);
+    int sz,
+    int level);
 
 int
 minimap_tile_shape(
     struct Minimap* minimap,
     int sx,
-    int sz);
+    int sz,
+    int level);
 
 int
 minimap_tile_rotation(
     struct Minimap* minimap,
     int sx,
-    int sz);
+    int sz,
+    int level);
 
 enum MinimapLocType
 minimap_loc_type(
@@ -165,6 +182,7 @@ minimap_set_tile_color(
     struct Minimap* minimap,
     int sx,
     int sz,
+    int level,
     uint32_t color_rgb,
     int is_foreground);
 
@@ -173,6 +191,7 @@ minimap_set_tile_shape(
     struct Minimap* minimap,
     int sx,
     int sz,
+    int level,
     int shape,
     int rotation);
 
@@ -203,10 +222,15 @@ minimap_render_dynamic(
     int ne_z,
     struct MinimapRenderCommandBuffer* command_buffer);
 
-/** Returns a malloc'd (width*4 x height*4) ARGB buffer of the whole map; caller owns. */
+/** Returns a malloc'd (width*4 x height*4) ARGB buffer of the whole map for one
+ * level; caller owns. tile_flags is the per-level land-settings plane
+ * (World.tile_flags, indexed x + z*width + level*width*height) used for the
+ * reference VisBelow composition; NULL bakes the level plainly. */
 uint32_t*
 minimap_bake_argb(
     struct Minimap* minimap,
+    int level,
+    uint8_t const* tile_flags,
     int* out_width,
     int* out_height);
 

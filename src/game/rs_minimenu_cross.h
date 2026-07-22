@@ -32,11 +32,9 @@ RS_Minimenu_CrossModeForAction(int action)
     case REVCONFIG_MINIMENU_WALK:
         return UI_CROSS_WALK;
 
-    /* World-entity ops. Reference also reds OPPLAYER1-5 and every
-     * targeting/use-on variant (TGT_OBJ/NPC/LOC/PLAYER, USEHELD_ON*); those
-     * ids do not exist in enum RevConfigMiniMenuAction yet -- add them to this
-     * bucket when they land. Examine (OPNPC6/OPLOC6/OPOBJ6) is deliberately
-     * absent: the reference shows no cross for it. */
+    /* World-entity ops, plus every targeting/use-on variant that walks the
+     * player at a world target (reference reds TGT_OBJ/NPC/LOC and USEHELD_ON*).
+     * Examine (OPNPC6/OPLOC6/OPOBJ6) is deliberately absent: no cross for it. */
     case REVCONFIG_MINIMENU_OPNPC1:
     case REVCONFIG_MINIMENU_OPNPC2:
     case REVCONFIG_MINIMENU_OPNPC3:
@@ -52,13 +50,20 @@ RS_Minimenu_CrossModeForAction(int action)
     case REVCONFIG_MINIMENU_OPOBJ3:
     case REVCONFIG_MINIMENU_OPOBJ4:
     case REVCONFIG_MINIMENU_OPOBJ5:
+    case REVCONFIG_MINIMENU_USEHELD_ONLOC:
+    case REVCONFIG_MINIMENU_USEHELD_ONNPC:
+    case REVCONFIG_MINIMENU_USEHELD_ONOBJ:
+    case REVCONFIG_MINIMENU_TGT_LOC:
+    case REVCONFIG_MINIMENU_TGT_NPC:
+    case REVCONFIG_MINIMENU_TGT_OBJ:
         return UI_CROSS_INTERACT;
 
     default:
         /* OPNPC6/OPLOC6/OPOBJ6 (Examine), OPHELD1-6, OPHELDT_START ("Use"),
-         * INV_BUTTON1-5, IF_BUTTON/TOGGLE/SELECT, RESUME_PAUSEBUTTON,
-         * CLOSE_MODAL, the friend/ignore/message/report rows,
-         * OPPLAYER_TRADEREQ/DUELREQ, and CANCEL. */
+         * USEHELD_ONHELD / TGT_HELD / TGT_BUTTON (no walk), INV_BUTTON1-5,
+         * IF_BUTTON/TOGGLE/SELECT, RESUME_PAUSEBUTTON, CLOSE_MODAL, the
+         * friend/ignore/message/report rows, OPPLAYER_TRADEREQ/DUELREQ,
+         * and CANCEL. */
         return UI_CROSS_OFF;
     }
 }

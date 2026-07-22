@@ -308,14 +308,17 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                 if( underlay_hsl != TERRAIN_UNDERLAY_HSL_NONE )
                     minimap_background_rgb = ToriDraw_Hsl16ToRgb((uint16_t)underlay_hsl);
 
-                if( level == 0 && world->minimap )
+                /* Every level, not just 0: the bake picks the player's level
+                 * and composites the VisBelow layer above it (reference
+                 * minimapBuildBuffer takes minusedlevel). */
+                if( world->minimap )
                 {
                     minimap_set_tile_color(
-                        world->minimap, x, z, minimap_foreground_rgb, MINIMAP_FOREGROUND);
+                        world->minimap, x, z, level, minimap_foreground_rgb, MINIMAP_FOREGROUND);
                     minimap_set_tile_color(
-                        world->minimap, x, z, minimap_background_rgb, MINIMAP_BACKGROUND);
+                        world->minimap, x, z, level, minimap_background_rgb, MINIMAP_BACKGROUND);
                     minimap_set_tile_shape(
-                        world->minimap, x, z, shape_tile->shape, shape_tile->rotation);
+                        world->minimap, x, z, level, shape_tile->shape, shape_tile->rotation);
                 }
 
                 struct ToriDraw_Model* td = world_decode_tile(

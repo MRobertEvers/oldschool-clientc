@@ -253,6 +253,8 @@ app_minimap_build_dots(
             for( int i = 0; i < world->mapfunc_count; i++ )
             {
                 struct World_MapFunctionIcon const* icon = &world->mapfuncs[i];
+                if( icon->level != local->grid_position.level )
+                    continue;
                 app_minimap_push_dot(
                     app,
                     icon->x * 128 + 64 - px,
@@ -1276,7 +1278,14 @@ app_push_builtin_overlay_nodes(struct App* app)
     app->hover_text.font_id = font_id;
 }
 
-/* World_HeightFn: projectiles/movers track terrain height (world units). */
+/* World_HeightFn: projectiles/movers track terrain height (world units).
+ *
+ * Line port of Client-TS getAvH (Client.ts:5288), bridge clause included: the
+ * scene push-down moves a bridge column's *geometry* from cache level 1 into
+ * paint level 0 (WorldBuilder_RebuildCenterzoneEnd, reference World.pushDown),
+ * but the heightmap keeps raw cache levels. So a mover standing on a
+ * LinkBelow column has to sample level+1 or it sinks to the underpass floor —
+ * the "player walks under the bridge" symptom. */
 static int
 app_world_height(
     void* userdata,
@@ -1285,9 +1294,15 @@ app_world_height(
     int level)
 {
     struct App* app = (struct App*)userdata;
+    int real_level = level;
+
     if( !app->world || !app->world->heightmap )
         return 0;
-    return heightmap_get_interpolated(app->world->heightmap, world_x, world_z, level);
+    if( level < WORLD_MAP_TERRAIN_LEVELS - 1 &&
+        (World_TileFlagGet(app->world, world_x >> 7, world_z >> 7, 1) &
+         RSCACHE_FLOFLAG_LINK_BELOW) != 0 )
+        real_level = level + 1;
+    return heightmap_get_interpolated(app->world->heightmap, world_x, world_z, real_level);
 }
 
 /* World_SeqSource getters: seq timing resolved from the scene animation
@@ -1358,9 +1373,12 @@ app_seq_preanim_move(void* userdata, int seq_id)
 
 /* Bake the loaded world's minimap tiles into a single scene sprite the minimap
  * widget blits from (v1 GameRunescape_RebuildWorldMap). SceneSpriteAdd frees any
- * previous entry, so the reload hotkey just overwrites in place. */
+ * previous entry, so the reload hotkey just overwrites in place.
+ *
+ * The bake is per level (reference minimapBuildBuffer(minusedlevel)), so it has
+ * to be redone whenever the local player changes floor — app_world_map_poll. */
 static void
-app_rebuild_world_map(struct App* app)
+app_rebuild_world_map(struct App* app, int level)
 {
     int pixel_w = 0;
     int pixel_h = 0;
@@ -1374,7 +1392,8 @@ app_rebuild_world_map(struct App* app)
     if( !app->world->minimap )
         return;
 
-    argb = minimap_bake_argb(app->world->minimap, &pixel_w, &pixel_h);
+    argb = minimap_bake_argb(
+        app->world->minimap, level, app->world->tile_flags, &pixel_w, &pixel_h);
     if( !argb )
         return;
 
@@ -1397,6 +1416,23 @@ app_rebuild_world_map(struct App* app)
     app->world_map_scene_id = UITREE_SCENE_WORLD_MAP_SPRITE_ID;
     app->world_map_w = pixel_w;
     app->world_map_h = pixel_h;
+    app->world_map_level = level;
+}
+
+/* Reference checkMinimap/minimapBuildBuffer trigger (Client.ts:5331): rebake
+ * whenever the level the map was baked for stops matching the player's. */
+static void
+app_world_map_poll(struct App* app)
+{
+    struct WorldEntity_Player* local;
+
+    if( !app->world || !app->world->load_complete || app->world_map_scene_id <= 0 )
+        return;
+    local = app_local_player(app);
+    if( !local || local->grid_position.level == app->world_map_level )
+        return;
+    app_rebuild_world_map(app, local->grid_position.level);
+    app->need_redraw = 1;
 }
 
 static void
@@ -1429,6 +1465,7 @@ app_world_load_begin(
 
     app->world_load_attempted = 1;
     app->world_load_inflight = 1;
+    app->world_load_seq_at_begin = app->world->load_seq;
     task = CreateTask_WorldLoad(app->provider, app->world_builder, chunks_xz, chunk_pair_count);
     ToriRS_TaskQueue_Add(app->runner.queue, task);
     app->need_redraw = 1;
@@ -1484,7 +1521,10 @@ app_world_load_finish(struct App* app)
         /* World scenery models reference textures; the bridge scan walks the
          * scene elements the rebuild just created. */
         app_sync_textures(app);
-        app_rebuild_world_map(app);
+        {
+            struct WorldEntity_Player* local = app_local_player(app);
+            app_rebuild_world_map(app, local ? local->grid_position.level : 0);
+        }
 
         if( app->world_load_server_driven )
         {
@@ -1520,8 +1560,8 @@ app_debug_log_position(struct App* app)
         return;
     fprintf(
         stderr,
-        "pos: scene=%d,%d route0=%d,%d abs=%d,%d level=%d draw=%u,%u cam=%d,%d,%d "
-        "yaw=%d pitch=%d\n",
+        "pos: scene=%d,%d route0=%d,%d abs=%d,%d level=%d draw=%u,%u y=%d flags=%02x/%02x "
+        "cam=%d,%d,%d yaw=%d pitch=%d\n",
         local->grid_position.x,
         local->grid_position.z,
         local->pathing.route_x[0],
@@ -1531,6 +1571,19 @@ app_debug_log_position(struct App* app)
         local->grid_position.level,
         local->draw_position.x,
         local->draw_position.z,
+        /* Ground y under the player + the land settings of its column at the
+         * player's level / level 1 — the bridge bump (LinkBelow 0x02 at
+         * level 1) is only visible here. */
+        app_world_height(
+            app,
+            (int)local->draw_position.x,
+            (int)local->draw_position.z,
+            local->grid_position.level),
+        (unsigned)World_TileFlagGet(
+            app->world, local->grid_position.x, local->grid_position.z,
+            local->grid_position.level),
+        (unsigned)World_TileFlagGet(
+            app->world, local->grid_position.x, local->grid_position.z, 1),
         app->world_camera_pos.x,
         app->world_camera_pos.y,
         app->world_camera_pos.z,
@@ -1538,10 +1591,49 @@ app_debug_log_position(struct App* app)
         app->world_camera.pitch);
 }
 
+/* TORIRS_BRIDGE_DEBUG=1: list every LinkBelow column in the loaded scene with
+ * the level-0/level-1 ground heights the getAvH bump chooses between. The
+ * "am I standing on the deck or under it" one-liner. Prints once per load. */
+static void
+app_debug_log_bridges(struct App* app)
+{
+    static unsigned logged_seq = 0;
+    int count = 0;
+
+    if( !getenv("TORIRS_BRIDGE_DEBUG") || !app->world || !app->world->load_complete )
+        return;
+    if( app->world->load_seq == logged_seq )
+        return;
+    logged_seq = app->world->load_seq;
+
+    for( int x = 0; x < app->world->_scene_size; x++ )
+    {
+        for( int z = 0; z < app->world->_scene_size; z++ )
+        {
+            if( (World_TileFlagGet(app->world, x, z, 1) & RSCACHE_FLOFLAG_LINK_BELOW) == 0 )
+                continue;
+            count++;
+            if( count > 40 )
+                continue;
+            fprintf(
+                stderr,
+                "bridge: scene=%d,%d abs=%d,%d y0=%d y1=%d\n",
+                x,
+                z,
+                app->world->_base_tile_x + x,
+                app->world->_base_tile_z + z,
+                heightmap_get_interpolated(app->world->heightmap, x * 128 + 64, z * 128 + 64, 0),
+                heightmap_get_interpolated(app->world->heightmap, x * 128 + 64, z * 128 + 64, 1));
+        }
+    }
+    fprintf(stderr, "bridge: %d link-below columns in scene\n", count);
+}
+
 static void
 app_update_world_viewport(struct App* app)
 {
     app_debug_log_position(app);
+    app_debug_log_bridges(app);
     app->world_view_valid = 0;
     app->minimap_view_valid = 0;
     for( int i = 0; i < app->emit.count; i++ )
@@ -1750,8 +1842,15 @@ App_OpenRootInterface(
 static void
 app_async_polls(struct App* app)
 {
-    if( app->world_load_inflight && app->world && app->world->load_complete )
+    /* Poll the rebuild counter, not load_complete: the flag is still true from
+     * the previous scene for the whole asset-fetch phase of this load, so
+     * gating on it finished every reload one frame after it started — against
+     * the *old* world. That is why the minimap stayed on the boot scene
+     * (Lumbridge 50,50) forever after the first REBUILD_NORMAL. */
+    if( app->world_load_inflight && app->world &&
+        app->world->load_seq != app->world_load_seq_at_begin )
         app_world_load_finish(app);
+    app_world_map_poll(app);
     app_sync_textures_poll(app);
     app_world_bind_pending_seqs(app);
 
@@ -1982,6 +2081,12 @@ app_world_sync_positions(struct App* app)
         struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
         if( !player || player->element_id < 0 )
             continue;
+        /* Rebuild-parked movers sit outside the scene until the server's
+         * next info packet removes them; the heightmap has no data there. */
+        if( player->grid_position.x < 0 || player->grid_position.z < 0 ||
+            player->grid_position.x >= world->_scene_size ||
+            player->grid_position.z >= world->_scene_size )
+            continue;
         int wx = (int)player->draw_position.x;
         int wz = (int)player->draw_position.z;
         int wy = app_world_height(app, wx, wz, player->grid_position.level);
@@ -1995,6 +2100,10 @@ app_world_sync_positions(struct App* app)
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
         if( !npc || npc->element_id < 0 )
+            continue;
+        if( npc->grid_position.x < 0 || npc->grid_position.z < 0 ||
+            npc->grid_position.x >= world->_scene_size ||
+            npc->grid_position.z >= world->_scene_size )
             continue;
         int wx = (int)npc->draw_position.x;
         int wz = (int)npc->draw_position.z;
@@ -2616,7 +2725,7 @@ app_world_scene_element_create(
     int world_z)
 {
     struct ToriDraw_ModelHandle hnd;
-    int element_id = ToriDraw_SceneElementAdd(app->scene);
+    int element_id = ToriDraw_SceneElementAddPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC);
 
     if( element_id < 0 )
     {
@@ -3507,6 +3616,29 @@ app_measure_text_cb(
     return ToriDraw2D_MeasureString(font, text);
 }
 
+/* Snapshot the armed use/target selection for the minimenu builder (reference
+ * useMode/targetMode). objsel and targetsel are mutually exclusive — arming one
+ * clears the other. */
+static struct RS_MinimenuSelection
+app_minimenu_selection(struct App const* app)
+{
+    struct RS_MinimenuSelection sel = { .mode = RS_MINIMENU_SELECT_NONE };
+    if( app->objsel.active )
+    {
+        sel.mode = RS_MINIMENU_SELECT_USE_ITEM;
+        snprintf(sel.obj_name, sizeof(sel.obj_name), "%s", app->objsel.name);
+        sel.obj_slot = app->objsel.slot;
+        sel.obj_com_id = app->objsel.component_id;
+    }
+    else if( app->targetsel.active )
+    {
+        sel.mode = RS_MINIMENU_SELECT_TARGET;
+        snprintf(sel.target_op, sizeof(sel.target_op), "%s", app->targetsel.op);
+        sel.target_mask = app->targetsel.mask;
+    }
+    return sel;
+}
+
 /*
  * Mouseover text, rebuilt every frame from a scratch menu at the pointer.
  *
@@ -3549,6 +3681,7 @@ app_hover_text_update(
                 .runner = &app->runner,
                 .invs = &app->invs,
                 .chat = &app->chat_source,
+                .selection = app_minimenu_selection(app),
                 .world = app->world,
                 /* Same rule the click paths use: world rows only when the
                  * pointer is over bare viewport. */
@@ -3598,6 +3731,7 @@ app_minimenu_open(
         .runner = &app->runner,
         .invs = &app->invs,
         .chat = &app->chat_source,
+        .selection = app_minimenu_selection(app),
         .world = app->world,
         .world_pickset = &app->world_pickset,
         .click_in_world = click_in_world != 0,
@@ -3697,6 +3831,19 @@ app_minimenu_inv_action(
                 obj_id, slot, com_id, app->objsel.obj_id, app->objsel.slot,
                 app->objsel.component_id));
         app->objsel.active = 0;
+        return 1;
+    }
+
+    /* "<spell> <this item>": cast a selected spell on the inventory item
+     * (reference TGT_HELD → OPHELDT). */
+    if( opt->action == REVCONFIG_MINIMENU_TGT_HELD && app->targetsel.active )
+    {
+        APP_NET_SEND(
+            app,
+            net_out_opheldt(
+                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                obj_id, slot, com_id, app->targetsel.component_id));
+        app->targetsel.active = 0;
         return 1;
     }
 
@@ -3908,6 +4055,109 @@ app_minimenu_use_option(
         RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_GAME, NULL, line);
         app->need_redraw = 1;
         return 1;
+    }
+
+    /* Arm target mode from a spell/prayer button (reference TGT_BUTTON): the
+     * next click on a valid target casts. objsel and targetsel are mutually
+     * exclusive. */
+    if( opt.action == REVCONFIG_MINIMENU_TGT_BUTTON )
+    {
+        int32_t idx = UITree_FindByComponentId(app->tree, opt.pick.id);
+        app->objsel.active = 0;
+        app->targetsel.active = 1;
+        app->targetsel.component_id = opt.pick.id;
+        app->targetsel.mask = 0;
+        app->targetsel.op[0] = '\0';
+        if( idx >= 0 )
+        {
+            struct UITreeComponent const* node = &app->tree->components[idx];
+            /* targetMask rode in as click_mask on the BUTTON_TARGET node. */
+            app->targetsel.mask = node->behavior.click_mask;
+            /* Reference targetOp = "<verb-prefix> <base> <verb-suffix>". */
+            {
+                char const* verb = node->menu_options.target_verb;
+                char const* base = node->menu_options.target_base;
+                char const* space = strchr(verb, ' ');
+                if( space )
+                    snprintf(
+                        app->targetsel.op, sizeof(app->targetsel.op), "%.*s %s%s",
+                        (int)(space - verb), verb, base, space);
+                else
+                    snprintf(
+                        app->targetsel.op, sizeof(app->targetsel.op), "%s %s", verb, base);
+            }
+        }
+        app->need_redraw = 1;
+        return 1;
+    }
+
+    /* "Use <held> with <world target>" (reference USEHELD_ONLOC/NPC/OBJ) and
+     * "<spell> <world target>" (TGT_LOC/NPC/OBJ). Both read the world pick and
+     * the armed selection; handled here so the pick.kind switch stays the
+     * plain-op path. */
+    if( app->world &&
+        (opt.action == REVCONFIG_MINIMENU_USEHELD_ONLOC ||
+         opt.action == REVCONFIG_MINIMENU_USEHELD_ONNPC ||
+         opt.action == REVCONFIG_MINIMENU_USEHELD_ONOBJ ||
+         opt.action == REVCONFIG_MINIMENU_TGT_LOC || opt.action == REVCONFIG_MINIMENU_TGT_NPC ||
+         opt.action == REVCONFIG_MINIMENU_TGT_OBJ) )
+    {
+        int abs_x = opt.pick.tertiary_id + app->world->_base_tile_x;
+        int abs_z = opt.pick.quaternary_id + app->world->_base_tile_z;
+        switch( opt.action )
+        {
+        case REVCONFIG_MINIMENU_USEHELD_ONLOC:
+            APP_NET_SEND(
+                app, net_out_oplocu(
+                         app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
+                         opt.pick.secondary_id, app->objsel.obj_id, app->objsel.slot,
+                         app->objsel.component_id));
+            break;
+        case REVCONFIG_MINIMENU_TGT_LOC:
+            APP_NET_SEND(
+                app, net_out_oploct(
+                         app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
+                         opt.pick.secondary_id, app->targetsel.component_id));
+            break;
+        case REVCONFIG_MINIMENU_USEHELD_ONOBJ:
+            APP_NET_SEND(
+                app, net_out_opobju(
+                         app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
+                         opt.pick.secondary_id, app->objsel.obj_id, app->objsel.slot,
+                         app->objsel.component_id));
+            break;
+        case REVCONFIG_MINIMENU_TGT_OBJ:
+            APP_NET_SEND(
+                app, net_out_opobjt(
+                         app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
+                         opt.pick.secondary_id, app->targetsel.component_id));
+            break;
+        case REVCONFIG_MINIMENU_USEHELD_ONNPC:
+        {
+            int npc_slot = app_npc_server_slot(app, opt.pick.id);
+            if( npc_slot >= 0 )
+                APP_NET_SEND(
+                    app, net_out_opnpcu(
+                             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), npc_slot,
+                             app->objsel.obj_id, app->objsel.slot, app->objsel.component_id));
+            break;
+        }
+        case REVCONFIG_MINIMENU_TGT_NPC:
+        {
+            int npc_slot = app_npc_server_slot(app, opt.pick.id);
+            if( npc_slot >= 0 )
+                APP_NET_SEND(
+                    app, net_out_opnpct(
+                             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), npc_slot,
+                             app->targetsel.component_id));
+            break;
+        }
+        default:
+            break;
+        }
+        app->objsel.active = 0;
+        app->targetsel.active = 0;
+        return 0;
     }
 
     switch( opt.pick.kind )
@@ -4865,6 +5115,74 @@ App_WorldObjStackAdd(
             obj->name,
             actions32);
     }
+}
+
+void
+App_WorldRebuildShift(
+    struct App* app,
+    int base_dx,
+    int base_dz)
+{
+    struct World* world;
+    struct World_EntityPool* pool;
+
+    assert(app);
+    world = app->world;
+    if( !world )
+        return;
+
+    World_ShiftEntities(world, base_dx, base_dz);
+    World_ClearProjectilesAndSpotanims(world);
+
+    /* Obj stacks: Client-TS shifts the groundObj grid and nulls entries that
+     * fall off it; here the surviving stacks' elements also need their world
+     * position re-derived from the new scene's heightmap. Deletion releases
+     * the pool node, so grab next first. */
+    pool = &world->entities.obj_stack;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; )
+    {
+        int next = World_EntityPoolNext(pool, i);
+        struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, i);
+        if( stack )
+        {
+            int scene_x = stack->grid_position.x;
+            int scene_z = stack->grid_position.z;
+            if( scene_x < 0 || scene_z < 0 || scene_x >= world->_scene_size ||
+                scene_z >= world->_scene_size )
+                World_ObjStackDel(world, i);
+            else if( stack->element_id >= 0 )
+            {
+                int world_x = scene_x * 128 + 64;
+                int world_z = scene_z * 128 + 64;
+                ToriDraw_SceneElementSetPosition(
+                    app->scene,
+                    stack->element_id,
+                    world_x,
+                    app_world_height(app, world_x, world_z, stack->grid_position.level),
+                    world_z,
+                    0);
+            }
+        }
+        i = next;
+    }
+
+    /* Destination flag (reference minimapFlagX -= dx). */
+    if( app->minimap_flag_x >= 0 )
+    {
+        app->minimap_flag_x -= base_dx;
+        app->minimap_flag_z -= base_dz;
+        if( app->minimap_flag_x < 0 || app->minimap_flag_z < 0 ||
+            app->minimap_flag_x >= world->_scene_size ||
+            app->minimap_flag_z >= world->_scene_size )
+        {
+            app->minimap_flag_x = -1;
+            app->minimap_flag_z = -1;
+        }
+    }
+
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(stderr, "rebuild_shift: dx=%d dz=%d\n", base_dx, base_dz);
+    app->need_redraw = 1;
 }
 
 void

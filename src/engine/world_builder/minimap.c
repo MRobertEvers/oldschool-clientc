@@ -8,9 +8,14 @@ static inline int
 minimap_coord_idx(
     struct Minimap* minimap,
     int sx,
-    int sz)
+    int sz,
+    int level)
 {
-    return sx + sz * minimap->width;
+    if( level < 0 )
+        level = 0;
+    if( level >= minimap->levels )
+        level = minimap->levels - 1;
+    return sx + sz * minimap->width + level * minimap->width * minimap->height;
 }
 
 struct MinimapRenderCommandBuffer*
@@ -55,9 +60,12 @@ minimap_new(
 
     minimap->width = width;
     minimap->height = height;
+    minimap->levels = MINIMAP_LEVELS;
 
-    minimap->tiles = malloc(width * height * sizeof(struct MinimapTile));
-    memset(minimap->tiles, 0, width * height * sizeof(struct MinimapTile));
+    size_t const tile_bytes =
+        (size_t)width * (size_t)height * MINIMAP_LEVELS * sizeof(struct MinimapTile);
+    minimap->tiles = malloc(tile_bytes);
+    memset(minimap->tiles, 0, tile_bytes);
 
     minimap->locs = malloc(1024 * sizeof(struct MinimapLoc));
     minimap->locs_count = 0;
@@ -111,12 +119,13 @@ minimap_add_tile_wall(
     struct Minimap* minimap,
     int sx,
     int sz,
+    int level,
     enum MinimapWallFlag wall)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
 
-    int idx = minimap_coord_idx(minimap, sx, sz);
+    int idx = minimap_coord_idx(minimap, sx, sz, level);
 
     struct MinimapTile* tile = &minimap->tiles[idx];
     tile->wall |= wall;
@@ -127,13 +136,14 @@ minimap_set_tile_color(
     struct Minimap* minimap,
     int sx,
     int sz,
+    int level,
     uint32_t color_rgb,
     int is_foreground)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
 
-    int idx = minimap_coord_idx(minimap, sx, sz);
+    int idx = minimap_coord_idx(minimap, sx, sz, level);
 
     struct MinimapTile* tile = &minimap->tiles[idx];
     if( is_foreground == MINIMAP_FOREGROUND )
@@ -147,13 +157,14 @@ minimap_set_tile_shape(
     struct Minimap* minimap,
     int sx,
     int sz,
+    int level,
     int shape,
     int rotation)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
 
-    int idx = minimap_coord_idx(minimap, sx, sz);
+    int idx = minimap_coord_idx(minimap, sx, sz, level);
 
     struct MinimapTile* tile = &minimap->tiles[idx];
     tile->shape = shape;
@@ -282,12 +293,13 @@ minimap_tile_rgb(
     struct Minimap* minimap,
     int sx,
     int sz,
+    int level,
     int is_foreground)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
 
-    int idx = minimap_coord_idx(minimap, sx, sz);
+    int idx = minimap_coord_idx(minimap, sx, sz, level);
     struct MinimapTile* tile = &minimap->tiles[idx];
     return is_foreground == MINIMAP_FOREGROUND ? tile->foreground_rgb : tile->background_rgb;
 }
@@ -296,12 +308,13 @@ int
 minimap_tile_wall(
     struct Minimap* minimap,
     int sx,
-    int sz)
+    int sz,
+    int level)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
 
-    int idx = minimap_coord_idx(minimap, sx, sz);
+    int idx = minimap_coord_idx(minimap, sx, sz, level);
     struct MinimapTile* tile = &minimap->tiles[idx];
     return tile->wall;
 }
@@ -309,12 +322,13 @@ int
 minimap_tile_shape(
     struct Minimap* minimap,
     int sx,
-    int sz)
+    int sz,
+    int level)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
 
-    int idx = minimap_coord_idx(minimap, sx, sz);
+    int idx = minimap_coord_idx(minimap, sx, sz, level);
     struct MinimapTile* tile = &minimap->tiles[idx];
     return tile->shape;
 }
@@ -323,12 +337,13 @@ int
 minimap_tile_rotation(
     struct Minimap* minimap,
     int sx,
-    int sz)
+    int sz,
+    int level)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
 
-    int idx = minimap_coord_idx(minimap, sx, sz);
+    int idx = minimap_coord_idx(minimap, sx, sz, level);
     struct MinimapTile* tile = &minimap->tiles[idx];
     return tile->rotation;
 }
@@ -566,9 +581,48 @@ minimap_draw_wall(
     }
 }
 
+/** One tile of one source level onto the shared pixel grid. */
+static void
+minimap_bake_tile(
+    struct Minimap* minimap,
+    uint32_t* pixels,
+    int pw,
+    int ph,
+    int sx,
+    int sz,
+    int level)
+{
+    int rgb_background = minimap_tile_rgb(minimap, sx, sz, level, MINIMAP_BACKGROUND);
+    int rgb_foreground = minimap_tile_rgb(minimap, sx, sz, level, MINIMAP_FOREGROUND);
+    int tile_x = sx * 4;
+    int tile_y = (minimap->height - sz) * 4;
+    int wall;
+
+    if( rgb_foreground == 0 && rgb_background == 0 )
+        return;
+
+    minimap_fill_tile(
+        pixels,
+        pw,
+        tile_x,
+        tile_y,
+        rgb_background,
+        rgb_foreground,
+        minimap_tile_rotation(minimap, sx, sz, level),
+        minimap_tile_shape(minimap, sx, sz, level),
+        pw,
+        ph);
+
+    wall = minimap_tile_wall(minimap, sx, sz, level);
+    if( wall != 0 )
+        minimap_draw_wall(pixels, pw, tile_x, tile_y, wall, pw, ph);
+}
+
 uint32_t*
 minimap_bake_argb(
     struct Minimap* minimap,
+    int level,
+    uint8_t const* tile_flags,
     int* out_width,
     int* out_height)
 {
@@ -578,9 +632,15 @@ minimap_bake_argb(
 
     const int pw = minimap->width * 4;
     const int ph = minimap->height * 4;
+    const int plane = minimap->width * minimap->height;
     uint32_t* pixels = (uint32_t*)malloc((size_t)pw * (size_t)ph * sizeof(uint32_t));
     if( !pixels )
         return NULL;
+
+    if( level < 0 )
+        level = 0;
+    if( level >= minimap->levels )
+        level = minimap->levels - 1;
 
     const uint32_t black_argb = 0xFF000000u;
     for( int y = 0; y < ph; y++ )
@@ -590,37 +650,25 @@ minimap_bake_argb(
             row[x] = black_argb;
     }
 
-    const int ne_z = minimap->height;
+    /* Reference minimapBuildBuffer (Client.ts:5519): a tile of the requested
+     * level is drawn unless its land settings say VisBelow/ForceHighDetail
+     * (its floor is a hole onto the level below), and the level above is drawn
+     * over it wherever *that* level is VisBelow — which is how a bridge deck or
+     * an upstairs balcony appears on the map of the level you are standing on.
+     * tile_flags is World.tile_flags (may be NULL: then draw the plain level). */
     for( int sx = 0; sx < minimap->width; sx++ )
     {
         for( int sz = 0; sz < minimap->height; sz++ )
         {
-            int shape = minimap_tile_shape(minimap, sx, sz);
-            int angle = minimap_tile_rotation(minimap, sx, sz);
-            int rgb_background = minimap_tile_rgb(minimap, sx, sz, MINIMAP_BACKGROUND);
-            int rgb_foreground = minimap_tile_rgb(minimap, sx, sz, MINIMAP_FOREGROUND);
-            if( rgb_foreground == 0 && rgb_background == 0 )
-                continue;
+            int const idx = sx + sz * minimap->width;
+            int const own = tile_flags ? tile_flags[idx + level * plane] : 0;
 
-            int tile_x = sx * 4;
-            int tile_y = (ne_z - sz) * 4;
-            minimap_fill_tile(
-                pixels,
-                pw,
-                tile_x,
-                tile_y,
-                rgb_background,
-                rgb_foreground,
-                angle,
-                shape,
-                pw,
-                ph);
+            if( (own & (MINIMAP_FLAG_VIS_BELOW | MINIMAP_FLAG_FORCE_HIGH_DETAIL)) == 0 )
+                minimap_bake_tile(minimap, pixels, pw, ph, sx, sz, level);
 
-            int wall = minimap_tile_wall(minimap, sx, sz);
-            if( wall != 0 )
-            {
-                minimap_draw_wall(pixels, pw, tile_x, tile_y, wall, pw, ph);
-            }
+            if( level + 1 < minimap->levels && tile_flags &&
+                (tile_flags[idx + (level + 1) * plane] & MINIMAP_FLAG_VIS_BELOW) != 0 )
+                minimap_bake_tile(minimap, pixels, pw, ph, sx, sz, level + 1);
         }
     }
 

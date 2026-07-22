@@ -21,6 +21,11 @@ struct Task_GameProtoExec
     /* REBUILD_NORMAL: map squares covering the 104x104 scene. */
     int chunks[18];
     int chunk_count;
+    /* Scene base (absolute tiles) before the load — the entity-shift delta
+     * source (Client-TS mapBuildPrevBaseX/Z). */
+    int prev_base_x;
+    int prev_base_z;
+    int had_world;
     /* Obj-load cursors (ground item models must be cached before exec). */
     int zone_i;
     int pending_obj_id;
@@ -104,13 +109,30 @@ Task_GameProtoExec_Run(
               app->world->_chunk_sw_z == self->chunks[1] &&
               app->world->load_complete && self->chunk_count >= 1) )
         {
+            /* Entities carry scene-local coords relative to the old base;
+             * capture it so they can be shifted onto the new one (Client-TS
+             * shifts by mapBuildBaseX - mapBuildPrevBaseX). */
+            self->had_world = app->world_active && app->world && app->world->load_complete;
+            self->prev_base_x = self->had_world ? app->world->_base_tile_x : 0;
+            self->prev_base_z = self->had_world ? app->world->_base_tile_z : 0;
             app->world_load_attempted = 1;
             app->world_load_inflight = 1;
             app->world_load_server_driven = 1;
+            /* The frame poll detects completion by load_seq advancing past
+             * this sample (load_complete stays true from the old scene). */
+            app->world_load_seq_at_begin = app->world ? app->world->load_seq : 0;
             TASK_AWAITSELF_IF(CreateTask_WorldLoad(
                 app->provider, app->world_builder, self->chunks, self->chunk_count));
-            /* app_world_load_finish runs from the frame poll (camera, height
-             * fn, minimap bake, MAP_BUILD_COMPLETE ack). */
+            /* The load's final step swapped the scene synchronously (same
+             * task drain — no frame renders in between): relocate the kept
+             * entities before any later packet or frame reads them.
+             * app_world_load_finish still runs from the frame poll (camera,
+             * height fn, minimap bake, MAP_BUILD_COMPLETE ack). */
+            if( self->had_world && app->world->load_complete )
+                App_WorldRebuildShift(
+                    app,
+                    app->world->_base_tile_x - self->prev_base_x,
+                    app->world->_base_tile_z - self->prev_base_z);
         }
         else
         {

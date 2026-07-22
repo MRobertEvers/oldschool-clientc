@@ -67,6 +67,20 @@ enum RevConfigMiniMenuAction
     REVCONFIG_MINIMENU_OPOBJ4 = 224,
     REVCONFIG_MINIMENU_OPOBJ5 = 662,
     REVCONFIG_MINIMENU_OPOBJ6 = 1152,
+    /* "Use <held item> with <target>" (reference USEHELD_ON*). */
+    REVCONFIG_MINIMENU_USEHELD_ONLOC = 810,
+    REVCONFIG_MINIMENU_USEHELD_ONNPC = 829,
+    REVCONFIG_MINIMENU_USEHELD_ONOBJ = 111,
+    REVCONFIG_MINIMENU_USEHELD_ONPLAYER = 275,
+    REVCONFIG_MINIMENU_USEHELD_ONHELD = 398,
+    /* "<spell verb> <target>" — cast a selected spell/prayer on a target
+     * (reference TGT_*). TGT_BUTTON arms the target mode from a spell button. */
+    REVCONFIG_MINIMENU_TGT_BUTTON = 274,
+    REVCONFIG_MINIMENU_TGT_LOC = 899,
+    REVCONFIG_MINIMENU_TGT_NPC = 240,
+    REVCONFIG_MINIMENU_TGT_OBJ = 370,
+    REVCONFIG_MINIMENU_TGT_PLAYER = 131,
+    REVCONFIG_MINIMENU_TGT_HELD = 563,
 };
 
 // Dat1 sprite cache section example:

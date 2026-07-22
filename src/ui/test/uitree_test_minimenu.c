@@ -264,6 +264,38 @@ test_cross_action_policy(void)
         RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_CANCEL) == UI_CROSS_OFF,
         "cancel has no cross");
 
+    /* Use-on-world and spell-on-world walk the player at a target, so they get
+     * the red interact cross like the plain world ops. */
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_USEHELD_ONLOC) == UI_CROSS_INTERACT,
+        "use-on-loc red");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_USEHELD_ONNPC) == UI_CROSS_INTERACT,
+        "use-on-npc red");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_USEHELD_ONOBJ) == UI_CROSS_INTERACT,
+        "use-on-obj red");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_TGT_LOC) == UI_CROSS_INTERACT,
+        "spell-on-loc red");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_TGT_NPC) == UI_CROSS_INTERACT,
+        "spell-on-npc red");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_TGT_OBJ) == UI_CROSS_INTERACT,
+        "spell-on-obj red");
+    /* Arming a spell (TGT_BUTTON) and the held-on-held variants do not walk, so
+     * no cross. */
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_TGT_BUTTON) == UI_CROSS_OFF,
+        "target-button has no cross");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_USEHELD_ONHELD) == UI_CROSS_OFF,
+        "use-on-held has no cross");
+    TEST_ASSERT(
+        RS_Minimenu_CrossModeForAction(REVCONFIG_MINIMENU_TGT_HELD) == UI_CROSS_OFF,
+        "spell-on-held has no cross");
+
     /* Deprioritized rows keep their colour (reference strips _PRIORITY first). */
     TEST_ASSERT(
         RS_Minimenu_CrossModeForAction(

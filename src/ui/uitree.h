@@ -226,6 +226,11 @@ struct UITreeMenuOptions
 {
     char option[UITREE_MENU_OPTION_LEN];
     char ops[UITREE_MENU_OPTION_SLOTS][UITREE_MENU_OPTION_LEN];
+    /** BUTTON_TARGET spell strings (reference IfType.targetVerb/targetBase):
+     * "Cast" + "Wind Strike" → the "Cast Wind Strike ..." target-mode verb.
+     * Empty for non-spell components. */
+    char target_verb[UITREE_MENU_OPTION_LEN];
+    char target_base[UITREE_MENU_OPTION_LEN];
     int option_action;
     int op_actions[UITREE_MENU_OPTION_SLOTS];
     struct UITreeMenuSubmenuOptions submenus;

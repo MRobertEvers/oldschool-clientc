@@ -1119,7 +1119,7 @@ world_builder_minimap_add_chunk_mapfunctions(
         struct ToriRS_MapLoc* map_loc = &map_locs->locs[i];
         if( map_loc->shape_select != RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
             continue;
-        if( map_loc->chunk_pos_level != WORLD_CURRENT_LEVEL )
+        if( map_loc->chunk_pos_level < 0 || map_loc->chunk_pos_level >= COLLISION_LEVELS )
             continue;
 
         int offset_x = World_ToSceneX(world, mapx, map_loc->chunk_pos_x);
@@ -1145,6 +1145,7 @@ world_builder_minimap_add_chunk_mapfunctions(
         struct World_MapFunctionIcon* icon = &world->mapfuncs[world->mapfunc_count++];
         icon->x = offset_x;
         icon->z = offset_z;
+        icon->level = map_loc->chunk_pos_level;
         icon->func = func;
     }
 }
@@ -1156,14 +1157,14 @@ void
 world_builder_minimap_spread_mapfunctions(struct WorldBuilder* builder)
 {
     struct World* world = builder->world;
-    struct CollisionMap* cm = world->collision_maps[WORLD_CURRENT_LEVEL];
-    if( !cm )
-        return;
 
     for( int i = 0; i < world->mapfunc_count; i++ )
     {
         struct World_MapFunctionIcon* icon = &world->mapfuncs[i];
+        struct CollisionMap* cm = world->collision_maps[icon->level];
         int func = icon->func;
+        if( !cm )
+            continue;
         if( func == 22 || func == 29 || func == 34 || func == 36 || func == 46 || func == 47 ||
             func == 48 )
             continue;
@@ -1229,25 +1230,38 @@ world_builder_minimap_add_chunk_walls(
         if( config_loc->map_scene_id != -1 )
             continue;
 
-        if( map_loc->chunk_pos_level != WORLD_CURRENT_LEVEL )
-            continue;
+        /* Recorded per level (no WORLD_CURRENT_LEVEL filter): the bake takes
+         * the level it needs, so upper floors get their own wall outlines. */
+        int const wall_level = map_loc->chunk_pos_level;
 
         switch( map_loc->shape_select )
         {
         case RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE:
             minimap_add_tile_wall(
-                world->minimap, offset_x, offset_z, orientation_wall_flag(map_loc->orientation));
+                world->minimap,
+                offset_x,
+                offset_z,
+                wall_level,
+                orientation_wall_flag(map_loc->orientation));
             break;
         case RSCACHE_LOC_SHAPE_WALL_TRI_CORNER:
             break;
         case RSCACHE_LOC_SHAPE_WALL_TWO_SIDES:
         {
             minimap_add_tile_wall(
-                world->minimap, offset_x, offset_z, orientation_wall_flag(map_loc->orientation));
+                world->minimap,
+                offset_x,
+                offset_z,
+                wall_level,
+                orientation_wall_flag(map_loc->orientation));
 
             int next_orientation = (map_loc->orientation + 1) & 0x3;
             minimap_add_tile_wall(
-                world->minimap, offset_x, offset_z, orientation_wall_flag(next_orientation));
+                world->minimap,
+                offset_x,
+                offset_z,
+                wall_level,
+                orientation_wall_flag(next_orientation));
             break;
         }
         case RSCACHE_LOC_SHAPE_WALL_RECT_CORNER:
@@ -1257,6 +1271,7 @@ world_builder_minimap_add_chunk_walls(
                 world->minimap,
                 offset_x,
                 offset_z,
+                wall_level,
                 orientation_wall_flag_diagonal(map_loc->orientation));
             break;
         default:

@@ -291,6 +291,10 @@ struct ToriDraw_SkeletalAnim;
 struct ToriDraw_SceneElement
 {
     int scene_id;
+    /** Clear group (TORIDRAW_SCENE_POOL_*): STATIC elements are freed
+     *  wholesale by ToriDraw_SceneClearPool on a map rebuild; DYNAMIC
+     *  elements (entities) keep their ids across it. */
+    uint8_t pool;
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Animation* animation;
     struct ToriDraw_Animation* secondary_animation;

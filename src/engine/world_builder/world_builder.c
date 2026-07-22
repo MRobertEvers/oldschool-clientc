@@ -97,7 +97,9 @@ WorldBuilder_RebuildCenterzoneBegin(
     world_builder_free_transient_maps(builder);
     World_ResetScene(world, zone_center_x, zone_center_z, scene_size);
 
-    ToriDraw_SceneClear(builder->scene);
+    /* Static pool only: entity elements (players/npcs/objs) keep their ids
+     * across a rebuild — the REBUILD_NORMAL shift relocates them instead. */
+    ToriDraw_SceneClearPool(builder->scene, TORIDRAW_SCENE_POOL_STATIC);
 
     builder->blendmap = blendmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
     builder->overlaymap = overlaymap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
@@ -330,7 +332,7 @@ WorldBuilder_RebuildChunklistBegin(
     world_builder_free_transient_maps(builder);
     World_ResetSceneChunkList(world, chunks_xz, count);
 
-    ToriDraw_SceneClear(builder->scene);
+    ToriDraw_SceneClearPool(builder->scene, TORIDRAW_SCENE_POOL_STATIC);
 
     int scene_size = world->_scene_size;
     builder->blendmap = blendmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);

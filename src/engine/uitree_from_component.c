@@ -200,6 +200,12 @@ UITree_FillBuildFromToriRS(
         "ui menu option mirrors out of sync with torirs");
     memcpy(dst->option, src->option, sizeof(dst->option));
     memcpy(dst->ops, src->ops, sizeof(dst->ops));
+    _Static_assert(
+        sizeof(dst->target_verb) == sizeof(src->target_verb) &&
+            sizeof(dst->target_base) == sizeof(src->target_base),
+        "ui target verb mirrors out of sync with torirs");
+    memcpy(dst->target_verb, src->target_verb, sizeof(dst->target_verb));
+    memcpy(dst->target_base, src->target_base, sizeof(dst->target_base));
     dst->button_type = src->button_type;
     dst->client_code = src->client_code;
     dst->click_mask = src->click_mask;

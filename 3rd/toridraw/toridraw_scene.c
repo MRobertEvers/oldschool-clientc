@@ -269,7 +269,9 @@ td_scene_reset_element(struct ToriDraw_SceneElement* element)
 }
 
 static int
-td_scene_allocate_element_id(struct ToriDraw_Scene* scene)
+td_scene_allocate_element_id(
+    struct ToriDraw_Scene* scene,
+    int pool)
 {
     struct ToriDraw_SceneElement* element;
     int id;
@@ -299,6 +301,7 @@ td_scene_allocate_element_id(struct ToriDraw_Scene* scene)
     }
 
     element->scene_id = id;
+    element->pool = (uint8_t)pool;
     return id;
 }
 
@@ -831,11 +834,76 @@ ToriDraw_SceneClear(struct ToriDraw_Scene* scene)
     td_scene_emit(scene, TORIDRAW_EVENT_SCENE_RESET, 0, 0, 0, 0, NULL, NULL, NULL);
 }
 
+void
+ToriDraw_SceneClearPool(
+    struct ToriDraw_Scene* scene,
+    int pool)
+{
+    int i;
+    int next;
+
+    assert(scene);
+
+    for( i = scene->elements.head; i != TORIDRAW_INTRUSIVE_NIL; i = next )
+    {
+        struct ToriDraw_SceneElement* element;
+
+        next = scene->elements.nodes[i].next;
+        element = td_scene_element_ptr(scene, i);
+        if( !element || element->pool != (uint8_t)pool )
+            continue;
+
+        if( element->anim_seq_id != -1 )
+        {
+            td_scene_emit(
+                scene,
+                TORIDRAW_EVENT_ANIM_UNLOAD,
+                0,
+                i,
+                0,
+                0,
+                element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+                NULL,
+                NULL);
+        }
+        td_scene_emit(
+            scene,
+            TORIDRAW_EVENT_MODEL_UNLOAD,
+            0,
+            i,
+            0,
+            0,
+            element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+            NULL,
+            NULL);
+        td_scene_dispose_element_model(element);
+        td_scene_reset_element(element);
+        ToriDraw_IntrusiveListRelease(&scene->elements, i);
+    }
+
+    if( pool == TORIDRAW_SCENE_POOL_STATIC )
+    {
+        scene->batch_building = false;
+        scene->current_batch_id = 0;
+        scene->current_batch_element_count = 0;
+        scene->next_batch_id = 0;
+    }
+}
+
 int
 ToriDraw_SceneElementAdd(struct ToriDraw_Scene* scene)
 {
     assert(scene);
-    return td_scene_allocate_element_id(scene);
+    return td_scene_allocate_element_id(scene, TORIDRAW_SCENE_POOL_STATIC);
+}
+
+int
+ToriDraw_SceneElementAddPool(
+    struct ToriDraw_Scene* scene,
+    int pool)
+{
+    assert(scene);
+    return td_scene_allocate_element_id(scene, pool);
 }
 
 int
@@ -1215,7 +1283,7 @@ ToriDraw_SceneBatchAddElement(struct ToriDraw_Scene* scene)
     assert(scene);
     assert(scene->batch_building);
 
-    element_id = td_scene_allocate_element_id(scene);
+    element_id = td_scene_allocate_element_id(scene, TORIDRAW_SCENE_POOL_STATIC);
     if( element_id < 0 )
         return invalid;
 

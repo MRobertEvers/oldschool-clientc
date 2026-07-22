@@ -170,6 +170,9 @@ struct App
     int world_map_scene_id;
     int world_map_w;
     int world_map_h;
+    /** Terrain level the baked minimap sprite currently shows (reference
+     * minimapLevel); a mismatch with the local player's level rebakes it. */
+    int world_map_level;
 
     /* World picking: the full pickset refreshes as part of every rendered
      * frame (App_Render hittests visible models at world_mouse_x/y); click
@@ -283,6 +286,9 @@ struct App
      * runner queue next goes idle the tree gets a refresh pass. */
     int runner_had_work;
     int world_load_inflight;
+    /** world->load_seq sampled when the in-flight load was queued; the load has
+     * landed once the counter moves past it. */
+    unsigned world_load_seq_at_begin;
     /** Send MAP_BUILD_COMPLETE when the in-flight world load finishes (set by
      * the REBUILD_NORMAL packet task, not by hotkey/lazy loads). */
     int world_load_server_driven;
@@ -355,6 +361,16 @@ struct App
         int component_id;
         char name[40];
     } objsel;
+    /** "Cast <spell> on ..." selection (reference targetMode/targetComId/
+     * targetMask/targetOp): armed by clicking a BUTTON_TARGET spell, consumed
+     * by the next click on a valid target kind. */
+    struct
+    {
+        int active;
+        int component_id;
+        int mask;
+        char op[64];
+    } targetsel;
     /** Frames since the last input command (IDLE_TIMER). */
     long idle_frames;
     int idle_timer_sent;
@@ -449,6 +465,20 @@ App_WorldObjStackDel(
     int scene_z,
     int level,
     int obj_id);
+
+/**
+ * REBUILD_NORMAL relocation, run right after the server-driven world load
+ * lands: shift every kept entity by the scene-base delta (tiles), reposition
+ * ground-item elements against the new heightmap, drop out-of-scene stacks,
+ * clear projectiles/spotanims (reference mapBuild), and move the minimap
+ * destination flag. Entity element ids are untouched — they live in the
+ * scene's DYNAMIC pool, which the rebuild's static clear skips.
+ */
+void
+App_WorldRebuildShift(
+    struct App* app,
+    int base_dx,
+    int base_dz);
 
 /** LOC_ANIM: attach a sequence to the scenery element on a tile. */
 void

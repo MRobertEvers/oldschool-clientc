@@ -503,10 +503,14 @@ push_builtin_op(
         else
             cb->filter = UITREE_CHAT_BUTTON_PUBLIC;
         strncpy(cb->label, op->chat_button_label, sizeof(cb->label) - 1);
+        /* label_y/mode_y are box-top offsets, while the reference numbers
+         * (redrawPrivacySettings: label 14 / report 19, mode 27 below the
+         * node top) are baselines, so the defaults carry the same
+         * baseline - p12 ascent shift the INI values use. */
         cb->label_y = op->chat_button_label_y != 0
                           ? op->chat_button_label_y
-                          : (cb->filter == UITREE_CHAT_BUTTON_REPORT ? 19 : 14);
-        cb->mode_y = op->chat_button_mode_y != 0 ? op->chat_button_mode_y : 27;
+                          : (cb->filter == UITREE_CHAT_BUTTON_REPORT ? 19 - 12 : 14 - 12);
+        cb->mode_y = op->chat_button_mode_y != 0 ? op->chat_button_mode_y : 27 - 12;
         if( op->has_font_ref && op->font_ref[0] )
         {
             int font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);

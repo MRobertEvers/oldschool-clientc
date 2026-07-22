@@ -473,3 +473,72 @@ test_cycle_movers(void)
 
     World_Free(world);
 }
+
+/* REBUILD_NORMAL relocation (Client-TS rebuild handler): the scene base moved
+ * by (dx, dz) tiles; kept entities shift by the negation, out-of-scene ones
+ * park on tile 255, and projectiles/spotanims clear at scene build. */
+void
+test_rebuild_shift(void)
+{
+    printf("TEST: rebuild shift\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    int pi = World_PlayerSpawn(world, 1, 0, 60, 70, idle);
+    int ni = World_NpcSpawn(world, 2, 5, 0, 20, 30, 1, idle);
+    int near_ni = World_NpcSpawn(world, 3, 6, 0, 3, 90, 1, idle);
+    char actions[5][32] = { "Take", "", "", "", "" };
+    int oi = World_ObjStackAdd(world, 4, 50, 50, 0, 995, 1, "Coins", actions);
+    int far_oi = World_ObjStackAdd(world, 5, 2, 2, 0, 995, 1, "Coins", actions);
+    int pri = World_ProjectileSpawn(world, 6, 0, 40, 40, 44, 44, 100, 40, 0, 60, 45, 128);
+    int si = World_SpotanimSpawn(world, 7, 0, 41 * 128, 41 * 128, 0, 0, 0, 100);
+    TEST_ASSERT(pi >= 0 && ni >= 0 && near_ni >= 0 && oi >= 0 && far_oi >= 0 && pri >= 0 && si >= 0,
+                "spawns");
+    World_EventsClear(world);
+
+    /* Base moved 8 tiles east, 16 north (a walk-driven recenter). */
+    World_ShiftEntities(world, 8, 16);
+
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+    TEST_ASSERT(player->pathing.route_x[0] == 52 && player->pathing.route_z[0] == 54,
+                "player route shifted");
+    TEST_ASSERT(player->grid_position.x == 52 && player->grid_position.z == 54,
+                "player grid shifted");
+    TEST_ASSERT(player->draw_position.x == (uint32_t)(52 * 128 + 64) &&
+                    player->draw_position.z == (uint32_t)(54 * 128 + 64),
+                "player draw shifted");
+
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+    TEST_ASSERT(npc->pathing.route_x[0] == 12 && npc->pathing.route_z[0] == 14, "npc shifted");
+
+    /* 3 - 8 < 0: parked out-of-scene, still tracked, route dropped. */
+    struct WorldEntity_NPC* parked = World_EntityPoolGet(&world->entities.npc, near_ni);
+    TEST_ASSERT(World_EntityPoolIsActive(&world->entities.npc, near_ni), "parked npc kept");
+    TEST_ASSERT(parked->pathing.route_x[0] == 255 && parked->pathing.route_length == 0,
+                "parked npc out of scene");
+
+    struct WorldEntity_ObjStack* stack = World_EntityPoolGet(&world->entities.obj_stack, oi);
+    TEST_ASSERT(stack->grid_position.x == 42 && stack->grid_position.z == 34, "stack shifted");
+    struct WorldEntity_ObjStack* far_stack = World_EntityPoolGet(&world->entities.obj_stack, far_oi);
+    TEST_ASSERT(far_stack->grid_position.x == 255, "far stack parked for deletion");
+
+    /* mapBuild parity: projectiles + spotanims die with the old scene. */
+    World_ClearProjectilesAndSpotanims(world);
+    TEST_ASSERT(World_TestPoolIterateCount(&world->entities.projectile) == 0, "projectiles gone");
+    TEST_ASSERT(World_TestPoolIterateCount(&world->entities.spotanim) == 0, "spotanims gone");
+    TEST_ASSERT(World_TestDrainRemovedEvents(world) == 2, "transient removal events");
+
+    /* Movers survive the scene reset itself; scenery records do not (their
+     * static elements are freed + reallocated by the builder). */
+    int sceneryidx =
+        World_SceneryRegister(world, 70, 900, 4, 5, 0, 1, 1, "Door", actions, 1);
+    TEST_ASSERT(sceneryidx >= 0, "scenery register");
+    World_ResetScene(world, 51, 52, 104);
+    TEST_ASSERT(World_TestPoolIterateCount(&world->entities.scenery) == 0, "scenery pool reset");
+    TEST_ASSERT(World_TestPoolIterateCount(&world->entities.player) == 1, "players kept");
+    TEST_ASSERT(World_TestPoolIterateCount(&world->entities.npc) == 2, "npcs kept");
+    TEST_ASSERT(World_TestPoolIterateCount(&world->entities.obj_stack) == 2, "stacks kept");
+
+    World_Free(world);
+}

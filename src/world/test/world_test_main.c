@@ -19,6 +19,7 @@ main(void)
     test_entity_face();
     test_try_route();
     test_route_coordinate_coincidence();
+    test_rebuild_shift();
 
     sim_path_followers();
     sim_projectile_barrage();
