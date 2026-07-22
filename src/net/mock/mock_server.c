@@ -64,8 +64,15 @@ MockServer_Response(
     uint8_t* out,
     int cap)
 {
-    assert(cap >= 1);
+    assert(cap >= 3);
     out[0] = (uint8_t)server->response_byte;
+    if( server->response_byte == 2 )
+    {
+        /* Match LostCity: success is [2, staffmodlevel, mouse-tracked]. */
+        out[1] = 0;
+        out[2] = 1;
+        return 3;
+    }
     return 1;
 }
 

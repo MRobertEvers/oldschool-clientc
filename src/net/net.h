@@ -19,7 +19,7 @@
 #include "loginproto.h"
 #include "packetbuffer.h"
 #include "rev/gameproto_revisions.h"
-#include "rev/lc245_2/revpacket_lc245_2.h"
+#include "rev/revpacket.h"
 #include "rsa.h"
 
 #include <stdint.h>
@@ -47,8 +47,6 @@ enum ToriRS_NetOutType
     TORIRS_NET_OUT_SEND_DATA = 2, /* raw bytes to the socket */
 };
 
-struct RevPacket_LC245_2_Item;
-
 struct ToriRS_Network
 {
     enum ToriRS_NetState state;
@@ -66,8 +64,8 @@ struct ToriRS_Network
     struct ToriRS_CmdRing out;
 
     /** Parsed inbound packets, oldest first. */
-    struct RevPacket_LC245_2_Item* packets_head;
-    struct RevPacket_LC245_2_Item* packets_tail;
+    struct RevPacketItem* packets_head;
+    struct RevPacketItem* packets_tail;
 
     int conn_status;
 
@@ -118,6 +116,11 @@ ToriRS_Network_HandleCmd(
     uint8_t const* data,
     int len);
 
+/** Server-initiated logout: tear down the game session state and return to
+ * DISCONNECTED (login state machine freed, parsed FIFO drained). */
+void
+ToriRS_Network_Logout(struct ToriRS_Network* net);
+
 /** Queue raw bytes to the socket (SEND_DATA). */
 void
 ToriRS_Network_SendRaw(
@@ -126,12 +129,12 @@ ToriRS_Network_SendRaw(
     int len);
 
 /** Pop the oldest parsed packet into `out` (shallow copy; heap fields
- *  transfer to the caller, which must free with gameproto_free_lc245_2).
+ *  transfer to the caller, which must free with gameproto_free).
  *  Returns 1 when a packet was popped. */
 int
 ToriRS_Network_PopPacket(
     struct ToriRS_Network* net,
-    struct RevPacket_LC245_2* out);
+    struct RevPacket* out);
 
 /** Drain the outbound ring into a socket-facing consumer. Returns 1 and
  *  fills header/payload when a frame was popped. payload must hold

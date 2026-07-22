@@ -15,7 +15,49 @@ struct PlatformSocket
     int default_port;
     int connecting;
     int last_status;
+    /* Outbound bytes queued while the non-blocking connect is still in
+     * flight (ConnectLogin pushes CONNECT + the first login bytes in the
+     * same drain) or while send() would block; flushed FIFO once writable. */
+    uint8_t* out_pending;
+    int out_pending_len;
+    int out_pending_cap;
 };
+
+static void
+out_pending_append(
+    struct PlatformSocket* sock,
+    uint8_t const* data,
+    int len)
+{
+    if( len <= 0 )
+        return;
+    if( sock->out_pending_len + len > sock->out_pending_cap )
+    {
+        int cap = sock->out_pending_cap ? sock->out_pending_cap : 1024;
+        while( cap < sock->out_pending_len + len )
+            cap *= 2;
+        sock->out_pending = realloc(sock->out_pending, cap);
+        assert(sock->out_pending);
+        sock->out_pending_cap = cap;
+    }
+    memcpy(sock->out_pending + sock->out_pending_len, data, len);
+    sock->out_pending_len += len;
+}
+
+/* Send as much of the pending buffer as the socket accepts. */
+static void
+out_pending_flush(struct PlatformSocket* sock)
+{
+    while( sock->out_pending_len > 0 && sock->stream && !sock->connecting )
+    {
+        int sent = sockstream_send(sock->stream, sock->out_pending, sock->out_pending_len);
+        if( sent <= 0 )
+            break;
+        if( sent < sock->out_pending_len )
+            memmove(sock->out_pending, sock->out_pending + sent, sock->out_pending_len - sent);
+        sock->out_pending_len -= sent;
+    }
+}
 
 struct PlatformSocket*
 PlatformSocket_New(int default_port)
@@ -34,6 +76,7 @@ PlatformSocket_Free(struct PlatformSocket* sock)
         return;
     if( sock->stream )
         sockstream_close(sock->stream);
+    free(sock->out_pending);
     free(sock);
 }
 
@@ -108,6 +151,7 @@ PlatformSocket_Poll(
             parse_host(sock, (char const*)payload, header.length, host, sizeof(host), &port);
             if( sock->stream )
                 sockstream_close(sock->stream);
+            sock->out_pending_len = 0;
             sock->stream = sockstream_new();
             if( sock->stream )
             {
@@ -122,8 +166,11 @@ PlatformSocket_Poll(
         }
         else if( header.type == TORIRS_NET_OUT_SEND_DATA )
         {
-            if( sock->stream && !sock->connecting )
-                sockstream_send(sock->stream, payload, header.length);
+            /* Queue-then-flush keeps wire order: bytes pushed while the
+             * connect is in flight (the login hello) must not be dropped,
+             * and later sends must not overtake buffered ones. */
+            out_pending_append(sock, payload, header.length);
+            out_pending_flush(sock);
         }
     }
 
@@ -138,6 +185,7 @@ PlatformSocket_Poll(
         {
             sock->connecting = 0;
             emit_status(sock, bus, TORIRS_NET_STATUS_CONNECTED);
+            out_pending_flush(sock);
         }
         else if( rc == SOCKSTREAM_CONNECT_FAILED )
         {
@@ -152,6 +200,9 @@ PlatformSocket_Poll(
             return; /* still in-flight */
         }
     }
+
+    /* Retry any bytes a previous poll could not push (would-block). */
+    out_pending_flush(sock);
 
     /* 3. Read available bytes -> NET_RECV (chunked to the command cap). */
     for( ;; )

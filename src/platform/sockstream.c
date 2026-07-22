@@ -17,6 +17,7 @@
 #define MSG_DONTWAIT 0
 #else
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -159,15 +160,33 @@ sockstream_connect(
     if( !sockstream_ipv4_from_string(host, &server_addr.sin_addr) )
 #endif
     {
-        printf("Invalid address: %s\n", host);
+        /* Not an IPv4 literal — resolve as a hostname (getaddrinfo is
+         * available on POSIX and WinSock2 alike). */
+        struct addrinfo hints;
+        struct addrinfo* res = NULL;
+        int resolved = 0;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_STREAM;
+        if( getaddrinfo(host, NULL, &hints, &res) == 0 && res )
+        {
+            server_addr.sin_addr = ((struct sockaddr_in*)res->ai_addr)->sin_addr;
+            resolved = 1;
+        }
+        if( res )
+            freeaddrinfo(res);
+        if( !resolved )
+        {
+            printf("Invalid address: %s\n", host);
 #ifdef _WIN32
-        closesocket(stream->sockfd);
+            closesocket(stream->sockfd);
 #else
-        close(stream->sockfd);
+            close(stream->sockfd);
 #endif
-        stream->sockfd = -1;
-        stream->status = SOCKSTREAM_STATUS_ERROR;
-        return;
+            stream->sockfd = -1;
+            stream->status = SOCKSTREAM_STATUS_ERROR;
+            return;
+        }
     }
 
     // Try to connect (non-blocking)

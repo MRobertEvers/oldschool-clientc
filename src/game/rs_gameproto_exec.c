@@ -2,16 +2,24 @@
 
 #include "app.h"
 #include "inv/inv_manager.h"
-#include "net/rev/lc245_2/packetin.h"
-#include "net/rev/lc245_2/revpacket_lc245_2.h"
+#include "net/rev/revpacket.h"
+#include "rs_audio.h"
 #include "rs_chat.h"
+#include "rs_entity_sync.h"
+#include "rs_social.h"
+#include "net/jbase37.h"
+#include "world/world.h"
 #include "rs_player_stats.h"
 #include "rs_ui_slots.h"
 #include "ui/uitree.h"
 #include "varp/varp_manager.h"
 
+#include "net/net.h"
+
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 /* 15-bit RS colour (r<<10|g<<5|b, 5 bits each) to RGB888. */
 static int
@@ -56,25 +64,150 @@ exec_update_inv_partial(
     }
 }
 
+/* Zone sub-packet tile: base (scene-local, set by the FOLLOWS packets) +
+ * packed nibbles. Level = the local player's plane. */
+static void
+zone_tile(
+    struct App* app,
+    int pos,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    int world_idx;
+    *out_x = app->zone_base_x + ((pos >> 4) & 7);
+    *out_z = app->zone_base_z + (pos & 7);
+    *out_level = 0;
+    if( app->esync.local_pid >= 0 || 1 )
+    {
+        int pid = app->esync.local_pid >= 0 ? app->esync.local_pid : 2047;
+        if( RS_EntitySync_FindPlayer(&app->esync, pid, &world_idx, NULL) )
+        {
+            struct WorldEntity_Player* player =
+                World_EntityPoolGet(&app->world->entities.player, world_idx);
+            if( player )
+                *out_level = player->grid_position.level;
+        }
+    }
+}
+
+static void
+exec_zone_sub_packet(
+    struct RS_GameProtoCtx const* ctx,
+    enum GameProtoPktName name,
+    void const* payload)
+{
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
+
+    if( !app || !app->world || !app->world->load_complete )
+        return;
+
+    switch( name )
+    {
+    case PKT_NAME_OBJ_ADD:
+    {
+        struct PktObjAdd const* pkt = payload;
+        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
+        break;
+    }
+    case PKT_NAME_OBJ_DEL:
+    {
+        struct PktObjDel const* pkt = payload;
+        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        App_WorldObjStackDel(app, tile_x, tile_z, level, pkt->obj_id);
+        break;
+    }
+    case PKT_NAME_OBJ_COUNT:
+    {
+        struct PktObjCount const* pkt = payload;
+        int idx;
+        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        idx = World_ObjStackFind(app->world, tile_x, tile_z, level, pkt->obj_id);
+        if( idx >= 0 )
+            World_ObjStackSetCount(app->world, idx, pkt->new_count);
+        break;
+    }
+    case PKT_NAME_OBJ_REVEAL:
+    {
+        /* Reveal targets one receiver; everyone else already sees it. */
+        struct PktObjReveal const* pkt = payload;
+        if( ctx->app->esync.local_pid >= 0 && pkt->receiver != ctx->app->esync.local_pid )
+            break;
+        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
+        break;
+    }
+    case PKT_NAME_LOC_DEL:
+    {
+        struct PktLocDel const* pkt = payload;
+        int idx;
+        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        idx = World_SceneryFindAt(app->world, tile_x, tile_z, level);
+        if( idx >= 0 )
+            World_SceneryRemove(app->world, idx);
+        break;
+    }
+    case PKT_NAME_LOC_ADD_CHANGE:
+    {
+        /* Replacing/adding a loc needs the world builder's single-loc spawn
+         * path (flagged follow-on); the stale loc is removed so the change is
+         * at least not misleading. */
+        struct PktLocAddChange const* pkt = payload;
+        int idx;
+        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        idx = World_SceneryFindAt(app->world, tile_x, tile_z, level);
+        if( idx >= 0 )
+            World_SceneryRemove(app->world, idx);
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(
+                stderr,
+                "gameproto_exec: LOC_ADD_CHANGE loc=%d at %d,%d (spawn pending builder hook)\n",
+                pkt->loc_id,
+                tile_x,
+                tile_z);
+        break;
+    }
+    case PKT_NAME_LOC_ANIM:
+    {
+        struct PktLocAnim const* pkt = payload;
+        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        App_WorldSceneryAnim(app, tile_x, tile_z, level, pkt->seq_id);
+        break;
+    }
+    case PKT_NAME_MAP_ANIM:
+    case PKT_NAME_MAP_PROJANIM:
+    case PKT_NAME_LOC_MERGE:
+        /* Spotanim-config decode (the graphic's model/seq) is a flagged
+         * follow-on; loc merge is a drawing-order hint. State-only for now. */
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(stderr, "gameproto_exec: zone sub-packet %d stored (visual pending)\n", name);
+        break;
+    default:
+        break;
+    }
+}
+
 void
 RS_GameProto_Exec(
     struct RS_GameProtoCtx const* ctx,
-    struct RevPacket_LC245_2* packet)
+    struct RevPacket* packet)
 {
     assert(ctx && packet);
 
     switch( packet->packet_type )
     {
     /* ---- varps ---- */
-    case PKTIN_LC245_2_VARP_SMALL:
+    case PKT_NAME_VARP_SMALL:
         VarPManager_ApplySmall(ctx->varps, packet->_varp_small.variable, packet->_varp_small.value);
         break;
-    case PKTIN_LC245_2_VARP_LARGE:
+    case PKT_NAME_VARP_LARGE:
         VarPManager_ApplyLarge(ctx->varps, packet->_varp_large.variable, packet->_varp_large.value);
         break;
 
     /* ---- player stats ---- */
-    case PKTIN_LC245_2_UPDATE_STAT:
+    case PKT_NAME_UPDATE_STAT:
         if( packet->_update_stat.stat >= 0 &&
             packet->_update_stat.stat < RS_PLAYER_STATS_SKILL_COUNT )
         {
@@ -84,105 +217,440 @@ RS_GameProto_Exec(
             RS_PlayerStats_RecomputeCombatLevel(ctx->stats);
         }
         break;
-    case PKTIN_LC245_2_UPDATE_RUNENERGY:
+    case PKT_NAME_UPDATE_RUNENERGY:
         ctx->stats->run_energy = packet->_update_run_energy.run_energy;
         break;
-    case PKTIN_LC245_2_UPDATE_RUNWEIGHT:
+    case PKT_NAME_UPDATE_RUNWEIGHT:
         ctx->stats->run_weight = packet->_update_runweight.run_weight;
         break;
 
     /* ---- inventories ---- */
-    case PKTIN_LC245_2_UPDATE_INV_FULL:
+    case PKT_NAME_UPDATE_INV_FULL:
         exec_update_inv_full(ctx, &packet->_update_inv_full);
         break;
-    case PKTIN_LC245_2_UPDATE_INV_PARTIAL:
+    case PKT_NAME_UPDATE_INV_PARTIAL:
         exec_update_inv_partial(ctx, &packet->_update_inv_partial);
         break;
 
     /* ---- interface component mutations ---- */
-    case PKTIN_LC245_2_IF_SETTEXT:
+    case PKT_NAME_IF_SETTEXT:
         UITree_ApplyText(
             ctx->tree, packet->_if_settext.component_id, packet->_if_settext.text);
         break;
-    case PKTIN_LC245_2_IF_SETHIDE:
+    case PKT_NAME_IF_SETHIDE:
         UITree_ApplyHide(
             ctx->tree, packet->_if_sethide.component_id, packet->_if_sethide.hide);
         break;
-    case PKTIN_LC245_2_IF_SETCOLOUR:
+    case PKT_NAME_IF_SETCOLOUR:
         UITree_ApplyColour(
             ctx->tree,
             packet->_if_setcolour.component_id,
             rs15_to_rgb(packet->_if_setcolour.colour));
         break;
-    case PKTIN_LC245_2_IF_SETMODEL:
+    case PKT_NAME_IF_SETMODEL:
         UITree_ApplyModel(
             ctx->tree, packet->_if_setmodel.component_id, packet->_if_setmodel.model_id);
         break;
-    case PKTIN_LC245_2_IF_SETSCROLLPOS:
+    case PKT_NAME_IF_SETSCROLLPOS:
         UITree_ApplyScrollPos(
             ctx->tree, packet->_if_setscrollpos.component_id, 0, packet->_if_setscrollpos.pos);
         break;
 
     /* ---- interface slots (need the App / RS_UISlots) ---- */
-    case PKTIN_LC245_2_IF_OPENMAIN:
+    case PKT_NAME_IF_OPENMAIN:
         if( ctx->app )
             RS_UISlots_OpenMain(ctx->app, packet->_if_openmain.component_id);
         break;
-    case PKTIN_LC245_2_IF_OPENSIDE:
+    case PKT_NAME_IF_OPENSIDE:
         if( ctx->app )
             RS_UISlots_OpenSide(ctx->app, packet->_if_openside.component_id);
         break;
-    case PKTIN_LC245_2_IF_OPENMAIN_SIDE:
+    case PKT_NAME_IF_OPENMAIN_SIDE:
         if( ctx->app )
             RS_UISlots_OpenMainSide(
                 ctx->app,
                 packet->_if_openmain_side.main_component_id,
                 packet->_if_openmain_side.side_component_id);
         break;
-    case PKTIN_LC245_2_IF_OPENCHAT:
+    case PKT_NAME_IF_OPENCHAT:
         if( ctx->app )
             RS_UISlots_OpenChat(ctx->app, packet->_if_openchat.component_id);
         break;
-    case PKTIN_LC245_2_IF_CLOSE:
+    case PKT_NAME_IF_CLOSE:
         if( ctx->app )
             RS_UISlots_CloseModal(ctx->app);
         break;
-    case PKTIN_LC245_2_IF_SETTAB:
+    case PKT_NAME_IF_SETTAB:
         if( ctx->app )
             RS_UISlots_SetTab(
                 ctx->app, packet->_if_settab.tab_id, packet->_if_settab.component_id);
         break;
 
     /* ---- chat ---- */
-    case PKTIN_LC245_2_MESSAGE_GAME:
+    case PKT_NAME_MESSAGE_GAME:
         if( ctx->chat )
             RS_Chat_AddMessage(ctx->chat, RS_CHAT_TYPE_GAME, NULL, packet->_message_game.text);
         break;
 
-    /* ---- world / entities (bitstream decode into World is follow-on) ---- */
-    case PKTIN_LC245_2_REBUILD_NORMAL:
-        /* Region origin the next scene load centers on. The src world_builder
-         * currently loads a fixed chunk list; region-addressed loading is the
-         * remaining hook (App owns the builder). */
+    /* ---- world rebuild ---- */
+    case PKT_NAME_REBUILD_NORMAL:
+        /* Handled inside Task_GameProtoExec (world-load await + MAP_BUILD_
+         * COMPLETE ack); reaching here means no app context. */
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(
                 stderr,
-                "gameproto_exec: REBUILD_NORMAL zone=%d,%d (region load pending)\n",
+                "gameproto_exec: REBUILD_NORMAL zone=%d,%d (no app ctx)\n",
                 packet->_map_rebuild.zonex,
                 packet->_map_rebuild.zonez);
         break;
-    case PKTIN_LC245_2_PLAYER_INFO:
-    case PKTIN_LC245_2_NPC_INFO:
-        /* Raw command streams reach here; the bit-level decode + World entity
-         * spawn/movement application is the remaining entity-sync work. */
+    case PKT_NAME_PLAYER_INFO:
+    case PKT_NAME_NPC_INFO:
+        /* Normally consumed by Task_GameProtoExec's awaited entity-info
+         * tasks; reaching here means no world is active (packet dropped). */
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(
                 stderr,
-                "gameproto_exec: entity info packet %d (%d bytes, decode pending)\n",
-                packet->packet_type,
-                packet->packet_type == PKTIN_LC245_2_PLAYER_INFO
-                    ? packet->_player_info.length
-                    : packet->_npc_info.length);
+                "gameproto_exec: entity info packet %d dropped (no active world)\n",
+                packet->packet_type);
+        break;
+
+    /* ---- zone packets (world mutations) ---- */
+    case PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS:
+        if( ctx->app )
+        {
+            /* Wire base is classic-scene local; store our-scene tiles. */
+            ctx->app->zone_base_x =
+                ctx->app->scene_off_x + packet->_update_zone_partial_follows.base_x;
+            ctx->app->zone_base_z =
+                ctx->app->scene_off_z + packet->_update_zone_partial_follows.base_z;
+        }
+        break;
+    case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
+        if( ctx->app )
+        {
+            struct App* app = ctx->app;
+            app->zone_base_x = app->scene_off_x + packet->_update_zone_full_follows.base_x;
+            app->zone_base_z = app->scene_off_z + packet->_update_zone_full_follows.base_z;
+            /* Full update: the zone's client-side obj stacks reset. */
+            if( app->world )
+            {
+                for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
+                    for( int dz = 0; dz < 8; dz++ )
+                        for( int dx = 0; dx < 8; dx++ )
+                        {
+                            int idx;
+                            while( (idx = World_ObjStackFind(
+                                        app->world,
+                                        app->zone_base_x + dx,
+                                        app->zone_base_z + dz,
+                                        level,
+                                        -1)) >= 0 )
+                                World_ObjStackDel(app->world, idx);
+                        }
+            }
+        }
+        break;
+    case PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED:
+        if( ctx->app )
+        {
+            struct PktUpdateZoneEnclosed const* enc = &packet->_update_zone_enclosed;
+            ctx->app->zone_base_x = enc->base_x;
+            ctx->app->zone_base_z = enc->base_z;
+            for( int i = 0; i < enc->count; i++ )
+                exec_zone_sub_packet(ctx, enc->entries[i].name, &enc->entries[i]._loc_add_change);
+        }
+        break;
+    case PKT_NAME_OBJ_ADD:
+        exec_zone_sub_packet(ctx, PKT_NAME_OBJ_ADD, &packet->_obj_add);
+        break;
+    case PKT_NAME_OBJ_DEL:
+        exec_zone_sub_packet(ctx, PKT_NAME_OBJ_DEL, &packet->_obj_del);
+        break;
+    case PKT_NAME_OBJ_COUNT:
+        exec_zone_sub_packet(ctx, PKT_NAME_OBJ_COUNT, &packet->_obj_count);
+        break;
+    case PKT_NAME_OBJ_REVEAL:
+        exec_zone_sub_packet(ctx, PKT_NAME_OBJ_REVEAL, &packet->_obj_reveal);
+        break;
+    case PKT_NAME_LOC_DEL:
+        exec_zone_sub_packet(ctx, PKT_NAME_LOC_DEL, &packet->_loc_del);
+        break;
+    case PKT_NAME_LOC_ADD_CHANGE:
+        exec_zone_sub_packet(ctx, PKT_NAME_LOC_ADD_CHANGE, &packet->_loc_add_change);
+        break;
+    case PKT_NAME_LOC_ANIM:
+        exec_zone_sub_packet(ctx, PKT_NAME_LOC_ANIM, &packet->_loc_anim);
+        break;
+    case PKT_NAME_MAP_ANIM:
+        exec_zone_sub_packet(ctx, PKT_NAME_MAP_ANIM, &packet->_map_anim);
+        break;
+    case PKT_NAME_MAP_PROJANIM:
+        exec_zone_sub_packet(ctx, PKT_NAME_MAP_PROJANIM, &packet->_map_projanim);
+        break;
+    case PKT_NAME_LOC_MERGE:
+        exec_zone_sub_packet(ctx, PKT_NAME_LOC_MERGE, &packet->_loc_merge);
+        break;
+
+    /* ---- camera ---- */
+    case PKT_NAME_CAM_MOVETO:
+        if( ctx->app )
+        {
+            struct App* app = ctx->app;
+            /* Wire coords are classic-scene local tiles. */
+            app->world_camera_pos.x = (app->scene_off_x + packet->_cam_moveto.local_x) * 128 + 64;
+            app->world_camera_pos.z = (app->scene_off_z + packet->_cam_moveto.local_z) * 128 + 64;
+            app->world_camera_pos.y = -packet->_cam_moveto.height;
+            app->cam_script.scripted = 1;
+            app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_CAM_LOOKAT:
+        if( ctx->app )
+        {
+            /* Point the camera at the target tile (yaw from atan2, reference
+             * orbit math approximated with the 2048-unit circle). */
+            struct App* app = ctx->app;
+            int tx = (app->scene_off_x + packet->_cam_lookat.local_x) * 128 + 64;
+            int tz = (app->scene_off_z + packet->_cam_lookat.local_z) * 128 + 64;
+            int dx = tx - app->world_camera_pos.x;
+            int dz = tz - app->world_camera_pos.z;
+            app->world_camera.yaw = (int)(atan2((double)dx, (double)dz) * 325.949) & 0x7ff;
+            app->cam_script.scripted = 1;
+            app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_CAM_SHAKE:
+        if( ctx->app )
+        {
+            ctx->app->cam_script.shake_axis = packet->_cam_shake.axis;
+            ctx->app->cam_script.shake_amplitude = packet->_cam_shake.amplitude;
+            ctx->app->cam_script.shake_frequency = packet->_cam_shake.frequency;
+            ctx->app->cam_script.shake_speed = packet->_cam_shake.speed;
+        }
+        break;
+    case PKT_NAME_CAM_RESET:
+        if( ctx->app )
+        {
+            ctx->app->cam_script.scripted = 0;
+            ctx->app->cam_script.shake_axis = -1;
+            ctx->app->need_redraw = 1;
+        }
+        break;
+
+    /* ---- social ---- */
+    case PKT_NAME_UPDATE_FRIENDLIST:
+        if( ctx->app )
+        {
+            char name[16];
+            struct RS_Social* social = &ctx->app->social;
+            int found = 0;
+            base37tostr((uint64_t)packet->_update_friendlist.name37, name, sizeof(name));
+            for( int i = 0; i < social->friend_count; i++ )
+            {
+                if( strcmp(social->friend_name[i], name) == 0 )
+                {
+                    social->friend_world[i] = packet->_update_friendlist.world;
+                    found = 1;
+                    break;
+                }
+            }
+            if( !found )
+                RS_Social_AddFriend(social, name, packet->_update_friendlist.world);
+            ctx->app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_UPDATE_IGNORELIST:
+        if( ctx->app )
+        {
+            struct RS_Social* social = &ctx->app->social;
+            social->ignore_count = 0;
+            for( int i = 0; i < packet->_update_ignorelist.count; i++ )
+            {
+                char name[16];
+                base37tostr((uint64_t)packet->_update_ignorelist.names37[i], name, sizeof(name));
+                RS_Social_AddIgnore(social, name);
+            }
+            ctx->app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_FRIENDLIST_LOADED:
+        if( ctx->app )
+            ctx->app->social.server_status = packet->_friendlist_loaded.status;
+        break;
+    case PKT_NAME_MESSAGE_PRIVATE:
+        if( ctx->app && ctx->chat )
+        {
+            /* Dedupe by message id (reference messageIds ring). */
+            struct App* app = ctx->app;
+            char name[16];
+            int dup = 0;
+            for( int i = 0; i < 100; i++ )
+                if( app->pm_message_ids[i] == packet->_message_private.message_id )
+                {
+                    dup = 1;
+                    break;
+                }
+            if( dup )
+                break;
+            app->pm_message_ids[app->pm_message_head] = packet->_message_private.message_id;
+            app->pm_message_head = (app->pm_message_head + 1) % 100;
+            base37tostr((uint64_t)packet->_message_private.from, name, sizeof(name));
+            RS_Chat_AddMessage(
+                ctx->chat,
+                packet->_message_private.staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
+                                                   : RS_CHAT_TYPE_PRIVATE_FROM,
+                name,
+                packet->_message_private.text);
+        }
+        break;
+    case PKT_NAME_CHAT_FILTER_SETTINGS:
+        if( ctx->app )
+        {
+            ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC] =
+                packet->_chat_filter_settings.chat_public_mode;
+            ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE] =
+                packet->_chat_filter_settings.chat_private_mode;
+            ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_TRADE] =
+                packet->_chat_filter_settings.chat_trade_mode;
+            ctx->app->need_redraw = 1;
+        }
+        break;
+
+    /* ---- misc state ---- */
+    case PKT_NAME_UPDATE_PID:
+        if( ctx->app )
+            ctx->app->esync.local_pid = packet->_update_pid.local_player_index;
+        break;
+    case PKT_NAME_RESET_CLIENT_VARCACHE:
+        VarPManager_ResetAll(ctx->varps);
+        break;
+    case PKT_NAME_LAST_LOGIN_INFO:
+        if( ctx->app )
+        {
+            ctx->app->welcome.last_ip = packet->_last_login_info.last_ip;
+            ctx->app->welcome.days_since_login = packet->_last_login_info.days_since_login;
+            ctx->app->welcome.days_since_recovery = packet->_last_login_info.days_since_recovery;
+            ctx->app->welcome.unread_messages = packet->_last_login_info.unread_messages;
+        }
+        break;
+    case PKT_NAME_UPDATE_REBOOT_TIMER:
+        if( ctx->app )
+            ctx->app->reboot_ticks = packet->_update_reboot_timer.ticks;
+        break;
+    case PKT_NAME_P_COUNTDIALOG:
+        if( ctx->chat )
+        {
+            ctx->chat->dialog_input_open = 1;
+            ctx->chat->dialog_input[0] = '\0';
+        }
+        break;
+    case PKT_NAME_LOGOUT:
+        if( ctx->app )
+        {
+            struct App* app = ctx->app;
+            RS_EntitySync_Clear(&app->esync, app->world);
+            if( ctx->chat )
+                RS_Chat_AddMessage(ctx->chat, RS_CHAT_TYPE_GAME, NULL, "You have been logged out.");
+            if( app->net )
+                ToriRS_Network_Logout(app->net);
+            app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_SET_PLAYER_OP:
+        if( ctx->app && packet->_set_player_op.slot >= 1 && packet->_set_player_op.slot <= 5 )
+        {
+            int slot = packet->_set_player_op.slot - 1;
+            snprintf(
+                ctx->app->player_ops[slot],
+                sizeof(ctx->app->player_ops[slot]),
+                "%s",
+                packet->_set_player_op.text ? packet->_set_player_op.text : "");
+            ctx->app->player_ops_primary[slot] = packet->_set_player_op.primary;
+        }
+        break;
+    case PKT_NAME_SET_MULTIWAY:
+        if( ctx->app )
+            ctx->app->multiway = packet->_set_multiway.multiway;
+        break;
+    case PKT_NAME_HINT_ARROW:
+        if( ctx->app )
+        {
+            ctx->app->hint_arrow.type = packet->_hint_arrow.type == 255 ? 0 : packet->_hint_arrow.type;
+            ctx->app->hint_arrow.target = packet->_hint_arrow.id;
+            ctx->app->hint_arrow.tile_z = packet->_hint_arrow.z;
+            ctx->app->hint_arrow.height = packet->_hint_arrow.height;
+        }
+        break;
+    case PKT_NAME_RESET_ANIMS:
+        if( ctx->app && ctx->app->scene )
+        {
+            int slot_count = ToriDraw_SceneElementSlotCount(ctx->app->scene);
+            for( int element_id = 0; element_id < slot_count; element_id++ )
+            {
+                struct ToriDraw_SceneElement* el;
+                if( !ToriDraw_SceneElementIsLive(ctx->app->scene, element_id) )
+                    continue;
+                el = ToriDraw_SceneElementGet(ctx->app->scene, element_id);
+                if( el )
+                {
+                    el->anim_frame = 0;
+                    el->anim_cycle = 0;
+                }
+            }
+            ctx->app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_ENABLE_TRACKING:
+        if( ctx->app )
+            ctx->app->tracking_enabled = 1;
+        break;
+    case PKT_NAME_FINISH_TRACKING:
+        if( ctx->app )
+            ctx->app->tracking_enabled = 0;
+        break;
+
+    /* ---- tutorial ---- */
+    case PKT_NAME_TUT_FLASH:
+        if( ctx->app )
+            ctx->app->slots.flash_tab = packet->_tut_flash.tab;
+        break;
+    case PKT_NAME_TUT_OPEN:
+        if( ctx->app )
+            RS_UISlots_OpenTut(ctx->app, packet->_tut_open.component_id);
+        break;
+
+    /* ---- audio (stub sink) ---- */
+    case PKT_NAME_SYNTH_SOUND:
+        if( ctx->app )
+            RS_Audio_Synth(
+                &ctx->app->audio,
+                packet->_synth_sound.id,
+                packet->_synth_sound.loops,
+                packet->_synth_sound.delay);
+        break;
+    case PKT_NAME_MIDI_SONG:
+        if( ctx->app )
+            RS_Audio_Song(&ctx->app->audio, packet->_midi_song.id);
+        break;
+    case PKT_NAME_MIDI_JINGLE:
+        if( ctx->app )
+            RS_Audio_Jingle(&ctx->app->audio, packet->_midi_jingle.id, packet->_midi_jingle.delay);
+        break;
+
+    /* ---- remaining interface packets ---- */
+    case PKT_NAME_IF_OPENOVERLAY:
+        if( ctx->app )
+            RS_UISlots_OpenOverlay(ctx->app, packet->_if_openoverlay.component_id);
+        break;
+    case PKT_NAME_IF_SETTAB_ACTIVE:
+        if( ctx->app )
+            RS_UISlots_SetSideTab(ctx->app, packet->_if_settab_active.tab_id);
+        break;
+    case PKT_NAME_UNSET_MAP_FLAG:
+        /* Minimap destination flag is not drawn yet; nothing to clear. */
+        break;
+    case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
+        /* Container stays as last transmitted (reference stops updates). */
         break;
 
     default:

@@ -21,6 +21,8 @@ struct RS_IF1ButtonSink
     void (*if_button)(void* user, int com_id);
     /** ClientProt RESUME_PAUSEBUTTON. */
     void (*resume_pausebutton)(void* user, int com_id);
+    /** ClientProt CLOSE_MODAL (local close click only). */
+    void (*close_modal)(void* user);
 };
 
 /**

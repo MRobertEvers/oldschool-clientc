@@ -504,6 +504,22 @@ VarPManager_ApplySync(struct VarPManager* mgr)
     }
 }
 
+void
+VarPManager_ResetAll(struct VarPManager* mgr)
+{
+    assert(mgr);
+
+    for( int i = 0; i < mgr->varp_count; i++ )
+    {
+        mgr->var_serv[i] = 0;
+        if( mgr->var[i] != 0 )
+        {
+            mgr->var[i] = 0;
+            notify_change(mgr, i);
+        }
+    }
+}
+
 int
 VarPManager_ResolveTransform(
     const struct VarPManager* mgr,

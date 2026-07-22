@@ -113,6 +113,10 @@ VarPManager_ApplyLarge(
 void
 VarPManager_ApplySync(struct VarPManager* mgr);
 
+/** RESET_CLIENT_VARCACHE: zero every var (client + server-authoritative). */
+void
+VarPManager_ResetAll(struct VarPManager* mgr);
+
 /** Optimistic update: set var locally. Does not update var_serv. */
 void
 VarPManager_SetVarpOptimistic(

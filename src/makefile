@@ -118,7 +118,8 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/toridraw_model_from_torirs.c \
 	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
-	engine/uitree_anim.c \
+	game/task_gameproto_exec.c game/task_exec_entity_info.c game/rs_entity_sync.c game/rs_audio.c \
+	engine/uitree_anim.c engine/entity_model_build.c \
 	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_cross.c ui/uitree_minimenu.c \
@@ -128,8 +129,10 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	inv/inv_manager.c \
 	cmd/cmdring.c cmd/cmdbus.c \
 	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c \
-	net/loginproto.c net/packetbuffer.c net/net.c net/net_out.c \
-	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc245_2/gameproto_parse.c \
+	net/loginproto.c net/packetbuffer.c net/net.c net/net_out.c net/bitbuffer.c \
+	net/rev/gameproto_parse.c net/rev/pkt_player_info.c net/rev/pkt_npc_info.c \
+	net/rev/pkt_player_appearance.c \
+	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
 	platform/sockstream.c platform/platform_socket.c \
 	revconfig/revconfig.c revconfig/revconfig_load.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
@@ -161,7 +164,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots world-builder
+.PHONY: all clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order world-builder
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -176,17 +179,17 @@ $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
 	$(CC) $(CFLAGS) -c $(1) -o $$@
 endef
 
-NET_LC245_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc245_2/gameproto_parse.c
-$(foreach src,$(filter-out painters/painters.c $(NET_LC245_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
+NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c
+$(foreach src,$(filter-out painters/painters.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -c painters/painters.c -o $@
 
-# lc245_2 protocol table + parser include their own dir for packetin.h etc.
+# Rev protocol tables include their own dir for packetin.h/packetout.h.
 $(OBJ_DIR)/gameproto_rev_lc245_2.o: net/rev/lc245_2/gameproto_rev_lc245_2.c
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -c $< -o $@
-$(OBJ_DIR)/gameproto_parse.o: net/rev/lc245_2/gameproto_parse.c
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -c $< -o $@
+$(OBJ_DIR)/gameproto_rev_lc254.o: net/rev/lc254/gameproto_rev_lc254.c
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc254 -c $< -o $@
 
 # tommath amalgam for RSA (login block exptmod).
 $(OBJ_DIR)/tommath.o: $(REPO_ROOT)/3rd/tommath/mpi.c
@@ -295,6 +298,7 @@ test-cmdbus: $(OBJ_DIR) cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
 NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/wordpack.o $(OBJ_DIR)/loginproto.o \
 	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_lc245_2.o \
+	$(OBJ_DIR)/gameproto_rev_lc254.o \
 	$(OBJ_DIR)/gameproto_parse.o $(OBJ_DIR)/tommath.o \
 	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
@@ -351,6 +355,33 @@ test-minimap: $(OBJ_DIR)
 		engine/minimap/minimap.c engine/torirs_types.c $(BMP_DIR)/bmp.c \
 		engine/minimap/minimap_test.c
 	./$(OBJ_DIR)/minimap_test
+
+# PLAYER_INFO / NPC_INFO bit decode + appearance blob.
+test-entity-decode: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/entity_decode_test \
+		net/test/entity_decode_test.c net/bitbuffer.c \
+		net/rev/pkt_player_info.c net/rev/pkt_npc_info.c net/rev/pkt_player_appearance.c \
+		net/jbase37.c $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o \
+		$(OBJ_DIR)/xteas.o -lm
+	./$(OBJ_DIR)/entity_decode_test
+
+# Serial-FIFO ordering guarantee (head-only task execution across IO yields).
+test-task-order: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_order_test game/test/task_order_test.c -lm
+	./$(OBJ_DIR)/task_order_test
+
+# No blocking IO outside tests: TaskRunner_Drain must appear only under */test/.
+check-no-drain:
+	@! grep -rn "TaskRunner_Drain" --include="*.c" --include="*.h" . \
+		| grep -v "/test/" | grep -v "task_runner.h" \
+		&& echo "check-no-drain: PASS (no runtime Drain)" \
+		|| (echo "check-no-drain: FAIL — runtime TaskRunner_Drain found" && exit 1)
+
+# Walkmerge blend (Model.maskAnimate port) + seq-meta plumbing.
+test-walkmerge: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+	$(CC) $(CFLAGS) -lm -Wl,-dead_strip -o $(OBJ_DIR)/walkmerge_test \
+		world/test/walkmerge_test.c $(OBJ_DIR)/toridraw_unity.o
+	./$(OBJ_DIR)/walkmerge_test
 
 # Angle-unit guard for the compass/minimap rotated blit (camera yaw, 2048/turn).
 test-rotate-blit: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o

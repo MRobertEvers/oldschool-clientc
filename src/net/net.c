@@ -1,7 +1,7 @@
 #include "net.h"
 
 #include "cmd/cmdbus.h"
-#include "rev/lc245_2/gameproto_parse.h"
+#include "rev/gameproto_parse.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -44,11 +44,11 @@ ToriRS_Network_SetSeedFn(
 static void
 free_packet_list(struct ToriRS_Network* net)
 {
-    struct RevPacket_LC245_2_Item* item = net->packets_head;
+    struct RevPacketItem* item = net->packets_head;
     while( item )
     {
-        struct RevPacket_LC245_2_Item* next = item->next_nullable;
-        gameproto_free_lc245_2(&item->packet);
+        struct RevPacketItem* next = item->next_nullable;
+        gameproto_free(&item->packet);
         free(item);
         item = next;
     }
@@ -125,6 +125,21 @@ ToriRS_Network_ConnectLogin(
 }
 
 void
+ToriRS_Network_Logout(struct ToriRS_Network* net)
+{
+    assert(net);
+    if( net->loginproto )
+    {
+        loginproto_free(net->loginproto);
+        net->loginproto = NULL;
+    }
+    if( net->packet_buffer.data )
+        packetbuffer_reset(&net->packet_buffer);
+    free_packet_list(net);
+    net->state = TORIRS_NET_DISCONNECTED;
+}
+
+void
 ToriRS_Network_SendRaw(
     struct ToriRS_Network* net,
     uint8_t const* data,
@@ -132,7 +147,11 @@ ToriRS_Network_SendRaw(
 {
     assert(net);
     if( len > 0 && data )
+    {
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(stderr, "net: -> %d bytes (first 0x%02x)\n", len, data[0]);
         push_out(net, TORIRS_NET_OUT_SEND_DATA, data, len);
+    }
 }
 
 /* Flush login outbound bytes, then act on the poll result (port of v0
@@ -189,9 +208,9 @@ loginproto_drain(
 static void
 push_parsed_packet(
     struct ToriRS_Network* net,
-    struct RevPacket_LC245_2 const* packet)
+    struct RevPacket const* packet)
 {
-    struct RevPacket_LC245_2_Item* item = malloc(sizeof(*item));
+    struct RevPacketItem* item = malloc(sizeof(*item));
     assert(item);
     item->packet = *packet;
     item->next_nullable = NULL;
@@ -209,13 +228,28 @@ net_process_packets(struct ToriRS_Network* net)
         return;
 
     {
-        struct RevPacket_LC245_2 packet;
+        struct RevPacket packet;
+        int wire = packetbuffer_packet_type(&net->packet_buffer);
+        enum GameProtoPktName name = (enum GameProtoPktName)net->rev->packetin_code(wire);
+
         memset(&packet, 0, sizeof(packet));
-        if( gameproto_parse_lc245_2(
-                packetbuffer_packet_type(&net->packet_buffer),
-                packetbuffer_data(&net->packet_buffer),
-                packetbuffer_size(&net->packet_buffer),
-                &packet) )
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(
+                stderr,
+                "net: <- wire=%d name=%d size=%d\n",
+                wire,
+                (int)name,
+                packetbuffer_size(&net->packet_buffer));
+        if( name == PKT_NAME_NONE )
+        {
+            fprintf(stderr, "net: dropping unknown wire opcode %d (%s)\n", wire, net->rev->name);
+        }
+        else if( gameproto_parse(
+                     net->rev,
+                     name,
+                     packetbuffer_data(&net->packet_buffer),
+                     packetbuffer_size(&net->packet_buffer),
+                     &packet) )
             push_parsed_packet(net, &packet);
     }
     packetbuffer_reset(&net->packet_buffer);
@@ -306,9 +340,9 @@ ToriRS_Network_HandleCmd(
 int
 ToriRS_Network_PopPacket(
     struct ToriRS_Network* net,
-    struct RevPacket_LC245_2* out)
+    struct RevPacket* out)
 {
-    struct RevPacket_LC245_2_Item* item;
+    struct RevPacketItem* item;
 
     assert(net && out);
     item = net->packets_head;

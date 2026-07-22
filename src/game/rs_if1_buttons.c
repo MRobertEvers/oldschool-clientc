@@ -101,6 +101,11 @@ RS_IF1_ApplyButtonClick(
 
     case REVCONFIG_MINIMENU_CLOSE_MODAL:
         RS_UISlots_CloseModal(app);
+        /* A local close click notifies the server (reference CLOSE_MODAL);
+         * server-initiated IF_CLOSE does not echo. Reuses the pausebutton
+         * sink slot's App so app.c can route it. */
+        if( app->button_sink.close_modal )
+            app->button_sink.close_modal(app->button_sink.user);
         return 1;
 
     default:

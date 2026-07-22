@@ -7,7 +7,7 @@
 #include "net/loginproto.h"
 #include "net/packetbuffer.h"
 #include "net/rev/gameproto_revisions.h"
-#include "net/rev/lc245_2/gameproto_parse.h"
+#include "net/rev/gameproto_parse.h"
 #include "net/rev/lc245_2/packetin.h"
 
 #include <assert.h>
@@ -101,6 +101,13 @@ run_login(int fragment_bytes, int response_byte, struct LoginProto** out_lp)
             loginproto_recv(lp, &rb, 1);
             response_sent = 1;
         }
+        else if( response_sent == 1 && lp->state == LOGINPROTO_LOGIN_SUCCESS_TAIL )
+        {
+            /* Success carries a 2-byte tail: staffmodlevel + mouse flag. */
+            uint8_t tail[2] = { 0, 1 };
+            loginproto_recv(lp, tail, 2);
+            response_sent = 2;
+        }
     }
 
     loginproto_free(lp);
@@ -128,10 +135,11 @@ static void
 test_login_fragmented(void)
 {
     struct LoginProto* lp = NULL;
-    assert(run_login(1, 18, &lp)); /* one byte at a time, response 18 */
+    /* One byte at a time, response 15 = reconnect handoff (no tail). */
+    assert(run_login(1, 15, &lp));
     assert(lp && lp->state == LOGINPROTO_SUCCESS);
     loginproto_free(lp);
-    printf("ok - login success, 1-byte-fragmented delivery (response 18)\n");
+    printf("ok - login success, 1-byte-fragmented delivery (response 15)\n");
 }
 
 static void
@@ -155,8 +163,8 @@ test_packet_framing(void)
     packetbuffer_init(&pb, dec, rev);
 
     /* VARP_SMALL: fixed size 3 (opcode + variable u16 + value). */
-    int name = PKTIN_LC245_2_VARP_SMALL;
-    int code = rev->packetin_code(name);
+    int name = PKT_NAME_VARP_SMALL;
+    int code = rev->packetin_wire(name);
     int size = rev->packetin_size(code);
     assert(size == 3);
 
@@ -175,12 +183,16 @@ test_packet_framing(void)
     assert(packetbuffer_packet_type(&pb) == code);
     assert(packetbuffer_size(&pb) == 3);
 
-    struct RevPacket_LC245_2 packet;
+    struct RevPacket packet;
     memset(&packet, 0, sizeof(packet));
-    int ok = gameproto_parse_lc245_2(
-        code, packetbuffer_data(&pb), packetbuffer_size(&pb), &packet);
+    int ok = gameproto_parse(
+        rev,
+        (enum GameProtoPktName)rev->packetin_code(code),
+        packetbuffer_data(&pb),
+        packetbuffer_size(&pb),
+        &packet);
     assert(ok);
-    gameproto_free_lc245_2(&packet);
+    gameproto_free(&packet);
 
     packetbuffer_reset(&pb);
     isaac_free(enc);
@@ -199,7 +211,7 @@ test_packet_varu16(void)
     struct PacketBuffer pb;
     packetbuffer_init(&pb, dec, rev);
 
-    int code = rev->packetin_code(PKTIN_LC245_2_UPDATE_INV_FULL);
+    int code = rev->packetin_wire(PKT_NAME_UPDATE_INV_FULL);
     assert(rev->packetin_size(code) == -2); /* var-u16 */
 
     /* Body: component_id(u16) + count(u16) + one obj (id u16 + count u1). */

@@ -7,8 +7,10 @@
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_builder/uitree_builder.h"
 #include "engine/uitree_scene_bridge.h"
+#include "game/rs_audio.h"
 #include "game/rs_chat.h"
 #include "game/rs_cs1_host.h"
+#include "game/rs_entity_sync.h"
 #include "game/rs_minimenu_build.h"
 #include "game/rs_cs2_host.h"
 #include "game/rs_if1_buttons.h"
@@ -85,6 +87,26 @@ struct AppConfig
     char const* connect_target;
     char const* connect_user;
     char const* connect_pass;
+    /** Protocol revision name ("lc254", "lc245_2"). NULL = lc254, the
+     * authoritative LostCity_Server build. Mock/loopback tests pass
+     * lc245_2 explicitly. */
+    char const* rev_name;
+};
+
+/** App boot lifecycle: BOOTING until the root-interface build task (and its
+ * dependent loads) complete through the per-frame task pump; the render path
+ * draws a loading bar until READY. */
+enum AppState
+{
+    APP_STATE_BOOTING = 0,
+    APP_STATE_READY,
+};
+
+/* One deferred element<->sequence binding (animation still loading). */
+struct AppSeqBindPending
+{
+    int element_id;
+    int seq_id;
 };
 
 struct App
@@ -94,6 +116,13 @@ struct App
     /* Phase 1: task runtime + disk (created first, freed last). Exactly one of
      * the two disks is live, per cfg.cache_kind. */
     struct TaskRunner runner; /* owns queue + io + px */
+    /** Serial game-action pipeline: per-packet exec tasks and interface slot
+     * mounts. Own queue + io slots, SHARED px with `runner`. Head-only
+     * execution makes it a strict FIFO — packet application order is
+     * preserved across IO yields, and a mount enqueued by a packet runs
+     * before the next packet is even popped (the pump only pops a new packet
+     * when this queue is idle). */
+    struct TaskRunner exec_runner;
     struct RSCache_Dat2Disk* dat2_disk;
     struct RSCache_Dat1Disk* dat1_disk;
 
@@ -192,6 +221,102 @@ struct App
     int hover_com_id;
     int clicked_com_id;
     int need_redraw;
+
+    /* Async lifecycle state (no blocking IO outside the platform pump). */
+    int app_state; /* enum AppState */
+    int boot_progress; /* 0..100, drives the loading bar while BOOTING */
+    int boot_interface_id;
+    /** Set when async work mutated the tree; App_RunOnce consumes it with a
+     * relayout + CS1 re-eval request + redraw. */
+    int pending_tree_refresh;
+    int cs1_eval_inflight;
+    /** Tree-affecting async work (CS2 hooks, transmits) is in flight; when the
+     * runner queue next goes idle the tree gets a refresh pass. */
+    int runner_had_work;
+    int world_load_inflight;
+    /** Send MAP_BUILD_COMPLETE when the in-flight world load finishes (set by
+     * the REBUILD_NORMAL packet task, not by hotkey/lazy loads). */
+    int world_load_server_driven;
+    /** Texture ids requested but not yet published into the scene. */
+    int tex_pending[256];
+    int tex_pending_count;
+    /** Element/seq bindings deferred until the sequence load lands. */
+    struct AppSeqBindPending seq_bind_pending[64];
+    int seq_bind_pending_count;
+    /** Entity-sync bookkeeping (server slots -> world entities). */
+    struct RS_EntitySync esync;
+    /** Dedupe for entity movement-seq load requests. */
+    struct SeqLoadTracker entity_seq_loads;
+
+    /* ---- server-driven state (Part 5 packet coverage) ---- */
+    /** Audio packet sink (no playback backend). */
+    struct RS_Audio audio;
+    /** Camera scripting (CAM_* packets). shake_axis -1 = no shake. */
+    struct
+    {
+        int scripted; /* 1 while a CAM_MOVETO/LOOKAT script overrides free-fly */
+        int shake_axis;
+        int shake_amplitude;
+        int shake_frequency;
+        int shake_speed;
+    } cam_script;
+    /** HINT_ARROW state (drawing is a flagged follow-on). type 0 = none. */
+    struct
+    {
+        int type;
+        int target; /* npc/player slot, or tile x */
+        int tile_z;
+        int height;
+    } hint_arrow;
+    /** SET_PLAYER_OP rows for the player context menu (slot 1..5 -> [0..4]). */
+    char player_ops[5][40];
+    int player_ops_primary[5];
+    int multiway; /* SET_MULTIWAY */
+    /** LAST_LOGIN_INFO for the welcome screen clientcode rows. */
+    struct
+    {
+        int last_ip;
+        int days_since_login;
+        int days_since_recovery;
+        int unread_messages;
+    } welcome;
+    int reboot_ticks; /* UPDATE_REBOOT_TIMER countdown; 0 = none */
+    /** MESSAGE_PRIVATE dedupe (reference messageIds ring). */
+    int pm_message_ids[100];
+    int pm_message_head;
+    int tracking_enabled; /* ENABLE/FINISH_TRACKING */
+    int net_cheat_sent;   /* TORIRS_NET_CHEAT one-shot latch */
+    /** Zone base for follows-mode zone packets (scene-local tiles). */
+    int zone_base_x;
+    int zone_base_z;
+    /** Server "local" coords (PLAYER_INFO teleport, exact-move, zone bases)
+     * are relative to the classic 104x104 scene origin ((zone-6)*8), but our
+     * scene is map-square aligned. Offset from OUR scene base to the classic
+     * origin, set on REBUILD_NORMAL: scene_tile = server_local + scene_off. */
+    int scene_off_x;
+    int scene_off_z;
+
+    /* ---- interaction state (Part 6) ---- */
+    /** "Use <item> with ..." selection (reference objSelected). */
+    struct
+    {
+        int active;
+        int obj_id;
+        int slot;
+        int component_id;
+        char name[40];
+    } objsel;
+    /** Frames since the last input command (IDLE_TIMER). */
+    long idle_frames;
+    int idle_timer_sent;
+
+    /** Inventory drag (reference INV_BUTTOND): a filled slot grabbed and held
+     * past the dead time, released over another slot in the same grid.
+     * drag_com_id -1 = no drag in progress. */
+    int inv_drag_com_id;
+    int inv_drag_from_slot;
+    int inv_drag_source_id; /* inv container source id */
+    int inv_drag_cycles;
 };
 
 /** Construct all subsystems in dependency order. Asserts on failure (parity
@@ -203,10 +328,83 @@ App_Init(struct App* app, struct AppConfig const* cfg);
 void
 App_Shutdown(struct App* app);
 
-/** Open an interface as the tree root (TS WidgetManager.setRootInterface) and
- * drain the load to completion; runs initial animations + emit. */
+/** Begin opening an interface as the tree root (TS WidgetManager
+ * .setRootInterface). Fully async: enqueues the boot task and returns —
+ * App_RunOnce pumps it and flips app_state to APP_STATE_READY when the tree
+ * (and initial assets) are built. App_Render draws a loading bar meanwhile. */
 void
 App_OpenRootInterface(struct App* app, int interface_id);
+
+/** Pump the boot to completion (headless harnesses and tests only — the
+ * interactive loop must NOT call this; it renders the loading state
+ * instead). IO still flows exclusively through the platform pump. */
+void
+App_BootWait(struct App* app);
+
+/* Entity-sync spawn/apply helpers (assets must already be cached — the
+ * PLAYER_INFO / NPC_INFO exec tasks await the loads first). Coordinates are
+ * scene-local tiles. Return the World pool index, or -1. */
+int
+App_WorldSpawnSyncedPlayer(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level);
+
+int
+App_WorldSpawnSyncedNpc(
+    struct App* app,
+    int npc_id,
+    int scene_x,
+    int scene_z,
+    int level);
+
+struct PktPlayerAppearance;
+
+/** Rebuild + swap the player's composited model and apply the decoded
+ * appearance (idle anims, name, combat level) to the World entity. */
+void
+App_WorldApplyPlayerAppearance(
+    struct App* app,
+    int world_idx,
+    int element_id,
+    struct PktPlayerAppearance const* appearance);
+
+/** NPC transmog (CHANGE_TYPE): rebuild the model + apply the new config's
+ * size/anims/menu data (assets already cached). */
+void
+App_WorldApplyNpcType(
+    struct App* app,
+    int world_idx,
+    int element_id,
+    int npc_type);
+
+/* Ground item stacks (zone OBJ_* packets; objtype/model already cached). */
+int
+App_WorldObjStackAdd(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count);
+
+void
+App_WorldObjStackDel(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id);
+
+/** LOC_ANIM: attach a sequence to the scenery element on a tile. */
+void
+App_WorldSceneryAnim(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int seq_id);
 
 /**
  * Drain the command bus, routing each command to its subsystem: the single

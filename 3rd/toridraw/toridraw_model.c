@@ -555,6 +555,75 @@ ToriDraw_ModelAnimateFrame(
     }
 }
 
+/* One masked pass of Model.ts maskAnimate: apply `frame`'s ops to groups
+ * whose membership in the ascending `mask` matches `apply_in_mask`. ORIGIN
+ * ops (type 0) always apply — they set the pivot the following rotate/scale
+ * ops need. Both frame->groups and mask are ascending; the 9999999 sentinel
+ * terminates the mask. */
+static void
+model_animate_frame_mask_pass(
+    struct ToriDraw_Model* model,
+    const struct ToriDraw_AnimBase* base,
+    const struct ToriDraw_AnimFrame* frame,
+    const int* mask,
+    int apply_in_mask)
+{
+    struct ToriDraw_AnimTransform transform = { 0 };
+    int cursor = 0;
+    int mask_group = mask[0];
+
+    for( int i = 0; i < frame->length; i++ )
+    {
+        int group_index = frame->groups[i];
+        int type;
+        int in_mask;
+        if( group_index < 0 || group_index >= base->length )
+            continue;
+        if( !base->bone_groups || !base->types )
+            continue;
+
+        while( group_index > mask_group )
+            mask_group = mask[++cursor];
+        in_mask = (group_index == mask_group);
+        type = base->types[group_index];
+
+        if( type != 0 && in_mask != apply_in_mask )
+            continue;
+
+        ToriDraw_AnimApplyTransform(
+            &transform,
+            type,
+            base->bone_groups[group_index],
+            base->bone_group_lengths ? (int)base->bone_group_lengths[group_index] : 0,
+            frame->x[i],
+            frame->y[i],
+            frame->z[i],
+            model);
+    }
+}
+
+void
+ToriDraw_ModelAnimateFrameMasked(
+    struct ToriDraw_Model* model,
+    const struct ToriDraw_AnimBase* base,
+    const struct ToriDraw_AnimFrame* primary,
+    const struct ToriDraw_AnimFrame* secondary,
+    const int* walkmerge)
+{
+    /* Reference Model.maskAnimate: walkmerge lists the transform groups the
+     * SECONDARY (walk) seq keeps driving while the primary (action) seq plays
+     * — pass 1 applies the primary to every group NOT in the mask, pass 2
+     * applies the secondary to exactly the masked groups. */
+    assert(model && base && primary && primary->length > 0);
+    if( !walkmerge || !secondary || secondary->length <= 0 )
+    {
+        ToriDraw_ModelAnimateFrame(model, base, primary);
+        return;
+    }
+    model_animate_frame_mask_pass(model, base, primary, walkmerge, 0);
+    model_animate_frame_mask_pass(model, base, secondary, walkmerge, 1);
+}
+
 int
 ToriDraw_TextureAverageHsl16(const struct ToriDraw_Texture* texture)
 {

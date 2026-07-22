@@ -174,6 +174,23 @@ ToriDraw_SceneElementSetAnimationSeq(
     int element_id,
     int seq_id);
 
+/* Secondary (walk) track for the walkmerge blend. seq_id <= 0 clears the
+ * track (and the bound secondary animation). Bind the animation itself with
+ * ToriDraw_SceneElementSetAnimation(..., primary=false). */
+void
+ToriDraw_SceneElementSetSecondaryAnimationSeq(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int seq_id);
+
+/* Entity-driven frame state for both tracks (world sim stepping). */
+void
+ToriDraw_SceneElementSetAnimFrames(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int primary_frame,
+    int secondary_frame);
+
 void
 ToriDraw_SceneElementApplyAnimation(
     struct ToriDraw_Scene* scene,

@@ -2,6 +2,7 @@
 #define WORLD_ENTITY_H
 
 #include "entity_npc.h"
+#include "entity_objstack.h"
 #include "entity_player.h"
 #include "entity_pool.h"
 #include "entity_projectile.h"
@@ -17,6 +18,7 @@ struct World_EntityList
     struct World_EntityPool npc;
     struct World_EntityPool projectile;
     struct World_EntityPool spotanim;
+    struct World_EntityPool obj_stack;
 };
 
 void

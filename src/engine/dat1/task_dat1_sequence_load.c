@@ -103,7 +103,28 @@ seq_build_animation(struct Task_Dat1SequenceLoad* self)
         delays[i] = seq->delay ? seq->delay[i] : 0;
     }
 
-    anim = ToriDraw_AnimationFromRSCacheDat1(base, frames, delays, frame_count, 0);
+    anim = ToriDraw_AnimationFromRSCacheDat1(base, frames, delays, frame_count, seq->loops);
+    if( anim )
+    {
+        /* Carry the seq-config metadata the entity anim stepping and the
+         * walkmerge blend read at runtime (dat1_config_seq decodes opcodes
+         * 3/5/8/9/10/11 already; only the plumbing was missing). */
+        struct ToriDraw_AnimSeqMeta meta = {
+            .walkmerge = seq->walkmerge,
+            .priority = seq->priority,
+            .max_loops = seq->maxloops,
+            .preanim_move = seq->preanim_move,
+            .postanim_move = seq->postanim_move,
+            .duplicate_behavior = seq->duplicate_behavior,
+        };
+        /* Reference SeqType.unpack post-decode: unset move behaviors default
+         * to DELAYMOVE (0), or MERGE (2) when a walkmerge mask exists. */
+        if( meta.preanim_move == -1 )
+            meta.preanim_move = seq->walkmerge ? 2 : 0;
+        if( meta.postanim_move == -1 )
+            meta.postanim_move = seq->walkmerge ? 2 : 0;
+        ToriDraw_AnimationSetSeqMeta(anim, &meta);
+    }
     return anim;
 }
 

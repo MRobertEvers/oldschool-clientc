@@ -15,7 +15,14 @@ struct WorldEntity_Player
     struct WorldEntityFacet_Facing facing;
     struct WorldEntityFacet_Combat combat;
     struct WorldEntityFacet_Appearance appearance;
+    struct WorldEntityFacet_ExactMove exact_move;
+    struct WorldEntityFacet_EntitySpotanim spotanim;
     char name[32];
+    int combat_level;
+    int gender;
+    int headicon;
+    /** Server player slot (pid) this entity mirrors; -1 = local/unsynced. */
+    int server_pid;
 };
 
 #endif

@@ -122,6 +122,12 @@ ToriRS_NpctypeFromRSCacheDat1(
         src->recol_d,
         src->recol_count);
 
+    npctype->readyanim = src->readyanim;
+    npctype->walkanim = src->walkanim;
+    npctype->walkanim_b = src->walkanim_b;
+    npctype->walkanim_r = src->walkanim_r;
+    npctype->walkanim_l = src->walkanim_l;
+
     return npctype;
 }
 
@@ -163,6 +169,12 @@ ToriRS_NpctypeFromRSCacheDat2(
         src->retexture_to_find,
         src->retexture_to_replace,
         src->retexture_count);
+
+    npctype->readyanim = src->standing_animation;
+    npctype->walkanim = src->walking_animation;
+    npctype->walkanim_b = src->rotate180_animation;
+    npctype->walkanim_r = src->rotate_right_animation;
+    npctype->walkanim_l = src->rotate_left_animation;
 
     return npctype;
 }

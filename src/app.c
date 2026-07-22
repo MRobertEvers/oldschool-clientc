@@ -2,6 +2,9 @@
 
 #include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
+#include "engine/entity_model_build.h"
+#include "net/jbase37.h"
+#include "net/rev/pkt_player_appearance.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/player_appearance.h"
@@ -13,9 +16,10 @@
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_minimenu_build.h"
+#include "game/task_gameproto_exec.h"
 #include "net/net.h"
 #include "net/net_out.h"
-#include "net/rev/lc245_2/gameproto_parse.h"
+#include "net/rev/gameproto_parse.h"
 #include "game/rs_worldmap.h"
 #include "game/rs_minimenu_cross.h"
 #include "game/task_cs1_run.h"
@@ -129,6 +133,12 @@ static void
 app_send_if_button(void* user, int com_id);
 static void
 app_send_resume_pausebutton(void* user, int com_id);
+static void
+app_send_close_modal(void* user);
+static void
+app_world_bind_pending_seqs(struct App* app);
+static void
+app_world_sync_entity_animations(struct App* app);
 
 /* Send an outbound packet built by a net_out_* builder, gated on networking.
  * The builder writes into a scratch buffer using the game out-cipher; the
@@ -326,35 +336,75 @@ seed_inv_defaults(struct InvManager* invs)
         (int)(sizeof(k_bank_items) / sizeof(k_bank_items[0]))));
 }
 
-/* Run one CS1 evaluation pass over the tree. Drains synchronously like
- * app_sync_textures: the pass is short, and any pack load it needs is serviced
- * inside the task before it retries the component. Returns nonzero when a
- * cached result changed, so the caller redraws. */
-static int
-app_run_cs1_eval(struct App* app)
+/* Wrapper protothread that owns one CS1 evaluation pass: awaits the eval
+ * task (which may itself yield for pack loads), then clears the in-flight
+ * gate and requests a redraw when a cached result changed. */
+struct Task_AppCS1Eval
 {
-    struct ToriRS_Task* task = CreateTask_CS1Eval(&app->cs1_host);
-    if( !task )
-        return 0;
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct App* app;
+};
 
+static int
+Task_AppCS1Eval_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct Task_AppCS1Eval* self = (struct Task_AppCS1Eval*)base;
+    struct App* app = self->app;
+
+    PT_BEGIN(&self->pt);
     app->cs1_host.eval_dirty = false;
-    ToriRS_TaskQueue_Add(app->runner.queue, task);
-    TaskRunner_Drain(&app->runner);
+    TASK_AWAITSELF_IF(CreateTask_CS1Eval(&app->cs1_host));
+    app->cs1_eval_inflight = 0;
+    if( app->cs1_host.eval_dirty )
+        app->need_redraw = 1;
+    PT_END(&self->pt);
+}
 
-    return app->cs1_host.eval_dirty ? 1 : 0;
+static void
+Task_AppCS1Eval_Free(struct ToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct ToriRS_TaskVTable Task_AppCS1Eval_VTable = {
+    .run = Task_AppCS1Eval_Run,
+    .free = Task_AppCS1Eval_Free,
+};
+
+/* Request a CS1 evaluation pass; at most one is ever in flight (the tick
+ * re-requests every 20ms anyway, so a busy pass simply coalesces). Never
+ * blocks — the frame pump drives it. */
+static void
+app_request_cs1_eval(struct App* app)
+{
+    struct Task_AppCS1Eval* task;
+
+    if( app->cs1_eval_inflight )
+        return;
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_AppCS1Eval_VTable;
+    strncpy(task->task.name, "AppCS1Eval", sizeof(task->task.name) - 1);
+    task->app = app;
+    PT_INIT(&task->pt);
+    app->cs1_eval_inflight = 1;
+    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
 }
 
 /* Scene models reference textures by face id, but the ToriDraw texture map
  * starts empty (reference: textures load on demand and faces skip-render
- * until they land). Collect ids the scene is missing, load them through the
- * async pipeline, and publish into the scene. Ids that fail stay marked in
- * the bridge and are never re-requested. */
+ * until they land). Collect ids the scene is missing, queue the loads, and
+ * remember the ids — app_sync_textures_poll publishes them into the scene as
+ * the loads land. Ids that fail stay marked in the bridge and are never
+ * re-requested. */
 static void
 app_sync_textures(struct App* app)
 {
     int ids[256];
     int id_count;
-    int queued = 0;
 
     id_count = UITreeSceneBridge_CollectMissingTextures(&app->bridge, ids, 256);
     if( id_count == 0 )
@@ -364,44 +414,44 @@ app_sync_textures(struct App* app)
     {
         struct ToriRS_Task* task = CreateTask_TextureLoad(app->provider, ids[i]);
         if( task )
-        {
             ToriRS_TaskQueue_Add(app->runner.queue, task);
-            queued++;
+        /* Track for the publish poll (dedupe; the set is tiny). */
+        {
+            int seen = 0;
+            for( int p = 0; p < app->tex_pending_count; p++ )
+                if( app->tex_pending[p] == ids[i] )
+                {
+                    seen = 1;
+                    break;
+                }
+            if( !seen && app->tex_pending_count < 256 )
+                app->tex_pending[app->tex_pending_count++] = ids[i];
         }
     }
-    if( queued )
-        TaskRunner_Drain(&app->runner);
+}
 
-    if( UITreeSceneBridge_PublishTextures(&app->bridge, ids, id_count) )
+/* Per-frame: publish any pending textures that finished loading; keep only
+ * the ones still in flight (present in neither the provider nor the bridge's
+ * failed set). */
+static void
+app_sync_textures_poll(struct App* app)
+{
+    int kept = 0;
+
+    if( app->tex_pending_count == 0 )
+        return;
+
+    if( UITreeSceneBridge_PublishTextures(&app->bridge, app->tex_pending, app->tex_pending_count) )
         app->need_redraw = 1;
 
-    if( getenv("TORIRS_TEX_DEBUG") )
+    for( int i = 0; i < app->tex_pending_count; i++ )
     {
-        for( int i = 0; i < id_count; i++ )
-        {
-            struct ToriDraw_Texture* scene_tex =
-                ToriDraw_TextureMapGet(&ToriDraw_SceneTexState(app->scene)->texture_map, ids[i]);
-            int nonzero = 0;
-            int total = 0;
-            if( scene_tex && scene_tex->texels )
-            {
-                total = scene_tex->width * scene_tex->height;
-                for( int t = 0; t < total; t++ )
-                    if( scene_tex->texels[t] != 0 )
-                        nonzero++;
-            }
-            fprintf(
-                stderr,
-                "tex_sync: id=%d provider=%d scene=%d failed=%d opaque=%d texels=%d/%d\n",
-                ids[i],
-                CacheProvider_TextureHas(app->provider, ids[i]) ? 1 : 0,
-                scene_tex != NULL ? 1 : 0,
-                (ids[i] >= 0 && ids[i] < 256) ? (int)app->bridge.texture_failed[ids[i]] : -1,
-                scene_tex ? (int)scene_tex->opaque : -1,
-                nonzero,
-                total);
-        }
+        int id = app->tex_pending[i];
+        int failed = (id >= 0 && id < 256) ? app->bridge.texture_failed[id] : 1;
+        if( !CacheProvider_TextureHas(app->provider, id) && !failed )
+            app->tex_pending[kept++] = id;
     }
+    app->tex_pending_count = kept;
 }
 
 void
@@ -422,6 +472,12 @@ App_Init(
     app->runner.queue = ToriRS_TaskQueue_New();
     app->runner.px = PlatformX_IO_New();
     assert(app->runner.px != NULL);
+
+    /* Serial game-action pipeline: own queue + io slots, SHARED platform
+     * pump (there is exactly one IO backend). */
+    app->exec_runner.io = ToriRS_IO_New();
+    app->exec_runner.queue = ToriRS_TaskQueue_New();
+    app->exec_runner.px = app->runner.px;
 
     if( cfg->cache_kind == APP_CACHE_DAT1 )
     {
@@ -506,6 +562,11 @@ App_Init(
     app->proj_src_tile_level = 0;
 
     seed_inv_defaults(&app->invs);
+    RS_EntitySync_Init(&app->esync);
+    RS_Audio_Init(&app->audio);
+    app->cam_script.shake_axis = -1;
+    app->inv_drag_com_id = -1;
+    app->reboot_ticks = 0;
     RS_Social_Init(&app->social);
     RS_Social_SeedDefaults(&app->social);
     RS_Chat_Init(&app->chat, "Player");
@@ -542,15 +603,27 @@ App_Init(
                 "88c38748a58228f7261cdc340b5691d7d0975dee0ecdb717609e6bf971eb3fe723ef9d130e468"
                 "6813739768ad9472eb46d8bfcc042c1a5fcb05e931f632eea5d";
 
+        char const* rev_name = cfg->rev_name;
+        if( !rev_name || !rev_name[0] )
+            rev_name = getenv("TORIRS_REV");
+        struct GameProtoRevTable const* rev =
+            rev_name && rev_name[0] ? GameProtoRev_ByName(rev_name) : GameProtoRev_LC254();
+        if( !rev )
+        {
+            fprintf(stderr, "app: unknown protocol rev '%s', using lc254\n", rev_name);
+            rev = GameProtoRev_LC254();
+        }
+
         app->net = calloc(1, sizeof(struct ToriRS_Network));
         assert(app->net);
-        ToriRS_Network_Init(app->net, GameProtoRev_LC245_2(), rsa_e, rsa_n);
+        ToriRS_Network_Init(app->net, rev, rsa_e, rsa_n);
         app->net_enabled = 1;
         /* IF1 button clicks now notify the server (reference IF_BUTTON /
          * RESUME_PAUSEBUTTON). */
         app->button_sink.user = app;
         app->button_sink.if_button = app_send_if_button;
         app->button_sink.resume_pausebutton = app_send_resume_pausebutton;
+        app->button_sink.close_modal = app_send_close_modal;
         ToriRS_Network_ConnectLogin(
             app->net,
             cfg->connect_target,
@@ -576,6 +649,7 @@ App_Shutdown(struct App* app)
         free(app->painter_buffer->commands);
         free(app->painter_buffer);
     }
+    RS_EntitySync_Free(&app->esync);
     WorldBuilder_Free(app->world_builder);
     World_Free(app->world);
     VarPManager_Free(&app->varps);
@@ -596,6 +670,8 @@ App_Shutdown(struct App* app)
         RSCache_Dat2DiskFree(app->dat2_disk);
     if( app->dat1_disk )
         RSCache_Dat1DiskFree(app->dat1_disk);
+    ToriRS_TaskQueue_Free(app->exec_runner.queue);
+    ToriRS_IO_Free(app->exec_runner.io);
     ToriRS_TaskQueue_Free(app->runner.queue);
     ToriRS_IO_Free(app->runner.io);
 }
@@ -605,26 +681,31 @@ App_Shutdown(struct App* app)
  * table: its fonts live in the title jagfile and are pinned at cache-font
  * slots 0-3 by RevConfig, where b12 is slot 2. Falls back to any text node's
  * already-resolved scene font when b12 cannot load. */
+enum
+{
+    APP_FONT_B12_CACHE_ID = 496,
+    APP_FONT_B12_DAT1_SLOT = 2,
+};
+
+static int
+app_font_b12_cache_id(struct App const* app)
+{
+    return app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_B12_DAT1_SLOT : APP_FONT_B12_CACHE_ID;
+}
+
 static int
 app_minimenu_font_scene_id(struct App* app)
 {
-    enum
-    {
-        APP_FONT_B12_CACHE_ID = 496,
-        APP_FONT_B12_DAT1_SLOT = 2,
-    };
-    int font_cache_id = app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_B12_DAT1_SLOT
-                                                              : APP_FONT_B12_CACHE_ID;
+    int font_cache_id = app_font_b12_cache_id(app);
     int scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
     if( scene_id <= 0 )
     {
+        /* Queue the load (no blocking drain — the boot task awaits this font
+         * before the overlays are pushed, so at runtime a miss just falls
+         * through to the text-node scan below until the load lands). */
         struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
         if( task )
-        {
             ToriRS_TaskQueue_Add(app->runner.queue, task);
-            TaskRunner_Drain(&app->runner);
-            scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
-        }
     }
     if( scene_id <= 0 )
     {
@@ -733,14 +814,23 @@ app_rebuild_world_map(struct App* app)
     app->world_map_h = pixel_h;
 }
 
-/* Queue Task_WorldLoad for the configured chunk list and drain it. Reused by
- * the reload hotkey; assets already cached make a reload near-instant. */
 static void
-app_world_load(struct App* app)
+app_send_map_build_complete(struct App* app);
+
+/* Queue Task_WorldLoad for a chunk list; never blocks. app_world_load_finish
+ * runs from the frame poll when world->load_complete flips. Reused by the
+ * reload hotkey and the REBUILD_NORMAL packet task; assets already cached
+ * make a reload near-instant. chunks == NULL -> the configured/default map. */
+static void
+app_world_load_begin(
+    struct App* app,
+    int const* chunks_xz,
+    int chunk_pair_count)
 {
     int chunks[2] = { 50, 50 };
     struct ToriRS_Task* task;
 
+    if( !chunks_xz )
     {
         char const* env = getenv("TORIRS_WORLD_MAP");
         if( env && sscanf(env, "%d,%d", &chunks[0], &chunks[1]) != 2 )
@@ -748,12 +838,24 @@ app_world_load(struct App* app)
             chunks[0] = 50;
             chunks[1] = 50;
         }
+        chunks_xz = chunks;
+        chunk_pair_count = 1;
     }
 
     app->world_load_attempted = 1;
-    task = CreateTask_WorldLoad(app->provider, app->world_builder, chunks, 1);
+    app->world_load_inflight = 1;
+    task = CreateTask_WorldLoad(app->provider, app->world_builder, chunks_xz, chunk_pair_count);
     ToriRS_TaskQueue_Add(app->runner.queue, task);
-    TaskRunner_Drain(&app->runner);
+    app->need_redraw = 1;
+}
+
+/* Post-load wiring, split from the old synchronous app_world_load: camera
+ * placement, height fn, texture requests, minimap bake, and the server ack
+ * when the load was REBUILD_NORMAL-driven. */
+static void
+app_world_load_finish(struct App* app)
+{
+    app->world_load_inflight = 0;
 
     if( app->world->load_complete )
     {
@@ -785,10 +887,17 @@ app_world_load(struct App* app)
          * scene elements the rebuild just created. */
         app_sync_textures(app);
         app_rebuild_world_map(app);
+
+        if( app->world_load_server_driven )
+        {
+            app->world_load_server_driven = 0;
+            app_send_map_build_complete(app);
+        }
     }
     else
     {
-        fprintf(stderr, "app: world load incomplete (map %d,%d)\n", chunks[0], chunks[1]);
+        app->world_load_server_driven = 0;
+        fprintf(stderr, "app: world load incomplete\n");
     }
     app->need_redraw = 1;
 }
@@ -825,11 +934,140 @@ App_WorldNodeIndex(struct App const* app)
     return -1;
 }
 
+/* The async boot protothread: builds the root tree (RevConfig or cache
+ * interface open), awaits the overlay font, then runs the synchronous
+ * seeding steps and flips the app READY. All IO flows through the platform
+ * pump via the per-frame task stepping — nothing here blocks the frame loop. */
+struct Task_AppBoot
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct App* app;
+};
+
+static int
+Task_AppBoot_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct Task_AppBoot* self = (struct Task_AppBoot*)base;
+    struct App* app = self->app;
+
+    PT_BEGIN(&self->pt);
+
+    app->boot_progress = 10;
+
+    if( app->builder_active )
+    {
+        TASK_AWAITSELF(CreateTask_UITreeBuild(&app->builder));
+        printf(
+            "RevConfigBuild done: ui=%s tree_components=%u sprites=%d fonts=%d onloads=%d\n",
+            app->cfg.revconfig_ui_ini,
+            app->tree->component_count,
+            app->builder.sprite_count,
+            app->builder.font_count,
+            app->builder.onload_count);
+    }
+    else
+    {
+        /* Open the requested interface directly as the tree root (TS parity:
+         * WidgetManager.setRootInterface(groupId) — any group can be the root;
+         * no hardcoded 161 chrome required). */
+        TASK_AWAITSELF(CreateTask_InterfaceOpen(
+            app->provider,
+            app->tree,
+            &app->host,
+            &app->invs,
+            &app->bridge,
+            app->boot_interface_id,
+            &app->open_stats));
+        printf(
+            "InterfaceOpen done: iface=%d pack_components=%d tree_components=%u onloads=%d "
+            "inv_hooks=%d var_hooks=%d mounts=%d\n",
+            app->open_stats.interface_id,
+            app->open_stats.pack_component_count,
+            app->tree->component_count,
+            app->open_stats.onload_count,
+            app->host.inv_transmit_hook_count,
+            app->host.var_transmit_hook_count,
+            app->tree->interface_parent_count);
+    }
+
+    app->boot_progress = 60;
+
+    /* Minimenu/hovertext font before the overlay nodes are pushed. */
+    TASK_AWAITSELF_IF(CreateTask_FontLoad(app->provider, app_font_b12_cache_id(app)));
+
+    app->boot_progress = 75;
+
+    if( getenv("TORIRS_ANIM_DEBUG") )
+    {
+        for( uint32_t i = 0; i < app->tree->component_count; i++ )
+        {
+            struct UITreeComponent const* node = &app->tree->components[i];
+            if( node->freed || node->type != UIELEM_RS_MODEL )
+                continue;
+            fprintf(
+                stderr,
+                "anim_debug: com=0x%x model=%d seq=%d\n",
+                node->component_id,
+                node->u.rs_model.gamecache_model_id,
+                node->u.rs_model.anim_seq_id);
+        }
+    }
+
+    app_push_builtin_overlay_nodes(app);
+
+    /* Tab/interface-slot state seeds from the baked tree (INI componentno= and
+     * selected= drive it; nothing here is hardcoded). */
+    RS_UISlots_InitFromTree(&app->slots, app->tree);
+
+    /* Queue model-widget sequences (they land through the frame pump and
+     * render at rest pose meanwhile) and apply whatever is already loaded. */
+    UITreeAnim_RequestMissing(
+        app->tree, app->scene, app->provider, app->runner.queue, &app->seq_loads);
+    UITreeAnim_Advance(app->tree, app->scene, 0);
+
+    app_sync_textures(app);
+
+    /* No viewport component in the opened interface -> no map at all. Trees
+     * that grow one later (a mounted interface) load lazily in App_RunOnce. */
+    if( App_WorldNodeIndex(app) >= 0 )
+        app_world_load_begin(app, NULL, 0);
+
+    app_chat_build_view(app);
+    app->emit.count = 0;
+    UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, -1);
+    /* Prime the viewport cache so the first App_Render can draw the world
+     * without waiting for a App_RunOnce pass to latch it. */
+    app_update_world_viewport(app);
+
+    app->boot_progress = 100;
+    app->app_state = APP_STATE_READY;
+    app->pending_tree_refresh = 1;
+    app->need_redraw = 1;
+
+    PT_END(&self->pt);
+}
+
+static void
+Task_AppBoot_Free(struct ToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct ToriRS_TaskVTable Task_AppBoot_VTable = {
+    .run = Task_AppBoot_Run,
+    .free = Task_AppBoot_Free,
+};
+
 void
 App_OpenRootInterface(
     struct App* app,
     int interface_id)
 {
+    struct Task_AppBoot* task;
+
     assert(app);
     memset(&app->open_stats, 0, sizeof(app->open_stats));
 
@@ -854,90 +1092,63 @@ App_OpenRootInterface(
         /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
         app->builder.bridge = &app->bridge;
         app->builder_active = 1;
-
-        ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_UITreeBuild(&app->builder));
-        TaskRunner_Drain(&app->runner);
-
-        printf(
-            "RevConfigBuild done: ui=%s tree_components=%u sprites=%d fonts=%d onloads=%d\n",
-            app->cfg.revconfig_ui_ini,
-            app->tree->component_count,
-            app->builder.sprite_count,
-            app->builder.font_count,
-            app->builder.onload_count);
     }
-    else
+
+    app->app_state = APP_STATE_BOOTING;
+    app->boot_interface_id = interface_id;
+    app->boot_progress = 0;
+
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_AppBoot_VTable;
+    strncpy(task->task.name, "AppBoot", sizeof(task->task.name) - 1);
+    task->app = app;
+    PT_INIT(&task->pt);
+    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+}
+
+/* Shared per-frame completion polls for async work (world load, textures,
+ * deferred seq binds, tree refresh). Not run while BOOTING. */
+static void
+app_async_polls(struct App* app)
+{
+    if( app->world_load_inflight && app->world && app->world->load_complete )
+        app_world_load_finish(app);
+    app_sync_textures_poll(app);
+    app_world_bind_pending_seqs(app);
+
+    if( app->pending_tree_refresh )
     {
-        /* Open the requested interface directly as the tree root (TS parity:
-         * WidgetManager.setRootInterface(groupId) — any group can be the root;
-         * no hardcoded 161 chrome required). */
-        struct ToriRS_Task* root_task = CreateTask_InterfaceOpen(
-            app->provider,
-            app->tree,
-            &app->host,
-            &app->invs,
-            &app->bridge,
-            interface_id,
-            &app->open_stats);
-        assert(root_task != NULL);
-        ToriRS_TaskQueue_Add(app->runner.queue, root_task);
-        TaskRunner_Drain(&app->runner);
-
-        printf(
-            "InterfaceOpen done: iface=%d pack_components=%d tree_components=%u onloads=%d "
-            "inv_hooks=%d var_hooks=%d mounts=%d\n",
-            app->open_stats.interface_id,
-            app->open_stats.pack_component_count,
-            app->tree->component_count,
-            app->open_stats.onload_count,
-            app->host.inv_transmit_hook_count,
-            app->host.var_transmit_hook_count,
-            app->tree->interface_parent_count);
+        app->pending_tree_refresh = 0;
+        UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        app_request_cs1_eval(app);
+        app->need_redraw = 1;
     }
+}
 
-    if( getenv("TORIRS_ANIM_DEBUG") )
+void
+App_BootWait(struct App* app)
+{
+    /* Headless harnesses/tests only: step both pipelines until the boot task
+     * AND every load it queued (world, anims, textures) settle. IO still runs
+     * exclusively inside the platform pump; the interactive loop never calls
+     * this — it renders the loading state instead. */
+    long guard = 1000000;
+
+    assert(app);
+    while( guard-- > 0 )
     {
-        for( uint32_t i = 0; i < app->tree->component_count; i++ )
-        {
-            struct UITreeComponent const* node = &app->tree->components[i];
-            if( node->freed || node->type != UIELEM_RS_MODEL )
-                continue;
-            fprintf(
-                stderr,
-                "anim_debug: com=0x%x model=%d seq=%d\n",
-                node->component_id,
-                node->u.rs_model.gamecache_model_id,
-                node->u.rs_model.anim_seq_id);
-        }
+        enum TaskRunnerStat main_stat = TaskRunner_Step(&app->runner);
+        enum TaskRunnerStat exec_stat = TaskRunner_Step(&app->exec_runner);
+        if( app->app_state == APP_STATE_READY )
+            app_async_polls(app);
+        if( main_stat == TASK_RUNNER_IDLE && exec_stat == TASK_RUNNER_IDLE &&
+            app->app_state == APP_STATE_READY && !app->pending_tree_refresh &&
+            !app->world_load_inflight )
+            break;
     }
-
-    app_push_builtin_overlay_nodes(app);
-
-    /* Tab/interface-slot state seeds from the baked tree (INI componentno= and
-     * selected= drive it; nothing here is hardcoded). */
-    RS_UISlots_InitFromTree(&app->slots, app->tree);
-
-    /* Load model-widget sequences and apply the first frame before the
-     * initial render; App_RunOnce advances frames each tick. */
-    UITreeAnim_RequestMissing(
-        app->tree, app->scene, app->provider, app->runner.queue, &app->seq_loads);
-    TaskRunner_Drain(&app->runner);
-    UITreeAnim_Advance(app->tree, app->scene, 0);
-
-    app_sync_textures(app);
-
-    /* No viewport component in the opened interface -> no map at all. Trees
-     * that grow one later (a mounted interface) load lazily in App_RunOnce. */
-    if( App_WorldNodeIndex(app) >= 0 )
-        app_world_load(app);
-
-    app_chat_build_view(app);
-    app->emit.count = 0;
-    UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, -1);
-    /* Prime the viewport cache so the first App_Render can draw the world
-     * without waiting for a App_RunOnce pass to latch it. */
-    app_update_world_viewport(app);
-    app->need_redraw = 1;
+    if( guard <= 0 )
+        fprintf(stderr, "app: boot wait exceeded step guard\n");
 }
 
 /* One 20ms client tick: clock, widget timers, animation loads + advance. */
@@ -948,31 +1159,61 @@ app_logic_tick(struct App* app)
 
     app->logic_cycle++;
 
-    /* Drain up to 5 parsed server packets per tick (reference tcpIn cadence)
-     * into the exec seam, which mutates App state (varps, invs, stats,
-     * interfaces, chat). */
+    /* Pump the serial game-action pipeline: run whatever packet task /
+     * slot mount / spawn is at the head, and only pop a NEW packet off the
+     * network FIFO when the queue is idle — this is what preserves wire
+     * order even when a packet's exec enqueues follow-on tasks (a mount
+     * enqueued by IF_OPENSIDE runs before the next packet is popped). Step
+     * budget bounds a frame's work; a long chain (world rebuild) simply
+     * spans frames while gating everything behind it. */
+    {
+        int pops = 0;
+        for( int steps = 0; steps < 64; steps++ )
+        {
+            if( TaskRunner_Step(&app->exec_runner) == TASK_RUNNER_IDLE )
+            {
+                struct RevPacket packet;
+                if( !app->net || pops >= 10 ||
+                    !ToriRS_Network_PopPacket(app->net, &packet) )
+                    break;
+                ToriRS_TaskQueue_Add(
+                    app->exec_runner.queue, CreateTask_GameProtoExec(app, &packet));
+                pops++;
+                redraw = 1;
+            }
+        }
+    }
+
     if( app->net )
     {
-        struct RS_GameProtoCtx ctx = {
-            .tree = app->tree,
-            .invs = &app->invs,
-            .varps = &app->varps,
-            .stats = &app->stats,
-            .chat = &app->chat,
-            .app = app,
-        };
-        struct RevPacket_LC245_2 packet;
-        for( int i = 0; i < 5 && ToriRS_Network_PopPacket(app->net, &packet); i++ )
-        {
-            RS_GameProto_Exec(&ctx, &packet);
-            gameproto_free_lc245_2(&packet);
-            redraw = 1;
-        }
-
         /* Keepalive once per tick while in the game world (reference sends
          * NO_TIMEOUT to keep the connection from idling out). */
         if( app->net->state == TORIRS_NET_GAME )
-            APP_NET_SEND(app, net_out_no_timeout(app->net->random_out, _nsbuf, sizeof(_nsbuf)));
+            APP_NET_SEND(app, net_out_no_timeout(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
+
+        /* TORIRS_NET_CHEAT="tele 0,50,50,21,21;give bronze_sword": send ::
+         * commands (';'-separated) right after login — headless harness hook
+         * (the dev server grants staffmod, so tele/give work). */
+        if( app->net->state == TORIRS_NET_GAME && !app->net_cheat_sent )
+        {
+            char const* cheat = getenv("TORIRS_NET_CHEAT");
+            app->net_cheat_sent = 1;
+            while( cheat && cheat[0] )
+            {
+                char one[96] = { 0 };
+                char const* sep = strchr(cheat, ';');
+                size_t len = sep ? (size_t)(sep - cheat) : strlen(cheat);
+                if( len >= sizeof(one) )
+                    len = sizeof(one) - 1;
+                memcpy(one, cheat, len);
+                if( one[0] )
+                    APP_NET_SEND(
+                        app,
+                        net_out_client_cheat(
+                            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), one));
+                cheat = sep ? sep + 1 : NULL;
+            }
+        }
     }
 
     RS_CS2Host_Tick(&app->host);
@@ -1022,9 +1263,8 @@ app_logic_tick(struct App* app)
     /* CS1 (IF1) value scripts drive active state and %N text. The reference
      * re-evaluates them at draw time; here a task does it once per tick so the
      * VM's asset yields can be serviced asynchronously, and the emit pass just
-     * reads the cached results. */
-    if( app_run_cs1_eval(app) )
-        redraw = 1;
+     * reads the cached results (the task sets need_redraw on change). */
+    app_request_cs1_eval(app);
 
     /* TORIRS_STATS=1: periodic growth diagnostics — component_count must stay
      * flat under the CC_DELETEALL/CC_CREATE rebuild pattern (reclamation). */
@@ -1073,7 +1313,6 @@ app_logic_tick(struct App* app)
      * In-flight sequences render at rest pose until they land. */
     UITreeAnim_RequestMissing(
         app->tree, app->scene, app->provider, app->runner.queue, &app->seq_loads);
-    TaskRunner_Drain(&app->runner);
     if( UITreeAnim_Advance(app->tree, app->scene, 1) )
         redraw = 1;
 
@@ -1160,6 +1399,10 @@ app_world_tick_animations(struct App* app)
         element = ToriDraw_SceneElementGet(app->scene, element_id);
         if( !element || element->anim_seq_id == -1 )
             continue;
+        /* Entity elements: the world sim steps their frames (delay/loop/
+         * priority semantics) — the naive modulo tick must not touch them. */
+        if( element->anim_external )
+            continue;
 
         if( element->is_skeletal )
         {
@@ -1225,6 +1468,30 @@ app_world_paint(struct App* app)
         cam_slevel = 3;
     if( !level_mask )
         level_mask = 0xF;
+    /* CAM_SHAKE jitter (reference cutscene shake, per-axis sine). */
+    if( app->cam_script.shake_axis >= 0 )
+    {
+        int jitter = (app->cam_script.shake_amplitude *
+                      ToriDraw_Sin((int)(app->logic_cycle * app->cam_script.shake_speed) & 0x7ff)) >>
+                     16;
+        switch( app->cam_script.shake_axis )
+        {
+        case 0:
+            cam_sx += jitter >> 7;
+            break;
+        case 1:
+            app->world_camera_pos.y += jitter;
+            break;
+        case 2:
+            cam_sz += jitter >> 7;
+            break;
+        case 3:
+            app->world_camera.yaw = (app->world_camera.yaw + jitter) & 0x7ff;
+            break;
+        default:
+            break;
+        }
+    }
     painter_set_camera_angles(app->world->painter, app->world_camera.pitch, app->world_camera.yaw);
     painter_set_level_mask(app->world->painter, level_mask);
 
@@ -1376,7 +1643,7 @@ app_world_camera_keys(
     /* M: reload the world through the task system (assets cached -> fast;
      * rebuild clears world scene elements incl. spawned entities). */
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_M) && App_WorldNodeIndex(app) >= 0 )
-        app_world_load(app);
+        app_world_load_begin(app, NULL, 0);
 }
 
 /* Classic human animation set (players; INTERFACE_PLAYER_IDLE_SEQ parity). */
@@ -1423,7 +1690,32 @@ app_world_scene_element_create(
     return element_id;
 }
 
-/* Load a sequence through the task system (no-op when cached) and attach it. */
+/* Try binding a loaded scene animation onto an element. Returns 1 when bound
+ * OR permanently unbindable (failed/empty sentinel), 0 while still loading. */
+static int
+app_world_try_bind_seq(
+    struct App* app,
+    int element_id,
+    int seq_id)
+{
+    struct ToriDraw_Animation* anim;
+
+    if( !ToriDraw_SceneAnimationHas(app->scene, seq_id) )
+        return 0;
+    /* Bind the resolved animation onto the element — the tick loop and
+     * frame emitter read element->animation, which SetAnimationSeq alone
+     * leaves NULL. Skip the empty sentinel (failed / maya-only seqs). */
+    anim = ToriDraw_SceneAnimationGet(app->scene, seq_id);
+    if( anim && anim->frame_count > 0 && anim->frames && anim->base )
+    {
+        ToriDraw_SceneElementSetAnimationSeq(app->scene, element_id, seq_id);
+        ToriDraw_SceneElementSetAnimation(app->scene, element_id, anim, true);
+    }
+    return 1;
+}
+
+/* Queue a sequence load (no-op when cached) and attach it to the element —
+ * immediately when already resident, else via the per-frame bind poll. */
 static void
 app_world_apply_seq(
     struct App* app,
@@ -1436,22 +1728,37 @@ app_world_apply_seq(
         return;
     task = CreateTask_SequenceLoad(app->provider, app->scene, seq_id);
     if( task )
-    {
         ToriRS_TaskQueue_Add(app->runner.queue, task);
-        TaskRunner_Drain(&app->runner);
-    }
-    if( ToriDraw_SceneAnimationHas(app->scene, seq_id) )
+
+    if( app_world_try_bind_seq(app, element_id, seq_id) )
+        return;
+    if( app->seq_bind_pending_count < (int)(sizeof(app->seq_bind_pending) /
+                                            sizeof(app->seq_bind_pending[0])) )
     {
-        /* Bind the resolved animation onto the element — the tick loop and
-         * frame emitter read element->animation, which SetAnimationSeq alone
-         * leaves NULL. Skip the empty sentinel (failed / maya-only seqs). */
-        struct ToriDraw_Animation* anim = ToriDraw_SceneAnimationGet(app->scene, seq_id);
-        if( anim && anim->frame_count > 0 && anim->frames && anim->base )
-        {
-            ToriDraw_SceneElementSetAnimationSeq(app->scene, element_id, seq_id);
-            ToriDraw_SceneElementSetAnimation(app->scene, element_id, anim, true);
-        }
+        app->seq_bind_pending[app->seq_bind_pending_count].element_id = element_id;
+        app->seq_bind_pending[app->seq_bind_pending_count].seq_id = seq_id;
+        app->seq_bind_pending_count++;
     }
+}
+
+/* Per-frame: bind deferred element/sequence pairs whose loads landed. */
+static void
+app_world_bind_pending_seqs(struct App* app)
+{
+    int kept = 0;
+    for( int i = 0; i < app->seq_bind_pending_count; i++ )
+    {
+        struct AppSeqBindPending* pend = &app->seq_bind_pending[i];
+        if( !ToriDraw_SceneElementIsLive(app->scene, pend->element_id) )
+            continue; /* element despawned while loading */
+        if( app_world_try_bind_seq(app, pend->element_id, pend->seq_id) )
+        {
+            app->need_redraw = 1;
+            continue;
+        }
+        app->seq_bind_pending[kept++] = *pend;
+    }
+    app->seq_bind_pending_count = kept;
 }
 
 /* Config-driven color/texture swaps for a built model (npc/loc style). NULL
@@ -1466,8 +1773,10 @@ struct AppModelRecolorSpec
     int retexture_count;
 };
 
-/* Load (via tasks) + convert + merge + recolor + light one drawable model from
- * cache model ids. Returns an owned model or NULL. */
+/* Convert + merge + recolor + light one drawable model from cache model ids.
+ * SYNCHRONOUS: the models must already be resident (callers await
+ * CreateTask_ModelLoad first — the spawn tasks do). Returns an owned model
+ * or NULL when any part is missing. */
 static struct ToriDraw_Model*
 app_world_build_model(
     struct App* app,
@@ -1478,19 +1787,6 @@ app_world_build_model(
     struct ToriDraw_Model* parts[16];
     struct ToriDraw_Model* model = NULL;
     int part_count = 0;
-    int queued = 0;
-
-    for( int i = 0; i < count; i++ )
-    {
-        struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, model_ids[i]);
-        if( task )
-        {
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
-            queued++;
-        }
-    }
-    if( queued )
-        TaskRunner_Drain(&app->runner);
 
     for( int i = 0; i < count && part_count < 16; i++ )
     {
@@ -1536,9 +1832,11 @@ app_world_build_model(
     return model;
 }
 
-/* Hotkey 9: default player model on the hovered tile. */
-static void
-app_world_spawn_player(
+/* Hotkey 9 body: default player model on the hovered tile. SYNCHRONOUS —
+ * the appearance kit + ready seq must be resident (Task_AppSpawn awaits).
+ * Returns the world player-pool index, or -1. */
+static int
+app_world_spawn_player_now(
     struct App* app,
     int tile_x,
     int tile_z,
@@ -1552,34 +1850,33 @@ app_world_spawn_player(
     int world_y;
     int element_id;
 
-    {
-        struct ToriRS_Task* task = CreateTask_PlayerAppearanceLoad(app->provider);
-        if( task )
-        {
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
-            TaskRunner_Drain(&app->runner);
-        }
-    }
+    int idx;
+
     scene_model_id = UITreeSceneBridge_EnsurePlayerModel(&app->bridge);
     if( scene_model_id <= 0 )
     {
         fprintf(stderr, "spawn_player: player model unavailable\n");
-        return;
+        return -1;
     }
     reg = ToriDraw_SceneModelGet(app->scene, scene_model_id);
     if( reg.kind != TORIDRAWMK_MODEL || !reg.u.model.model )
-        return;
+        return -1;
     copy = ToriDraw_ModelCopy(reg.u.model.model);
     if( !copy )
-        return;
+        return -1;
     ToriDraw_ModelSetBoundsCylinder(copy);
     ToriDraw_ModelCaptureOriginalVertices(copy);
 
     world_y = app_world_height(app, world_x, world_z, level);
     element_id = app_world_scene_element_create(app, copy, world_x, world_y, world_z);
     if( element_id < 0 )
-        return;
+        return -1;
     app_world_apply_seq(app, element_id, APP_PLAYER_SEQ_READY);
+    {
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
+        if( el )
+            el->anim_external = true;
+    }
 
     {
         struct WorldEntityFacet_IdleAnimations idle = {
@@ -1591,7 +1888,12 @@ app_world_spawn_player(
             .walkanim_r = APP_PLAYER_SEQ_WALK_R,
             .walkanim_l = APP_PLAYER_SEQ_WALK_L,
         };
-        World_PlayerSpawn(app->world, element_id, level, tile_x, tile_z, idle);
+        idx = World_PlayerSpawn(app->world, element_id, level, tile_x, tile_z, idle);
+    }
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(&app->world->entities.player, idx);
+        if( player )
+            player->server_pid = -1;
     }
     fprintf(
         stderr,
@@ -1602,17 +1904,20 @@ app_world_spawn_player(
         level);
     app_sync_textures(app);
     app->need_redraw = 1;
+    return idx;
 }
 
-/* Hotkey 8: npc on the hovered tile (TORIRS_SPAWN_NPC=<id> override). */
-static void
-app_world_spawn_npc(
+/* Hotkey 8 body: npc on the hovered tile. SYNCHRONOUS — the npc config and
+ * its models must be resident (Task_AppSpawn awaits them first).
+ * Returns the world npc-pool index, or -1. */
+static int
+app_world_spawn_npc_now(
     struct App* app,
+    int npc_id,
     int tile_x,
     int tile_z,
     int level)
 {
-    int npc_id = 3106; /* OSRS-era "Man" */
     struct ToriRS_Npctype* npctype;
     struct ToriDraw_Model* model;
     int size;
@@ -1620,24 +1925,11 @@ app_world_spawn_npc(
     int element_id;
     int idx;
 
-    {
-        char const* env = getenv("TORIRS_SPAWN_NPC");
-        if( env )
-            npc_id = (int)strtol(env, NULL, 0);
-    }
-    {
-        struct ToriRS_Task* task = CreateTask_NpcLoad(app->provider, npc_id);
-        if( task )
-        {
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
-            TaskRunner_Drain(&app->runner);
-        }
-    }
     npctype = CacheProvider_NpctypeGet(app->provider, npc_id);
     if( !npctype || npctype->models_count <= 0 )
     {
         fprintf(stderr, "spawn_npc: npc %d unavailable\n", npc_id);
-        return;
+        return -1;
     }
 
     {
@@ -1654,7 +1946,7 @@ app_world_spawn_npc(
     if( !model )
     {
         fprintf(stderr, "spawn_npc: npc %d models failed to load\n", npc_id);
-        return;
+        return -1;
     }
 
     size = npctype->size > 0 ? npctype->size : 1;
@@ -1663,20 +1955,33 @@ app_world_spawn_npc(
     world_y = app_world_height(app, world_x, world_z, level);
     element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
     if( element_id < 0 )
-        return;
+        return -1;
+    {
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
+        if( el )
+            el->anim_external = true;
+    }
 
     {
+        /* Config movement anims (dat1 has no turn/run for npcs; the reference
+         * walkanim_l/r swap applies here at spawn like at CHANGE_TYPE). */
         struct WorldEntityFacet_IdleAnimations idle = {
-            .readyanim = -1,
-            .walkanim = -1,
+            .readyanim = npctype->readyanim,
+            .walkanim = npctype->walkanim,
             .turnanim = -1,
             .runanim = -1,
-            .walkanim_b = -1,
-            .walkanim_r = -1,
-            .walkanim_l = -1,
+            .walkanim_b = npctype->walkanim_b,
+            .walkanim_r = npctype->walkanim_l,
+            .walkanim_l = npctype->walkanim_r,
         };
         idx = World_NpcSpawn(app->world, element_id, npc_id, level, tile_x, tile_z, size, idle);
     }
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, idx);
+        if( npc )
+            npc->server_slot = -1;
+    }
+    app_world_apply_seq(app, element_id, npctype->readyanim);
     /* Spawn does not carry menu data; the minimenu rows read it off the
      * entity, so copy name/actions/level from the config here. */
     {
@@ -1703,11 +2008,217 @@ app_world_spawn_npc(
         npctype->retexture_count);
     app_sync_textures(app);
     app->need_redraw = 1;
+    return idx;
+}
+
+/* Hotkey 0 fire body: launch source -> destination. SYNCHRONOUS — the
+ * projectile model must be resident (Task_AppSpawn awaits it). Arc math
+ * lives in World_ProjectileSetTarget/Move (TS reference parity). */
+static void
+app_world_spawn_projectile_now(
+    struct App* app,
+    int model_id,
+    int src_tile_x,
+    int src_tile_z,
+    int src_level,
+    int tile_x,
+    int tile_z)
+{
+    int model_ids[1];
+    struct ToriDraw_Model* model;
+    int src_x, src_z, dst_x, dst_z, src_y;
+    int range, t2;
+    int element_id;
+
+    model_ids[0] = model_id;
+    model = app_world_build_model(app, model_ids, 1, NULL);
+    if( !model )
+    {
+        fprintf(stderr, "spawn_projectile: model %d failed to load\n", model_id);
+        return;
+    }
+
+    src_x = src_tile_x * 128 + 64;
+    src_z = src_tile_z * 128 + 64;
+    dst_x = tile_x * 128 + 64;
+    dst_z = tile_z * 128 + 64;
+    /* World y is negative-up: start slightly above the source ground. */
+    src_y = app_world_height(app, src_x, src_z, src_level) - 160;
+
+    range = abs(tile_x - src_tile_x);
+    if( abs(tile_z - src_tile_z) > range )
+        range = abs(tile_z - src_tile_z);
+    t2 = 60 + range * 5; /* ticks: base flight + per-tile stretch */
+
+    element_id = app_world_scene_element_create(app, model, src_x, src_y, src_z);
+    if( element_id < 0 )
+        return;
+
+    World_ProjectileSpawn(
+        app->world,
+        element_id,
+        src_level,
+        src_x,
+        src_z,
+        dst_x,
+        dst_z,
+        src_y,
+        144, /* end height above target ground (36 * 4) */
+        0,
+        t2,
+        15, /* launch slope (1/2048 circle units) */
+        64);
+    fprintf(
+        stderr,
+        "spawn_projectile: element=%d %d,%d -> %d,%d t2=%d\n",
+        element_id,
+        src_tile_x,
+        src_tile_z,
+        tile_x,
+        tile_z,
+        t2);
+    app_sync_textures(app);
+    app->need_redraw = 1;
+}
+
+/* Async spawn driver for the three debug hotkeys: awaits the cache loads the
+ * synchronous spawn bodies assume, then runs them. Enqueued on the serial
+ * exec pipeline so spawns interleave cleanly with packet exec + mounts. */
+enum AppSpawnKind
+{
+    APP_SPAWN_PLAYER = 0,
+    APP_SPAWN_NPC,
+    APP_SPAWN_PROJECTILE,
+};
+
+struct Task_AppSpawn
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct App* app;
+    enum AppSpawnKind kind;
+    int tile_x;
+    int tile_z;
+    int level;
+    int npc_id;
+    int model_id;
+    int src_tile_x;
+    int src_tile_z;
+    int src_level;
+    int model_i;
+};
+
+static int
+Task_AppSpawn_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct Task_AppSpawn* self = (struct Task_AppSpawn*)base;
+    struct App* app = self->app;
+
+    PT_BEGIN(&self->pt);
+
+    if( self->kind == APP_SPAWN_PLAYER )
+    {
+        TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+        TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, APP_PLAYER_SEQ_READY));
+        app_world_spawn_player_now(app, self->tile_x, self->tile_z, self->level);
+    }
+    else if( self->kind == APP_SPAWN_NPC )
+    {
+        TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->npc_id));
+        for( self->model_i = 0;; self->model_i++ )
+        {
+            {
+                struct ToriRS_Npctype* npctype =
+                    CacheProvider_NpctypeGet(app->provider, self->npc_id);
+                if( !npctype || self->model_i >= npctype->models_count )
+                    break;
+            }
+            TASK_AWAITSELF_IF(CreateTask_ModelLoad(
+                app->provider,
+                CacheProvider_NpctypeGet(app->provider, self->npc_id)->models[self->model_i]));
+        }
+        app_world_spawn_npc_now(app, self->npc_id, self->tile_x, self->tile_z, self->level);
+    }
+    else
+    {
+        TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+        app_world_spawn_projectile_now(
+            app,
+            self->model_id,
+            self->src_tile_x,
+            self->src_tile_z,
+            self->src_level,
+            self->tile_x,
+            self->tile_z);
+    }
+
+    PT_END(&self->pt);
+}
+
+static void
+Task_AppSpawn_Free(struct ToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct ToriRS_TaskVTable Task_AppSpawn_VTable = {
+    .run = Task_AppSpawn_Run,
+    .free = Task_AppSpawn_Free,
+};
+
+static struct Task_AppSpawn*
+app_spawn_task_new(
+    struct App* app,
+    enum AppSpawnKind kind,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct Task_AppSpawn* task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_AppSpawn_VTable;
+    strncpy(task->task.name, "AppSpawn", sizeof(task->task.name) - 1);
+    task->app = app;
+    task->kind = kind;
+    task->tile_x = tile_x;
+    task->tile_z = tile_z;
+    task->level = level;
+    PT_INIT(&task->pt);
+    return task;
+}
+
+static void
+app_world_spawn_player(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_PLAYER, tile_x, tile_z, level);
+    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+}
+
+static void
+app_world_spawn_npc(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_NPC, tile_x, tile_z, level);
+    task->npc_id = 3106; /* OSRS-era "Man" */
+    {
+        char const* env = getenv("TORIRS_SPAWN_NPC");
+        if( env )
+            task->npc_id = (int)strtol(env, NULL, 0);
+    }
+    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
 /* Hotkey 0, two-press latch: first press marks the hovered tile as source,
- * second launches source -> hovered (same-tile press clears the latch).
- * Arc math lives in World_ProjectileSetTarget/Move (TS reference parity). */
+ * second launches source -> hovered (same-tile press clears the latch). */
 static void
 app_world_spawn_projectile(
     struct App* app,
@@ -1715,12 +2226,7 @@ app_world_spawn_projectile(
     int tile_z,
     int level)
 {
-    int model_id = 3081; /* v0 spawn-test model fallback */
-    int model_ids[1];
-    struct ToriDraw_Model* model;
-    int src_x, src_z, dst_x, dst_z, src_y;
-    int range, t2;
-    int element_id;
+    struct Task_AppSpawn* task;
 
     if( app->proj_src_tile_x < 0 )
     {
@@ -1738,62 +2244,19 @@ app_world_spawn_projectile(
         return;
     }
 
+    task = app_spawn_task_new(app, APP_SPAWN_PROJECTILE, tile_x, tile_z, level);
+    task->model_id = 3081; /* v0 spawn-test model fallback */
     {
         char const* env = getenv("TORIRS_SPAWN_PROJ_MODEL");
         if( env )
-            model_id = (int)strtol(env, NULL, 0);
+            task->model_id = (int)strtol(env, NULL, 0);
     }
-    model_ids[0] = model_id;
-    model = app_world_build_model(app, model_ids, 1, NULL);
-    if( !model )
-    {
-        fprintf(stderr, "spawn_projectile: model %d failed to load\n", model_id);
-        return;
-    }
-
-    src_x = app->proj_src_tile_x * 128 + 64;
-    src_z = app->proj_src_tile_z * 128 + 64;
-    dst_x = tile_x * 128 + 64;
-    dst_z = tile_z * 128 + 64;
-    /* World y is negative-up: start slightly above the source ground. */
-    src_y = app_world_height(app, src_x, src_z, app->proj_src_tile_level) - 160;
-
-    range = abs(tile_x - app->proj_src_tile_x);
-    if( abs(tile_z - app->proj_src_tile_z) > range )
-        range = abs(tile_z - app->proj_src_tile_z);
-    t2 = 60 + range * 5; /* ticks: base flight + per-tile stretch */
-
-    element_id = app_world_scene_element_create(app, model, src_x, src_y, src_z);
-    if( element_id < 0 )
-        return;
-
-    World_ProjectileSpawn(
-        app->world,
-        element_id,
-        app->proj_src_tile_level,
-        src_x,
-        src_z,
-        dst_x,
-        dst_z,
-        src_y,
-        144, /* end height above target ground (36 * 4) */
-        0,
-        t2,
-        15, /* launch slope (1/2048 circle units) */
-        64);
-    fprintf(
-        stderr,
-        "spawn_projectile: element=%d %d,%d -> %d,%d t2=%d\n",
-        element_id,
-        app->proj_src_tile_x,
-        app->proj_src_tile_z,
-        tile_x,
-        tile_z,
-        t2);
+    task->src_tile_x = app->proj_src_tile_x;
+    task->src_tile_z = app->proj_src_tile_z;
+    task->src_level = app->proj_src_tile_level;
     app->proj_src_tile_x = -1;
     app->proj_src_tile_z = -1;
-    app_sync_textures(app);
-    app->need_redraw = 1;
+    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
 /* Spawn test hotkeys (readme): 9 player, 8 npc, 0 projectile — all act on the
@@ -1828,6 +2291,65 @@ app_world_hotkeys(
  * position sync, animation ticks. Runs every frame (cycles may be 0) so the
  * painter dynamic set stays fresh, and forces a redraw while active — but only
  * while a viewport is actually on screen; an unshown world does not tick. */
+/* Reference camFollow (Client-TS 4669): place the eye `distance` behind the
+ * target along pitch/yaw. Sin/cos are 16.16 (same tables as Pix3D). */
+static void
+app_world_camera_follow(struct App* app)
+{
+    int world_idx;
+    struct WorldEntity_Player* player;
+    int target_x, target_y, target_z;
+    /* Reference orbitCameraPitch defaults to 128 (low shoulder cam), but we
+     * have no roof-hiding yet — indoors that view is all roof. Use the upper
+     * orbit clamp (383) for a clear look-down until roof culling lands. */
+    int pitch = 383;
+    int yaw = ToriDraw_NormalizeAngle(app->world_camera.yaw);
+    int distance = pitch * 3 + 600;
+    int inv_pitch, inv_yaw;
+    int off_x = 0, off_y = 0, off_z = distance;
+
+    if( app->cam_script.scripted || !app->net )
+        return;
+    if( !RS_EntitySync_FindPlayer(
+            &app->esync,
+            app->esync.local_pid >= 0 ? app->esync.local_pid : 2047,
+            &world_idx,
+            NULL) )
+        return;
+    player = World_EntityPoolGet(&app->world->entities.player, world_idx);
+    if( !player )
+        return;
+
+    target_x = (int)player->draw_position.x;
+    target_z = (int)player->draw_position.z;
+    target_y = app_world_height(app, target_x, target_z, player->grid_position.level) - 50;
+
+    inv_pitch = (2048 - pitch) & 0x7ff;
+    inv_yaw = (2048 - yaw) & 0x7ff;
+    if( inv_pitch != 0 )
+    {
+        int sin = ToriDraw_Sin(inv_pitch);
+        int cos = ToriDraw_Cos(inv_pitch);
+        int tmp = (off_y * cos - distance * sin) >> 16;
+        off_z = (off_y * sin + distance * cos) >> 16;
+        off_y = tmp;
+    }
+    if( inv_yaw != 0 )
+    {
+        int sin = ToriDraw_Sin(inv_yaw);
+        int cos = ToriDraw_Cos(inv_yaw);
+        int tmp = (off_z * sin + off_x * cos) >> 16;
+        off_z = (off_z * cos - off_x * sin) >> 16;
+        off_x = tmp;
+    }
+
+    app->world_camera_pos.x = target_x - off_x;
+    app->world_camera_pos.y = target_y - off_y;
+    app->world_camera_pos.z = target_z - off_z;
+    app->world_camera.pitch = pitch;
+    app->world_camera.yaw = yaw;
+}
+
 static void
 app_world_frame(
     struct App* app,
@@ -1852,6 +2374,8 @@ app_world_frame(
     }
 
     app_world_sync_positions(app);
+    app_world_camera_follow(app);
+    app_world_sync_entity_animations(app);
 
     for( int c = 0; c < cycles; c++ )
         app_world_tick_animations(app);
@@ -2003,6 +2527,187 @@ app_minimenu_open(
  * cross — UI buttons, inventory ops, Examine, Cancel — leaves a cross already
  * in flight running rather than clearing or recolouring it. Returns nonzero
  * when a CS2 hook was dispatched. */
+/* Resolve the server npc slot for a picked scene element (-1 if unsynced). */
+static int
+app_npc_server_slot(struct App* app, int element_id)
+{
+    int idx;
+    struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, element_id, &idx);
+    return npc ? npc->server_slot : -1;
+}
+
+/* Send the held-item / component op for the current inventory pick. Returns 1
+ * when a use-mode selection or examine consumed the click without a packet. */
+static int
+app_minimenu_inv_action(
+    struct App* app,
+    struct UIMinimenuOption const* opt)
+{
+    int obj_id = opt->pick.tertiary_id;
+    int slot = opt->pick.secondary_id;
+    int com_id = opt->pick.id;
+
+    /* "Use <held> with <this item>": the previous click armed objsel; this
+     * click on an inventory item completes it (reference OPHELDU). */
+    if( app->objsel.active )
+    {
+        APP_NET_SEND(
+            app,
+            net_out_opheldu(
+                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                obj_id, slot, com_id, app->objsel.obj_id, app->objsel.slot,
+                app->objsel.component_id));
+        app->objsel.active = 0;
+        return 1;
+    }
+
+    switch( opt->action )
+    {
+    case REVCONFIG_MINIMENU_OPHELD1:
+    case REVCONFIG_MINIMENU_OPHELD2:
+    case REVCONFIG_MINIMENU_OPHELD3:
+    case REVCONFIG_MINIMENU_OPHELD4:
+    case REVCONFIG_MINIMENU_OPHELD5:
+        APP_NET_SEND(
+            app,
+            net_out_opheld(
+                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                opt->action_index + 1, obj_id, slot, com_id));
+        return 0;
+    case REVCONFIG_MINIMENU_INV_BUTTON1:
+    case REVCONFIG_MINIMENU_INV_BUTTON2:
+    case REVCONFIG_MINIMENU_INV_BUTTON3:
+    case REVCONFIG_MINIMENU_INV_BUTTON4:
+    case REVCONFIG_MINIMENU_INV_BUTTON5:
+        APP_NET_SEND(
+            app,
+            net_out_inv_button(
+                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                opt->action_index + 1, obj_id, slot, com_id));
+        return 0;
+    case REVCONFIG_MINIMENU_OPHELDT_START:
+    {
+        /* "Use <item>": enter selection mode; the next click targets it. */
+        struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
+        app->objsel.active = 1;
+        app->objsel.obj_id = obj_id;
+        app->objsel.slot = slot;
+        app->objsel.component_id = com_id;
+        snprintf(app->objsel.name, sizeof(app->objsel.name), "%s",
+                 obj && obj->name[0] ? obj->name : "item");
+        app->need_redraw = 1;
+        return 1;
+    }
+    case REVCONFIG_MINIMENU_OPHELD6:
+    {
+        /* Examine: client-side chat print (no packet). */
+        struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
+        char line[80];
+        snprintf(line, sizeof(line), "It's a %s.", obj && obj->name[0] ? obj->name : "item");
+        RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_GAME, NULL, line);
+        app->need_redraw = 1;
+        return 1;
+    }
+    default:
+        return 0;
+    }
+}
+
+#include "ui/uitree_inv_view.h"
+
+/* Resolve the RS_INV node under a canvas point + the slot within it. Returns
+ * the tree index (or -1) and fills *out_slot / *out_source_id. */
+static int32_t
+app_inv_node_at(
+    struct App* app,
+    int px,
+    int py,
+    int* out_slot,
+    int* out_source_id)
+{
+    for( uint32_t i = 0; i < app->tree->component_count; i++ )
+    {
+        struct UITreeComponent const* node = &app->tree->components[i];
+        struct UITreeInvGridLayout layout;
+        int bx = 0, by = 0, bw = 0, bh = 0, offx = 0, offy = 0, slot;
+
+        if( node->freed || node->type != UIELEM_RS_INV || node->behavior.hide )
+            continue;
+        UITree_LayoutGetBounds(&node->position, &bx, &by, &bw, &bh);
+        if( px < bx || px >= bx + bw || py < by || py >= by + bh )
+            continue;
+
+        layout.cols = node->u.rs_inv.cols;
+        layout.rows = node->u.rs_inv.rows;
+        layout.margin_x = node->u.rs_inv.margin_x;
+        layout.margin_y = node->u.rs_inv.margin_y;
+        layout.offset_x = node->u.rs_inv.inv_slot_offset_x;
+        layout.offset_y = node->u.rs_inv.inv_slot_offset_y;
+        UITree_AccumScrollOffset(app->tree, (int32_t)i, &offx, &offy);
+        slot = UITree_InvViewGridHitTest(bx, by, &layout, px + offx, py + offy);
+        if( slot < 0 )
+            continue;
+        if( out_slot )
+            *out_slot = slot;
+        if( out_source_id )
+            *out_source_id = node->u.rs_inv.inv_source_id;
+        return (int32_t)i;
+    }
+    return -1;
+}
+
+/* Inventory drag → optimistic local swap + INV_BUTTOND (reference dragging
+ * an item within a grid). A grab must survive the dead time (reference 5
+ * cycles) to count as a drag rather than a click. */
+static void
+app_inv_drag_tick(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    int mx = input->curr.mouse_x;
+    int my = input->curr.mouse_y;
+
+    if( LibToriRS_Input_IsDragStart(input, TORIRSM_LEFT) )
+    {
+        int slot = -1, source_id = -1;
+        int32_t idx = app_inv_node_at(app, mx, my, &slot, &source_id);
+        if( idx >= 0 )
+        {
+            struct InvSlot inv_slot;
+            if( source_id >= 0 && InvManager_GetSlot(&app->invs, source_id, slot, &inv_slot) &&
+                inv_slot.obj_id > 0 )
+            {
+                app->inv_drag_com_id = app->tree->components[idx].component_id;
+                app->inv_drag_from_slot = slot;
+                app->inv_drag_source_id = source_id;
+                app->inv_drag_cycles = 0;
+            }
+        }
+    }
+
+    if( app->inv_drag_com_id >= 0 && LibToriRS_Input_IsDragging(input, TORIRSM_LEFT) )
+        app->inv_drag_cycles++;
+
+    if( app->inv_drag_com_id >= 0 && LibToriRS_Input_IsDragEnd(input, TORIRSM_LEFT) )
+    {
+        int to_slot = -1, to_source = -1;
+        int32_t idx = app_inv_node_at(app, mx, my, &to_slot, &to_source);
+        if( idx >= 0 && to_source == app->inv_drag_source_id &&
+            to_slot != app->inv_drag_from_slot && app->inv_drag_cycles >= 5 )
+        {
+            InvManager_SwapSlots(
+                &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, to_slot);
+            APP_NET_SEND(
+                app,
+                net_out_inv_buttond(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    app->inv_drag_com_id, app->inv_drag_from_slot, to_slot, 0));
+            app->need_redraw = 1;
+        }
+        app->inv_drag_com_id = -1;
+    }
+}
+
 static int
 app_minimenu_use_option(
     struct App* app,
@@ -2045,6 +2750,19 @@ app_minimenu_use_option(
         hook = UITree_ResolveClickHook(app->tree, idx, &hook_com_id);
         if( !hook || hook->script_id <= 0 )
         {
+            /* Inventory item ops go straight to the server (reference
+             * OPHELD/INV_BUTTON) — no CS2 hook is involved. */
+            if( opt.pick.kind == UI_MINIMENU_PICK_INV_SLOT &&
+                app_minimenu_inv_action(app, &opt) )
+                return 0;
+            if( opt.pick.kind == UI_MINIMENU_PICK_INV_SLOT &&
+                (opt.action >= REVCONFIG_MINIMENU_OPHELD1 &&
+                 opt.action <= REVCONFIG_MINIMENU_OPHELD6) )
+                return 0;
+            if( opt.pick.kind == UI_MINIMENU_PICK_INV_SLOT &&
+                opt.action >= REVCONFIG_MINIMENU_INV_BUTTON1 &&
+                opt.action <= REVCONFIG_MINIMENU_INV_BUTTON5 )
+                return 0;
             /* IF1-style static buttons have no CS2 hook — the button engine
              * applies buttonType/varp semantics locally (+ server notify via
              * the sink once networking attaches). */
@@ -2070,14 +2788,24 @@ app_minimenu_use_option(
         /* Walk here: tell the server (reference MOVE_GAMECLICK), and locally
          * path the first spawned player as immediate feedback until PID/
          * player-info sync owns the local player. */
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(
+                stderr,
+                "minimenu: walk-click scene=%d,%d abs=%d,%d\n",
+                opt.pick.secondary_id,
+                opt.pick.tertiary_id,
+                app->world ? app->world->_base_tile_x + opt.pick.secondary_id : -1,
+                app->world ? app->world->_base_tile_z + opt.pick.tertiary_id : -1);
+        /* MoveClickDecoder reads absolute tiles (g2 startX/startZ). */
         APP_NET_SEND(
             app,
             net_out_move_gameclick(
+                app->net->rev,
                 app->net->random_out,
                 _nsbuf,
                 sizeof(_nsbuf),
-                opt.pick.secondary_id,
-                opt.pick.tertiary_id,
+                (app->world ? app->world->_base_tile_x : 0) + opt.pick.secondary_id,
+                (app->world ? app->world->_base_tile_z : 0) + opt.pick.tertiary_id,
                 0));
         if( app->world )
         {
@@ -2096,26 +2824,54 @@ app_minimenu_use_option(
         }
         return 0;
     case UI_MINIMENU_PICK_NPC:
-        /* No interaction sim yet: face the walking player at it and log. */
-        fprintf(
-            stderr,
-            "minimenu: opnpc%d npc_id=%d element=%d tile=%d,%d\n",
-            opt.action_index + 1,
-            opt.pick.secondary_id,
-            opt.pick.id,
-            opt.pick.tertiary_id,
-            opt.pick.quaternary_id);
+    {
+        int npc_slot = app_npc_server_slot(app, opt.pick.id);
+        if( npc_slot < 0 )
+            return 0; /* not yet server-synced */
+        if( app->objsel.active )
+        {
+            APP_NET_SEND(
+                app,
+                net_out_opnpcu(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    npc_slot, app->objsel.obj_id, app->objsel.slot, app->objsel.component_id));
+            app->objsel.active = 0;
+        }
+        else
+        {
+            APP_NET_SEND(
+                app,
+                net_out_opnpc(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    opt.action_index + 1, npc_slot));
+        }
         return 0;
+    }
     case UI_MINIMENU_PICK_SCENERY:
-        fprintf(
-            stderr,
-            "minimenu: oploc%d loc_id=%d element=%d tile=%d,%d\n",
-            opt.action_index + 1,
-            opt.pick.secondary_id,
-            opt.pick.id,
-            opt.pick.tertiary_id,
-            opt.pick.quaternary_id);
+    {
+        int abs_x = opt.pick.tertiary_id + app->world->_base_tile_x;
+        int abs_z = opt.pick.quaternary_id + app->world->_base_tile_z;
+        int loc_id = opt.pick.secondary_id;
+        if( app->objsel.active )
+        {
+            APP_NET_SEND(
+                app,
+                net_out_oplocu(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    abs_x, abs_z, loc_id, app->objsel.obj_id, app->objsel.slot,
+                    app->objsel.component_id));
+            app->objsel.active = 0;
+        }
+        else
+        {
+            APP_NET_SEND(
+                app,
+                net_out_oploc(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    opt.action_index + 1, abs_x, abs_z, loc_id));
+        }
         return 0;
+    }
     default:
         fprintf(stderr, "minimenu: unhandled pick kind %d\n", (int)opt.pick.kind);
         return 0;
@@ -2169,6 +2925,38 @@ App_RunOnce(
     assert(app);
     assert(input);
 
+    /* Pump the async pipeline (bounded — never a blocking drain). While
+     * BOOTING the budget is generous so a native boot converges in a few
+     * frames; once READY a small budget keeps frame pacing. */
+    {
+        int budget = app->app_state == APP_STATE_BOOTING ? 512 : 32;
+        enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
+        for( int i = 0; i < budget; i++ )
+        {
+            stat = TaskRunner_Step(&app->runner);
+            if( stat == TASK_RUNNER_IDLE )
+                break;
+        }
+        /* Tree-affecting async work (CS2 hooks/transmits) finished: refresh. */
+        if( app->runner_had_work && stat == TASK_RUNNER_IDLE )
+        {
+            app->runner_had_work = 0;
+            app->pending_tree_refresh = 1;
+        }
+    }
+
+    if( app->app_state == APP_STATE_BOOTING )
+    {
+        /* Loading screen frame; no logic/interaction until the tree exists. */
+        app->last_logic_ms = now_ms;
+        app->need_redraw = 0;
+        return 1;
+    }
+
+    /* Async completions: world load finish, texture publish, deferred seq
+     * binds, and any queued tree refresh (relayout + CS1 + redraw). */
+    app_async_polls(app);
+
     /* Logic ticks at 20ms with bounded catch-up after a stall. */
     if( app->last_logic_ms == 0 )
         app->last_logic_ms = now_ms;
@@ -2215,7 +3003,7 @@ App_RunOnce(
      * pulls the map in on first sight — the map is loaded iff the tree has a
      * world element, never eagerly. */
     if( app->world_view_valid && !app->world_load_attempted )
-        app_world_load(app);
+        app_world_load_begin(app, NULL, 0);
     app->world_mouse_in_viewport =
         app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y, out.hover_com_id);
     app->world_mouse_x = input->curr.mouse_x;
@@ -2305,6 +3093,22 @@ App_RunOnce(
     /* Left click over bare world (no UI component hit): run the default menu
      * entry from world rows only — Walk here / nearest entity op (reference
      * chooseDefaultMenuEntry over the last rendered frame's pickset). */
+    if( getenv("TORIRS_NET_DEBUG") && (out.left_click_miss || out.clicked_com_id >= 0) )
+        fprintf(
+            stderr,
+            "click: miss=%d (%d,%d) com=0x%x gate=%d drawable=%d picks=%d\n",
+            out.left_click_miss,
+            out.left_click_miss_x,
+            out.left_click_miss_y,
+            out.clicked_com_id,
+            out.left_click_miss ? app_world_mouse_gate(
+                                      app,
+                                      out.left_click_miss_x,
+                                      out.left_click_miss_y,
+                                      out.hover_com_id)
+                                : -1,
+            app_world_drawable(app),
+            app->world_pickset.count);
     if( out.left_click_miss && !out.minimenu_closed && out.minimenu_select < 0 &&
         app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y, out.hover_com_id) &&
         app_world_drawable(app) )
@@ -2428,6 +3232,19 @@ App_RunOnce(
         for( int e = 0; e < input->key_event_count; e++ )
         {
             int had_input = app->chat.input[0] != '\0';
+            /* Snapshot the input state a Return might submit, since HandleKey
+             * clears it: a public line, a "::" cheat, a social prompt, or the
+             * count/amount dialog. */
+            char input_copy[sizeof(app->chat.input)];
+            char social_copy[sizeof(app->chat.social_input)];
+            char dialog_copy[sizeof(app->chat.dialog_input)];
+            int was_social = app->chat.social_input_open;
+            int social_type = app->chat.social_input_type;
+            int was_dialog = app->chat.dialog_input_open;
+            snprintf(input_copy, sizeof(input_copy), "%s", app->chat.input);
+            snprintf(social_copy, sizeof(social_copy), "%s", app->chat.social_input);
+            snprintf(dialog_copy, sizeof(dialog_copy), "%s", app->chat.dialog_input);
+
             if( RS_Chat_HandleKey(
                     &app->chat,
                     &app->social,
@@ -2435,15 +3252,55 @@ App_RunOnce(
                     input->key_events[e].key_pressed) )
             {
                 app->need_redraw = 1;
-                if( had_input && app->chat.input[0] == '\0' && app->chat.message_count > 0 &&
-                    app->chat.messages[0].type == RS_CHAT_TYPE_PUBLIC )
+
+                /* Count/amount dialog submitted (was open, now closed). */
+                if( was_dialog && !app->chat.dialog_input_open && dialog_copy[0] )
                     APP_NET_SEND(
                         app,
-                        net_out_message_public(
-                            app->net->random_out,
-                            _nsbuf,
-                            sizeof(_nsbuf),
-                            app->chat.messages[0].text));
+                        net_out_resume_countdialog(
+                            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                            (int)atol(dialog_copy)));
+                /* Social prompt submitted: the local store op already ran in
+                 * HandleKey; also notify the friend server. */
+                else if( was_social && !app->chat.social_input_open && social_copy[0] )
+                {
+                    int64_t name37 = (int64_t)strtobase37(social_copy);
+                    switch( social_type )
+                    {
+                    case RS_CHAT_SOCIAL_ADD_FRIEND:
+                        APP_NET_SEND(app, net_out_friendlist_add(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                        break;
+                    case RS_CHAT_SOCIAL_DEL_FRIEND:
+                        APP_NET_SEND(app, net_out_friendlist_del(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                        break;
+                    case RS_CHAT_SOCIAL_ADD_IGNORE:
+                        APP_NET_SEND(app, net_out_ignorelist_add(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                        break;
+                    case RS_CHAT_SOCIAL_DEL_IGNORE:
+                        APP_NET_SEND(app, net_out_ignorelist_del(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                        break;
+                    default:
+                        break;
+                    }
+                }
+                /* Public chat line submitted (had text, now cleared). "::" is
+                 * a client-cheat command (reference), not a public message. */
+                else if( had_input && app->chat.input[0] == '\0' && input_copy[0] )
+                {
+                    if( input_copy[0] == ':' && input_copy[1] == ':' )
+                        APP_NET_SEND(
+                            app,
+                            net_out_client_cheat(
+                                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                                input_copy + 2));
+                    else if( app->chat.message_count > 0 &&
+                             app->chat.messages[0].type == RS_CHAT_TYPE_PUBLIC )
+                        APP_NET_SEND(
+                            app,
+                            net_out_message_public(
+                                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                                app->chat.messages[0].text));
+                }
             }
         }
 
@@ -2477,9 +3334,29 @@ App_RunOnce(
 
     app_world_camera_keys(app, input, &out);
     app_world_hotkeys(app, input, &out);
+    app_inv_drag_tick(app, input);
+
+    /* Idle timer (reference IDLE_TIMER after ~90s of no input). */
+    if( input->key_event_count > 0 || input->curr.mouse_button_down[TORIRSM_LEFT] ||
+        input->curr.mouse_button_down[TORIRSM_RIGHT] )
+    {
+        app->idle_frames = 0;
+        app->idle_timer_sent = 0;
+    }
+    else if( ++app->idle_frames > 4500 && !app->idle_timer_sent )
+    {
+        app->idle_timer_sent = 1;
+        APP_NET_SEND(
+            app, net_out_idle_timer(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
+    }
 
     if( ran_cs2 )
+    {
         UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        /* The dispatched scripts run asynchronously; refresh the tree again
+         * when the runner queue next drains so late mutations land. */
+        app->runner_had_work = 1;
+    }
 
     if( app->need_redraw )
     {
@@ -2496,7 +3373,7 @@ static void
 app_send_if_button(void* user, int com_id)
 {
     struct App* app = (struct App*)user;
-    APP_NET_SEND(app, net_out_if_button(app->net->random_out, _nsbuf, sizeof(_nsbuf), com_id));
+    APP_NET_SEND(app, net_out_if_button(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), com_id));
 }
 
 static void
@@ -2504,7 +3381,386 @@ app_send_resume_pausebutton(void* user, int com_id)
 {
     struct App* app = (struct App*)user;
     APP_NET_SEND(
-        app, net_out_resume_pausebutton(app->net->random_out, _nsbuf, sizeof(_nsbuf), com_id));
+        app, net_out_resume_pausebutton(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), com_id));
+}
+
+static void
+app_send_close_modal(void* user)
+{
+    struct App* app = (struct App*)user;
+    APP_NET_SEND(app, net_out_close_modal(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
+}
+
+/* Server ack after a REBUILD_NORMAL-driven world load finishes. */
+static void
+app_send_map_build_complete(struct App* app)
+{
+    APP_NET_SEND(
+        app, net_out_map_build_complete(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
+}
+
+/* Request a sequence load once (deduped through the entity seq tracker). */
+static void
+app_request_entity_seq(
+    struct App* app,
+    int seq_id)
+{
+    struct ToriRS_Task* task;
+
+    if( seq_id < 0 || ToriDraw_SceneAnimationHas(app->scene, seq_id) )
+        return;
+    for( int i = 0; i < app->entity_seq_loads.count; i++ )
+        if( app->entity_seq_loads.seq_ids[i] == seq_id )
+            return;
+    if( app->entity_seq_loads.count <
+        (int)(sizeof(app->entity_seq_loads.seq_ids) / sizeof(app->entity_seq_loads.seq_ids[0])) )
+        app->entity_seq_loads.seq_ids[app->entity_seq_loads.count++] = seq_id;
+    task = CreateTask_SequenceLoad(app->provider, app->scene, seq_id);
+    if( task )
+        ToriRS_TaskQueue_Add(app->runner.queue, task);
+}
+
+/* Bind one entity's World animation state onto its scene element (reference
+ * getTempModel2 selection: primary when playing and undelayed — with the
+ * secondary bound alongside for the walkmerge blend when it is a real walk —
+ * else the secondary alone). */
+static void
+app_world_apply_entity_anim_tracks(
+    struct App* app,
+    int element_id,
+    struct WorldEntityFacet_Animation const* anim,
+    struct WorldEntityFacet_IdleAnimations const* idle)
+{
+    struct ToriDraw_SceneElement* el;
+    int primary_active = anim->primary.anim_id != (uint16_t)-1 && anim->primary.anim_id != 0;
+    int secondary_active = anim->secondary.anim_id != (uint16_t)-1 && anim->secondary.anim_id != 0;
+
+    if( element_id < 0 || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        return;
+    el = ToriDraw_SceneElementGet(app->scene, element_id);
+    if( !el )
+        return;
+
+    if( primary_active )
+        app_request_entity_seq(app, anim->primary.anim_id);
+    if( secondary_active )
+        app_request_entity_seq(app, anim->secondary.anim_id);
+
+    if( primary_active && anim->primary.delay == 0 )
+    {
+        struct ToriDraw_Animation* pa =
+            ToriDraw_SceneAnimationGet(app->scene, anim->primary.anim_id);
+        if( pa && pa->frame_count > 0 && pa->frames && pa->base )
+        {
+            el->animation = pa;
+            el->anim_seq_id = anim->primary.anim_id;
+            el->anim_frame = anim->primary.frame < pa->frame_count ? anim->primary.frame : 0;
+            if( secondary_active && idle &&
+                anim->secondary.anim_id != (uint16_t)idle->readyanim )
+            {
+                struct ToriDraw_Animation* sa =
+                    ToriDraw_SceneAnimationGet(app->scene, anim->secondary.anim_id);
+                if( sa && sa->frame_count > 0 && sa->frames )
+                {
+                    el->secondary_animation = sa;
+                    el->anim2_seq_id = anim->secondary.anim_id;
+                    el->anim2_frame =
+                        anim->secondary.frame < sa->frame_count ? anim->secondary.frame : 0;
+                    return;
+                }
+            }
+            el->secondary_animation = NULL;
+            el->anim2_seq_id = -1;
+            return;
+        }
+    }
+
+    el->secondary_animation = NULL;
+    el->anim2_seq_id = -1;
+    if( secondary_active )
+    {
+        struct ToriDraw_Animation* sa =
+            ToriDraw_SceneAnimationGet(app->scene, anim->secondary.anim_id);
+        if( sa && sa->frame_count > 0 && sa->frames && sa->base )
+        {
+            el->animation = sa;
+            el->anim_seq_id = anim->secondary.anim_id;
+            el->anim_frame = anim->secondary.frame < sa->frame_count ? anim->secondary.frame : 0;
+            return;
+        }
+    }
+
+    el->animation = NULL;
+    el->anim_seq_id = -1;
+    el->anim_frame = 0;
+}
+
+/* Push World animation state to the entity scene elements each frame (the
+ * per-element modulo tick skips anim_external elements). */
+static void
+app_world_sync_entity_animations(struct App* app)
+{
+    struct World_EntityPool* pool;
+
+    pool = &app->world->entities.player;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+        if( player )
+            app_world_apply_entity_anim_tracks(
+                app, player->element_id, &player->animation, &player->idle_animations);
+    }
+
+    pool = &app->world->entities.npc;
+    for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
+         ni = World_EntityPoolNext(pool, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+        if( npc )
+            app_world_apply_entity_anim_tracks(
+                app, npc->element_id, &npc->animation, &npc->idle_animations);
+    }
+}
+
+int
+App_WorldSpawnSyncedPlayer(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    return app_world_spawn_player_now(app, scene_x, scene_z, level);
+}
+
+int
+App_WorldSpawnSyncedNpc(
+    struct App* app,
+    int npc_id,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    return app_world_spawn_npc_now(app, npc_id, scene_x, scene_z, level);
+}
+
+/* Ground item stacks (zone OBJ_* packets). The objtype + its inventory
+ * model must already be cached (the packet task awaits the loads). */
+int
+App_WorldObjStackAdd(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count)
+{
+    struct ToriRS_Objtype* obj;
+    struct ToriDraw_Model* model;
+    int model_ids[1];
+    int world_x = scene_x * 128 + 64;
+    int world_z = scene_z * 128 + 64;
+    int world_y;
+    int element_id;
+    int existing;
+
+    assert(app);
+    existing = World_ObjStackFind(app->world, scene_x, scene_z, level, obj_id);
+    if( existing >= 0 )
+    {
+        World_ObjStackSetCount(app->world, existing, count);
+        app->need_redraw = 1;
+        return existing;
+    }
+
+    obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
+    if( !obj || obj->inventory_model_id <= 0 )
+        return -1;
+    model_ids[0] = obj->inventory_model_id;
+    {
+        struct AppModelRecolorSpec recolors = {
+            .recolors_from = obj->recolors_from,
+            .recolors_to = obj->recolors_to,
+            .recolor_count = obj->recolor_count,
+        };
+        model = app_world_build_model(app, model_ids, 1, &recolors);
+    }
+    if( !model )
+        return -1;
+
+    world_y = app_world_height(app, world_x, world_z, level);
+    element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
+    if( element_id < 0 )
+        return -1;
+
+    app_sync_textures(app);
+    app->need_redraw = 1;
+    return World_ObjStackAdd(app->world, element_id, scene_x, scene_z, level, obj_id, count);
+}
+
+void
+App_WorldObjStackDel(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id)
+{
+    int idx;
+    assert(app);
+    idx = World_ObjStackFind(app->world, scene_x, scene_z, level, obj_id);
+    if( idx >= 0 )
+    {
+        World_ObjStackDel(app->world, idx);
+        app->need_redraw = 1;
+    }
+}
+
+/** LOC_ANIM: attach a sequence to the scenery element on a tile. */
+void
+App_WorldSceneryAnim(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int seq_id)
+{
+    int idx;
+    assert(app);
+    idx = World_SceneryFindAt(app->world, scene_x, scene_z, level);
+    if( idx >= 0 )
+    {
+        struct WorldEntity_Scenery* scenery =
+            World_EntityPoolGet(&app->world->entities.scenery, idx);
+        if( scenery && scenery->element_id >= 0 )
+        {
+            app_world_apply_seq(app, scenery->element_id, seq_id);
+            app->need_redraw = 1;
+        }
+    }
+}
+
+void
+App_WorldApplyNpcType(
+    struct App* app,
+    int world_idx,
+    int element_id,
+    int npc_type)
+{
+    struct ToriRS_Npctype* npctype;
+    struct ToriDraw_Model* model;
+
+    assert(app);
+    npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
+    if( !npctype )
+        return;
+
+    {
+        struct AppModelRecolorSpec recolors = {
+            .recolors_from = npctype->recolors_from,
+            .recolors_to = npctype->recolors_to,
+            .recolor_count = npctype->recolor_count,
+            .retextures_from = npctype->retextures_from,
+            .retextures_to = npctype->retextures_to,
+            .retexture_count = npctype->retexture_count,
+        };
+        model = app_world_build_model(app, npctype->models, npctype->models_count, &recolors);
+    }
+    if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
+    {
+        struct ToriDraw_ModelHandle hnd;
+        memset(&hnd, 0, sizeof(hnd));
+        hnd.kind = TORIDRAWMK_MODEL;
+        hnd.u.model.model = model;
+        ToriDraw_SceneElementSetModel(app->scene, element_id, hnd);
+        {
+            struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
+            if( el )
+                el->anim_external = true;
+        }
+    }
+    else if( model )
+    {
+        ToriDraw_ModelFree(model);
+    }
+
+    {
+        /* Reference CHANGETYPE swaps walkanim_l/r (Client.ts 8460-8462). */
+        struct WorldEntityFacet_IdleAnimations idle = {
+            .readyanim = npctype->readyanim,
+            .walkanim = npctype->walkanim,
+            .turnanim = -1,
+            .runanim = -1,
+            .walkanim_b = npctype->walkanim_b,
+            .walkanim_r = npctype->walkanim_l,
+            .walkanim_l = npctype->walkanim_r,
+        };
+        World_NpcSetType(
+            app->world, world_idx, npc_type, npctype->size > 0 ? npctype->size : 1, &idle);
+    }
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+        if( npc )
+        {
+            npc->combat_level = npctype->combat_level;
+            snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
+            for( int i = 0; i < 5; i++ )
+                snprintf(
+                    npc->actions[i].name, sizeof(npc->actions[i].name), "%s", npctype->actions[i]);
+        }
+    }
+    app_sync_textures(app);
+    app->need_redraw = 1;
+}
+
+void
+App_WorldApplyPlayerAppearance(
+    struct App* app,
+    int world_idx,
+    int element_id,
+    struct PktPlayerAppearance const* appearance)
+{
+    struct ToriDraw_Model* model;
+
+    assert(app && appearance);
+
+    model = PlayerModel_BuildFromAppearance(
+        app->provider, appearance->slots, appearance->colors, appearance->gender);
+    if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
+    {
+        struct ToriDraw_ModelHandle hnd;
+        memset(&hnd, 0, sizeof(hnd));
+        hnd.kind = TORIDRAWMK_MODEL;
+        hnd.u.model.model = model;
+        ToriDraw_SceneElementSetModel(app->scene, element_id, hnd);
+    }
+    else if( model )
+    {
+        ToriDraw_ModelFree(model);
+    }
+
+    {
+        struct WorldEntityFacet_IdleAnimations idle = {
+            .readyanim = appearance->readyanim,
+            .walkanim = appearance->walkanim,
+            .turnanim = appearance->turnanim,
+            .runanim = appearance->runanim,
+            .walkanim_b = appearance->walkanim_b,
+            .walkanim_r = appearance->walkanim_r,
+            .walkanim_l = appearance->walkanim_l,
+        };
+        World_PlayerSetAppearance(
+            app->world,
+            world_idx,
+            appearance->slots,
+            appearance->colors,
+            &idle,
+            appearance->name,
+            appearance->combat_level,
+            appearance->gender);
+    }
+    app_sync_textures(app);
+    app->need_redraw = 1;
 }
 
 void
@@ -2512,7 +3768,7 @@ App_RefreshAfterTreeMutation(struct App* app)
 {
     assert(app);
     UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    app_run_cs1_eval(app);
+    app_request_cs1_eval(app);
     app->need_redraw = 1;
 }
 
@@ -2528,6 +3784,31 @@ App_Render(
 
     assert(app);
     assert(pixels);
+
+    if( app->app_state == APP_STATE_BOOTING )
+    {
+        /* Font-free loading screen: dark clear + centered progress bar.
+         * Deliberately independent of every asset pipeline (they are what is
+         * still loading). */
+        int bar_w = width / 3;
+        int bar_h = 12;
+        int bar_x = (width - bar_w) / 2;
+        int bar_y = (height - bar_h) / 2;
+        int fill_w = bar_w * (app->boot_progress < 0 ? 0 : app->boot_progress) / 100;
+
+        for( int i = 0; i < width * height; i++ )
+            pixels[i] = 0x000000;
+        for( int y = bar_y - 1; y <= bar_y + bar_h; y++ )
+            for( int x = bar_x - 1; x <= bar_x + bar_w; x++ )
+            {
+                if( y < 0 || y >= height || x < 0 || x >= width )
+                    continue;
+                int border = (y < bar_y || y >= bar_y + bar_h || x < bar_x || x >= bar_x + bar_w);
+                int filled = !border && (x - bar_x) < fill_w;
+                pixels[y * width + x] = border ? 0x8b0000 : (filled ? 0x8b0000 : 0x000000);
+            }
+        return;
+    }
 
     ToriRS_FrameInit(&frame);
     ToriRS_FrameSetScene(&frame, app->scene);

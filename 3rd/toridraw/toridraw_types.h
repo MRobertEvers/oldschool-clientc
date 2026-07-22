@@ -303,6 +303,16 @@ struct ToriDraw_SceneElement
     int anim_seq_id;
     int anim_frame;
     int anim_cycle;
+
+    /* Secondary (walk) track for the walkmerge blend: when the primary
+     * animation carries a walkmerge mask and anim2 is bound, the apply pass
+     * blends primary+secondary via ToriDraw_ModelAnimateFrameMasked. */
+    int anim2_seq_id; /* -1/0 = no secondary track */
+    int anim2_frame;
+    /** Entity-owned animation stepping: the app's world sim drives
+     * anim_frame/anim2_frame; the generic per-element modulo tick skips
+     * elements with this set. */
+    bool anim_external;
 };
 
 struct ToriDraw_SceneBatchElementHandle

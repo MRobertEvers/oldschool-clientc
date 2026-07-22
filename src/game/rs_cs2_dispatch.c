@@ -97,8 +97,9 @@ RS_CS2_DispatchHook(
     }
     if( !task )
         return;
+    /* Enqueue only — the app's per-frame pump drives it. The task queue is a
+     * strict serial FIFO, so hook ordering is preserved across IO yields. */
     ToriRS_TaskQueue_Add(runner->queue, task);
-    TaskRunner_Drain(runner);
 }
 
 void
@@ -122,10 +123,8 @@ RS_CS2_PumpTransmits(
     task = CreateTask_CS2InvTransmitDispatch(host, -1);
     assert(task);
     ToriRS_TaskQueue_Add(runner->queue, task);
-    TaskRunner_Drain(runner);
 
     task = CreateTask_CS2VarTransmitDispatch(host, -1);
     assert(task);
     ToriRS_TaskQueue_Add(runner->queue, task);
-    TaskRunner_Drain(runner);
 }

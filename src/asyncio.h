@@ -374,9 +374,10 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
     {
         struct ToriRS_Task* task = queue->head;
         queue->head = task->next;
-        if( task->vtable->free )
-            task->vtable->free(task);
-        free(task);
+        /* vtable->free frees the task allocation itself (every task's Free
+         * does) — freeing again here double-frees tasks still queued at
+         * shutdown, which the async pipelines now legitimately leave behind. */
+        task_free(task);
     }
     free(queue);
 }

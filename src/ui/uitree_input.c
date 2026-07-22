@@ -77,6 +77,10 @@ UITree_ComponentIsPassThrough(
         struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
         return UITree_Host(host, &req) == 0;
     }
+    case UIELEM_BUILTIN_HOVERTEXT:
+        /* Purely decorative overlay (the "Walk here /..." line); it must
+         * never eat world clicks. */
+        return true;
     case UIELEM_RS_INV:
     case UIELEM_RS_INV_TEXT:
         return true;

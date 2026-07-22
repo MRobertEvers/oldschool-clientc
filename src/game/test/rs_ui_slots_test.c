@@ -47,6 +47,7 @@ main(
 
     App_Init(&app, &cfg);
     App_OpenRootInterface(&app, cfg.interface_id);
+    App_BootWait(&app);
 
     /* Seeding from the INI: boot tab is 3 (selected=), tab slots carry their
      * componentno defaults, tab 7 is empty, and the slot= mount regions exist. */
@@ -61,6 +62,7 @@ main(
 
     /* IF_OPENMAIN: bank-style modal mounts a pack under the viewport region. */
     RS_UISlots_OpenMain(&app, 12);
+    App_BootWait(&app);
     assert(app.slots.main_modal_id == 12);
     assert(node_child_count(app.tree, app.slots.main_modal_index) > 0);
     printf(
@@ -69,16 +71,19 @@ main(
 
     /* IF_CLOSE: modal cleared, mount region childless again. */
     RS_UISlots_CloseModal(&app);
+    App_BootWait(&app);
     assert(app.slots.main_modal_id == -1);
     assert(node_child_count(app.tree, app.slots.main_modal_index) == 0);
     printf("PASS: CloseModal cleared the mount\n");
 
     /* IF_SETTAB into the empty slot 7, then clear it with 65535. */
     RS_UISlots_SetTab(&app, 7, 5608);
+    App_BootWait(&app);
     assert(RS_UISlots_TabEnabled(&app.slots, 7));
     assert(node_child_count(app.tree, app.slots.side_owner_index[7]) > 0);
     printf("PASS: SetTab(7, 5608) mounted the tab pack\n");
     RS_UISlots_SetTab(&app, 7, 65535);
+    App_BootWait(&app);
     assert(!RS_UISlots_TabEnabled(&app.slots, 7));
     assert(node_child_count(app.tree, app.slots.side_owner_index[7]) == 0);
     printf("PASS: SetTab(7, 65535) cleared the tab\n");
@@ -86,6 +91,7 @@ main(
     /* IF_OPENSIDE: side modal suppresses the tab subtree via selected-tab -1
      * (host request answered by app_host_request). */
     RS_UISlots_OpenSide(&app, 3917);
+    App_BootWait(&app);
     assert(app.slots.side_modal_id == 3917);
     assert(node_child_count(app.tree, app.slots.side_modal_index) > 0);
     {
@@ -93,6 +99,7 @@ main(
         assert(UITree_Host(&app.ui_host, &req) == -1);
     }
     RS_UISlots_CloseModal(&app);
+    App_BootWait(&app);
     {
         struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
         assert(UITree_Host(&app.ui_host, &req) == 3);
@@ -101,9 +108,11 @@ main(
 
     /* IF_OPENCHAT mounts under the chat region and IF_CLOSE clears it. */
     RS_UISlots_OpenChat(&app, 2459);
+    App_BootWait(&app);
     assert(app.slots.chat_com_id == 2459);
     assert(node_child_count(app.tree, app.slots.chat_index) > 0);
     RS_UISlots_CloseModal(&app);
+    App_BootWait(&app);
     assert(app.slots.chat_com_id == -1);
     printf("PASS: OpenChat/Close cycled the chat dialog\n");
 

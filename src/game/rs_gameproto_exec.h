@@ -12,7 +12,7 @@
  * IF_OPEN / SETTAB family to RS_UISlots (needs App), MESSAGE_* to RS_Chat.
  */
 
-struct RevPacket_LC245_2;
+struct RevPacket;
 struct App;
 struct UITree;
 struct InvManager;
@@ -36,6 +36,6 @@ struct RS_GameProtoCtx
 void
 RS_GameProto_Exec(
     struct RS_GameProtoCtx const* ctx,
-    struct RevPacket_LC245_2* packet);
+    struct RevPacket* packet);
 
 #endif

@@ -53,6 +53,8 @@ struct RS_UISlots
     /** Privacy-bar modes (reference chatPublicMode/PrivateMode/TradeMode);
      *  indexed by enum RS_UIChatFilter. Report has a single mode. */
     int chat_filter_mode[RS_UI_CHAT_FILTER_COUNT];
+    /** TUT_FLASH: tab icon to flash (-1 = none). */
+    int flash_tab;
 };
 
 void
@@ -107,6 +109,14 @@ RS_UISlots_OpenSide(struct App* app, int iface_id);
 /** IF_OPENCHAT: chatback dialog; suppresses chat message drawing. */
 void
 RS_UISlots_OpenChat(struct App* app, int iface_id);
+
+/** IF_OPENOVERLAY: mount over the viewport (main_overlay slot). */
+void
+RS_UISlots_OpenOverlay(struct App* app, int iface_id);
+
+/** TUT_OPEN: mount the tutorial-progress interface (tut slot). */
+void
+RS_UISlots_OpenTut(struct App* app, int iface_id);
 
 /** IF_CLOSE: close main modal, side modal, and chat dialog. */
 void

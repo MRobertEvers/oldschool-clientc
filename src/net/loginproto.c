@@ -232,14 +232,38 @@ loginproto_poll(struct LoginProto* loginproto)
             int reply_byte = g1(&in);
 
             loginproto->await_recv_cnt = 0;
-            if( reply_byte == 2 || reply_byte == 18 || reply_byte == 19 )
+            if( reply_byte == 2 )
             {
+                /* Success is 3 bytes total: 2, staffmodlevel, mouse-tracked
+                 * flag (LostCity World.ts). Consume the tail before handing
+                 * the stream over, or those 2 bytes desync the ISAAC-framed
+                 * game stream. */
+                loginproto->state = LOGINPROTO_LOGIN_SUCCESS_TAIL;
+                loginproto->await_recv_cnt = 2;
+                return LOGINPROTO_AWAIT_RECV;
+            }
+            if( reply_byte == 15 )
+            {
+                /* Reconnect handoff: single byte, no tail. */
                 loginproto->state = LOGINPROTO_SUCCESS;
                 return LOGINPROTO_SUCCESS;
             }
+            fprintf(stderr, "loginproto: login rejected, reply=%d\n", reply_byte);
             loginproto->state = LOGINPROTO_ERROR;
             return LOGINPROTO_AWAIT_RECV;
         }
+    }
+    case LOGINPROTO_LOGIN_SUCCESS_TAIL:
+    {
+        RSCache_BufferInit(&in, loginproto->tempin, sizeof(loginproto->tempin));
+        if( ringbuf_used(loginproto->in) < 2 )
+            return LOGINPROTO_AWAIT_RECV;
+        ringbuf_read(loginproto->in, in.data, 2);
+        loginproto->staffmodlevel = g1(&in);
+        (void)g1(&in); /* mouse-tracked flag; tracking replies are stubbed */
+        loginproto->await_recv_cnt = 0;
+        loginproto->state = LOGINPROTO_SUCCESS;
+        return LOGINPROTO_SUCCESS;
     }
     case LOGINPROTO_SUCCESS:
         return LOGINPROTO_SUCCESS;

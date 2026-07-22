@@ -34,6 +34,7 @@ enum LoginProtoState
     LOGINPROTO_SEND_CONNECT = 0,
     LOGINPROTO_SEND_CREDENTIALS,
     LOGINPROTO_LOGIN_RESPONSE,
+    LOGINPROTO_LOGIN_SUCCESS_TAIL,
     LOGINPROTO_SUCCESS,
 };
 
@@ -56,6 +57,7 @@ struct LoginProto
     struct RingBuf* in;
 
     int await_recv_cnt;
+    int staffmodlevel;
 
     int32_t seed[4];
 

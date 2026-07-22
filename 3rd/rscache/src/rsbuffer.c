@@ -209,10 +209,12 @@ read_string(
         L'\u02dc', L'\u2122', L'\u0161', L'\u203a', L'\u0153', L'\0',     L'\u017e', L'\u0178'
     };
 
-    // Count string length first
+    // Count string length first. Stop at end-of-buffer too: G1 past the end
+    // returns 0 without advancing, which would otherwise spin forever when
+    // the terminator is missing (e.g. a truncated network packet).
     int pos = buffer->position;
     int length = 0;
-    while( 1 )
+    while( buffer->position < buffer->size )
     {
         int ch = RSCache_BufferG1(buffer);
         if( ch == stop_char )
@@ -228,7 +230,7 @@ read_string(
     int i = 0;
 
     // Read string with character mapping
-    while( 1 )
+    while( buffer->position < buffer->size )
     {
         int ch = RSCache_BufferG1(buffer);
         if( ch == stop_char )

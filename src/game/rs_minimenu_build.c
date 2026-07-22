@@ -173,8 +173,10 @@ add_inv_obj_rows(
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPHELD6, 0, pick);
 }
 
-/** Objtype for menu text; queue-then-drain when not yet resident (same
- * pattern as app_sync_textures). */
+/** Objtype for menu text; queue the load when not yet resident and return
+ * NULL for now — hover text rebuilds every frame and the right-click menu
+ * rebuilds on open, so the name self-heals a frame after the load lands
+ * (callers already render an "item" placeholder for NULL). */
 static struct ToriRS_Objtype const*
 ensure_objtype(struct RS_MinimenuBuildCtx const* ctx, int obj_id)
 {
@@ -185,10 +187,7 @@ ensure_objtype(struct RS_MinimenuBuildCtx const* ctx, int obj_id)
     {
         struct ToriRS_Task* task = CreateTask_ObjLoad(ctx->provider, obj_id);
         if( task )
-        {
             ToriRS_TaskQueue_Add(ctx->runner->queue, task);
-            TaskRunner_Drain(ctx->runner);
-        }
     }
     return CacheProvider_ObjtypeGet(ctx->provider, obj_id);
 }

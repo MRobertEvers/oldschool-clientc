@@ -156,6 +156,223 @@ yaw_turn:;
     return seqId;
 }
 
+/* Seq-source getters with defaults for a NULL source / unknown seq. */
+static int
+cycle_seq_frame_count(
+    struct World* world,
+    int seq_id)
+{
+    if( world->seq_source.frame_count )
+        return world->seq_source.frame_count(world->seq_source.userdata, seq_id);
+    return 0;
+}
+
+static int
+cycle_seq_frame_duration(
+    struct World* world,
+    int seq_id,
+    int frame)
+{
+    int duration = 1;
+    if( world->seq_source.frame_duration )
+        duration = world->seq_source.frame_duration(world->seq_source.userdata, seq_id, frame);
+    return duration > 0 ? duration : 1;
+}
+
+static int
+cycle_seq_frame_step(
+    struct World* world,
+    int seq_id)
+{
+    if( world->seq_source.frame_step )
+        return world->seq_source.frame_step(world->seq_source.userdata, seq_id);
+    return 0;
+}
+
+static int
+cycle_seq_max_loops(
+    struct World* world,
+    int seq_id)
+{
+    if( world->seq_source.max_loops )
+        return world->seq_source.max_loops(world->seq_source.userdata, seq_id);
+    return 99;
+}
+
+static int
+cycle_seq_preanim_move(
+    struct World* world,
+    int seq_id)
+{
+    if( world->seq_source.preanim_move )
+        return world->seq_source.preanim_move(world->seq_source.userdata, seq_id);
+    return 0;
+}
+
+static int
+anim_step_active(struct WorldEntityFacet_AnimationStep const* step)
+{
+    return step->anim_id != (uint16_t)-1 && step->anim_id != 0;
+}
+
+/* One client cycle of frame stepping for an entity's animation tracks +
+ * attached graphic (exact port of Client.ts entityAnim, 4000-4075). */
+static void
+World_StepEntityAnimation(
+    struct World* world,
+    struct WorldEntityFacet_Animation* anim,
+    struct WorldEntityFacet_EntitySpotanim* spot,
+    struct WorldEntityFacet_Pathing const* pathing)
+{
+    /* Secondary (idle/walk) loops forever. */
+    if( anim_step_active(&anim->secondary) )
+    {
+        int seq = anim->secondary.anim_id;
+        int count = cycle_seq_frame_count(world, seq);
+        if( count > 0 )
+        {
+            anim->secondary.cycle++;
+            if( anim->secondary.frame < count &&
+                anim->secondary.cycle > cycle_seq_frame_duration(world, seq, anim->secondary.frame) )
+            {
+                anim->secondary.cycle = 0;
+                anim->secondary.frame++;
+            }
+            if( anim->secondary.frame >= count )
+            {
+                anim->secondary.frame = 0;
+                anim->secondary.cycle = 0;
+            }
+        }
+    }
+
+    /* Entity graphic. Spotanim configs are not decoded yet, so the seq-source
+     * cannot time the frames; hold the state and expire it after a generous
+     * fixed window (visualization is a flagged follow-on). */
+    if( spot && spot->id != -1 && world->cycle >= spot->last_cycle )
+    {
+        if( spot->frame < 0 )
+            spot->frame = 0;
+        spot->cycle++;
+        if( world->cycle - spot->last_cycle > 200 )
+            spot->id = -1;
+    }
+
+    /* Primary (transient/action). */
+    if( anim_step_active(&anim->primary) )
+    {
+        int seq = anim->primary.anim_id;
+
+        /* PreanimMove.DELAYANIM: pause the action while route movement is
+         * pending (Client.ts 4039-4045). */
+        if( anim->primary.delay <= 1 && pathing && pathing->route_length > 0 &&
+            anim->preanim_route_length > 0 && cycle_seq_preanim_move(world, seq) == 1 )
+        {
+            anim->primary.delay = 1;
+            return;
+        }
+
+        if( anim->primary.delay == 0 )
+        {
+            int count = cycle_seq_frame_count(world, seq);
+            if( count > 0 )
+            {
+                anim->primary.cycle++;
+                while( anim->primary.frame < count &&
+                       anim->primary.cycle >
+                           cycle_seq_frame_duration(world, seq, anim->primary.frame) )
+                {
+                    anim->primary.cycle = (uint16_t)(
+                        anim->primary.cycle -
+                        cycle_seq_frame_duration(world, seq, anim->primary.frame));
+                    anim->primary.frame++;
+
+                    if( anim->primary.frame >= count )
+                    {
+                        int stepped = (int)anim->primary.frame - cycle_seq_frame_step(world, seq);
+                        anim->primary.loop++;
+                        if( anim->primary.loop >= cycle_seq_max_loops(world, seq) ||
+                            stepped < 0 || stepped >= count )
+                        {
+                            anim->primary.anim_id = (uint16_t)-1;
+                            anim->primary.frame = 0;
+                            anim->primary.cycle = 0;
+                            anim->primary.loop = 0;
+                            break;
+                        }
+                        anim->primary.frame = (uint16_t)stepped;
+                    }
+                }
+            }
+        }
+        if( anim->primary.delay > 0 )
+            anim->primary.delay--;
+    }
+}
+
+/* Reference exactMove1/exactMove2 (Client.ts 3757-3803): server-forced
+ * interpolation overriding route movement while the window is active.
+ * Returns 1 while active (route movement must be skipped). */
+static int
+World_UpdateExactMove(
+    struct World* world,
+    struct WorldEntityFacet_ExactMove* exact,
+    struct WorldEntityFacet_DrawPosition* draw_position,
+    struct WorldEntityFacet_Orientation* orientation,
+    struct WorldEntityFacet_Animation const* anim,
+    int size)
+{
+    static const uint16_t k_facing_yaw[4] = { 1024, 1536, 0, 512 };
+
+    if( exact->move_end == 0 && exact->move_start == 0 )
+        return 0;
+    if( exact->move_start < world->cycle )
+    {
+        /* Window passed. */
+        exact->move_end = 0;
+        exact->move_start = 0;
+        return 0;
+    }
+
+    if( exact->move_end > world->cycle )
+    {
+        /* Phase 1: glide toward the START tile. */
+        int delta = exact->move_end - world->cycle;
+        int dst_x = exact->start_x * 128 + size * 64;
+        int dst_z = exact->start_z * 128 + size * 64;
+        draw_position->x = (uint32_t)((int)draw_position->x + (dst_x - (int)draw_position->x) / delta);
+        draw_position->z = (uint32_t)((int)draw_position->z + (dst_z - (int)draw_position->z) / delta);
+        orientation->dst_yaw = k_facing_yaw[exact->facing & 3];
+    }
+    else
+    {
+        /* Phase 2: interpolate start -> end over the window, gated on the
+         * primary anim frame boundary (Client.ts exactMove2). */
+        int on_boundary = exact->move_start == world->cycle ||
+                          !anim_step_active(&anim->primary) || anim->primary.delay != 0 ||
+                          anim->primary.cycle + 1 >
+                              cycle_seq_frame_duration(
+                                  world, anim->primary.anim_id, anim->primary.frame);
+        if( on_boundary )
+        {
+            int duration = exact->move_start - exact->move_end;
+            int delta = world->cycle - exact->move_end;
+            int dx0 = exact->start_x * 128 + size * 64;
+            int dz0 = exact->start_z * 128 + size * 64;
+            int dx1 = exact->end_x * 128 + size * 64;
+            int dz1 = exact->end_z * 128 + size * 64;
+            if( duration > 0 )
+            {
+                draw_position->x = (uint32_t)((dx0 * (duration - delta) + dx1 * delta) / duration);
+                draw_position->z = (uint32_t)((dz0 * (duration - delta) + dz1 * delta) / duration);
+            }
+        }
+        orientation->dst_yaw = k_facing_yaw[exact->facing & 3];
+        orientation->yaw = orientation->dst_yaw;
+    }
+    return 1;
+}
+
 static void
 World_ApplySecondaryAnim(
     struct WorldEntityFacet_Animation* animation,
@@ -195,18 +412,34 @@ World_CycleUpdatePlayers(
             if( !player || player->element_id < 0 )
                 continue;
 
-            struct World_MoverInfo info = {
-                .pathing = &player->pathing,
-                .draw_position = &player->draw_position,
-                .grid_position = &player->grid_position,
-                .orientation = &player->orientation,
-                .idle = &player->idle_animations,
-                .animation = &player->animation,
-                .size_x = 1,
-                .size_z = 1,
-            };
-            int seqId = World_UpdateMoverMovementAndAnimation(&info);
-            World_ApplySecondaryAnim(&player->animation, seqId);
+            if( World_UpdateExactMove(
+                    world,
+                    &player->exact_move,
+                    &player->draw_position,
+                    &player->orientation,
+                    &player->animation,
+                    1) )
+            {
+                /* Exact move overrides route movement; the secondary anim
+                 * keeps whatever it was (reference skips routeMove). */
+            }
+            else
+            {
+                struct World_MoverInfo info = {
+                    .pathing = &player->pathing,
+                    .draw_position = &player->draw_position,
+                    .grid_position = &player->grid_position,
+                    .orientation = &player->orientation,
+                    .idle = &player->idle_animations,
+                    .animation = &player->animation,
+                    .size_x = 1,
+                    .size_z = 1,
+                };
+                int seqId = World_UpdateMoverMovementAndAnimation(&info);
+                World_ApplySecondaryAnim(&player->animation, seqId);
+            }
+            World_StepEntityAnimation(
+                world, &player->animation, &player->spotanim, &player->pathing);
         }
     }
 }
@@ -239,6 +472,7 @@ World_CycleUpdateNpcs(
             };
             int seqId = World_UpdateMoverMovementAndAnimation(&info);
             World_ApplySecondaryAnim(&npc->animation, seqId);
+            World_StepEntityAnimation(world, &npc->animation, &npc->spotanim, &npc->pathing);
         }
     }
 }
@@ -445,6 +679,22 @@ World_CycleRegisterPainterDynamics(struct World* world)
             footprint.size_z);
     }
 
+    pool = &world->entities.obj_stack;
+    for( int oi = World_EntityPoolHead(pool); oi != WORLD_ENTITY_NIL;
+         oi = World_EntityPoolNext(pool, oi) )
+    {
+        struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, oi);
+        if( !stack || stack->element_id < 0 )
+            continue;
+        int grid_x = stack->grid_position.x;
+        int grid_z = stack->grid_position.z;
+        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
+            grid_z >= world->_scene_size )
+            continue;
+        painter_add_normal_scenery(
+            world->painter, grid_x, grid_z, stack->grid_position.level, stack->element_id, 1, 1);
+    }
+
     pool = &world->entities.spotanim;
     for( int si = World_EntityPoolHead(pool); si != WORLD_ENTITY_NIL;
          si = World_EntityPoolNext(pool, si) )
@@ -469,6 +719,8 @@ World_Cycle(
     assert(world);
     if( !world->load_complete )
         return;
+
+    world->cycle += cycles_elapsed;
 
     World_CycleUpdatePlayers(world, cycles_elapsed);
     World_CycleUpdateNpcs(world, cycles_elapsed);

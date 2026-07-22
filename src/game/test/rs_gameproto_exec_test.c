@@ -8,8 +8,7 @@
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_player_stats.h"
 #include "inv/inv_manager.h"
-#include "net/rev/lc245_2/packetin.h"
-#include "net/rev/lc245_2/revpacket_lc245_2.h"
+#include "net/rev/revpacket.h"
 #include "ui/uitree.h"
 #include "varp/varp_manager.h"
 
@@ -54,9 +53,9 @@ main(void)
 
     /* VARP_SMALL 42 = 5 */
     {
-        struct RevPacket_LC245_2 p;
+        struct RevPacket p;
         memset(&p, 0, sizeof(p));
-        p.packet_type = PKTIN_LC245_2_VARP_SMALL;
+        p.packet_type = PKT_NAME_VARP_SMALL;
         p._varp_small.variable = 42;
         p._varp_small.value = 5;
         RS_GameProto_Exec(&ctx, &p);
@@ -66,9 +65,9 @@ main(void)
 
     /* UPDATE_RUNENERGY 73 */
     {
-        struct RevPacket_LC245_2 p;
+        struct RevPacket p;
         memset(&p, 0, sizeof(p));
-        p.packet_type = PKTIN_LC245_2_UPDATE_RUNENERGY;
+        p.packet_type = PKT_NAME_UPDATE_RUNENERGY;
         p._update_run_energy.run_energy = 73;
         RS_GameProto_Exec(&ctx, &p);
         assert(stats.run_energy == 73);
@@ -77,9 +76,9 @@ main(void)
 
     /* UPDATE_STAT: attack (0) level 40. */
     {
-        struct RevPacket_LC245_2 p;
+        struct RevPacket p;
         memset(&p, 0, sizeof(p));
-        p.packet_type = PKTIN_LC245_2_UPDATE_STAT;
+        p.packet_type = PKT_NAME_UPDATE_STAT;
         p._update_stat.stat = 0;
         p._update_stat.xp = 37224;
         p._update_stat.level = 40;
@@ -92,9 +91,9 @@ main(void)
     {
         int obj_ids[3] = { 995, 1333, 4151 };
         int obj_counts[3] = { 10000, 1, 1 };
-        struct RevPacket_LC245_2 p;
+        struct RevPacket p;
         memset(&p, 0, sizeof(p));
-        p.packet_type = PKTIN_LC245_2_UPDATE_INV_FULL;
+        p.packet_type = PKT_NAME_UPDATE_INV_FULL;
         p._update_inv_full.component_id = 3214;
         p._update_inv_full.size = 3;
         p._update_inv_full.obj_ids = obj_ids;
@@ -108,9 +107,9 @@ main(void)
     /* IF_SETTEXT rewrites the TEXT node. */
     {
         char text[] = "after";
-        struct RevPacket_LC245_2 p;
+        struct RevPacket p;
         memset(&p, 0, sizeof(p));
-        p.packet_type = PKTIN_LC245_2_IF_SETTEXT;
+        p.packet_type = PKT_NAME_IF_SETTEXT;
         p._if_settext.component_id = 0x1234;
         p._if_settext.text = text;
         RS_GameProto_Exec(&ctx, &p);
@@ -125,9 +124,9 @@ main(void)
     /* MESSAGE_GAME appends a chat line. */
     {
         char text[] = "A goblin appears.";
-        struct RevPacket_LC245_2 p;
+        struct RevPacket p;
         memset(&p, 0, sizeof(p));
-        p.packet_type = PKTIN_LC245_2_MESSAGE_GAME;
+        p.packet_type = PKT_NAME_MESSAGE_GAME;
         p._message_game.text = text;
         RS_GameProto_Exec(&ctx, &p);
         assert(chat.message_count == 1);

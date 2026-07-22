@@ -892,3 +892,430 @@ World_EventsClear(struct World* world)
     assert(world);
     world->event_count = 0;
 }
+
+void
+World_SetSeqSource(
+    struct World* world,
+    struct World_SeqSource const* source)
+{
+    assert(world);
+    if( source )
+        world->seq_source = *source;
+    else
+        memset(&world->seq_source, 0, sizeof(world->seq_source));
+}
+
+/* Seq-source getters with the documented defaults for a NULL source. */
+static int
+world_seq_priority(
+    struct World* world,
+    int seq_id)
+{
+    if( world->seq_source.priority )
+        return world->seq_source.priority(world->seq_source.userdata, seq_id);
+    return 5;
+}
+
+static int
+world_seq_duplicate_behavior(
+    struct World* world,
+    int seq_id)
+{
+    if( world->seq_source.duplicate_behavior )
+        return world->seq_source.duplicate_behavior(world->seq_source.userdata, seq_id);
+    return -1;
+}
+
+/* Reference readExtendedInfo ANIM application (Client.ts 8401-8430):
+ * same-anim RestartMode RESET restarts frame/cycle/loop; RESETLOOP resets
+ * only the loop counter; a different anim applies when no primary is playing
+ * or its priority is >= the current one's. */
+static void
+world_apply_primary_animation(
+    struct World* world,
+    struct WorldEntityFacet_Animation* animation,
+    struct WorldEntityFacet_Pathing const* pathing,
+    int seq_id,
+    int delay)
+{
+    if( seq_id < 0 )
+    {
+        animation->primary.anim_id = (uint16_t)-1;
+        animation->primary.frame = 0;
+        animation->primary.cycle = 0;
+        animation->primary.delay = 0;
+        animation->primary.loop = 0;
+        return;
+    }
+
+    if( animation->primary.anim_id == (uint16_t)seq_id )
+    {
+        int restart = world_seq_duplicate_behavior(world, seq_id);
+        if( restart == 1 ) /* RestartMode.RESET */
+        {
+            animation->primary.frame = 0;
+            animation->primary.cycle = 0;
+            animation->primary.delay = (uint8_t)delay;
+            animation->primary.loop = 0;
+            animation->preanim_route_length = pathing->route_length;
+            return;
+        }
+        if( restart == 2 ) /* RestartMode.RESETLOOP */
+        {
+            animation->primary.loop = 0;
+            return;
+        }
+    }
+
+    if( animation->primary.anim_id != (uint16_t)-1 && animation->primary.anim_id != 0 &&
+        world_seq_priority(world, seq_id) <
+            world_seq_priority(world, animation->primary.anim_id) )
+        return;
+
+    animation->primary.anim_id = (uint16_t)seq_id;
+    animation->primary.frame = 0;
+    animation->primary.cycle = 0;
+    animation->primary.delay = (uint8_t)delay;
+    animation->primary.loop = 0;
+    animation->preanim_route_length = pathing->route_length;
+}
+
+void
+World_PlayerSetPrimaryAnimation(
+    struct World* world,
+    int idx,
+    int seq_id,
+    int delay)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    world_apply_primary_animation(world, &player->animation, &player->pathing, seq_id, delay);
+}
+
+void
+World_NpcSetPrimaryAnimation(
+    struct World* world,
+    int idx,
+    int seq_id,
+    int delay)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    world_apply_primary_animation(world, &npc->animation, &npc->pathing, seq_id, delay);
+}
+
+void
+World_PlayerSetExactMove(
+    struct World* world,
+    int idx,
+    int start_x,
+    int start_z,
+    int end_x,
+    int end_z,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int facing)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+
+    player->exact_move.start_x = (uint8_t)start_x;
+    player->exact_move.start_z = (uint8_t)start_z;
+    player->exact_move.end_x = (uint8_t)end_x;
+    player->exact_move.end_z = (uint8_t)end_z;
+    player->exact_move.move_start = world->cycle + start_cycle_delta;
+    player->exact_move.move_end = world->cycle + end_cycle_delta;
+    player->exact_move.facing = (uint8_t)facing;
+
+    /* Reference abortRoute(). */
+    player->pathing.route_length = 0;
+}
+
+static void
+world_set_entity_spotanim(
+    struct World* world,
+    struct WorldEntityFacet_EntitySpotanim* spot,
+    int spotanim_id,
+    int height,
+    int cycle_delay)
+{
+    spot->id = spotanim_id;
+    spot->height = height;
+    spot->last_cycle = world->cycle + cycle_delay;
+    spot->frame = cycle_delay > 0 ? -1 : 0;
+    spot->cycle = 0;
+}
+
+void
+World_PlayerSetSpotanim(
+    struct World* world,
+    int idx,
+    int spotanim_id,
+    int height,
+    int cycle_delay)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    world_set_entity_spotanim(world, &player->spotanim, spotanim_id, height, cycle_delay);
+}
+
+void
+World_NpcSetSpotanim(
+    struct World* world,
+    int idx,
+    int spotanim_id,
+    int height,
+    int cycle_delay)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    world_set_entity_spotanim(world, &npc->spotanim, spotanim_id, height, cycle_delay);
+}
+
+void
+World_NpcSetType(
+    struct World* world,
+    int idx,
+    int npc_id,
+    int size,
+    struct WorldEntityFacet_IdleAnimations const* idle)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+
+    npc->npc_id = npc_id;
+    npc->size = size > 0 ? size : 1;
+    if( idle )
+        npc->idle_animations = *idle;
+    /* Transmog clears the transient anim (reference ClientEntity behavior on
+     * type change). */
+    npc->animation.primary.anim_id = (uint16_t)-1;
+    npc->animation.primary.frame = 0;
+    npc->animation.primary.cycle = 0;
+}
+
+void
+World_PlayerSetAppearance(
+    struct World* world,
+    int idx,
+    int const slots[12],
+    int const colors[5],
+    struct WorldEntityFacet_IdleAnimations const* idle,
+    char const* name,
+    int combat_level,
+    int gender)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+
+    if( slots )
+        memcpy(player->appearance.slots, slots, sizeof(player->appearance.slots));
+    if( colors )
+        memcpy(player->appearance.colors, colors, sizeof(player->appearance.colors));
+    if( idle )
+        player->idle_animations = *idle;
+    if( name )
+    {
+        strncpy(player->name, name, sizeof(player->name) - 1);
+        player->name[sizeof(player->name) - 1] = '\0';
+    }
+    player->combat_level = combat_level;
+    player->gender = gender;
+}
+
+void
+World_PlayerAddHitmark(
+    struct World* world,
+    int idx,
+    int damage_type,
+    int damage,
+    int health,
+    int total_health)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    World_EntityAddHitmark(
+        player->combat.damage_values,
+        player->combat.damage_types,
+        player->combat.damage_cycles,
+        world->cycle,
+        damage_type,
+        damage);
+    player->combat.health = health;
+    player->combat.total_health = total_health;
+    player->combat.combat_cycle = world->cycle + 400;
+}
+
+int
+World_ObjStackAdd(
+    struct World* world,
+    int element_id,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_ObjStack* stack;
+    int idx;
+
+    assert(world);
+    pool = &world->entities.obj_stack;
+    idx = World_EntityPoolAlloc(pool);
+    if( idx < 0 )
+        return -1;
+    stack = World_EntityPoolGet(pool, idx);
+    memset(stack, 0, sizeof(*stack));
+    stack->element_id = element_id;
+    stack->grid_position.x = scene_x;
+    stack->grid_position.z = scene_z;
+    stack->grid_position.level = level;
+    stack->draw_position.x = (uint32_t)(scene_x * 128 + 64);
+    stack->draw_position.z = (uint32_t)(scene_z * 128 + 64);
+    stack->obj_id = obj_id;
+    stack->count = count;
+    return idx;
+}
+
+int
+World_ObjStackFind(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id)
+{
+    struct World_EntityPool* pool;
+
+    assert(world);
+    pool = &world->entities.obj_stack;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, i);
+        if( !stack )
+            continue;
+        if( stack->grid_position.x == scene_x && stack->grid_position.z == scene_z &&
+            stack->grid_position.level == level &&
+            (obj_id < 0 || stack->obj_id == obj_id) )
+            return i;
+    }
+    return -1;
+}
+
+void
+World_ObjStackDel(
+    struct World* world,
+    int idx)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_ObjStack* stack;
+
+    assert(world);
+    pool = &world->entities.obj_stack;
+    if( !World_EntityPoolIsActive(pool, idx) )
+        return;
+    stack = World_EntityPoolGet(pool, idx);
+    World_EmitEntityRemoved(world, stack->element_id);
+    World_EntityPoolRelease(pool, idx);
+}
+
+void
+World_ObjStackSetCount(
+    struct World* world,
+    int idx,
+    int count)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_ObjStack* stack;
+
+    assert(world);
+    pool = &world->entities.obj_stack;
+    if( !World_EntityPoolIsActive(pool, idx) )
+        return;
+    stack = World_EntityPoolGet(pool, idx);
+    stack->count = count;
+}
+
+int
+World_SceneryFindAt(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    struct World_EntityPool* pool;
+
+    assert(world);
+    pool = &world->entities.scenery;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, i);
+        if( !scenery )
+            continue;
+        if( scenery->grid_position.x == scene_x && scenery->grid_position.z == scene_z &&
+            scenery->grid_position.level == level )
+            return i;
+    }
+    return -1;
+}
+
+void
+World_SceneryRemove(
+    struct World* world,
+    int idx)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_Scenery* scenery;
+
+    assert(world);
+    pool = &world->entities.scenery;
+    if( !World_EntityPoolIsActive(pool, idx) )
+        return;
+    scenery = World_EntityPoolGet(pool, idx);
+    World_EmitEntityRemoved(world, scenery->element_id);
+    World_EntityPoolRelease(pool, idx);
+}
+
+void
+World_NpcAddHitmark(
+    struct World* world,
+    int idx,
+    int damage_type,
+    int damage,
+    int health,
+    int total_health)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    World_EntityAddHitmark(
+        npc->combat.damage_values,
+        npc->combat.damage_types,
+        npc->combat.damage_cycles,
+        world->cycle,
+        damage_type,
+        damage);
+    npc->combat.health = health;
+    npc->combat.total_health = total_health;
+    npc->combat.combat_cycle = world->cycle + 400;
+}

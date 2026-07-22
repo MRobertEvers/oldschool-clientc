@@ -303,6 +303,11 @@ main(
             cfg.connect_pass = argv[++argi];
             continue;
         }
+        if( strcmp(argv[argi], "--rev") == 0 && argi + 1 < argc )
+        {
+            cfg.rev_name = argv[++argi];
+            continue;
+        }
         if( positional == 0 && argv[argi][0] != '-' )
         {
             cfg.cache_dir = argv[argi];
@@ -324,7 +329,7 @@ main(
             stderr,
             "usage: %s [cache_dir] [interface_id] [--dat1|--dat2] "
             "[--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] [--bmp] "
-            "[--connect host[:port]] [--user U] [--pass P]\n",
+            "[--connect host[:port]] [--user U] [--pass P] [--rev lc254|lc245_2]\n",
             argv[0]);
         return 1;
     }
@@ -400,6 +405,17 @@ main(
 
     App_Init(&app, &cfg);
     App_OpenRootInterface(&app, cfg.interface_id);
+
+    /* Boot is fully async (App_RunOnce pumps it; App_Render shows a loading
+     * bar). The headless harness/debug paths below inspect the freshly built
+     * tree synchronously, so pump the boot to completion for them; the plain
+     * interactive run skips this and renders the loading state instead. */
+    if( write_bmp || getenv("TORIRS_WORLD_NODE_DEBUG") || getenv("TORIRS_SIM_CLICK") ||
+        getenv("TORIRS_SIM_KEYS") || getenv("TORIRS_SIM_WORLD_KEY") ||
+        getenv("TORIRS_SIM_MOUSE_CLICK") || getenv("TORIRS_DUMP_EMIT") ||
+        getenv("TORIRS_DUMP_TREE") || getenv("TORIRS_WORLD_BMP") ||
+        getenv("TORIRS_CMD_REPLAY") )
+        App_BootWait(&app);
 
     /* TORIRS_WORLD_NODE_DEBUG=1: world viewport node state + root sibling
      * chain (the emit walk draws the chain in order). idx=-1 means the opened
@@ -1031,6 +1047,70 @@ main(
                 PlatformSDL2_PollCommands(sdl, &bus);
                 if( sock )
                     PlatformSocket_Poll(sock, app.net, &bus);
+
+                /* TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y...]":
+                 * inject a mouse click at the given main-loop frame — the
+                 * live-server harness (the pre-loop SIM_MOUSE_CLICK path runs
+                 * before login completes, too early to test the world). The
+                 * move lands 3 frames before the press so the hover pick set
+                 * (built during render) covers the click position. */
+                {
+                    static char const* sim_at_cursor = NULL;
+                    static int sim_at_init = 0;
+                    static long pend_frame = -1, pend_x, pend_y, pend_right;
+                    if( !sim_at_init )
+                    {
+                        sim_at_init = 1;
+                        sim_at_cursor = getenv("TORIRS_SIM_CLICK_AT");
+                    }
+                    if( pend_frame < 0 && sim_at_cursor && *sim_at_cursor )
+                    {
+                        char* end = NULL;
+                        pend_frame = strtol(sim_at_cursor, &end, 0);
+                        if( end && *end == ',' )
+                        {
+                            pend_x = strtol(end + 1, &end, 0);
+                            pend_y = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
+                            pend_right = 0;
+                            if( end && *end == ',' )
+                                pend_right = strtol(end + 1, &end, 0);
+                            sim_at_cursor = (end && *end == ';') ? end + 1 : NULL;
+                        }
+                        else
+                        {
+                            sim_at_cursor = NULL;
+                            pend_frame = -1;
+                        }
+                    }
+                    if( pend_frame >= 0 && frame_count >= pend_frame )
+                    {
+                        long step = frame_count - pend_frame;
+                        uint8_t btn = pend_right ? 3 : 1;
+                        if( step == 0 )
+                        {
+                            CmdBus_PushMouseMove(&bus, (int)pend_x, (int)pend_y);
+                            fprintf(
+                                stderr,
+                                "sim_click_at: frame=%ld move %ld,%ld right=%ld\n",
+                                pend_frame,
+                                pend_x,
+                                pend_y,
+                                pend_right);
+                        }
+                        else if( step == 3 )
+                        {
+                            CmdBus_PushMouseButton(
+                                &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, btn, (int)pend_x, (int)pend_y);
+                        }
+                        else if( step >= 4 )
+                        {
+                            CmdBus_PushMouseButton(
+                                &bus, TORIRS_CMD_INPUT_MOUSE_UP, btn, (int)pend_x, (int)pend_y);
+                            fprintf(stderr, "sim_click_at: released %ld,%ld\n", pend_x, pend_y);
+                            pend_frame = -1;
+                        }
+                    }
+                }
             }
 
             LibToriRS_Input_Begin(input, now);
@@ -1045,6 +1125,44 @@ main(
             PlatformSDL2_Present(sdl);
             if( !replay )
                 PlatformSDL2_Delay(1);
+        }
+
+        /* TORIRS_EXIT_BMP=path: dump the final frame on exit (live-server
+         * smoke runs under TORIRS_MAX_FRAMES + SDL dummy driver). */
+        if( getenv("TORIRS_EXIT_BMP") )
+        {
+            if( getenv("TORIRS_NET_DEBUG") && app.tree )
+            {
+                for( int t = 0; t < 14; t++ )
+                    fprintf(
+                        stderr,
+                        "exit: tab %d overlay=%d owner=%d\n",
+                        t,
+                        app.slots.side_overlay_id[t],
+                        app.slots.side_owner_index[t]);
+                for( uint32_t i = 0; i < app.tree->component_count; i++ )
+                {
+                    struct UITreeComponent const* c = &app.tree->components[i];
+                    if( c->type == UIELEM_BUILTIN_TAB_ICONS )
+                        fprintf(
+                            stderr,
+                            "exit: tab_icon idx=%u tab=%d freed=%d hide=%d scene=%d x=%d y=%d\n",
+                            i,
+                            c->u.tab_icon.tabno,
+                            (int)c->freed,
+                            (int)c->behavior.hide,
+                            c->u.tab_icon.scene_id,
+                            c->position.abs_x,
+                            c->position.abs_y);
+                }
+            }
+            int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+            assert(pixels);
+            App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            bmp_write_file(
+                getenv("TORIRS_EXIT_BMP"), pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            printf("wrote %s\n", getenv("TORIRS_EXIT_BMP"));
+            free(pixels);
         }
 
         if( replay )

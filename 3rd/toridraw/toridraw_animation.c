@@ -21,6 +21,32 @@ ToriDraw_AnimbaseFree(struct ToriDraw_AnimBase* base)
 }
 
 void
+ToriDraw_AnimationSetSeqMeta(
+    struct ToriDraw_Animation* anim,
+    struct ToriDraw_AnimSeqMeta const* meta)
+{
+    if( !anim || !meta )
+        return;
+
+    free(anim->walkmerge);
+    anim->walkmerge = NULL;
+    if( meta->walkmerge )
+    {
+        int count = 0;
+        while( meta->walkmerge[count] != 9999999 )
+            count++;
+        anim->walkmerge = malloc(((size_t)count + 1) * sizeof(int));
+        if( anim->walkmerge )
+            memcpy(anim->walkmerge, meta->walkmerge, ((size_t)count + 1) * sizeof(int));
+    }
+    anim->priority = meta->priority;
+    anim->max_loops = meta->max_loops;
+    anim->preanim_move = meta->preanim_move;
+    anim->postanim_move = meta->postanim_move;
+    anim->duplicate_behavior = meta->duplicate_behavior;
+}
+
+void
 ToriDraw_AnimationFree(struct ToriDraw_Animation* anim)
 {
     if( !anim )
@@ -40,6 +66,7 @@ ToriDraw_AnimationFree(struct ToriDraw_Animation* anim)
         free(anim->frames);
     }
 
+    free(anim->walkmerge);
     free(anim);
 }
 

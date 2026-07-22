@@ -1,18 +1,32 @@
-#ifndef PKT_LC245_2_H
-#define PKT_LC245_2_H
+#ifndef SRC_NET_REV_REVPACKET_H
+#define SRC_NET_REV_REVPACKET_H
 
-#include "packetin.h"
-#include "pkt_map_rebuild.h"
+/*
+ * Revision-independent parsed-packet payloads. Wire opcodes differ per
+ * revision but every payload layout here is shared by the builds this
+ * client targets (lc245_2, lc254); RevPacket.packet_type is the canonical
+ * GameProtoPktName, never a wire opcode.
+ */
+
+#include "pktnames.h"
+
+#include <stdint.h>
+
+struct PktMapRebuild
+{
+    int zonex;
+    int zonez;
+};
 
 // Player info packet is more of a command stream
 // than a fixed format packet
-struct PktNpcInfoLC245_2
+struct PktNpcInfo
 {
     int length;
     uint8_t* data;
 };
 
-struct PktPlayerInfoLC245_2
+struct PktPlayerInfo
 {
     int length;
     uint8_t* data;
@@ -254,6 +268,33 @@ struct PktMapAnim
     int delay;  /* g2 */
 };
 
+/* One decoded zone sub-packet from UPDATE_ZONE_PARTIAL_ENCLOSED. */
+struct PktZoneSubPacket
+{
+    enum GameProtoPktName name;
+    union
+    {
+        struct PktLocAddChange _loc_add_change;
+        struct PktLocDel _loc_del;
+        struct PktLocAnim _loc_anim;
+        struct PktObjAdd _obj_add;
+        struct PktObjDel _obj_del;
+        struct PktObjReveal _obj_reveal;
+        struct PktObjCount _obj_count;
+        struct PktLocMerge _loc_merge;
+        struct PktMapProjAnim _map_projanim;
+        struct PktMapAnim _map_anim;
+    };
+};
+
+struct PktUpdateZoneEnclosed
+{
+    int base_x; /* g1 */
+    int base_z; /* g1 */
+    int count;
+    struct PktZoneSubPacket* entries; /* heap-allocated */
+};
+
 struct PktCamLookAt
 {
     int local_x; /* g2 */
@@ -297,12 +338,15 @@ struct PktIfOpenMainSide
     int side_component_id; /* g2 */
 };
 
+/* Always 6 bytes on the wire: p1 type + p2 + p2 + p1. Field meaning varies:
+ * type 1 = npc slot in `id`; type 2-6 = tile target (id=x, z, height=y);
+ * type 10 = player slot in `id`; type 255/-1 = clear. */
 struct PktHintArrow
 {
-    int type; /* g1: 1=NPC 2=player 3+=tile */
-    int id;   /* g2: entity id or tile x/z depending on type */
-    int z;    /* g2 (tile target only) */
-    int height; /* g1 (tile target only) */
+    int type;   /* g1 */
+    int id;     /* g2: npc/player slot, or tile x */
+    int z;      /* g2: tile z (types 2-6) */
+    int height; /* g1: height offset (types 2-6) */
 };
 
 struct PktUpdatePid
@@ -340,15 +384,81 @@ struct PktSetMultiway
     int multiway; /* g1: 1=in multicombat zone */
 };
 
-struct RevPacket_LC245_2
+struct PktUpdateIgnoreList
 {
-    enum PacketInType_LC245_2 packet_type;
+    int count;
+    int64_t* names37; /* heap-allocated, count entries */
+};
+
+struct PktUpdateFriendList
+{
+    int64_t name37; /* g8 */
+    int world;      /* g1: 0=offline, >0 world/node id */
+};
+
+struct PktFriendListLoaded
+{
+    int status; /* g1: 2 = connected */
+};
+
+struct PktUpdateRebootTimer
+{
+    int ticks; /* g2 */
+};
+
+struct PktLastLoginInfo
+{
+    int last_ip;             /* g4 */
+    int days_since_login;    /* g2 */
+    int days_since_recovery; /* g1 */
+    int unread_messages;     /* g2 */
+    int member_warning;      /* g1 (trailing byte) */
+};
+
+struct PktTutFlash
+{
+    int tab; /* g1 */
+};
+
+struct PktTutOpen
+{
+    int component_id; /* g2 */
+};
+
+struct PktSynthSound
+{
+    int id;    /* g2 */
+    int loops; /* g1 */
+    int delay; /* g2 */
+};
+
+struct PktMidiSong
+{
+    int id; /* g2 */
+};
+
+struct PktMidiJingle
+{
+    int id;    /* g2 */
+    int delay; /* g2 */
+};
+
+struct PktSetPlayerOp
+{
+    int slot;    /* g1: op slot 1-5 */
+    int primary; /* g1: 1 = left-click priority op */
+    char* text;  /* gjstr, heap */
+};
+
+struct RevPacket
+{
+    enum GameProtoPktName packet_type;
 
     union
     {
         struct PktMapRebuild _map_rebuild;
-        struct PktNpcInfoLC245_2 _npc_info;
-        struct PktPlayerInfoLC245_2 _player_info;
+        struct PktNpcInfo _npc_info;
+        struct PktPlayerInfo _player_info;
         struct PktUpdateInvFull _update_inv_full;
         struct PktIfSetTab _if_settab;
         struct PktIfOpenChat _if_openchat;
@@ -373,6 +483,7 @@ struct RevPacket_LC245_2
         struct PktChatFilterSettings _chat_filter_settings;
         struct PktUpdateZonePartialFollows _update_zone_partial_follows;
         struct PktUpdateZoneFullFollows _update_zone_full_follows;
+        struct PktUpdateZoneEnclosed _update_zone_enclosed;
         struct PktLocAddChange _loc_add_change;
         struct PktLocDel _loc_del;
         struct PktLocAnim _loc_anim;
@@ -396,14 +507,25 @@ struct RevPacket_LC245_2
         struct PktUpdateInvStopTransmit _update_inv_stop_transmit;
         struct PktUpdateInvPartial _update_inv_partial;
         struct PktSetMultiway _set_multiway;
+        struct PktUpdateIgnoreList _update_ignorelist;
+        struct PktUpdateFriendList _update_friendlist;
+        struct PktFriendListLoaded _friendlist_loaded;
+        struct PktUpdateRebootTimer _update_reboot_timer;
+        struct PktLastLoginInfo _last_login_info;
+        struct PktTutFlash _tut_flash;
+        struct PktTutOpen _tut_open;
+        struct PktSynthSound _synth_sound;
+        struct PktMidiSong _midi_song;
+        struct PktMidiJingle _midi_jingle;
+        struct PktSetPlayerOp _set_player_op;
     };
 };
 
-/** FIFO node for parsed packets awaiting exec (v0 packets_lc245_2 list). */
-struct RevPacket_LC245_2_Item
+/** FIFO node for parsed packets awaiting exec (v0 packets list). */
+struct RevPacketItem
 {
-    struct RevPacket_LC245_2 packet;
-    struct RevPacket_LC245_2_Item* next_nullable;
+    struct RevPacket packet;
+    struct RevPacketItem* next_nullable;
 };
 
 #endif

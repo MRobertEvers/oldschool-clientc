@@ -234,6 +234,13 @@ struct ToriRS_Npctype
     int* retextures_from;
     int* retextures_to;
     int retexture_count;
+    /* Movement animation set (dat1 config; -1 = none). This rev's NPC config
+     * has no turnanim/runanim — turning falls back to walkanim. */
+    int readyanim;
+    int walkanim;
+    int walkanim_b;
+    int walkanim_r;
+    int walkanim_l;
 };
 
 struct ToriRS_Idk
@@ -273,6 +280,15 @@ struct ToriRS_Objtype
     int recolor_count;
     struct ToriRS_Param* params;
     int param_count;
+    /* Worn-equipment model ids for the player appearance build (-1 = none). */
+    int manwear;
+    int manwear2;
+    int manwear3;
+    int womanwear;
+    int womanwear2;
+    int womanwear3;
+    int manwear_offset_y;
+    int womanwear_offset_y;
 };
 
 struct ToriRS_Sequence

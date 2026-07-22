@@ -87,6 +87,15 @@ ToriRS_ObjtypeFromRSCacheDat1(
     if( src->recol_count > 0 )
         torirs_objtype_copy_recolors(objtype, src->recol_s, src->recol_d, src->recol_count);
 
+    objtype->manwear = src->manwear;
+    objtype->manwear2 = src->manwear2;
+    objtype->manwear3 = src->manwear3;
+    objtype->womanwear = src->womanwear;
+    objtype->womanwear2 = src->womanwear2;
+    objtype->womanwear3 = src->womanwear3;
+    objtype->manwear_offset_y = src->manwearOffsetY;
+    objtype->womanwear_offset_y = src->womanwearOffsetY;
+
     return objtype;
 }
 
@@ -160,6 +169,13 @@ ToriRS_ObjtypeFromRSCacheDat2(
             objtype, src->recolors_from, src->recolors_to, src->recolor_count);
 
     torirs_objtype_copy_params(objtype, &src->params);
+
+    objtype->manwear = src->male_model_0;
+    objtype->manwear2 = src->male_model_1;
+    objtype->manwear3 = src->male_model_2;
+    objtype->womanwear = src->female_model_0;
+    objtype->womanwear2 = src->female_model_1;
+    objtype->womanwear3 = src->female_model_2;
 
     return objtype;
 }

@@ -14,6 +14,7 @@ World_EntityListInit(struct World_EntityList* list)
     World_EntityPoolInit(&list->npc, (int)sizeof(struct WorldEntity_NPC));
     World_EntityPoolInit(&list->projectile, (int)sizeof(struct WorldEntity_Projectile));
     World_EntityPoolInit(&list->spotanim, (int)sizeof(struct WorldEntity_Spotanim));
+    World_EntityPoolInit(&list->obj_stack, (int)sizeof(struct WorldEntity_ObjStack));
 }
 
 void
@@ -27,4 +28,5 @@ World_EntityListFree(struct World_EntityList* list)
     World_EntityPoolFree(&list->npc);
     World_EntityPoolFree(&list->projectile);
     World_EntityPoolFree(&list->spotanim);
+    World_EntityPoolFree(&list->obj_stack);
 }

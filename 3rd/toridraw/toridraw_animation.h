@@ -31,7 +31,38 @@ struct ToriDraw_Animation
      * index becomes (frame_count - frame_step), clamped to 0 if out of range.
      * -1 or 0 => full loop to frame 0. */
     int frame_step;
+
+    /* Sequence-config metadata (reference SeqType), carried so entity anim
+     * stepping and the walkmerge blend need no cache access at draw time.
+     * Populated via ToriDraw_AnimationSetSeqMeta; zero/NULL when the source
+     * config had none. */
+    /** Ascending transform-group ids driven by the SECONDARY (walk) seq when
+     * this animation plays as primary, 9999999-terminated (seq opcode 3).
+     * NULL = no merge: primary drives every group. Owned. */
+    int* walkmerge;
+    int priority;           /* seq opcode 5 (reference default 5) */
+    int max_loops;          /* seq opcode 8 (reference default 99) */
+    int preanim_move;       /* seq opcode 9 (PreanimMove) */
+    int postanim_move;      /* seq opcode 10 (PostanimMove) */
+    int duplicate_behavior; /* seq opcode 11 (RestartMode) */
 };
+
+/* Seq-config values to attach to an assembled animation. walkmerge (may be
+ * NULL) is deep-copied up to its 9999999 sentinel. */
+struct ToriDraw_AnimSeqMeta
+{
+    int const* walkmerge;
+    int priority;
+    int max_loops;
+    int preanim_move;
+    int postanim_move;
+    int duplicate_behavior;
+};
+
+void
+ToriDraw_AnimationSetSeqMeta(
+    struct ToriDraw_Animation* anim,
+    struct ToriDraw_AnimSeqMeta const* meta);
 
 void
 ToriDraw_AnimationFree(struct ToriDraw_Animation* anim);

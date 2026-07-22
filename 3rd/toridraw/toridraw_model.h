@@ -95,6 +95,19 @@ ToriDraw_ModelAnimateFrame(
     const struct ToriDraw_AnimBase* base,
     const struct ToriDraw_AnimFrame* frame);
 
+/* Walkmerge blend (reference Model.maskAnimate): `walkmerge` is the ascending
+ * 9999999-terminated list of transform groups the SECONDARY frame drives; the
+ * PRIMARY frame drives every other group. ORIGIN ops apply in both passes.
+ * Falls back to a plain primary apply when walkmerge/secondary are absent.
+ * Both frames must share `base` (same rig). */
+void
+ToriDraw_ModelAnimateFrameMasked(
+    struct ToriDraw_Model* model,
+    const struct ToriDraw_AnimBase* base,
+    const struct ToriDraw_AnimFrame* primary,
+    const struct ToriDraw_AnimFrame* secondary,
+    const int* walkmerge);
+
 struct ToriDraw_SkeletalAnim;
 
 void

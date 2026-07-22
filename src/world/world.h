@@ -42,6 +42,26 @@ typedef int (*World_HeightFn)(
     int world_z,
     int level);
 
+/*
+ * Sequence-config timing source for entity animation stepping. Keeps the
+ * World free of renderer/cache types: the app implements the getters over
+ * the scene animation registry (ToriDraw_Animation carries the seq meta).
+ * Getters return sane defaults for unknown/unloaded seq ids:
+ *   frame_count 0, frame_duration 1, frame_step 0, max_loops 99,
+ *   priority 5, duplicate_behavior -1, preanim_move 0.
+ */
+struct World_SeqSource
+{
+    void* userdata;
+    int (*frame_count)(void* userdata, int seq_id);
+    int (*frame_duration)(void* userdata, int seq_id, int frame);
+    int (*frame_step)(void* userdata, int seq_id);
+    int (*max_loops)(void* userdata, int seq_id);
+    int (*priority)(void* userdata, int seq_id);
+    int (*duplicate_behavior)(void* userdata, int seq_id);
+    int (*preanim_move)(void* userdata, int seq_id);
+};
+
 struct World
 {
     int _base_tile_x;
@@ -55,6 +75,12 @@ struct World
     int _scene_size;
 
     bool load_complete;
+
+    /** Client cycle counter (reference loopCycle): advanced by World_Cycle,
+     * stamps exact-move windows / spotanim delays / hitmark expiry. */
+    int cycle;
+
+    struct World_SeqSource seq_source;
 
     struct World_EntityList entities;
 
@@ -334,6 +360,149 @@ World_NpcSetAnimation(
 
 #define WORLD_ANIMATION_TYPE_PRIMARY 0
 #define WORLD_ANIMATION_TYPE_SECONDARY 1
+
+void
+World_SetSeqSource(
+    struct World* world,
+    struct World_SeqSource const* source);
+
+/* Server-driven primary (transient) animation with reference semantics:
+ * same-seq RestartMode RESET zeroes frame/cycle/loop, RESETLOOP zeroes the
+ * loop counter; otherwise the new seq applies only when its priority >= the
+ * playing seq's. Records preanim_route_length. */
+void
+World_PlayerSetPrimaryAnimation(
+    struct World* world,
+    int idx,
+    int seq_id,
+    int delay);
+
+void
+World_NpcSetPrimaryAnimation(
+    struct World* world,
+    int idx,
+    int seq_id,
+    int delay);
+
+/* Reference EXACTMOVE: scene-local tiles, cycle deltas from now. */
+void
+World_PlayerSetExactMove(
+    struct World* world,
+    int idx,
+    int start_x,
+    int start_z,
+    int end_x,
+    int end_z,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int facing);
+
+void
+World_PlayerSetSpotanim(
+    struct World* world,
+    int idx,
+    int spotanim_id,
+    int height,
+    int cycle_delay);
+
+void
+World_NpcSetSpotanim(
+    struct World* world,
+    int idx,
+    int spotanim_id,
+    int height,
+    int cycle_delay);
+
+/* CHANGE_TYPE (transmog): caller passes the new size + anim set (with the
+ * reference walkanim_l/r swap already applied). */
+void
+World_NpcSetType(
+    struct World* world,
+    int idx,
+    int npc_id,
+    int size,
+    struct WorldEntityFacet_IdleAnimations const* idle);
+
+void
+World_PlayerSetAppearance(
+    struct World* world,
+    int idx,
+    int const slots[12],
+    int const colors[5],
+    struct WorldEntityFacet_IdleAnimations const* idle,
+    char const* name,
+    int combat_level,
+    int gender);
+
+void
+World_PlayerAddHitmark(
+    struct World* world,
+    int idx,
+    int damage_type,
+    int damage,
+    int health,
+    int total_health);
+
+void
+World_NpcAddHitmark(
+    struct World* world,
+    int idx,
+    int damage_type,
+    int damage,
+    int health,
+    int total_health);
+
+/* ---- zone-packet world mutations ---- */
+
+/** Ground item stack add: takes ownership of an already-created scene
+ * element. One stack entity per (tile, obj) pair; re-adding refreshes the
+ * count. Returns the pool index or -1. */
+int
+World_ObjStackAdd(
+    struct World* world,
+    int element_id,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count);
+
+/** Find a stack by tile + obj id (obj_id -1 = any). Returns pool idx or -1. */
+int
+World_ObjStackFind(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id);
+
+/** Remove a stack (emits EntityRemoved for its element). */
+void
+World_ObjStackDel(
+    struct World* world,
+    int idx);
+
+/** Update a stack's count in place (same obj -> same model). */
+void
+World_ObjStackSetCount(
+    struct World* world,
+    int idx,
+    int count);
+
+/** Find a scenery entity by tile (+ loc shape from the zone packet's info
+ * byte when >= 0). Returns the scenery pool index or -1. */
+int
+World_SceneryFindAt(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level);
+
+/** LOC_DEL: remove the scenery entity + its scene element (event emitted). */
+void
+World_SceneryRemove(
+    struct World* world,
+    int idx);
 
 int
 World_EventsCount(struct World* world);

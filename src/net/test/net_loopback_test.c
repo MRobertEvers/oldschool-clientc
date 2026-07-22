@@ -7,7 +7,7 @@
 #include "net/mock/mock_server.h"
 #include "net/net.h"
 #include "net/rev/gameproto_revisions.h"
-#include "net/rev/lc245_2/gameproto_parse.h"
+#include "net/rev/gameproto_parse.h"
 #include "net/rev/lc245_2/packetin.h"
 
 #include "cmd/cmdbus.h"
@@ -86,7 +86,7 @@ main(void)
     /* Scripted VARP_SMALL(id=42, val=5). */
     {
         uint8_t body[3] = { 0x00, 0x2A, 0x05 };
-        int code = GameProtoRev_LC245_2()->packetin_code(PKTIN_LC245_2_VARP_SMALL);
+        int code = GameProtoRev_LC245_2()->packetin_wire(PKT_NAME_VARP_SMALL);
         n = MockServer_Packet(&server, buf, sizeof(buf), code, body, sizeof(body));
         feed_recv(&net, buf, n);
     }
@@ -96,7 +96,7 @@ main(void)
      * the packet reaches the FIFO with the right type. */
     {
         uint8_t body[16];
-        int code = GameProtoRev_LC245_2()->packetin_code(PKTIN_LC245_2_UPDATE_RUNENERGY);
+        int code = GameProtoRev_LC245_2()->packetin_wire(PKT_NAME_UPDATE_RUNENERGY);
         int size = GameProtoRev_LC245_2()->packetin_size(code);
         int blen = size > 0 ? size : 1;
         memset(body, 0, sizeof(body));
@@ -107,22 +107,22 @@ main(void)
 
     /* Drain the parsed FIFO and check types + a decoded field. */
     {
-        struct RevPacket_LC245_2 packet;
+        struct RevPacket packet;
         int got_varp = 0;
         int got_energy = 0;
         while( ToriRS_Network_PopPacket(&net, &packet) )
         {
-            if( packet.packet_type == PKTIN_LC245_2_VARP_SMALL )
+            if( packet.packet_type == PKT_NAME_VARP_SMALL )
             {
                 got_varp = 1;
                 assert(packet._varp_small.variable == 42);
                 assert(packet._varp_small.value == 5);
             }
-            else if( packet.packet_type == PKTIN_LC245_2_UPDATE_RUNENERGY )
+            else if( packet.packet_type == PKT_NAME_UPDATE_RUNENERGY )
             {
                 got_energy = 1;
             }
-            gameproto_free_lc245_2(&packet);
+            gameproto_free(&packet);
         }
         assert(got_varp);
         assert(got_energy);

@@ -16,17 +16,44 @@ struct WorldEntityFacet_IdleAnimations
 
 struct WorldEntityFacet_AnimationStep
 {
-    uint16_t anim_id;
-    uint8_t frame;
-    uint8_t cycle;
-    uint8_t delay;
-    uint8_t loop;
+    uint16_t anim_id; /* (uint16_t)-1 = none */
+    uint16_t frame;   /* dat1 seqs run up to 512 frames */
+    uint16_t cycle;   /* per-frame tick accumulator (durations exceed 255) */
+    uint8_t delay;    /* primary start-delay countdown (reference primaryAnimDelay) */
+    uint8_t loop;     /* primary loop counter vs seq maxloops */
 };
 
 struct WorldEntityFacet_Animation
 {
     struct WorldEntityFacet_AnimationStep primary;
     struct WorldEntityFacet_AnimationStep secondary;
+    /* Route length at the moment the primary seq was applied (reference
+     * preanimRouteLength; drives the PreanimMove.DELAYANIM gate). */
+    uint8_t preanim_route_length;
+};
+
+/* Server-forced interpolated move (reference exactMove1/exactMove2).
+ * Tiles are scene-local; cycle stamps are absolute world cycles.
+ * move_end == 0 && move_start == 0 => inactive. */
+struct WorldEntityFacet_ExactMove
+{
+    uint8_t start_x;
+    uint8_t start_z;
+    uint8_t end_x;
+    uint8_t end_z;
+    int move_start;
+    int move_end;
+    uint8_t facing; /* * 512 = yaw */
+};
+
+/* Entity-attached graphic (reference spotanimId/Frame/Cycle/LastCycle). */
+struct WorldEntityFacet_EntitySpotanim
+{
+    int id;         /* -1 = none */
+    int height;
+    int last_cycle; /* absolute world cycle the graphic starts at */
+    int frame;      /* -1 while delayed */
+    int cycle;
 };
 
 /**

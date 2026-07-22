@@ -999,6 +999,45 @@ ToriDraw_SceneElementSetAnimationSeq(
 }
 
 void
+ToriDraw_SceneElementSetSecondaryAnimationSeq(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int seq_id)
+{
+    struct ToriDraw_SceneElement* element;
+
+    assert(scene);
+    assert(td_scene_element_valid(scene, element_id));
+
+    element = td_scene_element_ptr(scene, element_id);
+    assert(element);
+
+    element->anim2_seq_id = seq_id;
+    element->anim2_frame = 0;
+    if( seq_id <= 0 )
+        element->secondary_animation = NULL;
+}
+
+void
+ToriDraw_SceneElementSetAnimFrames(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int primary_frame,
+    int secondary_frame)
+{
+    struct ToriDraw_SceneElement* element;
+
+    assert(scene);
+    assert(td_scene_element_valid(scene, element_id));
+
+    element = td_scene_element_ptr(scene, element_id);
+    assert(element);
+
+    element->anim_frame = primary_frame;
+    element->anim2_frame = secondary_frame;
+}
+
+void
 ToriDraw_SceneElementApplyAnimation(
     struct ToriDraw_Scene* scene,
     int element_id,
@@ -1041,6 +1080,30 @@ ToriDraw_SceneElementApplyAnimation(
             return;
         }
         ToriDraw_ModelAnimateReset(model);
+
+        /* Walkmerge blend: while a primary (action) seq with a walkmerge
+         * mask plays and a secondary (walk) track is bound, the secondary
+         * keeps driving the masked groups (reference maskAnimate). */
+        if( primary && animation->walkmerge && element->secondary_animation &&
+            element->secondary_animation->base && element->secondary_animation->frames &&
+            element->secondary_animation->frame_count > 0 )
+        {
+            struct ToriDraw_Animation* second = element->secondary_animation;
+            int frame2 = element->anim2_frame;
+            if( frame2 < 0 || frame2 >= second->frame_count )
+                frame2 = 0;
+            if( second->frames[frame2].length > 0 )
+            {
+                ToriDraw_ModelAnimateFrameMasked(
+                    model,
+                    animation->base,
+                    &animation->frames[frame],
+                    &second->frames[frame2],
+                    animation->walkmerge);
+                return;
+            }
+        }
+
         ToriDraw_ModelAnimateFrame(model, animation->base, &animation->frames[frame]);
     }
 }
