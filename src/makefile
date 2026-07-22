@@ -323,7 +323,8 @@ test-world: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
 		engine/world_builder/minimap.c painters/painters.c \
-		world/test/world_test_unit.c world/test/world_test_sim.c world/test/world_test_main.c \
+		world/test/world_test_unit.c world/test/world_test_sim.c \
+		world/test/world_test_route.c world/test/world_test_main.c \
 		$(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/world_test
 

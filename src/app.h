@@ -58,6 +58,7 @@ enum
     APP_COM_ID_CROSS = (0x7FFE << 16) | 0,
     APP_COM_ID_MINIMENU = (0x7FFE << 16) | 1,
     APP_COM_ID_HOVERTEXT = (0x7FFE << 16) | 2,
+    APP_COM_ID_ENTITY_OVERLAY = (0x7FFE << 16) | 3,
 };
 
 /* Which on-disk cache format cache_dir holds. dat2 is the js5-era cache
@@ -143,6 +144,22 @@ struct App
     struct PaintersBuffer* painter_buffer;
     struct ToriDraw_Camera world_camera;
     struct ToriDraw_Position world_camera_pos;
+    /* Reference orbit camera (Client-TS followCamera): velocity-driven
+     * yaw/pitch, a 1/16-eased anchor that trails the player, and a terrain
+     * pitch clamp (cameraPitchClamp, 24.8 fixed) that keeps the eye above
+     * nearby ground. cam_key_* latch arrow-held state for the follow step,
+     * which runs before key sampling in the frame. */
+    int orbit_yaw;
+    int orbit_pitch;
+    int orbit_yaw_vel;
+    int orbit_pitch_vel;
+    int orbit_x;
+    int orbit_z;
+    int camera_pitch_clamp;
+    int cam_key_left;
+    int cam_key_right;
+    int cam_key_up;
+    int cam_key_down;
     int world_active; /* 1 once Task_WorldLoad completed */
     /* Latches the lazy load so a map that fails is not re-queued every frame. */
     int world_load_attempted;
@@ -162,6 +179,38 @@ struct App
     struct World_PickSet world_pickset;
     struct UITreeEmitDesc world_emit_desc;
     int world_view_valid;
+    /* Minimap widget: cached emit desc (on-screen box + the rotation/anchor
+     * the blit drew with) for click-to-walk, and the destination flag tile
+     * (scene coords, -1 = none; reference minimapFlagX/Z). */
+    struct UITreeEmitDesc minimap_emit_desc;
+    int minimap_view_valid;
+    int minimap_flag_x;
+    int minimap_flag_z;
+    /* Per-frame minimap overlay dots, filled by the GET_MINIMAP_DOTS host
+     * request during the emit walk and consumed by the same frame's draw. */
+    struct UITreeMinimapDot minimap_dots[128];
+    int minimap_dot_count;
+    /* Per-frame entity overlay primitives (health bars + hitsplats), filled
+     * by the GET_ENTITY_OVERLAYS host request and consumed by the same
+     * frame's draw. Reference drawEntities budget: each entity contributes at
+     * most 2 bar rects + 4 hitsplats x 3 primitives. */
+    struct UITreeEntityOverlay entity_overlays[512];
+    int entity_overlay_count;
+    /** Scene id of the hitmarks sprite pack, resolved once at boot. */
+    int hitmarks_scene_id;
+
+    /* Persistent IF_SETTEXT store (reference keeps text on the shared
+     * IfType.list config): the server sends journal/bonus texts BEFORE the
+     * owning interface mounts, so they must survive and re-apply whenever
+     * tree topology changes (tree->generation). */
+    struct AppIfText
+    {
+        int com_id;
+        char* text;
+    }* if_texts;
+    int if_text_count;
+    int if_text_cap;
+    uint32_t if_text_applied_gen;
     int world_mouse_in_viewport;
     int world_mouse_x; /* last input mouse, canvas coords */
     int world_mouse_y;
@@ -334,6 +383,10 @@ App_Shutdown(struct App* app);
  * (and initial assets) are built. App_Render draws a loading bar meanwhile. */
 void
 App_OpenRootInterface(struct App* app, int interface_id);
+
+/** IF_SETTEXT: persist (reference IfType.list semantics) + apply if mounted. */
+void
+App_IfTextSet(struct App* app, int com_id, char const* text);
 
 /** Pump the boot to completion (headless harnesses and tests only — the
  * interactive loop must NOT call this; it renders the loading state

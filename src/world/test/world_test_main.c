@@ -16,6 +16,9 @@ main(void)
     test_spotanim();
     test_scenery();
     test_cycle_movers();
+    test_entity_face();
+    test_try_route();
+    test_route_coordinate_coincidence();
 
     sim_path_followers();
     sim_projectile_barrage();

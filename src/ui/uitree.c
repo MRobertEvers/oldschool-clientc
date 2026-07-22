@@ -346,6 +346,8 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "minimenu";
     case UIELEM_BUILTIN_HOVERTEXT:
         return "hovertext";
+    case UIELEM_BUILTIN_ENTITY_OVERLAY:
+        return "entity_overlay";
     case UIELEM_BUILTIN_MINIMAP:
         return "minimap";
     case UIELEM_BUILTIN_WORLD:
@@ -1113,6 +1115,19 @@ UITree_ClearChildren(
     if( owner_idx < 0 || (uint32_t)owner_idx >= tree->component_count )
         return;
     struct UITreeComponent* c = &tree->components[owner_idx];
+    /* Reclaim the detached subtree, not just unlink it: an orphaned copy
+     * keeps its component_id and shadows the remounted nodes in
+     * FindByComponentId/ResolveComponentTarget (server IF_SETTEXT then lands
+     * on the invisible orphan — the "Weapon:%1" bug). */
+    {
+        int32_t child = c->first_child;
+        while( child >= 0 )
+        {
+            int32_t const next = tree->components[child].next_sibling;
+            uitree_reclaim_subtree(tree, child);
+            child = next;
+        }
+    }
     c->first_child = -1;
     c->is_dirty = 1;
     tree->generation++;

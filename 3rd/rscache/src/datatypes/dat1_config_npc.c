@@ -65,6 +65,7 @@ init_npc(struct RSCache_Dat1ConfigNpc* npc)
     npc->resizev = 128;
     npc->alwaysontop = false;
     npc->headicon = -1;
+    npc->turnspeed = 32;
     npc->ambient = 0;
     npc->contrast = 0;
 }
@@ -94,6 +95,7 @@ RSCache_Dat1ConfigNpcDecodeOne(struct RSCache_Buffer* buffer)
     npc->resizev = 128;
     npc->alwaysontop = false;
     npc->headicon = -1;
+    npc->turnspeed = 32;
     npc->ambient = 0;
     npc->contrast = 0;
 
@@ -295,6 +297,11 @@ RSCache_Dat1ConfigNpcDecodeOne(struct RSCache_Buffer* buffer)
         case 102:
         {
             npc->headicon = g2(buffer);
+            break;
+        }
+        case 103:
+        {
+            npc->turnspeed = g2(buffer);
             break;
         }
         default:

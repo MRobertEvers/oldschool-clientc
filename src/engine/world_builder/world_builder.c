@@ -132,6 +132,7 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
     assert(map_locs && "Map scenery must be found");
 
     world_builder_minimap_add_chunk_walls(builder, mapx, mapz);
+    world_builder_minimap_add_chunk_mapfunctions(builder, mapx, mapz);
 
     for( int i = 0; i < map_locs->locs_count; i++ )
     {
@@ -174,6 +175,7 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
     world_collision_apply_bridges(builder);
     world_contour_ground(builder);
     world_builder_apply_wall_decor_offsets(builder);
+    world_builder_minimap_spread_mapfunctions(builder);
 
     if( builder->decor_buildmap )
     {
@@ -216,6 +218,19 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
                 }
             }
         }
+    }
+
+    /* Persist the raw settings bytes (reference mapl) before the flag map
+     * dies — the per-frame roof check (Client-TS roofCheck) needs
+     * REMOVE_ROOF/LINK_BELOW at play time, not just at build time. */
+    if( builder->flag_map && world->tile_flags )
+    {
+        for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
+            for( int x = 0; x < scene_size; x++ )
+                for( int z = 0; z < scene_size; z++ )
+                    world->tile_flags
+                        [x + z * scene_size + level * scene_size * scene_size] =
+                        (uint8_t)flag_map_get(builder->flag_map, x, z, level);
     }
 
     if( builder->flag_map )

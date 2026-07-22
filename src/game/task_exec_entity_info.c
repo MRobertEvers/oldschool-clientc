@@ -85,7 +85,15 @@ local_player_pid(struct RS_EntitySync const* esync)
 
 /* Local player's scene tile (fallback: classic scene center) for relative
  * adds. Server-local coords are classic-scene relative; scene_off maps them
- * into our map-square-aligned scene. */
+ * into our map-square-aligned scene.
+ *
+ * The tile is routeX[0]/routeZ[0], NOT grid_position: the reference bases
+ * every relative add on `localPlayer.routeX[0] + dx` (Client.ts:8034, 8369),
+ * which is the player's *authoritative destination* tile — updated the moment
+ * a walk step is pushed. grid_position only catches up when the draw position
+ * arrives, so mid-walk it lags by one or more tiles and every NPC/player
+ * added or teleported during that window landed on the wrong grid square
+ * while the local player looked correct. */
 static void
 player_local_tile(
     struct Task_ExecPlayerInfo* self,
@@ -103,8 +111,8 @@ player_local_tile(
             World_EntityPoolGet(&self->app->world->entities.player, world_idx);
         if( player )
         {
-            *out_x = player->grid_position.x;
-            *out_z = player->grid_position.z;
+            *out_x = player->pathing.route_x[0];
+            *out_z = player->pathing.route_z[0];
             *out_level = player->grid_position.level;
         }
     }
@@ -256,12 +264,12 @@ player_apply_op(
         break;
     }
     case PKT_PLAYER_INFO_OP_FACE_COORD:
-        /* Wire is absolute half-tiles ((tile << 1) + 1); store scene tiles. */
-        World_PlayerFaceCoord(
-            world,
-            idx,
-            (op->_face_coord.x >> 1) - world->_base_tile_x,
-            (op->_face_coord.z >> 1) - world->_base_tile_z);
+        /* Raw wire half-tiles: World_Cycle converts them (the reference keeps
+         * faceSquareX/Z absolute and subtracts mapBuildBase at use time, so
+         * 0,0 stays the "no target" sentinel). */
+        World_PlayerFaceCoord(world, idx, op->_face_coord.x, op->_face_coord.z);
+        entity_debug_log(
+            "entity_sync: player faces coord %d,%d\n", op->_face_coord.x, op->_face_coord.z);
         break;
     case PKT_PLAYER_INFO_OP_SAY:
         if( op->_say.text )
@@ -581,8 +589,9 @@ npc_local_tile(
             World_EntityPoolGet(&self->app->world->entities.player, world_idx);
         if( player )
         {
-            *out_x = player->grid_position.x;
-            *out_z = player->grid_position.z;
+            /* routeX[0], not grid_position — see player_local_tile. */
+            *out_x = player->pathing.route_x[0];
+            *out_z = player->pathing.route_z[0];
             *out_level = player->grid_position.level;
         }
     }
@@ -710,16 +719,17 @@ npc_apply_op(
         {
             int entity_id = op->_face_entity.entity_id == 65535 ? -1 : op->_face_entity.entity_id;
             World_NpcFaceEntity(world, idx, entity_id);
+            entity_debug_log("entity_sync: npc %d faces entity %d\n", self->cur_slot, entity_id);
         }
         break;
     case PKT_NPC_INFO_OP_FACE_COORD:
-        /* Wire is absolute half-tiles ((tile << 1) + 1); store scene tiles. */
+        /* Raw wire half-tiles — see the player branch. */
         if( idx >= 0 )
-            World_NpcFaceCoord(
-                world,
-                idx,
-                (op->_face_coord.x >> 1) - world->_base_tile_x,
-                (op->_face_coord.z >> 1) - world->_base_tile_z);
+        {
+            World_NpcFaceCoord(world, idx, op->_face_coord.x, op->_face_coord.z);
+            entity_debug_log(
+                "entity_sync: npc faces coord %d,%d\n", op->_face_coord.x, op->_face_coord.z);
+        }
         break;
     case PKT_NPC_INFO_OP_SAY:
         /* Overhead text rendering is a flagged follow-on; nothing to store. */

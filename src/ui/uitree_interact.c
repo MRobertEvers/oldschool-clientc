@@ -739,6 +739,17 @@ interact_click(
             out->need_redraw = 1;
             return;
         }
+        if( hit_c->type == UIELEM_BUILTIN_MINIMAP )
+        {
+            /* Minimap click-to-walk: the widget has no component id, so it
+             * cannot travel through clicked_com_id; report it as a chrome
+             * gesture and let the app do the tile math. */
+            out->minimap_click = 1;
+            out->minimap_click_x = click_x;
+            out->minimap_click_y = click_y;
+            out->need_redraw = 1;
+            return;
+        }
     }
 
     /* Prefer interactive hit so clickMask targets beat decorative overlays. */

@@ -76,6 +76,9 @@ void test_projectile(void);
 void test_spotanim(void);
 void test_scenery(void);
 void test_cycle_movers(void);
+void test_entity_face(void);
+void test_try_route(void);
+void test_route_coordinate_coincidence(void);
 
 /* Simulations */
 void sim_path_followers(void);

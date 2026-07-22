@@ -34,6 +34,8 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_SCENE_FONT_HAS:
     case UITREE_HOST_SCENE_MODEL_HAS:
     case UITREE_HOST_GET_INV_SOURCE_SLOT:
+    case UITREE_HOST_GET_MINIMAP_DOTS:
+    case UITREE_HOST_GET_ENTITY_OVERLAYS:
         return 0;
     case UITREE_HOST_APPLY_BUTTON_CLICK:
     case UITREE_HOST_SET_SELECTED_TAB:

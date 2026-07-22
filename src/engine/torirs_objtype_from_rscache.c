@@ -64,6 +64,7 @@ ToriRS_ObjtypeFromRSCacheDat1(
     }
 
     torirs_copy_menu_actions(objtype->inv_actions, src->iop);
+    torirs_copy_menu_actions(objtype->ground_actions, src->op);
     objtype->stackable = src->stackable ? 1 : 0;
     objtype->inventory_model_id = src->model;
     objtype->zoom2d = src->zoom2d;
@@ -148,6 +149,7 @@ ToriRS_ObjtypeFromRSCacheDat2(
     }
 
     torirs_copy_menu_actions(objtype->inv_actions, src->if_actions);
+    torirs_copy_menu_actions(objtype->ground_actions, src->actions);
     objtype->stackable = src->stacking_behaviour != 0 ? 1 : 0;
     objtype->inventory_model_id = src->inventory_model_id;
     objtype->zoom2d = src->zoom2d;

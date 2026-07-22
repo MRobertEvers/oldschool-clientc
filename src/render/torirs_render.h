@@ -84,6 +84,11 @@ struct ToriRS_RenderCommand_Model
     /* World-emitter models only: the executor may mouse-hittest the model in
      * the window right after projection (see torirs_pick.h). */
     bool pickable;
+    /** Reference Model.useAABBMouseCheck: hit-test the projected bounding box
+     *  rather than each face. Ground objs / npcs / players set it; a small,
+     *  thin item model (a dropped pickaxe) has almost no face area at world
+     *  scale and is otherwise unclickable. */
+    bool pick_aabb;
     bool pick_terrain;
     int pick_tile_x; /* -1 for non-terrain */
     int pick_tile_z;

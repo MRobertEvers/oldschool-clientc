@@ -16,13 +16,15 @@
 /*
  * Dat1 sequences.
  *
- * "seq.dat" gives a frame list where each entry is
- *   (ANIMATIONS-table archive id << 16) | frame index in that archive.
- * One archive holds a set of frames plus the single base they were built
- * against, so a sequence is assembled by loading every distinct archive it
- * names and picking frames out of them in sequence order. Dat2 splits the same
- * data into a frames archive plus a separate framemap group, which is why the
- * two tasks share only the ToriDraw conversion.
+ * "seq.dat" frame entries are GLOBAL anim-frame ids (reference SeqType
+ * frames[i] = g2). Frames live inside ANIMATIONS-table archives — each
+ * archive holds a set of frames (each tagged with its global id) plus the
+ * single base they were built against. The version-list "anim_index" file
+ * maps global frame id -> archive id (reference OnDemand.animFrameIndex), so
+ * a sequence is assembled by resolving each frame id through anim_index,
+ * loading the named archives, and picking frames out by id. Dat2 splits the
+ * same data into a frames archive plus a separate framemap group, which is
+ * why the two tasks share only the ToriDraw conversion.
  */
 
 enum
@@ -38,8 +40,7 @@ struct Task_Dat1SequenceLoad
     struct ToriDraw_Scene* scene;
     int seq_id;
 
-    /* Protothread cursors: locals do not survive the archive-load yields. */
-    int frame_i;
+    /* Protothread cursor: locals do not survive the archive-load yields. */
     int pending_archive_id;
 };
 
@@ -75,31 +76,57 @@ seq_build_animation(struct Task_Dat1SequenceLoad* self)
     int frame_count;
 
     if( !seq_list || self->seq_id < 0 || self->seq_id >= seq_list->seqs_count )
+    {
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(
+                stderr,
+                "dat1 seq_load: seq=%d no list (list=%p count=%d)\n",
+                self->seq_id,
+                (void*)seq_list,
+                seq_list ? seq_list->seqs_count : -1);
         return NULL;
+    }
 
     seq = &seq_list->seqs[self->seq_id];
     frame_count = seq->frame_count;
     if( frame_count <= 0 || !seq->frames )
+    {
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(
+                stderr,
+                "dat1 seq_load: seq=%d empty (frame_count=%d frames=%p)\n",
+                self->seq_id,
+                frame_count,
+                (void*)seq->frames);
         return NULL;
+    }
     if( frame_count > DAT1_SEQ_MAX_FRAMES )
         frame_count = DAT1_SEQ_MAX_FRAMES;
 
     for( int i = 0; i < frame_count; i++ )
     {
-        int archive_id = (seq->frames[i] >> 16) & 0xFFFF;
-        int frame_idx = seq->frames[i] & 0xFFFF;
-        struct RSCache_Dat1AnimBaseFrames* abf =
-            dat1_buildcache_animbaseframes_get(self->bc, archive_id);
+        int frame_id = seq->frames[i];
+        struct RSCache_Dat1AnimFrame const* frame =
+            dat1_buildcache_anim_frame_get(self->bc, frame_id);
 
-        if( !abf || frame_idx < 0 || frame_idx >= abf->frame_count )
+        if( !frame )
+        {
+            if( getenv("TORIRS_ANIM_DEBUG") )
+                fprintf(
+                    stderr,
+                    "dat1 seq_load: seq=%d frame %d/%d id=%d not in any archive\n",
+                    self->seq_id,
+                    i,
+                    frame_count,
+                    frame_id);
             return NULL;
+        }
 
-        /* Every frame in a dat1 animation archive shares that archive's base,
-         * and a sequence's frames come from archives built against the same
-         * rig, so the first one decides the animation's base. */
+        /* A sequence's frames come from archives built against the same rig,
+         * so the first one decides the animation's base. */
         if( !base )
-            base = abf->base;
-        frames[i] = &abf->frames[frame_idx];
+            base = frame->base;
+        frames[i] = frame;
         delays[i] = seq->delay ? seq->delay[i] : 0;
     }
 
@@ -128,31 +155,39 @@ seq_build_animation(struct Task_Dat1SequenceLoad* self)
     return anim;
 }
 
-/* Next archive the sequence needs that is not cached yet, or -1 when none. */
+/* Next ANIMATIONS archive to load, or -1 when every frame of the sequence
+ * already resolves through the global directory (or nothing is left to
+ * load). LostCity's version list ships a zero-filled "anim_index", so frame
+ * ids cannot be mapped to archives up front — sweep the archive table in
+ * order until the directory covers the needed ids (the reference client
+ * simply loads every archive at login). */
 static int
-seq_next_missing_archive(
-    struct Task_Dat1SequenceLoad* self,
-    int from_frame)
+seq_next_missing_archive(struct Task_Dat1SequenceLoad* self)
 {
     struct RSCache_Dat1ConfigSeqList* seq_list = dat1_buildcache_get_seq_list(self->bc);
     struct RSCache_Dat1ConfigSeq* seq;
+    uint16_t const* versions;
+    int version_count = 0;
+    int unresolved = 0;
 
     if( !seq_list || self->seq_id < 0 || self->seq_id >= seq_list->seqs_count )
         return -1;
-
     seq = &seq_list->seqs[self->seq_id];
     if( !seq->frames )
         return -1;
 
-    for( int i = from_frame; i < seq->frame_count && i < DAT1_SEQ_MAX_FRAMES; i++ )
-    {
-        int archive_id = (seq->frames[i] >> 16) & 0xFFFF;
-        if( !dat1_buildcache_animbaseframes_get(self->bc, archive_id) )
-        {
-            self->frame_i = i;
-            return archive_id;
-        }
-    }
+    for( int i = 0; i < seq->frame_count && i < DAT1_SEQ_MAX_FRAMES; i++ )
+        if( !dat1_buildcache_anim_frame_get(self->bc, seq->frames[i]) )
+            unresolved = 1;
+    if( !unresolved )
+        return -1;
+
+    versions = dat1_buildcache_get_anim_versions(self->bc, &version_count);
+    if( !versions )
+        return -1;
+    for( int a = 0; a < version_count; a++ )
+        if( versions[a] != 0 && !dat1_buildcache_animbaseframes_get(self->bc, a) )
+            return a;
     return -1;
 }
 
@@ -183,13 +218,34 @@ Task_Dat1SequenceLoad_Run(
         dat1_buildcache_set_config_jagfile(self->bc, config_jagfile);
     }
 
-    /* Frame archives, one await each. seq_next_missing_archive re-derives the
-     * cursor from the build cache every pass, so nothing has to survive the
-     * yield except the id currently in flight. */
-    self->frame_i = 0;
+    /* Version list: "anim_index" maps global frame ids to ANIMATIONS
+     * archives; without it no frame can be resolved. */
+    if( !dat1_buildcache_get_versionlist_jagfile(self->bc) )
+    {
+        struct RSCache_FileListDat* versionlist_jagfile = NULL;
+
+        RSCache_IO_Dat1JagfileLoad(io, 0, RSCACHE_DAT1_CONFIG_VERSION_LIST);
+        PT_YIELD(&self->pt);
+
+        versionlist_jagfile =
+            RSCache_IO_Dat1JagfileDecode(io, 0, RSCACHE_DAT1_CONFIG_VERSION_LIST);
+        if( !versionlist_jagfile )
+        {
+            fprintf(
+                stderr, "Failed to decode dat1 version list for seq %d\n", self->seq_id);
+            seq_register_result(self, NULL);
+            PT_EXIT(&self->pt);
+        }
+
+        dat1_buildcache_set_versionlist_jagfile(self->bc, versionlist_jagfile);
+    }
+
+    /* Frame archives, one await each. seq_next_missing_archive re-derives
+     * everything from the build cache every pass, so nothing has to survive
+     * the yield except the id currently in flight. */
     for( ;; )
     {
-        self->pending_archive_id = seq_next_missing_archive(self, self->frame_i);
+        self->pending_archive_id = seq_next_missing_archive(self);
         if( self->pending_archive_id < 0 )
             break;
 

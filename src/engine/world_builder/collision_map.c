@@ -208,6 +208,154 @@ collision_map_add_wall(
         collision_map_add_wall(cm, tile_x, tile_z, shape, angle, 0);
 }
 
+/* Reference tryMove flood (Client.ts:5860-6008 ground-click arrival): fills
+ * dir_map with the DirectionFlag toward each tile's parent and dist_map with
+ * step counts, stopping early when (dst_x,dst_z) is popped. All four scratch
+ * arrays are size_x*size_z ints. Returns 1 when the destination was reached;
+ * on 0 the maps are fully flooded (needed for the try-nearest fallback). */
+static int
+collision_flood(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int* dir_map,
+    int* dist_map,
+    int* queue_x,
+    int* queue_z)
+{
+    const int buf_size = cm->size_x * cm->size_z;
+
+    memset(dir_map, 0, (size_t)buf_size * sizeof(int));
+    for( int i = 0; i < buf_size; i++ )
+        dist_map[i] = 99999999;
+
+    int src_idx = collision_map_index_at(cm, src_x, src_z);
+    dir_map[src_idx] = 99;
+    dist_map[src_idx] = 0;
+
+    int steps = 0;
+    int length = 0;
+    queue_x[steps] = src_x;
+    queue_z[steps++] = src_z;
+
+    while( length != steps )
+    {
+        int x = queue_x[length];
+        int z = queue_z[length];
+        length = (length + 1) % buf_size;
+
+        if( x == dst_x && z == dst_z )
+            return 1;
+
+        int next_cost = dist_map[collision_map_index_at(cm, x, z)] + 1;
+        int idx = 0;
+
+        if( collision_map_can_step_west(cm, x, z) )
+        {
+            idx = collision_map_index_at(cm, x - 1, z);
+            if( dir_map[idx] == 0 )
+            {
+                queue_x[steps] = x - 1;
+                queue_z[steps] = z;
+                steps = (steps + 1) % buf_size;
+                dir_map[idx] = DIR_EAST;
+                dist_map[idx] = next_cost;
+            }
+        }
+
+        if( collision_map_can_step_east(cm, x, z) )
+        {
+            idx = collision_map_index_at(cm, x + 1, z);
+            if( dir_map[idx] == 0 )
+            {
+                queue_x[steps] = x + 1;
+                queue_z[steps] = z;
+                steps = (steps + 1) % buf_size;
+                dir_map[idx] = DIR_WEST;
+                dist_map[idx] = next_cost;
+            }
+        }
+
+        if( collision_map_can_step_south(cm, x, z) )
+        {
+            idx = collision_map_index_at(cm, x, z - 1);
+            if( dir_map[idx] == 0 )
+            {
+                queue_x[steps] = x;
+                queue_z[steps] = z - 1;
+                steps = (steps + 1) % buf_size;
+                dir_map[idx] = DIR_NORTH;
+                dist_map[idx] = next_cost;
+            }
+        }
+
+        if( collision_map_can_step_north(cm, x, z) )
+        {
+            idx = collision_map_index_at(cm, x, z + 1);
+            if( dir_map[idx] == 0 )
+            {
+                queue_x[steps] = x;
+                queue_z[steps] = z + 1;
+                steps = (steps + 1) % buf_size;
+                dir_map[idx] = DIR_SOUTH;
+                dist_map[idx] = next_cost;
+            }
+        }
+
+        if( collision_map_can_step_diagonal_south_west(cm, x, z) )
+        {
+            idx = collision_map_index_at(cm, x - 1, z - 1);
+            if( dir_map[idx] == 0 )
+            {
+                queue_x[steps] = x - 1;
+                queue_z[steps] = z - 1;
+                steps = (steps + 1) % buf_size;
+                dir_map[idx] = DIR_NORTH_EAST;
+                dist_map[idx] = next_cost;
+            }
+        }
+        if( collision_map_can_step_diagonal_south_east(cm, x, z) )
+        {
+            idx = collision_map_index_at(cm, x + 1, z - 1);
+            if( dir_map[idx] == 0 )
+            {
+                queue_x[steps] = x + 1;
+                queue_z[steps] = z - 1;
+                steps = (steps + 1) % buf_size;
+                dir_map[idx] = DIR_NORTH_WEST;
+                dist_map[idx] = next_cost;
+            }
+        }
+        if( collision_map_can_step_diagonal_north_west(cm, x, z) )
+        {
+            idx = collision_map_index_at(cm, x - 1, z + 1);
+            if( dir_map[idx] == 0 )
+            {
+                queue_x[steps] = x - 1;
+                queue_z[steps] = z + 1;
+                steps = (steps + 1) % buf_size;
+                dir_map[idx] = DIR_SOUTH_EAST;
+                dist_map[idx] = next_cost;
+            }
+        }
+        if( collision_map_can_step_diagonal_north_east(cm, x, z) )
+        {
+            idx = collision_map_index_at(cm, x + 1, z + 1);
+            if( dir_map[idx] == 0 )
+            {
+                queue_x[steps] = x + 1;
+                queue_z[steps] = z + 1;
+                steps = (steps + 1) % buf_size;
+                dir_map[idx] = DIR_SOUTH_WEST;
+                dist_map[idx] = next_cost;
+            }
+        }
+    }
+    return 0;
+}
+
 int
 collision_map_bfs_path(
     struct CollisionMap* cm,
@@ -219,9 +367,7 @@ collision_map_bfs_path(
     int* path_z,
     int max_path)
 {
-    const int scene_width = cm->size_x;
-    const int scene_length = cm->size_z;
-    const int buf_size = scene_width * scene_length;
+    const int buf_size = cm->size_x * cm->size_z;
 
     int* bfs_direction = (int*)malloc((size_t)buf_size * sizeof(int));
     int* bfs_cost = (int*)malloc((size_t)buf_size * sizeof(int));
@@ -236,140 +382,8 @@ collision_map_bfs_path(
         return -1;
     }
 
-    memset(bfs_direction, 0, (size_t)buf_size * sizeof(int));
-    for( int i = 0; i < buf_size; i++ )
-        bfs_cost[i] = 99999999;
-
-    int src_idx = collision_map_index_at(cm, src_x, src_z);
-    bfs_direction[src_idx] = 99;
-    bfs_cost[src_idx] = 0;
-
-    int steps = 0;
-    int length = 0;
-    bfs_step_x[steps] = src_x;
-    bfs_step_z[steps++] = src_z;
-
-    int arrived = 0;
-    int end_x = src_x, end_z = src_z;
-
-    while( length != steps )
-    {
-        int x = bfs_step_x[length];
-        int z = bfs_step_z[length];
-        length = (length + 1) % buf_size;
-
-        if( x == dst_x && z == dst_z )
-        {
-            arrived = 1;
-            end_x = x;
-            end_z = z;
-            break;
-        }
-
-        int next_cost = bfs_cost[collision_map_index_at(cm, x, z)] + 1;
-        int idx = 0;
-
-        if( collision_map_can_step_west(cm, x, z) )
-        {
-            idx = collision_map_index_at(cm, x - 1, z);
-            if( bfs_direction[idx] == 0 )
-            {
-                bfs_step_x[steps] = x - 1;
-                bfs_step_z[steps] = z;
-                steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_EAST;
-                bfs_cost[idx] = next_cost;
-            }
-        }
-
-        if( collision_map_can_step_east(cm, x, z) )
-        {
-            idx = collision_map_index_at(cm, x + 1, z);
-            if( bfs_direction[idx] == 0 )
-            {
-                bfs_step_x[steps] = x + 1;
-                bfs_step_z[steps] = z;
-                steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_WEST;
-                bfs_cost[idx] = next_cost;
-            }
-        }
-
-        if( collision_map_can_step_south(cm, x, z) )
-        {
-            idx = collision_map_index_at(cm, x, z - 1);
-            if( bfs_direction[idx] == 0 )
-            {
-                bfs_step_x[steps] = x;
-                bfs_step_z[steps] = z - 1;
-                steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_NORTH;
-                bfs_cost[idx] = next_cost;
-            }
-        }
-
-        if( collision_map_can_step_north(cm, x, z) )
-        {
-            idx = collision_map_index_at(cm, x, z + 1);
-            if( bfs_direction[idx] == 0 )
-            {
-                bfs_step_x[steps] = x;
-                bfs_step_z[steps] = z + 1;
-                steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_SOUTH;
-                bfs_cost[idx] = next_cost;
-            }
-        }
-
-        if( collision_map_can_step_diagonal_south_west(cm, x, z) )
-        {
-            idx = collision_map_index_at(cm, x - 1, z - 1);
-            if( bfs_direction[idx] == 0 )
-            {
-                bfs_step_x[steps] = x - 1;
-                bfs_step_z[steps] = z - 1;
-                steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_NORTH_EAST;
-                bfs_cost[idx] = next_cost;
-            }
-        }
-        if( collision_map_can_step_diagonal_south_east(cm, x, z) )
-        {
-            idx = collision_map_index_at(cm, x + 1, z - 1);
-            if( bfs_direction[idx] == 0 )
-            {
-                bfs_step_x[steps] = x + 1;
-                bfs_step_z[steps] = z - 1;
-                steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_NORTH_WEST;
-                bfs_cost[idx] = next_cost;
-            }
-        }
-        if( collision_map_can_step_diagonal_north_west(cm, x, z) )
-        {
-            idx = collision_map_index_at(cm, x - 1, z + 1);
-            if( bfs_direction[idx] == 0 )
-            {
-                bfs_step_x[steps] = x - 1;
-                bfs_step_z[steps] = z + 1;
-                steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_SOUTH_EAST;
-                bfs_cost[idx] = next_cost;
-            }
-        }
-        if( collision_map_can_step_diagonal_north_east(cm, x, z) )
-        {
-            idx = collision_map_index_at(cm, x + 1, z + 1);
-            if( bfs_direction[idx] == 0 )
-            {
-                bfs_step_x[steps] = x + 1;
-                bfs_step_z[steps] = z + 1;
-                steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_SOUTH_WEST;
-                bfs_cost[idx] = next_cost;
-            }
-        }
-    }
+    int arrived =
+        collision_flood(cm, src_x, src_z, dst_x, dst_z, bfs_direction, bfs_cost, bfs_step_x, bfs_step_z);
 
     if( !arrived )
     {
@@ -380,7 +394,7 @@ collision_map_bfs_path(
         return -1;
     }
 
-    int trace_x = end_x, trace_z = end_z;
+    int trace_x = dst_x, trace_z = dst_z;
     int path_len = 0;
     int tmp_x[256], tmp_z[256];
     assert(max_path <= 256);
@@ -414,4 +428,115 @@ collision_map_bfs_path(
     free(bfs_step_x);
     free(bfs_step_z);
     return n;
+}
+
+int
+collision_map_try_route(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    bool try_nearest,
+    int* route_x,
+    int* route_z,
+    int max_route,
+    int* out_used_nearest)
+{
+    const int buf_size = cm->size_x * cm->size_z;
+    int end_x = dst_x;
+    int end_z = dst_z;
+
+    if( out_used_nearest )
+        *out_used_nearest = 0;
+    if( src_x < 0 || src_z < 0 || src_x >= cm->size_x || src_z >= cm->size_z || dst_x < 0 ||
+        dst_z < 0 || dst_x >= cm->size_x || dst_z >= cm->size_z )
+        return -1;
+
+    int* dir_map = (int*)malloc((size_t)buf_size * sizeof(int));
+    int* dist_map = (int*)malloc((size_t)buf_size * sizeof(int));
+    int* queue_x = (int*)malloc((size_t)buf_size * sizeof(int));
+    int* queue_z = (int*)malloc((size_t)buf_size * sizeof(int));
+    if( !dir_map || !dist_map || !queue_x || !queue_z )
+    {
+        free(dir_map);
+        free(dist_map);
+        free(queue_x);
+        free(queue_z);
+        return -1;
+    }
+
+    int arrived = collision_flood(cm, src_x, src_z, dst_x, dst_z, dir_map, dist_map, queue_x, queue_z);
+
+    if( !arrived && try_nearest )
+    {
+        /* Reference nearest fallback: lowest-distance flooded tile in the 3x3
+         * ring around the destination (dist must be < 100). */
+        int min = 100;
+        for( int px = dst_x - 1; px <= dst_x + 1; px++ )
+        {
+            for( int pz = dst_z - 1; pz <= dst_z + 1; pz++ )
+            {
+                if( px < 0 || pz < 0 || px >= cm->size_x || pz >= cm->size_z )
+                    continue;
+                int dist = dist_map[collision_map_index_at(cm, px, pz)];
+                if( dist < min )
+                {
+                    min = dist;
+                    end_x = px;
+                    end_z = pz;
+                    arrived = 1;
+                    if( out_used_nearest )
+                        *out_used_nearest = 1;
+                }
+            }
+        }
+    }
+
+    int length = -1;
+    if( arrived )
+    {
+        /* Backtrace toward the source, recording direction changes only:
+         * route[0] = destination, ascending toward the source; the source
+         * tile itself is never stored (reference routeX/routeZ layout). */
+        int x = end_x;
+        int z = end_z;
+        length = 0;
+        route_x[length] = x;
+        route_z[length++] = z;
+
+        int dir = dir_map[collision_map_index_at(cm, x, z)];
+        int next = dir;
+        while( x != src_x || z != src_z )
+        {
+            if( next != dir )
+            {
+                dir = next;
+                if( length >= max_route )
+                {
+                    length = -1;
+                    break;
+                }
+                route_x[length] = x;
+                route_z[length++] = z;
+            }
+
+            if( (next & DIR_EAST) != 0 )
+                x++;
+            else if( (next & DIR_WEST) != 0 )
+                x--;
+            if( (next & DIR_NORTH) != 0 )
+                z++;
+            else if( (next & DIR_SOUTH) != 0 )
+                z--;
+
+            next = dir_map[collision_map_index_at(cm, x, z)];
+        }
+    }
+
+    free(dir_map);
+    free(dist_map);
+    free(queue_x);
+    free(queue_z);
+    return length;
 }

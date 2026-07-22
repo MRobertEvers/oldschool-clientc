@@ -986,7 +986,7 @@ toridraw_triangle_contains_point(
     return false;
 }
 
-static inline bool
+bool
 ToriDraw_ProjectedModelContainsAabb(
     struct ToriDraw_Scene* scene,
     int screen_x,

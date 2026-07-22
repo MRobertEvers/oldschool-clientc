@@ -232,12 +232,14 @@ test_player_npc(void)
     TEST_ASSERT(player->draw_position.x == 20 * 128 + 64, "player draw");
     TEST_ASSERT(player->pathing.route_x[0] == 20 && player->pathing.route_z[0] == 30, "player route0");
 
+    TEST_ASSERT(player->facing.entity_id == WORLD_FACING_ENTITY_NONE &&
+                    player->facing.turn_speed == 32,
+                "facing defaults");
     World_PlayerFaceEntity(world, pi, 99);
-    TEST_ASSERT(player->facing.mode == WORLD_FACING_ENTITY_ID && player->facing.u.entity_id == 99,
-                "face entity");
+    TEST_ASSERT(player->facing.entity_id == 99, "face entity");
+    /* Face coords stay in raw wire half-tiles; 0,0 is the "none" sentinel. */
     World_PlayerFaceCoord(world, pi, 7, 8);
-    TEST_ASSERT(player->facing.mode == WORLD_FACING_GRID_COORDS && player->facing.u.grid_coords.x == 7,
-                "face coord");
+    TEST_ASSERT(player->facing.square_x == 7 && player->facing.square_z == 8, "face coord");
 
     World_PlayerSetAnimation(world, pi, 55, WORLD_ANIMATION_TYPE_PRIMARY);
     TEST_ASSERT(player->animation.primary.anim_id == 55, "primary anim");
@@ -355,7 +357,7 @@ test_scenery(void)
 
     struct World* world = World_TestMakeReady(64);
     char actions[5][32] = { "Examine", "Open", "", "", "" };
-    int idx = World_SceneryRegister(world, 70, 900, 4, 5, 0, 1, 1, "Door", actions);
+    int idx = World_SceneryRegister(world, 70, 900, 4, 5, 0, 1, 1, "Door", actions, 1);
     TEST_ASSERT(idx >= 0, "scenery register");
 
     struct WorldEntity_Scenery* sc = World_SceneryGetByElementId(world, 70);
@@ -369,6 +371,66 @@ test_scenery(void)
     TEST_ASSERT(world->scenery_picks[0].scenery_index == idx, "pick index");
     World_ClearSceneryPicks(world);
     TEST_ASSERT(world->scenery_pick_count == 0, "clear picks");
+
+    World_Free(world);
+}
+
+/* Reference entityFace (Client.ts:3932). Yaw units are 2048/turn with 0 =
+ * north(+z) and the sign convention of `atan2(e.x - target.x, e.z - target.z)`
+ * — i.e. the yaw an entity holds while looking AT the target. */
+void
+test_entity_face(void)
+{
+    printf("TEST: entity facing\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    int pi = World_PlayerSpawn(world, 1, 0, 50, 50, idle);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+    player->server_pid = 7;
+
+    /* Face-coord: the wire value is absolute half-tiles in the server's
+     * (tile << 1) + 1 form, which lands exactly on the tile centre once
+     * entityFace converts it (`(square - 2*base) * 64`). Target: 10 tiles due
+     * east of the player. */
+    int square_x = ((world->_base_tile_x + 60) << 1) + 1;
+    int square_z = ((world->_base_tile_z + 50) << 1) + 1;
+    World_PlayerFaceCoord(world, pi, square_x, square_z);
+    for( int t = 0; t < 64; t++ )
+        World_Cycle(world, 1);
+    TEST_ASSERT(player->facing.square_x == 0 && player->facing.square_z == 0,
+                "face square consumed");
+    /* atan2(-1280, 0) * 325.949 truncates to -511, & 0x7ff => 1537 — the
+     * reference's `| 0` truncation, not a round, so this is one unit short of
+     * the cardinal 1536 the movement code uses. */
+    TEST_ASSERT(player->orientation.dst_yaw == 1537, "face east dst_yaw");
+    TEST_ASSERT(player->orientation.yaw == 1537, "yaw reached dst (turn_speed 32)");
+
+    /* Face-entity: an npc due north of the player; the lock survives cycles
+     * (unlike the one-shot square) and re-aims as the target moves. */
+    int ni = World_NpcSpawn(world, 2, 1, 0, 50, 60, 1, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+    npc->server_slot = 3;
+    World_PlayerFaceEntity(world, pi, 3);
+    for( int t = 0; t < 64; t++ )
+        World_Cycle(world, 1);
+    TEST_ASSERT(player->orientation.yaw == 1023, "player faces north at the npc");
+
+    /* And the npc back at the player (player slots are offset by 32768). */
+    World_NpcFaceEntity(world, ni, WORLD_FACING_PLAYER_BASE + 7);
+    for( int t = 0; t < 64; t++ )
+        World_Cycle(world, 1);
+    TEST_ASSERT(npc->orientation.yaw == 0, "npc faces south back at the player");
+
+    /* turn_speed 0 freezes facing entirely (reference early return). */
+    npc->facing.turn_speed = 0;
+    npc->orientation.yaw = 500;
+    World_NpcFaceCoord(world, ni, square_x, square_z);
+    for( int t = 0; t < 8; t++ )
+        World_Cycle(world, 1);
+    TEST_ASSERT(npc->orientation.yaw == 500, "turn_speed 0 never turns");
+    TEST_ASSERT(npc->facing.square_x == square_x, "turn_speed 0 leaves the square pending");
 
     World_Free(world);
 }

@@ -90,6 +90,43 @@ add_scenery_rows(
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPLOC6, 0, pick);
 }
 
+/* Ground-item rows (Client.ts addWorldOptions entityType 3): ObjType.op in
+ * reverse slot order, with a defaulted "Take" whenever op slot 2 is empty,
+ * then Examine. Colour tag is @lre@, not the loc @cya@. */
+static void
+add_obj_rows(
+    struct UIMinimenu* menu,
+    struct WorldEntity_ObjStack const* stack,
+    struct World_Picked const* picked)
+{
+    char text[UITREE_MINIMENU_OPTION_LEN];
+    char const* name = stack->name[0] ? stack->name : "Item";
+    struct UIMinimenuPick pick = {
+        .kind = UI_MINIMENU_PICK_OBJ,
+        .id = picked->element_id,
+        .secondary_id = stack->obj_id,
+        .tertiary_id = picked->tile_x,
+        .quaternary_id = picked->tile_z,
+    };
+
+    for( int i = 4; i >= 0; i-- )
+    {
+        if( stack->actions[i].name[0] != '\0' )
+        {
+            snprintf(text, sizeof(text), "%s @lre@ %s", stack->actions[i].name, name);
+            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPOBJ1 + i, i, pick);
+        }
+        else if( i == 2 )
+        {
+            snprintf(text, sizeof(text), "Take @lre@ %s", name);
+            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPOBJ3, 2, pick);
+        }
+    }
+
+    snprintf(text, sizeof(text), "Examine @lre@ %s", name);
+    UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPOBJ6, 0, pick);
+}
+
 void
 RS_Minimenu_AddWorldRows(
     struct RS_MinimenuBuildCtx const* ctx,
@@ -151,6 +188,14 @@ RS_Minimenu_AddWorldRows(
                 World_SceneryGetByElementId(ctx->world, picked->element_id);
             if( scenery )
                 add_scenery_rows(menu, scenery, picked);
+            break;
+        }
+        case WORLD_PICK_OBJSTACK:
+        {
+            struct WorldEntity_ObjStack* stack =
+                World_ObjStackGetByElementId(ctx->world, picked->element_id);
+            if( stack )
+                add_obj_rows(menu, stack, picked);
             break;
         }
         case WORLD_PICK_TERRAIN:    /* Walk here only (above). */

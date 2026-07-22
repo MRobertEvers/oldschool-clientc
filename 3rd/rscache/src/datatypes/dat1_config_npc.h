@@ -35,6 +35,8 @@ struct RSCache_Dat1ConfigNpc
     int headicon;
     int ambient;
     int contrast;
+    /** NpcType.turnspeed (opcode 103), default 32; 0 = never turns. */
+    int turnspeed;
 };
 
 struct RSCache_Dat1ConfigNpcList

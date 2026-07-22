@@ -324,6 +324,53 @@ uitree_builder_bake_pack_under_owner(
             UITree_Reparent(tree, index_map[i], parent_idx);
     }
 
+    /* Pass 3: upload MODEL widgets into the scene (runestones, quest journal
+     * scroll, combat spec bars). The pack-assets task loaded the model into
+     * the provider; without this Ensure the frame translate finds no scene
+     * model and silently drops the widget. Mirrors the font/sprite Ensure
+     * side effects — task_interface_open's upload_model_nodes only covered
+     * its own demo path. */
+    if( builder->bridge )
+    {
+        for( int i = 0; i < pack->component_count; i++ )
+        {
+            struct UITreeComponent* node;
+            int cache_id;
+            int scene_id;
+            if( index_map[i] < 0 )
+                continue;
+            node = &tree->components[index_map[i]];
+            if( node->type != UIELEM_RS_MODEL )
+                continue;
+            cache_id = node->u.rs_model.gamecache_model_id;
+            if( cache_id < 0 )
+            {
+                /* Local-player preview (client_code 327/328): composite the
+                 * default avatar, idle via the standard human sequence. */
+                if( node->behavior.client_code == 327 || node->behavior.client_code == 328 )
+                {
+                    scene_id = UITreeSceneBridge_EnsurePlayerModel(builder->bridge);
+                    if( scene_id >= 0 )
+                    {
+                        node->u.rs_model.gamecache_model_id = scene_id;
+                        if( node->u.rs_model.anim_seq_id < 0 )
+                            node->u.rs_model.anim_seq_id = 808; /* human idle */
+                    }
+                }
+                continue;
+            }
+            scene_id = UITreeSceneBridge_EnsureModel(builder->bridge, cache_id);
+            if( scene_id >= 0 )
+                node->u.rs_model.gamecache_model_id = scene_id;
+            else if( getenv("TORIRS_ANIM_DEBUG") )
+                fprintf(
+                    stderr,
+                    "bake: model widget com=0x%x cache_id=%d not loadable\n",
+                    (unsigned)node->component_id,
+                    cache_id);
+        }
+    }
+
     free(index_map);
 }
 

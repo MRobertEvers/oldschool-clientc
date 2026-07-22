@@ -76,10 +76,12 @@ UITree_PushBuildComponent(
         spec.u.rs_text.shadowed = comp->shadowed;
         spec.u.rs_text.text = comp->text;
         spec.u.rs_text.text_active = comp->text_active;
-        if( resolve_font && comp->font_id > 0 )
+        /* Cache font id 0 (dat1 p11) is valid — resolving it uploads the
+         * scene font; skipping left every p11 label invisible. */
+        if( resolve_font && comp->font_id >= 0 )
         {
             int resolved = resolve_font(resolve_ud, comp->font_id);
-            spec.u.rs_text.font_id = resolved > 0 ? resolved : comp->font_id;
+            spec.u.rs_text.font_id = resolved >= 0 ? resolved : comp->font_id;
         }
         else
         {
@@ -156,10 +158,10 @@ UITree_PushBuildComponent(
         spec.u.rs_inv_text.color = comp->color;
         spec.u.rs_inv_text.center = comp->text_h_align;
         spec.u.rs_inv_text.shadowed = comp->shadowed;
-        if( resolve_font && comp->font_id > 0 )
+        if( resolve_font && comp->font_id >= 0 )
         {
             int resolved = resolve_font(resolve_ud, comp->font_id);
-            spec.u.rs_inv_text.font_id = resolved > 0 ? resolved : comp->font_id;
+            spec.u.rs_inv_text.font_id = resolved >= 0 ? resolved : comp->font_id;
         }
         else
         {

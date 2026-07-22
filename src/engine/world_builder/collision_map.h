@@ -124,6 +124,27 @@ collision_map_bfs_path(
     int* path_z,
     int max_path);
 
+/* Reference Client.tryMove route (ground/minimap clicks): BFS from src to
+ * dst, then backtrace recording only direction changes. route[0] = the
+ * destination, ascending toward the source (the source tile is never
+ * stored) — the layout the MOVE_* packets are built from. When the
+ * destination is unreachable and try_nearest is set, falls back to the
+ * lowest-distance tile in the 3x3 ring around it (*out_used_nearest = 1).
+ * Returns the number of route entries (>= 1; src == dst yields 1), or -1
+ * when no route exists / the route overflows max_route. */
+int
+collision_map_try_route(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    bool try_nearest,
+    int* route_x,
+    int* route_z,
+    int max_route,
+    int* out_used_nearest);
+
 static inline int
 collision_map_index_at(
     struct CollisionMap* cm,

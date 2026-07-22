@@ -25,6 +25,7 @@ enum UITreeEmitKind
     UITREE_EMIT_WORLD,
     UITREE_EMIT_MINIMAP,
     UITREE_EMIT_COMPASS,
+    UITREE_EMIT_ENTITY_OVERLAY,
 };
 
 struct UITreeEmitClip
@@ -63,6 +64,14 @@ struct UITreeEmitDesc
     /** MINIMAP: pivot inside the baked map texture for the camera position. */
     int src_anchor_x;
     int src_anchor_y;
+    /** MINIMAP: host-computed dot overlay (players/NPCs/objs/flag) for this
+     * frame. Host-owned pointer, valid same-frame only (like `text`). */
+    struct UITreeMinimapDot const* minimap_dots;
+    int minimap_dot_count;
+    /** ENTITY_OVERLAY: host-computed health bars + hitsplats for this frame.
+     * Host-owned pointer, same-frame lifetime (like `minimap_dots`). */
+    struct UITreeEntityOverlay const* entity_overlays;
+    int entity_overlay_count;
     int model_id;
     int model_zoom;
     int model_xan;

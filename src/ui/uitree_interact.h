@@ -109,6 +109,11 @@ struct UIInteractOut
     int minimenu_select;
     /** Menu was closed by clicking away this frame. */
     int minimenu_closed;
+    /** Left click landed on the minimap widget (chrome gesture like the tab
+     * icons — the node has no component id): app maps it to a walk. */
+    int minimap_click;
+    int minimap_click_x;
+    int minimap_click_y;
 
     /* Keyboard broadcast: dispatch is the cross product of key_events and
      * key_targets. See UI_KEY_TARGET_MAX for why this is a separate list. */

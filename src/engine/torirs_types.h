@@ -213,10 +213,14 @@ struct ToriRS_Location
     int* retextures_to;
     int retexture_count;
     int map_scene_id;
+    int map_function_id;
     int transform_varbit;
     int transform_varp;
     int* transforms;
     int transform_count;
+    /** LocType.active: 0 = the reference never picks this loc (see
+     *  torirs_location_from_rscache.c). */
+    int is_interactive;
 };
 
 struct ToriRS_Npctype
@@ -241,6 +245,9 @@ struct ToriRS_Npctype
     int walkanim_b;
     int walkanim_r;
     int walkanim_l;
+    /** NpcType.turnspeed (dat1 opcode 103, default 32). 0 = the entity never
+     *  turns — Client-TS entityFace returns immediately for those. */
+    int turn_speed;
 };
 
 struct ToriRS_Idk
@@ -260,6 +267,9 @@ struct ToriRS_Objtype
     int id;
     char name[TORIRS_NAME_MAX];
     char inv_actions[TORIRS_MENU_ACTION_SLOTS][TORIRS_MENU_ACTION_LEN];
+    /** Ground-stack ops (ObjType.op, config opcodes 30-34) — the right-click
+     *  rows for an obj lying on a tile, distinct from the inventory ops. */
+    char ground_actions[TORIRS_MENU_ACTION_SLOTS][TORIRS_MENU_ACTION_LEN];
     uint8_t stackable;
     int inventory_model_id;
     int zoom2d;

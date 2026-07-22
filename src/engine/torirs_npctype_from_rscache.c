@@ -127,6 +127,7 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->walkanim_b = src->walkanim_b;
     npctype->walkanim_r = src->walkanim_r;
     npctype->walkanim_l = src->walkanim_l;
+    npctype->turn_speed = src->turnspeed;
 
     return npctype;
 }
@@ -175,6 +176,8 @@ ToriRS_NpctypeFromRSCacheDat2(
     npctype->walkanim_b = src->rotate180_animation;
     npctype->walkanim_r = src->rotate_right_animation;
     npctype->walkanim_l = src->rotate_left_animation;
+    /* dat2 npc configs carry no turnspeed field; the reference default is 32. */
+    npctype->turn_speed = 32;
 
     return npctype;
 }

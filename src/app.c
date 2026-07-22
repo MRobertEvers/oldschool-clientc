@@ -155,6 +155,469 @@ app_world_sync_entity_animations(struct App* app);
         }                                                                                        \
     } while( 0 )
 
+/* Server-synced local player entity (esync pid), or NULL (offline / not yet
+ * spawned). Shared by camera follow, minimap centering, and roof check. */
+static struct WorldEntity_Player*
+app_local_player(struct App* app)
+{
+    int world_idx;
+    if( !app->world )
+        return NULL;
+    if( !RS_EntitySync_FindPlayer(
+            &app->esync,
+            app->esync.local_pid >= 0 ? app->esync.local_pid : 2047,
+            &world_idx,
+            NULL) )
+        return NULL;
+    return World_EntityPoolGet(&app->world->entities.player, world_idx);
+}
+
+/* One reference minimapDrawDot: rotate the entity's player-relative offset by
+ * the camera yaw into widget pixels (4 px/tile => fine units / 32), cull past
+ * the ring (dist^2 > 6400), store the sprite's top-left center-relative. */
+static void
+app_minimap_push_dot(
+    struct App* app,
+    int rel_fx,
+    int rel_fz,
+    int scene_id,
+    int atlas_index)
+{
+    int dx = rel_fx / 32;
+    int dy = rel_fz / 32;
+    int yaw, x, y;
+    int w = 4, h = 4;
+    struct UITreeMinimapDot* dot;
+
+    if( app->minimap_dot_count >=
+        (int)(sizeof(app->minimap_dots) / sizeof(app->minimap_dots[0])) )
+        return;
+    if( dx * dx + dy * dy > 6400 )
+        return;
+    yaw = ToriDraw_NormalizeAngle(app->world_camera.yaw);
+    {
+        int sin = ToriDraw_Sin(yaw);
+        int cos = ToriDraw_Cos(yaw);
+        x = (dy * sin + dx * cos) >> 16;
+        y = (dy * cos - dx * sin) >> 16;
+    }
+    {
+        int count = 0;
+        struct ToriDraw_Sprite** frames = ToriDraw_SceneSpriteGet(app->scene, scene_id, &count);
+        if( frames && atlas_index >= 0 && atlas_index < count && frames[atlas_index] )
+        {
+            w = frames[atlas_index]->width;
+            h = frames[atlas_index]->height;
+        }
+    }
+    dot = &app->minimap_dots[app->minimap_dot_count++];
+    dot->dx = x - w / 2;
+    dot->dy = -y - h / 2;
+    dot->w = w;
+    dot->h = h;
+    dot->scene_id = scene_id;
+    dot->atlas_index = atlas_index;
+    dot->color = 0;
+}
+
+/* Reference minimapDraw overlay: ground objs (yellow), NPCs, other players
+ * (white), the destination flag, then the local-player 3x3 white square.
+ * mapdots frames: 0 obj, 1 npc, 2 player, 3 friend; mapmarker frame 0 flag. */
+static int
+app_minimap_build_dots(
+    struct App* app,
+    struct UITreeMinimapDot const** out_dots)
+{
+    struct WorldEntity_Player* local = app_local_player(app);
+    struct World* world = app->world;
+    struct World_EntityPool* pool;
+    int px, pz;
+    int dots_scene, marker_scene;
+
+    app->minimap_dot_count = 0;
+    *out_dots = app->minimap_dots;
+    if( !world || !world->load_complete || !local )
+        return 0;
+    px = (int)local->draw_position.x;
+    pz = (int)local->draw_position.z;
+    dots_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPDOTS);
+    marker_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPMARKER);
+
+    /* Loc mapfunction icons first, so entity dots draw on top (reference
+     * minimapDraw order). Gathered at scene build into world->mapfuncs. */
+    {
+        int mapfunc_scene =
+            UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPFUNCTION);
+        if( mapfunc_scene > 0 )
+        {
+            for( int i = 0; i < world->mapfunc_count; i++ )
+            {
+                struct World_MapFunctionIcon const* icon = &world->mapfuncs[i];
+                app_minimap_push_dot(
+                    app,
+                    icon->x * 128 + 64 - px,
+                    icon->z * 128 + 64 - pz,
+                    mapfunc_scene,
+                    icon->func);
+            }
+        }
+    }
+
+    if( dots_scene > 0 )
+    {
+        pool = &world->entities.obj_stack;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, i);
+            if( !stack || stack->grid_position.level != local->grid_position.level )
+                continue;
+            app_minimap_push_dot(
+                app,
+                stack->grid_position.x * 128 + 64 - px,
+                stack->grid_position.z * 128 + 64 - pz,
+                dots_scene,
+                0);
+        }
+        pool = &world->entities.npc;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+            /* Reference gates on NpcType.minimap; the flag is not decoded
+             * into ToriRS_Npctype yet, so every NPC dot draws. */
+            if( !npc || npc->grid_position.level != local->grid_position.level )
+                continue;
+            app_minimap_push_dot(
+                app,
+                (int)npc->draw_position.x - px,
+                (int)npc->draw_position.z - pz,
+                dots_scene,
+                1);
+        }
+        pool = &world->entities.player;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
+            if( !player || player == local ||
+                player->grid_position.level != local->grid_position.level )
+                continue;
+            app_minimap_push_dot(
+                app,
+                (int)player->draw_position.x - px,
+                (int)player->draw_position.z - pz,
+                dots_scene,
+                2);
+        }
+    }
+
+    if( marker_scene > 0 && app->minimap_flag_x >= 0 )
+        app_minimap_push_dot(
+            app,
+            app->minimap_flag_x * 128 + 64 - px,
+            app->minimap_flag_z * 128 + 64 - pz,
+            marker_scene,
+            0);
+
+    /* Local player: white 3x3 square at the widget center (fillRect 97,78). */
+    if( app->minimap_dot_count <
+        (int)(sizeof(app->minimap_dots) / sizeof(app->minimap_dots[0])) )
+    {
+        struct UITreeMinimapDot* dot = &app->minimap_dots[app->minimap_dot_count++];
+        dot->dx = -1;
+        dot->dy = -1;
+        dot->w = 3;
+        dot->h = 3;
+        dot->scene_id = 0;
+        dot->atlas_index = 0;
+        dot->color = 0xFFFFFFFFu;
+    }
+    return app->minimap_dot_count;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Entity overlays: health bars + hitsplats (reference drawEntities)       */
+/* ---------------------------------------------------------------------- */
+
+/* Defined with the other cache/scene helpers further down. */
+static int
+app_world_height(void* userdata, int world_x, int world_z, int level);
+static int
+app_hitsplat_font_scene_id(struct App* app);
+
+/*
+ * Reference getOverlayPos (Client.ts:5253): rotate the entity's
+ * camera-relative fine offset by yaw then pitch and divide by depth.
+ * `<< 9` is the same UNIT_SCALE_SHIFT the 3D raster projects with, and
+ * `origin` is the viewport centre. Returns 0 when the point is behind the
+ * near plane (reference sets projectX = -1) or off the map.
+ */
+static int
+app_world_project(
+    struct App* app,
+    int fine_x,
+    int fine_z,
+    int height_above_ground,
+    int* out_x,
+    int* out_y)
+{
+    int dx, dy, dz, tmp;
+    int sin_pitch, cos_pitch, sin_yaw, cos_yaw;
+    int ground_y;
+    int level = 0;
+
+    if( !app->world || !app->world_view_valid )
+        return 0;
+    if( fine_x < 128 || fine_z < 128 )
+        return 0;
+    {
+        struct WorldEntity_Player* local = app_local_player(app);
+        if( local )
+            level = local->grid_position.level;
+    }
+    ground_y = app_world_height(app, fine_x, fine_z, level);
+
+    dx = fine_x - app->world_camera_pos.x;
+    dy = (ground_y - height_above_ground) - app->world_camera_pos.y;
+    dz = fine_z - app->world_camera_pos.z;
+
+    sin_pitch = ToriDraw_Sin(app->world_camera.pitch);
+    cos_pitch = ToriDraw_Cos(app->world_camera.pitch);
+    sin_yaw = ToriDraw_Sin(app->world_camera.yaw);
+    cos_yaw = ToriDraw_Cos(app->world_camera.yaw);
+
+    tmp = (dz * sin_yaw + dx * cos_yaw) >> 16;
+    dz = (dz * cos_yaw - dx * sin_yaw) >> 16;
+    dx = tmp;
+
+    tmp = (dy * cos_pitch - dz * sin_pitch) >> 16;
+    dz = (dy * sin_pitch + dz * cos_pitch) >> 16;
+    dy = tmp;
+
+    if( dz < 50 )
+        return 0;
+
+    *out_x = app->world_emit_desc.x + app->world_emit_desc.w / 2 + ((dx << 9) / dz);
+    *out_y = app->world_emit_desc.y + app->world_emit_desc.h / 2 + ((dy << 9) / dz);
+    return 1;
+}
+
+/* Reference ClientEntity.height = model.minY, which Client-TS accumulates as
+ * `max(-vertexY)` — a POSITIVE magnitude measuring up from the model origin.
+ * ToriDraw's bounds cylinder stores the true minimum instead (negative, since
+ * up is -y), so it has to be negated here. Getting this wrong collapses the
+ * health bar onto the entity's feet. */
+static int
+app_entity_model_height(
+    struct App* app,
+    int element_id)
+{
+    struct ToriDraw_SceneElement* el;
+    struct ToriDraw_BoundsCylinder* bounds;
+
+    if( element_id < 0 || !app->scene || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        return 0;
+    el = ToriDraw_SceneElementGet(app->scene, element_id);
+    if( !el || el->model.kind != TORIDRAWMK_MODEL )
+        return 0;
+    bounds = ToriDraw_ModelGetBoundsCylinder(el->model);
+    return bounds ? -bounds->min_y : 0;
+}
+
+static void
+app_overlay_push(
+    struct App* app,
+    struct UITreeEntityOverlay const* item)
+{
+    int cap = (int)(sizeof(app->entity_overlays) / sizeof(app->entity_overlays[0]));
+    if( app->entity_overlay_count >= cap )
+        return;
+    app->entity_overlays[app->entity_overlay_count++] = *item;
+}
+
+/* One entity's overlay set. combat/damage state lives on the shared facet, so
+ * players and NPCs go through the same body (reference drawEntities treats
+ * them identically). */
+static void
+app_overlay_build_entity(
+    struct App* app,
+    int element_id,
+    struct WorldEntityFacet_Combat const* combat,
+    struct WorldEntityFacet_DrawPosition const* draw_position,
+    int font_id,
+    int hitmarks_scene)
+{
+    int cycle = app->world->cycle;
+    int height = app_entity_model_height(app, element_id);
+    int screen_x, screen_y;
+
+    /* Health bar: 30px wide, green/red split, 15px above the model top.
+     * `combatCycle > loopCycle + 100` is the reference's "recently in combat"
+     * window (set to loopCycle + 400 on every hit). */
+    if( combat->combat_cycle > cycle + 100 && combat->total_health > 0 &&
+        app_world_project(
+            app,
+            (int)draw_position->x,
+            (int)draw_position->z,
+            height + 15,
+            &screen_x,
+            &screen_y) )
+    {
+        int filled = (combat->health * 30) / combat->total_health;
+        if( filled > 30 )
+            filled = 30;
+        if( filled < 0 )
+            filled = 0;
+        struct UITreeEntityOverlay bar = {
+            .kind = UITREE_ENTITY_OVERLAY_RECT,
+            .x = screen_x - 15,
+            .y = screen_y - 3,
+            .w = filled,
+            .h = 5,
+            .color = 0xFF00FF00u, /* Colour.GREEN */
+        };
+        app_overlay_push(app, &bar);
+        bar.x = screen_x - 15 + filled;
+        bar.w = 30 - filled;
+        bar.color = 0xFFFF0000u; /* Colour.RED */
+        app_overlay_push(app, &bar);
+    }
+
+    /* Hitsplats: up to 4 concurrent, each alive for 70 cycles, positioned by
+     * slot (reference nudges slots 1-3 off the centre). */
+    for( int i = 0; i < WORLD_ENTITY_DAMAGE_SLOTS; i++ )
+    {
+        char text[UITREE_ENTITY_OVERLAY_TEXT_LEN];
+
+        if( combat->damage_cycles[i] <= cycle )
+            continue;
+        if( !app_world_project(
+                app,
+                (int)draw_position->x,
+                (int)draw_position->z,
+                height / 2,
+                &screen_x,
+                &screen_y) )
+            continue;
+
+        if( i == 1 )
+            screen_y -= 20;
+        else if( i == 2 )
+        {
+            screen_x -= 15;
+            screen_y -= 10;
+        }
+        else if( i == 3 )
+        {
+            screen_x += 15;
+            screen_y -= 10;
+        }
+
+        if( hitmarks_scene > 0 )
+        {
+            struct UITreeEntityOverlay spr = {
+                .kind = UITREE_ENTITY_OVERLAY_SPRITE,
+                .x = screen_x - 12,
+                .y = screen_y - 12,
+                .w = 0,
+                .h = 0,
+                .scene_id = hitmarks_scene,
+                .atlas_index = combat->damage_types[i],
+            };
+            app_overlay_push(app, &spr);
+        }
+        snprintf(text, sizeof(text), "%d", combat->damage_values[i]);
+        if( font_id >= 0 )
+        {
+            /* Black shadow then white, offset by one px — reference draws the
+             * number twice (Client.ts:4931-4932). */
+            struct UITreeEntityOverlay num = {
+                .kind = UITREE_ENTITY_OVERLAY_TEXT,
+                .x = screen_x,
+                .y = screen_y + 4,
+                .font_id = font_id,
+                .color = 0xFF000000u,
+            };
+            snprintf(num.text, sizeof(num.text), "%s", text);
+            app_overlay_push(app, &num);
+            num.x = screen_x - 1;
+            num.y = screen_y + 3;
+            num.color = 0xFFFFFFFFu;
+            app_overlay_push(app, &num);
+        }
+    }
+}
+
+static int
+app_build_entity_overlays(
+    struct App* app,
+    struct UITreeEntityOverlay const** out_items)
+{
+    struct World* world = app->world;
+    struct World_EntityPool* pool;
+    int font_id;
+    int hitmarks_scene;
+
+    app->entity_overlay_count = 0;
+    *out_items = app->entity_overlays;
+    if( !world || !world->load_complete || !app->world_view_valid )
+        return 0;
+
+    font_id = app_hitsplat_font_scene_id(app);
+    hitmarks_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HITMARKS);
+    pool = &world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        if( !npc || npc->element_id < 0 )
+            continue;
+        app_overlay_build_entity(
+            app, npc->element_id, &npc->combat, &npc->draw_position, font_id, hitmarks_scene);
+    }
+
+    pool = &world->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
+        if( !player || player->element_id < 0 )
+            continue;
+        app_overlay_build_entity(
+            app, player->element_id, &player->combat, &player->draw_position, font_id,
+            hitmarks_scene);
+    }
+
+    /* TORIRS_OVERLAY_DEBUG=1: the primitives this frame, plus the two assets
+     * they need — a missing p11 (font -1) or hitmarks pack is the usual
+     * reason a hit lands but nothing is drawn. */
+    if( getenv("TORIRS_OVERLAY_DEBUG") && app->entity_overlay_count > 0 )
+    {
+        fprintf(
+            stderr,
+            "overlay: %d items font=%d hitmarks=%d\n",
+            app->entity_overlay_count,
+            font_id,
+            hitmarks_scene);
+        for( int i = 0; i < app->entity_overlay_count; i++ )
+        {
+            struct UITreeEntityOverlay const* item = &app->entity_overlays[i];
+            fprintf(
+                stderr,
+                "  overlay[%d] kind=%d at %d,%d %dx%d \"%s\"\n",
+                i,
+                item->kind,
+                item->x,
+                item->y,
+                item->w,
+                item->h,
+                item->text);
+        }
+    }
+    return app->entity_overlay_count;
+}
+
 static int
 app_host_request(
     void* user,
@@ -173,6 +636,12 @@ app_host_request(
     case UITREE_HOST_GET_STATIC_SPRITE_SCENE:
         return UITreeSceneBridge_StaticSpriteSceneId(
             &app->bridge, (enum StaticSpriteSlot)req->u.static_sprite.slot);
+    case UITREE_HOST_GET_ENTITY_OVERLAYS:
+        *req->u.get_entity_overlays.out_clip_x = app->world_emit_desc.x;
+        *req->u.get_entity_overlays.out_clip_y = app->world_emit_desc.y;
+        *req->u.get_entity_overlays.out_clip_w = app->world_emit_desc.w;
+        *req->u.get_entity_overlays.out_clip_h = app->world_emit_desc.h;
+        return app_build_entity_overlays(app, req->u.get_entity_overlays.out_items);
     case UITREE_HOST_GET_CROSS_ACTIVE:
         return UICross_IsActive(&app->cross) ? 1 : 0;
     case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
@@ -207,11 +676,20 @@ app_host_request(
     /* Minimap: the baked world map plus the camera's pivot inside it. The
      * widget box is fixed, so the map scrolls by moving this source anchor. */
     case UITREE_HOST_GET_MINIMAP_STATE:
+    {
+        /* Reference centers the minimap on the local player (minimapDraw
+         * anchors at player.x/32), not the orbit eye; free-cam (offline)
+         * keeps the eye anchor. */
+        struct WorldEntity_Player* local_player = app_local_player(app);
+        int anchor_x = local_player ? (int)local_player->draw_position.x
+                                    : app->world_camera_pos.x;
+        int anchor_z = local_player ? (int)local_player->draw_position.z
+                                    : app->world_camera_pos.z;
         if( app->world_map_scene_id <= 0 || !app->world || !app->world->minimap )
             return -1;
         minimap_compute_camera_src_anchor(
-            app->world_camera_pos.x,
-            app->world_camera_pos.z,
+            anchor_x,
+            anchor_z,
             app->world_map_w,
             app->world_map_h,
             app->world->minimap->width,
@@ -219,6 +697,9 @@ app_host_request(
             req->u.get_minimap_state.out_src_anchor_x,
             req->u.get_minimap_state.out_src_anchor_y);
         return app->world_map_scene_id;
+    }
+    case UITREE_HOST_GET_MINIMAP_DOTS:
+        return app_minimap_build_dots(app, req->u.get_minimap_dots.out_dots);
     case UITREE_HOST_GET_INV_SOURCE_SLOT:
         assert(req->u.get_inv_source_slot.out);
         if( !InvManager_GetSlot(
@@ -553,10 +1034,14 @@ App_Init(
     app->world_camera.near_plane_z = 50;
     app->world_camera.pitch = 148;
     app->world_camera_pos.z = -800;
+    app->orbit_pitch = 128; /* reference orbitCameraPitch default */
+    app->orbit_yaw = 0;
     app->world_hover_tile_x = -1;
     app->world_hover_tile_z = -1;
     app->world_hover_tile_level = 0;
     app->world_map_scene_id = -1;
+    app->minimap_flag_x = -1;
+    app->minimap_flag_z = -1;
     app->proj_src_tile_x = -1;
     app->proj_src_tile_z = -1;
     app->proj_src_tile_level = 0;
@@ -685,12 +1170,37 @@ enum
 {
     APP_FONT_B12_CACHE_ID = 496,
     APP_FONT_B12_DAT1_SLOT = 2,
+    /* Hitsplat numbers use p11 (reference `this.p11.centreString`). RevConfig
+     * orders the dat1 title jagfile fonts p11/p12/b12/q8 as slots 0-3; the
+     * dat2 fonts table keeps them adjacent with b12 at 496. */
+    APP_FONT_P11_CACHE_ID = 494,
+    APP_FONT_P11_DAT1_SLOT = 0,
 };
 
 static int
 app_font_b12_cache_id(struct App const* app)
 {
     return app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_B12_DAT1_SLOT : APP_FONT_B12_CACHE_ID;
+}
+
+/* Scene font for hitsplat numbers; queues the load on a miss the same way
+ * app_minimenu_font_scene_id does, and returns -1 until it lands.
+ *
+ * -1, not 0: scene font ids ARE cache font ids, and dat1 p11 is cache id 0 —
+ * the same trap that once left every p11 label invisible. */
+static int
+app_hitsplat_font_scene_id(struct App* app)
+{
+    int font_cache_id =
+        app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_P11_DAT1_SLOT : APP_FONT_P11_CACHE_ID;
+    int scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
+    if( scene_id < 0 )
+    {
+        struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
+        if( task )
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+    }
+    return scene_id;
 }
 
 static int
@@ -731,6 +1241,15 @@ app_push_builtin_overlay_nodes(struct App* app)
     struct UITreeNodeSpec spec;
     int font_id = app_minimenu_font_scene_id(app);
 
+    /* Entity overlays first: health bars and hitsplats belong above the world
+     * but below the cross/hovertext/minimenu, and the emit walk draws root
+     * siblings in push order. The desc clips itself to the world box, so the
+     * late position never lets them paint over the chrome. */
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_BUILTIN_ENTITY_OVERLAY;
+    spec.component_id = APP_COM_ID_ENTITY_OVERLAY;
+    assert(UITree_Push(app->tree, -1, &spec) >= 0);
+
     memset(&spec, 0, sizeof(spec));
     spec.type = UIELEM_BUILTIN_CROSS;
     spec.component_id = APP_COM_ID_CROSS;
@@ -769,6 +1288,72 @@ app_world_height(
     if( !app->world || !app->world->heightmap )
         return 0;
     return heightmap_get_interpolated(app->world->heightmap, world_x, world_z, level);
+}
+
+/* World_SeqSource getters: seq timing resolved from the scene animation
+ * registry (ToriDraw_Animation carries the seq-config meta). Unloaded ids
+ * return the world_cycle defaults, which freeze that track until the lazy
+ * seq load lands (app_request_entity_seq). */
+static struct ToriDraw_Animation*
+app_seq_anim(
+    void* userdata,
+    int seq_id)
+{
+    struct App* app = (struct App*)userdata;
+    if( !app->scene || seq_id < 0 )
+        return NULL;
+    return ToriDraw_SceneAnimationGet(app->scene, seq_id);
+}
+
+static int
+app_seq_frame_count(void* userdata, int seq_id)
+{
+    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
+    return anim ? anim->frame_count : 0;
+}
+
+static int
+app_seq_frame_duration(void* userdata, int seq_id, int frame)
+{
+    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
+    if( !anim || frame < 0 || frame >= anim->frame_count )
+        return 1;
+    return anim->frames[frame].delay > 0 ? anim->frames[frame].delay : 1;
+}
+
+static int
+app_seq_frame_step(void* userdata, int seq_id)
+{
+    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
+    return anim ? anim->frame_step : 0;
+}
+
+static int
+app_seq_max_loops(void* userdata, int seq_id)
+{
+    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
+    return anim && anim->max_loops > 0 ? anim->max_loops : 99;
+}
+
+static int
+app_seq_priority(void* userdata, int seq_id)
+{
+    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
+    return anim ? anim->priority : 5;
+}
+
+static int
+app_seq_duplicate_behavior(void* userdata, int seq_id)
+{
+    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
+    return anim ? anim->duplicate_behavior : -1;
+}
+
+static int
+app_seq_preanim_move(void* userdata, int seq_id)
+{
+    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
+    return anim ? anim->preanim_move : 0;
 }
 
 /* Bake the loaded world's minimap tiles into a single scene sprite the minimap
@@ -861,6 +1446,19 @@ app_world_load_finish(struct App* app)
     {
         app->world_active = 1;
         World_SetHeightFn(app->world, app_world_height, app);
+        {
+            struct World_SeqSource seq_source = {
+                .userdata = app,
+                .frame_count = app_seq_frame_count,
+                .frame_duration = app_seq_frame_duration,
+                .frame_step = app_seq_frame_step,
+                .max_loops = app_seq_max_loops,
+                .priority = app_seq_priority,
+                .duplicate_behavior = app_seq_duplicate_behavior,
+                .preanim_move = app_seq_preanim_move,
+            };
+            World_SetSeqSource(app->world, &seq_source);
+        }
         /* v1 scene-reset camera: scene center, above ground, looking down. */
         app->world_camera_pos.x = app->world->_scene_size / 2 * 128 + 64;
         app->world_camera_pos.z = app->world->_scene_size / 2 * 128 + 64;
@@ -910,13 +1508,18 @@ static void
 app_update_world_viewport(struct App* app)
 {
     app->world_view_valid = 0;
+    app->minimap_view_valid = 0;
     for( int i = 0; i < app->emit.count; i++ )
     {
         if( app->emit.cmds[i].kind == UITREE_EMIT_WORLD )
         {
             app->world_emit_desc = app->emit.cmds[i];
             app->world_view_valid = 1;
-            return;
+        }
+        else if( app->emit.cmds[i].kind == UITREE_EMIT_MINIMAP )
+        {
+            app->minimap_emit_desc = app->emit.cmds[i];
+            app->minimap_view_valid = 1;
         }
     }
 }
@@ -1450,15 +2053,121 @@ app_world_drawable(struct App* app)
            app->world->painter && app->painter_buffer;
 }
 
+/* Reference roofCheck (Client.ts 4713): walk the camera->player tile line;
+ * if any stepped tile (endpoints included) carries the remove-roof land flag
+ * (0x4), cut drawing down to the player's level, else draw all 4. Only armed
+ * at low pitch (< 310) — the high look-down orbit clears roofs anyway.
+ * Scripted cams use the simpler roofCheck2 height test. */
+static int
+app_world_roof_check(struct App* app)
+{
+    struct WorldEntity_Player* player = app_local_player(app);
+    struct World* world = app->world;
+    int top = 3;
+    int level;
+
+    if( !player || !world || !world->tile_flags )
+        return 3;
+    level = player->grid_position.level;
+
+    if( app->cam_script.scripted )
+    {
+        int cam_tx = app->world_camera_pos.x >> 7;
+        int cam_tz = app->world_camera_pos.z >> 7;
+        int ground_y =
+            app_world_height(app, app->world_camera_pos.x, app->world_camera_pos.z, level);
+        if( ground_y - app->world_camera_pos.y >= 800 ||
+            (World_TileFlagGet(world, cam_tx, cam_tz, level) & 0x4) == 0 )
+            return 3;
+        return level;
+    }
+
+    if( app->world_camera.pitch < 310 )
+    {
+        int cam_tx = app->world_camera_pos.x >> 7;
+        int cam_tz = app->world_camera_pos.z >> 7;
+        int ply_tx = (int)player->draw_position.x >> 7;
+        int ply_tz = (int)player->draw_position.z >> 7;
+        int delta_x = ply_tx > cam_tx ? ply_tx - cam_tx : cam_tx - ply_tx;
+        int delta_z = ply_tz > cam_tz ? ply_tz - cam_tz : cam_tz - ply_tz;
+
+        if( World_TileFlagGet(world, cam_tx, cam_tz, level) & 0x4 )
+            top = level;
+
+        if( delta_x > delta_z )
+        {
+            int delta = delta_x ? (delta_z * 65536) / delta_x : 0;
+            int accumulator = 32768;
+            while( cam_tx != ply_tx )
+            {
+                cam_tx += cam_tx < ply_tx ? 1 : -1;
+                if( World_TileFlagGet(world, cam_tx, cam_tz, level) & 0x4 )
+                    top = level;
+                accumulator += delta;
+                if( accumulator >= 65536 )
+                {
+                    accumulator -= 65536;
+                    if( cam_tz != ply_tz )
+                        cam_tz += cam_tz < ply_tz ? 1 : -1;
+                    if( World_TileFlagGet(world, cam_tx, cam_tz, level) & 0x4 )
+                        top = level;
+                }
+            }
+        }
+        else if( delta_z > 0 )
+        {
+            int delta = (delta_x * 65536) / delta_z;
+            int accumulator = 32768;
+            while( cam_tz != ply_tz )
+            {
+                cam_tz += cam_tz < ply_tz ? 1 : -1;
+                if( World_TileFlagGet(world, cam_tx, cam_tz, level) & 0x4 )
+                    top = level;
+                accumulator += delta;
+                if( accumulator >= 65536 )
+                {
+                    accumulator -= 65536;
+                    if( cam_tx != ply_tx )
+                        cam_tx += cam_tx < ply_tx ? 1 : -1;
+                    if( World_TileFlagGet(world, cam_tx, cam_tz, level) & 0x4 )
+                        top = level;
+                }
+            }
+        }
+    }
+
+    if( World_TileFlagGet(
+            world, (int)player->draw_position.x >> 7, (int)player->draw_position.z >> 7, level) &
+        0x4 )
+        top = level;
+    return top;
+}
+
 /* Fill the painter buffer for the current camera. Called by App_Render once
  * per frame (painter_paint_bucket resets command_count, so repainting is
  * safe). */
 static void
 app_world_paint(struct App* app)
 {
-    int cam_sx = app->world_camera_pos.x / 128;
-    int cam_sz = app->world_camera_pos.z / 128;
-    int cam_slevel = app->world_camera_pos.y / 240;
+    /* >>7, not /128: the orbit eye can sit at negative coords past the scene
+     * edge, and truncation toward zero would mis-seed the bucket flood-fill
+     * origin by a tile. Clamp into the scene — the bucket's distance metric
+     * and adjacency tests assume an in-bounds origin. */
+    int cam_sx = app->world_camera_pos.x >> 7;
+    int cam_sz = app->world_camera_pos.z >> 7;
+    int cam_slevel = 0; /* painter_paint_bucket ignores it (iterates levels) */
+    if( app->world )
+    {
+        int max_tile = app->world->_scene_size - 1;
+        if( cam_sx < 0 )
+            cam_sx = 0;
+        if( cam_sx > max_tile )
+            cam_sx = max_tile;
+        if( cam_sz < 0 )
+            cam_sz = 0;
+        if( cam_sz > max_tile )
+            cam_sz = max_tile;
+    }
     /* The viewport component owns the level mask (RevConfig `levels=`); older
      * nodes leave it 0, which would draw nothing — treat that as all levels. */
     uint8_t level_mask = app->world_emit_desc.world_level_mask;
@@ -1468,6 +2177,9 @@ app_world_paint(struct App* app)
         cam_slevel = 3;
     if( !level_mask )
         level_mask = 0xF;
+    /* Roof hiding: the per-frame camera->player roofCheck caps the top drawn
+     * level; config (RevConfig levels=) can still restrict further. */
+    level_mask &= (uint8_t)((1u << (app_world_roof_check(app) + 1)) - 1);
     /* CAM_SHAKE jitter (reference cutscene shake, per-axis sine). */
     if( app->cam_script.shake_axis >= 0 )
     {
@@ -1515,6 +2227,195 @@ app_world_mouse_gate(
     clip = &app->world_emit_desc.clip;
     return mouse_x >= clip->x && mouse_x < clip->x + clip->w && mouse_y >= clip->y &&
            mouse_y < clip->y + clip->h;
+}
+
+/* Reference Client.tryMove for ground (type 0) / minimap (type 1) clicks:
+ * BFS route on the local player's level from the player's final route tile
+ * (routeX[0]) to the clicked scene tile with the try-nearest 3x3 fallback,
+ * send the MOVE_* waypoint packet, latch the minimap flag from the routed
+ * destination (route[0]). The local player is NOT moved here — the
+ * PLAYER_INFO echo drives movement, exactly like the reference; the old
+ * World_PlayerPathJump prediction fought the echo and made the player jump
+ * around. Offline keeps the jump as scripted-scene feedback. Returns 1 when
+ * a route was found and a packet sent (or offline feedback applied). */
+static int
+app_try_move(
+    struct App* app,
+    int dst_x,
+    int dst_z,
+    int type,
+    int click_x,
+    int click_y,
+    int yaw,
+    int ctrl_held)
+{
+    /* Reference routeX/routeZ scratch is 4000 entries (Client.ts:409). */
+    static int route_x[4000];
+    static int route_z[4000];
+    struct World* world = app->world;
+    struct WorldEntity_Player* player;
+    struct CollisionMap* cm;
+    int level, route_len, nearest = 0;
+    bool online = app->net && app->net->state == TORIRS_NET_GAME;
+
+    if( !world || !world->load_complete )
+        return 0;
+    if( dst_x < 0 || dst_z < 0 || dst_x >= world->_scene_size || dst_z >= world->_scene_size )
+        return 0;
+
+    player = app_local_player(app);
+    if( !player )
+    {
+        /* Offline / not yet pid-synced: keep the old local jump so scripted
+         * scenes still move the first spawned player. */
+        int head = World_EntityPoolHead(&world->entities.player);
+        if( !online && head != WORLD_ENTITY_NIL )
+        {
+            World_PlayerPathJump(world, head, false, dst_x, dst_z);
+            app->minimap_flag_x = dst_x;
+            app->minimap_flag_z = dst_z;
+            return 1;
+        }
+        return 0;
+    }
+
+    level = player->grid_position.level;
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = world->collision_maps[level];
+    if( !cm )
+        return 0;
+
+    route_len = collision_map_try_route(
+        cm,
+        player->pathing.route_x[0],
+        player->pathing.route_z[0],
+        dst_x,
+        dst_z,
+        true,
+        route_x,
+        route_z,
+        (int)(sizeof(route_x) / sizeof(route_x[0])),
+        &nearest);
+    if( route_len < 1 )
+        return 0;
+
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "trymove: type=%d src=%d,%d dst=%d,%d route_len=%d nearest=%d dest=%d,%d\n",
+            type,
+            player->pathing.route_x[0],
+            player->pathing.route_z[0],
+            dst_x,
+            dst_z,
+            route_len,
+            nearest,
+            route_x[0],
+            route_z[0]);
+
+    if( type == 1 )
+        APP_NET_SEND(
+            app,
+            net_out_move_minimapclick(
+                app->net->rev,
+                app->net->random_out,
+                _nsbuf,
+                sizeof(_nsbuf),
+                world->_base_tile_x,
+                world->_base_tile_z,
+                route_x,
+                route_z,
+                route_len,
+                ctrl_held,
+                click_x,
+                click_y,
+                yaw,
+                0,
+                0,
+                (int)player->draw_position.x,
+                (int)player->draw_position.z,
+                nearest));
+    else
+        APP_NET_SEND(
+            app,
+            net_out_move_gameclick(
+                app->net->rev,
+                app->net->random_out,
+                _nsbuf,
+                sizeof(_nsbuf),
+                world->_base_tile_x,
+                world->_base_tile_z,
+                route_x,
+                route_z,
+                route_len,
+                ctrl_held));
+
+    /* Reference tryMove latches the flag from the routed destination. */
+    app->minimap_flag_x = route_x[0];
+    app->minimap_flag_z = route_z[0];
+    app->need_redraw = 1;
+    return 1;
+}
+
+/* Minimap click-to-walk (reference minimapLoop, Client.ts 2990-3032): map the
+ * click through the same rotation the blit drew with into a player-relative
+ * tile, then MOVE_MINIMAPCLICK with the 14-byte anticheat trailer. The sin/cos
+ * tables are 16.16, so >>11 leaves fine units directly (32 fine units per
+ * minimap pixel at 4 px/tile). Returns 1 when the click was consumed. */
+static int
+app_minimap_click(
+    struct App* app,
+    int mouse_x,
+    int mouse_y,
+    int ctrl_held)
+{
+    struct UITreeEmitDesc const* desc = &app->minimap_emit_desc;
+    struct WorldEntity_Player* player;
+    int center_x, center_y, yaw, rel_x, rel_y;
+    int tile_x, tile_z;
+
+    if( !app->minimap_view_valid || !app->world || !app->world->load_complete )
+        return 0;
+    if( mouse_x < desc->x || mouse_x >= desc->x + desc->w || mouse_y < desc->y ||
+        mouse_y >= desc->y + desc->h )
+        return 0;
+    player = app_local_player(app);
+    if( !player )
+        return 0;
+
+    center_x = mouse_x - (desc->x + desc->w / 2);
+    center_y = mouse_y - (desc->y + desc->h / 2);
+    yaw = desc->rotation_r2pi2048 & 0x7ff;
+    {
+        int sin = ToriDraw_Sin(yaw);
+        int cos = ToriDraw_Cos(yaw);
+        rel_x = (center_y * sin + center_x * cos) >> 11;
+        rel_y = (center_y * cos - center_x * sin) >> 11;
+    }
+    tile_x = ((int)player->draw_position.x + rel_x) >> 7;
+    tile_z = ((int)player->draw_position.z - rel_y) >> 7;
+    if( tile_x < 0 || tile_z < 0 || tile_x >= app->world->_scene_size ||
+        tile_z >= app->world->_scene_size )
+        return 0;
+
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "minimap: click=%d,%d rel=%d,%d scene=%d,%d abs=%d,%d\n",
+            center_x,
+            center_y,
+            rel_x,
+            rel_y,
+            tile_x,
+            tile_z,
+            app->world->_base_tile_x + tile_x,
+            app->world->_base_tile_z + tile_z);
+    app_try_move(app, tile_x, tile_z, 1, center_x, center_y, yaw, ctrl_held);
+    app->need_redraw = 1;
+    return 1;
 }
 
 /* Classify the raw hits the render pass collected into the app pickset +
@@ -1631,14 +2532,24 @@ app_world_camera_keys(
         app->world_camera_pos.y -= move;
     if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
         app->world_camera_pos.y += move;
-    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT) )
-        app->world_camera.yaw = ToriDraw_AddAngle(app->world_camera.yaw, rotate);
-    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
-        app->world_camera.yaw = ToriDraw_AddAngle(app->world_camera.yaw, -rotate);
-    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP) )
-        app->world_camera.pitch = ToriDraw_AddAngle(app->world_camera.pitch, rotate);
-    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN) )
-        app->world_camera.pitch = ToriDraw_AddAngle(app->world_camera.pitch, -rotate);
+    /* Arrows drive the orbit camera (reference keyHeld[1..4]); the follow
+     * step consumes these next frame. When the follow cam is off (offline or
+     * scripted) fall back to the free-cam direct rotate. */
+    app->cam_key_left = LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT);
+    app->cam_key_right = LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT);
+    app->cam_key_up = LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP);
+    app->cam_key_down = LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN);
+    if( app->cam_script.scripted || !app->net )
+    {
+        if( app->cam_key_left )
+            app->world_camera.yaw = ToriDraw_AddAngle(app->world_camera.yaw, rotate);
+        if( app->cam_key_right )
+            app->world_camera.yaw = ToriDraw_AddAngle(app->world_camera.yaw, -rotate);
+        if( app->cam_key_up )
+            app->world_camera.pitch = ToriDraw_AddAngle(app->world_camera.pitch, rotate);
+        if( app->cam_key_down )
+            app->world_camera.pitch = ToriDraw_AddAngle(app->world_camera.pitch, -rotate);
+    }
 
     /* M: reload the world through the task system (assets cached -> fast;
      * rebuild clears world scene elements incl. spawned entities). */
@@ -1685,7 +2596,15 @@ app_world_scene_element_create(
     {
         struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
         if( el )
+        {
             el->dynamic = true;
+            /* Everything created here is an entity — player, npc, ground obj,
+             * projectile — and the reference sets Model.useAABBMouseCheck on
+             * exactly those (ObjType.getWorldModel:359, ClientPlayer:321/395,
+             * NpcType:227). Locs come from the world builder instead and keep
+             * the exact per-face test. */
+            el->pick_aabb = true;
+        }
     }
     return element_id;
 }
@@ -1989,6 +2908,7 @@ app_world_spawn_npc_now(
         if( npc )
         {
             npc->combat_level = npctype->combat_level;
+            npc->facing.turn_speed = npctype->turn_speed;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )
                 snprintf(
@@ -2089,6 +3009,7 @@ enum AppSpawnKind
     APP_SPAWN_PLAYER = 0,
     APP_SPAWN_NPC,
     APP_SPAWN_PROJECTILE,
+    APP_SPAWN_OBJ,
 };
 
 struct Task_AppSpawn
@@ -2101,6 +3022,7 @@ struct Task_AppSpawn
     int tile_z;
     int level;
     int npc_id;
+    int obj_id;
     int model_id;
     int src_tile_x;
     int src_tile_z;
@@ -2140,6 +3062,22 @@ Task_AppSpawn_Run(
                 CacheProvider_NpctypeGet(app->provider, self->npc_id)->models[self->model_i]));
         }
         app_world_spawn_npc_now(app, self->npc_id, self->tile_x, self->tile_z, self->level);
+    }
+    else if( self->kind == APP_SPAWN_OBJ )
+    {
+        TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->obj_id));
+        {
+            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, self->obj_id);
+            if( obj && obj->inventory_model_id > 0 )
+                self->model_id = obj->inventory_model_id;
+        }
+        if( self->model_id > 0 )
+        {
+            TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+            App_WorldObjStackAdd(app, self->tile_x, self->tile_z, self->level, self->obj_id, 1);
+        }
+        else
+            fprintf(stderr, "spawn_obj: obj %d has no inventory model\n", self->obj_id);
     }
     else
     {
@@ -2217,6 +3155,26 @@ app_world_spawn_npc(
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
+/* Hotkey 7: ground item on the hovered tile — the same App_WorldObjStackAdd
+ * the zone OBJ_ADD packet drives, so the right-click rows it produces are the
+ * live path. TORIRS_SPAWN_OBJ overrides the id. */
+static void
+app_world_spawn_obj(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_OBJ, tile_x, tile_z, level);
+    task->obj_id = 1265; /* bronze pickaxe: named, with ground ops */
+    {
+        char const* env = getenv("TORIRS_SPAWN_OBJ");
+        if( env )
+            task->obj_id = (int)strtol(env, NULL, 0);
+    }
+    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+}
+
 /* Hotkey 0, two-press latch: first press marks the hovered tile as source,
  * second launches source -> hovered (same-tile press clears the latch). */
 static void
@@ -2259,8 +3217,31 @@ app_world_spawn_projectile(
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
-/* Spawn test hotkeys (readme): 9 player, 8 npc, 0 projectile — all act on the
- * tile under the mouse, so they no-op when nothing is hovered. */
+/* Hotkey 6: hit every live player/npc for a test hitsplat + half health, so
+ * the overlay pass (health bars + hitmarks) can be exercised offline. Goes
+ * through the same World_*AddHitmark the NPC_INFO/PLAYER_INFO damage op
+ * uses. */
+static void
+app_world_damage_test(struct App* app)
+{
+    struct World_EntityPool* pool;
+    int damage = 1 + (app->logic_cycle % 30);
+
+    if( !app->world )
+        return;
+    pool = &app->world->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+        World_PlayerAddHitmark(app->world, i, damage % 2, damage, 5, 10);
+    pool = &app->world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+        World_NpcAddHitmark(app->world, i, damage % 2, damage, 5, 10);
+}
+
+/* Spawn test hotkeys (readme): 9 player, 8 npc, 7 ground item, 0 projectile,
+ * 6 test hitsplat — all act on the tile under the mouse, so they no-op when
+ * nothing is hovered. */
 static void
 app_world_hotkeys(
     struct App* app,
@@ -2282,6 +3263,11 @@ app_world_hotkeys(
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_8) )
         app_world_spawn_npc(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_6) )
+        app_world_damage_test(app);
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_7) )
+        app_world_spawn_obj(
+            app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_0) )
         app_world_spawn_projectile(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
@@ -2291,22 +3277,20 @@ app_world_hotkeys(
  * position sync, animation ticks. Runs every frame (cycles may be 0) so the
  * painter dynamic set stays fresh, and forces a redraw while active — but only
  * while a viewport is actually on screen; an unshown world does not tick. */
-/* Reference camFollow (Client-TS 4669): place the eye `distance` behind the
- * target along pitch/yaw. Sin/cos are 16.16 (same tables as Pix3D). */
+/* Reference followCamera + camFollow (Client-TS 3459/4669): a 1/16-eased
+ * orbit anchor trails the player, arrow keys accumulate yaw/pitch velocity,
+ * a terrain scan raises pitch so the eye stays above nearby ground, then the
+ * eye is placed `pitch*3+600` behind the anchor along pitch/yaw. Sin/cos are
+ * 16.16 (same tables as Pix3D). */
 static void
 app_world_camera_follow(struct App* app)
 {
     int world_idx;
     struct WorldEntity_Player* player;
     int target_x, target_y, target_z;
-    /* Reference orbitCameraPitch defaults to 128 (low shoulder cam), but we
-     * have no roof-hiding yet — indoors that view is all roof. Use the upper
-     * orbit clamp (383) for a clear look-down until roof culling lands. */
-    int pitch = 383;
-    int yaw = ToriDraw_NormalizeAngle(app->world_camera.yaw);
-    int distance = pitch * 3 + 600;
+    int pitch, yaw, distance;
     int inv_pitch, inv_yaw;
-    int off_x = 0, off_y = 0, off_z = distance;
+    int off_x, off_y, off_z;
 
     if( app->cam_script.scripted || !app->net )
         return;
@@ -2322,7 +3306,90 @@ app_world_camera_follow(struct App* app)
 
     target_x = (int)player->draw_position.x;
     target_z = (int)player->draw_position.z;
+
+    /* Anchor: snap when >500 units out (teleport), else ease 1/16. */
+    if( app->orbit_x - target_x < -500 || app->orbit_x - target_x > 500 ||
+        app->orbit_z - target_z < -500 || app->orbit_z - target_z > 500 )
+    {
+        app->orbit_x = target_x;
+        app->orbit_z = target_z;
+    }
+    if( app->orbit_x != target_x )
+        app->orbit_x += (target_x - app->orbit_x) / 16;
+    if( app->orbit_z != target_z )
+        app->orbit_z += (target_z - app->orbit_z) / 16;
+
+    /* Arrow keys -> yaw/pitch velocity (impulse 24/12, halved decay). */
+    if( app->cam_key_left )
+        app->orbit_yaw_vel += (-app->orbit_yaw_vel - 24) / 2;
+    else if( app->cam_key_right )
+        app->orbit_yaw_vel += (24 - app->orbit_yaw_vel) / 2;
+    else
+        app->orbit_yaw_vel = app->orbit_yaw_vel / 2;
+
+    if( app->cam_key_up )
+        app->orbit_pitch_vel += (12 - app->orbit_pitch_vel) / 2;
+    else if( app->cam_key_down )
+        app->orbit_pitch_vel += (-app->orbit_pitch_vel - 12) / 2;
+    else
+        app->orbit_pitch_vel = app->orbit_pitch_vel / 2;
+
+    app->orbit_yaw = (app->orbit_yaw + app->orbit_yaw_vel / 2) & 0x7ff;
+    app->orbit_pitch += app->orbit_pitch_vel / 2;
+    if( app->orbit_pitch < 128 )
+        app->orbit_pitch = 128;
+    if( app->orbit_pitch > 383 )
+        app->orbit_pitch = 383;
+
+    /* Terrain pitch clamp: scan the 9x9 tile block around the anchor for
+     * ground higher than the anchor's; raise the minimum pitch so the eye
+     * clears it. cameraPitchClamp is 24.8 fixed (clamp/256 = pitch units). */
+    {
+        struct Heightmap* hm = app->world ? app->world->heightmap : NULL;
+        int level = player->grid_position.level;
+        int orbit_tile_x = app->orbit_x >> 7;
+        int orbit_tile_z = app->orbit_z >> 7;
+        int orbit_y = app_world_height(app, app->orbit_x, app->orbit_z, level);
+        int max_y = 0;
+        int clamp;
+
+        if( hm && orbit_tile_x > 3 && orbit_tile_z > 3 && orbit_tile_x < hm->size_x - 4 &&
+            orbit_tile_z < hm->size_z - 4 )
+        {
+            for( int x = orbit_tile_x - 4; x <= orbit_tile_x + 4; x++ )
+                for( int z = orbit_tile_z - 4; z <= orbit_tile_z + 4; z++ )
+                {
+                    /* Reference also bumps to level+1 on VisBelow (bridge)
+                     * tiles; tile flags are applied at build time here, so
+                     * the stored heights already match what is drawn. */
+                    int y = orbit_y - heightmap_get(hm, x, z, level);
+                    if( y > max_y )
+                        max_y = y;
+                }
+        }
+        clamp = max_y * 192;
+        if( clamp > 98048 )
+            clamp = 98048;
+        if( clamp < 32768 )
+            clamp = 32768;
+        if( clamp > app->camera_pitch_clamp )
+            app->camera_pitch_clamp += (clamp - app->camera_pitch_clamp) / 24;
+        else if( clamp < app->camera_pitch_clamp )
+            app->camera_pitch_clamp += (clamp - app->camera_pitch_clamp) / 80;
+    }
+
+    pitch = app->orbit_pitch;
+    if( app->camera_pitch_clamp / 256 > pitch )
+        pitch = app->camera_pitch_clamp / 256;
+    yaw = app->orbit_yaw & 0x7ff;
+    distance = pitch * 3 + 600;
+    off_x = 0;
+    off_y = 0;
+    off_z = distance;
+
     target_y = app_world_height(app, target_x, target_z, player->grid_position.level) - 50;
+    target_x = app->orbit_x;
+    target_z = app->orbit_z;
 
     inv_pitch = (2048 - pitch) & 0x7ff;
     inv_yaw = (2048 - yaw) & 0x7ff;
@@ -2506,6 +3573,43 @@ app_minimenu_open(
     int line_height = 0;
 
     RS_Minimenu_Build(&mctx, click_x, click_y, menu);
+
+    /* TORIRS_MINIMENU_DEBUG=1: the world pickset that fed the rows plus every
+     * row built from it — the one place to see why a loc/obj came up bare. */
+    if( getenv("TORIRS_MINIMENU_DEBUG") )
+    {
+        fprintf(
+            stderr,
+            "minimenu: open at %d,%d in_world=%d picks=%d\n",
+            click_x,
+            click_y,
+            click_in_world,
+            click_in_world ? app->world_pickset.count : 0);
+        if( click_in_world )
+            for( int i = 0; i < app->world_pickset.count; i++ )
+            {
+                struct World_Picked const* picked = &app->world_pickset.items[i];
+                fprintf(
+                    stderr,
+                    "  pick[%d] type=%d element=%d tile=%d,%d,%d\n",
+                    i,
+                    (int)picked->type,
+                    picked->element_id,
+                    picked->tile_x,
+                    picked->tile_z,
+                    picked->tile_level);
+            }
+        for( int i = 0; i < menu->option_count; i++ )
+            fprintf(
+                stderr,
+                "  row[%d] action=%d op=%d kind=%d id=%d \"%s\"\n",
+                i,
+                menu->options[i].action,
+                menu->options[i].action_index,
+                (int)menu->options[i].pick.kind,
+                menu->options[i].pick.id,
+                menu->options[i].text);
+    }
 
     {
         struct ToriDraw_Font* font = ToriDraw_SceneFontGet(app->scene, menu->font_id);
@@ -2735,6 +3839,42 @@ app_minimenu_use_option(
             UICross_Show(&app->cross, cross_mode, click_x, click_y);
     }
 
+    /* Examine (OPLOC6/OPNPC6): reference resolves these locally from the
+     * config desc and sends no packet (Client-TS doAction OP_LOC6/OP_NPC6);
+     * without desc in the type structs, use the OPHELD6 name form. Must run
+     * before the pick.kind switch or the scenery/NPC cases would mis-send
+     * OPLOC1/OPNPC1. */
+    if( opt.action == REVCONFIG_MINIMENU_OPLOC6 || opt.action == REVCONFIG_MINIMENU_OPNPC6 ||
+        opt.action == REVCONFIG_MINIMENU_OPOBJ6 )
+    {
+        char const* name = NULL;
+        char line[80];
+        if( app->world && opt.action == REVCONFIG_MINIMENU_OPLOC6 )
+        {
+            struct WorldEntity_Scenery* scenery =
+                World_SceneryGetByElementId(app->world, opt.pick.id);
+            if( scenery && scenery->name[0] )
+                name = scenery->name;
+        }
+        else if( app->world && opt.action == REVCONFIG_MINIMENU_OPOBJ6 )
+        {
+            struct WorldEntity_ObjStack* stack =
+                World_ObjStackGetByElementId(app->world, opt.pick.id);
+            if( stack && stack->name[0] )
+                name = stack->name;
+        }
+        else if( app->world )
+        {
+            struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt.pick.id, NULL);
+            if( npc && npc->name[0] )
+                name = npc->name;
+        }
+        snprintf(line, sizeof(line), "It's a %s.", name ? name : "mystery");
+        RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_GAME, NULL, line);
+        app->need_redraw = 1;
+        return 1;
+    }
+
     switch( opt.pick.kind )
     {
     case UI_MINIMENU_PICK_UI:
@@ -2785,9 +3925,9 @@ app_minimenu_use_option(
         return 1;
     }
     case UI_MINIMENU_PICK_TERRAIN:
-        /* Walk here: tell the server (reference MOVE_GAMECLICK), and locally
-         * path the first spawned player as immediate feedback until PID/
-         * player-info sync owns the local player. */
+        /* Walk here (reference tryMove type 0): BFS route + MOVE_GAMECLICK
+         * waypoints; no local prediction — the PLAYER_INFO echo moves the
+         * player. */
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(
                 stderr,
@@ -2796,32 +3936,7 @@ app_minimenu_use_option(
                 opt.pick.tertiary_id,
                 app->world ? app->world->_base_tile_x + opt.pick.secondary_id : -1,
                 app->world ? app->world->_base_tile_z + opt.pick.tertiary_id : -1);
-        /* MoveClickDecoder reads absolute tiles (g2 startX/startZ). */
-        APP_NET_SEND(
-            app,
-            net_out_move_gameclick(
-                app->net->rev,
-                app->net->random_out,
-                _nsbuf,
-                sizeof(_nsbuf),
-                (app->world ? app->world->_base_tile_x : 0) + opt.pick.secondary_id,
-                (app->world ? app->world->_base_tile_z : 0) + opt.pick.tertiary_id,
-                0));
-        if( app->world )
-        {
-            struct World_EntityPool* pool = &app->world->entities.player;
-            int head = World_EntityPoolHead(pool);
-            if( head != WORLD_ENTITY_NIL )
-                World_PlayerPathJump(
-                    app->world, head, false, opt.pick.secondary_id, opt.pick.tertiary_id);
-            else if( !app->net_enabled )
-                fprintf(
-                    stderr,
-                    "minimenu: walk %d,%d level=%d (no player)\n",
-                    opt.pick.secondary_id,
-                    opt.pick.tertiary_id,
-                    opt.pick.quaternary_id);
-        }
+        app_try_move(app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, 0);
         return 0;
     case UI_MINIMENU_PICK_NPC:
     {
@@ -2869,6 +3984,33 @@ app_minimenu_use_option(
                 net_out_oploc(
                     app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                     opt.action_index + 1, abs_x, abs_z, loc_id));
+        }
+        return 0;
+    }
+    case UI_MINIMENU_PICK_OBJ:
+    {
+        /* Ground item (reference OP_OBJ1..5 / USEHELD_ONOBJ): the wire
+         * carries the tile + obj id, not the scene element. */
+        int abs_x = opt.pick.tertiary_id + app->world->_base_tile_x;
+        int abs_z = opt.pick.quaternary_id + app->world->_base_tile_z;
+        int obj_id = opt.pick.secondary_id;
+        if( app->objsel.active )
+        {
+            APP_NET_SEND(
+                app,
+                net_out_opobju(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    abs_x, abs_z, obj_id, app->objsel.obj_id, app->objsel.slot,
+                    app->objsel.component_id));
+            app->objsel.active = 0;
+        }
+        else
+        {
+            APP_NET_SEND(
+                app,
+                net_out_opobj(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    opt.action_index + 1, abs_x, abs_z, obj_id));
         }
         return 0;
     }
@@ -3043,6 +4185,14 @@ App_RunOnce(
      * and run its top normal-priority row, suppressing the legacy click
      * intent. Components with no menu rows keep the legacy hook path — for
      * them the scratch menu is Cancel-only and default_idx is -1. */
+    /* Minimap click-to-walk (chrome gesture from interact_click). */
+    if( out.minimap_click && !out.minimenu_closed && out.minimenu_select < 0 )
+        app_minimap_click(
+            app,
+            out.minimap_click_x,
+            out.minimap_click_y,
+            LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL));
+
     if( out.clicked_com_id >= 0 && !out.minimenu_closed && out.minimenu_select < 0 )
     {
         struct RS_MinimenuBuildCtx mctx = {
@@ -3360,6 +4510,24 @@ App_RunOnce(
 
     if( app->need_redraw )
     {
+        /* Mounts/bakes bump tree->generation; server texts that landed while
+         * the target interface was unmounted re-apply onto the fresh nodes
+         * (reference: IF_SETTEXT persists on IfType.list). */
+        if( app->if_text_count > 0 && app->tree->generation != app->if_text_applied_gen )
+        {
+            app->if_text_applied_gen = app->tree->generation;
+            for( int i = 0; i < app->if_text_count; i++ )
+            {
+                bool ok =
+                    UITree_ApplyText(app->tree, app->if_texts[i].com_id, app->if_texts[i].text);
+                if( !ok && getenv("TORIRS_NET_DEBUG") )
+                    fprintf(
+                        stderr,
+                        "if_settext: reapply com=%d gen=%u missed\n",
+                        app->if_texts[i].com_id,
+                        app->tree->generation);
+            }
+        }
         app_chat_build_view(app);
         app->emit.count = 0;
         UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->hover_com_id);
@@ -3369,10 +4537,51 @@ App_RunOnce(
     return 0;
 }
 
+void
+App_IfTextSet(
+    struct App* app,
+    int com_id,
+    char const* text)
+{
+    int i;
+    assert(app);
+    for( i = 0; i < app->if_text_count; i++ )
+        if( app->if_texts[i].com_id == com_id )
+            break;
+    if( i == app->if_text_count )
+    {
+        if( app->if_text_count == app->if_text_cap )
+        {
+            int cap = app->if_text_cap ? app->if_text_cap * 2 : 64;
+            app->if_texts = realloc(app->if_texts, (size_t)cap * sizeof(*app->if_texts));
+            assert(app->if_texts);
+            app->if_text_cap = cap;
+        }
+        app->if_texts[i].com_id = com_id;
+        app->if_texts[i].text = NULL;
+        app->if_text_count++;
+    }
+    free(app->if_texts[i].text);
+    app->if_texts[i].text = strdup(text ? text : "");
+    {
+        bool applied = UITree_ApplyText(app->tree, com_id, text);
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(
+                stderr,
+                "if_settext: com=%d text='%s' applied=%d\n",
+                com_id,
+                text ? text : "",
+                (int)applied);
+    }
+    app->need_redraw = 1;
+}
+
 static void
 app_send_if_button(void* user, int com_id)
 {
     struct App* app = (struct App*)user;
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(stderr, "if_button: com=%d\n", com_id);
     APP_NET_SEND(app, net_out_if_button(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), com_id));
 }
 
@@ -3593,9 +4802,34 @@ App_WorldObjStackAdd(
     if( element_id < 0 )
         return -1;
 
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "objstack: obj=%d tile=%d,%d,%d element=%d\n",
+            obj_id,
+            scene_x,
+            scene_z,
+            level,
+            element_id);
     app_sync_textures(app);
     app->need_redraw = 1;
-    return World_ObjStackAdd(app->world, element_id, scene_x, scene_z, level, obj_id, count);
+    {
+        /* ToriRS actions are [5][64]; the entity facet stores [5][32] —
+         * repack at the matching stride (same gotcha as the scenery path). */
+        char actions32[5][32];
+        for( int a = 0; a < 5; a++ )
+            snprintf(actions32[a], sizeof(actions32[a]), "%s", obj->ground_actions[a]);
+        return World_ObjStackAdd(
+            app->world,
+            element_id,
+            scene_x,
+            scene_z,
+            level,
+            obj_id,
+            count,
+            obj->name,
+            actions32);
+    }
 }
 
 void
@@ -3703,6 +4937,7 @@ App_WorldApplyNpcType(
         if( npc )
         {
             npc->combat_level = npctype->combat_level;
+            npc->facing.turn_speed = npctype->turn_speed;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )
                 snprintf(

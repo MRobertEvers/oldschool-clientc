@@ -357,7 +357,8 @@ scenery_load_model(
             size_x,
             size_z,
             config_loc->name,
-            actions32);
+            actions32,
+            config_loc->is_interactive);
     }
 
     struct ToriDraw_ModelHandle hnd = {
@@ -1091,6 +1092,103 @@ scenery_add_floor_decoration(
 
     scenery_register_sharelight(
         builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+}
+
+/* Gather loc "mapfunction" minimap icons for one chunk (reference
+ * minimapBuildBuffer gather, Client.ts:5566-5617 — it reads gdType, i.e.
+ * ground-decoration locs only). Raw loc tiles are recorded here; the
+ * collision-aware random-walk spread runs after the full rebuild when the
+ * collision maps are complete. */
+void
+world_builder_minimap_add_chunk_mapfunctions(
+    struct WorldBuilder* builder,
+    int mapx,
+    int mapz)
+{
+    struct World* world = builder->world;
+
+    int map_id = CacheProvider_MapId(mapx, mapz);
+    struct ToriRS_MapLocs* map_locs = CacheProvider_MapSceneryGet(builder->cache, map_id);
+    if( !map_locs )
+        return;
+
+    int scene_size = world->_scene_size;
+
+    for( int i = 0; i < map_locs->locs_count; i++ )
+    {
+        struct ToriRS_MapLoc* map_loc = &map_locs->locs[i];
+        if( map_loc->shape_select != RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
+            continue;
+        if( map_loc->chunk_pos_level != WORLD_CURRENT_LEVEL )
+            continue;
+
+        int offset_x = World_ToSceneX(world, mapx, map_loc->chunk_pos_x);
+        int offset_z = World_ToSceneZ(world, mapz, map_loc->chunk_pos_z);
+        if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size || offset_z >= scene_size )
+            continue;
+
+        struct ToriRS_Location* config_loc =
+            CacheProvider_LocationGet(builder->cache, map_loc->loc_id);
+        if( !config_loc )
+            continue;
+        config_loc = world_builder_resolve_loc(builder, config_loc);
+        if( !config_loc )
+            continue;
+
+        /* The mapfunction archive holds 50 frames (reference Client.ts:978). */
+        int func = config_loc->map_function_id;
+        if( func < 0 || func >= 50 )
+            continue;
+        if( world->mapfunc_count >= WORLD_MAPFUNC_MAX )
+            return;
+
+        struct World_MapFunctionIcon* icon = &world->mapfuncs[world->mapfunc_count++];
+        icon->x = offset_x;
+        icon->z = offset_z;
+        icon->func = func;
+    }
+}
+
+/* Post-build pass: nudge icons off their loc tile with the reference's
+ * 10-step collision-respecting random walk (bounded ±3 tiles; a fixed set of
+ * funcs stays put). Runs once per rebuild, after collision maps are final. */
+void
+world_builder_minimap_spread_mapfunctions(struct WorldBuilder* builder)
+{
+    struct World* world = builder->world;
+    struct CollisionMap* cm = world->collision_maps[WORLD_CURRENT_LEVEL];
+    if( !cm )
+        return;
+
+    for( int i = 0; i < world->mapfunc_count; i++ )
+    {
+        struct World_MapFunctionIcon* icon = &world->mapfuncs[i];
+        int func = icon->func;
+        if( func == 22 || func == 29 || func == 34 || func == 36 || func == 46 || func == 47 ||
+            func == 48 )
+            continue;
+
+        int x = icon->x;
+        int z = icon->z;
+        int stx = x;
+        int stz = z;
+        for( int step = 0; step < 10; step++ )
+        {
+            int r = rand() & 3;
+            if( r == 0 && stx > 0 && stx > x - 3 && collision_map_can_step_west(cm, stx, stz) )
+                stx--;
+            if( r == 1 && stx < cm->size_x - 1 && stx < x + 3 &&
+                collision_map_can_step_east(cm, stx, stz) )
+                stx++;
+            if( r == 2 && stz > 0 && stz > z - 3 && collision_map_can_step_south(cm, stx, stz) )
+                stz--;
+            if( r == 3 && stz < cm->size_z - 1 && stz < z + 3 &&
+                collision_map_can_step_north(cm, stx, stz) )
+                stz++;
+        }
+        icon->x = stx;
+        icon->z = stz;
+    }
 }
 
 void

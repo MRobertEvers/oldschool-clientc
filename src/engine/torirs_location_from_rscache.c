@@ -84,6 +84,13 @@ ToriRS_LocationFromRSCacheDat2(
     torirs_copy_menu_actions(loc->actions, src->actions);
     torirs_location_copy_shapes_models(loc, src);
 
+    /* LocType.active (Client-TS LocType.ts:248-256): the decoder already
+     * derives it when opcode 19 is absent. A non-active loc gets its scene
+     * typecode negated in the reference, which makes Model.draw skip pick
+     * registration entirely — walls, gravel and floor decor never reach the
+     * right-click menu. */
+    loc->is_interactive = src->is_interactive ? 1 : 0;
+
     loc->size_x = src->size_x;
     loc->size_z = src->size_z;
     loc->blocks_walk = src->blocks_walk;
@@ -105,6 +112,7 @@ ToriRS_LocationFromRSCacheDat2(
     loc->offset_y = src->offset_y;
     loc->offset_z = src->offset_z;
     loc->map_scene_id = src->map_scene_id;
+    loc->map_function_id = src->map_function_id;
     loc->transform_varbit = src->transform_varbit;
     loc->transform_varp = src->transform_varp;
 

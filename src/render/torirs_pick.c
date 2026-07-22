@@ -30,10 +30,27 @@ pick_classify_element(
     struct WorldEntity_Scenery* scenery = World_SceneryGetByElementId(world, element_id);
     if( scenery )
     {
+        /* LocType.active gate: the reference negates a non-active loc's
+         * typecode, and Model.draw only records hits for `typecode > 0`
+         * (Model.ts:1758) — so walls, gravel and floor decor never produce a
+         * menu row. Without this every unnamed loc surfaced as
+         * "Examine @cya@ Scenery". */
+        if( !scenery->interactive )
+            return false;
         *out_type = WORLD_PICK_SCENERY;
         *out_tile_x = scenery->grid_position.x;
         *out_tile_z = scenery->grid_position.z;
         *out_tile_level = scenery->grid_position.level;
+        return true;
+    }
+
+    struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(world, element_id);
+    if( stack )
+    {
+        *out_type = WORLD_PICK_OBJSTACK;
+        *out_tile_x = stack->grid_position.x;
+        *out_tile_z = stack->grid_position.z;
+        *out_tile_level = stack->grid_position.level;
         return true;
     }
 

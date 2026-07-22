@@ -48,6 +48,9 @@ enum UITreeComponentType
     UIELEM_BUILTIN_MINIMENU = 11,
     UIELEM_BUILTIN_CHAT_BUTTON = 12,
     UIELEM_BUILTIN_PLAYERMODEL = 13,
+    /** Screen-space pass over the world viewport: health bars + hitsplats
+     *  (reference drawEntities). Positions come from the host. */
+    UIELEM_BUILTIN_ENTITY_OVERLAY = 24,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */

@@ -14,6 +14,10 @@ struct WorldEntity_Scenery
     struct WorldEntityFacet_AnimationStep animation;
     char name[32];
     struct WorldEntityFacet_Action actions[5];
+    /** LocType.active. The reference negates a non-active loc's scene
+     *  typecode so Model.draw never records it as a pick hit; torirs filters
+     *  in torirs_pick.c instead (walls/gravel/floor decor stay unclickable). */
+    int interactive;
 };
 
 #endif

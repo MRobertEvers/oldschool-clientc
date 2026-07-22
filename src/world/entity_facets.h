@@ -110,21 +110,28 @@ struct WorldEntityFacet_Action
     char name[32];
 };
 
-#define WORLD_FACING_GRID_COORDS 0
-#define WORLD_FACING_ENTITY_ID 1
+/* Server-driven facing (reference ClientEntity.faceEntity / faceSquareX/Z).
+ * The two are independent, not alternatives: an entity can be locked onto a
+ * target *and* carry a pending square, and the reference applies both in that
+ * order every tick (Client.ts entityFace, 3932). */
+#define WORLD_FACING_ENTITY_NONE (-1)
+/* faceEntity values >= this are player slots (value - 32768); below it, npc
+ * slots (reference Client.ts:3937/3949). */
+#define WORLD_FACING_PLAYER_BASE 32768
 
 struct WorldEntityFacet_Facing
 {
-    int mode;
-    union
-    {
-        struct
-        {
-            uint16_t x;
-            uint16_t z;
-        } grid_coords;
-        int entity_id;
-    } u;
+    /** Server slot of the locked-on entity, WORLD_FACING_ENTITY_NONE if any. */
+    int entity_id;
+    /** Pending face-coord, as the wire sends it: absolute half-tiles
+     *  ((tile << 1) + 1). 0,0 = none — the reference's sentinel, and the
+     *  reason this is stored raw rather than converted to a scene tile
+     *  (scene tile 0 is a legitimate target). Cleared once consumed. */
+    int square_x;
+    int square_z;
+    /** NpcType.turnspeed (players: 32). 0 = the entity never turns and
+     *  entityFace returns immediately. */
+    int turn_speed;
 };
 
 #define WORLD_ENTITY_DAMAGE_SLOTS 4

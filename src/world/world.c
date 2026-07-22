@@ -37,8 +37,22 @@ World_Free(struct World* world)
         painters_cullmap_free(world->cullmap);
     if( world->painter )
         painter_free(world->painter);
+    free(world->tile_flags);
     World_EntityListFree(&world->entities);
     free(world);
+}
+
+int
+World_TileFlagGet(
+    struct World const* world,
+    int x,
+    int z,
+    int level)
+{
+    if( !world || !world->tile_flags || x < 0 || z < 0 || level < 0 ||
+        x >= world->_scene_size || z >= world->_scene_size || level >= WORLD_MAP_TERRAIN_LEVELS )
+        return 0;
+    return world->tile_flags[x + z * world->_scene_size + level * world->_scene_size * world->_scene_size];
 }
 
 void
@@ -90,12 +104,17 @@ World_ResetSceneAlloc(
     World_TerrainReset(world);
     world->scenery_pick_count = 0;
     world->event_count = 0;
+    world->mapfunc_count = 0;
     world->_scene_size = scene_size;
 
     world->heightmap = heightmap_new(scene_size + 1, scene_size + 1, WORLD_MAP_TERRAIN_LEVELS);
     for( int i = 0; i < COLLISION_LEVELS; i++ )
         world->collision_maps[i] = collision_map_new(scene_size, scene_size);
     world->minimap = minimap_new(scene_size, scene_size);
+
+    free(world->tile_flags);
+    world->tile_flags =
+        (uint8_t*)calloc((size_t)(scene_size * scene_size * WORLD_MAP_TERRAIN_LEVELS), 1);
 
     world->painter = painter_new(
         scene_size,
@@ -353,6 +372,11 @@ World_PlayerSpawn(
                      .route_x = { (uint8_t)scene_x },
                      .route_z = { (uint8_t)scene_z } },
         .idle_animations = idle_animations,
+        /* Reference ClientEntity defaults: faceEntity -1, turnspeed 32
+         * (players always have the constant; NPCs take NpcType.turnspeed,
+         * applied by App_WorldApplyNpcType). */
+        .facing = { .entity_id = WORLD_FACING_ENTITY_NONE, .turn_speed = 32 },
+        .server_pid = -1,
     };
     return idx;
 }
@@ -405,6 +429,8 @@ World_NpcSpawn(
         .npc_id = npc_id,
         .size = size,
         .idle_animations = idle_animations,
+        .facing = { .entity_id = WORLD_FACING_ENTITY_NONE, .turn_speed = 32 },
+        .server_slot = -1,
     };
     return idx;
 }
@@ -567,7 +593,8 @@ World_SceneryRegister(
     int size_x,
     int size_z,
     char const* name,
-    char const actions[5][32])
+    char const actions[5][32],
+    int interactive)
 {
     assert(world);
     if( element_id < 0 || loc_id < 0 )
@@ -594,6 +621,7 @@ World_SceneryRegister(
         scenery->name[sizeof(scenery->name) - 1] = '\0';
     }
     World_CopyMenuActions(scenery->actions, actions);
+    scenery->interactive = interactive ? 1 : 0;
     return idx;
 }
 
@@ -609,6 +637,42 @@ World_SceneryGetByElementId(
         struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, i);
         if( scenery && scenery->element_id == element_id )
             return scenery;
+    }
+    return NULL;
+}
+
+struct WorldEntity_NPC*
+World_NpcGetByServerSlot(
+    struct World* world,
+    int server_slot)
+{
+    assert(world);
+    if( server_slot < 0 )
+        return NULL;
+    struct World_EntityPool* pool = &world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        if( npc && npc->server_slot == server_slot )
+            return npc;
+    }
+    return NULL;
+}
+
+struct WorldEntity_Player*
+World_PlayerGetByServerPid(
+    struct World* world,
+    int server_pid)
+{
+    assert(world);
+    if( server_pid < 0 )
+        return NULL;
+    struct World_EntityPool* pool = &world->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
+        if( player && player->server_pid == server_pid )
+            return player;
     }
     return NULL;
 }
@@ -765,8 +829,7 @@ World_PlayerFaceEntity(
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
-    player->facing.mode = WORLD_FACING_ENTITY_ID;
-    player->facing.u.entity_id = entity_id;
+    player->facing.entity_id = entity_id;
 }
 
 void
@@ -779,40 +842,37 @@ World_NpcFaceEntity(
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
-    npc->facing.mode = WORLD_FACING_ENTITY_ID;
-    npc->facing.u.entity_id = entity_id;
+    npc->facing.entity_id = entity_id;
 }
 
 void
 World_PlayerFaceCoord(
     struct World* world,
     int idx,
-    int x,
-    int z)
+    int square_x,
+    int square_z)
 {
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
-    player->facing.mode = WORLD_FACING_GRID_COORDS;
-    player->facing.u.grid_coords.x = (uint16_t)x;
-    player->facing.u.grid_coords.z = (uint16_t)z;
+    player->facing.square_x = square_x;
+    player->facing.square_z = square_z;
 }
 
 void
 World_NpcFaceCoord(
     struct World* world,
     int idx,
-    int x,
-    int z)
+    int square_x,
+    int square_z)
 {
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
-    npc->facing.mode = WORLD_FACING_GRID_COORDS;
-    npc->facing.u.grid_coords.x = (uint16_t)x;
-    npc->facing.u.grid_coords.z = (uint16_t)z;
+    npc->facing.square_x = square_x;
+    npc->facing.square_z = square_z;
 }
 
 static void
@@ -1170,7 +1230,9 @@ World_ObjStackAdd(
     int scene_z,
     int level,
     int obj_id,
-    int count)
+    int count,
+    char const* name,
+    char const actions[5][32])
 {
     struct World_EntityPool* pool;
     struct WorldEntity_ObjStack* stack;
@@ -1191,6 +1253,12 @@ World_ObjStackAdd(
     stack->draw_position.z = (uint32_t)(scene_z * 128 + 64);
     stack->obj_id = obj_id;
     stack->count = count;
+    if( name )
+    {
+        strncpy(stack->name, name, sizeof(stack->name) - 1);
+        stack->name[sizeof(stack->name) - 1] = '\0';
+    }
+    World_CopyMenuActions(stack->actions, actions);
     return idx;
 }
 
@@ -1218,6 +1286,25 @@ World_ObjStackFind(
             return i;
     }
     return -1;
+}
+
+struct WorldEntity_ObjStack*
+World_ObjStackGetByElementId(
+    struct World* world,
+    int element_id)
+{
+    struct World_EntityPool* pool;
+
+    assert(world);
+    pool = &world->entities.obj_stack;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, i);
+        if( stack && stack->element_id == element_id )
+            return stack;
+    }
+    return NULL;
 }
 
 void

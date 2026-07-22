@@ -3,6 +3,11 @@
 #include "entity_facets.h"
 
 #include <assert.h>
+#include <math.h>
+
+/* Client-TS `(Math.atan2(dstX, dstZ) * 325.949) | 0` — radians to the
+ * 2048-step yaw unit, truncated toward zero like the JS `| 0`. */
+#define WORLD_YAW_FROM_RADIANS 325.949
 
 struct World_MoverInfo
 {
@@ -12,6 +17,7 @@ struct World_MoverInfo
     struct WorldEntityFacet_Orientation* orientation;
     struct WorldEntityFacet_IdleAnimations* idle;
     struct WorldEntityFacet_Animation* animation;
+    struct WorldEntityFacet_Facing* facing;
     int size_x;
     int size_z;
 };
@@ -81,7 +87,11 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
         seqId = info->idle->walkanim;
 
     int moveSpeed = 4;
-    if( info->orientation->yaw != info->orientation->dst_yaw )
+    /* The turning slow-down only applies to an entity that is actually free
+     * to turn: a locked-on target or turnspeed 0 keeps full speed
+     * (Client-TS routeMove, `e.faceEntity === -1 && e.turnspeed !== 0`). */
+    if( info->orientation->yaw != info->orientation->dst_yaw &&
+        info->facing->entity_id == WORLD_FACING_ENTITY_NONE && info->facing->turn_speed != 0 )
         moveSpeed = 2;
     if( route_length > 2 )
         moveSpeed = 6;
@@ -132,28 +142,106 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
     }
 
 yaw_turn:;
-    int remainingYaw = (info->orientation->dst_yaw - info->orientation->yaw) & 0x7ff;
-    if( remainingYaw != 0 )
-    {
-        if( remainingYaw < 32 || remainingYaw > 2016 )
-            info->orientation->yaw = info->orientation->dst_yaw;
-        else if( remainingYaw > 1024 )
-            info->orientation->yaw -= 32;
-        else
-            info->orientation->yaw += 32;
-        info->orientation->yaw &= 0x7ff;
+    return seqId;
+}
 
-        if( seqId == info->idle->readyanim &&
-            info->orientation->yaw != info->orientation->dst_yaw )
+/* Reference entityFace (Client.ts:3932), run once per entity per cycle right
+ * after the movement step and before entityAnim.
+ *
+ * Three facing sources, applied in order, each only overwriting dst_yaw:
+ *   1. faceEntity < 32768 -> npc server slot
+ *   2. faceEntity >= 32768 -> player server slot (+ 32768)
+ *   3. a pending face-square, but only while the entity is standing still
+ *      (route empty) — consumed and cleared either way
+ * then the yaw is stepped toward dst_yaw by turn_speed, and an entity that is
+ * idle-animating while still mid-turn swaps to its turn/walk seq.
+ *
+ * Returns the secondary seq id to apply, or -1 to leave it alone. */
+static int
+World_EntityFace(
+    struct World* world,
+    struct WorldEntityFacet_Facing* facing,
+    struct WorldEntityFacet_DrawPosition const* draw_position,
+    struct WorldEntityFacet_Orientation* orientation,
+    struct WorldEntityFacet_Pathing const* pathing,
+    struct WorldEntityFacet_IdleAnimations const* idle,
+    struct WorldEntityFacet_Animation const* animation)
+{
+    int dst_x;
+    int dst_z;
+
+    if( facing->turn_speed == 0 )
+        return -1;
+
+    if( facing->entity_id != WORLD_FACING_ENTITY_NONE )
+    {
+        struct WorldEntityFacet_DrawPosition const* target = NULL;
+        if( facing->entity_id < WORLD_FACING_PLAYER_BASE )
         {
-            if( info->idle->turnanim != -1 )
-                seqId = info->idle->turnanim;
-            else
-                seqId = info->idle->walkanim;
+            struct WorldEntity_NPC* npc =
+                World_NpcGetByServerSlot(world, facing->entity_id);
+            if( npc )
+                target = &npc->draw_position;
+        }
+        else
+        {
+            struct WorldEntity_Player* player = World_PlayerGetByServerPid(
+                world, facing->entity_id - WORLD_FACING_PLAYER_BASE);
+            if( player )
+                target = &player->draw_position;
+        }
+        if( target )
+        {
+            dst_x = (int)draw_position->x - (int)target->x;
+            dst_z = (int)draw_position->z - (int)target->z;
+            if( dst_x != 0 || dst_z != 0 )
+                orientation->dst_yaw =
+                    (uint16_t)(((int)(atan2((double)dst_x, (double)dst_z) *
+                                      WORLD_YAW_FROM_RADIANS)) &
+                               0x7ff);
         }
     }
 
-    return seqId;
+    /* faceSquare is in absolute half-tiles; `- base - base` converts the
+     * doubled coordinate straight into fine units at 64 per half-tile.
+     *
+     * The reference also lets the square apply while `animDelayMove > 0` (a
+     * seq with PreanimMove/PostanimMove DELAYMOVE holding the route still).
+     * torirs does not model DELAYMOVE at all — routeMove never early-returns
+     * on it — so that counter would be permanently 0 and the clause is left
+     * out rather than faked with a lookalike field. */
+    if( (facing->square_x != 0 || facing->square_z != 0) && pathing->route_length == 0 )
+    {
+        dst_x = (int)draw_position->x -
+                (facing->square_x - world->_base_tile_x - world->_base_tile_x) * 64;
+        dst_z = (int)draw_position->z -
+                (facing->square_z - world->_base_tile_z - world->_base_tile_z) * 64;
+        if( dst_x != 0 || dst_z != 0 )
+            orientation->dst_yaw =
+                (uint16_t)(((int)(atan2((double)dst_x, (double)dst_z) * WORLD_YAW_FROM_RADIANS)) &
+                           0x7ff);
+        facing->square_x = 0;
+        facing->square_z = 0;
+    }
+
+    {
+        int remaining_yaw = (orientation->dst_yaw - orientation->yaw) & 0x7ff;
+        if( remaining_yaw == 0 )
+            return -1;
+
+        if( remaining_yaw < facing->turn_speed || remaining_yaw > 2048 - facing->turn_speed )
+            orientation->yaw = orientation->dst_yaw;
+        else if( remaining_yaw > 1024 )
+            orientation->yaw = (uint16_t)(orientation->yaw - facing->turn_speed);
+        else
+            orientation->yaw = (uint16_t)(orientation->yaw + facing->turn_speed);
+        orientation->yaw &= 0x7ff;
+
+        if( animation->secondary.anim_id == (uint16_t)idle->readyanim &&
+            orientation->yaw != orientation->dst_yaw )
+            return idle->turnanim != -1 ? idle->turnanim : idle->walkanim;
+    }
+    return -1;
 }
 
 /* Seq-source getters with defaults for a NULL source / unknown seq. */
@@ -432,11 +520,26 @@ World_CycleUpdatePlayers(
                     .orientation = &player->orientation,
                     .idle = &player->idle_animations,
                     .animation = &player->animation,
+                    .facing = &player->facing,
                     .size_x = 1,
                     .size_z = 1,
                 };
                 int seqId = World_UpdateMoverMovementAndAnimation(&info);
                 World_ApplySecondaryAnim(&player->animation, seqId);
+            }
+            /* Reference moveEntity order: move (route or exact) -> entityFace
+             * -> entityAnim. entityFace runs on both move branches. */
+            {
+                int face_seq = World_EntityFace(
+                    world,
+                    &player->facing,
+                    &player->draw_position,
+                    &player->orientation,
+                    &player->pathing,
+                    &player->idle_animations,
+                    &player->animation);
+                if( face_seq != -1 )
+                    World_ApplySecondaryAnim(&player->animation, face_seq);
             }
             World_StepEntityAnimation(
                 world, &player->animation, &player->spotanim, &player->pathing);
@@ -467,11 +570,24 @@ World_CycleUpdateNpcs(
                 .orientation = &npc->orientation,
                 .idle = &npc->idle_animations,
                 .animation = &npc->animation,
+                .facing = &npc->facing,
                 .size_x = size,
                 .size_z = size,
             };
             int seqId = World_UpdateMoverMovementAndAnimation(&info);
             World_ApplySecondaryAnim(&npc->animation, seqId);
+            {
+                int face_seq = World_EntityFace(
+                    world,
+                    &npc->facing,
+                    &npc->draw_position,
+                    &npc->orientation,
+                    &npc->pathing,
+                    &npc->idle_animations,
+                    &npc->animation);
+                if( face_seq != -1 )
+                    World_ApplySecondaryAnim(&npc->animation, face_seq);
+            }
             World_StepEntityAnimation(world, &npc->animation, &npc->spotanim, &npc->pathing);
         }
     }
@@ -577,19 +693,14 @@ World_CycleUpdateSpotanims(
 }
 
 #define WORLD_PROJECTILE_PAINTER_PADDING 60
+#define WORLD_MOVER_PAINTER_PADDING 60
 
-struct World_PainterFootprint
-{
-    int sx;
-    int sz;
-    int size_x;
-    int size_z;
-};
-
-/* A projectile draws between tiles, so it registers over the tile span its
- * padded position covers rather than a single grid cell (v1 parity). */
-static void
-World_ProjectilePainterFootprint(
+/* A mover draws between tiles, so it registers over the tile span its
+ * padded fine position covers rather than a single grid cell (Client-TS
+ * World.addDynamic: (x±padding)>>7; padding 60 for size-1 movers,
+ * 60+(size-1)*64 for larger NPCs). */
+void
+World_EntityPainterFootprint(
     int pos_x,
     int pos_z,
     int draw_padding,
@@ -638,8 +749,21 @@ World_CycleRegisterPainterDynamics(struct World* world)
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
+        struct World_PainterFootprint footprint;
+        World_EntityPainterFootprint(
+            (int)player->draw_position.x,
+            (int)player->draw_position.z,
+            WORLD_MOVER_PAINTER_PADDING,
+            world->_scene_size,
+            &footprint);
         painter_add_normal_scenery(
-            world->painter, grid_x, grid_z, player->grid_position.level, player->element_id, 1, 1);
+            world->painter,
+            footprint.sx,
+            footprint.sz,
+            player->grid_position.level,
+            player->element_id,
+            footprint.size_x,
+            footprint.size_z);
     }
 
     pool = &world->entities.npc;
@@ -655,8 +779,21 @@ World_CycleRegisterPainterDynamics(struct World* world)
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
+        struct World_PainterFootprint footprint;
+        World_EntityPainterFootprint(
+            (int)npc->draw_position.x,
+            (int)npc->draw_position.z,
+            WORLD_MOVER_PAINTER_PADDING + (size - 1) * 64,
+            world->_scene_size,
+            &footprint);
         painter_add_normal_scenery(
-            world->painter, grid_x, grid_z, npc->grid_position.level, npc->element_id, size, size);
+            world->painter,
+            footprint.sx,
+            footprint.sz,
+            npc->grid_position.level,
+            npc->element_id,
+            footprint.size_x,
+            footprint.size_z);
     }
 
     pool = &world->entities.projectile;
@@ -667,7 +804,7 @@ World_CycleRegisterPainterDynamics(struct World* world)
         if( !p || p->element_id < 0 || p->cycle < p->t1 )
             continue;
         struct World_PainterFootprint footprint;
-        World_ProjectilePainterFootprint(
+        World_EntityPainterFootprint(
             (int)p->x, (int)p->z, WORLD_PROJECTILE_PAINTER_PADDING, world->_scene_size, &footprint);
         painter_add_normal_scenery(
             world->painter,

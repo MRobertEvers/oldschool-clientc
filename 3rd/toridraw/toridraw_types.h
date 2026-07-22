@@ -313,6 +313,11 @@ struct ToriDraw_SceneElement
      * anim_frame/anim2_frame; the generic per-element modulo tick skips
      * elements with this set. */
     bool anim_external;
+    /** Reference Model.useAABBMouseCheck: pick against the projected bounding
+     *  box instead of per-face. Set for npcs, players and ground objs (see
+     *  ObjType.getWorldModel / ClientPlayer / NpcType); locs keep the exact
+     *  per-face test. */
+    bool pick_aabb;
 };
 
 struct ToriDraw_SceneBatchElementHandle

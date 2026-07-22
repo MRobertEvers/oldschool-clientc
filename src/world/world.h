@@ -62,6 +62,15 @@ struct World_SeqSource
     int (*preanim_move)(void* userdata, int seq_id);
 };
 
+#define WORLD_MAPFUNC_MAX 1000
+
+struct World_MapFunctionIcon
+{
+    int x;
+    int z;
+    int func;
+};
+
 struct World
 {
     int _base_tile_x;
@@ -98,7 +107,46 @@ struct World
     struct Minimap* minimap;
     struct Painter* painter;
     struct PaintersCullMap* cullmap;
+
+    /** Raw land "settings" byte per scene tile (reference mapl): 0x1 block,
+     * 0x2 link-below (bridge), 0x4 remove-roof, 0x8 vis-below. Persisted
+     * from the builder flag map so the per-frame roof check can raycast
+     * camera->player (Client-TS roofCheck). scene_size^2 per level. */
+    uint8_t* tile_flags;
+
+    /** Loc "mapfunction" minimap icons gathered at scene build (reference
+     * activeMapFunctionX/Z/Count, Client.ts minimapBuildBuffer): scene tile
+     * after the random-walk spread + mapfunction sprite frame. */
+    struct World_MapFunctionIcon mapfuncs[WORLD_MAPFUNC_MAX];
+    int mapfunc_count;
 };
+
+/** Padded mover painter footprint: the tile span (pos±padding)>>7 covers,
+ * clamped in-scene (Client-TS World.addDynamic). Padding is 60 for size-1
+ * movers/projectiles, 60+(size-1)*64 for larger NPCs. */
+struct World_PainterFootprint
+{
+    int sx;
+    int sz;
+    int size_x;
+    int size_z;
+};
+
+void
+World_EntityPainterFootprint(
+    int pos_x,
+    int pos_z,
+    int draw_padding,
+    int scene_size,
+    struct World_PainterFootprint* out);
+
+/** tile_flags lookup, 0 for out-of-range/unloaded. */
+int
+World_TileFlagGet(
+    struct World const* world,
+    int x,
+    int z,
+    int level);
 
 static inline int
 World_MapTileCoord(
@@ -264,12 +312,25 @@ World_SceneryRegister(
     int size_x,
     int size_z,
     char const* name,
-    char const actions[5][32]);
+    char const actions[5][32],
+    int interactive);
 
 struct WorldEntity_Scenery*
 World_SceneryGetByElementId(
     struct World* world,
     int element_id);
+
+/** Pool walk by the server's own slot number — the id space faceEntity uses.
+ * Returns NULL for an unsynced/unknown slot. */
+struct WorldEntity_NPC*
+World_NpcGetByServerSlot(
+    struct World* world,
+    int server_slot);
+
+struct WorldEntity_Player*
+World_PlayerGetByServerPid(
+    struct World* world,
+    int server_pid);
 
 /** Pool walk; out_index (optional) receives the npc pool index for the
  * face/path mutators. */
@@ -318,6 +379,9 @@ World_NpcPathJump(
     int x,
     int z);
 
+/** Lock an entity's facing onto another (reference faceEntity): the server
+ * slot, npc slots as-is and player slots + WORLD_FACING_PLAYER_BASE;
+ * WORLD_FACING_ENTITY_NONE clears. Applied every cycle by World_Cycle. */
 void
 World_PlayerFaceEntity(
     struct World* world,
@@ -330,19 +394,23 @@ World_NpcFaceEntity(
     int idx,
     int entity_id);
 
+/** One-shot face-coord (reference faceSquareX/Z). Coordinates are the raw
+ * wire form — absolute half-tiles, (tile << 1) + 1 — because 0,0 is the
+ * reference's "none" sentinel and converting to scene tiles first would make
+ * scene tile 0 unreachable. Consumed and cleared by the next cycle. */
 void
 World_PlayerFaceCoord(
     struct World* world,
     int idx,
-    int x,
-    int z);
+    int square_x,
+    int square_z);
 
 void
 World_NpcFaceCoord(
     struct World* world,
     int idx,
-    int x,
-    int z);
+    int square_x,
+    int square_z);
 
 void
 World_PlayerSetAnimation(
@@ -465,7 +533,9 @@ World_ObjStackAdd(
     int scene_z,
     int level,
     int obj_id,
-    int count);
+    int count,
+    char const* name,
+    char const actions[5][32]);
 
 /** Find a stack by tile + obj id (obj_id -1 = any). Returns pool idx or -1. */
 int
@@ -475,6 +545,12 @@ World_ObjStackFind(
     int scene_z,
     int level,
     int obj_id);
+
+/** Pool walk by scene element id (the world pick classifier's entry point). */
+struct WorldEntity_ObjStack*
+World_ObjStackGetByElementId(
+    struct World* world,
+    int element_id);
 
 /** Remove a stack (emits EntityRemoved for its element). */
 void

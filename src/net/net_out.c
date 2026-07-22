@@ -164,8 +164,12 @@ net_out_tut_clickside(
 
 /* -- movement ----------------------------------------------------------- */
 
-/* Reference tryMove with bufferSize 1: var-u8 length 5, then
- * ctrl(1) startX(2) startZ(2) — no delta pairs for a single waypoint. */
+/* Reference tryMove packet body (Client.ts:6068-6104): ctrl, then the turn
+ * waypoint closest to the source as absolute tiles, then up to 24 signed
+ * (dx,dz) byte pairs walking toward the destination. route uses the tryMove
+ * scratch layout (collision_map_try_route): [0] = destination, ascending
+ * toward the source. A 1-entry route degenerates to the old
+ * single-coordinate body. */
 static int
 out_move(
     struct GameProtoRevTable const* rev,
@@ -173,18 +177,34 @@ out_move(
     uint8_t* buf,
     int cap,
     int out_name,
-    int abs_x,
-    int abs_z,
+    int base_x,
+    int base_z,
+    int const* route_x,
+    int const* route_z,
+    int route_len,
     int ctrl_held,
     int trailer_len)
 {
     struct RSCache_Buffer b;
-    if( out_begin(rev, random_out, buf, cap, out_name, 6 + trailer_len, &b) < 0 )
+    if( route_len < 1 )
         return -1;
-    p1(&b, 5 + trailer_len); /* var-u8 payload length: 2*1 + 3 (+ trailer) */
+    int buffer_size = route_len < 25 ? route_len : 25;
+    int idx = route_len - 1;
+    int start_x = route_x[idx];
+    int start_z = route_z[idx];
+    if( out_begin(
+            rev, random_out, buf, cap, out_name, 1 + buffer_size * 2 + 3 + trailer_len, &b) < 0 )
+        return -1;
+    p1(&b, buffer_size * 2 + 3 + trailer_len); /* var-u8 payload length */
     p1(&b, ctrl_held ? 1 : 0);
-    p2(&b, abs_x);
-    p2(&b, abs_z);
+    p2(&b, base_x + start_x);
+    p2(&b, base_z + start_z);
+    for( int i = 1; i < buffer_size; i++ )
+    {
+        idx--;
+        p1(&b, route_x[idx] - start_x);
+        p1(&b, route_z[idx] - start_z);
+    }
     return 1 + (int)b.position;
 }
 
@@ -194,12 +214,26 @@ net_out_move_gameclick(
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    int abs_x,
-    int abs_z,
+    int base_x,
+    int base_z,
+    int const* route_x,
+    int const* route_z,
+    int route_len,
     int ctrl_held)
 {
     return out_move(
-        rev, random_out, buf, cap, PKTOUT_NAME_MOVE_GAMECLICK, abs_x, abs_z, ctrl_held, 0);
+        rev,
+        random_out,
+        buf,
+        cap,
+        PKTOUT_NAME_MOVE_GAMECLICK,
+        base_x,
+        base_z,
+        route_x,
+        route_z,
+        route_len,
+        ctrl_held,
+        0);
 }
 
 int
@@ -208,12 +242,26 @@ net_out_move_opclick(
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    int abs_x,
-    int abs_z,
+    int base_x,
+    int base_z,
+    int const* route_x,
+    int const* route_z,
+    int route_len,
     int ctrl_held)
 {
     return out_move(
-        rev, random_out, buf, cap, PKTOUT_NAME_MOVE_OPCLICK, abs_x, abs_z, ctrl_held, 0);
+        rev,
+        random_out,
+        buf,
+        cap,
+        PKTOUT_NAME_MOVE_OPCLICK,
+        base_x,
+        base_z,
+        route_x,
+        route_z,
+        route_len,
+        ctrl_held,
+        0);
 }
 
 int
@@ -222,8 +270,11 @@ net_out_move_minimapclick(
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    int abs_x,
-    int abs_z,
+    int base_x,
+    int base_z,
+    int const* route_x,
+    int const* route_z,
+    int route_len,
     int ctrl_held,
     int click_x,
     int click_y,
@@ -235,7 +286,18 @@ net_out_move_minimapclick(
     int nearest)
 {
     int n = out_move(
-        rev, random_out, buf, cap, PKTOUT_NAME_MOVE_MINIMAPCLICK, abs_x, abs_z, ctrl_held, 14);
+        rev,
+        random_out,
+        buf,
+        cap,
+        PKTOUT_NAME_MOVE_MINIMAPCLICK,
+        base_x,
+        base_z,
+        route_x,
+        route_z,
+        route_len,
+        ctrl_held,
+        14);
     struct RSCache_Buffer b;
     if( n < 0 )
         return -1;

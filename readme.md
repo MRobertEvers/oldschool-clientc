@@ -2401,3 +2401,50 @@ You must include hotkeys for:
 1. Adding a default player model on the tile that the mouse is hovering
 2. Adding an npc model on the tile that the mouse is hovering
 3. Launching a projectile between two tiles.
+
+## Running against a LostCity server
+
+Build with `make -C src torirs` (target binary: `src/torirs`). With a LostCity_Server
+(Engine-TS rev 254) running locally — game port 43594, web/CRC on port 80 — run from
+the repo root:
+
+```bash
+cd /path/to/3draster
+
+# Fetch the server's 9 archive CRCs (server must be up; the value only changes
+# when the server repacks its cache, so it can be reused across runs):
+export TORIRS_JAG_CRC=$(curl -s http://localhost/crc | \
+  python3 -c "import sys,struct; d=sys.stdin.buffer.read(); print(','.join(str(x) for x in struct.unpack('>%di'%(len(d)//4), d)))")
+
+src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
+```
+
+`--rev lc254` is the default when `--connect` is given; port 43594 and the RSA key
+are built-in defaults that match the stock server. Or use the wrapper, which does
+the CRC fetch for you:
+
+```bash
+./run-live.sh [host] [user] [pass]        # defaults: localhost debugcc test
+```
+
+Notes:
+
+- If login bounces immediately after a previous session ended, wait ~8 seconds —
+  the server still holds the old session (login reply 5 = already logged in).
+- `TORIRS_NET_DEBUG=1` traces the login handshake and every packet on stderr.
+- `TORIRS_NET_CHEAT="tele 0,50,50,21,21"` sends `::` commands once after login
+  (';'-separated). Fresh accounts start on Tutorial Island; the courtyard tele
+  gives a good open view.
+- Use `cache254.lostcity` (a copy of the live server's own
+  `engine/data/pack/main_file_cache.*`) for live play — the older `cache254`
+  snapshot is stale vs the server (missing e.g. the quest journal interfaces).
+- Headless smoke run (no window, screenshot at the end):
+
+```bash
+SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=2000 \
+TORIRS_EXIT_BMP=/tmp/frame.bmp \
+src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
+```
+
+- `TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y]"` injects mouse clicks at
+  given main-loop frames for headless interaction testing.

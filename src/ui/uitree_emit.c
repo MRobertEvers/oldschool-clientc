@@ -405,7 +405,34 @@ UITree_EmitFill(
         out->mask_scene_id = component->u.minimap.mask_scene_id;
         out->mask_atlas_index = component->u.minimap.mask_atlas_index;
         out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
+        /* Entity/flag overlay dots, computed by the host in center-relative
+         * pixels (reference minimapDraw). */
+        {
+            struct UITreeHostRequest dots_req = {
+                .kind = UITREE_HOST_GET_MINIMAP_DOTS,
+                .u.get_minimap_dots.out_dots = &out->minimap_dots,
+            };
+            out->minimap_dot_count = UITree_Host(host, &dots_req);
+        }
         return true;
+    }
+
+    case UIELEM_BUILTIN_ENTITY_OVERLAY:
+    {
+        /* Reference drawEntities runs inside the scene pass, so the overlay is
+         * clipped to the world box the app reports; positions are absolute
+         * screen pixels the host already projected. */
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_ENTITY_OVERLAYS,
+            .u.get_entity_overlays.out_items = &out->entity_overlays,
+            .u.get_entity_overlays.out_clip_x = &out->clip.x,
+            .u.get_entity_overlays.out_clip_y = &out->clip.y,
+            .u.get_entity_overlays.out_clip_w = &out->clip.w,
+            .u.get_entity_overlays.out_clip_h = &out->clip.h,
+        };
+        out->kind = UITREE_EMIT_ENTITY_OVERLAY;
+        out->entity_overlay_count = UITree_Host(host, &req);
+        return out->entity_overlay_count > 0;
     }
 
     case UIELEM_BUILTIN_COMPASS:

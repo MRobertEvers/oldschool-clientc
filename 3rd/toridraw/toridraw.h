@@ -57,6 +57,15 @@ ToriDraw_RenderModel3Raster(
     toripixel_t* pixel_buffer,
     bool smooth);
 
+/** Bounding-box hit test against the last projected model (reference
+ *  Model.useAABBMouseCheck). Cheaper and far more forgiving than the per-face
+ *  test — the reference uses it for npcs, players and ground objs. */
+bool
+ToriDraw_ProjectedModelContainsAabb(
+    struct ToriDraw_Scene* scene,
+    int screen_x,
+    int screen_y);
+
 bool
 ToriDraw_ProjectedModelContainsPoint(
     struct ToriDraw_Scene* scene,

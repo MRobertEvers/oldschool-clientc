@@ -76,17 +76,21 @@ net_out_tut_clickside(
     int tab);
 
 /* -- movement ----------------------------------------------------------- */
-/* Single-destination click (reference tryMove with bufferSize == 1):
- * var-u8 [len=5] + ctrl(1) + startX(2) + startZ(2). Coordinates are
- * ABSOLUTE tiles (scene tile + map base). */
+/* Reference tryMove packet: var-u8 [len=2*min(route_len,25)+3] + ctrl(1) +
+ * startX(2) + startZ(2) + up to 24 signed (dx,dz) byte pairs. route uses the
+ * collision_map_try_route layout ([0] = destination, ascending toward the
+ * source); start = route[route_len-1] + base (scene tile -> absolute). */
 int
 net_out_move_gameclick(
     struct GameProtoRevTable const* rev,
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    int abs_x,
-    int abs_z,
+    int base_x,
+    int base_z,
+    int const* route_x,
+    int const* route_z,
+    int route_len,
     int ctrl_held);
 int
 net_out_move_opclick(
@@ -94,8 +98,11 @@ net_out_move_opclick(
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    int abs_x,
-    int abs_z,
+    int base_x,
+    int base_z,
+    int const* route_x,
+    int const* route_z,
+    int route_len,
     int ctrl_held);
 /* Minimap walk: gameclick body + the 14-byte anticheat trailer
  * (clickX, clickY, cameraYaw, 57, minimapAngle, minimapZoom, 89,
@@ -106,8 +113,11 @@ net_out_move_minimapclick(
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    int abs_x,
-    int abs_z,
+    int base_x,
+    int base_z,
+    int const* route_x,
+    int const* route_z,
+    int route_len,
     int ctrl_held,
     int click_x,
     int click_y,

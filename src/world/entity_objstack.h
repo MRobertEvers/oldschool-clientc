@@ -12,6 +12,11 @@ struct WorldEntity_ObjStack
     struct WorldEntityFacet_DrawPosition draw_position;
     int obj_id;
     int count;
+    /* ObjType name + ground ops, snapshotted at add time so the right-click
+     * builder never needs the cache provider (world/ stays a leaf module —
+     * same arrangement as WorldEntity_Scenery). */
+    char name[32];
+    struct WorldEntityFacet_Action actions[5];
 };
 
 #endif

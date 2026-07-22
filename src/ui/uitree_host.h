@@ -10,6 +10,50 @@ struct UIMinimenu;
 struct UIHoverText;
 struct UIChatView;
 
+/** Minimap overlay dot (reference minimapDrawDot output), host-computed and
+ * already rotated: sprite top-left goes at (box_center_x + dx,
+ * box_center_y + dy), drawn w*h. scene_id <= 0 draws a filled rect of
+ * `color` instead (the local-player white square). */
+struct UITreeMinimapDot
+{
+    int dx;
+    int dy;
+    int w;
+    int h;
+    int scene_id;
+    int atlas_index;
+    uint32_t color;
+};
+
+/** One screen-space primitive of the entity overlay pass (reference
+ * drawEntities' health bars + hitmarks, Client.ts:4897-4932). The host
+ * projects the entity, applies the reference's per-slot nudges and hands the
+ * draw layer flat, already-positioned primitives — ui/ stays leaf and knows
+ * nothing about entities or the camera. */
+enum UITreeEntityOverlayKind
+{
+    UITREE_ENTITY_OVERLAY_RECT = 0,
+    UITREE_ENTITY_OVERLAY_SPRITE,
+    UITREE_ENTITY_OVERLAY_TEXT,
+};
+
+#define UITREE_ENTITY_OVERLAY_TEXT_LEN 8
+
+struct UITreeEntityOverlay
+{
+    int kind;
+    int x;
+    int y;
+    int w;
+    int h;
+    uint32_t color;
+    int scene_id;
+    int atlas_index;
+    int font_id;
+    /** TEXT: centred on x, baseline at y (reference centreString). */
+    char text[UITREE_ENTITY_OVERLAY_TEXT_LEN];
+};
+
 enum UITreeHostRequestKind
 {
     UITREE_HOST_IS_ACTIVE = 0,
@@ -47,6 +91,18 @@ enum UITreeHostRequestKind
      * loaded) and writes the camera's pivot inside it to u.get_minimap_state.
      */
     UITREE_HOST_GET_MINIMAP_STATE,
+    /**
+     * Writes a pointer to the host-computed minimap overlay dots (valid only
+     * for the current frame) to u.get_minimap_dots.out_dots; returns the
+     * count (0 = no overlay).
+     */
+    UITREE_HOST_GET_MINIMAP_DOTS,
+    /**
+     * Writes the host-owned entity overlay array (health bars + hitsplats,
+     * same-frame lifetime) to u.get_entity_overlays.out_items; returns the
+     * item count.
+     */
+    UITREE_HOST_GET_ENTITY_OVERLAYS,
     /**
      * Returns nonzero when u.tab_enabled.tabno has an interface assigned
      * (reference sideOverlayId[n] != -1) — gates tab icon draw + tab clicks.
@@ -152,6 +208,20 @@ struct UITreeHostRequest
             int* out_src_anchor_x;
             int* out_src_anchor_y;
         } get_minimap_state;
+        struct
+        {
+            struct UITreeMinimapDot const** out_dots;
+        } get_minimap_dots;
+        struct
+        {
+            struct UITreeEntityOverlay const** out_items;
+            /** World viewport box the overlays must be clipped to (reference
+             * draws them with Pix2D clipped to the scene viewport). */
+            int* out_clip_x;
+            int* out_clip_y;
+            int* out_clip_w;
+            int* out_clip_h;
+        } get_entity_overlays;
         struct
         {
             struct UIMinimenu const** out;

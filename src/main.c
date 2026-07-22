@@ -1155,6 +1155,52 @@ main(
                             c->position.abs_x,
                             c->position.abs_y);
                 }
+                for( int f = 0; f < 6; f++ )
+                    fprintf(
+                        stderr,
+                        "exit: scene_font %d has=%d\n",
+                        f,
+                        (int)ToriDraw_SceneFontHas(app.scene, f));
+                fprintf(stderr, "exit: hover_com_id=%d\n", app.hover_com_id);
+                fprintf(
+                    stderr,
+                    "exit: minimap_view valid=%d box=%d,%d %dx%d com=%d\n",
+                    app.minimap_view_valid,
+                    app.minimap_emit_desc.x,
+                    app.minimap_emit_desc.y,
+                    app.minimap_emit_desc.w,
+                    app.minimap_emit_desc.h,
+                    app.minimap_emit_desc.component_id);
+                /* TORIRS_DUMP_COM=id: dump every live node carrying that
+                 * component id (duplicate-id / ApplyText-target debugging). */
+                if( getenv("TORIRS_DUMP_COM") )
+                {
+                    int want = atoi(getenv("TORIRS_DUMP_COM"));
+                    for( uint32_t i = 0; i < app.tree->component_count; i++ )
+                    {
+                        struct UITreeComponent const* c = &app.tree->components[i];
+                        if( c->component_id != want )
+                            continue;
+                        fprintf(
+                            stderr,
+                            "exit: com=%d idx=%u type=%d freed=%d hide=%d text='%s' "
+                            "abs=%d,%d wh=%dx%d font=%d color=0x%x parent=%d\n",
+                            want,
+                            i,
+                            (int)c->type,
+                            (int)c->freed,
+                            (int)c->behavior.hide,
+                            c->type == UIELEM_RS_TEXT && c->u.rs_text.text ? c->u.rs_text.text
+                                                                          : "",
+                            c->position.abs_x,
+                            c->position.abs_y,
+                            c->position.abs_w,
+                            c->position.abs_h,
+                            c->type == UIELEM_RS_TEXT ? c->u.rs_text.font_id : -1,
+                            c->type == UIELEM_RS_TEXT ? c->u.rs_text.color : 0,
+                            c->parent);
+                    }
+                }
             }
             int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
             assert(pixels);

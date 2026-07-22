@@ -234,8 +234,14 @@ RS_GameProto_Exec(
 
     /* ---- interface component mutations ---- */
     case PKT_NAME_IF_SETTEXT:
-        UITree_ApplyText(
-            ctx->tree, packet->_if_settext.component_id, packet->_if_settext.text);
+        /* Persist through the app store when available: journal/bonus texts
+         * arrive before their interface mounts (tests exec without an app). */
+        if( ctx->app )
+            App_IfTextSet(
+                ctx->app, packet->_if_settext.component_id, packet->_if_settext.text);
+        else
+            UITree_ApplyText(
+                ctx->tree, packet->_if_settext.component_id, packet->_if_settext.text);
         break;
     case PKT_NAME_IF_SETHIDE:
         UITree_ApplyHide(
@@ -354,8 +360,11 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             struct PktUpdateZoneEnclosed const* enc = &packet->_update_zone_enclosed;
-            ctx->app->zone_base_x = enc->base_x;
-            ctx->app->zone_base_z = enc->base_z;
+            /* Wire base is classic-scene local, same as the FOLLOWS variants
+             * above — without scene_off every enclosed LOC/OBJ mutation lands
+             * up to 63 tiles off the REBUILD-loaded scenery. */
+            ctx->app->zone_base_x = ctx->app->scene_off_x + enc->base_x;
+            ctx->app->zone_base_z = ctx->app->scene_off_z + enc->base_z;
             for( int i = 0; i < enc->count; i++ )
                 exec_zone_sub_packet(ctx, enc->entries[i].name, &enc->entries[i]._loc_add_change);
         }
@@ -647,7 +656,11 @@ RS_GameProto_Exec(
             RS_UISlots_SetSideTab(ctx->app, packet->_if_settab_active.tab_id);
         break;
     case PKT_NAME_UNSET_MAP_FLAG:
-        /* Minimap destination flag is not drawn yet; nothing to clear. */
+        if( ctx->app )
+        {
+            ctx->app->minimap_flag_x = -1;
+            ctx->app->minimap_flag_z = -1;
+        }
         break;
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
         /* Container stays as last transmitted (reference stops updates). */

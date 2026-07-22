@@ -34,6 +34,16 @@ struct Dat1BuildCache
     struct RSCache_FileListDat* textures_jagfile;
     /** Whole decoded "seq.dat" table (entries are sequentially addressable). */
     struct RSCache_Dat1ConfigSeqList* seq_list;
+    /** Version-list "anim_version": one u16 per ANIMATIONS-table archive
+     * (0 = absent). LostCity writes "anim_index" as zeros, so frame ids
+     * cannot be mapped to archives directly — the reference client loads
+     * every archive at login instead; the seq task sweeps them on demand. */
+    uint16_t* anim_versions;
+    int anim_version_count;
+    /** Global anim-frame directory: frame id -> frame (borrowed from the
+     * owning archive in animbaseframes_hmap), filled as archives load. */
+    struct RSCache_Dat1AnimFrame const** anim_frame_dir;
+    int anim_frame_dir_cap;
     /** ANIMATIONS-table archives, keyed by archive id: one archive holds a
      * frame set plus its shared base, and several sequences reuse the same
      * archive. */
@@ -111,6 +121,21 @@ dat1_buildcache_get_loc_index(struct Dat1BuildCache* dat1_buildcache);
  * seq.dat is missing. */
 struct RSCache_Dat1ConfigSeqList*
 dat1_buildcache_get_seq_list(struct Dat1BuildCache* dat1_buildcache);
+
+/** Decode (once) "anim_version" from the cached version-list jagfile: one
+ * u16 per ANIMATIONS archive (0 = absent). NULL until the version-list
+ * jagfile has been set. out_count optional. */
+uint16_t const*
+dat1_buildcache_get_anim_versions(
+    struct Dat1BuildCache* dat1_buildcache,
+    int* out_count);
+
+/** Frame with the given global id from any loaded ANIMATIONS archive, or
+ * NULL while the owning archive has not been loaded yet. */
+struct RSCache_Dat1AnimFrame const*
+dat1_buildcache_anim_frame_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int frame_id);
 
 void
 dat1_buildcache_animbaseframes_add(

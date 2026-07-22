@@ -765,6 +765,57 @@ translate_ui_cmd(
     }
 
     case UITREE_EMIT_MINIMAP:
+        /* Steps past 0 draw the host-computed dot overlay (reference
+         * minimapDraw: obj/NPC/player dots, flag, white local square) on top
+         * of the map blit, clipped to the same box. */
+        if( frame->scrollbar_step > 0 )
+        {
+            struct UITreeMinimapDot const* dot;
+            int box_cx = desc->x + desc->w / 2;
+            int box_cy = desc->y + desc->h / 2;
+            int box_right = desc->x + desc->w;
+            int box_bottom = desc->y + desc->h;
+            int clip_right = desc->clip.x + desc->clip.w;
+            int clip_bottom = desc->clip.y + desc->clip.h;
+            int left = desc->x > desc->clip.x ? desc->x : desc->clip.x;
+            int top = desc->y > desc->clip.y ? desc->y : desc->clip.y;
+            int right = box_right < clip_right ? box_right : clip_right;
+            int bottom = box_bottom < clip_bottom ? box_bottom : clip_bottom;
+
+            if( !desc->minimap_dots || frame->scrollbar_step > desc->minimap_dot_count )
+                return false;
+            dot = &desc->minimap_dots[frame->scrollbar_step - 1];
+            if( dot->scene_id > 0 )
+            {
+                out->kind = TORIRSRC_SPRITE;
+                out->u.sprite.scene_id = dot->scene_id;
+                out->u.sprite.atlas_index = dot->atlas_index;
+                out->u.sprite.x = box_cx + dot->dx;
+                out->u.sprite.y = box_cy + dot->dy;
+                out->u.sprite.w = dot->w;
+                out->u.sprite.h = dot->h;
+                out->u.sprite.scissor_x = left;
+                out->u.sprite.scissor_y = top;
+                out->u.sprite.scissor_w = right > left ? right - left : 0;
+                out->u.sprite.scissor_h = bottom > top ? bottom - top : 0;
+                out->u.sprite.if3 = 0;
+            }
+            else
+            {
+                out->kind = TORIRSRC_FILL_RECT;
+                out->u.fill_rect.x = box_cx + dot->dx;
+                out->u.fill_rect.y = box_cy + dot->dy;
+                out->u.fill_rect.w = dot->w;
+                out->u.fill_rect.h = dot->h;
+                out->u.fill_rect.argb = dot->color;
+                out->u.fill_rect.scissor_x = left;
+                out->u.fill_rect.scissor_y = top;
+                out->u.fill_rect.scissor_w = right > left ? right - left : 0;
+                out->u.fill_rect.scissor_h = bottom > top ? bottom - top : 0;
+                out->u.fill_rect.filled = 1;
+            }
+            return true;
+        }
         /* The baked world map is far larger than the widget: the source pivot
          * follows the camera position while the destination pivot stays at the
          * box centre, so the map scrolls and spins under a fixed frame. */
@@ -810,6 +861,72 @@ translate_ui_cmd(
         out->u.sprite.src_anchor_y = desc->src_anchor_y;
         return true;
 
+    case UITREE_EMIT_ENTITY_OVERLAY:
+    {
+        /* One primitive per multi-step (reference drawEntities emits a health
+         * bar as two rects and a hitsplat as sprite + shadow text + text).
+         * Coordinates are absolute screen px; the desc box is the world
+         * viewport, which is also the clip — the reference draws these with
+         * Pix2D clipped to the scene viewport. */
+        struct UITreeEntityOverlay const* item;
+        if( !desc->entity_overlays || frame->scrollbar_step >= desc->entity_overlay_count )
+            return false;
+        item = &desc->entity_overlays[frame->scrollbar_step];
+
+        switch( item->kind )
+        {
+        case UITREE_ENTITY_OVERLAY_SPRITE:
+            if( item->scene_id <= 0 )
+                return false;
+            out->kind = TORIRSRC_SPRITE;
+            out->u.sprite.scene_id = item->scene_id;
+            out->u.sprite.atlas_index = item->atlas_index;
+            out->u.sprite.x = item->x;
+            out->u.sprite.y = item->y;
+            out->u.sprite.w = item->w;
+            out->u.sprite.h = item->h;
+            out->u.sprite.scissor_x = desc->clip.x;
+            out->u.sprite.scissor_y = desc->clip.y;
+            out->u.sprite.scissor_w = desc->clip.w;
+            out->u.sprite.scissor_h = desc->clip.h;
+            out->u.sprite.if3 = 0;
+            return true;
+        case UITREE_ENTITY_OVERLAY_TEXT:
+            /* >= 0: dat1 p11 is cache font id 0, and scene font ids are the
+             * cache ids (see app_hitsplat_font_scene_id). */
+            if( item->font_id < 0 || item->text[0] == '\0' )
+                return false;
+            out->kind = TORIRSRC_FONT;
+            out->u.font.font_id = item->font_id;
+            out->u.font.text = item->text;
+            out->u.font.x = item->x;
+            out->u.font.y = item->y;
+            out->u.font.w = item->w;
+            out->u.font.h = item->h;
+            out->u.font.color = (int)item->color;
+            out->u.font.center = 1;
+            out->u.font.scissor_x = desc->clip.x;
+            out->u.font.scissor_y = desc->clip.y;
+            out->u.font.scissor_w = desc->clip.w;
+            out->u.font.scissor_h = desc->clip.h;
+            return true;
+        case UITREE_ENTITY_OVERLAY_RECT:
+        default:
+            out->kind = TORIRSRC_FILL_RECT;
+            out->u.fill_rect.x = item->x;
+            out->u.fill_rect.y = item->y;
+            out->u.fill_rect.w = item->w;
+            out->u.fill_rect.h = item->h;
+            out->u.fill_rect.argb = item->color;
+            out->u.fill_rect.filled = 1;
+            out->u.fill_rect.scissor_x = desc->clip.x;
+            out->u.fill_rect.scissor_y = desc->clip.y;
+            out->u.fill_rect.scissor_w = desc->clip.w;
+            out->u.fill_rect.scissor_h = desc->clip.h;
+            return true;
+        }
+    }
+
     case UITREE_EMIT_WORLD:
     case UITREE_EMIT_NONE:
         return false;
@@ -841,10 +958,38 @@ ToriRS_Frame_BuildWorldViewPort(
     out->stride = canvas_w;
     out->x_center = desc->x + desc->w / 2;
     out->y_center = desc->y + desc->h / 2;
-    out->clip_left = desc->clip.x;
-    out->clip_top = desc->clip.y;
-    out->clip_right = desc->clip.x + desc->clip.w;
-    out->clip_bottom = desc->clip.y + desc->clip.h;
+    /* Clip to the world box intersected with the node's inherited clip rect.
+     * The emit walk hands every desc its *parent's* clip, which for the
+     * screen-anchored world node is the whole canvas — a 2D draw is bounded by
+     * its own w/h anyway, but 3D geometry fills whatever the scissor allows, so
+     * the box has to be folded in here or the scene paints over the chrome (and
+     * the texture kernel's clip-center basis drifts off x_center/y_center). */
+    {
+        int box_right = desc->x + out->width;
+        int box_bottom = desc->y + out->height;
+        int clip_right = desc->clip.x + desc->clip.w;
+        int clip_bottom = desc->clip.y + desc->clip.h;
+
+        out->clip_left = desc->x > desc->clip.x ? desc->x : desc->clip.x;
+        out->clip_top = desc->y > desc->clip.y ? desc->y : desc->clip.y;
+        out->clip_right = box_right < clip_right ? box_right : clip_right;
+        out->clip_bottom = box_bottom < clip_bottom ? box_bottom : clip_bottom;
+        /* The 3D pass sets its viewport straight from this desc, bypassing the
+         * raster backend's per-command canvas clamp — a box anchored past a
+         * screen edge has to be bounded here or it writes outside the buffer. */
+        if( out->clip_left < 0 )
+            out->clip_left = 0;
+        if( out->clip_top < 0 )
+            out->clip_top = 0;
+        if( out->clip_right > canvas_w )
+            out->clip_right = canvas_w;
+        if( out->clip_bottom > canvas_h )
+            out->clip_bottom = canvas_h;
+        if( out->clip_right < out->clip_left )
+            out->clip_right = out->clip_left;
+        if( out->clip_bottom < out->clip_top )
+            out->clip_bottom = out->clip_top;
+    }
     /* TORIRS_VP_DEBUG=1: the raster/texture origin is the clip-rect center;
      * it must land on x_center/y_center or textured faces skew. */
     if( getenv("TORIRS_VP_DEBUG") )
@@ -942,6 +1087,7 @@ try_emit_world_draw_model(
         out->u.model.anim_frame = el->anim_frame;
         out->u.model.dynamic = el->dynamic;
         out->u.model.pickable = true;
+        out->u.model.pick_aabb = el->pick_aabb;
         if( cmd->_bf_kind == PNTR_CMD_TERRAIN )
         {
             out->u.model.pick_terrain = true;
@@ -1099,6 +1245,20 @@ again:
         int sb_steps = desc->kind == UITREE_EMIT_SCROLLBAR_V
                            ? UITREE_SCROLLBAR_V_DRAW_STEPS
                            : UITREE_SCROLLBAR_H_DRAW_STEPS;
+        /* Minimap descs also multi-step: step 0 = map blit, 1..N = overlay
+         * dots (same scrollbar_step counter — only one desc steps at a time). */
+        if( desc->kind == UITREE_EMIT_MINIMAP && desc->minimap_dot_count > 0 )
+        {
+            is_scrollbar = 1;
+            sb_steps = 1 + desc->minimap_dot_count;
+        }
+        /* Entity overlays step one primitive at a time (step 0 is already a
+         * primitive here, unlike MINIMAP where step 0 is the map blit). */
+        if( desc->kind == UITREE_EMIT_ENTITY_OVERLAY && desc->entity_overlay_count > 0 )
+        {
+            is_scrollbar = 1;
+            sb_steps = desc->entity_overlay_count;
+        }
 
         if( desc->kind == UITREE_EMIT_WORLD )
         {

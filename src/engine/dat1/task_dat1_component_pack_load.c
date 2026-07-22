@@ -33,8 +33,16 @@ dat1_pack_resolve_sprite_refs(
         struct ToriRS_Component* component = &pack->components[i];
 
         if( component->sprite_ref[0] != '\0' )
+        {
             component->graphic =
                 dat1_buildcache_sprite_ref_acquire(dat1_buildcache, component->sprite_ref);
+            if( component->graphic < 0 && getenv("TORIRS_IF_DEBUG") )
+                fprintf(
+                    stderr,
+                    "dat1 pack: sprite ref '%s' unresolved (com %d)\n",
+                    component->sprite_ref,
+                    component->id);
+        }
         if( component->sprite_active_ref[0] != '\0' )
             component->graphic_active =
                 dat1_buildcache_sprite_ref_acquire(dat1_buildcache, component->sprite_active_ref);
@@ -114,13 +122,45 @@ Task_Dat1ComponentPackLoad_Run(
         }
 
         dat1_buildcache_set_interfaces_list(task->bc, interfaces_list);
+
+        if( getenv("TORIRS_IF_DEBUG") )
+        {
+            int nulls = 0, first_null = -1, last_null = -1;
+            for( int i = 0; i < interfaces_list->components_count; i++ )
+            {
+                if( !interfaces_list->components[i] )
+                {
+                    nulls++;
+                    if( first_null < 0 )
+                        first_null = i;
+                    last_null = i;
+                }
+            }
+            fprintf(
+                stderr,
+                "dat1 interfaces: count=%d nulls=%d first_null=%d last_null=%d\n",
+                interfaces_list->components_count,
+                nulls,
+                first_null,
+                last_null);
+        }
     }
 
     torirs_pack = ToriRS_ComponentPackFromRSCacheDat1(
         dat1_buildcache_get_interfaces_list(task->bc), task->iface_id);
     if( !torirs_pack )
     {
-        fprintf(stderr, "Failed to convert dat1 component pack %d\n", task->iface_id);
+        struct RSCache_Dat1ConfigComponentList* dbg_list =
+            dat1_buildcache_get_interfaces_list(task->bc);
+        fprintf(
+            stderr,
+            "Failed to convert dat1 component pack %d (list count=%d entry=%s)\n",
+            task->iface_id,
+            dbg_list ? dbg_list->components_count : -1,
+            dbg_list && task->iface_id >= 0 && task->iface_id < dbg_list->components_count &&
+                    dbg_list->components[task->iface_id]
+                ? "present"
+                : "null");
         PT_EXIT(&task->pt);
     }
 

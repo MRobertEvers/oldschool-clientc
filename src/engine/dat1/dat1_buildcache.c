@@ -222,6 +222,10 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
 
     dat1_jagfile_clear(&dat1_buildcache->config_jagfile);
     dat1_jagfile_clear(&dat1_buildcache->versionlist_jagfile);
+    free(dat1_buildcache->anim_versions);
+    dat1_buildcache->anim_versions = NULL;
+    free(dat1_buildcache->anim_frame_dir);
+    dat1_buildcache->anim_frame_dir = NULL;
     dat1_jagfile_clear(&dat1_buildcache->media_2d_graphics_jagfile);
     dat1_jagfile_clear(&dat1_buildcache->title_fonts_jagfile);
     dat1_jagfile_clear(&dat1_buildcache->textures_jagfile);
@@ -381,6 +385,87 @@ dat1_buildcache_get_seq_list(struct Dat1BuildCache* dat1_buildcache)
     return dat1_buildcache->seq_list;
 }
 
+uint16_t const*
+dat1_buildcache_get_anim_versions(
+    struct Dat1BuildCache* dat1_buildcache,
+    int* out_count)
+{
+    struct RSCache_FileListDat* versionlist;
+    int data_idx;
+    int count;
+    unsigned char const* data;
+
+    assert(dat1_buildcache);
+    if( out_count )
+        *out_count = dat1_buildcache->anim_version_count;
+    if( dat1_buildcache->anim_versions )
+        return dat1_buildcache->anim_versions;
+
+    versionlist = dat1_buildcache->versionlist_jagfile;
+    if( !versionlist )
+        return NULL;
+
+    data_idx = RSCache_FileListDatFindFileByName(versionlist, "anim_version");
+    if( data_idx < 0 )
+        return NULL;
+
+    data = (unsigned char const*)versionlist->files[data_idx];
+    count = versionlist->file_sizes[data_idx] / 2;
+    dat1_buildcache->anim_versions = malloc((size_t)count * sizeof(uint16_t));
+    if( !dat1_buildcache->anim_versions )
+        return NULL;
+    for( int i = 0; i < count; i++ )
+        dat1_buildcache->anim_versions[i] =
+            (uint16_t)((data[i * 2] << 8) | data[(i * 2) + 1]);
+    dat1_buildcache->anim_version_count = count;
+    if( out_count )
+        *out_count = count;
+    return dat1_buildcache->anim_versions;
+}
+
+struct RSCache_Dat1AnimFrame const*
+dat1_buildcache_anim_frame_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int frame_id)
+{
+    assert(dat1_buildcache);
+    if( frame_id < 0 || frame_id >= dat1_buildcache->anim_frame_dir_cap )
+        return NULL;
+    return dat1_buildcache->anim_frame_dir[frame_id];
+}
+
+/* Register an archive's frames into the global id directory (grow-on-max). */
+static void
+dat1_anim_frame_dir_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    struct RSCache_Dat1AnimBaseFrames const* abf)
+{
+    int max_id = -1;
+    for( int i = 0; i < abf->frame_count; i++ )
+        if( abf->frames[i].id > max_id )
+            max_id = abf->frames[i].id;
+    if( max_id < 0 )
+        return;
+    if( max_id >= dat1_buildcache->anim_frame_dir_cap )
+    {
+        int cap = dat1_buildcache->anim_frame_dir_cap ? dat1_buildcache->anim_frame_dir_cap : 1024;
+        while( cap <= max_id )
+            cap *= 2;
+        dat1_buildcache->anim_frame_dir = realloc(
+            dat1_buildcache->anim_frame_dir,
+            (size_t)cap * sizeof(*dat1_buildcache->anim_frame_dir));
+        assert(dat1_buildcache->anim_frame_dir);
+        memset(
+            dat1_buildcache->anim_frame_dir + dat1_buildcache->anim_frame_dir_cap,
+            0,
+            (size_t)(cap - dat1_buildcache->anim_frame_dir_cap) *
+                sizeof(*dat1_buildcache->anim_frame_dir));
+        dat1_buildcache->anim_frame_dir_cap = cap;
+    }
+    for( int i = 0; i < abf->frame_count; i++ )
+        dat1_buildcache->anim_frame_dir[abf->frames[i].id] = &abf->frames[i];
+}
+
 void
 dat1_buildcache_animbaseframes_add(
     struct Dat1BuildCache* dat1_buildcache,
@@ -401,6 +486,10 @@ dat1_buildcache_animbaseframes_add(
         RSCache_Dat1AnimBaseFramesFree(entry->animbaseframes);
     entry->id = animbaseframes_id;
     entry->animbaseframes = animbaseframes;
+
+    /* Frames are addressed globally by id (seq.dat references them that
+     * way); register this archive's frames in the directory. */
+    dat1_anim_frame_dir_add(dat1_buildcache, animbaseframes);
 }
 
 struct RSCache_Dat1AnimBaseFrames*
