@@ -54,7 +54,9 @@ RS_IF1_ApplyButtonClick(
     case REVCONFIG_MINIMENU_IF_BUTTON:
     {
         int notify = 1;
-        if( c->behavior.client_code > 0 )
+        /* client_code is an old-gen (IF1/CS1) baked behavior; modern components
+         * never carry one, but gate on ui logic too so intent is explicit. */
+        if( c->behavior.client_code > 0 && App_UiLogic(app) == APP_UI_LOGIC_CS1 )
             notify = RS_ClientCode_Button(app, c);
         if( notify )
             sink_if_button(app, com_id);

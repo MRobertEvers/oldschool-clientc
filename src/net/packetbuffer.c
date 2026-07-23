@@ -40,7 +40,9 @@ packetbuffer_read(
     uint8_t* data,
     int data_size)
 {
-    assert(packetbuffer && packetbuffer->random);
+    assert(packetbuffer);
+    /* ISAAC-scrambled revisions need the cipher; plaintext ones (xrsps) do not. */
+    assert(packetbuffer->rev->opcode_plaintext || packetbuffer->random);
     assert(data_size > 0);
 
     struct RSCache_Buffer buffer = { .data = data,
@@ -61,10 +63,9 @@ packetbuffer_read(
         {
         case PKTBUF_AWAITING_PACKET:
         {
-            int isaac_value;
             packet_type = g1(&buffer);
-            isaac_value = isaac_next(packetbuffer->random);
-            packet_type = (packet_type - isaac_value) & 0xff;
+            if( !packetbuffer->rev->opcode_plaintext )
+                packet_type = (packet_type - isaac_next(packetbuffer->random)) & 0xff;
             packet_size = packetbuffer->rev->packetin_size(packet_type);
             packetbuffer->packet_type = packet_type;
 

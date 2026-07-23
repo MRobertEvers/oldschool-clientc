@@ -144,9 +144,14 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c \
 	net/loginproto.c net/packetbuffer.c net/net.c net/net_out.c net/bitbuffer.c \
 	net/rev/gameproto_parse.c net/rev/pkt_player_info.c net/rev/pkt_npc_info.c \
-	net/rev/pkt_player_appearance.c \
+	net/rev/pkt_player_appearance.c net/rev/gameproto_rev_params.c \
 	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
+	bootmanifest/bootmanifest.c \
 	platform/sockstream.c platform/platform_socket.c \
+	platform/net_transport_tcp.c platform/net_transport_ws.c \
+	platform/net_transport_ws_frame.c \
+	net/loginproto_xrsps.c \
+	net/rev/xrsps233/gameproto_rev_xrsps233.c \
 	revconfig/revconfig.c revconfig/revconfig_load.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
@@ -177,7 +182,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all release clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order world-builder
+.PHONY: all release clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order world-builder
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -203,7 +208,8 @@ $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
 	$(CC) $(CFLAGS) -c $(1) -o $$@
 endef
 
-NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c
+NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
+	net/rev/xrsps233/gameproto_rev_xrsps233.c
 $(foreach src,$(filter-out painters/painters.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c
@@ -214,6 +220,8 @@ $(OBJ_DIR)/gameproto_rev_lc245_2.o: net/rev/lc245_2/gameproto_rev_lc245_2.c
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -c $< -o $@
 $(OBJ_DIR)/gameproto_rev_lc254.o: net/rev/lc254/gameproto_rev_lc254.c
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc254 -c $< -o $@
+$(OBJ_DIR)/gameproto_rev_xrsps233.o: net/rev/xrsps233/gameproto_rev_xrsps233.c
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/xrsps233 -c $< -o $@
 
 # tommath amalgam for RSA (login block exptmod).
 $(OBJ_DIR)/tommath.o: $(REPO_ROOT)/3rd/tommath/mpi.c
@@ -321,8 +329,9 @@ test-cmdbus: $(OBJ_DIR) cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
 # Login handshake + packet framing, deterministic (fixed seed + tommath RSA).
 NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/wordpack.o $(OBJ_DIR)/loginproto.o \
+	$(OBJ_DIR)/loginproto_xrsps.o \
 	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_lc245_2.o \
-	$(OBJ_DIR)/gameproto_rev_lc254.o \
+	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_xrsps233.o \
 	$(OBJ_DIR)/gameproto_parse.o $(OBJ_DIR)/tommath.o \
 	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
@@ -446,6 +455,20 @@ test-revconfig: $(OBJ_DIR)
 		revconfig/test/revconfig_test_items.c revconfig/test/revconfig_test_load.c \
 		revconfig/test/revconfig_test_parse.c
 	./$(OBJ_DIR)/revconfig_test
+
+# WebSocket frame codec: mask/deframe/ping/incomplete/back-to-back, no socket.
+test-ws-frame: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/platform -o $(OBJ_DIR)/ws_frame_test \
+		platform/net_transport_ws_frame.c platform/test/ws_frame_test.c
+	./$(OBJ_DIR)/ws_frame_test
+
+# Boot-manifest loader: parse a fixture, assert field values + relative-path
+# joining + CLI-override composition against a stub AppConfig.
+test-bootmanifest: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test \
+		bootmanifest/bootmanifest.c $(INI_SRC) \
+		bootmanifest/test/bootmanifest_test.c
+	./$(OBJ_DIR)/bootmanifest_test
 
 clean:
 	rm -rf build build_opt $(TARGET) .last_flavor

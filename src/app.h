@@ -71,6 +71,17 @@ enum AppCacheKind
     APP_CACHE_DAT1 = 1,
 };
 
+/* Which interface-logic VM drives the UI. DEFAULT derives from cache_kind
+ * (dat1 -> CS1, dat2 -> CS2) so a boot with no manifest behaves exactly as
+ * before; a manifest can name it explicitly (`[ui:boot] logic=cs1|cs2`) to
+ * decouple it from the cache format. */
+enum AppUiLogic
+{
+    APP_UI_LOGIC_DEFAULT = 0,
+    APP_UI_LOGIC_CS1 = 1,
+    APP_UI_LOGIC_CS2 = 2,
+};
+
 struct AppConfig
 {
     char const* cache_dir;
@@ -92,6 +103,21 @@ struct AppConfig
      * authoritative LostCity_Server build. Mock/loopback tests pass
      * lc245_2 explicitly. */
     char const* rev_name;
+    /** Game-socket port. 0 = 43594 (legacy default). Set from the manifest
+     * `[net:boot] port` or --port; --connect "host:port" also fills it. */
+    int connect_port;
+    /** Login-block RSA key pair (hex). NULL = built-in lc245_2/254 default.
+     * Env TORIRS_RSA_EXP/MOD > these > built-in. */
+    char const* rsa_exp;
+    char const* rsa_mod;
+    /** Login-block jag-archive CRCs. Only consulted when jag_crc_set and the
+     * env TORIRS_JAG_CRC is absent (env wins). */
+    int32_t jag_crc[9];
+    int jag_crc_set;
+    /** Protocol client version sent in the login block. 0 = rev-table default. */
+    int client_version;
+    /** enum AppUiLogic. 0 (DEFAULT) = derive from cache_kind. */
+    int ui_logic;
 };
 
 /** App boot lifecycle: BOOTING until the root-interface build task (and its
@@ -445,6 +471,12 @@ App_Init(
 /** Tear down in strict reverse of App_Init. */
 void
 App_Shutdown(struct App* app);
+
+/** Resolved interface-logic VM (enum AppUiLogic, never DEFAULT): the manifest's
+ * explicit choice, or derived from cache_kind (dat1 -> CS1, dat2 -> CS2). The
+ * old-gen-only ClientCode pass and the CS2 host wiring key off this. */
+int
+App_UiLogic(struct App const* app);
 
 /** Begin opening an interface as the tree root (TS WidgetManager
  * .setRootInterface). Fully async: enqueues the boot task and returns —

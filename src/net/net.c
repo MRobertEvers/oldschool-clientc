@@ -8,6 +8,53 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* --- login-driver dispatch: rev->login vtable (xrsps) vs classic loginproto.c.
+ * Every login touch point below goes through these so the drive/drain loops are
+ * generation-blind. */
+
+static int
+login_is_active(struct ToriRS_Network* net)
+{
+    return net->rev->login ? net->login_generic != NULL : net->loginproto != NULL;
+}
+
+static int
+login_poll(struct ToriRS_Network* net)
+{
+    return net->rev->login ? net->rev->login->poll(net->login_generic)
+                           : loginproto_poll(net->loginproto);
+}
+
+static int
+login_send(struct ToriRS_Network* net, uint8_t* out, int cap)
+{
+    return net->rev->login ? net->rev->login->send(net->login_generic, out, cap)
+                           : loginproto_send(net->loginproto, out, cap);
+}
+
+static int
+login_recv(struct ToriRS_Network* net, uint8_t const* data, int size)
+{
+    return net->rev->login ? net->rev->login->recv(net->login_generic, data, size)
+                           : loginproto_recv(net->loginproto, (uint8_t*)data, size);
+}
+
+static void
+login_free(struct ToriRS_Network* net)
+{
+    if( net->rev->login )
+    {
+        if( net->login_generic )
+            net->rev->login->free_(net->login_generic);
+        net->login_generic = NULL;
+    }
+    else if( net->loginproto )
+    {
+        loginproto_free(net->loginproto);
+        net->loginproto = NULL;
+    }
+}
+
 void
 ToriRS_Network_Init(
     struct ToriRS_Network* net,
@@ -61,11 +108,7 @@ ToriRS_Network_Free(struct ToriRS_Network* net)
 {
     if( !net )
         return;
-    if( net->loginproto )
-    {
-        loginproto_free(net->loginproto);
-        net->loginproto = NULL;
-    }
+    login_free(net);
     if( net->packet_buffer.data )
         packetbuffer_reset(&net->packet_buffer);
     free_packet_list(net);
@@ -103,17 +146,22 @@ ToriRS_Network_ConnectLogin(
     strncpy(net->username, username ? username : "", sizeof(net->username) - 1);
     strncpy(net->password, password ? password : "", sizeof(net->password) - 1);
 
-    if( net->loginproto )
-    {
-        loginproto_free(net->loginproto);
-        net->loginproto = NULL;
-    }
+    login_free(net);
 
-    net->loginproto = loginproto_new(
-        net->random_in, net->random_out, &net->rsa, net->rev, net->username, net->password);
-    assert(net->loginproto);
-    if( net->seed_fn )
-        loginproto_set_seed_fn(net->loginproto, net->seed_fn, net->seed_user);
+    if( net->rev->login )
+    {
+        /* Generation-specific handshake (xrsps: plaintext welcome/hello/login). */
+        net->login_generic = net->rev->login->new_(net, net->username, net->password);
+        assert(net->login_generic);
+    }
+    else
+    {
+        net->loginproto = loginproto_new(
+            net->random_in, net->random_out, &net->rsa, net->rev, net->username, net->password);
+        assert(net->loginproto);
+        if( net->seed_fn )
+            loginproto_set_seed_fn(net->loginproto, net->seed_fn, net->seed_user);
+    }
 
     net->state = TORIRS_NET_LOGIN;
     push_out(net, TORIRS_NET_OUT_CONNECT, (uint8_t const*)net->host, (int)strlen(net->host));
@@ -128,11 +176,7 @@ void
 ToriRS_Network_Logout(struct ToriRS_Network* net)
 {
     assert(net);
-    if( net->loginproto )
-    {
-        loginproto_free(net->loginproto);
-        net->loginproto = NULL;
-    }
+    login_free(net);
     if( net->packet_buffer.data )
         packetbuffer_reset(&net->packet_buffer);
     free_packet_list(net);
@@ -164,18 +208,17 @@ loginproto_drive(struct ToriRS_Network* net)
     int poll_result;
     int bytes;
 
-    if( !net->loginproto )
+    if( !login_is_active(net) )
         return;
 
-    poll_result = loginproto_poll(net->loginproto);
+    poll_result = login_poll(net);
 
-    while( (bytes = loginproto_send(net->loginproto, scratch, sizeof(scratch))) > 0 )
+    while( (bytes = login_send(net, scratch, sizeof(scratch))) > 0 )
         ToriRS_Network_SendRaw(net, scratch, bytes);
 
     if( poll_result == LOGINPROTO_SUCCESS )
     {
-        loginproto_free(net->loginproto);
-        net->loginproto = NULL;
+        login_free(net);
         packetbuffer_init(&net->packet_buffer, net->random_in, net->rev);
         net->state = TORIRS_NET_GAME;
     }
@@ -196,7 +239,7 @@ loginproto_drain(
 
     do
     {
-        consumed = loginproto_recv(net->loginproto, (uint8_t*)buffer, remaining);
+        consumed = login_recv(net, buffer, remaining);
         buffer += consumed;
         remaining -= consumed;
         loginproto_drive(net);

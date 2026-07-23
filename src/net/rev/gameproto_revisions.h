@@ -28,7 +28,25 @@ enum GameProtoRevision
     GAMEPROTO_REVISION_INVALID = 0,
     GAMEPROTO_REVISION_LC254 = 1,
     GAMEPROTO_REVISION_LC245_2 = 2,
+    GAMEPROTO_REVISION_XRSPS233 = 3,
 };
+
+/** Wire transport a revision speaks. TCP is the classic raw stream; WS is a
+ * WebSocket client framing (xrsps). The int lives on the rev table so src/net
+ * stays platform-free; the platform layer maps it to a NetTransport impl. */
+enum NetTransportKind
+{
+    NET_TRANSPORT_TCP = 0,
+    NET_TRANSPORT_WS = 1,
+};
+
+/* Forward decls: the generation-module slots below take pointers only. */
+struct RevPacket;
+struct PktPlayerInfoOp;
+struct PktNpcInfoOp;
+struct PktPlayerAppearance;
+struct NetLoginVTable;
+struct NetOutVTable;
 
 struct GameProtoRevTable
 {
@@ -47,6 +65,44 @@ struct GameProtoRevTable
     int (*packetin_wire)(int pkt_name);
     /** Canonical GameProtoPktOutName -> wire opcode; <0 = not in this rev. */
     int (*packetout_code)(int pkt_out_name);
+
+    /* --- generation-module extensions (NULL / 0 = classic lc254 behavior) ---
+     * lc254 / lc245_2 leave every slot below at its zero default (designated
+     * initializers), so their behavior is byte-for-byte unchanged; only revs
+     * that diverge from the raw-TCP + ISAAC + classic-bitcodec shape fill them. */
+
+    /** enum NetTransportKind. 0 = raw TCP. */
+    int transport_kind;
+    /** 1 = opcode byte is plaintext (no ISAAC subtract). 0 = ISAAC-scrambled. */
+    int opcode_plaintext;
+    /** Server tick in ms (xrsps 600); 0 = revision has no explicit tick clock. */
+    int server_tick_ms;
+
+    /** Login handshake driver. NULL = the classic loginproto.c state machine. */
+    struct NetLoginVTable const* login;
+
+    /** Per-rev packet parse override; NULL = shared gameproto_parse. A non-NULL
+     * hook may return <0 to signal "not mine, fall back to gameproto_parse". */
+    int (*parse)(
+        struct GameProtoRevTable const* rev,
+        int pkt_name,
+        uint8_t const* data,
+        int len,
+        struct RevPacket* out);
+
+    /** Modern entity-info readers emitting the shared op list. NULL = classic
+     * bitcodec (pkt_player_info.c / pkt_npc_info.c). Wired in Phase 3. */
+    int (*player_info_read)(uint8_t const* data, int len, struct PktPlayerInfoOp* ops, int cap);
+    int (*npc_info_read)(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
+    /** Per-rev appearance-block decode. NULL = 254-era PktPlayerAppearance_Decode. */
+    int (*appearance_decode)(uint8_t const* data, int len, struct PktPlayerAppearance* out);
+
+    /** Resolve the scene base from a REBUILD packet. NULL = the (zone-6)*8
+     * old-gen local-origin rule. Wired in Phase 2. */
+    int (*scene_base)(struct RevPacket const* pkt, int* base_x, int* base_z);
+
+    /** Outbound interaction serializer. NULL = net_out.c classic builders. */
+    struct NetOutVTable const* out_vt;
 };
 
 struct GameProtoRevTable const*
@@ -55,8 +111,22 @@ GameProtoRev_LC245_2(void);
 struct GameProtoRevTable const*
 GameProtoRev_LC254(void);
 
-/** Resolve a revision by name ("lc254", "lc245_2"); NULL when unknown. */
+struct GameProtoRevTable const*
+GameProtoRev_XRSPS233(void);
+
+/** Resolve a revision by name ("lc254", "lc245_2", "xrsps233"); NULL when unknown. */
 struct GameProtoRevTable const*
 GameProtoRev_ByName(char const* name);
+
+/* Boot-time login-parameter injection from a boot manifest. The tables are
+ * static non-const singletons; these cast the const away by design and MUST be
+ * called before ToriRS_Network_Init (nothing reads these fields until login).
+ * The env fallbacks (TORIRS_JAG_CRC in GameProtoRev_LC254, etc.) still take
+ * precedence — the app only calls these when the matching env is absent. */
+void
+GameProtoRev_SetJagChecksums(struct GameProtoRevTable const* rev, int32_t const crc[9]);
+
+void
+GameProtoRev_SetClientVersion(struct GameProtoRevTable const* rev, int version);
 
 #endif

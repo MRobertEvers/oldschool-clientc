@@ -2420,3 +2420,37 @@ src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
 # Slop to cleanup
 
 1. Minimenu actions appeared in the RevConfig?
+
+## Parity
+
+You are in the process implementing a C runescape client that can support several generations of runescape.
+
+In this folder Client-TS is the old generation.
+In /Users/matthewevers/Documents/git_repos/xrsps-typescript
+is a modern generation.
+
+Update the MULTI_GENERATIONAL_PARITY.md document to reflect knowledge you learn while implementing this.
+
+Multi-Gen proto
+
+You are in the process implementing a C runescape client that can support several generations of runescape.
+
+In this folder Client-TS is the old generation.
+In XRSP /Users/matthewevers/Documents/git_repos/xrsps-typescript
+is a modern generation.
+
+You are in the process implementing a C runescape client that can support several generations of runescape.
+
+In this folder Client-TS is the old generation.
+In XRSP /Users/matthewevers/Documents/git_repos/xrsps-typescript
+is a modern generation.
+
+Here is what I want you to do:
+
+1. Identify the interfaces we can provide for the core game that can be used to implement both generations. For example, we have factored the Cache and the Network into interfaces and modules. For, example, there are also "ClientCode" values that are likely different; likewise for the login protocol.
+2. Plan how to connect to the xrsps server; identify what differences are and ensure that out "abstraction" layers need to provide in order for the core game to work with both.
+   Noe: V1 was already able to render a world with nps, players, and projectiles for both generations. So take inspriation from that.
+
+Some major differences I am aware of already is that the UI is MUCH less hard-coded, so there is less of a reliance on "RevConfig".
+
+Update the MULTI_GENERATIONAL_PARITY.md document to reflect knowledge you learn while implementing this.

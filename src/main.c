@@ -1,10 +1,12 @@
 #include "app.h"
+#include "bootmanifest/bootmanifest.h"
 #include "engine/world_builder/world_builder.h"
 #include "cmd/cmdbus.h"
 #include "game/rs_cs2_dispatch.h"
 #include "input/torirs_input.h"
+#include "net/net.h"
+#include "platform/net_transport.h"
 #include "platform/platform_sdl2.h"
-#include "platform/platform_socket.h"
 #include "toridraw_math.h"
 #include "ui/uitree_hover.h"
 #include "ui/uitree_layout.h"
@@ -259,13 +261,44 @@ main(
     };
     static struct App app;
     static char derived_cache_ini[512];
+    static struct BootManifest boot_manifest; /* must outlive app: cfg points into it */
     int write_bmp = 0;
     int uncapped = 0;
+    int offline = 0;
+    int cli_connect = 0;
     int positional = 0;
     int argi;
 
+    /* Pre-scan for --manifest so its values seed cfg before the flag loop;
+     * explicit CLI flags below then override (precedence CLI > manifest). */
     for( argi = 1; argi < argc; argi++ )
     {
+        if( strcmp(argv[argi], "--manifest") == 0 && argi + 1 < argc )
+        {
+            if( BootManifest_LoadFile(&boot_manifest, argv[argi + 1]) != 0 )
+                return 1;
+            BootManifest_ApplyToConfig(&boot_manifest, &cfg);
+            break;
+        }
+    }
+
+    for( argi = 1; argi < argc; argi++ )
+    {
+        if( strcmp(argv[argi], "--manifest") == 0 && argi + 1 < argc )
+        {
+            argi++; /* consumed in the pre-scan */
+            continue;
+        }
+        if( strcmp(argv[argi], "--offline") == 0 )
+        {
+            offline = 1;
+            continue;
+        }
+        if( strcmp(argv[argi], "--port") == 0 && argi + 1 < argc )
+        {
+            cfg.connect_port = atoi(argv[++argi]);
+            continue;
+        }
         if( strcmp(argv[argi], "--bmp") == 0 )
         {
             write_bmp = 1;
@@ -294,6 +327,7 @@ main(
         if( strcmp(argv[argi], "--connect") == 0 && argi + 1 < argc )
         {
             cfg.connect_target = argv[++argi];
+            cli_connect = 1;
             continue;
         }
         if( strcmp(argv[argi], "--user") == 0 && argi + 1 < argc )
@@ -335,13 +369,18 @@ main(
         }
         fprintf(
             stderr,
-            "usage: %s [cache_dir] [interface_id] [--dat1|--dat2] "
-            "[--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] [--bmp] "
-            "[--connect host[:port]] [--user U] [--pass P] [--rev lc254|lc245_2] "
-            "[--uncapped]\n",
+            "usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
+            "[--dat1|--dat2] [--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] "
+            "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
+            "[--pass P] [--rev lc254|lc245_2|xrsps233] [--uncapped]\n",
             argv[0]);
         return 1;
     }
+
+    /* --offline suppresses a manifest-provided host so a live-boot manifest can
+     * be reused for cache-only inspection. An explicit --connect still wins. */
+    if( offline && !cli_connect )
+        cfg.connect_target = NULL;
 
     /* Kind-specific defaults, applied only where the command line was silent.
      * A dat1 cache has no gameframe interface to open, so it always needs a
@@ -1102,7 +1141,11 @@ main(
         /* Socket transport is created only when --connect enabled networking;
          * it bridges the net subsystem's out ring to a TCP socket and pushes
          * received bytes onto the bus as NET_RECV commands. */
-        struct PlatformSocket* sock = app.net ? PlatformSocket_New(43594) : NULL;
+        struct NetTransport* sock =
+            app.net ? NetTransport_New(
+                          app.net->rev->transport_kind,
+                          cfg.connect_port > 0 ? cfg.connect_port : 43594)
+                    : NULL;
 
         while( !PlatformSDL2_QuitRequested(sdl) )
         {
@@ -1123,7 +1166,7 @@ main(
                 CmdBus_PushFrame(&bus, now);
                 PlatformSDL2_PollCommands(sdl, &bus);
                 if( sock )
-                    PlatformSocket_Poll(sock, app.net, &bus);
+                    NetTransport_Poll(sock, app.net, &bus);
 
                 /* TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y...]":
                  * inject a mouse click at the given main-loop frame — the
@@ -1341,7 +1384,7 @@ main(
         }
         CmdBus_RecordClose(&bus);
 
-        PlatformSocket_Free(sock);
+        NetTransport_Free(sock);
         PlatformSDL2_Free(sdl);
     }
 

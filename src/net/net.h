@@ -16,6 +16,7 @@
 
 #include "cmd/cmdring.h"
 #include "isaac.h"
+#include "login_vtable.h"
 #include "loginproto.h"
 #include "packetbuffer.h"
 #include "rev/gameproto_revisions.h"
@@ -57,7 +58,8 @@ struct ToriRS_Network
     struct rsa rsa;
     int rsa_ready;
 
-    struct LoginProto* loginproto;   /* live only in LOGIN */
+    struct LoginProto* loginproto;   /* classic login; live only in LOGIN */
+    void* login_generic;             /* rev->login vtable handle (xrsps); live only in LOGIN */
     struct PacketBuffer packet_buffer; /* live only in GAME */
 
     /** game -> platform: CONNECT / SEND_DATA frames (not on the command bus). */

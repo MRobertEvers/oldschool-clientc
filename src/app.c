@@ -1449,8 +1449,13 @@ App_Init(
      * City pair (v0 tori_rs_init); TORIRS_RSA_EXP/MOD override it. */
     if( cfg->connect_target && cfg->connect_target[0] )
     {
+        /* RSA key precedence: env > manifest (cfg) > built-in default pair. */
         char const* rsa_e = getenv("TORIRS_RSA_EXP");
         char const* rsa_n = getenv("TORIRS_RSA_MOD");
+        if( !rsa_e )
+            rsa_e = cfg->rsa_exp;
+        if( !rsa_n )
+            rsa_n = cfg->rsa_mod;
         if( !rsa_e )
             rsa_e = "81f390b2cf8ca7039ee507975951d5a0b15a87bf8b3f99c966834118c50fd94d";
         if( !rsa_n )
@@ -1469,6 +1474,13 @@ App_Init(
             rev = GameProtoRev_LC254();
         }
 
+        /* Manifest login params override the table defaults, but env still wins
+         * (the lazy TORIRS_JAG_CRC parse in the rev getter already ran). */
+        if( cfg->jag_crc_set && !getenv("TORIRS_JAG_CRC") )
+            GameProtoRev_SetJagChecksums(rev, cfg->jag_crc);
+        if( cfg->client_version > 0 )
+            GameProtoRev_SetClientVersion(rev, cfg->client_version);
+
         app->net = calloc(1, sizeof(struct ToriRS_Network));
         assert(app->net);
         ToriRS_Network_Init(app->net, rev, rsa_e, rsa_n);
@@ -1485,6 +1497,16 @@ App_Init(
             cfg->connect_user ? cfg->connect_user : "guest",
             cfg->connect_pass ? cfg->connect_pass : "");
     }
+}
+
+int
+App_UiLogic(struct App const* app)
+{
+    assert(app);
+    if( app->cfg.ui_logic == APP_UI_LOGIC_CS1 || app->cfg.ui_logic == APP_UI_LOGIC_CS2 )
+        return app->cfg.ui_logic;
+    /* DEFAULT: derive from cache format (bit-identical to the legacy keying). */
+    return app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_UI_LOGIC_CS1 : APP_UI_LOGIC_CS2;
 }
 
 void
@@ -2345,7 +2367,7 @@ App_OpenRootInterface(
             app->provider,
             app->tree,
             &app->invs,
-            app->cfg.cache_kind == APP_CACHE_DAT1 ? NULL : &app->host,
+            App_UiLogic(app) == APP_UI_LOGIC_CS1 ? NULL : &app->host,
             app->cfg.revconfig_ui_ini,
             app->cfg.revconfig_cache_ini);
         /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
@@ -2486,8 +2508,10 @@ app_logic_tick(struct App* app)
 
     /* clientCode-populated components (friends rows, list sizes, design
      * preview) refresh from live state each tick (reference clientComponent
-     * runs inside the draw; ours is a tick pass so emit stays pure). */
-    if( RS_ClientCode_Tick(app->tree, &app->social, app->logic_cycle) )
+     * runs inside the draw; ours is a tick pass so emit stays pure). This is an
+     * old-gen (IF1/CS1) mechanism; modern UI drives the same state via CS2. */
+    if( App_UiLogic(app) == APP_UI_LOGIC_CS1 &&
+        RS_ClientCode_Tick(app->tree, &app->social, app->logic_cycle) )
         redraw = 1;
 
     /* World map panning and element flashing advance on the client tick, the
