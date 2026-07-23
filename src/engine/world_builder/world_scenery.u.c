@@ -203,18 +203,35 @@ scenery_register_sharelight(
         config_loc->contrast);
 }
 
+/* Loc recolour endpoints <= this are texture ids (retexture), not HSL colours.
+ * The reference stores a textured face's texture id in the same faceColour field
+ * a recolour pass remaps, so the two operations are one pass partitioned purely
+ * by value range: texture ids occupy 0..50, HSL colours are always > 50. */
+#define LOC_RECOLOUR_TEXTURE_MAX 50
+
 static void
 apply_transforms(
     struct ToriRS_Location* loc,
     struct ToriDraw_Model* model,
-    int orientation,
-    bool old_revision)
+    int orientation)
 {
+    /* Client-TS LocType.getModel calls Model.recolour(src,dst), which remaps
+     * faceColour; textured faces render with faceColour AS the texture id
+     * (Model.ts:2138/2154). One recolour pass therefore both recolours gouraud
+     * faces and retextures textured faces, distinguished only by the value
+     * range. The C decoder split the texture id out of face_colors into
+     * face_textures (model.c:324, colour reset to 127), so replicate the split
+     * explicitly: a pair with both endpoints <= 50 is a texture swap; anything
+     * else is an HSL recolour. True for the old revision this cache uses; when
+     * it stopped being the case upstream is unknown. */
     for( int i = 0; i < loc->recolor_count; i++ )
     {
-        ToriDraw_ModelRecolor(model, loc->recolors_from[i], loc->recolors_to[i]);
-        if( old_revision )
-            ToriDraw_ModelRetexture(model, loc->recolors_from[i], loc->recolors_to[i]);
+        int from = loc->recolors_from[i];
+        int to = loc->recolors_to[i];
+        if( from <= LOC_RECOLOUR_TEXTURE_MAX && to <= LOC_RECOLOUR_TEXTURE_MAX )
+            ToriDraw_ModelRetexture(model, from, to);
+        else
+            ToriDraw_ModelRecolor(model, from, to);
     }
 
     for( int i = 0; i < loc->retexture_count; i++ )
@@ -325,9 +342,10 @@ scenery_load_model(
     else
         model = models[0];
 
-    /* old_revision=false: the dat1-era hack retextures with *recolor* pairs,
-     * which would corrupt real dat2 texture ids now that faces keep them. */
-    apply_transforms(config_loc, model, rotation, false);
+    /* Recolour pairs partition into texture swaps (endpoints <= 50) and HSL
+     * recolours (see apply_transforms). Without the texture-swap half, scenery
+     * loses its recolour-driven texture and renders with the wrong texture. */
+    apply_transforms(config_loc, model, rotation);
 
     if( model->vertex_count <= 0 || model->face_count <= 0 )
     {
@@ -345,9 +363,10 @@ scenery_load_model(
      * wrong offsets (garbled menu action names). */
     {
         char actions32[5][32];
+        int pool_idx;
         for( int a = 0; a < 5; a++ )
             snprintf(actions32[a], sizeof(actions32[a]), "%s", config_loc->actions[a]);
-        World_SceneryRegister(
+        pool_idx = World_SceneryRegister(
             world,
             element_id,
             map_tile->loc_id,
@@ -361,6 +380,17 @@ scenery_load_model(
             config_loc->name,
             actions32,
             config_loc->is_interactive);
+        /* A runtime LOC_ADD_CHANGE spawn: the painter's static set is already
+         * baked, so flag this entry for per-frame painter re-registration
+         * (world_cycle) instead of relying on the build-time static registration
+         * below, which painter_reset_to_static truncates. */
+        if( pool_idx >= 0 && builder->scenery_runtime_spawn )
+        {
+            struct WorldEntity_Scenery* sc =
+                World_EntityPoolGet(&world->entities.scenery, pool_idx);
+            if( sc )
+                sc->runtime_spawn = 1;
+        }
     }
 
     struct ToriDraw_ModelHandle hnd = {
@@ -1229,8 +1259,34 @@ world_builder_minimap_add_chunk_walls(
         if( !config_loc )
             continue;
 
+        /* Reference drawDetail (Client.ts): a loc carrying a mapscene index
+         * plots that Pix8 into the minimap image instead of drawing wall lines.
+         * Gather it here, mirroring drawDetail's two sources — wallType (wall
+         * shapes 0-3) and sceneType (diagonal-wall 9, centrepiece 10/11, roofs
+         * 12-21). Wall-decor (4-8) and floor-decoration (22) never feed a
+         * mapscene. The sprite is blitted per baked level in
+         * app_rebuild_world_map, which owns the loaded mapscene atlas.
+         * width/length are the raw config footprint (drawDetail centers the
+         * sprite over loc.width x loc.length without the orientation swap). */
         if( config_loc->map_scene_id != -1 )
+        {
+            int const shape = map_loc->shape_select;
+            if( (shape >= RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE &&
+                 shape <= RSCACHE_LOC_SHAPE_WALL_RECT_CORNER) ||
+                (shape >= RSCACHE_LOC_SHAPE_WALL_DIAGONAL &&
+                 shape <= RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER) )
+            {
+                World_AddMapSceneIcon(
+                    world,
+                    offset_x,
+                    offset_z,
+                    map_loc->chunk_pos_level,
+                    config_loc->map_scene_id,
+                    config_loc->size_x,
+                    config_loc->size_z);
+            }
             continue;
+        }
 
         /* Recorded per level (no WORLD_CURRENT_LEVEL filter): the bake takes
          * the level it needs, so upper floors get their own wall outlines. */

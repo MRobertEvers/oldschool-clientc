@@ -24,6 +24,13 @@ struct WorldEntity_Scenery
      *  typecode so Model.draw never records it as a pick hit; torirs filters
      *  in torirs_pick.c instead (walls/gravel/floor decor stay unclickable). */
     int interactive;
+    /** Set for locs spawned at runtime by a zone LOC_ADD_CHANGE (e.g. an open
+     *  door). The painter's static set is baked at build time and
+     *  painter_reset_to_static truncates anything added later, so these must be
+     *  re-registered with the painter every frame like dynamics
+     *  (world_cycle World_CycleRegisterPainterDynamics). Build-time scenery
+     *  leaves this 0 and lives in the baked static set. */
+    int runtime_spawn;
 };
 
 #endif

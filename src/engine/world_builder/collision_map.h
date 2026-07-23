@@ -110,6 +110,36 @@ collision_map_add_wall(
     enum CollisionLocAngle angle,
     int blockrange);
 
+/* Del inverses of the add_* functions (Client-TS CollisionMap.delFloor/delLoc/
+ * delWall): clear exactly the flags the matching add would set (&= ~flags). Used
+ * when a zone LOC packet removes/replaces a loc at runtime. Like the reference,
+ * these are unconditional clears — a shared tile can lose collision it still
+ * needs, which authentic clients accept. */
+void
+collision_map_del_floor(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z);
+
+void
+collision_map_del_loc(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int size_x,
+    int size_z,
+    enum CollisionLocAngle angle,
+    int blockrange);
+
+void
+collision_map_del_wall(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int shape,
+    enum CollisionLocAngle angle,
+    int blockrange);
+
 /* BFS pathfinding: fill path_x, path_z with up to max_path steps from (src_x,src_z) to
  * (dst_x,dst_z). Returns number of steps (excluding start); -1 if no path. path[0] = first step
  * toward dest. */

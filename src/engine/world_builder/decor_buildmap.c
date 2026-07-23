@@ -52,6 +52,10 @@ decor_buildmap_get_wall_offset(
     int z,
     int level)
 {
+    /* Build-only (freed at build end): a runtime loc spawn has none. No prior
+     * wall offset was recorded, so report 0 (no displacement). */
+    if( !build_map )
+        return 0;
     int index = buildmap_idx(build_map, x, z, level);
     return build_map->offsets[index];
 }
@@ -64,6 +68,8 @@ decor_buildmap_set_wall_offset(
     int level,
     int wall_offset)
 {
+    if( !build_map )
+        return;
     int index = buildmap_idx(build_map, x, z, level);
     build_map->offsets[index] = wall_offset;
 }
@@ -78,6 +84,8 @@ decor_buildmap_add_element(
     int orientation,
     enum DecorDisplacementKind displacement_kind)
 {
+    if( !build_map )
+        return;
     int index = buildmap_idx(build_map, x, z, level);
     assert(build_map->elements[index].count < 2);
 
@@ -95,6 +103,8 @@ decor_buildmap_get_elements(
     int z,
     int level)
 {
+    if( !build_map )
+        return NULL;
     int index = buildmap_idx(build_map, x, z, level);
     return &build_map->elements[index];
 }

@@ -76,6 +76,18 @@ collision_map_add(
     cm->flags[collision_map_index_at(cm, x, z)] |= flags;
 }
 
+static void
+collision_map_remove(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int flags)
+{
+    if( x < 0 || x >= cm->size_x || z < 0 || z >= cm->size_z )
+        return;
+    cm->flags[collision_map_index_at(cm, x, z)] &= ~flags;
+}
+
 void
 collision_map_add_floor(
     struct CollisionMap* cm,
@@ -85,16 +97,21 @@ collision_map_add_floor(
     collision_map_add(cm, tile_x, tile_z, COLL_FLAG_FLOOR);
 }
 
-void
-collision_map_add_loc(
+/* Shared core for add_loc / del_loc: `add` selects OR (add) vs AND-NOT (del) so
+ * the two are guaranteed exact inverses. */
+static void
+collision_map_loc_apply(
     struct CollisionMap* cm,
     int tile_x,
     int tile_z,
     int size_x,
     int size_z,
     enum CollisionLocAngle angle,
-    int blockrange)
+    int blockrange,
+    int add)
 {
+    void (*op)(struct CollisionMap*, int, int, int) =
+        add ? collision_map_add : collision_map_remove;
     int flags = COLL_FLAG_LOC;
     if( blockrange )
         flags |= COLL_FLAG_LOC_PROJ_BLOCKER;
@@ -109,19 +126,59 @@ collision_map_add_loc(
     for( int tx = tile_x; tx < tile_x + size_x; tx++ )
     {
         for( int tz = tile_z; tz < tile_z + size_z; tz++ )
-            collision_map_add(cm, tx, tz, flags);
+            op(cm, tx, tz, flags);
     }
 }
 
 void
-collision_map_add_wall(
+collision_map_add_loc(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int size_x,
+    int size_z,
+    enum CollisionLocAngle angle,
+    int blockrange)
+{
+    collision_map_loc_apply(cm, tile_x, tile_z, size_x, size_z, angle, blockrange, 1);
+}
+
+void
+collision_map_del_loc(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int size_x,
+    int size_z,
+    enum CollisionLocAngle angle,
+    int blockrange)
+{
+    collision_map_loc_apply(cm, tile_x, tile_z, size_x, size_z, angle, blockrange, 0);
+}
+
+void
+collision_map_del_floor(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z)
+{
+    collision_map_remove(cm, tile_x, tile_z, COLL_FLAG_FLOOR);
+}
+
+/* Shared core for add_wall / del_wall: `add` selects OR vs AND-NOT so the two
+ * are guaranteed exact inverses. */
+static void
+collision_map_wall_apply(
     struct CollisionMap* cm,
     int tile_x,
     int tile_z,
     int shape,
     enum CollisionLocAngle angle,
-    int blockrange)
+    int blockrange,
+    int add)
 {
+    void (*op)(struct CollisionMap*, int, int, int) =
+        add ? collision_map_add : collision_map_remove;
     int west = blockrange ? COLL_FLAG_WALL_WEST_PROJ : COLL_FLAG_WALL_WEST;
     int east = blockrange ? COLL_FLAG_WALL_EAST_PROJ : COLL_FLAG_WALL_EAST;
     int north = blockrange ? COLL_FLAG_WALL_NORTH_PROJ : COLL_FLAG_WALL_NORTH;
@@ -135,77 +192,101 @@ collision_map_add_wall(
     {
         if( angle == COLL_ANGLE_WEST )
         {
-            collision_map_add(cm, tile_x, tile_z, west);
-            collision_map_add(cm, tile_x - 1, tile_z, east);
+            op(cm, tile_x, tile_z, west);
+            op(cm, tile_x - 1, tile_z, east);
         }
         else if( angle == COLL_ANGLE_NORTH )
         {
-            collision_map_add(cm, tile_x, tile_z, north);
-            collision_map_add(cm, tile_x, tile_z + 1, south);
+            op(cm, tile_x, tile_z, north);
+            op(cm, tile_x, tile_z + 1, south);
         }
         else if( angle == COLL_ANGLE_EAST )
         {
-            collision_map_add(cm, tile_x, tile_z, east);
-            collision_map_add(cm, tile_x + 1, tile_z, west);
+            op(cm, tile_x, tile_z, east);
+            op(cm, tile_x + 1, tile_z, west);
         }
         else if( angle == COLL_ANGLE_SOUTH )
         {
-            collision_map_add(cm, tile_x, tile_z, south);
-            collision_map_add(cm, tile_x, tile_z - 1, north);
+            op(cm, tile_x, tile_z, south);
+            op(cm, tile_x, tile_z - 1, north);
         }
     }
     else if( shape == RSCACHE_LOC_SHAPE_WALL_TRI_CORNER || shape == RSCACHE_LOC_SHAPE_WALL_RECT_CORNER )
     {
         if( angle == COLL_ANGLE_WEST )
         {
-            collision_map_add(cm, tile_x, tile_z, nw);
-            collision_map_add(cm, tile_x - 1, tile_z + 1, se);
+            op(cm, tile_x, tile_z, nw);
+            op(cm, tile_x - 1, tile_z + 1, se);
         }
         else if( angle == COLL_ANGLE_NORTH )
         {
-            collision_map_add(cm, tile_x, tile_z, ne);
-            collision_map_add(cm, tile_x + 1, tile_z + 1, sw);
+            op(cm, tile_x, tile_z, ne);
+            op(cm, tile_x + 1, tile_z + 1, sw);
         }
         else if( angle == COLL_ANGLE_EAST )
         {
-            collision_map_add(cm, tile_x, tile_z, se);
-            collision_map_add(cm, tile_x + 1, tile_z - 1, nw);
+            op(cm, tile_x, tile_z, se);
+            op(cm, tile_x + 1, tile_z - 1, nw);
         }
         else if( angle == COLL_ANGLE_SOUTH )
         {
-            collision_map_add(cm, tile_x, tile_z, sw);
-            collision_map_add(cm, tile_x - 1, tile_z - 1, ne);
+            op(cm, tile_x, tile_z, sw);
+            op(cm, tile_x - 1, tile_z - 1, ne);
         }
     }
     else if( shape == RSCACHE_LOC_SHAPE_WALL_TWO_SIDES )
     {
         if( angle == COLL_ANGLE_WEST )
         {
-            collision_map_add(cm, tile_x, tile_z, north | west);
-            collision_map_add(cm, tile_x - 1, tile_z, east);
-            collision_map_add(cm, tile_x, tile_z + 1, south);
+            op(cm, tile_x, tile_z, north | west);
+            op(cm, tile_x - 1, tile_z, east);
+            op(cm, tile_x, tile_z + 1, south);
         }
         else if( angle == COLL_ANGLE_NORTH )
         {
-            collision_map_add(cm, tile_x, tile_z, north | east);
-            collision_map_add(cm, tile_x, tile_z + 1, south);
-            collision_map_add(cm, tile_x + 1, tile_z, west);
+            op(cm, tile_x, tile_z, north | east);
+            op(cm, tile_x, tile_z + 1, south);
+            op(cm, tile_x + 1, tile_z, west);
         }
         else if( angle == COLL_ANGLE_EAST )
         {
-            collision_map_add(cm, tile_x, tile_z, south | east);
-            collision_map_add(cm, tile_x + 1, tile_z, west);
-            collision_map_add(cm, tile_x, tile_z - 1, north);
+            op(cm, tile_x, tile_z, south | east);
+            op(cm, tile_x + 1, tile_z, west);
+            op(cm, tile_x, tile_z - 1, north);
         }
         else if( angle == COLL_ANGLE_SOUTH )
         {
-            collision_map_add(cm, tile_x, tile_z, south | west);
-            collision_map_add(cm, tile_x, tile_z - 1, north);
-            collision_map_add(cm, tile_x - 1, tile_z, east);
+            op(cm, tile_x, tile_z, south | west);
+            op(cm, tile_x, tile_z - 1, north);
+            op(cm, tile_x - 1, tile_z, east);
         }
     }
     if( blockrange )
-        collision_map_add_wall(cm, tile_x, tile_z, shape, angle, 0);
+        collision_map_wall_apply(cm, tile_x, tile_z, shape, angle, 0, add);
+}
+
+void
+collision_map_add_wall(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int shape,
+    enum CollisionLocAngle angle,
+    int blockrange)
+{
+    collision_map_wall_apply(cm, tile_x, tile_z, shape, angle, blockrange, 1);
+}
+
+void
+collision_map_del_wall(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int shape,
+    enum CollisionLocAngle angle,
+    int blockrange)
+{
+    collision_map_wall_apply(cm, tile_x, tile_z, shape, angle, blockrange, 0);
 }
 
 /* Reference CollisionMap.testWall (CollisionMap.ts:236): can the mover, standing

@@ -19,7 +19,9 @@ main(void)
     test_entity_face();
     test_try_route();
     test_try_route_op();
+    test_collision_loc_change_inverse();
     test_route_coordinate_coincidence();
+    test_tile_stack_dedup();
     test_rebuild_shift();
 
     sim_path_followers();

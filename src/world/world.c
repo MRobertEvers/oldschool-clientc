@@ -15,6 +15,7 @@ World_New(void)
 {
     struct World* world = calloc(1, sizeof(struct World));
     assert(world && "Failed to allocate world");
+    world->local_pid = -1;
     World_EntityListInit(&world->entities);
     return world;
 }
@@ -38,8 +39,42 @@ World_Free(struct World* world)
     if( world->painter )
         painter_free(world->painter);
     free(world->tile_flags);
+    free(world->tile_last_occupied_cycle);
+    free(world->mapscenes);
     World_EntityListFree(&world->entities);
     free(world);
+}
+
+void
+World_AddMapSceneIcon(
+    struct World* world,
+    int x,
+    int z,
+    int level,
+    int mapscene,
+    int width,
+    int length)
+{
+    struct World_MapSceneIcon* icon;
+
+    if( world->mapscene_count >= world->mapscene_capacity )
+    {
+        int new_cap = world->mapscene_capacity ? world->mapscene_capacity * 2 : 256;
+        struct World_MapSceneIcon* grown = (struct World_MapSceneIcon*)realloc(
+            world->mapscenes, (size_t)new_cap * sizeof(*grown));
+        if( !grown )
+            return;
+        world->mapscenes = grown;
+        world->mapscene_capacity = new_cap;
+    }
+
+    icon = &world->mapscenes[world->mapscene_count++];
+    icon->x = x;
+    icon->z = z;
+    icon->level = level;
+    icon->mapscene = mapscene;
+    icon->width = width;
+    icon->length = length;
 }
 
 int
@@ -112,6 +147,7 @@ World_ResetSceneAlloc(
     world->scenery_pick_count = 0;
     world->event_count = 0;
     world->mapfunc_count = 0;
+    world->mapscene_count = 0;
     world->_scene_size = scene_size;
 
     world->heightmap = heightmap_new(scene_size + 1, scene_size + 1, WORLD_MAP_TERRAIN_LEVELS);
@@ -122,6 +158,14 @@ World_ResetSceneAlloc(
     free(world->tile_flags);
     world->tile_flags =
         (uint8_t*)calloc((size_t)(scene_size * scene_size * WORLD_MAP_TERRAIN_LEVELS), 1);
+
+    /* Per-tile occupancy stamp (reference tileLastOccupiedCycle). calloc's 0
+     * can never equal scene_cycle once it starts at 1, so a fresh scene reads
+     * as unoccupied without an explicit clear. */
+    free(world->tile_last_occupied_cycle);
+    world->tile_last_occupied_cycle =
+        (int*)calloc((size_t)(scene_size * scene_size), sizeof(int));
+    world->scene_cycle = 0;
 
     world->painter = painter_new(
         scene_size,
@@ -1498,14 +1542,37 @@ World_ObjStackSetCount(
     stack->count = count;
 }
 
+/* Client-TS LOC_SHAPE_TO_LAYER (LocShape.ts): shapes 0-3 = WALL, 4-8 =
+ * WALL_DECOR, 9-21 = GROUND (scenery/centrepiece), 22 = GROUND_DECOR. A door is
+ * a wall (shape 0-3) and lives in the WALL layer; the zone-packet mutations must
+ * only touch the loc in that layer, not whatever else shares the tile. Returns
+ * -1 for an out-of-range shape (treated as "match any layer"). */
+int
+World_LocShapeToLayer(int shape)
+{
+    if( shape < 0 )
+        return -1;
+    if( shape <= 3 )
+        return 0; /* WALL */
+    if( shape <= 8 )
+        return 1; /* WALL_DECOR */
+    if( shape <= 21 )
+        return 2; /* GROUND */
+    if( shape == 22 )
+        return 3; /* GROUND_DECOR */
+    return -1;
+}
+
 int
 World_SceneryFindAt(
     struct World* world,
     int scene_x,
     int scene_z,
-    int level)
+    int level,
+    int loc_shape)
 {
     struct World_EntityPool* pool;
+    int want_layer = World_LocShapeToLayer(loc_shape);
 
     assert(world);
     pool = &world->entities.scenery;
@@ -1515,9 +1582,16 @@ World_SceneryFindAt(
         struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, i);
         if( !scenery )
             continue;
-        if( scenery->grid_position.x == scene_x && scenery->grid_position.z == scene_z &&
-            scenery->grid_position.level == level )
-            return i;
+        if( scenery->grid_position.x != scene_x || scenery->grid_position.z != scene_z ||
+            scenery->grid_position.level != level )
+            continue;
+        /* Match the reference locChangeCreate key: (level, x, z, layer). When the
+         * caller passes a real shape (>= 0), only the loc in the same layer is a
+         * hit — so a door (WALL) never mutates a centrepiece/floor-decor on the
+         * same tile. loc_shape < 0 keeps the old "first on tile" behaviour. */
+        if( want_layer >= 0 && World_LocShapeToLayer(scenery->shape) != want_layer )
+            continue;
+        return i;
     }
     return -1;
 }

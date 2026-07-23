@@ -254,16 +254,14 @@ LibToriRS_Input_PushMouseUp(
             dist_prev_sq <= prox_sq )
             is_double = 1;
 
-        if( is_double )
-        {
-            input->is_double_click[button] = 1;
-            input->is_click[button] = 0;
-        }
-        else
-        {
-            input->is_click[button] = 1;
-            input->is_double_click[button] = 0;
-        }
+        /* Every non-drag release is a click, exactly like the reference
+         * (GameShell sets nextMouseClickButton on every press and the mainloop
+         * consumes it unconditionally — there is no double-click suppression).
+         * is_double_click stays informational for anyone who wants it, but it
+         * must NOT gate is_click: zeroing is_click on a rapid second press
+         * debounced legitimate clicks (walk/interact) that the reference honors. */
+        input->is_click[button] = 1;
+        input->is_double_click[button] = is_double;
         input->last_press_time[button] = input->curr.time;
         input->last_click_x[button] = x;
         input->last_click_y[button] = y;

@@ -543,6 +543,13 @@ painter_add_normal_scenery(
 void
 painter_mark_static_count(struct Painter* painter);
 
+/** Toggle suppression of the single-slot wall / wall_decor / ground_decor
+ *  registrations. Set around a runtime loc spawn (WorldBuilder_ApplyLocChange)
+ *  so reusing the build path doesn't assert on / clobber the baked static tile
+ *  slots; the spawned loc draws via the per-frame scenery pass instead. */
+void
+painter_set_suppress_slot_registration(struct Painter* painter, int suppress);
+
 void
 painter_reset_to_static(struct Painter* painter);
 

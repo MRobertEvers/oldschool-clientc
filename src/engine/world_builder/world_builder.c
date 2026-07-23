@@ -221,6 +221,20 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
             icon->level =
                 (icon->level == 0) ? WORLD_MAP_TERRAIN_LEVELS - 1 : icon->level - 1;
         }
+
+        /* Mapscene icons are baked per level too, so a bridge-deck mapscene must
+         * follow the same 1→0 push-down as the tiles (minimap_push_down_tiles)
+         * and the mapfunction icons above — otherwise it bakes at cache level 1
+         * and never appears on the player's level-0 map. */
+        for( int i = 0; i < world->mapscene_count; i++ )
+        {
+            struct World_MapSceneIcon* icon = &world->mapscenes[i];
+            if( (flag_map_get(builder->flag_map, icon->x, icon->z, 1) &
+                 RSCACHE_FLOFLAG_LINK_BELOW) == 0 )
+                continue;
+            icon->level =
+                (icon->level == 0) ? WORLD_MAP_TERRAIN_LEVELS - 1 : icon->level - 1;
+        }
     }
 
     world_builder_minimap_spread_mapfunctions(builder);
@@ -421,4 +435,84 @@ WorldBuilder_RebuildChunklist(
     WorldBuilder_RebuildCenterzoneEnd(builder);
 
     ToriDraw_SceneBatchEnd(builder->scene);
+}
+
+/* Client-TS locChangeUnchecked (Client.ts:7733): a zone LOC_ADD_CHANGE/LOC_DEL
+ * removes the loc in the target layer (scene + collision) and, for a real id,
+ * spawns the replacement. torirs keeps every loc layer in one scenery pool, so
+ * World_SceneryFindAt filters by the shape's layer; the removed scene element is
+ * torn down via the entity-removed event (ToriDraw_SceneElementRemove), and the
+ * new loc is flagged runtime_spawn so world_cycle re-registers it with the
+ * painter each frame (the baked static set can't take late additions). */
+void
+WorldBuilder_ApplyLocChange(
+    struct WorldBuilder* builder,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle)
+{
+    struct World* world = builder->world;
+    int idx;
+
+    assert(builder);
+
+    /* 1. Remove the existing loc in this shape's layer (collision + scene). */
+    idx = World_SceneryFindAt(world, scene_x, scene_z, level, shape);
+    if( idx >= 0 )
+    {
+        struct WorldEntity_Scenery* old =
+            World_EntityPoolGet(&world->entities.scenery, idx);
+        if( old )
+        {
+            struct ToriRS_Location* old_cfg =
+                CacheProvider_LocationGet(builder->cache, old->loc_id);
+            if( old_cfg )
+            {
+                struct ToriRS_MapLoc old_ml = {
+                    .loc_id = old->loc_id,
+                    .shape_select = old->shape,
+                    .orientation = old->angle,
+                    .chunk_pos_x = scene_x,
+                    .chunk_pos_z = scene_z,
+                    .chunk_pos_level = level,
+                };
+                world_collision_del_loc(builder, &old_ml, old_cfg, scene_x, scene_z);
+            }
+        }
+        World_SceneryRemove(world, idx);
+    }
+
+    /* 2. Spawn the replacement loc (LOC_DEL passes loc_id < 0 and stops here). */
+    if( loc_id >= 0 )
+    {
+        struct ToriRS_Location* cfg = CacheProvider_LocationGet(builder->cache, loc_id);
+        if( cfg )
+        {
+            struct ToriRS_MapLoc ml = {
+                .loc_id = loc_id,
+                .shape_select = shape,
+                .orientation = angle,
+                .chunk_pos_x = scene_x,
+                .chunk_pos_z = scene_z,
+                .chunk_pos_level = level,
+            };
+            ToriDraw_SceneBatchBegin(builder->scene);
+            builder->scenery_runtime_spawn = 1;
+            /* Reuse the build path for correct per-shape model/orientation/size,
+             * but suppress its single-slot painter registration (it would assert
+             * on the baked static slot and be truncated next frame anyway) — the
+             * spawned loc is drawn via world_cycle's per-frame scenery pass. The
+             * shade/decor/sharelight accumulators are build-only (freed at build
+             * end) and NULL-guarded, so those calls are safe no-ops here. */
+            painter_set_suppress_slot_registration(builder->world->painter, 1);
+            scenery_add(builder, &ml, cfg, scene_x, scene_z);
+            painter_set_suppress_slot_registration(builder->world->painter, 0);
+            builder->scenery_runtime_spawn = 0;
+            world_collision_add_loc(builder, &ml, cfg, scene_x, scene_z);
+            ToriDraw_SceneBatchEnd(builder->scene);
+        }
+    }
 }

@@ -8,6 +8,7 @@
 #include "rs_entity_sync.h"
 #include "rs_social.h"
 #include "net/jbase37.h"
+#include "engine/world_builder/world_builder.h"
 #include "world/world.h"
 #include "rs_player_stats.h"
 #include "rs_ui_slots.h"
@@ -142,29 +143,33 @@ exec_zone_sub_packet(
     case PKT_NAME_LOC_DEL:
     {
         struct PktLocDel const* pkt = payload;
-        int idx;
         zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
-        idx = World_SceneryFindAt(app->world, tile_x, tile_z, level);
-        if( idx >= 0 )
-            World_SceneryRemove(app->world, idx);
+        /* Remove the loc in this shape's layer (scene + collision). shape =
+         * info >> 2 keys the layer so a door (WALL) removal only hits the WALL
+         * loc, not a centrepiece/floor-decor sharing the tile. loc_id = -1 = no
+         * replacement. */
+        if( app->world_builder )
+            WorldBuilder_ApplyLocChange(
+                app->world_builder, tile_x, tile_z, level, -1, pkt->info >> 2, pkt->info & 0x3);
         break;
     }
     case PKT_NAME_LOC_ADD_CHANGE:
     {
-        /* Replacing/adding a loc needs the world builder's single-loc spawn
-         * path (flagged follow-on); the stale loc is removed so the change is
-         * at least not misleading. */
+        /* Replace the loc in this layer: remove the stale loc and spawn the new
+         * one (scene + collision), matching Client-TS locChangeUnchecked. */
         struct PktLocAddChange const* pkt = payload;
-        int idx;
         zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
-        idx = World_SceneryFindAt(app->world, tile_x, tile_z, level);
-        if( idx >= 0 )
-            World_SceneryRemove(app->world, idx);
+        if( app->world_builder )
+            WorldBuilder_ApplyLocChange(
+                app->world_builder, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2,
+                pkt->info & 0x3);
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(
                 stderr,
-                "gameproto_exec: LOC_ADD_CHANGE loc=%d at %d,%d (spawn pending builder hook)\n",
+                "gameproto_exec: LOC_ADD_CHANGE loc=%d shape=%d angle=%d at %d,%d\n",
                 pkt->loc_id,
+                pkt->info >> 2,
+                pkt->info & 0x3,
                 tile_x,
                 tile_z);
         break;
@@ -173,7 +178,7 @@ exec_zone_sub_packet(
     {
         struct PktLocAnim const* pkt = payload;
         zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
-        App_WorldSceneryAnim(app, tile_x, tile_z, level, pkt->seq_id);
+        App_WorldSceneryAnim(app, tile_x, tile_z, level, pkt->info >> 2, pkt->seq_id);
         break;
     }
     case PKT_NAME_MAP_ANIM:

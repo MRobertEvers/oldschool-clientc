@@ -553,6 +553,51 @@ app_overlay_build_chat(
     app_overlay_push(app, &body);
 }
 
+/* Overhead prayer/skull headicons (reference drawEntities, Client.ts:4849).
+ * `headicons` is an 8-bit mask; each set bit plots sprite[icon] from the
+ * headicons pack stacked upward above the model top (start 30px up, 25px per
+ * icon). Projection is at `entity.height + 15`, same as the health bar. */
+static void
+app_overlay_build_player_headicons(
+    struct App* app,
+    int element_id,
+    int headicons,
+    struct WorldEntityFacet_DrawPosition const* draw_position,
+    int headicons_scene)
+{
+    int height = app_entity_model_height(app, element_id);
+    int screen_x, screen_y;
+    int y_off = 30;
+
+    if( headicons == 0 || headicons_scene <= 0 )
+        return;
+    if( !app_world_project(
+            app,
+            (int)draw_position->x,
+            (int)draw_position->z,
+            height + 15,
+            &screen_x,
+            &screen_y) )
+        return;
+
+    for( int icon = 0; icon < 8; icon++ )
+    {
+        if( (headicons & (0x1 << icon)) == 0 )
+            continue;
+        struct UITreeEntityOverlay spr = {
+            .kind = UITREE_ENTITY_OVERLAY_SPRITE,
+            .x = screen_x - 12,
+            .y = screen_y - y_off,
+            .w = 0,
+            .h = 0,
+            .scene_id = headicons_scene,
+            .atlas_index = icon,
+        };
+        app_overlay_push(app, &spr);
+        y_off -= 25;
+    }
+}
+
 static void
 app_overlay_build_entity(
     struct App* app,
@@ -680,6 +725,8 @@ app_build_entity_overlays(
 
     font_id = app_hitsplat_font_scene_id(app);
     hitmarks_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HITMARKS);
+    int headicons_scene =
+        UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HEADICONS);
     pool = &world->entities.npc;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
@@ -701,6 +748,8 @@ app_build_entity_overlays(
         app_overlay_build_entity(
             app, player->element_id, &player->combat, &player->draw_position, font_id,
             hitmarks_scene);
+        app_overlay_build_player_headicons(
+            app, player->element_id, player->headicon, &player->draw_position, headicons_scene);
     }
 
     /* Overhead chat is a second pass so it layers above every entity's health
@@ -1669,6 +1718,111 @@ app_seq_preanim_move(void* userdata, int seq_id)
     return anim ? anim->preanim_move : 0;
 }
 
+/* Plot one loc mapscene Pix8 into the baked minimap ARGB (reference drawDetail
+ * + Pix8.plotSprite). The C bake places tile (sx,sz)'s top-left at
+ * (sx*4, (height-sz)*4) and a loc extends north (+z) over `loc_l` tiles, so the
+ * footprint's top pixel row is (height - sz - (loc_l-1))*4. The sprite is
+ * centered in the loc_w x loc_l footprint (reference offsetX/offsetY) and shifted
+ * by its own crop origin (Pix8.xof/yof). Transparent (alpha 0) source pixels,
+ * i.e. palette index 0, are skipped like the reference plot. */
+static void
+app_plot_mapscene_sprite(
+    uint32_t* dst,
+    int pw,
+    int ph,
+    struct ToriDraw_Sprite const* spr,
+    int sx,
+    int sz,
+    int map_height,
+    int loc_w,
+    int loc_l)
+{
+    int base_x = sx * 4 + (loc_w * 4 - spr->width) / 2 + spr->crop_x;
+    int base_y =
+        (map_height - sz - (loc_l - 1)) * 4 + (loc_l * 4 - spr->height) / 2 + spr->crop_y;
+
+    for( int y = 0; y < spr->height; y++ )
+    {
+        int dy = base_y + y;
+        uint32_t const* src_row;
+        uint32_t* dst_row;
+        if( dy < 0 || dy >= ph )
+            continue;
+        src_row = spr->pixels_argb + (size_t)y * spr->width;
+        dst_row = dst + (size_t)dy * pw;
+        for( int x = 0; x < spr->width; x++ )
+        {
+            int dx = base_x + x;
+            uint32_t px = src_row[x];
+            if( dx < 0 || dx >= pw || (px >> 24) == 0 )
+                continue;
+            dst_row[dx] = px;
+        }
+    }
+}
+
+/* Reference drawDetail's mapscene pass: after the tile/wall bake, plot each loc
+ * mapscene sprite gathered at scene build (world->mapscenes) for the level being
+ * baked. The mapscene atlas lives in the scene, so this runs in app.c rather than
+ * the leaf minimap layer. Level selection matches the tile bake's VisBelow
+ * composition (minimap_bake_argb): an icon on the baked level draws unless its
+ * tile is a hole onto the level below, and an icon one level up draws where that
+ * tile is VisBelow (balcony/overhang showing the floor beneath). */
+static void
+app_bake_mapscenes(struct App* app, uint32_t* argb, int pw, int ph, int level)
+{
+    struct World* world = app->world;
+    int mapscene_scene;
+    int count = 0;
+    struct ToriDraw_Sprite** frames;
+    int scene_size, plane;
+    uint8_t const* flags;
+
+    if( !world || world->mapscene_count <= 0 || !world->minimap )
+        return;
+    mapscene_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE);
+    if( mapscene_scene <= 0 )
+        return;
+    frames = ToriDraw_SceneSpriteGet(app->scene, mapscene_scene, &count);
+    if( !frames || count <= 0 )
+        return;
+
+    scene_size = world->_scene_size;
+    plane = scene_size * scene_size;
+    flags = world->tile_flags;
+
+    for( int i = 0; i < world->mapscene_count; i++ )
+    {
+        struct World_MapSceneIcon const* icon = &world->mapscenes[i];
+        struct ToriDraw_Sprite* spr;
+        int idx, draw = 0;
+
+        if( icon->mapscene < 0 || icon->mapscene >= count )
+            continue;
+        if( icon->x < 0 || icon->x >= scene_size || icon->z < 0 || icon->z >= scene_size )
+            continue;
+        spr = frames[icon->mapscene];
+        if( !spr || !spr->pixels_argb || spr->width <= 0 || spr->height <= 0 )
+            continue;
+
+        idx = icon->x + icon->z * scene_size;
+        if( icon->level == level &&
+            (!flags ||
+             (flags[idx + level * plane] &
+              (MINIMAP_FLAG_VIS_BELOW | MINIMAP_FLAG_FORCE_HIGH_DETAIL)) == 0) )
+            draw = 1;
+        else if( flags && icon->level == level + 1 && level + 1 < world->minimap->levels &&
+                 (flags[idx + (level + 1) * plane] & MINIMAP_FLAG_VIS_BELOW) != 0 )
+            draw = 1;
+        if( !draw )
+            continue;
+
+        app_plot_mapscene_sprite(
+            argb, pw, ph, spr, icon->x, icon->z, world->minimap->height, icon->width,
+            icon->length);
+    }
+}
+
 /* Bake the loaded world's minimap tiles into a single scene sprite the minimap
  * widget blits from (v1 GameRunescape_RebuildWorldMap). SceneSpriteAdd frees any
  * previous entry, so the reload hotkey just overwrites in place.
@@ -1694,6 +1848,10 @@ app_rebuild_world_map(struct App* app, int level)
         app->world->minimap, level, app->world->tile_flags, &pixel_w, &pixel_h);
     if( !argb )
         return;
+
+    /* Reference drawDetail plots loc mapscene sprites (trees, rocks, altars, …)
+     * into the same minimap image as the tiles/walls. */
+    app_bake_mapscenes(app, argb, pixel_w, pixel_h, level);
 
     sprite = ToriDraw_SpriteNewFromArgbOwned(argb, pixel_w, pixel_h);
     if( !sprite )
@@ -3198,7 +3356,15 @@ app_world_try_bind_seq(
     {
         ToriDraw_SceneElementSetAnimationSeq(app->scene, element_id, seq_id);
         ToriDraw_SceneElementSetAnimation(app->scene, element_id, anim, true);
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(
+                stderr, "seq_bind: element=%d seq=%d frames=%d\n", element_id, seq_id,
+                anim->frame_count);
     }
+    else if( getenv("TORIRS_ANIM_DEBUG") )
+        fprintf(
+            stderr, "seq_bind: element=%d seq=%d UNBINDABLE (anim=%p frames=%d)\n", element_id,
+            seq_id, (void*)anim, anim ? anim->frame_count : -1);
     return 1;
 }
 
@@ -3477,6 +3643,7 @@ app_world_spawn_npc_now(
         if( npc )
         {
             npc->combat_level = npctype->combat_level;
+            npc->alwaysontop = npctype->alwaysontop;
             npc->facing.turn_speed = npctype->turn_speed;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )
@@ -3507,6 +3674,7 @@ static void
 app_world_spawn_projectile_now(
     struct App* app,
     int model_id,
+    int seq_id,
     int src_tile_x,
     int src_tile_z,
     int src_level,
@@ -3557,6 +3725,11 @@ app_world_spawn_projectile_now(
         t2,
         15, /* launch slope (1/2048 circle units) */
         64);
+    /* Bind the spotanim's sequence so the projectile model animates in flight
+     * (v1 Task_*ProjectileAdd loads the seq, then ElementSetSequenceId). The
+     * element is left non-external, so app_world_tick_animations advances the
+     * frame each tick — matching ClientProj.move's plain frame loop. */
+    app_world_apply_seq(app, element_id, seq_id);
     fprintf(
         stderr,
         "spawn_projectile: element=%d %d,%d -> %d,%d t2=%d\n",
@@ -3593,6 +3766,7 @@ struct Task_AppSpawn
     int npc_id;
     int obj_id;
     int model_id;
+    int seq_id;
     int src_tile_x;
     int src_tile_z;
     int src_level;
@@ -3654,6 +3828,7 @@ Task_AppSpawn_Run(
         app_world_spawn_projectile_now(
             app,
             self->model_id,
+            self->seq_id,
             self->src_tile_x,
             self->src_tile_z,
             self->src_level,
@@ -4024,11 +4199,15 @@ app_world_spawn_projectile(
     }
 
     task = app_spawn_task_new(app, APP_SPAWN_PROJECTILE, tile_x, tile_z, level);
-    task->model_id = 3081; /* v0 spawn-test model fallback */
+    task->model_id = 3081; /* v1 spawn-test spotanim model */
+    task->seq_id = 659;    /* v1 spawn-test spotanim sequence (RUNESCAPE_PROJECTILE_SEQ_ID) */
     {
         char const* env = getenv("TORIRS_SPAWN_PROJ_MODEL");
         if( env )
             task->model_id = (int)strtol(env, NULL, 0);
+        env = getenv("TORIRS_SPAWN_PROJ_SEQ");
+        if( env )
+            task->seq_id = (int)strtol(env, NULL, 0);
     }
     task->src_tile_x = app->proj_src_tile_x;
     task->src_tile_z = app->proj_src_tile_z;
@@ -4056,6 +4235,12 @@ app_world_damage_test(struct App* app)
     {
         World_PlayerAddHitmark(app->world, i, damage % 2, damage, 5, 10);
         World_PlayerSetChat(app->world, i, "Hello there!", 0, 0);
+        /* Exercise the overhead headicon pass too: icons 0 + 2 stacked. */
+        {
+            struct WorldEntity_Player* tpl = World_EntityPoolGet(pool, i);
+            if( tpl )
+                tpl->headicon = 0x5;
+        }
     }
     pool = &app->world->entities.npc;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
@@ -4256,6 +4441,10 @@ app_world_frame(
 
     if( !app->world_active || !app->world_view_valid || !world )
         return;
+
+    /* Mirror the local pid so the render cycle's dynamic pass can register the
+     * local player first (reference addPlayers(true) precedence). */
+    world->local_pid = app->esync.local_pid;
 
     World_Cycle(world, cycles);
 
@@ -5602,11 +5791,30 @@ App_RunOnce(
                                 input_copy + 2));
                     else if( app->chat.message_count > 0 &&
                              app->chat.messages[0].type == RS_CHAT_TYPE_PUBLIC )
+                    {
                         APP_NET_SEND(
                             app,
                             net_out_message_public(
                                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                                 app->chat.messages[0].text));
+
+                        /* Reference sets localPlayer.chatMessage on submit
+                         * (Client.ts:3405) so our own overhead line shows
+                         * immediately, before the server echoes it back through
+                         * PLAYER_INFO. colour/effect default to 0/0 (no chat
+                         * style selector ported yet). */
+                        {
+                            int local_idx = -1;
+                            if( app->world &&
+                                RS_EntitySync_FindPlayer(
+                                    &app->esync,
+                                    app->esync.local_pid >= 0 ? app->esync.local_pid : 2047,
+                                    &local_idx,
+                                    NULL) )
+                                World_PlayerSetChat(
+                                    app->world, local_idx, app->chat.messages[0].text, 0, 0);
+                        }
+                    }
                 }
             }
         }
@@ -6111,11 +6319,12 @@ App_WorldSceneryAnim(
     int scene_x,
     int scene_z,
     int level,
+    int loc_shape,
     int seq_id)
 {
     int idx;
     assert(app);
-    idx = World_SceneryFindAt(app->world, scene_x, scene_z, level);
+    idx = World_SceneryFindAt(app->world, scene_x, scene_z, level, loc_shape);
     if( idx >= 0 )
     {
         struct WorldEntity_Scenery* scenery =
@@ -6191,6 +6400,7 @@ App_WorldApplyNpcType(
         if( npc )
         {
             npc->combat_level = npctype->combat_level;
+            npc->alwaysontop = npctype->alwaysontop;
             npc->facing.turn_speed = npctype->turn_speed;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )
@@ -6247,6 +6457,17 @@ App_WorldApplyPlayerAppearance(
             appearance->name,
             appearance->combat_level,
             appearance->gender);
+
+        /* Overhead prayer/skull headicon bitmask (reference
+         * ClientPlayer.headicons, appearance g1). SetAppearance carries no
+         * headicon field, so copy it onto the entity directly for the overlay
+         * pass. */
+        {
+            struct WorldEntity_Player* ent =
+                World_EntityPoolGet(&app->world->entities.player, world_idx);
+            if( ent )
+                ent->headicon = appearance->headicon;
+        }
     }
     app_sync_textures(app);
     app->need_redraw = 1;

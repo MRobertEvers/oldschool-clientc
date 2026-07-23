@@ -87,6 +87,10 @@ sharelight_map_push(
     int light_ambient,
     int light_attenuation)
 {
+    /* Build-only (freed at build end): a runtime loc spawn has no sharelight
+     * accumulator and doesn't need light-share bake. */
+    if( !sharelight_map )
+        return;
     if( shared )
     {
         sharelight_map_push_shared(

@@ -838,6 +838,12 @@ painter_mark_static_count(struct Painter* painter)
 }
 
 void
+painter_set_suppress_slot_registration(struct Painter* painter, int suppress)
+{
+    painter->suppress_slot_registration = suppress ? 1 : 0;
+}
+
+void
 painter_reset_to_static(struct Painter* painter)
 {
     struct PaintersTile* tile = NULL;
@@ -876,9 +882,15 @@ painter_add_wall(
     int wall_ab,
     int side)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    struct PaintersTile* tile;
     enum PaintersElementKind kind;
-    int element = painter_push_element(painter);
+    int element;
+
+    if( painter->suppress_slot_registration )
+        return -1;
+
+    tile = painter_tile_at(painter, sx, sz, slevel);
+    element = painter_push_element(painter);
 
     switch( wall_ab )
     {
@@ -918,8 +930,14 @@ painter_add_wall_decor(
     int side,
     int through_wall_flags)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
-    int element = painter_push_element(painter);
+    struct PaintersTile* tile;
+    int element;
+
+    if( painter->suppress_slot_registration )
+        return -1;
+
+    tile = painter_tile_at(painter, sx, sz, slevel);
+    element = painter_push_element(painter);
 
     switch( wall_ab )
     {
@@ -957,8 +975,14 @@ painter_add_ground_decor(
     int slevel,
     int entity)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
-    int element = painter_push_element(painter);
+    struct PaintersTile* tile;
+    int element;
+
+    if( painter->suppress_slot_registration )
+        return -1;
+
+    tile = painter_tile_at(painter, sx, sz, slevel);
+    element = painter_push_element(painter);
 
     assert(tile->ground_decor == -1);
     tile->ground_decor = element;

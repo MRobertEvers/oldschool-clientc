@@ -1,6 +1,8 @@
 #ifndef WORLD_ENTITY_NPC_H
 #define WORLD_ENTITY_NPC_H
 
+#include <stdbool.h>
+
 #include "entity_facets.h"
 
 struct WorldEntity_NPC
@@ -12,6 +14,11 @@ struct WorldEntity_NPC
     struct WorldEntityFacet_Pathing pathing;
     int npc_id;
     int size;
+    /** NpcType.alwaysontop (opcode 99). Draw-order tier: alwaysontop NPCs
+     *  register with the painter before other players and normal NPCs, so
+     *  they claim the tile in the one-entity-per-tile dedup (Client.ts
+     *  addNpcs, called first with alwaysontop=true). */
+    bool alwaysontop;
     int combat_level;
     char name[32];
     struct WorldEntityFacet_Action actions[5];

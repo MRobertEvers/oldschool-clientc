@@ -54,6 +54,13 @@ struct Painter
 
     int static_element_count;
 
+    /** While set, the single-slot registrations (wall / wall_decor /
+     *  ground_decor) no-op instead of asserting on an occupied slot. Used by
+     *  WorldBuilder_ApplyLocChange so a runtime loc spawn reuses the build path
+     *  without clobbering the baked static tile slots — the spawned loc is drawn
+     *  via the per-frame painter_add_normal_scenery pass (world_cycle) instead. */
+    int suppress_slot_registration;
+
     struct PaintersTile* tiles;
     struct TilePaint* tile_paints;
     int tile_count;

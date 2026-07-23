@@ -7,13 +7,18 @@
 #include <rscache.h>
 #include "world_builder.h"
 
+/* Shared core for add/del of a loc's collision. `add` selects the add_* vs del_*
+ * collision primitives (exact inverses), so a runtime LOC change can undo the
+ * collision the original loc contributed. Mirrors Client-TS ClientBuild.addLoc /
+ * locChangeUnchecked's del path (Client.ts:7763-7789). */
 static void
-world_collision_add_loc(
+world_collision_apply_loc(
     struct WorldBuilder* builder,
     struct ToriRS_MapLoc* map_loc,
     struct ToriRS_Location* config_loc,
     int scene_x,
-    int scene_z)
+    int scene_z,
+    int add)
 {
     struct World* world = builder->world;
     int level = map_loc->chunk_pos_level;
@@ -28,61 +33,34 @@ world_collision_add_loc(
     int blockrange = config_loc->blocks_projectiles ? 1 : 0;
     int size_x = config_loc->size_x;
     int size_z = config_loc->size_z;
+    int shape = map_loc->shape_select;
 
-    switch( map_loc->shape_select )
+    void (*wall_op)(struct CollisionMap*, int, int, int, enum CollisionLocAngle, int) =
+        add ? collision_map_add_wall : collision_map_del_wall;
+    void (*loc_op)(struct CollisionMap*, int, int, int, int, enum CollisionLocAngle, int) =
+        add ? collision_map_add_loc : collision_map_del_loc;
+
+    switch( shape )
     {
     case RSCACHE_LOC_SHAPE_FLOOR_DECORATION:
-    {
         if( config_loc->blocks_walk == 1 )
-            collision_map_add_floor(cm, scene_x, scene_z);
+        {
+            if( add )
+                collision_map_add_floor(cm, scene_x, scene_z);
+            else
+                collision_map_del_floor(cm, scene_x, scene_z);
+        }
         break;
-    }
     case RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE:
-    {
-        if( config_loc->blocks_walk != 0 )
-            collision_map_add_wall(
-                cm, scene_x, scene_z, RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE, angle, blockrange);
-        break;
-    }
     case RSCACHE_LOC_SHAPE_WALL_TRI_CORNER:
-    {
-        if( config_loc->blocks_walk != 0 )
-            collision_map_add_wall(
-                cm, scene_x, scene_z, RSCACHE_LOC_SHAPE_WALL_TRI_CORNER, angle, blockrange);
-        break;
-    }
     case RSCACHE_LOC_SHAPE_WALL_TWO_SIDES:
-    {
-        if( config_loc->blocks_walk != 0 )
-            collision_map_add_wall(
-                cm, scene_x, scene_z, RSCACHE_LOC_SHAPE_WALL_TWO_SIDES, angle, blockrange);
-        break;
-    }
     case RSCACHE_LOC_SHAPE_WALL_RECT_CORNER:
-    {
         if( config_loc->blocks_walk != 0 )
-            collision_map_add_wall(
-                cm, scene_x, scene_z, RSCACHE_LOC_SHAPE_WALL_RECT_CORNER, angle, blockrange);
+            wall_op(cm, scene_x, scene_z, shape, angle, blockrange);
         break;
-    }
     case RSCACHE_LOC_SHAPE_WALL_DIAGONAL:
-    {
-        if( config_loc->blocks_walk != 0 )
-            collision_map_add_loc(cm, scene_x, scene_z, size_x, size_z, angle, blockrange);
-        break;
-    }
     case RSCACHE_LOC_SHAPE_SCENERY:
-    {
-        if( config_loc->blocks_walk != 0 )
-            collision_map_add_loc(cm, scene_x, scene_z, size_x, size_z, angle, blockrange);
-        break;
-    }
     case RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL:
-    {
-        if( config_loc->blocks_walk != 0 )
-            collision_map_add_loc(cm, scene_x, scene_z, size_x, size_z, angle, blockrange);
-        break;
-    }
     case RSCACHE_LOC_SHAPE_ROOF_SLOPED:
     case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
     case RSCACHE_LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
@@ -93,14 +71,34 @@ world_collision_add_loc(
     case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
     case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
     case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
-    {
         if( config_loc->blocks_walk != 0 )
-            collision_map_add_loc(cm, scene_x, scene_z, size_x, size_z, angle, blockrange);
+            loc_op(cm, scene_x, scene_z, size_x, size_z, angle, blockrange);
         break;
-    }
     default:
         break;
     }
+}
+
+static void
+world_collision_add_loc(
+    struct WorldBuilder* builder,
+    struct ToriRS_MapLoc* map_loc,
+    struct ToriRS_Location* config_loc,
+    int scene_x,
+    int scene_z)
+{
+    world_collision_apply_loc(builder, map_loc, config_loc, scene_x, scene_z, 1);
+}
+
+static void
+world_collision_del_loc(
+    struct WorldBuilder* builder,
+    struct ToriRS_MapLoc* map_loc,
+    struct ToriRS_Location* config_loc,
+    int scene_x,
+    int scene_z)
+{
+    world_collision_apply_loc(builder, map_loc, config_loc, scene_x, scene_z, 0);
 }
 
 static void

@@ -1,4 +1,5 @@
 #include "app.h"
+#include "engine/world_builder/world_builder.h"
 #include "cmd/cmdbus.h"
 #include "game/rs_cs2_dispatch.h"
 #include "input/torirs_input.h"
@@ -991,6 +992,45 @@ main(
     {
         int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
         assert(pixels);
+        /* TORIRS_TEST_LOCCHANGE=1: exercise the runtime loc-change path offline
+         * (debugging the door segfault) by re-applying a change to the first
+         * existing scenery loc in the scene. */
+        if( getenv("TORIRS_TEST_LOCCHANGE") && app.world_builder && app.world )
+        {
+            struct World_EntityPool* pool = &app.world->entities.scenery;
+            int applied = 0, walls = 0;
+            /* Snapshot every existing loc first (ApplyLocChange mutates the pool
+             * as we go), then re-apply a change to each shape to exercise the
+             * whole scenery_add path — walls (doors) included. */
+            struct { int x, z, l, id, shape, angle; } locs[4096];
+            int nlocs = 0;
+            for( int it = World_EntityPoolHead(pool);
+                 it != WORLD_ENTITY_NIL && nlocs < 4096;
+                 it = World_EntityPoolNext(pool, it) )
+            {
+                struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, it);
+                if( !sc )
+                    continue;
+                locs[nlocs].x = sc->grid_position.x;
+                locs[nlocs].z = sc->grid_position.z;
+                locs[nlocs].l = sc->grid_position.level;
+                locs[nlocs].id = sc->loc_id;
+                locs[nlocs].shape = sc->shape;
+                locs[nlocs].angle = sc->angle;
+                nlocs++;
+            }
+            for( int k = 0; k < nlocs; k++ )
+            {
+                if( locs[k].shape <= 3 )
+                    walls++;
+                WorldBuilder_ApplyLocChange(app.world_builder, locs[k].x, locs[k].z,
+                                            locs[k].l, locs[k].id, locs[k].shape,
+                                            locs[k].angle);
+                applied++;
+            }
+            fprintf(stderr, "TEST_LOCCHANGE: applied %d loc changes (%d walls) ok\n",
+                    applied, walls);
+        }
         App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         bmp_write_file("build/world.bmp", pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         printf("wrote build/world.bmp (%d emit cmds)\n", app.emit.count);

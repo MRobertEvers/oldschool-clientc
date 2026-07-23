@@ -79,7 +79,9 @@ void test_cycle_movers(void);
 void test_entity_face(void);
 void test_try_route(void);
 void test_try_route_op(void);
+void test_collision_loc_change_inverse(void);
 void test_route_coordinate_coincidence(void);
+void test_tile_stack_dedup(void);
 void test_rebuild_shift(void);
 
 /* Simulations */

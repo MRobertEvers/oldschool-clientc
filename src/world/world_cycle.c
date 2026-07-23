@@ -704,8 +704,16 @@ World_CycleUpdateSpotanims(
 /* A mover draws between tiles, so it registers over the tile span its
  * padded fine position covers rather than a single grid cell (Client-TS
  * World.addDynamic: (x±padding)>>7; padding 60 for size-1 movers,
- * 60+(size-1)*64 for larger NPCs). */
-void
+ * 60+(size-1)*64 for larger NPCs).
+ *
+ * The reference World.setSprite rejects the whole sprite when any tile of the
+ * padded span is out of [0,scene_size): a large entity straddling the scene
+ * edge simply is not drawn. We do the same (return false) instead of clamping
+ * the span — clamping can leave sx == scene_size (a size-2 NPC on the last
+ * in-scene tile centres its draw position past the edge, so x0 rounds up to
+ * scene_size while x1 clamps below it), and that out-of-bounds sx later trips
+ * the painter's tile lookup assert on reset/paint. */
+bool
 World_EntityPainterFootprint(
     int pos_x,
     int pos_z,
@@ -718,66 +726,112 @@ World_EntityPainterFootprint(
     int x1 = (pos_x + draw_padding) / 128;
     int z1 = (pos_z + draw_padding) / 128;
 
-    if( x0 < 0 )
-        x0 = 0;
-    if( z0 < 0 )
-        z0 = 0;
-    if( x1 >= scene_size )
-        x1 = scene_size - 1;
-    if( z1 >= scene_size )
-        z1 = scene_size - 1;
+    if( x0 < 0 || z0 < 0 || x1 >= scene_size || z1 >= scene_size )
+        return false;
 
     out->sx = x0;
     out->sz = z0;
     out->size_x = x1 - x0 + 1;
     out->size_z = z1 - z0 + 1;
+    return true;
 }
 
-/* Dynamic entities re-register with the painter every cycle on top of the
- * static terrain/scenery set; without this pass they never produce
- * PNTR_CMD_ELEMENT commands and never draw (v1 world_cycle). */
-static void
-World_CycleRegisterPainterDynamics(struct World* world)
+/* One-entity-per-tile dedup (reference Client.tileLastOccupiedCycle).
+ *
+ * A stationary size-1 entity sits exactly tile-centred: fine draw coord ==
+ * tile*128 + 64, i.e. (draw & 0x7f) == 64 on both axes. The reference records
+ * the first such entity to claim a tile in a frame and skips every later one,
+ * so a pile of players/NPCs on one square renders as a single model instead of
+ * z-fighting. Movers (between tiles) and larger NPCs are never deduped — they
+ * always draw. `force` is set for the local player, which the reference never
+ * skips (its `i != -1` guard); it still claims the tile so others stacked on it
+ * are hidden. Returns true when the caller should skip registering the entity. */
+static bool
+world_dyn_tile_claim(
+    struct World* world, int grid_x, int grid_z, int draw_x, int draw_z, int size, bool force)
 {
-    struct World_EntityPool* pool;
+    if( size != 1 || (draw_x & 0x7f) != 64 || (draw_z & 0x7f) != 64 )
+        return false; /* mover / multi-tile: exempt from the dedup entirely */
 
-    painter_reset_to_static(world->painter);
+    int idx = grid_x + grid_z * world->_scene_size;
+    if( !force && world->tile_last_occupied_cycle[idx] == world->scene_cycle )
+        return true;
 
-    pool = &world->entities.player;
+    world->tile_last_occupied_cycle[idx] = world->scene_cycle;
+    return false;
+}
+
+/* Register one player/NPC element with the painter over its padded footprint
+ * (mover span, reference World.addDynamic). */
+static void
+world_dyn_register_mover(
+    struct World* world, int element_id, int grid_level, int draw_x, int draw_z, int padding)
+{
+    struct World_PainterFootprint footprint;
+    if( !World_EntityPainterFootprint(draw_x, draw_z, padding, world->_scene_size, &footprint) )
+        return; /* padded span pokes off the scene edge: reference draws nothing */
+    painter_add_normal_scenery(
+        world->painter,
+        footprint.sx,
+        footprint.sz,
+        grid_level,
+        element_id,
+        footprint.size_x,
+        footprint.size_z);
+}
+
+/* Register every player in the pool except the local one (registered first by
+ * the caller). `only_local` flips the sense: register just the local player. */
+static void
+world_dyn_register_players(struct World* world, bool only_local)
+{
+    struct World_EntityPool* pool = &world->entities.player;
     for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
          pi = World_EntityPoolNext(pool, pi) )
     {
         struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
         if( !player || player->element_id < 0 )
             continue;
+        bool is_local = world->local_pid >= 0 && player->server_pid == world->local_pid;
+        if( is_local != only_local )
+            continue;
         int grid_x = player->grid_position.x;
         int grid_z = player->grid_position.z;
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
-        struct World_PainterFootprint footprint;
-        World_EntityPainterFootprint(
+        if( world_dyn_tile_claim(
+                world,
+                grid_x,
+                grid_z,
+                (int)player->draw_position.x,
+                (int)player->draw_position.z,
+                1,
+                is_local) )
+            continue;
+        world_dyn_register_mover(
+            world,
+            player->element_id,
+            player->grid_position.level,
             (int)player->draw_position.x,
             (int)player->draw_position.z,
-            WORLD_MOVER_PAINTER_PADDING,
-            world->_scene_size,
-            &footprint);
-        painter_add_normal_scenery(
-            world->painter,
-            footprint.sx,
-            footprint.sz,
-            player->grid_position.level,
-            player->element_id,
-            footprint.size_x,
-            footprint.size_z);
+            WORLD_MOVER_PAINTER_PADDING);
     }
+}
 
-    pool = &world->entities.npc;
+/* Register NPCs of one draw tier: `alwaysontop` NPCs first (added ahead of
+ * other players in the reference), then the rest. */
+static void
+world_dyn_register_npcs(struct World* world, bool alwaysontop)
+{
+    struct World_EntityPool* pool = &world->entities.npc;
     for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
          ni = World_EntityPoolNext(pool, ni) )
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
         if( !npc || npc->element_id < 0 )
+            continue;
+        if( npc->alwaysontop != alwaysontop )
             continue;
         int size = npc->size > 0 ? npc->size : 1;
         int grid_x = npc->grid_position.x;
@@ -785,43 +839,68 @@ World_CycleRegisterPainterDynamics(struct World* world)
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
-        struct World_PainterFootprint footprint;
-        World_EntityPainterFootprint(
+        if( world_dyn_tile_claim(
+                world,
+                grid_x,
+                grid_z,
+                (int)npc->draw_position.x,
+                (int)npc->draw_position.z,
+                size,
+                false) )
+            continue;
+        world_dyn_register_mover(
+            world,
+            npc->element_id,
+            npc->grid_position.level,
             (int)npc->draw_position.x,
             (int)npc->draw_position.z,
-            WORLD_MOVER_PAINTER_PADDING + (size - 1) * 64,
-            world->_scene_size,
-            &footprint);
-        painter_add_normal_scenery(
-            world->painter,
-            footprint.sx,
-            footprint.sz,
-            npc->grid_position.level,
-            npc->element_id,
-            footprint.size_x,
-            footprint.size_z);
+            WORLD_MOVER_PAINTER_PADDING + (size - 1) * 64);
     }
+}
 
-    pool = &world->entities.projectile;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
+/* Dynamic entities re-register with the painter every cycle on top of the
+ * static terrain/scenery set; without this pass they never produce
+ * PNTR_CMD_ELEMENT commands and never draw (v1 world_cycle).
+ *
+ * Registration order = reference gameDrawMain (Client.ts:4409): ground objects
+ * (part of the static tile in the reference, so behind everything dynamic),
+ * then self, alwaysontop NPCs, other players, normal NPCs, projectiles,
+ * spotanims. Same-tile ties draw in insertion order (painter walks
+ * scenery_head->next), so earlier tiers sit behind later ones; combined with
+ * the tile-claim dedup this reproduces which single entity wins a stacked
+ * tile. */
+static void
+World_CycleRegisterPainterDynamics(struct World* world)
+{
+    struct World_EntityPool* pool;
+
+    painter_reset_to_static(world->painter);
+    world->scene_cycle++;
+
+    /* Runtime-spawned locs (zone LOC_ADD_CHANGE, e.g. an open door). The painter
+     * static set is baked at build time, so these live in the scenery pool but
+     * must be re-registered every cycle. Registered before the dynamics below so
+     * they draw with the scenery (behind players/NPCs), matching a normal loc. */
+    pool = &world->entities.scenery;
+    for( int si = World_EntityPoolHead(pool); si != WORLD_ENTITY_NIL;
+         si = World_EntityPoolNext(pool, si) )
     {
-        struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, i);
-        if( !p || p->element_id < 0 || p->cycle < p->t1 )
+        struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, si);
+        if( !sc || !sc->runtime_spawn || sc->element_id < 0 )
             continue;
-        struct World_PainterFootprint footprint;
-        World_EntityPainterFootprint(
-            (int)p->x, (int)p->z, WORLD_PROJECTILE_PAINTER_PADDING, world->_scene_size, &footprint);
+        int grid_x = sc->grid_position.x;
+        int grid_z = sc->grid_position.z;
+        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
+            grid_z >= world->_scene_size )
+            continue;
         painter_add_normal_scenery(
-            world->painter,
-            footprint.sx,
-            footprint.sz,
-            p->level,
-            p->element_id,
-            footprint.size_x,
-            footprint.size_z);
+            world->painter, grid_x, grid_z, sc->grid_position.level, sc->element_id,
+            sc->size_x > 0 ? sc->size_x : 1, sc->size_z > 0 ? sc->size_z : 1);
     }
 
+    /* Ground items render below entities (reference tile.groundObject draws in
+     * the tile's base step, before any dynamic sprite). Registered first so
+     * insertion-order ties keep them behind stacked players/NPCs. */
     pool = &world->entities.obj_stack;
     for( int oi = World_EntityPoolHead(pool); oi != WORLD_ENTITY_NIL;
          oi = World_EntityPoolNext(pool, oi) )
@@ -836,6 +915,36 @@ World_CycleRegisterPainterDynamics(struct World* world)
             continue;
         painter_add_normal_scenery(
             world->painter, grid_x, grid_z, stack->grid_position.level, stack->element_id, 1, 1);
+    }
+
+    world_dyn_register_players(world, /*only_local=*/true);
+    world_dyn_register_npcs(world, /*alwaysontop=*/true);
+    world_dyn_register_players(world, /*only_local=*/false);
+    world_dyn_register_npcs(world, /*alwaysontop=*/false);
+
+    pool = &world->entities.projectile;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, i);
+        if( !p || p->element_id < 0 || p->cycle < p->t1 )
+            continue;
+        struct World_PainterFootprint footprint;
+        if( !World_EntityPainterFootprint(
+                (int)p->x,
+                (int)p->z,
+                WORLD_PROJECTILE_PAINTER_PADDING,
+                world->_scene_size,
+                &footprint) )
+            continue; /* off-edge padded span: reference draws nothing */
+        painter_add_normal_scenery(
+            world->painter,
+            footprint.sx,
+            footprint.sz,
+            p->level,
+            p->element_id,
+            footprint.size_x,
+            footprint.size_z);
     }
 
     pool = &world->entities.spotanim;

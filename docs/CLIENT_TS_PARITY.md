@@ -12,7 +12,8 @@ verified against a live LostCity server (`./run-live.sh`, cache
 Headless world-harness hotkeys (all act on the tile under the mouse, driven by
 `TORIRS_SIM_WORLD_KEY="x,y,<key>[;...]"`): **9** player, **8** npc
 (`TORIRS_SPAWN_NPC`), **7** ground item (`TORIRS_SPAWN_OBJ`), **6** test
-hitsplat on every entity, **0** projectile (two-press latch).
+overheads on every entity (hitsplat + health bar + overhead chat + a headicon
+mask), **0** projectile (two-press latch).
 
 Reference server for wire questions: `/Users/matthewevers/Documents/git_repos/LostCity_Server`
 (its `content/scripts/**/*.if` + `content/pack/interface.pack` are the ground
@@ -119,7 +120,7 @@ is folded into build-time heights here).
 
 ---
 
-## 3. Minimap (click-to-walk, dots, flag) — ✅ (function icons ❌)
+## 3. Minimap (click-to-walk, dots, flag, loc icons) — ✅
 
 ### Client-TS
 
@@ -175,6 +176,53 @@ collision-respecting random walk (±3 tiles, funcs 22/29/34/36/46/47/48 stay
 put) in `RebuildCenterzoneEnd` once collision is final. Draw:
 `app_minimap_build_dots` pushes them first (entity dots on top) as ordinary
 dots with `scene_id = STATIC_SPRITE_MAPFUNCTION` slot, `atlas_index = func`.
+
+**Scene icons — `mapscene` (trees / rocks / altars / fences) — done this
+session.** These are a *separate* mechanism from the function dots above, and
+were the "minimap not rendering loc icons" gap (the trees in the debugcc
+screenshot). The two must not be conflated:
+
+- `mapfunction` (Pix32, loc opcode 60): the colored symbols (bank/anvil/…),
+  gathered from **ground-decoration** locs (`gdType`), spread by a random walk,
+  drawn **per frame** as rotating `minimapDrawDot` sprites.
+- `mapscene` (Pix8, loc opcode 61 → `LocType.mapscene`): trees/rocks/etc,
+  **baked into the minimap image** at build time and rotated with it.
+
+Reference (`drawDetail`, `Client.ts:5628`, called from `minimapBuildBuffer`
+under the same per-tile VisBelow composition as the tiles): for the tile's
+`wallType` **and** `sceneType`, if the loc's `mapscene !== -1` it
+`plotSprite`s `mapscene[loc.mapscene]` **instead of** drawing wall/diagonal
+lines, centered over the loc footprint —
+`x = tileX*4 + 48 + (loc.width*4 - wi)/2 (+ xof)`,
+`y = (SIZE - tileZ - loc.length)*4 + (loc.length*4 - hi)/2 + 48 (+ yof)`,
+using the loc's **raw** `width`/`length` (not the orientation-swapped footprint
+`addScenery` receives). Sources are the shapes that set `tile.wall` (walls 0–3)
+or `tile.sprite` (diagonal-wall 9, centrepiece 10/11, roofs 12–21); wall-decor
+(4–8, → `setDecor`) and floor-decor (22, → `gdType`/mapfunction) never feed a
+mapscene.
+
+torirs: the C bake previously **skipped every mapscene loc** outright —
+`world_builder_minimap_add_chunk_walls` (`world_scenery.u.c`) did
+`if (config_loc->map_scene_id != -1) continue;` before drawing wall lines, and
+nothing else drew mapscene. Now that branch records the icon into a
+dynamically-grown `World.mapscenes[]` (`{x, z, level, mapscene, width, length}`
+= scene tile + `map_scene_id` + raw `size_x/size_z`) for shapes 0–3 and 9–21
+(the wall+scenery sources above). It is a **growable** array, not a fixed cap
+like `mapfuncs[1000]`, because a wooded scene has far more mapscenes than
+function icons (the boot chunk alone has 245). Bridge `LinkBelow` columns get
+the same 1→0 icon-level push-down as the mapfunctions in
+`RebuildCenterzoneEnd`. Plot: `app_bake_mapscenes` (`app.c`) runs right after
+`minimap_bake_argb` — it lives in `app.c`, not the leaf minimap layer, because
+that is where the loaded `STATIC_SPRITE_MAPSCENE` atlas is reachable
+(`ToriDraw_SceneSpriteGet`). Position mirrors the reference relative to the C
+bake's own tile placement (`tile top-left = (sx*4, (height - sz)*4)`):
+`px = sx*4 + (w*4 - spr.width)/2 + spr.crop_x`,
+`py = (height - sz - (length-1))*4 + (length*4 - spr.height)/2 + spr.crop_y`,
+blitting `spr.width×spr.height` ARGB and skipping alpha-0 (palette-0) pixels.
+Level selection reuses the tile bake's VisBelow rule (icon's own level unless
+that tile is a hole onto the level below; the level above where it is
+VisBelow). Verified offline: `TORIRS_WORLD_BMP=1 --dat1` gathers 245 icons and
+the baked 256×256 minimap shows tree/rock/wall icons that were absent before.
 
 Still not done: NPC `minimap`-visible flag (all NPCs dot for now), friend
 dots (needs social lookup), hint arrows (`minimapDrawArrow` ring clamping),
@@ -709,10 +757,55 @@ centred TEXT pair through the b12 font (`app_overlay_build_chat` /
 `app_overlay_chat_colour`, matching `CHAT_COLOURS` + the 6–11 flashing/rainbow
 cases). Effects 1/2 (wave/scroll) fall back to plain centred text for now.
 
-Still not ported: headicons (the other `drawEntities` overlay) and hint arrows.
-These are *world* entity overlays and stay distinct from the *interface* chatbox
-chathead models in §17 (an NPC/player head in a dialogue MODEL widget) —
-different pipeline, different draw path.
+Still not ported: NPC headicons and hint arrows (the other `drawEntities`
+overlays). These are *world* entity overlays and stay distinct from the
+*interface* chatbox chathead models in §17 (an NPC/player head in a dialogue
+MODEL widget) — different pipeline, different draw path.
+
+#### Follow-up: local-player overhead chat + player headicons (overhead prayers)
+
+Two gaps surfaced when driving the live client: typing a message and pressing
+Enter drew nothing overhead, and prayer/skull headicons never appeared.
+
+**Local-player chat.** The reference sets `this.localPlayer.chatMessage` (colour,
+effect, `chatTimer = 150`) the instant a public line is submitted
+(`Client.ts:3405`), so your own overhead line shows immediately — before the
+server echoes it back through `PLAYER_INFO`. torirs only sent the
+`MESSAGE_PUBLIC` packet; the overhead facet was never populated for the local
+player, so nothing drew until (and unless) the echo arrived. Fix: on submit of a
+non-`::` public line, resolve the local player's pool index
+(`RS_EntitySync_FindPlayer` on `esync.local_pid`) and call
+`World_PlayerSetChat(..., text, 0, 0)` — colour/effect default 0/0 since the chat
+style selector UI isn't ported (`app.c`, the `MESSAGE_PUBLIC` submit branch).
+The overlay pass was already correct — the reference's own chat renders fine
+offline (hotkey 6 sets test chat); only the *self* path was missing.
+
+**Player headicons.** Reference `drawEntities` (`Client.ts:4849`) treats
+`ClientPlayer.headicons` as an 8-bit mask: each set bit `icon` plots
+`headicons[icon]` from the headicons sprite pack, stacked upward above the model
+top — first icon 30px up, each subsequent one +25px — projected at
+`entity.height + 15` (same as the health bar). The mask *was* decoded
+(`pkt_player_appearance.c`, appearance `g1`) but dropped:
+`World_PlayerSetAppearance` carries no headicon field, so `WorldEntity_Player.
+headicon` stayed 0. Fixes:
+
+- Copy `appearance->headicon` onto the entity right after `SetAppearance`
+  (`app.c`, `App_WorldApplyAppearance`).
+- `app_overlay_build_player_headicons` emits one `UITREE_ENTITY_OVERLAY_SPRITE`
+  per set bit — `scene_id = STATIC_SPRITE_HEADICONS`, `atlas_index = icon`,
+  `(x-12, y-y_off)`, `y_off` starting 30 and decrementing 25 — called from the
+  player loop in `app_build_entity_overlays` alongside the health/hitsplat build.
+- The `headicons` pack was already registered (`static_sprites.c`, 20 pix32
+  frames) and loading.
+
+NPC headicons (reference uses `NpcType.headicon`, a single frame, plotted at
+`y-30`) are not ported yet — `WorldEntity_NPC`/`ToriRS_Npctype` carry no
+`headicon` field. Hint arrows likewise remain unported.
+
+Verified offline (hotkey 6, which now also sets a test headicon mask `0x5`, →
+`TORIRS_WORLD_BMP`): the skull (icon 2) and arrow (icon 0) stack correctly above
+the head, with the "Hello there!" chat line and the hitsplat all drawing
+together.
 
 #### Follow-up: the number rendered ~1 line too low with no visible shadow
 
@@ -1481,3 +1574,557 @@ Verified: clean build; `test-inv`, `test-uitree`, `test-net-exec`,
 `test-ui-slots`, `test-uitree-builder-dat1`, `test-revconfig` pass. Live check:
 press-hold a worn item — it fades in place but does not move; on release its op
 runs and no `INV_BUTTOND` is sent; the backpack still drags/swaps.
+
+---
+
+## 24. Entity stacking: one 3D model per tile + draw order — ✅
+
+The question: when several 1×1 entities (players, NPCs, and "other entities" —
+ground items, projectiles, spotanims) sit on **one tile**, which one renders and
+in what order? The reference answer has two independent halves — a **dedup**
+that hides all-but-one stationary model, and a **painter tie-break** for
+whatever coexists.
+
+### Client-TS
+
+**Per-frame add sequence** (`gameDrawMain`, `Client.ts:4409`, once the scene is
+rendered): `sceneCycle++`, then in this exact order
+`addPlayers(true)` (self only) → `addNpcs(true)` (alwaysontop) →
+`addPlayers(false)` (other players) → `addNpcs(false)` (normal NPCs) →
+`addProjectiles` → `addMapAnim` (spotanims). Each calls
+`World.addDynamic`, which buckets the model over its padded footprint
+(`(fine ± padding) >> 7`; §8) and appends it to every covered tile's sprite
+list.
+
+**The one-model-per-tile dedup** (`tileLastOccupiedCycle`, `Client.ts:337`).
+A stationary size-1 entity sits exactly tile-centred — `(x & 0x7f) === 64 &&
+(z & 0x7f) === 64`. When `addPlayers`/`addNpcs` hits such an entity it checks
+`tileLastOccupiedCycle[stx][stz] === sceneCycle`: if already claimed this frame
+it **`continue`s** (the model is not added at all), otherwise it stamps the tile
+and adds. So a pile of idle players/NPCs on one square collapses to a **single**
+drawn model — the RS anti-flicker rule that stops stacked models z-fighting.
+Precedence falls straight out of the add order: **local player > alwaysontop NPC
+> other player > normal NPC**. Nuances:
+
+- The local player is never skipped (the `&& i != -1` guard, dead in the split
+  `addPlayers(self)` loop but moot — self is added first, so the stamp is always
+  fresh). It claims its tile, hiding anyone stacked on it.
+- **Movers are exempt.** Between-tiles entities aren't tile-centred, so the
+  `& 0x7f === 64` test fails and they always draw (two players walking through
+  each other both render). Size > 1 NPCs are exempt too (`npc.size === 1` gate).
+- Players playing a **loc-bound animation** (`locModel` within
+  `locStart..locStopCycle`, e.g. cranking a windlass) use `addDynamic2` and skip
+  the dedup entirely.
+- **Projectiles and spotanims never touch the stamp** — they always draw.
+
+**Ground items are not in this pass.** `setObj` stores the three top
+stacked-item models as a static `tile.groundObject` (`World.ts:318`), drawn in
+the tile's base step (`World.ts:1650`) **before** any dynamic sprite — so items
+always render *below* entities.
+
+**Painter tie-break for coexisting sprites** (`World.ts:1724`): each tile's
+sprite list is drawn farthest-distance-first, and the "farthest" scan uses a
+strict `>`, so equal-distance sprites (everything on one tile) keep **insertion
+order** — first added is drawn first (behind), last on top. Combined with the
+add sequence: items behind, then self/NPCs, then projectiles, then spotanims on
+top.
+
+**Overlays are NOT deduped.** `drawEntities` (`Client.ts:4820+`) builds its own
+list of **every** player and NPC and projects hitsplats / health bars / overhead
+chat / headicons independently of `tileLastOccupiedCycle`. So an entity whose
+*model* was hidden by the dedup still shows its hitsplats and health bar at its
+projected position — the dedup is a 3D-scene rule only, never an overlay rule.
+(See §12/§19 — the torirs overlay pass already walks all entities, so this was
+already consistent; the takeaway is to keep it that way.)
+
+### torirs
+
+`World_CycleRegisterPainterDynamics` (`world/world_cycle.c`) re-registers every
+dynamic with the painter each cycle (as `painter_add_normal_scenery`; the
+painter draws a tile's scenery chain in tail-insertion order, i.e. first-added
+behind — the same tie-break the reference gets from its distance scan). It
+previously registered **every** entity in pool order (all players, then all
+NPCs, then projectiles, obj-stacks, spotanims) with **no dedup** — so stacked
+idle entities all drew and z-fought, and ground items (registered last) drew
+*over* entities.
+
+Now it mirrors the reference exactly:
+
+- **Dedup** via `World.tile_last_occupied_cycle` (scene_size², `world.c`) vs a
+  monotonic `World.scene_cycle` (bumped once per pass, so the stamp never needs
+  clearing — `calloc`'s 0 can't equal a cycle that starts at 1). `world_dyn_tile_claim`
+  is the `tileLastOccupiedCycle` port: exempt unless size-1 and
+  `(draw & 0x7f) == 64` on both axes; the local player passes `force` so it is
+  never skipped but still claims.
+- **Add order**: ground obj-stacks first (so items sit behind, matching the
+  reference's static `groundObject`), then local player, alwaysontop NPCs, other
+  players, normal NPCs (`world_dyn_register_players`/`world_dyn_register_npcs`
+  split by tier), then projectiles, then spotanims. The local player is found by
+  `player->server_pid == world->local_pid`; `local_pid` is mirrored from
+  `app->esync.local_pid` in `app_world_frame` each frame (`app.c`).
+- **`alwaysontop`** (NpcType opcode 99) was undecoded — added to
+  `ToriRS_Npctype` (from both the dat1 `alwaysontop` and dat2
+  `has_render_priority` rscache fields), plumbed onto `WorldEntity_NPC.alwaysontop`
+  in `App_WorldApplyNpcType`, and used only for the tier split.
+- Overlays (§12) are untouched — `app_build_entity_overlays` already walks all
+  entities, so hitsplats/health/chat still show on dedup-hidden models.
+
+**What's deliberately not ported:** the `locModel` addDynamic2 bypass (torirs
+doesn't model loc-bound player anims), and the anticheat `cyclelogic` packets
+folded into `addPlayers`/`addProjectiles`.
+
+Tests: `test_tile_stack_dedup` (`world/test/world_test_route.c`, `make -C src
+test-world`) — three stacked stationary 1×1 entities collapse to one painter
+element with the local player winning; an alwaysontop NPC beats a plain player
+on the same tile; a mid-walk mover is exempt (draws alongside a stationary NPC
+on the tile it's leaving). Verifies the painter element count and the winning
+entity id directly off the tile's scenery chain.
+
+---
+
+## 25. Door open/close hit the wrong loc — zone LOC packets ignored the layer — ✅
+
+### Symptom
+
+Opening or closing a door mutated the *wrong* scenery on the tile (e.g. a
+centrepiece or floor-decor visibly changed instead of the door). Doors are
+driven by the zone LOC packets (`LOC_DEL` + `LOC_ADD_CHANGE`, and `LOC_ANIM`
+for the swing), so this pointed at how those packets pick which loc to touch.
+
+### Client-TS
+
+A tile can hold up to four locs at once, one per **layer**: `WALL`,
+`WALL_DECOR`, `GROUND` (scenery/centrepiece), `GROUND_DECOR` (`LocLayer.ts`).
+The zone handlers derive the layer from the packet's `info` byte and key the
+mutation on `(level, x, z, layer)`:
+
+- `zonePacket` decodes the tile as `x = zoneX + ((pos >> 4) & 7)`,
+  `z = zoneX + (pos & 7)` (`Client.ts:7390`).
+- `LOC_ADD_CHANGE` / `LOC_DEL` (`Client.ts:7395-7415`): `info = g1()`, then
+  `shape = info >> 2`, `rotate = info & 3`, and
+  `layer = LOC_SHAPE_TO_LAYER[shape]`. `locChangeCreate` matches an existing
+  change strictly by `(level, x, z, layer)` (`Client.ts:7635`) and reads/writes
+  only that layer's loc (`wallType` / `decorType` / `sceneType` / `gdType`).
+- `LOC_SHAPE_TO_LAYER` (`LocShape.ts`): shapes **0-3 → WALL**, 4-8 → WALL_DECOR,
+  9-21 → GROUND, 22 → GROUND_DECOR. A door is a wall (shape 0-3), so a door
+  packet only ever touches the WALL loc — never a centrepiece sharing the tile.
+
+### torirs — the root cause
+
+All four loc layers are registered into one pool (`world->entities.scenery`),
+each entry storing its `shape` (`entity_scenery.h:17`). But
+`World_SceneryFindAt` (`world/world.c`) matched on `(x, z, level)` only and
+returned the **first** pool entry on the tile in insertion order — the layer /
+`info` byte was decoded into `pkt->info` (`revpacket.h:185-203`) and then
+dropped by the exec layer. So whenever a non-wall loc was registered earlier on
+the door's tile, the door packet mutated *it*.
+
+The stale doc comment on `World_SceneryFindAt` even promised a shape parameter
+("+ loc shape from the zone packet's info byte when >= 0") that was never
+implemented.
+
+### Fix
+
+- `World_LocShapeToLayer(shape)` (`world/world.c`) ports `LOC_SHAPE_TO_LAYER`
+  (0-3 WALL, 4-8 WALL_DECOR, 9-21 GROUND, 22 GROUND_DECOR; -1 for out-of-range).
+- `World_SceneryFindAt` gains a `loc_shape` parameter and skips pool entries
+  whose stored `shape`'s layer differs from the requested layer — the reference
+  `(level, x, z, layer)` key. `loc_shape < 0` keeps the old "first on tile"
+  behaviour for callers with no shape.
+- The three call sites pass `pkt->info >> 2`: `LOC_DEL` and `LOC_ADD_CHANGE`
+  (`game/rs_gameproto_exec.c`) and `LOC_ANIM` via `App_WorldSceneryAnim`
+  (`app.c`, which also took a new `loc_shape` param).
+
+The C port's tile decode (`zone_tile`, `rs_gameproto_exec.c`) already matched
+the reference bit layout, so no coordinate change was needed — the layer was
+the whole bug.
+
+### Still open (flagged, not this bug)
+
+- **`LOC_ADD_CHANGE` only removes; it never re-adds the swapped loc.** The
+  rotated open-door model is not spawned yet — it needs the world builder's
+  single-loc spawn path. So after the fix a door *disappears* on open rather
+  than swapping to its open model. This is the next task to make doors visually
+  correct.
+- **`LOC_ANIM` shape==2 dual-model walls** (`Client.ts:7434-7439`) — the
+  reference animates both halves of an L-corner wall; torirs animates the one
+  element it finds.
+
+---
+
+## 26. Hitsplats re-verified (§12/§19 refresh) — accurate, with minor divergences noted
+
+Re-read `ClientEntity.ts` (`addHitmark`, damage slots, `combatCycle`),
+`Client.ts` (`entityOverlays`/`getOverlayPos`, the four HITMARK handlers) and
+`PixFont.ts` against the torirs overlay path (`app.c` `app_overlay_build_entity`
+/ `app_world_project` / `app_entity_model_height`, `entity_pathing.c`
+`World_EntityAddHitmark`, `render/torirs_frame.c`). Every primary constant
+matches: **70**-cycle splat life, **400**-cycle `combatCycle`, first-free-slot
+fill with no shift (drop when all 4 live), health bar at `height + 15` with
+`w = min(30, health*30/total)` green + red remainder, hitsplats at `height/2`
+with the per-slot nudges (1: `y-=20`; 2: `x-=15,y-=10`; 3: `x+=15,y-=10`),
+`hitmarks[damageType]` blit at `(x-12,y-12)` with no remap, the number drawn
+black `(x,y+4)` then white `(x-1,y+3)`, and the `centreString` baseline
+y-convention (torirs sets `font.baseline=1`). §12/§19 remain correct.
+
+Minor divergences found (none currently visible, logged for completeness):
+
+- **Projection off-map upper bound missing.** `getOverlayPos`
+  (`Client.ts:5254`) bails when `x<128 || z<128 || x>13056 || z>13056`.
+  `app_world_project` (`app.c`) only checks the lower `< 128` bound; the
+  `> 13056` clamp is absent. Only matters at the far map edge.
+- **`combatCycle` default.** Reference inits `-1000` (`ClientEntity.ts:24`);
+  torirs zero-inits (calloc). Inert — the world cycle is ≥ 0, so
+  `0 > cycle + 100` is never true before the first hit.
+- **C-side defensive guards not in the reference.** torirs adds `total_health >
+  0` and clamps `filled < 0 → 0` on the health bar; the reference has neither
+  (JS `Infinity|0 = 0` when `totalHealth==0`, so it draws an all-red bar where
+  torirs skips it). Degenerate case only.
+- **Ground-level source.** Reference projects with `minusedlevel`; torirs uses
+  the local player's `grid_position.level`. Equal on single-level scenes.
+- **"20-sprite hitmarks array" (§19) is imprecise.** The reference allocates a
+  20-slot array but only depacks as many hitmark sprites as the archive holds
+  (breaking on the first missing index); both sides index the array raw off the
+  wire, so parity holds regardless of the true count.
+- **Overlay iteration order** is local-player→players→npcs in the reference,
+  npcs→players in torirs. Cosmetic — only affects layering when two entities'
+  overlays overlap on screen.
+
+---
+
+## 27. Scenery rendered with the wrong texture — loc recolour is also retexture — ✅
+
+### Symptom
+
+Many scenery/loc models drew with the wrong texture — a textured face showing
+the model's original texture instead of the loc-specific one the config asked
+for.
+
+### Client-TS
+
+Loc models are re-coloured by `LocType.getModel` → `Model.recolour(src, dst)`,
+which remaps the `faceColour` field (`Model.ts:1426-1436`). Crucially, a
+**textured** face renders with `faceColour` **as its texture id** — the render
+passes `this.faceColour[face]` as the texture argument to `Pix3D.textureTriangle`
+(`Model.ts:2138`, `:2154`), while the texture *coordinate* set comes from
+`faceRenderType[face] >> 2`. So `faceColour` is overloaded: for a gouraud face
+it is an HSL colour, for a textured face it is the texture id. One `recolour`
+pass therefore does **both** jobs — it recolours gouraud faces and retextures
+textured faces — distinguished only by the value range. There is **no separate
+loc retexture opcode** in this revision.
+
+The empirical rule (true for the old revision this cache uses; the point it
+changed upstream is unknown):
+
+- a recolour pair with **both** `src` and `dst` ≤ 50 → **retexture** (the
+  endpoints are texture ids, 0..50);
+- a pair with **either** endpoint > 50 → **recolour**, with the usual RGB→HSL
+  conversion of the colour.
+
+### torirs
+
+The C model decoder (`3rd/rscache/src/datatypes/model.c:322-325`) **splits** the
+overloaded field: for a textured face it moves the texture id out of
+`face_colors` into `face_textures` and resets `face_colors` to a neutral 127
+(the raster binds `face_textures[face]` and shades with `face_colors`). Correct
+for rendering — but it means `ToriDraw_ModelRecolor` (which only touches the
+`face_colors*` arrays) can no longer remap texture ids. The build applied only
+recolour and the compensating retexture was gated behind a hardcoded
+`old_revision = false` (`world_scenery.u.c`), so loc-recolour-driven texture
+swaps were silently dropped.
+
+Fix (`world_scenery.u.c` `apply_transforms`): partition each recolour pair by
+the same value range the reference relies on —
+
+```
+if (from <= 50 && to <= 50) ToriDraw_ModelRetexture(model, from, to);  // texture swap
+else                        ToriDraw_ModelRecolor(model, from, to);    // HSL recolour
+```
+
+`ToriDraw_ModelRetexture` matches `face_textures == from`, so an HSL recolour
+value (always > 50) can never spuriously retexture, and a texture-swap pair
+(≤ 50) never lands on the HSL arrays — the split is clean. `LOC_RECOLOUR_TEXTURE_MAX`
+= 50. Verified offline (`TORIRS_WORLD_BMP` before/after): the scene renders and
+the flag demonstrably changes textured scenery.
+
+**Takeaway:** in this model format `faceColour` is texture-id *and* colour; any
+port that splits them must route loc recolour to *both* the colour and texture
+arrays, partitioned at 50.
+
+---
+
+## 28. Door open/close: re-spawn the swapped loc + collision + minimap — ✅
+
+Builds on §25 (which fixed the *layer* so a door packet stops hitting the wrong
+loc). §25 only removed the stale loc; this wires the full Client-TS
+`locChangeUnchecked` (`Client.ts:7733`): remove the old loc **and** spawn the
+replacement, updating collision on both.
+
+### Client-TS
+
+`locChangeUnchecked` for the target layer: look up the existing loc, `delWall`/
+`delDecor`/`delLoc`/`delGroundDecor` from the scene, and if its `LocType`
+`blockwalk`s, remove its collision (`collision[level].delWall/delLoc/
+unblockGround`, `Client.ts:7763-7789`). Then, for `id >= 0`, `ClientBuild.
+changeLocUnchecked` rebuilds the single loc into the scene and re-adds collision.
+
+### torirs
+
+- **Collision del inverses** (`collision_map.c`): `collision_map_del_wall/
+  del_loc/del_floor` share an apply core with the `add_*` functions (an
+  `add` flag selects OR vs AND-NOT), so a del clears exactly the flags the add
+  set — the reference's `&= ~flags`. `world_collision_del_loc`
+  (`world_collision.u.c`) mirrors `world_collision_add_loc` the same way.
+- **Runtime entry** `WorldBuilder_ApplyLocChange` (`world_builder.c`) drives the
+  persistent `app->world_builder`: find the loc in the shape's layer
+  (`World_SceneryFindAt`, §25), `world_collision_del_loc` using the *stored*
+  scenery shape/angle + the old `LocType`, then `World_SceneryRemove` (the scene
+  element is torn down via the existing entity-removed event →
+  `ToriDraw_SceneElementRemove`, which already worked). For `loc_id >= 0`,
+  synthesise a `ToriRS_MapLoc` and call the build path `scenery_add` +
+  `world_collision_add_loc`.
+- **Painter persistence.** The painter's static set is baked at build time and
+  `painter_reset_to_static` truncates anything added later, so a runtime
+  `scenery_add` would vanish after one frame. Spawned locs are flagged
+  `WorldEntity_Scenery.runtime_spawn` (set via `builder->scenery_runtime_spawn`
+  in `scenery_load_model`) and re-registered with the painter **every cycle** in
+  `World_CycleRegisterPainterDynamics` — before the entity dynamics, so they draw
+  with the scenery (behind players/NPCs). `World_SceneryRemove` releasing the
+  pool entry naturally stops the re-registration when the loc changes again.
+- **Wiring** (`rs_gameproto_exec.c`): `LOC_DEL` → `ApplyLocChange(..., loc_id=-1,
+  shape, angle)`; `LOC_ADD_CHANGE` → `ApplyLocChange(..., loc_id, shape, angle)`
+  with `shape = info >> 2`, `angle = info & 3`. `LOC_ANIM` still routes through
+  the (now layer-aware) `App_WorldSceneryAnim`, finding the spawned element once
+  it exists.
+- **Test** (`world_test_route.c` `test_collision_loc_change_inverse`,
+  `make -C src test-world`): a single-sided wall at every angle, a
+  projectile-blocking wall, a 2×3 centrepiece, and a floor decor each add→del
+  back to the pristine baseline flags — proving the del is an exact inverse.
+
+### Known limitations
+
+- **Model must be preloaded.** `scenery_add` → `CacheProvider_ModelGet` returns
+  NULL for a loc whose model was not preloaded; the spawn is then skipped
+  (collision still updates). Doors usually reuse a preloaded model, but an
+  arbitrary `LOC_ADD_CHANGE` id may need an on-demand model load (not yet wired).
+- **Wall draw order** uses `painter_add_normal_scenery` for the per-frame
+  re-registration rather than the wall-specific span the build path uses; fine
+  for a standalone door, approximate where a spawned wall must interleave with
+  adjacent static walls on the same tile.
+- **Minimap** loc/wall icons are baked; a spawned loc's minimap entry is not
+  surgically updated (secondary — the map dot, not the world model).
+
+## 29. Click debounce removed + projectile animation audit + hitsplat re-verify
+
+Three items from one session: kill a click-debounce divergence, trace why
+projectile animations never play, and re-confirm the §12/§19/§26 hitsplat port
+against the reference once more.
+
+### 29a. Click debounce — removed (torirs-only divergence)
+
+**Client-TS registers a click on every press.** `GameShell.pointerDown`
+(`GameShell.ts:300-315`) sets `nextMouseClickButton` on every mouse-down, and
+the mainloop consumes it unconditionally each frame
+(`mouseClickButton = nextMouseClickButton; nextMouseClickButton = 0`,
+`GameShell.ts:187-191`). There is **no** double-click detection and no
+suppression: two fast clicks on the same tile are two independent clicks (two
+walk/interact intents), exactly as a player expects.
+
+**torirs was debouncing.** `LibToriRS_Input_PushMouseUp`
+(`src/input/torirs_input.c`) computed an `is_double` flag (second release within
+`double_click_threshold_ms = 400` and within the deadzone of the previous click)
+and, when set, **zeroed `is_click`** — so the whole downstream click path
+(`LibToriRS_Input_IsClick` → `left_click_miss` → world default-menu entry, and
+the same gate for UI clicks) silently dropped the second click. Rapid
+double-clicking to walk/interact ate every other click. Nothing consumes
+`is_double_click` / `LibToriRS_Input_IsDoubleClick` anywhere in the tree, so the
+branch existed *only* to suppress — a pure debounce with no benefit.
+
+**Fix:** every non-drag release now sets `is_click = 1`; `is_double_click` is
+still computed and stored (informational, for any future consumer) but no longer
+gates `is_click`. Matches the reference's "every press is a click." Build clean
+(`make -C src torirs`).
+
+### 29b. Projectile animations — now loaded + applied ✅ (v1's seq-bind approach)
+
+**Client-TS.** A projectile is a `ClientProj` (`dash3d/ClientProj.ts`) built from
+a **`SpotType`** (SpotAnimType) config, `new ClientProj(spotanim, ...)` →
+`this.spotanim = SpotType.list[spotanim]`. Its animation is the spotanim's `seq`:
+
+- `SpotType.decode` (`config/SpotType.ts`) reads `spotanim.dat`: opcode 1 =
+  `model`, **opcode 2 = `anim` → `seq = SeqType.list[anim]`**, 4/5 = resizeh/
+  resizev, 6 = angle, 7/8 = ambient/contrast, 40-49/50-59 = recolour src/dst.
+- `ClientProj.move` (`ClientProj.ts:81-91`) advances `animCycle`/`animFrame`
+  against `seq.getDuration(frame)` each world-update, looping at `seq.numFrames`.
+- `ClientProj.getTempModel` (`ClientProj.ts:94-121`) rebuilds the model every
+  frame: `SpotType.getTempModel2` loads `model` and applies the recolours, then
+  `Model.copyForAnim` + `model.animate(seq.frames[animFrame])`, resize, and
+  `rotateXAxis(pitch)` + `calculateNormals(64+ambient, 850+contrast, ...)`.
+
+So the reference projectile is a **seq-animated, recoloured, resized, custom-lit**
+model, and the arc/pitch/yaw are pure trajectory math.
+
+**torirs — what exists.** The arc math is a faithful port
+(`World_ProjectileSetTarget`/`World_ProjectileMove`, `src/world/world.c`,
+matching `ClientProj.setTarget`/`move` including the `0.02454369` and `325.949`
+constants). `World_CycleUpdateProjectiles` steps the flight and
+`World_CycleRegisterPainterDynamics` registers the projectile element with the
+painter over its `WORLD_PROJECTILE_PAINTER_PADDING` (60) footprint.
+
+**How v1 loaded it (the reference this session followed).** v1 never decoded
+SpotAnimType either. `Task_Dat{1,2}ProjectileAdd`
+(`v1/toriauxlib/core/tasks/dat2/task_dat2_projectile_add.c`) takes a raw
+`(model_id, anim_id)` pair, loads the model, then loads + skeletal-resolves the
+sequence config (`ConfigKind_Sequence`, `Task_Dat2AnimResolve`). The spawn body
+`GameRunescape_WorldEntityAddProjectile` (`v1/games/runescape.c:4181`) builds a
+scene element from `model_id`, marks it `dynamic`, and — crucially —
+**`ToriAuxLibTD_ElementSetSequenceId(td, element_id, anim_id)`**. The seq then
+plays through the standard element-animation tick. The `(model, anim)` pair is
+hard-coded for the debug spawner (`RUNESCAPE_PROJECTILE_MODEL_ID 3081`,
+`RUNESCAPE_PROJECTILE_SEQ_ID 659`, `runescape.h`), spawned on SPACE. So v1's
+"projectile animation" == *bind a seq id to the projectile's scene element*; no
+spotanim config lookup is involved at that layer.
+
+**Why torirs wasn't animating.** torirs already had the identical binding
+primitive — `app_world_apply_seq(app, element_id, seq_id)` (queues
+`CreateTask_SequenceLoad`, binds via `ToriDraw_SceneElementSetAnimationSeq` +
+`SetAnimation`, immediately or through the deferred `seq_bind_pending` poll) — and
+the per-tick `app_world_tick_animations` advances every live element with
+`anim_seq_id != -1 && !anim_external`. The debug spawner just never called it:
+`app_world_spawn_projectile_now` built the element and returned without a seq, so
+`anim_seq_id` stayed −1 and the element rendered as a frozen static model. Arc
+math, pitch/yaw (`app_world_sync_positions` → `SceneElementSetPositionPitchYaw`),
+and painter registration were all already correct.
+
+**Fix (implemented, `src/app.c`), matching v1:**
+
+- Thread a `seq_id` through the projectile spawn: new field on `Task_AppSpawn`,
+  new param on `app_world_spawn_projectile_now`, and after `World_ProjectileSpawn`
+  call `app_world_apply_seq(app, element_id, seq_id)`. The element is left
+  **non-external**, so `app_world_tick_animations` advances its frames each tick —
+  the same plain loop as `ClientProj.move` / v1's element tick (torirs does not
+  need `anim_external`, which is only for world-sim-stepped players/NPCs).
+- The hotkey-**0** debug spawner seeds v1's values: `model_id = 3081`,
+  `seq_id = 659`, with `TORIRS_SPAWN_PROJ_MODEL` / `TORIRS_SPAWN_PROJ_SEQ`
+  overrides.
+- `app_world_try_bind_seq` gained a `TORIRS_ANIM_DEBUG` bind trace.
+
+**Verified offline** (dat1 `cache254`,
+`TORIRS_SIM_WORLD_KEY="220,220,0;360,240,0"` = latch source then launch,
+`TORIRS_ANIM_DEBUG=1`): `spawn_projectile: element=7969 31,33 -> 35,33 t2=80`
+then `seq_bind: element=7969 seq=659 frames=4` — seq 659 loads (4 frames) and
+binds to the projectile element; `TORIRS_WORLD_BMP` shows the (red) model in
+flight. The non-external tick loop then cycles those 4 frames.
+
+**Still follow-on (not needed for the animation itself):**
+
+- **Server-driven projectiles.** No `MAP_PROJANIM`/graphic packet is wired, and
+  the server sends a *spotanim id*, not `(model, seq)`. Mapping id → `(model,
+  seq, recol, resize, angle, ambient, contrast)` needs a real SpotAnimType
+  decode: a `torirs_spotanimtype_from_rscache.c` for `RSCacheDat2A_ConfigKind`
+  13 (`spotanim.dat`, opcodes per `SpotType.decode` — 1 model, 2 anim, 4/5
+  resize, 6 angle, 7/8 ambient/contrast, 40-49/50-59 recolour) + a load task,
+  then the packet handler resolves the config and spawns like the hotkey does.
+- **recol / resize / ambient·contrast lighting** from the spotanim config are
+  not applied to the built model yet (the reference does in `getTempModel2`
+  /`getTempModel`); the debug model uses default lighting.
+- **Entity attached-graphic (`SPOTANIM` mask)** — `World_StepEntityAnimation`
+  (`src/world/world_cycle.c:337-347`) still holds spot state on a fixed 200-cycle
+  window because it has no SpotAnimType seq to time against; the same decode
+  above retires that placeholder.
+
+### 29c. Hitsplats — re-verified against Client-TS (no code change)
+
+Re-checked the torirs overlay build against `drawEntities`
+(`Client.ts:4896-4933`) and `ClientEntity.addHitmark` (`ClientEntity.ts:152-161`)
+once more; the §12 port is still accurate line-for-line:
+
+- **addHitmark** fills the first of 4 slots whose `damageCycles[i] <= loopCycle`
+  with `value`/`type` and stamps `damageCycles[i] = loopCycle + 70`. torirs
+  `World_EntityAddHitmark` (`src/world/entity_pathing.c:6-22`) is identical (`+70`).
+- **Health bar** gate `combatCycle > loopCycle + 100`, `combatCycle =
+  loopCycle + 400` on each hit, `w = min(30, health*30/totalHealth)`, green then
+  red split at `entity.height + 15`. Matches `app_overlay_build_entity`
+  (`src/app.c:614-644`).
+- **Hitsplats** project at `height/2`, slot nudges (1: `y-=20`; 2: `x-=15,
+  y-=10`; 3: `x+=15, y-=10`), blit `hitmarks[damageType]` at `(x-12, y-12)`, then
+  the value twice through p11 — black `(x, y+4)`, white `(x-1, y+3)`. Matches
+  `src/app.c:646-708`.
+- Wire decode `player.combatCycle/health/totalHealth = ...` (`Client.ts:8130-8132`
+  etc.) → torirs `PKT_*_INFO_OP_DAMAGE` → `World_*AddHitmark` (health/total
+  carried). Confirmed present.
+
+No divergence found beyond those already noted in §26. Hitsplats stay ✅.
+
+---
+
+## 30. Assertion near the map edge: entity footprint must reject, not clamp — ✅
+
+### Symptom
+
+Running against a live server, an assertion aborted the client whenever an
+entity got near the scene edge (seen right after an NPC spawn near the border):
+
+```
+spawn_npc: npc=78 element=27818 tile=116,76 level=0 size=2 ...
+Assertion failed: (sx < painter->width), function painter_coord_idx,
+file painters.c, line 231.
+```
+
+### Root cause
+
+Dynamic entities (players, NPCs, projectiles) register with the painter over a
+**padded tile span** rather than a single cell — a mover draws between tiles, so
+its footprint is `(fine ± padding) >> 7` (Client-TS `World.addDynamic`). torirs
+computed that span in `World_EntityPainterFootprint` (`src/world/world_cycle.c`)
+and **clamped** it into the scene:
+
+```c
+if (x0 < 0) x0 = 0;
+if (z0 < 0) z0 = 0;
+if (x1 >= scene_size) x1 = scene_size - 1;
+if (z1 >= scene_size) z1 = scene_size - 1;
+```
+
+The clamp is asymmetric: `x0`/`z0` are only pulled **up** from below and
+`x1`/`z1` only pulled **down** from above. A size-2 NPC whose base tile is the
+last in-scene tile centres its draw position at `base*128 + size*64`, which for
+`base = scene_size-1` rounds `x0` **up to `scene_size`** while `x1` clamps to
+`scene_size-1`. That yields `size_x = x1 - x0 + 1 = 0`, which
+`painter_add_normal_scenery` bumps to 1 — so the element is stored with
+`sx == scene_size` (out of bounds). The grid-bounds pre-check
+(`grid_x >= scene_size`) does **not** catch it because the base grid tile is
+still in-scene; only the padded fine-coordinate span pokes over. The next
+`painter_reset_to_static` / paint pass then calls `painter_tile_at(painter,
+scene_size, …)` → `painter_coord_idx` asserts `sx < width`.
+
+### Client-TS
+
+The reference never clamps. `World.addDynamic` (`World.ts:505-536`) computes the
+same padded span and hands it to `setSprite` (`World.ts:1201-1231`), which walks
+every tile of the span and, if **any** falls outside `[0, maxTile)`
+(`maxTileX == maxTileZ == BuildArea.SIZE == 104`), **returns false and draws
+nothing** — the whole sprite is rejected. A large entity straddling the scene
+edge simply does not render that frame.
+
+### Fix
+
+`World_EntityPainterFootprint` now returns `bool`: it computes the unclamped
+`x0/z0/x1/z1` and, if `x0 < 0 || z0 < 0 || x1 >= scene_size || z1 >= scene_size`,
+returns `false` (leaving `*out` untouched) exactly like `setSprite`'s reject.
+The two callers — `world_dyn_register_mover` (players/NPCs) and the projectile
+registration loop in `World_CycleRegisterPainterDynamics` — skip registration
+when it returns false. No clamped element is ever stored, so the painter lookup
+can never go out of bounds. Behaviourally this now matches the reference: edge
+entities whose padded span leaves the scene are not drawn (rather than being
+drawn squashed against the border).
+
+Regression test added to `src/world/test/world_test_route.c`: a size-2 NPC
+placed on the last in-scene tile must have its footprint **rejected**
+(`World_EntityPainterFootprint(...) == false`). `make -C src test-world` passes;
+`make -C src torirs` builds clean.
+
+**Note on scene size.** The `tile=116,76` in the spawn log is a debug/cheat
+spawn coordinate; the live scene is the standard 104×104 (`BuildArea.SIZE`), so
+the crash reproduces for any size ≥ 2 entity whose base sits on the outermost
+in-scene tile, not just that specific spawn.

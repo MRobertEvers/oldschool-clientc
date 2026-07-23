@@ -39,7 +39,26 @@ struct WorldBuilder
     int scenery_mapx;
     int scenery_mapz;
     int scenery_base_loc_id;
+
+    /** Set while WorldBuilder_ApplyLocChange spawns a loc so scenery_load_model
+     *  flags the resulting pool entry runtime_spawn (per-frame painter
+     *  re-registration). 0 for the normal build path. */
+    int scenery_runtime_spawn;
 };
+
+/** Apply a zone LOC change at runtime (Client-TS locChangeUnchecked): remove the
+ * existing loc in the shape's layer on the tile (scene element + collision) and,
+ * when loc_id >= 0, spawn the replacement (scene + collision, re-registered with
+ * the painter each frame). scene_x/scene_z are scene-local tile coords. */
+void
+WorldBuilder_ApplyLocChange(
+    struct WorldBuilder* builder,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle);
 
 struct WorldBuilder*
 WorldBuilder_New(

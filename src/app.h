@@ -538,13 +538,16 @@ App_WorldRebuildShift(
 void
 App_WorldLoadFinish(struct App* app);
 
-/** LOC_ANIM: attach a sequence to the scenery element on a tile. */
+/** LOC_ANIM: attach a sequence to the scenery element on a tile. `loc_shape`
+ * (zone packet info >> 2) selects the loc's layer so a door animates the wall,
+ * not a centrepiece/floor-decor sharing the tile. */
 void
 App_WorldSceneryAnim(
     struct App* app,
     int scene_x,
     int scene_z,
     int level,
+    int loc_shape,
     int seq_id);
 
 /**

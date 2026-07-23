@@ -72,6 +72,23 @@ struct World_MapFunctionIcon
     int func;
 };
 
+/** Loc "mapscene" minimap icon (reference LocType.mapscene, drawn by
+ * Client.ts drawDetail): a Pix8 sprite baked into the minimap image at a loc's
+ * footprint. Sourced from wall + centrepiece/roof locs whose config carries a
+ * mapscene index (trees, rocks, altars, …); gathered at scene build and plotted
+ * per baked level in app_rebuild_world_map. `width`/`length` are the loc's raw
+ * config footprint (size_x/size_z, NOT orientation-swapped — drawDetail centers
+ * with the raw values). */
+struct World_MapSceneIcon
+{
+    int x;
+    int z;
+    int level;
+    int mapscene;
+    int width;
+    int length;
+};
+
 struct World
 {
     int _base_tile_x;
@@ -121,16 +138,42 @@ struct World
      * camera->player (Client-TS roofCheck). scene_size^2 per level. */
     uint8_t* tile_flags;
 
+    /** Per-tile "last frame a stationary 1x1 entity claimed this square"
+     *  stamp (reference Client.tileLastOccupiedCycle) — scene_size^2, compared
+     *  against `scene_cycle`. The dynamic-registration pass draws at most one
+     *  tile-centred 1x1 entity per tile per frame; the first to claim a tile
+     *  (in add order: local player, alwaysontop NPC, other players, normal
+     *  NPCs) wins and the rest are skipped, preventing stacked models from
+     *  z-fighting. NULL until the scene is allocated. */
+    int* tile_last_occupied_cycle;
+    /** Monotonic frame counter (reference Client.sceneCycle): bumped once per
+     *  dynamic-registration pass so the stamp above never needs clearing. */
+    int scene_cycle;
+    /** Server pid of the local player (esync.local_pid), mirrored here so the
+     *  render-cycle dynamic pass can register the local player first — the
+     *  reference draws `addPlayers(true)` (self) ahead of every other entity,
+     *  and self is never dedup-skipped. -1 = offline / not yet bound. */
+    int local_pid;
+
     /** Loc "mapfunction" minimap icons gathered at scene build (reference
      * activeMapFunctionX/Z/Count, Client.ts minimapBuildBuffer): scene tile
      * after the random-walk spread + mapfunction sprite frame. */
     struct World_MapFunctionIcon mapfuncs[WORLD_MAPFUNC_MAX];
     int mapfunc_count;
+
+    /** Loc "mapscene" minimap icons gathered at scene build (reference
+     * drawDetail's mapscene plot, Client.ts). Grown dynamically: a densely
+     * wooded scene has far more of these than mapfunctions, so a fixed cap
+     * would silently drop icons. Buffer persists across rebuilds; count is
+     * reset in World_ResetSceneAlloc. */
+    struct World_MapSceneIcon* mapscenes;
+    int mapscene_count;
+    int mapscene_capacity;
 };
 
 /** Padded mover painter footprint: the tile span (pos±padding)>>7 covers,
- * clamped in-scene (Client-TS World.addDynamic). Padding is 60 for size-1
- * movers/projectiles, 60+(size-1)*64 for larger NPCs. */
+ * (Client-TS World.addDynamic). Padding is 60 for size-1 movers/projectiles,
+ * 60+(size-1)*64 for larger NPCs. */
 struct World_PainterFootprint
 {
     int sx;
@@ -139,7 +182,13 @@ struct World_PainterFootprint
     int size_z;
 };
 
-void
+/** Compute the padded tile span an entity registers over. Returns false (and
+ * leaves *out untouched) when any tile of the span falls outside [0,scene_size)
+ * — the reference World.setSprite rejects such a sprite wholesale rather than
+ * clamping it, so the caller must skip registration (never draw it). Clamping
+ * instead would store an out-of-bounds element sx and crash the painter's tile
+ * lookup on the next frame. */
+bool
 World_EntityPainterFootprint(
     int pos_x,
     int pos_z,
@@ -197,6 +246,18 @@ World_New(void);
 
 void
 World_Free(struct World* world);
+
+/** Append a loc mapscene minimap icon (reference drawDetail mapscene gather),
+ * growing world->mapscenes as needed. Silently no-ops on alloc failure. */
+void
+World_AddMapSceneIcon(
+    struct World* world,
+    int x,
+    int z,
+    int level,
+    int mapscene,
+    int width,
+    int length);
 
 void
 World_SetHeightFn(
@@ -593,14 +654,24 @@ World_ObjStackSetCount(
     int idx,
     int count);
 
-/** Find a scenery entity by tile (+ loc shape from the zone packet's info
- * byte when >= 0). Returns the scenery pool index or -1. */
+/** Map a loc shape (0-22) to its layer (0=WALL, 1=WALL_DECOR, 2=GROUND,
+ * 3=GROUND_DECOR), matching Client-TS LOC_SHAPE_TO_LAYER. Returns -1 for an
+ * out-of-range shape. */
+int
+World_LocShapeToLayer(int shape);
+
+/** Find a scenery entity by tile and loc layer. `loc_shape` is the zone
+ * packet's shape (info >> 2); its layer is matched so a door (WALL) never
+ * mutates a centrepiece/floor-decor sharing the tile. Pass loc_shape < 0 to
+ * match the first loc on the tile regardless of layer. Returns the scenery pool
+ * index or -1. */
 int
 World_SceneryFindAt(
     struct World* world,
     int scene_x,
     int scene_z,
-    int level);
+    int level,
+    int loc_shape);
 
 /** LOC_DEL: remove the scenery entity + its scene element (event emitted). */
 void
