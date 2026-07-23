@@ -199,17 +199,33 @@ InvManager_EnsureContainer(
     return idx;
 }
 
+/* Resolve an "inv source" reference to a container id. The RevConfig / named
+ * bind path stores a source *index* into sources[]; the component-pack build
+ * path (uitree_build.c UIBUILD_INV) stores the raw component id, which equals
+ * the container id the server addresses in UPDATE_INV_FULL/PARTIAL. Source
+ * indices are small (< source_count, < INV_MANAGER_SOURCE_MAX) and never
+ * collide with the >=93 server container ids, so trying the index first and
+ * falling back to a direct container lookup is unambiguous. Returns
+ * INV_MANAGER_CONTAINER_NONE when neither resolves. */
+static int
+inv_resolve_container_id(
+    struct InvManager const* mgr,
+    int source_id)
+{
+    if( source_id >= 0 && source_id < mgr->source_count && mgr->sources[source_id].used )
+        return mgr->sources[source_id].container_id;
+    if( InvManager_FindContainer(mgr, source_id) )
+        return source_id;
+    return INV_MANAGER_CONTAINER_NONE;
+}
+
 int
 InvManager_ContainerForSource(
     struct InvManager const* mgr,
     int source_id)
 {
     assert(mgr);
-    if( source_id < 0 || source_id >= mgr->source_count )
-        return INV_MANAGER_CONTAINER_NONE;
-    if( !mgr->sources[source_id].used )
-        return INV_MANAGER_CONTAINER_NONE;
-    return mgr->sources[source_id].container_id;
+    return inv_resolve_container_id(mgr, source_id);
 }
 
 struct InvContainer*
@@ -255,12 +271,11 @@ InvManager_GetSlot(
     assert(out);
     inv_slot_clear(out);
 
-    if( source_id < 0 || source_id >= mgr->source_count || slot < 0 )
+    if( slot < 0 )
         return false;
-    if( !mgr->sources[source_id].used )
+    int const container_id = inv_resolve_container_id(mgr, source_id);
+    if( container_id == INV_MANAGER_CONTAINER_NONE )
         return false;
-
-    int const container_id = mgr->sources[source_id].container_id;
     struct InvContainer const* container =
         InvManager_FindContainer(mgr, container_id);
     assert(container);
@@ -281,12 +296,11 @@ InvManager_SetSlot(
 {
     assert(mgr);
     assert(data);
-    if( source_id < 0 || source_id >= mgr->source_count || slot < 0 )
+    if( slot < 0 )
         return false;
-    if( !mgr->sources[source_id].used )
+    int const container_id = inv_resolve_container_id(mgr, source_id);
+    if( container_id == INV_MANAGER_CONTAINER_NONE )
         return false;
-
-    int const container_id = mgr->sources[source_id].container_id;
     struct InvContainer* container = InvManager_GetContainer(mgr, container_id);
     assert(container);
     assert(container->slots);
@@ -510,16 +524,14 @@ InvManager_SwapSlots(
     int slot_b)
 {
     assert(mgr);
-    if( source_id < 0 || source_id >= mgr->source_count )
-        return false;
-    if( !mgr->sources[source_id].used )
-        return false;
     if( slot_a < 0 || slot_b < 0 )
         return false;
     if( slot_a == slot_b )
         return true;
 
-    int const container_id = mgr->sources[source_id].container_id;
+    int const container_id = inv_resolve_container_id(mgr, source_id);
+    if( container_id == INV_MANAGER_CONTAINER_NONE )
+        return false;
     struct InvContainer* container = InvManager_GetContainer(mgr, container_id);
     assert(container);
     assert(container->slots);

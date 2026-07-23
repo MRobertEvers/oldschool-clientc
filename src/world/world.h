@@ -318,6 +318,8 @@ World_SceneryRegister(
     int level,
     int size_x,
     int size_z,
+    int shape,
+    int angle,
     char const* name,
     char const actions[5][32],
     int interactive);

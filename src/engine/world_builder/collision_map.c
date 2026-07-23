@@ -208,11 +208,276 @@ collision_map_add_wall(
         collision_map_add_wall(cm, tile_x, tile_z, shape, angle, 0);
 }
 
+/* Reference CollisionMap.testWall (CollisionMap.ts:236): can the mover, standing
+ * on (src) and facing a wall loc at (dst) of the given reference shape/angle,
+ * interact from here? The C collision map is scene-local (startX/startZ = 0), so
+ * sx/sz are the raw src coords and the flag lookup is the src tile. */
+static bool
+collision_test_wall(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int shape,
+    int angle)
+{
+    if( src_x == dst_x && src_z == dst_z )
+        return true;
+
+    int f = cm->flags[collision_map_index_at(cm, src_x, src_z)];
+    int sx = src_x, sz = src_z, dx = dst_x, dz = dst_z;
+
+    if( shape == RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE ) /* LocShape.WALL_STRAIGHT (0) */
+    {
+        if( angle == COLL_ANGLE_WEST )
+        {
+            if( sx == dx - 1 && sz == dz )
+                return true;
+            if( sx == dx && sz == dz + 1 && (f & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx && sz == dz - 1 && (f & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
+                return true;
+        }
+        else if( angle == COLL_ANGLE_NORTH )
+        {
+            if( sx == dx && sz == dz + 1 )
+                return true;
+            if( sx == dx - 1 && sz == dz && (f & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx + 1 && sz == dz && (f & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN )
+                return true;
+        }
+        else if( angle == COLL_ANGLE_EAST )
+        {
+            if( sx == dx + 1 && sz == dz )
+                return true;
+            if( sx == dx && sz == dz + 1 && (f & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx && sz == dz - 1 && (f & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
+                return true;
+        }
+        else if( angle == COLL_ANGLE_SOUTH )
+        {
+            if( sx == dx && sz == dz - 1 )
+                return true;
+            if( sx == dx - 1 && sz == dz && (f & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx + 1 && sz == dz && (f & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN )
+                return true;
+        }
+    }
+    else if( shape == RSCACHE_LOC_SHAPE_WALL_TWO_SIDES ) /* LocShape.WALL_L (2) */
+    {
+        if( angle == COLL_ANGLE_WEST )
+        {
+            if( sx == dx - 1 && sz == dz )
+                return true;
+            if( sx == dx && sz == dz + 1 )
+                return true;
+            if( sx == dx + 1 && sz == dz && (f & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx && sz == dz - 1 && (f & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
+                return true;
+        }
+        else if( angle == COLL_ANGLE_NORTH )
+        {
+            if( sx == dx - 1 && sz == dz && (f & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx && sz == dz + 1 )
+                return true;
+            if( sx == dx + 1 && sz == dz )
+                return true;
+            if( sx == dx && sz == dz - 1 && (f & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
+                return true;
+        }
+        else if( angle == COLL_ANGLE_EAST )
+        {
+            if( sx == dx - 1 && sz == dz && (f & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx && sz == dz + 1 && (f & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx + 1 && sz == dz )
+                return true;
+            if( sx == dx && sz == dz - 1 )
+                return true;
+        }
+        else if( angle == COLL_ANGLE_SOUTH )
+        {
+            if( sx == dx - 1 && sz == dz )
+                return true;
+            if( sx == dx && sz == dz + 1 && (f & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx + 1 && sz == dz && (f & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx && sz == dz - 1 )
+                return true;
+        }
+    }
+    else if( shape == RSCACHE_LOC_SHAPE_WALL_DIAGONAL ) /* LocShape.WALL_DIAGONAL (9) */
+    {
+        if( sx == dx && sz == dz + 1 && (f & COLL_FLAG_WALL_SOUTH) == COLL_FLAG_OPEN )
+            return true;
+        if( sx == dx && sz == dz - 1 && (f & COLL_FLAG_WALL_NORTH) == COLL_FLAG_OPEN )
+            return true;
+        if( sx == dx - 1 && sz == dz && (f & COLL_FLAG_WALL_EAST) == COLL_FLAG_OPEN )
+            return true;
+        if( sx == dx + 1 && sz == dz && (f & COLL_FLAG_WALL_WEST) == COLL_FLAG_OPEN )
+            return true;
+    }
+    return false;
+}
+
+/* Reference CollisionMap.testWDecor (CollisionMap.ts:337): approach test for a
+ * diagonal wall-decoration loc. shape is the reference locShape (locShape - 1 as
+ * the caller passes). Uses the raw WALL_* bits (not BLOCK_*). */
+static bool
+collision_test_wdecor(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int shape,
+    int angle)
+{
+    if( src_x == dst_x && src_z == dst_z )
+        return true;
+
+    int f = cm->flags[collision_map_index_at(cm, src_x, src_z)];
+    int sx = src_x, sz = src_z, dx = dst_x, dz = dst_z;
+
+    if( shape == RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE || /* 6 */
+        shape == RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE )   /* 7 */
+    {
+        if( shape == RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE )
+            angle = (angle + 2) & 0x3;
+
+        if( angle == COLL_ANGLE_WEST )
+        {
+            if( sx == dx + 1 && sz == dz && (f & COLL_FLAG_WALL_WEST) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx && sz == dz - 1 && (f & COLL_FLAG_WALL_NORTH) == COLL_FLAG_OPEN )
+                return true;
+        }
+        else if( angle == COLL_ANGLE_NORTH )
+        {
+            if( sx == dx - 1 && sz == dz && (f & COLL_FLAG_WALL_EAST) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx && sz == dz - 1 && (f & COLL_FLAG_WALL_NORTH) == COLL_FLAG_OPEN )
+                return true;
+        }
+        else if( angle == COLL_ANGLE_EAST )
+        {
+            if( sx == dx - 1 && sz == dz && (f & COLL_FLAG_WALL_EAST) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx && sz == dz + 1 && (f & COLL_FLAG_WALL_SOUTH) == COLL_FLAG_OPEN )
+                return true;
+        }
+        else if( angle == COLL_ANGLE_SOUTH )
+        {
+            if( sx == dx + 1 && sz == dz && (f & COLL_FLAG_WALL_WEST) == COLL_FLAG_OPEN )
+                return true;
+            if( sx == dx && sz == dz + 1 && (f & COLL_FLAG_WALL_SOUTH) == COLL_FLAG_OPEN )
+                return true;
+        }
+    }
+    else if( shape == RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE ) /* 8 */
+    {
+        if( sx == dx && sz == dz + 1 && (f & COLL_FLAG_WALL_SOUTH) == COLL_FLAG_OPEN )
+            return true;
+        if( sx == dx && sz == dz - 1 && (f & COLL_FLAG_WALL_NORTH) == COLL_FLAG_OPEN )
+            return true;
+        if( sx == dx - 1 && sz == dz && (f & COLL_FLAG_WALL_EAST) == COLL_FLAG_OPEN )
+            return true;
+        if( sx == dx + 1 && sz == dz && (f & COLL_FLAG_WALL_WEST) == COLL_FLAG_OPEN )
+            return true;
+    }
+    return false;
+}
+
+/* Reference CollisionMap.testLoc (CollisionMap.ts:392): a tile inside the loc's
+ * (size_x x size_z) footprint, or beside an edge whose wall is open and whose
+ * approach direction isn't blocked by forceapproach (DirectionFlag bits). */
+static bool
+collision_test_loc(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int size_x,
+    int size_z,
+    int forceapproach)
+{
+    int max_x = dst_x + size_x - 1;
+    int max_z = dst_z + size_z - 1;
+    int f = cm->flags[collision_map_index_at(cm, src_x, src_z)];
+
+    if( src_x >= dst_x && src_x <= max_x && src_z >= dst_z && src_z <= max_z )
+        return true;
+    if( src_x == dst_x - 1 && src_z >= dst_z && src_z <= max_z &&
+        (f & COLL_FLAG_WALL_EAST) == COLL_FLAG_OPEN && (forceapproach & DIR_WEST) == 0 )
+        return true;
+    if( src_x == max_x + 1 && src_z >= dst_z && src_z <= max_z &&
+        (f & COLL_FLAG_WALL_WEST) == COLL_FLAG_OPEN && (forceapproach & DIR_EAST) == 0 )
+        return true;
+    if( src_z == dst_z - 1 && src_x >= dst_x && src_x <= max_x &&
+        (f & COLL_FLAG_WALL_NORTH) == COLL_FLAG_OPEN && (forceapproach & DIR_SOUTH) == 0 )
+        return true;
+    if( src_z == max_z + 1 && src_x >= dst_x && src_x <= max_x &&
+        (f & COLL_FLAG_WALL_SOUTH) == COLL_FLAG_OPEN && (forceapproach & DIR_NORTH) == 0 )
+        return true;
+    return false;
+}
+
+/* Arrival predicate for the flood: exact destination, or (when `approach` is
+ * set) any loc/obj approach test the reference tryMove checks per popped tile
+ * (Client.ts:5885-5906). */
+static bool
+collision_flood_arrived(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach)
+{
+    if( x == dst_x && z == dst_z )
+        return true;
+    if( !approach )
+        return false;
+
+    int shape = approach->loc_shape;
+    int angle = approach->loc_angle;
+
+    if( shape != RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE ) /* locShape !== WALL_STRAIGHT */
+    {
+        if( (shape < RSCACHE_LOC_SHAPE_WALL_DECOR_OUTSIDE /* WALLDECOR_STRAIGHT_OFFSET (5) */ ||
+             shape == RSCACHE_LOC_SHAPE_SCENERY /* CENTREPIECE_STRAIGHT (10) */) &&
+            collision_test_wall(cm, x, z, dst_x, dst_z, shape - 1, angle) )
+            return true;
+        if( shape < RSCACHE_LOC_SHAPE_SCENERY /* CENTREPIECE_STRAIGHT (10) */ &&
+            collision_test_wdecor(cm, x, z, dst_x, dst_z, shape - 1, angle) )
+            return true;
+    }
+
+    if( approach->loc_width != 0 && approach->loc_length != 0 &&
+        collision_test_loc(
+            cm, x, z, dst_x, dst_z, approach->loc_width, approach->loc_length,
+            approach->forceapproach) )
+        return true;
+
+    return false;
+}
+
 /* Reference tryMove flood (Client.ts:5860-6008 ground-click arrival): fills
  * dir_map with the DirectionFlag toward each tile's parent and dist_map with
- * step counts, stopping early when (dst_x,dst_z) is popped. All four scratch
- * arrays are size_x*size_z ints. Returns 1 when the destination was reached;
- * on 0 the maps are fully flooded (needed for the try-nearest fallback). */
+ * step counts, stopping early when a tile satisfies `approach` (or is the exact
+ * destination when approach is NULL). The arrival tile is written to
+ * *out_arrive_x/z. All four scratch arrays are size_x*size_z ints. Returns 1
+ * when arrival was reached; on 0 the maps are fully flooded (needed for the
+ * try-nearest fallback). */
 static int
 collision_flood(
     struct CollisionMap* cm,
@@ -220,10 +485,13 @@ collision_flood(
     int src_z,
     int dst_x,
     int dst_z,
+    struct CollisionApproach const* approach,
     int* dir_map,
     int* dist_map,
     int* queue_x,
-    int* queue_z)
+    int* queue_z,
+    int* out_arrive_x,
+    int* out_arrive_z)
 {
     const int buf_size = cm->size_x * cm->size_z;
 
@@ -246,8 +514,14 @@ collision_flood(
         int z = queue_z[length];
         length = (length + 1) % buf_size;
 
-        if( x == dst_x && z == dst_z )
+        if( collision_flood_arrived(cm, x, z, dst_x, dst_z, approach) )
+        {
+            if( out_arrive_x )
+                *out_arrive_x = x;
+            if( out_arrive_z )
+                *out_arrive_z = z;
             return 1;
+        }
 
         int next_cost = dist_map[collision_map_index_at(cm, x, z)] + 1;
         int idx = 0;
@@ -356,6 +630,55 @@ collision_flood(
     return 0;
 }
 
+/* Backtrace a flooded dir_map from the arrival tile toward the source, writing
+ * route[0] = arrival tile and one entry per direction change, ascending toward
+ * the source (the source tile itself is never stored — reference routeX/routeZ
+ * layout). Returns route length (>= 1), or -1 on overflow of max_route. */
+static int
+collision_route_backtrace(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int end_x,
+    int end_z,
+    int const* dir_map,
+    int* route_x,
+    int* route_z,
+    int max_route)
+{
+    int x = end_x;
+    int z = end_z;
+    int length = 0;
+    route_x[length] = x;
+    route_z[length++] = z;
+
+    int dir = dir_map[collision_map_index_at(cm, x, z)];
+    int next = dir;
+    while( x != src_x || z != src_z )
+    {
+        if( next != dir )
+        {
+            dir = next;
+            if( length >= max_route )
+                return -1;
+            route_x[length] = x;
+            route_z[length++] = z;
+        }
+
+        if( (next & DIR_EAST) != 0 )
+            x++;
+        else if( (next & DIR_WEST) != 0 )
+            x--;
+        if( (next & DIR_NORTH) != 0 )
+            z++;
+        else if( (next & DIR_SOUTH) != 0 )
+            z--;
+
+        next = dir_map[collision_map_index_at(cm, x, z)];
+    }
+    return length;
+}
+
 int
 collision_map_bfs_path(
     struct CollisionMap* cm,
@@ -382,8 +705,9 @@ collision_map_bfs_path(
         return -1;
     }
 
-    int arrived =
-        collision_flood(cm, src_x, src_z, dst_x, dst_z, bfs_direction, bfs_cost, bfs_step_x, bfs_step_z);
+    int arrived = collision_flood(
+        cm, src_x, src_z, dst_x, dst_z, NULL, bfs_direction, bfs_cost, bfs_step_x, bfs_step_z, NULL,
+        NULL);
 
     if( !arrived )
     {
@@ -466,7 +790,8 @@ collision_map_try_route(
         return -1;
     }
 
-    int arrived = collision_flood(cm, src_x, src_z, dst_x, dst_z, dir_map, dist_map, queue_x, queue_z);
+    int arrived = collision_flood(
+        cm, src_x, src_z, dst_x, dst_z, NULL, dir_map, dist_map, queue_x, queue_z, NULL, NULL);
 
     if( !arrived && try_nearest )
     {
@@ -493,46 +818,59 @@ collision_map_try_route(
         }
     }
 
-    int length = -1;
-    if( arrived )
+    int length = arrived
+        ? collision_route_backtrace(cm, src_x, src_z, end_x, end_z, dir_map, route_x, route_z, max_route)
+        : -1;
+
+    free(dir_map);
+    free(dist_map);
+    free(queue_x);
+    free(queue_z);
+    return length;
+}
+
+int
+collision_map_try_route_op(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach,
+    int* route_x,
+    int* route_z,
+    int max_route)
+{
+    const int buf_size = cm->size_x * cm->size_z;
+
+    if( src_x < 0 || src_z < 0 || src_x >= cm->size_x || src_z >= cm->size_z || dst_x < 0 ||
+        dst_z < 0 || dst_x >= cm->size_x || dst_z >= cm->size_z )
+        return -1;
+
+    int* dir_map = (int*)malloc((size_t)buf_size * sizeof(int));
+    int* dist_map = (int*)malloc((size_t)buf_size * sizeof(int));
+    int* queue_x = (int*)malloc((size_t)buf_size * sizeof(int));
+    int* queue_z = (int*)malloc((size_t)buf_size * sizeof(int));
+    if( !dir_map || !dist_map || !queue_x || !queue_z )
     {
-        /* Backtrace toward the source, recording direction changes only:
-         * route[0] = destination, ascending toward the source; the source
-         * tile itself is never stored (reference routeX/routeZ layout). */
-        int x = end_x;
-        int z = end_z;
-        length = 0;
-        route_x[length] = x;
-        route_z[length++] = z;
-
-        int dir = dir_map[collision_map_index_at(cm, x, z)];
-        int next = dir;
-        while( x != src_x || z != src_z )
-        {
-            if( next != dir )
-            {
-                dir = next;
-                if( length >= max_route )
-                {
-                    length = -1;
-                    break;
-                }
-                route_x[length] = x;
-                route_z[length++] = z;
-            }
-
-            if( (next & DIR_EAST) != 0 )
-                x++;
-            else if( (next & DIR_WEST) != 0 )
-                x--;
-            if( (next & DIR_NORTH) != 0 )
-                z++;
-            else if( (next & DIR_SOUTH) != 0 )
-                z--;
-
-            next = dir_map[collision_map_index_at(cm, x, z)];
-        }
+        free(dir_map);
+        free(dist_map);
+        free(queue_x);
+        free(queue_z);
+        return -1;
     }
+
+    /* Reference tryMove type 2: tryNearest = false, so no 3x3 fallback — arrival
+     * is whichever approach tile the flood reaches first (or the exact tile). */
+    int end_x = dst_x;
+    int end_z = dst_z;
+    int arrived = collision_flood(
+        cm, src_x, src_z, dst_x, dst_z, approach, dir_map, dist_map, queue_x, queue_z, &end_x,
+        &end_z);
+
+    int length = arrived
+        ? collision_route_backtrace(cm, src_x, src_z, end_x, end_z, dir_map, route_x, route_z, max_route)
+        : -1;
 
     free(dir_map);
     free(dist_map);

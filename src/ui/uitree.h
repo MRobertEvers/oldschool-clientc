@@ -971,6 +971,14 @@ UITree_ApplyModelAngle(
     int yan,
     int zoom);
 
+/** Set a MODEL widget's animation sequence (reference IF_SETANIM / modelAnim);
+ * -1 clears it. Resets the frame counters so playback restarts. */
+bool
+UITree_ApplyModelAnim(
+    struct UITree* tree,
+    int component_id,
+    int anim_seq_id);
+
 bool
 UITree_ApplyTextFont(
     struct UITree* tree,

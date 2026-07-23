@@ -1656,15 +1656,28 @@ exec_widget_set_model_kind(
             scene_model = UITreeSceneBridge_EnsureModel(host->bridge, scene_model);
         (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
     }
-    /* NPC/player heads: apply model_id when present; full appearance load is task-layer. */
-    else if( rs_cs2_tree(host) && request.model_id >= 0 )
+    /* NPC head (kind 2): request.model_id is the npc id. Composite the chathead
+     * (reference IfType.getModel type 2 / NpcType.getHead). Best-effort: applies
+     * once the npctype + its head models are resident; the compositor returns -1
+     * (widget unchanged) until then. */
+    else if( request.model_kind == CS2VM_MODEL_KIND_NPC_HEAD && host->bridge && rs_cs2_tree(host) &&
+             request.model_id >= 0 )
     {
-        int scene_model = request.model_id;
-        if( host->bridge && request.model_kind == CS2VM_MODEL_KIND_PLAIN )
-            scene_model = UITreeSceneBridge_EnsureModel(host->bridge, scene_model);
-        (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
+        int scene_model = UITreeSceneBridge_EnsureNpcHead(host->bridge, request.model_id);
+        if( scene_model >= 0 )
+            (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
     }
-    /* PLAYER_SELF / heads with model_id < 0: no-op OK (clientCode 328 draws separately). */
+    /* Player head/self/chathead (kinds 3/5/6): composite the local appearance
+     * head (reference IfType.getModel type 3 / ClientPlayer.getHeadModel). */
+    else if( (request.model_kind == CS2VM_MODEL_KIND_PLAYER_HEAD ||
+              request.model_kind == CS2VM_MODEL_KIND_PLAYER_SELF ||
+              request.model_kind == CS2VM_MODEL_KIND_PLAYER_CHATHEAD) &&
+             host->bridge && rs_cs2_tree(host) )
+    {
+        int scene_model = UITreeSceneBridge_EnsurePlayerHead(host->bridge);
+        if( scene_model >= 0 )
+            (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
+    }
     return CS2VM_EXECNO_OK;
 }
 

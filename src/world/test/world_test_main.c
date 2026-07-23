@@ -18,6 +18,7 @@ main(void)
     test_cycle_movers();
     test_entity_face();
     test_try_route();
+    test_try_route_op();
     test_route_coordinate_coincidence();
     test_rebuild_shift();
 

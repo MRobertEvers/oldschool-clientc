@@ -2,6 +2,7 @@
 
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "engine/world_builder/minimap.h"
 #include "engine/world_builder/world_builder.h"
 #include "painters/painters.h"
 #include "varp/varp_manager.h"
@@ -111,6 +112,48 @@ test_painters_tile_order(void)
     free(buffer->commands);
     free(buffer);
     painter_free(painter);
+}
+
+/* Bridge minimap fix: a LinkBelow column's baked minimap tiles are shifted down
+ * a plane (World.pushDown mirror) so the deck at cache level 1 lands on paint
+ * level 0. Assert the exact plane remap the painter uses: 0←1, 1←2, 2←3, 3←old0. */
+void
+test_minimap_push_down(void)
+{
+    struct Minimap* mm = minimap_new(4, 4);
+    TEST_ASSERT(mm != NULL, "minimap_new (push down)");
+    if( !mm )
+        return;
+
+    const int sx = 1, sz = 2;
+    /* Tag each level with a distinct background colour so we can track it. */
+    const uint32_t c0 = 0xFF000010u, c1 = 0xFF000011u, c2 = 0xFF000012u, c3 = 0xFF000013u;
+    minimap_set_tile_color(mm, sx, sz, 0, c0, MINIMAP_BACKGROUND);
+    minimap_set_tile_color(mm, sx, sz, 1, c1, MINIMAP_BACKGROUND);
+    minimap_set_tile_color(mm, sx, sz, 2, c2, MINIMAP_BACKGROUND);
+    minimap_set_tile_color(mm, sx, sz, 3, c3, MINIMAP_BACKGROUND);
+    /* A neighbouring column must be untouched by the shift. */
+    minimap_set_tile_color(mm, sx + 1, sz, 0, 0xFF00FF00u, MINIMAP_BACKGROUND);
+
+    minimap_push_down_tiles(mm, sx, sz);
+
+    TEST_ASSERT(
+        (uint32_t)minimap_tile_rgb(mm, sx, sz, 0, MINIMAP_BACKGROUND) == c1,
+        "push down: level 0 takes former deck (cache level 1)");
+    TEST_ASSERT(
+        (uint32_t)minimap_tile_rgb(mm, sx, sz, 1, MINIMAP_BACKGROUND) == c2,
+        "push down: level 1 takes former cache level 2");
+    TEST_ASSERT(
+        (uint32_t)minimap_tile_rgb(mm, sx, sz, 2, MINIMAP_BACKGROUND) == c3,
+        "push down: level 2 takes former cache level 3");
+    TEST_ASSERT(
+        (uint32_t)minimap_tile_rgb(mm, sx, sz, 3, MINIMAP_BACKGROUND) == c0,
+        "push down: former underpass (cache level 0) wraps to top plane");
+    TEST_ASSERT(
+        (uint32_t)minimap_tile_rgb(mm, sx + 1, sz, 0, MINIMAP_BACKGROUND) == 0xFF00FF00u,
+        "push down: neighbouring column untouched");
+
+    minimap_free(mm);
 }
 
 void

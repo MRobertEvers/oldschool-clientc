@@ -3,6 +3,7 @@
 #include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
 #include "engine/entity_model_build.h"
+#include "engine/task_obj_model_load.h"
 #include "net/jbase37.h"
 #include "net/rev/pkt_player_appearance.h"
 #include "engine/dat1/dat1_buildcache.h"
@@ -817,6 +818,141 @@ seed_inv_defaults(struct InvManager* invs)
         k_bank_items,
         NULL,
         (int)(sizeof(k_bank_items) / sizeof(k_bank_items[0]))));
+}
+
+/* ---- Inventory obj-icon reconcile ------------------------------------- *
+ *
+ * Server UPDATE_INV_FULL/PARTIAL (rs_gameproto_exec.c) write item ids into the
+ * inv containers but leave scene_id = INV_MANAGER_NO_SCENE_ID, because the
+ * inventory model may not be resident and rasterizing needs it loaded. The
+ * emit path (emit_rs_inv_slots) only draws a slot when scene_id >= 0, so those
+ * items never appear. This mirrors task_interface_open's seed-time icon step
+ * (load the models, then UITreeSceneBridge_EnsureObjIcon and stamp the scene id
+ * back) but is driven per tick off the live containers, so items that arrive
+ * after the interface is open still get icons — the missing lazy path the
+ * exec handlers' comment promised.
+ *
+ * A slot whose model can never be built is stamped with a distinct sentinel so
+ * the per-tick scan stops re-enqueueing it; the server replacing the item
+ * resets scene_id to NO_SCENE_ID and re-arms the reconcile. */
+#define APP_INV_ICON_BATCH_MAX 64
+#define APP_INV_ICON_SCENE_FAILED (-2)
+
+/* True while any item slot still needs a first rasterization attempt. */
+static int
+app_inv_needs_icons(struct App const* app)
+{
+    for( int ci = 0; ci < app->invs.container_count; ci++ )
+    {
+        struct InvContainer const* c = &app->invs.containers[ci];
+        if( !c->slots )
+            continue;
+        for( int s = 0; s < c->slot_count; s++ )
+            if( c->slots[s].obj_id > 0 && c->slots[s].scene_id == INV_MANAGER_NO_SCENE_ID )
+                return 1;
+    }
+    return 0;
+}
+
+struct Task_InvIconReconcile
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct App* app;
+    int obj_ids[APP_INV_ICON_BATCH_MAX];
+    int counts[APP_INV_ICON_BATCH_MAX];
+    int n;
+};
+
+static int
+Task_InvIconReconcile_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct Task_InvIconReconcile* self = (struct Task_InvIconReconcile*)base;
+    struct App* app = self->app;
+    (void)io;
+
+    PT_BEGIN(&self->pt);
+
+    /* Collect the batch that still needs a model load (bounded; leftovers are
+     * caught by the next tick's scan once this pass stamps its slots). */
+    self->n = 0;
+    for( int ci = 0; ci < app->invs.container_count && self->n < APP_INV_ICON_BATCH_MAX; ci++ )
+    {
+        struct InvContainer const* c = &app->invs.containers[ci];
+        if( !c->slots )
+            continue;
+        for( int s = 0; s < c->slot_count && self->n < APP_INV_ICON_BATCH_MAX; s++ )
+        {
+            struct InvSlot const* slot = &c->slots[s];
+            if( slot->obj_id > 0 && slot->scene_id == INV_MANAGER_NO_SCENE_ID )
+            {
+                self->obj_ids[self->n] = slot->obj_id;
+                self->counts[self->n] = slot->obj_count > 0 ? slot->obj_count : 1;
+                self->n++;
+            }
+        }
+    }
+    if( self->n > 0 )
+        TASK_AWAITSELF_IF(
+            CreateTask_ObjModelLoad(app->provider, self->obj_ids, self->counts, self->n));
+
+    /* Rasterize every pending slot from whatever is now resident and stamp the
+     * scene id (or the failed sentinel) back onto the slot. */
+    for( int ci = 0; ci < app->invs.container_count; ci++ )
+    {
+        struct InvContainer* c = &app->invs.containers[ci];
+        if( !c->slots )
+            continue;
+        for( int s = 0; s < c->slot_count; s++ )
+        {
+            struct InvSlot* slot = &c->slots[s];
+            int scene_id;
+            if( slot->obj_id <= 0 || slot->scene_id != INV_MANAGER_NO_SCENE_ID )
+                continue;
+            scene_id = UITreeSceneBridge_EnsureObjIcon(
+                &app->bridge, slot->obj_id, slot->obj_count > 0 ? slot->obj_count : 1);
+            slot->scene_id = scene_id >= 0 ? scene_id : APP_INV_ICON_SCENE_FAILED;
+            slot->atlas_index = 0;
+        }
+    }
+
+    app->inv_icon_reconcile_inflight = 0;
+    app->need_redraw = 1;
+    PT_END(&self->pt);
+}
+
+static void
+Task_InvIconReconcile_Free(struct ToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct ToriRS_TaskVTable Task_InvIconReconcile_VTable = {
+    .run = Task_InvIconReconcile_Run,
+    .free = Task_InvIconReconcile_Free,
+};
+
+/* Per-tick hook: enqueue one reconcile if any item icon is still unresolved and
+ * none is already running. Serial on the exec pipeline so it applies after the
+ * inventory packets that dirtied the slots. */
+static void
+app_inv_icon_reconcile_tick(struct App* app)
+{
+    struct Task_InvIconReconcile* task;
+
+    if( app->inv_icon_reconcile_inflight || !app_inv_needs_icons(app) )
+        return;
+
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_InvIconReconcile_VTable;
+    strncpy(task->task.name, "InvIconReconcile", sizeof(task->task.name) - 1);
+    task->app = app;
+    PT_INIT(&task->pt);
+    app->inv_icon_reconcile_inflight = 1;
+    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
 /* Wrapper protothread that owns one CS1 evaluation pass: awaits the eval
@@ -1925,6 +2061,11 @@ app_logic_tick(struct App* app)
         }
     }
 
+    /* Rasterize inventory item icons that the server's inv packets left
+     * unresolved (queued on the same serial pipeline, so it runs after the
+     * packets that dirtied the slots). */
+    app_inv_icon_reconcile_tick(app);
+
     if( app->net )
     {
         /* Keepalive once per tick while in the game world (reference sends
@@ -2506,6 +2647,107 @@ app_try_move(
     app->minimap_flag_z = route_z[0];
     app->need_redraw = 1;
     return 1;
+}
+
+/* Reference tryMove type 2 (interactWithLoc / obj doAction): pathfind toward a
+ * loc/obj using its approach footprint (tryNearest = false), and — when a route
+ * exists — emit MOVE_OPCLICK. Unlike a ground click this arrives on an approach
+ * tile beside the loc, not the loc tile itself. The caller sends the
+ * OP(LOC|OBJ|NPC) afterwards regardless of the return, matching the reference
+ * (the walk is best-effort; the interaction is always requested on the same
+ * click). A reachable click always emits — even a zero-delta route when the
+ * player already stands on an approach tile. Returns 1 when a route was found
+ * (so an obj can skip its 1x1 fallback), 0 when unreachable. */
+static int
+app_try_move_op(
+    struct App* app,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach,
+    int ctrl_held)
+{
+    static int route_x[4000];
+    static int route_z[4000];
+    struct World* world = app->world;
+    struct WorldEntity_Player* player;
+    struct CollisionMap* cm;
+    int level, route_len;
+
+    if( !world || !world->load_complete )
+        return 0;
+    if( dst_x < 0 || dst_z < 0 || dst_x >= world->_scene_size || dst_z >= world->_scene_size )
+        return 0;
+
+    player = app_local_player(app);
+    if( !player )
+        return 0;
+
+    level = player->grid_position.level;
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = world->collision_maps[level];
+    if( !cm )
+        return 0;
+
+    route_len = collision_map_try_route_op(
+        cm,
+        player->pathing.route_x[0],
+        player->pathing.route_z[0],
+        dst_x,
+        dst_z,
+        approach,
+        route_x,
+        route_z,
+        (int)(sizeof(route_x) / sizeof(route_x[0])));
+    if( route_len < 1 )
+        return 0;
+
+    APP_NET_SEND(
+        app,
+        net_out_move_opclick(
+            app->net->rev,
+            app->net->random_out,
+            _nsbuf,
+            sizeof(_nsbuf),
+            world->_base_tile_x,
+            world->_base_tile_z,
+            route_x,
+            route_z,
+            route_len,
+            ctrl_held));
+
+    app->minimap_flag_x = route_x[0];
+    app->minimap_flag_z = route_z[0];
+    app->need_redraw = 1;
+    return 1;
+}
+
+/* Build the op-click approach for a loc (reference interactWithLoc, Client.ts
+ * 5817-5833). Centrepieces and ground decor approach by footprint (testLoc,
+ * size already angle-swapped at register time); walls / wall decorations
+ * approach an adjacent facing tile (testWall/testWDecor, locShape = shape + 1).
+ * forceapproach stays 0 — LocType opcode 69 is not decoded yet, and it is 0 for
+ * the vast majority of locs. */
+static struct CollisionApproach
+app_scenery_approach(struct WorldEntity_Scenery const* scenery)
+{
+    struct CollisionApproach approach = { 0 };
+    int shape = scenery->shape;
+
+    if( shape == RSCACHE_LOC_SHAPE_SCENERY || shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL ||
+        shape == RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
+    {
+        approach.loc_width = scenery->size_x;
+        approach.loc_length = scenery->size_z;
+    }
+    else
+    {
+        approach.loc_angle = scenery->angle;
+        approach.loc_shape = shape + 1;
+    }
+    return approach;
 }
 
 /* Minimap click-to-walk (reference minimapLoop, Client.ts 2990-3032): map the
@@ -3253,6 +3495,123 @@ static struct ToriRS_TaskVTable Task_AppSpawn_VTable = {
     .run = Task_AppSpawn_Run,
     .free = Task_AppSpawn_Free,
 };
+
+/* Interface chathead: load the npctype/appearance + head models, composite the
+ * head into the scene (UITreeSceneBridge_Ensure*Head), and bind it onto the
+ * MODEL widget the dialogue set (reference IfType.getModel type 2/3, resolved
+ * lazily — here via the async provider). */
+enum AppIfHeadKind
+{
+    APP_IFHEAD_NPC = 0,
+    APP_IFHEAD_PLAYER,
+};
+
+struct Task_AppIfHead
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct App* app;
+    enum AppIfHeadKind kind;
+    int component_id;
+    int npc_id;
+    int model_i;
+};
+
+static int
+Task_AppIfHead_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct Task_AppIfHead* self = (struct Task_AppIfHead*)base;
+    struct App* app = self->app;
+    int scene_id = -1;
+
+    PT_BEGIN(&self->pt);
+
+    if( self->kind == APP_IFHEAD_NPC )
+    {
+        TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->npc_id));
+        /* Load each head model (re-derived from persistent model_i; -1 slots
+         * are skipped — reference NpcType.getHead ignores them). */
+        for( self->model_i = 0;; self->model_i++ )
+        {
+            struct ToriRS_Npctype* npc = CacheProvider_NpctypeGet(app->provider, self->npc_id);
+            if( !npc || self->model_i >= npc->heads_count )
+                break;
+            if( npc->heads[self->model_i] < 0 )
+                continue;
+            TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, npc->heads[self->model_i]));
+        }
+        scene_id = UITreeSceneBridge_EnsureNpcHead(&app->bridge, self->npc_id);
+    }
+    else
+    {
+        TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+        scene_id = UITreeSceneBridge_EnsurePlayerHead(&app->bridge);
+    }
+
+    if( scene_id >= 0 )
+        UITree_ApplyModel(app->tree, self->component_id, scene_id);
+    else
+        fprintf(
+            stderr,
+            "if-head: component=0x%x kind=%d could not composite head\n",
+            (unsigned)self->component_id,
+            (int)self->kind);
+
+    PT_END(&self->pt);
+}
+
+static void
+Task_AppIfHead_Free(struct ToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct ToriRS_TaskVTable Task_AppIfHead_VTable = {
+    .run = Task_AppIfHead_Run,
+    .free = Task_AppIfHead_Free,
+};
+
+static void
+app_if_head_enqueue(
+    struct App* app,
+    enum AppIfHeadKind kind,
+    int component_id,
+    int npc_id)
+{
+    struct Task_AppIfHead* task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_AppIfHead_VTable;
+    strncpy(task->task.name, "AppIfHead", sizeof(task->task.name) - 1);
+    task->app = app;
+    task->kind = kind;
+    task->component_id = component_id;
+    task->npc_id = npc_id;
+    PT_INIT(&task->pt);
+    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+}
+
+void
+App_SetInterfaceNpcHead(
+    struct App* app,
+    int component_id,
+    int npc_id)
+{
+    assert(app);
+    if( npc_id < 0 )
+        return;
+    app_if_head_enqueue(app, APP_IFHEAD_NPC, component_id, npc_id);
+}
+
+void
+App_SetInterfacePlayerHead(
+    struct App* app,
+    int component_id)
+{
+    assert(app);
+    app_if_head_enqueue(app, APP_IFHEAD_PLAYER, component_id, -1);
+}
 
 static struct Task_AppSpawn*
 app_spawn_task_new(
@@ -4256,6 +4615,17 @@ app_minimenu_use_option(
         int abs_x = opt.pick.tertiary_id + app->world->_base_tile_x;
         int abs_z = opt.pick.quaternary_id + app->world->_base_tile_z;
         int loc_id = opt.pick.secondary_id;
+        /* Reference interactWithLoc: pathfind toward the loc (tryMove type 2)
+         * on the same click, then send the OP below regardless of the walk
+         * result. The scene tile is the pick's (tertiary,quaternary). */
+        struct WorldEntity_Scenery const* scenery =
+            World_SceneryGetByElementId(app->world, opt.pick.id);
+        if( scenery )
+        {
+            struct CollisionApproach approach = app_scenery_approach(scenery);
+            app_try_move_op(
+                app, opt.pick.tertiary_id, opt.pick.quaternary_id, &approach, 0);
+        }
         if( app->objsel.active )
         {
             APP_NET_SEND(
@@ -4283,6 +4653,19 @@ app_minimenu_use_option(
         int abs_x = opt.pick.tertiary_id + app->world->_base_tile_x;
         int abs_z = opt.pick.quaternary_id + app->world->_base_tile_z;
         int obj_id = opt.pick.secondary_id;
+        /* Reference obj doAction: pathfind to the exact tile (tryMove type 2),
+         * and on failure retry a 1x1 approach so an adjacent tile still arrives;
+         * the OP is sent below on the same click either way. */
+        {
+            struct CollisionApproach exact = { 0 };
+            if( !app_try_move_op(
+                    app, opt.pick.tertiary_id, opt.pick.quaternary_id, &exact, 0) )
+            {
+                struct CollisionApproach one = { .loc_width = 1, .loc_length = 1 };
+                app_try_move_op(
+                    app, opt.pick.tertiary_id, opt.pick.quaternary_id, &one, 0);
+            }
+        }
         if( app->objsel.active )
         {
             APP_NET_SEND(

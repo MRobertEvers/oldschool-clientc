@@ -101,6 +101,59 @@ test_try_route(void)
     collision_map_free(cm);
 }
 
+/* Op-click approach arrival (reference tryMove type 2): the flood may stop on a
+ * tile beside the loc's footprint, not the loc tile itself, and never uses the
+ * 3x3 nearest fallback (tryNearest = false). */
+void
+test_try_route_op(void)
+{
+    printf("TEST: try_route_op (reference tryMove type 2 approach)\n");
+
+    struct CollisionMap* cm = collision_map_new(64, 64);
+    int route_x[256];
+    int route_z[256];
+    int len;
+
+    /* Obj / exact tile: approach with no footprint arrives on the tile itself. */
+    struct CollisionApproach exact = { 0 };
+    len = collision_map_try_route_op(cm, 10, 10, 10, 20, &exact, route_x, route_z, 256);
+    TEST_ASSERT(len >= 1, "exact: route found");
+    TEST_ASSERT(route_x[0] == 10 && route_z[0] == 20, "exact: arrives on the tile");
+
+    /* Sized centrepiece (2x2 at 10,20): approaching from the south, the flood
+     * stops on the south-adjacent tile (10,19) — an approach tile, not the loc
+     * tile — because testLoc accepts the edge before the footprint is entered. */
+    struct CollisionApproach sized = { .loc_width = 2, .loc_length = 2 };
+    len = collision_map_try_route_op(cm, 10, 10, 10, 20, &sized, route_x, route_z, 256);
+    TEST_ASSERT(len >= 1, "sized loc: route found");
+    TEST_ASSERT(
+        route_x[0] == 10 && route_z[0] == 19, "sized loc: arrives adjacent to the footprint");
+
+    /* Obj fallback: block the exact tile so the exact approach fails, then a 1x1
+     * approach still arrives on an adjacent tile (reference obj doAction retry). */
+    collision_map_add_floor(cm, 40, 20);
+    struct CollisionApproach exact2 = { 0 };
+    len = collision_map_try_route_op(cm, 40, 10, 40, 20, &exact2, route_x, route_z, 256);
+    TEST_ASSERT(len == -1, "obj on blocked tile: exact approach fails (no nearest fallback)");
+    struct CollisionApproach one = { .loc_width = 1, .loc_length = 1 };
+    len = collision_map_try_route_op(cm, 40, 10, 40, 20, &one, route_x, route_z, 256);
+    TEST_ASSERT(len >= 1, "obj 1x1 fallback: route found");
+    TEST_ASSERT(
+        route_x[0] == 40 && route_z[0] == 19, "obj 1x1 fallback: arrives adjacent to the tile");
+
+    /* Wall approach (single-side wall, west-facing at 25,20): the approach tile
+     * is the one immediately west of the wall (testWall WEST: src == dst-1). */
+    /* Shape 0 = RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE (LocShape.WALL_STRAIGHT); the
+     * approach passes the reference locShape = shape + 1. */
+    collision_map_add_wall(cm, 25, 20, 0, COLL_ANGLE_WEST, 0);
+    struct CollisionApproach wall = { .loc_shape = 0 + 1, .loc_angle = COLL_ANGLE_WEST };
+    len = collision_map_try_route_op(cm, 20, 20, 25, 20, &wall, route_x, route_z, 256);
+    TEST_ASSERT(len >= 1, "wall: route found");
+    TEST_ASSERT(route_x[0] == 24 && route_z[0] == 20, "wall: arrives immediately west of the wall");
+
+    collision_map_free(cm);
+}
+
 void
 test_route_coordinate_coincidence(void)
 {

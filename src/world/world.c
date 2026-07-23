@@ -745,6 +745,8 @@ World_SceneryRegister(
     int level,
     int size_x,
     int size_z,
+    int shape,
+    int angle,
     char const* name,
     char const actions[5][32],
     int interactive)
@@ -768,6 +770,8 @@ World_SceneryRegister(
     scenery->grid_position.level = level;
     scenery->size_x = size_x;
     scenery->size_z = size_z;
+    scenery->shape = shape;
+    scenery->angle = angle;
     if( name )
     {
         strncpy(scenery->name, name, sizeof(scenery->name) - 1);

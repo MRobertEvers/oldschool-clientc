@@ -144,10 +144,12 @@ UITreeSceneBridge_Init(
     bridge->model_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
     bridge->obj_icon_map = bridge_hmap_new_keyed(
         sizeof(int) * 2, sizeof(struct MapEntry_ObjIcon), BRIDGE_OBJ_ICON_MAP_CAP);
+    bridge->npc_head_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
     for( int slot = 0; slot < STATIC_SPRITE_COUNT; slot++ )
         bridge->static_sprite_scene[slot] = -1;
     bridge->player_scene_id = -1;
-    assert(bridge->sprite_map && bridge->model_map && bridge->obj_icon_map);
+    bridge->player_head_scene_id = -1;
+    assert(bridge->sprite_map && bridge->model_map && bridge->obj_icon_map && bridge->npc_head_map);
 }
 
 void
@@ -158,6 +160,7 @@ UITreeSceneBridge_Free(struct UITreeSceneBridge* bridge)
     bridge_hmap_free(bridge->sprite_map);
     bridge_hmap_free(bridge->model_map);
     bridge_hmap_free(bridge->obj_icon_map);
+    bridge_hmap_free(bridge->npc_head_map);
     memset(bridge, 0, sizeof(*bridge));
 }
 
@@ -481,6 +484,171 @@ UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge)
     return bridge->player_scene_id;
 }
 
+#define BRIDGE_NPC_HEAD_PARTS_MAX 16
+
+int
+UITreeSceneBridge_EnsureNpcHead(
+    struct UITreeSceneBridge* bridge,
+    int npc_id)
+{
+    struct ToriRS_Npctype* npc;
+    struct ToriDraw_Model* parts[BRIDGE_NPC_HEAD_PARTS_MAX];
+    struct ToriDraw_Model* merged;
+    struct ToriDraw_ModelHandle hnd;
+    int part_count = 0;
+    int scene_id;
+
+    assert(bridge && bridge->scene && bridge->provider);
+    if( npc_id < 0 )
+        return -1;
+
+    scene_id = bridge_map_get(bridge->npc_head_map, npc_id);
+    if( scene_id > 0 )
+        return scene_id;
+
+    if( !CacheProvider_NpctypeHas(bridge->provider, npc_id) )
+        return -1;
+    npc = CacheProvider_NpctypeGet(bridge->provider, npc_id);
+    if( !npc || npc->heads_count <= 0 || !npc->heads )
+        return -1;
+
+    /* Merge the head models (reference NpcType.getHead / v0 npc_head_model). */
+    for( int i = 0; i < npc->heads_count; i++ )
+    {
+        struct ToriRS_Model* rs;
+        struct ToriDraw_Model* model;
+        int mid = npc->heads[i];
+        if( mid < 0 || !CacheProvider_ModelHas(bridge->provider, mid) )
+            continue;
+        rs = CacheProvider_ModelGet(bridge->provider, mid);
+        if( !rs )
+            continue;
+        model = ToriDraw_ModelFromToriRS(rs);
+        if( !model )
+            continue;
+        if( part_count < BRIDGE_NPC_HEAD_PARTS_MAX )
+            parts[part_count++] = model;
+        else
+            ToriDraw_ModelFree(model);
+    }
+    if( part_count == 0 )
+        return -1;
+
+    merged = ToriDraw_ModelNewMerge(parts, part_count);
+    for( int i = 0; i < part_count; i++ )
+        ToriDraw_ModelFree(parts[i]);
+    if( !merged )
+        return -1;
+
+    for( int r = 0; r < npc->recolor_count; r++ )
+        ToriDraw_ModelRecolor(merged, npc->recolors_from[r], npc->recolors_to[r]);
+
+    ToriDraw_ModelSetBoundsCylinder(merged);
+    ToriDraw_ModelCaptureOriginalVertices(merged);
+
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = merged;
+    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+
+    scene_id = (int)(UITREE_SCENE_NPC_HEAD_BASE | (unsigned)npc_id);
+    ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
+    bridge_map_put(bridge->npc_head_map, npc_id, scene_id);
+    return scene_id;
+}
+
+int
+UITreeSceneBridge_EnsurePlayerHead(struct UITreeSceneBridge* bridge)
+{
+    struct PlayerAppearance app;
+    struct ToriDraw_Model* parts[BRIDGE_PLAYER_PART_MODELS_MAX];
+    struct ToriDraw_Model* merged;
+    struct ToriDraw_ModelHandle hnd;
+    int part_count = 0;
+    int p;
+
+    assert(bridge && bridge->scene && bridge->provider);
+
+    if( bridge->player_head_scene_id > 0 )
+        return bridge->player_head_scene_id;
+    if( ToriDraw_SceneModelHas(bridge->scene, UITREE_SCENE_PLAYER_HEAD_ID) )
+    {
+        bridge->player_head_scene_id = UITREE_SCENE_PLAYER_HEAD_ID;
+        return bridge->player_head_scene_id;
+    }
+
+    if( PlayerAppearance_ResolveDefaultMale(bridge->provider, &app) <= 0 )
+        return -1;
+
+    /* Compose the head parts from each IdentityKit's heads[] (reference
+     * ClientPlayer.getHeadModel: idk head models per appearance slot). */
+    for( p = 0; p < PLAYER_APPEARANCE_PARTS; p++ )
+    {
+        struct ToriRS_Idk* idk;
+        int h;
+        if( app.kits[p] < 0 )
+            continue;
+        idk = CacheProvider_IdkGet(bridge->provider, app.kits[p]);
+        if( !idk )
+            continue;
+        for( h = 0; h < 10; h++ )
+        {
+            struct ToriRS_Model* rs;
+            struct ToriDraw_Model* model;
+            int mid = idk->heads[h];
+            int r;
+            /* 0 and -1 both mean "no head part" for an idk (v0 idk_head_model). */
+            if( mid <= 0 || !CacheProvider_ModelHas(bridge->provider, mid) )
+                continue;
+            rs = CacheProvider_ModelGet(bridge->provider, mid);
+            if( !rs )
+                continue;
+            model = ToriDraw_ModelFromToriRS(rs);
+            if( !model )
+                continue;
+            for( r = 0; r < 10; r++ )
+            {
+                if( idk->recolors_from[r] != 0 || idk->recolors_to[r] != 0 )
+                    ToriDraw_ModelRecolor(model, idk->recolors_from[r], idk->recolors_to[r]);
+            }
+            if( part_count < BRIDGE_PLAYER_PART_MODELS_MAX )
+                parts[part_count++] = model;
+            else
+                ToriDraw_ModelFree(model);
+        }
+    }
+
+    if( part_count == 0 )
+        return -1;
+
+    merged = ToriDraw_ModelNewMerge(parts, part_count);
+    for( p = 0; p < part_count; p++ )
+        ToriDraw_ModelFree(parts[p]);
+    if( !merged )
+        return -1;
+
+    {
+        int c;
+        for( c = 0; c < PlayerAppearance_DefaultBodyRecolorCount(); c++ )
+        {
+            int from = PlayerAppearance_DefaultBodyRecolorFrom(c);
+            if( from != -1 )
+                ToriDraw_ModelRecolor(merged, from, PlayerAppearance_DefaultBodyRecolorTo(c));
+        }
+    }
+
+    ToriDraw_ModelSetBoundsCylinder(merged);
+    ToriDraw_ModelCaptureOriginalVertices(merged);
+
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = merged;
+    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+    ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_PLAYER_HEAD_ID, hnd);
+    bridge->player_head_scene_id = UITREE_SCENE_PLAYER_HEAD_ID;
+    return bridge->player_head_scene_id;
+}
+
 static struct ToriRS_Objtype*
 bridge_resolve_obj_for_icon(
     struct CacheProvider* provider,
@@ -510,6 +678,16 @@ bridge_resolve_obj_for_icon(
             if( variant )
                 obj = variant;
         }
+    }
+
+    /* Bank note: the icon is the cert template's model + recolours (reference
+     * ObjType.genCert copies template.model/recol into the note), not the base
+     * item's. Redirect so EnsureObjIcon rasterizes the template objtype. */
+    if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
+    {
+        struct ToriRS_Objtype* tmpl = CacheProvider_ObjtypeGet(provider, obj->cert_template);
+        if( tmpl )
+            obj = tmpl;
     }
     return obj;
 }

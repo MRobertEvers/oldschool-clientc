@@ -18,6 +18,7 @@ struct Task_ObjModelLoad
     int n;
     int i;
     int count_obj_id;
+    int render_obj_id;
     int model_id;
     int tex_f;
 };
@@ -48,6 +49,26 @@ obj_model_resolve_count_obj_id(
     return countobj_id > 0 ? countobj_id : -1;
 }
 
+/* The objtype whose model actually renders for a resolved (count-variant) obj:
+ * itself, unless it is a bank note (model 0, cert_template set), in which case
+ * the note template supplies the model (reference ObjType.genCert). Requires
+ * the resolved obj resident; returns -1 if it is not yet loaded. */
+static int
+obj_model_render_obj_id(
+    struct CacheProvider* provider,
+    int resolved_id)
+{
+    struct ToriRS_Objtype* obj;
+
+    if( resolved_id <= 0 || !CacheProvider_ObjtypeHas(provider, resolved_id) )
+        return -1;
+    obj = CacheProvider_ObjtypeGet(provider, resolved_id);
+    assert(obj);
+    if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
+        return obj->cert_template;
+    return resolved_id;
+}
+
 static int
 obj_model_resolve_inventory_model_id(
     struct CacheProvider* provider,
@@ -56,12 +77,14 @@ obj_model_resolve_inventory_model_id(
 {
     struct ToriRS_Objtype* obj;
     int resolved_id = count_obj_id > 0 ? count_obj_id : obj_id;
+    int render_id;
 
     assert(provider);
-    if( resolved_id <= 0 || !CacheProvider_ObjtypeHas(provider, resolved_id) )
+    render_id = obj_model_render_obj_id(provider, resolved_id);
+    if( render_id <= 0 || !CacheProvider_ObjtypeHas(provider, render_id) )
         return -1;
 
-    obj = CacheProvider_ObjtypeGet(provider, resolved_id);
+    obj = CacheProvider_ObjtypeGet(provider, render_id);
     assert(obj);
     if( obj->inventory_model_id <= 0 )
         return -1;
@@ -107,6 +130,7 @@ ObjModelLoad_NeedsWork(
     int count)
 {
     int count_obj_id;
+    int render_obj_id;
     int model_id;
     int face_count;
     int f;
@@ -119,6 +143,12 @@ ObjModelLoad_NeedsWork(
 
     count_obj_id = obj_model_resolve_count_obj_id(provider, obj_id, count);
     if( count_obj_id > 0 && !CacheProvider_ObjtypeHas(provider, count_obj_id) )
+        return 1;
+
+    /* A bank note's model lives on its cert template objtype, which must be
+     * resident before the model (and the icon) can resolve. */
+    render_obj_id = obj_model_render_obj_id(provider, count_obj_id > 0 ? count_obj_id : obj_id);
+    if( render_obj_id > 0 && !CacheProvider_ObjtypeHas(provider, render_obj_id) )
         return 1;
 
     model_id = obj_model_resolve_inventory_model_id(provider, obj_id, count_obj_id);
@@ -180,6 +210,14 @@ Task_ObjModelLoad_Run(
         self->count_obj_id = obj_model_resolve_count_obj_id(self->provider, obj_id, count);
         if( self->count_obj_id > 0 )
             TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->count_obj_id));
+
+        /* Bank note: pull in the cert template objtype whose model it borrows
+         * (base obj/count obj are resident now, so render-id resolves). */
+        self->render_obj_id = obj_model_render_obj_id(
+            self->provider, self->count_obj_id > 0 ? self->count_obj_id : obj_id);
+        if( self->render_obj_id > 0 && self->render_obj_id != obj_id &&
+            self->render_obj_id != self->count_obj_id )
+            TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->render_obj_id));
 
         self->model_id =
             obj_model_resolve_inventory_model_id(self->provider, obj_id, self->count_obj_id);

@@ -272,7 +272,7 @@ sim_scene_reset_midflight(void)
     World_TerrainSet(world, 111, 5, 5, 0);
     World_ProjectileSpawn(world, 3, 0, 128, 128, 256, 256, 100, 0, 0, 50, 0, 0);
     World_SpotanimSpawn(world, 4, 0, 20 * 128, 20 * 128, 0, 0, 0, 100);
-    World_SceneryRegister(world, 5, 50, 1, 1, 0, 1, 1, "Rock", NULL, 1);
+    World_SceneryRegister(world, 5, 50, 1, 1, 0, 1, 1, 0, 0, "Rock", NULL, 1);
     World_RegisterSceneryPick(world, 5, 50);
 
     World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);

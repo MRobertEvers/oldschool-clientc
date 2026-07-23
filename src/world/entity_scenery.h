@@ -10,6 +10,12 @@ struct WorldEntity_Scenery
     struct WorldEntityFacet_GridPosition grid_position;
     int size_x;
     int size_z;
+    /** Loc shape (RSCACHE_LOC_SHAPE_*) and rotation (0..3 = W/N/E/S). Kept for
+     *  the op-click approach test (reference interactWithLoc passes shape+angle
+     *  for walls, size for centrepieces) — geometry already consumed them, but
+     *  routing needs them at click time. */
+    int shape;
+    int angle;
     struct WorldEntityFacet_Orientation orientation;
     struct WorldEntityFacet_AnimationStep animation;
     char name[32];

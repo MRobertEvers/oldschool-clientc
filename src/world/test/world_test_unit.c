@@ -357,7 +357,7 @@ test_scenery(void)
 
     struct World* world = World_TestMakeReady(64);
     char actions[5][32] = { "Examine", "Open", "", "", "" };
-    int idx = World_SceneryRegister(world, 70, 900, 4, 5, 0, 1, 1, "Door", actions, 1);
+    int idx = World_SceneryRegister(world, 70, 900, 4, 5, 0, 1, 1, 0, 0, "Door", actions, 1);
     TEST_ASSERT(idx >= 0, "scenery register");
 
     struct WorldEntity_Scenery* sc = World_SceneryGetByElementId(world, 70);
@@ -532,7 +532,7 @@ test_rebuild_shift(void)
     /* Movers survive the scene reset itself; scenery records do not (their
      * static elements are freed + reallocated by the builder). */
     int sceneryidx =
-        World_SceneryRegister(world, 70, 900, 4, 5, 0, 1, 1, "Door", actions, 1);
+        World_SceneryRegister(world, 70, 900, 4, 5, 0, 1, 1, 0, 0, "Door", actions, 1);
     TEST_ASSERT(sceneryidx >= 0, "scenery register");
     World_ResetScene(world, 51, 52, 104);
     TEST_ASSERT(World_TestPoolIterateCount(&world->entities.scenery) == 0, "scenery pool reset");

@@ -257,6 +257,26 @@ RS_GameProto_Exec(
         UITree_ApplyModel(
             ctx->tree, packet->_if_setmodel.component_id, packet->_if_setmodel.model_id);
         break;
+    case PKT_NAME_IF_SETNPCHEAD:
+        /* Reference IfType.getModel type 2: composite the npc chathead and bind
+         * it. Needs the App (async model loads via the exec runner). */
+        if( ctx->app )
+            App_SetInterfaceNpcHead(
+                ctx->app,
+                packet->_if_setnpchead.component_id,
+                packet->_if_setnpchead.npc_id);
+        break;
+    case PKT_NAME_IF_SETPLAYERHEAD:
+        /* Reference IfType.getModel type 3: local-player chathead. */
+        if( ctx->app )
+            App_SetInterfacePlayerHead(ctx->app, packet->_if_setplayerhead.component_id);
+        break;
+    case PKT_NAME_IF_SETANIM:
+        /* Reference modelAnim: the chathead's talk/idle sequence. The widget
+         * seq-load driver picks the id up (no App required for the field set). */
+        UITree_ApplyModelAnim(
+            ctx->tree, packet->_if_setanim.component_id, packet->_if_setanim.anim_id);
+        break;
     case PKT_NAME_IF_SETSCROLLPOS:
         UITree_ApplyScrollPos(
             ctx->tree, packet->_if_setscrollpos.component_id, 0, packet->_if_setscrollpos.pos);

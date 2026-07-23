@@ -195,6 +195,18 @@ minimap_set_tile_shape(
     int shape,
     int rotation);
 
+/** Plane-shift one column's tiles down a level, the way the geometry painter
+ * and reference World.pushDown treat a LinkBelow bridge column: level 0 takes
+ * the former cache level 1 (the deck), 1←2, 2←3, and the old level 0 (the
+ * underpass floor) wraps to the top plane. The land-settings (tile_flags) are
+ * intentionally NOT shifted — the bake's VisBelow composite reads raw mapl, so
+ * once the deck tile sits at level 0 it draws on the player's map. */
+void
+minimap_push_down_tiles(
+    struct Minimap* minimap,
+    int sx,
+    int sz);
+
 void
 minimap_render(
     struct Minimap* minimap,

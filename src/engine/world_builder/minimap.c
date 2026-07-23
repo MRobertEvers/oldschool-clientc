@@ -171,6 +171,22 @@ minimap_set_tile_shape(
     tile->rotation = rotation;
 }
 
+void
+minimap_push_down_tiles(
+    struct Minimap* minimap,
+    int sx,
+    int sz)
+{
+    assert(sx >= 0 && sx < minimap->width);
+    assert(sz >= 0 && sz < minimap->height);
+
+    struct MinimapTile tmp = minimap->tiles[minimap_coord_idx(minimap, sx, sz, 0)];
+    for( int level = 0; level < minimap->levels - 1; level++ )
+        minimap->tiles[minimap_coord_idx(minimap, sx, sz, level)] =
+            minimap->tiles[minimap_coord_idx(minimap, sx, sz, level + 1)];
+    minimap->tiles[minimap_coord_idx(minimap, sx, sz, minimap->levels - 1)] = tmp;
+}
+
 static void
 ensure_command_capacity(
     struct MinimapRenderCommandBuffer* command_buffer,
@@ -651,10 +667,15 @@ minimap_bake_argb(
     }
 
     /* Reference minimapBuildBuffer (Client.ts:5519): a tile of the requested
-     * level is drawn unless its land settings say VisBelow/ForceHighDetail
-     * (its floor is a hole onto the level below), and the level above is drawn
-     * over it wherever *that* level is VisBelow — which is how a bridge deck or
-     * an upstairs balcony appears on the map of the level you are standing on.
+     * level is drawn unless its land settings say VisBelow/ForceHighDetail (its
+     * floor is a hole onto the level below), and the level above is drawn over
+     * it wherever *that* level is VisBelow — how an upstairs balcony overhang or
+     * a hole in the floor shows the level below on the map you're standing on.
+     * A LinkBelow bridge deck is NOT handled here: it is pulled onto this level
+     * structurally by the push-down (minimap_push_down_tiles), the same way the
+     * reference shifts World tiles before baking. So this composite reads the
+     * already-shifted tiles against raw mapl (tile_flags), which is why the deck
+     * ends up drawn at level 0.
      * tile_flags is World.tile_flags (may be NULL: then draw the plain level). */
     for( int sx = 0; sx < minimap->width; sx++ )
     {

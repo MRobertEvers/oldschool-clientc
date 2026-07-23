@@ -10,6 +10,7 @@ main(void)
     printf("== world_builder unit tests ==\n");
     test_painters_smoke();
     test_painters_tile_order();
+    test_minimap_push_down();
     test_builder_lifecycle();
 
     printf("== world_builder cache render test ==\n");

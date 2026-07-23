@@ -203,8 +203,9 @@ and the anticheat `macroMinimapAngle/Zoom` wobble (angle/zoom sent as 0).
    (`MINIMAP_LEVELS`), terrain/wall/mapfunction gather record every level, and
    the bake is a line port of `minimapBuildBuffer(minusedlevel)`: draw the
    requested level unless its tile is `VisBelow`/`ForceHighDetail`, then
-   overlay the level above wherever *it* is `VisBelow` (bridge decks, upstairs
-   balconies). `app_world_map_poll` rebakes when the local player changes
+   overlay the level above wherever *it* is `VisBelow` (upstairs-balcony
+   overhangs, holes in the floor — **not** bridge decks; see fix 4).
+   `app_world_map_poll` rebakes when the local player changes
    floor (reference `minimapLevel` mismatch). Verified live at Varrock level 1
    (upstairs bank): the map switches to the first-floor layout.
 
@@ -215,6 +216,25 @@ and the anticheat `macroMinimapAngle/Zoom` wobble (angle/zoom sent as 0).
    art. Fixed to `w=146 h=151 anchor 73,75` at (575,9) — the box now IS the
    reference blit rect, which the dot overlay, the click un-rotate and the map
    pivot all key off. The player square lands in the frame's window.
+
+4. **Bridge decks (`LinkBelow` push-down).** A Lumbridge-style bridge deck is
+   `LinkBelow` (`0x02`), **not** `VisBelow` — so the VisBelow composite in fix 2
+   never drew it, and the minimap showed the river with no deck. The reference
+   handles this structurally: `World.pushDown` (`World.ts:198`, gated on
+   `mapl[1] & LinkBelow` in `ClientBuild.ts:334`) shifts a bridge column's whole
+   `Square` down a plane (deck at cache level 1 → paint level 0) *before* the
+   minimap is baked; `mapl` itself is left unshifted, so the VisBelow composite
+   still reads raw land-settings. The C bake never did this. Fix: mirror the
+   geometry push-down that `WorldBuilder_RebuildCenterzoneEnd` already runs
+   (`world_builder.c` painter block) onto the minimap tile store —
+   `world_builder_pushdown_minimap` calls the new `minimap_push_down_tiles`
+   (`0←1, 1←2, 2←3, 3←old0`) for every `LinkBelow` column, and mapfunction icon
+   levels are remapped the same way before the spread so bridge icons match the
+   player's level at draw time. The VisBelow bake is unchanged — once the deck
+   tile sits at level 0 it composites correctly. Verify: `::tele 0,50,50,45,25`
+   → the wooden deck shows over the river; `TORIRS_BRIDGE_DEBUG=1` lists the
+   `LinkBelow` columns. Unit-locked by `test_minimap_push_down`
+   (`world_builder_test_unit.c`).
 
 ---
 
@@ -474,11 +494,24 @@ were already implemented (`uitree_hover.c` redirect + `VisibleById` unhide).
   minimap click (type 1, trailer nearest flag), positions persisting
   across sessions via server echo only; screenshots show correct draw
   order mid-stride.
-- Known follow-ons: OPLOC/OPNPC/OPOBJ interactions still send no
-  MOVE_OPCLICK path first (reference `tryMove` type 2 with loc
-  width/length/shape approach arrival); the heightmap `LinkBelow` bridge
-  bump relies on build-time baking (worth verifying for entities standing
-  on bridges).
+- **MOVE_OPCLICK follow-on — resolved (far-click session).** Loc/obj
+  interactions now pathfind first (reference `tryMove` type 2) on the same
+  click, then send the OP. `collision_map_try_route_op`
+  (`collision_map.c`) ports the approach early-outs `testLoc`/`testWall`/
+  `testWDecor` from `CollisionMap.ts` so the flood arrives on a tile beside
+  the loc's footprint (not just the exact tile), with `tryNearest=false`
+  and **no** 3x3 fallback. `app_try_move_op` (`app.c`) emits
+  `net_out_move_opclick` for the routed waypoints — always, even a
+  zero-delta route when already adjacent (matching the reference). Wired
+  into `app_minimenu_use_option` for scenery (centrepiece/ground-decor →
+  size-based `testLoc`; walls → shape+angle `testWall`, persisted at
+  `World_SceneryRegister`) and obj (exact tile, then a 1x1 retry). Covered
+  by `test_try_route_op` (`world_test_route.c`). Still to do: NPC and
+  USEHELD/TGT world-entity branches (they need the continuous re-path
+  follow loop, not a one-shot move); `forceapproach` (LocType opcode 69,
+  currently 0 for ~all locs).
+- Known follow-on: the heightmap `LinkBelow` bridge bump relies on
+  build-time baking (worth verifying for entities standing on bridges).
 
 
 ---
@@ -667,7 +700,9 @@ New pieces:
   all render, clipped to the world viewport.
 
 Not ported: overhead chat text and headicons (the other two `drawEntities`
-overlays), and hint arrows.
+overlays), and hint arrows. These are *world* entity overlays and stay distinct
+from the *interface* chatbox chathead models in §17 (an NPC/player head in a
+dialogue MODEL widget) — different pipeline, different draw path.
 
 #### Follow-up: the number rendered ~1 line too low with no visible shadow
 
@@ -951,3 +986,56 @@ Still not done: player right-click options (`addPlayerOptions` /
 `USEHELD_ONPLAYER` / `TGT_PLAYER`), and an explicit "deselect" for an armed
 mode (reference clears `useMode`/`targetMode` on several other actions; torirs
 clears them only on completion).
+
+---
+
+## 17. Interface chathead models (chatbox NPC/player heads) — ✅ (npc via IF1)
+
+### Client-TS
+Dialogue interfaces show a rotating NPC or player head in a MODEL widget. The
+model is typed: `IfType.getModel` (`IfType.ts:396`) switches on `model1Type` —
+1 = archive model, **2 = `NpcType.list(id).getHead()`**, 3 =
+`localPlayer.getHeadModel()`, 4 = obj. `NpcType.getHead` (`NpcType.ts:233`)
+merges the npc's `head[]` models (`Model.combineForAnim`) and applies the npc
+recolours; `ClientPlayer.getHeadModel` (`ClientPlayer.ts:556`) merges the
+appearance slots' idk/obj head parts + body recolours. The server drives it
+with the IF1 packets `IF_SETNPCHEAD` / `IF_SETPLAYERHEAD` (set `model1Type`+id)
+and `IF_SETANIM` (talk/idle seq), resolved lazily by the synchronous cache.
+
+### torirs
+Root cause was three-fold: the head packets were parsed but never executed
+(only `IF_SETMODEL` was), `EnsureModel` treated every id as an archive model
+(no type 2/3), and `ToriRS_Npctype` had no `heads[]` at all.
+
+- **Heads decode:** `ToriRS_Npctype.heads`/`heads_count`, copied from dat1
+  `NpcType.heads` / dat2 `chathead_models` in `torirs_npctype_from_rscache.c`
+  (mirrors the `models[]` copy; `ToriRS_Idk` already carried `heads[10]`).
+- **Compositors** (`uitree_scene_bridge.c`, following `EnsurePlayerModel`):
+  `UITreeSceneBridge_EnsureNpcHead(npc_id)` merges the npc head models + npc
+  recolours (port of v0 `entity_scenebuild.c npc_head_model`), memoized by
+  npc_id in a new `npc_head_map` on the reserved id range
+  `UITREE_SCENE_NPC_HEAD_BASE | npc_id`. `EnsurePlayerHead` merges the local
+  appearance idks' `heads[]` + body recolours (`UITREE_SCENE_PLAYER_HEAD_ID`).
+- **IF1 exec** (`rs_gameproto_exec.c`): `IF_SETNPCHEAD` →
+  `App_SetInterfaceNpcHead`, `IF_SETPLAYERHEAD` → `App_SetInterfacePlayerHead`,
+  `IF_SETANIM` → new `UITree_ApplyModelAnim`. Because loads are async, the App
+  helpers enqueue a `Task_AppIfHead` (exec runner) that awaits `NpcLoad` + each
+  head `ModelLoad`, composites via the Ensure API, then binds the scene model
+  onto the widget with `UITree_ApplyModel` — the async analogue of the
+  reference's lazy `getHead`.
+- **CS2** (`rs_cs2_host.c exec_widget_set_model_kind`): `NPC_HEAD` (kind 2) →
+  `EnsureNpcHead(model_id=npc_id)`, `PLAYER_HEAD/SELF/CHATHEAD` (3/5/6) →
+  `EnsurePlayerHead`; applies once assets are resident (previously it wrongly
+  applied the npc id as a raw archive model).
+
+Drawing path (`soft3d_draw_model_widget`) was already correct once a head scene
+model exists.
+
+**Verify:** talk to an NPC whose dialogue sets a chatbox head (`IF_OPENCHAT` +
+`IF_SETNPCHEAD`) — the head model appears and animates in the chatback.
+
+Deferred (documented): `ToriRS_Component.model_type` is decoded but not threaded
+to the MODEL node, so a *statically* type-2/3 component is not resolved at bake
+time — the dialogue path sets those heads at runtime via `IF_SETNPCHEAD`
+anyway, and a static bake would additionally need async head-asset preload to
+render. Distinct from §12 headicons / overhead chat, which remain unported.

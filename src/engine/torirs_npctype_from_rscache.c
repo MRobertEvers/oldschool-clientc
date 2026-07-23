@@ -41,6 +41,24 @@ torirs_npctype_copy_models(
 }
 
 static void
+torirs_npctype_copy_heads(
+    struct ToriRS_Npctype* dst,
+    const int* heads,
+    int heads_count)
+{
+    dst->heads_count = heads_count;
+    if( heads_count <= 0 || !heads )
+    {
+        dst->heads_count = 0;
+        return;
+    }
+
+    dst->heads = malloc((size_t)heads_count * sizeof(int));
+    assert(dst->heads);
+    memcpy(dst->heads, heads, (size_t)heads_count * sizeof(int));
+}
+
+static void
 torirs_npctype_copy_pairs_int(
     int** dst_from,
     int** dst_to,
@@ -112,6 +130,7 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->combat_level = src->vislevel;
     npctype->size = src->size;
     torirs_npctype_copy_models(npctype, src->models, src->models_count);
+    torirs_npctype_copy_heads(npctype, src->heads, src->heads_count);
 
     /* dat1-era npcs carry no retexture pairs. */
     torirs_npctype_copy_pairs_int(
@@ -155,6 +174,7 @@ ToriRS_NpctypeFromRSCacheDat2(
     npctype->combat_level = src->combat_level;
     npctype->size = src->size;
     torirs_npctype_copy_models(npctype, src->models, src->models_count);
+    torirs_npctype_copy_heads(npctype, src->chathead_models, src->chathead_models_count);
 
     torirs_npctype_copy_pairs_short(
         &npctype->recolors_from,

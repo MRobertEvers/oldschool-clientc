@@ -18,6 +18,7 @@ extern int g_failures;
 /* Unit tests (no disk). */
 void test_painters_smoke(void);
 void test_painters_tile_order(void);
+void test_minimap_push_down(void);
 void test_builder_lifecycle(void);
 
 /* Cache-backed render integration test (skips if cache dir missing). */

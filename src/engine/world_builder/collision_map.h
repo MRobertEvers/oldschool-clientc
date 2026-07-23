@@ -145,6 +145,44 @@ collision_map_try_route(
     int max_route,
     int* out_used_nearest);
 
+/* Loc/obj approach descriptor for op-clicks (reference Client.tryMove type 2).
+ * The flood arrives on any tile that satisfies the loc's approach test, not just
+ * the exact destination — matching interactWithLoc / obj doAction:
+ *   - sized loc (centrepiece / ground decor): loc_width,loc_length (+forceapproach)
+ *     let a tile inside or beside the footprint arrive (testLoc).
+ *   - wall / wall-decor: loc_shape = reference locShape (shape + 1) with loc_angle
+ *     lets an adjacent tile that can face the wall arrive (testWall/testWDecor).
+ *   - obj / plain tile: loc_width = loc_length = 0 and loc_shape = 0 → exact tile
+ *     only (or pass 1x1 for the reference's obj fallback).
+ * loc_shape here is the reference locShape value (RSCACHE loc shape + 1); 0 means
+ * "no wall test" (WALL_STRAIGHT), so an unshaped loc leaves the wall tests off. */
+struct CollisionApproach
+{
+    int loc_width;
+    int loc_length;
+    int loc_angle;
+    int loc_shape;
+    int forceapproach;
+};
+
+/* Same backtrace/route layout as collision_map_try_route, but arrival is decided
+ * by `approach` (reference tryMove type 2, tryNearest = false — no 3x3 fallback).
+ * route[0] is the arrival tile (which may be adjacent to the loc, not the loc
+ * tile), ascending toward the source; the source tile is never stored. Returns
+ * route length (>= 1; already-adjacent yields 1 so the caller still emits a
+ * zero-delta MOVE_OPCLICK), or -1 when unreachable / the route overflows. */
+int
+collision_map_try_route_op(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach,
+    int* route_x,
+    int* route_z,
+    int max_route);
+
 static inline int
 collision_map_index_at(
     struct CollisionMap* cm,

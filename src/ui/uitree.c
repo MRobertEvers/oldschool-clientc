@@ -1758,6 +1758,22 @@ UITree_ApplyModelAngle(
 }
 
 bool
+UITree_ApplyModelAnim(
+    struct UITree* tree,
+    int component_id,
+    int anim_seq_id)
+{
+    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
+        return false;
+    tree->components[idx].u.rs_model.anim_seq_id = anim_seq_id;
+    tree->components[idx].u.rs_model.anim_frame = 0;
+    tree->components[idx].u.rs_model.anim_frame_cycle = 0;
+    UITree_MarkNodeDirty(tree, idx);
+    return true;
+}
+
+bool
 UITree_ApplyTextFont(
     struct UITree* tree,
     int component_id,

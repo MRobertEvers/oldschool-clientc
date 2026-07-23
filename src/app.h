@@ -235,6 +235,9 @@ struct App
     /* Phase 4: game state. */
     struct UITree* tree;
     struct InvManager invs;
+    /* One inv obj-icon reconcile task in flight at a time (per-tick scan
+     * re-enqueues while any item slot still lacks a rasterized icon). */
+    int inv_icon_reconcile_inflight;
     struct VarPManager varps;
     struct RS_PlayerStats stats;
     struct RS_CS2Host host;
@@ -400,6 +403,17 @@ App_OpenRootInterface(struct App* app, int interface_id);
 /** IF_SETTEXT: persist (reference IfType.list semantics) + apply if mounted. */
 void
 App_IfTextSet(struct App* app, int com_id, char const* text);
+
+/** IF_SETNPCHEAD: load the npctype + its head models, composite the chathead,
+ *  and bind it to the MODEL widget (reference IfType.getModel type 2). Async —
+ *  the head appears once the assets resolve. */
+void
+App_SetInterfaceNpcHead(struct App* app, int component_id, int npc_id);
+
+/** IF_SETPLAYERHEAD: composite the local player's chathead onto the MODEL
+ *  widget (reference IfType.getModel type 3). Async. */
+void
+App_SetInterfacePlayerHead(struct App* app, int component_id);
 
 /** Pump the boot to completion (headless harnesses and tests only — the
  * interactive loop must NOT call this; it renders the loading state

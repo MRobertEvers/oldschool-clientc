@@ -34,6 +34,12 @@ struct UITreeSceneBridge
     /** Composited default player avatar model; -1 until first built. */
     int player_scene_id;
 
+    /** Composited local-player chathead model; -1 until first built. */
+    int player_head_scene_id;
+
+    /** npc_id → composited chathead scene model id (reference NpcType.getHead). */
+    struct HMap* npc_head_map;
+
     /** Texture ids whose load already failed; never re-requested. */
     unsigned char texture_failed[256];
 };
@@ -44,6 +50,13 @@ struct UITreeSceneBridge
 /* Reserved scene sprite id for the baked world map the minimap blits from
  * (out of the bridge's next_scene_id range, which counts up from 1). */
 #define UITREE_SCENE_WORLD_MAP_SPRITE_ID 0x40000001
+
+/* Reserved scene model id for the composited local-player chathead. */
+#define UITREE_SCENE_PLAYER_HEAD_ID 0x40000002
+
+/* Base of the reserved scene-model id range for composited NPC chatheads
+ * (id = base | npc_id); distinct from cache model ids and the avatars above. */
+#define UITREE_SCENE_NPC_HEAD_BASE 0x50000000
 
 void
 UITreeSceneBridge_Init(
@@ -111,6 +124,25 @@ UITreeSceneBridge_EnsureModel(
  */
 int
 UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge);
+
+/**
+ * Composite an NPC's chathead (NpcType.heads merged + npc recolours) and register
+ * it in the scene, keyed/memoized by npc_id. Requires the npctype + its head
+ * models already in the provider. Returns the scene model id or -1.
+ * Reference: NpcType.getHead (Client-TS) / npc_head_model (v0 entity_scenebuild).
+ */
+int
+UITreeSceneBridge_EnsureNpcHead(
+    struct UITreeSceneBridge* bridge,
+    int npc_id);
+
+/**
+ * Composite the local player's chathead (IdentityKit head parts merged +
+ * recoloured) and register it in the scene. Built once, then cached.
+ * Returns the scene model id or -1. Reference: ClientPlayer.getHeadModel.
+ */
+int
+UITreeSceneBridge_EnsurePlayerHead(struct UITreeSceneBridge* bridge);
 
 /**
  * Rasterize an inventory/obj icon into the scene (32x32).

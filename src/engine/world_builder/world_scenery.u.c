@@ -356,6 +356,8 @@ scenery_load_model(
             map_tile->chunk_pos_level,
             size_x,
             size_z,
+            shape_select,
+            rotation,
             config_loc->name,
             actions32,
             config_loc->is_interactive);

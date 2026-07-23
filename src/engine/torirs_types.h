@@ -232,6 +232,11 @@ struct ToriRS_Npctype
     int size;
     int* models;
     int models_count;
+    /** Chathead models (dat1 NpcType.heads / dat2 chathead_models). Merged and
+     *  recoloured into the interface MODEL scene node when a dialogue sets an
+     *  NPC head (reference NpcType.getHead). NULL/0 when the npc has no head. */
+    int* heads;
+    int heads_count;
     int* recolors_from;
     int* recolors_to;
     int recolor_count;
@@ -272,6 +277,13 @@ struct ToriRS_Objtype
     char ground_actions[TORIRS_MENU_ACTION_SLOTS][TORIRS_MENU_ACTION_LEN];
     uint8_t stackable;
     int inventory_model_id;
+    /* Noted-item linkage (reference ObjType certlink/certtemplate, opcodes
+     * 97/98; dat2 noted_id/noted_template). When cert_template >= 0 the item is
+     * a bank note: its own model is 0 and the icon renders the cert_template
+     * objtype's model (genCert), while cert_link names the base item. -1 = not
+     * a note. */
+    int cert_link;
+    int cert_template;
     int zoom2d;
     int xan2d;
     int yan2d;

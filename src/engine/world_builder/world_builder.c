@@ -173,6 +173,25 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
     }
 }
 
+/* Minimap sibling to the geometry push-down in RebuildCenterzoneEnd: for each
+ * LinkBelow bridge column, shift the baked minimap tiles down a plane so the
+ * deck (cache level 1) lands at paint level 0. Mirrors World.pushDown; the
+ * land-settings (tile_flags) stay raw so the bake's VisBelow composite is
+ * unchanged. */
+static void
+world_builder_pushdown_minimap(struct WorldBuilder* builder)
+{
+    struct World* world = builder->world;
+    if( !world->minimap || !builder->flag_map )
+        return;
+
+    int scene_size = world->_scene_size;
+    for( int x = 0; x < scene_size; x++ )
+        for( int z = 0; z < scene_size; z++ )
+            if( (flag_map_get(builder->flag_map, x, z, 1) & RSCACHE_FLOFLAG_LINK_BELOW) != 0 )
+                minimap_push_down_tiles(world->minimap, x, z);
+}
+
 void
 WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
 {
@@ -182,6 +201,28 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
     world_collision_apply_bridges(builder);
     world_contour_ground(builder);
     world_builder_apply_wall_decor_offsets(builder);
+
+    /* Bridge decks are LinkBelow: the collision push-down above (and the tile /
+     * geometry push-down below) move a bridge column from cache level 1 to paint
+     * level 0. Mapfunction icons still carry their raw cache level, so pull each
+     * icon on a LinkBelow column to its paint level before the spread — otherwise
+     * the spread samples the wrong (pre-push-down) collision map and, at draw
+     * time, the icon's level never matches the player's level (app.c minimap icon
+     * loop) so bridge icons vanish. Same remap the painter uses: 1→0, 2→1, 3→2,
+     * 0→3. */
+    if( builder->flag_map )
+    {
+        for( int i = 0; i < world->mapfunc_count; i++ )
+        {
+            struct World_MapFunctionIcon* icon = &world->mapfuncs[i];
+            if( (flag_map_get(builder->flag_map, icon->x, icon->z, 1) &
+                 RSCACHE_FLOFLAG_LINK_BELOW) == 0 )
+                continue;
+            icon->level =
+                (icon->level == 0) ? WORLD_MAP_TERRAIN_LEVELS - 1 : icon->level - 1;
+        }
+    }
+
     world_builder_minimap_spread_mapfunctions(builder);
 
     if( builder->decor_buildmap )
@@ -226,6 +267,8 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
             }
         }
     }
+
+    world_builder_pushdown_minimap(builder);
 
     /* Persist the raw settings bytes (reference mapl) before the flag map
      * dies — the per-frame roof check (Client-TS roofCheck) needs
