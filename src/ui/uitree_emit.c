@@ -904,6 +904,31 @@ emit_chat(
         }
     }
 
+    /* Chat scrollbar, drawn unconditionally like the reference
+     * (drawScrollbar(463, 0, chatScrollHeight-chatScrollPos-77, chatScrollHeight,
+     * 77), Client.ts:11485). Local x=463 puts it just right of the 463-wide
+     * message column; height is the message window (77), not the full chat node.
+     * The desc-driven scrollbar_v render (torirs_frame.c) reads scroll_content /
+     * scroll_off_y straight from here, so no component backing is needed. */
+    {
+        struct UITreeEmitDesc desc;
+        memset(&desc, 0, sizeof(desc));
+        desc.kind = UITREE_EMIT_SCROLLBAR_V;
+        desc.node_index = idx;
+        desc.component_id = c->component_id;
+        desc.x = x + 463;
+        desc.y = y;
+        desc.w = UITREE_SCROLLBAR_THICKNESS;
+        desc.h = 77;
+        desc.scroll_content = view->scroll_height;
+        desc.scroll_off_y = view->scroll_pos;
+        desc.scene_id = host_scrollbar_scene(host);
+        desc.atlas_index = 0;
+        desc.if3 = 0;
+        desc.clip = *parent_clip;
+        emit_buffer_append(out, &desc);
+    }
+
     if( view->has_input_line )
     {
         struct UIChatViewLine const* line = &view->input_line;

@@ -10,6 +10,42 @@
 #include <string.h>
 #include <strings.h>
 
+/* The rev-254 OP*1..5 action ids are NOT contiguous (revconfig.h:52-69), so
+ * `OP*1 + slot` only resolves correctly for slot 0. The reference assigns them
+ * with a per-slot switch (Client.ts addNpcOptions:9730-9740); mirror that with
+ * a lookup so RS_Minimenu_CrossModeForAction (an exact-id switch) still matches
+ * and the interact cross appears for ops in slots 1..4 (bug: NPC attack/talk
+ * often lands on a non-zero slot → no red cross). */
+static int
+opnpc_action_for_slot(int slot)
+{
+    static int const ids[5] = {
+        REVCONFIG_MINIMENU_OPNPC1, REVCONFIG_MINIMENU_OPNPC2, REVCONFIG_MINIMENU_OPNPC3,
+        REVCONFIG_MINIMENU_OPNPC4, REVCONFIG_MINIMENU_OPNPC5,
+    };
+    return (slot >= 0 && slot < 5) ? ids[slot] : REVCONFIG_MINIMENU_OPNPC1;
+}
+
+static int
+oploc_action_for_slot(int slot)
+{
+    static int const ids[5] = {
+        REVCONFIG_MINIMENU_OPLOC1, REVCONFIG_MINIMENU_OPLOC2, REVCONFIG_MINIMENU_OPLOC3,
+        REVCONFIG_MINIMENU_OPLOC4, REVCONFIG_MINIMENU_OPLOC5,
+    };
+    return (slot >= 0 && slot < 5) ? ids[slot] : REVCONFIG_MINIMENU_OPLOC1;
+}
+
+static int
+opobj_action_for_slot(int slot)
+{
+    static int const ids[5] = {
+        REVCONFIG_MINIMENU_OPOBJ1, REVCONFIG_MINIMENU_OPOBJ2, REVCONFIG_MINIMENU_OPOBJ3,
+        REVCONFIG_MINIMENU_OPOBJ4, REVCONFIG_MINIMENU_OPOBJ5,
+    };
+    return (slot >= 0 && slot < 5) ? ids[slot] : REVCONFIG_MINIMENU_OPOBJ1;
+}
+
 /* True and emits the single use/target row when a select mode is active for
  * this target kind (reference addWorldOptions useMode/targetMode branches):
  * "Use <obj> with <colour><name>" or "<targetOp> <colour><name>". mask_bit is
@@ -92,7 +128,7 @@ add_npc_rows(
         if( strcasecmp(npc->actions[i].name, "attack") == 0 )
             continue;
         snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
-        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPNPC1 + i, i, pick);
+        UIMinimenu_AddOption(menu, text, opnpc_action_for_slot(i), i, pick);
     }
     for( int i = 4; i >= 0; i-- )
     {
@@ -101,7 +137,7 @@ add_npc_rows(
         if( strcasecmp(npc->actions[i].name, "attack") != 0 )
             continue;
         snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
-        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPNPC1 + i, i, pick);
+        UIMinimenu_AddOption(menu, text, opnpc_action_for_slot(i), i, pick);
     }
 
     snprintf(text, sizeof(text), "Examine @yel@ %s", tooltip);
@@ -135,7 +171,7 @@ add_scenery_rows(
         if( scenery->actions[i].name[0] == '\0' )
             continue;
         snprintf(text, sizeof(text), "%s @cya@ %s", scenery->actions[i].name, name);
-        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPLOC1 + i, i, pick);
+        UIMinimenu_AddOption(menu, text, oploc_action_for_slot(i), i, pick);
     }
 
     snprintf(text, sizeof(text), "Examine @cya@ %s", name);
@@ -172,7 +208,7 @@ add_obj_rows(
         if( stack->actions[i].name[0] != '\0' )
         {
             snprintf(text, sizeof(text), "%s @lre@ %s", stack->actions[i].name, name);
-            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPOBJ1 + i, i, pick);
+            UIMinimenu_AddOption(menu, text, opobj_action_for_slot(i), i, pick);
         }
         else if( i == 2 )
         {

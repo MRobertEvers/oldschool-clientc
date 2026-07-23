@@ -328,6 +328,7 @@ interact_scrollbars(
     int mx = input->curr.mouse_x;
     int my = input->curr.mouse_y;
     int left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+    int left_down = LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT);
     int consumed = 0;
 
     if( interact->sb_dragging )
@@ -343,8 +344,12 @@ interact_scrollbars(
         else
             interact->sb_dragging = 0;
     }
-    else if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+    else if( left_held )
     {
+        /* Arrows scroll continuously while the button is held (not just on the
+         * press edge). Re-hittest the current pointer every frame — as in TS
+         * doScrollbar, moving off the arrow stops the step and moving back on
+         * resumes it. The grip drag can only be *started* on the press edge. */
         struct UITreeScrollbarHitInfo hit;
         if( UITree_FindScrollbarAt(tree, ui_host, mx, my, &hit) )
         {
@@ -355,13 +360,14 @@ interact_scrollbars(
             consumed = 1;
             if( UITree_ScrollbarIsArrowKind(hit.kind) )
             {
+                interact->sb_arrow_held = 1;
                 if( UITree_ScrollbarHandle(
                         tree, &hit, mx, my, UITREE_SCROLLBAR_ACTION_ARROW_STEP, 0) )
                     out->need_redraw = 1;
-                interact->sb_dragging = 0;
             }
-            else if( UITree_ScrollbarIsGripKind(hit.kind) )
+            else if( left_down && UITree_ScrollbarIsGripKind(hit.kind) )
             {
+                interact->sb_arrow_held = 0;
                 interact->sb_drag_hit = hit;
                 interact->sb_dragging = 1;
                 if( UITree_ScrollbarHandle(
@@ -370,8 +376,27 @@ interact_scrollbars(
                     out->need_redraw = 1;
             }
         }
+        else if( interact->sb_arrow_held )
+        {
+            /* Held off the arrow after latching: keep owning the mouse (so the
+             * eventual release cannot leak into a world walk-click) but stop
+             * stepping until the pointer returns to the arrow. */
+            consumed = 1;
+        }
     }
-    return interact->sb_dragging || consumed;
+    else if( interact->sb_arrow_held )
+    {
+        /* Release frame of an arrow hold: consume it so IsClick does not fall
+         * through to left_click_miss (the yellow "Walk here" cross), then retire
+         * the latch. */
+        consumed = 1;
+        interact->sb_arrow_held = 0;
+    }
+
+    if( !left_held )
+        interact->sb_arrow_held = 0;
+
+    return interact->sb_dragging || interact->sb_arrow_held || consumed;
 }
 
 /* Mouse wheel. IF1: natively step scroll_y of the layer under the cursor.

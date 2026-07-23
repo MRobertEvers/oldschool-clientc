@@ -25,6 +25,12 @@ struct UIInteraction
      * owns that bar until release (mirrors TS scrollGrabbed). */
     struct UITreeScrollbarHitInfo sb_drag_hit;
     int sb_dragging;
+    /* IF1 scrollbar arrow hold-to-scroll: an arrow press latches this so the bar
+     * keeps stepping (and keeps owning the mouse) every frame the button is held,
+     * matching TS doScrollbar's per-frame `scrollPos += scrollCycle*4` arrow
+     * branch. Owning the mouse through the release also stops the leaked press
+     * from becoming a "Walk here" world click. */
+    int sb_arrow_held;
     int hover_com_id;
     int prev_hover_com_id;
     uint64_t last_repeat_ms;
