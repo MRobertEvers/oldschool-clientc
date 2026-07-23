@@ -145,6 +145,7 @@ seq_build_animation(struct Task_Dat1SequenceLoad* self)
             .duplicate_behavior = seq->duplicate_behavior,
             .replaceheldleft = seq->replaceheldleft,
             .replaceheldright = seq->replaceheldright,
+            .stretches = seq->stretches ? 1 : 0,
         };
         /* Reference SeqType.unpack post-decode: unset move behaviors default
          * to DELAYMOVE (0), or MERGE (2) when a walkmerge mask exists. */

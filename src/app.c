@@ -1754,6 +1754,13 @@ app_seq_preanim_move(void* userdata, int seq_id)
     return anim ? anim->preanim_move : 0;
 }
 
+static int
+app_seq_stretches(void* userdata, int seq_id)
+{
+    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
+    return anim ? anim->stretches : 0;
+}
+
 /* World_SeqSource.spotanim_seq: resolve a spotanim id to its animation seq id so
  * the world can step an entity's attached-graphic frame. -1 when the id is
  * invalid or the spotanimtype is not yet resident (the world then waits). */
@@ -2013,6 +2020,7 @@ App_WorldLoadFinish(struct App* app)
                 .priority = app_seq_priority,
                 .duplicate_behavior = app_seq_duplicate_behavior,
                 .preanim_move = app_seq_preanim_move,
+                .stretches = app_seq_stretches,
                 .spotanim_seq = app_spotanim_seq,
             };
             World_SetSeqSource(app->world, &seq_source);

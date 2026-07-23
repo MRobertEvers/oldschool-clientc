@@ -3356,3 +3356,115 @@ constructor leaves in place. The dat2 decoder neither converts the `65535` senti
 nor defaults an absent opcode to `-1`, so both `<= 0` and `65535` map to `-1` (no
 override); this gives up the rare explicit "hide via 0", which the dat1 path still
 honours through its proper `-1` defaults. Full build clean.
+
+## 46. Bridge tiles drew the water underneath on the minimap — push-down ran before the colours were set — ✅
+
+### Symptom
+
+Every bridge deck (a `LinkBelow` column) drew the terrain *below* it on the
+minimap — the River Lum bridges east/south of Lumbridge showed the murky
+riverbank/water (`0x7d7213`) instead of the wooden deck (`0x7e5f3b`). The 3D
+world, collision, and map icons all placed the deck correctly; only the minimap
+colours were wrong.
+
+### Root cause — ordering
+
+The minimap deck is not read from a live tile like the reference; torirs pre-bakes
+per-level colours into `Minimap.tiles` and then *structurally* shifts a `LinkBelow`
+column's planes down one (`minimap_push_down_tiles`, the `World.pushDown` mirror)
+so the deck at cache level 1 lands on paint level 0 (§ the "minimap bridges"
+commit). That shift lived at the **top** of `WorldBuilder_RebuildCenterzoneEnd`
+(`world_builder.c`) — but the per-level minimap colours are set by
+`world_build_scene_terrain`, called ~25 lines **later** in the same function.
+Instrumenting the push-down showed the smoking gun: `MINIMAP nonzero tile-levels:
+0 (of 16384)` — it was shuffling a completely empty minimap. The colours then
+landed at their raw cache levels (deck at level 1, water at level 0) with no shift
+applied, so the level-0 map drew the water. (The push-down *was* firing — 40
+`LinkBelow` columns found — it just ran too early.) The reference has no such bug
+because it calls `world.pushDown` at the very end of `ClientBuild.finishBuild`,
+after every `setGround` (`ClientBuild.ts:334-340`).
+
+### Fix
+
+Moved `world_builder_pushdown_minimap(builder)` to run **after**
+`world_build_scene_terrain` (which sets the colours) and after the scenery pass
+that sets minimap walls, so the shift moves fully-populated tiles — matching the
+reference's end-of-build ordering. Because `builder->flag_map` is freed earlier in
+the function, the push-down now reads the already-persisted `world->tile_flags`
+(same level-indexed buffer the bake reads) for the `LinkBelow` bit at cache level
+1, instead of the freed `flag_map`. Verified offline at Lumbridge (`TORIRS_WORLD_MAP=50,50`):
+each bridge column's level-0 foreground now resolves to the deck plank
+`0x7e5f3b` after the shift, where it previously kept the riverbank colour. Full
+build + `test-world-builder` clean (the existing `test_minimap_push_down` unit
+test still passes — `minimap_push_down_tiles` itself is unchanged).
+
+## 47. Moving NPCs drew in front of walls — the mover footprint dropped `forwardPadding` — ✅
+
+### Symptom
+
+NPCs playing a stretching action (attacks, gestures, and the walk cycles whose
+seq sets `stretches`) drew *on top of* a wall they were standing next to or
+moving toward, instead of being occluded by it. Stationary, non-stretching NPCs
+ordered correctly; the glitch only showed on entities actively animating a
+stretch. The visible complaint — "the painter's tile location isn't updated as
+the NPC moves" — was really a too-small tile footprint, not a stale position.
+
+### Root cause — the painter defers a sprite until its whole tile span is drawn
+
+The World3D painter (`painters_world3d.u.c`, reference `World.draw`) draws a
+dynamic sprite only once **every tile in its `minTileX..maxTileX` /
+`minTileZ..maxTileZ` span has been painted** — that span is what makes a wall in
+front of an entity draw first. The reference builds that span in
+`World.addDynamic` (`Client.ts:505`): symmetric `±padding` around the fine draw
+position, **plus** a `forwardPadding` block that pushes one span edge out a full
+tile (`128`) along the entity's yaw:
+
+```js
+if (forwardPadding) {
+    if (yaw > 640 && yaw < 1408) z1 += 128;
+    if (yaw > 1152 && yaw < 1920) x1 += 128;
+    if (yaw > 1664 || yaw < 384) z0 -= 128;
+    if (yaw > 128 && yaw < 896) x0 -= 128;
+}
+```
+
+`forwardPadding` is `ClientEntity.needsForwardDrawPadding`, set once per cycle at
+the end of `entityAnim` from the active **primary** seq: `e.needsForwardDrawPadding
+= seq.stretches` (`Client.ts:4069`), and cleared to `false` at the top of the
+same method. A stretching model reaches into the tile ahead, so it must register
+over that tile or the painter releases it a tile too early — in front of the
+wall.
+
+torirs' `World_EntityPainterFootprint` (`world_cycle.c`) ported only the
+symmetric `±padding` half. The `stretches` flag was decoded on both the dat1 and
+dat2 seq configs but never carried onto the baked `ToriDraw_Animation`, and
+`World_StepEntityAnimation` (the `entityAnim` port) dropped the final
+`needsForwardDrawPadding = seq.stretches` line, so nothing ever asked for the
+extra tile.
+
+### Fix — plumb `stretches` through and restore `forwardPadding`
+
+1. Carried `stretches` onto `ToriDraw_Animation` via `ToriDraw_AnimSeqMeta`
+   (`toridraw_animation.{h,c}`): set from `seq->stretches` at the dat1 seq-meta
+   site and directly on the dat2 path (which, like `replaceheld*`, bypasses
+   `SetSeqMeta` to avoid clobbering constructor defaults with the memset-0
+   config). Exposed it through `World_SeqSource.stretches` +
+   `app_seq_stretches`.
+2. Added `needs_forward_draw_padding` to the entity Animation facet.
+   `World_StepEntityAnimation` now clears it at the top every cycle and
+   re-asserts it from `cycle_seq_stretches` inside the un-delayed primary-anim
+   block, reading the seq captured at block top so a seq that just finished this
+   cycle still contributes — matching the reference.
+3. `World_EntityPainterFootprint` gained `yaw` + `forward_padding` params and
+   applies the `forwardPadding` block on the pre-`>>7` fine span (the `/128`
+   truncates toward zero, matching JS `(x0/128)|0`, so a near-edge negative edge
+   still rejects via the existing bounds check). The player and NPC mover
+   registrations pass `orientation.yaw` and `animation.needs_forward_draw_padding`;
+   projectiles pass `0`/`0` (reference `addDynamic(..., false)`).
+
+The mover position itself was already live — `draw_position` is interpolated
+each cycle and the footprint reads it — so no position tracking changed; only
+the span the painter uses to *order* the entity did. Verified with a new
+`test-world` assertion: a tile-centred size-1 entity facing south (yaw 1024)
+spans one extra tile in `+z` with the flag set and collapses to a single tile
+without it. Full `test-world`, `test-walkmerge`, and app build all clean.

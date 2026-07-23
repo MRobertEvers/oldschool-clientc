@@ -45,6 +45,12 @@ struct ToriDraw_Animation
     int preanim_move;       /* seq opcode 9 (PreanimMove) */
     int postanim_move;      /* seq opcode 10 (PostanimMove) */
     int duplicate_behavior; /* seq opcode 11 (RestartMode) */
+    /** Whether the model stretches vertically along its motion while this seq
+     * plays as the primary animation (reference SeqType.stretches, seq opcode
+     * 13). Drives the entity's forward draw-padding: a stretching action makes
+     * the model reach a tile ahead, so the painter must register it over that
+     * extra tile or it draws in front of a wall it should sit behind. 0/1. */
+    int stretches;
     /** Held-item overrides while this seq plays as the primary animation
      * (reference SeqType.replaceheldleft/right, opcodes 6/7). A value >= 0
      * replaces the player appearance's left-hand (slot 5) / right-hand (slot 3)
@@ -66,6 +72,7 @@ struct ToriDraw_AnimSeqMeta
     int duplicate_behavior;
     int replaceheldleft;
     int replaceheldright;
+    int stretches;
 };
 
 void

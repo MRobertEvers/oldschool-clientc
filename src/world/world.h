@@ -60,6 +60,11 @@ struct World_SeqSource
     int (*priority)(void* userdata, int seq_id);
     int (*duplicate_behavior)(void* userdata, int seq_id);
     int (*preanim_move)(void* userdata, int seq_id);
+    /* Non-zero when the seq stretches the model along its motion (reference
+     * SeqType.stretches). Drives the entity's forward draw-padding so a
+     * stretching primary action registers with the painter over the tile ahead
+     * and does not draw in front of a wall it should sit behind. */
+    int (*stretches)(void* userdata, int seq_id);
     /* Resolve a spotanim (SpotType) id to its animation seq id (-1 if none or
      * not yet resident). Lets the world step an entity's attached-graphic frame
      * from the spot's own seq without pulling in cache/config types. */
@@ -196,12 +201,21 @@ struct World_PainterFootprint
  * — the reference World.setSprite rejects such a sprite wholesale rather than
  * clamping it, so the caller must skip registration (never draw it). Clamping
  * instead would store an out-of-bounds element sx and crash the painter's tile
- * lookup on the next frame. */
+ * lookup on the next frame.
+ *
+ * When `forward_padding` is non-zero the span is extended one tile along `yaw`
+ * (reference World.addDynamic forwardPadding, driven by
+ * ClientEntity.needsForwardDrawPadding): a stretching primary animation reaches
+ * into the tile ahead, so it must register there or the painter draws it in
+ * front of a wall it should sit behind. `yaw` is a 0..2047 orientation and is
+ * ignored when `forward_padding` is 0. */
 bool
 World_EntityPainterFootprint(
     int pos_x,
     int pos_z,
     int draw_padding,
+    int yaw,
+    int forward_padding,
     int scene_size,
     struct World_PainterFootprint* out);
 

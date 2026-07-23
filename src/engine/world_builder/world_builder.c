@@ -176,20 +176,33 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
 /* Minimap sibling to the geometry push-down in RebuildCenterzoneEnd: for each
  * LinkBelow bridge column, shift the baked minimap tiles down a plane so the
  * deck (cache level 1) lands at paint level 0. Mirrors World.pushDown; the
- * land-settings (tile_flags) stay raw so the bake's VisBelow composite is
- * unchanged. */
+ * land-settings (world->tile_flags) stay raw so the bake's VisBelow composite is
+ * unchanged.
+ *
+ * MUST run AFTER world_build_scene_terrain has set the per-level minimap colours
+ * (and after the scenery pass has set minimap walls) — otherwise it shuffles an
+ * empty minimap and the deck colour, set later at cache level 1, never reaches
+ * paint level 0, leaving the bridge showing the water underneath. Reads the
+ * already-persisted world->tile_flags because builder->flag_map is freed earlier
+ * in RebuildCenterzoneEnd. */
 static void
 world_builder_pushdown_minimap(struct WorldBuilder* builder)
 {
     struct World* world = builder->world;
-    if( !world->minimap || !builder->flag_map )
+    int scene_size = world->_scene_size;
+    int plane = scene_size * scene_size;
+
+    if( !world->minimap || !world->tile_flags )
         return;
 
-    int scene_size = world->_scene_size;
     for( int x = 0; x < scene_size; x++ )
         for( int z = 0; z < scene_size; z++ )
-            if( (flag_map_get(builder->flag_map, x, z, 1) & RSCACHE_FLOFLAG_LINK_BELOW) != 0 )
+        {
+            /* LinkBelow lives at cache level 1 (index += 1*plane). */
+            int idx1 = (x + z * scene_size) + plane;
+            if( (world->tile_flags[idx1] & RSCACHE_FLOFLAG_LINK_BELOW) != 0 )
                 minimap_push_down_tiles(world->minimap, x, z);
+        }
 }
 
 void
@@ -282,8 +295,6 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
         }
     }
 
-    world_builder_pushdown_minimap(builder);
-
     /* Persist the raw settings bytes (reference mapl) before the flag map
      * dies — the per-frame roof check (Client-TS roofCheck) needs
      * REMOVE_ROOF/LINK_BELOW at play time, not just at build time. */
@@ -308,6 +319,12 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
 
     world_build_scene_terrain(builder);
     world_build_lighting(builder);
+
+    /* Bridge minimap push-down runs HERE, after world_build_scene_terrain has
+     * set the per-level minimap colours — shuffling the planes any earlier moves
+     * an empty minimap and leaves bridge decks showing the water below (reads the
+     * persisted world->tile_flags; builder->flag_map is already freed above). */
+    world_builder_pushdown_minimap(builder);
 
     if( builder->sharelight_map )
     {

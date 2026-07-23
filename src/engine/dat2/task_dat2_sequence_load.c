@@ -94,6 +94,11 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
         int held_right = self->seq->right_hand_item;
         anim->replaceheldleft = ( held_left <= 0 || held_left == 65535 ) ? -1 : held_left;
         anim->replaceheldright = ( held_right <= 0 || held_right == 65535 ) ? -1 : held_right;
+        /* Set directly for the same reason as the held-item fields above: a full
+         * SetSeqMeta copy would clobber the constructor's priority/max_loops
+         * defaults with the memset-0 config. Drives forward draw-padding
+         * (reference SeqType.stretches, dat2 opcode 13). */
+        anim->stretches = self->seq->stretches ? 1 : 0;
     }
     if( !anim )
     {

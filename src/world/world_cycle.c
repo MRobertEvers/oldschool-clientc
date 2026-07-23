@@ -298,6 +298,16 @@ cycle_seq_preanim_move(
 }
 
 static int
+cycle_seq_stretches(
+    struct World* world,
+    int seq_id)
+{
+    if( world->seq_source.stretches )
+        return world->seq_source.stretches(world->seq_source.userdata, seq_id);
+    return 0;
+}
+
+static int
 anim_step_active(struct WorldEntityFacet_AnimationStep const* step)
 {
     return step->anim_id != (uint16_t)-1 && step->anim_id != 0;
@@ -312,6 +322,10 @@ World_StepEntityAnimation(
     struct WorldEntityFacet_EntitySpotanim* spot,
     struct WorldEntityFacet_Pathing const* pathing)
 {
+    /* Reference entityAnim clears this at the top every cycle; only an active,
+     * un-delayed primary seq below re-asserts it from the seq's stretches flag. */
+    anim->needs_forward_draw_padding = 0;
+
     /* Secondary (idle/walk) loops forever. */
     if( anim_step_active(&anim->secondary) )
     {
@@ -408,6 +422,11 @@ World_StepEntityAnimation(
                     }
                 }
             }
+            /* Reference entityAnim (Client.ts:4069): an active, un-delayed
+             * primary seq drives the forward draw-padding from its stretches
+             * flag. Read from the seq captured at block top so a seq that just
+             * finished this cycle still contributes its padding, as upstream. */
+            anim->needs_forward_draw_padding = cycle_seq_stretches(world, seq) ? 1 : 0;
         }
         if( anim->primary.delay > 0 )
             anim->primary.delay--;
@@ -734,13 +753,36 @@ World_EntityPainterFootprint(
     int pos_x,
     int pos_z,
     int draw_padding,
+    int yaw,
+    int forward_padding,
     int scene_size,
     struct World_PainterFootprint* out)
 {
-    int x0 = (pos_x - draw_padding) / 128;
-    int z0 = (pos_z - draw_padding) / 128;
-    int x1 = (pos_x + draw_padding) / 128;
-    int z1 = (pos_z + draw_padding) / 128;
+    int x0 = pos_x - draw_padding;
+    int z0 = pos_z - draw_padding;
+    int x1 = pos_x + draw_padding;
+    int z1 = pos_z + draw_padding;
+
+    /* Extend the fine-position span one tile forward along yaw before the
+     * >>7 to tiles (reference World.addDynamic forwardPadding). Each axis edge
+     * moves out when yaw points into that half-turn, so a diagonal facing
+     * grows both a +x/-x and a +z/-z edge. */
+    if( forward_padding )
+    {
+        if( yaw > 640 && yaw < 1408 )
+            z1 += 128;
+        if( yaw > 1152 && yaw < 1920 )
+            x1 += 128;
+        if( yaw > 1664 || yaw < 384 )
+            z0 -= 128;
+        if( yaw > 128 && yaw < 896 )
+            x0 -= 128;
+    }
+
+    x0 /= 128;
+    z0 /= 128;
+    x1 /= 128;
+    z1 /= 128;
 
     if( x0 < 0 || z0 < 0 || x1 >= scene_size || z1 >= scene_size )
         return false;
@@ -781,10 +823,18 @@ world_dyn_tile_claim(
  * (mover span, reference World.addDynamic). */
 static void
 world_dyn_register_mover(
-    struct World* world, int element_id, int grid_level, int draw_x, int draw_z, int padding)
+    struct World* world,
+    int element_id,
+    int grid_level,
+    int draw_x,
+    int draw_z,
+    int padding,
+    int yaw,
+    int forward_padding)
 {
     struct World_PainterFootprint footprint;
-    if( !World_EntityPainterFootprint(draw_x, draw_z, padding, world->_scene_size, &footprint) )
+    if( !World_EntityPainterFootprint(
+            draw_x, draw_z, padding, yaw, forward_padding, world->_scene_size, &footprint) )
         return; /* padded span pokes off the scene edge: reference draws nothing */
     painter_add_normal_scenery(
         world->painter,
@@ -831,7 +881,9 @@ world_dyn_register_players(struct World* world, bool only_local)
             player->grid_position.level,
             (int)player->draw_position.x,
             (int)player->draw_position.z,
-            WORLD_MOVER_PAINTER_PADDING);
+            WORLD_MOVER_PAINTER_PADDING,
+            player->orientation.yaw,
+            player->animation.needs_forward_draw_padding);
     }
 }
 
@@ -870,7 +922,9 @@ world_dyn_register_npcs(struct World* world, bool alwaysontop)
             npc->grid_position.level,
             (int)npc->draw_position.x,
             (int)npc->draw_position.z,
-            WORLD_MOVER_PAINTER_PADDING + (size - 1) * 64);
+            WORLD_MOVER_PAINTER_PADDING + (size - 1) * 64,
+            npc->orientation.yaw,
+            npc->animation.needs_forward_draw_padding);
     }
 }
 
@@ -960,6 +1014,8 @@ World_CycleRegisterPainterDynamics(struct World* world)
                 (int)p->x,
                 (int)p->z,
                 WORLD_PROJECTILE_PAINTER_PADDING,
+                /*yaw=*/0,
+                /*forward_padding=*/0, /* reference addDynamic passes false for projectiles */
                 world->_scene_size,
                 &footprint) )
             continue; /* off-edge padded span: reference draws nothing */

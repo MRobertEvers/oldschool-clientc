@@ -30,6 +30,11 @@ struct WorldEntityFacet_Animation
     /* Route length at the moment the primary seq was applied (reference
      * preanimRouteLength; drives the PreanimMove.DELAYANIM gate). */
     uint8_t preanim_route_length;
+    /* Set each cycle from the active primary seq's `stretches` flag (reference
+     * ClientEntity.needsForwardDrawPadding). When set, the painter extends the
+     * entity's tile footprint one tile forward along its yaw so a stretching
+     * action does not draw in front of a wall ahead of it. */
+    uint8_t needs_forward_draw_padding;
 };
 
 /* Server-forced interpolated move (reference exactMove1/exactMove2).

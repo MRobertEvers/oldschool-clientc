@@ -265,7 +265,8 @@ test_route_coordinate_coincidence(void)
                 player->draw_position.x <= (uint32_t)(21 * 128 + 64),
             "mid-walk draw between tile centers");
         World_EntityPainterFootprint(
-            (int)player->draw_position.x, (int)player->draw_position.z, 60, world->_scene_size, &fp);
+            (int)player->draw_position.x, (int)player->draw_position.z, 60, 0, 0,
+            world->_scene_size, &fp);
         if( fp.sx == 20 && fp.sx + fp.size_x - 1 == 21 )
         {
             spanned_both = 1;
@@ -279,7 +280,8 @@ test_route_coordinate_coincidence(void)
         player->draw_position.x == 21 * 128 + 64 && player->draw_position.z == 30 * 128 + 64,
         "draw settled on tile center");
     World_EntityPainterFootprint(
-        (int)player->draw_position.x, (int)player->draw_position.z, 60, world->_scene_size, &fp);
+        (int)player->draw_position.x, (int)player->draw_position.z, 60, 0, 0,
+        world->_scene_size, &fp);
     TEST_ASSERT(fp.sx == 21 && fp.size_x == 1 && fp.sz == 30 && fp.size_z == 1,
                 "settled footprint is a single tile");
 
@@ -289,7 +291,8 @@ test_route_coordinate_coincidence(void)
     struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
     TEST_ASSERT(npc->draw_position.x == 40 * 128 + 2 * 64, "size-2 npc draw = tile*128 + size*64");
     World_EntityPainterFootprint(
-        (int)npc->draw_position.x, (int)npc->draw_position.z, 60 + (2 - 1) * 64, world->_scene_size, &fp);
+        (int)npc->draw_position.x, (int)npc->draw_position.z, 60 + (2 - 1) * 64, 0, 0,
+        world->_scene_size, &fp);
     TEST_ASSERT(fp.sx == 40 && fp.sx + fp.size_x - 1 == 41, "size-2 npc footprint covers 2 tiles x");
     TEST_ASSERT(fp.sz == 40 && fp.sz + fp.size_z - 1 == 41, "size-2 npc footprint covers 2 tiles z");
 
@@ -303,8 +306,25 @@ test_route_coordinate_coincidence(void)
         int draw_center = last * 128 + 2 * 64; /* base = last -> footprint x0 rounds to scene_size */
         struct World_PainterFootprint edge_fp;
         bool ok = World_EntityPainterFootprint(
-            draw_center, draw_center, 60 + (2 - 1) * 64, world->_scene_size, &edge_fp);
+            draw_center, draw_center, 60 + (2 - 1) * 64, 0, 0, world->_scene_size, &edge_fp);
         TEST_ASSERT(!ok, "size-2 npc on last in-scene tile is rejected, not clamped");
+    }
+
+    /* Forward draw-padding (reference World.addDynamic forwardPadding, set when a
+     * stretching primary seq is active). A tile-centred size-1 entity is a single
+     * tile without it; with it, the span extends one tile along yaw so the painter
+     * registers it over the tile ahead and it does not draw in front of a wall. */
+    {
+        int cx = 25 * 128 + 64; /* tile (25,25) centre */
+        struct World_PainterFootprint fwd;
+        /* yaw 1024 faces +z (south): z1 += 128 -> span grows one tile in +z. */
+        bool ok = World_EntityPainterFootprint(cx, cx, 60, 1024, 1, world->_scene_size, &fwd);
+        TEST_ASSERT(ok, "forward-pad footprint valid");
+        TEST_ASSERT(fwd.sx == 25 && fwd.size_x == 1, "forward-pad leaves x a single tile");
+        TEST_ASSERT(fwd.sz == 25 && fwd.size_z == 2, "forward-pad extends z one tile south");
+        /* Same entity/yaw but flag off collapses back to a single tile. */
+        World_EntityPainterFootprint(cx, cx, 60, 1024, 0, world->_scene_size, &fwd);
+        TEST_ASSERT(fwd.size_x == 1 && fwd.size_z == 1, "no forward-pad stays a single tile");
     }
 
     World_Free(world);
