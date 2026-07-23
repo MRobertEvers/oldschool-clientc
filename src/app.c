@@ -6345,6 +6345,21 @@ App_RunOnce(
                 out.intent_count = kept;
             }
         }
+        else if( app->objsel.active || app->targetsel.active )
+        {
+            /* The click landed on a component that offers no menu row (an empty
+             * inventory slot, sidebar chrome — the general hit test resolves
+             * these to the pass-through RS_INV/panel, so clicked_com_id is set
+             * but the scratch menu is Cancel-only, default_idx < 0). The
+             * reference still runs doAction on that Cancel row and its tail
+             * (Client.ts:9506) clears useMode/targetMode; torirs's
+             * DefaultOptionIndex returns -1 for a Cancel-only menu, so nothing
+             * ran. Drop the armed selection here — clicking off any surface that
+             * can't be a "use" target cancels and clears the white outline. */
+            app->objsel.active = 0;
+            app->targetsel.active = 0;
+            app->need_redraw = 1;
+        }
     }
 
     /* Left click over bare world (no UI component hit): run the default menu

@@ -199,8 +199,10 @@ pkt_player_info_reader_read(
         }
     }
 
-    /* New players: 11 (pid) + 5 (dx) + 5 (dz) + 1 (jump) + 1 (ext) = 23 bits. */
-    while( Net_BitBufferBitPos(&buf) + 23 <= length * 8 )
+    /* New players: only the 11-bit pid is needed to reach the 2047 terminator;
+       requiring a full 23-bit entry skips the terminator when the packet ends
+       right after it, desyncing the byte-aligned extended-info section. */
+    while( Net_BitBufferBitPos(&buf) + 11 <= length * 8 )
     {
         int player_id = Net_BitBufferGbits(&buf, 11);
         if( player_id == 2047 )
