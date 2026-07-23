@@ -459,9 +459,11 @@ WorldBuilder_ApplyLocChange(
 
     assert(builder);
 
-    /* 1. Remove the existing loc in this shape's layer (collision + scene). */
-    idx = World_SceneryFindAt(world, scene_x, scene_z, level, shape);
-    if( idx >= 0 )
+    /* 1. Remove the existing loc in this shape's layer (collision + scene).
+     * Loop: an L-shaped wall (WALL_TWO_SIDES) and a double diagonal wall decor
+     * register two pool entries (one per model half), and all halves must go.
+     * The collision del runs once per entry but is an AND-NOT (idempotent). */
+    while( (idx = World_SceneryFindAt(world, scene_x, scene_z, level, shape)) >= 0 )
     {
         struct WorldEntity_Scenery* old =
             World_EntityPoolGet(&world->entities.scenery, idx);
@@ -511,7 +513,12 @@ WorldBuilder_ApplyLocChange(
             scenery_add(builder, &ml, cfg, scene_x, scene_z);
             painter_set_suppress_slot_registration(builder->world->painter, 0);
             builder->scenery_runtime_spawn = 0;
-            world_collision_add_loc(builder, &ml, cfg, scene_x, scene_z);
+            /* Collision only when the spawn registered a pool entry: the entry
+             * is what lets the NEXT change on this tile find and undo this
+             * collision — adding collision for a loc that failed to spawn (model
+             * missing / shape absent) would leave phantom, un-removable flags. */
+            if( World_SceneryFindAt(world, scene_x, scene_z, level, shape) >= 0 )
+                world_collision_add_loc(builder, &ml, cfg, scene_x, scene_z);
             ToriDraw_SceneBatchEnd(builder->scene);
         }
     }

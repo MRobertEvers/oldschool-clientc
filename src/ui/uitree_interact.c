@@ -707,6 +707,18 @@ interact_minimenu(
             }
             /* hit == -1: chrome / close margin — swallow the press. */
         }
+        else if(
+            UIMinimenu_HitOption(menu, input->curr.mouse_x, input->curr.mouse_y) == -2 )
+        {
+            /* Reference close-on-leave (Client.ts:8559): the menu rect plus a
+             * 10px margin is a hover deadzone — moving the mouse beyond it
+             * dismisses the popup without a click. Only on press-less frames;
+             * a press that lands outside goes through the branch above so its
+             * swallow/reopen semantics stay intact. */
+            UIMinimenu_Hide(menu);
+            out->minimenu_closed = 1;
+            out->need_redraw = 1;
+        }
     }
     return 1;
 }

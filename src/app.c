@@ -156,6 +156,10 @@ static void
 app_world_bind_pending_seqs(struct App* app);
 static void
 app_world_sync_entity_animations(struct App* app);
+static void
+app_world_sync_entity_spotanims(struct App* app);
+static void
+app_entity_spotanim_drop(struct App* app, int body_element_id);
 
 /* Send an outbound packet built by a net_out_* builder, gated on networking.
  * The builder writes into a scratch buffer using the game out-cipher; the
@@ -1392,6 +1396,9 @@ App_Init(
     app->proj_src_tile_x = -1;
     app->proj_src_tile_z = -1;
     app->proj_src_tile_level = 0;
+    /* Element id 0 is valid, so free entity-spotanim slots must be -1. */
+    for( size_t i = 0; i < sizeof(app->entity_spotanims) / sizeof(app->entity_spotanims[0]); i++ )
+        app->entity_spotanims[i].body_element_id = -1;
 
     seed_inv_defaults(&app->invs);
     RS_EntitySync_Init(&app->esync);
@@ -4060,6 +4067,7 @@ enum AppSpawnKind
     APP_SPAWN_OBJ,
     APP_SPAWN_SPOTANIM,
     APP_SPAWN_ENTITY_SPOTANIM,
+    APP_SPAWN_LOC_CHANGE,
 };
 
 struct Task_AppSpawn
@@ -4096,6 +4104,13 @@ struct Task_AppSpawn
     int proj_peak;
     int proj_arc;
     int proj_target;
+    /* APP_SPAWN_LOC_CHANGE (zone LOC_ADD_CHANGE / LOC_DEL): the replacement loc
+     * (-1 = pure delete), its map shape/angle, and the nested model-list cursor
+     * (loc models are [shape_entry][model]; both indices must survive awaits). */
+    int loc_id;
+    int loc_shape;
+    int loc_angle;
+    int loc_model_j;
 };
 
 static int
@@ -4176,8 +4191,9 @@ Task_AppSpawn_Run(
     }
     else if( self->kind == APP_SPAWN_ENTITY_SPOTANIM )
     {
-        /* Attached graphic (SPOTANIM mask): same asset chain as the free-standing
-         * spotanim, then build the companion element on the live entity. */
+        /* Attached graphic (SPOTANIM mask): load the same asset chain as the
+         * free-standing spotanim. No completion callback — once resident,
+         * app_world_sync_entity_spotanims combines synchronously next frame. */
         TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
         {
             struct ToriRS_Spotanimtype* spot =
@@ -4194,7 +4210,7 @@ Task_AppSpawn_Run(
         if( self->seq_id >= 0 )
             TASK_AWAITSELF_IF(
                 CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
-        app_world_attach_entity_spotanim_now(app, self->entity_element_id, self->spotanim_id);
+        app->need_redraw = 1;
     }
     else if( self->kind == APP_SPAWN_PROJECTILE_SPOT )
     {
@@ -4230,6 +4246,64 @@ Task_AppSpawn_Run(
             self->proj_peak,
             self->proj_arc,
             self->proj_target);
+    }
+    else if( self->kind == APP_SPAWN_LOC_CHANGE )
+    {
+        /* Reference locChangeDoQueue (Client.ts:7701): a zone loc change only
+         * applies once changeLocAvailable — the loc config and every model it
+         * references are resident (an open-door variant is usually absent from
+         * the static map build's preload). LOC_DEL (loc_id < 0) has nothing to
+         * load but still runs through this task so same-tile changes apply in
+         * packet order on the serial exec FIFO. */
+        if( self->loc_id >= 0 )
+        {
+            TASK_AWAITSELF_IF(CreateTask_LocLoad(app->provider, self->loc_id));
+            for( self->model_i = 0;; self->model_i++ )
+            {
+                {
+                    struct ToriRS_Location* cfg =
+                        CacheProvider_LocationGet(app->provider, self->loc_id);
+                    int entries = 0;
+                    if( cfg && cfg->models && cfg->lengths )
+                        entries = cfg->shapes ? cfg->shapes_and_model_count : 1;
+                    if( self->model_i >= entries )
+                        break;
+                }
+                for( self->loc_model_j = 0;; self->loc_model_j++ )
+                {
+                    {
+                        struct ToriRS_Location* cfg =
+                            CacheProvider_LocationGet(app->provider, self->loc_id);
+                        if( !cfg || self->loc_model_j >= cfg->lengths[self->model_i] )
+                            break;
+                        self->model_id = cfg->models[self->model_i][self->loc_model_j];
+                    }
+                    if( self->model_id >= 0 )
+                        TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+                }
+            }
+            {
+                struct ToriRS_Location* cfg =
+                    CacheProvider_LocationGet(app->provider, self->loc_id);
+                self->seq_id = cfg ? cfg->seq_id : -1;
+            }
+            if( self->seq_id >= 0 )
+                TASK_AWAITSELF_IF(
+                    CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+        }
+        if( app->world_builder && app->world && app->world->load_complete )
+        {
+            WorldBuilder_ApplyLocChange(
+                app->world_builder,
+                self->tile_x,
+                self->tile_z,
+                self->level,
+                self->loc_id,
+                self->loc_shape,
+                self->loc_angle);
+            app_sync_textures(app);
+            app->need_redraw = 1;
+        }
     }
     else
     {
@@ -4642,6 +4716,29 @@ App_WorldProjectileSpawn(
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
+/* Zone LOC_ADD_CHANGE / LOC_DEL (reference locChangeCreate + locChangeDoQueue):
+ * enqueue an async change that awaits the loc config + its models (+ seq), then
+ * applies it via WorldBuilder_ApplyLocChange. loc_id < 0 = delete. Public so the
+ * zone-packet executor can drive it. */
+void
+App_WorldLocChange(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle)
+{
+    struct Task_AppSpawn* task;
+    assert(app);
+    task = app_spawn_task_new(app, APP_SPAWN_LOC_CHANGE, scene_x, scene_z, level);
+    task->loc_id = loc_id;
+    task->loc_shape = shape;
+    task->loc_angle = angle;
+    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+}
+
 /* Hotkey 5: spawn a free-standing spotanim on the hovered tile.
  * TORIRS_SPAWN_SPOTANIM / _HEIGHT / _DELAY override the defaults. */
 static void
@@ -4746,6 +4843,39 @@ app_world_damage_test(struct App* app)
     }
 }
 
+/* Hotkey 4: apply an attached graphic (SPOTANIM mask) to every spawned entity —
+ * the reference impact effect a projectile lands on its target. Exercises the
+ * entity-spotanim companion-element path headlessly. TORIRS_SPAWN_SPOTANIM /
+ * _HEIGHT / _DELAY reuse the free-standing overrides. */
+static void
+app_world_entity_spotanim_test(struct App* app)
+{
+    struct World_EntityPool* pool;
+    int spotanim_id = 74;
+    int height = 92;
+    int delay = 0;
+    char const* env = getenv("TORIRS_SPAWN_SPOTANIM");
+    if( env )
+        spotanim_id = (int)strtol(env, NULL, 0);
+    env = getenv("TORIRS_SPAWN_SPOTANIM_HEIGHT");
+    if( env )
+        height = (int)strtol(env, NULL, 0);
+    env = getenv("TORIRS_SPAWN_SPOTANIM_DELAY");
+    if( env )
+        delay = (int)strtol(env, NULL, 0);
+
+    if( !app->world )
+        return;
+    pool = &app->world->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+        World_PlayerSetSpotanim(app->world, i, spotanim_id, height, delay);
+    pool = &app->world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+        World_NpcSetSpotanim(app->world, i, spotanim_id, height, delay);
+}
+
 /* Spawn test hotkeys (readme): 9 player, 8 npc, 7 ground item, 0 projectile,
  * 6 test hitsplat — all act on the tile under the mouse, so they no-op when
  * nothing is hovered. */
@@ -4775,6 +4905,8 @@ app_world_hotkeys(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_6) )
         app_world_damage_test(app);
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_4) )
+        app_world_entity_spotanim_test(app);
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_5) )
         app_world_spawn_spotanim(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
@@ -4952,7 +5084,12 @@ app_world_frame(
         {
             const struct World_Event* ev = World_EventsPeek(world, i);
             if( ev->kind == WorldEventKind_EntityRemoved && ev->element_id >= 0 )
+            {
+                /* Free any attached-graphic combine snapshots keyed to this
+                 * element before the element (and its model) goes away. */
+                app_entity_spotanim_drop(app, ev->element_id);
                 ToriDraw_SceneElementRemove(app->scene, ev->element_id);
+            }
         }
         World_EventsClear(world);
     }
@@ -4960,6 +5097,7 @@ app_world_frame(
     app_world_sync_positions(app);
     app_world_camera_follow(app);
     app_world_sync_entity_animations(app);
+    app_world_sync_entity_spotanims(app);
 
     for( int c = 0; c < cycles; c++ )
         app_world_tick_animations(app);
@@ -6682,6 +6820,245 @@ app_world_sync_entity_animations(struct App* app)
         if( npc )
             app_world_apply_entity_anim_tracks(
                 app, npc->element_id, &npc->animation, &npc->idle_animations);
+    }
+}
+
+/* ---- Entity attached-graphic (SPOTANIM mask): reference-accurate per-frame
+ * Model.combine (ClientNpc/ClientPlayer.getTempModel). While an entity's
+ * graphic is active its scene element's model is merge(body, spot): the body
+ * part keeps its bones so the element's bound seq keeps animating it live in
+ * the renderer, the spot part is pre-posed to the world-stepped spot frame
+ * with its bones cleared (reference temp.labelFaces/labelVertices = null, so
+ * the body seq cannot drive spot vertices) and raised by the wire height.
+ * Assets load once through the async task pipeline; with both models resident
+ * the combine itself is synchronous. Re-merged only when the spot frame
+ * changes — between merges the visual is identical because the renderer poses
+ * the body part live and the spot pose only advances with spot->frame. State
+ * lives in app->entity_spotanims keyed by the body element id. ---- */
+
+static struct AppEntitySpotanim*
+app_entity_spotanim_find(struct App* app, int body_element_id)
+{
+    int count = (int)(sizeof(app->entity_spotanims) / sizeof(app->entity_spotanims[0]));
+    for( int i = 0; i < count; i++ )
+        if( app->entity_spotanims[i].body_element_id == body_element_id )
+            return &app->entity_spotanims[i];
+    return NULL;
+}
+
+/* End the combine: restore the entity's own model (ownership of the pristine
+ * body snapshot moves back to the element) and free the spot base. `restore`
+ * is false when the body element is already gone (despawn/scene teardown). */
+static void
+app_entity_spotanim_detach(struct App* app, struct AppEntitySpotanim* entry, bool restore)
+{
+    if( restore && entry->body &&
+        ToriDraw_SceneElementIsLive(app->scene, entry->body_element_id) )
+    {
+        struct ToriDraw_ModelHandle hnd;
+        memset(&hnd, 0, sizeof(hnd));
+        hnd.kind = TORIDRAWMK_MODEL;
+        hnd.u.model.model = entry->body;
+        /* The renderer's per-frame AnimateReset needs captured originals. */
+        ToriDraw_ModelCaptureOriginalVertices(entry->body);
+        ToriDraw_SceneElementSetModel(app->scene, entry->body_element_id, hnd);
+        entry->body = NULL; /* ownership moved to the element */
+        app->need_redraw = 1;
+    }
+    if( entry->body )
+        ToriDraw_ModelFree(entry->body);
+    if( entry->spot )
+        ToriDraw_ModelFree(entry->spot);
+    *entry = (struct AppEntitySpotanim){ .body_element_id = -1 };
+}
+
+/* EntityRemoved drain hook: the entity element (and with it the combined
+ * model) is going away — free the snapshots without touching the element. */
+static void
+app_entity_spotanim_drop(struct App* app, int body_element_id)
+{
+    struct AppEntitySpotanim* entry = app_entity_spotanim_find(app, body_element_id);
+    if( entry )
+        app_entity_spotanim_detach(app, entry, false);
+}
+
+static void
+app_world_sync_one_entity_spotanim(
+    struct App* app,
+    struct WorldEntityFacet_EntitySpotanim const* spot,
+    int element_id)
+{
+    struct World* world = app->world;
+    struct AppEntitySpotanim* entry = app_entity_spotanim_find(app, element_id);
+    struct ToriRS_Spotanimtype* type;
+    struct ToriDraw_Animation* anim;
+    struct ToriDraw_SceneElement* el;
+    int active = spot->id != -1 && world->cycle >= spot->last_cycle && spot->frame >= 0;
+    int frame;
+    int first_combine;
+
+    if( !active )
+    {
+        if( entry )
+            app_entity_spotanim_detach(app, entry, true);
+        return;
+    }
+    /* Graphic replaced mid-flight: restore the body, rebuild for the new id. */
+    if( entry && entry->spotanim_id != spot->id )
+    {
+        app_entity_spotanim_detach(app, entry, true);
+        entry = NULL;
+    }
+    if( !entry )
+    {
+        entry = app_entity_spotanim_find(app, -1);
+        if( !entry )
+            return; /* table full */
+        *entry = (struct AppEntitySpotanim){
+            .body_element_id = element_id,
+            .spotanim_id = spot->id,
+            .applied_frame = -1,
+        };
+    }
+
+    /* Asset gate: spotanimtype + model + seq must be resident. Kick the async
+     * load chain once; the frame it lands the combine below runs synchronously
+     * (reference precondition: SpotType.getTempModel2 assumes loaded). */
+    type = CacheProvider_SpotanimtypeGet(app->provider, spot->id);
+    anim = (type && type->seq >= 0) ? ToriDraw_SceneAnimationGet(app->scene, type->seq) : NULL;
+    if( !type || !CacheProvider_ModelGet(app->provider, type->model) || !anim ||
+        anim->frame_count <= 0 || !anim->frames || !anim->base )
+    {
+        if( !entry->load_enqueued )
+        {
+            struct Task_AppSpawn* task =
+                app_spawn_task_new(app, APP_SPAWN_ENTITY_SPOTANIM, 0, 0, 0);
+            task->spotanim_id = spot->id;
+            task->entity_element_id = element_id;
+            ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+            entry->load_enqueued = 1;
+        }
+        return;
+    }
+
+    if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        return;
+    el = ToriDraw_SceneElementGet(app->scene, element_id);
+    if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
+        return;
+
+    /* Snapshot the pristine body. Also re-snapshot when the element's model
+     * changed under us — a held-item/appearance rebuild SetModel'd a fresh
+     * body over our combined (`combined` is compared as an identity only,
+     * never dereferenced: SetModel freed it). */
+    if( !entry->body || el->model.u.model.model != entry->combined )
+    {
+        if( entry->body )
+            ToriDraw_ModelFree(entry->body);
+        /* The renderer poses the element model in place each draw; reset to
+         * the rest pose so the snapshot is the true base. */
+        ToriDraw_ModelAnimateReset(el->model.u.model.model);
+        entry->body = ToriDraw_ModelCopy(el->model.u.model.model);
+        entry->combined = NULL;
+        entry->applied_frame = -1;
+        if( !entry->body )
+            return;
+    }
+
+    if( !entry->spot )
+    {
+        entry->spot = app_world_build_spotanim_model(app, type);
+        if( !entry->spot )
+            return;
+    }
+
+    frame = spot->frame < anim->frame_count ? spot->frame : anim->frame_count - 1;
+    if( frame == entry->applied_frame && entry->combined )
+        return; /* merged model already at this spot frame; body animates live */
+    first_combine = entry->applied_frame < 0;
+
+    {
+        struct ToriDraw_Model* posed = ToriDraw_ModelCopy(entry->spot);
+        struct ToriDraw_Model* parts[2];
+        struct ToriDraw_Model* merged;
+        if( !posed )
+            return;
+        /* Hole frames (missing archive) hold the rest pose, like the renderer. */
+        if( anim->frames[frame].length > 0 )
+            ToriDraw_ModelAnimateFrame(posed, anim->base, &anim->frames[frame]);
+        /* Reference nulls the spot copy's labels before Model.combine. */
+        ToriDraw_BonesFree(posed->vertex_bones);
+        posed->vertex_bones = NULL;
+        ToriDraw_BonesFree(posed->face_bones);
+        posed->face_bones = NULL;
+        /* Model y is negative-up: reference temp.translate(-spotanimHeight,0,0). */
+        if( spot->height != 0 )
+            ToriDraw_ModelTranslate(posed, 0, -spot->height, 0);
+
+        parts[0] = entry->body;
+        parts[1] = posed;
+        merged = ToriDraw_ModelMerge(parts, 2);
+        ToriDraw_ModelFree(posed);
+        if( !merged )
+            return;
+        ToriDraw_ModelCaptureOriginalVertices(merged);
+        {
+            struct ToriDraw_ModelHandle hnd;
+            memset(&hnd, 0, sizeof(hnd));
+            hnd.kind = TORIDRAWMK_MODEL;
+            hnd.u.model.model = merged;
+            ToriDraw_SceneElementSetModel(app->scene, element_id, hnd);
+        }
+        entry->combined = merged;
+        entry->applied_frame = frame;
+        app->need_redraw = 1;
+        if( first_combine && getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(
+                stderr,
+                "entity_spotanim: combine id=%d element=%d seq=%d frame=%d height=%d\n",
+                spot->id,
+                element_id,
+                type->seq,
+                frame,
+                spot->height);
+    }
+}
+
+static void
+app_world_sync_entity_spotanims(struct App* app)
+{
+    struct World_EntityPool* pool;
+    int count = (int)(sizeof(app->entity_spotanims) / sizeof(app->entity_spotanims[0]));
+
+    if( !app->world )
+        return;
+
+    /* Entries whose body element died outside the event drain (scene
+     * teardown): free the snapshots. */
+    for( int i = 0; i < count; i++ )
+    {
+        struct AppEntitySpotanim* entry = &app->entity_spotanims[i];
+        if( entry->body_element_id >= 0 &&
+            !ToriDraw_SceneElementIsLive(app->scene, entry->body_element_id) )
+            app_entity_spotanim_detach(app, entry, false);
+    }
+
+    pool = &app->world->entities.player;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+        if( player && player->element_id >= 0 )
+            app_world_sync_one_entity_spotanim(app, &player->spotanim, player->element_id);
+    }
+
+    pool = &app->world->entities.npc;
+    for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
+         ni = World_EntityPoolNext(pool, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+        if( npc && npc->element_id >= 0 )
+            app_world_sync_one_entity_spotanim(app, &npc->spotanim, npc->element_id);
     }
 }
 

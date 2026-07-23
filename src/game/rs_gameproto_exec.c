@@ -8,7 +8,6 @@
 #include "rs_entity_sync.h"
 #include "rs_social.h"
 #include "net/jbase37.h"
-#include "engine/world_builder/world_builder.h"
 #include "world/world.h"
 #include "rs_player_stats.h"
 #include "rs_ui_slots.h"
@@ -147,22 +146,22 @@ exec_zone_sub_packet(
         /* Remove the loc in this shape's layer (scene + collision). shape =
          * info >> 2 keys the layer so a door (WALL) removal only hits the WALL
          * loc, not a centrepiece/floor-decor sharing the tile. loc_id = -1 = no
-         * replacement. */
-        if( app->world_builder )
-            WorldBuilder_ApplyLocChange(
-                app->world_builder, tile_x, tile_z, level, -1, pkt->info >> 2, pkt->info & 0x3);
+         * replacement. Routed through the async loc-change task so it stays
+         * ordered with in-flight LOC_ADD_CHANGE loads on the same tile. */
+        App_WorldLocChange(app, tile_x, tile_z, level, -1, pkt->info >> 2, pkt->info & 0x3);
         break;
     }
     case PKT_NAME_LOC_ADD_CHANGE:
     {
         /* Replace the loc in this layer: remove the stale loc and spawn the new
-         * one (scene + collision), matching Client-TS locChangeUnchecked. */
+         * one (scene + collision), matching Client-TS locChangeUnchecked. Async:
+         * the new loc's models are usually absent from the static build's
+         * preload, so the change applies once they're resident (reference
+         * changeLocAvailable gate in locChangeDoQueue). */
         struct PktLocAddChange const* pkt = payload;
         zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
-        if( app->world_builder )
-            WorldBuilder_ApplyLocChange(
-                app->world_builder, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2,
-                pkt->info & 0x3);
+        App_WorldLocChange(
+            app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3);
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(
                 stderr,

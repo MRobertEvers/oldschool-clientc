@@ -13,7 +13,8 @@ Headless world-harness hotkeys (all act on the tile under the mouse, driven by
 `TORIRS_SIM_WORLD_KEY="x,y,<key>[;...]"`): **9** player, **8** npc
 (`TORIRS_SPAWN_NPC`), **7** ground item (`TORIRS_SPAWN_OBJ`), **6** test
 overheads on every entity (hitsplat + health bar + overhead chat + a headicon
-mask), **5** spotanim (`TORIRS_SPAWN_SPOTANIM` / `_HEIGHT` / `_DELAY`),
+mask), **5** spotanim (`TORIRS_SPAWN_SPOTANIM` / `_HEIGHT` / `_DELAY`), **4**
+entity attached-graphic / `SPOTANIM` mask on every entity (same overrides as 5),
 **0** projectile (two-press latch).
 
 Reference server for wire questions: `/Users/matthewevers/Documents/git_repos/LostCity_Server`
@@ -2072,12 +2073,9 @@ recol/resize/angle/ambient·contrast applied. What that leaves here:
   through §31's `CacheProvider_SpotanimtypeGet` (and applying `recol/resize/
   ambient·contrast` like §31's `app_world_build_spotanim_model`) is the
   remaining step; the arc math and seq-bind already work.
-- **Entity attached-graphic (`SPOTANIM` mask)** — `World_StepEntityAnimation`
-  (`src/world/world_cycle.c`) still holds spot state on a fixed 200-cycle window.
-  The config now decodes, but *rendering* an attached graphic needs the spot
-  model **combined into the entity element** (reference `ClientNpc`/
-  `ClientPlayer.getTempModel` `Model.combine([model, temp], 2)`), which is a
-  larger change than the free-standing case — flagged follow-on.
+- **Entity attached-graphic (`SPOTANIM` mask)** — **now rendered (§35).** The
+  placeholder 200-cycle window is gone; the frame steps from the spot's own seq
+  and the graphic renders on the entity.
 
 ### 29c. Hitsplats — re-verified against Client-TS (no code change)
 
@@ -2585,3 +2583,97 @@ later over the same box); asserts `UITree_HitTestInteractive` and
 `UITree_CollectNodesAt` both still return the active item. Confirmed the test
 **fails** with the gate reverted and **passes** with the fix. `make -C src
 test-uitree` green; `make -C src torirs` clean.
+
+---
+
+## 35. Entity attached-graphic (`SPOTANIM` mask) — the impact effect on a projectile's target — ✅
+
+### Symptom
+
+A projectile flies its arc to a target and then "the spotanim at the end doesn't
+render." The projectile itself (`MAP_PROJANIM`, §32) was fine; what was missing is
+the **impact/hit graphic that plays on the target entity**. In RS a projectile
+and its terminal effect are two independent things — neither client spawns the
+effect from projectile-completion code (`World_CycleUpdateProjectiles` /
+`addProjectiles` just despawn the projectile at `t2`). The impact arrives
+separately as either a free-standing `MAP_ANIM` (§31, already wired) **or**, for a
+target that is a player/NPC, the entity's **`SPOTANIM` mask** in `PLAYER_INFO` /
+`NPC_INFO` — a graphic attached to that entity. This section is the latter, which
+§29b had flagged as a follow-on: the state decoded and time-stepped, but nothing
+drew it.
+
+### Reference
+
+`ClientNpc.getTempModel` / `ClientPlayer.getTempModel` (`dash3d/Client{Npc,Player}.ts`):
+after building the entity's animated body model, if `spotanimId != -1 &&
+spotanimFrame != -1` it builds the spot model at `spotanimFrame`, translates it up
+by `spotanimHeight`, resizes / recolours / re-lights it (`ambient+64`,
+`contrast+850`), and `Model.combine([body, spot], 2)` merges the two into the one
+model rendered that frame. Frame stepping is in `entityAnim` (`Client.ts:4019-4036`):
+once `loopCycle >= spotanimLastCycle`, advance `spotanimFrame` by the spot's own
+`seq.getDuration(frame)` and clear `spotanimId` when the single loop completes.
+
+### torirs — reference-accurate `Model.combine`
+
+While the graphic is active, the entity's scene element carries
+**`merge(body, spot)`** — the C equivalent of `Model.combine([model, temp], 2)`:
+
+1. **Frame stepping** (`World_StepEntityAnimation`, `src/world/world_cycle.c`) is
+   the real `entityAnim` port — steps `spotanim.frame` from the spot's seq and
+   clears `spotanim.id` at loop end (guarded on `count > 0` so an id whose
+   assets are still loading waits instead of expiring at `frame 0 >= count 0`).
+   Resolving spotanim→seq without pulling cache types into `world/` is a new
+   `World_SeqSource.spotanim_seq(id)` hook (app impl `app_spotanim_seq` →
+   `CacheProvider_SpotanimtypeGet(id)->seq`).
+2. **Combine** (`app_world_sync_entity_spotanims` →
+   `app_world_sync_one_entity_spotanim`, `src/app.c`, from `app_world_frame`;
+   state in `App.entity_spotanims[]` keyed by the body element id). Assets load
+   once via the async pipeline (`APP_SPAWN_ENTITY_SPOTANIM` fires the
+   spotanimtype+model+seq chain); once resident everything is synchronous:
+   snapshot the pristine body (`ModelAnimateReset` first — the renderer poses
+   the element model in place, and `ModelCopy` copies *current* vertices), build
+   the spot base with the §31 `app_world_build_spotanim_model`, then per spot
+   frame: copy the spot base → `ModelAnimateFrame` to `spotanim.frame` →
+   **clear its bones** (`ToriDraw_BonesFree`, the reference
+   `temp.labelFaces/labelVertices = null`, so the body seq can't drive spot
+   vertices) → `ModelTranslate(0, -height, 0)` (y negative-up, reference
+   `translate(-spotanimHeight, 0, 0)`) → `ToriDraw_ModelMerge([body, posed], 2)`
+   → `CaptureOriginalVertices` → `SceneElementSetModel`. The merge preserves the
+   body's bones (`ToriDraw_BonesMerge`), and `SetModel` keeps the element's seq
+   binding, so the **body keeps animating live** inside the combined model; only
+   a spot-frame change triggers a re-merge (between merges the visual is
+   identical — the renderer poses the body part every frame, the spot pose only
+   advances with the world-stepped frame). Detach restores the body snapshot
+   (`CaptureOriginalVertices` + `SetModel`, ownership back to the element).
+   A held-item/appearance rebuild that `SetModel`s under an active combine is
+   self-healed by identity-comparing the element's model against the last
+   merged pointer (never dereferenced — `SetModel` freed it) and re-snapshotting.
+   Cleanup on entity despawn hooks the existing `EntityRemoved` drain
+   (`app_entity_spotanim_drop`); a liveness sweep catches scene teardown.
+3. **Latent init bug fixed.** Entities are zero-initialised, so `spotanim.id`
+   defaulted to **0, not -1** — harmless only while nothing rendered the mask.
+   `World_{Player,Npc}Spawn` now seed `.spotanim = { .id = -1, .frame = -1 }`
+   (reference `ClientEntity` default), else every spawned entity would get a
+   phantom spotanim-0 combined into it.
+
+### Verified offline
+
+`cache254.lostcity`, `TORIRS_SIM_WORLD_KEY="400,260,9;400,260,4"` (spawn player,
+then hotkey **4** = apply a `SPOTANIM` mask to every spawned entity —
+`TORIRS_SPAWN_SPOTANIM`/`_HEIGHT`/`_DELAY` reuse the free-standing overrides):
+
+```
+entity_spotanim: combine id=74 element=7969 seq=643 frame=0 height=300
+```
+
+- **Renders combined:** A/B `TORIRS_WORLD_BMP` (player-only vs player+mask,
+  same ticks) differs only in a region on/above the player — effect model 2321
+  merged into the entity model, absent in the baseline.
+- **Detaches exactly:** same key script with `_DELAY=30000` (graphic never
+  activates) vs `_DELAY=0` at 150 ticks (graphic played its ~57-cycle loop and
+  ended) → the two frames are **byte-identical**: the body snapshot restore is
+  exact.
+- Plain spawn produces no combine (the `id = -1` init). `make -C src test-world`
+  (incl. spotanim-wave + scene-reset-midflight), `test-entity-decode`,
+  `test-world-builder` green; projectile (§32) and free-standing spotanim (§31)
+  paths unregressed.

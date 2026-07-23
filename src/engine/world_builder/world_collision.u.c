@@ -43,7 +43,9 @@ world_collision_apply_loc(
     switch( shape )
     {
     case RSCACHE_LOC_SHAPE_FLOOR_DECORATION:
-        if( config_loc->blocks_walk == 1 )
+        /* Reference gates ground decor on blockwalk && active (ClientBuild.ts
+         * addLoc / locChangeUnchecked del path): inactive decor never blocks. */
+        if( config_loc->blocks_walk == 1 && config_loc->is_interactive )
         {
             if( add )
                 collision_map_add_floor(cm, scene_x, scene_z);

@@ -366,6 +366,12 @@ scenery_load_model(
         int pool_idx;
         for( int a = 0; a < 5; a++ )
             snprintf(actions32[a], sizeof(actions32[a]), "%s", config_loc->actions[a]);
+        /* Register the MAP orientation (0-3), not the render rotation: the
+         * reference typecode2 stores angle<<6 with the map angle, and both
+         * consumers of this field want that — the tryMove wall approach
+         * (app_scenery_approach) and the runtime loc-change collision del
+         * (WorldBuilder_ApplyLocChange). An L-wall's render rotations
+         * (orientation+4, (orientation+1)&3) would del the wrong edges. */
         pool_idx = World_SceneryRegister(
             world,
             element_id,
@@ -376,7 +382,7 @@ scenery_load_model(
             size_x,
             size_z,
             shape_select,
-            rotation,
+            map_tile->orientation & 0x3,
             config_loc->name,
             actions32,
             config_loc->is_interactive);

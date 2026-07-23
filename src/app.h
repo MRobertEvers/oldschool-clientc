@@ -327,6 +327,22 @@ struct App
     struct RS_EntitySync esync;
     /** Dedupe for entity movement-seq load requests. */
     struct SeqLoadTracker entity_seq_loads;
+    /** Entity attached-graphic (SPOTANIM mask) combine state, keyed by the
+     * entity's body scene element. While the graphic is active the element's
+     * model is the reference getTempModel Model.combine([body, spot]) — `body`
+     * holds the owned pristine snapshot restored on detach, `spot` the owned
+     * spot base model, `combined` the identity of the merged model currently on
+     * the element (owned by the element; compared, never dereferenced). */
+    struct AppEntitySpotanim
+    {
+        int body_element_id; /* -1 = free slot */
+        int spotanim_id;
+        int load_enqueued;  /* asset-load task fired for spotanim_id */
+        int applied_frame;  /* spot seq frame baked into `combined`; -1 none */
+        struct ToriDraw_Model* body;
+        struct ToriDraw_Model* spot;
+        struct ToriDraw_Model* combined;
+    } entity_spotanims[64];
 
     /* ---- server-driven state (Part 5 packet coverage) ---- */
     /** Audio packet sink (no playback backend). */
@@ -586,6 +602,21 @@ App_WorldProjectileSpawn(
     int peak,
     int arc,
     int target);
+
+/* Apply a zone LOC_ADD_CHANGE / LOC_DEL (reference locChangeCreate +
+ * locChangeDoQueue): enqueues an async task on the serial exec FIFO that awaits
+ * the loc config + its models (+ seq) before calling
+ * WorldBuilder_ApplyLocChange — the change only lands once its assets are
+ * resident (reference changeLocAvailable). loc_id < 0 = pure delete. */
+void
+App_WorldLocChange(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle);
 
 /**
  * Drain the command bus, routing each command to its subsystem: the single
