@@ -30,6 +30,7 @@ struct CacheProvider
     struct HMap* clientscript_cache;
     struct HMap* objtype_cache;
     struct HMap* npctype_cache;
+    struct HMap* spotanimtype_cache;
     struct HMap* idk_cache;
     struct HMap* map_terrain_cache;
     struct HMap* map_scenery_cache;
@@ -93,6 +94,9 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_NpcLoad)(
         struct CacheProvider* provider,
         int npc_id);
+    struct ToriRS_Task* (*Task_SpotanimLoad)(
+        struct CacheProvider* provider,
+        int spotanim_id);
     struct ToriRS_Task* (*Task_IdkLoad)(
         struct CacheProvider* provider,
         int idk_id);
@@ -421,6 +425,25 @@ void
 CacheProvider_NpctypesCleanup(struct CacheProvider* provider);
 
 void
+CacheProvider_SpotanimtypeAdd(
+    struct CacheProvider* provider,
+    int spotanim_id,
+    struct ToriRS_Spotanimtype* spotanimtype);
+
+struct ToriRS_Spotanimtype*
+CacheProvider_SpotanimtypeGet(
+    struct CacheProvider* provider,
+    int spotanim_id);
+
+bool
+CacheProvider_SpotanimtypeHas(
+    struct CacheProvider* provider,
+    int spotanim_id);
+
+void
+CacheProvider_SpotanimtypesCleanup(struct CacheProvider* provider);
+
+void
 CacheProvider_IdkAdd(
     struct CacheProvider* provider,
     int idk_id,
@@ -608,6 +631,16 @@ CreateTask_NpcLoad(
     if( !provider->vtable->Task_NpcLoad )
         return NULL;
     return provider->vtable->Task_NpcLoad(provider, npc_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_SpotanimLoad(
+    struct CacheProvider* provider,
+    int spotanim_id)
+{
+    if( !provider->vtable->Task_SpotanimLoad )
+        return NULL;
+    return provider->vtable->Task_SpotanimLoad(provider, spotanim_id);
 }
 
 static inline struct ToriRS_Task*

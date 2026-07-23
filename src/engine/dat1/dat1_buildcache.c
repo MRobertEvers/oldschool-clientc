@@ -159,6 +159,7 @@ static struct CacheProviderVTable dat1_vtable = {
     .Task_ClientScriptLoad = CreateTask_Dat1ClientScriptLoad,
     .Task_ObjLoad = CreateTask_Dat1ObjLoad,
     .Task_NpcLoad = CreateTask_Dat1NpcLoad,
+    .Task_SpotanimLoad = CreateTask_Dat1SpotanimLoad,
     .Task_IdkLoad = CreateTask_Dat1IdkLoad,
     .Task_MapTerrainLoad = CreateTask_Dat1MapTerrainLoad,
     .Task_MapSceneryLoad = CreateTask_Dat1MapSceneryLoad,
@@ -251,6 +252,11 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
     {
         RSCache_Dat1ConfigSeqListFree(dat1_buildcache->seq_list);
         dat1_buildcache->seq_list = NULL;
+    }
+    if( dat1_buildcache->spotanim_list )
+    {
+        RSCache_Dat1ConfigSpotanimListFree(dat1_buildcache->spotanim_list);
+        dat1_buildcache->spotanim_list = NULL;
     }
 
     dat1_hmap_free(dat1_buildcache->animbaseframes_hmap);
@@ -383,6 +389,29 @@ dat1_buildcache_get_seq_list(struct Dat1BuildCache* dat1_buildcache)
     dat1_buildcache->seq_list = RSCache_Dat1ConfigSeqListNewDecode(
         config_jagfile->files[data_idx], config_jagfile->file_sizes[data_idx]);
     return dat1_buildcache->seq_list;
+}
+
+struct RSCache_Dat1ConfigSpotanimList*
+dat1_buildcache_get_spotanim_list(struct Dat1BuildCache* dat1_buildcache)
+{
+    struct RSCache_FileListDat* config_jagfile;
+    int data_idx;
+
+    assert(dat1_buildcache);
+    if( dat1_buildcache->spotanim_list )
+        return dat1_buildcache->spotanim_list;
+
+    config_jagfile = dat1_buildcache->config_jagfile;
+    if( !config_jagfile )
+        return NULL;
+
+    data_idx = RSCache_FileListDatFindFileByName(config_jagfile, "spotanim.dat");
+    if( data_idx < 0 )
+        return NULL;
+
+    dat1_buildcache->spotanim_list = RSCache_Dat1ConfigSpotanimListNewDecode(
+        config_jagfile->files[data_idx], config_jagfile->file_sizes[data_idx]);
+    return dat1_buildcache->spotanim_list;
 }
 
 uint16_t const*

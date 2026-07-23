@@ -29,6 +29,11 @@ CreateTask_Dat1NpcLoad(
     int npc_id);
 
 struct ToriRS_Task*
+CreateTask_Dat1SpotanimLoad(
+    struct CacheProvider* provider,
+    int spotanim_id);
+
+struct ToriRS_Task*
 CreateTask_Dat1IdkLoad(
     struct CacheProvider* provider,
     int idk_id);

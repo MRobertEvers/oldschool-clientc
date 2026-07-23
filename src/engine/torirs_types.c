@@ -206,6 +206,21 @@ ToriRS_ObjtypeSizeOf(const struct ToriRS_Objtype* objtype)
     return bytes;
 }
 
+void
+ToriRS_SpotanimtypeFree(struct ToriRS_Spotanimtype* spotanimtype)
+{
+    /* No owned arrays — all fields are fixed-size. */
+    free(spotanimtype);
+}
+
+size_t
+ToriRS_SpotanimtypeSizeOf(const struct ToriRS_Spotanimtype* spotanimtype)
+{
+    if( !spotanimtype )
+        return 0;
+    return sizeof(*spotanimtype);
+}
+
 static void
 torirs_animbase_free(struct ToriRS_AnimBase* base)
 {

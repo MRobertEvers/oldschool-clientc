@@ -34,6 +34,8 @@ struct Dat1BuildCache
     struct RSCache_FileListDat* textures_jagfile;
     /** Whole decoded "seq.dat" table (entries are sequentially addressable). */
     struct RSCache_Dat1ConfigSeqList* seq_list;
+    /** Whole decoded "spotanim.dat" table (sequentially addressable). */
+    struct RSCache_Dat1ConfigSpotanimList* spotanim_list;
     /** Version-list "anim_version": one u16 per ANIMATIONS-table archive
      * (0 = absent). LostCity writes "anim_index" as zeros, so frame ids
      * cannot be mapped to archives directly — the reference client loads
@@ -121,6 +123,9 @@ dat1_buildcache_get_loc_index(struct Dat1BuildCache* dat1_buildcache);
  * seq.dat is missing. */
 struct RSCache_Dat1ConfigSeqList*
 dat1_buildcache_get_seq_list(struct Dat1BuildCache* dat1_buildcache);
+
+struct RSCache_Dat1ConfigSpotanimList*
+dat1_buildcache_get_spotanim_list(struct Dat1BuildCache* dat1_buildcache);
 
 /** Decode (once) "anim_version" from the cached version-list jagfile: one
  * u16 per ANIMATIONS archive (0 = absent). NULL until the version-list

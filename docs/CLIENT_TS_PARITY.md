@@ -2058,7 +2058,15 @@ No divergence found beyond those already noted in §26. Hitsplats stay ✅.
 
 ---
 
-## 30. Assertion near the map edge: entity footprint must reject, not clamp — ✅
+## 30. Assertions near the map edge: reject/guard off-scene entities like the reference — ✅
+
+Two crashes from the same root theme — an entity (usually a live-server border
+NPC) whose position lands on or past the outermost scene tile drove an
+out-of-bounds array access. The reference tolerates these everywhere (guard →
+return 0 / draw nothing); torirs was missing the guards. 30a is the painter
+footprint; 30b is the heightmap sampler.
+
+### 30a. Entity footprint must reject, not clamp
 
 ### Symptom
 
@@ -2128,3 +2136,61 @@ placed on the last in-scene tile must have its footprint **rejected**
 spawn coordinate; the live scene is the standard 104×104 (`BuildArea.SIZE`), so
 the crash reproduces for any size ≥ 2 entity whose base sits on the outermost
 in-scene tile, not just that specific spawn.
+
+### 30b. Heightmap sampler needs the getAvH out-of-scene guard
+
+### Symptom
+
+After 30a, a live server still aborted — now in the heightmap — when NPCs
+spawned at or past the scene edge:
+
+```
+spawn_npc: npc=494 element=24570 tile=105,105 level=0 size=1 ...
+Assertion failed: (x >= 0 && x < heightmap->size_x),
+function heightmap_coord_idx, file heightmap.c, line 29.
+```
+
+Border NPCs arrive from the server at scene-local tiles that can be `104`/`105`
+— just outside the 0..103 build area — during a boundary transition.
+
+### Root cause
+
+`app_world_height` (the getAvH port, `src/app.c`) called
+`heightmap_get_interpolated` with the raw fine coordinate. That helper guards its
+three `+1` interpolation neighbours with `heightmap_in_bounds`, but reads the
+**base SW corner unguarded** (`heightmap_get(heightmap, tile_x, tile_z, …)`,
+`heightmap.c:174`). A spawn at tile 105 (`world_x = 105*128+64`, `tile_x = 105`)
+with `size_x = 104` indexes straight past the array → assert.
+
+### Client-TS
+
+`getAvH` (`Client.ts:5288`) guards up front:
+
+```ts
+if (tileX < 0 || tileZ < 0 || tileX > 103 || tileZ > 103) {
+    return 0;   // flat height, no sample
+}
+```
+
+`103 == BuildArea.SIZE - 1`, i.e. reject `tile >= scene_size`. (The reference
+also sizes `groundh` at **105** vertices — tiles+1 — so its unguarded
+`groundh[..][tileX + 1][..]` up to index 104 is always valid. torirs's heightmap
+is only `scene_size` (104) wide, which is why `heightmap_get_interpolated`
+already falls the `+1` neighbours back to the SW corner via `heightmap_in_bounds`
+— a benign one-row divergence at the last tile, not a crash.)
+
+### Fix
+
+`app_world_height` now performs the same up-front guard: compute `tile_x/tile_z`
+from the fine coord and `return 0` when either is `< 0` or `>= scene_size`,
+before the LinkBelow bump and the interpolated sample. This closes the only
+unbounded caller of `heightmap_get_interpolated` (the other, the bridge-debug
+loop at `app.c:2090`, is already scene-bounded; the orbit `heightmap_get` loop is
+guarded by `> 3 && < size-4`). Matches the reference's flat-0 behaviour for
+off-scene coordinates. `app.c` compiles clean.
+
+**Design note.** Both 30a and 30b follow the same reference discipline: an entity
+outside the build area is *tolerated, not clamped* — the painter draws nothing
+and getAvH returns 0. torirs keeps such NPCs in the entity pool (it never
+despawns tracked entities); they just contribute no geometry until they walk back
+into the scene, exactly as in the reference.

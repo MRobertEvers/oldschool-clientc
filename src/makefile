@@ -66,6 +66,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/torirs_types.c engine/torirs_model_from_rscache.c \
 	engine/torirs_component_from_rscache.c \
 	engine/torirs_objtype_from_rscache.c engine/torirs_npctype_from_rscache.c \
+	engine/torirs_spotanimtype_from_rscache.c \
 	engine/torirs_idk_from_rscache.c \
 	engine/torirs_map_from_rscache.c engine/torirs_location_from_rscache.c \
 	engine/torirs_flotype_from_rscache.c \
@@ -77,6 +78,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
 	engine/dat1/task_dat1_component_pack_load.c engine/dat1/task_dat1_clientscript_load.c \
 	engine/dat1/task_dat1_obj_load.c engine/dat1/task_dat1_npc_load.c \
+	engine/dat1/task_dat1_spotanim_load.c \
 	engine/dat1/task_dat1_idk_load.c \
 	engine/dat1/task_dat1_component_load.c \
 	engine/dat1/task_dat1_sprite_load.c engine/dat1/task_dat1_font_load.c \
@@ -86,6 +88,7 @@ SRCS = main.c app.c platform/platform_x_io.c platform/platform_sdl2.c \
 	engine/dat2/dat2_buildcache.c engine/dat2/task_dat2_model_load.c \
 	engine/dat2/task_dat2_component_pack_load.c engine/dat2/task_dat2_clientscript_load.c \
 	engine/dat2/task_dat2_obj_load.c engine/dat2/task_dat2_npc_load.c \
+	engine/dat2/task_dat2_spotanim_load.c \
 	engine/dat2/task_dat2_idk_load.c \
 	engine/dat2/task_dat2_map_load.c engine/dat2/task_dat2_loc_load.c \
 	engine/dat2/task_dat2_flotype_load.c engine/dat2/task_dat2_underlay_load.c \

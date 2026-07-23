@@ -23,6 +23,8 @@
 #include "src/datatypes/dat1_config_obj.c"
 #include "src/datatypes/dat1_config_idk.c"
 #include "src/datatypes/dat1_config_npc.c"
+#include "src/datatypes/dat1_config_spotanim.c"
+#include "src/datatypes/dat2_config_spotanim.c"
 #include "src/datatypes/dat2_config_obj.c"
 #include "src/datatypes/dat2_config_idk.c"
 #include "src/datatypes/dat2_config_npc.c"

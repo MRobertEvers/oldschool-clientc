@@ -1645,6 +1645,20 @@ app_world_height(
 
     if( !app->world || !app->world->heightmap )
         return 0;
+
+    /* getAvH out-of-scene guard (Client.ts:5296): a tile outside [0,scene_size)
+     * has no heightmap column, so the reference returns a flat 0 rather than
+     * sampling. Without this an entity spawned/projected past the scene edge
+     * (e.g. a border NPC at tile 105 in a 104-wide scene) drives an unguarded
+     * base-corner read in heightmap_get_interpolated straight off the array. */
+    {
+        int tile_x = world_x >> 7;
+        int tile_z = world_z >> 7;
+        int scene_size = app->world->_scene_size;
+        if( tile_x < 0 || tile_z < 0 || tile_x >= scene_size || tile_z >= scene_size )
+            return 0;
+    }
+
     if( level < WORLD_MAP_TERRAIN_LEVELS - 1 &&
         (World_TileFlagGet(app->world, world_x >> 7, world_z >> 7, 1) &
          RSCACHE_FLOFLAG_LINK_BELOW) != 0 )

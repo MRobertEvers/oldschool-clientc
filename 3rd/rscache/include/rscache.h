@@ -42,6 +42,8 @@ struct RSCache
 #include "datatypes/dat1_config_obj.h"
 #include "datatypes/dat1_config_idk.h"
 #include "datatypes/dat1_config_npc.h"
+#include "datatypes/dat1_config_spotanim.h"
+#include "datatypes/dat2_config_spotanim.h"
 #include "datatypes/dat2_config_obj.h"
 #include "datatypes/dat2_config_idk.h"
 #include "datatypes/dat2_config_npc.h"

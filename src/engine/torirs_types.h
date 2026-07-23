@@ -30,6 +30,7 @@ enum ToriRS_Kind
     TORIRS_KIND_COMPONENT_PACK,
     TORIRS_KIND_CLIENTSCRIPT,
     TORIRS_KIND_OBJTYPE,
+    TORIRS_KIND_SPOTANIMTYPE,
     TORIRS_KIND_COUNT,
 };
 
@@ -257,6 +258,26 @@ struct ToriRS_Npctype
      *  reference adds alwaysontop NPCs before other players/normal NPCs
      *  (Client.ts addNpcs), so they win the one-entity-per-tile dedup. */
     bool alwaysontop;
+};
+
+/* Spotanim (graphical effect) config — reference SpotType (config/SpotType.ts).
+ * A single model animated by a seq, with recolour/retexture, resize and a
+ * 90-degree angle, lit with custom ambient/contrast. Fed to the world as both
+ * a free-standing MapSpotAnim (MAP_ANIM) and an entity-attached graphic. */
+struct ToriRS_Spotanimtype
+{
+    int id;
+    int model;   /* single model id */
+    int seq;     /* animation seq id, or -1 */
+    int resizeh; /* 128 == 1.0 */
+    int resizev;
+    int angle;   /* 0 / 90 / 180 / 270 */
+    int ambient;
+    int contrast;
+    int recol_s[6];
+    int recol_d[6];
+    int retex_s[6]; /* dat2 only; dat1 leaves 0 */
+    int retex_d[6];
 };
 
 struct ToriRS_Idk
@@ -774,6 +795,9 @@ void
 ToriRS_ObjtypeFree(struct ToriRS_Objtype* objtype);
 
 void
+ToriRS_SpotanimtypeFree(struct ToriRS_Spotanimtype* spotanimtype);
+
+void
 ToriRS_SequenceFree(struct ToriRS_Sequence* seq);
 
 void
@@ -842,6 +866,9 @@ ToriRS_IdkSizeOf(const struct ToriRS_Idk* idk);
 
 size_t
 ToriRS_ObjtypeSizeOf(const struct ToriRS_Objtype* objtype);
+
+size_t
+ToriRS_SpotanimtypeSizeOf(const struct ToriRS_Spotanimtype* spotanimtype);
 
 size_t
 ToriRS_SequenceSizeOf(const struct ToriRS_Sequence* seq);

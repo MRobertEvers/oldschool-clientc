@@ -18,6 +18,7 @@
 #define CACHE_PROVIDER_CLIENTSCRIPT_CAPACITY 4096
 #define CACHE_PROVIDER_OBJTYPE_CAPACITY 4096
 #define CACHE_PROVIDER_NPCTYPE_CAPACITY 4096
+#define CACHE_PROVIDER_SPOTANIMTYPE_CAPACITY 1024
 #define CACHE_PROVIDER_IDK_CAPACITY 512
 #define CACHE_PROVIDER_MAP_TERRAIN_CAPACITY 512
 #define CACHE_PROVIDER_MAP_SCENERY_CAPACITY 512
@@ -98,6 +99,12 @@ struct MapEntry_ProviderNpctype
 {
     int id;
     struct ToriRS_Npctype* npctype;
+};
+
+struct MapEntry_ProviderSpotanimtype
+{
+    int id;
+    struct ToriRS_Spotanimtype* spotanimtype;
 };
 
 struct MapEntry_ProviderIdk
@@ -241,6 +248,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderObjtype), CACHE_PROVIDER_OBJTYPE_CAPACITY);
     provider->npctype_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderNpctype), CACHE_PROVIDER_NPCTYPE_CAPACITY);
+    provider->spotanimtype_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderSpotanimtype), CACHE_PROVIDER_SPOTANIMTYPE_CAPACITY);
     provider->idk_cache =
         cache_provider_hmap_new(sizeof(struct MapEntry_ProviderIdk), CACHE_PROVIDER_IDK_CAPACITY);
     provider->map_terrain_cache = cache_provider_hmap_new(
@@ -276,6 +285,7 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     CacheProvider_ClientScriptsCleanup(provider);
     CacheProvider_ObjtypesCleanup(provider);
     CacheProvider_NpctypesCleanup(provider);
+    CacheProvider_SpotanimtypesCleanup(provider);
     CacheProvider_IdksCleanup(provider);
     CacheProvider_MapTerrainsCleanup(provider);
     CacheProvider_MapSceneryCleanup(provider);
@@ -308,6 +318,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->objtype_cache = NULL;
     cache_provider_hmap_free(provider->npctype_cache);
     provider->npctype_cache = NULL;
+    cache_provider_hmap_free(provider->spotanimtype_cache);
+    provider->spotanimtype_cache = NULL;
     cache_provider_hmap_free(provider->idk_cache);
     provider->idk_cache = NULL;
     cache_provider_hmap_free(provider->map_terrain_cache);
@@ -1219,6 +1231,73 @@ CacheProvider_NpctypesCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->npctype_cache);
     provider->npctype_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderNpctype), CACHE_PROVIDER_NPCTYPE_CAPACITY);
+}
+
+void
+CacheProvider_SpotanimtypeAdd(
+    struct CacheProvider* provider,
+    int spotanim_id,
+    struct ToriRS_Spotanimtype* spotanimtype)
+{
+    struct MapEntry_ProviderSpotanimtype* entry;
+
+    assert(provider);
+    assert(spotanimtype);
+
+    cache_provider_hmap_prepare_insert(&provider->spotanimtype_cache);
+    entry = (struct MapEntry_ProviderSpotanimtype*)hmap_search(
+        provider->spotanimtype_cache, &spotanim_id, HMAP_INSERT);
+    assert(entry && "Spotanimtype must be inserted into hmap");
+
+    entry->id = spotanim_id;
+    entry->spotanimtype = spotanimtype;
+}
+
+struct ToriRS_Spotanimtype*
+CacheProvider_SpotanimtypeGet(
+    struct CacheProvider* provider,
+    int spotanim_id)
+{
+    struct MapEntry_ProviderSpotanimtype* entry;
+
+    assert(provider);
+
+    entry = (struct MapEntry_ProviderSpotanimtype*)hmap_search(
+        provider->spotanimtype_cache, &spotanim_id, HMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->spotanimtype;
+}
+
+bool
+CacheProvider_SpotanimtypeHas(
+    struct CacheProvider* provider,
+    int spotanim_id)
+{
+    return CacheProvider_SpotanimtypeGet(provider, spotanim_id) != NULL;
+}
+
+void
+CacheProvider_SpotanimtypesCleanup(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderSpotanimtype* entry;
+
+    assert(provider);
+    if( !provider->spotanimtype_cache )
+        return;
+
+    iter = hmap_iter_new(provider->spotanimtype_cache);
+    while( (entry = (struct MapEntry_ProviderSpotanimtype*)hmap_iter_next(iter)) )
+    {
+        if( entry->spotanimtype )
+            ToriRS_SpotanimtypeFree(entry->spotanimtype);
+    }
+    hmap_iter_free(iter);
+
+    cache_provider_hmap_free(provider->spotanimtype_cache);
+    provider->spotanimtype_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderSpotanimtype), CACHE_PROVIDER_SPOTANIMTYPE_CAPACITY);
 }
 
 void
