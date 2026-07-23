@@ -1123,6 +1123,25 @@ Now:
   `TGT_NPC`. Both scratch builds now pass `.selection`, so a left-click honours
   `useMode`/`targetMode` and casts/uses exactly like the menu. (This also fixes
   left-click "use item on" over UI components via the `clicked_com_id` build.)
+- **World click with a mode armed but no valid target must cancel (fixed).**
+  The reference always includes a **Cancel** row and `doAction` runs its tail
+  (`Client.ts:9506`, `useMode = 0; targetMode = 0`) whenever the chosen row is
+  not one of the two arming rows — so left-clicking anywhere that offers no use
+  target drops the selection. torirs has four clear paths mirroring that tail:
+  (A) `app_minimenu_use_option` after any executed row; (B) a UI component with
+  no menu row (`clicked_com_id`, `default_idx < 0`); (C) a left-click miss over
+  non-world chrome (world gate fails). The world-miss block (D) was missing its
+  cancel arm: while `useMode`/`targetMode` is armed, "Walk here" is **suppressed**
+  (`rs_minimenu_world.c`, gated on `SELECT_NONE`), so a left-click on empty
+  ground built a **Cancel-only** scratch menu → `RS_Minimenu_DefaultOptionIndex`
+  returned `-1` → the `default_idx >= 0` branch ran nothing and never cleared.
+  The selection stayed armed forever, and because Walk-here was still suppressed
+  every later world click was also inert — the world read as **"unclickable"**
+  after clicking "Cast" (or "Use") and then clicking empty ground. Fix: an
+  `else if( objsel.active || targetsel.active )` on the world-miss block clears
+  both selections and marks `need_redraw`, so a no-target world click cancels
+  exactly like the reference Cancel row. This covers both the spell case
+  (`targetMode`) and the use-item case (`useMode`).
 
 ---
 

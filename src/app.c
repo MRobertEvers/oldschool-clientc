@@ -6439,6 +6439,20 @@ App_RunOnce(
                 ran_cs2 = 1;
             app->interact.minimenu = saved;
         }
+        else if( app->objsel.active || app->targetsel.active )
+        {
+            /* A world click with a use/spell mode armed but no valid target:
+             * "Walk here" is suppressed while armed (rs_minimenu_world.c), so
+             * the scratch menu is Cancel-only and default_idx < 0 — nothing
+             * ran. The reference still runs doAction on that Cancel row, whose
+             * tail (Client.ts:9506) clears useMode/targetMode. Without this the
+             * selection stays armed forever: Walk here never returns, so every
+             * later world click is also inert and the world reads as
+             * "unclickable". Drop the armed selection and its white outline. */
+            app->objsel.active = 0;
+            app->targetsel.active = 0;
+            app->need_redraw = 1;
+        }
     }
 
     /* Left click on empty, non-world space — an inventory gap, the sidebar
