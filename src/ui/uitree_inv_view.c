@@ -80,8 +80,10 @@ UITree_InvViewGridSlotLimit(struct UITreeInvGridLayout const* layout)
 
     int cols = layout->cols > 0 ? layout->cols : 4;
     int rows = layout->rows > 0 ? layout->rows : 7;
-    int total = cols * rows;
-    if( total > UI_INV_SLOT_OFFSET_MAX )
-        total = UI_INV_SLOT_OFFSET_MAX;
-    return total;
+    /* The grid has width*height (cols*rows) slots. UI_INV_SLOT_OFFSET_MAX (20)
+     * bounds ONLY the per-slot pixel-offset and background arrays (reference
+     * invBackgroundX/Y, invBackground, all `if (slot < 20)`); it is NOT a cap
+     * on the inventory size. Every inv (e.g. 28-slot backpack, banks) draws all
+     * its slots; slots >= 20 simply have no custom offset/background. */
+    return cols * rows;
 }

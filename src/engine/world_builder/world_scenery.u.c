@@ -227,10 +227,13 @@ scenery_register_sharelight(
 
     /* Runtime loc spawn (zone LOC_ADD_CHANGE): the sharelight accumulator is
      * build-only (already freed), so the batch defaultlight_build pass will
-     * never see this model — light it now or it renders black. The reference
-     * does the same: locChangeUnchecked's loc.getModel always applies the
-     * default per-loc light; the cross-model normal merge is a static-build
-     * concept there too. */
+     * never see this model — light it now or it renders black. Reference: a
+     * runtime loc.getModel bakes the default per-loc light for non-sharelight
+     * locs (calculateNormals doNotShareLight=true -> light()); the adjacency
+     * normal merge + final light for sharelight locs is World.shareLight, a
+     * static-build-only pass — a runtime sharelight spawn stays UNLIT there
+     * until the next rebuild. torirs deliberately default-lights those too
+     * rather than reproduce that artifact. */
     if( builder->scenery_runtime_spawn )
     {
         struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(builder->scene, element_id);

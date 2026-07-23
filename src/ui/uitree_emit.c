@@ -1700,7 +1700,24 @@ emit_walk_node(
         }
         desc.scroll_off_x = scroll_off_x;
         desc.scroll_off_y = scroll_off_y;
-        desc.clip = *parent_clip;
+        if( desc.kind == UITREE_EMIT_ENTITY_OVERLAY )
+        {
+            /* EmitFill already put the world viewport box (reported by the
+             * host) in desc.clip. Intersect it with the enclosing clip instead
+             * of clobbering it, so overhead chat, prayer/skull headicons,
+             * health bars and hitsplats stay inside the scene viewport and
+             * never paint over the sidebar or chatbox — the overlay node is a
+             * late root sibling, so *parent_clip is the whole canvas (reference
+             * drawEntities runs inside the scene pass, clipped to the game
+             * viewport). */
+            struct UITreeEmitClip world_box = desc.clip;
+            clip_intersect(
+                &desc.clip, parent_clip, world_box.x, world_box.y, world_box.w, world_box.h);
+        }
+        else
+        {
+            desc.clip = *parent_clip;
+        }
         /* TORIRS_MODEL_CLIP_DEBUG: model widget box vs. the clip it will be
          * scissored to — the model overflows its box and is only bounded by
          * this clip (the enclosing interface layer ∩ surface). A clip narrower

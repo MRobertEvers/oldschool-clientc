@@ -2890,6 +2890,14 @@ app_world_mouse_gate(
 
     if( !app->world_active || !app->world_view_valid || hover_com_id >= 0 )
         return 0;
+    /* A viewport interface (reference mainModalId) owns the entire viewport
+     * rect: buildMinimenu adds that modal's component options there and NEVER
+     * world options (Client.ts:2772 `if (mainModalId === -1) addWorldOptions
+     * else addComponentOptions`). So while one is mounted, world picking stops
+     * and the mouse cannot hittest the scene through the gaps between the
+     * modal's components (e.g. the empty space between a shop's item slots). */
+    if( app->slots.main_modal_id != -1 )
+        return 0;
     /* Gate on the world WIDGET rect, not just its clip: an unclipped world
      * node inherits a full-canvas clip, which let sidebar/chat clicks count
      * as "in world" — right-clicking an inventory item offered "Walk here"
@@ -6398,6 +6406,25 @@ App_RunOnce(
         }
     }
 
+    /* Left click on empty, non-world space — an inventory gap, the sidebar
+     * chrome, the chat area — hits no component (RS_INV is pass-through, §21.4)
+     * and no world default row runs, so none of the doAction paths above fire.
+     * The reference still runs doAction there on a Cancel-only menu, whose tail
+     * (Client.ts:9506) clears useMode/targetMode. Mirror just that: a plain left
+     * click off anything that can be a "use" target drops the armed selection
+     * and its white outline. (A world miss with a default row is consumed above
+     * and already cleared; a filled slot is owned by the drag machine.) */
+    if( app->inv_drag_com_id < 0 && out.left_click_miss && !out.minimenu_closed &&
+        out.minimenu_select < 0 && (app->objsel.active || app->targetsel.active) &&
+        !(app_world_mouse_gate(
+              app, out.left_click_miss_x, out.left_click_miss_y, out.hover_com_id) &&
+          app_world_drawable(app)) )
+    {
+        app->objsel.active = 0;
+        app->targetsel.active = 0;
+        app->need_redraw = 1;
+    }
+
     app->hover_com_id = out.hover_com_id;
     if( out.clicked_com_id >= 0 )
         app->clicked_com_id = out.clicked_com_id;
@@ -7580,6 +7607,26 @@ App_WorldApplyPlayerAppearance(
                 ent->held_left_applied = -1;
                 ent->held_right_applied = -1;
             }
+        }
+
+        /* Local player's real name now known: sync it to the chatbox so the
+         * public-chat local echo shows the login name instead of the default
+         * "Player". The reference echoes with this.localPlayer.name
+         * (Client.ts:3405-3417); the server echoes the same name through
+         * PLAYER_INFO CHAT, so the two must match. */
+        if( appearance->name[0] )
+        {
+            int local_idx = -1;
+            if( RS_EntitySync_FindPlayer(
+                    &app->esync,
+                    app->esync.local_pid >= 0 ? app->esync.local_pid : 2047,
+                    &local_idx,
+                    NULL) &&
+                local_idx == world_idx )
+                strncpy(
+                    app->chat.username,
+                    appearance->name,
+                    sizeof(app->chat.username) - 1);
         }
     }
     app_sync_textures(app);

@@ -2744,10 +2744,15 @@ old-state capture reads typecodes from the scene, not a side pool.
   spawn's push was a NULL no-op and the model rendered **all black** (unlit
   `face_colors_a` stay zero). On `scenery_runtime_spawn` the model is now lit
   in place with `ToriDraw_LightModelDefault(contrast, ambient)`. Reference
-  parity: `locChangeUnchecked` → `loc.getModel` always applies the default
-  per-loc light; the cross-model normal merge is a static-build concept there
-  too, so a runtime change gets exactly this default light in Client-TS as
-  well.
+  parity: `locChangeUnchecked` → `loc.getModel` bakes the default per-loc
+  light for **non-sharelight** locs (`calculateNormals(...,
+  doNotShareLight=true)` → `light()`, LocType.ts:487 / Model.ts:1542). The
+  adjacency normal merge + final light for sharelight locs is
+  `World.shareLight` (World.ts:653) — a static-build-only whole-scene pass, so
+  a runtime **sharelight** spawn stays unlit in the reference until the next
+  rebuild. torirs deliberately default-lights those too (no merge, but no
+  unlit-until-rebuild artifact); the cross-model merge remains static-build
+  only in both clients.
 - **Test** (`world_builder_test_cache.c`, `make -C src test-world-builder`):
   against the real dat2 cache build, pick a blocking straight wall, `LOC_DEL`
   it (pool entry gone, collision flags change), then `LOC_ADD_CHANGE` it back —
@@ -2862,6 +2867,22 @@ left-click default, the scratch-menu left-click paths, the inv drag short-click)
 routes through the wrapper, so the cancel is uniform. Under `useMode` the world
 menu already suppresses "Walk here" (§16), so clicking bare ground falls to the
 Cancel row and the tail clears — matching the reference.
+
+**Second gap — a left click that never reaches `doAction`.** The wrapper only
+fires when a menu row actually runs, and torirs only runs the default row for a
+click that hits an interactive component (`clicked_com_id >= 0`) or the world
+viewport (`left_click_miss` + world gate). A left click on **empty, non-world
+space — an inventory gap, the sidebar chrome, the chat area** — hits neither
+(RS_INV is pass-through, §21.4; the sidebar background has no component), so no
+`doAction` path runs and the selection persisted. The reference still runs
+`doAction(menuNumEntries - 1)` there on a Cancel-only menu and the tail clears;
+torirs's `RS_Minimenu_DefaultOptionIndex` returns `-1` for a Cancel-only menu, so
+no row runs to clear it. Fixed with a dedicated cancel in `App_RunOnce`
+(`src/app.c`), right after the world-miss block: on `left_click_miss` that is
+**not** consumed by the world block (same gate, negated) and not a filled slot
+(the drag machine owns those), a live `objsel`/`targetsel` is cleared with a
+redraw. Gated on `minimenu_select < 0` so arming a "Use" via the right-click menu
+(same frame) is never self-cancelled.
 
 Not ported (deliberate): re-rastering every frame (torirs caches — the outline is
 static per obj/count), and the `useMode` translucent `selectedArea` variant
@@ -3012,3 +3033,137 @@ the interface config mounted with.
   the reference transform via `UITree_ApplyModelAngle(xan2d, yan2d,
   zoom2d*100/zoom)`.
 - `rs_gameproto_exec.c`: `PKT_NAME_IF_SETOBJECT` → `App_SetInterfaceObjModel`.
+
+---
+
+## 40. A viewport interface owns the whole viewport — world picking stops behind it — ✅
+
+### Symptom
+
+With a viewport interface mounted over the scene (a shop, bank, etc.), the
+mouse could still hittest the 3D world *through the gaps between the
+interface's components* — right-clicking the empty space between a shop's item
+slots offered world rows ("Walk here", loc/entity ops), and the hover text
+showed world targets under the panel.
+
+### Client-TS
+
+`buildMinimenu` (`Client.ts:2772`) treats the entire viewport rect
+(`4 < mouseX < 516`, `4 < mouseY < 338`) as owned by the modal whenever one is
+open — it never mixes world and interface rows:
+
+```ts
+if (this.mouseX > 4 && this.mouseY > 4 && this.mouseX < 516 && this.mouseY < 338) {
+    if (this.mainModalId === -1) {
+        this.addWorldOptions();                       // bare viewport → world picking
+    } else {
+        this.addComponentOptions(IfType.list[this.mainModalId], ...); // modal → its rows only
+    }
+}
+```
+
+So `mainModalId !== -1` stops `addWorldOptions` for the *whole* rect, not just
+where a component happens to sit. Note it is `mainModalId` only — `mainOverlayId`
+overlays (XP drops, wilderness level) are drawn but do **not** block world
+clicks, matching the reference's single-field check.
+
+### torirs
+
+`app_world_mouse_gate` (`app.c`) is the one chokepoint every world-pick path
+funnels through: the render-time hittest (`app.c:7682`, only runs when
+`world_mouse_in_viewport`), the per-frame pickset latch/reset (`app.c:6240`),
+hover-text (`app_hover_text_update`), and the right-click / left-click-miss
+menu builders. It already returned 0 when the mouse was over a component
+(`hover_com_id >= 0`), but the empty gaps inside a modal register no component,
+so world picks bled through.
+
+Fix: the gate now returns 0 whenever `app->slots.main_modal_id != -1` (torirs's
+mirror of `mainModalId`, set by `RS_UISlots_OpenMain` / cleared by
+`RS_UISlots_CloseModal`). One guard, checked before the widget-rect test, so
+every downstream path — render pick, pickset, hover text, both menu builders —
+stops picking the scene while a viewport interface is up. Overlays
+(`main_overlay_id`) are deliberately not gated, matching the reference.
+
+## 41. Overhead chat / headicons / hitsplats spilled outside the world viewport — ✅
+
+### Symptom
+
+Player/NPC overhead chat lines, prayer/skull headicons, health bars and
+hitsplats near the edge of the scene painted over the sidebar and chatbox
+instead of being cut off at the world viewport border.
+
+### Client-TS
+
+`gameDrawMain` (`Client.ts:4409`) renders the whole entity-overlay pass —
+`entityOverlays()` at `Client.ts:4484`, which emits health bars, hitsplats,
+headicons and queues overhead chat — into the off-screen `areaViewport` image,
+then blits it onto the screen at `(4, 4)`:
+
+```ts
+Pix2D.cls();
+this.world?.renderAll(...);
+this.entityOverlays();          // health bars / hitsplats / headicons / chat
+...
+this.areaViewport?.draw(4, 4);  // viewport-sized buffer → screen at (4,4)
+```
+
+Because everything draws into a viewport-sized buffer, every overhead primitive
+is inherently clipped to the world viewport — nothing can bleed onto the
+surrounding chrome.
+
+### torirs
+
+The overlay node (`UIELEM_BUILTIN_ENTITY_OVERLAY`) is pushed as a late root
+sibling (`app_push_builtin_overlay_nodes`, `app.c`), so its `parent_clip` in the
+emit walk is the whole canvas. `UITree_EmitFill` already populated the desc's
+clip with the world viewport box the host reports
+(`UITREE_HOST_GET_ENTITY_OVERLAYS` → `world_emit_desc.x/y/w/h`, `app.c:836`), but
+`emit_walk_node` (`uitree_emit.c`) then unconditionally overwrote it with
+`desc.clip = *parent_clip`, discarding the world box and clipping the overlays
+to the full canvas.
+
+Fix: for `UITREE_EMIT_ENTITY_OVERLAY`, intersect the host-provided world box
+with `parent_clip` instead of clobbering it (`clip_intersect`). The per-item
+scissor rects in `torirs_frame.c` (already `desc->clip` for sprite/text/rect
+overlays) now bound every overhead primitive to the world viewport, matching the
+reference's draw-into-`areaViewport` behaviour. The scene-viewport scissor is
+honoured by `viewport_from_scissor` in the soft3d backend.
+
+## 42. Inventory capped at 20 items — slot count conflated with the size-20 offset arrays — ✅
+
+### Client-TS
+
+A TYPE_INV component holds `width * height` item slots — the object arrays are
+sized to the full grid: `com.linkObjType = new Int32Array(com.width * com.height)`
+/ `com.linkObjNumber = ...` (`IfType.ts:182-184`, `:297-298`). The draw loop
+(`Client.ts:10177-10273`) iterates **every** slot, `for (row < child.height) for
+(col < child.width)`, and item icons render for all of them (`child.linkObjType[
+slot] > 0`, line 10194). The size-**20** arrays are a *separate* concept: the
+per-slot "variadic" background/offset placement — `invBackgroundX/Y = new
+Int16Array(20)` and `invBackground` (`IfType.ts:194-209`) — and they are the only
+thing gated `if (slot < 20)` (lines 10189-10192, 10266). Equipment-style panels
+use them to nudge the first ≤20 slots into a silhouette; the rest of the grid
+draws on the plain `col*(marginX+32)` / `row*(marginY+32)` lattice. So a 28-slot
+backpack draws 28 icons; slots 20-27 simply have no custom offset.
+
+### torirs
+
+`UITree_InvViewGridSlotLimit` (`uitree_inv_view.c`) computed `cols * rows` and
+then **clamped it to `UI_INV_SLOT_OFFSET_MAX` (20)** — the same constant that
+sizes the per-slot offset/background arrays (`uitree.h:7`, `:453-456`;
+`TORIRS_INV_SLOT_MAX` in `torirs_types.h:583`). That clamp is the whole bug: it
+fed both the emit loop (`uitree_emit.c:1201`) and the grid hit-test
+(`uitree_inv_view.c:62`), so a 4×7 backpack rendered and clicked only its first
+20 slots. The offset/background *arrays* legitimately stay size-20 — the
+reference itself only defines 20 backgrounds — and every read of them is already
+guarded by an independent `slot < UI_INV_SLOT_OFFSET_MAX` (`uitree_inv_view.c:27`,
+`uitree_emit.c:1255`), so slots ≥20 fall through to the "no bg → continue" path
+exactly as the reference does.
+
+Fix: `UITree_InvViewGridSlotLimit` now returns the full `cols * rows`
+(= reference `width * height`) with no clamp. `cols`/`rows` already flow from the
+component's `baseWidth`/`baseHeight` (`torirs_component_from_rscache.c:314-315`,
+`:464-465`), matching the reference grid dimensions. Host-side storage is safe:
+`InvManager_GetSlot` (`inv_manager.c:264`) bounds-checks against the container's
+real `slot_count` (backpack = `INV_MANAGER_DEFAULT_BACKPACK_SLOTS` = 28) and
+returns empty for out-of-range slots. Full build clean.
