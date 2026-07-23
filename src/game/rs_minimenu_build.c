@@ -150,46 +150,60 @@ add_menu_ops_rows(
     return menu->option_count - before;
 }
 
-/* Held-item rows for an inventory slot: ops 5/4 (Drop default), Use, ops 3..1,
- * Examine — insertion order mirrors v1 ui_click_add_inv_obj_options so the
- * primary op ends on top. */
+/* Held-item ObjType-op rows for an inventory slot, gated on the component flags
+ * (reference addComponentOptions, Client.ts:9936-9991): ops 5/4 (Drop default)
+ * and ops 3..1 come from ObjType.iop and are shown only when the component has
+ * `obj_ops` (IfType.objOps); "Use" only when `obj_use` (IfType.objUse). A shop's
+ * sell grid decodes both false, so those rows vanish and only the grid's own iop
+ * buttons (Value/Sell, added by the caller) + Examine remain. Insertion order
+ * (op 4/3, Use, op 2..0) mirrors the reference so the primary op ends on top;
+ * the caller emits the component iop rows and Examine after this, matching the
+ * reference's trailing order. */
 static void
 add_inv_obj_rows(
     struct UIMinimenu* menu,
     struct UIMinimenuPick pick,
-    struct ToriRS_Objtype const* obj)
+    struct ToriRS_Objtype const* obj,
+    bool obj_ops,
+    bool obj_use)
 {
     char text[UITREE_MINIMENU_OPTION_LEN];
     char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
 
-    for( int op = 4; op >= 3; op-- )
+    if( obj_ops )
     {
-        if( obj && obj->inv_actions[op][0] != '\0' )
+        for( int op = 4; op >= 3; op-- )
         {
-            format_inv_item_option(text, sizeof(text), obj->inv_actions[op], obj_name);
-            UIMinimenu_AddOption(menu, text, k_opheld_action[op], op, pick);
-        }
-        else if( op == 4 )
-        {
-            format_inv_item_option(text, sizeof(text), "Drop", obj_name);
-            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPHELD5, 4, pick);
+            if( obj && obj->inv_actions[op][0] != '\0' )
+            {
+                format_inv_item_option(text, sizeof(text), obj->inv_actions[op], obj_name);
+                UIMinimenu_AddOption(menu, text, k_opheld_action[op], op, pick);
+            }
+            else if( op == 4 )
+            {
+                format_inv_item_option(text, sizeof(text), "Drop", obj_name);
+                UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPHELD5, 4, pick);
+            }
         }
     }
 
-    format_inv_item_option(text, sizeof(text), "Use", obj_name);
-    UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPHELDT_START, 0, pick);
-
-    for( int op = 2; op >= 0; op-- )
+    if( obj_use )
     {
-        if( obj && obj->inv_actions[op][0] != '\0' )
-        {
-            format_inv_item_option(text, sizeof(text), obj->inv_actions[op], obj_name);
-            UIMinimenu_AddOption(menu, text, k_opheld_action[op], op, pick);
-        }
+        format_inv_item_option(text, sizeof(text), "Use", obj_name);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPHELDT_START, 0, pick);
     }
 
-    format_inv_item_option(text, sizeof(text), "Examine", obj_name);
-    UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPHELD6, 0, pick);
+    if( obj_ops )
+    {
+        for( int op = 2; op >= 0; op-- )
+        {
+            if( obj && obj->inv_actions[op][0] != '\0' )
+            {
+                format_inv_item_option(text, sizeof(text), obj->inv_actions[op], obj_name);
+                UIMinimenu_AddOption(menu, text, k_opheld_action[op], op, pick);
+            }
+        }
+    }
 }
 
 /** Objtype for menu text; queue the load when not yet resident and return
@@ -297,9 +311,18 @@ add_inv_slot_rows(
                 &ctx->selection, pick, node->component_id, slot, obj_name, menu) )
             return menu->option_count - before;
 
-        add_inv_obj_rows(menu, pick, obj);
+        add_inv_obj_rows(
+            menu, pick, obj, node->u.rs_inv.obj_ops != 0, node->u.rs_inv.obj_use != 0);
         snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
+        /* Component's own iop buttons (e.g. shop Value/Sell 1/5/10), then the
+         * always-present Examine — trailing order per reference (Client.ts:
+         * 9993-10020). */
         add_menu_ops_rows(menu, &node->menu_options, pick, suffix);
+        {
+            char examine[UITREE_MINIMENU_OPTION_LEN];
+            format_inv_item_option(examine, sizeof(examine), "Examine", obj_name);
+            UIMinimenu_AddOption(menu, examine, REVCONFIG_MINIMENU_OPHELD6, 0, pick);
+        }
         return menu->option_count - before;
     }
 }

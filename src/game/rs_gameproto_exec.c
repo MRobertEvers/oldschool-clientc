@@ -2,19 +2,18 @@
 
 #include "app.h"
 #include "inv/inv_manager.h"
+#include "net/jbase37.h"
+#include "net/net.h"
 #include "net/rev/revpacket.h"
 #include "rs_audio.h"
 #include "rs_chat.h"
 #include "rs_entity_sync.h"
-#include "rs_social.h"
-#include "net/jbase37.h"
-#include "world/world.h"
 #include "rs_player_stats.h"
+#include "rs_social.h"
 #include "rs_ui_slots.h"
 #include "ui/uitree.h"
 #include "varp/varp_manager.h"
-
-#include "net/net.h"
+#include "world/world.h"
 
 #include <assert.h>
 #include <math.h>
@@ -255,8 +254,7 @@ RS_GameProto_Exec(
         if( packet->_update_stat.stat >= 0 &&
             packet->_update_stat.stat < RS_PLAYER_STATS_SKILL_COUNT )
         {
-            RS_PlayerStats_SetXp(
-                ctx->stats, packet->_update_stat.stat, packet->_update_stat.xp);
+            RS_PlayerStats_SetXp(ctx->stats, packet->_update_stat.stat, packet->_update_stat.xp);
             ctx->stats->current_level[packet->_update_stat.stat] = packet->_update_stat.level;
             RS_PlayerStats_RecomputeCombatLevel(ctx->stats);
         }
@@ -281,15 +279,12 @@ RS_GameProto_Exec(
         /* Persist through the app store when available: journal/bonus texts
          * arrive before their interface mounts (tests exec without an app). */
         if( ctx->app )
-            App_IfTextSet(
-                ctx->app, packet->_if_settext.component_id, packet->_if_settext.text);
+            App_IfTextSet(ctx->app, packet->_if_settext.component_id, packet->_if_settext.text);
         else
-            UITree_ApplyText(
-                ctx->tree, packet->_if_settext.component_id, packet->_if_settext.text);
+            UITree_ApplyText(ctx->tree, packet->_if_settext.component_id, packet->_if_settext.text);
         break;
     case PKT_NAME_IF_SETHIDE:
-        UITree_ApplyHide(
-            ctx->tree, packet->_if_sethide.component_id, packet->_if_sethide.hide);
+        UITree_ApplyHide(ctx->tree, packet->_if_sethide.component_id, packet->_if_sethide.hide);
         break;
     case PKT_NAME_IF_SETCOLOUR:
         UITree_ApplyColour(
@@ -316,9 +311,7 @@ RS_GameProto_Exec(
          * it. Needs the App (async model loads via the exec runner). */
         if( ctx->app )
             App_SetInterfaceNpcHead(
-                ctx->app,
-                packet->_if_setnpchead.component_id,
-                packet->_if_setnpchead.npc_id);
+                ctx->app, packet->_if_setnpchead.component_id, packet->_if_setnpchead.npc_id);
         break;
     case PKT_NAME_IF_SETPLAYERHEAD:
         /* Reference IfType.getModel type 3: local-player chathead. */
@@ -367,8 +360,7 @@ RS_GameProto_Exec(
         break;
     case PKT_NAME_IF_SETTAB:
         if( ctx->app )
-            RS_UISlots_SetTab(
-                ctx->app, packet->_if_settab.tab_id, packet->_if_settab.component_id);
+            RS_UISlots_SetTab(ctx->app, packet->_if_settab.tab_id, packet->_if_settab.component_id);
         break;
 
     /* ---- chat ---- */
@@ -665,7 +657,8 @@ RS_GameProto_Exec(
     case PKT_NAME_HINT_ARROW:
         if( ctx->app )
         {
-            ctx->app->hint_arrow.type = packet->_hint_arrow.type == 255 ? 0 : packet->_hint_arrow.type;
+            ctx->app->hint_arrow.type =
+                packet->_hint_arrow.type == 255 ? 0 : packet->_hint_arrow.type;
             ctx->app->hint_arrow.target = packet->_hint_arrow.id;
             ctx->app->hint_arrow.tile_z = packet->_hint_arrow.z;
             ctx->app->hint_arrow.height = packet->_hint_arrow.height;
@@ -744,7 +737,12 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
-        /* Container stays as last transmitted (reference stops updates). */
+        /* Reference clears the bound inventory's slots (linkObjType[i] = -1).
+         * ApplyFull with count 0 empties every slot; a no-op if the container
+         * was never transmitted. */
+        if( ctx->invs )
+            InvManager_ApplyFull(
+                ctx->invs, packet->_update_inv_stop_transmit.component_id, NULL, NULL, 0);
         break;
 
     default:

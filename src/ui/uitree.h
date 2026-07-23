@@ -450,6 +450,10 @@ struct UITreeComponent
             int margin_y;
             /** Item drag allowed (objSwap || objReplace); 1 = draggable. */
             int can_drag;
+            /** Show ObjType-op rows (objOps); 0 hides Drop/wield/op1-5. */
+            int obj_ops;
+            /** Show the "Use" row (objUse); 0 hides it. */
+            int obj_use;
             int inv_slot_offset_x[UI_INV_SLOT_OFFSET_MAX];
             int inv_slot_offset_y[UI_INV_SLOT_OFFSET_MAX];
             int inv_slot_bg_scene_id[UI_INV_SLOT_OFFSET_MAX];
@@ -670,6 +674,10 @@ struct UITreeNodeSpec
             int margin_y;
             /** Item drag allowed (objSwap || objReplace); 1 = draggable. */
             int can_drag;
+            /** Show ObjType-op rows (objOps); 0 hides Drop/wield/op1-5. */
+            int obj_ops;
+            /** Show the "Use" row (objUse); 0 hides it. */
+            int obj_use;
             int const* inv_slot_offset_x;
             int const* inv_slot_offset_y;
             int const* inv_slot_bg_scene_id;

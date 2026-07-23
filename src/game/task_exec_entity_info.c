@@ -9,6 +9,8 @@
 #include "net/rev/pkt_player_appearance.h"
 #include "net/rev/pkt_player_info.h"
 #include "net/wordpack.h"
+#include "toridraw_animation.h"
+#include "toridraw_scene.h"
 #include "world/entity_pathing.h"
 #include "world/world.h"
 
@@ -75,6 +77,7 @@ struct Task_ExecPlayerInfo
     int seq_i;
     int pending_seq;
     int pending_delay;
+    int held_vals[2]; /* replaceheld left/right (encoded appearance values) */
 };
 
 static int
@@ -445,6 +448,55 @@ Task_ExecPlayerInfo_Run(
                     self->pending_seq >= 0
                         ? CreateTask_SequenceLoad(app->provider, app->scene, self->pending_seq)
                         : NULL);
+
+                /* Held-item replacement (reference ClientPlayer.getTempModel2 via
+                 * SeqType.replaceheldleft/right, opcodes 6/7): a woodcutting/
+                 * mining-style seq swaps a worn item for an obj that is NOT part
+                 * of the player's appearance, so its config + wear models were
+                 * never fetched by the APPEARANCE path. Ensure them now — the
+                 * per-frame swap (app_world_apply_player_held_items) builds the
+                 * player model synchronously and silently drops any wear model
+                 * that is not resident, so the swapped item would otherwise never
+                 * appear. The reference defers the model build until
+                 * ObjType.checkWearModel loads; we pre-load instead. Loading is
+                 * idempotent, so re-issuing on every SEQ is cheap. */
+                {
+                    struct ToriDraw_Animation* prim =
+                        self->pending_seq >= 0
+                            ? ToriDraw_SceneAnimationGet(app->scene, self->pending_seq)
+                            : NULL;
+                    self->held_vals[0] = prim ? prim->replaceheldleft : -1;
+                    self->held_vals[1] = prim ? prim->replaceheldright : -1;
+                }
+                /* Obj configs first — only obj-range values (>= 0x200) name an
+                 * obj; lower values hide the item and need no model. */
+                for( self->cfg_i = 0; self->cfg_i < 2; self->cfg_i++ )
+                    TASK_AWAITSELF_IF(
+                        self->held_vals[self->cfg_i] >= 0x200
+                            ? CreateTask_ObjLoad(
+                                  app->provider, self->held_vals[self->cfg_i] - 0x200)
+                            : NULL);
+                /* Then their gendered wear models (slot 3 = right hand, slot 5 =
+                 * left hand — same appearance encoding the swap feeds the build). */
+                {
+                    struct WorldEntity_Player* held_player = World_EntityPoolGet(
+                        &app->world->entities.player, self->cur_world_idx);
+                    int held_slots[12];
+                    for( int k = 0; k < 12; k++ )
+                        held_slots[k] = -1;
+                    held_slots[3] = self->held_vals[1] >= 0x200 ? self->held_vals[1] : -1;
+                    held_slots[5] = self->held_vals[0] >= 0x200 ? self->held_vals[0] : -1;
+                    self->model_count = PlayerModel_CollectAppearanceModelIds(
+                        app->provider,
+                        held_slots,
+                        held_player ? held_player->gender : 0,
+                        self->model_ids,
+                        (int)(sizeof(self->model_ids) / sizeof(self->model_ids[0])));
+                }
+                for( self->model_i = 0; self->model_i < self->model_count; self->model_i++ )
+                    TASK_AWAITSELF_IF(
+                        CreateTask_ModelLoad(app->provider, self->model_ids[self->model_i]));
+
                 if( self->cur_world_idx >= 0 )
                     World_PlayerSetPrimaryAnimation(
                         app->world, self->cur_world_idx, self->pending_seq, self->pending_delay);

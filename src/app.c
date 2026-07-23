@@ -4388,7 +4388,8 @@ struct Task_AppIfHead
     int component_id;
     int npc_id;
     int model_i;
-    int head_ids[APP_IFHEAD_MAX_HEADS]; /* player: idk head model ids to load */
+    int slot_i;
+    int head_ids[APP_IFHEAD_MAX_HEADS]; /* player: idk + worn-obj head model ids to load */
     int head_count;
 };
 
@@ -4439,11 +4440,22 @@ Task_AppIfHead_Run(
          * are usually already resident from the world body build; await the
          * appearance load first as a baseline. */
         TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+        /* Ensure worn-equipment obj configs are resident so their head-model
+         * ids (manhead/womanhead) can be gathered below — the body build loads
+         * the wear models but never the head models (reference getHeadModel
+         * pulls ObjType.getHeadModelNoCheck for slots >= 512). */
+        for( self->slot_i = 0; self->slot_i < 12; self->slot_i++ )
+        {
+            struct WorldEntity_Player* lp = app_local_player(app);
+            if( lp && lp->appearance.slots[self->slot_i] >= 0x200 )
+                TASK_AWAITSELF_IF(CreateTask_ObjLoad(
+                    app->provider, lp->appearance.slots[self->slot_i] - 0x200));
+        }
         {
             struct WorldEntity_Player* lp = app_local_player(app);
             self->head_count = lp ? PlayerHeadModel_CollectHeadModelIds(
-                                        app->provider, lp->appearance.slots, self->head_ids,
-                                        APP_IFHEAD_MAX_HEADS)
+                                        app->provider, lp->appearance.slots, lp->gender,
+                                        self->head_ids, APP_IFHEAD_MAX_HEADS)
                                   : 0;
         }
         for( self->model_i = 0; self->model_i < self->head_count; self->model_i++ )

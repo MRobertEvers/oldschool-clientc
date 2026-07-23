@@ -71,6 +71,10 @@ struct UIBuildComponent
     int margin_y;
     /** Inventory item drag allowed (objSwap || objReplace); 1 = draggable. */
     int inv_can_drag;
+    /** Show ObjType-op rows (objOps); 0 suppresses Drop/wield/op1-5 (shop sell grid). */
+    int inv_obj_ops;
+    /** Show the "Use" row (objUse); 0 suppresses it (shop sell grid). */
+    int inv_obj_use;
     int inv_slot_offset_x[UI_INV_SLOT_OFFSET_MAX];
     int inv_slot_offset_y[UI_INV_SLOT_OFFSET_MAX];
     int inv_slot_graphic_id[UI_INV_SLOT_OFFSET_MAX];

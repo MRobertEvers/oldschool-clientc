@@ -2,6 +2,7 @@
 
 #include "rs_minimenu_build.h"
 
+#include "world/entity_player.h"
 #include "world/world.h"
 #include "world/world_pickset.h"
 
@@ -9,6 +10,34 @@
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
+
+/* Level-difference colour tag for a combat level shown to the local player
+ * (reference Client.combatColourCode, Client.ts:10111). diff = viewer - other:
+ * an NPC far above the player reads red/orange, far below reads green, equal
+ * yellow. viewer < 0 means "no local player" — the caller then omits the level
+ * entirely (reference gates the whole `(level-N)` suffix on `this.localPlayer`). */
+static char const*
+combat_colour_code(int viewer, int other)
+{
+    int diff = viewer - other;
+    if( diff < -9 )
+        return "@red@";
+    if( diff < -6 )
+        return "@or3@";
+    if( diff < -3 )
+        return "@or2@";
+    if( diff < 0 )
+        return "@or1@";
+    if( diff > 9 )
+        return "@gre@";
+    if( diff > 6 )
+        return "@gr3@";
+    if( diff > 3 )
+        return "@gr2@";
+    if( diff > 0 )
+        return "@gr1@";
+    return "@yel@";
+}
 
 /* The rev-254 OP*1..5 action ids are NOT contiguous (revconfig.h:52-69), so
  * `OP*1 + slot` only resolves correctly for slot 0. The reference assigns them
@@ -91,7 +120,8 @@ add_npc_rows(
     struct UIMinimenu* menu,
     struct RS_MinimenuSelection const* sel,
     struct WorldEntity_NPC const* npc,
-    struct World_Picked const* picked)
+    struct World_Picked const* picked,
+    int viewer_combat_level)
 {
     char text[UITREE_MINIMENU_OPTION_LEN];
     char tooltip[UITREE_MINIMENU_OPTION_LEN];
@@ -103,12 +133,17 @@ add_npc_rows(
         .quaternary_id = picked->tile_z,
     };
 
-    if( npc->combat_level > 0 )
+    /* Colour the level by its distance from the local player's combat level
+     * (reference addNpcOptions:9695 — `name + combatColourCode(localPlayer,
+     * vislevel) + ' (level-N)'`). The suffix is gated on a local player being
+     * present (viewer_combat_level >= 0), matching the reference guard. */
+    if( npc->combat_level > 0 && viewer_combat_level >= 0 )
         snprintf(
             tooltip,
             sizeof(tooltip),
-            "%s (level-%d)",
+            "%s%s (level-%d)",
             npc->name[0] ? npc->name : "NPC",
+            combat_colour_code(viewer_combat_level, npc->combat_level),
             npc->combat_level);
     else
         snprintf(tooltip, sizeof(tooltip), "%s", npc->name[0] ? npc->name : "NPC");
@@ -221,6 +256,63 @@ add_obj_rows(
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPOBJ6, 0, pick);
 }
 
+/* Client-TS addWorldOptions (Client.ts:9591-9603): a picked size-1, tile-centred
+ * NPC stands in for the whole pile of NPCs on its tile. The renderer draws — and
+ * therefore picks — only one model per tile (the one-model-per-tile dedup,
+ * world_cycle.c world_dyn_tile_claim), so a stack of NPCs on one square yields a
+ * single pick. The menu must still list every one of them. Mirror the reference:
+ * scan the NPC pool for the OTHER NPCs sharing the picked NPC's fine draw coords
+ * and emit their rows first, then the picked NPC last so its rows sort on top. */
+/* Local player's combat level for the level-difference colouring (reference
+ * `this.localPlayer.combatLevel`), or -1 when there is no local player yet —
+ * the caller then omits the `(level-N)` suffix, matching the reference guard. */
+static int
+world_local_combat_level(struct World* world)
+{
+    struct WorldEntity_Player* lp =
+        World_PlayerGetByServerPid(world, world->local_pid);
+    return lp ? lp->combat_level : -1;
+}
+
+static void
+add_npc_stack_rows(
+    struct UIMinimenu* menu,
+    struct RS_MinimenuSelection const* sel,
+    struct World* world,
+    struct WorldEntity_NPC const* npc,
+    struct World_Picked const* picked)
+{
+    int viewer_combat_level = world_local_combat_level(world);
+
+    if( npc->size == 1 && ((int)npc->draw_position.x & 0x7f) == 64 &&
+        ((int)npc->draw_position.z & 0x7f) == 64 )
+    {
+        struct World_EntityPool* pool = &world->entities.npc;
+        for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
+             ni = World_EntityPoolNext(pool, ni) )
+        {
+            struct WorldEntity_NPC* other = World_EntityPoolGet(pool, ni);
+            if( !other || other->element_id < 0 )
+                continue;
+            if( other->element_id == npc->element_id || other->size != 1 )
+                continue;
+            if( other->draw_position.x != npc->draw_position.x ||
+                other->draw_position.z != npc->draw_position.z )
+                continue;
+            struct World_Picked other_picked = {
+                .element_id = other->element_id,
+                .type = WORLD_PICK_NPC,
+                .tile_x = other->grid_position.x,
+                .tile_z = other->grid_position.z,
+                .tile_level = picked->tile_level,
+            };
+            add_npc_rows(menu, sel, other, &other_picked, viewer_combat_level);
+        }
+    }
+
+    add_npc_rows(menu, sel, npc, picked, viewer_combat_level);
+}
+
 void
 RS_Minimenu_AddWorldRows(
     struct RS_MinimenuBuildCtx const* ctx,
@@ -276,7 +368,7 @@ RS_Minimenu_AddWorldRows(
             struct WorldEntity_NPC* npc =
                 World_NpcGetByElementId(ctx->world, picked->element_id, NULL);
             if( npc )
-                add_npc_rows(menu, sel, npc, picked);
+                add_npc_stack_rows(menu, sel, ctx->world, npc, picked);
             break;
         }
         case WORLD_PICK_SCENERY:

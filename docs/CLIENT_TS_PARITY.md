@@ -1225,12 +1225,23 @@ Regression: `uitree_test_hover.c` "inv grid collected when a slot (not the node
 box) is clicked" (fails without the fix; a 4×7 node box misses a click at
 (85,65) inside slot 0).
 
-**Known parity gap (not the reported bug, deferred):** `add_inv_obj_rows` does
-not yet gate on the component's `objOps`/`objUse` flags the way Client-TS /
-v0 do — it always emits Drop/Use/Examine. For the backpack both flags are set so
-behaviour matches; on panels that disable them (some bank/shop grids) torirs
-would over-offer. Left alone deliberately — the reported symptom was *missing*
-rows, and gating only removes rows.
+**objOps/objUse gating (was the deferred gap above — now fixed):** the row-builder
+now mirrors the reference exactly. `add_inv_obj_rows` takes the component's
+`obj_ops` / `obj_use` flags and suppresses the ObjType-op rows (Drop / wield /
+op1-5) and the "Use" row when they are false; the component's own `iop` buttons
+and Examine are always emitted after. A shop's sell grid decodes
+`interactable=false` / `usable=false` (dat1 booleans → `objOps` / `objUse`), so
+right-clicking a held item there now shows only *Value / Sell 1 / Sell 5 /
+Sell 10* (the grid's `iop`) + *Examine* — no stray Use/Drop — matching
+`Client.ts:9936-10020`. The plumbing adds `inv_obj_ops` / `inv_obj_use` to
+`ToriRS_Component` (set in both dat1 and dat2 decode — dat1 from
+`interactable`/`usable`; dat2/IF3 has no such booleans so it defaults on,
+preserving prior behaviour), threaded through `UITreeBuildComponent` →
+`UITreeNodeSpec.rs_inv` → `UITreeComponent.u.rs_inv.obj_ops/obj_use` (same chain
+as `can_drag`). Row **order** also now matches the reference (component `iop`
+before Examine, not after); the `<1000`/`>1000` priority sort
+(`UIMinimenu_SortPriorityActions`) is unchanged, so the left-click default still
+resolves to the top op (e.g. *Value*) and Examine stays at the bottom.
 
 ---
 
@@ -1686,6 +1697,18 @@ projected position — the dedup is a 3D-scene rule only, never an overlay rule.
 (See §12/§19 — the torirs overlay pass already walks all entities, so this was
 already consistent; the takeaway is to keep it that way.)
 
+**The minimenu is NOT deduped either.** Picking is a side effect of drawing —
+only the one model that survived the dedup is ever tested against the mouse — so
+a naive menu would list just the winner and drop every entity stacked under it.
+The reference closes this gap in `addWorldOptions` (`Client.ts:9591-9603`): when
+the picked entity is a size-1, tile-centred **NPC** it walks the whole `npc[]`
+list and calls `addNpcOptions` for every *other* size-1 NPC sharing its fine
+`(x, z)`, then adds the picked NPC last. A picked **player** does the same for
+co-located NPCs *and* other players (`Client.ts:9607-9627`). So a pile that
+renders as one model still yields a full right-click menu of every entity on the
+tile. (Ground items — entityType 3 — aren't deduped at all; that branch already
+iterates the tile's whole `groundObj` list.)
+
 ### torirs
 
 `World_CycleRegisterPainterDynamics` (`world/world_cycle.c`) re-registers every
@@ -1717,6 +1740,16 @@ Now it mirrors the reference exactly:
   in `App_WorldApplyNpcType`, and used only for the tier split.
 - Overlays (§12) are untouched — `app_build_entity_overlays` already walks all
   entities, so hitsplats/health/chat still show on dedup-hidden models.
+- **Minimenu stack expansion** (`add_npc_stack_rows`, `game/rs_minimenu_world.c`):
+  the pickset holds only the one drawn model per tile (picking rides the render
+  pass — `torirs_pick.c`), so `RS_Minimenu_AddWorldRows` was emitting rows for
+  just the tile winner and dropping the rest of the stack. It now mirrors the
+  reference: for a picked size-1, tile-centred NPC it scans `world->entities.npc`
+  and emits `add_npc_rows` for every other size-1 NPC whose `draw_position` matches
+  (co-located), then the picked NPC last so its rows sort on top. Players aren't
+  minimenu targets in torirs yet (`torirs_pick.c` never classifies them), so the
+  player half of `Client.ts:9607-9627` is a no-op here — when players become
+  clickable, the same expansion belongs in their row builder.
 
 **What's deliberately not ported:** the `locModel` addDynamic2 bypass (torirs
 doesn't model loc-bound player anims), and the anticheat `cyclelogic` packets
@@ -3174,3 +3207,152 @@ component's `baseWidth`/`baseHeight` (`torirs_component_from_rscache.c:314-315`,
 `InvManager_GetSlot` (`inv_manager.c:264`) bounds-checks against the container's
 real `slot_count` (backpack = `INV_MANAGER_DEFAULT_BACKPACK_SLOTS` = 28) and
 returns empty for out-of-range slots. Full build clean.
+
+## 43. Player head (chathead) ignored worn equipment — idk heads only — ✅
+
+### Symptom
+
+The player portrait shown in a `type === 3` interface component (chat dialogue /
+character screen) rendered only the identity-kit head parts — hair, beard, bare
+head. Any head-covering worn gear (helmets, hats, full masks) was missing, so a
+helmeted player still showed a bare head in dialogue.
+
+### Client-TS
+
+`ClientPlayer.getHeadModel` (`ClientPlayer.ts:556-613`) composites **two**
+sources per appearance slot:
+
+```ts
+if (value >= 256 && value < 512) {           // identity kit
+    const idkModel = IdkType.list[value - 256].getHeadNoCheck();
+    if (idkModel) models[modelCount++] = idkModel;
+}
+if (value >= 512) {                          // WORN EQUIPMENT
+    const headModel = ObjType.list(value - 512).getHeadModelNoCheck(this.gender);
+    if (headModel) models[modelCount++] = headModel;
+}
+```
+
+`ObjType.getHeadModelNoCheck(gender)` (`ObjType.ts:628-665`) picks the gendered
+`manhead`/`womanhead` (primary) + `manhead2`/`womanhead2` (secondary), returns
+null when the primary is `-1` (item covers no head), loads + `combineForAnim`s
+them, then applies the obj's own `recol_s`/`recol_d`. The design (hair/skin)
+recolours are applied afterward to the fully-merged head.
+
+### torirs
+
+`PlayerHeadModel_BuildFromAppearance` (`entity_model_build.c`) explicitly stubbed
+the worn path (`(void)gender; ... value >= 0x200 → continue`), and the head model
+ids were never even decoded into the cache. Fix, mirroring the body build's
+`obj_wear_models` pattern:
+
+1. Decode the head fields. The raw dat1/dat2 obj decoders already parsed them
+   (`manhead`/… and `male_head_model`/…, defaulting `-1`); added
+   `manhead/manhead2/womanhead/womanhead2` to `struct ToriRS_Objtype`
+   (`torirs_types.h`) and copied them in both `ToriRS_ObjtypeFromRSCacheDat1/Dat2`
+   (`torirs_objtype_from_rscache.c`).
+2. New `obj_head_models(obj, gender, out[2])` helper + a `value >= 0x200` branch
+   in the head build: load `manhead` (+ `manhead2`), apply obj recolours, append
+   to `parts[]`. The existing post-merge design recolour loop then runs over the
+   whole head, exactly as the reference.
+3. `PlayerHeadModel_CollectHeadModelIds` gained a `gender` param and now lists the
+   worn head model ids too, so `Task_AppIfHead` awaits their `ModelLoad` before
+   compositing. A new obj-config `ObjLoad` pass over the worn slots runs first
+   (the body build loads wear models but never head models), so the obj configs
+   are resident when the head ids are gathered. Full build clean.
+
+## 44. NPC combat level shown yellow regardless of the player's level — ✅
+
+### Symptom
+
+Every NPC right-click / tooltip showed `(level-N)` hardcoded yellow (`@yel@`).
+The reference colours that level by its distance from the *local player's* combat
+level — red/orange when the NPC out-levels you, green when it is well below,
+yellow at parity — a core "is this safe to attack" signal that was absent.
+
+### Client-TS
+
+`Client.combatColourCode(viewerLevel, otherLevel)` (`Client.ts:10111-10132`)
+maps `diff = viewer - other` to nine tags (`@red@`/`@or3@`/`@or2@`/`@or1@` when
+the other is higher, `@gre@`/`@gr3@`/`@gr2@`/`@gr1@` when lower, `@yel@` equal).
+`addNpcOptions` (`Client.ts:9695-9703`) builds the tooltip as
+`name + combatColourCode(localPlayer.combatLevel, npc.vislevel) + ' (level-N)'`,
+and only appends the level when `npc.vislevel !== 0 && this.localPlayer`.
+
+### torirs
+
+`add_npc_rows` (`rs_minimenu_world.c`) hardcoded `"%s (level-%d)"` with no colour;
+a comment even noted the level colouring "needs player stats the client does not
+track yet". It does now: new static `combat_colour_code(viewer, other)` mirrors
+the nine thresholds, and `add_npc_stack_rows` derives the viewer level once via
+`world_local_combat_level` → `World_PlayerGetByServerPid(world, world->local_pid)`
+→ `->combat_level` (the appearance-decoded level, matching
+`localPlayer.combatLevel`), threading it into `add_npc_rows`. The tooltip is now
+`name + combat_colour_code(viewer, level) + " (level-N)"`, gated on `combat_level
+> 0 && viewer_combat_level >= 0` (`-1` = no local player → suffix omitted, per the
+reference guard). The row/select-mode formats are unchanged; only the level
+portion of the shared tooltip is now differentially coloured. The attack-op
+level-priority reorder (`Client.ts:9756`) remains separate future work. Full build
+clean.
+
+## 45. `replaceheld` animations (woodcutting/mining) never loaded the swapped obj models — ✅
+
+### Symptom
+
+Skilling and similar emotes swap the worn hand item for a different obj mid-
+animation (an axe becomes the same axe held for chopping; a rune essence pouch
+becomes ore, etc.). The per-frame swap machinery already existed
+(`app_world_apply_player_held_items`, §29), but the swapped-in obj is **not part
+of the player's appearance** — its config and wear model were never fetched by
+any load path, so the swap ran against a non-resident model and the item simply
+vanished from the hand for the duration of the animation.
+
+### Client-TS
+
+`SeqType` decodes `replaceheldleft`/`replaceheldright` (opcodes 6/7, `65535 → -1`;
+`SeqType.ts:117-127`). In `ClientPlayer.getTempModel2` (`ClientPlayer.ts:436-516`)
+these override appearance slot 5 (left hand) / slot 3 (right hand) while the
+**primary** seq drives frames (`primaryAnimDelay === 0`). The build then checks
+each slot with `ObjType.list(value-0x200).checkWearModel(gender)`; if the wear
+model is not resident it sets `needsModel = true` and **returns null**, deferring
+the whole model build until the async on-demand loader has pulled the obj's wear
+model in. The held obj is thus loaded lazily by the deferral loop — the model is
+never built with a missing part.
+
+### torirs
+
+Our player model is built synchronously (`PlayerModel_BuildFromAppearance`,
+`entity_model_build.c`), and a slot whose model is not resident is silently
+skipped (`CacheProvider_ModelHas → continue`) rather than deferred — so a missing
+wear model produces a *hole*, not a retry. Rather than replicate the reference's
+"return null and re-poll" deferral, we **pre-load** the held obj's assets before
+the seq is ever applied to the entity, mirroring how the APPEARANCE path already
+pre-loads every worn-slot model.
+
+In the `PLAYER_NEED_SEQ` branch of `Task_ExecPlayerInfo_Run`
+(`game/task_exec_entity_info.c`), after the sequence itself loads, we read the
+now-resident animation's `replaceheldleft`/`replaceheldright`
+(`ToriDraw_SceneAnimationGet`), then:
+
+1. `CreateTask_ObjLoad` for each obj-range value (`>= 0x200`) — the obj config
+   carries the gendered `manwear`/`womanwear` model ids.
+2. `PlayerModel_CollectAppearanceModelIds` over a synthetic `slots[]` with the
+   held values in slot 3/5 (using the entity's `gender`), then `CreateTask_ModelLoad`
+   for each collected wear model id.
+
+Only after those awaits does `World_PlayerSetPrimaryAnimation` publish the seq to
+the world entity, so by the time the per-frame swap (`app_world_apply_player_held_items`)
+sees the `replaceheld` primary the tool/ore models are already resident and the
+synchronous build has no hole — no first-frame race, no need for the missing-model
+flag to ever trigger. Loading is idempotent, so re-issuing on every SEQ is cheap.
+This is the reference-accurate dat1 (default-boot) path.
+
+For dat2, `Task_Dat2SequenceLoad` previously attached **no** seq metadata, so
+`replaceheld` was inert (always `-1`). It now sets the assembled animation's two
+`replaceheld*` fields **directly** from the decoded `left_hand_item`/`right_hand_item`
+— *not* via `ToriDraw_AnimationSetSeqMeta`, which would clobber `priority`/`max_loops`
+with the dat2 decoder's memset-`0` defaults instead of the reference `5`/`99` the
+constructor leaves in place. The dat2 decoder neither converts the `65535` sentinel
+nor defaults an absent opcode to `-1`, so both `<= 0` and `65535` map to `-1` (no
+override); this gives up the rare explicit "hide via 0", which the dat1 path still
+honours through its proper `-1` defaults. Full build clean.

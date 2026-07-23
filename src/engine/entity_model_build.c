@@ -62,6 +62,27 @@ obj_wear_models(
     }
 }
 
+/* Worn-equipment head model ids (reference ObjType.getHeadModelNoCheck: manhead
+ * primary + manhead2 secondary, gendered). out_ids[0] == -1 means the item
+ * covers no head (e.g. a body/legs slot, or a hat that hides no hair). */
+static void
+obj_head_models(
+    struct ToriRS_Objtype const* obj,
+    int gender,
+    int out_ids[2])
+{
+    if( gender == 1 )
+    {
+        out_ids[0] = obj->womanhead;
+        out_ids[1] = obj->womanhead2;
+    }
+    else
+    {
+        out_ids[0] = obj->manhead;
+        out_ids[1] = obj->manhead2;
+    }
+}
+
 int
 PlayerModel_CollectAppearanceModelIds(
     struct CacheProvider* provider,
@@ -105,6 +126,7 @@ int
 PlayerHeadModel_CollectHeadModelIds(
     struct CacheProvider* provider,
     int const slots[12],
+    int gender,
     int* out_ids,
     int cap)
 {
@@ -123,6 +145,17 @@ PlayerHeadModel_CollectHeadModelIds(
             for( int h = 0; h < 10 && count < cap; h++ )
                 if( idk->heads[h] > 0 )
                     out_ids[count++] = idk->heads[h];
+        }
+        else if( value >= 0x200 )
+        {
+            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(provider, value - 0x200);
+            int head[2];
+            if( !obj )
+                continue;
+            obj_head_models(obj, gender, head);
+            for( int m = 0; m < 2 && count < cap; m++ )
+                if( head[m] >= 0 )
+                    out_ids[count++] = head[m];
         }
     }
     return count;
@@ -254,33 +287,59 @@ PlayerHeadModel_BuildFromAppearance(
     struct ToriDraw_Model* merged;
     int part_count = 0;
 
-    (void)gender; /* obj (worn) chatheads not composited yet — idk heads only */
     assert(provider && slots);
 
     for( int s = 0; s < 12; s++ )
     {
         int value = slots[s];
-        struct ToriRS_Idk* idk;
-        if( value < 0x100 || value >= 0x200 )
-            continue; /* empty or worn-obj slot */
-        idk = CacheProvider_IdkGet(provider, value - 0x100);
-        if( !idk )
-            continue;
-        for( int h = 0; h < 10; h++ )
+        if( value >= 0x100 && value < 0x200 )
         {
-            struct ToriRS_Model* rs;
-            struct ToriDraw_Model* model;
-            int mid = idk->heads[h];
-            if( mid <= 0 || !CacheProvider_ModelHas(provider, mid) )
+            struct ToriRS_Idk* idk = CacheProvider_IdkGet(provider, value - 0x100);
+            if( !idk )
                 continue;
-            rs = CacheProvider_ModelGet(provider, mid);
-            model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
-            if( !model )
+            for( int h = 0; h < 10; h++ )
+            {
+                struct ToriRS_Model* rs;
+                struct ToriDraw_Model* model;
+                int mid = idk->heads[h];
+                if( mid <= 0 || !CacheProvider_ModelHas(provider, mid) )
+                    continue;
+                rs = CacheProvider_ModelGet(provider, mid);
+                model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
+                if( !model )
+                    continue;
+                for( int r = 0; r < 10; r++ )
+                    if( idk->recolors_from[r] != 0 || idk->recolors_to[r] != 0 )
+                        ToriDraw_ModelRecolor(
+                            model, idk->recolors_from[r], idk->recolors_to[r]);
+                part_count = append_model(parts, part_count, model);
+            }
+        }
+        else if( value >= 0x200 )
+        {
+            /* Worn-equipment head models (reference getHeadModel pulls
+             * ObjType.getHeadModelNoCheck for slots >= 512): the gendered
+             * manhead + manhead2 with the obj's own recolours. head[0] == -1
+             * means the item covers no head. */
+            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(provider, value - 0x200);
+            int head[2];
+            if( !obj )
                 continue;
-            for( int r = 0; r < 10; r++ )
-                if( idk->recolors_from[r] != 0 || idk->recolors_to[r] != 0 )
-                    ToriDraw_ModelRecolor(model, idk->recolors_from[r], idk->recolors_to[r]);
-            part_count = append_model(parts, part_count, model);
+            obj_head_models(obj, gender, head);
+            for( int m = 0; m < 2; m++ )
+            {
+                struct ToriRS_Model* rs;
+                struct ToriDraw_Model* model;
+                if( head[m] < 0 || !CacheProvider_ModelHas(provider, head[m]) )
+                    continue;
+                rs = CacheProvider_ModelGet(provider, head[m]);
+                model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
+                if( !model )
+                    continue;
+                for( int r = 0; r < obj->recolor_count; r++ )
+                    ToriDraw_ModelRecolor(model, obj->recolors_from[r], obj->recolors_to[r]);
+                part_count = append_model(parts, part_count, model);
+            }
         }
     }
 

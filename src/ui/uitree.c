@@ -1016,6 +1016,8 @@ UITree_Push(
         component->u.rs_inv.margin_x = spec->u.rs_inv.margin_x;
         component->u.rs_inv.margin_y = spec->u.rs_inv.margin_y;
         component->u.rs_inv.can_drag = spec->u.rs_inv.can_drag;
+        component->u.rs_inv.obj_ops = spec->u.rs_inv.obj_ops;
+        component->u.rs_inv.obj_use = spec->u.rs_inv.obj_use;
         if( spec->u.rs_inv.inv_slot_offset_x && spec->u.rs_inv.inv_slot_offset_y )
         {
             memcpy(

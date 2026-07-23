@@ -77,6 +77,24 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
             self->delays,
             self->frame_count,
             self->seq ? self->seq->frame_step : 0);
+    /* Held-item override (reference SeqType.replaceheldleft/right, opcodes 6/7 =
+     * dat2 left_hand_item/right_hand_item): a woodcutting/mining-style seq swaps
+     * the worn hand item for an obj so the per-frame player-model swap can pull
+     * in the tool/log model. Set only these two fields directly rather than
+     * through SetSeqMeta — the dat2 sequence decoder memsets its def to 0, so a
+     * full meta copy would clobber priority/max_loops with 0 instead of the
+     * reference defaults (5/99) the constructor already left in place. The dat2
+     * decoder does not convert the 65535 "no override" sentinel and defaults an
+     * absent opcode to 0, so map both <=0 and 65535 to -1 (no override); this
+     * gives up the rare explicit "hide via 0", which the reference-accurate dat1
+     * path still honours through its proper -1 defaults. */
+    if( anim && self->seq )
+    {
+        int held_left = self->seq->left_hand_item;
+        int held_right = self->seq->right_hand_item;
+        anim->replaceheldleft = ( held_left <= 0 || held_left == 65535 ) ? -1 : held_left;
+        anim->replaceheldright = ( held_right <= 0 || held_right == 65535 ) ? -1 : held_right;
+    }
     if( !anim )
     {
         anim = calloc(1, sizeof(*anim));

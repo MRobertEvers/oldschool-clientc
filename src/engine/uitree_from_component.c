@@ -183,6 +183,8 @@ UITree_FillBuildFromToriRS(
     dst->inv_cols = src->inv_cols;
     dst->inv_rows = src->inv_rows;
     dst->inv_can_drag = src->inv_can_drag;
+    dst->inv_obj_ops = src->inv_obj_ops;
+    dst->inv_obj_use = src->inv_obj_use;
     dst->margin_x = src->margin_x;
     dst->margin_y = src->margin_y;
     dst->line_width = src->line_width;

@@ -12,8 +12,8 @@ set -eu
 cd "$(dirname "$0")"
 
 HOST="${1:-localhost}"
-USER_NAME="${2:-debugcc}"
-PASS="${3:-test}"
+USER_NAME="${2:-asdf}"
+PASS="${3:-a}"
 
 if [ ! -x src/torirs ]; then
     echo "run-live.sh: building src/torirs..." >&2

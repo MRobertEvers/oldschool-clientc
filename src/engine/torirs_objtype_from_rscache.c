@@ -103,6 +103,10 @@ ToriRS_ObjtypeFromRSCacheDat1(
     objtype->womanwear3 = src->womanwear3;
     objtype->manwear_offset_y = src->manwearOffsetY;
     objtype->womanwear_offset_y = src->womanwearOffsetY;
+    objtype->manhead = src->manhead;
+    objtype->manhead2 = src->manhead2;
+    objtype->womanhead = src->womanhead;
+    objtype->womanhead2 = src->womanhead2;
 
     return objtype;
 }
@@ -193,6 +197,10 @@ ToriRS_ObjtypeFromRSCacheDat2(
     objtype->womanwear = src->female_model_0;
     objtype->womanwear2 = src->female_model_1;
     objtype->womanwear3 = src->female_model_2;
+    objtype->manhead = src->male_head_model;
+    objtype->manhead2 = src->male_head_model_2;
+    objtype->womanhead = src->female_head_model;
+    objtype->womanhead2 = src->female_head_model_2;
 
     return objtype;
 }

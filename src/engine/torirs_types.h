@@ -348,6 +348,13 @@ struct ToriRS_Objtype
     int womanwear3;
     int manwear_offset_y;
     int womanwear_offset_y;
+    /* Worn-equipment head model ids for the player head/chathead build
+     * (reference ObjType.manhead/manhead2/womanhead/womanhead2; -1 = the item
+     * covers no head, e.g. a full helm hides hair). */
+    int manhead;
+    int manhead2;
+    int womanhead;
+    int womanhead2;
 };
 
 struct ToriRS_Sequence
@@ -707,6 +714,14 @@ struct ToriRS_Component
      * dat1 draggable || swappable). Equipment/worn grids decode false so their
      * items can't be dragged; the backpack decodes true. 1 = draggable. */
     int inv_can_drag;
+    /** Inventory ObjType-op rows allowed (reference IfType.objOps, dat1
+     * `interactable`). When false the item's Drop / wield / op1-5 rows are
+     * suppressed — e.g. a shop's sell grid shows only its own iop buttons
+     * (Value/Sell) + Examine. 1 = show obj ops. */
+    int inv_obj_ops;
+    /** Inventory "Use" row allowed (reference IfType.objUse, dat1 `usable`).
+     * Suppressed on grids like the shop sell inventory. 1 = show "Use". */
+    int inv_obj_use;
     /** LINE widget line thickness (dat2 lineWidth). */
     int line_width;
     /** Per-slot pixel offsets (dat1 invSlotOffsetX/Y). */
