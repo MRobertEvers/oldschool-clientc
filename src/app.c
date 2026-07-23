@@ -1438,10 +1438,18 @@ app_world_map_poll(struct App* app)
 static void
 app_send_map_build_complete(struct App* app);
 
-/* Queue Task_WorldLoad for a chunk list; never blocks. app_world_load_finish
- * runs from the frame poll when world->load_complete flips. Reused by the
- * reload hotkey and the REBUILD_NORMAL packet task; assets already cached
- * make a reload near-instant. chunks == NULL -> the configured/default map. */
+/* Task_WorldLoad on_done trampoline: adapts the void* hook to App_WorldLoadFinish. */
+static void
+app_world_load_finish_cb(void* userdata)
+{
+    App_WorldLoadFinish((struct App*)userdata);
+}
+
+/* Queue Task_WorldLoad for a chunk list; never blocks. App_WorldLoadFinish runs
+ * as the task's on_done the moment the load lands (no polling). Reused by the
+ * reload hotkey and the first-load trigger; assets already cached make a reload
+ * near-instant. chunks == NULL -> the configured/default map. The REBUILD_NORMAL
+ * packet task queues its own load (it awaits it) rather than calling here. */
 static void
 app_world_load_begin(
     struct App* app,
@@ -1465,8 +1473,9 @@ app_world_load_begin(
 
     app->world_load_attempted = 1;
     app->world_load_inflight = 1;
-    app->world_load_seq_at_begin = app->world->load_seq;
-    task = CreateTask_WorldLoad(app->provider, app->world_builder, chunks_xz, chunk_pair_count);
+    task = CreateTask_WorldLoad(
+        app->provider, app->world_builder, chunks_xz, chunk_pair_count,
+        app_world_load_finish_cb, app);
     ToriRS_TaskQueue_Add(app->runner.queue, task);
     app->need_redraw = 1;
 }
@@ -1474,8 +1483,8 @@ app_world_load_begin(
 /* Post-load wiring, split from the old synchronous app_world_load: camera
  * placement, height fn, texture requests, minimap bake, and the server ack
  * when the load was REBUILD_NORMAL-driven. */
-static void
-app_world_load_finish(struct App* app)
+void
+App_WorldLoadFinish(struct App* app)
 {
     app->world_load_inflight = 0;
 
@@ -1842,14 +1851,9 @@ App_OpenRootInterface(
 static void
 app_async_polls(struct App* app)
 {
-    /* Poll the rebuild counter, not load_complete: the flag is still true from
-     * the previous scene for the whole asset-fetch phase of this load, so
-     * gating on it finished every reload one frame after it started — against
-     * the *old* world. That is why the minimap stayed on the boot scene
-     * (Lumbridge 50,50) forever after the first REBUILD_NORMAL. */
-    if( app->world_load_inflight && app->world &&
-        app->world->load_seq != app->world_load_seq_at_begin )
-        app_world_load_finish(app);
+    /* World-load completion is no longer polled here: Task_WorldLoad runs
+     * App_WorldLoadFinish itself at its synchronous tail (via on_done, or the
+     * REBUILD_NORMAL path's inline call after it awaits the load). */
     app_world_map_poll(app);
     app_sync_textures_poll(app);
     app_world_bind_pending_seqs(app);

@@ -905,6 +905,11 @@ translate_ui_cmd(
             out->u.font.h = item->h;
             out->u.font.color = (int)item->color;
             out->u.font.center = 1;
+            /* Reference draws hitsplat numbers with `p11.centreString`, whose
+             * y is the text baseline/bottom (drawString does `y -= height2d`),
+             * not a widget-box top. Without this the number lands ~1 line
+             * height too low and drifts off the hitmark sprite. */
+            out->u.font.baseline = 1;
             out->u.font.scissor_x = desc->clip.x;
             out->u.font.scissor_y = desc->clip.y;
             out->u.font.scissor_w = desc->clip.w;

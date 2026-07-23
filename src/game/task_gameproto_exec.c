@@ -118,21 +118,23 @@ Task_GameProtoExec_Run(
             app->world_load_attempted = 1;
             app->world_load_inflight = 1;
             app->world_load_server_driven = 1;
-            /* The frame poll detects completion by load_seq advancing past
-             * this sample (load_complete stays true from the old scene). */
-            app->world_load_seq_at_begin = app->world ? app->world->load_seq : 0;
+            /* on_done is NULL: we await the load and run the tail ourselves
+             * below, so the entity shift can land between the scene swap and
+             * App_WorldLoadFinish (which the shift must precede). */
             TASK_AWAITSELF_IF(CreateTask_WorldLoad(
-                app->provider, app->world_builder, self->chunks, self->chunk_count));
+                app->provider, app->world_builder, self->chunks, self->chunk_count,
+                NULL, NULL));
             /* The load's final step swapped the scene synchronously (same
              * task drain — no frame renders in between): relocate the kept
-             * entities before any later packet or frame reads them.
-             * app_world_load_finish still runs from the frame poll (camera,
-             * height fn, minimap bake, MAP_BUILD_COMPLETE ack). */
+             * entities before any later packet or frame reads them, then run
+             * the post-load wiring (camera, height fn, minimap bake,
+             * MAP_BUILD_COMPLETE ack). */
             if( self->had_world && app->world->load_complete )
                 App_WorldRebuildShift(
                     app,
                     app->world->_base_tile_x - self->prev_base_x,
                     app->world->_base_tile_z - self->prev_base_z);
+            App_WorldLoadFinish(app);
         }
         else
         {

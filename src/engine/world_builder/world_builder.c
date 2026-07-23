@@ -131,7 +131,12 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
     struct World* world = builder->world;
     int map_id = CacheProvider_MapId(mapx, mapz);
     struct ToriRS_MapLocs* map_locs = CacheProvider_MapSceneryGet(builder->cache, map_id);
-    assert(map_locs && "Map scenery must be found");
+    /* Absent square (void/unreleased, or xtea-locked): the loader warned and
+     * skipped it, and the terrain pass leaves it flat void. Skip scenery too
+     * rather than aborting — an empty square renders as nothing, like the
+     * reference client. */
+    if( !map_locs )
+        return;
 
     world_builder_minimap_add_chunk_walls(builder, mapx, mapz);
     world_builder_minimap_add_chunk_mapfunctions(builder, mapx, mapz);

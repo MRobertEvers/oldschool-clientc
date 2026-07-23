@@ -669,6 +669,36 @@ New pieces:
 Not ported: overhead chat text and headicons (the other two `drawEntities`
 overlays), and hint arrows.
 
+#### Follow-up: the number rendered ~1 line too low with no visible shadow
+
+The overlay emitted the number at the reference coordinates (`(x, y+4)` black,
+`(x-1, y+3)` white — see `app.c` `app_overlay_build_entity`), but the render
+path (`soft3d_draw_font`) drew **all** font commands through
+`ToriDraw2D_DrawStringBox`. That is *widget-box* text: `y` is the top of a box
+and the glyphs are pushed down by the font's `max_ascent`
+(`draw_y = y + max_ascent - font_ascent`, `toridraw_font.c:1489`). The
+reference draws hitsplat numbers with `p11.centreString`, whose y is the text
+**baseline/bottom** — `PixFont.drawString` does `y -= height2d` before
+plotting (`PixFont.ts:169`). Net effect: the number landed ~`max_ascent` (≈ a
+line height) below where it should, drifting off the bottom of the hitmark
+sprite, and the black/white pair — still correctly offset by (1,1) — looked
+like plain text sitting under the splat rather than a shadowed number on it.
+
+Fix: added a `baseline` flag to `ToriRS_RenderCommand_Font`. The
+`ENTITY_OVERLAY_TEXT` emit sets it (`torirs_frame.c`), and `soft3d_draw_font`
+routes baseline commands to `ToriDraw2D_DrawString` — which does the same
+`y -= line_height` and `center → x - stringWid/2` as the reference
+`drawString`/`centreString`. Widget text (box top-left + `y_align`) still uses
+`DrawStringBox`. The "black shadow" is **not** the font's built-in shadow
+(`shadowed`, a single +1/+1 pass); it is the reference's two-draw pattern
+(black then white), which `app.c` already emits as two overlay items — so
+`shadowed` stays 0 here. Verified offline (hotkey 6 → `TORIRS_WORLD_BMP`): the
+number now sits centred on the splat with the black drop-shadow.
+
+**Takeaway for future overlay text:** world-space text the reference draws with
+`drawString`/`centreString` must set `baseline=1`; only widget text laid out in
+a box uses the box path. The two conventions differ by a full `max_ascent` in y.
+
 ---
 
 ## 13. Two hover/hit-test regressions found after §9-12

@@ -71,6 +71,10 @@ struct Task_WorldLoad
     int chunks_xz[WORLD_LOAD_MAX_CHUNKS * 2];
     int chunk_count;
 
+    /* Invoked once at the synchronous tail (see CreateTask_WorldLoad). */
+    void (*on_done)(void*);
+    void* on_done_ud;
+
     struct WorldLoadIdSet underlays;
     struct WorldLoadIdSet overlays;
     struct WorldLoadIdSet textures;
@@ -329,6 +333,12 @@ Task_WorldLoad_Run(
     WorldBuilder_RebuildChunklist(self->builder, self->chunks_xz, self->chunk_count);
     World_SetLoadComplete(self->builder->world, true);
 
+    /* 6. "The load landed" hook — runs here, in the same synchronous span as the
+     * rebuild, so callers get completion without polling a flag. NULL for callers
+     * that await this task and run their own tail instead. */
+    if( self->on_done )
+        self->on_done(self->on_done_ud);
+
     PT_END(&self->pt);
 }
 
@@ -355,7 +365,9 @@ CreateTask_WorldLoad(
     struct CacheProvider* provider,
     struct WorldBuilder* builder,
     const int* chunks_xz,
-    int chunk_count)
+    int chunk_count,
+    void (*on_done)(void*),
+    void* on_done_ud)
 {
     struct Task_WorldLoad* task;
 
@@ -372,6 +384,8 @@ CreateTask_WorldLoad(
     task->builder = builder;
     memcpy(task->chunks_xz, chunks_xz, (size_t)chunk_count * 2 * sizeof(int));
     task->chunk_count = chunk_count;
+    task->on_done = on_done;
+    task->on_done_ud = on_done_ud;
     PT_INIT(&task->pt);
     return &task->task;
 }

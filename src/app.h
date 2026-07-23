@@ -286,9 +286,6 @@ struct App
      * runner queue next goes idle the tree gets a refresh pass. */
     int runner_had_work;
     int world_load_inflight;
-    /** world->load_seq sampled when the in-flight load was queued; the load has
-     * landed once the counter moves past it. */
-    unsigned world_load_seq_at_begin;
     /** Send MAP_BUILD_COMPLETE when the in-flight world load finishes (set by
      * the REBUILD_NORMAL packet task, not by hotkey/lazy loads). */
     int world_load_server_driven;
@@ -479,6 +476,14 @@ App_WorldRebuildShift(
     struct App* app,
     int base_dx,
     int base_dz);
+
+/** Post-load wiring (camera, height fn, texture sync, minimap bake, and the
+ * server ack for a REBUILD_NORMAL-driven load). Runs at the tail of the world
+ * load: the fire-and-forget path wires it as Task_WorldLoad's on_done; the
+ * server-driven path, which awaits the load, calls it directly after the await.
+ */
+void
+App_WorldLoadFinish(struct App* app);
 
 /** LOC_ANIM: attach a sequence to the scenery element on a tile. */
 void

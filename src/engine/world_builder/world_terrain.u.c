@@ -96,7 +96,12 @@ WorldBuilder_RebuildCenterzoneChunkTerrain(
     struct World* world = builder->world;
     int map_id = CacheProvider_MapId(mapx, mapz);
     struct ToriRS_MapTerrain* map_terrain = CacheProvider_MapTerrainGet(builder->cache, map_id);
-    assert(map_terrain && "Map terrain must be found");
+    /* A map square can be legitimately absent (void/unreleased square, or an
+     * xtea-locked one the loader already warned about). The loader tolerates it
+     * and continues; match that here — leave the square flat void (the heightmap
+     * is zeroed on scene reset) rather than aborting the whole rebuild. */
+    if( !map_terrain )
+        return;
 
     int scene_size = world->_scene_size;
 

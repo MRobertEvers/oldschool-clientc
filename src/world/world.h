@@ -85,11 +85,11 @@ struct World
     int _scene_size;
 
     bool load_complete;
-    /** Bumped every time a rebuild finishes (World_SetLoadComplete(true)).
-     * `load_complete` alone cannot tell a caller "the load I started has
-     * landed": the scene reset that clears it happens inside the *synchronous
-     * tail* of Task_WorldLoad, so the flag stays true for the whole async
-     * asset-fetch phase of the next load. Poll this counter instead. */
+    /** Generation counter, bumped every time a rebuild finishes
+     * (World_SetLoadComplete(true)). Load *completion* is no longer detected by
+     * polling this (Task_WorldLoad runs App_WorldLoadFinish at its tail); it
+     * survives only as a cheap "the scene changed" edge for debug one-shots and
+     * staleness checks that would otherwise re-run every frame. */
     unsigned load_seq;
 
     /** Client cycle counter (reference loopCycle): advanced by World_Cycle,

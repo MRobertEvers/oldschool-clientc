@@ -340,6 +340,23 @@ soft3d_draw_font(
 
     vp = viewport_from_scissor(
         soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
+    if( cmd->baseline )
+    {
+        /* Baseline text (world overlays like hitsplats): y is the text bottom,
+         * matching reference PixFont.drawString/centreString. Box alignment
+         * (y_align, w/h) does not apply. */
+        (void)ToriDraw2D_DrawString(
+            font,
+            &vp,
+            cmd->x,
+            cmd->y,
+            cmd->text,
+            cmd->color,
+            cmd->center != 0,
+            cmd->shadowed != 0,
+            soft->pixels);
+        return;
+    }
     (void)ToriDraw2D_DrawStringBox(
         font,
         &vp,

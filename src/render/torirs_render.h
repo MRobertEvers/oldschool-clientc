@@ -235,6 +235,11 @@ struct ToriRS_RenderCommand_Font
     int y_align;
     int line_height;
     int shadowed;
+    /** Baseline mode: `y` is the text bottom (reference PixFont.drawString does
+     * `y -= height2d`), not a box top. Set for world-space overlay text like
+     * hitsplats, which the reference draws with `centreString`, not a widget
+     * box. When 0, y/w/h/y_align describe a box (widget text). */
+    int baseline;
     char const* text;
     int scissor_x;
     int scissor_y;
