@@ -283,14 +283,23 @@ Nodes live in `UITree.components[]`, linked by indices:
 hit-testing. Passing `current_visible=false` **prunes** the subtree (hidden
 nodes, inactive sidebars).
 
+### Layer clipping — per surface, not compounded
+
+A clip layer restricts its children to **its own bounds ∩ the enclosing draw
+*surface*** — it is **not** intersected with intermediate ancestor layers. The
+one rule lives in `UITree_LayerChildClip` (`uitree_scroll.c`), called by *every*
+walk (emit, hit-test, hover, drop-target) so drawn pixels and hitboxes agree by
+construction — see [Interface layer clipping](#interface-layer-clipping) below.
+
 ### Emit walk
 
 `UITree_EmitWalk` (`uitree_emit.c`) produces a command buffer:
 
 1. Two full DFS passes over the forest: **non-text**, then **text** (text on top)
 2. Per node: skip if `behavior.hide` (self **and** children); for clip layers
-   (`RS_LAYER`, sidebar, chat, rs_inv) intersect clip with node bounds before
-   descending; `UITree_EmitFill` → append `UITreeEmitDesc` when drawable
+   (`RS_LAYER`, sidebar, chat, rs_inv) apply `UITree_LayerChildClip` (own bounds
+   ∩ surface — *not* compounded with ancestors) before descending;
+   `UITree_EmitFill` → append `UITreeEmitDesc` when drawable
 3. Children walked in sibling order
 
 Visibility / gating:
@@ -303,6 +312,36 @@ Visibility / gating:
 
 Dirty flags (`is_dirty` / `always_dirty` / `UITree_NodeNeedsEmit`) exist for
 incremental emit, but the current `EmitWalk` emits all drawable nodes.
+
+### Interface layer clipping
+
+**One rule, shared by every walk.** A container that clips its children
+(`UITree_ComponentClipsChildren`: `RS_LAYER`, `SIDEBAR`, `CHAT`, `RS_INV`)
+restricts them to **its own screen box ∩ the enclosing draw *surface*** —
+**never** compounded with intermediate ancestor layers. Surface containers
+(`CHAT`, `SIDEBAR` — the reference's separate `Pix2D` PixMaps, chatback `479×96`
+/ sidebar `190×261`) *establish* the surface for their descendants; the root
+surface is the screen. The decision is centralised in **`UITree_LayerChildClip`**
+(`uitree_scroll.c`) and called by all four tree walks — emit
+(`uitree_emit.c`), interactive hit-test + menu collect (`uitree_input.c`), hover
+(`uitree_hover.c`), and drag drop-target (`uitree.c`) — so a widget's drawn
+pixels, click area, and hover area are always identical (no drift, implemented
+once).
+
+**Why per-surface, and how it differs from the earlier behavior.** This matches
+the reference `drawInterface` (`Client.ts`), which clips each `TYPE_LAYER` with
+`Pix2D.setClipping(x, y, x+w, y+h)` — a call that **overwrites** the clip and
+clamps only to the physical draw surface, *not* to the parent layer
+(`Pix2D.setClipping` in `Pix2D.ts`). Earlier, all four walks instead
+**intersected** each layer's box with the cumulative ancestor clip
+(`clip_intersect` / `UITree_ScrollIntersectClip` against `parent_clip`), so a
+wide inner widget nested inside a narrower ancestor layer got cut — most visibly
+a chat-dialogue chathead overflowing a narrow inner layer, clipped even though
+the chatback is 479 wide. The change is behaviour-preserving for the common case
+(a child within its parent: `own ∩ surface == own ∩ parent`) and a layer's own
+box still bounds its children, so **scroll viewports are unaffected**; only
+genuine overflow renders differently — now to the surface edge, as the reference
+does.
 
 **IF1 scrollbars.** For `UIELEM_RS_LAYER` with `!if3` and
 `scroll_height > height` (or width), emit appends `UITREE_EMIT_SCROLLBAR_V/H`

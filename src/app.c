@@ -25,6 +25,7 @@
 #include "game/rs_minimenu_cross.h"
 #include "game/task_cs1_run.h"
 #include "input/torirs_input_cmd.h"
+#include "input/torirs_keymap.h"
 #include "painters/painters.h"
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
@@ -86,6 +87,21 @@ app_chat_region(
     if( out_font_id )
         *out_font_id = node->u.chat.font_id > 0 ? node->u.chat.font_id : 1;
     return 1;
+}
+
+/* True when a canvas-space point lands inside the chat region's bounds. Used to
+ * decide chat input focus on a left click. */
+static int
+app_point_in_chat(struct App const* app, int x, int y)
+{
+    struct UITreeComponent const* node;
+    int bx = 0, by = 0, bw = 0, bh = 0;
+
+    if( app->slots.chat_index < 0 )
+        return 0;
+    node = &app->tree->components[app->slots.chat_index];
+    UITree_LayoutGetBounds(&node->position, &bx, &by, &bw, &bh);
+    return x >= bx && x < bx + bw && y >= by && y < by + bh;
 }
 
 /* Rebuild the flattened chat draw model (called before every emit). */
@@ -348,6 +364,8 @@ static int
 app_world_height(void* userdata, int world_x, int world_z, int level);
 static int
 app_hitsplat_font_scene_id(struct App* app);
+static int
+app_minimenu_font_scene_id(struct App* app);
 
 /*
  * Reference getOverlayPos (Client.ts:5253): rotate the entity's
@@ -442,6 +460,99 @@ app_overlay_push(
 /* One entity's overlay set. combat/damage state lives on the shared facet, so
  * players and NPCs go through the same body (reference drawEntities treats
  * them identically). */
+/* Resolve a reference chatColour/chatTimer pair to an ARGB colour. Static
+ * palette entries (< 6) map straight through; flashing/rainbow effects (6-11)
+ * animate off the scene cycle / remaining timer (reference Client.ts:4962). */
+static uint32_t
+app_overlay_chat_colour(struct App* app, int chat_colour, int timer)
+{
+    static const int CHAT_COLOURS[6] = {
+        0xffff00, /* YELLOW */
+        0xff0000, /* RED */
+        0x00ff00, /* GREEN */
+        0x00ffff, /* CYAN */
+        0xff00ff, /* MAGENTA */
+        0xffffff, /* WHITE */
+    };
+    int cyc = app->world ? app->world->cycle : 0;
+    int rgb = 0xffff00;
+    int delta = 150 - timer;
+
+    if( chat_colour >= 0 && chat_colour < 6 )
+        rgb = CHAT_COLOURS[chat_colour];
+    else if( chat_colour == 6 )
+        rgb = (cyc % 20 < 10) ? 0xff0000 : 0xffff00;
+    else if( chat_colour == 7 )
+        rgb = (cyc % 20 < 10) ? 0x0000ff : 0x00ffff;
+    else if( chat_colour == 8 )
+        rgb = (cyc % 20 < 10) ? 0x00b000 : 0x80ff80;
+    else if( chat_colour == 9 )
+    {
+        if( delta < 50 )
+            rgb = delta * 1280 + 0xff0000;
+        else if( delta < 100 )
+            rgb = 0xffff00 - (delta - 50) * 327680;
+        else if( delta < 150 )
+            rgb = (delta - 100) * 5 + 0x00ff00;
+    }
+    else if( chat_colour == 10 )
+    {
+        if( delta < 50 )
+            rgb = delta * 5 + 0xff0000;
+        else if( delta < 100 )
+            rgb = 0xff00ff - (delta - 50) * 327680;
+        else if( delta < 150 )
+            rgb = (delta - 100) * 327680 + 0x0000ff - (delta - 100) * 5;
+    }
+    else if( chat_colour == 11 )
+    {
+        if( delta < 50 )
+            rgb = 0xffffff - delta * 327685;
+        else if( delta < 100 )
+            rgb = (delta - 50) * 327685 + 0x00ff00;
+        else if( delta < 150 )
+            rgb = 0xffffff - (delta - 100) * 327680;
+    }
+    return 0xff000000u | (uint32_t)(rgb & 0xffffff);
+}
+
+/* Overhead chat: a black shadow then the (colour-resolved) message, centred
+ * above the model top (reference drawEntities, Client.ts:4871/4958). Effects
+ * (wave/scroll) fall back to plain centred text — the styled variants need
+ * per-glyph font passes the overlay descs don't carry yet. */
+static void
+app_overlay_build_chat(
+    struct App* app,
+    int element_id,
+    struct WorldEntityFacet_Chat const* chat,
+    struct WorldEntityFacet_DrawPosition const* draw_position,
+    int font_id)
+{
+    int height = app_entity_model_height(app, element_id);
+    int screen_x, screen_y;
+
+    if( !chat || chat->timer <= 0 || chat->message[0] == '\0' || font_id < 0 )
+        return;
+    if( !app_world_project(
+            app, (int)draw_position->x, (int)draw_position->z, height, &screen_x, &screen_y) )
+        return;
+
+    struct UITreeEntityOverlay shadow = {
+        .kind = UITREE_ENTITY_OVERLAY_TEXT,
+        .x = screen_x,
+        .y = screen_y + 1,
+        .font_id = font_id,
+        .color = 0xff000000u,
+    };
+    snprintf(shadow.text, sizeof(shadow.text), "%s", chat->message);
+    app_overlay_push(app, &shadow);
+
+    struct UITreeEntityOverlay body = shadow;
+    body.y = screen_y;
+    body.color = app_overlay_chat_colour(app, chat->colour, chat->timer);
+    app_overlay_push(app, &body);
+}
+
 static void
 app_overlay_build_entity(
     struct App* app,
@@ -590,6 +701,35 @@ app_build_entity_overlays(
         app_overlay_build_entity(
             app, player->element_id, &player->combat, &player->draw_position, font_id,
             hitmarks_scene);
+    }
+
+    /* Overhead chat is a second pass so it layers above every entity's health
+     * bar and hitsplats (reference draws chatX/chatY after the entity loop).
+     * It uses b12, the bold chat font, not the p11 hitsplat font. */
+    {
+        int chat_font = app_minimenu_font_scene_id(app);
+
+        pool = &world->entities.npc;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+            if( !npc || npc->element_id < 0 )
+                continue;
+            app_overlay_build_chat(
+                app, npc->element_id, &npc->chat, &npc->draw_position, chat_font);
+        }
+
+        pool = &world->entities.player;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
+            if( !player || player->element_id < 0 )
+                continue;
+            app_overlay_build_chat(
+                app, player->element_id, &player->chat, &player->draw_position, chat_font);
+        }
     }
 
     /* TORIRS_OVERLAY_DEBUG=1: the primitives this frame, plus the two assets
@@ -776,6 +916,26 @@ app_host_request(
             *req->u.get_obj_name.out_stackable = obj->stackable ? 1 : 0;
         return 1;
     }
+    case UITREE_HOST_GET_INV_DRAG:
+        /* Reports the armed slot even on a non-draggable grid: the pressed item
+         * still fades to trans 128 while held (dx/dy stay 0 there, so it never
+         * moves — the held tick bails before computing an offset), only the
+         * drag/swap is suppressed. */
+        if( app->inv_drag_com_id < 0 )
+            return 0;
+        if( req->u.get_inv_drag.out_source_id )
+            *req->u.get_inv_drag.out_source_id = app->inv_drag_source_id;
+        if( req->u.get_inv_drag.out_slot )
+            *req->u.get_inv_drag.out_slot = app->inv_drag_from_slot;
+        if( req->u.get_inv_drag.out_dx )
+            *req->u.get_inv_drag.out_dx = app->inv_drag_dx;
+        if( req->u.get_inv_drag.out_dy )
+            *req->u.get_inv_drag.out_dy = app->inv_drag_dy;
+        return 1;
+    case UITREE_HOST_GET_INV_COUNT_FONT:
+        /* Reference draws stack counts with the client's p11 — same font (and
+         * same load-on-miss self-heal) as the hitsplat numbers. */
+        return app_hitsplat_font_scene_id(app);
     default:
         return 0;
     }
@@ -1193,8 +1353,9 @@ App_Init(
     RS_Social_Init(&app->social);
     RS_Social_SeedDefaults(&app->social);
     RS_Chat_Init(&app->chat, "Player");
-    RS_Chat_AddMessage(
-        &app->chat, RS_CHAT_TYPE_GAME, NULL, "Welcome to RuneScape");
+    /* No hardcoded welcome line: the server sends the real "Welcome to
+     * RuneScape." MESSAGE_GAME packet on login (reference has no client-side
+     * welcome message; its only "Welcome to RuneScape" is the login title). */
     app->chat_source.line_at = app_chat_line_at;
     app->chat_source.user = app;
     RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps);
@@ -1297,6 +1458,7 @@ App_Shutdown(struct App* app)
     ToriRS_IO_Free(app->exec_runner.io);
     ToriRS_TaskQueue_Free(app->runner.queue);
     ToriRS_IO_Free(app->runner.io);
+    free(app->if_heads);
 }
 
 /* Scene font id for the minimenu (reference uses bold-12; dat2 fonts-table
@@ -2510,8 +2672,19 @@ app_world_mouse_gate(
     int hover_com_id)
 {
     struct UITreeEmitClip const* clip;
+    struct UITreeEmitDesc const* desc;
 
     if( !app->world_active || !app->world_view_valid || hover_com_id >= 0 )
+        return 0;
+    /* Gate on the world WIDGET rect, not just its clip: an unclipped world
+     * node inherits a full-canvas clip, which let sidebar/chat clicks count
+     * as "in world" — right-clicking an inventory item offered "Walk here"
+     * (reference buildMinimenu adds world options only inside the viewport
+     * rect 4..516 x 4..338). */
+    desc = &app->world_emit_desc;
+    if( desc->w > 0 && desc->h > 0 &&
+        (mouse_x < desc->x || mouse_x >= desc->x + desc->w || mouse_y < desc->y ||
+         mouse_y >= desc->y + desc->h) )
         return 0;
     clip = &app->world_emit_desc.clip;
     return mouse_x >= clip->x && mouse_x < clip->x + clip->w && mouse_y >= clip->y &&
@@ -2816,8 +2989,10 @@ app_world_pick_finish(
     struct ToriRS_PickHits const* hits)
 {
     struct ToriRS_PickResult result;
+    struct WorldEntity_Player* player = app_local_player(app);
+    int player_level = player ? player->grid_position.level : -1;
 
-    ToriRS_PickHitsClassify(app->world, hits, &app->world_pickset, &result);
+    ToriRS_PickHitsClassify(app->world, hits, player_level, &app->world_pickset, &result);
     if( result.hover_tile_valid )
     {
         app->world_hover_tile_x = result.hover_tile_x;
@@ -2907,6 +3082,10 @@ app_world_camera_keys(
      * text-input concept to defer to yet. The viewport still has to be on
      * screen — with no world drawn these keys belong to the interface. */
     if( !app->world_active || !app->world_view_valid )
+        return;
+    /* Suppressed while the chat input line (or a modal text prompt) has focus,
+     * so typing a message never flies the camera. */
+    if( app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open )
         return;
     (void)out;
 
@@ -3506,6 +3685,8 @@ enum AppIfHeadKind
     APP_IFHEAD_PLAYER,
 };
 
+#define APP_IFHEAD_MAX_HEADS 24
+
 struct Task_AppIfHead
 {
     struct ToriRS_Task task;
@@ -3515,6 +3696,8 @@ struct Task_AppIfHead
     int component_id;
     int npc_id;
     int model_i;
+    int head_ids[APP_IFHEAD_MAX_HEADS]; /* player: idk head model ids to load */
+    int head_count;
 };
 
 static int
@@ -3546,18 +3729,40 @@ Task_AppIfHead_Run(
     }
     else
     {
+        /* Load the local player's real-appearance idk configs + head models,
+         * then composite (reference ClientPlayer.getHeadModel). The idk configs
+         * are usually already resident from the world body build; await the
+         * appearance load first as a baseline. */
         TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
-        scene_id = UITreeSceneBridge_EnsurePlayerHead(&app->bridge);
+        {
+            struct WorldEntity_Player* lp = app_local_player(app);
+            self->head_count = lp ? PlayerHeadModel_CollectHeadModelIds(
+                                        app->provider, lp->appearance.slots, self->head_ids,
+                                        APP_IFHEAD_MAX_HEADS)
+                                  : 0;
+        }
+        for( self->model_i = 0; self->model_i < self->head_count; self->model_i++ )
+            TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->head_ids[self->model_i]));
+        {
+            struct WorldEntity_Player* lp = app_local_player(app);
+            if( lp )
+                scene_id = UITreeSceneBridge_EnsurePlayerHead(
+                    &app->bridge, lp->appearance.slots, lp->appearance.colors, lp->gender);
+        }
     }
 
+    /* Compose only — app_if_head_poll binds the scene model onto the MODEL node
+     * once it is mounted (the head packet usually precedes the interface). Force
+     * a redraw so the poll runs now that the head is composited. */
     if( scene_id >= 0 )
-        UITree_ApplyModel(app->tree, self->component_id, scene_id);
-    else
+        app->need_redraw = 1;
+    else if( getenv("TORIRS_NET_DEBUG") )
         fprintf(
             stderr,
-            "if-head: component=0x%x kind=%d could not composite head\n",
+            "if-head: component=0x%x kind=%d could not composite head (npc=%d)\n",
             (unsigned)self->component_id,
-            (int)self->kind);
+            (int)self->kind,
+            self->npc_id);
 
     PT_END(&self->pt);
 }
@@ -3592,6 +3797,40 @@ app_if_head_enqueue(
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
+/* Persist the head request keyed by component id (reference IfType.list keeps
+ * model1Type/model1Id): re-applied by app_if_head_poll whenever the interface
+ * (re)mounts, so it survives a head packet that lands before its chat interface
+ * exists. Resets applied_gen so the next poll rebinds. */
+static void
+app_if_head_store(
+    struct App* app,
+    enum AppIfHeadKind kind,
+    int com_id,
+    int npc_id)
+{
+    int i;
+    for( i = 0; i < app->if_head_count; i++ )
+        if( app->if_heads[i].com_id == com_id )
+            break;
+    if( i == app->if_head_count )
+    {
+        if( app->if_head_count == app->if_head_cap )
+        {
+            int cap = app->if_head_cap ? app->if_head_cap * 2 : 16;
+            app->if_heads = realloc(app->if_heads, (size_t)cap * sizeof(*app->if_heads));
+            assert(app->if_heads);
+            app->if_head_cap = cap;
+        }
+        app->if_heads[i].anim_id = -1; /* preserved across a head update (below) */
+        app->if_head_count++;
+    }
+    app->if_heads[i].com_id = com_id;
+    app->if_heads[i].kind = (int)kind;
+    app->if_heads[i].npc_id = npc_id;
+    app->if_heads[i].applied_gen = 0;
+    app->need_redraw = 1;
+}
+
 void
 App_SetInterfaceNpcHead(
     struct App* app,
@@ -3601,6 +3840,7 @@ App_SetInterfaceNpcHead(
     assert(app);
     if( npc_id < 0 )
         return;
+    app_if_head_store(app, APP_IFHEAD_NPC, component_id, npc_id);
     app_if_head_enqueue(app, APP_IFHEAD_NPC, component_id, npc_id);
 }
 
@@ -3610,7 +3850,81 @@ App_SetInterfacePlayerHead(
     int component_id)
 {
     assert(app);
+    app_if_head_store(app, APP_IFHEAD_PLAYER, component_id, -1);
     app_if_head_enqueue(app, APP_IFHEAD_PLAYER, component_id, -1);
+}
+
+/* Bind any composited heads onto their MODEL nodes. Runs each redraw: an entry
+ * applies once its scene model is ready (the load task has composited it) AND
+ * its component is mounted, then only re-applies when the tree generation
+ * changes (remount/rebuild) — mirroring the reference resolving getModel every
+ * draw. Cheap: Ensure* is a cache hit after the first composite, and applied
+ * entries at the current generation are skipped. */
+static void
+app_if_head_poll(struct App* app)
+{
+    if( app->if_head_count == 0 || !app->tree )
+        return;
+
+    for( int i = 0; i < app->if_head_count; i++ )
+    {
+        struct AppIfHead* head = &app->if_heads[i];
+        int scene_id;
+
+        if( head->applied_gen == app->tree->generation )
+            continue;
+
+        if( head->kind == APP_IFHEAD_PLAYER )
+        {
+            struct WorldEntity_Player* lp = app_local_player(app);
+            scene_id = lp ? UITreeSceneBridge_EnsurePlayerHead(
+                                &app->bridge, lp->appearance.slots, lp->appearance.colors, lp->gender)
+                          : -1;
+        }
+        else
+        {
+            scene_id = UITreeSceneBridge_EnsureNpcHead(&app->bridge, head->npc_id);
+        }
+        if( scene_id < 0 )
+            continue; /* assets not composited yet — retry next frame */
+
+        if( UITree_ApplyModel(app->tree, head->com_id, scene_id) )
+        {
+            if( head->anim_id >= 0 )
+                UITree_ApplyModelAnim(app->tree, head->com_id, head->anim_id);
+            head->applied_gen = app->tree->generation;
+        }
+        else if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(
+                stderr,
+                "if-head: reapply com=%d npc=%d gen=%u missed (node not mounted?)\n",
+                head->com_id,
+                head->npc_id,
+                app->tree->generation);
+    }
+}
+
+void
+App_SetInterfaceModelAnim(
+    struct App* app,
+    int component_id,
+    int anim_id)
+{
+    assert(app);
+    /* Persist onto a matching head entry so it re-applies with the head after a
+     * (re)mount (reference modelAnim lives on the same IfType as the head), and
+     * apply immediately for the already-mounted / plain-model-widget case. */
+    for( int i = 0; i < app->if_head_count; i++ )
+    {
+        if( app->if_heads[i].com_id == component_id )
+        {
+            app->if_heads[i].anim_id = anim_id;
+            app->if_heads[i].applied_gen = 0;
+            app->need_redraw = 1;
+            break;
+        }
+    }
+    UITree_ApplyModelAnim(app->tree, component_id, anim_id);
 }
 
 static struct Task_AppSpawn*
@@ -3724,10 +4038,10 @@ app_world_spawn_projectile(
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
-/* Hotkey 6: hit every live player/npc for a test hitsplat + half health, so
- * the overlay pass (health bars + hitmarks) can be exercised offline. Goes
- * through the same World_*AddHitmark the NPC_INFO/PLAYER_INFO damage op
- * uses. */
+/* Hotkey 6: hit every live player/npc for a test hitsplat + half health and
+ * give each an overhead chat line, so the whole overlay pass (health bars,
+ * hitmarks and overhead chat) can be exercised offline. Goes through the same
+ * World_*AddHitmark / World_*SetChat the NPC_INFO/PLAYER_INFO ops use. */
 static void
 app_world_damage_test(struct App* app)
 {
@@ -3739,11 +4053,17 @@ app_world_damage_test(struct App* app)
     pool = &app->world->entities.player;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
+    {
         World_PlayerAddHitmark(app->world, i, damage % 2, damage, 5, 10);
+        World_PlayerSetChat(app->world, i, "Hello there!", 0, 0);
+    }
     pool = &app->world->entities.npc;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
+    {
         World_NpcAddHitmark(app->world, i, damage % 2, damage, 5, 10);
+        World_NpcSetChat(app->world, i, "Grrr!", 0, 0);
+    }
 }
 
 /* Spawn test hotkeys (readme): 9 player, 8 npc, 7 ground item, 0 projectile,
@@ -3760,6 +4080,9 @@ app_world_hotkeys(
      * and gating on it made every press suppress itself. */
     (void)out;
     if( !app->world_active || !app->world_view_valid )
+        return;
+    /* Suppressed while composing chat, so spawn-digit keys type instead. */
+    if( app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open )
         return;
     if( app->world_hover_tile_x < 0 || app->world_hover_tile_z < 0 )
         return;
@@ -4265,7 +4588,11 @@ app_minimenu_inv_action(
 #include "ui/uitree_inv_view.h"
 
 /* Resolve the RS_INV node under a canvas point + the slot within it. Returns
- * the tree index (or -1) and fills *out_slot / *out_source_id. */
+ * the tree index (or -1) and fills *out_slot / *out_source_id. Goes through
+ * UITree_CollectNodesAt (visibility, clipping, selected sidebar tab, and the
+ * per-slot hit rule): an inv component's own layout bounds are cols x rows
+ * PIXELS (4x7 for the backpack), so gating on the node box never matches a
+ * slot click — the same trap fixed in collect_inv_grid_slot_hit. */
 static int32_t
 app_inv_node_at(
     struct App* app,
@@ -4274,17 +4601,19 @@ app_inv_node_at(
     int* out_slot,
     int* out_source_id)
 {
-    for( uint32_t i = 0; i < app->tree->component_count; i++ )
+    int32_t hits[16];
+    int hit_count =
+        UITree_CollectNodesAt(app->tree, &app->ui_host, px, py, hits, 16);
+
+    for( int i = 0; i < hit_count; i++ )
     {
-        struct UITreeComponent const* node = &app->tree->components[i];
+        struct UITreeComponent const* node = &app->tree->components[hits[i]];
         struct UITreeInvGridLayout layout;
         int bx = 0, by = 0, bw = 0, bh = 0, offx = 0, offy = 0, slot;
 
-        if( node->freed || node->type != UIELEM_RS_INV || node->behavior.hide )
+        if( node->type != UIELEM_RS_INV )
             continue;
         UITree_LayoutGetBounds(&node->position, &bx, &by, &bw, &bh);
-        if( px < bx || px >= bx + bw || py < by || py >= by + bh )
-            continue;
 
         layout.cols = node->u.rs_inv.cols;
         layout.rows = node->u.rs_inv.rows;
@@ -4292,7 +4621,7 @@ app_inv_node_at(
         layout.margin_y = node->u.rs_inv.margin_y;
         layout.offset_x = node->u.rs_inv.inv_slot_offset_x;
         layout.offset_y = node->u.rs_inv.inv_slot_offset_y;
-        UITree_AccumScrollOffset(app->tree, (int32_t)i, &offx, &offy);
+        UITree_AccumScrollOffset(app->tree, hits[i], &offx, &offy);
         slot = UITree_InvViewGridHitTest(bx, by, &layout, px + offx, py + offy);
         if( slot < 0 )
             continue;
@@ -4300,14 +4629,66 @@ app_inv_node_at(
             *out_slot = slot;
         if( out_source_id )
             *out_source_id = node->u.rs_inv.inv_source_id;
-        return (int32_t)i;
+        return hits[i];
     }
     return -1;
 }
 
-/* Inventory drag → optimistic local swap + INV_BUTTOND (reference dragging
- * an item within a grid). A grab must survive the dead time (reference 5
- * cycles) to count as a drag rather than a click. */
+static int
+app_minimenu_use_option(
+    struct App* app,
+    int option_index,
+    int click_x,
+    int click_y);
+
+/* Run the default (top) menu row for a click at (x, y) — the reference
+ * doAction(menuNumEntries - 1) short-click path. UI rows only (no world
+ * pickset): used by the inventory slot machine below, where the click is by
+ * construction over a component. */
+static void
+app_run_default_ui_row(struct App* app, int click_x, int click_y)
+{
+    struct RS_MinimenuBuildCtx mctx = {
+        .tree = app->tree,
+        .ui_host = &app->ui_host,
+        .provider = app->provider,
+        .runner = &app->runner,
+        .invs = &app->invs,
+        .chat = &app->chat_source,
+        .world = app->world,
+        .world_pickset = NULL,
+        .click_in_world = false,
+    };
+    struct UIMinimenu scratch;
+    int default_idx;
+
+    mctx.selection = app_minimenu_selection(app);
+    UIMinimenu_Reset(&scratch);
+    scratch.font_id = app->interact.minimenu.font_id;
+    RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
+    default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
+    if( default_idx >= 0 )
+    {
+        struct UIMinimenu saved = app->interact.minimenu;
+        app->interact.minimenu = scratch;
+        app_minimenu_use_option(app, default_idx, click_x, click_y);
+        app->interact.minimenu = saved;
+    }
+}
+
+/* Inventory slot press/drag/click (reference objDrag* machine, Client.ts
+ * mouseLoop 8584 + gameLoop 2476):
+ *  - left press over a FILLED slot arms; nothing fires on the down edge.
+ *  - each held cycle: cycles++, >5px of travel sets the grab threshold, and
+ *    the emit offset dx/dy is recomputed (+-5px deadzone, zero before 5
+ *    cycles) so the armed icon follows the mouse at trans 128.
+ *  - release: real drag (threshold && cycles >= 5) resolves the slot under
+ *    the mouse — same source, different slot → optimistic local swap +
+ *    INV_BUTTOND(com, src, dst, 0); anything else is a SHORT CLICK and runs
+ *    the default menu row (how a left click submits OPHELD*).
+ * While armed the generic node drag is suppressed (tree->anti_drag; the
+ * reference freezes mouseLoop/buildMinimenu during objDragArea != 0) so the
+ * grid's ancestors can never pick the press up as a whole-panel drag. */
 static void
 app_inv_drag_tick(
     struct App* app,
@@ -4316,7 +4697,10 @@ app_inv_drag_tick(
     int mx = input->curr.mouse_x;
     int my = input->curr.mouse_y;
 
-    if( LibToriRS_Input_IsDragStart(input, TORIRSM_LEFT) )
+    /* Never arm while the right-click popup is open: its option rows overlap
+     * the grid and the reference routes those clicks through the menu first. */
+    if( app->inv_drag_com_id < 0 && !app->interact.minimenu.visible &&
+        LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
     {
         int slot = -1, source_id = -1;
         int32_t idx = app_inv_node_at(app, mx, my, &slot, &source_id);
@@ -4327,22 +4711,74 @@ app_inv_drag_tick(
                 inv_slot.obj_id > 0 )
             {
                 app->inv_drag_com_id = app->tree->components[idx].component_id;
+                app->inv_drag_can_drag = app->tree->components[idx].u.rs_inv.can_drag;
                 app->inv_drag_from_slot = slot;
                 app->inv_drag_source_id = source_id;
                 app->inv_drag_cycles = 0;
+                app->inv_drag_grab_x = mx;
+                app->inv_drag_grab_y = my;
+                app->inv_drag_threshold = 0;
+                app->inv_drag_dx = 0;
+                app->inv_drag_dy = 0;
+                app->need_redraw = 1; /* armed slot renders trans-128 now */
             }
         }
     }
 
-    if( app->inv_drag_com_id >= 0 && LibToriRS_Input_IsDragging(input, TORIRSM_LEFT) )
-        app->inv_drag_cycles++;
+    if( app->inv_drag_com_id < 0 )
+    {
+        if( app->tree )
+            app->tree->anti_drag = 0;
+        return;
+    }
+    if( app->tree )
+        app->tree->anti_drag = 1;
 
-    if( app->inv_drag_com_id >= 0 && LibToriRS_Input_IsDragEnd(input, TORIRSM_LEFT) )
+    if( !input->curr.mouse_button_up[TORIRSM_LEFT] &&
+        LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
+    {
+        int dx = mx - app->inv_drag_grab_x;
+        int dy = my - app->inv_drag_grab_y;
+
+        /* Non-draggable grid (equipment/worn: objSwap && objReplace both
+         * false): the held item still fades to trans 128 in place (dx/dy stay
+         * 0, so it never moves — GET_INV_DRAG still reports the slot), the
+         * press still counts as a click on release, but it never promotes to a
+         * drag — no threshold, no offset, no swap. */
+        if( !app->inv_drag_can_drag )
+            return;
+
+        app->inv_drag_cycles++;
+        if( dx > 5 || dx < -5 || dy > 5 || dy < -5 )
+            app->inv_drag_threshold = 1;
+
+        /* Visual offset: reference zeroes each axis inside +-5px and both
+         * until the 5-cycle dead time passes. */
+        if( dx < 5 && dx > -5 )
+            dx = 0;
+        if( dy < 5 && dy > -5 )
+            dy = 0;
+        if( app->inv_drag_cycles < 5 )
+        {
+            dx = 0;
+            dy = 0;
+        }
+        if( dx != app->inv_drag_dx || dy != app->inv_drag_dy )
+        {
+            app->inv_drag_dx = dx;
+            app->inv_drag_dy = dy;
+            app->need_redraw = 1;
+        }
+        return;
+    }
+
+    /* Released. */
+    if( app->inv_drag_threshold && app->inv_drag_cycles >= 5 )
     {
         int to_slot = -1, to_source = -1;
         int32_t idx = app_inv_node_at(app, mx, my, &to_slot, &to_source);
         if( idx >= 0 && to_source == app->inv_drag_source_id &&
-            to_slot != app->inv_drag_from_slot && app->inv_drag_cycles >= 5 )
+            to_slot != app->inv_drag_from_slot )
         {
             InvManager_SwapSlots(
                 &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, to_slot);
@@ -4351,10 +4787,18 @@ app_inv_drag_tick(
                 net_out_inv_buttond(
                     app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                     app->inv_drag_com_id, app->inv_drag_from_slot, to_slot, 0));
-            app->need_redraw = 1;
         }
-        app->inv_drag_com_id = -1;
     }
+    else
+    {
+        app_run_default_ui_row(app, mx, my);
+    }
+    app->inv_drag_com_id = -1;
+    app->inv_drag_dx = 0;
+    app->inv_drag_dy = 0;
+    if( app->tree )
+        app->tree->anti_drag = 0;
+    app->need_redraw = 1;
 }
 
 static int
@@ -4865,7 +5309,12 @@ App_RunOnce(
             out.minimap_click_y,
             LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL));
 
-    if( out.clicked_com_id >= 0 && !out.minimenu_closed && out.minimenu_select < 0 )
+    /* A left press over a filled inventory slot is owned by the slot machine
+     * (app_inv_drag_tick): the reference freezes mouseLoop while objDragArea
+     * is armed, so the release must not ALSO fire the generic default-entry
+     * path here — the machine runs the default row itself on a short click. */
+    if( app->inv_drag_com_id < 0 && out.clicked_com_id >= 0 && !out.minimenu_closed &&
+        out.minimenu_select < 0 )
     {
         struct RS_MinimenuBuildCtx mctx = {
             .tree = app->tree,
@@ -4931,7 +5380,8 @@ App_RunOnce(
                                 : -1,
             app_world_drawable(app),
             app->world_pickset.count);
-    if( out.left_click_miss && !out.minimenu_closed && out.minimenu_select < 0 &&
+    if( app->inv_drag_com_id < 0 && out.left_click_miss && !out.minimenu_closed &&
+        out.minimenu_select < 0 &&
         app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y, out.hover_com_id) &&
         app_world_drawable(app) )
     {
@@ -5046,6 +5496,18 @@ App_RunOnce(
      * exists (dat1 gameframe). */
     if( app->slots.chat_index >= 0 )
     {
+        /* Chat input focus: a left press inside the chat region focuses it, a
+         * press anywhere else unfocuses. Only while focused do typed keys feed
+         * the chat line -- otherwise they are left for the debug camera/world
+         * hotkeys. Modal prompts (add-friend name, amount dialog) always
+         * capture regardless of focus. */
+        if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+            app->chat_input_active =
+                app_point_in_chat(app, input->curr.mouse_x, input->curr.mouse_y);
+
+        int chat_captures = app->chat_input_active || app->chat.social_input_open ||
+                            app->chat.dialog_input_open;
+
         /* Straight from the input queue: out.key_events only fills when some
          * component carries an onKey hook, but chat typing must work without
          * any (the dat1 packs have none). A public-chat message submitted this
@@ -5053,6 +5515,29 @@ App_RunOnce(
          * the front) is forwarded to the server. */
         for( int e = 0; e < input->key_event_count; e++ )
         {
+            /* Escape releases chat focus (reference: Esc cancels the input
+             * line) without feeding the key to the chat handler. */
+            if( app->chat_input_active &&
+                input->key_events[e].key_typed == TORIRS_OSRSKEY_ESCAPE )
+            {
+                app->chat_input_active = 0;
+                chat_captures = app->chat.social_input_open || app->chat.dialog_input_open;
+                app->need_redraw = 1;
+                continue;
+            }
+            /* Enter with the line unfocused grabs focus instead of submitting,
+             * so the keyboard alone can start a message. */
+            if( !chat_captures &&
+                input->key_events[e].key_typed == TORIRS_OSRSKEY_ENTER )
+            {
+                app->chat_input_active = 1;
+                chat_captures = 1;
+                app->need_redraw = 1;
+                continue;
+            }
+            if( !chat_captures )
+                continue;
+
             int had_input = app->chat.input[0] != '\0';
             /* Snapshot the input state a Return might submit, since HandleKey
              * clears it: a public line, a "::" cheat, a social prompt, or the
@@ -5123,6 +5608,33 @@ App_RunOnce(
                                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                                 app->chat.messages[0].text));
                 }
+            }
+        }
+
+        /* Chat scrollbar: held left button over the scrollbar column drives the
+         * arrows / grip (reference doScrollbar, gated on no chat dialog open —
+         * the dialog pack replaces the message column + scrollbar). */
+        {
+            int rx = 0;
+            int ry = 0;
+            int left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+            if( left_held && app->slots.chat_com_id == -1 &&
+                app_chat_region(app, &rx, &ry, NULL) )
+            {
+                struct RS_ChatFilters filters = app_chat_filters(app);
+                app->chat_scroll_cycle++;
+                if( RS_Chat_ScrollbarInput(
+                        &app->chat,
+                        &filters,
+                        input->curr.mouse_x - rx,
+                        input->curr.mouse_y - ry,
+                        app->chat_scroll_cycle) )
+                    app->need_redraw = 1;
+            }
+            else
+            {
+                app->chat_scroll_cycle = 0;
+                app->chat.scroll_grabbed = 0;
             }
         }
 
@@ -5200,6 +5712,8 @@ App_RunOnce(
                         app->tree->generation);
             }
         }
+        /* Rebind chatheads onto their (possibly newly mounted) MODEL nodes. */
+        app_if_head_poll(app);
         app_chat_build_view(app);
         app->emit.count = 0;
         UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->hover_com_id);

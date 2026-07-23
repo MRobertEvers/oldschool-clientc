@@ -23,6 +23,40 @@ UITree_ComponentClipsChildren(struct UITreeComponent const* component)
 }
 
 bool
+UITree_ComponentEstablishesSurface(struct UITreeComponent const* component)
+{
+    if( !component )
+        return false;
+    return component->type == UIELEM_BUILTIN_CHAT || component->type == UIELEM_BUILTIN_SIDEBAR;
+}
+
+bool
+UITree_LayerChildClip(
+    struct UITreeComponent const* component,
+    struct UITreeScrollClip const* surface,
+    int box_x,
+    int box_y,
+    int box_w,
+    int box_h,
+    struct UITreeScrollClip* out_child,
+    struct UITreeScrollClip* out_surface)
+{
+    struct UITreeScrollClip const empty = { 0, 0, 0, 0 };
+
+    if( !UITree_ComponentClipsChildren(component) || box_w <= 0 || box_h <= 0 )
+        return false;
+
+    /* Own box ∩ enclosing surface — NOT compounded with ancestor layers
+     * (reference Pix2D.setClipping overwrites, clamping only to the surface). */
+    *out_child = surface ? *surface : empty;
+    UITree_ScrollIntersectClip(out_child, box_x, box_y, box_w, box_h);
+
+    *out_surface =
+        UITree_ComponentEstablishesSurface(component) ? *out_child : (surface ? *surface : empty);
+    return true;
+}
+
+bool
 UITree_ScrollLayerNeedsVertical(struct UITreeComponent const* layer)
 {
     if( !layer || layer->type != UIELEM_RS_LAYER )

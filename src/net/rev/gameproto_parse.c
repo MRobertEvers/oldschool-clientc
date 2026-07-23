@@ -220,7 +220,11 @@ gameproto_parse(
 
         for( int i = 0; i < packet->_update_inv_full.size; i++ )
         {
-            packet->_update_inv_full.obj_ids[i] = g2(&buffer);
+            /* Wire carries obj id + 1, 0 = empty (reference stores the raw
+             * value in linkObjType and every consumer reads linkObjType - 1).
+             * PARTIAL below already subtracts; without the -1 here every item
+             * shifts onto its neighbour id — which is usually its bank note. */
+            packet->_update_inv_full.obj_ids[i] = g2(&buffer) - 1;
 
             int count = g1(&buffer);
             if( count == 255 )

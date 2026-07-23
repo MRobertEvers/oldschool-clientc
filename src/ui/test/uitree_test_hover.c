@@ -272,6 +272,40 @@ test_hover_input(void)
         UITree_Free(ct);
     }
 
+    /* An RS_INV grid carries cols/rows in its layout width/height (a live
+     * backpack is 4x7), so its node box is a few pixels while its 32px slots
+     * span far past it. CollectNodesAt (the right-click menu's hit source) must
+     * still collect the grid when a slot — not the node box — is clicked, or
+     * the whole inventory is invisible to the minimenu. */
+    {
+        struct UITree* ct = UITree_New(8);
+        int32_t grid = UITree_TestPushXy(ct, -1, UIELEM_RS_INV, 70, 70, 50, 4, 7);
+        ct->components[grid].u.rs_inv.cols = 4;
+        ct->components[grid].u.rs_inv.rows = 7;
+        ct->components[grid].u.rs_inv.margin_x = 0;
+        ct->components[grid].u.rs_inv.margin_y = 0;
+        UITree_TestResolve(ct);
+
+        int32_t hits[8];
+        /* (85,65): inside slot 0's 32x32 rect (70..102, 50..82) but past the
+         * 4x7 node box (70..74, 50..57). */
+        int n_in = UITree_CollectNodesAt(ct, &host, 85, 65, hits, 8);
+        int found = 0;
+        for( int i = 0; i < n_in; i++ )
+            if( hits[i] == grid )
+                found = 1;
+        TEST_ASSERT(found, "inv grid collected when a slot (not the node box) is clicked");
+
+        /* Well past every slot: not collected. */
+        int n_out = UITree_CollectNodesAt(ct, &host, 300, 300, hits, 8);
+        int found_out = 0;
+        for( int i = 0; i < n_out; i++ )
+            if( hits[i] == grid )
+                found_out = 1;
+        TEST_ASSERT(!found_out, "inv grid not collected past its slots");
+        UITree_Free(ct);
+    }
+
     /* Clip rect must sit at SCREEN coords: a clipping layer inside a scrolled
      * ancestor keeps its hitbox where it is drawn (emit places the clip at
      * x - scroll_off). */

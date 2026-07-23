@@ -91,6 +91,7 @@ void
 ToriRS_PickHitsClassify(
     struct World* world,
     struct ToriRS_PickHits const* hits,
+    int player_level,
     struct World_PickSet* out_pickset,
     struct ToriRS_PickResult* out_result)
 {
@@ -110,6 +111,11 @@ ToriRS_PickHitsClassify(
 
         if( hit->is_terrain )
         {
+            /* Lower levels still render under the player, so their tiles keep
+             * producing terrain hits — but the player only ever walks/clicks on
+             * their own level's ground. */
+            if( player_level >= 0 && hit->tile_level != player_level )
+                continue;
             /* Hits arrive in render order, back-to-front: the last terrain
              * hit is nearest. */
             out_result->hover_tile_valid = true;
@@ -132,7 +138,13 @@ ToriRS_PickHitsClassify(
             int tile_level;
             if( pick_classify_element(
                     world, hit->element_id, &type, &tile_x, &tile_z, &tile_level) )
+            {
+                /* Scenery/NPCs/obj stacks on a level other than the player's are
+                 * unreachable — never surface them in the minimenu. */
+                if( player_level >= 0 && tile_level != player_level )
+                    continue;
                 World_PickSetAdd(out_pickset, hit->element_id, type, tile_x, tile_z, tile_level);
+            }
         }
     }
 }

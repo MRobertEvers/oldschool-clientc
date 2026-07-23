@@ -529,6 +529,25 @@ World_NpcAddHitmark(
     int health,
     int total_health);
 
+/** Set an entity's overhead chat text (reference chatMessage/Colour/Effect,
+ * chatTimer reset to 150). colour/effect select the render style; pass 0/0 for
+ * plain forced-chat "say" lines. A NULL or empty message clears the overhead. */
+void
+World_PlayerSetChat(
+    struct World* world,
+    int idx,
+    char const* message,
+    int colour,
+    int effect);
+
+void
+World_NpcSetChat(
+    struct World* world,
+    int idx,
+    char const* message,
+    int colour,
+    int effect);
+
 /* ---- zone-packet world mutations ---- */
 
 /** Ground item stack add: takes ownership of an already-created scene

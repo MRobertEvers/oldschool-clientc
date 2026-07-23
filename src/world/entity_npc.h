@@ -19,6 +19,7 @@ struct WorldEntity_NPC
     struct WorldEntityFacet_Animation animation;
     struct WorldEntityFacet_Facing facing;
     struct WorldEntityFacet_Combat combat;
+    struct WorldEntityFacet_Chat chat;
     struct WorldEntityFacet_EntitySpotanim spotanim;
     /** Server npc slot this entity mirrors; -1 = local/unsynced. */
     int server_slot;

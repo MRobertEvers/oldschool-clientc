@@ -1015,6 +1015,7 @@ UITree_Push(
         component->u.rs_inv.rows = spec->u.rs_inv.rows;
         component->u.rs_inv.margin_x = spec->u.rs_inv.margin_x;
         component->u.rs_inv.margin_y = spec->u.rs_inv.margin_y;
+        component->u.rs_inv.can_drag = spec->u.rs_inv.can_drag;
         if( spec->u.rs_inv.inv_slot_offset_x && spec->u.rs_inv.inv_slot_offset_y )
         {
             memcpy(
@@ -2280,6 +2281,7 @@ drop_target_pick_in_subtree(
     int scroll_off_x,
     int scroll_off_y,
     struct UITreeScrollClip const* clip,
+    struct UITreeScrollClip const* surface,
     int* best_id,
     int* best_depth,
     int depth)
@@ -2291,6 +2293,7 @@ drop_target_pick_in_subtree(
     int child_scroll_x;
     int child_scroll_y;
     struct UITreeScrollClip child_clip;
+    struct UITreeScrollClip child_surface;
 
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
         return 0;
@@ -2311,11 +2314,19 @@ drop_target_pick_in_subtree(
     child_scroll_x = scroll_off_x;
     child_scroll_y = scroll_off_y;
     child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
-    /* Every positive-size container clips its children (same predicate as the
-     * emit walk, so drop targets match drawn pixels). */
-    if( UITree_ComponentClipsChildren(c) && w > 0 && h > 0 )
-        UITree_ScrollIntersectClip(
-            &child_clip, x - scroll_off_x, y - scroll_off_y, w, h);
+    child_surface = surface ? *surface : (struct UITreeScrollClip){ 0 };
+    /* Same shared clip rule as the emit walk (UITree_LayerChildClip), so drop
+     * targets match drawn pixels: own bounds ∩ enclosing surface, never
+     * compounded with ancestor layers. */
+    {
+        struct UITreeScrollClip cc, cs;
+        if( UITree_LayerChildClip(
+                c, surface, x - scroll_off_x, y - scroll_off_y, w, h, &cc, &cs) )
+        {
+            child_clip = cc;
+            child_surface = cs;
+        }
+    }
     if( c->type == UIELEM_RS_LAYER )
     {
         if( UITree_ScrollLayerNeedsHorizontal(c) )
@@ -2328,7 +2339,8 @@ drop_target_pick_in_subtree(
     {
         drop_target_pick_in_subtree(
             tree, child, px, py, exclude_component_id,
-            child_scroll_x, child_scroll_y, &child_clip, best_id, best_depth, depth + 1);
+            child_scroll_x, child_scroll_y, &child_clip, &child_surface, best_id, best_depth,
+            depth + 1);
     }
 
     /* InterfaceParent mounts drawn/hit last under this container. */
@@ -2362,6 +2374,7 @@ drop_target_pick_in_subtree(
                         scroll_off_x,
                         scroll_off_y,
                         &child_clip,
+                        &child_surface,
                         best_id,
                         best_depth,
                         depth + 1);
@@ -2394,7 +2407,7 @@ UITree_FindDropTarget(
         if( tree->components[root].behavior.hide )
             continue;
         drop_target_pick_in_subtree(
-            tree, root, px, py, exclude_component_id, 0, 0, NULL, &best_id, &best_depth, 0);
+            tree, root, px, py, exclude_component_id, 0, 0, NULL, NULL, &best_id, &best_depth, 0);
     }
     return best_id;
 }

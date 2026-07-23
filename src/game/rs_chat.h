@@ -20,6 +20,11 @@ struct UITreeHost;
 #define RS_CHAT_TEXT_LEN 200
 #define RS_CHAT_INPUT_LEN 80
 
+/* Chat scrollbar geometry, region-local (reference: message column 463 wide,
+ * 77px visible window; scrollbar sits just right of the column). */
+#define RS_CHAT_SCROLLBAR_LEFT 463
+#define RS_CHAT_VIEW_HEIGHT 77
+
 enum RS_ChatMessageType
 {
     RS_CHAT_TYPE_GAME = 0,
@@ -57,6 +62,9 @@ struct RS_Chat
     int message_count;
 
     int scroll_pos;
+    /** Scrollbar grip held this frame (reference scrollGrabbed); widens the
+     *  grab hit area so a fast drag doesn't slip off the 16px column. */
+    int scroll_grabbed;
     char input[RS_CHAT_INPUT_LEN];
     char username[RS_CHAT_SENDER_LEN];
 
@@ -124,6 +132,21 @@ RS_Chat_Scroll(
     struct RS_Chat* chat,
     struct RS_ChatFilters const* filters,
     int wheel_y);
+
+/**
+ * Drive the chat scrollbar from a held left click (reference doScrollbar):
+ * (local_x, local_y) are relative to the chat region origin; cycle is the
+ * number of frames the button has been held (arrow scroll accelerates with it,
+ * grip drag needs cycle > 0). Returns nonzero when the point fell on the
+ * scrollbar (arrows, track or grip) and scroll_pos may have changed.
+ */
+int
+RS_Chat_ScrollbarInput(
+    struct RS_Chat* chat,
+    struct RS_ChatFilters const* filters,
+    int local_x,
+    int local_y,
+    int cycle);
 
 /**
  * One keyboard event (reference handleInputKey chat branches): printable

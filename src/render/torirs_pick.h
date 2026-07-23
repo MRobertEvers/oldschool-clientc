@@ -55,11 +55,16 @@ ToriRS_PickHitsAdd(
     int tile_level);
 
 /** Classify raw render-order hits (back-to-front) into out_pickset (reset
- * first); the last terrain hit — the nearest — becomes the hover tile. */
+ * first); the last terrain hit — the nearest — becomes the hover tile.
+ * Only hits on player_level are kept: the player can never interact with
+ * scenery/NPCs/tiles on a level other than the one they stand on, even though
+ * lower levels are still rendered (and hittested) under them. Pass a negative
+ * player_level to disable the filter (e.g. no local player resolved yet). */
 void
 ToriRS_PickHitsClassify(
     struct World* world,
     struct ToriRS_PickHits const* hits,
+    int player_level,
     struct World_PickSet* out_pickset,
     struct ToriRS_PickResult* out_result);
 

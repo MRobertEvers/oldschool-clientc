@@ -1674,7 +1674,10 @@ exec_widget_set_model_kind(
               request.model_kind == CS2VM_MODEL_KIND_PLAYER_CHATHEAD) &&
              host->bridge && rs_cs2_tree(host) )
     {
-        int scene_model = UITreeSceneBridge_EnsurePlayerHead(host->bridge);
+        /* The CS2 host has no world handle, so it can only bind an already
+         * composited player head (cache hit). The IF1 IF_SETPLAYERHEAD path
+         * (App-driven) is what composites it from the real appearance. */
+        int scene_model = UITreeSceneBridge_EnsurePlayerHead(host->bridge, NULL, NULL, 0);
         if( scene_model >= 0 )
             (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
     }

@@ -315,6 +315,9 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
     dst->inv_rows = src->baseHeight;
     dst->margin_x = src->marginX;
     dst->margin_y = src->marginY;
+    /* IF3 has no objSwap boolean — dragging is driven by drag dead-zone/time +
+     * the onDragComplete script, so the item drag machine stays enabled. */
+    dst->inv_can_drag = 1;
     if( src->type == TORIRS_COMPONENT_LINE )
     {
         dst->line_width = src->lineWidth > 0 ? src->lineWidth : 1;
@@ -460,6 +463,10 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
     {
         dst->inv_cols = src->width;
         dst->inv_rows = src->height;
+        /* Reference arms the item drag only on objSwap || objReplace; the
+         * dat1 booleans decode in that order as draggable/interactable/usable/
+         * swappable, so objSwap = draggable and objReplace = swappable. */
+        dst->inv_can_drag = (src->draggable || src->swappable) ? 1 : 0;
         for( int i = 0; i < TORIRS_INV_SLOT_MAX; i++ )
         {
             dst->inv_slot_graphic_id[i] = -1;

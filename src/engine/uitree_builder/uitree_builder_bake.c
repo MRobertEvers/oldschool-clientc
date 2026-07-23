@@ -601,6 +601,10 @@ push_builtin_op(
         spec.u.rs_inv.inv_source_id = inv_source_id;
         spec.u.rs_inv.cols = op->width > 0 ? op->width : 4;
         spec.u.rs_inv.rows = op->height > 0 ? op->height : 7;
+        /* INI-built grids carry no objSwap flag; keep them draggable (prior
+         * behaviour). Real equipment/worn grids come from the cache mount,
+         * which decodes the reference objSwap || objReplace. */
+        spec.u.rs_inv.can_drag = 1;
         break;
     }
     case UIELEM_RS_LINE:

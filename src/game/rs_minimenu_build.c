@@ -93,6 +93,22 @@ format_inv_item_option(char* out, size_t out_size, char const* verb, char const*
     snprintf(out, out_size, "%s @lre@ %s", verb, obj_name);
 }
 
+/* The reference MiniMenuAction ids are NOT contiguous — OPHELD1..5 are
+ * 694/962/795/681/100 and INV_BUTTON1..5 are 582/113/555/331/354 — so op
+ * slot -> action id must go through a table. `OPHELD1 + op` silently built
+ * ids (695..698) that matched no dispatch case: every obj op except op 0
+ * (and the explicit Drop/Use/Examine rows) was a dead row — "Wield" did
+ * nothing. */
+static int const k_opheld_action[TORIRS_MENU_ACTION_SLOTS] = {
+    REVCONFIG_MINIMENU_OPHELD1, REVCONFIG_MINIMENU_OPHELD2, REVCONFIG_MINIMENU_OPHELD3,
+    REVCONFIG_MINIMENU_OPHELD4, REVCONFIG_MINIMENU_OPHELD5,
+};
+static int const k_inv_button_action[UITREE_MENU_OPTION_SLOTS] = {
+    REVCONFIG_MINIMENU_INV_BUTTON1, REVCONFIG_MINIMENU_INV_BUTTON2,
+    REVCONFIG_MINIMENU_INV_BUTTON3, REVCONFIG_MINIMENU_INV_BUTTON4,
+    REVCONFIG_MINIMENU_INV_BUTTON5,
+};
+
 /*
  * Rows from a node's cache/script ops (op slot 4 down to 0, so op 1 lands on
  * top after the bottom-to-top draw). Action id = op_actions[i] when a script
@@ -122,7 +138,7 @@ add_menu_ops_rows(
             snprintf(text, sizeof(text), "%s", opts->ops[i]);
 
         {
-            int action = REVCONFIG_MINIMENU_INV_BUTTON1 + i;
+            int action = k_inv_button_action[i];
             if( opts->op_actions[i] != 0 )
                 action = opts->op_actions[i];
             UIMinimenu_AddOption(menu, text, action, i, pick);
@@ -148,7 +164,7 @@ add_inv_obj_rows(
         if( obj && obj->inv_actions[op][0] != '\0' )
         {
             format_inv_item_option(text, sizeof(text), obj->inv_actions[op], obj_name);
-            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPHELD1 + op, op, pick);
+            UIMinimenu_AddOption(menu, text, k_opheld_action[op], op, pick);
         }
         else if( op == 4 )
         {
@@ -165,7 +181,7 @@ add_inv_obj_rows(
         if( obj && obj->inv_actions[op][0] != '\0' )
         {
             format_inv_item_option(text, sizeof(text), obj->inv_actions[op], obj_name);
-            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPHELD1 + op, op, pick);
+            UIMinimenu_AddOption(menu, text, k_opheld_action[op], op, pick);
         }
     }
 

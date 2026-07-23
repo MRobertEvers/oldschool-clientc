@@ -69,6 +69,8 @@ struct UIBuildComponent
     int inv_rows;
     int margin_x;
     int margin_y;
+    /** Inventory item drag allowed (objSwap || objReplace); 1 = draggable. */
+    int inv_can_drag;
     int inv_slot_offset_x[UI_INV_SLOT_OFFSET_MAX];
     int inv_slot_offset_y[UI_INV_SLOT_OFFSET_MAX];
     int inv_slot_graphic_id[UI_INV_SLOT_OFFSET_MAX];

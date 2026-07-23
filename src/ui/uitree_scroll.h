@@ -73,6 +73,40 @@ struct UITreeScrollbarHitInfo
 bool
 UITree_ComponentClipsChildren(struct UITreeComponent const* component);
 
+/**
+ * True for containers that establish a new draw SURFACE (reference Pix2D PixMap:
+ * the chatback and sidebar are separate draw targets). A layer's clip is clamped
+ * to its enclosing surface, never to intermediate ancestor layers.
+ */
+bool
+UITree_ComponentEstablishesSurface(struct UITreeComponent const* component);
+
+/**
+ * The interface layer child-clip RULE, shared by the emit walk and the
+ * hit/hover/drop walks so drawn pixels and hitboxes always agree (one place, no
+ * drift). A component that clips its children restricts them to its own screen
+ * box ∩ the enclosing `surface` — NEVER compounded with intermediate ancestor
+ * layers (reference drawInterface + Pix2D.setClipping, which overwrites the clip
+ * and clamps only to the surface PixMap). Surface containers (chat/sidebar)
+ * additionally become the surface for their descendants.
+ *
+ * `surface` is the enclosing surface clip; an empty rect (clip_w/clip_h <= 0)
+ * means "unbounded / whole screen". Box coords are screen-space. On a clipping
+ * component writes *out_child (the child clip) and *out_surface (the child
+ * surface) and returns true; otherwise returns false and the caller keeps its
+ * inherited clip and surface. `surface` may be NULL (treated as unbounded).
+ */
+bool
+UITree_LayerChildClip(
+    struct UITreeComponent const* component,
+    struct UITreeScrollClip const* surface,
+    int box_x,
+    int box_y,
+    int box_w,
+    int box_h,
+    struct UITreeScrollClip* out_child,
+    struct UITreeScrollClip* out_surface);
+
 bool
 UITree_ScrollLayerNeedsVertical(struct UITreeComponent const* layer);
 

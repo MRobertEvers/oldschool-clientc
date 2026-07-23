@@ -41,4 +41,29 @@ PlayerModel_CollectAppearanceModelIds(
     int* out_ids,
     int cap);
 
+/*
+ * Composite the player's CHATHEAD from the same appearance: the identity-kit
+ * *head* models (idk->heads) of the head-bearing slots, design-recoloured like
+ * the body (reference ClientPlayer.getHeadModel). Lights + captures the merged
+ * model so the interface widget can animate it. Returns an owned model or NULL.
+ */
+struct ToriDraw_Model*
+PlayerHeadModel_BuildFromAppearance(
+    struct CacheProvider* provider,
+    int const slots[12],
+    int const colors[5],
+    int gender);
+
+/*
+ * List the identity-kit head model ids the appearance references, so a task can
+ * await CreateTask_ModelLoad for each before compositing the chathead. The idk
+ * configs must already be loaded. Returns the count written (capped at cap).
+ */
+int
+PlayerHeadModel_CollectHeadModelIds(
+    struct CacheProvider* provider,
+    int const slots[12],
+    int* out_ids,
+    int cap);
+
 #endif

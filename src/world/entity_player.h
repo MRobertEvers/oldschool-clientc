@@ -14,6 +14,7 @@ struct WorldEntity_Player
     struct WorldEntityFacet_Animation animation;
     struct WorldEntityFacet_Facing facing;
     struct WorldEntityFacet_Combat combat;
+    struct WorldEntityFacet_Chat chat;
     struct WorldEntityFacet_Appearance appearance;
     struct WorldEntityFacet_ExactMove exact_move;
     struct WorldEntityFacet_EntitySpotanim spotanim;

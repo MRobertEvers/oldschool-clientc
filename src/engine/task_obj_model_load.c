@@ -21,6 +21,9 @@ struct Task_ObjModelLoad
     int render_obj_id;
     int model_id;
     int tex_f;
+    int base_obj_id;
+    int base_model_id;
+    int base_tex_f;
 };
 
 static int
@@ -67,6 +70,40 @@ obj_model_render_obj_id(
     if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
         return obj->cert_template;
     return resolved_id;
+}
+
+/* Base item id a bank note draws on top of itself (reference genCert certlink /
+ * getSprite(certlink, ...) overlay). -1 when the resolved obj is not a note or
+ * is not yet resident. */
+static int
+obj_model_cert_link_id(
+    struct CacheProvider* provider,
+    int resolved_id)
+{
+    struct ToriRS_Objtype* obj;
+
+    if( resolved_id <= 0 || !CacheProvider_ObjtypeHas(provider, resolved_id) )
+        return -1;
+    obj = CacheProvider_ObjtypeGet(provider, resolved_id);
+    assert(obj);
+    if( obj->inventory_model_id <= 0 && obj->cert_template > 0 && obj->cert_link > 0 )
+        return obj->cert_link;
+    return -1;
+}
+
+/* Inventory model id of a resident objtype, or -1. */
+static int
+obj_model_objtype_model_id(
+    struct CacheProvider* provider,
+    int obj_id)
+{
+    struct ToriRS_Objtype* obj;
+
+    if( obj_id <= 0 || !CacheProvider_ObjtypeHas(provider, obj_id) )
+        return -1;
+    obj = CacheProvider_ObjtypeGet(provider, obj_id);
+    assert(obj);
+    return obj->inventory_model_id > 0 ? obj->inventory_model_id : -1;
 }
 
 static int
@@ -151,6 +188,31 @@ ObjModelLoad_NeedsWork(
     if( render_obj_id > 0 && !CacheProvider_ObjtypeHas(provider, render_obj_id) )
         return 1;
 
+    /* A bank note also composites its base item (cert_link) icon on top, so the
+     * base objtype, its model, and that model's textures must all load too. */
+    {
+        int base_obj_id = obj_model_cert_link_id(
+            provider, count_obj_id > 0 ? count_obj_id : obj_id);
+        if( base_obj_id > 0 )
+        {
+            int base_model_id;
+            int base_faces;
+
+            if( !CacheProvider_ObjtypeHas(provider, base_obj_id) )
+                return 1;
+            base_model_id = obj_model_objtype_model_id(provider, base_obj_id);
+            if( base_model_id > 0 && !CacheProvider_ModelHas(provider, base_model_id) )
+                return 1;
+            base_faces = obj_model_face_count(provider, base_model_id);
+            for( f = 0; f < base_faces; f++ )
+            {
+                int texture_id = obj_model_face_texture(provider, base_model_id, f);
+                if( texture_id >= 0 && !CacheProvider_TextureHas(provider, texture_id) )
+                    return 1;
+            }
+        }
+    }
+
     model_id = obj_model_resolve_inventory_model_id(provider, obj_id, count_obj_id);
     if( model_id > 0 && !CacheProvider_ModelHas(provider, model_id) )
         return 1;
@@ -219,6 +281,29 @@ Task_ObjModelLoad_Run(
             self->render_obj_id != self->count_obj_id )
             TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->render_obj_id));
 
+        /* Bank note: also load the base item (cert_link) objtype + its model +
+         * textures — the icon composites the base's icon over the note paper. */
+        self->base_obj_id = obj_model_cert_link_id(
+            self->provider, self->count_obj_id > 0 ? self->count_obj_id : obj_id);
+        if( self->base_obj_id > 0 )
+        {
+            TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->base_obj_id));
+            self->base_model_id =
+                obj_model_objtype_model_id(self->provider, self->base_obj_id);
+            if( self->base_model_id > 0 )
+                TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->base_model_id));
+            for( self->base_tex_f = 0;
+                 self->base_tex_f < obj_model_face_count(self->provider, self->base_model_id);
+                 self->base_tex_f++ )
+            {
+                int base_texture_id = obj_model_face_texture(
+                    self->provider, self->base_model_id, self->base_tex_f);
+                if( base_texture_id >= 0 &&
+                    !CacheProvider_TextureHas(self->provider, base_texture_id) )
+                    TASK_AWAITSELF_IF(CreateTask_TextureLoad(self->provider, base_texture_id));
+            }
+        }
+
         self->model_id =
             obj_model_resolve_inventory_model_id(self->provider, obj_id, self->count_obj_id);
         if( self->model_id > 0 )
@@ -286,6 +371,8 @@ CreateTask_ObjModelLoad(
     }
     task->count_obj_id = -1;
     task->model_id = -1;
+    task->base_obj_id = -1;
+    task->base_model_id = -1;
     PT_INIT(&task->pt);
     return &task->task;
 }

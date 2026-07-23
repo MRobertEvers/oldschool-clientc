@@ -101,6 +101,33 @@ PlayerModel_CollectAppearanceModelIds(
     return count;
 }
 
+int
+PlayerHeadModel_CollectHeadModelIds(
+    struct CacheProvider* provider,
+    int const slots[12],
+    int* out_ids,
+    int cap)
+{
+    int count = 0;
+
+    assert(provider && slots && out_ids);
+
+    for( int s = 0; s < 12 && count < cap; s++ )
+    {
+        int value = slots[s];
+        if( value >= 0x100 && value < 0x200 )
+        {
+            struct ToriRS_Idk* idk = CacheProvider_IdkGet(provider, value - 0x100);
+            if( !idk )
+                continue;
+            for( int h = 0; h < 10 && count < cap; h++ )
+                if( idk->heads[h] > 0 )
+                    out_ids[count++] = idk->heads[h];
+        }
+    }
+    return count;
+}
+
 static int
 append_model(
     struct ToriDraw_Model** parts,
@@ -191,6 +218,85 @@ PlayerModel_BuildFromAppearance(
         return NULL;
 
     /* Design recolors after the merge (reference ClientPlayer 517-528). */
+    if( colors )
+    {
+        for( int part = 0; part < 5; part++ )
+        {
+            int colour = colors[part];
+            if( colour <= 0 || colour >= k_recol1d[part].count )
+                continue;
+            ToriDraw_ModelRecolor(merged, k_recol1d[part].palette[0], k_recol1d[part].palette[colour]);
+            if( part == 1 && colour < (int)(sizeof(k_recol2d) / sizeof(int)) )
+                ToriDraw_ModelRecolor(merged, k_recol2d[0], k_recol2d[colour]);
+        }
+    }
+
+    {
+        struct ToriDraw_ModelHandle hnd;
+        hnd.kind = TORIDRAWMK_MODEL;
+        hnd.u.model.model = merged;
+        hnd.u.model.ground = NULL;
+        ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+    }
+    ToriDraw_ModelSetBoundsCylinder(merged);
+    ToriDraw_ModelCaptureOriginalVertices(merged);
+    return merged;
+}
+
+struct ToriDraw_Model*
+PlayerHeadModel_BuildFromAppearance(
+    struct CacheProvider* provider,
+    int const slots[12],
+    int const colors[5],
+    int gender)
+{
+    struct ToriDraw_Model* parts[PLAYER_MODEL_MAX_PARTS];
+    struct ToriDraw_Model* merged;
+    int part_count = 0;
+
+    (void)gender; /* obj (worn) chatheads not composited yet — idk heads only */
+    assert(provider && slots);
+
+    for( int s = 0; s < 12; s++ )
+    {
+        int value = slots[s];
+        struct ToriRS_Idk* idk;
+        if( value < 0x100 || value >= 0x200 )
+            continue; /* empty or worn-obj slot */
+        idk = CacheProvider_IdkGet(provider, value - 0x100);
+        if( !idk )
+            continue;
+        for( int h = 0; h < 10; h++ )
+        {
+            struct ToriRS_Model* rs;
+            struct ToriDraw_Model* model;
+            int mid = idk->heads[h];
+            if( mid <= 0 || !CacheProvider_ModelHas(provider, mid) )
+                continue;
+            rs = CacheProvider_ModelGet(provider, mid);
+            model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
+            if( !model )
+                continue;
+            for( int r = 0; r < 10; r++ )
+                if( idk->recolors_from[r] != 0 || idk->recolors_to[r] != 0 )
+                    ToriDraw_ModelRecolor(model, idk->recolors_from[r], idk->recolors_to[r]);
+            part_count = append_model(parts, part_count, model);
+        }
+    }
+
+    if( part_count == 0 )
+        return NULL;
+
+    merged = ToriDraw_ModelNewMerge(parts, part_count);
+    for( int p = 0; p < part_count; p++ )
+        ToriDraw_ModelFree(parts[p]);
+    if( !merged )
+        return NULL;
+
+    /* Design recolours after the merge — same palettes as the body (reference
+     * getHeadModel reuses recol1d/recol2d). Only hair/skin actually appear on a
+     * bare head, but applying the full set is harmless (identity for absent
+     * colours). */
     if( colors )
     {
         for( int part = 0; part < 5; part++ )

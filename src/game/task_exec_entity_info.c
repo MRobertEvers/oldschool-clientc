@@ -280,6 +280,8 @@ player_apply_op(
                 RS_CHAT_TYPE_PUBLIC,
                 player && player->name[0] ? player->name : "Player",
                 op->_say.text);
+            /* Forced chat draws overhead in plain yellow (colour/effect 0). */
+            World_PlayerSetChat(world, idx, op->_say.text, 0, 0);
         }
         break;
     case PKT_PLAYER_INFO_OP_CHAT:
@@ -298,6 +300,11 @@ player_apply_op(
                     RS_CHAT_TYPE_PUBLIC,
                     player && player->name[0] ? player->name : "Player",
                     text);
+                /* colourEffect: high byte = chatColour, low byte = chatEffect
+                 * (reference Client.ts:8164). */
+                World_PlayerSetChat(
+                    world, idx, text, op->_chat.colour_effect >> 8,
+                    op->_chat.colour_effect & 0xff);
                 free(text);
             }
         }
@@ -732,7 +739,9 @@ npc_apply_op(
         }
         break;
     case PKT_NPC_INFO_OP_SAY:
-        /* Overhead text rendering is a flagged follow-on; nothing to store. */
+        /* NPC forced chat: plain yellow overhead (colour/effect 0). */
+        if( idx >= 0 && op->_say.text )
+            World_NpcSetChat(world, idx, op->_say.text, 0, 0);
         break;
     case PKT_NPC_INFO_OP_DAMAGE:
         if( idx >= 0 )

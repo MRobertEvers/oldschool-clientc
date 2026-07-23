@@ -666,6 +666,10 @@ struct ToriRS_Component
     int inv_rows;
     int margin_x;
     int margin_y;
+    /** Inventory drag/swap allowed (reference IfType.objSwap || objReplace,
+     * dat1 draggable || swappable). Equipment/worn grids decode false so their
+     * items can't be dragged; the backpack decodes true. 1 = draggable. */
+    int inv_can_drag;
     /** LINE widget line thickness (dat2 lineWidth). */
     int line_width;
     /** Per-slot pixel offsets (dat1 invSlotOffsetX/Y). */

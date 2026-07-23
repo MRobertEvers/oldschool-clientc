@@ -543,6 +543,9 @@ World_CycleUpdatePlayers(
             }
             World_StepEntityAnimation(
                 world, &player->animation, &player->spotanim, &player->pathing);
+            /* Overhead chat expiry (reference Client.ts:3161). */
+            if( player->chat.timer > 0 && --player->chat.timer == 0 )
+                player->chat.message[0] = '\0';
         }
     }
 }
@@ -589,6 +592,9 @@ World_CycleUpdateNpcs(
                     World_ApplySecondaryAnim(&npc->animation, face_seq);
             }
             World_StepEntityAnimation(world, &npc->animation, &npc->spotanim, &npc->pathing);
+            /* Overhead chat expiry (reference Client.ts:3174). */
+            if( npc->chat.timer > 0 && --npc->chat.timer == 0 )
+                npc->chat.message[0] = '\0';
         }
     }
 }

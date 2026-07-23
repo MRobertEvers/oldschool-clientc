@@ -1,6 +1,7 @@
 #include "uitree_scene_bridge.h"
 
 #include "engine/cache_provider.h"
+#include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
 #include "engine/toridraw_font_from_torirs.h"
 #include "engine/toridraw_model_from_torirs.h"
@@ -558,14 +559,14 @@ UITreeSceneBridge_EnsureNpcHead(
 }
 
 int
-UITreeSceneBridge_EnsurePlayerHead(struct UITreeSceneBridge* bridge)
+UITreeSceneBridge_EnsurePlayerHead(
+    struct UITreeSceneBridge* bridge,
+    int const slots[12],
+    int const colors[5],
+    int gender)
 {
-    struct PlayerAppearance app;
-    struct ToriDraw_Model* parts[BRIDGE_PLAYER_PART_MODELS_MAX];
     struct ToriDraw_Model* merged;
     struct ToriDraw_ModelHandle hnd;
-    int part_count = 0;
-    int p;
 
     assert(bridge && bridge->scene && bridge->provider);
 
@@ -577,80 +578,30 @@ UITreeSceneBridge_EnsurePlayerHead(struct UITreeSceneBridge* bridge)
         return bridge->player_head_scene_id;
     }
 
-    if( PlayerAppearance_ResolveDefaultMale(bridge->provider, &app) <= 0 )
+    if( !slots )
         return -1;
 
-    /* Compose the head parts from each IdentityKit's heads[] (reference
-     * ClientPlayer.getHeadModel: idk head models per appearance slot). */
-    for( p = 0; p < PLAYER_APPEARANCE_PARTS; p++ )
-    {
-        struct ToriRS_Idk* idk;
-        int h;
-        if( app.kits[p] < 0 )
-            continue;
-        idk = CacheProvider_IdkGet(bridge->provider, app.kits[p]);
-        if( !idk )
-            continue;
-        for( h = 0; h < 10; h++ )
-        {
-            struct ToriRS_Model* rs;
-            struct ToriDraw_Model* model;
-            int mid = idk->heads[h];
-            int r;
-            /* 0 and -1 both mean "no head part" for an idk (v0 idk_head_model). */
-            if( mid <= 0 || !CacheProvider_ModelHas(bridge->provider, mid) )
-                continue;
-            rs = CacheProvider_ModelGet(bridge->provider, mid);
-            if( !rs )
-                continue;
-            model = ToriDraw_ModelFromToriRS(rs);
-            if( !model )
-                continue;
-            for( r = 0; r < 10; r++ )
-            {
-                if( idk->recolors_from[r] != 0 || idk->recolors_to[r] != 0 )
-                    ToriDraw_ModelRecolor(model, idk->recolors_from[r], idk->recolors_to[r]);
-            }
-            if( part_count < BRIDGE_PLAYER_PART_MODELS_MAX )
-                parts[part_count++] = model;
-            else
-                ToriDraw_ModelFree(model);
-        }
-    }
-
-    if( part_count == 0 )
-        return -1;
-
-    merged = ToriDraw_ModelNewMerge(parts, part_count);
-    for( p = 0; p < part_count; p++ )
-        ToriDraw_ModelFree(parts[p]);
+    /* Real appearance head (reference ClientPlayer.getHeadModel): the idk head
+     * models of the head-bearing slots, design-recoloured. Returns NULL while
+     * the head models are not yet resident — the caller retries next frame. */
+    merged = PlayerHeadModel_BuildFromAppearance(bridge->provider, slots, colors, gender);
     if( !merged )
         return -1;
-
-    {
-        int c;
-        for( c = 0; c < PlayerAppearance_DefaultBodyRecolorCount(); c++ )
-        {
-            int from = PlayerAppearance_DefaultBodyRecolorFrom(c);
-            if( from != -1 )
-                ToriDraw_ModelRecolor(merged, from, PlayerAppearance_DefaultBodyRecolorTo(c));
-        }
-    }
-
-    ToriDraw_ModelSetBoundsCylinder(merged);
-    ToriDraw_ModelCaptureOriginalVertices(merged);
 
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = merged;
-    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
     ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_PLAYER_HEAD_ID, hnd);
     bridge->player_head_scene_id = UITREE_SCENE_PLAYER_HEAD_ID;
     return bridge->player_head_scene_id;
 }
 
+/* Count-variant resolution only (reference getSprite countobj loop). Returns
+ * the objtype whose model should render for this (obj, count). Does NOT apply
+ * the bank-note redirect — EnsureObjIcon composites the note itself so it can
+ * draw the base item on top of the template paper. */
 static struct ToriRS_Objtype*
-bridge_resolve_obj_for_icon(
+bridge_resolve_count_variant(
     struct CacheProvider* provider,
     int obj_id,
     int count)
@@ -679,57 +630,29 @@ bridge_resolve_obj_for_icon(
                 obj = variant;
         }
     }
-
-    /* Bank note: the icon is the cert template's model + recolours (reference
-     * ObjType.genCert copies template.model/recol into the note), not the base
-     * item's. Redirect so EnsureObjIcon rasterizes the template objtype. */
-    if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
-    {
-        struct ToriRS_Objtype* tmpl = CacheProvider_ObjtypeGet(provider, obj->cert_template);
-        if( tmpl )
-            obj = tmpl;
-    }
     return obj;
 }
 
-int
-UITreeSceneBridge_EnsureObjIcon(
+/* Rasterize one objtype's inventory model into a 36x32 obj-icon sprite at the
+ * given zoom (reference getSprite model.objRender). Returns NULL when the
+ * model is not resident; ownership of the sprite passes to the caller. */
+static struct ToriDraw_Sprite*
+bridge_rasterize_obj_icon(
     struct UITreeSceneBridge* bridge,
-    int obj_id,
-    int count)
+    struct ToriRS_Objtype* obj,
+    int zoom,
+    bool postprocess_outline)
 {
-    struct MapEntry_ObjIcon* entry;
-    int key[2];
-    struct ToriRS_Objtype* obj;
     struct ToriRS_Model* rs_model;
     struct ToriDraw_Model* model;
     struct ToriDraw_ModelHandle hnd;
     struct ToriDraw_Sprite* sprite;
-    struct ToriDraw_Sprite** frames;
-    int scene_id;
-    int zoom;
     int i;
 
-    assert(bridge);
-    assert(bridge->scene);
-    assert(bridge->provider);
-
-    if( obj_id <= 0 )
-        return -1;
-    if( count < 0 )
-        count = 0;
-
-    key[0] = obj_id;
-    key[1] = count;
-    entry = (struct MapEntry_ObjIcon*)hmap_search(bridge->obj_icon_map, key, HMAP_FIND);
-    if( entry )
-        return entry->scene_id;
-
-    obj = bridge_resolve_obj_for_icon(bridge->provider, obj_id, count);
     if( !obj || obj->inventory_model_id <= 0 )
-        return -1;
+        return NULL;
     if( !CacheProvider_ModelHas(bridge->provider, obj->inventory_model_id) )
-        return -1;
+        return NULL;
 
     rs_model = CacheProvider_ModelGet(bridge->provider, obj->inventory_model_id);
     assert(rs_model != NULL && "ModelGet failed");
@@ -749,14 +672,13 @@ UITreeSceneBridge_EnsureObjIcon(
     hnd.u.model.model = model;
     ToriDraw_LightModelDefault(hnd, obj->contrast, obj->ambient);
 
-    zoom = obj->zoom2d > 0 ? obj->zoom2d : 2000;
     /* Reference icon raster is 36x32 with the 3D projection center at (16,16)
      * (ItemIconRenderer.OSRS_SPRITE_W/H); rasterizing 32x32 shifts every icon
      * ~2px and clips the right edge. */
     sprite = ToriDraw_SpriteNewFromObjIconRaster(
         bridge->scene,
         hnd,
-        zoom,
+        zoom > 0 ? zoom : 2000,
         obj->xan2d,
         obj->yan2d,
         obj->zan2d,
@@ -764,10 +686,111 @@ UITreeSceneBridge_EnsureObjIcon(
         obj->offset_y2d,
         36,
         32,
-        true);
+        postprocess_outline);
     ToriDraw_ModelFree(model);
-    if( !sprite )
+    return sprite;
+}
+
+/* Overlay src's opaque pixels onto dst in place (reference Pix32.plotSprite:
+ * non-zero source pixels are copied, zero/transparent skipped). Both sprites
+ * must share dimensions or nothing is composited. */
+static void
+bridge_composite_over(
+    struct ToriDraw_Sprite* dst,
+    struct ToriDraw_Sprite const* src)
+{
+    int pixel_count;
+
+    if( !dst || !src || !dst->pixels_argb || !src->pixels_argb )
+        return;
+    if( dst->width != src->width || dst->height != src->height )
+        return;
+
+    pixel_count = dst->width * dst->height;
+    for( int idx = 0; idx < pixel_count; idx++ )
+    {
+        if( src->pixels_argb[idx] & 0x00FFFFFFu )
+            dst->pixels_argb[idx] = src->pixels_argb[idx];
+    }
+}
+
+int
+UITreeSceneBridge_EnsureObjIcon(
+    struct UITreeSceneBridge* bridge,
+    int obj_id,
+    int count)
+{
+    struct MapEntry_ObjIcon* entry;
+    int key[2];
+    struct ToriRS_Objtype* obj;
+    struct ToriDraw_Sprite* sprite;
+    struct ToriDraw_Sprite** frames;
+    int scene_id;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(bridge->provider);
+
+    if( obj_id <= 0 )
         return -1;
+    if( count < 0 )
+        count = 0;
+
+    key[0] = obj_id;
+    key[1] = count;
+    entry = (struct MapEntry_ObjIcon*)hmap_search(bridge->obj_icon_map, key, HMAP_FIND);
+    if( entry )
+        return entry->scene_id;
+
+    obj = bridge_resolve_count_variant(bridge->provider, obj_id, count);
+    if( !obj )
+        return -1;
+
+    if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
+    {
+        /* Bank note (reference ObjType.genCert + getSprite cert branch): the
+         * note's own model is the cert-template paper; the base item (cert_link)
+         * icon is rendered 1.5x and composited on top. The reference returns
+         * null (draws nothing) when the base item cannot render, so the note is
+         * withheld rather than shown as blank paper until both are resident. */
+        struct ToriRS_Objtype* tmpl =
+            CacheProvider_ObjtypeGet(bridge->provider, obj->cert_template);
+        struct ToriRS_Objtype* base =
+            obj->cert_link > 0
+                ? CacheProvider_ObjtypeGet(bridge->provider, obj->cert_link)
+                : NULL;
+        struct ToriDraw_Sprite* base_sprite;
+
+        if( !tmpl )
+            return -1;
+        base_sprite = base ? bridge_rasterize_obj_icon(
+                                 bridge,
+                                 base,
+                                 (base->zoom2d > 0 ? base->zoom2d : 2000) * 3 / 2,
+                                 false)
+                           : NULL;
+        if( !base_sprite )
+            return -1;
+
+        sprite = bridge_rasterize_obj_icon(
+            bridge, tmpl, tmpl->zoom2d > 0 ? tmpl->zoom2d : 2000, true);
+        if( !sprite )
+        {
+            ToriDraw_SpriteFree(base_sprite);
+            return -1;
+        }
+        bridge_composite_over(sprite, base_sprite);
+        ToriDraw_SpriteFree(base_sprite);
+    }
+    else
+    {
+        if( obj->inventory_model_id <= 0 )
+            return -1;
+        sprite = bridge_rasterize_obj_icon(
+            bridge, obj, obj->zoom2d > 0 ? obj->zoom2d : 2000, true);
+        if( !sprite )
+            return -1;
+    }
 
     frames = malloc(sizeof(*frames));
     if( !frames )

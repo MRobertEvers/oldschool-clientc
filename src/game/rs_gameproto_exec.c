@@ -272,10 +272,15 @@ RS_GameProto_Exec(
             App_SetInterfacePlayerHead(ctx->app, packet->_if_setplayerhead.component_id);
         break;
     case PKT_NAME_IF_SETANIM:
-        /* Reference modelAnim: the chathead's talk/idle sequence. The widget
-         * seq-load driver picks the id up (no App required for the field set). */
-        UITree_ApplyModelAnim(
-            ctx->tree, packet->_if_setanim.component_id, packet->_if_setanim.anim_id);
+        /* Reference modelAnim: the chathead's talk/idle sequence. Persist via the
+         * App (survives the chat interface mounting after the packet); fall back
+         * to a direct field set for tests with no App. */
+        if( ctx->app )
+            App_SetInterfaceModelAnim(
+                ctx->app, packet->_if_setanim.component_id, packet->_if_setanim.anim_id);
+        else
+            UITree_ApplyModelAnim(
+                ctx->tree, packet->_if_setanim.component_id, packet->_if_setanim.anim_id);
         break;
     case PKT_NAME_IF_SETSCROLLPOS:
         UITree_ApplyScrollPos(

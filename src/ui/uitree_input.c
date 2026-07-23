@@ -1,10 +1,44 @@
 #include "uitree_input.h"
 
+#include "uitree_inv_view.h"
 #include "uitree_layout.h"
 
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
+
+/* Screen click (px,py) landed on one of an RS_INV grid's slot rects. Inventory
+ * components carry cols/rows in their base width/height (4x7 for the backpack),
+ * so the node's own layout bounds are only a few pixels — the drawn slots span
+ * far past them. The reference hit-tests each 32x32 slot rect directly
+ * (addComponentOptions TYPE_INV), so collection must too, or the whole grid is
+ * invisible to the right-click menu. scroll_off is folded into the click the
+ * same way add_inv_slot_rows does (UITree_AccumScrollOffset). */
+static bool
+collect_inv_grid_slot_hit(
+    struct UITreeComponent const* component,
+    int bx,
+    int by,
+    int px,
+    int py,
+    int scroll_off_x,
+    int scroll_off_y)
+{
+    struct UITreeInvGridLayout layout;
+
+    if( component->type != UIELEM_RS_INV )
+        return false;
+
+    layout.cols = component->u.rs_inv.cols;
+    layout.rows = component->u.rs_inv.rows;
+    layout.margin_x = component->u.rs_inv.margin_x;
+    layout.margin_y = component->u.rs_inv.margin_y;
+    layout.offset_x = component->u.rs_inv.inv_slot_offset_x;
+    layout.offset_y = component->u.rs_inv.inv_slot_offset_y;
+
+    return UITree_InvViewGridHitTest(
+               bx, by, &layout, px + scroll_off_x, py + scroll_off_y) >= 0;
+}
 
 bool
 UITree_PointInComponent(
@@ -118,6 +152,7 @@ hit_test_interactive_recursive(
     int scroll_off_x,
     int scroll_off_y,
     struct UITreeScrollClip const* clip,
+    struct UITreeScrollClip const* surface,
     int* out_blocks)
 {
     assert(tree);
@@ -167,15 +202,21 @@ hit_test_interactive_recursive(
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;
     struct UITreeScrollClip child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
+    struct UITreeScrollClip child_surface = surface ? *surface : (struct UITreeScrollClip){ 0 };
 
-    /* Every positive-size container clips its children (same predicate as the
-     * emit walk, so hitboxes match drawn pixels). Intersect at SCREEN coords —
-     * emit places the clip at x - scroll_off (uitree_emit.c emit_walk_node);
-     * scroll_off_x/y here already folds in any drag delta, matching emit's
-     * drag-shifted clip. */
-    if( UITree_ComponentClipsChildren(component) && bw > 0 && bh > 0 )
-        UITree_ScrollIntersectClip(
-            &child_clip, bx - scroll_off_x, by - scroll_off_y, bw, bh);
+    /* Same shared clip rule as the emit walk (UITree_LayerChildClip), so hitboxes
+     * match drawn pixels: clip to own bounds ∩ the enclosing surface, never
+     * compounded with ancestor layers. Screen coords — scroll_off_x/y already
+     * folds in any drag delta, matching emit's drag-shifted clip. */
+    {
+        struct UITreeScrollClip cc, cs;
+        if( UITree_LayerChildClip(
+                component, surface, bx - scroll_off_x, by - scroll_off_y, bw, bh, &cc, &cs) )
+        {
+            child_clip = cc;
+            child_surface = cs;
+        }
+    }
     if( component->type == UIELEM_RS_LAYER )
     {
         /* Canonical scroll offset lives on the component (emit + CS2 opcodes
@@ -202,7 +243,7 @@ hit_test_interactive_recursive(
             int child_blocks = 0;
             int32_t child_hit = hit_test_interactive_recursive(
                 tree, host, child, px, py,
-                child_scroll_x, child_scroll_y, &child_clip, &child_blocks);
+                child_scroll_x, child_scroll_y, &child_clip, &child_surface, &child_blocks);
             /* Later siblings render on top. A blocking child also discards this
              * node's own hit and earlier siblings. */
             if( child_blocks )
@@ -299,6 +340,7 @@ collect_nodes_recursive(
     int scroll_off_x,
     int scroll_off_y,
     struct UITreeScrollClip const* clip,
+    struct UITreeScrollClip const* surface,
     struct collect_nodes_ctx* ctx)
 {
     assert(tree);
@@ -333,7 +375,14 @@ collect_nodes_recursive(
     if( point_in_self && component->no_click_through && ctx->count > ctx->barrier )
         ctx->barrier = ctx->count;
 
-    if( point_in_self && UITree_ComponentHitTestVisibleHost(component, -1, host) )
+    /* An RS_INV grid's clickable area is the union of its slot rects, not its
+     * (cols x rows)-pixel layout bounds — collect it when a slot is hit even if
+     * the click misses the tiny node box. */
+    bool const inv_slot_hit =
+        collect_inv_grid_slot_hit(component, bx, by, px, py, scroll_off_x, scroll_off_y);
+
+    if( (point_in_self || inv_slot_hit) &&
+        UITree_ComponentHitTestVisibleHost(component, -1, host) )
     {
         bool const inv_grid =
             component->type == UIELEM_RS_INV || component->type == UIELEM_RS_INV_TEXT;
@@ -352,10 +401,17 @@ collect_nodes_recursive(
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;
     struct UITreeScrollClip child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
+    struct UITreeScrollClip child_surface = surface ? *surface : (struct UITreeScrollClip){ 0 };
 
-    if( UITree_ComponentClipsChildren(component) && bw > 0 && bh > 0 )
-        UITree_ScrollIntersectClip(
-            &child_clip, bx - scroll_off_x, by - scroll_off_y, bw, bh);
+    {
+        struct UITreeScrollClip cc, cs;
+        if( UITree_LayerChildClip(
+                component, surface, bx - scroll_off_x, by - scroll_off_y, bw, bh, &cc, &cs) )
+        {
+            child_clip = cc;
+            child_surface = cs;
+        }
+    }
     if( component->type == UIELEM_RS_LAYER )
     {
         if( UITree_ScrollLayerNeedsHorizontal(component) )
@@ -375,7 +431,8 @@ collect_nodes_recursive(
          child = tree->components[child].next_sibling )
     {
         collect_nodes_recursive(
-            tree, host, child, px, py, child_scroll_x, child_scroll_y, &child_clip, ctx);
+            tree, host, child, px, py, child_scroll_x, child_scroll_y, &child_clip, &child_surface,
+            ctx);
     }
 }
 
@@ -395,7 +452,7 @@ UITree_CollectNodesAt(
 
     for( int32_t root = tree->root_index; root >= 0;
          root = tree->components[root].next_sibling )
-        collect_nodes_recursive(tree, host, root, px, py, 0, 0, NULL, &ctx);
+        collect_nodes_recursive(tree, host, root, px, py, 0, 0, NULL, NULL, &ctx);
 
     /* Slice below the top-most blocking panel, then reverse to top-most-first. */
     {
@@ -429,7 +486,7 @@ UITree_HitTestInteractive(
     {
         int root_blocks = 0;
         int32_t root_hit = hit_test_interactive_recursive(
-            tree, host, root, px, py, 0, 0, NULL, &root_blocks);
+            tree, host, root, px, py, 0, 0, NULL, NULL, &root_blocks);
         /* Later roots render on top. A no_click_through root captures the point
          * and discards hits from roots underneath (even if it has no hit itself). */
         if( root_blocks )

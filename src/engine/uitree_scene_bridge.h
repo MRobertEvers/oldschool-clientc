@@ -137,12 +137,18 @@ UITreeSceneBridge_EnsureNpcHead(
     int npc_id);
 
 /**
- * Composite the local player's chathead (IdentityKit head parts merged +
- * recoloured) and register it in the scene. Built once, then cached.
- * Returns the scene model id or -1. Reference: ClientPlayer.getHeadModel.
+ * Composite the local player's chathead from their real PLAYER_INFO appearance
+ * (identity-kit head parts merged + design-recoloured) and register it in the
+ * scene. Requires the appearance's idk head models already resident. Cached
+ * after the first successful build. Returns the scene model id or -1 (nothing
+ * resolved yet — the caller retries). Reference: ClientPlayer.getHeadModel.
  */
 int
-UITreeSceneBridge_EnsurePlayerHead(struct UITreeSceneBridge* bridge);
+UITreeSceneBridge_EnsurePlayerHead(
+    struct UITreeSceneBridge* bridge,
+    int const slots[12],
+    int const colors[5],
+    int gender);
 
 /**
  * Rasterize an inventory/obj icon into the scene (32x32).

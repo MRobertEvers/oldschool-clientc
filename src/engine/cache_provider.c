@@ -1091,6 +1091,7 @@ CacheProvider_ObjtypeGet(
     int obj_id)
 {
     struct MapEntry_ProviderObjtype* entry;
+    struct ToriRS_Objtype* objtype;
 
     assert(provider);
 
@@ -1098,7 +1099,28 @@ CacheProvider_ObjtypeGet(
         provider->objtype_cache, &obj_id, HMAP_FIND);
     if( !entry )
         return NULL;
-    return entry->objtype;
+    objtype = entry->objtype;
+
+    /* Lazy genCert (reference ObjType.list runs genCert in the getter): a bank
+     * note is always stackable and takes its display name from the cert_link
+     * base item — the raw cache config carries neither. The link loads async
+     * here (ObjModelLoad pulls it in), so patch whenever it has become
+     * resident; a non-empty name marks the copy as already done. */
+    if( objtype && objtype->cert_template > 0 )
+    {
+        objtype->stackable = 1;
+        if( objtype->name[0] == '\0' && objtype->cert_link > 0 )
+        {
+            struct MapEntry_ProviderObjtype* link_entry =
+                (struct MapEntry_ProviderObjtype*)hmap_search(
+                    provider->objtype_cache, &objtype->cert_link, HMAP_FIND);
+            if( link_entry && link_entry->objtype && link_entry->objtype->name[0] )
+            {
+                memcpy(objtype->name, link_entry->objtype->name, sizeof(objtype->name));
+            }
+        }
+    }
+    return objtype;
 }
 
 bool

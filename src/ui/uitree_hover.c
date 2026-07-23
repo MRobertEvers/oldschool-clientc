@@ -83,6 +83,7 @@ find_hovered_recursive(
     int scroll_off_x,
     int scroll_off_y,
     struct UITreeScrollClip const* clip,
+    struct UITreeScrollClip const* surface,
     int* out_hovered_component_id)
 {
     assert(tree);
@@ -137,13 +138,20 @@ find_hovered_recursive(
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;
     struct UITreeScrollClip child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
+    struct UITreeScrollClip child_surface = surface ? *surface : (struct UITreeScrollClip){ 0 };
 
-    /* Every positive-size container clips its children (same predicate as the
-     * emit walk, so hover matches drawn pixels). Intersect at SCREEN coords —
-     * emit places the clip at x - scroll_off (uitree_emit.c emit_walk_node). */
-    if( UITree_ComponentClipsChildren(component) && bw > 0 && bh > 0 )
-        UITree_ScrollIntersectClip(
-            &child_clip, bx - scroll_off_x, by - scroll_off_y, bw, bh);
+    /* Same shared clip rule as the emit walk (UITree_LayerChildClip), so hover
+     * matches drawn pixels: own bounds ∩ enclosing surface, never compounded
+     * with ancestor layers. Screen coords (emit clips at x - scroll_off). */
+    {
+        struct UITreeScrollClip cc, cs;
+        if( UITree_LayerChildClip(
+                component, surface, bx - scroll_off_x, by - scroll_off_y, bw, bh, &cc, &cs) )
+        {
+            child_clip = cc;
+            child_surface = cs;
+        }
+    }
     if( component->type == UIELEM_RS_LAYER )
     {
         /* Canonical scroll offset lives on the component (emit + CS2 opcodes
@@ -166,6 +174,7 @@ find_hovered_recursive(
             child_scroll_x,
             child_scroll_y,
             &child_clip,
+            &child_surface,
             out_hovered_component_id);
     }
 }
@@ -199,7 +208,7 @@ UITree_FindHoveredComponentIdForRegion(
             return -1;
         find_hovered_recursive(
             tree, host, root_index,
-            mouse_x, mouse_y, 0, 0, NULL,
+            mouse_x, mouse_y, 0, 0, NULL, NULL,
             &hovered_component_id);
         return hovered_component_id;
     }
@@ -212,7 +221,7 @@ UITree_FindHoveredComponentIdForRegion(
     {
         find_hovered_recursive(
             tree, host, root,
-            mouse_x, mouse_y, 0, 0, NULL,
+            mouse_x, mouse_y, 0, 0, NULL, NULL,
             &hovered_component_id);
     }
     return hovered_component_id;

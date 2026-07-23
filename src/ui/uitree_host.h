@@ -37,7 +37,9 @@ enum UITreeEntityOverlayKind
     UITREE_ENTITY_OVERLAY_TEXT,
 };
 
-#define UITREE_ENTITY_OVERLAY_TEXT_LEN 8
+/* Long enough for a full overhead chat line (reference chatMessage); hitsplat
+ * numbers use only the first few bytes. */
+#define UITREE_ENTITY_OVERLAY_TEXT_LEN 100
 
 struct UITreeEntityOverlay
 {
@@ -120,6 +122,18 @@ enum UITreeHostRequestKind
      * stackable flag to *out_stackable. Returns 1 when the obj is known.
      */
     UITREE_HOST_GET_OBJ_NAME,
+    /**
+     * Armed inventory slot press/drag (reference objDrag*): writes the armed
+     * grid's inv source id + slot and the current mouse delta (already
+     * deadzoned host-side) to u.get_inv_drag outs. Returns 1 while armed —
+     * emit renders that slot alone offset by (dx,dy) at trans 128.
+     */
+    UITREE_HOST_GET_INV_DRAG,
+    /**
+     * Scene font id for the inventory stack-count number (reference draws it
+     * with the client's p11), or -1 while the font is still loading.
+     */
+    UITREE_HOST_GET_INV_COUNT_FONT,
 };
 
 /*
@@ -194,6 +208,13 @@ struct UITreeHostRequest
             int slot;
             struct UIInvSlotData const* data;
         } set_inv_source_slot;
+        struct
+        {
+            int* out_source_id;
+            int* out_slot;
+            int* out_dx;
+            int* out_dy;
+        } get_inv_drag;
         struct
         {
             int slot;

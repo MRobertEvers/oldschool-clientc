@@ -214,6 +214,23 @@ struct App
     int if_text_count;
     int if_text_cap;
     uint32_t if_text_applied_gen;
+
+    /* Persistent IF_SETNPCHEAD / IF_SETPLAYERHEAD store (reference keeps
+     * model1Type/model1Id on IfType.list and re-resolves getModel every draw):
+     * the head packet arrives before the chat interface mounts, so the request
+     * must survive and re-apply on tree-topology changes. The async load task
+     * makes the composited head scene model available; the per-frame poll binds
+     * it onto the MODEL node once mounted (and after each remount). */
+    struct AppIfHead
+    {
+        int com_id;
+        int kind;    /* AppIfHeadKind: 0 = npc, 1 = player */
+        int npc_id;
+        int anim_id; /* IF_SETANIM seq for this head, or -1 (reference modelAnim) */
+        uint32_t applied_gen; /* tree generation this was last applied at; 0 = pending */
+    }* if_heads;
+    int if_head_count;
+    int if_head_cap;
     int world_mouse_in_viewport;
     int world_mouse_x; /* last input mouse, canvas coords */
     int world_mouse_y;
@@ -251,6 +268,14 @@ struct App
      *  model (the host hands chat_view to the emit walk). */
     struct RS_Chat chat;
     struct UIChatView chat_view;
+    /** Frames the left button has been held over the chat scrollbar (reference
+     *  scrollCycle); drives arrow-scroll acceleration and gates grip drag. */
+    int chat_scroll_cycle;
+    /** Chat input focus. When set, typed keys feed the chat input line and the
+     *  debug camera/world hotkeys (WASD/M/spawn digits) are suppressed so they
+     *  cannot fire while composing a message. Clicking the chat region focuses;
+     *  clicking elsewhere or pressing Escape unfocuses. */
+    int chat_input_active;
     /** Minimenu chat-line seam (points at app_chat_line_at). */
     struct RS_MinimenuChatSource chat_source;
     /** Server-notify callbacks for IF1 button clicks (NULL until net). */
@@ -375,13 +400,22 @@ struct App
     long idle_frames;
     int idle_timer_sent;
 
-    /** Inventory drag (reference INV_BUTTOND): a filled slot grabbed and held
-     * past the dead time, released over another slot in the same grid.
-     * drag_com_id -1 = no drag in progress. */
+    /** Inventory slot press/drag (reference objDrag* state machine): a left
+     * press on a filled slot ARMS this — the generic node drag is suppressed
+     * while armed, the armed slot renders trans-128 at the mouse delta, and
+     * release routes to swap + INV_BUTTOND (real drag: moved >5px AND held
+     * >= 5 cycles) or to the default menu row (short click).
+     * drag_com_id -1 = not armed. */
     int inv_drag_com_id;
+    int inv_drag_can_drag; /* armed grid's objSwap||objReplace (drag allowed) */
     int inv_drag_from_slot;
     int inv_drag_source_id; /* inv container source id */
     int inv_drag_cycles;
+    int inv_drag_grab_x; /* mouse at arm time (reference objGrabX/Y) */
+    int inv_drag_grab_y;
+    int inv_drag_threshold; /* moved >5px since arm (objGrabThreshold) */
+    int inv_drag_dx;        /* emit offset for the armed slot (deadzoned) */
+    int inv_drag_dy;
 };
 
 /** Construct all subsystems in dependency order. Asserts on failure (parity
@@ -414,6 +448,11 @@ App_SetInterfaceNpcHead(struct App* app, int component_id, int npc_id);
  *  widget (reference IfType.getModel type 3). Async. */
 void
 App_SetInterfacePlayerHead(struct App* app, int component_id);
+
+/** IF_SETANIM: set a MODEL widget's animation seq; persisted alongside a
+ *  matching chathead so it survives the interface (re)mounting. */
+void
+App_SetInterfaceModelAnim(struct App* app, int component_id, int anim_id);
 
 /** Pump the boot to completion (headless harnesses and tests only — the
  * interactive loop must NOT call this; it renders the loading state

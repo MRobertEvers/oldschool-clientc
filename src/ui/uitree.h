@@ -448,6 +448,8 @@ struct UITreeComponent
             int rows;
             int margin_x;
             int margin_y;
+            /** Item drag allowed (objSwap || objReplace); 1 = draggable. */
+            int can_drag;
             int inv_slot_offset_x[UI_INV_SLOT_OFFSET_MAX];
             int inv_slot_offset_y[UI_INV_SLOT_OFFSET_MAX];
             int inv_slot_bg_scene_id[UI_INV_SLOT_OFFSET_MAX];
@@ -666,6 +668,8 @@ struct UITreeNodeSpec
             int rows;
             int margin_x;
             int margin_y;
+            /** Item drag allowed (objSwap || objReplace); 1 = draggable. */
+            int can_drag;
             int const* inv_slot_offset_x;
             int const* inv_slot_offset_y;
             int const* inv_slot_bg_scene_id;

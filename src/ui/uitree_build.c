@@ -134,6 +134,7 @@ UITree_PushBuildComponent(
         spec.u.rs_inv.rows = comp->inv_rows;
         spec.u.rs_inv.margin_x = comp->margin_x;
         spec.u.rs_inv.margin_y = comp->margin_y;
+        spec.u.rs_inv.can_drag = comp->inv_can_drag;
         spec.u.rs_inv.inv_slot_offset_x = comp->inv_slot_offset_x;
         spec.u.rs_inv.inv_slot_offset_y = comp->inv_slot_offset_y;
 

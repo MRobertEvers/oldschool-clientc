@@ -1,6 +1,7 @@
 #include "rs_chat.h"
 
 #include "rs_social.h"
+#include "input/torirs_keymap.h"
 #include "ui/uitree_host.h"
 
 #include <assert.h>
@@ -100,6 +101,25 @@ message_passes(
     default:
         return 0;
     }
+}
+
+/* Total pixel height of the filtered message column (reference chatScrollHeight):
+ * one 14px line per visible message + 7px, floored at the 78px the scrollbar
+ * math and clamps assume. */
+static int
+scroll_height_of(
+    struct RS_Chat const* chat,
+    struct RS_ChatFilters const* filters)
+{
+    int total_lines = 0;
+    int scroll_height;
+    for( int i = 0; i < chat->message_count; i++ )
+    {
+        if( message_passes(filters, &chat->messages[i]) )
+            total_lines++;
+    }
+    scroll_height = total_lines * 14 + 7;
+    return scroll_height < 78 ? 78 : scroll_height;
 }
 
 static int
@@ -332,24 +352,73 @@ RS_Chat_Scroll(
     struct RS_ChatFilters const* filters,
     int wheel_y)
 {
-    int total_lines = 0;
     int scroll_height;
 
     assert(chat && filters);
-    for( int i = 0; i < chat->message_count; i++ )
-    {
-        if( message_passes(filters, &chat->messages[i]) )
-            total_lines++;
-    }
-    scroll_height = total_lines * 14 + 7;
-    if( scroll_height < 78 )
-        scroll_height = 78;
+    scroll_height = scroll_height_of(chat, filters);
 
     chat->scroll_pos += wheel_y * 14;
     if( chat->scroll_pos < 0 )
         chat->scroll_pos = 0;
     if( chat->scroll_pos > scroll_height - 77 )
         chat->scroll_pos = scroll_height - 77;
+}
+
+int
+RS_Chat_ScrollbarInput(
+    struct RS_Chat* chat,
+    struct RS_ChatFilters const* filters,
+    int x,
+    int y,
+    int cycle)
+{
+    /* Reference doScrollbar (Client.ts:10525) with left=463, top=0, height=77
+     * — the chat scrollbar's local geometry. scroll_pos is the non-inverted
+     * grip offset the renderer draws from (torirs_frame vertical_scrollbar_grip),
+     * so the same proportional math maps a grip drag straight back to it. */
+    int const left = RS_CHAT_SCROLLBAR_LEFT;
+    int const top = 0;
+    int const height = RS_CHAT_VIEW_HEIGHT;
+    int scroll_height = scroll_height_of(chat, filters);
+    int padding = chat->scroll_grabbed ? 32 : 0;
+    int handled = 0;
+
+    assert(chat && filters);
+    chat->scroll_grabbed = 0;
+
+    if( x >= left && x < left + 16 && y >= top && y < top + 16 )
+    {
+        chat->scroll_pos -= cycle * 4; /* up arrow */
+        handled = 1;
+    }
+    else if( x >= left && x < left + 16 && y >= top + height - 16 && y < top + height )
+    {
+        chat->scroll_pos += cycle * 4; /* down arrow */
+        handled = 1;
+    }
+    else if(
+        x >= left - padding && x < left + padding + 16 && y >= top + 16 &&
+        y < top + height - 16 && cycle > 0 )
+    {
+        /* Grip drag: place the grip centre under the cursor. */
+        int grip_size = ((height - 32) * height) / scroll_height;
+        int grip_y;
+        int max_y;
+        if( grip_size < 8 )
+            grip_size = 8;
+        grip_y = y - top - grip_size / 2 - 16;
+        max_y = height - grip_size - 32;
+        if( max_y > 0 )
+            chat->scroll_pos = ((scroll_height - height) * grip_y) / max_y;
+        chat->scroll_grabbed = 1;
+        handled = 1;
+    }
+
+    if( chat->scroll_pos > scroll_height - height )
+        chat->scroll_pos = scroll_height - height;
+    if( chat->scroll_pos < 0 )
+        chat->scroll_pos = 0;
+    return handled;
 }
 
 /* Submit whichever input line is open. */
@@ -444,9 +513,11 @@ RS_Chat_HandleKey(
         cap = (int)sizeof(chat->input);
     }
 
-    if( key_typed == 13 ) /* VK_ENTER */
+    /* key_typed carries OSRS internal key codes (see torirs_keymap.c), not raw
+     * VK/ASCII: Enter is 84 and Backspace 85, while 13 is Escape. */
+    if( key_typed == TORIRS_OSRSKEY_ENTER )
         return chat_submit(chat, social);
-    if( key_typed == 8 ) /* VK_BACKSPACE */
+    if( key_typed == TORIRS_OSRSKEY_BACKSPACE )
     {
         int len = (int)strlen(target);
         if( len == 0 )

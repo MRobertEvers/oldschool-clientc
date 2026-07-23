@@ -182,6 +182,7 @@ UITree_FillBuildFromToriRS(
     dst->model_fixed_zoom = src->model_fixed_zoom;
     dst->inv_cols = src->inv_cols;
     dst->inv_rows = src->inv_rows;
+    dst->inv_can_drag = src->inv_can_drag;
     dst->margin_x = src->margin_x;
     dst->margin_y = src->margin_y;
     dst->line_width = src->line_width;

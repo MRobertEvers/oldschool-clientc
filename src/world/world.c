@@ -1563,3 +1563,55 @@ World_NpcAddHitmark(
     npc->combat.total_health = total_health;
     npc->combat.combat_cycle = world->cycle + 400;
 }
+
+/* Reference chatTimer = 150 on every new message (Client.ts:8166); the per-
+ * cycle decrement in world_cycle clears the message at 0. */
+static void
+world_entity_set_chat(
+    struct WorldEntityFacet_Chat* chat,
+    char const* message,
+    int colour,
+    int effect)
+{
+    if( !message || message[0] == '\0' )
+    {
+        chat->message[0] = '\0';
+        chat->timer = 0;
+        return;
+    }
+    strncpy(chat->message, message, sizeof(chat->message) - 1);
+    chat->message[sizeof(chat->message) - 1] = '\0';
+    chat->colour = colour;
+    chat->effect = effect;
+    chat->timer = 150;
+}
+
+void
+World_PlayerSetChat(
+    struct World* world,
+    int idx,
+    char const* message,
+    int colour,
+    int effect)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    world_entity_set_chat(&player->chat, message, colour, effect);
+}
+
+void
+World_NpcSetChat(
+    struct World* world,
+    int idx,
+    char const* message,
+    int colour,
+    int effect)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    world_entity_set_chat(&npc->chat, message, colour, effect);
+}

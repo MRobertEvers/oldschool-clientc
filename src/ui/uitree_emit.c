@@ -945,7 +945,9 @@ emit_chat(
                 line->spans[s].color,
                 0,
                 line->spans[s].text);
-        /* Separator above the input line (reference hline at y 77). */
+        /* Separator above the input line (reference Pix2D.hline(0, 77, 479):
+         * spans the 463-wide message column plus the scrollbar, so it runs
+         * from the left edge all the way to the scrollbar's right side). */
         {
             struct UITreeEmitDesc desc;
             memset(&desc, 0, sizeof(desc));
@@ -954,7 +956,7 @@ emit_chat(
             desc.component_id = c->component_id;
             desc.x = x;
             desc.y = y + 77;
-            desc.w = w;
+            desc.w = 463 + UITREE_SCROLLBAR_THICKNESS;
             desc.h = 1;
             desc.color = 0x000000;
             desc.filled = 1;
@@ -1124,6 +1126,19 @@ emit_rs_inv_text_slots(
     }
 }
 
+/** Stack-count formatting (reference invNumber, Client.ts:10502): raw below
+ * 100K, then "<n/1000>K" below 10M, then "<n/1000000>M". */
+static void
+uitree_emit_inv_number(int amount, char* buf, size_t cap)
+{
+    if( amount < 100000 )
+        snprintf(buf, cap, "%d", amount);
+    else if( amount < 10000000 )
+        snprintf(buf, cap, "%dK", amount / 1000);
+    else
+        snprintf(buf, cap, "%dM", amount / 1000000);
+}
+
 /** Expand TYPE_INV grid into per-slot sprites via host GET_INV_SOURCE_SLOT. */
 static void
 emit_rs_inv_slots(
@@ -1144,9 +1159,20 @@ emit_rs_inv_slots(
     struct UITreeInvGridLayout layout;
     int slot_limit;
     int slot;
+    int slot_drag_source = -1;
+    int slot_drag_slot = -1;
+    int slot_drag_dx = 0;
+    int slot_drag_dy = 0;
+    int count_font_id = -1;
 
     assert(c && c->type == UIELEM_RS_INV);
     assert(out && parent_clip);
+
+    if( host )
+    {
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_INV_COUNT_FONT };
+        count_font_id = UITree_Host(host, &req);
+    }
 
     layout.cols = c->u.rs_inv.cols;
     layout.rows = c->u.rs_inv.rows;
@@ -1155,6 +1181,22 @@ emit_rs_inv_slots(
     layout.offset_x = c->u.rs_inv.inv_slot_offset_x;
     layout.offset_y = c->u.rs_inv.inv_slot_offset_y;
     slot_limit = UITree_InvViewGridSlotLimit(&layout);
+
+    /* Armed slot press/drag (reference TYPE_INV draw: only the objDragSlot
+     * icon renders at the mouse delta with trans 128; the host has already
+     * applied the +-5px deadzone and the 5-cycle gate to dx/dy). */
+    if( host )
+    {
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_INV_DRAG,
+            .u.get_inv_drag.out_source_id = &slot_drag_source,
+            .u.get_inv_drag.out_slot = &slot_drag_slot,
+            .u.get_inv_drag.out_dx = &slot_drag_dx,
+            .u.get_inv_drag.out_dy = &slot_drag_dy,
+        };
+        if( !UITree_Host(host, &req) )
+            slot_drag_slot = -1;
+    }
 
     for( slot = 0; slot < slot_limit; slot++ )
     {
@@ -1231,6 +1273,16 @@ emit_rs_inv_slots(
             desc.x += drag_dx;
             desc.y += drag_dy;
         }
+        /* Armed slot: this one icon follows the mouse semi-transparently
+         * (reference transPlotSprite(slotX+dx, slotY+dy, 128)); every other
+         * slot stays put. Background fallbacks (obj_id 0) are never armed. */
+        if( obj_id > 0 && slot == slot_drag_slot &&
+            slot_drag_source == c->u.rs_inv.inv_source_id )
+        {
+            desc.x += slot_drag_dx;
+            desc.y += slot_drag_dy;
+            desc.trans = 128;
+        }
         if( in_deferred )
         {
             if( c->drag_visual_trans >= 0 )
@@ -1242,6 +1294,51 @@ emit_rs_inv_slots(
         desc.scroll_off_y = scroll_off_y;
         desc.clip = *parent_clip;
         emit_buffer_append(out, &desc);
+
+        /* Stack count (reference: p11 yellow with a black drop shadow at
+         * (slotX+dx, slotY+9), drawn when the icon is stackable (owi==33) or
+         * the count isn't 1). desc.x/y already carry every offset the icon
+         * got — scroll, whole-node drag, armed-slot drag — so the number
+         * rides along. Shadow is the font's +1/+1 pass (identical to the
+         * reference's black-then-yellow pair). */
+        if( obj_id > 0 && count_font_id >= 0 )
+        {
+            int stackable = 0;
+            char namebuf[4] = { 0 };
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_GET_OBJ_NAME,
+                .u.get_obj_name.obj_id = obj_id,
+                .u.get_obj_name.out = namebuf,
+                .u.get_obj_name.cap = (int)sizeof(namebuf),
+                .u.get_obj_name.out_stackable = &stackable,
+            };
+            UITree_Host(host, &req);
+            if( stackable || obj_count != 1 )
+            {
+                struct UITreeEmitDesc count_desc;
+                memset(&count_desc, 0, sizeof(count_desc));
+                count_desc.kind = UITREE_EMIT_TEXT;
+                count_desc.node_index = idx;
+                count_desc.component_id = c->component_id;
+                count_desc.x = desc.x;
+                /* Reference y is the p11 baseline at slotY+9; our text box
+                 * top sits one line up (same convention as TYPE_INV_TEXT). */
+                count_desc.y = desc.y + 9 - 12;
+                count_desc.w = slot_w;
+                count_desc.h = 14;
+                count_desc.font_id = count_font_id;
+                count_desc.color = 0xFFFF00;
+                count_desc.text_shadowed = 1;
+                uitree_emit_inv_number(
+                    obj_count, count_desc.text_formatted,
+                    sizeof(count_desc.text_formatted));
+                count_desc.text = "";
+                count_desc.scroll_off_x = scroll_off_x;
+                count_desc.scroll_off_y = scroll_off_y;
+                count_desc.clip = *parent_clip;
+                emit_buffer_append(out, &count_desc);
+            }
+        }
     }
 }
 
@@ -1382,6 +1479,7 @@ emit_walk_node(
     struct UITreeEmitBuffer* out,
     int32_t idx,
     struct UITreeEmitClip const* parent_clip,
+    struct UITreeEmitClip const* surface_clip,
     int scroll_off_x,
     int scroll_off_y,
     int hovered_component_id,
@@ -1394,7 +1492,9 @@ emit_walk_node(
     struct UITreeComponent* c;
     struct UITreeEmitDesc desc;
     struct UITreeEmitClip layer_clip;
+    struct UITreeEmitClip layer_surface;
     struct UITreeEmitClip const* child_clip;
+    struct UITreeEmitClip const* child_surface;
     int x = 0, y = 0, w = 0, h = 0;
     int32_t child;
     int if1_bar;
@@ -1463,6 +1563,7 @@ emit_walk_node(
                     out,
                     child,
                     parent_clip,
+                    surface_clip,
                     scroll_off_x,
                     scroll_off_y,
                     hovered_component_id,
@@ -1492,12 +1593,25 @@ emit_walk_node(
     }
 
     child_clip = parent_clip;
-    if( UITree_ComponentClipsChildren(c) && w > 0 && h > 0 )
+    child_surface = surface_clip;
     {
+        /* Shared interface layer child-clip rule (UITree_LayerChildClip): clip to
+         * own bounds ∩ the enclosing surface, never compounded with ancestor
+         * layers — same helper the hit/hover/drop walks use, so drawn pixels and
+         * hitboxes agree. UITreeEmitClip and UITreeScrollClip are the same rect;
+         * convert at this one seam. */
         int clip_x = x - scroll_off_x + (in_drag ? drag_dx : 0);
         int clip_y = y - scroll_off_y + (in_drag ? drag_dy : 0);
-        if( clip_intersect(&layer_clip, parent_clip, clip_x, clip_y, w, h) )
+        struct UITreeScrollClip surf = { surface_clip->x, surface_clip->y, surface_clip->w,
+                                         surface_clip->h };
+        struct UITreeScrollClip cc, cs;
+        if( UITree_LayerChildClip(c, &surf, clip_x, clip_y, w, h, &cc, &cs) )
+        {
+            layer_clip = (struct UITreeEmitClip){ cc.clip_x, cc.clip_y, cc.clip_w, cc.clip_h };
+            layer_surface = (struct UITreeEmitClip){ cs.clip_x, cs.clip_y, cs.clip_w, cs.clip_h };
             child_clip = &layer_clip;
+            child_surface = &layer_surface;
+        }
     }
 
     if( !if1_bar && c->type == UIELEM_RS_INV )
@@ -1569,6 +1683,17 @@ emit_walk_node(
         desc.scroll_off_x = scroll_off_x;
         desc.scroll_off_y = scroll_off_y;
         desc.clip = *parent_clip;
+        /* TORIRS_MODEL_CLIP_DEBUG: model widget box vs. the clip it will be
+         * scissored to — the model overflows its box and is only bounded by
+         * this clip (the enclosing interface layer ∩ surface). A clip narrower
+         * than the widget's own right edge is what crops a chathead. */
+        if( desc.kind == UITREE_EMIT_MODEL && getenv("TORIRS_MODEL_CLIP_DEBUG") )
+            fprintf(
+                stderr,
+                "model com=0x%08x box=%d,%d %dx%d (right=%d) clip=%d,%d %dx%d (right=%d)\n",
+                desc.component_id, desc.x, desc.y, desc.w, desc.h, desc.x + desc.w,
+                desc.clip.x, desc.clip.y, desc.clip.w, desc.clip.h,
+                desc.clip.x + desc.clip.w);
         emit_buffer_append(out, &desc);
     }
 
@@ -1600,6 +1725,7 @@ emit_walk_node(
                 out,
                 child,
                 child_clip,
+                child_surface,
                 sx,
                 sy,
                 hovered_component_id,
@@ -1644,6 +1770,7 @@ emit_walk_pass(
             host,
             out,
             root,
+            &root_clip,
             &root_clip,
             0,
             0,

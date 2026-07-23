@@ -367,10 +367,19 @@ InvManager_ApplyFull(
         int const oc = obj_counts ? obj_counts[i] : 0;
         if( oid > INV_MANAGER_EMPTY_OBJ_ID )
         {
+            int const norm_count = oc > 0 ? oc : 1;
+            /* Server echo of an unchanged slot (e.g. the UPDATE_INV after an
+             * optimistic drag swap) keeps its baked icon: resetting scene_id
+             * leaves the slot iconless until the reconcile task runs — a
+             * one-frame flicker on every drop. */
+            if( container->slots[i].obj_id != oid ||
+                container->slots[i].obj_count != norm_count )
+            {
+                container->slots[i].scene_id = INV_MANAGER_NO_SCENE_ID;
+                container->slots[i].atlas_index = 0;
+            }
             container->slots[i].obj_id = oid;
-            container->slots[i].obj_count = oc > 0 ? oc : 1;
-            container->slots[i].scene_id = INV_MANAGER_NO_SCENE_ID;
-            container->slots[i].atlas_index = 0;
+            container->slots[i].obj_count = norm_count;
         }
         else
         {
@@ -424,10 +433,16 @@ InvManager_ApplyPartial(
         int const oc = obj_counts ? obj_counts[i] : 0;
         if( oid > INV_MANAGER_EMPTY_OBJ_ID )
         {
+            int const norm_count = oc > 0 ? oc : 1;
+            /* Unchanged slot keeps its baked icon (see ApplyFull). */
+            if( container->slots[slot].obj_id != oid ||
+                container->slots[slot].obj_count != norm_count )
+            {
+                container->slots[slot].scene_id = INV_MANAGER_NO_SCENE_ID;
+                container->slots[slot].atlas_index = 0;
+            }
             container->slots[slot].obj_id = oid;
-            container->slots[slot].obj_count = oc > 0 ? oc : 1;
-            container->slots[slot].scene_id = INV_MANAGER_NO_SCENE_ID;
-            container->slots[slot].atlas_index = 0;
+            container->slots[slot].obj_count = norm_count;
         }
         else
         {

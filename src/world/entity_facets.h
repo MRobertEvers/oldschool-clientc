@@ -152,4 +152,18 @@ struct WorldEntityFacet_Appearance
     int colors[5];
 };
 
+/* Overhead chat text (reference ClientEntity.chatMessage/chatColour/chatEffect/
+ * chatTimer). timer counts down from 150 each cycle; at 0 the message is gone
+ * and nothing is drawn. colour/effect select the render style (see
+ * drawEntities, Client.ts:4958). message is UTF-8, NUL-terminated. */
+#define WORLD_ENTITY_CHAT_MAXLEN 100
+
+struct WorldEntityFacet_Chat
+{
+    char message[WORLD_ENTITY_CHAT_MAXLEN];
+    int timer;
+    int colour;
+    int effect;
+};
+
 #endif

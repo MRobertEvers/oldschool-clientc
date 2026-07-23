@@ -699,10 +699,20 @@ New pieces:
   Verified offline: splat sprite, white-on-black number and the green/red bar
   all render, clipped to the world viewport.
 
-Not ported: overhead chat text and headicons (the other two `drawEntities`
-overlays), and hint arrows. These are *world* entity overlays and stay distinct
-from the *interface* chatbox chathead models in §17 (an NPC/player head in a
-dialogue MODEL widget) — different pipeline, different draw path.
+Overhead chat text is now ported (same entity-overlay pass). Each entity carries
+a `WorldEntityFacet_Chat` (message/colour/effect/timer); `PLAYER_INFO` SAY (plain
+forced chat) and CHAT (wordpacked, `colourEffect >> 8` / `& 0xff`) and `NPC_INFO`
+SAY populate it via `World_*SetChat`, `world_cycle` decrements the 150-tick timer
+and clears at 0. A second overlay pass (after health bars/hitsplats, so it layers
+on top) projects at the model top and emits a black-shadow + colour-resolved
+centred TEXT pair through the b12 font (`app_overlay_build_chat` /
+`app_overlay_chat_colour`, matching `CHAT_COLOURS` + the 6–11 flashing/rainbow
+cases). Effects 1/2 (wave/scroll) fall back to plain centred text for now.
+
+Still not ported: headicons (the other `drawEntities` overlay) and hint arrows.
+These are *world* entity overlays and stay distinct from the *interface* chatbox
+chathead models in §17 (an NPC/player head in a dialogue MODEL widget) —
+different pipeline, different draw path.
 
 #### Follow-up: the number rendered ~1 line too low with no visible shadow
 
@@ -972,6 +982,133 @@ Now:
   red interact cross; the held/button variants get none — reference parity,
   unit-tested in `uitree_test_minimenu.c` ("minimenu / cross").
 
+---
+
+## 17. Inventory certs (noted items) — icon compositing — ✅
+
+### Client-TS
+
+A "cert" is a bank note: an ObjType whose `certtemplate !== -1`
+(`ObjType.ts:57`, decode opcodes 97/98). Two steps build its icon:
+
+- **`genCert()`** (`ObjType.ts:269-294`), run once at list-time when
+  `certtemplate !== -1`: copies the *render* fields
+  (`model`/`zoom2d`/`xan2d`/`yan2d`/`zan2d`/`xof2d`/`yof2d`/`recol_*`) from the
+  **cert-template** objtype and the *identity* fields (`name`/`members`/`cost`)
+  from the **certlink** (base) objtype, then forces `stackable = true`. So the
+  note's own model becomes the banknote-paper graphic.
+- **`getSprite()`** cert branch (`ObjType.ts:403-499`): renders the note-paper
+  model (`obj.getModelLit(1)`, i.e. the template) into a 32×32 `Pix32`, **then**
+  composites the base item's icon on top — `linkedIcon = getSprite(certlink,
+  10, -1)` rendered at **1.5× zoom** (the `outlineRgb === -1` branch,
+  `:431-435`) and `plotSprite`d over the paper (non-zero pixels only,
+  `:491-499`). Crucially, if the base icon can't build the whole thing
+  **returns null** (`:407-409`) — a note is never drawn as blank paper.
+
+### torirs
+
+The previous port redirected a note's icon to render **only** the
+cert-template model (blank banknote paper, no item), which is exactly the two
+reported symptoms: every note looked like a generic blank "cert", and none
+showed the underlying item.
+
+- `UITreeSceneBridge_EnsureObjIcon` (`uitree_scene_bridge.c`) now mirrors the
+  cert branch: `bridge_resolve_count_variant` handles the countobj loop, then
+  when `inventory_model_id <= 0 && cert_template > 0` it rasterizes the
+  **template** paper (`bridge_rasterize_obj_icon`, outline pass on) and the
+  **cert_link** base item at `zoom2d * 3/2` (outline pass off — the reference
+  base sub-icon carries a value-1 border but no shadow; we skip the border too,
+  a negligible 1px cosmetic diff), then `bridge_composite_over` copies the
+  base's opaque pixels onto the paper (the `Pix32.plotSprite` skip-zero rule).
+  If the base item cannot rasterize, EnsureObjIcon returns -1 — the note is
+  **withheld** rather than shown blank, matching the reference `return null`.
+  This is the fix for "certs generated when they shouldn't be": a note only
+  appears once both paper and item are resident.
+- `task_obj_model_load.c` had to grow a second dependency chain: a note's
+  `NeedsWork`/`Run` now also pull in the **cert_link** objtype, its inventory
+  model, and that model's face textures (`obj_model_cert_link_id` /
+  `obj_model_objtype_model_id`). Without it the base icon never becomes
+  resident and the note would render nothing forever. The `InvIconReconcile`
+  task awaits the whole `ObjModelLoad` chain before rasterizing, so by the time
+  `EnsureObjIcon` runs both sprites are in hand.
+- Detection keeps the `inventory_model_id <= 0` guard (the reference relies on
+  genCert having overwritten the note's model; the raw dat1/dat2 note model is
+  0, so the guard is equivalent for the target caches and safer against odd
+  data than bare `cert_template != -1`).
+
+Not ported: the reference's `owi === 33` stackable sentinel that forces the
+yellow count number onto every cert/stackable icon (`Client.ts:10197-10263`).
+The count is currently drawn only through the `RS_INV_TEXT` path
+(`uitree_emit.c:1111`); the number-over-icon for the 28-slot grid is a separate
+follow-on.
+
+---
+
+## 18. Inventory right-click menu never opened — grid hit-test bounds — ✅
+
+### Client-TS
+
+`addComponentOptions` TYPE_INV (`Client.ts:9890`+) iterates the grid slots and
+**hit-tests each 32×32 slot rect directly**; it never gates on the component's
+own width/height. The rows it appends (`add_inv_obj_rows` parity): ObjType
+`iop[4..3]` (Drop default on the empty op-4 slot), Use, `iop[2..0]`, component
+`iop[4..0]`, Examine last — each gated on the component's `objOps` / `objUse`
+booleans. v0 mirrors this in `interface_get_inv_default_action`
+(`v0/osrs/interface.c:203-320`), reading ops from
+`buildcachedat_get_obj(...)->iop`, and gates on `child->interactable` /
+`child->usable`.
+
+### torirs
+
+The row-builder (`rs_minimenu_build.c add_inv_obj_rows` / `add_inv_slot_rows`),
+the collection special-case, the source resolution, and the right-click routing
+were all already correct and symmetric with the render path — yet right-click
+produced only "Cancel". **Root cause was one layer up.** A dat1/dat2 inventory
+component stores its **cols/rows in `baseWidth`/`baseHeight`**
+(`torirs_component_from_rscache.c:314-315`, `:335`), and `apply_layout_position`
+copies those into the node's layout bounds — so a live backpack's `UIELEM_RS_INV`
+node box is **4×7 pixels** while its slots render across ~180×250px.
+`UITree_CollectNodesAt` gated collection on `point_in_self` (the node box), so a
+click on any slot fell outside the box, the grid was never collected, and the
+dispatch loop never reached the `UIELEM_RS_INV` branch. Item icons still drew
+because `emit_rs_inv_slots` lays slots out from margins, independent of the node
+box.
+
+Fix (`uitree_input.c` `collect_inv_grid_slot_hit`): for an `UIELEM_RS_INV` node,
+collection now also succeeds when the click lands on any of its **slot rects**
+(`UITree_InvViewGridHitTest`, the same layout `emit_rs_inv_slots` and
+`add_inv_slot_rows` use, with `scroll_off` folded in identically) — mirroring the
+reference's per-slot hit test instead of relying on the (cols×rows)-pixel box.
+Regression: `uitree_test_hover.c` "inv grid collected when a slot (not the node
+box) is clicked" (fails without the fix; a 4×7 node box misses a click at
+(85,65) inside slot 0).
+
+**Known parity gap (not the reported bug, deferred):** `add_inv_obj_rows` does
+not yet gate on the component's `objOps`/`objUse` flags the way Client-TS /
+v0 do — it always emits Drop/Use/Examine. For the backpack both flags are set so
+behaviour matches; on panels that disable them (some bank/shop grids) torirs
+would over-offer. Left alone deliberately — the reported symptom was *missing*
+rows, and gating only removes rows.
+
+---
+
+## 19. Hitsplats re-verified against Client-TS (no code change)
+
+Re-read the reference to confirm §12 is still accurate: hits live on
+`ClientEntity` (`damageValues`/`damageTypes`/`damageCycles[4]`, `combatCycle`),
+registered by `addHitmark` with a **70-cycle** splat life (`ClientEntity.ts:152-161`)
+and a **400-cycle** `combatCycle` health-bar life set in the PLAYER/NPC
+`HITMARK`/`HITMARK2` packet handlers (`Client.ts:8125-8133`, `8214-8221`,
+`8391-8398`, `8445-8452`). Drawing in `entityOverlays` (`Client.ts:4896-4933`):
+health bar when `combatCycle > loopCycle + 100` at `height + 15`
+(`fillRect(x-15,y-3,w,5,GREEN)` + red remainder, `w = min(30, health*30/total)`);
+hitsplats at `height/2`, per-slot nudge (1: `y-=20`; 2: `x-=15,y-=10`; 3:
+`x+=15,y-=10`), `hitmarks[damageType]` blitted at `(x-12,y-12)`, number via
+`p11.centreString` black `(x,y+4)` then white `(x-1,y+3)`. `damageType` indexes
+the 20-sprite `hitmarks` array straight off the wire (no remap). All of this
+matches what §12 already documents (including the `baseline`/`centreString`
+y-convention fix); nothing in torirs needed to change.
+
 Verified: the normal world right-click is unchanged (live: `Examine @cya@
 Bush` / `Walk here`), the new action ids resolve to the right crosses, and the
 full test suite (`test-world`, `test-uitree`, `test-uitree-builder`,
@@ -989,7 +1126,7 @@ clears them only on completion).
 
 ---
 
-## 17. Interface chathead models (chatbox NPC/player heads) — ✅ (npc via IF1)
+## 20. Interface chathead models (chatbox NPC/player heads) — ✅ (npc via IF1)
 
 ### Client-TS
 Dialogue interfaces show a rotating NPC or player head in a MODEL widget. The
@@ -1014,19 +1151,49 @@ Root cause was three-fold: the head packets were parsed but never executed
   `UITreeSceneBridge_EnsureNpcHead(npc_id)` merges the npc head models + npc
   recolours (port of v0 `entity_scenebuild.c npc_head_model`), memoized by
   npc_id in a new `npc_head_map` on the reserved id range
-  `UITREE_SCENE_NPC_HEAD_BASE | npc_id`. `EnsurePlayerHead` merges the local
-  appearance idks' `heads[]` + body recolours (`UITREE_SCENE_PLAYER_HEAD_ID`).
-- **IF1 exec** (`rs_gameproto_exec.c`): `IF_SETNPCHEAD` →
-  `App_SetInterfaceNpcHead`, `IF_SETPLAYERHEAD` → `App_SetInterfacePlayerHead`,
-  `IF_SETANIM` → new `UITree_ApplyModelAnim`. Because loads are async, the App
-  helpers enqueue a `Task_AppIfHead` (exec runner) that awaits `NpcLoad` + each
-  head `ModelLoad`, composites via the Ensure API, then binds the scene model
-  onto the widget with `UITree_ApplyModel` — the async analogue of the
-  reference's lazy `getHead`.
+  `UITREE_SCENE_NPC_HEAD_BASE | npc_id`. `EnsurePlayerHead` composites the head
+  from the **local player's real PLAYER_INFO appearance** (not a default-male
+  scan): `PlayerHeadModel_BuildFromAppearance` (`entity_model_build.c`) walks
+  the 12 appearance `slots[]`, merges each idk's `heads[]` and applies the
+  design colour palettes (`recol1d`/`recol2d`, shared with the body builder).
+  The idk head *models* are not loaded by `CreateTask_PlayerAppearanceLoad`
+  (which loads only body `model_ids[]`), so `Task_AppIfHead` first loads them
+  via `PlayerHeadModel_CollectHeadModelIds` + `CreateTask_ModelLoad`. The poll
+  reads `app_local_player(app)->appearance.slots/.colors/.gender`. (Worn-obj
+  chatheads — helmets — are not composited yet; idk face/hair/jaw only.)
+- **IF1 exec** (`rs_gameproto_exec.c`, lc254 opcode 3 = `IF_SETNPCHEAD`):
+  `IF_SETNPCHEAD` → `App_SetInterfaceNpcHead`, `IF_SETPLAYERHEAD` →
+  `App_SetInterfacePlayerHead`, `IF_SETANIM` → `App_SetInterfaceModelAnim`.
+  **The head packet arrives *before* the chat interface mounts** (same as
+  `IF_SETTEXT`), so a one-shot apply misses. The reference keeps
+  `model1Type/model1Id` on `IfType.list` and re-resolves `getModel` every draw;
+  torirs mirrors that with a persistent `app->if_heads` store (`com_id` →
+  kind/npc/anim). Two cooperating pieces:
+  - an async `Task_AppIfHead` (exec runner) awaits `NpcLoad` + each head
+    `ModelLoad` (or `PlayerAppearanceLoad`) and composites via the Ensure API —
+    registering the head scene model, the async analogue of lazy `getHead`;
+  - `app_if_head_poll` (each redraw) binds the composited scene model onto the
+    MODEL node with `UITree_ApplyModel` once it is mounted, tracking
+    `applied_gen` so it re-binds on every remount/rebuild and applies the stored
+    `IF_SETANIM` seq (`UITree_ApplyModelAnim`) with it.
 - **CS2** (`rs_cs2_host.c exec_widget_set_model_kind`): `NPC_HEAD` (kind 2) →
   `EnsureNpcHead(model_id=npc_id)`, `PLAYER_HEAD/SELF/CHATHEAD` (3/5/6) →
   `EnsurePlayerHead`; applies once assets are resident (previously it wrongly
   applied the npc id as a raw archive model).
+
+**Animation** (reference `animateInterface`, `Client.ts:10797`, ticks each
+type-6 MODEL child with `modelAnim`, advancing `animFrame` via
+`seq.getDuration`/`loops`; the draw at `Client.ts:10452` applies
+`seq.frames[animFrame]`): torirs already has the generic equivalent —
+`UITreeAnim_RequestMissing` + `UITreeAnim_Advance` (`app.c` per tick) load the
+seq and mutate the scene model's vertices in place for **any** MODEL node whose
+`anim_seq_id` and `gamecache_model_id` are both set (the same path that drives
+the 808 player-preview idle). So once `app_if_head_poll` binds the head model
+and applies the persisted `IF_SETANIM` seq, the head animates with no extra
+wiring. The merge preserves the models' animation labels
+(`ToriDraw_ModelNewMerge` rebuilds `vertex_bones`), and `EnsureNpcHead` /
+`PlayerHeadModel_BuildFromAppearance` snapshot the rest pose
+(`ToriDraw_ModelCaptureOriginalVertices`) so per-frame reset/apply works.
 
 Drawing path (`soft3d_draw_model_widget`) was already correct once a head scene
 model exists.
@@ -1039,3 +1206,278 @@ to the MODEL node, so a *statically* type-2/3 component is not resolved at bake
 time — the dialogue path sets those heads at runtime via `IF_SETNPCHEAD`
 anyway, and a static bake would additionally need async head-asset preload to
 render. Distinct from §12 headicons / overhead chat, which remain unported.
+
+---
+
+## 21. Inventory interaction session: wire off-by-one, genCert names, slot press/drag machine
+
+Four live symptoms, four root causes — all in the inventory stack, none in the
+code that first looked guilty.
+
+### 21.1 Items spuriously noted — UPDATE_INV_FULL off-by-one
+
+Client-TS stores the **raw wire value** into `linkObjType` (`Client.ts:6497`)
+and every consumer reads `linkObjType[slot] - 1` (menu build 9916, TYPE_INV
+draw 10197, TYPE_INV_TEXT 10472) — i.e. **the wire carries obj id + 1, 0 =
+empty**. torirs containers store *real* ids (`INV_MANAGER_EMPTY_OBJ_ID = 0`),
+and the PARTIAL decode already subtracted 1, but the FULL decode
+(`gameproto_parse.c` PKT_NAME_UPDATE_INV_FULL) stored `g2()` raw. Every slot
+delivered by a FULL update was shifted +1 — and OSRS-era caches put an item's
+bank note at `base_id + 1`, so nearly every unstackable item rendered as its
+note (with §17's compositing faithfully drawing the wrong thing well). Fix:
+`g2() - 1` with a comment; empty (wire 0) becomes -1, which
+`InvManager_ApplyFull`'s `oid > 0` guard clears, matching PARTIAL. Bonus: the
+OPHELD/INV_BUTTON packets now carry the right obj id too (they echo the slot's
+stored id).
+
+### 21.2 Hover said "Item" — genCert never copied the name
+
+A raw noted objtype has **no name in the cache**: the reference's `genCert()`
+(`ObjType.ts:269`) copies `name`/`members`/`cost` from the `certlink` base item
+at list-time and forces `stackable = true`. torirs never ported that, so any
+genuine note fell to the `"item"` placeholder in `add_inv_obj_rows` — and with
+21.1 making *everything* a note, most hovers read "Item". Port:
+`CacheProvider_ObjtypeGet` now lazy-patches a note on access (the reference
+also does this in its getter, `ObjType.list`): forces `stackable = 1` and
+copies the name from the resident cert_link objtype; an empty name marks the
+copy as still pending, so it self-heals the frame after the link loads
+(ObjModelLoad pulls cert_link in since §17). Not ported: `members`/`cost`/the
+"Swap this note…" examine desc (torirs examine is the OPHELD6 name form).
+
+### 21.3 Left click did nothing / 21.4 dragging moved the whole inventory —
+one state machine
+
+Reference model (`Client.ts` mouseLoop 8584 + gameLoop 2476 + TYPE_INV draw
+10207):
+
+- **Down** over an inv slot whose top menu action is an inv action and whose
+  component is `objSwap`/`objReplace`: arm `objDrag*` (slot, com, grab x/y,
+  cycles=0, threshold=false) and return — **nothing fires on the down edge**.
+- **Held**: `objDragCycles++`; >5px travel sets `objGrabThreshold`. The armed
+  slot alone draws `transPlotSprite(slotX+dx, slotY+dy, 128)` — dx/dy are the
+  mouse delta with a ±5px per-axis deadzone, zeroed entirely before 5 cycles
+  (so a plain held click shows the icon semi-transparent in place). Count text
+  follows the same offset. `mouseLoop`/`buildMinimenu` early-return while
+  armed.
+- **Release**: real drag (`threshold && cycles >= 5`) re-resolves the slot
+  under the mouse; same component + different slot → local `swapSlots` +
+  `INV_BUTTOND(comId, src, dst, mode)` (mode 1 only for bank insert-mode).
+  Otherwise **short click → `doAction(menuNumEntries-1)`** — the default row;
+  this is how a left click submits OPHELD.
+
+torirs had all the *pieces* and none of the wiring: `app_inv_drag_tick`
+already did swap + `net_out_inv_buttond`, but its slot resolver
+(`app_inv_node_at`) gated on the RS_INV node's layout box — the same
+cols×rows-**pixels** trap as §18, so it never matched and the whole path was
+dead. Meanwhile the *generic* node drag picked the press up via a draggable
+ancestor and emit shifted **every** slot by `drag_dx/dy`
+(`emit_rs_inv_slots`), which is the "dragging drags the entire inventory"
+symptom. And left-click did nothing because `HitTestInteractive` passes
+through RS_INV, so `out.clicked_com_id` never gated open the default-entry
+block.
+
+Now (all reference-shaped):
+
+- `app_inv_node_at` resolves through `UITree_CollectNodesAt` (visibility,
+  clipping, selected tab, §18's slot-hit rule) instead of the node box.
+- `app_inv_drag_tick` is the objDrag machine: arm on `IsMouseDown` over a
+  filled slot (never while the minimenu popup is open), cycles/threshold while
+  held, and on release either swap+`INV_BUTTOND` (mode 0) or
+  `app_run_default_ui_row` — build the same menu the right click would show at
+  the release point and run `RS_Minimenu_DefaultOptionIndex`'s row. That is
+  the reference's *release-fires-the-click* semantic; the interact-frame
+  default-entry block (and the world-miss variant) are gated on
+  `inv_drag_com_id < 0` so the release can't double-fire.
+- While armed, `tree->anti_drag` is held high — the generic node drag
+  (`uitree_input.c` UI_INPUT_DOWN / `UITree_InputDragTick` both check it) can
+  never promote the press into a whole-panel drag. The flag existed, unset,
+  exactly for this.
+- Visuals: new host request `UITREE_HOST_GET_INV_DRAG` (armed source id +
+  slot + deadzoned dx/dy, computed in the tick — the ±5px/5-cycle rules live
+  host-side). `emit_rs_inv_slots` offsets **only** the matching slot and
+  stamps `trans = 128`. Armed-in-place therefore shows the reference's
+  held-click transparency immediately.
+
+Not ported (deferred, cosmetic/situational): drag autoscroll at clip edges
+(`Client.ts:10226-10252`, matters for scrolled bank grids), bank insert-mode
+(`mode=1` + cascade swap + `objReplace` move-and-clear — torirs always sends
+mode 0 and swaps), count text following the drag offset (the grid draws no
+count text yet, see §17's owi=33 note), the objSwap/objReplace arm gate (the
+dat1 component flags `swappable/draggable/usable/interactable` are dropped at
+decode — torirs arms on any filled slot; over-arms on some shop/bank panels
+where the reference would fire on the down edge instead), and freezing hover
+text during a real drag.
+
+Verified: full build clean; `test-uitree` (incl. §18's collect regression),
+`test-inv`, `test-net-exec`, `test-net-login`, `test-net-loopback`,
+`test-ui-slots`, `test-uitree-builder-dat1`, `test-revconfig` all pass. Live
+check-list for the next session: logs no longer render as notes, hover names
+resolve after first icon load, left-click Wield/Wear fires on release, held
+click shows the in-place trans-128 icon, and slot-to-slot drag swaps + sends
+`INV_BUTTOND` while the rest of the grid stays put.
+
+---
+
+## 22. Inventory follow-ups: dead Wield row, drop flicker, Walk-here leak, count text
+
+Live feedback on §21 surfaced four more issues.
+
+### 22.1 "Wield" (and every obj op but op 0) did nothing — non-contiguous action ids
+
+The `REVCONFIG_MINIMENU_*` ids mirror the reference `MiniMenuAction` values,
+which are **not contiguous**: OPHELD1..5 = 694/**962/795/681/100**,
+INV_BUTTON1..5 = 582/**113/555/331/354** (verified identical in
+`MiniMenuAction.ts`). `add_inv_obj_rows` built rows with
+`REVCONFIG_MINIMENU_OPHELD1 + op` → 695/696/697/698 for ops 1..4 — ids that
+match **no** case in `app_minimenu_inv_action`, fall to `default: return 0`,
+and are then silently swallowed by the `>= OPHELD1 && <= OPHELD6` numeric
+range check (694..1328 spans half the id space). Only op 0 (`694 + 0`) and the
+explicitly-named Drop/Use/Examine rows ever dispatched — hence "Wield doesn't
+work" while Drop did. Fix: `k_opheld_action[]` / `k_inv_button_action[]`
+lookup tables in `rs_minimenu_build.c` (all three arithmetic sites). The wire
+side was verified byte-identical to the reference first: OPHELD opcodes
+243/228/80/163/74 (`lc254/packetout.h` == `ClientProt.ts`) and payload
+`p2 obj, p2 slot, p2 com` (`out_obj_slot_com` == `doAction` OP_HELD branch).
+**Takeaway: never do arithmetic on REVCONFIG_MINIMENU ids — always table
+them.**
+
+### 22.2 Flicker after drop — server echo reset the baked icon
+
+`InvManager_ApplyFull/Partial` unconditionally stamped
+`scene_id = NO_SCENE_ID` on every delivered slot, so the UPDATE_INV echo that
+follows an optimistic drag swap left both slots iconless until the next
+reconcile tick re-stamped them (bridge cache hit, but the task runs a frame+
+later) — a visible blink on every drop. Both appliers now keep the baked
+`scene_id`/`atlas_index` when the slot's `(obj_id, normalized count)` is
+unchanged; any real change still resets and re-rasterizes.
+
+### 22.3 "Walk here" on inventory items — full-canvas world clip
+
+Reference `buildMinimenu` (`Client.ts:2771`) adds world options **only when
+the mouse is inside the viewport rect** (4..516 × 4..338) with no modal up;
+the sidebar and chat areas get component options only. torirs gated world rows
+on `app_world_mouse_gate`, which tested `world_emit_desc.clip` — and an
+unclipped world node inherits a **full-canvas** clip, so sidebar right-clicks
+counted as "in world" whenever no interactive component was under the cursor
+(`hover_com_id == -1`, true over the pass-through RS_INV grid) and
+`AddWorldRows` appended Walk here. The gate now also requires the point inside
+the world **widget rect** (`world_emit_desc.x/y/w/h` — the reference's
+viewport bounds), keeping the clip intersection. Hover "Walk here" text over
+the inventory disappears through the same gate.
+
+### 22.4 Inventory count text — grid numbers ported (§17/§21 deferral closed)
+
+Reference TYPE_INV draw (`Client.ts:10260-10263`): when `icon.owi === 33`
+(stackable, forced for certs by genCert) **or** `count !== 1`, draw
+`invNumber(count)` in **p11** — black at `(slotX+dx+1, slotY+10+dy)` then
+yellow at `(slotX+dx, slotY+9+dy)`; `invNumber` renders raw below 100K,
+`n/1000 + "K"` below 10M, else `n/1000000 + "M"`. Port in
+`emit_rs_inv_slots`: a TEXT desc emitted after each occupied slot's sprite —
+`uitree_emit_inv_number` formatting, colour `0xFFFF00`, `text_shadowed = 1`
+(the font's +1/+1 black pass ≡ the reference's black-then-yellow pair), based
+on the sprite desc's final x/y so scroll, whole-node drag and the §21
+armed-slot offset all carry over to the number (the §21 "count text follows
+the drag" deferral closes too). Font: new host request
+`UITREE_HOST_GET_INV_COUNT_FONT` → `app_hitsplat_font_scene_id` (p11, same
+dat1-font-id-0 sentinel + load-on-miss self-heal as §12). Baseline→box y
+conversion follows the TYPE_INV_TEXT convention (`slotY + 9 - 12`); if a live
+screenshot shows the number a pixel or two off, that constant is the knob.
+
+Verified: build clean; `test-inv`, `test-uitree`, `test-net-exec`,
+`test-ui-slots`, `test-uitree-builder-dat1`, `test-revconfig` pass. Live
+checklist: Wield/Wear/Eat fire from both the right-click row and the
+left-click default; drops no longer blink; right-click over the backpack
+offers no Walk here; coins/notes show yellow counts that ride along while
+dragging.
+
+---
+
+## 18. Interface layer clipping: per-surface, not compounded — ✅
+
+**Symptom:** an NPC/player chat dialogue's chathead MODEL (on the right of the
+chatback) was clipped too narrow, even though the chat node is 479 wide (correct,
+matches `setClipping(479, 96)`).
+
+### Client-TS
+`drawInterface` (`Client.ts:10134`) clips every TYPE_LAYER (including the mounted
+interface root) to its **own** bounds via `Pix2D.setClipping(x, y, x+w, y+h)`
+(`:10144`), recursing for child layers (`:10163`). Crucially `Pix2D.setClipping`
+(`Pix2D.ts:34`) **overwrites** the clip and clamps *only* to the physical draw
+surface (the PixMap: chatback `479×96`, sidebar `190×261`, viewport `512×334`) —
+it never intersects the parent/ancestor layer. So a wide inner layer nested in a
+narrower ancestor still draws to the surface edge; nested layer clips do **not**
+compound. The 3D head (`Pix3D`) rasterizes against the same surface clip
+(`Pix3D.ts:920`), so it too extends to the chatback edge.
+
+### torirs
+`emit_walk_node` (`uitree_emit.c`) intersected each `ClipsChildren` layer's box
+with the **cumulative ancestor clip** (`clip_intersect(&layer_clip, parent_clip,
+…)`), so an intermediate `RS_LAYER` narrower than a descendant compounded and cut
+the head. The mounted dialogue is a pure dat1 cache interface (no revconfig INI
+width to change) whose root/containers bake to `UIELEM_RS_LAYER`.
+
+Fix: thread a `surface_clip` alongside `parent_clip`. A layer now clips its
+children to `own_bounds ∩ surface_clip` — the surface being the enclosing PixMap,
+established by the surface containers (`UITree_ComponentEstablishesSurface`:
+`UIELEM_BUILTIN_CHAT` / `UIELEM_BUILTIN_SIDEBAR`); the root surface is the screen.
+Nested layers no longer compound. This is safe: a layer's own box still bounds
+its children (scroll viewports unchanged), and for the common case (child within
+parent) `own ∩ surface == own ∩ parent`, so only genuine overflow (the head)
+changes — now matching the reference.
+
+**Unified, one rule for render + interaction.** The traversals differ (emit
+builds a draw list; hit-test finds the topmost node at a point) so the *walks*
+can't merge, but the clip *decision* is extracted into a single shared helper —
+`UITree_LayerChildClip` (`uitree_scroll.c`) — that all four walks call: emit
+(`uitree_emit.c`), interactive hit-test + menu-collect (`uitree_input.c`), hover
+(`uitree_hover.c`), and drag drop-target (`uitree.c`). So drawn pixels, click
+areas, and hover areas agree by construction — the surface rule is implemented
+once, with no risk of the render and hit-test paths drifting.
+
+---
+
+## 23. Inventory drag disabled per-grid (equipment/worn) — objSwap/objReplace
+
+### Client-TS
+
+Whether an inventory grid's items can be dragged is a per-component flag pair.
+`IfType` TYPE_INV decode (`IfType.ts:186-189`) reads four booleans in order —
+`objSwap`, `objOps`, `objUse`, `objReplace` — and the mouse-down handler arms
+the item drag **only** when `com.objSwap || com.objReplace` (`Client.ts:8584`).
+The backpack (3214) decodes `objSwap = true`; the worn-equipment grid decodes
+both false, so its items click but never drag. A non-draggable component still
+fires its default action on the click (the down handler falls through to
+`doAction`).
+
+### torirs
+
+The §21 objDrag machine armed on *any* filled slot, so equipment items dragged
+(and swapped) just like the backpack. The gate flag was decoded by the
+vendored rscache but dropped on the way into `ToriRS_Component`. Plumbed it end
+to end:
+
+- **Decode** (`torirs_component_from_rscache.c`): the dat1 booleans decode in
+  the same order as the reference (`draggable`/`interactable`/`usable`/
+  `swappable` == `objSwap`/`objOps`/`objUse`/`objReplace`), so
+  `inv_can_drag = draggable || swappable`. IF3/dat2 has no such boolean
+  (dragging is driven by the drag dead-zone/time + `onDragComplete` script), so
+  it defaults `inv_can_drag = 1`, leaving that path unchanged.
+- **Chain**: `ToriRS_Component.inv_can_drag` → `UIBuildComponent.inv_can_drag`
+  (`uitree_from_component.c`) → `UITreeNodeSpec.rs_inv.can_drag`
+  (`uitree_build.c` cache path; `uitree_builder_bake.c` INI path defaults 1) →
+  `UITreeComponent.u.rs_inv.can_drag` (`uitree.c` `UITree_Push`).
+- **Gate** (`app_inv_drag_tick`): the press still arms (so a *click* on an
+  equipped item still runs its default row on release — reference parity), but
+  `inv_drag_can_drag` is captured from the node and, when false, the held tick
+  returns before touching the threshold/offset — no drag promotion, no swap,
+  no `INV_BUTTOND`. The slot stays armed with `dx/dy == 0`, so
+  `UITREE_HOST_GET_INV_DRAG` still reports it and `emit_rs_inv_slots` **still
+  fades the held icon to trans 128 in place** — the press feedback is kept; only
+  the movement and swap are removed.
+
+Net: equipment/worn items fade while pressed and are clickable (Remove/Operate)
+but cannot be dragged or reordered; the backpack (objSwap) is unaffected.
+Verified: clean build; `test-inv`, `test-uitree`, `test-net-exec`,
+`test-ui-slots`, `test-uitree-builder-dat1`, `test-revconfig` pass. Live check:
+press-hold a worn item — it fades in place but does not move; on release its op
+runs and no `INV_BUTTOND` is sent; the backpack still drags/swaps.
