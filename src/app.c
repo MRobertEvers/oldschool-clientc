@@ -1732,6 +1732,18 @@ app_seq_preanim_move(void* userdata, int seq_id)
     return anim ? anim->preanim_move : 0;
 }
 
+/* World_SeqSource.spotanim_seq: resolve a spotanim id to its animation seq id so
+ * the world can step an entity's attached-graphic frame. -1 when the id is
+ * invalid or the spotanimtype is not yet resident (the world then waits). */
+static int
+app_spotanim_seq(void* userdata, int spotanim_id)
+{
+    struct App* app = (struct App*)userdata;
+    struct ToriRS_Spotanimtype* spot =
+        spotanim_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, spotanim_id) : NULL;
+    return spot ? spot->seq : -1;
+}
+
 /* Plot one loc mapscene Pix8 into the baked minimap ARGB (reference drawDetail
  * + Pix8.plotSprite). The C bake places tile (sx,sz)'s top-left at
  * (sx*4, (height-sz)*4) and a loc extends north (+z) over `loc_l` tiles, so the
@@ -1972,6 +1984,7 @@ App_WorldLoadFinish(struct App* app)
                 .priority = app_seq_priority,
                 .duplicate_behavior = app_seq_duplicate_behavior,
                 .preanim_move = app_seq_preanim_move,
+                .spotanim_seq = app_spotanim_seq,
             };
             World_SetSeqSource(app->world, &seq_source);
         }
@@ -4046,6 +4059,7 @@ enum AppSpawnKind
     APP_SPAWN_PROJECTILE_SPOT,
     APP_SPAWN_OBJ,
     APP_SPAWN_SPOTANIM,
+    APP_SPAWN_ENTITY_SPOTANIM,
 };
 
 struct Task_AppSpawn
@@ -4068,6 +4082,10 @@ struct Task_AppSpawn
     int spotanim_id;
     int spotanim_height;
     int spotanim_delay;
+    /* APP_SPAWN_ENTITY_SPOTANIM: the body scene element of the player/npc the
+     * attached graphic belongs to (stable, scene-unique key to re-find the live
+     * entity when the async load lands). */
+    int entity_element_id;
     /* MAP_PROJANIM (spotanim-based projectile) trajectory params. Source and
      * destination tiles reuse src_tile_x/z and tile_x/z; src_level and level
      * carry the source and destination levels. */
@@ -4155,6 +4173,28 @@ Task_AppSpawn_Run(
             self->level,
             self->spotanim_height,
             self->spotanim_delay);
+    }
+    else if( self->kind == APP_SPAWN_ENTITY_SPOTANIM )
+    {
+        /* Attached graphic (SPOTANIM mask): same asset chain as the free-standing
+         * spotanim, then build the companion element on the live entity. */
+        TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
+        {
+            struct ToriRS_Spotanimtype* spot =
+                CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
+            self->model_id = (spot && spot->model > 0) ? spot->model : -1;
+        }
+        if( self->model_id > 0 )
+            TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+        {
+            struct ToriRS_Spotanimtype* spot =
+                CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
+            self->seq_id = spot ? spot->seq : -1;
+        }
+        if( self->seq_id >= 0 )
+            TASK_AWAITSELF_IF(
+                CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+        app_world_attach_entity_spotanim_now(app, self->entity_element_id, self->spotanim_id);
     }
     else if( self->kind == APP_SPAWN_PROJECTILE_SPOT )
     {
@@ -5965,6 +6005,10 @@ App_RunOnce(
             .world = app->world,
             .world_pickset = NULL, /* UI hit: mouse was over a component */
             .click_in_world = false,
+            /* Honour an armed "Use"/spell selection so the left-click default
+             * row matches the right-click menu (reference doAction runs the
+             * same chooseDefaultMenuEntry over the useMode/targetMode menu). */
+            .selection = app_minimenu_selection(app),
         };
         struct UIMinimenu scratch;
         int default_idx;
@@ -6034,6 +6078,12 @@ App_RunOnce(
             .world = app->world,
             .world_pickset = &app->world_pickset,
             .click_in_world = true,
+            /* Honour an armed "Use"/spell selection so a left-click on a world
+             * target casts/uses (the TGT and USEHELD_ON rows) instead of
+             * falling back to the target's default op. Without this a left-click
+             * on an NPC with a spell armed built the plain ops and defaulted to
+             * Attack (walk-to-melee "run up"), while the right-click menu cast. */
+            .selection = app_minimenu_selection(app),
         };
         struct UIMinimenu scratch;
         int default_idx;

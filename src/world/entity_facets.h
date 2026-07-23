@@ -54,6 +54,15 @@ struct WorldEntityFacet_EntitySpotanim
     int last_cycle; /* absolute world cycle the graphic starts at */
     int frame;      /* -1 while delayed */
     int cycle;
+    /* App-layer render bookkeeping for the attached-graphic companion scene
+     * element (the world sim only reads/writes the fields above). The reference
+     * combines the spot model into the per-frame entity model; the C entity
+     * animates a persistent model in place, so the app carries the spot as a
+     * second scene element pinned to this entity. -1 = none.
+     * render_built_id is the spotanim id the companion was built/committed for,
+     * used to detect an id change and to load the assets exactly once. */
+    int render_element_id;
+    int render_built_id;
 };
 
 /**

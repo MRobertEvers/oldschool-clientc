@@ -334,17 +334,31 @@ World_StepEntityAnimation(
         }
     }
 
-    /* Entity-attached graphic. The spotanim config now decodes (free-standing
-     * MapSpotAnim is fully wired), but rendering an attached graphic still needs
-     * the spot model combined into the entity element (reference ClientNpc/
-     * ClientPlayer.getTempModel Model.combine) — a flagged follow-on. Until then
-     * hold the state and expire it after a generous fixed window. */
+    /* Entity-attached graphic (reference entityAnim, Client.ts 4019-4036): once
+     * the start delay elapses, step the frame from the spot's own seq and clear
+     * the id when the single loop completes. The app combines the spot into the
+     * entity's rendering via a companion scene element pinned to the entity
+     * (app_world_sync_entity_spotanims), driven to spot->frame. */
     if( spot && spot->id != -1 && world->cycle >= spot->last_cycle )
     {
+        int seq = world->seq_source.spotanim_seq
+                      ? world->seq_source.spotanim_seq(world->seq_source.userdata, spot->id)
+                      : -1;
+        int count = cycle_seq_frame_count(world, seq);
+
         if( spot->frame < 0 )
             spot->frame = 0;
         spot->cycle++;
-        if( world->cycle - spot->last_cycle > 200 )
+        while( count > 0 && spot->frame < count &&
+               spot->cycle > cycle_seq_frame_duration(world, seq, spot->frame) )
+        {
+            spot->cycle -= cycle_seq_frame_duration(world, seq, spot->frame);
+            spot->frame++;
+        }
+        /* Seq resolved and the single loop is done -> graphic ends. Guarded on
+         * count > 0 so an id whose seq/model is still loading (count 0) waits
+         * rather than expiring instantly (frame 0 >= count 0). */
+        if( count > 0 && spot->frame >= count )
             spot->id = -1;
     }
 

@@ -1106,6 +1106,20 @@ Now:
   `app_try_move_npc` / `app_try_move_obj` — see §3's "NPC / USEHELD / TGT walk
   — resolved" note (which also documents why there is no per-cycle follow loop
   to port; a moving target is re-pathed server-side, not in the client).
+- **Left-click default must see the armed selection (fixed).** The reference
+  builds ONE menu per click and `doAction`/`chooseDefaultMenuEntry` runs the
+  top row of it, so a left-click and a right-click-then-select resolve the same
+  row. torirs builds a *scratch* menu for the left-click default-row path
+  (`app.c`, the `left_click_miss` world block and the `clicked_com_id` UI
+  block), and those two `RS_MinimenuBuildCtx` initializers were missing
+  `.selection = app_minimenu_selection(app)` — so the scratch menu was built as
+  if nothing were armed. With a spell armed, a **left-click** on an NPC then
+  built the plain ops and defaulted to `OPNPC1` **Attack** (walk-to-melee — the
+  player "runs up to the NPC"), while the right-click menu, built by
+  `app_minimenu_open` (which does set `.selection`), correctly showed/cast
+  `TGT_NPC`. Both scratch builds now pass `.selection`, so a left-click honours
+  `useMode`/`targetMode` and casts/uses exactly like the menu. (This also fixes
+  left-click "use item on" over UI components via the `clicked_com_id` build.)
 
 ---
 

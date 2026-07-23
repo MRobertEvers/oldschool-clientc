@@ -60,6 +60,10 @@ struct World_SeqSource
     int (*priority)(void* userdata, int seq_id);
     int (*duplicate_behavior)(void* userdata, int seq_id);
     int (*preanim_move)(void* userdata, int seq_id);
+    /* Resolve a spotanim (SpotType) id to its animation seq id (-1 if none or
+     * not yet resident). Lets the world step an entity's attached-graphic frame
+     * from the spot's own seq without pulling in cache/config types. */
+    int (*spotanim_seq)(void* userdata, int spotanim_id);
 };
 
 #define WORLD_MAPFUNC_MAX 1000

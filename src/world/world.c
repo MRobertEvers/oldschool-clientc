@@ -430,6 +430,8 @@ World_PlayerSpawn(
         .server_pid = -1,
         .held_left_applied = -1,
         .held_right_applied = -1,
+        /* Reference ClientEntity default: no attached graphic (spotanimId -1). */
+        .spotanim = { .id = -1, .frame = -1, .render_element_id = -1, .render_built_id = -1 },
     };
     return idx;
 }
@@ -448,6 +450,10 @@ World_PlayerDespawn(
     struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
     assert(player);
     World_EmitEntityRemoved(world, player->element_id);
+    /* Tear down the attached-graphic companion element too (the app removes
+     * the scene element on this event), else it leaks at the last position. */
+    if( player->spotanim.render_element_id >= 0 )
+        World_EmitEntityRemoved(world, player->spotanim.render_element_id);
     World_EntityPoolRelease(pool, idx);
 }
 
@@ -484,6 +490,8 @@ World_NpcSpawn(
         .idle_animations = idle_animations,
         .facing = { .entity_id = WORLD_FACING_ENTITY_NONE, .turn_speed = 32 },
         .server_slot = -1,
+        /* Reference ClientEntity default: no attached graphic (spotanimId -1). */
+        .spotanim = { .id = -1, .frame = -1, .render_element_id = -1, .render_built_id = -1 },
     };
     return idx;
 }
@@ -502,6 +510,10 @@ World_NpcDespawn(
     struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
     assert(npc);
     World_EmitEntityRemoved(world, npc->element_id);
+    /* Tear down the attached-graphic companion element too (the app removes
+     * the scene element on this event), else it leaks at the last position. */
+    if( npc->spotanim.render_element_id >= 0 )
+        World_EmitEntityRemoved(world, npc->spotanim.render_element_id);
     World_EntityPoolRelease(pool, idx);
 }
 
