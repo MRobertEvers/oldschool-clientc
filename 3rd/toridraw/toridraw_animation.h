@@ -45,6 +45,13 @@ struct ToriDraw_Animation
     int preanim_move;       /* seq opcode 9 (PreanimMove) */
     int postanim_move;      /* seq opcode 10 (PostanimMove) */
     int duplicate_behavior; /* seq opcode 11 (RestartMode) */
+    /** Held-item overrides while this seq plays as the primary animation
+     * (reference SeqType.replaceheldleft/right, opcodes 6/7). A value >= 0
+     * replaces the player appearance's left-hand (slot 5) / right-hand (slot 3)
+     * item for the model build; a small value (< 0x100) draws no model there,
+     * i.e. the held item is hidden. -1 => leave the worn item as-is. */
+    int replaceheldleft;
+    int replaceheldright;
 };
 
 /* Seq-config values to attach to an assembled animation. walkmerge (may be
@@ -57,6 +64,8 @@ struct ToriDraw_AnimSeqMeta
     int preanim_move;
     int postanim_move;
     int duplicate_behavior;
+    int replaceheldleft;
+    int replaceheldright;
 };
 
 void

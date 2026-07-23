@@ -428,6 +428,8 @@ World_PlayerSpawn(
          * applied by App_WorldApplyNpcType). */
         .facing = { .entity_id = WORLD_FACING_ENTITY_NONE, .turn_speed = 32 },
         .server_pid = -1,
+        .held_left_applied = -1,
+        .held_right_applied = -1,
     };
     return idx;
 }

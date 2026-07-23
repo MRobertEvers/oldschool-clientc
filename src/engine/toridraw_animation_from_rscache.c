@@ -93,6 +93,11 @@ ToriDraw_AnimationFromRSCache(
     anim->base = anim_base_from_framemap(framemap);
     anim->frame_count = frame_count;
     anim->frame_step = frame_step;
+    /* Reference SeqType default: no held-item override (opcodes 6/7 absent).
+     * A calloc'd 0 would mean "hide the item", so seed -1 up front for callers
+     * that never attach seq meta. */
+    anim->replaceheldleft = -1;
+    anim->replaceheldright = -1;
     anim->frames = calloc((size_t)frame_count, sizeof(struct ToriDraw_AnimFrame));
     if( !anim->base || !anim->frames )
     {
@@ -195,6 +200,9 @@ ToriDraw_AnimationFromRSCacheDat1(
     anim->base = anim_base_from_dat1(base);
     anim->frame_count = frame_count;
     anim->frame_step = frame_step;
+    /* Reference SeqType default: no held-item override (see dat2 constructor). */
+    anim->replaceheldleft = -1;
+    anim->replaceheldright = -1;
     anim->frames = calloc((size_t)frame_count, sizeof(struct ToriDraw_AnimFrame));
     if( !anim->base || !anim->frames )
     {

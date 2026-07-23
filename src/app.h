@@ -550,6 +550,43 @@ App_WorldSceneryAnim(
     int loc_shape,
     int seq_id);
 
+/* Spawn a free-standing spotanim (graphical effect) at a tile — reference
+ * MapSpotAnim, driven by the MAP_ANIM zone packet. Enqueues an async load of
+ * the spotanim config + its model/seq before building the world entity. */
+void
+App_WorldSpotanimSpawn(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int spotanim_id,
+    int height,
+    int delay);
+
+/* Spawn a projectile (reference ClientProj) from a spotanim config, driven by
+ * the MAP_PROJANIM zone packet. Enqueues an async load of the spotanim config +
+ * its model/seq before building the world entity. Coordinates are scene tiles;
+ * `src_height`/`dst_height` are the raw wire bytes (×4 applied internally);
+ * `start_delay`/`end_delay`/`peak`/`arc` are the wire trajectory params
+ * (Client-TS t1/t2/angle/startpos). `target` is the wire target-entity id
+ * (>0 npc, <0 player) — stored but live retargeting is a follow-on. */
+void
+App_WorldProjectileSpawn(
+    struct App* app,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int level,
+    int spotanim_id,
+    int src_height,
+    int dst_height,
+    int start_delay,
+    int end_delay,
+    int peak,
+    int arc,
+    int target);
+
 /**
  * Drain the command bus, routing each command to its subsystem: the single
  * command loop of the unified input path. TORIRS_CMD_INPUT_* commands apply to

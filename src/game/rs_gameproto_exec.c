@@ -182,10 +182,50 @@ exec_zone_sub_packet(
         break;
     }
     case PKT_NAME_MAP_ANIM:
+    {
+        /* Free-standing graphical effect at a tile (reference MAP_ANIM ->
+         * new MapSpotAnim). id 65535 is the clear sentinel; ignore it. */
+        struct PktMapAnim const* pkt = payload;
+        if( pkt->id != 65535 )
+        {
+            zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+            App_WorldSpotanimSpawn(app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
+        }
+        break;
+    }
     case PKT_NAME_MAP_PROJANIM:
+    {
+        /* Projectile spawn from a spotanim config (reference MAP_PROJANIM ->
+         * new ClientProj). The base tile is `pos` within the zone; the
+         * destination is offset by dx/dz. peak/arc are Client-TS angle/startpos.
+         * Live target-entity tracking (pkt->target) is a follow-on — spawned to
+         * the fixed destination tile (the target's cast-time position). */
+        struct PktMapProjAnim const* pkt = payload;
+        int src_tx, src_tz, dst_tx, dst_tz;
+        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        src_tx = tile_x;
+        src_tz = tile_z;
+        dst_tx = tile_x + pkt->dx_offset;
+        dst_tz = tile_z + pkt->dz_offset;
+        App_WorldProjectileSpawn(
+            app,
+            src_tx,
+            src_tz,
+            dst_tx,
+            dst_tz,
+            level,
+            pkt->spotanim,
+            pkt->src_height,
+            pkt->dst_height,
+            pkt->start_delay,
+            pkt->end_delay,
+            pkt->peak,
+            pkt->arc,
+            pkt->target);
+        break;
+    }
     case PKT_NAME_LOC_MERGE:
-        /* Spotanim-config decode (the graphic's model/seq) is a flagged
-         * follow-on; loc merge is a drawing-order hint. State-only for now. */
+        /* LOC_MERGE (a drawing-order hint) remains a flagged follow-on. */
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(stderr, "gameproto_exec: zone sub-packet %d stored (visual pending)\n", name);
         break;

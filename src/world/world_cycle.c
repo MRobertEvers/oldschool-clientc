@@ -334,9 +334,11 @@ World_StepEntityAnimation(
         }
     }
 
-    /* Entity graphic. Spotanim configs are not decoded yet, so the seq-source
-     * cannot time the frames; hold the state and expire it after a generous
-     * fixed window (visualization is a flagged follow-on). */
+    /* Entity-attached graphic. The spotanim config now decodes (free-standing
+     * MapSpotAnim is fully wired), but rendering an attached graphic still needs
+     * the spot model combined into the entity element (reference ClientNpc/
+     * ClientPlayer.getTempModel Model.combine) — a flagged follow-on. Until then
+     * hold the state and expire it after a generous fixed window. */
     if( spot && spot->id != -1 && world->cycle >= spot->last_cycle )
     {
         if( spot->frame < 0 )

@@ -3069,6 +3069,22 @@ app_try_move_op(
     return 1;
 }
 
+/* Reference tryMove type 2 toward an NPC (Client.ts OP_NPC1..5 / USEHELD_ONNPC /
+ * TGT_NPC all do `tryMove(src, npc.routeX[0], npc.routeZ[0], false, 1, 1, 0, 0,
+ * 0, 2)`): pathfind to a 1x1 approach beside the NPC's current route tile and
+ * emit MOVE_OPCLICK, so the player walks into interaction/cast range on the same
+ * click. Best-effort — the OP(NPC|NPCU|NPCT) packet is sent by the caller
+ * regardless of the walk result, matching the reference. */
+static int
+app_try_move_npc(struct App* app, struct WorldEntity_NPC const* npc, int ctrl_held)
+{
+    struct CollisionApproach approach = { .loc_width = 1, .loc_length = 1 };
+    if( !npc )
+        return 0;
+    return app_try_move_op(
+        app, npc->pathing.route_x[0], npc->pathing.route_z[0], &approach, ctrl_held);
+}
+
 /* Build the op-click approach for a loc (reference interactWithLoc, Client.ts
  * 5817-5833). Centrepieces and ground decor approach by footprint (testLoc,
  * size already angle-swapped at register time); walls / wall decorations
@@ -3093,6 +3109,37 @@ app_scenery_approach(struct WorldEntity_Scenery const* scenery)
         approach.loc_shape = shape + 1;
     }
     return approach;
+}
+
+/* Reference tryMove type 2 toward a loc (Client.ts interactWithLoc, shared by
+ * OP_LOC1..5 / USEHELD_ONLOC / TGT_LOC): pathfind to the loc's footprint/wall
+ * approach and emit MOVE_OPCLICK. Best-effort — the caller sends the OP packet
+ * regardless of the route result. */
+static void
+app_try_move_loc(struct App* app, int element_id, int tile_x, int tile_z)
+{
+    struct WorldEntity_Scenery const* scenery =
+        World_SceneryGetByElementId(app->world, element_id);
+    if( scenery )
+    {
+        struct CollisionApproach approach = app_scenery_approach(scenery);
+        app_try_move_op(app, tile_x, tile_z, &approach, 0);
+    }
+}
+
+/* Reference tryMove type 2 toward a ground obj (Client.ts OP_OBJ1..5 /
+ * USEHELD_ONOBJ / TGT_OBJ): pathfind to the exact tile, and on failure retry a
+ * 1x1 approach so an adjacent tile still arrives, then emit MOVE_OPCLICK.
+ * Best-effort — the caller sends the OP packet regardless of the route. */
+static void
+app_try_move_obj(struct App* app, int tile_x, int tile_z)
+{
+    struct CollisionApproach exact = { 0 };
+    if( !app_try_move_op(app, tile_x, tile_z, &exact, 0) )
+    {
+        struct CollisionApproach one = { .loc_width = 1, .loc_length = 1 };
+        app_try_move_op(app, tile_x, tile_z, &one, 0);
+    }
 }
 
 /* Minimap click-to-walk (reference minimapLoop, Client.ts 2990-3032): map the
@@ -3500,6 +3547,58 @@ app_world_build_model(
     return model;
 }
 
+/* Build the drawable model for a spotanim (reference SpotType.getTempModel2 +
+ * MapSpotAnim.getTempModel static transforms): a single model, recoloured/
+ * retextured, resized, angle-rotated and lit with the config ambient/contrast.
+ * The seq animation itself is bound onto the element and stepped per-tick by
+ * app_world_tick_animations (the projectile path), so only the static
+ * transforms are baked here. SYNCHRONOUS — the model must already be resident.
+ * Returns an owned model or NULL. */
+static struct ToriDraw_Model*
+app_world_build_spotanim_model(struct App* app, const struct ToriRS_Spotanimtype* spot)
+{
+    struct ToriRS_Model* rs = CacheProvider_ModelGet(app->provider, spot->model);
+    struct ToriDraw_Model* model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
+    if( !model )
+        return NULL;
+
+    /* Recolour: reference guards the whole 6-pair loop on recol_s[0] != 0. */
+    if( spot->recol_s[0] != 0 )
+    {
+        for( int i = 0; i < 6; i++ )
+            ToriDraw_ModelRecolor(model, spot->recol_s[i], spot->recol_d[i]);
+    }
+    /* Retexture (dat2 only; dat1 leaves these zero). */
+    for( int i = 0; i < 6; i++ )
+    {
+        if( spot->retex_s[i] != 0 )
+            ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
+    }
+
+    /* Resize: reference model.resize(resizeh, resizev, resizeh) scales x by
+     * resizeh, y by resizev, z by resizeh. ToriDraw_ModelScale is (x, z, y). */
+    if( spot->resizeh != 128 || spot->resizev != 128 )
+        ToriDraw_ModelScale(model, spot->resizeh, spot->resizeh, spot->resizev);
+
+    /* Angle: rotate90 applied angle/90 times (0/90/180/270). */
+    if( spot->angle != 0 )
+        ToriDraw_ModelOrient(model, spot->angle / 90);
+
+    {
+        struct ToriDraw_ModelHandle hnd;
+        memset(&hnd, 0, sizeof(hnd));
+        hnd.kind = TORIDRAWMK_MODEL;
+        hnd.u.model.model = model;
+        /* Reference lights with 64+ambient / 850+contrast; the engine's house
+         * lighting base is 768 (used pre-scaled for every model), so pass the
+         * config offsets straight through — the engine-native equivalent. */
+        ToriDraw_LightModelDefaultPreScaled(hnd, spot->contrast, spot->ambient);
+    }
+    ToriDraw_ModelSetBoundsCylinder(model);
+    ToriDraw_ModelCaptureOriginalVertices(model);
+    return model;
+}
+
 /* Hotkey 9 body: default player model on the hovered tile. SYNCHRONOUS —
  * the appearance kit + ready seq must be resident (Task_AppSpawn awaits).
  * Returns the world player-pool index, or -1. */
@@ -3757,6 +3856,185 @@ app_world_spawn_projectile_now(
     app->need_redraw = 1;
 }
 
+/* Server-driven projectile (reference ClientProj / MAP_PROJANIM). Builds the
+ * transformed spotanim model (recolour/resize/angle/lighting), spawns the world
+ * projectile with the wire trajectory params, and binds the spotanim seq so the
+ * model animates in flight. SYNCHRONOUS — the spotanimtype, its model and its
+ * seq must already be resident (Task_AppSpawn awaits them). src_height/dst_height
+ * are raw wire bytes (×4, matching Client.ts h1/h2). */
+static void
+app_world_spawn_projectile_spot_now(
+    struct App* app,
+    int spotanim_id,
+    int src_tile_x,
+    int src_tile_z,
+    int src_level,
+    int dst_tile_x,
+    int dst_tile_z,
+    int dst_level,
+    int src_height,
+    int dst_height,
+    int start_delay,
+    int end_delay,
+    int peak,
+    int arc,
+    int target)
+{
+    struct ToriRS_Spotanimtype* spot;
+    struct ToriDraw_Model* model;
+    int src_x, src_z, dst_x, dst_z, src_y;
+    int element_id;
+
+    spot = CacheProvider_SpotanimtypeGet(app->provider, spotanim_id);
+    if( !spot )
+    {
+        fprintf(stderr, "spawn_projectile_spot: spotanim %d not resident\n", spotanim_id);
+        return;
+    }
+
+    model = app_world_build_spotanim_model(app, spot);
+    if( !model )
+    {
+        fprintf(
+            stderr,
+            "spawn_projectile_spot: spotanim %d model %d failed\n",
+            spotanim_id,
+            spot->model);
+        return;
+    }
+
+    src_x = src_tile_x * 128 + 64;
+    src_z = src_tile_z * 128 + 64;
+    dst_x = dst_tile_x * 128 + 64;
+    dst_z = dst_tile_z * 128 + 64;
+    /* World y is negative-up: reference y = getAvH(src) - h1, h1 = src_height*4. */
+    src_y = app_world_height(app, src_x, src_z, src_level) - src_height * 4;
+
+    element_id = app_world_scene_element_create(app, model, src_x, src_y, src_z);
+    if( element_id < 0 )
+        return;
+
+    /* peak -> angle, arc -> startpos, end_height = dst_height*4 (World computes
+     * dst y as height_fn(dst) - end_height, matching getAvH(dst) - h2). */
+    World_ProjectileSpawn(
+        app->world,
+        element_id,
+        dst_level,
+        src_x,
+        src_z,
+        dst_x,
+        dst_z,
+        src_y,
+        dst_height * 4,
+        start_delay,
+        end_delay,
+        peak,
+        arc);
+    app_world_apply_seq(app, element_id, spot->seq);
+
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "spawn_projectile_spot: element=%d spotanim=%d model=%d seq=%d "
+            "%d,%d -> %d,%d t1=%d t2=%d target=%d\n",
+            element_id,
+            spotanim_id,
+            spot->model,
+            spot->seq,
+            src_tile_x,
+            src_tile_z,
+            dst_tile_x,
+            dst_tile_z,
+            start_delay,
+            end_delay,
+            target);
+    app_sync_textures(app);
+    app->need_redraw = 1;
+}
+
+/* Total client cycles for one loop of a seq — the sum of (frame delay + 1) per
+ * frame, matching MapSpotAnim.update which subtracts getDuration(frame)+1 each
+ * advance. Drives the free-standing spotanim's single-shot lifetime. */
+static int
+app_seq_total_duration(struct App* app, int seq_id)
+{
+    int frames = app_seq_frame_count(app, seq_id);
+    int total = 0;
+    if( frames <= 0 )
+        return 1;
+    for( int f = 0; f < frames; f++ )
+        total += app_seq_frame_duration(app, seq_id, f) + 1;
+    return total > 0 ? total : 1;
+}
+
+/* Free-standing spotanim (reference MapSpotAnim / MAP_ANIM). SYNCHRONOUS — the
+ * spotanimtype, its model and its seq must already be resident (Task_AppSpawn
+ * awaits them). Builds the transformed model, spawns the world entity with a
+ * single-shot lifetime equal to one seq loop, and binds the seq so the element
+ * animates per-tick. */
+static void
+app_world_spawn_spotanim_now(
+    struct App* app,
+    int spotanim_id,
+    int tile_x,
+    int tile_z,
+    int level,
+    int height,
+    int delay)
+{
+    struct ToriRS_Spotanimtype* spot;
+    struct ToriDraw_Model* model;
+    int world_x, world_z, world_y;
+    int element_id;
+    int lifetime;
+
+    spot = CacheProvider_SpotanimtypeGet(app->provider, spotanim_id);
+    if( !spot )
+    {
+        fprintf(stderr, "spawn_spotanim: spotanim %d not resident\n", spotanim_id);
+        return;
+    }
+
+    model = app_world_build_spotanim_model(app, spot);
+    if( !model )
+    {
+        fprintf(stderr, "spawn_spotanim: spotanim %d model %d failed\n", spotanim_id, spot->model);
+        return;
+    }
+
+    world_x = tile_x * 128 + 64;
+    world_z = tile_z * 128 + 64;
+    /* Reference y = getAvH(x,z) - height; world y is negative-up so subtracting
+     * raises the effect above the ground by `height`. */
+    world_y = app_world_height(app, world_x, world_z, level) - height;
+
+    element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
+    if( element_id < 0 )
+        return;
+
+    lifetime = app_seq_total_duration(app, spot->seq);
+
+    World_SpotanimSpawn(
+        app->world, element_id, level, world_x, world_z, world_y, 0, delay, lifetime);
+    app_world_apply_seq(app, element_id, spot->seq);
+
+    fprintf(
+        stderr,
+        "spawn_spotanim: id=%d element=%d tile=%d,%d level=%d model=%d seq=%d "
+        "life=%d delay=%d\n",
+        spotanim_id,
+        element_id,
+        tile_x,
+        tile_z,
+        level,
+        spot->model,
+        spot->seq,
+        lifetime,
+        delay);
+    app_sync_textures(app);
+    app->need_redraw = 1;
+}
+
 /* Async spawn driver for the three debug hotkeys: awaits the cache loads the
  * synchronous spawn bodies assume, then runs them. Enqueued on the serial
  * exec pipeline so spawns interleave cleanly with packet exec + mounts. */
@@ -3765,7 +4043,9 @@ enum AppSpawnKind
     APP_SPAWN_PLAYER = 0,
     APP_SPAWN_NPC,
     APP_SPAWN_PROJECTILE,
+    APP_SPAWN_PROJECTILE_SPOT,
     APP_SPAWN_OBJ,
+    APP_SPAWN_SPOTANIM,
 };
 
 struct Task_AppSpawn
@@ -3785,6 +4065,19 @@ struct Task_AppSpawn
     int src_tile_z;
     int src_level;
     int model_i;
+    int spotanim_id;
+    int spotanim_height;
+    int spotanim_delay;
+    /* MAP_PROJANIM (spotanim-based projectile) trajectory params. Source and
+     * destination tiles reuse src_tile_x/z and tile_x/z; src_level and level
+     * carry the source and destination levels. */
+    int proj_src_height;
+    int proj_dst_height;
+    int proj_start_delay;
+    int proj_end_delay;
+    int proj_peak;
+    int proj_arc;
+    int proj_target;
 };
 
 static int
@@ -3835,6 +4128,68 @@ Task_AppSpawn_Run(
         }
         else
             fprintf(stderr, "spawn_obj: obj %d has no inventory model\n", self->obj_id);
+    }
+    else if( self->kind == APP_SPAWN_SPOTANIM )
+    {
+        TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
+        {
+            struct ToriRS_Spotanimtype* spot =
+                CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
+            self->model_id = (spot && spot->model > 0) ? spot->model : -1;
+        }
+        if( self->model_id > 0 )
+            TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+        {
+            struct ToriRS_Spotanimtype* spot =
+                CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
+            self->seq_id = spot ? spot->seq : -1;
+        }
+        if( self->seq_id >= 0 )
+            TASK_AWAITSELF_IF(
+                CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+        app_world_spawn_spotanim_now(
+            app,
+            self->spotanim_id,
+            self->tile_x,
+            self->tile_z,
+            self->level,
+            self->spotanim_height,
+            self->spotanim_delay);
+    }
+    else if( self->kind == APP_SPAWN_PROJECTILE_SPOT )
+    {
+        TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
+        {
+            struct ToriRS_Spotanimtype* spot =
+                CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
+            self->model_id = (spot && spot->model > 0) ? spot->model : -1;
+        }
+        if( self->model_id > 0 )
+            TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+        {
+            struct ToriRS_Spotanimtype* spot =
+                CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
+            self->seq_id = spot ? spot->seq : -1;
+        }
+        if( self->seq_id >= 0 )
+            TASK_AWAITSELF_IF(
+                CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+        app_world_spawn_projectile_spot_now(
+            app,
+            self->spotanim_id,
+            self->src_tile_x,
+            self->src_tile_z,
+            self->src_level,
+            self->tile_x,
+            self->tile_z,
+            self->level,
+            self->proj_src_height,
+            self->proj_dst_height,
+            self->proj_start_delay,
+            self->proj_end_delay,
+            self->proj_peak,
+            self->proj_arc,
+            self->proj_target);
     }
     else
     {
@@ -4185,6 +4540,92 @@ app_world_spawn_obj(
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
+/* Free-standing spotanim spawn (reference MapSpotAnim / MAP_ANIM zone packet):
+ * enqueue an async spawn that awaits the spotanimtype + its model + seq, then
+ * builds the world entity. Public so the MAP_ANIM executor can drive it. */
+void
+App_WorldSpotanimSpawn(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int spotanim_id,
+    int height,
+    int delay)
+{
+    struct Task_AppSpawn* task;
+    assert(app);
+    task = app_spawn_task_new(app, APP_SPAWN_SPOTANIM, scene_x, scene_z, level);
+    task->spotanim_id = spotanim_id;
+    task->spotanim_height = height;
+    task->spotanim_delay = delay;
+    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+}
+
+/* Server-driven projectile (reference ClientProj / MAP_PROJANIM). Public so the
+ * zone-packet executor can drive it. Enqueues the spotanim + model + seq load,
+ * then spawns the world projectile with the wire trajectory params. */
+void
+App_WorldProjectileSpawn(
+    struct App* app,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int level,
+    int spotanim_id,
+    int src_height,
+    int dst_height,
+    int start_delay,
+    int end_delay,
+    int peak,
+    int arc,
+    int target)
+{
+    struct Task_AppSpawn* task;
+    assert(app);
+    /* Destination tile and level go through the task's tile_x, tile_z and level
+     * (seeded by app_spawn_task_new); source tile and level go through
+     * src_tile_x, src_tile_z and src_level. */
+    task = app_spawn_task_new(app, APP_SPAWN_PROJECTILE_SPOT, dst_x, dst_z, level);
+    task->spotanim_id = spotanim_id;
+    task->src_tile_x = src_x;
+    task->src_tile_z = src_z;
+    task->src_level = level;
+    task->proj_src_height = src_height;
+    task->proj_dst_height = dst_height;
+    task->proj_start_delay = start_delay;
+    task->proj_end_delay = end_delay;
+    task->proj_peak = peak;
+    task->proj_arc = arc;
+    task->proj_target = target;
+    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+}
+
+/* Hotkey 5: spawn a free-standing spotanim on the hovered tile.
+ * TORIRS_SPAWN_SPOTANIM / _HEIGHT / _DELAY override the defaults. */
+static void
+app_world_spawn_spotanim(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    int spotanim_id = 74; /* a small, visible default effect */
+    int height = 92;
+    int delay = 0;
+    char const* env = getenv("TORIRS_SPAWN_SPOTANIM");
+    if( env )
+        spotanim_id = (int)strtol(env, NULL, 0);
+    env = getenv("TORIRS_SPAWN_SPOTANIM_HEIGHT");
+    if( env )
+        height = (int)strtol(env, NULL, 0);
+    env = getenv("TORIRS_SPAWN_SPOTANIM_DELAY");
+    if( env )
+        delay = (int)strtol(env, NULL, 0);
+    App_WorldSpotanimSpawn(app, tile_x, tile_z, level, spotanim_id, height, delay);
+}
+
 /* Hotkey 0, two-press latch: first press marks the hovered tile as source,
  * second launches source -> hovered (same-tile press clears the latch). */
 static void
@@ -4294,6 +4735,9 @@ app_world_hotkeys(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_6) )
         app_world_damage_test(app);
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_5) )
+        app_world_spawn_spotanim(
+            app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_7) )
         app_world_spawn_obj(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
@@ -4689,15 +5133,6 @@ app_minimenu_open(
  * cross — UI buttons, inventory ops, Examine, Cancel — leaves a cross already
  * in flight running rather than clearing or recolouring it. Returns nonzero
  * when a CS2 hook was dispatched. */
-/* Resolve the server npc slot for a picked scene element (-1 if unsynced). */
-static int
-app_npc_server_slot(struct App* app, int element_id)
-{
-    int idx;
-    struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, element_id, &idx);
-    return npc ? npc->server_slot : -1;
-}
-
 /* Send the held-item / component op for the current inventory pick. Returns 1
  * when a use-mode selection or examine consumed the click without a packet. */
 static int
@@ -5117,6 +5552,7 @@ app_minimenu_use_option(
         switch( opt.action )
         {
         case REVCONFIG_MINIMENU_USEHELD_ONLOC:
+            app_try_move_loc(app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id);
             APP_NET_SEND(
                 app, net_out_oplocu(
                          app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
@@ -5124,12 +5560,14 @@ app_minimenu_use_option(
                          app->objsel.component_id));
             break;
         case REVCONFIG_MINIMENU_TGT_LOC:
+            app_try_move_loc(app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id);
             APP_NET_SEND(
                 app, net_out_oploct(
                          app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
                          opt.pick.secondary_id, app->targetsel.component_id));
             break;
         case REVCONFIG_MINIMENU_USEHELD_ONOBJ:
+            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id);
             APP_NET_SEND(
                 app, net_out_opobju(
                          app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
@@ -5137,6 +5575,7 @@ app_minimenu_use_option(
                          app->objsel.component_id));
             break;
         case REVCONFIG_MINIMENU_TGT_OBJ:
+            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id);
             APP_NET_SEND(
                 app, net_out_opobjt(
                          app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
@@ -5144,22 +5583,31 @@ app_minimenu_use_option(
             break;
         case REVCONFIG_MINIMENU_USEHELD_ONNPC:
         {
-            int npc_slot = app_npc_server_slot(app, opt.pick.id);
-            if( npc_slot >= 0 )
+            struct WorldEntity_NPC* npc =
+                World_NpcGetByElementId(app->world, opt.pick.id, NULL);
+            if( npc && npc->server_slot >= 0 )
+            {
+                app_try_move_npc(app, npc, 0);
                 APP_NET_SEND(
                     app, net_out_opnpcu(
-                             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), npc_slot,
-                             app->objsel.obj_id, app->objsel.slot, app->objsel.component_id));
+                             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                             npc->server_slot, app->objsel.obj_id, app->objsel.slot,
+                             app->objsel.component_id));
+            }
             break;
         }
         case REVCONFIG_MINIMENU_TGT_NPC:
         {
-            int npc_slot = app_npc_server_slot(app, opt.pick.id);
-            if( npc_slot >= 0 )
+            struct WorldEntity_NPC* npc =
+                World_NpcGetByElementId(app->world, opt.pick.id, NULL);
+            if( npc && npc->server_slot >= 0 )
+            {
+                app_try_move_npc(app, npc, 0);
                 APP_NET_SEND(
                     app, net_out_opnpct(
-                             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), npc_slot,
-                             app->targetsel.component_id));
+                             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                             npc->server_slot, app->targetsel.component_id));
+            }
             break;
         }
         default:
@@ -5235,16 +5683,20 @@ app_minimenu_use_option(
         return 0;
     case UI_MINIMENU_PICK_NPC:
     {
-        int npc_slot = app_npc_server_slot(app, opt.pick.id);
-        if( npc_slot < 0 )
+        struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt.pick.id, NULL);
+        if( !npc || npc->server_slot < 0 )
             return 0; /* not yet server-synced */
+        /* Reference OP_NPC1..5 / USEHELD_ONNPC walk toward the NPC (tryMove
+         * type 2) on the same click; the OP is sent regardless of the route. */
+        app_try_move_npc(app, npc, 0);
         if( app->objsel.active )
         {
             APP_NET_SEND(
                 app,
                 net_out_opnpcu(
                     app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    npc_slot, app->objsel.obj_id, app->objsel.slot, app->objsel.component_id));
+                    npc->server_slot, app->objsel.obj_id, app->objsel.slot,
+                    app->objsel.component_id));
             app->objsel.active = 0;
         }
         else
@@ -5253,7 +5705,7 @@ app_minimenu_use_option(
                 app,
                 net_out_opnpc(
                     app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    opt.action_index + 1, npc_slot));
+                    opt.action_index + 1, npc->server_slot));
         }
         return 0;
     }
@@ -5265,14 +5717,7 @@ app_minimenu_use_option(
         /* Reference interactWithLoc: pathfind toward the loc (tryMove type 2)
          * on the same click, then send the OP below regardless of the walk
          * result. The scene tile is the pick's (tertiary,quaternary). */
-        struct WorldEntity_Scenery const* scenery =
-            World_SceneryGetByElementId(app->world, opt.pick.id);
-        if( scenery )
-        {
-            struct CollisionApproach approach = app_scenery_approach(scenery);
-            app_try_move_op(
-                app, opt.pick.tertiary_id, opt.pick.quaternary_id, &approach, 0);
-        }
+        app_try_move_loc(app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id);
         if( app->objsel.active )
         {
             APP_NET_SEND(
@@ -5303,16 +5748,7 @@ app_minimenu_use_option(
         /* Reference obj doAction: pathfind to the exact tile (tryMove type 2),
          * and on failure retry a 1x1 approach so an adjacent tile still arrives;
          * the OP is sent below on the same click either way. */
-        {
-            struct CollisionApproach exact = { 0 };
-            if( !app_try_move_op(
-                    app, opt.pick.tertiary_id, opt.pick.quaternary_id, &exact, 0) )
-            {
-                struct CollisionApproach one = { .loc_width = 1, .loc_length = 1 };
-                app_try_move_op(
-                    app, opt.pick.tertiary_id, opt.pick.quaternary_id, &one, 0);
-            }
-        }
+        app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id);
         if( app->objsel.active )
         {
             APP_NET_SEND(
@@ -6112,6 +6548,62 @@ app_world_apply_entity_anim_tracks(
     el->anim_frame = 0;
 }
 
+/* Held-item hiding/replacement (players only — NPCs render npctype models with
+ * no worn slots). Reference ClientPlayer.getSequencedModel: while the PRIMARY
+ * seq is actually driving frames (delay 0), its replaceheldleft/right override
+ * the left-hand (appearance slot 5) / right-hand (slot 3) worn item before the
+ * model is composited. A value >= 0 but below the obj range (< 0x200) draws no
+ * model there, i.e. the held item is hidden (e.g. many emotes drop the weapon
+ * and shield); a value >= 0x200 swaps in a different obj. The appearance model
+ * is built once and cached on the scene element, so rebuild it only when the
+ * effective override changes (anim start/stop), keyed by held_*_applied. */
+static void
+app_set_player_element_model(
+    struct App* app,
+    int element_id,
+    int const slots[12],
+    int const colors[5],
+    int gender);
+
+static void
+app_world_apply_player_held_items(struct App* app, struct WorldEntity_Player* player)
+{
+    struct WorldEntityFacet_Animation const* anim = &player->animation;
+    int want_left = -1;
+    int want_right = -1;
+
+    if( anim->primary.anim_id != (uint16_t)-1 && anim->primary.anim_id != 0 &&
+        anim->primary.delay == 0 )
+    {
+        struct ToriDraw_Animation* prim =
+            ToriDraw_SceneAnimationGet(app->scene, anim->primary.anim_id);
+        if( prim && prim->frame_count > 0 )
+        {
+            if( prim->replaceheldleft >= 0 )
+                want_left = prim->replaceheldleft;
+            if( prim->replaceheldright >= 0 )
+                want_right = prim->replaceheldright;
+        }
+    }
+
+    if( want_left == player->held_left_applied && want_right == player->held_right_applied )
+        return;
+
+    player->held_left_applied = want_left;
+    player->held_right_applied = want_right;
+
+    {
+        int slots[12];
+        memcpy(slots, player->appearance.slots, sizeof(slots));
+        if( want_right >= 0 )
+            slots[3] = want_right;
+        if( want_left >= 0 )
+            slots[5] = want_left;
+        app_set_player_element_model(
+            app, player->element_id, slots, player->appearance.colors, player->gender);
+    }
+}
+
 /* Push World animation state to the entity scene elements each frame (the
  * per-element modulo tick skips anim_external elements). */
 static void
@@ -6125,8 +6617,11 @@ app_world_sync_entity_animations(struct App* app)
     {
         struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
         if( player )
+        {
             app_world_apply_entity_anim_tracks(
                 app, player->element_id, &player->animation, &player->idle_animations);
+            app_world_apply_player_held_items(app, player);
+        }
     }
 
     pool = &app->world->entities.npc;
@@ -6426,19 +6921,20 @@ App_WorldApplyNpcType(
     app->need_redraw = 1;
 }
 
-void
-App_WorldApplyPlayerAppearance(
+/* Build the player appearance model from slots/colors/gender and hand it to the
+ * scene element (SceneElementSetModel disposes the previous model; the element's
+ * animation binding survives, so the current seq keeps driving the new model).
+ * Shared by the appearance packet and the per-frame held-item swap. */
+static void
+app_set_player_element_model(
     struct App* app,
-    int world_idx,
     int element_id,
-    struct PktPlayerAppearance const* appearance)
+    int const slots[12],
+    int const colors[5],
+    int gender)
 {
-    struct ToriDraw_Model* model;
-
-    assert(app && appearance);
-
-    model = PlayerModel_BuildFromAppearance(
-        app->provider, appearance->slots, appearance->colors, appearance->gender);
+    struct ToriDraw_Model* model =
+        PlayerModel_BuildFromAppearance(app->provider, slots, colors, gender);
     if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
     {
         struct ToriDraw_ModelHandle hnd;
@@ -6451,6 +6947,19 @@ App_WorldApplyPlayerAppearance(
     {
         ToriDraw_ModelFree(model);
     }
+}
+
+void
+App_WorldApplyPlayerAppearance(
+    struct App* app,
+    int world_idx,
+    int element_id,
+    struct PktPlayerAppearance const* appearance)
+{
+    assert(app && appearance);
+
+    app_set_player_element_model(
+        app, element_id, appearance->slots, appearance->colors, appearance->gender);
 
     {
         struct WorldEntityFacet_IdleAnimations idle = {
@@ -6480,7 +6989,13 @@ App_WorldApplyPlayerAppearance(
             struct WorldEntity_Player* ent =
                 World_EntityPoolGet(&app->world->entities.player, world_idx);
             if( ent )
+            {
                 ent->headicon = appearance->headicon;
+                /* The element now holds the un-overridden base model; the
+                 * per-frame held-item pass will rebuild if a seq demands it. */
+                ent->held_left_applied = -1;
+                ent->held_right_applied = -1;
+            }
         }
     }
     app_sync_textures(app);

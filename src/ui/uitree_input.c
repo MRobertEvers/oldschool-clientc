@@ -170,6 +170,18 @@ hit_test_interactive_recursive(
     if( component->behavior.hide )
         return -1;
 
+    /* Inactive sidebar tabs contribute nothing — gate FIRST, exactly like the
+     * emit walk's early return (uitree_emit.c). Sidebar tabs are fully
+     * overlapping siblings; if this ran only on recursion (below) an inactive
+     * tab carrying no_click_through would still set *out_blocks and discard the
+     * active tab's already-found hit. Return -1 with blocks left 0. */
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
+    {
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        if( UITree_Host(host, &req) != component->u.sidebar.tabno )
+            return -1;
+    }
+
     int bx = 0;
     int by = 0;
     int bw = 0;
@@ -227,33 +239,24 @@ hit_test_interactive_recursive(
             child_scroll_y += component->scroll_y;
     }
 
-    bool recurse_children = true;
-    if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
+    /* Inactive sidebar tabs already returned above, so all sidebars reaching
+     * here are active — recurse unconditionally. */
+    for( int32_t child = component->first_child; child >= 0;
+         child = tree->components[child].next_sibling )
     {
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
-        if( UITree_Host(host, &req) != component->u.sidebar.tabno )
-            recurse_children = false;
-    }
-
-    if( recurse_children )
-    {
-        for( int32_t child = component->first_child; child >= 0;
-             child = tree->components[child].next_sibling )
+        int child_blocks = 0;
+        int32_t child_hit = hit_test_interactive_recursive(
+            tree, host, child, px, py,
+            child_scroll_x, child_scroll_y, &child_clip, &child_surface, &child_blocks);
+        /* Later siblings render on top. A blocking child also discards this
+         * node's own hit and earlier siblings. */
+        if( child_blocks )
         {
-            int child_blocks = 0;
-            int32_t child_hit = hit_test_interactive_recursive(
-                tree, host, child, px, py,
-                child_scroll_x, child_scroll_y, &child_clip, &child_surface, &child_blocks);
-            /* Later siblings render on top. A blocking child also discards this
-             * node's own hit and earlier siblings. */
-            if( child_blocks )
-            {
-                hit = child_hit;
-                blocks = 1;
-            }
-            else if( child_hit >= 0 )
-                hit = child_hit;
+            hit = child_hit;
+            blocks = 1;
         }
+        else if( child_hit >= 0 )
+            hit = child_hit;
     }
 
     if( out_blocks )
@@ -355,6 +358,17 @@ collect_nodes_recursive(
     if( component->behavior.hide )
         return;
 
+    /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
+     * walk), before the no_click_through barrier below. Otherwise an inactive
+     * but overlapping tab carrying no_click_through raises ctx->barrier and
+     * discards the active tab's already-collected inventory/menu entries. */
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
+    {
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        if( UITree_Host(host, &req) != component->u.sidebar.tabno )
+            return;
+    }
+
     int bx = 0;
     int by = 0;
     int bw = 0;
@@ -420,13 +434,8 @@ collect_nodes_recursive(
             child_scroll_y += component->scroll_y;
     }
 
-    if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
-    {
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
-        if( UITree_Host(host, &req) != component->u.sidebar.tabno )
-            return;
-    }
-
+    /* Inactive sidebar tabs already returned above (before the barrier); all
+     * sidebars reaching here are active, so recurse unconditionally. */
     for( int32_t child = component->first_child; child >= 0;
          child = tree->components[child].next_sibling )
     {

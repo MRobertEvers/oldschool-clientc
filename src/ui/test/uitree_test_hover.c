@@ -171,6 +171,51 @@ test_hover_input(void)
         UITree_Free(st);
     }
 
+    /* Regression: an INACTIVE sidebar tab must not block the active tab's hits.
+     *
+     * Sidebar tabs are fully-overlapping siblings. On the CS2/dat2 gameframe,
+     * script-driven tab containers carry no_click_through. Before the fix the
+     * hit-test/collect walks gated the tab visibility only on recursion, AFTER
+     * recording the no_click_through barrier/blocks — so an inactive tab pushed
+     * later than the active one (over the same screen box) discarded the active
+     * tab's already-collected inventory hit. Live symptom: after a tab switch,
+     * inventory items stopped being hoverable/clickable and right-click showed
+     * no options. The gate now runs FIRST (mirroring the emit walk). */
+    {
+        struct UITree* st = UITree_New(16);
+
+        /* Active tab (tabno 1) with a collectable inventory item. */
+        int32_t inv_tab = UITree_TestPushXy(st, -1, UIELEM_BUILTIN_SIDEBAR, 400, 0, 0, 200, 200);
+        st->components[inv_tab].u.sidebar.tabno = 1;
+        int32_t item = UITree_TestPushXy(st, inv_tab, UIELEM_RS_RECT, 401, 0, 0, 64, 32);
+        st->components[item].behavior.button_type = 1;
+        st->components[item].behavior.over_color = 0xFFFFFF;
+
+        /* Inactive tab (tabno 2), same screen box, pushed LATER (wins ties) and
+         * carrying no_click_through — the blocker that used to eat the item. */
+        int32_t blk_tab = UITree_TestPushXy(st, -1, UIELEM_BUILTIN_SIDEBAR, 410, 0, 0, 200, 200);
+        st->components[blk_tab].u.sidebar.tabno = 2;
+        st->components[blk_tab].no_click_through = 1;
+        int32_t blk_child = UITree_TestPushXy(st, blk_tab, UIELEM_RS_RECT, 411, 0, 0, 200, 200);
+        st->components[blk_child].no_click_through = 1;
+        UITree_TestResolve(st);
+
+        hs.selected_tab = 1;
+
+        TEST_ASSERT(
+            UITree_HitTestInteractive(st, &host, 20, 16) == item,
+            "inactive no_click_through tab does not block active tab's click");
+
+        int32_t hits[8];
+        int n = UITree_CollectNodesAt(st, &host, 20, 16, hits, 8);
+        int found = 0;
+        for( int i = 0; i < n; i++ )
+            if( hits[i] == item )
+                found = 1;
+        TEST_ASSERT(found, "active tab's item still collected for the right-click menu");
+        UITree_Free(st);
+    }
+
     /* Regression: app-pushed decorative overlays are late root siblings, and
      * UITree_HitTestInteractive lets a later root win — so a non-passthrough
      * one shadows the entire interface, not just the world. */

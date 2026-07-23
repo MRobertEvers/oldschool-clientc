@@ -295,8 +295,9 @@ pkt_player_info_reader_read(
         {
             struct PktPlayerInfoOp* op = next_op(reader, ops, ops_capacity);
             op->kind = PKT_PLAYER_INFO_OP_DAMAGE;
-            op->_damage.damage_type = (uint8_t)g1(&rsbuf);
+            /* Client.ts 8126-8127: damage first, then damageType (both g1). */
             op->_damage.damage = (uint8_t)g1(&rsbuf);
+            op->_damage.damage_type = (uint8_t)g1(&rsbuf);
             op->_damage.health = (uint8_t)g1(&rsbuf);
             op->_damage.total_health = (uint8_t)g1(&rsbuf);
         }

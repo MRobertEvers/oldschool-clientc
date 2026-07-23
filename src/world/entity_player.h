@@ -24,6 +24,14 @@ struct WorldEntity_Player
     int headicon;
     /** Server player slot (pid) this entity mirrors; -1 = local/unsynced. */
     int server_pid;
+    /** Held-item override currently baked into the rendered appearance model
+     * (reference ClientPlayer.getSequencedModel: a primary seq's
+     * replaceheldleft/right swaps the left-hand/right-hand worn item). -1 =
+     * base appearance is on the element (no active override); >= 0 = the model
+     * was rebuilt with this value in slot 5 (left) / slot 3 (right). Tracked so
+     * the model is rebuilt only when the effective override changes. */
+    int held_left_applied;
+    int held_right_applied;
 };
 
 #endif

@@ -99,6 +99,16 @@ find_hovered_recursive(
     if( layer_blocks_hover_find(component) )
         return;
 
+    /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
+     * walk), before this node can self-report as hovered via over_layer_id /
+     * over_color / hover hooks below. */
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
+    {
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        if( UITree_Host(host, &req) != component->u.sidebar.tabno )
+            return;
+    }
+
     int bx = 0;
     int by = 0;
     int bw = 0;
@@ -124,15 +134,9 @@ find_hovered_recursive(
             *out_hovered_component_id = component->component_id;
     }
 
-    bool recurse_children = mouse_in_bounds;
-    if( component->type == UIELEM_BUILTIN_SIDEBAR && host )
-    {
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
-        if( UITree_Host(host, &req) != component->u.sidebar.tabno )
-            recurse_children = false;
-    }
-
-    if( !recurse_children )
+    /* Inactive sidebar tabs already returned above; recursion only depends on
+     * the mouse being inside this node's bounds. */
+    if( !mouse_in_bounds )
         return;
 
     int child_scroll_x = scroll_off_x;

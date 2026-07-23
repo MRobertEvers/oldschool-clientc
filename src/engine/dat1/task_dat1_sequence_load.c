@@ -143,6 +143,8 @@ seq_build_animation(struct Task_Dat1SequenceLoad* self)
             .preanim_move = seq->preanim_move,
             .postanim_move = seq->postanim_move,
             .duplicate_behavior = seq->duplicate_behavior,
+            .replaceheldleft = seq->replaceheldleft,
+            .replaceheldright = seq->replaceheldright,
         };
         /* Reference SeqType.unpack post-decode: unset move behaviors default
          * to DELAYMOVE (0), or MERGE (2) when a walkmerge mask exists. */

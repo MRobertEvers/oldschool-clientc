@@ -44,6 +44,8 @@ ToriDraw_AnimationSetSeqMeta(
     anim->preanim_move = meta->preanim_move;
     anim->postanim_move = meta->postanim_move;
     anim->duplicate_behavior = meta->duplicate_behavior;
+    anim->replaceheldleft = meta->replaceheldleft;
+    anim->replaceheldright = meta->replaceheldright;
 }
 
 void

@@ -13,7 +13,8 @@ Headless world-harness hotkeys (all act on the tile under the mouse, driven by
 `TORIRS_SIM_WORLD_KEY="x,y,<key>[;...]"`): **9** player, **8** npc
 (`TORIRS_SPAWN_NPC`), **7** ground item (`TORIRS_SPAWN_OBJ`), **6** test
 overheads on every entity (hitsplat + health bar + overhead chat + a headicon
-mask), **0** projectile (two-press latch).
+mask), **5** spotanim (`TORIRS_SPAWN_SPOTANIM` / `_HEIGHT` / `_DELAY`),
+**0** projectile (two-press latch).
 
 Reference server for wire questions: `/Users/matthewevers/Documents/git_repos/LostCity_Server`
 (its `content/scripts/**/*.if` + `content/pack/interface.pack` are the ground
@@ -554,10 +555,31 @@ were already implemented (`uitree_hover.c` redirect + `VisibleById` unhide).
   into `app_minimenu_use_option` for scenery (centrepiece/ground-decor →
   size-based `testLoc`; walls → shape+angle `testWall`, persisted at
   `World_SceneryRegister`) and obj (exact tile, then a 1x1 retry). Covered
-  by `test_try_route_op` (`world_test_route.c`). Still to do: NPC and
-  USEHELD/TGT world-entity branches (they need the continuous re-path
-  follow loop, not a one-shot move); `forceapproach` (LocType opcode 69,
-  currently 0 for ~all locs).
+  by `test_try_route_op` (`world_test_route.c`).
+- **NPC / USEHELD / TGT walk — resolved (full parity).** Every reference
+  interaction (`doAction`) walks toward its target on the same click *before*
+  sending the OP, and torirs now mirrors all of them:
+  - **NPC** — `OP_NPC1..5`, `USEHELD_ONNPC`, `TGT_NPC` (cast-spell-on-NPC) run
+    the reference `tryMove(src, npc.routeX[0], npc.routeZ[0], false, 1,1,0,0,0,
+    2)`. `app_try_move_npc` (`app.c`) pathfinds a **1x1** approach at the NPC's
+    current route tile (`pathing.route_x[0]/route_z[0]`).
+  - **Loc** — `OP_LOC1..5`, `USEHELD_ONLOC`, `TGT_LOC` all go through the
+    reference `interactWithLoc` (footprint `testLoc` / wall `testWall`
+    approach). `app_try_move_loc` (`app.c`) reuses `app_scenery_approach`.
+  - **Obj** — `OP_OBJ1..5`, `USEHELD_ONOBJ`, `TGT_OBJ` run the reference
+    exact-tile `tryMove` with a **1x1** fallback. `app_try_move_obj` (`app.c`).
+
+  All three helpers emit `MOVE_OPCLICK` and send the OP packet regardless of
+  the route result (best-effort walk, same as the reference). Before this, the
+  `USEHELD`/`TGT` (use-item / cast-spell-on-target) branches for **all** kinds,
+  and the plain `OP_NPC` branch, sent the OP with the player standing still —
+  so e.g. casting a spell on a distant NPC never approached it, unlike
+  Client-TS. The plain `OP_LOC`/`OP_OBJ` picks already walked and now share the
+  same helpers. **No continuous follow loop exists to port**: all 16 reference
+  `tryMove` call sites are click-time one-shots (`doAction` / ground / minimap
+  click); a moving interaction target is re-pathed *server-side* and replayed
+  via `PLAYER_INFO`, never re-computed each cycle in the client. Still to do:
+  `forceapproach` (LocType opcode 69, currently 0 for ~all locs).
 - Known follow-on: the heightmap `LinkBelow` bridge bump relies on
   build-time baking (worth verifying for entities standing on bridges).
 
@@ -1074,6 +1096,16 @@ Now:
   world-walking variants (`USEHELD_ON{LOC,NPC,OBJ}`, `TGT_{LOC,NPC,OBJ}`) the
   red interact cross; the held/button variants get none — reference parity,
   unit-tested in `uitree_test_minimenu.c` ("minimenu / cross").
+- **Walk-to on the use/cast target (fixed — full parity).** Every reference
+  `USEHELD_ON*` / `TGT_*` handler runs `tryMove(..., 2)` toward its target
+  before sending the OP, so using an item on / casting a spell on a loc, NPC or
+  ground obj walks the player into range and drops the interact cross + minimap
+  flag. torirs previously sent `oplocu/oploct`, `opnpcu/opnpct`,
+  `opobju/opobjt` with the player standing still. The `USEHELD`/`TGT` world
+  branch now walks first for all three kinds via `app_try_move_loc` /
+  `app_try_move_npc` / `app_try_move_obj` — see §3's "NPC / USEHELD / TGT walk
+  — resolved" note (which also documents why there is no per-cycle follow loop
+  to port; a moving target is re-pathed server-side, not in the client).
 
 ---
 
@@ -2016,22 +2048,22 @@ then `seq_bind: element=7969 seq=659 frames=4` — seq 659 loads (4 frames) and
 binds to the projectile element; `TORIRS_WORLD_BMP` shows the (red) model in
 flight. The non-external tick loop then cycles those 4 frames.
 
-**Still follow-on (not needed for the animation itself):**
+**Update (§31): the SpotAnimType decode this section called for now exists**, and
+the free-standing `MapSpotAnim` path (`MAP_ANIM` packet) is fully wired with
+recol/resize/angle/ambient·contrast applied. What that leaves here:
 
-- **Server-driven projectiles.** No `MAP_PROJANIM`/graphic packet is wired, and
-  the server sends a *spotanim id*, not `(model, seq)`. Mapping id → `(model,
-  seq, recol, resize, angle, ambient, contrast)` needs a real SpotAnimType
-  decode: a `torirs_spotanimtype_from_rscache.c` for `RSCacheDat2A_ConfigKind`
-  13 (`spotanim.dat`, opcodes per `SpotType.decode` — 1 model, 2 anim, 4/5
-  resize, 6 angle, 7/8 ambient/contrast, 40-49/50-59 recolour) + a load task,
-  then the packet handler resolves the config and spawns like the hotkey does.
-- **recol / resize / ambient·contrast lighting** from the spotanim config are
-  not applied to the built model yet (the reference does in `getTempModel2`
-  /`getTempModel`); the debug model uses default lighting.
+- **Server-driven projectiles.** `MAP_PROJANIM` is still not wired, and the
+  debug projectile still seeds a raw `(model, seq)` rather than resolving them
+  through the now-available SpotAnimType decode. Routing the projectile spawn
+  through §31's `CacheProvider_SpotanimtypeGet` (and applying `recol/resize/
+  ambient·contrast` like §31's `app_world_build_spotanim_model`) is the
+  remaining step; the arc math and seq-bind already work.
 - **Entity attached-graphic (`SPOTANIM` mask)** — `World_StepEntityAnimation`
-  (`src/world/world_cycle.c:337-347`) still holds spot state on a fixed 200-cycle
-  window because it has no SpotAnimType seq to time against; the same decode
-  above retires that placeholder.
+  (`src/world/world_cycle.c`) still holds spot state on a fixed 200-cycle window.
+  The config now decodes, but *rendering* an attached graphic needs the spot
+  model **combined into the entity element** (reference `ClientNpc`/
+  `ClientPlayer.getTempModel` `Model.combine([model, temp], 2)`), which is a
+  larger change than the free-standing case — flagged follow-on.
 
 ### 29c. Hitsplats — re-verified against Client-TS (no code change)
 
@@ -2194,3 +2226,348 @@ outside the build area is *tolerated, not clamped* — the painter draws nothing
 and getAvH returns 0. torirs keeps such NPCs in the entity pool (it never
 despawns tracked entities); they just contribute no geometry until they walk back
 into the scene, exactly as in the reference.
+
+---
+
+## 31. SpotAnims: free-standing graphical effects as a world entity — ✅
+
+The reference treats a "spotanim" (graphical effect) as a first-class scene
+entity: `dash3d/MapSpotAnim.ts`, spawned by the `MAP_ANIM` server packet, ticked
+every render and removed when its seq completes. torirs already had the world
+scaffolding (a `WorldEntity_Spotanim` pool, spawn/despawn, per-cycle update and
+painter registration) but **no `SpotAnimType` decode**, so a spotanim id never
+resolved to a model+seq and the `MAP_ANIM` executor was a stub. This session
+built the missing vertical slice, end to end.
+
+### Client-TS (the reference)
+
+- **`SpotType`** (`config/SpotType.ts`) decodes `spotanim.dat`: opcode `1` model,
+  `2` anim (→ `seq = SeqType.list[anim]`), `4/5` resizeh/resizev (128 = 1.0),
+  `6` angle (0/90/180/270), `7/8` ambient/contrast, `40-49/50-59` recolour
+  src/dst. `getTempModel2` loads `model`, recolours (guarded on `recol_s[0]`),
+  and LRU-caches the base model by id.
+- **`MapSpotAnim`** (`dash3d/MapSpotAnim.ts`) holds `type = SpotType.list[id]`,
+  world `x/z/y`, `startCycle = cycle + delay`. `update` advances `animFrame`
+  against `seq.getDuration(frame)`, setting `animComplete` when it wraps past
+  `numFrames` (**single-shot** — completion is what removes it). `getTempModel`
+  rebuilds each frame: base model → `copyForAnim` → `animate(frame)` →
+  `resize(resizeh, resizev, resizeh)` → `rotate90 × angle/90` →
+  `calculateNormals(64+ambient, 850+contrast, -30,-50,-30, true)`.
+- **Spawn** (`Client.ts` MAP_ANIM handler): `spotanim=g2, height=g1, time=g2`;
+  `y = getAvH(x,z,level) - height`; `new MapSpotAnim(...); spotanims.push`.
+- **Render** (`Client.addMapAnim`): each render, drop it if the level changed or
+  `animComplete`, else once `loopCycle >= startCycle` call `update` and
+  `world.addDynamic(...)` so the scene draws that frame's model.
+  `spotanims.clear()` on scene rebuild/logout (already mirrored by torirs
+  `World_ClearProjectilesAndSpotanims`, §14).
+
+### torirs — the port
+
+**Cache layer (new decoders).**
+- `3rd/rscache/src/datatypes/dat1_config_spotanim.{c,h}` — decodes `spotanim.dat`
+  (a `g2` count then variable-length, sequentially-addressable entries) exactly
+  per `SpotType.decode`, mirroring the `dat1_config_seq` list pattern.
+- `3rd/rscache/src/datatypes/dat2_config_spotanim.{c,h}` — the OSRS/Runelite
+  `SpotAnimType` variant (same core opcodes + `60-69/70-79` retexture),
+  single-entry decode from the config-group filelist.
+- Both registered in `rscache_unity.c` and exposed via `include/rscache.h`.
+  (Unity-build gotcha: the two `init_spotanim` statics collided across the
+  concatenated TU and had to be renamed `init_dat1_spotanim`/`init_dat2_spotanim`.)
+
+**Engine / provider layer.**
+- `struct ToriRS_Spotanimtype { model, seq, resizeh, resizev, angle, ambient,
+  contrast, recol_s/d[6], retex_s/d[6] }` (`torirs_types.h`) + `Free`/`SizeOf`
+  (no owned arrays) + `TORIRS_KIND_SPOTANIMTYPE`.
+- `torirs_spotanimtype_from_rscache.{c,h}` — `FromRSCacheDat1`/`Dat2` converters.
+- `CacheProvider_Spotanimtype{Add,Get,Has,Cleanup}` (a per-type hmap, capacity
+  1024) + a `Task_SpotanimLoad` vtable slot + `CreateTask_SpotanimLoad`.
+- `task_dat1_spotanim_load.c` (decodes the whole `spotanim.dat` list once, keyed
+  by id) and `task_dat2_spotanim_load.c` (single id straight out of the config
+  group; the provider caches the converted type, so no dat2 buildcache store is
+  needed), registered in both buildcache vtables.
+
+**App layer.**
+- `app_world_build_spotanim_model` — `SpotType.getTempModel2` + the
+  `MapSpotAnim.getTempModel` static transforms: convert the single model,
+  recolour (guarded on `recol_s[0]`, per the reference), retexture (dat2),
+  `ToriDraw_ModelScale(m, resizeh, resizeh, resizev)` for `resize(resizeh,
+  resizev, resizeh)`, `ToriDraw_ModelOrient(m, angle/90)` for the `rotate90`s,
+  then `LightModelDefaultPreScaled(hnd, contrast, ambient)`. (The reference lights
+  with base `850`; the engine's house base is `768`, applied pre-scaled to every
+  model — passing the config offsets straight through is the engine-native
+  equivalent, matching how npc/obj/loc models are already lit.)
+- `app_world_spawn_spotanim_now` — build the model, create a scene element at
+  `(tile*128+64, getAvH - height, tile*128+64)`, and `World_SpotanimSpawn` it
+  with `lifetime = app_seq_total_duration(seq)` (Σ of `frame_delay + 1`, matching
+  `MapSpotAnim.update`'s single-shot loop), then `app_world_apply_seq`. The
+  element is **non-external**, so `app_world_tick_animations` steps its bound seq
+  each tick (the projectile path, §29) — the frame animation is engine-driven and
+  the world entity's `lifetime` expiry despawns it after one loop. (Because the
+  seq is baked onto the element and the static transforms are applied at build,
+  torirs does *not* rebuild the model per frame the way `getTempModel` does — a
+  deliberate divergence consistent with the projectile port.)
+- `App_WorldSpotanimSpawn` (public) enqueues an async `APP_SPAWN_SPOTANIM` task
+  that awaits the spotanim config → its `model` → its `seq` before the
+  synchronous spawn body, so a live server (or the hotkey) can drive it without
+  assuming residency. Debug **hotkey 5** (`TORIRS_SPAWN_SPOTANIM` /`_HEIGHT`
+  /`_DELAY`).
+
+**Packet wiring.** `rs_gameproto_exec.c` `PKT_NAME_MAP_ANIM` now resolves the
+zone tile and calls `App_WorldSpotanimSpawn(app, tile_x, tile_z, level, id,
+height, delay)` (65535 = the clear sentinel, ignored). `MAP_PROJANIM` and
+`LOC_MERGE` remain stubs (see §29b follow-ons).
+
+### Verified offline
+
+dat1 `cache254.lostcity`, `TORIRS_SIM_WORLD_KEY="400,260,5"`,
+`TORIRS_SPAWN_SPOTANIM=74`:
+
+```
+spawn_spotanim: id=74 element=7969 tile=36,32 level=0 model=2321 seq=643 life=57 delay=0
+```
+
+The id decodes from the real cache to **model 2321, seq 643** (not defaults), the
+single-loop lifetime computes to 57 cycles, and the element spawns without error.
+An A/B `TORIRS_WORLD_BMP` capture with the **same** hover+keypress but different
+`_HEIGHT` (92 vs 700) produces **different** frames — the effect's screen
+position tracks its world height — and the height-700 crop shows the spiky
+effect-model floating above the ground. Free-standing SpotAnims render. ✅
+
+### Hitsplats — re-verified against the authoritative reference (no code change)
+
+Per the task, re-confirmed how Client-TS renders hitsplats and that torirs
+matches. The reference draws them in **`Client.entityOverlays()`
+(`Client.ts:4810`, the `4909-4933` block)** — a 2D overlay pass *after* the scene
+render, **not** inside `getTempModel`/`drawEntity`:
+
+- Data: `ClientEntity` (`ClientEntity.ts:24-29`) holds 4 parallel slots
+  (`damageValues/Types/Cycles[4]`) + `combatCycle`/`health`/`totalHealth`.
+  `addHitmark(loopCycle, type, value)` (`152-161`) fills the first slot whose
+  `damageCycles[i] <= loopCycle` and stamps `+ 70`; all-full drops the hit.
+- Populated from four masks (player `HITMARK 0x10` / `HITMARK2 0x400`; npc
+  `HITMARK2 0x1` / `HITMARK 0x10`), each `damage=g1, type=g1 → addHitmark`,
+  `combatCycle = loopCycle + 400`, then `health=g1, totalHealth=g1`.
+- Draw: sprites `hitmarks[0..19]` indexed directly by `damageType`; per slot,
+  `getOverlayPosEntity(entity, height/2)`, slot nudges (1: `y-=20`; 2: `x-=15,
+  y-=10`; 3: `x+=15, y-=10`), `hitmarks[type].plotSprite(x-12, y-12)`, then the
+  number twice through **p11** — black `(x, y+4)`, white `(x-1, y+3)`. Expiry is
+  purely time-based (`damageCycles[i] <= loopCycle`); the slot just becomes
+  reusable.
+
+This is **line-for-line what §12/§19/§26/§29c already document and torirs
+implements** (`app_overlay_build_entity`, `src/app.c`; the p11 font via
+`app_hitsplat_font_scene_id`; `STATIC_SPRITE_HITMARKS`). No divergence found;
+hitsplats stay ✅.
+
+> **Correction (§32):** the *draw* path was verified here, but the **wire
+> decode** was not — the `PKT_*_INFO_OP_DAMAGE` (mask `0x10`) handlers read the
+> two bytes in the wrong order (`damage_type` then `damage`), so every hitsplat
+> from that mask showed the wrong colour *and* the wrong number. See §32.
+
+---
+
+## 32. Hitsplat wire byte-order + server-driven projectiles (MAP_PROJANIM) — ✅
+
+One session, three fixes: the hitsplat colour/number bug (a swapped-byte wire
+decode the §29c/§31 draw-path audits missed), and wiring the `MAP_PROJANIM`
+zone packet so server-spawned projectiles actually appear.
+
+### 32a. Hitsplat colour + number were swapped — wire byte order — ✅
+
+**Symptom.** Server-spawned hitsplats rendered with the wrong colour *and* the
+wrong number (e.g. a `5`-damage red hit drew a `1`-value blue splat).
+
+**Root cause.** Client-TS reads the two hitmark bytes **damage first, then
+damageType**, in *all four* cases — player `HITMARK 0x10` (`Client.ts:8126-8127`),
+player `HITMARK2 0x400` (`8215-8216`), npc `HITMARK 0x10` (`8446-8447`), npc
+`HITMARK2 0x1`/`HITMARK2` (`8392-8393`) — then `addHitmark(loopCycle,
+damageType, damage)`. torirs matched this for the `DAMAGE2` masks but the
+`DAMAGE` (`0x10`) handlers read **`damage_type` then `damage`** —
+`pkt_player_info.c:298-299` and `pkt_npc_info.c:237-238`. Both fields are `g1`,
+so byte *consumption* stayed aligned (no desync), but the two values were
+transposed: the sprite index (`damage_types[i]` → `hitmarks[type]`, the colour)
+got the damage value and the printed number got the type. That is exactly "wrong
+colour + wrong number." The debug hotkey **6** path
+(`World_*AddHitmark(damage%2, damage, ...)`) never exercised the wire decode, so
+the §12/§19/§26/§29c draw-path audits — all correct — never caught it.
+
+**Fix.** Both `DAMAGE` handlers now read `damage` then `damage_type`, matching
+Client-TS. `make -C src test-entity-decode` still green; `make -C src torirs`
+clean. (The `DAMAGE2` handlers were already correct and unchanged.)
+
+### 32b. Server projectiles: MAP_PROJANIM was a no-op — now wired — ✅
+
+**Client-TS.** `MAP_PROJANIM` (`Client.ts:7495-7516`) reads a base tile + `dx/dz`
+offset, `targetEntity` (`g2b`), `spotanim` (`g2`), `h1`/`h2` (`g1 * 4`),
+`t1`/`t2` (`g2`), `angle`/`startpos` (`g1`), then
+`new ClientProj(spotanim, level, x, getAvH(x,z)-h1, z, t1+loop, t2+loop, angle,
+startpos, targetEntity, h2)` + `setTarget(x2, getAvH(x2,z2)-h2, z2, t1+loop)`.
+Per world-update `updateProjectiles` (`4594-4622`) re-targets to the live entity
+position when `target != 0` and calls `proj.move`; the model is the spotanim's
+seq-animated / recoloured / resized / lit `getTempModel` (see §29b/§31).
+
+**torirs — was.** `RS_GameProto_Exec`'s zone-sub-packet handler
+(`src/game/rs_gameproto_exec.c`) left `PKT_NAME_MAP_PROJANIM` as a "state-only /
+visual pending" no-op — the packet decoded (`read_map_projanim`,
+`gameproto_parse.c:104`, into `struct PktMapProjAnim`) but nothing spawned. So
+**no server projectile ever rendered**, even though all the machinery existed:
+the arc math (`World_ProjectileSpawn`/`SetTarget`/`Move`, §29b), the seq-bind
+(`app_world_apply_seq`), and the §31 SpotAnimType decode +
+`app_world_build_spotanim_model` (recol/resize/angle/ambient·contrast).
+
+**torirs — now.** New public `App_WorldProjectileSpawn` (`src/app.c`, declared in
+`app.h`) mirrors `App_WorldSpotanimSpawn`: it enqueues a `Task_AppSpawn` of new
+kind `APP_SPAWN_PROJECTILE_SPOT` that awaits the spotanim config + its model +
+its seq (identical await chain to `APP_SPAWN_SPOTANIM`), then
+`app_world_spawn_projectile_spot_now` builds the transformed spotanim model,
+creates the scene element at the source tile, `World_ProjectileSpawn`s with the
+wire trajectory params (`src_y = getAvH(src) - src_height*4`; `end_height =
+dst_height*4`; `angle = peak`, `startpos = arc`), and binds `spot->seq` so the
+model animates in flight (non-external → `app_world_tick_animations` steps it).
+The exec handler resolves the base tile via `zone_tile`, offsets the destination
+by `dx/dz`, and calls it. Reuses the exact spotanim load+build path that hotkey
+**5** (`MAP_ANIM`) already exercises + the projectile arc/seq path hotkey **0**
+verified, so the composition is low-risk. Build clean; `test-entity-decode` green.
+
+**Note on the struct field names.** `PktMapProjAnim.peak`/`.arc` are Client-TS's
+`angle`/`startpos` respectively (the 9th/10th `g1` reads) — the decode order in
+`read_map_projanim` is correct, only the names are idiosyncratic.
+
+**Follow-on — live target tracking.** Client-TS retargets a projectile to its
+`target` entity's *current* position every world-update (`4598-4617`), so a
+projectile homes on a moving player/NPC. torirs spawns to the **fixed
+destination tile** (the target's position at cast time) and stores `target` but
+does not retarget: `WorldEntity_Projectile` has no target field, and the wire
+`target` is a *slot* index (`npc[target-1]` / `players[-target-1]`) that needs
+the esync slot→pool mapping (`RS_EntitySync_FindNpc/FindPlayer`) plumbed into the
+per-cycle `World_CycleUpdateProjectiles`. For the common short (~1-2 tick) flight
+this is visually correct; homing on fast movers is the remaining refinement.
+This supersedes §29b's "MAP_PROJANIM is still not wired" note.
+
+## 33. Animations that hide/replace held items — `replaceheldleft/right` — ✅
+
+**Task.** Some animations hide the held items (many emotes drop the weapon and
+shield; some skilling/climbing seqs swap or remove a hand item). Find how
+Client-TS decides when a held item is hidden and port it to torirs.
+
+**Client-TS.** The mechanism is `SeqType.replaceheldleft` / `replaceheldright`
+(`src/config/SeqType.ts`, decode opcodes **6** and **7**, `65535 → -1`, default
+`-1`). They are consumed only in `ClientPlayer.getSequencedModel`
+(`src/dash3d/ClientPlayer.ts:436-516`): when the **primary** anim is playing and
+undelayed (`primaryAnim >= 0 && primaryAnimDelay === 0`), a `replaceheldright >=
+0` overrides appearance **slot 3** (right hand / weapon) and `replaceheldleft >=
+0` overrides **slot 5** (left hand / shield) *before* the 12-slot model is
+composited. The override value lives in the same encoded slot space as the worn
+appearance (`>= 0x200` → obj wear-model, `0x100..0x1FF` → idk, anything below →
+**no model, i.e. the item is hidden**). This is a **player-only** concept — NPCs
+render their `NpcType` models directly and have no worn slots. The result is a
+*different* composited model than the base appearance, keyed into
+`ClientPlayer.modelCache` by a hash that folds in the held deltas, so it is
+rebuilt only when the held state actually changes.
+
+**torirs — was.** `ToriRS_Sequence` already carried `replaceheldleft/right`
+(decoded by `dat1_config_seq.c` opcodes 6/7, default -1), but nothing consumed
+them: `PlayerModel_BuildFromAppearance` (`entity_model_build.c`) composited the
+raw 12 appearance slots, and the model was built **once** from the appearance
+packet (`App_WorldApplyPlayerAppearance`) and cached on the scene element with
+per-frame skeletal transforms applied on top. So a weapon-hiding emote left the
+weapon in the player's hand.
+
+**torirs — now.** Ported the reference's per-frame held-swap into the seam that
+already mirrors `getSequencedModel`'s selection — `app_world_sync_entity_animations`'s
+player loop (`src/app.c`):
+
+- **Plumbing.** `ToriDraw_Animation` + `ToriDraw_AnimSeqMeta` gained
+  `replaceheldleft/right` (`3rd/toridraw/toridraw_animation.{h,c}`); the two
+  RSCache constructors seed them to **-1** after `calloc` (a zeroed 0 would mean
+  "hide", the wrong default) and the dat1 seq loader
+  (`task_dat1_sequence_load.c`) copies `seq->replaceheldleft/right` into the meta
+  it attaches. (The dat2 seq loader attaches **no** seq meta at all — a
+  pre-existing gap — so held-swaps are dat1-only for now; documented, left as-is
+  because a partial meta would zero `priority`/`duplicate_behavior` on that
+  path. dat1 is the default boot.)
+- **Apply.** New `app_world_apply_player_held_items(app, player)`: when the
+  player's **primary** anim is active and `delay == 0`, it reads the loaded
+  animation's `replaceheldleft/right` (guarded on `frame_count > 0` to skip empty
+  "unavailable" sentinels), computes the desired left/right override, and — only
+  when it differs from the last-applied pair tracked on the entity
+  (`WorldEntity_Player.held_left_applied/held_right_applied`, init -1, reset to -1
+  whenever a fresh appearance packet lands) — rebuilds via the refactored
+  `app_set_player_element_model` with `slots[3]=right`, `slots[5]=left` overridden.
+  `SceneElementSetModel` disposes the old model and **preserves** the element's
+  animation binding, so the in-flight seq keeps driving the rebuilt model.
+- **Cost.** The rebuild fires only on the held-state *edge* (anim start / stop /
+  swap), matching the reference's model-cache miss — the common frame is a
+  hashmap lookup plus two int compares.
+
+**Slot mapping** matches the reference exactly (right hand → slot 3, left hand →
+slot 5; the hash in `getSequencedModel` folds `appearance[3]`/`appearance[5]`).
+Build clean; `make -C src test-walkmerge` green (incl. "seq meta copy"); offline
+smoke boot renders without regression. Because the override reuses the same
+`PlayerModel_BuildFromAppearance` encoding (`>= 0x200` obj, `0x100..0x1FF` idk,
+below → hidden), a value below the obj range naturally hides the hand, which is
+how emotes drop the weapon/shield.
+
+---
+
+## 34. Tab switch killed inventory hover / click / right-click — inactive sidebar tab blocked the active one — ✅
+
+**Symptom.** After switching sidebar tabs (into the inventory, or away and back),
+inventory items stayed *drawn* but went dead: no top-left hover text, no
+right-click options (only "Cancel"), and left-clicks did nothing. Classic
+"stale/broken tree" feel.
+
+**Root cause — a walker-ordering divergence from the emit walk, not a stale
+tree.** Sidebar tabs are fully-overlapping sibling containers; only the selected
+one is visible. The **emit** walk (`uitree_emit.c:1517`) gates an inactive tab
+**first** — early `return` right after the hide check, before it touches bounds
+or any blocking state. The two **hit-test** walkers gated the tab visibility only
+on *recursion*, **after** already recording the tab's `no_click_through`
+contribution:
+
+- `hit_test_interactive_recursive` (`uitree_input.c`): `blocks = point_in_self &&
+  no_click_through` ran (old line ~200) before the tab gate (which only set
+  `recurse_children`). An inactive tab covering the point therefore returned
+  `blocks = 1`, and the root loop (`UITree_HitTestInteractive:501`) lets a later
+  `no_click_through` root *discard* hits from roots underneath it — wiping the
+  active tab's inventory hit → `out.clicked_com_id` never reached the slot.
+- `collect_nodes_recursive` (`uitree_input.c`, the right-click / hover-text /
+  inventory-menu source): the `no_click_through` **barrier** (`ctx->barrier =
+  ctx->count`) ran before the tab gate. An inactive tab raised the barrier
+  *after* the active tab's `RS_INV` was collected, and the final slice
+  (`[barrier, count)`) dropped it → `UITree_CollectNodesAt` returned nothing →
+  `RS_Minimenu_Build` produced no rows → no hover text (`app_hover_text_update`),
+  "Cancel"-only right-click.
+
+Whichever tab is active changes whether a *blocking* inactive tab is walked after
+it, which is why the break is tab-switch-dependent. `find_hovered_recursive`
+(`uitree_hover.c`) had the milder version of the same shape — an inactive tab
+could self-report via `over_layer_id`/`over_color`/hover-hooks before its gate.
+
+**Why it was latent until now.** `no_click_through` is only ever set by the CS2
+host (`rs_cs2_host.c`) or a clone/bake copy — **never** on the dat1/RevConfig
+component decode. So on a pure dat1 boot the barrier never fires; the defect goes
+live on the **dat2/CS2 gameframe**, where script-driven tab/sidebar containers
+carry `no_click_through`. The ordering hazard exists either way.
+
+**Fix (`uitree_input.c` ×2, `uitree_hover.c`).** Hoist the inactive-sidebar gate
+to the **top** of each walker — right after the hide check, before any
+bounds/blocking/self-report — exactly mirroring `uitree_emit.c:1517`. An inactive
+tab now contributes nothing: no self-hit, no `blocks`/`barrier`, no recursion.
+The now-redundant recursion-time gates were removed. Rendering was always
+correct; only the two collect/hit walkers diverged.
+
+**Reference cross-check.** Client-TS never has this class of bug because it does
+not keep every tab mounted as an overlapping sibling — `IfType` sidebar/tab
+components are drawn and hit-tested from the single active interface, so an
+unselected tab's components are simply not in the walked set. torirs keeps all
+tabs mounted and prunes by the selected-tab host query, so the prune must happen
+uniformly across *all* tree walks (emit, hit-test, collect, hover) — which is now
+the case.
+
+**Verified.** New regression in `uitree_test_hover.c`: an active tab (tabno 1)
+with a collectable item + an inactive tab (tabno 2, `no_click_through`, pushed
+later over the same box); asserts `UITree_HitTestInteractive` and
+`UITree_CollectNodesAt` both still return the active item. Confirmed the test
+**fails** with the gate reverted and **passes** with the fix. `make -C src
+test-uitree` green; `make -C src torirs` clean.
