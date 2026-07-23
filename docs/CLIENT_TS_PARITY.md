@@ -2868,21 +2868,28 @@ routes through the wrapper, so the cancel is uniform. Under `useMode` the world
 menu already suppresses "Walk here" (§16), so clicking bare ground falls to the
 Cancel row and the tail clears — matching the reference.
 
-**Second gap — a left click that never reaches `doAction`.** The wrapper only
-fires when a menu row actually runs, and torirs only runs the default row for a
-click that hits an interactive component (`clicked_com_id >= 0`) or the world
-viewport (`left_click_miss` + world gate). A left click on **empty, non-world
-space — an inventory gap, the sidebar chrome, the chat area** — hits neither
-(RS_INV is pass-through, §21.4; the sidebar background has no component), so no
-`doAction` path runs and the selection persisted. The reference still runs
-`doAction(menuNumEntries - 1)` there on a Cancel-only menu and the tail clears;
-torirs's `RS_Minimenu_DefaultOptionIndex` returns `-1` for a Cancel-only menu, so
-no row runs to clear it. Fixed with a dedicated cancel in `App_RunOnce`
-(`src/app.c`), right after the world-miss block: on `left_click_miss` that is
-**not** consumed by the world block (same gate, negated) and not a filled slot
-(the drag machine owns those), a live `objsel`/`targetsel` is cleared with a
-redraw. Gated on `minimenu_select < 0` so arming a "Use" via the right-click menu
-(same frame) is never self-cancelled.
+**Second gap — a left click whose menu has no default row.** The wrapper only
+fires when a menu row actually runs, and a click on the inventory panel produces
+a Cancel-only menu whose default row is `-1`, so nothing ran. Traced with a
+headless repro (`TORIRS_SIM_MOUSE_CLICK` + a one-shot `objsel` arm): a left click
+at the backpack area reports **`clicked_com_id = 0xc8d` (an interactive inventory
+container), not `left_click_miss`** — the general click path resolves through
+`UITree_HitTestInteractive`, and although RS_INV itself is pass-through (§21.4)
+the click lands on its containing component. So it enters the `clicked_com_id >= 0`
+default-row block (`App_RunOnce`, `src/app.c`), builds a scratch menu over an
+empty slot (no obj → no "Use with" row → Cancel-only), and
+`RS_Minimenu_DefaultOptionIndex` returns `-1`; the block did nothing and the
+selection persisted. The reference still runs `doAction` on that Cancel row and
+its tail (`Client.ts:9506`) clears. Fixed by adding the reference tail to the
+`default_idx < 0` path: an `else if( objsel.active || targetsel.active )` in that
+block clears the selection and redraws — clicking any component that offers no
+menu action (empty slot, sidebar chrome) cancels. A second dedicated cancel
+covers the genuine `left_click_miss` case (a click that resolves to no component
+at all and isn't in the drawable world), so both click classifications drop the
+outline. Both are gated on `minimenu_select < 0` and `inv_drag_com_id < 0` so
+arming a "Use" (same frame, via the menu) and the filled-slot drag machine are
+never disturbed. Verified end to end: pre-click `objsel=1` → post-click
+`objsel=0` on the `0xc8d` inventory click.
 
 Not ported (deliberate): re-rastering every frame (torirs caches — the outline is
 static per obj/count), and the `useMode` translucent `selectedArea` variant

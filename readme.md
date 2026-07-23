@@ -614,9 +614,9 @@ For GL Models, it is done out of line with rendering, and each model gets the sc
 
 ### Interface Layer Clipping — per-surface, not compounded
 
-A UI container that clips its children (`RS_LAYER`, sidebar, chat, inv) restricts them to **its own bounds ∩ the enclosing draw *surface*** — it is **not** intersected with intermediate ancestor layers. This matches the reference `drawInterface`, whose `Pix2D.setClipping` **overwrites** the clip and clamps only to the physical surface PixMap (chatback `479×96`, sidebar `190×261`), so a wide inner widget nested in a narrower ancestor still draws to the surface edge.
+A UI container that clips its children (`RS_LAYER`, sidebar, chat, inv) restricts them to **its own bounds ∩ the enclosing draw _surface_** — it is **not** intersected with intermediate ancestor layers. This matches the reference `drawInterface`, whose `Pix2D.setClipping` **overwrites** the clip and clamps only to the physical surface PixMap (chatback `479×96`, sidebar `190×261`), so a wide inner widget nested in a narrower ancestor still draws to the surface edge.
 
-**This is deliberately different from the earlier torirs behavior**, which *compounded* — it intersected every layer's box with the cumulative ancestor clip, cutting overflowing widgets (the visible symptom was a chat-dialogue chathead clipped even though the chatback is 479 wide). The rule is behaviour-preserving for the normal case (a child within its parent, `own ∩ surface == own ∩ parent`) and a layer's own box still bounds its children, so scroll viewports are unchanged; only genuine overflow now renders to the surface edge.
+**This is deliberately different from the earlier torirs behavior**, which _compounded_ — it intersected every layer's box with the cumulative ancestor clip, cutting overflowing widgets (the visible symptom was a chat-dialogue chathead clipped even though the chatback is 479 wide). The rule is behaviour-preserving for the normal case (a child within its parent, `own ∩ surface == own ∩ parent`) and a layer's own box still bounds its children, so scroll viewports are unchanged; only genuine overflow now renders to the surface edge.
 
 The rule lives in **one** helper, `UITree_LayerChildClip` (`src/ui/uitree_scroll.c`), shared by all four tree walks — emit/render (`uitree_emit.c`), hit-test + menu-collect (`uitree_input.c`), hover (`uitree_hover.c`), and drag drop-target (`uitree.c`) — so drawn pixels, click areas, and hover areas agree by construction (implemented once, no drift). Full detail: [`src/ui/README.md` → Interface layer clipping](src/ui/README.md) and [docs/CLIENT_TS_PARITY.md §18](docs/CLIENT_TS_PARITY.md).
 
@@ -2367,52 +2367,12 @@ Task_AsyncCache_ObjectModelLoad(on_load: (void* user, struct ToriAuxLibCache_Mod
 
 Task_InterfaceX_Main()
 
-# Plans
-
-1. World Rendering, compass and minimap.
-2. Test Dat1
-3. Sounds?
-4. Minimenu, keyboard input
-
-Prompt minimenu:
-In src/main, you need to implement mouse clicking, and the minimenu selection.
-Look to v0 and v1 for inspiration on how to implement the minimenu.
-The source of truth for the minimenu implementation is here: /Users/matthewevers/Documents/git_repos/xrsps-typescript.
-
-You will need to identify the mouse click sprites, be able to animate it and show it in the UI Tree. You will need to identify how to draw the minimenu, populate it's entries, sort it's entries and the show it in the UI Tree.
-
-Look at the reference for what determines a "red" click vs a "yellow" click.
-
-Additionally, for any elements in the UI Tree that have options, you will need to thread the options through from the object config and other interface configs.
-
-Prompt keyboard:
-Some UI Tree nodes still need to accept keyboard input. You need to plumb through keyboard input events to the UI Tree and manage the state of components that accept keyboard input. The source of truth for the implementation is here: /Users/matthewevers/Documents/git_repos/xrsps-typescript.
-
-Make sure all keyboard behavior is decoded from the cache, and that any builtin keyboard behavior from the reference implementation is implemented.
-
-Prompt World:
-Port the world rendering from v0,v1 to src/main.
-The source of truth for the implementation is here but keep in mind it is quite different: /Users/matthewevers/Documents/git_repos/xrsps-typescript.
-
-Critical: All cache, network, and file IO must be done through a task system. There is already a plumbed through test for the world builder.
-You will have to make use of the task system heavily.
-
-The World itself is a pure simulation engine and only references assets and other things via integer ids. Use the world builder to keep the world state in sync with the scene and other subsystems.
-
-Like v0 and v1, plumb the keyboard into manipulating the world camera, and like v1, provide hotkeys to test loading and adding elements to the world and scene.
-
-You must also implement the mouse hittesting for the world efficiently.
-Only hittest the world if the mouse is over the world element, additionally you must use that hittest to populate the world pickset, which will be used to populate minimenu options. Refer to the reference for how that hittest should work.
-
-You must include hotkeys for:
-
-1. Adding a default player model on the tile that the mouse is hovering
-2. Adding an npc model on the tile that the mouse is hovering
-3. Launching a projectile between two tiles.
-
 ## Running against a LostCity server
 
-Build with `make -C src torirs` (target binary: `src/torirs`). With a LostCity_Server
+Build with `make -C src torirs` (target binary: `src/torirs`), or `make -C src release`
+for an optimized `-O2` build (objects in `src/build_opt/`; both flavors link the same
+`src/torirs`, and switching flavors relinks automatically). The client caps at 50 fps
+by default; pass `--uncapped` to free-run (profiling/benchmarks). With a LostCity_Server
 (Engine-TS rev 254) running locally — game port 43594, web/CRC on port 80 — run from
 the repo root:
 
@@ -2456,3 +2416,7 @@ src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
 
 - `TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y]"` injects mouse clicks at
   given main-loop frames for headless interaction testing.
+
+# Slop to cleanup
+
+1. Minimenu actions appeared in the RevConfig?

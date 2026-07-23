@@ -1,0 +1,133 @@
+build_opt/torirs_model_from_rscache.o: engine/torirs_model_from_rscache.c \
+  /Users/matthewevers/Documents/git_repos/3draster/src/engine/torirs_model_from_rscache.h \
+  /Users/matthewevers/Documents/git_repos/3draster/src/engine/torirs_types.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include/rscache.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/rsbuffer.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/archive.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/reference_table.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/xtea_config.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/dat2disk.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/dat1disk.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/filelist.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/model.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_component.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/../dat2disk.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/../filelist.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/mapsquares.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/noise.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/maps.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/cs2_script.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/cs2_opcode_decode.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/clientscript.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_configs.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_config_obj.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_config_idk.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_config_npc.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/../rsbuffer.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_config_spotanim.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_spotanim.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_obj.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_idk.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_npc.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_loc.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_flo.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_texture.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_sprites.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_enum.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_struct.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_param.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_mapelement.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_worldmap.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_framemap.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_frame.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_sequence.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_animaya.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_anim_frame.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_config_seq.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_pix8.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_pix32.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_pix_font.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_config_component.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_animation.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_hsl16.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/graphics/shared_tables.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_light_model.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_types.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/graphics/projection.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_intrusive_list.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_lighting.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_map.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_math.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_model.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_model_sprite.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_model_transform.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_scene.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_sprite.h \
+  /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_vec.h
+/Users/matthewevers/Documents/git_repos/3draster/src/engine/torirs_model_from_rscache.h:
+/Users/matthewevers/Documents/git_repos/3draster/src/engine/torirs_types.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include/rscache.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/rsbuffer.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/archive.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/reference_table.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/xtea_config.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/dat2disk.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/dat1disk.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/filelist.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/model.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_component.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/../dat2disk.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/../filelist.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/mapsquares.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/noise.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/maps.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/cs2_script.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/cs2_opcode_decode.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/clientscript.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_configs.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_config_obj.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_config_idk.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_config_npc.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/../rsbuffer.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_config_spotanim.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_spotanim.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_obj.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_idk.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_npc.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_loc.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_flo.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_texture.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_sprites.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_enum.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_struct.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_param.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_mapelement.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_worldmap.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_framemap.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_frame.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_config_sequence.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat2_animaya.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_anim_frame.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_config_seq.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_pix8.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_pix32.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_pix_font.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src/datatypes/dat1_config_component.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_animation.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_hsl16.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/graphics/shared_tables.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_light_model.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_types.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/graphics/projection.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_intrusive_list.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_lighting.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_map.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_math.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_model.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_model_sprite.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_model_transform.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_scene.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_sprite.h:
+/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_vec.h:

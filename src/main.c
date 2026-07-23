@@ -260,6 +260,7 @@ main(
     static struct App app;
     static char derived_cache_ini[512];
     int write_bmp = 0;
+    int uncapped = 0;
     int positional = 0;
     int argi;
 
@@ -310,6 +311,11 @@ main(
             cfg.rev_name = argv[++argi];
             continue;
         }
+        if( strcmp(argv[argi], "--uncapped") == 0 )
+        {
+            uncapped = 1;
+            continue;
+        }
         if( positional == 0 && argv[argi][0] != '-' )
         {
             cfg.cache_dir = argv[argi];
@@ -331,7 +337,8 @@ main(
             stderr,
             "usage: %s [cache_dir] [interface_id] [--dat1|--dat2] "
             "[--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] [--bmp] "
-            "[--connect host[:port]] [--user U] [--pass P] [--rev lc254|lc245_2]\n",
+            "[--connect host[:port]] [--user U] [--pass P] [--rev lc254|lc245_2] "
+            "[--uncapped]\n",
             argv[0]);
         return 1;
     }
@@ -1194,7 +1201,18 @@ main(
             update_window_title(sdl, &app, cfg.interface_id);
             PlatformSDL2_Present(sdl);
             if( !replay )
-                PlatformSDL2_Delay(1);
+            {
+                if( uncapped )
+                    PlatformSDL2_Delay(1);
+                else
+                {
+                    /* 50 fps cap: one frame per 20ms client cycle (--uncapped
+                     * frees the loop for profiling/benchmarks). */
+                    uint64_t elapsed = PlatformSDL2_Ticks64() - now;
+                    if( elapsed < 20 )
+                        PlatformSDL2_Delay((uint32_t)(20 - elapsed));
+                }
+            }
         }
 
         /* TORIRS_EXIT_BMP=path: dump the final frame on exit (live-server

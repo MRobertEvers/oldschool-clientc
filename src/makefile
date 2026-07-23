@@ -1,7 +1,17 @@
 # From repo root: make -C src
+# Optimized build: make -C src release (or make -C src OPT=1 <target>).
+# Objects go to build_opt/ so debug and optimized objects never mix; both
+# flavors link the same ./torirs, whichever was built last.
 
 CC ?= cc
+OPT ?= 0
+ifeq ($(OPT),1)
+OBJ_DIR = build_opt
+O_LEVEL = -O3
+else
 OBJ_DIR = build
+O_LEVEL = -O0
+endif
 TARGET = torirs
 
 REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
@@ -11,11 +21,11 @@ TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
 BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
 
-CFLAGS = -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP \
+CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(BMP_DIR) -I$(HMAP_DIR)
 
-RSCACHE_CFLAGS = -std=c11 -O0 -fno-omit-frame-pointer -g -MMD -MP \
+RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(RSCACHE_DIR)/include \
 	-I$(RSCACHE_DIR)/src \
 	-I$(RSCACHE_DIR) \
@@ -28,7 +38,7 @@ COMPRESS_CFLAGS = -std=c11 -O3 -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas
 
-TORIDRAW_CFLAGS = -std=c11 -O0 -fno-omit-frame-pointer -g -MMD -MP \
+TORIDRAW_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(TORIDRAW_DIR) \
 	-I$(BMP_DIR)
 
@@ -167,15 +177,26 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: all clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order world-builder
+.PHONY: all release clean run test-varp test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order world-builder
 
 all: $(OBJ_DIR) $(TARGET)
+
+release:
+	$(MAKE) OPT=1 all
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
+# Debug and release share ./torirs; .last_flavor records which flavor linked
+# it so switching flavors forces a relink even when all objects are current.
+ifneq ($(shell cat .last_flavor 2>/dev/null),$(OBJ_DIR))
+$(TARGET): FORCE
+FORCE:
+endif
+
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS)
+	@echo $(OBJ_DIR) > .last_flavor
 
 define make-goal
 $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
@@ -427,7 +448,7 @@ test-revconfig: $(OBJ_DIR)
 	./$(OBJ_DIR)/revconfig_test
 
 clean:
-	rm -rf $(OBJ_DIR) $(TARGET)
+	rm -rf build build_opt $(TARGET) .last_flavor
 
 # Header dependency tracking: -MMD writes a .d next to each .o; include them so
 # editing a header rebuilds every object that includes it (stale objects read
